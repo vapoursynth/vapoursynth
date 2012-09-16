@@ -1,0 +1,53 @@
+known issues:
+may deadlock with some avisynth plugins (set the number of threads, VSCore(threads=4))
+
+r8:
+portability fixes for linux
+minor api additions to make filters that consume 20+ input frames/scan a whole clip feasible
+added cpu state checks after filter calls
+added a function type, plugins may now take a python function and evaluate it for every frame
+implemented the final planned standard functions (transpose, croprel, clipselect, modifyprops)
+fixed the huge memory leak in cropabs
+other small fixes
+
+r7:
+includes the source for all of the std functions and the header needed to write plugins (more source coming soon)
+unnamed arguments are now accepted
+y4m headers now specify the colorspace for all yuv formats and gives an error when used with non-yuv
+added a new B tag to y4m output that specifies the number of bits per sample (B8/B10/B16)
+more minor fixes
+
+r6:
+now drops all crop calls to env->invoke(), fixes dgdecode compatibility but you have to crop yourself now
+all 64bit issues fixed
+added several checks to prevent the compat formats from being used by new filters
+minor fixes and extra checks for everything
+
+r5:
+more python output fixes
+added accept_lowercase as a setting for the core constructor
+python module refinement, now all objects have a string representation with more information
+other minor fixes
+
+r4:
+fixed the bad frame output from the python module
+added a callback to the output function so progress can be reported
+ported ffms2
+raw frame data can be accessed from python
+
+r3:
+fixes even more threading and performance issues
+adds special support for yuy2 and rgb32 so most avisynth filters should work
+added hacks to make mvtools2 work
+
+r2:
+fixes a large number of threading issues
+removed the stupid clip.vi.width thing in python, now it's simply clip.width
+fixed the frame reordering in the python bindings, now frames pop out in the expected order
+
+r1:
+buggy first version
+
+
+
+
