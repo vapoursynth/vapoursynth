@@ -15,6 +15,6 @@
 #  You should have received a copy of the GNU General Public License
 #  along with VapourSynth.  If not, see <http://www.gnu.org/licenses/>.
 
-cdef extern from "windows.h":
+cdef extern from "windows.h" nogil:
     bint WriteFile(int hFile, void *lpBuffer, int nNumberOfBytesToWrite, int *lpNumberOfBytesWritten, void *lpOverlapped)
     bint FlushFileBuffers(int hFile)

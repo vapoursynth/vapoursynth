@@ -15,5 +15,5 @@
 #  You should have received a copy of the GNU General Public License
 #  along with VapourSynth.  If not, see <http://www.gnu.org/licenses/>.
 
-cdef extern from "libinclude.h":
+cdef extern from "libinclude.h" nogil:
     pass
