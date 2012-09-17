@@ -15,14 +15,19 @@
 #  You should have received a copy of the GNU General Public License
 #  along with VapourSynth.  If not, see <http://www.gnu.org/licenses/>.
 
+#ifdef _WIN32
 cimport windows
 cimport libinclude
+#else
+cimport posix.unistd
+#endif
 cimport vapoursynth
 cimport cython.parallel
-from libc.stdlib cimport malloc, free
 from cpython.ref cimport Py_INCREF, Py_DECREF
 import ctypes
+#ifdef _WIN32
 import msvcrt
+#endif
 import threading
 
 GRAY  = vapoursynth.cmGray
@@ -166,7 +171,12 @@ cdef void __stdcall callback(void *data, VSFrameRef *f, int n, VSNodeRef *node, 
 
         while d.output in d.reorder:
             frame_obj = <VideoFrame>d.reorder[d.output]
+#ifdef _WIN32
             windows.WriteFile(d.handle, header, 6, &dummy, NULL)
+#else
+            posix.unistd.write(d.handle, header, 6)
+#endif
+            
             p = 0
             fi = d.funcs.getFrameFormat(frame_obj.f)
 
@@ -178,8 +188,11 @@ cdef void __stdcall callback(void *data, VSFrameRef *f, int n, VSNodeRef *node, 
                 y = 0
 
                 while y < height:
-
+#ifdef _WIN32
                     if not windows.WriteFile(d.handle, readptr, row_size, &dummy, NULL):
+#else
+                    if not posix.unistd.write(d.handle, readptr, row_size):
+#endif
                         d.total = d.requested
                         d.error = 'WriteFile() call returned false'
 
@@ -190,7 +203,9 @@ cdef void __stdcall callback(void *data, VSFrameRef *f, int n, VSNodeRef *node, 
 
             del d.reorder[d.output]
             d.output = d.output + 1
+#ifdef _WIN32
             windows.FlushFileBuffers(d.handle)
+#endif
 
         d.completed = d.completed + 1
 
@@ -415,8 +430,11 @@ cdef class VideoNode(object):
             return createVideoFrame(f, self.funcs, self.core) 
 
     def output(self, object fileobj not None, bint y4m = False, int lookahead = 10, object progress_update = None):
+#ifdef _WIN32
         cdef CallbackData d = CallbackData(msvcrt.get_osfhandle(fileobj.fileno()), min(lookahead, self.num_frames), self.num_frames, self.format.num_planes, y4m, self, progress_update)
-
+#else
+        cdef CallbackData d = CallbackData(fileobj.fileno(), min(lookahead, self.num_frames), self.num_frames, self.format.num_planes, y4m, self, progress_update)
+#endif
         if d.total <= 0:
             raise Error('Cannot output unknown length clip')
 
@@ -452,7 +470,11 @@ cdef class VideoNode(object):
         cdef str header = 'YUV4MPEG2 ' + y4mformat + numbits + 'W' + str(self.width) + ' H' + str(self.height) + ' F' + str(self.fps_num) + ':' + str(self.fps_den) + ' Ip A0:0\n'
         cdef bytes b = header.encode('utf-8')
         cdef int dummy = 0
+#ifdef _WIN32
         windows.WriteFile(d.handle, <char*>b, len(b), &dummy, NULL)
+#else
+        posix.unistd.write(d.handle, <char*>b, len(b))
+#endif
         d.condition.acquire()
 
         for n in range(min(lookahead, d.total)):
