@@ -237,13 +237,9 @@ void VSNode::getFrame(const PFrameContext &ct) {
 
 PVideoFrame VSNode::getFrameInternal(int n, int activationReason, PFrameContext &frameCtx) {
     const VSFrameRef *r = filterGetFrame(n, activationReason, &instanceData, &frameCtx->frameContext, (VSFrameContext *)&frameCtx, core, &vsapi);
-#if defined(_WIN32) && !defined(_WIN64)
 
-    // fixme, add checks for cpu state
-    if (!isFPUStateOk() || !isMMXStateOk())
+    if (!vs_isFPUStateOk() || !vs_isMMXStateOk())
         qFatal("Bad fpu/mmx state detected after return from filter");
-
-#endif
 
     if (r) {
         PVideoFrame p(r->frame);

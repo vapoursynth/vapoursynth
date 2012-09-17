@@ -15,5 +15,5 @@
 //  You should have received a copy of the GNU General Public License
 //  along with VapourSynth.  If not, see <http://www.gnu.org/licenses/>.
 
-bool isFPUStateOk();
-bool isMMXStateOk();
+extern "C" int vs_isFPUStateOk();
+extern "C" int vs_isMMXStateOk();
