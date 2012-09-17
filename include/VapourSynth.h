@@ -204,7 +204,7 @@ typedef const char *(VS_CC *VSPropGetKey)(const VSMap *map, int index);
 typedef int (VS_CC *VSPropNumElements)(const VSMap *map, const char *key);
 typedef char(VS_CC *VSPropGetType)(const VSMap *map, const char *key);
 
-typedef VSMap *(VS_CC *VSNewMap)();
+typedef VSMap *(VS_CC *VSNewMap)(void);
 typedef void (VS_CC *VSFreeMap)(VSMap *map);
 typedef void (VS_CC *VSClearMap)(VSMap *map);
 
@@ -232,7 +232,7 @@ typedef VSMap *(VS_CC *VSGetPlugins)(VSCore *core);
 typedef VSMap *(VS_CC *VSGetFunctions)(VSPlugin *plugin);
 
 // fixme, move this stuff around before the API is final
-typedef const VSVersion *(VS_CC *VSGetVersion)();
+typedef const VSVersion *(VS_CC *VSGetVersion)(void);
 
 typedef VSFuncRef *(VS_CC *VSPropGetFunc)(const VSMap *map, const char *key, int index, int *error);
 typedef int (VS_CC *VSPropSetFunc)(VSMap *map, const char *key, VSFuncRef *func, int append);
