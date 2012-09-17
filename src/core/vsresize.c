@@ -33,34 +33,57 @@ static int isConstantFormat(const VSVideoInfo *vi) {
 
 static enum PixelFormat formatIdToPixelFormat(int id, VSCore *core, const VSAPI *vsapi) {
     switch (id) {
-    case pfGray8: return PIX_FMT_GRAY8;
-    case pfGray16: return PIX_FMT_GRAY16;
-    case pfYUV420P8: return PIX_FMT_YUV420P;
-    case pfYUV422P8: return PIX_FMT_YUV422P;
-    case pfYUV444P8: return PIX_FMT_YUV444P;
-    case pfYUV410P8: return PIX_FMT_YUV410P;
-    case pfYUV411P8: return PIX_FMT_YUV411P;
-    case pfYUV440P8: return PIX_FMT_YUV440P;
+    case pfGray8:
+        return PIX_FMT_GRAY8;
+    case pfGray16:
+        return PIX_FMT_GRAY16;
+    case pfYUV420P8:
+        return PIX_FMT_YUV420P;
+    case pfYUV422P8:
+        return PIX_FMT_YUV422P;
+    case pfYUV444P8:
+        return PIX_FMT_YUV444P;
+    case pfYUV410P8:
+        return PIX_FMT_YUV410P;
+    case pfYUV411P8:
+        return PIX_FMT_YUV411P;
+    case pfYUV440P8:
+        return PIX_FMT_YUV440P;
 
-    case pfYUV420P9: return PIX_FMT_YUV420P9;
-    case pfYUV422P9: return PIX_FMT_YUV422P9;
-    case pfYUV444P9: return PIX_FMT_YUV444P9;
+    case pfYUV420P9:
+        return PIX_FMT_YUV420P9;
+    case pfYUV422P9:
+        return PIX_FMT_YUV422P9;
+    case pfYUV444P9:
+        return PIX_FMT_YUV444P9;
 
-    case pfYUV420P10: return PIX_FMT_YUV420P10;
-    case pfYUV422P10: return PIX_FMT_YUV422P10;
-    case pfYUV444P10: return PIX_FMT_YUV444P10;
+    case pfYUV420P10:
+        return PIX_FMT_YUV420P10;
+    case pfYUV422P10:
+        return PIX_FMT_YUV422P10;
+    case pfYUV444P10:
+        return PIX_FMT_YUV444P10;
 
-    case pfYUV420P16: return PIX_FMT_YUV420P16;
-    case pfYUV422P16: return PIX_FMT_YUV422P16;
-    case pfYUV444P16: return PIX_FMT_YUV444P16;
+    case pfYUV420P16:
+        return PIX_FMT_YUV420P16;
+    case pfYUV422P16:
+        return PIX_FMT_YUV422P16;
+    case pfYUV444P16:
+        return PIX_FMT_YUV444P16;
 
-    case pfRGB24: return PIX_FMT_GBRP;
-    case pfRGB27: return PIX_FMT_GBRP9;
-    case pfRGB30: return PIX_FMT_GBRP10;
-    case pfRGB48: return PIX_FMT_GBRP16;
+    case pfRGB24:
+        return PIX_FMT_GBRP;
+    case pfRGB27:
+        return PIX_FMT_GBRP9;
+    case pfRGB30:
+        return PIX_FMT_GBRP10;
+    case pfRGB48:
+        return PIX_FMT_GBRP16;
 
-	case pfCompatBGR32: return PIX_FMT_RGB32;
-	case pfCompatYUY2: return PIX_FMT_YUYV422;
+    case pfCompatBGR32:
+        return PIX_FMT_RGB32;
+    case pfCompatYUY2:
+        return PIX_FMT_YUYV422;
     default:
         return PIX_FMT_NONE;
     }
@@ -76,6 +99,7 @@ struct SwsContext *getSwsContext(int SrcW, int SrcH, enum PixelFormat SrcFormat,
     int DstRange = DstColorRange == AVCOL_RANGE_JPEG;
 
     Flags |= SWS_FULL_CHR_H_INT | SWS_FULL_CHR_H_INP;
+
     if (!Context) return 0;
 
     av_opt_set_int(Context, "sws_flags",  Flags, 0);
@@ -89,11 +113,11 @@ struct SwsContext *getSwsContext(int SrcW, int SrcH, enum PixelFormat SrcFormat,
     av_opt_set_int(Context, "dst_format", DstFormat, 0);
 
     sws_setColorspaceDetails(Context,
-        sws_getCoefficients(SrcColorSpace), SrcRange,
-        sws_getCoefficients(DstColorSpace), DstRange,
-        0, 1<<16, 1<<16);
+                             sws_getCoefficients(SrcColorSpace), SrcRange,
+                             sws_getCoefficients(DstColorSpace), DstRange,
+                             0, 1 << 16, 1 << 16);
 
-    if(sws_init_context(Context, 0, 0) < 0){
+    if (sws_init_context(Context, 0, 0) < 0) {
         sws_freeContext(Context);
         return 0;
     }
@@ -120,12 +144,13 @@ typedef struct {
 } ResizeData;
 
 static void VS_CC resizeInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    ResizeData *d = (ResizeData *)*instanceData;
+    ResizeData *d = (ResizeData *) * instanceData;
     vsapi->setVideoInfo(&d->vi, node);
 }
 
 static const VSFrameRef *VS_CC resizeGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    ResizeData *d = (ResizeData *)*instanceData;
+    ResizeData *d = (ResizeData *) * instanceData;
+
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
@@ -139,33 +164,38 @@ static const VSFrameRef *VS_CC resizeGetframe(int n, int activationReason, void 
         uint8_t *dstp[3];
         int src_stride[3];
         int dst_stride[3];
-		// swcale expect bgr plane order
-		int switchsrc = 0;
-		int switchdst = 0;
+        // swcale expect bgr plane order
+        int switchsrc = 0;
+        int switchdst = 0;
 
         if (!d->context || d->lsrcformat != fi || d->lsrch != w || d->lsrch != h) {
             int srcid = formatIdToPixelFormat(fi->id, core, vsapi);
+
             if (srcid == PIX_FMT_NONE) {
                 vsapi->setFilterError("Resize: input format not supported", frameCtx);
                 return 0;
             }
+
             if (d->context)
                 sws_freeContext(d->context);
+
             d->context = getSwsContext(
-                w, h, srcid, GetAssumedColorSpace(w, h), AVCOL_RANGE_UNSPECIFIED,
-                d->vi.width, d->vi.height, formatIdToPixelFormat(d->vi.format->id, core, vsapi), GetAssumedColorSpace(d->vi.width, d->vi.height), AVCOL_RANGE_UNSPECIFIED,
-                d->flags);
+                             w, h, srcid, GetAssumedColorSpace(w, h), AVCOL_RANGE_UNSPECIFIED,
+                             d->vi.width, d->vi.height, formatIdToPixelFormat(d->vi.format->id, core, vsapi), GetAssumedColorSpace(d->vi.width, d->vi.height), AVCOL_RANGE_UNSPECIFIED,
+                             d->flags);
+
             if (!d->context) {
                 vsapi->setFilterError("Resize: context creation failed", frameCtx);
                 return 0;
             }
+
             d->lsrcformat = fi;
             d->lsrcw = w;
             d->lsrch = h;
         }
 
-		switchsrc = fi->colorFamily == cmRGB;
-		switchdst = d->vi.format->colorFamily == cmRGB;
+        switchsrc = fi->colorFamily == cmRGB;
+        switchdst = d->vi.format->colorFamily == cmRGB;
 
         for (i = 0; i < d->vi.format->numPlanes; i++) {
             srcp[switchsrc ? 2 - i : i] = (const uint8_t *)vsapi->getReadPtr(src, i);
@@ -179,13 +209,16 @@ static const VSFrameRef *VS_CC resizeGetframe(int n, int activationReason, void 
 
         return dst;
     }
+
     return 0;
 }
 
 static void VS_CC resizeFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     ResizeData *d = (ResizeData *)instanceData;
+
     if (d->context)
         sws_freeContext(d->context);
+
     vsapi->freeNode(d->node);
     free(instanceData);
 }
@@ -198,39 +231,51 @@ static void VS_CC resizeCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     int dstheight;
     const VSNodeRef *cref;
     int pf;
-	int err;
-	d.context = 0;
-	d.dstrange = 0;
-	d.lsrcformat = 0;
-	d.lsrch = 0;
-	d.lsrcw = 0;
-	d.node = 0;
+    int err;
+    d.context = 0;
+    d.dstrange = 0;
+    d.lsrcformat = 0;
+    d.lsrch = 0;
+    d.lsrcw = 0;
+    d.node = 0;
     d.flags = (int)userData;
-	d.node = vsapi->propGetNode(in, "clip", 0, 0);
+    d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = *vsapi->getVideoInfo(d.node);
-	dstwidth = vsapi->propGetInt(in, "width", 0, &err);
-	if (err)
-		dstwidth = d.vi.width;
-	dstheight = vsapi->propGetInt(in, "height", 0, &err);
-	if (err)
-		dstheight = d.vi.height;
-	id = vsapi->propGetInt(in, "format", 0, &err);
-	if (err && d.vi.format)
-		id = d.vi.format->id;
+    dstwidth = vsapi->propGetInt(in, "width", 0, &err);
+
+    if (err)
+        dstwidth = d.vi.width;
+
+    dstheight = vsapi->propGetInt(in, "height", 0, &err);
+
+    if (err)
+        dstheight = d.vi.height;
+
+    id = vsapi->propGetInt(in, "format", 0, &err);
+
+    if (err && d.vi.format)
+        id = d.vi.format->id;
+
     if (dstwidth > 0)
         d.vi.width = dstwidth;
+
     if (dstheight > 0)
         d.vi.height = dstheight;
+
     pf = formatIdToPixelFormat(id, core, vsapi);
+
     if (pf == PIX_FMT_NONE) {
         vsapi->freeNode(d.node);
         RETERROR("Resize: unsupported output format");
     }
+
     d.vi.format = vsapi->getFormatPreset(id, core);
+
     if ((d.vi.width % (1 << d.vi.format->subSamplingW)) || (d.vi.height % (1 << d.vi.format->subSamplingH))) {
         vsapi->freeNode(d.node);
         RETERROR("Resize: mod requirements of the target colorspace not fulfilled");
     }
+
     if (!isConstantFormat(&d.vi)) {
         vsapi->freeNode(d.node);
         RETERROR("Resize: output format not constant, set width, height and format");
@@ -248,17 +293,17 @@ static void VS_CC resizeCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 // Init
 
 void resizeInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
-	const char *a = "clip:clip;width:int:opt;height:int:opt;format:int:opt;yuvrange:int:opt;";
+    const char *a = "clip:clip;width:int:opt;height:int:opt;format:int:opt;yuvrange:int:opt;";
     configFunc("com.vapoursynth.resize", "resize", "VapourSynth Resize", VAPOURSYNTH_API_VERSION, 1, plugin);
     registerFunc("FastBilinear", a, resizeCreate, (void *)SWS_FAST_BILINEAR, plugin);
-	registerFunc("Bilinear", a, resizeCreate, (void *)SWS_BILINEAR, plugin);
-	registerFunc("Bicubic", a, resizeCreate, (void *)SWS_BICUBIC, plugin);
-	registerFunc("X", a, resizeCreate, (void *)SWS_X, plugin);
-	registerFunc("Point", a, resizeCreate, (void *)SWS_POINT, plugin);
-	registerFunc("Area", a, resizeCreate, (void *)SWS_AREA, plugin);
-	registerFunc("Bicublin", a, resizeCreate, (void *)SWS_BICUBLIN, plugin);
-	registerFunc("Gauss", a, resizeCreate, (void *)SWS_GAUSS, plugin);
-	registerFunc("Sinc", a, resizeCreate, (void *)SWS_SINC, plugin);
-	registerFunc("Lanczos", a, resizeCreate, (void *)SWS_LANCZOS, plugin);
-	registerFunc("Spline", a, resizeCreate, (void *)SWS_SPLINE, plugin);
+    registerFunc("Bilinear", a, resizeCreate, (void *)SWS_BILINEAR, plugin);
+    registerFunc("Bicubic", a, resizeCreate, (void *)SWS_BICUBIC, plugin);
+    registerFunc("X", a, resizeCreate, (void *)SWS_X, plugin);
+    registerFunc("Point", a, resizeCreate, (void *)SWS_POINT, plugin);
+    registerFunc("Area", a, resizeCreate, (void *)SWS_AREA, plugin);
+    registerFunc("Bicublin", a, resizeCreate, (void *)SWS_BICUBLIN, plugin);
+    registerFunc("Gauss", a, resizeCreate, (void *)SWS_GAUSS, plugin);
+    registerFunc("Sinc", a, resizeCreate, (void *)SWS_SINC, plugin);
+    registerFunc("Lanczos", a, resizeCreate, (void *)SWS_LANCZOS, plugin);
+    registerFunc("Spline", a, resizeCreate, (void *)SWS_SPLINE, plugin);
 }
