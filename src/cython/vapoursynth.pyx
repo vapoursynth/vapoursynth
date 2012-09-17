@@ -1,4 +1,5 @@
 cimport windows
+cimport libinclude
 cimport vapoursynth
 cimport cython.parallel
 from libc.stdlib cimport malloc, free

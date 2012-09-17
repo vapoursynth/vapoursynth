@@ -323,10 +323,4 @@ typedef struct VSAPI {
 
 VS_API(const VSAPI *) VS_CC getVapourSynthAPI(int version);
 
-// a hack to make the cython module build, my apologies if you want to use python in your software too
-#ifdef Py_PYTHON_H
-#pragma comment(lib,"vscore.lib")
-#endif
-
-
 #endif // VAPOURSYNTH_H
