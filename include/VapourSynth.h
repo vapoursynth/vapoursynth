@@ -45,7 +45,7 @@ typedef struct VSMap VSMap;
 typedef struct VSAPI VSAPI;
 typedef struct VSFrameContext VSFrameContext;
 
-enum VSColorFamily {
+typedef enum VSColorFamily {
     // all planar formats
     cmGray		= 1000000,
     cmRGB		= 2000000,
@@ -53,15 +53,15 @@ enum VSColorFamily {
     cmYCoCg		= 4000000,
     // special for compatibility, if you implement these in new filters I'll personally kill you
     cmCompat	= 9000000
-};
+} VSColorFamily;
 
-enum VSSampleType {
+typedef enum VSSampleType {
     stInteger = 0,
     stFloat = 1
-};
+} VSSampleType;
 
 // The +10 is so people won't be using the constants interchangably "by accident"
-enum VSPresetFormat {
+typedef enum VSPresetFormat {
     pfNone = 0,
 
     pfGray8 = cmGray + 10,
@@ -95,14 +95,14 @@ enum VSPresetFormat {
     // I'll also change their ids around to break your stuff regularly
     pfCompatBGR32 = cmCompat + 10,
     pfCompatYUY2
-};
+} VSPresetFormat;
 
-enum VSFilterMode {
+typedef enum VSFilterMode {
     fmParallel = 100, // completely parallel execution
     fmParallelRequests = 200, // for filters that are serial in nature but can request one or more frames they need in advance
     fmUnordered = 300, // for filters that modify their internal state every request
     fmSerial = 400 // for source filters and compatibility with other filtering architectures
-};
+} VSFilterMode;
 
 // possibly add d3d storage on gpu, since the gpu memory can be mapped into normal address space
 typedef struct VSFormat {
@@ -119,15 +119,15 @@ typedef struct VSFormat {
     int numPlanes; // implicit from colorFamily, 1 or 3 in the currently specified ones
 } VSFormat;
 
-enum NodeFlags {
+typedef enum NodeFlags {
     nfNoCache	= 1,
-};
+} NodeFlags;
 
-enum GetPropErrors {
+typedef enum GetPropErrors {
     peUnset	= 1,
     peType	= 2,
     peIndex	= 4
-};
+} GetPropErrors;
 
 typedef struct VSVersion {
     int core;
@@ -146,12 +146,12 @@ typedef struct VSVideoInfo {
     int flags; // expose in some other way?
 } VSVideoInfo;
 
-enum ActivationReason {
+typedef enum ActivationReason {
     arInitial = 0,
     arFrameReady = 1,
     arAllFramesReady = 2,
     arError = -1
-};
+} ActivationReason;
 
 // function typedefs
 typedef	VSCore *(VS_CC *VSCreateVSCore)(int threads);
@@ -248,7 +248,7 @@ typedef void (VS_CC *VSReleaseFrameEarly)(const VSNodeRef *node, int n, VSFrameC
 //typedef VSFrameRef *(VS_CC *VSCopyFrame2)(const VSFrameRef *f[], const VSFormat *format, int clobber, VSCore *core);
 
 
-struct VSAPI {
+typedef struct VSAPI {
     VSCreateVSCore createVSCore;
     VSFreeVSCore freeVSCore;
     VSCloneFrameRef cloneFrameRef;
@@ -319,7 +319,7 @@ struct VSAPI {
 
     VSQueryCompletedFrame queryCompletedFrame;
     VSReleaseFrameEarly releaseFrameEarly;
-};
+} VSAPI;
 
 VS_API(const VSAPI *) VS_CC getVapourSynthAPI(int version);
 
