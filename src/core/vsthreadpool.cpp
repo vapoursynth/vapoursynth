@@ -155,7 +155,7 @@ void VSThread::run() {
                             callbackLock.unlock();
                             owner->lock.lock();
                         }
-                    } while (rCtx = n);
+                    } while ((rCtx = n));
                 } else if (f) {
                     Q_ASSERT(rCtx->numFrameRequests == 0);
                     PFrameContext n;
@@ -173,7 +173,7 @@ void VSThread::run() {
 
                         if (rCtx->frameDone)
                             owner->returnFrame(rCtx, f);
-                    } while (rCtx = n);
+                    } while ((rCtx = n));
                 } else if (rCtx->numFrameRequests > 0 || rCtx->n < 0) {
                     // already scheduled or in the case of negative n it is simply a cache notify message
                 } else {
