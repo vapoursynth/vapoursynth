@@ -46,6 +46,7 @@ COMPATYUY2 = vapoursynth.pfCompatYUY2
 class Error(Exception):
     def __init__(self, value):
         self.value = value
+
     def __str__(self):
         return repr(self.value)
 
@@ -59,13 +60,16 @@ cdef class Func(object):
     cdef Core core
     cdef object func
     cdef VSFuncRef *ref
+
     def __init__(self, object func, Core core):
         self.core = core
         self.func = func
         self.ref = core.funcs.createFunc(publicFunction, <void *>self, freeFunc)
         Py_INCREF(self)
+
     def __deinit__(self):
         self.core.funcs.freeFunc(self.ref)
+
     def __call__(self, dict args):
         return self.func(args)
 
@@ -90,6 +94,7 @@ cdef class CallbackData(object):
     cdef object condition
     cdef object progress_update
     cdef str error
+
     def __init__(self, handle, requested, total, num_planes, y4m, node, progress_update):
         self.handle = handle
         self.output = 0
@@ -107,8 +112,10 @@ cdef class CallbackData(object):
 cdef class FramePtr(object):
     cdef VSFrameRef *f
     cdef VSAPI *funcs
+
     def __init__(self):
         raise Error('Class cannon be instantiated directly')
+
     def __dealloc__(self):
         self.funcs.freeFrame(self.f)
 
@@ -117,7 +124,7 @@ cdef FramePtr createFramePtr(vapoursynth.VSFrameRef *f, vapoursynth.VSAPI *funcs
     instance.f = f
     instance.funcs = funcs
     return instance
-    
+
 cdef void __stdcall callback(void *data, VSFrameRef *f, int n, VSNodeRef *node, char *errormsg) nogil:
     cdef int pitch
     cdef uint8_t *readptr
@@ -129,40 +136,53 @@ cdef void __stdcall callback(void *data, VSFrameRef *f, int n, VSNodeRef *node, 
     cdef int dummy = 0
     cdef int p
     cdef int y
+
     with gil:
         d = <CallbackData>data
+
         if f == NULL:
             d.total = d.requested
             d.error = 'Failed to retrieve frame ' + n + ' with error: ' + errormsg.decode('utf-8')
+
         d.reorder[n] = createFramePtr(f, d.funcs)
+
         while d.output in d.reorder:
             frame_obj = <VideoFrame>d.reorder[d.output]
             windows.WriteFile(d.handle, header, 6, &dummy, NULL)
             p = 0
             fi = d.funcs.getFrameFormat(frame_obj.f)
+
             while p < d.num_planes:
                 pitch = d.funcs.getStride(frame_obj.f, p)
                 readptr = d.funcs.getReadPtr(frame_obj.f, p)
                 row_size = d.funcs.getFrameWidth(frame_obj.f, p) * fi.bytesPerSample
                 height = d.funcs.getFrameHeight(frame_obj.f, p)
                 y = 0
+
                 while y < height:
+
                     if not windows.WriteFile(d.handle, readptr, row_size, &dummy, NULL):
                         d.total = d.requested
                         d.error = 'WriteFile() call returned false'
+
                     readptr += pitch
                     y = y + 1
+
                 p = p + 1
+
             del d.reorder[d.output]
             d.output = d.output + 1
             windows.FlushFileBuffers(d.handle)
-        
+
         d.completed = d.completed + 1
+
         if (d.progress_update is not None):
             d.progress_update(d.completed, d.total)
+
         if d.requested < d.total:
             d.node.funcs.getFrameAsync(d.requested, d.node.node, callback, data)
             d.requested = d.requested + 1
+
         if d.total == d.completed:
             d.condition.acquire()
             d.condition.notify()
@@ -174,9 +194,11 @@ cdef object mapToDict(VSMap *map, bint flatten, bint addcache, Core core, VSAPI 
     cdef char *retkey
     cdef char proptype
     cdef VSMap *tempmap
+
     for x in range(numKeys):
         retkey = funcs.propGetKey(map, x)
         proptype = funcs.propGetType(map, retkey)
+
         for y in range(funcs.propNumElements(map, retkey)):
             if proptype == 'i':
                 newval = funcs.propGetInt(map, retkey, 0, NULL)
@@ -186,14 +208,17 @@ cdef object mapToDict(VSMap *map, bint flatten, bint addcache, Core core, VSAPI 
                 newval = funcs.propGetData(map, retkey, 0, NULL).decode('utf-8')
             elif proptype =='c':
                 newval = createVideoNode(funcs.propGetNode(map, retkey, 0, NULL), funcs, core)
+
                 if addcache and not newval.flags:
                     newval = core.std.Cache(clip=newval)
+
                     if type(newval) == dict:
                         newval = newval['dict']
             elif proptype =='v':
                 newval = createVideoFrame(funcs.propGetFrame(map, retkey, 0, NULL), funcs, core)
             elif proptype =='m':
                 newval = createFunc(funcs.propGetFunc(map, retkey, 0, NULL), core)
+
             if y == 0:
                 vval = newval
             elif y == 1:
@@ -201,6 +226,7 @@ cdef object mapToDict(VSMap *map, bint flatten, bint addcache, Core core, VSAPI 
             else:
                 vval.append(newval)
         retdict[retkey.decode('utf-8')] = vval
+
     if not flatten:
         return retdict
     elif len(retdict) == 0:
@@ -215,6 +241,7 @@ cdef void dictToMap(dict ndict, VSMap *inm, Core core, VSAPI *funcs):
     for key in ndict:
         ckey = key.encode('utf-8')
         val = ndict[key]
+
         if not isinstance(val, list):
             val = [val]
 
@@ -230,6 +257,7 @@ cdef void dictToMap(dict ndict, VSMap *inm, Core core, VSAPI *funcs):
                     raise Error('not all values are of the same type in ' + key)
             elif callable(v):
                 tf = Func(v, core)
+
                 if funcs.propSetFunc(inm, ckey, tf.ref, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif type(v) == int or type(v) == long or type(v) == bool:
@@ -240,6 +268,7 @@ cdef void dictToMap(dict ndict, VSMap *inm, Core core, VSAPI *funcs):
                     raise Error('not all values are of the same type in ' + key)
             elif type(v) == str:
                 s = str(v).encode('utf-8')
+
                 if funcs.propSetData(inm, ckey, s, -1, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif type(v) == bytes:
@@ -260,8 +289,10 @@ cdef class Format(object):
     cdef readonly int subsampling_w
     cdef readonly int subsampling_h
     cdef readonly int num_planes
+
     def __init__(self):
         raise Error('Class cannon be instantiated directly')
+
     def __str__(self):
         cdef dict color_stuff = dict({GRAY:'Gray', RGB:'RGB', YUV:'YUV', YCOCG:'YCoCg', COMPAT:'Compat'})
         cdef str s = ''
@@ -269,17 +300,19 @@ cdef class Format(object):
         s += '\tId: ' + str(self.id) + '\n'
         s += '\tName: ' + self.name + '\n'
         s += '\tColor Family: ' + color_stuff[self.color_family] + '\n'
+
         if self.sample_type == stInteger:
             s += '\tSample Type: Integral\n'
         else:
             s += '\tSample Type: Float\n'
+
         s += '\tBits Per Sample: ' + str(self.bits_per_sample) + '\n'
         s += '\tBytes Per Sample: ' + str(self.bytes_per_sample) + '\n'
         s += '\tPlanes: ' + str(self.num_planes) + '\n'
         s += '\tSubsampling W: ' + str(self.subsampling_w) + '\n'
         s += '\tSubsampling H: ' + str(self.subsampling_h) + '\n'
         return s
-        
+
 cdef Format createFormat(vapoursynth.VSFormat *f):
     cdef Format instance = Format.__new__(Format)
     instance.f = f
@@ -301,17 +334,23 @@ cdef class VideoFrame(object):
     cdef readonly Format format
     cdef readonly int width
     cdef readonly int height
+
     def __init__(self):
         raise Error('Class cannon be instantiated directly')
+
     def __dealloc__(self):
         self.funcs.freeFrame(self.f)
+
     def get_props(self):
         retdict = mapToDict(self.funcs.getFramePropsRO(self.f), False, False, self.core, self.funcs)
+
     def get_data(self, int plane):
         cdef uint8_t *d = self.funcs.getReadPtr(self.f, plane)
         return ctypes.c_void_p(<int64_t>d)
+
     def get_stride(self, int plane):
         return self.funcs.getStride(self.f, plane)
+
     def __str__(self):
         cdef str s = 'VideoFrame\n'
         s += '\tFormat: ' + self.format.name + '\n'
@@ -341,10 +380,13 @@ cdef class VideoNode(object):
     cdef readonly int fps_num
     cdef readonly int fps_den
     cdef readonly int flags
+
     def __init__(self):
         raise Error('Class cannon be instantiated directly')
+
     def __dealloc__(self):
         self.funcs.freeNode(self.node)
+
     def get_frame(self, int n):
         cdef char errorMsg[512]
         cdef VSFrameRef *f
@@ -353,10 +395,13 @@ cdef class VideoNode(object):
             raise Error('Internal error')
         else:
             return createVideoFrame(f, self.funcs, self.core) 
+
     def output(self, object fileobj not None, bint y4m = False, int lookahead = 10, object progress_update = None):
         cdef CallbackData d = CallbackData(msvcrt.get_osfhandle(fileobj.fileno()), min(lookahead, self.num_frames), self.num_frames, self.format.num_planes, y4m, self, progress_update)
+
         if d.total <= 0:
             raise Error('Cannot output unknown length clip')
+
         # this is also an implicit test that the progress_update callback at least vaguely matches the requirements
         if (progress_update is not None):
             progress_update(0, d.total)
@@ -366,6 +411,7 @@ cdef class VideoNode(object):
 
         y4mformat = ''
         numbits = ''
+
         if self.format is not None:
             if self.format.subsampling_w == 1 and self.format.subsampling_h == 1:
                 y4mformat = 'C420'
@@ -379,47 +425,59 @@ cdef class VideoNode(object):
                 y4mformat = 'C411'
             elif self.format.subsampling_w == 0 and self.format.subsampling_h == 1:
                 y4mformat = 'C440'
+
             numbits = 'B' + str(self.format.bits_per_sample) + ' '
+
         if len(y4mformat) > 0:
             y4mformat = y4mformat + ' '
-        
+
         cdef str header = 'YUV4MPEG2 ' + y4mformat + numbits + 'W' + str(self.width) + ' H' + str(self.height) + ' F' + str(self.fps_num) + ':' + str(self.fps_den) + ' Ip A0:0\n'
         cdef bytes b = header.encode('utf-8')
         cdef int dummy = 0
         windows.WriteFile(d.handle, <char*>b, len(b), &dummy, NULL)
         d.condition.acquire()
+
         for n in range(min(lookahead, d.total)):
             self.funcs.getFrameAsync(n, self.node, callback, <void *>d)
+
         d.condition.wait()
         d.condition.release()
+
         if d.error:
             raise Error(d.error)
+
     def __str__(self):
         cdef str s = 'VideoNode\n'
+
         if self.format:
             s += '\tFormat: ' + self.format.name + '\n'
         else:
             s += '\tFormat: dynamic\n'
+
         if not self.width or not self.height:
             s += '\tWidth: dynamic\n'
             s += '\tHeight: dynamic\n'
         else:
             s += '\tWidth: ' + str(self.width) + '\n'
             s += '\tHeight: ' + str(self.height) + '\n'
+
         if not self.num_frames:
             s += '\tNum Frames: unknown\n'
         else:
             s += '\tNum Frames: ' + str(self.num_frames) + '\n'
+
         if not self.fps_num or not self.fps_den:
             s += '\tFPS Num: dynamic\n'
             s += '\tFPS Den: dynamic\n'
         else:
             s += '\tFPS Num: ' + str(self.fps_num) + '\n'
             s += '\tFPS Den: ' + str(self.fps_den) + '\n'
+
         if self.flags == vapoursynth.nfNoCache:
             s += '\tFlags: No Cache\n'
         else:
             s += '\tFlags: None\n'
+
         return s
 
 cdef VideoNode createVideoNode(vapoursynth.VSNodeRef *node, vapoursynth.VSAPI *funcs, Core core):
@@ -428,10 +486,12 @@ cdef VideoNode createVideoNode(vapoursynth.VSNodeRef *node, vapoursynth.VSAPI *f
     instance.node = node
     instance.funcs = funcs
     instance.vi = funcs.getVideoInfo(node)
+
     if (instance.vi.format):
         instance.format = createFormat(instance.vi.format)
     else:
         instance.format = None
+
     instance.width = instance.vi.width
     instance.height = instance.vi.height
     instance.num_frames = instance.vi.numFrames
@@ -446,28 +506,34 @@ cdef class Core(object):
     cdef bint flatten
     cdef bint addcache
     cdef bint accept_lowercase
+
     def __cinit__(self, flatten = True, addcache = True, int threads = 0, bint accept_lowercase = False):
         self.funcs = vapoursynth.getVapourSynthAPI(1)
         self.core = self.funcs.createVSCore(threads)
         self.flatten = flatten
         self.addcache = addcache
         self.accept_lowercase = accept_lowercase
+
     def __dealloc__(self):
         self.funcs.freeVSCore(self.core)
+
     def __getattr__(self, name):
         cdef vapoursynth.VSPlugin *plugin
         tname = name.encode('utf-8')
         cdef char *cname = tname
         plugin = self.funcs.getPluginNs(cname, self.core)
+
         if plugin:
             return createPlugin(plugin, self.funcs, self)
         else:
             raise Error('No attribute with the name ' + name + ' exists. Did you mistype a plugin namespace?')
+
     def list_functions(self):
         cdef VSMap *m = self.funcs.getPlugins(self.core)
         cdef VSMap *n
         cdef bytes b
         cdef str sout = ''
+
         for i in range(self.funcs.propNumKeys(m)):
             a = self.funcs.propGetData(m, self.funcs.propGetKey(m, i), 0, NULL)
             a = a.decode('utf-8')
@@ -477,25 +543,33 @@ cdef class Core(object):
             sout += '\tidentifier:\t' + a[1] + '\n'
             b = a[1].encode('utf-8')
             n = self.funcs.getFunctions(self.funcs.getPluginId(b, self.core))
+
             for j in range(self.funcs.propNumKeys(n)):
                 c = self.funcs.propGetData(n, self.funcs.propGetKey(n, j), 0, NULL)
                 c = c.decode('utf-8')
                 c = c.split(';', 1)
                 sout += '\t\t' + c[0] + '(' + c[1] +')\n'
+
             self.funcs.freeMap(n)
+
         self.funcs.freeMap(m)
         return sout
+
     def register_format(self, int color_family, int sample_type, int bits_per_sample, int subsampling_w, int subsampling_h):
         return createFormat(self.funcs.registerFormat(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h, self.core))
+
     def get_format(self, int id):
         cdef VSFormat *f = self.funcs.getFormatPreset(id, self.core)
+
         if f == NULL:
             raise Error('Internal error')
         else:
             return createFormat(f)
+
     def version(self):
         cdef VSVersion *v = self.funcs.getVersion()
         return v.versionString.decode('utf-8')
+
     def __str__(self):
         cdef str s = 'Core\n'
         s += self.version() + '\n'
@@ -508,24 +582,30 @@ cdef class Plugin(object):
     cdef Core core
     cdef VSPlugin *plugin
     cdef vapoursynth.VSAPI *funcs
+
     def __init__(self):
         raise Error('Class cannon be instantiated directly')
+
     def __getattr__(self, name):
         tname = name.encode('utf-8')
         cdef char *cname = tname
         cdef VSMap *m = self.funcs.getFunctions(self.plugin)
         lc_match = False
         cs_match = False
+
         for i in range(self.funcs.propNumKeys(m)):
             cname = self.funcs.propGetKey(m, i)
             orig_name = cname.decode('utf-8')
             lc_name = orig_name.lower()
+
             if orig_name == name:
                 cs_match = True
                 break
+
             if lc_name == name:
                 lc_match = True
                 break
+
         if cs_match or (lc_match and self.core.accept_lowercase):
             signature = self.funcs.propGetData(m, cname, 0, NULL).decode('utf-8').split(';', 1)
             self.funcs.freeMap(m)
@@ -546,13 +626,16 @@ cdef class Function(object):
     cdef str name
     cdef str signature
     cdef vapoursynth.VSAPI *funcs
+
     def __init__(self):
         raise Error('Class cannon be instantiated directly')
+
     def __call__(self, *args, **kwargs):
         cdef VSMap *inm
         cdef VSMap *outm
         cdef char *cname
         ndict = {}
+
         # naively insert named arguments
         for key in kwargs:
             if isinstance(kwargs[key], Link):
@@ -565,13 +648,17 @@ cdef class Function(object):
         sigs = self.signature.split(';')
         csig = 0
         numsig = len(sigs) 
+
         for arg in args:
             key = sigs[csig].split(':', 1)
             key = key[0]
+
             while key in ndict:
                 csig = csig + 1
+
                 if csig >= numsig:
                     raise Error('There are more unnamed arguments given than unspecified arguments to match')
+
                 key = sigs[csig].split(':', 1)
                 key = key[0]
             if isinstance(arg, Link):
@@ -581,22 +668,25 @@ cdef class Function(object):
                 ndict[key] = arg
 
         inm = self.funcs.newMap()
+
         try:
             dictToMap(ndict, inm, self.plugin.core, self.funcs)
         except Error as e:
             self.funcs.freeMap(inm)
             raise Error(self.name + ': ' + str(e))
-            
+
         tname = self.name.encode('utf-8')
         cname = tname
         outm = self.funcs.invoke(self.plugin.plugin, cname, inm)
         self.funcs.freeMap(inm)
         cdef char *err = self.funcs.getError(outm)
         cdef bytes emsg
+
         if err:
             emsg = err
             self.funcs.freeMap(outm)
             raise Error(emsg.decode('utf-8'))
+
         retdict = mapToDict(outm, self.plugin.core.flatten, self.plugin.core.addcache, self.plugin.core, self.funcs)
         self.funcs.freeMap(outm)
         return retdict
@@ -618,6 +708,7 @@ cdef void __stdcall freeFunc(void *pobj) nogil:
 cdef void __stdcall publicFunction(VSMap *inm, VSMap *outm, void *userData, VSCore *core, VSAPI *vsapi) nogil:
     with gil:
         d = <Func>userData
+
         try:
             m = mapToDict(inm, False, False, d.core, vsapi)
             ret = d(m)
@@ -625,7 +716,7 @@ cdef void __stdcall publicFunction(VSMap *inm, VSMap *outm, void *userData, VSCo
         except Error as e:
             emsg = str(e).encode('utf-8')
             vsapi.setError(outm, emsg)
-            
+
 # for whole script evaluation and export
 
 cdef public struct ScriptExport:
@@ -637,12 +728,14 @@ cdef public api int __stdcall evaluate_script(char *fn, ScriptExport *extp) nogi
     extp.node = NULL
     extp.pynode = NULL
     extp.error = NULL
+
     with gil:
         try:
             evaldict = {}
             comp = compile(open(fn.decode('utf-8')).read(), fn.decode('utf-8'), 'exec')
             exec(comp) in evaldict
             node = evaldict['last']
+
             if isinstance(node, VideoNode):
                 Py_INCREF(node)
                 extp.pynode = <void *>node

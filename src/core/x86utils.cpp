@@ -20,19 +20,19 @@
 #if defined(_WIN32) && !defined(_WIN64)
 
 bool isFPUStateOk() {
-	uint32_t ctlword = 0;
-	uint32_t *ctlwordp = &ctlword;
-	__asm mov eax, ctlwordp
-	__asm fnstcw [eax]
-	ctlword &= 0x0f3f;
-	return ctlword == 0x023f;
+    uint32_t ctlword = 0;
+    uint32_t *ctlwordp = &ctlword;
+    __asm mov eax, ctlwordp
+    __asm fnstcw [eax]
+    ctlword &= 0x0f3f;
+    return ctlword == 0x023f;
 }
 
 bool isMMXStateOk() {
-	char buf[28];
-	__asm fnstenv buf
-	unsigned short tagword = *(unsigned short *)(buf + 8);
-	return tagword == 0xffff;
+    char buf[28];
+    __asm fnstenv buf
+    unsigned short tagword = *(unsigned short *)(buf + 8);
+    return tagword == 0xffff;
 }
 
 #endif

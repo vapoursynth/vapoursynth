@@ -54,10 +54,13 @@ private:
 
         if (n.prevNode)
             n.prevNode->nextNode = n.nextNode;
+
         if (n.nextNode)
             n.nextNode->prevNode = n.prevNode;
+
         if (last == &n)
             last = n.prevNode;
+
         if (first == &n)
             first = n.nextNode;
 
@@ -65,38 +68,47 @@ private:
             currentSize--;
         else
             historySize--;
+
         hash.remove(n.key);
     }
 
     inline PVideoFrame relink(const int key) {
         QHash<int, Node>::iterator i = hash.find(key);
+
         if (QHash<int, Node>::const_iterator(i) == hash.constEnd()) {
             farMiss++;
             return PVideoFrame();
         }
 
         Node &n = *i;
+
         if (!n.frame) {
             nearMiss++;
             n.frame = n.weakFrame.toStrongRef();
+
             if (!n.frame)
                 return PVideoFrame();
+
             currentSize++;
             historySize--;
         }
 
         hits++;
         Node *origWeakPoint = weakpoint;
+
         if (&n == origWeakPoint)
             weakpoint = weakpoint->nextNode;
 
         if (first != &n) {
             if (n.prevNode)
                 n.prevNode->nextNode = n.nextNode;
+
             if (n.nextNode)
                 n.nextNode->prevNode = n.prevNode;
+
             if (last == &n)
                 last = n.prevNode;
+
             n.prevNode = 0;
             n.nextNode = first;
             first->prevNode = &n;
@@ -107,7 +119,7 @@ private:
             if (currentSize > maxSize) {
                 weakpoint = last;
                 weakpoint->frame.clear();
-			}
+            }
         } else if (&n == origWeakPoint || historySize > maxHistorySize) {
             weakpoint = weakpoint->prevNode;
             weakpoint->frame.clear();
@@ -121,35 +133,53 @@ private:
     Q_DISABLE_COPY(VSCache)
 
 public:
-	enum CacheAction {
-		caGrow,
-		caNoChange,
-		caShrink,
-		caClear
-	};
+    enum CacheAction {
+        caGrow,
+        caNoChange,
+        caShrink,
+        caClear
+    };
 
     VSCache(int maxSize, int maxHistorySize);
-    ~VSCache() { clear(); }
+    ~VSCache() {
+        clear();
+    }
 
-    int getMaxFrames() const { return maxSize; }
-    void setMaxFrames(int m) { maxSize = m; trim(maxSize, maxHistorySize); }
-    int getMaxHistory() const { return maxHistorySize; }
-	void setMaxHistory(int m) { maxHistorySize = m; trim(maxSize, maxHistorySize); }
+    int getMaxFrames() const {
+        return maxSize;
+    }
+    void setMaxFrames(int m) {
+        maxSize = m;
+        trim(maxSize, maxHistorySize);
+    }
+    int getMaxHistory() const {
+        return maxHistorySize;
+    }
+    void setMaxHistory(int m) {
+        maxHistorySize = m;
+        trim(maxSize, maxHistorySize);
+    }
 
-    inline int size() const { return hash.size(); }
-    inline QList<int> keys() const { return hash.keys(); }
+    inline int size() const {
+        return hash.size();
+    }
+    inline QList<int> keys() const {
+        return hash.keys();
+    }
 
     void clear();
-	void clearStats();
+    void clearStats();
 
     bool insert(const int key, const PVideoFrame &object);
     PVideoFrame object(const int key) const;
-    inline bool contains(const int key) const { return hash.contains(key); }
+    inline bool contains(const int key) const {
+        return hash.contains(key);
+    }
     PVideoFrame operator[](const int key) const;
 
     bool remove(const int key);
 
-	CacheAction recommendSize();
+    CacheAction recommendSize();
 private:
     void trim(int max, int maxHistory);
 

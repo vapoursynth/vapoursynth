@@ -46,18 +46,18 @@ typedef struct VSAPI VSAPI;
 typedef struct VSFrameContext VSFrameContext;
 
 enum VSColorFamily {
-	// all planar formats
+    // all planar formats
     cmGray		= 1000000,
     cmRGB		= 2000000,
     cmYUV		= 3000000,
     cmYCoCg		= 4000000,
-	// special for compatibility, if you implement these in new filters I'll personally kill you
-	cmCompat	= 9000000
+    // special for compatibility, if you implement these in new filters I'll personally kill you
+    cmCompat	= 9000000
 };
 
 enum VSSampleType {
-	stInteger = 0,
-	stFloat = 1
+    stInteger = 0,
+    stFloat = 1
 };
 
 // The +10 is so people won't be using the constants interchangably "by accident"
@@ -91,10 +91,10 @@ enum VSPresetFormat {
     pfRGB30,
     pfRGB48,
 
-	// special for compatibility, if you implement these in any filter I'll personally kill you
-	// I'll also change their ids around to break your stuff regularly
-	pfCompatBGR32 = cmCompat + 10,
-	pfCompatYUY2
+    // special for compatibility, if you implement these in any filter I'll personally kill you
+    // I'll also change their ids around to break your stuff regularly
+    pfCompatBGR32 = cmCompat + 10,
+    pfCompatYUY2
 };
 
 enum VSFilterMode {
@@ -130,13 +130,13 @@ enum GetPropErrors {
 };
 
 typedef struct VSVersion {
-	int core;
-	int api;
-	const char *versionString;
+    int core;
+    int api;
+    const char *versionString;
 } VSVersion;
 
 typedef struct VSVideoInfo {
-	// add node name?
+    // add node name?
     const VSFormat *format;
     int64_t fpsNum;
     int64_t fpsDen;
@@ -178,7 +178,7 @@ typedef void (VS_CC *VSFrameDoneCallback)(void *userData, const VSFrameRef *f, i
 typedef void (VS_CC *VSGetFrameAsync)(int n, const VSNodeRef *node, VSFrameDoneCallback callback, void *userData);
 typedef const VSFrameRef *(VS_CC *VSGetFrame)(int n, const VSNodeRef *node, char *errorMsg, int bufSize);
 typedef void (VS_CC *VSRequestFrameFilter)(int n, const VSNodeRef *node, VSFrameContext *frameCtx);
-typedef const VSFrameRef * (VS_CC *VSGetFrameFilter)(int n, const VSNodeRef *node, VSFrameContext *frameCtx);
+typedef const VSFrameRef *(VS_CC *VSGetFrameFilter)(int n, const VSNodeRef *node, VSFrameContext *frameCtx);
 typedef const VSFrameRef *(VS_CC *VSCloneFrameRef)(const VSFrameRef *f);
 typedef const VSNodeRef *(VS_CC *VSCloneNodeRef)(const VSNodeRef *node);
 typedef void (VS_CC *VSFreeFrame)(const VSFrameRef *f);
@@ -202,14 +202,14 @@ typedef VSMap *(VS_CC *VSGetFramePropsRW)(VSFrameRef *f);
 typedef int (VS_CC *VSPropNumKeys)(const VSMap *map);
 typedef const char *(VS_CC *VSPropGetKey)(const VSMap *map, int index);
 typedef int (VS_CC *VSPropNumElements)(const VSMap *map, const char *key);
-typedef char (VS_CC *VSPropGetType)(const VSMap *map, const char *key);
+typedef char(VS_CC *VSPropGetType)(const VSMap *map, const char *key);
 
 typedef VSMap *(VS_CC *VSNewMap)();
 typedef void (VS_CC *VSFreeMap)(VSMap *map);
 typedef void (VS_CC *VSClearMap)(VSMap *map);
 
 typedef int64_t (VS_CC *VSPropGetInt)(const VSMap *map, const char *key, int index, int *error);
-typedef double (VS_CC *VSPropGetFloat)(const VSMap *map, const char *key, int index, int *error);
+typedef double(VS_CC *VSPropGetFloat)(const VSMap *map, const char *key, int index, int *error);
 typedef const char *(VS_CC *VSPropGetData)(const VSMap *map, const char *key, int index, int *error);
 typedef int (VS_CC *VSPropGetDataSize)(const VSMap *map, const char *key, int index, int *error);
 typedef const VSNodeRef *(VS_CC *VSPropGetNode)(const VSMap *map, const char *key, int index, int *error);
@@ -231,7 +231,7 @@ typedef VSPlugin *(VS_CC *VSGetPluginNs)(const char *ns, VSCore *core);
 typedef VSMap *(VS_CC *VSGetPlugins)(VSCore *core);
 typedef VSMap *(VS_CC *VSGetFunctions)(VSPlugin *plugin);
 
-// fixme, move this stuff around before the API is final 
+// fixme, move this stuff around before the API is final
 typedef const VSVersion *(VS_CC *VSGetVersion)();
 
 typedef VSFuncRef *(VS_CC *VSPropGetFunc)(const VSMap *map, const char *key, int index, int *error);
@@ -249,8 +249,8 @@ typedef void (VS_CC *VSReleaseFrameEarly)(const VSNodeRef *node, int n, VSFrameC
 
 
 struct VSAPI {
-	VSCreateVSCore createVSCore;
-	VSFreeVSCore freeVSCore;
+    VSCreateVSCore createVSCore;
+    VSFreeVSCore freeVSCore;
     VSCloneFrameRef cloneFrameRef;
     VSCloneNodeRef cloneNodeRef;
     VSFreeFrame freeFrame;
@@ -261,11 +261,11 @@ struct VSAPI {
     VSRegisterFunction registerFunction;
     VSGetPluginId getPluginId;
     VSGetPluginNs getPluginNs;
-	VSGetPlugins getPlugins;
+    VSGetPlugins getPlugins;
     VSGetFunctions getFunctions;
     VSCreateFilter createFilter;
     VSSetError setError;
-	VSGetError getError;
+    VSGetError getError;
     VSSetFilterError setFilterError; //use to signal errors in the filter getframe function
     VSInvoke invoke;
     VSGetFormatPreset getFormatPreset;
@@ -309,16 +309,16 @@ struct VSAPI {
     VSPropSetNode propSetNode;
     VSPropSetFrame propSetFrame;
 
-	VSGetVersion getVersion;
+    VSGetVersion getVersion;
 
-	VSPropGetFunc propGetFunc;
-	VSPropSetFunc propSetFunc;
-	VSCallFunc callFunc;
-	VSCreateFunc createFunc;
-	VSFreeFunc freeFunc;
+    VSPropGetFunc propGetFunc;
+    VSPropSetFunc propSetFunc;
+    VSCallFunc callFunc;
+    VSCreateFunc createFunc;
+    VSFreeFunc freeFunc;
 
-	VSQueryCompletedFrame queryCompletedFrame;
-	VSReleaseFrameEarly releaseFrameEarly;
+    VSQueryCompletedFrame queryCompletedFrame;
+    VSReleaseFrameEarly releaseFrameEarly;
 };
 
 VS_API(const VSAPI *) VS_CC getVapourSynthAPI(int version);

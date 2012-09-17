@@ -1,4 +1,5 @@
 from libc.stdint cimport uint8_t, uint32_t, int64_t
+
 cdef extern from "../../include/VapourSynth.h":
     ctypedef struct VSFrameRef:
         pass
@@ -23,7 +24,7 @@ cdef extern from "../../include/VapourSynth.h":
         cmYUV   = 3000000
         cmYCoCg = 4000000
         cmCompat= 9000000
-        
+
     cdef enum VSSampleType:
         stInteger = 0
         stFloat   = 1
@@ -85,7 +86,7 @@ cdef extern from "../../include/VapourSynth.h":
         peUnset = 1
         peType  = 2
         peIndex = 4
-        
+
     cdef struct VSVersion:
         int core
         int api
@@ -113,7 +114,7 @@ cdef extern from "../../include/VapourSynth.h":
     ctypedef VSFrameRef *(__stdcall *VSFilterGetFrame)(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, VSAPI *vsapi)
     ctypedef void (__stdcall *VSFilterFree)(void *instanceData, VSCore *core, VSAPI *vsapi)
     ctypedef void (__stdcall *VSFreeFuncData)(void *userData)
-    
+
     ctypedef struct VSAPI:
         VSCore *createVSCore(int threads) nogil
         void freeVSCore(VSCore *core) nogil
@@ -185,6 +186,5 @@ cdef extern from "../../include/VapourSynth.h":
         void callFunc(VSFuncRef *func, VSMap *inm, VSMap *outm, VSCore *core, VSAPI *vsapi) nogil
         VSFuncRef *createFunc(VSPublicFunction func, void *userData, VSFreeFuncData free) nogil
         void freeFunc(VSFuncRef *f) nogil
-        
-    VSAPI *getVapourSynthAPI(int version) nogil
 
+    VSAPI *getVapourSynthAPI(int version) nogil
