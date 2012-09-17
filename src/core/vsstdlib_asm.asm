@@ -15,7 +15,6 @@
 ;  You should have received a copy of the GNU General Public License
 ;  along with VapourSynth.  If not, see <http:;www.gnu.org/licenses/>.
 
-%define ARCH_X86_64 0
 %define PREFIX
 %include "x86inc.asm"
 
@@ -70,7 +69,7 @@ cglobal transpose_word_partial, 5, 7, 7
 	movhpd [r5], m4
 	jz .done
 	movq [r2 + 2*r3], m6
-	.done
+.done:
 	RET
 
 INIT_XMM
@@ -173,5 +172,5 @@ cglobal transpose_byte_partial, 5, 7, 8
 	movhpd [r5], m1
 	jz .done
 	movq [r2 + 2*r3], m3
-	.done
+.done:
 	RET
