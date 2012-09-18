@@ -114,7 +114,7 @@ def build(bld):
     if bld.env.DEST_OS == 'win32':
         sources += search_paths([os.path.join('src', 'avisynth')])
 
-    bld(features = 'qt4 c cxx asm cxxshlib',
+    bld(features = 'c qxx asm cxxshlib',
         includes = 'include',
         source = bld.path.ant_glob(sources),
         use = ['QTCORE', 'AVUTIL', 'SWSCALE'],
