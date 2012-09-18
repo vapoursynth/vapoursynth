@@ -32,6 +32,11 @@ def configure(conf):
     conf.find_program('yasm', var = 'AS', mandatory = True)
     conf.load('nasm')
 
+    if conf.env.DEST_OS == 'darwin':
+        if conf.env.CXX_NAME == 'gcc':
+            add_options(['ASFLAGS'],
+                        ['-DPREFIX'])
+
     if conf.env.CXX_NAME == 'gcc':
         add_options(['CFLAGS', 'CXXFLAGS'],
                     ['-DVSCORE_EXPORTS',
