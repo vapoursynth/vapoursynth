@@ -18,9 +18,10 @@ def options(opt):
 
 def configure(conf):
     def add_options(flags, options):
-        for option in options:
-            if option not in conf.env[flags]:
-                conf.env.append_value(flags, option)
+        for flag in flags:
+            for option in options:
+                if option not in conf.env[flag]:
+                    conf.env.append_value(flag, option)
 
     conf.load('compiler_c')
     conf.load('compiler_cxx')
@@ -32,22 +33,23 @@ def configure(conf):
     conf.load('nasm')
 
     if conf.env.CXX_NAME == 'gcc':
-        add_options('CXXFLAGS',
+        add_options(['CFLAGS', 'CXXFLAGS'],
                     ['-DVSCORE_EXPORTS',
-                     '-Wno-format-security'])
+                     '-Wno-format-security',
+                     '-fPIC'])
     elif conf.env.CXX_NAME == 'msvc':
-        add_options('CXXFLAGS',
+        add_options(['CFLAGS', 'CXXFLAGS'],
                     ['/DVSCORE_EXPORTS',
                      '/EHsc',
                      '/Zc:wchar_t-'])
 
-    add_options('ASFLAGS',
+    add_options(['ASFLAGS'],
                 ['-w',
                  '-Worphan-labels',
                  '-Wunrecognized-char'])
 
     if conf.env.DEST_CPU in ['x86_64', 'amd64', 'x64']:
-        add_options('ASFLAGS',
+        add_options(['ASFLAGS'],
                     ['-DARCH_X86_64=1'])
 
         if conf.env.DEST_OS == 'darwin':
@@ -57,7 +59,7 @@ def configure(conf):
         else:
             fmt = 'elf64'
     else:
-        add_options('ASFLAGS',
+        add_options(['ASFLAGS'],
                     ['-DARCH_X86_64=0'])
 
         if conf.env.DEST_OS == 'darwin':
@@ -67,29 +69,29 @@ def configure(conf):
         else:
             fmt = 'elf32'
 
-    add_options('ASFLAGS',
+    add_options(['ASFLAGS'],
                 ['-f{0}'.format(fmt)])
 
     if conf.options.mode == 'debug':
         if conf.env.CXX_NAME == 'gcc':
-            add_options('CXXFLAGS',
+            add_options(['CFLAGS', 'CXXFLAGS'],
                         ['-DVSCORE_DEBUG',
                          '-g',
                          '-ggdb',
                          '-ftrapv'])
         elif conf.env.CXX_NAME == 'msvc':
-            add_options('CXXFLAGS',
+            add_options(['CFLAGS', 'CXXFLAGS'],
                         ['/DVSCORE_DEBUG',
                          '/Z7'])
 
-        add_options('ASFLAGS',
+        add_options(['ASFLAGS'],
                     ['-DVSCORE_DEBUG'])
     elif conf.options.mode == 'release':
         if conf.env.CXX_NAME == 'gcc':
-            add_options('CXXFLAGS',
+            add_options(['CFLAGS', 'CXXFLAGS'],
                         ['-O3'])
         elif conf.env.CXX_NAME == 'msvc':
-            add_options('CXXFLAGS',
+            add_options(['CFLAGS', 'CXXFLAGS'],
                         ['/Ox'])
     else:
         conf.fatal('--mode must be either debug or release.')
