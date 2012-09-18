@@ -266,7 +266,7 @@ typedef void (VS_CC *VSReleaseFrameEarly)(const VSNodeRef *node, int n, VSFrameC
 //typedef VSFrameRef *(VS_CC *VSCopyFrame2)(const VSFrameRef *f[], const VSFormat *format, int clobber, VSCore *core);
 
 
-typedef struct VSAPI {
+struct VSAPI {
     VSCreateVSCore createVSCore;
     VSFreeVSCore freeVSCore;
     VSCloneFrameRef cloneFrameRef;
@@ -337,7 +337,7 @@ typedef struct VSAPI {
 
     VSQueryCompletedFrame queryCompletedFrame;
     VSReleaseFrameEarly releaseFrameEarly;
-} VSAPI;
+};
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version);
 
