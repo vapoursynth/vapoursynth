@@ -40,7 +40,6 @@ def configure(conf):
     if conf.env.CXX_NAME == 'gcc':
         add_options(['CFLAGS', 'CXXFLAGS'],
                     ['-DVSCORE_EXPORTS',
-                     '-Wno-format-security',
                      '-fPIC'])
     elif conf.env.CXX_NAME == 'msvc':
         add_options(['CFLAGS', 'CXXFLAGS'],
