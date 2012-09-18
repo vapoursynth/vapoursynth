@@ -24,7 +24,7 @@
 #include <QtCore/QtCore>
 //#include <vld.h>
 #include "../../include/VapourSynth.h"
-#include <malloc.h>
+#include <stdlib.h>
 #include <stdexcept>
 #ifdef _WIN32
 #	define WIN32_LEAN_AND_MEAN
