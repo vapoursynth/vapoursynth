@@ -10,6 +10,7 @@ TOP = os.curdir
 OUT = 'build'
 
 def options(opt):
+    opt.load('compiler_c')
     opt.load('compiler_cxx')
     opt.load('qt4')
 
@@ -21,7 +22,7 @@ def configure(conf):
             if option not in conf.env[flags]:
                 conf.env.append_value(flags, option)
 
-    conf.load('cxx')
+    conf.load('compiler_c')
     conf.load('compiler_cxx')
     conf.load('qt4')
 
@@ -98,7 +99,7 @@ def build(bld):
             return [os.path.join(path, '*.cpp'),
                     os.path.join(path, '*.asm')]
 
-    bld(features = 'qt4 cxx asm cxxshlib',
+    bld(features = 'qt4 c cxx asm cxxshlib',
         includes = 'include',
         source = bld.path.ant_glob(search_paths([os.path.join('src', 'core')])),
         use = ['QTCORE'],
