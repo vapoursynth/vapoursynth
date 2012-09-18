@@ -336,6 +336,6 @@ typedef struct VSAPI {
     VSReleaseFrameEarly releaseFrameEarly;
 } VSAPI;
 
-VS_API(const VSAPI *) VS_CC getVapourSynthAPI(int version);
+VS_API(const VSAPI *) getVapourSynthAPI(int version);
 
 #endif // VAPOURSYNTH_H
