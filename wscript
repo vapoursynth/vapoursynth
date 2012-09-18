@@ -96,7 +96,8 @@ def configure(conf):
 def build(bld):
     def search_paths(paths):
         for path in paths:
-            return [os.path.join(path, '*.cpp'),
+            return [os.path.join(path, '*.c'),
+                    os.path.join(path, '*.cpp'),
                     os.path.join(path, '*.asm')]
 
     bld(features = 'qt4 c cxx asm cxxshlib',
