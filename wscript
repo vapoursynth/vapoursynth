@@ -37,14 +37,16 @@ def configure(conf):
                      '-Wno-format-security'])
     elif conf.env.CXX_NAME == 'msvc':
         add_options('CXXFLAGS',
-                    ['/DVSCORE_EXPORTS'])
+                    ['/DVSCORE_EXPORTS',
+                     '/EHsc',
+                     '/Zc:wchar_t-'])
 
     add_options('ASFLAGS',
                 ['-w',
                  '-Worphan-labels',
                  '-Wunrecognized-char'])
 
-    if conf.env.DEST_CPU == 'x86_64':
+    if conf.env.DEST_CPU in ['x86_64', 'amd64', 'x64']:
         add_options('ASFLAGS',
                     ['-DARCH_X86_64=1'])
 
@@ -66,8 +68,7 @@ def configure(conf):
             fmt = 'elf32'
 
     add_options('ASFLAGS',
-                ['-DPREFIX',
-                 '-f{0}'.format(fmt)])
+                ['-f{0}'.format(fmt)])
 
     if conf.options.mode == 'debug':
         if conf.env.CXX_NAME == 'gcc':
@@ -93,6 +94,12 @@ def configure(conf):
     else:
         conf.fatal('--mode must be either debug or release.')
 
+    if not conf.env.LIB_AVUTIL:
+        conf.env.LIB_AVUTIL = ['avutil']
+
+    if not conf.env.LIB_SWSCALE:
+        conf.env.LIB_SWSCALE = ['swscale']
+
 def build(bld):
     def search_paths(paths):
         for path in paths:
@@ -100,8 +107,13 @@ def build(bld):
                     os.path.join(path, '*.cpp'),
                     os.path.join(path, '*.asm')]
 
+    sources = search_paths([os.path.join('src', 'core')])
+
+    if bld.env.DEST_OS == 'win32':
+        sources += search_paths([os.path.join('src', 'avisynth')])
+
     bld(features = 'qt4 c cxx asm cxxshlib',
         includes = 'include',
-        source = bld.path.ant_glob(search_paths([os.path.join('src', 'core')])),
-        use = ['QTCORE'],
+        source = bld.path.ant_glob(sources),
+        use = ['QTCORE', 'AVUTIL', 'SWSCALE'],
         target = 'vapoursynth')
