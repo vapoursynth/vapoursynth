@@ -24,9 +24,7 @@ extern "C" {
 #include "vsstdlib.h"
 #include "vsresize.h"
 }
-#ifdef _WIN32
 #include "x86utils.h"
-#endif
 
 static const QRegExp idRegExp("^[a-zA-Z][a-zA-Z0-9_]*$");
 static const QRegExp sysPropRegExp("^_[a-zA-Z0-9_]*$");
