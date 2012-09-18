@@ -32,7 +32,11 @@ def configure(conf):
 
     if conf.env.CXX_NAME == 'gcc':
         add_options('CXXFLAGS',
-                    ['-Wno-format-security'])
+                    ['-DVSCORE_EXPORTS',
+                     '-Wno-format-security'])
+    elif conf.env.CXX_NAME == 'msvc':
+        add_options('CXXFLAGS',
+                    ['/DVSCORE_EXPORTS'])
 
     add_options('ASFLAGS',
                 ['-w',
@@ -61,22 +65,30 @@ def configure(conf):
             fmt = 'elf32'
 
     add_options('ASFLAGS',
-                ['-f{0}'.format(fmt)])
+                ['-DPREFIX',
+                 '-f{0}'.format(fmt)])
 
     if conf.options.mode == 'debug':
         if conf.env.CXX_NAME == 'gcc':
             add_options('CXXFLAGS',
-                        ['-DVS_DEBUG',
+                        ['-DVSCORE_DEBUG',
                          '-g',
                          '-ggdb',
                          '-ftrapv'])
+        elif conf.env.CXX_NAME == 'msvc':
+            add_options('CXXFLAGS',
+                        ['/DVSCORE_DEBUG',
+                         '/Z7'])
 
         add_options('ASFLAGS',
-                    ['-DVS_DEBUG'])
+                    ['-DVSCORE_DEBUG'])
     elif conf.options.mode == 'release':
         if conf.env.CXX_NAME == 'gcc':
             add_options('CXXFLAGS',
                         ['-O3'])
+        elif conf.env.CXX_NAME == 'msvc':
+            add_options('CXXFLAGS',
+                        ['/Ox'])
     else:
         conf.fatal('--mode must be either debug or release.')
 
