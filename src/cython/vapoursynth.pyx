@@ -1,19 +1,22 @@
-#  Copyright (c) 2012 Fredrik Mellbin
-#
-#  This file is part of VapourSynth.
-#
-#  VapourSynth is free software: you can redistribute it and/or modify
-#  it under the terms of the GNU Lesser General Public License as
-#  published by the Free Software Foundation, either version 3 of the
-#  License, or (at your option) any later version.
-#
-#  VapourSynth is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#
-#  You should have received a copy of the GNU General Public License
-#  along with VapourSynth.  If not, see <http://www.gnu.org/licenses/>.
+"""
+  Copyright (c) 2012 Fredrik Mellbin
+
+  This file is part of VapourSynth.
+
+  VapourSynth is free software; you can redistribute it and/or
+  modify it under the terms of the GNU Lesser General Public
+  License as published by the Free Software Foundation; either
+  version 2.1 of the License, or (at your option) any later version.
+
+  VapourSynth is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  Lesser General Public License for more details.
+
+  You should have received a copy of the GNU Lesser General Public
+  License along with Libav; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+"""
 
 #ifdef _WIN32
 cimport windows
@@ -78,7 +81,7 @@ cdef class Link(object):
         self.val = val
         self.prop = prop
 
-# fixme, make it possible for this to call functions not defined in python
+#// fixme, make it possible for this to call functions not defined in python
 cdef class Func(object):
     cdef Core core
     cdef object func
@@ -171,10 +174,11 @@ cdef void __stdcall callback(void *data, VSFrameRef *f, int n, VSNodeRef *node, 
 
         while d.output in d.reorder:
             frame_obj = <VideoFrame>d.reorder[d.output]
+            if d.y4m:
 #ifdef _WIN32
-            windows.WriteFile(d.handle, header, 6, &dummy, NULL)
+                windows.WriteFile(d.handle, header, 6, &dummy, NULL)
 #else
-            posix.unistd.write(d.handle, header, 6)
+                posix.unistd.write(d.handle, header, 6)
 #endif
             
             p = 0
@@ -438,29 +442,32 @@ cdef class VideoNode(object):
         if d.total <= 0:
             raise Error('Cannot output unknown length clip')
 
-        # this is also an implicit test that the progress_update callback at least vaguely matches the requirements
+        #// this is also an implicit test that the progress_update callback at least vaguely matches the requirements
         if (progress_update is not None):
             progress_update(0, d.total)
 
-        if (self.format is None or self.format.color_family != YUV) and y4m:
-            raise Error('Cannot apply y4m headers to non-yuv/unknown formats')
+        if (self.format is None or (self.format.color_family != YUV and self.format.color_family != GRAY)) and y4m:
+            raise Error('Can only apply y4m headers to YUV and Gray format clips')
 
         y4mformat = ''
         numbits = ''
 
-        if self.format is not None:
-            if self.format.subsampling_w == 1 and self.format.subsampling_h == 1:
-                y4mformat = 'C420'
-            elif self.format.subsampling_w == 1 and self.format.subsampling_h == 0:
-                y4mformat = 'C422'
-            elif self.format.subsampling_w == 0 and self.format.subsampling_h == 0:
-                y4mformat = 'C444'
-            elif self.format.subsampling_w == 2 and self.format.subsampling_h == 2:
-                y4mformat = 'C410'
-            elif self.format.subsampling_w == 2 and self.format.subsampling_h == 0:
-                y4mformat = 'C411'
-            elif self.format.subsampling_w == 0 and self.format.subsampling_h == 1:
-                y4mformat = 'C440'
+        if y4m:
+            if self.format.color_family == GRAY:
+                y4mformat = 'Cmono'
+            elif self.format.color_family == YUV:
+                if self.format.subsampling_w == 1 and self.format.subsampling_h == 1:
+                    y4mformat = 'C420'
+                elif self.format.subsampling_w == 1 and self.format.subsampling_h == 0:
+                    y4mformat = 'C422'
+                elif self.format.subsampling_w == 0 and self.format.subsampling_h == 0:
+                    y4mformat = 'C444'
+                elif self.format.subsampling_w == 2 and self.format.subsampling_h == 2:
+                    y4mformat = 'C410'
+                elif self.format.subsampling_w == 2 and self.format.subsampling_h == 0:
+                    y4mformat = 'C411'
+                elif self.format.subsampling_w == 0 and self.format.subsampling_h == 1:
+                    y4mformat = 'C440'
 
             numbits = 'B' + str(self.format.bits_per_sample) + ' '
 
@@ -470,10 +477,11 @@ cdef class VideoNode(object):
         cdef str header = 'YUV4MPEG2 ' + y4mformat + numbits + 'W' + str(self.width) + ' H' + str(self.height) + ' F' + str(self.fps_num) + ':' + str(self.fps_den) + ' Ip A0:0\n'
         cdef bytes b = header.encode('utf-8')
         cdef int dummy = 0
+        if y4m:
 #ifdef _WIN32
-        windows.WriteFile(d.handle, <char*>b, len(b), &dummy, NULL)
+            windows.WriteFile(d.handle, <char*>b, len(b), &dummy, NULL)
 #else
-        posix.unistd.write(d.handle, <char*>b, len(b))
+            posix.unistd.write(d.handle, <char*>b, len(b))
 #endif
         d.condition.acquire()
 
@@ -676,7 +684,7 @@ cdef class Function(object):
         cdef char *cname
         ndict = {}
 
-        # naively insert named arguments
+        #// naively insert named arguments
         for key in kwargs:
             if isinstance(kwargs[key], Link):
                 ndict[key + '_prop'] = kwargs[key].prop
@@ -684,7 +692,7 @@ cdef class Function(object):
             else:
                 ndict[key] = kwargs[key]
 
-        # match up unnamed arguments to the first unused name in order
+        #// match up unnamed arguments to the first unused name in order
         sigs = self.signature.split(';')
         csig = 0
         numsig = len(sigs) 
@@ -739,7 +747,7 @@ cdef Function createFunction(str name, str signature, Plugin plugin, vapoursynth
     instance.funcs = funcs
     return instance
 
-# for python functions being executed by vs
+#// for python functions being executed by vs
 
 cdef void __stdcall freeFunc(void *pobj) nogil:
     with gil:
@@ -757,7 +765,7 @@ cdef void __stdcall publicFunction(VSMap *inm, VSMap *outm, void *userData, VSCo
             emsg = str(e).encode('utf-8')
             vsapi.setError(outm, emsg)
 
-# for whole script evaluation and export
+#// for whole script evaluation and export
 
 cdef public struct ScriptExport:
     void *pynode
