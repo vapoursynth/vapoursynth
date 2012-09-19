@@ -23,7 +23,7 @@
 
 #include <QtCore/QtCore>
 //#include <vld.h>
-#include "../../include/VapourSynth.h"
+#include "VapourSynth.h"
 #include <stdlib.h>
 #include <stdexcept>
 #ifdef _WIN32

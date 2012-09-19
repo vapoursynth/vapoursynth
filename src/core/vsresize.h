@@ -21,7 +21,7 @@
 #ifndef VSRESIZE_H
 #define VSRESIZE_H
 
-#include "../../include/VapourSynth.h"
+#include "VapourSynth.h"
 
 void resizeInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
 

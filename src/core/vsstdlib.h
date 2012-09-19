@@ -31,7 +31,7 @@
 #ifndef VSSTDLIB_H
 #define VSSTDLIB_H
 
-#include "../../include/VapourSynth.h"
+#include "VapourSynth.h"
 
 void stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
 

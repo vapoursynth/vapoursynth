@@ -23,7 +23,7 @@
 
 #include <functional>
 #include "avisynth_wrapper.h"
-#include "../../include/VapourSynth.h"
+#include "VapourSynth.h"
 
 namespace AvisynthCompat {
 
