@@ -113,7 +113,8 @@ def build(bld):
                     os.path.join(path, '*.cpp'),
                     os.path.join(path, '*.asm')]
 
-    sources = search_paths([os.path.join('src', 'core')])
+    sources = search_paths([os.path.join('src', 'core'),
+                            os.path.join('src', 'core', 'asm')])
 
     if bld.env.DEST_OS == 'win32':
         sources += search_paths([os.path.join('src', 'avisynth')])
