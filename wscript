@@ -4,7 +4,7 @@ import os
 from waflib import Utils
 
 APPNAME = 'VapourSynth'
-VERSION = '1.0' # May want to change this.
+VERSION = '8'
 
 TOP = os.curdir
 OUT = 'build'
