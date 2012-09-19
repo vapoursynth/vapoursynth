@@ -866,11 +866,6 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
         // gray is always compatible and special, it can work with variable input size clips
         if (d.vi.format) {
             d.vi.format = vsapi->registerFormat(cmGray, d.vi.format->sampleType, d.vi.format->bitsPerSample, 0, 0, core);
-
-            if (d.plane > 0) {
-                d.vi.width >>= d.vi.format->subSamplingW;
-                d.vi.height >>= d.vi.format->subSamplingH;
-            }
         }
     } else {
         // no variable size video with more than one plane, it's just crazy
@@ -942,10 +937,10 @@ static const VSFrameRef *VS_CC selectEveryGetframe(int n, int activationReason, 
     SelectEveryData *d = (SelectEveryData *) * instanceData;
 
     if (activationReason == arInitial) {
-        *frameData = (void *)((n / d->num) * d->cycle + d->offsets[n % d->num]);
-        vsapi->requestFrameFilter((int)*frameData, d->node, frameCtx);
+        *frameData = (void *)(intptr_t)((n / d->num) * d->cycle + d->offsets[n % d->num]);
+        vsapi->requestFrameFilter((intptr_t)*frameData, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        return vsapi->getFrameFilter((int) * frameData, d->node, frameCtx);
+        return vsapi->getFrameFilter((intptr_t) * frameData, d->node, frameCtx);
     }
 
     return 0;
@@ -1431,7 +1426,7 @@ static void VS_CC flipHorizontalCreate(const VSMap *in, VSMap *out, void *userDa
     FlipHorizontalData *data;
     const VSNodeRef *cref;
 
-    d.flip = (int)(userData);
+    d.flip = (intptr_t)(userData);
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     data = malloc(sizeof(d));
     *data = d;
@@ -1519,7 +1514,7 @@ static void VS_CC stackCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     const VSNodeRef *cref;
     int i;
 
-    d.vertical = (int)userData;
+    d.vertical = (intptr_t)userData;
     d.numclips = vsapi->propNumElements(in, "clips");
 
     if (d.numclips == 1) { // passthrough for the special case with only one clip
@@ -2170,7 +2165,7 @@ static const VSFrameRef *VS_CC selectClipGetFrame(int n, int activationReason, v
         for (i = 0; i < d->numsrc; i++)
             vsapi->requestFrameFilter(n, d->src[i], frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        int idx = (int) * frameData;
+        intptr_t idx = (intptr_t) * frameData;
 
         if (idx < 0) {
             int err;
