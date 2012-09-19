@@ -228,6 +228,6 @@ static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData,
     vsapi->freeNode(cref);
 }
 
-extern "C" void VS_CC cacheInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
+void VS_CC cacheInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     registerFunc("Cache", "clip:clip;size:int:opt;fixed:int:opt;", &createCacheFilter, NULL, plugin);
 }

@@ -33,6 +33,6 @@
 
 #include "VapourSynth.h"
 
-void stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
+void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
 
 #endif // VSSTDLIB_H

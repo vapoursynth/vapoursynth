@@ -19,12 +19,12 @@
 */
 
 #include "vscore.h"
-#include "cachefilter.h"
 extern "C" {
 #include "vsstdlib.h"
 #include "vsresize.h"
 }
 #include "x86utils.h"
+#include "cachefilter.h"
 
 static const QRegExp idRegExp("^[a-zA-Z][a-zA-Z0-9_]*$");
 static const QRegExp sysPropRegExp("^_[a-zA-Z0-9_]*$");
@@ -359,11 +359,10 @@ void VS_CC loadPluginInitialize(VSConfigPlugin configFunc, VSRegisterFunction re
     registerFunc("LoadPlugin", "path:data;forcens:data:opt;", &loadPlugin, NULL, plugin);
 }
 
-//fixme ugly
+// fixme, not the most elegant way
 #ifdef _WIN32
-extern "C" int VS_CC avsWrapperInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
+extern "C" void VS_CC avsWrapperInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
 #endif
-extern "C" int VS_CC cacheInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
 
 VSCore::VSCore(int threads) : memory(new MemoryUse()) {
     threadPool = new VSThreadPool(this, threads > 0 ? threads : QThread::idealThreadCount());

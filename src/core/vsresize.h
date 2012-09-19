@@ -23,6 +23,6 @@
 
 #include "VapourSynth.h"
 
-void resizeInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
+void VS_CC resizeInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
 
 #endif // VSRESIZE_H

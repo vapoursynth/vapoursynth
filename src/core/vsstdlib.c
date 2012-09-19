@@ -2465,7 +2465,7 @@ static void VS_CC transposeCreate(const VSMap *in, VSMap *out, void *userData, V
 //////////////////////////////////////////
 // Init
 
-void stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
+void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     //configFunc("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 1, plugin);
     registerFunc("CropAbs", "clip:clip;x:int:opt:link;y:int:opt:link;width:int;height:int;", cropAbsCreate, 0, plugin);
     registerFunc("CropRel", "clip:clip;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;", cropRelCreate, 0, plugin);

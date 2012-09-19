@@ -295,7 +295,7 @@ static void VS_CC resizeCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 //////////////////////////////////////////
 // Init
 
-void resizeInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
+void VS_CC resizeInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     const char *a = "clip:clip;width:int:opt;height:int:opt;format:int:opt;yuvrange:int:opt;";
     configFunc("com.vapoursynth.resize", "resize", "VapourSynth Resize", VAPOURSYNTH_API_VERSION, 1, plugin);
     registerFunc("FastBilinear", a, resizeCreate, (void *)SWS_FAST_BILINEAR, plugin);

@@ -188,4 +188,6 @@ private:
 
 };
 
+void VS_CC cacheInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
+
 #endif // CACHEFILTER_H
