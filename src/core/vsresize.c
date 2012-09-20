@@ -199,10 +199,13 @@ static const VSFrameRef *VS_CC resizeGetframe(int n, int activationReason, void 
 
         switchsrc = fi->colorFamily == cmRGB;
         switchdst = d->vi.format->colorFamily == cmRGB;
-
-        for (i = 0; i < d->vi.format->numPlanes; i++) {
+		
+        for (i = 0; i < vsapi->getFrameFormat(src)->numPlanes; i++) {
             srcp[switchsrc ? 2 - i : i] = (const uint8_t *)vsapi->getReadPtr(src, i);
             src_stride[switchsrc ? 2 - i : i] = vsapi->getStride(src, i);
+		}
+
+        for (i = 0; i < d->vi.format->numPlanes; i++) {
             dstp[switchdst ? 2 - i : i] = (uint8_t *)vsapi->getWritePtr(dst, i);
             dst_stride[switchdst ? 2 - i : i] = vsapi->getStride(dst, i);
         }
