@@ -15,6 +15,7 @@ def options(opt):
     opt.load('qt4')
 
     opt.add_option('--mode', action = 'store', default = 'debug', help = 'the mode to compile in (debug/release)')
+    opt.add_option('--static', action = 'store', default = 'false', help = 'build a static library (true/false)')
 
 def configure(conf):
     def add_options(flags, options):
@@ -100,15 +101,24 @@ def configure(conf):
     else:
         conf.fatal('--mode must be either debug or release.')
 
+    conf.env.STATIC = conf.options.static
+
+    if not conf.env.STATIC in ['true', 'false']:
+        conf.fatal('--static must be either true or false.')
+
     conf.check_cxx(lib = 'avutil')
     conf.check_cxx(lib = 'swscale')
 
 def build(bld):
     def search_paths(paths):
+        srcpaths = []
+
         for path in paths:
-            return [os.path.join(path, '*.c'),
-                    os.path.join(path, '*.cpp'),
-                    os.path.join(path, '*.asm')]
+            srcpaths += [os.path.join(path, '*.c'),
+                         os.path.join(path, '*.cpp'),
+                         os.path.join(path, '*.asm')]
+
+        return srcpaths
 
     sources = search_paths([os.path.join('src', 'core'),
                             os.path.join('src', 'core', 'asm')])
@@ -116,8 +126,16 @@ def build(bld):
     if bld.env.DEST_OS == 'win32':
         sources += search_paths([os.path.join('src', 'avisynth')])
 
-    bld(features = 'c qxx asm cxxshlib',
+    bld(features = 'c qxx asm',
         includes = 'include',
         source = bld.path.ant_glob(sources),
-        use = ['QTCORE', 'AVUTIL', 'SWSCALE'],
+        target = 'objs')
+
+    bld(features = 'c qxx asm cxxshlib',
+        use = 'objs',
         target = 'vapoursynth')
+
+    if bld.env.STATIC == 'true':
+        bld(features = 'c qxx asm cxxstlib',
+            use = 'objs',
+            target = 'vapoursynth')
