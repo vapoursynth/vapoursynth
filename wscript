@@ -112,8 +112,8 @@ def configure(conf):
     if not conf.env.STATIC in ['true', 'false']:
         conf.fatal('--static must be either true or false.')
 
-    conf.check_cxx(lib = 'avutil', features = 'cxx cxxprogram')
-    conf.check_cxx(lib = 'swscale', features = 'cxx cxxprogram')
+    conf.check_cxx(lib = 'avutil', use = 'cxxprogram')
+    conf.check_cxx(lib = 'swscale', use = 'cxxprogram')
 
 def build(bld):
     def search_paths(paths):
