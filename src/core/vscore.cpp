@@ -23,6 +23,7 @@ extern "C" {
 #include "vsstdlib.h"
 #include "vsresize.h"
 }
+#include "vshelper.h"
 #include "x86utils.h"
 #include "cachefilter.h"
 
@@ -51,11 +52,7 @@ void FrameContext::setError(const QByteArray &errorMsg) {
 ///////////////
 
 VSFrameData::VSFrameData(quint32 size, MemoryUse *mem) : mem(mem), size(size), data(NULL) {
-#ifdef _WIN32
-    data = (uint8_t *)_aligned_malloc(size, VSFrame::alignment);
-#else
-    posix_memalign((void **)&data, VSFrame::alignment, size);
-#endif
+    data = vs_aligned_malloc<uint8_t>(size, VSFrame::alignment);
     Q_CHECK_PTR(data);
     mem->add(size);
 }
@@ -63,22 +60,14 @@ VSFrameData::VSFrameData(quint32 size, MemoryUse *mem) : mem(mem), size(size), d
 VSFrameData::VSFrameData(const VSFrameData &d) : data(NULL) {
     size = d.size;
     mem = d.mem;
-#ifdef _WIN32
-    data = (uint8_t *)_aligned_malloc(size, VSFrame::alignment);
-#else
-    posix_memalign((void **)&data, VSFrame::alignment, size);
-#endif
+    data = vs_aligned_malloc<uint8_t>(size, VSFrame::alignment);
     Q_CHECK_PTR(data);
     mem->add(size);
     memcpy(data, d.data, size);
 }
 
 VSFrameData::~VSFrameData() {
-#ifdef _WIN32
-    _aligned_free(data);
-#else
-    free(data);
-#endif
+	vs_aligned_free(data);
     mem->subtract(size);
 }
 

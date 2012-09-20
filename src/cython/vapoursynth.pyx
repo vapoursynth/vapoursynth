@@ -140,7 +140,7 @@ cdef class FramePtr(object):
     cdef VSAPI *funcs
 
     def __init__(self):
-        raise Error('Class cannon be instantiated directly')
+        raise Error('Class cannot be instantiated directly')
 
     def __dealloc__(self):
         self.funcs.freeFrame(self.f)
@@ -165,56 +165,60 @@ cdef void __stdcall callback(void *data, VSFrameRef *f, int n, VSNodeRef *node, 
 
     with gil:
         d = <CallbackData>data
-
+        d.completed = d.completed + 1
+        
         if f == NULL:
             d.total = d.requested
-            d.error = 'Failed to retrieve frame ' + n + ' with error: ' + errormsg.decode('utf-8')
-
-        d.reorder[n] = createFramePtr(f, d.funcs)
-
-        while d.output in d.reorder:
-            frame_obj = <VideoFrame>d.reorder[d.output]
-            if d.y4m:
-#ifdef _WIN32
-                windows.WriteFile(d.handle, header, 6, &dummy, NULL)
-#else
-                posix.unistd.write(d.handle, header, 6)
-#endif
-            
-            p = 0
-            fi = d.funcs.getFrameFormat(frame_obj.f)
-
-            while p < d.num_planes:
-                pitch = d.funcs.getStride(frame_obj.f, p)
-                readptr = d.funcs.getReadPtr(frame_obj.f, p)
-                row_size = d.funcs.getFrameWidth(frame_obj.f, p) * fi.bytesPerSample
-                height = d.funcs.getFrameHeight(frame_obj.f, p)
-                y = 0
-
-                while y < height:
-#ifdef _WIN32
-                    if not windows.WriteFile(d.handle, readptr, row_size, &dummy, NULL):
-#else
-                    if not posix.unistd.write(d.handle, readptr, row_size):
-#endif
-                        d.total = d.requested
-                        d.error = 'WriteFile() call returned false'
-
-                    readptr += pitch
-                    y = y + 1
-
-                p = p + 1
-
-            del d.reorder[d.output]
+            if errormsg == NULL:
+                d.error = 'Failed to retrieve frame ' + str(n)
+            else:
+                d.error = 'Failed to retrieve frame ' + str(n) + ' with error: ' + errormsg.decode('utf-8')
             d.output = d.output + 1
+
+        else:
+            d.reorder[n] = createFramePtr(f, d.funcs)
+
+            while d.output in d.reorder:
+                frame_obj = <FramePtr>d.reorder[d.output]
+                if d.y4m:
 #ifdef _WIN32
-            windows.FlushFileBuffers(d.handle)
+                    windows.WriteFile(d.handle, header, 6, &dummy, NULL)
+#else
+                    posix.unistd.write(d.handle, header, 6)
+#endif
+                
+                p = 0
+                fi = d.funcs.getFrameFormat(frame_obj.f)
+
+                while p < d.num_planes:
+                    pitch = d.funcs.getStride(frame_obj.f, p)
+                    readptr = d.funcs.getReadPtr(frame_obj.f, p)
+                    row_size = d.funcs.getFrameWidth(frame_obj.f, p) * fi.bytesPerSample
+                    height = d.funcs.getFrameHeight(frame_obj.f, p)
+                    y = 0
+
+                    while y < height:
+#ifdef _WIN32
+                        if not windows.WriteFile(d.handle, readptr, row_size, &dummy, NULL):
+#else
+                        if not posix.unistd.write(d.handle, readptr, row_size):
+#endif
+                            d.total = d.requested
+                            d.error = 'WriteFile() call returned false'
+
+                        readptr += pitch
+                        y = y + 1
+
+                    p = p + 1
+
+                del d.reorder[d.output]
+                d.output = d.output + 1
+#ifdef _WIN32
+                windows.FlushFileBuffers(d.handle)
 #endif
 
-        d.completed = d.completed + 1
-
-        if (d.progress_update is not None):
-            d.progress_update(d.completed, d.total)
+            if (d.progress_update is not None):
+                d.progress_update(d.completed, d.total)
 
         if d.requested < d.total:
             d.node.funcs.getFrameAsync(d.requested, d.node.node, callback, data)
@@ -328,7 +332,7 @@ cdef class Format(object):
     cdef readonly int num_planes
 
     def __init__(self):
-        raise Error('Class cannon be instantiated directly')
+        raise Error('Class cannot be instantiated directly')
 
     def __str__(self):
         cdef dict color_stuff = dict({GRAY:'Gray', RGB:'RGB', YUV:'YUV', YCOCG:'YCoCg', COMPAT:'Compat'})
@@ -373,7 +377,7 @@ cdef class VideoFrame(object):
     cdef readonly int height
 
     def __init__(self):
-        raise Error('Class cannon be instantiated directly')
+        raise Error('Class cannot be instantiated directly')
 
     def __dealloc__(self):
         self.funcs.freeFrame(self.f)
@@ -419,7 +423,7 @@ cdef class VideoNode(object):
     cdef readonly int flags
 
     def __init__(self):
-        raise Error('Class cannon be instantiated directly')
+        raise Error('Class cannot be instantiated directly')
 
     def __dealloc__(self):
         self.funcs.freeNode(self.node)
@@ -632,7 +636,7 @@ cdef class Plugin(object):
     cdef vapoursynth.VSAPI *funcs
 
     def __init__(self):
-        raise Error('Class cannon be instantiated directly')
+        raise Error('Class cannot be instantiated directly')
 
     def __getattr__(self, name):
         tname = name.encode('utf-8')
@@ -676,7 +680,7 @@ cdef class Function(object):
     cdef vapoursynth.VSAPI *funcs
 
     def __init__(self):
-        raise Error('Class cannon be instantiated directly')
+        raise Error('Class cannot be instantiated directly')
 
     def __call__(self, *args, **kwargs):
         cdef VSMap *inm

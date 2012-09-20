@@ -101,7 +101,6 @@ void VSThread::run() {
                 PVideoFrame f = rCtx->clip->getFrameInternal(rCtx->n, ar, rCtx);
                 ranTask = true;
                 owner->lock.lock();
-                Q_ASSERT(!rCtx->hasError());
 
                 if (f && rCtx->numFrameRequests > 0)
                     qFatal("Frame returned but there are still pending frame requests, filter: " + rCtx->clip->name);
@@ -122,7 +121,7 @@ void VSThread::run() {
 
                 owner->runningTasks.remove(FrameKey(rCtx->clip, rCtx->clip->filterMode == fmUnordered ? -1 : rCtx->n));
 
-                if (f || ar == arError) {
+				if (f || ar == arError || rCtx->hasError()) {
                     // free all input frames quickly since the frame processing is done
                     rCtx->availableFrames.clear();
 
