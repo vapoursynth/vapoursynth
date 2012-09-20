@@ -23,8 +23,8 @@ SECTION .text
 INIT_XMM
 cglobal isFPUStateOk, 0, 2, 0
 	xor r1, r1
-    fnstcw [esp - 4]
-	mov r0w, [esp - 4]
+    fnstcw [rsp - 4]
+	mov r0w, [rsp - 4]
     and r0w, 0x0f3f
     cmp r0w, 0x023f
 	cmovne r0, r1
@@ -33,8 +33,8 @@ cglobal isFPUStateOk, 0, 2, 0
 INIT_XMM
 cglobal isMMXStateOk, 0, 2, 0
 	xor r1, r1
-    fnstenv [esp - 28]
-	mov r0w, [esp - 20]
+    fnstenv [rsp - 28]
+	mov r0w, [rsp - 20]
     cmp r0w, 0xffff
 	cmovne r0, r1
 	RET
