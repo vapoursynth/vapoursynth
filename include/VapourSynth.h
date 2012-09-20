@@ -39,19 +39,19 @@
 #endif
 
 // And now for some symbol hide-and-seek...
-#if defined(_MSC_VER) // MSVC
-#	if defined(VSCORE_EXPORTS) // building the VSCore library itself, with visible API symbols
-#		define VS_API(ret) VS_EXTERN_C __declspec(dllexport) ret VS_CC
-#	else // building something that depends on VS
-#		define VS_API(ret) VS_EXTERN_C __declspec(dllimport) ret VS_CC
-#	endif // defined(VSCORE_EXPORTS)
-// GCC 4 or later: export API symbols only. Some GCC 3.x versions support the visibility attribute too,
-// but we don't really care enough about that to add compatibility defines for it.
+#if defined(_WIN32) // Windows being special
+#	define VS_EXTERNAL_API(ret) VS_EXTERN_C __declspec(dllexport) ret VS_CC
 #elif defined(__GNUC__) && __GNUC__ >= 4
-#	define VS_API(ret) VS_EXTERN_C __attribute__((visibility("default"))) ret VS_CC
-#else // fallback for everything else
-#	define VS_API(ret) VS_EXTERN_C ret VS_CC
-#endif // defined(_MSC_VER)
+#	define VS_EXTERNAL_API(ret) VS_EXTERN_C __attribute__((visibility("default"))) ret VS_CC
+#else
+#	define VS_EXTERNAL_API(ret) VS_EXTERN_C ret VS_CC
+#endif
+
+#if !defined(VSCORE_EXPORTS) && defined(_WIN32)
+#	define VS_API(ret) VS_EXTERN_C __declspec(dllimport) ret VS_CC
+#else
+#	define VS_API(ret) VS_EXTERNAL_API(ret)
+#endif
 
 typedef struct VSFrameRef VSFrameRef;
 typedef struct VSNodeRef VSNodeRef;
