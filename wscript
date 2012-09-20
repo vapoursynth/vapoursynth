@@ -101,13 +101,19 @@ def configure(conf):
     else:
         conf.fatal('--mode must be either debug or release.')
 
+    # Waf always uses gcc/g++ for linking when using a GCC
+    # compatible C/C++ compiler.
+    if conf.env.CXX_NAME == 'gcc':
+        add_options(['LINKFLAGS_cxxshlib', 'LINKFLAGS_cxxprogram'],
+                    ['-Wl,-Bsymbolic'])
+
     conf.env.STATIC = conf.options.static
 
     if not conf.env.STATIC in ['true', 'false']:
         conf.fatal('--static must be either true or false.')
 
-    conf.check_cxx(lib = 'avutil')
-    conf.check_cxx(lib = 'swscale')
+    conf.check_cxx(lib = 'avutil', features = 'cxx cxxprogram')
+    conf.check_cxx(lib = 'swscale', features = 'cxx cxxprogram')
 
 def build(bld):
     def search_paths(paths):
