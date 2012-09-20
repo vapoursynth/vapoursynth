@@ -100,11 +100,8 @@ def configure(conf):
     else:
         conf.fatal('--mode must be either debug or release.')
 
-    if not conf.env.LIB_AVUTIL:
-        conf.env.LIB_AVUTIL = ['avutil']
-
-    if not conf.env.LIB_SWSCALE:
-        conf.env.LIB_SWSCALE = ['swscale']
+    conf.check_cxx(lib = 'avutil')
+    conf.check_cxx(lib = 'swscale')
 
 def build(bld):
     def search_paths(paths):
