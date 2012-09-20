@@ -139,10 +139,10 @@ def build(bld):
         target = 'objs')
 
     bld(features = 'c qxx asm cxxshlib',
-        use = 'objs qtcore avutil swscale',
+        use = ['objs', 'QTCORE', 'AVUTIL', 'SWSCALE'],
         target = 'vapoursynth')
 
     if bld.env.STATIC == 'true':
         bld(features = 'c qxx asm cxxstlib',
-            use = 'objs qtcore avutil swscale',
+            use = ['objs', 'QTCORE', 'AVUTIL', 'SWSCALE'],
             target = 'vapoursynth')
