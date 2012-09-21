@@ -101,7 +101,7 @@ struct SwsContext *getSwsContext(int SrcW, int SrcH, enum PixelFormat SrcFormat,
     int SrcRange = SrcColorRange == AVCOL_RANGE_JPEG;
     int DstRange = DstColorRange == AVCOL_RANGE_JPEG;
 
-    Flags |= SWS_FULL_CHR_H_INT | SWS_FULL_CHR_H_INP;
+    Flags |= SWS_FULL_CHR_H_INT | SWS_FULL_CHR_H_INP | SWS_ACCURATE_RND | SWS_BITEXACT;
 
     if (!Context) return 0;
 
