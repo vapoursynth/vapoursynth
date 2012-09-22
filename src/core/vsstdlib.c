@@ -551,9 +551,9 @@ static const VSFrameRef *VS_CC interleaveGetframe(int n, int activationReason, v
     InterleaveData *d = (InterleaveData *) * instanceData;
 
     if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n, d->node[n % d->numclips], frameCtx);
+        vsapi->requestFrameFilter(n / 3, d->node[n % d->numclips], frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        return vsapi->getFrameFilter(n, d->node[n % d->numclips], frameCtx);
+        return vsapi->getFrameFilter(n / 3, d->node[n % d->numclips], frameCtx);
     }
 
     return 0;
@@ -1599,7 +1599,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     const VSNodeRef *node;
     int hasvi = 0;
     int format = 0;
-    int color[3] = { 0, 0 , 0 };
+    int color[3] = { 0, 0, 0 };
     int ncolors;
     int plane;
     int64_t temp;
@@ -2462,7 +2462,7 @@ static void VS_CC transposeCreate(const VSMap *in, VSMap *out, void *userData, V
 
 void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     //configFunc("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("CropAbs", "clip:clip;x:int:opt:link;y:int:opt:link;width:int;height:int;", cropAbsCreate, 0, plugin);
+    registerFunc("CropAbs", "clip:clip;width:int;height:int;x:int:opt:link;y:int:opt:link;", cropAbsCreate, 0, plugin);
     registerFunc("CropRel", "clip:clip;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;", cropRelCreate, 0, plugin);
     registerFunc("AddBorders", "clip:clip;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;", addBordersCreate, 0, plugin);
     registerFunc("Trim", "clip:clip;first:int:opt;last:int:opt;length:int:opt;", trimCreate, 0, plugin);;
@@ -2483,7 +2483,7 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("AssumeFPS", "clip:clip;src:clip:opt;fpsnum:int:opt;fpsden:int:opt;", assumeFPSCreate, 0, plugin);
     registerFunc("Lut", "clip:clip;lut:int[];planes:int[];", lutCreate, 0, plugin);
     registerFunc("Lut2", "clips:clip[];lut:int[];planes:int[];", lut2Create, 0, plugin);
-    registerFunc("SelectClip", "clips:clip[];src:clip[];selector:func;", selectClipCreate, 0, plugin);
+    registerFunc("SelectClip", "clips:clip[];selector:func;src:clip[]:opt;", selectClipCreate, 0, plugin);
     registerFunc("ModifyProps", "clip:clip;selector:func;", modifyPropsCreate, 0, plugin);
     registerFunc("Transpose", "clip:clip;", transposeCreate, 0, plugin);
 }
