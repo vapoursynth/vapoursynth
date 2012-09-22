@@ -4,7 +4,7 @@ LoadPlugin
 .. function::   LoadPlugin(string path)
    :module: std
    
-   Load a native VapourSynth plugin. If successful the loaded plugin's functions will end up in its own namespace.
+   Load a native VapourSynth plugin. If successful, the loaded plugin's functions will end up in their own namespace.
    
    Returns an error if a plugin with the same identifier or namespace already has been loaded. This is to ensure no naming collisions or multiple versions of the same plugin can be loaded at once.
 

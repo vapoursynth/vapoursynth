@@ -14,6 +14,8 @@ Contents:
    
    installation
    gettingstarted
+   apireference
+
    about
    avisynthcomp
    functions

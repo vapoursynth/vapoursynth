@@ -6,4 +6,4 @@ SeparateFields
    
    Returns a clip with the fields separated and interleaved.
    
-   Since VapourSynth has no notion of field order internally *tff* must be set. Setting *tff* to true means top fields first and false means bottom field first.
+   Since VapourSynth has no notion of field order internally, *tff* must be set. Setting *tff* to true means top field first and false means bottom field first.

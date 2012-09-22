@@ -22,11 +22,9 @@ Here's a sample script to be inspired by::
    core.avs.LoadPlugin(path=r'c:\avisynth\UnDot.dll')
    # open a video file, ret is now a clip object
    ret = core.ffms2.Source(source='Super Size Me.avi')
-   # print some information about the loaded video
-   print(ret)
    # apply the undot filter to the video
    ret = core.avs.UnDot(clip=ret)
    # output the clip to stdout with y4m headers (useful for encoding with x264/mplayer)
    ret.output(sys.stdout, y4m=True)
 
-Remember that most VapourSynth objects have a quite nice string representation in Python, so if you want to know more about an isntance just call print().
+Remember that most VapourSynth objects have a quite nice string representation in Python, so if you want to know more about an instance just call print().

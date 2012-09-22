@@ -3,8 +3,8 @@ Avisynth functions and their VapourSynth equivalents
 +------------------------+---------------------+----------------------------------------------------------------------+
 | Avisynth               | VapourSynth         | Notes                                                                |
 +========================+=====================+======================================================================+
-| AviSource              | ffms2.Source        | A plugin with the latest avi reading code from vdub is planned       |
-|                        |                     | version created. Contributions welcome                               |
+| AviSource              | ffms2.Source        | A plugin with the latest avi reading code from vdub is planned.      |
+|                        |                     | Contributions welcome                                                |
 +------------------------+---------------------+----------------------------------------------------------------------+
 | DirectShowSource       | none                | DirectShowSource will at least have a special compatible avisynth    |
 |                        |                     | version created. Or VapourSynth will get varargs support.            |
@@ -13,42 +13,42 @@ Avisynth functions and their VapourSynth equivalents
 +------------------------+---------------------+----------------------------------------------------------------------+
 | Import                 | none                | See the documentation for Python's import command                    |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| ConvertTo*             | resize.Bicubic(     | This also determined the resizer used for chroma resampling,         |
+| ConvertTo*             | resize.Bicubic(     | This also determines the resizer used for chroma resampling,         |
 |                        | format=vs.YUV444P8) | if needed                                                            |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| ColorYUV               | std.Lut             | Do the adustment yourself with a lut                                 |
+| ColorYUV               | std.Lut             | Do the adjustment yourself with a lut                                |
 +------------------------+---------------------+----------------------------------------------------------------------+
 | GreyScale              | std.ShufflePlanes   | ShufflePlanes(clips=inclip, planes=0, format=vs.GRAY)                |
 |                        |                     | Extracts the first plane. Y for YUV, R for RGB, planes=1/2 = U/V G/B |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| Invert                 | std.Lut             | Do the adustment yourself with a lut                                 |
+| Invert                 | std.Lut             | Do the adjustment yourself with a lut                                |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| Limiter                | std.Lut             | Do the adustment yourself with a lut                                 |
+| Limiter                | std.Lut             | Do the adjustment yourself with a lut                                |
 +------------------------+---------------------+----------------------------------------------------------------------+
 | MergeRGB               | std.ShufflePlanes   | ShufflePlanes(clips=[R,G,B], planes=[0, 0, 0], format=vs.RGB)        |
 +------------------------+---------------------+----------------------------------------------------------------------+
 | MergeChroma/MergeLuma  | std.ShufflePlanes   | ShufflePlanes(clips=[Yclip,UVclip], planes=[0, 1, 2], format=vs.YUV) |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| RGBAdjust              | std.Lut             | Do the adustment yourself with a lut                                 |
+| RGBAdjust              | std.Lut             | Do the adjustment yourself with a lut                                |
 +------------------------+---------------------+----------------------------------------------------------------------+
 | ShowAlpha/ShowRed/     | std.ShufflePlanes   | ShufflePlanes(clips=inclip, planes=0, format=vs.GRAY)                |
 | ShowGreen/ShowBlue     |                     | Extracts the first plane. Y for YUV, R for RGB, planes=1/2 = U/V G/B |
 +------------------------+---------------------+----------------------------------------------------------------------+
 | SwapUV                 | std.ShufflePlanes   | ShufflePlanes(clips=inclip, planes=[0, 2, 1], format=vs.YUV)         |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| Tweak                  | std.Lut             | Do the adustment yourself with a lut                                 |
+| Tweak                  | std.Lut             | Do the adjustment yourself with a lut                                |
 +------------------------+---------------------+----------------------------------------------------------------------+
 | UToY/VToY/*            | std.ShufflePlanes   | See GreyScale and the other examples                                 |
 +------------------------+---------------------+----------------------------------------------------------------------+
 | ColorKeyMask           | std.Lut             | Not perfect but probably good enough for a clever person             |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| Layer                  | std.Lut2            | Do the adustment yourself with a lut                                 |
+| Layer                  | std.Lut2            | Do the adjustment yourself with a lut                                |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| Overlay                | std.Lut2            | Do the adustment yourself with a lut, missing offset and other stuff |
+| Overlay                | std.Lut2            | Do the adjustment yourself with a lut. Missing offset and other stuff|
 +------------------------+---------------------+----------------------------------------------------------------------+
-| Subtract               | std.Lut2            | Do the adustment yourself with a lut                                 |
+| Subtract               | std.Lut2            | Do the adjustment yourself with a lut                                |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| AddBorder              | std.AddBorders      |                                                                      |
+| AddBorders             | std.AddBorders      |                                                                      |
 +------------------------+---------------------+----------------------------------------------------------------------+
 | Crop                   | std.CropAbs/CropRel |                                                                      |
 +------------------------+---------------------+----------------------------------------------------------------------+

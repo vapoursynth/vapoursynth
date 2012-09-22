@@ -19,5 +19,5 @@ Test it by opening a Python command line (should be added to your start menu) an
    c = vs.Core()
    print(c.version())
 
-After typing the final line you should see the version printed along with a few other lines describing the options used when cinstantiating the Core object.
-If the first import line fails you have most likely not placed the all the files in the right location or you don't have the required runtime installed.
+After typing the final line you should see the version printed along with a few other lines describing the options used when instantiating the Core object.
+If the first import line fails you have most likely not placed all the files in the right location or you don't have the required runtime installed.

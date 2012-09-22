@@ -14,7 +14,7 @@ Resize
                 Spline(clip clip[, int width, int height, int format])
    :module: resize
    
-   In VapourSynth the resizers have several functions. In addition to scaling they also do colorspace conversions and conversions to and from the compat formats.
+   In VapourSynth the resizers have several functions. In addition to scaling, they also do colorspace conversions and conversions to and from the compat formats.
    All the optional arguments default to the input *clip*'s properties. The resize filters can handle varying size and format input clips and turn them into a constant format clip.
    If you do not know which resizer to choose then Bicubic usually makes a good neutral default.
    

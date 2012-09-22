@@ -5,7 +5,7 @@ BlankClip
    :module: std
    
    Generates a new empty clip. This can be useful to have when editing video or for testing. The default is a 640x480 RGB24 24fps 10 second long black clip.
-   Instead of specifying every property individually BlankClip can also copy the properties from *clip*. If both an argument, such as *width*, and *clip* is set, then *width* will take precedence.
+   Instead of specifying every property individually BlankClip, can also copy the properties from *clip*. If both an argument, such as *width*, and *clip* is set, then *width* will take precedence.
    
    It is never an error to use BlankClip.
    

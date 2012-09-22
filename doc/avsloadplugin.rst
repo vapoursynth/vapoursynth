@@ -6,15 +6,15 @@ LoadPlugin (Avisynth Compatibility)
    
    Load an Avisynth plugin. If successful the loaded plugin's functions will end up in the avs namespace.
    
-   The compatibility module can work with a large number of Avisynth's plugins. The wrapping is however not complete so these things will cause problems:
-      * The plugin tries to call env->invoke(),
-        these calls are ignored when it is safe to do so but otherwise it will most likely trigger a fatal error
-      * Plugins trying to read global variables,
-        there are no global variables
-      * Plugins that use packed RGB24 input/output,
-        nobody used it anyway
-      * May deadlock when the Avisynth compatibility module does not have a prefetch list,
-        can be worked around by increasing the number of threads used if it deadlocks
+   The compatibility module can work with a large number of Avisynth's plugins. However, the wrapping is not complete, so the following things will cause problems:
+      * The plugin tries to call env->invoke().
+        These calls are ignored when it is safe to do so, but otherwise they will most likely trigger a fatal error.
+      * Plugins trying to read global variables.
+        There are no global variables.
+      * Plugins that use packed RGB24 input/output.
+        Nobody used it anyway.
+      * May deadlock when the Avisynth compatibility module does not have a prefetch list.
+        Can be worked around by increasing the number of threads used if it deadlocks.
    
    Returns an error if there are function name collisions.
 

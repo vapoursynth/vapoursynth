@@ -5,14 +5,14 @@ ShufflePlanes
    :module: std
    
    ShufflePlanes can extract and combine planes from different clips in the most general way possible.
-   This is both good and bad as there almost no error checks.
+   This is both good and bad as there are almost no error checks.
    
    Most of the returned clip's properties are implicitly determined from the first clip given to *clips*.
    Takes between 1 and 3 clips for 3 plane formats. In this case clips=[A] is equivalent to clips=[A, A, A] and clips=[A, B] is equivalent to clips=[A, B, B]. For 1 plane formats it takes exactly one clip.
    
    The argument *planes* controls which of the input clips' planes to use. Zero indexed.
 
-   The only things that needs to be specified is *format*, which controls which color family (YUV, RGB, GRAY) the output clip will be.
+   The only thing that needs to be specified is *format*, which controls which color family (YUV, RGB, GRAY) the output clip will be.
    Properties such as subsampling are determined from the relative size of the given planes to combine.
    
    Here are some examples of useful operations...

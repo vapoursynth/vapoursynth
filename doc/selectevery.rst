@@ -4,7 +4,7 @@ SelectEvery
 .. function:: SelectEvery(clip clip, int cycle, int[] offsets)
    :module: std
    
-   Returns a clip with only some of the frames in every cycle selected.
+   Returns a clip with only some of the frames in every cycle selected. The *offsets* given must be between 0 and and cycle - 1.
    
    Here are some examples of useful operations...
    
