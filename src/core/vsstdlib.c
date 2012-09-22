@@ -513,7 +513,9 @@ static void VS_CC trimCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         d.trimlen = d.last - d.first + 1;
     } else if (lengthset) {
         d.trimlen = d.length;
-    } else {
+	} else if (d.vi.numFrames) {
+		d.trimlen = d.vi.numFrames - d.first;
+	} else {
         d.trimlen = 0;
     }
 
@@ -927,7 +929,14 @@ typedef struct {
 static void VS_CC selectEveryInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     SelectEveryData *d = (SelectEveryData *) * instanceData;
     VSVideoInfo vi = *vsapi->getVideoInfo(d->node);
-    vi.numFrames = (vi.numFrames / d->cycle) * d->num; //fixme? may lose a few frames
+	int i;
+	int inputnframes = vi.numFrames;
+	if (inputnframes) {
+		vi.numFrames = (inputnframes / d->cycle) * d->num;
+		for (i = 0; i < d->num; i++)
+			if (d->offsets[i] < inputnframes % d->cycle)
+				vi.numFrames++;
+	}
     vi.fpsDen *= d->cycle;
     vi.fpsNum *= d->num;
     vsapi->setVideoInfo(&vi, node);
