@@ -1,5 +1,5 @@
 Interleave
-=======
+==========
 
 .. function::   Interleave(clip[] clips[, bint mismatch=0])
    :module: std

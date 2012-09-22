@@ -1,5 +1,5 @@
 SelectEvery
-=======
+===========
 
 .. function:: SelectEvery(clip clip, int cycle, int[] offsets)
    :module: std

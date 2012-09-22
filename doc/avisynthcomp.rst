@@ -1,5 +1,5 @@
 Avisynth functions and their VapourSynth equivalents
-=======
+====================================================
 +------------------------+---------------------+----------------------------------------------------------------------+
 | Avisynth               | VapourSynth         | Notes                                                                |
 +========================+=====================+======================================================================+
@@ -58,9 +58,9 @@ Avisynth functions and their VapourSynth equivalents
 | Letterbox              | std.CropAbs+        |                                                                      |
 |                        | std.AddBorders      |                                                                      |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| *ReduceBy2             | resize.*            | Too specialized to ever be included in the core                      |
+| ReduceBy2              | resize.*            | Too specialized to ever be included in the core                      |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| *Resize                | resize.*            | Chroma placement/shift/range conversion not supported in swscale     |
+| Resize (all kinds)     | resize.*            | Chroma placement/shift/range conversion not supported in swscale     |
 +------------------------+---------------------+----------------------------------------------------------------------+
 | Turn180                | std.Turn180         |                                                                      |
 +------------------------+---------------------+----------------------------------------------------------------------+

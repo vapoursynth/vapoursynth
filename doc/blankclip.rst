@@ -1,5 +1,5 @@
 BlankClip
-=======
+=========
 
 .. function:: BlankClip([clip clip, int width=640, int height=480, int format=vs.RGB24, int length=(10*fpsnum)/fpsden, int fpsnum=24, int fpsden=1, int[] color=[0, 0, 0])
    :module: std

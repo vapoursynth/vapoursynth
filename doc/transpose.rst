@@ -1,5 +1,5 @@
 Transpose
-=======
+=========
 
 .. function:: Transpose(clip clip)
    :module: std

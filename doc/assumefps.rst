@@ -1,5 +1,5 @@
 AssumeFPS
-=======
+=========
 
 .. function:: AssumeFPS(clip clip[, clip src, int fpsnum, int fpsden=1])
    :module: std

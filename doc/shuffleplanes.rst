@@ -1,5 +1,5 @@
 ShufflePlanes
-=======
+=============
 
 .. function::   ShufflePlanes(clip[] clips, int[] planes, int format)
    :module: std

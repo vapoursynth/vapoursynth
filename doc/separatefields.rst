@@ -1,5 +1,5 @@
 SeparateFields
-=======
+==============
 
 .. function:: SeparateFields(clip clip, bint tff)
    :module: std

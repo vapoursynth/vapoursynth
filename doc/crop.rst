@@ -1,5 +1,5 @@
 CropAbs/CropRel
-=======
+===============
 
 .. function::   CropAbs(clip clip, int width, int height[, int x=0, int y=0])
                 CropRel(clip clip[, int left=0, int right=0, int top=0, int bottom=0])

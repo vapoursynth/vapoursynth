@@ -1,5 +1,5 @@
 StackVertical/StackHorizontal
-=======
+=============================
 
 .. function:: StackVertical(clip[] clips)
               StackHorizontal(clip[] clips)

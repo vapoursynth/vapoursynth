@@ -1,5 +1,5 @@
 FlipVertical/FlipHorizontal
-=======
+===========================
 
 .. function:: FlipVertical(clip clip)
               FlipHorizontal(clip clip)
