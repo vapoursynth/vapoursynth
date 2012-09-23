@@ -612,13 +612,13 @@ cdef class Core(object):
 
     def __cinit__(self, flatten = True, addcache = True, int threads = 0, bint accept_lowercase = False):
         self.funcs = vapoursynth.getVapourSynthAPI(1)
-        self.core = self.funcs.createVSCore(threads)
+        self.core = self.funcs.createCore(threads)
         self.flatten = flatten
         self.addcache = addcache
         self.accept_lowercase = accept_lowercase
 
     def __dealloc__(self):
-        self.funcs.freeVSCore(self.core)
+        self.funcs.freeCore(self.core)
 
     def __getattr__(self, name):
         cdef vapoursynth.VSPlugin *plugin

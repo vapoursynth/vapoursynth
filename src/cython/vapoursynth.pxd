@@ -136,8 +136,8 @@ cdef extern from "../../include/VapourSynth.h":
     ctypedef void (__stdcall *VSFreeFuncData)(void *userData)
 
     ctypedef struct VSAPI:
-        VSCore *createVSCore(int threads)
-        void freeVSCore(VSCore *core)
+        VSCore *createCore(int threads)
+        void freeCore(VSCore *core)
 
         void registerFunction(char *name, char *args, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin)
         VSNodeRef *createFilter(VSMap *input, VSMap *out, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *filterData, VSCore *core)

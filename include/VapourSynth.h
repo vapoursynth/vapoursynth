@@ -172,8 +172,8 @@ typedef enum ActivationReason {
 } ActivationReason;
 
 // function typedefs
-typedef	VSCore *(VS_CC *VSCreateVSCore)(int threads);
-typedef	void (VS_CC *VSFreeVSCore)(VSCore *core);
+typedef	VSCore *(VS_CC *VSCreateCore)(int threads);
+typedef	void (VS_CC *VSFreeCore)(VSCore *core);
 
 // function/filter typedefs
 typedef void (VS_CC *VSPublicFunction)(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
@@ -267,8 +267,8 @@ typedef void (VS_CC *VSReleaseFrameEarly)(const VSNodeRef *node, int n, VSFrameC
 
 
 struct VSAPI {
-    VSCreateVSCore createVSCore;
-    VSFreeVSCore freeVSCore;
+    VSCreateCore createCore;
+    VSFreeCore freeCore;
     VSCloneFrameRef cloneFrameRef;
     VSCloneNodeRef cloneNodeRef;
     VSFreeFrame freeFrame;

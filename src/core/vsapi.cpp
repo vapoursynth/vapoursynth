@@ -410,11 +410,11 @@ static void VS_CC clearMap(VSMap *map) {
     map->clear();
 }
 
-static VSCore *VS_CC createVSCore(int threads) {
+static VSCore *VS_CC createCore(int threads) {
     return new VSCore(threads);
 }
 
-static void VS_CC freeVSCore(VSCore *core) {
+static void VS_CC freeCore(VSCore *core) {
     delete core;
 }
 
@@ -501,8 +501,8 @@ static void VS_CC releaseFrameEarly(const VSNodeRef *node, int n, VSFrameContext
 }
 
 const VSAPI vsapi = {
-    &createVSCore,
-    &freeVSCore,
+    &createCore,
+    &freeCore,
     &cloneFrameRef,
     &cloneNodeRef,
     &freeFrame,
