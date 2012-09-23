@@ -504,7 +504,7 @@ static void VS_CC trimCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     d.vi = *vsapi->getVideoInfo(d.node);
 
-    if ((lastset && d.vi.numFrames && d.last >= d.vi.numFrames) || (lengthset && d.vi.numFrames && (d.first + d.length) > d.vi.numFrames)) {
+    if ((lastset && d.vi.numFrames && d.last >= d.vi.numFrames) || (lengthset && d.vi.numFrames && (d.first + d.length) > d.vi.numFrames) || (d.vi.numFrames && d.vi.numFrames <= d.first)) {
         vsapi->freeNode(d.node);
         RETERROR("Trim: last frame beyond clip end");
     }

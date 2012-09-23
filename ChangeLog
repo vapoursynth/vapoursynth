@@ -2,6 +2,7 @@ known issues:
 may deadlock with some avisynth plugins (set the number of threads, VSCore(threads=4))
 
 r9:
+it is now possible to use + to splice clips and the slicing operator to perform Trim, Reverse and SelectEvery operations on a clip
 documentation
 minor fixes
 

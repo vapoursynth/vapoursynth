@@ -498,6 +498,57 @@ cdef class VideoNode(object):
         if d.error:
             raise Error(d.error)
 
+    def __add__(a, b):
+        if not isinstance(a, VideoNode) or not isinstance(b, VideoNode):
+            raise TypeError('Only clips can be spliced')
+        return (<VideoNode>a).core.std.Splice(clips=[a, b])
+
+    def __getitem__(self, val):
+        if isinstance(val, slice):
+            if val.step is not None and val.step == 0:
+                raise ValueError('slice step cannot be zero')
+            if val.start is not None and val.start < 0:
+                raise ValueError('slice start cannot be negative')
+            if val.stop is not None and val.stop < 0:
+                raise ValueError('slice end cannot be negative')
+                                 
+            step = val.step
+            if step is None:
+                step = 1
+
+            if step > 0: 
+                start = val.start
+                stop = val.stop
+            else:
+                start = val.stop
+                stop = val.start
+                
+            ret = self
+
+            if step > 0 and stop is not None:
+                stop -= 1
+            if step < 0 and start is not None:
+                start += 1
+
+            if start is not None and stop is not None:
+                ret = self.core.std.Trim(clip=ret, first=start, last=stop)
+            elif start is not None:
+                ret = self.core.std.Trim(clip=ret, first=start)
+            elif stop is not None:
+                ret = self.core.std.Trim(clip=ret, last=stop-1)
+                
+            if step < 0:
+                ret = self.core.std.Reverse(clip=ret)
+                
+            if abs(step) != 1:
+                ret = self.core.std.SelectEvery(clip=ret, cycle=abs(step), offsets=[0])
+                
+            return ret
+        elif isinstance(val, int):
+            return self.core.std.Trim(clip=self, first=val, length=1)
+        else:
+            raise TypeError("index must be int or slice")
+
     def __str__(self):
         cdef str s = 'VideoNode\n'
 

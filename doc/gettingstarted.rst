@@ -3,7 +3,7 @@ Getting Started
 
 So you managed to install VapourSynth, now what?
 
-If you don't know the basics of Python you may want to check out the tutorial. http://docs.python.org/py3k/tutorial/index.html
+If you don't know the basics of Python you may want to check out the `tutorial <http://docs.python.org/py3k/tutorial/index.html>`_. 
 
 You can "play around" in the python interpreter if you want. But that's not how most video scripts are created.
 
