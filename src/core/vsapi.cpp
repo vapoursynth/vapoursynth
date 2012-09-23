@@ -500,13 +500,23 @@ static void VS_CC releaseFrameEarly(const VSNodeRef *node, int n, VSFrameContext
     f->availableFrames.remove(FrameKey(node->clip.data(), n));
 }
 
+static VSFuncRef *VS_CC cloneFuncRef(VSFuncRef *f) {
+    return new VSFuncRef(f->func);
+}
+
 const VSAPI vsapi = {
     &createCore,
     &freeCore,
+    &getVersion,
+
     &cloneFrameRef,
     &cloneNodeRef,
+    &cloneFuncRef,
+
     &freeFrame,
     &freeNode,
+    &freeFunc,
+
     &newVideoFrame,
     &copyFrame,
     &copyFrameProps,
@@ -526,12 +536,20 @@ const VSAPI vsapi = {
     &getFrameAsync,
     &getFrameFilter,
     &requestFrameFilter,
+    &queryCompletedFrame,
+    &releaseFrameEarly,
+
     &getStride,
     &getReadPtr,
     &getWritePtr,
+
+    &createFunc,
+    &callFunc,
+
     &newMap,
     &freeMap,
     &clearMap,
+
     &getVideoInfo,
     &setVideoInfo,
     &getFrameFormat,
@@ -539,6 +557,7 @@ const VSAPI vsapi = {
     &getFrameHeight,
     &getFramePropsRO,
     &getFramePropsRW,
+
     &propNumKeys,
     &propGetKey,
     &propNumElements,
@@ -549,18 +568,12 @@ const VSAPI vsapi = {
     &propGetDataSize,
     &propGetNode,
     &propGetFrame,
+    &propGetFunc,
     &propDeleteKey,
     &propSetInt,
     &propSetFloat,
     &propSetData,
     &propSetNode,
     &propSetFrame,
-    &getVersion,
-    &propGetFunc,
-    &propSetFunc,
-    &callFunc,
-    &createFunc,
-    &freeFunc,
-    &queryCompletedFrame,
-    &releaseFrameEarly
+    &propSetFunc
 };

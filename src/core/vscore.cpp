@@ -505,6 +505,15 @@ VSPlugin::VSPlugin(const QByteArray &filename, const QByteArray &forcedNamespace
 
     if (readOnlySet)
         readOnly = true;
+
+    if (apiVersion != VAPOURSYNTH_API_VERSION) {
+#ifdef _WIN32
+        FreeLibrary(libHandle);
+#else
+        dlclose(libHandle);
+#endif
+        throw VSException((QString("Core only supports API R") + QString::number(VAPOURSYNTH_API_VERSION) + QString(" but the loaded plugin uses API R") + QString::number(apiVersion)).toUtf8());
+    }
 }
 
 VSPlugin::~VSPlugin() {

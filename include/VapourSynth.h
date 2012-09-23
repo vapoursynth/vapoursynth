@@ -23,7 +23,7 @@
 
 #include <stdint.h>
 
-#define VAPOURSYNTH_API_VERSION 1
+#define VAPOURSYNTH_API_VERSION 2
 
 // Convenience for C++ users.
 #ifdef __cplusplus
@@ -65,12 +65,12 @@ typedef struct VSFrameContext VSFrameContext;
 
 typedef enum VSColorFamily {
     // all planar formats
-    cmGray		= 1000000,
-    cmRGB		= 2000000,
-    cmYUV		= 3000000,
-    cmYCoCg		= 4000000,
-    // special for compatibility, if you implement these in new filters I'll personally kill you
-    cmCompat	= 9000000
+    cmGray   = 1000000,
+    cmRGB    = 2000000,
+    cmYUV    = 3000000,
+    cmYCoCg  = 4000000,
+    // special for compatibility
+    cmCompat = 9000000
 } VSColorFamily;
 
 typedef enum VSSampleType {
@@ -134,17 +134,17 @@ typedef struct VSFormat {
     int subSamplingW; // log2 subsampling factor, applied to second and third plane
     int subSamplingH;
 
-    int numPlanes; // implicit from colorFamily, 1 or 3 in the currently specified ones
+    int numPlanes; // implicit from colorFamily
 } VSFormat;
 
 typedef enum NodeFlags {
-    nfNoCache	= 1,
+    nfNoCache = 1,
 } NodeFlags;
 
 typedef enum GetPropErrors {
-    peUnset	= 1,
-    peType	= 2,
-    peIndex	= 4
+    peUnset = 1,
+    peType  = 2,
+    peIndex = 4
 } GetPropErrors;
 
 typedef struct VSVersion {
@@ -257,25 +257,30 @@ typedef int (VS_CC *VSPropSetFunc)(VSMap *map, const char *key, VSFuncRef *func,
 typedef void (VS_CC *VSCallFunc)(VSFuncRef *func, const VSMap *in, VSMap *out, VSCore *core, const VSAPI *vsapi);
 typedef VSFuncRef *(VS_CC *VSCreateFunc)(VSPublicFunction func, void *userData, VSFreeFuncData free);
 typedef void (VS_CC *VSFreeFunc)(VSFuncRef *f);
+typedef VSFuncRef *(VS_CC *VSCloneFuncRef)(VSFuncRef *f);
 
 typedef void (VS_CC *VSQueryCompletedFrame)(const VSNodeRef **node, int *n, VSFrameContext *frameCtx);
 typedef void (VS_CC *VSReleaseFrameEarly)(const VSNodeRef *node, int n, VSFrameContext *frameCtx);
 
-// make plane memory allocation independent and provide a complicated copy function?
-// VSCopyFrame equivalent to VSCopyFrame2({f, f, f}, f.vi.format, 0, core); VSCopyFrameProps()
-//typedef VSFrameRef *(VS_CC *VSCopyFrame2)(const VSFrameRef *f[], const VSFormat *format, int clobber, VSCore *core);
 
 
 struct VSAPI {
     VSCreateCore createCore;
     VSFreeCore freeCore;
+    VSGetVersion getVersion;
+
     VSCloneFrameRef cloneFrameRef;
     VSCloneNodeRef cloneNodeRef;
+    VSCloneFuncRef cloneFuncRef;
+
     VSFreeFrame freeFrame;
     VSFreeNode freeNode;
+    VSFreeFunc freeFunc;
+
     VSNewVideoFrame newVideoFrame;
     VSCopyFrame copyFrame;
     VSCopyFrameProps copyFrameProps;
+
     VSRegisterFunction registerFunction;
     VSGetPluginId getPluginId;
     VSGetPluginNs getPluginNs;
@@ -286,15 +291,23 @@ struct VSAPI {
     VSGetError getError;
     VSSetFilterError setFilterError; //use to signal errors in the filter getframe function
     VSInvoke invoke;
+
     VSGetFormatPreset getFormatPreset;
     VSRegisterFormat registerFormat;
+
     VSGetFrame getFrame; // for external applications using the core as a library/for exceptional use if frame requests are necessary during filter initialization
     VSGetFrameAsync getFrameAsync; // for external applications using the core as a library
     VSGetFrameFilter getFrameFilter; // only use inside a filter's getframe function
     VSRequestFrameFilter requestFrameFilter; // only use inside a filter's getframe function
+    VSQueryCompletedFrame queryCompletedFrame;
+    VSReleaseFrameEarly releaseFrameEarly;
+
     VSGetStride getStride;
     VSGetReadPtr getReadPtr;
     VSGetWritePtr getWritePtr;
+
+    VSCreateFunc createFunc;
+    VSCallFunc callFunc;
 
     //property access functions
     VSNewMap newMap;
@@ -319,6 +332,7 @@ struct VSAPI {
     VSPropGetDataSize propGetDataSize;
     VSPropGetNode propGetNode;
     VSPropGetFrame propGetFrame;
+    VSPropGetFunc propGetFunc;
 
     VSPropDeleteKey propDeleteKey;
     VSPropSetInt propSetInt;
@@ -326,17 +340,7 @@ struct VSAPI {
     VSPropSetData propSetData;
     VSPropSetNode propSetNode;
     VSPropSetFrame propSetFrame;
-
-    VSGetVersion getVersion;
-
-    VSPropGetFunc propGetFunc;
     VSPropSetFunc propSetFunc;
-    VSCallFunc callFunc;
-    VSCreateFunc createFunc;
-    VSFreeFunc freeFunc;
-
-    VSQueryCompletedFrame queryCompletedFrame;
-    VSReleaseFrameEarly releaseFrameEarly;
 };
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version);
