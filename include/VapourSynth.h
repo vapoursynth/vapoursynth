@@ -174,6 +174,7 @@ typedef enum ActivationReason {
 // function typedefs
 typedef	VSCore *(VS_CC *VSCreateCore)(int threads);
 typedef	void (VS_CC *VSFreeCore)(VSCore *core);
+typedef const VSVersion *(VS_CC *VSGetVersion)(void);
 
 // function/filter typedefs
 typedef void (VS_CC *VSPublicFunction)(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
@@ -199,8 +200,10 @@ typedef void (VS_CC *VSRequestFrameFilter)(int n, const VSNodeRef *node, VSFrame
 typedef const VSFrameRef *(VS_CC *VSGetFrameFilter)(int n, const VSNodeRef *node, VSFrameContext *frameCtx);
 typedef const VSFrameRef *(VS_CC *VSCloneFrameRef)(const VSFrameRef *f);
 typedef const VSNodeRef *(VS_CC *VSCloneNodeRef)(const VSNodeRef *node);
+typedef VSFuncRef *(VS_CC *VSCloneFuncRef)(VSFuncRef *f);
 typedef void (VS_CC *VSFreeFrame)(const VSFrameRef *f);
 typedef void (VS_CC *VSFreeNode)(const VSNodeRef *node);
+typedef void (VS_CC *VSFreeFunc)(VSFuncRef *f);
 typedef VSFrameRef *(VS_CC *VSNewVideoFrame)(const VSFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core);
 typedef VSFrameRef *(VS_CC *VSCopyFrame)(const VSFrameRef *f, VSCore *core);
 typedef void (VS_CC *VSCopyFrameProps)(const VSFrameRef *src, VSFrameRef *dst, VSCore *core);
@@ -232,6 +235,7 @@ typedef const char *(VS_CC *VSPropGetData)(const VSMap *map, const char *key, in
 typedef int (VS_CC *VSPropGetDataSize)(const VSMap *map, const char *key, int index, int *error);
 typedef const VSNodeRef *(VS_CC *VSPropGetNode)(const VSMap *map, const char *key, int index, int *error);
 typedef const VSFrameRef *(VS_CC *VSPropGetFrame)(const VSMap *map, const char *key, int index, int *error);
+typedef VSFuncRef *(VS_CC *VSPropGetFunc)(const VSMap *map, const char *key, int index, int *error);
 
 typedef int (VS_CC *VSPropDeleteKey)(VSMap *map, const char *key);
 typedef int (VS_CC *VSPropSetInt)(VSMap *map, const char *key, int64_t i, int append);
@@ -239,6 +243,7 @@ typedef int (VS_CC *VSPropSetFloat)(VSMap *map, const char *key, double d, int a
 typedef int (VS_CC *VSPropSetData)(VSMap *map, const char *key, const char *data, int size, int append);
 typedef int (VS_CC *VSPropSetNode)(VSMap *map, const char *key, const VSNodeRef *node, int append);
 typedef int (VS_CC *VSPropSetFrame)(VSMap *map, const char *key, const VSFrameRef *f, int append);
+typedef int (VS_CC *VSPropSetFunc)(VSMap *map, const char *key, VSFuncRef *func, int append);
 
 typedef void (VS_CC *VSConfigPlugin)(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readonly, VSPlugin *plugin);
 typedef void (VS_CC *VSInitPlugin)(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
@@ -249,15 +254,10 @@ typedef VSPlugin *(VS_CC *VSGetPluginNs)(const char *ns, VSCore *core);
 typedef VSMap *(VS_CC *VSGetPlugins)(VSCore *core);
 typedef VSMap *(VS_CC *VSGetFunctions)(VSPlugin *plugin);
 
-// fixme, move this stuff around before the API is final
-typedef const VSVersion *(VS_CC *VSGetVersion)(void);
 
-typedef VSFuncRef *(VS_CC *VSPropGetFunc)(const VSMap *map, const char *key, int index, int *error);
-typedef int (VS_CC *VSPropSetFunc)(VSMap *map, const char *key, VSFuncRef *func, int append);
+
 typedef void (VS_CC *VSCallFunc)(VSFuncRef *func, const VSMap *in, VSMap *out, VSCore *core, const VSAPI *vsapi);
 typedef VSFuncRef *(VS_CC *VSCreateFunc)(VSPublicFunction func, void *userData, VSFreeFuncData free);
-typedef void (VS_CC *VSFreeFunc)(VSFuncRef *f);
-typedef VSFuncRef *(VS_CC *VSCloneFuncRef)(VSFuncRef *f);
 
 typedef void (VS_CC *VSQueryCompletedFrame)(const VSNodeRef **node, int *n, VSFrameContext *frameCtx);
 typedef void (VS_CC *VSReleaseFrameEarly)(const VSNodeRef *node, int n, VSFrameContext *frameCtx);

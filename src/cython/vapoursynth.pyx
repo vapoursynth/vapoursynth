@@ -229,7 +229,7 @@ cdef void __stdcall callback(void *data, VSFrameRef *f, int n, VSNodeRef *node, 
             d.condition.notify()
             d.condition.release()
 
-cdef object mapToDict(VSMap *map, bint flatten, bint addcache, Core core, VSAPI *funcs):
+cdef object mapToDict(VSMap *map, bint flatten, bint add_cache, Core core, VSAPI *funcs):
     cdef int numKeys = funcs.propNumKeys(map)
     retdict = {}
     cdef char *retkey
@@ -250,7 +250,7 @@ cdef object mapToDict(VSMap *map, bint flatten, bint addcache, Core core, VSAPI 
             elif proptype =='c':
                 newval = createVideoNode(funcs.propGetNode(map, retkey, 0, NULL), funcs, core)
 
-                if addcache and not newval.flags:
+                if add_cache and not newval.flags:
                     newval = core.std.Cache(clip=newval)
 
                     if type(newval) == dict:
@@ -607,18 +607,21 @@ cdef class Core(object):
     cdef vapoursynth.VSCore *core
     cdef vapoursynth.VSAPI *funcs
     cdef bint flatten
-    cdef bint addcache
+    cdef bint add_cache
     cdef bint accept_lowercase
 
-    def __cinit__(self, flatten = True, addcache = True, int threads = 0, bint accept_lowercase = False):
-        self.funcs = vapoursynth.getVapourSynthAPI(1)
+    def __cinit__(self, int threads = 0, bint flatten = True, bint add_cache = True, bint accept_lowercase = False):
+        self.funcs = vapoursynth.getVapourSynthAPI(2)
+        if self.funcs == NULL:
+            raise Error('Failed to obtain VapourSynth API pointer. Is the Python module and loaded core library mismatched?')
         self.core = self.funcs.createCore(threads)
         self.flatten = flatten
-        self.addcache = addcache
+        self.add_cache = add_cache
         self.accept_lowercase = accept_lowercase
 
     def __dealloc__(self):
-        self.funcs.freeCore(self.core)
+        if self.funcs:
+            self.funcs.freeCore(self.core)
 
     def __getattr__(self, name):
         cdef vapoursynth.VSPlugin *plugin
@@ -677,7 +680,7 @@ cdef class Core(object):
         cdef str s = 'Core\n'
         s += self.version() + '\n'
         s += '\tFlatten: ' + str(self.flatten) + '\n'
-        s += '\tAdd Caches: ' + str(self.addcache) + '\n'
+        s += '\tAdd Caches: ' + str(self.add_cache) + '\n'
         s += '\tAccept Lowercase: ' + str(self.accept_lowercase) + '\n'
         return s
 
@@ -790,7 +793,7 @@ cdef class Function(object):
             self.funcs.freeMap(outm)
             raise Error(emsg.decode('utf-8'))
 
-        retdict = mapToDict(outm, self.plugin.core.flatten, self.plugin.core.addcache, self.plugin.core, self.funcs)
+        retdict = mapToDict(outm, self.plugin.core.flatten, self.plugin.core.add_cache, self.plugin.core, self.funcs)
         self.funcs.freeMap(outm)
         return retdict
 
