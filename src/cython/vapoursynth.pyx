@@ -200,11 +200,13 @@ cdef void __stdcall callback(void *data, VSFrameRef *f, int n, VSNodeRef *node, 
                     while y < height:
 #ifdef _WIN32
                         if not windows.WriteFile(d.handle, readptr, row_size, &dummy, NULL):
+                            d.error = 'WriteFile() call returned false'
 #else
-                        if not posix.unistd.write(d.handle, readptr, row_size):
+                        if posix.unistd.write(d.handle, readptr, row_size) < 0:
+                            d.error = 'write() call returned error'
 #endif
                             d.total = d.requested
-                            d.error = 'WriteFile() call returned false'
+
 
                         readptr += pitch
                         y = y + 1
@@ -458,27 +460,29 @@ cdef class VideoNode(object):
 
         if y4m:
             if self.format.color_family == GRAY:
-                y4mformat = 'Cmono'
+                y4mformat = 'mono'
+                if self.format.bits_per_sample > 8:
+                    y4mformat = y4mformat + str(self.format.bits_per_sample)
             elif self.format.color_family == YUV:
                 if self.format.subsampling_w == 1 and self.format.subsampling_h == 1:
-                    y4mformat = 'C420'
+                    y4mformat = '420'
                 elif self.format.subsampling_w == 1 and self.format.subsampling_h == 0:
-                    y4mformat = 'C422'
+                    y4mformat = '422'
                 elif self.format.subsampling_w == 0 and self.format.subsampling_h == 0:
-                    y4mformat = 'C444'
+                    y4mformat = '444'
                 elif self.format.subsampling_w == 2 and self.format.subsampling_h == 2:
-                    y4mformat = 'C410'
+                    y4mformat = '410'
                 elif self.format.subsampling_w == 2 and self.format.subsampling_h == 0:
-                    y4mformat = 'C411'
+                    y4mformat = '411'
                 elif self.format.subsampling_w == 0 and self.format.subsampling_h == 1:
-                    y4mformat = 'C440'
-
-            numbits = 'B' + str(self.format.bits_per_sample) + ' '
+                    y4mformat = '440'
+                if self.format.bits_per_sample > 8:
+                    y4mformat = y4mformat + 'p' + str(self.format.bits_per_sample)
 
         if len(y4mformat) > 0:
-            y4mformat = y4mformat + ' '
+            y4mformat = 'C' + y4mformat + ' '
 
-        cdef str header = 'YUV4MPEG2 ' + y4mformat + numbits + 'W' + str(self.width) + ' H' + str(self.height) + ' F' + str(self.fps_num) + ':' + str(self.fps_den) + ' Ip A0:0\n'
+        cdef str header = 'YUV4MPEG2 ' + y4mformat + 'W' + str(self.width) + ' H' + str(self.height) + ' F' + str(self.fps_num) + ':' + str(self.fps_den) + ' Ip A0:0\n'
         cdef bytes b = header.encode('utf-8')
         cdef int dummy = 0
         if y4m:

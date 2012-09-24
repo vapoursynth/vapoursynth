@@ -168,7 +168,7 @@ static const VSFrameRef *VS_CC resizeGetframe(int n, int activationReason, void 
         uint8_t *dstp[3];
         int src_stride[3];
         int dst_stride[3];
-        // swcale expect bgr plane order
+        // swcale expect gbr plane order
         int switchsrc = 0;
         int switchdst = 0;
 
