@@ -2179,13 +2179,11 @@ static const VSFrameRef *VS_CC selectClipGetFrame(int n, int activationReason, v
         if (idx < 0) {
             int err;
             const VSFrameRef *f;
-            char label[10];
             vsapi->propSetInt(d->in, "N", n, 0);
 
             for (i = 0; i < d->numsrc; i++) {
-                sprintf(label, "F%d", i);
                 f = vsapi->getFrameFilter(n, d->src[i], frameCtx);
-                vsapi->propSetFrame(d->in, label, f, 0);
+                vsapi->propSetFrame(d->in, "F", f, 1);
                 vsapi->freeFrame(f);
             }
 
