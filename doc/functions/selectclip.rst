@@ -5,7 +5,7 @@ SelectClip
    :module: std
    
    Selects which of the *clips* to return a frame from based on the *selector* function. The *selector* function has access to the frame number and the frames in the *src* clips.
-   The selector function is passed a dict containing the frame number ('N') and the frames retrieved from *src* ('F0', 'F1'...).
+   The selector function is passed a dict containing the frame number ('N') and the frames retrieved from *src* are in ('F'), which will be a list if there is more than one source clip.
    
    How to return alternating frames from the clips (A.Frame0, B.Frame1, A.Frame2, B.Frame3...)::
    
@@ -20,7 +20,7 @@ SelectClip
    How to select based on a frame property::
    
       def special_processing(props):
-         f = props['F0']
+         f = props['F']
          # get the frame's property dict
          fprop = f.get_props()
          if fprop['IsCombed']:
