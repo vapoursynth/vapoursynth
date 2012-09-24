@@ -157,6 +157,7 @@ static const VSFrameRef *VS_CC resizeGetframe(int n, int activationReason, void 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
+        const int rgb_map[] = {2,0,1};
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         VSFrameRef *dst = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, src, core);
         int w = vsapi->getFrameWidth(src, 0);
@@ -201,13 +202,13 @@ static const VSFrameRef *VS_CC resizeGetframe(int n, int activationReason, void 
         switchdst = d->vi.format->colorFamily == cmRGB;
 		
         for (i = 0; i < vsapi->getFrameFormat(src)->numPlanes; i++) {
-            srcp[switchsrc ? 2 - i : i] = (const uint8_t *)vsapi->getReadPtr(src, i);
-            src_stride[switchsrc ? 2 - i : i] = vsapi->getStride(src, i);
+            srcp[switchsrc ? rgb_map[i] : i] = (const uint8_t *)vsapi->getReadPtr(src, i);
+            src_stride[switchsrc ? rgb_map[i] : i] = vsapi->getStride(src, i);
 		}
 
         for (i = 0; i < d->vi.format->numPlanes; i++) {
-            dstp[switchdst ? 2 - i : i] = (uint8_t *)vsapi->getWritePtr(dst, i);
-            dst_stride[switchdst ? 2 - i : i] = vsapi->getStride(dst, i);
+            dstp[switchdst ? rgb_map[i] : i] = (uint8_t *)vsapi->getWritePtr(dst, i);
+            dst_stride[switchdst ? rgb_map[i] : i] = vsapi->getStride(dst, i);
         }
 
         sws_scale(d->context, srcp, src_stride, 0, h, dstp, dst_stride);
