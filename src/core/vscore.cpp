@@ -227,9 +227,13 @@ void VSNode::getFrame(const PFrameContext &ct) {
 
 PVideoFrame VSNode::getFrameInternal(int n, int activationReason, PFrameContext &frameCtx) {
     const VSFrameRef *r = filterGetFrame(n, activationReason, &instanceData, &frameCtx->frameContext, (VSFrameContext *)&frameCtx, core, &vsapi);
-
-    if (!vs_isFPUStateOk() || !vs_isMMXStateOk())
-        qFatal("Bad fpu/mmx state detected after return from filter");
+// This stuff really only works properly on windows, feel free to investigate what the linux ABI thinks about it
+#ifdef _WIN32
+    if (!vs_isMMXStateOk())
+        qFatal("Bad mmx state detected after return from filter");
+    if (!vs_isFPUStateOk())
+        qFatal("Bad fpu state detected after return from filter");
+#endif
 
     if (r) {
         PVideoFrame p(r->frame);
