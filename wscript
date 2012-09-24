@@ -135,11 +135,12 @@ def build(bld):
 
     bld(features = 'c qxx asm',
         includes = 'include',
+        use = ['QTCORE', 'AVUTIL', 'SWSCALE'],
         source = bld.path.ant_glob(sources),
         target = 'objs')
 
     bld(features = 'c qxx asm cxxshlib',
-        use = ['objs', 'QTCORE', 'AVUTIL', 'SWSCALE'],
+        use = ['objs'],
         target = 'vapoursynth')
 
     if bld.env.STATIC == 'true':
