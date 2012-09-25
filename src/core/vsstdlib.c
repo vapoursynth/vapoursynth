@@ -298,6 +298,13 @@ static void VS_CC cropRelCreate(const VSMap *in, VSMap *out, void *userData, VSC
     d.height = d.vi->height - d.y - vsapi->propGetInt(in, "bottom", 0, &err);
     d.width = d.vi->width - d.x - vsapi->propGetInt(in, "right", 0, &err);
 
+    // passthrough for the no cropping case
+    if (d.x == 0 && d.y == 0 && d.width == d.vi->width && d.height == d.vi->height) {
+        vsapi->propSetNode(out, "clip", d.node, 0);
+        vsapi->freeNode(d.node);
+        return;
+    }
+
     if (cropAbsVerify(d.x, d.y, d.width, d.height, d.vi->width, d.vi->height, d.vi->format, msg)) {
         vsapi->freeNode(d.node);
         RETERROR(msg);
