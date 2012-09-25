@@ -560,9 +560,9 @@ static const VSFrameRef *VS_CC interleaveGetframe(int n, int activationReason, v
     InterleaveData *d = (InterleaveData *) * instanceData;
 
     if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n / 3, d->node[n % d->numclips], frameCtx);
+        vsapi->requestFrameFilter(n / d->numclips, d->node[n % d->numclips], frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        return vsapi->getFrameFilter(n / 3, d->node[n % d->numclips], frameCtx);
+        return vsapi->getFrameFilter(n / d->numclips, d->node[n % d->numclips], frameCtx);
     }
 
     return 0;
@@ -613,6 +613,9 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
             free(d.node);
             RETERROR("Interleave: clip property mismatch");
         }
+
+        d.vi.numFrames *= d.numclips;
+        d.vi.fpsNum *= d.numclips;
 
         data = malloc(sizeof(d));
         *data = d;
