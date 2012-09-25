@@ -122,12 +122,11 @@ typedef enum VSFilterMode {
     fmSerial = 400 // for source filters and compatibility with other filtering architectures
 } VSFilterMode;
 
-// possibly add d3d storage on gpu, since the gpu memory can be mapped into normal address space
 typedef struct VSFormat {
     char name[32];
     int id;
-    int colorFamily; // gray/rgb/yuv/ycocg
-    int sampleType; // int/float
+    int colorFamily; // see VSColorFamily
+    int sampleType; // see VSSampleType
     int bitsPerSample; // number of significant bits
     int bytesPerSample; // actual storage is always in a power of 2 and the smallest possible that can fit the number of bits used per sample
 
@@ -154,14 +153,13 @@ typedef struct VSVersion {
 } VSVersion;
 
 typedef struct VSVideoInfo {
-    // add node name?
     const VSFormat *format;
     int64_t fpsNum;
     int64_t fpsDen;
     int width;
     int height;
     int numFrames;
-    int flags; // expose in some other way?
+    int flags;
 } VSVideoInfo;
 
 typedef enum ActivationReason {
@@ -171,7 +169,7 @@ typedef enum ActivationReason {
     arError = -1
 } ActivationReason;
 
-// function typedefs
+// core function typedefs
 typedef	VSCore *(VS_CC *VSCreateCore)(int threads);
 typedef	void (VS_CC *VSFreeCore)(VSCore *core);
 typedef const VSVersion *(VS_CC *VSGetVersion)(void);
@@ -207,7 +205,6 @@ typedef void (VS_CC *VSFreeFunc)(VSFuncRef *f);
 typedef VSFrameRef *(VS_CC *VSNewVideoFrame)(const VSFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core);
 typedef VSFrameRef *(VS_CC *VSCopyFrame)(const VSFrameRef *f, VSCore *core);
 typedef void (VS_CC *VSCopyFrameProps)(const VSFrameRef *src, VSFrameRef *dst, VSCore *core);
-
 typedef int (VS_CC *VSGetStride)(const VSFrameRef *f, int plane);
 typedef const uint8_t *(VS_CC *VSGetReadPtr)(const VSFrameRef *f, int plane);
 typedef uint8_t *(VS_CC *VSGetWritePtr)(VSFrameRef *f, int plane);
@@ -245,6 +242,8 @@ typedef int (VS_CC *VSPropSetNode)(VSMap *map, const char *key, const VSNodeRef 
 typedef int (VS_CC *VSPropSetFrame)(VSMap *map, const char *key, const VSFrameRef *f, int append);
 typedef int (VS_CC *VSPropSetFunc)(VSMap *map, const char *key, VSFuncRef *func, int append);
 
+// mixed
+
 typedef void (VS_CC *VSConfigPlugin)(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readonly, VSPlugin *plugin);
 typedef void (VS_CC *VSInitPlugin)(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
 
@@ -253,8 +252,6 @@ typedef VSPlugin *(VS_CC *VSGetPluginNs)(const char *ns, VSCore *core);
 
 typedef VSMap *(VS_CC *VSGetPlugins)(VSCore *core);
 typedef VSMap *(VS_CC *VSGetFunctions)(VSPlugin *plugin);
-
-
 
 typedef void (VS_CC *VSCallFunc)(VSFuncRef *func, const VSMap *in, VSMap *out, VSCore *core, const VSAPI *vsapi);
 typedef VSFuncRef *(VS_CC *VSCreateFunc)(VSPublicFunction func, void *userData, VSFreeFuncData free);
@@ -286,21 +283,21 @@ struct VSAPI {
     VSGetPluginNs getPluginNs;
     VSGetPlugins getPlugins;
     VSGetFunctions getFunctions;
-    VSCreateFilter createFilter;
-    VSSetError setError;
-    VSGetError getError;
-    VSSetFilterError setFilterError; //use to signal errors in the filter getframe function
-    VSInvoke invoke;
+    VSCreateFilter createFilter; // do never use inside a filter's getframe function
+    VSSetError setError; // use to signal errors outside filter getframe functions
+    VSGetError getError; // use to query errors, returns 0 if no error
+    VSSetFilterError setFilterError; // use to signal errors in the filter getframe function
+    VSInvoke invoke; // may not be used inside a filter's getframe method
 
-    VSGetFormatPreset getFormatPreset;
-    VSRegisterFormat registerFormat;
+    VSGetFormatPreset getFormatPreset; //threadsafe
+    VSRegisterFormat registerFormat; // threadsafe
 
-    VSGetFrame getFrame; // for external applications using the core as a library/for exceptional use if frame requests are necessary during filter initialization
-    VSGetFrameAsync getFrameAsync; // for external applications using the core as a library
+    VSGetFrame getFrame; // do never use inside a filter's getframe function, for external applications using the core as a library or for requesting frames in a filter constructor
+    VSGetFrameAsync getFrameAsync; // do never use inside a filter's getframe function, for external applications using the core as a library or for requesting frames in a filter constructor
     VSGetFrameFilter getFrameFilter; // only use inside a filter's getframe function
     VSRequestFrameFilter requestFrameFilter; // only use inside a filter's getframe function
-    VSQueryCompletedFrame queryCompletedFrame;
-    VSReleaseFrameEarly releaseFrameEarly;
+    VSQueryCompletedFrame queryCompletedFrame; // only use inside a filter's getframe function
+    VSReleaseFrameEarly releaseFrameEarly; // only use inside a filter's getframe function
 
     VSGetStride getStride;
     VSGetReadPtr getReadPtr;
