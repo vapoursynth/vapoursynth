@@ -697,9 +697,10 @@ static const VSFrameRef *VS_CC loopGetframe(int n, int activationReason, void **
 static void VS_CC loopCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     LoopData d;
     LoopData *data;
-    const VSNodeRef *cref;;
+    const VSNodeRef *cref;
+    int err;
 
-    d.times = vsapi->propGetInt(in, "times", 0, 0);
+    d.times = vsapi->propGetInt(in, "times", 0, &err);
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node);
 
@@ -1828,12 +1829,14 @@ static const VSFrameRef *VS_CC lutGetframe(int n, int activationReason, void **i
         VSFrameRef *dst = vsapi->newVideoFrame(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core);
 
         for (plane = 0; plane < fi->numPlanes; plane++) {
+            const uint8_t *srcp = vsapi->getReadPtr(src, plane);
+            int src_stride = vsapi->getStride(src, plane);
+            uint8_t *dstp = vsapi->getWritePtr(dst, plane);
+            int dst_stride = vsapi->getStride(dst, plane);
+            int h = vsapi->getFrameHeight(src, plane);
+
             if (d->process[plane]) {
-                const uint8_t *srcp = vsapi->getReadPtr(src, plane);
-                int src_stride = vsapi->getStride(src, plane);
-                uint8_t *dstp = vsapi->getWritePtr(dst, plane);
-                int dst_stride = vsapi->getStride(dst, plane);
-                int h = vsapi->getFrameHeight(src, plane);
+
                 int hl;
                 int w = vsapi->getFrameWidth(src, plane);
                 int x;
@@ -1859,6 +1862,8 @@ static const VSFrameRef *VS_CC lutGetframe(int n, int activationReason, void **i
                         srcp += src_stride;
                     }
                 }
+            } else {
+                memcpy(dstp, srcp, src_stride * h);
             }
         }
 
@@ -1993,14 +1998,15 @@ static const VSFrameRef *VS_CC lut2Getframe(int n, int activationReason, void **
         VSFrameRef *dst = vsapi->newVideoFrame(fi, vsapi->getFrameWidth(srcx, 0), vsapi->getFrameHeight(srcx, 0), srcx, core);
 
         for (plane = 0; plane < fi->numPlanes; plane++) {
+            const uint8_t *srcpx = vsapi->getReadPtr(srcx, plane);
+            const uint8_t *srcpy = vsapi->getReadPtr(srcy, plane);
+            int src_stride = vsapi->getStride(srcx, plane);
+            uint8_t *dstp = vsapi->getWritePtr(dst, plane);
+            int dst_stride = vsapi->getStride(dst, plane);
+            int h = vsapi->getFrameHeight(srcx, plane);
+
             if (d->process[plane]) {
                 int shift = fi->bitsPerSample;
-                const uint8_t *srcpx = vsapi->getReadPtr(srcx, plane);
-                const uint8_t *srcpy = vsapi->getReadPtr(srcy, plane);
-                int src_stride = vsapi->getStride(srcx, plane);
-                uint8_t *dstp = vsapi->getWritePtr(dst, plane);
-                int dst_stride = vsapi->getStride(dst, plane);
-                int h = vsapi->getFrameHeight(srcx, plane);
                 int hl;
                 int w = vsapi->getFrameWidth(srcx, plane);
                 int x;
@@ -2028,6 +2034,8 @@ static const VSFrameRef *VS_CC lut2Getframe(int n, int activationReason, void **
                         srcpy += src_stride;
                     }
                 }
+            } else {
+                memcpy(dstp, srcpx, src_stride * h);
             }
         }
 
