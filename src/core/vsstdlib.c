@@ -2374,8 +2374,8 @@ static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, vo
         int plane;
         int x;
         int y;
-        int width;
-        int height;
+        int width, modwidth;
+        int height, modheight;
         const uint8_t *srcp;
         int src_stride;
         uint8_t *dstp;
@@ -2392,19 +2392,31 @@ static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, vo
 
             switch (d->vi.format->bytesPerSample) {
             case 1:
-                width -= 7;
+#if 1 // x86-4ever
+                modwidth = width & ~7;
+                modheight = height & ~7;
 
-                for (y = 0; y < height; y += 8) {
-                    for (x = 0; x < width; x += 8)
+                for (y = 0; y < modheight; y += 8) {
+                    for (x = 0; x < modwidth; x += 8)
                         vs_transpose_byte(srcp + src_stride * y + x, src_stride, dstp + dst_stride * x + y, dst_stride);
 
-                    partial_lines = width + 7 - x;
+                    partial_lines = width - modwidth;
 
                     if (partial_lines > 0)
                         vs_transpose_byte_partial(srcp + src_stride * y + x, src_stride, dstp + dst_stride * x + y, dst_stride, partial_lines);
                 }
 
+                for (y = modheight; y < height; y++)
+                    for (x = 0; x < width; x++)
+                        dstp[dst_stride * x + y] = srcp[src_stride * y + x];
+
                 break;
+#else
+                for (y = 0; y < height; y++)
+                    for (x = 0; x < width; x++)
+                        dstp[dst_stride * x + y] = srcp[src_stride * y + x];
+                break;
+#endif
             case 2:
                 width -= 3;
 

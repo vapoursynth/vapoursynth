@@ -280,7 +280,7 @@ private:
     bool hasVi;
 
     VSFilterMode filterMode;
-    PVideoFrame getFrameInternal(int n, int activationReason, PFrameContext &frameCtx);
+    PVideoFrame getFrameInternal(int n, int activationReason, const PFrameContext &frameCtx);
 public:
     VSNode(const VSMap *in, VSMap *out, const QByteArray &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, VSCore *core);
 

@@ -225,7 +225,7 @@ void VSNode::getFrame(const PFrameContext &ct) {
     core->threadPool->start(ct);
 }
 
-PVideoFrame VSNode::getFrameInternal(int n, int activationReason, PFrameContext &frameCtx) {
+PVideoFrame VSNode::getFrameInternal(int n, int activationReason, const PFrameContext &frameCtx) {
     const VSFrameRef *r = filterGetFrame(n, activationReason, &instanceData, &frameCtx->frameContext, (VSFrameContext *)&frameCtx, core, &vsapi);
 // This stuff really only works properly on windows, feel free to investigate what the linux ABI thinks about it
 #ifdef _WIN32
