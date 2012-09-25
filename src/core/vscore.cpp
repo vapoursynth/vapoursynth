@@ -352,7 +352,7 @@ void VS_CC loadPluginInitialize(VSConfigPlugin configFunc, VSRegisterFunction re
     registerFunc("LoadPlugin", "path:data;forcens:data:opt;", &loadPlugin, NULL, plugin);
 }
 
-// fixme, not the most elegant way
+// fixme, not the most elegant way but avoids the mess that would happen if avscompat.h was included
 #ifdef _WIN32
 extern "C" void VS_CC avsWrapperInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
 #endif
@@ -463,7 +463,6 @@ void VSCore::loadPlugin(const QByteArray &filename, const QByteArray &forcedName
 }
 
 PVideoNode VSCore::createFilter(const VSMap *in, VSMap *out, const QByteArray &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData) {
-    // fixme, needed indirection?
     return PVideoNode(new VSNode(in, out, name, init, getFrame, free, filterMode, flags, instanceData, this));
 }
 

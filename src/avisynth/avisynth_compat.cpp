@@ -34,7 +34,6 @@ const VSFrameRef *FakeAvisynth::avsToVSFrame(VideoFrame *frame) {
     it = ownedFrames.begin();
 
     while (it != ownedFrames.end()) {
-        // fixme, is the 9000 check necessary?
         if (it.key()->GetRefCount() == 0 || it.key()->GetRefCount() == 9000) {
             delete it.key();
             vsapi->freeFrame(it.value());
@@ -528,7 +527,6 @@ bool FakeAvisynth::FunctionExists(const char *name) {
 }
 
 AVSValue FakeAvisynth::Invoke(const char *name, const AVSValue args, const char **arg_names) {
-    // fixme, improve
     if (!qstricmp(name, "Cache") || !qstricmp(name, "InternalCache")) {
         return args;
     }

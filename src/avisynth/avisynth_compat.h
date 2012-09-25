@@ -107,11 +107,11 @@ public:
 
     PVideoFrame __stdcall GetFrame(int n, IScriptEnvironment *env);
     bool __stdcall GetParity(int n) {
-        return true;    //fixme?
+        return true;
     }
     void __stdcall GetAudio(void *buf, int64_t start, int64_t count, IScriptEnvironment *env) {}
     void __stdcall SetCacheHints(int cachehints, int frame_range) {
-        /*ignore*/
+        // intentionally ignore
     }
     const VideoInfo &__stdcall GetVideoInfo() {
         return vi;

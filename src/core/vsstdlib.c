@@ -809,7 +809,6 @@ static int findSubSampling(int s1, int s2) {
     return -1;
 }
 
-// fixme, figure out when and how to reject the compat crap
 static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     ShufflePlanesData d;
     ShufflePlanesData *data;

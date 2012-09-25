@@ -186,7 +186,6 @@ static const char *VS_CC propGetKey(const VSMap *props, int index) {
 }
 
 static int VS_CC propNumElements(const VSMap *props, const char *name) {
-    // fixme, just make this part of the variant
     if (!props->contains(name))
         return 0;
 

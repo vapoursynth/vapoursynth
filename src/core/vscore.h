@@ -175,9 +175,6 @@ public:
     MemoryUse() : freeOnZero(false) { }
 };
 
-//fixme, move this
-
-
 class VSFrameData : public QSharedData {
 private:
     MemoryUse *mem;
@@ -295,7 +292,7 @@ public:
         return vi;
     }
     void setVideoInfo(const VSVideoInfo &vi) {
-        this->vi = vi;    //fixme, ugly
+        this->vi = vi;
         this->vi.flags = flags;
         hasVi = true;
     }
