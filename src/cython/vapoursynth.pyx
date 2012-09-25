@@ -744,11 +744,14 @@ cdef class Function(object):
 
         #// naively insert named arguments
         for key in kwargs:
+            nkey = key
+            if key[0] == '_':
+                nkey = key[1:]
             if isinstance(kwargs[key], Link):
-                ndict[key + '_prop'] = kwargs[key].prop
-                ndict[key] = kwargs[key].val
+                ndict[nkey + '_prop'] = kwargs[key].prop
+                ndict[nkey] = kwargs[key].val
             else:
-                ndict[key] = kwargs[key]
+                ndict[nkey] = kwargs[key]
 
         #// match up unnamed arguments to the first unused name in order
         sigs = self.signature.split(';')

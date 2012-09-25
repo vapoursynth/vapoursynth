@@ -2,11 +2,13 @@ known issues:
 may deadlock with some avisynth plugins (set the number of threads, VSCore(threads=4))
 
 r9:
+to get around keyword conflicts all function arguments names can be specified with both name and _name (Loop(_clip=a) is the same as Loop(clip=a))
 works under linux and probably osx too
 full source released under LGPL
 it is now possible to use + to splice clips and the slicing operator to perform Trim, Reverse and SelectEvery operations on a clip
 documentation of all user functions
-minor fixes
+lots of included filter fixes
+minor fixes to other things
 
 r8:
 portability fixes for linux
