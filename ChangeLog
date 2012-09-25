@@ -1,11 +1,11 @@
 known issues:
 may deadlock with some avisynth plugins (set the number of threads, VSCore(threads=4))
-setting flatten=False on a core will break the + and slicing operators,
-it is likely that the special flatten option will be completely removed in a future version
 
 r9:
+works under linux and probably osx too
+full source released under LGPL
 it is now possible to use + to splice clips and the slicing operator to perform Trim, Reverse and SelectEvery operations on a clip
-documentation
+documentation of all user functions
 minor fixes
 
 r8:
