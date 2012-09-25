@@ -20,7 +20,6 @@
 
 #ifdef _WIN32
 cimport windows
-cimport libinclude
 #else
 cimport posix.unistd
 #endif
