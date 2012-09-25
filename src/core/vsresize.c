@@ -172,7 +172,7 @@ static const VSFrameRef *VS_CC resizeGetframe(int n, int activationReason, void 
         int switchsrc = 0;
         int switchdst = 0;
 
-        if (!d->context || d->lsrcformat != fi || d->lsrch != w || d->lsrch != h) {
+        if (!d->context || d->lsrcformat != fi || d->lsrcw != w || d->lsrch != h) {
             int srcid = formatIdToPixelFormat(fi->id, core, vsapi);
 
             if (srcid == PIX_FMT_NONE) {
