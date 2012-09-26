@@ -506,12 +506,19 @@ cdef class VideoNode(object):
             raise TypeError('Only clips can be spliced')
         return (<VideoNode>self).core.std.Splice(clips=[self, other])
 
-    def __mul__(self, val):
+    def __mul__(a, b):
+        if isinstance(a, VideoNode):
+            node = a
+            val = b
+        else:
+            node = b
+            val = a
+            
         if not isinstance(val, int):
             raise TypeError('Clips may only be repeated by integer factors')
         if val <= 0:
             raise ValueError('Loop count must be one or bigger')
-        return (<VideoNode>self).core.std.Loop(clip=self, times=val)
+        return (<VideoNode>node).core.std.Loop(clip=node, times=val)
 
     def __getitem__(self, val):
         if isinstance(val, slice):
