@@ -36,7 +36,7 @@
 #ifdef __cplusplus
 // A nicer templated malloc for all the C++ users out there
 template<class T>
-T* vs_aligned_malloc(size_t size, size_t alignment) {
+static inline T* vs_aligned_malloc(size_t size, size_t alignment) {
 #ifdef _WIN32
 	return (T*)_aligned_malloc(size, alignment);
 #else
@@ -47,7 +47,7 @@ T* vs_aligned_malloc(size_t size, size_t alignment) {
 #endif
 }
 
-void vs_aligned_free(void *ptr) {
+static inline void vs_aligned_free(void *ptr) {
 	VS_ALIGNED_FREE(ptr);
 }
 #endif //__cplusplus
