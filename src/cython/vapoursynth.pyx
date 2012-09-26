@@ -538,7 +538,7 @@ cdef class VideoNode(object):
             elif start is not None:
                 ret = self.core.std.Trim(clip=ret, first=start)
             elif stop is not None:
-                ret = self.core.std.Trim(clip=ret, last=stop-1)
+                ret = self.core.std.Trim(clip=ret, last=stop)
                 
             if step < 0:
                 ret = self.core.std.Reverse(clip=ret)
