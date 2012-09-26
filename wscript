@@ -157,7 +157,7 @@ def build(bld):
     if bld.env.FILTERS == 'true':
         bld(features = 'c qxx asm cxxshlib',
             includes = 'include',
-            use = ['objs'],
+            use = ['vapoursynth'],
             source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'eedi3')])),
             target = 'eedi3',
             install_path = '${PREFIX}/lib/vapoursynth')
