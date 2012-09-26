@@ -1,13 +1,35 @@
 #!/usr/bin/env python
 
-import os
-from waflib import Utils
+import os, subprocess
+from waflib import Task, TaskGen, Utils
 
 APPNAME = 'VapourSynth'
 VERSION = '8'
 
 TOP = os.curdir
 OUT = 'build'
+
+class preproc(Task.Task):
+    "Preprocess Cython source files"
+
+    ext_out = ['.pyx']
+    inst_to = None
+    color = 'CYAN'
+
+    def run(self):
+        if self.env.CXX_NAME == 'gcc':
+            params = ['-E', '-x', 'c']
+        elif self.env.CXX_NAME == 'msvc':
+            params = ['/E']
+
+        args = [Utils.subst_vars('${CC}', self.env)] + params + [self.inputs[0].abspath()]
+
+        with open(self.outputs[0].abspath(), 'w') as f:
+            subprocess.Popen(args, stdout = f).wait()
+
+@TaskGen.extension('.pyx')
+def add_pyx_file(self, node):
+    self.create_task('preproc', node, node.get_bld().change_ext('.pyx'))
 
 def options(opt):
     opt.load('compiler_c')
@@ -17,6 +39,7 @@ def options(opt):
     opt.add_option('--mode', action = 'store', default = 'debug', help = 'the mode to compile in (debug/release)')
     opt.add_option('--static', action = 'store', default = 'false', help = 'build a static library (true/false)')
     opt.add_option('--filters', action = 'store', default = 'true', help = 'build included filters (true/false)')
+    opt.add_option('--cython', action = 'store', default = 'true', help = 'build Cython wrapper (true/false)')
 
 def configure(conf):
     def add_options(flags, options):
@@ -118,6 +141,11 @@ def configure(conf):
     if not conf.env.FILTERS in ['true', 'false']:
         conf.fatal('--filters must be either true or false.')
 
+    conf.env.CYTHON = conf.options.cython
+
+    if not conf.env.CYTHON in ['true', 'false']:
+        conf.fatal('--cython must be either true or false.')
+
     conf.check_cxx(lib = 'QtCore', features = 'cxx cxxprogram')
     conf.check_cxx(lib = 'avutil', features = 'cxx cxxprogram')
     conf.check_cxx(lib = 'swscale', features = 'cxx cxxprogram')
@@ -161,3 +189,8 @@ def build(bld):
             source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'eedi3')])),
             target = 'eedi3',
             install_path = '${PREFIX}/lib/vapoursynth')
+
+    if bld.env.CYTHON == 'true':
+        bld(features = 'preproc',
+            source = bld.path.ant_glob([os.path.join('src', 'cython', '*.pyx')]),
+            use = ['objs'])
