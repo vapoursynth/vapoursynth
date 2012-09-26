@@ -652,18 +652,20 @@ STDMETHODIMP_(LONG) VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) {
       asi.fccHandler = 'UNKN';
       if (vi->format->id == pfCompatBGR32)
         asi.fccHandler = ' BID';
-      if (vi->format->id == pfCompatYUY2)
+      else if (vi->format->id == pfCompatYUY2)
         asi.fccHandler = '2YUY';
-      if (vi->format->id == pfYUV420P8)
+      else if (vi->format->id == pfYUV420P8)
 		asi.fccHandler = '21VY'; 
-      if (vi->format->id == pfGray8)
+      else if (vi->format->id == pfGray8)
         asi.fccHandler = '008Y'; 
-      if (vi->format->id == pfYUV444P8)
+      else if (vi->format->id == pfYUV444P8)
         asi.fccHandler = '42VY'; 
-      if (vi->format->id == pfYUV420P8)
+      else if (vi->format->id == pfYUV420P8)
         asi.fccHandler = '61VY'; 
-      if (vi->format->id == pfYUV411P8)
+      else if (vi->format->id == pfYUV411P8)
         asi.fccHandler = 'B14Y'; 
+      else if (vi->format->id == pfYUV410P8) 
+	    asi.fccHandler = '9UVY'; 
       else {
         _ASSERT(FALSE);
       }
@@ -824,6 +826,8 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
 	    bi.biCompression = '61VY'; 
     else if (vi->format->id == pfYUV411P8) 
 	    bi.biCompression = 'B14Y'; 
+    else if (vi->format->id == pfYUV410P8) 
+	    bi.biCompression = '9UVY'; 
 	else {
 	    _ASSERT(FALSE);
 	}
