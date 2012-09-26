@@ -786,9 +786,9 @@ static const VSFrameRef *VS_CC shufflePlanesGetframe(int n, int activationReason
                       core);
 
             memcpy(
-                vsapi->getWritePtr(dst, d->plane[0]),
+                vsapi->getWritePtr(dst, 0),
                 vsapi->getReadPtr(src, d->plane[0]),
-                vsapi->getStride(dst, d->plane[0]) * vsapi->getFrameHeight(dst, d->plane[0]));
+                vsapi->getStride(dst, 0) * vsapi->getFrameHeight(dst, 0));
 
             vsapi->freeFrame(src);
             return dst;
