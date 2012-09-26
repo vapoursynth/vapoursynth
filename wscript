@@ -16,6 +16,7 @@ def options(opt):
 
     opt.add_option('--mode', action = 'store', default = 'debug', help = 'the mode to compile in (debug/release)')
     opt.add_option('--static', action = 'store', default = 'false', help = 'build a static library (true/false)')
+    opt.add_option('--filters', action = 'store', default = 'true', help = 'build included filters (true/false)')
 
 def configure(conf):
     def add_options(flags, options):
@@ -112,6 +113,11 @@ def configure(conf):
     if not conf.env.STATIC in ['true', 'false']:
         conf.fatal('--static must be either true or false.')
 
+    conf.env.FILTERS = conf.options.filters
+
+    if not conf.env.FILTERS in ['true', 'false']:
+        conf.fatal('--filters must be either true or false.')
+
     conf.check_cxx(lib = 'QtCore', features = 'cxx cxxprogram')
     conf.check_cxx(lib = 'avutil', features = 'cxx cxxprogram')
     conf.check_cxx(lib = 'swscale', features = 'cxx cxxprogram')
@@ -147,3 +153,11 @@ def build(bld):
         bld(features = 'c qxx asm cxxstlib',
             use = ['objs', 'QTCORE', 'AVUTIL', 'SWSCALE'],
             target = 'vapoursynth')
+
+    if bld.env.FILTERS == 'true':
+        bld(features = 'c qxx asm cxxshlib',
+            includes = 'include',
+            use = ['objs'],
+            source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'eedi3')])),
+            target = 'eedi3',
+            install_path = '${PREFIX}/lib/vapoursynth')
