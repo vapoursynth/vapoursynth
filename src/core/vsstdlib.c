@@ -882,6 +882,8 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
         // gray is always compatible and special, it can work with variable input size clips
         if (d.vi.format)
             d.vi.format = vsapi->registerFormat(cmGray, d.vi.format->sampleType, d.vi.format->bitsPerSample, 0, 0, core);
+        d.vi.width = planeWidth(vsapi->getVideoInfo(d.node[0]), d.plane[0]);
+        d.vi.height = planeHeight(vsapi->getVideoInfo(d.node[0]), d.plane[0]);
     } else {
         // no variable size video with more than one plane, it's just crazy
         int c0height = planeHeight(vsapi->getVideoInfo(d.node[0]), d.plane[0]);

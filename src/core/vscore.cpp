@@ -243,7 +243,7 @@ PVideoFrame VSNode::getFrameInternal(int n, int activationReason, const PFrameCo
         if (!vi.format && fi->colorFamily == cmCompat)
             qFatal("Illegal compat frame returned");
         else if (vi.format && vi.format != fi)
-            qFatal("Frame returned of not of the declared type");
+            qFatal("Frame returned not of the declared type");
         else if ((vi.width || vi.height) && (p->getWidth(0) != vi.width || p->getHeight(0) != vi.height))
             qFatal("Frame returned of not of the declared dimensions");
 
