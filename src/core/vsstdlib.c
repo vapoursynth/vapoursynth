@@ -507,6 +507,9 @@ static void VS_CC trimCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     if (lengthset && d.length < 1)
         RETERROR("Trim: invalid length specified");
 
+    if (d.first < 0)
+        RETERROR("Trim: invalid first frame specified");
+
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
 
     d.vi = *vsapi->getVideoInfo(d.node);

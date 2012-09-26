@@ -571,7 +571,17 @@ cdef class VideoNode(object):
                 
             return ret
         elif isinstance(val, int):
-            return self.core.std.Trim(clip=self, first=val, length=1)
+            print(val)
+            if val < 0 and self.num_frames == 0:
+                raise IndexError('Negative index cannot be used with infinite/unknown length clips')
+            elif val < 0:
+                n = self.num_frames + val
+            else:
+                n = val
+            if n < 0:
+                raise IndexError('List index out of bounds')
+            print(n)
+            return self.core.std.Trim(clip=self, first=n, length=1)
         else:
             raise TypeError("index must be int or slice")
 
