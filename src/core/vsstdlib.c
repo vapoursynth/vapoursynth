@@ -712,6 +712,13 @@ static void VS_CC loopCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         RETERROR("Loop: cannot loop clips with unknown length");
     }
 
+    // early termination for the trivial case
+    if (d.times == 1) {
+        vsapi->propSetNode(out, "clip", d.node, 0);
+        vsapi->freeNode(d.node);
+        return;
+    }
+
     data = malloc(sizeof(d));
     *data = d;
 

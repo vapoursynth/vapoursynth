@@ -501,30 +501,46 @@ cdef class VideoNode(object):
         if d.error:
             raise Error(d.error)
 
-    def __add__(a, b):
-        if not isinstance(a, VideoNode) or not isinstance(b, VideoNode):
+    def __add__(self, other):
+        if not isinstance(other, VideoNode):
             raise TypeError('Only clips can be spliced')
-        return (<VideoNode>a).core.std.Splice(clips=[a, b])
+        return (<VideoNode>self).core.std.Splice(clips=[self, other])
+
+    def __mul__(self, val):
+        if not isinstance(val, int):
+            raise TypeError('Clips may only be repeated by integer factors')
+        if val <= 0:
+            raise ValueError('Loop count must be one or bigger')
+        return (<VideoNode>self).core.std.Loop(clip=self, times=val)
 
     def __getitem__(self, val):
         if isinstance(val, slice):
             if val.step is not None and val.step == 0:
-                raise ValueError('slice step cannot be zero')
-            if val.start is not None and val.start < 0:
-                raise ValueError('slice start cannot be negative')
-            if val.stop is not None and val.stop < 0:
-                raise ValueError('slice end cannot be negative')
+                raise ValueError('Slice step cannot be zero')
+            if val.step is not None and val.step < 0 and self.num_frames == 0:
+                raise ValueError('Negative step cannot be used with infinite/unknown length clips')
+            if ((val.start is not None and val.start < 0) or (val.stop is not None and val.stop < 0)) and self.num_frames == 0:
+                raise ValueError('Negative indices cannot be used with infinite/unknown length clips')
+            #// this is just a big number that no one's likely to use, hence the -68
+            max_int = 2**31-68
+            if self.num_frames == 0:
+                indices = val.indices(max_int)
+            else:
+                indices = val.indices(self.num_frames)
+
+            if indices[0] == max_int:
+                indices[0] = None
+            if indices[1] == max_int:
+                indices[1] = None
                                  
-            step = val.step
-            if step is None:
-                step = 1
+            step = indices[2]
 
             if step > 0: 
-                start = val.start
-                stop = val.stop
+                start = indices[0]
+                stop = indices[1]
             else:
-                start = val.stop
-                stop = val.start
+                start = indices[1]
+                stop = indices[0]
                 
             ret = self
 
