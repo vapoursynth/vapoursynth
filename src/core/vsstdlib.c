@@ -853,15 +853,14 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
         d.plane[i] = vsapi->propGetInt(in, "planes", i, 0);
 
     for (i = 0; i < 3; i++)
-        if (d.plane[i] < 0 || d.plane[i] >= outplanes)
-            SHUFFLEERROR("ShufflePlanes: invalid plane specified");
-
-    for (i = 0; i < 3; i++)
         d.node[i] = vsapi->propGetNode(in, "clips", i, &err);
 
     for (i = 0; i < 3; i++) {
         if (d.node[i] && isCompatFormat(vsapi->getVideoInfo(d.node[i])))
             SHUFFLEERROR("ShufflePlanes: compat formats not supported");
+
+        //if (d.plane[i] < 0 || (vsapi->getVideoInfo(d.node[i])->format && d.plane[i] >= vsapi->getVideoInfo(d.node[i])->format->numPlanes))
+        //    SHUFFLEERROR("ShufflePlanes: invalid plane specified");
     }
 
     if (d.format != cmGray && nclips == 1) {
@@ -871,14 +870,18 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
         d.node[2] = vsapi->cloneNodeRef(d.node[1]);
     }
 
+    for (i = 0; i < outplanes; i++) {
+        if (d.plane[i] < 0 || (vsapi->getVideoInfo(d.node[i])->format && d.plane[i] >= vsapi->getVideoInfo(d.node[i])->format->numPlanes))
+            SHUFFLEERROR("ShufflePlanes: invalid plane specified");
+    }
+
     d.vi = *vsapi->getVideoInfo(d.node[0]);
 
     // compatible format checks
     if (d.format == cmGray) {
         // gray is always compatible and special, it can work with variable input size clips
-        if (d.vi.format) {
+        if (d.vi.format)
             d.vi.format = vsapi->registerFormat(cmGray, d.vi.format->sampleType, d.vi.format->bitsPerSample, 0, 0, core);
-        }
     } else {
         // no variable size video with more than one plane, it's just crazy
         int c0height = planeHeight(vsapi->getVideoInfo(d.node[0]), d.plane[0]);
