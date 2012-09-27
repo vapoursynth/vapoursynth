@@ -1,0 +1,74 @@
+Installation
+------------
+
+First, a couple of things to note:
+
+* You need to be on Windows, Linux, or OS X.
+* You need to have the QtCore libraries and headers installed.
+* You need to have the libraries and headers for libavutil
+  and libswscale installed.
+* You need to have either GCC, Clang, MSVC, or ICC/ICL installed.
+  Both a C and C++ compiler are required.
+* You need to have Yasm installed.
+* You need Python 3 to build the Cython wrapper.
+* You need to have Cython installed in your Python 3 environment
+  in order to invoke the setup script.
+
+First off, you'll want to fetch Waf which is the build tool
+VapourSynth uses:
+
+    $ ./bootstrap.sh
+
+Then, configure the project:
+
+    $ ./waf configure
+
+The configure operation has some options which can be used to
+fine-tune the build:
+
+* --prefix=path (default: /usr/local)
+  Specifies where to install the final VapourSynth artifacts.
+* --mode=debug/release (default: debug)
+  Specifies what mode to compile C and C++ code in. When in
+  debug mode, debug info and debugging helpers will be emitted
+  by the compiler, and no optimization will be done. In release
+  mode, all (safe) optimizations are performed and no debug
+  info is generated.
+* --static=true/false (default: false)
+  Specifies whether to build a static library in addition to the
+  shared library.
+* --filters=true/false (default: true)
+  Specifies whether to build the included filters. These are
+  always built as shared libraries.
+* --cython=true/false (default: true)
+  Specifies whether to preprocess the Cython sources. This is
+  required if you plan to build and install the Cython wrapper.
+* --avisynth=true/false (default: true)
+  Specifies whether to build the Avisynth compatibility layer
+  when building on Windows.
+
+Once the project is configured, simply execute:
+
+    $ ./waf build
+
+By default, Waf builds tasks in parallel. You can control the
+level of parallelism with the -j option, like with Make.
+
+If you want to build the Cython wrapper, you can do so now by
+executing:
+
+    $ ./setup.py build
+
+Finally, to install VapourSynth:
+
+    $ ./waf install
+
+And to uninstall:
+
+    $ ./waf uninstall
+
+To install the Cython wrapper:
+
+    $ ./setup.py install
+
+Note that the setup script has a --prefix option like Waf.
