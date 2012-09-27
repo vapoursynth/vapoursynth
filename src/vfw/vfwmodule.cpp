@@ -18,6 +18,8 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
+// loosely based on the relevant files of main.cpp in avisynth
+
 #define FP_STATE 0x9001f
 
 #define INITGUID
@@ -94,14 +96,14 @@ private:
     std::string szScriptName;
     ScriptExport se;
     const VSVideoInfo* vi;
-    const char* error_msg;
+    std::string error_msg;
 
     CRITICAL_SECTION cs_filter_graph;
 
     bool DelayInit();
     bool DelayInit2();
 
-    void MakeErrorStream(const char* msg);
+    void MakeErrorStream(const std::string &msg);
 
     void Lock();
     void Unlock();
@@ -421,7 +423,7 @@ STDMETHODIMP VapourSynthFile::DeleteStream(DWORD fccType, LONG lParam) {
 ///////////////////////////////////////////////////
 /////// local
 
-VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : m_refs(0), error_msg(NULL), vi(NULL) {
+VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : m_refs(0), vi(NULL) {
     AddRef();
     InitializeCriticalSection(&cs_filter_graph);
 }
@@ -455,8 +457,35 @@ bool VapourSynthFile::DelayInit2() {
         // this ugly cast is needed because cython doesn't understand the const keyword
         if (!evaluate_script((char *)szScriptName.c_str(), &se)) {
             vi = se.vsapi->getVideoInfo(se.node);
+            error_msg.clear();
+
+            if (vi->width == 0 || vi->height == 0 || vi->format == NULL) {
+                error_msg = "Cannot open clips with varying dimensions or format in vfw";
+                vi = NULL;
+                free_script(&se);
+                return false;
+            }
+
+            int id = vi->format->id;
+            if (id != pfCompatBGR32
+                && id != pfCompatYUY2
+                && id != pfYUV420P8
+                && id != pfGray8
+                && id != pfYUV444P8
+                && id != pfYUV422P8
+                && id != pfYUV411P8
+                && id != pfYUV410P8) {
+                error_msg = "VFW module doesn't support ";
+                error_msg += vi->format->name;
+                error_msg += " output";
+                vi = NULL;
+                free_script(&se);
+                return false;
+            }
+
             return true;
         } else {
+            error_msg = se.error;
             vi = NULL;
             free_script(&se);
             return false;
@@ -467,7 +496,7 @@ bool VapourSynthFile::DelayInit2() {
 }
 
 
-void VapourSynthFile::MakeErrorStream(const char* msg) {
+void VapourSynthFile::MakeErrorStream(const std::string &msg) {
     error_msg = msg;
     _ASSERTE(false);
     //filter_graph = Create_MessageClip(msg, vi->width, vi->height, vi->pixel_type, false, 0xFF3333, 0, 0, env);
@@ -568,12 +597,12 @@ STDMETHODIMP VapourSynthFile::GetStream(PAVISTREAM *ppStream, DWORD fccType, LON
 //////////// IAvisynthClipInfo
 
 int __stdcall VapourSynthFile::GetError(const char** ppszMessage) {
-    if (!DelayInit() && !error_msg)
+    if (!DelayInit() && error_msg.empty())
         error_msg = "VapourSynth: script open failed!";
 
     if (ppszMessage)
-        *ppszMessage = error_msg;
-    return !!error_msg;
+        *ppszMessage = error_msg.c_str();
+    return !error_msg.empty();
 }
 
 bool __stdcall VapourSynthFile::GetParity(int n) {
@@ -672,15 +701,14 @@ STDMETHODIMP_(LONG) VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) {
         asi.fccHandler = '008Y'; 
     else if (vi->format->id == pfYUV444P8)
         asi.fccHandler = '42VY'; 
-    else if (vi->format->id == pfYUV420P8)
+    else if (vi->format->id == pfYUV422P8)
         asi.fccHandler = '61VY'; 
     else if (vi->format->id == pfYUV411P8)
         asi.fccHandler = 'B14Y'; 
     else if (vi->format->id == pfYUV410P8) 
         asi.fccHandler = '9UVY'; 
-    else {
-        _ASSERT(FALSE);
-    }
+    else
+        return S_FALSE;
 
     asi.dwScale = vi->fpsDen ? vi->fpsDen : 1;
     asi.dwRate = vi->fpsNum ? vi->fpsNum : 30;
@@ -714,9 +742,12 @@ STDMETHODIMP_(LONG) VapourSynthStream::FindSample(LONG lPos, LONG lFlags) {
 void VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
     const VSAPI *vsapi = parent->se.vsapi;
     const VSFrameRef *f = vsapi->getFrame(n, parent->se.node, 0, 0);
-    if (!f)
+    if (!f) {
         _ASSERTE(false);
-    //parent->env->ThrowError("Avisynth error: generated video frame was nil (this is a bug)");
+        // crash quickly
+        int *a = NULL;
+        *a = 4;
+    }
 
     const VSFormat *fi = vsapi->getFrameFormat(f);
     const int pitch    = vsapi->getStride(f, 0);
@@ -841,9 +872,8 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
         bi.biCompression = 'B14Y'; 
     else if (vi->format->id == pfYUV410P8) 
         bi.biCompression = '9UVY'; 
-    else {
-        _ASSERT(FALSE);
-    }
+    else
+        return S_FALSE;
 
     bi.biSizeImage = ImageSize(vi);
     *lpcbFormat = min(*lpcbFormat, sizeof(bi));

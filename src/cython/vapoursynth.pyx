@@ -387,10 +387,14 @@ cdef class VideoFrame(object):
         retdict = mapToDict(self.funcs.getFramePropsRO(self.f), False, False, self.core, self.funcs)
 
     def get_data(self, int plane):
+        if plane < 0 or plane >= self.format.num_planes:
+            raise IndexError('Specified plane index out of range')
         cdef uint8_t *d = self.funcs.getReadPtr(self.f, plane)
         return ctypes.c_void_p(<int64_t>d)
 
     def get_stride(self, int plane):
+        if plane < 0 or plane >= self.format.num_planes:
+            raise IndexError('Specified plane index out of range')
         return self.funcs.getStride(self.f, plane)
 
     def __str__(self):
