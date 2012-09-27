@@ -1,4 +1,5 @@
 build
+doc/_build
 .lock-*
 .waf-*
 waf
