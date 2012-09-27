@@ -729,6 +729,10 @@ STDMETHODIMP_(LONG) VapourSynthStream::FindSample(LONG lPos, LONG lFlags) {
 ////////////////////////////////////////////////////////////////////////
 //////////// local
 
+static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, const VSNodeRef *, const char *errorMsg) {
+    ((const VSAPI *)userData)->freeFrame(f);
+}
+
 void VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
     const VSAPI *vsapi = parent->se.vsapi;
     const VSFrameRef *f = vsapi->getFrame(n, parent->se.node, 0, 0);
@@ -758,24 +762,24 @@ void VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
         out_pitchUV = vsapi->getFrameWidth(f, 1) * fi->bytesPerSample;
     }
 
-    if (fi->id == pfCompatBGR32) {
-        BitBlt((BYTE*)lpBuffer + out_pitch * (height - 1), -out_pitch, vsapi->getReadPtr(f, 0), pitch, row_size, height);
-    } else {
-        BitBlt((BYTE*)lpBuffer, out_pitch, vsapi->getReadPtr(f, 0), pitch, row_size, height);
+    BitBlt((BYTE*)lpBuffer, out_pitch, vsapi->getReadPtr(f, 0), pitch, row_size, height);
 
-        if (fi->numPlanes == 3) {
-            BitBlt((BYTE*)lpBuffer + (out_pitch*height),
-                out_pitchUV,               vsapi->getReadPtr(f, 2),
-                vsapi->getStride(f, 2), vsapi->getFrameWidth(f, 2),
-                vsapi->getFrameHeight(f, 2) );
+    if (fi->numPlanes == 3) {
+        BitBlt((BYTE*)lpBuffer + (out_pitch*height),
+            out_pitchUV,               vsapi->getReadPtr(f, 2),
+            vsapi->getStride(f, 2), vsapi->getFrameWidth(f, 2),
+            vsapi->getFrameHeight(f, 2) );
 
-            BitBlt((BYTE*)lpBuffer + (out_pitch*height + vsapi->getFrameHeight(f, 1)*out_pitchUV),
-                out_pitchUV,               vsapi->getReadPtr(f, 1),
-                vsapi->getStride(f, 1), vsapi->getFrameWidth(f, 1),
-                vsapi->getFrameHeight(f, 1) );
-        }
+        BitBlt((BYTE*)lpBuffer + (out_pitch*height + vsapi->getFrameHeight(f, 1)*out_pitchUV),
+            out_pitchUV,               vsapi->getReadPtr(f, 1),
+            vsapi->getStride(f, 1), vsapi->getFrameWidth(f, 1),
+            vsapi->getFrameHeight(f, 1) );
     }
+
     vsapi->freeFrame(f);
+
+    for (int i = n + 1; i < n + 10; i++)
+        vsapi->getFrameAsync(n, parent->se.node, frameDoneCallback, (void *)vsapi);
 }
 
 void VapourSynthStream::ReadHelper(void* lpBuffer, int lStart, int lSamples, unsigned code[4]) {
