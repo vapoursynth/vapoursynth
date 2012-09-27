@@ -20,7 +20,7 @@
 
 from libc.stdint cimport uint8_t, uint32_t, int64_t
 
-cdef extern from "../../include/VapourSynth.h":
+cdef extern from "include/VapourSynth.h":
     ctypedef struct VSFrameRef:
         pass
     ctypedef struct VSNodeRef:
