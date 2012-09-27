@@ -19,6 +19,10 @@ VapourSynth uses:
 
     $ ./bootstrap.sh
 
+You don't have to fetch it with this script (it requires Wget);
+you can also simply download it from the official Google Code
+repository: http://code.google.com/p/waf
+
 Then, configure the project:
 
     $ ./waf configure
