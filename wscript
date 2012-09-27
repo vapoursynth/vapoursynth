@@ -58,24 +58,38 @@ def apply_rst(self):
 
     self.source = no_nodes
 
+    inst = getattr(self, 'install_path', '${PREFIX}/share/doc')
+    mod = getattr(self, 'chmod', Utils.O644)
+
     bld_nodes = []
+    i = 0
 
     for node in rst_nodes:
-       n = self.path.find_node(OUT).make_node('html')
+        n = self.path.find_node(OUT).make_node('html')
 
-       cur = node.parent
-       dirs = []
+        cur = node.parent
+        dirs = []
 
-       while not cur is self.path.find_node('doc'):
-           dirs.append(cur)
-           cur = cur.parent
+        while not cur is self.path.find_node('doc'):
+            dirs.append(cur)
+            cur = cur.parent
 
-       for dir in reversed(dirs):
-           n = n.make_node(dir.name)
+        for dir in reversed(dirs):
+            n = n.make_node(dir.name)
 
-       n = n.make_node(node.name).change_ext('.html')
+        n = n.make_node(node.name).change_ext('.html')
 
-       bld_nodes.append(n)
+        bld_nodes.append(n)
+
+        if inst:
+            path = inst
+
+            for dir in reversed(dirs):
+                path = os.path.join(path, dir.name)
+
+            setattr(self, 'install_task_{0}'.format(i), self.bld.install_files(path, n, env = self.env, chmod = mod))
+
+        i += 1
 
     self.rst_task = self.create_task('docs', rst_nodes, bld_nodes)
 
@@ -267,6 +281,7 @@ def build(bld):
     if bld.env.DOCS == 'true':
         bld(features = 'docs',
             source = bld.path.ant_glob([os.path.join('doc', '*.rst'),
-                                         os.path.join('doc', '**', '*.rst')]))
+                                         os.path.join('doc', '**', '*.rst')]),
+            install_path = '${PREFIX}/share/doc/vapoursynth')
 
     bld.install_files('${PREFIX}/include', os.path.join('include', 'VapourSynth.h'))
