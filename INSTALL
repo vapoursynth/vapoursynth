@@ -32,7 +32,7 @@ fine-tune the build:
 
 * --prefix=path (default: /usr/local)
   Specifies where to install the final VapourSynth artifacts.
-* --mode=debug/release (default: debug)
+* --mode=debug/release (default: release)
   Specifies what mode to compile C and C++ code in. When in
   debug mode, debug info and debugging helpers will be emitted
   by the compiler, and no optimization will be done. In release

@@ -36,7 +36,7 @@ def options(opt):
     opt.load('compiler_cxx')
     opt.load('qt4')
 
-    opt.add_option('--mode', action = 'store', default = 'debug', help = 'the mode to compile in (debug/release)')
+    opt.add_option('--mode', action = 'store', default = 'release', help = 'the mode to compile in (debug/release)')
     opt.add_option('--static', action = 'store', default = 'false', help = 'build a static library (true/false)')
     opt.add_option('--filters', action = 'store', default = 'true', help = 'build included filters (true/false)')
     opt.add_option('--cython', action = 'store', default = 'true', help = 'build Cython wrapper (true/false)')
