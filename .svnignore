@@ -1,2 +1,3 @@
 build/*
 .lock-*
+waf
