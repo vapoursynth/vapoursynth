@@ -22,5 +22,5 @@
 
 #define XSTR(x) STR(x)
 #define STR(x) #x
-#define VAPOURSYNTH_CORE_VERSION 9
+#define VAPOURSYNTH_CORE_VERSION 10
 #define VAPOURSYNTH_VERSION_STRING "VapourSynth video processing thingamajig\nCore r" XSTR(VAPOURSYNTH_CORE_VERSION) "\nAPI r" XSTR(VAPOURSYNTH_API_VERSION)
