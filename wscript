@@ -40,6 +40,7 @@ def options(opt):
     opt.add_option('--static', action = 'store', default = 'false', help = 'build a static library (true/false)')
     opt.add_option('--filters', action = 'store', default = 'true', help = 'build included filters (true/false)')
     opt.add_option('--cython', action = 'store', default = 'true', help = 'build Cython wrapper (true/false)')
+    opt.add_option('--avisynth', action = 'store', default = 'true', help = 'build Avisynth compatibility layer (true/false)')
 
 def configure(conf):
     def add_options(flags, options):
@@ -146,6 +147,11 @@ def configure(conf):
     if not conf.env.CYTHON in ['true', 'false']:
         conf.fatal('--cython must be either true or false.')
 
+    conf.env.AVISYNTH = conf.options.avisynth
+
+    if not conf.env.AVISYNTH in ['true', 'false']:
+        conf.fatal('--avisynth must be either true or false.')
+
     conf.check_cxx(lib = 'QtCore', features = 'cxx cxxprogram')
 
     conf.check_cc(lib = 'avutil')
@@ -170,7 +176,7 @@ def build(bld):
     sources = search_paths([os.path.join('src', 'core'),
                             os.path.join('src', 'core', 'asm')])
 
-    if bld.env.DEST_OS == 'win32':
+    if bld.env.DEST_OS == 'win32' and bld.env.AVISYNTH == 'true':
         sources += search_paths([os.path.join('src', 'avisynth')])
 
     bld(features = 'c qxx asm',
