@@ -757,6 +757,22 @@ cdef class Plugin(object):
             self.funcs.freeMap(m)
             raise Error('There is no function named ' + name)
 
+    def list_functions(self):
+        cdef VSMap *n
+        cdef bytes b
+        cdef str sout = ''
+
+        n = self.funcs.getFunctions(self.plugin)
+
+        for j in range(self.funcs.propNumKeys(n)):
+            c = self.funcs.propGetData(n, self.funcs.propGetKey(n, j), 0, NULL)
+            c = c.decode('utf-8')
+            c = c.split(';', 1)
+            sout += '\t\t' + c[0] + '(' + c[1] +')\n'
+
+        self.funcs.freeMap(n)
+        return sout
+
 cdef Plugin createPlugin(vapoursynth.VSPlugin *plugin, vapoursynth.VSAPI *funcs, Core core):
     cdef Plugin instance = Plugin.__new__(Plugin)    
     instance.core = core
