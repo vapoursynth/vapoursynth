@@ -692,6 +692,7 @@ cdef class Core(object):
                 c = self.funcs.propGetData(n, self.funcs.propGetKey(n, j), 0, NULL)
                 c = c.decode('utf-8')
                 c = c.split(';', 1)
+                c[1] = c[1].replace(';', '; ', c[1].count(';')-1)
                 sout += '\t\t' + c[0] + '(' + c[1] +')\n'
 
             self.funcs.freeMap(n)
@@ -768,6 +769,7 @@ cdef class Plugin(object):
             c = self.funcs.propGetData(n, self.funcs.propGetKey(n, j), 0, NULL)
             c = c.decode('utf-8')
             c = c.split(';', 1)
+            c[1] = c[1].replace(';', '; ', c[1].count(';')-1)
             sout += '\t\t' + c[0] + '(' + c[1] +')\n'
 
         self.funcs.freeMap(n)

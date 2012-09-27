@@ -4,7 +4,7 @@ Windows Registry Editor Version 5.00
 @="VapourSynth"
 
 [HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Classes\CLSID\{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32]
-@="c:\\ffmsynth\\vsvfw.dll"
+@="vsvfw.dll"
 "ThreadingModel"="Apartment"
 
 [HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Classes\Media Type\Extensions\.vpy]
@@ -18,7 +18,7 @@ Windows Registry Editor Version 5.00
 @="VapourSynth Python Script"
 
 [HKEY_CLASSES_ROOT\vsfile\DefaultIcon]
-@="c:\\ffmsynth\\vsvfw.dll,0"
+@="vsvfw.dll,0"
 
 [HKEY_LOCAL_MACHINE\SOFTWARE\Classes\AVIFile\Extensions\VPY]
 @="{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}"

@@ -1,5 +1,11 @@
 known issues:
-may deadlock with some avisynth plugins (set the number of threads, VSCore(threads=4))
+may deadlock with some avisynth plugins (set the number of threads to a bigger number, VSCore(threads=4))
+
+r10:
+added a vfw module
+fixed slicing/indexing in python module
+list_functions() can now be used on a namespace (core.resize.list_functions())
+other small relating to the python bindings
 
 r9:
 to get around keyword conflicts all function arguments names can be specified with both name and _name (Loop(_clip=a) is the same as Loop(clip=a))
