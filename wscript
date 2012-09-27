@@ -152,15 +152,17 @@ def configure(conf):
     if not conf.env.AVISYNTH in ['true', 'false']:
         conf.fatal('--avisynth must be either true or false.')
 
-    conf.check_cxx(lib = 'QtCore', features = 'cxx cxxprogram')
+    conf.check_cxx(lib = 'QtCore')
+    conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore')
+    conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore', type_name = 'QAtomicInt')
 
     conf.check_cc(lib = 'avutil')
-    conf.check_cc(header_name = 'libavutil/avutil.h')
-    conf.check_cc(lib = 'avutil', header_name = 'libavutil/avutil.h', function_name = 'avutil_license')
+    conf.check_cc(use = ['AVUTIL'], header_name = 'libavutil/avutil.h')
+    conf.check_cc(use = ['AVUTIL'], header_name = 'libavutil/avutil.h', function_name = 'avutil_license')
 
     conf.check_cc(lib = 'swscale')
-    conf.check_cc(header_name = 'libswscale/swscale.h')
-    conf.check_cc(lib = 'swscale', header_name = 'libswscale/swscale.h', function_name = 'swscale_license')
+    conf.check_cc(use = ['SWSCALE'], header_name = 'libswscale/swscale.h')
+    conf.check_cc(use = ['SWSCALE'], header_name = 'libswscale/swscale.h', function_name = 'swscale_license')
 
 def build(bld):
     def search_paths(paths):
