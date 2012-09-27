@@ -229,7 +229,7 @@ man_pages = [
 #  dir menu entry, description, category)
 texinfo_documents = [
   ('index', 'VapourSynth', 'VapourSynth Documentation',
-   'Fredrik Mellbin', 'VapourSynth', 'One line description of project.',
+   'Fredrik Mellbin', 'VapourSynth', 'A frameserver for the 21st century',
    'Miscellaneous'),
 ]
 
