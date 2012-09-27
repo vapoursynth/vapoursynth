@@ -287,6 +287,6 @@ def build(bld):
     bld.install_files('${PREFIX}/include', os.path.join('include', 'VapourSynth.h'))
 
     bld(source = 'vapoursynth.pc.in',
-        install_path = '${PREFIX}/lib/pkgconfig/vapoursynth',
+        install_path = '${PREFIX}/lib/pkgconfig',
         PREFIX = bld.env.PREFIX,
         VERSION = VERSION)
