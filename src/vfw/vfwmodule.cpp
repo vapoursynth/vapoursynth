@@ -31,9 +31,8 @@
 #include <cassert>
 #include <string>
 
-// fixme
-#include "../../include/VapourSynth.h"
-#include "../../src/cython/vapoursynthpp_api.h"
+#include "VapourSynth.h"
+#include "vapoursynthpp_api.h"
 
 #define UNDEFINED_LENGTH 10000000
 
@@ -102,8 +101,6 @@ private:
 
     bool DelayInit();
     bool DelayInit2();
-
-    void MakeErrorStream(const std::string &msg);
 
     void Lock();
     void Unlock();
@@ -495,13 +492,6 @@ bool VapourSynthFile::DelayInit2() {
     }
 }
 
-
-void VapourSynthFile::MakeErrorStream(const std::string &msg) {
-    error_msg = msg;
-    _ASSERTE(false);
-    //filter_graph = Create_MessageClip(msg, vi->width, vi->height, vi->pixel_type, false, 0xFF3333, 0, 0, env);
-}
-
 void VapourSynthFile::Lock() {
     EnterCriticalSection(&cs_filter_graph);
 }
@@ -855,7 +845,7 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
     bi.biPlanes = 1;
     bi.biBitCount = vi->format->bytesPerSample * 8;
     if (vi->format->numPlanes == 3)
-        bi.biBitCount +=  (bi.biBitCount * 2) >> (vi->format->subSamplingH + vi->format->subSamplingW); //fixme, this is bullshit
+        bi.biBitCount +=  (bi.biBitCount * 2) >> (vi->format->subSamplingH + vi->format->subSamplingW);
     if (vi->format->id == pfCompatBGR32) 
         bi.biCompression = BI_RGB;
     else if (vi->format->id == pfCompatYUY2) 
