@@ -200,3 +200,5 @@ def build(bld):
         bld(features = 'preproc',
             source = bld.path.ant_glob([os.path.join('src', 'cython', '*.pyx')]),
             use = ['objs'])
+
+    bld.install_files('${PREFIX}/include', os.path.join('include', 'VapourSynth.h'))
