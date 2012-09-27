@@ -181,12 +181,14 @@ def build(bld):
 
     bld(features = 'c qxx asm cxxshlib',
         use = ['objs'],
-        target = 'vapoursynth')
+        target = 'vapoursynth',
+        install_path = '${PREFIX}/lib')
 
     if bld.env.STATIC == 'true':
         bld(features = 'c qxx asm cxxstlib',
             use = ['objs', 'QTCORE', 'AVUTIL', 'SWSCALE'],
-            target = 'vapoursynth')
+            target = 'vapoursynth',
+            install_path = '${PREFIX}/lib')
 
     if bld.env.FILTERS == 'true':
         bld(features = 'c qxx asm cxxshlib',
