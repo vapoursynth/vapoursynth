@@ -30,11 +30,12 @@
 #include <cstdio>
 #include <cassert>
 #include <string>
+#include <algorithm>
 
 #include "VapourSynth.h"
 #include "vapoursynthpp_api.h"
 
-#define UNDEFINED_LENGTH 10000000
+const int undefined_length = 10000000;
 
 void BitBlt(uint8_t* dstp, int dst_pitch, const uint8_t* srcp, int src_pitch, int row_size, int height) {
     for (int i = 0; i < height; i++) {
@@ -525,7 +526,7 @@ STDMETHODIMP VapourSynthFile::Info(AVIFILEINFOW *pfi, LONG lSize) {
 
     afi.dwRate					= vi->fpsNum ? vi->fpsNum : 1;
     afi.dwScale					= vi->fpsDen ? vi->fpsDen : 30;
-    afi.dwLength				= vi->numFrames ? vi->numFrames : UNDEFINED_LENGTH;
+    afi.dwLength				= vi->numFrames ? vi->numFrames : undefined_length;
 
     wcscpy(afi.szFileType, L"VapourSynth");
 
@@ -702,7 +703,7 @@ STDMETHODIMP_(LONG) VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) {
 
     asi.dwScale = vi->fpsDen ? vi->fpsDen : 1;
     asi.dwRate = vi->fpsNum ? vi->fpsNum : 30;
-    asi.dwLength = vi->numFrames ? vi->numFrames : UNDEFINED_LENGTH;
+    asi.dwLength = vi->numFrames ? vi->numFrames : undefined_length;
     asi.rcFrame.right = vi->width;
     asi.rcFrame.bottom = vi->height;
     asi.dwSampleSize = image_size;
@@ -778,7 +779,7 @@ void VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
 
     vsapi->freeFrame(f);
 
-    for (int i = n + 1; i < n + 10; i++)
+    for (int i = n + 1; i < std::min<int>(n + 10, parent->vi->numFrames ? parent->vi->numFrames : undefined_length); i++)
         vsapi->getFrameAsync(n, parent->se.node, frameDoneCallback, (void *)vsapi);
 }
 
@@ -802,7 +803,7 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
     unsigned code[4] = {0, 0, 0, 0};
 
     {
-        if (lStart >= (parent->vi->numFrames ? parent->vi->numFrames : UNDEFINED_LENGTH)) {
+        if (lStart >= (parent->vi->numFrames ? parent->vi->numFrames : undefined_length)) {
             if (plSamples)
                 *plSamples = 0;
             if (plBytes)
