@@ -33,8 +33,6 @@
 #include "../../include/VapourSynth.h"
 #include "../../src/cython/vapoursynthpp_api.h"
 
-const VSAPI *vsapi;
-
 #define UNDEFINED_LENGTH 10000000
 
 void BitBlt(uint8_t* dstp, int dst_pitch, const uint8_t* srcp, int src_pitch, int row_size, int height) {
@@ -210,7 +208,6 @@ private:
 
 BOOL APIENTRY DllMain(HANDLE hModule, ULONG ulReason, LPVOID lpReserved) {
     if (ulReason == DLL_PROCESS_ATTACH) {
-        vsapi = getVapourSynthAPI(VAPOURSYNTH_API_VERSION);
         Py_Initialize();
         import_vapoursynth();
     } else if (ulReason == DLL_PROCESS_DETACH) {
@@ -424,11 +421,8 @@ STDMETHODIMP VapourSynthFile::DeleteStream(DWORD fccType, LONG lParam) {
 ///////////////////////////////////////////////////
 /////// local
 
-VapourSynthFile::VapourSynthFile(const CLSID& rclsid) {
-    m_refs = 0;
+VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : m_refs(0), error_msg(NULL), vi(NULL) {
     AddRef();
-    error_msg = 0;
-    vi = NULL;
     InitializeCriticalSection(&cs_filter_graph);
 }
 
@@ -458,17 +452,15 @@ bool VapourSynthFile::DelayInit() {
 
 bool VapourSynthFile::DelayInit2() {
     if (!szScriptName.empty() && !vi) {
-        try {
-            if (!evaluate_script((char *)szScriptName.c_str(), &se)) {
-                vi = vsapi->getVideoInfo(se.node);
-            } else {
-                vi = NULL;
-            }
-        } catch (...) {
+        // this ugly cast is needed because cython doesn't understand the const keyword
+        if (!evaluate_script((char *)szScriptName.c_str(), &se)) {
+            vi = se.vsapi->getVideoInfo(se.node);
+            return true;
+        } else {
+            vi = NULL;
+            free_script(&se);
             return false;
         }
-        return true;
-
     } else {
         return !!vi;
     }
@@ -720,6 +712,7 @@ STDMETHODIMP_(LONG) VapourSynthStream::FindSample(LONG lPos, LONG lFlags) {
 //////////// local
 
 void VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
+    const VSAPI *vsapi = parent->se.vsapi;
     const VSFrameRef *f = vsapi->getFrame(n, parent->se.node, 0, 0);
     if (!f)
         _ASSERTE(false);

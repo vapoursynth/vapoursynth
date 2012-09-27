@@ -864,12 +864,16 @@ cdef void __stdcall publicFunction(VSMap *inm, VSMap *outm, void *userData, VSCo
 cdef public struct ScriptExport:
     void *pynode
     VSNodeRef *node
+    void *errstr
     char *error
+    VSAPI *vsapi
 
 cdef public api int __stdcall evaluate_script(char *fn, ScriptExport *extp) nogil:
     extp.node = NULL
     extp.pynode = NULL
+    extp.errstr = NULL
     extp.error = NULL
+    extp.vsapi = NULL
 
     with gil:
         try:
@@ -882,15 +886,27 @@ cdef public api int __stdcall evaluate_script(char *fn, ScriptExport *extp) nogi
                 Py_INCREF(node)
                 extp.pynode = <void *>node
                 extp.node = (<VideoNode>node).node
+                extp.vsapi = (<VideoNode>node).funcs
             else:
+                extp.error = 'No clip returned in last variable'
                 return 3
-        except Error, e:
-            return 1
-        except:
+        except BaseException, e:
+            estr = 'Python exception: ' + str(e)
+            estr = estr.encode('utf-8')
+            Py_INCREF(estr)
+            extp.errstr = <void *>estr
+            extp.error = estr
             return 2
+        except:
+            extp.error = 'Unspecified Python exception'
+            return 1
         return 0
 
 cdef public api int __stdcall free_script(ScriptExport *extp) nogil:
     with gil:
-        node = <VideoNode>extp.pynode
-        Py_DECREF(node)
+        if extp.pynode:
+            node = <VideoNode>extp.pynode
+            Py_DECREF(node)
+        if extp.errstr:
+            errstr = <bytes>extp.errstr
+            Py_DECREF(errstr)   
