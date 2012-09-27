@@ -1,10 +1,14 @@
 known issues:
 may deadlock with some avisynth plugins (set the number of threads to a bigger number, VSCore(threads=4))
+compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 
 r10:
+now comes in an installer
+added a skeleton filter and a heavily commented invert example filter to the sdk dir
 added a vfw module
 fixed slicing/indexing in python module
 list_functions() can now be used on a namespace (core.resize.list_functions())
+improved and documented build system, see INSTALL
 other small relating to the python bindings
 
 r9:
