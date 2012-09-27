@@ -147,8 +147,14 @@ def configure(conf):
         conf.fatal('--cython must be either true or false.')
 
     conf.check_cxx(lib = 'QtCore', features = 'cxx cxxprogram')
-    conf.check_cxx(lib = 'avutil', features = 'cxx cxxprogram')
-    conf.check_cxx(lib = 'swscale', features = 'cxx cxxprogram')
+
+    conf.check_cc(lib = 'avutil')
+    conf.check_cc(header_name = 'libavutil/avutil.h')
+    conf.check_cc(lib = 'avutil', header_name = 'libavutil/avutil.h', function_name = 'avutil_license')
+
+    conf.check_cc(lib = 'swscale')
+    conf.check_cc(header_name = 'libswscale/swscale.h')
+    conf.check_cc(lib = 'swscale', header_name = 'libswscale/swscale.h', function_name = 'swscale_license')
 
 def build(bld):
     def search_paths(paths):
