@@ -35,6 +35,8 @@
 #include "vsstdlib.h"
 
 #define RETERROR(x) do { vsapi->setError(out, (x)); return; } while (0)
+#define MAX(a, b)  (((a) > (b)) ? (a) : (b))
+#define MIN(a, b)  (((a) < (b)) ? (a) : (b))
 
 int zero = 0;
 
@@ -637,9 +639,9 @@ static const VSFrameRef *VS_CC reverseGetframe(int n, int activationReason, void
     SingleClipData *d = (SingleClipData *) * instanceData;
 
     if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(d->vi->numFrames - n - 1, d->node, frameCtx);
+        vsapi->requestFrameFilter(MAX(d->vi->numFrames - n - 1, 0), d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        return vsapi->getFrameFilter(d->vi->numFrames - n - 1, d->node, frameCtx);
+        return vsapi->getFrameFilter(MAX(d->vi->numFrames - n - 1, 0), d->node, frameCtx);
     }
 
     return 0;
