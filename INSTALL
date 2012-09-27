@@ -50,6 +50,8 @@ fine-tune the build:
 * --avisynth=true/false (default: true)
   Specifies whether to build the Avisynth compatibility layer
   when building on Windows.
+* --docs=true/false (default: false)
+  Specifies whether to build the Sphinx-based documentation.
 
 Once the project is configured, simply execute:
 

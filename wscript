@@ -31,6 +31,54 @@ class preproc(Task.Task):
 def add_pyx_file(self, node):
     self.create_task('preproc', node, node.get_bld().change_ext('.pyx'))
 
+class docs(Task.Task):
+    "Build Sphinx documentation"
+
+    ext_out = ['.html']
+    inst_to = None
+    color = 'PINK'
+
+    def run(self):
+        subprocess.Popen('make html BUILDDIR={0}'.format(os.path.join(os.pardir, OUT)),
+                         shell = True,
+                         cwd = 'doc',
+                         stdout = subprocess.PIPE).wait()
+
+@TaskGen.feature('docs')
+@TaskGen.before_method('process_source')
+def apply_rst(self):
+    rst_nodes = []
+    no_nodes = []
+
+    for x in self.to_nodes(self.source):
+        if x.name.endswith('.rst'):
+            rst_nodes.append(x)
+        else:
+            no_nodes.append(x)
+
+    self.source = no_nodes
+
+    bld_nodes = []
+
+    for node in rst_nodes:
+       n = self.path.find_node(OUT).make_node('html')
+
+       cur = node.parent
+       dirs = []
+
+       while not cur is self.path.find_node('doc'):
+           dirs.append(cur)
+           cur = cur.parent
+
+       for dir in reversed(dirs):
+           n = n.make_node(dir.name)
+
+       n = n.make_node(node.name).change_ext('.html')
+
+       bld_nodes.append(n)
+
+    self.rst_task = self.create_task('docs', rst_nodes, bld_nodes)
+
 def options(opt):
     opt.load('compiler_c')
     opt.load('compiler_cxx')
@@ -41,6 +89,7 @@ def options(opt):
     opt.add_option('--filters', action = 'store', default = 'true', help = 'build included filters (true/false)')
     opt.add_option('--cython', action = 'store', default = 'true', help = 'build Cython wrapper (true/false)')
     opt.add_option('--avisynth', action = 'store', default = 'true', help = 'build Avisynth compatibility layer (true/false)')
+    opt.add_option('--docs', action = 'store', default = 'false', help = 'build the documentation (true/false)')
 
 def configure(conf):
     def add_options(flags, options):
@@ -152,6 +201,11 @@ def configure(conf):
     if not conf.env.AVISYNTH in ['true', 'false']:
         conf.fatal('--avisynth must be either true or false.')
 
+    conf.env.DOCS = conf.options.docs
+
+    if not conf.env.DOCS in ['true', 'false']:
+        conf.fatal('--docs must be either true or false.')
+
     conf.check_cxx(lib = 'QtCore')
     conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore')
     conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore', type_name = 'QAtomicInt')
@@ -209,5 +263,10 @@ def build(bld):
     if bld.env.CYTHON == 'true':
         bld(features = 'preproc',
             source = bld.path.ant_glob([os.path.join('src', 'cython', '*.pyx')]))
+
+    if bld.env.DOCS == 'true':
+        bld(features = 'docs',
+            source = bld.path.ant_glob([os.path.join('doc', '*.rst'),
+                                         os.path.join('doc', '**', '*.rst')]))
 
     bld.install_files('${PREFIX}/include', os.path.join('include', 'VapourSynth.h'))
