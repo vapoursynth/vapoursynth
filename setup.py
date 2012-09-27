@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from os import pardir
+from os import curdir, pardir
 from os.path import join
 from distutils.core import setup
 from distutils.extension import Extension
@@ -18,8 +18,8 @@ setup(
     long_description = "A portable replacement for Avisynth",
     platforms = "All",
     cmdclass = {'build_ext': build_ext},
-    ext_modules = [Extension('vapoursynth', ['src/cython/vapoursynthpp.pyx'],
-                             libraries=["vapoursynth"],
-                             library_dirs = ["build"],
-                             include_dirs = ['.', join(pardir, 'src', 'cython')])]
+    ext_modules = [Extension("vapoursynth", [join("build", "src", "cython", "vapoursynth.pyx")],
+                             libraries = ["vapoursynth"],
+                             library_dirs = [curdir, "build"],
+                             include_dirs = [curdir, join("src", "cython")])]
 )
