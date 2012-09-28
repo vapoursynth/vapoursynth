@@ -207,7 +207,6 @@ def configure(conf):
         if not conf.env[opt.upper()] in ['true', 'false']:
             conf.fatal('--%s must be either true or false.'.format(opt))
 
-    conf.check_cxx(lib = 'QtCore')
     conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore')
     conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore', type_name = 'QAtomicInt')
 
@@ -279,14 +278,14 @@ def build(bld):
             install_path = '${PREFIX}/share/doc/vapoursynth')
 
     if bld.env.EXAMPLES == 'true':
-        bld(features = 'c qxx asm cxxshlib',
+        bld(features = 'c cxxshlib',
             includes = 'include',
             use = ['vapoursynth'],
             source = os.path.join('sdk', 'filter_skeleton.c'),
             target = 'example_skeleton',
             install_path = None)
 
-        bld(features = 'c qxx asm cxxshlib',
+        bld(features = 'c cxxshlib',
             includes = 'include',
             use = ['vapoursynth'],
             source = os.path.join('sdk', 'invert_example.c'),
