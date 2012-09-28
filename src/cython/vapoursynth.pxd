@@ -20,7 +20,7 @@
 
 from libc.stdint cimport uint8_t, uint32_t, int64_t
 
-cdef extern from "include/VapourSynth.h":
+cdef extern from "include/VapourSynth.h" nogil:
     ctypedef struct VSFrameRef:
         pass
     ctypedef struct VSNodeRef:
@@ -150,7 +150,7 @@ cdef extern from "include/VapourSynth.h":
         VSFormat *registerFormat(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core)
  
         void getFrameAsync(int n, VSNodeRef *node, VSFrameDoneCallback callback, void *userData)
-        VSFrameRef *getFrame(int n, VSNodeRef *node, char *errorMsg, int bufSize)
+        VSFrameRef *getFrame(int n, VSNodeRef *node, char *errorMsg, int bufSize) nogil
         void requestFrameFilter(int n, VSNodeRef *node, VSFrameContext *frameCtx)
         VSFrameRef * getFrameFilter(int n, VSNodeRef *node, VSFrameContext *frameCtx)
         VSFrameRef *cloneFrameRef(VSFrameRef *f)

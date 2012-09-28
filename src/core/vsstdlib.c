@@ -2223,6 +2223,11 @@ static const VSFrameRef *VS_CC selectClipGetFrame(int n, int activationReason, v
 
             vsapi->callFunc(d->func, d->in, d->out, core, vsapi);
             vsapi->clearMap(d->in);
+            if (vsapi->getError(d->out)) {
+                vsapi->setFilterError(vsapi->getError(d->out), frameCtx);
+                vsapi->clearMap(d->out);
+                return 0;
+            }
             idx = vsapi->propGetInt(d->out, "val", 0, &err);
 
             if (idx < 0 || idx >= d->numnode)
@@ -2312,10 +2317,11 @@ static void VS_CC selectClipCreate(const VSMap *in, VSMap *out, void *userData, 
 // ModifyProps
 
 typedef struct {
-    const VSNodeRef *node;
+    const VSNodeRef **node;
     const VSVideoInfo *vi;
     VSFuncRef *func;
     VSMap *in;
+    int numnode;
 } ModifyPropsData;
 
 static void VS_CC modifyPropsInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -2326,19 +2332,38 @@ static void VS_CC modifyPropsInit(VSMap *in, VSMap *out, void **instanceData, VS
 
 static const VSFrameRef *VS_CC modifyPropsGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     ModifyPropsData *d = (ModifyPropsData *) * instanceData;
+    int i;
 
     if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n, d->node, frameCtx);
+        for (i = 0; i < d->numnode; i++)
+            vsapi->requestFrameFilter(n, d->node[i], frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *f;
         VSFrameRef *fmod;
+        VSMap *props;
+
         vsapi->propSetInt(d->in, "N", n, 0);
-        f = vsapi->getFrameFilter(n, d->node, frameCtx);
-        fmod = vsapi->copyFrame(f, core);
-        vsapi->propSetFrame(d->in, "F0", f, 0);
-        vsapi->callFunc(d->func, d->in, vsapi->getFramePropsRW(fmod), core, vsapi);
+
+        for (i = 0; i < d->numnode; i++) {
+            f = vsapi->getFrameFilter(n, d->node[i], frameCtx);
+            if (i == 0)
+                fmod = vsapi->copyFrame(f, core);
+            vsapi->propSetFrame(d->in, "F", f, 1);
+            vsapi->freeFrame(f);
+        }
+  
+        props = vsapi->getFramePropsRW(fmod);
+        vsapi->clearMap(props);
+
+        vsapi->callFunc(d->func, d->in, props, core, vsapi);
         vsapi->clearMap(d->in);
-        vsapi->freeFrame(f);
+
+        if (vsapi->getError(props)) {
+            vsapi->setFilterError(vsapi->getError(props), frameCtx);
+            vsapi->freeFrame(fmod);
+            return 0;
+        }
+
         return fmod;
     }
 
@@ -2347,8 +2372,11 @@ static const VSFrameRef *VS_CC modifyPropsGetFrame(int n, int activationReason, 
 
 static void VS_CC modifyPropsFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     ModifyPropsData *d = (ModifyPropsData *)instanceData;
-    vsapi->freeNode(d->node);
+    int i;
+    for (i = 0; i < d->numnode; i++)
+        vsapi->freeNode(d->node[i]);
     vsapi->freeMap(d->in);
+    free(d->node);
     free(d);
 }
 
@@ -2356,16 +2384,21 @@ static void VS_CC modifyPropsCreate(const VSMap *in, VSMap *out, void *userData,
     ModifyPropsData d;
     ModifyPropsData *data;
     const VSNodeRef *cref;
+    int i;
 
-    d.node = vsapi->propGetNode(in, "clip", 0, 0);
-    d.vi = vsapi->getVideoInfo(d.node);
+    d.numnode = vsapi->propNumElements(in, "clips");
+    d.node = malloc(d.numnode * sizeof(d.node[0]));
+    for (i = 0; i < d.numnode; i++)
+        d.node[i] = vsapi->propGetNode(in, "clips", i, 0);
+
+    d.vi = vsapi->getVideoInfo(d.node[0]);
     d.func = vsapi->propGetFunc(in, "selector", 0, 0);
     d.in = vsapi->newMap();
 
     data = malloc(sizeof(d));
     *data = d;
 
-    cref = vsapi->createFilter(in, out, "ModifyProps", selectClipInit, selectClipGetFrame, selectClipFree, fmUnordered, 0, data, core);
+    cref = vsapi->createFilter(in, out, "ModifyProps", modifyPropsInit, modifyPropsGetFrame, modifyPropsFree, fmUnordered, 0, data, core);
     vsapi->propSetNode(out, "clip", cref, 0);
     vsapi->freeNode(cref);
     return;
@@ -2536,7 +2569,7 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("AssumeFPS", "clip:clip;src:clip:opt;fpsnum:int:opt;fpsden:int:opt;", assumeFPSCreate, 0, plugin);
     registerFunc("Lut", "clip:clip;lut:int[];planes:int[];", lutCreate, 0, plugin);
     registerFunc("Lut2", "clips:clip[];lut:int[];planes:int[];", lut2Create, 0, plugin);
-    registerFunc("SelectClip", "clips:clip[];selector:func;src:clip[]:opt;", selectClipCreate, 0, plugin);
-    registerFunc("ModifyProps", "clip:clip;selector:func;", modifyPropsCreate, 0, plugin);
+    registerFunc("SelectClip", "clips:clip[];src:clip[];selector:func;", selectClipCreate, 0, plugin);
+    registerFunc("ModifyProps", "clips:clip[];selector:func;", modifyPropsCreate, 0, plugin);
     registerFunc("Transpose", "clip:clip;", transposeCreate, 0, plugin);
 }

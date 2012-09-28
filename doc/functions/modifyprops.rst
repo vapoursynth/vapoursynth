@@ -1,24 +1,26 @@
 ModifyProps
 ===========
 
-.. function:: ModifyProps(clip clip, func selector)
+.. function:: ModifyProps(clips clip[], func selector)
    :module: std
    
-   The *selector* function is called for every single frame and can modify their properties in any thinkable way.
-   The function is called with the current frame's properties as the only argument and the return value are the new properties that will be set.
+   The *selector* function is called for every single frame and can modify the properties of the first given clip. The additional clips' properties
+   may only be read and not modified. The function is called with a dict similar to the one in SelectClip and the clip's properties will be set to the ones in the returned dict.
+   The selector function is passed a dict containing the frame number ('N') and the frames retrieved are in ('F'), which will be a list if there is more than one clip given.
    
    How to remove a property::
    
       def clear_one_property(props):
-         del props['IsCombed']
-         return props
+         frame_props = props['F'].get_props()
+         del frame_props['IsCombed']
+         return frame_props
       ...
-      ModifyProps(clip=clip, selector=clear_one_property)
+      ModifyProps(clips=clip, selector=clear_one_property)
    
-   How to remove all properties (usually a bad idea)::
+   How to remove all properties (usually a veeeeeery bad idea)::
    
       def remove_all_props(props):
          return {}
       ...
-      ModifyProps(clip=clip, selector=remove_all_props)
+      ModifyProps(clips=clip, selector=remove_all_props)
 

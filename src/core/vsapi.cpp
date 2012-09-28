@@ -68,17 +68,23 @@ struct GetFrameWaiter {
     QMutex b;
     QWaitCondition a;
     const VSFrameRef *r;
+    char *errorMsg;
+    int bufSize;
+    GetFrameWaiter(char *errorMsg, int bufSize) : errorMsg(errorMsg), bufSize(bufSize) {}
 };
 
 static void VS_CC frameWaiterCallback(void *userData, const VSFrameRef *frame, int n, const VSNodeRef *, const char *errorMsg) {
     GetFrameWaiter *g = (GetFrameWaiter *)userData;
     QMutexLocker l(&g->b);
     g->r = frame;
+    memset(g->errorMsg, 0, g->bufSize);
+    if (errorMsg)
+        strncpy(g->errorMsg, errorMsg, g->bufSize - 1);
     g->a.wakeOne();
 }
 
 static const VSFrameRef *VS_CC getFrame(int n, const VSNodeRef *clip, char *errorMsg, int bufSize) {
-    GetFrameWaiter g;
+    GetFrameWaiter g(errorMsg, bufSize);
     QMutexLocker l(&g.b);
     getFrameAsync(n, clip, &frameWaiterCallback, &g);
     g.a.wait(&g.b);

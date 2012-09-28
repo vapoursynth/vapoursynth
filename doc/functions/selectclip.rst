@@ -1,7 +1,7 @@
 SelectClip
 ==========
 
-.. function:: SelectClip(clip[] clips, func selector[, clip[] src])
+.. function:: SelectClip(clip[] clips, clip[] src, func selector)
    :module: std
    
    Selects which of the *clips* to return a frame from based on the *selector* function. The *selector* function has access to the frame number and the frames in the *src* clips.
@@ -13,7 +13,7 @@ SelectClip
          # get the frame number
          n = props['N']
          n = n % 2
-         return {val:n}
+         return {'val':n}
       ...
       SelectClip(clips=[A, B], selector=interleave2)
 
@@ -24,8 +24,8 @@ SelectClip
          # get the frame's property dict
          fprop = f.get_props()
          if fprop['IsCombed']:
-            return {val:1}
+            return {'val':1}
          else:
-            return {val:0}
+            return {'val':0}
       ...
       SelectClip(clips=[A, B], src=A, selector=special_processing)

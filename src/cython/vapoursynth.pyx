@@ -384,7 +384,7 @@ cdef class VideoFrame(object):
         self.funcs.freeFrame(self.f)
 
     def get_props(self):
-        retdict = mapToDict(self.funcs.getFramePropsRO(self.f), False, False, self.core, self.funcs)
+        return mapToDict(self.funcs.getFramePropsRO(self.f), False, False, self.core, self.funcs)
 
     def get_data(self, int plane):
         if plane < 0 or plane >= self.format.num_planes:
@@ -435,10 +435,15 @@ cdef class VideoNode(object):
 
     def get_frame(self, int n):
         cdef char errorMsg[512]
+        cdef char *ep = errorMsg
         cdef VSFrameRef *f
-        f = self.funcs.getFrame(n, self.node, errorMsg, 500)
+        with nogil:
+            f = self.funcs.getFrame(n, self.node, errorMsg, 500)
         if f == NULL:
-            raise Error('Internal error')
+            if (errorMsg[0]):
+                raise Error(ep.decode('utf-8'))
+            else:
+                raise Error('Internal error - no error given')
         else:
             return createVideoFrame(f, self.funcs, self.core) 
 
