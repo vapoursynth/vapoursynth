@@ -20,7 +20,7 @@ class preproc(Task.Task):
         if self.env.CXX_NAME == 'gcc':
             params = ['-E', '-x', 'c']
         elif self.env.CXX_NAME == 'msvc':
-            params = ['/E']
+            params = ['/nologo /E']
 
         args = [Utils.subst_vars('${CC}', self.env)] + params + [self.inputs[0].abspath()]
 
