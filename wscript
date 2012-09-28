@@ -279,6 +279,20 @@ def build(bld):
             install_path = '${PREFIX}/share/doc/vapoursynth')
 
     if bld.env.EXAMPLES == 'true':
+        bld(features = 'c qxx asm cxxshlib',
+            includes = 'include',
+            use = ['vapoursynth'],
+            source = os.path.join('sdk', 'filter_skeleton.c'),
+            target = 'example_skeleton',
+            install_path = None)
+
+        bld(features = 'c qxx asm cxxshlib',
+            includes = 'include',
+            use = ['vapoursynth'],
+            source = os.path.join('sdk', 'invert_example.c'),
+            target = 'example_invert',
+            install_path = None)
+
         bld.install_files('${PREFIX}/share/doc/vapoursynth/examples',
                           bld.path.ant_glob([os.path.join('sdk', '*')]))
 
