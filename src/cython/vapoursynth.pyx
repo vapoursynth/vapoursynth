@@ -877,7 +877,7 @@ cdef void __stdcall publicFunction(VSMap *inm, VSMap *outm, void *userData, VSCo
             m = mapToDict(inm, False, False, d.core, vsapi)
             ret = d(m)
             dictToMap(ret, outm, d.core, vsapi)
-        except Error as e:
+        except BaseException, e:
             emsg = str(e).encode('utf-8')
             vsapi.setError(outm, emsg)
 
