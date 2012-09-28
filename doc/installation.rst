@@ -5,13 +5,12 @@ Prerequisites
 #############
 
 First download and install the prerequisites:
-   * `Python 3.x <http://www.python.org/>`_ (32 bit version)
-   * `Visual C++ 2010 SP1 redistributable <http://www.microsoft.com/en-us/download/details.aspx?id=8328>`_ (you may or may not have this one)
+   * `Python 3.2.x <http://www.python.org/>`_ (32 bit version)
 
 Installation
 ############
 
-Unpack the VapourSynth binaries to Python's library path. This would be 'C:\\Python32\\Lib\\site-packages' if you installed Python 3.2 to the default location.
+Simply run the VapourSynth installer. It should automatically detect everything.
 
 Test it by opening a Python command line (should be added to your start menu) and type this::
 
@@ -20,4 +19,8 @@ Test it by opening a Python command line (should be added to your start menu) an
    print(c.version())
 
 After typing the final line you should see the version printed along with a few other lines describing the options used when instantiating the Core object.
-If the first import line fails you have most likely not placed all the files in the right location or you don't have the required runtime installed.
+If this for some reason fails there may be a bug in the installer or there are old copied of vapousynth.pyd and vapoursynth.dll lying around.
+
+Compiling
+#########
+If you're not on windows you have to compile VapourSynth yourself. Check out the source and follow the instructions in the INSTALL file.
