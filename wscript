@@ -232,6 +232,13 @@ def configure(conf):
     conf.check_cc(use = ['SWSCALE'], header_name = 'libswscale/swscale.h')
     conf.check_cc(use = ['SWSCALE'], header_name = 'libswscale/swscale.h', function_name = 'swscale_license')
 
+    libs = '-lm '
+
+    if not conf.env.DEST_OS in ['darwin', 'freebsd', 'netbsd', 'openbsd']:
+        libs += '-ldl '
+
+    conf.env.LIBS = libs.strip()
+
 def build(bld):
     def search_paths(paths):
         srcpaths = []
@@ -289,4 +296,5 @@ def build(bld):
     bld(source = 'vapoursynth.pc.in',
         install_path = '${PREFIX}/lib/pkgconfig',
         PREFIX = bld.env.PREFIX,
+        LIBS = bld.env.LIBS,
         VERSION = VERSION)

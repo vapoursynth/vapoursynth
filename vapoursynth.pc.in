@@ -1,13 +1,13 @@
 prefix=@PREFIX@
 exec_prefix=@PREFIX@
 libdir=@PREFIX@/lib
-sharedlibdir=@PREFIX@/lib
 includedir=@PREFIX@/include
 
 Name: VapourSynth
 Description: A frameserver for the 21st century
 Version: @VERSION@
 
-Requires:
-Libs: -L${libdir} -L${sharedlibdir} -lvapoursynth
+Requires.private: libavutil, libswscale, QtCore
+Libs: -L${libdir} -lvapoursynth
+Libs.private: @LIBS@
 Cflags: -I${includedir}
