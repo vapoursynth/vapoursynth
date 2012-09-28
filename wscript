@@ -104,6 +104,7 @@ def options(opt):
     opt.add_option('--cython', action = 'store', default = 'true', help = 'build Cython wrapper (true/false)')
     opt.add_option('--avisynth', action = 'store', default = 'true', help = 'build Avisynth compatibility layer (true/false)')
     opt.add_option('--docs', action = 'store', default = 'false', help = 'build the documentation (true/false)')
+    opt.add_option('--examples', action = 'store', default = 'false', help = 'install SDK examples (true/false)')
 
 def configure(conf):
     def add_options(flags, options):
@@ -196,29 +197,15 @@ def configure(conf):
                     ['-Wl,-Bsymbolic'])
 
     conf.env.STATIC = conf.options.static
-
-    if not conf.env.STATIC in ['true', 'false']:
-        conf.fatal('--static must be either true or false.')
-
     conf.env.FILTERS = conf.options.filters
-
-    if not conf.env.FILTERS in ['true', 'false']:
-        conf.fatal('--filters must be either true or false.')
-
     conf.env.CYTHON = conf.options.cython
-
-    if not conf.env.CYTHON in ['true', 'false']:
-        conf.fatal('--cython must be either true or false.')
-
     conf.env.AVISYNTH = conf.options.avisynth
-
-    if not conf.env.AVISYNTH in ['true', 'false']:
-        conf.fatal('--avisynth must be either true or false.')
-
     conf.env.DOCS = conf.options.docs
+    conf.env.EXAMPLES = conf.options.examples
 
-    if not conf.env.DOCS in ['true', 'false']:
-        conf.fatal('--docs must be either true or false.')
+    for opt in ['static', 'filters', 'cython', 'avisynth', 'docs', 'examples']:
+        if not conf.env[opt.upper()] in ['true', 'false']:
+            conf.fatal('--%s must be either true or false.'.format(opt))
 
     conf.check_cxx(lib = 'QtCore')
     conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore')
@@ -288,8 +275,12 @@ def build(bld):
     if bld.env.DOCS == 'true':
         bld(features = 'docs',
             source = bld.path.ant_glob([os.path.join('doc', '*.rst'),
-                                         os.path.join('doc', '**', '*.rst')]),
+                                        os.path.join('doc', '**', '*.rst')]),
             install_path = '${PREFIX}/share/doc/vapoursynth')
+
+    if bld.env.EXAMPLES == 'true':
+        bld.install_files('${PREFIX}/share/doc/vapoursynth/examples',
+                          bld.path.ant_glob([os.path.join('sdk', '*')]))
 
     bld.install_files('${PREFIX}/include', os.path.join('include', 'VapourSynth.h'))
 
