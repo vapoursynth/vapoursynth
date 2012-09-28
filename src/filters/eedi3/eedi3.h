@@ -1,4 +1,6 @@
 /*
+**   VapourSynth port by Fredrik Mellbin
+**
 **   eedi3 (enhanced edge directed interpolation 3). Works by finding the
 **   best non-decreasing (non-crossing) warping between two lines according to
 **   a cost functional. Doesn't really have anything to do with eedi2 aside
