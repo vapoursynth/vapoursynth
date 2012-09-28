@@ -5,10 +5,13 @@
 // This file may make more sense when
 // read from the bottom and up.
 
+#include <stdlib.h>
+#include "VapourSynth.h"
+
 typedef struct {
     const VSNodeRef *node;
     VSVideoInfo *vi;
-    int enable;
+    int enabled;
 } InvertData;
 
 // This function is called immediated after vsapi->createFilter(). This is the only place where the video
@@ -18,17 +21,63 @@ static void VS_CC invertInit(VSMap *in, VSMap *out, void **instanceData, VSNode 
     vsapi->setVideoInfo(d->vi, node);
 }
 
+// This is the main function that gets called when a frame should be produced. It will in most cases get
+// called several times to produce one frame. This state is being kept track of by the value of
+// activationReason. The first call to produce a certain frame n is always arInitial. In this state
+// you should request all input frames you need. Always do it i ascending order to play nice with the
+// upstream filters.
+// Once all frames are ready the the filter will be called with arAllFramesReady. It is now time to
+// do the actual processing.
 static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     InvertData *d = (InvertData *) * instanceData;
 
     if (activationReason == arInitial) {
+        // Request the sourec frame on the first call
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *frame = vsapi->getFrameFilter(n, d->node, frameCtx);
-  
+        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        // The reason we query this on a per frame basis is because we want our filter
+        // to accept clips with varying dimensions. If we reject such content using d->vi
+        // would be better.
+        const VSFormat *fi = d->vi->format;
+        int height = vsapi->getFrameHeight(src, 0);
+        int width = vsapi->getFrameWidth(src, 0);
 
+        
+        // When creating a new frame for output it is VERY EXTREMELY SUPER IMPORTANT to
+        // supply the "domainant" source frame to copy properties from. Frame props
+        // are an essential part of the filter chain and you should NEVER break it.
+        VSFrameRef *dst = vsapi->newVideoFrame(fi, width, height, src, core);
 
-        return frame;
+        // It's processing loop time!
+        // Loop over all the planes
+        int plane;
+        for (plane = 0; plane < fi->numPlanes; plane++) {
+            const uint8_t *srcp = vsapi->getReadPtr(src, plane);
+            int src_stride = vsapi->getStride(src, plane);
+            uint8_t *dstp = vsapi->getWritePtr(dst, plane);
+            int dst_stride = vsapi->getStride(dst, plane); // note that if a frame has the same dimensions and format the stride is guaranteed to be the same, int dst_stride = src_stride would be fin too in this filter
+            // Since planes may be subsampled you have to query the height of them individually
+            int h = vsapi->getFrameHeight(src, plane);
+            int y;
+            int w = vsapi->getFrameWidth(src, plane) - 1;
+            int x;
+    
+            for (y = 0; y < h; y++) {
+                for (x = 0; x <= w; x++)
+                    dstp[x] = ~srcp[x];
+
+                dstp += dst_stride;
+                srcp += src_stride;
+            }
+        }
+
+        // Release the source frame
+        vsapi->freeFrame(src);
+
+        // A reference is consumed when it is returned so saving the dst ref somewhere
+        // and reusing it is not allowed.
+        return dst;
     }
 
     return 0;
@@ -51,6 +100,14 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     // Get a clip reference from the input arguments. This must be freed later.
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node);
+
+    // In this first version we only want to handle 8bit integer formats. Note that
+    // vi->format can be 0 if the input clip can change format midstream.
+    if (!d.vi->format || d.vi->format->sampleType != stInteger || d.vi->format->bitsPerSample != 8) {
+        vsapi->setError(out, "Invert: only constant format 8bit integer input supported");
+        vsapi->freeNode(d.node);
+        return;
+    }
 
     // If a property read fails for some reason (index out of bounds/wrong type)
     // then err will have flags set to indicate why and 0 will be returned. This
@@ -122,5 +179,5 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 
 void VS_CC invertlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     configFunc("com.example.invert", "invert", "VapourSynth Invert Example", VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("Filter", "clip:clip;enable:int:opt;", invertCreate, 0, plugin);
+    registerFunc("Filter", "clip:clip;enabled:int:opt;", invertCreate, 0, plugin);
 }

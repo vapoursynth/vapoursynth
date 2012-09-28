@@ -1,8 +1,11 @@
 //////////////////////////////////////////
 // This file contains a simple filter
-// skeleton you can use to get started
+// skeleton you can use to get started.
 // With no changes it simply passes
-// frames through
+// frames through.
+
+#include "VapourSynth.h"
+#include "VapourSynth.h"
 
 typedef struct {
     const VSNodeRef *node;
@@ -22,7 +25,7 @@ static const VSFrameRef *VS_CC filterGetFrame(int n, int activationReason, void 
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *frame = vsapi->getFrameFilter(n, d->node, frameCtx);
   
-
+        // your code here...
 
         return frame;
     }
@@ -36,7 +39,7 @@ static void VS_CC filterFree(void *instanceData, VSCore *core, const VSAPI *vsap
     free(d);
 }
 
-static void VS_CC transposeCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+static void VS_CC filterCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     FilterData d;
     FilterData *data;
     const VSNodeRef *cref;
