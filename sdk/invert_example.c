@@ -10,7 +10,7 @@
 
 typedef struct {
     const VSNodeRef *node;
-    VSVideoInfo *vi;
+    const VSVideoInfo *vi;
     int enabled;
 } InvertData;
 
@@ -32,7 +32,7 @@ static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void 
     InvertData *d = (InvertData *) * instanceData;
 
     if (activationReason == arInitial) {
-        // Request the sourec frame on the first call
+        // Request the source frame on the first call
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
@@ -90,7 +90,7 @@ static void VS_CC invertFree(void *instanceData, VSCore *core, const VSAPI *vsap
     free(d);
 }
 
-// 
+// This function is responsible for validating arguments and creating a new filter
 static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     InvertData d;
     InvertData *data;
@@ -115,7 +115,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     // strict checking because of what we wrote in the argument string the only reason
     // this could fail is when the value wasn't set by the user.
     // And when it's not set we want it to default to enabled.
-    d.enabled = vsapi->propGetNode(in, "enable", 0, &err);
+    d.enabled = vsapi->propGetInt(in, "enable", 0, &err);
     if (err)
         d.enabled = 1;
 

@@ -9,7 +9,7 @@
 
 typedef struct {
     const VSNodeRef *node;
-    VSVideoInfo *vi;
+    const VSVideoInfo *vi;
 } FilterData;
 
 static void VS_CC filterInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
