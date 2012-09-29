@@ -177,7 +177,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 // The available flags are opt, to make an argument optional, and link which will not be
 // explained here.
 
-void VS_CC invertlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
+void VS_CC VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     configFunc("com.example.invert", "invert", "VapourSynth Invert Example", VAPOURSYNTH_API_VERSION, 1, plugin);
     registerFunc("Filter", "clip:clip;enabled:int:opt;", invertCreate, 0, plugin);
 }
