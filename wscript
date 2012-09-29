@@ -22,7 +22,8 @@ class preproc(Task.Task):
         elif self.env.CXX_NAME == 'msvc':
             params = ['/nologo', '/E']
 
-        args = [self.env.CC] + params + [self.inputs[0].abspath()]
+        args = [Utils.subst_vars('${CC}', self.env)] + params + [self.inputs[0].abspath()]
+        print(args)
 
         with open(self.outputs[0].abspath(), 'w') as f:
             subprocess.Popen(args, stdout = f).wait()
