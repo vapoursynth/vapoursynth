@@ -18,12 +18,11 @@ class preproc(Task.Task):
 
     def run(self):
         if self.env.CXX_NAME == 'gcc':
-            params = [' -E', '-x', 'c']
+            params = ['-E', '-x', 'c']
         elif self.env.CXX_NAME == 'msvc':
             params = ['/nologo', '/E']
 
         args = [Utils.subst_vars('${CC}', self.env)] + params + [self.inputs[0].abspath()]
-        print(args)
 
         with open(self.outputs[0].abspath(), 'w') as f:
             subprocess.Popen(args, stdout = f).wait()
