@@ -110,9 +110,7 @@ def options(opt):
 def configure(conf):
     def add_options(flags, options):
         for flag in flags:
-            for option in options:
-                if option not in conf.env[flag]:
-                    conf.env.append_value(flag, option)
+            conf.env.append_unique(flag, options)
 
     conf.load('compiler_c')
     conf.load('compiler_cxx')
@@ -123,7 +121,7 @@ def configure(conf):
     conf.find_program('yasm', var = 'AS', mandatory = True)
     conf.load('nasm')
 
-    if conf.env.DEST_OS in ['cygwin', 'darwin']:
+    if conf.env.DEST_OS == 'darwin':
         if conf.env.CXX_NAME == 'gcc':
             add_options(['ASFLAGS'],
                         ['-DPREFIX'])
