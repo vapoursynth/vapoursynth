@@ -422,9 +422,9 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()) {
 
 VSCore::~VSCore() {
     memory->signalFree();
-    foreach(VSPlugin * p, plugins)
-    delete p;
     delete threadPool;
+    foreach(VSPlugin * p, plugins)
+        delete p;
 }
 
 QMutex VSCore::filterLock(QMutex::Recursive);
