@@ -851,7 +851,7 @@ void VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
     vsapi->freeFrame(f);
 
     for (int i = n + 1; i < std::min<int>(n + 10, parent->vi->numFrames ? parent->vi->numFrames : undefined_length); i++)
-        vsapi->getFrameAsync(n, parent->se.node, frameDoneCallback, (void *)vsapi);
+        vsapi->getFrameAsync(i, parent->se.node, frameDoneCallback, (void *)vsapi);
 }
 
 void VapourSynthStream::ReadHelper(void* lpBuffer, int lStart, int lSamples, unsigned code[4]) {

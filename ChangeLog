@@ -4,6 +4,7 @@ compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 .vpy files need to be opened with file\open and then select avifile compat from the format list before selecting the .vpy script (this is a vdub limitation)
 
 r11:
+vfw now also has several frame requests going at once, this should make the throughput get close to clip.output()
 vfw now returns some colorful bars on error because refusing to open crashes too many applications
 vfw now has support for the P010, P016, P210, P216 formats, tested in mpc-hc with madvr
 removed some stray debug prints
