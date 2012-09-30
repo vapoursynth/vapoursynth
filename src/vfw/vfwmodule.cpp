@@ -429,6 +429,7 @@ VapourSynthFile::~VapourSynthFile() {
         vi = NULL;
         free_script(&se);
     }
+    Unlock();
     DeleteCriticalSection(&cs_filter_graph);
 }
 
