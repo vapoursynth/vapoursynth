@@ -34,6 +34,7 @@
 #include "vapoursynthpp_api.h"
 
 const int undefined_length = 10000000;
+volatile long pending_requests = 0;
 
 void BitBlt(uint8_t* dstp, int dst_pitch, const uint8_t* srcp, int src_pitch, int row_size, int height) {
     for (int i = 0; i < height; i++) {
@@ -427,6 +428,7 @@ VapourSynthFile::~VapourSynthFile() {
     Lock();
     if (vi) {
         vi = NULL;
+        while (pending_requests > 0);
         free_script(&se);
     }
     Unlock();
@@ -753,6 +755,7 @@ STDMETHODIMP_(LONG) VapourSynthStream::FindSample(LONG lPos, LONG lFlags) {
 
 static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, const VSNodeRef *, const char *errorMsg) {
     ((const VSAPI *)userData)->freeFrame(f);
+    InterlockedDecrement(&pending_requests);
 }
 
 void VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
@@ -848,8 +851,10 @@ void VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
 
     vsapi->freeFrame(f);
 
-    for (int i = n + 1; i < std::min<int>(n + 10, parent->vi->numFrames ? parent->vi->numFrames : undefined_length); i++)
+    for (int i = n + 1; i < std::min<int>(n + 10, parent->vi->numFrames ? parent->vi->numFrames : undefined_length); i++) {
+        InterlockedIncrement(&pending_requests);
         vsapi->getFrameAsync(i, parent->se.node, frameDoneCallback, (void *)vsapi);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////
