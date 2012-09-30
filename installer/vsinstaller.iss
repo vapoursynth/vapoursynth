@@ -62,9 +62,9 @@ var PythonPath: string;
 
 function InitializeSetup(): Boolean;
 begin
-  Result := RegQueryStringValue(HKLM, 'SOFTWARE\Python\PythonCore\3.2\InstallPath', '', PythonPath);
+  Result := RegQueryStringValue(HKLM, 'SOFTWARE\Python\PythonCore\3.3\InstallPath', '', PythonPath);
   if not Result then
-    MsgBox('Python 3.2 installation not found.', mbCriticalError, MB_OK);
+    MsgBox('Python 3.3 installation not found.', mbCriticalError, MB_OK);
 end;
 
 function GetPythonPath(Param: String): String;
