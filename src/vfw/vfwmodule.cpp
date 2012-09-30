@@ -20,8 +20,6 @@
 
 // loosely based on the relevant files of main.cpp in avisynth
 
-#define FP_STATE 0x9001f
-
 #define INITGUID
 #define WIN32_LEAN_AND_MEAN
 #include <objbase.h>
@@ -199,7 +197,6 @@ private:
 
     //////////// internal
 
-    void ReadHelper(void* lpBuffer, int lStart, int lSamples, unsigned code[4]);
     void ReadFrame(void* lpBuffer, int n);
 
     HRESULT Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LONG cbBuffer, LONG *plBytes, LONG *plSamples);
@@ -854,10 +851,6 @@ void VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
         vsapi->getFrameAsync(i, parent->se.node, frameDoneCallback, (void *)vsapi);
 }
 
-void VapourSynthStream::ReadHelper(void* lpBuffer, int lStart, int lSamples, unsigned code[4]) {
-    ReadFrame(lpBuffer, lStart);
-}
-
 ////////////////////////////////////////////////////////////////////////
 //////////// IAVIStream
 
@@ -869,34 +862,28 @@ STDMETHODIMP VapourSynthStream::Read(LONG lStart, LONG lSamples, LPVOID lpBuffer
 }
 
 HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LONG cbBuffer, LONG *plBytes, LONG *plSamples) {
-    int fp_state = _control87( 0, 0 );
-    _control87( FP_STATE, 0xffffffff );
-    unsigned code[4] = {0, 0, 0, 0};
-
-    {
-        if (lStart >= (parent->vi->numFrames ? parent->vi->numFrames : undefined_length)) {
-            if (plSamples)
-                *plSamples = 0;
-            if (plBytes)
-                *plBytes = 0;
-            return S_OK;
-        }
-
-        int image_size = ImageSize(parent->vi);
+    if (lStart >= (parent->vi->numFrames ? parent->vi->numFrames : undefined_length)) {
         if (plSamples)
-            *plSamples = 1;
+            *plSamples = 0;
         if (plBytes)
-            *plBytes = image_size;
+            *plBytes = 0;
+        return S_OK;
+    }
 
-        if (!lpBuffer) {
-            return S_OK;
-        } else if (cbBuffer < image_size) {
-            return AVIERR_BUFFERTOOSMALL;
-        }
+    int image_size = ImageSize(parent->vi);
+    if (plSamples)
+        *plSamples = 1;
+    if (plBytes)
+        *plBytes = image_size;
+
+    if (!lpBuffer) {
+        return S_OK;
+    } else if (cbBuffer < image_size) {
+        return AVIERR_BUFFERTOOSMALL;
     }
 
     try {
-        ReadHelper(lpBuffer, lStart, lSamples, code);
+        ReadFrame(lpBuffer, lStart);
     }
     catch (...) {
         return E_FAIL;
