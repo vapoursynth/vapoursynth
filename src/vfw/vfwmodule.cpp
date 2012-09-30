@@ -775,6 +775,9 @@ void VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
     int out_pitch;
     int out_pitchUV;
 
+    bool semi_packed_p10 = (fi->id == pfYUV420P10) || (fi->id == pfYUV422P10);
+    bool semi_packed_p16 = (fi->id == pfYUV420P16) || (fi->id == pfYUV422P16);
+
     // BMP scanlines are dword-aligned
     if (fi->numPlanes == 1) {
         out_pitch = (row_size+3) & ~3;
@@ -786,9 +789,54 @@ void VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
         out_pitchUV = vsapi->getFrameWidth(f, 1) * fi->bytesPerSample;
     }
 
-    BitBlt((BYTE*)lpBuffer, out_pitch, vsapi->getReadPtr(f, 0), pitch, row_size, height);
+    if (semi_packed_p10) {
+        int pwidth = vsapi->getFrameWidth(f, 0);
+        int pstride = vsapi->getStride(f, 0) / 2;
+        uint16_t *outbuf = (uint16_t *)lpBuffer;
+        const uint16_t *yptr = (const uint16_t *)vsapi->getReadPtr(f, 0);
 
-    if (fi->numPlanes == 3) {
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < pwidth; x++) {
+                outbuf[x] = yptr[x] << 6;
+            }
+            outbuf += out_pitch/2;
+            yptr += pstride;
+        }
+    } else {
+        BitBlt((BYTE*)lpBuffer, out_pitch, vsapi->getReadPtr(f, 0), pitch, row_size, height);
+    }
+
+    if (semi_packed_p10 || semi_packed_p16) {
+        int pheight = vsapi->getFrameHeight(f, 1);
+        int pwidth = vsapi->getFrameWidth(f, 1);
+        int pstride = vsapi->getStride(f, 1) / 2;
+        BYTE *outadj = (BYTE*)lpBuffer + out_pitch*height;
+        uint16_t *outbuf = (uint16_t *)outadj;
+        const uint16_t *uptr = (const uint16_t *)vsapi->getReadPtr(f, 1);
+        const uint16_t *vptr = (const uint16_t *)vsapi->getReadPtr(f, 2);
+
+        if (semi_packed_p16) {
+            for (int y = 0; y < pheight; y++) {
+                for (int x = 0; x < pwidth; x++) {
+                    outbuf[2*x] = uptr[x];
+                    outbuf[2*x + 1] = vptr[x];
+                }
+                outbuf += out_pitchUV;
+                uptr += pstride;
+                vptr += pstride;
+            }
+        } else {
+            for (int y = 0; y < pheight; y++) {
+                for (int x = 0; x < pwidth; x++) {
+                    outbuf[2*x] = uptr[x] << 6;
+                    outbuf[2*x + 1] = vptr[x] << 6;
+                }
+                outbuf += out_pitchUV;
+                uptr += pstride;
+                vptr += pstride;
+            }
+        }
+    } else if (fi->numPlanes == 3) {
         BitBlt((BYTE*)lpBuffer + (out_pitch*height),
             out_pitchUV,               vsapi->getReadPtr(f, 2),
             vsapi->getStride(f, 2), vsapi->getFrameWidth(f, 2),
