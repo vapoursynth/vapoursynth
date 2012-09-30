@@ -244,7 +244,7 @@ def build(bld):
 
     bld(features = 'c qxx asm',
         includes = 'include',
-        use = ['QTCORE', 'AVUTIL', 'SWSCALE'],
+        use = ['QTCORE', 'SWSCALE', 'AVUTIL'],
         source = bld.path.ant_glob(sources),
         target = 'objs')
 
@@ -255,7 +255,7 @@ def build(bld):
 
     if bld.env.STATIC == 'true':
         bld(features = 'c qxx asm cxxstlib',
-            use = ['objs', 'QTCORE', 'AVUTIL', 'SWSCALE'],
+            use = ['objs', 'QTCORE', 'SWSCALE', 'AVUTIL'],
             target = 'vapoursynth',
             install_path = '${PREFIX}/lib')
 
