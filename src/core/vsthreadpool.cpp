@@ -106,20 +106,6 @@ void VSThread::run() {
                 if (f && rCtx->numFrameRequests > 0)
                     qFatal("Frame returned but there are still pending frame requests, filter: " + rCtx->clip->name);
 
-                
-                PFrameContext a = pCtx;
-                char b[100];
-                if (a->returnedFrame)
-                	a = a->upstreamContext;
-                if (rCtx->clip->name == "FFVideoSource") {
-                	sprintf(b, "src:\t%d\n", a->n);
-                	OutputDebugStringA(b);
-                } else if (f) {
-                	//sprintf(b, "%s:\t%d\t%d\t%d\n", rCtx->clip->name.constData(), ((int)a->clip) & 0xff, a->n, (int)((bool)f));
-                	//OutputDebugStringA(b);
-                }
-                
-
                 owner->runningTasks.remove(FrameKey(rCtx->clip, rCtx->clip->filterMode == fmUnordered ? -1 : rCtx->n));
 
 				if (f || ar == arError || rCtx->hasError()) {
