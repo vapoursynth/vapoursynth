@@ -450,18 +450,26 @@ bool VapourSynthFile::DelayInit() {
     return result;
 }
 
+const char *ErrorScript = "\
+import vapoursynth as vs\n\
+import sys\n\
+core = vs.Core(threads=1)\n\
+red = core.std.BlankClip(width=240, height=480, format=vs.RGB24, color=[255, 0, 0])\n\
+green = core.std.BlankClip(width=240, height=480, format=vs.RGB24, color=[0, 255, 0])\n\
+blue = core.std.BlankClip(width=240, height=480, format=vs.RGB24, color=[0, 0, 255])\n\
+stacked = core.std.StackHorizontal([red, green, blue])\n\
+last = core.resize.Bicubic(stacked, format=vs.COMPATBGR32)\n";
+
 bool VapourSynthFile::DelayInit2() {
     if (!szScriptName.empty() && !vi) {
         // this ugly cast is needed because cython doesn't understand the const keyword
-        if (!evaluate_script((char *)szScriptName.c_str(), &se)) {
+        if (!vpy_evaluate_file((char *)szScriptName.c_str(), &se)) {
             vi = se.vsapi->getVideoInfo(se.node);
             error_msg.clear();
 
             if (vi->width == 0 || vi->height == 0 || vi->format == NULL) {
                 error_msg = "Cannot open clips with varying dimensions or format in vfw";
-                vi = NULL;
-                free_script(&se);
-                return false;
+                goto vpyerror;
             }
 
             int id = vi->format->id;
@@ -484,9 +492,12 @@ bool VapourSynthFile::DelayInit2() {
             return true;
         } else {
             error_msg = se.error;
+            vpyerror:
             vi = NULL;
             free_script(&se);
-            return false;
+            vpy_evaluate_text((char *)ErrorScript, "vfw_error.bleh", &se);
+            vi = se.vsapi->getVideoInfo(se.node);
+            return true;
         }
     } else {
         return !!vi;
@@ -699,7 +710,7 @@ STDMETHODIMP_(LONG) VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) {
     else if (vi->format->id == pfYUV410P8) 
         asi.fccHandler = '9UVY'; 
     else
-        return S_FALSE;
+        return E_FAIL;
 
     asi.dwScale = vi->fpsDen ? vi->fpsDen : 1;
     asi.dwRate = vi->fpsNum ? vi->fpsNum : 30;
@@ -872,7 +883,7 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
     else if (vi->format->id == pfYUV410P8) 
         bi.biCompression = '9UVY'; 
     else
-        return S_FALSE;
+        return E_FAIL;
 
     bi.biSizeImage = ImageSize(vi);
     *lpcbFormat = min(*lpcbFormat, sizeof(bi));

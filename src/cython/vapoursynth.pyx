@@ -906,8 +906,8 @@ cdef public struct ScriptExport:
     void *errstr
     char *error
     VSAPI *vsapi
-
-cdef public api int __stdcall evaluate_script(char *fn, ScriptExport *extp) nogil:
+    
+cdef public api int __stdcall vpy_evaluate_text(char *utf8text, char *fn, ScriptExport *extp) nogil:
     extp.node = NULL
     extp.pynode = NULL
     extp.errstr = NULL
@@ -917,7 +917,7 @@ cdef public api int __stdcall evaluate_script(char *fn, ScriptExport *extp) nogi
     with gil:
         try:
             evaldict = {}
-            comp = compile(open(fn.decode('utf-8')).read(), fn.decode('utf-8'), 'exec')
+            comp = compile(utf8text.decode('utf-8'), fn.decode('utf-8'), 'exec')
             exec(comp) in evaldict
             node = evaldict['last']
 
@@ -940,6 +940,29 @@ cdef public api int __stdcall evaluate_script(char *fn, ScriptExport *extp) nogi
             extp.error = 'Unspecified Python exception'
             return 1
         return 0
+
+cdef public api int __stdcall vpy_evaluate_file(char *fn, ScriptExport *extp) nogil:
+    extp.node = NULL
+    extp.pynode = NULL
+    extp.errstr = NULL
+    extp.error = NULL
+    extp.vsapi = NULL
+
+    with gil:
+        try:
+            script = open(fn.decode('utf-8')).read()
+        except BaseException, e:
+            estr = 'Python exception: ' + str(e)
+            estr = estr.encode('utf-8')
+            Py_INCREF(estr)
+            extp.errstr = <void *>estr
+            extp.error = estr
+            return 2
+        except:
+            extp.error = 'Unspecified Python exception'
+            return 1
+        encscript = script.encode('utf-8')
+        return vpy_evaluate_text(encscript, fn, extp)
 
 cdef public api int __stdcall free_script(ScriptExport *extp) nogil:
     with gil:
