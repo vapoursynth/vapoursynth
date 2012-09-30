@@ -5,7 +5,7 @@ Prerequisites
 #############
 
 First download and install the prerequisites:
-   * `Python 3.2.x <http://www.python.org/>`_ (32 bit version)
+   * `Python 3.3 <http://www.python.org/>`_ (32 bit version)
 
 Installation
 ############
