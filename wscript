@@ -98,6 +98,7 @@ def options(opt):
     opt.load('compiler_cxx')
     opt.load('qt4')
 
+    opt.add_option('--libdir', action = 'store', default = '${PREFIX}/lib', help = 'library installation prefix')
     opt.add_option('--mode', action = 'store', default = 'release', help = 'the mode to compile in (debug/release)')
     opt.add_option('--static', action = 'store', default = 'false', help = 'build a static library (true/false)')
     opt.add_option('--filters', action = 'store', default = 'true', help = 'build included filters (true/false)')
@@ -196,16 +197,13 @@ def configure(conf):
         add_options(['LINKFLAGS_cxxshlib', 'LINKFLAGS_cxxprogram'],
                     ['-Wl,-Bsymbolic'])
 
-    conf.env.STATIC = conf.options.static
-    conf.env.FILTERS = conf.options.filters
-    conf.env.CYTHON = conf.options.cython
-    conf.env.AVISYNTH = conf.options.avisynth
-    conf.env.DOCS = conf.options.docs
-    conf.env.EXAMPLES = conf.options.examples
-
     for opt in ['static', 'filters', 'cython', 'avisynth', 'docs', 'examples']:
-        if not conf.env[opt.upper()] in ['true', 'false']:
-            conf.fatal('--%s must be either true or false.'.format(opt))
+        if not conf.options.__dict__[opt] in ['true', 'false']:
+            conf.fatal('--{0} must be either true or false.'.format(opt))
+        else:
+            conf.env[opt.upper()] = conf.options.__dict__[opt]
+
+    conf.env.LIBDIR = conf.options.libdir
 
     conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore')
     conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore', type_name = 'QAtomicInt')
@@ -251,13 +249,13 @@ def build(bld):
     bld(features = 'c qxx asm cxxshlib',
         use = ['objs'],
         target = 'vapoursynth',
-        install_path = '${PREFIX}/lib')
+        install_path = '${LIBDIR}')
 
     if bld.env.STATIC == 'true':
         bld(features = 'c qxx asm cxxstlib',
             use = ['objs', 'QTCORE', 'SWSCALE', 'AVUTIL'],
             target = 'vapoursynth',
-            install_path = '${PREFIX}/lib')
+            install_path = '${LIBDIR}')
 
     if bld.env.FILTERS == 'true':
         bld(features = 'c qxx asm cxxshlib',
@@ -265,7 +263,7 @@ def build(bld):
             use = ['vapoursynth'],
             source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'eedi3')])),
             target = 'eedi3',
-            install_path = '${PREFIX}/lib/vapoursynth')
+            install_path = '${LIBDIR}/vapoursynth')
 
     if bld.env.CYTHON == 'true':
         bld(features = 'preproc',
@@ -298,7 +296,8 @@ def build(bld):
     bld.install_files('${PREFIX}/include', os.path.join('include', 'VapourSynth.h'))
 
     bld(source = 'vapoursynth.pc.in',
-        install_path = '${PREFIX}/lib/pkgconfig',
+        install_path = '${LIBDIR}/pkgconfig',
         PREFIX = bld.env.PREFIX,
+        LIBDIR = bld.env.LIBDIR,
         LIBS = bld.env.LIBS,
         VERSION = VERSION)

@@ -32,6 +32,8 @@ fine-tune the build:
 
 * --prefix=path (default: /usr/local)
   Specifies where to install the final VapourSynth artifacts.
+* --libdir=path (default: ${PREFIX}/lib)
+  Specifies where to install VapourSynth libraries.
 * --mode=debug/release (default: release)
   Specifies what mode to compile C and C++ code in. When in
   debug mode, debug info and debugging helpers will be emitted

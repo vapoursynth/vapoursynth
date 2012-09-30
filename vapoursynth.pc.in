@@ -1,6 +1,6 @@
 prefix=@PREFIX@
 exec_prefix=@PREFIX@
-libdir=@PREFIX@/lib
+libdir=@LIBDIR@
 includedir=@PREFIX@/include
 
 Name: VapourSynth
