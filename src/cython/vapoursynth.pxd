@@ -136,75 +136,75 @@ cdef extern from "include/VapourSynth.h" nogil:
     ctypedef void (__stdcall *VSFreeFuncData)(void *userData)
 
     ctypedef struct VSAPI:
-        VSCore *createCore(int threads)
-        void freeCore(VSCore *core)
+        VSCore *createCore(int threads) nogil
+        void freeCore(VSCore *core) nogil
 
-        void registerFunction(char *name, char *args, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin)
-        VSNodeRef *createFilter(VSMap *input, VSMap *out, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *filterData, VSCore *core)
-        VSMap *invoke(VSPlugin *plugin, char *name, VSMap *args)
-        void setError(VSMap *map, char *errorMessage)
-        char *getError(VSMap *map)
-        void setFilterError(char *errorMessage, VSFrameContext *frameCtx)
+        void registerFunction(char *name, char *args, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) nogil
+        VSNodeRef *createFilter(VSMap *input, VSMap *out, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *filterData, VSCore *core) nogil
+        VSMap *invoke(VSPlugin *plugin, char *name, VSMap *args) nogil
+        void setError(VSMap *map, char *errorMessage) nogil
+        char *getError(VSMap *map) nogil
+        void setFilterError(char *errorMessage, VSFrameContext *frameCtx) nogil
 
-        VSFormat *getFormatPreset(int id, VSCore *core)
-        VSFormat *registerFormat(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core)
+        VSFormat *getFormatPreset(int id, VSCore *core) nogil
+        VSFormat *registerFormat(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) nogil
  
-        void getFrameAsync(int n, VSNodeRef *node, VSFrameDoneCallback callback, void *userData)
+        void getFrameAsync(int n, VSNodeRef *node, VSFrameDoneCallback callback, void *userData) nogil
         VSFrameRef *getFrame(int n, VSNodeRef *node, char *errorMsg, int bufSize) nogil
-        void requestFrameFilter(int n, VSNodeRef *node, VSFrameContext *frameCtx)
-        VSFrameRef * getFrameFilter(int n, VSNodeRef *node, VSFrameContext *frameCtx)
-        VSFrameRef *cloneFrameRef(VSFrameRef *f)
-        VSNodeRef *cloneNodeRef(VSNodeRef *node)
-        void freeFrame(VSFrameRef *f)
-        void freeNode(VSNodeRef *node)
-        VSFrameRef *newVideoFrame(VSFormat *format, int width, int height, VSFrameRef *propSrc, VSCore *core)
-        VSFrameRef *copyFrame(VSFrameRef *f, VSCore *core)
-        void copyFrameProps(VSFrameRef *src, VSFrameRef *dst, VSCore *core)
+        void requestFrameFilter(int n, VSNodeRef *node, VSFrameContext *frameCtx) nogil
+        VSFrameRef * getFrameFilter(int n, VSNodeRef *node, VSFrameContext *frameCtx) nogil
+        VSFrameRef *cloneFrameRef(VSFrameRef *f) nogil
+        VSNodeRef *cloneNodeRef(VSNodeRef *node) nogil
+        void freeFrame(VSFrameRef *f) nogil
+        void freeNode(VSNodeRef *node) nogil
+        VSFrameRef *newVideoFrame(VSFormat *format, int width, int height, VSFrameRef *propSrc, VSCore *core) nogil
+        VSFrameRef *copyFrame(VSFrameRef *f, VSCore *core) nogil
+        void copyFrameProps(VSFrameRef *src, VSFrameRef *dst, VSCore *core) nogil
 
-        int getStride(VSFrameRef *f, int plane)
-        uint8_t *getReadPtr(VSFrameRef *f, int plane)
-        uint8_t *getWritePtr(VSFrameRef *f, int plane)
+        int getStride(VSFrameRef *f, int plane) nogil
+        uint8_t *getReadPtr(VSFrameRef *f, int plane) nogil
+        uint8_t *getWritePtr(VSFrameRef *f, int plane) nogil
 
-        VSVideoInfo *getVideoInfo(VSNodeRef *node)
-        void setVideoInfo(VSVideoInfo *vi, VSNode *node)
-        VSFormat *getFrameFormat(VSFrameRef *f)
-        int getFrameWidth(VSFrameRef *f, int plane)
-        int getFrameHeight(VSFrameRef *f, int plane)
-        VSMap *getFramePropsRO(VSFrameRef *f)
-        VSMap *getFramePropsRW(VSFrameRef *f)
-        int propNumKeys(VSMap *map)
-        char *propGetKey(VSMap *map, int index)
-        int propNumElements(VSMap *map, char *key)
-        char propGetType(VSMap *map, char *key)
+        VSVideoInfo *getVideoInfo(VSNodeRef *node) nogil
+        void setVideoInfo(VSVideoInfo *vi, VSNode *node) nogil
+        VSFormat *getFrameFormat(VSFrameRef *f) nogil
+        int getFrameWidth(VSFrameRef *f, int plane) nogil
+        int getFrameHeight(VSFrameRef *f, int plane) nogil
+        VSMap *getFramePropsRO(VSFrameRef *f) nogil
+        VSMap *getFramePropsRW(VSFrameRef *f) nogil
+        int propNumKeys(VSMap *map) nogil
+        char *propGetKey(VSMap *map, int index) nogil
+        int propNumElements(VSMap *map, char *key) nogil
+        char propGetType(VSMap *map, char *key) nogil
 
-        VSMap *newMap()
-        void freeMap(VSMap *map)
-        void clearMap(VSMap *map)
+        VSMap *newMap() nogil
+        void freeMap(VSMap *map) nogil
+        void clearMap(VSMap *map) nogil
 
-        int64_t propGetInt(VSMap *map, char *key, int index, int *error)
-        double propGetFloat(VSMap *map, char *key, int index, int *error)
-        char *propGetData(VSMap *map, char *key, int index, int *error)
-        int propGetDataSize(VSMap *map, char *key, int index, int *error)
-        VSNodeRef *propGetNode(VSMap *map, char *key, int index, int *error)
-        VSFrameRef *propGetFrame(VSMap *map, char *key, int index, int *error)
+        int64_t propGetInt(VSMap *map, char *key, int index, int *error) nogil
+        double propGetFloat(VSMap *map, char *key, int index, int *error) nogil
+        char *propGetData(VSMap *map, char *key, int index, int *error) nogil
+        int propGetDataSize(VSMap *map, char *key, int index, int *error) nogil
+        VSNodeRef *propGetNode(VSMap *map, char *key, int index, int *error) nogil
+        VSFrameRef *propGetFrame(VSMap *map, char *key, int index, int *error) nogil
 
-        bint propDeleteKey(VSMap *map, char *key)
-        bint propSetInt(VSMap *map, char *key, int64_t i, bint append)
-        bint propSetFloat(VSMap *map, char *key, double d, bint append)
-        bint propSetData(VSMap *map, char *key, char *data, int size, bint append)
-        bint propSetNode(VSMap *map, char *key, VSNodeRef *node, bint append)
-        bint propSetFrame(VSMap *map, char *key, VSFrameRef *f, bint append)
+        bint propDeleteKey(VSMap *map, char *key) nogil
+        bint propSetInt(VSMap *map, char *key, int64_t i, bint append) nogil
+        bint propSetFloat(VSMap *map, char *key, double d, bint append) nogil
+        bint propSetData(VSMap *map, char *key, char *data, int size, bint append) nogil
+        bint propSetNode(VSMap *map, char *key, VSNodeRef *node, bint append) nogil
+        bint propSetFrame(VSMap *map, char *key, VSFrameRef *f, bint append) nogil
 
-        VSPlugin *getPluginId(char *identifier, VSCore *core)
-        VSPlugin *getPluginNs(char *ns, VSCore *core)
-        VSMap *getPlugins(VSCore *core)
-        VSMap *getFunctions(VSPlugin *plugin)
+        VSPlugin *getPluginId(char *identifier, VSCore *core) nogil
+        VSPlugin *getPluginNs(char *ns, VSCore *core) nogil
+        VSMap *getPlugins(VSCore *core) nogil
+        VSMap *getFunctions(VSPlugin *plugin) nogil
 
-        VSVersion *getVersion()
-        VSFuncRef *propGetFunc(VSMap *map, char *key, int index, int *error)
-        int propSetFunc(VSMap *map, char *key, VSFuncRef *func, int append)
-        void callFunc(VSFuncRef *func, VSMap *inm, VSMap *outm, VSCore *core, VSAPI *vsapi)
-        VSFuncRef *createFunc(VSPublicFunction func, void *userData, VSFreeFuncData free)
-        void freeFunc(VSFuncRef *f)
+        VSVersion *getVersion() nogil
+        VSFuncRef *propGetFunc(VSMap *map, char *key, int index, int *error) nogil
+        int propSetFunc(VSMap *map, char *key, VSFuncRef *func, int append) nogil
+        void callFunc(VSFuncRef *func, VSMap *inm, VSMap *outm, VSCore *core, VSAPI *vsapi) nogil
+        VSFuncRef *createFunc(VSPublicFunction func, void *userData, VSFreeFuncData free) nogil
+        void freeFunc(VSFuncRef *f) nogil
 
-    VSAPI *getVapourSynthAPI(int version)
+    VSAPI *getVapourSynthAPI(int version) nogil

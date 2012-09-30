@@ -19,5 +19,5 @@
 #
 
 cdef extern from "windows.h" nogil:
-    bint WriteFile(int hFile, void *lpBuffer, int nNumberOfBytesToWrite, int *lpNumberOfBytesWritten, void *lpOverlapped)
-    bint FlushFileBuffers(int hFile)
+    bint WriteFile(int hFile, void *lpBuffer, int nNumberOfBytesToWrite, int *lpNumberOfBytesWritten, void *lpOverlapped) nogil
+    bint FlushFileBuffers(int hFile) nogil

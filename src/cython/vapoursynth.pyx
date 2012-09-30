@@ -1,21 +1,22 @@
+#//  Copyright (c) 2012 Fredrik Mellbin
+#//
+#//  This file is part of VapourSynth.
+#//
+#//  VapourSynth is free software; you can redistribute it and/or
+#//  modify it under the terms of the GNU Lesser General Public
+#//  License as published by the Free Software Foundation; either
+#//  version 2.1 of the License, or (at your option) any later version.
+#//
+#//  VapourSynth is distributed in the hope that it will be useful,
+#//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+#//  Lesser General Public License for more details.
+#//
+#//  You should have received a copy of the GNU Lesser General Public
+#//  License along with Libav; if not, write to the Free Software
+#//  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 """
-  Copyright (c) 2012 Fredrik Mellbin
-
-  This file is part of VapourSynth.
-
-  VapourSynth is free software; you can redistribute it and/or
-  modify it under the terms of the GNU Lesser General Public
-  License as published by the Free Software Foundation; either
-  version 2.1 of the License, or (at your option) any later version.
-
-  VapourSynth is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  Lesser General Public License for more details.
-
-  You should have received a copy of the GNU Lesser General Public
-  License along with Libav; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+This is the VapourSynth module implementing the Python bindings.
 """
 
 #ifdef _WIN32
@@ -69,6 +70,8 @@ COMPATBGR32 = vapoursynth.pfCompatBGR32
 COMPATYUY2 = vapoursynth.pfCompatYUY2
 
 class Error(Exception):
+    """This is the general exception class for VapourSynth errors. Almost all functions in this module throws an exception of this kind on error."""
+
     def __init__(self, value):
         self.value = value
 
@@ -76,6 +79,17 @@ class Error(Exception):
         return repr(self.value)
 
 cdef class Link(object):
+    """The Link class is meant to be used together with VapourSynth function arguments declared with 'link'.
+    This construct is for filters that can change their arguments every frame based on the input frame's properties.
+    
+    Arguments:
+    val -- the default value when the specified property cannot be read properly
+    prop -- the name of the frame property the filter reads to modify an argument
+
+    Example:
+    core.std.CropAbs(clip, left=Link(8, 'Left'), width=100, height=100)
+    This will produce a cropped 100x100 window of the frame moving left and right depending on the offset given in the frame property Left.
+    """
     def __init__(self, val, prop):
         self.val = val
         self.prop = prop
