@@ -480,7 +480,11 @@ bool VapourSynthFile::DelayInit2() {
                 && id != pfYUV444P8
                 && id != pfYUV422P8
                 && id != pfYUV411P8
-                && id != pfYUV410P8) {
+                && id != pfYUV410P8
+                && id != pfYUV420P10
+                && id != pfYUV420P16
+                && id != pfYUV422P10
+                && id != pfYUV422P16) {
                 error_msg = "VFW module doesn't support ";
                 error_msg += vi->format->name;
                 error_msg += " output";
@@ -709,6 +713,14 @@ STDMETHODIMP_(LONG) VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) {
         asi.fccHandler = 'B14Y'; 
     else if (vi->format->id == pfYUV410P8) 
         asi.fccHandler = '9UVY'; 
+    else if (vi->format->id == pfYUV420P10) 
+        asi.fccHandler = '010P';
+    else if (vi->format->id == pfYUV420P16) 
+        asi.fccHandler = '610P';
+    else if (vi->format->id == pfYUV422P10) 
+        asi.fccHandler = '012P';
+    else if (vi->format->id == pfYUV422P16) 
+        asi.fccHandler = '612P';
     else
         return E_FAIL;
 
@@ -881,7 +893,15 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
     else if (vi->format->id == pfYUV411P8) 
         bi.biCompression = 'B14Y'; 
     else if (vi->format->id == pfYUV410P8) 
-        bi.biCompression = '9UVY'; 
+        bi.biCompression = '9UVY';
+    else if (vi->format->id == pfYUV420P10) 
+        bi.biCompression = '010P';
+    else if (vi->format->id == pfYUV420P16) 
+        bi.biCompression = '610P';
+    else if (vi->format->id == pfYUV422P10) 
+        bi.biCompression = '012P';
+    else if (vi->format->id == pfYUV422P16) 
+        bi.biCompression = '612P';
     else
         return E_FAIL;
 
