@@ -3,6 +3,11 @@ may deadlock with some avisynth plugins (set the number of threads to a bigger n
 compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 .vpy files need to be opened with file\open and then select avifile compat from the format list before selecting the .vpy script (this is a vdub limitation)
 
+r11:
+vfw now returns some colorful bars on error because refusing to open crashes too many applications
+vfw now has support for the P010, P016, P210, P216 formats, tested in mpc-hc with madvr
+removed some stray debug prints
+
 r10:
 fixed an issue where python could deadlock on the GIL
 now comes in an installer
