@@ -266,8 +266,8 @@ STDMETHODIMP VapourSynthFile::IsDirty() {
 }
 
 STDMETHODIMP VapourSynthFile::Load(LPCOLESTR lpszFileName, DWORD grfMode) {
-    char filename[MAX_PATH];
-    WideCharToMultiByte(AreFileApisANSI() ? CP_ACP : CP_OEMCP, 0, lpszFileName, -1, filename, sizeof filename, NULL, NULL); 
+    char filename[MAX_PATH*2];
+    WideCharToMultiByte(CP_UTF8, 0, lpszFileName, -1, filename, sizeof(filename), NULL, NULL); 
     return Open(filename, grfMode, lpszFileName);
 }
 
