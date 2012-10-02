@@ -93,7 +93,7 @@ private:
     long m_refs;
 
     std::string szScriptName;
-    ScriptExport se;
+    VPYScriptExport se;
     const VSVideoInfo* vi;
     std::string error_msg;
 
@@ -429,7 +429,7 @@ VapourSynthFile::~VapourSynthFile() {
     if (vi) {
         vi = NULL;
         while (pending_requests > 0);
-        free_script(&se);
+        vpy_free_script(&se);
     }
     Unlock();
     DeleteCriticalSection(&cs_filter_graph);
@@ -488,9 +488,7 @@ bool VapourSynthFile::DelayInit2() {
                 error_msg = "VFW module doesn't support ";
                 error_msg += vi->format->name;
                 error_msg += " output";
-                vi = NULL;
-                free_script(&se);
-                return false;
+                goto vpyerror;
             }
 
             return true;
@@ -498,7 +496,7 @@ bool VapourSynthFile::DelayInit2() {
             error_msg = se.error;
             vpyerror:
             vi = NULL;
-            free_script(&se);
+            vpy_free_script(&se);
             vpy_evaluate_text((char *)ErrorScript, "vfw_error.bleh", &se);
             vi = se.vsapi->getVideoInfo(se.node);
             return true;

@@ -900,14 +900,14 @@ cdef void __stdcall publicFunction(VSMap *inm, VSMap *outm, void *userData, VSCo
 
 #// for whole script evaluation and export
 
-cdef public struct ScriptExport:
+cdef public struct VPYScriptExport:
     void *pynode
     VSNodeRef *node
     void *errstr
     char *error
     VSAPI *vsapi
     
-cdef public api int __stdcall vpy_evaluate_text(char *utf8text, char *fn, ScriptExport *extp) nogil:
+cdef public api int __stdcall vpy_evaluate_text(char *utf8text, char *fn, VPYScriptExport *extp) nogil:
     extp.node = NULL
     extp.pynode = NULL
     extp.errstr = NULL
@@ -941,7 +941,7 @@ cdef public api int __stdcall vpy_evaluate_text(char *utf8text, char *fn, Script
             return 1
         return 0
 
-cdef public api int __stdcall vpy_evaluate_file(char *fn, ScriptExport *extp) nogil:
+cdef public api int __stdcall vpy_evaluate_file(char *fn, VPYScriptExport *extp) nogil:
     extp.node = NULL
     extp.pynode = NULL
     extp.errstr = NULL
@@ -964,7 +964,7 @@ cdef public api int __stdcall vpy_evaluate_file(char *fn, ScriptExport *extp) no
         encscript = script.encode('utf-8')
         return vpy_evaluate_text(encscript, fn, extp)
 
-cdef public api int __stdcall free_script(ScriptExport *extp) nogil:
+cdef public api int __stdcall vpy_free_script(VPYScriptExport *extp) nogil:
     with gil:
         if extp.pynode:
             node = <VideoNode>extp.pynode
