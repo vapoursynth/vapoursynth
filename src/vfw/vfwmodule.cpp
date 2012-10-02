@@ -33,7 +33,6 @@
 #include "VapourSynth.h"
 #include "vapoursynthpp_api.h"
 
-const int undefined_length = 10000000;
 volatile long pending_requests = 0;
 
 void BitBlt(uint8_t* dstp, int dst_pitch, const uint8_t* srcp, int src_pitch, int row_size, int height) {
@@ -467,7 +466,7 @@ bool VapourSynthFile::DelayInit2() {
             vi = se.vsapi->getVideoInfo(se.node);
             error_msg.clear();
 
-            if (vi->width == 0 || vi->height == 0 || vi->format == NULL) {
+            if (vi->width == 0 || vi->height == 0 || vi->format == NULL || vi->numFrames == 0) {
                 error_msg = "Cannot open clips with varying dimensions or format in vfw";
                 goto vpyerror;
             }
@@ -539,7 +538,7 @@ STDMETHODIMP VapourSynthFile::Info(AVIFILEINFOW *pfi, LONG lSize) {
 
     afi.dwRate					= vi->fpsNum ? vi->fpsNum : 1;
     afi.dwScale					= vi->fpsDen ? vi->fpsDen : 30;
-    afi.dwLength				= vi->numFrames ? vi->numFrames : undefined_length;
+    afi.dwLength				= vi->numFrames;
 
     wcscpy(afi.szFileType, L"VapourSynth");
 
@@ -724,7 +723,7 @@ STDMETHODIMP_(LONG) VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) {
 
     asi.dwScale = vi->fpsDen ? vi->fpsDen : 1;
     asi.dwRate = vi->fpsNum ? vi->fpsNum : 30;
-    asi.dwLength = vi->numFrames ? vi->numFrames : undefined_length;
+    asi.dwLength = vi->numFrames;
     asi.rcFrame.right = vi->width;
     asi.rcFrame.bottom = vi->height;
     asi.dwSampleSize = image_size;
@@ -849,7 +848,7 @@ void VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
 
     vsapi->freeFrame(f);
 
-    for (int i = n + 1; i < std::min<int>(n + 10, parent->vi->numFrames ? parent->vi->numFrames : undefined_length); i++) {
+    for (int i = n + 1; i < std::min<int>(n + 10, parent->vi->numFrames); i++) {
         InterlockedIncrement(&pending_requests);
         vsapi->getFrameAsync(i, parent->se.node, frameDoneCallback, (void *)vsapi);
     }
@@ -866,7 +865,7 @@ STDMETHODIMP VapourSynthStream::Read(LONG lStart, LONG lSamples, LPVOID lpBuffer
 }
 
 HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LONG cbBuffer, LONG *plBytes, LONG *plSamples) {
-    if (lStart >= (parent->vi->numFrames ? parent->vi->numFrames : undefined_length)) {
+    if (lStart >= parent->vi->numFrames) {
         if (plSamples)
             *plSamples = 0;
         if (plBytes)
