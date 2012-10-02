@@ -54,25 +54,6 @@ static int BMPSize(int height, int rowsize, int planar) {
         return height * ((rowsize+3) & ~3);
 }
 
-static int ImageSize(const VSVideoInfo *vi) {
-    if (!vi)
-        return 0;
-    int image_size;
-
-    if (vi->format->numPlanes == 1) {
-        image_size = BMPSize(vi->height, vi->width * vi->format->bytesPerSample, 0);
-    } else { // Packed size
-        image_size = (vi->width * vi->format->bytesPerSample) >> vi->format->subSamplingW;
-        if (image_size) {
-            image_size  *= vi->height;
-            image_size >>= vi->format->subSamplingH;
-            image_size  *= 2;
-        }
-        image_size += vi->width * vi->format->bytesPerSample * vi->height;
-    }
-    return image_size;
-}
-
 // {58F74CA0-BD0E-4664-A49B-8D10E6F0C131}
 extern "C" const GUID CLSID_VapourSynth = 
 { 0x58f74ca0, 0xbd0e, 0x4664, { 0xa4, 0x9b, 0x8d, 0x10, 0xe6, 0xf0, 0xc1, 0x31 } };
@@ -103,6 +84,8 @@ private:
 
     void Lock();
     void Unlock();
+
+    int VapourSynthFile::ImageSize();
 
 public:
 
@@ -434,6 +417,27 @@ VapourSynthFile::~VapourSynthFile() {
     DeleteCriticalSection(&cs_filter_graph);
 }
 
+int VapourSynthFile::ImageSize() {
+    if (!vi)
+        return 0;
+    int image_size;
+
+    if (vi->format->id == pfYUV422P10 && se.enable_v210) {
+        image_size = ((16*((vi->width + 5) / 6) + 127) & ~0x7F);
+        image_size *= vi->height;
+    } else if (vi->format->numPlanes == 1) {
+        image_size = BMPSize(vi->height, vi->width * vi->format->bytesPerSample, 0);
+    } else { // Packed size
+        image_size = (vi->width * vi->format->bytesPerSample) >> vi->format->subSamplingW;
+        if (image_size) {
+            image_size  *= vi->height;
+            image_size >>= vi->format->subSamplingH;
+            image_size  *= 2;
+        }
+        image_size += vi->width * vi->format->bytesPerSample * vi->height;
+    }
+    return image_size;
+}
 
 STDMETHODIMP VapourSynthFile::Open(LPCSTR szFile, UINT mode, LPCOLESTR lpszFileName) {
     if (mode & (OF_CREATE|OF_WRITE))
@@ -692,7 +696,7 @@ STDMETHODIMP_(LONG) VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) {
     asi.fccType = streamtypeVIDEO;
     asi.dwQuality = DWORD(-1);
 
-    const int image_size = ImageSize(vi);
+    const int image_size = parent->ImageSize();
     asi.fccHandler = 'UNKN';
     if (vi->format->id == pfCompatBGR32)
         asi.fccHandler = ' BID';
@@ -714,6 +718,8 @@ STDMETHODIMP_(LONG) VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) {
         asi.fccHandler = '010P';
     else if (vi->format->id == pfYUV420P16) 
         asi.fccHandler = '610P';
+    else if (vi->format->id == pfYUV422P10 && parent->se.enable_v210) 
+        asi.fccHandler = '012v';
     else if (vi->format->id == pfYUV422P10) 
         asi.fccHandler = '012P';
     else if (vi->format->id == pfYUV422P16) 
@@ -787,7 +793,36 @@ void VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
         out_pitchUV = vsapi->getFrameWidth(f, 1) * fi->bytesPerSample;
     }
 
-    if (semi_packed_p10) {
+    if (fi->id == pfYUV422P10 && parent->se.enable_v210) {
+        int width = vsapi->getFrameWidth(f, 0);
+        int pstride_y = vsapi->getStride(f, 0)/2;
+        int pstride_uv = vsapi->getStride(f, 1)/2;
+        const uint16_t *yptr = (const uint16_t *)vsapi->getReadPtr(f, 0);
+        const uint16_t *uptr = (const uint16_t *)vsapi->getReadPtr(f, 1);
+        const uint16_t *vptr = (const uint16_t *)vsapi->getReadPtr(f, 2);
+        uint32_t *outbuf = (uint32_t *)lpBuffer;
+        int out_pitch = ((16*((width + 5) / 6) + 127) & ~0x7F)/4;
+        for (int y = 0; y < height; y++) {
+            const uint16_t *yline = yptr;
+            const uint16_t *uline = uptr;
+            const uint16_t *vline = vptr;
+            uint32_t *out_line = outbuf;
+            for (int x = 0; x < width + 5; x += 6) {
+                out_line[0] = (uline[0] | (yline[0] << 10) | (vline[0] << 20));
+                out_line[1] = (yline[1] | (uline[1] << 10) | (yline[2] << 20));
+                out_line[2] = (vline[1] | (yline[3] << 10) | (uline[2] << 20));
+                out_line[3] = (yline[4] | (vline[2] << 10) | (yline[5] << 20));
+                out_line += 4;
+                yline += 6;
+                uline += 3;
+                vline += 3;
+            }
+            outbuf += out_pitch;
+            yptr += pstride_y;
+            uptr += pstride_uv;
+            vptr += pstride_uv;
+        }
+    } else if (semi_packed_p10) {
         int pwidth = vsapi->getFrameWidth(f, 0);
         int pstride = vsapi->getStride(f, 0) / 2;
         uint16_t *outbuf = (uint16_t *)lpBuffer;
@@ -804,7 +839,9 @@ void VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
         BitBlt((BYTE*)lpBuffer, out_pitch, vsapi->getReadPtr(f, 0), pitch, row_size, height);
     }
 
-    if (semi_packed_p10 || semi_packed_p16) {
+    if (parent->se.enable_v210) {
+         // intentionally empty
+    } else if (semi_packed_p10 || semi_packed_p16) {
         int pheight = vsapi->getFrameHeight(f, 1);
         int pwidth = vsapi->getFrameWidth(f, 1);
         int pstride = vsapi->getStride(f, 1) / 2;
@@ -873,7 +910,7 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
         return S_OK;
     }
 
-    int image_size = ImageSize(parent->vi);
+    int image_size = parent->ImageSize();
     if (plSamples)
         *plSamples = 1;
     if (plBytes)
@@ -885,6 +922,7 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
         return AVIERR_BUFFERTOOSMALL;
     }
 
+    // fixme, return error
     try {
         ReadFrame(lpBuffer, lStart);
     }
@@ -936,6 +974,8 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
         bi.biCompression = '010P';
     else if (vi->format->id == pfYUV420P16) 
         bi.biCompression = '610P';
+    else if (vi->format->id == pfYUV422P10 && parent->se.enable_v210) 
+        bi.biCompression = '012v';
     else if (vi->format->id == pfYUV422P10) 
         bi.biCompression = '012P';
     else if (vi->format->id == pfYUV422P16) 
@@ -943,7 +983,7 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
     else
         return E_FAIL;
 
-    bi.biSizeImage = ImageSize(vi);
+    bi.biSizeImage = parent->ImageSize();
     *lpcbFormat = min(*lpcbFormat, sizeof(bi));
     memcpy(lpFormat, &bi, size_t(*lpcbFormat));
 

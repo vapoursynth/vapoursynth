@@ -3,6 +3,11 @@ may deadlock with some avisynth plugins (set the number of threads to a bigger n
 compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 .vpy files need to be opened with file\open and then select avifile compat from the format list before selecting the .vpy script (this is a vdub limitation)
 
+r12:
+v210 output support, add enable_v210=True to use it
+removed support for clips with unknown length from vfw
+can now open files with unicode filenames in vfw
+
 r11:
 switched the precompiled module to python 3.3
 vfw now also has several frame requests going at once, this should make the throughput get close to clip.output()

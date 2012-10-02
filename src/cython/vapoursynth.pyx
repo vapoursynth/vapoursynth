@@ -906,6 +906,7 @@ cdef public struct VPYScriptExport:
     void *errstr
     char *error
     VSAPI *vsapi
+    int enable_v210
     
 cdef public api int __stdcall vpy_evaluate_text(char *utf8text, char *fn, VPYScriptExport *extp) nogil:
     extp.node = NULL
@@ -913,6 +914,7 @@ cdef public api int __stdcall vpy_evaluate_text(char *utf8text, char *fn, VPYScr
     extp.errstr = NULL
     extp.error = NULL
     extp.vsapi = NULL
+    extp.enable_v210 = 0
 
     with gil:
         try:
@@ -920,7 +922,10 @@ cdef public api int __stdcall vpy_evaluate_text(char *utf8text, char *fn, VPYScr
             comp = compile(utf8text.decode('utf-8'), fn.decode('utf-8'), 'exec')
             exec(comp) in evaldict
             node = evaldict['last']
-
+            try:
+                extp.enable_v210 = evaldict['enable_v210']
+            except:
+                pass
             if isinstance(node, VideoNode):
                 Py_INCREF(node)
                 extp.pynode = <void *>node
