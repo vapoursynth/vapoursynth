@@ -80,12 +80,10 @@ VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSr
     if (propSrc)
         properties = propSrc->properties;
 
-    stride[0] = width * (f->bytesPerSample);
-    stride[0] += alignment - (stride[0] & (alignment - 1));
+    stride[0] = (width * (f->bytesPerSample) + (alignment - 1)) & ~(alignment - 1);
 
     if (f->colorFamily != cmGray && f->colorFamily != cmCompat) {
-        int plane23 = (width >> f->subSamplingW) * (f->bytesPerSample);
-        plane23 += alignment - (plane23 & (alignment - 1));
+        int plane23 = ((width >> f->subSamplingW) * (f->bytesPerSample) + (alignment - 1)) & ~(alignment - 1);
         stride[1] = plane23;
         stride[2] = plane23;
     } else {
@@ -93,7 +91,7 @@ VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSr
         stride[2] = 0;
     }
 
-    data = new VSFrameData(stride[0] * height + (stride[1] + stride[2]) *(height >> f->subSamplingH), core->memory);
+    data = new VSFrameData(stride[0] * height + (stride[1] + stride[2]) * (height >> f->subSamplingH), core->memory);
 }
 
 VSFrame::VSFrame(const VSFrame &f) {
