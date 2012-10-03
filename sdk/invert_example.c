@@ -45,7 +45,7 @@ static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void 
 
         
         // When creating a new frame for output it is VERY EXTREMELY SUPER IMPORTANT to
-        // supply the "domainant" source frame to copy properties from. Frame props
+        // supply the "dominant" source frame to copy properties from. Frame props
         // are an essential part of the filter chain and you should NEVER break it.
         VSFrameRef *dst = vsapi->newVideoFrame(fi, width, height, src, core);
 
