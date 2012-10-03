@@ -17,7 +17,7 @@ AppPublisher=Fredrik Mellbin
 AppPublisherURL=http://www.vapoursynth.com/
 AppSupportURL=http://www.vapoursynth.com/
 AppUpdatesURL=http://www.vapoursynth.com/
-VersionInfoVersion=0.9.0.0
+VersionInfoVersion=0.9.0.1
 DefaultDirName={pf}\VapourSynth
 DefaultGroupName=VapourSynth
 AllowCancelDuringInstall=no
@@ -37,6 +37,7 @@ Name: Core; Description: {#= AppName} {#= Version}; Types: Full; Flags: fixed
 Source: vapoursynth.dll; DestDir: {code:GetPythonPath}; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: vapoursynth.pyd; DestDir: {code:GetPythonPath}; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: QtCore4.dll; DestDir: {code:GetPythonPath}; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: vsfs.dll; DestDir: {app}; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: vsvfw.dll; DestDir: {sys}; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: msvcr100.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile
 Source: msvcp100.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile
