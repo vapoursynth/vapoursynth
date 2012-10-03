@@ -175,6 +175,8 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName)
             }
 
             return 0;
+        } else {
+            setError(se.error);
         }
     } 
     return ERROR_ACCESS_DENIED;
@@ -353,7 +355,7 @@ void VapourSynther::setError(const char *_text, const wchar_t *alt) {
         free(errText);
 
     const int maxLength = 2046;
-    char text[maxLength+2] = "";
+    char text[maxLength+2];
     int i = 0;
 
     // Exception protected copy error message,
@@ -381,7 +383,7 @@ void VapourSynther::setError(const char *_text, const wchar_t *alt) {
             errText = ssdup(alt);
         }
         else {
-            errText = ssdup(L"AvisynthError.msg corrupted.");
+            errText = ssdup(L"Error message corrupted.");
         }
         return;
     }
