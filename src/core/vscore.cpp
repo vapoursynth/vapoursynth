@@ -51,13 +51,13 @@ void FrameContext::setError(const QByteArray &errorMsg) {
 
 ///////////////
 
-VSFrameData::VSFrameData(quint32 size, MemoryUse *mem) : mem(mem), size(size), data(NULL) {
+VSFrameData::VSFrameData(quint32 size, MemoryUse *mem) : QSharedData(), mem(mem), size(size) {
     data = vs_aligned_malloc<uint8_t>(size, VSFrame::alignment);
     Q_CHECK_PTR(data);
     mem->add(size);
 }
 
-VSFrameData::VSFrameData(const VSFrameData &d) : data(NULL) {
+VSFrameData::VSFrameData(const VSFrameData &d) : QSharedData(d) {
     size = d.size;
     mem = d.mem;
     data = vs_aligned_malloc<uint8_t>(size, VSFrame::alignment);
@@ -149,7 +149,7 @@ VSFunction::VSFunction(const QByteArray &name, const QByteArray &argString, VSPu
             qFatal("Invalid: " + argString);
 
         bool arr = false;
-        enum FilterArgumentType type;
+        enum FilterArgumentType type = faNone;
         QString typeName = argParts[1];
 
         if (typeName == "int")

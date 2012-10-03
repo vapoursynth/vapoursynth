@@ -133,6 +133,7 @@ struct VSFuncRef {
 };
 
 enum FilterArgumentType {
+    faNone,
     faInt,
     faFloat,
     faData,

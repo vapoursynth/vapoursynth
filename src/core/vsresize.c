@@ -34,7 +34,7 @@ static int isConstantFormat(const VSVideoInfo *vi) {
     return vi->height > 0 && vi->width > 0 && vi->format;
 }
 
-static enum PixelFormat formatIdToPixelFormat(int id, VSCore *core, const VSAPI *vsapi) {
+static enum PixelFormat formatIdToPixelFormat(int id) {
     switch (id) {
     case pfGray8:
         return PIX_FMT_GRAY8;
