@@ -180,7 +180,7 @@ private:
 
     //////////// internal
 
-    void ReadFrame(void* lpBuffer, int n);
+    bool ReadFrame(void* lpBuffer, int n);
 
     HRESULT Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LONG cbBuffer, LONG *plBytes, LONG *plSamples);
 };
@@ -761,15 +761,11 @@ static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, 
     InterlockedDecrement(&pending_requests);
 }
 
-void VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
+bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
     const VSAPI *vsapi = parent->se.vsapi;
     const VSFrameRef *f = vsapi->getFrame(n, parent->se.node, 0, 0);
-    if (!f) {
-        _ASSERTE(false);
-        // crash quickly
-        int *a = NULL;
-        *a = 4;
-    }
+    if (!f)
+        return false;
 
     const VSFormat *fi = vsapi->getFrameFormat(f);
     const int pitch    = vsapi->getStride(f, 0);
@@ -839,7 +835,7 @@ void VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
         BitBlt((BYTE*)lpBuffer, out_pitch, vsapi->getReadPtr(f, 0), pitch, row_size, height);
     }
 
-    if (parent->se.enable_v210) {
+    if (fi->id == pfYUV422P10 && parent->se.enable_v210) {
          // intentionally empty
     } else if (semi_packed_p10 || semi_packed_p16) {
         int pheight = vsapi->getFrameHeight(f, 1);
@@ -889,6 +885,8 @@ void VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
         InterlockedIncrement(&pending_requests);
         vsapi->getFrameAsync(i, parent->se.node, frameDoneCallback, (void *)vsapi);
     }
+
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -922,13 +920,8 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
         return AVIERR_BUFFERTOOSMALL;
     }
 
-    // fixme, return error
-    try {
-        ReadFrame(lpBuffer, lStart);
-    }
-    catch (...) {
+    if (!ReadFrame(lpBuffer, lStart))
         return E_FAIL;
-    }
     return S_OK;
 }
 
