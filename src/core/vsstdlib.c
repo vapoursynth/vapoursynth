@@ -2339,7 +2339,7 @@ static const VSFrameRef *VS_CC modifyPropsGetFrame(int n, int activationReason, 
             vsapi->requestFrameFilter(n, d->node[i], frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *f;
-        VSFrameRef *fmod;
+        VSFrameRef *fmod = 0;
         VSMap *props;
 
         vsapi->propSetInt(d->in, "N", n, 0);
@@ -2479,21 +2479,42 @@ static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, vo
                 break;
 #endif
             case 2:
-                width -= 3;
+#if 1 // x86-4ever
+                modwidth = width & ~3;
+                modheight = height & ~3;
 
-                for (y = 0; y < height; y += 4) {
-                    for (x = 0; x < width; x += 4)
+                for (y = 0; y < modheight; y += 4) {
+                    for (x = 0; x < modwidth; x += 4)
                         vs_transpose_word(srcp + src_stride * y + x * 2, src_stride, dstp + dst_stride * x + y * 2, dst_stride);
 
-                    partial_lines = width + 3 - x;
+                    partial_lines = width - modwidth;
 
                     if (partial_lines > 0)
                         vs_transpose_word_partial(srcp + src_stride * y + x * 2, src_stride, dstp + dst_stride * x + y * 2, dst_stride, partial_lines);
                 }
 
+                src_stride /= 2;
+                dst_stride /= 2;
+
+                for (y = modheight; y < height; y++)
+                    for (x = 0; x < width; x++)
+                        ((uint16_t *)dstp)[dst_stride * x + y] = ((const uint16_t *)srcp)[src_stride * y + x];
+
                 break;
+#else
+                src_stride /= 2;
+                dst_stride /= 2;
+                for (y = 0; y < height; y++)
+                    for (x = 0; x < width; x++)
+                        ((uint16_t *)dstp)[dst_stride * x + y] = ((const uint16_t *)srcp)[src_stride * y + x];
+                break;
+#endif
             case 4:
-                ;
+                src_stride /= 4;
+                dst_stride /= 4;
+                for (y = 0; y < height; y++)
+                    for (x = 0; x < width; x++)
+                        ((uint32_t *)dstp)[dst_stride * x + y] = ((const uint32_t *)srcp)[src_stride * y + x];
                 break;
             }
         }
@@ -2524,9 +2545,9 @@ static void VS_CC transposeCreate(const VSMap *in, VSMap *out, void *userData, V
     d.vi.width = d.vi.height;
     d.vi.height = temp;
 
-    if (!isConstantFormat(&d.vi) || (d.vi.format->bytesPerSample != 1 && d.vi.format->bytesPerSample != 2) || isCompatFormat(&d.vi)) {
+    if (!isConstantFormat(&d.vi) || d.vi.format->id == pfCompatYUY2) {
         vsapi->freeNode(d.node);
-        RETERROR("Transpose: clip must be constant format and be 1 or 2 bytes per sample");
+        RETERROR("Transpose: clip must be constant format and not CompatYuy2");
     }
 
     if (d.vi.format->subSamplingH != d.vi.format->subSamplingW) {
