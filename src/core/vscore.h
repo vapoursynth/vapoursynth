@@ -33,10 +33,9 @@
 #	include <dlfcn.h>
 #endif
 
-class VSVideoInfo;
 class VSFrame;
-class VSCore;
-class VSNode;
+struct VSCore;
+struct VSNode;
 class FrameContext;
 class ExtFunction;
 
@@ -108,7 +107,7 @@ struct VSVariant {
     }
 };
 
-class VSMap : public QMap<QByteArray, VSVariant> {
+struct VSMap : public QMap<QByteArray, VSVariant> {
 public:
     VSVariant &operator[](const QByteArray &key) {
         return QMap<QByteArray, VSVariant>::operator[](key);
@@ -264,7 +263,7 @@ public:
 
 extern const VSAPI vsapi;
 
-class VSNode {
+struct VSNode {
     friend class VSThreadPool;
     friend class VSThread;
 private:
@@ -317,7 +316,7 @@ enum CacheActivation {
 
 class VSThreadPool {
     friend class VSThread;
-    friend class VSCore;
+    friend struct VSCore;
 private:
     VSCore *core;
     QMutex lock;
@@ -357,7 +356,7 @@ public:
 };
 
 
-class VSPlugin {
+struct VSPlugin {
 private:
     int apiVersion;
     bool hasConfig;
@@ -395,8 +394,8 @@ public:
 
 class VSCache;
 
-class VSCore {
-    friend class VSNode;
+struct VSCore {
+    friend struct VSNode;
     friend class VSFrame;
 private:
     QMap<QByteArray, VSPlugin *> plugins;
