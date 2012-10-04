@@ -1278,7 +1278,7 @@ int/*systemError*/ AvfsFormatter::Volume::Init(
     int error = PfmMarshallerFactory(&marshaller);
     if(!error)
     {
-        marshaller->SetTrace(L"AVFS-PFM");
+        marshaller->SetTrace(L"VSFS-PFM");
         scriptFileName = ssdup(inScriptFileName);
         scriptEndName = ssrchr(scriptFileName,'\\');
         if(scriptEndName)

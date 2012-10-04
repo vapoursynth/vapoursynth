@@ -20,7 +20,7 @@ Here are some examples to illustrate::
 
    # ret will be a one frame clip containing the 6th frame
    ret = clip[5]
-   # ret will contain frame 7 to 9 (unlike trim python slicing is not inclusive)
+   # ret will contain frame 7 to 9 (unlike trim the end value of python slicing is not inclusive)
    ret = clip[6:10]
    
    # Select even numbered frames

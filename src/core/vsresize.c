@@ -173,7 +173,7 @@ static const VSFrameRef *VS_CC resizeGetframe(int n, int activationReason, void 
         int switchdst = 0;
 
         if (!d->context || d->lsrcformat != fi || d->lsrcw != w || d->lsrch != h) {
-            int srcid = formatIdToPixelFormat(fi->id, core, vsapi);
+            int srcid = formatIdToPixelFormat(fi->id);
 
             if (srcid == PIX_FMT_NONE) {
                 vsapi->setFilterError("Resize: input format not supported", frameCtx);
@@ -185,7 +185,7 @@ static const VSFrameRef *VS_CC resizeGetframe(int n, int activationReason, void 
 
             d->context = getSwsContext(
                              w, h, srcid, GetAssumedColorSpace(w, h), AVCOL_RANGE_UNSPECIFIED,
-                             d->vi.width, d->vi.height, formatIdToPixelFormat(d->vi.format->id, core, vsapi), GetAssumedColorSpace(d->vi.width, d->vi.height), AVCOL_RANGE_UNSPECIFIED,
+                             d->vi.width, d->vi.height, formatIdToPixelFormat(d->vi.format->id), GetAssumedColorSpace(d->vi.width, d->vi.height), AVCOL_RANGE_UNSPECIFIED,
                              d->flags);
 
             if (!d->context) {
@@ -269,7 +269,7 @@ static void VS_CC resizeCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     if (dstheight > 0)
         d.vi.height = dstheight;
 
-    pf = formatIdToPixelFormat(id, core, vsapi);
+    pf = formatIdToPixelFormat(id);
 
     if (pf == PIX_FMT_NONE) {
         vsapi->freeNode(d.node);
