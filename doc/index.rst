@@ -14,6 +14,10 @@ Contents:
 
    installation
    gettingstarted
+   pythonbindings
+   pythonreference
+   vsfs
+   pluginlist
    apireference
 
    about
