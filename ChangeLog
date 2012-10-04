@@ -4,6 +4,7 @@ compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 .vpy files need to be opened with file\open and then select avifile compat from the format list before selecting the .vpy script (this is a vdub limitation)
 
 r12:
+added a bit more documentation, this time a bit about python and the classes found there
 added vsfs, a port of avfs
 v210 output support, add enable_v210=True to use it
 removed support for clips with unknown length from vfw

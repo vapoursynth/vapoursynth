@@ -88,6 +88,10 @@ class VapourSynther:
     uint16_t *packedPlane1;
     uint16_t *packedPlane2;
 
+    volatile long pending_requests;
+
+    static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, const VSNodeRef *, const char *errorMsg);
+
 public:
     // VapourSynther_ interface
 
@@ -204,6 +208,13 @@ void VapourSynther::reportFormat(AvfsLog_* log)
 ---------------------------------------------------------*/
 
 // Exception protected PVideoFrame->GetFrame()
+
+void VS_CC VapourSynther::frameDoneCallback(void *userData, const VSFrameRef *f, int n, const VSNodeRef *, const char *errorMsg) {
+    VapourSynther *vsfile = (VapourSynther *)userData;
+    vsfile->se.vsapi->freeFrame(f);
+    InterlockedDecrement(&vsfile->pending_requests);
+}
+
 const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
 
     const VSFrameRef *f = 0;
@@ -330,10 +341,16 @@ const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) 
                 lastPosition = n;
                 lastFrame = f;
             }
+
+            for (int i = n + 1; i < std::min<int>(n + 10, vi->numFrames); i++) {
+                InterlockedIncrement(&pending_requests);
+                se.vsapi->getFrameAsync(i, se.node, frameDoneCallback, (void *)this);
+            }
         }
     }
 
-    if (_success) *_success = success;
+    if (_success)
+        *_success = success;
 
     return f;
 }
@@ -430,7 +447,8 @@ references(1),
     lastPosition(-1),
     lastFrame(0),
     packedPlane1(0),
-    packedPlane2(0)
+    packedPlane2(0),
+    pending_requests(0)
 {
 }
 
@@ -441,9 +459,11 @@ references(1),
 VapourSynther::~VapourSynther(void)
 {
     ASSERT(!references);
+    while (pending_requests > 0);
     delete [] packedPlane1;
     delete [] packedPlane2;
     se.vsapi->freeFrame(lastFrame);
+    vpy_free_script(&se);
     ssfree(lastStringValue);
     ssfree(errText);
 }
