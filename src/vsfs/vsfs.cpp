@@ -215,6 +215,7 @@ const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) 
     }
     else {
         lastPosition = -1;
+        se.vsapi->freeFrame(lastFrame);
         lastFrame = 0;
         char errMsg[512];
 
@@ -442,6 +443,7 @@ VapourSynther::~VapourSynther(void)
     ASSERT(!references);
     delete [] packedPlane1;
     delete [] packedPlane2;
+    se.vsapi->freeFrame(lastFrame);
     ssfree(lastStringValue);
     ssfree(errText);
 }
