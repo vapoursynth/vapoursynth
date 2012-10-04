@@ -1658,29 +1658,41 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
 
     temp = vsapi->propGetInt(in, "width", 0, &err);
 
-    if (err && !hasvi)
-        d.vi.width = 640;
+    if (err) {
+        if (!hasvi) {
+            d.vi.width = 640;
+        }
+    }
     else
         d.vi.width = temp;
 
     temp = vsapi->propGetInt(in, "height", 0, &err);
 
-    if (err && !hasvi)
-        d.vi.height = 480;
+    if (err) {
+        if (!hasvi) {
+            d.vi.height = 480;
+        }
+    }
     else
         d.vi.height = temp;
 
     temp = vsapi->propGetInt(in, "fpsnum", 0, &err);
 
-    if (err && !hasvi)
-        d.vi.fpsNum = 24;
+    if (err) {
+        if (!hasvi) {
+            d.vi.fpsNum = 24;
+        }
+    }
     else
         d.vi.fpsNum = temp;
 
     temp = vsapi->propGetInt(in, "fpsden", 0, &err);
 
-    if (err && !hasvi)
-        d.vi.fpsDen = 1;
+    if (err) {
+        if (!hasvi) {
+            d.vi.fpsDen = 1;
+        }
+    }
     else
         d.vi.fpsDen = temp;
 
@@ -1689,8 +1701,11 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
 
     format = vsapi->propGetInt(in, "format", 0, &err);
 
-    if (err && !hasvi)
-        d.vi.format = vsapi->getFormatPreset(pfRGB24, core);
+    if (err) {
+        if (!hasvi) {
+            d.vi.format = vsapi->getFormatPreset(pfRGB24, core);
+        }
+    }
     else
         d.vi.format = vsapi->getFormatPreset(format, core);
 
@@ -1699,11 +1714,13 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
 
     temp = vsapi->propGetInt(in, "length", 0, &err);
 
-    if (err && !hasvi)
-        d.vi.numFrames = (d.vi.fpsNum * 10) / d.vi.fpsDen;
+    if (err) {
+        if (!hasvi) {
+            d.vi.numFrames = (d.vi.fpsNum * 10) / d.vi.fpsDen;
+        }
+    }
     else
         d.vi.numFrames = temp;
-
     if (d.vi.width <= 0 || d.vi.width % (1 << d.vi.format->subSamplingW))
         RETERROR("BlankClip: Invalid width");
 
