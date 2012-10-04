@@ -59,7 +59,7 @@ void VSThread::run() {
                     continue;
                 }
 
-                bool isSingleInstance = rCtx->clip->filterMode == fmSerial || rCtx->clip->filterMode == fmParallelRequests;
+                bool isSingleInstance = (rCtx->clip->filterMode == fmParallelRequests && pCtx->returnedFrame && rCtx->numFrameRequests == 1 && pCtx != rCtx) || rCtx->clip->filterMode == fmSerial;
 
                 // this check is common for both filter modes, it makes sure that multiple calls won't be made in parallel to a single filter to produce the same frame
                 // special casing so serial unordered doesn't need yet another list
@@ -76,11 +76,8 @@ void VSThread::run() {
                 owner->tasks.removeAt(i--);
                 owner->runningTasks.insert(FrameKey(rCtx->clip, rCtx->clip->filterMode == fmUnordered ? -1 : rCtx->n), rCtx);
 
-                if ((rCtx->clip->filterMode == fmParallelRequests && pCtx->returnedFrame) || (rCtx->clip->filterMode == fmSerial))
+                if (isSingleInstance)
                     owner->framesInProgress.insert(rCtx->clip, rCtx->n);
-
-                owner->lock.unlock();
-                // run task
 
                 ActivationReason ar = arInitial;
 
@@ -88,7 +85,7 @@ void VSThread::run() {
                     ar = arError;
                     rCtx->setError(pCtx->getErrorMessage());
                 } else if (pCtx != rCtx && pCtx->returnedFrame) {
-                    if (rCtx->numFrameRequests.deref())
+                    if (--rCtx->numFrameRequests)
                         ar = arFrameReady;
                     else
                         ar = arAllFramesReady;
@@ -98,6 +95,9 @@ void VSThread::run() {
                     rCtx->lastCompletedN = pCtx->n;
                     rCtx->lastCompletedNode = pCtx->node;
                 }
+
+                owner->lock.unlock();
+                // run task
 
                 PVideoFrame f = rCtx->clip->getFrameInternal(rCtx->n, ar, rCtx);
                 ranTask = true;
@@ -275,7 +275,7 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
         return;
     } else {
         if (context->upstreamContext)
-            context->upstreamContext->numFrameRequests.ref();
+            context->upstreamContext->numFrameRequests++;
 
         ////////////////////////
         // see if the task is a duplicate

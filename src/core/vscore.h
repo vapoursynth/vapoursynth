@@ -231,7 +231,7 @@ class FrameContext {
     friend class VSThreadPool;
     friend class VSThread;
 private:
-    QAtomicInt numFrameRequests;
+    int numFrameRequests;
     int n;
     const VSNodeRef *node;
     VSNode *clip;
