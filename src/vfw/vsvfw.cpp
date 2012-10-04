@@ -33,8 +33,6 @@
 #include "VapourSynth.h"
 #include "vapoursynthpp_api.h"
 
-volatile long pending_requests = 0;
-
 void BitBlt(uint8_t* dstp, int dst_pitch, const uint8_t* srcp, int src_pitch, int row_size, int height) {
     for (int i = 0; i < height; i++) {
         memcpy(dstp, srcp, row_size);
@@ -76,6 +74,7 @@ private:
     VPYScriptExport se;
     const VSVideoInfo* vi;
     std::string error_msg;
+    volatile long pending_requests;
 
     CRITICAL_SECTION cs_filter_graph;
 
@@ -85,7 +84,7 @@ private:
     void Lock();
     void Unlock();
 
-    int VapourSynthFile::ImageSize();
+    int ImageSize();
 
 public:
 
@@ -93,6 +92,7 @@ public:
     ~VapourSynthFile();
 
     static HRESULT Create(const CLSID& rclsid, const IID& riid, void **ppv);
+    static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, const VSNodeRef *, const char *errorMsg);
 
     //////////// IUnknown
 
@@ -401,7 +401,7 @@ STDMETHODIMP VapourSynthFile::DeleteStream(DWORD fccType, LONG lParam) {
 ///////////////////////////////////////////////////
 /////// local
 
-VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : m_refs(0), vi(NULL) {
+VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : m_refs(0), vi(NULL), pending_requests(0) {
     AddRef();
     InitializeCriticalSection(&cs_filter_graph);
 }
@@ -756,9 +756,10 @@ STDMETHODIMP_(LONG) VapourSynthStream::FindSample(LONG lPos, LONG lFlags) {
 ////////////////////////////////////////////////////////////////////////
 //////////// local
 
-static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, const VSNodeRef *, const char *errorMsg) {
-    ((const VSAPI *)userData)->freeFrame(f);
-    InterlockedDecrement(&pending_requests);
+void VS_CC VapourSynthFile::frameDoneCallback(void *userData, const VSFrameRef *f, int n, const VSNodeRef *, const char *errorMsg) {
+    VapourSynthFile *vsfile = (VapourSynthFile *)userData;
+    vsfile->se.vsapi->freeFrame(f);
+    InterlockedDecrement(&vsfile->pending_requests);
 }
 
 bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
@@ -882,8 +883,8 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
     vsapi->freeFrame(f);
 
     for (int i = n + 1; i < std::min<int>(n + 10, parent->vi->numFrames); i++) {
-        InterlockedIncrement(&pending_requests);
-        vsapi->getFrameAsync(i, parent->se.node, frameDoneCallback, (void *)vsapi);
+        InterlockedIncrement(&parent->pending_requests);
+        vsapi->getFrameAsync(i, parent->se.node, VapourSynthFile::frameDoneCallback, (void *)parent);
     }
 
     return true;
