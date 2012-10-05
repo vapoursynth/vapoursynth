@@ -87,7 +87,7 @@ cdef class Func(object):
     cdef object func
     cdef VSFuncRef *ref
 
-    def __init__(self, object func, Core core):
+    def __init__(self, object func not None, Core core not None):
         self.core = core
         self.func = func
         self.ref = core.funcs.createFunc(publicFunction, <void *>self, freeFunc)
@@ -96,8 +96,8 @@ cdef class Func(object):
     def __deinit__(self):
         self.core.funcs.freeFunc(self.ref)
 
-    def __call__(self, dict args):
-        return self.func(args)
+    def __call__(self, **kwargs):
+        return self.func(**kwargs)
 
 cdef Plugin createFunc(VSFuncRef *ref, Core core):
     cdef Func instance = Func.__new__(Func)
@@ -376,6 +376,9 @@ cdef Format createFormat(vapoursynth.VSFormat *f):
 cdef class VideoProps(object):
     cdef VideoFrame f
     
+    def __init__(self):
+        raise Error('Class cannot be instantiated directly')
+    
     def __getattr__(self, name):
         cdef VSMap *m = self.f.funcs.getFramePropsRO(self.f.f)
         cdef bytes b = name.encode('utf-8')
@@ -409,7 +412,47 @@ cdef class VideoProps(object):
             raise Error('Cannot delete properties of a read only object')
         cdef VSMap *m = self.f.funcs.getFramePropsRW(self.f.f)
         cdef bytes b = name.encode('utf-8')
-        #// fixme, incomplete
+        cdef VSAPI *funcs = self.f.funcs
+        val = value
+        if not isinstance(val, list):
+            val = [val]
+        self.__delattr__(name)
+        try:
+            for v in val:
+                if isinstance(v, VideoNode):
+                    if funcs.propSetNode(m, b, (<VideoNode>v).node, 1) != 0:
+                        raise Error('Not all values are of the same type')
+                elif isinstance(v, VideoFrame):
+                    if funcs.propSetFrame(m, b, (<VideoFrame>v).f, 1) != 0:
+                        raise Error('Not all values are of the same type')
+                elif isinstance(v, Func):
+                    if funcs.propSetFunc(m, b, (<Func>v).ref, 1) != 0:
+                        raise Error('Not all values are of the same type')
+                elif callable(v):
+                    tf = Func(v, self.f.core)
+                    if funcs.propSetFunc(m, b, tf.ref, 1) != 0:
+                        raise Error('Not all values are of the same type')
+                elif type(v) == int or type(v) == long or type(v) == bool:
+                    if funcs.propSetInt(m, b, int(v), 1) != 0:
+                        raise Error('Not all values are of the same type')
+                elif type(v) == float:
+                    if funcs.propSetFloat(m, b, float(v), 1) != 0:
+                        raise Error('Not all values are of the same type')
+                elif type(v) == str:
+                    s = str(v).encode('utf-8')
+                    if funcs.propSetData(m, b, s, -1, 1) != 0:
+                        raise Error('Not all values are of the same type')
+                elif type(v) == bytes:
+                    if funcs.propSetData(m, b, v, -1, 1) != 0:
+                        raise Error('Not all values are of the same type')
+                elif type(v) == bytes:
+                    if funcs.propSetData(m, b, v, len(v), 1) != 0:
+                        raise Error('Not all values are of the same type')
+                else:
+                    raise Error('Setter was passed an unsupported type')
+        except Error:
+            self.__delattr__(name)
+            raise
         
     def __delattr__(self, name):
         if self.f.readonly:
@@ -944,7 +987,9 @@ cdef void __stdcall publicFunction(VSMap *inm, VSMap *outm, void *userData, VSCo
 
         try:
             m = mapToDict(inm, False, False, d.core, vsapi)
-            ret = d(m)
+            ret = d(**m)
+            if not isinstance(ret, dict):
+                ret = {'val':ret}
             dictToMap(ret, outm, d.core, vsapi)
         except BaseException, e:
             emsg = str(e).encode('utf-8')

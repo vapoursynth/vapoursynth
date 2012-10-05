@@ -2230,11 +2230,11 @@ static const VSFrameRef *VS_CC selectClipGetFrame(int n, int activationReason, v
         if (idx < 0) {
             int err;
             const VSFrameRef *f;
-            vsapi->propSetInt(d->in, "N", n, 0);
+            vsapi->propSetInt(d->in, "n", n, 0);
 
             for (i = 0; i < d->numsrc; i++) {
                 f = vsapi->getFrameFilter(n, d->src[i], frameCtx);
-                vsapi->propSetFrame(d->in, "F", f, 1);
+                vsapi->propSetFrame(d->in, "f", f, 1);
                 vsapi->freeFrame(f);
             }
 
@@ -2338,13 +2338,13 @@ typedef struct {
     const VSVideoInfo *vi;
     VSFuncRef *func;
     VSMap *in;
+    VSMap *out;
     int numnode;
 } ModifyPropsData;
 
 static void VS_CC modifyPropsInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     ModifyPropsData *d = (ModifyPropsData *) * instanceData;
     vsapi->setVideoInfo(d->vi, node);
-    vsapi->clearMap(in);
 }
 
 static const VSFrameRef *VS_CC modifyPropsGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -2356,32 +2356,34 @@ static const VSFrameRef *VS_CC modifyPropsGetFrame(int n, int activationReason, 
             vsapi->requestFrameFilter(n, d->node[i], frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *f;
-        VSFrameRef *fmod = 0;
-        VSMap *props;
+        int err;
 
-        vsapi->propSetInt(d->in, "N", n, 0);
+        vsapi->propSetInt(d->in, "n", n, 0);
 
         for (i = 0; i < d->numnode; i++) {
             f = vsapi->getFrameFilter(n, d->node[i], frameCtx);
-            if (i == 0)
-                fmod = vsapi->copyFrame(f, core);
-            vsapi->propSetFrame(d->in, "F", f, 1);
+            vsapi->propSetFrame(d->in, "f", f, 1);
             vsapi->freeFrame(f);
         }
-  
-        props = vsapi->getFramePropsRW(fmod);
-        vsapi->clearMap(props);
 
-        vsapi->callFunc(d->func, d->in, props, core, vsapi);
+        vsapi->callFunc(d->func, d->in, d->out, core, vsapi);
         vsapi->clearMap(d->in);
 
-        if (vsapi->getError(props)) {
-            vsapi->setFilterError(vsapi->getError(props), frameCtx);
-            vsapi->freeFrame(fmod);
+        if (vsapi->getError(d->out)) {
+            vsapi->setFilterError(vsapi->getError(d->out), frameCtx);
+            vsapi->clearMap(d->out);
             return 0;
         }
 
-        return fmod;
+        f = vsapi->propGetFrame(d->out, "val", 0, &err);
+        if (err) {
+            vsapi->setFilterError("Returned value not a frame", frameCtx);
+            vsapi->clearMap(d->out);
+            return 0;
+        }
+
+        vsapi->clearMap(d->out);
+        return f;
     }
 
     return 0;
@@ -2393,6 +2395,7 @@ static void VS_CC modifyPropsFree(void *instanceData, VSCore *core, const VSAPI 
     for (i = 0; i < d->numnode; i++)
         vsapi->freeNode(d->node[i]);
     vsapi->freeMap(d->in);
+    vsapi->freeMap(d->out);
     free(d->node);
     free(d);
 }
@@ -2411,6 +2414,7 @@ static void VS_CC modifyPropsCreate(const VSMap *in, VSMap *out, void *userData,
     d.vi = vsapi->getVideoInfo(d.node[0]);
     d.func = vsapi->propGetFunc(in, "selector", 0, 0);
     d.in = vsapi->newMap();
+    d.out = vsapi->newMap();
 
     data = malloc(sizeof(d));
     *data = d;
