@@ -248,7 +248,7 @@ cdef object mapToDict(VSMap *map, bint flatten, bint add_cache, Core core, VSAPI
             elif proptype == 'f':
                 newval = funcs.propGetFloat(map, retkey, 0, NULL)
             elif proptype == 's':
-                newval = funcs.propGetData(map, retkey, 0, NULL).decode('utf-8')
+                newval = funcs.propGetData(map, retkey, 0, NULL)
             elif proptype =='c':
                 newval = createVideoNode(funcs.propGetNode(map, retkey, 0, NULL), funcs, core)
 
@@ -313,6 +313,9 @@ cdef void dictToMap(dict ndict, VSMap *inm, Core core, VSAPI *funcs):
                 s = str(v).encode('utf-8')
 
                 if funcs.propSetData(inm, ckey, s, -1, 1) != 0:
+                    raise Error('not all values are of the same type in ' + key)
+            elif type(v) == bytes:
+                if funcs.propSetData(inm, ckey, v, -1, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif type(v) == bytes:
                 if funcs.propSetData(inm, ckey, v, len(v), 1) != 0:
