@@ -373,6 +373,56 @@ cdef Format createFormat(vapoursynth.VSFormat *f):
     instance.num_planes = f.numPlanes
     return instance
 
+cdef class VideoProps(object):
+    cdef VideoFrame f
+    
+    def __getattr__(self, name):
+        cdef VSMap *m = self.f.funcs.getFramePropsRO(self.f.f)
+        cdef bytes b = name.encode('utf-8')
+        cdef list ol = []
+        cdef int numelem = self.f.funcs.propNumElements(m, b)
+        if numelem < 0:
+            raise KeyError('No key named ' + name + ' exists')
+        cdef char t = self.f.funcs.propGetType(m, b)
+        if t == 'i':
+            for i in range(numelem):
+                ol.append(self.f.funcs.propGetInt(m, b, i, NULL))
+        elif t == 'f':
+            for i in range(numelem):
+                ol.append(self.f.funcs.propGetFloat(m, b, i, NULL))
+        elif t == 's':
+            for i in range(numelem):
+                ol.append(self.f.funcs.propGetData(m, b, i, NULL))
+        elif t == 'c':
+            for i in range(numelem):
+                ol.append(createVideoNode(self.f.funcs.propGetNode(m, b, i, NULL), self.f.funcs, self.f.core))
+        elif t == 'v':
+            for i in range(numelem):
+                ol.append(createVideoFrame(self.f.funcs.propGetFrame(m, b, i, NULL), self.f.funcs, self.f.core))
+        elif t == 'm':
+            for i in range(numelem):
+                ol.append(createFunc(self.f.funcs.propGetFunc(m, b, i, NULL), self.f.core))
+        return ol
+        
+    def __setattr__(self, name, value):
+        if self.f.readonly:
+            raise Error('Cannot delete properties of a read only object')
+        cdef VSMap *m = self.f.funcs.getFramePropsRW(self.f.f)
+        cdef bytes b = name.encode('utf-8')
+        #// fixme, incomplete
+        
+    def __delattr__(self, name):
+        if self.f.readonly:
+            raise Error('Cannot delete properties of a read only object')
+        cdef VSMap *m = self.f.funcs.getFramePropsRW(self.f.f)
+        cdef bytes b = name.encode('utf-8')
+        self.f.funcs.propDeleteKey(m, b)
+        
+cdef VideoProps createVideoProps(VideoFrame f):
+    cdef VideoProps instance = VideoProps.__new__(VideoProps)
+    instance.f = f
+    return instance
+
 cdef class VideoFrame(object):
     cdef VSFrameRef *f
     cdef Core core
@@ -380,15 +430,14 @@ cdef class VideoFrame(object):
     cdef readonly Format format
     cdef readonly int width
     cdef readonly int height
+    cdef readonly bint readonly
+    cdef readonly VideoProps props
 
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
 
     def __dealloc__(self):
         self.funcs.freeFrame(self.f)
-
-    def get_props(self):
-        return mapToDict(self.funcs.getFramePropsRO(self.f), False, False, self.core, self.funcs)
 
     def get_data(self, int plane):
         if plane < 0 or plane >= self.format.num_planes:
@@ -413,9 +462,11 @@ cdef VideoFrame createVideoFrame(vapoursynth.VSFrameRef *f, vapoursynth.VSAPI *f
     instance.f = f
     instance.funcs = funcs
     instance.core = core
+    instance.readonly = True
     instance.format = createFormat(funcs.getFrameFormat(f))
     instance.width = funcs.getFrameWidth(f, 0)
     instance.height = funcs.getFrameHeight(f, 0)
+    instance.props = createVideoProps(instance)
     return instance
 
 cdef class VideoNode(object):

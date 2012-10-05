@@ -106,6 +106,11 @@ cdef extern from "include/VapourSynth.h" nogil:
         peUnset = 1
         peType  = 2
         peIndex = 4
+        
+    cdef enum PropAppendMode:
+        paReplace = 0
+        paAppend  = 1
+        paTouch   = 2
 
     cdef struct VSVersion:
         int core
@@ -152,7 +157,7 @@ cdef extern from "include/VapourSynth.h" nogil:
         void getFrameAsync(int n, VSNodeRef *node, VSFrameDoneCallback callback, void *userData) nogil
         VSFrameRef *getFrame(int n, VSNodeRef *node, char *errorMsg, int bufSize) nogil
         void requestFrameFilter(int n, VSNodeRef *node, VSFrameContext *frameCtx) nogil
-        VSFrameRef * getFrameFilter(int n, VSNodeRef *node, VSFrameContext *frameCtx) nogil
+        VSFrameRef *getFrameFilter(int n, VSNodeRef *node, VSFrameContext *frameCtx) nogil
         VSFrameRef *cloneFrameRef(VSFrameRef *f) nogil
         VSNodeRef *cloneNodeRef(VSNodeRef *node) nogil
         void freeFrame(VSFrameRef *f) nogil
