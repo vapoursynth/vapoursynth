@@ -193,7 +193,7 @@ static const char *VS_CC propGetKey(const VSMap *props, int index) {
 
 static int VS_CC propNumElements(const VSMap *props, const char *name) {
     if (!props->contains(name))
-        return 0;
+        return -1;
 
     const VSVariant &val = (*props)[name];
     return val.count();
@@ -217,12 +217,12 @@ static int getPropErrorCheck(const VSMap *props, const char *name, int index, in
     if (!props->contains(name))
         err |= peUnset;
 
-    if (err || props->value(name).vtype != type)
+    if (!err && props->value(name).vtype != type)
         err |= peType;
 
     int c = propNumElements(props, name);
 
-    if (c <= index || index < 0)
+    if (!err && c <= index || index < 0)
         err |= peIndex;
 
     if (err && !error)
@@ -298,20 +298,29 @@ static int VS_CC propDeleteKey(VSMap *props, const char *name) {
     return props->remove(name);
 }
 
-static int VS_CC propSetInt(VSMap *props, const char *name, int64_t i, int append) {
-    if (!append)
-        props->remove(name);
+static void sharedPropSet(VSMap *props, const char *name, int &append) {
+    if (append != paReplace && append != paAppend && append != paTouch)
+        qFatal("Invalid prop append mode given");
 
+    if (append == paReplace) {
+        props->remove(name);
+        append = paAppend;
+    }
+}
+
+static int VS_CC propSetInt(VSMap *props, const char *name, int64_t i, int append) {
+    sharedPropSet(props, name, append);
     if (props->contains(name)) {
         VSVariant &l = (*props)[name];
 
         if (l.vtype != VSVariant::vInt)
             return 1;
-        else
+        else if (append == paAppend)
             l.i.append(i);
     } else {
         VSVariant l(VSVariant::vInt);
-        l.i.append(i);
+        if (append == paAppend)
+            l.i.append(i);
         props->insert(name, l);
     }
 
@@ -319,19 +328,18 @@ static int VS_CC propSetInt(VSMap *props, const char *name, int64_t i, int appen
 }
 
 static int VS_CC propSetFloat(VSMap *props, const char *name, double d, int append) {
-    if (!append)
-        props->remove(name);
-
+    sharedPropSet(props, name, append);
     if (props->contains(name)) {
         VSVariant &l = (*props)[name];
 
         if (l.vtype != VSVariant::vFloat)
             return 1;
-        else
+        else if (append == paAppend)
             l.f.append(d);
     } else {
         VSVariant l(VSVariant::vFloat);
-        l.f.append(d);
+        if (append == paAppend)
+            l.f.append(d);
         props->insert(name, l);
     }
 
@@ -339,19 +347,18 @@ static int VS_CC propSetFloat(VSMap *props, const char *name, double d, int appe
 }
 
 static int VS_CC propSetData(VSMap *props, const char *name, const char *d, int length, int append) {
-    if (!append)
-        props->remove(name);
-
+    sharedPropSet(props, name, append);
     if (props->contains(name)) {
         VSVariant &l = (*props)[name];
 
         if (l.vtype != VSVariant::vData)
             return 1;
-        else
-            l.s.append(length >= 0 ? QByteArray(d, length) : QByteArray(d));
+        else if (append == paAppend)
+            l.s.append(d);
     } else {
         VSVariant l(VSVariant::vData);
-        l.s.append(length >= 0 ? QByteArray(d, length) : QByteArray(d));
+        if (append == paAppend)
+            l.s.append(length >= 0 ? QByteArray(d, length) : QByteArray(d));
         props->insert(name, l);
     }
 
@@ -359,19 +366,18 @@ static int VS_CC propSetData(VSMap *props, const char *name, const char *d, int 
 }
 
 static int VS_CC propSetNode(VSMap *props, const char *name, const VSNodeRef *clip, int append) {
-    if (!append)
-        props->remove(name);
-
+    sharedPropSet(props, name, append);
     if (props->contains(name)) {
         VSVariant &l = (*props)[name];
 
         if (l.vtype != VSVariant::vNode)
             return 1;
-        else
+        else if (append == paAppend)
             l.c.append(clip->clip);
     } else {
         VSVariant l(VSVariant::vNode);
-        l.c.append(clip->clip);
+        if (append == paAppend)
+            l.c.append(clip->clip);
         props->insert(name, l);
     }
 
@@ -379,19 +385,18 @@ static int VS_CC propSetNode(VSMap *props, const char *name, const VSNodeRef *cl
 }
 
 static int VS_CC propSetFrame(VSMap *props, const char *name, const VSFrameRef *frame, int append) {
-    if (!append)
-        props->remove(name);
-
+    sharedPropSet(props, name, append);
     if (props->contains(name)) {
         VSVariant &l = (*props)[name];
 
         if (l.vtype != VSVariant::vFrame)
             return 1;
-        else
+        else if (append == paAppend)
             l.v.append(frame->frame);
     } else {
         VSVariant l(VSVariant::vFrame);
-        l.v.append(frame->frame);
+        if (append == paAppend)
+            l.v.append(frame->frame);
         props->insert(name, l);
     }
 

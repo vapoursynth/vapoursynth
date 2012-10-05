@@ -146,6 +146,12 @@ typedef enum GetPropErrors {
     peIndex = 4
 } GetPropErrors;
 
+typedef enum PropAppendMode {
+    paReplace = 0,
+    paAppend  = 1,
+    paTouch   = 2
+} PropAppendMode;
+
 typedef struct VSVersion {
     int core;
     int api;
