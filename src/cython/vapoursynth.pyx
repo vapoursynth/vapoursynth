@@ -70,8 +70,6 @@ COMPATBGR32 = vapoursynth.pfCompatBGR32
 COMPATYUY2 = vapoursynth.pfCompatYUY2
 
 class Error(Exception):
-    """This is the general exception class for VapourSynth errors. Almost all functions in this module throws an exception of this kind on error."""
-
     def __init__(self, value):
         self.value = value
 
@@ -79,17 +77,6 @@ class Error(Exception):
         return repr(self.value)
 
 cdef class Link(object):
-    """The Link class is meant to be used together with VapourSynth function arguments declared with 'link'.
-    This construct is for filters that can change their arguments every frame based on the input frame's properties.
-    
-    Arguments:
-    val -- the default value when the specified property cannot be read properly
-    prop -- the name of the frame property the filter reads to modify an argument
-
-    Example:
-    core.std.CropAbs(clip, left=Link(8, 'Left'), width=100, height=100)
-    This will produce a cropped 100x100 window of the frame moving left and right depending on the offset given in the frame property Left.
-    """
     def __init__(self, val, prop):
         self.val = val
         self.prop = prop
@@ -404,7 +391,7 @@ cdef class VideoFrame(object):
         if plane < 0 or plane >= self.format.num_planes:
             raise IndexError('Specified plane index out of range')
         cdef uint8_t *d = self.funcs.getReadPtr(self.f, plane)
-        return ctypes.c_void_p(<int64_t>d)
+        return ctypes.c_void_p(<intptr_t>d)
 
     def get_stride(self, int plane):
         if plane < 0 or plane >= self.format.num_planes:
@@ -952,6 +939,7 @@ cdef public api int __stdcall vpy_evaluate_file(char *fn, VPYScriptExport *extp)
     extp.errstr = NULL
     extp.error = NULL
     extp.vsapi = NULL
+    extp.enable_v210 = 0
 
     with gil:
         try:
