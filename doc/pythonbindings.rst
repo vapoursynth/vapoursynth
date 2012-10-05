@@ -36,13 +36,11 @@ Here are some examples to illustrate::
    
 Output to File
 ##############
-The VideoNode class has a method to output all frames in a clip to a file handle. For example *sys.stdout* if you want to pipe it to another application.
+The VideoNode class has a method to output all frames in a clip to a file handle. For example *sys.stdout* if you want to pipe it to another application. This illustrates the typical use::
 
-.. function:: output(fileobj, bint y4m = False, int lookahead = 10, progress_update)
-   :module: vapoursynth
+   someclip.output(sys.stdout, y4m=False)
    
-   In general you should only ever have to change *y4m*, in case you want to append YUV4MPEG2 headers to the output or *lookahead* if you have more than 10 cores.
-   You may also pass a callback of the form *func(current, total)* which will be called on every completed frame.  
+In general you should only ever have to change *y4m*, in case you want to append YUV4MPEG2 headers to the output.
 
 Special Output
 ##############
