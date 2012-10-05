@@ -9,23 +9,18 @@ SelectClip
    
    How to return alternating frames from the clips (A.Frame0, B.Frame1, A.Frame2, B.Frame3...)::
    
-      def interleave2(props):
-         # get the frame number
-         n = props['N']
-         n = n % 2
-         return {'val':n}
+      def interleave2(n, f):
+         return n % 2
       ...
-      SelectClip(clips=[A, B], selector=interleave2)
+      # src is only given here because it is not optional
+      SelectClip(clips=[A, B], src=A, selector=interleave2)
 
    How to select based on a frame property::
    
-      def special_processing(props):
-         f = props['F']
-         # get the frame's property dict
-         fprop = f.get_props()
-         if fprop['IsCombed']:
-            return {'val':1}
+      def special_processing(n, f):
+         if f.props.IsCombed:
+            return 1
          else:
-            return {'val':0}
+            return 0
       ...
       SelectClip(clips=[A, B], src=A, selector=special_processing)
