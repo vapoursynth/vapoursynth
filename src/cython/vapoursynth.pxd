@@ -18,7 +18,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 #
 
-from libc.stdint cimport uint8_t, uint32_t, int64_t, intptr_t
+from libc.stdint cimport uint8_t, uint32_t, int64_t, uintptr_t
 
 cdef extern from "include/VapourSynth.h" nogil:
     ctypedef struct VSFrameRef:

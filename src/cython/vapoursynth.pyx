@@ -438,12 +438,15 @@ cdef class VideoFrame(object):
 
     def __dealloc__(self):
         self.funcs.freeFrame(self.f)
+        
+    def copy(self):
+        return createVideoFrame(self.funcs.copyFrame(self.f, self.core.core), self.funcs, self.core, False)
 
     def get_data(self, int plane):
         if plane < 0 or plane >= self.format.num_planes:
             raise IndexError('Specified plane index out of range')
         cdef uint8_t *d = self.funcs.getReadPtr(self.f, plane)
-        return ctypes.c_void_p(<intptr_t>d)
+        return ctypes.c_void_p(<uintptr_t>d)
 
     def get_stride(self, int plane):
         if plane < 0 or plane >= self.format.num_planes:
@@ -457,12 +460,12 @@ cdef class VideoFrame(object):
         s += '\tHeight: ' + str(self.height) + '\n'
         return s
 
-cdef VideoFrame createVideoFrame(vapoursynth.VSFrameRef *f, vapoursynth.VSAPI *funcs, Core core):
+cdef VideoFrame createVideoFrame(vapoursynth.VSFrameRef *f, vapoursynth.VSAPI *funcs, Core core, bint readonly = True):
     cdef VideoFrame instance = VideoFrame.__new__(VideoFrame)    
     instance.f = f
     instance.funcs = funcs
     instance.core = core
-    instance.readonly = True
+    instance.readonly = readonly
     instance.format = createFormat(funcs.getFrameFormat(f))
     instance.width = funcs.getFrameWidth(f, 0)
     instance.height = funcs.getFrameHeight(f, 0)
@@ -854,7 +857,11 @@ cdef class Function(object):
         cdef VSMap *outm
         cdef char *cname
         ndict = {}
-
+        
+        sigs = self.signature.split(';')
+        csig = 0
+        numsig = len(sigs)
+        
         #// naively insert named arguments
         for key in kwargs:
             nkey = key
@@ -867,10 +874,6 @@ cdef class Function(object):
                 ndict[nkey] = kwargs[key]
 
         #// match up unnamed arguments to the first unused name in order
-        sigs = self.signature.split(';')
-        csig = 0
-        numsig = len(sigs) 
-
         for arg in args:
             key = sigs[csig].split(':', 1)
             key = key[0]
