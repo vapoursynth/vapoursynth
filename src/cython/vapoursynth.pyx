@@ -442,7 +442,15 @@ cdef class VideoFrame(object):
     def copy(self):
         return createVideoFrame(self.funcs.copyFrame(self.f, self.core.core), self.funcs, self.core, False)
 
-    def get_data(self, int plane):
+    def get_read_ptr(self, int plane):
+        if plane < 0 or plane >= self.format.num_planes:
+            raise IndexError('Specified plane index out of range')
+        cdef uint8_t *d = self.funcs.getReadPtr(self.f, plane)
+        return ctypes.c_void_p(<uintptr_t>d)
+        
+    def get_write_ptr(self, int plane):
+        if self.readonly:
+            raise Error('Cannot obtain write poitner to read only frame')
         if plane < 0 or plane >= self.format.num_planes:
             raise IndexError('Specified plane index out of range')
         cdef uint8_t *d = self.funcs.getReadPtr(self.f, plane)
