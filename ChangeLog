@@ -3,6 +3,10 @@ may deadlock with some avisynth plugins (set the number of threads to a bigger n
 compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 .vpy files need to be opened with file\open and then select avifile compat from the format list before selecting the .vpy script (this is a vdub limitation)
 
+r13:
+fixed a rowsize bug in avisynth compatibility and implemented the subframe functions
+greatly improved the handling of SelectClip and ModifyProps, conditional filtering is now something that's usable
+
 r12:
 fixed a scheduling error for fmParallelRequests filters (all avisynth filters and several internal ones)
 added a bit more documentation, this time a bit about python and the classes found there

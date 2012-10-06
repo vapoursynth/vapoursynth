@@ -154,7 +154,7 @@ PVideoFrame VSClip::GetFrame(int n, IScriptEnvironment *env) {
         false,
         0,
         vsapi->getStride(ref, 0),
-        vsapi->getFrameWidth(ref, 0),
+        vsapi->getFrameWidth(ref, 0) * vsapi->getFrameFormat(ref)->bytesPerSample,
         vsapi->getFrameHeight(ref, 0),
         vsapi->getReadPtr(ref, 1) - firstPlanePtr,
         vsapi->getReadPtr(ref, 2) - firstPlanePtr,
@@ -591,7 +591,7 @@ PVideoFrame FakeAvisynth::NewVideoFrame(const VideoInfo &vi, int align) {
         true,
         0,
         vsapi->getStride(ref, 0),
-        vi.width,
+        vi.width * vsapi->getFrameFormat(ref)->bytesPerSample,
         vi.height,
         vsapi->getWritePtr(ref, 1) - firstPlanePtr,
         vsapi->getWritePtr(ref, 2) - firstPlanePtr,
@@ -646,8 +646,26 @@ void FakeAvisynth::CheckVersion(int version) {
 }
 
 PVideoFrame FakeAvisynth::Subframe(PVideoFrame src, int rel_offset, int new_pitch, int new_row_size, int new_height) {
-    qFatal("SubFrame not implemented");
-    return PVideoFrame();
+    if (src->row_size != new_row_size)
+        qFatal("Subframe only partially implemented");
+    // not pretty at all, but the underlying frame has to be fished out to have any idea what the input really is
+    const VSFrameRef *f = avsToVSFrame((VideoFrame *)(void *)src);
+    const VSFormat *fi = vsapi->getFrameFormat(f);
+    VideoInfo vi;
+    vi.height = new_height;
+    vi.width = vsapi->getFrameWidth(f, 0);
+
+    if (fi->id == pfCompatYUY2)
+        vi.pixel_type = VideoInfo::CS_YUY2;
+    else if (fi->id == pfCompatBGR32)
+        vi.pixel_type = VideoInfo::CS_BGR32;
+    else
+        qFatal("Bad colorspace");
+
+    PVideoFrame dst = NewVideoFrame(vi);
+    BitBlt(dst->GetWritePtr(), dst->GetPitch(), src->GetReadPtr() + rel_offset, new_pitch, new_row_size, new_height);
+
+    return dst;
 }
 
 int FakeAvisynth::SetMemoryMax(int mem) {
@@ -671,8 +689,26 @@ bool FakeAvisynth::PlanarChromaAlignment(PlanarChromaAlignmentMode key) {
 }
 
 PVideoFrame FakeAvisynth::SubframePlanar(PVideoFrame src, int rel_offset, int new_pitch, int new_row_size, int new_height, int rel_offsetU, int rel_offsetV, int new_pitchUV) {
-    qFatal("SubframePlanar not implemented");
-    return PVideoFrame();
+    if (src->row_size != new_row_size)
+        qFatal("SubframePlanar only partially implemented");
+    // not pretty at all, but the underlying frame has to be fished out to have any idea what the input really is
+    const VSFrameRef *f = avsToVSFrame((VideoFrame *)(void *)src);
+    const VSFormat *fi = vsapi->getFrameFormat(f);
+    VideoInfo vi;
+    vi.height = new_height;
+    vi.width = vsapi->getFrameWidth(f, 0);
+
+    if (fi->id == pfYUV420P8)
+        vi.pixel_type = VideoInfo::CS_YV12;
+    else
+        qFatal("Bad colorspace");
+
+    PVideoFrame dst = NewVideoFrame(vi);
+
+    BitBlt(dst->GetWritePtr(PLANAR_Y), dst->GetPitch(PLANAR_Y), src->GetReadPtr(PLANAR_Y) + rel_offset, new_pitch, new_row_size, new_height);
+    BitBlt(dst->GetWritePtr(PLANAR_U), dst->GetPitch(PLANAR_U), src->GetReadPtr(PLANAR_U) + rel_offsetU, new_pitchUV, new_row_size/2, new_height/2);
+    BitBlt(dst->GetWritePtr(PLANAR_V), dst->GetPitch(PLANAR_V), src->GetReadPtr(PLANAR_V) + rel_offsetV, new_pitchUV, new_row_size/2, new_height/2);
+    return dst;
 }
 
 static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {

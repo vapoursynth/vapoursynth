@@ -62,7 +62,7 @@ public:
     bool __stdcall SetGlobalVar(const char *name, const AVSValue &val);
     void __stdcall PushContext(int level);
     void __stdcall PopContext();
-    PVideoFrame __stdcall NewVideoFrame(const VideoInfo &vi, int align);
+    PVideoFrame __stdcall NewVideoFrame(const VideoInfo &vi, int align = 32);
     bool __stdcall MakeWritable(PVideoFrame *pvf);
     void __stdcall BitBlt(uint8_t *dstp, int dst_pitch, const uint8_t *srcp, int src_pitch, int row_size, int height);
     void __stdcall AtExit(ShutdownFunc function, void *user_data);
