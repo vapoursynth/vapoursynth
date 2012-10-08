@@ -318,6 +318,10 @@ static PrefetchInfo getPrefetchInfo(const QByteArray &name, const VSMap *in, con
     PREFETCHR1(MFlowBlur)
     PREFETCHR1(MRecalculate)
 
+    // Avisynth internal
+    PREFETCH(Bob, 2, 1, 0, 0)
+    PREFETCH(TemporalSoften, 1, 1, -5, 5)
+
     return PrefetchInfo(1, 1, 0, 0);
 }
 
