@@ -141,7 +141,7 @@ cdef extern from "include/VapourSynth.h" nogil:
     ctypedef void (__stdcall *VSFreeFuncData)(void *userData)
 
     ctypedef struct VSAPI:
-        VSCore *createCore(int threads) nogil
+        VSCore *createCore(int *threads) nogil
         void freeCore(VSCore *core) nogil
 
         void registerFunction(char *name, char *args, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) nogil

@@ -752,14 +752,16 @@ cdef VideoNode createVideoNode(vapoursynth.VSNodeRef *node, vapoursynth.VSAPI *f
 cdef class Core(object):
     cdef vapoursynth.VSCore *core
     cdef vapoursynth.VSAPI *funcs
+    cdef int num_threads
     cdef bint add_cache
     cdef bint accept_lowercase
 
     def __cinit__(self, int threads = 0, bint add_cache = True, bint accept_lowercase = False):
         self.funcs = vapoursynth.getVapourSynthAPI(2)
+        self.num_threads = threads
         if self.funcs == NULL:
             raise Error('Failed to obtain VapourSynth API pointer. Is the Python module and loaded core library mismatched?')
-        self.core = self.funcs.createCore(threads)
+        self.core = self.funcs.createCore(&self.num_threads)
         self.add_cache = add_cache
         self.accept_lowercase = accept_lowercase
 
@@ -824,6 +826,7 @@ cdef class Core(object):
     def __str__(self):
         cdef str s = 'Core\n'
         s += self.version() + '\n'
+        s += '\tNumber of Threads: ' + str(self.num_threads) + '\n'  
         s += '\tAdd Caches: ' + str(self.add_cache) + '\n'
         s += '\tAccept Lowercase: ' + str(self.accept_lowercase) + '\n'
         return s

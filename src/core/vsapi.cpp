@@ -420,8 +420,8 @@ static void VS_CC clearMap(VSMap *map) {
     map->clear();
 }
 
-static VSCore *VS_CC createCore(int threads) {
-    return new VSCore(threads);
+static VSCore *VS_CC createCore(int *threads) {
+    return new VSCore(*threads);
 }
 
 static void VS_CC freeCore(VSCore *core) {

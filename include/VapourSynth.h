@@ -176,7 +176,7 @@ typedef enum ActivationReason {
 } ActivationReason;
 
 // core function typedefs
-typedef	VSCore *(VS_CC *VSCreateCore)(int threads);
+typedef	VSCore *(VS_CC *VSCreateCore)(int *threads);
 typedef	void (VS_CC *VSFreeCore)(VSCore *core);
 typedef const VSVersion *(VS_CC *VSGetVersion)(void);
 

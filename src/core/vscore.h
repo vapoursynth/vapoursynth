@@ -334,7 +334,7 @@ private:
     void notifyCaches(CacheActivation reason);
     void startInternal(const PFrameContext &context);
 public:
-    VSThreadPool(VSCore *core, int threadCount);
+    VSThreadPool(VSCore *core, int &threadCount);
     ~VSThreadPool();
     void returnFrame(const PFrameContext &rCtx, const PVideoFrame &f);
     int	activeThreadCount() const;
@@ -425,7 +425,7 @@ public:
     void setMemoryMax(int64_t bytes);
     int getAPIVersion();
 
-    VSCore(int threads);
+    VSCore(int &threads);
     ~VSCore();
 };
 

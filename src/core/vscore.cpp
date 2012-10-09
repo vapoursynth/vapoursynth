@@ -355,8 +355,8 @@ void VS_CC loadPluginInitialize(VSConfigPlugin configFunc, VSRegisterFunction re
 extern "C" void VS_CC avsWrapperInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
 #endif
 
-VSCore::VSCore(int threads) : memory(new MemoryUse()) {
-    threadPool = new VSThreadPool(this, threads > 0 ? threads : QThread::idealThreadCount());
+VSCore::VSCore(int &threads) : memory(new MemoryUse()) {
+    threadPool = new VSThreadPool(this, threads);
 
     // Register known formats with informational names
     registerFormat(cmGray, stInteger, 8, 0, 0, "Gray8", pfGray8);
@@ -391,6 +391,7 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()) {
 
     // The internal plugin units, the loading is a bit special so they can get special flags
     VSPlugin *p;
+
 #ifdef _WIN32
     p = new VSPlugin(this);
     avsWrapperInitialize(::configPlugin, ::registerFunction, p);
@@ -411,6 +412,7 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()) {
     resizeInitialize(::configPlugin, ::registerFunction, p);
     plugins.insert(p->identifier, p);
     p->enableCompat();
+
     /* for the day when script implemented filters are available
     p = new VSPlugin(this);
     configPlugin("com.vapoursynth.user", "user", "VapourSynth User Runtime Defined Functions", VAPOURSYNTH_API_VERSION, 0, p);
