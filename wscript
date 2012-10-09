@@ -98,9 +98,10 @@ def options(opt):
     opt.load('compiler_cxx')
     opt.load('qt4')
 
-    opt.add_option('--libdir', action = 'store', default = '${PREFIX}/lib', help = 'library installation prefix')
-    opt.add_option('--plugindir', action = 'store', default = '${LIBDIR}/vapoursynth', help = 'plugin installation prefix')
-    opt.add_option('--docdir', action = 'store', default = '${PREFIX}/share/doc/vapoursynth', help = 'documentation installation prefix')
+    opt.add_option('--libdir', action = 'store', default = '${PREFIX}/lib', help = 'library installation directory')
+    opt.add_option('--plugindir', action = 'store', default = '${LIBDIR}/vapoursynth', help = 'plugin installation directory')
+    opt.add_option('--docdir', action = 'store', default = '${PREFIX}/share/doc/vapoursynth', help = 'documentation installation directory')
+    opt.add_option('--includedir', action = 'store', default = '${PREFIX}/include', help = 'header installation directory')
     opt.add_option('--mode', action = 'store', default = 'release', help = 'the mode to compile in (debug/release)')
     opt.add_option('--static', action = 'store', default = 'false', help = 'build a static library (true/false)')
     opt.add_option('--filters', action = 'store', default = 'true', help = 'build included filters (true/false)')
@@ -206,6 +207,7 @@ def configure(conf):
     conf.env.LIBDIR = Utils.subst_vars(conf.options.libdir, conf.env)
     conf.env.PLUGINDIR = Utils.subst_vars(conf.options.plugindir, conf.env)
     conf.env.DOCDIR = Utils.subst_vars(conf.options.docdir, conf.env)
+    conf.env.INCLUDEDIR = Utils.subst_vars(conf.options.includedir, conf.env)
 
     conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore')
     conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore', type_name = 'QAtomicInt')
@@ -295,7 +297,7 @@ def build(bld):
         bld.install_files('${DOCDIR}/examples',
                           bld.path.ant_glob([os.path.join('sdk', '*')]))
 
-    bld.install_files('${PREFIX}/include', os.path.join('include', 'VapourSynth.h'))
+    bld.install_files('${INCLUDEDIR}', os.path.join('include', 'VapourSynth.h'))
 
     bld(source = 'vapoursynth.pc.in',
         install_path = '${LIBDIR}/pkgconfig',
