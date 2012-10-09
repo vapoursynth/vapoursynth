@@ -204,10 +204,8 @@ def configure(conf):
         else:
             conf.env[opt.upper()] = conf.options.__dict__[opt]
 
-    conf.env.LIBDIR = Utils.subst_vars(conf.options.libdir, conf.env)
-    conf.env.PLUGINDIR = Utils.subst_vars(conf.options.plugindir, conf.env)
-    conf.env.DOCDIR = Utils.subst_vars(conf.options.docdir, conf.env)
-    conf.env.INCLUDEDIR = Utils.subst_vars(conf.options.includedir, conf.env)
+    for dir in ['libdir', 'plugindir', 'docdir', 'includedir']:
+        conf.env[dir.upper()] = Utils.subst_vars(conf.options.__dict__[dir], conf.env)
 
     conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore')
     conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore', type_name = 'QAtomicInt')
