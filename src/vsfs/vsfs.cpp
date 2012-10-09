@@ -265,7 +265,7 @@ const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) 
                     const uint16_t *uptr = (const uint16_t *)se.vsapi->getReadPtr(f, 1);
                     const uint16_t *vptr = (const uint16_t *)se.vsapi->getReadPtr(f, 2);
                     uint32_t *outbuf = (uint32_t *)packedPlane1;
-                    out_pitch = ((16*((width + 5) / 6) + 127) & ~0x7F)/4;
+                    out_pitch = ((16*((width + 5) / 6) + 63) & ~63)/4;
                     for (int y = 0; y < height; y++) {
                         const uint16_t *yline = yptr;
                         const uint16_t *uline = uptr;
@@ -342,7 +342,7 @@ const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) 
                 lastFrame = f;
             }
 
-            for (int i = n + 1; i < std::min<int>(n + 10, vi->numFrames); i++) {
+            for (int i = n + 1; i < std::min<int>(n + se.num_threads, vi->numFrames); i++) {
                 InterlockedIncrement(&pending_requests);
                 se.vsapi->getFrameAsync(i, se.node, frameDoneCallback, (void *)this);
             }
@@ -546,7 +546,7 @@ int VapourSynther::ImageSize() {
     int image_size;
 
     if (vi->format->id == pfYUV422P10 && se.enable_v210) {
-        image_size = ((16*((vi->width + 5) / 6) + 127) & ~0x7F);
+        image_size = ((16*((vi->width + 5) / 6) + 63) & ~63);
         image_size *= vi->height;
     } else if (vi->format->numPlanes == 1) {
         image_size = BMPSize(vi->height, vi->width * vi->format->bytesPerSample, 0);
