@@ -1,5 +1,5 @@
 #define AppName = 'VapourSynth'
-#define Version = 'R12'
+#define Version = 'R13'
 
 [Setup]
 OutputDir=Compiled
@@ -17,7 +17,7 @@ AppPublisher=Fredrik Mellbin
 AppPublisherURL=http://www.vapoursynth.com/
 AppSupportURL=http://www.vapoursynth.com/
 AppUpdatesURL=http://www.vapoursynth.com/
-VersionInfoVersion=0.9.0.1
+VersionInfoVersion=0.9.0.2
 DefaultDirName={pf}\VapourSynth
 DefaultGroupName=VapourSynth
 AllowCancelDuringInstall=no
@@ -33,11 +33,15 @@ Name: Full; Description: Full installation
 [Components]
 Name: Core; Description: {#= AppName} {#= Version}; Types: Full; Flags: fixed
 
+[Tasks]
+Name: newvpyfile; Description: "Add new .vpy shortcut"; GroupDescription: "New File Shortcuts:"
+
 [Files]
 Source: vapoursynth.dll; DestDir: {code:GetPythonPath}; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: vapoursynth.pyd; DestDir: {code:GetPythonPath}; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: QtCore4.dll; DestDir: {code:GetPythonPath}; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: vsfs.dll; DestDir: {app}; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: template.vpy; DestDir: {app}; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: vsvfw.dll; DestDir: {sys}; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: msvcr100.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile
 Source: msvcp100.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile
@@ -56,6 +60,7 @@ Root: HKLM; Subkey: SOFTWARE\Classes\.vpy; ValueType: string; ValueName: ""; Val
 Root: HKLM; Subkey: SOFTWARE\Classes\vsfile; ValueType: string; ValueName: ""; ValueData: "VapourSynth Python Script"; Flags: uninsdeletevalue uninsdeletekeyifempty
 Root: HKLM; Subkey: SOFTWARE\Classes\vsfile\DefaultIcon; ValueType: string; ValueName: ""; ValueData: "vsvfw.dll,0"; Flags: uninsdeletevalue uninsdeletekeyifempty
 Root: HKLM; Subkey: SOFTWARE\Classes\AVIFile\Extensions\VPY; ValueType: string; ValueName: ""; ValueData: "{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}"; Flags: uninsdeletevalue uninsdeletekeyifempty
+Root: HKLM; Subkey: SOFTWARE\Classes\.vpy\ShellNew; ValueType: string; ValueName: "FileName"; ValueData: "{app}\template.vpy"; Flags: uninsdeletevalue uninsdeletekeyifempty; Tasks: newvpyfile
 
 [Code]
 
