@@ -58,7 +58,7 @@ def apply_rst(self):
 
     self.source = no_nodes
 
-    inst = getattr(self, 'install_path', '${PREFIX}/share/doc')
+    inst = getattr(self, 'install_path', '${DOCDIR}')
     mod = getattr(self, 'chmod', Utils.O644)
 
     bld_nodes = []
@@ -100,6 +100,7 @@ def options(opt):
 
     opt.add_option('--libdir', action = 'store', default = '${PREFIX}/lib', help = 'library installation prefix')
     opt.add_option('--plugindir', action = 'store', default = '${LIBDIR}/vapoursynth', help = 'plugin installation prefix')
+    opt.add_option('--docdir', action = 'store', default = '${PREFIX}/share/doc/vapoursynth', help = 'documentation installation prefix')
     opt.add_option('--mode', action = 'store', default = 'release', help = 'the mode to compile in (debug/release)')
     opt.add_option('--static', action = 'store', default = 'false', help = 'build a static library (true/false)')
     opt.add_option('--filters', action = 'store', default = 'true', help = 'build included filters (true/false)')
@@ -204,6 +205,7 @@ def configure(conf):
 
     conf.env.LIBDIR = Utils.subst_vars(conf.options.libdir, conf.env)
     conf.env.PLUGINDIR = Utils.subst_vars(conf.options.plugindir, conf.env)
+    conf.env.DOCDIR = Utils.subst_vars(conf.options.docdir, conf.env)
 
     conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore')
     conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore', type_name = 'QAtomicInt')
@@ -273,7 +275,7 @@ def build(bld):
         bld(features = 'docs',
             source = bld.path.ant_glob([os.path.join('doc', '*.rst'),
                                         os.path.join('doc', '**', '*.rst')]),
-            install_path = '${PREFIX}/share/doc/vapoursynth')
+            install_path = '${DOCDIR}')
 
     if bld.env.EXAMPLES == 'true':
         bld(features = 'c cxxshlib',
@@ -290,7 +292,7 @@ def build(bld):
             target = 'example_invert',
             install_path = None)
 
-        bld.install_files('${PREFIX}/share/doc/vapoursynth/examples',
+        bld.install_files('${DOCDIR}/examples',
                           bld.path.ant_glob([os.path.join('sdk', '*')]))
 
     bld.install_files('${PREFIX}/include', os.path.join('include', 'VapourSynth.h'))
