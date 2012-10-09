@@ -19,6 +19,7 @@
 */
 
 #include "avisynth_compat.h"
+#include "../core/x86utils.h"
 
 namespace AvisynthCompat {
 
@@ -740,6 +741,15 @@ static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSC
     }
 
     avisynthPluginInit(avs);
+
+// This stuff really only works properly on windows, feel free to investigate what the linux ABI thinks about it
+#ifdef _WIN32
+    if (!vs_isMMXStateOk())
+        qFatal("Bad mmx state detected after plugin load");
+    if (!vs_isFPUStateOk())
+        qFatal("Bad fpu state detected after plugin load");
+#endif
+
     delete avs; // the environment is just temporary to add the functions,
     // a new one will be created for each filter instance
 }

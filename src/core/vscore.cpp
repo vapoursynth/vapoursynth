@@ -506,6 +506,14 @@ VSPlugin::VSPlugin(const QByteArray &filename, const QByteArray &forcedNamespace
 #endif
     pluginInit(&::configPlugin, &::registerFunction, this);
 
+// This stuff really only works properly on windows, feel free to investigate what the linux ABI thinks about it
+#ifdef _WIN32
+    if (!vs_isMMXStateOk())
+        qFatal("Bad mmx state detected after plugin load");
+    if (!vs_isFPUStateOk())
+        qFatal("Bad fpu state detected after plugin load");
+#endif
+
     if (readOnlySet)
         readOnly = true;
 
