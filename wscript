@@ -204,8 +204,13 @@ def configure(conf):
         else:
             conf.env[opt.upper()] = conf.options.__dict__[opt]
 
+    conf.define('PATH_PREFIX', conf.env.PREFIX)
+
     for dir in ['libdir', 'plugindir', 'docdir', 'includedir']:
-        conf.env[dir.upper()] = Utils.subst_vars(conf.options.__dict__[dir], conf.env)
+        u = dir.upper()
+
+        conf.env[u] = Utils.subst_vars(conf.options.__dict__[dir], conf.env)
+        conf.define('PATH_' + u, conf.env[u])
 
     conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore')
     conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore', type_name = 'QAtomicInt')
