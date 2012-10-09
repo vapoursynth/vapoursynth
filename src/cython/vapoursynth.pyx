@@ -550,11 +550,13 @@ cdef class VideoNode(object):
         else:
             return createVideoFrame(f, self.funcs, self.core) 
 
-    def output(self, object fileobj not None, bint y4m = False, int lookahead = 10, object progress_update = None):
+    def output(self, object fileobj not None, bint y4m = False, int prefetch = -1, object progress_update = None):
+        if prefetch < 1:
+            prefetch = self.core.num_threads
 #ifdef _WIN32
-        cdef CallbackData d = CallbackData(msvcrt.get_osfhandle(fileobj.fileno()), min(lookahead, self.num_frames), self.num_frames, self.format.num_planes, y4m, self, progress_update)
+        cdef CallbackData d = CallbackData(msvcrt.get_osfhandle(fileobj.fileno()), min(prefetch, self.num_frames), self.num_frames, self.format.num_planes, y4m, self, progress_update)
 #else
-        cdef CallbackData d = CallbackData(fileobj.fileno(), min(lookahead, self.num_frames), self.num_frames, self.format.num_planes, y4m, self, progress_update)
+        cdef CallbackData d = CallbackData(fileobj.fileno(), min(prefetch, self.num_frames), self.num_frames, self.format.num_planes, y4m, self, progress_update)
 #endif
         if d.total <= 0:
             raise Error('Cannot output unknown length clip')
@@ -604,7 +606,7 @@ cdef class VideoNode(object):
 #endif
         d.condition.acquire()
 
-        for n in range(min(lookahead, d.total)):
+        for n in range(min(prefetch, d.total)):
             self.funcs.getFrameAsync(n, self.node, callback, <void *>d)
 
         d.condition.wait()
@@ -1000,6 +1002,7 @@ cdef public struct VPYScriptExport:
     void *errstr
     char *error
     VSAPI *vsapi
+    int num_threads
     int enable_v210
     
 cdef public api int __stdcall vpy_evaluate_text(char *utf8text, char *fn, VPYScriptExport *extp) nogil:
@@ -1008,6 +1011,7 @@ cdef public api int __stdcall vpy_evaluate_text(char *utf8text, char *fn, VPYScr
     extp.errstr = NULL
     extp.error = NULL
     extp.vsapi = NULL
+    extp.num_threads = 0
     extp.enable_v210 = 0
 
     with gil:
@@ -1025,6 +1029,7 @@ cdef public api int __stdcall vpy_evaluate_text(char *utf8text, char *fn, VPYScr
                 extp.pynode = <void *>node
                 extp.node = (<VideoNode>node).node
                 extp.vsapi = (<VideoNode>node).funcs
+                extp.num_threads = (<VideoNode>node).core.num_threads
             else:
                 extp.error = 'No clip returned in last variable'
                 return 3
@@ -1046,6 +1051,7 @@ cdef public api int __stdcall vpy_evaluate_file(char *fn, VPYScriptExport *extp)
     extp.errstr = NULL
     extp.error = NULL
     extp.vsapi = NULL
+    extp.num_threads = 0
     extp.enable_v210 = 0
 
     with gil:

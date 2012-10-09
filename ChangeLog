@@ -4,6 +4,7 @@ compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 .vpy files need to be opened with file\open and then select avifile compat from the format list before selecting the .vpy script (this is a vdub limitation)
 
 r13:
+make the number of frames in progress equal the number of threads, this should always be the upper beneficial value for any script, previously it was fixed at 10
 fixed a rowsize bug in avisynth compatibility and implemented the subframe functions
 added PEMVerify, a function to check for out of bounds values in filter output for developers
 added PlaneDifference and PlaneAverage functions for use in conditional filtering
