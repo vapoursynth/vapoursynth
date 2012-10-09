@@ -1,7 +1,7 @@
-ModifyProps
+ModifyFrame
 ===========
 
-.. function:: ModifyProps(clips clip[], func selector)
+.. function:: ModifyFrame(clips clip[], func selector)
    :module: std
    
    The *selector* function is called for every single frame and can modify the properties of the first given clip. The additional clips' properties
@@ -16,7 +16,7 @@ ModifyProps
          fout.props.FrameNumber = n
          return fout
       ...
-      ModifyProps(clips=clip, selector=set_frame_number)
+      ModifyFrame(clips=clip, selector=set_frame_number)
    
    How to remove a property::
    
@@ -25,5 +25,5 @@ ModifyProps
          del fout.props.FrameNumber
          return fout
       ...
-      ModifyProps(clips=clip, selector=remove_property)
+      ModifyFrame(clips=clip, selector=remove_property)
 

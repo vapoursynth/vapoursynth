@@ -315,9 +315,6 @@ cdef void dictToMap(dict ndict, VSMap *inm, Core core, VSAPI *funcs):
                 if funcs.propSetData(inm, ckey, s, -1, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif type(v) == bytes:
-                if funcs.propSetData(inm, ckey, v, -1, 1) != 0:
-                    raise Error('not all values are of the same type in ' + key)
-            elif type(v) == bytes:
                 if funcs.propSetData(inm, ckey, v, len(v), 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             else:
@@ -441,9 +438,6 @@ cdef class VideoProps(object):
                 elif type(v) == str:
                     s = str(v).encode('utf-8')
                     if funcs.propSetData(m, b, s, -1, 1) != 0:
-                        raise Error('Not all values are of the same type')
-                elif type(v) == bytes:
-                    if funcs.propSetData(m, b, v, -1, 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif type(v) == bytes:
                     if funcs.propSetData(m, b, v, len(v), 1) != 0:

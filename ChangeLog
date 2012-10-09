@@ -5,7 +5,11 @@ compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 
 r13:
 fixed a rowsize bug in avisynth compatibility and implemented the subframe functions
-greatly improved the handling of SelectClip and ModifyProps, conditional filtering is now something that's usable
+added PEMVerify, a function to check for out of bounds values in filter output for developers
+added PlaneDifference and PlaneAverage functions for use in conditional filtering
+added copy(), and get_write_ptr() to clips in python, renamed get_data() to get_read_ptr()
+greatly improved the handling of SelectClip and ModifyFrame (formerly ModifyProps), conditional filtering is now something that's usable
+using ModifyFrame and a bit of cleverness it is now possible to implement fairly complex filters in python
 
 r12:
 fixed a scheduling error for fmParallelRequests filters (all avisynth filters and several internal ones)

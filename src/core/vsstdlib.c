@@ -2331,7 +2331,7 @@ static void VS_CC selectClipCreate(const VSMap *in, VSMap *out, void *userData, 
 }
 
 //////////////////////////////////////////
-// ModifyProps
+// ModifyFrame
 
 typedef struct {
     const VSNodeRef **node;
@@ -2340,15 +2340,15 @@ typedef struct {
     VSMap *in;
     VSMap *out;
     int numnode;
-} ModifyPropsData;
+} ModifyFrameData;
 
-static void VS_CC modifyPropsInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    ModifyPropsData *d = (ModifyPropsData *) * instanceData;
+static void VS_CC modifyFrameInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
+    ModifyFrameData *d = (ModifyFrameData *) * instanceData;
     vsapi->setVideoInfo(d->vi, node);
 }
 
-static const VSFrameRef *VS_CC modifyPropsGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    ModifyPropsData *d = (ModifyPropsData *) * instanceData;
+static const VSFrameRef *VS_CC modifyFrameGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    ModifyFrameData *d = (ModifyFrameData *) * instanceData;
     int i;
 
     if (activationReason == arInitial) {
@@ -2389,8 +2389,8 @@ static const VSFrameRef *VS_CC modifyPropsGetFrame(int n, int activationReason, 
     return 0;
 }
 
-static void VS_CC modifyPropsFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    ModifyPropsData *d = (ModifyPropsData *)instanceData;
+static void VS_CC modifyFrameFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+    ModifyFrameData *d = (ModifyFrameData *)instanceData;
     int i;
     for (i = 0; i < d->numnode; i++)
         vsapi->freeNode(d->node[i]);
@@ -2400,9 +2400,9 @@ static void VS_CC modifyPropsFree(void *instanceData, VSCore *core, const VSAPI 
     free(d);
 }
 
-static void VS_CC modifyPropsCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    ModifyPropsData d;
-    ModifyPropsData *data;
+static void VS_CC modifyFrameCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    ModifyFrameData d;
+    ModifyFrameData *data;
     const VSNodeRef *cref;
     int i;
 
@@ -2419,7 +2419,7 @@ static void VS_CC modifyPropsCreate(const VSMap *in, VSMap *out, void *userData,
     data = malloc(sizeof(d));
     *data = d;
 
-    cref = vsapi->createFilter(in, out, "ModifyProps", modifyPropsInit, modifyPropsGetFrame, modifyPropsFree, fmUnordered, 0, data, core);
+    cref = vsapi->createFilter(in, out, "ModifyFrame", modifyFrameInit, modifyFrameGetFrame, modifyFrameFree, fmUnordered, 0, data, core);
     vsapi->propSetNode(out, "clip", cref, 0);
     vsapi->freeNode(cref);
     return;
@@ -2586,6 +2586,327 @@ static void VS_CC transposeCreate(const VSMap *in, VSMap *out, void *userData, V
 }
 
 //////////////////////////////////////////
+// LevelVerifier
+
+typedef struct {
+    const VSNodeRef *node;
+    const VSVideoInfo *vi;
+    int64_t upper[3];
+    int64_t lower[3];
+} PEMVerifierData;
+
+static void VS_CC pemVerifierInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
+    PEMVerifierData *d = (PEMVerifierData *) * instanceData;
+    vsapi->setVideoInfo(d->vi, node);
+}
+
+static const VSFrameRef *VS_CC pemVerifierGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    PEMVerifierData *d = (PEMVerifierData *) * instanceData;
+
+    if (activationReason == arInitial) {
+        vsapi->requestFrameFilter(n, d->node, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        int plane;
+        int x;
+        int y;
+        int width;
+        int height;
+        const uint8_t *srcp;
+        int src_stride;
+        char strbuf[512];
+
+        for (plane = 0; plane < d->vi->format->numPlanes; plane++) {
+            width = vsapi->getFrameWidth(src, plane);
+            height = vsapi->getFrameHeight(src, plane);
+            srcp = vsapi->getReadPtr(src, plane);
+            src_stride = vsapi->getStride(src, plane);
+
+            switch (d->vi->format->bytesPerSample) {
+            case 1:
+                for (y = 0; y < height; y++) {
+                    for (x = 0; x < width; x++)
+                        if (srcp[x] < d->lower[plane] || srcp[x] > d->upper[plane]) {
+                            sprintf(strbuf, "PEMVerifier: Illegal sample value (%d) at: plane: %d Y: %d, X: %d, Frame: %d", (int)srcp[x], plane, y, x, n);
+                            vsapi->setFilterError(strbuf, frameCtx);
+                            vsapi->freeFrame(src);
+                            return 0;
+                        }
+                    srcp += src_stride;
+                }
+                break;
+            case 2:
+                for (y = 0; y < height; y++) {
+                    for (x = 0; x < width; x++)
+                        if (((const uint16_t *)srcp)[x] < d->lower[plane] || ((const uint16_t *)srcp)[x] > d->upper[plane]) {
+                            sprintf(strbuf, "PEMVerifier: Illegal sample value (%d) at: plane: %d Y: %d, X: %d, Frame: %d", (int)((const uint16_t *)srcp)[x], plane, y, x, n);
+                            vsapi->setFilterError(strbuf, frameCtx);
+                            vsapi->freeFrame(src);
+                            return 0;
+                        }
+                    srcp += src_stride;
+                }
+                break;
+            }
+        }
+        return src;
+    }
+    return 0;
+}
+
+static void VS_CC pemVerifierFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+    PEMVerifierData *d = (PEMVerifierData *)instanceData;
+    vsapi->freeNode(d->node);
+    free(d);
+}
+
+static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    PEMVerifierData d;
+    PEMVerifierData *data;
+    const VSNodeRef *cref;
+    int i;
+    int numupper = vsapi->propNumElements(in, "upper");
+    int numlower = vsapi->propNumElements(in, "lower");
+
+    d.node = vsapi->propGetNode(in, "clip", 0, 0);
+    d.vi = vsapi->getVideoInfo(d.node);
+
+    if (!isConstantFormat(d.vi) || isCompatFormat(d.vi) || d.vi->format->sampleType != stInteger || (d.vi->format->bytesPerSample != 1 &&  d.vi->format->bytesPerSample != 2)) {
+        vsapi->freeNode(d.node);
+        RETERROR("PEMVerifier: clip must be constant format and of integer 8-16 bit type");
+    }
+
+    if (numlower < 0) {
+        for (i = 0; i < d.vi->format->numPlanes; i++)
+            d.lower[i] = 0;
+    } else if (numlower == d.vi->format->numPlanes) {
+        for (i = 0; i < d.vi->format->numPlanes; i++) {
+            d.lower[i] = vsapi->propGetInt(in, "lower", i, 0);
+            if (d.lower[i] < 0 || d.lower[i] >= ((int64_t)1 << d.vi->format->bitsPerSample)) {
+                vsapi->freeNode(d.node);
+                RETERROR("PEMVerifier: Invalid lower bound given");
+            }
+        }
+    } else {
+        vsapi->freeNode(d.node);
+        RETERROR("PEMVerifier: number of lower plane limits does not match the number of planes");
+    }
+
+    if (numupper < 0) {
+        for (i = 0; i < d.vi->format->numPlanes; i++)
+            d.upper[i] = 0;
+    } else if (numlower == d.vi->format->numPlanes) {
+        for (i = 0; i < d.vi->format->numPlanes; i++) {
+            d.upper[i] = vsapi->propGetInt(in, "upper", i, 0);
+            if (d.upper[i] < d.lower[i] || d.upper[i] >= ((int64_t)1 << d.vi->format->bitsPerSample)) {
+                vsapi->freeNode(d.node);
+                RETERROR("PEMVerifier: Invalid upper bound given");
+            }
+        }
+    } else {
+        vsapi->freeNode(d.node);
+        RETERROR("PEMVerifier: number of upper plane limits does not match the number of planes");
+    }
+
+    data = malloc(sizeof(d));
+    *data = d;
+
+    cref = vsapi->createFilter(in, out, "PEMVerifier", pemVerifierInit, pemVerifierGetFrame, pemVerifierFree, fmParallel, 0, data, core);
+    vsapi->propSetNode(out, "clip", cref, 0);
+    vsapi->freeNode(cref);
+    return;
+}
+
+//////////////////////////////////////////
+// PlaneAverage
+
+typedef struct {
+    const VSNodeRef *node;
+    const VSVideoInfo *vi;
+    const char *prop;
+    int plane;
+} PlaneAverageData;
+
+static void VS_CC planeAverageInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
+    PlaneAverageData *d = (PlaneAverageData *) * instanceData;
+    vsapi->setVideoInfo(d->vi, node);
+}
+
+static const VSFrameRef *VS_CC planeAverageGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    PlaneAverageData *d = (PlaneAverageData *) * instanceData;
+    if (activationReason == arInitial) {
+        vsapi->requestFrameFilter(n, d->node, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        VSFrameRef *dst = vsapi->copyFrame(src, core);
+        int x;
+        int y;
+        int width = vsapi->getFrameWidth(src, d->plane);
+        int height = vsapi->getFrameHeight(src, d->plane);
+        const uint8_t *srcp = vsapi->getReadPtr(src, d->plane);
+        int src_stride = vsapi->getStride(src, d->plane);
+        int64_t acc = 0;
+
+        switch (d->vi->format->bytesPerSample) {
+        case 1:
+            for (y = 0; y < height; y++) {
+                for (x = 0; x < width; x++)
+                    acc += srcp[x];
+                srcp += src_stride;
+            }
+            break;
+        case 2:
+            for (y = 0; y < height; y++) {
+                for (x = 0; x < width; x++)
+                    acc += ((const uint16_t *)srcp)[x];
+                srcp += src_stride;
+            }
+            break;
+        }
+        
+        vsapi->propSetFloat(vsapi->getFramePropsRW(dst), d->prop, acc / (double)(width * height * ((1 << d->vi->format->bitsPerSample) - 1)), paReplace);
+        return dst;
+    }
+    return 0;
+}
+
+static void VS_CC planeAverageCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    PlaneAverageData d;
+    PlaneAverageData *data;
+    const VSNodeRef *cref;
+    int err;
+
+    d.node = vsapi->propGetNode(in, "clip", 0, 0);
+    d.vi = vsapi->getVideoInfo(d.node);
+
+    if (!isConstantFormat(d.vi) || isCompatFormat(d.vi) || d.vi->format->sampleType != stInteger || (d.vi->format->bytesPerSample != 1 &&  d.vi->format->bytesPerSample != 2)) {
+        vsapi->freeNode(d.node);
+        RETERROR("PlaneAverage: clip must be constant format and of integer 8-16 bit type");
+    }
+
+    d.prop = vsapi->propGetData(in, "prop", 0, &err);
+    if (err)
+        d.prop = "PlaneAverage";
+    d.plane = vsapi->propGetInt(in, "plane", 0, 0);
+    if (d.plane < 0 || d.plane >= d.vi->format->numPlanes) {
+        vsapi->freeNode(d.node);
+        RETERROR("PlaneAverage: invalid plane specified");
+    }
+
+    data = malloc(sizeof(d));
+    *data = d;
+
+    cref = vsapi->createFilter(in, out, "PlaneAverage", planeAverageInit, planeAverageGetFrame, singleClipFree, fmParallel, 0, data, core);
+    vsapi->propSetNode(out, "clip", cref, 0);
+    vsapi->freeNode(cref);
+    return;
+}
+
+//////////////////////////////////////////
+// PlaneDifference
+
+typedef struct {
+    const VSNodeRef *node1;
+    const VSNodeRef *node2;
+    const VSVideoInfo *vi;
+    const char *prop;
+    int plane;
+} PlaneDifferenceData;
+
+static void VS_CC planeDifferenceInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
+    PlaneDifferenceData *d = (PlaneDifferenceData *) * instanceData;
+    vsapi->setVideoInfo(d->vi, node);
+}
+
+static const VSFrameRef *VS_CC planeDifferenceGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    PlaneDifferenceData *d = (PlaneDifferenceData *) * instanceData;
+    if (activationReason == arInitial) {
+        vsapi->requestFrameFilter(n, d->node1, frameCtx);
+        vsapi->requestFrameFilter(n, d->node2, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        const VSFrameRef *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
+        const VSFrameRef *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
+        VSFrameRef *dst = vsapi->copyFrame(src1, core);
+        int x;
+        int y;
+        int width = vsapi->getFrameWidth(src1, d->plane);
+        int height = vsapi->getFrameHeight(src1, d->plane);
+        const uint8_t *srcp1 = vsapi->getReadPtr(src1, d->plane);
+        const uint8_t *srcp2 = vsapi->getReadPtr(src2, d->plane);
+        int src_stride = vsapi->getStride(src1, d->plane);
+        int64_t acc = 0;
+
+        switch (d->vi->format->bytesPerSample) {
+        case 1:
+            for (y = 0; y < height; y++) {
+                for (x = 0; x < width; x++)
+                    acc += abs(srcp1[x] - srcp2[x]);
+                srcp1 += src_stride;
+                srcp2 += src_stride;
+            }
+            break;
+        case 2:
+            for (y = 0; y < height; y++) {
+                for (x = 0; x < width; x++)
+                    acc += abs(((const uint16_t *)srcp1)[x] - ((const uint16_t *)srcp2)[x]);
+                srcp1 += src_stride;
+                srcp2 += src_stride;
+            }
+            break;
+        }
+        
+        vsapi->propSetFloat(vsapi->getFramePropsRW(dst), d->prop, acc / (double)(width * height * ((1 << d->vi->format->bitsPerSample) - 1)), paReplace);
+    
+        return dst;
+    }
+    return 0;
+}
+
+static void VS_CC planeDifferenceFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+    PlaneDifferenceData *d = (PlaneDifferenceData *)instanceData;
+    vsapi->freeNode(d->node1);
+    vsapi->freeNode(d->node2);
+    free(d);
+}
+
+static void VS_CC planeDifferenceCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    PlaneDifferenceData d;
+    PlaneDifferenceData *data;
+    const VSNodeRef *cref;
+    int err;
+
+    if (vsapi->propNumElements(in, "clips") != 2)
+        RETERROR("PlaneDifference: exactly two clips are required as input");
+    d.node1 = vsapi->propGetNode(in, "clips", 0, 0);
+    d.node2 = vsapi->propGetNode(in, "clips", 1, 0);
+    d.vi = vsapi->getVideoInfo(d.node1);
+
+    if (!isConstantFormat(d.vi) || isCompatFormat(d.vi) || !isSameFormat(d.vi, vsapi->getVideoInfo(d.node2)) || d.vi->format->sampleType != stInteger || (d.vi->format->bytesPerSample != 1 &&  d.vi->format->bytesPerSample != 2)) {
+        vsapi->freeNode(d.node1);
+        vsapi->freeNode(d.node2);
+        RETERROR("PlaneDifference: clips must be the same format, constant format and of integer 8-16 bit type");
+    }
+
+    d.prop = vsapi->propGetData(in, "prop", 0, &err);
+    if (err)
+        d.prop = "PlaneDifference";
+    d.plane = vsapi->propGetInt(in, "plane", 0, 0);
+    if (d.plane < 0 || d.plane >= d.vi->format->numPlanes) {
+        vsapi->freeNode(d.node1);
+        vsapi->freeNode(d.node2);
+        RETERROR("PlaneDifference: invalid plane specified");
+    }
+
+    data = malloc(sizeof(d));
+    *data = d;
+
+    cref = vsapi->createFilter(in, out, "PlaneDifference", planeDifferenceInit, planeDifferenceGetFrame, planeDifferenceFree, fmParallel, 0, data, core);
+    vsapi->propSetNode(out, "clip", cref, 0);
+    vsapi->freeNode(cref);
+    return;
+}
+
+//////////////////////////////////////////
 // Init
 
 void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
@@ -2612,6 +2933,9 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("Lut", "clip:clip;lut:int[];planes:int[];", lutCreate, 0, plugin);
     registerFunc("Lut2", "clips:clip[];lut:int[];planes:int[];", lut2Create, 0, plugin);
     registerFunc("SelectClip", "clips:clip[];src:clip[];selector:func;", selectClipCreate, 0, plugin);
-    registerFunc("ModifyProps", "clips:clip[];selector:func;", modifyPropsCreate, 0, plugin);
+    registerFunc("ModifyFrame", "clips:clip[];selector:func;", modifyFrameCreate, 0, plugin);
     registerFunc("Transpose", "clip:clip;", transposeCreate, 0, plugin);
+    registerFunc("PEMVerifier", "clip:clip;upper:int[]:opt;lower:int[]:opt;", pemVerifierCreate, 0, plugin);
+    registerFunc("PlaneAverage", "clip:clip;plane:int;prop:data:opt;", planeAverageCreate, 0, plugin);
+    registerFunc("PlaneDifference", "clips:clip[];plane:int;prop:data:opt;", planeDifferenceCreate, 0, plugin);
 }
