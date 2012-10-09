@@ -99,6 +99,7 @@ def options(opt):
     opt.load('qt4')
 
     opt.add_option('--libdir', action = 'store', default = '${PREFIX}/lib', help = 'library installation prefix')
+    opt.add_option('--plugindir', action = 'store', default = '${LIBDIR}/vapoursynth', help = 'plugin installation prefix')
     opt.add_option('--mode', action = 'store', default = 'release', help = 'the mode to compile in (debug/release)')
     opt.add_option('--static', action = 'store', default = 'false', help = 'build a static library (true/false)')
     opt.add_option('--filters', action = 'store', default = 'true', help = 'build included filters (true/false)')
@@ -202,6 +203,7 @@ def configure(conf):
             conf.env[opt.upper()] = conf.options.__dict__[opt]
 
     conf.env.LIBDIR = Utils.subst_vars(conf.options.libdir, conf.env)
+    conf.env.PLUGINDIR = Utils.subst_vars(conf.options.plugindir, conf.env)
 
     conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore')
     conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore', type_name = 'QAtomicInt')
@@ -261,7 +263,7 @@ def build(bld):
             use = ['vapoursynth'],
             source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'eedi3')])),
             target = 'eedi3',
-            install_path = '${LIBDIR}/vapoursynth')
+            install_path = '${PLUGINDIR}')
 
     if bld.env.CYTHON == 'true':
         bld(features = 'preproc',
