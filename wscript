@@ -303,5 +303,6 @@ def build(bld):
         install_path = '${LIBDIR}/pkgconfig',
         PREFIX = bld.env.PREFIX,
         LIBDIR = bld.env.LIBDIR,
+        INCLUDEDIR = bld.env.INCLUDEDIR,
         LIBS = bld.env.LIBS,
         VERSION = VERSION)

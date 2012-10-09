@@ -1,7 +1,6 @@
 prefix=@PREFIX@
-exec_prefix=@PREFIX@
 libdir=@LIBDIR@
-includedir=@PREFIX@/include
+includedir=@INCLUDEDIR@
 
 Name: VapourSynth
 Description: A frameserver for the 21st century
