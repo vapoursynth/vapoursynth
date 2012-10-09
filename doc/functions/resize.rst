@@ -1,13 +1,9 @@
 Resize
 =======
 
-.. function::   FastBilinear(clip clip[, int width, int height, int format])
-                Bilinear(clip clip[, int width, int height, int format])
+.. function::   Bilinear(clip clip[, int width, int height, int format])
                 Bicubic(clip clip[, int width, int height, int format])
-                X(clip clip[, int width, int height, int format])
                 Point(clip clip[, int width, int height, int format])
-                Area(clip clip[, int width, int height, int format])
-                Bicublin(clip clip[, int width, int height, int format])
                 Gauss(clip clip[, int width, int height, int format])
                 Sinc(clip clip[, int width, int height, int format])
                 Lanczos(clip clip[, int width, int height, int format])

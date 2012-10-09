@@ -302,13 +302,9 @@ static void VS_CC resizeCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 void VS_CC resizeInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     const char *a = "clip:clip;width:int:opt;height:int:opt;format:int:opt;yuvrange:int:opt;";
     configFunc("com.vapoursynth.resize", "resize", "VapourSynth Resize", VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("FastBilinear", a, resizeCreate, (void *)SWS_FAST_BILINEAR, plugin);
     registerFunc("Bilinear", a, resizeCreate, (void *)SWS_BILINEAR, plugin);
     registerFunc("Bicubic", a, resizeCreate, (void *)SWS_BICUBIC, plugin);
-    registerFunc("X", a, resizeCreate, (void *)SWS_X, plugin);
     registerFunc("Point", a, resizeCreate, (void *)SWS_POINT, plugin);
-    registerFunc("Area", a, resizeCreate, (void *)SWS_AREA, plugin);
-    registerFunc("Bicublin", a, resizeCreate, (void *)SWS_BICUBLIN, plugin);
     registerFunc("Gauss", a, resizeCreate, (void *)SWS_GAUSS, plugin);
     registerFunc("Sinc", a, resizeCreate, (void *)SWS_SINC, plugin);
     registerFunc("Lanczos", a, resizeCreate, (void *)SWS_LANCZOS, plugin);
