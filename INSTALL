@@ -13,6 +13,7 @@ First, a couple of things to note:
 * You need Python 3 to build the Cython wrapper.
 * You need to have Cython installed in your Python 3 environment
   in order to invoke the setup script.
+* You need Sphinx if you want to build the documentation.
 
 First off, you'll want to fetch Waf which is the build tool
 VapourSynth uses:
