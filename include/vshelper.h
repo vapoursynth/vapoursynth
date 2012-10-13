@@ -67,4 +67,10 @@ static inline int isSameFormat(const VSVideoInfo *v1, const VSVideoInfo *v2) {
     return v1->height == v2->height && v1->width == v2->width && v1->format == v2->format;
 }
 
+// multiplies and divides a rational number, such as a frame duration, in place and reduces the result
+// returns non-zero value on overflow
+static inline int muldivRational(int64_t *num, int64_t *den, int64_t mul, int64_t div) {
+
+}
+
 #endif
