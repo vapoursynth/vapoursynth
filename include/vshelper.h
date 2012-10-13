@@ -25,6 +25,11 @@
 #include <stdint.h>
 #include "VapourSynth.h"
 
+// VS2010 doesn't recognize inline in c mode
+#if defined(_MSC_VER) && !defined(__cplusplus)
+#define inline _inline
+#endif
+
 #ifdef _WIN32
 #define VS_ALIGNED_MALLOC(pptr, size, alignment) *(pptr) = _aligned_malloc((size), (alignment))
 #define VS_ALIGNED_FREE(ptr) _aligned_free((ptr))
@@ -51,5 +56,15 @@ static inline void vs_aligned_free(void *ptr) {
 	VS_ALIGNED_FREE(ptr);
 }
 #endif //__cplusplus
+
+// convenience function for checking if the format never changes between frames
+static inline int isConstantFormat(const VSVideoInfo *vi) {
+    return vi->height > 0 && vi->width > 0 && vi->format;
+}
+
+// convenience function to check for if two clips have the same format (unknown/changeable will be considered the same too)
+static inline int isSameFormat(const VSVideoInfo *v1, const VSVideoInfo *v2) {
+    return v1->height == v2->height && v1->width == v2->width && v1->format == v2->format;
+}
 
 #endif

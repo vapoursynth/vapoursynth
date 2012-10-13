@@ -26,13 +26,9 @@
 #include <libavutil/opt.h>
 #include <libavcodec/avcodec.h>
 #include "vsresize.h"
+#include "vshelper.h"
 
 #define RETERROR(x) do { vsapi->setError(out, (x)); return; } while (0)
-
-// does the format change between frames?
-static int isConstantFormat(const VSVideoInfo *vi) {
-    return vi->height > 0 && vi->width > 0 && vi->format;
-}
 
 static enum PixelFormat formatIdToPixelFormat(int id) {
     switch (id) {

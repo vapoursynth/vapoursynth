@@ -33,6 +33,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include "vsstdlib.h"
+#include "vshelper.h"
 
 #define RETERROR(x) do { vsapi->setError(out, (x)); return; } while (0)
 #define MAX(a, b)  (((a) > (b)) ? (a) : (b))
@@ -104,19 +105,9 @@ static int findCommonVi(const VSNodeRef **nodes, int num, VSVideoInfo *outvi, in
     return mismatch;
 }
 
-// does the format change between frames?
-static int isConstantFormat(const VSVideoInfo *vi) {
-    return vi->height > 0 && vi->width > 0 && vi->format;
-}
-
 // to detect compat formats
 static int isCompatFormat(const VSVideoInfo *vi) {
     return vi->format && vi->format->colorFamily == cmCompat;
-}
-
-// if the video is the same format for processing purposes, not
-static int isSameFormat(const VSVideoInfo *v1, const VSVideoInfo *v2) {
-    return v1->height == v2->height && v1->width == v2->width && v1->format == v2->format;
 }
 
 static int planeWidth(const VSVideoInfo *vi, int plane) {
