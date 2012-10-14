@@ -26,7 +26,7 @@
 #include <libavutil/opt.h>
 #include <libavcodec/avcodec.h>
 #include "vsresize.h"
-#include "vshelper.h"
+#include "VSHelper.h"
 
 #define RETERROR(x) do { vsapi->setError(out, (x)); return; } while (0)
 

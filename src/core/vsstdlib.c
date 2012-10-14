@@ -33,7 +33,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include "vsstdlib.h"
-#include "vshelper.h"
+#include "VSHelper.h"
 
 #define RETERROR(x) do { vsapi->setError(out, (x)); return; } while (0)
 #define MAX(a, b)  (((a) > (b)) ? (a) : (b))
@@ -1966,7 +1966,7 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
                 RETERROR("Lut: lut value out of range");
             }
 
-            lut[i] = v;
+            lut[i] = (uint8_t)v;
         }
     } else {
         uint16_t *lut = d.lut;
@@ -1981,7 +1981,7 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
                 RETERROR("Lut: lut value out of range");
             }
 
-            lut[i] = v;
+            lut[i] = (uint16_t)v;
         }
     }
 
@@ -2155,7 +2155,7 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
                 RETERROR("Lut2: lut value out of range");
             }
 
-            lut[i] = v;
+            lut[i] = (uint8_t)v;
         }
     } else {
         uint16_t *lut = d.lut;

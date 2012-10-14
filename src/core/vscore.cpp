@@ -23,7 +23,7 @@ extern "C" {
 #include "vsstdlib.h"
 #include "vsresize.h"
 }
-#include "vshelper.h"
+#include "VSHelper.h"
 #include "x86utils.h"
 #include "cachefilter.h"
 
