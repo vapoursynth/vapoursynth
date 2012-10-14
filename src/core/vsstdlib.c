@@ -1656,8 +1656,8 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
 
     temp = vsapi->propGetInt(in, "height", 0, &err);
 
-    if (err)
-        if (!hasvi) {
+    if (err) {
+        if (!hasvi)
             d.vi.height = 480;
     }
     else
@@ -1665,8 +1665,8 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
 
     temp = vsapi->propGetInt(in, "fpsnum", 0, &err);
 
-    if (err)
-        if (!hasvi) {
+    if (err) {
+        if (!hasvi)
             d.vi.fpsNum = 24;
     }
     else
@@ -1674,8 +1674,8 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
 
     temp = vsapi->propGetInt(in, "fpsden", 0, &err);
 
-    if (err)
-        if (!hasvi) {
+    if (err) {
+        if (!hasvi)
             d.vi.fpsDen = 1;
     }
     else
