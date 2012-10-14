@@ -5,7 +5,6 @@
 // frames through.
 
 #include "VapourSynth.h"
-#include "VapourSynth.h"
 
 typedef struct {
     const VSNodeRef *node;
