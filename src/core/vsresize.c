@@ -279,7 +279,7 @@ static void VS_CC resizeCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         RETERROR("Resize: mod requirements of the target colorspace not fulfilled");
     }
 
-    if (!vs_isConstantFormat(&d.vi)) {
+    if (!isConstantFormat(&d.vi)) {
         vsapi->freeNode(d.node);
         RETERROR("Resize: output format not constant, set width, height and format");
     }

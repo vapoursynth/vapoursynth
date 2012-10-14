@@ -185,18 +185,24 @@ VSFunction::VSFunction(const QByteArray &name, const QByteArray &argString, VSPu
 
         bool link = false;
         bool opt = false;
+        bool empty = false;
 
         for (int i = 2; i < argParts.count(); i++) {
             if (argParts[i] == "link")
                 link = true;
             else if (argParts[i] == "opt")
                 opt = true;
+            else if (argParts[i] == "empty")
+                empty = true;
         }
 
         if (!isValidIdentifier(argParts[0].toUtf8()))
             qFatal("Illegal argument identifier specified for function");
 
-        args.append(FilterArgument(argParts[0].toUtf8(), type, arr, opt, link));
+        if (empty && !arr)
+            qFatal("Only array style arguments can be empty");
+
+        args.append(FilterArgument(argParts[0].toUtf8(), type, arr, empty, opt, link));
     }
 }
 
@@ -608,8 +614,11 @@ VSMap VSPlugin::invoke(const QByteArray &funcName, const VSMap &args) {
                     if (lookup[(int)fa.type] != c)
                         throw VSException(funcName + ": argument " + fa.name + " is not of the correct type");
 
-                    if (!fa.arr && args.count(fa.name) > 1)
+                    if (!fa.arr && args[fa.name].count() > 1)
                         throw VSException(funcName + ": argument " + fa.name + " is not of array type but more than one value was supplied");
+
+                    if (!fa.empty && args[fa.name].count() < 1)
+                        throw VSException(funcName + ": argument " + fa.name + " does not accept empty arrays");
 
                     if (fa.link) {
                         c = vsapi.propGetType(&args, fa.name + "_prop");
@@ -617,7 +626,7 @@ VSMap VSPlugin::invoke(const QByteArray &funcName, const VSMap &args) {
                         if (c != 'u') {
                             argsCopy.remove(fa.name + "_prop");
 
-                            if (c != 's' || args.count(fa.name + "_prop") > 1)
+                            if (c != 's' || args[fa.name + "_prop"].count() != 1)
                                 throw VSException(funcName + ": argument " + fa.name + "_prop is not a single valued string");
                         }
                     }

@@ -280,7 +280,7 @@ static void VS_CC cropRelCreate(const VSMap *in, VSMap *out, void *userData, VSC
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node);
 
-    if (!vs_isConstantFormat(d.vi)) {
+    if (!isConstantFormat(d.vi)) {
         vsapi->freeNode(d.node);
         RETERROR("CropRel: constant format needed... for now");
     }
@@ -898,7 +898,7 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
         int ssH;
         int ssW;
 
-        if (!vs_isConstantFormat(&d.vi) || !vs_isConstantFormat(vsapi->getVideoInfo(d.node[1])) || !vs_isConstantFormat(vsapi->getVideoInfo(d.node[2])))
+        if (!isConstantFormat(&d.vi) || !isConstantFormat(vsapi->getVideoInfo(d.node[1])) || !isConstantFormat(vsapi->getVideoInfo(d.node[2])))
             SHUFFLEERROR("ShufflePlanes: constant format video required");
 
         if (c1width != c2width || c1height != c2height)
@@ -1076,7 +1076,7 @@ static void VS_CC separateFieldsCreate(const VSMap *in, VSMap *out, void *userDa
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = *vsapi->getVideoInfo(d.node);
 
-    if (!vs_isConstantFormat(&d.vi)) {
+    if (!isConstantFormat(&d.vi)) {
         vsapi->freeNode(d.node);
         RETERROR("SeparateFields: clip must be constant format");
     }
@@ -1161,7 +1161,7 @@ static void VS_CC doubleWeaveCreate(const VSMap *in, VSMap *out, void *userData,
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = *vsapi->getVideoInfo(d.node);
 
-    if (!vs_isConstantFormat(&d.vi)) {
+    if (!isConstantFormat(&d.vi)) {
         vsapi->freeNode(d.node);
         RETERROR("DoubleWeave: clip must be constant format");
     }
@@ -1267,7 +1267,7 @@ static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCo
                 compat = 1;
         }
 
-        if (findCommonVi(d.node, d.numclips, &d.vi, 0, vsapi) && (!mismatch || compat) && !vs_isSameFormat(&d.vi, vsapi->getVideoInfo(d.node[0]))) {
+        if (findCommonVi(d.node, d.numclips, &d.vi, 0, vsapi) && (!mismatch || compat) && !isSameFormat(&d.vi, vsapi->getVideoInfo(d.node[0]))) {
             for (i = 0; i < d.numclips; i++)
                 vsapi->freeNode(d.node[i]);
 
@@ -1563,7 +1563,7 @@ static void VS_CC stackCreate(const VSMap *in, VSMap *out, void *userData, VSCor
             else if (d.vi.numFrames && d.vi.numFrames < vi->numFrames)
                 d.vi.numFrames = vi->numFrames;
 
-            if (!vs_isConstantFormat(vi) || vi->format != d.vi.format || (d.vertical && vi->width != d.vi.width) || (!d.vertical && vi->height != d.vi.height)) {
+            if (!isConstantFormat(vi) || vi->format != d.vi.format || (d.vertical && vi->width != d.vi.width) || (!d.vertical && vi->height != d.vi.height)) {
                 for (i = 0; i < d.numclips; i++)
                     vsapi->freeNode(d.node[i]);
 
@@ -1920,7 +1920,7 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node);
 
-    if (!vs_isConstantFormat(d.vi) || d.vi->format->sampleType != stInteger || d.vi->format->bitsPerSample > 16 || isCompatFormat(d.vi)) {
+    if (!isConstantFormat(d.vi) || d.vi->format->sampleType != stInteger || d.vi->format->bitsPerSample > 16 || isCompatFormat(d.vi)) {
         vsapi->freeNode(d.node);
         RETERROR("Lut: only clips with integer samples and up to 16 bit per channel precision supported");
     }
@@ -2099,7 +2099,7 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
     d.vi[0] = vsapi->getVideoInfo(d.node[0]);
     d.vi[1] = vsapi->getVideoInfo(d.node[1]);
 
-    if (!vs_isConstantFormat(d.vi[0]) || !vs_isConstantFormat(d.vi[1])
+    if (!isConstantFormat(d.vi[0]) || !isConstantFormat(d.vi[1])
             || d.vi[0]->format->sampleType != stInteger || d.vi[1]->format->sampleType != stInteger
             || d.vi[0]->format->bitsPerSample + d.vi[1]->format->bitsPerSample > 20
             || d.vi[0]->format->subSamplingH != d.vi[1]->format->subSamplingH
@@ -2293,7 +2293,7 @@ static void VS_CC selectClipCreate(const VSMap *in, VSMap *out, void *userData, 
     d.vi = vsapi->getVideoInfo(d.node[0]);
 
     for (i = 1; i < d.numnode; i++)
-        if (!vs_isConstantFormat(d.vi) || !vs_isSameFormat(d.vi, vsapi->getVideoInfo(d.node[i]))) {
+        if (!isConstantFormat(d.vi) || !isSameFormat(d.vi, vsapi->getVideoInfo(d.node[i]))) {
             for (i = 0; i < d.numnode; i++)
                 vsapi->freeNode(d.node[i]);
 
@@ -2555,7 +2555,7 @@ static void VS_CC transposeCreate(const VSMap *in, VSMap *out, void *userData, V
     d.vi.width = d.vi.height;
     d.vi.height = temp;
 
-    if (!vs_isConstantFormat(&d.vi) || d.vi.format->id == pfCompatYUY2) {
+    if (!isConstantFormat(&d.vi) || d.vi.format->id == pfCompatYUY2) {
         vsapi->freeNode(d.node);
         RETERROR("Transpose: clip must be constant format and not CompatYuy2");
     }
@@ -2660,7 +2660,7 @@ static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData,
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node);
 
-    if (!vs_isConstantFormat(d.vi) || isCompatFormat(d.vi) || d.vi->format->sampleType != stInteger || (d.vi->format->bytesPerSample != 1 &&  d.vi->format->bytesPerSample != 2)) {
+    if (!isConstantFormat(d.vi) || isCompatFormat(d.vi) || d.vi->format->sampleType != stInteger || (d.vi->format->bytesPerSample != 1 &&  d.vi->format->bytesPerSample != 2)) {
         vsapi->freeNode(d.node);
         RETERROR("PEMVerifier: clip must be constant format and of integer 8-16 bit type");
     }
@@ -2768,7 +2768,7 @@ static void VS_CC planeAverageCreate(const VSMap *in, VSMap *out, void *userData
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node);
 
-    if (!vs_isConstantFormat(d.vi) || isCompatFormat(d.vi) || d.vi->format->sampleType != stInteger || (d.vi->format->bytesPerSample != 1 &&  d.vi->format->bytesPerSample != 2)) {
+    if (!isConstantFormat(d.vi) || isCompatFormat(d.vi) || d.vi->format->sampleType != stInteger || (d.vi->format->bytesPerSample != 1 &&  d.vi->format->bytesPerSample != 2)) {
         vsapi->freeNode(d.node);
         RETERROR("PlaneAverage: clip must be constant format and of integer 8-16 bit type");
     }
@@ -2870,7 +2870,7 @@ static void VS_CC planeDifferenceCreate(const VSMap *in, VSMap *out, void *userD
     d.node2 = vsapi->propGetNode(in, "clips", 1, 0);
     d.vi = vsapi->getVideoInfo(d.node1);
 
-    if (!vs_isConstantFormat(d.vi) || isCompatFormat(d.vi) || !vs_isSameFormat(d.vi, vsapi->getVideoInfo(d.node2)) || d.vi->format->sampleType != stInteger || (d.vi->format->bytesPerSample != 1 &&  d.vi->format->bytesPerSample != 2)) {
+    if (!isConstantFormat(d.vi) || isCompatFormat(d.vi) || !isSameFormat(d.vi, vsapi->getVideoInfo(d.node2)) || d.vi->format->sampleType != stInteger || (d.vi->format->bytesPerSample != 1 &&  d.vi->format->bytesPerSample != 2)) {
         vsapi->freeNode(d.node1);
         vsapi->freeNode(d.node2);
         RETERROR("PlaneDifference: clips must be the same format, constant format and of integer 8-16 bit type");

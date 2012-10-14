@@ -147,10 +147,11 @@ public:
     QByteArray name;
     FilterArgumentType type;
     bool arr;
+    bool empty;
     bool opt;
     bool link;
-    FilterArgument(const QByteArray &name, FilterArgumentType type, bool arr, bool opt, bool link)
-        : name(name), type(type), arr(arr), opt(opt), link(link) {}
+    FilterArgument(const QByteArray &name, FilterArgumentType type, bool arr, bool empty, bool opt, bool link)
+        : name(name), type(type), arr(arr), empty(empty), opt(opt), link(link) {}
 };
 
 class MemoryUse {

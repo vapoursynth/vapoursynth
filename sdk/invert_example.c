@@ -174,8 +174,8 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 // All argument name should be lowercase and only use [a-z_].
 // The valid types are int,float,data,clip,frame,func. [] can be appended to allow arrays
 // of tyhe type to be passed (numbers:int[])
-// The available flags are opt, to make an argument optional, and link which will not be
-// explained here.
+// The available flags are opt, to make an argument optional, empty, which controls whether
+// or not empty arrays are accepted and link which will not be explained here.
 
 void VS_CC VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     configFunc("com.example.invert", "invert", "VapourSynth Invert Example", VAPOURSYNTH_API_VERSION, 1, plugin);
