@@ -321,6 +321,60 @@ cdef void dictToMap(dict ndict, VSMap *inm, Core core, VSAPI *funcs):
                 raise Error('argument ' + key + ' was passed an unsupported type')
 
 
+cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, Core core, VSAPI *funcs):
+    for key in ndict:
+        ckey = key.encode('utf-8')
+        val = ndict[key]
+
+        if not isinstance(val, list):
+            val = [val]
+            
+        for v in val:
+            if atypes[key][:4] == 'clip' and isinstance(v, VideoNode):
+                if funcs.propSetNode(inm, ckey, (<VideoNode>v).node, 1) != 0:
+                    raise Error('not all values are of the same type in ' + key)
+            elif atypes[key][:5] == 'frame' and isinstance(v, VideoFrame):
+                if funcs.propSetFrame(inm, ckey, (<VideoFrame>v).f, 1) != 0:
+                    raise Error('not all values are of the same type in ' + key)
+            elif atypes[key][:4] == 'func' and isinstance(v, Func):
+                if funcs.propSetFunc(inm, ckey, (<Func>v).ref, 1) != 0:
+                    raise Error('not all values are of the same type in ' + key)
+            elif atypes[key][:4] == 'func' and callable(v):
+                tf = Func(v, core)
+                if funcs.propSetFunc(inm, ckey, tf.ref, 1) != 0:
+                    raise Error('not all values are of the same type in ' + key)
+            elif atypes[key][:3] == 'int' and (type(v) == int or type(v) == long or type(v) == bool):
+                if funcs.propSetInt(inm, ckey, int(v), 1) != 0:
+                    raise Error('not all values are of the same type in ' + key)
+            elif atypes[key][:5] == 'float' and (type(v) == int or type(v) == long or type(v) == float):
+                if funcs.propSetFloat(inm, ckey, float(v), 1) != 0:
+                    raise Error('not all values are of the same type in ' + key)
+            elif atypes[key][:4] == 'data' and (type(v) == str or type(v) == bytes):
+                if type(v) == str:
+                    s = str(v).encode('utf-8')
+                else:
+                    s = v
+                if funcs.propSetData(inm, ckey, s, len(s), 1) != 0:
+                    raise Error('not all values are of the same type in ' + key)
+            else:
+                raise Error('argument ' + key + ' was passed an unsupported type')
+        if len(val) == 0:
+        #// set an empty key if it's an empty array
+            if atypes[key][:4] == 'clip':
+                funcs.propSetNode(inm, ckey, NULL, 2)
+            elif atypes[key][:5] == 'frame':
+                funcs.propSetFrame(inm, ckey, NULL, 2)
+            elif atypes[key][:4] == 'func':
+                funcs.propSetFunc(inm, ckey, NULL, 2)
+            elif atypes[key][:3] == 'int':
+                funcs.propSetInt(inm, ckey, 0, 2)
+            elif atypes[key][:5] == 'float':
+                funcs.propSetFloat(inm, ckey, 0, 2)
+            elif atypes[key][:4] == 'data':
+                funcs.propSetData(inm, ckey, NULL, 0, 2)
+            else:
+                raise Error('argument ' + key + ' has an unknown type: ' + atypes[key])
+
 cdef class Format(object):
     cdef vapoursynth.VSFormat *f
     cdef readonly int id
@@ -845,8 +899,7 @@ cdef class Plugin(object):
         tname = name.encode('utf-8')
         cdef char *cname = tname
         cdef VSMap *m = self.funcs.getFunctions(self.plugin)
-        lc_match = False
-        cs_match = False
+        match = False
 
         for i in range(self.funcs.propNumKeys(m)):
             cname = self.funcs.propGetKey(m, i)
@@ -854,15 +907,16 @@ cdef class Plugin(object):
             lc_name = orig_name.lower()
 
             if orig_name == name:
-                cs_match = True
+                match = True
                 break
 
-            if lc_name == name:
-                lc_match = True
+            if (lc_name == name) and self.core.accept_lowercase:
+                match = True
                 break
 
-        if cs_match or (lc_match and self.core.accept_lowercase):
-            signature = self.funcs.propGetData(m, cname, 0, NULL).decode('utf-8').split(';', 1)
+        if match:
+            signature = self.funcs.propGetData(m, cname, 0, NULL).decode('utf-8')
+            signature = signature.split(';', 1)
             self.funcs.freeMap(m)
             return createFunction(orig_name, signature[1], self, self.funcs)
         else:
@@ -906,46 +960,54 @@ cdef class Function(object):
         cdef VSMap *inm
         cdef VSMap *outm
         cdef char *cname
+        arglist = list(args)
         ndict = {}
-        
-        sigs = self.signature.split(';')
-        csig = 0
-        numsig = len(sigs)
-        
-        #// naively insert named arguments
+        processed = {}
+        atypes = {}
+        #// remove _ from all args and unpack Link type arguments
         for key in kwargs:
-            nkey = key
             if key[0] == '_':
                 nkey = key[1:]
+            else:
+                nkey = key
             if isinstance(kwargs[key], Link):
-                ndict[nkey + '_prop'] = kwargs[key].prop
+                processed[nkey + '_prop'] = kwargs[key].prop
+                atypes[nkey + '_prop'] = 'data'
                 ndict[nkey] = kwargs[key].val
             else:
                 ndict[nkey] = kwargs[key]
 
-        #// match up unnamed arguments to the first unused name in order
-        for arg in args:
-            key = sigs[csig].split(':', 1)
-            key = key[0]
+        #// match up unnamed arguments to the first unused name in order              
+        sigs = self.signature.split(';')
+        
+        for sig in sigs:
+            if sig == '':
+                continue
+            parts = sig.split(':')
+            #// store away the types for later use
+            key = parts[0]
+            atypes[key] = parts[1]
 
-            while key in ndict:
-                csig = csig + 1
-
-                if csig >= numsig:
-                    raise Error('There are more unnamed arguments given than unspecified arguments to match')
-
-                key = sigs[csig].split(':', 1)
-                key = key[0]
-            if isinstance(arg, Link):
-                ndict[key + '_prop'] = arg.prop
-                ndict[key] = arg.val
+            #// the name has already been specified
+            if key in ndict:
+                processed[key] = ndict[key]
+                del ndict[key]
             else:
-                ndict[key] = arg
+            #// fill in with the first unnamed arg until they run out
+                if len(arglist) > 0:
+                    processed[key] = arglist[0]
+                    del arglist[0]
+        
+        if len(arglist) > 0:
+            raise Error(self.name + ': Too many unnamed arguments specified')
+            
+        if len(ndict) > 0:
+            raise Error(self.name + ': Function does not take argument(s) named ' + ', '.join(ndict.keys()))
 
         inm = self.funcs.newMap()
 
         try:
-            dictToMap(ndict, inm, self.plugin.core, self.funcs)
+            typedDictToMap(processed, atypes, inm, self.plugin.core, self.funcs)
         except Error as e:
             self.funcs.freeMap(inm)
             raise Error(self.name + ': ' + str(e))
