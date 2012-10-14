@@ -200,7 +200,7 @@ VSFunction::VSFunction(const QByteArray &name, const QByteArray &argString, VSPu
             qFatal("Illegal argument identifier specified for function");
 
         if (empty && !arr)
-            qFatal("Only array style arguments can be empty");
+            qFatal("Only array arguments can have the empty flag set");
 
         args.append(FilterArgument(argParts[0].toUtf8(), type, arr, empty, opt, link));
     }

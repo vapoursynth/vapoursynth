@@ -4,6 +4,7 @@ compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 .vpy files need to be opened with file\open and then select avifile compat from the format list before selecting the .vpy script (this is a vdub limitation)
 
 r13:
+enabled another part of the cache size adjustment, cache sizes will now be aggressively reduced to keep framebuffer memory use below 1GB
 filters can now get passed zero length arrays, the rewritten parts also improves argument handling in python (integer types now get converted to float implicitly when passed as a function argument)
 added right click\new\vapoursynth script shortcut to the installer
 make the number of frames in progress equal the number of threads, this should always be the upper beneficial value for any script, previously it was fixed at 10

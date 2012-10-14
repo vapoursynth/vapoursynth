@@ -266,6 +266,10 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
         qFatal("Negative frame request by: " + context->clip->name);
 
     // check to see if it's time to reevaluate cache sizes
+    if (core->memory->memoryUse() > 1024*1024*1024) {
+        ticks = 0;
+        notifyCaches(cNeedMemory);
+    }
     if (!context->upstreamContext && ticks.fetchAndAddAcquire(1) == 99) {
         ticks = 0;
         notifyCaches(cCacheTick);

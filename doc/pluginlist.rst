@@ -5,6 +5,8 @@ Native Plugins
 ##############
 * EEDI3 -- in the source tree
 * `FFMS2 <http://code.google.com/p/ffmpegsource/>`_
+* `vsrawsource <http://forum.doom9.org/showthread.php?t=166075>`_ -- raw video reader
+* `vsjpgreader <http://forum.doom9.org/showthread.php?t=166088>`_ -- jpeg image reader
 
 Avisynth Interop
 ################

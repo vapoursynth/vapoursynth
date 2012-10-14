@@ -176,7 +176,7 @@ static const VSFrameRef *VS_CC cacheGetframe(int n, int activationReason, void *
                 case VSCache::caNoChange:
                     return NULL;
                 case VSCache::caGrow:
-                    c->cache.setMaxFrames(c->cache.getMaxFrames() + 3);
+                    c->cache.setMaxFrames(c->cache.getMaxFrames() + 2);
                     return NULL;
                 case VSCache::caShrink:
                     c->cache.setMaxFrames(qMax(c->cache.getMaxFrames() - 1, 1));
