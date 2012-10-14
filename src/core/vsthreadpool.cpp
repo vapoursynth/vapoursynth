@@ -185,10 +185,11 @@ void VSThread::run() {
     }
 }
 
-VSThreadPool::VSThreadPool(VSCore *core, int &threadCount) : core(core), activeThreads(0) {
-    if (threadCount <= 0)
-        threadCount = QThread::idealThreadCount();
-    setMaxThreadCount(threadCount);
+VSThreadPool::VSThreadPool(VSCore *core, int *threads) : core(core), activeThreads(0) {
+    int usedThreads = QThread::idealThreadCount();
+    if (threads && *threads > 0)
+        usedThreads = *threads;
+    setMaxThreadCount(usedThreads);
 }
 
 int	VSThreadPool::activeThreadCount() const {

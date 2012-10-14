@@ -58,18 +58,18 @@ static inline void vs_aligned_free(void *ptr) {
 #endif //__cplusplus
 
 // convenience function for checking if the format never changes between frames
-static inline int isConstantFormat(const VSVideoInfo *vi) {
+static inline int vs_isConstantFormat(const VSVideoInfo *vi) {
     return vi->height > 0 && vi->width > 0 && vi->format;
 }
 
 // convenience function to check for if two clips have the same format (unknown/changeable will be considered the same too)
-static inline int isSameFormat(const VSVideoInfo *v1, const VSVideoInfo *v2) {
+static inline int vs_isSameFormat(const VSVideoInfo *v1, const VSVideoInfo *v2) {
     return v1->height == v2->height && v1->width == v2->width && v1->format == v2->format;
 }
 
 // multiplies and divides a rational number, such as a frame duration, in place and reduces the result
 // returns non-zero value on overflow
-static inline int muldivRational(int64_t *num, int64_t *den, int64_t mul, int64_t div) {
+static inline int vs_muldivRational(int64_t *num, int64_t *den, int64_t mul, int64_t div) {
 
 }
 
