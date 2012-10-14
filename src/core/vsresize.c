@@ -244,17 +244,17 @@ static void VS_CC resizeCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     d.flags = (intptr_t)userData;
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = *vsapi->getVideoInfo(d.node);
-    dstwidth = vsapi->propGetInt(in, "width", 0, &err);
+    dstwidth = int64ToIntS(vsapi->propGetInt(in, "width", 0, &err));
 
     if (err)
         dstwidth = d.vi.width;
 
-    dstheight = vsapi->propGetInt(in, "height", 0, &err);
+    dstheight = int64ToIntS(vsapi->propGetInt(in, "height", 0, &err));
 
     if (err)
         dstheight = d.vi.height;
 
-    id = vsapi->propGetInt(in, "format", 0, &err);
+    id = int64ToIntS(vsapi->propGetInt(in, "format", 0, &err));
 
     if (err && d.vi.format)
         id = d.vi.format->id;

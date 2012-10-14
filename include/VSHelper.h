@@ -74,7 +74,7 @@ static inline int muldivRational(int64_t *num, int64_t *den, int64_t mul, int64_
 }
 
 // converts an int64 to int with saturation, useful to silence warnings when reading int properties among other things
-static inline int saturatedToInt(int64_t i) {
+static inline int int64ToIntS(int64_t i) {
     if (i > INT_MAX)
         return INT_MAX;
     else if (i < INT_MIN)
