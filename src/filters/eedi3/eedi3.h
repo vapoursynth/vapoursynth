@@ -26,7 +26,7 @@
 #include <stdexcept>
 #include <algorithm>
 #include "VapourSynth.h"
-#include "vshelper.h"
+#include "VSHelper.h"
 
 class eedi3
 {
