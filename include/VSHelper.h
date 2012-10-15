@@ -72,6 +72,7 @@ static inline int isSameFormat(const VSVideoInfo *v1, const VSVideoInfo *v2) {
 static inline int muldivRational(int64_t *num, int64_t *den, int64_t mul, int64_t div) {
     *num *= mul;
     *den *= div;
+    return 0;
 }
 
 // converts an int64 to int with saturation, useful to silence warnings when reading int properties among other things

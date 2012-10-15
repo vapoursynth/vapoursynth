@@ -222,7 +222,7 @@ static int getPropErrorCheck(const VSMap *props, const char *name, int index, in
 
     int c = propNumElements(props, name);
 
-    if (!err && c <= index || index < 0)
+    if ((!err && c <= index) || index < 0)
         err |= peIndex;
 
     if (err && !error)
