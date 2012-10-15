@@ -2679,8 +2679,8 @@ static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData,
 
     if (numupper < 0) {
         for (i = 0; i < d.vi->format->numPlanes; i++)
-            d.upper[i] = 0;
-    } else if (numlower == d.vi->format->numPlanes) {
+            d.upper[i] = ((int64_t)1 << d.vi->format->bitsPerSample)-1;
+    } else if (numupper == d.vi->format->numPlanes) {
         for (i = 0; i < d.vi->format->numPlanes; i++) {
             d.upper[i] = vsapi->propGetInt(in, "upper", i, 0);
             if (d.upper[i] < d.lower[i] || d.upper[i] >= ((int64_t)1 << d.vi->format->bitsPerSample)) {
