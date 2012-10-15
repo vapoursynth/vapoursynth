@@ -604,7 +604,7 @@ cdef class VideoNode(object):
         else:
             return createVideoFrame(f, self.funcs, self.core) 
 
-    def output(self, object fileobj not None, bint y4m = False, int prefetch = -1, object progress_update = None):
+    def output(self, object fileobj not None, bint y4m = False, int prefetch = 0, object progress_update = None):
         if prefetch < 1:
             prefetch = self.core.num_threads
 #ifdef _WIN32
@@ -808,9 +808,9 @@ cdef VideoNode createVideoNode(vapoursynth.VSNodeRef *node, vapoursynth.VSAPI *f
 cdef class Core(object):
     cdef vapoursynth.VSCore *core
     cdef vapoursynth.VSAPI *funcs
-    cdef int num_threads
-    cdef bint add_cache
-    cdef bint accept_lowercase
+    cdef readonly int num_threads
+    cdef readonly bint add_cache
+    cdef readonly bint accept_lowercase
 
     def __cinit__(self, int threads = 0, bint add_cache = True, bint accept_lowercase = False):
         self.funcs = vapoursynth.getVapourSynthAPI(2)
