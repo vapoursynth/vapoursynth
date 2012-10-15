@@ -1718,7 +1718,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     if (ncolors == d.vi.format->numPlanes) {
         for (i = 0; i < ncolors; i++)
             color[i] = int64ToIntS(vsapi->propGetInt(in, "color", i, 0));
-    } else if (ncolors) {
+    } else if (ncolors > 0) {
         RETERROR("BlankClip: invalid number of color values specified");
     }
 
