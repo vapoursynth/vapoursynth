@@ -36,7 +36,7 @@ static bool isValidIdentifier(const QByteArray &s) {
     return idRegExp.exactMatch(QString::fromUtf8(s.constData(), s.size()));
 }
 
-FrameContext::FrameContext(int n, VSNode *clip, const PFrameContext &upstreamContext) : numFrameRequests(0), n(n), node(NULL), clip(clip), frameContext(NULL), upstreamContext(upstreamContext), userData(NULL), frameDone(NULL), error(false), lastCompletedN(-1), lastCompletedNode(NULL) {
+FrameContext::FrameContext(int n, VSNode *clip, const PFrameContext &upstreamContext) : numFrameRequests(0), n(n), node(NULL), clip(clip), upstreamContext(upstreamContext), userData(NULL), frameContext(NULL), frameDone(NULL), error(false), lastCompletedN(-1), lastCompletedNode(NULL) {
 
 }
 
@@ -139,7 +139,7 @@ uint8_t *VSFrame::getWritePtr(int plane) {
 }
 
 VSFunction::VSFunction(const QByteArray &name, const QByteArray &argString, VSPublicFunction func, void *functionData)
-    : name(name), argString(argString), func(func), functionData(functionData) {
+    : name(name), argString(argString), functionData(functionData), func(func) {
     QString argQString = QString::fromUtf8(argString);
     QStringList argList = argQString.split(';', QString::SkipEmptyParts);
     foreach(QString arg, argList) {
@@ -473,11 +473,11 @@ PVideoNode VSCore::createFilter(const VSMap *in, VSMap *out, const QByteArray &n
 }
 
 VSPlugin::VSPlugin(VSCore *core)
-    : core(core), apiVersion(0), hasConfig(false), readOnly(false), libHandle(0), compat(false) {
+    : apiVersion(0), hasConfig(false), readOnly(false), compat(false), libHandle(0), core(core) {
 }
 
 VSPlugin::VSPlugin(const QByteArray &filename, const QByteArray &forcedNamespace, VSCore *core)
-    : filename(filename), fnamespace(forcedNamespace), core(core), apiVersion(0), hasConfig(false), readOnly(false), libHandle(0), compat(false) {
+    : apiVersion(0), hasConfig(false), readOnly(false), compat(false), libHandle(0), filename(filename), core(core), fnamespace(forcedNamespace) {
 #ifdef _WIN32
     QString uStr = QString::fromUtf8(filename.constData(), filename.size());
     QStdWString wStr(uStr.toStdWString());

@@ -24,6 +24,7 @@
 #include <functional>
 #include "avisynth_wrapper.h"
 #include "VapourSynth.h"
+#include "VSHelper.h"
 
 namespace AvisynthCompat {
 
@@ -46,7 +47,7 @@ public:
     const VSNodeRef *uglyNode;
     VSFrameContext *uglyCtx;
 
-    FakeAvisynth(VSCore *core, const VSAPI *vsapi) : core(core), vsapi(vsapi), uglyN(-1), uglyNode(NULL), uglyCtx(NULL), initializing(true) {}
+    FakeAvisynth(VSCore *core, const VSAPI *vsapi) : core(core), vsapi(vsapi), initializing(true), uglyN(-1), uglyNode(NULL), uglyCtx(NULL) {}
     // virtual avisynth functions
     ~FakeAvisynth();
     long __stdcall GetCPUFlags();
@@ -96,8 +97,8 @@ public:
             vi.pixel_type = VideoInfo::CS_BGR32;
 
         vi.image_type = VideoInfo::IT_BFF;
-        vi.fps_numerator = srcVi->fpsNum;
-        vi.fps_denominator = srcVi->fpsDen;
+        vi.fps_numerator = int64ToIntS(srcVi->fpsNum);
+        vi.fps_denominator = int64ToIntS(srcVi->fpsDen);
         vi.num_frames = srcVi->numFrames;
         vi.audio_samples_per_second = 0;
         vi.sample_type = 0;

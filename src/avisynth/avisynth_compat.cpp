@@ -166,7 +166,7 @@ PVideoFrame VSClip::GetFrame(int n, IScriptEnvironment *env) {
 }
 
 WrappedClip::WrappedClip(const PClip &clip, const QList<const VSNodeRef *> &preFetchClips, const PrefetchInfo &prefetchInfo, FakeAvisynth *fakeEnv)
-    : clip(clip), preFetchClips(preFetchClips), prefetchInfo(prefetchInfo), fakeEnv(fakeEnv),
+    : prefetchInfo(prefetchInfo), preFetchClips(preFetchClips), clip(clip), fakeEnv(fakeEnv),
       magicalNumAudioSamplesForMVTools(clip->GetVideoInfo().num_audio_samples),
       magicalNChannelsForMVTools(clip->GetVideoInfo().nchannels) {
 }
