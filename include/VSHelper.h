@@ -21,7 +21,7 @@
 #ifndef VSHELPER_H
 #define VSHELPER_H
 
-#include <stdlib.h>
+#include <limits.h>
 #include <stdint.h>
 #include "VapourSynth.h"
 
