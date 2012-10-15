@@ -170,8 +170,8 @@ public:
         return hash.keys();
     }
 
-    void clear();
-    void clearStats();
+    inline void clear();
+    inline void clearStats();
 
     bool insert(const int key, const PVideoFrame &object);
     PVideoFrame object(const int key) const;
