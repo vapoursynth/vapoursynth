@@ -23,6 +23,7 @@
 
 #include <limits.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include "VapourSynth.h"
 
 // VS2010 doesn't recognize inline in c mode
@@ -82,6 +83,12 @@ static inline int int64ToIntS(int64_t i) {
     else if (i < INT_MIN)
         return INT_MIN;
     else return (int)i;
+}
+
+// check if the frame dimensions are valid for a given format
+// returns non-zero for valid width and height
+static inline int areValidDimensions(const VSFormat *fi, int width, int height) {
+    return !(width % (1 << fi->subSamplingW) || height % (1 << fi->subSamplingH));
 }
 
 #endif
