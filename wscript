@@ -195,8 +195,12 @@ def configure(conf):
     # Waf always uses gcc/g++ for linking when using a GCC
     # compatible C/C++ compiler.
     if conf.env.CXX_NAME == 'gcc':
-        add_options(['LINKFLAGS_cxxshlib', 'LINKFLAGS_cxxprogram'],
-                    ['-Wl,-Bsymbolic'])
+        if not conf.env.DEST_OS in ['darwin', 'win32']:
+            add_options(['LINKFLAGS_cshlib',
+                         'LINKFLAGS_cprogram',
+                         'LINKFLAGS_cxxshlib',
+                         'LINKFLAGS_cxxprogram'],
+                        ['-Wl,-Bsymbolic'])
 
     for opt in ['static', 'filters', 'cython', 'avisynth', 'docs', 'examples']:
         if not conf.options.__dict__[opt] in ['true', 'false']:
