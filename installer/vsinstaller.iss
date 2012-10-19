@@ -38,6 +38,7 @@ Name: newvpyfile; Description: "Add new .vpy shortcut"; GroupDescription: "New F
 
 [Files]
 Source: vapoursynth.dll; DestDir: {code:GetPythonPath}; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: vapoursynth.dll; DestDir: {app}; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: vapoursynth.pyd; DestDir: {code:GetPythonPath}; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: QtCore4.dll; DestDir: {code:GetPythonPath}; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: vsfs.dll; DestDir: {app}; Flags: ignoreversion uninsrestartdelete restartreplace
