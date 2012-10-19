@@ -239,7 +239,7 @@ void VSThreadPool::reserveThread() {
 
 void VSThreadPool::notifyCaches(CacheActivation reason) {
     for (int i = 0; i < core->caches.count(); i++)
-        tasks.append(PFrameContext(new FrameContext(reason, core->caches[i], PFrameContext())));
+        tasks.insert(0, PFrameContext(new FrameContext(reason, core->caches[i], PFrameContext())));
 }
 
 void VSThreadPool::start(const PFrameContext &context) {
@@ -269,6 +269,7 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
 
     // check to see if it's time to reevaluate cache sizes
     if (core->memory->isOverLimit()) {
+    //if (core->memory->isOverLimit()) {
         ticks = 0;
         notifyCaches(cNeedMemory);
     }

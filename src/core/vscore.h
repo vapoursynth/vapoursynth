@@ -181,7 +181,9 @@ public:
         if (!usedKiloBytes)
             delete this;
     }
-    MemoryUse() : freeOnZero(false) { }
+    MemoryUse() : freeOnZero(false) {
+        maxMemoryUse = 1024*1024*1024;
+    }
 };
 
 class VSFrameData : public QSharedData {
