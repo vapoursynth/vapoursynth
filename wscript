@@ -304,7 +304,8 @@ def build(bld):
         bld.install_files('${DOCDIR}/examples',
                           bld.path.ant_glob([os.path.join('sdk', '*')]))
 
-    bld.install_files('${INCLUDEDIR}', os.path.join('include', 'VapourSynth.h'))
+    bld.install_files('${INCLUDEDIR}', [os.path.join('include', 'VapourSynth.h'),
+                                        os.path.join('include', 'VSHelper.h')])
 
     bld(source = 'vapoursynth.pc.in',
         install_path = '${LIBDIR}/pkgconfig',
