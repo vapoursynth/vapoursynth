@@ -158,6 +158,7 @@ class MemoryUse {
 private:
     QAtomicInt usedKiloBytes;
     bool freeOnZero;
+    int64_t maxMemoryUse;
 public:
     void add(long bytes) {
         usedKiloBytes.fetchAndAddAcquire((bytes + 1023) / 1024);
@@ -168,10 +169,17 @@ public:
     int64_t memoryUse() {
         return (int64_t)usedKiloBytes * 1024;
     }
+    int64_t setMaxMemoryUse(int64_t bytes) {
+        maxMemoryUse = bytes;
+        return maxMemoryUse;
+    }
+    bool isOverLimit() {
+        return memoryUse() > maxMemoryUse;
+    }
     void signalFree() {
         freeOnZero = true;
-
-        if (!usedKiloBytes) delete this;
+        if (!usedKiloBytes)
+            delete this;
     }
     MemoryUse() : freeOnZero(false) { }
 };
@@ -404,6 +412,7 @@ private:
     QHash<int, VSFormat *> formats;
     QMutex formatLock;
     static QMutex filterLock;
+    int formatIdOffset;
 public:
     QList<VSNode *> caches;
     VSThreadPool *threadPool;
@@ -423,7 +432,7 @@ public:
     VSPlugin *getPluginId(const QByteArray &identifier);
     VSPlugin *getPluginNs(const QByteArray &ns);
 
-    void setMemoryMax(int64_t bytes);
+    int64_t setMaxCacheSize(int64_t bytes);
     int getAPIVersion();
 
     VSCore(int *threads);

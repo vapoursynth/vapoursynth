@@ -514,6 +514,10 @@ static VSFuncRef *VS_CC cloneFuncRef(VSFuncRef *f) {
     return new VSFuncRef(f->func);
 }
 
+static int64_t VS_CC setMaxCacheSize(int64_t bytes, VSCore *core) {
+    return core->setMaxCacheSize(bytes);
+}
+
 const VSAPI vsapi = {
     &createCore,
     &freeCore,
@@ -585,5 +589,7 @@ const VSAPI vsapi = {
     &propSetData,
     &propSetNode,
     &propSetFrame,
-    &propSetFunc
+    &propSetFunc,
+
+    &setMaxCacheSize
 };

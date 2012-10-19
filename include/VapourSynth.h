@@ -265,6 +265,7 @@ typedef VSFuncRef *(VS_CC *VSCreateFunc)(VSPublicFunction func, void *userData, 
 typedef void (VS_CC *VSQueryCompletedFrame)(const VSNodeRef **node, int *n, VSFrameContext *frameCtx);
 typedef void (VS_CC *VSReleaseFrameEarly)(const VSNodeRef *node, int n, VSFrameContext *frameCtx);
 
+typedef int64_t (VS_CC *VSSetMaxCacheSize)(int64_t bytes, VSCore *core);
 
 
 struct VSAPI {
@@ -344,6 +345,8 @@ struct VSAPI {
     VSPropSetNode propSetNode;
     VSPropSetFrame propSetFrame;
     VSPropSetFunc propSetFunc;
+
+    VSSetMaxCacheSize setMaxCacheSize;
 };
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version);

@@ -314,13 +314,13 @@ const VSFormat *VSCore::registerFormat(VSColorFamily colorFamily, VSSampleType s
     if (name) {
         strcpy(f->name, name);
     } else {
-        strcpy(f->name, "unnamed");
+        strcpy(f->name, "runtime registered");
     }
 
     if (id != pfNone)
         f->id = id;
     else
-        qFatal("cs blah");
+        f->id = colorFamily + formatIdOffset++;
 
     f->colorFamily = colorFamily;
     f->sampleType = sampleType;
@@ -361,7 +361,7 @@ void VS_CC loadPluginInitialize(VSConfigPlugin configFunc, VSRegisterFunction re
 extern "C" void VS_CC avsWrapperInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
 #endif
 
-VSCore::VSCore(int *threads) : memory(new MemoryUse()) {
+VSCore::VSCore(int *threads) : memory(new MemoryUse()), formatIdOffset(1000) {
     threadPool = new VSThreadPool(this, threads);
 
     // Register known formats with informational names
@@ -472,6 +472,10 @@ PVideoNode VSCore::createFilter(const VSMap *in, VSMap *out, const QByteArray &n
     return PVideoNode(new VSNode(in, out, name, init, getFrame, free, filterMode, flags, instanceData, this));
 }
 
+int64_t VSCore::setMaxCacheSize(int64_t bytes) {
+    return memory->setMaxMemoryUse(bytes);
+}
+
 VSPlugin::VSPlugin(VSCore *core)
     : apiVersion(0), hasConfig(false), readOnly(false), compat(false), libHandle(0), core(core) {
 }
@@ -495,7 +499,6 @@ VSPlugin::VSPlugin(const QByteArray &filename, const QByteArray &forcedNamespace
         FreeLibrary(libHandle);
         throw VSException("No entry point found in " + filename);
     }
-
 #else
     libHandle = dlopen(filename.constData(), RTLD_LAZY);
 
@@ -508,7 +511,6 @@ VSPlugin::VSPlugin(const QByteArray &filename, const QByteArray &forcedNamespace
         dlclose(libHandle);
         throw VSException("No entry point found in " + filename);
     }
-
 #endif
     pluginInit(&::configPlugin, &::registerFunction, this);
 
@@ -535,15 +537,11 @@ VSPlugin::VSPlugin(const QByteArray &filename, const QByteArray &forcedNamespace
 
 VSPlugin::~VSPlugin() {
 #ifdef _WIN32
-
     if (libHandle)
         FreeLibrary(libHandle);
-
 #else
-
     if (libHandle)
         dlclose(libHandle);
-
 #endif
 }
 
