@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import glob, os, subprocess, sys
 from waflib import Build, Task, TaskGen, Utils
 
