@@ -202,19 +202,34 @@ def configure(conf):
                          'LINKFLAGS_cxxprogram'],
                         ['-Wl,-Bsymbolic'])
 
-    for opt in ['static', 'filters', 'cython', 'avisynth', 'docs', 'examples']:
-        if not conf.options.__dict__[opt] in ['true', 'false']:
-            conf.fatal('--{0} must be either true or false.'.format(opt))
+    def check_feature(name, desc):
+        val = conf.options.__dict__[name]
+
+        if not val in ['true', 'false']:
+            conf.fatal('--{0} must be either true or false.'.format(name))
         else:
-            conf.env[opt.upper()] = conf.options.__dict__[opt]
+            u = name.upper()
+
+            conf.env[u] = val
+            conf.define('FEATURE_' + u, 1 if val == 'true' else 0)
+            conf.msg("Enabling {0}?".format(desc), conf.env[u])
+
+    check_feature('static', 'static library')
+    check_feature('filters', 'included filters')
+    check_feature('cython', 'Cython wrapper')
+    check_feature('avisynth', 'Avisynth compatibility')
+    check_feature('docs', 'documentation')
+    check_feature('examples', 'SDK examples')
 
     conf.define('PATH_PREFIX', conf.env.PREFIX)
+    conf.msg("Setting PREFIX to", conf.env.PREFIX)
 
     for dir in ['libdir', 'plugindir', 'docdir', 'includedir']:
         u = dir.upper()
 
         conf.env[u] = Utils.subst_vars(conf.options.__dict__[dir], conf.env)
         conf.define('PATH_' + u, conf.env[u])
+        conf.msg("Setting {0} to".format(u), conf.env[u])
 
     conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore')
     conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore', type_name = 'QAtomicInt')
