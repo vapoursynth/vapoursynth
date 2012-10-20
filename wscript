@@ -101,7 +101,7 @@ def options(opt):
     opt.add_option('--libdir', action = 'store', default = '${PREFIX}/lib', help = 'library installation directory')
     opt.add_option('--plugindir', action = 'store', default = '${LIBDIR}/vapoursynth', help = 'plugin installation directory')
     opt.add_option('--docdir', action = 'store', default = '${PREFIX}/share/doc/vapoursynth', help = 'documentation installation directory')
-    opt.add_option('--includedir', action = 'store', default = '${PREFIX}/include', help = 'header installation directory')
+    opt.add_option('--includedir', action = 'store', default = '${PREFIX}/include/vapoursynth', help = 'header installation directory')
     opt.add_option('--mode', action = 'store', default = 'release', help = 'the mode to compile in (debug/release)')
     opt.add_option('--shared', action = 'store', default = 'true', help = 'build a shared library (true/false)')
     opt.add_option('--static', action = 'store', default = 'false', help = 'build a static library (true/false)')

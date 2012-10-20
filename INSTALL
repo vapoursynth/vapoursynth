@@ -39,7 +39,7 @@ fine-tune the build:
   Specifies where to install plugins/filters.
 * --docdir=path (default: ${PREFIX}/share/doc/vapoursynth)
   Specifies where to install Sphinx documentation and examples.
-* --includedir=path (default: ${PREFIX}/include)
+* --includedir=path (default: ${PREFIX}/include/vapoursynth)
   Specifies where to install C/C++ headers.
 * --mode=debug/release (default: release)
   Specifies what mode to compile C and C++ code in. When in
