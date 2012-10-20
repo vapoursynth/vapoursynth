@@ -47,9 +47,10 @@ fine-tune the build:
   by the compiler, and no optimization will be done. In release
   mode, all (safe) optimizations are performed and no debug
   info is generated.
+* --shared=true/false (default: true)
+  Specifies whether to build a shared library.
 * --static=true/false (default: false)
-  Specifies whether to build a static library in addition to the
-  shared library.
+  Specifies whether to build a static library.
 * --filters=true/false (default: true)
   Specifies whether to build the included filters. These are
   always built as shared libraries.

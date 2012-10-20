@@ -103,6 +103,7 @@ def options(opt):
     opt.add_option('--docdir', action = 'store', default = '${PREFIX}/share/doc/vapoursynth', help = 'documentation installation directory')
     opt.add_option('--includedir', action = 'store', default = '${PREFIX}/include', help = 'header installation directory')
     opt.add_option('--mode', action = 'store', default = 'release', help = 'the mode to compile in (debug/release)')
+    opt.add_option('--shared', action = 'store', default = 'true', help = 'build a shared library (true/false)')
     opt.add_option('--static', action = 'store', default = 'false', help = 'build a static library (true/false)')
     opt.add_option('--filters', action = 'store', default = 'true', help = 'build included filters (true/false)')
     opt.add_option('--cython', action = 'store', default = 'true', help = 'build Cython wrapper (true/false)')
@@ -214,6 +215,7 @@ def configure(conf):
             conf.define('FEATURE_' + u, 1 if val == 'true' else 0)
             conf.msg("Enabling {0}?".format(desc), conf.env[u])
 
+    check_feature('shared', 'shared library')
     check_feature('static', 'static library')
     check_feature('filters', 'included filters')
     check_feature('cython', 'Cython wrapper')
@@ -272,10 +274,11 @@ def build(bld):
         source = bld.path.ant_glob(sources),
         target = 'objs')
 
-    bld(features = 'c qxx asm cxxshlib',
-        use = ['objs'],
-        target = 'vapoursynth',
-        install_path = '${LIBDIR}')
+    if bld.env.SHARED == 'true':
+        bld(features = 'c qxx asm cxxshlib',
+            use = ['objs'],
+            target = 'vapoursynth',
+            install_path = '${LIBDIR}')
 
     if bld.env.STATIC == 'true':
         bld(features = 'c qxx asm cxxstlib',
@@ -286,7 +289,6 @@ def build(bld):
     if bld.env.FILTERS == 'true':
         bld(features = 'c qxx asm cxxshlib',
             includes = 'include',
-            use = ['vapoursynth'],
             source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'eedi3')])),
             target = 'eedi3',
             install_path = '${PLUGINDIR}')
@@ -304,14 +306,12 @@ def build(bld):
     if bld.env.EXAMPLES == 'true':
         bld(features = 'c cxxshlib',
             includes = 'include',
-            use = ['vapoursynth'],
             source = os.path.join('sdk', 'filter_skeleton.c'),
             target = 'example_skeleton',
             install_path = None)
 
         bld(features = 'c cxxshlib',
             includes = 'include',
-            use = ['vapoursynth'],
             source = os.path.join('sdk', 'invert_example.c'),
             target = 'example_invert',
             install_path = None)
