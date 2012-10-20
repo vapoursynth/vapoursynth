@@ -213,7 +213,7 @@ def configure(conf):
 
             conf.env[u] = val
             conf.define('FEATURE_' + u, 1 if val == 'true' else 0)
-            conf.msg("Enabling {0}?".format(desc), conf.env[u])
+            conf.msg("Enabling {0}?".format(desc), 'yes' if conf.env[u] == 'true' else 'no')
 
     check_feature('shared', 'shared library')
     check_feature('static', 'static library')
