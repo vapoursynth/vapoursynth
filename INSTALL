@@ -18,7 +18,7 @@ First, a couple of things to note:
 First off, you'll want to fetch Waf which is the build tool
 VapourSynth uses:
 
-    $ ./bootstrap.sh
+    $ ./bootstrap.py
 
 You don't have to fetch it with this script (it requires Wget);
 you can also simply download it from the official Google Code
