@@ -85,8 +85,17 @@ And to uninstall:
 
     $ ./waf uninstall
 
+The install and uninstall commands accept a --destdir option
+which prepends a value to the prefix given earlier in the
+configure phase, in case this may be of use to you.
+
 To install the Cython wrapper:
 
     $ ./setup.py install
 
 Note that the setup script has a --prefix option like Waf.
+
+Finally, you can run the Python tests if you have installed
+the Python module:
+
+    $ ./waf test

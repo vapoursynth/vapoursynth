@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-import os, subprocess
-from waflib import Task, TaskGen, Utils
+import glob, os, subprocess, sys
+from waflib import Build, Task, TaskGen, Utils
 
 APPNAME = 'VapourSynth'
 VERSION = '14'
@@ -329,3 +329,14 @@ def build(bld):
         INCLUDEDIR = bld.env.INCLUDEDIR,
         LIBS = bld.env.LIBS,
         VERSION = VERSION)
+
+def test(ctx):
+    '''runs the Cython tests'''
+
+    for name in glob.glob(os.path.join('test', '*.py')):
+        if subprocess.Popen([sys.executable, name]).wait() != 0:
+            ctx.fatal('Test {0} failed'.format(name))
+
+class TestContext(Build.BuildContext):
+    cmd = 'test'
+    fun = 'test'
