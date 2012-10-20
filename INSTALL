@@ -10,9 +10,9 @@ First, a couple of things to note:
 * You need to have either GCC, Clang, MSVC, or ICC/ICL installed.
   Both a C and C++ compiler are required.
 * You need to have Yasm installed.
-* You need Python 3 to build the Cython wrapper.
+* You need Python 3 to build the Python module.
 * You need to have Cython installed in your Python 3 environment
-  in order to invoke the setup script.
+  in order to invoke the Python wrapper setup script.
 * You need Sphinx if you want to build the documentation.
 
 First off, you'll want to fetch Waf which is the build tool
