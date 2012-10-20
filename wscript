@@ -125,6 +125,8 @@ def configure(conf):
     conf.find_program('yasm', var = 'AS', mandatory = True)
     conf.load('nasm')
 
+    conf.find_program('python3', var = 'PYTHON', mandatory = True)
+
     if conf.env.DEST_OS == 'darwin':
         if conf.env.CXX_NAME == 'gcc':
             add_options(['ASFLAGS'],
@@ -334,7 +336,7 @@ def test(ctx):
     '''runs the Cython tests'''
 
     for name in glob.glob(os.path.join('test', '*.py')):
-        if subprocess.Popen([sys.executable, name]).wait() != 0:
+        if subprocess.Popen([ctx.env.PYTHON, name]).wait() != 0:
             ctx.fatal('Test {0} failed'.format(name))
 
 class TestContext(Build.BuildContext):
