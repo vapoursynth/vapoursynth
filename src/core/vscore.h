@@ -289,6 +289,7 @@ private:
     VSVideoInfo vi;
     int flags;
     bool hasVi;
+    bool hasWarned;
 
     VSFilterMode filterMode;
     PVideoFrame getFrameInternal(int n, int activationReason, const PFrameContext &frameCtx);

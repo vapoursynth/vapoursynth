@@ -3,6 +3,13 @@ may deadlock with some avisynth plugins (set the number of threads to a bigger n
 compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 .vpy files need to be opened with file\open and then select avifile compat from the format list before selecting the .vpy script (this is a vdub limitation)
 
+r14:
+added vivtc (aka tivtc lite) to the included filters
+the fpu state check now only outputs a warning instead of terminating
+users can now set the cache size limit over which vs aggressively starts to decrease cache size (the memory use is calculated from the combined size of all framebuffers allocated)
+fixed memory leaks in PlaneDifference and PlaneAverage
+
+
 r13:
 enabled another part of the cache size adjustment, cache sizes will now be aggressively reduced to keep framebuffer memory use below 1GB
 filters can now get passed zero length arrays, the rewritten parts also improves argument handling in python (integer types now get converted to float implicitly when passed as a function argument)

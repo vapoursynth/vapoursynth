@@ -207,7 +207,7 @@ VSFunction::VSFunction(const QByteArray &name, const QByteArray &argString, VSPu
 }
 
 VSNode::VSNode(const VSMap *in, VSMap *out, const QByteArray &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, VSCore *core) :
-    instanceData(instanceData), name(name), init(init), filterGetFrame(getFrame), free(free), filterMode(filterMode), core(core), flags(flags), inval(*in), hasVi(false) {
+    instanceData(instanceData), name(name), init(init), filterGetFrame(getFrame), free(free), filterMode(filterMode), core(core), flags(flags), inval(*in), hasVi(false), hasWarned(false) {
     QMutexLocker lock(&VSCore::filterLock);
     init(&inval, out, &this->instanceData, this, core, &vsapi);
 
@@ -235,8 +235,10 @@ PVideoFrame VSNode::getFrameInternal(int n, int activationReason, const PFrameCo
 #ifdef _WIN32
     if (!vs_isMMXStateOk())
         qFatal("Bad mmx state detected after return from filter");
-    if (!vs_isFPUStateOk())
-        qFatal("Bad fpu state detected after return from filter");
+    if (!hasWarned && !vs_isFPUStateOk()) {
+        hasWarned = true;
+        qWarning("Bad fpu state detected after return from %s", name.constData());
+    }
 #endif
 
     if (r) {
@@ -519,7 +521,7 @@ VSPlugin::VSPlugin(const QByteArray &filename, const QByteArray &forcedNamespace
     if (!vs_isMMXStateOk())
         qFatal("Bad mmx state detected after plugin load");
     if (!vs_isFPUStateOk())
-        qFatal("Bad fpu state detected after plugin load");
+        qWarning("Bad fpu state detected after plugin load");
 #endif
 
     if (readOnlySet)
