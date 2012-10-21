@@ -160,7 +160,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 // never need to be changed for a normal plugin).
 //
 // id: Needs to be a "reverse" url and unique among all plugins.
-//   It is inspired by how android packages dientify themselves.
+//   It is inspired by how android packages identify themselves.
 //   If you don't own a domain then make one up that's related
 //   to the plugin name.
 //
@@ -169,7 +169,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 // full name: Any name that describes the plugin nicely.
 //
 // registerFunc is called once for each function you want to register. Function names
-// should be CamelCase. The argument string has this format:
+// should be PascalCase. The argument string has this format:
 // name:type; or name:type:flag1:flag2....;
 // All argument name should be lowercase and only use [a-z_].
 // The valid types are int,float,data,clip,frame,func. [] can be appended to allow arrays
