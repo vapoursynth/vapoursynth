@@ -6,7 +6,7 @@ compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 r14:
 added vivtc (aka tivtc lite) to the included filters
 the fpu state check now only outputs a warning instead of terminating
-users can now set the cache size limit over which vs aggressively starts to decrease cache size (the memory use is calculated from the combined size of all framebuffers allocated)
+users can now set the cache size limit over which vs aggressively starts to decrease cache size, use core.set_max_cache_size(number of MB) (the memory use is calculated from the combined size of all framebuffers allocated)
 fixed memory leaks in PlaneDifference and PlaneAverage
 
 

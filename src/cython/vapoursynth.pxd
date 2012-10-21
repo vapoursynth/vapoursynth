@@ -212,4 +212,5 @@ cdef extern from "include/VapourSynth.h" nogil:
         VSFuncRef *createFunc(VSPublicFunction func, void *userData, VSFreeFuncData free) nogil
         void freeFunc(VSFuncRef *f) nogil
 
+        int64_t setMaxCacheSize(int64_t bytes, VSCore *core) nogil
     VSAPI *getVapourSynthAPI(int version) nogil
