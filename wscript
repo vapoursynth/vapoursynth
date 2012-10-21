@@ -118,10 +118,11 @@ def configure(conf):
     conf.load('compiler_cxx')
     conf.load('qt4')
 
-    # Load Yasm explicitly, then the Nasm module which
-    # supports both Nasm and Yasm.
-    conf.find_program('yasm', var = 'AS', mandatory = True)
-    conf.load('nasm')
+    if conf.env.DEST_CPU in ['x86', 'x86_64', 'x64']:
+        # Load Yasm explicitly, then the Nasm module which
+        # supports both Nasm and Yasm.
+        conf.find_program('yasm', var = 'AS', mandatory = True)
+        conf.load('nasm')
 
     conf.find_program('python3', var = 'PYTHON', mandatory = True)
 
@@ -145,29 +146,30 @@ def configure(conf):
                  '-Worphan-labels',
                  '-Wunrecognized-char'])
 
-    if conf.env.DEST_CPU in ['x86_64', 'amd64', 'x64']:
+    if conf.env.DEST_CPU in ['x86_64', 'x64']:
         add_options(['ASFLAGS'],
                     ['-DARCH_X86_64=1'])
 
         if conf.env.DEST_OS == 'darwin':
             fmt = 'macho64'
-        elif conf.env.DEST_OS == 'win32':
+        elif conf.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin']:
             fmt = 'win64'
         else:
             fmt = 'elf64'
-    else:
+    elif conf.env.DEST_CPU == 'x86':
         add_options(['ASFLAGS'],
                     ['-DARCH_X86_64=0'])
 
         if conf.env.DEST_OS == 'darwin':
             fmt = 'macho32'
-        elif conf.env.DEST_OS == 'win32':
+        elif conf.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin']:
             fmt = 'win32'
         else:
             fmt = 'elf32'
 
-    add_options(['ASFLAGS'],
-                ['-f{0}'.format(fmt)])
+    if conf.env.DEST_CPU in ['x86', 'x86_64', 'x64']:
+        add_options(['ASFLAGS'],
+                    ['-f{0}'.format(fmt)])
 
     if conf.options.mode == 'debug':
         if conf.env.CXX_NAME == 'gcc':
@@ -196,7 +198,7 @@ def configure(conf):
     # Waf always uses gcc/g++ for linking when using a GCC
     # compatible C/C++ compiler.
     if conf.env.CXX_NAME == 'gcc':
-        if not conf.env.DEST_OS in ['darwin', 'win32']:
+        if not conf.env.DEST_OS in ['darwin', 'win32', 'cygwin', 'msys', 'uwin']:
             add_options(['LINKFLAGS_cshlib',
                          'LINKFLAGS_cprogram',
                          'LINKFLAGS_cxxshlib',
@@ -265,7 +267,7 @@ def build(bld):
     sources = search_paths([os.path.join('src', 'core'),
                             os.path.join('src', 'core', 'asm')])
 
-    if bld.env.DEST_OS == 'win32' and bld.env.AVISYNTH == 'true':
+    if bld.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin'] and bld.env.AVISYNTH == 'true':
         sources += search_paths([os.path.join('src', 'avisynth')])
 
     bld(features = 'c qxx asm',
