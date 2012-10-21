@@ -7,6 +7,7 @@
 
 #include <stdlib.h>
 #include "VapourSynth.h"
+#include "VSHelper.h"
 
 typedef struct {
     const VSNodeRef *node;
@@ -60,11 +61,11 @@ static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void 
             // Since planes may be subsampled you have to query the height of them individually
             int h = vsapi->getFrameHeight(src, plane);
             int y;
-            int w = vsapi->getFrameWidth(src, plane) - 1;
+            int w = vsapi->getFrameWidth(src, plane);
             int x;
     
             for (y = 0; y < h; y++) {
-                for (x = 0; x <= w; x++)
+                for (x = 0; x < w; x++)
                     dstp[x] = ~srcp[x];
 
                 dstp += dst_stride;
@@ -103,7 +104,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 
     // In this first version we only want to handle 8bit integer formats. Note that
     // vi->format can be 0 if the input clip can change format midstream.
-    if (!d.vi->format || d.vi->format->sampleType != stInteger || d.vi->format->bitsPerSample != 8) {
+    if (!isConstantFormat(d.vi) || d.vi->format->sampleType != stInteger || d.vi->format->bitsPerSample != 8) {
         vsapi->setError(out, "Invert: only constant format 8bit integer input supported");
         vsapi->freeNode(d.node);
         return;
