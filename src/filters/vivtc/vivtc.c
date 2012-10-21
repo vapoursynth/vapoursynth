@@ -24,11 +24,18 @@
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
-#include <minmax.h>
 #include "VapourSynth.h"
 #include "VSHelper.h"
 
 // Shared
+
+#ifndef max
+#define max(a,b)   (((a) > (b)) ? (a) : (b))
+#endif
+
+#ifndef min
+#define min(a,b)   (((a) < (b)) ? (a) : (b))
+#endif
 
 static int isPowerOf2(int i) {
     while (i > 0) {
