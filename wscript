@@ -205,6 +205,10 @@ def configure(conf):
                          'LINKFLAGS_cxxprogram'],
                         ['-Wl,-Bsymbolic'])
 
+    conf.msg("Setting DEST_OS to", conf.env.DEST_OS)
+    conf.msg("Setting DEST_CPU to", conf.env.DEST_CPU)
+    conf.msg("Setting DEST_BINFMT to", conf.env.DEST_BINFMT)
+
     def check_feature(name, desc):
         val = conf.options.__dict__[name]
 
