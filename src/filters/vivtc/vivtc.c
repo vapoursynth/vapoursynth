@@ -154,7 +154,7 @@ int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
         for (x=0; x<Width; ++x) {
             const int sFirst = srcp[x] - srcp[x + src_pitch];
             if (sFirst > cthresh || sFirst < -cthresh) {
-                if (abs(srcp[x + 2*src_pitch]+(srcp[x]<<2)+srcp[x + 2*src_pitch]-(3*(srcp[x + src_pitch]+srcp[x + src_pitch]))) > cthresh6) 
+                if (abs(srcp[x + 2*src_pitch]+(srcp[x]*4)+srcp[x + 2*src_pitch]-6*srcp[x + src_pitch]) > cthresh6) 
                     cmkp[x] = 0xFF;
             }
         }
@@ -164,7 +164,7 @@ int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
             const int sFirst = srcp[x] - srcp[x - src_pitch];
             const int sSecond = srcp[x] - srcp[x + src_pitch];
             if ((sFirst > cthresh && sSecond > cthresh) || (sFirst < -cthresh && sSecond < -cthresh)) {
-                if (abs(srcp[x + 2*src_pitch]+(srcp[x]<<2)+srcp[x + 2*src_pitch]-(3*(srcp[x - src_pitch]+srcp[x + src_pitch]))) > cthresh6) 
+                if (abs(srcp[x + 2*src_pitch]+(srcp[x]*4)+srcp[x + 2*src_pitch]-(3*(srcp[x - src_pitch]+srcp[x + src_pitch]))) > cthresh6) 
                     cmkp[x] = 0xFF;
             }
         }
@@ -176,7 +176,7 @@ int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
                 const int sFirst = srcp[x] - srcp[x - src_pitch];
                 const int sSecond = srcp[x] - srcp[x + src_pitch];
                 if ((sFirst > cthresh && sSecond > cthresh) || (sFirst < -cthresh && sSecond < -cthresh)) {
-                    if (abs(srcp[x - 2*src_pitch]+(srcp[x]<<2)+srcp[x + 2*src_pitch]-(3*(srcp[x - src_pitch]+srcp[x + src_pitch]))) > cthresh6) 
+                    if (abs(srcp[x - 2*src_pitch]+(srcp[x]*4)+srcp[x + 2*src_pitch]-(3*(srcp[x - src_pitch]+srcp[x + src_pitch]))) > cthresh6) 
                         cmkp[x] = 0xFF;
                 }	
             }
@@ -188,7 +188,7 @@ int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
             const int sFirst = srcp[x] - srcp[x - src_pitch];
             const int sSecond = srcp[x] - srcp[x + src_pitch];
             if ((sFirst > cthresh && sSecond > cthresh) || (sFirst < -cthresh && sSecond < -cthresh)) {
-                if (abs(srcp[x - 2*src_pitch]+(srcp[x]<<2)+srcp[x + 2*src_pitch]-(3*(srcp[x - src_pitch]+srcp[x + src_pitch]))) > cthresh6) 
+                if (abs(srcp[x - 2*src_pitch]+(srcp[x]*4)+srcp[x - 2*src_pitch]-(3*(srcp[x - src_pitch]+srcp[x + src_pitch]))) > cthresh6) 
                     cmkp[x] = 0xFF;
             }
         }
@@ -197,7 +197,7 @@ int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
         for (x=0; x<Width; ++x) {
             const int sFirst = srcp[x] - srcp[x - src_pitch];
             if (sFirst > cthresh || sFirst < -cthresh) {
-                if (abs(2*srcp[x - 2*src_pitch]+(srcp[x]<<2)-(6*srcp[x - src_pitch])) > cthresh6) 
+                if (abs(2*srcp[x - 2*src_pitch]+(srcp[x]*4)-6*srcp[x - src_pitch]) > cthresh6) 
                     cmkp[x] = 0xFF;
             }
         } 
