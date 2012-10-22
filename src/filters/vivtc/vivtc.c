@@ -1126,6 +1126,7 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
     vdm.vmi = (VDInfo *)malloc(vdm.vi.numFrames * sizeof(VDInfo));
     vdm.vi.numFrames /= vdm.cycle;
     vdm.vi.numFrames *= vdm.cycle - 1;
+    muldivRational(&vdm.vi.fpsNum, &vdm.vi.fpsDen, vdm.cycle-1, vdm.cycle);
 
     for (i = 0; i < vdm.vi.numFrames; i++) {
         vdm.vmi[i].maxbdiff = -1;
@@ -1143,12 +1144,18 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin)
 {
 	configFunc("org.ivtc.v", "vivtc", "VFM", VAPOURSYNTH_API_VERSION, 1, plugin);
-    // optimize sc calculation
+    // fixme, optimize sc calculation
+    // check sc threshold calculation
+    // add ovr support
+    // add a micmatching argument to replace mmsco
     registerFunc("VFM", "clip:clip;order:int;field:int:opt;mode:int:opt;" \
         "mchroma:int:opt;cthresh:int:opt;mi:int:opt;" \
         "chroma:int:opt;blockx:int:opt;blocky:int:opt;y0:int:opt;y1:int:opt;" \
         "scthresh:float:opt;mmsco:int:opt;micout:int:opt;clip2:clip:opt;", createVFM, NULL, plugin);
     // add metrics output
+    // check sc and dup threshold calculation
+    // add ovr support
+    // adjust frame durations too/cfr it all?
     registerFunc("VDecimate", "clip:clip;cycle:int:opt;" \
         "chroma:int:opt;dupthresh:float:opt;scthresh:float:opt;" \
         "blockx:int:opt;blocky:int:opt;clip2:clip:opt;", createVDecimate, NULL, plugin);
