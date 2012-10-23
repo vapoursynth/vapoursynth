@@ -136,7 +136,7 @@ static void buildABSDiffMask(const unsigned char *prvp, const unsigned char *nxt
 
 
 int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
-    int *blockN, int chroma, int cthresh, int MI, VSFrameRef *cmask, int *cArray, int blockx, int blocky)  
+    int *blockN, int chroma, int cthresh, VSFrameRef *cmask, int *cArray, int blockx, int blocky)  
 {
     int ret = 0;
     const int cthresh6 = cthresh*6;
@@ -593,13 +593,13 @@ static int checkmm(int m1, int m2, int *m1mic, int *m2mic, int *blockN, int MI, 
     if (*m1mic < 0) {
         if (!genFrames[m1])
             genFrames[m1] = createWeaveFrame(prv, src, nxt, vsapi, core, m1, field);
-        *m1mic = calcMI(genFrames[m1], vsapi, blockN, chroma, cthresh, MI, cmask, cArray, blockx, blocky);
+        *m1mic = calcMI(genFrames[m1], vsapi, blockN, chroma, cthresh, cmask, cArray, blockx, blocky);
     }
 
     if (*m2mic < 0) {
         if (!genFrames[m2])
             genFrames[m2] = createWeaveFrame(prv, src, nxt, vsapi, core, m2, field);
-        *m2mic = calcMI(genFrames[m2], vsapi, blockN, chroma, cthresh, MI, cmask, cArray, blockx, blocky);
+        *m2mic = calcMI(genFrames[m2], vsapi, blockN, chroma, cthresh, cmask, cArray, blockx, blocky);
     }
 
     if (((*m2mic)*3 < *m1mic || ((*m2mic)*2 < *m1mic && *m1mic > MI)) && 
@@ -1144,14 +1144,17 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin)
 {
 	configFunc("org.ivtc.v", "vivtc", "VFM", VAPOURSYNTH_API_VERSION, 1, plugin);
+    // test clip2
     // fixme, optimize sc calculation
     // check sc threshold calculation
     // add ovr support
     // add a micmatching argument to replace mmsco
+    // add simple pp hint
     registerFunc("VFM", "clip:clip;order:int;field:int:opt;mode:int:opt;" \
         "mchroma:int:opt;cthresh:int:opt;mi:int:opt;" \
         "chroma:int:opt;blockx:int:opt;blocky:int:opt;y0:int:opt;y1:int:opt;" \
         "scthresh:float:opt;mmsco:int:opt;micout:int:opt;clip2:clip:opt;", createVFM, NULL, plugin);
+    // test clip2
     // add metrics output
     // check sc and dup threshold calculation
     // add ovr support
