@@ -948,6 +948,8 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
     bi.biBitCount = vi->format->bytesPerSample * 8;
     if (vi->format->numPlanes == 3)
         bi.biBitCount +=  (bi.biBitCount * 2) >> (vi->format->subSamplingH + vi->format->subSamplingW);
+    if (parent->se.enable_v210 && vi->format->id == pfYUV422P10)
+        bi.biBitCount = 20;
     if (vi->format->id == pfCompatBGR32) 
         bi.biCompression = BI_RGB;
     else if (vi->format->id == pfCompatYUY2) 

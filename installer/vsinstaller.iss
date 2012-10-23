@@ -41,6 +41,7 @@ Source: vapoursynth.dll; DestDir: {code:GetPythonPath}; Flags: ignoreversion uni
 Source: vapoursynth.dll; DestDir: {app}; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: vapoursynth.pyd; DestDir: {code:GetPythonPath}; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: QtCore4.dll; DestDir: {code:GetPythonPath}; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: QtCore4.dll; DestDir: {app}; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: vsfs.dll; DestDir: {app}; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: template.vpy; DestDir: {app}; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: vsvfw.dll; DestDir: {sys}; Flags: ignoreversion uninsrestartdelete restartreplace

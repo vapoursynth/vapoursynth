@@ -634,6 +634,9 @@ bool/*success*/ AvfsAvi2File::Init(
     bitsPerPixel = uint16_t(vi.format->bytesPerSample * 8);
     if (vi.format->numPlanes == 3)
         bitsPerPixel += (bitsPerPixel * 2) >> (vi.format->subSamplingH + vi.format->subSamplingW);
+    if (avs->EnableV210() && vi.format->id == pfYUV422P10)
+        bitsPerPixel = 20;
+
 
     vidType = 0;
     vidCompress = 0;
