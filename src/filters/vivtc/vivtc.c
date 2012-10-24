@@ -900,14 +900,13 @@ static int calcMetric(const VSFrameRef *f1, const VSFrameRef *f2, uint64_t *totd
         int height = vsapi->getFrameHeight(f1, plane);
         int hblockx = vdm->blockx/2;
         int hblocky = vdm->blocky/2;
-        int nxblocks, nyblocks;
+        int nxblocks;
         // adjust for subsampling
         if (plane > 0) {
             hblockx /= 1 << fi->subSamplingW;
             hblocky /= 1 << fi->subSamplingH;
         }
         nxblocks = vdm->nxblocks;
-        nyblocks = vdm->nyblocks;
 
         for (y = 0; y < height; y++) {
             int ydest = y / hblocky;
@@ -970,12 +969,13 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
     } 
     
     if (activationReason == arAllFramesReady || (hasall && activationReason == arInitial)) {
-        int fin, fout, fcut;
+        int fin, fcut;
+        intptr_t fout;
         int cyclestart, cycleend, lowest;
         int scpos = -1;
         int duppos = -1;
 
-        int rframe = (int)*frameData;
+        intptr_t rframe = (intptr_t)*frameData;
         if(rframe >= 0) {
             if (vdm->clip2)
                 return vsapi->getFrameFilter(rframe, vdm->clip2, frameCtx);
@@ -1016,7 +1016,6 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
         // otherwise drop the first frame right after the sc to keep the motion smooth
 
         fin = n % (vdm->cycle - 1);
-        fcut;
         // no dups so drop the frame right after the sc to keep things smooth
         if (scpos >= 0 && duppos < 0) {
             fcut = scpos % vdm->cycle;
