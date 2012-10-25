@@ -1060,24 +1060,30 @@ cdef void __stdcall publicFunction(VSMap *inm, VSMap *outm, void *userData, VSCo
             vsapi.setError(outm, emsg)
 
 #// for whole script evaluation and export
-
 cdef public struct VPYScriptExport:
+    int size
     void *pynode
     VSNodeRef *node
     void *errstr
     char *error
     VSAPI *vsapi
     int num_threads
+    int pad_scanlines
     int enable_v210
     
-cdef public api int __stdcall vpy_evaluate_text(char *utf8text, char *fn, VPYScriptExport *extp) nogil:
+cdef void zero_vpy_script_export_struct(VPYScriptExport *extp) nogil:
     extp.node = NULL
     extp.pynode = NULL
     extp.errstr = NULL
     extp.error = NULL
     extp.vsapi = NULL
     extp.num_threads = 0
+    extp.pad_scanlines = 0
     extp.enable_v210 = 0
+    #// add size checks here if more fields are added
+    
+cdef public api int __stdcall vpy_evaluate_text(char *utf8text, char *fn, VPYScriptExport *extp) nogil:
+    zero_vpy_script_export_struct(extp)
 
     with gil:
         try:
@@ -1085,6 +1091,10 @@ cdef public api int __stdcall vpy_evaluate_text(char *utf8text, char *fn, VPYScr
             comp = compile(utf8text.decode('utf-8'), fn.decode('utf-8'), 'exec')
             exec(comp) in evaldict
             node = evaldict['last']
+            try:
+                extp.pad_scanlines = evaldict['pad_scanlines']
+            except:
+                pass
             try:
                 extp.enable_v210 = evaldict['enable_v210']
             except:
@@ -1111,14 +1121,8 @@ cdef public api int __stdcall vpy_evaluate_text(char *utf8text, char *fn, VPYScr
         return 0
 
 cdef public api int __stdcall vpy_evaluate_file(char *fn, VPYScriptExport *extp) nogil:
-    extp.node = NULL
-    extp.pynode = NULL
-    extp.errstr = NULL
-    extp.error = NULL
-    extp.vsapi = NULL
-    extp.num_threads = 0
-    extp.enable_v210 = 0
-
+    zero_vpy_script_export_struct(extp)
+    
     with gil:
         try:
             script = open(fn.decode('utf-8')).read()
