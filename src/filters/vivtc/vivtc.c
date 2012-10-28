@@ -92,7 +92,7 @@ static void BitBlt(uint8_t *dstp, int dst_stride, const uint8_t *srcp, int src_s
 static void copyField(VSFrameRef *dst, const VSFrameRef *src, int field, const VSAPI *vsapi) {
     const VSFormat *fi = vsapi->getFrameFormat(src);
     int plane;
-    for (plane=0; plane<fi->numPlanes; ++plane) {
+    for (plane=0; plane<fi->numPlanes; plane++) {
 		BitBlt(vsapi->getWritePtr(dst, plane)+field*vsapi->getStride(dst, plane),vsapi->getStride(dst, plane)*2,
 			vsapi->getReadPtr(src, plane)+field*vsapi->getStride(src, plane),vsapi->getStride(src, plane)*2, 
             vsapi->getFrameWidth(src, plane),vsapi->getFrameHeight(src,plane)/2);
@@ -566,25 +566,29 @@ static int compareFieldsSlow(const VSFrameRef *prv, const VSFrameRef *src, const
 }
 
 
-VSFrameRef *createWeaveFrame(const VSFrameRef *prv, const VSFrameRef *src, 
+const VSFrameRef *createWeaveFrame(const VSFrameRef *prv, const VSFrameRef *src, 
     const VSFrameRef *nxt, const VSAPI *vsapi, VSCore *core, int match, int field) {
-    VSFrameRef *dst = vsapi->newVideoFrame(vsapi->getFrameFormat(src), vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core);
+    if (match == 1) {
+        return vsapi->cloneFrameRef(src);
+    } else {
+        VSFrameRef *dst = vsapi->newVideoFrame(vsapi->getFrameFormat(src), vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core);
 
-    if (match == 0) {
-        copyField(dst, src, 1-field, vsapi);
-        copyField(dst, prv, field, vsapi);
-    } else if (match == 2) {
-        copyField(dst, src, 1-field, vsapi);
-        copyField(dst, nxt, field, vsapi);
-    } else if (match == 3) {
-        copyField(dst, src, field, vsapi);
-        copyField(dst, prv, 1-field, vsapi);
-    } else if (match == 4) {
-        copyField(dst, src, field, vsapi);
-        copyField(dst, nxt, 1-field, vsapi);
+        if (match == 0) {
+            copyField(dst, src, 1-field, vsapi);
+            copyField(dst, prv, field, vsapi);
+        } else if (match == 2) {
+            copyField(dst, src, 1-field, vsapi);
+            copyField(dst, nxt, field, vsapi);
+        } else if (match == 3) {
+            copyField(dst, src, field, vsapi);
+            copyField(dst, prv, 1-field, vsapi);
+        } else if (match == 4) {
+            copyField(dst, src, field, vsapi);
+            copyField(dst, nxt, 1-field, vsapi);
+        }
+
+        return dst;
     }
-
-    return dst;
 }
 
 
@@ -633,7 +637,7 @@ static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void **i
         }
         vsapi->requestFrameFilter(n, vfm->node, frameCtx);
         if (vfm->clip2)
-            vsapi->requestFrameFilter(n-1, vfm->clip2, frameCtx);
+            vsapi->requestFrameFilter(n, vfm->clip2, frameCtx);
         if (n < vfm->vi->numFrames - 1) {
             vsapi->requestFrameFilter(n+1, vfm->node, frameCtx);
             if (vfm->clip2)
@@ -683,7 +687,7 @@ static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void **i
         if (!vfm->mmsco || sc) {
             // here comes the conditional hell to try to approximate mode 0-5 in tfm
             if (vfm->mode == 0) {
-                // maybe not completely approriate but go back and see if the discarded match is less sucky
+                // maybe not completely appropriate but go back and see if the discarded match is less sucky
                 match = checkmm(match, match == fxo[mP] ? fxo[mC] : fxo[mP], &mics[match], &mics[match == fxo[mP] ? fxo[mC] : fxo[mP]], &blockN, vfm->mi, vfm->field, vfm->chroma, vfm->cthresh, genFrames, prv, src, nxt, vfm->cmask, &vfm->cArray[0], vfm->blockx, vfm->blocky, vsapi, core);
             } else if (vfm->mode == 1) {
                 match = checkmm(match, fxo[mN], &mics[match], &mics[fxo[mN]], &blockN, vfm->mi, vfm->field, vfm->chroma, vfm->cthresh, genFrames, prv, src, nxt, vfm->cmask, &vfm->cArray[0], vfm->blockx, vfm->blocky, vsapi, core);
@@ -728,8 +732,9 @@ static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void **i
         m = vsapi->getFramePropsRW(dst2);
         for (i = 0; i < 5; i++)
             vsapi->propSetInt(m, "VFMMics", mics[fxo[i]], paAppend);
-        vsapi->propSetInt(m, "VFMMatch", fxo[match], paAppend);
-        vsapi->propSetInt(m, "VFMSceneChange", sc, paAppend);
+        vsapi->propSetInt(m, "_Combed", mics[match] >= vfm->mi, paReplace);
+        vsapi->propSetInt(m, "VFMMatch", fxo[match], paReplace);
+        vsapi->propSetInt(m, "VFMSceneChange", sc, paReplace);
         return dst2;
     }
     return NULL;
@@ -823,7 +828,7 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
     vfm.vi = vsapi->getVideoInfo(vfm.clip2 ? vfm.clip2 : vfm.node);
     vi = vsapi->getVideoInfo(vfm.node);
 
-    if (!isConstantFormat(vfm.vi) || !vfm.vi->numFrames || vfm.vi->format->id != pfYUV420P8) {
+    if (!isConstantFormat(vi) || !vi->numFrames || vi->format->id != pfYUV420P8) {
         vsapi->setError(out, "VFM: input clip must be constant format YUV420P8");
         vsapi->freeNode(vfm.node);
         vsapi->freeNode(vfm.clip2);
@@ -1143,12 +1148,10 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin)
 {
 	configFunc("org.ivtc.v", "vivtc", "VFM", VAPOURSYNTH_API_VERSION, 1, plugin);
-    // test clip2
     // fixme, optimize sc calculation
     // check sc threshold calculation
     // add ovr support
     // add a micmatching argument to replace mmsco
-    // add simple pp hint
     registerFunc("VFM", "clip:clip;order:int;field:int:opt;mode:int:opt;" \
         "mchroma:int:opt;cthresh:int:opt;mi:int:opt;" \
         "chroma:int:opt;blockx:int:opt;blocky:int:opt;y0:int:opt;y1:int:opt;" \
