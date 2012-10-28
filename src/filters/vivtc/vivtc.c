@@ -77,7 +77,7 @@ typedef struct {
     int mmsco;
     int micout;
     int lastn;
-    int lastscdiff;
+    int64_t lastscdiff;
 } VFMData;
 
 static void BitBlt(uint8_t *dstp, int dst_stride, const uint8_t *srcp, int src_stride, int row_size, int height) {
@@ -135,7 +135,7 @@ static void buildABSDiffMask(const unsigned char *prvp, const unsigned char *nxt
 }
 
 
-int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
+static int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
     int *blockN, int chroma, int cthresh, VSFrameRef *cmask, int *cArray, int blockx, int blocky)  
 {
     int ret = 0;
@@ -566,7 +566,7 @@ static int compareFieldsSlow(const VSFrameRef *prv, const VSFrameRef *src, const
 }
 
 
-const VSFrameRef *createWeaveFrame(const VSFrameRef *prv, const VSFrameRef *src, 
+static const VSFrameRef *createWeaveFrame(const VSFrameRef *prv, const VSFrameRef *src, 
     const VSFrameRef *nxt, const VSAPI *vsapi, VSCore *core, int match, int field) {
     if (match == 1) {
         return vsapi->cloneFrameRef(src);
@@ -663,8 +663,20 @@ static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void **i
         int sc = 0;
 
         // check if it's a scenechange so micmatching can be used
-        if (vfm->mmsco)
-            sc = calcAbsDiff(prv, src, vsapi) > vfm->scthresh || calcAbsDiff(src, nxt, vsapi) > vfm->scthresh;
+        if (vfm->mmsco) {
+            if (vfm->lastn == n - 1) {
+                if (vfm->lastscdiff > vfm->scthresh)
+                    sc = 1;
+            } else if (calcAbsDiff(prv, src, vsapi) > vfm->scthresh) {
+                sc = 1;
+            }
+            
+            if (!sc) {
+                vfm->lastn = n;
+                vfm->lastscdiff = calcAbsDiff(src, nxt, vsapi);
+                sc = vfm->lastscdiff > vfm->scthresh;
+            }
+        }
 
         // p/c selection
         match = compareFieldsSlow(prv, src, nxt, vfm->map, fxo[mC], fxo[mP], vfm->mchroma, vfm->field, vfm->y0, vfm->y1, vfm->tbuffer, vfm->tpitchy, vfm->tpitchuv, vsapi);
@@ -1148,7 +1160,6 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin)
 {
 	configFunc("org.ivtc.v", "vivtc", "VFM", VAPOURSYNTH_API_VERSION, 1, plugin);
-    // fixme, optimize sc calculation
     // check sc threshold calculation
     // add ovr support
     // add a micmatching argument to replace mmsco
@@ -1156,7 +1167,6 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegiste
         "mchroma:int:opt;cthresh:int:opt;mi:int:opt;" \
         "chroma:int:opt;blockx:int:opt;blocky:int:opt;y0:int:opt;y1:int:opt;" \
         "scthresh:float:opt;mmsco:int:opt;micout:int:opt;clip2:clip:opt;", createVFM, NULL, plugin);
-    // test clip2
     // add metrics output
     // check sc and dup threshold calculation
     // add ovr support
