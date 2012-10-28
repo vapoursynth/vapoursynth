@@ -17,6 +17,8 @@ typedef enum {
 
 // FIXME, missing variable injection to speed things up
 // cannot take the output of one script and feed into the next one
+// cannot specify which variables to read out
+
 
 // Initialize the available scripting runtimes, returns non-zero on failure
 VS_API(int) initVSScript(void);

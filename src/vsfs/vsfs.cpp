@@ -531,13 +531,8 @@ void AvfsProcessScript(
 ---------------------------------------------------------*/
 
 //fixme, move helpers to a shared file?
-static int BMPSize(int height, int rowsize, int planar) {
-    if (planar) {
-        int p = height * ((rowsize+3) & ~3);
-        p+=p>>1;
-        return p; 
-    } else
-        return height * ((rowsize+3) & ~3);
+static int BMPSize(int height, int rowsize) {
+    return height * ((rowsize+3) & ~3);
 }
 
 int VapourSynther::ImageSize() {
@@ -548,8 +543,10 @@ int VapourSynther::ImageSize() {
     if (vi->format->id == pfYUV422P10 && se.enable_v210) {
         image_size = ((16*((vi->width + 5) / 6) + 63) & ~63);
         image_size *= vi->height;
-    } else if (vi->format->numPlanes == 1) {
-        image_size = BMPSize(vi->height, vi->width * vi->format->bytesPerSample, 0);
+    } else if (vi->format->numPlanes == 1 || se.pad_scanlines) {
+        image_size = BMPSize(vi->height, vi->width * vi->format->bytesPerSample);
+        if (vi->format->numPlanes == 3)
+            image_size += 2 * BMPSize(vi->height >> vi->format->subSamplingH, (vi->width >> vi->format->subSamplingW) * vi->format->bytesPerSample);
     } else { // Packed size
         image_size = (vi->width * vi->format->bytesPerSample) >> vi->format->subSamplingW;
         if (image_size) {

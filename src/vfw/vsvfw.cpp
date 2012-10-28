@@ -31,6 +31,7 @@
 #include <algorithm>
 
 #include "VapourSynth.h"
+#include "VSHelper.h"
 #include "vapoursynthpp_api.h"
 
 void BitBlt(uint8_t* dstp, int dst_pitch, const uint8_t* srcp, int src_pitch, int row_size, int height) {
@@ -43,13 +44,8 @@ void BitBlt(uint8_t* dstp, int dst_pitch, const uint8_t* srcp, int src_pitch, in
 
 static long refCount=0;
 
-static int BMPSize(int height, int rowsize, int planar) {
-    if (planar) {
-        int p = height * ((rowsize+3) & ~3);
-        p+=p>>1;
-        return p; 
-    } else
-        return height * ((rowsize+3) & ~3);
+static int BMPSize(int height, int rowsize) {
+    return height * ((rowsize+3) & ~3);
 }
 
 // {58F74CA0-BD0E-4664-A49B-8D10E6F0C131}
@@ -425,8 +421,10 @@ int VapourSynthFile::ImageSize() {
     if (vi->format->id == pfYUV422P10 && se.enable_v210) {
         image_size = ((16*((vi->width + 5) / 6) + 63) & ~63);
         image_size *= vi->height;
-    } else if (vi->format->numPlanes == 1) {
-        image_size = BMPSize(vi->height, vi->width * vi->format->bytesPerSample, 0);
+    } else if (vi->format->numPlanes == 1 || se.pad_scanlines) {
+        image_size = BMPSize(vi->height, vi->width * vi->format->bytesPerSample);
+        if (vi->format->numPlanes == 3)
+            image_size += 2 * BMPSize(vi->height >> vi->format->subSamplingH, (vi->width >> vi->format->subSamplingW) * vi->format->bytesPerSample);
     } else { // Packed size
         image_size = (vi->width * vi->format->bytesPerSample) >> vi->format->subSamplingW;
         if (image_size) {
@@ -540,8 +538,8 @@ STDMETHODIMP VapourSynthFile::Info(AVIFILEINFOW *pfi, LONG lSize) {
     afi.dwHeight				= vi->height;
     afi.dwEditCount				= 0;
 
-    afi.dwRate					= vi->fpsNum ? vi->fpsNum : 1;
-    afi.dwScale					= vi->fpsDen ? vi->fpsDen : 30;
+    afi.dwRate					= int64ToIntS(vi->fpsNum ? vi->fpsNum : 1);
+    afi.dwScale					= int64ToIntS(vi->fpsDen ? vi->fpsDen : 30);
     afi.dwLength				= vi->numFrames;
 
     wcscpy(afi.szFileType, L"VapourSynth");
@@ -727,8 +725,8 @@ STDMETHODIMP_(LONG) VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) {
     else
         return E_FAIL;
 
-    asi.dwScale = vi->fpsDen ? vi->fpsDen : 1;
-    asi.dwRate = vi->fpsNum ? vi->fpsNum : 30;
+    asi.dwScale = int64ToIntS(vi->fpsDen ? vi->fpsDen : 1);
+    asi.dwRate = int64ToIntS(vi->fpsNum ? vi->fpsNum : 30);
     asi.dwLength = vi->numFrames;
     asi.rcFrame.right = vi->width;
     asi.rcFrame.bottom = vi->height;

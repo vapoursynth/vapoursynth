@@ -1254,15 +1254,15 @@ bool/*success*/ AvfsAvi2File::GetFrameData(
             }
             ////
         } else if (semi_packed_p16) {
-            copyPlane(buffer, offset, size, frame, 0, 4-1, avs->GetVSAPI());
+            copyPlane(buffer, offset, size, frame, 0, 0, avs->GetVSAPI());
             if (size > 0) {
                 memcpy(buffer, avs->GetExtraPlane2() + offset, size);
                 size = 0;
             }
         } else {
-            copyPlane(buffer, offset, size, frame, 0, 4-1, avs->GetVSAPI());
-            copyPlane(buffer, offset, size, frame, 2, 2-1, avs->GetVSAPI());
-            copyPlane(buffer, offset, size, frame, 1, 2-1, avs->GetVSAPI());
+            copyPlane(buffer, offset, size, frame, 0, vi.format->numPlanes > 1 ? 0 : 3, avs->GetVSAPI());
+            copyPlane(buffer, offset, size, frame, 2, 0, avs->GetVSAPI());
+            copyPlane(buffer, offset, size, frame, 1, 0, avs->GetVSAPI());
         }
         ASSERT(size == 0);
     }
