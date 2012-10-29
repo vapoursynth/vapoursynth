@@ -25,7 +25,7 @@ If this for some reason fails there may be a bug in the installer or there are o
 Installation of VSFS
 ####################
 By default vsfs isn't enabled and you will have to do it yourself. Assuming you've already installed the Pismo File Mount Audit Package simply open a command prompt and
-type "pfm register <installation directory here>\\vsfs.dll". After this you can right click any .vpy script and select *Quick mount* to have it appear as a virtual directory with
+type "pfm register <installation directory here>\\core\\vsfs.dll". After this you can right click any .vpy script and select *Quick mount* to have it appear as a virtual directory with
 and avi file and an error log.
 
 Compiling

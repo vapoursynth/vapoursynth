@@ -34,23 +34,38 @@ Name: Full; Description: Full installation
 Name: Core; Description: {#= AppName} {#= Version}; Types: Full; Flags: fixed
 
 [Tasks]
-Name: newvpyfile; Description: "Add new .vpy shortcut"; GroupDescription: "New File Shortcuts:"
+Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to shell context menu"; GroupDescription: "New File Shortcuts:"
 
 [Files]
+;core binaries
 Source: vapoursynth.dll; DestDir: {code:GetPythonPath}; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: vapoursynth.dll; DestDir: {app}; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: vapoursynth.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: vapoursynth.pyd; DestDir: {code:GetPythonPath}; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: QtCore4.dll; DestDir: {code:GetPythonPath}; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: QtCore4.dll; DestDir: {app}; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: vsfs.dll; DestDir: {app}; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: QtCore4.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: vsfs.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: template.vpy; DestDir: {app}; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: vsvfw.dll; DestDir: {sys}; Flags: ignoreversion uninsrestartdelete restartreplace
+;vs2010 runtime
 Source: msvcr100.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile
 Source: msvcp100.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile
+;sdk
+Source: ..\include\VapourSynth.h; DestDir: {app}\sdk\include; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: ..\include\VSHelper.h; DestDir: {app}\sdk\include; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: ..\sdk\filter_skeleton.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: ..\sdk\invert_example.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace
+;bundled filters
+Source: filters\vivtc.dll; DestDir: {app}\filters; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: filters\eedi3.dll; DestDir: {app}\filters; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: filters\temporalsoften.dll; DestDir: {app}\filters; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: filters\histogram.dll; DestDir: {app}\filters; Flags: ignoreversion uninsrestartdelete restartreplace
+
 
 [Icons]
 Name: {group}\VapourSynth Website; Filename: http://www.vapoursynth.com/
-Name: {group}\VapourSynth Documentation; Filename: http://www.vapoursynth.com/doc/
+Name: {group}\Documentation; Filename: http://www.vapoursynth.com/doc/
+Name: {group}\Bundled Filters; Filename: {app}\filters
+Name: {group}\VapourSynth SDK; Filename: {app}\sdk
 
 [Registry]
 Root: HKLM; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}; ValueType: string; ValueName: ""; ValueData: "VapourSynth"; Flags: uninsdeletevalue uninsdeletekeyifempty
