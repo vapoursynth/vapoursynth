@@ -116,7 +116,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     // strict checking because of what we wrote in the argument string the only reason
     // this could fail is when the value wasn't set by the user.
     // And when it's not set we want it to default to enabled.
-    d.enabled = vsapi->propGetInt(in, "enable", 0, &err);
+    d.enabled = !!vsapi->propGetInt(in, "enable", 0, &err);
     if (err)
         d.enabled = 1;
 

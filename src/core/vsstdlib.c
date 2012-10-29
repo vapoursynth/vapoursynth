@@ -1696,6 +1696,9 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     if (!d.vi.format)
         RETERROR("BlankClip: Invalid format");
 
+    if (d.vi.format->sampleType != stInteger)
+        RETERROR("BlankClip: Only integer sample types supported as output");
+
     temp = vsapi->propGetInt(in, "length", 0, &err);
 
     if (err) {
@@ -1724,8 +1727,32 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
 
     d.f = vsapi->newVideoFrame(d.vi.format, d.vi.width, d.vi.height, 0, core);
 
-    for (plane = 0; plane < d.vi.format->numPlanes; plane++)
-        memset(vsapi->getWritePtr(d.f, plane), color[plane], vsapi->getStride(d.f, plane) * vsapi->getFrameHeight(d.f, plane));
+    for (plane = 0; plane < d.vi.format->numPlanes; plane++) {
+        int x, y;
+        uint8_t *dstp;
+
+        switch (d.vi.format->bytesPerSample) {
+        case 1:
+            memset(vsapi->getWritePtr(d.f, plane), color[plane], vsapi->getStride(d.f, plane) * vsapi->getFrameHeight(d.f, plane));
+            break;
+        case 2:
+            dstp = vsapi->getWritePtr(d.f, plane);
+            for (y = 0; y < vsapi->getFrameHeight(d.f, plane); y++) {
+                for (x = 0; x < vsapi->getFrameWidth(d.f, plane); x++)
+                    ((uint16_t *)dstp)[x] = color[plane];
+                dstp += vsapi->getStride(d.f, plane);
+            }
+            break;
+        case 4:
+            dstp = vsapi->getWritePtr(d.f, plane);
+            for (y = 0; y < vsapi->getFrameHeight(d.f, plane); y++) {
+                for (x = 0; x < vsapi->getFrameWidth(d.f, plane); x++)
+                    ((uint32_t *)dstp)[x] = color[plane];
+                dstp += vsapi->getStride(d.f, plane);
+            }
+            break;
+        }
+    }
 
     vsapi->propSetInt(vsapi->getFramePropsRW(d.f), "_DurationNum", d.vi.fpsDen, 0);
     vsapi->propSetInt(vsapi->getFramePropsRW(d.f), "_DurationDen", d.vi.fpsNum, 0);
@@ -2421,8 +2448,6 @@ extern void vs_transpose_byte_partial(const uint8_t *src, int srcstride, uint8_t
 typedef struct {
     const VSNodeRef *node;
     VSVideoInfo vi;
-    VSFuncRef *func;
-    VSMap *in;
 } TransposeData;
 
 static void VS_CC transposeInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -2895,6 +2920,157 @@ static void VS_CC planeDifferenceCreate(const VSMap *in, VSMap *out, void *userD
     return;
 }
 
+
+//////////////////////////////////////////
+// ClipToProp
+
+typedef struct {
+    const VSNodeRef *node1;
+    const VSNodeRef *node2;
+    const VSVideoInfo *vi;
+    const char *prop;
+} ClipToPropData;
+
+static void VS_CC clipToPropInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
+    ClipToPropData *d = (ClipToPropData *) * instanceData;
+    vsapi->setVideoInfo(d->vi, node);
+}
+
+static const VSFrameRef *VS_CC clipToPropGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    ClipToPropData *d = (ClipToPropData *) * instanceData;
+
+    if (activationReason == arInitial) {
+        vsapi->requestFrameFilter(n, d->node1, frameCtx);
+        vsapi->requestFrameFilter(n, d->node2, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        const VSFrameRef *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
+        const VSFrameRef *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
+        VSFrameRef *dst = vsapi->copyFrame(src1, core);
+        vsapi->propSetFrame(vsapi->getFramePropsRW(dst), d->prop, src2, paReplace);
+        vsapi->freeFrame(src1);
+        vsapi->freeFrame(src2);
+        return dst;
+    }
+
+    return 0;
+}
+
+static void VS_CC clipToPropFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+    ClipToPropData *d = (ClipToPropData *)instanceData;
+    vsapi->freeNode(d->node1);
+    vsapi->freeNode(d->node2);
+    free(d);
+}
+
+static void VS_CC clipToPropCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    ClipToPropData d;
+    ClipToPropData *data;
+    const VSNodeRef *cref;
+    int err;
+
+    d.prop = vsapi->propGetData(in, "prop", 0, &err);
+    if (err)
+        d.prop = "_Alpha";
+
+    d.node1 = vsapi->propGetNode(in, "clip", 0, 0);
+    d.vi = vsapi->getVideoInfo(d.node1);
+    d.node2 = vsapi->propGetNode(in, "mclip", 0, 0);
+
+    if (!isConstantFormat(d.vi) || !isConstantFormat(vsapi->getVideoInfo(d.node2))) {
+        vsapi->freeNode(d.node1);
+        vsapi->freeNode(d.node2);
+        RETERROR("ClipToProp: clip must be constant format");
+    }
+
+    data = malloc(sizeof(d));
+    *data = d;
+
+    cref = vsapi->createFilter(in, out, "ClipToProp", clipToPropInit, clipToPropGetFrame, clipToPropFree, fmParallel, 0, data, core);
+    vsapi->propSetNode(out, "clip", cref, 0);
+    vsapi->freeNode(cref);
+    return;
+}
+
+//////////////////////////////////////////
+// PropToClip
+
+typedef struct {
+    const VSNodeRef *node;
+    VSVideoInfo vi;
+    const char *prop;
+} PropToClipData;
+
+static void VS_CC propToClipInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
+    PropToClipData *d = (PropToClipData *) * instanceData;
+    vsapi->setVideoInfo(&d->vi, node);
+}
+
+static const VSFrameRef *VS_CC propToClipGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    PropToClipData *d = (PropToClipData *) * instanceData;
+    int err;
+
+    if (activationReason == arInitial) {
+        vsapi->requestFrameFilter(n, d->node, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSFrameRef *dst = vsapi->propGetFrame(vsapi->getFramePropsRO(src), d->prop, 0, &err);
+        vsapi->freeFrame(src);
+
+        if (dst) {
+            return dst;
+        } else {
+            vsapi->setFilterError("PropToClip: Failed to extract frame from specified property", frameCtx);
+            return NULL;
+        }
+    }
+
+    return 0;
+}
+
+static void VS_CC propToClipFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+    PropToClipData *d = (PropToClipData *)instanceData;
+    vsapi->freeNode(d->node);
+    free(d);
+}
+
+static void VS_CC propToClipCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    PropToClipData d;
+    PropToClipData *data;
+    const VSNodeRef *cref;
+    int err;
+    char errmsg[512];
+    const VSFrameRef *src;
+    const VSFrameRef *msrc;
+
+    d.node = vsapi->propGetNode(in, "clip", 0, 0);
+    d.vi = *vsapi->getVideoInfo(d.node);
+    d.prop = vsapi->propGetData(in, "prop", 0, &err);
+    if (err)
+        d.prop = "_Alpha";
+
+    if (!isConstantFormat(&d.vi)) {
+        vsapi->freeNode(d.node);
+        RETERROR("PropToClip: clip must be constant format");
+    }
+
+    src = vsapi->getFrame(0, d.node, errmsg, sizeof(errmsg));
+    msrc = vsapi->propGetFrame(vsapi->getFramePropsRO(src), d.prop, 0, &err);
+
+    d.vi.format = vsapi->getFrameFormat(msrc);
+    d.vi.width = vsapi->getFrameWidth(msrc, 0);
+    d.vi.height = vsapi->getFrameHeight(msrc, 0);
+    vsapi->freeFrame(msrc);
+    vsapi->freeFrame(src);
+
+    data = malloc(sizeof(d));
+    *data = d;
+
+    cref = vsapi->createFilter(in, out, "PropToClip", propToClipInit, propToClipGetFrame, propToClipFree, fmParallel, 0, data, core);
+    vsapi->propSetNode(out, "clip", cref, 0);
+    vsapi->freeNode(cref);
+    return;
+}
+
 //////////////////////////////////////////
 // Init
 
@@ -2927,4 +3103,6 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("PEMVerifier", "clip:clip;upper:int[]:opt;lower:int[]:opt;", pemVerifierCreate, 0, plugin);
     registerFunc("PlaneAverage", "clip:clip;plane:int;prop:data:opt;", planeAverageCreate, 0, plugin);
     registerFunc("PlaneDifference", "clips:clip[];plane:int;prop:data:opt;", planeDifferenceCreate, 0, plugin);
+    registerFunc("ClipToProp", "clip:clip;mclip:clip;prop:data:opt;mismatch:int:opt;", clipToPropCreate, 0, plugin);
+    registerFunc("PropToClip", "clip:clip;prop:data:opt;", propToClipCreate, 0, plugin);
 }
