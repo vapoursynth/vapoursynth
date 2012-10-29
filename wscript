@@ -118,7 +118,7 @@ def configure(conf):
     conf.load('compiler_cxx')
     conf.load('qt4')
 
-    if conf.env.DEST_CPU in ['x86', 'x86_64', 'x64']:
+    if conf.env.DEST_CPU in ['x86', 'x86_64', 'x64', 'amd64', 'x86_amd64']:
         # Load Yasm explicitly, then the Nasm module which
         # supports both Nasm and Yasm.
         conf.find_program('yasm', var = 'AS', mandatory = True)
@@ -146,7 +146,7 @@ def configure(conf):
                  '-Worphan-labels',
                  '-Wunrecognized-char'])
 
-    if conf.env.DEST_CPU in ['x86_64', 'x64']:
+    if conf.env.DEST_CPU in ['x86_64', 'x64', 'amd64', 'x86_amd64']:
         add_options(['ASFLAGS'],
                     ['-DARCH_X86_64=1'])
 
