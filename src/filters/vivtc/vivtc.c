@@ -58,7 +58,7 @@ typedef struct {
     const VSVideoInfo *vi;
     VSFrameRef *map;
     VSFrameRef *cmask;
-    double scthresh;
+    int64_t scthresh;
     int *cArray;
     uint8_t *tbuffer;
     int tpitchy;
@@ -764,6 +764,7 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
     VFMData *vfmd ;
     const VSNodeRef *cref;
     const VSVideoInfo *vi;
+    double scthresh;
 
     vfm.order = !!vsapi->propGetInt(in, "order", 0, 0);
     vfm.field = !!vsapi->propGetInt(in, "field", 0, &err);
@@ -796,9 +797,9 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
     vfm.y1 = int64ToIntS(vsapi->propGetInt(in, "y1", 0, &err));
     if (err)
         vfm.y1 = 16;
-    vfm.scthresh = vsapi->propGetFloat(in, "scthresh", 0, &err);
+    scthresh = vsapi->propGetFloat(in, "scthresh", 0, &err);
     if (err)
-        vfm.scthresh = 12.0;
+        scthresh = 12.0;
     vfm.micmatch = int64ToIntS(vsapi->propGetInt(in, "micmatch", 0, &err));
     if (err)
         vfm.micmatch = 1;
@@ -819,7 +820,7 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
         return;
     }
 
-    if (vfm.scthresh < 0 || vfm.scthresh > 100) {
+    if (scthresh < 0 || scthresh > 100) {
         vsapi->setError(out, "VFM: Invalid scthresh specified");
         return;
     }
@@ -853,7 +854,7 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
         return;
     }
 
-    vfm.scthresh *= (vi->width * vi->height) * 255.0 / 100.0;
+    vfm.scthresh =  (int64_t)((vi->width * vi->height * 255.0 * scthresh) / 100.0);
 
     vfm.map = vsapi->newVideoFrame(vi->format, vi->width, vi->height, NULL, core);
     vfm.cmask = vsapi->newVideoFrame(vi->format, vi->width, vi->height, NULL, core);
@@ -876,7 +877,7 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
 
 typedef struct {
     int maxbdiff;
-    uint64_t totdiff;
+    int64_t totdiff;
 } VDInfo;
 
 typedef struct {
@@ -885,14 +886,12 @@ typedef struct {
     VSVideoInfo vi;
     int cycle;
     int chroma;
-    double dupthresh;
-    double scthresh;
+    int dupthresh;
+    int64_t scthresh;
     int blockx;
     int blocky;
     int nxblocks;
     int nyblocks;
-    int bnormalize;
-    int fnormalize;
     int bdiffsize;
     int *bdiffs;
     VDInfo *vmi;
@@ -1018,13 +1017,13 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
 
         lowest = cyclestart;
         for (i = cyclestart + 1; i < cycleend; i++) {
-            if (vdm->vmi[i].totdiff/(double)vdm->fnormalize > vdm->scthresh)
+            if (vdm->vmi[i].totdiff > vdm->scthresh)
                 scpos = i;
             if (vdm->vmi[i].maxbdiff < vdm->vmi[lowest].maxbdiff)
                 lowest = i;
         }
 
-        if (vdm->vmi[lowest].maxbdiff/(double)vdm->bnormalize < vdm->dupthresh)
+        if (vdm->vmi[lowest].maxbdiff < vdm->dupthresh)
             duppos = lowest;
 
         // if there is no scenechange simply drop the frame with lowest difference
@@ -1067,6 +1066,7 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
     const VSNodeRef *cref;
     const VSVideoInfo *vi;
     int i, err;
+    double dupthresh, scthresh;
 
     vdm.cycle = int64ToIntS(vsapi->propGetInt(in, "cycle", 0, &err));
     if (err)
@@ -1080,12 +1080,12 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
     vdm.blocky = int64ToIntS(vsapi->propGetInt(in, "blocky", 0, &err));
     if (err)
         vdm.blocky = 32;
-    vdm.dupthresh = vsapi->propGetFloat(in, "dupthresh", 0, &err);
+    dupthresh = vsapi->propGetFloat(in, "dupthresh", 0, &err);
     if (err)
-        vdm.dupthresh = 1.1;
-    vdm.scthresh = vsapi->propGetFloat(in, "scthresh", 0, &err);
+        dupthresh = 1.1;
+    scthresh = vsapi->propGetFloat(in, "scthresh", 0, &err);
     if (err)
-        vdm.scthresh = 15.0;
+        scthresh = 15.0;
 
     if (vdm.cycle < 2 || vdm.cycle > 25) {
         vsapi->setError(out, "VDecimate: Invalid cycle size specified");
@@ -1097,12 +1097,12 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
         return;
     }
 
-    if (vdm.dupthresh < 0 || vdm.dupthresh > 255) {
+    if (dupthresh < 0 || dupthresh > 100) {
         vsapi->setError(out, "VDecimate: invalid dupthresh specified");
         return;
     }
 
-    if (vdm.scthresh < 0 || vdm.scthresh > 255) {
+    if (scthresh < 0 || scthresh > 100) {
         vsapi->setError(out, "VDecimate: invalid scthresh specified");
         return;
     }
@@ -1126,14 +1126,9 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
         return;
     }
 
-    vdm.fnormalize = vdm.vi.width * vdm.vi.height;
-    vdm.bnormalize = vdm.blockx * vdm.blocky;
-    if (vdm.chroma) {
-        vdm.fnormalize *= 3;
-        vdm.fnormalize /= 2;
-        vdm.bnormalize *= 3;
-        vdm.bnormalize /= 2;
-    }
+    vdm.scthresh = (int64_t)((255 * vi->width * vi->height * scthresh)/100);
+    vdm.dupthresh = (int)((255 * vdm.blockx * vdm.blocky * dupthresh)/100);
+
     vdm.nxblocks = (vdm.vi.width + vdm.blockx/2 - 1)/(vdm.blockx/2);
     vdm.nyblocks = (vdm.vi.height + vdm.blocky/2 - 1)/(vdm.blocky/2);
     vdm.bdiffsize = vdm.nxblocks * vdm.nyblocks;
@@ -1159,14 +1154,12 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin)
 {
 	configFunc("org.ivtc.v", "vivtc", "VFM", VAPOURSYNTH_API_VERSION, 1, plugin);
-    // check sc threshold calculation
     // add ovr support
     registerFunc("VFM", "clip:clip;order:int;field:int:opt;mode:int:opt;" \
         "mchroma:int:opt;cthresh:int:opt;mi:int:opt;" \
         "chroma:int:opt;blockx:int:opt;blocky:int:opt;y0:int:opt;y1:int:opt;" \
         "scthresh:float:opt;micmatch:int:opt;micout:int:opt;clip2:clip:opt;", createVFM, NULL, plugin);
     // add metrics output
-    // check sc and dup threshold calculation
     // add ovr support
     // adjust frame durations too/cfr it all?
     registerFunc("VDecimate", "clip:clip;cycle:int:opt;" \
