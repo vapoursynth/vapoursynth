@@ -74,7 +74,7 @@ typedef struct {
     int blocky;
     int y0;
     int y1;
-    int mmsco;
+    int micmatch;
     int micout;
     int lastn;
     int64_t lastscdiff;
@@ -108,10 +108,8 @@ static int64_t calcAbsDiff(const VSFrameRef *f1, const VSFrameRef *f2, const VSA
     int x, y;
     int64_t acc = 0;
     for (y = 0; y < height; y++) {
-        for (x = 0; x < width; x++) {
-            int diff = abs(srcp1[x] - srcp2[x]);
-            acc += diff;
-        }
+        for (x = 0; x < width; x++)
+            acc += abs(srcp1[x] - srcp2[x]);
         srcp1 += stride;
         srcp2 += stride;
     }
@@ -662,8 +660,9 @@ static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void **i
         VSMap *m;
         int sc = 0;
 
-        // check if it's a scenechange so micmatching can be used
-        if (vfm->mmsco) {
+        // check if it's a scenechange so micmatch can be used
+        // only relevant for mm mode 1
+        if (vfm->micmatch == 1) {
             if (vfm->lastn == n - 1) {
                 if (vfm->lastscdiff > vfm->scthresh)
                     sc = 1;
@@ -696,7 +695,7 @@ static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void **i
         // check the micmatches to see if one of the options are better
         // here come the huge ass mode tables
 
-        if (!vfm->mmsco || sc) {
+        if (vfm->micmatch == 2 || (sc && vfm->micmatch == 1)) {
             // here comes the conditional hell to try to approximate mode 0-5 in tfm
             if (vfm->mode == 0) {
                 // maybe not completely appropriate but go back and see if the discarded match is less sucky
@@ -800,9 +799,9 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
     vfm.scthresh = vsapi->propGetFloat(in, "scthresh", 0, &err);
     if (err)
         vfm.scthresh = 12.0;
-    vfm.mmsco = !!vsapi->propGetInt(in, "mmsco", 0, &err);
+    vfm.micmatch = int64ToIntS(vsapi->propGetInt(in, "micmatch", 0, &err));
     if (err)
-        vfm.mmsco = 1;
+        vfm.micmatch = 1;
     vfm.micout = !!vsapi->propGetInt(in, "micout", 0, &err);
 
     if (vfm.mode < 0 || vfm.mode > 5) {
@@ -825,13 +824,13 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
         return;
     }
 
-    if (vfm.scthresh < 0 || vfm.scthresh > 255) {
-        vsapi->setError(out, "VFM: invalid scthresh specified");
+    if (vfm.cthresh < -1 || vfm.cthresh > 255) {
+        vsapi->setError(out, "VFM: invalid cthresh specified");
         return;
     }
 
-    if (vfm.cthresh < -1 || vfm.cthresh > 255) {
-        vsapi->setError(out, "VFM: invalid cthresh specified");
+    if (vfm.micmatch < 0 || vfm.micmatch > 2) {
+        vsapi->setError(out, "VFM: invalid micmatch mode specified");
         return;
     }
 
@@ -1162,11 +1161,10 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegiste
 	configFunc("org.ivtc.v", "vivtc", "VFM", VAPOURSYNTH_API_VERSION, 1, plugin);
     // check sc threshold calculation
     // add ovr support
-    // add a micmatching argument to replace mmsco
     registerFunc("VFM", "clip:clip;order:int;field:int:opt;mode:int:opt;" \
         "mchroma:int:opt;cthresh:int:opt;mi:int:opt;" \
         "chroma:int:opt;blockx:int:opt;blocky:int:opt;y0:int:opt;y1:int:opt;" \
-        "scthresh:float:opt;mmsco:int:opt;micout:int:opt;clip2:clip:opt;", createVFM, NULL, plugin);
+        "scthresh:float:opt;micmatch:int:opt;micout:int:opt;clip2:clip:opt;", createVFM, NULL, plugin);
     // add metrics output
     // check sc and dup threshold calculation
     // add ovr support
