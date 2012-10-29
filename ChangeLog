@@ -4,15 +4,14 @@ compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 .vpy files need to be opened with file\open and then select avifile compat from the format list before selecting the .vpy script (this is a vdub limitation)
 
 r14:
-a collection of ported filters are now bundled (eedi3, vivtc, histogram and temporalsoften)
-the VapourSynth.dll entry point is now exported without decoration
+fixed setting the pixel values in blankclip
+a collection of ported/new filters are now bundled (eedi3, vivtc, histogram and temporalsoften)
 all examples and headers needed to write a new filter are now included in the installer
 fixed a frame data alignment issue in VSFS
 added vivtc (aka tivtc lite) to the included filters
 the fpu state check now only outputs a warning instead of terminating (this is until I've been able to locate why certain people trigger it)
 users can now set the cache size limit over which vs aggressively starts to decrease cache size, use core.set_max_cache_size(number of MB) (the memory use is calculated from the combined size of all framebuffers allocated)
 fixed memory leaks in PlaneDifference and PlaneAverage
-
 
 r13:
 enabled another part of the cache size adjustment, cache sizes will now be aggressively reduced to keep framebuffer memory use below 1GB
