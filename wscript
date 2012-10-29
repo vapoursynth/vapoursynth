@@ -124,7 +124,7 @@ def configure(conf):
         conf.find_program('yasm', var = 'AS', mandatory = True)
         conf.load('nasm')
 
-    conf.find_program('python3', var = 'PYTHON', mandatory = True)
+    conf.find_program(['python3', 'python'], var = 'PYTHON', mandatory = True)
 
     if conf.env.DEST_OS == 'darwin':
         if conf.env.CXX_NAME == 'gcc':
