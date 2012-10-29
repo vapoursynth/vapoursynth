@@ -1719,8 +1719,11 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     ncolors = vsapi->propNumElements(in, "color");
 
     if (ncolors == d.vi.format->numPlanes) {
-        for (i = 0; i < ncolors; i++)
+        for (i = 0; i < ncolors; i++) {
             color[i] = int64ToIntS(vsapi->propGetInt(in, "color", i, 0));
+            if (color[i] < 0 || color[i] >= (1 << d.vi.format->bitsPerSample))
+                RETERROR("BlankClip: color value out of range");
+        }
     } else if (ncolors > 0) {
         RETERROR("BlankClip: invalid number of color values specified");
     }
@@ -3103,6 +3106,6 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("PEMVerifier", "clip:clip;upper:int[]:opt;lower:int[]:opt;", pemVerifierCreate, 0, plugin);
     registerFunc("PlaneAverage", "clip:clip;plane:int;prop:data:opt;", planeAverageCreate, 0, plugin);
     registerFunc("PlaneDifference", "clips:clip[];plane:int;prop:data:opt;", planeDifferenceCreate, 0, plugin);
-    registerFunc("ClipToProp", "clip:clip;mclip:clip;prop:data:opt;mismatch:int:opt;", clipToPropCreate, 0, plugin);
+    registerFunc("ClipToProp", "clip:clip;mclip:clip;prop:data:opt;", clipToPropCreate, 0, plugin);
     registerFunc("PropToClip", "clip:clip;prop:data:opt;", propToClipCreate, 0, plugin);
 }
