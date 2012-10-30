@@ -584,7 +584,7 @@ const VSFrameRef *eedi3::getFrame(int n, int activationReason, VSFrameContext *f
 VSFrameRef *eedi3::copyPad(const VSFrameRef *src, int fn, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi)
 {
 	const int off = 1-fn;
-	VSFrameRef *srcPF = vsapi->newVideoFrame(vi.format, vi.width + 24 * (1 << vi.format->subSamplingW), vi.width + 8 * (1 << vi.format->subSamplingH), NULL, core);
+	VSFrameRef *srcPF = vsapi->newVideoFrame(vi.format, vi.width + 24 * (1 << vi.format->subSamplingW), vi.height + 8 * (1 << vi.format->subSamplingH), NULL, core);
 
 	if (!dh)
 	{
