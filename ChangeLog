@@ -1,7 +1,6 @@
 known issues:
 may deadlock with some avisynth plugins (set the number of threads to a bigger number, VSCore(threads=4))
 compatrgb32 may be flipped when output (use FlipVertical as a workaround)
-.vpy files need to be opened with file\open and then select avifile compat from the format list before selecting the .vpy script (this is a vdub limitation)
 
 r14:
 fixed setting the pixel values in blankclip
