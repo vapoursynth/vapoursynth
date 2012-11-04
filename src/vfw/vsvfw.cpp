@@ -419,7 +419,7 @@ int VapourSynthFile::ImageSize() {
     int image_size;
 
     if (vi->format->id == pfYUV422P10 && se.enable_v210) {
-        image_size = ((16*((vi->width + 5) / 6) + 63) & ~63);
+        image_size = ((16*((vi->width + 5) / 6) + 127) & ~127);
         image_size *= vi->height;
     } else if (vi->format->numPlanes == 1 || se.pad_scanlines) {
         image_size = BMPSize(vi->height, vi->width * vi->format->bytesPerSample);
@@ -796,7 +796,7 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
         const uint16_t *uptr = (const uint16_t *)vsapi->getReadPtr(f, 1);
         const uint16_t *vptr = (const uint16_t *)vsapi->getReadPtr(f, 2);
         uint32_t *outbuf = (uint32_t *)lpBuffer;
-        out_pitch = ((16*((width + 5) / 6) + 63) & ~63)/4;
+        out_pitch = ((16*((width + 5) / 6) + 127) & ~127)/4;
         for (int y = 0; y < height; y++) {
             const uint16_t *yline = yptr;
             const uint16_t *uline = uptr;
