@@ -39,22 +39,6 @@
 #define MAX(a, b)  (((a) > (b)) ? (a) : (b))
 #define MIN(a, b)  (((a) < (b)) ? (a) : (b))
 
-int zero = 0;
-
-void bitblt(uint8_t *dstp, int dst_stride, const uint8_t *srcp, int src_stride, int row_size, int height) {
-    if (src_stride == dst_stride && dst_stride == row_size) {
-        memcpy(dstp, srcp, row_size * height);
-    } else {
-        int i;
-
-        for (i = 0; i < height; i++) {
-            memcpy(dstp, srcp, row_size);
-            dstp += dst_stride;
-            srcp += src_stride;
-        }
-    }
-}
-
 //////////////////////////////////////////
 // Shared
 
@@ -1506,7 +1490,7 @@ static const VSFrameRef *VS_CC stackGetframe(int n, int activationReason, void *
                     const uint8_t *srcp = vsapi->getReadPtr(src, plane);
                     int src_stride = vsapi->getStride(src, plane);
                     int rowsize = vsapi->getFrameWidth(src, plane) * d->vi.format->bytesPerSample;
-                    bitblt(dstp, dst_stride,
+                    vs_bitblt(dstp, dst_stride,
                            srcp, src_stride,
                            rowsize,
                            vsapi->getFrameHeight(src, plane));

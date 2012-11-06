@@ -96,6 +96,23 @@ static inline int int64ToIntS(int64_t i) {
     else return (int)i;
 }
 
+static inline void vs_bitblt(void *dstp, int dst_stride, const void *srcp, int src_stride, int row_size, int height) {
+    if (height > 0) {
+        if (src_stride == dst_stride && src_stride == row_size) {
+            memcpy(dstp, srcp, row_size * height);
+        } else {
+            int i;
+            uint8_t *srcp8 = (uint8_t *)srcp8;
+            uint8_t *dstp8 = (uint8_t *)dstp8;
+            for (i = 0; i < height; i++) {
+                memcpy(dstp8, srcp8, row_size);
+                srcp8 += src_stride;
+                dstp8 += dst_stride;
+            }
+        }
+    }
+}
+
 // check if the frame dimensions are valid for a given format
 // returns non-zero for valid width and height
 static inline int areValidDimensions(const VSFormat *fi, int width, int height) {
