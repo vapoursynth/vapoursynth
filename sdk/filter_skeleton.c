@@ -59,7 +59,7 @@ static void VS_CC filterCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 //////////////////////////////////////////
 // Init
 
-void VS_CC VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
+VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     configFunc("com.example.filter", "filter", "VapourSynth Filter Skeleton", VAPOURSYNTH_API_VERSION, 1, plugin);
     registerFunc("Filter", "clip:clip;", filterCreate, 0, plugin);
 }
