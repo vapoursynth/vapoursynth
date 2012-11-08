@@ -35,7 +35,7 @@
 #define VS_ALIGNED_MALLOC(pptr, size, alignment) *(pptr) = _aligned_malloc((size), (alignment))
 #define VS_ALIGNED_FREE(ptr) _aligned_free((ptr))
 #else
-#define VS_ALIGNED_MALLOC(pptr, size, alignment) posix_memalign((pptr), (alignment), (size))
+#define VS_ALIGNED_MALLOC(pptr, size, alignment) posix_memalign((void**)(pptr), (alignment), (size))
 #define VS_ALIGNED_FREE(ptr) free((ptr))
 #endif
 
