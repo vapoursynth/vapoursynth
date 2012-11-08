@@ -44,7 +44,7 @@ public:
     // the locking prevents multiple accesses at once
     bool initializing;
     int uglyN;
-    const VSNodeRef *uglyNode;
+    VSNodeRef *uglyNode;
     VSFrameContext *uglyCtx;
 
     FakeAvisynth(VSCore *core, const VSAPI *vsapi) : core(core), vsapi(vsapi), initializing(true), uglyN(-1), uglyNode(NULL), uglyCtx(NULL) {}
@@ -78,12 +78,12 @@ public:
 
 class VSClip : public IClip {
 private:
-    const VSNodeRef *clip;
+    VSNodeRef *clip;
     FakeAvisynth *fakeEnv;
     const VSAPI *vsapi;
     VideoInfo vi;
 public:
-    VSClip(const VSNodeRef *clip, int64_t numAudioSamples, int nChannels, FakeAvisynth *fakeEnv, const VSAPI *vsapi)
+    VSClip(VSNodeRef *clip, int64_t numAudioSamples, int nChannels, FakeAvisynth *fakeEnv, const VSAPI *vsapi)
         : clip(clip), fakeEnv(fakeEnv), vsapi(vsapi) {
         const ::VSVideoInfo *srcVi = vsapi->getVideoInfo(clip);
         vi.width = srcVi->width;
@@ -133,12 +133,12 @@ struct PrefetchInfo {
 
 struct WrappedClip {
     PrefetchInfo prefetchInfo;
-    QList<const VSNodeRef *> preFetchClips;
+    QList<VSNodeRef *> preFetchClips;
     PClip clip;
     FakeAvisynth *fakeEnv;
     int64_t magicalNumAudioSamplesForMVTools;
     int magicalNChannelsForMVTools;
-    WrappedClip(const PClip &clip, const QList<const VSNodeRef *> &preFetchClips, const PrefetchInfo &prefetchInfo, FakeAvisynth *fakeEnv);
+    WrappedClip(const PClip &clip, const QList<VSNodeRef *> &preFetchClips, const PrefetchInfo &prefetchInfo, FakeAvisynth *fakeEnv);
     ~WrappedClip() {
         clip = NULL;
         delete fakeEnv;

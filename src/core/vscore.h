@@ -244,7 +244,7 @@ class FrameContext {
 private:
     int numFrameRequests;
     int n;
-    const VSNodeRef *node;
+    VSNodeRef *node;
     VSNode *clip;
     PVideoFrame returnedFrame;
     PFrameContext upstreamContext;
@@ -256,7 +256,7 @@ private:
 public:
     QMap<FrameKey, PVideoFrame> availableFrames;
     int lastCompletedN;
-    const VSNodeRef *lastCompletedNode;
+    VSNodeRef *lastCompletedNode;
 
     void *frameContext;
     void setError(const QByteArray &errorMsg);
@@ -267,7 +267,7 @@ public:
         return errorMessage;
     }
     FrameContext(int n, VSNode *clip, const PFrameContext &upstreamContext);
-    FrameContext(int n, const VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData);
+    FrameContext(int n, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData);
 };
 
 

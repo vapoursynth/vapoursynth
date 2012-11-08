@@ -139,14 +139,14 @@ void VSCache::trim(int max, int maxHistory) {
 class CacheInstance {
 public:
     VSCache cache;
-    const VSNodeRef *clip;
+    VSNodeRef *clip;
     VSNode *node;
     bool fixedsize;
-    CacheInstance(const VSNodeRef *clip, VSNode *node) : cache(20, 20), clip(clip), node(node), fixedsize(false) { }
+    CacheInstance(VSNodeRef *clip, VSNode *node) : cache(20, 20), clip(clip), node(node), fixedsize(false) { }
 };
 
 static void VS_CC cacheInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    const VSNodeRef *video = vsapi->propGetNode(in, "clip", 0, 0);
+    VSNodeRef *video = vsapi->propGetNode(in, "clip", 0, 0);
     CacheInstance *c = new CacheInstance(video, node);
     int err;
     int fixed = vsapi->propGetInt(in, "fixed", 0, &err);
@@ -223,7 +223,7 @@ static void VS_CC cacheFree(void *instanceData, VSCore *core, const VSAPI *vsapi
 }
 
 static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    const VSNodeRef *cref = vsapi->createFilter(in, out, "Cache", cacheInit, cacheGetframe, cacheFree, fmUnordered, nfNoCache, userData, core);
+    VSNodeRef *cref = vsapi->createFilter(in, out, "Cache", cacheInit, cacheGetframe, cacheFree, fmUnordered, nfNoCache, userData, core);
     vsapi->propSetNode(out, "clip", cref, 0);
     vsapi->freeNode(cref);
 }

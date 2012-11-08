@@ -187,7 +187,7 @@ typedef void (VS_CC *VSFilterInit)(VSMap *in, VSMap *out, void **instanceData, V
 typedef const VSFrameRef *(VS_CC *VSFilterGetFrame)(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
 typedef void (VS_CC *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI *vsapi);
 typedef void (VS_CC *VSRegisterFunction)(const char *name, const char *args, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin);
-typedef const VSNodeRef *(VS_CC *VSCreateFilter)(const VSMap *in, VSMap *out, const char *name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core);
+typedef VSNodeRef *(VS_CC *VSCreateFilter)(const VSMap *in, VSMap *out, const char *name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core);
 typedef VSMap *(VS_CC *VSInvoke)(VSPlugin *plugin, const char *name, const VSMap *args);
 typedef void (VS_CC *VSSetError)(VSMap *map, const char *errorMessage);
 typedef const char *(VS_CC *VSGetError)(const VSMap *map);
@@ -197,16 +197,16 @@ typedef const VSFormat *(VS_CC *VSGetFormatPreset)(int id, VSCore *core);
 typedef const VSFormat *(VS_CC *VSRegisterFormat)(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core);
 
 // frame and clip handling
-typedef void (VS_CC *VSFrameDoneCallback)(void *userData, const VSFrameRef *f, int n, const VSNodeRef *, const char *errorMsg);
-typedef void (VS_CC *VSGetFrameAsync)(int n, const VSNodeRef *node, VSFrameDoneCallback callback, void *userData);
-typedef const VSFrameRef *(VS_CC *VSGetFrame)(int n, const VSNodeRef *node, char *errorMsg, int bufSize);
-typedef void (VS_CC *VSRequestFrameFilter)(int n, const VSNodeRef *node, VSFrameContext *frameCtx);
-typedef const VSFrameRef *(VS_CC *VSGetFrameFilter)(int n, const VSNodeRef *node, VSFrameContext *frameCtx);
+typedef void (VS_CC *VSFrameDoneCallback)(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg);
+typedef void (VS_CC *VSGetFrameAsync)(int n, VSNodeRef *node, VSFrameDoneCallback callback, void *userData);
+typedef const VSFrameRef *(VS_CC *VSGetFrame)(int n, VSNodeRef *node, char *errorMsg, int bufSize);
+typedef void (VS_CC *VSRequestFrameFilter)(int n, VSNodeRef *node, VSFrameContext *frameCtx);
+typedef const VSFrameRef *(VS_CC *VSGetFrameFilter)(int n, VSNodeRef *node, VSFrameContext *frameCtx);
 typedef const VSFrameRef *(VS_CC *VSCloneFrameRef)(const VSFrameRef *f);
-typedef const VSNodeRef *(VS_CC *VSCloneNodeRef)(const VSNodeRef *node);
+typedef VSNodeRef *(VS_CC *VSCloneNodeRef)(VSNodeRef *node);
 typedef VSFuncRef *(VS_CC *VSCloneFuncRef)(VSFuncRef *f);
 typedef void (VS_CC *VSFreeFrame)(const VSFrameRef *f);
-typedef void (VS_CC *VSFreeNode)(const VSNodeRef *node);
+typedef void (VS_CC *VSFreeNode)(VSNodeRef *node);
 typedef void (VS_CC *VSFreeFunc)(VSFuncRef *f);
 typedef VSFrameRef *(VS_CC *VSNewVideoFrame)(const VSFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core);
 typedef VSFrameRef *(VS_CC *VSCopyFrame)(const VSFrameRef *f, VSCore *core);
@@ -216,7 +216,7 @@ typedef const uint8_t *(VS_CC *VSGetReadPtr)(const VSFrameRef *f, int plane);
 typedef uint8_t *(VS_CC *VSGetWritePtr)(VSFrameRef *f, int plane);
 
 // property access
-typedef const VSVideoInfo *(VS_CC *VSGetVideoInfo)(const VSNodeRef *node);
+typedef const VSVideoInfo *(VS_CC *VSGetVideoInfo)(VSNodeRef *node);
 typedef void (VS_CC *VSSetVideoInfo)(const VSVideoInfo *vi, VSNode *node);
 typedef const VSFormat *(VS_CC *VSGetFrameFormat)(const VSFrameRef *f);
 typedef int (VS_CC *VSGetFrameWidth)(const VSFrameRef *f, int plane);
@@ -236,7 +236,7 @@ typedef int64_t (VS_CC *VSPropGetInt)(const VSMap *map, const char *key, int ind
 typedef double(VS_CC *VSPropGetFloat)(const VSMap *map, const char *key, int index, int *error);
 typedef const char *(VS_CC *VSPropGetData)(const VSMap *map, const char *key, int index, int *error);
 typedef int (VS_CC *VSPropGetDataSize)(const VSMap *map, const char *key, int index, int *error);
-typedef const VSNodeRef *(VS_CC *VSPropGetNode)(const VSMap *map, const char *key, int index, int *error);
+typedef VSNodeRef *(VS_CC *VSPropGetNode)(const VSMap *map, const char *key, int index, int *error);
 typedef const VSFrameRef *(VS_CC *VSPropGetFrame)(const VSMap *map, const char *key, int index, int *error);
 typedef VSFuncRef *(VS_CC *VSPropGetFunc)(const VSMap *map, const char *key, int index, int *error);
 
@@ -244,7 +244,7 @@ typedef int (VS_CC *VSPropDeleteKey)(VSMap *map, const char *key);
 typedef int (VS_CC *VSPropSetInt)(VSMap *map, const char *key, int64_t i, int append);
 typedef int (VS_CC *VSPropSetFloat)(VSMap *map, const char *key, double d, int append);
 typedef int (VS_CC *VSPropSetData)(VSMap *map, const char *key, const char *data, int size, int append);
-typedef int (VS_CC *VSPropSetNode)(VSMap *map, const char *key, const VSNodeRef *node, int append);
+typedef int (VS_CC *VSPropSetNode)(VSMap *map, const char *key, VSNodeRef *node, int append);
 typedef int (VS_CC *VSPropSetFrame)(VSMap *map, const char *key, const VSFrameRef *f, int append);
 typedef int (VS_CC *VSPropSetFunc)(VSMap *map, const char *key, VSFuncRef *func, int append);
 
@@ -262,8 +262,8 @@ typedef VSMap *(VS_CC *VSGetFunctions)(VSPlugin *plugin);
 typedef void (VS_CC *VSCallFunc)(VSFuncRef *func, const VSMap *in, VSMap *out, VSCore *core, const VSAPI *vsapi);
 typedef VSFuncRef *(VS_CC *VSCreateFunc)(VSPublicFunction func, void *userData, VSFreeFuncData free);
 
-typedef void (VS_CC *VSQueryCompletedFrame)(const VSNodeRef **node, int *n, VSFrameContext *frameCtx);
-typedef void (VS_CC *VSReleaseFrameEarly)(const VSNodeRef *node, int n, VSFrameContext *frameCtx);
+typedef void (VS_CC *VSQueryCompletedFrame)(VSNodeRef **node, int *n, VSFrameContext *frameCtx);
+typedef void (VS_CC *VSReleaseFrameEarly)(VSNodeRef *node, int n, VSFrameContext *frameCtx);
 
 typedef int64_t (VS_CC *VSSetMaxCacheSize)(int64_t bytes, VSCore *core);
 

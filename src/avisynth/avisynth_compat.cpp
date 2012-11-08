@@ -165,13 +165,13 @@ PVideoFrame VSClip::GetFrame(int n, IScriptEnvironment *env) {
     return pvf;
 }
 
-WrappedClip::WrappedClip(const PClip &clip, const QList<const VSNodeRef *> &preFetchClips, const PrefetchInfo &prefetchInfo, FakeAvisynth *fakeEnv)
+WrappedClip::WrappedClip(const PClip &clip, const QList<VSNodeRef *> &preFetchClips, const PrefetchInfo &prefetchInfo, FakeAvisynth *fakeEnv)
     : prefetchInfo(prefetchInfo), preFetchClips(preFetchClips), clip(clip), fakeEnv(fakeEnv),
       magicalNumAudioSamplesForMVTools(clip->GetVideoInfo().num_audio_samples),
       magicalNChannelsForMVTools(clip->GetVideoInfo().nchannels) {
 }
 
-static void prefetchHelper(int n, const VSNodeRef *node, const PrefetchInfo &p, VSFrameContext *frameCtx, const VSAPI *vsapi) {
+static void prefetchHelper(int n, VSNodeRef *node, const PrefetchInfo &p, VSFrameContext *frameCtx, const VSAPI *vsapi) {
     n /= p.div;
     n *= p.mul;
 
@@ -381,7 +381,7 @@ static const VSFrameRef *VS_CC avisynthFilterGetFrame(int n, int activationReaso
 
         clip->fakeEnv->uglyCtx = NULL;
     } else if (activationReason == arInitial) {
-        foreach(const VSNodeRef * c, clip->preFetchClips)
+        foreach(VSNodeRef * c, clip->preFetchClips)
         prefetchHelper(n, c, clip->prefetchInfo, frameCtx, vsapi);
     } else if (activationReason == arError) {
         return NULL;
@@ -413,7 +413,7 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
     WrappedFunction *wf = (WrappedFunction *)userData;
     FakeAvisynth *fakeEnv = new FakeAvisynth(core, vsapi);
     QVector<AVSValue> inArgs(wf->parsedArgs.count());
-    QList<const VSNodeRef *> preFetchClips;
+    QList<VSNodeRef *> preFetchClips;
 
     for (int i = 0; i < inArgs.count(); i++) {
         const AvisynthArgs &parsedArg = wf->parsedArgs.at(i);
@@ -433,7 +433,7 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
                 inArgs[i] = vsapi->propGetData(in, parsedArg.name.constData(), 0, NULL);
                 break;
             case 'c':
-                const VSNodeRef *cr = vsapi->propGetNode(in, parsedArg.name.constData(), 0, NULL);
+                VSNodeRef *cr = vsapi->propGetNode(in, parsedArg.name.constData(), 0, NULL);
                 const VSFrameRef *fr = vsapi->getFrame(0, cr, 0, 0);
                 int err;
                 int64_t numAudioSamples = vsapi->propGetInt(vsapi->getFramePropsRO(fr), "MVToolsHackNumAudioSamples", 0, &err);
@@ -461,7 +461,7 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
 
     if (ret.IsClip()) {
         WrappedClip *filterData = new WrappedClip(ret.AsClip(), preFetchClips, getPrefetchInfo(wf->name, in, vsapi), fakeEnv);
-        const VSNodeRef *clip = vsapi->createFilter(
+        VSNodeRef *clip = vsapi->createFilter(
                                     in,
                                     out,
                                     wf->name.constData(),

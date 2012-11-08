@@ -43,7 +43,7 @@
 // Shared
 
 typedef struct {
-    const VSNodeRef *node;
+    VSNodeRef *node;
     const VSVideoInfo *vi;
 } SingleClipData;
 
@@ -58,7 +58,7 @@ static void VS_CC singleClipFree(void *instanceData, VSCore *core, const VSAPI *
     free(instanceData);
 }
 
-static int findCommonVi(const VSNodeRef **nodes, int num, VSVideoInfo *outvi, int ignorelength, const VSAPI *vsapi) {
+static int findCommonVi(VSNodeRef **nodes, int num, VSVideoInfo *outvi, int ignorelength, const VSAPI *vsapi) {
     int mismatch = 0;
     int i;
     const VSVideoInfo *vi;
@@ -106,7 +106,7 @@ static int planeHeight(const VSVideoInfo *vi, int plane) {
 // CropAbs
 
 typedef struct {
-    const VSNodeRef *node;
+    VSNodeRef *node;
     const VSVideoInfo *vi;
     const char *xprop;
     const char *yprop;
@@ -223,7 +223,7 @@ static void VS_CC cropAbsCreate(const VSMap *in, VSMap *out, void *userData, VSC
     char msg[150];
     CropAbsData d;
     CropAbsData *data;
-    const VSNodeRef *cref;
+    VSNodeRef *cref;
     int err;
 
     d.x = int64ToIntS(vsapi->propGetInt(in, "x", 0, &err));
@@ -258,7 +258,7 @@ static void VS_CC cropRelCreate(const VSMap *in, VSMap *out, void *userData, VSC
     char msg[150];
     CropAbsData d;
     CropAbsData *data;
-    const VSNodeRef *cref;
+    VSNodeRef *cref;
     int err;
 
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
@@ -300,7 +300,7 @@ static void VS_CC cropRelCreate(const VSMap *in, VSMap *out, void *userData, VSC
 // AddBorders
 
 typedef struct {
-    const VSNodeRef *node;
+    VSNodeRef *node;
     const VSVideoInfo *vi;
     int left;
     int right;
@@ -396,7 +396,7 @@ static void VS_CC addBordersCreate(const VSMap *in, VSMap *out, void *userData, 
     char msg[150];
     AddBordersData d;
     AddBordersData *data;
-    const VSNodeRef *cref;
+    VSNodeRef *cref;
     int err;
 
     d.left = int64ToIntS(vsapi->propGetInt(in, "left", 0, &err));
@@ -430,7 +430,7 @@ static void VS_CC addBordersCreate(const VSMap *in, VSMap *out, void *userData, 
 // Trim
 
 typedef struct {
-    const VSNodeRef *node;
+    VSNodeRef *node;
     VSVideoInfo vi;
     int first;
     int last;
@@ -459,7 +459,7 @@ static const VSFrameRef *VS_CC trimGetframe(int n, int activationReason, void **
 static void VS_CC trimCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     TrimData d;
     TrimData *data;
-    const VSNodeRef *cref;
+    VSNodeRef *cref;
     int firstset;
     int lastset;
     int lengthset;
@@ -526,7 +526,7 @@ static void VS_CC trimCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 // Interleave
 
 typedef struct {
-    const VSNodeRef **node;
+    VSNodeRef **node;
     VSVideoInfo vi;
     int numclips;
 } InterleaveData;
@@ -561,7 +561,7 @@ static void VS_CC interleaveFree(void *instanceData, VSCore *core, const VSAPI *
 static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     InterleaveData d;
     InterleaveData *data;
-    const VSNodeRef *cref;
+    VSNodeRef *cref;
     int mismatch;
     int i;
     int err;
@@ -625,7 +625,7 @@ static const VSFrameRef *VS_CC reverseGetframe(int n, int activationReason, void
 static void VS_CC reverseCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     SingleClipData d;
     SingleClipData *data;
-    const VSNodeRef *cref;
+    VSNodeRef *cref;
 
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node);
@@ -648,7 +648,7 @@ static void VS_CC reverseCreate(const VSMap *in, VSMap *out, void *userData, VSC
 // Loop
 
 typedef struct {
-    const VSNodeRef *node;
+    VSNodeRef *node;
     const VSVideoInfo *vi;
     int times;
 } LoopData;
@@ -680,7 +680,7 @@ static const VSFrameRef *VS_CC loopGetframe(int n, int activationReason, void **
 static void VS_CC loopCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     LoopData d;
     LoopData *data;
-    const VSNodeRef *cref;
+    VSNodeRef *cref;
     int err;
 
     d.times = int64ToIntS(vsapi->propGetInt(in, "times", 0, &err));
@@ -712,7 +712,7 @@ static void VS_CC loopCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 // ShufflePlanes
 
 typedef struct {
-    const VSNodeRef *node[3];
+    VSNodeRef *node[3];
     VSVideoInfo vi;
     int plane[3];
     int format;
@@ -810,7 +810,7 @@ static int findSubSampling(int s1, int s2) {
 static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     ShufflePlanesData d;
     ShufflePlanesData *data;
-    const VSNodeRef *cref;
+    VSNodeRef *cref;
     int nclips = vsapi->propNumElements(in, "clips");
     int nplanes = vsapi->propNumElements(in, "planes");
     int i;
@@ -922,7 +922,7 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
 // SelectEvery
 
 typedef struct {
-    const VSNodeRef *node;
+    VSNodeRef *node;
     int cycle;
     int *offsets;
     int num;
@@ -966,7 +966,7 @@ static void VS_CC selectEveryFree(void *instanceData, VSCore *core, const VSAPI 
 static void VS_CC selectEveryCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     SelectEveryData d;
     SelectEveryData *data;
-    const VSNodeRef *cref;
+    VSNodeRef *cref;
     int i;
     d.cycle = int64ToIntS(vsapi->propGetInt(in, "cycle", 0, 0));
 
@@ -1000,7 +1000,7 @@ static void VS_CC selectEveryCreate(const VSMap *in, VSMap *out, void *userData,
 // SeparateFields
 
 typedef struct {
-    const VSNodeRef *node;
+    VSNodeRef *node;
     VSVideoInfo vi;
     int tff;
 } SeparateFieldsData;
@@ -1054,7 +1054,7 @@ static const VSFrameRef *VS_CC separateFieldsGetframe(int n, int activationReaso
 static void VS_CC separateFieldsCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     SeparateFieldsData d;
     SeparateFieldsData *data;
-    const VSNodeRef *cref;
+    VSNodeRef *cref;
 
     d.tff = !!vsapi->propGetInt(in, "tff", 0, 0);
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
@@ -1083,7 +1083,7 @@ static void VS_CC separateFieldsCreate(const VSMap *in, VSMap *out, void *userDa
 // DoubleWeave
 
 typedef struct {
-    const VSNodeRef *node;
+    VSNodeRef *node;
     VSVideoInfo vi;
     int tff;
 } DoubleWeaveData;
@@ -1139,7 +1139,7 @@ static const VSFrameRef *VS_CC doubleWeaveGetframe(int n, int activationReason, 
 static void VS_CC doubleWeaveCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     DoubleWeaveData d;
     DoubleWeaveData *data;
-    const VSNodeRef *cref;
+    VSNodeRef *cref;
 
     d.tff = !!vsapi->propGetInt(in, "tff", 0, 0);
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
@@ -1163,7 +1163,7 @@ static void VS_CC doubleWeaveCreate(const VSMap *in, VSMap *out, void *userData,
 // Splice
 
 typedef struct {
-    const VSNodeRef **node;
+    VSNodeRef **node;
     VSVideoInfo vi;
     int *numframes;
     int numclips;
@@ -1227,7 +1227,7 @@ static void VS_CC spliceFree(void *instanceData, VSCore *core, const VSAPI *vsap
 static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     SpliceData d;
     SpliceData *data;
-    const VSNodeRef *cref;
+    VSNodeRef *cref;
     int mismatch;
     int i;
     int err;
@@ -1329,7 +1329,7 @@ static const VSFrameRef *VS_CC flipVerticalGetframe(int n, int activationReason,
 static void VS_CC flipVerticalCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     SingleClipData d;
     SingleClipData *data;
-    const VSNodeRef *cref;
+    VSNodeRef *cref;
 
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     data = malloc(sizeof(d));
@@ -1345,7 +1345,7 @@ static void VS_CC flipVerticalCreate(const VSMap *in, VSMap *out, void *userData
 // FlipHorizontal
 
 typedef struct {
-    const VSNodeRef *node;
+    VSNodeRef *node;
     int flip;
 } FlipHorizontalData;
 
@@ -1433,7 +1433,7 @@ static const VSFrameRef *VS_CC flipHorizontalGetframe(int n, int activationReaso
 static void VS_CC flipHorizontalCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     FlipHorizontalData d;
     FlipHorizontalData *data;
-    const VSNodeRef *cref;
+    VSNodeRef *cref;
 
     d.flip = (intptr_t)(userData);
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
@@ -1450,7 +1450,7 @@ static void VS_CC flipHorizontalCreate(const VSMap *in, VSMap *out, void *userDa
 // Stack
 
 typedef struct {
-    const VSNodeRef **node;
+    VSNodeRef **node;
     VSVideoInfo vi;
     int numclips;
     int vertical;
@@ -1520,7 +1520,7 @@ static void VS_CC stackFree(void *instanceData, VSCore *core, const VSAPI *vsapi
 static void VS_CC stackCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     StackData d;
     StackData *data;
-    const VSNodeRef *cref;
+    VSNodeRef *cref;
     int i;
 
     d.vertical = (intptr_t)userData;
@@ -1604,8 +1604,8 @@ static void VS_CC blankClipFree(void *instanceData, VSCore *core, const VSAPI *v
 static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     BlankClipData d;
     BlankClipData *data;
-    const VSNodeRef *cref;
-    const VSNodeRef *node;
+    VSNodeRef *cref;
+    VSNodeRef *node;
     int hasvi = 0;
     int format = 0;
     int color[3] = { 0, 0, 0 };
@@ -1757,7 +1757,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
 // AssumeFPS
 
 typedef struct {
-    const VSNodeRef *node;
+    VSNodeRef *node;
     VSVideoInfo vi;
 } AssumeFPSData;
 
@@ -1788,8 +1788,8 @@ static const VSFrameRef *VS_CC assumeFPSGetframe(int n, int activationReason, vo
 static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     AssumeFPSData d;
     AssumeFPSData *data;
-    const VSNodeRef *src;
-    const VSNodeRef *cref;
+    VSNodeRef *src;
+    VSNodeRef *cref;
     int hasfps = 0;
     int hassrc = 0;
     int err;
@@ -1839,7 +1839,7 @@ static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, V
 // Lut
 
 typedef struct {
-    const VSNodeRef *node;
+    VSNodeRef *node;
     const VSVideoInfo *vi;
     void *lut;
     int process[3];
@@ -1918,7 +1918,7 @@ static void VS_CC lutFree(void *instanceData, VSCore *core, const VSAPI *vsapi) 
 static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     LutData d;
     LutData *data;
-    const VSNodeRef *cref;
+    VSNodeRef *cref;
     int i;
     int n, m, o;
 
@@ -2006,7 +2006,7 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
 // Lut2
 
 typedef struct {
-    const VSNodeRef *node[2];
+    VSNodeRef *node[2];
     const VSVideoInfo *vi[2];
     void *lut;
     int process[3];
@@ -2092,7 +2092,7 @@ static void VS_CC lut2Free(void *instanceData, VSCore *core, const VSAPI *vsapi)
 static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     Lut2Data d;
     Lut2Data *data;
-    const VSNodeRef *cref;
+    VSNodeRef *cref;
     int i;
     int n, m, o;
 
@@ -2196,8 +2196,8 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
 // SelectClip
 
 typedef struct {
-    const VSNodeRef **node;
-    const VSNodeRef **src;
+    VSNodeRef **node;
+    VSNodeRef **src;
     const VSVideoInfo *vi;
     VSFuncRef *func;
     int numnode;
@@ -2286,7 +2286,7 @@ static void VS_CC selectClipFree(void *instanceData, VSCore *core, const VSAPI *
 static void VS_CC selectClipCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     SelectClipData d;
     SelectClipData *data;
-    const VSNodeRef *cref;
+    VSNodeRef *cref;
     int i;
 
     d.numnode = vsapi->propNumElements(in, "clips");
@@ -2333,7 +2333,7 @@ static void VS_CC selectClipCreate(const VSMap *in, VSMap *out, void *userData, 
 // ModifyFrame
 
 typedef struct {
-    const VSNodeRef **node;
+    VSNodeRef **node;
     const VSVideoInfo *vi;
     VSFuncRef *func;
     VSMap *in;
@@ -2402,7 +2402,7 @@ static void VS_CC modifyFrameFree(void *instanceData, VSCore *core, const VSAPI 
 static void VS_CC modifyFrameCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     ModifyFrameData d;
     ModifyFrameData *data;
-    const VSNodeRef *cref;
+    VSNodeRef *cref;
     int i;
 
     d.numnode = vsapi->propNumElements(in, "clips");
@@ -2433,7 +2433,7 @@ extern void vs_transpose_byte(const uint8_t *src, int srcstride, uint8_t *dst, i
 extern void vs_transpose_byte_partial(const uint8_t *src, int srcstride, uint8_t *dst, int dststride, int dst_lines);
 
 typedef struct {
-    const VSNodeRef *node;
+    VSNodeRef *node;
     VSVideoInfo vi;
 } TransposeData;
 
@@ -2554,7 +2554,7 @@ static void VS_CC transposeFree(void *instanceData, VSCore *core, const VSAPI *v
 static void VS_CC transposeCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     TransposeData d;
     TransposeData *data;
-    const VSNodeRef *cref;
+    VSNodeRef *cref;
     int temp;
 
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
@@ -2586,7 +2586,7 @@ static void VS_CC transposeCreate(const VSMap *in, VSMap *out, void *userData, V
 // LevelVerifier
 
 typedef struct {
-    const VSNodeRef *node;
+    VSNodeRef *node;
     const VSVideoInfo *vi;
     int64_t upper[3];
     int64_t lower[3];
@@ -2660,7 +2660,7 @@ static void VS_CC pemVerifierFree(void *instanceData, VSCore *core, const VSAPI 
 static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     PEMVerifierData d;
     PEMVerifierData *data;
-    const VSNodeRef *cref;
+    VSNodeRef *cref;
     int i;
     int numupper = vsapi->propNumElements(in, "upper");
     int numlower = vsapi->propNumElements(in, "lower");
@@ -2718,7 +2718,7 @@ static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData,
 // PlaneAverage
 
 typedef struct {
-    const VSNodeRef *node;
+    VSNodeRef *node;
     const VSVideoInfo *vi;
     const char *prop;
     int plane;
@@ -2772,7 +2772,7 @@ static const VSFrameRef *VS_CC planeAverageGetFrame(int n, int activationReason,
 static void VS_CC planeAverageCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     PlaneAverageData d;
     PlaneAverageData *data;
-    const VSNodeRef *cref;
+    VSNodeRef *cref;
     int err;
 
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
@@ -2805,8 +2805,8 @@ static void VS_CC planeAverageCreate(const VSMap *in, VSMap *out, void *userData
 // PlaneDifference
 
 typedef struct {
-    const VSNodeRef *node1;
-    const VSNodeRef *node2;
+    VSNodeRef *node1;
+    VSNodeRef *node2;
     const VSVideoInfo *vi;
     const char *prop;
     int plane;
@@ -2873,7 +2873,7 @@ static void VS_CC planeDifferenceFree(void *instanceData, VSCore *core, const VS
 static void VS_CC planeDifferenceCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     PlaneDifferenceData d;
     PlaneDifferenceData *data;
-    const VSNodeRef *cref;
+    VSNodeRef *cref;
     int err;
 
     if (vsapi->propNumElements(in, "clips") != 2)
@@ -2912,8 +2912,8 @@ static void VS_CC planeDifferenceCreate(const VSMap *in, VSMap *out, void *userD
 // ClipToProp
 
 typedef struct {
-    const VSNodeRef *node1;
-    const VSNodeRef *node2;
+    VSNodeRef *node1;
+    VSNodeRef *node2;
     const VSVideoInfo *vi;
     const char *prop;
 } ClipToPropData;
@@ -2952,7 +2952,7 @@ static void VS_CC clipToPropFree(void *instanceData, VSCore *core, const VSAPI *
 static void VS_CC clipToPropCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     ClipToPropData d;
     ClipToPropData *data;
-    const VSNodeRef *cref;
+    VSNodeRef *cref;
     int err;
 
     d.prop = vsapi->propGetData(in, "prop", 0, &err);
@@ -2982,7 +2982,7 @@ static void VS_CC clipToPropCreate(const VSMap *in, VSMap *out, void *userData, 
 // PropToClip
 
 typedef struct {
-    const VSNodeRef *node;
+    VSNodeRef *node;
     VSVideoInfo vi;
     const char *prop;
 } PropToClipData;
@@ -3023,7 +3023,7 @@ static void VS_CC propToClipFree(void *instanceData, VSCore *core, const VSAPI *
 static void VS_CC propToClipCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     PropToClipData d;
     PropToClipData *data;
-    const VSNodeRef *cref;
+    VSNodeRef *cref;
     int err;
     char errmsg[512];
     const VSFrameRef *src;

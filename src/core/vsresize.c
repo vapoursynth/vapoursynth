@@ -132,7 +132,7 @@ enum AVColorSpace GetAssumedColorSpace(int W, int H) {
 }
 
 typedef struct {
-    const VSNodeRef *node;
+    VSNodeRef *node;
     VSVideoInfo vi;
     struct SwsContext *context;
     const VSFormat *lsrcformat;
@@ -232,7 +232,7 @@ static void VS_CC resizeCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     int id;
     int dstwidth;
     int dstheight;
-    const VSNodeRef *cref;
+    VSNodeRef *cref;
     int pf;
     int err;
     d.context = 0;

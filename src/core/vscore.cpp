@@ -40,7 +40,7 @@ FrameContext::FrameContext(int n, VSNode *clip, const PFrameContext &upstreamCon
 
 }
 
-FrameContext::FrameContext(int n, const VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData) : numFrameRequests(0), n(n), node(node), clip(node->clip.data()), frameContext(NULL), userData(userData), frameDone(frameDone), error(false), lastCompletedN(-1), lastCompletedNode(NULL) {
+FrameContext::FrameContext(int n, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData) : numFrameRequests(0), n(n), node(node), clip(node->clip.data()), frameContext(NULL), userData(userData), frameDone(frameDone), error(false), lastCompletedN(-1), lastCompletedNode(NULL) {
 
 }
 

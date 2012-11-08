@@ -42,7 +42,7 @@ static const VSFrameRef *VS_CC cloneFrameRef(const VSFrameRef *frame) {
     return new VSFrameRef(frame->frame);
 }
 
-static const VSNodeRef *VS_CC cloneNodeRef(const VSNodeRef *node) {
+static VSNodeRef *VS_CC cloneNodeRef(VSNodeRef *node) {
     Q_ASSERT(node);
     return new VSNodeRef(node->clip);
 }
@@ -59,7 +59,7 @@ static uint8_t *VS_CC getWritePtr(VSFrameRef *frame, int plane) {
     return frame->frame->getWritePtr(plane);
 }
 
-static void VS_CC getFrameAsync(int n, const VSNodeRef *clip, VSFrameDoneCallback fdc, void *userData) {
+static void VS_CC getFrameAsync(int n, VSNodeRef *clip, VSFrameDoneCallback fdc, void *userData) {
     PFrameContext g(new FrameContext(n, clip, fdc, userData));
     clip->clip->getFrame(g);
 }
@@ -73,7 +73,7 @@ struct GetFrameWaiter {
     GetFrameWaiter(char *errorMsg, int bufSize) : errorMsg(errorMsg), bufSize(bufSize) {}
 };
 
-static void VS_CC frameWaiterCallback(void *userData, const VSFrameRef *frame, int n, const VSNodeRef *, const char *errorMsg) {
+static void VS_CC frameWaiterCallback(void *userData, const VSFrameRef *frame, int n, VSNodeRef *, const char *errorMsg) {
     GetFrameWaiter *g = (GetFrameWaiter *)userData;
     QMutexLocker l(&g->b);
     g->r = frame;
@@ -83,7 +83,7 @@ static void VS_CC frameWaiterCallback(void *userData, const VSFrameRef *frame, i
     g->a.wakeOne();
 }
 
-static const VSFrameRef *VS_CC getFrame(int n, const VSNodeRef *clip, char *errorMsg, int bufSize) {
+static const VSFrameRef *VS_CC getFrame(int n, VSNodeRef *clip, char *errorMsg, int bufSize) {
     GetFrameWaiter g(errorMsg, bufSize);
     QMutexLocker l(&g.b);
     getFrameAsync(n, clip, &frameWaiterCallback, &g);
@@ -91,13 +91,13 @@ static const VSFrameRef *VS_CC getFrame(int n, const VSNodeRef *clip, char *erro
     return g.r;
 }
 
-static void VS_CC requestFrameFilter(int n, const VSNodeRef *clip, VSFrameContext *ctxHandle) {
+static void VS_CC requestFrameFilter(int n, VSNodeRef *clip, VSFrameContext *ctxHandle) {
     PFrameContext f(*(PFrameContext *)ctxHandle);
     PFrameContext g(new FrameContext(n, clip->clip.data(), f));
     clip->clip->getFrame(g);
 }
 
-static const VSFrameRef *VS_CC getFrameFilter(int n, const VSNodeRef *clip, VSFrameContext *ctxHandle) {
+static const VSFrameRef *VS_CC getFrameFilter(int n, VSNodeRef *clip, VSFrameContext *ctxHandle) {
     PFrameContext f(*(PFrameContext *)ctxHandle);
     PVideoFrame g = f->availableFrames.value(FrameKey(clip->clip.data(), n));
 
@@ -111,7 +111,7 @@ static void VS_CC freeFrame(const VSFrameRef *frame) {
     delete frame;
 }
 
-static void VS_CC freeNode(const VSNodeRef *clip) {
+static void VS_CC freeNode(VSNodeRef *clip) {
     delete clip;
 }
 
@@ -128,7 +128,7 @@ static void VS_CC copyFrameProps(const VSFrameRef *src, VSFrameRef *dst, VSCore 
     core->copyFrameProps(src->frame, dst->frame);
 }
 
-static const VSNodeRef *VS_CC createFilter(const VSMap *in, VSMap *out, const char *name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) {
+static VSNodeRef *VS_CC createFilter(const VSMap *in, VSMap *out, const char *name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) {
     return new VSNodeRef(core->createFilter(in, out, name, init, getFrame, free, static_cast<VSFilterMode>(filterMode), flags, instanceData));
 }
 
@@ -152,7 +152,7 @@ static void VS_CC setFilterError(const char *errorMessage, VSFrameContext *conte
 }
 
 //property access functions
-static const VSVideoInfo *VS_CC getVideoInfo(const VSNodeRef *c) {
+static const VSVideoInfo *VS_CC getVideoInfo(VSNodeRef *c) {
     return &c->clip->getVideoInfo();
 }
 
@@ -274,7 +274,7 @@ static int VS_CC propGetDataSize(const VSMap *props, const char *name, int index
     return l.s[index].size();
 }
 
-static const VSNodeRef *VS_CC propGetNode(const VSMap *props, const char *name, int index, int *error) {
+static VSNodeRef *VS_CC propGetNode(const VSMap *props, const char *name, int index, int *error) {
     int err = getPropErrorCheck(props, name, index, error, VSVariant::vNode);
 
     if (err)
@@ -365,7 +365,7 @@ static int VS_CC propSetData(VSMap *props, const char *name, const char *d, int 
     return 0;
 }
 
-static int VS_CC propSetNode(VSMap *props, const char *name, const VSNodeRef *clip, int append) {
+static int VS_CC propSetNode(VSMap *props, const char *name, VSNodeRef *clip, int append) {
     sharedPropSet(props, name, append);
     if (props->contains(name)) {
         VSVariant &l = (*props)[name];
@@ -499,13 +499,13 @@ static void VS_CC freeFunc(VSFuncRef *f) {
     delete f;
 }
 
-static void VS_CC queryCompletedFrame(const VSNodeRef **node, int *n, VSFrameContext *frameCtx) {
+static void VS_CC queryCompletedFrame(VSNodeRef **node, int *n, VSFrameContext *frameCtx) {
     PFrameContext f(*(PFrameContext *)frameCtx);
     *node = f->lastCompletedNode;
     *n = f->lastCompletedN;
 }
 
-static void VS_CC releaseFrameEarly(const VSNodeRef *node, int n, VSFrameContext *frameCtx) {
+static void VS_CC releaseFrameEarly(VSNodeRef *node, int n, VSFrameContext *frameCtx) {
     PFrameContext f(*(PFrameContext *)frameCtx);
     f->availableFrames.remove(FrameKey(node->clip.data(), n));
 }

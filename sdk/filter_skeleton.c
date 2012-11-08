@@ -8,7 +8,7 @@
 #include "VSHelper.h"
 
 typedef struct {
-    const VSNodeRef *node;
+    VSNodeRef *node;
     const VSVideoInfo *vi;
 } FilterData;
 
@@ -42,7 +42,7 @@ static void VS_CC filterFree(void *instanceData, VSCore *core, const VSAPI *vsap
 static void VS_CC filterCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     FilterData d;
     FilterData *data;
-    const VSNodeRef *cref;
+    VSNodeRef *cref;
 
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node);
