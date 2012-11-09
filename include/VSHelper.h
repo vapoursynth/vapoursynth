@@ -24,6 +24,7 @@
 #include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include "VapourSynth.h"
 
 // VS2010 doesn't recognize inline in c mode
