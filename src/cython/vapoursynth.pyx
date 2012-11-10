@@ -751,6 +751,9 @@ cdef class VideoNode(object):
         else:
             raise TypeError("index must be int or slice")
 
+    def __len__(self):
+        return self.num_frames
+
     def __str__(self):
         cdef str s = 'VideoNode\n'
 
