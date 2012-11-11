@@ -91,7 +91,7 @@ void VSThread::run() {
                         ar = arAllFramesReady;
 
                     Q_ASSERT(rCtx->numFrameRequests >= 0);
-                    rCtx->availableFrames.insert(FrameKey(pCtx->clip, pCtx->n), pCtx->returnedFrame);
+                    rCtx->availableFrames.insert(NodeOutputKey(pCtx->clip, pCtx->n, pCtx->index), pCtx->returnedFrame);
                     rCtx->lastCompletedN = pCtx->n;
                     rCtx->lastCompletedNode = pCtx->node;
                 }
@@ -119,7 +119,7 @@ void VSThread::run() {
                         owner->framesInProgress.remove(rCtx->clip);
                     }
 
-                    owner->allContexts.remove(FrameKey(rCtx->clip, rCtx->n));
+                    owner->allContexts.remove(NodeOutputKey(rCtx->clip, rCtx->n, rCtx->index));
                 }
 
                 if (rCtx->hasError()) {
@@ -239,7 +239,7 @@ void VSThreadPool::reserveThread() {
 
 void VSThreadPool::notifyCaches(CacheActivation reason) {
     for (int i = 0; i < core->caches.count(); i++)
-        tasks.insert(0, PFrameContext(new FrameContext(reason, core->caches[i], PFrameContext())));
+        tasks.insert(0, PFrameContext(new FrameContext(reason, 0, core->caches[i], PFrameContext())));
 }
 
 void VSThreadPool::start(const PFrameContext &context) {
@@ -291,8 +291,8 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
 
         ////////////////////////
         // see if the task is a duplicate
-        foreach(const PFrameContext & ctx, tasks) {
-            if (context->clip == ctx->clip && context->n == ctx->n) {
+        foreach(const PFrameContext &ctx, tasks) {
+            if (context->clip == ctx->clip && context->n == ctx->n && context->index == ctx->index) {
                 if (ctx->returnedFrame) {
                     // special case where the requested frame is encountered "by accident"
                     context->returnedFrame = ctx->returnedFrame;
@@ -305,7 +305,7 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
                     if (rCtx->returnedFrame)
                         rCtx = rCtx->upstreamContext;
 
-                    if (context->clip == rCtx->clip && context->n == rCtx->n) {
+                    if (context->clip == rCtx->clip && context->n == rCtx->n && context->index == ctx->index) {
                         PFrameContext t = rCtx;
 
                         while (t && t->notificationChain)
@@ -318,35 +318,7 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
             }
         }
 
-        FrameKey p(context->clip, context->n);
-
-        if (runningTasks.contains(p)) {
-            PFrameContext ctx = runningTasks[p];
-            Q_ASSERT(ctx);
-
-            if (ctx->returnedFrame) {
-                // special case where the requested frame is encountered "by accident"
-                context->returnedFrame = ctx->returnedFrame;
-                tasks.append(context);
-                wakeThread();
-                return;
-            } else {
-                PFrameContext rCtx = ctx;
-
-                if (rCtx->returnedFrame)
-                    rCtx = rCtx->upstreamContext;
-
-                if (context->clip == rCtx->clip && context->n == rCtx->n) {
-                    PFrameContext t = rCtx;
-
-                    while (t && t->notificationChain)
-                        t = t->notificationChain;
-
-                    t->notificationChain = context;
-                    return;
-                }
-            }
-        }
+        NodeOutputKey p(context->clip, context->n, context->index);
 
         if (allContexts.contains(p)) {
             PFrameContext ctx = allContexts[p];
@@ -362,7 +334,6 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
             } else {
                 while (ctx->notificationChain)
                     ctx = ctx->notificationChain;
-
                 ctx->notificationChain = context;
                 return;
             }

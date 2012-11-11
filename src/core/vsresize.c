@@ -144,7 +144,7 @@ typedef struct {
 
 static void VS_CC resizeInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     ResizeData *d = (ResizeData *) * instanceData;
-    vsapi->setVideoInfo(&d->vi, node);
+    vsapi->setVideoInfo(&d->vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC resizeGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -232,7 +232,6 @@ static void VS_CC resizeCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     int id;
     int dstwidth;
     int dstheight;
-    VSNodeRef *cref;
     int pf;
     int err;
     d.context = 0;
@@ -287,9 +286,7 @@ static void VS_CC resizeCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     data = malloc(sizeof(d));
     *data = d;
 
-    cref = vsapi->createFilter(in, out, "Resize", resizeInit, resizeGetframe, resizeFree, fmParallelRequests, 0, data, core);
-    vsapi->propSetNode(out, "clip", cref, 0);
-    vsapi->freeNode(cref);
+    vsapi->createFilter(in, out, "Resize", resizeInit, resizeGetframe, resizeFree, fmParallelRequests, 0, data, core);
 }
 
 //////////////////////////////////////////

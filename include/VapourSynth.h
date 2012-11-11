@@ -23,7 +23,7 @@
 
 #include <stdint.h>
 
-#define VAPOURSYNTH_API_VERSION 2
+#define VAPOURSYNTH_API_VERSION 3
 
 // Convenience for C++ users.
 #ifdef __cplusplus
@@ -185,9 +185,10 @@ typedef void (VS_CC *VSPublicFunction)(const VSMap *in, VSMap *out, void *userDa
 typedef void (VS_CC *VSFreeFuncData)(void *userData);
 typedef void (VS_CC *VSFilterInit)(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi);
 typedef const VSFrameRef *(VS_CC *VSFilterGetFrame)(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
+typedef int (VS_CC *VSGetOutputIndex)(VSFrameContext *frameCtx);
 typedef void (VS_CC *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI *vsapi);
 typedef void (VS_CC *VSRegisterFunction)(const char *name, const char *args, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin);
-typedef VSNodeRef *(VS_CC *VSCreateFilter)(const VSMap *in, VSMap *out, const char *name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core);
+typedef void (VS_CC *VSCreateFilter)(const VSMap *in, VSMap *out, const char *name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core);
 typedef VSMap *(VS_CC *VSInvoke)(VSPlugin *plugin, const char *name, const VSMap *args);
 typedef void (VS_CC *VSSetError)(VSMap *map, const char *errorMessage);
 typedef const char *(VS_CC *VSGetError)(const VSMap *map);
@@ -217,7 +218,7 @@ typedef uint8_t *(VS_CC *VSGetWritePtr)(VSFrameRef *f, int plane);
 
 // property access
 typedef const VSVideoInfo *(VS_CC *VSGetVideoInfo)(VSNodeRef *node);
-typedef void (VS_CC *VSSetVideoInfo)(const VSVideoInfo *vi, VSNode *node);
+typedef void (VS_CC *VSSetVideoInfo)(const VSVideoInfo *vi, int numOutputs, VSNode *node);
 typedef const VSFormat *(VS_CC *VSGetFrameFormat)(const VSFrameRef *f);
 typedef int (VS_CC *VSGetFrameWidth)(const VSFrameRef *f, int plane);
 typedef int (VS_CC *VSGetFrameHeight)(const VSFrameRef *f, int plane);
@@ -347,6 +348,7 @@ struct VSAPI {
     VSPropSetFunc propSetFunc;
 
     VSSetMaxCacheSize setMaxCacheSize;
+    VSGetOutputIndex getOutputIndex;
 };
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version);

@@ -816,7 +816,7 @@ cdef class Core(object):
     cdef readonly bint accept_lowercase
 
     def __cinit__(self, int threads = 0, bint add_cache = True, bint accept_lowercase = False):
-        self.funcs = vapoursynth.getVapourSynthAPI(2)
+        self.funcs = vapoursynth.getVapourSynthAPI(3)
         self.num_threads = threads
         if self.funcs == NULL:
             raise Error('Failed to obtain VapourSynth API pointer. Is the Python module and loaded core library mismatched?')

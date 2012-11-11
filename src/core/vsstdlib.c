@@ -49,7 +49,7 @@ typedef struct {
 
 static void VS_CC singleClipInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     SingleClipData *d = (SingleClipData *) * instanceData;
-    vsapi->setVideoInfo(vsapi->getVideoInfo(d->node), node);
+    vsapi->setVideoInfo(vsapi->getVideoInfo(d->node), 1, node);
 }
 
 static void VS_CC singleClipFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
@@ -121,7 +121,7 @@ static void VS_CC cropAbsInit(VSMap *in, VSMap *out, void **instanceData, VSNode
     VSVideoInfo vi = *d->vi;
     vi.height = d->height;
     vi.width = d->width;
-    vsapi->setVideoInfo(&vi, node);
+    vsapi->setVideoInfo(&vi, 1, node);
 }
 
 static int cropAbsVerify(int x, int y, int width, int height, int srcwidth, int srcheight, const VSFormat *fi, char *msg) {
@@ -223,7 +223,6 @@ static void VS_CC cropAbsCreate(const VSMap *in, VSMap *out, void *userData, VSC
     char msg[150];
     CropAbsData d;
     CropAbsData *data;
-    VSNodeRef *cref;
     int err;
 
     d.x = int64ToIntS(vsapi->propGetInt(in, "x", 0, &err));
@@ -245,9 +244,7 @@ static void VS_CC cropAbsCreate(const VSMap *in, VSMap *out, void *userData, VSC
     data = malloc(sizeof(d));
     *data = d;
 
-    cref = vsapi->createFilter(in, out, "CropAbs", cropAbsInit, cropAbsGetframe, singleClipFree, fmParallel, 0, data, core);
-    vsapi->propSetNode(out, "clip", cref, 0);
-    vsapi->freeNode(cref);
+    vsapi->createFilter(in, out, "CropAbs", cropAbsInit, cropAbsGetframe, singleClipFree, fmParallel, 0, data, core);
     return;
 }
 
@@ -258,7 +255,6 @@ static void VS_CC cropRelCreate(const VSMap *in, VSMap *out, void *userData, VSC
     char msg[150];
     CropAbsData d;
     CropAbsData *data;
-    VSNodeRef *cref;
     int err;
 
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
@@ -290,9 +286,7 @@ static void VS_CC cropRelCreate(const VSMap *in, VSMap *out, void *userData, VSC
     data = malloc(sizeof(d));
     *data = d;
 
-    cref = vsapi->createFilter(in, out, "CropAbs", cropAbsInit, cropAbsGetframe, singleClipFree, fmParallel, 0, data, core);
-    vsapi->propSetNode(out, "clip", cref, 0);
-    vsapi->freeNode(cref);
+    vsapi->createFilter(in, out, "CropAbs", cropAbsInit, cropAbsGetframe, singleClipFree, fmParallel, 0, data, core);
     return;
 }
 
@@ -313,7 +307,7 @@ static void VS_CC addBordersInit(VSMap *in, VSMap *out, void **instanceData, VSN
     VSVideoInfo vi = *d->vi;
     vi.height += vi.height ? d->top + d->bottom : 0;
     vi.width += vi.width ? d->left + d->right : 0;
-    vsapi->setVideoInfo(&vi, node);
+    vsapi->setVideoInfo(&vi, 1, node);
 }
 
 static int addBordersVerify(int left, int right, int top, int bottom, const VSFormat *fi, char *msg) {
@@ -396,7 +390,6 @@ static void VS_CC addBordersCreate(const VSMap *in, VSMap *out, void *userData, 
     char msg[150];
     AddBordersData d;
     AddBordersData *data;
-    VSNodeRef *cref;
     int err;
 
     d.left = int64ToIntS(vsapi->propGetInt(in, "left", 0, &err));
@@ -420,9 +413,7 @@ static void VS_CC addBordersCreate(const VSMap *in, VSMap *out, void *userData, 
     data = malloc(sizeof(d));
     *data = d;
 
-    cref = vsapi->createFilter(in, out, "AddBorders", addBordersInit, addBordersGetframe, singleClipFree, fmParallel, 0, data, core);
-    vsapi->propSetNode(out, "clip", cref, 0);
-    vsapi->freeNode(cref);
+    vsapi->createFilter(in, out, "AddBorders", addBordersInit, addBordersGetframe, singleClipFree, fmParallel, 0, data, core);
     return;
 }
 
@@ -441,7 +432,7 @@ typedef struct {
 static void VS_CC trimInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     TrimData *d = (TrimData *) * instanceData;
     d->vi.numFrames = d->trimlen;
-    vsapi->setVideoInfo(&d->vi, node);
+    vsapi->setVideoInfo(&d->vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC trimGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -459,7 +450,6 @@ static const VSFrameRef *VS_CC trimGetframe(int n, int activationReason, void **
 static void VS_CC trimCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     TrimData d;
     TrimData *data;
-    VSNodeRef *cref;
     int firstset;
     int lastset;
     int lengthset;
@@ -516,9 +506,7 @@ static void VS_CC trimCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     data = malloc(sizeof(d));
     *data = d;
 
-    cref = vsapi->createFilter(in, out, "Trim", trimInit, trimGetframe, singleClipFree, fmParallel, nfNoCache, data, core);
-    vsapi->propSetNode(out, "clip", cref, 0);
-    vsapi->freeNode(cref);
+    vsapi->createFilter(in, out, "Trim", trimInit, trimGetframe, singleClipFree, fmParallel, nfNoCache, data, core);
     return;
 }
 
@@ -533,7 +521,7 @@ typedef struct {
 
 static void VS_CC interleaveInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     InterleaveData *d = (InterleaveData *) * instanceData;
-    vsapi->setVideoInfo(&d->vi, node);
+    vsapi->setVideoInfo(&d->vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC interleaveGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -600,9 +588,7 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
         data = malloc(sizeof(d));
         *data = d;
 
-        cref = vsapi->createFilter(in, out, "Interleave", interleaveInit, interleaveGetframe, interleaveFree, fmParallel, nfNoCache, data, core);
-        vsapi->propSetNode(out, "clip", cref, 0);
-        vsapi->freeNode(cref);
+        vsapi->createFilter(in, out, "Interleave", interleaveInit, interleaveGetframe, interleaveFree, fmParallel, nfNoCache, data, core);
         return;
     }
 }
@@ -625,7 +611,6 @@ static const VSFrameRef *VS_CC reverseGetframe(int n, int activationReason, void
 static void VS_CC reverseCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     SingleClipData d;
     SingleClipData *data;
-    VSNodeRef *cref;
 
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node);
@@ -638,9 +623,7 @@ static void VS_CC reverseCreate(const VSMap *in, VSMap *out, void *userData, VSC
     data = malloc(sizeof(d));
     *data = d;
 
-    cref = vsapi->createFilter(in, out, "Reverse", singleClipInit, reverseGetframe, singleClipFree, fmParallel, nfNoCache, data, core);
-    vsapi->propSetNode(out, "clip", cref, 0);
-    vsapi->freeNode(cref);
+    vsapi->createFilter(in, out, "Reverse", singleClipInit, reverseGetframe, singleClipFree, fmParallel, nfNoCache, data, core);
     return;
 }
 
@@ -662,7 +645,7 @@ static void VS_CC loopInit(VSMap *in, VSMap *out, void **instanceData, VSNode *n
     else // loop forever
         vi.numFrames = 0;
 
-    vsapi->setVideoInfo(&vi, node);
+    vsapi->setVideoInfo(&vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC loopGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -680,7 +663,6 @@ static const VSFrameRef *VS_CC loopGetframe(int n, int activationReason, void **
 static void VS_CC loopCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     LoopData d;
     LoopData *data;
-    VSNodeRef *cref;
     int err;
 
     d.times = int64ToIntS(vsapi->propGetInt(in, "times", 0, &err));
@@ -702,9 +684,7 @@ static void VS_CC loopCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     data = malloc(sizeof(d));
     *data = d;
 
-    cref = vsapi->createFilter(in, out, "Loop", loopInit, loopGetframe, singleClipFree, fmParallel, nfNoCache, data, core);
-    vsapi->propSetNode(out, "clip", cref, 0);
-    vsapi->freeNode(cref);
+    vsapi->createFilter(in, out, "Loop", loopInit, loopGetframe, singleClipFree, fmParallel, nfNoCache, data, core);
     return;
 }
 
@@ -720,7 +700,7 @@ typedef struct {
 
 static void VS_CC shufflePlanesInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     ShufflePlanesData *d = (ShufflePlanesData *) * instanceData;
-    vsapi->setVideoInfo(&d->vi, node);
+    vsapi->setVideoInfo(&d->vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC shufflePlanesGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -810,7 +790,6 @@ static int findSubSampling(int s1, int s2) {
 static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     ShufflePlanesData d;
     ShufflePlanesData *data;
-    VSNodeRef *cref;
     int nclips = vsapi->propNumElements(in, "clips");
     int nplanes = vsapi->propNumElements(in, "planes");
     int i;
@@ -912,9 +891,7 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
     data = malloc(sizeof(d));
     *data = d;
 
-    cref = vsapi->createFilter(in, out, "ShufflePlanes", shufflePlanesInit, shufflePlanesGetframe, shufflePlanesFree, fmParallel, 0, data, core);
-    vsapi->propSetNode(out, "clip", cref, 0);
-    vsapi->freeNode(cref);
+    vsapi->createFilter(in, out, "ShufflePlanes", shufflePlanesInit, shufflePlanesGetframe, shufflePlanesFree, fmParallel, 0, data, core);
     return;
 }
 
@@ -941,7 +918,7 @@ static void VS_CC selectEveryInit(VSMap *in, VSMap *out, void **instanceData, VS
 	}
     vi.fpsDen *= d->cycle;
     vi.fpsNum *= d->num;
-    vsapi->setVideoInfo(&vi, node);
+    vsapi->setVideoInfo(&vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC selectEveryGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -966,7 +943,6 @@ static void VS_CC selectEveryFree(void *instanceData, VSCore *core, const VSAPI 
 static void VS_CC selectEveryCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     SelectEveryData d;
     SelectEveryData *data;
-    VSNodeRef *cref;
     int i;
     d.cycle = int64ToIntS(vsapi->propGetInt(in, "cycle", 0, 0));
 
@@ -990,9 +966,7 @@ static void VS_CC selectEveryCreate(const VSMap *in, VSMap *out, void *userData,
     data = malloc(sizeof(d));
     *data = d;
 
-    cref = vsapi->createFilter(in, out, "SelectEvery", selectEveryInit, selectEveryGetframe, selectEveryFree, fmParallel, nfNoCache, data, core);
-    vsapi->propSetNode(out, "clip", cref, 0);
-    vsapi->freeNode(cref);
+    vsapi->createFilter(in, out, "SelectEvery", selectEveryInit, selectEveryGetframe, selectEveryFree, fmParallel, nfNoCache, data, core);
     return;
 }
 
@@ -1010,7 +984,7 @@ static void VS_CC separateFieldsInit(VSMap *in, VSMap *out, void **instanceData,
     d->vi.numFrames *= 2;
     d->vi.height /= 2;
     d->vi.fpsNum *= 2;
-    vsapi->setVideoInfo(&d->vi, node);
+    vsapi->setVideoInfo(&d->vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC separateFieldsGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -1054,7 +1028,6 @@ static const VSFrameRef *VS_CC separateFieldsGetframe(int n, int activationReaso
 static void VS_CC separateFieldsCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     SeparateFieldsData d;
     SeparateFieldsData *data;
-    VSNodeRef *cref;
 
     d.tff = !!vsapi->propGetInt(in, "tff", 0, 0);
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
@@ -1073,9 +1046,7 @@ static void VS_CC separateFieldsCreate(const VSMap *in, VSMap *out, void *userDa
     data = malloc(sizeof(d));
     *data = d;
 
-    cref = vsapi->createFilter(in, out, "SeparateFields", separateFieldsInit, separateFieldsGetframe, singleClipFree, fmParallel, 0, data, core);
-    vsapi->propSetNode(out, "clip", cref, 0);
-    vsapi->freeNode(cref);
+    vsapi->createFilter(in, out, "SeparateFields", separateFieldsInit, separateFieldsGetframe, singleClipFree, fmParallel, 0, data, core);
     return;
 }
 
@@ -1091,7 +1062,7 @@ typedef struct {
 static void VS_CC doubleWeaveInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     DoubleWeaveData *d = (DoubleWeaveData *) * instanceData;
     d->vi.height *= 2;
-    vsapi->setVideoInfo(&d->vi, node);
+    vsapi->setVideoInfo(&d->vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC doubleWeaveGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -1139,7 +1110,6 @@ static const VSFrameRef *VS_CC doubleWeaveGetframe(int n, int activationReason, 
 static void VS_CC doubleWeaveCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     DoubleWeaveData d;
     DoubleWeaveData *data;
-    VSNodeRef *cref;
 
     d.tff = !!vsapi->propGetInt(in, "tff", 0, 0);
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
@@ -1153,9 +1123,7 @@ static void VS_CC doubleWeaveCreate(const VSMap *in, VSMap *out, void *userData,
     data = malloc(sizeof(d));
     *data = d;
 
-    cref = vsapi->createFilter(in, out, "DoubleWeave", doubleWeaveInit, doubleWeaveGetframe, singleClipFree, fmParallel, 0, data, core);
-    vsapi->propSetNode(out, "clip", cref, 0);
-    vsapi->freeNode(cref);
+    vsapi->createFilter(in, out, "DoubleWeave", doubleWeaveInit, doubleWeaveGetframe, singleClipFree, fmParallel, 0, data, core);
     return;
 }
 
@@ -1171,7 +1139,7 @@ typedef struct {
 
 static void VS_CC spliceInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     SpliceData *d = (SpliceData *) * instanceData;
-    vsapi->setVideoInfo(&d->vi, node);
+    vsapi->setVideoInfo(&d->vi, 1, node);
 }
 
 typedef struct {
@@ -1282,9 +1250,7 @@ static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         data = malloc(sizeof(d));
         *data = d;
 
-        cref = vsapi->createFilter(in, out, "Splice", spliceInit, spliceGetframe, spliceFree, fmParallel, nfNoCache, data, core);
-        vsapi->propSetNode(out, "clip", cref, 0);
-        vsapi->freeNode(cref);
+        vsapi->createFilter(in, out, "Splice", spliceInit, spliceGetframe, spliceFree, fmParallel, nfNoCache, data, core);
         return;
     }
 }
@@ -1329,15 +1295,12 @@ static const VSFrameRef *VS_CC flipVerticalGetframe(int n, int activationReason,
 static void VS_CC flipVerticalCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     SingleClipData d;
     SingleClipData *data;
-    VSNodeRef *cref;
 
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     data = malloc(sizeof(d));
     *data = d;
 
-    cref = vsapi->createFilter(in, out, "FlipVertical", singleClipInit, flipVerticalGetframe, singleClipFree, fmParallel, 0, data, core);
-    vsapi->propSetNode(out, "clip", cref, 0);
-    vsapi->freeNode(cref);
+    vsapi->createFilter(in, out, "FlipVertical", singleClipInit, flipVerticalGetframe, singleClipFree, fmParallel, 0, data, core);
     return;
 }
 
@@ -1433,16 +1396,13 @@ static const VSFrameRef *VS_CC flipHorizontalGetframe(int n, int activationReaso
 static void VS_CC flipHorizontalCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     FlipHorizontalData d;
     FlipHorizontalData *data;
-    VSNodeRef *cref;
 
     d.flip = (intptr_t)(userData);
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     data = malloc(sizeof(d));
     *data = d;
 
-    cref = vsapi->createFilter(in, out, d.flip ? "Turn180" : "FlipHorizontal", singleClipInit, flipHorizontalGetframe, singleClipFree, fmParallel, 0, data, core);
-    vsapi->propSetNode(out, "clip", cref, 0);
-    vsapi->freeNode(cref);
+    vsapi->createFilter(in, out, d.flip ? "Turn180" : "FlipHorizontal", singleClipInit, flipHorizontalGetframe, singleClipFree, fmParallel, 0, data, core);
     return;
 }
 
@@ -1458,7 +1418,7 @@ typedef struct {
 
 static void VS_CC stackInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     StackData *d = (StackData *) * instanceData;
-    vsapi->setVideoInfo(&d->vi, node);
+    vsapi->setVideoInfo(&d->vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC stackGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -1564,9 +1524,7 @@ static void VS_CC stackCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         data = malloc(sizeof(d));
         *data = d;
 
-        cref = vsapi->createFilter(in, out, d.vertical ? "StackVertical" : "StackHorizontal", stackInit, stackGetframe, stackFree, fmParallel, 0, data, core);
-        vsapi->propSetNode(out, "clip", cref, 0);
-        vsapi->freeNode(cref);
+        vsapi->createFilter(in, out, d.vertical ? "StackVertical" : "StackHorizontal", stackInit, stackGetframe, stackFree, fmParallel, 0, data, core);
         return;
     }
 }
@@ -1581,7 +1539,7 @@ typedef struct {
 
 static void VS_CC blankClipInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     BlankClipData *d = (BlankClipData *) * instanceData;
-    vsapi->setVideoInfo(&d->vi, node);
+    vsapi->setVideoInfo(&d->vi, 1, node);
     vsapi->clearMap(in);
 }
 
@@ -1604,7 +1562,6 @@ static void VS_CC blankClipFree(void *instanceData, VSCore *core, const VSAPI *v
 static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     BlankClipData d;
     BlankClipData *data;
-    VSNodeRef *cref;
     VSNodeRef *node;
     int hasvi = 0;
     int format = 0;
@@ -1747,9 +1704,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     data = malloc(sizeof(d));
     *data = d;
 
-    cref = vsapi->createFilter(in, out, "BlankClip", blankClipInit, blankClipGetframe, blankClipFree, fmParallel, nfNoCache, data, core);
-    vsapi->propSetNode(out, "clip", cref, 0);
-    vsapi->freeNode(cref);
+    vsapi->createFilter(in, out, "BlankClip", blankClipInit, blankClipGetframe, blankClipFree, fmParallel, nfNoCache, data, core);
     return;
 }
 
@@ -1763,7 +1718,7 @@ typedef struct {
 
 static void VS_CC assumeFPSInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     AssumeFPSData *d = (AssumeFPSData *) * instanceData;
-    vsapi->setVideoInfo(&d->vi, node);
+    vsapi->setVideoInfo(&d->vi, 1, node);
     vsapi->clearMap(in);
 }
 
@@ -1789,7 +1744,6 @@ static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, V
     AssumeFPSData d;
     AssumeFPSData *data;
     VSNodeRef *src;
-    VSNodeRef *cref;
     int hasfps = 0;
     int hassrc = 0;
     int err;
@@ -1829,9 +1783,7 @@ static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, V
     data = malloc(sizeof(d));
     *data = d;
 
-    cref = vsapi->createFilter(in, out, "AssumeFPS", assumeFPSInit, assumeFPSGetframe, singleClipFree, fmParallel, nfNoCache, data, core);
-    vsapi->propSetNode(out, "clip", cref, 0);
-    vsapi->freeNode(cref);
+    vsapi->createFilter(in, out, "AssumeFPS", assumeFPSInit, assumeFPSGetframe, singleClipFree, fmParallel, nfNoCache, data, core);
     return;
 }
 
@@ -1847,7 +1799,7 @@ typedef struct {
 
 static void VS_CC lutInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     LutData *d = (LutData *) * instanceData;
-    vsapi->setVideoInfo(d->vi, node);
+    vsapi->setVideoInfo(d->vi, 1, node);
     vsapi->clearMap(in);
 }
 
@@ -1918,7 +1870,6 @@ static void VS_CC lutFree(void *instanceData, VSCore *core, const VSAPI *vsapi) 
 static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     LutData d;
     LutData *data;
-    VSNodeRef *cref;
     int i;
     int n, m, o;
 
@@ -1996,9 +1947,7 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
     data = malloc(sizeof(d));
     *data = d;
 
-    cref = vsapi->createFilter(in, out, "Lut", lutInit, lutGetframe, lutFree, fmParallel, 0, data, core);
-    vsapi->propSetNode(out, "clip", cref, 0);
-    vsapi->freeNode(cref);
+    vsapi->createFilter(in, out, "Lut", lutInit, lutGetframe, lutFree, fmParallel, 0, data, core);
     return;
 }
 
@@ -2014,7 +1963,7 @@ typedef struct {
 
 static void VS_CC lut2Init(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     Lut2Data *d = (Lut2Data *) * instanceData;
-    vsapi->setVideoInfo(d->vi[0], node);
+    vsapi->setVideoInfo(d->vi[0], 1, node);
     vsapi->clearMap(in);
 }
 
@@ -2092,7 +2041,6 @@ static void VS_CC lut2Free(void *instanceData, VSCore *core, const VSAPI *vsapi)
 static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     Lut2Data d;
     Lut2Data *data;
-    VSNodeRef *cref;
     int i;
     int n, m, o;
 
@@ -2186,9 +2134,7 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
     data = malloc(sizeof(d));
     *data = d;
 
-    cref = vsapi->createFilter(in, out, "Lut2", lut2Init, lut2Getframe, lut2Free, fmParallel, 0, data, core);
-    vsapi->propSetNode(out, "clip", cref, 0);
-    vsapi->freeNode(cref);
+    vsapi->createFilter(in, out, "Lut2", lut2Init, lut2Getframe, lut2Free, fmParallel, 0, data, core);
     return;
 }
 
@@ -2208,7 +2154,7 @@ typedef struct {
 
 static void VS_CC selectClipInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     SelectClipData *d = (SelectClipData *) * instanceData;
-    vsapi->setVideoInfo(d->vi, node);
+    vsapi->setVideoInfo(d->vi, 1, node);
     vsapi->clearMap(in);
 }
 
@@ -2286,7 +2232,6 @@ static void VS_CC selectClipFree(void *instanceData, VSCore *core, const VSAPI *
 static void VS_CC selectClipCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     SelectClipData d;
     SelectClipData *data;
-    VSNodeRef *cref;
     int i;
 
     d.numnode = vsapi->propNumElements(in, "clips");
@@ -2323,9 +2268,7 @@ static void VS_CC selectClipCreate(const VSMap *in, VSMap *out, void *userData, 
     data = malloc(sizeof(d));
     *data = d;
 
-    cref = vsapi->createFilter(in, out, "SelectClip", selectClipInit, selectClipGetFrame, selectClipFree, fmUnordered, nfNoCache, data, core);
-    vsapi->propSetNode(out, "clip", cref, 0);
-    vsapi->freeNode(cref);
+    vsapi->createFilter(in, out, "SelectClip", selectClipInit, selectClipGetFrame, selectClipFree, fmUnordered, nfNoCache, data, core);
     return;
 }
 
@@ -2343,7 +2286,7 @@ typedef struct {
 
 static void VS_CC modifyFrameInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     ModifyFrameData *d = (ModifyFrameData *) * instanceData;
-    vsapi->setVideoInfo(d->vi, node);
+    vsapi->setVideoInfo(d->vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC modifyFrameGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -2402,7 +2345,6 @@ static void VS_CC modifyFrameFree(void *instanceData, VSCore *core, const VSAPI 
 static void VS_CC modifyFrameCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     ModifyFrameData d;
     ModifyFrameData *data;
-    VSNodeRef *cref;
     int i;
 
     d.numnode = vsapi->propNumElements(in, "clips");
@@ -2418,9 +2360,7 @@ static void VS_CC modifyFrameCreate(const VSMap *in, VSMap *out, void *userData,
     data = malloc(sizeof(d));
     *data = d;
 
-    cref = vsapi->createFilter(in, out, "ModifyFrame", modifyFrameInit, modifyFrameGetFrame, modifyFrameFree, fmUnordered, 0, data, core);
-    vsapi->propSetNode(out, "clip", cref, 0);
-    vsapi->freeNode(cref);
+    vsapi->createFilter(in, out, "ModifyFrame", modifyFrameInit, modifyFrameGetFrame, modifyFrameFree, fmUnordered, 0, data, core);
     return;
 }
 
@@ -2439,7 +2379,7 @@ typedef struct {
 
 static void VS_CC transposeInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     TransposeData *d = (TransposeData *) * instanceData;
-    vsapi->setVideoInfo(&d->vi, node);
+    vsapi->setVideoInfo(&d->vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -2554,7 +2494,6 @@ static void VS_CC transposeFree(void *instanceData, VSCore *core, const VSAPI *v
 static void VS_CC transposeCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     TransposeData d;
     TransposeData *data;
-    VSNodeRef *cref;
     int temp;
 
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
@@ -2576,9 +2515,7 @@ static void VS_CC transposeCreate(const VSMap *in, VSMap *out, void *userData, V
     data = malloc(sizeof(d));
     *data = d;
 
-    cref = vsapi->createFilter(in, out, "Transpose", transposeInit, transposeGetFrame, transposeFree, fmParallel, 0, data, core);
-    vsapi->propSetNode(out, "clip", cref, 0);
-    vsapi->freeNode(cref);
+    vsapi->createFilter(in, out, "Transpose", transposeInit, transposeGetFrame, transposeFree, fmParallel, 0, data, core);
     return;
 }
 
@@ -2594,7 +2531,7 @@ typedef struct {
 
 static void VS_CC pemVerifierInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     PEMVerifierData *d = (PEMVerifierData *) * instanceData;
-    vsapi->setVideoInfo(d->vi, node);
+    vsapi->setVideoInfo(d->vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC pemVerifierGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -2660,7 +2597,6 @@ static void VS_CC pemVerifierFree(void *instanceData, VSCore *core, const VSAPI 
 static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     PEMVerifierData d;
     PEMVerifierData *data;
-    VSNodeRef *cref;
     int i;
     int numupper = vsapi->propNumElements(in, "upper");
     int numlower = vsapi->propNumElements(in, "lower");
@@ -2708,9 +2644,7 @@ static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData,
     data = malloc(sizeof(d));
     *data = d;
 
-    cref = vsapi->createFilter(in, out, "PEMVerifier", pemVerifierInit, pemVerifierGetFrame, pemVerifierFree, fmParallel, 0, data, core);
-    vsapi->propSetNode(out, "clip", cref, 0);
-    vsapi->freeNode(cref);
+    vsapi->createFilter(in, out, "PEMVerifier", pemVerifierInit, pemVerifierGetFrame, pemVerifierFree, fmParallel, 0, data, core);
     return;
 }
 
@@ -2726,7 +2660,7 @@ typedef struct {
 
 static void VS_CC planeAverageInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     PlaneAverageData *d = (PlaneAverageData *) * instanceData;
-    vsapi->setVideoInfo(d->vi, node);
+    vsapi->setVideoInfo(d->vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC planeAverageGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -2772,7 +2706,6 @@ static const VSFrameRef *VS_CC planeAverageGetFrame(int n, int activationReason,
 static void VS_CC planeAverageCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     PlaneAverageData d;
     PlaneAverageData *data;
-    VSNodeRef *cref;
     int err;
 
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
@@ -2795,9 +2728,7 @@ static void VS_CC planeAverageCreate(const VSMap *in, VSMap *out, void *userData
     data = malloc(sizeof(d));
     *data = d;
 
-    cref = vsapi->createFilter(in, out, "PlaneAverage", planeAverageInit, planeAverageGetFrame, singleClipFree, fmParallel, 0, data, core);
-    vsapi->propSetNode(out, "clip", cref, 0);
-    vsapi->freeNode(cref);
+    vsapi->createFilter(in, out, "PlaneAverage", planeAverageInit, planeAverageGetFrame, singleClipFree, fmParallel, 0, data, core);
     return;
 }
 
@@ -2814,7 +2745,7 @@ typedef struct {
 
 static void VS_CC planeDifferenceInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     PlaneDifferenceData *d = (PlaneDifferenceData *) * instanceData;
-    vsapi->setVideoInfo(d->vi, node);
+    vsapi->setVideoInfo(d->vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC planeDifferenceGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -2873,7 +2804,6 @@ static void VS_CC planeDifferenceFree(void *instanceData, VSCore *core, const VS
 static void VS_CC planeDifferenceCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     PlaneDifferenceData d;
     PlaneDifferenceData *data;
-    VSNodeRef *cref;
     int err;
 
     if (vsapi->propNumElements(in, "clips") != 2)
@@ -2901,9 +2831,7 @@ static void VS_CC planeDifferenceCreate(const VSMap *in, VSMap *out, void *userD
     data = malloc(sizeof(d));
     *data = d;
 
-    cref = vsapi->createFilter(in, out, "PlaneDifference", planeDifferenceInit, planeDifferenceGetFrame, planeDifferenceFree, fmParallel, 0, data, core);
-    vsapi->propSetNode(out, "clip", cref, 0);
-    vsapi->freeNode(cref);
+    vsapi->createFilter(in, out, "PlaneDifference", planeDifferenceInit, planeDifferenceGetFrame, planeDifferenceFree, fmParallel, 0, data, core);
     return;
 }
 
@@ -2920,7 +2848,7 @@ typedef struct {
 
 static void VS_CC clipToPropInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     ClipToPropData *d = (ClipToPropData *) * instanceData;
-    vsapi->setVideoInfo(d->vi, node);
+    vsapi->setVideoInfo(d->vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC clipToPropGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -2952,7 +2880,6 @@ static void VS_CC clipToPropFree(void *instanceData, VSCore *core, const VSAPI *
 static void VS_CC clipToPropCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     ClipToPropData d;
     ClipToPropData *data;
-    VSNodeRef *cref;
     int err;
 
     d.prop = vsapi->propGetData(in, "prop", 0, &err);
@@ -2972,9 +2899,7 @@ static void VS_CC clipToPropCreate(const VSMap *in, VSMap *out, void *userData, 
     data = malloc(sizeof(d));
     *data = d;
 
-    cref = vsapi->createFilter(in, out, "ClipToProp", clipToPropInit, clipToPropGetFrame, clipToPropFree, fmParallel, 0, data, core);
-    vsapi->propSetNode(out, "clip", cref, 0);
-    vsapi->freeNode(cref);
+    vsapi->createFilter(in, out, "ClipToProp", clipToPropInit, clipToPropGetFrame, clipToPropFree, fmParallel, 0, data, core);
     return;
 }
 
@@ -2989,7 +2914,7 @@ typedef struct {
 
 static void VS_CC propToClipInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     PropToClipData *d = (PropToClipData *) * instanceData;
-    vsapi->setVideoInfo(&d->vi, node);
+    vsapi->setVideoInfo(&d->vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC propToClipGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -3023,7 +2948,6 @@ static void VS_CC propToClipFree(void *instanceData, VSCore *core, const VSAPI *
 static void VS_CC propToClipCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     PropToClipData d;
     PropToClipData *data;
-    VSNodeRef *cref;
     int err;
     char errmsg[512];
     const VSFrameRef *src;
@@ -3052,9 +2976,7 @@ static void VS_CC propToClipCreate(const VSMap *in, VSMap *out, void *userData, 
     data = malloc(sizeof(d));
     *data = d;
 
-    cref = vsapi->createFilter(in, out, "PropToClip", propToClipInit, propToClipGetFrame, propToClipFree, fmParallel, 0, data, core);
-    vsapi->propSetNode(out, "clip", cref, 0);
-    vsapi->freeNode(cref);
+    vsapi->createFilter(in, out, "PropToClip", propToClipInit, propToClipGetFrame, propToClipFree, fmParallel, 0, data, core);
     return;
 }
 

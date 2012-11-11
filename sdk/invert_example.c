@@ -16,10 +16,11 @@ typedef struct {
 } InvertData;
 
 // This function is called immediated after vsapi->createFilter(). This is the only place where the video
-// properties may be set. In this case we simply use the same as the input clip.
+// properties may be set. In this case we simply use the same as the input clip. You may pass an array
+// of VSVideoInfo if the filter has more than one output, like rgb+alpha as two separate clips.
 static void VS_CC invertInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     InvertData *d = (InvertData *) * instanceData;
-    vsapi->setVideoInfo(d->vi, node);
+    vsapi->setVideoInfo(d->vi, 1, node);
 }
 
 // This is the main function that gets called when a frame should be produced. It will in most cases get
@@ -140,15 +141,13 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     // is handled. In general you should only use fmParallel whenever possible. This is if you
     // need to modify no shared data at all when the filter is running.
     // For more complicated filters fmParallelRequests is usually easier to achieve as an
-    // be prefetched in parallel but no
+    // be prefetched in parallel but the actual processing is serialized.
     // The others can be considered special cases where fmSerial is useful to source filters and
     // fmUnordered is useful when a filter's state may change even when deciding which frames to
     // prefetch (such as a cache filter).
     // If you filter is really fast (such as a filter that only resorts frames) you should set the
     // nfNoCache flag to make the caching work smoother.
-    cref = vsapi->createFilter(in, out, "Invert", invertInit, invertGetFrame, invertFree, fmParallel, 0, data, core);
-    vsapi->propSetNode(out, "clip", cref, 0);
-    vsapi->freeNode(cref);
+    vsapi->createFilter(in, out, "Invert", invertInit, invertGetFrame, invertFree, fmParallel, 0, data, core);
     return;
 }
 

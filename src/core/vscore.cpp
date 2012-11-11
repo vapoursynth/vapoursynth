@@ -27,6 +27,8 @@ extern "C" {
 #include "x86utils.h"
 #include "cachefilter.h"
 
+const VSAPI *VS_CC getVapourSynthAPI(int version);
+
 static const QRegExp idRegExp("^[a-zA-Z][a-zA-Z0-9_]*$");
 static const QRegExp sysPropRegExp("^_[a-zA-Z0-9_]*$");
 static QMutex regExpLock;
@@ -36,12 +38,10 @@ static bool isValidIdentifier(const QByteArray &s) {
     return idRegExp.exactMatch(QString::fromUtf8(s.constData(), s.size()));
 }
 
-FrameContext::FrameContext(int n, VSNode *clip, const PFrameContext &upstreamContext) : numFrameRequests(0), n(n), node(NULL), clip(clip), upstreamContext(upstreamContext), userData(NULL), frameContext(NULL), frameDone(NULL), error(false), lastCompletedN(-1), lastCompletedNode(NULL) {
-
+FrameContext::FrameContext(int n, int index, VSNode *clip, const PFrameContext &upstreamContext) : numFrameRequests(0), index(index), n(n), node(NULL), clip(clip), upstreamContext(upstreamContext), userData(NULL), frameContext(NULL), frameDone(NULL), error(false), lastCompletedN(-1), lastCompletedNode(NULL) {
 }
 
-FrameContext::FrameContext(int n, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData) : numFrameRequests(0), n(n), node(node), clip(node->clip.data()), frameContext(NULL), userData(userData), frameDone(frameDone), error(false), lastCompletedN(-1), lastCompletedNode(NULL) {
-
+FrameContext::FrameContext(int n, int index, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData) : numFrameRequests(0), index(index), n(n), node(node), clip(node->clip.data()), frameContext(NULL), userData(userData), frameDone(frameDone), error(false), lastCompletedN(-1), lastCompletedNode(NULL) {
 }
 
 void FrameContext::setError(const QByteArray &errorMsg) {
@@ -206,10 +206,10 @@ VSFunction::VSFunction(const QByteArray &name, const QByteArray &argString, VSPu
     }
 }
 
-VSNode::VSNode(const VSMap *in, VSMap *out, const QByteArray &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, VSCore *core) :
-    instanceData(instanceData), name(name), init(init), filterGetFrame(getFrame), free(free), filterMode(filterMode), core(core), flags(flags), inval(*in), hasVi(false), hasWarned(false) {
+VSNode::VSNode(const VSMap *in, VSMap *out, const QByteArray &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion, VSCore *core) :
+    instanceData(instanceData), name(name), init(init), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiVersion(apiVersion), core(core), flags(flags), inval(*in), hasVi(false), hasWarned(false) {
     QMutexLocker lock(&VSCore::filterLock);
-    init(&inval, out, &this->instanceData, this, core, &vsapi);
+    init(&inval, out, &this->instanceData, this, core, getVapourSynthAPI(apiVersion));
 
     if (vsapi.getError(out))
         throw VSException(vsapi.getError(out));
@@ -245,12 +245,13 @@ PVideoFrame VSNode::getFrameInternal(int n, int activationReason, const PFrameCo
         PVideoFrame p(r->frame);
         delete r;
         const VSFormat *fi = p->getFormat();
+        const VSVideoInfo &lvi = vi[frameCtx->index];
 
-        if (!vi.format && fi->colorFamily == cmCompat)
+        if (!lvi.format && fi->colorFamily == cmCompat)
             qFatal("Illegal compat frame returned");
-        else if (vi.format && vi.format != fi)
+        else if (lvi.format && lvi.format != fi)
             qFatal("Frame returned not of the declared type");
-        else if ((vi.width || vi.height) && (p->getWidth(0) != vi.width || p->getHeight(0) != vi.height))
+        else if ((lvi.width || lvi.height) && (p->getWidth(0) != lvi.width || p->getHeight(0) != lvi.height))
             qFatal("Frame returned of not of the declared dimensions");
 
         return p;
@@ -470,8 +471,14 @@ void VSCore::loadPlugin(const QByteArray &filename, const QByteArray &forcedName
     plugins.insert(p->identifier, p);
 }
 
-PVideoNode VSCore::createFilter(const VSMap *in, VSMap *out, const QByteArray &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData) {
-    return PVideoNode(new VSNode(in, out, name, init, getFrame, free, filterMode, flags, instanceData, this));
+void VSCore::createFilter(const VSMap *in, VSMap *out, const QByteArray &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion) {
+    try {
+        PVideoNode node(new VSNode(in, out, name, init, getFrame, free, filterMode, flags, instanceData, apiVersion, this));
+        for (int i = 0; i < node->getNumOutputs(); i++)
+            vsapi.propSetNode(out, "clip", new VSNodeRef(node, i), i == 0 ?  paReplace : paAppend);
+    } catch (VSException &e) {
+        vsapi.setError(out, e.what());
+    }
 }
 
 int64_t VSCore::setMaxCacheSize(int64_t bytes) {
@@ -527,14 +534,17 @@ VSPlugin::VSPlugin(const QByteArray &filename, const QByteArray &forcedNamespace
     if (readOnlySet)
         readOnly = true;
 
-    if (apiVersion != VAPOURSYNTH_API_VERSION) {
+    if (apiVersion != VAPOURSYNTH_API_VERSION && apiVersion != 2) {
 #ifdef _WIN32
         FreeLibrary(libHandle);
 #else
         dlclose(libHandle);
 #endif
-        throw VSException((QString("Core only supports API R") + QString::number(VAPOURSYNTH_API_VERSION) + QString(" but the loaded plugin uses API R") + QString::number(apiVersion)).toUtf8());
+        throw VSException((QString("Core only supports API R") + QString::number(VAPOURSYNTH_API_VERSION) + QString(" and R2 but the loaded plugin uses API R") + QString::number(apiVersion)).toUtf8());
     }
+
+    if (apiVersion == 2)
+        qWarning("The plugin '" + fullname + "' uses API R2 which is deprecated. Update to keep it working in future versions.");
 }
 
 VSPlugin::~VSPlugin() {
@@ -581,10 +591,11 @@ static bool hasCompatNodes(const VSMap &m) {
     foreach(const VSVariant & vsv, m) {
         if (vsv.vtype == VSVariant::vNode) {
             for (int i = 0; i < vsv.c.count(); i++) {
-                const VSVideoInfo &vi = vsv.c[i]->getVideoInfo();
-
-                if (vi.format && vi.format->colorFamily == cmCompat)
-                    return true;
+                for (int j = 0; j < vsv.c[i].clip->getNumOutputs(); j++) {
+                    const VSVideoInfo &vi = vsv.c[i].clip->getVideoInfo(j);
+                    if (vi.format && vi.format->colorFamily == cmCompat)
+                        return true;
+                }
             }
         }
     }
@@ -646,7 +657,7 @@ VSMap VSPlugin::invoke(const QByteArray &funcName, const VSMap &args) {
                 throw VSException(funcName + ": no argument named " + sl.join(", ").toUtf8());
             }
 
-            f.func(&args, &v, f.functionData, core, &vsapi);
+            f.func(&args, &v, f.functionData, core, getVapourSynthAPI(apiVersion));
 
             if (!compat & hasCompatNodes(v))
                 qFatal(funcName + ": illegal filter node returning a compat format detected, DO NOT USE THE COMPAT FORMATS IN NEW FILTERS");

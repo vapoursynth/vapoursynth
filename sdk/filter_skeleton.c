@@ -14,7 +14,7 @@ typedef struct {
 
 static void VS_CC filterInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     FilterData *d = (FilterData *) * instanceData;
-    vsapi->setVideoInfo(d->vi, node);
+    vsapi->setVideoInfo(d->vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC filterGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -42,7 +42,6 @@ static void VS_CC filterFree(void *instanceData, VSCore *core, const VSAPI *vsap
 static void VS_CC filterCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     FilterData d;
     FilterData *data;
-    VSNodeRef *cref;
 
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node);
@@ -50,9 +49,7 @@ static void VS_CC filterCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     data = malloc(sizeof(d));
     *data = d;
 
-    cref = vsapi->createFilter(in, out, "Filter", filterInit, filterGetFrame, filterFree, fmParallel, 0, data, core);
-    vsapi->propSetNode(out, "clip", cref, 0);
-    vsapi->freeNode(cref);
+    vsapi->createFilter(in, out, "Filter", filterInit, filterGetFrame, filterFree, fmParallel, 0, data, core);
     return;
 }
 

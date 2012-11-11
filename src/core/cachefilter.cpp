@@ -160,7 +160,7 @@ static void VS_CC cacheInit(VSMap *in, VSMap *out, void **instanceData, VSNode *
         c->cache.setMaxFrames(size);
 
     *instanceData = c;
-    vsapi->setVideoInfo(vsapi->getVideoInfo(video), node);
+    vsapi->setVideoInfo(vsapi->getVideoInfo(video), 1, node);
     core->caches.append(node);
 }
 
@@ -223,9 +223,7 @@ static void VS_CC cacheFree(void *instanceData, VSCore *core, const VSAPI *vsapi
 }
 
 static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    VSNodeRef *cref = vsapi->createFilter(in, out, "Cache", cacheInit, cacheGetframe, cacheFree, fmUnordered, nfNoCache, userData, core);
-    vsapi->propSetNode(out, "clip", cref, 0);
-    vsapi->freeNode(cref);
+    vsapi->createFilter(in, out, "Cache", cacheInit, cacheGetframe, cacheFree, fmUnordered, nfNoCache, userData, core);
 }
 
 void VS_CC cacheInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {

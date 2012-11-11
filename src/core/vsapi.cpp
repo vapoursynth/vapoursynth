@@ -44,7 +44,7 @@ static const VSFrameRef *VS_CC cloneFrameRef(const VSFrameRef *frame) {
 
 static VSNodeRef *VS_CC cloneNodeRef(VSNodeRef *node) {
     Q_ASSERT(node);
-    return new VSNodeRef(node->clip);
+    return new VSNodeRef(node->clip, node->index);
 }
 
 static int VS_CC getStride(const VSFrameRef *frame, int plane) {
@@ -60,7 +60,7 @@ static uint8_t *VS_CC getWritePtr(VSFrameRef *frame, int plane) {
 }
 
 static void VS_CC getFrameAsync(int n, VSNodeRef *clip, VSFrameDoneCallback fdc, void *userData) {
-    PFrameContext g(new FrameContext(n, clip, fdc, userData));
+    PFrameContext g(new FrameContext(n, clip->index, clip, fdc, userData));
     clip->clip->getFrame(g);
 }
 
@@ -93,13 +93,13 @@ static const VSFrameRef *VS_CC getFrame(int n, VSNodeRef *clip, char *errorMsg, 
 
 static void VS_CC requestFrameFilter(int n, VSNodeRef *clip, VSFrameContext *ctxHandle) {
     PFrameContext f(*(PFrameContext *)ctxHandle);
-    PFrameContext g(new FrameContext(n, clip->clip.data(), f));
+    PFrameContext g(new FrameContext(n, clip->index, clip->clip.data(), f));
     clip->clip->getFrame(g);
 }
 
 static const VSFrameRef *VS_CC getFrameFilter(int n, VSNodeRef *clip, VSFrameContext *ctxHandle) {
     PFrameContext f(*(PFrameContext *)ctxHandle);
-    PVideoFrame g = f->availableFrames.value(FrameKey(clip->clip.data(), n));
+    PVideoFrame g = f->availableFrames.value(NodeOutputKey(clip->clip.data(), n, clip->index));
 
     if (g)
         return new VSFrameRef(g);
@@ -128,8 +128,8 @@ static void VS_CC copyFrameProps(const VSFrameRef *src, VSFrameRef *dst, VSCore 
     core->copyFrameProps(src->frame, dst->frame);
 }
 
-static VSNodeRef *VS_CC createFilter(const VSMap *in, VSMap *out, const char *name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) {
-    return new VSNodeRef(core->createFilter(in, out, name, init, getFrame, free, static_cast<VSFilterMode>(filterMode), flags, instanceData));
+static void VS_CC createFilter(const VSMap *in, VSMap *out, const char *name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) {
+    core->createFilter(in, out, name, init, getFrame, free, static_cast<VSFilterMode>(filterMode), flags, instanceData, VAPOURSYNTH_API_VERSION);
 }
 
 static void VS_CC setError(VSMap *map, const char *errorMessage) {
@@ -153,11 +153,11 @@ static void VS_CC setFilterError(const char *errorMessage, VSFrameContext *conte
 
 //property access functions
 static const VSVideoInfo *VS_CC getVideoInfo(VSNodeRef *c) {
-    return &c->clip->getVideoInfo();
+    return &c->clip->getVideoInfo(c->index);
 }
 
-static void VS_CC setVideoInfo(const VSVideoInfo *vi, VSNode *c) {
-    c->setVideoInfo(*vi);
+static void VS_CC setVideoInfo(const VSVideoInfo *vi, int numOutputs, VSNode *c) {
+    c->setVideoInfo(vi, numOutputs);
 }
 
 static const VSFormat *VS_CC getFrameFormat(const VSFrameRef *f) {
@@ -211,8 +211,8 @@ static char VS_CC propGetType(const VSMap *props, const char *name) {
 static int getPropErrorCheck(const VSMap *props, const char *name, int index, int *error, int type) {
     int err = 0;
 
-    if (vsapi.getError(props))
-        qFatal(QByteArray("Attempted to read from a map with error set: ") + vsapi.getError(props));
+    if (getError(props))
+        qFatal(QByteArray("Attempted to read from a map with error set: ") + getError(props));
 
     if (!props->contains(name))
         err |= peUnset;
@@ -373,11 +373,11 @@ static int VS_CC propSetNode(VSMap *props, const char *name, VSNodeRef *clip, in
         if (l.vtype != VSVariant::vNode)
             return 1;
         else if (append == paAppend)
-            l.c.append(clip->clip);
+            l.c.append(*clip);
     } else {
         VSVariant l(VSVariant::vNode);
         if (append == paAppend)
-            l.c.append(clip->clip);
+            l.c.append(*clip);
         props->insert(name, l);
     }
 
@@ -426,13 +426,6 @@ static VSCore *VS_CC createCore(int *threads) {
 
 static void VS_CC freeCore(VSCore *core) {
     delete core;
-}
-
-const VSAPI *VS_CC getVapourSynthAPI(int version) {
-    if (version == VAPOURSYNTH_API_VERSION)
-        return &vsapi;
-    else
-        return NULL;
 }
 
 static VSPlugin *VS_CC getPluginId(const char *identifier, VSCore *core) {
@@ -507,7 +500,7 @@ static void VS_CC queryCompletedFrame(VSNodeRef **node, int *n, VSFrameContext *
 
 static void VS_CC releaseFrameEarly(VSNodeRef *node, int n, VSFrameContext *frameCtx) {
     PFrameContext f(*(PFrameContext *)frameCtx);
-    f->availableFrames.remove(FrameKey(node->clip.data(), n));
+    f->availableFrames.remove(NodeOutputKey(node->clip.data(), n, node->index));
 }
 
 static VSFuncRef *VS_CC cloneFuncRef(VSFuncRef *f) {
@@ -516,6 +509,11 @@ static VSFuncRef *VS_CC cloneFuncRef(VSFuncRef *f) {
 
 static int64_t VS_CC setMaxCacheSize(int64_t bytes, VSCore *core) {
     return core->setMaxCacheSize(bytes);
+}
+
+static int VS_CC getOutputIndex(VSFrameContext *frameCtx) {
+    PFrameContext f(*(PFrameContext *)frameCtx);
+    return f->index;
 }
 
 const VSAPI vsapi = {
@@ -591,5 +589,191 @@ const VSAPI vsapi = {
     &propSetFrame,
     &propSetFunc,
 
-    &setMaxCacheSize
+    &setMaxCacheSize,
+    &getOutputIndex
 };
+
+//////////////////////////
+// R2 compat junk
+
+typedef void (VS_CC *VSSetVideoInfo_R2)(const VSVideoInfo *vi, VSNode *node);
+typedef VSNodeRef *(VS_CC *VSCreateFilter_R2)(const VSMap *in, VSMap *out, const char *name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core);
+
+static void VS_CC setVideoInfoR2(const VSVideoInfo *vi, VSNode *c) {
+    setVideoInfo(vi, 1, c);
+}
+
+static VSNodeRef *VS_CC createFilterR2(const VSMap *in, VSMap *out, const char *name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) {
+    core->createFilter(in, out, name, init, getFrame, free, static_cast<VSFilterMode>(filterMode), flags, instanceData, 2);
+    return propGetNode(out, "clip", 0, NULL);
+}
+
+struct VSAPI_R2 {
+    VSCreateCore createCore;
+    VSFreeCore freeCore;
+    VSGetVersion getVersion;
+
+    VSCloneFrameRef cloneFrameRef;
+    VSCloneNodeRef cloneNodeRef;
+    VSCloneFuncRef cloneFuncRef;
+
+    VSFreeFrame freeFrame;
+    VSFreeNode freeNode;
+    VSFreeFunc freeFunc;
+
+    VSNewVideoFrame newVideoFrame;
+    VSCopyFrame copyFrame;
+    VSCopyFrameProps copyFrameProps;
+
+    VSRegisterFunction registerFunction;
+    VSGetPluginId getPluginId;
+    VSGetPluginNs getPluginNs;
+    VSGetPlugins getPlugins;
+    VSGetFunctions getFunctions;
+    VSCreateFilter_R2 createFilter;
+    VSSetError setError;
+    VSGetError getError;
+    VSSetFilterError setFilterError;
+    VSInvoke invoke;
+
+    VSGetFormatPreset getFormatPreset;
+    VSRegisterFormat registerFormat;
+
+    VSGetFrame getFrame;
+    VSGetFrameAsync getFrameAsync;
+    VSGetFrameFilter getFrameFilter;
+    VSRequestFrameFilter requestFrameFilter;
+    VSQueryCompletedFrame queryCompletedFrame;
+    VSReleaseFrameEarly releaseFrameEarly;
+
+    VSGetStride getStride;
+    VSGetReadPtr getReadPtr;
+    VSGetWritePtr getWritePtr;
+
+    VSCreateFunc createFunc;
+    VSCallFunc callFunc;
+
+    //property access functions
+    VSNewMap newMap;
+    VSFreeMap freeMap;
+    VSClearMap clearMap;
+
+    VSGetVideoInfo getVideoInfo;
+    VSSetVideoInfo_R2 setVideoInfo;
+    VSGetFrameFormat getFrameFormat;
+    VSGetFrameWidth getFrameWidth;
+    VSGetFrameHeight getFrameHeight;
+    VSGetFramePropsRO getFramePropsRO;
+    VSGetFramePropsRW getFramePropsRW;
+
+    VSPropNumKeys propNumKeys;
+    VSPropGetKey propGetKey;
+    VSPropNumElements propNumElements;
+    VSPropGetType propGetType;
+    VSPropGetInt propGetInt;
+    VSPropGetFloat propGetFloat;
+    VSPropGetData propGetData;
+    VSPropGetDataSize propGetDataSize;
+    VSPropGetNode propGetNode;
+    VSPropGetFrame propGetFrame;
+    VSPropGetFunc propGetFunc;
+
+    VSPropDeleteKey propDeleteKey;
+    VSPropSetInt propSetInt;
+    VSPropSetFloat propSetFloat;
+    VSPropSetData propSetData;
+    VSPropSetNode propSetNode;
+    VSPropSetFrame propSetFrame;
+    VSPropSetFunc propSetFunc;
+
+    VSSetMaxCacheSize setMaxCacheSize;
+    VSGetOutputIndex getOutputIndex;
+};
+
+const VSAPI_R2 vsapiR2 = {
+    &createCore,
+    &freeCore,
+    &getVersion,
+
+    &cloneFrameRef,
+    &cloneNodeRef,
+    &cloneFuncRef,
+
+    &freeFrame,
+    &freeNode,
+    &freeFunc,
+
+    &newVideoFrame,
+    &copyFrame,
+    &copyFrameProps,
+    &registerFunction,
+    &getPluginId,
+    &getPluginNs,
+    &getPlugins,
+    &getFunctions,
+    &createFilterR2,
+    &setError,
+    &getError,
+    &setFilterError,
+    &invoke,
+    &getFormatPreset,
+    &registerFormat,
+    &getFrame,
+    &getFrameAsync,
+    &getFrameFilter,
+    &requestFrameFilter,
+    &queryCompletedFrame,
+    &releaseFrameEarly,
+
+    &getStride,
+    &getReadPtr,
+    &getWritePtr,
+
+    &createFunc,
+    &callFunc,
+
+    &newMap,
+    &freeMap,
+    &clearMap,
+
+    &getVideoInfo,
+    &setVideoInfoR2,
+    &getFrameFormat,
+    &getFrameWidth,
+    &getFrameHeight,
+    &getFramePropsRO,
+    &getFramePropsRW,
+
+    &propNumKeys,
+    &propGetKey,
+    &propNumElements,
+    &propGetType,
+    &propGetInt,
+    &propGetFloat,
+    &propGetData,
+    &propGetDataSize,
+    &propGetNode,
+    &propGetFrame,
+    &propGetFunc,
+    &propDeleteKey,
+    &propSetInt,
+    &propSetFloat,
+    &propSetData,
+    &propSetNode,
+    &propSetFrame,
+    &propSetFunc,
+
+    &setMaxCacheSize,
+    &getOutputIndex
+};
+
+///////////////////////////////
+
+const VSAPI *VS_CC getVapourSynthAPI(int version) {
+    if (version == VAPOURSYNTH_API_VERSION)
+        return &vsapi;
+    else if (version == 2)
+        return (const VSAPI *)&vsapiR2;
+    else
+        return NULL;
+}

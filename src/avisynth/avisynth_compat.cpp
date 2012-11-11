@@ -350,7 +350,7 @@ static void VS_CC avisynthFilterInit(VSMap *in, VSMap *out, void **instanceData,
         vsapi->setError(out, "Avisynth Compat: Only YV12, YUY2 and RGB32 supported");
 
     vi.flags = 0;
-    vsapi->setVideoInfo(&vi, node);
+    vsapi->setVideoInfo(&vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC avisynthFilterGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -461,7 +461,7 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
 
     if (ret.IsClip()) {
         WrappedClip *filterData = new WrappedClip(ret.AsClip(), preFetchClips, getPrefetchInfo(wf->name, in, vsapi), fakeEnv);
-        VSNodeRef *clip = vsapi->createFilter(
+        vsapi->createFilter(
                                     in,
                                     out,
                                     wf->name.constData(),
@@ -472,9 +472,6 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
                                     0,
                                     filterData,
                                     core);
-
-        vsapi->propSetNode(out, "clip", clip, 0);
-        vsapi->freeNode(clip);
     } else if (ret.IsBool()) {
         vsapi->propSetInt(out, "val", ret.AsBool() ? 1 : 0, 0);
     } else if (ret.IsInt()) {

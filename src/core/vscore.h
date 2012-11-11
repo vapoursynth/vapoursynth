@@ -45,6 +45,8 @@ typedef QSharedPointer<VSNode> PVideoNode;
 typedef QSharedPointer<ExtFunction> PExtFunction;
 typedef QSharedPointer<FrameContext> PFrameContext;
 
+extern const VSAPI vsapi;
+
 class VSException : public std::runtime_error {
 public:
     VSException(const char *descr) : std::runtime_error(descr) { }
@@ -52,11 +54,31 @@ public:
 
 typedef QPair<VSNode *, int> FrameKey;
 
+class NodeOutputKey {
+friend uint qHash(const NodeOutputKey &key);
+private:
+    VSNode *node;
+    int n;
+    int index;
+public:
+    NodeOutputKey(VSNode *node, int n, int index) : node(node), n(n), index(index) {}
+    inline bool operator==(const NodeOutputKey &v) const {
+        return node == v.node && n == v.n && index == v.index;
+    }
+    inline bool operator<(const NodeOutputKey &v) const {
+        return (node < v.node) || (node == v.node && n < v.n) || (node == v.node && n == v.n && index < v.index);
+    }
+};
+
+static inline uint qHash(const NodeOutputKey &key) {
+    return qHash(key.node) ^ ((key.n << 21) + (key.n << 11));
+}
+
 // variant types
 typedef QList<int64_t> IntList;
 typedef QList<double> FloatList;
 typedef QList<QByteArray> DataList;
-typedef QList<PVideoNode> NodeList;
+typedef QList<VSNodeRef> NodeList;
 typedef QList<PVideoFrame> FrameList;
 typedef QList<PExtFunction> FuncList;
 
@@ -124,7 +146,8 @@ struct VSFrameRef {
 
 struct VSNodeRef {
     PVideoNode clip;
-    VSNodeRef(const PVideoNode &clip) : clip(clip) {}
+    const int index;
+    VSNodeRef(const PVideoNode &clip, int index) : clip(clip), index(index) {}
 };
 
 struct VSFuncRef {
@@ -241,6 +264,7 @@ public:
 class FrameContext {
     friend class VSThreadPool;
     friend class VSThread;
+    friend struct VSNode;
 private:
     int numFrameRequests;
     int n;
@@ -254,8 +278,9 @@ private:
     void *userData;
     VSFrameDoneCallback frameDone;
 public:
-    QMap<FrameKey, PVideoFrame> availableFrames;
+    QMap<NodeOutputKey, PVideoFrame> availableFrames;
     int lastCompletedN;
+    int index;
     VSNodeRef *lastCompletedNode;
 
     void *frameContext;
@@ -266,14 +291,9 @@ public:
     const QByteArray &getErrorMessage() {
         return errorMessage;
     }
-    FrameContext(int n, VSNode *clip, const PFrameContext &upstreamContext);
-    FrameContext(int n, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData);
+    FrameContext(int n, int index, VSNode *clip, const PFrameContext &upstreamContext);
+    FrameContext(int n, int index, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData);
 };
-
-
-
-
-extern const VSAPI vsapi;
 
 struct VSNode {
     friend class VSThreadPool;
@@ -286,27 +306,38 @@ private:
     VSFilterFree free;
     QByteArray name;
     VSCore *core;
-    VSVideoInfo vi;
+    QVector<VSVideoInfo> vi;
     int flags;
+    int apiVersion;
     bool hasVi;
     bool hasWarned;
 
     VSFilterMode filterMode;
     PVideoFrame getFrameInternal(int n, int activationReason, const PFrameContext &frameCtx);
 public:
-    VSNode(const VSMap *in, VSMap *out, const QByteArray &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, VSCore *core);
+    VSNode(const VSMap *in, VSMap *out, const QByteArray &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion, VSCore *core);
 
     ~VSNode();
 
     void getFrame(const PFrameContext &ct);
 
-    const VSVideoInfo &getVideoInfo() {
-        return vi;
+    const VSVideoInfo &getVideoInfo(int index) {
+        if (index < 0 || index >= vi.size())
+            qFatal("Out of bounds videoinfo index");
+        return vi[index];
     }
-    void setVideoInfo(const VSVideoInfo &vi) {
-        this->vi = vi;
-        this->vi.flags = flags;
+    void setVideoInfo(const VSVideoInfo *vi, int numOutputs) {
+        if (numOutputs < 1)
+            qFatal("Video filter needs to have at least one output");
+        for (int i = 0; i < numOutputs; i++) {
+            this->vi.append(vi[i]);
+            this->vi[i].flags = flags;
+        }
         hasVi = true;
+    }
+
+    int getNumOutputs() {
+        return vi.size();
     }
 };
 
@@ -337,8 +368,8 @@ private:
     QSet<VSThread *> allThreads;
     QList<PFrameContext> tasks;
     QHash<FrameKey, PFrameContext> runningTasks;
-    QMap<VSNode *, int> framesInProgress;
-    QHash<FrameKey, PFrameContext> allContexts;
+    QMap<VSNode *, int> framesInProgress; //fixme, maybe expand to respect index too
+    QHash<NodeOutputKey, PFrameContext> allContexts;
     QAtomicInt ticks;
     QWaitCondition newWork;
     int activeThreads;
@@ -429,7 +460,7 @@ public:
     const VSFormat *registerFormat(VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name = NULL, int id = pfNone);
 
     void loadPlugin(const QByteArray &filename, const QByteArray &forcedNamespace);
-    PVideoNode createFilter(const VSMap *in, VSMap *out, const QByteArray &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData);
+    void createFilter(const VSMap *in, VSMap *out, const QByteArray &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion);
 
     VSMap getPlugins();
     VSPlugin *getPluginId(const QByteArray &identifier);
