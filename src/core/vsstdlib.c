@@ -1871,7 +1871,7 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
     LutData d;
     LutData *data;
     int i;
-    int n, m, o;
+    int n, m, o, p;
 
     for (i = 0; i < 3; i++)
         d.process[i] = 0;
@@ -1930,7 +1930,7 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
     } else {
         uint16_t *lut = d.lut;
 
-        for (i = 0; i < n; n++) {
+        for (i = 0; i < n; i++) {
             int err;
             int64_t v = vsapi->propGetInt(in, "lut", i, &err);
 
@@ -2116,7 +2116,7 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
     } else {
         uint16_t *lut = d.lut;
 
-        for (i = 0; i < n; n++) {
+        for (i = 0; i < n; i++) {
             int err;
             int64_t v = vsapi->propGetInt(in, "lut", i, &err);
 
