@@ -2,6 +2,14 @@ known issues:
 may deadlock with some avisynth plugins (set the number of threads to a bigger number, VSCore(threads=4))
 compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 
+r15:
+added ClipToProp and PropToClip functions, they allow one clip to be attached to another clip as frame properties
+fixed a reference leak in vivtc
+ported avisource from avisynth, it has been thoroughly upgraded and can understand several high bitdepth formats including v210 which many "professional" codecs use, it is also based on the latest vdub parser code now
+added len() support for clips in python
+fixed a bug with plugin functions having array output in python
+improved the api so that a single node/filter can produce several output clips, this bumps the api version to r3 (r2 plugins are still binary compatible but the r2 abi will also be removed in a version or two)
+
 r14:
 fixed setting the pixel values in blankclip
 a collection of ported/new filters are now bundled (eedi3, vivtc, histogram and temporalsoften)
@@ -48,7 +56,7 @@ added a vfw module
 fixed slicing/indexing in python module
 list_functions() can now be used on a namespace (core.resize.list_functions())
 improved and documented build system, see INSTALL
-other small relating to the python bindings
+other small fixes relating to the python bindings
 
 r9:
 to get around keyword conflicts all function arguments names can be specified with both name and _name (Loop(_clip=a) is the same as Loop(clip=a))

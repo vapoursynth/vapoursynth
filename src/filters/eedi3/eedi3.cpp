@@ -44,7 +44,7 @@ void bitblt(uint8_t *dstp, int dst_stride, const uint8_t *srcp, int src_stride, 
 
 void VS_CC eedi3::eedi3Init(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
 	eedi3 *d = (eedi3 *)*instanceData;
-	vsapi->setVideoInfo(&d->vi, node);
+	vsapi->setVideoInfo(&d->vi, 1, node);
 }
 
 void VS_CC eedi3::eedi3Free(void *instanceData, VSCore *core, const VSAPI *vsapi) {
@@ -54,9 +54,9 @@ void VS_CC eedi3::eedi3Free(void *instanceData, VSCore *core, const VSAPI *vsapi
 	delete d;
 }
 
-eedi3::eedi3(const VSNodeRef *_child, int _field, bool _dh, int _planes, float _alpha,
+eedi3::eedi3(VSNodeRef *_child, int _field, bool _dh, int _planes, float _alpha,
 	float _beta, float _gamma, int _nrad, int _mdis, bool _hp, bool _ucubic, bool _cost3, 
-	int _vcheck, float _vthresh0,  float _vthresh1, float _vthresh2, const VSNodeRef *_sclip, const VSAPI *vsapi) : 
+	int _vcheck, float _vthresh0,  float _vthresh1, float _vthresh2, VSNodeRef *_sclip, const VSAPI *vsapi) : 
 	child(_child), field(_field), dh(_dh), planes(_planes),
 	alpha(_alpha), beta(_beta), gamma(_gamma), nrad(_nrad), mdis(_mdis), hp(_hp), 
 	ucubic(_ucubic), cost3(_cost3), vcheck(_vcheck), vthresh0(_vthresh0), vthresh1(_vthresh1), 
@@ -639,7 +639,7 @@ VSFrameRef *eedi3::copyPad(const VSFrameRef *src, int fn, VSFrameContext *frameC
 void VS_CC Create_eedi3(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi)
 {
 	int err;
-	const VSNodeRef *child = vsapi->propGetNode(in, "clip", 0, NULL);
+	VSNodeRef *child = vsapi->propGetNode(in, "clip", 0, NULL);
 	const VSVideoInfo *vi = vsapi->getVideoInfo(child);
 	int field = vsapi->propGetInt(in, "field", 0, NULL);
 	bool dh = !!vsapi->propGetInt(in, "dh", 0, &err);
@@ -677,7 +677,7 @@ void VS_CC Create_eedi3(const VSMap *in, VSMap *out, void *userData, VSCore *cor
 	double vthresh2 = vsapi->propGetFloat(in, "vthresh2", 0, &err);
 	if (err)
 		vthresh2 = 4;
-	const VSNodeRef *sclip = vsapi->propGetNode(in, "sclip", 0, &err);
+	VSNodeRef *sclip = vsapi->propGetNode(in, "sclip", 0, &err);
 
 	int planes = 0;
 	int nump = vsapi->propNumElements(in, "planes");
@@ -700,9 +700,7 @@ void VS_CC Create_eedi3(const VSMap *in, VSMap *out, void *userData, VSCore *cor
 			cost3,vcheck, vthresh0,
 			vthresh1,vthresh2,sclip,
 			vsapi);
-		const VSNodeRef *cref = vsapi->createFilter(in, out, "eedi3", eedi3::eedi3Init, eedi3::eedi3GetFrame, eedi3::eedi3Free, fmParallel, 0, instance, core);
-		vsapi->propSetNode(out, "clip", cref, 0);
-		vsapi->freeNode(cref);
+		vsapi->createFilter(in, out, "eedi3", eedi3::eedi3Init, eedi3::eedi3GetFrame, eedi3::eedi3Free, fmParallel, 0, instance, core);
 	} catch (const std::exception &e) {
 		vsapi->freeNode(sclip);
 		vsapi->freeNode(child);

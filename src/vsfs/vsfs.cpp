@@ -90,7 +90,7 @@ class VapourSynther:
 
     volatile long pending_requests;
 
-    static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, const VSNodeRef *, const char *errorMsg);
+    static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg);
 
 public:
     // VapourSynther_ interface
@@ -209,7 +209,7 @@ void VapourSynther::reportFormat(AvfsLog_* log)
 
 // Exception protected PVideoFrame->GetFrame()
 
-void VS_CC VapourSynther::frameDoneCallback(void *userData, const VSFrameRef *f, int n, const VSNodeRef *, const char *errorMsg) {
+void VS_CC VapourSynther::frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg) {
     VapourSynther *vsfile = (VapourSynther *)userData;
     vsfile->se.vsapi->freeFrame(f);
     InterlockedDecrement(&vsfile->pending_requests);

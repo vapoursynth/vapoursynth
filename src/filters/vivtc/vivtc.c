@@ -53,8 +53,8 @@ static int isPowerOf2(int i) {
 // VFM
 
 typedef struct {
-    const VSNodeRef *node;
-    const VSNodeRef *clip2;
+    VSNodeRef *node;
+    VSNodeRef *clip2;
     const VSVideoInfo *vi;
     VSFrameRef *map;
     VSFrameRef *cmask;
@@ -613,7 +613,7 @@ static int checkmm(int m1, int m2, int *m1mic, int *m2mic, int *blockN, int MI, 
 
 static void VS_CC vfmInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     VFMData *vfm = (VFMData *)*instanceData;
-    vsapi->setVideoInfo(vfm->vi, node);
+    vsapi->setVideoInfo(vfm->vi, 1, node);
 }
 
 typedef enum {
@@ -762,7 +762,6 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
     int err;
     VFMData vfm;
     VFMData *vfmd ;
-    const VSNodeRef *cref;
     const VSVideoInfo *vi;
     double scthresh;
 
@@ -869,8 +868,7 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
 
     vfmd = (VFMData *)malloc(sizeof(vfm));
     *vfmd = vfm;
-    cref = vsapi->createFilter(in, out, "VFM", vfmInit, vfmGetFrame, vfmFree, fmParallelRequests, 0, vfmd, core);
-    vsapi->propSetNode(out, "clip", cref, paReplace);
+    vsapi->createFilter(in, out, "VFM", vfmInit, vfmGetFrame, vfmFree, fmParallelRequests, 0, vfmd, core);
 }
 
 // VDecimate
@@ -881,8 +879,8 @@ typedef struct {
 } VDInfo;
 
 typedef struct {
-    const VSNodeRef *node;
-    const VSNodeRef *clip2;
+    VSNodeRef *node;
+    VSNodeRef *clip2;
     VSVideoInfo vi;
     int cycle;
     int chroma;
@@ -956,7 +954,7 @@ static int calcMetric(const VSFrameRef *f1, const VSFrameRef *f2, uint64_t *totd
 
 static void VS_CC vdecimateInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     VDecimateData *vdm = (VDecimateData *)*instanceData;
-    vsapi->setVideoInfo(&vdm->vi, node);
+    vsapi->setVideoInfo(&vdm->vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -1063,7 +1061,7 @@ static void VS_CC vdecimateFree(void *instanceData, VSCore *core, const VSAPI *v
 static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     VDecimateData vdm;
     VDecimateData *d;
-    const VSNodeRef *cref;
+    VSNodeRef *cref;
     const VSVideoInfo *vi;
     int i, err;
     double dupthresh, scthresh;
@@ -1146,9 +1144,7 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
     d = (VDecimateData *)malloc(sizeof(vdm));
     *d = vdm;
 
-    cref = vsapi->createFilter(in, out, "VDecimate", vdecimateInit, vdecimateGetFrame, vdecimateFree, fmSerial, 0, d, core);
-    vsapi->propSetNode(out, "clip", cref, paReplace);
-    vsapi->freeNode(cref);
+    vsapi->createFilter(in, out, "VDecimate", vdecimateInit, vdecimateGetFrame, vdecimateFree, fmSerial, 0, d, core);
 }
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin)

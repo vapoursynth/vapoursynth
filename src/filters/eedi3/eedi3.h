@@ -31,8 +31,8 @@
 class eedi3
 {
 private:
-	const VSNodeRef *child;
-	const VSNodeRef *sclip;
+	VSNodeRef *child;
+	VSNodeRef *sclip;
 
 	bool dh, hp, ucubic, cost3;
 	int planes;
@@ -43,10 +43,10 @@ private:
 	VSFrameRef *copyPad(const VSFrameRef *src, int fn, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
 
 public:
-	eedi3(const VSNodeRef *child, int _field, bool _dh, int planes, 
+	eedi3(VSNodeRef *child, int _field, bool _dh, int planes, 
 		float _alpha, float _beta, float _gamma, int _nrad, int _mdis, bool _hp, 
 		bool _ucubic, bool _cost3, int _vcheck, float _vthresh0, float _vthresh1, 
-		float _vthresh2, const VSNodeRef *sclip, const VSAPI *vsapi);
+		float _vthresh2, VSNodeRef *sclip, const VSAPI *vsapi);
 	static void VS_CC eedi3Init(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi);
 	static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
 	static void VS_CC eedi3Free(void *instanceData, VSCore *core, const VSAPI *vsapi);

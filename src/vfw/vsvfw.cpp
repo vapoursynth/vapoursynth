@@ -88,7 +88,7 @@ public:
     ~VapourSynthFile();
 
     static HRESULT Create(const CLSID& rclsid, const IID& riid, void **ppv);
-    static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, const VSNodeRef *, const char *errorMsg);
+    static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg);
 
     //////////// IUnknown
 
@@ -754,7 +754,7 @@ STDMETHODIMP_(LONG) VapourSynthStream::FindSample(LONG lPos, LONG lFlags) {
 ////////////////////////////////////////////////////////////////////////
 //////////// local
 
-void VS_CC VapourSynthFile::frameDoneCallback(void *userData, const VSFrameRef *f, int n, const VSNodeRef *, const char *errorMsg) {
+void VS_CC VapourSynthFile::frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg) {
     VapourSynthFile *vsfile = (VapourSynthFile *)userData;
     vsfile->se.vsapi->freeFrame(f);
     InterlockedDecrement(&vsfile->pending_requests);
