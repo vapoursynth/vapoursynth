@@ -244,13 +244,13 @@ cdef object mapToDict(VSMap *map, bint flatten, bint add_cache, Core core, VSAPI
 
         for y in range(funcs.propNumElements(map, retkey)):
             if proptype == 'i':
-                newval = funcs.propGetInt(map, retkey, 0, NULL)
+                newval = funcs.propGetInt(map, retkey, y, NULL)
             elif proptype == 'f':
-                newval = funcs.propGetFloat(map, retkey, 0, NULL)
+                newval = funcs.propGetFloat(map, retkey, y, NULL)
             elif proptype == 's':
-                newval = funcs.propGetData(map, retkey, 0, NULL)
+                newval = funcs.propGetData(map, retkey, y, NULL)
             elif proptype =='c':
-                newval = createVideoNode(funcs.propGetNode(map, retkey, 0, NULL), funcs, core)
+                newval = createVideoNode(funcs.propGetNode(map, retkey, y, NULL), funcs, core)
 
                 if add_cache and not newval.flags:
                     newval = core.std.Cache(clip=newval)
@@ -258,9 +258,9 @@ cdef object mapToDict(VSMap *map, bint flatten, bint add_cache, Core core, VSAPI
                     if type(newval) == dict:
                         newval = newval['dict']
             elif proptype =='v':
-                newval = createVideoFrame(funcs.propGetFrame(map, retkey, 0, NULL), funcs, core)
+                newval = createVideoFrame(funcs.propGetFrame(map, retkey, y, NULL), funcs, core)
             elif proptype =='m':
-                newval = createFunc(funcs.propGetFunc(map, retkey, 0, NULL), core)
+                newval = createFunc(funcs.propGetFunc(map, retkey, y, NULL), core)
 
             if y == 0:
                 vval = newval
