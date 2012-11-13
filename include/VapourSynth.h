@@ -210,6 +210,7 @@ typedef void (VS_CC *VSFreeFrame)(const VSFrameRef *f);
 typedef void (VS_CC *VSFreeNode)(VSNodeRef *node);
 typedef void (VS_CC *VSFreeFunc)(VSFuncRef *f);
 typedef VSFrameRef *(VS_CC *VSNewVideoFrame)(const VSFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core);
+typedef VSFrameRef *(VS_CC *VSNewVideoFrame2)(const VSFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core);
 typedef VSFrameRef *(VS_CC *VSCopyFrame)(const VSFrameRef *f, VSCore *core);
 typedef void (VS_CC *VSCopyFrameProps)(const VSFrameRef *src, VSFrameRef *dst, VSCore *core);
 typedef int (VS_CC *VSGetStride)(const VSFrameRef *f, int plane);
@@ -349,6 +350,7 @@ struct VSAPI {
 
     VSSetMaxCacheSize setMaxCacheSize;
     VSGetOutputIndex getOutputIndex;
+    VSNewVideoFrame2 newVideoFrame2;
 };
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version);

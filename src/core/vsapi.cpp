@@ -115,9 +115,17 @@ static void VS_CC freeNode(VSNodeRef *clip) {
     delete clip;
 }
 
-static VSFrameRef *VS_CC newVideoFrame(const VSFormat *f, int width, int height, const VSFrameRef *propSrc, VSCore *core) {
-    Q_ASSERT(f);
-    return new VSFrameRef(core->newVideoFrame(f, width, height, propSrc ? propSrc->frame.data() : NULL));
+static VSFrameRef *VS_CC newVideoFrame(const VSFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core) {
+    Q_ASSERT(format);
+    return new VSFrameRef(core->newVideoFrame(format, width, height, propSrc ? propSrc->frame.data() : NULL));
+}
+
+static VSFrameRef *VS_CC newVideoFrame2(const VSFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core) {
+    Q_ASSERT(format);
+    VSFrame *fp[3];
+    for (int i = 0; i < format->numPlanes; i++)
+        fp[i] = planeSrc[i] ? planeSrc[i]->frame.data() : NULL;
+    return new VSFrameRef(core->newVideoFrame(format, width, height, fp, planes, propSrc ? propSrc->frame.data() : NULL));
 }
 
 static VSFrameRef *VS_CC copyFrame(const VSFrameRef *frame, VSCore *core) {
@@ -590,7 +598,8 @@ const VSAPI vsapi = {
     &propSetFunc,
 
     &setMaxCacheSize,
-    &getOutputIndex
+    &getOutputIndex,
+    &newVideoFrame2
 };
 
 //////////////////////////

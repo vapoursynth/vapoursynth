@@ -223,8 +223,8 @@ public:
 class VSFrame {
 private:
     enum FrameLocation { flLocal = 0, flGPU = 1 };
-    QSharedDataPointer<VSFrameData> data;
     const VSFormat *format;
+    QSharedDataPointer<VSFrameData> data[3];
     int width;
     int height;
     int stride[3];
@@ -234,30 +234,31 @@ public:
     static const int alignment = 32;
 
     VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, VSCore *core);
+    VSFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core);
     VSFrame(const VSFrame &f);
 
     VSMap &getProperties() {
         return properties;
     }
-    const VSMap &getConstProperties() {
+    const VSMap &getConstProperties() const {
         return properties;
     }
     void setProperties(const VSMap &properties) {
         this->properties = properties;
     }
-    const VSFormat *getFormat() {
+    const VSFormat *getFormat() const {
         return format;
     }
-    int getWidth(int plane) {
+    int getWidth(int plane) const {
         return width >> (plane ? format->subSamplingW : 0);
     }
-    int getHeight(int plane) {
+    int getHeight(int plane) const {
         return height >> (plane ? format->subSamplingH : 0);
     }
-    int getStride(int plane) {
+    int getStride(int plane) const {
         return stride[plane];
     }
-    const uint8_t *getReadPtr(int plane);
+    const uint8_t *getReadPtr(int plane) const;
     uint8_t *getWritePtr(int plane);
 };
 
@@ -453,6 +454,7 @@ public:
     MemoryUse *memory;
 
     PVideoFrame newVideoFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc);
+    PVideoFrame newVideoFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *planes, const VSFrame *propSrc);
     PVideoFrame copyFrame(const PVideoFrame &srcf);
     void copyFrameProps(const PVideoFrame &src, PVideoFrame &dst);
 

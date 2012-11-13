@@ -3,6 +3,7 @@ may deadlock with some avisynth plugins (set the number of threads to a bigger n
 compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 
 r15:
+allocate memory per plane instead of in one big lump, this allows planes to be copied by reference using the newVideoFrame2() function and will also reduce memory usage slightly for filters that use it
 fixed infinite loop in lut and lut2 when used with 9 bit input or more 
 added ClipToProp and PropToClip functions, they allow one clip to be attached to another clip as frame properties
 fixed a reference leak in vivtc

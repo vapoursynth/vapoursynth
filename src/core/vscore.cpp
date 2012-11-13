@@ -82,7 +82,7 @@ VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSr
 
     stride[0] = (width * (f->bytesPerSample) + (alignment - 1)) & ~(alignment - 1);
 
-    if (f->colorFamily != cmGray && f->colorFamily != cmCompat) {
+    if (f->numPlanes == 3) {
         int plane23 = ((width >> f->subSamplingW) * (f->bytesPerSample) + (alignment - 1)) & ~(alignment - 1);
         stride[1] = plane23;
         stride[2] = plane23;
@@ -91,11 +91,53 @@ VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSr
         stride[2] = 0;
     }
 
-    data = new VSFrameData(stride[0] * height + (stride[1] + stride[2]) * (height >> f->subSamplingH), core->memory);
+    data[0] = new VSFrameData(stride[0] * height, core->memory);
+    if (f->numPlanes == 3) {
+        int size23 = stride[1] * (height >> f->subSamplingH);
+        data[1] = new VSFrameData(size23, core->memory);
+        data[2] = new VSFrameData(size23, core->memory);
+    }
+}
+
+VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core) : format(f), width(width), height(height), frameLocation(flLocal) {
+    if (!f || width <= 0 || height <= 0)
+        qFatal("Invalid new frame");
+
+    if (propSrc)
+        properties = propSrc->properties;
+
+    stride[0] = (width * (f->bytesPerSample) + (alignment - 1)) & ~(alignment - 1);
+
+    if (f->numPlanes == 3) {
+        int plane23 = ((width >> f->subSamplingW) * (f->bytesPerSample) + (alignment - 1)) & ~(alignment - 1);
+        stride[1] = plane23;
+        stride[2] = plane23;
+    } else {
+        stride[1] = 0;
+        stride[2] = 0;
+    }
+
+    for (int i = 0; i < format->numPlanes; i++) {
+        if (planeSrc[i]) {
+            if (plane[i] < 0 || plane[i] >= planeSrc[i]->format->numPlanes)
+                qFatal("Plane does no exist, error in frame creation");
+            if (planeSrc[i]->getHeight(plane[i]) != getHeight(i) || planeSrc[i]->getWidth(plane[i]) != getWidth(i))
+                qFatal("Copied plane dimensions do not match, error in frame creation");
+            data[i] = planeSrc[i]->data[plane[i]];
+        } else {
+            if (i == 0) {
+                data[i] = new VSFrameData(stride[0] * height, core->memory);
+            } else {
+                data[i] = new VSFrameData(stride[1] * (height >> f->subSamplingH), core->memory);
+            }
+        }
+    }
 }
 
 VSFrame::VSFrame(const VSFrame &f) {
-    data = f.data;
+    data[0] = f.data[0];
+    data[1] = f.data[1];
+    data[2] = f.data[2];
     format = f.format;
     width = f.width;
     height = f.height;
@@ -106,36 +148,36 @@ VSFrame::VSFrame(const VSFrame &f) {
     properties = f.properties;
 }
 
-const uint8_t *VSFrame::getReadPtr(int plane) {
-    const uint8_t *d = data.constData()->data;
+const uint8_t *VSFrame::getReadPtr(int plane) const {
+    if (plane < 0 || plane >= format->numPlanes)
+        qFatal("Invalid plane requested");
 
     switch (plane) {
     case 0:
-        return d;
+        return data[0].constData()->data;
     case 1:
-        return d + height * stride[0];
+        return data[1].constData()->data;
     case 2:
-        return d + height * stride[0] + (height >> format->subSamplingH) * stride[1];
+        return data[2].constData()->data;
+    default:
+        return NULL;
     }
-
-    qFatal("Invalid plane requested");
-    return NULL;
 }
 
 uint8_t *VSFrame::getWritePtr(int plane) {
-    uint8_t *d = data.data()->data;
+    if (plane < 0 || plane >= format->numPlanes)
+        qFatal("Invalid plane requested");
 
     switch (plane) {
     case 0:
-        return d;
+        return data[0].data()->data;
     case 1:
-        return d + height * stride[0];
+        return data[1].data()->data;
     case 2:
-        return d + height * stride[0] + (height >> format->subSamplingH) * stride[1];
+        return data[2].data()->data;
+    default:
+        return NULL;
     }
-
-    qFatal("Invalid plane requested");
-    return NULL;
 }
 
 VSFunction::VSFunction(const QByteArray &name, const QByteArray &argString, VSPublicFunction func, void *functionData)
@@ -264,6 +306,10 @@ PVideoFrame VSNode::getFrameInternal(int n, int activationReason, const PFrameCo
 
 PVideoFrame VSCore::newVideoFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc) {
     return PVideoFrame(new VSFrame(f, width, height, propSrc, this));
+}
+
+PVideoFrame VSCore::newVideoFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *planes, const VSFrame *propSrc) {
+    return PVideoFrame(new VSFrame(f, width, height, planeSrc, planes, propSrc, this));
 }
 
 PVideoFrame VSCore::copyFrame(const PVideoFrame &srcf) {
