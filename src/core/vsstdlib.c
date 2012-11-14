@@ -715,15 +715,10 @@ static const VSFrameRef *VS_CC shufflePlanesGetframe(int n, int activationReason
             for (i = 0; i < 3; i++)
                 src[i] = vsapi->getFrameFilter(n, d->node[i], frameCtx);
 
-            dst = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, src[0], core);
+            dst = vsapi->newVideoFrame2(d->vi.format, d->vi.width, d->vi.height, src, d->plane, src[0], core);
 
-            for (i = 0; i < 3; i++) {
-                memcpy(
-                    vsapi->getWritePtr(dst, i),
-                    vsapi->getReadPtr(src[i], d->plane[i]),
-                    vsapi->getStride(dst, i) * vsapi->getFrameHeight(dst, i));
+            for (i = 0; i < 3; i++)
                 vsapi->freeFrame(src[i]);
-            }
 
             return dst;
         } else {
@@ -737,17 +732,8 @@ static const VSFrameRef *VS_CC shufflePlanesGetframe(int n, int activationReason
                 return 0;
             }
 
-            dst = vsapi->newVideoFrame(
-                      d->vi.format ? d->vi.format : vsapi->registerFormat(cmGray, fi->sampleType, fi->bitsPerSample, 0, 0, core),
-                      vsapi->getFrameWidth(src, d->plane[0]),
-                      vsapi->getFrameHeight(src, d->plane[0]),
-                      src,
-                      core);
-
-            memcpy(
-                vsapi->getWritePtr(dst, 0),
-                vsapi->getReadPtr(src, d->plane[0]),
-                vsapi->getStride(dst, 0) * vsapi->getFrameHeight(dst, 0));
+            dst = vsapi->newVideoFrame2(d->vi.format ? d->vi.format : vsapi->registerFormat(cmGray, fi->sampleType, fi->bitsPerSample, 0, 0, core),
+                vsapi->getFrameWidth(src, d->plane[0]), vsapi->getFrameHeight(src, d->plane[0]), &src, d->plane, src, core);
 
             vsapi->freeFrame(src);
             return dst;
@@ -1792,7 +1778,9 @@ static const VSFrameRef *VS_CC lutGetframe(int n, int activationReason, void **i
         int plane;
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSFormat *fi = vsapi->getFrameFormat(src);
-        VSFrameRef *dst = vsapi->newVideoFrame(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core);
+        const int pl[] = {0, 1, 2};
+        const VSFrameRef *fr[] = {d->process[0] ? NULL : src, d->process[1] ? NULL : src, d->process[2] ? NULL : src};
+        VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
 
         for (plane = 0; plane < fi->numPlanes; plane++) {
             const uint8_t *srcp = vsapi->getReadPtr(src, plane);
@@ -1828,8 +1816,6 @@ static const VSFrameRef *VS_CC lutGetframe(int n, int activationReason, void **i
                         srcp += src_stride;
                     }
                 }
-            } else {
-                memcpy(dstp, srcp, src_stride * h);
             }
         }
 
@@ -1957,7 +1943,9 @@ static const VSFrameRef *VS_CC lut2Getframe(int n, int activationReason, void **
         const VSFrameRef *srcx = vsapi->getFrameFilter(n, d->node[0], frameCtx);
         const VSFrameRef *srcy = vsapi->getFrameFilter(n, d->node[1], frameCtx);
         const VSFormat *fi = vsapi->getFrameFormat(srcx);
-        VSFrameRef *dst = vsapi->newVideoFrame(fi, vsapi->getFrameWidth(srcx, 0), vsapi->getFrameHeight(srcx, 0), srcx, core);
+        const int pl[] = {0, 1, 2};
+        const VSFrameRef *fr[] = {d->process[0] ? NULL : srcx, d->process[1] ? NULL : srcx, d->process[2] ? NULL : srcx};
+        VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(srcx, 0), vsapi->getFrameHeight(srcx, 0), fr, pl, srcx, core);
 
         for (plane = 0; plane < fi->numPlanes; plane++) {
             const uint8_t *srcpx = vsapi->getReadPtr(srcx, plane);
@@ -1996,8 +1984,6 @@ static const VSFrameRef *VS_CC lut2Getframe(int n, int activationReason, void **
                         srcpy += src_stride;
                     }
                 }
-            } else {
-                memcpy(dstp, srcpx, src_stride * h);
             }
         }
 
