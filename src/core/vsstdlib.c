@@ -972,7 +972,7 @@ static const VSFrameRef *VS_CC separateFieldsGetframe(int n, int activationReaso
         const VSFrameRef *src = vsapi->getFrameFilter(n / 2, d->node, frameCtx);
         VSFrameRef *dst = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, src, core);
         int plane;
-        vsapi->propSetInt(vsapi->getFramePropsRW(dst), "_Field", ((n & 1) ^ d->tff) + 1, 0);
+        vsapi->propSetInt(vsapi->getFramePropsRW(dst), "_Field", ((n & 1) ^ d->tff), 0);
 
         for (plane = 0; plane < d->vi.format->numPlanes; plane++) {
             const uint8_t *srcp = vsapi->getReadPtr(src, plane);
