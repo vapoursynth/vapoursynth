@@ -215,9 +215,6 @@ cdef void __stdcall callback(void *data, VSFrameRef *f, int n, VSNodeRef *node, 
 
                 del d.reorder[d.output]
                 d.output = d.output + 1
-#ifdef _WIN32
-                windows.FlushFileBuffers(d.handle)
-#endif
 
             if (d.progress_update is not None):
                 d.progress_update(d.completed, d.total)
