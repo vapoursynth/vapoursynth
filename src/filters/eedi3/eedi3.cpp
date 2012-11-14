@@ -641,7 +641,7 @@ void VS_CC Create_eedi3(const VSMap *in, VSMap *out, void *userData, VSCore *cor
 	int err;
 	VSNodeRef *child = vsapi->propGetNode(in, "clip", 0, NULL);
 	const VSVideoInfo *vi = vsapi->getVideoInfo(child);
-	int field = vsapi->propGetInt(in, "field", 0, NULL);
+    int field = int64ToIntS(vsapi->propGetInt(in, "field", 0, NULL));
 	bool dh = !!vsapi->propGetInt(in, "dh", 0, &err);
 	double alpha = vsapi->propGetFloat(in, "alpha", 0, &err);
 	if (err)
@@ -652,10 +652,10 @@ void VS_CC Create_eedi3(const VSMap *in, VSMap *out, void *userData, VSCore *cor
 	double gamma = vsapi->propGetFloat(in, "gamma", 0, &err);
 	if (err)
 		gamma = 20;
-	int nrad = vsapi->propGetInt(in, "nrad", 0, &err);
+	int nrad = int64ToIntS(vsapi->propGetInt(in, "nrad", 0, &err));
 	if (err)
 		nrad = 2;
-	int mdis = vsapi->propGetInt(in, "mdis", 0, &err);
+	int mdis = int64ToIntS(vsapi->propGetInt(in, "mdis", 0, &err));
 	if (err)
 		mdis = 20;
 	bool hp = !!vsapi->propGetInt(in, "hp", 0, &err);
@@ -665,7 +665,7 @@ void VS_CC Create_eedi3(const VSMap *in, VSMap *out, void *userData, VSCore *cor
 	bool cost3 = !!vsapi->propGetInt(in, "cost3", 0, &err);
 	if (err)
 		cost3 = true;
-	int vcheck = vsapi->propGetInt(in, "vcheck", 0, &err);
+	int vcheck = int64ToIntS(vsapi->propGetInt(in, "vcheck", 0, &err));
 	if (err)
 		vcheck = 2;
 	double vthresh0 = vsapi->propGetFloat(in, "vthresh0", 0, &err);
