@@ -3,7 +3,7 @@ may deadlock with some avisynth plugins (set the number of threads to a bigger n
 compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 
 r15:
-document the defined frame properties
+documented all the predefined frame properties and all important python classes
 fixed iterating over clips in python
 allocate memory per plane instead of in one big lump, this allows planes to be copied by reference using the newVideoFrame2() function and will also reduce memory usage slightly for filters that use it
 fixed infinite loop in lut and lut2 when used with 9 bit input or more 
