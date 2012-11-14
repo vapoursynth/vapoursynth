@@ -70,7 +70,7 @@ public:
     }
 };
 
-static inline uint qHash(const NodeOutputKey &key) {
+inline uint qHash(const NodeOutputKey &key) {
     return qHash(key.node) ^ ((key.n << 21) + (key.n << 11));
 }
 
