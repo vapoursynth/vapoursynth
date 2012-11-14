@@ -2959,15 +2959,18 @@ typedef struct {
     const VSVideoInfo *vi;
     int weight[3];
     float fweight[3];
+    int process[3];
 } MergeData;
 
+const int MergeShift = 15;
+
 static void VS_CC mergeInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    MergeData *d = (MergeData *) * instanceData;
+    MergeData *d = (MergeData *)*instanceData;
     vsapi->setVideoInfo(d->vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    MergeData *d = (MergeData *) * instanceData;
+    MergeData *d = (MergeData *)*instanceData;
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node1, frameCtx);
@@ -2975,58 +2978,55 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
         const VSFrameRef *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
-        VSFrameRef *dst = vsapi->newVideoFrame(d->vi->format, d->vi->width, d->vi->height, src1, core);
+        const int pl[] = {0, 1, 2};
+        const VSFrameRef *fs[] = { NULL, src1, src2 };
+        const VSFrameRef *fr[] = {fs[d->process[0]], fs[d->process[1]], fs[d->process[2]]};
+        VSFrameRef *dst = vsapi->newVideoFrame2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
         int plane;
         int x, y;
         for (plane = 0; plane < d->vi->format->numPlanes; plane++) {
-            int weight = d->weight[plane];
-            float fweight = d->fweight[plane];
-            int h = vsapi->getFrameHeight(src1, plane);
-            int w = vsapi->getFrameWidth(src2, plane);
-            int stride = vsapi->getStride(src1, plane);
-            const uint8_t *srcp1 = vsapi->getReadPtr(src1, plane);
-            const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
-            uint8_t *dstp = vsapi->getWritePtr(dst, plane);
+            if (d->process[plane] == 0) {
+                int weight = d->weight[plane];
+                float fweight = d->fweight[plane];
+                int h = vsapi->getFrameHeight(src1, plane);
+                int w = vsapi->getFrameWidth(src2, plane);
+                int stride = vsapi->getStride(src1, plane);
+                const uint8_t *srcp1 = vsapi->getReadPtr(src1, plane);
+                const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
+                uint8_t *dstp = vsapi->getWritePtr(dst, plane);
 
-            if (d->vi->format->sampleType == stInteger) {
-                if (weight == 0) {
-                    memcpy(dstp, srcp1, stride * h);
-                } else if (weight == 4096) {
-                    memcpy(dstp, srcp2, stride * h);
-                } else if (d->vi->format->bytesPerSample == 1) {
-                    for (y = 0; y < h; y++) {
-                        for (x = 0; x < w; x++)
-                            dstp[x] = srcp1[x] + (((srcp2[x] - srcp1[x]) * weight + 128) >> 12);
-                        srcp1 += stride;
-                        srcp2 += stride;
-                        dstp += stride;
+                if (d->vi->format->sampleType == stInteger) {
+                    const int round = 1 << (MergeShift - 1);
+                    if (d->vi->format->bytesPerSample == 1) {
+                        for (y = 0; y < h; y++) {
+                            for (x = 0; x < w; x++)
+                                dstp[x] = srcp1[x] + (((srcp2[x] - srcp1[x]) * weight + round) >> MergeShift);
+                            srcp1 += stride;
+                            srcp2 += stride;
+                            dstp += stride;
+                        }
+                    } else if (d->vi->format->bytesPerSample == 2) {
+                        const int round = 1 << (MergeShift - 1);
+                        for (y = 0; y < h; y++) {
+                            for (x = 0; x < w; x++)
+                                ((uint16_t *)dstp)[x] = ((const uint16_t *)srcp1)[x] + (((((const uint16_t *)srcp2)[x] - ((const uint16_t *)srcp1)[x]) * weight + round) >> MergeShift);
+                            srcp1 += stride;
+                            srcp2 += stride;
+                            dstp += stride;
+                        }
                     }
-                } else if (d->vi->format->bytesPerSample == 2) {
-                    int round = 1 << (d->vi->format->bitsPerSample - 1);
-                    for (y = 0; y < h; y++) {
-                        for (x = 0; x < w; x++)
-                            ((uint16_t *)dstp)[x] = ((const uint16_t *)srcp1)[x] + (((((const uint16_t *)srcp2)[x] - ((const uint16_t *)srcp1)[x]) * weight + round) >> 12);
-                        srcp1 += stride;
-                        srcp2 += stride;
-                        dstp += stride;
-                    }
-                }
-            } else if (d->vi->format->sampleType == stFloat) {
-                if (fweight == 0.0f) {
-                    memcpy(dstp, srcp1, stride * h);
-                } else if (fweight == 1.0f) {
-                    memcpy(dstp, srcp2, stride * h);
-                } else if (d->vi->format->bytesPerSample == 4) {
-                    for (y = 0; y < h; y++) {
-                        for (x = 0; x < w; x++)
-                            ((float *)dstp)[x] = (((const float *)srcp1)[x] + (((const float *)srcp2)[x] - ((const float *)srcp1)[x]) * fweight);
-                        srcp1 += stride;
-                        srcp2 += stride;
-                        dstp += stride;
+                } else if (d->vi->format->sampleType == stFloat) {
+                    if (d->vi->format->bytesPerSample == 4) {
+                        for (y = 0; y < h; y++) {
+                            for (x = 0; x < w; x++)
+                                ((float *)dstp)[x] = (((const float *)srcp1)[x] + (((const float *)srcp2)[x] - ((const float *)srcp1)[x]) * fweight);
+                            srcp1 += stride;
+                            srcp2 += stride;
+                            dstp += stride;
+                        }
                     }
                 }
             }
-           
         }
 
         vsapi->freeFrame(src1);
@@ -3066,7 +3066,7 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     for (i = 0; i < 3; i++) {
         if (d.fweight[i] < 0 || d.fweight[i] > 1)
             RETERROR("Merge: weights must be between 0 and 1");
-        d.weight[i] = (int)(d.fweight[i] * 4096 + 0.5f);
+        d.weight[i] = (int)(d.fweight[i] * (1 << MergeShift) + 0.5f);
     }
 
     if (vsapi->propNumElements(in, "clips") != 2)
@@ -3075,6 +3075,21 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     d.node1 = vsapi->propGetNode(in, "clips", 0, 0);
     d.node2 = vsapi->propGetNode(in, "clips", 1, 0);
     d.vi = vsapi->getVideoInfo(d.node1);
+
+    for (i = 0; i < 3; i++) {
+        d.process[i] = 0;
+        if (d.vi->format->sampleType == stInteger) {
+            if (d.weight[i] == 0)
+                d.process[i] = 1;
+            else if (d.weight[i] == 1 << MergeShift)
+                d.process[i] = 2;
+        } else if (d.vi->format->sampleType == stFloat) {
+            if (d.fweight[i] == 0.0f)
+                d.process[i] = 1;
+            else if (d.fweight[i] == 1.0f)
+                d.process[i] = 2;
+        }
+    }
 
     if (!isConstantFormat(d.vi) || !isSameFormat(d.vi, vsapi->getVideoInfo(d.node2))) {
         vsapi->freeNode(d.node1);
@@ -3135,7 +3150,7 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
         const VSFrameRef *mask23 = NULL;
         const int pl[] = {0, 1, 2};
         const VSFrameRef *fr[] = {d->process[0] ? NULL : src1, d->process[1] ? NULL : src1, d->process[2] ? NULL : src1};
-        VSFrameRef *dst = vsapi->newVideoFrame2(d->vi->format, d->vi->width, d->vi->height, fr, pl,src1, core);
+        VSFrameRef *dst = vsapi->newVideoFrame2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
         int plane;
         int x, y;
         if (d->mask23)
