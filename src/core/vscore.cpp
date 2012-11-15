@@ -26,6 +26,7 @@ extern "C" {
 #include "VSHelper.h"
 #include "x86utils.h"
 #include "cachefilter.h"
+#include "version.h"
 
 const VSAPI *VS_CC getVapourSynthAPI(int version);
 
@@ -387,7 +388,15 @@ const VSFormat *VSCore::registerFormat(VSColorFamily colorFamily, VSSampleType s
     return f;
 }
 
-
+const VSCoreInfo &VSCore::getCoreInfo() {
+    coreInfo.versionString = VAPOURSYNTH_VERSION_STRING;
+    coreInfo.core = VAPOURSYNTH_CORE_VERSION;
+    coreInfo.api = VAPOURSYNTH_API_VERSION;
+    coreInfo.numThreads = threadPool->threadCount();
+    coreInfo.maxFramebufferSize = memory->getLimit();
+    coreInfo.usedFramebufferSize = memory->memoryUse();
+    return coreInfo;
+}
 
 void VS_CC configPlugin(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readOnly, VSPlugin *plugin);
 void VS_CC registerFunction(const char *name, const char *args, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin);
@@ -410,7 +419,7 @@ void VS_CC loadPluginInitialize(VSConfigPlugin configFunc, VSRegisterFunction re
 extern "C" void VS_CC avsWrapperInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
 #endif
 
-VSCore::VSCore(int *threads) : memory(new MemoryUse()), formatIdOffset(1000) {
+VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
     threadPool = new VSThreadPool(this, threads);
 
     // Register known formats with informational names

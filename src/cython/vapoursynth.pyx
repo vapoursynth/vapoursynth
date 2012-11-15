@@ -814,12 +814,13 @@ cdef class Core(object):
 
     def __cinit__(self, int threads = 0, bint add_cache = True, bint accept_lowercase = False):
         self.funcs = vapoursynth.getVapourSynthAPI(3)
-        self.num_threads = threads
         if self.funcs == NULL:
             raise Error('Failed to obtain VapourSynth API pointer. Is the Python module and loaded core library mismatched?')
-        self.core = self.funcs.createCore(&self.num_threads)
+        self.core = self.funcs.createCore(threads)
         self.add_cache = add_cache
         self.accept_lowercase = accept_lowercase
+        cdef VSCoreInfo *info = self.funcs.getCoreInfo(self.core)
+        self.num_threads = info.numThreads
 
     def __dealloc__(self):
         if self.funcs:
@@ -879,7 +880,7 @@ cdef class Core(object):
             return createFormat(f)
 
     def version(self):
-        cdef VSVersion *v = self.funcs.getVersion()
+        cdef VSCoreInfo *v = self.funcs.getCoreInfo(self.core)
         return v.versionString.decode('utf-8')
 
     def __str__(self):

@@ -19,7 +19,6 @@
 */
 
 #include "vscore.h"
-#include "version.h"
 
 void VS_CC configPlugin(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readOnly, VSPlugin *plugin) {
     plugin->configPlugin(identifier, defaultNamespace, name, apiVersion, readOnly);
@@ -428,7 +427,7 @@ static void VS_CC clearMap(VSMap *map) {
     map->clear();
 }
 
-static VSCore *VS_CC createCore(int *threads) {
+static VSCore *VS_CC createCore(int threads) {
     return new VSCore(threads);
 }
 
@@ -452,10 +451,8 @@ static VSMap *VS_CC getFunctions(VSPlugin *plugin) {
     return new VSMap(plugin->getFunctions());
 }
 
-static const VSVersion version = { VAPOURSYNTH_CORE_VERSION, VAPOURSYNTH_API_VERSION, VAPOURSYNTH_VERSION_STRING };
-
-static const VSVersion *VS_CC getVersion() {
-    return &version;
+static const VSCoreInfo *VS_CC getCoreInfo(VSCore *core) {
+    return &core->getCoreInfo();
 }
 
 static VSFuncRef *VS_CC propGetFunc(const VSMap *props, const char *name, int index, int *error) {
@@ -527,7 +524,7 @@ static int VS_CC getOutputIndex(VSFrameContext *frameCtx) {
 const VSAPI vsapi = {
     &createCore,
     &freeCore,
-    &getVersion,
+    &getCoreInfo,
 
     &cloneFrameRef,
     &cloneNodeRef,
@@ -620,7 +617,7 @@ static VSNodeRef *VS_CC createFilterR2(const VSMap *in, VSMap *out, const char *
 struct VSAPI_R2 {
     VSCreateCore createCore;
     VSFreeCore freeCore;
-    VSGetVersion getVersion;
+    VSGetCoreInfo getCoreInfo;
 
     VSCloneFrameRef cloneFrameRef;
     VSCloneNodeRef cloneNodeRef;
@@ -702,7 +699,7 @@ struct VSAPI_R2 {
 const VSAPI_R2 vsapiR2 = {
     &createCore,
     &freeCore,
-    &getVersion,
+    NULL, // not going to bother because nothing actually used this api function
 
     &cloneFrameRef,
     &cloneNodeRef,

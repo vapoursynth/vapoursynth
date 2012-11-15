@@ -192,6 +192,9 @@ public:
     int64_t memoryUse() {
         return (int64_t)usedKiloBytes * 1024;
     }
+    int64_t getLimit() {
+        return (int64_t)maxMemoryUse * 1024;
+    }
     int64_t setMaxMemoryUse(int64_t bytes) {
         maxMemoryUse = bytes;
         return maxMemoryUse;
@@ -378,12 +381,12 @@ private:
     void notifyCaches(CacheActivation reason);
     void startInternal(const PFrameContext &context);
 public:
-    VSThreadPool(VSCore *core, int *threads);
+    VSThreadPool(VSCore *core, int threads);
     ~VSThreadPool();
     void returnFrame(const PFrameContext &rCtx, const PVideoFrame &f);
     int	activeThreadCount() const;
     int	threadCount() const;
-    void setMaxThreadCount(int threadCount);
+    void setThreadCount(int threadCount);
     void start(const PFrameContext &context);
     void waitForDone();
     void releaseThread();
@@ -448,6 +451,7 @@ private:
     QMutex formatLock;
     static QMutex filterLock;
     int formatIdOffset;
+    VSCoreInfo coreInfo;
 public:
     QList<VSNode *> caches;
     VSThreadPool *threadPool;
@@ -470,8 +474,9 @@ public:
 
     int64_t setMaxCacheSize(int64_t bytes);
     int getAPIVersion();
+    const VSCoreInfo &getCoreInfo();
 
-    VSCore(int *threads);
+    VSCore(int threads);
     ~VSCore();
 };
 

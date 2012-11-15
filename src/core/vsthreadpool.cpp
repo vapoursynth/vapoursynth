@@ -185,13 +185,8 @@ void VSThread::run() {
     }
 }
 
-VSThreadPool::VSThreadPool(VSCore *core, int *threads) : core(core), activeThreads(0) {
-    int usedThreads = QThread::idealThreadCount();
-    if (threads && *threads > 0)
-        usedThreads = *threads;
-    else if (threads)
-        *threads = usedThreads;
-    setMaxThreadCount(usedThreads);
+VSThreadPool::VSThreadPool(VSCore *core, int threads) : core(core), activeThreads(0) {
+    setThreadCount(threads > 0 ? threads : QThread::idealThreadCount());
 }
 
 int	VSThreadPool::activeThreadCount() const {
@@ -202,7 +197,7 @@ int	VSThreadPool::threadCount() const {
     return allThreads.count();
 }
 
-void VSThreadPool::setMaxThreadCount(int threadCount) {
+void VSThreadPool::setThreadCount(int threadCount) {
     QMutexLocker m(&lock);
 
     while (threadCount > allThreads.count()) {
@@ -230,11 +225,11 @@ void VSThreadPool::wakeThread() {
 }
 
 void VSThreadPool::releaseThread() {
-    setMaxThreadCount(allThreads.count() + 1);
+    setThreadCount(allThreads.count() + 1);
 }
 
 void VSThreadPool::reserveThread() {
-    setMaxThreadCount(allThreads.count() - 1);
+    setThreadCount(allThreads.count() - 1);
 }
 
 void VSThreadPool::notifyCaches(CacheActivation reason) {
@@ -353,5 +348,5 @@ void VSThreadPool::waitForDone() {
 }
 
 VSThreadPool::~VSThreadPool() {
-    setMaxThreadCount(0);
+    setThreadCount(0);
 };

@@ -112,10 +112,13 @@ cdef extern from "include/VapourSynth.h" nogil:
         paAppend  = 1
         paTouch   = 2
 
-    cdef struct VSVersion:
+    cdef struct VSCoreInfo:
+        char *versionString
         int core
         int api
-        char *versionString
+        int numThreads
+        int64_t maxFramebufferSize
+        int64_t usedFramebufferSize
 
     cdef struct VSVideoInfo:
         VSFormat *format
@@ -141,7 +144,7 @@ cdef extern from "include/VapourSynth.h" nogil:
     ctypedef void (__stdcall *VSFreeFuncData)(void *userData)
 
     ctypedef struct VSAPI:
-        VSCore *createCore(int *threads) nogil
+        VSCore *createCore(int threads) nogil
         void freeCore(VSCore *core) nogil
 
         void registerFunction(char *name, char *args, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) nogil
@@ -205,7 +208,7 @@ cdef extern from "include/VapourSynth.h" nogil:
         VSMap *getPlugins(VSCore *core) nogil
         VSMap *getFunctions(VSPlugin *plugin) nogil
 
-        VSVersion *getVersion() nogil
+        VSCoreInfo *getCoreInfo(VSCore *core) nogil
         VSFuncRef *propGetFunc(VSMap *map, char *key, int index, int *error) nogil
         int propSetFunc(VSMap *map, char *key, VSFuncRef *func, int append) nogil
         void callFunc(VSFuncRef *func, VSMap *inm, VSMap *outm, VSCore *core, VSAPI *vsapi) nogil

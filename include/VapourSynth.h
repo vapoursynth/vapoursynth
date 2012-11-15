@@ -152,11 +152,14 @@ typedef enum PropAppendMode {
     paTouch   = 2
 } PropAppendMode;
 
-typedef struct VSVersion {
+typedef struct VSCoreInfo {
+    const char *versionString;
     int core;
     int api;
-    const char *versionString;
-} VSVersion;
+    int numThreads;
+    int64_t maxFramebufferSize;
+    int64_t usedFramebufferSize;
+} VSCoreInfo;
 
 typedef struct VSVideoInfo {
     const VSFormat *format;
@@ -176,9 +179,9 @@ typedef enum ActivationReason {
 } ActivationReason;
 
 // core function typedefs
-typedef	VSCore *(VS_CC *VSCreateCore)(int *threads);
+typedef	VSCore *(VS_CC *VSCreateCore)(int threads);
 typedef	void (VS_CC *VSFreeCore)(VSCore *core);
-typedef const VSVersion *(VS_CC *VSGetVersion)(void);
+typedef const VSCoreInfo *(VS_CC *VSGetCoreInfo)(VSCore *core);
 
 // function/filter typedefs
 typedef void (VS_CC *VSPublicFunction)(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
@@ -273,7 +276,7 @@ typedef int64_t (VS_CC *VSSetMaxCacheSize)(int64_t bytes, VSCore *core);
 struct VSAPI {
     VSCreateCore createCore;
     VSFreeCore freeCore;
-    VSGetVersion getVersion;
+    VSGetCoreInfo getCoreInfo;
 
     VSCloneFrameRef cloneFrameRef;
     VSCloneNodeRef cloneNodeRef;
