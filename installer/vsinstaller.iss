@@ -55,6 +55,7 @@ Source: ..\include\VSHelper.h; DestDir: {app}\sdk\include; Flags: ignoreversion 
 Source: ..\sdk\filter_skeleton.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: ..\sdk\invert_example.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace
 ;bundled filters
+Source: filters\avisource.dll; DestDir: {app}\filters; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: filters\vivtc.dll; DestDir: {app}\filters; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: filters\eedi3.dll; DestDir: {app}\filters; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: filters\temporalsoften.dll; DestDir: {app}\filters; Flags: ignoreversion uninsrestartdelete restartreplace
