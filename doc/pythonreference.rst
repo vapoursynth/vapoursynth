@@ -155,6 +155,10 @@ Classes
    .. py:attribute:: num_planes
    
       The number of planes the format has.
+      
+.. py:exception:: Error
+
+   The standard exception class. This exception is thrown on most errors encountered in VapourSynth.
    
 Color Family Constants
 ######################

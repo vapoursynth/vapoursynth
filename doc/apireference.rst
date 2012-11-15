@@ -39,4 +39,3 @@ it is also a fatal error to set them to a value not specified below.::
    Display aspect ratio as a rational number.
    _SARNum int
    _SARDen int
-   
