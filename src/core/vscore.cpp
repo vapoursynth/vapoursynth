@@ -149,6 +149,12 @@ VSFrame::VSFrame(const VSFrame &f) {
     properties = f.properties;
 }
 
+int VSFrame::getStride(int plane) const {
+    if (plane < 0 || plane >= format->numPlanes)
+        qFatal("Invalid plane stride requested");
+    return stride[plane];
+}
+
 const uint8_t *VSFrame::getReadPtr(int plane) const {
     if (plane < 0 || plane >= format->numPlanes)
         qFatal("Invalid plane requested");

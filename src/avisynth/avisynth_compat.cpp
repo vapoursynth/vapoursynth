@@ -148,6 +148,8 @@ PVideoFrame VSClip::GetFrame(int n, IScriptEnvironment *env) {
     if (!ref)
         qFatal("Avisynth Compat: unlikely error");
 
+    bool isYV12 = vi.IsYV12();
+
     const uint8_t *firstPlanePtr = vsapi->getReadPtr(ref, 0);
     VideoFrame *vfb = new VideoFrame(
         // the data will never be modified due to the writable protections embedded in this mess
@@ -157,9 +159,9 @@ PVideoFrame VSClip::GetFrame(int n, IScriptEnvironment *env) {
         vsapi->getStride(ref, 0),
         vsapi->getFrameWidth(ref, 0) * vsapi->getFrameFormat(ref)->bytesPerSample,
         vsapi->getFrameHeight(ref, 0),
-        vsapi->getReadPtr(ref, 1) - firstPlanePtr,
-        vsapi->getReadPtr(ref, 2) - firstPlanePtr,
-        vsapi->getStride(ref, 1));
+        isYV12 ? vsapi->getReadPtr(ref, 1) - firstPlanePtr : 0,
+        isYV12 ? vsapi->getReadPtr(ref, 2) - firstPlanePtr : 0,
+        isYV12 ? vsapi->getStride(ref, 1) : 0);
     PVideoFrame pvf(vfb);
     fakeEnv->ownedFrames.insert(vfb, ref);
     return pvf;
@@ -574,7 +576,9 @@ PVideoFrame FakeAvisynth::NewVideoFrame(const VideoInfo &vi, int align) {
     if (uglyNode && uglyCtx)
         propSrc = vsapi->getFrameFilter(uglyN, uglyNode, uglyCtx);
 
-    if (vi.IsYV12()) {
+    bool isYV12 = vi.IsYV12();
+
+    if (isYV12) {
         ref = vsapi->newVideoFrame(vsapi->getFormatPreset(pfYUV420P8, core), vi.width, vi.height, propSrc, core);
     } else if (vi.IsYUY2()) {
         ref = vsapi->newVideoFrame(vsapi->getFormatPreset(pfCompatYUY2, core), vi.width, vi.height, propSrc, core);
@@ -583,6 +587,7 @@ PVideoFrame FakeAvisynth::NewVideoFrame(const VideoInfo &vi, int align) {
     } else {
         qFatal("Only YV12, YUY2 and RGB32 supported");
     }
+
 
     if (propSrc)
         vsapi->freeFrame(propSrc);
@@ -595,9 +600,9 @@ PVideoFrame FakeAvisynth::NewVideoFrame(const VideoInfo &vi, int align) {
         vsapi->getStride(ref, 0),
         vi.width * vsapi->getFrameFormat(ref)->bytesPerSample,
         vi.height,
-        vsapi->getWritePtr(ref, 1) - firstPlanePtr,
-        vsapi->getWritePtr(ref, 2) - firstPlanePtr,
-        vsapi->getStride(ref, 1));
+        isYV12 ? vsapi->getWritePtr(ref, 1) - firstPlanePtr : 0,
+        isYV12 ? vsapi->getWritePtr(ref, 2) - firstPlanePtr : 0,
+        isYV12 ? vsapi->getStride(ref, 1) : 0);
     PVideoFrame pvf(vfb);
     ownedFrames.insert(vfb, ref);
     return pvf;

@@ -258,9 +258,7 @@ public:
     int getHeight(int plane) const {
         return height >> (plane ? format->subSamplingH : 0);
     }
-    int getStride(int plane) const {
-        return stride[plane];
-    }
+    int getStride(int plane) const;
     const uint8_t *getReadPtr(int plane) const;
     uint8_t *getWritePtr(int plane);
 };
