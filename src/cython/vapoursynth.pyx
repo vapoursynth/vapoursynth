@@ -538,7 +538,7 @@ cdef class VideoFrame(object):
         
     def get_write_ptr(self, int plane):
         if self.readonly:
-            raise Error('Cannot obtain write poitner to read only frame')
+            raise Error('Cannot obtain write pointer to read only frame')
         if plane < 0 or plane >= self.format.num_planes:
             raise IndexError('Specified plane index out of range')
         cdef uint8_t *d = self.funcs.getReadPtr(self.f, plane)
