@@ -147,7 +147,7 @@ struct VSFrameRef {
 
 struct VSNodeRef {
     PVideoNode clip;
-    const int index;
+    int index;
     VSNodeRef(const PVideoNode &clip, int index) : clip(clip), index(index) {}
 };
 
