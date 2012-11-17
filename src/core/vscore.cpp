@@ -258,7 +258,7 @@ VSFunction::VSFunction(const QByteArray &name, const QByteArray &argString, VSPu
 VSNode::VSNode(const VSMap *in, VSMap *out, const QByteArray &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion, VSCore *core) :
     instanceData(instanceData), name(name), init(init), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiVersion(apiVersion), core(core), flags(flags), inval(*in), hasVi(false), hasWarned(false) {
     QMutexLocker lock(&VSCore::filterLock);
-    init(&inval, out, &this->instanceData, this, core, getVapourSynthAPI(apiVersion));
+    init(&inval, out, &this->instanceData, this, core, getVSAPIInternal(apiVersion));
 
     if (vsapi.getError(out))
         throw VSException(vsapi.getError(out));
@@ -718,7 +718,7 @@ VSMap VSPlugin::invoke(const QByteArray &funcName, const VSMap &args) {
                 throw VSException(funcName + ": no argument named " + sl.join(", ").toUtf8());
             }
 
-            f.func(&args, &v, f.functionData, core, getVapourSynthAPI(apiVersion));
+            f.func(&args, &v, f.functionData, core, getVSAPIInternal(apiVersion));
 
             if (!compat & hasCompatNodes(v))
                 qFatal(funcName + ": illegal filter node returning a compat format detected, DO NOT USE THE COMPAT FORMATS IN NEW FILTERS");

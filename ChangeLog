@@ -2,6 +2,10 @@ known issues:
 may deadlock with some avisynth plugins (set the number of threads to a bigger number, VSCore(threads=4))
 compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 
+r16:
+added a check for CPU features on x86, will now return an error if SSE2 isn't present
+fixed an issue in avisynth compatibility caused by stricter internal checks
+
 r15:
 documented all the predefined frame properties and all important python classes
 fixed iterating over clips in python

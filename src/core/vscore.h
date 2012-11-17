@@ -46,6 +46,7 @@ typedef QSharedPointer<ExtFunction> PExtFunction;
 typedef QSharedPointer<FrameContext> PFrameContext;
 
 extern const VSAPI vsapi;
+const VSAPI *getVSAPIInternal(int version);
 
 class VSException : public std::runtime_error {
 public:

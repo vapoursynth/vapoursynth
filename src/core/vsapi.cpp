@@ -19,6 +19,7 @@
 */
 
 #include "vscore.h"
+#include "cpufeatures.h"
 
 void VS_CC configPlugin(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readOnly, VSPlugin *plugin) {
     plugin->configPlugin(identifier, defaultNamespace, name, apiVersion, readOnly);
@@ -775,11 +776,28 @@ const VSAPI_R2 vsapiR2 = {
 
 ///////////////////////////////
 
-const VSAPI *VS_CC getVapourSynthAPI(int version) {
-    if (version == VAPOURSYNTH_API_VERSION)
+const VSAPI *getVSAPIInternal(int version) {
+    if (version == VAPOURSYNTH_API_VERSION) {
         return &vsapi;
-    else if (version == 2)
+    } else if (version == 2) {
         return (const VSAPI *)&vsapiR2;
-    else
+    } else {
+        qFatal("Internally requested API version %d", version);
         return NULL;
+    }
+}
+
+const VSAPI *VS_CC getVapourSynthAPI(int version) {
+    CPUFeatures f;
+    getCPUFeatures(&f);
+    if (!f.can_run_vs) {
+        qWarning("System does not meet minimum requirements to run VapourSynth");
+        return NULL;
+    } else if (version == VAPOURSYNTH_API_VERSION) {
+        return &vsapi;
+    } else if (version == 2) {
+        return (const VSAPI *)&vsapiR2;
+    } else {
+        return NULL;
+    }
 }

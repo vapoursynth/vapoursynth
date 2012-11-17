@@ -815,7 +815,11 @@ cdef class Core(object):
     def __cinit__(self, int threads = 0, bint add_cache = True, bint accept_lowercase = False):
         self.funcs = vapoursynth.getVapourSynthAPI(3)
         if self.funcs == NULL:
+#if defined(_WIN32) && !defined(_WIN64)
+            raise Error('Failed to obtain VapourSynth API pointer. System does not support SSE2 or is the Python module and loaded core library mismatched?')
+#else 
             raise Error('Failed to obtain VapourSynth API pointer. Is the Python module and loaded core library mismatched?')
+#endif
         self.core = self.funcs.createCore(threads)
         self.add_cache = add_cache
         self.accept_lowercase = accept_lowercase
