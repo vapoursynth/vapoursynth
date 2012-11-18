@@ -3192,6 +3192,7 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
         vsapi->freeFrame(src1);
         vsapi->freeFrame(src2);
         vsapi->freeFrame(mask);
+        vsapi->freeFrame(mask23);
         return dst;
     }
 
@@ -3203,6 +3204,7 @@ static void VS_CC maskedMergeFree(void *instanceData, VSCore *core, const VSAPI 
     vsapi->freeNode(d->node1);
     vsapi->freeNode(d->node2);
     vsapi->freeNode(d->mask);
+    vsapi->freeNode(d->mask23);
     free(d);
 }
 
