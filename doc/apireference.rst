@@ -22,6 +22,10 @@ it is also a fatal error to set them to a value not specified below.::
    going to try to describe it here.
    _ColorSpace int
    
+   Whether or not the frame needs postprocessing, usually hinted from field
+   matching filters.
+   _Combed bint
+   
    The frame's duration in seconds as a rational number.
    Filters that modify the framerate should also change this value.
    _DurationNum int
