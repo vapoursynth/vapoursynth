@@ -2,6 +2,9 @@ known issues:
 may deadlock with some avisynth plugins (set the number of threads to a bigger number, VSCore(threads=4))
 compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 
+r17:
+fixed callback functions hanging in vfw and vsfs (with a very ugly but functional hack)
+
 r16:
 fixed a MaskedMerge reference leak under some rare conditions
 added a check for CPU features on x86, will now return an error if SSE2 isn't present

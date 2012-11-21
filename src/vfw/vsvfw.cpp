@@ -65,7 +65,7 @@ class VapourSynthFile: public IAVIFile, public IPersistFile, public IClassFactor
     friend class VapourSynthStream;
 private:
     long m_refs;
-
+    PyThreadState *_save;
     std::string szScriptName;
     VPYScriptExport se;
     const VSVideoInfo* vi;
@@ -185,6 +185,7 @@ private:
 BOOL APIENTRY DllMain(HANDLE hModule, ULONG ulReason, LPVOID lpReserved) {
     if (ulReason == DLL_PROCESS_ATTACH) {
         Py_Initialize();
+        PyEval_InitThreads();
         import_vapoursynth();
     } else if (ulReason == DLL_PROCESS_DETACH) {
         Py_Finalize();
@@ -397,13 +398,15 @@ STDMETHODIMP VapourSynthFile::DeleteStream(DWORD fccType, LONG lParam) {
 ///////////////////////////////////////////////////
 /////// local
 
-VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : m_refs(0), vi(NULL), pending_requests(0) {
+VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : m_refs(0), vi(NULL), pending_requests(0), _save(NULL) {
     AddRef();
     InitializeCriticalSection(&cs_filter_graph);
 }
 
 VapourSynthFile::~VapourSynthFile() {
     Lock();
+    if (_save)
+        PyEval_RestoreThread(_save);
     if (vi) {
         vi = NULL;
         while (pending_requests > 0);
@@ -492,6 +495,7 @@ bool VapourSynthFile::DelayInit2() {
                 goto vpyerror;
             }
 
+            _save = PyEval_SaveThread();
             return true;
         } else {
             error_msg = se.error;
