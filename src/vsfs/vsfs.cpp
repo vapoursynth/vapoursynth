@@ -572,6 +572,7 @@ int VapourSynther::ImageSize() {
 BOOL APIENTRY DllMain(HANDLE hModule, ULONG ulReason, LPVOID lpReserved) {
     if (ulReason == DLL_PROCESS_ATTACH) {
         Py_Initialize();
+        PyEval_InitThreads();
         import_vapoursynth();
     } else if (ulReason == DLL_PROCESS_DETACH) {
         Py_Finalize();
