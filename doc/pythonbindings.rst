@@ -55,5 +55,5 @@ An example on how to get v210 output::
 Raw Access to Frame Data
 ########################
 The VideoFrame class simply contains one picture and all the metadata associated with it. It is possible to access the raw data using ctypes and some persistence.
-The three relevant functions are *get_read_ptr(plane)*, *get_write_ptr(plane)* and *get_stride(plane)*, both of which take the plane to acces as an argument. Accessing the data is a bit trickier as 
-*get_data()* only returns a pointer. To get a frame simply call *get_frame(n)* on a clip.
+The three relevant functions are *get_read_ptr(plane)*, *get_write_ptr(plane)* and *get_stride(plane)*, all of which take the plane to access as an argument. Accessing the data is a bit trickier as 
+*get_read_ptr()* and *get_write_ptr()* only return a pointer. To get a frame simply call *get_frame(n)* on a clip.
