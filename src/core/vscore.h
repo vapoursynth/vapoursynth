@@ -194,7 +194,7 @@ public:
         return (int64_t)usedKiloBytes * 1024;
     }
     int64_t getLimit() {
-        return (int64_t)maxMemoryUse * 1024;
+        return maxMemoryUse;
     }
     int64_t setMaxMemoryUse(int64_t bytes) {
         maxMemoryUse = bytes;
