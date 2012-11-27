@@ -129,7 +129,7 @@ VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame * const
             if (i == 0) {
                 data[i] = new VSFrameData(stride[0] * height, core->memory);
             } else {
-                data[i] = new VSFrameData(stride[1] * (height >> f->subSamplingH), core->memory);
+                data[i] = new VSFrameData(stride[i] * (height >> f->subSamplingH), core->memory);
             }
         }
     }
