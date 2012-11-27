@@ -38,16 +38,7 @@
 #endif
 
 static int isPowerOf2(int i) {
-    while (i > 0) {
-        if (i & 1) {
-            if (i == 1)
-                return 1;
-            else
-                return 0;
-        }
-        i >>= 1;
-    }
-    return 0;
+    return i && !(i & (i - 1));
 }
 
 // VFM
