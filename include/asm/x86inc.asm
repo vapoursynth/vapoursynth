@@ -34,7 +34,9 @@
 ; as this feature might be useful for others as well.  Send patches or ideas
 ; to x264-devel@videolan.org .
 
-%define program_name vs
+%ifndef program_name
+    %define program_name x264
+%endif
 
 %define WIN64  0
 %define UNIX64 0
@@ -554,7 +556,7 @@ SECTION .note.GNU-stack noalloc noexec nowrite progbits
 %assign cpuflags_mmx      (1<<0)
 %assign cpuflags_mmx2     (1<<1) | cpuflags_mmx
 %assign cpuflags_3dnow    (1<<2) | cpuflags_mmx
-%assign cpuflags_3dnow2   (1<<3) | cpuflags_3dnow
+%assign cpuflags_3dnowext (1<<3) | cpuflags_3dnow
 %assign cpuflags_sse      (1<<4) | cpuflags_mmx2
 %assign cpuflags_sse2     (1<<5) | cpuflags_sse
 %assign cpuflags_sse2slow (1<<6) | cpuflags_sse2
@@ -1126,3 +1128,47 @@ FMA_INSTR pmadcswd, pmaddwd, paddd
 ; tzcnt is equivalent to "rep bsf" and is backwards-compatible with bsf.
 ; This lets us use tzcnt without bumping the yasm version requirement yet.
 %define tzcnt rep bsf
+
+; convert FMA4 to FMA3 if possible
+%macro FMA4_INSTR 4
+    %macro %1 4-8 %1, %2, %3, %4
+        %if cpuflag(fma4)
+            v%5 %1, %2, %3, %4
+        %elifidn %1, %2
+            v%6 %1, %4, %3 ; %1 = %1 * %3 + %4
+        %elifidn %1, %3
+            v%7 %1, %2, %4 ; %1 = %2 * %1 + %4
+        %elifidn %1, %4
+            v%8 %1, %2, %3 ; %1 = %2 * %3 + %1
+        %elif
+            %error fma3 emulation of ``%%5'' is not supported
+        %endif
+    %endmacro
+%endmacro
+
+FMA4_INSTR fmaddpd, fmadd132pd, fmadd213pd, fmadd231pd
+FMA4_INSTR fmaddps, fmadd132ps, fmadd213ps, fmadd231ps
+FMA4_INSTR fmaddsd, fmadd132sd, fmadd213sd, fmadd231sd
+FMA4_INSTR fmaddss, fmadd132ss, fmadd213ss, fmadd231ss
+
+FMA4_INSTR fmaddsubpd, fmaddsub132pd, fmaddsub213pd, fmaddsub231pd
+FMA4_INSTR fmaddsubps, fmaddsub132ps, fmaddsub213ps, fmaddsub231ps
+FMA4_INSTR fmsubaddpd, fmsubadd132pd, fmsubadd213pd, fmsubadd231pd
+FMA4_INSTR fmsubaddps, fmsubadd132ps, fmsubadd213ps, fmsubadd231ps
+
+FMA4_INSTR fmsubpd, fmsub132pd, fmsub213pd, fmsub231pd
+FMA4_INSTR fmsubps, fmsub132ps, fmsub213ps, fmsub231ps
+FMA4_INSTR fmsubsd, fmsub132sd, fmsub213sd, fmsub231sd
+FMA4_INSTR fmsubss, fmsub132ss, fmsub213ss, fmsub231ss
+
+FMA4_INSTR fnmaddpd, fnmadd132pd, fnmadd213pd, fnmadd231pd
+FMA4_INSTR fnmaddps, fnmadd132ps, fnmadd213ps, fnmadd231ps
+FMA4_INSTR fnmaddsd, fnmadd132sd, fnmadd213sd, fnmadd231sd
+FMA4_INSTR fnmaddss, fnmadd132ss, fnmadd213ss, fnmadd231ss
+
+FMA4_INSTR fnmsubpd, fnmsub132pd, fnmsub213pd, fnmsub231pd
+FMA4_INSTR fnmsubps, fnmsub132ps, fnmsub213ps, fnmsub231ps
+FMA4_INSTR fnmsubsd, fnmsub132sd, fnmsub213sd, fnmsub231sd
+FMA4_INSTR fnmsubss, fnmsub132ss, fnmsub213ss, fnmsub231ss
+
+
