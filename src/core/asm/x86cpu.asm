@@ -18,6 +18,8 @@
 
 %include "asm/x86inc.asm"
 
+CPU Pentium4
+
 SECTION .text
 
 cglobal cpuid_wrapper, 2, 2, 0
