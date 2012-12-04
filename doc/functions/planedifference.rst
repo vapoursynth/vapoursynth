@@ -1,7 +1,7 @@
 PlaneDifference
 ===============
 
-.. function:: PlaneDifference(clip[] clips, int plane[, string prop = 'PlaneAverage'])
+.. function:: PlaneDifference(clip[] clips, int plane[, string prop = 'PlaneDifference'])
    :module: std
    
    *PlaneDifference* calculates the absolute normalized difference between two *clips* for the given *plane* and stores the result in the frame property *prop* in the first clip.
