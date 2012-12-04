@@ -85,6 +85,9 @@ typedef enum VSPresetFormat {
     pfGray8 = cmGray + 10,
     pfGray16,
 
+    pfGrayH,
+    pfGrayS,
+
     pfYUV420P8 = cmYUV + 10,
     pfYUV422P8,
     pfYUV444P8,
@@ -104,10 +107,16 @@ typedef enum VSPresetFormat {
     pfYUV422P16,
     pfYUV444P16,
 
+    pfYUV444PH,
+    pfYUV444PS,
+
     pfRGB24 = cmRGB + 10,
     pfRGB27,
     pfRGB30,
     pfRGB48,
+
+    pfRGBH,
+    pfRGBS,
 
     // special for compatibility, if you implement these in any filter I'll personally kill you
     // I'll also change their ids around to break your stuff regularly

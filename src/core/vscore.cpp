@@ -351,6 +351,8 @@ const VSFormat *VSCore::registerFormat(VSColorFamily colorFamily, VSSampleType s
 
     if (bitsPerSample < 8 || bitsPerSample > 32)
         qFatal("Only formats with 8-32 bits per sample are allowed");
+    else if (sampleType == stFloat && (bitsPerSample != 16 && bitsPerSample != 32))
+        qFatal("Only floating point formats with 16 or 32 bit precision are allowed");
 
     if (colorFamily == cmCompat && !name)
         qFatal("No compatibility formats may be registered");
@@ -429,8 +431,11 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
     threadPool = new VSThreadPool(this, threads);
 
     // Register known formats with informational names
-    registerFormat(cmGray, stInteger, 8, 0, 0, "Gray8", pfGray8);
+    registerFormat(cmGray, stInteger,  8, 0, 0, "Gray8", pfGray8);
     registerFormat(cmGray, stInteger, 16, 0, 0, "Gray16", pfGray16);
+
+    registerFormat(cmGray, stFloat,   16, 0, 0, "GrayH", pfGrayH);
+    registerFormat(cmGray, stFloat,   21, 0, 0, "GrayS", pfGrayS);
 
     registerFormat(cmYUV,  stInteger, 8, 1, 1, "YUV420P8", pfYUV420P8);
     registerFormat(cmYUV,  stInteger, 8, 1, 0, "YUV422P8", pfYUV422P8);
@@ -451,10 +456,16 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
     registerFormat(cmYUV,  stInteger, 16, 1, 0, "YUV422P16", pfYUV422P16);
     registerFormat(cmYUV,  stInteger, 16, 0, 0, "YUV444P16", pfYUV444P16);
 
+    registerFormat(cmYUV,  stFloat,   16, 0, 0, "YUV444PH", pfYUV444PH);
+    registerFormat(cmYUV,  stFloat,   32, 0, 0, "YUV444PS", pfYUV444PS);
+
     registerFormat(cmRGB,  stInteger, 8, 0, 0, "RGB24", pfRGB24);
     registerFormat(cmRGB,  stInteger, 9, 0, 0, "RGB27", pfRGB27);
     registerFormat(cmRGB,  stInteger, 10, 0, 0, "RGB30", pfRGB30);
     registerFormat(cmRGB,  stInteger, 16, 0, 0, "RGB48", pfRGB48);
+
+    registerFormat(cmRGB,  stFloat,   16, 0, 0, "RGBH", pfRGBH);
+    registerFormat(cmRGB,  stFloat,   32, 0, 0, "RGBS", pfRGBS);
 
     registerFormat(cmCompat,  stInteger, 32, 0, 0, "CompatBGR32", pfCompatBGR32);
     registerFormat(cmCompat,  stInteger, 16, 1, 0, "CompatYUY2", pfCompatYUY2);

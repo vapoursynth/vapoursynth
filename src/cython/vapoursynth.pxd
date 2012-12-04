@@ -54,7 +54,10 @@ cdef extern from "include/VapourSynth.h" nogil:
 
         pfGray8 = cmGray + 10
         pfGray16
-
+        
+        pfGrayH
+        pfGrayS
+    
         pfYUV420P8 = cmYUV + 10
         pfYUV422P8
         pfYUV444P8
@@ -73,11 +76,17 @@ cdef extern from "include/VapourSynth.h" nogil:
         pfYUV420P16
         pfYUV422P16
         pfYUV444P16
+        
+        pfYUV444PH
+        pfYUV444PS
 
         pfRGB24 = cmRGB + 10
         pfRGB27
         pfRGB30
         pfRGB48
+        
+        pfRGBH
+        pfRGBS
 
         pfCompatBGR32 = cmCompat + 10
         pfCompatYUY2

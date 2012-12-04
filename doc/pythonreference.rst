@@ -179,6 +179,8 @@ bits per sample in one plane, the exception to this rule is RGB which has the bi
 
    GRAY8
    GRAY16
+   GRAYH
+   GRAYS
 
    YUV420P8
    YUV422P8
@@ -198,11 +200,17 @@ bits per sample in one plane, the exception to this rule is RGB which has the bi
    YUV420P16
    YUV422P16
    YUV444P16
+   
+   YUV444PH
+   YUV444PS
 
    RGB24
    RGB27
    RGB30
    RGB48
+   
+   RGBH
+   RGBS
 
    COMPATBGR32
    COMPATYUY2

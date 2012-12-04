@@ -42,6 +42,9 @@ COMPAT= vapoursynth.cmCompat
 GRAY8 = vapoursynth.pfGray8
 GRAY16 = vapoursynth.pfGray16
 
+GRAYH = vapoursynth.pfGrayH
+GRAYS = vapoursynth.pfGrayS
+
 YUV420P8 = vapoursynth.pfYUV420P8
 YUV422P8 = vapoursynth.pfYUV422P8
 YUV444P8 = vapoursynth.pfYUV444P8
@@ -61,10 +64,16 @@ YUV420P16 = vapoursynth.pfYUV420P16
 YUV422P16 = vapoursynth.pfYUV422P16
 YUV444P16 = vapoursynth.pfYUV444P16
 
+YUV444PH = vapoursynth.pfYUV444PH
+YUV444PS = vapoursynth.pfYUV444PS
+
 RGB24 = vapoursynth.pfRGB24
 RGB27 = vapoursynth.pfRGB27
 RGB30 = vapoursynth.pfRGB30
 RGB48 = vapoursynth.pfRGB48
+
+RGBH = vapoursynth.pfRGBH
+RGBS = vapoursynth.pfRGBS
 
 COMPATBGR32 = vapoursynth.pfCompatBGR32
 COMPATYUY2 = vapoursynth.pfCompatYUY2
