@@ -349,10 +349,11 @@ const VSFormat *VSCore::registerFormat(VSColorFamily colorFamily, VSSampleType s
     if (colorFamily == cmRGB && (subSamplingH != 0 || subSamplingW != 0))
         qFatal("We do not like subsampled rgb around here");
 
+    if (sampleType == stFloat && (bitsPerSample != 16 && bitsPerSample != 32))
+        qFatal("Only floating point formats with 16 or 32 bit precision are allowed");
+
     if (bitsPerSample < 8 || bitsPerSample > 32)
         qFatal("Only formats with 8-32 bits per sample are allowed");
-    else if (sampleType == stFloat && (bitsPerSample != 16 && bitsPerSample != 32))
-        qFatal("Only floating point formats with 16 or 32 bit precision are allowed");
 
     if (colorFamily == cmCompat && !name)
         qFatal("No compatibility formats may be registered");
@@ -435,7 +436,7 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
     registerFormat(cmGray, stInteger, 16, 0, 0, "Gray16", pfGray16);
 
     registerFormat(cmGray, stFloat,   16, 0, 0, "GrayH", pfGrayH);
-    registerFormat(cmGray, stFloat,   21, 0, 0, "GrayS", pfGrayS);
+    registerFormat(cmGray, stFloat,   32, 0, 0, "GrayS", pfGrayS);
 
     registerFormat(cmYUV,  stInteger, 8, 1, 1, "YUV420P8", pfYUV420P8);
     registerFormat(cmYUV,  stInteger, 8, 1, 0, "YUV422P8", pfYUV422P8);
