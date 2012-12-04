@@ -133,8 +133,8 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     data = malloc(sizeof(d));
     *data = d;
 
-    // Create a new filter and returns a reference to it. Always pass on the in an out
-    // arguments or unexpected thigns may happen. The name should be something that's
+    // Create a new filter and returns a reference to it. Always pass on the in and out
+    // arguments or unexpected things may happen. The name should be something that's
     // easy to connect to the filter, like its function name.
     // The three function pointers handle initialization, frame processing and filter destruction.
     // The filtermode is very important to get right as it controls how threading of the filter
@@ -173,7 +173,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 // name:type; or name:type:flag1:flag2....;
 // All argument name should be lowercase and only use [a-z_].
 // The valid types are int,float,data,clip,frame,func. [] can be appended to allow arrays
-// of tyhe type to be passed (numbers:int[])
+// of type to be passed (numbers:int[])
 // The available flags are opt, to make an argument optional, empty, which controls whether
 // or not empty arrays are accepted and link which will not be explained here.
 
