@@ -144,7 +144,8 @@ def configure(conf):
     add_options(['ASFLAGS'],
                 ['-w',
                  '-Worphan-labels',
-                 '-Wunrecognized-char'])
+                 '-Wunrecognized-char',
+                 '-Dprogram_name=vs'])
 
     if conf.env.DEST_CPU in ['x86_64', 'x64', 'amd64', 'x86_amd64']:
         add_options(['ASFLAGS'],
