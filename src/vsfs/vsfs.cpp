@@ -91,7 +91,7 @@ class VapourSynther:
     volatile long pending_requests;
 
     // python gil state hack
-    PyThreadState *_save;
+    static PyThreadState *threadState;
 
     static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg);
 
@@ -118,6 +118,8 @@ public:
     void AddRef(void);
     void Release(void);
 };
+
+PyThreadState *VapourSynther::threadState(NULL);
 
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
@@ -181,7 +183,8 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName)
                 packedPlane2 = new uint16_t[vi->format->subSamplingH == 1 ? (vi->width*vi->height)/2 : vi->width*vi->height];
             }
 
-            _save = PyEval_SaveThread();
+            if (!threadState)
+                threadState = PyEval_SaveThread();
             return 0;
         } else {
             setError(se.error);
@@ -452,8 +455,7 @@ references(1),
     lastFrame(0),
     packedPlane1(0),
     packedPlane2(0),
-    pending_requests(0),
-    _save(NULL)
+    pending_requests(0)
 {
 }
 
@@ -468,8 +470,6 @@ VapourSynther::~VapourSynther(void)
     delete [] packedPlane1;
     delete [] packedPlane2;
     se.vsapi->freeFrame(lastFrame);
-    if (_save)
-        PyEval_RestoreThread(_save);
     vpy_free_script(&se);
     ssfree(lastStringValue);
     ssfree(errText);
