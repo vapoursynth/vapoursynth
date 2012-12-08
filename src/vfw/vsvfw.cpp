@@ -64,8 +64,8 @@ struct IAvisynthClipInfo : IUnknown {
 class VapourSynthFile: public IAVIFile, public IPersistFile, public IClassFactory, public IAvisynthClipInfo {
     friend class VapourSynthStream;
 private:
+    static PyThreadState *thread_state;
     long m_refs;
-    PyThreadState *_save;
     std::string szScriptName;
     VPYScriptExport se;
     const VSVideoInfo* vi;
@@ -132,6 +132,8 @@ public:
     bool __stdcall GetParity(int n);
     bool __stdcall IsFieldBased();
 };
+
+PyThreadState *VapourSynthFile::thread_state(NULL);
 
 ///////////////////////////////////
 
@@ -398,15 +400,13 @@ STDMETHODIMP VapourSynthFile::DeleteStream(DWORD fccType, LONG lParam) {
 ///////////////////////////////////////////////////
 /////// local
 
-VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : m_refs(0), vi(NULL), pending_requests(0), _save(NULL) {
+VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : m_refs(0), vi(NULL), pending_requests(0) {
     AddRef();
     InitializeCriticalSection(&cs_filter_graph);
 }
 
 VapourSynthFile::~VapourSynthFile() {
     Lock();
-    if (_save)
-        PyEval_RestoreThread(_save);
     if (vi) {
         vi = NULL;
         while (pending_requests > 0);
@@ -495,7 +495,8 @@ bool VapourSynthFile::DelayInit2() {
                 goto vpyerror;
             }
 
-            _save = PyEval_SaveThread();
+            if (!thread_state)
+                thread_state = PyEval_SaveThread();
             return true;
         } else {
             error_msg = se.error;
