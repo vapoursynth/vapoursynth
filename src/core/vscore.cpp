@@ -547,8 +547,12 @@ void VSCore::loadPlugin(const QByteArray &filename, const QByteArray &forcedName
 void VSCore::createFilter(const VSMap *in, VSMap *out, const QByteArray &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion) {
     try {
         PVideoNode node(new VSNode(in, out, name, init, getFrame, free, filterMode, flags, instanceData, apiVersion, this));
-        for (int i = 0; i < node->getNumOutputs(); i++)
-            vsapi.propSetNode(out, "clip", new VSNodeRef(node, i), i == 0 ?  paReplace : paAppend);
+        for (int i = 0; i < node->getNumOutputs(); i++) {
+            // fixme, not that elegant but saves more variant poking code
+            VSNodeRef *ref = new VSNodeRef(node, i);
+            vsapi.propSetNode(out, "clip", ref, paAppend);
+            delete ref;
+        }
     } catch (VSException &e) {
         vsapi.setError(out, e.what());
     }
