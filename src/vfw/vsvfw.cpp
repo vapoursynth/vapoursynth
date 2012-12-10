@@ -64,7 +64,7 @@ struct IAvisynthClipInfo : IUnknown {
 class VapourSynthFile: public IAVIFile, public IPersistFile, public IClassFactory, public IAvisynthClipInfo {
     friend class VapourSynthStream;
 private:
-    static PyThreadState *thread_state;
+    PyThreadState *thread_state;
     long m_refs;
     std::string szScriptName;
     VPYScriptExport se;
@@ -133,8 +133,6 @@ public:
     bool __stdcall IsFieldBased();
 };
 
-PyThreadState *VapourSynthFile::thread_state(NULL);
-
 ///////////////////////////////////
 
 class VapourSynthStream: public IAVIStream , public IAVIStreaming {
@@ -183,13 +181,16 @@ private:
     HRESULT Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LONG cbBuffer, LONG *plBytes, LONG *plSamples);
 };
 
+PyThreadState *ts;
 
 BOOL APIENTRY DllMain(HANDLE hModule, ULONG ulReason, LPVOID lpReserved) {
     if (ulReason == DLL_PROCESS_ATTACH) {
         Py_Initialize();
         PyEval_InitThreads();
         import_vapoursynth();
+        ts = PyEval_SaveThread();
     } else if (ulReason == DLL_PROCESS_DETACH) {
+        PyEval_RestoreThread(ts);
         Py_Finalize();
     }
     return TRUE;
@@ -495,8 +496,6 @@ bool VapourSynthFile::DelayInit2() {
                 goto vpyerror;
             }
 
-            if (!thread_state)
-                thread_state = PyEval_SaveThread();
             return true;
         } else {
             error_msg = se.error;
