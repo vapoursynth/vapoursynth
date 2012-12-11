@@ -191,7 +191,7 @@ static const VSFrameRef *VS_CC cropAbsGetframe(int n, int activationReason, void
 
         if (cropAbsVerify(x, y, d->width, d->height, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fi, msg)) {
             vsapi->setFilterError(msg, frameCtx);
-            return NULL;
+            return 0;
         }
 
         // now that argument validation is over we can spend the next few lines actually cropping
@@ -346,7 +346,7 @@ static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, v
 
         if (addBordersVerify(d->left, d->right, d->top, d->bottom, fi, msg)) {
             vsapi->setFilterError(msg, frameCtx);
-            return NULL;
+            return 0;
         }
 
         dst = vsapi->newVideoFrame(fi, vsapi->getFrameWidth(src, 0) + d->left + d->right, vsapi->getFrameHeight(src, 0) + d->top + d->bottom, src, core);
@@ -1779,7 +1779,7 @@ static const VSFrameRef *VS_CC lutGetframe(int n, int activationReason, void **i
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSFormat *fi = vsapi->getFrameFormat(src);
         const int pl[] = {0, 1, 2};
-        const VSFrameRef *fr[] = {d->process[0] ? NULL : src, d->process[1] ? NULL : src, d->process[2] ? NULL : src};
+        const VSFrameRef *fr[] = {d->process[0] ? 0 : src, d->process[1] ? 0 : src, d->process[2] ? 0 : src};
         VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
 
         for (plane = 0; plane < fi->numPlanes; plane++) {
@@ -1944,7 +1944,7 @@ static const VSFrameRef *VS_CC lut2Getframe(int n, int activationReason, void **
         const VSFrameRef *srcy = vsapi->getFrameFilter(n, d->node[1], frameCtx);
         const VSFormat *fi = vsapi->getFrameFormat(srcx);
         const int pl[] = {0, 1, 2};
-        const VSFrameRef *fr[] = {d->process[0] ? NULL : srcx, d->process[1] ? NULL : srcx, d->process[2] ? NULL : srcx};
+        const VSFrameRef *fr[] = {d->process[0] ? 0 : srcx, d->process[1] ? 0 : srcx, d->process[2] ? 0 : srcx};
         VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(srcx, 0), vsapi->getFrameHeight(srcx, 0), fr, pl, srcx, core);
 
         for (plane = 0; plane < fi->numPlanes; plane++) {
@@ -2137,11 +2137,11 @@ static const VSFrameRef *VS_CC selectClipGetFrame(int n, int activationReason, v
         if (idx < 0) {
             int err;
             const VSFrameRef *f;
-            vsapi->propSetInt(d->in, "n", n, 0);
+            vsapi->propSetInt(d->in, "n", n, paAppend);
 
             for (i = 0; i < d->numsrc; i++) {
                 f = vsapi->getFrameFilter(n, d->src[i], frameCtx);
-                vsapi->propSetFrame(d->in, "f", f, 1);
+                vsapi->propSetFrame(d->in, "f", f, paAppend);
                 vsapi->freeFrame(f);
             }
 
@@ -2157,7 +2157,7 @@ static const VSFrameRef *VS_CC selectClipGetFrame(int n, int activationReason, v
 
             if (idx < 0 || idx >= d->numnode) {
                 vsapi->setFilterError("SelectClip: returned index out of bounds", frameCtx);
-                return NULL;
+                return 0;
             }
 
             *frameData = (void *)idx;
@@ -2188,6 +2188,7 @@ static void VS_CC selectClipFree(void *instanceData, VSCore *core, const VSAPI *
 
     vsapi->freeMap(d->in);
     vsapi->freeMap(d->out);
+    vsapi->freeFunc(d->func);
     free(d->node);
     free(d->src);
     free(d);
@@ -2889,7 +2890,7 @@ static const VSFrameRef *VS_CC propToClipGetFrame(int n, int activationReason, v
             return dst;
         } else {
             vsapi->setFilterError("PropToClip: Failed to extract frame from specified property", frameCtx);
-            return NULL;
+            return 0;
         }
     }
 
@@ -2965,7 +2966,7 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
         const VSFrameRef *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
         const VSFrameRef *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
         const int pl[] = {0, 1, 2};
-        const VSFrameRef *fs[] = { NULL, src1, src2 };
+        const VSFrameRef *fs[] = { 0, src1, src2 };
         const VSFrameRef *fr[] = {fs[d->process[0]], fs[d->process[1]], fs[d->process[2]]};
         VSFrameRef *dst = vsapi->newVideoFrame2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
         int plane;
@@ -3133,9 +3134,9 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
         const VSFrameRef *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
         const VSFrameRef *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
         const VSFrameRef *mask = vsapi->getFrameFilter(n, d->mask, frameCtx);
-        const VSFrameRef *mask23 = NULL;
+        const VSFrameRef *mask23 = 0;
         const int pl[] = {0, 1, 2};
-        const VSFrameRef *fr[] = {d->process[0] ? NULL : src1, d->process[1] ? NULL : src1, d->process[2] ? NULL : src1};
+        const VSFrameRef *fr[] = {d->process[0] ? 0 : src1, d->process[1] ? 0 : src1, d->process[2] ? 0 : src1};
         VSFrameRef *dst = vsapi->newVideoFrame2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
         int plane;
         int x, y;
@@ -3219,7 +3220,7 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
     if (vsapi->propNumElements(in, "clips") != 2)
         RETERROR("MaskedMerge: exactly two input clips must be specified");
 
-    d.mask23 = NULL;
+    d.mask23 = 0;
     d.node1 = vsapi->propGetNode(in, "clips", 0, 0);
     d.node2 = vsapi->propGetNode(in, "clips", 1, 0);
     d.mask = vsapi->propGetNode(in, "mask", 0, 0);
