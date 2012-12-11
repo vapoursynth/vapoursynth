@@ -264,7 +264,6 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
 
     // check to see if it's time to reevaluate cache sizes
     if (core->memory->isOverLimit()) {
-    //if (core->memory->isOverLimit()) {
         ticks = 0;
         notifyCaches(cNeedMemory);
     }
