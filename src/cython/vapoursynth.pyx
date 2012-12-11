@@ -26,7 +26,7 @@ cimport posix.unistd
 #endif
 cimport vapoursynth
 cimport cython.parallel
-from cpython.ref cimport Py_INCREF, Py_DECREF
+from cpython.ref cimport Py_INCREF, Py_DECREF, Py_CLEAR, PyObject
 import ctypes
 #ifdef _WIN32
 import msvcrt
@@ -78,6 +78,8 @@ RGBS = vapoursynth.pfRGBS
 COMPATBGR32 = vapoursynth.pfCompatBGR32
 COMPATYUY2 = vapoursynth.pfCompatYUY2
 
+exported_functions = []
+
 class Error(Exception):
     def __init__(self, value):
         self.value = value
@@ -100,8 +102,9 @@ cdef class Func(object):
         self.core = core
         self.func = func
         self.ref = core.funcs.createFunc(publicFunction, <void *>self, freeFunc)
-        Py_INCREF(self)
-
+        global exported_functions
+        exported_functions.append(self)
+        
     def __deinit__(self):
         self.core.funcs.freeFunc(self.ref)
 
@@ -1056,8 +1059,7 @@ cdef Function createFunction(str name, str signature, Plugin plugin, vapoursynth
 #// for python functions being executed by vs
 
 cdef void __stdcall freeFunc(void *pobj) nogil:
-    with gil:
-        Py_DECREF(<Func>pobj)
+    pass
 
 cdef void __stdcall publicFunction(VSMap *inm, VSMap *outm, void *userData, VSCore *core, VSAPI *vsapi) nogil:
     with gil:
@@ -1114,8 +1116,8 @@ cdef public api int __stdcall vpy_evaluate_text(char *utf8text, char *fn, VPYScr
             except:
                 pass
             if isinstance(node, VideoNode):
-                Py_INCREF(node)
-                extp.pynode = <void *>node
+                Py_INCREF(evaldict)
+                extp.pynode = <void *>evaldict
                 extp.node = (<VideoNode>node).node
                 extp.vsapi = (<VideoNode>node).funcs
                 extp.num_threads = (<VideoNode>node).core.num_threads
@@ -1154,10 +1156,12 @@ cdef public api int __stdcall vpy_evaluate_file(char *fn, VPYScriptExport *extp)
         return vpy_evaluate_text(encscript, fn, extp)
 
 cdef public api int __stdcall vpy_free_script(VPYScriptExport *extp) nogil:
+    cdef PyObject *obj = <PyObject *>extp.pynode
     with gil:
         if extp.pynode:
-            node = <VideoNode>extp.pynode
-            Py_DECREF(node)
+            evaldict = <object>extp.pynode
+            Py_DECREF(evaldict)
+            evaldict = None
         if extp.errstr:
             errstr = <bytes>extp.errstr
             Py_DECREF(errstr)   
