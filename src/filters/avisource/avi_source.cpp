@@ -383,7 +383,7 @@ bool AVISource::DecompressQuery(const VSFormat *format, bool forcedType, int bit
         *((int *)fcc) = fourccs[i];
         biDst.biCompression = fourccs[0];
         vi[0].format = format;
-        biDst.biSizeImage = ImageSize(vi, biDst.biCompression);
+        biDst.biSizeImage = ImageSize(vi, biDst.biCompression, bitcount);
         biDst.biBitCount = bitcount;
 
         if (ICERR_OK == ICDecompressQuery(hic, pbiSrc, &biDst)) {
