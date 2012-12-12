@@ -3,8 +3,10 @@ may deadlock with some avisynth plugins (set the number of threads to a bigger n
 compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 
 r17:
+fixed a clip reference leak introduced in R15 with the multiple clip output changes
+fixed AVISource crashes due to RGB output not being properly initialized
 fixed the upper memory limit check
-fixed callback functions hanging in vfw and vsfs (with a very ugly but functional hack)
+fixed callback functions hanging in vfw and vsfs
 
 r16:
 fixed a MaskedMerge reference leak under some rare conditions
