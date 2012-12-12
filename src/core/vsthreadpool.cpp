@@ -108,7 +108,7 @@ void VSThread::run() {
 
                 owner->runningTasks.remove(FrameKey(rCtx->clip, rCtx->clip->filterMode == fmUnordered ? -1 : rCtx->n));
 
-				if (f || ar == arError || rCtx->hasError()) {
+                if (f || ar == arError || rCtx->hasError()) {
                     // free all input frames quickly since the frame processing is done
                     rCtx->availableFrames.clear();
 
@@ -189,11 +189,11 @@ VSThreadPool::VSThreadPool(VSCore *core, int threads) : core(core), activeThread
     setThreadCount(threads > 0 ? threads : QThread::idealThreadCount());
 }
 
-int	VSThreadPool::activeThreadCount() const {
+int VSThreadPool::activeThreadCount() const {
     return activeThreads;
 }
 
-int	VSThreadPool::threadCount() const {
+int VSThreadPool::threadCount() const {
     return allThreads.count();
 }
 

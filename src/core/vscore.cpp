@@ -195,7 +195,7 @@ VSFunction::VSFunction(const QByteArray &name, const QByteArray &argString, VSPu
         QStringList argParts = arg.split(':');
 
         if (argParts.count() < 2)
-            qFatal("Invalid: " + argString);
+            qFatal("Invalid: %s", argString.constData());
 
         bool arr = false;
         enum FilterArgumentType type = faNone;
@@ -229,7 +229,7 @@ VSFunction::VSFunction(const QByteArray &name, const QByteArray &argString, VSPu
             else if (typeName == "func[]")
                 type = faFunc;
             else
-                qFatal("Invalid arg string: " + typeName.toUtf8());
+                qFatal("Invalid arg string: %s", typeName.toUtf8().constData());
         }
 
         bool link = false;
@@ -264,7 +264,7 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const QByteArray &name, VSFilterInit
         throw VSException(vsapi.getError(out));
 
     if (!hasVi)
-        qFatal("Filter " + name + " didn't set vi");
+        qFatal("Filter %s didn't set vi", name.constData());
 }
 
 VSNode::~VSNode() {
@@ -621,7 +621,7 @@ VSPlugin::VSPlugin(const QByteArray &filename, const QByteArray &forcedNamespace
     }
 
     if (apiVersion == 2)
-        qWarning("The plugin '" + fullname + "' uses API R2 which is deprecated. Update to keep it working in future versions.");
+        qWarning("The plugin '%s' uses API R2 which is deprecated. Update to keep it working in future versions.", fullname.constData());
 }
 
 VSPlugin::~VSPlugin() {
@@ -636,7 +636,7 @@ VSPlugin::~VSPlugin() {
 
 void VSPlugin::configPlugin(const QByteArray &identifier, const QByteArray &defaultNamespace, const QByteArray &fullname, int apiVersion, bool readOnly) {
     if (hasConfig)
-        qFatal("Attempted to configure plugin " + identifier + " twice");
+        qFatal("Attempted to configure plugin %s twice", identifier.constData());
 
     this->identifier = identifier;
 
@@ -737,7 +737,7 @@ VSMap VSPlugin::invoke(const QByteArray &funcName, const VSMap &args) {
             f.func(&args, &v, f.functionData, core, getVSAPIInternal(apiVersion));
 
             if (!compat & hasCompatNodes(v))
-                qFatal(funcName + ": illegal filter node returning a compat format detected, DO NOT USE THE COMPAT FORMATS IN NEW FILTERS");
+                qFatal("%s: illegal filter node returning a compat format detected, DO NOT USE THE COMPAT FORMATS IN NEW FILTERS", funcName.constData());
 
             return v;
         }

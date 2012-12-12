@@ -220,7 +220,7 @@ static int getPropErrorCheck(const VSMap *props, const char *name, int index, in
     int err = 0;
 
     if (getError(props))
-        qFatal(QByteArray("Attempted to read from a map with error set: ") + getError(props));
+        qFatal("Attempted to read from a map with error set: %s", getError(props));
 
     if (!props->contains(name))
         err |= peUnset;
@@ -234,7 +234,7 @@ static int getPropErrorCheck(const VSMap *props, const char *name, int index, in
         err |= peIndex;
 
     if (err && !error)
-        qFatal(QByteArray("Property read unsuccessful but no error output: ") + name);
+        qFatal("Property read unsuccessful but no error output: %s", name);
 
     if (error)
         *error = err;
