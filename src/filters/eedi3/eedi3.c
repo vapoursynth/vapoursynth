@@ -460,9 +460,9 @@ static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *
       VSFrameRef *dst = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, src, core);
 
       float *workspace;
-      VS_ALIGNED_MALLOC(&workspace, d->vi.width*MAX(d->mdis*4+1,16)*4*sizeof(float), 16);
+      VS_ALIGNED_MALLOC((void **)&workspace, d->vi.width*MAX(d->mdis*4+1,16)*4*sizeof(float), 16);
       int *dmapa;
-      VS_ALIGNED_MALLOC(&dmapa, vsapi->getStride(dst, 0)*vsapi->getFrameHeight(dst, 0)*sizeof(int), 16);
+      VS_ALIGNED_MALLOC((void **)&dmapa, vsapi->getStride(dst, 0)*vsapi->getFrameHeight(dst, 0)*sizeof(int), 16);
       vsapi->freeFrame(src);
 
       for (int b=0; b<d->vi.format->numPlanes; ++b)
@@ -625,15 +625,15 @@ static void VS_CC eedi3Create(const VSMap *in, VSMap *out, void *userData, VSCor
 
    d.alpha = vsapi->propGetFloat(in, "alpha", 0, &err);
    if (err)
-      d.alpha = 0.2;
+      d.alpha = 0.2f;
 
    d.beta = vsapi->propGetFloat(in, "beta", 0, &err);
    if (err)
-      d.beta = 0.25;
+      d.beta = 0.25f;
 
    d.gamma = vsapi->propGetFloat(in, "gamma", 0, &err);
    if (err)
-      d.gamma = 20;
+      d.gamma = 20.0f;
 
    d.nrad = int64ToIntS(vsapi->propGetInt(in, "nrad", 0, &err));
    if (err)
@@ -663,11 +663,11 @@ static void VS_CC eedi3Create(const VSMap *in, VSMap *out, void *userData, VSCor
 
    d.vthresh1 = vsapi->propGetFloat(in, "vthresh1", 0, &err);
    if (err)
-      d.vthresh1 = 64;
+      d.vthresh1 = 64.0f;
 
    d.vthresh2 = vsapi->propGetFloat(in, "vthresh2", 0, &err);
    if (err)
-      d.vthresh2 = 4;
+      d.vthresh2 = 4.0f;
 
    d.sclip = vsapi->propGetNode(in, "sclip", 0, &err);
 
@@ -766,7 +766,7 @@ static void VS_CC eedi3Create(const VSMap *in, VSMap *out, void *userData, VSCor
    }
 
 
-   data = malloc(sizeof(d));
+   data = (eedi3Data *)malloc(sizeof(d));
    *data = d;
 
    vsapi->createFilter(in, out, "eedi3", eedi3Init, eedi3GetFrame, eedi3Free, fmParallel, 0, data, core);
