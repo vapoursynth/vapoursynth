@@ -10,7 +10,7 @@ it is also a fatal error to set them to a value not specified below.::
 
    The frame's absolute timestamp if reported by the source filter.
    Should only be set by the source filter and not modified.
-   _AbsoluteTime double
+   _AbsoluteTime float
    
    Chroma sample position in YUV formats.
    _ChromaLocation int (0=left, 1=center, 2=topleft, 3=top, 4=bottomleft, 5=bottom)
@@ -34,6 +34,9 @@ it is also a fatal error to set them to a value not specified below.::
    If the frame has been split into fields this says if the frame was
    derived from top or bottom fields.
    _Field int (0 = from bottom field, 1 = from top field)
+   
+   If the frame is composed of two independent fields (interlaced).
+   _FieldBased int (0 = frame based, 1 = field based)
    
    A single character describing the frame type. It uses the common
    IPB letters but other letters may also be used for formats with
