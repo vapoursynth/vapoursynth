@@ -32,6 +32,7 @@
 #include <vector>
 #include <string>
 #include <cstddef>
+#include <stdexcept>
 #include "VapourSynth.h"
 #include "VSHelper.h"
 #include "exprfilter.h"
