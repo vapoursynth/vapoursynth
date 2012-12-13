@@ -431,14 +431,9 @@ static int parseExpression(const std::string &expr, std::vector<ExprOp> &ops, co
         else if (tokens[i] == "z")
             LOAD_OP(loadOp[2], 2);
         else {
-            size_t conv = 0;
-            try {
-                bool ok;
-                LOAD_OP(opLoadConst, QString::fromUtf8(tokens[i].c_str()).toFloat(&ok));
-            } catch (std::logic_error) {
-                throw std::runtime_error("Failed to convert '" + tokens[i] + "' to float");
-            }
-            if (conv != tokens[i].length())
+            bool ok;
+            LOAD_OP(opLoadConst, QString::fromUtf8(tokens[i].c_str()).toFloat(&ok));
+            if (!ok)
                 throw std::runtime_error("Failed to convert '" + tokens[i] + "' to float");
         }
     }
