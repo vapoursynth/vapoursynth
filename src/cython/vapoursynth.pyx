@@ -289,7 +289,7 @@ cdef object mapToDict(VSMap *map, bint flatten, bint add_cache, Core core, VSAPI
     else:
         return retdict
 
-cdef void dictToMap(dict ndict, VSMap *inm, Core core, VSAPI *funcs):
+cdef void dictToMap(dict ndict, VSMap *inm, Core core, VSAPI *funcs) except *:
     for key in ndict:
         ckey = key.encode('utf-8')
         val = ndict[key]
@@ -330,7 +330,7 @@ cdef void dictToMap(dict ndict, VSMap *inm, Core core, VSAPI *funcs):
                 raise Error('argument ' + key + ' was passed an unsupported type')
 
 
-cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, Core core, VSAPI *funcs):
+cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, Core core, VSAPI *funcs) except *:
     for key in ndict:
         ckey = key.encode('utf-8')
         val = ndict[key]
