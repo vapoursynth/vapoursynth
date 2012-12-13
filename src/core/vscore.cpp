@@ -535,8 +535,15 @@ void VSCore::loadPlugin(const QByteArray &filename, const QByteArray &forcedName
     VSPlugin *p = new VSPlugin(filename, forcedNamespace, this);
 
     if (getPluginId(p->identifier)) {
+        QByteArray error = "Plugin " + filename + " already loaded (" + p->identifier + ")";
         delete p;
-        throw VSException("Plugin " + filename + " already loaded");
+        throw VSException(error);
+    }
+
+    if (getPluginNs(p->fnamespace)) {
+        QByteArray error = "Plugin load failed, namespace " + p->fnamespace + " already populated (" + filename + ")";
+        delete p;
+        throw VSException(error);
     }
 
     plugins.insert(p->identifier, p);

@@ -3,6 +3,7 @@ may deadlock with some avisynth plugins (set the number of threads to a bigger n
 compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 
 r17:
+fixed that two plugins could be loaded into the same namespace
 fixed some issues with argument handling in python dut to exceptions not being propagated properly
 added the Expr filter, it can evaluate an expression per pixel during runtime for 1-3 input clips
 fixed a clip reference leak introduced in R15 with the multiple clip output changes
