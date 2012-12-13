@@ -3,6 +3,7 @@ may deadlock with some avisynth plugins (set the number of threads to a bigger n
 compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 
 r17:
+added the Expr filter, it can evaluate an expression per pixel during runtime for 1-3 input clips
 fixed a clip reference leak introduced in R15 with the multiple clip output changes
 fixed AVISource crashes due to RGB output not being properly initialized
 fixed the upper memory limit check

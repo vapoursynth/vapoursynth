@@ -19,14 +19,17 @@
 */
 
 #include "vscore.h"
-extern "C" {
-#include "vsstdlib.h"
-#include "vsresize.h"
-}
 #include "VSHelper.h"
 #include "x86utils.h"
-#include "cachefilter.h"
 #include "version.h"
+
+// Filter headers
+extern "C" {
+#include "simplefilters.h"
+#include "vsresize.h"
+}
+#include "cachefilter.h"
+#include "exprfilter.h"
 
 const VSAPI *VS_CC getVapourSynthAPI(int version);
 
@@ -486,6 +489,7 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
     loadPluginInitialize(::configPlugin, ::registerFunction, p);
     cacheInitialize(::configPlugin, ::registerFunction, p);
     stdlibInitialize(::configPlugin, ::registerFunction, p);
+    exprInitialize(::configPlugin, ::registerFunction, p);
     p->enableCompat();
     p->lock();
 
@@ -494,12 +498,6 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
     resizeInitialize(::configPlugin, ::registerFunction, p);
     plugins.insert(p->identifier, p);
     p->enableCompat();
-
-    /* for the day when script implemented filters are available
-    p = new VSPlugin(this);
-    configPlugin("com.vapoursynth.user", "user", "VapourSynth User Runtime Defined Functions", VAPOURSYNTH_API_VERSION, 0, p);
-    plugins.insert(p->identifier, p);
-    */
 }
 
 VSCore::~VSCore() {

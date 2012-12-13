@@ -18,21 +18,11 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 //  THE SOFTWARE.
 
-///////////////////////////////////////////////////////////////////////////////
-// Licensing notes for this file:
-// This file contains the implementation of all base functions and therefore
-// makes quite good example code showing how the VapourSynth API may be used.
-// You are welcome to copy and paste code from single filters here and I will
-// not be too picky with attribution.
-// I also hope that if someone writes another backend for the VapourSynth API
-// they will include this library of standard functions so that the
-// implementations don't diverge too much in base functionality.
-
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdint.h>
-#include "vsstdlib.h"
+#include "simplefilters.h"
 #include "VSHelper.h"
 
 #define RETERROR(x) do { vsapi->setError(out, (x)); return; } while (0)

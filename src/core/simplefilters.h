@@ -18,11 +18,11 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 //  THE SOFTWARE.
 
-#ifndef VSSTDLIB_H
-#define VSSTDLIB_H
+#ifndef SIMPLEFILTERS_H
+#define SIMPLEFILTERS_H
 
 #include "VapourSynth.h"
 
 void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
 
-#endif // VSSTDLIB_H
+#endif // SIMPLEFILTERS_H
