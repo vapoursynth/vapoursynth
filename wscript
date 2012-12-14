@@ -149,7 +149,7 @@ def configure(conf):
 
     if conf.env.DEST_CPU in ['x86_64', 'x64', 'amd64', 'x86_amd64']:
         add_options(['ASFLAGS'],
-                    ['-DARCH_X86_64=1'])
+                    ['-DARCH_X86_64=1', '-DPIC'])
 
         if conf.env.DEST_OS == 'darwin':
             fmt = 'macho64'

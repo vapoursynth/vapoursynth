@@ -32,14 +32,18 @@ SECTION_RODATA
 %macro NEXT_EXPR 0
 	add exprq, exprsize
 	mov tmp1d, [exprq + 4]
+%ifdef PIC
+	mov tmp1q, [tmp2q + gprsize*tmp1q]
+%else
 	mov tmp1q, [.jtable + gprsize*tmp1q]
+%endif
 	jmp tmp1q
 %endmacro
 
 %if ARCH_X86_64
 	%define PTRDATA dq
 %else
-	%define PTRDATA dd	
+	%define PTRDATA dd
 %endif
 
 ; labelname instruction
@@ -109,10 +113,10 @@ SECTION_RODATA
 
 	cvttps2dq emm0, fx
 	cvtdq2ps etmp, emm0
-  
+
 	movaps mask, etmp
 	cmpnleps mask, fx
-     
+
 	andps mask, [float_one]
 	movaps fx, etmp
 	subps fx, mask
@@ -122,12 +126,12 @@ SECTION_RODATA
 
 	movaps z, fx
 	mulps z, [cephes_exp_C2]
-	subps x, etmp 
+	subps x, etmp
 	subps x, z
 
 	movaps z, x
 	mulps z, z
-  
+
 	movaps y, [cephes_exp_p0]
 	mulps y, x
 	addps y, [cephes_exp_p1]
@@ -167,7 +171,7 @@ SECTION_RODATA
 	%define y m4
 	%define etmp m5
 	%define z m6
-	
+
 	xorps invalid_mask, invalid_mask
 	cmpnleps invalid_mask, x
 
@@ -220,7 +224,7 @@ SECTION_RODATA
 	mulps y, x
 
 	mulps y, z
-  
+
 	movaps etmp, emm0
 	mulps etmp, [cephes_log_q1]
 	addps y, etmp
@@ -243,7 +247,7 @@ SECTION_RODATA
 %endmacro
 
 %macro XMM_CONST 2
-	%1 dd %2, %2, %2, %2
+	%1 times 4 dd %2
 %endmacro
 
 ; general constants
@@ -287,8 +291,14 @@ XMM_CONST cephes_log_q2, 0.693359375
 SECTION .text
 
 INIT_XMM sse2
+%ifdef PIC
+cglobal evaluate_expr, 5, 8, 8, exprbase, rwptrs, ptroffsets, niterations, stack, expr, tmp1, tmp2
+%else
 cglobal evaluate_expr, 5, 7, 8, exprbase, rwptrs, ptroffsets, niterations, stack, expr, tmp1
-
+%endif
+%ifdef PIC
+	lea tmp2q, [.jtable]
+%endif
 	xorps m7, m7
 	jmp .loopstart
 
@@ -319,12 +329,16 @@ cglobal evaluate_expr, 5, 7, 8, exprbase, rwptrs, ptroffsets, niterations, stack
 	movu m3, [ptroffsetsq]
 	paddd m2, m3
 	movu [rwptrsq], m2
-%endif 
+%endif
 
 	.loopstart:
 	mov exprq, exprbaseq
 	mov tmp1d, [exprbaseq + 4]
+%ifdef PIC
+	mov tmp1q, [tmp2q + gprsize*tmp1q]
+%else
 	mov tmp1q, [.jtable + gprsize*tmp1q]
+%endif
 	jmp tmp1q
 
 	.l_load8:
@@ -513,4 +527,4 @@ cglobal evaluate_expr, 5, 7, 8, exprbase, rwptrs, ptroffsets, niterations, stack
 	NEXT_EXPR
 
 	.end:
-	REP_RET
+	RET
