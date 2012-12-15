@@ -71,16 +71,19 @@ void interpLineFP(const uint8_t *srcp, const int width, const int pitch,
    float *pcosts = ccosts+width*tpitch;
    int *pbackt = (int*)(pcosts+width*tpitch);
    int *fpath = pbackt+width*tpitch;
+
+   int k, u, v, x;
+
    // calculate all connection costs
    if (!cost3)
    {
-      for (int x=0; x<width; ++x)
+      for (x=0; x<width; ++x)
       {
          const int umax = MIN(MIN(x,width-1-x),mdis);
-         for (int u=-umax; u<=umax; ++u)
+         for (u=-umax; u<=umax; ++u)
          {
             int s = 0;
-            for (int k=-nrad; k<=nrad; ++k)
+            for (k=-nrad; k<=nrad; ++k)
                s += 
                   abs(src3p[x+u+k]-src1p[x-u+k])+
                   abs(src1p[x+u+k]-src1n[x-u+k])+
@@ -93,13 +96,13 @@ void interpLineFP(const uint8_t *srcp, const int width, const int pitch,
    }
    else
    {
-      for (int x=0; x<width; ++x)
+      for (x=0; x<width; ++x)
       {
          const int umax = MIN(MIN(x,width-1-x),mdis);
-         for (int u=-umax; u<=umax; ++u)
+         for (u=-umax; u<=umax; ++u)
          {
             int s0 = 0, s1 = -1, s2 = -1;
-            for (int k=-nrad; k<=nrad; ++k)
+            for (k=-nrad; k<=nrad; ++k)
                s0 += 
                   abs(src3p[x+u+k]-src1p[x-u+k])+
                   abs(src1p[x+u+k]-src1n[x-u+k])+
@@ -107,7 +110,7 @@ void interpLineFP(const uint8_t *srcp, const int width, const int pitch,
             if ((u >= 0 && x >= u*2) || (u <= 0 && x < width+u*2))
             {
                s1 = 0;
-               for (int k=-nrad; k<=nrad; ++k)
+               for (k=-nrad; k<=nrad; ++k)
                   s1 += 
                      abs(src3p[x+k]-src1p[x-u*2+k])+
                      abs(src1p[x+k]-src1n[x-u*2+k])+
@@ -116,7 +119,7 @@ void interpLineFP(const uint8_t *srcp, const int width, const int pitch,
             if ((u <= 0 && x >= u*2) || (u >= 0 && x < width+u*2))
             {
                s2 = 0;
-               for (int k=-nrad; k<=nrad; ++k)
+               for (k=-nrad; k<=nrad; ++k)
                   s2 += 
                      abs(src3p[x+u*2+k]-src1p[x+k])+
                      abs(src1p[x+u*2+k]-src1n[x+k])+
@@ -132,19 +135,19 @@ void interpLineFP(const uint8_t *srcp, const int width, const int pitch,
    }
    // calculate path costs
    pcosts[mdis] = ccosts[mdis];
-   for (int x=1; x<width; ++x)
+   for (x=1; x<width; ++x)
    {
       float *tT = ccosts+x*tpitch;
       float *ppT = pcosts+(x-1)*tpitch;
       float *pT = pcosts+x*tpitch;
       int *piT = pbackt+(x-1)*tpitch;
       const int umax = MIN(MIN(x,width-1-x),mdis);
-      for (int u=-umax; u<=umax; ++u)
+      for (u=-umax; u<=umax; ++u)
       {
          int idx;
          float bval = FLT_MAX;
          const int umax2 = MIN(MIN(x-1,width-x),mdis);
-         for (int v=MAX(-umax2,u-1); v<=MIN(umax2,u+1); ++v)
+         for (v=MAX(-umax2,u-1); v<=MIN(umax2,u+1); ++v)
          {
             const double y = ppT[mdis+v]+gamma*abs(u-v);
             const float ccost = (float)MIN(y,FLT_MAX*0.9);
@@ -161,10 +164,10 @@ void interpLineFP(const uint8_t *srcp, const int width, const int pitch,
    }
    // backtrack
    fpath[width-1] = 0;
-   for (int x=width-2; x>=0; --x)
+   for (x=width-2; x>=0; --x)
       fpath[x] = pbackt[x*tpitch+mdis+fpath[x+1]];
    // interpolate
-   for (int x=0; x<width; ++x)
+   for (x=0; x<width; ++x)
    {
       const int dir = fpath[x];
       dmap[x] = dir;
@@ -197,7 +200,10 @@ void interpLineHP(const uint8_t *srcp, const int width, const int pitch,
    uint8_t *hp1p = hp3p+width;
    uint8_t *hp1n = hp1p+width;
    uint8_t *hp3n = hp1n+width;
-   for (int x=0; x<width-1; ++x)
+
+   int k, u, v, x;
+
+   for (x=0; x<width-1; ++x)
    {
       if (!ucubic || (x == 0 || x == width-2))
       {
@@ -217,16 +223,16 @@ void interpLineHP(const uint8_t *srcp, const int width, const int pitch,
    // calculate all connection costs
    if (!cost3)
    {
-      for (int x=0; x<width; ++x)
+      for (x=0; x<width; ++x)
       {
          const int umax = MIN(MIN(x,width-1-x),mdis);
-         for (int u=-umax*2; u<=umax*2; ++u)
+         for (u=-umax*2; u<=umax*2; ++u)
          {
             int s = 0, ip;
             const int u2 = u>>1;
             if (!(u&1))
             {
-               for (int k=-nrad; k<=nrad; ++k)
+               for (k=-nrad; k<=nrad; ++k)
                   s += 
                      abs(src3p[x+u2+k]-src1p[x-u2+k])+
                      abs(src1p[x+u2+k]-src1n[x-u2+k])+
@@ -235,7 +241,7 @@ void interpLineHP(const uint8_t *srcp, const int width, const int pitch,
             }
             else
             {
-               for (int k=-nrad; k<=nrad; ++k)
+               for (k=-nrad; k<=nrad; ++k)
                   s += 
                      abs(hp3p[x+u2+k]-hp1p[x-u2-1+k])+
                      abs(hp1p[x+u2+k]-hp1n[x-u2-1+k])+
@@ -249,16 +255,16 @@ void interpLineHP(const uint8_t *srcp, const int width, const int pitch,
    }
    else
    {
-      for (int x=0; x<width; ++x)
+      for (x=0; x<width; ++x)
       {
          const int umax = MIN(MIN(x,width-1-x),mdis);
-         for (int u=-umax*2; u<=umax*2; ++u)
+         for (u=-umax*2; u<=umax*2; ++u)
          {
             int s0 = 0, s1 = -1, s2 = -1, ip;
             const int u2 = u>>1;
             if (!(u&1))
             {
-               for (int k=-nrad; k<=nrad; ++k)
+               for (k=-nrad; k<=nrad; ++k)
                   s0 += 
                      abs(src3p[x+u2+k]-src1p[x-u2+k])+
                      abs(src1p[x+u2+k]-src1n[x-u2+k])+
@@ -267,7 +273,7 @@ void interpLineHP(const uint8_t *srcp, const int width, const int pitch,
             }
             else
             {
-               for (int k=-nrad; k<=nrad; ++k)
+               for (k=-nrad; k<=nrad; ++k)
                   s0 += 
                      abs(hp3p[x+u2+k]-hp1p[x-u2-1+k])+
                      abs(hp1p[x+u2+k]-hp1n[x-u2-1+k])+
@@ -277,7 +283,7 @@ void interpLineHP(const uint8_t *srcp, const int width, const int pitch,
             if ((u >= 0 && x >= u) || (u <= 0 && x < width+u))
             {
                s1 = 0;
-               for (int k=-nrad; k<=nrad; ++k)
+               for (k=-nrad; k<=nrad; ++k)
                   s1 += 
                      abs(src3p[x+k]-src1p[x-u+k])+
                      abs(src1p[x+k]-src1n[x-u+k])+
@@ -286,7 +292,7 @@ void interpLineHP(const uint8_t *srcp, const int width, const int pitch,
             if ((u <= 0 && x >= u) || (u >= 0 && x < width+u))
             {
                s2 = 0;
-               for (int k=-nrad; k<=nrad; ++k)
+               for (k=-nrad; k<=nrad; ++k)
                   s2 += 
                      abs(src3p[x+u+k]-src1p[x+k])+
                      abs(src1p[x+u+k]-src1n[x+k])+
@@ -301,19 +307,19 @@ void interpLineHP(const uint8_t *srcp, const int width, const int pitch,
    }
    // calculate path costs
    pcosts[mdis*2] = ccosts[mdis*2];
-   for (int x=1; x<width; ++x)
+   for (x=1; x<width; ++x)
    {
       float *tT = ccosts+x*tpitch;
       float *ppT = pcosts+(x-1)*tpitch;
       float *pT = pcosts+x*tpitch;
       int *piT = pbackt+(x-1)*tpitch;
       const int umax = MIN(MIN(x,width-1-x),mdis);
-      for (int u=-umax*2; u<=umax*2; ++u)
+      for (u=-umax*2; u<=umax*2; ++u)
       {
          int idx;
          float bval = FLT_MAX;
          const int umax2 = MIN(MIN(x-1,width-x),mdis);
-         for (int v=MAX(-umax2*2,u-2); v<=MIN(umax2*2,u+2); ++v)
+         for (v=MAX(-umax2*2,u-2); v<=MIN(umax2*2,u+2); ++v)
          {
             const double y = ppT[mdis*2+v]+gamma*abs(u-v)*0.5f;
             const float ccost = (float)MIN(y,FLT_MAX*0.9);
@@ -330,10 +336,10 @@ void interpLineHP(const uint8_t *srcp, const int width, const int pitch,
    }
    // backtrack
    fpath[width-1] = 0;
-   for (int x=width-2; x>=0; --x)
+   for (x=width-2; x>=0; --x)
       fpath[x] = pbackt[x*tpitch+mdis*2+fpath[x+1]];
    // interpolate
-   for (int x=0; x<width; ++x)
+   for (x=0; x<width; ++x)
    {
       const int dir = fpath[x];
       dmap[x] = dir;
@@ -376,9 +382,11 @@ VSFrameRef *copyPad(const VSFrameRef *src, int fn, VSFrameContext *frameCtx, VSC
    const int off = 1-fn;
    VSFrameRef *srcPF = vsapi->newVideoFrame(d->vi.format, d->vi.width + 24 * (1 << d->vi.format->subSamplingW), d->vi.height + 8 * (1 << d->vi.format->subSamplingH), NULL, core);
 
+   int b, x, y;
+
    if (!d->dh)
    {
-      for (int b=0; b<d->vi.format->numPlanes; ++b)
+      for (b=0; b<d->vi.format->numPlanes; ++b)
          vs_bitblt(vsapi->getWritePtr(srcPF, b)+vsapi->getStride(srcPF, b)*(4+off)+12,
                vsapi->getStride(srcPF, b)*2,
                vsapi->getReadPtr(src, b)+vsapi->getStride(src, b)*off,
@@ -388,7 +396,7 @@ VSFrameRef *copyPad(const VSFrameRef *src, int fn, VSFrameContext *frameCtx, VSC
    }
    else
    {
-      for (int b=0; b<d->vi.format->numPlanes; ++b)
+      for (b=0; b<d->vi.format->numPlanes; ++b)
          vs_bitblt(vsapi->getWritePtr(srcPF, b)+vsapi->getStride(srcPF, b)*(4+off)+12,
                vsapi->getStride(srcPF, b)*2,
                vsapi->getReadPtr(src, b),
@@ -396,7 +404,7 @@ VSFrameRef *copyPad(const VSFrameRef *src, int fn, VSFrameContext *frameCtx, VSC
                vsapi->getFrameWidth(src, b) * d->vi.format->bytesPerSample,
                vsapi->getFrameHeight(src, b));
    }
-   for (int b=0; b<d->vi.format->numPlanes; ++b)
+   for (b=0; b<d->vi.format->numPlanes; ++b)
    {
       // fixme, probably pads a bit too much with subsampled formats
       uint8_t *dstp = vsapi->getWritePtr(srcPF, b);
@@ -404,21 +412,21 @@ VSFrameRef *copyPad(const VSFrameRef *src, int fn, VSFrameContext *frameCtx, VSC
       const int height = vsapi->getFrameHeight(src, b) + 8;
       const int width = vsapi->getFrameWidth(src, b) + 24;
       dstp += (4+off)*dst_pitch;
-      for (int y=4+off; y<height-4; y+=2)
+      for (y=4+off; y<height-4; y+=2)
       {
-         for (int x=0; x<12; ++x)
+         for (x=0; x<12; ++x)
             dstp[x] = dstp[24-x];
          int c = 2;
-         for (int x=width-12; x<width; ++x, c+=2)
+         for (x=width-12; x<width; ++x, c+=2)
             dstp[x] = dstp[x-c]; 
          dstp += dst_pitch*2;
       }
       dstp = vsapi->getWritePtr(srcPF, b);
-      for (int y=off; y<4; y+=2)
+      for (y=off; y<4; y+=2)
          vs_bitblt(dstp+y*dst_pitch,dst_pitch,
                dstp+(8-y)*dst_pitch,dst_pitch,width,1);
       int c = 2+2*off;
-      for (int y=height-4+off; y<height; y+=2, c+=4)
+      for (y=height-4+off; y<height; y+=2, c+=4)
          vs_bitblt(dstp+y*dst_pitch,dst_pitch,
                dstp+(y-c)*dst_pitch,dst_pitch,width,1);
    }
@@ -465,7 +473,9 @@ static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *
       VS_ALIGNED_MALLOC((void **)&dmapa, vsapi->getStride(dst, 0)*vsapi->getFrameHeight(dst, 0)*sizeof(int), 16);
       vsapi->freeFrame(src);
 
-      for (int b=0; b<d->vi.format->numPlanes; ++b)
+      int b, x, y;
+
+      for (b=0; b<d->vi.format->numPlanes; ++b)
       {
          if (!(d->planes & (1 << b)))
             continue;
@@ -482,7 +492,7 @@ static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *
          srcp += (4+field_n)*spitch;
          dstp += field_n*dpitch;
          // ~99% of the processing time is spent in this loop
-         for (int y=4+field_n; y<height-4; y+=2)
+         for (y=4+field_n; y<height-4; y+=2)
          {
             const int off = (y-4-field_n)>>1;
             if (d->hp)
@@ -504,7 +514,7 @@ static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *
                scpitch = vsapi->getStride(scpPF, b);
                scpp = vsapi->getReadPtr(scpPF, b)+field_n*scpitch;
             }
-            for (int y=4+field_n; y<height-4; y+=2)
+            for (y=4+field_n; y<height-4; y+=2)
             {
                if (y >= 6 && y < height-6)
                {
@@ -515,7 +525,7 @@ static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *
                   const uint8_t *dst2n = dstp+2*dpitch;
                   const uint8_t *dst3n = srcp+3*spitch+12;
                   uint8_t *tline = (uint8_t*)workspace;
-                  for (int x=0; x<width-24; ++x)
+                  for (x=0; x<width-24; ++x)
                   {
                      const int dirc = dstpd[x];
                      const int cint = scpp ? scpp[x] : 
@@ -673,11 +683,13 @@ static void VS_CC eedi3Create(const VSMap *in, VSMap *out, void *userData, VSCor
 
    d.planes = 0;
    int nump = vsapi->propNumElements(in, "planes");
-   if (nump <= 0)
+   if (nump <= 0) {
       d.planes = -1;
-   else
-      for (int i = 0; i < nump; i++)
+   } else {
+      int i;
+      for (i = 0; i < nump; i++)
          d.planes |= 1 << vsapi->propGetInt(in, "planes", i, NULL);
+   }
 
 
    // goto or macro... macro or goto...
