@@ -271,6 +271,8 @@ static const VSFrameRef *VS_CC assGetFrame(int n, int activationReason,
 
         assRender(dst, a, vsapi, img);
         d->lastn = n;
+        vsapi->freeFrame(d->lastframe);
+        vsapi->freeFrame(d->lastalpha);
         d->lastframe = dst;
         d->lastalpha = a;
     }
@@ -303,6 +305,9 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
     d.vi[0].format = vsapi->getFormatPreset(pfRGB24, core);
     d.vi[1] = d.vi[0];
     d.vi[1].format = vsapi->getFormatPreset(pfGray8, core);
+
+    d.lastalpha = NULL;
+    d.lastframe = NULL;
 
     d.file = vsapi->propGetData(in, "file", 0, &err);
 
