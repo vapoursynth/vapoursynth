@@ -129,7 +129,7 @@ def configure(conf):
     if conf.env.DEST_OS == 'darwin':
         if conf.env.CXX_NAME == 'gcc':
             add_options(['ASFLAGS'],
-                        ['-DPREFIX'])
+                        ['-DPREFIX=1'])
 
     if conf.env.CXX_NAME == 'gcc':
         add_options(['CFLAGS', 'CXXFLAGS'],
@@ -149,7 +149,8 @@ def configure(conf):
 
     if conf.env.DEST_CPU in ['x86_64', 'x64', 'amd64', 'x86_amd64']:
         add_options(['ASFLAGS'],
-                    ['-DARCH_X86_64=1', '-DPIC'])
+                    ['-DARCH_X86_64=1',
+                     '-DPIC=1'])
 
         if conf.env.DEST_OS == 'darwin':
             fmt = 'macho64'
@@ -204,7 +205,8 @@ def configure(conf):
                          'LINKFLAGS_cprogram',
                          'LINKFLAGS_cxxshlib',
                          'LINKFLAGS_cxxprogram'],
-                        ['-Wl,-Bsymbolic'])
+                        ['-Wl,-Bsymbolic',
+                         '-Wa,-z,noexecstack'])
 
     conf.msg("Setting DEST_OS to", conf.env.DEST_OS)
     conf.msg("Setting DEST_CPU to", conf.env.DEST_CPU)
