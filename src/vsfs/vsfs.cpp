@@ -90,9 +90,6 @@ class VapourSynther:
 
     volatile long pending_requests;
 
-    // python gil state hack
-    static PyThreadState *threadState;
-
     static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg);
 
 public:
@@ -118,8 +115,6 @@ public:
     void AddRef(void);
     void Release(void);
 };
-
-PyThreadState *VapourSynther::threadState(NULL);
 
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
@@ -183,8 +178,6 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName)
                 packedPlane2 = new uint16_t[vi->format->subSamplingH == 1 ? (vi->width*vi->height)/2 : vi->width*vi->height];
             }
 
-            if (!threadState)
-                threadState = PyEval_SaveThread();
             return 0;
         } else {
             setError(se.error);
@@ -569,12 +562,16 @@ int VapourSynther::ImageSize() {
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
 
+PyThreadState *ts;
+
 BOOL APIENTRY DllMain(HANDLE hModule, ULONG ulReason, LPVOID lpReserved) {
     if (ulReason == DLL_PROCESS_ATTACH) {
         Py_Initialize();
         PyEval_InitThreads();
         import_vapoursynth();
+        ts = PyEval_SaveThread();
     } else if (ulReason == DLL_PROCESS_DETACH) {
+        PyEval_RestoreThread(ts);
         Py_Finalize();
     }
     return TRUE;
