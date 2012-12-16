@@ -251,6 +251,10 @@ def configure(conf):
     conf.check_cc(use = ['SWSCALE'], header_name = 'libswscale/swscale.h')
     conf.check_cc(use = ['SWSCALE'], header_name = 'libswscale/swscale.h', function_name = 'swscale_license')
 
+    conf.check_cc(lib = 'ass')
+    conf.check_cc(use = ['ASS'], header_name = 'ass/ass.h')
+    conf.check_cc(use = ['ASS'], header_name = 'ass/ass.h', function_name = 'ass_library_init')
+
     libs = '-lm '
 
     if not conf.env.DEST_OS in ['darwin', 'freebsd', 'netbsd', 'openbsd']:
@@ -304,6 +308,13 @@ def build(bld):
             includes = 'include',
             source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'vivtc')])),
             target = 'vivtc',
+            install_path = '${PLUGINDIR}')
+
+        bld(features = 'c cxxshlib',
+            includes = 'include',
+            use = ['ASS'],
+            source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'assvapour')])),
+            target = 'assvapour',
             install_path = '${PLUGINDIR}')
 
     if bld.env.CYTHON == 'true':

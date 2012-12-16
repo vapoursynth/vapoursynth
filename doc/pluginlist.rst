@@ -3,6 +3,7 @@ Plugin List
 
 Native Plugins
 ##############
+* AssVapour -- subtitle renderer, in the source tree
 * EEDI3 -- in the source tree
 * VIVTC -- in the source tree
 * `Histogram <https://github.com/dubhater/vapoursynth-histogram>`_ -- bundled with the installer
