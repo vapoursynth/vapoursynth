@@ -259,7 +259,7 @@ VSFunction::VSFunction(const QByteArray &name, const QByteArray &argString, VSPu
 }
 
 VSNode::VSNode(const VSMap *in, VSMap *out, const QByteArray &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion, VSCore *core) :
-    instanceData(instanceData), name(name), init(init), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiVersion(apiVersion), core(core), flags(flags), inval(*in), hasVi(false), hasWarned(false) {
+    instanceData(instanceData), name(name), init(init), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiVersion(apiVersion), core(core), flags(flags), inval(*in), hasVi(false), hasWarnedFPU(false) {
     QMutexLocker lock(&VSCore::filterLock);
     init(&inval, out, &this->instanceData, this, core, getVSAPIInternal(apiVersion));
 
@@ -286,11 +286,13 @@ PVideoFrame VSNode::getFrameInternal(int n, int activationReason, const PFrameCo
 // This stuff really only works properly on windows, feel free to investigate what the linux ABI thinks about it
 #ifdef _WIN32
     if (!vs_isMMXStateOk())
-        qFatal("Bad mmx state detected after return from filter");
-    if (!hasWarned && !vs_isFPUStateOk()) {
-        hasWarned = true;
-        qWarning("Bad fpu state detected after return from %s", name.constData());
+        qFatal("Bad MMX state detected after return from %s", name.constData());
+    if (!hasWarnedFPU && !vs_isFPUStateOk()) {
+        hasWarnedFPU = true;
+        qWarning("Bad FPU state detected after return from %s", name.constData());
     }
+    if (!vs_isSSEStateOk())
+        qFatal("Bad SSE state detected after return from %s", name.constData());
 #endif
 
     if (r) {
@@ -608,9 +610,11 @@ VSPlugin::VSPlugin(const QByteArray &filename, const QByteArray &forcedNamespace
 // This stuff really only works properly on windows, feel free to investigate what the linux ABI thinks about it
 #ifdef _WIN32
     if (!vs_isMMXStateOk())
-        qFatal("Bad mmx state detected after plugin load");
+        qFatal("Bad MMX state detected after loading %s", fullname.constData());
     if (!vs_isFPUStateOk())
-        qWarning("Bad fpu state detected after plugin load");
+        qWarning("Bad FPU state detected after loading %s", fullname.constData());
+    if (!vs_isSSEStateOk())
+        qFatal("Bad SSE state detected after loading %s", fullname.constData());
 #endif
 
     if (readOnlySet)

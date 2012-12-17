@@ -313,7 +313,7 @@ private:
     int flags;
     int apiVersion;
     bool hasVi;
-    bool hasWarned;
+    bool hasWarnedFPU;
 
     VSFilterMode filterMode;
     PVideoFrame getFrameInternal(int n, int activationReason, const PFrameContext &frameCtx);

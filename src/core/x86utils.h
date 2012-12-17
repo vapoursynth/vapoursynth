@@ -20,3 +20,4 @@
 
 extern "C" int vs_isFPUStateOk();
 extern "C" int vs_isMMXStateOk();
+extern "C" int vs_isSSEStateOk();
