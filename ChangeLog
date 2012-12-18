@@ -11,6 +11,7 @@ fixed a clip reference leak introduced in R15 with the multiple clip output chan
 fixed AVISource crashes due to RGB output not being properly initialized
 fixed the upper memory limit check
 fixed callback functions hanging in vfw and vsfs
+changed the license of all files to LGPL, previously a few of them were MIT licensed
 
 r16:
 fixed a MaskedMerge reference leak under some rare conditions

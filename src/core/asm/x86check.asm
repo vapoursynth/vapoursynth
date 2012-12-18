@@ -40,3 +40,13 @@ cglobal isMMXStateOk, 0, 2, 0
     cmp r0w, 0xffff
 	cmovne r0, r1
 	RET
+
+INIT_XMM
+cglobal isSSEStateOk, 0, 2, 0
+	xor r1, r1
+    stmxcsr [rsp - 4]
+	mov r0w, [rsp - 4]
+    and r0w, 0x7f80
+	cmp r0w, 0x1f80
+	cmovne r0, r1
+	RET
