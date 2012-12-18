@@ -535,8 +535,8 @@ static void VS_CC setMessageHandler(VSMessageHandler handler) {
         ::handler = handler;
         qInstallMsgHandler(vsMessageHandler);
     } else {
-        ::handler = NULL;
         qInstallMsgHandler(NULL);
+        ::handler = NULL;
     }
 }
 
