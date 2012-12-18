@@ -206,7 +206,7 @@ def configure(conf):
                          'LINKFLAGS_cxxshlib',
                          'LINKFLAGS_cxxprogram'],
                         ['-Wl,-Bsymbolic',
-                         '-Wa,-z,noexecstack'])
+                         '-Wl,-z,noexecstack'])
 
     conf.msg("Setting DEST_OS to", conf.env.DEST_OS)
     conf.msg("Setting DEST_CPU to", conf.env.DEST_CPU)
