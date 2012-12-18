@@ -3,6 +3,7 @@ may deadlock with some avisynth plugins (set the number of threads to a bigger n
 compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 
 r17:
+it is now possible to have the warning/error messages handled by a user specified callback function
 added a check for the SSE state so plugins cannot modify it without it being noticed (similar to the FPU and MMX checks)
 fixed that two plugins could be loaded into the same namespace
 fixed some issues with argument handling in python dut to exceptions not being propagated properly

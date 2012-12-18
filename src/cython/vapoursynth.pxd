@@ -151,7 +151,8 @@ cdef extern from "include/VapourSynth.h" nogil:
     ctypedef VSFrameRef *(__stdcall *VSFilterGetFrame)(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, VSAPI *vsapi)
     ctypedef void (__stdcall *VSFilterFree)(void *instanceData, VSCore *core, VSAPI *vsapi)
     ctypedef void (__stdcall *VSFreeFuncData)(void *userData)
-
+    ctypedef void (__stdcall *VSMessageHandler)(int msgType, char *msg)
+    
     ctypedef struct VSAPI:
         VSCore *createCore(int threads) nogil
         void freeCore(VSCore *core) nogil
@@ -225,4 +226,6 @@ cdef extern from "include/VapourSynth.h" nogil:
         void freeFunc(VSFuncRef *f) nogil
 
         int64_t setMaxCacheSize(int64_t bytes, VSCore *core) nogil
+        
+        void setMessageHandler(VSMessageHandler handler) nogil
     VSAPI *getVapourSynthAPI(int version) nogil

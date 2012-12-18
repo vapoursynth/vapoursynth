@@ -522,6 +522,24 @@ static int VS_CC getOutputIndex(VSFrameContext *frameCtx) {
     return f->index;
 }
 
+static VSMessageHandler handler = NULL;
+
+void vsMessageHandler(QtMsgType type, const char *msg) {
+    handler(type, msg);
+    if (type == QtFatalMsg)
+        abort();
+}
+
+static void VS_CC setMessageHandler(VSMessageHandler handler) {
+    if (handler) {
+        ::handler = handler;
+        qInstallMsgHandler(vsMessageHandler);
+    } else {
+        ::handler = NULL;
+        qInstallMsgHandler(NULL);
+    }
+}
+
 const VSAPI vsapi = {
     &createCore,
     &freeCore,
@@ -597,7 +615,9 @@ const VSAPI vsapi = {
 
     &setMaxCacheSize,
     &getOutputIndex,
-    &newVideoFrame2
+    &newVideoFrame2,
+
+    &setMessageHandler
 };
 
 //////////////////////////

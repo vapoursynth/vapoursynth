@@ -187,6 +187,13 @@ typedef enum ActivationReason {
     arError = -1
 } ActivationReason;
 
+typedef enum VSMessageType {
+    mtDebug = 0,
+    mtWarnin = 1,
+    mtCritical = 2,
+    mtFatal
+} VSMessageType;
+
 // core function typedefs
 typedef	VSCore *(VS_CC *VSCreateCore)(int threads);
 typedef	void (VS_CC *VSFreeCore)(VSCore *core);
@@ -281,6 +288,8 @@ typedef void (VS_CC *VSReleaseFrameEarly)(VSNodeRef *node, int n, VSFrameContext
 
 typedef int64_t (VS_CC *VSSetMaxCacheSize)(int64_t bytes, VSCore *core);
 
+typedef void (VS_CC *VSMessageHandler)(int msgType, const char *msg);
+typedef void (VS_CC *VSSetMessageHandler)(VSMessageHandler handler);
 
 struct VSAPI {
     VSCreateCore createCore;
@@ -363,6 +372,8 @@ struct VSAPI {
     VSSetMaxCacheSize setMaxCacheSize;
     VSGetOutputIndex getOutputIndex;
     VSNewVideoFrame2 newVideoFrame2;
+
+    VSSetMessageHandler setMessageHandler;
 };
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version);
