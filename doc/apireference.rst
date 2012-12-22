@@ -46,3 +46,6 @@ it is also a fatal error to set them to a value not specified below.::
    Display aspect ratio as a rational number.
    _SARNum int
    _SARDen int
+   
+   Indicates a scenechange, should be set both on the frame before and after the cut.
+   _SceneChange bint
