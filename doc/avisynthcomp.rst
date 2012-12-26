@@ -3,8 +3,8 @@ Avisynth functions and their VapourSynth equivalents
 +------------------------+---------------------+----------------------------------------------------------------------+
 | Avisynth               | VapourSynth         | Notes                                                                |
 +========================+=====================+======================================================================+
-| AviSource              | ffms2.Source        | A plugin with the latest avi reading code from vdub is planned.      |
-|                        |                     | Contributions welcome                                                |
+| AviSource              | avisource.AVISource |                                                                      |
+|                        |                     |                                                                      |
 +------------------------+---------------------+----------------------------------------------------------------------+
 | DirectShowSource       | none                | DirectShowSource will at least have a special compatible avisynth    |
 |                        |                     | version created. Or VapourSynth will get varargs support.            |

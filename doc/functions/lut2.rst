@@ -11,5 +11,5 @@ Lut2
       lut = []
       for y in range(2**clipx.format.bits_per_sample):
          for x in range(2**clipy.format.bits_per_sample):
-            lut.append((x + y)/2)
+            lut.append((x + y)//2)
       Lut2(clips=[clipx, clipy], lut=lut, planes=[0, 1, 2])

@@ -20,14 +20,14 @@ Test it by opening a Python command line (should be added to your start menu) an
    print(c.version())
 
 After typing the final line you should see the version printed along with a few other lines describing the options used when instantiating the Core object.
-If this for some reason fails there may be a bug in the installer or there are old copied of vapousynth.pyd and vapoursynth.dll lying around.
+If this for some reason fails there may be a bug in the installer or there are old copies of vapoursynth.pyd and vapoursynth.dll lying around.
 
 Installation of VSFS
 ####################
-By default vsfs isn't enabled and you will have to do it yourself. Assuming you've already installed the Pismo File Mount Audit Package simply open a command prompt and
+By default VSFS isn't enabled and you will have to do it yourself. Assuming you've already installed the Pismo File Mount Audit Package simply open a command prompt and
 type "pfm register <installation directory here>\\core\\vsfs.dll". After this you can right click any .vpy script and select *Quick mount* to have it appear as a virtual directory with
-and avi file and an error log.
+an avi file and an error log.
 
 Compiling
 #########
-If you're not on windows you have to compile VapourSynth yourself. Check out the source and follow the instructions in the INSTALL file.
+If you're not on Windows you have to compile VapourSynth yourself. Check out the source and follow the instructions in the INSTALL file.

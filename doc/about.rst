@@ -8,8 +8,8 @@ The main features compared to Avisynth are:
    * Multithreaded - Frame level multithreading that scales well
    * Generalized Colorspaces - New Colorspaces can be specified at runtime
    * Per Frame Properties - Additional metadata can be attached to frames
-   * Python Based - The scripting part is implemented as a Python module so you don't have have to learn a special language
-   * Support for video with format changes - Some video just can't stick to one format or frame size VapourSynth can handle any kind of change
+   * Python Based - The scripting part is implemented as a Python module so you don't have to learn a special language
+   * Support for video with format changes - Some video just can't stick to one format or frame size. VapourSynth can handle any kind of change
    * Compatible with a large number of already existing Avisynth plugins
 
 About the author
@@ -17,6 +17,6 @@ About the author
 Fredrik Mellbin majored in electrical engineering with a focus on image analysis and processing with medical applications.
 He has previously worked with digital electronics and likes to plan his own software projects in his spare time.
 When he one day found himself out of work he needed something to do between sending out job applications and waiting for a reply.
-The natural choice for the author was to try to improve Avisynth, the software that once made made him interested in video editing. VapourSynth is the result of all that time waiting.
+The natural choice for the author was to try to improve Avisynth, the software that once made him interested in video editing. VapourSynth is the result of all that time waiting.
 
 Feel free to contact me at fredrik.mellbin that round thingy with an a gmail.com if you need help to port a filter or want to sponsor the development.

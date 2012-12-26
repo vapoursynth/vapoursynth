@@ -5,7 +5,7 @@ ShufflePlanes
    :module: std
    
    ShufflePlanes can extract and combine planes from different clips in the most general way possible.
-   This is both good and bad as there are almost no error checks.
+   This is both good and bad, as there are almost no error checks.
    
    Most of the returned clip's properties are implicitly determined from the first clip given to *clips*.
    Takes between 1 and 3 clips for 3 plane formats. In this case clips=[A] is equivalent to clips=[A, A, A] and clips=[A, B] is equivalent to clips=[A, B, B]. For 1 plane formats it takes exactly one clip.
@@ -17,7 +17,7 @@ ShufflePlanes
    
    Here are some examples of useful operations...
    
-   Extract plane with index X. X=0 will mean luma on a YUV clip and R on an RGB clip, likewise 1 will return the U and G channel respectively::
+   Extract plane with index X. X=0 will mean luma on a YUV clip and R on an RGB clip. Likewise 1 will return the U and G channel, respectively::
    
       ShufflePlanes(clips=clip, planes=X, format=vs.GRAY)
    
@@ -33,4 +33,4 @@ ShufflePlanes
    
       ShufflePlanes(clips=[YUVclip], planes=[0, 1, 2], format=vs.RGB)
    
-   ShufflePlanes only accepts variable format and size frames when extracting a single plane.
+   ShufflePlanes accepts variable format and size frames only when extracting a single plane.

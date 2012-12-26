@@ -1,11 +1,11 @@
 Getting Started
 ===============
 
-So you managed to install VapourSynth, now what?
+So you managed to install VapourSynth. Now what?
 
 If you don't know the basics of Python you may want to check out the `tutorial <http://docs.python.org/py3k/tutorial/index.html>`_. 
 
-You can "play around" in the python interpreter if you want. But that's not how most video scripts are created.
+You can "play around" in the python interpreter if you want, but that's not how most video scripts are created.
 
 Here's a sample script to be inspired by::
 
@@ -20,7 +20,7 @@ Here's a sample script to be inspired by::
    # load an avisynth plugin
    # the loaded functions will always end up in the avs namespace
    core.avs.LoadPlugin(path=r'c:\avisynth\UnDot.dll')
-   # open a video file, ret is now a clip object
+   # open a video file; ret is now a clip object
    ret = core.ffms2.Source(source='Super Size Me.avi')
    # apply the undot filter to the video
    ret = core.avs.UnDot(clip=ret)

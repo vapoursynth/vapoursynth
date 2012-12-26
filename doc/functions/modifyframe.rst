@@ -5,7 +5,7 @@ ModifyFrame
    :module: std
    
    The *selector* function is called for every single frame and can modify the properties of the first given clip. The additional clips' properties
-   may only be read and not modified. You must first copy the input frame to make it modifiable. Returning any other frame is likely to return in a fatal error or
+   may only be read and not modified. You must first copy the input frame to make it modifiable. Returning any other frame is likely to result in a fatal error or
    unpredictable behavior. If for conditional reasons you do not need to modify the current frame's properties you can simply pass it through.
    The selector function is passed *n*, the current frame number, and *f*, which will be a list if there is more than one clip specified.
    

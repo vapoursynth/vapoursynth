@@ -1,12 +1,12 @@
 VapourSynth C API Reference
 ===========================
-For now see the example filters in the sdk dir. Reading vsstdlib.c which contains almost all builtin functions can also be very helpful.
+For now see the example filters in the sdk dir. Reading simplefilters.c, which contains almost all built-in functions, can also be very helpful.
 
 Reserved Frame Properties
 #########################
 All frames contain a map of key--value pairs. It is recommended that these properties are named using only a-z, A-Z, 0-9 using CamelCase.
-There is a special category of keys starting with _ which have strictly defined meanings specified below. It is acceptable to not set any of these keys if they are unknown,
-it is also a fatal error to set them to a value not specified below.::
+There is a special category of keys starting with _ which have strictly defined meanings specified below. It is acceptable to not set any of these keys if they are unknown.
+It is also a fatal error to set them to a value not specified below.::
 
    The frame's absolute timestamp if reported by the source filter.
    Should only be set by the source filter and not modified.
@@ -47,5 +47,5 @@ it is also a fatal error to set them to a value not specified below.::
    _SARNum int
    _SARDen int
    
-   Indicates a scenechange, should be set both on the frame before and after the cut.
+   Indicates a scenechange. Should be set both on the frame before and after the cut.
    _SceneChange bint

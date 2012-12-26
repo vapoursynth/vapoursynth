@@ -33,7 +33,7 @@ Classes
 .. py:class:: VideoNode
 
    Represents a video clip. The class itself supports indexing and slicing to perform trim, reverse and selectevery operations.
-   Several operators are also defined for the VideoNode class, addition appends clips and multiplication repeats them.
+   Several operators are also defined for the VideoNode class: addition appends clips and multiplication repeats them.
    Note that slicing and indexing always return a new VideoNode object and not a VideoFrame.
    
    .. py:attribute:: format
@@ -46,7 +46,7 @@ Classes
       
    .. py:attribute:: height
    
-      The width of the video. This value will be 0 if the width and height can change between frames.
+      The height of the video. This value will be 0 if the width and height can change between frames.
       
    .. py:attribute:: num_frames
    
@@ -162,7 +162,7 @@ Classes
    
 Color Family Constants
 ######################
-The color family constants describe a group formats and the basic way their color information is stored. You should be familiar with all of them apart from maybe *YCOCR* and *COMPAT* which
+The color family constants describe a group formats and the basic way their color information is stored. You should be familiar with all of them apart from maybe *YCOCG* and *COMPAT* which
 is a special junk category for non-planar formats. These are the declared constants in the module::
 
    RGB
@@ -173,9 +173,9 @@ is a special junk category for non-planar formats. These are the declared consta
 
 Format Constants
 ################
-Format constants exactly describe a format, all common and even more uncommon formats have handy constants predefined so in practice no one should really need to register one of their own.
-These values are mostly used by the resizers to specify which format to convert to. The naming system is quite simple. First the color family, the the subsampling (only YUV has it) and after that how many
-bits per sample in one plane, the exception to this rule is RGB which has the bits for all 3 planes added together. The long list of values::
+Format constants exactly describe a format. All common and even more uncommon formats have handy constants predefined so in practice no one should really need to register one of their own.
+These values are mostly used by the resizers to specify which format to convert to. The naming system is quite simple. First the color family, then the subsampling (only YUV has it) and after that how many
+bits per sample in one plane. The exception to this rule is RGB, which has the bits for all 3 planes added together. The long list of values::
 
    GRAY8
    GRAY16

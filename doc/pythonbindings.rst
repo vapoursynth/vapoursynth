@@ -1,15 +1,15 @@
 Python Bindings
 ===============
 VapourSynth is separated into a core library and a Python module. This section deals with how the core library is exposed through Python and some of the special things, such as slicing and output,
-are unique to Python scripting.
+unique to Python scripting.
 
 VapourSynth Structure and Functions
 ###################################
-To use the VapourSynth library you must first create a Core object. This core may then load plugins which all end up in their own unit, or namespace so to say, to avoid naming conflicts in
+To use the VapourSynth library you must first create a Core object. This core may then load plugins which all end up in their own unit, or namespace, so to say, to avoid naming conflicts in
 the contained functions. For this reason you call a plugin function with *core.unit.Function()*. Note that the loaded plugins are per core instance and not global so if you do create several
 processing cores at once (not recommended) you will have to load the plugins you want for each core.
 
-All arguments to functions have names that are lowercase and all function names are CamelCase, unit names are also lowercase and usually short. This is good to remember. If you do not like
+All arguments to functions have names that are lowercase and all function names are CamelCase. Unit names are also lowercase and usually short. This is good to remember. If you do not like
 CamelCase for function names you can pass *accept_lowercase=True* to the Core constructor.
 
 Slicing
@@ -20,7 +20,7 @@ Here are some examples to illustrate::
 
    # ret will be a one frame clip containing the 6th frame
    ret = clip[5]
-   # ret will contain frame 7 to 9 (unlike trim the end value of python slicing is not inclusive)
+   # ret will contain frames 6 to 9 (unlike trim the end value of python slicing is not inclusive)
    ret = clip[6:10]
    
    # Select even numbered frames
