@@ -865,7 +865,7 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
 // VDecimate
 
 typedef struct {
-    int maxbdiff;
+    int64_t maxbdiff;
     int64_t totdiff;
 } VDInfo;
 
@@ -875,25 +875,25 @@ typedef struct {
     VSVideoInfo vi;
     int cycle;
     int chroma;
-    int dupthresh;
+    int64_t dupthresh;
     int64_t scthresh;
     int blockx;
     int blocky;
     int nxblocks;
     int nyblocks;
     int bdiffsize;
-    int *bdiffs;
+    int64_t *bdiffs;
     VDInfo *vmi;
 } VDecimateData;
 
-static int calcMetric(const VSFrameRef *f1, const VSFrameRef *f2, uint64_t *totdiff, VDecimateData *vdm, const VSAPI *vsapi) {
-    int *bdiffs = vdm->bdiffs; 
+static int64_t calcMetric(const VSFrameRef *f1, const VSFrameRef *f2, int64_t *totdiff, VDecimateData *vdm, const VSAPI *vsapi) {
+    int64_t *bdiffs = vdm->bdiffs; 
     int plane;
     int x, y, xl;
     int i, j;
     int numplanes = vdm->chroma ? 3 : 1;
-    int maxdiff = -1;
-    memset(bdiffs, 0, vdm->bdiffsize * sizeof(int));
+    int64_t maxdiff = -1;
+    memset(bdiffs, 0, vdm->bdiffsize * sizeof(int64_t));
     for (plane = 0; plane < numplanes; plane++) {
         int stride = vsapi->getStride(f1, plane);
         const uint8_t *f1p = vsapi->getReadPtr(f1, plane);
@@ -904,26 +904,36 @@ static int calcMetric(const VSFrameRef *f1, const VSFrameRef *f2, uint64_t *totd
         int height = vsapi->getFrameHeight(f1, plane);
         int hblockx = vdm->blockx/2;
         int hblocky = vdm->blocky/2;
-        int nxblocks;
+        int nxblocks = vdm->nxblocks;
         // adjust for subsampling
         if (plane > 0) {
             hblockx /= 1 << fi->subSamplingW;
             hblocky /= 1 << fi->subSamplingH;
         }
-        nxblocks = vdm->nxblocks;
 
         for (y = 0; y < height; y++) {
             int ydest = y / hblocky;
             int xdest = 0;
-            for (x = 0; x < width; x+= hblockx) {
-                int acc = 0;
-                int m = min(width, x + hblockx);
-                for (xl = x; xl < m; xl++)
-                    acc += abs(f1p[xl] - f2p[xl]);
-                bdiffs[ydest * nxblocks + xdest] += acc;
-                xdest++;
-            }
-
+			// some slight code duplication to not put an if statement for 8/16 bit processing in the inner loop
+			if (fi->bitsPerSample == 8) {
+				for (x = 0; x < width; x+= hblockx) {
+					int acc = 0;
+					int m = min(width, x + hblockx);
+					for (xl = x; xl < m; xl++)
+						acc += abs(f1p[xl] - f2p[xl]);
+					bdiffs[ydest * nxblocks + xdest] += acc;
+					xdest++;
+				}
+			} else {
+				for (x = 0; x < width; x+= hblockx) {
+					int acc = 0;
+					int m = min(width, x + hblockx);
+					for (xl = x; xl < m; xl++)
+						acc += abs(((const uint16_t *)f1p)[xl] - ((const uint16_t *)f2p)[xl]);
+					bdiffs[ydest * nxblocks + xdest] += acc;
+					xdest++;
+				}
+			}
             f1p += stride;
             f2p += stride;
         }
@@ -931,7 +941,7 @@ static int calcMetric(const VSFrameRef *f1, const VSFrameRef *f2, uint64_t *totd
 
     for (i = 0; i  < vdm->nyblocks - 1; i++) {
         for (j = 0; j  < vdm->nxblocks - 1; j++) {
-            int tmp = bdiffs[i * vdm->nxblocks + j] + bdiffs[i * vdm->nxblocks + j + 1] + bdiffs[(i + 1) * vdm->nxblocks + j] + bdiffs[(i + 1) * vdm->nxblocks + j + 1];
+            int64_t tmp = bdiffs[i * vdm->nxblocks + j] + bdiffs[i * vdm->nxblocks + j + 1] + bdiffs[(i + 1) * vdm->nxblocks + j] + bdiffs[(i + 1) * vdm->nxblocks + j + 1];
             if (tmp > maxdiff)
                 maxdiff = tmp;
         }
@@ -1052,17 +1062,13 @@ static void VS_CC vdecimateFree(void *instanceData, VSCore *core, const VSAPI *v
 static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     VDecimateData vdm;
     VDecimateData *d;
-    VSNodeRef *cref;
     const VSVideoInfo *vi;
-    int i, err;
+    int i, err, max_value;
     double dupthresh, scthresh;
 
     vdm.cycle = int64ToIntS(vsapi->propGetInt(in, "cycle", 0, &err));
     if (err)
         vdm.cycle = 5;
-    vdm.chroma = !!vsapi->propGetInt(in, "chroma", 0, &err);
-    if (err)
-        vdm.chroma = 1;
     vdm.blockx = int64ToIntS(vsapi->propGetInt(in, "blockx", 0, &err));
     if (err)
         vdm.blockx = 32;
@@ -1101,8 +1107,8 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
     vdm.vi = *vsapi->getVideoInfo(vdm.clip2 ? vdm.clip2 : vdm.node);
 
     vi = vsapi->getVideoInfo(vdm.node);
-    if (!isConstantFormat(vi) || !vi->numFrames || vi->format->id != pfYUV420P8) {
-        vsapi->setError(out, "VDecimate: input clip must be constant format YUV420P8");
+	if (!isConstantFormat(vi) || !vi->numFrames || vi->format->bitsPerSample > 16 || vi->format->sampleType != stInteger) {
+        vsapi->setError(out, "VDecimate: input clip must be constant format, with 8..16 bits per sample");
         vsapi->freeNode(vdm.node);
         vsapi->freeNode(vdm.clip2);
         return;
@@ -1115,13 +1121,33 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
         return;
     }
 
-    vdm.scthresh = (int64_t)((255 * vi->width * vi->height * scthresh)/100);
-    vdm.dupthresh = (int)((255 * vdm.blockx * vdm.blocky * dupthresh)/100);
+    vdm.chroma = !!vsapi->propGetInt(in, "chroma", 0, &err);
+    if (err)
+        vdm.chroma = vi->format->colorFamily != cmGray;
+    else {
+        if (vdm.chroma && vi->format->colorFamily == cmGray) {
+            vsapi->setError(out, "VDecimate: it makes no sense to enable chroma when the input clip is grayscale");
+            vsapi->freeNode(vdm.node);
+            vsapi->freeNode(vdm.clip2);
+            return;
+        } else if (!vdm.chroma && vi->format->colorFamily == cmRGB) {
+            vsapi->setError(out, "VDecimate: it makes no sense to disable chroma when the input clip is RGB");
+            vsapi->freeNode(vdm.node);
+            vsapi->freeNode(vdm.clip2);
+            return;
+        }
+    }
+
+
+    max_value = (1 << vi->format->bitsPerSample) - 1;
+    // Casting max_value to int64_t to avoid losing the high 32 bits of the result
+    vdm.scthresh = (int64_t)(((int64_t)max_value * vi->width * vi->height * scthresh)/100);
+    vdm.dupthresh = (int64_t)((max_value * vdm.blockx * vdm.blocky * dupthresh)/100);
 
     vdm.nxblocks = (vdm.vi.width + vdm.blockx/2 - 1)/(vdm.blockx/2);
     vdm.nyblocks = (vdm.vi.height + vdm.blocky/2 - 1)/(vdm.blocky/2);
     vdm.bdiffsize = vdm.nxblocks * vdm.nyblocks;
-    vdm.bdiffs = (int *)malloc(vdm.bdiffsize * sizeof(int));
+    vdm.bdiffs = (int64_t *)malloc(vdm.bdiffsize * sizeof(int64_t));
     vdm.vmi = (VDInfo *)malloc(vdm.vi.numFrames * sizeof(VDInfo));
     for (i = 0; i < vdm.vi.numFrames; i++) {
         vdm.vmi[i].maxbdiff = -1;
