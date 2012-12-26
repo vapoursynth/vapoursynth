@@ -1123,18 +1123,17 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
     vdm.bdiffsize = vdm.nxblocks * vdm.nyblocks;
     vdm.bdiffs = (int *)malloc(vdm.bdiffsize * sizeof(int));
     vdm.vmi = (VDInfo *)malloc(vdm.vi.numFrames * sizeof(VDInfo));
-    vdm.vi.numFrames /= vdm.cycle;
-    vdm.vi.numFrames *= vdm.cycle - 1;
-    muldivRational(&vdm.vi.fpsNum, &vdm.vi.fpsDen, vdm.cycle-1, vdm.cycle);
-
     for (i = 0; i < vdm.vi.numFrames; i++) {
         vdm.vmi[i].maxbdiff = -1;
         vdm.vmi[i].totdiff = -1;
     }
 
+    vdm.vi.numFrames /= vdm.cycle;
+    vdm.vi.numFrames *= vdm.cycle - 1;
+    muldivRational(&vdm.vi.fpsNum, &vdm.vi.fpsDen, vdm.cycle-1, vdm.cycle);
+
     d = (VDecimateData *)malloc(sizeof(vdm));
     *d = vdm;
-
     vsapi->createFilter(in, out, "VDecimate", vdecimateInit, vdecimateGetFrame, vdecimateFree, fmSerial, 0, d, core);
 }
 
