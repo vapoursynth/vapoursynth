@@ -4,6 +4,7 @@ compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 reopening .vpy files may leak a lot of memory
 
 r17:
+cleaned up the asm in the transpose filter
 fixed python detection in the installer if it was installed for a single user
 vdecimate can now accept up to 16 bit integer input and all color formats (jackoneill)
 fixed a bug that made the array for storing metrics uninitialized at the end in vdecimate leading to random decisions (jackoneill)
