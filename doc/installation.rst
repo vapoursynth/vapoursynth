@@ -24,9 +24,8 @@ If this for some reason fails there may be a bug in the installer or there are o
 
 Installation of VSFS
 ####################
-By default VSFS isn't enabled and you will have to do it yourself. Assuming you've already installed the Pismo File Mount Audit Package simply open a command prompt and
-type "pfm register <installation directory here>\\core\\vsfs.dll". After this you can right click any .vpy script and select *Quick mount* to have it appear as a virtual directory with
-an avi file and an error log.
+By default VSFS will be registered if the Pismo File Mount Audit Package was installed before VapourSynth.
+If you install the Pismo File Mount Audit Package after VapourSynth and still want to use this feature either reinstall VapourSynth or register it from the commandline with "pfm register <path>\\vsfs.dll".
 
 Compiling
 #########
