@@ -17,7 +17,7 @@ AppPublisher=Fredrik Mellbin
 AppPublisherURL=http://www.vapoursynth.com/
 AppSupportURL=http://www.vapoursynth.com/
 AppUpdatesURL=http://www.vapoursynth.com/
-VersionInfoVersion=0.9.0.2
+VersionInfoVersion=0.9.0.3
 DefaultDirName={pf}\VapourSynth
 DefaultGroupName=VapourSynth
 AllowCancelDuringInstall=no
@@ -86,9 +86,13 @@ var PythonPath: string;
 
 function InitializeSetup(): Boolean;
 begin
-  Result := RegQueryStringValue(HKLM, 'SOFTWARE\Python\PythonCore\3.3\InstallPath', '', PythonPath);
+  Result := RegQueryStringValue(HKCU, 'SOFTWARE\Python\PythonCore\3.3\InstallPath', '', PythonPath);
   if not Result then
-    MsgBox('Python 3.3 installation not found.', mbCriticalError, MB_OK);
+  begin
+    Result := RegQueryStringValue(HKLM, 'SOFTWARE\Python\PythonCore\3.3\InstallPath', '', PythonPath);
+    if not Result then
+        MsgBox('Python 3.3 installation not found.', mbCriticalError, MB_OK);
+  end;
 end;
 
 function GetPythonPath(Param: String): String;

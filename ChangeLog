@@ -1,11 +1,12 @@
 known issues:
-may deadlock with some avisynth plugins (set the number of threads to a bigger number, VSCore(threads=4))
+may deadlock with some avisynth plugins (set the number of threads to a bigger number)
 compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 reopening .vpy files may leak a lot of memory
 
 r17:
-vdecimate can now accept up to 16 bit integer input and all color formats
-fixed a bug that made the array for storing metrics uninitialized at the end in vdecimate leading to random decisions
+fixed python detection in the installer if it was installed for a single user
+vdecimate can now accept up to 16 bit integer input and all color formats (jackoneill)
+fixed a bug that made the array for storing metrics uninitialized at the end in vdecimate leading to random decisions (jackoneill)
 added an inappropriately named subtitle filter based on libass (lachs0r)
 EEDI3 has now been changed into pure C (jackoneill)
 it is now possible to have the warning/error messages handled by a user specified callback function
