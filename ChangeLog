@@ -4,6 +4,7 @@ compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 reopening .vpy files may leak a lot of memory
 
 r17:
+the installer will now register and unregister the vsfs dll if selected (pismo file mount must of course be installed at the time for it to work)
 cleaned up the asm in the transpose filter
 fixed python detection in the installer if it was installed for a single user
 vdecimate can now accept up to 16 bit integer input and all color formats (jackoneill)

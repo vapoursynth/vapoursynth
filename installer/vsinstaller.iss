@@ -35,6 +35,7 @@ Name: Core; Description: {#= AppName} {#= Version}; Types: Full; Flags: fixed
 
 [Tasks]
 Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to shell context menu"; GroupDescription: "New File Shortcuts:"
+Name: registervsfs; Description: "Register the VSFS handler"; GroupDescription: "Pismo File Mount:"
 
 [Files]
 ;core binaries
@@ -79,6 +80,12 @@ Root: HKLM; Subkey: SOFTWARE\Classes\vsfile; ValueType: string; ValueName: ""; V
 Root: HKLM; Subkey: SOFTWARE\Classes\vsfile\DefaultIcon; ValueType: string; ValueName: ""; ValueData: "vsvfw.dll,0"; Flags: uninsdeletevalue uninsdeletekeyifempty
 Root: HKLM; Subkey: SOFTWARE\Classes\AVIFile\Extensions\VPY; ValueType: string; ValueName: ""; ValueData: "{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}"; Flags: uninsdeletevalue uninsdeletekeyifempty
 Root: HKLM; Subkey: SOFTWARE\Classes\.vpy\ShellNew; ValueType: string; ValueName: "FileName"; ValueData: "{app}\template.vpy"; Flags: uninsdeletevalue uninsdeletekeyifempty; Tasks: newvpyfile
+
+[Run]
+Filename: "{win}\pfm.exe"; Parameters: "register ""{app}\core\vsfs.dll"""; Tasks: registervsfs; Flags: skipifdoesntexist
+
+[UninstallRun]
+Filename: "{win}\pfm.exe"; Parameters: "unregister ""{app}\core\vsfs.dll"""; Tasks: registervsfs; Flags: skipifdoesntexist
 
 [Code]
 
