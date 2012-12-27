@@ -34,10 +34,11 @@ SECTION_RODATA
 	mov tmp1d, [exprq + 4]
 %ifdef PIC
 	mov tmp1q, [tmp2q + gprsize*tmp1q]
-%else
-	mov tmp1q, [.jtable + gprsize*tmp1q]
-%endif
+	add tmp1q, tmp2q
 	jmp tmp1q
+%else
+	jmp [.jtable + gprsize*tmp1q]
+%endif
 %endmacro
 
 %if ARCH_X86_64
@@ -302,15 +303,25 @@ cglobal evaluate_expr, 5, 7, 8, exprbase, rwptrs, ptroffsets, niterations, stack
 	xorps m7, m7
 	jmp .loopstart
 
+	align 16
 	.jtable:
-	PTRDATA .l_load8, .l_load16, .l_loadf, .l_loadconst, \
+%ifdef PIC
+	PTRDATA .l_load8 - .jtable, .l_load16 - .jtable, .l_loadf - .jtable, .l_loadconst - .jtable, \
+	.l_store8 - .jtable, .l_store16 - .jtable, .l_storef - .jtable, \
+	.l_dup - .jtable, .l_swap - .jtable, \
+	.l_add - .jtable, .l_sub - .jtable, .l_mul - .jtable, .l_div - .jtable, .l_max - .jtable, .l_min - .jtable, .l_sqrt - .jtable, .l_abs - .jtable, \
+	.l_gt - .jtable, .l_lt - .jtable, .l_eq - .jtable, .l_le - .jtable, .l_ge - .jtable, .l_ternary - .jtable, \
+	.l_and - .jtable, .l_or - .jtable, .l_xor - .jtable, .l_neg - .jtable, \
+	.l_exp - .jtable, .l_log - .jtable
+%else
+	PTRDATA .l_load8 wrt .jtable, .l_load16 wrt .jtable, .l_loadf wrt .jtable, .l_loadconst wrt .jtable, \
 	.l_store8, .l_store16, .l_storef, \
 	.l_dup, .l_swap, \
 	.l_add, .l_sub, .l_mul, .l_div, .l_max, .l_min, .l_sqrt, .l_abs, \
 	.l_gt, .l_lt, .l_eq, .l_le, .l_ge, .l_ternary, \
 	.l_and, .l_or, .l_xor, .l_neg, \
 	.l_exp, .l_log
-
+%endif
 	.loop:
 	dec niterationsq
 	jz .end
@@ -336,10 +347,11 @@ cglobal evaluate_expr, 5, 7, 8, exprbase, rwptrs, ptroffsets, niterations, stack
 	mov tmp1d, [exprbaseq + 4]
 %ifdef PIC
 	mov tmp1q, [tmp2q + gprsize*tmp1q]
-%else
-	mov tmp1q, [.jtable + gprsize*tmp1q]
-%endif
+	add tmp1q, tmp2q
 	jmp tmp1q
+%else
+	jmp [.jtable + gprsize*tmp1q]
+%endif
 
 	.l_load8:
 	movaps [stackq], m0
