@@ -45,8 +45,10 @@ Expr
       
    How to average the Y planes of 3 YUV clips and pass through the UV planes unchanged (different formats)::
    
-      std.Expr(clips=[clipa16bit, clipb10bit, clipa8bit], expr=["x y 64 * + z 256 * + 3 /", ""])
+      std.Expr(clips=[clipa16bit, clipb10bit, clipa8bit],
+         expr=["x y 64 * + z 256 * + 3 /", ""])
       
    Setting the output format because the input format isn't allowed as output (note that the U and V planes will contain junk since direct copy isn't possible)::
    
-      std.Expr(clips=[clipa10bit, clipb16bit, clipa8bit], expr=["x 64 * y + z 256 * + 3 /", ""], format=vs.YUV420P16)
+      std.Expr(clips=[clipa10bit, clipb16bit, clipa8bit],
+         expr=["x 64 * y + z 256 * + 3 /", ""], format=vs.YUV420P16)

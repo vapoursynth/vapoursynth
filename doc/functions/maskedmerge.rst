@@ -14,9 +14,9 @@ MaskedMerge
    
    How to apply a mask to the first plane::
    
-      MaskedMerge(clips=[A, B], mask=Mask, plane=0)
+      MaskedMerge(clips=[A, B], mask=Mask, planes=0)
    
    How to apply the first plane of a mask to the second and third plane::
    
-      MaskedMerge(clips=[A, B], mask=Mask, plane=[1, 2], first_plane=1)
+      MaskedMerge(clips=[A, B], mask=Mask, planes=[1, 2], first_plane=1)
       
