@@ -47,5 +47,6 @@ It is also a fatal error to set them to a value not specified below.::
    _SARNum int
    _SARDen int
    
-   Indicates a scenechange. Should be set both on the frame before and after the cut.
-   _SceneChange bint
+   Indicates a scenechange for the next/previous frame transition.
+   _SceneChangeNext bint
+   _SceneChangePrev bint
