@@ -385,7 +385,6 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, Core core, VSAPI *
                 raise Error('argument ' + key + ' has an unknown type: ' + atypes[key])
 
 cdef class Format(object):
-    cdef vapoursynth.VSFormat *f
     cdef readonly int id
     cdef readonly str name
     cdef readonly int color_family
@@ -421,7 +420,6 @@ cdef class Format(object):
 
 cdef Format createFormat(vapoursynth.VSFormat *f):
     cdef Format instance = Format.__new__(Format)
-    instance.f = f
     instance.id = f.id
     instance.name = f.name.decode('utf-8')
     instance.color_family = f.colorFamily
@@ -434,45 +432,48 @@ cdef Format createFormat(vapoursynth.VSFormat *f):
     return instance
 
 cdef class VideoProps(object):
-    cdef VideoFrame f
+    cdef VSFrameRef *f
+    cdef Core core
+    cdef vapoursynth.VSAPI *funcs
+    cdef bint readonly
     
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
     
     def __getattr__(self, name):
-        cdef VSMap *m = self.f.funcs.getFramePropsRO(self.f.f)
+        cdef VSMap *m = self.funcs.getFramePropsRO(self.f)
         cdef bytes b = name.encode('utf-8')
         cdef list ol = []
-        cdef int numelem = self.f.funcs.propNumElements(m, b)
+        cdef int numelem = self.funcs.propNumElements(m, b)
         if numelem < 0:
             raise KeyError('No key named ' + name + ' exists')
-        cdef char t = self.f.funcs.propGetType(m, b)
+        cdef char t = self.funcs.propGetType(m, b)
         if t == 'i':
             for i in range(numelem):
-                ol.append(self.f.funcs.propGetInt(m, b, i, NULL))
+                ol.append(self.funcs.propGetInt(m, b, i, NULL))
         elif t == 'f':
             for i in range(numelem):
-                ol.append(self.f.funcs.propGetFloat(m, b, i, NULL))
+                ol.append(self.funcs.propGetFloat(m, b, i, NULL))
         elif t == 's':
             for i in range(numelem):
-                ol.append(self.f.funcs.propGetData(m, b, i, NULL))
+                ol.append(self.funcs.propGetData(m, b, i, NULL))
         elif t == 'c':
             for i in range(numelem):
-                ol.append(createVideoNode(self.f.funcs.propGetNode(m, b, i, NULL), self.f.funcs, self.f.core))
+                ol.append(createVideoNode(self.funcs.propGetNode(m, b, i, NULL), self.funcs, self.core))
         elif t == 'v':
             for i in range(numelem):
-                ol.append(createVideoFrame(self.f.funcs.propGetFrame(m, b, i, NULL), self.f.funcs, self.f.core))
+                ol.append(createVideoFrame(self.funcs.propGetFrame(m, b, i, NULL), self.funcs, self.core))
         elif t == 'm':
             for i in range(numelem):
-                ol.append(createFunc(self.f.funcs.propGetFunc(m, b, i, NULL), self.f.core))
+                ol.append(createFunc(self.funcs.propGetFunc(m, b, i, NULL), self.core))
         return ol
         
     def __setattr__(self, name, value):
-        if self.f.readonly:
+        if self.readonly:
             raise Error('Cannot delete properties of a read only object')
-        cdef VSMap *m = self.f.funcs.getFramePropsRW(self.f.f)
+        cdef VSMap *m = self.funcs.getFramePropsRW(self.f)
         cdef bytes b = name.encode('utf-8')
-        cdef VSAPI *funcs = self.f.funcs
+        cdef VSAPI *funcs = self.funcs
         val = value
         if not isinstance(val, list):
             val = [val]
@@ -489,7 +490,7 @@ cdef class VideoProps(object):
                     if funcs.propSetFunc(m, b, (<Func>v).ref, 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif callable(v):
-                    tf = Func(v, self.f.core)
+                    tf = Func(v, self.core)
                     if funcs.propSetFunc(m, b, tf.ref, 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif type(v) == int or type(v) == long or type(v) == bool:
@@ -512,15 +513,18 @@ cdef class VideoProps(object):
             raise
         
     def __delattr__(self, name):
-        if self.f.readonly:
+        if self.readonly:
             raise Error('Cannot delete properties of a read only object')
-        cdef VSMap *m = self.f.funcs.getFramePropsRW(self.f.f)
+        cdef VSMap *m = self.funcs.getFramePropsRW(self.f)
         cdef bytes b = name.encode('utf-8')
-        self.f.funcs.propDeleteKey(m, b)
+        self.funcs.propDeleteKey(m, b)
         
 cdef VideoProps createVideoProps(VideoFrame f):
     cdef VideoProps instance = VideoProps.__new__(VideoProps)
-    instance.f = f
+    instance.f = f.funcs.cloneFrameRef(f.f)
+    instance.funcs = f.funcs
+    instance.core = f.core
+    instance.readonly = f.readonly
     return instance
 
 cdef class VideoFrame(object):
