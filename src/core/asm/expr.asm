@@ -314,7 +314,7 @@ cglobal evaluate_expr, 5, 7, 8, exprbase, rwptrs, ptroffsets, niterations, stack
 	.l_and - .jtable, .l_or - .jtable, .l_xor - .jtable, .l_neg - .jtable, \
 	.l_exp - .jtable, .l_log - .jtable
 %else
-	PTRDATA .l_load8 wrt .jtable, .l_load16 wrt .jtable, .l_loadf wrt .jtable, .l_loadconst wrt .jtable, \
+	PTRDATA .l_load8, .l_load16, .l_loadf, .l_loadconst, \
 	.l_store8, .l_store16, .l_storef, \
 	.l_dup, .l_swap, \
 	.l_add, .l_sub, .l_mul, .l_div, .l_max, .l_min, .l_sqrt, .l_abs, \
