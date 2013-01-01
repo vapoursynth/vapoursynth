@@ -105,7 +105,7 @@ cdef class Func(object):
         global exported_functions
         exported_functions.append(self)
         
-    def __deinit__(self):
+    def __dealloc__(self):
         self.core.funcs.freeFunc(self.ref)
 
     def __call__(self, **kwargs):
