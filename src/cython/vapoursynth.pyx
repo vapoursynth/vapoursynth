@@ -1119,8 +1119,8 @@ cdef public api int __stdcall vpy_evaluate_text(char *utf8text, char *fn, VPYScr
             except:
                 pass
             if isinstance(node, VideoNode):
-                Py_INCREF(evaldict)
-                extp.pynode = <void *>evaldict
+                Py_INCREF(node)
+                extp.pynode = <void *>node
                 extp.node = (<VideoNode>node).node
                 extp.vsapi = (<VideoNode>node).funcs
                 extp.num_threads = (<VideoNode>node).core.num_threads
@@ -1158,13 +1158,13 @@ cdef public api int __stdcall vpy_evaluate_file(char *fn, VPYScriptExport *extp)
         encscript = script.encode('utf-8')
         return vpy_evaluate_text(encscript, fn, extp)
 
-cdef public api int __stdcall vpy_free_script(VPYScriptExport *extp) nogil:
+cdef public api void __stdcall vpy_free_script(VPYScriptExport *extp) nogil:
     cdef PyObject *obj = <PyObject *>extp.pynode
     with gil:
         if extp.pynode:
-            evaldict = <object>extp.pynode
-            Py_DECREF(evaldict)
-            evaldict = None
+            node = <object>extp.pynode
+            Py_DECREF(node)
+            node = None
         if extp.errstr:
             errstr = <bytes>extp.errstr
             Py_DECREF(errstr)   
