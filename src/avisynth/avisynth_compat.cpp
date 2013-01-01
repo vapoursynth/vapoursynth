@@ -374,7 +374,7 @@ static const VSFrameRef *VS_CC avisynthFilterGetFrame(int n, int activationReaso
             if (!frame)
                 qFatal("Avisynth Error: no frame returned");
         } catch (const AvisynthError &e) {
-            qFatal(QByteArray("Avisynth Error: avisynth errors in GetFrame() are unrecoverable, crashing... ") + e.msg);
+            qFatal("Avisynth Error: avisynth errors in GetFrame() are unrecoverable, crashing... %s", e.msg);
         } catch (const IScriptEnvironment::NotFound &) {
             qFatal("Avisynth Error: escaped IScriptEnvironment::NotFound exceptions are non-recoverable, crashing... ");
         } catch (...) {

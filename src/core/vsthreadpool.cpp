@@ -104,7 +104,7 @@ void VSThread::run() {
                 owner->lock.lock();
 
                 if (f && rCtx->numFrameRequests > 0)
-                    qFatal("Frame returned but there are still pending frame requests, filter: " + rCtx->clip->name);
+                    qFatal("Frame returned but there are still pending frame requests, filter: %s", rCtx->clip->name);
 
                 owner->runningTasks.remove(FrameKey(rCtx->clip, rCtx->clip->filterMode == fmUnordered ? -1 : rCtx->n));
 
@@ -166,7 +166,7 @@ void VSThread::run() {
                 } else if (rCtx->numFrameRequests > 0 || rCtx->n < 0) {
                     // already scheduled or in the case of negative n it is simply a cache notify message
                 } else {
-                    qFatal("No frame returned at the end of processing by " + rCtx->clip->name);
+                    qFatal("No frame returned at the end of processing by %s", rCtx->clip->name);
                 }
 
                 break;
@@ -260,7 +260,7 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
     //unfortunately this would probably be quite slow for deep scripts so just hope the cache catches it
 
     if (context->n < 0)
-        qFatal("Negative frame request by: " + context->clip->name);
+        qFatal("Negative frame request by: %s", context->clip->name);
 
     // check to see if it's time to reevaluate cache sizes
     if (core->memory->isOverLimit()) {
