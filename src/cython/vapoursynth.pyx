@@ -78,8 +78,6 @@ RGBS = vapoursynth.pfRGBS
 COMPATBGR32 = vapoursynth.pfCompatBGR32
 COMPATYUY2 = vapoursynth.pfCompatYUY2
 
-exported_functions = []
-
 class Error(Exception):
     def __init__(self, value):
         self.value = value
@@ -102,8 +100,7 @@ cdef class Func(object):
         self.core = core
         self.func = func
         self.ref = core.funcs.createFunc(publicFunction, <void *>self, freeFunc)
-        global exported_functions
-        exported_functions.append(self)
+        Py_INCREF(self)
         
     def __dealloc__(self):
         self.core.funcs.freeFunc(self.ref)
@@ -1063,7 +1060,9 @@ cdef Function createFunction(str name, str signature, Plugin plugin, vapoursynth
 #// for python functions being executed by vs
 
 cdef void __stdcall freeFunc(void *pobj) nogil:
-    pass
+    with gil:
+        fobj = <object>pobj
+        Py_DECREF(fobj)
 
 cdef void __stdcall publicFunction(VSMap *inm, VSMap *outm, void *userData, VSCore *core, VSAPI *vsapi) nogil:
     with gil:
