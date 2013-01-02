@@ -32,6 +32,7 @@ import ctypes
 import msvcrt
 #endif
 import threading
+import gc
 
 GRAY  = vapoursynth.cmGray
 RGB   = vapoursynth.cmRGB
@@ -1171,3 +1172,4 @@ cdef public api void __stdcall vpy_free_script(VPYScriptExport *extp) nogil:
         if extp.errstr:
             errstr = <bytes>extp.errstr
             Py_DECREF(errstr)   
+        gc.collect()
