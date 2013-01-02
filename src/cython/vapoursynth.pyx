@@ -1118,6 +1118,9 @@ cdef public api int __stdcall vpy_evaluate_text(char *utf8text, char *fn, VPYScr
                 extp.enable_v210 = evaldict['enable_v210']
             except:
                 pass
+                
+            for key in evaldict:
+                evaldict[key] = None
             if isinstance(node, VideoNode):
                 Py_INCREF(node)
                 extp.pynode = <void *>node
