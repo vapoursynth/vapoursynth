@@ -1523,7 +1523,8 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     VSNodeRef *node;
     int hasvi = 0;
     int format = 0;
-    int color[3] = { 0, 0, 0 };
+    double fcolor[3] = { 0, 0, 0 };
+    int icolor[3] = { 0, 0, 0 };
     int ncolors;
     int plane;
     int64_t temp;
@@ -1595,8 +1596,8 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     if (!d.vi.format)
         RETERROR("BlankClip: Invalid format");
 
-    if (d.vi.format->sampleType != stInteger)
-        RETERROR("BlankClip: Only integer sample types supported as output");
+	if (d.vi.format->sampleType != stInteger && !(d.vi.format->sampleType == stFloat && d.vi.format->bitsPerSample == 32))
+        RETERROR("BlankClip: Invalid output format specified");
 
     temp = vsapi->propGetInt(in, "length", 0, &err);
 
@@ -1619,9 +1620,20 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
 
     if (ncolors == d.vi.format->numPlanes) {
         for (i = 0; i < ncolors; i++) {
-            color[i] = int64ToIntS(vsapi->propGetInt(in, "color", i, 0));
-            if (color[i] < 0 || color[i] >= (1 << d.vi.format->bitsPerSample))
-                RETERROR("BlankClip: color value out of range");
+			fcolor[i] = vsapi->propGetFloat(in, "color", i, 0);
+			if (d.vi.format->sampleType == stInteger) {
+				icolor[i] = (int)(fcolor[i] + 0.5);
+				if (icolor[i] < 0 || icolor[i] >= (1 << d.vi.format->bitsPerSample))
+					RETERROR("BlankClip: color value out of range");
+			} else {
+				if (d.vi.format->colorFamily == cmRGB || i == 0) {
+					if (fcolor[i] < 0 || fcolor[i] > 1)
+						RETERROR("BlankClip: color value out of range");
+				} else {
+					if (fcolor[i] < -0.5 || fcolor[i] > 0.5)
+						RETERROR("BlankClip: color value out of range");
+				}
+			}
         }
     } else if (ncolors > 0) {
         RETERROR("BlankClip: invalid number of color values specified");
@@ -1632,26 +1644,28 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     for (plane = 0; plane < d.vi.format->numPlanes; plane++) {
         int x, y;
         uint8_t *dstp;
-
         switch (d.vi.format->bytesPerSample) {
         case 1:
-            memset(vsapi->getWritePtr(d.f, plane), color[plane], vsapi->getStride(d.f, plane) * vsapi->getFrameHeight(d.f, plane));
+            memset(vsapi->getWritePtr(d.f, plane), icolor[plane], vsapi->getStride(d.f, plane) * vsapi->getFrameHeight(d.f, plane));
             break;
         case 2:
             dstp = vsapi->getWritePtr(d.f, plane);
             for (y = 0; y < vsapi->getFrameHeight(d.f, plane); y++) {
                 for (x = 0; x < vsapi->getFrameWidth(d.f, plane); x++)
-                    ((uint16_t *)dstp)[x] = color[plane];
+                    ((uint16_t *)dstp)[x] = icolor[plane];
                 dstp += vsapi->getStride(d.f, plane);
             }
             break;
         case 4:
             dstp = vsapi->getWritePtr(d.f, plane);
-            for (y = 0; y < vsapi->getFrameHeight(d.f, plane); y++) {
-                for (x = 0; x < vsapi->getFrameWidth(d.f, plane); x++)
-                    ((uint32_t *)dstp)[x] = color[plane];
-                dstp += vsapi->getStride(d.f, plane);
-            }
+			for (y = 0; y < vsapi->getFrameHeight(d.f, plane); y++) {
+				for (x = 0; x < vsapi->getFrameWidth(d.f, plane); x++)
+					if (d.vi.format->sampleType == stInteger)
+						((uint32_t *)dstp)[x] = icolor[plane];
+					else
+						((float *)dstp)[x] = (float)fcolor[plane];
+				dstp += vsapi->getStride(d.f, plane);
+			}
             break;
         }
     }
@@ -3310,7 +3324,7 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("Turn180", "clip:clip;", flipHorizontalCreate, (void *)1, plugin);
     registerFunc("StackVertical", "clips:clip[];", stackCreate, (void *)1, plugin);
     registerFunc("StackHorizontal", "clips:clip[];", stackCreate, 0, plugin);
-    registerFunc("BlankClip", "clip:clip:opt;width:int:opt;height:int:opt;format:int:opt;length:int:opt;fpsnum:int:opt;fpsden:int:opt;color:int[]:opt;", blankClipCreate, 0, plugin);
+    registerFunc("BlankClip", "clip:clip:opt;width:int:opt;height:int:opt;format:int:opt;length:int:opt;fpsnum:int:opt;fpsden:int:opt;color:float[]:opt;", blankClipCreate, 0, plugin);
     registerFunc("AssumeFPS", "clip:clip;src:clip:opt;fpsnum:int:opt;fpsden:int:opt;", assumeFPSCreate, 0, plugin);
     registerFunc("Lut", "clip:clip;lut:int[];planes:int[];", lutCreate, 0, plugin);
     registerFunc("Lut2", "clips:clip[];lut:int[];planes:int[];", lut2Create, 0, plugin);

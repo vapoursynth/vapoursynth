@@ -4,6 +4,7 @@ compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 reopening .vpy files in vfw may leak a little bit of memory
 
 r18:
+blankclip can now produce float clips
 fixed/at least greatly reduced the big memory leak when reopening a script through vfw
 
 r17:
