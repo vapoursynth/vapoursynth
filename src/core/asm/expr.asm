@@ -16,6 +16,9 @@
 ; License along with VapourSynth; if not, write to the Free Software
 ; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
+; The log and exp functions are an intrinsics to sse2 asm conversion
+; of the code found in http://gruntthepeon.free.fr/ssemath/
+
 %include "asm/x86inc.asm"
 
 CPU Pentium4

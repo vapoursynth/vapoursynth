@@ -16,6 +16,9 @@
 ; License along with VapourSynth; if not, write to the Free Software
 ; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
+; A fancy pdf with a detailed description of how a transpose in MMX works can be found at:
+; http://software.intel.com/sites/default/files/m/c/c/a/MMX_App_Transpose_Matrix.pdf
+
 %include "asm/x86inc.asm"
 
 CPU Pentium4
