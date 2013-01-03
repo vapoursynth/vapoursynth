@@ -2734,7 +2734,7 @@ static const VSFrameRef *VS_CC planeAverageGetFrame(int n, int activationReason,
             break;
         }
         
-        vsapi->propSetFloat(vsapi->getFramePropsRW(dst), d->prop, acc / (double)(width * height * ((1 << d->vi->format->bitsPerSample) - 1)), paReplace);
+        vsapi->propSetFloat(vsapi->getFramePropsRW(dst), d->prop, acc / (double)(width * height * (((int64_t)1 << d->vi->format->bitsPerSample) - 1)), paReplace);
 
         vsapi->freeFrame(src);
         return dst;
@@ -2823,7 +2823,7 @@ static const VSFrameRef *VS_CC planeDifferenceGetFrame(int n, int activationReas
             break;
         }
         
-        vsapi->propSetFloat(vsapi->getFramePropsRW(dst), d->prop, acc / (double)(width * height * ((1 << d->vi->format->bitsPerSample) - 1)), paReplace);
+        vsapi->propSetFloat(vsapi->getFramePropsRW(dst), d->prop, acc / (double)(width * height * (((int64_t)1 << d->vi->format->bitsPerSample) - 1)), paReplace);
         
         vsapi->freeFrame(src1);
         vsapi->freeFrame(src2);
