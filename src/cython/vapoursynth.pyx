@@ -1110,11 +1110,18 @@ cdef public api int __stdcall vpy_evaluate_text(char *utf8text, char *fn, VPYScr
             evaldict = {}
             comp = compile(utf8text.decode('utf-8'), fn.decode('utf-8'), 'exec')
             exec(comp) in evaldict
-            node = evaldict['last']
+            
+            node = None
+            try:
+                node = evaldict['last']
+            except:
+                pass
+                
             try:
                 extp.pad_scanlines = evaldict['pad_scanlines']
             except:
                 pass
+                
             try:
                 extp.enable_v210 = evaldict['enable_v210']
             except:
@@ -1129,7 +1136,7 @@ cdef public api int __stdcall vpy_evaluate_text(char *utf8text, char *fn, VPYScr
                 extp.vsapi = (<VideoNode>node).funcs
                 extp.num_threads = (<VideoNode>node).core.num_threads
             else:
-                extp.error = 'No clip returned in last variable'
+                extp.error = "No clip returned in 'last'"
                 return 3
         except BaseException, e:
             estr = 'Python exception: ' + str(e)
