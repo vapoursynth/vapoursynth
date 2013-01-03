@@ -4,6 +4,8 @@ compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 reopening .vpy files in vfw may leak a little bit of memory
 
 r18:
+added color argument to addborders
+fixed addborders for formats with over 8 bits per sample
 blankclip can now produce float clips
 fixed/at least greatly reduced the big memory leak when reopening a script through vfw
 

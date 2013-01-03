@@ -32,6 +32,20 @@
 //////////////////////////////////////////
 // Shared
 
+#define vs_memset8 memset
+
+static inline void vs_memset16(void *ptr, int value, size_t num) {
+	uint16_t *tptr = (uint16_t *)ptr;
+	while (num-- > 0)
+		*tptr++ = (uint16_t)value;
+}
+
+static inline void vs_memset32(void *ptr, int value, size_t num) {
+	int32_t *tptr = (int32_t *)ptr;
+	while (num-- > 0)
+		*tptr++ = (int32_t)value;
+}
+
 typedef struct {
     VSNodeRef *node;
     const VSVideoInfo *vi;
@@ -288,6 +302,10 @@ typedef struct {
     int right;
     int top;
     int bottom;
+	union {
+		uint32_t i[3];
+		float f[3];
+	} color;
 } AddBordersData;
 
 static void VS_CC addBordersInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -351,20 +369,57 @@ static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, v
             uint8_t *dstdata = vsapi->getWritePtr(dst, plane);
             int padt = d->top >> (plane ? fi->subSamplingH : 0);
             int padb = d->bottom >> (plane ? fi->subSamplingH : 0);
-            int padl = d->left >> (plane ? fi->subSamplingW : 0) * fi->bytesPerSample;
-            int padr = d->right >> (plane ? fi->subSamplingW : 0) * fi->bytesPerSample;
-            memset(dstdata, 0, padt * dststride);
-            dstdata += padt * dststride;
+            int padl = (d->left >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample;
+            int padr = (d->right >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample;
+			int color = d->color.i[plane];
+
+			switch (d->vi->format->bytesPerSample) {
+			case 1:
+				vs_memset8(dstdata, color, padt * dststride);
+				break;
+			case 2:
+				vs_memset16(dstdata, color, padt * dststride / 2);
+				break;
+			case 4:
+				vs_memset32(dstdata, color, padt * dststride / 4);
+				break;
+			}
+            dstdata += padt * dststride; 
 
             for (hloop = 0; hloop < srcheight; hloop++) {
-                memset(dstdata, 0, padl);
-                memcpy(dstdata + padl, srcdata, rowsize);
-                memset(dstdata + padl + rowsize, 0, padr);
+				switch (d->vi->format->bytesPerSample) {
+				case 1:
+					vs_memset8(dstdata, color, padl);
+					memcpy(dstdata + padl, srcdata, rowsize);
+					vs_memset8(dstdata + padl + rowsize, color, padr);
+					break;
+				case 2:
+					vs_memset16(dstdata, color, padl / 2);
+					memcpy(dstdata + padl, srcdata, rowsize);
+					vs_memset16(dstdata + padl + rowsize, color, padr / 2);
+					break;
+				case 4:
+					vs_memset32(dstdata, color, padl / 4);
+					memcpy(dstdata + padl, srcdata, rowsize);
+					vs_memset32(dstdata + padl + rowsize, color, padr / 4);
+					break;
+				}
+
                 dstdata += dststride;
                 srcdata += srcstride;
             }
 
-            memset(dstdata, 0, padb * dststride);
+			switch (d->vi->format->bytesPerSample) {
+			case 1:
+				vs_memset8(dstdata, color, padb * dststride);
+				break;
+			case 2:
+				vs_memset16(dstdata, color, padb * dststride / 2);
+				break;
+			case 4:
+				vs_memset32(dstdata, color, padb * dststride / 4);
+				break;
+			}
         }
 
         vsapi->freeFrame(src);
@@ -378,7 +433,7 @@ static void VS_CC addBordersCreate(const VSMap *in, VSMap *out, void *userData, 
     char msg[150];
     AddBordersData d;
     AddBordersData *data;
-    int err;
+    int err, ncolors, i;
 
     d.left = int64ToIntS(vsapi->propGetInt(in, "left", 0, &err));
     d.right = int64ToIntS(vsapi->propGetInt(in, "right", 0, &err));
@@ -396,6 +451,30 @@ static void VS_CC addBordersCreate(const VSMap *in, VSMap *out, void *userData, 
     if (addBordersVerify(d.left, d.right, d.top, d.bottom, d.vi->format, msg)) {
         vsapi->freeNode(d.node);
         RETERROR(msg);
+    }
+
+	ncolors = vsapi->propNumElements(in, "color");
+
+    if (ncolors == d.vi->format->numPlanes) {
+        for (i = 0; i < ncolors; i++) {
+			double color = vsapi->propGetFloat(in, "color", i, 0);
+			if (d.vi->format->sampleType == stInteger) {
+				d.color.i[i] = (int)(color + 0.5);
+				if (color < 0 || d.color.i[i] >= ((uint64_t)1 << d.vi->format->bitsPerSample))
+					RETERROR("AddBorders: color value out of range");
+			} else {
+				d.color.f[i] = (float)color;
+				if (d.vi->format->colorFamily == cmRGB || i == 0) {
+					if (color < 0 || color > 1)
+						RETERROR("AddBorders: color value out of range");
+				} else {
+					if (color < -0.5 || color > 0.5)
+						RETERROR("AddBorders: color value out of range");
+				}
+			}
+        }
+    } else if (ncolors > 0) {
+        RETERROR("AddBorders: invalid number of color values specified");
     }
 
     data = malloc(sizeof(d));
@@ -1523,8 +1602,10 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     VSNodeRef *node;
     int hasvi = 0;
     int format = 0;
-    double fcolor[3] = { 0, 0, 0 };
-    int icolor[3] = { 0, 0, 0 };
+	union {
+		uint32_t i[3];
+		float f[3];
+	} color;
     int ncolors;
     int plane;
     int64_t temp;
@@ -1620,17 +1701,18 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
 
     if (ncolors == d.vi.format->numPlanes) {
         for (i = 0; i < ncolors; i++) {
-			fcolor[i] = vsapi->propGetFloat(in, "color", i, 0);
+			double lcolor = vsapi->propGetFloat(in, "color", i, 0);
 			if (d.vi.format->sampleType == stInteger) {
-				icolor[i] = (int)(fcolor[i] + 0.5);
-				if (icolor[i] < 0 || icolor[i] >= (1 << d.vi.format->bitsPerSample))
+				color.i[i] = (int)(lcolor + 0.5);
+				if (lcolor < 0 || color.i[i] >= ((int64_t)1 << d.vi.format->bitsPerSample))
 					RETERROR("BlankClip: color value out of range");
 			} else {
+				color.f[i] = (float)lcolor;
 				if (d.vi.format->colorFamily == cmRGB || i == 0) {
-					if (fcolor[i] < 0 || fcolor[i] > 1)
+					if (lcolor < 0 || lcolor > 1)
 						RETERROR("BlankClip: color value out of range");
 				} else {
-					if (fcolor[i] < -0.5 || fcolor[i] > 0.5)
+					if (lcolor < -0.5 || lcolor > 0.5)
 						RETERROR("BlankClip: color value out of range");
 				}
 			}
@@ -1642,30 +1724,15 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     d.f = vsapi->newVideoFrame(d.vi.format, d.vi.width, d.vi.height, 0, core);
 
     for (plane = 0; plane < d.vi.format->numPlanes; plane++) {
-        int x, y;
-        uint8_t *dstp;
         switch (d.vi.format->bytesPerSample) {
         case 1:
-            memset(vsapi->getWritePtr(d.f, plane), icolor[plane], vsapi->getStride(d.f, plane) * vsapi->getFrameHeight(d.f, plane));
+			vs_memset8(vsapi->getWritePtr(d.f, plane), color.i[plane], vsapi->getStride(d.f, plane) * vsapi->getFrameHeight(d.f, plane));
             break;
         case 2:
-            dstp = vsapi->getWritePtr(d.f, plane);
-            for (y = 0; y < vsapi->getFrameHeight(d.f, plane); y++) {
-                for (x = 0; x < vsapi->getFrameWidth(d.f, plane); x++)
-                    ((uint16_t *)dstp)[x] = icolor[plane];
-                dstp += vsapi->getStride(d.f, plane);
-            }
+			vs_memset16(vsapi->getWritePtr(d.f, plane), color.i[plane], vsapi->getStride(d.f, plane) * vsapi->getFrameHeight(d.f, plane) / 2);
             break;
         case 4:
-            dstp = vsapi->getWritePtr(d.f, plane);
-			for (y = 0; y < vsapi->getFrameHeight(d.f, plane); y++) {
-				for (x = 0; x < vsapi->getFrameWidth(d.f, plane); x++)
-					if (d.vi.format->sampleType == stInteger)
-						((uint32_t *)dstp)[x] = icolor[plane];
-					else
-						((float *)dstp)[x] = (float)fcolor[plane];
-				dstp += vsapi->getStride(d.f, plane);
-			}
+			vs_memset32(vsapi->getWritePtr(d.f, plane), color.i[plane], vsapi->getStride(d.f, plane) * vsapi->getFrameHeight(d.f, plane) / 4);
             break;
         }
     }
@@ -3309,7 +3376,7 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     //configFunc("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 1, plugin);
     registerFunc("CropAbs", "clip:clip;width:int;height:int;x:int:opt:link;y:int:opt:link;", cropAbsCreate, 0, plugin);
     registerFunc("CropRel", "clip:clip;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;", cropRelCreate, 0, plugin);
-    registerFunc("AddBorders", "clip:clip;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;", addBordersCreate, 0, plugin);
+    registerFunc("AddBorders", "clip:clip;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;color:float[]:opt;", addBordersCreate, 0, plugin);
     registerFunc("Trim", "clip:clip;first:int:opt;last:int:opt;length:int:opt;", trimCreate, 0, plugin);;
     registerFunc("Reverse", "clip:clip;", reverseCreate, 0, plugin);
     registerFunc("Loop", "clip:clip;times:int:opt;", loopCreate, 0, plugin);

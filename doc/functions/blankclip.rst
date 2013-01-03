@@ -1,7 +1,7 @@
 BlankClip
 =========
 
-.. function:: BlankClip([clip clip, int width=640, int height=480, int format=vs.RGB24, int length=(10*fpsnum)/fpsden, int fpsnum=24, int fpsden=1, float[] color=[0, 0, 0])
+.. function:: BlankClip([clip clip, int width=640, int height=480, int format=vs.RGB24, int length=(10*fpsnum)/fpsden, int fpsnum=24, int fpsden=1, float[] color=[0, 0, 0]])
    :module: std
    
    Generates a new empty clip. This can be useful to have when editing video or for testing. The default is a 640x480 RGB24 24fps 10 second long black clip.
