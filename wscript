@@ -187,6 +187,14 @@ def configure(conf):
 
         add_options(['ASFLAGS'],
                     ['-DVSCORE_DEBUG'])
+
+        if conf.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin']:
+            dbgfmt = 'cv8'
+        else:
+            dbgfmt = 'dwarf2'
+
+        add_options(['ASFLAGS'],
+                    ['-g{0}'.format(dbgfmt)])
     elif conf.options.mode == 'release':
         if conf.env.CXX_NAME == 'gcc':
             add_options(['CFLAGS', 'CXXFLAGS'],
