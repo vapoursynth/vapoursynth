@@ -26,7 +26,6 @@
 
 #include "VapourSynth.h"
 #include "VSHelper.h"
-#include "AudioSource.h"
 #include "AVIReadHandler.h"
 
 static int BMPSize(int height, int rowsize) {
@@ -324,9 +323,9 @@ public:
     };
 
     AVISource(const char filename[], const char pixel_type[],
-        const char fourCC[], int mode, VSCore *core, const VSAPI *vsapi);  // mode: 0=detect, 1=avifile, 2=opendml, 3=avifile (audio only)
+        const char fourCC[], int mode, VSCore *core, const VSAPI *vsapi);  // mode: 0=detect, 1=avifile, 2=opendml
     ~AVISource();
-    void CleanUp(); // Tritical - Jan 2006
+    void CleanUp();
     const VSFrameRef *GetFrame(int n, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
 
     static void VS_CC create_AVISource(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -344,9 +343,6 @@ public:
             AVISource *avs = new AVISource(path, pixel_type, fourCC, mode, core, vsapi);
             vsapi->createFilter(in, out, "AVISource", filterInit, filterGetFrame, filterFree, fmSerial, 0, (void *)avs, core);
 
-            // fixme, append all the listed clips here
-            //for (int i=1; i<args[0].ArraySize(); ++i)
-            //result = new_Splice(result, new AVISource(args[0][i].AsString(), fAudio, pixel_type, fourCC, mode, env), false, env);
         } catch (std::runtime_error &e) {
             vsapi->setError(out, e.what());
         }
