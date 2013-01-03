@@ -1,4 +1,3 @@
-//#define _WIN32_WINNT 0x0403 //very hacky don't know where it should go else
 #ifndef __Stdafx_H__
 #define __Stdafx_H__
 

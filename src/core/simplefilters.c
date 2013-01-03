@@ -3219,7 +3219,7 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
         int plane;
         int x, y;
         if (d->mask23)
-           mask23 = vsapi->getFrameFilter(n, d->mask, frameCtx);
+           mask23 = vsapi->getFrameFilter(n, d->mask23, frameCtx);
         for (plane = 0; plane < d->vi->format->numPlanes; plane++) {
             if (d->process[plane]) {
                 int h = vsapi->getFrameHeight(src1, plane);
@@ -3359,7 +3359,7 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
     }
 
     // do we need to resample the first mask plane and use it for all the planes?
-    if (((maskvi->format->numPlanes == 1 || d.first_plane) && d.vi->format->numPlanes > 1) && (d.vi->format->subSamplingH > 0 || d.vi->format->subSamplingW > 0) && (d.process[1] || d.process[2])) {
+    if ((d.first_plane && d.vi->format->numPlanes > 1) && (d.vi->format->subSamplingH > 0 || d.vi->format->subSamplingW > 0) && (d.process[1] || d.process[2])) {
         min = vsapi->newMap();
         vsapi->propSetNode(min, "clip", d.mask, paAppend);
         vsapi->propSetInt(min, "width", d.vi->width >> d.vi->format->subSamplingW, paAppend);

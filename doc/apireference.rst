@@ -8,8 +8,8 @@ All frames contain a map of key--value pairs. It is recommended that these prope
 There is a special category of keys starting with _ which have strictly defined meanings specified below. It is acceptable to not set any of these keys if they are unknown.
 It is also a fatal error to set them to a value not specified below.::
 
-   The frame's absolute timestamp if reported by the source filter.
-   Should only be set by the source filter and not modified.
+   The frame's absolute timestamp in seconds if reported by the source filter.
+   Should only be set by the source filter and not be modified.
    _AbsoluteTime float
    
    Chroma sample position in YUV formats.

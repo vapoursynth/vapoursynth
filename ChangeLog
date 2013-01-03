@@ -4,6 +4,7 @@ compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 reopening .vpy files in vfw may leak a little bit of memory
 
 r18:
+fixed a bug that prevented mask scaling from working in MaskedMerge
 fixed a bug in VSFS that made the module crash on script errors, the full error message is now reported in a log file just like AVFS
 improved the error message when the last variable hasn't been set in a script
 changed default interleave behavior to match avisynth, the old and in some cases desirable behavior can be selected with the extend argument
