@@ -181,6 +181,7 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName)
             return 0;
         } else {
             setError(se.error);
+			return ERROR_ACCESS_DENIED;
         }
     } 
     return ERROR_ACCESS_DENIED;
@@ -450,6 +451,7 @@ references(1),
     packedPlane2(0),
     pending_requests(0)
 {
+	se.open = 0;
 }
 
 /*---------------------------------------------------------
@@ -462,8 +464,11 @@ VapourSynther::~VapourSynther(void)
     while (pending_requests > 0);
     delete [] packedPlane1;
     delete [] packedPlane2;
-    se.vsapi->freeFrame(lastFrame);
-    vpy_free_script(&se);
+	if (se.open) {
+		if (se.vsapi)
+			se.vsapi->freeFrame(lastFrame);
+		vpy_free_script(&se);
+	}
     ssfree(lastStringValue);
     ssfree(errText);
 }

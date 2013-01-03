@@ -1081,7 +1081,7 @@ cdef void __stdcall publicFunction(VSMap *inm, VSMap *outm, void *userData, VSCo
 
 #// for whole script evaluation and export
 cdef public struct VPYScriptExport:
-    int size
+    bint open
     void *pynode
     VSNodeRef *node
     void *errstr
@@ -1092,6 +1092,7 @@ cdef public struct VPYScriptExport:
     int enable_v210
     
 cdef void zero_vpy_script_export_struct(VPYScriptExport *extp) nogil:
+    extp.open = 0
     extp.node = NULL
     extp.pynode = NULL
     extp.errstr = NULL
@@ -1100,10 +1101,10 @@ cdef void zero_vpy_script_export_struct(VPYScriptExport *extp) nogil:
     extp.num_threads = 0
     extp.pad_scanlines = 0
     extp.enable_v210 = 0
-    #// add size checks here if more fields are added
     
 cdef public api int __stdcall vpy_evaluate_text(char *utf8text, char *fn, VPYScriptExport *extp) nogil:
     zero_vpy_script_export_struct(extp)
+    extp.open = 1
 
     with gil:
         try:
@@ -1170,7 +1171,7 @@ cdef public api int __stdcall vpy_evaluate_file(char *fn, VPYScriptExport *extp)
         return vpy_evaluate_text(encscript, fn, extp)
 
 cdef public api void __stdcall vpy_free_script(VPYScriptExport *extp) nogil:
-    cdef PyObject *obj = <PyObject *>extp.pynode
+    extp.open = 0
     with gil:
         if extp.pynode:
             node = <object>extp.pynode
