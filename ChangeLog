@@ -4,6 +4,7 @@ compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 reopening .vpy files in vfw may leak a little bit of memory
 
 r18:
+changed default interleave behavior to match avisynth, the old and in some cases desirable behavior can be selected with the extend argument
 added color argument to addborders
 fixed addborders for formats with over 8 bits per sample
 blankclip can now produce float clips

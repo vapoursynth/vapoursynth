@@ -615,12 +615,12 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
     InterleaveData d;
     InterleaveData *data;
     VSNodeRef *cref;
-    int mismatch;
     int i;
     int err;
     int compat;
 
-    mismatch = !!vsapi->propGetInt(in, "mismatch", 0, &err);
+    int mismatch = !!vsapi->propGetInt(in, "mismatch", 0, &err);
+    int extend = !!vsapi->propGetInt(in, "extend", 0, &err);
     d.numclips = vsapi->propNumElements(in, "clips");
 
     if (d.numclips == 1) { // passthrough for the special case with only one clip
@@ -646,7 +646,14 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
             RETERROR("Interleave: clip property mismatch");
         }
 
-        d.vi.numFrames *= d.numclips;
+		if (extend) {
+			d.vi.numFrames *= d.numclips;
+		} else if (d.vi.numFrames) {
+			// this is exactly how avisynth does it
+			d.vi.numFrames = (vsapi->getVideoInfo(d.node[0])->numFrames - 1) * d.numclips + 1;
+			for (i = 1; i < d.numclips; i++)
+				d.vi.numFrames = MAX(d.vi.numFrames, (vsapi->getVideoInfo(d.node[i])->numFrames - 1) * d.numclips + i + 1);
+		}
         d.vi.fpsNum *= d.numclips;
 
         data = malloc(sizeof(d));
@@ -3380,7 +3387,7 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("Trim", "clip:clip;first:int:opt;last:int:opt;length:int:opt;", trimCreate, 0, plugin);;
     registerFunc("Reverse", "clip:clip;", reverseCreate, 0, plugin);
     registerFunc("Loop", "clip:clip;times:int:opt;", loopCreate, 0, plugin);
-    registerFunc("Interleave", "clips:clip[];mismatch:int:opt;", interleaveCreate, 0, plugin);
+    registerFunc("Interleave", "clips:clip[];extend:int:opt;mismatch:int:opt;", interleaveCreate, 0, plugin);
     registerFunc("ShufflePlanes", "clips:clip[];planes:int[];format:int;", shufflePlanesCreate, 0, plugin);
     registerFunc("SelectEvery", "clip:clip;cycle:int;offsets:int[];", selectEveryCreate, 0, plugin);
     registerFunc("SeparateFields", "clip:clip;tff:int;", separateFieldsCreate, 0, plugin);
