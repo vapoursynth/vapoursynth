@@ -15,7 +15,7 @@ typedef struct {
     int enabled;
 } InvertData;
 
-// This function is called immediated after vsapi->createFilter(). This is the only place where the video
+// This function is called immediately after vsapi->createFilter(). This is the only place where the video
 // properties may be set. In this case we simply use the same as the input clip. You may pass an array
 // of VSVideoInfo if the filter has more than one output, like rgb+alpha as two separate clips.
 static void VS_CC invertInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -23,12 +23,12 @@ static void VS_CC invertInit(VSMap *in, VSMap *out, void **instanceData, VSNode 
     vsapi->setVideoInfo(d->vi, 1, node);
 }
 
-// This is the main function that gets called when a frame should be produced. It will in most cases get
+// This is the main function that gets called when a frame should be produced. It will, in most cases, get
 // called several times to produce one frame. This state is being kept track of by the value of
 // activationReason. The first call to produce a certain frame n is always arInitial. In this state
-// you should request all input frames you need. Always do it i ascending order to play nice with the
+// you should request all the input frames you need. Always do it in ascending order to play nice with the
 // upstream filters.
-// Once all frames are ready the the filter will be called with arAllFramesReady. It is now time to
+// Once all frames are ready, the the filter will be called with arAllFramesReady. It is now time to
 // do the actual processing.
 static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     InvertData *d = (InvertData *) * instanceData;
@@ -45,7 +45,7 @@ static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void 
         int height = vsapi->getFrameHeight(src, 0);
         int width = vsapi->getFrameWidth(src, 0);
 
-        
+
         // When creating a new frame for output it is VERY EXTREMELY SUPER IMPORTANT to
         // supply the "dominant" source frame to copy properties from. Frame props
         // are an essential part of the filter chain and you should NEVER break it.
@@ -58,13 +58,13 @@ static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void 
             const uint8_t *srcp = vsapi->getReadPtr(src, plane);
             int src_stride = vsapi->getStride(src, plane);
             uint8_t *dstp = vsapi->getWritePtr(dst, plane);
-            int dst_stride = vsapi->getStride(dst, plane); // note that if a frame has the same dimensions and format the stride is guaranteed to be the same, int dst_stride = src_stride would be fin too in this filter
+            int dst_stride = vsapi->getStride(dst, plane); // note that if a frame has the same dimensions and format, the stride is guaranteed to be the same. int dst_stride = src_stride would be fine too in this filter.
             // Since planes may be subsampled you have to query the height of them individually
             int h = vsapi->getFrameHeight(src, plane);
             int y;
             int w = vsapi->getFrameWidth(src, plane);
             int x;
-    
+
             for (y = 0; y < h; y++) {
                 for (x = 0; x < w; x++)
                     dstp[x] = ~srcp[x];
@@ -77,7 +77,7 @@ static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void 
         // Release the source frame
         vsapi->freeFrame(src);
 
-        // A reference is consumed when it is returned so saving the dst ref somewhere
+        // A reference is consumed when it is returned, so saving the dst reference somewhere
         // and reusing it is not allowed.
         return dst;
     }
@@ -114,8 +114,8 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     // If a property read fails for some reason (index out of bounds/wrong type)
     // then err will have flags set to indicate why and 0 will be returned. This
     // can be very useful to know when having optional arguments. Since we have
-    // strict checking because of what we wrote in the argument string the only reason
-    // this could fail is when the value wasn't set by the user.
+    // strict checking because of what we wrote in the argument string, the only
+    // reason this could fail is when the value wasn't set by the user.
     // And when it's not set we want it to default to enabled.
     d.enabled = !!vsapi->propGetInt(in, "enable", 0, &err);
     if (err)
@@ -133,23 +133,22 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     data = malloc(sizeof(d));
     *data = d;
 
-    // Create a new filter and returns a reference to it. Always pass on the in and out
+    // Creates a new filter and returns a reference to it. Always pass on the in and out
     // arguments or unexpected things may happen. The name should be something that's
     // easy to connect to the filter, like its function name.
     // The three function pointers handle initialization, frame processing and filter destruction.
     // The filtermode is very important to get right as it controls how threading of the filter
     // is handled. In general you should only use fmParallel whenever possible. This is if you
     // need to modify no shared data at all when the filter is running.
-    // For more complicated filters fmParallelRequests is usually easier to achieve as an
+    // For more complicated filters, fmParallelRequests is usually easier to achieve as it can
     // be prefetched in parallel but the actual processing is serialized.
     // The others can be considered special cases where fmSerial is useful to source filters and
     // fmUnordered is useful when a filter's state may change even when deciding which frames to
     // prefetch (such as a cache filter).
-    // If you filter is really fast (such as a filter that only resorts frames) you should set the
+    // If your filter is really fast (such as a filter that only resorts frames) you should set the
     // nfNoCache flag to make the caching work smoother.
     vsapi->createFilter(in, out, "Invert", invertInit, invertGetFrame, invertFree, fmParallel, 0, data, core);
-    return;
-}
+    return;}
 
 //////////////////////////////////////////
 // Init
