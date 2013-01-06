@@ -447,6 +447,17 @@ LRESULT AVISource::DecompressFrame(int n, bool preroll, VSFrameRef *frame, VSFra
         : ICDecompressEx(hic, flags, pbiSrc, srcbuffer, 0, 0, vi[0].width, vi[0].height, &biDst, decbuf, 0, 0, vi[0].width, vi[0].height));
 
     unpackframe(vi, frame, alpha, decbuf, 0, biDst.biCompression, biDst.biBitCount, bInvertFrames, vsapi);
+
+	if (pvideo->IsKeyFrame(n)) {
+		vsapi->propSetData(vsapi->getFramePropsRW(frame), "_PictType", "I", 1, paAppend);
+		if (alpha)
+			vsapi->propSetData(vsapi->getFramePropsRW(alpha), "_PictType", "I", 1, paAppend);
+	} else {
+		vsapi->propSetData(vsapi->getFramePropsRW(frame), "_PictType", "P", 1, paAppend);
+		if (alpha)
+			vsapi->propSetData(vsapi->getFramePropsRW(alpha), "_PictType", "P", 1, paAppend);
+	}
+
     return ret;
 }
 
