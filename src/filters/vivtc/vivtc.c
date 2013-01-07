@@ -875,6 +875,8 @@ typedef struct {
     VSVideoInfo vi;
     int cycle;
     int chroma;
+	int tail;
+	int inputNumFrames;
     int64_t dupthresh;
     int64_t scthresh;
     int blockx;
@@ -964,9 +966,12 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
     int i;
 
     if (activationReason == arInitial) {
+	    int prevreqd = 0;
         int cyclestart = (n / (vdm->cycle - 1)) * vdm->cycle;
         int cycleend = cyclestart + vdm->cycle;
-        int prevreqd = 0;
+		if (cycleend > vdm->inputNumFrames) 
+			cycleend = vdm->inputNumFrames;
+
 
         for (i = cyclestart; i < cycleend; i++) {
             if (vdm->vmi[i].maxbdiff < 0) {
@@ -1000,6 +1005,8 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
         // calculate all the needed metrics
         cyclestart = (n / (vdm->cycle - 1)) * vdm->cycle;
         cycleend = cyclestart + vdm->cycle;
+		if (cycleend > vdm->inputNumFrames) 
+			cycleend = vdm->inputNumFrames;
         for (i = cyclestart; i < cycleend; i++) {
             if (vdm->vmi[i].maxbdiff < 0) {
                 const VSFrameRef *prv = vsapi->getFrameFilter(max(i - 1, 0), vdm->node, frameCtx);
@@ -1154,8 +1161,11 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
         vdm.vmi[i].totdiff = -1;
     }
 
+	vdm.inputNumFrames = vdm.vi.numFrames;
+	vdm.tail = vdm.vi.numFrames % vdm.cycle;
     vdm.vi.numFrames /= vdm.cycle;
     vdm.vi.numFrames *= vdm.cycle - 1;
+	vdm.vi.numFrames += vdm.tail;
     muldivRational(&vdm.vi.fpsNum, &vdm.vi.fpsDen, vdm.cycle-1, vdm.cycle);
 
     d = (VDecimateData *)malloc(sizeof(vdm));
