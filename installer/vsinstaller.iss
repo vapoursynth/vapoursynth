@@ -1,5 +1,5 @@
 #define AppName = 'VapourSynth'
-#define Version = 'R17'
+#define Version = 'R18'
 
 [Setup]
 OutputDir=Compiled
@@ -29,9 +29,6 @@ FlatComponentsList=yes
 
 [Types]
 Name: Full; Description: Full installation
-
-[Components]
-Name: Core; Description: {#= AppName} {#= Version}; Types: Full; Flags: fixed
 
 [Tasks]
 Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to shell context menu"; GroupDescription: "New File Shortcuts:"
