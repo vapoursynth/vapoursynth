@@ -253,13 +253,17 @@ def configure(conf):
     conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore')
     conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore', type_name = 'QAtomicInt')
 
+    conf.check_cc(lib = 'swscale')
+    conf.check_cc(use = ['SWSCALE'], header_name = 'libswscale/swscale.h')
+    conf.check_cc(use = ['SWSCALE'], header_name = 'libswscale/swscale.h', function_name = 'swscale_license')
+
     conf.check_cc(lib = 'avutil')
     conf.check_cc(use = ['AVUTIL'], header_name = 'libavutil/avutil.h')
     conf.check_cc(use = ['AVUTIL'], header_name = 'libavutil/avutil.h', function_name = 'avutil_license')
 
-    conf.check_cc(lib = 'swscale')
-    conf.check_cc(use = ['SWSCALE'], header_name = 'libswscale/swscale.h')
-    conf.check_cc(use = ['SWSCALE'], header_name = 'libswscale/swscale.h', function_name = 'swscale_license')
+    conf.check_cc(lib = 'avcodec')
+    conf.check_cc(use = ['AVCODEC'], header_name = 'libavcodec/avcodec.h')
+    conf.check_cc(use = ['AVCODEC'], header_name = 'libavcodec/avcodec.h', function_name = 'avcodec_license')
 
     conf.check_cc(lib = 'ass')
     conf.check_cc(use = ['ASS'], header_name = 'ass/ass.h')
@@ -291,7 +295,7 @@ def build(bld):
 
     bld(features = 'c qxx asm',
         includes = 'include',
-        use = ['QTCORE', 'SWSCALE', 'AVUTIL'],
+        use = ['QTCORE', 'SWSCALE', 'AVUTIL', AVCODEC],
         source = bld.path.ant_glob(sources),
         target = 'objs')
 
