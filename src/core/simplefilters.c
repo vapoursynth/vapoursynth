@@ -878,9 +878,6 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
     for (i = 0; i < 3; i++) {
         if (d.node[i] && isCompatFormat(vsapi->getVideoInfo(d.node[i])))
             SHUFFLEERROR("ShufflePlanes: compat formats not supported");
-
-        //if (d.plane[i] < 0 || (vsapi->getVideoInfo(d.node[i])->format && d.plane[i] >= vsapi->getVideoInfo(d.node[i])->format->numPlanes))
-        //    SHUFFLEERROR("ShufflePlanes: invalid plane specified");
     }
 
     if (d.format != cmGray && nclips == 1) {
