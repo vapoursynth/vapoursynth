@@ -3153,7 +3153,8 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         }
     }
 
-    if (!isConstantFormat(d.vi) || !isSameFormat(d.vi, vsapi->getVideoInfo(d.node2))) {
+    if (!isConstantFormat(d.vi) || !isSameFormat(d.vi, vsapi->getVideoInfo(d.node2))
+		|| isCompatFormat(vsapi->getVideoInfo(d.node1)) || isCompatFormat(vsapi->getVideoInfo(d.node2))) {
         vsapi->freeNode(d.node1);
         vsapi->freeNode(d.node2);
         RETERROR("Merge: both clips must be constant format and also be the same format and dimensions");
@@ -3306,7 +3307,8 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
     if (maskvi->format->numPlanes == 1)
         d.first_plane = 1;
 
-    if (!isConstantFormat(d.vi) || !isSameFormat(d.vi, vsapi->getVideoInfo(d.node2))) {
+    if (!isConstantFormat(d.vi) || !isSameFormat(d.vi, vsapi->getVideoInfo(d.node2))
+		|| isCompatFormat(vsapi->getVideoInfo(d.node1)) || isCompatFormat(vsapi->getVideoInfo(d.node2)) || isCompatFormat(maskvi)) {
         vsapi->freeNode(d.node1);
         vsapi->freeNode(d.node2);
         vsapi->freeNode(d.mask);
