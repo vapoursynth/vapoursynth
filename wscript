@@ -2,7 +2,7 @@ import glob, os, subprocess, sys
 from waflib import Build, Task, TaskGen, Utils
 
 APPNAME = 'VapourSynth'
-VERSION = '17'
+VERSION = '19'
 
 TOP = os.curdir
 OUT = 'build'
