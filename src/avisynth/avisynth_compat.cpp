@@ -494,7 +494,7 @@ void FakeAvisynth::AddFunction(const char *name, const char *params, ApplyFunc a
     QString newArgs;
 
     while (paramPos < paramLength) {
-        if (params[paramPos] == '*' || params[paramPos] == '+') {
+        if (params[paramPos] == '*' || params[paramPos] == '+' || params[paramPos] == '.') {
             qWarning(QByteArray("Avisynth Compat: varargs not implemented so I'm just gonna skip importing ") + name);
             return;
         }

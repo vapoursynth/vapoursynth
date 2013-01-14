@@ -3,6 +3,9 @@ may deadlock with some avisynth plugins (set the number of threads to a bigger n
 compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 reopening .vpy files in vfw may leak a little bit of memory
 
+r19:
+now ignores functions with . in their argument string for avisynth compatibility, this makes warpsharp mostly compatible
+
 r18:
 the installer no longer asks for the installation type since there's only one option anyway
 vdecimate now returns and decimates the frames in the last incomplete cycle as well
