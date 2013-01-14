@@ -28,7 +28,7 @@ static void VS_CC invertInit(VSMap *in, VSMap *out, void **instanceData, VSNode 
 // activationReason. The first call to produce a certain frame n is always arInitial. In this state
 // you should request all the input frames you need. Always do it in ascending order to play nice with the
 // upstream filters.
-// Once all frames are ready, the the filter will be called with arAllFramesReady. It is now time to
+// Once all frames are ready, the filter will be called with arAllFramesReady. It is now time to
 // do the actual processing.
 static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     InvertData *d = (InvertData *) * instanceData;
