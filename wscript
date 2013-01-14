@@ -265,9 +265,9 @@ def configure(conf):
     conf.check_cc(use = ['AVCODEC'], header_name = 'libavcodec/avcodec.h')
     conf.check_cc(use = ['AVCODEC'], header_name = 'libavcodec/avcodec.h', function_name = 'avcodec_license')
 
-    conf.check_cc(lib = 'ass')
-    conf.check_cc(use = ['ASS'], header_name = 'ass/ass.h')
-    conf.check_cc(use = ['ASS'], header_name = 'ass/ass.h', function_name = 'ass_library_init')
+    conf.check_cc(lib = 'ass', mandatory = False)
+    conf.check_cc(use = ['ASS'], header_name = 'ass/ass.h', mandatory = False)
+    conf.check_cc(use = ['ASS'], header_name = 'ass/ass.h', function_name = 'ass_library_init', mandatory = False)
 
     libs = '-lm '
 
@@ -324,12 +324,13 @@ def build(bld):
             target = 'vivtc',
             install_path = '${PLUGINDIR}')
 
-        bld(features = 'c cxxshlib',
-            includes = 'include',
-            use = ['ASS'],
-            source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'assvapour')])),
-            target = 'assvapour',
-            install_path = '${PLUGINDIR}')
+        if bld.env.LIB_ASS:
+            bld(features = 'c cxxshlib',
+                includes = 'include',
+                use = ['ASS'],
+                source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'assvapour')])),
+                target = 'assvapour',
+                install_path = '${PLUGINDIR}')
 
     if bld.env.CYTHON == 'true':
         bld(features = 'preproc',
