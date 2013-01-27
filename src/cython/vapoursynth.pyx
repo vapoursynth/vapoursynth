@@ -608,6 +608,10 @@ cdef class VideoNode(object):
         cdef char errorMsg[512]
         cdef char *ep = errorMsg
         cdef VSFrameRef *f
+        if n < 0:
+            raise ValueError('Requesting negative frame numbers not allowed')
+        if (self.num_frames > 0) and (n >= self.num_frames):
+            raise ValueError('Requesting frame number is beyond the last frame')
         with nogil:
             f = self.funcs.getFrame(n, self.node, errorMsg, 500)
         if f == NULL:

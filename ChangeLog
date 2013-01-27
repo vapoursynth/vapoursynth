@@ -4,6 +4,7 @@ compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 reopening .vpy files in vfw may leak a little bit of memory
 
 r19:
+clip.get_frame() now throws an exception 
 fixes a reference leak in the VideoProps python class
 now ignores functions with . in their argument string for avisynth compatibility, this makes warpsharp mostly compatible
 
