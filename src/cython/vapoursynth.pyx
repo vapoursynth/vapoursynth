@@ -437,6 +437,9 @@ cdef class VideoProps(object):
     
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
+        
+    def __dealloc__(self):
+        self.funcs.freeFrame(self.f)
     
     def __getattr__(self, name):
         cdef VSMap *m = self.funcs.getFramePropsRO(self.f)
