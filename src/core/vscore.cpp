@@ -745,7 +745,7 @@ VSMap VSPlugin::invoke(const QByteArray &funcName, const VSMap &args) {
 
             f.func(&args, &v, f.functionData, core, getVSAPIInternal(apiVersion));
 
-            if (!compat & hasCompatNodes(v))
+            if (!compat && hasCompatNodes(v))
                 qFatal("%s: illegal filter node returning a compat format detected, DO NOT USE THE COMPAT FORMATS IN NEW FILTERS", funcName.constData());
 
             return v;

@@ -15,9 +15,7 @@
 #//  You should have received a copy of the GNU Lesser General Public
 #//  License along with VapourSynth; if not, write to the Free Software
 #//  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
-"""
-This is the VapourSynth module implementing the Python bindings.
-"""
+""" This is the VapourSynth module implementing the Python bindings. """
 
 #ifdef _WIN32
 cimport windows
