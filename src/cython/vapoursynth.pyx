@@ -32,6 +32,8 @@ import msvcrt
 import threading
 import gc
 
+_core = None
+
 GRAY  = vapoursynth.cmGray
 RGB   = vapoursynth.cmRGB
 YUV   = vapoursynth.cmYUV
@@ -913,6 +915,12 @@ cdef class Core(object):
         s += '\tAdd Caches: ' + str(self.add_cache) + '\n'
         s += '\tAccept Lowercase: ' + str(self.accept_lowercase) + '\n'
         return s
+        
+def get_core(int threads = 0, bint add_cache = True, bint accept_lowercase = False):
+    global _core
+    if _core is None:
+        _core = Core(threads, add_cache, accept_lowercase)
+    return _core
 
 cdef class Plugin(object):
     cdef Core core
