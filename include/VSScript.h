@@ -1,19 +1,7 @@
 #include "vapoursynth.h"
 
-typedef struct {
-    int size;
-    VSAPI *vsapi;
-    VSNodeRef *node;
-    char *error;
-    int num_threads;
-    int pad_scanlines;
-    int enable_v210;
-} ScriptExport;
-
-typedef enum {
-    seDefault = -1,
-    sePython = 0
-} ScriptEngine;
+typedef struct VSScript VSScript;
+typedef VSScript *VSScriptHandle;
 
 // FIXME, missing variable injection to speed things up
 // cannot take the output of one script and feed into the next one
@@ -21,19 +9,25 @@ typedef enum {
 
 
 // Initialize the available scripting runtimes, returns non-zero on failure
-VS_API(int) initVSScript(void);
+VS_API(int) vseval_init(void);
 
-// Free all scripting runtimes, returns non-zero on failure (scripts still open)
-VS_API(int) freeVSScript(void);
+// Free all scripting runtimes, returns non-zero on failure (such as scripts still open and everything will now crash)
+VS_API(int) vseval_finalize(void);
 
-// Evaluate a given piece of text as a script, the filename is just symbolic and will be used to make
-// the errors reported not be in a "mystery file". The script engine to use must also be specified.
-// Returns 0 on success, below 0 if the script engine is invalid and above 0 if there is an error
-// evaluating the script.
-VS_API(int) evaluateText(ScriptExport *se, const char *text, const char *filename, int scriptEngine);
+// Pass a pointer to a null handle to create a new one
+// The values returned by the query functions are only valid during the lifetime of the VSScriptHandle
+// ErrorFilename is if the error message should reference a certain file
+// core is to pass in an already created instance so that mixed environments can be used,
+// NULL creates a new core that can be fetched with vseval_getCore() later OR implicitly uses the one associated with an already existing handle when passed
+VS_API(int) vseval_evaluatePythonScript(VSScriptHandle *handle, const char *script, const char *errorFilename, VSCore *core);
+VS_API(void) vseval_freeScript(VSScriptHandle handle);
+VS_API(const char *) vseval_getError(VSScriptHandle handle);
+VS_API(VSNodeRef *) vseval_getOutput(VSScriptHandle handle);
+VS_API(void) vseval_clearOutput(VSScriptHandle handle);
+VS_API(VSCore *) vseval_getCore(VSScriptHandle handle);
+VS_API(const VSAPI *) vseval_getVSApi(VSScriptHandle handle);
 
-// Evaluate a file with
-// Returns 0 on success, below 0 if the script engine is invalid and above 0 if there is an error
-// evaluating the script.
-VS_API(int) evaluateFile(ScriptExport *se, const char *filename, int scriptEngine);
-VS_API(int) freeScript(ScriptExport *se);
+// Variables names that are not set or not of a convertible type
+VS_API(int) vseval_getVariable(VSScriptHandle handle, const char *name, VSMap *dst);
+VS_API(void) vseval_setVariables(VSScriptHandle handle, const VSMap *vars);
+
