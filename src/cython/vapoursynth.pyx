@@ -23,6 +23,7 @@ cimport windows
 cimport posix.unistd
 #endif
 cimport vapoursynth
+cimport vsscript
 cimport cython.parallel
 from cpython.ref cimport Py_INCREF, Py_DECREF, Py_CLEAR, PyObject
 import ctypes
