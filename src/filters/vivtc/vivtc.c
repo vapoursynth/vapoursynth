@@ -138,7 +138,10 @@ static int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
         const int Height = vsapi->getFrameHeight(src, plane);
         unsigned char *cmkp = vsapi->getWritePtr(cmask, plane);
         const int cmk_pitch = vsapi->getStride(cmask, plane);
-        if (cthresh < 0) { memset(cmkp,255,Height*cmk_pitch); continue; }
+        if (cthresh < 0) {
+			memset(cmkp,255,Height*cmk_pitch);
+			continue;
+		}
         memset(cmkp,0,Height*cmk_pitch);
         for (x=0; x<Width; ++x) {
             const int sFirst = srcp[x] - srcp[x + src_pitch];
