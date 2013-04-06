@@ -757,9 +757,10 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
     double scthresh;
 
     vfm.order = !!vsapi->propGetInt(in, "order", 0, 0);
-    vfm.field = !!vsapi->propGetInt(in, "field", 0, &err);
-    if (err)
+    vfm.field = int64ToIntS(vsapi->propGetInt(in, "field", 0, &err));
+    if (err || vfm.field != !!vfm.field)
         vfm.field = vfm.order;
+
     vfm.mode = int64ToIntS(vsapi->propGetInt(in, "mode", 0, &err));
     if (err)
         vfm.mode = 1;
@@ -848,8 +849,6 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
 
     vfm.map = vsapi->newVideoFrame(vi->format, vi->width, vi->height, NULL, core);
     vfm.cmask = vsapi->newVideoFrame(vi->format, vi->width, vi->height, NULL, core);
-    if (vfm.field == -1)
-        vfm.field = vfm.order;
 
     vfm.tpitchy = (vi->width&15) ? vi->width+16-(vi->width&15) : vi->width;
     vfm.tpitchuv = ((vi->width>>1)&15) ? (vi->width>>1)+16-((vi->width>>1)&15) : (vi->width>>1);
@@ -1022,7 +1021,7 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
         // the last sc and the lowest dup, if any
 
         lowest = cyclestart;
-        for (i = cyclestart + 1; i < cycleend; i++) {
+        for (i = cyclestart; i < cycleend; i++) {
             if (vdm->vmi[i].totdiff > vdm->scthresh)
                 scpos = i;
             if (vdm->vmi[i].maxbdiff < vdm->vmi[lowest].maxbdiff)
