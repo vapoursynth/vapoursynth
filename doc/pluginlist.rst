@@ -12,6 +12,10 @@ Native Plugins
 * `vsrawsource <http://forum.doom9.org/showthread.php?t=166075>`_ -- raw video reader
 * `Image reader collection <http://forum.doom9.org/showthread.php?t=166088>`_
 * `Example plugins for Vapoursynth <http://forum.doom9.org/showthread.php?t=166147>`_ -- by thewebchat
+* `GenericFilters <http://forum.doom9.org/showthread.php?t=166842>`_ -- Common image processing filters (replaces most of masktools)
+* `fmtconv <http://forum.doom9.org/showthread.php?t=166504>`_ -- High quality bitdepth and colorspace conversion, resizing
+* `d2vsource <http://forum.doom9.org/showthread.php?t=166399>`_
+* `nnedi3 <http://forum.doom9.org/showthread.php?t=166434>`_
 
 Avisynth Interop
 ################
