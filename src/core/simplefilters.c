@@ -1885,7 +1885,7 @@ static const VSFrameRef *VS_CC lutGetframe(int n, int activationReason, void **i
 
                     for (hl = 0; hl < h; hl++) {
                         for (x = 0; x < w; x++)
-                            ((uint16_t *)dstp)[x] =  lut[srcp[x]];
+                            ((uint16_t *)dstp)[x] =  lut[((uint16_t *)srcp)[x]];
 
                         dstp += dst_stride;
                         srcp += src_stride;
