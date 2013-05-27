@@ -254,7 +254,7 @@ VSFunction::VSFunction(const QByteArray &name, const QByteArray &argString, VSPu
         if (empty && !arr)
             qFatal("Only array arguments can have the empty flag set");
 
-        args.append(FilterArgument(argParts[0].toUtf8(), type, arr, empty, opt, link));
+        args.append(FilterArgument(argParts[0].toUtf8(), type, arr, empty, opt));
     }
 }
 
@@ -717,16 +717,6 @@ VSMap VSPlugin::invoke(const QByteArray &funcName, const VSMap &args) {
                     if (!fa.empty && args[fa.name].count() < 1)
                         throw VSException(funcName + ": argument " + fa.name + " does not accept empty arrays");
 
-                    if (fa.link) {
-                        c = vsapi.propGetType(&args, fa.name + "_prop");
-
-                        if (c != 'u') {
-                            argsCopy.remove(fa.name + "_prop");
-
-                            if (c != 's' || args[fa.name + "_prop"].count() != 1)
-                                throw VSException(funcName + ": argument " + fa.name + "_prop is not a single valued string");
-                        }
-                    }
                 } else if (!fa.opt) {
                     throw VSException(funcName + ": argument " + fa.name + " is required");
                 }

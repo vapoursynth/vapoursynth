@@ -29,6 +29,9 @@
 #include <cassert>
 #include <string>
 #include <algorithm>
+#include <fstream>
+#include <string>
+#include <cerrno>
 
 #include "VSScript.h"
 #include "VSHelper.h"
@@ -401,7 +404,7 @@ STDMETHODIMP VapourSynthFile::DeleteStream(DWORD fccType, LONG lParam) {
 /////// local
 
 // fixme, set the correct number of threads
-VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : num_threads(1), node(NULL), se(NULL), enable_v210(false), pad_scanlines(false), m_refs(0), vi(NULL), pending_requests(0) {
+VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : num_threads(1), node(NULL), se(NULL), vsapi(NULL), enable_v210(false), pad_scanlines(false), m_refs(0), vi(NULL), pending_requests(0) {
 	vsapi = vseval_getVSApi();
     AddRef();
     InitializeCriticalSection(&cs_filter_graph);
@@ -466,10 +469,6 @@ blue = core.std.BlankClip(width=240, height=480, format=vs.RGB24, color=[0, 0, 2
 stacked = core.std.StackHorizontal([red, green, blue])\n\
 last = core.resize.Bicubic(stacked, format=vs.COMPATBGR32)\n";
 
-#include <fstream>
-#include <string>
-#include <cerrno>
-
 std::string get_file_contents(const char *filename)
 {
   std::ifstream in(filename, std::ios::in | std::ios::binary);
@@ -498,7 +497,7 @@ bool VapourSynthFile::DelayInit2() {
 			node = vseval_getOutput(se, 0);
 			if (!node)
 				goto vpyerror;
-			vi = vseval_getVSApi()->getVideoInfo(node);
+			vi = vsapi->getVideoInfo(node);
             error_msg.clear();
 
             if (vi->width == 0 || vi->height == 0 || vi->format == NULL || vi->numFrames == 0) {
@@ -524,6 +523,20 @@ bool VapourSynthFile::DelayInit2() {
                 error_msg += " output";
                 goto vpyerror;
             }
+
+			// set the special options hidden in global variables
+			int error;
+			int64_t val;
+			VSMap *options = vsapi->newMap();
+			vseval_getVariable(se, "enable_v210", options);
+			val = vsapi->propGetInt(options, "enable_v210", 0, &error);
+			if (!error)
+				enable_v210 = !!val;
+			vseval_getVariable(se, "pad_scanlines", options);
+			val = vsapi->propGetInt(options, "pad_scanlines", 0, &error);
+			if (!error)
+				pad_scanlines = !!val;
+			vsapi->freeMap(options);
 
             return true;
         } else {

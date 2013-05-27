@@ -13,7 +13,6 @@
 #include "ss.h"
 #include <string>
 #pragma warning(disable:4127)
-#include "VapourSynth.h"
-#include "vapoursynthpp_api.h"
+#include "VSScript.h"
 #include "vsfspfm.h"
 #include "vsfs.h"

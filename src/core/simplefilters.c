@@ -128,6 +128,7 @@ static void VS_CC cropAbsInit(VSMap *in, VSMap *out, void **instanceData, VSNode
     vsapi->setVideoInfo(&vi, 1, node);
 }
 
+// fixme, remove all the link leftovers
 static int cropAbsVerify(int x, int y, int width, int height, int srcwidth, int srcheight, const VSFormat *fi, char *msg) {
     msg[0] = 0;
 
@@ -3380,7 +3381,7 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
 
 void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     //configFunc("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("CropAbs", "clip:clip;width:int;height:int;x:int:opt:link;y:int:opt:link;", cropAbsCreate, 0, plugin);
+    registerFunc("CropAbs", "clip:clip;width:int;height:int;x:int:opt;y:int:opt;", cropAbsCreate, 0, plugin);
     registerFunc("CropRel", "clip:clip;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;", cropRelCreate, 0, plugin);
     registerFunc("AddBorders", "clip:clip;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;color:float[]:opt;", addBordersCreate, 0, plugin);
     registerFunc("Trim", "clip:clip;first:int:opt;last:int:opt;length:int:opt;", trimCreate, 0, plugin);;

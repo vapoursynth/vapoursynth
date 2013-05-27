@@ -42,6 +42,9 @@
 
 
 #include "vsfsincludes.h"
+#include <fstream>
+#include <string>
+#include <cerrno>
 //#include "traces.h"
 
 // make it work in vs2010
@@ -57,7 +60,12 @@ class VapourSynther:
 
     //  TRCHANNEL trace;
 
-    VPYScriptExport se;
+	int num_threads;
+	const VSAPI *vsapi;
+	VSScript *se;
+	bool enable_v210;
+	bool pad_scanlines;
+	VSNodeRef *node;
 
     wchar_t *errText;
 
@@ -104,8 +112,8 @@ public:
     // Readonly reference to VideoInfo
     const VSVideoInfo& GetVideoInfo();
 
-    const VSAPI *GetVSAPI() { return se.vsapi; }
-    bool EnableV210() { return !!se.enable_v210; }
+    const VSAPI *GetVSAPI() { return vsapi; }
+    bool EnableV210() { return enable_v210; }
     int ImageSize();
     const uint8_t *GetExtraPlane1() { return (const uint8_t *)packedPlane1; }
     const uint8_t *GetExtraPlane2() { return (const uint8_t *)packedPlane2; }
@@ -134,6 +142,22 @@ void VapourSynther::printf(const wchar_t* format,...)
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
 
+std::string get_file_contents(const char *filename)
+{
+  std::ifstream in(filename, std::ios::in | std::ios::binary);
+  if (in)
+  {
+    std::string contents;
+    in.seekg(0, std::ios::end);
+    contents.resize(in.tellg());
+    in.seekg(0, std::ios::beg);
+    in.read(&contents[0], contents.size());
+    in.close();
+    return(contents);
+  }
+  return "";;
+}
+
 // (Re)Open the Script File
 int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName)
 {
@@ -141,8 +165,17 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName)
     WideCharToMultiByte(CP_UTF8, 0, wszScriptName, -1, szScriptName, sizeof(szScriptName), NULL, NULL); 
     if(*szScriptName)
     {
-        if (!vpy_evaluate_file(szScriptName, &se)) {
-            vi = se.vsapi->getVideoInfo(se.node);
+
+		std::string script = get_file_contents(szScriptName);
+		if (script.empty())
+			goto vpyerror;
+
+		if (!vseval_evaluateScript(&se, script.c_str(), szScriptName)) {
+			
+			node = vseval_getOutput(se, 0);
+			if (!node)
+				goto vpyerror;
+			vi = vsapi->getVideoInfo(node);
 
             if (vi->width == 0 || vi->height == 0 || vi->format == NULL || vi->numFrames == 0) {
                 setError("Cannot open clips with varying dimensions or format in VSFS");
@@ -169,7 +202,7 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName)
                     return ERROR_ACCESS_DENIED;
             }
 
-            if (vi->format->id == pfYUV422P10 && se.enable_v210) {
+            if (vi->format->id == pfYUV422P10 && enable_v210) {
                 packedPlane1 = new uint16_t[ImageSize()];
             } else if (vi->format->id == pfYUV420P16 || vi->format->id == pfYUV422P16) {
                 packedPlane2 = new uint16_t[vi->format->subSamplingH == 1 ? (vi->width*vi->height)/2 : vi->width*vi->height];
@@ -180,7 +213,8 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName)
 
             return 0;
         } else {
-            setError(se.error);
+			vpyerror:
+            setError(vseval_getError(se));
 			return ERROR_ACCESS_DENIED;
         }
     } 
@@ -208,11 +242,9 @@ void VapourSynther::reportFormat(AvfsLog_* log)
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
 
-// Exception protected PVideoFrame->GetFrame()
-
 void VS_CC VapourSynther::frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg) {
     VapourSynther *vsfile = (VapourSynther *)userData;
-    vsfile->se.vsapi->freeFrame(f);
+    vsfile->vsapi->freeFrame(f);
     InterlockedDecrement(&vsfile->pending_requests);
 }
 
@@ -227,18 +259,18 @@ const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) 
     }
     else {
         lastPosition = -1;
-        se.vsapi->freeFrame(lastFrame);
+        vsapi->freeFrame(lastFrame);
         lastFrame = 0;
         char errMsg[512];
 
         if (vi) {
-            f = se.vsapi->getFrame(n, se.node, errMsg, 500);
+            f = vsapi->getFrame(n, node, errMsg, 500);
             success = !!f;
             if (!f) {
                 setError(errMsg);
             } else {
-                const VSFormat *fi = se.vsapi->getFrameFormat(f);
-                const int row_size = se.vsapi->getFrameWidth(f, 0) * fi->bytesPerSample;
+                const VSFormat *fi = vsapi->getFrameFormat(f);
+                const int row_size = vsapi->getFrameWidth(f, 0) * fi->bytesPerSample;
 
                 int out_pitch;
                 int out_pitchUV;
@@ -249,22 +281,22 @@ const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) 
                 // BMP scanlines are dword-aligned
                 if (vi->format->numPlanes == 1) {
                     out_pitch = (row_size+3) & ~3;
-                    out_pitchUV = (se.vsapi->getFrameWidth(f, 1) * fi->bytesPerSample+3) & ~3;
+                    out_pitchUV = (vsapi->getFrameWidth(f, 1) * fi->bytesPerSample+3) & ~3;
                 }
                 // Planar scanlines are packed
                 else {
                     out_pitch = row_size;
-                    out_pitchUV = se.vsapi->getFrameWidth(f, 1) * fi->bytesPerSample;
+                    out_pitchUV = vsapi->getFrameWidth(f, 1) * fi->bytesPerSample;
                 }
 
-                const int height = se.vsapi->getFrameHeight(f, 0);
-                if (vi->format->id == pfYUV422P10 && se.enable_v210) {
-                    int width = se.vsapi->getFrameWidth(f, 0);
-                    int pstride_y = se.vsapi->getStride(f, 0)/2;
-                    int pstride_uv = se.vsapi->getStride(f, 1)/2;
-                    const uint16_t *yptr = (const uint16_t *)se.vsapi->getReadPtr(f, 0);
-                    const uint16_t *uptr = (const uint16_t *)se.vsapi->getReadPtr(f, 1);
-                    const uint16_t *vptr = (const uint16_t *)se.vsapi->getReadPtr(f, 2);
+                const int height = vsapi->getFrameHeight(f, 0);
+                if (vi->format->id == pfYUV422P10 && enable_v210) {
+                    int width = vsapi->getFrameWidth(f, 0);
+                    int pstride_y = vsapi->getStride(f, 0)/2;
+                    int pstride_uv = vsapi->getStride(f, 1)/2;
+                    const uint16_t *yptr = (const uint16_t *)vsapi->getReadPtr(f, 0);
+                    const uint16_t *uptr = (const uint16_t *)vsapi->getReadPtr(f, 1);
+                    const uint16_t *vptr = (const uint16_t *)vsapi->getReadPtr(f, 2);
                     uint32_t *outbuf = (uint32_t *)packedPlane1;
                     out_pitch = ((16*((width + 5) / 6) + 127) & ~127)/4;
                     for (int y = 0; y < height; y++) {
@@ -288,10 +320,10 @@ const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) 
                         vptr += pstride_uv;
                     }
                 } else if (semi_packed_p10) {
-                    int pwidth = se.vsapi->getFrameWidth(f, 0);
-                    int pstride = se.vsapi->getStride(f, 0) / 2;
+                    int pwidth = vsapi->getFrameWidth(f, 0);
+                    int pstride = vsapi->getStride(f, 0) / 2;
                     uint16_t *outbuf = packedPlane1;
-                    const uint16_t *yptr = (const uint16_t *)se.vsapi->getReadPtr(f, 0);
+                    const uint16_t *yptr = (const uint16_t *)vsapi->getReadPtr(f, 0);
 
                     for (int y = 0; y < height; y++) {
                         for (int x = 0; x < pwidth; x++) {
@@ -302,15 +334,15 @@ const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) 
                     }
                 }
 
-                if (vi->format->id == pfYUV422P10 && se.enable_v210) {
+                if (vi->format->id == pfYUV422P10 && enable_v210) {
                     // intentionally empty
                 } else if (semi_packed_p10 || semi_packed_p16) {
-                    int pheight = se.vsapi->getFrameHeight(f, 1);
-                    int pwidth = se.vsapi->getFrameWidth(f, 1);
-                    int pstride = se.vsapi->getStride(f, 1) / 2;
+                    int pheight = vsapi->getFrameHeight(f, 1);
+                    int pwidth = vsapi->getFrameWidth(f, 1);
+                    int pstride = vsapi->getStride(f, 1) / 2;
                     uint16_t *outbuf = (uint16_t *)packedPlane2;
-                    const uint16_t *uptr = (const uint16_t *)se.vsapi->getReadPtr(f, 1);
-                    const uint16_t *vptr = (const uint16_t *)se.vsapi->getReadPtr(f, 2);
+                    const uint16_t *uptr = (const uint16_t *)vsapi->getReadPtr(f, 1);
+                    const uint16_t *vptr = (const uint16_t *)vsapi->getReadPtr(f, 2);
 
                     if (semi_packed_p16) {
                         for (int y = 0; y < pheight; y++) {
@@ -343,9 +375,9 @@ const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) 
                 lastFrame = f;
             }
 
-            for (int i = n + 1; i < std::min<int>(n + se.num_threads, vi->numFrames); i++) {
+            for (int i = n + 1; i < std::min<int>(n + num_threads, vi->numFrames); i++) {
                 InterlockedIncrement(&pending_requests);
-                se.vsapi->getFrameAsync(i, se.node, frameDoneCallback, (void *)this);
+                vsapi->getFrameAsync(i, node, frameDoneCallback, (void *)this);
             }
         }
     }
@@ -427,7 +459,8 @@ const wchar_t* VapourSynther::getError() {
 int/*error*/ VapourSynther::newEnv()
 {
     if (vi) {
-        vpy_free_script(&se);
+		vseval_freeScript(se);
+		se = NULL;
         delete [] packedPlane1;
         delete [] packedPlane2;
     }
@@ -441,6 +474,13 @@ int/*error*/ VapourSynther::newEnv()
 // Constructor
 VapourSynther::VapourSynther(void) :
 references(1),
+
+	num_threads(1),
+	se(NULL),
+	enable_v210(false),
+	pad_scanlines(false),
+	node(NULL),
+
     //  trace(tropen(L"AVFS")),
     vi(0),
     errText(0),
@@ -451,7 +491,7 @@ references(1),
     packedPlane2(0),
     pending_requests(0)
 {
-	se.open = 0;
+	vsapi = vseval_getVSApi();
 }
 
 /*---------------------------------------------------------
@@ -464,10 +504,11 @@ VapourSynther::~VapourSynther(void)
     while (pending_requests > 0);
     delete [] packedPlane1;
     delete [] packedPlane2;
-	if (se.open) {
-		if (se.vsapi)
-			se.vsapi->freeFrame(lastFrame);
-		vpy_free_script(&se);
+	if (se) {
+		if (vsapi)
+			vsapi->freeFrame(lastFrame);
+		vseval_freeScript(se);
+		se = NULL;
 	}
     ssfree(lastStringValue);
     ssfree(errText);
@@ -545,10 +586,10 @@ int VapourSynther::ImageSize() {
         return 0;
     int image_size;
 
-    if (vi->format->id == pfYUV422P10 && se.enable_v210) {
+    if (vi->format->id == pfYUV422P10 && enable_v210) {
         image_size = ((16*((vi->width + 5) / 6) + 127) & ~127);
         image_size *= vi->height;
-    } else if (vi->format->numPlanes == 1 || se.pad_scanlines) {
+    } else if (vi->format->numPlanes == 1 || pad_scanlines) {
         image_size = BMPSize(vi->height, vi->width * vi->format->bytesPerSample);
         if (vi->format->numPlanes == 3)
             image_size += 2 * BMPSize(vi->height >> vi->format->subSamplingH, (vi->width >> vi->format->subSamplingW) * vi->format->bytesPerSample);
@@ -567,17 +608,12 @@ int VapourSynther::ImageSize() {
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
 
-PyThreadState *ts;
-
 BOOL APIENTRY DllMain(HANDLE hModule, ULONG ulReason, LPVOID lpReserved) {
     if (ulReason == DLL_PROCESS_ATTACH) {
-        Py_Initialize();
-        PyEval_InitThreads();
-        import_vapoursynth();
-        ts = PyEval_SaveThread();
+		// fixme, move this where threading can't be an issue
+		vseval_init();
     } else if (ulReason == DLL_PROCESS_DETACH) {
-        PyEval_RestoreThread(ts);
-        Py_Finalize();
+        vseval_finalize();
     }
     return TRUE;
 }
