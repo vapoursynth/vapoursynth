@@ -1161,7 +1161,7 @@ cdef public api VSNodeRef * __stdcall vpy_getOutput(VPYScriptExport *se, int ind
         else:
             return NULL
     
-cdef public api bint __stdcall vpy_clearOutput(VPYScriptExport *se, int index) nogil:
+cdef public api void __stdcall vpy_clearOutput(VPYScriptExport *se, int index) nogil:
     pass
 
 cdef public api VSCore * __stdcall vpy_getCore() nogil:
@@ -1175,7 +1175,7 @@ cdef public api VSCore * __stdcall vpy_getCore() nogil:
 cdef public api VSAPI * __stdcall vpy_getVSApi() nogil:
     return vapoursynth.getVapourSynthAPI(3)
             
-cdef public api bint __stdcall vpy_getVariable(VPYScriptExport *se, const char *name, VSMap *dst) nogil:
+cdef public api int __stdcall vpy_getVariable(VPYScriptExport *se, const char *name, VSMap *dst) nogil:
     with gil:
         evaldict = <dict>se.pyenvdict
         core = get_core()
@@ -1186,7 +1186,7 @@ cdef public api bint __stdcall vpy_getVariable(VPYScriptExport *se, const char *
         except:
             return 1
             
-cdef public api bint __stdcall vpy_setVariable(VPYScriptExport *se, VSMap *vars) nogil:
+cdef public api void __stdcall vpy_setVariable(VPYScriptExport *se, VSMap *vars) nogil:
     with gil:
         evaldict = <dict>se.pyenvdict
         core = get_core()
@@ -1194,14 +1194,14 @@ cdef public api bint __stdcall vpy_setVariable(VPYScriptExport *se, VSMap *vars)
         for key in new_vars:
             evaldict[key] = new_vars[key]
 
-cdef public api bint __stdcall vpy_clearVariable(VPYScriptExport *se, const char *name) nogil:
+cdef public api int __stdcall vpy_clearVariable(VPYScriptExport *se, const char *name) nogil:
     with gil:
         evaldict = <dict>se.pyenvdict
         try:
             del evaldict[name.decode('utf-8')]
         except:
-            return False
-        return True
+            return 1
+        return 0
 
 cdef public api void __stdcall vpy_clearEnvironment(VPYScriptExport *se) nogil:
     with gil:

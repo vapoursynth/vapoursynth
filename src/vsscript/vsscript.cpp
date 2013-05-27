@@ -55,7 +55,7 @@ VS_API(VSNodeRef *) vseval_getOutput(VSScript *handle, int index) {
 }
 
 VS_API(void) vseval_clearOutput(VSScript *handle, int index) {
-
+	vpy_clearOutput(handle, index);
 }
 
 VS_API(VSCore *) vseval_getCore(void) {
@@ -67,15 +67,15 @@ VS_API(const VSAPI *) vseval_getVSApi(void) {
 }
 
 VS_API(int) vseval_getVariable(VSScript *handle, const char *name, VSMap *dst) {
-	return 0;
+	return vpy_getVariable(handle, name, dst);
 }
 
 VS_API(void) vseval_setVariable(VSScript *handle, const VSMap *vars) {
-
+	vpy_setVariable(handle, (VSMap *)vars);
 }
 
 VS_API(int) vseval_clearVariable(VSScript *handle, const char *name) {
-	return 0;
+	return vpy_clearVariable(handle, name);
 }
 
 VS_API(void) vseval_clearEnvironment(VSScript *handle) {
