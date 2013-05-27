@@ -145,17 +145,17 @@ typedef struct VSFormat {
     int numPlanes; // implicit from colorFamily
 } VSFormat;
 
-typedef enum NodeFlags {
+typedef enum VSNodeFlags {
     nfNoCache = 1,
 } NodeFlags;
 
-typedef enum GetPropErrors {
+typedef enum VSGetPropErrors {
     peUnset = 1,
     peType  = 2,
     peIndex = 4
 } GetPropErrors;
 
-typedef enum PropAppendMode {
+typedef enum VSPropAppendMode {
     paReplace = 0,
     paAppend  = 1,
     paTouch   = 2
@@ -180,7 +180,7 @@ typedef struct VSVideoInfo {
     int flags;
 } VSVideoInfo;
 
-typedef enum ActivationReason {
+typedef enum VSActivationReason {
     arInitial = 0,
     arFrameReady = 1,
     arAllFramesReady = 2,
