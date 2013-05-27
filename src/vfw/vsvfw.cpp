@@ -538,6 +538,9 @@ bool VapourSynthFile::DelayInit2() {
 				pad_scanlines = !!val;
 			vsapi->freeMap(options);
 
+			const VSCoreInfo *info = vsapi->getCoreInfo(vseval_getCore());
+			num_threads = info->numThreads;
+
             return true;
         } else {
 			error_msg = vseval_getError(se);

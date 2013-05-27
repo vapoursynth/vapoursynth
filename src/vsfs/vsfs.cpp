@@ -216,6 +216,9 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName)
 				pad_scanlines = !!val;
 			vsapi->freeMap(options);
 
+			const VSCoreInfo *info = vsapi->getCoreInfo(vseval_getCore());
+			num_threads = info->numThreads;
+
             if (vi->format->id == pfYUV422P10 && enable_v210) {
                 packedPlane1 = new uint16_t[ImageSize()];
             } else if (vi->format->id == pfYUV420P16 || vi->format->id == pfYUV422P16) {
