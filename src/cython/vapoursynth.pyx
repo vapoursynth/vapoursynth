@@ -23,7 +23,6 @@ cimport windows
 cimport posix.unistd
 #endif
 cimport vapoursynth
-cimport vsscript
 cimport cython.parallel
 from cpython.ref cimport Py_INCREF, Py_DECREF, Py_CLEAR, PyObject
 import ctypes
@@ -86,11 +85,6 @@ class Error(Exception):
 
     def __str__(self):
         return repr(self.value)
-
-cdef class Link(object):
-    def __init__(self, val, prop):
-        self.val = val
-        self.prop = prop
 
 #// fixme, make it possible for this to call functions not defined in python
 cdef class Func(object):
@@ -835,6 +829,9 @@ cdef class Core(object):
     cdef readonly bint accept_lowercase
 
     def __cinit__(self, int threads = 0, bint add_cache = True, bint accept_lowercase = False):
+        global _core
+        if _core is not None:
+            raise Error('Core has already been instantiated once!')
         self.funcs = vapoursynth.getVapourSynthAPI(3)
         if self.funcs == NULL:
 #if defined(_WIN32) && !defined(_WIN64)
@@ -1000,18 +997,13 @@ cdef class Function(object):
         ndict = {}
         processed = {}
         atypes = {}
-        #// remove _ from all args and unpack Link type arguments
+        #// remove _ from all args
         for key in kwargs:
             if key[0] == '_':
                 nkey = key[1:]
             else:
                 nkey = key
-            if isinstance(kwargs[key], Link):
-                processed[nkey + '_prop'] = kwargs[key].prop
-                atypes[nkey + '_prop'] = 'data'
-                ndict[nkey] = kwargs[key].val
-            else:
-                ndict[nkey] = kwargs[key]
+            ndict[nkey] = kwargs[key]
 
         #// match up unnamed arguments to the first unused name in order              
         sigs = self.signature.split(';')
@@ -1095,103 +1087,125 @@ cdef void __stdcall publicFunction(VSMap *inm, VSMap *outm, void *userData, VSCo
 
 #// for whole script evaluation and export
 cdef public struct VPYScriptExport:
-    bint open
-    void *pynode
-    VSNodeRef *node
+    void *pyenvdict
     void *errstr
-    char *error
-    VSAPI *vsapi
-    int num_threads
-    int pad_scanlines
-    int enable_v210
     
-cdef void zero_vpy_script_export_struct(VPYScriptExport *extp) nogil:
-    extp.open = 0
-    extp.node = NULL
-    extp.pynode = NULL
-    extp.errstr = NULL
-    extp.error = NULL
-    extp.vsapi = NULL
-    extp.num_threads = 0
-    extp.pad_scanlines = 0
-    extp.enable_v210 = 0
-    
-cdef public api int __stdcall vpy_evaluate_text(char *utf8text, char *fn, VPYScriptExport *extp) nogil:
-    zero_vpy_script_export_struct(extp)
-    extp.open = 1
-
+cdef public api int __stdcall vpy_evaluateScript(VPYScriptExport *se, const char *script, const char *errorFilename) nogil:
     with gil:
         try:
             evaldict = {}
-            comp = compile(utf8text.decode('utf-8'), fn.decode('utf-8'), 'exec')
-            exec(comp) in evaldict
-            
-            node = None
-            try:
-                node = evaldict['last']
-            except:
-                pass
-                
-            try:
-                extp.pad_scanlines = evaldict['pad_scanlines']
-            except:
-                pass
-                
-            try:
-                extp.enable_v210 = evaldict['enable_v210']
-            except:
-                pass
-                
-            for key in evaldict:
-                evaldict[key] = None
-            if isinstance(node, VideoNode):
-                Py_INCREF(node)
-                extp.pynode = <void *>node
-                extp.node = (<VideoNode>node).node
-                extp.vsapi = (<VideoNode>node).funcs
-                extp.num_threads = (<VideoNode>node).core.num_threads
+            if se.pyenvdict:
+                evaldict = <dict>se.pyenvdict
             else:
-                extp.error = "No clip returned in 'last'"
-                return 3
+                Py_INCREF(evaldict)
+                se.pyenvdict = <void *>evaldict
+                
+            Py_INCREF(evaldict)
+                
+            if se.errstr:
+                errstr = <bytes>se.errstr
+                se.errstr = NULL
+                Py_DECREF(errstr)
+                errstr = None
+                
+            comp = compile(script.decode('utf-8'), errorFilename.decode('utf-8'), 'exec')
+            exec(comp) in evaldict
+                       
         except BaseException, e:
-            estr = 'Python exception: ' + str(e)
-            estr = estr.encode('utf-8')
-            Py_INCREF(estr)
-            extp.errstr = <void *>estr
-            extp.error = estr
+            errstr = 'Python exception: ' + str(e)
+            errstr = errstr.encode('utf-8')
+            Py_INCREF(errstr)
+            se.errstr = <void *>errstr
             return 2
         except:
-            extp.error = 'Unspecified Python exception'
+            errstr = 'Unspecified Python exception'.encode('utf-8')
+            Py_INCREF(errstr)
+            se.errstr = <void *>errstr
             return 1
         return 0
 
-cdef public api int __stdcall vpy_evaluate_file(char *fn, VPYScriptExport *extp) nogil:
-    zero_vpy_script_export_struct(extp)
+cdef public api void __stdcall vpy_freeScript(VPYScriptExport *se) nogil:
+    with gil:
+        evaldict = <dict>se.pyenvdict
+        se.pyenvdict = NULL
+        Py_DECREF(evaldict)
+        for key in evaldict:
+            evaldict[key] = None
+        evaldict = None
+        
+        if se.errstr:
+            errstr = <bytes>se.errstr
+            se.errstr = NULL
+            Py_DECREF(errstr)
+            errstr = None
+        gc.collect()
+
+cdef public api char * __stdcall vpy_getError(VPYScriptExport *se) nogil:
+    if not se.errstr:
+        return NULL
+    with gil:
+        errstr = <bytes>se.errstr
+        return errstr
+
+cdef public api VSNodeRef * __stdcall vpy_getOutput(VPYScriptExport *se, int index) nogil:
+    with gil:
+        evaldict = <dict>se.pyenvdict
+        node = None
+        try:
+            node = evaldict['last']
+        except:
+            pass
+
+        if isinstance(node, VideoNode):
+            return (<VideoNode>node).node
+        else:
+            return NULL
     
+cdef public api bint __stdcall vpy_clearOutput(VPYScriptExport *se, int index) nogil:
+    pass
+
+cdef public api VSCore * __stdcall vpy_getCore() nogil:
     with gil:
         try:
-            script = open(fn.decode('utf-8')).read()
-        except BaseException, e:
-            estr = 'Python exception: ' + str(e)
-            estr = estr.encode('utf-8')
-            Py_INCREF(estr)
-            extp.errstr = <void *>estr
-            extp.error = estr
-            return 2
+            core = get_core()
+            return (<Core>core).core
         except:
-            extp.error = 'Unspecified Python exception'
-            return 1
-        encscript = script.encode('utf-8')
-        return vpy_evaluate_text(encscript, fn, extp)
-
-cdef public api void __stdcall vpy_free_script(VPYScriptExport *extp) nogil:
-    extp.open = 0
+            return NULL
+            
+cdef public api VSAPI * __stdcall vpy_getVSApi() nogil:
+    return vapoursynth.getVapourSynthAPI(3)
+            
+cdef public api bint __stdcall vpy_getVariable(VPYScriptExport *se, const char *name, VSMap *dst) nogil:
     with gil:
-        if extp.pynode:
-            node = <object>extp.pynode
-            Py_DECREF(node)
-            node = None
-        if extp.errstr:
-            errstr = <bytes>extp.errstr
-            Py_DECREF(errstr)   
+        evaldict = <dict>se.pyenvdict
+        core = get_core()
+        try:
+            read_var = {evaldict[name.decode('utf-8')]}
+            dictToMap(read_var, dst, get_core(), (<Core>core).funcs)
+            return 0
+        except:
+            return 1
+            
+cdef public api bint __stdcall vpy_setVariable(VPYScriptExport *se, VSMap *vars) nogil:
+    with gil:
+        evaldict = <dict>se.pyenvdict
+        core = get_core()
+        new_vars = mapToDict(vars, False, False, get_core(), (<Core>core).funcs)
+        for key in new_vars:
+            evaldict[key] = new_vars[key]
+
+cdef public api bint __stdcall vpy_clearVariable(VPYScriptExport *se, const char *name) nogil:
+    with gil:
+        evaldict = <dict>se.pyenvdict
+        try:
+            del evaldict[name.decode('utf-8')]
+        except:
+            return False
+        return True
+
+cdef public api void __stdcall vpy_clearEnvironment(VPYScriptExport *se) nogil:
+    with gil:
+        evaldict = <dict>se.pyenvdict
+        for key in evaldict:
+            evaldict[key] = None
         gc.collect()

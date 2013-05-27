@@ -30,9 +30,8 @@
 #include <string>
 #include <algorithm>
 
-#include "VapourSynth.h"
+#include "VSScript.h"
 #include "VSHelper.h"
-#include "vapoursynthpp_api.h"
 
 void BitBlt(uint8_t* dstp, int dst_pitch, const uint8_t* srcp, int src_pitch, int row_size, int height) {
     for (int i = 0; i < height; i++) {
@@ -64,10 +63,14 @@ struct IAvisynthClipInfo : IUnknown {
 class VapourSynthFile: public IAVIFile, public IPersistFile, public IClassFactory, public IAvisynthClipInfo {
     friend class VapourSynthStream;
 private:
-    PyThreadState *thread_state;
+	int num_threads;
+	const VSAPI *vsapi;
+	VSScript *se;
+	bool enable_v210;
+	bool pad_scanlines;
+	VSNodeRef *node;
     long m_refs;
     std::string szScriptName;
-    VPYScriptExport se;
     const VSVideoInfo* vi;
     std::string error_msg;
     volatile long pending_requests;
@@ -181,17 +184,13 @@ private:
     HRESULT Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LONG cbBuffer, LONG *plBytes, LONG *plSamples);
 };
 
-PyThreadState *ts;
 
 BOOL APIENTRY DllMain(HANDLE hModule, ULONG ulReason, LPVOID lpReserved) {
     if (ulReason == DLL_PROCESS_ATTACH) {
-        Py_Initialize();
-        PyEval_InitThreads();
-        import_vapoursynth();
-        ts = PyEval_SaveThread();
+		// fixme, move this where threading can't be an issue
+		vseval_init();
     } else if (ulReason == DLL_PROCESS_DETACH) {
-        PyEval_RestoreThread(ts);
-        Py_Finalize();
+		vseval_finalize();
     }
     return TRUE;
 }
@@ -401,7 +400,9 @@ STDMETHODIMP VapourSynthFile::DeleteStream(DWORD fccType, LONG lParam) {
 ///////////////////////////////////////////////////
 /////// local
 
-VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : m_refs(0), vi(NULL), pending_requests(0) {
+// fixme, set the correct number of threads
+VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : num_threads(1), node(NULL), se(NULL), enable_v210(false), pad_scanlines(false), m_refs(0), vi(NULL), pending_requests(0) {
+	vsapi = vseval_getVSApi();
     AddRef();
     InitializeCriticalSection(&cs_filter_graph);
 }
@@ -410,8 +411,8 @@ VapourSynthFile::~VapourSynthFile() {
     Lock();
     if (vi) {
         vi = NULL;
-        while (pending_requests > 0);
-        vpy_free_script(&se);
+		while (pending_requests > 0) {};
+		vseval_freeScript(se);
     }
     Unlock();
     DeleteCriticalSection(&cs_filter_graph);
@@ -422,10 +423,10 @@ int VapourSynthFile::ImageSize() {
         return 0;
     int image_size;
 
-    if (vi->format->id == pfYUV422P10 && se.enable_v210) {
+    if (vi->format->id == pfYUV422P10 && enable_v210) {
         image_size = ((16*((vi->width + 5) / 6) + 127) & ~127);
         image_size *= vi->height;
-    } else if (vi->format->numPlanes == 1 || se.pad_scanlines) {
+    } else if (vi->format->numPlanes == 1 || pad_scanlines) {
         image_size = BMPSize(vi->height, vi->width * vi->format->bytesPerSample);
         if (vi->format->numPlanes == 3)
             image_size += 2 * BMPSize(vi->height >> vi->format->subSamplingH, (vi->width >> vi->format->subSamplingW) * vi->format->bytesPerSample);
@@ -458,18 +459,46 @@ bool VapourSynthFile::DelayInit() {
 const char *ErrorScript = "\
 import vapoursynth as vs\n\
 import sys\n\
-core = vs.Core(threads=1)\n\
+core = vs.get_core(threads=1)\n\
 red = core.std.BlankClip(width=240, height=480, format=vs.RGB24, color=[255, 0, 0])\n\
 green = core.std.BlankClip(width=240, height=480, format=vs.RGB24, color=[0, 255, 0])\n\
 blue = core.std.BlankClip(width=240, height=480, format=vs.RGB24, color=[0, 0, 255])\n\
 stacked = core.std.StackHorizontal([red, green, blue])\n\
 last = core.resize.Bicubic(stacked, format=vs.COMPATBGR32)\n";
 
+#include <fstream>
+#include <string>
+#include <cerrno>
+
+std::string get_file_contents(const char *filename)
+{
+  std::ifstream in(filename, std::ios::in | std::ios::binary);
+  if (in)
+  {
+    std::string contents;
+    in.seekg(0, std::ios::end);
+    contents.resize(in.tellg());
+    in.seekg(0, std::ios::beg);
+    in.read(&contents[0], contents.size());
+    in.close();
+    return(contents);
+  }
+  return "";;
+}
+
 bool VapourSynthFile::DelayInit2() {
     if (!szScriptName.empty() && !vi) {
-        // this ugly cast is needed because cython doesn't understand the const keyword
-        if (!vpy_evaluate_file((char *)szScriptName.c_str(), &se)) {
-            vi = se.vsapi->getVideoInfo(se.node);
+
+		std::string script = get_file_contents(szScriptName.c_str());
+		if (script.empty())
+			goto vpyerror;
+
+		if (!vseval_evaluateScript(&se, script.c_str(), szScriptName.c_str())) {
+			
+			node = vseval_getOutput(se, 0);
+			if (!node)
+				goto vpyerror;
+			vi = vseval_getVSApi()->getVideoInfo(node);
             error_msg.clear();
 
             if (vi->width == 0 || vi->height == 0 || vi->format == NULL || vi->numFrames == 0) {
@@ -498,12 +527,15 @@ bool VapourSynthFile::DelayInit2() {
 
             return true;
         } else {
-            error_msg = se.error;
+			error_msg = vseval_getError(se);
             vpyerror:
             vi = NULL;
-            vpy_free_script(&se);
-            vpy_evaluate_text((char *)ErrorScript, "vfw_error.bleh", &se);
-            vi = se.vsapi->getVideoInfo(se.node);
+			vseval_freeScript(se);
+			se = NULL;
+            int res = vseval_evaluateScript(&se, ErrorScript, "vfw_error.bleh");
+			const char *et = vseval_getError(se);
+			node = vseval_getOutput(se, 0);
+            vi = vsapi->getVideoInfo(node);
             return true;
         }
     } else {
@@ -720,7 +752,7 @@ STDMETHODIMP_(LONG) VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) {
         asi.fccHandler = '010P';
     else if (vi->format->id == pfYUV420P16) 
         asi.fccHandler = '610P';
-    else if (vi->format->id == pfYUV422P10 && parent->se.enable_v210) 
+    else if (vi->format->id == pfYUV422P10 && parent->enable_v210) 
         asi.fccHandler = '012v';
     else if (vi->format->id == pfYUV422P10) 
         asi.fccHandler = '012P';
@@ -760,13 +792,13 @@ STDMETHODIMP_(LONG) VapourSynthStream::FindSample(LONG lPos, LONG lFlags) {
 
 void VS_CC VapourSynthFile::frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg) {
     VapourSynthFile *vsfile = (VapourSynthFile *)userData;
-    vsfile->se.vsapi->freeFrame(f);
+    vsfile->vsapi->freeFrame(f);
     InterlockedDecrement(&vsfile->pending_requests);
 }
 
 bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
-    const VSAPI *vsapi = parent->se.vsapi;
-    const VSFrameRef *f = vsapi->getFrame(n, parent->se.node, 0, 0);
+    const VSAPI *vsapi = parent->vsapi;
+    const VSFrameRef *f = vsapi->getFrame(n, parent->node, 0, 0);
     if (!f)
         return false;
 
@@ -792,7 +824,7 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
         out_pitchUV = vsapi->getFrameWidth(f, 1) * fi->bytesPerSample;
     }
 
-    if (fi->id == pfYUV422P10 && parent->se.enable_v210) {
+    if (fi->id == pfYUV422P10 && parent->enable_v210) {
         int width = vsapi->getFrameWidth(f, 0);
         int pstride_y = vsapi->getStride(f, 0)/2;
         int pstride_uv = vsapi->getStride(f, 1)/2;
@@ -838,7 +870,7 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
         BitBlt((BYTE*)lpBuffer, out_pitch, vsapi->getReadPtr(f, 0), pitch, row_size, height);
     }
 
-    if (fi->id == pfYUV422P10 && parent->se.enable_v210) {
+    if (fi->id == pfYUV422P10 && parent->enable_v210) {
          // intentionally empty
     } else if (semi_packed_p10 || semi_packed_p16) {
         int pheight = vsapi->getFrameHeight(f, 1);
@@ -884,9 +916,9 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
 
     vsapi->freeFrame(f);
 
-    for (int i = n + 1; i < std::min<int>(n + parent->se.num_threads, parent->vi->numFrames); i++) {
+    for (int i = n + 1; i < std::min<int>(n + parent->num_threads, parent->vi->numFrames); i++) {
         InterlockedIncrement(&parent->pending_requests);
-        vsapi->getFrameAsync(i, parent->se.node, VapourSynthFile::frameDoneCallback, (void *)parent);
+        vsapi->getFrameAsync(i, parent->node, VapourSynthFile::frameDoneCallback, (void *)parent);
     }
 
     return true;
@@ -950,7 +982,7 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
     bi.biBitCount = vi->format->bytesPerSample * 8;
     if (vi->format->numPlanes == 3)
         bi.biBitCount +=  (bi.biBitCount * 2) >> (vi->format->subSamplingH + vi->format->subSamplingW);
-    if (parent->se.enable_v210 && vi->format->id == pfYUV422P10)
+    if (parent->enable_v210 && vi->format->id == pfYUV422P10)
         bi.biBitCount = 20;
     if (vi->format->id == pfCompatBGR32) 
         bi.biCompression = BI_RGB;
@@ -972,7 +1004,7 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
         bi.biCompression = '010P';
     else if (vi->format->id == pfYUV420P16) 
         bi.biCompression = '610P';
-    else if (vi->format->id == pfYUV422P10 && parent->se.enable_v210) 
+    else if (vi->format->id == pfYUV422P10 && parent->enable_v210) 
         bi.biCompression = '012v';
     else if (vi->format->id == pfYUV422P10) 
         bi.biCompression = '012P';
