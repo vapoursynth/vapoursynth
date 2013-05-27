@@ -681,7 +681,7 @@ struct VSAPI_R2 {
     VSCallFunc callFunc;
 
     //property access functions
-    VSNewMap newMap;
+    VSCreateMap createMap;
     VSFreeMap freeMap;
     VSClearMap clearMap;
 
@@ -717,90 +717,11 @@ struct VSAPI_R2 {
     VSGetOutputIndex getOutputIndex;
 };
 
-const VSAPI_R2 vsapiR2 = {
-    &createCore,
-    &freeCore,
-    NULL, // not going to bother because nothing actually used this api function
-
-    &cloneFrameRef,
-    &cloneNodeRef,
-    &cloneFuncRef,
-
-    &freeFrame,
-    &freeNode,
-    &freeFunc,
-
-    &newVideoFrame,
-    &copyFrame,
-    &copyFrameProps,
-    &registerFunction,
-    &getPluginId,
-    &getPluginNs,
-    &getPlugins,
-    &getFunctions,
-    &createFilterR2,
-    &setError,
-    &getError,
-    &setFilterError,
-    &invoke,
-    &getFormatPreset,
-    &registerFormat,
-    &getFrame,
-    &getFrameAsync,
-    &getFrameFilter,
-    &requestFrameFilter,
-    &queryCompletedFrame,
-    &releaseFrameEarly,
-
-    &getStride,
-    &getReadPtr,
-    &getWritePtr,
-
-    &createFunc,
-    &callFunc,
-
-    &newMap,
-    &freeMap,
-    &clearMap,
-
-    &getVideoInfo,
-    &setVideoInfoR2,
-    &getFrameFormat,
-    &getFrameWidth,
-    &getFrameHeight,
-    &getFramePropsRO,
-    &getFramePropsRW,
-
-    &propNumKeys,
-    &propGetKey,
-    &propNumElements,
-    &propGetType,
-    &propGetInt,
-    &propGetFloat,
-    &propGetData,
-    &propGetDataSize,
-    &propGetNode,
-    &propGetFrame,
-    &propGetFunc,
-    &propDeleteKey,
-    &propSetInt,
-    &propSetFloat,
-    &propSetData,
-    &propSetNode,
-    &propSetFrame,
-    &propSetFunc,
-
-    &setMaxCacheSize,
-    &getOutputIndex
-};
-
 ///////////////////////////////
 
 const VSAPI *getVSAPIInternal(int version) {
     if (version == VAPOURSYNTH_API_VERSION) {
         return &vsapi;
-    } else if (version == 2) {
-        return (const VSAPI *)&vsapiR2;
     } else {
         qFatal("Internally requested API version %d", version);
         return NULL;
@@ -815,8 +736,6 @@ const VSAPI *VS_CC getVapourSynthAPI(int version) {
         return NULL;
     } else if (version == VAPOURSYNTH_API_VERSION) {
         return &vsapi;
-    } else if (version == 2) {
-        return (const VSAPI *)&vsapiR2;
     } else {
         return NULL;
     }

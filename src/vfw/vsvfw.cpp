@@ -527,7 +527,7 @@ bool VapourSynthFile::DelayInit2() {
 			// set the special options hidden in global variables
 			int error;
 			int64_t val;
-			VSMap *options = vsapi->newMap();
+			VSMap *options = vsapi->createMap();
 			vseval_getVariable(se, "enable_v210", options);
 			val = vsapi->propGetInt(options, "enable_v210", 0, &error);
 			if (!error)

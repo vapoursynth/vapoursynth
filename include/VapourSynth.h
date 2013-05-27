@@ -249,7 +249,7 @@ typedef const char *(VS_CC *VSPropGetKey)(const VSMap *map, int index);
 typedef int (VS_CC *VSPropNumElements)(const VSMap *map, const char *key);
 typedef char(VS_CC *VSPropGetType)(const VSMap *map, const char *key);
 
-typedef VSMap *(VS_CC *VSNewMap)(void);
+typedef VSMap *(VS_CC *VSCreateMap)(void);
 typedef void (VS_CC *VSFreeMap)(VSMap *map);
 typedef void (VS_CC *VSClearMap)(VSMap *map);
 
@@ -337,7 +337,7 @@ struct VSAPI {
     VSCallFunc callFunc;
 
     //property access functions
-    VSNewMap newMap;
+    VSCreateMap createMap;
     VSFreeMap freeMap;
     VSClearMap clearMap;
 

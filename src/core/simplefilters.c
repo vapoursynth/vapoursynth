@@ -2303,8 +2303,8 @@ static void VS_CC selectClipCreate(const VSMap *in, VSMap *out, void *userData, 
     for (i = 0; i < d.numsrc; i++)
         d.src[i] = vsapi->propGetNode(in, "src", i, 0);
 
-    d.in = vsapi->newMap();
-    d.out = vsapi->newMap();
+    d.in = vsapi->createMap();
+    d.out = vsapi->createMap();
 
     data = malloc(sizeof(d));
     *data = d;
@@ -2394,8 +2394,8 @@ static void VS_CC modifyFrameCreate(const VSMap *in, VSMap *out, void *userData,
 
     d.vi = vsapi->getVideoInfo(d.node[0]);
     d.func = vsapi->propGetFunc(in, "selector", 0, 0);
-    d.in = vsapi->newMap();
-    d.out = vsapi->newMap();
+    d.in = vsapi->createMap();
+    d.out = vsapi->createMap();
 
     data = malloc(sizeof(d));
     *data = d;
@@ -3360,7 +3360,7 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
 
     // do we need to resample the first mask plane and use it for all the planes?
     if ((d.first_plane && d.vi->format->numPlanes > 1) && (d.vi->format->subSamplingH > 0 || d.vi->format->subSamplingW > 0) && (d.process[1] || d.process[2])) {
-        min = vsapi->newMap();
+        min = vsapi->createMap();
         vsapi->propSetNode(min, "clip", d.mask, paAppend);
         vsapi->propSetInt(min, "width", d.vi->width >> d.vi->format->subSamplingW, paAppend);
         vsapi->propSetInt(min, "height", d.vi->height >> d.vi->format->subSamplingH, paAppend);

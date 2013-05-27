@@ -202,6 +202,20 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName)
                     return ERROR_ACCESS_DENIED;
             }
 
+			// set the special options hidden in global variables
+			int error;
+			int64_t val;
+			VSMap *options = vsapi->createMap();
+			vseval_getVariable(se, "enable_v210", options);
+			val = vsapi->propGetInt(options, "enable_v210", 0, &error);
+			if (!error)
+				enable_v210 = !!val;
+			vseval_getVariable(se, "pad_scanlines", options);
+			val = vsapi->propGetInt(options, "pad_scanlines", 0, &error);
+			if (!error)
+				pad_scanlines = !!val;
+			vsapi->freeMap(options);
+
             if (vi->format->id == pfYUV422P10 && enable_v210) {
                 packedPlane1 = new uint16_t[ImageSize()];
             } else if (vi->format->id == pfYUV420P16 || vi->format->id == pfYUV422P16) {

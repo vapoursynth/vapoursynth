@@ -1032,7 +1032,7 @@ cdef class Function(object):
         if len(ndict) > 0:
             raise Error(self.name + ': Function does not take argument(s) named ' + ', '.join(ndict.keys()))
 
-        inm = self.funcs.newMap()
+        inm = self.funcs.createMap()
 
         try:
             typedDictToMap(processed, atypes, inm, self.plugin.core, self.funcs)

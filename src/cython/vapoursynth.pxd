@@ -195,7 +195,7 @@ cdef extern from "include/VapourSynth.h" nogil:
         int propNumElements(VSMap *map, char *key) nogil
         char propGetType(VSMap *map, char *key) nogil
 
-        VSMap *newMap() nogil
+        VSMap *createMap() nogil
         void freeMap(VSMap *map) nogil
         void clearMap(VSMap *map) nogil
 
