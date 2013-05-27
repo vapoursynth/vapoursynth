@@ -403,7 +403,6 @@ STDMETHODIMP VapourSynthFile::DeleteStream(DWORD fccType, LONG lParam) {
 ///////////////////////////////////////////////////
 /////// local
 
-// fixme, set the correct number of threads
 VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : num_threads(1), node(NULL), se(NULL), vsapi(NULL), enable_v210(false), pad_scanlines(false), m_refs(0), vi(NULL), pending_requests(0) {
 	vsapi = vseval_getVSApi();
     AddRef();
