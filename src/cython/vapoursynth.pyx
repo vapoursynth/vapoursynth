@@ -32,6 +32,10 @@ import msvcrt
 import threading
 import gc
 
+#ifndef _WIN32
+#define __stdcall
+#endif
+
 _core = None
 
 GRAY  = vapoursynth.cmGray
@@ -1090,7 +1094,7 @@ cdef public struct VPYScriptExport:
     void *pyenvdict
     void *errstr
     
-cdef public api int __stdcall vpy_evaluateScript(VPYScriptExport *se, const char *script, const char *errorFilename) nogil:
+cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, const char *errorFilename) nogil:
     with gil:
         try:
             evaldict = {}
@@ -1124,7 +1128,7 @@ cdef public api int __stdcall vpy_evaluateScript(VPYScriptExport *se, const char
             return 1
         return 0
 
-cdef public api void __stdcall vpy_freeScript(VPYScriptExport *se) nogil:
+cdef public api void vpy_freeScript(VPYScriptExport *se) nogil:
     with gil:
         evaldict = <dict>se.pyenvdict
         se.pyenvdict = NULL
@@ -1140,14 +1144,14 @@ cdef public api void __stdcall vpy_freeScript(VPYScriptExport *se) nogil:
             errstr = None
         gc.collect()
 
-cdef public api char * __stdcall vpy_getError(VPYScriptExport *se) nogil:
+cdef public api char *vpy_getError(VPYScriptExport *se) nogil:
     if not se.errstr:
         return NULL
     with gil:
         errstr = <bytes>se.errstr
         return errstr
 
-cdef public api VSNodeRef * __stdcall vpy_getOutput(VPYScriptExport *se, int index) nogil:
+cdef public api VSNodeRef *vpy_getOutput(VPYScriptExport *se, int index) nogil:
     with gil:
         evaldict = <dict>se.pyenvdict
         node = None
@@ -1161,10 +1165,10 @@ cdef public api VSNodeRef * __stdcall vpy_getOutput(VPYScriptExport *se, int ind
         else:
             return NULL
     
-cdef public api void __stdcall vpy_clearOutput(VPYScriptExport *se, int index) nogil:
+cdef public api void vpy_clearOutput(VPYScriptExport *se, int index) nogil:
     pass
 
-cdef public api VSCore * __stdcall vpy_getCore() nogil:
+cdef public api VSCore *vpy_getCore() nogil:
     with gil:
         try:
             core = get_core()
@@ -1172,10 +1176,10 @@ cdef public api VSCore * __stdcall vpy_getCore() nogil:
         except:
             return NULL
             
-cdef public api VSAPI * __stdcall vpy_getVSApi() nogil:
+cdef public api VSAPI *vpy_getVSApi() nogil:
     return vapoursynth.getVapourSynthAPI(3)
             
-cdef public api int __stdcall vpy_getVariable(VPYScriptExport *se, const char *name, VSMap *dst) nogil:
+cdef public api int vpy_getVariable(VPYScriptExport *se, const char *name, VSMap *dst) nogil:
     with gil:
         evaldict = <dict>se.pyenvdict
         core = get_core()
@@ -1186,7 +1190,7 @@ cdef public api int __stdcall vpy_getVariable(VPYScriptExport *se, const char *n
         except:
             return 1
             
-cdef public api void __stdcall vpy_setVariable(VPYScriptExport *se, VSMap *vars) nogil:
+cdef public api void vpy_setVariable(VPYScriptExport *se, VSMap *vars) nogil:
     with gil:
         evaldict = <dict>se.pyenvdict
         core = get_core()
@@ -1194,7 +1198,7 @@ cdef public api void __stdcall vpy_setVariable(VPYScriptExport *se, VSMap *vars)
         for key in new_vars:
             evaldict[key] = new_vars[key]
 
-cdef public api int __stdcall vpy_clearVariable(VPYScriptExport *se, const char *name) nogil:
+cdef public api int vpy_clearVariable(VPYScriptExport *se, const char *name) nogil:
     with gil:
         evaldict = <dict>se.pyenvdict
         try:
@@ -1203,7 +1207,7 @@ cdef public api int __stdcall vpy_clearVariable(VPYScriptExport *se, const char 
             return 1
         return 0
 
-cdef public api void __stdcall vpy_clearEnvironment(VPYScriptExport *se) nogil:
+cdef public api void vpy_clearEnvironment(VPYScriptExport *se) nogil:
     with gil:
         evaldict = <dict>se.pyenvdict
         for key in evaldict:

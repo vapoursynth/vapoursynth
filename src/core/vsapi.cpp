@@ -73,7 +73,7 @@ struct GetFrameWaiter {
     GetFrameWaiter(char *errorMsg, int bufSize) : errorMsg(errorMsg), bufSize(bufSize) {}
 };
 
-static void VS_CC frameWaiterCallback(void *userData, const VSFrameRef *frame, int n, VSNodeRef *, const char *errorMsg) {
+static void VS_CC frameWaiterCallback(void *userData, const VSFrameRef *frame, int n, VSNodeRef *node, const char *errorMsg) {
     GetFrameWaiter *g = (GetFrameWaiter *)userData;
     QMutexLocker l(&g->b);
     g->r = frame;
