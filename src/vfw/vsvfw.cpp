@@ -36,14 +36,6 @@
 #include "VSScript.h"
 #include "VSHelper.h"
 
-void BitBlt(uint8_t* dstp, int dst_pitch, const uint8_t* srcp, int src_pitch, int row_size, int height) {
-    for (int i = 0; i < height; i++) {
-        memcpy(dstp, srcp, row_size);
-        srcp += src_pitch;
-        dstp += dst_pitch;
-    }
-}
-
 static long refCount=0;
 
 static int BMPSize(int height, int rowsize) {
@@ -882,7 +874,7 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
             yptr += pstride;
         }
     } else {
-        BitBlt((BYTE*)lpBuffer, out_pitch, vsapi->getReadPtr(f, 0), pitch, row_size, height);
+        vs_bitblt(lpBuffer, out_pitch, vsapi->getReadPtr(f, 0), pitch, row_size, height);
     }
 
     if (fi->id == pfYUV422P10 && parent->enable_v210) {
@@ -918,12 +910,12 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
             }
         }
     } else if (fi->numPlanes == 3) {
-        BitBlt((BYTE*)lpBuffer + (out_pitch*height),
+        vs_bitblt((BYTE *)lpBuffer + (out_pitch*height),
             out_pitchUV,               vsapi->getReadPtr(f, 2),
             vsapi->getStride(f, 2), vsapi->getFrameWidth(f, 2),
             vsapi->getFrameHeight(f, 2) );
 
-        BitBlt((BYTE*)lpBuffer + (out_pitch*height + vsapi->getFrameHeight(f, 1)*out_pitchUV),
+        vs_bitblt((BYTE *)lpBuffer + (out_pitch*height + vsapi->getFrameHeight(f, 1)*out_pitchUV),
             out_pitchUV,               vsapi->getReadPtr(f, 1),
             vsapi->getStride(f, 1), vsapi->getFrameWidth(f, 1),
             vsapi->getFrameHeight(f, 1) );
