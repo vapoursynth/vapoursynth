@@ -1,7 +1,5 @@
 #include "VSScript.h"
 #include "vapoursynthpp_api.h"
-#include <map>
-#include <utility>
 
 struct VSScript : public VPYScriptExport {
 };
