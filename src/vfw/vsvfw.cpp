@@ -453,7 +453,7 @@ bool VapourSynthFile::DelayInit() {
 const char *ErrorScript = "\
 import vapoursynth as vs\n\
 import sys\n\
-core = vs.get_core(threads=1)\n\
+core = vs.get_core()\n\
 red = core.std.BlankClip(width=240, height=480, format=vs.RGB24, color=[255, 0, 0])\n\
 green = core.std.BlankClip(width=240, height=480, format=vs.RGB24, color=[0, 255, 0])\n\
 blue = core.std.BlankClip(width=240, height=480, format=vs.RGB24, color=[0, 0, 255])\n\
