@@ -13,15 +13,15 @@ Classes and Functions
 
    The *Core* class uses a singleton pattern, use *get_core()* to obtain an instance.
    All loaded plugins are exposed as attributes of the core object. These attributes in turn hold the contained functions in the plugin.
-   Use *list_functions()* to obtain a full list of all the currently named plugins you may call this way.
+   Use *get_plugins()* to obtain a full list of all currently loaded plugins you may call this way.
    
    .. py:method:: set_max_cache_size(mb)
    
       Set the upper framebuffer cache size after which memory is aggressively freed. The value is in megabytes.
    
-   .. py:method:: list_functions()
+   .. py:method:: get_plugins()
    
-      Returns a string containing all the loaded plugins and internal functions.
+      Returns a dict containing all loaded plugins and their functions.
    
    .. py:method:: register_format(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h)
    
@@ -160,6 +160,15 @@ Classes and Functions
    .. py:attribute:: num_planes
    
       The number of planes the format has.
+      
+.. py:class:: Plugin
+
+   Plugin is a class that represents a loaded plugin and its namespace.
+   
+   .. py:method:: get_functions()
+   
+      Returns a dict containing all the functions in the plugin. You can access it by calling *core.std.get_functions()*.
+      Replace *std* with the namespace of the plugin you want to query.
       
 .. py:exception:: Error
 

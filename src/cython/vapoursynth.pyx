@@ -859,15 +859,20 @@ cdef class Core(object):
         cdef VSMap *m = self.funcs.getPlugins(self.core)
         cdef VSMap *n
         cdef bytes b
-        cdef str sout = ''
+        cdef dict sout = {}
 
         for i in range(self.funcs.propNumKeys(m)):
             a = self.funcs.propGetData(m, self.funcs.propGetKey(m, i), 0, NULL)
             a = a.decode('utf-8')
             a = a.split(';', 2)
-            sout += a[2] + '\n'
-            sout += '\tnamespace:\t' + a[0] + '\n'
-            sout += '\tidentifier:\t' + a[1] + '\n'
+            
+            plugin_dict = {}
+            plugin_dict['namespace'] = a[0]
+            plugin_dict['identifier'] = a[1]
+            plugin_dict['name'] = a[2]
+            
+            function_dict = {}
+
             b = a[1].encode('utf-8')
             n = self.funcs.getFunctions(self.funcs.getPluginId(b, self.core))
 
@@ -875,9 +880,10 @@ cdef class Core(object):
                 c = self.funcs.propGetData(n, self.funcs.propGetKey(n, j), 0, NULL)
                 c = c.decode('utf-8')
                 c = c.split(';', 1)
-                c[1] = c[1].replace(';', '; ', c[1].count(';')-1)
-                sout += '\t\t' + c[0] + '(' + c[1] +')\n'
+                function_dict[c[0]] = c[1]
 
+            plugin_dict['functions'] = function_dict
+            sout[plugin_dict['identifier']] = plugin_dict
             self.funcs.freeMap(n)
 
         self.funcs.freeMap(m)
@@ -967,17 +973,16 @@ cdef class Plugin(object):
     def list_functions(self):
         cdef VSMap *n
         cdef bytes b
-        cdef str sout = ''
-
+        cdef dict sout = {}
+        
         n = self.funcs.getFunctions(self.plugin)
-
+        
         for j in range(self.funcs.propNumKeys(n)):
             c = self.funcs.propGetData(n, self.funcs.propGetKey(n, j), 0, NULL)
             c = c.decode('utf-8')
             c = c.split(';', 1)
-            c[1] = c[1].replace(';', '; ', c[1].count(';')-1)
-            sout += '\t\t' + c[0] + '(' + c[1] +')\n'
-
+            sout[c[0]] = c[1];
+            
         self.funcs.freeMap(n)
         return sout
 
