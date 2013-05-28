@@ -37,6 +37,8 @@ import gc
 #endif
 
 _core = None
+_environment_id = None
+_stored_outputs = {}
 
 GRAY  = vapoursynth.cmGray
 RGB   = vapoursynth.cmRGB
@@ -832,22 +834,8 @@ cdef class Core(object):
     cdef readonly bint add_cache
     cdef readonly bint accept_lowercase
 
-    def __cinit__(self, int threads = 0, bint add_cache = True, bint accept_lowercase = False):
-        global _core
-        if _core is not None:
-            raise Error('Core has already been instantiated once!')
-        self.funcs = vapoursynth.getVapourSynthAPI(3)
-        if self.funcs == NULL:
-#if defined(_WIN32) && !defined(_WIN64)
-            raise Error('Failed to obtain VapourSynth API pointer. System does not support SSE2 or is the Python module and loaded core library mismatched?')
-#else 
-            raise Error('Failed to obtain VapourSynth API pointer. Is the Python module and loaded core library mismatched?')
-#endif
-        self.core = self.funcs.createCore(threads)
-        self.add_cache = add_cache
-        self.accept_lowercase = accept_lowercase
-        cdef VSCoreInfo *info = self.funcs.getCoreInfo(self.core)
-        self.num_threads = info.numThreads
+    def __init__(self):
+        raise Error('Class cannot be instantiated directly')
 
     def __dealloc__(self):
         if self.funcs:
@@ -918,10 +906,26 @@ cdef class Core(object):
         s += '\tAccept Lowercase: ' + str(self.accept_lowercase) + '\n'
         return s
         
+cdef Core createCore(int threads = 0, bint add_cache = True, bint accept_lowercase = False):
+    cdef Core instance = Core.__new__(Core)
+    instance.funcs = vapoursynth.getVapourSynthAPI(3)
+    if instance.funcs == NULL:
+#if defined(_WIN32) && !defined(_WIN64)
+        raise Error('Failed to obtain VapourSynth API pointer. System does not support SSE2 or is the Python module and loaded core library mismatched?')
+#else 
+        raise Error('Failed to obtain VapourSynth API pointer. Is the Python module and loaded core library mismatched?')
+#endif
+    instance.core = instance.funcs.createCore(threads)
+    instance.add_cache = add_cache
+    instance.accept_lowercase = accept_lowercase
+    cdef VSCoreInfo *info = instance.funcs.getCoreInfo(instance.core)
+    instance.num_threads = info.numThreads
+    return instance
+        
 def get_core(int threads = 0, bint add_cache = True, bint accept_lowercase = False):
     global _core
     if _core is None:
-        _core = Core(threads, add_cache, accept_lowercase)
+        _core = createCore(threads, add_cache, accept_lowercase)
     return _core
 
 cdef class Plugin(object):
