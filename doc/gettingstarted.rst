@@ -12,8 +12,8 @@ Here's a sample script to be inspired by::
    import vapoursynth as vs
    # needed for stdout
    import sys
-   # create a core instance
-   core = vs.Core()
+   # get the core instance
+   core = vs.get_core()
    # load a native vapoursynth plugin
    # you should use absolute paths as the working directory may not be what you think it is
    core.std.LoadPlugin(path=r'c:\plugins\ffms2.dll')
