@@ -9,9 +9,9 @@ Classes and Functions
    Get the singleton Core object. If it is the first time the function is called the Core will be instantiated with the given options.
    If the Core already has been instantiated all options are ignored. Setting *threads* to a value greater than zero overrides the autodetection.
 
-.. py:class:: Core([threads = 0, add_cache = True, accept_lowercase = False])
+.. py:class:: Core
 
-   Create a new instance of the Core class.
+   The *Core* class uses a singleton pattern, use *get_core()* to obtain an instance.
    All loaded plugins are exposed as attributes of the core object. These attributes in turn hold the contained functions in the plugin.
    Use *list_functions()* to obtain a full list of all the currently named plugins you may call this way.
    
