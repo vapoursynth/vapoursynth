@@ -26,6 +26,16 @@
 #include "VSScript.h"
 #include "VSHelper.h"
 
+#ifdef _WIN32
+static inline QString nativeToQString(const wchar_t *str) {
+	return QString::fromWCharArray(str);
+}
+#else
+static inline QString nativeToQString(const char *str) {
+	return QString::fromLocal8Bit(str);
+}
+#endif
+
 const VSAPI *vsapi = NULL;
 VSScript *se = NULL;
 VSNodeRef *node = NULL;
@@ -195,7 +205,7 @@ int main(int argc, char **argv) {
     }
 
 	for (int arg = 3; arg < argc; arg++) {
-		QString argString = QString::fromWCharArray(argv[arg]);;
+		QString argString = nativeToQString(argv[arg]);
 		if (argString == "-y4m") {
 			y4m = true;
 		} else if (argString == "-index") {
@@ -204,7 +214,7 @@ int main(int argc, char **argv) {
 				fprintf(stderr, "No index number specified");
 				return 1;
 			}
-			QString numString = QString::fromWCharArray(argv[arg+1]);
+			QString numString = nativeToQString(argv[arg+1]);
 			index = numString.toInt(&ok);
 			if (!ok) {
 				fprintf(stderr, "Couldn't convert %s to an integer", numString.toUtf8().constData());
@@ -217,7 +227,7 @@ int main(int argc, char **argv) {
 				fprintf(stderr, "No request number specified");
 				return 1;
 			}
-			QString numString = QString::fromWCharArray(argv[arg+1]);
+			QString numString = nativeToQString(argv[arg+1]);
 			requests = numString.toInt(&ok);
 			if (!ok) {
 				fprintf(stderr, "Couldn't convert %s to an integer", numString.toUtf8().constData());
@@ -242,7 +252,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-	QFile scriptFile(QString::fromWCharArray(argv[1]));
+	QFile scriptFile(nativeToQString(argv[1]));
 	if (!scriptFile.open(QIODevice::ReadOnly)) {
         fprintf(stderr, "Failed to to open script file for reading\n");
         vseval_finalize();
@@ -262,7 +272,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-	if (vseval_evaluateScript(&se, scriptData.constData(), QString::fromWCharArray(argv[1]).toUtf8())) {
+	if (vseval_evaluateScript(&se, scriptData.constData(), nativeToQString(argv[1]).toUtf8())) {
         fprintf(stderr, "Script evaluation failed:\n%s", vseval_getError(se));
         vseval_freeScript(se);
         vseval_finalize();
