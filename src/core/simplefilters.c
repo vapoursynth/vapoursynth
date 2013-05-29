@@ -112,8 +112,6 @@ static int planeHeight(const VSVideoInfo *vi, int plane) {
 typedef struct {
     VSNodeRef *node;
     const VSVideoInfo *vi;
-    const char *xprop;
-    const char *yprop;
     int x;
     int y;
     int width;
@@ -128,7 +126,6 @@ static void VS_CC cropAbsInit(VSMap *in, VSMap *out, void **instanceData, VSNode
     vsapi->setVideoInfo(&vi, 1, node);
 }
 
-// fixme, remove all the link leftovers
 static int cropAbsVerify(int x, int y, int width, int height, int srcwidth, int srcheight, const VSFormat *fi, char *msg) {
     msg[0] = 0;
 
@@ -164,7 +161,6 @@ static int cropAbsVerify(int x, int y, int width, int height, int srcwidth, int 
 
 static const VSFrameRef *VS_CC cropAbsGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     CropAbsData *d = (CropAbsData *) * instanceData;
-    char msg[150];
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
@@ -174,30 +170,7 @@ static const VSFrameRef *VS_CC cropAbsGetframe(int n, int activationReason, void
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSFormat *fi = vsapi->getFrameFormat(src);
         VSFrameRef *dst = vsapi->newVideoFrame(fi, d->width, d->height, src, core);
-        int x = d->x;
-        int y = d->y;
         const VSMap *m = vsapi->getFramePropsRO(src);
-        int err;
-        int64_t temp;
-
-        if (d->xprop) {
-            temp = vsapi->propGetInt(m, "x_prop", 0, &err);
-
-            if (!err)
-                d->x = int64ToIntS(temp);
-        }
-
-        if (d->yprop) {
-            temp = vsapi->propGetInt(m, "y_prop", 0, &err);
-
-            if (!err)
-                d->y = int64ToIntS(temp);
-        }
-
-        if (cropAbsVerify(x, y, d->width, d->height, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fi, msg)) {
-            vsapi->setFilterError(msg, frameCtx);
-            return 0;
-        }
 
         // now that argument validation is over we can spend the next few lines actually cropping
         for (plane = 0; plane < fi->numPlanes; plane++) {
@@ -231,9 +204,7 @@ static void VS_CC cropAbsCreate(const VSMap *in, VSMap *out, void *userData, VSC
     int err;
 
     d.x = int64ToIntS(vsapi->propGetInt(in, "x", 0, &err));
-    d.xprop = vsapi->propGetData(in, "x_prop", 0, &err);
     d.y = int64ToIntS(vsapi->propGetInt(in, "y", 0, &err));
-    d.yprop = vsapi->propGetData(in, "y_prop", 0, &err);
 
     d.height = int64ToIntS(vsapi->propGetInt(in, "height", 0, 0));
     d.width = int64ToIntS(vsapi->propGetInt(in, "width", 0, 0));
