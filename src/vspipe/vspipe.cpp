@@ -39,7 +39,7 @@ static inline QString nativeToQString(const char *str) {
 const VSAPI *vsapi = NULL;
 VSScript *se = NULL;
 VSNodeRef *node = NULL;
-FILE *outfile = NULL;
+FILE *outFile = NULL;
 
 int requests = 0;
 int index = 0;
@@ -66,7 +66,7 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
             if (outputError)
                 goto fwriteError;
             if (y4m) {
-                if (!fwrite("FRAME\n", 6, 1, outfile)) {
+                if (!fwrite("FRAME\n", 6, 1, outFile)) {
                     errorMessage = "Error: fwrite() call failed";
                     totalFrames = requestedFrames;
                     outputError = true;
@@ -81,7 +81,7 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
                 int rowSize = vsapi->getFrameWidth(frame, p) * fi->bytesPerSample;
                 int height = vsapi->getFrameHeight(frame, p);
                 for (int y = 0; y < height; y++) {
-                    if (!fwrite(readPtr, rowSize, 1, outfile)) {
+                    if (!fwrite(readPtr, rowSize, 1, outFile)) {
                         errorMessage = "Error: fwrite() call failed";
                         totalFrames = requestedFrames;
                         outputError = true;
@@ -162,7 +162,7 @@ bool outputNode() {
     QByteArray rawHeader = header.toUtf8();
 
     if (y4m) {
-        if (!fwrite(rawHeader.constData(), rawHeader.size(), 1, outfile)) {
+        if (!fwrite(rawHeader.constData(), rawHeader.size(), 1, outFile)) {
             errorMessage = "Error: fwrite() call failed";
 			fprintf(stderr, "%s", errorMessage.toUtf8().constData());
 			outputError = true;
@@ -196,13 +196,45 @@ int main(int argc, char **argv) {
     if (argc < 3) {
         fprintf(stderr, "VSPipe\n");
         fprintf(stderr, "Write to stdout: vspipe script.vpy - [options]\n");
-        fprintf(stderr, "Write to file: vspipe script.vpy <outfile> [options]\n");
+        fprintf(stderr, "Write to file: vspipe script.vpy <outFile> [options]\n");
         fprintf(stderr, "Available options:\n");
 		fprintf(stderr, "Select output index: -index N (default: 0)\n");
 		fprintf(stderr, "Set number of concurrent frame requests: -requests N (default: number of threads)\n");
 		fprintf(stderr, "Add YUV4MPEG headers: -y4m (default: off)\n");
         return 1;
     }
+
+	QFile scriptFile(nativeToQString(argv[1]));
+	if (!scriptFile.open(QIODevice::ReadOnly)) {
+        fprintf(stderr, "Failed to to open script file for reading\n");
+        return 1;
+	}
+
+	if (scriptFile.size() > 1024*1024*16) {
+        fprintf(stderr, "Script files bigger than 16MB not allowed\n");
+        return 1;
+	}
+
+    QByteArray scriptData = scriptFile.readAll();
+    if (scriptData.isEmpty()) {
+        fprintf(stderr, "Failed to read script file or file is empty\n");
+        return 1;
+    }
+
+	QString outputFilename = nativeToQString(argv[2]);
+	if (outputFilename == "-") {
+		outFile = stdout;
+	} else {
+#ifdef _WIN32
+		outFile = _wfopen(outputFilename.toStdWString().c_str(), L"wb");
+#else
+		outfile = fopen(outputFilename.toLocal8Bit(), "wb");
+#endif
+		if (!outFile) {
+			fprintf(stderr, "Failed to open output for writing\n");
+			return 1;
+		}
+	}
 
 	for (int arg = 3; arg < argc; arg++) {
 		QString argString = nativeToQString(argv[arg]);
@@ -252,26 +284,6 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-	QFile scriptFile(nativeToQString(argv[1]));
-	if (!scriptFile.open(QIODevice::ReadOnly)) {
-        fprintf(stderr, "Failed to to open script file for reading\n");
-        vseval_finalize();
-        return 1;
-	}
-
-	if (scriptFile.size() > 1024*1024*16) {
-        fprintf(stderr, "Script files bigger than 16MB not allowed\n");
-        vseval_finalize();
-        return 1;
-	}
-
-    QByteArray scriptData = scriptFile.readAll();
-    if (scriptData.isEmpty()) {
-        fprintf(stderr, "Failed to read script file or file is empty\n");
-        vseval_finalize();
-        return 1;
-    }
-
 	if (vseval_evaluateScript(&se, scriptData.constData(), nativeToQString(argv[1]).toUtf8())) {
         fprintf(stderr, "Script evaluation failed:\n%s", vseval_getError(se));
         vseval_freeScript(se);
@@ -294,8 +306,6 @@ int main(int argc, char **argv) {
         vseval_finalize();
         return 1;
     }
-
-    outfile = stdout;
 
 	bool error = outputNode();
 
