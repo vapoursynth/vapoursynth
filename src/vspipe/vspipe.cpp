@@ -26,16 +26,13 @@
 #include "VSScript.h"
 #include "VSHelper.h"
 
-
-
-
-int numThreads = 1;
 const VSAPI *vsapi = NULL;
 VSScript *se = NULL;
 VSNodeRef *node = NULL;
 FILE *outfile = NULL;
 
-int prefetch = 1;
+int requests = 0;
+int index = 0;
 int outputFrames = 0;
 int requestedFrames = 0;
 int completedFrames = 0;
@@ -108,10 +105,14 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
 }
 
 bool outputNode() {
-    if (prefetch < 1)
-        prefetch = numThreads;
+    if (requests < 1) {
+		const VSCoreInfo *info = vsapi->getCoreInfo(vseval_getCore());
+        requests = info->numThreads;
+	}
 
 	const VSVideoInfo *vi = vsapi->getVideoInfo(node);
+	totalFrames = vi->numFrames;
+
 	if (y4m && (vi->format->colorFamily != cmGray && vi->format->colorFamily != cmYUV)) {
 		errorMessage = "Error: Can only apply y4m headers to YUV and Gray format clips";
 		fprintf(stderr, "%s", errorMessage.toUtf8().constData());
@@ -161,7 +162,7 @@ bool outputNode() {
 
 	QMutexLocker lock(&mutex);
 
-	int intitalRequestSize = std::min(prefetch, totalFrames);
+	int intitalRequestSize = std::min(requests, totalFrames);
 	requestedFrames = intitalRequestSize;
 	for (int n = 0; n < intitalRequestSize; n++)
 		vsapi->getFrameAsync(n, node, frameDoneCallback, NULL);
@@ -175,8 +176,7 @@ bool outputNode() {
     return outputError;
 }
 
-// script output y4m index prefetch
-// fixme, handle unicode on windows
+// script output y4m index requests
 #ifdef _WIN32
 int wmain(int argc, wchar_t **argv) {
 #else
@@ -185,11 +185,50 @@ int main(int argc, char **argv) {
 
     if (argc < 3) {
         fprintf(stderr, "VSPipe\n");
-        fprintf(stderr, "Write to stdout: vspipe script.vpy -\n");
-        fprintf(stderr, "Write to file: vspipe script.vpy <outfile>\n");
-        fprintf(stderr, "Output with y4m headers: vspipe script.vpy <outfile> y4m\n");
+        fprintf(stderr, "Write to stdout: vspipe script.vpy - [options]\n");
+        fprintf(stderr, "Write to file: vspipe script.vpy <outfile> [options]\n");
+        fprintf(stderr, "Available options:\n");
+		fprintf(stderr, "Select output index: -index N (default: 0)\n");
+		fprintf(stderr, "Set number of concurrent frame requests: -requests N (default: number of threads)\n");
+		fprintf(stderr, "Add YUV4MPEG headers: -y4m (default: off)\n");
         return 1;
     }
+
+	for (int arg = 3; arg < argc; arg++) {
+		QString argString = QString::fromWCharArray(argv[arg]);;
+		if (argString == "-y4m") {
+			y4m = true;
+		} else if (argString == "-index") {
+			bool ok = false;
+			if (argc <= arg + 1) {
+				fprintf(stderr, "No index number specified");
+				return 1;
+			}
+			QString numString = QString::fromWCharArray(argv[arg+1]);
+			index = numString.toInt(&ok);
+			if (!ok) {
+				fprintf(stderr, "Couldn't convert %s to an integer", numString.toUtf8().constData());
+				return 1;
+			}
+			arg++;
+		} else if (argString == "-requests") {
+			bool ok = false;
+			if (argc <= arg + 1) {
+				fprintf(stderr, "No request number specified");
+				return 1;
+			}
+			QString numString = QString::fromWCharArray(argv[arg+1]);
+			requests = numString.toInt(&ok);
+			if (!ok) {
+				fprintf(stderr, "Couldn't convert %s to an integer", numString.toUtf8().constData());
+				return 1;
+			}
+			arg++;
+		} else {
+			fprintf(stderr, "Unknown argument: %s\n", argString.toUtf8().constData());
+			return 1;
+		}
+	}
 
     if (!vseval_init()) {
         fprintf(stderr, "Failed to initialize VapourSynth environment\n");
@@ -197,13 +236,25 @@ int main(int argc, char **argv) {
     }
 
     vsapi = vseval_getVSApi();
-    if (vsapi) {
+    if (!vsapi) {
         fprintf(stderr, "Failed to get VapourSynth API\n");
         vseval_finalize();
         return 1;
     }
 
 	QFile scriptFile(QString::fromWCharArray(argv[1]));
+	if (!scriptFile.open(QIODevice::ReadOnly)) {
+        fprintf(stderr, "Failed to to open script file for reading\n");
+        vseval_finalize();
+        return 1;
+	}
+
+	if (scriptFile.size() > 1024*1024*16) {
+        fprintf(stderr, "Script files bigger than 16MB not allowed\n");
+        vseval_finalize();
+        return 1;
+	}
+
     QByteArray scriptData = scriptFile.readAll();
     if (scriptData.isEmpty()) {
         fprintf(stderr, "Failed to read script file or file is empty\n");
@@ -218,16 +269,13 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    node = vseval_getOutput(se, 0);
+    node = vseval_getOutput(se, index);
     if (!node) {
-       fprintf(stderr, "Failed to retrieve output node\n");
+       fprintf(stderr, "Failed to retrieve output node. Invalid index specified?\n");
        vseval_freeScript(se);
        vseval_finalize();
        return 1;
     }
-
-    const VSCoreInfo *info = vsapi->getCoreInfo(vseval_getCore());
-    numThreads = info->numThreads;
 
     const VSVideoInfo *vi = vsapi->getVideoInfo(node);
     if (!isConstantFormat(vi) || vi->numFrames == 0) {
@@ -239,11 +287,12 @@ int main(int argc, char **argv) {
 
     outfile = stdout;
 
-
-
+	bool error = outputNode();
 
     vseval_freeScript(se);
     vseval_finalize();
+
+	return error ? 1 : 0;
 }
 
 /*
