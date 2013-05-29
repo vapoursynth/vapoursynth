@@ -17,7 +17,7 @@ AppPublisher=Fredrik Mellbin
 AppPublisherURL=http://www.vapoursynth.com/
 AppSupportURL=http://www.vapoursynth.com/
 AppUpdatesURL=http://www.vapoursynth.com/
-VersionInfoVersion=0.9.6.0
+VersionInfoVersion=0.9.7.0
 DefaultDirName={pf}\VapourSynth
 DefaultGroupName=VapourSynth
 AllowCancelDuringInstall=no
@@ -44,12 +44,16 @@ Source: QtCore4.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelet
 Source: vsfs.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: template.vpy; DestDir: {app}; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: vsvfw.dll; DestDir: {sys}; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: vsscript.dll; DestDir: {sys}; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: vspipe.exe; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace
 ;vs2010 runtime
 Source: msvcr100.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile
 Source: msvcp100.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile
 ;sdk
 Source: ..\include\VapourSynth.h; DestDir: {app}\sdk\include; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: ..\include\VSHelper.h; DestDir: {app}\sdk\include; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: ..\include\VSScript.h; DestDir: {app}\sdk\include; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: vsscript.lib; DestDir: {app}\sdk\lib; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: ..\sdk\filter_skeleton.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: ..\sdk\invert_example.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace
 ;bundled filters
@@ -58,7 +62,6 @@ Source: filters\vivtc.dll; DestDir: {app}\filters; Flags: ignoreversion uninsres
 Source: filters\eedi3.dll; DestDir: {app}\filters; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: filters\temporalsoften.dll; DestDir: {app}\filters; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: filters\histogram.dll; DestDir: {app}\filters; Flags: ignoreversion uninsrestartdelete restartreplace
-
 
 [Icons]
 Name: {group}\VapourSynth Website; Filename: http://www.vapoursynth.com/
