@@ -216,6 +216,7 @@ int main(int argc, char **argv) {
 	}
 
     QByteArray scriptData = scriptFile.readAll();
+	scriptFile.close();
     if (scriptData.isEmpty()) {
         fprintf(stderr, "Failed to read script file or file is empty\n");
         return 1;
@@ -314,13 +315,3 @@ int main(int argc, char **argv) {
 
 	return error ? 1 : 0;
 }
-
-/*
-VapourSynthFile::~VapourSynthFile() {
-    if (vi) {
-        vi = NULL;
-		while (pending_requests > 0) {};
-		vseval_freeScript(se);
-    }
-}
-*/
