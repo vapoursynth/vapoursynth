@@ -18,43 +18,172 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-#include <string>
-#include <algorithm>
-#include <fstream>
-#include <string>
-#include <cerrno>
-
+#include <QtCore/QMutex>
+#include <QtCore/QMutexLocker>
+#include <QtCore/QWaitCondition>
+#include <QtCore/QFile>
+#include <QtCore/QMap>
 #include "VSScript.h"
 #include "VSHelper.h"
 
-int num_threads = 1;
+
+
+
+int numThreads = 1;
 const VSAPI *vsapi = NULL;
 VSScript *se = NULL;
 VSNodeRef *node = NULL;
+FILE *outfile = NULL;
 
-std::string get_file_contents(const char *filename)
-{
-  std::ifstream in(filename, std::ios::in | std::ios::binary);
-  if (in)
-  {
-    std::string contents;
-    in.seekg(0, std::ios::end);
-    contents.resize(in.tellg());
-    in.seekg(0, std::ios::beg);
-    in.read(&contents[0], contents.size());
-    in.close();
-    return(contents);
-  }
-  return "";
+int prefetch = 1;
+int outputFrames = 0;
+int requestedFrames = 0;
+int completedFrames = 0;
+int totalFrames = 0;
+int numPlanes = 0;
+bool y4m = false;
+bool outputError = false;
+QMap<int, const VSFrameRef *> reorderMap;
+
+QString errorMessage;
+QWaitCondition condition;
+QMutex mutex;
+
+void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg) {
+    completedFrames++;
+
+    if (f) {
+        reorderMap.insert(n, f);
+        while (reorderMap.contains(outputFrames)) {
+            const VSFrameRef *frame = reorderMap.take(outputFrames);
+            if (outputError)
+                goto fwriteError;
+            if (y4m) {
+                if (!fwrite("FRAME\n", 6, 1, outfile)) {
+                    errorMessage = "Error: fwrite() call failed";
+                    totalFrames = requestedFrames;
+                    outputError = true;
+                    goto fwriteError;
+                }
+            }
+
+            const VSFormat *fi = vsapi->getFrameFormat(frame);
+            for (int p = 0; p < fi->numPlanes; p++) {
+                int stride = vsapi->getStride(frame, p);
+                const uint8_t *readPtr = vsapi->getReadPtr(frame, p);
+                int rowSize = vsapi->getFrameWidth(frame, p) * fi->bytesPerSample;
+                int height = vsapi->getFrameHeight(frame, p);
+                for (int y = 0; y < height; y++) {
+                    if (!fwrite(readPtr, rowSize, 1, outfile)) {
+                        errorMessage = "Error: fwrite() call failed";
+                        totalFrames = requestedFrames;
+                        outputError = true;
+                        goto fwriteError;
+                    }
+                    readPtr += stride;
+                }
+            }
+            fwriteError:
+            vsapi->freeFrame(frame);
+            outputFrames++;
+        }
+    } else {
+        outputError = true;
+        totalFrames = requestedFrames;
+        if (errorMsg)
+            errorMessage = QString("Error: Failed to retrieve frame ") + n + QString(" with error: ") + QString::fromUtf8(errorMsg);
+        else
+            errorMessage = QString("Error: Failed to retrieve frame ") + n;
+    }
+
+    if (requestedFrames < totalFrames) {
+        vsapi->getFrameAsync(requestedFrames, node, frameDoneCallback, NULL);
+        requestedFrames++;
+    }
+
+    if (totalFrames == completedFrames) {
+        QMutexLocker lock(&mutex);
+        condition.wakeOne();
+    }
 }
 
-//#ifdef _WIN32
-//int wmain(int argc, wchar_t **argv) {
-//#else
-int main(int argc, char **argv) {
-//#endif
+bool outputNode() {
+    if (prefetch < 1)
+        prefetch = numThreads;
 
-    if (argc != 3) {
+	const VSVideoInfo *vi = vsapi->getVideoInfo(node);
+	if (y4m && (vi->format->colorFamily != cmGray && vi->format->colorFamily != cmYUV)) {
+		errorMessage = "Error: Can only apply y4m headers to YUV and Gray format clips";
+		fprintf(stderr, "%s", errorMessage.toUtf8().constData());
+        outputError = true;
+		return outputError;
+	}
+
+    QString y4mFormat;
+    QString numBits;
+
+    if (y4m) {
+        if (vi->format->colorFamily == cmGray) {
+            y4mFormat = "mono";
+            if (vi->format->bitsPerSample > 8)
+				y4mFormat = y4mFormat + QString::number(vi->format->bitsPerSample);
+		} else if (vi->format->colorFamily == cmYUV) {
+			if (vi->format->subSamplingW == 1 && vi->format->subSamplingH == 1)
+                y4mFormat = "420";
+			else if (vi->format->subSamplingW == 1 && vi->format->subSamplingH == 0)
+                y4mFormat = "422";
+			else if (vi->format->subSamplingW == 0 && vi->format->subSamplingH == 0)
+                y4mFormat = "444";
+			else if (vi->format->subSamplingW == 2 && vi->format->subSamplingH == 2)
+                y4mFormat = "410";
+			else if (vi->format->subSamplingW == 2 && vi->format->subSamplingH == 0)
+                y4mFormat = "411";
+			else if (vi->format->subSamplingW == 0 && vi->format->subSamplingH == 1)
+                y4mFormat = "440";
+            if (vi->format->bitsPerSample > 8)
+                y4mFormat = y4mFormat + "p" + QString::number(vi->format->bitsPerSample);
+		}
+    }
+	if (!y4mFormat.isEmpty())
+        y4mFormat = "C" + y4mFormat + " ";
+
+	QString header = "YUV4MPEG2 " + y4mFormat + "W" + QString::number(vi->width) + " H" + QString::number(vi->height) + " F" + QString::number(vi->fpsNum)  + ":" + QString::number(vi->fpsDen)  + " Ip A0:0\n";
+    QByteArray rawHeader = header.toUtf8();
+
+    if (y4m) {
+        if (!fwrite(rawHeader.constData(), rawHeader.size(), 1, outfile)) {
+            errorMessage = "Error: fwrite() call failed";
+			fprintf(stderr, "%s", errorMessage.toUtf8().constData());
+			outputError = true;
+			return outputError;
+        }
+    }
+
+	QMutexLocker lock(&mutex);
+
+	int intitalRequestSize = std::min(prefetch, totalFrames);
+	requestedFrames = intitalRequestSize;
+	for (int n = 0; n < intitalRequestSize; n++)
+		vsapi->getFrameAsync(n, node, frameDoneCallback, NULL);
+
+	condition.wait(&mutex);
+
+    if (outputError) {
+        fprintf(stderr, "%s", errorMessage.toUtf8().constData());
+    }
+
+    return outputError;
+}
+
+// script output y4m index prefetch
+// fixme, handle unicode on windows
+#ifdef _WIN32
+int wmain(int argc, wchar_t **argv) {
+#else
+int main(int argc, char **argv) {
+#endif
+
+    if (argc < 3) {
         fprintf(stderr, "VSPipe\n");
         fprintf(stderr, "Write to stdout: vspipe script.vpy -\n");
         fprintf(stderr, "Write to file: vspipe script.vpy <outfile>\n");
@@ -74,14 +203,15 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    std::string script = get_file_contents(argv[1]);
-    if (script.empty()) {
+	QFile scriptFile(QString::fromWCharArray(argv[1]));
+    QByteArray scriptData = scriptFile.readAll();
+    if (scriptData.isEmpty()) {
         fprintf(stderr, "Failed to read script file or file is empty\n");
         vseval_finalize();
         return 1;
     }
 
-    if (vseval_evaluateScript(&se, script.c_str(), argv[1])) {
+	if (vseval_evaluateScript(&se, scriptData.constData(), QString::fromWCharArray(argv[1]).toUtf8())) {
         fprintf(stderr, "Script evaluation failed:\n%s", vseval_getError(se));
         vseval_freeScript(se);
         vseval_finalize();
@@ -96,7 +226,10 @@ int main(int argc, char **argv) {
        return 1;
     }
 
-    vi = vsapi->getVideoInfo(node);
+    const VSCoreInfo *info = vsapi->getCoreInfo(vseval_getCore());
+    numThreads = info->numThreads;
+
+    const VSVideoInfo *vi = vsapi->getVideoInfo(node);
     if (!isConstantFormat(vi) || vi->numFrames == 0) {
         fprintf(stderr, "Cannot output clips with varying dimensions or unknown length\n");
         vseval_freeScript(se);
@@ -104,13 +237,16 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    outfile = stdout;
+
+
 
 
     vseval_freeScript(se);
     vseval_finalize();
 }
 
-
+/*
 VapourSynthFile::~VapourSynthFile() {
     if (vi) {
         vi = NULL;
@@ -118,186 +254,4 @@ VapourSynthFile::~VapourSynthFile() {
 		vseval_freeScript(se);
     }
 }
-
-
-
-bool VapourSynthFile::DelayInit2() {
-    if (!szScriptName.empty() && !vi) {
-
-		std::string script = get_file_contents(szScriptName.c_str());
-		if (script.empty())
-			goto vpyerror;
-
-		if (!vseval_evaluateScript(&se, script.c_str(), szScriptName.c_str())) {
-			
-			node = vseval_getOutput(se, 0);
-			if (!node)
-				goto vpyerror;
-			vi = vsapi->getVideoInfo(node);
-            error_msg.clear();
-
-            if (vi->width == 0 || vi->height == 0 || vi->format == NULL || vi->numFrames == 0) {
-                error_msg = "Cannot open clips with varying dimensions or format in vfw";
-                goto vpyerror;
-            }
-
-            int id = vi->format->id;
-            if (id != pfCompatBGR32
-                && id != pfCompatYUY2
-                && id != pfYUV420P8
-                && id != pfGray8
-                && id != pfYUV444P8
-                && id != pfYUV422P8
-                && id != pfYUV411P8
-                && id != pfYUV410P8
-                && id != pfYUV420P10
-                && id != pfYUV420P16
-                && id != pfYUV422P10
-                && id != pfYUV422P16) {
-                error_msg = "VFW module doesn't support ";
-                error_msg += vi->format->name;
-                error_msg += " output";
-                goto vpyerror;
-            }
-
-			// set the special options hidden in global variables
-			int error;
-			int64_t val;
-			VSMap *options = vsapi->createMap();
-			vseval_getVariable(se, "enable_v210", options);
-			val = vsapi->propGetInt(options, "enable_v210", 0, &error);
-			if (!error)
-				enable_v210 = !!val;
-			vseval_getVariable(se, "pad_scanlines", options);
-			val = vsapi->propGetInt(options, "pad_scanlines", 0, &error);
-			if (!error)
-				pad_scanlines = !!val;
-			vsapi->freeMap(options);
-
-			const VSCoreInfo *info = vsapi->getCoreInfo(vseval_getCore());
-			num_threads = info->numThreads;
-
-            return true;
-        } else {
-			error_msg = vseval_getError(se);
-            vpyerror:
-            vi = NULL;
-			vseval_freeScript(se);
-			se = NULL;
-            int res = vseval_evaluateScript(&se, ErrorScript, "vfw_error.bleh");
-			const char *et = vseval_getError(se);
-			node = vseval_getOutput(se, 0);
-            vi = vsapi->getVideoInfo(node);
-            return true;
-        }
-    } else {
-        return !!vi;
-    }
-}
-
-void VapourSynthFile::Lock() {
-    EnterCriticalSection(&cs_filter_graph);
-}
-
-void VapourSynthFile::Unlock() {
-    LeaveCriticalSection(&cs_filter_graph);
-}
-
-
-
-STDMETHODIMP VapourSynthFile::Info(AVIFILEINFOW *pfi, LONG lSize) {
-    if (!pfi)
-        return E_POINTER;
-
-    if (!DelayInit())
-        return E_FAIL;
-
-    AVIFILEINFOW afi;
-    memset(&afi, 0, sizeof(afi));
-
-    afi.dwMaxBytesPerSec	= 0;
-    afi.dwFlags				= AVIFILEINFO_HASINDEX | AVIFILEINFO_ISINTERLEAVED;
-    afi.dwCaps				= AVIFILECAPS_CANREAD | AVIFILECAPS_ALLKEYFRAMES | AVIFILECAPS_NOCOMPRESSION;
-
-    afi.dwStreams				= 1;
-    afi.dwSuggestedBufferSize	= 0;
-    afi.dwWidth					= vi->width;
-    afi.dwHeight				= vi->height;
-    afi.dwEditCount				= 0;
-
-    afi.dwRate					= int64ToIntS(vi->fpsNum ? vi->fpsNum : 1);
-    afi.dwScale					= int64ToIntS(vi->fpsDen ? vi->fpsDen : 30);
-    afi.dwLength				= vi->numFrames;
-
-    wcscpy(afi.szFileType, L"VapourSynth");
-
-    // Maybe should return AVIERR_BUFFERTOOSMALL for lSize < sizeof(afi)
-    memset(pfi, 0, lSize);
-    memcpy(pfi, &afi, min(size_t(lSize), sizeof(afi)));
-    return S_OK;
-}
-
-////////////////////////////////////////////////////////////////////////
-//////////// local
-
-void VS_CC VapourSynthFile::frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg) {
-    VapourSynthFile *vsfile = (VapourSynthFile *)userData;
-    vsfile->vsapi->freeFrame(f);
-    InterlockedDecrement(&vsfile->pending_requests);
-}
-
-bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
-    const VSAPI *vsapi = parent->vsapi;
-    const VSFrameRef *f = vsapi->getFrame(n, parent->node, 0, 0);
-    if (!f)
-        return false;
-
-    const VSFormat *fi = vsapi->getFrameFormat(f);
-    const int pitch    = vsapi->getStride(f, 0);
-    const int row_size = vsapi->getFrameWidth(f, 0) * fi->bytesPerSample;
-    const int height   = vsapi->getFrameHeight(f, 0);
-
-    int out_pitch;
-    int out_pitchUV;
-
-    bool semi_packed_p10 = (fi->id == pfYUV420P10) || (fi->id == pfYUV422P10);
-    bool semi_packed_p16 = (fi->id == pfYUV420P16) || (fi->id == pfYUV422P16);
-
-    // BMP scanlines are dword-aligned
-    if (fi->numPlanes == 1) {
-        out_pitch = (row_size+3) & ~3;
-        out_pitchUV = (vsapi->getFrameWidth(f, 1) * fi->bytesPerSample+3) & ~3;
-    }
-    // Planar scanlines are packed
-    else {
-        out_pitch = row_size;
-        out_pitchUV = vsapi->getFrameWidth(f, 1) * fi->bytesPerSample;
-    }
-
-    {
-        BitBlt((BYTE*)lpBuffer, out_pitch, vsapi->getReadPtr(f, 0), pitch, row_size, height);
-    }
-
-    if (fi->numPlanes == 3) {
-        BitBlt((BYTE*)lpBuffer + (out_pitch*height),
-            out_pitchUV,               vsapi->getReadPtr(f, 2),
-            vsapi->getStride(f, 2), vsapi->getFrameWidth(f, 2),
-            vsapi->getFrameHeight(f, 2) );
-
-        BitBlt((BYTE*)lpBuffer + (out_pitch*height + vsapi->getFrameHeight(f, 1)*out_pitchUV),
-            out_pitchUV,               vsapi->getReadPtr(f, 1),
-            vsapi->getStride(f, 1), vsapi->getFrameWidth(f, 1),
-            vsapi->getFrameHeight(f, 1) );
-    }
-
-    vsapi->freeFrame(f);
-
-    for (int i = n + 1; i < std::min<int>(n + parent->num_threads, parent->vi->numFrames); i++) {
-        InterlockedIncrement(&parent->pending_requests);
-        vsapi->getFrameAsync(i, parent->node, VapourSynthFile::frameDoneCallback, (void *)parent);
-    }
-
-    return true;
-}
-
-
+*/
