@@ -17,24 +17,12 @@
 #//  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 """ This is the VapourSynth module implementing the Python bindings. """
 
-#ifdef _WIN32
-cimport windows
-#else
-cimport posix.unistd
-#endif
 cimport vapoursynth
 cimport cython.parallel
 from cpython.ref cimport Py_INCREF, Py_DECREF, Py_CLEAR, PyObject
 import ctypes
-#ifdef _WIN32
-import msvcrt
-#endif
 import threading
 import gc
-
-#ifndef _WIN32
-#define __stdcall
-#endif
 
 _core = None
 _environment_id = None
@@ -92,7 +80,7 @@ class Error(Exception):
     def __str__(self):
         return repr(self.value)
 
-#// fixme, make it possible for this to call functions not defined in python
+# fixme, make it possible for this to call functions not defined in python
 cdef class Func(object):
     cdef Core core
     cdef object func
@@ -245,7 +233,7 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, Core core, VSAPI *
             else:
                 raise Error('argument ' + key + ' was passed an unsupported type')
         if len(val) == 0:
-        #// set an empty key if it's an empty array
+        # set an empty key if it's an empty array
             if atypes[key][:4] == 'clip':
                 funcs.propSetNode(inm, ckey, NULL, 2)
             elif atypes[key][:5] == 'frame':
@@ -528,7 +516,7 @@ cdef class VideoNode(object):
                 raise ValueError('Negative step cannot be used with infinite/unknown length clips')
             if ((val.start is not None and val.start < 0) or (val.stop is not None and val.stop < 0)) and self.num_frames == 0:
                 raise ValueError('Negative indices cannot be used with infinite/unknown length clips')
-            #// this is just a big number that no one's likely to use, hence the -68
+            # this is just a big number that no one's likely to use, hence the -68
             max_int = 2**31-68
             if self.num_frames == 0:
                 indices = val.indices(max_int)
@@ -729,11 +717,7 @@ cdef Core createCore(int threads = 0, bint add_cache = True, bint accept_lowerca
     cdef Core instance = Core.__new__(Core)
     instance.funcs = vapoursynth.getVapourSynthAPI(3)
     if instance.funcs == NULL:
-#if defined(_WIN32) && !defined(_WIN64)
         raise Error('Failed to obtain VapourSynth API pointer. System does not support SSE2 or is the Python module and loaded core library mismatched?')
-#else 
-        raise Error('Failed to obtain VapourSynth API pointer. Is the Python module and loaded core library mismatched?')
-#endif
     instance.core = instance.funcs.createCore(threads)
     instance.add_cache = add_cache
     instance.accept_lowercase = accept_lowercase
@@ -823,7 +807,7 @@ cdef class Function(object):
         ndict = {}
         processed = {}
         atypes = {}
-        #// remove _ from all args
+        # remove _ from all args
         for key in kwargs:
             if key[0] == '_':
                 nkey = key[1:]
@@ -831,23 +815,23 @@ cdef class Function(object):
                 nkey = key
             ndict[nkey] = kwargs[key]
 
-        #// match up unnamed arguments to the first unused name in order              
+        # match up unnamed arguments to the first unused name in order              
         sigs = self.signature.split(';')
         
         for sig in sigs:
             if sig == '':
                 continue
             parts = sig.split(':')
-            #// store away the types for later use
+            # store away the types for later use
             key = parts[0]
             atypes[key] = parts[1]
 
-            #// the name has already been specified
+            # the name has already been specified
             if key in ndict:
                 processed[key] = ndict[key]
                 del ndict[key]
             else:
-            #// fill in with the first unnamed arg until they run out
+            # fill in with the first unnamed arg until they run out
                 if len(arglist) > 0:
                     processed[key] = arglist[0]
                     del arglist[0]
@@ -890,7 +874,7 @@ cdef Function createFunction(str name, str signature, Plugin plugin, vapoursynth
     instance.funcs = funcs
     return instance
 
-#// for python functions being executed by vs
+# for python functions being executed by vs
 
 cdef void __stdcall freeFunc(void *pobj) nogil:
     with gil:
@@ -911,7 +895,7 @@ cdef void __stdcall publicFunction(VSMap *inm, VSMap *outm, void *userData, VSCo
             emsg = str(e).encode('utf-8')
             vsapi.setError(outm, emsg)
 
-#// for whole script evaluation and export
+# for whole script evaluation and export
 cdef public struct VPYScriptExport:
     void *pyenvdict
     void *errstr
