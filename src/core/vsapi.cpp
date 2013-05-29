@@ -60,8 +60,8 @@ static uint8_t *VS_CC getWritePtr(VSFrameRef *frame, int plane) {
 }
 
 static void VS_CC getFrameAsync(int n, VSNodeRef *clip, VSFrameDoneCallback fdc, void *userData) {
-    PFrameContext g(new FrameContext(n, clip->index, clip, fdc, userData));
-    clip->clip->getFrame(g);
+    PFrameContext c(new FrameContext(n, clip->index, clip, fdc, userData));
+    clip->clip->getFrame(c);
 }
 
 struct GetFrameWaiter {
@@ -88,7 +88,8 @@ static void VS_CC frameWaiterCallback(void *userData, const VSFrameRef *frame, i
 static const VSFrameRef *VS_CC getFrame(int n, VSNodeRef *clip, char *errorMsg, int bufSize) {
     GetFrameWaiter g(errorMsg, bufSize);
     QMutexLocker l(&g.b);
-    getFrameAsync(n, clip, &frameWaiterCallback, &g);
+	PFrameContext c(new FrameContext(n, clip->index, clip, &frameWaiterCallback, &g));
+    clip->clip->getFrame(c);
     g.a.wait(&g.b);
     return g.r;
 }
