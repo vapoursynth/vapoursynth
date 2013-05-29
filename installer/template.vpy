@@ -1,4 +1,3 @@
 import vapoursynth as vs
-import sys
 
-core = vs.Core()
+core = vs.get_core()
