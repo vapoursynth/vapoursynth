@@ -1969,13 +1969,26 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
 typedef struct {
     VSNodeRef *node[2];
     const VSVideoInfo *vi[2];
+    VSVideoInfo *vi_out;
     void *lut;
     int process[3];
 } Lut2Data;
 
+#define LUT2_PROCESS(X_CAST, Y_CAST, DST_CAST) \
+    do { \
+        for (hl = 0; hl < h; hl++) { \
+            for (x = 0; x < w; x++) { \
+                ((DST_CAST *)dstp)[x] =  lut[(((Y_CAST *)srcpy)[x] << shift) + ((X_CAST *)srcpx)[x]]; \
+            } \
+            dstp += dst_stride; \
+            srcpx += srcx_stride; \
+            srcpy += srcy_stride; \
+        } \
+    } while(0)
+
 static void VS_CC lut2Init(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     Lut2Data *d = (Lut2Data *) * instanceData;
-    vsapi->setVideoInfo(d->vi[0], 1, node);
+    vsapi->setVideoInfo(d->vi_out, 1, node);
     vsapi->clearMap(in);
 }
 
@@ -1989,7 +2002,7 @@ static const VSFrameRef *VS_CC lut2Getframe(int n, int activationReason, void **
         int plane;
         const VSFrameRef *srcx = vsapi->getFrameFilter(n, d->node[0], frameCtx);
         const VSFrameRef *srcy = vsapi->getFrameFilter(n, d->node[1], frameCtx);
-        const VSFormat *fi = vsapi->getFrameFormat(srcx);
+        const VSFormat *fi = d->vi_out->format;
         const int pl[] = {0, 1, 2};
         const VSFrameRef *fr[] = {d->process[0] ? 0 : srcx, d->process[1] ? 0 : srcx, d->process[2] ? 0 : srcx};
         VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(srcx, 0), vsapi->getFrameHeight(srcx, 0), fr, pl, srcx, core);
@@ -1997,13 +2010,14 @@ static const VSFrameRef *VS_CC lut2Getframe(int n, int activationReason, void **
         for (plane = 0; plane < fi->numPlanes; plane++) {
             const uint8_t *srcpx = vsapi->getReadPtr(srcx, plane);
             const uint8_t *srcpy = vsapi->getReadPtr(srcy, plane);
-            int src_stride = vsapi->getStride(srcx, plane);
+            int srcx_stride = vsapi->getStride(srcx, plane);
+            int srcy_stride = vsapi->getStride(srcy, plane);
             uint8_t *dstp = vsapi->getWritePtr(dst, plane);
             int dst_stride = vsapi->getStride(dst, plane);
             int h = vsapi->getFrameHeight(srcx, plane);
 
             if (d->process[plane]) {
-                int shift = fi->bitsPerSample;
+                int shift = d->vi[0]->format->bitsPerSample;
                 int hl;
                 int w = vsapi->getFrameWidth(srcx, plane);
                 int x;
@@ -2011,24 +2025,26 @@ static const VSFrameRef *VS_CC lut2Getframe(int n, int activationReason, void **
                 if (fi->bytesPerSample == 1) {
                     const uint8_t *lut = (uint8_t *)d->lut;
 
-                    for (hl = 0; hl < h; hl++) {
-                        for (x = 0; x < w; x++)
-                            dstp[x] =  lut[(srcpy[x] << shift) + srcpx[x]];
-
-                        dstp += dst_stride;
-                        srcpx += src_stride;
-                        srcpy += src_stride;
+                    if (d->vi[0]->format->bitsPerSample == 8 && d->vi[1]->format->bitsPerSample == 8) {
+                        LUT2_PROCESS(uint8_t, uint8_t, uint8_t);
+                    } else if (d->vi[0]->format->bitsPerSample == 8 && d->vi[1]->format->bitsPerSample > 8) {
+                        LUT2_PROCESS(uint8_t, uint16_t, uint8_t);
+                    } else if (d->vi[0]->format->bitsPerSample > 8 && d->vi[1]->format->bitsPerSample == 8) {
+                        LUT2_PROCESS(uint16_t, uint8_t, uint8_t);
+                    } else {
+                        LUT2_PROCESS(uint16_t, uint16_t, uint8_t);
                     }
                 } else {
                     const uint16_t *lut = (uint16_t *)d->lut;
 
-                    for (hl = 0; hl < h; hl++) {
-                        for (x = 0; x < w; x++)
-                            ((uint16_t *)dstp)[x] =  lut[(srcpy[x] << shift) + srcpx[x]];
-
-                        dstp += dst_stride;
-                        srcpx += src_stride;
-                        srcpy += src_stride;
+                    if (d->vi[0]->format->bitsPerSample == 8 && d->vi[1]->format->bitsPerSample == 8) {
+                        LUT2_PROCESS(uint8_t, uint8_t, uint16_t);
+                    } else if (d->vi[0]->format->bitsPerSample == 8 && d->vi[1]->format->bitsPerSample > 8) {
+                        LUT2_PROCESS(uint8_t, uint16_t, uint16_t);
+                    } else if (d->vi[0]->format->bitsPerSample > 8 && d->vi[1]->format->bitsPerSample == 8) {
+                        LUT2_PROCESS(uint16_t, uint8_t, uint16_t);
+                    } else {
+                        LUT2_PROCESS(uint16_t, uint16_t, uint16_t);
                     }
                 }
             }
@@ -2107,9 +2123,26 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
         RETERROR("Lut2: bad lut length");
     }
 
-    d.lut = malloc(d.vi[0]->format->bytesPerSample * n);
+    int err;
+    int bits = int64ToIntS(vsapi->propGetInt(in, "bits", 0, &err));
+    if (bits == 0) {
+        bits = d.vi[0]->format->bitsPerSample;
+    } else if (bits < 8 || bits > 16) {
+        vsapi->freeNode(d.node[0]);
+        vsapi->freeNode(d.node[1]);
+        RETERROR("Lut2: Output format must be between 8 and 16 bits.");
+    }
 
-    if (d.vi[0]->format->bytesPerSample == 1) {
+    d.vi_out = (VSVideoInfo *)malloc(sizeof(VSVideoInfo));
+    *d.vi_out = *d.vi[0];
+    d.vi_out->format = vsapi->registerFormat(d.vi[0]->format->colorFamily, d.vi[0]->format->sampleType, bits, d.vi[0]->format->subSamplingW, d.vi[0]->format->subSamplingH, core);
+
+    if (bits == 8)
+        d.lut = malloc(sizeof(uint8_t) * n);
+    else
+        d.lut = malloc(sizeof(uint16_t) * n);
+
+    if (bits == 8) {
         uint8_t *lut = d.lut;
 
         for (i = 0; i < n; i++) {
@@ -3372,7 +3405,7 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("BlankClip", "clip:clip:opt;width:int:opt;height:int:opt;format:int:opt;length:int:opt;fpsnum:int:opt;fpsden:int:opt;color:float[]:opt;", blankClipCreate, 0, plugin);
     registerFunc("AssumeFPS", "clip:clip;src:clip:opt;fpsnum:int:opt;fpsden:int:opt;", assumeFPSCreate, 0, plugin);
     registerFunc("Lut", "clip:clip;lut:int[];planes:int[];", lutCreate, 0, plugin);
-    registerFunc("Lut2", "clips:clip[];lut:int[];planes:int[];", lut2Create, 0, plugin);
+    registerFunc("Lut2", "clips:clip[];lut:int[];planes:int[];bits:int:opt;", lut2Create, 0, plugin);
     registerFunc("SelectClip", "clips:clip[];src:clip[];selector:func;", selectClipCreate, 0, plugin);
     registerFunc("ModifyFrame", "clips:clip[];selector:func;", modifyFrameCreate, 0, plugin);
     registerFunc("Transpose", "clip:clip;", transposeCreate, 0, plugin);

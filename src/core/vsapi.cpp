@@ -33,8 +33,8 @@ static const VSFormat *VS_CC getFormatPreset(int id, VSCore *core) {
     return core->getFormatPreset((VSPresetFormat)id);
 }
 
-static const VSFormat *VS_CC registerFormat(int colorFamily, int sampleType, int bytesPerSample, int subSamplingW, int subSamplingH, VSCore *core) {
-    return core->registerFormat((VSColorFamily)colorFamily, (VSSampleType)sampleType, bytesPerSample, subSamplingW, subSamplingH);
+static const VSFormat *VS_CC registerFormat(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) {
+    return core->registerFormat((VSColorFamily)colorFamily, (VSSampleType)sampleType, bitsPerSample, subSamplingW, subSamplingH);
 }
 
 static const VSFrameRef *VS_CC cloneFrameRef(const VSFrameRef *frame) {
