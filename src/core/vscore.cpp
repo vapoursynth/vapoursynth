@@ -507,6 +507,8 @@ VSCore::~VSCore() {
     delete threadPool;
     foreach(VSPlugin * p, plugins)
         delete p;
+    foreach(VSFormat * f, formats)
+        delete f;
 }
 
 QMutex VSCore::filterLock(QMutex::Recursive);

@@ -2071,6 +2071,8 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
     Lut2Data *data;
     int i;
     int n, m, o;
+	int err;
+	int bits;
 
     for (i = 0; i < 3; i++)
         d.process[i] = 0;
@@ -2123,8 +2125,7 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
         RETERROR("Lut2: bad lut length");
     }
 
-    int err;
-    int bits = int64ToIntS(vsapi->propGetInt(in, "bits", 0, &err));
+    bits = int64ToIntS(vsapi->propGetInt(in, "bits", 0, &err));
     if (bits == 0) {
         bits = d.vi[0]->format->bitsPerSample;
     } else if (bits < 8 || bits > 16) {
