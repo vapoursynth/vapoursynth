@@ -63,34 +63,35 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
         reorderMap.insert(n, f);
         while (reorderMap.contains(outputFrames)) {
             const VSFrameRef *frame = reorderMap.take(outputFrames);
-            if (outputError)
-                goto fwriteError;
-            if (y4m) {
-                if (!fwrite("FRAME\n", 6, 1, outFile)) {
-                    errorMessage = "Error: fwrite() call failed";
-                    totalFrames = requestedFrames;
-                    outputError = true;
-                    goto fwriteError;
-                }
-            }
+            if (!outputError) {
+				if (y4m) {
+					if (!fwrite("FRAME\n", 6, 1, outFile)) {
+						errorMessage = "Error: fwrite() call failed";
+						totalFrames = requestedFrames;
+						outputError = true;
+					}
+				}
 
-            const VSFormat *fi = vsapi->getFrameFormat(frame);
-            for (int p = 0; p < fi->numPlanes; p++) {
-                int stride = vsapi->getStride(frame, p);
-                const uint8_t *readPtr = vsapi->getReadPtr(frame, p);
-                int rowSize = vsapi->getFrameWidth(frame, p) * fi->bytesPerSample;
-                int height = vsapi->getFrameHeight(frame, p);
-                for (int y = 0; y < height; y++) {
-                    if (!fwrite(readPtr, rowSize, 1, outFile)) {
-                        errorMessage = "Error: fwrite() call failed";
-                        totalFrames = requestedFrames;
-                        outputError = true;
-                        goto fwriteError;
-                    }
-                    readPtr += stride;
-                }
-            }
-            fwriteError:
+				if (!outputError) {
+					const VSFormat *fi = vsapi->getFrameFormat(frame);
+					for (int p = 0; p < fi->numPlanes; p++) {
+						int stride = vsapi->getStride(frame, p);
+						const uint8_t *readPtr = vsapi->getReadPtr(frame, p);
+						int rowSize = vsapi->getFrameWidth(frame, p) * fi->bytesPerSample;
+						int height = vsapi->getFrameHeight(frame, p);
+						for (int y = 0; y < height; y++) {
+							if (!fwrite(readPtr, rowSize, 1, outFile)) {
+								errorMessage = "Error: fwrite() call failed";
+								totalFrames = requestedFrames;
+								outputError = true;
+								p = 100; // break out of the outer loop
+								break;
+							}
+							readPtr += stride;
+						}
+					}
+				}
+			}
             vsapi->freeFrame(frame);
             outputFrames++;
         }
