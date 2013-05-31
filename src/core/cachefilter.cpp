@@ -125,12 +125,11 @@ void VSCache::trim(int max, int maxHistory) {
     }
 
     // remove history until the tail is small enough
-    Node *n = last;
 
-    while (n && historySize > maxHistory) {
-        Node *u = n;
-        n = n->prevNode;
-        unlink(*u);
+    while (last && historySize > maxHistory) {
+        Node *n = last;
+        last = last->prevNode;
+        unlink(*n);
     }
 }
 
