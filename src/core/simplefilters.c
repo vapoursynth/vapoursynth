@@ -1590,6 +1590,9 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     int compat = 0;
     memset(&d.vi, 0, sizeof(d.vi));
 
+	for (i = 0; i < 3; i++)
+		color.i[i] = 0;
+
     node = vsapi->propGetNode(in, "clip", 0, &err);
 
     if (!err) {
