@@ -4,6 +4,15 @@ compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 reopening .vpy files in vfw may leak a little bit of memory
 
 r19:
+added proper const declarations now that cython supports it, cython 0.18 or later required to build the extension now
+fixed get_write_ptr() in python to actually return a write pointer
+fixed the lut and lut2 filters for > 8 bit formats (ADub)
+various minor fixes to vivtc
+removed clip.output() since it's a bad design decision, now a command-line program called vspipe can be used to pipe or write raw video output
+renamed newMap() to createMap() to match the naming of all other functions
+list_functions() renamed to get_plugins() for the core and get_functions() for namespaces, it also returns a dict instead of a string now
+removed the unmentioned and unused link option for filter arguments as it is completely pointless and similar functionality may be implemented anyway
+there's now a sane external api available for embedding in other applications, see vsscript.h and vsvfw for an example
 now a singleton pattern is used for the core in python scripts, use vs.get_core() to get a reference to it
 clip.get_frame() now throws an exception when out of bounds frames are requested
 fixes a reference leak in the VideoProps python class

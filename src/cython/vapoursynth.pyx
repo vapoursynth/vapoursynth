@@ -131,7 +131,7 @@ cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, Core core,
                     if type(newval) == dict:
                         newval = newval['dict']
             elif proptype =='v':
-                newval = createVideoFrame(funcs.propGetFrame(map, retkey, y, NULL), funcs, core)
+                newval = createConstVideoFrame(funcs.propGetFrame(map, retkey, y, NULL), funcs, core)
             elif proptype =='m':
                 newval = createFunc(funcs.propGetFunc(map, retkey, y, NULL), core)
 
@@ -296,6 +296,7 @@ cdef Format createFormat(const VSFormat *f):
     return instance
 
 cdef class VideoProps(object):
+    cdef const VSFrameRef *constf
     cdef VSFrameRef *f
     cdef Core core
     cdef const vapoursynth.VSAPI *funcs
@@ -305,10 +306,10 @@ cdef class VideoProps(object):
         raise Error('Class cannot be instantiated directly')
         
     def __dealloc__(self):
-        self.funcs.freeFrame(self.f)
+        self.funcs.freeFrame(self.constf)
     
     def __getattr__(self, name):
-        cdef const VSMap *m = self.funcs.getFramePropsRO(self.f)
+        cdef const VSMap *m = self.funcs.getFramePropsRO(self.constf)
         cdef bytes b = name.encode('utf-8')
         cdef list ol = []
         cdef int numelem = self.funcs.propNumElements(m, b)
@@ -329,7 +330,7 @@ cdef class VideoProps(object):
                 ol.append(createVideoNode(self.funcs.propGetNode(m, b, i, NULL), self.funcs, self.core))
         elif t == 'v':
             for i in range(numelem):
-                ol.append(createVideoFrame(self.funcs.propGetFrame(m, b, i, NULL), self.funcs, self.core))
+                ol.append(createConstVideoFrame(self.funcs.propGetFrame(m, b, i, NULL), self.funcs, self.core))
         elif t == 'm':
             for i in range(numelem):
                 ol.append(createFunc(self.funcs.propGetFunc(m, b, i, NULL), self.core))
@@ -351,7 +352,7 @@ cdef class VideoProps(object):
                     if funcs.propSetNode(m, b, (<VideoNode>v).node, 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif isinstance(v, VideoFrame):
-                    if funcs.propSetFrame(m, b, (<VideoFrame>v).f, 1) != 0:
+                    if funcs.propSetFrame(m, b, (<VideoFrame>v).constf, 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif isinstance(v, Func):
                     if funcs.propSetFunc(m, b, (<Func>v).ref, 1) != 0:
@@ -386,16 +387,27 @@ cdef class VideoProps(object):
         cdef bytes b = name.encode('utf-8')
         self.funcs.propDeleteKey(m, b)
 
-# contained frames can be both const and non-const so cast away the const stuff
+cdef VideoProps createConstVideoProps(VideoFrame f):
+    cdef VideoProps instance = VideoProps.__new__(VideoProps)
+    instance.constf = f.funcs.cloneFrameRef(f.constf)
+    instance.f = NULL
+    instance.funcs = f.funcs
+    instance.core = f.core
+    instance.readonly = f.readonly
+    return instance
+
 cdef VideoProps createVideoProps(VideoFrame f):
     cdef VideoProps instance = VideoProps.__new__(VideoProps)
-    instance.f = f.funcs.cloneFrameRef(f.f)
+# since the vsapi only returns const refs when cloning a VSFrameRef it is safe to cast away the const here
+    instance.f = <VSFrameRef *>f.funcs.cloneFrameRef(f.constf)
+    instance.constf = instance.f
     instance.funcs = f.funcs
     instance.core = f.core
     instance.readonly = f.readonly
     return instance
 
 cdef class VideoFrame(object):
+    cdef const VSFrameRef *constf
     cdef VSFrameRef *f
     cdef Core core
     cdef const VSAPI *funcs
@@ -409,15 +421,15 @@ cdef class VideoFrame(object):
         raise Error('Class cannot be instantiated directly')
 
     def __dealloc__(self):
-        self.funcs.freeFrame(self.f)
+        self.funcs.freeFrame(self.constf)
         
     def copy(self):
-        return createVideoFrame(self.funcs.copyFrame(self.f, self.core.core), self.funcs, self.core, False)
+        return createVideoFrame(self.funcs.copyFrame(self.constf, self.core.core), self.funcs, self.core)
 
     def get_read_ptr(self, int plane):
         if plane < 0 or plane >= self.format.num_planes:
             raise IndexError('Specified plane index out of range')
-        cdef const uint8_t *d = self.funcs.getReadPtr(self.f, plane)
+        cdef const uint8_t *d = self.funcs.getReadPtr(self.constf, plane)
         return ctypes.c_void_p(<uintptr_t>d)
         
     def get_write_ptr(self, int plane):
@@ -431,7 +443,7 @@ cdef class VideoFrame(object):
     def get_stride(self, int plane):
         if plane < 0 or plane >= self.format.num_planes:
             raise IndexError('Specified plane index out of range')
-        return self.funcs.getStride(self.f, plane)
+        return self.funcs.getStride(self.constf, plane)
 
     def __str__(self):
         cdef str s = 'VideoFrame\n'
@@ -440,12 +452,26 @@ cdef class VideoFrame(object):
         s += '\tHeight: ' + str(self.height) + '\n'
         return s
 
-cdef VideoFrame createVideoFrame(VSFrameRef *f, const VSAPI *funcs, Core core, bint readonly = True):
+cdef VideoFrame createConstVideoFrame(const VSFrameRef *constf, const VSAPI *funcs, Core core):
     cdef VideoFrame instance = VideoFrame.__new__(VideoFrame)    
+    instance.constf = constf
+    instance.f = NULL
+    instance.funcs = funcs
+    instance.core = core
+    instance.readonly = True
+    instance.format = createFormat(funcs.getFrameFormat(constf))
+    instance.width = funcs.getFrameWidth(constf, 0)
+    instance.height = funcs.getFrameHeight(constf, 0)
+    instance.props = createVideoProps(instance)
+    return instance
+        
+cdef VideoFrame createVideoFrame(VSFrameRef *f, const VSAPI *funcs, Core core):
+    cdef VideoFrame instance = VideoFrame.__new__(VideoFrame)
+    instance.constf = f
     instance.f = f
     instance.funcs = funcs
     instance.core = core
-    instance.readonly = readonly
+    instance.readonly = False
     instance.format = createFormat(funcs.getFrameFormat(f))
     instance.width = funcs.getFrameWidth(f, 0)
     instance.height = funcs.getFrameHeight(f, 0)
@@ -461,8 +487,8 @@ cdef class VideoNode(object):
     cdef readonly int width
     cdef readonly int height
     cdef readonly int num_frames
-    cdef readonly int fps_num
-    cdef readonly int fps_den
+    cdef readonly int64_t fps_num
+    cdef readonly int64_t fps_den
     cdef readonly int flags
 
     def __init__(self):
@@ -487,7 +513,7 @@ cdef class VideoNode(object):
             else:
                 raise Error('Internal error - no error given')
         else:
-            return createVideoFrame(f, self.funcs, self.core)
+            return createConstVideoFrame(f, self.funcs, self.core)
 
     def __add__(self, other):
         if not isinstance(other, VideoNode):
