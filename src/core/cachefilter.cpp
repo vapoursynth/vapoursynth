@@ -89,8 +89,7 @@ bool VSCache::insert(const int akey, const PVideoFrame &aobject) {
     Q_ASSERT(akey >= 0);
     remove(akey);
     trim(maxSize - 1, maxHistorySize);
-    Node sn(aobject);
-    QHash<int, Node>::iterator i = hash.insert(akey, sn);
+    QHash<int, Node>::iterator i = hash.insert(akey, Node(aobject));
     currentSize++;
     Node *n = &i.value();
     n->key = i.key();
@@ -104,13 +103,12 @@ bool VSCache::insert(const int akey, const PVideoFrame &aobject) {
     if (!last)
         last = first;
 
-    trim(maxSize, maxHistorySize);
     return true;
 }
 
 
 void VSCache::trim(int max, int maxHistory) {
-    // first adjust the number of cached frames
+    // first adjust the number of cached frames and extra history length
     while (currentSize > max) {
         if (!weakpoint)
             weakpoint = last;
@@ -125,11 +123,8 @@ void VSCache::trim(int max, int maxHistory) {
     }
 
     // remove history until the tail is small enough
-
     while (last && historySize > maxHistory) {
-        Node *n = last;
-        last = last->prevNode;
-        unlink(*n);
+        unlink(*last);
     }
 }
 
