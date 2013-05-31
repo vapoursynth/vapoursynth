@@ -1,4 +1,4 @@
-#//  Copyright (c) 2012 Fredrik Mellbin
+#//  Copyright (c) 2012-2013 Fredrik Mellbin
 #//
 #//  This file is part of VapourSynth.
 #//
@@ -105,12 +105,11 @@ cdef Plugin createFunc(VSFuncRef *ref, Core core):
     instance.ref = ref
     return instance
 
-cdef object mapToDict(VSMap *map, bint flatten, bint add_cache, Core core, VSAPI *funcs):
+cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, Core core, const VSAPI *funcs):
     cdef int numKeys = funcs.propNumKeys(map)
     retdict = {}
-    cdef char *retkey
+    cdef const char *retkey
     cdef char proptype
-    cdef VSMap *tempmap
 
     for x in range(numKeys):
         retkey = funcs.propGetKey(map, x)
@@ -154,7 +153,7 @@ cdef object mapToDict(VSMap *map, bint flatten, bint add_cache, Core core, VSAPI
     else:
         return retdict
 
-cdef void dictToMap(dict ndict, VSMap *inm, Core core, VSAPI *funcs) except *:
+cdef void dictToMap(dict ndict, VSMap *inm, Core core, const VSAPI *funcs) except *:
     for key in ndict:
         ckey = key.encode('utf-8')
         val = ndict[key]
@@ -195,7 +194,7 @@ cdef void dictToMap(dict ndict, VSMap *inm, Core core, VSAPI *funcs) except *:
                 raise Error('argument ' + key + ' was passed an unsupported type')
 
 
-cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, Core core, VSAPI *funcs) except *:
+cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, Core core, const VSAPI *funcs) except *:
     for key in ndict:
         ckey = key.encode('utf-8')
         val = ndict[key]
@@ -283,7 +282,7 @@ cdef class Format(object):
         s += '\tSubsampling H: ' + str(self.subsampling_h) + '\n'
         return s
 
-cdef Format createFormat(vapoursynth.VSFormat *f):
+cdef Format createFormat(const VSFormat *f):
     cdef Format instance = Format.__new__(Format)
     instance.id = f.id
     instance.name = f.name.decode('utf-8')
@@ -299,7 +298,7 @@ cdef Format createFormat(vapoursynth.VSFormat *f):
 cdef class VideoProps(object):
     cdef VSFrameRef *f
     cdef Core core
-    cdef vapoursynth.VSAPI *funcs
+    cdef const vapoursynth.VSAPI *funcs
     cdef bint readonly
     
     def __init__(self):
@@ -309,7 +308,7 @@ cdef class VideoProps(object):
         self.funcs.freeFrame(self.f)
     
     def __getattr__(self, name):
-        cdef VSMap *m = self.funcs.getFramePropsRO(self.f)
+        cdef const VSMap *m = self.funcs.getFramePropsRO(self.f)
         cdef bytes b = name.encode('utf-8')
         cdef list ol = []
         cdef int numelem = self.funcs.propNumElements(m, b)
@@ -341,7 +340,7 @@ cdef class VideoProps(object):
             raise Error('Cannot delete properties of a read only object')
         cdef VSMap *m = self.funcs.getFramePropsRW(self.f)
         cdef bytes b = name.encode('utf-8')
-        cdef VSAPI *funcs = self.funcs
+        cdef const VSAPI *funcs = self.funcs
         val = value
         if not isinstance(val, list):
             val = [val]
@@ -386,7 +385,8 @@ cdef class VideoProps(object):
         cdef VSMap *m = self.funcs.getFramePropsRW(self.f)
         cdef bytes b = name.encode('utf-8')
         self.funcs.propDeleteKey(m, b)
-        
+
+# contained frames can be both const and non-const so cast away the const stuff
 cdef VideoProps createVideoProps(VideoFrame f):
     cdef VideoProps instance = VideoProps.__new__(VideoProps)
     instance.f = f.funcs.cloneFrameRef(f.f)
@@ -398,7 +398,7 @@ cdef VideoProps createVideoProps(VideoFrame f):
 cdef class VideoFrame(object):
     cdef VSFrameRef *f
     cdef Core core
-    cdef vapoursynth.VSAPI *funcs
+    cdef const VSAPI *funcs
     cdef readonly Format format
     cdef readonly int width
     cdef readonly int height
@@ -417,7 +417,7 @@ cdef class VideoFrame(object):
     def get_read_ptr(self, int plane):
         if plane < 0 or plane >= self.format.num_planes:
             raise IndexError('Specified plane index out of range')
-        cdef uint8_t *d = self.funcs.getReadPtr(self.f, plane)
+        cdef const uint8_t *d = self.funcs.getReadPtr(self.f, plane)
         return ctypes.c_void_p(<uintptr_t>d)
         
     def get_write_ptr(self, int plane):
@@ -425,7 +425,7 @@ cdef class VideoFrame(object):
             raise Error('Cannot obtain write pointer to read only frame')
         if plane < 0 or plane >= self.format.num_planes:
             raise IndexError('Specified plane index out of range')
-        cdef uint8_t *d = self.funcs.getReadPtr(self.f, plane)
+        cdef uint8_t *d = self.funcs.getWritePtr(self.f, plane)
         return ctypes.c_void_p(<uintptr_t>d)
 
     def get_stride(self, int plane):
@@ -440,7 +440,7 @@ cdef class VideoFrame(object):
         s += '\tHeight: ' + str(self.height) + '\n'
         return s
 
-cdef VideoFrame createVideoFrame(vapoursynth.VSFrameRef *f, vapoursynth.VSAPI *funcs, Core core, bint readonly = True):
+cdef VideoFrame createVideoFrame(VSFrameRef *f, const VSAPI *funcs, Core core, bint readonly = True):
     cdef VideoFrame instance = VideoFrame.__new__(VideoFrame)    
     instance.f = f
     instance.funcs = funcs
@@ -454,9 +454,9 @@ cdef VideoFrame createVideoFrame(vapoursynth.VSFrameRef *f, vapoursynth.VSAPI *f
 
 cdef class VideoNode(object):
     cdef vapoursynth.VSNodeRef *node
-    cdef vapoursynth.VSAPI *funcs    
+    cdef const VSAPI *funcs    
     cdef Core core
-    cdef vapoursynth.VSVideoInfo *vi
+    cdef const VSVideoInfo *vi
     cdef readonly Format format
     cdef readonly int width
     cdef readonly int height
@@ -474,7 +474,7 @@ cdef class VideoNode(object):
     def get_frame(self, int n):
         cdef char errorMsg[512]
         cdef char *ep = errorMsg
-        cdef VSFrameRef *f
+        cdef const VSFrameRef *f
         if n < 0:
             raise ValueError('Requesting negative frame numbers not allowed')
         if (self.num_frames > 0) and (n >= self.num_frames):
@@ -608,7 +608,7 @@ cdef class VideoNode(object):
 
         return s
 
-cdef VideoNode createVideoNode(vapoursynth.VSNodeRef *node, vapoursynth.VSAPI *funcs, Core core):
+cdef VideoNode createVideoNode(VSNodeRef *node, const VSAPI *funcs, Core core):
     cdef VideoNode instance = VideoNode.__new__(VideoNode)    
     instance.core = core
     instance.node = node
@@ -629,8 +629,8 @@ cdef VideoNode createVideoNode(vapoursynth.VSNodeRef *node, vapoursynth.VSAPI *f
     return instance
 
 cdef class Core(object):
-    cdef vapoursynth.VSCore *core
-    cdef vapoursynth.VSAPI *funcs
+    cdef VSCore *core
+    cdef const VSAPI *funcs
     cdef readonly int num_threads
     cdef readonly bint add_cache
     cdef readonly bint accept_lowercase
@@ -643,9 +643,9 @@ cdef class Core(object):
             self.funcs.freeCore(self.core)
 
     def __getattr__(self, name):
-        cdef vapoursynth.VSPlugin *plugin
+        cdef VSPlugin *plugin
         tname = name.encode('utf-8')
-        cdef char *cname = tname
+        cdef const char *cname = tname
         plugin = self.funcs.getPluginNs(cname, self.core)
 
         if plugin:
@@ -694,7 +694,7 @@ cdef class Core(object):
         return createFormat(self.funcs.registerFormat(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h, self.core))
 
     def get_format(self, int id):
-        cdef VSFormat *f = self.funcs.getFormatPreset(id, self.core)
+        cdef const VSFormat *f = self.funcs.getFormatPreset(id, self.core)
 
         if f == NULL:
             raise Error('Internal error')
@@ -702,7 +702,7 @@ cdef class Core(object):
             return createFormat(f)
 
     def version(self):
-        cdef VSCoreInfo *v = self.funcs.getCoreInfo(self.core)
+        cdef const VSCoreInfo *v = self.funcs.getCoreInfo(self.core)
         return v.versionString.decode('utf-8')
 
     def __str__(self):
@@ -721,7 +721,7 @@ cdef Core createCore(int threads = 0, bint add_cache = True, bint accept_lowerca
     instance.core = instance.funcs.createCore(threads)
     instance.add_cache = add_cache
     instance.accept_lowercase = accept_lowercase
-    cdef VSCoreInfo *info = instance.funcs.getCoreInfo(instance.core)
+    cdef const VSCoreInfo *info = instance.funcs.getCoreInfo(instance.core)
     instance.num_threads = info.numThreads
     return instance
         
@@ -734,14 +734,14 @@ def get_core(int threads = 0, bint add_cache = True, bint accept_lowercase = Fal
 cdef class Plugin(object):
     cdef Core core
     cdef VSPlugin *plugin
-    cdef vapoursynth.VSAPI *funcs
+    cdef const VSAPI *funcs
 
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
 
     def __getattr__(self, name):
         tname = name.encode('utf-8')
-        cdef char *cname = tname
+        cdef const char *cname = tname
         cdef VSMap *m = self.funcs.getFunctions(self.plugin)
         match = False
 
@@ -783,7 +783,7 @@ cdef class Plugin(object):
         self.funcs.freeMap(n)
         return sout
 
-cdef Plugin createPlugin(vapoursynth.VSPlugin *plugin, vapoursynth.VSAPI *funcs, Core core):
+cdef Plugin createPlugin(VSPlugin *plugin, const VSAPI *funcs, Core core):
     cdef Plugin instance = Plugin.__new__(Plugin)    
     instance.core = core
     instance.plugin = plugin
@@ -794,7 +794,7 @@ cdef class Function(object):
     cdef Plugin plugin
     cdef str name
     cdef str signature
-    cdef vapoursynth.VSAPI *funcs
+    cdef const VSAPI *funcs
 
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
@@ -854,7 +854,7 @@ cdef class Function(object):
         cname = tname
         outm = self.funcs.invoke(self.plugin.plugin, cname, inm)
         self.funcs.freeMap(inm)
-        cdef char *err = self.funcs.getError(outm)
+        cdef const char *err = self.funcs.getError(outm)
         cdef bytes emsg
 
         if err:
@@ -866,7 +866,7 @@ cdef class Function(object):
         self.funcs.freeMap(outm)
         return retdict
 
-cdef Function createFunction(str name, str signature, Plugin plugin, vapoursynth.VSAPI *funcs):
+cdef Function createFunction(str name, str signature, Plugin plugin, const VSAPI *funcs):
     cdef Function instance = Function.__new__(Function)    
     instance.name = name
     instance.signature = signature
@@ -881,7 +881,7 @@ cdef void __stdcall freeFunc(void *pobj) nogil:
         fobj = <object>pobj
         Py_DECREF(fobj)
 
-cdef void __stdcall publicFunction(VSMap *inm, VSMap *outm, void *userData, VSCore *core, VSAPI *vsapi) nogil:
+cdef void __stdcall publicFunction(const VSMap *inm, VSMap *outm, void *userData, VSCore *core, const VSAPI *vsapi) nogil:
     with gil:
         d = <Func>userData
 
@@ -982,7 +982,7 @@ cdef public api VSCore *vpy_getCore() nogil:
         except:
             return NULL
             
-cdef public api VSAPI *vpy_getVSApi() nogil:
+cdef public api const VSAPI *vpy_getVSApi() nogil:
     return vapoursynth.getVapourSynthAPI(3)
             
 cdef public api int vpy_getVariable(VPYScriptExport *se, const char *name, VSMap *dst) nogil:
@@ -996,7 +996,7 @@ cdef public api int vpy_getVariable(VPYScriptExport *se, const char *name, VSMap
         except:
             return 1
             
-cdef public api void vpy_setVariable(VPYScriptExport *se, VSMap *vars) nogil:
+cdef public api void vpy_setVariable(VPYScriptExport *se, const VSMap *vars) nogil:
     with gil:
         evaldict = <dict>se.pyenvdict
         core = get_core()
