@@ -89,10 +89,9 @@ bool VSCache::insert(const int akey, const PVideoFrame &aobject) {
     Q_ASSERT(akey >= 0);
     remove(akey);
     trim(maxSize - 1, maxHistorySize);
-    QHash<int, Node>::iterator i = hash.insert(akey, Node(aobject));
+    QHash<int, Node>::iterator i = hash.insert(akey, Node(akey, aobject));
     currentSize++;
     Node *n = &i.value();
-    n->key = i.key();
 
     if (first)
         first->prevNode = n;
@@ -102,6 +101,8 @@ bool VSCache::insert(const int akey, const PVideoFrame &aobject) {
 
     if (!last)
         last = first;
+	
+	trim(maxSize, maxHistorySize);
 
     return true;
 }
