@@ -166,7 +166,7 @@ cdef void dictToMap(dict ndict, VSMap *inm, Core core, const VSAPI *funcs) excep
                 if funcs.propSetNode(inm, ckey, (<VideoNode>v).node, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif isinstance(v, VideoFrame):
-                if funcs.propSetFrame(inm, ckey, (<VideoFrame>v).f, 1) != 0:
+                if funcs.propSetFrame(inm, ckey, (<VideoFrame>v).constf, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif isinstance(v, Func):
                 if funcs.propSetFunc(inm, ckey, (<Func>v).ref, 1) != 0:
@@ -207,7 +207,7 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, Core core, const V
                 if funcs.propSetNode(inm, ckey, (<VideoNode>v).node, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif atypes[key][:5] == 'frame' and isinstance(v, VideoFrame):
-                if funcs.propSetFrame(inm, ckey, (<VideoFrame>v).f, 1) != 0:
+                if funcs.propSetFrame(inm, ckey, (<VideoFrame>v).constf, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif atypes[key][:4] == 'func' and isinstance(v, Func):
                 if funcs.propSetFunc(inm, ckey, (<Func>v).ref, 1) != 0:
@@ -387,23 +387,17 @@ cdef class VideoProps(object):
         cdef bytes b = name.encode('utf-8')
         self.funcs.propDeleteKey(m, b)
 
-cdef VideoProps createConstVideoProps(VideoFrame f):
+
+cdef VideoProps createVideoProps(VideoFrame f):
     cdef VideoProps instance = VideoProps.__new__(VideoProps)
+# since the vsapi only returns const refs when cloning a VSFrameRef it is safe to cast away the const here
     instance.constf = f.funcs.cloneFrameRef(f.constf)
     instance.f = NULL
     instance.funcs = f.funcs
     instance.core = f.core
     instance.readonly = f.readonly
-    return instance
-
-cdef VideoProps createVideoProps(VideoFrame f):
-    cdef VideoProps instance = VideoProps.__new__(VideoProps)
-# since the vsapi only returns const refs when cloning a VSFrameRef it is safe to cast away the const here
-    instance.f = <VSFrameRef *>f.funcs.cloneFrameRef(f.constf)
-    instance.constf = instance.f
-    instance.funcs = f.funcs
-    instance.core = f.core
-    instance.readonly = f.readonly
+    if not instance.readonly:
+        instance.f = <VSFrameRef *>instance.constf
     return instance
 
 cdef class VideoFrame(object):
