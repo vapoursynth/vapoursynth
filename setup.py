@@ -18,7 +18,7 @@ setup(
     long_description = "A portable replacement for Avisynth",
     platforms = "All",
     cmdclass = {'build_ext': build_ext},
-    ext_modules = [Extension("vapoursynth", [join("build", "src", "cython", "vapoursynth.pyx")],
+    ext_modules = [Extension("vapoursynth", [join("src", "cython", "vapoursynth.pyx")],
                              libraries = ["vapoursynth"],
                              library_dirs = [curdir, "build"],
                              include_dirs = [curdir, join("src", "cython")])]

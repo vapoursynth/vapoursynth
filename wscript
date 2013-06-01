@@ -7,28 +7,6 @@ VERSION = '19'
 TOP = os.curdir
 OUT = 'build'
 
-class preproc(Task.Task):
-    "Preprocess Cython source files"
-
-    ext_out = ['.pyx']
-    inst_to = None
-    color = 'CYAN'
-
-    def run(self):
-        if self.env.CXX_NAME == 'gcc':
-            params = ['-E', '-x', 'c']
-        elif self.env.CXX_NAME == 'msvc':
-            params = ['/nologo', '/E']
-
-        args = [Utils.subst_vars('${CC}', self.env)] + params + [self.inputs[0].abspath()]
-
-        with open(self.outputs[0].abspath(), 'w') as f:
-            subprocess.Popen(args, stdout = f).wait()
-
-@TaskGen.extension('.pyx')
-def add_pyx_file(self, node):
-    self.create_task('preproc', node, node.get_bld().change_ext('.pyx'))
-
 class docs(Task.Task):
     "Build Sphinx documentation"
 
@@ -104,7 +82,6 @@ def options(opt):
     opt.add_option('--shared', action = 'store', default = 'true', help = 'build a shared library (true/false)')
     opt.add_option('--static', action = 'store', default = 'false', help = 'build a static library (true/false)')
     opt.add_option('--filters', action = 'store', default = 'true', help = 'build included filters (true/false)')
-    opt.add_option('--cython', action = 'store', default = 'true', help = 'build Cython wrapper (true/false)')
     opt.add_option('--avisynth', action = 'store', default = 'true', help = 'build Avisynth compatibility layer (true/false)')
     opt.add_option('--docs', action = 'store', default = 'false', help = 'build the documentation (true/false)')
     opt.add_option('--examples', action = 'store', default = 'false', help = 'install SDK examples (true/false)')
@@ -235,7 +212,6 @@ def configure(conf):
     check_feature('shared', 'shared library')
     check_feature('static', 'static library')
     check_feature('filters', 'included filters')
-    check_feature('cython', 'Cython wrapper')
     check_feature('avisynth', 'Avisynth compatibility')
     check_feature('docs', 'documentation')
     check_feature('examples', 'SDK examples')
@@ -331,10 +307,6 @@ def build(bld):
                 source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'assvapour')])),
                 target = 'assvapour',
                 install_path = '${PLUGINDIR}')
-
-    if bld.env.CYTHON == 'true':
-        bld(features = 'preproc',
-            source = bld.path.ant_glob([os.path.join('src', 'cython', '*.pyx')]))
 
     if bld.env.DOCS == 'true':
         bld(features = 'docs',

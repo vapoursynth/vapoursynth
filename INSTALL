@@ -54,9 +54,6 @@ fine-tune the build:
 * --filters=true/false (default: true)
   Specifies whether to build the included filters. These are
   always built as shared libraries.
-* --cython=true/false (default: true)
-  Specifies whether to preprocess the Cython sources. This is
-  required if you plan to build and install the Cython wrapper.
 * --avisynth=true/false (default: true)
   Specifies whether to build the Avisynth compatibility layer
   when building on Windows.
