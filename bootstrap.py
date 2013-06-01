@@ -2,7 +2,7 @@
 
 import os, stat, urllib2
 
-f = urllib2.urlopen('http://waf.googlecode.com/files/waf-1.7.9')
+f = urllib2.urlopen('http://waf.googlecode.com/files/waf-1.7.11')
 
 with open('waf', 'wb') as waf:
     waf.write(f.read())
