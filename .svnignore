@@ -1,5 +1,7 @@
 build
 doc/_build
+src/cython/*.c
+src/cython/*.h	
 .lock-*
 .waf-*
 waf
