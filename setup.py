@@ -3,8 +3,7 @@
 from os import curdir, pardir
 from os.path import join
 from distutils.core import setup
-from distutils.extension import Extension
-from Cython.Distutils import build_ext
+from Cython.Distutils import Extension, build_ext
 
 setup(
     name = "VapourSynth",
@@ -21,5 +20,6 @@ setup(
     ext_modules = [Extension("vapoursynth", [join("src", "cython", "vapoursynth.pyx")],
                              libraries = ["vapoursynth"],
                              library_dirs = [curdir, "build"],
-                             include_dirs = [curdir, join("src", "cython")])]
+                             include_dirs = [curdir, join("src", "cython")],
+                             cython_c_in_temp = 1)]
 )
