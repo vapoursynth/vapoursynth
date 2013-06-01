@@ -581,6 +581,7 @@ static void VS_CC interleaveFree(void *instanceData, VSCore *core, const VSAPI *
         vsapi->freeNode(d->node[i]);
 
     free(d->node);
+    free(d);
 }
 
 static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -960,6 +961,7 @@ static void VS_CC selectEveryFree(void *instanceData, VSCore *core, const VSAPI 
     SelectEveryData *d = (SelectEveryData *)instanceData;
     free(d->offsets);
     vsapi->freeNode(d->node);
+    free(d);
 }
 
 static void VS_CC selectEveryCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -1209,6 +1211,7 @@ static void VS_CC spliceFree(void *instanceData, VSCore *core, const VSAPI *vsap
 
     free(d->node);
     free(d->numframes);
+    free(d);
 }
 
 static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -1490,6 +1493,7 @@ static void VS_CC stackFree(void *instanceData, VSCore *core, const VSAPI *vsapi
         vsapi->freeNode(d->node[i]);
 
     free(d->node);
+    free(d);
 }
 
 static void VS_CC stackCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
