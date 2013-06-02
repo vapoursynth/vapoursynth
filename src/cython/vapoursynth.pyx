@@ -299,7 +299,7 @@ cdef class VideoProps(object):
     cdef const VSFrameRef *constf
     cdef VSFrameRef *f
     cdef Core core
-    cdef const vapoursynth.VSAPI *funcs
+    cdef const VSAPI *funcs
     cdef bint readonly
     
     def __init__(self):
@@ -473,7 +473,7 @@ cdef VideoFrame createVideoFrame(VSFrameRef *f, const VSAPI *funcs, Core core):
     return instance
 
 cdef class VideoNode(object):
-    cdef vapoursynth.VSNodeRef *node
+    cdef VSNodeRef *node
     cdef const VSAPI *funcs    
     cdef Core core
     cdef const VSVideoInfo *vi
@@ -735,7 +735,7 @@ cdef class Core(object):
         
 cdef Core createCore(int threads = 0, bint add_cache = True, bint accept_lowercase = False):
     cdef Core instance = Core.__new__(Core)
-    instance.funcs = vapoursynth.getVapourSynthAPI(3)
+    instance.funcs = getVapourSynthAPI(3)
     if instance.funcs == NULL:
         raise Error('Failed to obtain VapourSynth API pointer. System does not support SSE2 or is the Python module and loaded core library mismatched?')
     instance.core = instance.funcs.createCore(threads)
@@ -1003,7 +1003,7 @@ cdef public api VSCore *vpy_getCore() nogil:
             return NULL
             
 cdef public api const VSAPI *vpy_getVSApi() nogil:
-    return vapoursynth.getVapourSynthAPI(3)
+    return getVapourSynthAPI(3)
             
 cdef public api int vpy_getVariable(VPYScriptExport *se, const char *name, VSMap *dst) nogil:
     with gil:
