@@ -508,6 +508,13 @@ cdef class VideoNode(object):
                 raise Error('Internal error - no error given')
         else:
             return createConstVideoFrame(f, self.funcs, self.core)
+            
+    def set_output(self, int index = 0):
+        global _stored_outputs
+        global _environment_id
+        if _environment_id is None:
+            raise Error('Internal environment id not set. Was set_output() called from a filter callback?')
+        _stored_outputs[_environment_id][index] = self
 
     def __add__(self, other):
         if not isinstance(other, VideoNode):
@@ -919,9 +926,12 @@ cdef void __stdcall publicFunction(const VSMap *inm, VSMap *outm, void *userData
 cdef public struct VPYScriptExport:
     void *pyenvdict
     void *errstr
+    int id
     
 cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, const char *errorFilename) nogil:
     with gil:
+        global _environment_id
+        _environment_id = se.id
         try:
             evaldict = {}
             if se.pyenvdict:
@@ -929,6 +939,8 @@ cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, 
             else:
                 Py_INCREF(evaldict)
                 se.pyenvdict = <void *>evaldict
+                global _stored_outputs
+                _stored_outputs[se.id] = {}
                 
             Py_INCREF(evaldict)
                 
@@ -940,27 +952,29 @@ cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, 
                 
             comp = compile(script.decode('utf-8'), errorFilename.decode('utf-8'), 'exec')
             exec(comp) in evaldict
-                       
+            
         except BaseException, e:
+            _environment_id = None
             errstr = 'Python exception: ' + str(e)
             errstr = errstr.encode('utf-8')
             Py_INCREF(errstr)
             se.errstr = <void *>errstr
             return 2
         except:
+            _environment_id = None
             errstr = 'Unspecified Python exception'.encode('utf-8')
             Py_INCREF(errstr)
             se.errstr = <void *>errstr
             return 1
+        _environment_id = None
         return 0
 
 cdef public api void vpy_freeScript(VPYScriptExport *se) nogil:
     with gil:
+        vpy_clearEnvironment(se)
         evaldict = <dict>se.pyenvdict
         se.pyenvdict = NULL
         Py_DECREF(evaldict)
-        for key in evaldict:
-            evaldict[key] = None
         evaldict = None
         
         if se.errstr:
@@ -982,9 +996,10 @@ cdef public api VSNodeRef *vpy_getOutput(VPYScriptExport *se, int index) nogil:
         evaldict = <dict>se.pyenvdict
         node = None
         try:
-            node = evaldict['last']
+            global _stored_outputs
+            node = _stored_outputs[se.id][index]
         except:
-            pass
+            return NULL
 
         if isinstance(node, VideoNode):
             return (<VideoNode>node).node
@@ -992,7 +1007,12 @@ cdef public api VSNodeRef *vpy_getOutput(VPYScriptExport *se, int index) nogil:
             return NULL
     
 cdef public api void vpy_clearOutput(VPYScriptExport *se, int index) nogil:
-    pass
+    with gil:
+        try:
+            global _stored_outputs
+            del _stored_outputs[se.id][index]
+        except:
+            pass
 
 cdef public api VSCore *vpy_getCore() nogil:
     with gil:
@@ -1038,4 +1058,9 @@ cdef public api void vpy_clearEnvironment(VPYScriptExport *se) nogil:
         evaldict = <dict>se.pyenvdict
         for key in evaldict:
             evaldict[key] = None
+        try:
+            global _stored_outputs
+            del _stored_outputs[se.id]
+        except:
+            pass
         gc.collect()

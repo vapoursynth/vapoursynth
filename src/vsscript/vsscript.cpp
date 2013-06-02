@@ -5,11 +5,11 @@ struct VSScript : public VPYScriptExport {
 };
 
 int initializationCount = 0;
+int scriptId = 1000;
 PyThreadState *ts = NULL;
 
 VS_API(int) vseval_init(void) {
-	if (initializationCount == 0)
-	{
+	if (initializationCount == 0) {
 		Py_Initialize();
 		int result = import_vapoursynth();
 		if (result)
@@ -30,11 +30,11 @@ VS_API(int) vseval_finalize(void) {
 }
 
 VS_API(int) vseval_evaluateScript(VSScript **handle, const char *script, const char *errorFilename) {
-    if (*handle == NULL)
-    {
+    if (*handle == NULL) {
         *handle = new VSScript();
         (*handle)->pyenvdict = NULL;
         (*handle)->errstr = NULL;
+		(*handle)->id = scriptId++;
     }
     return vpy_evaluateScript(*handle, script, errorFilename);
 }
