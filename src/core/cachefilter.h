@@ -28,7 +28,7 @@ class VSCache {
 private:
     struct Node {
         inline Node() : key(-1) {}
-        inline Node(int key, const PVideoFrame &frame) : key(key), frame(frame), weakFrame(frame.toWeakRef()), prevNode(0), nextNode(0) {}
+        inline Node(int key, const PVideoFrame &frame) : key(key), frame(frame), weakFrame(frame), prevNode(0), nextNode(0) {}
         int key;
         PVideoFrame frame;
         WVideoFrame weakFrame;
@@ -87,7 +87,7 @@ private:
 
         if (!n.frame) {
             nearMiss++;
-            n.frame = n.weakFrame.toStrongRef();
+            n.frame = n.weakFrame;
 
             if (!n.frame)
                 return PVideoFrame();
