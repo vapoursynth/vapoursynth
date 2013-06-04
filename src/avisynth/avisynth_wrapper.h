@@ -295,13 +295,13 @@ public:
         ++sequence_number;
         return data;
     }
-    int GetDataSize() {
+    int GetDataSize() const {
         return data_size;
     }
-    int GetSequenceNumber() {
+    int GetSequenceNumber() const {
         return sequence_number;
     }
-    int GetRefcount() {
+    int GetRefcount() const {
         return refcount;
     }
 };
