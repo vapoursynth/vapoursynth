@@ -1030,7 +1030,8 @@ cdef public api int vpy_getVariable(VPYScriptExport *se, const char *name, VSMap
         evaldict = <dict>se.pyenvdict
         core = get_core()
         try:
-            read_var = {evaldict[name.decode('utf-8')]}
+            dname = name.decode('utf-8')
+            read_var = { dname:evaldict[dname]}
             dictToMap(read_var, dst, get_core(), (<Core>core).funcs)
             return 0
         except:

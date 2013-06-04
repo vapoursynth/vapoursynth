@@ -210,10 +210,14 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName)
 			val = vsapi->propGetInt(options, "enable_v210", 0, &error);
 			if (!error)
 				enable_v210 = !!val;
+			else
+				enable_v210 = false;
 			vseval_getVariable(se, "pad_scanlines", options);
 			val = vsapi->propGetInt(options, "pad_scanlines", 0, &error);
 			if (!error)
 				pad_scanlines = !!val;
+			else
+				pad_scanlines = false;
 			vsapi->freeMap(options);
 
 			const VSCoreInfo *info = vsapi->getCoreInfo(vseval_getCore());

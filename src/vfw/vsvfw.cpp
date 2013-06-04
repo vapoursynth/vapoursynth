@@ -458,7 +458,8 @@ red = core.std.BlankClip(width=240, height=480, format=vs.RGB24, color=[255, 0, 
 green = core.std.BlankClip(width=240, height=480, format=vs.RGB24, color=[0, 255, 0])\n\
 blue = core.std.BlankClip(width=240, height=480, format=vs.RGB24, color=[0, 0, 255])\n\
 stacked = core.std.StackHorizontal([red, green, blue])\n\
-last = core.resize.Bicubic(stacked, format=vs.COMPATBGR32)\n";
+last = core.resize.Bicubic(stacked, format=vs.COMPATBGR32)\n\
+last.set_output()\n";
 
 std::string get_file_contents(const char *filename)
 {
@@ -523,10 +524,14 @@ bool VapourSynthFile::DelayInit2() {
 			val = vsapi->propGetInt(options, "enable_v210", 0, &error);
 			if (!error)
 				enable_v210 = !!val;
+			else
+				enable_v210 = false;
 			vseval_getVariable(se, "pad_scanlines", options);
 			val = vsapi->propGetInt(options, "pad_scanlines", 0, &error);
 			if (!error)
 				pad_scanlines = !!val;
+			else
+				pad_scanlines = false;
 			vsapi->freeMap(options);
 
 			const VSCoreInfo *info = vsapi->getCoreInfo(vseval_getCore());

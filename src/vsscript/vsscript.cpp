@@ -40,8 +40,10 @@ VS_API(int) vseval_evaluateScript(VSScript **handle, const char *script, const c
 }
 
 VS_API(void) vseval_freeScript(VSScript *handle) {
-    vpy_freeScript(handle);
-    delete handle;
+	if (handle) {
+		vpy_freeScript(handle);
+		delete handle;
+	}
 }
 
 VS_API(const char *) vseval_getError(VSScript *handle) {
