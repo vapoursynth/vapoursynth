@@ -287,7 +287,7 @@ public:
 
     void *frameContext;
     void setError(const QByteArray &errorMsg);
-    bool hasError() {
+    inline bool hasError() {
         return error;
     }
     const QByteArray &getErrorMessage() {
@@ -374,7 +374,9 @@ private:
     QHash<NodeOutputKey, PFrameContext> allContexts;
     QAtomicInt ticks;
     QWaitCondition newWork;
-    int activeThreads;
+    QAtomicInt activeThreads;
+	int idleThreads;
+	int maxThreads;
     void wakeThread();
     void notifyCaches(CacheActivation reason);
     void startInternal(const PFrameContext &context);
@@ -384,7 +386,7 @@ public:
     void returnFrame(const PFrameContext &rCtx, const PVideoFrame &f);
     int	activeThreadCount() const;
     int	threadCount() const;
-    void setThreadCount(int threadCount);
+    void setInternalThreadCount(int threadCount);
     void start(const PFrameContext &context);
     void waitForDone();
     void releaseThread();

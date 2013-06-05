@@ -79,7 +79,7 @@ static void VS_CC frameWaiterCallback(void *userData, const VSFrameRef *frame, i
     g->r = frame;
     memset(g->errorMsg, 0, g->bufSize);
     if (errorMsg) {
-        strncpy(g->errorMsg, errorMsg, g->bufSize - 1);
+        strncpy(g->errorMsg, errorMsg, g->bufSize);
 		g->errorMsg[g->bufSize - 1] = 0;
 	}
     g->a.wakeOne();
