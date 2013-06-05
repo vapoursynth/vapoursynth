@@ -113,6 +113,10 @@ Classes and Functions
    
       Returns the stride between lines in a *plane*.
       
+   .. py:method:: set_output(index = 0)
+   
+      Set the clip to be accessible for output. This is the standard way to specify which clip(s) to output and all VapourSynth tools (vsvfw, vsfs, vspipe) use the clip in *index* 0.
+      
 .. py:class:: Format
 
    This class represents all information needed to describe a frame format. It holds the general color type, subsampling, number of planes and so on.

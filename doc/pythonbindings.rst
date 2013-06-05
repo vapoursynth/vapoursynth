@@ -31,25 +31,18 @@ Here are some examples to illustrate::
    # Negative step is also allowed so this reverses a clip
    ret = clip[::-1]
    
-   # It may all be combined at once to confuse people just like normal Python lists
+   # It may all be combined at once to confuse people, just like normal Python lists
    ret = clip[-400:-800:-5]
-   
-Output to File
-##############
-The VideoNode class has a method to output all frames in a clip to a file handle. For example *sys.stdout* if you want to pipe it to another application. This illustrates the typical use::
 
-   someclip.output(sys.stdout, y4m=False)
-   
-In general you should only ever have to change *y4m*, in case you want to append YUV4MPEG2 headers to the output.
-
-Special Output
-##############
-If you want to open a script through VFW, VSFS or any other extension that uses the standard python interface you need to follow a few additional rules.
-The clip you want to output has to be assigned to the *last* variable in the __main__ module. There are also other variables that can be set to control
+Output
+######
+The normal way of specifying the clip(s) to output is to call *clip.set_output()*. All standard VapourSynth components only use output index 0 but other tools may use something similar.
+There are also other variables that can be set to control
 how a format is output. For example setting *enable_v210=True* changes the packing of the YUV422P10 format to one that is common in professional software (like Adobe products).
 An example on how to get v210 output::
 
-   last = core.resize.Bicubic(clip, format=vs.YUV422P10)
+   some_clip = core.resize.Bicubic(clip, format=vs.YUV422P10)
+   some_clip.set_output()
    enable_v210 = True
 
 Raw Access to Frame Data
