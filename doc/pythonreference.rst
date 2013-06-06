@@ -8,6 +8,14 @@ Classes and Functions
 
    Get the singleton Core object. If it is the first time the function is called the Core will be instantiated with the given options.
    If the Core already has been instantiated all options are ignored. Setting *threads* to a value greater than zero overrides the autodetection.
+   
+.. py:function:: clear_output(index = 0)
+
+   Clears a previously set clip for output. Note that if the clip is still in use by an application that embeds VapourSynth it may cause fatal errors.
+   
+.. py:function:: clear_outputs()
+
+   Clears all clips set for output in the current environment. Note that if the clip is still in use by an application that embeds VapourSynth it may cause fatal errors.
 
 .. py:class:: Core
 

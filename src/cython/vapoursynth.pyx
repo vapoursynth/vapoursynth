@@ -79,6 +79,24 @@ class Error(Exception):
 
     def __str__(self):
         return repr(self.value)
+        
+def clear_output(int index = 0):
+    global _stored_outputs
+    global _environment_id
+    if _environment_id is None:
+        raise Error('Internal environment id not set. Was clear_output() called from a filter callback?')
+    # fixme, should probably catch a more specific exception
+    try:
+        del _stored_outputs[_environment_id][index]
+    except:
+        pass
+        
+def clear_outputs():
+    global _stored_outputs
+    global _environment_id
+    if _environment_id is None:
+        raise Error('Internal environment id not set. Was clear_outputs() called from a filter callback?')
+    _stored_outputs[_environment_id] = {}
 
 # fixme, make it possible for this to call functions not defined in python
 cdef class Func(object):
