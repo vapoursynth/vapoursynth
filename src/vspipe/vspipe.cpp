@@ -50,6 +50,7 @@ int totalFrames = 0;
 int numPlanes = 0;
 bool y4m = false;
 bool outputError = false;
+bool showInfo = false;
 QMap<int, const VSFrameRef *> reorderMap;
 
 QString errorMessage;
@@ -127,8 +128,7 @@ bool outputNode() {
 	if (y4m && (vi->format->colorFamily != cmGray && vi->format->colorFamily != cmYUV)) {
 		errorMessage = "Error: Can only apply y4m headers to YUV and Gray format clips";
 		fprintf(stderr, "%s", errorMessage.toUtf8().constData());
-        outputError = true;
-		return outputError;
+        return true;
 	}
 
     QString y4mFormat;
@@ -152,8 +152,16 @@ bool outputNode() {
                 y4mFormat = "411";
 			else if (vi->format->subSamplingW == 0 && vi->format->subSamplingH == 1)
                 y4mFormat = "440";
+			else {
+				fprintf(stderr, "No y4m identifier exists for current format");
+				return true;
+			}
+
             if (vi->format->bitsPerSample > 8)
                 y4mFormat = y4mFormat + "p" + QString::number(vi->format->bitsPerSample);
+		} else {
+			fprintf(stderr, "No y4m identifier exists for current format");
+			return true;
 		}
     }
 	if (!y4mFormat.isEmpty())
@@ -187,7 +195,18 @@ bool outputNode() {
     return outputError;
 }
 
-// script output y4m index requests
+const char *colorFamilyToString(int colorFamily) {
+	switch (colorFamily) {
+	case cmGray: return "Gray";
+	case cmRGB: return "RGB";
+	case cmYUV: return "YUV";
+	case cmYCoCg: return "YCoCg";
+	case cmCompat: return "Compat";
+	}
+	return "";
+}
+
+// fixme, only allow info without output
 #ifdef _WIN32
 int wmain(int argc, wchar_t **argv) {
 #else
@@ -195,13 +214,15 @@ int main(int argc, char **argv) {
 #endif
 
     if (argc < 3) {
-        fprintf(stderr, "VSPipe\n");
+        fprintf(stderr, "VSPipe usage:\n");
+		fprintf(stderr, "Show script info: vspipe script.vpy - -info\n");
         fprintf(stderr, "Write to stdout: vspipe script.vpy - [options]\n");
         fprintf(stderr, "Write to file: vspipe script.vpy <outFile> [options]\n");
         fprintf(stderr, "Available options:\n");
-		fprintf(stderr, "Select output index: -index N (default: 0)\n");
-		fprintf(stderr, "Set number of concurrent frame requests: -requests N (default: number of threads)\n");
-		fprintf(stderr, "Add YUV4MPEG headers: -y4m (default: off)\n");
+		fprintf(stderr, "Select output index: -index N\n");
+		fprintf(stderr, "Set number of concurrent frame requests: -requests N\n");
+		fprintf(stderr, "Add YUV4MPEG headers: -y4m\n");
+		fprintf(stderr, "Show video info: -info (overrides other options)\n");
         return 1;
     }
 
@@ -242,6 +263,8 @@ int main(int argc, char **argv) {
 		QString argString = nativeToQString(argv[arg]);
 		if (argString == "-y4m") {
 			y4m = true;
+		} else if (argString == "-info") {
+			showInfo = true;
 		} else if (argString == "-index") {
 			bool ok = false;
 			if (argc <= arg + 1) {
@@ -281,7 +304,7 @@ int main(int argc, char **argv) {
 
     vsapi = vseval_getVSApi();
     if (!vsapi) {
-        fprintf(stderr, "Failed to get VapourSynth API\n");
+        fprintf(stderr, "Failed to get VapourSynth API pointer\n");
         vseval_finalize();
         return 1;
     }
@@ -301,18 +324,38 @@ int main(int argc, char **argv) {
        return 1;
     }
 
-    const VSVideoInfo *vi = vsapi->getVideoInfo(node);
-    if (!isConstantFormat(vi) || vi->numFrames == 0) {
-        fprintf(stderr, "Cannot output clips with varying dimensions or unknown length\n");
-        vseval_freeScript(se);
-        vseval_finalize();
-        return 1;
-    }
+	bool error = false;
+	const VSVideoInfo *vi = vsapi->getVideoInfo(node);
 
-	bool error = outputNode();
+	if (showInfo) {
+		fprintf(outFile, "Width: %d\n", vi->width);
+		fprintf(outFile, "Height: %d\n", vi->height);
+		fprintf(outFile, "Frames: %d\n", vi->numFrames);
+		fprintf(outFile, "FPS: %d/%d\n", vi->fpsNum, vi->fpsDen);
+		if (vi->format) {
+			fprintf(outFile, "Format Name: %s\n", vi->format->name);
+			fprintf(outFile, "Color Family: %s\n", colorFamilyToString(vi->format->colorFamily));
+			fprintf(outFile, "Bits: %d\n", vi->format->bitsPerSample);
+			fprintf(outFile, "SubSampling W: %d\n", vi->format->subSamplingW);
+			fprintf(outFile, "SubSampling H: %d\n", vi->format->subSamplingH);
+		} else {
+			printf("Format Name: Variable\n");
+		}
+	} else {
+		if (!isConstantFormat(vi) || vi->numFrames == 0) {
+			fprintf(stderr, "Cannot output clips with varying dimensions or unknown length\n");
+			vseval_freeScript(se);
+			vseval_finalize();
+			return 1;
+		}
+
+		error = outputNode();
+	}
+
+	fflush(outFile);
 
     vseval_freeScript(se);
     vseval_finalize();
 
-	return error ? 1 : 0;
+	return error;
 }
