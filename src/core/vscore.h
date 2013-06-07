@@ -266,7 +266,6 @@ public:
 class FrameContext {
     friend class VSThreadPool;
     friend class VSThread;
-    friend struct VSNode;
 private:
     int numFrameRequests;
     int n;
@@ -380,13 +379,14 @@ private:
     void wakeThread();
     void notifyCaches(CacheActivation reason);
     void startInternal(const PFrameContext &context);
+	void spawnThread();
 public:
     VSThreadPool(VSCore *core, int threads);
     ~VSThreadPool();
     void returnFrame(const PFrameContext &rCtx, const PVideoFrame &f);
     int	activeThreadCount() const;
     int	threadCount() const;
-    void setInternalThreadCount(int threadCount);
+	void setThreadCount(int threads);
     void start(const PFrameContext &context);
     void waitForDone();
     void releaseThread();

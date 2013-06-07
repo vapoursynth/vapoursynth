@@ -192,7 +192,6 @@ void VSThread::run() {
 VSThreadPool::VSThreadPool(VSCore *core, int threads) : core(core), activeThreads(0), idleThreads(0) {
 	maxThreads = threads > 0 ? threads : QThread::idealThreadCount();
 	QMutexLocker m(&lock);
-    setInternalThreadCount(maxThreads);
 }
 
 int VSThreadPool::activeThreadCount() const {
@@ -203,17 +202,19 @@ int VSThreadPool::threadCount() const {
     return maxThreads;
 }
 
-void VSThreadPool::setInternalThreadCount(int threadCount) {
-    while (threadCount > allThreads.count()) {
-        VSThread *vst = new VSThread(this);
-        allThreads.insert(vst);
-        vst->start();
-    }
+void VSThreadPool::spawnThread() {
+    VSThread *vst = new VSThread(this);
+    allThreads.insert(vst);
+    vst->start();
+}
+
+void VSThreadPool::setThreadCount(int threads) {
+	maxThreads = threads;
 }
 
 void VSThreadPool::wakeThread() {
 	if (activeThreads < maxThreads && idleThreads == 0)
-		setInternalThreadCount(allThreads.count() + 1);
+		spawnThread();
 
     if (activeThreads < maxThreads)
         newWork.wakeOne();
