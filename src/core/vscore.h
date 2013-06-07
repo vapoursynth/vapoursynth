@@ -297,7 +297,6 @@ public:
 };
 
 struct VSNode {
-    friend class VSThreadPool;
     friend class VSThread;
 private:
     void *instanceData;
@@ -337,9 +336,13 @@ public:
         hasVi = true;
     }
 
-    int getNumOutputs() {
+    int getNumOutputs() const {
         return vi.size();
     }
+
+	const QByteArray &getName() const {
+		return name;
+	}
 };
 
 class VSThreadPool;

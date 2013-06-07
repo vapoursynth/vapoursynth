@@ -262,7 +262,7 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
     //unfortunately this would probably be quite slow for deep scripts so just hope the cache catches it
 
     if (context->n < 0)
-		qFatal("Negative frame request by: %s", context->clip->name.constData());
+		qFatal("Negative frame request by: %s", context->clip->getName().constData());
 
     // check to see if it's time to reevaluate cache sizes
     if (core->memory->isOverLimit()) {
