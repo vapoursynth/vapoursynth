@@ -339,7 +339,7 @@ int main(int argc, char **argv) {
 			fprintf(outFile, "SubSampling W: %d\n", vi->format->subSamplingW);
 			fprintf(outFile, "SubSampling H: %d\n", vi->format->subSamplingH);
 		} else {
-			printf("Format Name: Variable\n");
+			fprintf(outFile, "Format Name: Variable\n");
 		}
 	} else {
 		if (!isConstantFormat(vi) || vi->numFrames == 0) {
