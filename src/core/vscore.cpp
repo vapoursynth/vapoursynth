@@ -315,6 +315,17 @@ PVideoFrame VSNode::getFrameInternal(int n, int activationReason, const PFrameCo
     return p;
 }
 
+void VSNode::reserveThread() { 
+	core->threadPool->reserveThread();
+}
+
+void VSNode::releaseThread() {
+	core->threadPool->releaseThread();
+}
+
+bool VSNode::isWorkerThread() {
+	return core->threadPool->isWorkerThread();
+}
 
 PVideoFrame VSCore::newVideoFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc) {
     return PVideoFrame(new VSFrame(f, width, height, propSrc, this));

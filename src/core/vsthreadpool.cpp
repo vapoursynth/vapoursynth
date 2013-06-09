@@ -173,13 +173,14 @@ void VSThread::run() {
             }
         }
 
-        if (!ranTask && !stop) {
+        if ((!ranTask && !stop) || (owner->activeThreadCount() > owner->threadCount())) {
 			owner->activeThreads.deref();
 			owner->idleThreads++;
             owner->newWork.wait(&owner->lock);
 			owner->idleThreads--;
 			owner->activeThreads.ref();
         }
+
 		if (stop) {
 			owner->idleThreads--;
 			owner->activeThreads.deref();
@@ -236,13 +237,7 @@ void VSThreadPool::notifyCaches(CacheActivation reason) {
 void VSThreadPool::start(const PFrameContext &context) {
     Q_ASSERT(context);
     QMutexLocker m(&lock);
-	if (allThreads.contains((VSThread *)QThread::currentThread())) {
-		releaseThread();
-		startInternal(context);
-		reserveThread();
-	} else {
-		startInternal(context);
-	}
+	startInternal(context);
 }
 
 void VSThreadPool::returnFrame(const PFrameContext &rCtx, const PVideoFrame &f) {
@@ -342,6 +337,11 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
         return;
     }
 
+}
+
+bool VSThreadPool::isWorkerThread() {
+	QMutexLocker m(&lock);
+	return allThreads.contains((VSThread *)QThread::currentThread());
 }
 
 void VSThreadPool::waitForDone() {

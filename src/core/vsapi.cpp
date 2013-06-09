@@ -89,8 +89,14 @@ static const VSFrameRef *VS_CC getFrame(int n, VSNodeRef *clip, char *errorMsg, 
     GetFrameWaiter g(errorMsg, bufSize);
     QMutexLocker l(&g.b);
 	PFrameContext c(new FrameContext(n, clip->index, clip, &frameWaiterCallback, &g));
-    clip->clip->getFrame(c);
+	VSNode *node = clip->clip.data();
+	bool isWorker = node->isWorkerThread();
+	if (isWorker)
+		node->releaseThread();
+    node->getFrame(c);
     g.a.wait(&g.b);
+	if (isWorker)
+		node->reserveThread();
     return g.r;
 }
 

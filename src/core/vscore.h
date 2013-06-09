@@ -343,6 +343,11 @@ public:
 	const QByteArray &getName() const {
 		return name;
 	}
+
+	// to get around encapsulation a bit, more elegant than making everything friends in this case
+	void reserveThread();
+	void releaseThread();
+	bool isWorkerThread();
 };
 
 class VSThreadPool;
@@ -394,6 +399,7 @@ public:
     void waitForDone();
     void releaseThread();
     void reserveThread();
+	bool isWorkerThread();
 };
 
 class VSFunction {
