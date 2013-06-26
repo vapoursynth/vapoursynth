@@ -1,9 +1,12 @@
 known issues:
-may deadlock with some avisynth plugins (set the number of threads to a bigger number)
 compatrgb32 may be flipped when output (use FlipVertical as a workaround)
-reopening .vpy files in vfw may leak a little bit of memory
 
 r19:
+calls to the getFrame() function inside vapoursynth can never deadlock now, the thread handling is also slightly improved
+fixed a bug in the cache that would stop it from freeing all its frames when memory is needed, fixes an out of memory error reported by Chikuzen
+output is no longer determined by setting the last variable in __main__, instead clip.set_output(int index = 0) is used to set which clip(s) are exported
+fixed some memory leaks in the internal filters when they're freed (jackoneill)
+now properly initializes blankclips to all 0 when no values are given
 added proper const declarations now that cython supports it, cython 0.18 or later required to build the extension now
 fixed get_write_ptr() in python to actually return a write pointer
 fixed the lut and lut2 filters for > 8 bit formats (ADub)

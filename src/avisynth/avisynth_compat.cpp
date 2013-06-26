@@ -140,7 +140,7 @@ PVideoFrame VSClip::GetFrame(int n, IScriptEnvironment *env) {
         ref = vsapi->getFrameFilter(n, clip, fakeEnv->uglyCtx);
 
     if (!ref) {
-        QByteArray s = QByteArray("Avisynth Compat: requested frame ") + QString::number(n).toUtf8() + QByteArray(" not prefetched, using slow method that may deadlock");
+        QByteArray s = QByteArray("Avisynth Compat: requested frame ") + QString::number(n).toUtf8() + QByteArray(" not prefetched, using slow method");
         qWarning(s);
         ref = vsapi->getFrame(n, clip, NULL, 0);
     }

@@ -515,7 +515,7 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
 
 VSCore::~VSCore() {
     memory->signalFree();
-    delete threadPool;
+    //delete threadPool;
     foreach(VSPlugin * p, plugins)
         delete p;
     foreach(VSFormat * f, formats)
