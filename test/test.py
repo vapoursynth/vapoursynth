@@ -4,16 +4,10 @@ import vapoursynth as vs
 class CoreTestSequence(unittest.TestCase):
     
     def setUp(self):
-        self.core = vs.get_core()
+        self.core = vs.get_core(threads=10)
    
     def test_num_threads(self):
-        core10 = vs.get_core(threads=10)
-        self.assertEqual(core10.num_threads, 10)
-        self.assertTrue(self.core.num_threads > 0)
-        
-    def test_accept_lc(self):
-        core = vs.Core(accept_lowercase=True)
-        core.std.blankclip()
+        self.assertEqual(self.core.num_threads, 10)
         
     def test_func1(self):
         with self.assertRaises(vs.Error):
