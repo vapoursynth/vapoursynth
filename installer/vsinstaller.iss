@@ -17,7 +17,7 @@ AppPublisher=Fredrik Mellbin
 AppPublisherURL=http://www.vapoursynth.com/
 AppSupportURL=http://www.vapoursynth.com/
 AppUpdatesURL=http://www.vapoursynth.com/
-VersionInfoVersion=0.9.7.0
+VersionInfoVersion=0.9.8.0
 DefaultDirName={pf}\VapourSynth
 DefaultGroupName=VapourSynth
 AllowCancelDuringInstall=no
@@ -54,6 +54,7 @@ Source: ..\include\VapourSynth.h; DestDir: {app}\sdk\include; Flags: ignoreversi
 Source: ..\include\VSHelper.h; DestDir: {app}\sdk\include; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: ..\include\VSScript.h; DestDir: {app}\sdk\include; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: vsscript.lib; DestDir: {app}\sdk\lib; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: vapoursynth.lib; DestDir: {app}\sdk\lib; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: ..\sdk\filter_skeleton.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: ..\sdk\invert_example.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace
 ;bundled filters
