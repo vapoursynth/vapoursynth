@@ -272,7 +272,7 @@ int main(int argc, char **argv) {
 				return 1;
 			}
 			QString numString = nativeToQString(argv[arg+1]);
-			index = numString.toInt(&ok);
+			outputIndex = numString.toInt(&ok);
 			if (!ok) {
 				fprintf(stderr, "Couldn't convert %s to an integer", numString.toUtf8().constData());
 				return 1;
