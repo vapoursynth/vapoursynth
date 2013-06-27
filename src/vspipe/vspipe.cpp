@@ -42,7 +42,7 @@ VSNodeRef *node = NULL;
 FILE *outFile = NULL;
 
 int requests = 0;
-int index = 0;
+int outputIndex = 0;
 int outputFrames = 0;
 int requestedFrames = 0;
 int completedFrames = 0;
@@ -251,7 +251,7 @@ int main(int argc, char **argv) {
 #ifdef _WIN32
 		outFile = _wfopen(outputFilename.toStdWString().c_str(), L"wb");
 #else
-		outfile = fopen(outputFilename.toLocal8Bit(), "wb");
+		outFile = fopen(outputFilename.toLocal8Bit(), "wb");
 #endif
 		if (!outFile) {
 			fprintf(stderr, "Failed to open output for writing\n");
@@ -316,7 +316,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    node = vseval_getOutput(se, index);
+    node = vseval_getOutput(se, outputIndex);
     if (!node) {
        fprintf(stderr, "Failed to retrieve output node. Invalid index specified?\n");
        vseval_freeScript(se);
