@@ -24,9 +24,9 @@ import ctypes
 import threading
 import gc
 
-_core = None
 _environment_id = None
 _stored_outputs = {}
+_cores = {}
 
 GRAY  = vapoursynth.cmGray
 RGB   = vapoursynth.cmRGB
@@ -771,10 +771,21 @@ cdef Core createCore(int threads = 0, bint add_cache = True, bint accept_lowerca
     return instance
         
 def get_core(int threads = 0, bint add_cache = True, bint accept_lowercase = False):
-    global _core
-    if _core is None:
-        _core = createCore(threads, add_cache, accept_lowercase)
-    return _core
+    global _cores
+    global _environment_id
+    if _environment_id is None:
+        raise Error('Internal environment id not set. Was get_core() called from a filter callback?')
+
+    if not _environment_id in _cores:
+        _cores[_environment_id] = createCore(threads, add_cache, accept_lowercase)
+    return _cores[_environment_id]
+    
+cdef get_core_internal(int _environment_id, int threads = 0, bint add_cache = True, bint accept_lowercase = False):
+    global _cores
+
+    if not _environment_id in _cores:
+        _cores[_environment_id] = createCore(threads, add_cache, accept_lowercase)
+    return _cores[_environment_id]
 
 cdef class Plugin(object):
     cdef Core core
@@ -1000,6 +1011,13 @@ cdef public api void vpy_freeScript(VPYScriptExport *se) nogil:
             se.errstr = NULL
             Py_DECREF(errstr)
             errstr = None
+            
+        try:
+            global _cores
+            del _cores[se.id]
+        except:
+            pass
+            
         gc.collect()
 
 cdef public api char *vpy_getError(VPYScriptExport *se) nogil:
@@ -1032,10 +1050,10 @@ cdef public api void vpy_clearOutput(VPYScriptExport *se, int index) nogil:
         except:
             pass
 
-cdef public api VSCore *vpy_getCore() nogil:
+cdef public api VSCore *vpy_getCore(VPYScriptExport *se) nogil:
     with gil:
         try:
-            core = get_core()
+            core = get_core_internal(se.id)
             return (<Core>core).core
         except:
             return NULL
@@ -1046,11 +1064,11 @@ cdef public api const VSAPI *vpy_getVSApi() nogil:
 cdef public api int vpy_getVariable(VPYScriptExport *se, const char *name, VSMap *dst) nogil:
     with gil:
         evaldict = <dict>se.pyenvdict
-        core = get_core()
+        core = get_core_internal(se.id)
         try:
             dname = name.decode('utf-8')
             read_var = { dname:evaldict[dname]}
-            dictToMap(read_var, dst, get_core(), (<Core>core).funcs)
+            dictToMap(read_var, dst, core, (<Core>core).funcs)
             return 0
         except:
             return 1
@@ -1058,8 +1076,8 @@ cdef public api int vpy_getVariable(VPYScriptExport *se, const char *name, VSMap
 cdef public api void vpy_setVariable(VPYScriptExport *se, const VSMap *vars) nogil:
     with gil:
         evaldict = <dict>se.pyenvdict
-        core = get_core()
-        new_vars = mapToDict(vars, False, False, get_core(), (<Core>core).funcs)
+        core = get_core_internal(se.id)
+        new_vars = mapToDict(vars, False, False, core, (<Core>core).funcs)
         for key in new_vars:
             evaldict[key] = new_vars[key]
 

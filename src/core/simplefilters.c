@@ -427,8 +427,7 @@ static void VS_CC addBordersCreate(const VSMap *in, VSMap *out, void *userData, 
 
 	ncolors = vsapi->propNumElements(in, "color");
 
-	for (i = 0; i < 3; i++)
-	{
+	for (i = 0; i < 3; i++) {
 		d.color.i[i] = 0;
 	}
 

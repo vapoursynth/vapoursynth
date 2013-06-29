@@ -58,8 +58,8 @@ VS_API(void) vseval_clearOutput(VSScript *handle, int index) {
 	vpy_clearOutput(handle, index);
 }
 
-VS_API(VSCore *) vseval_getCore(void) {
-    return vpy_getCore();
+VS_API(VSCore *) vseval_getCore(VSScript *handle) {
+    return vpy_getCore(handle);
 }
 
 VS_API(const VSAPI *) vseval_getVSApi(void) {

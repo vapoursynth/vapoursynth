@@ -220,7 +220,7 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName)
 				pad_scanlines = false;
 			vsapi->freeMap(options);
 
-			const VSCoreInfo *info = vsapi->getCoreInfo(vseval_getCore());
+			const VSCoreInfo *info = vsapi->getCoreInfo(vseval_getCore(se));
 			num_threads = info->numThreads;
 
             if (vi->format->id == pfYUV422P10 && enable_v210) {

@@ -38,7 +38,7 @@ VS_API(void) vseval_freeScript(VSScript *handle);
 VS_API(const char *) vseval_getError(VSScript *handle);
 VS_API(VSNodeRef *) vseval_getOutput(VSScript *handle, int index);
 VS_API(void) vseval_clearOutput(VSScript *handle, int index);
-VS_API(VSCore *) vseval_getCore(void);
+VS_API(VSCore *) vseval_getCore(VSScript *handle);
 VS_API(const VSAPI *) vseval_getVSApi(void);
 
 // Variables names that are not set or not of a convertible type will return an error
