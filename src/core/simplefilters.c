@@ -427,6 +427,11 @@ static void VS_CC addBordersCreate(const VSMap *in, VSMap *out, void *userData, 
 
 	ncolors = vsapi->propNumElements(in, "color");
 
+	for (i = 0; i < 3; i++)
+	{
+		d.color.i[i] = 0;
+	}
+
     if (ncolors == d.vi->format->numPlanes) {
         for (i = 0; i < ncolors; i++) {
 			double color = vsapi->propGetFloat(in, "color", i, 0);

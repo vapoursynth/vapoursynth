@@ -2,6 +2,7 @@ known issues:
 compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 
 r19:
+properly initialize color in addborders to 0
 calls to the getFrame() function inside vapoursynth can never deadlock now, the thread handling is also slightly improved
 fixed a bug in the cache that would stop it from freeing all its frames when memory is needed, fixes an out of memory error reported by Chikuzen
 output is no longer determined by setting the last variable in __main__, instead clip.set_output(int index = 0) is used to set which clip(s) are exported
