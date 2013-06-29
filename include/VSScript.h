@@ -22,7 +22,7 @@
 
 typedef struct VSScript VSScript;
 
-// Initialize the available scripting runtimes, returns non-zero on failure
+// Initialize the available scripting runtimes, returns zero on failure
 VS_API(int) vseval_init(void);
 
 // Free all scripting runtimes, returns non-zero on failure (such as scripts still open and everything will now crash)
