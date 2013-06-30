@@ -14,7 +14,7 @@ fixed the lut and lut2 filters for > 8 bit formats (ADub)
 various minor fixes to vivtc
 removed clip.output() since it's a bad design decision, now a command-line program called vspipe can be used to pipe or write raw video output
 renamed newMap() to createMap() to match the naming of all other functions
-list_functions() renamed to get_plugins() for the core and get_functions() for namespaces, it also returns a dict instead of a string now
+added core.get_plugins() for the core and core.namepace.get_functions() for namespaces, it works similarly to list_functions() but instead returns the information in a dict
 removed the unmentioned and unused link option for filter arguments as it is completely pointless and similar functionality may be implemented anyway
 there's now a sane external api available for embedding in other applications, see vsscript.h and vsvfw for an example
 now a singleton pattern is used for the core in python scripts, use vs.get_core() to get a reference to it

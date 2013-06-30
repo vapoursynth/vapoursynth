@@ -735,7 +735,7 @@ cdef class Core(object):
     def set_max_cache_size(self, int mb):
         return self.funcs.setMaxCacheSize(mb * 1024 * 1024, self.core)
             
-    def list_functions(self):
+    def get_plugins(self):
         cdef VSMap *m = self.funcs.getPlugins(self.core)
         cdef VSMap *n
         cdef bytes b
@@ -768,7 +768,19 @@ cdef class Core(object):
 
         self.funcs.freeMap(m)
         return sout
-
+        
+    def list_functions(self):
+        sout = ""
+        plugins = self.get_plugins()
+        for plugin in plugins:
+            sout += 'name: ' + plugins[plugin]['name'] + '\n'
+            sout += 'namespace: ' + plugins[plugin]['namespace'] + '\n'
+            sout += 'identifier: ' + plugins[plugin]['identifier'] + '\n'
+            for function in plugins[plugin]['functions']:
+                line = '\t' + function + '(' + plugins[plugin]['functions'][function].replace(';', '; ') + ')\n'
+                sout += line.replace('; )', ')')
+        return sout
+        
     def register_format(self, int color_family, int sample_type, int bits_per_sample, int subsampling_w, int subsampling_h):
         return createFormat(self.funcs.registerFormat(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h, self.core))
 
@@ -863,7 +875,7 @@ cdef class Plugin(object):
             self.funcs.freeMap(m)
             raise Error('There is no function named ' + name)
 
-    def list_functions(self):
+    def get_functions(self):
         cdef VSMap *n
         cdef bytes b
         cdef dict sout = {}
@@ -878,6 +890,13 @@ cdef class Plugin(object):
             
         self.funcs.freeMap(n)
         return sout
+        
+    def list_functions(self):
+        sout = ""
+        functions = self.get_functions()
+        for key in functions:
+            sout += key + '(' + functions[key].replace(';', '; ') + ')\n'
+        return sout.replace('; )', ')')
 
 cdef Plugin createPlugin(VSPlugin *plugin, const VSAPI *funcs, Core core):
     cdef Plugin instance = Plugin.__new__(Plugin)    
