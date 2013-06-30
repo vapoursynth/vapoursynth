@@ -10,7 +10,7 @@ PyThreadState *ts = NULL;
 
 VS_API(int) vseval_init(void) {
 	if (initializationCount == 0) {
-		Py_Initialize();
+		Py_InitializeEx(0);
 		int result = import_vapoursynth();
 		if (result)
 			return 0;

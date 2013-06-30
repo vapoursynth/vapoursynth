@@ -118,7 +118,7 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
 
 bool outputNode() {
     if (requests < 1) {
-		const VSCoreInfo *info = vsapi->getCoreInfo(vseval_getCore());
+		const VSCoreInfo *info = vsapi->getCoreInfo(vseval_getCore(se));
         requests = info->numThreads;
 	}
 
