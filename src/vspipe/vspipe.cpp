@@ -23,6 +23,8 @@
 #include <QtCore/QWaitCondition>
 #include <QtCore/QFile>
 #include <QtCore/QMap>
+#define __STDC_FORMAT_MACROS
+#include <inttypes.h>
 #include "VSScript.h"
 #include "VSHelper.h"
 
@@ -331,7 +333,8 @@ int main(int argc, char **argv) {
 		fprintf(outFile, "Width: %d\n", vi->width);
 		fprintf(outFile, "Height: %d\n", vi->height);
 		fprintf(outFile, "Frames: %d\n", vi->numFrames);
-		fprintf(outFile, "FPS: %d/%d\n", vi->fpsNum, vi->fpsDen);
+		fprintf(outFile, "FPS: %" PRId64 "/%" PRId64 "\n", vi->fpsNum, vi->fpsDen);
+
 		if (vi->format) {
 			fprintf(outFile, "Format Name: %s\n", vi->format->name);
 			fprintf(outFile, "Color Family: %s\n", colorFamilyToString(vi->format->colorFamily));
