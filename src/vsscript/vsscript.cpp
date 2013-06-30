@@ -7,15 +7,17 @@ struct VSScript : public VPYScriptExport {
 int initializationCount = 0;
 int scriptId = 1000;
 PyThreadState *ts = NULL;
+PyGILState_STATE s;
 
 VS_API(int) vseval_init(void) {
 	if (initializationCount == 0) {
 		Py_InitializeEx(0);
+		PyGILState_STATE s = PyGILState_Ensure();
 		int result = import_vapoursynth();
 		if (result)
 			return 0;
-		ts = PyEval_SaveThread();
 		vpy_initVSScript();
+		ts = PyEval_SaveThread();
 	}
 	initializationCount++;
     return initializationCount;
@@ -26,6 +28,7 @@ VS_API(int) vseval_finalize(void) {
     if (initializationCount)
         return initializationCount;
 	PyEval_RestoreThread(ts);
+	PyGILState_Release(s);
     Py_Finalize();
     return 0;
 }
