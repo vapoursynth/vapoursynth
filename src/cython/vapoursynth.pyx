@@ -1,20 +1,20 @@
-#//  Copyright (c) 2012-2013 Fredrik Mellbin
-#//
-#//  This file is part of VapourSynth.
-#//
-#//  VapourSynth is free software; you can redistribute it and/or
-#//  modify it under the terms of the GNU Lesser General Public
-#//  License as published by the Free Software Foundation; either
-#//  version 2.1 of the License, or (at your option) any later version.
-#//
-#//  VapourSynth is distributed in the hope that it will be useful,
-#//  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-#//  Lesser General Public License for more details.
-#//
-#//  You should have received a copy of the GNU Lesser General Public
-#//  License along with VapourSynth; if not, write to the Free Software
-#//  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+#  Copyright (c) 2012-2013 Fredrik Mellbin
+#
+#  This file is part of VapourSynth.
+#
+#  VapourSynth is free software; you can redistribute it and/or
+#  modify it under the terms of the GNU Lesser General Public
+#  License as published by the Free Software Foundation; either
+#  version 2.1 of the License, or (at your option) any later version.
+#
+#  VapourSynth is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+#  Lesser General Public License for more details.
+#
+#  You should have received a copy of the GNU Lesser General Public
+#  License along with VapourSynth; if not, write to the Free Software
+#  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 """ This is the VapourSynth module implementing the Python bindings. """
 
 cimport vapoursynth
@@ -24,9 +24,12 @@ import ctypes
 import threading
 import gc
 
+_using_vsscript = False
 _environment_id = None
 _stored_outputs = {}
 _cores = {}
+_stored_output = {}
+_core = None
 
 GRAY  = vapoursynth.cmGray
 RGB   = vapoursynth.cmRGB
@@ -81,22 +84,47 @@ class Error(Exception):
         return repr(self.value)
         
 def clear_output(int index = 0):
-    global _stored_outputs
-    global _environment_id
-    if _environment_id is None:
-        raise Error('Internal environment id not set. Was clear_output() called from a filter callback?')
-    # fixme, should probably catch a more specific exception
-    try:
-        del _stored_outputs[_environment_id][index]
-    except:
-        pass
+    global _using_vsscript
+    if _using_vsscript:
+        global _stored_outputs
+        global _environment_id
+        if _environment_id is None:
+            raise Error('Internal environment id not set. Was clear_output() called from a filter callback?')
+        # fixme, should probably catch a more specific exception
+        try:
+            del _stored_outputs[_environment_id][index]
+        except:
+            pass
+    else:
+        global _stored_output
+        try:
+            del _stored_output[index]
+        except:
+            pass
         
 def clear_outputs():
-    global _stored_outputs
-    global _environment_id
-    if _environment_id is None:
-        raise Error('Internal environment id not set. Was clear_outputs() called from a filter callback?')
-    _stored_outputs[_environment_id] = {}
+    global _using_vsscript
+    if _using_vsscript:
+        global _stored_outputs
+        global _environment_id
+        if _environment_id is None:
+            raise Error('Internal environment id not set. Was clear_outputs() called from a filter callback?')
+        _stored_outputs[_environment_id] = {}
+    else:
+        global _stored_output
+        _stored_output = {}
+        
+def get_output(int index = 0):
+    global _using_vsscript
+    if _using_vsscript:
+        global _stored_outputs
+        global _environment_id
+        if _environment_id is None:
+            raise Error('Internal environment id not set. Was get_output() called from a filter callback?')
+        return _stored_outputs[_environment_id][index]
+    else:
+        global _stored_output
+        return _stored_output[index]
 
 # fixme, make it possible for this to call functions not defined in python
 cdef class Func(object):
@@ -528,11 +556,17 @@ cdef class VideoNode(object):
             return createConstVideoFrame(f, self.funcs, self.core)
             
     def set_output(self, int index = 0):
-        global _stored_outputs
-        global _environment_id
-        if _environment_id is None:
-            raise Error('Internal environment id not set. Was set_output() called from a filter callback?')
-        _stored_outputs[_environment_id][index] = self
+        global _using_vsscript
+        if _using_vsscript:
+            global _stored_outputs
+            global _environment_id
+            if _environment_id is None:
+                raise Error('Internal environment id not set. Was set_output() called from a filter callback?')
+            _stored_outputs[_environment_id][index] = self
+        else:
+            global _stored_output
+            _stored_output[index] = self
+    
 
     def __add__(self, other):
         if not isinstance(other, VideoNode):
@@ -771,18 +805,24 @@ cdef Core createCore(int threads = 0, bint add_cache = True, bint accept_lowerca
     return instance
         
 def get_core(int threads = 0, bint add_cache = True, bint accept_lowercase = False):
-    global _cores
-    global _environment_id
-    if _environment_id is None:
-        raise Error('Internal environment id not set. Was get_core() called from a filter callback?')
+    global _using_vsscript
+    if _using_vsscript:
+        global _cores
+        global _environment_id
+        if _environment_id is None:
+            raise Error('Internal environment id not set. Was get_core() called from a filter callback?')
 
-    if not _environment_id in _cores:
-        _cores[_environment_id] = createCore(threads, add_cache, accept_lowercase)
-    return _cores[_environment_id]
+        if not _environment_id in _cores:
+            _cores[_environment_id] = createCore(threads, add_cache, accept_lowercase)
+        return _cores[_environment_id]
+    else:
+        global _core
+        if _core is None:
+            _core = createCore(threads, add_cache, accept_lowercase)
+        return _core
     
 cdef get_core_internal(int _environment_id, int threads = 0, bint add_cache = True, bint accept_lowercase = False):
     global _cores
-
     if not _environment_id in _cores:
         _cores[_environment_id] = createCore(threads, add_cache, accept_lowercase)
     return _cores[_environment_id]
@@ -1101,3 +1141,9 @@ cdef public api void vpy_clearEnvironment(VPYScriptExport *se) nogil:
         except:
             pass
         gc.collect()
+
+cdef public api void vpy_initVSScript() nogil:
+    with gil:
+        global _using_vsscript
+        _using_vsscript = True
+    

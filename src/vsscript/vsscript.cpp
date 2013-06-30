@@ -15,6 +15,7 @@ VS_API(int) vseval_init(void) {
 		if (result)
 			return 0;
 		ts = PyEval_SaveThread();
+		vpy_initVSScript();
 	}
 	initializationCount++;
     return initializationCount;
