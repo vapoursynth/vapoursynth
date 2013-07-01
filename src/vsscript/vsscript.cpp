@@ -32,8 +32,8 @@ VS_API(int) vseval_finalize(void) {
         return initializationCount;
 	//PyEval_RestoreThread(ts);
 	//PyGILState_Release(s);
-	if (!preInitialized)
-		Py_Finalize();
+	//if (!preInitialized)
+	//	Py_Finalize();
     return 0;
 }
 
