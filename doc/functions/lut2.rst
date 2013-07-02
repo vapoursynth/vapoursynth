@@ -17,6 +17,7 @@ Lut2
       Lut2(clips=[clipx, clipy], lut=lut, planes=[0, 1, 2])
 
    How to average 2 clips with a 10-bit output::
+
       lut = []
       for y in range(2 ** clipy.format.bits_per_sample):
          for x in range(2 ** clipx.format.bits_per_sample):
