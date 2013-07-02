@@ -94,14 +94,16 @@ def configure(conf):
     conf.load('compiler_c')
     conf.load('compiler_cxx')
     conf.load('qt4')
+    conf.load('python')
+
+    conf.check_python_version((3, 0, 0))
+    conf.check_python_headers()
 
     if conf.env.DEST_CPU in ['x86', 'x86_64', 'x64', 'amd64', 'x86_amd64']:
         # Load Yasm explicitly, then the Nasm module which
         # supports both Nasm and Yasm.
         conf.find_program('yasm', var = 'AS', mandatory = True)
         conf.load('nasm')
-
-    conf.find_program(['python3', 'python'], var = 'PYTHON', mandatory = True)
 
     if conf.env.DEST_OS == 'darwin':
         if conf.env.CXX_NAME == 'gcc':
@@ -266,6 +268,8 @@ def build(bld):
     sources = search_paths([os.path.join('src', 'core'),
                             os.path.join('src', 'core', 'asm')])
 
+    script_sources = search_paths([os.path.join('src', 'vsscript')])
+
     if bld.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin'] and bld.env.AVISYNTH == 'true':
         sources += search_paths([os.path.join('src', 'avisynth')])
 
@@ -275,16 +279,32 @@ def build(bld):
         source = bld.path.ant_glob(sources),
         target = 'objs')
 
+    bld(features = 'c qxx asm pyembed',
+        includes = 'include',
+        use = ['QTCORE', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
+        source = bld.path.ant_glob(script_sources),
+        target = 'script_objs')
+
     if bld.env.SHARED == 'true':
         bld(features = 'c qxx asm cxxshlib',
             use = ['objs'],
             target = 'vapoursynth',
             install_path = '${LIBDIR}')
 
+        bld(features = 'c qxx asm cxxshlib pyembed',
+            use = ['script_objs'],
+            target = 'vapoursynth-script',
+            install_path = '${LIBDIR}')
+
     if bld.env.STATIC == 'true':
         bld(features = 'c qxx asm cxxstlib',
-            use = ['objs', 'QTCORE', 'SWSCALE', 'AVUTIL'],
+            use = ['objs', 'QTCORE', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
             target = 'vapoursynth',
+            install_path = '${LIBDIR}')
+
+        bld(features = 'c qxx asm cxxstlib pyembed',
+            use = ['script_objs', 'QTCORE', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
+            target = 'vapoursynth-script',
             install_path = '${LIBDIR}')
 
     if bld.env.FILTERS == 'true':
@@ -331,7 +351,8 @@ def build(bld):
                           bld.path.ant_glob([os.path.join('sdk', '*')]))
 
     bld.install_files('${INCLUDEDIR}', [os.path.join('include', 'VapourSynth.h'),
-                                        os.path.join('include', 'VSHelper.h')])
+                                        os.path.join('include', 'VSHelper.h'),
+                                        os.path.join('include', 'VSScript.h')])
 
     bld(source = 'vapoursynth.pc.in',
         install_path = '${LIBDIR}/pkgconfig',
