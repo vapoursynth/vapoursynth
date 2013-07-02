@@ -1,5 +1,5 @@
 #include "VSScript.h"
-#include "vapoursynth_api.h"
+#include "cython/vapoursynth_api.h"
 
 struct VSScript : public VPYScriptExport {
 };
