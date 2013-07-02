@@ -378,6 +378,14 @@ def build(bld):
         LIBS = bld.env.LIBS,
         VERSION = VERSION)
 
+    bld(source = 'vapoursynth-script.pc.in',
+        install_path = '${LIBDIR}/pkgconfig',
+        PREFIX = bld.env.PREFIX,
+        LIBDIR = bld.env.LIBDIR,
+        INCLUDEDIR = bld.env.INCLUDEDIR,
+        LIBS = bld.env.LIBS,
+        VERSION = VERSION)
+
 def test(ctx):
     '''runs the Cython tests'''
 

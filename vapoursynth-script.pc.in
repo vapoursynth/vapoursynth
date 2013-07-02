@@ -1,0 +1,12 @@
+prefix=@PREFIX@
+libdir=@LIBDIR@
+includedir=@INCLUDEDIR@
+
+Name: VapourSynth Script
+Description: Library for interfacing VapourSynth with Python
+Version: @VERSION@
+
+Requires.private: libavutil, libswscale, QtCore, VapourSynth
+Libs: -L${libdir} -lvapoursynth-script
+Libs.private: @LIBS@
+Cflags: -I${includedir}
