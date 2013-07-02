@@ -370,7 +370,7 @@ def build(bld):
                                         os.path.join('include', 'VSHelper.h'),
                                         os.path.join('include', 'VSScript.h')])
 
-    bld(source = 'vapoursynth.pc.in',
+    bld(source = os.path.join('pc', 'vapoursynth.pc.in'),
         install_path = '${LIBDIR}/pkgconfig',
         PREFIX = bld.env.PREFIX,
         LIBDIR = bld.env.LIBDIR,
@@ -378,7 +378,7 @@ def build(bld):
         LIBS = bld.env.LIBS,
         VERSION = VERSION)
 
-    bld(source = 'vapoursynth-script.pc.in',
+    bld(source = os.path.join('pc', 'vapoursynth-script.pc.in'),
         install_path = '${LIBDIR}/pkgconfig',
         PREFIX = bld.env.PREFIX,
         LIBDIR = bld.env.LIBDIR,
