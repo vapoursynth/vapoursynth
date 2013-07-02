@@ -10,7 +10,7 @@ First, a couple of things to note:
 * You need to have either GCC, Clang, MSVC, or ICC/ICL installed.
   Both a C and C++ compiler are required.
 * You need to have Yasm installed.
-* You need Python 3 to build the Python module.
+* You need Python 3 for VSScript and to build the Python module.
 * You need to have Cython installed in your Python 3 environment
   in order to invoke the Python wrapper setup script.
 * You need Sphinx if you want to build the documentation.
@@ -20,9 +20,9 @@ VapourSynth uses:
 
     $ ./bootstrap.py
 
-You don't have to fetch it with this script (it requires Wget);
-you can also simply download it from the official Google Code
-repository: http://code.google.com/p/waf
+You don't have to fetch it with this script; you can also
+simply download it from the official Google Code repository:
+http://code.google.com/p/waf
 
 Then, configure the project:
 
