@@ -1,10 +1,6 @@
 #!/usr/bin/env python
 
-import os, stat, urllib2
+import os, stat, urllib.request
 
-f = urllib2.urlopen('http://waf.googlecode.com/files/waf-1.7.11')
-
-with open('waf', 'wb') as waf:
-    waf.write(f.read())
-
+urllib.request.urlretrieve('https://waf.googlecode.com/files/waf-1.7.11', 'waf')
 os.chmod('waf', os.stat('waf').st_mode | stat.S_IXUSR)
