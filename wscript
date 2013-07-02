@@ -273,6 +273,8 @@ def build(bld):
 
     script_sources = search_paths([os.path.join('src', 'vsscript')])
 
+    pipe_sources = search_paths([os.path.join('src', 'vspipe')])
+
     if bld.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin'] and bld.env.AVISYNTH == 'true':
         sources += search_paths([os.path.join('src', 'avisynth')])
 
@@ -287,6 +289,12 @@ def build(bld):
         use = ['QTCORE', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
         source = bld.path.ant_glob(script_sources),
         target = 'script_objs')
+
+    bld(features = 'c qxx asm',
+        includes = 'include',
+        use = ['QTCORE', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
+        source = bld.path.ant_glob(pipe_sources),
+        target = 'pipe_objs')
 
     if bld.env.SHARED == 'true':
         bld(features = 'c qxx asm cxxshlib',
@@ -309,6 +317,11 @@ def build(bld):
             use = ['script_objs', 'QTCORE', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
             target = 'vapoursynth-script',
             install_path = '${LIBDIR}')
+
+    bld(features = 'c qxx asm cxxprogram',
+        includes = 'include',
+        use = ['pipe_objs', 'vapoursynth', 'vapoursynth-script', 'QTCORE', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
+        target = 'vspipe')
 
     if bld.env.FILTERS == 'true':
         bld(features = 'c qxx asm cxxshlib',
