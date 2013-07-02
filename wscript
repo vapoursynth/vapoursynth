@@ -218,6 +218,9 @@ def configure(conf):
     check_feature('docs', 'documentation')
     check_feature('examples', 'SDK examples')
 
+    if (conf.env.SHARED, conf.env.STATIC) == ('false', 'false'):
+        conf.fatal('--static and --shared cannot both be false.')
+
     conf.define('PATH_PREFIX', conf.env.PREFIX)
     conf.msg("Setting PREFIX to", conf.env.PREFIX)
 
