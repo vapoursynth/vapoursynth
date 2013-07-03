@@ -19,7 +19,7 @@
 ; The log and exp functions are an intrinsics to sse2 asm conversion
 ; of the code found in http://gruntthepeon.free.fr/ssemath/
 
-%include "asm/x86inc.asm"
+%include "asm/x86/x86inc.asm"
 
 CPU Pentium4
 

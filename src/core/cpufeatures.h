@@ -21,15 +21,26 @@
 struct CPUFeatures {
     // This is to determine if the cpu is up to the minimum requirements in terms of supported instructions
     // that the VapourSynth core uses.
-    // On x86 all features up to sse2 are required.
     bool can_run_vs;
-    // x86
+#ifdef VS_TARGET_CPU_X86
+    // On x86, all features up to sse2 are required.
     bool sse3;
     bool ssse3;
     bool sse4_1;
     bool sse4_2;
     bool fma3;
     bool avx;
+#elif defined(VS_TARGET_CPU_ARM)
+    // On ARM, VFP-D16+ (16 double registers or more) is required.
+    bool half_fp;
+    bool edsp;
+    bool iwmmxt;
+    bool neon;
+    bool fast_mult;
+    bool idiv_a;
+#else
+#error No VS_TARGET_CPU_* defined/handled!
+#endif
 };
 
 void getCPUFeatures(CPUFeatures *cpuFeatures);

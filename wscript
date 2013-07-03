@@ -105,7 +105,17 @@ def configure(conf):
         conf.find_program('yasm', var = 'AS', mandatory = True)
         conf.load('nasm')
 
-    if conf.env.DEST_OS == 'darwin':
+        add_options(['ASFLAGS'],
+                    ['-w',
+                     '-Worphan-labels',
+                     '-Wunrecognized-char',
+                     '-Dprogram_name=vs'])
+    else:
+        # For all non-x86 targets, use the GNU assembler.
+        # Waf uses GCC instead of the assembler directly.
+        conf.load('gas')
+
+    if conf.env.DEST_OS == 'darwin' and conf.env.DEST_CPU in ['x86', 'x86_64']:
         if conf.env.CXX_NAME == 'gcc':
             add_options(['ASFLAGS'],
                         ['-DPREFIX=1'])
@@ -119,12 +129,6 @@ def configure(conf):
                     ['/DVSCORE_EXPORTS',
                      '/EHsc',
                      '/Zc:wchar_t-'])
-
-    add_options(['ASFLAGS'],
-                ['-w',
-                 '-Worphan-labels',
-                 '-Wunrecognized-char',
-                 '-Dprogram_name=vs'])
 
     if conf.env.DEST_CPU in ['x86_64', 'x64', 'amd64', 'x86_amd64']:
         add_options(['ASFLAGS'],
@@ -148,7 +152,7 @@ def configure(conf):
         else:
             fmt = 'elf32'
 
-    if conf.env.DEST_CPU in ['x86', 'x86_64', 'x64']:
+    if conf.env.DEST_CPU in ['x86', 'x86_64', 'x64', 'amd64', 'x86_amd64']:
         add_options(['ASFLAGS'],
                     ['-f{0}'.format(fmt)])
 
@@ -167,13 +171,17 @@ def configure(conf):
         add_options(['ASFLAGS'],
                     ['-DVSCORE_DEBUG'])
 
-        if conf.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin']:
-            dbgfmt = 'cv8'
-        else:
-            dbgfmt = 'dwarf2'
+        if conf.env.DEST_CPU in ['x86', 'x86_64', 'x64', 'amd64', 'x86_amd64']:
+            if conf.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin']:
+                dbgfmt = 'cv8'
+            else:
+                dbgfmt = 'dwarf2'
 
-        add_options(['ASFLAGS'],
-                    ['-g{0}'.format(dbgfmt)])
+            add_options(['ASFLAGS'],
+                        ['-g{0}'.format(dbgfmt)])
+        else:
+            add_options(['ASFLAGS'],
+                        ['-Wa,-g'])
     elif conf.options.mode == 'release':
         if conf.env.CXX_NAME == 'gcc':
             add_options(['CFLAGS', 'CXXFLAGS'],
@@ -195,9 +203,30 @@ def configure(conf):
                         ['-Wl,-Bsymbolic',
                          '-Wl,-z,noexecstack'])
 
-    conf.msg("Setting DEST_OS to", conf.env.DEST_OS)
-    conf.msg("Setting DEST_CPU to", conf.env.DEST_CPU)
-    conf.msg("Setting DEST_BINFMT to", conf.env.DEST_BINFMT)
+    # Normalize OS.
+    os = 'windows' if conf.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin'] else conf.env.DEST_OS
+
+    conf.define('VS_TARGET_OS_' + os.upper(), 1)
+    conf.msg('Settting DEST_OS to', conf.env.DEST_OS)
+
+    # Normalize CPU values.
+    if conf.env.DEST_CPU in ['x86', 'x86_64', 'x64', 'amd64', 'x86_amd64']:
+        cpu = 'x86'
+    elif conf.env.DEST_CPU == 'ia':
+        cpu = 'ia64'
+    elif conf.env.DEST_CPU in ['aarch64', 'thumb']:
+        cpu = 'arm'
+    elif conf.env.DEST_CPU == 's390x':
+        cpu = 's390'
+    else:
+        cpu = conf.env.DEST_CPU
+
+    conf.define('VS_TARGET_CPU_' + cpu.upper(), 1)
+    conf.msg('Settting DEST_CPU to', conf.env.DEST_CPU)
+
+    # No need to sanitize BINFMT.
+    conf.define('VS_TARGET_BINFMT_' + conf.env.DEST_BINFMT.upper(), 1)
+    conf.msg('Settting DEST_BINFMT to', conf.env.DEST_BINFMT)
 
     def check_feature(name, desc):
         val = conf.options.__dict__[name]
@@ -209,7 +238,7 @@ def configure(conf):
 
             conf.env[u] = val
             conf.define('FEATURE_' + u, 1 if val == 'true' else 0)
-            conf.msg("Enabling {0}?".format(desc), 'yes' if conf.env[u] == 'true' else 'no')
+            conf.msg('Enabling {0}?'.format(desc), 'yes' if conf.env[u] == 'true' else 'no')
 
     check_feature('shared', 'shared library')
     check_feature('static', 'static library')
@@ -222,14 +251,14 @@ def configure(conf):
         conf.fatal('--static and --shared cannot both be false.')
 
     conf.define('PATH_PREFIX', conf.env.PREFIX)
-    conf.msg("Setting PREFIX to", conf.env.PREFIX)
+    conf.msg('Setting PREFIX to', conf.env.PREFIX)
 
     for dir in ['libdir', 'plugindir', 'docdir', 'includedir']:
         u = dir.upper()
 
         conf.env[u] = Utils.subst_vars(conf.options.__dict__[dir], conf.env)
         conf.define('PATH_' + u, conf.env[u])
-        conf.msg("Setting {0} to".format(u), conf.env[u])
+        conf.msg('Setting {0} to'.format(u), conf.env[u])
 
     conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore')
     conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore', type_name = 'QAtomicInt')
@@ -263,8 +292,12 @@ def build(bld):
 
         for path in paths:
             srcpaths += [os.path.join(path, '*.c'),
-                         os.path.join(path, '*.cpp'),
-                         os.path.join(path, '*.asm')]
+                         os.path.join(path, '*.cpp')]
+
+            if bld.env.DEST_CPU in ['x86', 'x86_64', 'x64', 'amd64', 'x86_amd64']:
+                srcpaths += [os.path.join(path, 'x86', '*.asm')]
+            elif bld.env.DEST_CPU == 'arm':
+                srcpaths += [os.path.join(path, 'arm', '*.S')]
 
         return srcpaths
 

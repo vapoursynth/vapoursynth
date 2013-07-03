@@ -19,7 +19,7 @@
 ; A fancy pdf with a detailed description of how a transpose in MMX works can be found at:
 ; http://software.intel.com/sites/default/files/m/c/c/a/MMX_App_Transpose_Matrix.pdf
 
-%include "asm/x86inc.asm"
+%include "asm/x86/x86inc.asm"
 
 CPU Pentium4
 

@@ -28,7 +28,7 @@
 #include "VSScript.h"
 #include "VSHelper.h"
 
-#ifdef _WIN32
+#ifdef VS_TARGET_OS_WINDOWS
 static inline QString nativeToQString(const wchar_t *str) {
 	return QString::fromWCharArray(str);
 }
@@ -209,7 +209,7 @@ const char *colorFamilyToString(int colorFamily) {
 }
 
 // fixme, only allow info without output
-#ifdef _WIN32
+#ifdef VS_TARGET_OS_WINDOWS
 int wmain(int argc, wchar_t **argv) {
 #else
 int main(int argc, char **argv) {
@@ -250,7 +250,7 @@ int main(int argc, char **argv) {
 	if (outputFilename == "-") {
 		outFile = stdout;
 	} else {
-#ifdef _WIN32
+#ifdef VS_TARGET_OS_WINDOWS
 		outFile = _wfopen(outputFilename.toStdWString().c_str(), L"wb");
 #else
 		outFile = fopen(outputFilename.toLocal8Bit(), "wb");

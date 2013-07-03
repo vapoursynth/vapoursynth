@@ -16,7 +16,7 @@
 ; License along with VapourSynth; if not, write to the Free Software
 ; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-%include "asm/x86inc.asm"
+%include "asm/x86/x86inc.asm"
 
 CPU Pentium4
 

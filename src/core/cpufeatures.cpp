@@ -21,6 +21,7 @@
 #include <stdint.h>
 #include "cpufeatures.h"
 
+#ifdef VS_TARGET_CPU_X86
 extern "C" void vs_cpuid_wrapper(uint32_t *ecx, uint32_t *edx);
 
 void getCPUFeatures(CPUFeatures *cpuFeatures) {
@@ -35,3 +36,23 @@ void getCPUFeatures(CPUFeatures *cpuFeatures) {
     cpuFeatures->fma3 = !!(ecx & (1 << 12));
     cpuFeatures->avx = !!(ecx & (1 << 28));
 }
+#elif defined(VS_TARGET_CPU_ARM)
+#ifdef VS_TARGET_OS_LINUX
+#include <sys/auxv.h>
+
+void getCPUFeatures(CPUFeatures *cpuFeatures) {
+    unsigned long long hwcap = getauxval(AT_HWCAP);
+
+    cpuFeatures->half_fp = !!(hwcap & HWCAP_ARM_HALF);
+    cpuFeatures->edsp = !!(hwcap & HWCAP_ARM_EDSP);
+    cpuFeatures->iwmmxt = !!(hwcap & HWCAP_ARM_IWMMXT);
+    cpuFeatures->neon = !!(hwcap & HWCAP_ARM_NEON);
+    cpuFeatures->fast_mult = !!(hwcap & HWCAP_ARM_FAST_MULT);
+    cpuFeatures->idiv_a = !!(hwcap & HWCAP_ARM_IDIVA);
+}
+#else
+#error No VS_TARGET_OS_* defined/handled!
+#endif
+#else
+#error No VS_TARGET_CPU_* defined/handled!
+#endif

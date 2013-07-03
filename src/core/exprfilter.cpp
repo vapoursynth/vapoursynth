@@ -28,8 +28,6 @@
 #include "VSHelper.h"
 #include "exprfilter.h"
 
-#define VS_X86
-
 struct split1 {
     enum empties_t { empties_ok, no_empties };
 };
@@ -92,7 +90,7 @@ typedef struct {
     VSVideoInfo vi;
     std::vector<ExprOp> ops[3];
     int plane[3];
-#ifdef VS_X86
+#ifdef VS_TARGET_CPU_X86
     void *stack;
 #else
     std::vector<float> stack;
@@ -131,7 +129,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
         const uint8_t *srcp[3];
         int src_stride[3];
 
-#ifdef VS_X86
+#ifdef VS_TARGET_CPU_X86
 
         intptr_t ptroffsets[4] = { d->vi.format->bytesPerSample * 8, 0, 0, 0 };
 
@@ -261,7 +259,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                                 stacktop = sqrt(stacktop);
                                 break;
                             case opAbs:
-                                stacktop = std::abs(stacktop);
+                                stacktop = abs(stacktop);
                                 break;
                             case opGt:
                                 --si;
@@ -523,7 +521,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         for (int i = 0; i < d.vi.format->numPlanes; i++)
             maxStackSize = std::max(parseExpression(expr[i], d.ops[i], sop, getStoreOp(&d.vi)), maxStackSize);
 
-#ifdef VS_X86
+#ifdef VS_TARGET_CPU_X86
         d.stack = vs_aligned_malloc<void>(maxStackSize * 32, 32);
 #else
         d.stack.resize(maxStackSize);

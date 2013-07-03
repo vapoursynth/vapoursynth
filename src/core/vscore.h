@@ -26,7 +26,7 @@
 #include "VapourSynth.h"
 #include <stdlib.h>
 #include <stdexcept>
-#ifdef _WIN32
+#ifdef VS_TARGET_OS_WINDOWS
 #	define WIN32_LEAN_AND_MEAN
 #	include <Windows.h>
 #else
@@ -420,7 +420,7 @@ private:
     bool readOnly;
     bool readOnlySet;
     bool compat;
-#ifdef _WIN32
+#ifdef VS_TARGET_OS_WINDOWS
     HMODULE libHandle;
 #else
     void *libHandle;
