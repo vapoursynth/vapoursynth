@@ -38,6 +38,14 @@ struct CPUFeatures {
     bool neon;
     bool fast_mult;
     bool idiv_a;
+#elif defined(VS_TARGET_CPU_POWERPC)
+    // On PowerPC, FPU and MMU are required.
+    bool altivec;
+    bool spe;
+    bool efp_single;
+    bool efp_double;
+    bool dfp;
+    bool vsx;
 #else
 #error No VS_TARGET_CPU_* defined/handled!
 #endif

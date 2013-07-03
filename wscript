@@ -298,6 +298,8 @@ def build(bld):
                 srcpaths += [os.path.join(path, 'x86', '*.asm')]
             elif bld.env.DEST_CPU == 'arm':
                 srcpaths += [os.path.join(path, 'arm', '*.S')]
+            elif bld.env.DEST_CPU == 'powerpc':
+                srcpaths += [os.path.join(path, 'ppc', '*.S')]
 
         return srcpaths
 
