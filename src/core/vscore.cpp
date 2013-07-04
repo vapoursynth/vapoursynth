@@ -287,7 +287,7 @@ void VSNode::getFrame(const PFrameContext &ct) {
 PVideoFrame VSNode::getFrameInternal(int n, int activationReason, const PFrameContext &frameCtx) {
     const VSFrameRef *r = filterGetFrame(n, activationReason, &instanceData, &frameCtx->frameContext, (VSFrameContext *)&frameCtx, core, &vsapi);
 // This stuff really only works properly on windows, feel free to investigate what the linux ABI thinks about it
-#ifdef _WIN32
+#ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isMMXStateOk())
         qFatal("Bad MMX state detected after return from %s", name.constData());
     if (!hasWarnedFPU && !vs_isFPUStateOk()) {
@@ -443,7 +443,7 @@ void VS_CC loadPluginInitialize(VSConfigPlugin configFunc, VSRegisterFunction re
 }
 
 // fixme, not the most elegant way but avoids the mess that would happen if avscompat.h was included
-#if defined(_WIN32) && defined(FEATURE_AVISYNTH)
+#if defined(VS_TARGET_OS_WINDOWS) && defined(FEATURE_AVISYNTH)
 extern "C" void VS_CC avsWrapperInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
 #endif
 
@@ -493,7 +493,7 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
     // The internal plugin units, the loading is a bit special so they can get special flags
     VSPlugin *p;
 
-#if defined(_WIN32) && defined(FEATURE_AVISYNTH)
+#if defined(VS_TARGET_OS_WINDOWS) && defined(FEATURE_AVISYNTH)
     p = new VSPlugin(this);
     avsWrapperInitialize(::configPlugin, ::registerFunction, p);
     plugins.insert(p->identifier, p);

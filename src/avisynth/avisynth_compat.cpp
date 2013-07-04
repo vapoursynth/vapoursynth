@@ -745,7 +745,7 @@ static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSC
     avisynthPluginInit(avs);
 
 // This stuff really only works properly on windows, feel free to investigate what the linux ABI thinks about it
-#ifdef _WIN32
+#ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isMMXStateOk())
         qFatal("Bad mmx state detected after plugin load");
     if (!vs_isFPUStateOk())
