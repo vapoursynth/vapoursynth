@@ -443,7 +443,7 @@ void VS_CC loadPluginInitialize(VSConfigPlugin configFunc, VSRegisterFunction re
 }
 
 // fixme, not the most elegant way but avoids the mess that would happen if avscompat.h was included
-#if defined(VS_TARGET_OS_WINDOWS) && defined(FEATURE_AVISYNTH)
+#if defined(VS_TARGET_OS_WINDOWS) && defined(VS_FEATURE_AVISYNTH)
 extern "C" void VS_CC avsWrapperInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
 #endif
 
@@ -493,7 +493,7 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
     // The internal plugin units, the loading is a bit special so they can get special flags
     VSPlugin *p;
 
-#if defined(VS_TARGET_OS_WINDOWS) && defined(FEATURE_AVISYNTH)
+#if defined(VS_TARGET_OS_WINDOWS) && defined(VS_FEATURE_AVISYNTH)
     p = new VSPlugin(this);
     avsWrapperInitialize(::configPlugin, ::registerFunction, p);
     plugins.insert(p->identifier, p);

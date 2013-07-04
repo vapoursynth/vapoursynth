@@ -237,7 +237,7 @@ def configure(conf):
             u = name.upper()
 
             conf.env[u] = val
-            conf.define('FEATURE_' + u, 1 if val == 'true' else 0)
+            conf.define('VS_FEATURE_' + u, 1 if val == 'true' else 0)
             conf.msg('Enabling {0}?'.format(desc), 'yes' if conf.env[u] == 'true' else 'no')
 
     check_feature('shared', 'shared library')
