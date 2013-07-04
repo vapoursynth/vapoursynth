@@ -250,14 +250,14 @@ def configure(conf):
     if (conf.env.SHARED, conf.env.STATIC) == ('false', 'false'):
         conf.fatal('--static and --shared cannot both be false.')
 
-    conf.define('PATH_PREFIX', conf.env.PREFIX)
+    conf.define('VS_PATH_PREFIX', conf.env.PREFIX)
     conf.msg('Setting PREFIX to', conf.env.PREFIX)
 
     for dir in ['libdir', 'plugindir', 'docdir', 'includedir']:
         u = dir.upper()
 
         conf.env[u] = Utils.subst_vars(conf.options.__dict__[dir], conf.env)
-        conf.define('PATH_' + u, conf.env[u])
+        conf.define('VS_PATH_' + u, conf.env[u])
         conf.msg('Setting {0} to'.format(u), conf.env[u])
 
     conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore')
