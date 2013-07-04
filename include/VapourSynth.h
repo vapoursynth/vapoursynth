@@ -47,7 +47,7 @@
 #	define VS_EXTERNAL_API(ret) VS_EXTERN_C ret VS_CC
 #endif
 
-#if !defined(VSCORE_EXPORTS) && defined(_WIN32)
+#if !defined(VS_CORE_EXPORTS) && defined(_WIN32)
 #	define VS_API(ret) VS_EXTERN_C __declspec(dllimport) ret VS_CC
 #else
 #	define VS_API(ret) VS_EXTERNAL_API(ret)

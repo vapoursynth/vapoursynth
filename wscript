@@ -122,11 +122,11 @@ def configure(conf):
 
     if conf.env.CXX_NAME == 'gcc':
         add_options(['CFLAGS', 'CXXFLAGS'],
-                    ['-DVSCORE_EXPORTS',
+                    ['-DVS_CORE_EXPORTS',
                      '-fPIC'])
     elif conf.env.CXX_NAME == 'msvc':
         add_options(['CFLAGS', 'CXXFLAGS'],
-                    ['/DVSCORE_EXPORTS',
+                    ['/DVS_CORE_EXPORTS',
                      '/EHsc',
                      '/Zc:wchar_t-'])
 
@@ -159,17 +159,17 @@ def configure(conf):
     if conf.options.mode == 'debug':
         if conf.env.CXX_NAME == 'gcc':
             add_options(['CFLAGS', 'CXXFLAGS'],
-                        ['-DVSCORE_DEBUG',
+                        ['-DVS_CORE_DEBUG',
                          '-g',
                          '-ggdb',
                          '-ftrapv'])
         elif conf.env.CXX_NAME == 'msvc':
             add_options(['CFLAGS', 'CXXFLAGS'],
-                        ['/DVSCORE_DEBUG',
+                        ['/DVS_CORE_DEBUG',
                          '/Z7'])
 
         add_options(['ASFLAGS'],
-                    ['-DVSCORE_DEBUG'])
+                    ['-DVS_CORE_DEBUG'])
 
         if conf.env.DEST_CPU in ['x86', 'x86_64', 'x64', 'amd64', 'x86_amd64']:
             if conf.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin']:
