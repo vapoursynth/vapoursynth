@@ -25,7 +25,7 @@ typedef struct VSScript VSScript;
 // Initialize the available scripting runtimes, returns zero on failure
 VS_API(int) vseval_init(void);
 
-// Free all scripting runtimes, returns non-zero on failure (such as scripts still open and everything will now crash)
+// Free all scripting runtimes
 VS_API(int) vseval_finalize(void);
 
 // Pass a pointer to a null handle to create a new one
@@ -36,8 +36,10 @@ VS_API(int) vseval_finalize(void);
 VS_API(int) vseval_evaluateScript(VSScript **handle, const char *script, const char *errorFilename);
 VS_API(void) vseval_freeScript(VSScript *handle);
 VS_API(const char *) vseval_getError(VSScript *handle);
+// The node returned must be freed using freeNode() before calling vseval_freeScript()
 VS_API(VSNodeRef *) vseval_getOutput(VSScript *handle, int index);
 VS_API(void) vseval_clearOutput(VSScript *handle, int index);
+// The core is valid as long as the environment exists
 VS_API(VSCore *) vseval_getCore(VSScript *handle);
 VS_API(const VSAPI *) vseval_getVSApi(void);
 
@@ -45,4 +47,5 @@ VS_API(const VSAPI *) vseval_getVSApi(void);
 VS_API(int) vseval_getVariable(VSScript *handle, const char *name, VSMap *dst);
 VS_API(void) vseval_setVariable(VSScript *handle, const VSMap *vars);
 VS_API(int) vseval_clearVariable(VSScript *handle, const char *name);
+// Tries to clear everything set in an environment, normally it is better to simply free an environment completely and create a new one
 VS_API(void) vseval_clearEnvironment(VSScript *handle);

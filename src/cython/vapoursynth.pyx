@@ -1097,7 +1097,7 @@ cdef public api VSNodeRef *vpy_getOutput(VPYScriptExport *se, int index) nogil:
             return NULL
 
         if isinstance(node, VideoNode):
-            return (<VideoNode>node).node
+            return (<VideoNode>node).funcs.cloneNodeRef((<VideoNode>node).node)
         else:
             return NULL
     
