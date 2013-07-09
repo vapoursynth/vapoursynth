@@ -127,39 +127,52 @@ def configure(conf):
     conf.define('VS_TARGET_BINFMT_' + conf.env.DEST_BINFMT.upper(), 1)
     conf.msg('Settting DEST_BINFMT to', conf.env.DEST_BINFMT)
 
-    def check_feature(name, desc):
-        val = conf.options.__dict__[name]
+    for x in ['shared',
+              'static',
+              'core',
+              'avisynth',
+              'script',
+              'pipe',
+              'filters',
+              'examples',
+              'docs']:
+        val = conf.options.__dict__[x]
 
         if not val in ['true', 'false']:
-            conf.fatal('--{0} must be either true or false.'.format(name))
+            conf.fatal('--{0} must be either true or false.'.format(x))
         else:
-            u = name.upper()
+            u = x.upper()
 
             conf.env[u] = val
             conf.define('VS_FEATURE_' + u, 1 if val == 'true' else 0)
-            conf.msg('Enabling {0}?'.format(desc), 'yes' if conf.env[u] == 'true' else 'no')
-
-    check_feature('shared', 'shared libraries')
-    check_feature('static', 'static libraries')
-
-    check_feature('core', 'libvapoursynth')
-    check_feature('avisynth', 'Avisynth compatibility')
-    check_feature('script', 'libvapoursynth-script')
-    check_feature('pipe', 'vspipe')
-
-    check_feature('filters', 'included filters')
-    check_feature('examples', 'SDK examples')
-
-    check_feature('docs', 'documentation')
-
-    if (conf.env.SHARED, conf.env.STATIC) == ('false', 'false'):
-        conf.fatal('--static and --shared cannot both be false.')
 
     if conf.env.CORE == 'false':
+        conf.env.AVISYNTH = 'false'
         conf.env.SCRIPT = 'false'
 
     if 'false' in [conf.env.CORE, conf.env.SCRIPT]:
         conf.env.PIPE = 'false'
+
+    if conf.env.CORE == 'false' and \
+       conf.env.SCRIPT == 'false' and \
+       conf.env.FILTERS == 'false' and \
+       conf.env.EXAMPLES == 'false':
+        conf.env.SHARED = 'false'
+        conf.env.STATIC = 'false'
+    else:
+        if (conf.env.SHARED, conf.env.STATIC) == ('false', 'false') and not have_libs:
+            conf.fatal('--static and --shared cannot both be false.')
+
+    for (x, y) in [('SHARED', 'shared libraries'),
+                   ('STATIC', 'static libraries'),
+                   ('CORE', 'libvapoursynth'),
+                   ('AVISYNTH', 'Avisynth compatibility'),
+                   ('SCRIPT', 'libvapoursynth-script'),
+                   ('PIPE', 'vspipe'),
+                   ('FILTERS', 'included filters'),
+                   ('EXAMPLES', 'plugin examples'),
+                   ('DOCS', 'documentation')]:
+        conf.msg('Enabling {0}?'.format(y), 'yes' if conf.env[x] == 'true' else 'no')
 
     conf.define('VS_PATH_PREFIX', conf.env.PREFIX)
     conf.msg('Setting PREFIX to', conf.env.PREFIX)
