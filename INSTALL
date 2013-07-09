@@ -51,16 +51,22 @@ fine-tune the build:
   Specifies whether to build a shared library.
 * --static=true/false (default: false)
   Specifies whether to build a static library.
+* --core=true/false (default: true)
+  Specifies whether to build libvapoursynth.
+* --avisynth=true/false (default: true)
+  Specifies whether to build the Avisynth compatibility layer
+  when building on Windows (has no effect on other OSs).
+* --script=true/false (default: true)
+  Specifies whether to build libvapoursynth-script.
+* --pipe=true/false (default: true)
+  Specifies whether to build VSPipe.
 * --filters=true/false (default: true)
   Specifies whether to build the included filters. These are
   always built as shared libraries.
-* --avisynth=true/false (default: true)
-  Specifies whether to build the Avisynth compatibility layer
-  when building on Windows.
-* --docs=true/false (default: false)
-  Specifies whether to build the Sphinx-based documentation.
 * --examples=true/false (default: false)
   Specifies whether to install the SDK examples.
+* --docs=true/false (default: false)
+  Specifies whether to build the Sphinx-based documentation.
 
 Once the project is configured, simply execute:
 
