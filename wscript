@@ -78,13 +78,21 @@ def options(opt):
     opt.add_option('--plugindir', action = 'store', default = '${LIBDIR}/vapoursynth', help = 'plugin installation directory')
     opt.add_option('--docdir', action = 'store', default = '${PREFIX}/share/doc/vapoursynth', help = 'documentation installation directory')
     opt.add_option('--includedir', action = 'store', default = '${PREFIX}/include/vapoursynth', help = 'header installation directory')
+
     opt.add_option('--mode', action = 'store', default = 'release', help = 'the mode to compile in (debug/release)')
-    opt.add_option('--shared', action = 'store', default = 'true', help = 'build a shared library (true/false)')
-    opt.add_option('--static', action = 'store', default = 'false', help = 'build a static library (true/false)')
-    opt.add_option('--filters', action = 'store', default = 'true', help = 'build included filters (true/false)')
+
+    opt.add_option('--shared', action = 'store', default = 'true', help = 'build shared libraries (true/false)')
+    opt.add_option('--static', action = 'store', default = 'false', help = 'build static libraries (true/false)')
+
+    opt.add_option('--core', action = 'store', default = 'true', help = 'build the libvapoursynth library (true/false)')
     opt.add_option('--avisynth', action = 'store', default = 'true', help = 'build Avisynth compatibility layer (true/false)')
-    opt.add_option('--docs', action = 'store', default = 'false', help = 'build the documentation (true/false)')
+    opt.add_option('--script', action = 'store', default = 'true', help = 'build the libvapoursynth-script library (true/false)')
+    opt.add_option('--pipe', action = 'store', default = 'true', help = 'build the vspipe program (true/false)')
+
+    opt.add_option('--filters', action = 'store', default = 'true', help = 'build included filters (true/false)')
     opt.add_option('--examples', action = 'store', default = 'false', help = 'install SDK examples (true/false)')
+
+    opt.add_option('--docs', action = 'store', default = 'false', help = 'build the documentation (true/false)')
 
 def configure(conf):
     def add_options(flags, options):
@@ -93,11 +101,75 @@ def configure(conf):
 
     conf.load('compiler_c')
     conf.load('compiler_cxx')
-    conf.load('qt4')
-    conf.load('python')
 
-    conf.check_python_version((3, 0, 0))
-    conf.check_python_headers()
+    # Normalize OS.
+    os = 'windows' if conf.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin'] else conf.env.DEST_OS
+
+    conf.define('VS_TARGET_OS_' + os.upper(), 1)
+    conf.msg('Settting DEST_OS to', conf.env.DEST_OS)
+
+    # Normalize CPU values.
+    if conf.env.DEST_CPU in ['x86', 'x86_64', 'x64', 'amd64', 'x86_amd64']:
+        cpu = 'x86'
+    elif conf.env.DEST_CPU == 'ia':
+        cpu = 'ia64'
+    elif conf.env.DEST_CPU in ['aarch64', 'thumb']:
+        cpu = 'arm'
+    elif conf.env.DEST_CPU == 's390x':
+        cpu = 's390'
+    else:
+        cpu = conf.env.DEST_CPU
+
+    conf.define('VS_TARGET_CPU_' + cpu.upper(), 1)
+    conf.msg('Settting DEST_CPU to', conf.env.DEST_CPU)
+
+    # No need to sanitize BINFMT.
+    conf.define('VS_TARGET_BINFMT_' + conf.env.DEST_BINFMT.upper(), 1)
+    conf.msg('Settting DEST_BINFMT to', conf.env.DEST_BINFMT)
+
+    def check_feature(name, desc):
+        val = conf.options.__dict__[name]
+
+        if not val in ['true', 'false']:
+            conf.fatal('--{0} must be either true or false.'.format(name))
+        else:
+            u = name.upper()
+
+            conf.env[u] = val
+            conf.define('VS_FEATURE_' + u, 1 if val == 'true' else 0)
+            conf.msg('Enabling {0}?'.format(desc), 'yes' if conf.env[u] == 'true' else 'no')
+
+    check_feature('shared', 'shared libraries')
+    check_feature('static', 'static libraries')
+
+    check_feature('core', 'libvapoursynth')
+    check_feature('avisynth', 'Avisynth compatibility')
+    check_feature('script', 'libvapoursynth-script')
+    check_feature('pipe', 'vspipe')
+
+    check_feature('filters', 'included filters')
+    check_feature('examples', 'SDK examples')
+
+    check_feature('docs', 'documentation')
+
+    if (conf.env.SHARED, conf.env.STATIC) == ('false', 'false'):
+        conf.fatal('--static and --shared cannot both be false.')
+
+    if conf.env.CORE == 'false':
+        conf.env.SCRIPT = 'false'
+
+    if 'false' in [conf.env.CORE, conf.env.SCRIPT]:
+        conf.env.PIPE = 'false'
+
+    conf.define('VS_PATH_PREFIX', conf.env.PREFIX)
+    conf.msg('Setting PREFIX to', conf.env.PREFIX)
+
+    for dir in ['libdir', 'plugindir', 'docdir', 'includedir']:
+        u = dir.upper()
+
+        conf.env[u] = Utils.subst_vars(conf.options.__dict__[dir], conf.env)
+        conf.define('VS_PATH_' + u, conf.env[u])
+        conf.msg('Setting {0} to'.format(u), conf.env[u])
 
     if conf.env.DEST_CPU in ['x86', 'x86_64', 'x64', 'amd64', 'x86_amd64']:
         # Load Yasm explicitly, then the Nasm module which
@@ -203,88 +275,42 @@ def configure(conf):
                         ['-Wl,-Bsymbolic',
                          '-Wl,-z,noexecstack'])
 
-    # Normalize OS.
-    os = 'windows' if conf.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin'] else conf.env.DEST_OS
+    if conf.env.CORE == 'true':
+        conf.load('qt4')
 
-    conf.define('VS_TARGET_OS_' + os.upper(), 1)
-    conf.msg('Settting DEST_OS to', conf.env.DEST_OS)
+        conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore')
+        conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore', type_name = 'QAtomicInt')
 
-    # Normalize CPU values.
-    if conf.env.DEST_CPU in ['x86', 'x86_64', 'x64', 'amd64', 'x86_amd64']:
-        cpu = 'x86'
-    elif conf.env.DEST_CPU == 'ia':
-        cpu = 'ia64'
-    elif conf.env.DEST_CPU in ['aarch64', 'thumb']:
-        cpu = 'arm'
-    elif conf.env.DEST_CPU == 's390x':
-        cpu = 's390'
-    else:
-        cpu = conf.env.DEST_CPU
+        conf.check_cc(lib = 'swscale')
+        conf.check_cc(use = ['SWSCALE'], header_name = 'libswscale/swscale.h')
+        conf.check_cc(use = ['SWSCALE'], header_name = 'libswscale/swscale.h', function_name = 'swscale_license')
 
-    conf.define('VS_TARGET_CPU_' + cpu.upper(), 1)
-    conf.msg('Settting DEST_CPU to', conf.env.DEST_CPU)
+        conf.check_cc(lib = 'avutil')
+        conf.check_cc(use = ['AVUTIL'], header_name = 'libavutil/avutil.h')
+        conf.check_cc(use = ['AVUTIL'], header_name = 'libavutil/avutil.h', function_name = 'avutil_license')
 
-    # No need to sanitize BINFMT.
-    conf.define('VS_TARGET_BINFMT_' + conf.env.DEST_BINFMT.upper(), 1)
-    conf.msg('Settting DEST_BINFMT to', conf.env.DEST_BINFMT)
+        conf.check_cc(lib = 'avcodec')
+        conf.check_cc(use = ['AVCODEC'], header_name = 'libavcodec/avcodec.h')
+        conf.check_cc(use = ['AVCODEC'], header_name = 'libavcodec/avcodec.h', function_name = 'avcodec_license')
 
-    def check_feature(name, desc):
-        val = conf.options.__dict__[name]
+    if conf.env.SCRIPT == 'true':
+        conf.load('python')
 
-        if not val in ['true', 'false']:
-            conf.fatal('--{0} must be either true or false.'.format(name))
-        else:
-            u = name.upper()
+        conf.check_python_version((3, 0, 0))
+        conf.check_python_headers()
 
-            conf.env[u] = val
-            conf.define('VS_FEATURE_' + u, 1 if val == 'true' else 0)
-            conf.msg('Enabling {0}?'.format(desc), 'yes' if conf.env[u] == 'true' else 'no')
+    if 'true' in [conf.env.CORE, conf.env.SCRIPT]:
+        libs = '-lm '
 
-    check_feature('shared', 'shared library')
-    check_feature('static', 'static library')
-    check_feature('filters', 'included filters')
-    check_feature('avisynth', 'Avisynth compatibility')
-    check_feature('docs', 'documentation')
-    check_feature('examples', 'SDK examples')
+        if not conf.env.DEST_OS in ['darwin', 'freebsd', 'netbsd', 'openbsd']:
+            libs += '-ldl '
 
-    if (conf.env.SHARED, conf.env.STATIC) == ('false', 'false'):
-        conf.fatal('--static and --shared cannot both be false.')
+        conf.env.LIBS = libs.strip()
 
-    conf.define('VS_PATH_PREFIX', conf.env.PREFIX)
-    conf.msg('Setting PREFIX to', conf.env.PREFIX)
-
-    for dir in ['libdir', 'plugindir', 'docdir', 'includedir']:
-        u = dir.upper()
-
-        conf.env[u] = Utils.subst_vars(conf.options.__dict__[dir], conf.env)
-        conf.define('VS_PATH_' + u, conf.env[u])
-        conf.msg('Setting {0} to'.format(u), conf.env[u])
-
-    conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore')
-    conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore', type_name = 'QAtomicInt')
-
-    conf.check_cc(lib = 'swscale')
-    conf.check_cc(use = ['SWSCALE'], header_name = 'libswscale/swscale.h')
-    conf.check_cc(use = ['SWSCALE'], header_name = 'libswscale/swscale.h', function_name = 'swscale_license')
-
-    conf.check_cc(lib = 'avutil')
-    conf.check_cc(use = ['AVUTIL'], header_name = 'libavutil/avutil.h')
-    conf.check_cc(use = ['AVUTIL'], header_name = 'libavutil/avutil.h', function_name = 'avutil_license')
-
-    conf.check_cc(lib = 'avcodec')
-    conf.check_cc(use = ['AVCODEC'], header_name = 'libavcodec/avcodec.h')
-    conf.check_cc(use = ['AVCODEC'], header_name = 'libavcodec/avcodec.h', function_name = 'avcodec_license')
-
-    conf.check_cc(lib = 'ass', mandatory = False)
-    conf.check_cc(use = ['ASS'], header_name = 'ass/ass.h', mandatory = False)
-    conf.check_cc(use = ['ASS'], header_name = 'ass/ass.h', function_name = 'ass_library_init', mandatory = False)
-
-    libs = '-lm '
-
-    if not conf.env.DEST_OS in ['darwin', 'freebsd', 'netbsd', 'openbsd']:
-        libs += '-ldl '
-
-    conf.env.LIBS = libs.strip()
+    if conf.env.FILTERS == 'true':
+        conf.check_cc(lib = 'ass', mandatory = False)
+        conf.check_cc(use = ['ASS'], header_name = 'ass/ass.h', mandatory = False)
+        conf.check_cc(use = ['ASS'], header_name = 'ass/ass.h', function_name = 'ass_library_init', mandatory = False)
 
 def build(bld):
     def search_paths(paths):
@@ -295,68 +321,71 @@ def build(bld):
                          os.path.join(path, '*.cpp')]
 
             if bld.env.DEST_CPU in ['x86', 'x86_64', 'x64', 'amd64', 'x86_amd64']:
-                srcpaths += [os.path.join(path, 'x86', '*.asm')]
-            elif bld.env.DEST_CPU == 'arm':
-                srcpaths += [os.path.join(path, 'arm', '*.S')]
-            elif bld.env.DEST_CPU == 'powerpc':
-                srcpaths += [os.path.join(path, 'ppc', '*.S')]
+                srcpaths += [os.path.join(path, '*.asm')]
+            else:
+                srcpaths += [os.path.join(path, '*.S')]
 
         return srcpaths
 
-    sources = search_paths([os.path.join('src', 'core'),
-                            os.path.join('src', 'core', 'asm')])
+    if bld.env.CORE == 'true':
+        sources = search_paths([os.path.join('src', 'core'),
+                                os.path.join('src', 'core', 'asm')])
 
-    script_sources = search_paths([os.path.join('src', 'vsscript')])
+        if bld.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin'] and bld.env.AVISYNTH == 'true':
+            sources += search_paths([os.path.join('src', 'avisynth')])
 
-    pipe_sources = search_paths([os.path.join('src', 'vspipe')])
+        bld(features = 'c qxx asm',
+            includes = 'include',
+            use = ['QTCORE', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
+            source = bld.path.ant_glob(sources),
+            target = 'objs')
 
-    if bld.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin'] and bld.env.AVISYNTH == 'true':
-        sources += search_paths([os.path.join('src', 'avisynth')])
+        if bld.env.SHARED == 'true':
+            bld(features = 'c qxx asm cxxshlib',
+                use = ['objs'],
+                target = 'vapoursynth',
+                install_path = '${LIBDIR}')
 
-    bld(features = 'c qxx asm',
-        includes = 'include',
-        use = ['QTCORE', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
-        source = bld.path.ant_glob(sources),
-        target = 'objs')
+        if bld.env.STATIC == 'true':
+            bld(features = 'c qxx asm cxxstlib',
+                use = ['objs', 'QTCORE', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
+                target = 'vapoursynth',
+                install_path = '${LIBDIR}')
 
-    bld(features = 'c qxx asm pyembed',
-        includes = 'include',
-        use = ['QTCORE', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
-        source = bld.path.ant_glob(script_sources),
-        target = 'script_objs')
+    if bld.env.SCRIPT == 'true':
+        script_sources = search_paths([os.path.join('src', 'vsscript')])
 
-    bld(features = 'c qxx asm',
-        includes = 'include',
-        use = ['QTCORE', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
-        source = bld.path.ant_glob(pipe_sources),
-        target = 'pipe_objs')
+        bld(features = 'c qxx asm pyembed',
+            includes = 'include',
+            use = ['QTCORE', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
+            source = bld.path.ant_glob(script_sources),
+            target = 'script_objs')
 
-    if bld.env.SHARED == 'true':
-        bld(features = 'c qxx asm cxxshlib',
-            use = ['objs'],
-            target = 'vapoursynth',
-            install_path = '${LIBDIR}')
+        if bld.env.SHARED == 'true':
+            bld(features = 'c qxx asm cxxshlib pyembed',
+                use = ['script_objs'],
+                target = 'vapoursynth-script',
+                install_path = '${LIBDIR}')
 
-        bld(features = 'c qxx asm cxxshlib pyembed',
-            use = ['script_objs'],
-            target = 'vapoursynth-script',
-            install_path = '${LIBDIR}')
+        if bld.env.STATIC == 'true':
+            bld(features = 'c qxx asm cxxstlib pyembed',
+                use = ['script_objs', 'QTCORE', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
+                target = 'vapoursynth-script',
+                install_path = '${LIBDIR}')
 
-    if bld.env.STATIC == 'true':
-        bld(features = 'c qxx asm cxxstlib',
-            use = ['objs', 'QTCORE', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
-            target = 'vapoursynth',
-            install_path = '${LIBDIR}')
+    if bld.env.PIPE == 'true':
+        pipe_sources = search_paths([os.path.join('src', 'vspipe')])
 
-        bld(features = 'c qxx asm cxxstlib pyembed',
-            use = ['script_objs', 'QTCORE', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
-            target = 'vapoursynth-script',
-            install_path = '${LIBDIR}')
+        bld(features = 'c qxx asm',
+            includes = 'include',
+            use = ['QTCORE', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
+            source = bld.path.ant_glob(pipe_sources),
+            target = 'pipe_objs')
 
-    bld(features = 'c qxx asm cxxprogram',
-        includes = 'include',
-        use = ['pipe_objs', 'vapoursynth', 'vapoursynth-script', 'QTCORE', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
-        target = 'vspipe')
+        bld(features = 'c qxx asm cxxprogram',
+            includes = 'include',
+            use = ['pipe_objs', 'vapoursynth', 'vapoursynth-script', 'QTCORE', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
+            target = 'vspipe')
 
     if bld.env.FILTERS == 'true':
         bld(features = 'c qxx asm cxxshlib',
@@ -401,25 +430,28 @@ def build(bld):
         bld.install_files('${DOCDIR}/examples',
                           bld.path.ant_glob([os.path.join('sdk', '*')]))
 
-    bld.install_files('${INCLUDEDIR}', [os.path.join('include', 'VapourSynth.h'),
-                                        os.path.join('include', 'VSHelper.h'),
-                                        os.path.join('include', 'VSScript.h')])
+    if bld.env.CORE == 'true':
+        bld.install_files('${INCLUDEDIR}', [os.path.join('include', 'VapourSynth.h'),
+                                            os.path.join('include', 'VSHelper.h')])
 
-    bld(source = os.path.join('pc', 'vapoursynth.pc.in'),
-        install_path = '${LIBDIR}/pkgconfig',
-        PREFIX = bld.env.PREFIX,
-        LIBDIR = bld.env.LIBDIR,
-        INCLUDEDIR = bld.env.INCLUDEDIR,
-        LIBS = bld.env.LIBS,
-        VERSION = VERSION)
+        bld(source = os.path.join('pc', 'vapoursynth.pc.in'),
+            install_path = '${LIBDIR}/pkgconfig',
+            PREFIX = bld.env.PREFIX,
+            LIBDIR = bld.env.LIBDIR,
+            INCLUDEDIR = bld.env.INCLUDEDIR,
+            LIBS = bld.env.LIBS,
+            VERSION = VERSION)
 
-    bld(source = os.path.join('pc', 'vapoursynth-script.pc.in'),
-        install_path = '${LIBDIR}/pkgconfig',
-        PREFIX = bld.env.PREFIX,
-        LIBDIR = bld.env.LIBDIR,
-        INCLUDEDIR = bld.env.INCLUDEDIR,
-        LIBS = bld.env.LIBS,
-        VERSION = VERSION)
+    if bld.env.SCRIPT == 'true':
+        bld.install_files('${INCLUDEDIR}', [os.path.join('include', 'VSScript.h')])
+
+        bld(source = os.path.join('pc', 'vapoursynth-script.pc.in'),
+            install_path = '${LIBDIR}/pkgconfig',
+            PREFIX = bld.env.PREFIX,
+            LIBDIR = bld.env.LIBDIR,
+            INCLUDEDIR = bld.env.INCLUDEDIR,
+            LIBS = bld.env.LIBS,
+            VERSION = VERSION)
 
 def test(ctx):
     '''runs the Cython tests'''
