@@ -419,13 +419,13 @@ def build(bld):
             includes = 'include',
             source = os.path.join('sdk', 'filter_skeleton.c'),
             target = 'example_skeleton',
-            install_path = None)
+            install_path = '${PLUGINDIR}')
 
         bld(features = 'c cxxshlib',
             includes = 'include',
             source = os.path.join('sdk', 'invert_example.c'),
             target = 'example_invert',
-            install_path = None)
+            install_path = '${PLUGINDIR}')
 
         bld.install_files('${DOCDIR}/examples',
                           bld.path.ant_glob([os.path.join('sdk', '*')]))
