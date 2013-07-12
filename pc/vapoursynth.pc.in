@@ -2,7 +2,7 @@ prefix=@PREFIX@
 libdir=@LIBDIR@
 includedir=@INCLUDEDIR@
 
-Name: VapourSynth
+Name: vapoursynth
 Description: A frameserver for the 21st century
 Version: @VERSION@
 
