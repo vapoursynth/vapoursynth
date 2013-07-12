@@ -2154,6 +2154,8 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
     else
         d.lut = malloc(sizeof(uint16_t) * n);
 
+    m = (1 << bits) - 1;
+
     if (bits == 8) {
         uint8_t *lut = d.lut;
 
@@ -2161,7 +2163,7 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
             int err;
             int64_t v = vsapi->propGetInt(in, "lut", i, &err);
 
-            if (v < 0 || v >= n) {
+            if (v < 0 || v > m) {
                 free(d.lut);
                 vsapi->freeNode(d.node[0]);
                 vsapi->freeNode(d.node[1]);
@@ -2177,7 +2179,7 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
             int err;
             int64_t v = vsapi->propGetInt(in, "lut", i, &err);
 
-            if (v < 0 || v >= n) {
+            if (v < 0 || v > m) {
                 free(d.lut);
                 vsapi->freeNode(d.node[0]);
                 vsapi->freeNode(d.node[1]);
