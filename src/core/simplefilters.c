@@ -22,6 +22,11 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdint.h>
+#ifdef _MSC_VER
+#   define PRIi64 "I64d"
+#else
+#   include <inttypes.h>
+#endif
 #include "simplefilters.h"
 #include "VSHelper.h"
 
@@ -1891,9 +1896,72 @@ static void VS_CC lutFree(void *instanceData, VSCore *core, const VSAPI *vsapi) 
     free(d);
 }
 
+static void VS_CC funcToLut(char *buff, int n, uint8_t *lut, VSFuncRef *func, VSCore *core, const VSAPI *vsapi) {
+    VSMap *in = vsapi->createMap();
+    VSMap *out = vsapi->createMap();
+    int i;
+    int64_t v;
+    int err;
+    const char *ret;
+
+    if (n == (1 << 8)) {
+        for (i = 0; i < n; i++) {
+            vsapi->propSetInt(in, "x", i, paAppend);
+            vsapi->callFunc(func, in, out, core, vsapi);
+            vsapi->clearMap(in);
+
+            ret = vsapi->getError(out);
+            if (ret) {
+                vsapi->clearMap(out);
+                sprintf(buff, "%s", ret);
+                break;
+            }
+
+            v = vsapi->propGetInt(out, "val", 0, &err);
+            vsapi->clearMap(out);
+
+            if (v < 0 || v >= n) {
+                sprintf(buff, "Lut: function(%d) returned invalid value %"PRIi64, i, v);
+                break;
+            }
+
+            lut[i] = (uint8_t)v;
+        }
+    } else {
+        uint16_t *t = (uint16_t *)lut;
+
+        for (i = 0; i < n; i++) {
+            vsapi->propSetInt(in, "x", i, paAppend);
+            vsapi->callFunc(func, in, out, core, vsapi);
+            vsapi->clearMap(in);
+
+            ret = vsapi->getError(out);
+            if (ret) {
+                vsapi->clearMap(out);
+                sprintf(buff, "%s", ret);
+                break;
+            }
+
+            v = vsapi->propGetInt(out, "val", 0, &err);
+            vsapi->clearMap(out);
+
+            if (v < 0 || v >= n) {
+                sprintf(buff, "Lut: function(%d) returned invalid value %"PRIi64, i, v);
+                break;
+            }
+
+            t[i] = (uint16_t)v;
+        }
+    }
+
+    vsapi->freeMap(in);
+    vsapi->freeMap(out);
+}
+
 static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     LutData d;
     LutData *data;
+    VSFuncRef *func;
     int i;
     int n, m, o;
 
@@ -1927,16 +1995,41 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
         d.process[o] = 1;
     }
 
+    func = vsapi->propGetFunc(in, "function", 0, 0);
+    m = vsapi->propNumElements(in, "lut");
+
+    if (m <= 0 && !func) {
+        vsapi->freeNode(d.node);
+        RETERROR("Lut: Both lut and function are not set");
+    }
+
     n = 1 << d.vi->format->bitsPerSample;
 
-    if (vsapi->propNumElements(in, "lut") != n) {
-        vsapi->freeNode(d.node);
-        RETERROR("Lut: bad lut length");
+    if (m > 0) {
+        if (func) {
+            vsapi->freeFunc(func);
+            func = 0;
+        }
+
+        if (m != n) {
+            vsapi->freeNode(d.node);
+            RETERROR("Lut: bad lut length");
+        }
     }
 
     d.lut = malloc(d.vi->format->bytesPerSample * n);
 
-    if (d.vi->format->bytesPerSample == 1) {
+    if (func) {
+        char errMsg[256] = {0};
+        funcToLut(errMsg, n, d.lut, func, core, vsapi);
+        vsapi->freeFunc(func);
+
+        if (errMsg[0]) {
+            free(d.lut);
+            vsapi->freeNode(d.node);
+            RETERROR(errMsg);
+        }
+    } else if (d.vi->format->bytesPerSample == 1) {
         uint8_t *lut = d.lut;
 
         for (i = 0; i < n; i++) {
@@ -3420,7 +3513,7 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("StackHorizontal", "clips:clip[];", stackCreate, 0, plugin);
     registerFunc("BlankClip", "clip:clip:opt;width:int:opt;height:int:opt;format:int:opt;length:int:opt;fpsnum:int:opt;fpsden:int:opt;color:float[]:opt;", blankClipCreate, 0, plugin);
     registerFunc("AssumeFPS", "clip:clip;src:clip:opt;fpsnum:int:opt;fpsden:int:opt;", assumeFPSCreate, 0, plugin);
-    registerFunc("Lut", "clip:clip;lut:int[];planes:int[];", lutCreate, 0, plugin);
+    registerFunc("Lut", "clip:clip;planes:int[];lut:int[]:opt;function:func:opt;", lutCreate, 0, plugin);
     registerFunc("Lut2", "clips:clip[];lut:int[];planes:int[];bits:int:opt;", lut2Create, 0, plugin);
     registerFunc("SelectClip", "clips:clip[];src:clip[];selector:func;", selectClipCreate, 0, plugin);
     registerFunc("ModifyFrame", "clips:clip[];selector:func;", modifyFrameCreate, 0, plugin);
