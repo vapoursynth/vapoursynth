@@ -22,11 +22,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdint.h>
-#ifdef _MSC_VER
-#   define PRIi64 "I64d"
-#else
-#   include <inttypes.h>
-#endif
+#include <inttypes.h>
 #include "simplefilters.h"
 #include "VSHelper.h"
 
@@ -1906,14 +1902,12 @@ static void VS_CC funcToLut(char *buff, int n, uint8_t *lut, VSFuncRef *func, VS
 
     if (n == (1 << 8)) {
         for (i = 0; i < n; i++) {
-            vsapi->propSetInt(in, "x", i, paAppend);
+            vsapi->propSetInt(in, "x", i, paReplace);
             vsapi->callFunc(func, in, out, core, vsapi);
-            vsapi->clearMap(in);
 
             ret = vsapi->getError(out);
             if (ret) {
-                vsapi->clearMap(out);
-                sprintf(buff, "%s", ret);
+                strcpy(buff, ret);
                 break;
             }
 
@@ -1931,14 +1925,12 @@ static void VS_CC funcToLut(char *buff, int n, uint8_t *lut, VSFuncRef *func, VS
         uint16_t *t = (uint16_t *)lut;
 
         for (i = 0; i < n; i++) {
-            vsapi->propSetInt(in, "x", i, paAppend);
+            vsapi->propSetInt(in, "x", i, paReplace);
             vsapi->callFunc(func, in, out, core, vsapi);
-            vsapi->clearMap(in);
 
             ret = vsapi->getError(out);
             if (ret) {
-                vsapi->clearMap(out);
-                sprintf(buff, "%s", ret);
+                strcpy(buff, ret);
                 break;
             }
 
@@ -2185,28 +2177,22 @@ static void VS_CC funcToLut2(char *buff, int bits, int x, int y, uint8_t *lut, V
     if (bits == 8) {
         for (i = 0; i < y; i++) {
             for (j = 0; j < x; j++) {
-                vsapi->propSetInt(in, "x", j, paAppend);
-                vsapi->propSetInt(in, "y", i, paAppend);
+                vsapi->propSetInt(in, "x", j, paReplace);
+                vsapi->propSetInt(in, "y", i, paReplace);
                 vsapi->callFunc(func, in, out, core, vsapi);
-                vsapi->clearMap(in);
 
                 ret = vsapi->getError(out);
                 if (ret) {
-                    vsapi->clearMap(out);
-                    vsapi->freeMap(in);
-                    vsapi->freeMap(out);
-                    sprintf(buff, "%s", ret);
-                    return;
+                    strcpy(buff, ret);
+                    goto funcToLut2Free;
                 }
 
                 v = vsapi->propGetInt(out, "val", 0, &err);
                 vsapi->clearMap(out);
 
                 if (v < 0 || v > maximum) {
-                    vsapi->freeMap(in);
-                    vsapi->freeMap(out);
                     sprintf(buff, "Lut2: function(%d, %d) returned invalid value %"PRIi64, j, i, v);
-                    return;
+                    goto funcToLut2Free;
                 }
 
                 lut[j + i * x] = (uint8_t)v;
@@ -2217,28 +2203,22 @@ static void VS_CC funcToLut2(char *buff, int bits, int x, int y, uint8_t *lut, V
 
         for (i = 0; i < y; i++) {
             for (j = 0; j < x; j++) {
-                vsapi->propSetInt(in, "x", j, paAppend);
-                vsapi->propSetInt(in, "y", i, paAppend);
+                vsapi->propSetInt(in, "x", j, paReplace);
+                vsapi->propSetInt(in, "y", i, paReplace);
                 vsapi->callFunc(func, in, out, core, vsapi);
-                vsapi->clearMap(in);
 
                 ret = vsapi->getError(out);
                 if (ret) {
-                    vsapi->clearMap(out);
-                    vsapi->freeMap(in);
-                    vsapi->freeMap(out);
-                    sprintf(buff, "%s", ret);
-                    return;
+                    strcpy(buff, ret);
+                    goto funcToLut2Free;
                 }
 
                 v = vsapi->propGetInt(out, "val", 0, &err);
-                vsapi->clearMap(out);
+                vsapi->clearMap(out); 
 
                 if (v < 0 || v > maximum) {
-                    vsapi->freeMap(in);
-                    vsapi->freeMap(out);
                     sprintf(buff, "Lut2: function(%d, %d) returned invalid value %"PRIi64, j, i, v);
-                    return;
+                    goto funcToLut2Free;
                 }
 
                 t[j + i * x] = (uint16_t)v;
@@ -2246,6 +2226,7 @@ static void VS_CC funcToLut2(char *buff, int bits, int x, int y, uint8_t *lut, V
         }
     }
 
+    funcToLut2Free:
     vsapi->freeMap(in);
     vsapi->freeMap(out);
 }
