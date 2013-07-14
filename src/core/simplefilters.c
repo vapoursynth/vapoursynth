@@ -22,8 +22,10 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stdarg.h>
 #ifdef _MSC_VER
 #   define PRIi64 "I64d"
+#   define snprintf(buff, len, ...) _snprintf_s(buff, len - 1, __VA_ARGS__)
 #else
 #   include <inttypes.h>
 #endif
@@ -1818,6 +1820,7 @@ static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, V
 
 //////////////////////////////////////////
 // Lut
+#define MSG_BUFF 256
 
 typedef struct {
     VSNodeRef *node;
@@ -1906,51 +1909,49 @@ static void VS_CC funcToLut(char *buff, int n, uint8_t *lut, VSFuncRef *func, VS
 
     if (n == (1 << 8)) {
         for (i = 0; i < n; i++) {
-            vsapi->propSetInt(in, "x", i, paAppend);
+            vsapi->propSetInt(in, "x", i, paReplace);
             vsapi->callFunc(func, in, out, core, vsapi);
-            vsapi->clearMap(in);
 
             ret = vsapi->getError(out);
             if (ret) {
-                vsapi->clearMap(out);
                 sprintf(buff, "%s", ret);
                 break;
             }
 
             v = vsapi->propGetInt(out, "val", 0, &err);
-            vsapi->clearMap(out);
 
             if (v < 0 || v >= n) {
-                sprintf(buff, "Lut: function(%d) returned invalid value %"PRIi64, i, v);
+                snprintf(buff, MSG_BUFF, "Lut: function(%d) returned invalid value %"PRIi64, i, v);
                 break;
             }
 
             lut[i] = (uint8_t)v;
+
+            vsapi->clearMap(out);
         }
     } else {
         uint16_t *t = (uint16_t *)lut;
 
         for (i = 0; i < n; i++) {
-            vsapi->propSetInt(in, "x", i, paAppend);
+            vsapi->propSetInt(in, "x", i, paReplace);
             vsapi->callFunc(func, in, out, core, vsapi);
-            vsapi->clearMap(in);
 
             ret = vsapi->getError(out);
             if (ret) {
-                vsapi->clearMap(out);
                 sprintf(buff, "%s", ret);
                 break;
             }
 
             v = vsapi->propGetInt(out, "val", 0, &err);
-            vsapi->clearMap(out);
 
             if (v < 0 || v >= n) {
-                sprintf(buff, "Lut: function(%d) returned invalid value %"PRIi64, i, v);
+                snprintf(buff, MSG_BUFF, "Lut: function(%d) returned invalid value %"PRIi64, i, v);
                 break;
             }
 
             t[i] = (uint16_t)v;
+
+            vsapi->clearMap(out);
         }
     }
 
@@ -2020,7 +2021,7 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
     d.lut = malloc(d.vi->format->bytesPerSample * n);
 
     if (func) {
-        char errMsg[256] = {0};
+        char errMsg[MSG_BUFF] = {0};
         funcToLut(errMsg, n, d.lut, func, core, vsapi);
         vsapi->freeFunc(func);
 
@@ -2185,31 +2186,30 @@ static void VS_CC funcToLut2(char *buff, int bits, int x, int y, uint8_t *lut, V
     if (bits == 8) {
         for (i = 0; i < y; i++) {
             for (j = 0; j < x; j++) {
-                vsapi->propSetInt(in, "x", j, paAppend);
-                vsapi->propSetInt(in, "y", i, paAppend);
+                vsapi->propSetInt(in, "x", j, paReplace);
+                vsapi->propSetInt(in, "y", i, paReplace);
                 vsapi->callFunc(func, in, out, core, vsapi);
-                vsapi->clearMap(in);
 
                 ret = vsapi->getError(out);
                 if (ret) {
-                    vsapi->clearMap(out);
                     vsapi->freeMap(in);
                     vsapi->freeMap(out);
-                    sprintf(buff, "%s", ret);
+                    snprintf(buff, MSG_BUFF, "%s", ret);
                     return;
                 }
 
                 v = vsapi->propGetInt(out, "val", 0, &err);
-                vsapi->clearMap(out);
 
                 if (v < 0 || v > maximum) {
                     vsapi->freeMap(in);
                     vsapi->freeMap(out);
-                    sprintf(buff, "Lut2: function(%d, %d) returned invalid value %"PRIi64, j, i, v);
+                    snprintf(buff, MSG_BUFF, "Lut2: function(%d, %d) returned invalid value %"PRIi64, j, i, v);
                     return;
                 }
 
                 lut[j + i * x] = (uint8_t)v;
+
+                vsapi->clearMap(out);
             }
         }
     } else {
@@ -2217,31 +2217,30 @@ static void VS_CC funcToLut2(char *buff, int bits, int x, int y, uint8_t *lut, V
 
         for (i = 0; i < y; i++) {
             for (j = 0; j < x; j++) {
-                vsapi->propSetInt(in, "x", j, paAppend);
-                vsapi->propSetInt(in, "y", i, paAppend);
+                vsapi->propSetInt(in, "x", j, paReplace);
+                vsapi->propSetInt(in, "y", i, paReplace);
                 vsapi->callFunc(func, in, out, core, vsapi);
-                vsapi->clearMap(in);
 
                 ret = vsapi->getError(out);
                 if (ret) {
-                    vsapi->clearMap(out);
                     vsapi->freeMap(in);
                     vsapi->freeMap(out);
-                    sprintf(buff, "%s", ret);
+                    snprintf(buff, MSG_BUFF, "%s", ret);
                     return;
                 }
 
                 v = vsapi->propGetInt(out, "val", 0, &err);
-                vsapi->clearMap(out);
 
                 if (v < 0 || v > maximum) {
                     vsapi->freeMap(in);
                     vsapi->freeMap(out);
-                    sprintf(buff, "Lut2: function(%d, %d) returned invalid value %"PRIi64, j, i, v);
+                    snprintf(buff, MSG_BUFF, "Lut2: function(%d, %d) returned invalid value %"PRIi64, j, i, v);
                     return;
                 }
 
                 t[j + i * x] = (uint16_t)v;
+
+                vsapi->clearMap(out);
             }
         }
     }
@@ -2347,7 +2346,7 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
     m = (1 << bits) - 1;
 
     if (func) {
-        char errMsg[256] = {0};
+        char errMsg[MSG_BUFF] = {0};
         funcToLut2(errMsg, bits, d.vi[0]->format->bitsPerSample, d.vi[1]->format->bitsPerSample, d.lut, func, core, vsapi);
         vsapi->freeFunc(func);
 
@@ -2396,6 +2395,7 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
 
     vsapi->createFilter(in, out, "Lut2", lut2Init, lut2Getframe, lut2Free, fmParallel, 0, data, core);
 }
+#undef MSG_BUFF
 
 //////////////////////////////////////////
 // SelectClip
