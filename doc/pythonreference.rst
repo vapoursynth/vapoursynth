@@ -8,14 +8,18 @@ Classes and Functions
 
    Get the singleton Core object. If it is the first time the function is called the Core will be instantiated with the given options.
    If the Core already has been instantiated all options are ignored. Setting *threads* to a value greater than zero overrides the autodetection.
-   
-.. py:function:: clear_output(index = 0)
+ 
+.. py:function:: get_output([index = 0])
 
-   Clears a previously set clip for output. Note that if the clip is still in use by an application that embeds VapourSynth it may cause fatal errors.
+   Get a previously set output node. Throws an error if the index hasn't been set.
+ 
+.. py:function:: clear_output([index = 0])
+
+   Clears a previously set clip for output.
    
 .. py:function:: clear_outputs()
 
-   Clears all clips set for output in the current environment. Note that if the clip is still in use by an application that embeds VapourSynth it may cause fatal errors.
+   Clears all clips set for output in the current environment.
 
 .. py:class:: Core
 
@@ -30,6 +34,10 @@ Classes and Functions
    .. py:method:: get_plugins()
    
       Returns a dict containing all loaded plugins and their functions.
+      
+   .. py:method:: list_functions()
+   
+      Works similar to *get_plugins()* but returns a human readable string.
    
    .. py:method:: register_format(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h)
    
@@ -174,6 +182,10 @@ Classes and Functions
    
       Returns a dict containing all the functions in the plugin. You can access it by calling *core.std.get_functions()*.
       Replace *std* with the namespace of the plugin you want to query.
+      
+   .. py:method:: list_functions()
+   
+      Works similar to *get_functions()* but returns a human readable string.
       
 .. py:exception:: Error
 
