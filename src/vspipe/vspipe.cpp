@@ -120,7 +120,7 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
 
 bool outputNode() {
     if (requests < 1) {
-		const VSCoreInfo *info = vsapi->getCoreInfo(vseval_getCore(se));
+		const VSCoreInfo *info = vsapi->getCoreInfo(vsscript_getCore(se));
         requests = info->numThreads;
 	}
 
@@ -228,24 +228,6 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-	QFile scriptFile(nativeToQString(argv[1]));
-	if (!scriptFile.open(QIODevice::ReadOnly)) {
-        fprintf(stderr, "Failed to to open script file for reading\n");
-        return 1;
-	}
-
-	if (scriptFile.size() > 1024*1024*16) {
-        fprintf(stderr, "Script files bigger than 16MB not allowed\n");
-        return 1;
-	}
-
-    QByteArray scriptData = scriptFile.readAll();
-	scriptFile.close();
-    if (scriptData.isEmpty()) {
-        fprintf(stderr, "Failed to read script file or file is empty\n");
-        return 1;
-    }
-
 	QString outputFilename = nativeToQString(argv[2]);
 	if (outputFilename == "-") {
 		outFile = stdout;
@@ -299,30 +281,30 @@ int main(int argc, char **argv) {
 		}
 	}
 
-    if (!vseval_init()) {
+    if (!vsscript_init()) {
         fprintf(stderr, "Failed to initialize VapourSynth environment\n");
         return 1;
     }
 
-    vsapi = vseval_getVSApi();
+    vsapi = vsscript_getVSApi();
     if (!vsapi) {
         fprintf(stderr, "Failed to get VapourSynth API pointer\n");
-        vseval_finalize();
+        vsscript_finalize();
         return 1;
     }
 
-	if (vseval_evaluateScript(&se, scriptData.constData(), nativeToQString(argv[1]).toUtf8())) {
-        fprintf(stderr, "Script evaluation failed:\n%s", vseval_getError(se));
-        vseval_freeScript(se);
-        vseval_finalize();
+	if (vsscript_evaluateFile(&se, nativeToQString(argv[1]).toUtf8())) {
+        fprintf(stderr, "Script evaluation failed:\n%s", vsscript_getError(se));
+        vsscript_freeScript(se);
+        vsscript_finalize();
         return 1;
     }
 
-    node = vseval_getOutput(se, outputIndex);
+    node = vsscript_getOutput(se, outputIndex);
     if (!node) {
        fprintf(stderr, "Failed to retrieve output node. Invalid index specified?\n");
-       vseval_freeScript(se);
-       vseval_finalize();
+       vsscript_freeScript(se);
+       vsscript_finalize();
        return 1;
     }
 
@@ -348,8 +330,8 @@ int main(int argc, char **argv) {
 		if (!isConstantFormat(vi) || vi->numFrames == 0) {
 			fprintf(stderr, "Cannot output clips with varying dimensions or unknown length\n");
 			vsapi->freeNode(node);
-			vseval_freeScript(se);
-			vseval_finalize();
+			vsscript_freeScript(se);
+			vsscript_finalize();
 			return 1;
 		}
 
@@ -358,8 +340,8 @@ int main(int argc, char **argv) {
 
 	fflush(outFile);
     vsapi->freeNode(node);
-    vseval_freeScript(se);
-    vseval_finalize();
+    vsscript_freeScript(se);
+    vsscript_finalize();
 
 	return error;
 }

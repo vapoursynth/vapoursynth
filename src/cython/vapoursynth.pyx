@@ -1056,6 +1056,29 @@ cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, 
             return 1
         _environment_id = None
         return 0
+        
+cdef public api int vpy_evaluateFile(VPYScriptExport *se, const char *scriptFilename) nogil:
+    with gil:
+        if not se.pyenvdict:
+            evaldict = {}
+            Py_INCREF(evaldict)
+            se.pyenvdict = <void *>evaldict
+        try:
+            with open(scriptFilename.decode('utf-8'), 'rb') as f:
+                script = f.read(1024*1024*16)
+            return vpy_evaluateScript(se, script, scriptFilename)
+        except BaseException, e:
+            errstr = 'File reading exception:\n' + str(e)
+            errstr = errstr.encode('utf-8')
+            Py_INCREF(errstr)
+            se.errstr = <void *>errstr
+            return 2
+        except:
+            errstr = 'Unspecified file reading exception'
+            errstr = errstr.encode('utf-8')
+            Py_INCREF(errstr)
+            se.errstr = <void *>errstr
+            return 1
 
 cdef public api void vpy_freeScript(VPYScriptExport *se) nogil:
     with gil:

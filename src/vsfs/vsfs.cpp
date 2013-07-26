@@ -150,9 +150,9 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName)
 		if (script.empty())
 			goto vpyerror;
 
-		if (!vseval_evaluateScript(&se, script.c_str(), szScriptName)) {
+		if (!vsscript_evaluateScript(&se, script.c_str(), szScriptName)) {
 			
-			node = vseval_getOutput(se, 0);
+			node = vsscript_getOutput(se, 0);
 			if (!node)
 				goto vpyerror;
 			vi = vsapi->getVideoInfo(node);
@@ -186,13 +186,13 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName)
 			int error;
 			int64_t val;
 			VSMap *options = vsapi->createMap();
-			vseval_getVariable(se, "enable_v210", options);
+			vsscript_getVariable(se, "enable_v210", options);
 			val = vsapi->propGetInt(options, "enable_v210", 0, &error);
 			if (!error)
 				enable_v210 = !!val;
 			else
 				enable_v210 = false;
-			vseval_getVariable(se, "pad_scanlines", options);
+			vsscript_getVariable(se, "pad_scanlines", options);
 			val = vsapi->propGetInt(options, "pad_scanlines", 0, &error);
 			if (!error)
 				pad_scanlines = !!val;
@@ -200,7 +200,7 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName)
 				pad_scanlines = false;
 			vsapi->freeMap(options);
 
-			const VSCoreInfo *info = vsapi->getCoreInfo(vseval_getCore(se));
+			const VSCoreInfo *info = vsapi->getCoreInfo(vsscript_getCore(se));
 			num_threads = info->numThreads;
 
             if (vi->format->id == pfYUV422P10 && enable_v210) {
@@ -215,7 +215,7 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName)
             return 0;
         } else {
 			vpyerror:
-            setError(vseval_getError(se));
+            setError(vsscript_getError(se));
 			return ERROR_ACCESS_DENIED;
         }
     } 
@@ -462,7 +462,7 @@ int/*error*/ VapourSynther::newEnv()
     if (vi) {
         vsapi->freeNode(node);
         node = NULL;
-        vseval_freeScript(se);
+        vsscript_freeScript(se);
         se = NULL;
         delete [] packedPlane1;
         delete [] packedPlane2;
@@ -494,7 +494,7 @@ references(1),
     packedPlane2(0),
     pending_requests(0)
 {
-	vsapi = vseval_getVSApi();
+	vsapi = vsscript_getVSApi();
 }
 
 /*---------------------------------------------------------
@@ -510,7 +510,7 @@ VapourSynther::~VapourSynther(void)
 	if (se) {
 		if (vsapi)
 			vsapi->freeFrame(lastFrame);
-		vseval_freeScript(se);
+		vsscript_freeScript(se);
 		se = NULL;
 	}
     ssfree(lastStringValue);
@@ -614,9 +614,9 @@ int VapourSynther::ImageSize() {
 BOOL APIENTRY DllMain(HANDLE hModule, ULONG ulReason, LPVOID lpReserved) {
     if (ulReason == DLL_PROCESS_ATTACH) {
 		// fixme, move this where threading can't be an issue
-		vseval_init();
+		vsscript_init();
     } else if (ulReason == DLL_PROCESS_DETACH) {
-        vseval_finalize();
+        vsscript_finalize();
     }
     return TRUE;
 }

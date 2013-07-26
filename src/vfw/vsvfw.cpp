@@ -183,9 +183,9 @@ private:
 BOOL APIENTRY DllMain(HANDLE hModule, ULONG ulReason, LPVOID lpReserved) {
     if (ulReason == DLL_PROCESS_ATTACH) {
 		// fixme, move this where threading can't be an issue
-		vseval_init();
+		vsscript_init();
     } else if (ulReason == DLL_PROCESS_DETACH) {
-		vseval_finalize();
+		vsscript_finalize();
     }
     return TRUE;
 }
@@ -396,7 +396,7 @@ STDMETHODIMP VapourSynthFile::DeleteStream(DWORD fccType, LONG lParam) {
 /////// local
 
 VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : num_threads(1), node(NULL), se(NULL), vsapi(NULL), enable_v210(false), pad_scanlines(false), m_refs(0), vi(NULL), pending_requests(0) {
-	vsapi = vseval_getVSApi();
+	vsapi = vsscript_getVSApi();
     AddRef();
     InitializeCriticalSection(&cs_filter_graph);
 }
@@ -407,7 +407,7 @@ VapourSynthFile::~VapourSynthFile() {
         while (pending_requests > 0) {};
         vi = NULL;
         vsapi->freeNode(node);
-        vseval_freeScript(se);
+        vsscript_freeScript(se);
     }
     Unlock();
     DeleteCriticalSection(&cs_filter_graph);
@@ -462,32 +462,10 @@ stacked = core.std.StackHorizontal([red, green, blue])\n\
 last = core.resize.Bicubic(stacked, format=vs.COMPATBGR32)\n\
 last.set_output()\n";
 
-std::string get_file_contents(const char *filename)
-{
-  std::ifstream in(filename, std::ios::in | std::ios::binary);
-  if (in)
-  {
-    std::string contents;
-    in.seekg(0, std::ios::end);
-    contents.resize(in.tellg());
-    in.seekg(0, std::ios::beg);
-    in.read(&contents[0], contents.size());
-    in.close();
-    return(contents);
-  }
-  return "";;
-}
-
 bool VapourSynthFile::DelayInit2() {
     if (!szScriptName.empty() && !vi) {
-
-		std::string script = get_file_contents(szScriptName.c_str());
-		if (script.empty())
-			goto vpyerror;
-
-		if (!vseval_evaluateScript(&se, script.c_str(), szScriptName.c_str())) {
-			
-			node = vseval_getOutput(se, 0);
+		if (!vsscript_evaluateFile(&se, szScriptName.c_str())) {
+			node = vsscript_getOutput(se, 0);
 			if (!node)
 				goto vpyerror;
 			vi = vsapi->getVideoInfo(node);
@@ -521,13 +499,13 @@ bool VapourSynthFile::DelayInit2() {
 			int error;
 			int64_t val;
 			VSMap *options = vsapi->createMap();
-			vseval_getVariable(se, "enable_v210", options);
+			vsscript_getVariable(se, "enable_v210", options);
 			val = vsapi->propGetInt(options, "enable_v210", 0, &error);
 			if (!error)
 				enable_v210 = !!val;
 			else
 				enable_v210 = false;
-			vseval_getVariable(se, "pad_scanlines", options);
+			vsscript_getVariable(se, "pad_scanlines", options);
 			val = vsapi->propGetInt(options, "pad_scanlines", 0, &error);
 			if (!error)
 				pad_scanlines = !!val;
@@ -535,19 +513,19 @@ bool VapourSynthFile::DelayInit2() {
 				pad_scanlines = false;
 			vsapi->freeMap(options);
 
-			const VSCoreInfo *info = vsapi->getCoreInfo(vseval_getCore(se));
+			const VSCoreInfo *info = vsapi->getCoreInfo(vsscript_getCore(se));
 			num_threads = info->numThreads;
 
             return true;
         } else {
-			error_msg = vseval_getError(se);
+			error_msg = vsscript_getError(se);
             vpyerror:
             vi = NULL;
-			vseval_freeScript(se);
+			vsscript_freeScript(se);
 			se = NULL;
-            int res = vseval_evaluateScript(&se, ErrorScript, "vfw_error.bleh");
-			const char *et = vseval_getError(se);
-			node = vseval_getOutput(se, 0);
+            int res = vsscript_evaluateScript(&se, ErrorScript, "vfw_error.bleh");
+			const char *et = vsscript_getError(se);
+			node = vsscript_getOutput(se, 0);
             vi = vsapi->getVideoInfo(node);
             return true;
         }

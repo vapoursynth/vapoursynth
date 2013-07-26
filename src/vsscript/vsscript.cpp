@@ -10,7 +10,7 @@ int scriptId = 1000;
 PyThreadState *ts = NULL;
 PyGILState_STATE s;
 
-VS_API(int) vseval_init(void) {
+VS_API(int) vsscript_init(void) {
 	if (initializationCount == 0) {
 		preInitialized = Py_IsInitialized();
 		if (!preInitialized)
@@ -26,10 +26,11 @@ VS_API(int) vseval_init(void) {
     return initializationCount;
 }
 
-VS_API(int) vseval_finalize(void) {
+VS_API(int) vsscript_finalize(void) {
 	initializationCount--;
     if (initializationCount)
         return initializationCount;
+    // commented out because python hates itself
 	//PyEval_RestoreThread(ts);
 	//PyGILState_Release(s);
 	//if (!preInitialized)
@@ -37,55 +38,65 @@ VS_API(int) vseval_finalize(void) {
     return 0;
 }
 
-VS_API(int) vseval_evaluateScript(VSScript **handle, const char *script, const char *errorFilename) {
+VS_API(int) vsscript_evaluateScript(VSScript **handle, const char *script, const char *scriptFilename) {
     if (*handle == NULL) {
         *handle = new VSScript();
         (*handle)->pyenvdict = NULL;
         (*handle)->errstr = NULL;
 		(*handle)->id = scriptId++;
     }
-    return vpy_evaluateScript(*handle, script, errorFilename);
+    return vpy_evaluateScript(*handle, script, scriptFilename ? scriptFilename : "<script>");
 }
 
-VS_API(void) vseval_freeScript(VSScript *handle) {
+VS_API(int) vsscript_evaluateFile(VSScript **handle, const char *scriptFilename) {
+    if (*handle == NULL) {
+        *handle = new VSScript();
+        (*handle)->pyenvdict = NULL;
+        (*handle)->errstr = NULL;
+		(*handle)->id = scriptId++;
+    }
+    return vpy_evaluateFile(*handle, scriptFilename);
+}
+
+VS_API(void) vsscript_freeScript(VSScript *handle) {
 	if (handle) {
 		vpy_freeScript(handle);
 		delete handle;
 	}
 }
 
-VS_API(const char *) vseval_getError(VSScript *handle) {
+VS_API(const char *) vsscript_getError(VSScript *handle) {
     return vpy_getError(handle);
 }
 
-VS_API(VSNodeRef *) vseval_getOutput(VSScript *handle, int index) {
+VS_API(VSNodeRef *) vsscript_getOutput(VSScript *handle, int index) {
 	return vpy_getOutput(handle, index);
 }
 
-VS_API(void) vseval_clearOutput(VSScript *handle, int index) {
+VS_API(void) vsscript_clearOutput(VSScript *handle, int index) {
 	vpy_clearOutput(handle, index);
 }
 
-VS_API(VSCore *) vseval_getCore(VSScript *handle) {
+VS_API(VSCore *) vsscript_getCore(VSScript *handle) {
     return vpy_getCore(handle);
 }
 
-VS_API(const VSAPI *) vseval_getVSApi(void) {
+VS_API(const VSAPI *) vsscript_getVSApi(void) {
     return vpy_getVSApi();
 }
 
-VS_API(int) vseval_getVariable(VSScript *handle, const char *name, VSMap *dst) {
+VS_API(int) vsscript_getVariable(VSScript *handle, const char *name, VSMap *dst) {
 	return vpy_getVariable(handle, name, dst);
 }
 
-VS_API(void) vseval_setVariable(VSScript *handle, const VSMap *vars) {
+VS_API(void) vsscript_setVariable(VSScript *handle, const VSMap *vars) {
 	vpy_setVariable(handle, (VSMap *)vars);
 }
 
-VS_API(int) vseval_clearVariable(VSScript *handle, const char *name) {
+VS_API(int) vsscript_clearVariable(VSScript *handle, const char *name) {
 	return vpy_clearVariable(handle, name);
 }
 
-VS_API(void) vseval_clearEnvironment(VSScript *handle) {
+VS_API(void) vsscript_clearEnvironment(VSScript *handle) {
     vpy_clearEnvironment(handle);
 }

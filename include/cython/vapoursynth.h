@@ -27,6 +27,7 @@ struct VPYScriptExport {
 #endif
 
 __PYX_EXTERN_C DL_IMPORT(int) vpy_evaluateScript(struct VPYScriptExport *, char const *, char const *);
+__PYX_EXTERN_C DL_IMPORT(int) vpy_evaluateFile(struct VPYScriptExport *, char const *);
 __PYX_EXTERN_C DL_IMPORT(void) vpy_freeScript(struct VPYScriptExport *);
 __PYX_EXTERN_C DL_IMPORT(char) *vpy_getError(struct VPYScriptExport *);
 __PYX_EXTERN_C DL_IMPORT(VSNodeRef) *vpy_getOutput(struct VPYScriptExport *, int);
