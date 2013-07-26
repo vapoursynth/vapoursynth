@@ -342,7 +342,10 @@ def build(bld):
 
     if bld.env.CORE == 'true':
         sources = search_paths([os.path.join('src', 'core'),
-                                os.path.join('src', 'core', 'asm')])
+                                os.path.join('src', 'core', 'asm'),
+                                os.path.join('src', 'core', 'asm', 'x86'),
+                                os.path.join('src', 'core', 'asm', 'arm'),
+                                os.path.join('src', 'core', 'asm', 'ppc')])
 
         if bld.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin'] and bld.env.AVISYNTH == 'true':
             sources += search_paths([os.path.join('src', 'avisynth')])
