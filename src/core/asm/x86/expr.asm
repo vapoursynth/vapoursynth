@@ -357,9 +357,9 @@ cglobal evaluate_expr, 5, 7, 8, exprbase, rwptrs, ptroffsets, niterations, stack
 %endif
 
 	.l_load8:
+	mov tmp1d, [exprq]
 	movaps [stackq], m0
 	movaps [stackq + mmsize], m1
-	mov tmp1d, [exprq]
 	mov tmp1q, [rwptrsq + gprsize*tmp1q + gprsize]
 	movh m0, [tmp1q]
 	punpcklbw m0, m7
@@ -379,7 +379,7 @@ cglobal evaluate_expr, 5, 7, 8, exprbase, rwptrs, ptroffsets, niterations, stack
 	mova m0, [tmp1q]
 	mova m1, m0
 	punpckhwd m0, m7
-	punpcklbw m1, m7
+	punpcklwd m1, m7
 	cvtdq2ps m0, m0
 	cvtdq2ps m1, m1
 	add stackq, iterationsize
