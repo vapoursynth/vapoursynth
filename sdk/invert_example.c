@@ -96,7 +96,6 @@ static void VS_CC invertFree(void *instanceData, VSCore *core, const VSAPI *vsap
 static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     InvertData d;
     InvertData *data;
-    VSNodeRef *cref;
     int err;
 
     // Get a clip reference from the input arguments. This must be freed later.
