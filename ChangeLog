@@ -3,6 +3,7 @@ compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 vsscript crashes on exit on windows
 
 r19:
+lut/lut2 now processes all planes by default
 ported to work on arm and powerpc (Zor)
 fixed 9-16 bit format support in Expr
 properly initialize color in addborders to 0

@@ -1,10 +1,10 @@
 Lut
 =======
 
-.. function:: Lut(clip clip, int[] planes[, int[] lut, func function])
+.. function:: Lut(clip clip[, int[] planes, int[] lut, func function])
    :module: std
    
-   Applies a lut to the given clip. The lut can be specified as either an array of 2^bits_per_sample value or given as a *function* having an argument named *x* to be evaluated. Either *lut* or *function* must be used. The lut will be applied to the planes listed in *planes*. The other planes will simply be passed through unchanged.
+   Applies a lut to the given clip. The lut can be specified as either an array of 2^bits_per_sample value or given as a *function* having an argument named *x* to be evaluated. Either *lut* or *function* must be used. The lut will be applied to the planes listed in *planes* and the other planes will simply be passed through unchanged. By default all *planes* are processed.
    
    How to limit YUV range (by passing an array)::
    

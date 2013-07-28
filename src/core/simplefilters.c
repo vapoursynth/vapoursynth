@@ -1957,9 +1957,6 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
     int i;
     int n, m, o;
 
-    for (i = 0; i < 3; i++)
-        d.process[i] = 0;
-
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node);
 
@@ -1970,6 +1967,9 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
 
     n = d.vi->format->numPlanes;
     m = vsapi->propNumElements(in, "planes");
+    
+    for (i = 0; i < 3; i++)
+        d.process[i] = (m <= 0);
 
     for (i = 0; i < m; i++) {
         o = int64ToIntS(vsapi->propGetInt(in, "planes", i, 0));
@@ -2240,9 +2240,6 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
 	int err;
 	int bits;
 
-    for (i = 0; i < 3; i++)
-        d.process[i] = 0;
-
     if (vsapi->propNumElements(in, "clips") != 2)
         RETERROR("Lut2: needs 2 clips");
 
@@ -2264,6 +2261,9 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
 
     n = d.vi[0]->format->numPlanes;
     m = vsapi->propNumElements(in, "planes");
+
+    for (i = 0; i < 3; i++)
+        d.process[i] = (m <= 0);
 
     for (i = 0; i < m; i++) {
         o = int64ToIntS(vsapi->propGetInt(in, "planes", i, 0));
@@ -3602,8 +3602,8 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("StackHorizontal", "clips:clip[];", stackCreate, 0, plugin);
     registerFunc("BlankClip", "clip:clip:opt;width:int:opt;height:int:opt;format:int:opt;length:int:opt;fpsnum:int:opt;fpsden:int:opt;color:float[]:opt;", blankClipCreate, 0, plugin);
     registerFunc("AssumeFPS", "clip:clip;src:clip:opt;fpsnum:int:opt;fpsden:int:opt;", assumeFPSCreate, 0, plugin);
-    registerFunc("Lut", "clip:clip;planes:int[];lut:int[]:opt;function:func:opt;", lutCreate, 0, plugin);
-    registerFunc("Lut2", "clips:clip[];planes:int[];lut:int[]:opt;function:func:opt;bits:int:opt;", lut2Create, 0, plugin);
+    registerFunc("Lut", "clip:clip;planes:int[]:opt;lut:int[]:opt;function:func:opt;", lutCreate, 0, plugin);
+    registerFunc("Lut2", "clips:clip[];planes:int[]:opt;lut:int[]:opt;function:func:opt;bits:int:opt;", lut2Create, 0, plugin);
     registerFunc("SelectClip", "clips:clip[];src:clip[];selector:func;", selectClipCreate, 0, plugin);
     registerFunc("ModifyFrame", "clips:clip[];selector:func;", modifyFrameCreate, 0, plugin);
     registerFunc("Transpose", "clip:clip;", transposeCreate, 0, plugin);
