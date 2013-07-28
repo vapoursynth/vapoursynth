@@ -57,6 +57,7 @@ Source: vsscript.lib; DestDir: {app}\sdk\lib; Flags: ignoreversion uninsrestartd
 Source: vapoursynth.lib; DestDir: {app}\sdk\lib; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: ..\sdk\filter_skeleton.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: ..\sdk\invert_example.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: ..\sdk\vsscript_example.cpp; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace
 ;bundled filters
 Source: filters\avisource.dll; DestDir: {app}\filters; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: filters\vivtc.dll; DestDir: {app}\filters; Flags: ignoreversion uninsrestartdelete restartreplace
