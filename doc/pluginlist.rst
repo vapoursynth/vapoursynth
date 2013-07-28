@@ -6,6 +6,7 @@ Native Plugins
 * AssVapour -- subtitle renderer, in the source tree
 * EEDI3 -- in the source tree
 * VIVTC -- in the source tree
+* AviSource -- in the source tree
 * `Histogram <https://github.com/dubhater/vapoursynth-histogram>`_ -- bundled with the installer
 * `TemporalSoften <https://github.com/dubhater/vapoursynth-temporalsoften>`_ -- bundled with the installer
 * `FFMS2 <http://code.google.com/p/ffmpegsource/>`_
@@ -16,6 +17,7 @@ Native Plugins
 * `fmtconv <http://forum.doom9.org/showthread.php?t=166504>`_ -- High quality bitdepth and colorspace conversion, resizing
 * `d2vsource <http://forum.doom9.org/showthread.php?t=166399>`_
 * `nnedi3 <http://forum.doom9.org/showthread.php?t=166434>`_
+* `L-SMASH Source <http://forum.doom9.org/showthread.php?t=167435>`_
 
 Avisynth Interop
 ################

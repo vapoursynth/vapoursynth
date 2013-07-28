@@ -10,8 +10,6 @@ You can "play around" in the python interpreter if you want, but that's not how 
 Here's a sample script to be inspired by::
 
    import vapoursynth as vs
-   # needed for stdout
-   import sys
    # get the core instance
    core = vs.get_core()
    # load a native vapoursynth plugin

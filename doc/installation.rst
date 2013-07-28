@@ -25,7 +25,7 @@ If this for some reason fails there may be a bug in the installer or there are o
 Installation of VSFS
 ####################
 By default VSFS will be registered if the Pismo File Mount Audit Package was installed before VapourSynth.
-If you install the Pismo File Mount Audit Package after VapourSynth and still want to use this feature either reinstall VapourSynth or register it from the commandline with "pfm register <path>\\vsfs.dll".
+If you install the Pismo File Mount Audit Package after VapourSynth and still want to use this feature either reinstall VapourSynth or register it from the commandline with "pfm register <path>\\core\\vsfs.dll".
 
 Compiling
 #########
