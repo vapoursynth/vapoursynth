@@ -18,15 +18,33 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
+#include <QtCore/QString>
+#include <QtCore/QMap>
 #include <QtCore/QMutex>
 #include <QtCore/QMutexLocker>
 #include <QtCore/QWaitCondition>
-#include <QtCore/QFile>
-#include <QtCore/QMap>
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
 #include "VSScript.h"
 #include "VSHelper.h"
+
+
+
+// Needed so windows doesn't drool on itself when ctrl-c is pressed
+#ifdef VS_TARGET_OS_WINDOWS
+#include <Windows.h>
+#undef min
+BOOL WINAPI HandlerRoutine(DWORD dwCtrlType) {
+    switch (dwCtrlType) {
+    case CTRL_C_EVENT:
+    case CTRL_BREAK_EVENT:
+    case CTRL_CLOSE_EVENT:
+        _exit(1);
+    default:
+        return FALSE;
+    }
+}
+#endif
 
 #ifdef VS_TARGET_OS_WINDOWS
 static inline QString nativeToQString(const wchar_t *str) {
@@ -211,6 +229,7 @@ const char *colorFamilyToString(int colorFamily) {
 // fixme, only allow info without output
 #ifdef VS_TARGET_OS_WINDOWS
 int wmain(int argc, wchar_t **argv) {
+    SetConsoleCtrlHandler(HandlerRoutine, TRUE);
 #else
 int main(int argc, char **argv) {
 #endif
