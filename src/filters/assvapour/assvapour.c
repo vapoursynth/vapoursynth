@@ -373,7 +373,7 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
                         fmSerial, 0, data, core);
 }
 
-void VS_CC VapourSynthPluginInit(VSConfigPlugin configFunc,
+VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
                                  VSRegisterFunction registerFunc,
                                  VSPlugin *plugin)
 {
