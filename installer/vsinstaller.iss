@@ -17,7 +17,7 @@ AppPublisher=Fredrik Mellbin
 AppPublisherURL=http://www.vapoursynth.com/
 AppSupportURL=http://www.vapoursynth.com/
 AppUpdatesURL=http://www.vapoursynth.com/
-VersionInfoVersion=0.9.8.3
+VersionInfoVersion=1.19.0.0
 DefaultDirName={pf}\VapourSynth
 DefaultGroupName=VapourSynth
 AllowCancelDuringInstall=no
@@ -61,6 +61,7 @@ Source: ..\sdk\invert_example.c; DestDir: {app}\sdk\examples; Flags: ignoreversi
 Source: filters\avisource.dll; DestDir: {app}\filters; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: filters\vivtc.dll; DestDir: {app}\filters; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: filters\eedi3.dll; DestDir: {app}\filters; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: filters\assvapour.dll; DestDir: {app}\filters; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: filters\temporalsoften.dll; DestDir: {app}\filters; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: filters\histogram.dll; DestDir: {app}\filters; Flags: ignoreversion uninsrestartdelete restartreplace
 
