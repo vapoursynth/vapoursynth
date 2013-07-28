@@ -1063,6 +1063,9 @@ cdef public api int vpy_evaluateFile(VPYScriptExport *se, const char *scriptFile
             evaldict = {}
             Py_INCREF(evaldict)
             se.pyenvdict = <void *>evaldict
+            global _stored_outputs
+            _stored_outputs[se.id] = {}
+            
         try:
             with open(scriptFilename.decode('utf-8'), 'rb') as f:
                 script = f.read(1024*1024*16)
