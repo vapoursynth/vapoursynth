@@ -133,6 +133,7 @@ int main(int argc, char **argv) {
 
     if (!isConstantFormat(vi) || vi->numFrames == 0) {
         fprintf(stderr, "Cannot output clips with varying dimensions or unknown length\n");
+        vsapi->freeNode(node);
         vsscript_freeScript(se);
         vsscript_finalize();
         return 1;
@@ -164,6 +165,7 @@ int main(int argc, char **argv) {
 
     fclose(outFile);
 
+    vsapi->freeNode(node);
     vsscript_freeScript(se);
     vsscript_finalize();
 
