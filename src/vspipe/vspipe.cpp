@@ -24,6 +24,7 @@
 #include <QtCore/QMutexLocker>
 #include <QtCore/QWaitCondition>
 #define __STDC_FORMAT_MACROS
+#include <cstdio>
 #include <inttypes.h>
 #include "VSScript.h"
 #include "VSHelper.h"
