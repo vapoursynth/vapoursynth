@@ -79,7 +79,7 @@ void VSThread::run() {
                 if (isSingleInstance)
                     owner->framesInProgress.insert(rCtx->clip, rCtx->n);
 
-                ActivationReason ar = arInitial;
+                VSActivationReason ar = arInitial;
 
                 if (pCtx->hasError()) {
                     ar = arError;

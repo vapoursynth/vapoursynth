@@ -147,13 +147,13 @@ typedef struct VSFormat {
 
 typedef enum VSNodeFlags {
     nfNoCache = 1,
-} NodeFlags;
+} VSNodeFlags;
 
 typedef enum VSGetPropErrors {
     peUnset = 1,
     peType  = 2,
     peIndex = 4
-} GetPropErrors;
+} VSGetPropErrors;
 
 typedef enum VSPropAppendMode {
     paReplace = 0,
@@ -185,7 +185,7 @@ typedef enum VSActivationReason {
     arFrameReady = 1,
     arAllFramesReady = 2,
     arError = -1
-} ActivationReason;
+} VSActivationReason;
 
 typedef enum VSMessageType {
     mtDebug = 0,
