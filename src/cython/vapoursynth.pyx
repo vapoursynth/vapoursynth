@@ -22,6 +22,7 @@ cimport cython.parallel
 from cpython.ref cimport Py_INCREF, Py_DECREF, Py_CLEAR, PyObject
 import ctypes
 import threading
+import os
 import gc
 
 _using_vsscript = False
@@ -1031,7 +1032,9 @@ cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, 
                 _stored_outputs[se.id] = {}
                 
             Py_INCREF(evaldict)
-                
+            
+            evaldict['__file__'] = os.path.abspath(errorFilename.decode('utf-8'))
+            
             if se.errstr:
                 errstr = <bytes>se.errstr
                 se.errstr = NULL
