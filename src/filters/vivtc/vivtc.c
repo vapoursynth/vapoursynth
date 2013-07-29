@@ -877,8 +877,8 @@ typedef struct {
     VSVideoInfo vi;
     int cycle;
     int chroma;
-	int tail;
-	int inputNumFrames;
+    int tail;
+    int inputNumFrames;
     int64_t dupthresh;
     int64_t scthresh;
     int blockx;
@@ -918,26 +918,26 @@ static int64_t calcMetric(const VSFrameRef *f1, const VSFrameRef *f2, int64_t *t
         for (y = 0; y < height; y++) {
             int ydest = y / hblocky;
             int xdest = 0;
-			// some slight code duplication to not put an if statement for 8/16 bit processing in the inner loop
-			if (fi->bitsPerSample == 8) {
-				for (x = 0; x < width; x+= hblockx) {
-					int acc = 0;
-					int m = min(width, x + hblockx);
-					for (xl = x; xl < m; xl++)
-						acc += abs(f1p[xl] - f2p[xl]);
-					bdiffs[ydest * nxblocks + xdest] += acc;
-					xdest++;
-				}
-			} else {
-				for (x = 0; x < width; x+= hblockx) {
-					int acc = 0;
-					int m = min(width, x + hblockx);
-					for (xl = x; xl < m; xl++)
-						acc += abs(((const uint16_t *)f1p)[xl] - ((const uint16_t *)f2p)[xl]);
-					bdiffs[ydest * nxblocks + xdest] += acc;
-					xdest++;
-				}
-			}
+            // some slight code duplication to not put an if statement for 8/16 bit processing in the inner loop
+            if (fi->bitsPerSample == 8) {
+                for (x = 0; x < width; x+= hblockx) {
+                    int acc = 0;
+                    int m = min(width, x + hblockx);
+                    for (xl = x; xl < m; xl++)
+                        acc += abs(f1p[xl] - f2p[xl]);
+                    bdiffs[ydest * nxblocks + xdest] += acc;
+                    xdest++;
+                }
+            } else {
+                for (x = 0; x < width; x+= hblockx) {
+                    int acc = 0;
+                    int m = min(width, x + hblockx);
+                    for (xl = x; xl < m; xl++)
+                        acc += abs(((const uint16_t *)f1p)[xl] - ((const uint16_t *)f2p)[xl]);
+                    bdiffs[ydest * nxblocks + xdest] += acc;
+                    xdest++;
+                }
+            }
             f1p += stride;
             f2p += stride;
         }
@@ -968,11 +968,11 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
     int i;
 
     if (activationReason == arInitial) {
-	    int prevreqd = 0;
+        int prevreqd = 0;
         int cyclestart = (n / (vdm->cycle - 1)) * vdm->cycle;
         int cycleend = cyclestart + vdm->cycle;
-		if (cycleend > vdm->inputNumFrames) 
-			cycleend = vdm->inputNumFrames;
+        if (cycleend > vdm->inputNumFrames) 
+            cycleend = vdm->inputNumFrames;
 
 
         for (i = cyclestart; i < cycleend; i++) {
@@ -988,7 +988,7 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
         }
         *frameData = (void *)-1;
     } 
-    
+
     if (activationReason == arAllFramesReady || (hasall && activationReason == arInitial)) {
         int fin, fcut;
         intptr_t fout;
@@ -1007,8 +1007,8 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
         // calculate all the needed metrics
         cyclestart = (n / (vdm->cycle - 1)) * vdm->cycle;
         cycleend = cyclestart + vdm->cycle;
-		if (cycleend > vdm->inputNumFrames) 
-			cycleend = vdm->inputNumFrames;
+        if (cycleend > vdm->inputNumFrames) 
+            cycleend = vdm->inputNumFrames;
         for (i = cyclestart; i < cycleend; i++) {
             if (vdm->vmi[i].maxbdiff < 0) {
                 const VSFrameRef *prv = vsapi->getFrameFilter(max(i - 1, 0), vdm->node, frameCtx);
@@ -1116,7 +1116,7 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
     vdm.vi = *vsapi->getVideoInfo(vdm.clip2 ? vdm.clip2 : vdm.node);
 
     vi = vsapi->getVideoInfo(vdm.node);
-	if (!isConstantFormat(vi) || !vi->numFrames || vi->format->bitsPerSample > 16 || vi->format->sampleType != stInteger) {
+    if (!isConstantFormat(vi) || !vi->numFrames || vi->format->bitsPerSample > 16 || vi->format->sampleType != stInteger) {
         vsapi->setError(out, "VDecimate: input clip must be constant format, with 8..16 bits per sample");
         vsapi->freeNode(vdm.node);
         vsapi->freeNode(vdm.clip2);
@@ -1163,11 +1163,11 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
         vdm.vmi[i].totdiff = -1;
     }
 
-	vdm.inputNumFrames = vdm.vi.numFrames;
-	vdm.tail = vdm.vi.numFrames % vdm.cycle;
+    vdm.inputNumFrames = vdm.vi.numFrames;
+    vdm.tail = vdm.vi.numFrames % vdm.cycle;
     vdm.vi.numFrames /= vdm.cycle;
     vdm.vi.numFrames *= vdm.cycle - 1;
-	vdm.vi.numFrames += vdm.tail;
+    vdm.vi.numFrames += vdm.tail;
     muldivRational(&vdm.vi.fpsNum, &vdm.vi.fpsDen, vdm.cycle-1, vdm.cycle);
 
     d = (VDecimateData *)malloc(sizeof(vdm));
