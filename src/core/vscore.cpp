@@ -636,17 +636,14 @@ VSPlugin::VSPlugin(const QByteArray &filename, const QByteArray &forcedNamespace
     if (readOnlySet)
         readOnly = true;
 
-    if (apiVersion != VAPOURSYNTH_API_VERSION && apiVersion != 2) {
+    if (apiVersion != VAPOURSYNTH_API_VERSION) {
 #ifdef VS_TARGET_OS_WINDOWS
         FreeLibrary(libHandle);
 #else
         dlclose(libHandle);
 #endif
-        throw VSException((QString("Core only supports API R") + QString::number(VAPOURSYNTH_API_VERSION) + QString(" and R2 but the loaded plugin uses API R") + QString::number(apiVersion)).toUtf8());
+        throw VSException((QString("Core only supports API R") + QString::number(VAPOURSYNTH_API_VERSION) + QString(" but the loaded plugin uses API R") + QString::number(apiVersion)).toUtf8());
     }
-
-    if (apiVersion == 2)
-        qWarning("The plugin '%s' uses API R2 which is deprecated. Update to keep it working in future versions.", fullname.constData());
 }
 
 VSPlugin::~VSPlugin() {
