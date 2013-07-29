@@ -313,7 +313,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-	if (vsscript_evaluateFile(&se, nativeToQString(argv[1]).toUtf8())) {
+	if (vsscript_evaluateFile(&se, nativeToQString(argv[1]).toUtf8(), efSetWorkingDir)) {
         fprintf(stderr, "Script evaluation failed:\n%s\n", vsscript_getError(se));
         vsscript_freeScript(se);
         vsscript_finalize();

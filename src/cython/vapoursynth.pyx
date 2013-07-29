@@ -20,9 +20,10 @@
 cimport vapoursynth
 cimport cython.parallel
 from cpython.ref cimport Py_INCREF, Py_DECREF, Py_CLEAR, PyObject
+import os
+import sys
 import ctypes
 import threading
-import os
 import gc
 
 _using_vsscript = False
@@ -1017,7 +1018,7 @@ cdef public struct VPYScriptExport:
     void *errstr
     int id
     
-cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, const char *errorFilename) nogil:
+cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, const char *scriptFilename, int flags) nogil:
     with gil:
         global _environment_id
         _environment_id = se.id
@@ -1033,7 +1034,14 @@ cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, 
                 
             Py_INCREF(evaldict)
             
-            evaldict['__file__'] = os.path.abspath(errorFilename.decode('utf-8'))
+            fn = scriptFilename.decode('utf-8')
+            
+            # don't set a filename if NULL is passed
+            if fn != '<string>':
+                abspath = os.path.abspath(fn)
+                evaldict['__file__'] = abspath
+                if flags & 1:
+                    os.chdir(os.path.dirname(abspath))
             
             if se.errstr:
                 errstr = <bytes>se.errstr
@@ -1041,7 +1049,7 @@ cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, 
                 Py_DECREF(errstr)
                 errstr = None
                 
-            comp = compile(script.decode('utf-8'), errorFilename.decode('utf-8'), 'exec')
+            comp = compile(script.decode('utf-8'), fn, 'exec')
             exec(comp) in evaldict
             
         except BaseException, e:
@@ -1060,7 +1068,7 @@ cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, 
         _environment_id = None
         return 0
         
-cdef public api int vpy_evaluateFile(VPYScriptExport *se, const char *scriptFilename) nogil:
+cdef public api int vpy_evaluateFile(VPYScriptExport *se, const char *scriptFilename, int flags) nogil:
     with gil:
         if not se.pyenvdict:
             evaldict = {}
@@ -1072,7 +1080,7 @@ cdef public api int vpy_evaluateFile(VPYScriptExport *se, const char *scriptFile
         try:
             with open(scriptFilename.decode('utf-8'), 'rb') as f:
                 script = f.read(1024*1024*16)
-            return vpy_evaluateScript(se, script, scriptFilename)
+            return vpy_evaluateScript(se, script, scriptFilename, flags)
         except BaseException, e:
             errstr = 'File reading exception:\n' + str(e)
             errstr = errstr.encode('utf-8')

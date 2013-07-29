@@ -3,9 +3,9 @@
 #include "Python.h"
 #include "vapoursynth.h"
 
-static int (*__pyx_f_11vapoursynth_vpy_evaluateScript)(struct VPYScriptExport *, char const *, char const *) = 0;
+static int (*__pyx_f_11vapoursynth_vpy_evaluateScript)(struct VPYScriptExport *, char const *, char const *, int) = 0;
 #define vpy_evaluateScript __pyx_f_11vapoursynth_vpy_evaluateScript
-static int (*__pyx_f_11vapoursynth_vpy_evaluateFile)(struct VPYScriptExport *, char const *) = 0;
+static int (*__pyx_f_11vapoursynth_vpy_evaluateFile)(struct VPYScriptExport *, char const *, int) = 0;
 #define vpy_evaluateFile __pyx_f_11vapoursynth_vpy_evaluateFile
 static void (*__pyx_f_11vapoursynth_vpy_freeScript)(struct VPYScriptExport *) = 0;
 #define vpy_freeScript __pyx_f_11vapoursynth_vpy_freeScript
@@ -112,8 +112,8 @@ static int import_vapoursynth(void) {
   PyObject *module = 0;
   module = __Pyx_ImportModule("vapoursynth");
   if (!module) goto bad;
-  if (__Pyx_ImportFunction(module, "vpy_evaluateScript", (void (**)(void))&__pyx_f_11vapoursynth_vpy_evaluateScript, "int (struct VPYScriptExport *, char const *, char const *)") < 0) goto bad;
-  if (__Pyx_ImportFunction(module, "vpy_evaluateFile", (void (**)(void))&__pyx_f_11vapoursynth_vpy_evaluateFile, "int (struct VPYScriptExport *, char const *)") < 0) goto bad;
+  if (__Pyx_ImportFunction(module, "vpy_evaluateScript", (void (**)(void))&__pyx_f_11vapoursynth_vpy_evaluateScript, "int (struct VPYScriptExport *, char const *, char const *, int)") < 0) goto bad;
+  if (__Pyx_ImportFunction(module, "vpy_evaluateFile", (void (**)(void))&__pyx_f_11vapoursynth_vpy_evaluateFile, "int (struct VPYScriptExport *, char const *, int)") < 0) goto bad;
   if (__Pyx_ImportFunction(module, "vpy_freeScript", (void (**)(void))&__pyx_f_11vapoursynth_vpy_freeScript, "void (struct VPYScriptExport *)") < 0) goto bad;
   if (__Pyx_ImportFunction(module, "vpy_getError", (void (**)(void))&__pyx_f_11vapoursynth_vpy_getError, "char *(struct VPYScriptExport *)") < 0) goto bad;
   if (__Pyx_ImportFunction(module, "vpy_getOutput", (void (**)(void))&__pyx_f_11vapoursynth_vpy_getOutput, "VSNodeRef *(struct VPYScriptExport *, int)") < 0) goto bad;

@@ -464,7 +464,7 @@ last.set_output()\n";
 
 bool VapourSynthFile::DelayInit2() {
     if (!szScriptName.empty() && !vi) {
-		if (!vsscript_evaluateFile(&se, szScriptName.c_str())) {
+		if (!vsscript_evaluateFile(&se, szScriptName.c_str(), efSetWorkingDir)) {
 			node = vsscript_getOutput(se, 0);
 			if (!node)
 				goto vpyerror;
@@ -523,7 +523,7 @@ bool VapourSynthFile::DelayInit2() {
             vi = NULL;
 			vsscript_freeScript(se);
 			se = NULL;
-            int res = vsscript_evaluateScript(&se, ErrorScript, "vfw_error.bleh");
+            int res = vsscript_evaluateScript(&se, ErrorScript, "vfw_error.bleh", 0);
 			const char *et = vsscript_getError(se);
 			node = vsscript_getOutput(se, 0);
             vi = vsapi->getVideoInfo(node);

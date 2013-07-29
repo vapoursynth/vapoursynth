@@ -150,7 +150,7 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName)
 		if (script.empty())
 			goto vpyerror;
 
-		if (!vsscript_evaluateScript(&se, script.c_str(), szScriptName)) {
+		if (!vsscript_evaluateScript(&se, script.c_str(), szScriptName, efSetWorkingDir)) {
 			
 			node = vsscript_getOutput(se, 0);
 			if (!node)

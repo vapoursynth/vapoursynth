@@ -38,24 +38,24 @@ VS_API(int) vsscript_finalize(void) {
     return 0;
 }
 
-VS_API(int) vsscript_evaluateScript(VSScript **handle, const char *script, const char *scriptFilename) {
+VS_API(int) vsscript_evaluateScript(VSScript **handle, const char *script, const char *scriptFilename, int flags) {
     if (*handle == NULL) {
         *handle = new VSScript();
         (*handle)->pyenvdict = NULL;
         (*handle)->errstr = NULL;
 		(*handle)->id = scriptId++;
     }
-    return vpy_evaluateScript(*handle, script, scriptFilename ? scriptFilename : "<script>");
+    return vpy_evaluateScript(*handle, script, scriptFilename ? scriptFilename : "<string>", flags);
 }
 
-VS_API(int) vsscript_evaluateFile(VSScript **handle, const char *scriptFilename) {
+VS_API(int) vsscript_evaluateFile(VSScript **handle, const char *scriptFilename, int flags) {
     if (*handle == NULL) {
         *handle = new VSScript();
         (*handle)->pyenvdict = NULL;
         (*handle)->errstr = NULL;
 		(*handle)->id = scriptId++;
     }
-    return vpy_evaluateFile(*handle, scriptFilename);
+    return vpy_evaluateFile(*handle, scriptFilename, flags);
 }
 
 VS_API(void) vsscript_freeScript(VSScript *handle) {
