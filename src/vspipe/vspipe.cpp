@@ -24,6 +24,7 @@
 #include <QtCore/QMutexLocker>
 #include <QtCore/QWaitCondition>
 #define __STDC_FORMAT_MACROS
+#include <cstdio>
 #include <inttypes.h>
 #include "VSScript.h"
 #include "VSHelper.h"
@@ -147,7 +148,7 @@ bool outputNode() {
 
 	if (y4m && (vi->format->colorFamily != cmGray && vi->format->colorFamily != cmYUV)) {
 		errorMessage = "Error: Can only apply y4m headers to YUV and Gray format clips";
-		fprintf(stderr, "%s", errorMessage.toUtf8().constData());
+		fprintf(stderr, "%s\n", errorMessage.toUtf8().constData());
         return true;
 	}
 
@@ -173,14 +174,14 @@ bool outputNode() {
 			else if (vi->format->subSamplingW == 0 && vi->format->subSamplingH == 1)
                 y4mFormat = "440";
 			else {
-				fprintf(stderr, "No y4m identifier exists for current format");
+				fprintf(stderr, "No y4m identifier exists for current format\n");
 				return true;
 			}
 
             if (vi->format->bitsPerSample > 8)
                 y4mFormat = y4mFormat + "p" + QString::number(vi->format->bitsPerSample);
 		} else {
-			fprintf(stderr, "No y4m identifier exists for current format");
+			fprintf(stderr, "No y4m identifier exists for current format\n");
 			return true;
 		}
     }
@@ -193,7 +194,7 @@ bool outputNode() {
     if (y4m) {
         if (!fwrite(rawHeader.constData(), rawHeader.size(), 1, outFile)) {
             errorMessage = "Error: fwrite() call failed";
-			fprintf(stderr, "%s", errorMessage.toUtf8().constData());
+			fprintf(stderr, "%s\n", errorMessage.toUtf8().constData());
 			outputError = true;
 			return outputError;
         }
@@ -209,7 +210,7 @@ bool outputNode() {
 	condition.wait(&mutex);
 
     if (outputError) {
-        fprintf(stderr, "%s", errorMessage.toUtf8().constData());
+        fprintf(stderr, "%s\n", errorMessage.toUtf8().constData());
     }
 
     return outputError;
@@ -271,26 +272,26 @@ int main(int argc, char **argv) {
 		} else if (argString == "-index") {
 			bool ok = false;
 			if (argc <= arg + 1) {
-				fprintf(stderr, "No index number specified");
+				fprintf(stderr, "No index number specified\n");
 				return 1;
 			}
 			QString numString = nativeToQString(argv[arg+1]);
 			outputIndex = numString.toInt(&ok);
 			if (!ok) {
-				fprintf(stderr, "Couldn't convert %s to an integer", numString.toUtf8().constData());
+				fprintf(stderr, "Couldn't convert %s to an integer\n", numString.toUtf8().constData());
 				return 1;
 			}
 			arg++;
 		} else if (argString == "-requests") {
 			bool ok = false;
 			if (argc <= arg + 1) {
-				fprintf(stderr, "No request number specified");
+				fprintf(stderr, "No request number specified\n");
 				return 1;
 			}
 			QString numString = nativeToQString(argv[arg+1]);
 			requests = numString.toInt(&ok);
 			if (!ok) {
-				fprintf(stderr, "Couldn't convert %s to an integer", numString.toUtf8().constData());
+				fprintf(stderr, "Couldn't convert %s to an integer\n", numString.toUtf8().constData());
 				return 1;
 			}
 			arg++;
@@ -313,7 +314,7 @@ int main(int argc, char **argv) {
     }
 
 	if (vsscript_evaluateFile(&se, nativeToQString(argv[1]).toUtf8())) {
-        fprintf(stderr, "Script evaluation failed:\n%s", vsscript_getError(se));
+        fprintf(stderr, "Script evaluation failed:\n%s\n", vsscript_getError(se));
         vsscript_freeScript(se);
         vsscript_finalize();
         return 1;
