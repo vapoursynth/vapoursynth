@@ -464,7 +464,7 @@ last.set_output()\n";
 
 bool VapourSynthFile::DelayInit2() {
     if (!szScriptName.empty() && !vi) {
-		if (!vsscript_evaluateFile(&se, szScriptName.c_str(), 0)) {
+		if (!vsscript_evaluateFile(&se, szScriptName.c_str(), efSetWorkingDir)) {
 			node = vsscript_getOutput(se, 0);
 			if (!node)
 				goto vpyerror;

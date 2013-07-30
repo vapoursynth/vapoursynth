@@ -1022,6 +1022,7 @@ cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, 
     with gil:
         global _environment_id
         _environment_id = se.id
+        orig_path = None
         try:
             evaldict = {}
             if se.pyenvdict:
@@ -1041,6 +1042,7 @@ cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, 
                 abspath = os.path.abspath(fn)
                 evaldict['__file__'] = abspath
                 if flags & 1:
+                    orig_path = os.getcwd()
                     os.chdir(os.path.dirname(abspath))
             
             if se.errstr:
@@ -1053,19 +1055,20 @@ cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, 
             exec(comp) in evaldict
             
         except BaseException, e:
-            _environment_id = None
             errstr = 'Python exception: ' + str(e)
             errstr = errstr.encode('utf-8')
             Py_INCREF(errstr)
             se.errstr = <void *>errstr
             return 2
         except:
-            _environment_id = None
             errstr = 'Unspecified Python exception'.encode('utf-8')
             Py_INCREF(errstr)
             se.errstr = <void *>errstr
             return 1
-        _environment_id = None
+        finally:
+            _environment_id = None
+            if orig_path is not None:
+                os.chdir(orig_path)
         return 0
         
 cdef public api int vpy_evaluateFile(VPYScriptExport *se, const char *scriptFilename, int flags) nogil:
