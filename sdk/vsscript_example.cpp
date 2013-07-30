@@ -112,7 +112,7 @@ int main(int argc, char **argv) {
     Q_ASSERT(vsapi);
 
     // This line does the actual script evaluation. If se = NULL it will create a new environment
-    if (vsscript_evaluateFile(&se, QString(argv[1]).toUtf8())) {
+    if (vsscript_evaluateFile(&se, QString(argv[1]).toUtf8(), 0)) {
         fprintf(stderr, "Script evaluation failed:\n%s", vsscript_getError(se));
         vsscript_freeScript(se);
         vsscript_finalize();
