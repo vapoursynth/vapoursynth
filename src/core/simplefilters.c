@@ -1956,6 +1956,7 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
     VSFuncRef *func;
     int i;
     int n, m, o;
+    int err;
 
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node);
@@ -1987,7 +1988,7 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
         d.process[o] = 1;
     }
 
-    func = vsapi->propGetFunc(in, "function", 0, 0);
+    func = vsapi->propGetFunc(in, "function", 0, &err);
     m = vsapi->propNumElements(in, "lut");
 
     if (m <= 0 && !func) {
@@ -1995,18 +1996,16 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
         RETERROR("Lut: Both lut and function are not set");
     }
 
+    if (m > 0 && func) {
+        vsapi->freeNode(d.node);
+        RETERROR("Lut: Both lut and function are set");
+    }
+
     n = 1 << d.vi->format->bitsPerSample;
 
-    if (m > 0) {
-        if (func) {
-            vsapi->freeFunc(func);
-            func = 0;
-        }
-
-        if (m != n) {
-            vsapi->freeNode(d.node);
-            RETERROR("Lut: bad lut length");
-        }
+    if (m > 0 && m != n) {
+        vsapi->freeNode(d.node);
+        RETERROR("Lut: bad lut length");
     }
 
     d.lut = malloc(d.vi->format->bytesPerSample * n);
@@ -2026,7 +2025,7 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
 
         for (i = 0; i < n; i++) {
             int err;
-            int64_t v = vsapi->propGetInt(in, "lut", i, &err);
+            int64_t v = vsapi->propGetInt(in, "lut", i, 0);
 
             if (v < 0 || v >= n) {
                 free(d.lut);
@@ -2041,7 +2040,7 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
 
         for (i = 0; i < n; i++) {
             int err;
-            int64_t v = vsapi->propGetInt(in, "lut", i, &err);
+            int64_t v = vsapi->propGetInt(in, "lut", i, 0);
 
             if (v < 0 || v >= n) {
                 free(d.lut);
@@ -2283,7 +2282,7 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
         d.process[o] = 1;
     }
 
-    func = vsapi->propGetFunc(in, "function", 0, 0);
+    func = vsapi->propGetFunc(in, "function", 0, &err);
     m = vsapi->propNumElements(in, "lut");
 
     if (m <= 0 && !func) {
@@ -2292,19 +2291,18 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
         RETERROR("Lut2: Both lut and function are not set");
     }
 
+    if (m > 0 && func) {
+        vsapi->freeNode(d.node[0]);
+        vsapi->freeNode(d.node[1]);
+        RETERROR("Lut2: Both lut and function are set");
+    }
+
     n = 1 << (d.vi[0]->format->bitsPerSample + d.vi[1]->format->bitsPerSample);
 
-    if (m > 0) {
-        if (func) {
-            vsapi->freeFunc(func);
-            func = 0;
-        }
-
-        if (m != n) {
-            vsapi->freeNode(d.node[0]);
-            vsapi->freeNode(d.node[1]);
-            RETERROR("Lut2: bad lut length");
-        }
+    if (m > 0 && m != n) {
+        vsapi->freeNode(d.node[0]);
+        vsapi->freeNode(d.node[1]);
+        RETERROR("Lut2: bad lut length");
     }
 
     bits = int64ToIntS(vsapi->propGetInt(in, "bits", 0, &err));
@@ -2343,7 +2341,7 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
 
         for (i = 0; i < n; i++) {
             int err;
-            int64_t v = vsapi->propGetInt(in, "lut", i, &err);
+            int64_t v = vsapi->propGetInt(in, "lut", i, 0);
 
             if (v < 0 || v > m) {
                 free(d.lut);
@@ -2359,7 +2357,7 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
 
         for (i = 0; i < n; i++) {
             int err;
-            int64_t v = vsapi->propGetInt(in, "lut", i, &err);
+            int64_t v = vsapi->propGetInt(in, "lut", i, 0);
 
             if (v < 0 || v > m) {
                 free(d.lut);
