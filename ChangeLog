@@ -2,7 +2,6 @@ known issues:
 compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 
 r19:
-now a compiled version of assvapour is included in the installer
 lut/lut2 now processes all planes by default
 ported to work on arm and powerpc (Zor)
 fixed 9-16 bit format support in Expr
