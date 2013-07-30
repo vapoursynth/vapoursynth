@@ -39,6 +39,7 @@ VS_API(int) vsscript_finalize(void);
 // NULL creates a new core that can be fetched with vsscript_getCore() later OR implicitly uses the one associated with an already existing handle when passed
 // If efSetWorkingDir is passed to flags the current working directory will be changed to the path of the script
 // note that if scriptFilename is NULL in vsscript_evaluateScript() then __file__ won't be set and the working directory won't be changed
+// Set efSetWorkingDir to get the default behavior
 VS_API(int) vsscript_evaluateScript(VSScript **handle, const char *script, const char *scriptFilename, int flags);
 // Convenience version of the above function that loads the script from a file
 VS_API(int) vsscript_evaluateFile(VSScript **handle, const char *scriptFilename, int flags);
