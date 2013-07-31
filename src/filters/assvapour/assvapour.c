@@ -300,6 +300,7 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
     AssData *data;
     int err, i;
 
+    d.lastn = -1;
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi[0] = *vsapi->getVideoInfo(d.node);
     d.vi[0].format = vsapi->getFormatPreset(pfRGB24, core);
