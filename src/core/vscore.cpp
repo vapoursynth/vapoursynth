@@ -594,7 +594,7 @@ VSPlugin::VSPlugin(const QByteArray &filename, const QByteArray &forcedNamespace
 #ifdef VS_TARGET_OS_WINDOWS
     QString uStr = QString::fromUtf8(filename.constData(), filename.size());
     QStdWString wStr(uStr.toStdWString());
-    libHandle = LoadLibraryW(wStr.data());
+    libHandle = LoadLibrary(wStr.data());
 
     if (!libHandle)
         throw VSException("Failed to load " + filename);
@@ -611,8 +611,13 @@ VSPlugin::VSPlugin(const QByteArray &filename, const QByteArray &forcedNamespace
 #else
     libHandle = dlopen(filename.constData(), RTLD_LAZY);
 
-    if (!libHandle)
-        throw VSException("Failed to load " + filename);
+    if (!libHandle) {   
+        const char *dlError = dlerror();
+        if (dlError)
+            throw VSException("Failed to load " + filename + ". Error given: " + QString::fromLocal8Bit(dlError));
+        else
+            throw VSException("Failed to load " + filename);
+    }
 
     VSInitPlugin pluginInit = (VSInitPlugin)dlsym(libHandle, "VapourSynthPluginInit");
 
