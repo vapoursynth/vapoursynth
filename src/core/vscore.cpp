@@ -614,7 +614,7 @@ VSPlugin::VSPlugin(const QByteArray &filename, const QByteArray &forcedNamespace
     if (!libHandle) {   
         const char *dlError = dlerror();
         if (dlError)
-            throw VSException("Failed to load " + filename + ". Error given: " + QString::fromLocal8Bit(dlError));
+            throw VSException("Failed to load " + filename + ". Error given: " + QByteArray(dlError));
         else
             throw VSException("Failed to load " + filename);
     }
