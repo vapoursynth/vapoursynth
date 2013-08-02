@@ -19,6 +19,9 @@
 */
 
 #include "vscore.h"
+#ifdef VS_TARGET_CPU_X86
+#include "x86utils.h"
+#endif
 
 VSThread::VSThread(VSThreadPool *owner) : owner(owner), stop(false) {
 
@@ -29,6 +32,15 @@ void VSThread::stopThread() {
 }
 
 void VSThread::run() {
+#ifdef VS_TARGET_OS_WINDOWS
+    if (!vs_isMMXStateOk())
+        qFatal("Bad MMX state detected after creating new thread");
+    if (!vs_isFPUStateOk())
+        qFatal("Bad FPU state detected after creating new thread");
+    if (!vs_isSSEStateOk())
+        qFatal("Bad SSE state detected after creating new thread");
+#endif
+
     owner->lock.lock();
 	owner->activeThreads.ref();
 

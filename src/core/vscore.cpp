@@ -262,7 +262,7 @@ VSFunction::VSFunction(const QByteArray &name, const QByteArray &argString, VSPu
 }
 
 VSNode::VSNode(const VSMap *in, VSMap *out, const QByteArray &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion, VSCore *core) :
-    instanceData(instanceData), name(name), init(init), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiVersion(apiVersion), core(core), flags(flags), inval(*in), hasVi(false), hasWarnedFPU(false) {
+    instanceData(instanceData), name(name), init(init), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiVersion(apiVersion), core(core), flags(flags), inval(*in), hasVi(false) {
     QMutexLocker lock(&VSCore::filterLock);
     init(&inval, out, &this->instanceData, this, core, getVSAPIInternal(apiVersion));
 
@@ -290,9 +290,8 @@ PVideoFrame VSNode::getFrameInternal(int n, int activationReason, const PFrameCo
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isMMXStateOk())
         qFatal("Bad MMX state detected after return from %s", name.constData());
-    if (!hasWarnedFPU && !vs_isFPUStateOk()) {
-        hasWarnedFPU = true;
-        qWarning("Bad FPU state detected after return from %s", name.constData());
+    if (!vs_isFPUStateOk()) {
+        qFatal("Bad FPU state detected after return from %s", name.constData());
     }
     if (!vs_isSSEStateOk())
         qFatal("Bad SSE state detected after return from %s", name.constData());
@@ -629,7 +628,7 @@ VSPlugin::VSPlugin(const QByteArray &filename, const QByteArray &forcedNamespace
     pluginInit(&::configPlugin, &::registerFunction, this);
 
 // This stuff really only works properly on windows, feel free to investigate what the linux ABI thinks about it
-#ifdef _WIN32
+#ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isMMXStateOk())
         qFatal("Bad MMX state detected after loading %s", fullname.constData());
     if (!vs_isFPUStateOk())

@@ -747,9 +747,11 @@ static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSC
 // This stuff really only works properly on windows, feel free to investigate what the linux ABI thinks about it
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isMMXStateOk())
-        qFatal("Bad mmx state detected after plugin load");
+        qFatal("Bad MMX state detected after loading %s", uStr.constData());
     if (!vs_isFPUStateOk())
-        qWarning("Bad fpu state detected after plugin load");
+        qFatal("Bad FPU state detected after loading %s", uStr.constData());
+    if (!vs_isSSEStateOk())
+        qFatal("Bad SSE state detected after loading %s", uStr.constData());
 #endif
 
     delete avs; // the environment is just temporary to add the functions,
