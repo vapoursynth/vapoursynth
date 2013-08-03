@@ -685,15 +685,8 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
                     bool fP216  = lstrcmpiA(pixel_type, "P216")  == 0 || pixel_type[0] == 0;
                     bool fv210  = lstrcmpiA(pixel_type, "v210")  == 0 || pixel_type[0] == 0;
 
-                    if (lstrcmpiA(pixel_type, "AUTO") == 0) {
-                        fY8 = fYV12 = fYUY2 = fRGB32 = fRGB24 = true;
-                    }
-                    else if (lstrcmpiA(pixel_type, "FULL") == 0) {
-                        fY8 = fYV12 = fYV16 = fYV24 = fYV411 = fYUY2 = fRGB32 = fRGB24 = fRGB48 = fP010 = fP016 = fP210 = fP216 = fv210 = true;
-                    }
-
                     if (!(fY8 || fYV12 || fYV16 || fYV24 || fYV411 || fYUY2 || fRGB32 || fRGB24 || fRGB48 || fP010 || fP016 || fP210 || fP216 || fv210))
-                        throw std::runtime_error("AVISource: requested format must be one of YV24, YV16, YV12, YV411, YUY2, Y8, RGB32, RGB24, RGB48, P010, P016, P210, P216, v210, AUTO or FULL");
+                        throw std::runtime_error("AVISource: requested format must be one of YV24, YV16, YV12, YV411, YUY2, Y8, RGB32, RGB24, RGB48, P010, P016, P210, P216, v210");
 
                     // try to decompress to YV12, YV411, YV16, YV24, YUY2, Y8, RGB32, and RGB24 in turn
                     memset(&biDst, 0, sizeof(BITMAPINFOHEADER));
@@ -804,7 +797,7 @@ AVISource::~AVISource() {
     AVISource::CleanUp();
 }
 
-void AVISource::CleanUp() { // Tritical - Jan 2006
+void AVISource::CleanUp() {
     if (hic) {
         !ex ? ICDecompressEnd(hic) : ICDecompressExEnd(hic);
         ICClose(hic);
@@ -815,7 +808,7 @@ void AVISource::CleanUp() { // Tritical - Jan 2006
     AVIFileExit();
     if (pbiSrc)
         free(pbiSrc);
-    if (srcbuffer)  // Tritical May 2005
+    if (srcbuffer)
         delete[] srcbuffer;
     vs_aligned_free(decbuf);
     // fixme
