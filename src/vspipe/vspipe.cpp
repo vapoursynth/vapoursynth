@@ -121,9 +121,9 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
         outputError = true;
         totalFrames = requestedFrames;
         if (errorMsg)
-            errorMessage = QString("Error: Failed to retrieve frame ") + n + QString(" with error: ") + QString::fromUtf8(errorMsg);
+            errorMessage = QString("Error: Failed to retrieve frame ") + QString::number(n) + QString(" with error: ") + QString::fromUtf8(errorMsg);
         else
-            errorMessage = QString("Error: Failed to retrieve frame ") + n;
+            errorMessage = QString("Error: Failed to retrieve frame ") + QString::number(n);
     }
 
     if (requestedFrames < totalFrames) {
