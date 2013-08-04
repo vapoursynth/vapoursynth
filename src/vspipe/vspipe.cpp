@@ -88,7 +88,8 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
             if (!outputError) {
 				if (y4m) {
 					if (!fwrite("FRAME\n", 6, 1, outFile)) {
-						errorMessage = "Error: fwrite() call failed";
+                        if (errorMessage.isEmpty())
+						    errorMessage = "Error: fwrite() call failed";
 						totalFrames = requestedFrames;
 						outputError = true;
 					}
@@ -103,7 +104,8 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
 						int height = vsapi->getFrameHeight(frame, p);
 						for (int y = 0; y < height; y++) {
 							if (!fwrite(readPtr, rowSize, 1, outFile)) {
-								errorMessage = "Error: fwrite() call failed";
+                                if (errorMessage.isEmpty())
+								    errorMessage = "Error: fwrite() call failed";
 								totalFrames = requestedFrames;
 								outputError = true;
 								p = 100; // break out of the outer loop
@@ -120,10 +122,12 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
     } else {
         outputError = true;
         totalFrames = requestedFrames;
-        if (errorMsg)
-            errorMessage = QString("Error: Failed to retrieve frame ") + QString::number(n) + QString(" with error: ") + QString::fromUtf8(errorMsg);
-        else
-            errorMessage = QString("Error: Failed to retrieve frame ") + QString::number(n);
+        if (errorMessage.isEmpty()) {
+            if (errorMsg)
+                errorMessage = QString("Error: Failed to retrieve frame ") + QString::number(n) + QString(" with error: ") + QString::fromUtf8(errorMsg);
+            else
+                errorMessage = QString("Error: Failed to retrieve frame ") + QString::number(n);
+        }
     }
 
     if (requestedFrames < totalFrames) {
