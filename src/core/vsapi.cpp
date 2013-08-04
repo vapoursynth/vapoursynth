@@ -77,11 +77,13 @@ static void VS_CC frameWaiterCallback(void *userData, const VSFrameRef *frame, i
     GetFrameWaiter *g = (GetFrameWaiter *)userData;
     QMutexLocker l(&g->b);
     g->r = frame;
-    memset(g->errorMsg, 0, g->bufSize);
-    if (errorMsg) {
-        strncpy(g->errorMsg, errorMsg, g->bufSize);
-		g->errorMsg[g->bufSize - 1] = 0;
-	}
+    if (g->errorMsg && g->bufSize > 0) {
+        memset(g->errorMsg, 0, g->bufSize);
+        if (errorMsg) {
+            strncpy(g->errorMsg, errorMsg, g->bufSize);
+		    g->errorMsg[g->bufSize - 1] = 0;
+	    }
+    }
     g->a.wakeOne();
 }
 
