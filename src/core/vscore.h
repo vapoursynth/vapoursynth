@@ -487,8 +487,6 @@ public:
     int getAPIVersion();
     const VSCoreInfo &getCoreInfo();
 
-    void registerCache();
-
     VSCore(int threads);
     ~VSCore();
 };

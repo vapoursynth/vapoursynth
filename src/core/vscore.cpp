@@ -443,7 +443,7 @@ void VS_CC loadPluginInitialize(VSConfigPlugin configFunc, VSRegisterFunction re
 extern "C" void VS_CC avsWrapperInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
 #endif
 
-VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
+VSCore::VSCore(int threads) : memory(new MemoryUse()), pluginLock(QMutex::Recursive), formatIdOffset(1000) {
     threadPool = new VSThreadPool(this, threads);
 
     // Register known formats with informational names
@@ -523,6 +523,7 @@ VSCore::~VSCore() {
 
 VSMap VSCore::getPlugins() {
     VSMap m;
+    QMutexLocker lock(&pluginLock);
     foreach(VSPlugin * p, plugins) {
         QByteArray b = p->fnamespace + ";" + p->identifier + ";" + p->fullname;
         vsapi.propSetData(&m, p->identifier.constData(), b.constData(), b.size(), 0);
@@ -531,21 +532,23 @@ VSMap VSCore::getPlugins() {
 }
 
 VSPlugin *VSCore::getPluginId(const QByteArray &identifier) {
+    QMutexLocker lock(&pluginLock);
     return plugins.value(identifier);
 }
 
 VSPlugin *VSCore::getPluginNs(const QByteArray &ns) {
+    QMutexLocker lock(&pluginLock);
     foreach(VSPlugin * p, plugins) {
         if (p->fnamespace == ns)
             return p;
     }
-
     return NULL;
 }
 
 void VSCore::loadPlugin(const QByteArray &filename, const QByteArray &forcedNamespace)  {
     VSPlugin *p = new VSPlugin(filename, forcedNamespace, this);
 
+    QMutexLocker lock(&pluginLock);
     if (getPluginId(p->identifier)) {
         QByteArray error = "Plugin " + filename + " already loaded (" + p->identifier + ")";
         delete p;
