@@ -159,7 +159,7 @@ typedef enum VSPropAppendMode {
     paReplace = 0,
     paAppend  = 1,
     paTouch   = 2
-} PropAppendMode;
+} VSPropAppendMode;
 
 typedef struct VSCoreInfo {
     const char *versionString;
