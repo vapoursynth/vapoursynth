@@ -1,6 +1,10 @@
 known issues:
 compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 
+r20:
+added override support to vdecimate (nodame)
+added -version option to vspipe and other small fixes
+
 r19:
 lut/lut2 now processes all planes by default
 ported to work on arm and powerpc (Zor)

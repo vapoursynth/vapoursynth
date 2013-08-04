@@ -235,8 +235,37 @@ int wmain(int argc, wchar_t **argv) {
 int main(int argc, char **argv) {
 #endif
 
+    if (argc == 2) {
+        if (nativeToQString(argv[1]) == "-version") {
+            if (!vsscript_init()) {
+                fprintf(stderr, "Failed to initialize VapourSynth environment\n");
+                return 1;
+            }
+
+            vsapi = vsscript_getVSApi();
+            if (!vsapi) {
+                fprintf(stderr, "Failed to get VapourSynth API pointer\n");
+                vsscript_finalize();
+                return 1;
+            }
+
+            VSCore *core = vsapi->createCore(0);
+            if (!core) {
+                fprintf(stderr, "Failed to create core\n");
+                vsscript_finalize();
+                return 1;
+            }
+
+            const VSCoreInfo *info = vsapi->getCoreInfo(core);
+            printf("%s", info->versionString);
+            vsapi->freeCore(core);
+            return 0;
+        }
+    }
+
     if (argc < 3) {
         fprintf(stderr, "VSPipe usage:\n");
+		fprintf(stderr, "Show version info: vspipe -version\n");
 		fprintf(stderr, "Show script info: vspipe script.vpy - -info\n");
         fprintf(stderr, "Write to stdout: vspipe script.vpy - [options]\n");
         fprintf(stderr, "Write to file: vspipe script.vpy <outFile> [options]\n");
