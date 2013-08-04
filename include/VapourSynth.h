@@ -149,6 +149,16 @@ typedef enum VSNodeFlags {
     nfNoCache = 1,
 } VSNodeFlags;
 
+typedef enum VSPropTypes {
+    ptUnset = 'u',
+    ptInt = 'i',
+    ptFloat = 'f',
+    ptData = 's',
+    ptNode = 'c',
+    ptFrame = 'v',
+    ptFunction = 'm'
+} VSPropTypes;
+
 typedef enum VSGetPropErrors {
     peUnset = 1,
     peType  = 2,
