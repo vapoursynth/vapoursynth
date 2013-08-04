@@ -136,13 +136,16 @@ public:
     VSCache cache;
     VSNodeRef *clip;
     VSNode *node;
+    VSCore *core;
     bool fixedsize;
-    CacheInstance(VSNodeRef *clip, VSNode *node) : cache(20, 20), clip(clip), node(node), fixedsize(false) { }
+    CacheInstance(VSNodeRef *clip, VSNode *node, VSCore *core) : cache(20, 20), clip(clip), node(node), core(core), fixedsize(false) { }
+    void addCache() { QMutexLocker lock(&core->cacheLock); core->caches.append(node); }
+    void removeCache() { QMutexLocker lock(&core->cacheLock); core->caches.removeOne(node); }
 };
 
 static void VS_CC cacheInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     VSNodeRef *video = vsapi->propGetNode(in, "clip", 0, 0);
-    CacheInstance *c = new CacheInstance(video, node);
+    CacheInstance *c = new CacheInstance(video, node, core);
     int err;
     int fixed = vsapi->propGetInt(in, "fixed", 0, &err);
 
@@ -156,7 +159,8 @@ static void VS_CC cacheInit(VSMap *in, VSMap *out, void **instanceData, VSNode *
 
     *instanceData = c;
     vsapi->setVideoInfo(vsapi->getVideoInfo(video), 1, node);
-    core->caches.append(node);
+
+    c->addCache();
 }
 
 static const VSFrameRef *VS_CC cacheGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -217,7 +221,7 @@ static const VSFrameRef *VS_CC cacheGetframe(int n, int activationReason, void *
 static void VS_CC cacheFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     CacheInstance *c = (CacheInstance *)instanceData;
     vsapi->freeNode(c->clip);
-    core->caches.removeOne(c->node);
+    c->removeCache();
     delete c;
 }
 

@@ -453,15 +453,18 @@ class VSCache;
 struct VSCore {
     friend struct VSNode;
     friend class VSFrame;
+    friend class VSThreadPool;
+    friend class CacheInstance;
 private:
     QMap<QByteArray, VSPlugin *> plugins;
     QHash<int, VSFormat *> formats;
     QMutex formatLock;
+    QMutex cacheLock;
     static QMutex filterLock;
     int formatIdOffset;
     VSCoreInfo coreInfo;
-public:
     QList<VSNode *> caches;
+public:
     VSThreadPool *threadPool;
     MemoryUse *memory;
 
@@ -483,6 +486,8 @@ public:
     int64_t setMaxCacheSize(int64_t bytes);
     int getAPIVersion();
     const VSCoreInfo &getCoreInfo();
+
+    void registerCache();
 
     VSCore(int threads);
     ~VSCore();

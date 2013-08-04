@@ -242,6 +242,7 @@ void VSThreadPool::reserveThread() {
 }
 
 void VSThreadPool::notifyCaches(CacheActivation reason) {
+    QMutexLocker lock(&core->cacheLock);
     for (int i = 0; i < core->caches.count(); i++)
         tasks.insert(0, PFrameContext(new FrameContext(reason, 0, core->caches[i], PFrameContext())));
 }
