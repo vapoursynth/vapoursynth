@@ -220,8 +220,8 @@ static const VSFrameRef *VS_CC cacheGetframe(int n, int activationReason, void *
 
 static void VS_CC cacheFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     CacheInstance *c = (CacheInstance *)instanceData;
-    vsapi->freeNode(c->clip);
     c->removeCache();
+    vsapi->freeNode(c->clip);
     delete c;
 }
 

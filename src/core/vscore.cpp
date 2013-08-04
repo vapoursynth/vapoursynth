@@ -263,7 +263,6 @@ VSFunction::VSFunction(const QByteArray &name, const QByteArray &argString, VSPu
 
 VSNode::VSNode(const VSMap *in, VSMap *out, const QByteArray &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion, VSCore *core) :
     instanceData(instanceData), name(name), init(init), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiVersion(apiVersion), core(core), flags(flags), inval(*in), hasVi(false) {
-    QMutexLocker lock(&VSCore::filterLock);
     init(&inval, out, &this->instanceData, this, core, getVSAPIInternal(apiVersion));
 
     if (vsapi.getError(out))
@@ -274,8 +273,6 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const QByteArray &name, VSFilterInit
 }
 
 VSNode::~VSNode() {
-    QMutexLocker lock(&VSCore::filterLock);
-
     if (free)
         free(instanceData, core, &vsapi);
 }
@@ -524,8 +521,6 @@ VSCore::~VSCore() {
         delete f;
 }
 
-QMutex VSCore::filterLock(QMutex::Recursive);
-
 VSMap VSCore::getPlugins() {
     VSMap m;
     foreach(VSPlugin * p, plugins) {
@@ -540,10 +535,10 @@ VSPlugin *VSCore::getPluginId(const QByteArray &identifier) {
 }
 
 VSPlugin *VSCore::getPluginNs(const QByteArray &ns) {
-    foreach(VSPlugin * p, plugins)
-
-    if (p->fnamespace == ns)
-        return p;
+    foreach(VSPlugin * p, plugins) {
+        if (p->fnamespace == ns)
+            return p;
+    }
 
     return NULL;
 }

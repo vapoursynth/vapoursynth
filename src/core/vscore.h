@@ -457,13 +457,13 @@ struct VSCore {
     friend class CacheInstance;
 private:
     QMap<QByteArray, VSPlugin *> plugins;
+    QMutex pluginLock;
     QHash<int, VSFormat *> formats;
     QMutex formatLock;
-    QMutex cacheLock;
-    static QMutex filterLock;
     int formatIdOffset;
     VSCoreInfo coreInfo;
     QList<VSNode *> caches;
+    QMutex cacheLock;
 public:
     VSThreadPool *threadPool;
     MemoryUse *memory;
