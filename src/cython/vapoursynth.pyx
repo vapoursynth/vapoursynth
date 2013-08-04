@@ -27,6 +27,7 @@ import threading
 import gc
 
 _using_vsscript = False
+_environment_id_stack = []
 _environment_id = None
 _stored_outputs = {}
 _cores = {}
@@ -1021,6 +1022,8 @@ cdef public struct VPYScriptExport:
 cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, const char *scriptFilename, int flags) nogil:
     with gil:
         global _environment_id
+        global _environment_id_stack
+        _environment_id_stack.append(_environment_id)
         _environment_id = se.id
         orig_path = None
         try:
@@ -1066,7 +1069,7 @@ cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, 
             se.errstr = <void *>errstr
             return 1
         finally:
-            _environment_id = None
+            _environment_id = _environment_id_stack.pop()
             if orig_path is not None:
                 os.chdir(orig_path)
         return 0

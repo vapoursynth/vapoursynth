@@ -2,6 +2,7 @@ known issues:
 compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 
 r20:
+fixed the error that happens when avisource is used to open a vs script inside a vs script
 added override support to vdecimate (nodame)
 added -version option to vspipe and other small fixes
 
