@@ -501,7 +501,7 @@ void FakeAvisynth::AddFunction(const char *name, const char *params, ApplyFunc a
 
         if (params[paramPos] == '[') { // named argument start
             QString argName(params);
-            int nameStart = ++paramPos;
+            size_t nameStart = ++paramPos;
 
             while (paramPos < paramLength) {
                 if (params[paramPos++] == ']') {

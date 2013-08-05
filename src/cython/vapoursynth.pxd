@@ -227,4 +227,4 @@ cdef extern from "include/VapourSynth.h" nogil:
         int64_t setMaxCacheSize(int64_t bytes, VSCore *core) nogil
         
         void setMessageHandler(VSMessageHandler handler) nogil
-    VSAPI *getVapourSynthAPI(int version) nogil
+    const VSAPI *getVapourSynthAPI(int version) nogil
