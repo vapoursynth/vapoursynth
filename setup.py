@@ -9,7 +9,7 @@ setup(
     name = "VapourSynth",
     description = "A frameserver for the 21st century",
     url = "http://www.vapoursynth.com/",
-    download_url = "http://code.google.com/p/vapoursynth/",
+    download_url = "https://github.com/vapoursynth/vapoursynth",
     author = "Fredrik Mellbin",
     author_email = "fredrik.mellbin@gmail.com",
     license = "LGPL 2.1 or later",
