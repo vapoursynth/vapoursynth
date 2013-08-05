@@ -486,8 +486,8 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
 }
 
 void FakeAvisynth::AddFunction(const char *name, const char *params, ApplyFunc apply, void *user_data) {
-    int paramLength = strlen(params);
-    int paramPos = 0;
+    size_t paramLength = strlen(params);
+    size_t paramPos = 0;
     int argNum = 1;
     int numArgs = 0;
     QList<AvisynthArgs> parsedArgs;
