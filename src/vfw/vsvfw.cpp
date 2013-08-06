@@ -147,7 +147,7 @@ public:
 
     //////////// IAVIStream
 
-    STDMETHODIMP Create(LONG lParam1, LONG lParam2);
+    STDMETHODIMP Create(LPARAM lParam1, LPARAM lParam2);
     STDMETHODIMP Delete(LONG lStart, LONG lSamples);
     STDMETHODIMP_(LONG) Info(AVISTREAMINFOW *psi, LONG lSize);
     STDMETHODIMP_(LONG) FindSample(LONG lPos, LONG lFlags);
@@ -666,7 +666,7 @@ STDMETHODIMP VapourSynthStream::End() {
 
 //////////// IAVIStream
 
-STDMETHODIMP VapourSynthStream::Create(LONG lParam1, LONG lParam2) {
+STDMETHODIMP VapourSynthStream::Create(LPARAM lParam1, LPARAM lParam2) {
     return AVIERR_READONLY;
 }
 
