@@ -194,7 +194,7 @@ def configure(conf):
                     ['-w',
                      '-Worphan-labels',
                      '-Wunrecognized-char',
-                     '-Dprogram_name=vs'])
+                     '-Dprivate_prefix=vs'])
     else:
         # For all non-x86 targets, use the GNU assembler.
         # Waf uses GCC instead of the assembler directly.
