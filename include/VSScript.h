@@ -18,6 +18,9 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
+#ifndef VSSCRIPT_H
+#define VSSCRIPT_H
+
 #include "VapourSynth.h"
 
 typedef struct VSScript VSScript;
@@ -59,3 +62,5 @@ VS_API(void) vsscript_setVariable(VSScript *handle, const VSMap *vars);
 VS_API(int) vsscript_clearVariable(VSScript *handle, const char *name);
 // Tries to clear everything set in an environment, normally it is better to simply free an environment completely and create a new one
 VS_API(void) vsscript_clearEnvironment(VSScript *handle);
+
+#endif // VSSCRIPT_H
