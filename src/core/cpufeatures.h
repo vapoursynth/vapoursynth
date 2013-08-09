@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012 Fredrik Mellbin
+* Copyright (c) 2012-2013 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -18,37 +18,37 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-struct CPUFeatures {
+typedef struct CPUFeatures {
     // This is to determine if the cpu is up to the minimum requirements in terms of supported instructions
     // that the VapourSynth core uses.
-    bool can_run_vs;
+    char can_run_vs;
 #ifdef VS_TARGET_CPU_X86
     // On x86, all features up to sse2 are required.
-    bool sse3;
-    bool ssse3;
-    bool sse4_1;
-    bool sse4_2;
-    bool fma3;
-    bool avx;
+    char sse3;
+    char ssse3;
+    char sse4_1;
+    char sse4_2;
+    char fma3;
+    char avx;
 #elif defined(VS_TARGET_CPU_ARM)
     // On ARM, VFP-D16+ (16 double registers or more) is required.
-    bool half_fp;
-    bool edsp;
-    bool iwmmxt;
-    bool neon;
-    bool fast_mult;
-    bool idiv_a;
+    char half_fp;
+    char edsp;
+    char iwmmxt;
+    char neon;
+    char fast_mult;
+    char idiv_a;
 #elif defined(VS_TARGET_CPU_POWERPC)
     // On PowerPC, FPU and MMU are required.
-    bool altivec;
-    bool spe;
-    bool efp_single;
-    bool efp_double;
-    bool dfp;
-    bool vsx;
+    char altivec;
+    char spe;
+    char efp_single;
+    char efp_double;
+    char dfp;
+    char vsx;
 #else
 #error No VS_TARGET_CPU_* defined/handled!
 #endif
-};
+} CPUFeatures;
 
 void getCPUFeatures(CPUFeatures *cpuFeatures);
