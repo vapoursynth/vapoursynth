@@ -23,30 +23,30 @@ CPU Pentium4
 SECTION .text
 
 INIT_XMM
-cglobal isFPUStateOk, 0, 2, 0
-	xor r1, r1
+cglobal isFPUStateOk, 0, 0, 0
+	xor rcx, rcx
     fnstcw [rsp - 4]
-	mov r0w, [rsp - 4]
-    and r0w, 0x0f3f
-    cmp r0w, 0x023f
-	cmovne r0, r1
+	mov ax, [rsp - 4]
+    and ax, 0x0f3f
+    cmp ax, 0x023f
+	cmovne rax, rcx
 	RET
 
 INIT_XMM
-cglobal isMMXStateOk, 0, 2, 0
-	xor r1, r1
+cglobal isMMXStateOk, 0, 0, 0
+	xor rcx, rcx
     fnstenv [rsp - 28]
-	mov r0w, [rsp - 20]
-    cmp r0w, 0xffff
-	cmovne r0, r1
+	mov ax, [rsp - 20]
+    cmp ax, 0xffff
+	cmovne rax, rcx
 	RET
 
 INIT_XMM
-cglobal isSSEStateOk, 0, 2, 0
-	xor r1, r1
+cglobal isSSEStateOk, 0, 0, 0
+	xor rcx, rcx
     stmxcsr [rsp - 4]
-	mov r0w, [rsp - 4]
-    and r0w, 0x7f80
-	cmp r0w, 0x1f80
-	cmovne r0, r1
+	mov ax, [rsp - 4]
+    and ax, 0x7f80
+	cmp ax, 0x1f80
+	cmovne rax, rcx
 	RET
