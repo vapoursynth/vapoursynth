@@ -3,7 +3,15 @@ Plugin List
 
 Native Plugins
 ##############
-* AssVapour -- subtitle renderer, in the source tree
+
+.. toctree::
+   :maxdepth: 2
+   :glob:
+   :hidden:
+
+   plugins/*
+
+* :ref:`AssVapour <assvapour>` -- subtitle renderer, in the source tree
 * EEDI3 -- in the source tree
 * VIVTC -- in the source tree
 * AviSource -- in the source tree
