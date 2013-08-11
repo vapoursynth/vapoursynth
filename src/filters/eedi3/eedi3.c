@@ -751,8 +751,8 @@ static void VS_CC eedi3Create(const VSMap *in, VSMap *out, void *userData, VSCor
         goto error;
     }
 
-    if(d.dh && (d.field < -1 || d.field > 1)) {
-        sprintf(msg, "eedi3:  field must be set to -1, 0, or 1 when dh=true!");
+    if(d.dh && d.field > 1) {
+        sprintf(msg, "eedi3:  field must be set to 0 or 1 when dh=true!");
         goto error;
     }
 
