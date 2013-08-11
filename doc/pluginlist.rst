@@ -12,7 +12,7 @@ Native Plugins
    plugins/*
 
 * :ref:`AssVapour <assvapour>` -- subtitle renderer, in the source tree
-* EEDI3 -- in the source tree
+* :ref:`EEDI3 <eedi3>` -- in the source tree
 * VIVTC -- in the source tree
 * AviSource -- in the source tree
 * `Histogram <https://github.com/dubhater/vapoursynth-histogram>`_ -- bundled with the installer
