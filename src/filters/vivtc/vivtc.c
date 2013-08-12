@@ -25,6 +25,9 @@
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #include "VapourSynth.h"
 #include "VSHelper.h"
 
@@ -965,7 +968,13 @@ static int vdecimateLoadOVR(const char *ovrfile, char **overrides, int cycle, in
     char buf[80];
     char* pos;
     char *ovr;
+#ifdef _WIN32
+    wchar_t ovrfile_wc[FILENAME_MAX * 2];
+    MultiByteToWideChar(CP_UTF8, 0, ovrfile, -1, ovrfile_wc, FILENAME_MAX * 2);
+    FILE* moo = _wfopen(ovefile_wc, L"r");
+#else
     FILE* moo = fopen(ovrfile, "r");
+#endif
     if (!moo) {
         sprintf(err, "VDecimate: can't open ovr file");
         return 1;
