@@ -977,7 +977,7 @@ static int vdecimateLoadOVR(const char *ovrfile, char **overrides, int cycle, in
     if (ovrfile_wc) {
         ret = MultiByteToWideChar(CP_UTF8, 0, ovrfile, -1, ovrfile_wc, len);
         if (ret == len)
-            FILE* moo = _wfopen(ovefile_wc, L"rb");
+            FILE* moo = _wfopen(ovrfile_wc, L"rb");
         free(ovrfile_wc);
     }
 #else
