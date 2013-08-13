@@ -969,9 +969,17 @@ static int vdecimateLoadOVR(const char *ovrfile, char **overrides, int cycle, in
     char* pos;
     char *ovr;
 #ifdef _WIN32
-    wchar_t ovrfile_wc[FILENAME_MAX * 2];
-    MultiByteToWideChar(CP_UTF8, 0, ovrfile, -1, ovrfile_wc, FILENAME_MAX * 2);
-    FILE* moo = _wfopen(ovefile_wc, L"r");
+    FILE* moo = NULL;
+    int len, ret;
+    wchar_t ovrfile_wc;
+    len = MultiByteToWideChar(CP_UTF8, 0, ovrfile, -1, NULL, 0);
+    ovrfile_wc = malloc(len * sizeof(wchar_t));
+    if (ovrfile_wc) {
+        ret = MultiByteToWideChar(CP_UTF8, 0, ovrfile, -1, ovrfile_wc, len);
+        if (ret == len)
+            FILE* moo = _wfopen(ovefile_wc, L"rb");
+        free(ovrfile_wc);
+    }
 #else
     FILE* moo = fopen(ovrfile, "r");
 #endif
