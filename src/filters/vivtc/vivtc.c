@@ -25,6 +25,9 @@
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #include "VapourSynth.h"
 #include "VSHelper.h"
 
@@ -72,20 +75,12 @@ typedef struct {
     int64_t lastscdiff;
 } VFMData;
 
-static void BitBlt(uint8_t *dstp, int dst_stride, const uint8_t *srcp, int src_stride, int row_size, int height) {
-    int i;
-    for (i = 0; i < height; i++) {
-        memcpy(dstp, srcp, row_size);
-        dstp += dst_stride;
-        srcp += src_stride;
-    }
-}
 
 static void copyField(VSFrameRef *dst, const VSFrameRef *src, int field, const VSAPI *vsapi) {
     const VSFormat *fi = vsapi->getFrameFormat(src);
     int plane;
     for (plane=0; plane<fi->numPlanes; plane++) {
-		BitBlt(vsapi->getWritePtr(dst, plane)+field*vsapi->getStride(dst, plane),vsapi->getStride(dst, plane)*2,
+		vs_bitblt(vsapi->getWritePtr(dst, plane)+field*vsapi->getStride(dst, plane),vsapi->getStride(dst, plane)*2,
 			vsapi->getReadPtr(src, plane)+field*vsapi->getStride(src, plane),vsapi->getStride(src, plane)*2, 
             vsapi->getFrameWidth(src, plane),vsapi->getFrameHeight(src,plane)/2);
 	}
@@ -965,7 +960,21 @@ static int vdecimateLoadOVR(const char *ovrfile, char **overrides, int cycle, in
     char buf[80];
     char* pos;
     char *ovr;
+#ifdef _WIN32
+    FILE* moo = NULL;
+    int len, ret;
+    wchar_t *ovrfile_wc;
+    len = MultiByteToWideChar(CP_UTF8, 0, ovrfile, -1, NULL, 0);
+    ovrfile_wc = malloc(len * sizeof(wchar_t));
+    if (ovrfile_wc) {
+        ret = MultiByteToWideChar(CP_UTF8, 0, ovrfile, -1, ovrfile_wc, len);
+        if (ret == len)
+            moo = _wfopen(ovrfile_wc, L"rb");
+        free(ovrfile_wc);
+    }
+#else
     FILE* moo = fopen(ovrfile, "r");
+#endif
     if (!moo) {
         sprintf(err, "VDecimate: can't open ovr file");
         return 1;
