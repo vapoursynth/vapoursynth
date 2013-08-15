@@ -225,8 +225,10 @@ static void VS_CC cacheFree(void *instanceData, VSCore *core, const VSAPI *vsapi
     delete c;
 }
 
+static QAtomicInt cacheId(1);
+
 static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    vsapi->createFilter(in, out, "Cache", cacheInit, cacheGetframe, cacheFree, fmUnordered, nfNoCache, userData, core);
+    vsapi->createFilter(in, out, ("Cache" + QString::number(cacheId.fetchAndAddAcquire(1))).toUtf8(), cacheInit, cacheGetframe, cacheFree, fmUnordered, nfNoCache, userData, core);
 }
 
 void VS_CC cacheInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
