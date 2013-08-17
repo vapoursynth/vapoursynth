@@ -29,8 +29,10 @@ VSCache::CacheAction VSCache::recommendSize() {
     if (total == 0)
         return caClear;
 
-    if (total < 30)
+    if (total < 30) {
+        clearStats();
         return caNoChange; // not enough requests to know what to do so keep it this way
+    }
 
     if ((float)nearMiss / total > 0.2) { // growing the cache would be beneficial
         clearStats();
