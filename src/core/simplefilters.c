@@ -33,7 +33,9 @@
 //////////////////////////////////////////
 // Shared
 
-#define vs_memset8 memset
+static inline void vs_memset8(void *ptr, int value, size_t num) {
+    memset(ptr, value, num);
+}
 
 static inline void vs_memset16(void *ptr, int value, size_t num) {
 	uint16_t *tptr = (uint16_t *)ptr;
@@ -105,6 +107,15 @@ static int planeWidth(const VSVideoInfo *vi, int plane) {
 
 static int planeHeight(const VSVideoInfo *vi, int plane) {
     return vi->height >> (plane ? vi->format->subSamplingH : 0);
+}
+
+// get the triplet representing black for any colorspace (works for union with float too since it's always 0)
+static void setBlack(uint32_t color[3], const VSFormat *format) {
+    int i;
+    for (i = 0; i < 3; i++)
+        color[0] = 0;
+    if (format->sampleType == stInteger)
+        color[1] = color[2] = (1 << (format->bitsPerSample - 1));
 }
 
 //////////////////////////////////////////
@@ -421,6 +432,11 @@ static void VS_CC addBordersCreate(const VSMap *in, VSMap *out, void *userData, 
         RETERROR("AddBorders: compat formats not supported");
     }
 
+    if (!d.vi->format) {
+        vsapi->freeNode(d.node);
+        RETERROR("AddBorders: input needs to be constant format");
+    }
+
     if (addBordersVerify(d.left, d.right, d.top, d.bottom, d.vi->format, msg)) {
         vsapi->freeNode(d.node);
         RETERROR(msg);
@@ -428,9 +444,7 @@ static void VS_CC addBordersCreate(const VSMap *in, VSMap *out, void *userData, 
 
 	ncolors = vsapi->propNumElements(in, "color");
 
-	for (i = 0; i < 3; i++) {
-		d.color.i[i] = 0;
-	}
+    setBlack(d.color.i, d.vi->format);
 
     if (ncolors == d.vi->format->numPlanes) {
         for (i = 0; i < ncolors; i++) {
@@ -1599,9 +1613,6 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     int compat = 0;
     memset(&d.vi, 0, sizeof(d.vi));
 
-	for (i = 0; i < 3; i++)
-		color.i[i] = 0;
-
     node = vsapi->propGetNode(in, "clip", 0, &err);
 
     if (!err) {
@@ -1684,6 +1695,8 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
 
     if (d.vi.numFrames < 0)
         RETERROR("BlankClip: Invalid length");
+
+    setBlack(color.i, d.vi.format);
 
     ncolors = vsapi->propNumElements(in, "color");
 

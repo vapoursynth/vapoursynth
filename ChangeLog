@@ -6,6 +6,8 @@ fixed a bug in the propagation of filter errors, requesting a frame with an erro
 fixed the error that happens when avisource is used to open a vs script inside a vs script
 added override support to vdecimate (nodame)
 added -version option to vspipe and other small fixes
+addborders now properly rejects clips where the colorspace can change
+addborders and blankclip now properly default to black for all colorspaces
 
 r19:
 lut/lut2 now processes all planes by default
