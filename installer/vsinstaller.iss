@@ -1,5 +1,5 @@
 #define AppName = 'VapourSynth'
-#define Version = 'R19'
+#define Version = 'R20'
 
 [Setup]
 OutputDir=Compiled
@@ -17,7 +17,7 @@ AppPublisher=Fredrik Mellbin
 AppPublisherURL=http://www.vapoursynth.com/
 AppSupportURL=http://www.vapoursynth.com/
 AppUpdatesURL=http://www.vapoursynth.com/
-VersionInfoVersion=1.19.0.1
+VersionInfoVersion=1.20.0.0
 DefaultDirName={pf}\VapourSynth
 DefaultGroupName=VapourSynth
 AllowCancelDuringInstall=no
@@ -58,24 +58,24 @@ Source: vapoursynth.lib; DestDir: {app}\sdk\lib; Flags: ignoreversion uninsresta
 Source: ..\sdk\filter_skeleton.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: ..\sdk\invert_example.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: ..\sdk\vsscript_example.cpp; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace
-;bundled filters
-Source: filters\avisource.dll; DestDir: {app}\filters; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: filters\vivtc.dll; DestDir: {app}\filters; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: filters\eedi3.dll; DestDir: {app}\filters; Flags: ignoreversion uninsrestartdelete restartreplace
-;Source: filters\assvapour.dll; DestDir: {app}\filters; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: filters\temporalsoften.dll; DestDir: {app}\filters; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: filters\histogram.dll; DestDir: {app}\filters; Flags: ignoreversion uninsrestartdelete restartreplace
+;bundled plugins
+Source: plugins\avisource.dll; DestDir: {app}\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: plugins\vivtc.dll; DestDir: {app}\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: plugins\eedi3.dll; DestDir: {app}\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
+;Source: plugins\assvapour.dll; DestDir: {app}\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: plugins\temporalsoften.dll; DestDir: {app}\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: plugins\histogram.dll; DestDir: {app}\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
 
 [Icons]
 Name: {group}\VapourSynth Website; Filename: http://www.vapoursynth.com/
 Name: {group}\Documentation; Filename: http://www.vapoursynth.com/doc/
-Name: {group}\Bundled Filters; Filename: {app}\filters
+Name: {group}\Bundled Plugins; Filename: {app}\plugins
 Name: {group}\VapourSynth SDK; Filename: {app}\sdk
 
 [Registry]
 Root: HKLM; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "Version"; ValueData: {#= Version}; Flags: uninsdeletevalue uninsdeletekeyifempty
 Root: HKLM; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "Path"; ValueData: "{app}"; Flags: uninsdeletevalue uninsdeletekeyifempty
-Root: HKLM; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "Plugins"; ValueData: "{app}\filters"; Flags: uninsdeletevalue uninsdeletekeyifempty
+Root: HKLM; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "Plugins"; ValueData: "{app}\plugins"; Flags: uninsdeletevalue uninsdeletekeyifempty
 
 Root: HKLM; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}; ValueType: string; ValueName: ""; ValueData: "VapourSynth"; Flags: uninsdeletevalue uninsdeletekeyifempty
 Root: HKLM; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32; ValueType: string; ValueName: ""; ValueData: "vsvfw.dll"; Flags: uninsdeletevalue uninsdeletekeyifempty
