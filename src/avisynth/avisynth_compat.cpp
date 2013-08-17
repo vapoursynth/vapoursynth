@@ -139,14 +139,16 @@ PVideoFrame VSClip::GetFrame(int n, IScriptEnvironment *env) {
     else
         ref = vsapi->getFrameFilter(n, clip, fakeEnv->uglyCtx);
 
+    std::vector<char> buf(1024);
+
     if (!ref) {
         QByteArray s = QByteArray("Avisynth Compat: requested frame ") + QString::number(n).toUtf8() + QByteArray(" not prefetched, using slow method");
         qWarning(s);
-        ref = vsapi->getFrame(n, clip, NULL, 0);
+        ref = vsapi->getFrame(n, clip, &buf[0], buf.size());
     }
 
     if (!ref)
-        qFatal("Avisynth Compat: unlikely error");
+        qFatal("Avisynth Compat: error while getting input frame synchronously: %s", &buf[0]);
 
     bool isYV12 = vi.IsYV12();
 
@@ -220,6 +222,7 @@ static PrefetchInfo getPrefetchInfo(const QByteArray &name, const VSMap *in, con
     PREFETCHR0(nnedi3)
     PREFETCHR0(nnedi3_rpow2)
     // mixed Tritical
+    PREFETCHR2(TDeint)
     BROKEN(ColorMatrix)
     PREFETCHR1(Cnr2)
     temp = vsapi->propGetInt(in, "tbsize", 0, &err);
