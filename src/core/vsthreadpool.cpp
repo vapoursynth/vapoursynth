@@ -298,7 +298,7 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
 
     // add it immediately if the task is to return a completed frame and put it at the front of the line since it has no dependencies
     if (context->returnedFrame || context->hasError()) {
-        tasks.prepend(context);
+        tasks.append(context);
         wakeThread();
         return;
     } else {
