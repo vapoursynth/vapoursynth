@@ -23,6 +23,7 @@
 #include <QtCore/QMutex>
 #include <QtCore/QMutexLocker>
 #include <QtCore/QWaitCondition>
+#include <QtCore/QElapsedTimer>
 #define __STDC_FORMAT_MACROS
 #include <cstdio>
 #include <inttypes.h>
@@ -78,6 +79,7 @@ QMap<int, const VSFrameRef *> reorderMap;
 QString errorMessage;
 QWaitCondition condition;
 QMutex mutex;
+QElapsedTimer timer;
 
 void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg) {
     completedFrames++;
@@ -353,6 +355,8 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    timer.start();
+
 	if (vsscript_evaluateFile(&se, nativeToQString(argv[1]).toUtf8(), efSetWorkingDir)) {
         fprintf(stderr, "Script evaluation failed:\n%s\n", vsscript_getError(se));
         vsscript_freeScript(se);
@@ -399,6 +403,8 @@ int main(int argc, char **argv) {
 	}
 
 	fflush(outFile);
+    int64_t elapsedMsec = timer.elapsed();
+    fprintf(stderr, "Output %d frames in %f seconds (%f fps)\n", outputFrames, (float)elapsedMsec/1000, (outputFrames*1000)/(float)elapsedMsec);
     vsapi->freeNode(node);
     vsscript_freeScript(se);
     vsscript_finalize();
