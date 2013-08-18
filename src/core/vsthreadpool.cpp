@@ -55,6 +55,11 @@ void VSThread::run() {
                 owner->returnFrame(rCtx, rCtx->returnedFrame);
                 ranTask = true;
                 break;
+            } else if (rCtx->frameDone && rCtx->hasError()) {
+                owner->tasks.removeAt(i--);
+                owner->returnFrame(rCtx, rCtx->getErrorMessage());
+                ranTask = true;
+                break;
             } else {
 
                 PFrameContext pCtx = rCtx;
@@ -150,11 +155,7 @@ void VSThread::run() {
                         }
 
                         if (rCtx->frameDone) {
-                            owner->lock.unlock();
-                            QMutexLocker callbackLock(&owner->callbackLock);
-                            rCtx->frameDone(rCtx->userData, NULL, rCtx->n, rCtx->node, rCtx->getErrorMessage().constData());
-                            callbackLock.unlock();
-                            owner->lock.lock();
+                            owner->returnFrame(rCtx, rCtx->getErrorMessage());
                         }
                     } while ((rCtx = n));
                 } else if (f) {
@@ -259,9 +260,20 @@ void VSThreadPool::returnFrame(const PFrameContext &rCtx, const PVideoFrame &f) 
     // AND so that slow callbacks will only block operations in this thread, not all the others
     lock.unlock();
     VSFrameRef *ref = new VSFrameRef(f);
-    QMutexLocker m(&callbackLock);
+    callbackLock.lock();
     rCtx->frameDone(rCtx->userData, ref, rCtx->n, rCtx->node, NULL);
-    m.unlock();
+    callbackLock.unlock();
+    lock.lock();
+}
+
+void VSThreadPool::returnFrame(const PFrameContext &rCtx, const QByteArray &errMsg) {
+    Q_ASSERT(rCtx->frameDone);
+    // we need to unlock here so the callback may request more frames without causing a deadlock
+    // AND so that slow callbacks will only block operations in this thread, not all the others
+    lock.unlock();
+    callbackLock.lock();
+    rCtx->frameDone(rCtx->userData, NULL, rCtx->n, rCtx->node, errMsg.constData());
+    callbackLock.unlock();
     lock.lock();
 }
 
@@ -284,9 +296,9 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
         notifyCaches(cCacheTick);
     }
 
-    // add it immediately if the task is to return a completed frame
+    // add it immediately if the task is to return a completed frame and put it at the front of the line since it has no dependencies
     if (context->returnedFrame || context->hasError()) {
-        tasks.append(context);
+        tasks.prepend(context);
         wakeThread();
         return;
     } else {

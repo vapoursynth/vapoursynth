@@ -391,6 +391,7 @@ public:
     VSThreadPool(VSCore *core, int threads);
     ~VSThreadPool();
     void returnFrame(const PFrameContext &rCtx, const PVideoFrame &f);
+    void returnFrame(const PFrameContext &rCtx, const QByteArray &errMsg);
     int	activeThreadCount() const;
     int	threadCount() const;
 	void setThreadCount(int threads);
