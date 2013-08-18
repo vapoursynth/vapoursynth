@@ -72,6 +72,7 @@ int numPlanes = 0;
 bool y4m = false;
 bool outputError = false;
 bool showInfo = false;
+bool printFrameNumber = false;
 QMap<int, const VSFrameRef *> reorderMap;
 
 QString errorMessage;
@@ -134,6 +135,9 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
         vsapi->getFrameAsync(requestedFrames, node, frameDoneCallback, NULL);
         requestedFrames++;
     }
+
+    if (printFrameNumber && !outputError)
+        fprintf(stderr, "Frame: %d/%d\n", completedFrames, totalFrames);
 
     if (totalFrames == completedFrames) {
         QMutexLocker lock(&mutex);
@@ -277,6 +281,7 @@ int main(int argc, char **argv) {
 		fprintf(stderr, "Select output index: -index N\n");
 		fprintf(stderr, "Set number of concurrent frame requests: -requests N\n");
 		fprintf(stderr, "Add YUV4MPEG headers: -y4m\n");
+		fprintf(stderr, "Print progress to stderr: -progress\n");
 		fprintf(stderr, "Show video info: -info (overrides other options)\n");
         return 1;
     }
@@ -328,6 +333,8 @@ int main(int argc, char **argv) {
 				return 1;
 			}
 			arg++;
+		} else if (argString == "-progress") {
+			printFrameNumber = true;
 		} else {
 			fprintf(stderr, "Unknown argument: %s\n", argString.toUtf8().constData());
 			return 1;
