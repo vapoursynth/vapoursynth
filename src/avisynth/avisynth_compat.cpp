@@ -222,7 +222,17 @@ static PrefetchInfo getPrefetchInfo(const QByteArray &name, const VSMap *in, con
     PREFETCHR0(nnedi3)
     PREFETCHR0(nnedi3_rpow2)
     // mixed Tritical
-    PREFETCHR2(TDeint)
+    temp = vsapi->propGetInt(in, "mode", 0, &err);
+    switch(temp) {
+    case 0:
+    case -1:
+    case -2:
+        PREFETCHR2(TDeint); break;
+    case 2:
+        PREFETCHR3(TDeint); break;
+    case 1:
+        PREFETCH(TDeint, 2, 1, -2, 2); break;
+    }
     BROKEN(ColorMatrix)
     PREFETCHR1(Cnr2)
     temp = vsapi->propGetInt(in, "tbsize", 0, &err);
