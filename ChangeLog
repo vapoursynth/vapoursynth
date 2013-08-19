@@ -8,6 +8,10 @@ added override support to vdecimate (nodame)
 added -version option to vspipe and other small fixes
 addborders now properly rejects clips where the colorspace can change
 addborders and blankclip now properly default to black for all colorspaces
+added tdeint propery to the prefetch list_functions
+fixed a cache bug that would make caches adapt too slowly/not at all
+only output the first 200 slow warnings per avisynth filter
+don't prefetch any frames by default for avisynth filters
 
 r19:
 lut/lut2 now processes all planes by default

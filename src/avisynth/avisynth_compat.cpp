@@ -142,8 +142,11 @@ PVideoFrame VSClip::GetFrame(int n, IScriptEnvironment *env) {
     std::vector<char> buf(1024);
 
     if (!ref) {
-        QByteArray s = QByteArray("Avisynth Compat: requested frame ") + QString::number(n).toUtf8() + QByteArray(" not prefetched, using slow method");
-        qWarning(s);
+        if (numSlowWarnings < 200) {
+            numSlowWarnings++;
+            QByteArray s = QByteArray("Avisynth Compat: requested frame ") + QString::number(n).toUtf8() + QByteArray(" not prefetched, using slow method");
+            qWarning(s.constData());
+        }
         ref = vsapi->getFrame(n, clip, &buf[0], buf.size());
     }
 
@@ -338,7 +341,8 @@ static PrefetchInfo getPrefetchInfo(const QByteArray &name, const VSMap *in, con
     PREFETCH(Bob, 2, 1, 0, 0)
     PREFETCH(TemporalSoften, 1, 1, -5, 5)
 
-    return PrefetchInfo(1, 1, 0, 0);
+    // prefetch nothing by default
+    return PrefetchInfo(1, 1, 0, -1);
 }
 
 static void VS_CC avisynthFilterInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -373,7 +377,7 @@ static const VSFrameRef *VS_CC avisynthFilterGetFrame(int n, int activationReaso
     PVideoFrame frame;
     n = qMin(n, clip->clip->GetVideoInfo().num_frames - 1);
 
-    if (activationReason == arAllFramesReady || (activationReason == arInitial && clip->preFetchClips.empty())) {
+    if (activationReason == arAllFramesReady || (activationReason == arInitial && (clip->preFetchClips.empty() || clip->prefetchInfo.from > clip->prefetchInfo.to))) {
         // Ready the global stuff needed to make things work behind the scenes, the locking model makes this technically safe but quite ugly.
         // The frame number is needed to pass through frame attributes for filters that create a new frame to return, the context is for GetFrame().
         if (!clip->preFetchClips.empty()) {

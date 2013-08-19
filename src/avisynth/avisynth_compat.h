@@ -81,10 +81,11 @@ private:
     VSNodeRef *clip;
     FakeAvisynth *fakeEnv;
     const VSAPI *vsapi;
+    int numSlowWarnings;
     VideoInfo vi;
 public:
     VSClip(VSNodeRef *clip, int64_t numAudioSamples, int nChannels, FakeAvisynth *fakeEnv, const VSAPI *vsapi)
-        : clip(clip), fakeEnv(fakeEnv), vsapi(vsapi) {
+        : clip(clip), fakeEnv(fakeEnv), vsapi(vsapi), numSlowWarnings(0) {
         const ::VSVideoInfo *srcVi = vsapi->getVideoInfo(clip);
         vi.width = srcVi->width;
         vi.height = srcVi->height;
