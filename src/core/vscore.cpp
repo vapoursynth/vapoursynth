@@ -243,9 +243,7 @@ VSFunction::VSFunction(const QByteArray &name, const QByteArray &argString, VSPu
         bool empty = false;
 
         for (int i = 2; i < argParts.count(); i++) {
-            if (argParts[i] == "link")
-                link = true;
-            else if (argParts[i] == "opt")
+            if (argParts[i] == "opt")
                 opt = true;
             else if (argParts[i] == "empty")
                 empty = true;
