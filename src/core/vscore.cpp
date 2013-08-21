@@ -238,7 +238,6 @@ VSFunction::VSFunction(const QByteArray &name, const QByteArray &argString, VSPu
                 qFatal("Invalid arg string: %s", typeName.toUtf8().constData());
         }
 
-        bool link = false;
         bool opt = false;
         bool empty = false;
 

@@ -51,23 +51,6 @@ inline VSCache::VSCache(int maxSize, int maxHistorySize)
     clear();
 }
 
-inline void VSCache::clear() {
-    hash.clear();
-    first = NULL;
-    last = NULL;
-    weakpoint = NULL;
-    currentSize = 0;
-    historySize = 0;
-    clearStats();
-}
-
-inline void VSCache::clearStats() {
-    hits = 0;
-    nearMiss = 0;
-    farMiss = 0;
-}
-
-
 inline PVideoFrame VSCache::object(const int key) const {
     return const_cast<VSCache *>(this)->relink(key);
 }
@@ -76,7 +59,6 @@ inline PVideoFrame VSCache::object(const int key) const {
 inline PVideoFrame VSCache::operator[](const int key) const {
     return object(key);
 }
-
 
 inline bool VSCache::remove(const int key) {
     QHash<int, Node>::iterator i = hash.find(key);

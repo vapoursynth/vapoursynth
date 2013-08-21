@@ -148,17 +148,17 @@ public:
         clear();
     }
 
-    int getMaxFrames() const {
+    inline int getMaxFrames() const {
         return maxSize;
     }
-    void setMaxFrames(int m) {
+    inline void setMaxFrames(int m) {
         maxSize = m;
         trim(maxSize, maxHistorySize);
     }
-    int getMaxHistory() const {
+    inline int getMaxHistory() const {
         return maxHistorySize;
     }
-    void setMaxHistory(int m) {
+    inline void setMaxHistory(int m) {
         maxHistorySize = m;
         trim(maxSize, maxHistorySize);
     }
@@ -170,8 +170,21 @@ public:
         return hash.keys();
     }
 
-    inline void clear();
-    inline void clearStats();
+    inline void clear() {
+        hash.clear();
+        first = NULL;
+        last = NULL;
+        weakpoint = NULL;
+        currentSize = 0;
+        historySize = 0;
+        clearStats();
+    }
+
+    inline void clearStats() {
+        hits = 0;
+        nearMiss = 0;
+        farMiss = 0;
+    }
 
     bool insert(const int key, const PVideoFrame &object);
     PVideoFrame object(const int key) const;
