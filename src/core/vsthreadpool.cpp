@@ -78,20 +78,20 @@ void VSThread::run() {
 
                 bool isSingleInstance = (rCtx->clip->filterMode == fmParallelRequests && pCtx->returnedFrame && rCtx->numFrameRequests == 1 && pCtx != rCtx) || rCtx->clip->filterMode == fmSerial;
 
-                // this check is common for both filter modes, it makes sure that multiple calls won't be made in parallel to a single filter to produce the same frame
-                // special casing so serial unordered doesn't need yet another list
-                if (owner->runningTasks.contains(FrameKey(rCtx->clip, rCtx->clip->filterMode == fmUnordered ? -1 : rCtx->n)))
-                    continue;
-
                 if (isSingleInstance) {
                     // this is the complicated case, a new frame may not be started until all calls are completed for the current one
                     if (owner->framesInProgress.contains(rCtx->clip) && owner->framesInProgress[rCtx->clip] != rCtx->n)
                         continue;
                 }
 
+                // this check is common for both filter modes, it makes sure that multiple calls won't be made in parallel to a single filter to produce the same frame
+                // special casing so serial unordered doesn't need yet another list
+                if (rCtx->clip->filterMode != fmParallel && !rCtx->clip->workMutex.tryLock()) {
+                    continue;
+                }
+
                 // mark task as active
                 owner->tasks.removeAt(i--);
-                owner->runningTasks.insert(FrameKey(rCtx->clip, rCtx->clip->filterMode == fmUnordered ? -1 : rCtx->n), rCtx);
 
                 if (isSingleInstance)
                     owner->framesInProgress.insert(rCtx->clip, rCtx->n);
@@ -123,7 +123,8 @@ void VSThread::run() {
                 if (f && rCtx->numFrameRequests > 0)
 					qFatal("Frame returned but there are still pending frame requests, filter: %s", rCtx->clip->name.constData());
 
-                owner->runningTasks.remove(FrameKey(rCtx->clip, rCtx->clip->filterMode == fmUnordered ? -1 : rCtx->n));
+                if (rCtx->clip->filterMode != fmParallel)
+                    rCtx->clip->workMutex.unlock();
 
                 if (f || ar == arError || rCtx->hasError()) {
                     // free all input frames quickly since the frame processing is done

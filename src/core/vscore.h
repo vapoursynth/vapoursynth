@@ -310,6 +310,7 @@ private:
     int flags;
     int apiVersion;
     bool hasVi;
+    QMutex workMutex;
 
     VSFilterMode filterMode;
     PVideoFrame getFrameInternal(int n, int activationReason, const PFrameContext &frameCtx);
@@ -375,7 +376,6 @@ private:
     QMutex callbackLock;
     QSet<VSThread *> allThreads;
     QList<PFrameContext> tasks;
-    QHash<FrameKey, PFrameContext> runningTasks;
     QMap<VSNode *, int> framesInProgress; //fixme, maybe expand to respect index too
     QHash<NodeOutputKey, PFrameContext> allContexts;
     QAtomicInt ticks;
