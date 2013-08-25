@@ -76,25 +76,29 @@ void VSThread::run() {
                     continue;
                 }
 
-                bool isSingleInstance = (rCtx->clip->filterMode == fmParallelRequests && pCtx->returnedFrame && rCtx->numFrameRequests == 1 && pCtx != rCtx) || rCtx->clip->filterMode == fmSerial;
-
-                if (isSingleInstance) {
-                    // this is the complicated case, a new frame may not be started until all calls are completed for the current one
-                    if (owner->framesInProgress.contains(rCtx->clip) && owner->framesInProgress[rCtx->clip] != rCtx->n)
-                        continue;
-                }
-
                 // this check is common for both filter modes, it makes sure that multiple calls won't be made in parallel to a single filter to produce the same frame
                 // special casing so serial unordered doesn't need yet another list
                 if (rCtx->clip->filterMode != fmParallel && !rCtx->clip->workMutex.tryLock()) {
                     continue;
                 }
 
+
+                // this is the complicated case, a new frame may not be started until all calls are completed for the current one
+                bool isSingleInstance = (rCtx->clip->filterMode == fmParallelRequests && pCtx->returnedFrame && rCtx->numFrameRequests == 1 && pCtx != rCtx) || rCtx->clip->filterMode == fmSerial;
+
+                if (isSingleInstance) {
+                    if (rCtx->clip->workFrame < 0) {
+                        rCtx->clip->workFrame = rCtx->n;
+                    } else {
+                        if (rCtx->n != rCtx->clip->workFrame) {
+                            rCtx->clip->workMutex.unlock();
+                            continue;
+                        }
+                    }
+                }
+
                 // mark task as active
                 owner->tasks.removeAt(i--);
-
-                if (isSingleInstance)
-                    owner->framesInProgress.insert(rCtx->clip, rCtx->n);
 
                 VSActivationReason ar = arInitial;
 
@@ -131,10 +135,9 @@ void VSThread::run() {
                     rCtx->availableFrames.clear();
 
                     if (isSingleInstance) {
-                        if (owner->framesInProgress[rCtx->clip] != rCtx->n && !rCtx->hasError())
+                        if (rCtx->clip->workFrame != rCtx->n && !rCtx->hasError())
                             qWarning("Releasing unobtained frame lock");
-
-                        owner->framesInProgress.remove(rCtx->clip);
+                        rCtx->clip->workFrame = -1;
                     }
 
                     owner->allContexts.remove(NodeOutputKey(rCtx->clip, rCtx->n, rCtx->index));

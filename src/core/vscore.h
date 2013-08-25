@@ -310,9 +310,13 @@ private:
     int flags;
     int apiVersion;
     bool hasVi;
-    QMutex workMutex;
-
     VSFilterMode filterMode;
+
+    // for keeping track of when a filter is busy
+    QMutex workMutex;
+    int workFrame;
+    //
+
     PVideoFrame getFrameInternal(int n, int activationReason, const PFrameContext &frameCtx);
 public:
     VSNode(const VSMap *in, VSMap *out, const QByteArray &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion, VSCore *core);
@@ -376,8 +380,7 @@ private:
     QMutex callbackLock;
     QSet<VSThread *> allThreads;
     QList<PFrameContext> tasks;
-    QMap<VSNode *, int> framesInProgress; //fixme, maybe expand to respect index too
-    QHash<NodeOutputKey, PFrameContext> allContexts;
+    QMap<NodeOutputKey, PFrameContext> allContexts;
     QAtomicInt ticks;
     QWaitCondition newWork;
     QAtomicInt activeThreads;
