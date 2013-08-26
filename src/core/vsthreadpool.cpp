@@ -76,15 +76,14 @@ void VSThread::run() {
                     continue;
                 }
 
-                // this check is common for both filter modes, it makes sure that multiple calls won't be made in parallel to a single filter to produce the same frame
-                // special casing so serial unordered doesn't need yet another list
-                if (rCtx->clip->filterMode != fmParallel && !rCtx->clip->workMutex.tryLock()) {
-                    continue;
-                }
-
-
                 // this is the complicated case, a new frame may not be started until all calls are completed for the current one
                 bool isSingleInstance = (rCtx->clip->filterMode == fmParallelRequests && pCtx->returnedFrame && rCtx->numFrameRequests == 1 && pCtx != rCtx) || rCtx->clip->filterMode == fmSerial;
+
+                // this check is common for both filter modes, it makes sure that multiple calls won't be made in parallel to a single filter to produce the same frame
+                // special casing so serial unordered doesn't need yet another list
+                if ((isSingleInstance || rCtx->clip->filterMode == fmUnordered) && !rCtx->clip->workMutex.tryLock()) {
+                    continue;
+                }
 
                 if (isSingleInstance) {
                     if (rCtx->clip->workFrame < 0) {
@@ -122,13 +121,13 @@ void VSThread::run() {
 
                 PVideoFrame f = rCtx->clip->getFrameInternal(rCtx->n, ar, rCtx);
                 ranTask = true;
+                if (isSingleInstance || rCtx->clip->filterMode == fmUnordered)
+                    rCtx->clip->workMutex.unlock();
+
                 owner->lock.lock();
 
                 if (f && rCtx->numFrameRequests > 0)
 					qFatal("Frame returned but there are still pending frame requests, filter: %s", rCtx->clip->name.constData());
-
-                if (rCtx->clip->filterMode != fmParallel)
-                    rCtx->clip->workMutex.unlock();
 
                 if (f || ar == arError || rCtx->hasError()) {
                     // free all input frames quickly since the frame processing is done
