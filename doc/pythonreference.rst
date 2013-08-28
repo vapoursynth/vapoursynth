@@ -88,6 +88,10 @@ Classes and Functions
    .. py:method:: get_frame(n)
    
       Returns a VideoFrame from position n.
+   
+   .. py:method:: set_output(index = 0)
+   
+      Set the clip to be accessible for output. This is the standard way to specify which clip(s) to output and all VapourSynth tools (vsvfw, vsfs, vspipe) use the clip in *index* 0.
       
 .. py:class:: VideoFrame
 
@@ -128,10 +132,6 @@ Classes and Functions
    .. py:method:: get_stride(plane)
    
       Returns the stride between lines in a *plane*.
-      
-   .. py:method:: set_output(index = 0)
-   
-      Set the clip to be accessible for output. This is the standard way to specify which clip(s) to output and all VapourSynth tools (vsvfw, vsfs, vspipe) use the clip in *index* 0.
       
 .. py:class:: Format
 
