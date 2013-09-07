@@ -24,6 +24,7 @@ import os
 import sys
 import ctypes
 import threading
+import traceback
 import gc
 
 _using_vsscript = False
@@ -1059,13 +1060,14 @@ cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, 
             exec(comp) in evaldict
             
         except BaseException, e:
-            errstr = 'Python exception: ' + str(e)
+            errstr = 'Python exception: ' + str(e) + '\n' + traceback.format_exc()
             errstr = errstr.encode('utf-8')
             Py_INCREF(errstr)
             se.errstr = <void *>errstr
             return 2
         except:
-            errstr = 'Unspecified Python exception'.encode('utf-8')
+            errstr = 'Unspecified Python exception' + '\n' + traceback.format_exc()
+            errstr = errstr.encode('utf-8')
             Py_INCREF(errstr)
             se.errstr = <void *>errstr
             return 1
