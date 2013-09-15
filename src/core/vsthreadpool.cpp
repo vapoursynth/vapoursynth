@@ -179,8 +179,8 @@ void VSThread::run() {
                         if (rCtx->frameDone)
                             owner->returnFrame(rCtx, f);
                     } while ((rCtx = n));
-                } else if (rCtx->numFrameRequests > 0 || rCtx->n < 0) {
-                    // already scheduled or in the case of negative n it is simply a cache notify message
+                } else if (rCtx->numFrameRequests > 0) {
+                    // already scheduled, do nothing
                 } else {
 					qFatal("No frame returned at the end of processing by %s", rCtx->clip->name.constData());
                 }
@@ -245,10 +245,10 @@ void VSThreadPool::reserveThread() {
     activeThreads.ref();
 }
 
-void VSThreadPool::notifyCaches(CacheActivation reason) {
+void VSThreadPool::notifyCaches(bool needMemory) {
     QMutexLocker lock(&core->cacheLock);
     for (int i = 0; i < core->caches.count(); i++)
-        tasks.insert(0, PFrameContext(new FrameContext(reason, 0, core->caches[i], PFrameContext())));
+        core->caches[i]->notifyCache(needMemory);
 }
 
 void VSThreadPool::start(const PFrameContext &context) {
@@ -289,14 +289,14 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
 
     // check to see if it's time to reevaluate cache sizes
     if (core->memory->isOverLimit()) {
-        ticks = 0;
-        notifyCaches(cNeedMemory);
+        ticks.fetchAndStoreOrdered(0);
+        notifyCaches(true);
     }
 
     // a normal tick for caches to adjust their sizes based on recent history
-    if (!context->upstreamContext && ticks.fetchAndAddAcquire(1) == 99) {
-        ticks = 0;
-        notifyCaches(cCacheTick);
+    if (!context->upstreamContext && ticks.fetchAndAddOrdered(1) == 99) {
+        ticks.fetchAndStoreOrdered(0);
+        notifyCaches(false);
     }
 
     // add it immediately if the task is to return a completed frame and put it at the front of the line since it has no dependencies

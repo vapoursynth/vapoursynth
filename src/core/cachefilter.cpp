@@ -46,8 +46,8 @@ VSCache::CacheAction VSCache::recommendSize() {
     }
 }
 
-inline VSCache::VSCache(int maxSize, int maxHistorySize)
-    : maxSize(maxSize), maxHistorySize(maxHistorySize) {
+inline VSCache::VSCache(int maxSize, int maxHistorySize, bool fixedSize)
+    : maxSize(maxSize), maxHistorySize(maxHistorySize), fixedSize(fixedSize) {
     clear();
 }
 
@@ -117,28 +117,45 @@ void VSCache::trim(int max, int maxHistory) {
     }
 }
 
-// cache filter start
-
-class CacheInstance {
-public:
-    VSCache cache;
-    VSNodeRef *clip;
-    VSNode *node;
-    VSCore *core;
-    bool fixedsize;
-    CacheInstance(VSNodeRef *clip, VSNode *node, VSCore *core) : cache(20, 20), clip(clip), node(node), core(core), fixedsize(false) { }
-    void addCache() { QMutexLocker lock(&core->cacheLock); core->caches.append(node); }
-    void removeCache() { QMutexLocker lock(&core->cacheLock); core->caches.removeOne(node); }
-};
+void VSCache::adjustSize(bool needMemory) {
+    if (!fixedSize) {
+        if (needMemory) {
+            switch (recommendSize()) {
+            case VSCache::caClear:
+                clear();
+                break;
+            case VSCache::caGrow:
+                setMaxFrames(getMaxFrames() + 2);
+                break;
+            case VSCache::caShrink:
+                setMaxFrames(qMax(getMaxFrames() - 1, 1));
+                break;
+            }
+        } else {
+            switch (recommendSize()) {
+            case VSCache::caClear:
+                clear();
+                break;
+            case VSCache::caShrink:
+				if (getMaxFrames() <= 2)
+					clear();
+                setMaxFrames(qMax(getMaxFrames() - 2, 1));
+                break;
+            case VSCache::caNoChange:
+				if (getMaxFrames() <= 1)
+					clear();
+                setMaxFrames(qMax(getMaxFrames() - 1, 1));
+                break;;
+            }
+        }
+    }
+}
 
 static void VS_CC cacheInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     VSNodeRef *video = vsapi->propGetNode(in, "clip", 0, 0);
-    CacheInstance *c = new CacheInstance(video, node, core);
     int err;
     int fixed = vsapi->propGetInt(in, "fixed", 0, &err);
-
-    if (!err)
-        c->fixedsize = (bool)fixed;
+    CacheInstance *c = new CacheInstance(video, node, core, !!fixed);
 
     int size = vsapi->propGetInt(in, "size", 0, &err);
 
@@ -155,48 +172,13 @@ static const VSFrameRef *VS_CC cacheGetframe(int n, int activationReason, void *
     CacheInstance *c = (CacheInstance *) * instanceData;
 
     if (activationReason == arInitial) {
-        if (n == cCacheTick) {
-            if (!c->fixedsize)
-                switch (c->cache.recommendSize()) {
-                case VSCache::caClear:
-                    c->cache.clear();
-                case VSCache::caNoChange:
-                    return NULL;
-                case VSCache::caGrow:
-                    c->cache.setMaxFrames(c->cache.getMaxFrames() + 2);
-                    return NULL;
-                case VSCache::caShrink:
-                    c->cache.setMaxFrames(qMax(c->cache.getMaxFrames() - 1, 1));
-                    return NULL;
-                }
-        } else if (n == cNeedMemory) {
-            if (!c->fixedsize)
-                switch (c->cache.recommendSize()) {
-                case VSCache::caClear:
-                    c->cache.clear();
-                    return NULL;
-                case VSCache::caGrow:
-                    return NULL;
-                case VSCache::caShrink:
-					if (c->cache.getMaxFrames() <= 2)
-						c->cache.clear();
-                    c->cache.setMaxFrames(qMax(c->cache.getMaxFrames() - 2, 1));
-                    return NULL;
-                case VSCache::caNoChange:
-					if (c->cache.getMaxFrames() <= 1)
-						c->cache.clear();
-                    c->cache.setMaxFrames(qMax(c->cache.getMaxFrames() - 1, 1));
-                    return NULL;
-                }
-        } else {
-            PVideoFrame f(c->cache[n]);
+        PVideoFrame f(c->cache[n]);
 
-            if (f)
-                return new VSFrameRef(f);
+        if (f)
+            return new VSFrameRef(f);
 
-            vsapi->requestFrameFilter(n, c->clip, frameCtx);
-            return NULL;
-        }
+        vsapi->requestFrameFilter(n, c->clip, frameCtx);
+        return NULL;
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *r = vsapi->getFrameFilter(n, c->clip, frameCtx);
         c->cache.insert(n, r->frame);
@@ -216,7 +198,7 @@ static void VS_CC cacheFree(void *instanceData, VSCore *core, const VSAPI *vsapi
 static QAtomicInt cacheId(1);
 
 static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    vsapi->createFilter(in, out, ("Cache" + QString::number(cacheId.fetchAndAddAcquire(1))).toUtf8(), cacheInit, cacheGetframe, cacheFree, fmUnordered, nfNoCache, userData, core);
+    vsapi->createFilter(in, out, ("Cache" + QString::number(cacheId.fetchAndAddOrdered(1))).toUtf8(), cacheInit, cacheGetframe, cacheFree, fmUnordered, nfNoCache, userData, core);
 }
 
 void VS_CC cacheInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {

@@ -42,6 +42,8 @@ private:
 
     QHash<int, Node> hash;
 
+    bool fixedSize;
+
     int maxSize;
     int currentSize;
     int maxHistorySize;
@@ -143,7 +145,7 @@ public:
         caClear
     };
 
-    VSCache(int maxSize, int maxHistorySize);
+    VSCache(int maxSize, int maxHistorySize, bool fixedSize);
     ~VSCache() {
         clear();
     }
@@ -195,10 +197,25 @@ public:
 
     bool remove(const int key);
 
+
+
     CacheAction recommendSize();
+
+    void adjustSize(bool needMemory);
 private:
     void trim(int max, int maxHistory);
 
+};
+
+class CacheInstance {
+public:
+    VSCache cache;
+    VSNodeRef *clip;
+    VSNode *node;
+    VSCore *core;
+    CacheInstance(VSNodeRef *clip, VSNode *node, VSCore *core, bool fixedSize) : cache(20, 20, fixedSize), clip(clip), node(node), core(core) { }
+    void addCache() { QMutexLocker lock(&core->cacheLock); core->caches.append(node); }
+    void removeCache() { QMutexLocker lock(&core->cacheLock); core->caches.removeOne(node); }
 };
 
 void VS_CC cacheInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);

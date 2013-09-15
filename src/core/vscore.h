@@ -184,10 +184,10 @@ private:
     int64_t maxMemoryUse;
 public:
     void add(long bytes) {
-        usedKiloBytes.fetchAndAddAcquire((bytes + 1023) / 1024);
+        usedKiloBytes.fetchAndAddOrdered((bytes + 1023) / 1024);
     }
     void subtract(long bytes) {
-        usedKiloBytes.fetchAndAddAcquire(-((bytes + 1023) / 1024));
+        usedKiloBytes.fetchAndAddOrdered(-((bytes + 1023) / 1024));
     }
     int64_t memoryUse() {
         return (int64_t)usedKiloBytes * 1024;
@@ -352,6 +352,8 @@ public:
 	void reserveThread();
 	void releaseThread();
 	bool isWorkerThread();
+
+    void notifyCache(bool needMemory);
 };
 
 class VSThreadPool;
@@ -364,11 +366,6 @@ public:
     void run();
     void stopThread();
     VSThread(VSThreadPool *owner);
-};
-
-enum CacheActivation {
-    cCacheTick = -1000,
-    cNeedMemory = -2000
 };
 
 class VSThreadPool {
@@ -387,7 +384,7 @@ private:
 	int idleThreads;
 	int maxThreads;
     void wakeThread();
-    void notifyCaches(CacheActivation reason);
+    void notifyCaches(bool needMemory);
     void startInternal(const PFrameContext &context);
 	void spawnThread();
 public:

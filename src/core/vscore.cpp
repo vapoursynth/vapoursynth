@@ -322,6 +322,12 @@ bool VSNode::isWorkerThread() {
 	return core->threadPool->isWorkerThread();
 }
 
+void VSNode::notifyCache(bool needMemory) {
+    QMutexLocker lock(&workMutex);
+    CacheInstance *cache = (CacheInstance *)instanceData;
+    cache->cache.adjustSize(needMemory);
+}
+
 PVideoFrame VSCore::newVideoFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc) {
     return PVideoFrame(new VSFrame(f, width, height, propSrc, this));
 }
