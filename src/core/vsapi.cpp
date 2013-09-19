@@ -104,8 +104,8 @@ static const VSFrameRef *VS_CC getFrame(int n, VSNodeRef *clip, char *errorMsg, 
 
 static void VS_CC requestFrameFilter(int n, VSNodeRef *clip, VSFrameContext *ctxHandle) {
     PFrameContext f(*(PFrameContext *)ctxHandle);
-    PFrameContext g(new FrameContext(n, clip->index, clip->clip.data(), f));
-    clip->clip->getFrame(g);
+    VSThreadData *localData = f->tlRequests->localData();
+    localData->append(PFrameContext(new FrameContext(n, clip->index, clip->clip.data(), f)));
 }
 
 static const VSFrameRef *VS_CC getFrameFilter(int n, VSNodeRef *clip, VSFrameContext *ctxHandle) {

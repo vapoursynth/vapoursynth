@@ -56,7 +56,6 @@ public:
 typedef QPair<VSNode *, int> FrameKey;
 
 class NodeOutputKey {
-friend uint qHash(const NodeOutputKey &key);
 private:
     VSNode *node;
     int n;
@@ -70,10 +69,6 @@ public:
         return (node < v.node) || (node == v.node && n < v.n) || (node == v.node && n == v.n && index < v.index);
     }
 };
-
-inline uint qHash(const NodeOutputKey &key) {
-    return qHash(key.node) ^ ((key.n << 21) + (key.n << 11));
-}
 
 // variant types
 typedef QList<int64_t> IntList;
@@ -263,6 +258,8 @@ public:
     uint8_t *getWritePtr(int plane);
 };
 
+typedef QLinkedList<PFrameContext> VSThreadData;
+
 class FrameContext {
     friend class VSThreadPool;
     friend class VSThread;
@@ -279,6 +276,7 @@ private:
     void *userData;
     VSFrameDoneCallback frameDone;
 public:
+    QThreadStorage<VSThreadData *> *tlRequests;
     QMap<NodeOutputKey, PVideoFrame> availableFrames;
     int lastCompletedN;
     int index;
@@ -312,10 +310,15 @@ private:
     bool hasVi;
     VSFilterMode filterMode;
 
-    // for keeping track of when a filter is busy
-    QMutex workMutex;
-    int workFrame;
-    //
+    // for keeping track of when a filter is busy in the exclusive section and with which frame
+    // used for fmSerial and fmParallel (mutex only)
+    QMutex serialMutex;
+    int serialFrame;
+    // to prevent multiple calls at the same time for the same frame
+    // this is used exclusively by fmParallel
+    // fmParallelRequests use this in combination with serialMutex to signal when all its frames are ready
+    QMutex concurrentFramesMutex;
+    QSet<int> concurrentFrames;
 
     PVideoFrame getFrameInternal(int n, int activationReason, const PFrameContext &frameCtx);
 public:
@@ -376,12 +379,12 @@ private:
     QMutex lock;
     QMutex callbackLock;
     QSet<VSThread *> allThreads;
-    QList<PFrameContext> tasks;
+    QLinkedList<PFrameContext> tasks;
     QMap<NodeOutputKey, PFrameContext> allContexts;
     QAtomicInt ticks;
     QWaitCondition newWork;
     QAtomicInt activeThreads;
-	int idleThreads;
+	QAtomicInt idleThreads;
 	int maxThreads;
     void wakeThread();
     void notifyCaches(bool needMemory);

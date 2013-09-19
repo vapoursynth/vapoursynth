@@ -259,7 +259,7 @@ VSFunction::VSFunction(const QByteArray &name, const QByteArray &argString, VSPu
 }
 
 VSNode::VSNode(const VSMap *in, VSMap *out, const QByteArray &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion, VSCore *core) :
-    instanceData(instanceData), name(name), init(init), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiVersion(apiVersion), core(core), flags(flags), inval(*in), hasVi(false), workFrame(-1) {
+    instanceData(instanceData), name(name), init(init), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiVersion(apiVersion), core(core), flags(flags), inval(*in), hasVi(false), serialFrame(-1) {
     init(&inval, out, &this->instanceData, this, core, getVSAPIInternal(apiVersion));
 
     if (vsapi.getError(out))
@@ -323,7 +323,7 @@ bool VSNode::isWorkerThread() {
 }
 
 void VSNode::notifyCache(bool needMemory) {
-    QMutexLocker lock(&workMutex);
+    QMutexLocker lock(&serialMutex);
     CacheInstance *cache = (CacheInstance *)instanceData;
     cache->cache.adjustSize(needMemory);
 }
