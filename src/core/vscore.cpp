@@ -28,6 +28,11 @@
 #include "x86utils.h"
 #endif
 
+#ifdef VS_TARGET_OS_WINDOWS
+#define WIN32_LEAN_AND_MEAN
+#include <ShlObj.h>
+#endif
+
 // Filter headers
 extern "C" {
 #include "simplefilters.h"
@@ -541,12 +546,20 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), pluginLock(QMutex::Recurs
     p->enableCompat();
 
 #ifdef VS_TARGET_OS_WINDOWS
+    // Autoload user specific plugins first so a user can always override
+    std::vector<wchar_t> appDataBuffer(MAX_PATH + 1);
+    SHGetFolderPath(NULL, CSIDL_APPDATA, NULL, SHGFP_TYPE_CURRENT, &appDataBuffer[0]);
+    QString appDataPath = QString::fromWCharArray(&appDataBuffer[0]) + "\\VapourSynth\\plugins";
+    if (!loadAllPluginsInPath(appDataPath))
+        qWarning("User specific plugin autoloading failed. Directory doesn't exist?");
+
     // Autoload bundled plugins
     QSettings settings("HKEY_LOCAL_MACHINE\\Software\\VapourSynth", QSettings::NativeFormat);
     if (!loadAllPluginsInPath(settings.value("CorePlugins").toString()))
         qWarning("Core plugin autoloading failed. Directory doesn't exist?");
 
-    // Autoload other plugins
+    // Autoload global plugins last, this is so the bundled plugins cannot be overridden easily
+    // and accidentally block updated bundled versions
     if (!loadAllPluginsInPath(settings.value("Plugins").toString()))
         qWarning("Plugin autoloading failed. Directory doesn't exist?");
 #endif
