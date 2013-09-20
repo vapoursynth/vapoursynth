@@ -2415,7 +2415,7 @@ static const VSFrameRef *VS_CC selectClipGetFrame(int n, int activationReason, v
         for (i = 0; i < d->numsrc; i++)
             vsapi->requestFrameFilter(n, d->src[i], frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        int idx = (int) * frameData;
+        intptr_t idx = (intptr_t) * frameData;
 
         if (idx < 0) {
             int err;
