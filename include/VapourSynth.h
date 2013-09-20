@@ -323,7 +323,7 @@ struct VSAPI {
     VSGetPluginNs getPluginNs;
     VSGetPlugins getPlugins;
     VSGetFunctions getFunctions;
-    VSCreateFilter createFilter; // do never use inside a filter's getframe function
+    VSCreateFilter createFilter;
     VSSetError setError; // use to signal errors outside filter getframe functions
     VSGetError getError; // use to query errors, returns 0 if no error
     VSSetFilterError setFilterError; // use to signal errors in the filter getframe function
