@@ -18,9 +18,11 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
+#include <QtCore/QSettings>
 #include "vscore.h"
 #include "VSHelper.h"
 #include "version.h"
+
 
 #ifdef VS_TARGET_CPU_X86
 #include "x86utils.h"
@@ -445,9 +447,7 @@ void VS_CC loadPluginInitialize(VSConfigPlugin configFunc, VSRegisterFunction re
 extern "C" void VS_CC avsWrapperInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
 #endif
 
-VSCore::VSCore(int threads) : memory(new MemoryUse()), pluginLock(QMutex::Recursive), formatIdOffset(1000) {
-    threadPool = new VSThreadPool(this, threads);
-
+void VSCore::registerFormats() {
     // Register known formats with informational names
     registerFormat(cmGray, stInteger,  8, 0, 0, "Gray8", pfGray8);
     registerFormat(cmGray, stInteger, 16, 0, 0, "Gray16", pfGray16);
@@ -487,10 +487,37 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), pluginLock(QMutex::Recurs
 
     registerFormat(cmCompat,  stInteger, 32, 0, 0, "CompatBGR32", pfCompatBGR32);
     registerFormat(cmCompat,  stInteger, 16, 1, 0, "CompatYUY2", pfCompatYUY2);
+}
+
+bool VSCore::loadAllPluginsInPath(const QString &path) {
+    if (path.isEmpty())
+        return false;
+
+    QDir dir(path, "*.dll", QDir::Name | QDir::IgnoreCase, QDir::Files | QDir::NoDotDot);
+    if (!dir.exists())
+        return false;
+
+    QDirIterator dirIterator(dir);
+    while (dirIterator.hasNext()) {
+        try {
+            loadPlugin(dirIterator.next().toUtf8());
+        } catch (VSException &) {
+            // Ignore any errors
+        }
+    }
+
+    return true;
+}
+
+VSCore::VSCore(int threads) : memory(new MemoryUse()), pluginLock(QMutex::Recursive), formatIdOffset(1000) {
+    threadPool = new VSThreadPool(this, threads);
+
+    registerFormats();
 
     // The internal plugin units, the loading is a bit special so they can get special flags
     VSPlugin *p;
 
+    // Initialize internal plugins
 #if defined(VS_TARGET_OS_WINDOWS) && defined(VS_FEATURE_AVISYNTH)
     p = new VSPlugin(this);
     avsWrapperInitialize(::configPlugin, ::registerFunction, p);
@@ -512,6 +539,17 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), pluginLock(QMutex::Recurs
     resizeInitialize(::configPlugin, ::registerFunction, p);
     plugins.insert(p->identifier, p);
     p->enableCompat();
+
+#ifdef VS_TARGET_OS_WINDOWS
+    // Autoload bundled plugins
+    QSettings settings("HKEY_LOCAL_MACHINE\\Software\\VapourSynth", QSettings::NativeFormat);
+    if (!loadAllPluginsInPath(settings.value("CorePlugins").toString()))
+        qWarning("Core plugin autoloading failed. Directory doesn't exist?");
+
+    // Autoload other plugins
+    if (!loadAllPluginsInPath(settings.value("Plugins").toString()))
+        qWarning("Plugin autoloading failed. Directory doesn't exist?");
+#endif
 }
 
 VSCore::~VSCore() {

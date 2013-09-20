@@ -468,6 +468,9 @@ private:
     VSCoreInfo coreInfo;
     QList<VSNode *> caches;
     QMutex cacheLock;
+
+    void registerFormats();
+    bool loadAllPluginsInPath(const QString &path);
 public:
     VSThreadPool *threadPool;
     MemoryUse *memory;
@@ -480,7 +483,7 @@ public:
     const VSFormat *getFormatPreset(int id);
     const VSFormat *registerFormat(VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name = NULL, int id = pfNone);
 
-    void loadPlugin(const QByteArray &filename, const QByteArray &forcedNamespace);
+    void loadPlugin(const QByteArray &filename, const QByteArray &forcedNamespace = QByteArray());
     void createFilter(const VSMap *in, VSMap *out, const QByteArray &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion);
 
     VSMap getPlugins();

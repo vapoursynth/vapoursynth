@@ -2,6 +2,7 @@ known issues:
 compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 
 r20:
+added plugin autoloading
 include the python backtrace in errors when available
 fixed a bug in the propagation of filter errors, requesting a frame with an error twice no longer makes vapoursynth hang
 fixed the error that happens when avisource is used to open a vs script inside a vs script

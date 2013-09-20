@@ -59,22 +59,27 @@ Source: ..\sdk\filter_skeleton.c; DestDir: {app}\sdk\examples; Flags: ignorevers
 Source: ..\sdk\invert_example.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: ..\sdk\vsscript_example.cpp; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace
 ;bundled plugins
-Source: plugins\avisource.dll; DestDir: {app}\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: plugins\vivtc.dll; DestDir: {app}\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: plugins\eedi3.dll; DestDir: {app}\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
-;Source: plugins\assvapour.dll; DestDir: {app}\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: plugins\temporalsoften.dll; DestDir: {app}\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: plugins\histogram.dll; DestDir: {app}\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: plugins\avisource.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: plugins\vivtc.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: plugins\eedi3.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
+;Source: plugins\assvapour.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: plugins\temporalsoften.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: plugins\histogram.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
+
+; Create the general autoload directory
+[Dirs]
+Name: "{app}\plugins"; Flags: uninsalwaysuninstall
 
 [Icons]
 Name: {group}\VapourSynth Website; Filename: http://www.vapoursynth.com/
 Name: {group}\Documentation; Filename: http://www.vapoursynth.com/doc/
-Name: {group}\Bundled Plugins; Filename: {app}\plugins
+Name: {group}\Autoload Directory; Filename: {app}\plugins
 Name: {group}\VapourSynth SDK; Filename: {app}\sdk
 
 [Registry]
 Root: HKLM; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "Version"; ValueData: {#= Version}; Flags: uninsdeletevalue uninsdeletekeyifempty
 Root: HKLM; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "Path"; ValueData: "{app}"; Flags: uninsdeletevalue uninsdeletekeyifempty
+Root: HKLM; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "CorePlugins"; ValueData: "{app}\core\plugins"; Flags: uninsdeletevalue uninsdeletekeyifempty
 Root: HKLM; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "Plugins"; ValueData: "{app}\plugins"; Flags: uninsdeletevalue uninsdeletekeyifempty
 
 Root: HKLM; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}; ValueType: string; ValueName: ""; ValueData: "VapourSynth"; Flags: uninsdeletevalue uninsdeletekeyifempty
