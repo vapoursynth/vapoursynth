@@ -470,7 +470,7 @@ private:
     QMutex cacheLock;
 
     void registerFormats();
-    bool loadAllPluginsInPath(const QString &path);
+    bool loadAllPluginsInPath(const QString &path, const QString &filter);
 public:
     VSThreadPool *threadPool;
     MemoryUse *memory;
