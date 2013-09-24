@@ -574,7 +574,7 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), pluginLock(QMutex::Recurs
     QString userPluginDir = settings.value("UserPluginDir").toString();
     if (autoloadUserPluginDir && !userPluginDir.isEmpty()) {
         if (!loadAllPluginsInPath(userPluginDir, filter)) {
-            qWarning("Autoloading the user plugin dir '%s' failed. Directory doesn't exist?", userPluginDir);
+            qWarning("Autoloading the user plugin dir '%s' failed. Directory doesn't exist?", userPluginDir.toUtf8().constData());
         }
     }
 
@@ -582,7 +582,7 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), pluginLock(QMutex::Recurs
     QString systemPluginDir = settings.value("SystemPluginDir", QString(VS_PATH_PLUGINDIR)).toString();
     if (autoloadSystemPluginDir) {
         if (!loadAllPluginsInPath(systemPluginDir, filter)) {
-            qWarning("Autoloading the system plugin dir '%s' failed. Directory doesn't exist?", systemPluginDir);
+            qWarning("Autoloading the system plugin dir '%s' failed. Directory doesn't exist?", systemPluginDir.toUtf8().constData());
         }
     }
 #endif
