@@ -536,7 +536,7 @@ static int VS_CC getOutputIndex(VSFrameContext *frameCtx) {
 static VSMessageHandler messageHandler = NULL;
 static void *messageData = NULL;
 
-void vsMessageHandler(QtMsgType type, const char *msg) {
+static void vsMessageHandler(QtMsgType type, const char *msg) {
     messageHandler(type, msg, messageData);
     if (type == QtFatalMsg)
         abort();
