@@ -533,21 +533,24 @@ static int VS_CC getOutputIndex(VSFrameContext *frameCtx) {
     return f->index;
 }
 
-static VSMessageHandler handler = NULL;
+static VSMessageHandler messageHandler = NULL;
+static void *messageData = NULL;
 
 void vsMessageHandler(QtMsgType type, const char *msg) {
-    handler(type, msg);
+    messageHandler(type, msg, messageData);
     if (type == QtFatalMsg)
         abort();
 }
 
-static void VS_CC setMessageHandler(VSMessageHandler handler) {
+static void VS_CC setMessageHandler(VSMessageHandler handler, void *userData) {
     if (handler) {
-        ::handler = handler;
+        ::messageHandler = handler;
+		::messageData = userData;
         qInstallMsgHandler(vsMessageHandler);
     } else {
         qInstallMsgHandler(NULL);
-        ::handler = NULL;
+        ::messageHandler = NULL;
+		::messageData = NULL;
     }
 }
 

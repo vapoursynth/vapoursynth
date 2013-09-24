@@ -298,8 +298,8 @@ typedef void (VS_CC *VSReleaseFrameEarly)(VSNodeRef *node, int n, VSFrameContext
 
 typedef int64_t (VS_CC *VSSetMaxCacheSize)(int64_t bytes, VSCore *core);
 
-typedef void (VS_CC *VSMessageHandler)(int msgType, const char *msg);
-typedef void (VS_CC *VSSetMessageHandler)(VSMessageHandler handler);
+typedef void (VS_CC *VSMessageHandler)(int msgType, const char *msg, void *userData);
+typedef void (VS_CC *VSSetMessageHandler)(VSMessageHandler handler, void *userData);
 
 struct VSAPI {
     VSCreateCore createCore;

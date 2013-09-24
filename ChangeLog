@@ -2,7 +2,9 @@ known issues:
 compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 
 r20:
-added plugin autoloading
+the message handler now takes an extra user data pointer, the handler and data pointer is still per process instead of per core though
+added plugin autoloading for linux (jackoneill)
+added plugin autoloading for windows, autoloaded plugins for all users go into <installdir>\plugins and per user autoloaded plugins go into <appdata>\vapoursynth\plugins
 include the python backtrace in errors when available
 fixed a bug in the propagation of filter errors, requesting a frame with an error twice no longer makes vapoursynth hang
 fixed the error that happens when avisource is used to open a vs script inside a vs script
