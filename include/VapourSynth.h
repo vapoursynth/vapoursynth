@@ -199,7 +199,7 @@ typedef enum VSActivationReason {
 
 typedef enum VSMessageType {
     mtDebug = 0,
-    mtWarnin = 1,
+    mtWarning = 1,
     mtCritical = 2,
     mtFatal
 } VSMessageType;
