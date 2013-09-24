@@ -494,11 +494,11 @@ void VSCore::registerFormats() {
     registerFormat(cmCompat,  stInteger, 16, 1, 0, "CompatYUY2", pfCompatYUY2);
 }
 
-bool VSCore::loadAllPluginsInPath(const QString &path) {
+bool VSCore::loadAllPluginsInPath(const QString &path, const QString &filter) {
     if (path.isEmpty())
         return false;
 
-    QDir dir(path, "*.dll", QDir::Name | QDir::IgnoreCase, QDir::Files | QDir::NoDotDot);
+    QDir dir(path, filter, QDir::Name | QDir::IgnoreCase, QDir::Files | QDir::NoDotDot);
     if (!dir.exists())
         return false;
 
@@ -546,22 +546,45 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), pluginLock(QMutex::Recurs
     p->enableCompat();
 
 #ifdef VS_TARGET_OS_WINDOWS
+    QString filter = "*.dll";
     // Autoload user specific plugins first so a user can always override
     std::vector<wchar_t> appDataBuffer(MAX_PATH + 1);
     SHGetFolderPath(NULL, CSIDL_APPDATA, NULL, SHGFP_TYPE_CURRENT, &appDataBuffer[0]);
     QString appDataPath = QString::fromWCharArray(&appDataBuffer[0]) + "\\VapourSynth\\plugins";
-    if (!loadAllPluginsInPath(appDataPath))
+    if (!loadAllPluginsInPath(appDataPath, filter))
         qWarning("User specific plugin autoloading failed. Directory doesn't exist?");
 
     // Autoload bundled plugins
     QSettings settings("HKEY_LOCAL_MACHINE\\Software\\VapourSynth", QSettings::NativeFormat);
-    if (!loadAllPluginsInPath(settings.value("CorePlugins").toString()))
+    if (!loadAllPluginsInPath(settings.value("CorePlugins").toString(), filter))
         qWarning("Core plugin autoloading failed. Directory doesn't exist?");
 
     // Autoload global plugins last, this is so the bundled plugins cannot be overridden easily
     // and accidentally block updated bundled versions
-    if (!loadAllPluginsInPath(settings.value("Plugins").toString()))
+    if (!loadAllPluginsInPath(settings.value("Plugins").toString(), filter))
         qWarning("Plugin autoloading failed. Directory doesn't exist?");
+#elif defined VS_TARGET_OS_LINUX
+    QString filter = "*.so";
+
+    // Will read "~/.config/vapoursynth/vapoursynth.conf"
+    // or "/etc/xdg/vapoursynth/vapoursynth.conf".
+    QSettings settings("vapoursynth", "vapoursynth");
+
+    bool autoloadUserPluginDir = settings.value("AutoloadUserPluginDir", true).toBool();
+    QString userPluginDir = settings.value("UserPluginDir").toString();
+    if (autoloadUserPluginDir && !userPluginDir.isEmpty()) {
+        if (!loadAllPluginsInPath(userPluginDir, filter)) {
+            qWarning("Autoloading the user plugin dir '%s' failed. Directory doesn't exist?", userPluginDir);
+        }
+    }
+
+    bool autoloadSystemPluginDir = settings.value("AutoloadSystemPluginDir", true).toBool();
+    QString systemPluginDir = settings.value("SystemPluginDir", QString(VS_PATH_PLUGINDIR)).toString();
+    if (autoloadSystemPluginDir) {
+        if (!loadAllPluginsInPath(systemPluginDir, filter)) {
+            qWarning("Autoloading the system plugin dir '%s' failed. Directory doesn't exist?", systemPluginDir);
+        }
+    }
 #endif
 }
 
