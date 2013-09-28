@@ -1759,7 +1759,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "BlankClip", blankClipInit, blankClipGetframe, blankClipFree, fmParallel, nfNoCache, data, core);
+	vsapi->createFilter(in, out, "BlankClip", blankClipInit, blankClipGetframe, blankClipFree, d.keep ? fmUnordered : fmParallel, nfNoCache, data, core);
 }
 
 //////////////////////////////////////////
