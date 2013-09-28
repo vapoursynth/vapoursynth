@@ -165,6 +165,8 @@ void VSThread::run() {
                 mainContext->lastCompletedNode = leafContext->node;
             }
 
+			bool hasExistingRequests = !!mainContext->numFrameRequests;
+
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Do the actual processing
 
@@ -232,7 +234,7 @@ void VSThread::run() {
                     }
                 } while ((mainContextRef = n));
             } else if (f) {
-                if (mainContext->numFrameRequests != 0 || requestedFrames)
+                if (hasExistingRequests || requestedFrames)
                     qFatal("A frame was returned at the end of processing by %s but there are still outstanding requests", clip->name.constData());
                 PFrameContext n;
 
@@ -250,7 +252,7 @@ void VSThread::run() {
                     if (mainContextRef->frameDone)
                         owner->returnFrame(mainContextRef, f);
                 } while ((mainContextRef = n));
-			} else if (mainContext->numFrameRequests > 0) {
+			} else if (hasExistingRequests || requestedFrames) {
                 // already scheduled, do nothing
             } else {
 				qFatal("No frame returned at the end of processing by %s", clip->name.constData());
