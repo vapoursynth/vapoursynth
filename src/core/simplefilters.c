@@ -1615,8 +1615,9 @@ static const VSFrameRef *VS_CC blankClipGetframe(int n, int activationReason, vo
 		}
 
 		if (d->keep) {
-			d->f = frame;
-			return vsapi->cloneFrameRef(frame);
+			if (frame)
+				d->f = frame;
+			return vsapi->cloneFrameRef(d->f);
 		} else {
 			return frame;
 		}
@@ -2587,7 +2588,7 @@ static const VSFrameRef *VS_CC frameEvalGetFrame(int n, int activationReason, vo
         if (d->vi->width || d->vi->height) {
             if (d->vi->width != vsapi->getFrameWidth(frame, 0) || d->vi->height != vsapi->getFrameHeight(frame, 0)) {
                 vsapi->freeFrame(frame);
-                vsapi->setFilterError("FrameEval: Returned frame has wrong format", frameCtx);
+                vsapi->setFilterError("FrameEval: Returned frame has wrong dimensions", frameCtx);
                 return 0;
             }
         }
@@ -2595,7 +2596,7 @@ static const VSFrameRef *VS_CC frameEvalGetFrame(int n, int activationReason, vo
         if (d->vi->format) {
             if (d->vi->format != vsapi->getFrameFormat(frame)) {
                 vsapi->freeFrame(frame);
-                vsapi->setFilterError("FrameEval: Returned frame has wrong dimensions", frameCtx);
+                vsapi->setFilterError("FrameEval: Returned frame has wrong format", frameCtx);
                 return 0;
             }
         }
