@@ -1571,6 +1571,11 @@ static void VS_CC stackCreate(const VSMap *in, VSMap *out, void *userData, VSCor
 typedef struct {
     VSFrameRef *f;
     VSVideoInfo vi;
+	int keep;
+	union {
+		uint32_t i[3];
+		float f[3];
+	} color;
 } BlankClipData;
 
 static void VS_CC blankClipInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -1581,9 +1586,40 @@ static void VS_CC blankClipInit(VSMap *in, VSMap *out, void **instanceData, VSNo
 
 static const VSFrameRef *VS_CC blankClipGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     BlankClipData *d = (BlankClipData *) * instanceData;
+	VSMap *frameProps;
+	int plane;
 
     if (activationReason == arInitial) {
-        return vsapi->cloneFrameRef(d->f);
+		VSFrameRef *frame = NULL;
+		if (!d->f) {
+			frame = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, 0, core);
+
+			for (plane = 0; plane < d->vi.format->numPlanes; plane++) {
+				switch (d->vi.format->bytesPerSample) {
+				case 1:
+					vs_memset8(vsapi->getWritePtr(frame, plane), d->color.i[plane], vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane));
+					break;
+				case 2:
+					vs_memset16(vsapi->getWritePtr(frame, plane), d->color.i[plane], vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane) / 2);
+					break;
+				case 4:
+					vs_memset32(vsapi->getWritePtr(frame, plane), d->color.i[plane], vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane) / 4);
+					break;
+				}
+			}
+
+			frameProps = vsapi->getFramePropsRW(frame);
+
+			vsapi->propSetInt(frameProps, "_DurationNum", d->vi.fpsDen, 0);
+			vsapi->propSetInt(frameProps, "_DurationDen", d->vi.fpsNum, 0);
+		}
+
+		if (d->keep) {
+			d->f = frame;
+			return vsapi->cloneFrameRef(frame);
+		} else {
+			return frame;
+		}
     }
 
     return 0;
@@ -1601,17 +1637,13 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     VSNodeRef *node;
     int hasvi = 0;
     int format = 0;
-	union {
-		uint32_t i[3];
-		float f[3];
-	} color;
     int ncolors;
     int plane;
     int64_t temp;
     int err;
     int i;
     int compat = 0;
-    memset(&d.vi, 0, sizeof(d.vi));
+    memset(&d, 0, sizeof(d));
 
     node = vsapi->propGetNode(in, "clip", 0, &err);
 
@@ -1696,7 +1728,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     if (d.vi.numFrames < 0)
         RETERROR("BlankClip: Invalid length");
 
-    setBlack(color.i, d.vi.format);
+    setBlack(d.color.i, d.vi.format);
 
     ncolors = vsapi->propNumElements(in, "color");
 
@@ -1704,11 +1736,11 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
         for (i = 0; i < ncolors; i++) {
 			double lcolor = vsapi->propGetFloat(in, "color", i, 0);
 			if (d.vi.format->sampleType == stInteger) {
-				color.i[i] = (int)(lcolor + 0.5);
-				if (lcolor < 0 || color.i[i] >= ((int64_t)1 << d.vi.format->bitsPerSample))
+				d.color.i[i] = (int)(lcolor + 0.5);
+				if (lcolor < 0 || d.color.i[i] >= ((int64_t)1 << d.vi.format->bitsPerSample))
 					RETERROR("BlankClip: color value out of range");
 			} else {
-				color.f[i] = (float)lcolor;
+				d.color.f[i] = (float)lcolor;
 				if (d.vi.format->colorFamily == cmRGB || i == 0) {
 					if (lcolor < 0 || lcolor > 1)
 						RETERROR("BlankClip: color value out of range");
@@ -1722,24 +1754,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
         RETERROR("BlankClip: invalid number of color values specified");
     }
 
-    d.f = vsapi->newVideoFrame(d.vi.format, d.vi.width, d.vi.height, 0, core);
-
-    for (plane = 0; plane < d.vi.format->numPlanes; plane++) {
-        switch (d.vi.format->bytesPerSample) {
-        case 1:
-			vs_memset8(vsapi->getWritePtr(d.f, plane), color.i[plane], vsapi->getStride(d.f, plane) * vsapi->getFrameHeight(d.f, plane));
-            break;
-        case 2:
-			vs_memset16(vsapi->getWritePtr(d.f, plane), color.i[plane], vsapi->getStride(d.f, plane) * vsapi->getFrameHeight(d.f, plane) / 2);
-            break;
-        case 4:
-			vs_memset32(vsapi->getWritePtr(d.f, plane), color.i[plane], vsapi->getStride(d.f, plane) * vsapi->getFrameHeight(d.f, plane) / 4);
-            break;
-        }
-    }
-
-    vsapi->propSetInt(vsapi->getFramePropsRW(d.f), "_DurationNum", d.vi.fpsDen, 0);
-    vsapi->propSetInt(vsapi->getFramePropsRW(d.f), "_DurationDen", d.vi.fpsNum, 0);
+	d.keep = vsapi->propGetInt(in, "keep", 0, &err);
 
     data = malloc(sizeof(d));
     *data = d;
@@ -3699,7 +3714,7 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("Turn180", "clip:clip;", flipHorizontalCreate, (void *)1, plugin);
     registerFunc("StackVertical", "clips:clip[];", stackCreate, (void *)1, plugin);
     registerFunc("StackHorizontal", "clips:clip[];", stackCreate, 0, plugin);
-    registerFunc("BlankClip", "clip:clip:opt;width:int:opt;height:int:opt;format:int:opt;length:int:opt;fpsnum:int:opt;fpsden:int:opt;color:float[]:opt;", blankClipCreate, 0, plugin);
+    registerFunc("BlankClip", "clip:clip:opt;width:int:opt;height:int:opt;format:int:opt;length:int:opt;fpsnum:int:opt;fpsden:int:opt;color:float[]:opt;keep:int:opt;", blankClipCreate, 0, plugin);
     registerFunc("AssumeFPS", "clip:clip;src:clip:opt;fpsnum:int:opt;fpsden:int:opt;", assumeFPSCreate, 0, plugin);
     registerFunc("Lut", "clip:clip;planes:int[]:opt;lut:int[]:opt;function:func:opt;", lutCreate, 0, plugin);
     registerFunc("Lut2", "clips:clip[];planes:int[]:opt;lut:int[]:opt;function:func:opt;bits:int:opt;", lut2Create, 0, plugin);

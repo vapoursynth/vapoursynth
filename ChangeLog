@@ -2,6 +2,7 @@ known issues:
 compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 
 r20:
+blankclip now generates a new frame on every request to keep memory usage down, added the keep argument to optionally always return the same frame
 the message handler now takes an extra user data pointer, the handler and data pointer is still per process instead of per core though
 added plugin autoloading for linux (jackoneill)
 added plugin autoloading for windows, autoloaded plugins for all users go into <installdir>\plugins and per user autoloaded plugins go into <appdata>\vapoursynth\plugins
