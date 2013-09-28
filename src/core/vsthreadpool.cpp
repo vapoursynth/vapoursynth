@@ -250,7 +250,7 @@ void VSThread::run() {
                     if (mainContextRef->frameDone)
                         owner->returnFrame(mainContextRef, f);
                 } while ((mainContextRef = n));
-            } else if (requestedFrames) {
+			} else if (mainContext->numFrameRequests > 0) {
                 // already scheduled, do nothing
             } else {
 				qFatal("No frame returned at the end of processing by %s", clip->name.constData());
