@@ -1,12 +1,23 @@
 VapourSynth C API Reference
 ===========================
-For now see the example filters in the sdk dir. Reading simplefilters.c, which contains almost all built-in functions, can also be very helpful.
+See the example filters in the sdk dir. Reading simplefilters.c, which contains almost all built-in functions, can also be very helpful.
+
+Public Headers
+##############
+
+.. toctree::
+   :maxdepth: 1
+   :glob:
+
+   api/*
 
 Reserved Frame Properties
 #########################
 All frames contain a map of key--value pairs. It is recommended that these properties are named using only a-z, A-Z, 0-9 using CamelCase.
 There is a special category of keys starting with _ which have strictly defined meanings specified below. It is acceptable to not set any of these keys if they are unknown.
-It is also a fatal error to set them to a value not specified below.::
+It is also a fatal error to set them to a value not specified below.
+
+::
 
    The frame's absolute timestamp in seconds if reported by the source filter.
    Should only be set by the source filter and not be modified.
