@@ -27,8 +27,5 @@ FrameEval
       animated_clip = core.std.FrameEval(base_clip, functools.partial(animator, clip=base_clip))
       animated_clip.set_output()
 	  
-   Note that global variables are accessible from the evaluated function as well but to avoid confusion and accidentally 
-
-   A more Python specific example::
-   
+   Note that global variables are accessible from the evaluated function as well but to avoid confusion and accidentally creating a circular frame request using functools.partial() is encouraged.
    
