@@ -1639,7 +1639,6 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     int hasvi = 0;
     int format = 0;
     int ncolors;
-    int plane;
     int64_t temp;
     int err;
     int i;
@@ -1755,7 +1754,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
         RETERROR("BlankClip: invalid number of color values specified");
     }
 
-	d.keep = vsapi->propGetInt(in, "keep", 0, &err);
+	d.keep = !!vsapi->propGetInt(in, "keep", 0, &err);
 
     data = malloc(sizeof(d));
     *data = d;
