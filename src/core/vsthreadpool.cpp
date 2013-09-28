@@ -374,6 +374,9 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
         tasks.append(context);
         wakeThread();
     } else {
+        if (context->upstreamContext)
+            context->upstreamContext->numFrameRequests++;
+
         NodeOutputKey p(context->clip, context->n, context->index);
 
         if (allContexts.contains(p)) {
@@ -393,8 +396,6 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
             }
         } else {
             // create a new context and append it to the tasks
-            if (context->upstreamContext)
-                context->upstreamContext->numFrameRequests++;
             allContexts[p] = context;
             tasks.append(context);
             wakeThread();
