@@ -1048,7 +1048,7 @@ static void VS_CC vdecimateInit(VSMap *in, VSMap *out, void **instanceData, VSNo
         char err[80];
 
         vdm->ovr = NULL;
-        if (vdecimateLoadOVR(vdm->ovrfile, &vdm->ovr, vdm->cycle, vdm->vi.numFrames, err)) {
+        if (vdecimateLoadOVR(vdm->ovrfile, &vdm->ovr, vdm->cycle, vdm->inputNumFrames, err)) {
             free(vdm->bdiffs);
             free(vdm->vmi);
             vsapi->freeNode(vdm->node);
