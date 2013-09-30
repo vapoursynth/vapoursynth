@@ -139,7 +139,7 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
     }
 
     if (printFrameNumber && !outputError)
-        fprintf(stderr, "Frame: %d/%d\n", completedFrames, totalFrames);
+        fprintf(stderr, "Frame: %d/%d\r", completedFrames, totalFrames);
 
     if (totalFrames == completedFrames) {
         QMutexLocker lock(&mutex);
