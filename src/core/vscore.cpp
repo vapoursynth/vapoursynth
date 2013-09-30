@@ -552,18 +552,20 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), pluginLock(QMutex::Recurs
     SHGetFolderPath(NULL, CSIDL_APPDATA, NULL, SHGFP_TYPE_CURRENT, &appDataBuffer[0]);
     QString appDataPath = QString::fromWCharArray(&appDataBuffer[0]) + "\\VapourSynth\\plugins";
     if (!loadAllPluginsInPath(appDataPath, filter))
-        qWarning("User specific plugin autoloading failed. Directory doesn't exist?");
+        qWarning("User specific plugin autoloading failed. Directory '%s' doesn't exist?", appDataPath.toUtf8().constData());
 
     // Autoload bundled plugins
     QSettings settings("HKEY_LOCAL_MACHINE\\Software\\VapourSynth", QSettings::NativeFormat);
-    if (!loadAllPluginsInPath(settings.value("CorePlugins").toString(), filter))
-        qWarning("Core plugin autoloading failed. Directory doesn't exist?");
+	QString corePluginPath = settings.value("CorePlugins").toString();
+    if (!loadAllPluginsInPath(corePluginPath, filter))
+        qWarning("Core plugin autoloading failed. Directory '%s' doesn't exist?", corePluginPath.toUtf8().constData());
 
     // Autoload global plugins last, this is so the bundled plugins cannot be overridden easily
     // and accidentally block updated bundled versions
-    if (!loadAllPluginsInPath(settings.value("Plugins").toString(), filter))
-        qWarning("Plugin autoloading failed. Directory doesn't exist?");
-#elif defined VS_TARGET_OS_LINUX
+	QString globalPluginPath = settings.value("Plugins").toString();
+    if (!loadAllPluginsInPath(globalPluginPath, filter))
+        qWarning("Global plugin autoloading failed. Directory '%s' doesn't exist?", globalPluginPath.toUtf8().constData());
+#elif defined(VS_TARGET_OS_LINUX) || defined(VS_TARGET_OS_DARWIN)
     QString filter = "*.so";
 
     // Will read "~/.config/vapoursynth/vapoursynth.conf"
