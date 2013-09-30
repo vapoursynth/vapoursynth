@@ -116,7 +116,7 @@ end;
 
 function GetPythonPath(Param: String): String;
 begin
-  Result := PythonPath + '\Lib\site-packages';
+  Result := PythonPath + '\Lib\site-packages\vapoursynth';
 end;
 
 // copied from the internets
