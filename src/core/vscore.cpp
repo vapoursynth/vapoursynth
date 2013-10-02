@@ -515,6 +515,16 @@ bool VSCore::loadAllPluginsInPath(const QString &path, const QString &filter) {
 }
 
 VSCore::VSCore(int threads) : memory(new MemoryUse()), pluginLock(QMutex::Recursive), formatIdOffset(1000) {
+
+#ifdef VS_TARGET_OS_WINDOWS
+    if (!vs_isMMXStateOk())
+        qFatal("Bad MMX state detected creating new core");
+    if (!vs_isFPUStateOk())
+        qWarning("Bad FPU state detected after creating new core. Any other FPU state warnings after this one should be ignored.");
+    if (!vs_isSSEStateOk())
+        qFatal("Bad SSE state detected after creating new core");
+#endif
+
     threadPool = new VSThreadPool(this, threads);
 
     registerFormats();
