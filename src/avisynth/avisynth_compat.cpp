@@ -539,7 +539,7 @@ void FakeAvisynth::AddFunction(const char *name, const char *params, ApplyFunc a
         numArgs++;
     }
 
-    vsapi->registerFunction(name, newArgs.toUtf8().constData(), fakeAvisynthFunctionWrapper, new WrappedFunction(name, apply, parsedArgs, user_data), vsapi->getPluginId("com.vapoursynth.avisynth", core));
+    vsapi->registerFunction(name, newArgs.toUtf8().constData(), fakeAvisynthFunctionWrapper, new WrappedFunction(name, apply, parsedArgs, user_data), vsapi->getPluginById("com.vapoursynth.avisynth", core));
 }
 
 bool FakeAvisynth::FunctionExists(const char *name) {

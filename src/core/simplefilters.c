@@ -3680,7 +3680,7 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
         vsapi->propSetNode(min, "clip", d.mask, paAppend);
         vsapi->propSetInt(min, "width", d.vi->width >> d.vi->format->subSamplingW, paAppend);
         vsapi->propSetInt(min, "height", d.vi->height >> d.vi->format->subSamplingH, paAppend);
-        mout = vsapi->invoke(vsapi->getPluginId("com.vapoursynth.resize", core), "Bilinear", min);
+        mout = vsapi->invoke(vsapi->getPluginById("com.vapoursynth.resize", core), "Bilinear", min);
         d.mask23 = vsapi->propGetNode(mout, "clip", 0, 0);
         vsapi->freeMap(mout);
         vsapi->freeMap(min);

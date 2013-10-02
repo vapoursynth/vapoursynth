@@ -619,12 +619,12 @@ VSMap VSCore::getPlugins() {
     return m;
 }
 
-VSPlugin *VSCore::getPluginId(const QByteArray &identifier) {
+VSPlugin *VSCore::getPluginById(const QByteArray &identifier) {
     QMutexLocker lock(&pluginLock);
     return plugins.value(identifier);
 }
 
-VSPlugin *VSCore::getPluginNs(const QByteArray &ns) {
+VSPlugin *VSCore::getPluginByNs(const QByteArray &ns) {
     QMutexLocker lock(&pluginLock);
     foreach(VSPlugin * p, plugins) {
         if (p->fnamespace == ns)
@@ -637,13 +637,13 @@ void VSCore::loadPlugin(const QByteArray &filename, const QByteArray &forcedName
     VSPlugin *p = new VSPlugin(filename, forcedNamespace, this);
 
     QMutexLocker lock(&pluginLock);
-    if (getPluginId(p->identifier)) {
+    if (getPluginById(p->identifier)) {
         QByteArray error = "Plugin " + filename + " already loaded (" + p->identifier + ")";
         delete p;
         throw VSException(error);
     }
 
-    if (getPluginNs(p->fnamespace)) {
+    if (getPluginByNs(p->fnamespace)) {
         QByteArray error = "Plugin load failed, namespace " + p->fnamespace + " already populated (" + filename + ")";
         delete p;
         throw VSException(error);

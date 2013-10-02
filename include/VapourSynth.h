@@ -284,8 +284,8 @@ typedef int (VS_CC *VSPropSetFunc)(VSMap *map, const char *key, VSFuncRef *func,
 typedef void (VS_CC *VSConfigPlugin)(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readonly, VSPlugin *plugin);
 typedef void (VS_CC *VSInitPlugin)(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
 
-typedef VSPlugin *(VS_CC *VSGetPluginId)(const char *identifier, VSCore *core);
-typedef VSPlugin *(VS_CC *VSGetPluginNs)(const char *ns, VSCore *core);
+typedef VSPlugin *(VS_CC *VSGetPluginById)(const char *identifier, VSCore *core);
+typedef VSPlugin *(VS_CC *VSGetPluginByNs)(const char *ns, VSCore *core);
 
 typedef VSMap *(VS_CC *VSGetPlugins)(VSCore *core);
 typedef VSMap *(VS_CC *VSGetFunctions)(VSPlugin *plugin);
@@ -319,8 +319,8 @@ struct VSAPI {
     VSCopyFrameProps copyFrameProps;
 
     VSRegisterFunction registerFunction;
-    VSGetPluginId getPluginId;
-    VSGetPluginNs getPluginNs;
+    VSGetPluginById getPluginById;
+    VSGetPluginByNs getPluginByNs;
     VSGetPlugins getPlugins;
     VSGetFunctions getFunctions;
     VSCreateFilter createFilter;

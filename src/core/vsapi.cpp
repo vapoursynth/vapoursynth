@@ -447,12 +447,12 @@ static void VS_CC freeCore(VSCore *core) {
     delete core;
 }
 
-static VSPlugin *VS_CC getPluginId(const char *identifier, VSCore *core) {
-    return core->getPluginId(identifier);
+static VSPlugin *VS_CC getPluginById(const char *identifier, VSCore *core) {
+    return core->getPluginById(identifier);
 }
 
-static VSPlugin *VS_CC getPluginNs(const char *ns, VSCore *core) {
-    return core->getPluginNs(ns);
+static VSPlugin *VS_CC getPluginByNs(const char *ns, VSCore *core) {
+    return core->getPluginByNs(ns);
 }
 
 static VSMap *VS_CC getPlugins(VSCore *core) {
@@ -571,8 +571,8 @@ const VSAPI vsapi = {
     &copyFrame,
     &copyFrameProps,
     &registerFunction,
-    &getPluginId,
-    &getPluginNs,
+    &getPluginById,
+    &getPluginByNs,
     &getPlugins,
     &getFunctions,
     &createFilter,

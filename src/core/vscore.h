@@ -487,8 +487,8 @@ public:
     void createFilter(const VSMap *in, VSMap *out, const QByteArray &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion);
 
     VSMap getPlugins();
-    VSPlugin *getPluginId(const QByteArray &identifier);
-    VSPlugin *getPluginNs(const QByteArray &ns);
+    VSPlugin *getPluginById(const QByteArray &identifier);
+    VSPlugin *getPluginByNs(const QByteArray &ns);
 
     int64_t setMaxCacheSize(int64_t bytes);
     int getAPIVersion();
