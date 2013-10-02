@@ -36,10 +36,11 @@ Name: registervsfs; Description: "Register the VSFS handler"; GroupDescription: 
 
 [Files]
 ;core binaries
-Source: vapoursynth.dll; DestDir: {code:GetPythonPath}; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: vapoursynth.pth; DestDir: {code:GetPythonPath}; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: vapoursynth.dll; DestDir: {code:GetPythonPath}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: vapoursynth.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: vapoursynth.pyd; DestDir: {code:GetPythonPath}; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: QtCore4.dll; DestDir: {code:GetPythonPath}; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: vapoursynth.pyd; DestDir: {code:GetPythonPath}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: QtCore4.dll; DestDir: {code:GetPythonPath}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: QtCore4.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: vsfs.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: template.vpy; DestDir: {app}; Flags: ignoreversion uninsrestartdelete restartreplace
