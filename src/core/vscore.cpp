@@ -576,7 +576,12 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), pluginLock(QMutex::Recurs
     if (!loadAllPluginsInPath(globalPluginPath, filter))
         qWarning("Global plugin autoloading failed. Directory '%s' doesn't exist?", globalPluginPath.toUtf8().constData());
 #elif defined(VS_TARGET_OS_LINUX) || defined(VS_TARGET_OS_DARWIN)
-    QString filter = "*.so";
+
+#ifdef VS_TARGET_OS_DARWIN
+    QString filter = "*.dylib";
+#else
+	QString filter = "*.so";
+#endif
 
     // Will read "~/.config/vapoursynth/vapoursynth.conf"
     // or "/etc/xdg/vapoursynth/vapoursynth.conf".
