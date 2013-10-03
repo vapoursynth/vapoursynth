@@ -729,7 +729,7 @@ cdef class Core(object):
         cdef VSPlugin *plugin
         tname = name.encode('utf-8')
         cdef const char *cname = tname
-        plugin = self.funcs.getPluginNs(cname, self.core)
+        plugin = self.funcs.getPluginByNs(cname, self.core)
 
         if plugin:
             return createPlugin(plugin, self.funcs, self)
@@ -758,7 +758,7 @@ cdef class Core(object):
             function_dict = {}
 
             b = a[1].encode('utf-8')
-            n = self.funcs.getFunctions(self.funcs.getPluginId(b, self.core))
+            n = self.funcs.getFunctions(self.funcs.getPluginById(b, self.core))
 
             for j in range(self.funcs.propNumKeys(n)):
                 c = self.funcs.propGetData(n, self.funcs.propGetKey(n, j), 0, NULL)

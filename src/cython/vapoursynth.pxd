@@ -212,8 +212,8 @@ cdef extern from "include/VapourSynth.h" nogil:
         bint propSetNode(VSMap *map, const char *key, VSNodeRef *node, int append) nogil
         bint propSetFrame(VSMap *map, const char *key, const VSFrameRef *f, int append) nogil
 
-        VSPlugin *getPluginId(const char *identifier, VSCore *core) nogil
-        VSPlugin *getPluginNs(const char *ns, VSCore *core) nogil
+        VSPlugin *getPluginById(const char *identifier, VSCore *core) nogil
+        VSPlugin *getPluginByNs(const char *ns, VSCore *core) nogil
         VSMap *getPlugins(VSCore *core) nogil
         VSMap *getFunctions(VSPlugin *plugin) nogil
 
