@@ -253,7 +253,6 @@ static PrefetchInfo getPrefetchInfo(const QByteArray &name, const VSMap *in, con
         temp2 = 1;
 
     PREFETCH(TDecimate, temp - temp2, temp, 0, 0) // probably suboptimal
-    //PREFETCH(TDecimate, temp - temp2, temp, -temp, temp) // probably suboptimal
     // MPEG2DEC
     SOURCE(MPEG2Source)
     PREFETCHR0(LumaYV12)
@@ -296,6 +295,8 @@ static PrefetchInfo getPrefetchInfo(const QByteArray &name, const VSMap *in, con
     OTHER(mt_ellipse)
     OTHER(mt_polish)
     // Mixed
+    PREFETCHR0(RemoveGrain)
+    PREFETCHR0(Repair)
     PREFETCHR0(VagueDenoiser)
     PREFETCHR0(UnDot)
     PREFETCHR0(SangNom)
@@ -479,7 +480,8 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
     fakeEnv->initializing = false;
 
     if (ret.IsClip()) {
-        WrappedClip *filterData = new WrappedClip(ret.AsClip(), preFetchClips, getPrefetchInfo(wf->name, in, vsapi), fakeEnv);
+        PrefetchInfo prefetchInfo = getPrefetchInfo(wf->name, in, vsapi);
+        WrappedClip *filterData = new WrappedClip(ret.AsClip(), preFetchClips, prefetchInfo, fakeEnv);
         vsapi->createFilter(
                                     in,
                                     out,
@@ -487,7 +489,7 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
                                     avisynthFilterInit,
                                     avisynthFilterGetFrame,
                                     avisynthFilterFree,
-                                    preFetchClips.empty() ? fmSerial : fmParallelRequests,
+                                    (preFetchClips.empty() || prefetchInfo.from > prefetchInfo.to) ? fmSerial : fmParallelRequests,
                                     0,
                                     filterData,
                                     core);
