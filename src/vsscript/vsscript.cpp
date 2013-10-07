@@ -1,3 +1,4 @@
+#include <new>
 #include "VSScript.h"
 #include "cython/vapoursynth_api.h"
 
@@ -40,7 +41,7 @@ VS_API(int) vsscript_finalize(void) {
 
 VS_API(int) vsscript_evaluateScript(VSScript **handle, const char *script, const char *scriptFilename, int flags) {
     if (*handle == NULL) {
-        *handle = new VSScript();
+        *handle = new(std::nothrow)VSScript();
         (*handle)->pyenvdict = NULL;
         (*handle)->errstr = NULL;
 		(*handle)->id = scriptId++;
@@ -50,7 +51,7 @@ VS_API(int) vsscript_evaluateScript(VSScript **handle, const char *script, const
 
 VS_API(int) vsscript_evaluateFile(VSScript **handle, const char *scriptFilename, int flags) {
     if (*handle == NULL) {
-        *handle = new VSScript();
+        *handle = new(std::nothrow)VSScript();
         (*handle)->pyenvdict = NULL;
         (*handle)->errstr = NULL;
 		(*handle)->id = scriptId++;
