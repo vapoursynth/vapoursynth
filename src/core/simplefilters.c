@@ -1581,7 +1581,6 @@ typedef struct {
 static void VS_CC blankClipInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     BlankClipData *d = (BlankClipData *) * instanceData;
     vsapi->setVideoInfo(&d->vi, 1, node);
-    vsapi->clearMap(in);
 }
 
 static const VSFrameRef *VS_CC blankClipGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -1773,7 +1772,6 @@ typedef struct {
 static void VS_CC assumeFPSInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     AssumeFPSData *d = (AssumeFPSData *) * instanceData;
     vsapi->setVideoInfo(&d->vi, 1, node);
-    vsapi->clearMap(in);
 }
 
 static const VSFrameRef *VS_CC assumeFPSGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -1853,7 +1851,6 @@ typedef struct {
 static void VS_CC lutInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     LutData *d = (LutData *) * instanceData;
     vsapi->setVideoInfo(d->vi, 1, node);
-    vsapi->clearMap(in);
 }
 
 static const VSFrameRef *VS_CC lutGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -2110,7 +2107,6 @@ typedef struct {
 static void VS_CC lut2Init(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     Lut2Data *d = (Lut2Data *) * instanceData;
     vsapi->setVideoInfo(d->vi_out, 1, node);
-    vsapi->clearMap(in);
 }
 
 static const VSFrameRef *VS_CC lut2Getframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -2417,7 +2413,6 @@ typedef struct {
 static void VS_CC selectClipInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     SelectClipData *d = (SelectClipData *) * instanceData;
     vsapi->setVideoInfo(d->vi, 1, node);
-    vsapi->clearMap(in);
 }
 
 static const VSFrameRef *VS_CC selectClipGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -2545,7 +2540,6 @@ typedef struct {
 static void VS_CC frameEvalInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     FrameEvalData *d = (FrameEvalData *) * instanceData;
     vsapi->setVideoInfo(d->vi, 1, node);
-    vsapi->clearMap(in);
 }
 
 static const VSFrameRef *VS_CC frameEvalGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {

@@ -298,7 +298,6 @@ struct VSNode {
     friend class VSThread;
 private:
     void *instanceData;
-    VSMap inval;
     VSFilterInit init;
     VSFilterGetFrame filterGetFrame;
     VSFilterFree free;

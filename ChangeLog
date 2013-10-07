@@ -2,6 +2,7 @@ known issues:
 compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 
 r20:
+minor api change, a copy of all filter arguments is no longer kept around unless cleared, shouldn't affect any existing filters
 fixed a bug that would cause avisynth filters without specified prefetching to crash
 renamed the api functions getPluginNs/Id to getPluginByNs/Id since they make more sense
 rewrote the ugliest threading code, the locking is now a bit more fine grained in general
