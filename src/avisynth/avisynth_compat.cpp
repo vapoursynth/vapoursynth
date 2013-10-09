@@ -454,6 +454,14 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
                 break;
             case 'c':
                 VSNodeRef *cr = vsapi->propGetNode(in, parsedArg.name.constData(), 0, NULL);
+                const VSVideoInfo *vi = vsapi->getVideoInfo(cr);
+                if (!isConstantFormat(vi) || vi->numFrames == 0 || (vi->format->id != pfYUV420P8 && vi->format->id != pfCompatYUY2 && vi->format->id != pfCompatBGR32)) {
+                    vsapi->setError(out, "Invalid avisynth colorspace in one of the input clips");
+                    vsapi->freeNode(cr);
+                    delete fakeEnv;
+                    return;
+                }
+
                 const VSFrameRef *fr = vsapi->getFrame(0, cr, 0, 0);
                 int err;
                 int64_t numAudioSamples = vsapi->propGetInt(vsapi->getFramePropsRO(fr), "MVToolsHackNumAudioSamples", 0, &err);
