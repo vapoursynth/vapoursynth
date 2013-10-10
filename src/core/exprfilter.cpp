@@ -97,7 +97,9 @@ typedef struct {
 #endif
 } JitExprData;
 
+#ifdef VS_TARGET_CPU_X86
 extern "C" void vs_evaluate_expr_sse2(const void *exprs, const uint8_t **rwptrs, const intptr_t *ptroffsets, int numiterations, void *stack);
+#endif
 
 static void VS_CC exprInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     JitExprData *d = (JitExprData *) * instanceData;
