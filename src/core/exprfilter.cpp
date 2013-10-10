@@ -95,19 +95,19 @@ typedef struct {
 #else
     std::vector<float> stack;
 #endif
-} JitExprData;
+} ExprData;
 
 #ifdef VS_TARGET_CPU_X86
 extern "C" void vs_evaluate_expr_sse2(const void *exprs, const uint8_t **rwptrs, const intptr_t *ptroffsets, int numiterations, void *stack);
 #endif
 
 static void VS_CC exprInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    JitExprData *d = (JitExprData *) * instanceData;
+    ExprData *d = (ExprData *) * instanceData;
     vsapi->setVideoInfo(&d->vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    JitExprData *d = (JitExprData *) * instanceData;
+    ExprData *d = (ExprData *) * instanceData;
 
     if (activationReason == arInitial) {
         for (int i = 0; i < 3; i++)
@@ -332,7 +332,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
 }
 
 static void VS_CC exprFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    JitExprData *d = (JitExprData *)instanceData;
+    ExprData *d = (ExprData *)instanceData;
     for (int i = 0; i < 3; i++)
         vsapi->freeNode(d->node[i]);
     delete d;
@@ -448,8 +448,8 @@ static int parseExpression(const std::string &expr, std::vector<ExprOp> &ops, co
 }
 
 static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    JitExprData d;
-    JitExprData *data;
+    ExprData d;
+    ExprData *data;
     int err;
 
     try {
@@ -537,7 +537,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         return;
     }
 
-    data = new JitExprData();
+    data = new ExprData();
     *data = d;
 
     vsapi->createFilter(in, out, "Expr", exprInit, exprGetFrame, exprFree, fmParallelRequests, 0, data, core);
