@@ -293,7 +293,7 @@ PVideoFrame VSNode::getFrameInternal(int n, int activationReason, const PFrameCo
     if (!vs_isMMXStateOk())
         qFatal("Bad MMX state detected after return from %s", name.constData());
     if (!vs_isFPUStateOk())
-        qFatal("Bad FPU state detected after return from %s", name.constData());
+        qWarning("Bad FPU state detected after return from %s", name.constData());
     if (!vs_isSSEStateOk())
         qFatal("Bad SSE state detected after return from %s", name.constData());
 #endif
