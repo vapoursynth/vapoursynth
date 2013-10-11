@@ -295,8 +295,8 @@ static PrefetchInfo getPrefetchInfo(const QByteArray &name, const VSMap *in, con
     OTHER(mt_ellipse)
     OTHER(mt_polish)
     // Mixed
-    PREFETCHR0(RemoveGrain)
-    PREFETCHR0(Repair)
+    BROKEN(RemoveGrain)
+    BROKEN(Repair)
     PREFETCHR0(VagueDenoiser)
     PREFETCHR0(UnDot)
     PREFETCHR0(SangNom)
