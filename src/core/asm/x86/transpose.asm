@@ -1,4 +1,4 @@
-; Copyright (c) 2012 Fredrik Mellbin
+; Copyright (c) 2012-2013 Fredrik Mellbin
 ;
 ; This file is part of VapourSynth.
 ;
@@ -55,13 +55,13 @@ cglobal transpose_word, 4, 5, 6, src, srcstride, dst, dststride, tmp1
 INIT_XMM
 cglobal transpose_word_partial, 5, 6, 6, src, srcstride, dst, dststride, writelines, tmp1
 	TRANPOSE_WORD_SHARED
-	dec writelinesq
+	sub writelinesq, 1
 	movh [dstq], m4
 	jz .transpose_end
-	dec writelinesq
+	sub writelinesq, 1
 	movhps [tmp1q], m4
 	jz .transpose_end
-	dec writelinesq
+	sub writelinesq, 1
 	movh [dstq + 2*dststrideq], m0
 	jz .transpose_end
 	movhps [tmp1q + 2*dststrideq], m0
@@ -117,24 +117,24 @@ cglobal transpose_byte, 4, 5, 8, src, srcstride, dst, dststride, tmp1
 INIT_XMM
 cglobal transpose_byte_partial, 5, 6, 8, src, srcstride, dst, dststride, writelines, tmp1
 	TRANPOSE_BYTE_SHARED
-	dec writelinesq
+	sub writelinesq, 1
 	movh [dstq], m0
 	jz .write_done
-	dec writelinesq
+	sub writelinesq, 1
 	movhps [tmp1q], m0
 	jz .write_done
-	dec writelinesq
+	sub writelinesq, 1
 	movh [dstq + 2*dststrideq], m2
 	jz .write_done
-	dec writelinesq
+	sub writelinesq, 1
 	movhps [tmp1q + 2*dststrideq], m2
 	jz .write_done
-	dec writelinesq
+	sub writelinesq, 1
 	lea dstq, [dstq + 4*dststrideq]
 	lea tmp1q, [tmp1q + 4*dststrideq]
 	movh [dstq], m1
 	jz .write_done
-	dec writelinesq
+	sub writelinesq, 1
 	movhps [tmp1q], m1
 	jz .write_done
 	movh [dstq + 2*dststrideq], m3
