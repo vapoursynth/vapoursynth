@@ -50,7 +50,6 @@ static void VS_CC filterCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     *data = d;
 
     vsapi->createFilter(in, out, "Filter", filterInit, filterGetFrame, filterFree, fmParallel, 0, data, core);
-    return;
 }
 
 //////////////////////////////////////////
