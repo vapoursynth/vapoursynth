@@ -203,7 +203,6 @@ static void prefetchHelper(int n, VSNodeRef *node, const PrefetchInfo &p, VSFram
 static PrefetchInfo getPrefetchInfo(const QByteArray &name, const VSMap *in, const VSAPI *vsapi) {
     int err;
     int temp;
-    int temp2;
     // FFMS2
     OTHER(FFIndex)
     SOURCE(FFVideoSource)
@@ -240,19 +239,7 @@ static PrefetchInfo getPrefetchInfo(const QByteArray &name, const VSMap *in, con
     PREFETCHR1(Cnr2)
     temp = vsapi->propGetInt(in, "tbsize", 0, &err);
     PREFETCH(dfttest, 1, 1, -(temp / 2), temp / 2)
-    // TIVTC;
-    PREFETCH(TFM, 1, 1, -5, 5) // probably suboptimal
-    temp = vsapi->propGetInt(in, "cycle", 0, &err);
 
-    if (temp < 2)
-        temp = 5;
-
-    temp2 = vsapi->propGetInt(in, "cycleR", 0, &err);
-
-    if (temp2 < 1)
-        temp2 = 1;
-
-    PREFETCH(TDecimate, temp - temp2, temp, 0, 0) // probably suboptimal
     // MPEG2DEC
     SOURCE(MPEG2Source)
     PREFETCHR0(LumaYV12)
@@ -326,7 +313,7 @@ static PrefetchInfo getPrefetchInfo(const QByteArray &name, const VSMap *in, con
     PREFETCHR1(MDegrain1)
     PREFETCHR2(MDegrain2)
     PREFETCHR3(MDegrain3)
-    PREFETCHR0(MCompensate)
+    PREFETCHR3(MCompensate)
     PREFETCHR0(MMask)
     PREFETCHR0(MSCDetection)
     PREFETCHR0(MShow)

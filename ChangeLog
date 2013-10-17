@@ -3,6 +3,7 @@ compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 
 r21:
 fixed a rare hang that could happen in avisynth compatibility when only using one thread
+adjusted avisynth compat prefetching lists, specifically MCompensate should be faster now
 
 r20:
 minor api change, a copy of all filter arguments is no longer kept around unless cleared, shouldn't affect any existing filters
