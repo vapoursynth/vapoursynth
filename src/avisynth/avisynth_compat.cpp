@@ -763,7 +763,7 @@ static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSC
     if (!vs_isMMXStateOk())
         qFatal("Bad MMX state detected after loading %s", uStr.constData());
     if (!vs_isFPUStateOk())
-        qFatal("Bad FPU state detected after loading %s", uStr.constData());
+        qWarning("Bad FPU state detected after loading %s", uStr.constData());
     if (!vs_isSSEStateOk())
         qFatal("Bad SSE state detected after loading %s", uStr.constData());
 #endif

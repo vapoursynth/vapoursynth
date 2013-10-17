@@ -36,7 +36,7 @@ void VSThread::run() {
     if (!vs_isMMXStateOk())
         qFatal("Bad MMX state detected after creating new thread");
     if (!vs_isFPUStateOk())
-        qFatal("Bad FPU state detected after creating new thread");
+        qWarning("Bad FPU state detected after creating new thread");
     if (!vs_isSSEStateOk())
         qFatal("Bad SSE state detected after creating new thread");
 #endif
