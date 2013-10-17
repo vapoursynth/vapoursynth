@@ -34,10 +34,10 @@ VSCache::CacheAction VSCache::recommendSize() {
         return caNoChange; // not enough requests to know what to do so keep it this way
     }
 
-    if ((float)nearMiss / total > 0.2) { // growing the cache would be beneficial
+    if ((nearMiss*10) / total >= 2) { // growing the cache would be beneficial
         clearStats();
         return caGrow;
-    } else if ((float)farMiss / total > 0.9) { // probably a linear scan, no reason to waste space here
+    } else if ((farMiss*10) / total >= 9) { // probably a linear scan, no reason to waste space here
         clearStats();
         return caShrink;
     } else {
