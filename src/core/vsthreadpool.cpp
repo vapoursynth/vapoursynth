@@ -374,7 +374,6 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
     // add it immediately if the task is to return a completed frame or report an error since it never has an existing context
     if (context->returnedFrame || context->hasError()) {
         tasks.append(context);
-        wakeThread();
     } else {
         if (context->upstreamContext)
             context->upstreamContext->numFrameRequests++;
@@ -390,7 +389,6 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
                 // special case where the requested frame is encountered "by accident"
                 context->returnedFrame = ctx->returnedFrame;
                 tasks.append(context);
-                wakeThread();
             } else {
                 // add it to the list of contexts to notify when it's available
                 context->notificationChain = ctx->notificationChain;
@@ -400,14 +398,14 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
             // create a new context and append it to the tasks
             allContexts[p] = context;
             tasks.append(context);
-            wakeThread();
         }
     }
+    wakeThread();
 }
 
 bool VSThreadPool::isWorkerThread() {
-	QMutexLocker m(&lock);
-	return allThreads.contains((VSThread *)QThread::currentThread());
+    QMutexLocker m(&lock);
+    return allThreads.contains((VSThread *)QThread::currentThread());
 }
 
 void VSThreadPool::waitForDone() {
