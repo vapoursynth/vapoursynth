@@ -172,8 +172,8 @@ PVideoFrame VSClip::GetFrame(int n, IScriptEnvironment *env) {
     return pvf;
 }
 
-WrappedClip::WrappedClip(const PClip &clip, const QList<VSNodeRef *> &preFetchClips, const PrefetchInfo &prefetchInfo, FakeAvisynth *fakeEnv)
-    : prefetchInfo(prefetchInfo), preFetchClips(preFetchClips), clip(clip), fakeEnv(fakeEnv),
+WrappedClip::WrappedClip(const QByteArray &filterName, const PClip &clip, const QList<VSNodeRef *> &preFetchClips, const PrefetchInfo &prefetchInfo, FakeAvisynth *fakeEnv)
+    : filterName(filterName), prefetchInfo(prefetchInfo), preFetchClips(preFetchClips), clip(clip), fakeEnv(fakeEnv),
       magicalNumAudioSamplesForMVTools(clip->GetVideoInfo().num_audio_samples),
       magicalNChannelsForMVTools(clip->GetVideoInfo().nchannels) {
 }
@@ -310,8 +310,8 @@ static PrefetchInfo getPrefetchInfo(const QByteArray &name, const VSMap *in, con
         temp = 1;
 
     PREFETCH(MAnalyse, 1, 1, -temp, temp)
-    PREFETCHR1(MDegrain1)
-    PREFETCHR2(MDegrain2)
+    PREFETCHR3(MDegrain1)
+    PREFETCHR3(MDegrain2)
     PREFETCHR3(MDegrain3)
     PREFETCHR3(MCompensate)
     PREFETCHR0(MMask)
@@ -476,7 +476,7 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
 
     if (ret.IsClip()) {
         PrefetchInfo prefetchInfo = getPrefetchInfo(wf->name, in, vsapi);
-        WrappedClip *filterData = new WrappedClip(ret.AsClip(), preFetchClips, prefetchInfo, fakeEnv);
+        WrappedClip *filterData = new WrappedClip(wf->name, ret.AsClip(), preFetchClips, prefetchInfo, fakeEnv);
         vsapi->createFilter(
                                     in,
                                     out,

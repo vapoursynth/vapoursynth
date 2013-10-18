@@ -133,13 +133,14 @@ struct PrefetchInfo {
 };
 
 struct WrappedClip {
+    QByteArray filterName;
     PrefetchInfo prefetchInfo;
     QList<VSNodeRef *> preFetchClips;
     PClip clip;
     FakeAvisynth *fakeEnv;
     int64_t magicalNumAudioSamplesForMVTools;
     int magicalNChannelsForMVTools;
-    WrappedClip(const PClip &clip, const QList<VSNodeRef *> &preFetchClips, const PrefetchInfo &prefetchInfo, FakeAvisynth *fakeEnv);
+    WrappedClip(const QByteArray &filterName, const PClip &clip, const QList<VSNodeRef *> &preFetchClips, const PrefetchInfo &prefetchInfo, FakeAvisynth *fakeEnv);
     ~WrappedClip() {
         clip = NULL;
         delete fakeEnv;

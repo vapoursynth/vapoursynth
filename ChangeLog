@@ -2,6 +2,7 @@ known issues:
 compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 
 r21:
+fixed several bugs in shuffleplanes, now it will correctly deduce the dimensions of the output in more cases and properly reject variable size/format input
 fixed a rare hang that could happen in avisynth compatibility when only using one thread
 adjusted avisynth compat prefetching lists, specifically MCompensate should be faster now
 
