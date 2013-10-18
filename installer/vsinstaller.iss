@@ -1,5 +1,5 @@
 #define AppName = 'VapourSynth'
-#define Version = 'R20'
+#define Version = 'R21 - test 1'
 
 [Setup]
 OutputDir=Compiled
@@ -17,7 +17,7 @@ AppPublisher=Fredrik Mellbin
 AppPublisherURL=http://www.vapoursynth.com/
 AppSupportURL=http://www.vapoursynth.com/
 AppUpdatesURL=http://www.vapoursynth.com/
-VersionInfoVersion=1.20.0.0
+VersionInfoVersion=1.21.0.0
 DefaultDirName={pf}\VapourSynth
 DefaultGroupName=VapourSynth
 AllowCancelDuringInstall=no
@@ -63,9 +63,10 @@ Source: ..\sdk\vsscript_example.cpp; DestDir: {app}\sdk\examples; Flags: ignorev
 Source: plugins\avisource.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: plugins\vivtc.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: plugins\eedi3.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
-;Source: plugins\assvapour.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: plugins\assvapour.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: plugins\temporalsoften.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: plugins\histogram.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: plugins\removegrainvs.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
 
 ; Create the general autoload directory
 [Dirs]
