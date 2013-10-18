@@ -91,9 +91,9 @@ Structs_
 
       * registerFunction_
 
-      * getPluginId_
+      * getPluginById_
 
-      * getPluginNs_
+      * getPluginByNs_
 
       * getPlugins_
 
@@ -924,11 +924,11 @@ struct VSAPI
 
 ----------
 
-   .. _getPluginId:
+   .. _getPluginById:
 
-   .. c:member:: VSGetPluginId getPluginId
+   .. c:member:: VSGetPluginById getPluginById
 
-      typedef VSPlugin_ \*(VS_CC \*VSGetPluginId)(const char \*identifier, VSCore_ \*core)
+      typedef VSPlugin_ \*(VS_CC \*VSGetPluginById)(const char \*identifier, VSCore_ \*core)
 
       Returns a pointer to the plugin with the given identifier, or NULL
       if not found.
@@ -938,11 +938,11 @@ struct VSAPI
 
 ----------
 
-   .. _getPluginNs:
+   .. _getPluginByNs:
 
-   .. c:member:: VSGetPluginNs getPluginNs
+   .. c:member:: VSGetPluginByNs getPluginByNs
 
-      typedef VSPlugin_ \*(VS_CC \*VSGetPluginNs)(const char \*ns, VSCore_ \*core)
+      typedef VSPlugin_ \*(VS_CC \*VSGetPluginByNs)(const char \*ns, VSCore_ \*core)
 
       Returns a pointer to the plugin with the given namespace, or NULL
       if not found.
@@ -1094,7 +1094,7 @@ struct VSAPI
       *plugin*
          A pointer to the plugin where the filter is located. Must not be NULL.
 
-         See getPluginId_\ () and getPluginNs_\ ().
+         See getPluginById_\ () and getPluginByNs_\ ().
 
       *name*
          Name of the filter to invoke.
