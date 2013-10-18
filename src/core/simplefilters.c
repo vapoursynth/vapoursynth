@@ -114,7 +114,7 @@ static void setBlack(uint32_t color[3], const VSFormat *format) {
     int i;
     for (i = 0; i < 3; i++)
         color[i] = 0;
-    if (format->sampleType == stInteger && format->colorFamily == cmYUV)
+    if (format->sampleType == stInteger && (format->colorFamily == cmYUV || format->colorFamily == cmYCoCg))
         color[1] = color[2] = (1 << (format->bitsPerSample - 1));
 }
 
