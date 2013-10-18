@@ -694,37 +694,49 @@ void VS_CC repairCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
     d.node1 = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node1);
 
-    if (!d.vi->format) {
+    if (!isConstantFormat(d.vi)) {
         vsapi->freeNode(d.node1);
-        vsapi->setError(out, "RemoveGrain: Only constant format input supported");
+        vsapi->setError(out, "Repair: Only constant format input supported");
+        return;
+    }
+
+    d.node2 = vsapi->propGetNode(in, "repairclip", 0, 0);
+
+    if (!isSameFormat(d.vi, vsapi->getVideoInfo(d.node2))) {
+        vsapi->freeNode(d.node1);
+        vsapi->freeNode(d.node2);
+        vsapi->setError(out, "Repair: Input clips must have the same format");
         return;
     }
 
     if (d.vi->format->sampleType != stInteger || (d.vi->format->bytesPerSample != 1 && d.vi->format->bytesPerSample != 2)) {
         vsapi->freeNode(d.node1);
-        vsapi->setError(out, "RemoveGrain: Only 8-16 bit int formats supported");
+        vsapi->freeNode(d.node2);
+        vsapi->setError(out, "Repair: Only 8-16 bit int formats supported");
         return;
     }
 
     int n = d.vi->format->numPlanes;
     int m = vsapi->propNumElements(in, "mode");
-    if (n != m) {
+    if (n < m) {
         vsapi->freeNode(d.node1);
-        vsapi->setError(out, "RemoveGrain: Number of input planes and modes specified must be equal");
+        vsapi->freeNode(d.node2);
+        vsapi->setError(out, "Repair: Number of modes specified must be equal or fewer than the number of input planes");
         return;
     }
 
     for (int i = 0; i < 3; i++) {
-        if (i <= n) {
+        if (i < m) {
             d.mode[i] = int64ToIntS(vsapi->propGetInt(in, "mode", i, NULL));
-            if (d.mode[i] != 0 && d.mode[i] != 1 && d.mode[i] != 2 && d.mode[i] != 3 && d.mode[i] != 4 && d.mode[i] != 11 && d.mode[i] != 12 && d.mode[i] != 19 && d.mode[i] != 20)
+            if (d.mode[i] != 0 && d.mode[i] != 1 && d.mode[i] != 2 && d.mode[i] != 3 && d.mode[i] != 4 && d.mode[i] != 11 && d.mode[i] != 12 && d.mode[i] != 13 && d.mode[i] != 14)
             {
                 vsapi->freeNode(d.node1);
-                vsapi->setError(out, "RemoveGrain: Invalid mode specified, only 0-4, 11-12, 19-20 allowed");
+                vsapi->freeNode(d.node2);
+                vsapi->setError(out, "Repair: Invalid mode specified, only 0-4, 11-14 allowed");
                 return;
             }
         } else {
-            d.mode[i] = 0;
+            d.mode[i] = d.mode[i - 1];
         }
     }
 

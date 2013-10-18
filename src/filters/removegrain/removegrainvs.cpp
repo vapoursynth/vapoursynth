@@ -548,24 +548,24 @@ static const VSFrameRef *VS_CC removeGrainGetFrame(int n, int activationReason, 
 #define PROC_ARGS_8(op) PlaneProc <op, uint16_t>::do_process_plane_cpp<op, uint8_t>(src_frame, dst_frame, i, vsapi); break;
 
 #ifdef VS_TARGET_CPU_X86
-#define PROC_ARGS_16_SSE2(op) PlaneProc <op, uint16_t>::do_process_plane_sse2<op, uint16_t>(src_frame, dst_frame, i, vsapi); break;
-#define PROC_ARGS_8_SSE2(op) PlaneProc <op, uint8_t>::do_process_plane_sse2<op, uint8_t>(src_frame, dst_frame, i, vsapi); break;
+#define PROC_ARGS_16_FAST(op) PlaneProc <op, uint16_t>::do_process_plane_sse2<op, uint16_t>(src_frame, dst_frame, i, vsapi); break;
+#define PROC_ARGS_8_FAST(op) PlaneProc <op, uint8_t>::do_process_plane_sse2<op, uint8_t>(src_frame, dst_frame, i, vsapi); break;
 #else
-#define PROC_ARGS_16_SSE2(op) PROC_ARGS_16(op)
-#define PROC_ARGS_8_SSE2(op) PROC_ARGS_8(op)
+#define PROC_ARGS_16_FAST(op) PROC_ARGS_16(op)
+#define PROC_ARGS_8_FAST(op) PROC_ARGS_8(op)
 #endif
 
         if (d->vi->format->bytesPerSample == 1) {
             for (int i = 0; i < d->vi->format->numPlanes; i++) {
                 switch (d->mode[i])
 			    {
-                    case  1: PROC_ARGS_8_SSE2(OpRG01)
-			        case  2: PROC_ARGS_8_SSE2(OpRG02)
-			        case  3: PROC_ARGS_8_SSE2(OpRG03)
-			        case  4: PROC_ARGS_8_SSE2(OpRG04)
-			        case 11: PROC_ARGS_8_SSE2(OpRG11)
-			        case 12: PROC_ARGS_8_SSE2(OpRG12)
-			        case 19: PROC_ARGS_8_SSE2(OpRG19)
+                    case  1: PROC_ARGS_8_FAST(OpRG01)
+			        case  2: PROC_ARGS_8_FAST(OpRG02)
+			        case  3: PROC_ARGS_8_FAST(OpRG03)
+			        case  4: PROC_ARGS_8_FAST(OpRG04)
+			        case 11: PROC_ARGS_8_FAST(OpRG11)
+			        case 12: PROC_ARGS_8_FAST(OpRG12)
+			        case 19: PROC_ARGS_8_FAST(OpRG19)
                     case 20: PROC_ARGS_8(OpRG20)
 			        default: break;
 			    }
@@ -574,13 +574,13 @@ static const VSFrameRef *VS_CC removeGrainGetFrame(int n, int activationReason, 
             for (int i = 0; i < d->vi->format->numPlanes; i++) {
                 switch (d->mode[i])
 			    {
-                    case  1: PROC_ARGS_16_SSE2(OpRG01)
-			        case  2: PROC_ARGS_16_SSE2(OpRG02)
-			        case  3: PROC_ARGS_16_SSE2(OpRG03)
-			        case  4: PROC_ARGS_16_SSE2(OpRG04)
-			        case 11: PROC_ARGS_16_SSE2(OpRG11)
-			        case 12: PROC_ARGS_16_SSE2(OpRG12)
-			        case 19: PROC_ARGS_16_SSE2(OpRG19)
+                    case  1: PROC_ARGS_16_FAST(OpRG01)
+			        case  2: PROC_ARGS_16_FAST(OpRG02)
+			        case  3: PROC_ARGS_16_FAST(OpRG03)
+			        case  4: PROC_ARGS_16_FAST(OpRG04)
+			        case 11: PROC_ARGS_16_FAST(OpRG11)
+			        case 12: PROC_ARGS_16_FAST(OpRG12)
+			        case 19: PROC_ARGS_16_FAST(OpRG19)
                     case 20: PROC_ARGS_16(OpRG20)
 			        default: break;
 			    }
@@ -621,14 +621,14 @@ void VS_CC removeGrainCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     int n = d.vi->format->numPlanes;
     int m = vsapi->propNumElements(in, "mode");
-    if (n != m) {
+    if (n < m) {
         vsapi->freeNode(d.node);
-        vsapi->setError(out, "RemoveGrain: Number of input planes and modes specified must be equal");
+        vsapi->setError(out, "RemoveGrain: Number of modes specified must be equal or fewer than the number of input planes");
         return;
     }
 
     for (int i = 0; i < 3; i++) {
-        if (i <= n) {
+        if (i < m) {
             d.mode[i] = int64ToIntS(vsapi->propGetInt(in, "mode", i, NULL));
             if (d.mode[i] != 0 && d.mode[i] != 1 && d.mode[i] != 2 && d.mode[i] != 3 && d.mode[i] != 4 && d.mode[i] != 11 && d.mode[i] != 12 && d.mode[i] != 19 && d.mode[i] != 20)
             {
@@ -637,7 +637,7 @@ void VS_CC removeGrainCreate(const VSMap *in, VSMap *out, void *userData, VSCore
                 return;
             }
         } else {
-            d.mode[i] = 0;
+            d.mode[i] = d.mode[i - 1];
         }
     }
 
