@@ -2215,8 +2215,10 @@ typedef void (VS_CC \*VSInitPlugin)(VSConfigPlugin configFunc, VSRegisterFunctio
 
             Use propGetInt_\ () and friends to retrieve a parameter value.
 
-            The map is guaranteed to exist until filter destruction, so the plugin
-            can hold references to strings without worry.
+            The map is guaranteed to exist only until the filter's "init"
+            function returns. In other words, pointers returned by
+            propGetData_\ () will not be usable in the filter's "getframe" and
+            "free" functions.
 
          *out*
             Output parameter list. createFilter_\ () will add the output
