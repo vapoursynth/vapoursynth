@@ -137,6 +137,37 @@ class CoreTestSequence(unittest.TestCase):
         clip = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 242, 115])
         with self.assertRaises(vs.Error):
             self.core.std.Lut2([clip, clip], function=lambda x,y: (x+y)/2, planes=[3])
+
+    def test_suffleplanes_arg1(self):
+        clip = self.core.std.BlankClip(format=vs.YUV420P8)
+        with self.assertRaises(vs.Error):
+            self.core.std.ShufflePlanes(clip, planes=[0, 1, 2], format=vs.RGB)
+
+    def test_suffleplanes_arg2(self):
+        clip = self.core.std.BlankClip(format=vs.YUV420P8)
+        self.core.std.ShufflePlanes(clip, planes=[0, 1, 2], format=vs.YCOCG)
+
+    def test_suffleplanes_arg3(self):
+        clip = self.core.std.BlankClip(format=vs.YUV420P8)
+        self.core.std.ShufflePlanes(clip, planes=[1, 1, 2], format=vs.RGB)
+
+    def test_suffleplanes_arg4(self):
+        clip1 = self.core.std.BlankClip(format=vs.YUV420P8)
+        clip2 = self.core.std.BlankClip(format=vs.YUV420P9)
+        with self.assertRaises(vs.Error):
+            self.core.std.ShufflePlanes([clip1, clip2], planes=[0, 1, 2], format=vs.YUV)
+
+    def test_suffleplanes_arg5(self):
+        clip1 = self.core.std.BlankClip(format=vs.YUV420P8)
+        clip2 = self.core.std.BlankClip(format=vs.RGB24)
+        with self.assertRaises(vs.Error):
+            self.core.std.ShufflePlanes([clip1, clip2], planes=[2, 1, 2], format=vs.RGB)
+
+    def test_suffleplanes_arg6(self):
+        clip1 = self.core.std.BlankClip(format=vs.YUV420P8)
+        clip2 = self.core.std.BlankClip(format=vs.RGB24)
+        with self.assertRaises(vs.Error):
+            self.core.std.ShufflePlanes([clip1, clip2, clip1], planes=[0, 1, 2], format=vs.RGB)
         
 if __name__ == '__main__':
     unittest.main()

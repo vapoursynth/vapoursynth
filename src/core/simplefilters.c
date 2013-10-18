@@ -800,8 +800,7 @@ static const VSFrameRef *VS_CC shufflePlanesGetframe(int n, int activationReason
                 return 0;
             }
 
-            dst = vsapi->newVideoFrame2(d->vi.format ? d->vi.format : vsapi->registerFormat(cmGray, fi->sampleType, fi->bitsPerSample, 0, 0, core),
-                vsapi->getFrameWidth(src, d->plane[0]), vsapi->getFrameHeight(src, d->plane[0]), &src, d->plane, src, core);
+            dst = vsapi->newVideoFrame2(d->vi.format, vsapi->getFrameWidth(src, d->plane[0]), vsapi->getFrameHeight(src, d->plane[0]), &src, d->plane, src, core);
 
             vsapi->freeFrame(src);
             return dst;
@@ -870,6 +869,8 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
     for (i = 0; i < 3; i++) {
         if (d.node[i] && isCompatFormat(vsapi->getVideoInfo(d.node[i])))
             SHUFFLEERROR("ShufflePlanes: compat formats not supported");
+        if (d.node[i] && !isConstantFormat(vsapi->getVideoInfo(d.node[i])))
+            SHUFFLEERROR("ShufflePlanes: only constant format input supported");
     }
 
     if (d.format != cmGray && nclips == 1) {
@@ -904,17 +905,17 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
         int ssH;
         int ssW;
 
-        if (!isConstantFormat(&d.vi) || !isConstantFormat(vsapi->getVideoInfo(d.node[1])) || !isConstantFormat(vsapi->getVideoInfo(d.node[2])))
-            SHUFFLEERROR("ShufflePlanes: constant format video required");
+        d.vi.width = c0width;
+        d.vi.height = c0height;
 
         if (c1width != c2width || c1height != c2height)
-            SHUFFLEERROR("ShufflePlanes: plane 1 and 2 size must match");
+            SHUFFLEERROR("ShufflePlanes: plane 1 and 2 do not have the same size");
 
         ssH = findSubSampling(c0height, c1height);
         ssW = findSubSampling(c0width, c1width);
 
         if (ssH < 0 || ssW < 0)
-            SHUFFLEERROR("ShufflePlanes: plane 1 and 2 not same size or subsampled multiples");
+            SHUFFLEERROR("ShufflePlanes: Plane 1 and 2 are not subsampled multiples of first plane");
 
         for (i = 1; i < 3; i++) {
             const VSVideoInfo *pvi = vsapi->getVideoInfo(d.node[i]);
@@ -927,6 +928,9 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
                     d.vi.format->sampleType != pvi->format->sampleType)
                 SHUFFLEERROR("ShufflePlanes: plane 1 and 2 do not have binary compatible storage");
         }
+
+        if (d.format == cmRGB && (ssH != 0 || ssW != 0))
+            SHUFFLEERROR("ShufflePlanes: subsampled RGB not allowed");
 
         d.vi.format = vsapi->registerFormat(d.format, d.vi.format->sampleType, d.vi.format->bitsPerSample, ssW, ssH, core);
     }
