@@ -908,6 +908,13 @@ cdef class Plugin(object):
         for key in functions:
             sout += key + '(' + functions[key].replace(';', '; ') + ')\n'
         return sout.replace('; )', ')')
+        
+    def __dir__(self):
+        attrs = []
+        functions = self.get_functions()
+        for key in functions:
+            attrs.append(key)
+        return attrs
 
 cdef Plugin createPlugin(VSPlugin *plugin, const VSAPI *funcs, Core core):
     cdef Plugin instance = Plugin.__new__(Plugin)    

@@ -2,6 +2,7 @@ known issues:
 compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 
 r21:
+it's now possible to use dir() on frame.props and core.namespace in python to list interesting properties and attributes
 added a compiled version of assvapour, it's probably a bit broken when it comes to font selection at the moment
 ported removegrain/repair based on dither tools' code, support 8-16 bit input
 fixed a cache issues where it would shrink to far too small sizes
