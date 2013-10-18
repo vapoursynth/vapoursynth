@@ -193,7 +193,7 @@ Classes and Functions
    
 Color Family Constants
 ######################
-The color family constants describe a group formats and the basic way their color information is stored. You should be familiar with all of them apart from maybe *YCOCG* and *COMPAT* which
+The color family constants describe groups of formats and the basic way their color information is stored. You should be familiar with all of them apart from maybe *YCOCG* and *COMPAT* which
 is a special junk category for non-planar formats. These are the declared constants in the module::
 
    RGB

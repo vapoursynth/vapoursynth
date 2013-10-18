@@ -6,7 +6,7 @@ The software has been heavily inspired by `Avisynth <http://www.avisynth.org>`_ 
 The main features compared to Avisynth are:
 
    * Multithreaded - Frame level multithreading that scales well
-   * Generalized Colorspaces - New Colorspaces can be specified at runtime
+   * Generalized Colorspaces - New colorspaces can be specified at runtime
    * Per Frame Properties - Additional metadata can be attached to frames
    * Python Based - The scripting part is implemented as a Python module so you don't have to learn a special language
    * Support for video with format changes - Some video just can't stick to one format or frame size. VapourSynth can handle any kind of change
