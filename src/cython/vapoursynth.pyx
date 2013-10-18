@@ -437,6 +437,13 @@ cdef class VideoProps(object):
         cdef bytes b = name.encode('utf-8')
         self.funcs.propDeleteKey(m, b)
 
+    def __dir__(self):
+        cdef const VSMap *m = self.funcs.getFramePropsRO(self.constf)
+        cdef int numkeys = self.funcs.propNumKeys(m)
+        attrs = []
+        for i in range(numkeys):
+            attrs.append(self.funcs.propGetKey(m, i).decode('utf-8'))
+        return attrs
 
 cdef VideoProps createVideoProps(VideoFrame f):
     cdef VideoProps instance = VideoProps.__new__(VideoProps)
