@@ -26,6 +26,11 @@ Native Plugins
 * `d2vsource <http://forum.doom9.org/showthread.php?t=166399>`_
 * `nnedi3 <http://forum.doom9.org/showthread.php?t=166434>`_
 * `L-SMASH Source <http://forum.doom9.org/showthread.php?t=167435>`_
+* `f3kdb <http://forum.doom9.org/showthread.php?t=161411>`_ -- Debanding filter
+* `Videoscope <https://github.com/dubhater/vapoursynth-videoscope>`_ -- Similar to the Histogram plugin
+* `SSIQ <https://github.com/dubhater/vapoursynth-ssiq>`_ -- Spatial derainbowing filter
+* `FieldHint <https://github.com/dubhater/vapoursynth-fieldhint>` -- Takes fields from arbitrary input frames to create the output frames
+
 
 Avisynth Interop
 ################

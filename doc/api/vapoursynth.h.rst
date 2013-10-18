@@ -91,9 +91,9 @@ Structs_
 
       * registerFunction_
 
-      * getPluginId_
+      * getPluginById_
 
-      * getPluginNs_
+      * getPluginByNs_
 
       * getPlugins_
 
@@ -924,11 +924,11 @@ struct VSAPI
 
 ----------
 
-   .. _getPluginId:
+   .. _getPluginById:
 
-   .. c:member:: VSGetPluginId getPluginId
+   .. c:member:: VSGetPluginById getPluginById
 
-      typedef VSPlugin_ \*(VS_CC \*VSGetPluginId)(const char \*identifier, VSCore_ \*core)
+      typedef VSPlugin_ \*(VS_CC \*VSGetPluginById)(const char \*identifier, VSCore_ \*core)
 
       Returns a pointer to the plugin with the given identifier, or NULL
       if not found.
@@ -938,11 +938,11 @@ struct VSAPI
 
 ----------
 
-   .. _getPluginNs:
+   .. _getPluginByNs:
 
-   .. c:member:: VSGetPluginNs getPluginNs
+   .. c:member:: VSGetPluginByNs getPluginByNs
 
-      typedef VSPlugin_ \*(VS_CC \*VSGetPluginNs)(const char \*ns, VSCore_ \*core)
+      typedef VSPlugin_ \*(VS_CC \*VSGetPluginByNs)(const char \*ns, VSCore_ \*core)
 
       Returns a pointer to the plugin with the given namespace, or NULL
       if not found.
@@ -1094,7 +1094,7 @@ struct VSAPI
       *plugin*
          A pointer to the plugin where the filter is located. Must not be NULL.
 
-         See getPluginId_\ () and getPluginNs_\ ().
+         See getPluginById_\ () and getPluginByNs_\ ().
 
       *name*
          Name of the filter to invoke.
@@ -1604,6 +1604,9 @@ struct VSAPI
 
       Returns the number on success, or 0 in case of error.
 
+      If the map has an error set (i.e. if getError_\ () returns non-NULL)
+      VapourSynth will die with a fatal error.
+
       *index*
          Zero-based index of the element.
 
@@ -1612,6 +1615,10 @@ struct VSAPI
 
       *error*
          A bitwise OR of VSGetPropErrors_, or 0 on success.
+
+         You may pass NULL here, but then any problems encountered while
+         retrieving the property will cause VapourSynth to die with a fatal
+         error.
 
 ----------
 
@@ -1625,6 +1632,9 @@ struct VSAPI
 
       Returns the number on success, or 0 in case of error.
 
+      If the map has an error set (i.e. if getError_\ () returns non-NULL)
+      VapourSynth will die with a fatal error.
+
       *index*
          Zero-based index of the element.
 
@@ -1633,6 +1643,10 @@ struct VSAPI
 
       *error*
          A bitwise OR of VSGetPropErrors_, or 0 on success.
+
+         You may pass NULL here, but then any problems encountered while
+         retrieving the property will cause VapourSynth to die with a fatal
+         error.
 
 ----------
 
@@ -1649,6 +1663,9 @@ struct VSAPI
       The pointer is valid until the map is destroyed, or until the
       corresponding key is removed from the map or altered.
 
+      If the map has an error set (i.e. if getError_\ () returns non-NULL)
+      VapourSynth will die with a fatal error.
+
       *index*
          Zero-based index of the element.
 
@@ -1657,6 +1674,10 @@ struct VSAPI
 
       *error*
          A bitwise OR of VSGetPropErrors_, or 0 on success.
+
+         You may pass NULL here, but then any problems encountered while
+         retrieving the property will cause VapourSynth to die with a fatal
+         error.
 
 ----------
 
@@ -1683,6 +1704,9 @@ struct VSAPI
       This function increases the node's reference count, so freeNode_\ () must
       be used when the node is no longer needed.
 
+      If the map has an error set (i.e. if getError_\ () returns non-NULL)
+      VapourSynth will die with a fatal error.
+
       *index*
          Zero-based index of the element.
 
@@ -1691,6 +1715,10 @@ struct VSAPI
 
       *error*
          A bitwise OR of VSGetPropErrors_, or 0 on success.
+
+         You may pass NULL here, but then any problems encountered while
+         retrieving the property will cause VapourSynth to die with a fatal
+         error.
 
 ----------
 
@@ -1707,6 +1735,9 @@ struct VSAPI
       This function increases the frame's reference count, so freeFrame_\ () must
       be used when the frame is no longer needed.
 
+      If the map has an error set (i.e. if getError_\ () returns non-NULL)
+      VapourSynth will die with a fatal error.
+
       *index*
          Zero-based index of the element.
 
@@ -1715,6 +1746,10 @@ struct VSAPI
 
       *error*
          A bitwise OR of VSGetPropErrors_, or 0 on success.
+
+         You may pass NULL here, but then any problems encountered while
+         retrieving the property will cause VapourSynth to die with a fatal
+         error.
 
 ----------
 
@@ -1731,6 +1766,9 @@ struct VSAPI
       This function increases the function's reference count, so freeFunc_\ () must
       be used when the function is no longer needed.
 
+      If the map has an error set (i.e. if getError_\ () returns non-NULL)
+      VapourSynth will die with a fatal error.
+
       *index*
          Zero-based index of the element.
 
@@ -1739,6 +1777,10 @@ struct VSAPI
 
       *error*
          A bitwise OR of VSGetPropErrors_, or 0 on success.
+
+         You may pass NULL here, but then any problems encountered while
+         retrieving the property will cause VapourSynth to die with a fatal
+         error.
 
 ----------
 
@@ -2173,8 +2215,10 @@ typedef void (VS_CC \*VSInitPlugin)(VSConfigPlugin configFunc, VSRegisterFunctio
 
             Use propGetInt_\ () and friends to retrieve a parameter value.
 
-            The map is guaranteed to exist until filter destruction, so the plugin
-            can hold references to strings without worry.
+            The map is guaranteed to exist only until the filter's "init"
+            function returns. In other words, pointers returned by
+            propGetData_\ () will not be usable in the filter's "getframe" and
+            "free" functions.
 
          *out*
             Output parameter list. createFilter_\ () will add the output

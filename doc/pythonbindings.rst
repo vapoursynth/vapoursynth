@@ -5,12 +5,11 @@ unique to Python scripting.
 
 VapourSynth Structure and Functions
 ###################################
-To use the VapourSynth library you must first create a Core object. This core may then load plugins which all end up in their own unit, or namespace, so to say, to avoid naming conflicts in
-the contained functions. For this reason you call a plugin function with *core.unit.Function()*. Note that the loaded plugins are per core instance and not global so if you do create several
-processing cores at once (not recommended) you will have to load the plugins you want for each core.
+To use the VapourSynth library you must first retrieve the Core object, using get_core(). This core may then load plugins which all end up in their own unit, or namespace, so to say, to avoid naming conflicts in
+the contained functions. For this reason you call a plugin function with *core.unit.Function()*.
 
 All arguments to functions have names that are lowercase and all function names are CamelCase. Unit names are also lowercase and usually short. This is good to remember. If you do not like
-CamelCase for function names you can pass *accept_lowercase=True* to the Core constructor.
+CamelCase for function names you can pass *accept_lowercase=True* to get_core().
 
 Slicing
 #######

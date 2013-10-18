@@ -20,3 +20,6 @@ SelectEvery
    
       SelectEvery(clip=clip, cycle=5, offsets=[1, 2, 3, 4])
   
+   Duplicate every fourth frame::
+
+      SelectEvery(clip=clip, cycle=4, offsets=[0, 1, 2, 3, 3])

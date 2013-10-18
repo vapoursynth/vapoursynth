@@ -4,7 +4,7 @@ FrameEval
 .. function:: FrameEval(clip clip, func eval)
    :module: std
    
-   Allows an arbitrary function to be evaluated every frame. The the function gets the frame number, *n*, as input and should return a clip the output frame can be requested from.
+   Allows an arbitrary function to be evaluated every frame. The function gets the frame number, *n*, as input and should return a clip the output frame can be requested from.
    
    The *clip* argument is only used to get the output format from.
    
