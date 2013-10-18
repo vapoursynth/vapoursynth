@@ -17,38 +17,9 @@ http://sam.zoy.org/wtfpl/COPYING for more details.
 // modified by Fredrik Mellbin 2013
 // fix license
 
-#define VS_TARGET_CPU_X86
-
-#include "VapourSynth.h"
-#include "VSHelper.h"
-#include "removegrainvs.h"
-#include <cstdint>
-#include <algorithm>
-#ifdef VS_TARGET_CPU_X86
-#include <emmintrin.h>
-#endif
-
-template <class T>
-static __forceinline T limit (T x, T mi, T ma)
-{
-	return ((x < mi) ? mi : ((x > ma) ? ma : x));
-}
+#include "shared.h"
 
 #ifdef VS_TARGET_CPU_X86
-void sort_pair (__m128i &a1, __m128i &a2)
-{
-	const __m128i	tmp = _mm_min_epi16 (a1, a2);
-	a2 = _mm_max_epi16 (a1, a2);
-	a1 = tmp;
-}
-
-void sort_pair (__m128i &mi, __m128i &ma, __m128i a1, __m128i a2)
-{
-	mi = _mm_min_epi16 (a1, a2);
-	ma = _mm_max_epi16 (a1, a2);
-}
-
-
 class ConvSigned
 {
 public:
@@ -510,21 +481,19 @@ static void do_process_plane_sse2 (const VSFrameRef *src_frame, VSFrameRef *dst_
     const int		w             = vsapi->getFrameWidth(src_frame, plane_id);
 	const int		h             = vsapi->getFrameHeight(src_frame, plane_id);
 	T *		        dst_ptr       = reinterpret_cast<T*>(vsapi->getWritePtr(dst_frame, plane_id));
-	const int		stride_dst    = vsapi->getStride(dst_frame, plane_id);
+	const int		stride        = vsapi->getStride(dst_frame, plane_id);
 
 	const T*	    src_ptr       = reinterpret_cast<const T*>(vsapi->getReadPtr(src_frame, plane_id));
-	const int		stride_src    = vsapi->getStride(src_frame, plane_id);
 
 	// First line
-	memcpy (dst_ptr, src_ptr, stride_dst);
+	memcpy (dst_ptr, src_ptr, stride);
 
 	// Main content
-    PlaneProc<OP, T>::process_subplane_sse2(src_ptr, stride_src/sizeof(T), dst_ptr, stride_dst/sizeof(T), w, h);
+    PlaneProc<OP, T>::process_subplane_sse2(src_ptr, stride/sizeof(T), dst_ptr, stride/sizeof(T), w, h);
 
 	// Last line
-	const int		lp_dst = (h - 1) * stride_dst/sizeof(T);
-	const int		lp_src = (h - 1) * stride_src/sizeof(T);
-	memcpy (dst_ptr + lp_dst, src_ptr + lp_src, stride_dst);
+	const int		lp = (h - 1) * stride/sizeof(T);
+	memcpy (dst_ptr + lp, src_ptr + lp, stride);
 }
 
 #endif
@@ -535,21 +504,19 @@ static void do_process_plane_cpp (const VSFrameRef *src_frame, VSFrameRef *dst_f
     const int		w             = vsapi->getFrameWidth(src_frame, plane_id);
 	const int		h             = vsapi->getFrameHeight(src_frame, plane_id);
 	T *		        dst_ptr       = reinterpret_cast<T*>(vsapi->getWritePtr(dst_frame, plane_id));
-	const int		stride_dst    = vsapi->getStride(dst_frame, plane_id);
+	const int		stride        = vsapi->getStride(dst_frame, plane_id);
 
 	const T*	    src_ptr       = reinterpret_cast<const T*>(vsapi->getReadPtr(src_frame, plane_id));
-	const int		stride_src    = vsapi->getStride(src_frame, plane_id);
 
 	// First line
-	memcpy (dst_ptr, src_ptr, stride_dst);
+	memcpy (dst_ptr, src_ptr, stride);
 
 	// Main content
-    PlaneProc<OP, T>::process_subplane_cpp(src_ptr, stride_src/sizeof(T), dst_ptr, stride_dst/sizeof(T), w, h);
+    PlaneProc<OP, T>::process_subplane_cpp(src_ptr, stride/sizeof(T), dst_ptr, stride/sizeof(T), w, h);
 
 	// Last line
-	const int		lp_dst = (h - 1) * stride_dst/sizeof(T);
-	const int		lp_src = (h - 1) * stride_src/sizeof(T);
-	memcpy (dst_ptr + lp_dst, src_ptr + lp_src, stride_dst);
+	const int		lp = (h - 1) * stride/sizeof(T);
+	memcpy (dst_ptr + lp, src_ptr + lp, stride);
 }
 
 };
@@ -620,6 +587,8 @@ static const VSFrameRef *VS_CC removeGrainGetFrame(int n, int activationReason, 
             }
         } 
 
+        vsapi->freeFrame(src_frame);
+
         return dst_frame;
     }
 
@@ -629,10 +598,10 @@ static const VSFrameRef *VS_CC removeGrainGetFrame(int n, int activationReason, 
 static void VS_CC removeGrainFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     RemoveGrainData *d = (RemoveGrainData *)instanceData;
     vsapi->freeNode(d->node);
-    free(d);
+    delete d;
 }
 
-static void VS_CC removeGrainCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+void VS_CC removeGrainCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     RemoveGrainData d;
    
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
@@ -678,10 +647,3 @@ static void VS_CC removeGrainCreate(const VSMap *in, VSMap *out, void *userData,
     vsapi->createFilter(in, out, "RemoveGrain", removeGrainInit, removeGrainGetFrame, removeGrainFree, fmParallel, 0, data, core);
 }
 
-//////////////////////////////////////////
-// Init
-
-VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
-    configFunc("com.vapoursynth.removegrain", "removegrain", "The Shameful RemoveGrain VapourSynth Port", VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("RemoveGrain", "clip:clip;mode:int[];", removeGrainCreate, 0, plugin);
-}
