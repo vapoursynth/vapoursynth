@@ -22,6 +22,8 @@
 #include "vscore.h"
 #include "cachefilter.h"
 
+int VSCache::cid = 1;
+
 VSCache::CacheAction VSCache::recommendSize() {
     // fixme, constants pulled out of my ass
     int total = hits + nearMiss + farMiss;
@@ -34,10 +36,13 @@ VSCache::CacheAction VSCache::recommendSize() {
         return caNoChange; // not enough requests to know what to do so keep it this way
     }
 
-    if ((nearMiss*10) / total >= 2) { // growing the cache would be beneficial
+    //bool shrink = (nearMiss == 0 && hits == 0 && ((farMiss*10) / total >= 9));
+    //qWarning("Cache #%d stats (%s): %d %d %d %d, size: %d", id, shrink ? "shrink" : "keep", total, farMiss, nearMiss, hits, getMaxFrames());
+    if ((nearMiss*10) / total >= 1) { // growing the cache would be beneficial
         clearStats();
         return caGrow;
-    } else if ((farMiss*10) / total >= 9) { // probably a linear scan, no reason to waste space here
+    } else if (nearMiss == 0 && hits == 0 && ((farMiss*10) / total >= 9)) { // probably a linear scan, no reason to waste space here
+        
         clearStats();
         return caShrink;
     } else {
@@ -49,6 +54,7 @@ VSCache::CacheAction VSCache::recommendSize() {
 inline VSCache::VSCache(int maxSize, int maxHistorySize, bool fixedSize)
     : maxSize(maxSize), maxHistorySize(maxHistorySize), fixedSize(fixedSize) {
     clear();
+    id = cid++;
 }
 
 inline PVideoFrame VSCache::object(const int key) const {
@@ -119,7 +125,7 @@ void VSCache::trim(int max, int maxHistory) {
 
 void VSCache::adjustSize(bool needMemory) {
     if (!fixedSize) {
-        if (needMemory) {
+        if (!needMemory) {
             switch (recommendSize()) {
             case VSCache::caClear:
                 clear();

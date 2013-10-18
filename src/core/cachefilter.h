@@ -26,6 +26,9 @@
 
 class VSCache {
 private:
+    static int cid;
+    int id;
+
     struct Node {
         inline Node() : key(-1) {}
         inline Node(int key, const PVideoFrame &frame) : key(key), frame(frame), weakFrame(frame), prevNode(0), nextNode(0) {}
