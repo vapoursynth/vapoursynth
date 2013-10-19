@@ -18,9 +18,8 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stdlib.h>
 
 #include <list>
 #include <string>
@@ -165,8 +164,9 @@ stringlist split_text(const std::string& txt, int width, int height) {
     stringlist::iterator iter;
     for (iter = lines.begin(); iter != lines.end(); iter++) {
         if (iter->size() > horizontal_capacity) {
-            lines.insert(std::next(iter), iter->substr(horizontal_capacity));
+            std::string remainder = iter->substr(horizontal_capacity);
             iter->erase(horizontal_capacity);
+            iter = lines.insert(++iter, remainder);
         }
     }
 
