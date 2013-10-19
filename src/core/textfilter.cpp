@@ -418,7 +418,7 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **
 static void VS_CC textFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     TextData *d = (TextData *)instanceData;
     vsapi->freeNode(d->node);
-    free(d);
+    delete d;
 }
 
 
