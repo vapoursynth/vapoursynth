@@ -40,6 +40,7 @@ extern "C" {
 }
 #include "cachefilter.h"
 #include "exprfilter.h"
+#include "textfilter.h"
 
 const VSAPI *VS_CC getVapourSynthAPI(int version);
 
@@ -553,6 +554,12 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), pluginLock(QMutex::Recurs
     plugins.insert(p->identifier, p);
     p = new VSPlugin(this);
     resizeInitialize(::configPlugin, ::registerFunction, p);
+    plugins.insert(p->identifier, p);
+    p->enableCompat();
+
+    plugins.insert(p->identifier, p);
+    p = new VSPlugin(this);
+    textInitialize(::configPlugin, ::registerFunction, p);
     plugins.insert(p->identifier, p);
     p->enableCompat();
 
