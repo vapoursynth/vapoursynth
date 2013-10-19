@@ -291,8 +291,8 @@ STDMETHODIMP VapourSynthFile::QueryInterface(const IID& iid, void **ppv) {
         *ppv = (IPersistFile *)this;
     } else if (iid == IID_IAVIFile) {
         *ppv = (IAVIFile *)this;
-    } else if (iid == IID_IAvisynthClipInfo) {
-        *ppv = (IAvisynthClipInfo *)this;
+    //} else if (iid == IID_IAvisynthClipInfo) {
+    //    *ppv = (IAvisynthClipInfo *)this;
     } else {
         *ppv = NULL;
         return E_NOINTERFACE;
@@ -451,7 +451,7 @@ bool VapourSynthFile::DelayInit() {
     return result;
 }
 
-const char *ErrorScript = "\
+const char *ErrorScript1 = "\
 import vapoursynth as vs\n\
 import sys\n\
 core = vs.get_core()\n\
@@ -459,8 +459,12 @@ red = core.std.BlankClip(width=240, height=480, format=vs.RGB24, color=[255, 0, 
 green = core.std.BlankClip(width=240, height=480, format=vs.RGB24, color=[0, 255, 0])\n\
 blue = core.std.BlankClip(width=240, height=480, format=vs.RGB24, color=[0, 0, 255])\n\
 stacked = core.std.StackHorizontal([red, green, blue])\n\
-last = core.resize.Bicubic(stacked, format=vs.COMPATBGR32)\n\
-last.set_output()\n";
+msg = core.text.Text(stacked, r\"\"\"";
+
+const char *ErrorScript2 = "\"\"\")\n\
+flipped = core.std.FlipVertical(msg)\n\
+final = core.resize.Bilinear(flipped, format=vs.COMPATBGR32)\n\
+final.set_output()\n";
 
 bool VapourSynthFile::DelayInit2() {
     if (!szScriptName.empty() && !vi) {
@@ -523,7 +527,10 @@ bool VapourSynthFile::DelayInit2() {
             vi = NULL;
 			vsscript_freeScript(se);
 			se = NULL;
-            int res = vsscript_evaluateScript(&se, ErrorScript, "vfw_error.bleh", 0);
+            std::string error_script = ErrorScript1;
+            error_script += error_msg;
+            error_script += ErrorScript2;
+            int res = vsscript_evaluateScript(&se, error_script.c_str(), "vfw_error.bleh", 0);
 			const char *et = vsscript_getError(se);
 			node = vsscript_getOutput(se, 0);
             vi = vsapi->getVideoInfo(node);
