@@ -291,8 +291,8 @@ STDMETHODIMP VapourSynthFile::QueryInterface(const IID& iid, void **ppv) {
         *ppv = (IPersistFile *)this;
     } else if (iid == IID_IAVIFile) {
         *ppv = (IAVIFile *)this;
-    //} else if (iid == IID_IAvisynthClipInfo) {
-    //    *ppv = (IAvisynthClipInfo *)this;
+    } else if (iid == IID_IAvisynthClipInfo) {
+        *ppv = (IAvisynthClipInfo *)this;
     } else {
         *ppv = NULL;
         return E_NOINTERFACE;
