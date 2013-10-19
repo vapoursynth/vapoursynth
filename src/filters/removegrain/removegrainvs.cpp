@@ -1,7 +1,8 @@
 /*****************************************************************************
 
-        AvsFilterRemoveGrain16.cpp
+        AvsFilterRemoveGrain/Repair16
         Author: Laurent de Soras, 2012
+        Modified for VapourSynth by Fredrik Mellbin 2013 
 
 --- Legal stuff ---
 
@@ -12,10 +13,6 @@ To Public License, Version 2, as published by Sam Hocevar. See
 http://sam.zoy.org/wtfpl/COPYING for more details.
 
 *Tab=3***********************************************************************/
-
-
-// modified by Fredrik Mellbin 2013
-// fix license
 
 #include "shared.h"
 
