@@ -19,7 +19,7 @@ http://sam.zoy.org/wtfpl/COPYING for more details.
 
 #include "VapourSynth.h"
 #include "VSHelper.h"
-#include <cstdint>
+#include <stdint.h>
 #include <algorithm>
 #ifdef VS_TARGET_CPU_X86
 #include <emmintrin.h>

@@ -323,7 +323,7 @@ static void append_prop(std::string &text, const std::string &key, const VSMap *
     if (type == ptInt) {
         for (idx = 0; idx < numElements; idx++) {
             int64_t value = vsapi->propGetInt(map, key.c_str(), idx, NULL);
-            text.append(std::to_string(value));
+            text.append(num_to_string(value));
             if (idx < numElements-1) {
                 text.append(" ");
             }
@@ -540,8 +540,8 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
             d.text.append("Format: may vary").append("\n");
         }
 
-        d.text.append("FpsNum: ").append(std::to_string(d.vi->fpsNum)).append("\n");
-        d.text.append("FpsDen: ").append(std::to_string(d.vi->fpsDen));
+        d.text.append("FpsNum: ").append(num_to_string(d.vi->fpsNum)).append("\n");
+        d.text.append("FpsDen: ").append(num_to_string(d.vi->fpsDen));
 
         d.instanceName = "ClipInfo";
         break;
