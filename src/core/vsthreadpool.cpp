@@ -55,7 +55,7 @@ void VSThread::run() {
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Go through all tasks from the top (oldest) and process the first one possible
         for (QLinkedList<PFrameContext>::iterator iter = owner->tasks.begin(); iter != owner->tasks.end(); ++iter) {
-            FrameContext *mainContext = (*iter).data();
+            FrameContext *mainContext = iter->data();
             FrameContext *leafContext = NULL;
 
 /////////////////////////////////////////////////////////////////////////////////////////////
