@@ -3497,6 +3497,10 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
 //////////////////////////////////////////
 // MaskedMerge
 
+#ifdef VS_TARGET_CPU_X86
+extern void vs_masked_merge_uint8_sse2(const uint8_t *srcp1, const uint8_t *srcp2, const uint8_t *maskp, uint8_t *dstp, int stride, int height);
+#endif
+
 typedef struct {
     const VSVideoInfo *vi;
     VSNodeRef *node1;
@@ -3545,6 +3549,9 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
 
                 if (d->vi->format->sampleType == stInteger) {
                     if (d->vi->format->bytesPerSample == 1) {
+#ifdef VS_TARGET_CPU_X86
+                        vs_masked_merge_uint8_sse2(srcp1, srcp2, maskp, dstp, stride, h);
+#else
                         for (y = 0; y < h; y++) {
                             for (x = 0; x < w; x++)
                                 dstp[x] = srcp1[x] + (((srcp2[x] - srcp1[x]) * (maskp[x] > 2 ? maskp[x] + 1 : maskp[x]) + 128) >> 8);
@@ -3553,6 +3560,7 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
                             maskp += stride;
                             dstp += stride;
                         }
+#endif
                     } else if (d->vi->format->bytesPerSample == 2) {
                         int shift = d->vi->format->bitsPerSample;
                         int round = 1 << (shift - 1);
