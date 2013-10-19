@@ -394,6 +394,16 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **
             }
 
             scrawl_text(text, d->alignment, dst, vsapi);
+        } else if (d->filter == FILTER_COREINFO) {
+            const VSCoreInfo *ci = vsapi->getCoreInfo(core);
+
+            std::string text;
+            text.append(ci->versionString).append("\n");
+            text.append("Threads: ").append(num_to_string(ci->numThreads)).append("\n");
+            text.append("Maximum framebuffer cache size: ").append(num_to_string(ci->maxFramebufferSize)).append(" bytes\n");
+            text.append("Used framebuffer cache size: ").append(num_to_string(ci->usedFramebufferSize)).append(" bytes");
+
+            scrawl_text(text, d->alignment, dst, vsapi);
         } else {
             scrawl_text(d->text, d->alignment, dst, vsapi);
         }
@@ -537,13 +547,6 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         break;
     case FILTER_COREINFO:
         {
-            const VSCoreInfo *ci = vsapi->getCoreInfo(core);
-
-            d.text.append(ci->versionString).append("\n");
-            d.text.append("Threads: ").append(num_to_string(ci->numThreads)).append("\n");
-            d.text.append("Maximum framebuffer cache size: ").append(num_to_string(ci->maxFramebufferSize)).append(" bytes\n");
-            d.text.append("Used framebuffer cache size: ").append(num_to_string(ci->usedFramebufferSize)).append(" bytes");
-
             d.instanceName = "CoreInfo";
             break;
         }
