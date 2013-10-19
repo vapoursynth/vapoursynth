@@ -1,3 +1,12 @@
+/*
+ * Copyright (c) 2012 Dimitar Toshkov Zhekov,
+ * with Reserved Font Name "Terminus Font".
+ *
+ * This Font Software is licensed under the SIL Open Font License, Version 1.1.
+ * This license is available with a FAQ at:
+ * http://scripts.sil.org/OFL
+ */
+
 #ifndef TER_116N_H
 #define TER_116N_H
 
