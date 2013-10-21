@@ -249,32 +249,12 @@ public:
 #endif
 };
 
-class OpRG11
+#ifdef VS_TARGET_CPU_X86
+class OpRG12sse2
 {
 public:
 	typedef	ConvUnsigned	ConvSign;
-	static __forceinline int rg (int c, int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8) {
-	    const int		sum = 4 * c + 2 * (a2 + a4 + a5 + a7) + a1 + a3 + a6 + a8;
-	    const int		val = (sum + 8) >> 4;
 
-	    return (val);
-    }
-#ifdef VS_TARGET_CPU_X86
-    template<typename T>
-	static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
-	    return (OpRG12::rg (src_ptr, stride_src, mask_sign));
-    }
-#endif
-};
-
-class OpRG12
-{
-public:
-	typedef	ConvUnsigned	ConvSign;
-	static __forceinline int rg (int c, int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8) {
-	    return (OpRG11::rg (c, a1, a2, a3, a4, a5, a6, a7, a8));
-    }
-#ifdef VS_TARGET_CPU_X86
     template<typename T>
 	static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
 	    AvsFilterRemoveGrain16_READ_PIX
@@ -300,6 +280,41 @@ public:
 private:
 	ALIGNED_ARRAY(static const uint16_t
 						_bias [8], 16);
+
+};
+#endif
+
+class OpRG11
+{
+public:
+	typedef	ConvUnsigned	ConvSign;
+	static __forceinline int rg (int c, int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8) {
+	    const int		sum = 4 * c + 2 * (a2 + a4 + a5 + a7) + a1 + a3 + a6 + a8;
+	    const int		val = (sum + 8) >> 4;
+
+	    return (val);
+    }
+#ifdef VS_TARGET_CPU_X86
+    template<typename T>
+	static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
+	    return (OpRG12sse2::rg (src_ptr, stride_src, mask_sign));
+    }
+#endif
+};
+
+class OpRG12
+{
+public:
+	typedef	ConvUnsigned	ConvSign;
+	static __forceinline int rg (int c, int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8) {
+	    return (OpRG11::rg (c, a1, a2, a3, a4, a5, a6, a7, a8));
+    }
+#ifdef VS_TARGET_CPU_X86
+    template<typename T>
+	static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
+	    AvsFilterRemoveGrain16_READ_PIX
+	    return (OpRG12sse2::rg(src_ptr, stride_src, mask_sign));
+    }
 #endif
 };
 
@@ -351,7 +366,7 @@ public:
 };
 
 #ifdef VS_TARGET_CPU_X86
-ALIGNED_ARRAY(const uint16_t	OpRG12::_bias [8], 16) =
+ALIGNED_ARRAY(const uint16_t	OpRG12sse2::_bias [8], 16) =
 { 1, 1, 1, 1, 1, 1, 1, 1 };
 
 ALIGNED_ARRAY(const uint16_t	OpRG19::_bias [8], 16) =
