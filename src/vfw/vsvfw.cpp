@@ -455,15 +455,16 @@ const char *ErrorScript1 = "\
 import vapoursynth as vs\n\
 import sys\n\
 core = vs.get_core()\n\
-red = core.std.BlankClip(width=240, height=480, format=vs.RGB24, color=[255, 0, 0])\n\
-green = core.std.BlankClip(width=240, height=480, format=vs.RGB24, color=[0, 255, 0])\n\
-blue = core.std.BlankClip(width=240, height=480, format=vs.RGB24, color=[0, 0, 255])\n\
+w = 340\n\
+h = 600\n\
+red = core.std.BlankClip(width=w, height=h, format=vs.RGB24, color=[255, 0, 0])\n\
+green = core.std.BlankClip(width=w, height=h, format=vs.RGB24, color=[0, 255, 0])\n\
+blue = core.std.BlankClip(width=w, height=h, format=vs.RGB24, color=[0, 0, 255])\n\
 stacked = core.std.StackHorizontal([red, green, blue])\n\
 msg = core.text.Text(stacked, r\"\"\"";
 
 const char *ErrorScript2 = "\"\"\")\n\
-flipped = core.std.FlipVertical(msg)\n\
-final = core.resize.Bilinear(flipped, format=vs.COMPATBGR32)\n\
+final = core.resize.Bilinear(msg, format=vs.COMPATBGR32)\n\
 final.set_output()\n";
 
 bool VapourSynthFile::DelayInit2() {

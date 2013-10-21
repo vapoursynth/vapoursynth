@@ -167,6 +167,9 @@ static const VSFrameRef *VS_CC resizeGetframe(int n, int activationReason, void 
         // swcale expect gbr plane order
         int switchsrc = 0;
         int switchdst = 0;
+        // flip output on compat rgb
+        int flip_src;
+        int flip_dst;
 
         if (!d->context || d->lsrcformat != fi || d->lsrcw != w || d->lsrch != h) {
             int srcid = formatIdToPixelFormat(fi->id);
@@ -196,15 +199,31 @@ static const VSFrameRef *VS_CC resizeGetframe(int n, int activationReason, void 
 
         switchsrc = fi->colorFamily == cmRGB;
         switchdst = d->vi.format->colorFamily == cmRGB;
+        flip_src = (fi->id == pfCompatBGR32);
+        flip_dst = (d->vi.format->id == pfCompatBGR32);
 		
-        for (i = 0; i < vsapi->getFrameFormat(src)->numPlanes; i++) {
-            srcp[switchsrc ? rgb_map[i] : i] = (const uint8_t *)vsapi->getReadPtr(src, i);
-            src_stride[switchsrc ? rgb_map[i] : i] = vsapi->getStride(src, i);
-		}
+        if (flip_src) {
+            for (i = 0; i < vsapi->getFrameFormat(src)->numPlanes; i++) {
+                srcp[switchsrc ? rgb_map[i] : i] = vsapi->getReadPtr(src, i) + (vsapi->getFrameHeight(src, i) - 1)*vsapi->getStride(src, i);
+                src_stride[switchsrc ? rgb_map[i] : i] = -vsapi->getStride(src, i);
+		    }
+        } else {
+            for (i = 0; i < vsapi->getFrameFormat(src)->numPlanes; i++) {
+                srcp[switchsrc ? rgb_map[i] : i] = vsapi->getReadPtr(src, i);
+                src_stride[switchsrc ? rgb_map[i] : i] = vsapi->getStride(src, i);
+		    }
+        }
 
-        for (i = 0; i < d->vi.format->numPlanes; i++) {
-            dstp[switchdst ? rgb_map[i] : i] = (uint8_t *)vsapi->getWritePtr(dst, i);
-            dst_stride[switchdst ? rgb_map[i] : i] = vsapi->getStride(dst, i);
+        if (flip_dst) {
+            for (i = 0; i < d->vi.format->numPlanes; i++) {
+                dstp[switchdst ? rgb_map[i] : i] = vsapi->getWritePtr(dst, i) + (vsapi->getFrameHeight(dst, i) - 1)*vsapi->getStride(dst, i);;
+                dst_stride[switchdst ? rgb_map[i] : i] = -vsapi->getStride(dst, i);
+            }
+        } else {
+            for (i = 0; i < d->vi.format->numPlanes; i++) {
+                dstp[switchdst ? rgb_map[i] : i] = vsapi->getWritePtr(dst, i);
+                dst_stride[switchdst ? rgb_map[i] : i] = vsapi->getStride(dst, i);
+            }
         }
 
         sws_scale(d->context, srcp, src_stride, 0, h, dstp, dst_stride);
