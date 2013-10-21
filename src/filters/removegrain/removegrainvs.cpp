@@ -298,8 +298,8 @@ public:
 	    return (val);
     }
 private:
-	static const __declspec (align (16)) uint16_t
-						_bias [8];
+	ALIGNED_ARRAY(static const uint16_t
+						_bias [8], 16);
 #endif
 };
 
@@ -333,8 +333,8 @@ public:
 	    return (val);
     }
 private:
-	static const __declspec (align (16)) uint16_t
-						_bias [8];
+	ALIGNED_ARRAY(static const uint16_t
+						_bias [8], 16);
 #endif
 };
 
@@ -351,10 +351,10 @@ public:
 };
 
 #ifdef VS_TARGET_CPU_X86
-const __declspec (align (16)) uint16_t	OpRG12::_bias [8] =
+ALIGNED_ARRAY(const uint16_t	OpRG12::_bias [8], 16) =
 { 1, 1, 1, 1, 1, 1, 1, 1 };
 
-const __declspec (align (16)) uint16_t	OpRG19::_bias [8] =
+ALIGNED_ARRAY(const uint16_t	OpRG19::_bias [8], 16) =
 { 1, 1, 1, 1, 1, 1, 1, 1 };
 
 #undef AvsFilterRemoveGrain16_READ_PIX

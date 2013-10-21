@@ -25,6 +25,14 @@ http://sam.zoy.org/wtfpl/COPYING for more details.
 #include <emmintrin.h>
 #endif
 
+#if defined(_MSC_VER)
+#define _ALLOW_KEYWORD_MACROS
+#define alignas(x) __declspec(align(x))
+#define ALIGNED_ARRAY(decl, alignment) alignas(alignment) decl
+#else
+#define ALIGNED_ARRAY(decl, alignment) decl alignas(alignment)
+#endif
+
 template <class T>
 static __forceinline T limit (T x, T mi, T ma)
 {
