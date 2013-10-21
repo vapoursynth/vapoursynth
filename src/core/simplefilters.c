@@ -2401,144 +2401,15 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
 }
 
 //////////////////////////////////////////
-// SelectClip
-
-typedef struct {
-    VSNodeRef **node;
-    VSNodeRef **src;
-    const VSVideoInfo *vi;
-    VSFuncRef *func;
-    int numnode;
-    int numsrc;
-    VSMap *in;
-    VSMap *out;
-} SelectClipData;
-
-static void VS_CC selectClipInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    SelectClipData *d = (SelectClipData *) * instanceData;
-    vsapi->setVideoInfo(d->vi, 1, node);
-}
-
-static const VSFrameRef *VS_CC selectClipGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    SelectClipData *d = (SelectClipData *) * instanceData;
-    int i;
-
-    if (activationReason == arInitial) {
-        *frameData = (void *) - 1;
-
-        for (i = 0; i < d->numsrc; i++)
-            vsapi->requestFrameFilter(n, d->src[i], frameCtx);
-    } else if (activationReason == arAllFramesReady) {
-        intptr_t idx = (intptr_t) * frameData;
-
-        if (idx < 0) {
-            int err;
-            const VSFrameRef *f;
-            vsapi->propSetInt(d->in, "n", n, paAppend);
-
-            for (i = 0; i < d->numsrc; i++) {
-                f = vsapi->getFrameFilter(n, d->src[i], frameCtx);
-                vsapi->propSetFrame(d->in, "f", f, paAppend);
-                vsapi->freeFrame(f);
-            }
-
-            vsapi->callFunc(d->func, d->in, d->out, core, vsapi);
-            vsapi->clearMap(d->in);
-            if (vsapi->getError(d->out)) {
-                vsapi->setFilterError(vsapi->getError(d->out), frameCtx);
-                vsapi->clearMap(d->out);
-                return 0;
-            }
-            idx = int64ToIntS(vsapi->propGetInt(d->out, "val", 0, &err));
-            vsapi->clearMap(d->out);
-
-            if (idx < 0 || idx >= d->numnode) {
-                vsapi->setFilterError("SelectClip: returned index out of bounds", frameCtx);
-                return 0;
-            }
-
-            *frameData = (void *)idx;
-            // special case where the needed frame has already been fetched as a property source
-            f = vsapi->getFrameFilter(n, d->node[idx], frameCtx);
-
-            if (f)
-                return f;
-            else
-                vsapi->requestFrameFilter(n, d->node[idx], frameCtx);
-        } else {
-            return vsapi->getFrameFilter(n, d->node[idx], frameCtx);
-        }
-    }
-
-    return 0;
-}
-
-static void VS_CC selectClipFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    SelectClipData *d = (SelectClipData *)instanceData;
-    int i;
-
-    for (i = 0; i < d->numnode; i++)
-        vsapi->freeNode(d->node[i]);
-
-    for (i = 0; i < d->numsrc; i++)
-        vsapi->freeNode(d->src[i]);
-
-    vsapi->freeMap(d->in);
-    vsapi->freeMap(d->out);
-    vsapi->freeFunc(d->func);
-    free(d->node);
-    free(d->src);
-    free(d);
-}
-
-static void VS_CC selectClipCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    SelectClipData d;
-    SelectClipData *data;
-    int i;
-
-    d.numnode = vsapi->propNumElements(in, "clips");
-    d.numsrc = vsapi->propNumElements(in, "src");
-
-    if (d.numnode < 2)
-        RETERROR("SelectClip: needs at least 2 input clips to select from");
-
-    d.node = malloc(d.numnode * sizeof(d.node[0]));
-
-    for (i = 0; i < d.numnode; i++)
-        d.node[i] = vsapi->propGetNode(in, "clips", i, 0);
-
-    d.vi = vsapi->getVideoInfo(d.node[0]);
-
-    for (i = 1; i < d.numnode; i++)
-        if (!isConstantFormat(d.vi) || !isSameFormat(d.vi, vsapi->getVideoInfo(d.node[i]))) {
-            for (i = 0; i < d.numnode; i++)
-                vsapi->freeNode(d.node[i]);
-
-            free(d.node);
-            RETERROR("SelectClip: index clips must be the same constant format");
-        }
-
-    d.func = vsapi->propGetFunc(in, "selector", 0, 0);
-    d.src = malloc(d.numsrc * sizeof(d.src[0]));
-
-    for (i = 0; i < d.numsrc; i++)
-        d.src[i] = vsapi->propGetNode(in, "src", i, 0);
-
-    d.in = vsapi->createMap();
-    d.out = vsapi->createMap();
-
-    data = malloc(sizeof(d));
-    *data = d;
-
-    vsapi->createFilter(in, out, "SelectClip", selectClipInit, selectClipGetFrame, selectClipFree, fmUnordered, nfNoCache, data, core);
-}
-
-//////////////////////////////////////////
 // FrameEval
 
 typedef struct {
     const VSVideoInfo *vi;
     VSFuncRef *func;
+    VSNodeRef **propsrc;
+    int numpropsrc;
+    VSMap *in;
+    VSMap *out;
 } FrameEvalData;
 
 static void VS_CC frameEvalInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -2546,27 +2417,88 @@ static void VS_CC frameEvalInit(VSMap *in, VSMap *out, void **instanceData, VSNo
     vsapi->setVideoInfo(d->vi, 1, node);
 }
 
-static const VSFrameRef *VS_CC frameEvalGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+static const VSFrameRef *VS_CC frameEvalGetFrameWithProps(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    FrameEvalData *d = (FrameEvalData *) * instanceData;
+    int i;
+
+    VSNodeRef *node = NULL;
+    if (activationReason == arInitial) {
+        for (i = 0; i < d->numpropsrc; i++)
+            vsapi->requestFrameFilter(n, d->propsrc[i], frameCtx);
+    } else if (activationReason == arAllFramesReady && !*frameData) {
+        int err;
+        vsapi->propSetInt(d->in, "n", n, paAppend);
+        for (i = 0; i < d->numpropsrc; i++) {
+            const VSFrameRef *f = vsapi->getFrameFilter(n, d->propsrc[i], frameCtx);
+            vsapi->propSetFrame(d->in, "f", f, paAppend);
+            vsapi->freeFrame(f);
+        }
+        vsapi->callFunc(d->func, d->in, d->out, core, vsapi);
+        vsapi->clearMap(d->in);
+        if (vsapi->getError(d->out)) {
+            vsapi->setFilterError(vsapi->getError(d->out), frameCtx);
+            vsapi->clearMap(d->out);
+            return 0;
+        }
+
+        node = vsapi->propGetNode(d->out, "val", 0, &err);
+        vsapi->clearMap(d->out);
+
+        if (err) {
+            vsapi->setFilterError("FrameEval: Function didn't return a clip", frameCtx);
+            return 0;
+        }
+
+        *frameData = node;
+
+        vsapi->requestFrameFilter(n, node, frameCtx);               
+    } else if (activationReason == arAllFramesReady) {
+        const VSFrameRef *frame;
+        node = (VSNodeRef *)*frameData;
+        frame = vsapi->getFrameFilter(n, node, frameCtx);
+        vsapi->freeNode(node);
+
+        if (d->vi->width || d->vi->height) {
+            if (d->vi->width != vsapi->getFrameWidth(frame, 0) || d->vi->height != vsapi->getFrameHeight(frame, 0)) {
+                vsapi->freeFrame(frame);
+                vsapi->setFilterError("FrameEval: Returned frame has wrong dimensions", frameCtx);
+                return 0;
+            }
+        }
+
+        if (d->vi->format) {
+            if (d->vi->format != vsapi->getFrameFormat(frame)) {
+                vsapi->freeFrame(frame);
+                vsapi->setFilterError("FrameEval: Returned frame has wrong format", frameCtx);
+                return 0;
+            }
+        }
+        return frame;
+    } else if (activationReason == arError) {
+        vsapi->freeNode(*frameData);
+    }
+
+    return 0;
+}
+
+static const VSFrameRef *VS_CC frameEvalGetFrameNoProps(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     FrameEvalData *d = (FrameEvalData *) * instanceData;
 
     VSNodeRef *node = NULL;
     if (activationReason == arInitial) {
         
-        VSMap *in = vsapi->createMap();
-        VSMap *out = vsapi->createMap();
-
         int err;
-        vsapi->propSetInt(in, "n", n, paAppend);
-        vsapi->callFunc(d->func, in, out, core, vsapi);
-        vsapi->freeMap(in);
-        if (vsapi->getError(out)) {
-            vsapi->setFilterError(vsapi->getError(out), frameCtx);
-            vsapi->freeMap(out);
+        vsapi->propSetInt(d->in, "n", n, paAppend);
+        vsapi->callFunc(d->func, d->in, d->out, core, vsapi);
+        vsapi->clearMap(d->in);
+        if (vsapi->getError(d->out)) {
+            vsapi->setFilterError(vsapi->getError(d->out), frameCtx);
+            vsapi->clearMap(d->out);
             return 0;
         }
 
-        node = vsapi->propGetNode(out, "val", 0, &err);
-        vsapi->freeMap(out);
+        node = vsapi->propGetNode(d->out, "val", 0, &err);
+        vsapi->clearMap(d->out);
 
         if (err) {
             vsapi->setFilterError("FrameEval: Function didn't return a clip", frameCtx);
@@ -2607,21 +2539,40 @@ static const VSFrameRef *VS_CC frameEvalGetFrame(int n, int activationReason, vo
 
 static void VS_CC frameEvalFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     FrameEvalData *d = (FrameEvalData *)instanceData;
+    int i;
+    for (i = 0; i < d->numpropsrc; i++)
+        vsapi->freeNode(d->propsrc[i]);
+    free(d->propsrc);
     vsapi->freeFunc(d->func);
+    vsapi->freeMap(d->in);
+    vsapi->freeMap(d->out);
     free(d);
 }
 
 static void VS_CC frameEvalCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     FrameEvalData d;
     FrameEvalData *data;
+    int i;
     VSNodeRef *node = vsapi->propGetNode(in, "clip", 0, 0);
+    d.propsrc = 0;
     d.vi = vsapi->getVideoInfo(node);
     d.func = vsapi->propGetFunc(in, "eval", 0, 0);
+    d.numpropsrc = vsapi->propNumElements(in, "propsrc");
+    if (d.numpropsrc < 0)
+        d.numpropsrc = 0;
+    if (d.numpropsrc > 0) {
+        d.propsrc = malloc(sizeof(VSNodeRef *)*d.numpropsrc);
+        for (i = 0; i < d.numpropsrc; i++)
+            d.propsrc[i] = vsapi->propGetNode(in, "propsrc", i, 0);
+    }
+
+    d.in = vsapi->createMap();
+    d.out = vsapi->createMap();
 
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "FrameEval", frameEvalInit, frameEvalGetFrame, frameEvalFree, fmUnordered, 0, data, core);
+    vsapi->createFilter(in, out, "FrameEval", frameEvalInit, d.numpropsrc ? frameEvalGetFrameWithProps : frameEvalGetFrameNoProps, frameEvalFree,  d.numpropsrc ? fmParallelRequests : fmUnordered, 0, data, core);
 }
 
 //////////////////////////////////////////
@@ -3028,7 +2979,7 @@ static const VSFrameRef *VS_CC planeAverageGetFrame(int n, int activationReason,
         const uint8_t *srcp = vsapi->getReadPtr(src, d->plane);
         int src_stride = vsapi->getStride(src, d->plane);
         int64_t acc = 0;
-
+        double r;
         switch (d->vi->format->bytesPerSample) {
         case 1:
             for (y = 0; y < height; y++) {
@@ -3045,7 +2996,7 @@ static const VSFrameRef *VS_CC planeAverageGetFrame(int n, int activationReason,
             }
             break;
         }
-        
+        r = acc / (double)(width * height * (((int64_t)1 << d->vi->format->bitsPerSample) - 1));
         vsapi->propSetFloat(vsapi->getFramePropsRW(dst), d->prop, acc / (double)(width * height * (((int64_t)1 << d->vi->format->bitsPerSample) - 1)), paReplace);
 
         vsapi->freeFrame(src);
@@ -3724,8 +3675,7 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("AssumeFPS", "clip:clip;src:clip:opt;fpsnum:int:opt;fpsden:int:opt;", assumeFPSCreate, 0, plugin);
     registerFunc("Lut", "clip:clip;planes:int[]:opt;lut:int[]:opt;function:func:opt;", lutCreate, 0, plugin);
     registerFunc("Lut2", "clips:clip[];planes:int[]:opt;lut:int[]:opt;function:func:opt;bits:int:opt;", lut2Create, 0, plugin);
-    registerFunc("SelectClip", "clips:clip[];src:clip[];selector:func;", selectClipCreate, 0, plugin);
-    registerFunc("FrameEval", "clip:clip;eval:func;", frameEvalCreate, 0, plugin);
+    registerFunc("FrameEval", "clip:clip;eval:func;propsrc:clip[]:opt;", frameEvalCreate, 0, plugin);
     registerFunc("ModifyFrame", "clips:clip[];selector:func;", modifyFrameCreate, 0, plugin);
     registerFunc("Transpose", "clip:clip;", transposeCreate, 0, plugin);
     registerFunc("PEMVerifier", "clip:clip;upper:int[]:opt;lower:int[]:opt;", pemVerifierCreate, 0, plugin);

@@ -2,6 +2,7 @@ known issues:
 compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 
 r21:
+merged all selectclip functionality into frameeval, selectclip was removed as a separate function
 vsvfw now returns a clip with the error message if there's an error
 added a basic text printing filter to the core, code written by nodame
 it's now possible to use dir() on frame.props and core.namespace in python to list interesting properties and attributes
