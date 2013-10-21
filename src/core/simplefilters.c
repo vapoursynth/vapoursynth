@@ -2557,7 +2557,7 @@ static void VS_CC frameEvalCreate(const VSMap *in, VSMap *out, void *userData, V
     d.propsrc = 0;
     d.vi = vsapi->getVideoInfo(node);
     d.func = vsapi->propGetFunc(in, "eval", 0, 0);
-    d.numpropsrc = vsapi->propNumElements(in, "propsrc");
+    d.numpropsrc = vsapi->propNumElements(in, "prop_src");
     if (d.numpropsrc < 0)
         d.numpropsrc = 0;
     if (d.numpropsrc > 0) {
@@ -3699,7 +3699,7 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("AssumeFPS", "clip:clip;src:clip:opt;fpsnum:int:opt;fpsden:int:opt;", assumeFPSCreate, 0, plugin);
     registerFunc("Lut", "clip:clip;planes:int[]:opt;lut:int[]:opt;function:func:opt;", lutCreate, 0, plugin);
     registerFunc("Lut2", "clips:clip[];planes:int[]:opt;lut:int[]:opt;function:func:opt;bits:int:opt;", lut2Create, 0, plugin);
-    registerFunc("FrameEval", "clip:clip;eval:func;propsrc:clip[]:opt;", frameEvalCreate, 0, plugin);
+    registerFunc("FrameEval", "clip:clip;eval:func;prop_src:clip[]:opt;", frameEvalCreate, 0, plugin);
     registerFunc("ModifyFrame", "clips:clip[];selector:func;", modifyFrameCreate, 0, plugin);
     registerFunc("Transpose", "clip:clip;", transposeCreate, 0, plugin);
     registerFunc("PEMVerifier", "clip:clip;upper:int[]:opt;lower:int[]:opt;", pemVerifierCreate, 0, plugin);
