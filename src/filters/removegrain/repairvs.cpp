@@ -557,49 +557,49 @@ static void process_subplane_sse2 (const T *src1_ptr, const T *src2_ptr, T *dst_
 	}
 }
 
-template <class OP, class T>
+template <class OP1, class T1>
 static void do_process_plane_sse2 (const VSFrameRef *src1_frame, const VSFrameRef *src2_frame, VSFrameRef *dst_frame, int plane_id, const VSAPI *vsapi)
 {
     const int		w             = vsapi->getFrameWidth(src1_frame, plane_id);
 	const int		h             = vsapi->getFrameHeight(src1_frame, plane_id);
-	T *		        dst_ptr       = reinterpret_cast<T*>(vsapi->getWritePtr(dst_frame, plane_id));
+	T1 *		    dst_ptr       = reinterpret_cast<T1*>(vsapi->getWritePtr(dst_frame, plane_id));
 	const int		stride        = vsapi->getStride(src1_frame, plane_id);
 
-	const T*	    src1_ptr       = reinterpret_cast<const T*>(vsapi->getReadPtr(src1_frame, plane_id));
-	const T*	    src2_ptr       = reinterpret_cast<const T*>(vsapi->getReadPtr(src2_frame, plane_id));
+	const T1*	    src1_ptr       = reinterpret_cast<const T1*>(vsapi->getReadPtr(src1_frame, plane_id));
+	const T1*	    src2_ptr       = reinterpret_cast<const T1*>(vsapi->getReadPtr(src2_frame, plane_id));
 
 	// First line
 	memcpy (dst_ptr, src1_ptr, stride);
 
 	// Main content
-    PlaneProc<OP, T>::process_subplane_sse2(src1_ptr, src2_ptr, dst_ptr, stride/sizeof(T), w, h);
+    PlaneProc<OP1, T1>::process_subplane_sse2(src1_ptr, src2_ptr, dst_ptr, stride/sizeof(T1), w, h);
 
 	// Last line
-	const int		lp = (h - 1) * stride/sizeof(T);
+	const int		lp = (h - 1) * stride/sizeof(T1);
 	memcpy (dst_ptr + lp, src1_ptr + lp, stride);
 }
 
 #endif
 
-template <class OP, class T>
+template <class OP1, class T1>
 static void do_process_plane_cpp (const VSFrameRef *src1_frame, const VSFrameRef *src2_frame, VSFrameRef *dst_frame, int plane_id, const VSAPI *vsapi)
 {
     const int		w             = vsapi->getFrameWidth(src1_frame, plane_id);
 	const int		h             = vsapi->getFrameHeight(src1_frame, plane_id);
-	T *		        dst_ptr       = reinterpret_cast<T*>(vsapi->getWritePtr(dst_frame, plane_id));
+	T1 *		    dst_ptr       = reinterpret_cast<T1*>(vsapi->getWritePtr(dst_frame, plane_id));
 	const int		stride        = vsapi->getStride(src1_frame, plane_id);
 
-	const T*	    src1_ptr       = reinterpret_cast<const T*>(vsapi->getReadPtr(src1_frame, plane_id));
-	const T*	    src2_ptr       = reinterpret_cast<const T*>(vsapi->getReadPtr(src2_frame, plane_id));
+	const T1*	    src1_ptr       = reinterpret_cast<const T1*>(vsapi->getReadPtr(src1_frame, plane_id));
+	const T1*	    src2_ptr       = reinterpret_cast<const T1*>(vsapi->getReadPtr(src2_frame, plane_id));
 
 	// First line
 	memcpy (dst_ptr, src1_ptr, stride);
 
 	// Main content
-    PlaneProc<OP, T>::process_subplane_cpp(src1_ptr, src2_ptr, dst_ptr, stride/sizeof(T), w, h);
+    PlaneProc<OP1, T1>::process_subplane_cpp(src1_ptr, src2_ptr, dst_ptr, stride/sizeof(T1), w, h);
 
 	// Last line
-	const int		lp = (h - 1) * stride/sizeof(T);
+	const int		lp = (h - 1) * stride/sizeof(T1);
 	memcpy (dst_ptr + lp, src1_ptr + lp, stride);
 }
 
