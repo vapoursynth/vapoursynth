@@ -2956,7 +2956,7 @@ static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData,
 typedef struct {
     VSNodeRef *node;
     const VSVideoInfo *vi;
-    const char *prop;
+    char *prop;
     int plane;
 } PlaneAverageData;
 
@@ -3005,10 +3005,18 @@ static const VSFrameRef *VS_CC planeAverageGetFrame(int n, int activationReason,
     return 0;
 }
 
+static void VS_CC planeAverageFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+    PlaneAverageData *d = (PlaneAverageData *)instanceData;
+    vsapi->freeNode(d->node);
+    free(d->prop);
+    free(d);
+}
+
 static void VS_CC planeAverageCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     PlaneAverageData d;
     PlaneAverageData *data;
     int err;
+    const char *tempprop;
 
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node);
@@ -3018,19 +3026,22 @@ static void VS_CC planeAverageCreate(const VSMap *in, VSMap *out, void *userData
         RETERROR("PlaneAverage: clip must be constant format and of integer 8-16 bit type");
     }
 
-    d.prop = vsapi->propGetData(in, "prop", 0, &err);
-    if (err)
-        d.prop = "PlaneAverage";
     d.plane = int64ToIntS(vsapi->propGetInt(in, "plane", 0, 0));
     if (d.plane < 0 || d.plane >= d.vi->format->numPlanes) {
         vsapi->freeNode(d.node);
         RETERROR("PlaneAverage: invalid plane specified");
     }
 
+    tempprop = vsapi->propGetData(in, "prop", 0, &err);
+    if (err)
+        tempprop = "PlaneAverage";
+    d.prop = malloc(strlen(tempprop)+1);
+    strcpy(d.prop, tempprop);
+
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "PlaneAverage", planeAverageInit, planeAverageGetFrame, singleClipFree, fmParallel, 0, data, core);
+    vsapi->createFilter(in, out, "PlaneAverage", planeAverageInit, planeAverageGetFrame, planeAverageFree, fmParallel, 0, data, core);
 }
 
 //////////////////////////////////////////
@@ -3040,7 +3051,7 @@ typedef struct {
     VSNodeRef *node1;
     VSNodeRef *node2;
     const VSVideoInfo *vi;
-    const char *prop;
+    char *prop;
     int plane;
 } PlaneDifferenceData;
 
@@ -3099,6 +3110,7 @@ static void VS_CC planeDifferenceFree(void *instanceData, VSCore *core, const VS
     PlaneDifferenceData *d = (PlaneDifferenceData *)instanceData;
     vsapi->freeNode(d->node1);
     vsapi->freeNode(d->node2);
+    free(d->prop);
     free(d);
 }
 
@@ -3106,6 +3118,7 @@ static void VS_CC planeDifferenceCreate(const VSMap *in, VSMap *out, void *userD
     PlaneDifferenceData d;
     PlaneDifferenceData *data;
     int err;
+    const char *tempprop;
 
     if (vsapi->propNumElements(in, "clips") != 2)
         RETERROR("PlaneDifference: exactly two clips are required as input");
@@ -3119,15 +3132,18 @@ static void VS_CC planeDifferenceCreate(const VSMap *in, VSMap *out, void *userD
         RETERROR("PlaneDifference: clips must be the same format, constant format and of integer 8-16 bit type");
     }
 
-    d.prop = vsapi->propGetData(in, "prop", 0, &err);
-    if (err)
-        d.prop = "PlaneDifference";
     d.plane = int64ToIntS(vsapi->propGetInt(in, "plane", 0, 0));
     if (d.plane < 0 || d.plane >= d.vi->format->numPlanes) {
         vsapi->freeNode(d.node1);
         vsapi->freeNode(d.node2);
         RETERROR("PlaneDifference: invalid plane specified");
     }
+
+    tempprop = vsapi->propGetData(in, "prop", 0, &err);
+    if (err)
+        tempprop = "PlaneDifference";
+    d.prop = malloc(strlen(tempprop)+1);
+    strcpy(d.prop, tempprop);
 
     data = malloc(sizeof(d));
     *data = d;
@@ -3143,7 +3159,7 @@ typedef struct {
     VSNodeRef *node1;
     VSNodeRef *node2;
     const VSVideoInfo *vi;
-    const char *prop;
+    char *prop;
 } ClipToPropData;
 
 static void VS_CC clipToPropInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -3174,6 +3190,7 @@ static void VS_CC clipToPropFree(void *instanceData, VSCore *core, const VSAPI *
     ClipToPropData *d = (ClipToPropData *)instanceData;
     vsapi->freeNode(d->node1);
     vsapi->freeNode(d->node2);
+    free(d->prop);
     free(d);
 }
 
@@ -3181,10 +3198,7 @@ static void VS_CC clipToPropCreate(const VSMap *in, VSMap *out, void *userData, 
     ClipToPropData d;
     ClipToPropData *data;
     int err;
-
-    d.prop = vsapi->propGetData(in, "prop", 0, &err);
-    if (err)
-        d.prop = "_Alpha";
+    const char *tempprop;
 
     d.node1 = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node1);
@@ -3195,6 +3209,12 @@ static void VS_CC clipToPropCreate(const VSMap *in, VSMap *out, void *userData, 
         vsapi->freeNode(d.node2);
         RETERROR("ClipToProp: clip must be constant format");
     }
+
+    tempprop = vsapi->propGetData(in, "prop", 0, &err);
+    if (err)
+        tempprop = "_Alpha";
+    d.prop = malloc(strlen(tempprop)+1);
+    strcpy(d.prop, tempprop);
 
     data = malloc(sizeof(d));
     *data = d;
@@ -3208,7 +3228,7 @@ static void VS_CC clipToPropCreate(const VSMap *in, VSMap *out, void *userData, 
 typedef struct {
     VSNodeRef *node;
     VSVideoInfo vi;
-    const char *prop;
+    char *prop;
 } PropToClipData;
 
 static void VS_CC propToClipInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -3251,17 +3271,21 @@ static void VS_CC propToClipCreate(const VSMap *in, VSMap *out, void *userData, 
     char errmsg[512];
     const VSFrameRef *src;
     const VSFrameRef *msrc;
+    const char *tempprop;
 
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = *vsapi->getVideoInfo(d.node);
-    d.prop = vsapi->propGetData(in, "prop", 0, &err);
-    if (err)
-        d.prop = "_Alpha";
 
     if (!isConstantFormat(&d.vi)) {
         vsapi->freeNode(d.node);
         RETERROR("PropToClip: clip must be constant format");
     }
+
+    tempprop = vsapi->propGetData(in, "prop", 0, &err);
+    if (err)
+        tempprop = "_Alpha";
+    d.prop = malloc(strlen(tempprop)+1);
+    strcpy(d.prop, tempprop);
 
     src = vsapi->getFrame(0, d.node, errmsg, sizeof(errmsg));
     msrc = vsapi->propGetFrame(vsapi->getFramePropsRO(src), d.prop, 0, &err);
