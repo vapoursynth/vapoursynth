@@ -31,7 +31,7 @@ http://sam.zoy.org/wtfpl/COPYING for more details.
 #define ALIGNED_ARRAY(decl, alignment) alignas(alignment) decl
 #else
 #define __forceinline inline
-#define ALIGNED_ARRAY(decl, alignment) decl alignas(alignment)
+#define ALIGNED_ARRAY(decl, alignment) __attribute__((aligned(16))) decl
 #endif
 
 template <class T>
