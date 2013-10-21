@@ -384,7 +384,11 @@ cdef class VideoProps(object):
         elif t == 'm':
             for i in range(numelem):
                 ol.append(createFunc(self.funcs.propGetFunc(m, b, i, NULL), self.core))
-        return ol
+                
+        if len(ol) == 1:
+            return ol[0]
+        else:
+            return ol
         
     def __setattr__(self, name, value):
         if self.readonly:
