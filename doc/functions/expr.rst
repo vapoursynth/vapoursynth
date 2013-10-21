@@ -1,7 +1,7 @@
 Expr
 ====
 
-.. function:: Expr(clip[] clips, data[] expr[, int format])
+.. function:: Expr(clip[] clips, string[] expr[, int format])
    :module: std
    
    Expr evaluates an expression per pixel for up to 3 input *clips*.

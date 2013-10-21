@@ -1,7 +1,7 @@
 PropToClip
 ==========
 
-.. function:: PropToClip(clip clip[, data prop='_Alpha'])
+.. function:: PropToClip(clip clip[, string prop='_Alpha'])
    :module: std
    
    Extracts a clip from the frames attached to the frame property *prop* in *clip*.

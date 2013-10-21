@@ -1,7 +1,7 @@
 ModifyFrame
 ===========
 
-.. function:: ModifyFrame(clips clip[], func selector)
+.. function:: ModifyFrame(clip[] clips, func selector)
    :module: std
    
    The *selector* function is called for every single frame and can modify the properties of the first given clip. The additional clips' properties

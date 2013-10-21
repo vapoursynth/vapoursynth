@@ -1,7 +1,7 @@
 ClipToProp
 ==========
 
-.. function:: ClipToProp(clip clip, clip mclip[, data prop='_Alpha'])
+.. function:: ClipToProp(clip clip, clip mclip[, string prop='_Alpha'])
    :module: std
    
    Stores each frame of *mclip* as a frame property named *prop* in *clip*. This is primarily intended

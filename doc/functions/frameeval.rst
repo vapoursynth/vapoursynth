@@ -8,7 +8,7 @@ FrameEval
    
    The *clip* argument is only used to get the output format from since there is no reliable automatic way to deduce it.
    
-   When using the argument *prop_src* the function will also have an argument, *f*, containing the current frames. This is mainly so frame properties can be accessed and used to make decisions.
+   When using the argument *prop_src* the function will also have an argument, *f*, containing the current frames. This is mainly so frame properties can be accessed and used to make decisions. Note that *f* will only be a list if more than one *prop_src* clip is provided.
    
    This function can be used to accomplish the same things as Animate, ScriptClip and all the other conditional filters in Avisynth. Note that to modify per frame properties you should use *ModifyFrame*.
    
