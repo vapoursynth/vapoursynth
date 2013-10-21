@@ -91,6 +91,78 @@ cglobal masked_merge_uint8_sse2, 6, 7, 6, src1, src2, mask, dst, stride, height,
    RET
 
 INIT_XMM
+cglobal merge_uint8_sse2, 6, 7, 8, src1, src2, mask, dst, stride, height, lineoffset
+   movd m1, maskq ;mask
+   pshuflw m1, m1, 0
+   pshufd m1, m1, 0
+   pcmpeqb m2, m2 ; always 2
+   psrlw m2, 15
+   psllw m2, 1
+
+.yloop:
+   xor lineoffsetq, lineoffsetq
+.xloop:
+   ; load 16 pixels
+   mova m3, [src1q+lineoffsetq]
+   mova m4, [src2q+lineoffsetq]
+
+   pxor m0, m0
+
+   ; unpack into words
+   mova m5, m3
+   mova m6, m4
+
+   punpcklbw m3, m0
+   punpcklbw m4, m0
+   punpckhbw m5, m0
+   punpckhbw m6, m0
+
+   ; subtract
+   psubw m4, m3
+   psubw m6, m5
+
+   psllw m4, 1
+   psllw m6, 1
+   
+   ; multiply
+   mova m0, m4
+   mova m7, m6
+   pmullw m0, m1
+   pmullw m7, m1
+   pmulhw m4, m1
+   pmulhw m6, m1
+
+   ; round result
+   psrlw m0, 15
+   psrlw m7, 15
+   paddw m4, m0
+   paddw m6, m7
+
+   ; add srcp1
+   paddw m3, m4
+   paddw m5, m6
+
+   ; write dstp[x]
+   packuswb m5, m3
+   mova [dstq+lineoffsetq], m5
+
+   ; maybe it should decrement here instead to save a cmp
+   add lineoffsetq, 16
+   cmp lineoffsetq, strideq
+   jnz .xloop
+
+.xloopdone:
+   add src1q, strideq
+   add src2q, strideq
+   add dstq, strideq
+
+   sub heightq, 1
+   jnz .yloop
+
+.yloopdone:
+   RET
+
+INIT_XMM
 cglobal masked_merge_uint16_sse2, 6, 7, 7, src1, src2, mask, dst, stride, height, lineoffset
    pxor m5, m5
    pcmpeqb m6, m6

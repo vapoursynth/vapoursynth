@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012 Fredrik Mellbin
+* Copyright (c) 2012-2013 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -3305,6 +3305,10 @@ static void VS_CC propToClipCreate(const VSMap *in, VSMap *out, void *userData, 
 //////////////////////////////////////////
 // Merge
 
+#ifdef VS_TARGET_CPU_X86
+extern void vs_merge_uint8_sse2(const uint8_t *srcp1, const uint8_t *srcp2, int maskp, uint8_t *dstp, int stride, int height);
+#endif
+
 typedef struct {
     VSNodeRef *node1;
     VSNodeRef *node2;
@@ -3350,6 +3354,9 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
                 if (d->vi->format->sampleType == stInteger) {
                     const int round = 1 << (MergeShift - 1);
                     if (d->vi->format->bytesPerSample == 1) {
+#ifdef VS_TARGET_CPU_X86
+                        vs_merge_uint8_sse2(srcp1, srcp2, weight, dstp, stride, h); 
+#else
                         for (y = 0; y < h; y++) {
                             for (x = 0; x < w; x++)
                                 dstp[x] = srcp1[x] + (((srcp2[x] - srcp1[x]) * weight + round) >> MergeShift);
@@ -3357,6 +3364,7 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
                             srcp2 += stride;
                             dstp += stride;
                         }
+#endif
                     } else if (d->vi->format->bytesPerSample == 2) {
                         const int round = 1 << (MergeShift - 1);
                         for (y = 0; y < h; y++) {

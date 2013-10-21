@@ -2,6 +2,7 @@ known issues:
 compatrgb32 may be flipped when output (use FlipVertical as a workaround)
 
 r21:
+optimized 8 bit merge and maskedmerge
 fixed crash bugs in planeaverage/difference/cliptoprop/proptoclip introduced in r20
 now flattens frame properties as well, this is the proper documented behavior
 merged all selectclip functionality into frameeval, selectclip was removed as a separate function
