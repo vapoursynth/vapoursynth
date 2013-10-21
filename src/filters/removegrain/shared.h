@@ -30,6 +30,7 @@ http://sam.zoy.org/wtfpl/COPYING for more details.
 #define alignas(x) __declspec(align(x))
 #define ALIGNED_ARRAY(decl, alignment) alignas(alignment) decl
 #else
+#define __forceinline inline
 #define ALIGNED_ARRAY(decl, alignment) decl alignas(alignment)
 #endif
 
