@@ -415,6 +415,13 @@ def build(bld):
             source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'vivtc')])),
             target = 'vivtc',
             install_path = '${PLUGINDIR}')
+            
+        bld(features = 'c qxx asm cxxshlib',
+            cxxflags = '-std=c++0x' if bld.env.CXX_NAME == 'gcc' else None,
+            includes = 'include',
+            source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'removegrain')])),
+            target = 'removegrain',
+            install_path = '${PLUGINDIR}')
 
         if bld.env.LIB_ASS:
             bld(features = 'c cxxshlib',
