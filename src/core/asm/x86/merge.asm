@@ -143,8 +143,8 @@ cglobal merge_uint8_sse2, 6, 7, 8, src1, src2, mask, dst, stride, height, lineof
    paddw m5, m6
 
    ; write dstp[x]
-   packuswb m5, m3
-   mova [dstq+lineoffsetq], m5
+   packuswb m3, m5
+   mova [dstq+lineoffsetq], m3
 
    ; maybe it should decrement here instead to save a cmp
    add lineoffsetq, 16
