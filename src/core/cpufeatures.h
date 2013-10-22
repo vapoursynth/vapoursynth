@@ -52,4 +52,10 @@ typedef struct CPUFeatures {
 #endif
 } CPUFeatures;
 
-void getCPUFeatures(CPUFeatures *cpuFeatures);
+#ifdef __cplusplus
+#define CPU_FEATURES_EXTERN_C extern "C"
+#else
+#define CPU_FEATURES_EXTERN_C
+#endif
+
+CPU_FEATURES_EXTERN_C void getCPUFeatures(CPUFeatures *cpuFeatures);

@@ -21,7 +21,7 @@
 #include "cpufeatures.h"
 
 #ifdef VS_TARGET_CPU_X86
-extern "C" void vs_cpuid_wrapper(unsigned level, unsigned *eax, unsigned *ebx, unsigned *ecx, unsigned *edx);
+void vs_cpuid_wrapper(unsigned level, unsigned *eax, unsigned *ebx, unsigned *ecx, unsigned *edx);
 
 void getCPUFeatures(CPUFeatures *cpuFeatures) {
     unsigned eax = 0;
