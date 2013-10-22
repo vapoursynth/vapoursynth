@@ -1,4 +1,4 @@
-; Copyright (c) 2012 Fredrik Mellbin
+; Copyright (c) 2012-2013 Fredrik Mellbin
 ;
 ; This file is part of VapourSynth.
 ;
@@ -22,17 +22,23 @@ CPU Pentium4
 
 SECTION .text
 
-cglobal cpuid_wrapper, 2, 2, 0
-	push r0
-	push r1
+cglobal cpuid_wrapper, 5, 5, 0, level, peax, pebx, pecx, pedx
 	push rbx
-	mov rax, 1
-	mov rcx, 0
+	push peaxq
+    push pebxq
+    push pecxq
+    push pedxq
+	mov rax, levelq
+	xor rcx, rcx
 	cpuid
-	pop rbx
 	pop rax
 	mov [rax], edx
 	pop rax
 	mov [rax], ecx
+	pop rax
+	mov [rax], ebx
+	pop rax
+	mov [rax], eax
+	pop rbx
 	RET
 

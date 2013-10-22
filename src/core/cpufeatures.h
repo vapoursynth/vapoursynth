@@ -30,6 +30,7 @@ typedef struct CPUFeatures {
     char sse4_2;
     char fma3;
     char avx;
+    char avx2;
 #elif defined(VS_TARGET_CPU_ARM)
     // On ARM, VFP-D16+ (16 double registers or more) is required.
     char half_fp;

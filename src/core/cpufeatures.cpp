@@ -18,23 +18,26 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-#include <stdint.h>
 #include "cpufeatures.h"
 
 #ifdef VS_TARGET_CPU_X86
-extern "C" void vs_cpuid_wrapper(uint32_t *ecx, uint32_t *edx);
+extern "C" void vs_cpuid_wrapper(unsigned level, unsigned *eax, unsigned *ebx, unsigned *ecx, unsigned *edx);
 
 void getCPUFeatures(CPUFeatures *cpuFeatures) {
-    uint32_t ecx = 0;
-    uint32_t edx = 0;
-    vs_cpuid_wrapper(&ecx, &edx);
-    cpuFeatures->can_run_vs = !!(edx & (1 << 26));
+    unsigned eax = 0;
+    unsigned ebx = 0;
+    unsigned ecx = 0;
+    unsigned edx = 0;
+    vs_cpuid_wrapper(1, &eax, &ebx, &ecx, &edx);
+    cpuFeatures->can_run_vs = !!(edx & (1 << 26)); //sse2
     cpuFeatures->sse3 = !!(ecx & 1);
     cpuFeatures->ssse3 = !!(ecx & (1 << 9));
     cpuFeatures->sse4_1 = !!(ecx & (1 << 19));
     cpuFeatures->sse4_2 = !!(ecx & (1 << 20));
     cpuFeatures->fma3 = !!(ecx & (1 << 12));
-    cpuFeatures->avx = !!(ecx & (1 << 28));
+    cpuFeatures->avx = (ecx & (1 << 27)) && (ecx & (1 << 28));
+    vs_cpuid_wrapper(7, &eax, &ebx, &ecx, &edx);
+    cpuFeatures->avx2 = cpuFeatures->avx && (ebx & (1 << 5));
 }
 #elif defined(VS_TARGET_OS_LINUX)
 #include <sys/auxv.h>
