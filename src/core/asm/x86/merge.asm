@@ -95,9 +95,7 @@ cglobal merge_uint8_sse2, 6, 7, 8, src1, src2, mask, dst, stride, height, lineof
    movd m1, maskq ;mask
    pshuflw m1, m1, 0
    pshufd m1, m1, 0
-   pcmpeqb m2, m2 ; always 2
-   psrlw m2, 15
-   psllw m2, 1
+   pxor m2, m2
 
 .yloop:
    xor lineoffsetq, lineoffsetq
@@ -106,16 +104,14 @@ cglobal merge_uint8_sse2, 6, 7, 8, src1, src2, mask, dst, stride, height, lineof
    mova m3, [src1q+lineoffsetq]
    mova m4, [src2q+lineoffsetq]
 
-   pxor m0, m0
-
    ; unpack into words
    mova m5, m3
    mova m6, m4
 
-   punpcklbw m3, m0
-   punpcklbw m4, m0
-   punpckhbw m5, m0
-   punpckhbw m6, m0
+   punpcklbw m3, m2
+   punpcklbw m4, m2
+   punpckhbw m5, m2
+   punpckhbw m6, m2
 
    ; subtract
    psubw m4, m3
