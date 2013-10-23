@@ -17,9 +17,9 @@ class FilterTestSequence(unittest.TestCase):
 
         for i in range(diff.num_frames):
             frame = diff.get_frame(i)
-            self.assertEqual(frame.props.PlaneDifference0[0], 0)
-            self.assertEqual(frame.props.PlaneDifference1[0], 0)
-            self.assertEqual(frame.props.PlaneDifference2[0], 0)
+            self.assertEqual(frame.props.PlaneDifference0, 0)
+            self.assertEqual(frame.props.PlaneDifference1, 0)
+            self.assertEqual(frame.props.PlaneDifference2, 0)
 
     def testLUT16Bit(self):
         clip = self.BlankClip(format=vs.YUV420P16, color=[69, 242, 115])
