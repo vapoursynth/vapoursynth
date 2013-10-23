@@ -152,15 +152,12 @@ static void VS_CC createFilter(const VSMap *in, VSMap *out, const char *name, VS
 }
 
 static void VS_CC setError(VSMap *map, const char *errorMessage) {
-    map->clear();
-    VSVariant l(VSVariant::vData);
-    l.s.append(errorMessage ? errorMessage : "Error: no error specified");
-    map->insert("_Error", l);
+    map->setError(errorMessage ? errorMessage : "Error: no error specified");
 }
 
 static const char *VS_CC getError(const VSMap *map) {
-    if (map->contains("_Error"))
-        return (*map)["_Error"].s[0].constData();
+    if (map->contains("_Error") && (*map)["_Error"].size() > 0)
+        return (*map)["_Error"].getValue<QByteArray>(0).constData();
     else
         return NULL;
 }
@@ -214,8 +211,7 @@ static int VS_CC propNumElements(const VSMap *props, const char *name) {
     if (!props->contains(name))
         return -1;
 
-    const VSVariant &val = (*props)[name];
-    return val.count();
+    return (*props)[name].size();
 }
 
 static char VS_CC propGetType(const VSMap *props, const char *name) {
@@ -223,8 +219,7 @@ static char VS_CC propGetType(const VSMap *props, const char *name) {
         return 'u';
 
     const char a[] = { 'u', 'i', 'f', 's', 'c', 'v', 'm'};
-    const VSVariant &val = (*props)[name];
-    return a[val.vtype];
+    return a[(*props)[name].getType()];
 }
 
 static int getPropErrorCheck(const VSMap *props, const char *name, int index, int *error, int type) {
@@ -236,7 +231,7 @@ static int getPropErrorCheck(const VSMap *props, const char *name, int index, in
     if (!props->contains(name))
         err |= peUnset;
 
-    if (!err && props->value(name).vtype != type)
+    if (!err && props->value(name).getType() != type)
         err |= peType;
 
     int c = propNumElements(props, name);
@@ -259,8 +254,7 @@ static int64_t VS_CC propGetInt(const VSMap *props, const char *name, int index,
     if (err)
         return 0;
 
-    const VSVariant &l = (*props)[name];
-    return l.i[index];
+    return (*props)[name].getValue<int64_t>(index);
 }
 
 static double VS_CC propGetFloat(const VSMap *props, const char *name, int index, int *error) {
@@ -269,8 +263,7 @@ static double VS_CC propGetFloat(const VSMap *props, const char *name, int index
     if (err)
         return 0;
 
-    const VSVariant &l = (*props)[name];
-    return l.f[index];
+    return (*props)[name].getValue<double>(index);
 }
 
 static const char *VS_CC propGetData(const VSMap *props, const char *name, int index, int *error) {
@@ -279,8 +272,7 @@ static const char *VS_CC propGetData(const VSMap *props, const char *name, int i
     if (err)
         return 0;
 
-    const VSVariant &l = (*props)[name];
-    return l.s[index].constData();
+    return (*props)[name].getValue<QByteArray>(index).constData();
 }
 
 static int VS_CC propGetDataSize(const VSMap *props, const char *name, int index, int *error) {
@@ -289,8 +281,7 @@ static int VS_CC propGetDataSize(const VSMap *props, const char *name, int index
     if (err)
         return 0;
 
-    const VSVariant &l = (*props)[name];
-    return l.s[index].size();
+    return (*props)[name].getValue<QByteArray>(index).size();
 }
 
 static VSNodeRef *VS_CC propGetNode(const VSMap *props, const char *name, int index, int *error) {
@@ -299,8 +290,7 @@ static VSNodeRef *VS_CC propGetNode(const VSMap *props, const char *name, int in
     if (err)
         return 0;
 
-    const VSVariant &l = (*props)[name];
-    return new VSNodeRef(l.c[index]);
+    return new VSNodeRef((*props)[name].getValue<VSNodeRef>(index));
 }
 
 static const VSFrameRef *VS_CC propGetFrame(const VSMap *props, const char *name, int index, int *error) {
@@ -309,8 +299,7 @@ static const VSFrameRef *VS_CC propGetFrame(const VSMap *props, const char *name
     if (err)
         return 0;
 
-    const VSVariant &l = (*props)[name];
-    return new VSFrameRef(l.v[index]);
+    return new VSFrameRef((*props)[name].getValue<PVideoFrame>(index));
 }
 
 static int VS_CC propDeleteKey(VSMap *props, const char *name) {
@@ -332,14 +321,14 @@ static int VS_CC propSetInt(VSMap *props, const char *name, int64_t i, int appen
     if (props->contains(name)) {
         VSVariant &l = (*props)[name];
 
-        if (l.vtype != VSVariant::vInt)
+        if (l.getType() != VSVariant::vInt)
             return 1;
         else if (append == paAppend)
-            l.i.append(i);
+            l.append(i);
     } else {
         VSVariant l(VSVariant::vInt);
         if (append == paAppend)
-            l.i.append(i);
+            l.append(i);
         props->insert(name, l);
     }
 
@@ -351,14 +340,14 @@ static int VS_CC propSetFloat(VSMap *props, const char *name, double d, int appe
     if (props->contains(name)) {
         VSVariant &l = (*props)[name];
 
-        if (l.vtype != VSVariant::vFloat)
+        if (l.getType() != VSVariant::vFloat)
             return 1;
         else if (append == paAppend)
-            l.f.append(d);
+            l.append(d);
     } else {
         VSVariant l(VSVariant::vFloat);
         if (append == paAppend)
-            l.f.append(d);
+            l.append(d);
         props->insert(name, l);
     }
 
@@ -370,14 +359,14 @@ static int VS_CC propSetData(VSMap *props, const char *name, const char *d, int 
     if (props->contains(name)) {
         VSVariant &l = (*props)[name];
 
-        if (l.vtype != VSVariant::vData)
+        if (l.getType() != VSVariant::vData)
             return 1;
         else if (append == paAppend)
-            l.s.append(d);
+            l.append(d);
     } else {
         VSVariant l(VSVariant::vData);
         if (append == paAppend)
-            l.s.append(length >= 0 ? QByteArray(d, length) : QByteArray(d));
+            l.append(length >= 0 ? QByteArray(d, length) : QByteArray(d));
         props->insert(name, l);
     }
 
@@ -389,14 +378,14 @@ static int VS_CC propSetNode(VSMap *props, const char *name, VSNodeRef *clip, in
     if (props->contains(name)) {
         VSVariant &l = (*props)[name];
 
-        if (l.vtype != VSVariant::vNode)
+        if (l.getType() != VSVariant::vNode)
             return 1;
         else if (append == paAppend)
-            l.c.append(*clip);
+            l.append(*clip);
     } else {
         VSVariant l(VSVariant::vNode);
         if (append == paAppend)
-            l.c.append(*clip);
+            l.append(*clip);
         props->insert(name, l);
     }
 
@@ -408,14 +397,14 @@ static int VS_CC propSetFrame(VSMap *props, const char *name, const VSFrameRef *
     if (props->contains(name)) {
         VSVariant &l = (*props)[name];
 
-        if (l.vtype != VSVariant::vFrame)
+        if (l.getType() != VSVariant::vFrame)
             return 1;
         else if (append == paAppend)
-            l.v.append(frame->frame);
+            l.append(frame->frame);
     } else {
         VSVariant l(VSVariant::vFrame);
         if (append == paAppend)
-            l.v.append(frame->frame);
+            l.append(frame->frame);
         props->insert(name, l);
     }
 
@@ -474,7 +463,7 @@ static VSFuncRef *VS_CC propGetFunc(const VSMap *props, const char *name, int in
         return 0;
 
     const VSVariant &l = (*props)[name];
-    return new VSFuncRef(l.m[index]);
+    return new VSFuncRef((*props)[name].getValue<PExtFunction>(index));
 }
 
 static int VS_CC propSetFunc(VSMap *props, const char *name, VSFuncRef *func, int append) {
@@ -484,13 +473,13 @@ static int VS_CC propSetFunc(VSMap *props, const char *name, VSFuncRef *func, in
     if (props->contains(name)) {
         VSVariant &l = (*props)[name];
 
-        if (l.vtype != VSVariant::vMethod)
+        if (l.getType() != VSVariant::vMethod)
             return 1;
         else
-            l.m.append(func->func);
+            l.append(func->func);
     } else {
         VSVariant l(VSVariant::vMethod);
-        l.m.append(func->func);
+        l.append(func->func);
         props->insert(name, l);
     }
 

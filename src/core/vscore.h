@@ -93,36 +93,34 @@ public:
     }
 };
 
-struct VSVariant {
+class VSVariant {
+public:
     enum VSVType { vUnset, vInt, vFloat, vData, vNode, vFrame, vMethod };
-    VSVType vtype;
-    IntList i;
-    FloatList f;
-    DataList s;
-    NodeList c;
-    FrameList v;
-    FuncList m;
-    explicit VSVariant(VSVType vtype) : vtype(vtype) {}
-    VSVariant() : vtype(vUnset) {}
-    int count() const {
-        switch (vtype) {
-        case VSVariant::vInt:
-            return i.count();
-        case VSVariant::vFloat:
-            return f.count();
-        case VSVariant::vData:
-            return s.count();
-        case VSVariant::vNode:
-            return c.count();
-        case VSVariant::vFrame:
-            return v.count();
-        case VSVariant::vMethod:
-            return m.count();
-        default:
-            qFatal("Unreachable condition 2");
-            return -1;
-        }
+    VSVariant(VSVType vtype = vUnset);
+    VSVariant(const VSVariant &v);
+    ~VSVariant();
+
+    int size() const;
+    VSVType getType() const;
+
+    void append(int64_t val);
+    void append(double val);
+    void append(const QByteArray &val);
+    void append(const VSNodeRef &val);
+    void append(const PVideoFrame &val);
+    void append(const PExtFunction &val);
+
+    template<typename T>
+    const T &getValue(int index) const {
+        return reinterpret_cast<QList<T>*>(storage)->at(index);
     }
+
+private:
+    VSVType vtype;
+    int internalSize;
+    void *storage;
+
+    void initStorage(VSVType t);
 };
 
 struct VSMap : public QMap<QByteArray, VSVariant> {
@@ -132,6 +130,12 @@ public:
     }
     const VSVariant operator[](const QByteArray &key) const {
         return QMap<QByteArray, VSVariant>::operator[](key);
+    }
+    void setError(const QByteArray &error) {
+        clear();
+        VSVariant v(VSVariant::vData);
+        v.append(error);
+        insert("_Error", v);
     }
 };
 

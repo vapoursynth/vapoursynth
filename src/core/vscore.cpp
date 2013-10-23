@@ -66,6 +66,115 @@ void FrameContext::setError(const QByteArray &errorMsg) {
 
 ///////////////
 
+
+VSVariant::VSVariant(VSVType vtype) : vtype(vtype), internalSize(0), storage(NULL) {
+}
+
+VSVariant::VSVariant(const VSVariant &v) : vtype(v.vtype), internalSize(v.internalSize), storage(NULL) {
+    if (internalSize) {
+        switch (vtype) {
+        case VSVariant::vInt:
+            storage = new IntList(*reinterpret_cast<IntList *>(v.storage)); break;
+        case VSVariant::vFloat:
+            storage = new FloatList(*reinterpret_cast<FloatList *>(v.storage)); break;
+        case VSVariant::vData:
+            storage = new DataList(*reinterpret_cast<DataList *>(v.storage)); break;
+        case VSVariant::vNode:
+            storage = new NodeList(*reinterpret_cast<NodeList *>(v.storage)); break;
+        case VSVariant::vFrame:
+            storage = new FrameList(*reinterpret_cast<FrameList *>(v.storage)); break;
+        case VSVariant::vMethod:
+            storage = new FuncList(*reinterpret_cast<FuncList *>(v.storage)); break;
+        }
+    }
+}
+
+VSVariant::~VSVariant() {
+    if (storage) {
+        switch (vtype) {
+        case VSVariant::vInt:
+            delete reinterpret_cast<IntList *>(storage); break;
+        case VSVariant::vFloat:
+            delete reinterpret_cast<FloatList *>(storage); break;
+        case VSVariant::vData:
+            delete reinterpret_cast<DataList *>(storage); break;
+        case VSVariant::vNode:
+            delete reinterpret_cast<NodeList *>(storage); break;
+        case VSVariant::vFrame:
+            delete reinterpret_cast<FrameList *>(storage); break;
+        case VSVariant::vMethod:
+            delete reinterpret_cast<FuncList *>(storage); break;
+        }
+    }
+}
+
+int VSVariant::size() const {
+    return internalSize;
+}
+
+VSVariant::VSVType VSVariant::getType() const {
+    return vtype;
+}
+
+void VSVariant::append(int64_t val) {
+    initStorage(vInt);
+    reinterpret_cast<IntList *>(storage)->append(val);
+    internalSize++;
+}
+
+void VSVariant::append(double val) {
+    initStorage(vFloat);
+    reinterpret_cast<FloatList *>(storage)->append(val);
+    internalSize++;
+}
+
+void VSVariant::append(const QByteArray &val) {
+    initStorage(vData);
+    reinterpret_cast<DataList *>(storage)->append(val);
+    internalSize++;
+}
+
+void VSVariant::append(const VSNodeRef &val) {
+    initStorage(vNode);
+    reinterpret_cast<NodeList *>(storage)->append(val);
+    internalSize++;
+}
+
+void VSVariant::append(const PVideoFrame &val) {
+    initStorage(vFrame);
+    reinterpret_cast<FrameList *>(storage)->append(val);
+    internalSize++;
+}
+
+void VSVariant::append(const PExtFunction &val) {
+    initStorage(vMethod);
+    reinterpret_cast<FuncList *>(storage)->append(val);
+    internalSize++;
+}
+
+void VSVariant::initStorage(VSVType t) {
+    Q_ASSERT(vtype == vUnset || vtype == t);
+    vtype = t;
+    if (!storage) {
+        switch (t) {
+        case VSVariant::vInt:
+            storage = new IntList(); break;
+        case VSVariant::vFloat:
+            storage = new FloatList(); break;
+        case VSVariant::vData:
+            storage = new DataList(); break;
+        case VSVariant::vNode:
+            storage = new NodeList(); break;
+        case VSVariant::vFrame:
+            storage = new FrameList(); break;
+        case VSVariant::vMethod:
+            storage = new FuncList(); break;
+        }
+    }
+}
+
+///////////////
+
 VSFrameData::VSFrameData(quint32 size, MemoryUse *mem) : QSharedData(), mem(mem), size(size) {
     data = vs_aligned_malloc<uint8_t>(size, VSFrame::alignment);
     Q_CHECK_PTR(data);
@@ -791,10 +900,10 @@ void VSPlugin::registerFunction(const QByteArray &name, const QByteArray &args, 
 
 static bool hasCompatNodes(const VSMap &m) {
     foreach(const VSVariant & vsv, m) {
-        if (vsv.vtype == VSVariant::vNode) {
-            for (int i = 0; i < vsv.c.count(); i++) {
-                for (int j = 0; j < vsv.c[i].clip->getNumOutputs(); j++) {
-                    const VSVideoInfo &vi = vsv.c[i].clip->getVideoInfo(j);
+        if (vsv.getType() == VSVariant::vNode) {
+            for (int i = 0; i < vsv.size(); i++) {
+                for (int j = 0; j < vsv.getValue<VSNodeRef>(i).clip->getNumOutputs(); j++) {
+                    const VSVideoInfo &vi = vsv.getValue<VSNodeRef>(i).clip->getVideoInfo(j);
                     if (vi.format && vi.format->colorFamily == cmCompat)
                         return true;
                 }
@@ -827,10 +936,10 @@ VSMap VSPlugin::invoke(const QByteArray &funcName, const VSMap &args) {
                     if (lookup[(int)fa.type] != c)
                         throw VSException(funcName + ": argument " + fa.name + " is not of the correct type");
 
-                    if (!fa.arr && args[fa.name].count() > 1)
+                    if (!fa.arr && args[fa.name].size() > 1)
                         throw VSException(funcName + ": argument " + fa.name + " is not of array type but more than one value was supplied");
 
-                    if (!fa.empty && args[fa.name].count() < 1)
+                    if (!fa.empty && args[fa.name].size() < 1)
                         throw VSException(funcName + ": argument " + fa.name + " does not accept empty arrays");
 
                 } else if (!fa.opt) {
