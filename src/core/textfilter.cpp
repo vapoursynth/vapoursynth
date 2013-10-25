@@ -164,9 +164,11 @@ stringlist split_text(const std::string& txt, int width, int height) {
     stringlist::iterator iter;
     for (iter = lines.begin(); iter != lines.end(); iter++) {
         if (iter->size() > horizontal_capacity) {
+            std::string line = *iter;
             std::string remainder = iter->substr(horizontal_capacity);
             iter->erase(horizontal_capacity);
             iter = lines.insert(++iter, remainder);
+            iter--;
         }
     }
 
@@ -449,7 +451,7 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     if (d.vi->format && ((d.vi->format->sampleType == stInteger && d.vi->format->bitsPerSample > 16) ||
         (d.vi->format->sampleType == stFloat && d.vi->format->bitsPerSample != 32))) {
-            vsapi->setError(out, "Text: Only 8..16 bit integer and 32 bit float formats supported");
+            vsapi->setError(out, "Text: Only 8-16 bit integer and 32 bit float formats supported");
             vsapi->freeNode(d.node);
             return;
     }
