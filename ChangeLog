@@ -1,4 +1,5 @@
 r21:
+now completely rejects adding known to be hopelessly broken functions from avisynth plugins (removegrain/repair/iscombed/colormatrix)
 now properly flips compatrgb32 when converting, previously conversions to/from would make the picture upside down
 optimized 8 bit merge and maskedmerge
 fixed crash bugs in planeaverage/difference/cliptoprop/proptoclip introduced in r20

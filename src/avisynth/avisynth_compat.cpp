@@ -506,6 +506,12 @@ void FakeAvisynth::AddFunction(const char *name, const char *params, ApplyFunc a
     int numArgs = 0;
     QList<AvisynthArgs> parsedArgs;
     QString newArgs;
+    QByteArray name2(name);
+
+    if (name2 == "RemoveGrain" || name2 == "Repair" || name2 == "ColorMatrix" || name2 == "IsCombed") {
+        qWarning("Avisynth Compat: rejected adding Avisynth function %s because it is too broken", name);
+        return;
+    }
 
     while (paramPos < paramLength) {
         if (params[paramPos] == '*' || params[paramPos] == '+' || params[paramPos] == '.') {
