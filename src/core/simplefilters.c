@@ -2603,11 +2603,11 @@ static const VSFrameRef *VS_CC modifyFrameGetFrame(int n, int activationReason, 
         const VSFrameRef *f;
         int err;
 
-        vsapi->propSetInt(d->in, "n", n, 0);
+        vsapi->propSetInt(d->in, "n", n, paAppend);
 
         for (i = 0; i < d->numnode; i++) {
             f = vsapi->getFrameFilter(n, d->node[i], frameCtx);
-            vsapi->propSetFrame(d->in, "f", f, 1);
+            vsapi->propSetFrame(d->in, "f", f, paAppend);
             vsapi->freeFrame(f);
         }
 
@@ -2621,13 +2621,22 @@ static const VSFrameRef *VS_CC modifyFrameGetFrame(int n, int activationReason, 
         }
 
         f = vsapi->propGetFrame(d->out, "val", 0, &err);
+        vsapi->clearMap(d->out);
         if (err) {
-            vsapi->setFilterError("Returned value not a frame", frameCtx);
-            vsapi->clearMap(d->out);
+            vsapi->setFilterError("ModifyFrame: Returned value not a frame", frameCtx);
             return 0;
         }
 
-        vsapi->clearMap(d->out);
+        if (d->vi->format && d->vi->format != vsapi->getFrameFormat(f)) {
+            vsapi->setFilterError("ModifyFrame: Returned frame has the wrong format", frameCtx);
+            return 0;
+        }
+
+        if ((d->vi->width || d->vi->height) && (d->vi->width != vsapi->getFrameWidth(f, 0) || d->vi->height != vsapi->getFrameHeight(f, 0))) {
+            vsapi->setFilterError("ModifyFrame: Returned frame has the wrong dimensions", frameCtx);
+            return 0;
+        }
+        
         return f;
     }
 
@@ -2649,13 +2658,15 @@ static void VS_CC modifyFrameCreate(const VSMap *in, VSMap *out, void *userData,
     ModifyFrameData d;
     ModifyFrameData *data;
     int i;
+    VSNodeRef *formatnode = vsapi->propGetNode(in, "clip", 0, 0);
+    d.vi = vsapi->getVideoInfo(formatnode);
+    vsapi->freeNode(formatnode);
 
     d.numnode = vsapi->propNumElements(in, "clips");
     d.node = malloc(d.numnode * sizeof(d.node[0]));
     for (i = 0; i < d.numnode; i++)
         d.node[i] = vsapi->propGetNode(in, "clips", i, 0);
 
-    d.vi = vsapi->getVideoInfo(d.node[0]);
     d.func = vsapi->propGetFunc(in, "selector", 0, 0);
     d.in = vsapi->createMap();
     d.out = vsapi->createMap();
@@ -3707,7 +3718,7 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("Lut", "clip:clip;planes:int[]:opt;lut:int[]:opt;function:func:opt;", lutCreate, 0, plugin);
     registerFunc("Lut2", "clips:clip[];planes:int[]:opt;lut:int[]:opt;function:func:opt;bits:int:opt;", lut2Create, 0, plugin);
     registerFunc("FrameEval", "clip:clip;eval:func;prop_src:clip[]:opt;", frameEvalCreate, 0, plugin);
-    registerFunc("ModifyFrame", "clips:clip[];selector:func;", modifyFrameCreate, 0, plugin);
+    registerFunc("ModifyFrame", "clip:clip;clips:clip[];selector:func;", modifyFrameCreate, 0, plugin);
     registerFunc("Transpose", "clip:clip;", transposeCreate, 0, plugin);
     registerFunc("PEMVerifier", "clip:clip;upper:int[]:opt;lower:int[]:opt;", pemVerifierCreate, 0, plugin);
     registerFunc("PlaneAverage", "clip:clip;plane:int;prop:data:opt;", planeAverageCreate, 0, plugin);
