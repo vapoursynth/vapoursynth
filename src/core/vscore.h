@@ -340,6 +340,8 @@ public:
         if (numOutputs < 1)
             qFatal("Video filter needs to have at least one output");
         for (int i = 0; i < numOutputs; i++) {
+            if ((!!vi[i].height) ^ (!!vi[i].width))
+                qFatal("Variable dimension clips must have both width and height set to 0");
             this->vi.append(vi[i]);
             this->vi[i].flags = flags;
         }
