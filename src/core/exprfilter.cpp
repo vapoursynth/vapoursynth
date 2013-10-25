@@ -18,11 +18,11 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-#include <QtCore/QtCore>
-#include <cstdlib>
+#include <QtCore/QString>
+#include <stdlib.h>
 #include <vector>
 #include <string>
-#include <cstddef>
+#include <stddef.h>
 #include <stdexcept>
 #include "VapourSynth.h"
 #include "VSHelper.h"
@@ -440,7 +440,7 @@ static int parseExpression(const std::string &expr, std::vector<ExprOp> &ops, co
 
     if (tokens.size() > 0) {
         if (stackSize != 1)
-            throw std::runtime_error("Stack unbalanced at end of expression. Need to have exactly one value on the stack.");
+            throw std::runtime_error("Stack unbalanced at end of expression. Need to have exactly one value on the stack to return.");
         ops.push_back(storeOp);
     }
 
