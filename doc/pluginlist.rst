@@ -29,7 +29,7 @@ Native Plugins
 * `f3kdb <http://forum.doom9.org/showthread.php?t=161411>`_ -- Debanding filter
 * `Videoscope <https://github.com/dubhater/vapoursynth-videoscope>`_ -- Similar to the Histogram plugin
 * `SSIQ <https://github.com/dubhater/vapoursynth-ssiq>`_ -- Spatial derainbowing filter
-* `FieldHint <https://github.com/dubhater/vapoursynth-fieldhint>` -- Takes fields from arbitrary input frames to create the output frames
+* `FieldHint <https://github.com/dubhater/vapoursynth-fieldhint>`_ -- Takes fields from arbitrary input frames to create the output frames
 
 
 Avisynth Interop
