@@ -1,4 +1,6 @@
 r21:
+fixed setting maximum memory use over 2GB from python
+added an additional output format argument to modifyframe, also added checks to prevent crashes
 now completely rejects adding known to be hopelessly broken functions from avisynth plugins (removegrain/repair/iscombed/colormatrix)
 now properly flips compatrgb32 when converting, previously conversions to/from would make the picture upside down
 optimized 8 bit merge and maskedmerge

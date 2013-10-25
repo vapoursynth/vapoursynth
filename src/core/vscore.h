@@ -189,12 +189,15 @@ public:
         usedKiloBytes.fetchAndAddOrdered(-((bytes + 1023) / 1024));
     }
     int64_t memoryUse() {
-        return (int64_t)usedKiloBytes * 1024;
+        unsigned int temp = (unsigned int)usedKiloBytes;
+        return ((int64_t)usedKiloBytes) * 1024;
     }
     int64_t getLimit() {
         return maxMemoryUse;
     }
     int64_t setMaxMemoryUse(int64_t bytes) {
+        if (bytes <= 0)
+            qFatal("Maximum memory usage set to a negative number");
         maxMemoryUse = bytes;
         return maxMemoryUse;
     }

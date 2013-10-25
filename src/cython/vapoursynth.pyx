@@ -748,7 +748,11 @@ cdef class Core(object):
             raise Error('No attribute with the name ' + name + ' exists. Did you mistype a plugin namespace?')
 
     def set_max_cache_size(self, int mb):
-        return self.funcs.setMaxCacheSize(mb * 1024 * 1024, self.core)
+        if mb <= 0:
+            raise ValueError('Maximum cache size must be a positive number')
+        cdef int64_t new_size = mb
+        new_size = new_size * 1024 * 1024
+        return self.funcs.setMaxCacheSize(new_size, self.core)
             
     def get_plugins(self):
         cdef VSMap *m = self.funcs.getPlugins(self.core)
