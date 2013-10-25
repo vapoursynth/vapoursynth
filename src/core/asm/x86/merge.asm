@@ -74,7 +74,7 @@ cglobal masked_merge_uint8_sse2, 6, 7, 6, src1, src2, mask, dst, stride, height,
    movh [dstq+lineoffsetq], m3
 
    ; maybe it should decrement here instead to save a cmp
-   add lineoffsetq, 8
+   add lineoffsetq, mmsize/2
    cmp lineoffsetq, strideq
    jnz .xloop
 
@@ -143,76 +143,13 @@ cglobal merge_uint8_sse2, 6, 7, 8, src1, src2, mask, dst, stride, height, lineof
    mova [dstq+lineoffsetq], m3
 
    ; maybe it should decrement here instead to save a cmp
-   add lineoffsetq, 16
+   add lineoffsetq, mmsize
    cmp lineoffsetq, strideq
    jnz .xloop
 
 .xloopdone:
    add src1q, strideq
    add src2q, strideq
-   add dstq, strideq
-
-   sub heightq, 1
-   jnz .yloop
-
-.yloopdone:
-   RET
-
-INIT_XMM
-cglobal masked_merge_uint16_sse2, 6, 7, 7, src1, src2, mask, dst, stride, height, lineoffset
-   pxor m5, m5
-   pcmpeqb m6, m6
-   psrlw m6, 15
-   psllw m6, 1
-.yloop:
-   xor lineoffsetq, lineoffsetq
-.xloop:
-   ; load 8 pixels
-   mova m0, [src1q+lineoffsetq]
-   mova m1, [src2q+lineoffsetq]
-   mova m2, [maskq+lineoffsetq]
-
-   mova m3, m0
-   mova m4, m1
-
-   ; subtract
-   psubusw m3, m1
-   psubusw m1, m0
-   por m1, m3
-   psraw m4, 15 ; sign mask for later use
-
-   ; prepare the mask pixels
-   mova m4, m2
-   pcmpgtw m4, m6
-   pand m4, m2
-   psrlw m3, 15
-   paddw m2, m3
-
-   ; multiply
-   mova m3, m2
-   pmullw m2, m1
-   pmulhw m3, m1
-
-   ; round result
-   psrlw m2, 15
-   paddw m3, m2
-
-   ; add srcp1
-   paddw m3, m0
-
-   ; write dstp[x]
-   packuswb m3, m3
-   movh [dstq+lineoffsetq], m3
-
-   ; maybe it should decrement here instead to save a cmp
-   add lineoffsetq, 16
-   cmp lineoffsetq, strideq
-   jnz .xloop
-
-.xloopdone:
-   add src1q, strideq
-   add src2q, strideq
-   add maskq, strideq
    add dstq, strideq
 
    sub heightq, 1

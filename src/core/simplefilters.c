@@ -3366,7 +3366,6 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
                         }
 #endif
                     } else if (d->vi->format->bytesPerSample == 2) {
-                        const int round = 1 << (MergeShift - 1);
                         for (y = 0; y < h; y++) {
                             for (x = 0; x < w; x++)
                                 ((uint16_t *)dstp)[x] = ((const uint16_t *)srcp1)[x] + (((((const uint16_t *)srcp2)[x] - ((const uint16_t *)srcp1)[x]) * weight + round) >> MergeShift);
