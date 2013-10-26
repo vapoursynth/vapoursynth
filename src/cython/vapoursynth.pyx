@@ -717,8 +717,8 @@ cdef VideoNode createVideoNode(VSNodeRef *node, const VSAPI *funcs, Core core):
     instance.width = instance.vi.width
     instance.height = instance.vi.height
     instance.num_frames = instance.vi.numFrames
-    instance.fps_num = instance.vi.fpsNum
-    instance.fps_den = instance.vi.fpsDen
+    instance.fps_num = <int64_t>instance.vi.fpsNum
+    instance.fps_den = <int64_t>instance.vi.fpsDen
     instance.flags = instance.vi.flags
     return instance
 
