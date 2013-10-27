@@ -482,12 +482,26 @@ static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *
 
         // fixme,  adjust duration
         VSFrameRef *dst = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, src, core);
+        vsapi->freeFrame(src);
 
         float *workspace;
-        VS_ALIGNED_MALLOC((void **)&workspace, d->vi.width * MAX(d->mdis * 4 + 1, 16) * 4 * sizeof(float), 16);
+        if (VS_ALIGNED_MALLOC((void **)&workspace, d->vi.width * MAX(d->mdis * 4 + 1, 16) * 4 * sizeof(float), 16)) {
+            vsapi->setFilterError("EEDI3: Memory allocation failed", frameCtx);
+            vsapi->freeFrame(scpPF);
+            vsapi->freeFrame(srcPF);
+            vsapi->freeFrame(dst);
+            return 0;
+        }
+      
         int *dmapa;
-        VS_ALIGNED_MALLOC((void **)&dmapa, vsapi->getStride(dst, 0)*vsapi->getFrameHeight(dst, 0)*sizeof(int), 16);
-        vsapi->freeFrame(src);
+        if (VS_ALIGNED_MALLOC((void **)&dmapa, vsapi->getStride(dst, 0)*vsapi->getFrameHeight(dst, 0)*sizeof(int), 16)) {
+            VS_ALIGNED_FREE(workspace);
+            vsapi->setFilterError("EEDI3: Memory allocation failed", frameCtx);
+            vsapi->freeFrame(scpPF);
+            vsapi->freeFrame(srcPF);
+            vsapi->freeFrame(dst);
+            return 0;
+        }
 
         int b, x, y;
 
@@ -659,17 +673,17 @@ static void VS_CC eedi3Create(const VSMap *in, VSMap *out, void *userData, VSCor
 
     d.dh = !!vsapi->propGetInt(in, "dh", 0, &err);
 
-    d.alpha = vsapi->propGetFloat(in, "alpha", 0, &err);
+    d.alpha = (float)vsapi->propGetFloat(in, "alpha", 0, &err);
 
     if(err)
         d.alpha = 0.2f;
 
-    d.beta = vsapi->propGetFloat(in, "beta", 0, &err);
+    d.beta = (float)vsapi->propGetFloat(in, "beta", 0, &err);
 
     if(err)
         d.beta = 0.25f;
 
-    d.gamma = vsapi->propGetFloat(in, "gamma", 0, &err);
+    d.gamma = (float)vsapi->propGetFloat(in, "gamma", 0, &err);
 
     if(err)
         d.gamma = 20.0f;
@@ -701,17 +715,17 @@ static void VS_CC eedi3Create(const VSMap *in, VSMap *out, void *userData, VSCor
     if(err)
         d.vcheck = 2;
 
-    d.vthresh0 = vsapi->propGetFloat(in, "vthresh0", 0, &err);
+    d.vthresh0 = (float)vsapi->propGetFloat(in, "vthresh0", 0, &err);
 
     if(err)
         d.vthresh0 = 32;
 
-    d.vthresh1 = vsapi->propGetFloat(in, "vthresh1", 0, &err);
+    d.vthresh1 = (float)vsapi->propGetFloat(in, "vthresh1", 0, &err);
 
     if(err)
         d.vthresh1 = 64.0f;
 
-    d.vthresh2 = vsapi->propGetFloat(in, "vthresh2", 0, &err);
+    d.vthresh2 = (float)vsapi->propGetFloat(in, "vthresh2", 0, &err);
 
     if(err)
         d.vthresh2 = 4.0f;
