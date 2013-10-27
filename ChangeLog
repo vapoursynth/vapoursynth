@@ -1,4 +1,5 @@
 r21:
+code cleanups and reorganization, simplefilters.c was split into several files
 the fpn_num and fps_den clip properties are no longer truncated to int in python
 fixed setting maximum memory use over 2GB from python
 added an additional output format argument to modifyframe, also added checks to prevent crashes
