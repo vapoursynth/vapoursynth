@@ -22,6 +22,7 @@ Contents:
 
    about
    avisynthcomp
+   includedplugins
    functions
 
 
