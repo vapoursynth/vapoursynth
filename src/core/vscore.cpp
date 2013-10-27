@@ -19,6 +19,7 @@
 */
 
 #include <QtCore/QSettings>
+#include <QtCore/QReadWriteLock>
 #include "vscore.h"
 #include "VSHelper.h"
 #include "version.h"
@@ -399,6 +400,25 @@ void VSNode::getFrame(const PFrameContext &ct) {
     core->threadPool->start(ct);
 }
 
+const VSVideoInfo &VSNode::getVideoInfo(int index) {
+    if (index < 0 || index >= vi.size())
+        qFatal("Out of bounds videoinfo index");
+    return vi[index];
+}
+void VSNode::setVideoInfo(const VSVideoInfo *vi, int numOutputs) {
+    if (numOutputs < 1)
+        qFatal("Video filter needs to have at least one output");
+    for (int i = 0; i < numOutputs; i++) {
+        if ((!!vi[i].height) ^ (!!vi[i].width))
+            qFatal("Variable dimension clips must have both width and height set to 0");
+        if (vi[i].format && !core->isValidFormatPointer(vi[i].format))
+            qFatal("The VSFormat pointer passed to setVideoInfo() was not gotten from registerFormat() or getFormatPreset()");
+        this->vi.append(vi[i]);
+        this->vi[i].flags = flags;
+    }
+    hasVi = true;
+}
+
 PVideoFrame VSNode::getFrameInternal(int n, int activationReason, const PFrameContext &frameCtx) {
     const VSFrameRef *r = filterGetFrame(n, activationReason, &instanceData, &frameCtx->frameContext, (VSFrameContext *)&frameCtx, core, &vsapi);
 // This stuff really only works properly on windows, feel free to investigate what the linux ABI thinks about it
@@ -466,7 +486,7 @@ void VSCore::copyFrameProps(const PVideoFrame &src, PVideoFrame &dst) {
 }
 
 const VSFormat *VSCore::getFormatPreset(int id) {
-    QMutexLocker lock(&formatLock);
+    QReadLocker lock(&formatLock);
 
     if (formats.contains(id))
         return formats[id];
@@ -496,9 +516,9 @@ const VSFormat *VSCore::registerFormat(VSColorFamily colorFamily, VSSampleType s
     if (colorFamily == cmCompat && !name)
         qFatal("No compatibility formats may be registered");
 
-    QMutexLocker lock(&formatLock);
+    QWriteLocker lock(&formatLock);
 
-    for (QHash<int, VSFormat *>::const_iterator i = formats.constBegin(); i != formats.constEnd(); ++i) {
+    for (QMap<int, VSFormat *>::const_iterator i = formats.constBegin(); i != formats.constEnd(); ++i) {
         const VSFormat *f = *i;
 
         if (f->colorFamily == colorFamily && f->sampleType == sampleType
@@ -511,7 +531,7 @@ const VSFormat *VSCore::registerFormat(VSColorFamily colorFamily, VSSampleType s
     if (name) {
         strcpy(f->name, name);
     } else {
-        strcpy(f->name, "runtime registered");
+        strcpy(f->name, "Runtime Registered");
     }
 
     if (id != pfNone)
@@ -531,8 +551,18 @@ const VSFormat *VSCore::registerFormat(VSColorFamily colorFamily, VSSampleType s
     f->subSamplingH = subSamplingH;
     f->numPlanes = (colorFamily == cmGray || colorFamily == cmCompat) ? 1 : 3;
 
-    formats.insertMulti(f->id, f);
+    formats.insert(f->id, f);
     return f;
+}
+
+bool VSCore::isValidFormatPointer(const VSFormat *f) {
+    QReadLocker lock(&formatLock);
+
+    for (QMap<int, VSFormat *>::const_iterator i = formats.constBegin(); i != formats.constEnd(); ++i) {
+        if (*i == f)
+            return true;
+    }
+    return false;
 }
 
 const VSCoreInfo &VSCore::getCoreInfo() {

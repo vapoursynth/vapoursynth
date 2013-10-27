@@ -334,22 +334,9 @@ public:
 
     void getFrame(const PFrameContext &ct);
 
-    const VSVideoInfo &getVideoInfo(int index) {
-        if (index < 0 || index >= vi.size())
-            qFatal("Out of bounds videoinfo index");
-        return vi[index];
-    }
-    void setVideoInfo(const VSVideoInfo *vi, int numOutputs) {
-        if (numOutputs < 1)
-            qFatal("Video filter needs to have at least one output");
-        for (int i = 0; i < numOutputs; i++) {
-            if ((!!vi[i].height) ^ (!!vi[i].width))
-                qFatal("Variable dimension clips must have both width and height set to 0");
-            this->vi.append(vi[i]);
-            this->vi[i].flags = flags;
-        }
-        hasVi = true;
-    }
+    const VSVideoInfo &getVideoInfo(int index);
+
+    void setVideoInfo(const VSVideoInfo *vi, int numOutputs);
 
     int getNumOutputs() const {
         return vi.size();
@@ -470,8 +457,8 @@ struct VSCore {
 private:
     QMap<QByteArray, VSPlugin *> plugins;
     QMutex pluginLock;
-    QHash<int, VSFormat *> formats;
-    QMutex formatLock;
+    QMap<int, VSFormat *> formats;
+    QReadWriteLock formatLock;
     int formatIdOffset;
     VSCoreInfo coreInfo;
     QList<VSNode *> caches;
@@ -490,6 +477,7 @@ public:
 
     const VSFormat *getFormatPreset(int id);
     const VSFormat *registerFormat(VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name = NULL, int id = pfNone);
+    bool isValidFormatPointer(const VSFormat *f);
 
     void loadPlugin(const QByteArray &filename, const QByteArray &forcedNamespace = QByteArray());
     void createFilter(const VSMap *in, VSMap *out, const QByteArray &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion);

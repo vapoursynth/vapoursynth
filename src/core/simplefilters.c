@@ -1436,7 +1436,7 @@ static void VS_CC frameEvalCreate(const VSMap *in, VSMap *out, void *userData, V
     if (d.numpropsrc > 0) {
         d.propsrc = malloc(sizeof(VSNodeRef *)*d.numpropsrc);
         for (i = 0; i < d.numpropsrc; i++)
-            d.propsrc[i] = vsapi->propGetNode(in, "propsrc", i, 0);
+            d.propsrc[i] = vsapi->propGetNode(in, "prop_src", i, 0);
     }
 
     d.in = vsapi->createMap();
