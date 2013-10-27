@@ -19,11 +19,10 @@ Contents:
    vsfs
    pluginlist
    apireference
-
-   about
    avisynthcomp
    includedplugins
    functions
+   about
 
 
 Indices and tables
