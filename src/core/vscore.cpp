@@ -35,6 +35,8 @@
 
 // Filter headers
 extern "C" {
+#include "mergefilters.h"
+#include "reorderfilters.h"
 #include "simplefilters.h"
 #include "vsresize.h"
 }
@@ -655,8 +657,10 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), pluginLock(QMutex::Recurs
     configPlugin("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 0, p);
     loadPluginInitialize(::configPlugin, ::registerFunction, p);
     cacheInitialize(::configPlugin, ::registerFunction, p);
-    stdlibInitialize(::configPlugin, ::registerFunction, p);
     exprInitialize(::configPlugin, ::registerFunction, p);
+    mergeInitialize(::configPlugin, ::registerFunction, p);
+    reorderInitialize(::configPlugin, ::registerFunction, p);
+    stdlibInitialize(::configPlugin, ::registerFunction, p);
     p->enableCompat();
     p->lock();
 
