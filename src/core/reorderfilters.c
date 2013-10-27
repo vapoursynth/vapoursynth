@@ -20,30 +20,11 @@
 
 #include "reorderfilters.h"
 #include "VSHelper.h"
+#include "filtershared.h"
 #include <stdlib.h>
-
-#define RETERROR(x) do { vsapi->setError(out, (x)); return; } while (0)
-#define MAX(a, b)  (((a) > (b)) ? (a) : (b))
-#define MIN(a, b)  (((a) < (b)) ? (a) : (b))
 
 //////////////////////////////////////////
 // Shared
-
-typedef struct {
-    VSNodeRef *node;
-    const VSVideoInfo *vi;
-} SingleClipData;
-
-static void VS_CC singleClipInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    SingleClipData *d = (SingleClipData *) * instanceData;
-    vsapi->setVideoInfo(vsapi->getVideoInfo(d->node), 1, node);
-}
-
-static void VS_CC singleClipFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    SingleClipData *d = (SingleClipData *)instanceData;
-    vsapi->freeNode(d->node);
-    free(instanceData);
-}
 
 static int findCommonVi(VSNodeRef **nodes, int num, VSVideoInfo *outvi, int ignorelength, const VSAPI *vsapi) {
     int mismatch = 0;
@@ -74,11 +55,6 @@ static int findCommonVi(VSNodeRef **nodes, int num, VSVideoInfo *outvi, int igno
     }
 
     return mismatch;
-}
-
-// to detect compat formats
-static int isCompatFormat(const VSVideoInfo *vi) {
-    return vi->format && vi->format->colorFamily == cmCompat;
 }
 
 //////////////////////////////////////////

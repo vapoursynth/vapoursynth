@@ -33,8 +33,9 @@
 #include <ShlObj.h>
 #endif
 
-// Filter headers
+// Internal filter headers
 extern "C" {
+#include "lutfilters.h"
 #include "mergefilters.h"
 #include "reorderfilters.h"
 #include "simplefilters.h"
@@ -658,6 +659,7 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), pluginLock(QMutex::Recurs
     loadPluginInitialize(::configPlugin, ::registerFunction, p);
     cacheInitialize(::configPlugin, ::registerFunction, p);
     exprInitialize(::configPlugin, ::registerFunction, p);
+    lutInitialize(::configPlugin, ::registerFunction, p);
     mergeInitialize(::configPlugin, ::registerFunction, p);
     reorderInitialize(::configPlugin, ::registerFunction, p);
     stdlibInitialize(::configPlugin, ::registerFunction, p);

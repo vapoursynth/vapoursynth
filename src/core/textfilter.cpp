@@ -28,6 +28,7 @@
 #include <VapourSynth.h>
 #include <VSHelper.h>
 
+#include "filtershared.h"
 #include "ter-116n.h"
 #include "textfilter.h"
 
@@ -89,21 +90,6 @@ void scrawl_character_float(unsigned char c, uint8_t *image, int stride, int des
         dest_y++;
     }
 }
-
-
-static inline void vs_memset16(void *ptr, int value, size_t num) {
-    uint16_t *tptr = (uint16_t *)ptr;
-    while (num-- > 0)
-        *tptr++ = (uint16_t)value;
-}
-
-
-static inline void vs_memset_float(void *ptr, float value, size_t num) {
-    float *tptr = (float *)ptr;
-    while (num-- > 0)
-        *tptr++ = value;
-}
-
 
 void sanitise_text(std::string& txt) {
     for (size_t i = 0; i < txt.length(); i++) {
@@ -448,6 +434,12 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         vsapi->freeMap(ret);
     }
     d.vi = vsapi->getVideoInfo(d.node);
+
+    if (isCompatFormat(d.vi)) {
+        vsapi->setError(out, "Text: Compat formats not supported");
+        vsapi->freeNode(d.node);
+        return;
+    }
 
     if (d.vi->format && ((d.vi->format->sampleType == stInteger && d.vi->format->bitsPerSample > 16) ||
         (d.vi->format->sampleType == stFloat && d.vi->format->bitsPerSample != 32))) {

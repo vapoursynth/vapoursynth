@@ -20,17 +20,8 @@
 
 #include "mergefilters.h"
 #include "VSHelper.h"
+#include "filtershared.h"
 #include <stdlib.h>
-
-#define RETERROR(x) do { vsapi->setError(out, (x)); return; } while (0)
-
-//////////////////////////////////////////
-// Shared
-
-// to detect compat formats
-static int isCompatFormat(const VSVideoInfo *vi) {
-    return vi->format && vi->format->colorFamily == cmCompat;
-}
 
 //////////////////////////////////////////
 // Merge
