@@ -152,11 +152,19 @@ static void VS_CC VinverseCreate(const VSMap *in, VSMap *out, void *userData,
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = *vsapi->getVideoInfo(d.node);
 
-    if (!d.vi.format)
+    if (!d.vi.format) {
         vsapi->setError(out, "Only constant format input supported");
+        vsapi->freeNode(d.node);
+        return;
+    }
 
-    if (d.vi.format->sampleType != stInteger || d.vi.format->bytesPerSample != 1)
+    if (d.vi.format->sampleType != stInteger ||
+        d.vi.format->bytesPerSample != 1) {
+
         vsapi->setError(out, "Only 8-bit int formats supported");
+        vsapi->freeNode(d.node);
+        return;
+    }
 
     d.sstr = vsapi->propGetFloat(in, "sstr", 0, &err);
 
@@ -168,18 +176,16 @@ static void VS_CC VinverseCreate(const VSMap *in, VSMap *out, void *userData,
     if (err)
         d.amnt = 255;
 
-    if (d.amnt < 1 || d.amnt > 255)
+    if (d.amnt < 1 || d.amnt > 255) {
         vsapi->setError(out, "amnt must be greater than 0 and less than 256");
+        vsapi->freeNode(d.node);
+        return;
+    }
 
     d.scl = vsapi->propGetFloat(in, "scl", 0, &err);
 
     if (err)
         d.scl = 0.25;
-
-    if(vsapi->getError(out)) {
-        vsapi->freeNode(d.node);
-        return;
-    }
 
     data = malloc(sizeof(d));
     *data = d;
