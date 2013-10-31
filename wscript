@@ -410,12 +410,18 @@ def build(bld):
             target = 'eedi3',
             install_path = '${PLUGINDIR}')
 
+        bld(features = 'c cxxshlib',
+            includes = 'include',
+            source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'vinverse')])),
+            target = 'vinverse',
+            install_path = '${PLUGINDIR}')
+
         bld(features = 'c qxx asm cxxshlib',
             includes = 'include',
             source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'vivtc')])),
             target = 'vivtc',
             install_path = '${PLUGINDIR}')
-            
+
         bld(features = 'c qxx asm cxxshlib',
             includes = 'include',
             source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'removegrain')])),

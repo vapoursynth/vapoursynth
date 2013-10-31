@@ -6,6 +6,7 @@ Native Plugins
 
 * :ref:`AssVapour <assvapour>` -- subtitle renderer, in the source tree
 * :ref:`EEDI3 <eedi3>` -- in the source tree
+* :ref:`vinverse <vinverse>` -- in the source tree
 * :ref:`VIVTC <vivtc>` -- in the source tree
 * AviSource -- in the source tree
 * RemoveGrain/Repair -- in the source tree
@@ -35,7 +36,7 @@ Scripts
 
 Avisynth Interop
 ################
-* `HBVFWSource <http://forum.doom9.org/showthread.php?t=166038>`_ -- load high bitdepth avis into Avisynth (such as a VapourSynth .vpy) 
+* `HBVFWSource <http://forum.doom9.org/showthread.php?t=166038>`_ -- load high bitdepth avis into Avisynth (such as a VapourSynth .vpy)
 
 Avisynth 2.5 -- Quirky
 #######################

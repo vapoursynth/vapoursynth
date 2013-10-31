@@ -61,6 +61,7 @@ Source: ..\sdk\invert_example.c; DestDir: {app}\sdk\examples; Flags: ignoreversi
 Source: ..\sdk\vsscript_example.cpp; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace
 ;bundled plugins
 Source: plugins\avisource.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: plugins\vinverse.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: plugins\vivtc.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: plugins\eedi3.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: plugins\assvapour.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
