@@ -1,3 +1,6 @@
+r22:
+added a port of vinverse (lachs0r)
+
 r21:
 added additional checks to verify that plugin writers don't do things wrong
 code cleanups and reorganization, simplefilters.c was split into several files
