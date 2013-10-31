@@ -6,7 +6,7 @@ Native Plugins
 
 * :ref:`AssVapour <assvapour>` -- subtitle renderer, in the source tree
 * :ref:`EEDI3 <eedi3>` -- in the source tree
-* :ref:`vinverse <vinverse>` -- in the source tree
+* :ref:`Vinverse <vinverse>` -- in the source tree
 * :ref:`VIVTC <vivtc>` -- in the source tree
 * AviSource -- in the source tree
 * RemoveGrain/Repair -- in the source tree

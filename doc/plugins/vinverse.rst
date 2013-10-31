@@ -1,12 +1,12 @@
 .. _vinverse:
 
-vinverse
+Vinverse
 ========
 
-vinverse is a simple filter to remove residual combing, based on
+Vinverse is a simple filter to remove residual combing, based on
 `an AviSynth script by Didée <http://forum.doom9.org/showthread.php?p=841641#post841641>`_.
 
-.. function::   vinverse(clip clip[, float sstr=2.7, int amnt=255, float scl=0.25])
+.. function::   Vinverse(clip clip[, float sstr=2.7, int amnt=255, float scl=0.25])
    :module: vinverse
 
    Parameters:

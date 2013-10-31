@@ -1,5 +1,5 @@
 /*
- * vinverse, a simple filter to remove residual combing.
+ * Vinverse, a simple filter to remove residual combing.
  *
  * VapourSynth port by Martin Herkt
  *
@@ -27,7 +27,7 @@
 #define MAX(a, b) a > b ? a : b
 #define MIN(a, b) a < b ? a : b
 
-struct vinverseData {
+struct VinverseData {
     VSNodeRef *node;
     VSVideoInfo vi;
 
@@ -37,13 +37,13 @@ struct vinverseData {
 
     int *dlut;
 };
-typedef struct vinverseData vinverseData;
+typedef struct VinverseData VinverseData;
 
-static void VS_CC vinverseInit(VSMap *in, VSMap *out, void **instanceData,
+static void VS_CC VinverseInit(VSMap *in, VSMap *out, void **instanceData,
                                VSNode *node, VSCore *core, const VSAPI *vsapi)
 {
     int x, y;
-    vinverseData *d = (vinverseData *) * instanceData;
+    VinverseData *d = (VinverseData *) * instanceData;
     vsapi->setVideoInfo(&d->vi, 1, node);
 
     d->dlut = malloc(512 * 511 * sizeof(int));
@@ -63,8 +63,8 @@ static void VS_CC vinverseInit(VSMap *in, VSMap *out, void **instanceData,
     }
 }
 
-static void vinverse(const uint8_t *src, uint8_t *dst,
-                     int width, int height, int stride, vinverseData *d)
+static void Vinverse(const uint8_t *src, uint8_t *dst,
+                     int width, int height, int stride, VinverseData *d)
 {
     int x, y;
 
@@ -99,14 +99,14 @@ static void vinverse(const uint8_t *src, uint8_t *dst,
     }
 }
 
-static const VSFrameRef *VS_CC vinverseGetFrame(int n, int activationReason,
+static const VSFrameRef *VS_CC VinverseGetFrame(int n, int activationReason,
                                                 void **instanceData,
                                                 void **frameData,
                                                 VSFrameContext *frameCtx,
                                                 VSCore *core,
                                                 const VSAPI *vsapi)
 {
-    vinverseData *d = (vinverseData *) * instanceData;
+    VinverseData *d = (VinverseData *) * instanceData;
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
@@ -124,7 +124,7 @@ static const VSFrameRef *VS_CC vinverseGetFrame(int n, int activationReason,
             int height = vsapi->getFrameHeight(src, i);
             int stride = vsapi->getStride(dst, i);
 
-            vinverse(srcp, dstp, width, height, stride, d);
+            Vinverse(srcp, dstp, width, height, stride, d);
         }
 
         return dst;
@@ -133,19 +133,19 @@ static const VSFrameRef *VS_CC vinverseGetFrame(int n, int activationReason,
     return 0;
 }
 
-static void VS_CC vinverseFree(void *instanceData,
+static void VS_CC VinverseFree(void *instanceData,
                                VSCore *core, const VSAPI *vsapi)
 {
-    vinverseData *d = (vinverseData *)instanceData;
+    VinverseData *d = (VinverseData *)instanceData;
 
     free(d->dlut);
     free(d);
 }
 
-static void VS_CC vinverseCreate(const VSMap *in, VSMap *out, void *userData,
+static void VS_CC VinverseCreate(const VSMap *in, VSMap *out, void *userData,
                                   VSCore *core, const VSAPI *vsapi)
 {
-    vinverseData d, *data;
+    VinverseData d, *data;
     int err;
 
     d.dlut = NULL;
@@ -184,21 +184,21 @@ static void VS_CC vinverseCreate(const VSMap *in, VSMap *out, void *userData,
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "vinverse", vinverseInit, vinverseGetFrame,
-                        vinverseFree, fmParallel, 0, data, core);
+    vsapi->createFilter(in, out, "Vinverse", VinverseInit, VinverseGetFrame,
+                        VinverseFree, fmParallel, 0, data, core);
 }
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
                                  VSRegisterFunction registerFunc,
                                  VSPlugin *plugin)
 {
-    configFunc("biz.srsfckn.vinverse", "vinverse",
+    configFunc("biz.srsfckn.Vinverse", "vinverse",
                "A simple filter to remove residual combing.",
                VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("vinverse",
+    registerFunc("Vinverse",
                  "clip:clip;"
                  "sstr:float:opt;"
                  "amnt:int:opt;"
                  "scl:float:opt;",
-                 vinverseCreate, 0, plugin);
+                 VinverseCreate, 0, plugin);
 }
