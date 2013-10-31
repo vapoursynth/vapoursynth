@@ -24,29 +24,29 @@ SECTION .text
 
 INIT_XMM
 cglobal isFPUStateOk, 0, 0, 0
-	xor rcx, rcx
+    xor rcx, rcx
     fnstcw [rsp - 4]
-	mov ax, [rsp - 4]
+    mov ax, [rsp - 4]
     and ax, 0x0f3f
     cmp ax, 0x023f
-	cmovne rax, rcx
-	RET
+    cmovne rax, rcx
+    RET
 
 INIT_XMM
 cglobal isMMXStateOk, 0, 0, 0
-	xor rcx, rcx
+    xor rcx, rcx
     fnstenv [rsp - 28]
-	mov ax, [rsp - 20]
+    mov ax, [rsp - 20]
     cmp ax, 0xffff
-	cmovne rax, rcx
-	RET
+    cmovne rax, rcx
+    RET
 
 INIT_XMM
 cglobal isSSEStateOk, 0, 0, 0
-	xor rcx, rcx
+    xor rcx, rcx
     stmxcsr [rsp - 4]
-	mov ax, [rsp - 4]
+    mov ax, [rsp - 4]
     and ax, 0x7f80
-	cmp ax, 0x1f80
-	cmovne rax, rcx
-	RET
+    cmp ax, 0x1f80
+    cmovne rax, rcx
+    RET

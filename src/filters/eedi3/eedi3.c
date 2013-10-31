@@ -492,7 +492,7 @@ static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *
             vsapi->freeFrame(dst);
             return 0;
         }
-      
+
         int *dmapa;
         if (VS_ALIGNED_MALLOC((void **)&dmapa, vsapi->getStride(dst, 0)*vsapi->getFrameHeight(dst, 0)*sizeof(int), 16)) {
             VS_ALIGNED_FREE(workspace);

@@ -5,5 +5,5 @@ ClipInfo (Text)
    :module: text
 
    Prints information about the *clip* such as the format and framerate.
-   
+
    This is a convenience function for *Text*.

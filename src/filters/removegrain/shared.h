@@ -2,7 +2,7 @@
 
         AvsFilterRemoveGrain/Repair16
         Author: Laurent de Soras, 2012
-        Modified for VapourSynth by Fredrik Mellbin 2013 
+        Modified for VapourSynth by Fredrik Mellbin 2013
 
 --- Legal stuff ---
 
@@ -37,21 +37,21 @@ http://sam.zoy.org/wtfpl/COPYING for more details.
 template <class T>
 static __forceinline T limit (T x, T mi, T ma)
 {
-	return ((x < mi) ? mi : ((x > ma) ? ma : x));
+    return ((x < mi) ? mi : ((x > ma) ? ma : x));
 }
 
 #ifdef VS_TARGET_CPU_X86
 static __forceinline void sort_pair (__m128i &a1, __m128i &a2)
 {
-	const __m128i	tmp = _mm_min_epi16 (a1, a2);
-	a2 = _mm_max_epi16 (a1, a2);
-	a1 = tmp;
+    const __m128i    tmp = _mm_min_epi16 (a1, a2);
+    a2 = _mm_max_epi16 (a1, a2);
+    a1 = tmp;
 }
 
 static __forceinline void sort_pair (__m128i &mi, __m128i &ma, __m128i a1, __m128i a2)
 {
-	mi = _mm_min_epi16 (a1, a2);
-	ma = _mm_max_epi16 (a1, a2);
+    mi = _mm_min_epi16 (a1, a2);
+    ma = _mm_max_epi16 (a1, a2);
 }
 #endif
 

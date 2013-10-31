@@ -42,7 +42,7 @@ VSCache::CacheAction VSCache::recommendSize() {
         clearStats();
         return caGrow;
     } else if (nearMiss == 0 && hits == 0 && ((farMiss*10) / total >= 9)) { // probably a linear scan, no reason to waste space here
-        
+
         clearStats();
         return caShrink;
     } else {
@@ -95,8 +95,8 @@ bool VSCache::insert(const int akey, const PVideoFrame &aobject) {
 
     if (!last)
         last = first;
-	
-	trim(maxSize, maxHistorySize);
+
+    trim(maxSize, maxHistorySize);
 
     return true;
 }
@@ -143,13 +143,13 @@ void VSCache::adjustSize(bool needMemory) {
                 clear();
                 break;
             case VSCache::caShrink:
-				if (getMaxFrames() <= 2)
-					clear();
+                if (getMaxFrames() <= 2)
+                    clear();
                 setMaxFrames(qMax(getMaxFrames() - 2, 1));
                 break;
             case VSCache::caNoChange:
-				if (getMaxFrames() <= 1)
-					clear();
+                if (getMaxFrames() <= 1)
+                    clear();
                 setMaxFrames(qMax(getMaxFrames() - 1, 1));
                 break;;
             }

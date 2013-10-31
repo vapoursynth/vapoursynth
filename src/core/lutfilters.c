@@ -180,7 +180,7 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
 
     n = d.vi->format->numPlanes;
     m = vsapi->propNumElements(in, "planes");
-    
+
     for (i = 0; i < 3; i++)
         d.process[i] = (m <= 0);
 
@@ -422,7 +422,7 @@ static void VS_CC funcToLut2(char *buff, int bits, int x, int y, uint8_t *lut, V
                 }
 
                 v = vsapi->propGetInt(out, "val", 0, &err);
-                vsapi->clearMap(out); 
+                vsapi->clearMap(out);
 
                 if (v < 0 || v > maximum) {
                     sprintf(buff, "Lut2: function(%d, %d) returned invalid value %"PRIi64, j, i, v);
@@ -445,8 +445,8 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
     VSFuncRef *func;
     int i;
     int n, m, o;
-	int err;
-	int bits;
+    int err;
+    int bits;
 
     if (vsapi->propNumElements(in, "clips") != 2)
         RETERROR("Lut2: needs 2 clips");

@@ -12,30 +12,30 @@ PyThreadState *ts = NULL;
 PyGILState_STATE s;
 
 VS_API(int) vsscript_init(void) {
-	if (initializationCount == 0) {
-		preInitialized = Py_IsInitialized();
-		if (!preInitialized)
-			Py_InitializeEx(0);
-		PyGILState_STATE s = PyGILState_Ensure();
-		int result = import_vapoursynth();
-		if (result)
-			return 0;
-		vpy_initVSScript();
-		ts = PyEval_SaveThread();
-	}
-	initializationCount++;
+    if (initializationCount == 0) {
+        preInitialized = Py_IsInitialized();
+        if (!preInitialized)
+            Py_InitializeEx(0);
+        PyGILState_STATE s = PyGILState_Ensure();
+        int result = import_vapoursynth();
+        if (result)
+            return 0;
+        vpy_initVSScript();
+        ts = PyEval_SaveThread();
+    }
+    initializationCount++;
     return initializationCount;
 }
 
 VS_API(int) vsscript_finalize(void) {
-	initializationCount--;
+    initializationCount--;
     if (initializationCount)
         return initializationCount;
     // commented out because python hates itself
-	//PyEval_RestoreThread(ts);
-	//PyGILState_Release(s);
-	//if (!preInitialized)
-	//	Py_Finalize();
+    //PyEval_RestoreThread(ts);
+    //PyGILState_Release(s);
+    //if (!preInitialized)
+    //    Py_Finalize();
     return 0;
 }
 
@@ -44,7 +44,7 @@ VS_API(int) vsscript_evaluateScript(VSScript **handle, const char *script, const
         *handle = new(std::nothrow)VSScript();
         (*handle)->pyenvdict = NULL;
         (*handle)->errstr = NULL;
-		(*handle)->id = scriptId++;
+        (*handle)->id = scriptId++;
     }
     return vpy_evaluateScript(*handle, script, scriptFilename ? scriptFilename : "<string>", flags);
 }
@@ -54,16 +54,16 @@ VS_API(int) vsscript_evaluateFile(VSScript **handle, const char *scriptFilename,
         *handle = new(std::nothrow)VSScript();
         (*handle)->pyenvdict = NULL;
         (*handle)->errstr = NULL;
-		(*handle)->id = scriptId++;
+        (*handle)->id = scriptId++;
     }
     return vpy_evaluateFile(*handle, scriptFilename, flags);
 }
 
 VS_API(void) vsscript_freeScript(VSScript *handle) {
-	if (handle) {
-		vpy_freeScript(handle);
-		delete handle;
-	}
+    if (handle) {
+        vpy_freeScript(handle);
+        delete handle;
+    }
 }
 
 VS_API(const char *) vsscript_getError(VSScript *handle) {
@@ -71,11 +71,11 @@ VS_API(const char *) vsscript_getError(VSScript *handle) {
 }
 
 VS_API(VSNodeRef *) vsscript_getOutput(VSScript *handle, int index) {
-	return vpy_getOutput(handle, index);
+    return vpy_getOutput(handle, index);
 }
 
 VS_API(void) vsscript_clearOutput(VSScript *handle, int index) {
-	vpy_clearOutput(handle, index);
+    vpy_clearOutput(handle, index);
 }
 
 VS_API(VSCore *) vsscript_getCore(VSScript *handle) {
@@ -87,15 +87,15 @@ VS_API(const VSAPI *) vsscript_getVSApi(void) {
 }
 
 VS_API(int) vsscript_getVariable(VSScript *handle, const char *name, VSMap *dst) {
-	return vpy_getVariable(handle, name, dst);
+    return vpy_getVariable(handle, name, dst);
 }
 
 VS_API(void) vsscript_setVariable(VSScript *handle, const VSMap *vars) {
-	vpy_setVariable(handle, (VSMap *)vars);
+    vpy_setVariable(handle, (VSMap *)vars);
 }
 
 VS_API(int) vsscript_clearVariable(VSScript *handle, const char *name) {
-	return vpy_clearVariable(handle, name);
+    return vpy_clearVariable(handle, name);
 }
 
 VS_API(void) vsscript_clearEnvironment(VSScript *handle) {

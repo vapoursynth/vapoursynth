@@ -80,10 +80,10 @@ static void copyField(VSFrameRef *dst, const VSFrameRef *src, int field, const V
     const VSFormat *fi = vsapi->getFrameFormat(src);
     int plane;
     for (plane=0; plane<fi->numPlanes; plane++) {
-		vs_bitblt(vsapi->getWritePtr(dst, plane)+field*vsapi->getStride(dst, plane),vsapi->getStride(dst, plane)*2,
-			vsapi->getReadPtr(src, plane)+field*vsapi->getStride(src, plane),vsapi->getStride(src, plane)*2, 
+        vs_bitblt(vsapi->getWritePtr(dst, plane)+field*vsapi->getStride(dst, plane),vsapi->getStride(dst, plane)*2,
+            vsapi->getReadPtr(src, plane)+field*vsapi->getStride(src, plane),vsapi->getStride(src, plane)*2,
             vsapi->getFrameWidth(src, plane),vsapi->getFrameHeight(src,plane)/2);
-	}
+    }
 }
 
 static int64_t calcAbsDiff(const VSFrameRef *f1, const VSFrameRef *f2, const VSAPI *vsapi) {
@@ -104,7 +104,7 @@ static int64_t calcAbsDiff(const VSFrameRef *f1, const VSFrameRef *f2, const VSA
 }
 
 // the secret is that tbuffer is an interlaced, offset subset of all the lines
-static void buildABSDiffMask(const unsigned char *prvp, const unsigned char *nxtp, 
+static void buildABSDiffMask(const unsigned char *prvp, const unsigned char *nxtp,
     int src_pitch, int tpitch, unsigned char *tbuffer, int width, int height,
     const VSAPI *vsapi) {
 
@@ -121,7 +121,7 @@ static void buildABSDiffMask(const unsigned char *prvp, const unsigned char *nxt
 
 
 static int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
-    int *blockN, int chroma, int cthresh, VSFrameRef *cmask, int *cArray, int blockx, int blocky)  
+    int *blockN, int chroma, int cthresh, VSFrameRef *cmask, int *cArray, int blockx, int blocky)
 {
     int ret = 0;
     const int cthresh6 = cthresh*6;
@@ -135,14 +135,14 @@ static int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
         unsigned char *cmkp = vsapi->getWritePtr(cmask, plane);
         const int cmk_pitch = vsapi->getStride(cmask, plane);
         if (cthresh < 0) {
-			memset(cmkp,255,Height*cmk_pitch);
-			continue;
-		}
+            memset(cmkp,255,Height*cmk_pitch);
+            continue;
+        }
         memset(cmkp,0,Height*cmk_pitch);
         for (x=0; x<Width; ++x) {
             const int sFirst = srcp[x] - srcp[x + src_pitch];
             if (sFirst > cthresh || sFirst < -cthresh) {
-                if (abs(srcp[x + 2*src_pitch]+(srcp[x]*4)+srcp[x + 2*src_pitch]-6*srcp[x + src_pitch]) > cthresh6) 
+                if (abs(srcp[x + 2*src_pitch]+(srcp[x]*4)+srcp[x + 2*src_pitch]-6*srcp[x + src_pitch]) > cthresh6)
                     cmkp[x] = 0xFF;
             }
         }
@@ -152,7 +152,7 @@ static int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
             const int sFirst = srcp[x] - srcp[x - src_pitch];
             const int sSecond = srcp[x] - srcp[x + src_pitch];
             if ((sFirst > cthresh && sSecond > cthresh) || (sFirst < -cthresh && sSecond < -cthresh)) {
-                if (abs(srcp[x + 2*src_pitch]+(srcp[x]*4)+srcp[x + 2*src_pitch]-(3*(srcp[x - src_pitch]+srcp[x + src_pitch]))) > cthresh6) 
+                if (abs(srcp[x + 2*src_pitch]+(srcp[x]*4)+srcp[x + 2*src_pitch]-(3*(srcp[x - src_pitch]+srcp[x + src_pitch]))) > cthresh6)
                     cmkp[x] = 0xFF;
             }
         }
@@ -164,9 +164,9 @@ static int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
                 const int sFirst = srcp[x] - srcp[x - src_pitch];
                 const int sSecond = srcp[x] - srcp[x + src_pitch];
                 if ((sFirst > cthresh && sSecond > cthresh) || (sFirst < -cthresh && sSecond < -cthresh)) {
-                    if (abs(srcp[x - 2*src_pitch]+(srcp[x]*4)+srcp[x + 2*src_pitch]-(3*(srcp[x - src_pitch]+srcp[x + src_pitch]))) > cthresh6) 
+                    if (abs(srcp[x - 2*src_pitch]+(srcp[x]*4)+srcp[x + 2*src_pitch]-(3*(srcp[x - src_pitch]+srcp[x + src_pitch]))) > cthresh6)
                         cmkp[x] = 0xFF;
-                }	
+                }
             }
             srcp += src_pitch;
             cmkp += cmk_pitch;
@@ -176,7 +176,7 @@ static int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
             const int sFirst = srcp[x] - srcp[x - src_pitch];
             const int sSecond = srcp[x] - srcp[x + src_pitch];
             if ((sFirst > cthresh && sSecond > cthresh) || (sFirst < -cthresh && sSecond < -cthresh)) {
-                if (abs(srcp[x - 2*src_pitch]+(srcp[x]*4)+srcp[x - 2*src_pitch]-(3*(srcp[x - src_pitch]+srcp[x + src_pitch]))) > cthresh6) 
+                if (abs(srcp[x - 2*src_pitch]+(srcp[x]*4)+srcp[x - 2*src_pitch]-(3*(srcp[x - src_pitch]+srcp[x + src_pitch]))) > cthresh6)
                     cmkp[x] = 0xFF;
             }
         }
@@ -185,10 +185,10 @@ static int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
         for (x=0; x<Width; ++x) {
             const int sFirst = srcp[x] - srcp[x - src_pitch];
             if (sFirst > cthresh || sFirst < -cthresh) {
-                if (abs(2*srcp[x - 2*src_pitch]+(srcp[x]*4)-6*srcp[x - src_pitch]) > cthresh6) 
+                if (abs(2*srcp[x - 2*src_pitch]+(srcp[x]*4)-6*srcp[x - src_pitch]) > cthresh6)
                     cmkp[x] = 0xFF;
             }
-        } 
+        }
     }
     if (chroma) {
         unsigned char *cmkp = vsapi->getWritePtr(cmask, 0);
@@ -211,7 +211,7 @@ static int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
             for (x=1; x<Width-1; ++x) {
                 if ((cmkpV[x] == 0xFF && (cmkpV[x-1] == 0xFF || cmkpV[x+1] == 0xFF ||
                     cmkpV[x-1 - cmk_pitchUV] == 0xFF || cmkpV[x - cmk_pitchUV] == 0xFF || cmkpV[x+1 - cmk_pitchUV] == 0xFF ||
-                    cmkpV[x-1 + cmk_pitchUV] == 0xFF || cmkpV[x + cmk_pitchUV] == 0xFF || cmkpV[x+1 + cmk_pitchUV] == 0xFF)) || 
+                    cmkpV[x-1 + cmk_pitchUV] == 0xFF || cmkpV[x + cmk_pitchUV] == 0xFF || cmkpV[x+1 + cmk_pitchUV] == 0xFF)) ||
                     (cmkpU[x] == 0xFF && (cmkpU[x-1] == 0xFF || cmkpU[x+1] == 0xFF ||
                     cmkpU[x-1 - cmk_pitchUV] == 0xFF || cmkpU[x - cmk_pitchUV] == 0xFF || cmkpU[x+1 - cmk_pitchUV] == 0xFF ||
                     cmkpU[x-1 + cmk_pitchUV] == 0xFF || cmkpU[x + cmk_pitchUV] == 0xFF || cmkpU[x+1 + cmk_pitchUV] == 0xFF)))
@@ -342,14 +342,14 @@ static int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
 
 
 // build a map over which pixels differ a lot/a little
-static void buildDiffMap(const unsigned char *prvp, const unsigned char *nxtp, 
-    unsigned char *dstp,int src_pitch, int dst_pitch, int Height, 
+static void buildDiffMap(const unsigned char *prvp, const unsigned char *nxtp,
+    unsigned char *dstp,int src_pitch, int dst_pitch, int Height,
     int Width, int tpitch, unsigned char *tbuffer, const VSAPI *vsapi)
 {
     const unsigned char *dp = tbuffer+tpitch;
     int x, y, u, diff, count;
 
-    buildABSDiffMask(prvp-src_pitch, nxtp-src_pitch, src_pitch, 
+    buildABSDiffMask(prvp-src_pitch, nxtp-src_pitch, src_pitch,
         tpitch, tbuffer, Width, Height>>1, vsapi);
 
     for (y=2; y<Height-2; y+=2) {
@@ -401,37 +401,37 @@ static void buildDiffMap(const unsigned char *prvp, const unsigned char *nxtp,
     }
 }
 
-static int compareFieldsSlow(const VSFrameRef *prv, const VSFrameRef *src, const VSFrameRef *nxt, VSFrameRef *map, int match1, 
+static int compareFieldsSlow(const VSFrameRef *prv, const VSFrameRef *src, const VSFrameRef *nxt, VSFrameRef *map, int match1,
     int match2, int mchroma, int field, int y0, int y1, uint8_t *tbuffer, int tpitchy, int tpitchuv, const VSAPI *vsapi)
 {
-	int plane, ret;
-	const unsigned char *prvp, *srcp, *nxtp;
-	const unsigned char *curpf, *curf, *curnf;
-	const unsigned char *prvpf, *prvnf, *nxtpf, *nxtnf;
-	unsigned char *mapp;
-	int src_stride, Width, Height;
-	int curf_pitch, stopx, map_pitch;
-	int x, y, temp1, temp2, startx, y0a, y1a, tp;
-	int stop = mchroma ? 3 : 1;
-	unsigned long accumPc = 0, accumNc = 0, accumPm = 0;
-	unsigned long accumNm = 0, accumPml = 0, accumNml = 0;
-	int norm1, norm2, mtn1, mtn2;
-	float c1, c2, mr;
+    int plane, ret;
+    const unsigned char *prvp, *srcp, *nxtp;
+    const unsigned char *curpf, *curf, *curnf;
+    const unsigned char *prvpf, *prvnf, *nxtpf, *nxtnf;
+    unsigned char *mapp;
+    int src_stride, Width, Height;
+    int curf_pitch, stopx, map_pitch;
+    int x, y, temp1, temp2, startx, y0a, y1a, tp;
+    int stop = mchroma ? 3 : 1;
+    unsigned long accumPc = 0, accumNc = 0, accumPm = 0;
+    unsigned long accumNm = 0, accumPml = 0, accumNml = 0;
+    int norm1, norm2, mtn1, mtn2;
+    float c1, c2, mr;
 
-	for (plane=0; plane<stop; ++plane) {
-		mapp = vsapi->getWritePtr(map, plane);
-		map_pitch = vsapi->getStride(map, plane);
-		prvp = vsapi->getReadPtr(prv, plane);
-		srcp = vsapi->getReadPtr(src, plane);
-		src_stride = vsapi->getStride(src, plane);
+    for (plane=0; plane<stop; ++plane) {
+        mapp = vsapi->getWritePtr(map, plane);
+        map_pitch = vsapi->getStride(map, plane);
+        prvp = vsapi->getReadPtr(prv, plane);
+        srcp = vsapi->getReadPtr(src, plane);
+        src_stride = vsapi->getStride(src, plane);
         Width = vsapi->getFrameWidth(src, plane);
-		Height = vsapi->getFrameHeight(src, plane);
-		nxtp = vsapi->getReadPtr(nxt, plane);
-		memset(mapp,0,Height*map_pitch);
-		startx = (plane == 0 ? 8 : 4);
-		stopx = Width - startx;
-		curf_pitch = src_stride<<1;
-		if (plane == 0) {
+        Height = vsapi->getFrameHeight(src, plane);
+        nxtp = vsapi->getReadPtr(nxt, plane);
+        memset(mapp,0,Height*map_pitch);
+        startx = (plane == 0 ? 8 : 4);
+        stopx = Width - startx;
+        curf_pitch = src_stride<<1;
+        if (plane == 0) {
             y0a = y0;
             y1a = y1;
             tp = tpitchy;
@@ -440,106 +440,106 @@ static int compareFieldsSlow(const VSFrameRef *prv, const VSFrameRef *src, const
             y1a = y1>>1;
             tp = tpitchuv;
         }
-		if (match1 < 3) {
-			curf = srcp + ((3-field)*src_stride);
-			mapp = mapp + ((field == 1 ? 1 : 2)*map_pitch);
-		}
-		if (match1 == 0) {
-			prvpf = prvp + ((field == 1 ? 1 : 2)*src_stride);
-		} else if (match1 == 1) {
-			prvpf = srcp + ((field == 1 ? 1 : 2)*src_stride);
-		} else if (match1 == 2) {
-			prvpf = nxtp + ((field == 1 ? 1 : 2)*src_stride);
-		} else if (match1 == 3) {
-			curf = srcp + ((2+field)*src_stride);
-			prvpf = prvp + ((field == 1 ? 2 : 1)*src_stride);
-			mapp = mapp + ((field == 1 ? 2 : 1)*map_pitch);
-		} else if (match1 == 4) {
-			curf = srcp + ((2+field)*src_stride);
-			prvpf = nxtp + ((field == 1 ? 2 : 1)*src_stride);
-			mapp = mapp + ((field == 1 ? 2 : 1)*map_pitch);
-		}
-		if (match2 == 0) {
-			nxtpf = prvp + ((field == 1 ? 1 : 2)*src_stride);
-		} else if (match2 == 1) {
-			nxtpf = srcp + ((field == 1 ? 1 : 2)*src_stride);
-		} else if (match2 == 2) {
-			nxtpf = nxtp + ((field == 1 ? 1 : 2)*src_stride);
-		} else if (match2 == 3) {
-			nxtpf = prvp + ((field == 1 ? 2 : 1)*src_stride);
-		} else if (match2 == 4)
-		{
-			nxtpf = nxtp + ((field == 1 ? 2 : 1)*src_stride);
-		}
-		prvnf = prvpf + curf_pitch;
-		curpf = curf - curf_pitch;
-		curnf = curf + curf_pitch;
-		nxtnf = nxtpf + curf_pitch;
-		map_pitch <<= 1;
-		if ((match1 >= 3 && field == 1) || (match1 < 3 && field != 1))
+        if (match1 < 3) {
+            curf = srcp + ((3-field)*src_stride);
+            mapp = mapp + ((field == 1 ? 1 : 2)*map_pitch);
+        }
+        if (match1 == 0) {
+            prvpf = prvp + ((field == 1 ? 1 : 2)*src_stride);
+        } else if (match1 == 1) {
+            prvpf = srcp + ((field == 1 ? 1 : 2)*src_stride);
+        } else if (match1 == 2) {
+            prvpf = nxtp + ((field == 1 ? 1 : 2)*src_stride);
+        } else if (match1 == 3) {
+            curf = srcp + ((2+field)*src_stride);
+            prvpf = prvp + ((field == 1 ? 2 : 1)*src_stride);
+            mapp = mapp + ((field == 1 ? 2 : 1)*map_pitch);
+        } else if (match1 == 4) {
+            curf = srcp + ((2+field)*src_stride);
+            prvpf = nxtp + ((field == 1 ? 2 : 1)*src_stride);
+            mapp = mapp + ((field == 1 ? 2 : 1)*map_pitch);
+        }
+        if (match2 == 0) {
+            nxtpf = prvp + ((field == 1 ? 1 : 2)*src_stride);
+        } else if (match2 == 1) {
+            nxtpf = srcp + ((field == 1 ? 1 : 2)*src_stride);
+        } else if (match2 == 2) {
+            nxtpf = nxtp + ((field == 1 ? 1 : 2)*src_stride);
+        } else if (match2 == 3) {
+            nxtpf = prvp + ((field == 1 ? 2 : 1)*src_stride);
+        } else if (match2 == 4)
+        {
+            nxtpf = nxtp + ((field == 1 ? 2 : 1)*src_stride);
+        }
+        prvnf = prvpf + curf_pitch;
+        curpf = curf - curf_pitch;
+        curnf = curf + curf_pitch;
+        nxtnf = nxtpf + curf_pitch;
+        map_pitch <<= 1;
+        if ((match1 >= 3 && field == 1) || (match1 < 3 && field != 1))
             buildDiffMap(prvpf,nxtpf,mapp,curf_pitch,map_pitch,Height,Width,tp,tbuffer,vsapi);
-		else
-			buildDiffMap(prvnf,nxtnf,mapp + map_pitch,curf_pitch,map_pitch,Height,Width,tp,tbuffer,vsapi);
+        else
+            buildDiffMap(prvnf,nxtnf,mapp + map_pitch,curf_pitch,map_pitch,Height,Width,tp,tbuffer,vsapi);
 
-		for (y=2; y<Height-2; y+=2) {
-			if (y0a == y1a || y < y0a || y > y1a) {
-				for (x=startx; x<stopx; x++) {
-					if (mapp[x] > 0 || mapp[x + map_pitch] > 0) {
-						temp1 = curpf[x]+(curf[x]<<2)+curnf[x];
-						temp2 = abs(3*(prvpf[x]+prvnf[x])-temp1);
-						if (temp2 > 23 && ((mapp[x]&1) || (mapp[x + map_pitch]&1)))
+        for (y=2; y<Height-2; y+=2) {
+            if (y0a == y1a || y < y0a || y > y1a) {
+                for (x=startx; x<stopx; x++) {
+                    if (mapp[x] > 0 || mapp[x + map_pitch] > 0) {
+                        temp1 = curpf[x]+(curf[x]<<2)+curnf[x];
+                        temp2 = abs(3*(prvpf[x]+prvnf[x])-temp1);
+                        if (temp2 > 23 && ((mapp[x]&1) || (mapp[x + map_pitch]&1)))
                             accumPc += temp2;
-						if (temp2 > 42) {
-							if ((mapp[x]&2) || (mapp[x + map_pitch]&2))
+                        if (temp2 > 42) {
+                            if ((mapp[x]&2) || (mapp[x + map_pitch]&2))
                                 accumPm += temp2;
-							if ((mapp[x]&4) || (mapp[x + map_pitch]&4))
+                            if ((mapp[x]&4) || (mapp[x + map_pitch]&4))
                                 accumPml += temp2;
-						}
-						temp2 = abs(3*(nxtpf[x]+nxtnf[x])-temp1);
-						if (temp2 > 23 && ((mapp[x]&1) || (mapp[x + map_pitch]&1)))
+                        }
+                        temp2 = abs(3*(nxtpf[x]+nxtnf[x])-temp1);
+                        if (temp2 > 23 && ((mapp[x]&1) || (mapp[x + map_pitch]&1)))
                             accumNc += temp2;
-						if (temp2 > 42) {
-							if ((mapp[x]&2) || (mapp[x + map_pitch]&2))
+                        if (temp2 > 42) {
+                            if ((mapp[x]&2) || (mapp[x + map_pitch]&2))
                                 accumNm += temp2;
-							if ((mapp[x]&4) || (mapp[x + map_pitch]&4))
+                            if ((mapp[x]&4) || (mapp[x + map_pitch]&4))
                                 accumNml += temp2;
-						}
-					}
-				}
-			}
-			prvpf += curf_pitch;
-			prvnf += curf_pitch;
-			curpf += curf_pitch;
-			curf += curf_pitch;
-			curnf += curf_pitch;
-			nxtpf += curf_pitch;
-			nxtnf += curf_pitch;
-			mapp += map_pitch;
-		}
-	}
-	if (accumPm < 500 && accumNm < 500 && (accumPml >= 500 || accumNml >= 500) &&
-		max(accumPml,accumNml) > 3*min(accumPml,accumNml)) 
-	{
-		accumPm = accumPml;
-		accumNm = accumNml;
-	}
-	norm1 = (int)((accumPc / 6.0f) + 0.5f);
-	norm2 = (int)((accumNc / 6.0f) + 0.5f);
-	mtn1 = (int)((accumPm / 6.0f) + 0.5f);
-	mtn2 = (int)((accumNm / 6.0f) + 0.5f);
-	c1 = ((float)max(norm1,norm2))/((float)max(min(norm1,norm2),1));
-	c2 = ((float)max(mtn1,mtn2))/((float)max(min(mtn1,mtn2),1));
-    mr = ((float)max(mtn1,mtn2))/((float)max(max(norm1,norm2),1));
-	if (((mtn1 >= 500  || mtn2 >= 500)  && (mtn1*2 < mtn2*1 || mtn2*2 < mtn1*1)) ||
-		((mtn1 >= 1000 || mtn2 >= 1000) && (mtn1*3 < mtn2*2 || mtn2*3 < mtn1*2)) ||
-		((mtn1 >= 2000 || mtn2 >= 2000) && (mtn1*5 < mtn2*4 || mtn2*5 < mtn1*4)) ||
-		((mtn1 >= 4000 || mtn2 >= 4000) && c2 > c1)) 
+                        }
+                    }
+                }
+            }
+            prvpf += curf_pitch;
+            prvnf += curf_pitch;
+            curpf += curf_pitch;
+            curf += curf_pitch;
+            curnf += curf_pitch;
+            nxtpf += curf_pitch;
+            nxtnf += curf_pitch;
+            mapp += map_pitch;
+        }
+    }
+    if (accumPm < 500 && accumNm < 500 && (accumPml >= 500 || accumNml >= 500) &&
+        max(accumPml,accumNml) > 3*min(accumPml,accumNml))
     {
-		if (mtn1 > mtn2)
+        accumPm = accumPml;
+        accumNm = accumNml;
+    }
+    norm1 = (int)((accumPc / 6.0f) + 0.5f);
+    norm2 = (int)((accumNc / 6.0f) + 0.5f);
+    mtn1 = (int)((accumPm / 6.0f) + 0.5f);
+    mtn2 = (int)((accumNm / 6.0f) + 0.5f);
+    c1 = ((float)max(norm1,norm2))/((float)max(min(norm1,norm2),1));
+    c2 = ((float)max(mtn1,mtn2))/((float)max(min(mtn1,mtn2),1));
+    mr = ((float)max(mtn1,mtn2))/((float)max(max(norm1,norm2),1));
+    if (((mtn1 >= 500  || mtn2 >= 500)  && (mtn1*2 < mtn2*1 || mtn2*2 < mtn1*1)) ||
+        ((mtn1 >= 1000 || mtn2 >= 1000) && (mtn1*3 < mtn2*2 || mtn2*3 < mtn1*2)) ||
+        ((mtn1 >= 2000 || mtn2 >= 2000) && (mtn1*5 < mtn2*4 || mtn2*5 < mtn1*4)) ||
+        ((mtn1 >= 4000 || mtn2 >= 4000) && c2 > c1))
+    {
+        if (mtn1 > mtn2)
             ret = match2;
-		else
+        else
             ret = match1;
-	} else if (mr > 0.005 && max(mtn1,mtn2) > 150 && (mtn1*2 < mtn2*1 || mtn2*2 < mtn1*1)) {
+    } else if (mr > 0.005 && max(mtn1,mtn2) > 150 && (mtn1*2 < mtn2*1 || mtn2*2 < mtn1*1)) {
         if (mtn1 > mtn2)
             ret = match2;
         else
@@ -547,14 +547,14 @@ static int compareFieldsSlow(const VSFrameRef *prv, const VSFrameRef *src, const
     } else {
         if (norm1 > norm2)
             ret = match2;
-		else
+        else
             ret = match1;
-	}
-	return ret;
+    }
+    return ret;
 }
 
 
-static const VSFrameRef *createWeaveFrame(const VSFrameRef *prv, const VSFrameRef *src, 
+static const VSFrameRef *createWeaveFrame(const VSFrameRef *prv, const VSFrameRef *src,
     const VSFrameRef *nxt, const VSAPI *vsapi, VSCore *core, int match, int field) {
     if (match == 1) {
         return vsapi->cloneFrameRef(src);
@@ -580,7 +580,7 @@ static const VSFrameRef *createWeaveFrame(const VSFrameRef *prv, const VSFrameRe
 }
 
 
-static int checkmm(int m1, int m2, int *m1mic, int *m2mic, int *blockN, int MI, int field, int chroma, int cthresh, const VSFrameRef **genFrames, 
+static int checkmm(int m1, int m2, int *m1mic, int *m2mic, int *blockN, int MI, int field, int chroma, int cthresh, const VSFrameRef **genFrames,
     const VSFrameRef *prv, const VSFrameRef *src, const VSFrameRef *nxt, VSFrameRef *cmask, int *cArray, int blockx, int blocky, const VSAPI *vsapi, VSCore *core) {
     if (*m1mic < 0) {
         if (!genFrames[m1])
@@ -594,7 +594,7 @@ static int checkmm(int m1, int m2, int *m1mic, int *m2mic, int *blockN, int MI, 
         *m2mic = calcMI(genFrames[m2], vsapi, blockN, chroma, cthresh, cmask, cArray, blockx, blocky);
     }
 
-    if (((*m2mic)*3 < *m1mic || ((*m2mic)*2 < *m1mic && *m1mic > MI)) && 
+    if (((*m2mic)*3 < *m1mic || ((*m2mic)*2 < *m1mic && *m1mic > MI)) &&
         abs(*m2mic-*m1mic) >= 30 && *m2mic < MI)
         return m2;
     else
@@ -659,7 +659,7 @@ static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void **i
             } else if (calcAbsDiff(prv, src, vsapi) > vfm->scthresh) {
                 sc = 1;
             }
-            
+
             if (!sc) {
                 vfm->lastn = n;
                 vfm->lastscdiff = calcAbsDiff(src, nxt, vsapi);
@@ -889,7 +889,7 @@ typedef struct {
 } VDecimateData;
 
 static int64_t calcMetric(const VSFrameRef *f1, const VSFrameRef *f2, int64_t *totdiff, VDecimateData *vdm, const VSAPI *vsapi) {
-    int64_t *bdiffs = vdm->bdiffs; 
+    int64_t *bdiffs = vdm->bdiffs;
     int plane;
     int x, y, xl;
     int i, j;
@@ -1068,7 +1068,7 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
         int prevreqd = 0;
         int cyclestart = (n / (vdm->cycle - 1)) * vdm->cycle;
         int cycleend = cyclestart + vdm->cycle;
-        if (cycleend > vdm->inputNumFrames) 
+        if (cycleend > vdm->inputNumFrames)
             cycleend = vdm->inputNumFrames;
 
 
@@ -1084,7 +1084,7 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
             }
         }
         *frameData = (void *)-1;
-    } 
+    }
 
     if (activationReason == arAllFramesReady || (hasall && activationReason == arInitial)) {
         int fin, fcut;
@@ -1105,7 +1105,7 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
         // calculate all the needed metrics
         cyclestart = (n / (vdm->cycle - 1)) * vdm->cycle;
         cycleend = cyclestart + vdm->cycle;
-        if (cycleend > vdm->inputNumFrames) 
+        if (cycleend > vdm->inputNumFrames)
             cycleend = vdm->inputNumFrames;
 
         if (vdm->ovrfile) {
@@ -1297,7 +1297,7 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin)
 {
-	configFunc("org.ivtc.v", "vivtc", "VFM", VAPOURSYNTH_API_VERSION, 1, plugin);
+    configFunc("org.ivtc.v", "vivtc", "VFM", VAPOURSYNTH_API_VERSION, 1, plugin);
     // add ovr support
     registerFunc("VFM", "clip:clip;order:int;field:int:opt;mode:int:opt;" \
         "mchroma:int:opt;cthresh:int:opt;mi:int:opt;" \

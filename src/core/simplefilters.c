@@ -193,10 +193,10 @@ typedef struct {
     int right;
     int top;
     int bottom;
-	union {
-		uint32_t i[3];
-		float f[3];
-	} color;
+    union {
+        uint32_t i[3];
+        float f[3];
+    } color;
 } AddBordersData;
 
 static void VS_CC addBordersInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -262,55 +262,55 @@ static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, v
             int padb = d->bottom >> (plane ? fi->subSamplingH : 0);
             int padl = (d->left >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample;
             int padr = (d->right >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample;
-			int color = d->color.i[plane];
+            int color = d->color.i[plane];
 
-			switch (d->vi->format->bytesPerSample) {
-			case 1:
-				vs_memset8(dstdata, color, padt * dststride);
-				break;
-			case 2:
-				vs_memset16(dstdata, color, padt * dststride / 2);
-				break;
-			case 4:
-				vs_memset32(dstdata, color, padt * dststride / 4);
-				break;
-			}
-            dstdata += padt * dststride; 
+            switch (d->vi->format->bytesPerSample) {
+            case 1:
+                vs_memset8(dstdata, color, padt * dststride);
+                break;
+            case 2:
+                vs_memset16(dstdata, color, padt * dststride / 2);
+                break;
+            case 4:
+                vs_memset32(dstdata, color, padt * dststride / 4);
+                break;
+            }
+            dstdata += padt * dststride;
 
             for (hloop = 0; hloop < srcheight; hloop++) {
-				switch (d->vi->format->bytesPerSample) {
-				case 1:
-					vs_memset8(dstdata, color, padl);
-					memcpy(dstdata + padl, srcdata, rowsize);
-					vs_memset8(dstdata + padl + rowsize, color, padr);
-					break;
-				case 2:
-					vs_memset16(dstdata, color, padl / 2);
-					memcpy(dstdata + padl, srcdata, rowsize);
-					vs_memset16(dstdata + padl + rowsize, color, padr / 2);
-					break;
-				case 4:
-					vs_memset32(dstdata, color, padl / 4);
-					memcpy(dstdata + padl, srcdata, rowsize);
-					vs_memset32(dstdata + padl + rowsize, color, padr / 4);
-					break;
-				}
+                switch (d->vi->format->bytesPerSample) {
+                case 1:
+                    vs_memset8(dstdata, color, padl);
+                    memcpy(dstdata + padl, srcdata, rowsize);
+                    vs_memset8(dstdata + padl + rowsize, color, padr);
+                    break;
+                case 2:
+                    vs_memset16(dstdata, color, padl / 2);
+                    memcpy(dstdata + padl, srcdata, rowsize);
+                    vs_memset16(dstdata + padl + rowsize, color, padr / 2);
+                    break;
+                case 4:
+                    vs_memset32(dstdata, color, padl / 4);
+                    memcpy(dstdata + padl, srcdata, rowsize);
+                    vs_memset32(dstdata + padl + rowsize, color, padr / 4);
+                    break;
+                }
 
                 dstdata += dststride;
                 srcdata += srcstride;
             }
 
-			switch (d->vi->format->bytesPerSample) {
-			case 1:
-				vs_memset8(dstdata, color, padb * dststride);
-				break;
-			case 2:
-				vs_memset16(dstdata, color, padb * dststride / 2);
-				break;
-			case 4:
-				vs_memset32(dstdata, color, padb * dststride / 4);
-				break;
-			}
+            switch (d->vi->format->bytesPerSample) {
+            case 1:
+                vs_memset8(dstdata, color, padb * dststride);
+                break;
+            case 2:
+                vs_memset16(dstdata, color, padb * dststride / 2);
+                break;
+            case 4:
+                vs_memset32(dstdata, color, padb * dststride / 4);
+                break;
+            }
         }
 
         vsapi->freeFrame(src);
@@ -349,27 +349,27 @@ static void VS_CC addBordersCreate(const VSMap *in, VSMap *out, void *userData, 
         RETERROR(msg);
     }
 
-	ncolors = vsapi->propNumElements(in, "color");
+    ncolors = vsapi->propNumElements(in, "color");
 
     setBlack(d.color.i, d.vi->format);
 
     if (ncolors == d.vi->format->numPlanes) {
         for (i = 0; i < ncolors; i++) {
-			double color = vsapi->propGetFloat(in, "color", i, 0);
-			if (d.vi->format->sampleType == stInteger) {
-				d.color.i[i] = (int)(color + 0.5);
-				if (color < 0 || d.color.i[i] >= ((uint64_t)1 << d.vi->format->bitsPerSample))
-					RETERROR("AddBorders: color value out of range");
-			} else {
-				d.color.f[i] = (float)color;
-				if (d.vi->format->colorFamily == cmRGB || i == 0) {
-					if (color < 0 || color > 1)
-						RETERROR("AddBorders: color value out of range");
-				} else {
-					if (color < -0.5 || color > 0.5)
-						RETERROR("AddBorders: color value out of range");
-				}
-			}
+            double color = vsapi->propGetFloat(in, "color", i, 0);
+            if (d.vi->format->sampleType == stInteger) {
+                d.color.i[i] = (int)(color + 0.5);
+                if (color < 0 || d.color.i[i] >= ((uint64_t)1 << d.vi->format->bitsPerSample))
+                    RETERROR("AddBorders: color value out of range");
+            } else {
+                d.color.f[i] = (float)color;
+                if (d.vi->format->colorFamily == cmRGB || i == 0) {
+                    if (color < 0 || color > 1)
+                        RETERROR("AddBorders: color value out of range");
+                } else {
+                    if (color < -0.5 || color > 0.5)
+                        RETERROR("AddBorders: color value out of range");
+                }
+            }
         }
     } else if (ncolors > 0) {
         RETERROR("AddBorders: invalid number of color values specified");
@@ -1006,11 +1006,11 @@ static void VS_CC stackCreate(const VSMap *in, VSMap *out, void *userData, VSCor
 typedef struct {
     VSFrameRef *f;
     VSVideoInfo vi;
-	int keep;
-	union {
-		uint32_t i[3];
-		float f[3];
-	} color;
+    int keep;
+    union {
+        uint32_t i[3];
+        float f[3];
+    } color;
 } BlankClipData;
 
 static void VS_CC blankClipInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -1020,41 +1020,41 @@ static void VS_CC blankClipInit(VSMap *in, VSMap *out, void **instanceData, VSNo
 
 static const VSFrameRef *VS_CC blankClipGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     BlankClipData *d = (BlankClipData *) * instanceData;
-	VSMap *frameProps;
-	int plane;
+    VSMap *frameProps;
+    int plane;
 
     if (activationReason == arInitial) {
-		VSFrameRef *frame = NULL;
-		if (!d->f) {
-			frame = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, 0, core);
+        VSFrameRef *frame = NULL;
+        if (!d->f) {
+            frame = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, 0, core);
 
-			for (plane = 0; plane < d->vi.format->numPlanes; plane++) {
-				switch (d->vi.format->bytesPerSample) {
-				case 1:
-					vs_memset8(vsapi->getWritePtr(frame, plane), d->color.i[plane], vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane));
-					break;
-				case 2:
-					vs_memset16(vsapi->getWritePtr(frame, plane), d->color.i[plane], vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane) / 2);
-					break;
-				case 4:
-					vs_memset32(vsapi->getWritePtr(frame, plane), d->color.i[plane], vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane) / 4);
-					break;
-				}
-			}
+            for (plane = 0; plane < d->vi.format->numPlanes; plane++) {
+                switch (d->vi.format->bytesPerSample) {
+                case 1:
+                    vs_memset8(vsapi->getWritePtr(frame, plane), d->color.i[plane], vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane));
+                    break;
+                case 2:
+                    vs_memset16(vsapi->getWritePtr(frame, plane), d->color.i[plane], vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane) / 2);
+                    break;
+                case 4:
+                    vs_memset32(vsapi->getWritePtr(frame, plane), d->color.i[plane], vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane) / 4);
+                    break;
+                }
+            }
 
-			frameProps = vsapi->getFramePropsRW(frame);
+            frameProps = vsapi->getFramePropsRW(frame);
 
-			vsapi->propSetInt(frameProps, "_DurationNum", d->vi.fpsDen, 0);
-			vsapi->propSetInt(frameProps, "_DurationDen", d->vi.fpsNum, 0);
-		}
+            vsapi->propSetInt(frameProps, "_DurationNum", d->vi.fpsDen, 0);
+            vsapi->propSetInt(frameProps, "_DurationDen", d->vi.fpsNum, 0);
+        }
 
-		if (d->keep) {
-			if (frame)
-				d->f = frame;
-			return vsapi->cloneFrameRef(d->f);
-		} else {
-			return frame;
-		}
+        if (d->keep) {
+            if (frame)
+                d->f = frame;
+            return vsapi->cloneFrameRef(d->f);
+        } else {
+            return frame;
+        }
     }
 
     return 0;
@@ -1142,7 +1142,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     if (!d.vi.format)
         RETERROR("BlankClip: Invalid format");
 
-	if (d.vi.format->sampleType != stInteger && !(d.vi.format->sampleType == stFloat && d.vi.format->bitsPerSample == 32))
+    if (d.vi.format->sampleType != stInteger && !(d.vi.format->sampleType == stFloat && d.vi.format->bitsPerSample == 32))
         RETERROR("BlankClip: Invalid output format specified");
 
     temp = vsapi->propGetInt(in, "length", 0, &err);
@@ -1168,32 +1168,32 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
 
     if (ncolors == d.vi.format->numPlanes) {
         for (i = 0; i < ncolors; i++) {
-			double lcolor = vsapi->propGetFloat(in, "color", i, 0);
-			if (d.vi.format->sampleType == stInteger) {
-				d.color.i[i] = (int)(lcolor + 0.5);
-				if (lcolor < 0 || d.color.i[i] >= ((int64_t)1 << d.vi.format->bitsPerSample))
-					RETERROR("BlankClip: color value out of range");
-			} else {
-				d.color.f[i] = (float)lcolor;
-				if (d.vi.format->colorFamily == cmRGB || i == 0) {
-					if (lcolor < 0 || lcolor > 1)
-						RETERROR("BlankClip: color value out of range");
-				} else {
-					if (lcolor < -0.5 || lcolor > 0.5)
-						RETERROR("BlankClip: color value out of range");
-				}
-			}
+            double lcolor = vsapi->propGetFloat(in, "color", i, 0);
+            if (d.vi.format->sampleType == stInteger) {
+                d.color.i[i] = (int)(lcolor + 0.5);
+                if (lcolor < 0 || d.color.i[i] >= ((int64_t)1 << d.vi.format->bitsPerSample))
+                    RETERROR("BlankClip: color value out of range");
+            } else {
+                d.color.f[i] = (float)lcolor;
+                if (d.vi.format->colorFamily == cmRGB || i == 0) {
+                    if (lcolor < 0 || lcolor > 1)
+                        RETERROR("BlankClip: color value out of range");
+                } else {
+                    if (lcolor < -0.5 || lcolor > 0.5)
+                        RETERROR("BlankClip: color value out of range");
+                }
+            }
         }
     } else if (ncolors > 0) {
         RETERROR("BlankClip: invalid number of color values specified");
     }
 
-	d.keep = !!vsapi->propGetInt(in, "keep", 0, &err);
+    d.keep = !!vsapi->propGetInt(in, "keep", 0, &err);
 
     data = malloc(sizeof(d));
     *data = d;
 
-	vsapi->createFilter(in, out, "BlankClip", blankClipInit, blankClipGetframe, blankClipFree, d.keep ? fmUnordered : fmParallel, nfNoCache, data, core);
+    vsapi->createFilter(in, out, "BlankClip", blankClipInit, blankClipGetframe, blankClipFree, d.keep ? fmUnordered : fmParallel, nfNoCache, data, core);
 }
 
 //////////////////////////////////////////
@@ -1324,7 +1324,7 @@ static const VSFrameRef *VS_CC frameEvalGetFrameWithProps(int n, int activationR
 
         *frameData = node;
 
-        vsapi->requestFrameFilter(n, node, frameCtx);               
+        vsapi->requestFrameFilter(n, node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *frame;
         node = (VSNodeRef *)*frameData;
@@ -1359,7 +1359,7 @@ static const VSFrameRef *VS_CC frameEvalGetFrameNoProps(int n, int activationRea
 
     VSNodeRef *node = NULL;
     if (activationReason == arInitial) {
-        
+
         int err;
         vsapi->propSetInt(d->in, "n", n, paAppend);
         vsapi->callFunc(d->func, d->in, d->out, core, vsapi);
@@ -1380,7 +1380,7 @@ static const VSFrameRef *VS_CC frameEvalGetFrameNoProps(int n, int activationRea
 
         *frameData = node;
 
-        vsapi->requestFrameFilter(n, node, frameCtx);               
+        vsapi->requestFrameFilter(n, node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *frame;
         node = (VSNodeRef *)*frameData;
@@ -1509,7 +1509,7 @@ static const VSFrameRef *VS_CC modifyFrameGetFrame(int n, int activationReason, 
             vsapi->setFilterError("ModifyFrame: Returned frame has the wrong dimensions", frameCtx);
             return 0;
         }
-        
+
         return f;
     }
 
@@ -1980,9 +1980,9 @@ static const VSFrameRef *VS_CC planeDifferenceGetFrame(int n, int activationReas
             }
             break;
         }
-        
+
         vsapi->propSetFloat(vsapi->getFramePropsRW(dst), d->prop, acc / (double)(width * height * (((int64_t)1 << d->vi->format->bitsPerSample) - 1)), paReplace);
-        
+
         vsapi->freeFrame(src1);
         vsapi->freeFrame(src2);
         return dst;

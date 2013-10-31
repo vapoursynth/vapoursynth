@@ -76,7 +76,7 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
                     const int round = 1 << (MergeShift - 1);
                     if (d->vi->format->bytesPerSample == 1) {
 #ifdef VS_TARGET_CPU_X86
-                        vs_merge_uint8_sse2(srcp1, srcp2, weight, dstp, stride, h); 
+                        vs_merge_uint8_sse2(srcp1, srcp2, weight, dstp, stride, h);
 #else
                         for (y = 0; y < h; y++) {
                             for (x = 0; x < w; x++)
@@ -172,7 +172,7 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     }
 
     if (!isConstantFormat(d.vi) || !isSameFormat(d.vi, vsapi->getVideoInfo(d.node2))
-		|| isCompatFormat(vsapi->getVideoInfo(d.node1)) || isCompatFormat(vsapi->getVideoInfo(d.node2))) {
+        || isCompatFormat(vsapi->getVideoInfo(d.node1)) || isCompatFormat(vsapi->getVideoInfo(d.node2))) {
         vsapi->freeNode(d.node1);
         vsapi->freeNode(d.node2);
         RETERROR("Merge: both clips must be constant format and also be the same format and dimensions");
@@ -334,7 +334,7 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
         d.first_plane = 1;
 
     if (!isConstantFormat(d.vi) || !isSameFormat(d.vi, vsapi->getVideoInfo(d.node2))
-		|| isCompatFormat(vsapi->getVideoInfo(d.node1)) || isCompatFormat(vsapi->getVideoInfo(d.node2)) || isCompatFormat(maskvi)) {
+        || isCompatFormat(vsapi->getVideoInfo(d.node1)) || isCompatFormat(vsapi->getVideoInfo(d.node2)) || isCompatFormat(maskvi)) {
         vsapi->freeNode(d.node1);
         vsapi->freeNode(d.node2);
         vsapi->freeNode(d.mask);

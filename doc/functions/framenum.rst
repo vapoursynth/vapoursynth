@@ -5,5 +5,5 @@ FrameNum (Text)
    :module: text
 
    Prints the current frame number.
-   
+
    This is a convenience function for *Text*.

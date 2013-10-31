@@ -23,22 +23,22 @@ CPU Pentium4
 SECTION .text
 
 cglobal cpuid_wrapper, 5, 5, 0, level, peax, pebx, pecx, pedx
-	push rbx
-	push peaxq
+    push rbx
+    push peaxq
     push pebxq
     push pecxq
     push pedxq
-	mov rax, levelq
-	xor rcx, rcx
-	cpuid
-	pop rax
-	mov [rax], edx
-	pop rax
-	mov [rax], ecx
-	pop rax
-	mov [rax], ebx
-	pop rax
-	mov [rax], eax
-	pop rbx
-	RET
+    mov rax, levelq
+    xor rcx, rcx
+    cpuid
+    pop rax
+    mov [rax], edx
+    pop rax
+    mov [rax], ecx
+    pop rax
+    mov [rax], ebx
+    pop rax
+    mov [rax], eax
+    pop rbx
+    RET
 

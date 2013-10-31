@@ -119,7 +119,7 @@ cglobal merge_uint8_sse2, 6, 7, 8, src1, src2, mask, dst, stride, height, lineof
 
    psllw m4, 1
    psllw m6, 1
-   
+
    ; multiply
    mova m0, m4
    mova m7, m6

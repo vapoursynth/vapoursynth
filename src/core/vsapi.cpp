@@ -81,8 +81,8 @@ static void VS_CC frameWaiterCallback(void *userData, const VSFrameRef *frame, i
         memset(g->errorMsg, 0, g->bufSize);
         if (errorMsg) {
             strncpy(g->errorMsg, errorMsg, g->bufSize);
-		    g->errorMsg[g->bufSize - 1] = 0;
-	    }
+            g->errorMsg[g->bufSize - 1] = 0;
+        }
     }
     g->a.wakeOne();
 }
@@ -90,15 +90,15 @@ static void VS_CC frameWaiterCallback(void *userData, const VSFrameRef *frame, i
 static const VSFrameRef *VS_CC getFrame(int n, VSNodeRef *clip, char *errorMsg, int bufSize) {
     GetFrameWaiter g(errorMsg, bufSize);
     QMutexLocker l(&g.b);
-	PFrameContext c(new FrameContext(n, clip->index, clip, &frameWaiterCallback, &g));
-	VSNode *node = clip->clip.data();
-	bool isWorker = node->isWorkerThread();
-	if (isWorker)
-		node->releaseThread();
+    PFrameContext c(new FrameContext(n, clip->index, clip, &frameWaiterCallback, &g));
+    VSNode *node = clip->clip.data();
+    bool isWorker = node->isWorkerThread();
+    if (isWorker)
+        node->releaseThread();
     node->getFrame(c);
     g.a.wait(&g.b);
-	if (isWorker)
-		node->reserveThread();
+    if (isWorker)
+        node->reserveThread();
     return g.r;
 }
 
@@ -534,12 +534,12 @@ static void vsMessageHandler(QtMsgType type, const char *msg) {
 static void VS_CC setMessageHandler(VSMessageHandler handler, void *userData) {
     if (handler) {
         ::messageHandler = handler;
-		::messageData = userData;
+        ::messageData = userData;
         qInstallMsgHandler(vsMessageHandler);
     } else {
         qInstallMsgHandler(NULL);
         ::messageHandler = NULL;
-		::messageData = NULL;
+        ::messageData = NULL;
     }
 }
 

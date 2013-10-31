@@ -1,5 +1,5 @@
 LIBRARY
 EXPORTS
-	DllGetClassObject PRIVATE
-	DllCanUnloadNow PRIVATE
+    DllGetClassObject PRIVATE
+    DllCanUnloadNow PRIVATE
 

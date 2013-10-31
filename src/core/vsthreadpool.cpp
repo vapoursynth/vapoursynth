@@ -45,7 +45,7 @@ void VSThread::run() {
     localDataStorage.setLocalData(new VSThreadData());
 
     owner->lock.lock();
-	owner->activeThreads.ref();
+    owner->activeThreads.ref();
 
     VSThreadData *localData = localDataStorage.localData();
 
@@ -66,8 +66,8 @@ void VSThread::run() {
                 owner->returnFrame(mainContextRef, mainContext->returnedFrame);
                 ranTask = true;
                 break;
-            } 
-            
+            }
+
             if (mainContext->frameDone && mainContext->hasError()) {
                 PFrameContext mainContextRef(*iter);
                 owner->tasks.erase(iter);
@@ -82,7 +82,7 @@ void VSThread::run() {
                 leafContext = mainContext;
                 mainContext = mainContext->upstreamContext.data();
             }
-            
+
             VSNode *clip = mainContext->clip;
             int filterMode = clip->filterMode;
 
@@ -134,7 +134,7 @@ void VSThread::run() {
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Remove the context from the task list
-            
+
             PFrameContext mainContextRef;
             PFrameContext leafContextRef;
             if (hasLeafContext) {
@@ -154,7 +154,7 @@ void VSThread::run() {
                 ar = arError;
                 mainContext->setError(leafContext->getErrorMessage());
             } else if (hasLeafContext && leafContext->returnedFrame) {
-	            if (--mainContext->numFrameRequests > 0)
+                if (--mainContext->numFrameRequests > 0)
                     ar = arFrameReady;
                 else
                     ar = arAllFramesReady;
@@ -165,7 +165,7 @@ void VSThread::run() {
                 mainContext->lastCompletedNode = leafContext->node;
             }
 
-			bool hasExistingRequests = !!mainContext->numFrameRequests;
+            bool hasExistingRequests = !!mainContext->numFrameRequests;
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Do the actual processing
@@ -252,26 +252,26 @@ void VSThread::run() {
                     if (mainContextRef->frameDone)
                         owner->returnFrame(mainContextRef, f);
                 } while ((mainContextRef = n));
-			} else if (hasExistingRequests || requestedFrames) {
+            } else if (hasExistingRequests || requestedFrames) {
                 // already scheduled, do nothing
             } else {
-				qFatal("No frame returned at the end of processing by %s", clip->name.constData());
+                qFatal("No frame returned at the end of processing by %s", clip->name.constData());
             }
             break;
         }
-   
+
 
         if ((!ranTask && !stop) || (owner->activeThreadCount() > owner->threadCount())) {
-			owner->activeThreads.deref();
+            owner->activeThreads.deref();
             owner->idleThreads.ref();
             owner->newWork.wait(&owner->lock);
             owner->idleThreads.deref();
-			owner->activeThreads.ref();
+            owner->activeThreads.ref();
         }
 
-		if (stop) {
-			owner->idleThreads.ref();
-			owner->activeThreads.deref();
+        if (stop) {
+            owner->idleThreads.ref();
+            owner->activeThreads.deref();
             owner->lock.unlock();
             return;
         }
@@ -279,8 +279,8 @@ void VSThread::run() {
 }
 
 VSThreadPool::VSThreadPool(VSCore *core, int threads) : core(core), activeThreads(0), idleThreads(0) {
-	maxThreads = threads > 0 ? threads : QThread::idealThreadCount();
-	QMutexLocker m(&lock);
+    maxThreads = threads > 0 ? threads : QThread::idealThreadCount();
+    QMutexLocker m(&lock);
 }
 
 int VSThreadPool::activeThreadCount() const {
@@ -298,19 +298,19 @@ void VSThreadPool::spawnThread() {
 }
 
 void VSThreadPool::setThreadCount(int threads) {
-	maxThreads = threads;
+    maxThreads = threads;
 }
 
 void VSThreadPool::wakeThread() {
-	if (activeThreads < maxThreads && idleThreads == 0)
-		spawnThread();
+    if (activeThreads < maxThreads && idleThreads == 0)
+        spawnThread();
 
     if (activeThreads < maxThreads)
         newWork.wakeOne();
 }
 
 void VSThreadPool::releaseThread() {
-	activeThreads.deref();
+    activeThreads.deref();
 }
 
 void VSThreadPool::reserveThread() {
@@ -326,7 +326,7 @@ void VSThreadPool::notifyCaches(bool needMemory) {
 void VSThreadPool::start(const PFrameContext &context) {
     Q_ASSERT(context);
     QMutexLocker m(&lock);
-	startInternal(context);
+    startInternal(context);
 }
 
 void VSThreadPool::returnFrame(const PFrameContext &rCtx, const PVideoFrame &f) {
@@ -357,7 +357,7 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
     //unfortunately this would probably be quite slow for deep scripts so just hope the cache catches it
 
     if (context->n < 0)
-		qFatal("Negative frame request by: %s", context->clip->getName().constData());
+        qFatal("Negative frame request by: %s", context->clip->getName().constData());
 
     // check to see if it's time to reevaluate cache sizes
     if (core->memory->isOverLimit()) {
@@ -409,13 +409,13 @@ bool VSThreadPool::isWorkerThread() {
 }
 
 void VSThreadPool::waitForDone() {
-	// todo
+    // todo
 }
 
 VSThreadPool::~VSThreadPool() {
-	QMutexLocker m(&lock);
+    QMutexLocker m(&lock);
 
-	// fixme, hangs on free
+    // fixme, hangs on free
     while (allThreads.count()) {
         VSThread *t = *allThreads.begin();
         t->stopThread();

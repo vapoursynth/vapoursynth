@@ -8,4 +8,3 @@ Included Plugins:
    :glob:
 
    plugins/*
-   

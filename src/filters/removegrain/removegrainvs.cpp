@@ -2,7 +2,7 @@
 
         AvsFilterRemoveGrain/Repair16
         Author: Laurent de Soras, 2012
-        Modified for VapourSynth by Fredrik Mellbin 2013 
+        Modified for VapourSynth by Fredrik Mellbin 2013
 
 --- Legal stuff ---
 
@@ -20,20 +20,20 @@ http://sam.zoy.org/wtfpl/COPYING for more details.
 class ConvSigned
 {
 public:
-	static __forceinline __m128i cv (__m128i a, __m128i m)
-	{
-		return (_mm_xor_si128 (a, m));
-	}
+    static __forceinline __m128i cv (__m128i a, __m128i m)
+    {
+        return (_mm_xor_si128 (a, m));
+    }
 };
 
 
 class ConvUnsigned
 {
 public:
-	static __forceinline __m128i cv (__m128i a, __m128i m)
-	{
-		return (a);
-	}
+    static __forceinline __m128i cv (__m128i a, __m128i m)
+    {
+        return (a);
+    }
 };
 
 #define AvsFilterRemoveGrain16_READ_PIX    \
@@ -79,34 +79,34 @@ class ConvUnsigned
 class OpRG01
 {
 public:
-	typedef	ConvSigned	ConvSign;
-	static __forceinline int rg (int c, int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8) {
-        const int		mi = std::min (
-	        std::min (std::min (a1, a2), std::min (a3, a4)),
-	        std::min (std::min (a5, a6), std::min (a7, a8))
+    typedef    ConvSigned    ConvSign;
+    static __forceinline int rg (int c, int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8) {
+        const int        mi = std::min (
+            std::min (std::min (a1, a2), std::min (a3, a4)),
+            std::min (std::min (a5, a6), std::min (a7, a8))
         );
-        const int		ma = std::max (
-	        std::max (std::max (a1, a2), std::max (a3, a4)),
-	        std::max (std::max (a5, a6), std::max (a7, a8))
+        const int        ma = std::max (
+            std::max (std::max (a1, a2), std::max (a3, a4)),
+            std::max (std::max (a5, a6), std::max (a7, a8))
         );
 
-	    return (limit (c, mi, ma));
+        return (limit (c, mi, ma));
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-	static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
-	    AvsFilterRemoveGrain16_READ_PIX
+    static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
+        AvsFilterRemoveGrain16_READ_PIX
 
-	    const __m128i	mi = _mm_min_epi16 (
-		    _mm_min_epi16 (_mm_min_epi16 (a1, a2), _mm_min_epi16 (a3, a4)),
-		    _mm_min_epi16 (_mm_min_epi16 (a5, a6), _mm_min_epi16 (a7, a8))
-	    );
-	    const __m128i	ma = _mm_max_epi16 (
-		    _mm_max_epi16 (_mm_max_epi16 (a1, a2), _mm_max_epi16 (a3, a4)),
-		    _mm_max_epi16 (_mm_max_epi16 (a5, a6), _mm_max_epi16 (a7, a8))
-	    );
+        const __m128i    mi = _mm_min_epi16 (
+            _mm_min_epi16 (_mm_min_epi16 (a1, a2), _mm_min_epi16 (a3, a4)),
+            _mm_min_epi16 (_mm_min_epi16 (a5, a6), _mm_min_epi16 (a7, a8))
+        );
+        const __m128i    ma = _mm_max_epi16 (
+            _mm_max_epi16 (_mm_max_epi16 (a1, a2), _mm_max_epi16 (a3, a4)),
+            _mm_max_epi16 (_mm_max_epi16 (a5, a6), _mm_max_epi16 (a7, a8))
+        );
 
-	    return (_mm_min_epi16 (_mm_max_epi16 (c, mi), ma));
+        return (_mm_min_epi16 (_mm_max_epi16 (c, mi), ma));
     }
 #endif
 };
@@ -114,44 +114,44 @@ public:
 class OpRG02
 {
 public:
-	typedef	ConvSigned	ConvSign;
-	static __forceinline int rg (int c, int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8) {
-        int				a [8] = { a1, a2, a3, a4, a5, a6, a7, a8 };
+    typedef    ConvSigned    ConvSign;
+    static __forceinline int rg (int c, int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8) {
+        int                a [8] = { a1, a2, a3, a4, a5, a6, a7, a8 };
 
-	    std::sort (&a [0], (&a [7]) + 1);
+        std::sort (&a [0], (&a [7]) + 1);
 
-	    return (limit (c, a [2-1], a [7-1]));
+        return (limit (c, a [2-1], a [7-1]));
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-	static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
-	    AvsFilterRemoveGrain16_READ_PIX
+    static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
+        AvsFilterRemoveGrain16_READ_PIX
 
-	    sort_pair (a1, a2);
-	    sort_pair (a3, a4);
-	    sort_pair (a5, a6);
-	    sort_pair (a7, a8);
+        sort_pair (a1, a2);
+        sort_pair (a3, a4);
+        sort_pair (a5, a6);
+        sort_pair (a7, a8);
 
-	    sort_pair (a1, a3);
-	    sort_pair (a2, a4);
-	    sort_pair (a5, a7);
-	    sort_pair (a6, a8);
+        sort_pair (a1, a3);
+        sort_pair (a2, a4);
+        sort_pair (a5, a7);
+        sort_pair (a6, a8);
 
-	    sort_pair (a2, a3);
-	    sort_pair (a6, a7);
+        sort_pair (a2, a3);
+        sort_pair (a6, a7);
 
-	    a5 = _mm_max_epi16 (a1, a5);	// sort_pair (a1, a5);
-	    sort_pair (a2, a6);
-	    sort_pair (a3, a7);
-	    a4 = _mm_min_epi16 (a4, a8);	// sort_pair (a4, a8);
+        a5 = _mm_max_epi16 (a1, a5);    // sort_pair (a1, a5);
+        sort_pair (a2, a6);
+        sort_pair (a3, a7);
+        a4 = _mm_min_epi16 (a4, a8);    // sort_pair (a4, a8);
 
-	    a3 = _mm_min_epi16 (a3, a5);	// sort_pair (a3, a5);
-	    a6 = _mm_max_epi16 (a4, a6);	// sort_pair (a4, a6);
+        a3 = _mm_min_epi16 (a3, a5);    // sort_pair (a3, a5);
+        a6 = _mm_max_epi16 (a4, a6);    // sort_pair (a4, a6);
 
-	    a2 = _mm_min_epi16 (a2, a3);	// sort_pair (a2, a3);
-	    a7 = _mm_max_epi16 (a6, a7);	// sort_pair (a6, a7);
+        a2 = _mm_min_epi16 (a2, a3);    // sort_pair (a2, a3);
+        a7 = _mm_max_epi16 (a6, a7);    // sort_pair (a6, a7);
 
-	    return (_mm_min_epi16 (_mm_max_epi16 (c, a2), a7));
+        return (_mm_min_epi16 (_mm_max_epi16 (c, a2), a7));
     }
 #endif
 };
@@ -159,44 +159,44 @@ public:
 class OpRG03
 {
 public:
-	typedef	ConvSigned	ConvSign;
-	static __forceinline int rg (int c, int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8) {
-	    int				a [8] = { a1, a2, a3, a4, a5, a6, a7, a8 };
+    typedef    ConvSigned    ConvSign;
+    static __forceinline int rg (int c, int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8) {
+        int                a [8] = { a1, a2, a3, a4, a5, a6, a7, a8 };
 
-	    std::sort (&a [0], (&a [7]) + 1);
+        std::sort (&a [0], (&a [7]) + 1);
 
-	    return (limit (c, a [3-1], a [6-1]));
+        return (limit (c, a [3-1], a [6-1]));
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-	static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
-	    AvsFilterRemoveGrain16_READ_PIX
+    static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
+        AvsFilterRemoveGrain16_READ_PIX
 
-	    sort_pair (a1, a2);
-	    sort_pair (a3, a4);
-	    sort_pair (a5, a6);
-	    sort_pair (a7, a8);
+        sort_pair (a1, a2);
+        sort_pair (a3, a4);
+        sort_pair (a5, a6);
+        sort_pair (a7, a8);
 
-	    sort_pair (a1, a3);
-	    sort_pair (a2, a4);
-	    sort_pair (a5, a7);
-	    sort_pair (a6, a8);
+        sort_pair (a1, a3);
+        sort_pair (a2, a4);
+        sort_pair (a5, a7);
+        sort_pair (a6, a8);
 
-	    sort_pair (a2, a3);
-	    sort_pair (a6, a7);
+        sort_pair (a2, a3);
+        sort_pair (a6, a7);
 
-	    a5 = _mm_max_epi16 (a1, a5);	// sort_pair (a1, a5);
-	    sort_pair (a2, a6);
-	    sort_pair (a3, a7);
-	    a4 = _mm_min_epi16 (a4, a8);	// sort_pair (a4, a8);
+        a5 = _mm_max_epi16 (a1, a5);    // sort_pair (a1, a5);
+        sort_pair (a2, a6);
+        sort_pair (a3, a7);
+        a4 = _mm_min_epi16 (a4, a8);    // sort_pair (a4, a8);
 
-	    a3 = _mm_min_epi16 (a3, a5);	// sort_pair (a3, a5);
-	    a6 = _mm_max_epi16 (a4, a6);	// sort_pair (a4, a6);
+        a3 = _mm_min_epi16 (a3, a5);    // sort_pair (a3, a5);
+        a6 = _mm_max_epi16 (a4, a6);    // sort_pair (a4, a6);
 
-	    a3 = _mm_max_epi16 (a2, a3);	// sort_pair (a2, a3);
-	    a6 = _mm_min_epi16 (a6, a7);	// sort_pair (a6, a7);
+        a3 = _mm_max_epi16 (a2, a3);    // sort_pair (a2, a3);
+        a6 = _mm_min_epi16 (a6, a7);    // sort_pair (a6, a7);
 
-	    return (_mm_min_epi16 (_mm_max_epi16 (c, a3), a6));
+        return (_mm_min_epi16 (_mm_max_epi16 (c, a3), a6));
     }
 #endif
 };
@@ -204,47 +204,47 @@ public:
 class OpRG04
 {
 public:
-	typedef	ConvSigned	ConvSign;
-	static __forceinline int rg (int c, int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8) {
-	    int				a [8] = { a1, a2, a3, a4, a5, a6, a7, a8 };
+    typedef    ConvSigned    ConvSign;
+    static __forceinline int rg (int c, int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8) {
+        int                a [8] = { a1, a2, a3, a4, a5, a6, a7, a8 };
 
-	    std::sort (&a [0], (&a [7]) + 1);
+        std::sort (&a [0], (&a [7]) + 1);
 
-	    return (limit (c, a [4-1], a [5-1]));
+        return (limit (c, a [4-1], a [5-1]));
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-	static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
-	    // http://en.wikipedia.org/wiki/Batcher_odd%E2%80%93even_mergesort
+    static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
+        // http://en.wikipedia.org/wiki/Batcher_odd%E2%80%93even_mergesort
 
-	    AvsFilterRemoveGrain16_READ_PIX
+        AvsFilterRemoveGrain16_READ_PIX
 
-	    sort_pair (a1, a2);
-	    sort_pair (a3, a4);
-	    sort_pair (a5, a6);
-	    sort_pair (a7, a8);
+        sort_pair (a1, a2);
+        sort_pair (a3, a4);
+        sort_pair (a5, a6);
+        sort_pair (a7, a8);
 
-	    sort_pair (a1, a3);
-	    sort_pair (a2, a4);
-	    sort_pair (a5, a7);
-	    sort_pair (a6, a8);
+        sort_pair (a1, a3);
+        sort_pair (a2, a4);
+        sort_pair (a5, a7);
+        sort_pair (a6, a8);
 
-	    sort_pair (a2, a3);
-	    sort_pair (a6, a7);
+        sort_pair (a2, a3);
+        sort_pair (a6, a7);
 
-	    a5 = _mm_max_epi16 (a1, a5);	// sort_pair (a1, a5);
-	    a6 = _mm_max_epi16 (a2, a6);	// sort_pair (a2, a6);
-	    a3 = _mm_min_epi16 (a3, a7);	// sort_pair (a3, a7);
-	    a4 = _mm_min_epi16 (a4, a8);	// sort_pair (a4, a8);
+        a5 = _mm_max_epi16 (a1, a5);    // sort_pair (a1, a5);
+        a6 = _mm_max_epi16 (a2, a6);    // sort_pair (a2, a6);
+        a3 = _mm_min_epi16 (a3, a7);    // sort_pair (a3, a7);
+        a4 = _mm_min_epi16 (a4, a8);    // sort_pair (a4, a8);
 
-	    a5 = _mm_max_epi16 (a3, a5);	// sort_pair (a3, a5);
-	    a4 = _mm_min_epi16 (a4, a6);	// sort_pair (a4, a6);
+        a5 = _mm_max_epi16 (a3, a5);    // sort_pair (a3, a5);
+        a4 = _mm_min_epi16 (a4, a6);    // sort_pair (a4, a6);
 
-											    // sort_pair (a2, a3);
-	    sort_pair (a4, a5);
-											    // sort_pair (a6, a7);
+                                                // sort_pair (a2, a3);
+        sort_pair (a4, a5);
+                                                // sort_pair (a6, a7);
 
-	    return (_mm_min_epi16 (_mm_max_epi16 (c, a4), a5));
+        return (_mm_min_epi16 (_mm_max_epi16 (c, a4), a5));
     }
 #endif
 };
@@ -253,33 +253,33 @@ public:
 class OpRG12sse2
 {
 public:
-	typedef	ConvUnsigned	ConvSign;
+    typedef    ConvUnsigned    ConvSign;
 
     template<typename T>
-	static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
-	    AvsFilterRemoveGrain16_READ_PIX
+    static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
+        AvsFilterRemoveGrain16_READ_PIX
 
-	    const __m128i	bias =
-		    _mm_load_si128 (reinterpret_cast <const __m128i *> (_bias));
+        const __m128i    bias =
+            _mm_load_si128 (reinterpret_cast <const __m128i *> (_bias));
 
-	    const __m128i	a13  = _mm_avg_epu16 (a1, a3);
-	    const __m128i	a123 = _mm_avg_epu16 (a2, a13);
+        const __m128i    a13  = _mm_avg_epu16 (a1, a3);
+        const __m128i    a123 = _mm_avg_epu16 (a2, a13);
 
-	    const __m128i	a68  = _mm_avg_epu16 (a6, a8);
-	    const __m128i	a678 = _mm_avg_epu16 (a7, a68);
+        const __m128i    a68  = _mm_avg_epu16 (a6, a8);
+        const __m128i    a678 = _mm_avg_epu16 (a7, a68);
 
-	    const __m128i	a45  = _mm_avg_epu16 (a4, a5);
-	    const __m128i	a4c5 = _mm_avg_epu16 (c, a45);
+        const __m128i    a45  = _mm_avg_epu16 (a4, a5);
+        const __m128i    a4c5 = _mm_avg_epu16 (c, a45);
 
-	    const __m128i	a123678  = _mm_avg_epu16 (a123, a678);
-	    const __m128i	a123678b = _mm_subs_epu16 (a123678, bias);
-	    const __m128i	val      = _mm_avg_epu16 (a4c5, a123678b);
+        const __m128i    a123678  = _mm_avg_epu16 (a123, a678);
+        const __m128i    a123678b = _mm_subs_epu16 (a123678, bias);
+        const __m128i    val      = _mm_avg_epu16 (a4c5, a123678b);
 
-	    return (val);
+        return (val);
     }
 private:
-	ALIGNED_ARRAY(static const uint16_t
-						_bias [8], 16);
+    ALIGNED_ARRAY(static const uint16_t
+                        _bias [8], 16);
 
 };
 #endif
@@ -287,17 +287,17 @@ private:
 class OpRG11
 {
 public:
-	typedef	ConvUnsigned	ConvSign;
-	static __forceinline int rg (int c, int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8) {
-	    const int		sum = 4 * c + 2 * (a2 + a4 + a5 + a7) + a1 + a3 + a6 + a8;
-	    const int		val = (sum + 8) >> 4;
+    typedef    ConvUnsigned    ConvSign;
+    static __forceinline int rg (int c, int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8) {
+        const int        sum = 4 * c + 2 * (a2 + a4 + a5 + a7) + a1 + a3 + a6 + a8;
+        const int        val = (sum + 8) >> 4;
 
-	    return (val);
+        return (val);
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-	static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
-	    return (OpRG12sse2::rg (src_ptr, stride_src, mask_sign));
+    static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
+        return (OpRG12sse2::rg (src_ptr, stride_src, mask_sign));
     }
 #endif
 };
@@ -305,15 +305,15 @@ public:
 class OpRG12
 {
 public:
-	typedef	ConvUnsigned	ConvSign;
-	static __forceinline int rg (int c, int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8) {
-	    return (OpRG11::rg (c, a1, a2, a3, a4, a5, a6, a7, a8));
+    typedef    ConvUnsigned    ConvSign;
+    static __forceinline int rg (int c, int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8) {
+        return (OpRG11::rg (c, a1, a2, a3, a4, a5, a6, a7, a8));
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-	static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
-	    AvsFilterRemoveGrain16_READ_PIX
-	    return (OpRG12sse2::rg(src_ptr, stride_src, mask_sign));
+    static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
+        AvsFilterRemoveGrain16_READ_PIX
+        return (OpRG12sse2::rg(src_ptr, stride_src, mask_sign));
     }
 #endif
 };
@@ -321,55 +321,55 @@ public:
 class OpRG19
 {
 public:
-	typedef	ConvUnsigned	ConvSign;
-	static __forceinline int rg (int c, int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8) {
-	    const int		sum = a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8;
-	    const int		val = (sum + 4) >> 3;
+    typedef    ConvUnsigned    ConvSign;
+    static __forceinline int rg (int c, int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8) {
+        const int        sum = a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8;
+        const int        val = (sum + 4) >> 3;
 
-	    return (val);
+        return (val);
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-	static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
-	    AvsFilterRemoveGrain16_READ_PIX
+    static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
+        AvsFilterRemoveGrain16_READ_PIX
 
-	    const __m128i	bias =
-		    _mm_load_si128 (reinterpret_cast <const __m128i *> (_bias));
+        const __m128i    bias =
+            _mm_load_si128 (reinterpret_cast <const __m128i *> (_bias));
 
-	    const __m128i	a13    = _mm_avg_epu16 (a1, a3);
-	    const __m128i	a68    = _mm_avg_epu16 (a6, a8);
-	    const __m128i	a1368  = _mm_avg_epu16 (a13, a68);
-	    const __m128i	a1368b = _mm_subs_epu16 (a1368, bias);
-	    const __m128i	a25    = _mm_avg_epu16 (a2, a5);
-	    const __m128i	a47    = _mm_avg_epu16 (a4, a7);
-	    const __m128i	a2457  = _mm_avg_epu16 (a25, a47);
-	    const __m128i	val    = _mm_avg_epu16 (a1368b, a2457);
+        const __m128i    a13    = _mm_avg_epu16 (a1, a3);
+        const __m128i    a68    = _mm_avg_epu16 (a6, a8);
+        const __m128i    a1368  = _mm_avg_epu16 (a13, a68);
+        const __m128i    a1368b = _mm_subs_epu16 (a1368, bias);
+        const __m128i    a25    = _mm_avg_epu16 (a2, a5);
+        const __m128i    a47    = _mm_avg_epu16 (a4, a7);
+        const __m128i    a2457  = _mm_avg_epu16 (a25, a47);
+        const __m128i    val    = _mm_avg_epu16 (a1368b, a2457);
 
-	    return (val);
+        return (val);
     }
 private:
-	ALIGNED_ARRAY(static const uint16_t
-						_bias [8], 16);
+    ALIGNED_ARRAY(static const uint16_t
+                        _bias [8], 16);
 #endif
 };
 
 class OpRG20
 {
 public:
-	typedef	ConvSigned	ConvSign;
-	static __forceinline int rg (int c, int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8) {
-        const int		sum = a1 + a2 + a3 + a4 + c + a5 + a6 + a7 + a8;
-	    const int		val = (sum + 4) / 9;
+    typedef    ConvSigned    ConvSign;
+    static __forceinline int rg (int c, int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8) {
+        const int        sum = a1 + a2 + a3 + a4 + c + a5 + a6 + a7 + a8;
+        const int        val = (sum + 4) / 9;
 
-	    return (val);
+        return (val);
     }
 };
 
 #ifdef VS_TARGET_CPU_X86
-ALIGNED_ARRAY(const uint16_t	OpRG12sse2::_bias [8], 16) =
+ALIGNED_ARRAY(const uint16_t    OpRG12sse2::_bias [8], 16) =
 { 1, 1, 1, 1, 1, 1, 1, 1 };
 
-ALIGNED_ARRAY(const uint16_t	OpRG19::_bias [8], 16) =
+ALIGNED_ARRAY(const uint16_t    OpRG19::_bias [8], 16) =
 { 1, 1, 1, 1, 1, 1, 1, 1 };
 
 #undef AvsFilterRemoveGrain16_READ_PIX
@@ -382,130 +382,130 @@ public:
 
 static void process_subplane_cpp (const T *src_ptr, int stride_src, T *dst_ptr, int stride_dst, int width, int height)
 {
-	const int		y_b = 1;
-	const int		y_e = height - 1;
+    const int        y_b = 1;
+    const int        y_e = height - 1;
 
-	dst_ptr += y_b * stride_dst;
-	src_ptr += y_b * stride_src;
+    dst_ptr += y_b * stride_dst;
+    src_ptr += y_b * stride_src;
 
-	const int		x_e = width - 1;
+    const int        x_e = width - 1;
 
-	for (int y = y_b; y < y_e; ++y)
-	{
-		dst_ptr [0] = src_ptr [0];
+    for (int y = y_b; y < y_e; ++y)
+    {
+        dst_ptr [0] = src_ptr [0];
 
-		process_row_cpp (
-			dst_ptr,
-			src_ptr,
-			stride_src,
-			1,
-			x_e
-		);
+        process_row_cpp (
+            dst_ptr,
+            src_ptr,
+            stride_src,
+            1,
+            x_e
+        );
 
-		dst_ptr [x_e] = src_ptr [x_e];
+        dst_ptr [x_e] = src_ptr [x_e];
 
-		dst_ptr += stride_dst;
-		src_ptr += stride_src;
-	}
+        dst_ptr += stride_dst;
+        src_ptr += stride_src;
+    }
 }
 
 static void process_row_cpp (T *dst_ptr, const T *src_ptr, int stride_src, int x_beg, int x_end)
 {
-	const int      om = stride_src - 1;
-	const int      o0 = stride_src    ;
-	const int      op = stride_src + 1;
+    const int      om = stride_src - 1;
+    const int      o0 = stride_src    ;
+    const int      op = stride_src + 1;
 
-	src_ptr += x_beg;
+    src_ptr += x_beg;
 
-	for (int x = x_beg; x < x_end; ++x)
-	{
-		const int		a1 = src_ptr [-op];
-		const int		a2 = src_ptr [-o0];
-		const int		a3 = src_ptr [-om];
-		const int		a4 = src_ptr [-1 ];
-		const int		c  = src_ptr [ 0 ];
-		const int		a5 = src_ptr [ 1 ];
-		const int		a6 = src_ptr [ om];
-		const int		a7 = src_ptr [ o0];
-		const int		a8 = src_ptr [ op];
+    for (int x = x_beg; x < x_end; ++x)
+    {
+        const int        a1 = src_ptr [-op];
+        const int        a2 = src_ptr [-o0];
+        const int        a3 = src_ptr [-om];
+        const int        a4 = src_ptr [-1 ];
+        const int        c  = src_ptr [ 0 ];
+        const int        a5 = src_ptr [ 1 ];
+        const int        a6 = src_ptr [ om];
+        const int        a7 = src_ptr [ o0];
+        const int        a8 = src_ptr [ op];
 
-		const int		res = OP::rg (c, a1, a2, a3, a4, a5, a6, a7, a8);
+        const int        res = OP::rg (c, a1, a2, a3, a4, a5, a6, a7, a8);
 
-		dst_ptr [x] = res;
+        dst_ptr [x] = res;
 
-		++ src_ptr;
-	}
+        ++ src_ptr;
+    }
 }
 
 #ifdef VS_TARGET_CPU_X86
 static void process_subplane_sse2 (const T *src_ptr, int stride_src, T *dst_ptr, int stride_dst, int width, int height)
 {
-	const int		y_b = 1;
-	const int		y_e = height - 1;
+    const int        y_b = 1;
+    const int        y_e = height - 1;
 
-	dst_ptr += y_b * stride_dst;
-	src_ptr += y_b * stride_src;
+    dst_ptr += y_b * stride_dst;
+    src_ptr += y_b * stride_src;
 
-	const __m128i	mask_sign = _mm_set1_epi16 (-0x8000);
+    const __m128i    mask_sign = _mm_set1_epi16 (-0x8000);
 
-	const int		x_e =   width - 1;
-	const int		w8  = ((width - 2) & -8) + 1;
-	const int		w7  = x_e - w8;
+    const int        x_e =   width - 1;
+    const int        w8  = ((width - 2) & -8) + 1;
+    const int        w7  = x_e - w8;
 
-	for (int y = y_b; y < y_e; ++y)
-	{
-		dst_ptr [0] = src_ptr [0];
-		dst_ptr [0] = src_ptr [0];
+    for (int y = y_b; y < y_e; ++y)
+    {
+        dst_ptr [0] = src_ptr [0];
+        dst_ptr [0] = src_ptr [0];
 
-		for (int x = 1; x < w8; x += 8)
-		{
-			__m128i			res = OP::rg (
-				src_ptr + x,
-				stride_src,
-				mask_sign
-			);
+        for (int x = 1; x < w8; x += 8)
+        {
+            __m128i            res = OP::rg (
+                src_ptr + x,
+                stride_src,
+                mask_sign
+            );
 
-			res = OP::ConvSign::cv (res, mask_sign);
+            res = OP::ConvSign::cv (res, mask_sign);
             if (sizeof(T) == 1)
                 _mm_storel_epi64 (reinterpret_cast<__m128i *>(dst_ptr + x), _mm_packus_epi16 (res, res));
             else
                 _mm_storeu_si128 (reinterpret_cast<__m128i *>(dst_ptr + x), res);
-		}
+        }
 
-		process_row_cpp (
-			dst_ptr,
-			src_ptr,
-			stride_src,
-			w8,
-			x_e
-		);
+        process_row_cpp (
+            dst_ptr,
+            src_ptr,
+            stride_src,
+            w8,
+            x_e
+        );
 
-		dst_ptr [x_e] = src_ptr [x_e];
+        dst_ptr [x_e] = src_ptr [x_e];
 
-		dst_ptr += stride_dst;
-		src_ptr += stride_src;
-	}
+        dst_ptr += stride_dst;
+        src_ptr += stride_src;
+    }
 }
 
 template <class OP1, class T1>
 static void do_process_plane_sse2 (const VSFrameRef *src_frame, VSFrameRef *dst_frame, int plane_id, const VSAPI *vsapi)
 {
-    const int		w             = vsapi->getFrameWidth(src_frame, plane_id);
-	const int		h             = vsapi->getFrameHeight(src_frame, plane_id);
-	T1 *		        dst_ptr       = reinterpret_cast<T1*>(vsapi->getWritePtr(dst_frame, plane_id));
-	const int		stride        = vsapi->getStride(dst_frame, plane_id);
+    const int        w             = vsapi->getFrameWidth(src_frame, plane_id);
+    const int        h             = vsapi->getFrameHeight(src_frame, plane_id);
+    T1 *                dst_ptr       = reinterpret_cast<T1*>(vsapi->getWritePtr(dst_frame, plane_id));
+    const int        stride        = vsapi->getStride(dst_frame, plane_id);
 
-	const T1*	    src_ptr       = reinterpret_cast<const T1*>(vsapi->getReadPtr(src_frame, plane_id));
+    const T1*        src_ptr       = reinterpret_cast<const T1*>(vsapi->getReadPtr(src_frame, plane_id));
 
-	// First line
-	memcpy (dst_ptr, src_ptr, stride);
+    // First line
+    memcpy (dst_ptr, src_ptr, stride);
 
-	// Main content
+    // Main content
     PlaneProc<OP1, T1>::process_subplane_sse2(src_ptr, stride/sizeof(T1), dst_ptr, stride/sizeof(T1), w, h);
 
-	// Last line
-	const int		lp = (h - 1) * stride/sizeof(T1);
-	memcpy (dst_ptr + lp, src_ptr + lp, stride);
+    // Last line
+    const int        lp = (h - 1) * stride/sizeof(T1);
+    memcpy (dst_ptr + lp, src_ptr + lp, stride);
 }
 
 #endif
@@ -513,22 +513,22 @@ static void do_process_plane_sse2 (const VSFrameRef *src_frame, VSFrameRef *dst_
 template <class OP1, class T1>
 static void do_process_plane_cpp (const VSFrameRef *src_frame, VSFrameRef *dst_frame, int plane_id, const VSAPI *vsapi)
 {
-    const int		w             = vsapi->getFrameWidth(src_frame, plane_id);
-	const int		h             = vsapi->getFrameHeight(src_frame, plane_id);
-	T1 *		        dst_ptr       = reinterpret_cast<T1*>(vsapi->getWritePtr(dst_frame, plane_id));
-	const int		stride        = vsapi->getStride(dst_frame, plane_id);
+    const int        w             = vsapi->getFrameWidth(src_frame, plane_id);
+    const int        h             = vsapi->getFrameHeight(src_frame, plane_id);
+    T1 *                dst_ptr       = reinterpret_cast<T1*>(vsapi->getWritePtr(dst_frame, plane_id));
+    const int        stride        = vsapi->getStride(dst_frame, plane_id);
 
-	const T1*	    src_ptr       = reinterpret_cast<const T1*>(vsapi->getReadPtr(src_frame, plane_id));
+    const T1*        src_ptr       = reinterpret_cast<const T1*>(vsapi->getReadPtr(src_frame, plane_id));
 
-	// First line
-	memcpy (dst_ptr, src_ptr, stride);
+    // First line
+    memcpy (dst_ptr, src_ptr, stride);
 
-	// Main content
+    // Main content
     PlaneProc<OP1, T1>::process_subplane_cpp(src_ptr, stride/sizeof(T1), dst_ptr, stride/sizeof(T1), w, h);
 
-	// Last line
-	const int		lp = (h - 1) * stride/sizeof(T1);
-	memcpy (dst_ptr + lp, src_ptr + lp, stride);
+    // Last line
+    const int        lp = (h - 1) * stride/sizeof(T1);
+    memcpy (dst_ptr + lp, src_ptr + lp, stride);
 }
 
 };
@@ -570,34 +570,34 @@ static const VSFrameRef *VS_CC removeGrainGetFrame(int n, int activationReason, 
         if (d->vi->format->bytesPerSample == 1) {
             for (int i = 0; i < d->vi->format->numPlanes; i++) {
                 switch (d->mode[i])
-			    {
+                {
                     case  1: PROC_ARGS_8_FAST(OpRG01)
-			        case  2: PROC_ARGS_8_FAST(OpRG02)
-			        case  3: PROC_ARGS_8_FAST(OpRG03)
-			        case  4: PROC_ARGS_8_FAST(OpRG04)
-			        case 11: PROC_ARGS_8_FAST(OpRG11)
-			        case 12: PROC_ARGS_8_FAST(OpRG12)
-			        case 19: PROC_ARGS_8_FAST(OpRG19)
+                    case  2: PROC_ARGS_8_FAST(OpRG02)
+                    case  3: PROC_ARGS_8_FAST(OpRG03)
+                    case  4: PROC_ARGS_8_FAST(OpRG04)
+                    case 11: PROC_ARGS_8_FAST(OpRG11)
+                    case 12: PROC_ARGS_8_FAST(OpRG12)
+                    case 19: PROC_ARGS_8_FAST(OpRG19)
                     case 20: PROC_ARGS_8(OpRG20)
-			        default: break;
-			    }
+                    default: break;
+                }
             }
         } else {
             for (int i = 0; i < d->vi->format->numPlanes; i++) {
                 switch (d->mode[i])
-			    {
+                {
                     case  1: PROC_ARGS_16_FAST(OpRG01)
-			        case  2: PROC_ARGS_16_FAST(OpRG02)
-			        case  3: PROC_ARGS_16_FAST(OpRG03)
-			        case  4: PROC_ARGS_16_FAST(OpRG04)
-			        case 11: PROC_ARGS_16_FAST(OpRG11)
-			        case 12: PROC_ARGS_16_FAST(OpRG12)
-			        case 19: PROC_ARGS_16_FAST(OpRG19)
+                    case  2: PROC_ARGS_16_FAST(OpRG02)
+                    case  3: PROC_ARGS_16_FAST(OpRG03)
+                    case  4: PROC_ARGS_16_FAST(OpRG04)
+                    case 11: PROC_ARGS_16_FAST(OpRG11)
+                    case 12: PROC_ARGS_16_FAST(OpRG12)
+                    case 19: PROC_ARGS_16_FAST(OpRG19)
                     case 20: PROC_ARGS_16(OpRG20)
-			        default: break;
-			    }
+                    default: break;
+                }
             }
-        } 
+        }
 
         vsapi->freeFrame(src_frame);
 
@@ -615,7 +615,7 @@ static void VS_CC removeGrainFree(void *instanceData, VSCore *core, const VSAPI 
 
 void VS_CC removeGrainCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     RemoveGrainData d;
-   
+
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node);
 

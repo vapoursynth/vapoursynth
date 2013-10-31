@@ -36,7 +36,7 @@ static int ImageSize(const VSVideoInfo *vi, DWORD fourcc, int bitcount = 0) {
     int image_size;
 
     switch (fourcc) {
-    case '012v': 
+    case '012v':
         image_size = ((16*((vi->width + 5) / 6) + 127) & ~127);
         image_size *= vi->height;
         break;
@@ -122,7 +122,7 @@ static void unpackframe(const VSVideoInfo *vi, VSFrameRef *dst, VSFrameRef *dst_
             }
         }
         break;
-    case '012v': 
+    case '012v':
         {
             int rowsize = ((16*((vi->width + 5) / 6) + 127) & ~127)/4;
             uint16_t *y = (uint16_t *)vsapi->getWritePtr(dst, 0);
@@ -203,7 +203,7 @@ static void unpackframe(const VSVideoInfo *vi, VSFrameRef *dst, VSFrameRef *dst_
                     srcp += rowsize;
                 }
 
-            }  
+            }
         }
         break;
     case 'r84b':
@@ -277,7 +277,7 @@ static void unpackframe(const VSVideoInfo *vi, VSFrameRef *dst, VSFrameRef *dst_
             int rowsize = vsapi->getFrameWidth(dst, plane) * vi->format->bytesPerSample;
             if (padrows)
                 rowsize = (rowsize + 3) & ~3;
-            
+
             vs_bitblt(vsapi->getWritePtr(dst, plane), vsapi->getStride(dst, plane), srcp, rowsize, rowsize, vsapi->getFrameHeight(dst, plane));
             srcp += vsapi->getFrameHeight(dst, plane) * rowsize;
         }
@@ -386,7 +386,7 @@ bool AVISource::DecompressQuery(const VSFormat *format, bool forcedType, int bit
             sprintf(buf, "AVISource: Opening as %s.\n", fcc);
             _RPT0(0, buf);
             return false;
-        } 
+        }
     }
 
     if (forcedType) {
@@ -448,15 +448,15 @@ LRESULT AVISource::DecompressFrame(int n, bool preroll, VSFrameRef *frame, VSFra
 
     unpackframe(vi, frame, alpha, decbuf, 0, biDst.biCompression, biDst.biBitCount, bInvertFrames, vsapi);
 
-	if (pvideo->IsKeyFrame(n)) {
-		vsapi->propSetData(vsapi->getFramePropsRW(frame), "_PictType", "I", 1, paAppend);
-		if (alpha)
-			vsapi->propSetData(vsapi->getFramePropsRW(alpha), "_PictType", "I", 1, paAppend);
-	} else {
-		vsapi->propSetData(vsapi->getFramePropsRW(frame), "_PictType", "P", 1, paAppend);
-		if (alpha)
-			vsapi->propSetData(vsapi->getFramePropsRW(alpha), "_PictType", "P", 1, paAppend);
-	}
+    if (pvideo->IsKeyFrame(n)) {
+        vsapi->propSetData(vsapi->getFramePropsRW(frame), "_PictType", "I", 1, paAppend);
+        if (alpha)
+            vsapi->propSetData(vsapi->getFramePropsRW(alpha), "_PictType", "I", 1, paAppend);
+    } else {
+        vsapi->propSetData(vsapi->getFramePropsRW(frame), "_PictType", "P", 1, paAppend);
+        if (alpha)
+            vsapi->propSetData(vsapi->getFramePropsRW(alpha), "_PictType", "P", 1, paAppend);
+    }
 
     return ret;
 }
@@ -709,7 +709,7 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
                     const int fccp210[] = {'012P'};
                     const int fccp216[] = {'612P'};
                     const int fccv210[] = {'012v'};
-                    
+
                     if (fYV24 && bOpen)
                         bOpen = DecompressQuery(vsapi->getFormatPreset(pfYUV444P8, core), forcedType, 24, fccyv24);
                     if (fYV16 && bOpen)

@@ -48,17 +48,17 @@
 template<class T>
 static inline T* vs_aligned_malloc(size_t size, size_t alignment) {
 #ifdef _WIN32
-	return (T*)_aligned_malloc(size, alignment);
+    return (T*)_aligned_malloc(size, alignment);
 #else
-	void *tmp;
-	if (posix_memalign(&tmp, alignment, size))
-		tmp = 0;
-	return (T*)tmp;
+    void *tmp;
+    if (posix_memalign(&tmp, alignment, size))
+        tmp = 0;
+    return (T*)tmp;
 #endif
 }
 
 static inline void vs_aligned_free(void *ptr) {
-	VS_ALIGNED_FREE(ptr);
+    VS_ALIGNED_FREE(ptr);
 }
 #endif //__cplusplus
 

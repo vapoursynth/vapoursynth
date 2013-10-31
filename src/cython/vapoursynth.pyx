@@ -86,7 +86,7 @@ class Error(Exception):
 
     def __str__(self):
         return repr(self.value)
-        
+
 def clear_output(int index = 0):
     global _using_vsscript
     if _using_vsscript:
@@ -105,7 +105,7 @@ def clear_output(int index = 0):
             del _stored_output[index]
         except:
             pass
-        
+
 def clear_outputs():
     global _using_vsscript
     if _using_vsscript:
@@ -117,7 +117,7 @@ def clear_outputs():
     else:
         global _stored_output
         _stored_output = {}
-        
+
 def get_output(int index = 0):
     global _using_vsscript
     if _using_vsscript:
@@ -141,7 +141,7 @@ cdef class Func(object):
         self.func = func
         self.ref = core.funcs.createFunc(publicFunction, <void *>self, freeFunc)
         Py_INCREF(self)
-        
+
     def __dealloc__(self):
         self.core.funcs.freeFunc(self.ref)
 
@@ -251,7 +251,7 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, Core core, const V
 
         if not isinstance(val, list):
             val = [val]
-            
+
         for v in val:
             if atypes[key][:4] == 'clip' and isinstance(v, VideoNode):
                 if funcs.propSetNode(inm, ckey, (<VideoNode>v).node, 1) != 0:
@@ -351,13 +351,13 @@ cdef class VideoProps(object):
     cdef Core core
     cdef const VSAPI *funcs
     cdef bint readonly
-    
+
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
-        
+
     def __dealloc__(self):
         self.funcs.freeFrame(self.constf)
-    
+
     def __getattr__(self, name):
         cdef const VSMap *m = self.funcs.getFramePropsRO(self.constf)
         cdef bytes b = name.encode('utf-8')
@@ -384,12 +384,12 @@ cdef class VideoProps(object):
         elif t == 'm':
             for i in range(numelem):
                 ol.append(createFunc(self.funcs.propGetFunc(m, b, i, NULL), self.core))
-                
+
         if len(ol) == 1:
             return ol[0]
         else:
             return ol
-        
+
     def __setattr__(self, name, value):
         if self.readonly:
             raise Error('Cannot delete properties of a read only object')
@@ -433,7 +433,7 @@ cdef class VideoProps(object):
         except Error:
             self.__delattr__(name)
             raise
-        
+
     def __delattr__(self, name):
         if self.readonly:
             raise Error('Cannot delete properties of a read only object')
@@ -477,7 +477,7 @@ cdef class VideoFrame(object):
 
     def __dealloc__(self):
         self.funcs.freeFrame(self.constf)
-        
+
     def copy(self):
         return createVideoFrame(self.funcs.copyFrame(self.constf, self.core.core), self.funcs, self.core)
 
@@ -486,7 +486,7 @@ cdef class VideoFrame(object):
             raise IndexError('Specified plane index out of range')
         cdef const uint8_t *d = self.funcs.getReadPtr(self.constf, plane)
         return ctypes.c_void_p(<uintptr_t>d)
-        
+
     def get_write_ptr(self, int plane):
         if self.readonly:
             raise Error('Cannot obtain write pointer to read only frame')
@@ -508,7 +508,7 @@ cdef class VideoFrame(object):
         return s
 
 cdef VideoFrame createConstVideoFrame(const VSFrameRef *constf, const VSAPI *funcs, Core core):
-    cdef VideoFrame instance = VideoFrame.__new__(VideoFrame)    
+    cdef VideoFrame instance = VideoFrame.__new__(VideoFrame)
     instance.constf = constf
     instance.f = NULL
     instance.funcs = funcs
@@ -519,7 +519,7 @@ cdef VideoFrame createConstVideoFrame(const VSFrameRef *constf, const VSAPI *fun
     instance.height = funcs.getFrameHeight(constf, 0)
     instance.props = createVideoProps(instance)
     return instance
-        
+
 cdef VideoFrame createVideoFrame(VSFrameRef *f, const VSAPI *funcs, Core core):
     cdef VideoFrame instance = VideoFrame.__new__(VideoFrame)
     instance.constf = f
@@ -535,7 +535,7 @@ cdef VideoFrame createVideoFrame(VSFrameRef *f, const VSAPI *funcs, Core core):
 
 cdef class VideoNode(object):
     cdef VSNodeRef *node
-    cdef const VSAPI *funcs    
+    cdef const VSAPI *funcs
     cdef Core core
     cdef const VSVideoInfo *vi
     cdef readonly Format format
@@ -569,7 +569,7 @@ cdef class VideoNode(object):
                 raise Error('Internal error - no error given')
         else:
             return createConstVideoFrame(f, self.funcs, self.core)
-            
+
     def set_output(self, int index = 0):
         global _using_vsscript
         if _using_vsscript:
@@ -581,7 +581,7 @@ cdef class VideoNode(object):
         else:
             global _stored_output
             _stored_output[index] = self
-    
+
 
     def __add__(self, other):
         if not isinstance(other, VideoNode):
@@ -595,7 +595,7 @@ cdef class VideoNode(object):
         else:
             node = b
             val = a
-            
+
         if not isinstance(val, int):
             raise TypeError('Clips may only be repeated by integer factors')
         if val <= 0:
@@ -621,16 +621,16 @@ cdef class VideoNode(object):
                 indices[0] = None
             if indices[1] == max_int:
                 indices[1] = None
-                                 
+
             step = indices[2]
 
-            if step > 0: 
+            if step > 0:
                 start = indices[0]
                 stop = indices[1]
             else:
                 start = indices[1]
                 stop = indices[0]
-                
+
             ret = self
 
             if step > 0 and stop is not None:
@@ -644,13 +644,13 @@ cdef class VideoNode(object):
                 ret = self.core.std.Trim(clip=ret, first=start)
             elif stop is not None:
                 ret = self.core.std.Trim(clip=ret, last=stop)
-                
+
             if step < 0:
                 ret = self.core.std.Reverse(clip=ret)
-                
+
             if abs(step) != 1:
                 ret = self.core.std.SelectEvery(clip=ret, cycle=abs(step), offsets=[0])
-                
+
             return ret
         elif isinstance(val, int):
             if val < 0 and self.num_frames == 0:
@@ -703,7 +703,7 @@ cdef class VideoNode(object):
         return s
 
 cdef VideoNode createVideoNode(VSNodeRef *node, const VSAPI *funcs, Core core):
-    cdef VideoNode instance = VideoNode.__new__(VideoNode)    
+    cdef VideoNode instance = VideoNode.__new__(VideoNode)
     instance.core = core
     instance.node = node
     instance.funcs = funcs
@@ -753,7 +753,7 @@ cdef class Core(object):
         cdef int64_t new_size = mb
         new_size = new_size * 1024 * 1024
         return self.funcs.setMaxCacheSize(new_size, self.core)
-            
+
     def get_plugins(self):
         cdef VSMap *m = self.funcs.getPlugins(self.core)
         cdef VSMap *n
@@ -764,12 +764,12 @@ cdef class Core(object):
             a = self.funcs.propGetData(m, self.funcs.propGetKey(m, i), 0, NULL)
             a = a.decode('utf-8')
             a = a.split(';', 2)
-            
+
             plugin_dict = {}
             plugin_dict['namespace'] = a[0]
             plugin_dict['identifier'] = a[1]
             plugin_dict['name'] = a[2]
-            
+
             function_dict = {}
 
             b = a[1].encode('utf-8')
@@ -787,7 +787,7 @@ cdef class Core(object):
 
         self.funcs.freeMap(m)
         return sout
-        
+
     def list_functions(self):
         sout = ""
         plugins = self.get_plugins()
@@ -799,7 +799,7 @@ cdef class Core(object):
                 line = '\t' + function + '(' + plugins[plugin]['functions'][function].replace(';', '; ') + ')\n'
                 sout += line.replace('; )', ')')
         return sout
-        
+
     def register_format(self, int color_family, int sample_type, int bits_per_sample, int subsampling_w, int subsampling_h):
         return createFormat(self.funcs.registerFormat(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h, self.core))
 
@@ -818,11 +818,11 @@ cdef class Core(object):
     def __str__(self):
         cdef str s = 'Core\n'
         s += self.version() + '\n'
-        s += '\tNumber of Threads: ' + str(self.num_threads) + '\n'  
+        s += '\tNumber of Threads: ' + str(self.num_threads) + '\n'
         s += '\tAdd Caches: ' + str(self.add_cache) + '\n'
         s += '\tAccept Lowercase: ' + str(self.accept_lowercase) + '\n'
         return s
-        
+
 cdef Core createCore(int threads = 0, bint add_cache = True, bint accept_lowercase = False):
     cdef Core instance = Core.__new__(Core)
     instance.funcs = getVapourSynthAPI(3)
@@ -834,7 +834,7 @@ cdef Core createCore(int threads = 0, bint add_cache = True, bint accept_lowerca
     cdef const VSCoreInfo *info = instance.funcs.getCoreInfo(instance.core)
     instance.num_threads = info.numThreads
     return instance
-        
+
 def get_core(int threads = 0, bint add_cache = True, bint accept_lowercase = False):
     global _using_vsscript
     if _using_vsscript:
@@ -851,7 +851,7 @@ def get_core(int threads = 0, bint add_cache = True, bint accept_lowercase = Fal
         if _core is None:
             _core = createCore(threads, add_cache, accept_lowercase)
         return _core
-    
+
 cdef get_core_internal(int _environment_id, int threads = 0, bint add_cache = True, bint accept_lowercase = False):
     global _cores
     if not _environment_id in _cores:
@@ -898,25 +898,25 @@ cdef class Plugin(object):
         cdef VSMap *n
         cdef bytes b
         cdef dict sout = {}
-        
+
         n = self.funcs.getFunctions(self.plugin)
-        
+
         for j in range(self.funcs.propNumKeys(n)):
             c = self.funcs.propGetData(n, self.funcs.propGetKey(n, j), 0, NULL)
             c = c.decode('utf-8')
             c = c.split(';', 1)
             sout[c[0]] = c[1];
-            
+
         self.funcs.freeMap(n)
         return sout
-        
+
     def list_functions(self):
         sout = ""
         functions = self.get_functions()
         for key in functions:
             sout += key + '(' + functions[key].replace(';', '; ') + ')\n'
         return sout.replace('; )', ')')
-        
+
     def __dir__(self):
         attrs = []
         functions = self.get_functions()
@@ -925,7 +925,7 @@ cdef class Plugin(object):
         return attrs
 
 cdef Plugin createPlugin(VSPlugin *plugin, const VSAPI *funcs, Core core):
-    cdef Plugin instance = Plugin.__new__(Plugin)    
+    cdef Plugin instance = Plugin.__new__(Plugin)
     instance.core = core
     instance.plugin = plugin
     instance.funcs = funcs
@@ -956,9 +956,9 @@ cdef class Function(object):
                 nkey = key
             ndict[nkey] = kwargs[key]
 
-        # match up unnamed arguments to the first unused name in order              
+        # match up unnamed arguments to the first unused name in order
         sigs = self.signature.split(';')
-        
+
         for sig in sigs:
             if sig == '':
                 continue
@@ -976,10 +976,10 @@ cdef class Function(object):
                 if len(arglist) > 0:
                     processed[key] = arglist[0]
                     del arglist[0]
-        
+
         if len(arglist) > 0:
             raise Error(self.name + ': Too many unnamed arguments specified')
-            
+
         if len(ndict) > 0:
             raise Error(self.name + ': Function does not take argument(s) named ' + ', '.join(ndict.keys()))
 
@@ -1009,7 +1009,7 @@ cdef class Function(object):
         return retdict
 
 cdef Function createFunction(str name, str signature, Plugin plugin, const VSAPI *funcs):
-    cdef Function instance = Function.__new__(Function)    
+    cdef Function instance = Function.__new__(Function)
     instance.name = name
     instance.signature = signature
     instance.plugin = plugin
@@ -1042,7 +1042,7 @@ cdef public struct VPYScriptExport:
     void *pyenvdict
     void *errstr
     int id
-    
+
 cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, const char *scriptFilename, int flags) nogil:
     with gil:
         global _environment_id
@@ -1059,11 +1059,11 @@ cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, 
                 se.pyenvdict = <void *>evaldict
                 global _stored_outputs
                 _stored_outputs[se.id] = {}
-                
+
             Py_INCREF(evaldict)
-            
+
             fn = scriptFilename.decode('utf-8')
-            
+
             # don't set a filename if NULL is passed
             if fn != '<string>':
                 abspath = os.path.abspath(fn)
@@ -1071,16 +1071,16 @@ cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, 
                 if flags & 1:
                     orig_path = os.getcwd()
                     os.chdir(os.path.dirname(abspath))
-            
+
             if se.errstr:
                 errstr = <bytes>se.errstr
                 se.errstr = NULL
                 Py_DECREF(errstr)
                 errstr = None
-                
+
             comp = compile(script.decode('utf-8'), fn, 'exec')
             exec(comp) in evaldict
-            
+
         except BaseException, e:
             errstr = 'Python exception: ' + str(e) + '\n' + traceback.format_exc()
             errstr = errstr.encode('utf-8')
@@ -1098,7 +1098,7 @@ cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, 
             if orig_path is not None:
                 os.chdir(orig_path)
         return 0
-        
+
 cdef public api int vpy_evaluateFile(VPYScriptExport *se, const char *scriptFilename, int flags) nogil:
     with gil:
         if not se.pyenvdict:
@@ -1107,7 +1107,7 @@ cdef public api int vpy_evaluateFile(VPYScriptExport *se, const char *scriptFile
             se.pyenvdict = <void *>evaldict
             global _stored_outputs
             _stored_outputs[se.id] = {}
-            
+
         try:
             with open(scriptFilename.decode('utf-8'), 'rb') as f:
                 script = f.read(1024*1024*16)
@@ -1132,19 +1132,19 @@ cdef public api void vpy_freeScript(VPYScriptExport *se) nogil:
         se.pyenvdict = NULL
         Py_DECREF(evaldict)
         evaldict = None
-        
+
         if se.errstr:
             errstr = <bytes>se.errstr
             se.errstr = NULL
             Py_DECREF(errstr)
             errstr = None
-            
+
         try:
             global _cores
             del _cores[se.id]
         except:
             pass
-            
+
         gc.collect()
 
 cdef public api char *vpy_getError(VPYScriptExport *se) nogil:
@@ -1168,7 +1168,7 @@ cdef public api VSNodeRef *vpy_getOutput(VPYScriptExport *se, int index) nogil:
             return (<VideoNode>node).funcs.cloneNodeRef((<VideoNode>node).node)
         else:
             return NULL
-    
+
 cdef public api void vpy_clearOutput(VPYScriptExport *se, int index) nogil:
     with gil:
         try:
@@ -1184,10 +1184,10 @@ cdef public api VSCore *vpy_getCore(VPYScriptExport *se) nogil:
             return (<Core>core).core
         except:
             return NULL
-            
+
 cdef public api const VSAPI *vpy_getVSApi() nogil:
     return getVapourSynthAPI(3)
-            
+
 cdef public api int vpy_getVariable(VPYScriptExport *se, const char *name, VSMap *dst) nogil:
     with gil:
         evaldict = <dict>se.pyenvdict
@@ -1199,7 +1199,7 @@ cdef public api int vpy_getVariable(VPYScriptExport *se, const char *name, VSMap
             return 0
         except:
             return 1
-            
+
 cdef public api void vpy_setVariable(VPYScriptExport *se, const VSMap *vars) nogil:
     with gil:
         evaldict = <dict>se.pyenvdict
@@ -1233,4 +1233,3 @@ cdef public api void vpy_initVSScript() nogil:
     with gil:
         global _using_vsscript
         _using_vsscript = True
-    

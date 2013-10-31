@@ -27,10 +27,10 @@
 #include <stdlib.h>
 #include <stdexcept>
 #ifdef VS_TARGET_OS_WINDOWS
-#	define WIN32_LEAN_AND_MEAN
-#	include <Windows.h>
+#    define WIN32_LEAN_AND_MEAN
+#    include <Windows.h>
 #else
-#	include <dlfcn.h>
+#    include <dlfcn.h>
 #endif
 
 class VSFrame;
@@ -342,14 +342,14 @@ public:
         return vi.size();
     }
 
-	const QByteArray &getName() const {
-		return name;
-	}
+    const QByteArray &getName() const {
+        return name;
+    }
 
-	// to get around encapsulation a bit, more elegant than making everything friends in this case
-	void reserveThread();
-	void releaseThread();
-	bool isWorkerThread();
+    // to get around encapsulation a bit, more elegant than making everything friends in this case
+    void reserveThread();
+    void releaseThread();
+    bool isWorkerThread();
 
     void notifyCache(bool needMemory);
 };
@@ -379,25 +379,25 @@ private:
     QAtomicInt ticks;
     QWaitCondition newWork;
     QAtomicInt activeThreads;
-	QAtomicInt idleThreads;
-	int maxThreads;
+    QAtomicInt idleThreads;
+    int maxThreads;
     void wakeThread();
     void notifyCaches(bool needMemory);
     void startInternal(const PFrameContext &context);
-	void spawnThread();
+    void spawnThread();
 public:
     VSThreadPool(VSCore *core, int threads);
     ~VSThreadPool();
     void returnFrame(const PFrameContext &rCtx, const PVideoFrame &f);
     void returnFrame(const PFrameContext &rCtx, const QByteArray &errMsg);
-    int	activeThreadCount() const;
-    int	threadCount() const;
-	void setThreadCount(int threads);
+    int    activeThreadCount() const;
+    int    threadCount() const;
+    void setThreadCount(int threads);
     void start(const PFrameContext &context);
     void waitForDone();
     void releaseThread();
     void reserveThread();
-	bool isWorkerThread();
+    bool isWorkerThread();
 };
 
 class VSFunction {

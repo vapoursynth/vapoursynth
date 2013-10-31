@@ -3,9 +3,11 @@ Getting Started
 
 So you managed to install VapourSynth. Now what?
 
-If you don't know the basics of Python you may want to check out the `tutorial <http://docs.python.org/py3k/tutorial/index.html>`_. 
+If you don't know the basics of Python you may want to check out the
+`tutorial <http://docs.python.org/py3k/tutorial/index.html>`_.
 
-You can "play around" in the python interpreter if you want, but that's not how most video scripts are created.
+You can "play around" in the python interpreter if you want, but that's not how
+most video scripts are created.
 
 Here's a sample script to be inspired by::
 
@@ -25,4 +27,5 @@ Here's a sample script to be inspired by::
    # set the clip to be output
    ret.set_output()
 
-Remember that most VapourSynth objects have a quite nice string representation in Python, so if you want to know more about an instance just call print().
+Remember that most VapourSynth objects have a quite nice string representation
+in Python, so if you want to know more about an instance just call print().

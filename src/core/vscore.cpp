@@ -195,7 +195,7 @@ VSFrameData::VSFrameData(const VSFrameData &d) : QSharedData(d) {
 }
 
 VSFrameData::~VSFrameData() {
-	vs_aligned_free(data);
+    vs_aligned_free(data);
     mem->subtract(size);
 }
 
@@ -451,16 +451,16 @@ PVideoFrame VSNode::getFrameInternal(int n, int activationReason, const PFrameCo
     return p;
 }
 
-void VSNode::reserveThread() { 
-	core->threadPool->reserveThread();
+void VSNode::reserveThread() {
+    core->threadPool->reserveThread();
 }
 
 void VSNode::releaseThread() {
-	core->threadPool->releaseThread();
+    core->threadPool->releaseThread();
 }
 
 bool VSNode::isWorkerThread() {
-	return core->threadPool->isWorkerThread();
+    return core->threadPool->isWorkerThread();
 }
 
 void VSNode::notifyCache(bool needMemory) {
@@ -719,13 +719,13 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), pluginLock(QMutex::Recurs
 
     // Autoload bundled plugins
     QSettings settings("HKEY_LOCAL_MACHINE\\Software\\VapourSynth", QSettings::NativeFormat);
-	QString corePluginPath = settings.value("CorePlugins").toString();
+    QString corePluginPath = settings.value("CorePlugins").toString();
     if (!loadAllPluginsInPath(corePluginPath, filter))
         qWarning("Core plugin autoloading failed. Directory '%s' doesn't exist?", corePluginPath.toUtf8().constData());
 
     // Autoload global plugins last, this is so the bundled plugins cannot be overridden easily
     // and accidentally block updated bundled versions
-	QString globalPluginPath = settings.value("Plugins").toString();
+    QString globalPluginPath = settings.value("Plugins").toString();
     if (!loadAllPluginsInPath(globalPluginPath, filter))
         qWarning("Global plugin autoloading failed. Directory '%s' doesn't exist?", globalPluginPath.toUtf8().constData());
 #elif defined(VS_TARGET_OS_LINUX) || defined(VS_TARGET_OS_DARWIN)
@@ -733,7 +733,7 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), pluginLock(QMutex::Recurs
 #ifdef VS_TARGET_OS_DARWIN
     QString filter = "*.dylib";
 #else
-	QString filter = "*.so";
+    QString filter = "*.so";
 #endif
 
     // Will read "~/.config/vapoursynth/vapoursynth.conf"
@@ -854,7 +854,7 @@ VSPlugin::VSPlugin(const QByteArray &filename, const QByteArray &forcedNamespace
 #else
     libHandle = dlopen(filename.constData(), RTLD_LAZY);
 
-    if (!libHandle) {   
+    if (!libHandle) {
         const char *dlError = dlerror();
         if (dlError)
             throw VSException("Failed to load " + filename + ". Error given: " + QByteArray(dlError));

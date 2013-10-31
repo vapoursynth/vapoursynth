@@ -27,30 +27,30 @@
 
 // Convenience for C++ users.
 #ifdef __cplusplus
-#	define VS_EXTERN_C extern "C"
+#    define VS_EXTERN_C extern "C"
 #else
-#	define VS_EXTERN_C
+#    define VS_EXTERN_C
 #endif
 
 #if defined(_WIN32) && !defined(_WIN64)
-#	define VS_CC __stdcall
+#    define VS_CC __stdcall
 #else
-#	define VS_CC
+#    define VS_CC
 #endif
 
 // And now for some symbol hide-and-seek...
 #if defined(_WIN32) // Windows being special
-#	define VS_EXTERNAL_API(ret) VS_EXTERN_C __declspec(dllexport) ret VS_CC
+#    define VS_EXTERNAL_API(ret) VS_EXTERN_C __declspec(dllexport) ret VS_CC
 #elif defined(__GNUC__) && __GNUC__ >= 4
-#	define VS_EXTERNAL_API(ret) VS_EXTERN_C __attribute__((visibility("default"))) ret VS_CC
+#    define VS_EXTERNAL_API(ret) VS_EXTERN_C __attribute__((visibility("default"))) ret VS_CC
 #else
-#	define VS_EXTERNAL_API(ret) VS_EXTERN_C ret VS_CC
+#    define VS_EXTERNAL_API(ret) VS_EXTERN_C ret VS_CC
 #endif
 
 #if !defined(VS_CORE_EXPORTS) && defined(_WIN32)
-#	define VS_API(ret) VS_EXTERN_C __declspec(dllimport) ret VS_CC
+#    define VS_API(ret) VS_EXTERN_C __declspec(dllimport) ret VS_CC
 #else
-#	define VS_API(ret) VS_EXTERNAL_API(ret)
+#    define VS_API(ret) VS_EXTERNAL_API(ret)
 #endif
 
 typedef struct VSFrameRef VSFrameRef;
@@ -205,8 +205,8 @@ typedef enum VSMessageType {
 } VSMessageType;
 
 // core function typedefs
-typedef	VSCore *(VS_CC *VSCreateCore)(int threads);
-typedef	void (VS_CC *VSFreeCore)(VSCore *core);
+typedef    VSCore *(VS_CC *VSCreateCore)(int threads);
+typedef    void (VS_CC *VSFreeCore)(VSCore *core);
 typedef const VSCoreInfo *(VS_CC *VSGetCoreInfo)(VSCore *core);
 
 // function/filter typedefs

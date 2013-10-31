@@ -211,7 +211,7 @@ struct _avisuperindex_entry {                        AVISTDINDEX_ENTRY aIndex[AN
 DWORDLONG qwOffset;
 DWORD dwSize;                                    } AVISTDINDEX;
 DWORD dwDuration;
-} aIndex[ANYSIZE_ARRAY];                         	 typedef struct _avistdindex_entry {
+} aIndex[ANYSIZE_ARRAY];                              typedef struct _avistdindex_entry {
 DWORD dwOffset;
 } AVISUPERINDEX;                                       DWORD dwSize;
 } AVISTDINDEX_ENTRY; */

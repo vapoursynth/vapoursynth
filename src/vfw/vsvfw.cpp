@@ -43,7 +43,7 @@ static int BMPSize(int height, int rowsize) {
 }
 
 // {58F74CA0-BD0E-4664-A49B-8D10E6F0C131}
-extern "C" const GUID CLSID_VapourSynth = 
+extern "C" const GUID CLSID_VapourSynth =
 { 0x58f74ca0, 0xbd0e, 0x4664, { 0xa4, 0x9b, 0x8d, 0x10, 0xe6, 0xf0, 0xc1, 0x31 } };
 
 extern "C" const GUID IID_IAvisynthClipInfo   // {E6D6B708-124D-11D4-86F3-DB80AFD98778}
@@ -58,12 +58,12 @@ struct IAvisynthClipInfo : IUnknown {
 class VapourSynthFile: public IAVIFile, public IPersistFile, public IClassFactory, public IAvisynthClipInfo {
     friend class VapourSynthStream;
 private:
-	int num_threads;
-	const VSAPI *vsapi;
-	VSScript *se;
-	bool enable_v210;
-	bool pad_scanlines;
-	VSNodeRef *node;
+    int num_threads;
+    const VSAPI *vsapi;
+    VSScript *se;
+    bool enable_v210;
+    bool pad_scanlines;
+    VSNodeRef *node;
     long m_refs;
     std::string szScriptName;
     const VSVideoInfo* vi;
@@ -156,7 +156,7 @@ public:
     STDMETHODIMP ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpcbFormat);
     STDMETHODIMP SetFormat(LONG lPos, LPVOID lpFormat, LONG cbFormat);
     STDMETHODIMP Write(LONG lStart, LONG lSamples, LPVOID lpBuffer,
-        LONG cbBuffer, DWORD dwFlags, LONG FAR *plSampWritten, 
+        LONG cbBuffer, DWORD dwFlags, LONG FAR *plSampWritten,
         LONG FAR *plBytesWritten);
     STDMETHODIMP WriteData(DWORD fcc, LPVOID lpBuffer, LONG cbBuffer);
     STDMETHODIMP SetInfo(AVISTREAMINFOW *psi, LONG lSize);
@@ -182,10 +182,10 @@ private:
 
 BOOL APIENTRY DllMain(HANDLE hModule, ULONG ulReason, LPVOID lpReserved) {
     if (ulReason == DLL_PROCESS_ATTACH) {
-		// fixme, move this where threading can't be an issue
-		vsscript_init();
+        // fixme, move this where threading can't be an issue
+        vsscript_init();
     } else if (ulReason == DLL_PROCESS_DETACH) {
-		vsscript_finalize();
+        vsscript_finalize();
     }
     return TRUE;
 }
@@ -211,13 +211,13 @@ STDAPI DllCanUnloadNow() {
 
 ///////////////////////////////////////////////////////////////////////////
 //
-//	VapourSynthFile
+//    VapourSynthFile
 //
 ///////////////////////////////////////////////////////////////////////////
 //////////// IClassFactory
 
 STDMETHODIMP VapourSynthFile::CreateInstance (LPUNKNOWN pUnkOuter, REFIID riid,  void * * ppvObj) {
-    if (pUnkOuter) 
+    if (pUnkOuter)
         return CLASS_E_NOAGGREGATION;
     HRESULT hresult = Create(CLSID_VapourSynth, riid, ppvObj);
     return hresult;
@@ -243,7 +243,7 @@ STDMETHODIMP VapourSynthFile::IsDirty() {
 
 STDMETHODIMP VapourSynthFile::Load(LPCOLESTR lpszFileName, DWORD grfMode) {
     char filename[MAX_PATH*2];
-    WideCharToMultiByte(CP_UTF8, 0, lpszFileName, -1, filename, sizeof(filename), NULL, NULL); 
+    WideCharToMultiByte(CP_UTF8, 0, lpszFileName, -1, filename, sizeof(filename), NULL, NULL);
     return Open(filename, grfMode, lpszFileName);
 }
 
@@ -319,7 +319,7 @@ STDMETHODIMP_(ULONG) VapourSynthFile::Release() {
 
 ////////////////////////////////////////////////////////////////////////
 //
-//		VapourSynthStream
+//        VapourSynthStream
 //
 ////////////////////////////////////////////////////////////////////////
 //////////// IUnknown
@@ -360,7 +360,7 @@ STDMETHODIMP_(ULONG) VapourSynthStream::Release() {
 
 ////////////////////////////////////////////////////////////////////////
 //
-//		VapourSynthFile
+//        VapourSynthFile
 //
 ////////////////////////////////////////////////////////////////////////
 //////////// IAVIFile
@@ -396,7 +396,7 @@ STDMETHODIMP VapourSynthFile::DeleteStream(DWORD fccType, LONG lParam) {
 /////// local
 
 VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : num_threads(1), node(NULL), se(NULL), vsapi(NULL), enable_v210(false), pad_scanlines(false), m_refs(0), vi(NULL), pending_requests(0) {
-	vsapi = vsscript_getVSApi();
+    vsapi = vsscript_getVSApi();
     AddRef();
     InitializeCriticalSection(&cs_filter_graph);
 }
@@ -469,11 +469,11 @@ final.set_output()\n";
 
 bool VapourSynthFile::DelayInit2() {
     if (!szScriptName.empty() && !vi) {
-		if (!vsscript_evaluateFile(&se, szScriptName.c_str(), efSetWorkingDir)) {
-			node = vsscript_getOutput(se, 0);
-			if (!node)
-				goto vpyerror;
-			vi = vsapi->getVideoInfo(node);
+        if (!vsscript_evaluateFile(&se, szScriptName.c_str(), efSetWorkingDir)) {
+            node = vsscript_getOutput(se, 0);
+            if (!node)
+                goto vpyerror;
+            vi = vsapi->getVideoInfo(node);
             error_msg.clear();
 
             if (vi->width == 0 || vi->height == 0 || vi->format == NULL || vi->numFrames == 0) {
@@ -500,40 +500,40 @@ bool VapourSynthFile::DelayInit2() {
                 goto vpyerror;
             }
 
-			// set the special options hidden in global variables
-			int error;
-			int64_t val;
-			VSMap *options = vsapi->createMap();
-			vsscript_getVariable(se, "enable_v210", options);
-			val = vsapi->propGetInt(options, "enable_v210", 0, &error);
-			if (!error)
-				enable_v210 = !!val;
-			else
-				enable_v210 = false;
-			vsscript_getVariable(se, "pad_scanlines", options);
-			val = vsapi->propGetInt(options, "pad_scanlines", 0, &error);
-			if (!error)
-				pad_scanlines = !!val;
-			else
-				pad_scanlines = false;
-			vsapi->freeMap(options);
+            // set the special options hidden in global variables
+            int error;
+            int64_t val;
+            VSMap *options = vsapi->createMap();
+            vsscript_getVariable(se, "enable_v210", options);
+            val = vsapi->propGetInt(options, "enable_v210", 0, &error);
+            if (!error)
+                enable_v210 = !!val;
+            else
+                enable_v210 = false;
+            vsscript_getVariable(se, "pad_scanlines", options);
+            val = vsapi->propGetInt(options, "pad_scanlines", 0, &error);
+            if (!error)
+                pad_scanlines = !!val;
+            else
+                pad_scanlines = false;
+            vsapi->freeMap(options);
 
-			const VSCoreInfo *info = vsapi->getCoreInfo(vsscript_getCore(se));
-			num_threads = info->numThreads;
+            const VSCoreInfo *info = vsapi->getCoreInfo(vsscript_getCore(se));
+            num_threads = info->numThreads;
 
             return true;
         } else {
-			error_msg = vsscript_getError(se);
+            error_msg = vsscript_getError(se);
             vpyerror:
             vi = NULL;
-			vsscript_freeScript(se);
-			se = NULL;
+            vsscript_freeScript(se);
+            se = NULL;
             std::string error_script = ErrorScript1;
             error_script += error_msg;
             error_script += ErrorScript2;
             int res = vsscript_evaluateScript(&se, error_script.c_str(), "vfw_error.bleh", 0);
-			const char *et = vsscript_getError(se);
-			node = vsscript_getOutput(se, 0);
+            const char *et = vsscript_getError(se);
+            node = vsscript_getOutput(se, 0);
             vi = vsapi->getVideoInfo(node);
             return true;
         }
@@ -563,19 +563,19 @@ STDMETHODIMP VapourSynthFile::Info(AVIFILEINFOW *pfi, LONG lSize) {
     AVIFILEINFOW afi;
     memset(&afi, 0, sizeof(afi));
 
-    afi.dwMaxBytesPerSec	= 0;
-    afi.dwFlags				= AVIFILEINFO_HASINDEX | AVIFILEINFO_ISINTERLEAVED;
-    afi.dwCaps				= AVIFILECAPS_CANREAD | AVIFILECAPS_ALLKEYFRAMES | AVIFILECAPS_NOCOMPRESSION;
+    afi.dwMaxBytesPerSec    = 0;
+    afi.dwFlags                = AVIFILEINFO_HASINDEX | AVIFILEINFO_ISINTERLEAVED;
+    afi.dwCaps                = AVIFILECAPS_CANREAD | AVIFILECAPS_ALLKEYFRAMES | AVIFILECAPS_NOCOMPRESSION;
 
-    afi.dwStreams				= 1;
-    afi.dwSuggestedBufferSize	= 0;
-    afi.dwWidth					= vi->width;
-    afi.dwHeight				= vi->height;
-    afi.dwEditCount				= 0;
+    afi.dwStreams                = 1;
+    afi.dwSuggestedBufferSize    = 0;
+    afi.dwWidth                    = vi->width;
+    afi.dwHeight                = vi->height;
+    afi.dwEditCount                = 0;
 
-    afi.dwRate					= int64ToIntS(vi->fpsNum ? vi->fpsNum : 1);
-    afi.dwScale					= int64ToIntS(vi->fpsDen ? vi->fpsDen : 30);
-    afi.dwLength				= vi->numFrames;
+    afi.dwRate                    = int64ToIntS(vi->fpsNum ? vi->fpsNum : 1);
+    afi.dwScale                    = int64ToIntS(vi->fpsDen ? vi->fpsDen : 30);
+    afi.dwLength                = vi->numFrames;
 
     wcscpy(afi.szFileType, L"VapourSynth");
 
@@ -659,7 +659,7 @@ bool __stdcall VapourSynthFile::IsFieldBased() {
 
 ////////////////////////////////////////////////////////////////////////
 //
-//		VapourSynthStream
+//        VapourSynthStream
 //
 ////////////////////////////////////////////////////////////////////////
 //////////// IAVIStreaming
@@ -736,26 +736,26 @@ STDMETHODIMP_(LONG) VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) {
     else if (vi->format->id == pfCompatYUY2)
         asi.fccHandler = '2YUY';
     else if (vi->format->id == pfYUV420P8)
-        asi.fccHandler = '21VY'; 
+        asi.fccHandler = '21VY';
     else if (vi->format->id == pfGray8)
-        asi.fccHandler = '008Y'; 
+        asi.fccHandler = '008Y';
     else if (vi->format->id == pfYUV444P8)
-        asi.fccHandler = '42VY'; 
+        asi.fccHandler = '42VY';
     else if (vi->format->id == pfYUV422P8)
-        asi.fccHandler = '61VY'; 
+        asi.fccHandler = '61VY';
     else if (vi->format->id == pfYUV411P8)
-        asi.fccHandler = 'B14Y'; 
-    else if (vi->format->id == pfYUV410P8) 
-        asi.fccHandler = '9UVY'; 
-    else if (vi->format->id == pfYUV420P10) 
+        asi.fccHandler = 'B14Y';
+    else if (vi->format->id == pfYUV410P8)
+        asi.fccHandler = '9UVY';
+    else if (vi->format->id == pfYUV420P10)
         asi.fccHandler = '010P';
-    else if (vi->format->id == pfYUV420P16) 
+    else if (vi->format->id == pfYUV420P16)
         asi.fccHandler = '610P';
-    else if (vi->format->id == pfYUV422P10 && parent->enable_v210) 
+    else if (vi->format->id == pfYUV422P10 && parent->enable_v210)
         asi.fccHandler = '012v';
-    else if (vi->format->id == pfYUV422P10) 
+    else if (vi->format->id == pfYUV422P10)
         asi.fccHandler = '012P';
-    else if (vi->format->id == pfYUV422P16) 
+    else if (vi->format->id == pfYUV422P16)
         asi.fccHandler = '612P';
     else
         return E_FAIL;
@@ -983,31 +983,31 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
         bi.biBitCount +=  (bi.biBitCount * 2) >> (vi->format->subSamplingH + vi->format->subSamplingW);
     if (parent->enable_v210 && vi->format->id == pfYUV422P10)
         bi.biBitCount = 20;
-    if (vi->format->id == pfCompatBGR32) 
+    if (vi->format->id == pfCompatBGR32)
         bi.biCompression = BI_RGB;
-    else if (vi->format->id == pfCompatYUY2) 
+    else if (vi->format->id == pfCompatYUY2)
         bi.biCompression = '2YUY';
-    else if (vi->format->id == pfYUV420P8) 
+    else if (vi->format->id == pfYUV420P8)
         bi.biCompression = '21VY';
-    else if (vi->format->id == pfGray8) 
-        bi.biCompression = '008Y'; 
-    else if (vi->format->id == pfYUV444P8) 
-        bi.biCompression = '42VY'; 
-    else if (vi->format->id == pfYUV422P8) 
-        bi.biCompression = '61VY'; 
-    else if (vi->format->id == pfYUV411P8) 
-        bi.biCompression = 'B14Y'; 
-    else if (vi->format->id == pfYUV410P8) 
+    else if (vi->format->id == pfGray8)
+        bi.biCompression = '008Y';
+    else if (vi->format->id == pfYUV444P8)
+        bi.biCompression = '42VY';
+    else if (vi->format->id == pfYUV422P8)
+        bi.biCompression = '61VY';
+    else if (vi->format->id == pfYUV411P8)
+        bi.biCompression = 'B14Y';
+    else if (vi->format->id == pfYUV410P8)
         bi.biCompression = '9UVY';
-    else if (vi->format->id == pfYUV420P10) 
+    else if (vi->format->id == pfYUV420P10)
         bi.biCompression = '010P';
-    else if (vi->format->id == pfYUV420P16) 
+    else if (vi->format->id == pfYUV420P16)
         bi.biCompression = '610P';
-    else if (vi->format->id == pfYUV422P10 && parent->enable_v210) 
+    else if (vi->format->id == pfYUV422P10 && parent->enable_v210)
         bi.biCompression = '012v';
-    else if (vi->format->id == pfYUV422P10) 
+    else if (vi->format->id == pfYUV422P10)
         bi.biCompression = '012P';
-    else if (vi->format->id == pfYUV422P16) 
+    else if (vi->format->id == pfYUV422P16)
         bi.biCompression = '612P';
     else
         return E_FAIL;
@@ -1020,7 +1020,7 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
 }
 
 STDMETHODIMP VapourSynthStream::Write(LONG lStart, LONG lSamples, LPVOID lpBuffer,
-    LONG cbBuffer, DWORD dwFlags, LONG FAR *plSampWritten, 
+    LONG cbBuffer, DWORD dwFlags, LONG FAR *plSampWritten,
     LONG FAR *plBytesWritten) {
         return AVIERR_READONLY;
 }

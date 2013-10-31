@@ -200,17 +200,17 @@ static const VSFrameRef *VS_CC resizeGetframe(int n, int activationReason, void 
         switchdst = d->vi.format->colorFamily == cmRGB;
         flip_src = (fi->id == pfCompatBGR32);
         flip_dst = (d->vi.format->id == pfCompatBGR32);
-		
+
         if (flip_src) {
             for (i = 0; i < vsapi->getFrameFormat(src)->numPlanes; i++) {
                 srcp[switchsrc ? rgb_map[i] : i] = vsapi->getReadPtr(src, i) + (vsapi->getFrameHeight(src, i) - 1)*vsapi->getStride(src, i);
                 src_stride[switchsrc ? rgb_map[i] : i] = -vsapi->getStride(src, i);
-		    }
+            }
         } else {
             for (i = 0; i < vsapi->getFrameFormat(src)->numPlanes; i++) {
                 srcp[switchsrc ? rgb_map[i] : i] = vsapi->getReadPtr(src, i);
                 src_stride[switchsrc ? rgb_map[i] : i] = vsapi->getStride(src, i);
-		    }
+            }
         }
 
         if (flip_dst) {

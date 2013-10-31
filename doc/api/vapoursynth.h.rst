@@ -376,12 +376,16 @@ enum VSFilterMode
    * fmParallel
 
      Completely parallel execution.
-     Multiple threads will call a filter's "getframe" function, to fetch several frames in parallel.
+     Multiple threads will call a filter's "getframe" function, to fetch several
+     frames in parallel.
 
    * fmParallelRequests
 
-     For filters that are serial in nature but can request in advance one or more frames they need.
-     A filter's "getframe" function will be called from multiple threads at a time with activation reason arInitial, but only one thread will call it with activation reason arAllFramesReady.
+     For filters that are serial in nature but can request in advance one or
+     more frames they need.
+     A filter's "getframe" function will be called from multiple threads at a
+     time with activation reason arInitial, but only one thread will call it
+     with activation reason arAllFramesReady.
 
    * fmUnordered
 
@@ -390,7 +394,8 @@ enum VSFilterMode
    * fmSerial
 
      For source filters and compatibility with other filtering architectures.
-     The filter's "getframe" function only ever gets called from one thread at a time.
+     The filter's "getframe" function only ever gets called from one thread at a
+     time.
 
 
 .. _VSNodeFlags:
@@ -504,7 +509,8 @@ struct VSFrameRef
 
    A frame.
 
-   The contents of a frame (pixels) are guaranteed to have an alignment of 32 bytes.
+   The contents of a frame (pixels) are guaranteed to have an alignment of 32
+   bytes.
 
    Two frames with the same width are guaranteed to have the same stride.
 
@@ -634,7 +640,7 @@ struct VSFormat
 ---------------
 
    Describes the format of a clip.
-   
+
    Don't create an instance of this struct manually (``struct VSFormat moo;``),
    but only through registerFormat_\ (). Registered VSFormat instances will be
    valid as long as the VapourSynth core object lives. They can be retrieved
@@ -664,7 +670,8 @@ struct VSFormat
 
    .. c:member:: int bytesPerSample
 
-      Number of bytes needed for a sample. This is always a power of 2 and the smallest possible that can fit the number of bits used per sample.
+      Number of bytes needed for a sample. This is always a power of 2 and the
+      smallest possible that can fit the number of bits used per sample.
 
    .. c:member:: int subSamplingW
    .. c:member:: int subSamplingH
@@ -690,7 +697,8 @@ struct VSCoreInfo
 
    .. c:member:: const char* versionString
 
-      Printable string containing the name of the library, copyright notice, core and API versions.
+      Printable string containing the name of the library, copyright notice,
+      core and API versions.
 
    .. c:member:: int core
 
@@ -707,7 +715,7 @@ struct VSCoreInfo
    .. c:member:: int64_t usedFramebufferSize
 
       Current size of the framebuffer cache, in bytes.
-      
+
 
 .. _VSVideoInfo:
 
@@ -1153,7 +1161,8 @@ struct VSAPI
          One of VSSampleType_.
 
       *bitsPerSample*
-         Number of meaningful bits for a single component. The valid range is 8-32.
+         Number of meaningful bits for a single component. The valid range is
+         8-32.
 
          For floating point formats, only 16 or 32 bits are allowed.
 
@@ -1281,7 +1290,8 @@ struct VSAPI
 
       typedef const VSFrameRef_ \*(VS_CC \*VSGetFrameFilter)(int n, VSNodeRef_ \*node, VSFrameContext_ \*frameCtx)
 
-      Retrieves a frame that was previously requested with requestFrameFilter_\ ().
+      Retrieves a frame that was previously requested with
+      requestFrameFilter_\ ().
 
       Only use inside a filter's "getframe" function.
 
@@ -1610,8 +1620,8 @@ struct VSAPI
       *index*
          Zero-based index of the element.
 
-         Use propNumElements_\ () to know the total number of elements associated
-         with a key.
+         Use propNumElements_\ () to know the total number of elements
+         associated with a key.
 
       *error*
          A bitwise OR of VSGetPropErrors_, or 0 on success.
@@ -1638,8 +1648,8 @@ struct VSAPI
       *index*
          Zero-based index of the element.
 
-         Use propNumElements_\ () to know the total number of elements associated
-         with a key.
+         Use propNumElements_\ () to know the total number of elements
+         associated with a key.
 
       *error*
          A bitwise OR of VSGetPropErrors_, or 0 on success.
@@ -1669,8 +1679,8 @@ struct VSAPI
       *index*
          Zero-based index of the element.
 
-         Use propNumElements_\ () to know the total number of elements associated
-         with a key.
+         Use propNumElements_\ () to know the total number of elements
+         associated with a key.
 
       *error*
          A bitwise OR of VSGetPropErrors_, or 0 on success.
@@ -1710,8 +1720,8 @@ struct VSAPI
       *index*
          Zero-based index of the element.
 
-         Use propNumElements_\ () to know the total number of elements associated
-         with a key.
+         Use propNumElements_\ () to know the total number of elements
+         associated with a key.
 
       *error*
          A bitwise OR of VSGetPropErrors_, or 0 on success.
@@ -1741,8 +1751,8 @@ struct VSAPI
       *index*
          Zero-based index of the element.
 
-         Use propNumElements_\ () to know the total number of elements associated
-         with a key.
+         Use propNumElements_\ () to know the total number of elements
+         associated with a key.
 
       *error*
          A bitwise OR of VSGetPropErrors_, or 0 on success.
@@ -1790,8 +1800,8 @@ struct VSAPI
 
       typedef int (VS_CC \*VSPropDeleteKey)(VSMap_ \*map, const char \*key)
 
-      Removes the property with the given key. All values associated with the key
-      are lost.
+      Removes the property with the given key. All values associated with the
+      key are lost.
 
       Returns 0 if the key isn't in the map. Otherwise it returns 1.
 
@@ -1817,8 +1827,8 @@ struct VSAPI
       *append*
          One of VSPropAppendMode_.
 
-      Returns 0 on success, or 1 if trying to append to a property with the wrong
-      type.
+      Returns 0 on success, or 1 if trying to append to a property with the
+      wrong type.
 
 ----------
 
@@ -1842,8 +1852,8 @@ struct VSAPI
       *append*
          One of VSPropAppendMode_.
 
-      Returns 0 on success, or 1 if trying to append to a property with the wrong
-      type.
+      Returns 0 on success, or 1 if trying to append to a property with the
+      wrong type.
 
 ----------
 
@@ -1873,8 +1883,8 @@ struct VSAPI
       *append*
          One of VSPropAppendMode_.
 
-      Returns 0 on success, or 1 if trying to append to a property with the wrong
-      type.
+      Returns 0 on success, or 1 if trying to append to a property with the
+      wrong type.
 
 ----------
 
@@ -1901,8 +1911,8 @@ struct VSAPI
       *append*
          One of VSPropAppendMode_.
 
-      Returns 0 on success, or 1 if trying to append to a property with the wrong
-      type.
+      Returns 0 on success, or 1 if trying to append to a property with the
+      wrong type.
 
 ----------
 
@@ -1929,8 +1939,8 @@ struct VSAPI
       *append*
          One of VSPropAppendMode_.
 
-      Returns 0 on success, or 1 if trying to append to a property with the wrong
-      type.
+      Returns 0 on success, or 1 if trying to append to a property with the
+      wrong type.
 
 ----------
 
@@ -1957,8 +1967,8 @@ struct VSAPI
       *append*
          One of VSPropAppendMode_.
 
-      Returns 0 on success, or 1 if trying to append to a property with the wrong
-      type.
+      Returns 0 on success, or 1 if trying to append to a property with the
+      wrong type.
 
 ----------
 
@@ -2004,9 +2014,9 @@ struct VSAPI
          The desired dimensions of the frame, in pixels. Must be greater than 0.
 
       *planeSrc*
-         Array of frames from which planes will be copied. If any elements of the
-         array are NULL, the corresponding planes in the new frame will contain
-         uninitialised memory.
+         Array of frames from which planes will be copied. If any elements of
+         the array are NULL, the corresponding planes in the new frame will
+         contain uninitialised memory.
 
       *planes*
          Array of plane numbers indicating which plane to copy from the

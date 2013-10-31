@@ -40,7 +40,7 @@ Container& split(
     split1::empties_t empties = split1::empties_ok)
 {
     result.clear();
-    size_t current;   
+    size_t current;
     size_t next = -1;
     do {
         if (empties == split1::no_empties) {
@@ -163,7 +163,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                 }
             }
         }
-        
+
 #else
 
         for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {
@@ -182,7 +182,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                 int dst_stride = vsapi->getStride(dst, plane);
                 int h = vsapi->getFrameHeight(src[0], plane);
                 int w = vsapi->getFrameWidth(src[0], plane);
-                const ExprOp *vops = &d->ops[plane][0]; 
+                const ExprOp *vops = &d->ops[plane][0];
                 float *stack = &d->stack[0];
                 float stacktop = 0;
                 float tmp;
@@ -209,7 +209,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                                 stacktop = ((const float *)srcp[vops[i].e.ival])[x];
                                 ++si;
                                 break;
-                            case opLoadConst: 
+                            case opLoadConst:
                                 stack[si] = stacktop;
                                 stacktop = vops[i].e.fval;
                                 ++si;

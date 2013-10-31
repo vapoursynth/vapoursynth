@@ -24,7 +24,7 @@ static const VSFrameRef *VS_CC filterGetFrame(int n, int activationReason, void 
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *frame = vsapi->getFrameFilter(n, d->node, frameCtx);
-  
+
         // your code here...
 
         return frame;

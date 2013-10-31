@@ -2,7 +2,7 @@
 
         AvsFilterRemoveGrain/Repair16
         Author: Laurent de Soras, 2012
-        Modified for VapourSynth by Fredrik Mellbin 2013 
+        Modified for VapourSynth by Fredrik Mellbin 2013
 
 --- Legal stuff ---
 

@@ -4,7 +4,7 @@
 struct VPYScriptExport;
 
 /* "vapoursynth.pyx":1015
- * 
+ *
  * # for whole script evaluation and export
  * cdef public struct VPYScriptExport:             # <<<<<<<<<<<<<<
  *     void *pyenvdict

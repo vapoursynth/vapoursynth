@@ -3,20 +3,29 @@ FrameEval
 
 .. function:: FrameEval(clip clip, func eval[, clip[] prop_src])
    :module: std
-   
-   Allows an arbitrary function to be evaluated every frame. The function gets the frame number, *n*, as input and should return a clip the output frame can be requested from.
-   
-   The *clip* argument is only used to get the output format from since there is no reliable automatic way to deduce it.
-   
-   When using the argument *prop_src* the function will also have an argument, *f*, containing the current frames. This is mainly so frame properties can be accessed and used to make decisions. Note that *f* will only be a list if more than one *prop_src* clip is provided.
-   
-   This function can be used to accomplish the same things as Animate, ScriptClip and all the other conditional filters in Avisynth. Note that to modify per frame properties you should use *ModifyFrame*.
-   
-   How to animate a BlankClip to fade from white to black. This is the simplest usage case without using the *prop_src* argument::
-   
+
+   Allows an arbitrary function to be evaluated every frame. The function gets
+   the frame number, *n*, as input and should return a clip the output frame can
+   be requested from.
+
+   The *clip* argument is only used to get the output format from since there is
+   no reliable automatic way to deduce it.
+
+   When using the argument *prop_src* the function will also have an argument,
+   *f*, containing the current frames. This is mainly so frame properties can be
+   accessed and used to make decisions. Note that *f* will only be a list if
+   more than one *prop_src* clip is provided.
+
+   This function can be used to accomplish the same things as Animate,
+   ScriptClip and all the other conditional filters in Avisynth. Note that to
+   modify per frame properties you should use *ModifyFrame*.
+
+   How to animate a BlankClip to fade from white to black. This is the simplest
+   usage case without using the *prop_src* argument::
+
       import vapoursynth as vs
       import functools
-  
+
       core = vs.get_core()
       base_clip = core.std.BlankClip(format=vs.YUV420P8, length=1000, color=[255, 128, 128])
 
@@ -28,9 +37,10 @@ FrameEval
 
       animated_clip = core.std.FrameEval(base_clip, functools.partial(animator, clip=base_clip))
       animated_clip.set_output()
-  
-   How to perform a simple per frame auto white balance. It shows how to access calculated frame properties and use them for conditional filtering::
-   
+
+   How to perform a simple per frame auto white balance. It shows how to access
+   calculated frame properties and use them for conditional filtering::
+
       import vapoursynth as vs
       import functools
       import math
@@ -48,7 +58,7 @@ FrameEval
          g_gain = green_corr/norm
          b_gain = blue_corr/norm
          return core.std.Expr(clip, expr=['x ' + repr(r_gain) + ' *', 'x ' + repr(g_gain) + ' *', 'x ' + repr(b_gain) + ' *'])
-    
+
       def GrayWorld1(clip):
          core = vs.get_core()
          rgb_clip = core.resize.Bilinear(clip, format=vs.RGB24)
@@ -57,7 +67,7 @@ FrameEval
          b_avg = core.std.PlaneAverage(rgb_clip, plane=2)
          adjusted_clip = core.std.FrameEval(rgb_clip, functools.partial(GrayWorld1Adjust, clip=rgb_clip, core=core), propsrc=[r_avg, g_avg, b_avg])
          return core.resize.Bilinear(adjusted_clip, format=clip.format.id)
-        
+
       core = vs.get_core()
       core.std.LoadPlugin(path='ffms2.dll')
       main = core.ffms2.Source(source='...')

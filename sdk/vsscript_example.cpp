@@ -129,7 +129,7 @@ int main(int argc, char **argv) {
     }
 
     // Put an annoying restriction in the code
-	const VSVideoInfo *vi = vsapi->getVideoInfo(node);
+    const VSVideoInfo *vi = vsapi->getVideoInfo(node);
 
     if (!isConstantFormat(vi) || vi->numFrames == 0) {
         fprintf(stderr, "Cannot output clips with varying dimensions or unknown length\n");

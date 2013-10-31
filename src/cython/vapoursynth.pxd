@@ -54,10 +54,10 @@ cdef extern from "include/VapourSynth.h" nogil:
 
         pfGray8 = cmGray + 10
         pfGray16
-        
+
         pfGrayH
         pfGrayS
-    
+
         pfYUV420P8 = cmYUV + 10
         pfYUV422P8
         pfYUV444P8
@@ -76,7 +76,7 @@ cdef extern from "include/VapourSynth.h" nogil:
         pfYUV420P16
         pfYUV422P16
         pfYUV444P16
-        
+
         pfYUV444PH
         pfYUV444PS
 
@@ -84,7 +84,7 @@ cdef extern from "include/VapourSynth.h" nogil:
         pfRGB27
         pfRGB30
         pfRGB48
-        
+
         pfRGBH
         pfRGBS
 
@@ -115,7 +115,7 @@ cdef extern from "include/VapourSynth.h" nogil:
         peUnset = 1
         peType  = 2
         peIndex = 4
-        
+
     cdef enum PropAppendMode:
         paReplace = 0
         paAppend  = 1
@@ -152,7 +152,7 @@ cdef extern from "include/VapourSynth.h" nogil:
     ctypedef void (__stdcall *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI *vsapi)
     ctypedef void (__stdcall *VSFreeFuncData)(void *userData)
     ctypedef void (__stdcall *VSMessageHandler)(int msgType, const char *msg)
-    
+
     ctypedef struct VSAPI:
         VSCore *createCore(int threads) nogil
         void freeCore(VSCore *core) nogil
@@ -165,7 +165,7 @@ cdef extern from "include/VapourSynth.h" nogil:
 
         VSFormat *getFormatPreset(int id, VSCore *core) nogil
         VSFormat *registerFormat(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) nogil
- 
+
         void getFrameAsync(int n, VSNodeRef *node, VSFrameDoneCallback callback, void *userData) nogil
         const VSFrameRef *getFrame(int n, VSNodeRef *node, char *errorMsg, int bufSize) nogil
         void requestFrameFilter(int n, VSNodeRef *node, VSFrameContext *frameCtx) nogil
@@ -225,6 +225,6 @@ cdef extern from "include/VapourSynth.h" nogil:
         void freeFunc(VSFuncRef *f) nogil
 
         int64_t setMaxCacheSize(int64_t bytes, VSCore *core) nogil
-        
+
         void setMessageHandler(VSMessageHandler handler) nogil
     const VSAPI *getVapourSynthAPI(int version) nogil

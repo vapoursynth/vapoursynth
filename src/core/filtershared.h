@@ -34,15 +34,15 @@ static inline void vs_memset8(void *ptr, int value, size_t num) {
 }
 
 static inline void vs_memset16(void *ptr, int value, size_t num) {
-	uint16_t *tptr = (uint16_t *)ptr;
-	while (num-- > 0)
-		*tptr++ = (uint16_t)value;
+    uint16_t *tptr = (uint16_t *)ptr;
+    while (num-- > 0)
+        *tptr++ = (uint16_t)value;
 }
 
 static inline void vs_memset32(void *ptr, int value, size_t num) {
-	int32_t *tptr = (int32_t *)ptr;
-	while (num-- > 0)
-		*tptr++ = (int32_t)value;
+    int32_t *tptr = (int32_t *)ptr;
+    while (num-- > 0)
+        *tptr++ = (int32_t)value;
 }
 
 static inline void vs_memset_float(void *ptr, float value, size_t num) {
