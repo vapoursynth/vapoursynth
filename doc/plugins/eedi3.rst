@@ -111,6 +111,7 @@ small changes).
       vthresh2
          If vcheck is greater than 0, then the resulting interpolation is
          checked for reliability/consistency.
+
             0 - no reliability check
 
             1 - weak reliability check

@@ -10,6 +10,7 @@ LoadPlugin (Avisynth Compatibility)
    The compatibility module can work with a large number of Avisynth's plugins.
    However, the wrapping is not complete, so the following things will cause
    problems:
+
       * The plugin tries to call env->invoke().
         These calls are ignored when it is safe to do so, but otherwise they
         will most likely trigger a fatal error.
