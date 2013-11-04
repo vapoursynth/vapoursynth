@@ -524,8 +524,8 @@ const VSFormat *VSCore::registerFormat(VSColorFamily colorFamily, VSSampleType s
 
     QWriteLocker lock(&formatLock);
 
-    for (std::map<int, VSFormat *>::const_iterator i = formats.begin(); i != formats.end(); ++i) {
-        const VSFormat *f = i->second;
+    for (const auto &iter : formats) {
+        const VSFormat *f = iter.second;
 
         if (f->colorFamily == colorFamily && f->sampleType == sampleType
                 && f->subSamplingW == subSamplingW && f->subSamplingH == subSamplingH && f->bitsPerSample == bitsPerSample)
@@ -564,8 +564,8 @@ const VSFormat *VSCore::registerFormat(VSColorFamily colorFamily, VSSampleType s
 bool VSCore::isValidFormatPointer(const VSFormat *f) {
     QReadLocker lock(&formatLock);
 
-    for (std::map<int, VSFormat *>::const_iterator iter = formats.begin(); iter != formats.end(); ++iter) {
-        if (iter->second == f)
+    for (const auto &iter : formats) {
+        if (iter.second == f)
             return true;
     }
     return false;
@@ -768,20 +768,20 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), pluginLock(QMutex::Recurs
 VSCore::~VSCore() {
     memory->signalFree();
     //delete threadPool;
-    for(std::map<QByteArray, VSPlugin *>::iterator iter = plugins.begin(); iter != plugins.end(); ++iter)
-        delete iter->second;
+    for(const auto &iter : plugins)
+        delete iter.second;
     plugins.clear();
-    for(std::map<int, VSFormat *>::iterator iter = formats.begin(); iter != formats.end(); ++iter)
-        delete iter->second;
+    for (const auto &iter : formats)
+        delete iter.second;
     formats.clear();
 }
 
 VSMap VSCore::getPlugins() {
     VSMap m;
     QMutexLocker lock(&pluginLock);
-    for(std::map<QByteArray, VSPlugin *>::iterator iter = plugins.begin(); iter != plugins.end(); ++iter) {
-        QByteArray b = iter->second->fnamespace + ";" + iter->second->identifier + ";" + iter->second->fullname;
-        vsapi.propSetData(&m, iter->second->identifier.constData(), b.constData(), b.size(), 0);
+    for (const auto &iter : plugins) {
+        QByteArray b = iter.second->fnamespace + ";" + iter.second->identifier + ";" + iter.second->fullname;
+        vsapi.propSetData(&m, iter.second->identifier.constData(), b.constData(), b.size(), 0);
     }
     return m;
 }
@@ -797,9 +797,9 @@ VSPlugin *VSCore::getPluginById(const QByteArray &identifier) {
 
 VSPlugin *VSCore::getPluginByNs(const QByteArray &ns) {
     QMutexLocker lock(&pluginLock);
-    for(std::map<QByteArray, VSPlugin *>::iterator iter = plugins.begin(); iter != plugins.end(); ++iter) {
-        if (iter->second->fnamespace == ns)
-            return iter->second;
+    for (const auto &iter : plugins) {
+        if (iter.second->fnamespace == ns)
+            return iter.second;
     }
     return NULL;
 }

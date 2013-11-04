@@ -35,10 +35,8 @@
 typedef std::list<std::string> stringlist;
 
 template<typename T>
-std::string num_to_string(T val) {
-    std::stringstream s;
-    s << val;
-    return s.str();
+inline std::string num_to_string(T val) {
+    return std::to_string(val);
 }
 
 void scrawl_character_int(unsigned char c, uint8_t *image, int stride, int dest_x, int dest_y, int bitsPerSample) {

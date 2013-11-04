@@ -187,10 +187,10 @@ private:
     bool freeOnZero;
     int64_t maxMemoryUse;
 public:
-    void add(long bytes) {
+    void add(unsigned bytes) {
         usedKiloBytes.fetch_add((bytes + 1023) / 1024);
     }
-    void subtract(long bytes) {
+    void subtract(unsigned bytes) {
         usedKiloBytes.fetch_sub((bytes + 1023) / 1024);
     }
     int64_t memoryUse() {

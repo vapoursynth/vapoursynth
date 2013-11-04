@@ -46,7 +46,7 @@ void VSThread::run() {
     localDataStorage.setLocalData(new VSThreadData());
 
     owner->lock.lock();
-    owner->activeThreads++;
+    ++owner->activeThreads;
 
     VSThreadData *localData = localDataStorage.localData();
 
@@ -204,8 +204,8 @@ void VSThread::run() {
             owner->lock.lock();
 
             if (requestedFrames) {
-                for (std::list<PFrameContext>::iterator reqIter = localData->begin(); reqIter != localData->end(); ++reqIter)
-                    owner->startInternal(*reqIter);
+                for (auto &reqIter : *localData)
+                    owner->startInternal(reqIter);
                 localData->clear();
             }
 
@@ -263,16 +263,16 @@ void VSThread::run() {
 
 
         if ((!ranTask && !stop) || (owner->activeThreadCount() > owner->threadCount())) {
-            owner->activeThreads--;
-            owner->idleThreads++;
+            --owner->activeThreads;
+            ++owner->idleThreads;
             owner->newWork.wait(&owner->lock);
-            owner->idleThreads--;
-            owner->activeThreads++;
+            --owner->idleThreads;
+            ++owner->activeThreads;
         }
 
         if (stop) {
-            owner->idleThreads--;
-            owner->activeThreads++;
+            --owner->idleThreads;
+            ++owner->activeThreads;
             owner->lock.unlock();
             return;
         }
@@ -311,11 +311,11 @@ void VSThreadPool::wakeThread() {
 }
 
 void VSThreadPool::releaseThread() {
-    activeThreads--;
+    --activeThreads;
 }
 
 void VSThreadPool::reserveThread() {
-    activeThreads++;
+    --activeThreads;
 }
 
 void VSThreadPool::notifyCaches(bool needMemory) {
@@ -367,7 +367,7 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
     }
 
     // a normal tick for caches to adjust their sizes based on recent history
-    if (!context->upstreamContext && ticks++ == 99) {
+    if (!context->upstreamContext && ++ticks == 100) {
         ticks = 0;
         notifyCaches(false);
     }
@@ -377,7 +377,7 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
         tasks.push_back(context);
     } else {
         if (context->upstreamContext)
-            context->upstreamContext->numFrameRequests++;
+            ++context->upstreamContext->numFrameRequests;
 
         NodeOutputKey p(context->clip, context->n, context->index);
 

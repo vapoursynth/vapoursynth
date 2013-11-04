@@ -21,7 +21,6 @@
 #ifndef AVISYNTH_WRAPPER_H
 #define AVISYNTH_WRAPPER_H
 
-#include <QtCore/QtCore>
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #include <stdint.h>
