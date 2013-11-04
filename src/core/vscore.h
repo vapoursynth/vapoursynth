@@ -21,7 +21,11 @@
 #ifndef VSCORE_H
 #define VSCORE_H
 
-#include <QtCore/QtCore>
+#include <QtCore/QMap>
+#include <QtCore/QSharedData>
+#include <QtCore/QThread>
+#include <QtCore/QThreadStorage>
+#include <QtCore/QReadWriteLock>
 #include "VapourSynth.h"
 #include <stdlib.h>
 #include <stdexcept>
@@ -137,10 +141,10 @@ public:
     const VSVariant operator[](const QByteArray &key) const {
         return QMap<QByteArray, VSVariant>::operator[](key);
     }
-    void setError(const QByteArray &error) {
+    void setError(const std::string &error) {
         clear();
         VSVariant v(VSVariant::vData);
-        v.append(error);
+        v.append(QByteArray(error.c_str()));
         insert("_Error", v);
     }
 };
@@ -176,12 +180,12 @@ enum FilterArgumentType {
 
 class FilterArgument {
 public:
-    QByteArray name;
+    std::string name;
     FilterArgumentType type;
     bool arr;
     bool empty;
     bool opt;
-    FilterArgument(const QByteArray &name, FilterArgumentType type, bool arr, bool empty, bool opt)
+    FilterArgument(const std::string &name, FilterArgumentType type, bool arr, bool empty, bool opt)
         : name(name), type(type), arr(arr), empty(empty), opt(opt) {}
 };
 
@@ -288,7 +292,7 @@ private:
     PFrameContext upstreamContext;
     PFrameContext notificationChain;
     bool error;
-    QByteArray errorMessage;
+    std::string errorMessage;
     void *userData;
     VSFrameDoneCallback frameDone;
 public:
@@ -299,11 +303,11 @@ public:
     VSNodeRef *lastCompletedNode;
 
     void *frameContext;
-    void setError(const QByteArray &errorMsg);
+    void setError(const std::string &errorMsg);
     inline bool hasError() {
         return error;
     }
-    const QByteArray &getErrorMessage() {
+    const std::string &getErrorMessage() {
         return errorMessage;
     }
     FrameContext(int n, int index, VSNode *clip, const PFrameContext &upstreamContext);
@@ -317,7 +321,7 @@ private:
     VSFilterInit init;
     VSFilterGetFrame filterGetFrame;
     VSFilterFree free;
-    QByteArray name;
+    std::string name;
     VSCore *core;
     std::vector<VSVideoInfo> vi;
     int flags;
@@ -337,7 +341,7 @@ private:
 
     PVideoFrame getFrameInternal(int n, int activationReason, const PFrameContext &frameCtx);
 public:
-    VSNode(const VSMap *in, VSMap *out, const QByteArray &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion, VSCore *core);
+    VSNode(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion, VSCore *core);
 
     ~VSNode();
 
@@ -351,7 +355,7 @@ public:
         return vi.size();
     }
 
-    const QByteArray &getName() const {
+    const std::string &getName() const {
         return name;
     }
 
@@ -398,7 +402,7 @@ public:
     VSThreadPool(VSCore *core, int threads);
     ~VSThreadPool();
     void returnFrame(const PFrameContext &rCtx, const PVideoFrame &f);
-    void returnFrame(const PFrameContext &rCtx, const QByteArray &errMsg);
+    void returnFrame(const PFrameContext &rCtx, const std::string &errMsg);
     int    activeThreadCount() const;
     int    threadCount() const;
     void setThreadCount(int threads);
@@ -412,11 +416,11 @@ public:
 class VSFunction {
 public:
     QList<FilterArgument> args;
-    QByteArray name;
-    QByteArray argString;
+    std::string name;
+    std::string argString;
     void *functionData;
     VSPublicFunction func;
-    VSFunction(const QByteArray &name, const QByteArray &argString, VSPublicFunction func, void *functionData);
+    VSFunction(const std::string &name, const std::string &argString, VSPublicFunction func, void *functionData);
 };
 
 
@@ -432,15 +436,15 @@ private:
 #else
     void *libHandle;
 #endif
-    QByteArray filename;
+    std::string filename;
     QList<VSFunction> funcs;
     VSCore *core;
 public:
-    QByteArray fullname;
-    QByteArray fnamespace;
-    QByteArray identifier;
+    std::string fullname;
+    std::string fnamespace;
+    std::string identifier;
     VSPlugin(VSCore *core);
-    VSPlugin(const QByteArray &filename, const QByteArray &forcedNamespace, VSCore *core);
+    VSPlugin(const std::string &filename, const std::string &forcedNamespace, VSCore *core);
     ~VSPlugin();
     void lock() {
         readOnly = true;
@@ -448,9 +452,9 @@ public:
     void enableCompat() {
         compat = true;
     }
-    void configPlugin(const QByteArray &identifier, const QByteArray &defaultNamespace, const QByteArray &fullname, int apiVersion, bool readOnly);
-    void registerFunction(const QByteArray &name, const QByteArray &args, VSPublicFunction argsFunc, void *functionData);
-    VSMap invoke(const QByteArray &funcName, const VSMap &args);
+    void configPlugin(const std::string &identifier, const std::string &defaultNamespace, const std::string &fullname, int apiVersion, bool readOnly);
+    void registerFunction(const std::string &name, const std::string &args, VSPublicFunction argsFunc, void *functionData);
+    VSMap invoke(const std::string &funcName, const VSMap &args);
     VSMap getFunctions();
 };
 
@@ -464,7 +468,7 @@ struct VSCore {
     friend class VSThreadPool;
     friend class CacheInstance;
 private:
-    std::map<QByteArray, VSPlugin *> plugins;
+    std::map<std::string, VSPlugin *> plugins;
     std::recursive_mutex pluginLock;
     std::map<int, VSFormat *> formats;
     QReadWriteLock formatLock;
@@ -488,12 +492,12 @@ public:
     const VSFormat *registerFormat(VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name = NULL, int id = pfNone);
     bool isValidFormatPointer(const VSFormat *f);
 
-    void loadPlugin(const QByteArray &filename, const QByteArray &forcedNamespace = QByteArray());
-    void createFilter(const VSMap *in, VSMap *out, const QByteArray &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion);
+    void loadPlugin(const std::string &filename, const std::string &forcedNamespace = std::string());
+    void createFilter(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion);
 
     VSMap getPlugins();
-    VSPlugin *getPluginById(const QByteArray &identifier);
-    VSPlugin *getPluginByNs(const QByteArray &ns);
+    VSPlugin *getPluginById(const std::string &identifier);
+    VSPlugin *getPluginByNs(const std::string &ns);
 
     int64_t setMaxCacheSize(int64_t bytes);
     int getAPIVersion();

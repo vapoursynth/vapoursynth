@@ -19,7 +19,8 @@
 */
 
 #include <QtCore/QSettings>
-#include <QtCore/QReadWriteLock>
+#include <QtCore/QDir>
+#include <QtCore/QDirIterator>
 #include <assert.h>
 #include "vscore.h"
 #include "VSHelper.h"
@@ -54,9 +55,9 @@ static const QRegExp idRegExp("^[a-zA-Z][a-zA-Z0-9_]*$");
 static const QRegExp sysPropRegExp("^_[a-zA-Z0-9_]*$");
 static std::mutex regExpLock;
 
-static bool isValidIdentifier(const QByteArray &s) {
+static bool isValidIdentifier(const std::string &s) {
     std::lock_guard<std::mutex> lock(regExpLock);
-    return idRegExp.exactMatch(QString::fromUtf8(s.constData(), s.size()));
+    return idRegExp.exactMatch(QString::fromUtf8(s.c_str()));
 }
 
 FrameContext::FrameContext(int n, int index, VSNode *clip, const PFrameContext &upstreamContext) : numFrameRequests(0), index(index), n(n), node(NULL), clip(clip), upstreamContext(upstreamContext), userData(NULL), frameContext(NULL), frameDone(NULL), error(false), lastCompletedN(-1), lastCompletedNode(NULL) {
@@ -65,7 +66,7 @@ FrameContext::FrameContext(int n, int index, VSNode *clip, const PFrameContext &
 FrameContext::FrameContext(int n, int index, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData) : numFrameRequests(0), index(index), n(n), node(node), clip(node->clip.get()), frameContext(NULL), userData(userData), frameDone(frameDone), error(false), lastCompletedN(-1), lastCompletedNode(NULL) {
 }
 
-void FrameContext::setError(const QByteArray &errorMsg) {
+void FrameContext::setError(const std::string &errorMsg) {
     error = true;
     errorMessage = errorMsg;
 }
@@ -319,19 +320,20 @@ uint8_t *VSFrame::getWritePtr(int plane) {
     }
 }
 
-VSFunction::VSFunction(const QByteArray &name, const QByteArray &argString, VSPublicFunction func, void *functionData)
+VSFunction::VSFunction(const std::string &name, const std::string &argString, VSPublicFunction func, void *functionData)
     : name(name), argString(argString), functionData(functionData), func(func) {
-    QString argQString = QString::fromUtf8(argString);
+    QString argQString = QString::fromUtf8(argString.c_str());
     QStringList argList = argQString.split(';', QString::SkipEmptyParts);
     foreach(QString arg, argList) {
         QStringList argParts = arg.split(':');
 
         if (argParts.count() < 2)
-            qFatal("Invalid: %s", argString.constData());
+            qFatal("Invalid: %s", argString.c_str());
 
         bool arr = false;
         enum FilterArgumentType type = faNone;
-        QString typeName = argParts[1];
+        std::string argName = argParts[0].toUtf8();
+        std::string typeName = argParts[1].toUtf8();
 
         if (typeName == "int")
             type = faInt;
@@ -361,7 +363,7 @@ VSFunction::VSFunction(const QByteArray &name, const QByteArray &argString, VSPu
             else if (typeName == "func[]")
                 type = faFunc;
             else
-                qFatal("Invalid arg string: %s", typeName.toUtf8().constData());
+                qFatal("Invalid arg string: %s", typeName.c_str());
         }
 
         bool opt = false;
@@ -374,17 +376,17 @@ VSFunction::VSFunction(const QByteArray &name, const QByteArray &argString, VSPu
                 empty = true;
         }
 
-        if (!isValidIdentifier(argParts[0].toUtf8()))
+        if (!isValidIdentifier(argName))
             qFatal("Illegal argument identifier specified for function");
 
         if (empty && !arr)
             qFatal("Only array arguments can have the empty flag set");
 
-        args.append(FilterArgument(argParts[0].toUtf8(), type, arr, empty, opt));
+        args.append(FilterArgument(argName, type, arr, empty, opt));
     }
 }
 
-VSNode::VSNode(const VSMap *in, VSMap *out, const QByteArray &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion, VSCore *core) :
+VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion, VSCore *core) :
     instanceData(instanceData), name(name), init(init), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiVersion(apiVersion), core(core), flags(flags), hasVi(false), serialFrame(-1) {
     VSMap inval(*in);
     init(&inval, out, &this->instanceData, this, core, getVSAPIInternal(apiVersion));
@@ -393,7 +395,7 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const QByteArray &name, VSFilterInit
         throw VSException(vsapi.getError(out));
 
     if (!hasVi)
-        qFatal("Filter %s didn't set vi", name.constData());
+        qFatal("Filter %s didn't set vi", name.c_str());
 }
 
 VSNode::~VSNode() {
@@ -429,11 +431,11 @@ PVideoFrame VSNode::getFrameInternal(int n, int activationReason, const PFrameCo
 // This stuff really only works properly on windows, feel free to investigate what the linux ABI thinks about it
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isMMXStateOk())
-        qFatal("Bad MMX state detected after return from %s", name.constData());
+        qFatal("Bad MMX state detected after return from %s", name.c_str());
     if (!vs_isFPUStateOk())
-        qWarning("Bad FPU state detected after return from %s", name.constData());
+        qWarning("Bad FPU state detected after return from %s", name.c_str());
     if (!vs_isSSEStateOk())
-        qFatal("Bad SSE state detected after return from %s", name.constData());
+        qFatal("Bad SSE state detected after return from %s", name.c_str());
 #endif
 
     if (r) {
@@ -656,7 +658,7 @@ bool VSCore::loadAllPluginsInPath(const QString &path, const QString &filter) {
     QDirIterator dirIterator(dir);
     while (dirIterator.hasNext()) {
         try {
-            loadPlugin(dirIterator.next().toUtf8());
+            loadPlugin(dirIterator.next().toUtf8().constData());
         } catch (VSException &) {
             // Ignore any errors
         }
@@ -687,7 +689,7 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
 #if defined(VS_TARGET_OS_WINDOWS) && defined(VS_FEATURE_AVISYNTH)
     p = new VSPlugin(this);
     avsWrapperInitialize(::configPlugin, ::registerFunction, p);
-    plugins.insert(std::pair<QByteArray, VSPlugin *>(p->identifier, p));
+    plugins.insert(std::pair<std::string, VSPlugin *>(p->identifier, p));
     p->enableCompat();
 #endif
 
@@ -703,16 +705,16 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
     p->enableCompat();
     p->lock();
 
-    plugins.insert(std::pair<QByteArray, VSPlugin *>(p->identifier, p));
+    plugins.insert(std::pair<std::string, VSPlugin *>(p->identifier, p));
     p = new VSPlugin(this);
     resizeInitialize(::configPlugin, ::registerFunction, p);
-    plugins.insert(std::pair<QByteArray, VSPlugin *>(p->identifier, p));
+    plugins.insert(std::pair<std::string, VSPlugin *>(p->identifier, p));
     p->enableCompat();
 
-    plugins.insert(std::pair<QByteArray, VSPlugin *>(p->identifier, p));
+    plugins.insert(std::pair<std::string, VSPlugin *>(p->identifier, p));
     p = new VSPlugin(this);
     textInitialize(::configPlugin, ::registerFunction, p);
-    plugins.insert(std::pair<QByteArray, VSPlugin *>(p->identifier, p));
+    plugins.insert(std::pair<std::string, VSPlugin *>(p->identifier, p));
     p->enableCompat();
 
 #ifdef VS_TARGET_OS_WINDOWS
@@ -781,13 +783,13 @@ VSMap VSCore::getPlugins() {
     VSMap m;
     std::lock_guard<std::recursive_mutex> lock(pluginLock);
     for (const auto &iter : plugins) {
-        QByteArray b = iter.second->fnamespace + ";" + iter.second->identifier + ";" + iter.second->fullname;
-        vsapi.propSetData(&m, iter.second->identifier.constData(), b.constData(), b.size(), 0);
+        std::string b = iter.second->fnamespace + ";" + iter.second->identifier + ";" + iter.second->fullname;
+        vsapi.propSetData(&m, iter.second->identifier.c_str(), b.c_str(), b.size(), 0);
     }
     return m;
 }
 
-VSPlugin *VSCore::getPluginById(const QByteArray &identifier) {
+VSPlugin *VSCore::getPluginById(const std::string &identifier) {
     std::lock_guard<std::recursive_mutex> lock(pluginLock);
     try {
         return plugins.at(identifier);
@@ -796,7 +798,7 @@ VSPlugin *VSCore::getPluginById(const QByteArray &identifier) {
     return NULL;
 }
 
-VSPlugin *VSCore::getPluginByNs(const QByteArray &ns) {
+VSPlugin *VSCore::getPluginByNs(const std::string &ns) {
     std::lock_guard<std::recursive_mutex> lock(pluginLock);
     for (const auto &iter : plugins) {
         if (iter.second->fnamespace == ns)
@@ -805,7 +807,7 @@ VSPlugin *VSCore::getPluginByNs(const QByteArray &ns) {
     return NULL;
 }
 
-void VSCore::loadPlugin(const QByteArray &filename, const QByteArray &forcedNamespace)  {
+void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNamespace) {
     VSPlugin *p = new VSPlugin(filename, forcedNamespace, this);
 
     std::lock_guard<std::recursive_mutex> lock(pluginLock);
@@ -821,10 +823,10 @@ void VSCore::loadPlugin(const QByteArray &filename, const QByteArray &forcedName
         throw VSException(error);
     }
 
-    plugins.insert(std::pair<QByteArray, VSPlugin *>(p->identifier, p));
+    plugins.insert(std::pair<std::string, VSPlugin *>(p->identifier, p));
 }
 
-void VSCore::createFilter(const VSMap *in, VSMap *out, const QByteArray &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion) {
+void VSCore::createFilter(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion) {
     try {
         PVideoNode node = std::make_shared<VSNode>(in, out, name, init, getFrame, free, filterMode, flags, instanceData, apiVersion, this);
         for (int i = 0; i < node->getNumOutputs(); i++) {
@@ -846,10 +848,10 @@ VSPlugin::VSPlugin(VSCore *core)
     : apiVersion(0), hasConfig(false), readOnly(false), compat(false), libHandle(0), core(core) {
 }
 
-VSPlugin::VSPlugin(const QByteArray &filename, const QByteArray &forcedNamespace, VSCore *core)
+VSPlugin::VSPlugin(const std::string &filename, const std::string &forcedNamespace, VSCore *core)
     : apiVersion(0), hasConfig(false), readOnly(false), compat(false), libHandle(0), filename(filename), core(core), fnamespace(forcedNamespace) {
 #ifdef VS_TARGET_OS_WINDOWS
-    QString uStr = QString::fromUtf8(filename.constData(), filename.size());
+    QString uStr = QString::fromUtf8(filename.c_str(), filename.size());
     
     libHandle = LoadLibrary(uStr.utf16());
 
@@ -871,7 +873,7 @@ VSPlugin::VSPlugin(const QByteArray &filename, const QByteArray &forcedNamespace
     if (!libHandle) {
         const char *dlError = dlerror();
         if (dlError)
-            throw VSException("Failed to load " + filename + ". Error given: " + QByteArray(dlError));
+            throw VSException("Failed to load " + filename + ". Error given: " + std::string(dlError));
         else
             throw VSException("Failed to load " + filename);
     }
@@ -888,11 +890,11 @@ VSPlugin::VSPlugin(const QByteArray &filename, const QByteArray &forcedNamespace
 // This stuff really only works properly on windows, feel free to investigate what the linux ABI thinks about it
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isMMXStateOk())
-        qFatal("Bad MMX state detected after loading %s", fullname.constData());
+        qFatal("Bad MMX state detected after loading %s", fullname.c_str());
     if (!vs_isFPUStateOk())
-        qWarning("Bad FPU state detected after loading %s", fullname.constData());
+        qWarning("Bad FPU state detected after loading %s", fullname.c_str());
     if (!vs_isSSEStateOk())
-        qFatal("Bad SSE state detected after loading %s", fullname.constData());
+        qFatal("Bad SSE state detected after loading %s", fullname.c_str());
 #endif
 
     if (readOnlySet)
@@ -918,9 +920,9 @@ VSPlugin::~VSPlugin() {
 #endif
 }
 
-void VSPlugin::configPlugin(const QByteArray &identifier, const QByteArray &defaultNamespace, const QByteArray &fullname, int apiVersion, bool readOnly) {
+void VSPlugin::configPlugin(const std::string &identifier, const std::string &defaultNamespace, const std::string &fullname, int apiVersion, bool readOnly) {
     if (hasConfig)
-        qFatal("Attempted to configure plugin %s twice", identifier.constData());
+        qFatal("Attempted to configure plugin %s twice", identifier.c_str());
 
     this->identifier = identifier;
 
@@ -933,7 +935,7 @@ void VSPlugin::configPlugin(const QByteArray &identifier, const QByteArray &defa
     hasConfig = true;
 }
 
-void VSPlugin::registerFunction(const QByteArray &name, const QByteArray &args, VSPublicFunction argsFunc, void *functionData) {
+void VSPlugin::registerFunction(const std::string &name, const std::string &args, VSPublicFunction argsFunc, void *functionData) {
     if (readOnly)
         qFatal("Tried to modify read only namespace");
 
@@ -942,7 +944,7 @@ void VSPlugin::registerFunction(const QByteArray &name, const QByteArray &args, 
 
     foreach(const VSFunction & f, funcs)
 
-    if (!qstricmp(name.constData(), f.name.constData()))
+    if (!qstricmp(name.c_str(), f.name.c_str()))
         qFatal("Duplicate function registered");
 
     funcs.append(VSFunction(name, args, argsFunc, functionData));
@@ -963,7 +965,7 @@ static bool hasCompatNodes(const VSMap &m) {
     return false;
 }
 
-VSMap VSPlugin::invoke(const QByteArray &funcName, const VSMap &args) {
+VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
     const char lookup[] = { 'i', 'f', 's', 'c', 'v', 'm' };
     VSMap v;
 
@@ -978,18 +980,18 @@ VSMap VSPlugin::invoke(const QByteArray &funcName, const VSMap &args) {
 
             for (int i = 0; i < f.args.count(); i++) {
                 const FilterArgument &fa = f.args[i];
-                char c = vsapi.propGetType(&args, fa.name);
+                char c = vsapi.propGetType(&args, fa.name.c_str());
 
                 if (c != 'u') {
-                    argsCopy.remove(fa.name);
+                    argsCopy.remove(fa.name.c_str());
 
                     if (lookup[(int)fa.type] != c)
                         throw VSException(funcName + ": argument " + fa.name + " is not of the correct type");
 
-                    if (!fa.arr && args[fa.name].size() > 1)
+                    if (!fa.arr && args[fa.name.c_str()].size() > 1)
                         throw VSException(funcName + ": argument " + fa.name + " is not of array type but more than one value was supplied");
 
-                    if (!fa.empty && args[fa.name].size() < 1)
+                    if (!fa.empty && args[fa.name.c_str()].size() < 1)
                         throw VSException(funcName + ": argument " + fa.name + " does not accept empty arrays");
 
                 } else if (!fa.opt) {
@@ -1002,16 +1004,16 @@ VSMap VSPlugin::invoke(const QByteArray &funcName, const VSMap &args) {
                 QStringList sl;
 
                 for (int i = 0; i < bl.count(); i++)
-                    sl.append(bl[i]);
+                    sl.append(QString::fromUtf8(bl[i]));
 
                 sl.sort();
-                throw VSException(funcName + ": no argument named " + sl.join(", ").toUtf8());
+                throw VSException(QByteArray(funcName.c_str()) + ": no argument named " + sl.join(", ").toUtf8());
             }
 
             f.func(&args, &v, f.functionData, core, getVSAPIInternal(apiVersion));
 
             if (!compat && hasCompatNodes(v))
-                qFatal("%s: illegal filter node returning a compat format detected, DO NOT USE THE COMPAT FORMATS IN NEW FILTERS", funcName.constData());
+                qFatal("%s: illegal filter node returning a compat format detected, DO NOT USE THE COMPAT FORMATS IN NEW FILTERS", funcName.c_str());
 
             return v;
         }
@@ -1020,15 +1022,15 @@ VSMap VSPlugin::invoke(const QByteArray &funcName, const VSMap &args) {
         return v;
     }
 
-    vsapi.setError(&v, "Function '" + funcName + "' not found in " + fullname);
+    vsapi.setError(&v, ("Function '" + funcName + "' not found in " + fullname).c_str());
     return v;
 }
 
 VSMap VSPlugin::getFunctions() {
     VSMap m;
     foreach(const VSFunction & f, funcs) {
-        QByteArray b = f.name + ";" + f.argString;
-        vsapi.propSetData(&m, f.name.constData(), b.constData(), b.size(), 0);
+        std::string b = f.name + ";" + f.argString;
+        vsapi.propSetData(&m, f.name.c_str(), b.c_str(), b.size(), 0);
     }
     return m;
 }

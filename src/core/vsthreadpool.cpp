@@ -236,7 +236,7 @@ void VSThread::run() {
                 } while ((mainContextRef = n));
             } else if (f) {
                 if (hasExistingRequests || requestedFrames)
-                    qFatal("A frame was returned at the end of processing by %s but there are still outstanding requests", clip->name.constData());
+                    qFatal("A frame was returned at the end of processing by %s but there are still outstanding requests", clip->name.c_str());
                 PFrameContext n;
 
                 do {
@@ -256,7 +256,7 @@ void VSThread::run() {
             } else if (hasExistingRequests || requestedFrames) {
                 // already scheduled, do nothing
             } else {
-                qFatal("No frame returned at the end of processing by %s", clip->name.constData());
+                qFatal("No frame returned at the end of processing by %s", clip->name.c_str());
             }
             break;
         }
@@ -341,13 +341,13 @@ void VSThreadPool::returnFrame(const PFrameContext &rCtx, const PVideoFrame &f) 
     lock.lock();
 }
 
-void VSThreadPool::returnFrame(const PFrameContext &rCtx, const QByteArray &errMsg) {
+void VSThreadPool::returnFrame(const PFrameContext &rCtx, const std::string &errMsg) {
     assert(rCtx->frameDone);
     // we need to unlock here so the callback may request more frames without causing a deadlock
     // AND so that slow callbacks will only block operations in this thread, not all the others
     lock.unlock();
     callbackLock.lock();
-    rCtx->frameDone(rCtx->userData, NULL, rCtx->n, rCtx->node, errMsg.constData());
+    rCtx->frameDone(rCtx->userData, NULL, rCtx->n, rCtx->node, errMsg.c_str());
     callbackLock.unlock();
     lock.lock();
 }
@@ -357,7 +357,7 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
     //unfortunately this would probably be quite slow for deep scripts so just hope the cache catches it
 
     if (context->n < 0)
-        qFatal("Negative frame request by: %s", context->clip->getName().constData());
+        qFatal("Negative frame request by: %s", context->clip->getName().c_str());
 
     // check to see if it's time to reevaluate cache sizes
     if (core->memory->isOverLimit()) {
