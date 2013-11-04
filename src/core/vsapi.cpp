@@ -20,7 +20,6 @@
 
 #include "vscore.h"
 #include "cpufeatures.h"
-#include <QtCore/QWaitCondition>
 #include <assert.h>
 
 void VS_CC configPlugin(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readOnly, VSPlugin *plugin) {
@@ -66,8 +65,8 @@ static void VS_CC getFrameAsync(int n, VSNodeRef *clip, VSFrameDoneCallback fdc,
 }
 
 struct GetFrameWaiter {
-    QMutex b;
-    QWaitCondition a;
+    std::mutex b;
+    std::condition_variable a;
     const VSFrameRef *r;
     char *errorMsg;
     int bufSize;
@@ -76,7 +75,7 @@ struct GetFrameWaiter {
 
 static void VS_CC frameWaiterCallback(void *userData, const VSFrameRef *frame, int n, VSNodeRef *node, const char *errorMsg) {
     GetFrameWaiter *g = (GetFrameWaiter *)userData;
-    QMutexLocker l(&g->b);
+    std::lock_guard<std::mutex> l(g->b);
     g->r = frame;
     if (g->errorMsg && g->bufSize > 0) {
         memset(g->errorMsg, 0, g->bufSize);
@@ -85,19 +84,19 @@ static void VS_CC frameWaiterCallback(void *userData, const VSFrameRef *frame, i
             g->errorMsg[g->bufSize - 1] = 0;
         }
     }
-    g->a.wakeOne();
+    g->a.notify_one();
 }
 
 static const VSFrameRef *VS_CC getFrame(int n, VSNodeRef *clip, char *errorMsg, int bufSize) {
     GetFrameWaiter g(errorMsg, bufSize);
-    QMutexLocker l(&g.b);
+    std::unique_lock<std::mutex> l(g.b);
     PFrameContext c = std::make_shared<FrameContext>(n, clip->index, clip, &frameWaiterCallback, &g);
     VSNode *node = clip->clip.get();
     bool isWorker = node->isWorkerThread();
     if (isWorker)
         node->releaseThread();
     node->getFrame(c);
-    g.a.wait(&g.b);
+    g.a.wait(l);
     if (isWorker)
         node->reserveThread();
     return g.r;
