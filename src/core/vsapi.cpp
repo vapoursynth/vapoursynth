@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012 Fredrik Mellbin
+* Copyright (c) 2012-2013 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -20,6 +20,7 @@
 
 #include "vscore.h"
 #include "cpufeatures.h"
+#include <assert.h>
 
 void VS_CC configPlugin(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readOnly, VSPlugin *plugin) {
     plugin->configPlugin(identifier, defaultNamespace, name, apiVersion, readOnly);
@@ -38,12 +39,12 @@ static const VSFormat *VS_CC registerFormat(int colorFamily, int sampleType, int
 }
 
 static const VSFrameRef *VS_CC cloneFrameRef(const VSFrameRef *frame) {
-    Q_ASSERT(frame);
+    assert(frame);
     return new VSFrameRef(frame->frame);
 }
 
 static VSNodeRef *VS_CC cloneNodeRef(VSNodeRef *node) {
-    Q_ASSERT(node);
+    assert(node);
     return new VSNodeRef(node->clip, node->index);
 }
 
@@ -60,8 +61,7 @@ static uint8_t *VS_CC getWritePtr(VSFrameRef *frame, int plane) {
 }
 
 static void VS_CC getFrameAsync(int n, VSNodeRef *clip, VSFrameDoneCallback fdc, void *userData) {
-    PFrameContext c(new FrameContext(n, clip->index, clip, fdc, userData));
-    clip->clip->getFrame(c);
+    clip->clip->getFrame(std::make_shared<FrameContext>(n, clip->index, clip, fdc, userData));
 }
 
 struct GetFrameWaiter {
@@ -90,8 +90,8 @@ static void VS_CC frameWaiterCallback(void *userData, const VSFrameRef *frame, i
 static const VSFrameRef *VS_CC getFrame(int n, VSNodeRef *clip, char *errorMsg, int bufSize) {
     GetFrameWaiter g(errorMsg, bufSize);
     QMutexLocker l(&g.b);
-    PFrameContext c(new FrameContext(n, clip->index, clip, &frameWaiterCallback, &g));
-    VSNode *node = clip->clip.data();
+    PFrameContext c = std::make_shared<FrameContext>(n, clip->index, clip, &frameWaiterCallback, &g);
+    VSNode *node = clip->clip.get();
     bool isWorker = node->isWorkerThread();
     if (isWorker)
         node->releaseThread();
@@ -105,17 +105,16 @@ static const VSFrameRef *VS_CC getFrame(int n, VSNodeRef *clip, char *errorMsg, 
 static void VS_CC requestFrameFilter(int n, VSNodeRef *clip, VSFrameContext *ctxHandle) {
     PFrameContext f(*(PFrameContext *)ctxHandle);
     VSThreadData *localData = f->tlRequests->localData();
-    localData->append(PFrameContext(new FrameContext(n, clip->index, clip->clip.data(), f)));
+    localData->push_back(std::make_shared<FrameContext>(n, clip->index, clip->clip.get(), f));
 }
 
 static const VSFrameRef *VS_CC getFrameFilter(int n, VSNodeRef *clip, VSFrameContext *ctxHandle) {
     PFrameContext f(*(PFrameContext *)ctxHandle);
-    PVideoFrame g = f->availableFrames.value(NodeOutputKey(clip->clip.data(), n, clip->index));
-
-    if (g)
-        return new VSFrameRef(g);
-    else
-        return NULL;
+    try {
+        return new VSFrameRef(f->availableFrames.at(NodeOutputKey(clip->clip.get(), n, clip->index)));
+    } catch (std::out_of_range &) {
+    }
+    return NULL;
 }
 
 static void VS_CC freeFrame(const VSFrameRef *frame) {
@@ -127,16 +126,16 @@ static void VS_CC freeNode(VSNodeRef *clip) {
 }
 
 static VSFrameRef *VS_CC newVideoFrame(const VSFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core) {
-    Q_ASSERT(format);
-    return new VSFrameRef(core->newVideoFrame(format, width, height, propSrc ? propSrc->frame.data() : NULL));
+    assert(format);
+    return new VSFrameRef(core->newVideoFrame(format, width, height, propSrc ? propSrc->frame.get() : NULL));
 }
 
 static VSFrameRef *VS_CC newVideoFrame2(const VSFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core) {
-    Q_ASSERT(format);
+    assert(format);
     VSFrame *fp[3];
     for (int i = 0; i < format->numPlanes; i++)
-        fp[i] = planeSrc[i] ? planeSrc[i]->frame.data() : NULL;
-    return new VSFrameRef(core->newVideoFrame(format, width, height, fp, planes, propSrc ? propSrc->frame.data() : NULL));
+        fp[i] = planeSrc[i] ? planeSrc[i]->frame.get() : NULL;
+    return new VSFrameRef(core->newVideoFrame(format, width, height, fp, planes, propSrc ? propSrc->frame.get() : NULL));
 }
 
 static VSFrameRef *VS_CC copyFrame(const VSFrameRef *frame, VSCore *core) {
@@ -412,7 +411,7 @@ static int VS_CC propSetFrame(VSMap *props, const char *name, const VSFrameRef *
 }
 
 static VSMap *VS_CC invoke(VSPlugin *plugin, const char *name, const VSMap *args) {
-    Q_ASSERT(plugin);
+    assert(plugin);
     return new VSMap(plugin->invoke(name, *args));
 }
 
@@ -491,7 +490,7 @@ static void VS_CC callFunc(VSFuncRef *func, const VSMap *in, VSMap *out, VSCore 
 }
 
 static VSFuncRef *VS_CC createFunc(VSPublicFunction func, void *userData, VSFreeFuncData free) {
-    return new VSFuncRef(PExtFunction(new ExtFunction(func, userData, free)));
+    return new VSFuncRef(std::make_shared<ExtFunction>(func, userData, free));
 }
 
 static void VS_CC freeFunc(VSFuncRef *f) {
@@ -506,7 +505,7 @@ static void VS_CC queryCompletedFrame(VSNodeRef **node, int *n, VSFrameContext *
 
 static void VS_CC releaseFrameEarly(VSNodeRef *node, int n, VSFrameContext *frameCtx) {
     PFrameContext f(*(PFrameContext *)frameCtx);
-    f->availableFrames.remove(NodeOutputKey(node->clip.data(), n, node->index));
+    f->availableFrames.erase(NodeOutputKey(node->clip.get(), n, node->index));
 }
 
 static VSFuncRef *VS_CC cloneFuncRef(VSFuncRef *f) {
@@ -525,8 +524,8 @@ static int VS_CC getOutputIndex(VSFrameContext *frameCtx) {
 static VSMessageHandler messageHandler = NULL;
 static void *messageData = NULL;
 
-static void vsMessageHandler(QtMsgType type, const char *msg) {
-    messageHandler(type, msg, messageData);
+static void vsMessageHandler(QtMsgType type, const QMessageLogContext &ctx, const QString &msg) {
+    messageHandler(type, msg.toUtf8(), messageData);
     if (type == QtFatalMsg)
         abort();
 }
@@ -535,9 +534,9 @@ static void VS_CC setMessageHandler(VSMessageHandler handler, void *userData) {
     if (handler) {
         ::messageHandler = handler;
         ::messageData = userData;
-        qInstallMsgHandler(vsMessageHandler);
+        qInstallMessageHandler(vsMessageHandler);
     } else {
-        qInstallMsgHandler(NULL);
+        qInstallMessageHandler(NULL);
         ::messageHandler = NULL;
         ::messageData = NULL;
     }

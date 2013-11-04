@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012 Fredrik Mellbin
+* Copyright (c) 2012-2013 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -20,6 +20,7 @@
 
 #include <QtCore/QSettings>
 #include <QtCore/QReadWriteLock>
+#include <assert.h>
 #include "vscore.h"
 #include "VSHelper.h"
 #include "version.h"
@@ -60,7 +61,7 @@ static bool isValidIdentifier(const QByteArray &s) {
 FrameContext::FrameContext(int n, int index, VSNode *clip, const PFrameContext &upstreamContext) : numFrameRequests(0), index(index), n(n), node(NULL), clip(clip), upstreamContext(upstreamContext), userData(NULL), frameContext(NULL), frameDone(NULL), error(false), lastCompletedN(-1), lastCompletedNode(NULL) {
 }
 
-FrameContext::FrameContext(int n, int index, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData) : numFrameRequests(0), index(index), n(n), node(node), clip(node->clip.data()), frameContext(NULL), userData(userData), frameDone(frameDone), error(false), lastCompletedN(-1), lastCompletedNode(NULL) {
+FrameContext::FrameContext(int n, int index, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData) : numFrameRequests(0), index(index), n(n), node(node), clip(node->clip.get()), frameContext(NULL), userData(userData), frameDone(frameDone), error(false), lastCompletedN(-1), lastCompletedNode(NULL) {
 }
 
 void FrameContext::setError(const QByteArray &errorMsg) {
@@ -157,7 +158,7 @@ void VSVariant::append(const PExtFunction &val) {
 }
 
 void VSVariant::initStorage(VSVType t) {
-    Q_ASSERT(vtype == vUnset || vtype == t);
+    assert(vtype == vUnset || vtype == t);
     vtype = t;
     if (!storage) {
         switch (t) {
@@ -182,6 +183,7 @@ void VSVariant::initStorage(VSVType t) {
 VSFrameData::VSFrameData(quint32 size, MemoryUse *mem) : QSharedData(), mem(mem), size(size) {
     data = vs_aligned_malloc<uint8_t>(size, VSFrame::alignment);
     Q_CHECK_PTR(data);
+    assert(data);
     mem->add(size);
 }
 
@@ -190,6 +192,7 @@ VSFrameData::VSFrameData(const VSFrameData &d) : QSharedData(d) {
     mem = d.mem;
     data = vs_aligned_malloc<uint8_t>(size, VSFrame::alignment);
     Q_CHECK_PTR(data);
+    assert(data);
     mem->add(size);
     memcpy(data, d.data, size);
 }
@@ -277,6 +280,7 @@ VSFrame::VSFrame(const VSFrame &f) {
 }
 
 int VSFrame::getStride(int plane) const {
+    assert(plane >= 0 && plane < 3);
     if (plane < 0 || plane >= format->numPlanes)
         qFatal("Invalid plane stride requested");
     return stride[plane];
@@ -401,7 +405,7 @@ void VSNode::getFrame(const PFrameContext &ct) {
 }
 
 const VSVideoInfo &VSNode::getVideoInfo(int index) {
-    if (index < 0 || index >= vi.size())
+    if (index < 0 || index >= (int)vi.size())
         qFatal("Out of bounds videoinfo index");
     return vi[index];
 }
@@ -413,7 +417,7 @@ void VSNode::setVideoInfo(const VSVideoInfo *vi, int numOutputs) {
             qFatal("Variable dimension clips must have both width and height set to 0");
         if (vi[i].format && !core->isValidFormatPointer(vi[i].format))
             qFatal("The VSFormat pointer passed to setVideoInfo() was not gotten from registerFormat() or getFormatPreset()");
-        this->vi.append(vi[i]);
+        this->vi.push_back(vi[i]);
         this->vi[i].flags = flags;
     }
     hasVi = true;
@@ -470,15 +474,15 @@ void VSNode::notifyCache(bool needMemory) {
 }
 
 PVideoFrame VSCore::newVideoFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc) {
-    return PVideoFrame(new VSFrame(f, width, height, propSrc, this));
+    return std::make_shared<VSFrame>(f, width, height, propSrc, this);
 }
 
 PVideoFrame VSCore::newVideoFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *planes, const VSFrame *propSrc) {
-    return PVideoFrame(new VSFrame(f, width, height, planeSrc, planes, propSrc, this));
+    return std::make_shared<VSFrame>(f, width, height, planeSrc, planes, propSrc, this);
 }
 
 PVideoFrame VSCore::copyFrame(const PVideoFrame &srcf) {
-    return PVideoFrame(new VSFrame(*srcf.data()));
+    return std::make_shared<VSFrame>(*srcf.get());
 }
 
 void VSCore::copyFrameProps(const PVideoFrame &src, PVideoFrame &dst) {
@@ -488,10 +492,12 @@ void VSCore::copyFrameProps(const PVideoFrame &src, PVideoFrame &dst) {
 const VSFormat *VSCore::getFormatPreset(int id) {
     QReadLocker lock(&formatLock);
 
-    if (formats.contains(id))
-        return formats[id];
-    else
-        return NULL;
+    try {
+        return formats.at(id);
+    } catch (std::out_of_range &) {
+    }
+
+    return NULL;
 }
 
 const VSFormat *VSCore::registerFormat(VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name, int id) {
@@ -518,8 +524,8 @@ const VSFormat *VSCore::registerFormat(VSColorFamily colorFamily, VSSampleType s
 
     QWriteLocker lock(&formatLock);
 
-    for (QMap<int, VSFormat *>::const_iterator i = formats.constBegin(); i != formats.constEnd(); ++i) {
-        const VSFormat *f = *i;
+    for (std::map<int, VSFormat *>::const_iterator i = formats.begin(); i != formats.end(); ++i) {
+        const VSFormat *f = i->second;
 
         if (f->colorFamily == colorFamily && f->sampleType == sampleType
                 && f->subSamplingW == subSamplingW && f->subSamplingH == subSamplingH && f->bitsPerSample == bitsPerSample)
@@ -551,15 +557,15 @@ const VSFormat *VSCore::registerFormat(VSColorFamily colorFamily, VSSampleType s
     f->subSamplingH = subSamplingH;
     f->numPlanes = (colorFamily == cmGray || colorFamily == cmCompat) ? 1 : 3;
 
-    formats.insert(f->id, f);
+    formats.insert(std::pair<int, VSFormat *>(f->id, f));
     return f;
 }
 
 bool VSCore::isValidFormatPointer(const VSFormat *f) {
     QReadLocker lock(&formatLock);
 
-    for (QMap<int, VSFormat *>::const_iterator i = formats.constBegin(); i != formats.constEnd(); ++i) {
-        if (*i == f)
+    for (std::map<int, VSFormat *>::const_iterator iter = formats.begin(); iter != formats.end(); ++iter) {
+        if (iter->second == f)
             return true;
     }
     return false;
@@ -680,7 +686,7 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), pluginLock(QMutex::Recurs
 #if defined(VS_TARGET_OS_WINDOWS) && defined(VS_FEATURE_AVISYNTH)
     p = new VSPlugin(this);
     avsWrapperInitialize(::configPlugin, ::registerFunction, p);
-    plugins.insert(p->identifier, p);
+    plugins.insert(std::pair<QByteArray, VSPlugin *>(p->identifier, p));
     p->enableCompat();
 #endif
 
@@ -696,16 +702,16 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), pluginLock(QMutex::Recurs
     p->enableCompat();
     p->lock();
 
-    plugins.insert(p->identifier, p);
+    plugins.insert(std::pair<QByteArray, VSPlugin *>(p->identifier, p));
     p = new VSPlugin(this);
     resizeInitialize(::configPlugin, ::registerFunction, p);
-    plugins.insert(p->identifier, p);
+    plugins.insert(std::pair<QByteArray, VSPlugin *>(p->identifier, p));
     p->enableCompat();
 
-    plugins.insert(p->identifier, p);
+    plugins.insert(std::pair<QByteArray, VSPlugin *>(p->identifier, p));
     p = new VSPlugin(this);
     textInitialize(::configPlugin, ::registerFunction, p);
-    plugins.insert(p->identifier, p);
+    plugins.insert(std::pair<QByteArray, VSPlugin *>(p->identifier, p));
     p->enableCompat();
 
 #ifdef VS_TARGET_OS_WINDOWS
@@ -713,7 +719,8 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), pluginLock(QMutex::Recurs
     // Autoload user specific plugins first so a user can always override
     std::vector<wchar_t> appDataBuffer(MAX_PATH + 1);
     SHGetFolderPath(NULL, CSIDL_APPDATA, NULL, SHGFP_TYPE_CURRENT, &appDataBuffer[0]);
-    QString appDataPath = QString::fromWCharArray(&appDataBuffer[0]) + "\\VapourSynth\\plugins";
+
+    QString appDataPath = QString::fromUtf16(&appDataBuffer[0]) + "\\VapourSynth\\plugins";
     if (!loadAllPluginsInPath(appDataPath, filter))
         qWarning("User specific plugin autoloading failed. Directory '%s' doesn't exist?", appDataPath.toUtf8().constData());
 
@@ -761,32 +768,38 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), pluginLock(QMutex::Recurs
 VSCore::~VSCore() {
     memory->signalFree();
     //delete threadPool;
-    foreach(VSPlugin * p, plugins)
-        delete p;
-    foreach(VSFormat * f, formats)
-        delete f;
+    for(std::map<QByteArray, VSPlugin *>::iterator iter = plugins.begin(); iter != plugins.end(); ++iter)
+        delete iter->second;
+    plugins.clear();
+    for(std::map<int, VSFormat *>::iterator iter = formats.begin(); iter != formats.end(); ++iter)
+        delete iter->second;
+    formats.clear();
 }
 
 VSMap VSCore::getPlugins() {
     VSMap m;
     QMutexLocker lock(&pluginLock);
-    foreach(VSPlugin * p, plugins) {
-        QByteArray b = p->fnamespace + ";" + p->identifier + ";" + p->fullname;
-        vsapi.propSetData(&m, p->identifier.constData(), b.constData(), b.size(), 0);
+    for(std::map<QByteArray, VSPlugin *>::iterator iter = plugins.begin(); iter != plugins.end(); ++iter) {
+        QByteArray b = iter->second->fnamespace + ";" + iter->second->identifier + ";" + iter->second->fullname;
+        vsapi.propSetData(&m, iter->second->identifier.constData(), b.constData(), b.size(), 0);
     }
     return m;
 }
 
 VSPlugin *VSCore::getPluginById(const QByteArray &identifier) {
     QMutexLocker lock(&pluginLock);
-    return plugins.value(identifier);
+    try {
+        return plugins.at(identifier);
+    } catch (std::out_of_range &) {
+    }
+    return NULL;
 }
 
 VSPlugin *VSCore::getPluginByNs(const QByteArray &ns) {
     QMutexLocker lock(&pluginLock);
-    foreach(VSPlugin * p, plugins) {
-        if (p->fnamespace == ns)
-            return p;
+    for(std::map<QByteArray, VSPlugin *>::iterator iter = plugins.begin(); iter != plugins.end(); ++iter) {
+        if (iter->second->fnamespace == ns)
+            return iter->second;
     }
     return NULL;
 }
@@ -807,12 +820,12 @@ void VSCore::loadPlugin(const QByteArray &filename, const QByteArray &forcedName
         throw VSException(error);
     }
 
-    plugins.insert(p->identifier, p);
+    plugins.insert(std::pair<QByteArray, VSPlugin *>(p->identifier, p));
 }
 
 void VSCore::createFilter(const VSMap *in, VSMap *out, const QByteArray &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion) {
     try {
-        PVideoNode node(new VSNode(in, out, name, init, getFrame, free, filterMode, flags, instanceData, apiVersion, this));
+        PVideoNode node = std::make_shared<VSNode>(in, out, name, init, getFrame, free, filterMode, flags, instanceData, apiVersion, this);
         for (int i = 0; i < node->getNumOutputs(); i++) {
             // fixme, not that elegant but saves more variant poking code
             VSNodeRef *ref = new VSNodeRef(node, i);
@@ -836,8 +849,8 @@ VSPlugin::VSPlugin(const QByteArray &filename, const QByteArray &forcedNamespace
     : apiVersion(0), hasConfig(false), readOnly(false), compat(false), libHandle(0), filename(filename), core(core), fnamespace(forcedNamespace) {
 #ifdef VS_TARGET_OS_WINDOWS
     QString uStr = QString::fromUtf8(filename.constData(), filename.size());
-    QStdWString wStr(uStr.toStdWString());
-    libHandle = LoadLibrary(wStr.data());
+    
+    libHandle = LoadLibrary(uStr.utf16());
 
     if (!libHandle)
         throw VSException("Failed to load " + filename);

@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012 Fredrik Mellbin
+* Copyright (c) 2012-2013 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -22,10 +22,13 @@
 #define VSCORE_H
 
 #include <QtCore/QtCore>
-//#include <vld.h>
 #include "VapourSynth.h"
 #include <stdlib.h>
 #include <stdexcept>
+#include <set>
+#include <vector>
+#include <memory>
+#include <atomic>
 #ifdef VS_TARGET_OS_WINDOWS
 #    define WIN32_LEAN_AND_MEAN
 #    include <Windows.h>
@@ -39,11 +42,11 @@ struct VSNode;
 class FrameContext;
 class ExtFunction;
 
-typedef QSharedPointer<VSFrame> PVideoFrame;
-typedef QWeakPointer<VSFrame> WVideoFrame;
-typedef QSharedPointer<VSNode> PVideoNode;
-typedef QSharedPointer<ExtFunction> PExtFunction;
-typedef QSharedPointer<FrameContext> PFrameContext;
+typedef std::shared_ptr<VSFrame> PVideoFrame;
+typedef std::weak_ptr<VSFrame> WVideoFrame;
+typedef std::shared_ptr<VSNode> PVideoNode;
+typedef std::shared_ptr<ExtFunction> PExtFunction;
+typedef std::shared_ptr<FrameContext> PFrameContext;
 
 extern const VSAPI vsapi;
 const VSAPI *getVSAPIInternal(int version);
@@ -52,8 +55,6 @@ class VSException : public std::runtime_error {
 public:
     VSException(const char *descr) : std::runtime_error(descr) { }
 };
-
-typedef QPair<VSNode *, int> FrameKey;
 
 class NodeOutputKey {
 private:
@@ -98,6 +99,7 @@ public:
     enum VSVType { vUnset, vInt, vFloat, vData, vNode, vFrame, vMethod };
     VSVariant(VSVType vtype = vUnset);
     VSVariant(const VSVariant &v);
+    VSVariant(VSVariant &&v);
     ~VSVariant();
 
     int size() const;
@@ -142,17 +144,20 @@ public:
 struct VSFrameRef {
     PVideoFrame frame;
     VSFrameRef(const PVideoFrame &frame) : frame(frame) {}
+    VSFrameRef(PVideoFrame &&frame) : frame(frame) {}
 };
 
 struct VSNodeRef {
     PVideoNode clip;
     int index;
     VSNodeRef(const PVideoNode &clip, int index) : clip(clip), index(index) {}
+    VSNodeRef(PVideoNode &&clip, int index) : clip(clip), index(index) {}
 };
 
 struct VSFuncRef {
     PExtFunction func;
     VSFuncRef(const PExtFunction &func) : func(func) {}
+    VSFuncRef(PExtFunction &&func) : func(func) {}
 };
 
 enum FilterArgumentType {
@@ -178,19 +183,19 @@ public:
 
 class MemoryUse {
 private:
-    QAtomicInt usedKiloBytes;
+    std::atomic<unsigned> usedKiloBytes;
     bool freeOnZero;
     int64_t maxMemoryUse;
 public:
     void add(long bytes) {
-        usedKiloBytes.fetchAndAddOrdered((bytes + 1023) / 1024);
+        usedKiloBytes.fetch_add((bytes + 1023) / 1024);
     }
     void subtract(long bytes) {
-        usedKiloBytes.fetchAndAddOrdered(-((bytes + 1023) / 1024));
+        usedKiloBytes.fetch_sub((bytes + 1023) / 1024);
     }
     int64_t memoryUse() {
-        unsigned int temp = (unsigned int)usedKiloBytes;
-        return ((int64_t)usedKiloBytes) * 1024;
+        int64_t temp = usedKiloBytes;
+        return temp * 1024;
     }
     int64_t getLimit() {
         return maxMemoryUse;
@@ -265,7 +270,7 @@ public:
     uint8_t *getWritePtr(int plane);
 };
 
-typedef QLinkedList<PFrameContext> VSThreadData;
+typedef std::list<PFrameContext> VSThreadData;
 
 class FrameContext {
     friend class VSThreadPool;
@@ -284,7 +289,7 @@ private:
     VSFrameDoneCallback frameDone;
 public:
     QThreadStorage<VSThreadData *> *tlRequests;
-    QMap<NodeOutputKey, PVideoFrame> availableFrames;
+    std::map<NodeOutputKey, PVideoFrame> availableFrames;
     int lastCompletedN;
     int index;
     VSNodeRef *lastCompletedNode;
@@ -310,7 +315,7 @@ private:
     VSFilterFree free;
     QByteArray name;
     VSCore *core;
-    QVector<VSVideoInfo> vi;
+    std::vector<VSVideoInfo> vi;
     int flags;
     int apiVersion;
     bool hasVi;
@@ -324,7 +329,7 @@ private:
     // this is used exclusively by fmParallel
     // fmParallelRequests use this in combination with serialMutex to signal when all its frames are ready
     QMutex concurrentFramesMutex;
-    QSet<int> concurrentFrames;
+    std::set<int> concurrentFrames;
 
     PVideoFrame getFrameInternal(int n, int activationReason, const PFrameContext &frameCtx);
 public:
@@ -373,14 +378,14 @@ private:
     VSCore *core;
     QMutex lock;
     QMutex callbackLock;
-    QSet<VSThread *> allThreads;
-    QLinkedList<PFrameContext> tasks;
-    QMap<NodeOutputKey, PFrameContext> allContexts;
-    QAtomicInt ticks;
+    std::set<VSThread *> allThreads;
+    std::list<PFrameContext> tasks;
+    std::map<NodeOutputKey, PFrameContext> allContexts;
+    std::atomic<unsigned> ticks;
     QWaitCondition newWork;
-    QAtomicInt activeThreads;
-    QAtomicInt idleThreads;
-    int maxThreads;
+    std::atomic<unsigned> activeThreads;
+    std::atomic<unsigned> idleThreads;
+    unsigned maxThreads;
     void wakeThread();
     void notifyCaches(bool needMemory);
     void startInternal(const PFrameContext &context);
@@ -455,9 +460,9 @@ struct VSCore {
     friend class VSThreadPool;
     friend class CacheInstance;
 private:
-    QMap<QByteArray, VSPlugin *> plugins;
+    std::map<QByteArray, VSPlugin *> plugins;
     QMutex pluginLock;
-    QMap<int, VSFormat *> formats;
+    std::map<int, VSFormat *> formats;
     QReadWriteLock formatLock;
     int formatIdOffset;
     VSCoreInfo coreInfo;

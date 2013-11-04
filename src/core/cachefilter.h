@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012 Fredrik Mellbin
+* Copyright (c) 2012-2013 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -22,6 +22,7 @@
 #define CACHEFILTER_H
 
 #include <QtCore/qhash.h>
+#include <assert.h>
 #include "vscore.h"
 
 class VSCache {
@@ -92,7 +93,7 @@ private:
 
         if (!n.frame) {
             nearMiss++;
-            n.frame = n.weakFrame;
+            n.frame = PVideoFrame(n.weakFrame);
 
             if (!n.frame)
                 return PVideoFrame();
@@ -126,14 +127,14 @@ private:
         if (!weakpoint) {
             if (currentSize > maxSize) {
                 weakpoint = last;
-                weakpoint->frame.clear();
+                weakpoint->frame.reset();
             }
         } else if (&n == origWeakPoint || historySize > maxHistorySize) {
             weakpoint = weakpoint->prevNode;
-            weakpoint->frame.clear();
+            weakpoint->frame.reset();
         }
 
-        Q_ASSERT(historySize <= maxHistorySize);
+        assert(historySize <= maxHistorySize);
 
         return n.frame;
     }

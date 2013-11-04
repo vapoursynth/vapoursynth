@@ -79,8 +79,8 @@ inline bool VSCache::remove(const int key) {
 
 
 bool VSCache::insert(const int akey, const PVideoFrame &aobject) {
-    Q_ASSERT(aobject);
-    Q_ASSERT(akey >= 0);
+    assert(aobject);
+    assert(akey >= 0);
     remove(akey);
     trim(maxSize - 1, maxHistorySize);
     QHash<int, Node>::iterator i = hash.insert(akey, Node(akey, aobject));
@@ -111,7 +111,7 @@ void VSCache::trim(int max, int maxHistory) {
             weakpoint = weakpoint->prevNode;
 
         if (weakpoint)
-            weakpoint->frame.clear();
+            weakpoint->frame.reset();
 
         currentSize--;
         historySize++;
@@ -201,10 +201,10 @@ static void VS_CC cacheFree(void *instanceData, VSCore *core, const VSAPI *vsapi
     delete c;
 }
 
-static QAtomicInt cacheId(1);
+static std::atomic<int> cacheId(1);
 
 static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    vsapi->createFilter(in, out, ("Cache" + QString::number(cacheId.fetchAndAddOrdered(1))).toUtf8(), cacheInit, cacheGetframe, cacheFree, fmUnordered, nfNoCache, userData, core);
+    vsapi->createFilter(in, out, ("Cache" + QString::number(cacheId++)).toUtf8(), cacheInit, cacheGetframe, cacheFree, fmUnordered, nfNoCache, userData, core);
 }
 
 void VS_CC cacheInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {

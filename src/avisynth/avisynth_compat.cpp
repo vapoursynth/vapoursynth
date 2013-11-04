@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012 Fredrik Mellbin
+* Copyright (c) 2012-2013 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -27,10 +27,12 @@ const VSFrameRef *FakeAvisynth::avsToVSFrame(VideoFrame *frame) {
     const VSFrameRef *ref = NULL;
     QMap<VideoFrame *, const VSFrameRef *>::Iterator it = ownedFrames.find(frame);
 
-    if (it != ownedFrames.end())
+    if (it != ownedFrames.end()) {
         ref = vsapi->cloneFrameRef(it.value());
-    else
+    } else {
         qFatal("unreachable condition");
+        assert(false);
+    }
 
     it = ownedFrames.begin();
 
@@ -44,7 +46,7 @@ const VSFrameRef *FakeAvisynth::avsToVSFrame(VideoFrame *frame) {
         }
     }
 
-    Q_ASSERT(ref);
+    assert(ref);
     return ref;
 }
 
@@ -86,20 +88,15 @@ char *FakeAvisynth::Sprintf(const char *fmt, ...) {
 }
 
 char *FakeAvisynth::VSprintf(const char *fmt, void *val) {
-    char *buf = NULL;
+    std::vector<char> buf;
     int size = 0, count = -1;
 
     while (count == -1) {
-        if (buf)
-            delete[] buf;
-
-        size += 4096;
-        buf = new char[size];
-        count = vsnprintf(buf, size - 1, fmt, (va_list)val);
+        buf.resize(buf.size() + 4096);
+        count = vsnprintf(&buf[0], size - 1, fmt, (va_list)val);
     }
 
-    char *i = SaveString(buf);
-    delete[] buf;
+    char *i = SaveString(&buf[0]);
     return i;
 }
 
@@ -419,22 +416,22 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
         VSCore *core, const VSAPI *vsapi) {
     WrappedFunction *wf = (WrappedFunction *)userData;
     FakeAvisynth *fakeEnv = new FakeAvisynth(core, vsapi);
-    QVector<AVSValue> inArgs(wf->parsedArgs.count());
+    std::vector<AVSValue> inArgs(wf->parsedArgs.count());
     QList<VSNodeRef *> preFetchClips;
 
-    for (int i = 0; i < inArgs.count(); i++) {
+    for (size_t i = 0; i < inArgs.size(); i++) {
         const AvisynthArgs &parsedArg = wf->parsedArgs.at(i);
 
         if (vsapi->propNumElements(in, parsedArg.name.data()) > 0) {
             switch (parsedArg.type) {
             case 'i':
-                inArgs[i] = (int)vsapi->propGetInt(in, parsedArg.name.constData(), 0, NULL);
+                inArgs[i] = int64ToIntS(vsapi->propGetInt(in, parsedArg.name.constData(), 0, NULL));
                 break;
             case 'f':
                 inArgs[i] = vsapi->propGetFloat(in, parsedArg.name.constData(), 0, NULL);
                 break;
             case 'b':
-                inArgs[i] = (bool)vsapi->propGetInt(in, parsedArg.name.constData(), 0, NULL);
+                inArgs[i] = !!vsapi->propGetInt(in, parsedArg.name.constData(), 0, NULL);
                 break;
             case 's':
                 inArgs[i] = vsapi->propGetData(in, parsedArg.name.constData(), 0, NULL);
@@ -587,8 +584,8 @@ void FakeAvisynth::PopContext() {
 
 PVideoFrame FakeAvisynth::NewVideoFrame(const VideoInfo &vi, int align) {
     VSFrameRef *ref = NULL;
-    Q_ASSERT(vi.width > 0);
-    Q_ASSERT(vi.height > 0);
+    assert(vi.width > 0);
+    assert(vi.height > 0);
 
     // attempt to copy over the right set of properties, assuming that frame n in is also n out
     const VSFrameRef *propSrc = NULL;
@@ -632,7 +629,7 @@ bool FakeAvisynth::MakeWritable(PVideoFrame *pvf) {
     // Find the backing frame, copy it, wrap the new frame into a avisynth PVideoFrame
     VideoFrame *vfb = (VideoFrame *)(void *)(*pvf);
     QMap<VideoFrame *, const VSFrameRef *>::Iterator it = ownedFrames.find(vfb);
-    Q_ASSERT(it != ownedFrames.end());
+    assert(it != ownedFrames.end());
     VSFrameRef *ref = vsapi->copyFrame(it.value(), core);
     uint8_t *firstPlanePtr = vsapi->getWritePtr(ref, 0);
     VideoFrame *newVfb = new VideoFrame(
@@ -741,10 +738,7 @@ PVideoFrame FakeAvisynth::SubframePlanar(PVideoFrame src, int rel_offset, int ne
 static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     FakeAvisynth *avs = new FakeAvisynth(core, vsapi);
     QString uStr = QString::fromUtf8(vsapi->propGetData(in, "path", 0, NULL));
-    QVector<wchar_t> wStr;
-    wStr.resize(uStr.length() + 1);
-    uStr.toWCharArray(&wStr[0]);
-    HMODULE plugin = LoadLibraryW(wStr.data());
+    HMODULE plugin = LoadLibraryW(uStr.utf16());
     typedef const char*(__stdcall * AvisynthPluginInitFunc)(IScriptEnvironment * env);
 
     if (!plugin) {

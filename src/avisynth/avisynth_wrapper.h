@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012 Fredrik Mellbin
+* Copyright (c) 2012-2013 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -23,8 +23,9 @@
 
 #include <QtCore/QtCore>
 #define WIN32_LEAN_AND_MEAN
-#include <windows.h>
+#include <Windows.h>
 #include <stdint.h>
+#include <assert.h>
 
 namespace AvisynthCompat {
 
@@ -450,7 +451,7 @@ public:
 
     uint8_t *GetWritePtr() const {
         if (vfb->GetRefcount() > 1) {
-            Q_ASSERT(FALSE);
+            assert(false);
         }
 
         return IsWritable() ? (vfb->GetWritePtr() + offset) : 0;
@@ -459,7 +460,7 @@ public:
     uint8_t *GetWritePtr(int plane) const {
         if (plane == PLANAR_Y) {
             if (vfb->GetRefcount() > 1) {
-                Q_ASSERT(FALSE);
+                assert(false);
             }
 
             return IsWritable() ? vfb->GetWritePtr() + GetOffset(plane) : 0;
@@ -696,50 +697,50 @@ public:
     }
 
     PClip AsClip() const {
-        Q_ASSERT(IsClip());
+        assert(IsClip());
         return IsClip() ? clip : 0;
     }
     bool AsBool() const {
-        Q_ASSERT(IsBool());
+        assert(IsBool());
         return boolean;
     }
     int AsInt() const {
-        Q_ASSERT(IsInt());
+        assert(IsInt());
         return integer;
     }
     const char *AsString() const {
-        Q_ASSERT(IsString());
+        assert(IsString());
         return IsString() ? string : 0;
     }
     double AsFloat() const {
-        Q_ASSERT(IsFloat());
+        assert(IsFloat());
         return IsInt() ? integer : floating_pt;
     }
 
     bool AsBool(bool def) const {
-        Q_ASSERT(IsBool() || !Defined());
+        assert(IsBool() || !Defined());
         return IsBool() ? boolean : def;
     }
     int AsInt(int def) const {
-        Q_ASSERT(IsInt() || !Defined());
+        assert(IsInt() || !Defined());
         return IsInt() ? integer : def;
     }
     double AsFloat(double def) const {
-        Q_ASSERT(IsFloat() || !Defined());
+        assert(IsFloat() || !Defined());
         return IsInt() ? integer : type == 'f' ? floating_pt : def;
     }
     const char *AsString(const char *def) const {
-        Q_ASSERT(IsString() || !Defined());
+        assert(IsString() || !Defined());
         return IsString() ? string : def;
     }
 
     int ArraySize() const {
-        Q_ASSERT(IsArray());
+        assert(IsArray());
         return IsArray() ? array_size : 1;
     }
 
     const AVSValue &operator[](int index) const {
-        Q_ASSERT(IsArray() && index >= 0 && index < array_size);
+        assert(IsArray() && index >= 0 && index < array_size);
         return (IsArray() && index >= 0 && index < array_size) ? array[index] : *this;
     }
 
