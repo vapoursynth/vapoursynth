@@ -45,7 +45,7 @@ void VSThread::run() {
     QThreadStorage<VSThreadData *> localDataStorage;
     localDataStorage.setLocalData(new VSThreadData());
 
-    owner->lock.lock();
+    std::unique_lock<std::mutex> lock(owner->lock);
     ++owner->activeThreads;
 
     VSThreadData *localData = localDataStorage.localData();
@@ -93,11 +93,11 @@ void VSThread::run() {
             bool parallelRequestsNeedsUnlock = false;
             if (filterMode == fmUnordered) {
                 // already busy?
-                if (!clip->serialMutex.tryLock())
+                if (!clip->serialMutex.try_lock())
                     continue;
             } else if (filterMode == fmSerial) {
                 // already busy?
-                if (!clip->serialMutex.tryLock())
+                if (!clip->serialMutex.try_lock())
                     continue;
                 // no frame in progress?
                 if (clip->serialFrame == -1) {
@@ -109,7 +109,7 @@ void VSThread::run() {
                 }
                 // continue processing the already started frame
             } else if (filterMode == fmParallel) {
-                QMutexLocker lock(&clip->concurrentFramesMutex);
+                std::lock_guard<std::mutex> lock(clip->concurrentFramesMutex);
                 // is the filter already processing another call for this frame? if so move along
                 if (clip->concurrentFrames.count(mainContext->n)) {
                     continue;
@@ -117,7 +117,7 @@ void VSThread::run() {
                     clip->concurrentFrames.insert(mainContext->n);
                 }
             } else if (filterMode == fmParallelRequests) {
-                QMutexLocker lock(&clip->concurrentFramesMutex);
+                std::lock_guard<std::mutex> lock(clip->concurrentFramesMutex);
                 // is the filter already processing another call for this frame? if so move along
                 if (clip->concurrentFrames.count(mainContext->n)) {
                     continue;
@@ -125,7 +125,7 @@ void VSThread::run() {
                     // do we need the serial lock since all frames will be ready this time?
                     // check if we're in the arAllFramesReady state so we need additional locking
                     if (mainContext->numFrameRequests == 1) {
-                        if (!clip->serialMutex.tryLock())
+                        if (!clip->serialMutex.try_lock())
                             continue;
                         parallelRequestsNeedsUnlock = true;
                         clip->concurrentFrames.insert(mainContext->n);
@@ -171,7 +171,7 @@ void VSThread::run() {
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Do the actual processing
 
-            owner->lock.unlock();
+            lock.unlock();
 
             mainContext->tlRequests = &localDataStorage;
 
@@ -188,10 +188,10 @@ void VSThread::run() {
                     clip->serialFrame = -1;
                 clip->serialMutex.unlock();
             } else if (filterMode == fmParallel) {
-                QMutexLocker lock(&clip->concurrentFramesMutex);
+                std::lock_guard<std::mutex> lock(clip->concurrentFramesMutex);
                 clip->concurrentFrames.erase(mainContext->n);
             } else if (filterMode == fmParallelRequests) {
-                QMutexLocker lock(&clip->concurrentFramesMutex);
+                std::lock_guard<std::mutex> lock(clip->concurrentFramesMutex);
                 clip->concurrentFrames.erase(mainContext->n);
                 if (parallelRequestsNeedsUnlock)
                     clip->serialMutex.unlock();
@@ -201,7 +201,7 @@ void VSThread::run() {
 // Handle frames that were requested
             bool requestedFrames = !localData->empty();
 
-            owner->lock.lock();
+            lock.lock();
 
             if (requestedFrames) {
                 for (auto &reqIter : *localData)
@@ -265,7 +265,7 @@ void VSThread::run() {
         if ((!ranTask && !stop) || (owner->activeThreadCount() > owner->threadCount())) {
             --owner->activeThreads;
             ++owner->idleThreads;
-            owner->newWork.wait(&owner->lock);
+            owner->newWork.wait(lock);
             --owner->idleThreads;
             ++owner->activeThreads;
         }
@@ -273,7 +273,7 @@ void VSThread::run() {
         if (stop) {
             --owner->idleThreads;
             ++owner->activeThreads;
-            owner->lock.unlock();
+            lock.unlock();
             return;
         }
     }
@@ -281,7 +281,6 @@ void VSThread::run() {
 
 VSThreadPool::VSThreadPool(VSCore *core, int threads) : core(core), activeThreads(0), idleThreads(0) {
     maxThreads = threads > 0 ? threads : QThread::idealThreadCount();
-    QMutexLocker m(&lock);
 }
 
 int VSThreadPool::activeThreadCount() const {
@@ -307,7 +306,7 @@ void VSThreadPool::wakeThread() {
         spawnThread();
 
     if (activeThreads < maxThreads)
-        newWork.wakeOne();
+        newWork.notify_one();
 }
 
 void VSThreadPool::releaseThread() {
@@ -319,14 +318,14 @@ void VSThreadPool::reserveThread() {
 }
 
 void VSThreadPool::notifyCaches(bool needMemory) {
-    QMutexLocker lock(&core->cacheLock);
+    std::lock_guard<std::mutex> lock(core->cacheLock);
     for (int i = 0; i < core->caches.count(); i++)
         core->caches[i]->notifyCache(needMemory);
 }
 
 void VSThreadPool::start(const PFrameContext &context) {
     assert(context);
-    QMutexLocker m(&lock);
+    std::lock_guard<std::mutex> lock(lock);
     startInternal(context);
 }
 
@@ -404,7 +403,7 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
 }
 
 bool VSThreadPool::isWorkerThread() {
-    QMutexLocker m(&lock);
+    std::lock_guard<std::mutex> m(lock);
     return allThreads.count((VSThread *)QThread::currentThread());
 }
 
@@ -413,18 +412,18 @@ void VSThreadPool::waitForDone() {
 }
 
 VSThreadPool::~VSThreadPool() {
-    QMutexLocker m(&lock);
+    std::unique_lock<std::mutex> m(lock);
 
     // fixme, hangs on free
     while (!allThreads.empty()) {
         VSThread *t = *allThreads.begin();
         t->stopThread();
-        newWork.wakeAll();
+        newWork.notify_all();
         m.unlock();
         t->wait();
-        m.relock();
+        m.lock();
         allThreads.erase(t);
         delete t;
-        newWork.wakeAll();
+        newWork.notify_all();
     }
 };

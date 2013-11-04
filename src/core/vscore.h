@@ -29,6 +29,9 @@
 #include <vector>
 #include <memory>
 #include <atomic>
+#include <mutex>
+#include <thread>
+#include <condition_variable>
 #ifdef VS_TARGET_OS_WINDOWS
 #    define WIN32_LEAN_AND_MEAN
 #    include <Windows.h>
@@ -53,7 +56,8 @@ const VSAPI *getVSAPIInternal(int version);
 
 class VSException : public std::runtime_error {
 public:
-    VSException(const char *descr) : std::runtime_error(descr) { }
+    VSException(const char *descr) : std::runtime_error(descr) {}
+    VSException(const std::string &descr) : std::runtime_error(descr) {}
 };
 
 class NodeOutputKey {
@@ -323,12 +327,12 @@ private:
 
     // for keeping track of when a filter is busy in the exclusive section and with which frame
     // used for fmSerial and fmParallel (mutex only)
-    QMutex serialMutex;
+    std::mutex serialMutex;
     int serialFrame;
     // to prevent multiple calls at the same time for the same frame
     // this is used exclusively by fmParallel
     // fmParallelRequests use this in combination with serialMutex to signal when all its frames are ready
-    QMutex concurrentFramesMutex;
+    std::mutex concurrentFramesMutex;
     std::set<int> concurrentFrames;
 
     PVideoFrame getFrameInternal(int n, int activationReason, const PFrameContext &frameCtx);
@@ -376,13 +380,13 @@ class VSThreadPool {
     friend struct VSCore;
 private:
     VSCore *core;
-    QMutex lock;
-    QMutex callbackLock;
+    std::mutex lock;
+    std::mutex callbackLock;
     std::set<VSThread *> allThreads;
     std::list<PFrameContext> tasks;
     std::map<NodeOutputKey, PFrameContext> allContexts;
     std::atomic<unsigned> ticks;
-    QWaitCondition newWork;
+    std::condition_variable newWork;
     std::atomic<unsigned> activeThreads;
     std::atomic<unsigned> idleThreads;
     unsigned maxThreads;
@@ -461,13 +465,13 @@ struct VSCore {
     friend class CacheInstance;
 private:
     std::map<QByteArray, VSPlugin *> plugins;
-    QMutex pluginLock;
+    std::recursive_mutex pluginLock;
     std::map<int, VSFormat *> formats;
     QReadWriteLock formatLock;
     int formatIdOffset;
     VSCoreInfo coreInfo;
     QList<VSNode *> caches;
-    QMutex cacheLock;
+    std::mutex cacheLock;
 
     void registerFormats();
     bool loadAllPluginsInPath(const QString &path, const QString &filter);

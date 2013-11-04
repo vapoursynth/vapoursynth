@@ -24,7 +24,7 @@
 #include "vscore.h"
 #include "VSHelper.h"
 #include "version.h"
-
+#include <mutex>
 
 #ifdef VS_TARGET_CPU_X86
 #include "x86utils.h"
@@ -49,12 +49,13 @@ extern "C" {
 
 const VSAPI *VS_CC getVapourSynthAPI(int version);
 
+// fixme, use <regex>
 static const QRegExp idRegExp("^[a-zA-Z][a-zA-Z0-9_]*$");
 static const QRegExp sysPropRegExp("^_[a-zA-Z0-9_]*$");
-static QMutex regExpLock;
+static std::mutex regExpLock;
 
 static bool isValidIdentifier(const QByteArray &s) {
-    QMutexLocker l(&regExpLock);
+    std::lock_guard<std::mutex> lock(regExpLock);
     return idRegExp.exactMatch(QString::fromUtf8(s.constData(), s.size()));
 }
 
@@ -468,7 +469,7 @@ bool VSNode::isWorkerThread() {
 }
 
 void VSNode::notifyCache(bool needMemory) {
-    QMutexLocker lock(&serialMutex);
+    std::lock_guard<std::mutex> lock(serialMutex);
     CacheInstance *cache = (CacheInstance *)instanceData;
     cache->cache.adjustSize(needMemory);
 }
@@ -664,7 +665,7 @@ bool VSCore::loadAllPluginsInPath(const QString &path, const QString &filter) {
     return true;
 }
 
-VSCore::VSCore(int threads) : memory(new MemoryUse()), pluginLock(QMutex::Recursive), formatIdOffset(1000) {
+VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
 
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isMMXStateOk())
@@ -778,7 +779,7 @@ VSCore::~VSCore() {
 
 VSMap VSCore::getPlugins() {
     VSMap m;
-    QMutexLocker lock(&pluginLock);
+    std::lock_guard<std::recursive_mutex> lock(pluginLock);
     for (const auto &iter : plugins) {
         QByteArray b = iter.second->fnamespace + ";" + iter.second->identifier + ";" + iter.second->fullname;
         vsapi.propSetData(&m, iter.second->identifier.constData(), b.constData(), b.size(), 0);
@@ -787,7 +788,7 @@ VSMap VSCore::getPlugins() {
 }
 
 VSPlugin *VSCore::getPluginById(const QByteArray &identifier) {
-    QMutexLocker lock(&pluginLock);
+    std::lock_guard<std::recursive_mutex> lock(pluginLock);
     try {
         return plugins.at(identifier);
     } catch (std::out_of_range &) {
@@ -796,7 +797,7 @@ VSPlugin *VSCore::getPluginById(const QByteArray &identifier) {
 }
 
 VSPlugin *VSCore::getPluginByNs(const QByteArray &ns) {
-    QMutexLocker lock(&pluginLock);
+    std::lock_guard<std::recursive_mutex> lock(pluginLock);
     for (const auto &iter : plugins) {
         if (iter.second->fnamespace == ns)
             return iter.second;
@@ -807,15 +808,15 @@ VSPlugin *VSCore::getPluginByNs(const QByteArray &ns) {
 void VSCore::loadPlugin(const QByteArray &filename, const QByteArray &forcedNamespace)  {
     VSPlugin *p = new VSPlugin(filename, forcedNamespace, this);
 
-    QMutexLocker lock(&pluginLock);
+    std::lock_guard<std::recursive_mutex> lock(pluginLock);
     if (getPluginById(p->identifier)) {
-        QByteArray error = "Plugin " + filename + " already loaded (" + p->identifier + ")";
+        std::string error = "Plugin " + filename + " already loaded (" + p->identifier + ")";
         delete p;
         throw VSException(error);
     }
 
     if (getPluginByNs(p->fnamespace)) {
-        QByteArray error = "Plugin load failed, namespace " + p->fnamespace + " already populated (" + filename + ")";
+        std::string error = "Plugin load failed, namespace " + p->fnamespace + " already populated (" + filename + ")";
         delete p;
         throw VSException(error);
     }
