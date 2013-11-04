@@ -18,11 +18,9 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-#include <QtCore/QString>
-#include <stdlib.h>
 #include <vector>
 #include <string>
-#include <stddef.h>
+#include <algorithm>
 #include <stdexcept>
 #include "VapourSynth.h"
 #include "VSHelper.h"
@@ -431,10 +429,17 @@ static int parseExpression(const std::string &expr, std::vector<ExprOp> &ops, co
         else if (tokens[i] == "z")
             LOAD_OP(loadOp[2], 2);
         else {
-            bool ok;
-            LOAD_OP(opLoadConst, QString::fromUtf8(tokens[i].c_str()).toFloat(&ok));
-            if (!ok)
+            size_t pos = 0;
+            try {
+            LOAD_OP(opLoadConst, std::stof(tokens[i], &pos));
+            } catch (std::invalid_argument &) {
                 throw std::runtime_error("Failed to convert '" + tokens[i] + "' to float");
+            } catch (std::out_of_range &) {
+                throw std::runtime_error("Failed to convert '" + tokens[i] + "' to float");
+            }
+            if (pos != tokens[i].length())
+                throw std::runtime_error("Failed to convert '" + tokens[i] + "' to float");
+                
         }
     }
 

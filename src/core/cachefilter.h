@@ -27,9 +27,6 @@
 
 class VSCache {
 private:
-    static int cid;
-    int id;
-
     struct Node {
         inline Node() : key(-1) {}
         inline Node(int key, const PVideoFrame &frame) : key(key), frame(frame), weakFrame(frame), prevNode(0), nextNode(0) {}
@@ -93,10 +90,11 @@ private:
 
         if (!n.frame) {
             nearMiss++;
-            n.frame = PVideoFrame(n.weakFrame);
-
-            if (!n.frame)
+            try {
+                n.frame = PVideoFrame(n.weakFrame);
+            } catch (std::bad_weak_ptr &) {
                 return PVideoFrame();
+            }                
 
             currentSize++;
             historySize--;
@@ -218,8 +216,14 @@ public:
     VSNode *node;
     VSCore *core;
     CacheInstance(VSNodeRef *clip, VSNode *node, VSCore *core, bool fixedSize) : cache(20, 20, fixedSize), clip(clip), node(node), core(core) { }
-    void addCache() { QMutexLocker lock(&core->cacheLock); core->caches.append(node); }
-    void removeCache() { QMutexLocker lock(&core->cacheLock); core->caches.removeOne(node); }
+    void addCache() {
+        std::lock_guard<std::mutex> lock(core->cacheLock); 
+        core->caches.append(node);
+    }
+    void removeCache() {
+        std::lock_guard<std::mutex> lock(core->cacheLock);
+        core->caches.removeOne(node);
+    }
 };
 
 void VS_CC cacheInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);

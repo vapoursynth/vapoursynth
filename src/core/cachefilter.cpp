@@ -18,11 +18,7 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-#include <QtCore/QtCore>
-#include "vscore.h"
 #include "cachefilter.h"
-
-int VSCache::cid = 1;
 
 VSCache::CacheAction VSCache::recommendSize() {
     // fixme, constants pulled out of my ass
@@ -54,7 +50,6 @@ VSCache::CacheAction VSCache::recommendSize() {
 inline VSCache::VSCache(int maxSize, int maxHistorySize, bool fixedSize)
     : maxSize(maxSize), maxHistorySize(maxHistorySize), fixedSize(fixedSize) {
     clear();
-    id = cid++;
 }
 
 inline PVideoFrame VSCache::object(const int key) const {
@@ -201,10 +196,10 @@ static void VS_CC cacheFree(void *instanceData, VSCore *core, const VSAPI *vsapi
     delete c;
 }
 
-static std::atomic<int> cacheId(1);
+static std::atomic<unsigned> cacheId(1);
 
 static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    vsapi->createFilter(in, out, ("Cache" + QString::number(cacheId++)).toUtf8(), cacheInit, cacheGetframe, cacheFree, fmUnordered, nfNoCache, userData, core);
+    vsapi->createFilter(in, out, ("Cache" + std::to_string(cacheId++)).c_str(), cacheInit, cacheGetframe, cacheFree, fmUnordered, nfNoCache, userData, core);
 }
 
 void VS_CC cacheInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {

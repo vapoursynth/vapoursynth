@@ -628,7 +628,7 @@ const VSAPI *getVSAPIInternal(int version) {
     if (version == VAPOURSYNTH_API_VERSION) {
         return &vsapi;
     } else {
-        qFatal("Internally requested API version %d", version);
+        qFatal("Internally requested API version %d not supported", version);
         return NULL;
     }
 }

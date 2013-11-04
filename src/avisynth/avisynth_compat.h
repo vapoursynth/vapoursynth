@@ -24,7 +24,6 @@
 #include "avisynth_wrapper.h"
 #include "VapourSynth.h"
 #include "VSHelper.h"
-#include <functional>
 #include <list>
 #include <map>
 #include <vector>

@@ -23,7 +23,6 @@
 
 #include <list>
 #include <string>
-#include <sstream>
 
 #include <VapourSynth.h>
 #include <VSHelper.h>
@@ -33,11 +32,6 @@
 #include "textfilter.h"
 
 typedef std::list<std::string> stringlist;
-
-template<typename T>
-inline std::string num_to_string(T val) {
-    return std::to_string(val);
-}
 
 void scrawl_character_int(unsigned char c, uint8_t *image, int stride, int dest_x, int dest_y, int bitsPerSample) {
     int black = 16 << (bitsPerSample - 8);
@@ -309,7 +303,7 @@ static void append_prop(std::string &text, const std::string &key, const VSMap *
     if (type == ptInt) {
         for (idx = 0; idx < numElements; idx++) {
             int64_t value = vsapi->propGetInt(map, key.c_str(), idx, NULL);
-            text.append(num_to_string(value));
+            text.append(std::to_string(value));
             if (idx < numElements-1) {
                 text.append(" ");
             }
@@ -317,7 +311,7 @@ static void append_prop(std::string &text, const std::string &key, const VSMap *
     } else if (type == ptFloat) {
         for (idx = 0; idx < numElements; idx++) {
             double value = vsapi->propGetFloat(map, key.c_str(), idx, NULL);
-            text.append(num_to_string(value));
+            text.append(std::to_string(value));
             if (idx < numElements-1) {
                 text.append(" ");
             }
@@ -361,7 +355,7 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **
         }
 
         if (d->filter == FILTER_FRAMENUM) {
-            scrawl_text(num_to_string(n), d->alignment, dst, vsapi);
+            scrawl_text(std::to_string(n), d->alignment, dst, vsapi);
         } else if (d->filter == FILTER_FRAMEPROPS) {
             const VSMap *props = vsapi->getFramePropsRO(dst);
             int numKeys = vsapi->propNumKeys(props);
@@ -385,9 +379,9 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **
 
             std::string text;
             text.append(ci->versionString).append("\n");
-            text.append("Threads: ").append(num_to_string(ci->numThreads)).append("\n");
-            text.append("Maximum framebuffer cache size: ").append(num_to_string(ci->maxFramebufferSize)).append(" bytes\n");
-            text.append("Used framebuffer cache size: ").append(num_to_string(ci->usedFramebufferSize)).append(" bytes");
+            text.append("Threads: ").append(std::to_string(ci->numThreads)).append("\n");
+            text.append("Maximum framebuffer cache size: ").append(std::to_string(ci->maxFramebufferSize)).append(" bytes\n");
+            text.append("Used framebuffer cache size: ").append(std::to_string(ci->usedFramebufferSize)).append(" bytes");
 
             scrawl_text(text, d->alignment, dst, vsapi);
         } else {
@@ -469,15 +463,15 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         d.text.append("Clip info:\n");
 
         if (d.vi->width) {
-            d.text.append("Width: ").append(num_to_string(d.vi->width)).append(" px\n");
-            d.text.append("Height: ").append(num_to_string(d.vi->height)).append(" px\n");
+            d.text.append("Width: ").append(std::to_string(d.vi->width)).append(" px\n");
+            d.text.append("Height: ").append(std::to_string(d.vi->height)).append(" px\n");
         } else {
             d.text.append("Width: may vary\n");
             d.text.append("Height: may vary\n");
         }
 
         if (d.vi->numFrames) {
-            d.text.append("Length: ").append(num_to_string(d.vi->numFrames)).append(" frames\n");
+            d.text.append("Length: ").append(std::to_string(d.vi->numFrames)).append(" frames\n");
         } else {
             d.text.append("Length: unknown\n");
         }
@@ -520,20 +514,20 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
             }
 
             d.text.append("Format name: ").append(fi->name).append("\n");
-            d.text.append("Format id: ").append(num_to_string(fi->id)).append("\n");
+            d.text.append("Format id: ").append(std::to_string(fi->id)).append("\n");
             d.text.append("Color family: ").append(family).append("\n");
             d.text.append("Sample type: ").append(type).append("\n");
-            d.text.append("Bits per sample: ").append(num_to_string(fi->bitsPerSample)).append("\n");
-            d.text.append("Bytes per sample: ").append(num_to_string(fi->bytesPerSample)).append("\n");
-            d.text.append("Horizontal subsampling: ").append(num_to_string(fi->subSamplingW)).append("\n");
-            d.text.append("Vertical subsampling: ").append(num_to_string(fi->subSamplingH)).append("\n");
-            d.text.append("Number of planes: ").append(num_to_string(fi->numPlanes)).append("\n");
+            d.text.append("Bits per sample: ").append(std::to_string(fi->bitsPerSample)).append("\n");
+            d.text.append("Bytes per sample: ").append(std::to_string(fi->bytesPerSample)).append("\n");
+            d.text.append("Horizontal subsampling: ").append(std::to_string(fi->subSamplingW)).append("\n");
+            d.text.append("Vertical subsampling: ").append(std::to_string(fi->subSamplingH)).append("\n");
+            d.text.append("Number of planes: ").append(std::to_string(fi->numPlanes)).append("\n");
         } else {
             d.text.append("Format: may vary").append("\n");
         }
 
-        d.text.append("FpsNum: ").append(num_to_string(d.vi->fpsNum)).append("\n");
-        d.text.append("FpsDen: ").append(num_to_string(d.vi->fpsDen));
+        d.text.append("FpsNum: ").append(std::to_string(d.vi->fpsNum)).append("\n");
+        d.text.append("FpsDen: ").append(std::to_string(d.vi->fpsDen));
 
         d.instanceName = "ClipInfo";
         break;
