@@ -31,11 +31,6 @@ VS_API(int) vsscript_finalize(void) {
     initializationCount--;
     if (initializationCount)
         return initializationCount;
-    // commented out because python hates itself
-    //PyEval_RestoreThread(ts);
-    //PyGILState_Release(s);
-    //if (!preInitialized)
-    //    Py_Finalize();
     return 0;
 }
 
