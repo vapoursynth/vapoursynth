@@ -25,13 +25,14 @@
 #include <objbase.h>
 #include <vfw.h>
 #include <windows.h>
-#include <cstdio>
-#include <cassert>
+#include <stdio.h>
+#include <assert.h>
 #include <string>
 #include <algorithm>
 #include <fstream>
 #include <string>
-#include <cerrno>
+#include <errno.h>
+#include <mutex>
 
 #include "VSScript.h"
 #include "VSHelper.h"
@@ -70,7 +71,7 @@ private:
     std::string error_msg;
     volatile long pending_requests;
 
-    CRITICAL_SECTION cs_filter_graph;
+    std::mutex cs_filter_graph;
 
     bool DelayInit();
     bool DelayInit2();
@@ -398,7 +399,6 @@ STDMETHODIMP VapourSynthFile::DeleteStream(DWORD fccType, LONG lParam) {
 VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : num_threads(1), node(NULL), se(NULL), vsapi(NULL), enable_v210(false), pad_scanlines(false), m_refs(0), vi(NULL), pending_requests(0) {
     vsapi = vsscript_getVSApi();
     AddRef();
-    InitializeCriticalSection(&cs_filter_graph);
 }
 
 VapourSynthFile::~VapourSynthFile() {
@@ -410,7 +410,6 @@ VapourSynthFile::~VapourSynthFile() {
         vsscript_freeScript(se);
     }
     Unlock();
-    DeleteCriticalSection(&cs_filter_graph);
 }
 
 int VapourSynthFile::ImageSize() {
@@ -543,11 +542,11 @@ bool VapourSynthFile::DelayInit2() {
 }
 
 void VapourSynthFile::Lock() {
-    EnterCriticalSection(&cs_filter_graph);
+    cs_filter_graph.lock();
 }
 
 void VapourSynthFile::Unlock() {
-    LeaveCriticalSection(&cs_filter_graph);
+    cs_filter_graph.unlock();
 }
 
 ///////////////////////////////////////////////////
