@@ -25,7 +25,7 @@
 #include "vscore.h"
 #include "VSHelper.h"
 #include "version.h"
-#include <mutex>
+#include <codecvt>
 
 #ifdef VS_TARGET_CPU_X86
 #include "x86utils.h"
@@ -60,10 +60,10 @@ static bool isValidIdentifier(const std::string &s) {
     return idRegExp.exactMatch(QString::fromUtf8(s.c_str()));
 }
 
-FrameContext::FrameContext(int n, int index, VSNode *clip, const PFrameContext &upstreamContext) : numFrameRequests(0), index(index), n(n), node(NULL), clip(clip), upstreamContext(upstreamContext), userData(NULL), frameContext(NULL), frameDone(NULL), error(false), lastCompletedN(-1), lastCompletedNode(NULL) {
+FrameContext::FrameContext(int n, int index, VSNode *clip, const PFrameContext &upstreamContext) : numFrameRequests(0), index(index), n(n), node(NULL), clip(clip), upstreamContext(upstreamContext), userData(NULL), frameContext(NULL), frameDone(NULL), error(false), lastCompletedN(-1), lastCompletedNode(NULL), tlRequests(NULL) {
 }
 
-FrameContext::FrameContext(int n, int index, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData) : numFrameRequests(0), index(index), n(n), node(node), clip(node->clip.get()), frameContext(NULL), userData(userData), frameDone(frameDone), error(false), lastCompletedN(-1), lastCompletedNode(NULL) {
+FrameContext::FrameContext(int n, int index, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData) : numFrameRequests(0), index(index), n(n), node(node), clip(node->clip.get()), frameContext(NULL), userData(userData), frameDone(frameDone), error(false), lastCompletedN(-1), lastCompletedNode(NULL), tlRequests(NULL) {
 }
 
 void FrameContext::setError(const std::string &errorMsg) {
@@ -828,7 +828,7 @@ void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNa
 
 void VSCore::createFilter(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion) {
     try {
-        PVideoNode node = std::make_shared<VSNode>(in, out, name, init, getFrame, free, filterMode, flags, instanceData, apiVersion, this);
+        PVideoNode node(std::make_shared<VSNode>(in, out, name, init, getFrame, free, filterMode, flags, instanceData, apiVersion, this));
         for (int i = 0; i < node->getNumOutputs(); i++) {
             // fixme, not that elegant but saves more variant poking code
             VSNodeRef *ref = new VSNodeRef(node, i);
@@ -851,9 +851,10 @@ VSPlugin::VSPlugin(VSCore *core)
 VSPlugin::VSPlugin(const std::string &filename, const std::string &forcedNamespace, VSCore *core)
     : apiVersion(0), hasConfig(false), readOnly(false), compat(false), libHandle(0), filename(filename), core(core), fnamespace(forcedNamespace) {
 #ifdef VS_TARGET_OS_WINDOWS
-    QString uStr = QString::fromUtf8(filename.c_str(), filename.size());
+    std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> conversion;
+    std::wstring  wPath = conversion.from_bytes(filename);
     
-    libHandle = LoadLibrary(uStr.utf16());
+    libHandle = LoadLibrary(wPath.c_str());
 
     if (!libHandle)
         throw VSException("Failed to load " + filename);

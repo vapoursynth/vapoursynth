@@ -90,12 +90,11 @@ static void VS_CC frameWaiterCallback(void *userData, const VSFrameRef *frame, i
 static const VSFrameRef *VS_CC getFrame(int n, VSNodeRef *clip, char *errorMsg, int bufSize) {
     GetFrameWaiter g(errorMsg, bufSize);
     std::unique_lock<std::mutex> l(g.b);
-    PFrameContext c = std::make_shared<FrameContext>(n, clip->index, clip, &frameWaiterCallback, &g);
     VSNode *node = clip->clip.get();
     bool isWorker = node->isWorkerThread();
     if (isWorker)
         node->releaseThread();
-    node->getFrame(c);
+    node->getFrame(std::make_shared<FrameContext>(n, clip->index, clip, &frameWaiterCallback, &g));
     g.a.wait(l);
     if (isWorker)
         node->reserveThread();
@@ -104,8 +103,7 @@ static const VSFrameRef *VS_CC getFrame(int n, VSNodeRef *clip, char *errorMsg, 
 
 static void VS_CC requestFrameFilter(int n, VSNodeRef *clip, VSFrameContext *ctxHandle) {
     PFrameContext f(*(PFrameContext *)ctxHandle);
-    VSThreadData *localData = f->tlRequests->localData();
-    localData->push_back(std::make_shared<FrameContext>(n, clip->index, clip->clip.get(), f));
+    f->tlRequests->push_back(std::make_shared<FrameContext>(n, clip->index, clip->clip.get(), f));
 }
 
 static const VSFrameRef *VS_CC getFrameFilter(int n, VSNodeRef *clip, VSFrameContext *ctxHandle) {
