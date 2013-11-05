@@ -19,6 +19,8 @@
 */
 
 #include "cachefilter.h"
+#include <string>
+
 
 VSCache::CacheAction VSCache::recommendSize() {
     // fixme, constants pulled out of my ass

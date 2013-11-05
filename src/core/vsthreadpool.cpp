@@ -24,15 +24,7 @@
 #include "x86utils.h"
 #endif
 
-VSThread::VSThread(VSThreadPool *owner) : owner(owner), stop(false) {
-
-}
-
-void VSThread::stopThread() {
-    stop = true;
-}
-
-void VSThread::run() {
+void VSThreadPool::runTasks(VSThreadPool *owner, volatile bool &stop) {
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isMMXStateOk())
         qFatal("Bad MMX state detected after creating new thread");
@@ -277,8 +269,12 @@ void VSThread::run() {
     }
 }
 
-VSThreadPool::VSThreadPool(VSCore *core, int threads) : core(core), activeThreads(0), idleThreads(0) {
-    maxThreads = threads > 0 ? threads : QThread::idealThreadCount();
+VSThreadPool::VSThreadPool(VSCore *core, int threads) : core(core), activeThreads(0), idleThreads(0), stopThreads(false) {
+    maxThreads = threads > 0 ? threads : std::thread::hardware_concurrency();
+    if (maxThreads == 0) {
+        maxThreads = 1;
+        qWarning("Couldn't detect optimal number of threads. Thread count set to 1.");
+    }
 }
 
 int VSThreadPool::activeThreadCount() const {
@@ -290,9 +286,8 @@ int VSThreadPool::threadCount() const {
 }
 
 void VSThreadPool::spawnThread() {
-    VSThread *vst = new VSThread(this);
-    allThreads.insert(vst);
-    vst->start();
+    std::thread *thread = new std::thread(runTasks, this, std::ref(stopThreads));
+    allThreads.insert(std::pair<std::thread::id, std::thread *>(thread->get_id(), thread));
 }
 
 void VSThreadPool::setThreadCount(int threads) {
@@ -402,7 +397,7 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
 
 bool VSThreadPool::isWorkerThread() {
     std::lock_guard<std::mutex> m(lock);
-    return allThreads.count((VSThread *)QThread::currentThread());
+    return allThreads.count(std::this_thread::get_id());
 }
 
 void VSThreadPool::waitForDone() {
@@ -411,17 +406,17 @@ void VSThreadPool::waitForDone() {
 
 VSThreadPool::~VSThreadPool() {
     std::unique_lock<std::mutex> m(lock);
+    stopThreads = true;
 
-    // fixme, hangs on free
     while (!allThreads.empty()) {
-        VSThread *t = *allThreads.begin();
-        t->stopThread();
+        auto iter = allThreads.begin();
+        auto thread = iter->second;
         newWork.notify_all();
         m.unlock();
-        t->wait();
+        thread->join();
         m.lock();
-        allThreads.erase(t);
-        delete t;
+        allThreads.erase(iter);
+        delete thread;
         newWork.notify_all();
     }
 };

@@ -23,13 +23,13 @@
 
 #include <QtCore/QMap>
 #include <QtCore/QSharedData>
-#include <QtCore/QThread>
 #include <QtCore/QReadWriteLock>
+#include <QtCore/QByteArray>
 #include "VapourSynth.h"
 #include <stdlib.h>
 #include <stdexcept>
-#include <set>
 #include <vector>
+#include <set>
 #include <memory>
 #include <atomic>
 #include <mutex>
@@ -281,7 +281,7 @@ typedef std::list<PFrameContext> VSThreadData;
 
 class FrameContext {
     friend class VSThreadPool;
-    friend class VSThread;
+    friend void runTasks(VSThreadPool *owner, volatile bool &stop);
 private:
     int numFrameRequests;
     int n;
@@ -314,7 +314,7 @@ public:
 };
 
 struct VSNode {
-    friend class VSThread;
+    friend class VSThreadPool;
 private:
     void *instanceData;
     VSFilterInit init;
@@ -366,26 +366,14 @@ public:
     void notifyCache(bool needMemory);
 };
 
-class VSThreadPool;
-
-class VSThread : public QThread {
-private:
-    VSThreadPool *owner;
-    bool stop;
-public:
-    void run();
-    void stopThread();
-    VSThread(VSThreadPool *owner);
-};
-
 class VSThreadPool {
-    friend class VSThread;
     friend struct VSCore;
+
 private:
     VSCore *core;
     std::mutex lock;
     std::mutex callbackLock;
-    std::set<VSThread *> allThreads;
+    std::map<std::thread::id, std::thread *> allThreads;
     std::list<PFrameContext> tasks;
     std::map<NodeOutputKey, PFrameContext> allContexts;
     std::atomic<unsigned> ticks;
@@ -393,17 +381,19 @@ private:
     std::atomic<unsigned> activeThreads;
     std::atomic<unsigned> idleThreads;
     unsigned maxThreads;
+    volatile bool stopThreads;
     void wakeThread();
     void notifyCaches(bool needMemory);
     void startInternal(const PFrameContext &context);
     void spawnThread();
+    static void runTasks(VSThreadPool *owner, volatile bool &stop);
 public:
     VSThreadPool(VSCore *core, int threads);
     ~VSThreadPool();
     void returnFrame(const PFrameContext &rCtx, const PVideoFrame &f);
     void returnFrame(const PFrameContext &rCtx, const std::string &errMsg);
-    int    activeThreadCount() const;
-    int    threadCount() const;
+    int activeThreadCount() const;
+    int threadCount() const;
     void setThreadCount(int threads);
     void start(const PFrameContext &context);
     void waitForDone();

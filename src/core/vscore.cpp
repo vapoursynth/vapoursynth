@@ -770,7 +770,7 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
 
 VSCore::~VSCore() {
     memory->signalFree();
-    //delete threadPool;
+    delete threadPool;
     for(const auto &iter : plugins)
         delete iter.second;
     plugins.clear();
