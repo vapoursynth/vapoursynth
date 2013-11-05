@@ -1,37 +1,42 @@
-#include <new>
 #include "VSScript.h"
 #include "cython/vapoursynth_api.h"
+#include <mutex>
+#include <atomic>
+
+std::once_flag flag;
 
 struct VSScript : public VPYScriptExport {
 };
 
-int preInitialized = 0;
-int initializationCount = 0;
-int scriptId = 1000;
+std::atomic<int> initializationCount = 0;
+std::atomic<int> scriptId = 1000;
+bool initialized = false;
 PyThreadState *ts = NULL;
 PyGILState_STATE s;
 
-VS_API(int) vsscript_init(void) {
-    if (initializationCount == 0) {
-        preInitialized = Py_IsInitialized();
-        if (!preInitialized)
-            Py_InitializeEx(0);
-        PyGILState_STATE s = PyGILState_Ensure();
-        int result = import_vapoursynth();
-        if (result)
-            return 0;
-        vpy_initVSScript();
-        ts = PyEval_SaveThread();
-    }
-    initializationCount++;
-    return initializationCount;
+static void real_init(void) {
+    int preInitialized = Py_IsInitialized();
+    if (!preInitialized)
+        Py_InitializeEx(0);
+    PyGILState_STATE s = PyGILState_Ensure();
+    int result = import_vapoursynth();
+    if (result)
+        return;
+    vpy_initVSScript();
+    ts = PyEval_SaveThread();
+    initialized = true;
+}
+
+VS_API(int) vsscript_init() {
+    std::call_once(flag, real_init);
+    if (initialized)
+        return ++initializationCount;
+    else
+        return initializationCount;
 }
 
 VS_API(int) vsscript_finalize(void) {
-    initializationCount--;
-    if (initializationCount)
-        return initializationCount;
-    return 0;
+    return --initializationCount;
 }
 
 VS_API(int) vsscript_evaluateScript(VSScript **handle, const char *script, const char *scriptFilename, int flags) {
@@ -39,7 +44,7 @@ VS_API(int) vsscript_evaluateScript(VSScript **handle, const char *script, const
         *handle = new(std::nothrow)VSScript();
         (*handle)->pyenvdict = NULL;
         (*handle)->errstr = NULL;
-        (*handle)->id = scriptId++;
+        (*handle)->id = ++scriptId;
     }
     return vpy_evaluateScript(*handle, script, scriptFilename ? scriptFilename : "<string>", flags);
 }
@@ -49,7 +54,7 @@ VS_API(int) vsscript_evaluateFile(VSScript **handle, const char *scriptFilename,
         *handle = new(std::nothrow)VSScript();
         (*handle)->pyenvdict = NULL;
         (*handle)->errstr = NULL;
-        (*handle)->id = scriptId++;
+        (*handle)->id = ++scriptId;
     }
     return vpy_evaluateFile(*handle, scriptFilename, flags);
 }
