@@ -23,7 +23,6 @@
 
 #include <QtCore/QMap>
 #include <QtCore/QSharedData>
-#include <QtCore/QReadWriteLock>
 #include <QtCore/QByteArray>
 #include "VapourSynth.h"
 #include <stdlib.h>
@@ -460,7 +459,7 @@ private:
     std::map<std::string, VSPlugin *> plugins;
     std::recursive_mutex pluginLock;
     std::map<int, VSFormat *> formats;
-    QReadWriteLock formatLock;
+    std::mutex formatLock;
     int formatIdOffset;
     VSCoreInfo coreInfo;
     QList<VSNode *> caches;

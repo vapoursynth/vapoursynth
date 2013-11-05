@@ -18,13 +18,14 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
+#include "vscore.h"
+#include "VSHelper.h"
+#include "version.h"
 #include <QtCore/QSettings>
 #include <QtCore/QDir>
 #include <QtCore/QDirIterator>
 #include <assert.h>
-#include "vscore.h"
-#include "VSHelper.h"
-#include "version.h"
+#include <regex>
 #include <codecvt>
 
 #ifdef VS_TARGET_CPU_X86
@@ -50,14 +51,14 @@ extern "C" {
 
 const VSAPI *VS_CC getVapourSynthAPI(int version);
 
-// fixme, use <regex>
-static const QRegExp idRegExp("^[a-zA-Z][a-zA-Z0-9_]*$");
-static const QRegExp sysPropRegExp("^_[a-zA-Z0-9_]*$");
+
+static const std::regex idRegExp("^[a-zA-Z][a-zA-Z0-9_]*$");
+static const std::regex sysPropRegExp("^_[a-zA-Z0-9_]*$");
 static std::mutex regExpLock;
 
 static bool isValidIdentifier(const std::string &s) {
     std::lock_guard<std::mutex> lock(regExpLock);
-    return idRegExp.exactMatch(QString::fromUtf8(s.c_str()));
+    return std::regex_match(s, idRegExp);
 }
 
 FrameContext::FrameContext(int n, int index, VSNode *clip, const PFrameContext &upstreamContext) : numFrameRequests(0), index(index), n(n), node(NULL), clip(clip), upstreamContext(upstreamContext), userData(NULL), frameContext(NULL), frameDone(NULL), error(false), lastCompletedN(-1), lastCompletedNode(NULL), tlRequests(NULL) {
@@ -493,7 +494,7 @@ void VSCore::copyFrameProps(const PVideoFrame &src, PVideoFrame &dst) {
 }
 
 const VSFormat *VSCore::getFormatPreset(int id) {
-    QReadLocker lock(&formatLock);
+    std::lock_guard<std::mutex> lock(formatLock);
 
     try {
         return formats.at(id);
@@ -525,7 +526,7 @@ const VSFormat *VSCore::registerFormat(VSColorFamily colorFamily, VSSampleType s
     if (colorFamily == cmCompat && !name)
         qFatal("No compatibility formats may be registered");
 
-    QWriteLocker lock(&formatLock);
+    std::lock_guard<std::mutex> lock(formatLock);
 
     for (const auto &iter : formats) {
         const VSFormat *f = iter.second;
@@ -565,7 +566,7 @@ const VSFormat *VSCore::registerFormat(VSColorFamily colorFamily, VSSampleType s
 }
 
 bool VSCore::isValidFormatPointer(const VSFormat *f) {
-    QReadLocker lock(&formatLock);
+    std::lock_guard<std::mutex> lock(formatLock);
 
     for (const auto &iter : formats) {
         if (iter.second == f)
