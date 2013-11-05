@@ -142,11 +142,8 @@ stringlist split_text(const std::string& txt, int width, int height) {
     stringlist::iterator iter;
     for (iter = lines.begin(); iter != lines.end(); iter++) {
         if (iter->size() > horizontal_capacity) {
-            std::string line = *iter;
-            std::string remainder = iter->substr(horizontal_capacity);
+            lines.insert(std::next(iter), iter->substr(horizontal_capacity));
             iter->erase(horizontal_capacity);
-            iter = lines.insert(++iter, remainder);
-            iter--;
         }
     }
 
