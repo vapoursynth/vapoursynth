@@ -1917,7 +1917,7 @@ static void VS_CC planeAverageCreate(const VSMap *in, VSMap *out, void *userData
     }
 
     tempprop = vsapi->propGetData(in, "prop", 0, &err);
-    if (!tempprop || err)
+    if (err)
         tempprop = "PlaneAverage";
     d.prop = malloc(strlen(tempprop)+1);
     strcpy(d.prop, tempprop);
@@ -2166,7 +2166,7 @@ static void VS_CC propToClipCreate(const VSMap *in, VSMap *out, void *userData, 
     }
 
     tempprop = vsapi->propGetData(in, "prop", 0, &err);
-    if (!tempprop || err)
+    if (err)
         tempprop = "_Alpha";
     d.prop = malloc(strlen(tempprop)+1);
     strcpy(d.prop, tempprop);
