@@ -24,7 +24,6 @@
 #include <QtCore/QMap>
 #include <QtCore/QSharedData>
 #include <QtCore/QThread>
-#include <QtCore/QThreadStorage>
 #include <QtCore/QReadWriteLock>
 #include "VapourSynth.h"
 #include <stdlib.h>
@@ -296,7 +295,7 @@ private:
     void *userData;
     VSFrameDoneCallback frameDone;
 public:
-    QThreadStorage<VSThreadData *> *tlRequests;
+    VSThreadData *tlRequests;
     std::map<NodeOutputKey, PVideoFrame> availableFrames;
     int lastCompletedN;
     int index;

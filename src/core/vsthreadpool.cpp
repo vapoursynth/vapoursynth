@@ -42,13 +42,10 @@ void VSThread::run() {
         qFatal("Bad SSE state detected after creating new thread");
 #endif
 
-    QThreadStorage<VSThreadData *> localDataStorage;
-    localDataStorage.setLocalData(new VSThreadData());
+    VSThreadData localData;
 
     std::unique_lock<std::mutex> lock(owner->lock);
     ++owner->activeThreads;
-
-    VSThreadData *localData = localDataStorage.localData();
 
     while (true) {
         bool ranTask = false;
@@ -173,10 +170,11 @@ void VSThread::run() {
 
             lock.unlock();
 
-            mainContext->tlRequests = &localDataStorage;
+            mainContext->tlRequests = &localData;
 
             PVideoFrame f(clip->getFrameInternal(mainContext->n, ar, mainContextRef));
             ranTask = true;
+            mainContext->tlRequests = NULL;
             bool frameProcessingDone = f || mainContext->hasError();
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -199,14 +197,14 @@ void VSThread::run() {
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Handle frames that were requested
-            bool requestedFrames = !localData->empty();
+            bool requestedFrames = !localData.empty();
 
             lock.lock();
 
             if (requestedFrames) {
-                for (auto &reqIter : *localData)
+                for (auto &reqIter : localData)
                     owner->startInternal(reqIter);
-                localData->clear();
+                localData.clear();
             }
 
             if (frameProcessingDone)
