@@ -102,15 +102,13 @@ static const VSFrameRef *VS_CC getFrame(int n, VSNodeRef *clip, char *errorMsg, 
     return g.r;
 }
 
-static void VS_CC requestFrameFilter(int n, VSNodeRef *clip, VSFrameContext *ctxHandle) {
-    PFrameContext f(*(PFrameContext *)ctxHandle);
-    f->tlRequests->push_back(std::make_shared<FrameContext>(n, clip->index, clip->clip.get(), f));
+static void VS_CC requestFrameFilter(int n, VSNodeRef *clip, VSFrameContext *frameCtx) {
+    frameCtx->reqList.push_back(std::make_shared<FrameContext>(n, clip->index, clip->clip.get(), frameCtx->ctx));
 }
 
-static const VSFrameRef *VS_CC getFrameFilter(int n, VSNodeRef *clip, VSFrameContext *ctxHandle) {
-    PFrameContext f(*(PFrameContext *)ctxHandle);
+static const VSFrameRef *VS_CC getFrameFilter(int n, VSNodeRef *clip, VSFrameContext *frameCtx) {
     try {
-        return new VSFrameRef(f->availableFrames.at(NodeOutputKey(clip->clip.get(), n, clip->index)));
+        return new VSFrameRef(frameCtx->ctx->availableFrames.at(NodeOutputKey(clip->clip.get(), n, clip->index)));
     } catch (std::out_of_range &) {
     }
     return NULL;
@@ -161,8 +159,7 @@ static const char *VS_CC getError(const VSMap *map) {
 }
 
 static void VS_CC setFilterError(const char *errorMessage, VSFrameContext *context) {
-    PFrameContext f(*(PFrameContext *)context);
-    f->setError(errorMessage);
+    context->ctx->setError(errorMessage);
 }
 
 //property access functions
@@ -497,14 +494,12 @@ static void VS_CC freeFunc(VSFuncRef *f) {
 }
 
 static void VS_CC queryCompletedFrame(VSNodeRef **node, int *n, VSFrameContext *frameCtx) {
-    PFrameContext f(*(PFrameContext *)frameCtx);
-    *node = f->lastCompletedNode;
-    *n = f->lastCompletedN;
+    *node = frameCtx->ctx->lastCompletedNode;
+    *n = frameCtx->ctx->lastCompletedN;
 }
 
 static void VS_CC releaseFrameEarly(VSNodeRef *node, int n, VSFrameContext *frameCtx) {
-    PFrameContext f(*(PFrameContext *)frameCtx);
-    f->availableFrames.erase(NodeOutputKey(node->clip.get(), n, node->index));
+    frameCtx->ctx->availableFrames.erase(NodeOutputKey(node->clip.get(), n, node->index));
 }
 
 static VSFuncRef *VS_CC cloneFuncRef(VSFuncRef *f) {
@@ -516,8 +511,7 @@ static int64_t VS_CC setMaxCacheSize(int64_t bytes, VSCore *core) {
 }
 
 static int VS_CC getOutputIndex(VSFrameContext *frameCtx) {
-    PFrameContext f(*(PFrameContext *)frameCtx);
-    return f->index;
+    return frameCtx->ctx->index;
 }
 
 static VSMessageHandler messageHandler = NULL;

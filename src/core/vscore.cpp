@@ -61,10 +61,10 @@ static bool isValidIdentifier(const std::string &s) {
     return std::regex_match(s, idRegExp);
 }
 
-FrameContext::FrameContext(int n, int index, VSNode *clip, const PFrameContext &upstreamContext) : numFrameRequests(0), index(index), n(n), node(NULL), clip(clip), upstreamContext(upstreamContext), userData(NULL), frameContext(NULL), frameDone(NULL), error(false), lastCompletedN(-1), lastCompletedNode(NULL), tlRequests(NULL) {
+FrameContext::FrameContext(int n, int index, VSNode *clip, const PFrameContext &upstreamContext) : numFrameRequests(0), index(index), n(n), node(NULL), clip(clip), upstreamContext(upstreamContext), userData(NULL), frameContext(NULL), frameDone(NULL), error(false), lastCompletedN(-1), lastCompletedNode(NULL) {
 }
 
-FrameContext::FrameContext(int n, int index, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData) : numFrameRequests(0), index(index), n(n), node(node), clip(node->clip.get()), frameContext(NULL), userData(userData), frameDone(frameDone), error(false), lastCompletedN(-1), lastCompletedNode(NULL), tlRequests(NULL) {
+FrameContext::FrameContext(int n, int index, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData) : numFrameRequests(0), index(index), n(n), node(node), clip(node->clip.get()), frameContext(NULL), userData(userData), frameDone(frameDone), error(false), lastCompletedN(-1), lastCompletedNode(NULL) {
 }
 
 void FrameContext::setError(const std::string &errorMsg) {
@@ -427,8 +427,8 @@ void VSNode::setVideoInfo(const VSVideoInfo *vi, int numOutputs) {
     hasVi = true;
 }
 
-PVideoFrame VSNode::getFrameInternal(int n, int activationReason, const PFrameContext &frameCtx) {
-    const VSFrameRef *r = filterGetFrame(n, activationReason, &instanceData, &frameCtx->frameContext, (VSFrameContext *)&frameCtx, core, &vsapi);
+PVideoFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext &frameCtx) {
+    const VSFrameRef *r = filterGetFrame(n, activationReason, &instanceData, &frameCtx.ctx->frameContext, &frameCtx, core, &vsapi);
 // This stuff really only works properly on windows, feel free to investigate what the linux ABI thinks about it
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isMMXStateOk())
@@ -443,7 +443,7 @@ PVideoFrame VSNode::getFrameInternal(int n, int activationReason, const PFrameCo
         PVideoFrame p(r->frame);
         delete r;
         const VSFormat *fi = p->getFormat();
-        const VSVideoInfo &lvi = vi[frameCtx->index];
+        const VSVideoInfo &lvi = vi[frameCtx.ctx->index];
 
         if (!lvi.format && fi->colorFamily == cmCompat)
             qFatal("Illegal compat frame returned");

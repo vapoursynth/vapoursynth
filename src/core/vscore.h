@@ -276,8 +276,6 @@ public:
     uint8_t * VS_RESTRICT getWritePtr(int plane);
 };
 
-typedef std::list<PFrameContext> VSThreadData;
-
 class FrameContext {
     friend class VSThreadPool;
     friend void runTasks(VSThreadPool *owner, volatile bool &stop);
@@ -294,7 +292,6 @@ private:
     void *userData;
     VSFrameDoneCallback frameDone;
 public:
-    VSThreadData *tlRequests;
     std::map<NodeOutputKey, PVideoFrame> availableFrames;
     int lastCompletedN;
     int index;
@@ -337,7 +334,7 @@ private:
     std::mutex concurrentFramesMutex;
     std::set<int> concurrentFrames;
 
-    PVideoFrame getFrameInternal(int n, int activationReason, const PFrameContext &frameCtx);
+    PVideoFrame getFrameInternal(int n, int activationReason, VSFrameContext &frameCtx);
 public:
     VSNode(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion, VSCore *core);
 
@@ -365,9 +362,14 @@ public:
     void notifyCache(bool needMemory);
 };
 
+struct VSFrameContext {
+    PFrameContext &ctx;
+    std::list<PFrameContext> reqList;
+    VSFrameContext(PFrameContext &ctx) : ctx(ctx) {}
+};
+
 class VSThreadPool {
     friend struct VSCore;
-
 private:
     VSCore *core;
     std::mutex lock;

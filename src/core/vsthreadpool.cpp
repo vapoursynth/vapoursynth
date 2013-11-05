@@ -34,8 +34,6 @@ void VSThreadPool::runTasks(VSThreadPool *owner, volatile bool &stop) {
         qFatal("Bad SSE state detected after creating new thread");
 #endif
 
-    VSThreadData localData;
-
     std::unique_lock<std::mutex> lock(owner->lock);
     ++owner->activeThreads;
 
@@ -162,11 +160,9 @@ void VSThreadPool::runTasks(VSThreadPool *owner, volatile bool &stop) {
 
             lock.unlock();
 
-            mainContext->tlRequests = &localData;
-
-            PVideoFrame f(clip->getFrameInternal(mainContext->n, ar, mainContextRef));
+            VSFrameContext externalFrameCtx(mainContextRef);
+            PVideoFrame f(clip->getFrameInternal(mainContext->n, ar, externalFrameCtx));
             ranTask = true;
-            mainContext->tlRequests = NULL;
             bool frameProcessingDone = f || mainContext->hasError();
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -189,14 +185,14 @@ void VSThreadPool::runTasks(VSThreadPool *owner, volatile bool &stop) {
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Handle frames that were requested
-            bool requestedFrames = !localData.empty();
+            bool requestedFrames = !externalFrameCtx.reqList.empty();
 
             lock.lock();
 
             if (requestedFrames) {
-                for (auto &reqIter : localData)
+                for (auto &reqIter : externalFrameCtx.reqList)
                     owner->startInternal(reqIter);
-                localData.clear();
+                externalFrameCtx.reqList.clear();
             }
 
             if (frameProcessingDone)
