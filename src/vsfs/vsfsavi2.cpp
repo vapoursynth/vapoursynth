@@ -1175,7 +1175,7 @@ static void copyPlane(
         const unsigned pitch   = vsapi->getStride(frame, plane);
 
         if (offset < plsize) {
-            unsigned size = min(plsize - offset, rqsize);
+            unsigned size = std::min(plsize - offset, rqsize);
 
             const uint8_t* data = vsapi->getReadPtr(frame, plane);
 
@@ -1185,7 +1185,7 @@ static void copyPlane(
             rqsize -= size;
 
             while (size > 0) {
-                unsigned xfer = min(rowsize-initoff, size);
+                unsigned xfer = std::min(rowsize-initoff, size);
                 memcpy(buffer, data+initoff, xfer);
                 buffer += xfer;
                 size   -= xfer;
@@ -1220,7 +1220,7 @@ bool/*success*/ AvfsAvi2File::GetFrameData(
         } else if (semi_packed_p10) {
             const unsigned plsize1 = vi.width * vi.height * vi.format->bytesPerSample;
             if (offset < plsize1 && size > 0) {
-                int cpsize = min(plsize1 - offset, size);
+                int cpsize = std::min(plsize1 - offset, size);
                 memcpy(buffer, avs->GetExtraPlane1() + offset, cpsize);
                 size -= cpsize;
                 buffer += cpsize;
