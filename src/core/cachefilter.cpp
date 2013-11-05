@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012 Fredrik Mellbin
+* Copyright (c) 2012-2013 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -64,12 +64,12 @@ inline PVideoFrame VSCache::operator[](const int key) const {
 }
 
 inline bool VSCache::remove(const int key) {
-    QHash<int, Node>::iterator i = hash.find(key);
+    auto i = hash.find(key);
 
-    if (QHash<int, Node>::const_iterator(i) == hash.constEnd()) {
+    if (i == hash.end()) {
         return false;
     } else {
-        unlink(*i);
+        unlink(i->second);
         return true;
     }
 }
@@ -80,9 +80,9 @@ bool VSCache::insert(const int akey, const PVideoFrame &aobject) {
     assert(akey >= 0);
     remove(akey);
     trim(maxSize - 1, maxHistorySize);
-    QHash<int, Node>::iterator i = hash.insert(akey, Node(akey, aobject));
+    auto i = hash.insert(std::pair<int, Node>(akey, Node(akey, aobject)));
     currentSize++;
-    Node *n = &i.value();
+    Node *n = &i.first->second;
 
     if (first)
         first->prevNode = n;

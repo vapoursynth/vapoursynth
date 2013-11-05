@@ -21,9 +21,9 @@
 #ifndef CACHEFILTER_H
 #define CACHEFILTER_H
 
-#include <QtCore/qhash.h>
-#include <assert.h>
 #include "vscore.h"
+#include <unordered_map>
+#include <assert.h>
 
 class VSCache {
 private:
@@ -41,7 +41,7 @@ private:
     Node *weakpoint;
     Node *last;
 
-    QHash<int, Node> hash;
+    std::unordered_map<int, Node> hash;
 
     bool fixedSize;
 
@@ -75,18 +75,18 @@ private:
         else
             historySize--;
 
-        hash.remove(n.key);
+        hash.erase(n.key);
     }
 
     inline PVideoFrame relink(const int key) {
-        QHash<int, Node>::iterator i = hash.find(key);
+        auto i = hash.find(key);
 
-        if (QHash<int, Node>::const_iterator(i) == hash.constEnd()) {
+        if (i == hash.end()) {
             farMiss++;
             return PVideoFrame();
         }
 
-        Node &n = *i;
+        Node &n = i->second;
 
         if (!n.frame) {
             nearMiss++;
@@ -170,9 +170,6 @@ public:
     inline int size() const {
         return hash.size();
     }
-    inline QList<int> keys() const {
-        return hash.keys();
-    }
 
     inline void clear() {
         hash.clear();
@@ -193,7 +190,7 @@ public:
     bool insert(const int key, const PVideoFrame &object);
     PVideoFrame object(const int key) const;
     inline bool contains(const int key) const {
-        return hash.contains(key);
+        return hash.count(key);
     }
     PVideoFrame operator[](const int key) const;
 
