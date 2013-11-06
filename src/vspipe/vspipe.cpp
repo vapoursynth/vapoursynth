@@ -244,7 +244,7 @@ bool nstringToInt(const nstring &ns, int &result) {
     size_t pos = 0;
     std::string s = nstringToUtf8(ns);
     try {
-        outputIndex = std::stoi(s, &pos);
+        result = std::stoi(s, &pos);
     } catch (std::invalid_argument &) {
         return false;
     } catch (std::out_of_range &) {
