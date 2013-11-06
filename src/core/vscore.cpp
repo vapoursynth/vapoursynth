@@ -321,8 +321,8 @@ uint8_t * VS_RESTRICT VSFrame::getWritePtr(int plane) {
     }
 }
 
-VSFunction::VSFunction(const std::string &name, const std::string &argString, VSPublicFunction func, void *functionData)
-    : name(name), argString(argString), functionData(functionData), func(func) {
+VSFunction::VSFunction(const std::string &argString, VSPublicFunction func, void *functionData)
+    : argString(argString), functionData(functionData), func(func) {
     QString argQString = QString::fromUtf8(argString.c_str());
     QStringList argList = argQString.split(';', QString::SkipEmptyParts);
     foreach(QString arg, argList) {
@@ -383,7 +383,7 @@ VSFunction::VSFunction(const std::string &name, const std::string &argString, VS
         if (empty && !arr)
             qFatal("Only array arguments can have the empty flag set");
 
-        args.append(FilterArgument(argName, type, arr, empty, opt));
+        args.push_back(FilterArgument(argName, type, arr, empty, opt));
     }
 }
 
@@ -944,12 +944,11 @@ void VSPlugin::registerFunction(const std::string &name, const std::string &args
     if (!isValidIdentifier(name))
         qFatal("Illegal identifier specified for function");
 
-    foreach(const VSFunction & f, funcs)
 
-    if (!qstricmp(name.c_str(), f.name.c_str()))
-        qFatal("Duplicate function registered");
+    if (funcs.count(name))
+        qFatal("Duplicate function registered");        
 
-    funcs.append(VSFunction(name, args, argsFunc, functionData));
+    funcs.insert(std::pair<std::string, VSFunction>(name, VSFunction(args, argsFunc, functionData)));
 }
 
 static bool hasCompatNodes(const VSMap &m) {
@@ -972,16 +971,14 @@ VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
     VSMap v;
 
     try {
-        foreach(const VSFunction & f, funcs)
-
-        if (funcName == f.name) {
+        if (funcs.count(funcName)) {
+            const VSFunction &f = funcs[funcName];
             if (!compat && hasCompatNodes(args))
                 throw VSException(funcName + ": only special filters may accept compat input");
 
             VSMap argsCopy(args);
 
-            for (int i = 0; i < f.args.count(); i++) {
-                const FilterArgument &fa = f.args[i];
+            for (const FilterArgument &fa : f.args) {
                 char c = vsapi.propGetType(&args, fa.name.c_str());
 
                 if (c != 'u') {
@@ -1030,9 +1027,9 @@ VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
 
 VSMap VSPlugin::getFunctions() {
     VSMap m;
-    foreach(const VSFunction & f, funcs) {
-        std::string b = f.name + ";" + f.argString;
-        vsapi.propSetData(&m, f.name.c_str(), b.c_str(), b.size(), 0);
+    for (const auto & f : funcs) {
+        std::string b = f.first + ";" + f.second.argString;
+        vsapi.propSetData(&m, f.first.c_str(), b.c_str(), b.size(), 0);
     }
     return m;
 }

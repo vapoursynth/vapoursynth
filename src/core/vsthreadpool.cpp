@@ -308,8 +308,8 @@ void VSThreadPool::reserveThread() {
 
 void VSThreadPool::notifyCaches(bool needMemory) {
     std::lock_guard<std::mutex> lock(core->cacheLock);
-    for (int i = 0; i < core->caches.count(); i++)
-        core->caches[i]->notifyCache(needMemory);
+    for (auto &cache : core->caches)
+        cache->notifyCache(needMemory);
 }
 
 void VSThreadPool::start(const PFrameContext &context) {

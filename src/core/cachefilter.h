@@ -215,11 +215,11 @@ public:
     CacheInstance(VSNodeRef *clip, VSNode *node, VSCore *core, bool fixedSize) : cache(20, 20, fixedSize), clip(clip), node(node), core(core) { }
     void addCache() {
         std::lock_guard<std::mutex> lock(core->cacheLock); 
-        core->caches.append(node);
+        core->caches.insert(node);
     }
     void removeCache() {
         std::lock_guard<std::mutex> lock(core->cacheLock);
-        core->caches.removeOne(node);
+        core->caches.erase(node);
     }
 };
 

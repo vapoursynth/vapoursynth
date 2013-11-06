@@ -405,12 +405,12 @@ public:
 
 class VSFunction {
 public:
-    QList<FilterArgument> args;
-    std::string name;
+    std::vector<FilterArgument> args;
     std::string argString;
     void *functionData;
     VSPublicFunction func;
-    VSFunction(const std::string &name, const std::string &argString, VSPublicFunction func, void *functionData);
+    VSFunction(const std::string &argString, VSPublicFunction func, void *functionData);
+    VSFunction() : functionData(nullptr), func(nullptr) {}
 };
 
 
@@ -427,7 +427,7 @@ private:
     void *libHandle;
 #endif
     std::string filename;
-    QList<VSFunction> funcs;
+    std::map<std::string, VSFunction> funcs;
     VSCore *core;
 public:
     std::string fullname;
@@ -464,7 +464,7 @@ private:
     std::mutex formatLock;
     int formatIdOffset;
     VSCoreInfo coreInfo;
-    QList<VSNode *> caches;
+    std::set<VSNode *> caches;
     std::mutex cacheLock;
 
     void registerFormats();
