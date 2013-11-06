@@ -18,24 +18,25 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-#include <QtCore/QString>
-#include <QtCore/QMap>
-#include <QtCore/QMutex>
-#include <QtCore/QMutexLocker>
-#include <QtCore/QWaitCondition>
-#include <QtCore/QElapsedTimer>
-#define __STDC_FORMAT_MACROS
-#include <cstdio>
-#include <inttypes.h>
+
 #include "VSScript.h"
 #include "VSHelper.h"
-
+#include <string>
+#include <map>
+#include <mutex>
+#include <condition_variable>
+#include <algorithm>
+#include <codecvt>
+#include <chrono>
+#define __STDC_FORMAT_MACROS
+#include <stdio.h>
+#include <inttypes.h>
 
 
 // Needed so windows doesn't drool on itself when ctrl-c is pressed
 #ifdef VS_TARGET_OS_WINDOWS
+#define NOMINMAX 
 #include <Windows.h>
-#undef min
 BOOL WINAPI HandlerRoutine(DWORD dwCtrlType) {
     switch (dwCtrlType) {
     case CTRL_C_EVENT:
@@ -49,13 +50,16 @@ BOOL WINAPI HandlerRoutine(DWORD dwCtrlType) {
 #endif
 
 #ifdef VS_TARGET_OS_WINDOWS
-static inline QString nativeToQString(const wchar_t *str) {
-    return QString::fromWCharArray(str);
+typedef std::wstring nstring;
+#define NSTRING(x) L##x
+std::string nstringToUtf8(const nstring &s) {
+    std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> conversion;
+    return conversion.to_bytes(s);
 }
 #else
-static inline QString nativeToQString(const char *str) {
-    return QString::fromLocal8Bit(str);
-}
+typedef std::string nstring;
+#define NSTRING(x) x
+#define nstringToUtf8(x) x
 #endif
 
 const VSAPI *vsapi = NULL;
@@ -74,24 +78,24 @@ bool y4m = false;
 bool outputError = false;
 bool showInfo = false;
 bool printFrameNumber = false;
-QMap<int, const VSFrameRef *> reorderMap;
+std::map<int, const VSFrameRef *> reorderMap;
 
-QString errorMessage;
-QWaitCondition condition;
-QMutex mutex;
-QElapsedTimer timer;
+std::string errorMessage;
+std::condition_variable condition;
+std::mutex mutex;
 
 void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg) {
     completedFrames++;
 
     if (f) {
-        reorderMap.insert(n, f);
-        while (reorderMap.contains(outputFrames)) {
-            const VSFrameRef *frame = reorderMap.take(outputFrames);
+        reorderMap.insert(std::pair<int, const VSFrameRef *>(n, f));
+        while (reorderMap.count(outputFrames)) {
+            const VSFrameRef *frame = reorderMap[outputFrames];
+            reorderMap.erase(outputFrames);
             if (!outputError) {
                 if (y4m) {
                     if (!fwrite("FRAME\n", 6, 1, outFile)) {
-                        if (errorMessage.isEmpty())
+                        if (errorMessage.empty())
                             errorMessage = "Error: fwrite() call failed";
                         totalFrames = requestedFrames;
                         outputError = true;
@@ -107,7 +111,7 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
                         int height = vsapi->getFrameHeight(frame, p);
                         for (int y = 0; y < height; y++) {
                             if (!fwrite(readPtr, rowSize, 1, outFile)) {
-                                if (errorMessage.isEmpty())
+                                if (errorMessage.empty())
                                     errorMessage = "Error: fwrite() call failed";
                                 totalFrames = requestedFrames;
                                 outputError = true;
@@ -125,11 +129,11 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
     } else {
         outputError = true;
         totalFrames = requestedFrames;
-        if (errorMessage.isEmpty()) {
+        if (errorMessage.empty()) {
             if (errorMsg)
-                errorMessage = QString("Error: Failed to retrieve frame ") + QString::number(n) + QString(" with error: ") + QString::fromUtf8(errorMsg);
+                errorMessage = "Error: Failed to retrieve frame " + std::to_string(n) + " with error: " + errorMsg;
             else
-                errorMessage = QString("Error: Failed to retrieve frame ") + QString::number(n);
+                errorMessage = "Error: Failed to retrieve frame " + std::to_string(n);
         }
     }
 
@@ -142,8 +146,8 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
         fprintf(stderr, "Frame: %d/%d\r", completedFrames, totalFrames);
 
     if (totalFrames == completedFrames) {
-        QMutexLocker lock(&mutex);
-        condition.wakeOne();
+        std::lock_guard<std::mutex> lock(mutex);
+        condition.notify_one();
     }
 }
 
@@ -158,18 +162,18 @@ bool outputNode() {
 
     if (y4m && (vi->format->colorFamily != cmGray && vi->format->colorFamily != cmYUV)) {
         errorMessage = "Error: Can only apply y4m headers to YUV and Gray format clips";
-        fprintf(stderr, "%s\n", errorMessage.toUtf8().constData());
+        fprintf(stderr, "%s\n", errorMessage.c_str());
         return true;
     }
 
-    QString y4mFormat;
-    QString numBits;
+    std::string y4mFormat;
+    std::string numBits;
 
     if (y4m) {
         if (vi->format->colorFamily == cmGray) {
             y4mFormat = "mono";
             if (vi->format->bitsPerSample > 8)
-                y4mFormat = y4mFormat + QString::number(vi->format->bitsPerSample);
+                y4mFormat = y4mFormat + std::to_string(vi->format->bitsPerSample);
         } else if (vi->format->colorFamily == cmYUV) {
             if (vi->format->subSamplingW == 1 && vi->format->subSamplingH == 1)
                 y4mFormat = "420";
@@ -189,38 +193,37 @@ bool outputNode() {
             }
 
             if (vi->format->bitsPerSample > 8)
-                y4mFormat = y4mFormat + "p" + QString::number(vi->format->bitsPerSample);
+                y4mFormat = y4mFormat + "p" + std::to_string(vi->format->bitsPerSample);
         } else {
             fprintf(stderr, "No y4m identifier exists for current format\n");
             return true;
         }
     }
-    if (!y4mFormat.isEmpty())
+    if (!y4mFormat.empty())
         y4mFormat = "C" + y4mFormat + " ";
 
-    QString header = "YUV4MPEG2 " + y4mFormat + "W" + QString::number(vi->width) + " H" + QString::number(vi->height) + " F" + QString::number(vi->fpsNum)  + ":" + QString::number(vi->fpsDen)  + " Ip A0:0\n";
-    QByteArray rawHeader = header.toUtf8();
+    std::string header = "YUV4MPEG2 " + y4mFormat + "W" + std::to_string(vi->width) + " H" + std::to_string(vi->height) + " F" + std::to_string(vi->fpsNum) + ":" + std::to_string(vi->fpsDen) + " Ip A0:0\n";
 
     if (y4m) {
-        if (!fwrite(rawHeader.constData(), rawHeader.size(), 1, outFile)) {
+        if (!fwrite(header.c_str(), header.size(), 1, outFile)) {
             errorMessage = "Error: fwrite() call failed";
-            fprintf(stderr, "%s\n", errorMessage.toUtf8().constData());
+            fprintf(stderr, "%s\n", errorMessage.c_str());
             outputError = true;
             return outputError;
         }
     }
 
-    QMutexLocker lock(&mutex);
+    std::unique_lock<std::mutex> lock(mutex);
 
     int intitalRequestSize = std::min(requests, totalFrames);
     requestedFrames = intitalRequestSize;
     for (int n = 0; n < intitalRequestSize; n++)
         vsapi->getFrameAsync(n, node, frameDoneCallback, NULL);
 
-    condition.wait(&mutex);
+    condition.wait(lock);
 
     if (outputError) {
-        fprintf(stderr, "%s\n", errorMessage.toUtf8().constData());
+        fprintf(stderr, "%s\n", errorMessage.c_str());
     }
 
     return outputError;
@@ -237,6 +240,19 @@ const char *colorFamilyToString(int colorFamily) {
     return "";
 }
 
+bool nstringToInt(const nstring &ns, int &result) {
+    size_t pos = 0;
+    std::string s = nstringToUtf8(ns);
+    try {
+        outputIndex = std::stoi(s, &pos);
+    } catch (std::invalid_argument &) {
+        return false;
+    } catch (std::out_of_range &) {
+        return false;
+    }
+    return pos == s.length();
+}
+
 // fixme, only allow info without output
 #ifdef VS_TARGET_OS_WINDOWS
 int wmain(int argc, wchar_t **argv) {
@@ -246,7 +262,7 @@ int main(int argc, char **argv) {
 #endif
 
     if (argc == 2) {
-        if (nativeToQString(argv[1]) == "-version") {
+        if (nstring(argv[1]) == NSTRING("-version")) {
             if (!vsscript_init()) {
                 fprintf(stderr, "Failed to initialize VapourSynth environment\n");
                 return 1;
@@ -288,12 +304,12 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    QString outputFilename = nativeToQString(argv[2]);
-    if (outputFilename == "-") {
+    nstring outputFilename = argv[2];
+    if (outputFilename == NSTRING("-")) {
         outFile = stdout;
     } else {
 #ifdef VS_TARGET_OS_WINDOWS
-        outFile = _wfopen(outputFilename.toStdWString().c_str(), L"wb");
+        outFile = _wfopen(outputFilename.c_str(), L"wb");
 #else
         outFile = fopen(outputFilename.toLocal8Bit(), "wb");
 #endif
@@ -304,41 +320,38 @@ int main(int argc, char **argv) {
     }
 
     for (int arg = 3; arg < argc; arg++) {
-        QString argString = nativeToQString(argv[arg]);
-        if (argString == "-y4m") {
+        nstring argString = argv[arg];
+        if (argString == NSTRING("-y4m")) {
             y4m = true;
-        } else if (argString == "-info") {
+        } else if (argString == NSTRING("-info")) {
             showInfo = true;
-        } else if (argString == "-index") {
+        } else if (argString == NSTRING("-index")) {
             bool ok = false;
             if (argc <= arg + 1) {
                 fprintf(stderr, "No index number specified\n");
                 return 1;
             }
-            QString numString = nativeToQString(argv[arg+1]);
-            outputIndex = numString.toInt(&ok);
-            if (!ok) {
-                fprintf(stderr, "Couldn't convert %s to an integer\n", numString.toUtf8().constData());
+            
+            if (!nstringToInt(argv[arg + 1], outputIndex)) {
+                fprintf(stderr, "Couldn't convert %s to an integer\n", nstringToUtf8(argv[arg + 1]).c_str());
                 return 1;
             }
             arg++;
-        } else if (argString == "-requests") {
+        } else if (argString == NSTRING("-requests")) {
             bool ok = false;
             if (argc <= arg + 1) {
                 fprintf(stderr, "No request number specified\n");
                 return 1;
             }
-            QString numString = nativeToQString(argv[arg+1]);
-            requests = numString.toInt(&ok);
-            if (!ok) {
-                fprintf(stderr, "Couldn't convert %s to an integer\n", numString.toUtf8().constData());
+            if (!nstringToInt(argv[arg + 1], requests)) {
+                fprintf(stderr, "Couldn't convert %s to an integer\n", nstringToUtf8(argv[arg + 1]).c_str());
                 return 1;
             }
             arg++;
-        } else if (argString == "-progress") {
+        } else if (argString == NSTRING("-progress")) {
             printFrameNumber = true;
         } else {
-            fprintf(stderr, "Unknown argument: %s\n", argString.toUtf8().constData());
+            fprintf(stderr, "Unknown argument: %s\n", nstringToUtf8(argString).c_str());
             return 1;
         }
     }
@@ -355,9 +368,9 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    timer.start();
+    std::chrono::time_point<std::chrono::high_resolution_clock> start(std::chrono::high_resolution_clock::now());
 
-    if (vsscript_evaluateFile(&se, nativeToQString(argv[1]).toUtf8(), efSetWorkingDir)) {
+    if (vsscript_evaluateFile(&se,  nstringToUtf8(argv[1]).c_str(), efSetWorkingDir)) {
         fprintf(stderr, "Script evaluation failed:\n%s\n", vsscript_getError(se));
         vsscript_freeScript(se);
         vsscript_finalize();
@@ -403,8 +416,9 @@ int main(int argc, char **argv) {
     }
 
     fflush(outFile);
-    int64_t elapsedMsec = timer.elapsed();
-    fprintf(stderr, "Output %d frames in %f seconds (%f fps)\n", outputFrames, (float)elapsedMsec/1000, (outputFrames*1000)/(float)elapsedMsec);
+    std::chrono::time_point<std::chrono::high_resolution_clock> end(std::chrono::high_resolution_clock::now());
+    std::chrono::duration<double> elapsedSeconds = end - start;
+    fprintf(stderr, "Output %d frames in %f seconds (%f fps)\n", outputFrames, elapsedSeconds.count(), outputFrames / elapsedSeconds.count());
     vsapi->freeNode(node);
     vsscript_freeScript(se);
     vsscript_finalize();
