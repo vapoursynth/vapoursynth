@@ -50,6 +50,10 @@ Source: vspipe.exe; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete
 ;vs2010 runtime
 Source: msvcr100.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile
 Source: msvcp100.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile
+;vs2013 runtime
+Source: msvcr120.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile
+Source: msvcp120.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile
+Source: vccorlib120.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile
 ;sdk
 Source: ..\include\VapourSynth.h; DestDir: {app}\sdk\include; Flags: ignoreversion uninsrestartdelete restartreplace
 Source: ..\include\VSHelper.h; DestDir: {app}\sdk\include; Flags: ignoreversion uninsrestartdelete restartreplace
