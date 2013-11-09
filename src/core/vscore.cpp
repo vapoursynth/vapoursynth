@@ -54,10 +54,8 @@ const VSAPI *VS_CC getVapourSynthAPI(int version);
 
 static const std::regex idRegExp("^[a-zA-Z][a-zA-Z0-9_]*$");
 static const std::regex sysPropRegExp("^_[a-zA-Z0-9_]*$");
-static std::mutex regExpLock;
 
 static bool isValidIdentifier(const std::string &s) {
-    std::lock_guard<std::mutex> lock(regExpLock);
     return std::regex_match(s, idRegExp);
 }
 
