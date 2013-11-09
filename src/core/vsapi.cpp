@@ -152,7 +152,7 @@ static void VS_CC setError(VSMap *map, const char *errorMessage) {
 
 static const char *VS_CC getError(const VSMap *map) {
     if (map->contains("_Error") && (*map)["_Error"].size() > 0)
-        return (*map)["_Error"].getValue<QByteArray>(0).constData();
+        return (*map)["_Error"].getValue<std::string>(0).c_str();
     else
         return NULL;
 }
@@ -266,7 +266,7 @@ static const char * VS_RESTRICT VS_CC propGetData(const VSMap *props, const char
     if (err)
         return 0;
 
-    return (*props)[name].getValue<QByteArray>(index).constData();
+    return (*props)[name].getValue<std::string>(index).c_str();
 }
 
 static int VS_CC propGetDataSize(const VSMap *props, const char *name, int index, int *error) {
@@ -275,7 +275,7 @@ static int VS_CC propGetDataSize(const VSMap *props, const char *name, int index
     if (err)
         return 0;
 
-    return (*props)[name].getValue<QByteArray>(index).size();
+    return (*props)[name].getValue<std::string>(index).size();
 }
 
 static VSNodeRef *VS_CC propGetNode(const VSMap *props, const char *name, int index, int *error) {
@@ -360,7 +360,7 @@ static int VS_CC propSetData(VSMap *props, const char *name, const char *d, int 
     } else {
         VSVariant l(VSVariant::vData);
         if (append == paAppend)
-            l.append(length >= 0 ? QByteArray(d, length) : QByteArray(d));
+            l.append(length >= 0 ? std::string(d, length) : std::string(d));
         props->insert(name, l);
     }
 

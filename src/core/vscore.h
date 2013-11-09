@@ -81,7 +81,7 @@ public:
 // variant types
 typedef QList<int64_t> IntList;
 typedef QList<double> FloatList;
-typedef QList<QByteArray> DataList;
+typedef QList<std::string> DataList;
 typedef QList<VSNodeRef> NodeList;
 typedef QList<PVideoFrame> FrameList;
 typedef QList<PExtFunction> FuncList;
@@ -114,7 +114,7 @@ public:
 
     void append(int64_t val);
     void append(double val);
-    void append(const QByteArray &val);
+    void append(const std::string &val);
     void append(const VSNodeRef &val);
     void append(const PVideoFrame &val);
     void append(const PExtFunction &val);
@@ -143,7 +143,7 @@ public:
     void setError(const std::string &error) {
         clear();
         VSVariant v(VSVariant::vData);
-        v.append(QByteArray(error.c_str()));
+        v.append(error);
         insert("_Error", v);
     }
 };

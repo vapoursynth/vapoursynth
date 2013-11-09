@@ -134,7 +134,7 @@ void VSVariant::append(double val) {
     internalSize++;
 }
 
-void VSVariant::append(const QByteArray &val) {
+void VSVariant::append(const std::string &val) {
     initStorage(vData);
     reinterpret_cast<DataList *>(storage)->append(val);
     internalSize++;
@@ -1006,7 +1006,8 @@ VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
                     sl.append(QString::fromUtf8(bl[i]));
 
                 sl.sort();
-                throw VSException(QByteArray(funcName.c_str()) + ": no argument named " + sl.join(", ").toUtf8());
+                // fixme, add s.join(", ")
+                throw VSException(funcName + ": no argument named ");
             }
 
             f.func(&args, &v, f.functionData, core, getVSAPIInternal(apiVersion));
