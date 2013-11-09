@@ -185,8 +185,9 @@ void VSVariant::initStorage(VSVType t) {
 
 VSFrameData::VSFrameData(quint32 size, MemoryUse *mem) : QSharedData(), mem(mem), size(size) {
     data = vs_aligned_malloc<uint8_t>(size, VSFrame::alignment);
-    Q_CHECK_PTR(data);
     assert(data);
+    if (!data)
+        vsFatal("Failed to allocate memory for planes. Out of memory.");
     mem->add(size);
 }
 
@@ -194,8 +195,9 @@ VSFrameData::VSFrameData(const VSFrameData &d) : QSharedData(d) {
     size = d.size;
     mem = d.mem;
     data = vs_aligned_malloc<uint8_t>(size, VSFrame::alignment);
-    Q_CHECK_PTR(data);
     assert(data);
+    if (!data)
+        vsFatal("Failed to allocate memory for plane in copy constructor. Out of memory.");
     mem->add(size);
     memcpy(data, d.data, size);
 }
@@ -209,7 +211,7 @@ VSFrameData::~VSFrameData() {
 
 VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, VSCore *core) : format(f), width(width), height(height), frameLocation(flLocal) {
     if (!f || width <= 0 || height <= 0)
-        qFatal("Invalid new frame");
+        vsFatal("Invalid new frame");
 
     if (propSrc)
         properties = propSrc->properties;
@@ -235,7 +237,7 @@ VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSr
 
 VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core) : format(f), width(width), height(height), frameLocation(flLocal) {
     if (!f || width <= 0 || height <= 0)
-        qFatal("Invalid new frame");
+        vsFatal("Invalid new frame");
 
     if (propSrc)
         properties = propSrc->properties;
@@ -254,9 +256,9 @@ VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame * const
     for (int i = 0; i < format->numPlanes; i++) {
         if (planeSrc[i]) {
             if (plane[i] < 0 || plane[i] >= planeSrc[i]->format->numPlanes)
-                qFatal("Plane does no exist, error in frame creation");
+                vsFatal("Plane does no exist, error in frame creation");
             if (planeSrc[i]->getHeight(plane[i]) != getHeight(i) || planeSrc[i]->getWidth(plane[i]) != getWidth(i))
-                qFatal("Copied plane dimensions do not match, error in frame creation");
+                vsFatal("Copied plane dimensions do not match, error in frame creation");
             data[i] = planeSrc[i]->data[plane[i]];
         } else {
             if (i == 0) {
@@ -285,13 +287,13 @@ VSFrame::VSFrame(const VSFrame &f) {
 int VSFrame::getStride(int plane) const {
     assert(plane >= 0 && plane < 3);
     if (plane < 0 || plane >= format->numPlanes)
-        qFatal("Invalid plane stride requested");
+        vsFatal("Invalid plane stride requested");
     return stride[plane];
 }
 
 const uint8_t * VS_RESTRICT VSFrame::getReadPtr(int plane) const {
     if (plane < 0 || plane >= format->numPlanes)
-        qFatal("Invalid plane requested");
+        vsFatal("Invalid plane requested");
 
     switch (plane) {
     case 0:
@@ -307,7 +309,7 @@ const uint8_t * VS_RESTRICT VSFrame::getReadPtr(int plane) const {
 
 uint8_t * VS_RESTRICT VSFrame::getWritePtr(int plane) {
     if (plane < 0 || plane >= format->numPlanes)
-        qFatal("Invalid plane requested");
+        vsFatal("Invalid plane requested");
 
     switch (plane) {
     case 0:
@@ -329,7 +331,7 @@ VSFunction::VSFunction(const std::string &argString, VSPublicFunction func, void
         QStringList argParts = arg.split(':');
 
         if (argParts.count() < 2)
-            qFatal("Invalid: %s", argString.c_str());
+            vsFatal("Invalid: %s", argString.c_str());
 
         bool arr = false;
         enum FilterArgumentType type = faNone;
@@ -364,7 +366,7 @@ VSFunction::VSFunction(const std::string &argString, VSPublicFunction func, void
             else if (typeName == "func[]")
                 type = faFunc;
             else
-                qFatal("Invalid arg string: %s", typeName.c_str());
+                vsFatal("Invalid arg string: %s", typeName.c_str());
         }
 
         bool opt = false;
@@ -378,10 +380,10 @@ VSFunction::VSFunction(const std::string &argString, VSPublicFunction func, void
         }
 
         if (!isValidIdentifier(argName))
-            qFatal("Illegal argument identifier specified for function");
+            vsFatal("Illegal argument identifier specified for function");
 
         if (empty && !arr)
-            qFatal("Only array arguments can have the empty flag set");
+            vsFatal("Only array arguments can have the empty flag set");
 
         args.push_back(FilterArgument(argName, type, arr, empty, opt));
     }
@@ -396,7 +398,7 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, VSFilterIni
         throw VSException(vsapi.getError(out));
 
     if (!hasVi)
-        qFatal("Filter %s didn't set vi", name.c_str());
+        vsFatal("Filter %s didn't set vi", name.c_str());
 }
 
 VSNode::~VSNode() {
@@ -410,17 +412,17 @@ void VSNode::getFrame(const PFrameContext &ct) {
 
 const VSVideoInfo &VSNode::getVideoInfo(int index) {
     if (index < 0 || index >= (int)vi.size())
-        qFatal("Out of bounds videoinfo index");
+        vsFatal("Out of bounds videoinfo index");
     return vi[index];
 }
 void VSNode::setVideoInfo(const VSVideoInfo *vi, int numOutputs) {
     if (numOutputs < 1)
-        qFatal("Video filter needs to have at least one output");
+        vsFatal("Video filter needs to have at least one output");
     for (int i = 0; i < numOutputs; i++) {
         if ((!!vi[i].height) ^ (!!vi[i].width))
-            qFatal("Variable dimension clips must have both width and height set to 0");
+            vsFatal("Variable dimension clips must have both width and height set to 0");
         if (vi[i].format && !core->isValidFormatPointer(vi[i].format))
-            qFatal("The VSFormat pointer passed to setVideoInfo() was not gotten from registerFormat() or getFormatPreset()");
+            vsFatal("The VSFormat pointer passed to setVideoInfo() was not gotten from registerFormat() or getFormatPreset()");
         this->vi.push_back(vi[i]);
         this->vi[i].flags = flags;
     }
@@ -432,11 +434,11 @@ PVideoFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext
 // This stuff really only works properly on windows, feel free to investigate what the linux ABI thinks about it
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isMMXStateOk())
-        qFatal("Bad MMX state detected after return from %s", name.c_str());
+        vsFatal("Bad MMX state detected after return from %s", name.c_str());
     if (!vs_isFPUStateOk())
-        qWarning("Bad FPU state detected after return from %s", name.c_str());
+        vsWarning("Bad FPU state detected after return from %s", name.c_str());
     if (!vs_isSSEStateOk())
-        qFatal("Bad SSE state detected after return from %s", name.c_str());
+        vsFatal("Bad SSE state detected after return from %s", name.c_str());
 #endif
 
     if (r) {
@@ -446,11 +448,11 @@ PVideoFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext
         const VSVideoInfo &lvi = vi[frameCtx.ctx->index];
 
         if (!lvi.format && fi->colorFamily == cmCompat)
-            qFatal("Illegal compat frame returned");
+            vsFatal("Illegal compat frame returned");
         else if (lvi.format && lvi.format != fi)
-            qFatal("Frame returned not of the declared type");
+            vsFatal("Frame returned not of the declared type");
         else if ((lvi.width || lvi.height) && (p->getWidth(0) != lvi.width || p->getHeight(0) != lvi.height))
-            qFatal("Frame returned of not of the declared dimensions");
+            vsFatal("Frame returned of not of the declared dimensions");
 
         return p;
     }
@@ -509,22 +511,22 @@ const VSFormat *VSCore::registerFormat(VSColorFamily colorFamily, VSSampleType s
 
     // block nonsense formats
     if (subSamplingH < 0 || subSamplingW < 0 || subSamplingH > 4 || subSamplingW > 4)
-        qFatal("Nonsense format registration");
+        vsFatal("Nonsense format registration");
 
     if (sampleType < 0 || sampleType > 1)
-        qFatal("Invalid sample type");
+        vsFatal("Invalid sample type");
 
     if (colorFamily == cmRGB && (subSamplingH != 0 || subSamplingW != 0))
-        qFatal("We do not like subsampled rgb around here");
+        vsFatal("We do not like subsampled rgb around here");
 
     if (sampleType == stFloat && (bitsPerSample != 16 && bitsPerSample != 32))
-        qFatal("Only floating point formats with 16 or 32 bit precision are allowed");
+        vsFatal("Only floating point formats with 16 or 32 bit precision are allowed");
 
     if (bitsPerSample < 8 || bitsPerSample > 32)
-        qFatal("Only formats with 8-32 bits per sample are allowed");
+        vsFatal("Only formats with 8-32 bits per sample are allowed");
 
     if (colorFamily == cmCompat && !name)
-        qFatal("No compatibility formats may be registered");
+        vsFatal("No compatibility formats may be registered");
 
     std::lock_guard<std::mutex> lock(formatLock);
 
@@ -672,11 +674,11 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
 
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isMMXStateOk())
-        qFatal("Bad MMX state detected creating new core");
+        vsFatal("Bad MMX state detected creating new core");
     if (!vs_isFPUStateOk())
-        qWarning("Bad FPU state detected after creating new core. Any other FPU state warnings after this one should be ignored.");
+        vsWarning("Bad FPU state detected after creating new core. Any other FPU state warnings after this one should be ignored.");
     if (!vs_isSSEStateOk())
-        qFatal("Bad SSE state detected after creating new core");
+        vsFatal("Bad SSE state detected after creating new core");
 #endif
 
     threadPool = new VSThreadPool(this, threads);
@@ -726,19 +728,19 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
 
     QString appDataPath = QString::fromUtf16(&appDataBuffer[0]) + "\\VapourSynth\\plugins";
     if (!loadAllPluginsInPath(appDataPath, filter))
-        qWarning("User specific plugin autoloading failed. Directory '%s' doesn't exist?", appDataPath.toUtf8().constData());
+        vsWarning("User specific plugin autoloading failed. Directory '%s' doesn't exist?", appDataPath.toUtf8().constData());
 
     // Autoload bundled plugins
     QSettings settings("HKEY_LOCAL_MACHINE\\Software\\VapourSynth", QSettings::NativeFormat);
     QString corePluginPath = settings.value("CorePlugins").toString();
     if (!loadAllPluginsInPath(corePluginPath, filter))
-        qWarning("Core plugin autoloading failed. Directory '%s' doesn't exist?", corePluginPath.toUtf8().constData());
+        vsWarning("Core plugin autoloading failed. Directory '%s' doesn't exist?", corePluginPath.toUtf8().constData());
 
     // Autoload global plugins last, this is so the bundled plugins cannot be overridden easily
     // and accidentally block updated bundled versions
     QString globalPluginPath = settings.value("Plugins").toString();
     if (!loadAllPluginsInPath(globalPluginPath, filter))
-        qWarning("Global plugin autoloading failed. Directory '%s' doesn't exist?", globalPluginPath.toUtf8().constData());
+        vsWarning("Global plugin autoloading failed. Directory '%s' doesn't exist?", globalPluginPath.toUtf8().constData());
 #elif defined(VS_TARGET_OS_LINUX) || defined(VS_TARGET_OS_DARWIN)
 
 #ifdef VS_TARGET_OS_DARWIN
@@ -755,7 +757,7 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
     QString userPluginDir = settings.value("UserPluginDir").toString();
     if (autoloadUserPluginDir && !userPluginDir.isEmpty()) {
         if (!loadAllPluginsInPath(userPluginDir, filter)) {
-            qWarning("Autoloading the user plugin dir '%s' failed. Directory doesn't exist?", userPluginDir.toUtf8().constData());
+            vsWarning("Autoloading the user plugin dir '%s' failed. Directory doesn't exist?", userPluginDir.toUtf8().constData());
         }
     }
 
@@ -763,7 +765,7 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
     QString systemPluginDir = settings.value("SystemPluginDir", QString(VS_PATH_PLUGINDIR)).toString();
     if (autoloadSystemPluginDir) {
         if (!loadAllPluginsInPath(systemPluginDir, filter)) {
-            qWarning("Autoloading the system plugin dir '%s' failed. Directory doesn't exist?", systemPluginDir.toUtf8().constData());
+            vsWarning("Autoloading the system plugin dir '%s' failed. Directory doesn't exist?", systemPluginDir.toUtf8().constData());
         }
     }
 #endif
@@ -892,11 +894,11 @@ VSPlugin::VSPlugin(const std::string &filename, const std::string &forcedNamespa
 // This stuff really only works properly on windows, feel free to investigate what the linux ABI thinks about it
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isMMXStateOk())
-        qFatal("Bad MMX state detected after loading %s", fullname.c_str());
+        vsFatal("Bad MMX state detected after loading %s", fullname.c_str());
     if (!vs_isFPUStateOk())
-        qWarning("Bad FPU state detected after loading %s", fullname.c_str());
+        vsWarning("Bad FPU state detected after loading %s", fullname.c_str());
     if (!vs_isSSEStateOk())
-        qFatal("Bad SSE state detected after loading %s", fullname.c_str());
+        vsFatal("Bad SSE state detected after loading %s", fullname.c_str());
 #endif
 
     if (readOnlySet)
@@ -924,7 +926,7 @@ VSPlugin::~VSPlugin() {
 
 void VSPlugin::configPlugin(const std::string &identifier, const std::string &defaultNamespace, const std::string &fullname, int apiVersion, bool readOnly) {
     if (hasConfig)
-        qFatal("Attempted to configure plugin %s twice", identifier.c_str());
+        vsFatal("Attempted to configure plugin %s twice", identifier.c_str());
 
     this->identifier = identifier;
 
@@ -939,14 +941,14 @@ void VSPlugin::configPlugin(const std::string &identifier, const std::string &de
 
 void VSPlugin::registerFunction(const std::string &name, const std::string &args, VSPublicFunction argsFunc, void *functionData) {
     if (readOnly)
-        qFatal("Tried to modify read only namespace");
+        vsFatal("Tried to modify read only namespace");
 
     if (!isValidIdentifier(name))
-        qFatal("Illegal identifier specified for function");
+        vsFatal("Illegal identifier specified for function");
 
 
     if (funcs.count(name))
-        qFatal("Duplicate function registered");        
+        vsFatal("Duplicate function registered");        
 
     funcs.insert(std::pair<std::string, VSFunction>(name, VSFunction(args, argsFunc, functionData)));
 }
@@ -1012,7 +1014,7 @@ VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
             f.func(&args, &v, f.functionData, core, getVSAPIInternal(apiVersion));
 
             if (!compat && hasCompatNodes(v))
-                qFatal("%s: illegal filter node returning a compat format detected, DO NOT USE THE COMPAT FORMATS IN NEW FILTERS", funcName.c_str());
+                vsFatal("%s: illegal filter node returning a compat format detected, DO NOT USE THE COMPAT FORMATS IN NEW FILTERS", funcName.c_str());
 
             return v;
         }

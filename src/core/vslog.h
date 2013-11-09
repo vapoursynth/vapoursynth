@@ -29,6 +29,6 @@
 #define vsFatal(msg, ...)    vsLog(__FILE__, __LINE__, mtFatal, (msg), __VA_ARGS__)
 
 void vsSetMessageHandler(VSMessageHandler handler, void *userData);
-void vsLog(const char *file, const char *line, VSMessageType type, const char *msg, ...);
+void vsLog(const char *file, long line, VSMessageType type, const char *msg, ...);
 
 #endif

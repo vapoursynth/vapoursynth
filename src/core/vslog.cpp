@@ -41,7 +41,7 @@ void vsSetMessageHandler(VSMessageHandler handler, void *userData) {
     }
 }
 
-void vsLog(const char *file, const char *line, VSMessageType type, const char *msg, ...) {
+void vsLog(const char *file, long line, VSMessageType type, const char *msg, ...) {
     std::lock_guard<std::mutex> lock(logMutex);
     if (messageHandler) {
         va_list alist;
@@ -52,12 +52,14 @@ void vsLog(const char *file, const char *line, VSMessageType type, const char *m
             vsnprintf(&buf[0], buf.size(), msg, alist);
         } catch (std::bad_alloc &) {
             vfprintf(stderr, msg, alist);
+            fprintf(stderr, "\n");
         }
         va_end(alist);
     } else {
         va_list alist;
         va_start(alist, msg);
         vfprintf(stderr, msg, alist);
+        fprintf(stderr, "\n");
         va_end(alist);
     }
 

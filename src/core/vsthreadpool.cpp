@@ -27,11 +27,11 @@
 void VSThreadPool::runTasks(VSThreadPool *owner, volatile bool &stop) {
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isMMXStateOk())
-        qFatal("Bad MMX state detected after creating new thread");
+        vsFatal("Bad MMX state detected after creating new thread");
     if (!vs_isFPUStateOk())
-        qWarning("Bad FPU state detected after creating new thread");
+        vsWarning("Bad FPU state detected after creating new thread");
     if (!vs_isSSEStateOk())
-        qFatal("Bad SSE state detected after creating new thread");
+        vsFatal("Bad SSE state detected after creating new thread");
 #endif
 
     std::unique_lock<std::mutex> lock(owner->lock);
@@ -222,7 +222,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, volatile bool &stop) {
                 } while ((mainContextRef = n));
             } else if (f) {
                 if (hasExistingRequests || requestedFrames)
-                    qFatal("A frame was returned at the end of processing by %s but there are still outstanding requests", clip->name.c_str());
+                    vsFatal("A frame was returned at the end of processing by %s but there are still outstanding requests", clip->name.c_str());
                 PFrameContext n;
 
                 do {
@@ -242,7 +242,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, volatile bool &stop) {
             } else if (hasExistingRequests || requestedFrames) {
                 // already scheduled, do nothing
             } else {
-                qFatal("No frame returned at the end of processing by %s", clip->name.c_str());
+                vsFatal("No frame returned at the end of processing by %s", clip->name.c_str());
             }
             break;
         }
@@ -269,7 +269,7 @@ VSThreadPool::VSThreadPool(VSCore *core, int threads) : core(core), activeThread
     maxThreads = threads > 0 ? threads : std::thread::hardware_concurrency();
     if (maxThreads == 0) {
         maxThreads = 1;
-        qWarning("Couldn't detect optimal number of threads. Thread count set to 1.");
+        vsWarning("Couldn't detect optimal number of threads. Thread count set to 1.");
     }
 }
 
@@ -346,7 +346,7 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
     //unfortunately this would probably be quite slow for deep scripts so just hope the cache catches it
 
     if (context->n < 0)
-        qFatal("Negative frame request by: %s", context->clip->getName().c_str());
+        vsFatal("Negative frame request by: %s", context->clip->getName().c_str());
 
     // check to see if it's time to reevaluate cache sizes
     if (core->memory->isOverLimit()) {

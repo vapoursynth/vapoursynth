@@ -196,7 +196,7 @@ static int VS_CC propNumKeys(const VSMap *props) {
 
 static const char *VS_CC propGetKey(const VSMap *props, int index) {
     if (index < 0 || index >= props->count())
-        qFatal("Out of bound index");
+        vsFatal("Out of bound index");
 
     return props->keys()[index].constData();
 }
@@ -220,7 +220,7 @@ static int getPropErrorCheck(const VSMap *props, const char *name, int index, in
     int err = 0;
 
     if (getError(props))
-        qFatal("Attempted to read from a map with error set: %s", getError(props));
+        vsFatal("Attempted to read from a map with error set: %s", getError(props));
 
     if (!props->contains(name))
         err |= peUnset;
@@ -234,7 +234,7 @@ static int getPropErrorCheck(const VSMap *props, const char *name, int index, in
         err |= peIndex;
 
     if (err && !error)
-        qFatal("Property read unsuccessful but no error output: %s", name);
+        vsFatal("Property read unsuccessful but no error output: %s", name);
 
     if (error)
         *error = err;
@@ -302,7 +302,7 @@ static int VS_CC propDeleteKey(VSMap *props, const char *name) {
 
 static void sharedPropSet(VSMap *props, const char *name, int &append) {
     if (append != paReplace && append != paAppend && append != paTouch)
-        qFatal("Invalid prop append mode given");
+        vsFatal("Invalid prop append mode given");
 
     if (append == paReplace) {
         props->remove(name);
@@ -603,7 +603,7 @@ const VSAPI *getVSAPIInternal(int version) {
     if (version == VAPOURSYNTH_API_VERSION) {
         return &vsapi;
     } else {
-        qFatal("Internally requested API version %d not supported", version);
+        vsFatal("Internally requested API version %d not supported", version);
         return NULL;
     }
 }
@@ -612,7 +612,7 @@ const VSAPI *VS_CC getVapourSynthAPI(int version) {
     CPUFeatures f;
     getCPUFeatures(&f);
     if (!f.can_run_vs) {
-        qWarning("System does not meet minimum requirements to run VapourSynth");
+        vsWarning("System does not meet minimum requirements to run VapourSynth");
         return NULL;
     } else if (version == VAPOURSYNTH_API_VERSION) {
         return &vsapi;

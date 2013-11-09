@@ -28,7 +28,6 @@
 #include <map>
 #include <vector>
 #include <string>
-#include <QtCore/qglobal.h>
 
 namespace AvisynthCompat {
 

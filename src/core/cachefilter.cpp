@@ -35,7 +35,7 @@ VSCache::CacheAction VSCache::recommendSize() {
     }
 
     //bool shrink = (nearMiss == 0 && hits == 0 && ((farMiss*10) / total >= 9));
-    //qWarning("Cache #%d stats (%s): %d %d %d %d, size: %d", id, shrink ? "shrink" : "keep", total, farMiss, nearMiss, hits, getMaxFrames());
+    //vsWarning("Cache #%d stats (%s): %d %d %d %d, size: %d", id, shrink ? "shrink" : "keep", total, farMiss, nearMiss, hits, getMaxFrames());
     if ((nearMiss*10) / total >= 1) { // growing the cache would be beneficial
         clearStats();
         return caGrow;

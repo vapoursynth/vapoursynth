@@ -25,6 +25,7 @@
 #include <QtCore/QSharedData>
 #include <QtCore/QByteArray>
 #include "VapourSynth.h"
+#include "vslog.h"
 #include <stdlib.h>
 #include <stdexcept>
 #include <vector>
@@ -208,7 +209,7 @@ public:
     }
     int64_t setMaxMemoryUse(int64_t bytes) {
         if (bytes <= 0)
-            qFatal("Maximum memory usage set to a negative number");
+            vsFatal("Maximum memory usage set to a negative number");
         maxMemoryUse = bytes;
         return maxMemoryUse;
     }

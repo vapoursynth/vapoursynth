@@ -22,6 +22,7 @@
 #define AVISYNTH_WRAPPER_H
 
 #define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 #include <Windows.h>
 #include <stdint.h>
 #include <assert.h>
@@ -243,8 +244,8 @@ struct VideoInfo {
 
         if (u) { // Scale to fit
             const unsigned round = 1 << (u - 1);
-            SetFPS((numerator   + round) >> u,
-                   (denominator + round) >> u);
+            SetFPS((unsigned)((numerator + round) >> u),
+                (unsigned)((denominator + round) >> u));
         } else {
             fps_numerator   = (unsigned)numerator;
             fps_denominator = (unsigned)denominator;
