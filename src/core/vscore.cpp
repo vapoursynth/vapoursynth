@@ -968,7 +968,6 @@ static bool hasCompatNodes(const VSMap &m) {
 
 VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
     const char lookup[] = { 'i', 'f', 's', 'c', 'v', 'm' };
-    VSMap v;
 
     try {
         if (funcs.count(funcName)) {
@@ -976,13 +975,16 @@ VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
             if (!compat && hasCompatNodes(args))
                 throw VSException(funcName + ": only special filters may accept compat input");
 
-            VSMap argsCopy(args);
+            std::set<std::string> remainingArgs;
+            QList<QByteArray> keys = args.keys();
+            for (const auto &key : keys)
+                remainingArgs.insert(key.constData());
 
             for (const FilterArgument &fa : f.args) {
                 char c = vsapi.propGetType(&args, fa.name.c_str());
 
                 if (c != 'u') {
-                    argsCopy.remove(fa.name.c_str());
+                    remainingArgs.erase(fa.name);
 
                     if (lookup[(int)fa.type] != c)
                         throw VSException(funcName + ": argument " + fa.name + " is not of the correct type");
@@ -998,16 +1000,13 @@ VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
                 }
             }
 
-            if (argsCopy.count()) {
-                QList<QByteArray> bl = argsCopy.uniqueKeys();
-                QStringList sl;
-
-                for (int i = 0; i < bl.count(); i++)
-                    sl.append(QString::fromUtf8(bl[i]));
-
-                sl.sort();
-                // fixme, add s.join(", ")
-                throw VSException(funcName + ": no argument named ");
+            if (!remainingArgs.empty()) {
+                auto iter = remainingArgs.cbegin();
+                std::string s = *iter;
+                ++iter;
+                for (; iter != remainingArgs.cend(); ++iter)
+                    s += ", " + *iter;
+                throw VSException(funcName + ": no argument(s) named " + s);
             }
 
             f.func(&args, &v, f.functionData, core, getVSAPIInternal(apiVersion));
