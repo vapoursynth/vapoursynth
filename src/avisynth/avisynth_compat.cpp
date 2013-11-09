@@ -551,11 +551,11 @@ bool FakeAvisynth::FunctionExists(const char *name) {
 }
 
 AVSValue FakeAvisynth::Invoke(const char *name, const AVSValue args, const char **arg_names) {
-    if (!stricmp(name, "Cache") || !stricmp(name, "InternalCache")) {
+    if (!_stricmp(name, "Cache") || !_stricmp(name, "InternalCache")) {
         return args;
     }
 
-    if (!stricmp(name, "Crop")) {
+    if (!_stricmp(name, "Crop")) {
         vsWarning("Invoke not fully implemented, tried to call Crop() but I will do nothing");
         return args[0];
     }
