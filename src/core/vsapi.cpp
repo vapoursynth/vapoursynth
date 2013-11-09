@@ -20,8 +20,7 @@
 
 #include "vscore.h"
 #include "cpufeatures.h"
-#include <assert.h>
-#include <QtCore/QString>
+#include "vslog.h"
 
 void VS_CC configPlugin(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readOnly, VSPlugin *plugin) {
     plugin->configPlugin(identifier, defaultNamespace, name, apiVersion, readOnly);
@@ -514,25 +513,8 @@ static int VS_CC getOutputIndex(VSFrameContext *frameCtx) {
     return frameCtx->ctx->index;
 }
 
-static VSMessageHandler messageHandler = NULL;
-static void *messageData = NULL;
-
-static void vsMessageHandler(QtMsgType type, const QMessageLogContext &ctx, const QString &msg) {
-    messageHandler(type, msg.toUtf8(), messageData);
-    if (type == QtFatalMsg)
-        std::abort();
-}
-
 static void VS_CC setMessageHandler(VSMessageHandler handler, void *userData) {
-    if (handler) {
-        ::messageHandler = handler;
-        ::messageData = userData;
-        qInstallMessageHandler(vsMessageHandler);
-    } else {
-        qInstallMessageHandler(NULL);
-        ::messageHandler = NULL;
-        ::messageData = NULL;
-    }
+    vsSetMessageHandler(handler, userData);
 }
 
 const VSAPI vsapi = {

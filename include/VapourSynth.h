@@ -210,7 +210,7 @@ typedef enum VSMessageType {
     mtDebug = 0,
     mtWarning = 1,
     mtCritical = 2,
-    mtFatal
+    mtFatal = 3
 } VSMessageType;
 
 // core function typedefs
