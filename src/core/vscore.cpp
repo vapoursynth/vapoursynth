@@ -321,20 +321,47 @@ uint8_t * VS_RESTRICT VSFrame::getWritePtr(int plane) {
     }
 }
 
+struct split1 {
+    enum empties_t { empties_ok, no_empties };
+};
+
+template <typename Container>
+Container& split(
+    Container& result,
+    const typename Container::value_type& s,
+    const typename Container::value_type& delimiters,
+    split1::empties_t empties = split1::empties_ok) {
+    result.clear();
+    size_t current;
+    size_t next = -1;
+    do {
+        if (empties == split1::no_empties) {
+            next = s.find_first_not_of(delimiters, next + 1);
+            if (next == Container::value_type::npos) break;
+            next -= 1;
+        }
+        current = next + 1;
+        next = s.find_first_of(delimiters, current);
+        result.push_back(s.substr(current, next - current));
+    } while (next != Container::value_type::npos);
+    return result;
+}
+
 VSFunction::VSFunction(const std::string &argString, VSPublicFunction func, void *functionData)
     : argString(argString), functionData(functionData), func(func) {
-    QString argQString = QString::fromUtf8(argString.c_str());
-    QStringList argList = argQString.split(';', QString::SkipEmptyParts);
-    foreach(QString arg, argList) {
-        QStringList argParts = arg.split(':');
+    std::list<std::string> argList;
+    split(argList, argString, std::string(";"), split1::no_empties);
+    for(const std::string &arg : argList) {
+        std::vector<std::string> argParts;
+        split(argParts, arg, std::string(":"), split1::no_empties);
 
-        if (argParts.count() < 2)
-            vsFatal("Invalid: %s", argString.c_str());
+        if (argParts.size() < 2)
+            vsFatal("Invalid argument specifier: %s", arg.c_str());
 
         bool arr = false;
         enum FilterArgumentType type = faNone;
-        std::string argName = argParts[0].toUtf8();
-        std::string typeName = argParts[1].toUtf8();
+        const std::string &argName = argParts[0];
+        const std::string &typeName = argParts[1];
 
         if (typeName == "int")
             type = faInt;
@@ -370,11 +397,18 @@ VSFunction::VSFunction(const std::string &argString, VSPublicFunction func, void
         bool opt = false;
         bool empty = false;
 
-        for (int i = 2; i < argParts.count(); i++) {
-            if (argParts[i] == "opt")
+        for (size_t i = 2; i < argParts.size(); i++) {
+            if (argParts[i] == "opt") {
+                if (opt)
+                    vsFatal("Duplicate argument specifier: %s", argParts[i]);
                 opt = true;
-            else if (argParts[i] == "empty")
+            } else if (argParts[i] == "empty") {
+                if (empty)
+                    vsFatal("Duplicate argument specifier: %s", argParts[i]);
                 empty = true;
+            }  else {
+                vsFatal("Unknown argument modifier: %s", argParts[i]);
+            }
         }
 
         if (!isValidIdentifier(argName))
@@ -968,6 +1002,7 @@ static bool hasCompatNodes(const VSMap &m) {
 
 VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
     const char lookup[] = { 'i', 'f', 's', 'c', 'v', 'm' };
+    VSMap v;
 
     try {
         if (funcs.count(funcName)) {
