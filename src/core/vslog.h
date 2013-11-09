@@ -23,10 +23,10 @@
 
 #include <VapourSynth.h>
 
-#define vsDebug(msg, ...)    vsLog(__FILE__, __LINE__, mtDebug, (msg), __VA_ARGS__)
-#define vsWarning(msg, ...)  vsLog(__FILE__, __LINE__, mtWarning, (msg), __VA_ARGS__)
-#define vsCritical(msg, ...) vsLog(__FILE__, __LINE__, mtCritical, (msg), __VA_ARGS__)
-#define vsFatal(msg, ...)    vsLog(__FILE__, __LINE__, mtFatal, (msg), __VA_ARGS__)
+#define vsDebug(...)    vsLog(__FILE__, __LINE__, mtDebug, __VA_ARGS__)
+#define vsWarning(...)  vsLog(__FILE__, __LINE__, mtWarning, __VA_ARGS__)
+#define vsCritical(...) vsLog(__FILE__, __LINE__, mtCritical, __VA_ARGS__)
+#define vsFatal(...)    vsLog(__FILE__, __LINE__, mtFatal, __VA_ARGS__)
 
 void vsSetMessageHandler(VSMessageHandler handler, void *userData);
 void vsLog(const char *file, long line, VSMessageType type, const char *msg, ...);

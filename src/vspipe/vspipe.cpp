@@ -26,8 +26,11 @@
 #include <mutex>
 #include <condition_variable>
 #include <algorithm>
-#include <codecvt>
 #include <chrono>
+#ifdef VS_TARGET_OS_WINDOWS
+#include <codecvt>
+#endif
+
 #define __STDC_FORMAT_MACROS
 #include <stdio.h>
 #include <inttypes.h>
@@ -59,7 +62,9 @@ std::string nstringToUtf8(const nstring &s) {
 #else
 typedef std::string nstring;
 #define NSTRING(x) x
-#define nstringToUtf8(x) x
+std::string nstringToUtf8(const nstring &s) {
+    return s;
+}
 #endif
 
 const VSAPI *vsapi = NULL;
@@ -311,7 +316,7 @@ int main(int argc, char **argv) {
 #ifdef VS_TARGET_OS_WINDOWS
         outFile = _wfopen(outputFilename.c_str(), L"wb");
 #else
-        outFile = fopen(outputFilename.toLocal8Bit(), "wb");
+        outFile = fopen(outputFilename.c_str(), "wb");
 #endif
         if (!outFile) {
             fprintf(stderr, "Failed to open output for writing\n");
@@ -331,7 +336,7 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "No index number specified\n");
                 return 1;
             }
-            
+
             if (!nstringToInt(argv[arg + 1], outputIndex)) {
                 fprintf(stderr, "Couldn't convert %s to an integer\n", nstringToUtf8(argv[arg + 1]).c_str());
                 return 1;

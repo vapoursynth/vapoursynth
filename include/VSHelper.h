@@ -1,4 +1,4 @@
-//  Copyright (c) 2012 Fredrik Mellbin
+//  Copyright (c) 2012-2013 Fredrik Mellbin
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a copy
 //  of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,7 @@
 #endif
 #include "VapourSynth.h"
 
-// VS2010 doesn't recognize inline in c mode
+// Visual Studio doesn't recognize inline in c mode
 #if defined(_MSC_VER) && !defined(__cplusplus)
 #define inline _inline
 #endif

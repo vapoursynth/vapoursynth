@@ -8,8 +8,8 @@ std::once_flag flag;
 struct VSScript : public VPYScriptExport {
 };
 
-std::atomic<int> initializationCount = 0;
-std::atomic<int> scriptId = 1000;
+std::atomic<int> initializationCount(0);
+std::atomic<int> scriptId(1000);
 bool initialized = false;
 PyThreadState *ts = NULL;
 PyGILState_STATE s;

@@ -209,6 +209,10 @@ def configure(conf):
         add_options(['CFLAGS', 'CXXFLAGS'],
                     ['-DVS_CORE_EXPORTS',
                      '-fPIC'])
+        add_options(['CXXFLAGS'],
+                    ['-std=c++0x'])
+        add_options(['CFLAGS'],
+                    ['-std=c99'])
     elif conf.env.CXX_NAME == 'msvc':
         add_options(['CFLAGS', 'CXXFLAGS'],
                     ['/DVS_CORE_EXPORTS',

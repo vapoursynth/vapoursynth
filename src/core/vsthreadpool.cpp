@@ -314,7 +314,7 @@ void VSThreadPool::notifyCaches(bool needMemory) {
 
 void VSThreadPool::start(const PFrameContext &context) {
     assert(context);
-    std::lock_guard<std::mutex> lock(lock);
+    std::lock_guard<std::mutex> l(lock);
     startInternal(context);
 }
 

@@ -46,6 +46,7 @@
 class VSFrame;
 struct VSCore;
 struct VSNode;
+class VSThreadPool;
 class FrameContext;
 class ExtFunction;
 
@@ -107,7 +108,6 @@ public:
     enum VSVType { vUnset, vInt, vFloat, vData, vNode, vFrame, vMethod };
     VSVariant(VSVType vtype = vUnset);
     VSVariant(const VSVariant &v);
-    VSVariant(VSVariant &&v);
     ~VSVariant();
 
     int size() const;

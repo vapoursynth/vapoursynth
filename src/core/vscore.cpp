@@ -26,15 +26,15 @@
 #include <QtCore/QDirIterator>
 #include <assert.h>
 #include <regex>
-#include <codecvt>
 
 #ifdef VS_TARGET_CPU_X86
 #include "x86utils.h"
 #endif
 
-#ifdef VS_TARGET_OS_WINDOWS
+#ifdef VS_TARGET_OS_WINDOWS 
 #define WIN32_LEAN_AND_MEAN
 #include <ShlObj.h>
+#include <codecvt>
 #endif
 
 // Internal filter headers
@@ -400,14 +400,14 @@ VSFunction::VSFunction(const std::string &argString, VSPublicFunction func, void
         for (size_t i = 2; i < argParts.size(); i++) {
             if (argParts[i] == "opt") {
                 if (opt)
-                    vsFatal("Duplicate argument specifier: %s", argParts[i]);
+                    vsFatal("Duplicate argument specifier: %s", argParts[i].c_str());
                 opt = true;
             } else if (argParts[i] == "empty") {
                 if (empty)
-                    vsFatal("Duplicate argument specifier: %s", argParts[i]);
+                    vsFatal("Duplicate argument specifier: %s", argParts[i].c_str());
                 empty = true;
             }  else {
-                vsFatal("Unknown argument modifier: %s", argParts[i]);
+                vsFatal("Unknown argument modifier: %s", argParts[i].c_str());
             }
         }
 
@@ -904,7 +904,7 @@ VSPlugin::VSPlugin(const std::string &filename, const std::string &forcedNamespa
         throw VSException("No entry point found in " + filename);
     }
 #else
-    libHandle = dlopen(filename.constData(), RTLD_LAZY);
+    libHandle = dlopen(filename.c_str(), RTLD_LAZY);
 
     if (!libHandle) {
         const char *dlError = dlerror();
