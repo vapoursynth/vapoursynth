@@ -21,23 +21,36 @@
 #include "cpufeatures.h"
 
 #ifdef VS_TARGET_CPU_X86
-void vs_cpuid_wrapper(unsigned level, unsigned *eax, unsigned *ebx, unsigned *ecx, unsigned *edx);
+extern void vs_cpu_cpuid(int index, int *eax, int *ebx, int *ecx, int *edx);
+extern void vs_cpu_xgetbv(int op, int *eax, int *edx);
+extern void vs_cpu_cpuid_test(void);
 
 void getCPUFeatures(CPUFeatures *cpuFeatures) {
-    unsigned eax = 0;
-    unsigned ebx = 0;
-    unsigned ecx = 0;
-    unsigned edx = 0;
-    vs_cpuid_wrapper(1, &eax, &ebx, &ecx, &edx);
+    int eax = 0;
+    int ebx = 0;
+    int ecx = 0;
+    int edx = 0;
+    vs_cpu_cpuid(1, &eax, &ebx, &ecx, &edx);
     cpuFeatures->can_run_vs = !!(edx & (1 << 26)); //sse2
     cpuFeatures->sse3 = !!(ecx & 1);
     cpuFeatures->ssse3 = !!(ecx & (1 << 9));
     cpuFeatures->sse4_1 = !!(ecx & (1 << 19));
     cpuFeatures->sse4_2 = !!(ecx & (1 << 20));
     cpuFeatures->fma3 = !!(ecx & (1 << 12));
-    cpuFeatures->avx = (ecx & (1 << 27)) && (ecx & (1 << 28));
-    vs_cpuid_wrapper(7, &eax, &ebx, &ecx, &edx);
-    cpuFeatures->avx2 = cpuFeatures->avx && (ebx & (1 << 5));
+    eax = 0;
+    edx = 0;
+    if ((ecx & (1 << 27)) && (ecx & (1 << 28))) {
+        vs_cpu_xgetbv(0, &eax, &edx);
+        cpuFeatures->avx = ((eax & 0x6) == 0x6);
+        if (cpuFeatures->avx) {
+            eax = 0;
+            ebx = 0;
+            ecx = 0;
+            edx = 0;
+            vs_cpu_cpuid(7, &eax, &ebx, &ecx, &edx);
+            cpuFeatures->avx2 = !!(ebx & (1 << 5));
+        }
+    }
 }
 #elif defined(VS_TARGET_OS_LINUX)
 #include <sys/auxv.h>
