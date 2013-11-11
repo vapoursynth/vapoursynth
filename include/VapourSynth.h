@@ -53,15 +53,6 @@
 #    define VS_API(ret) VS_EXTERNAL_API(ret)
 #endif
 
-// Use the restrict keyword for better code generation when available
-#if __STDC_VERSION__ >= 199901L // Available in C99
-#define VS_RESTRICT restrict
-#elif defined(__cplusplus) || defined(_MSC_VER) // Almost all relevant C++ compilers support it so just assume it works, MSVC is special as usual
-#define VS_RESTRICT __restrict
-#else // Not supported
-#define VS_RESTRICT
-#endif
-
 typedef struct VSFrameRef VSFrameRef;
 typedef struct VSNodeRef VSNodeRef;
 typedef struct VSCore VSCore;
@@ -252,8 +243,8 @@ typedef VSFrameRef *(VS_CC *VSNewVideoFrame2)(const VSFormat *format, int width,
 typedef VSFrameRef *(VS_CC *VSCopyFrame)(const VSFrameRef *f, VSCore *core);
 typedef void (VS_CC *VSCopyFrameProps)(const VSFrameRef *src, VSFrameRef *dst, VSCore *core);
 typedef int (VS_CC *VSGetStride)(const VSFrameRef *f, int plane);
-typedef const uint8_t * VS_RESTRICT (VS_CC *VSGetReadPtr)(const VSFrameRef *f, int plane);
-typedef uint8_t * VS_RESTRICT (VS_CC *VSGetWritePtr)(VSFrameRef *f, int plane);
+typedef const uint8_t *(VS_CC *VSGetReadPtr)(const VSFrameRef *f, int plane);
+typedef uint8_t *(VS_CC *VSGetWritePtr)(VSFrameRef *f, int plane);
 
 // property access
 typedef const VSVideoInfo *(VS_CC *VSGetVideoInfo)(VSNodeRef *node);
@@ -274,7 +265,7 @@ typedef void (VS_CC *VSClearMap)(VSMap *map);
 
 typedef int64_t (VS_CC *VSPropGetInt)(const VSMap *map, const char *key, int index, int *error);
 typedef double(VS_CC *VSPropGetFloat)(const VSMap *map, const char *key, int index, int *error);
-typedef const char * VS_RESTRICT (VS_CC *VSPropGetData)(const VSMap *map, const char *key, int index, int *error);
+typedef const char *(VS_CC *VSPropGetData)(const VSMap *map, const char *key, int index, int *error);
 typedef int (VS_CC *VSPropGetDataSize)(const VSMap *map, const char *key, int index, int *error);
 typedef VSNodeRef *(VS_CC *VSPropGetNode)(const VSMap *map, const char *key, int index, int *error);
 typedef const VSFrameRef *(VS_CC *VSPropGetFrame)(const VSMap *map, const char *key, int index, int *error);

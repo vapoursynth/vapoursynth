@@ -35,6 +35,15 @@
 #define inline _inline
 #endif
 
+// A kinda portable definition of the C99 restrict keyword (or its inofficial C++ equivalent)
+#if __STDC_VERSION__ >= 199901L // Available in C99
+#define VS_RESTRICT restrict
+#elif defined(__cplusplus) || defined(_MSC_VER) // Almost all relevant C++ compilers support it so just assume it works
+#define VS_RESTRICT __restrict
+#else // Not supported
+#define VS_RESTRICT
+#endif
+
 #ifdef _WIN32
 #define VS_ALIGNED_MALLOC(pptr, size, alignment) *(pptr) = _aligned_malloc((size), (alignment))
 #define VS_ALIGNED_FREE(ptr) _aligned_free((ptr))

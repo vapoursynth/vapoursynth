@@ -275,8 +275,8 @@ public:
         return height >> (plane ? format->subSamplingH : 0);
     }
     int getStride(int plane) const;
-    const uint8_t * VS_RESTRICT getReadPtr(int plane) const;
-    uint8_t * VS_RESTRICT getWritePtr(int plane);
+    const uint8_t *getReadPtr(int plane) const;
+    uint8_t *getWritePtr(int plane);
 };
 
 class FrameContext {

@@ -289,7 +289,7 @@ int VSFrame::getStride(int plane) const {
     return stride[plane];
 }
 
-const uint8_t * VS_RESTRICT VSFrame::getReadPtr(int plane) const {
+const uint8_t *VSFrame::getReadPtr(int plane) const {
     if (plane < 0 || plane >= format->numPlanes)
         vsFatal("Invalid plane requested");
 
@@ -305,7 +305,7 @@ const uint8_t * VS_RESTRICT VSFrame::getReadPtr(int plane) const {
     }
 }
 
-uint8_t * VS_RESTRICT VSFrame::getWritePtr(int plane) {
+uint8_t *VSFrame::getWritePtr(int plane) {
     if (plane < 0 || plane >= format->numPlanes)
         vsFatal("Invalid plane requested");
 

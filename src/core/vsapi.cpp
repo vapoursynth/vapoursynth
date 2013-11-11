@@ -53,11 +53,11 @@ static int VS_CC getStride(const VSFrameRef *frame, int plane) {
     return frame->frame->getStride(plane);
 }
 
-static const uint8_t * VS_RESTRICT VS_CC getReadPtr(const VSFrameRef *frame, int plane) {
+static const uint8_t *VS_CC getReadPtr(const VSFrameRef *frame, int plane) {
     return frame->frame->getReadPtr(plane);
 }
 
-static uint8_t * VS_RESTRICT VS_CC getWritePtr(VSFrameRef *frame, int plane) {
+static uint8_t *VS_CC getWritePtr(VSFrameRef *frame, int plane) {
     return frame->frame->getWritePtr(plane);
 }
 
@@ -261,7 +261,7 @@ static double VS_CC propGetFloat(const VSMap *props, const char *name, int index
     return (*props)[name].getValue<double>(index);
 }
 
-static const char * VS_RESTRICT VS_CC propGetData(const VSMap *props, const char *name, int index, int *error) {
+static const char *VS_CC propGetData(const VSMap *props, const char *name, int index, int *error) {
     int err = getPropErrorCheck(props, name, index, error, VSVariant::vData);
 
     if (err)
