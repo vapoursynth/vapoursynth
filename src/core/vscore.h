@@ -81,9 +81,10 @@ public:
 };
 
 // variant types
+typedef std::shared_ptr<std::string> VSMapData;
 typedef QList<int64_t> IntList;
 typedef QList<double> FloatList;
-typedef QList<std::string> DataList;
+typedef QList<VSMapData> DataList;
 typedef QList<VSNodeRef> NodeList;
 typedef QList<PVideoFrame> FrameList;
 typedef QList<PExtFunction> FuncList;

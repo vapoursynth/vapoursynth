@@ -267,7 +267,7 @@ static const char * VS_RESTRICT VS_CC propGetData(const VSMap *props, const char
     if (err)
         return 0;
 
-    return (*props)[name].getValue<std::string>(index).c_str();
+    return (*props)[name].getValue<VSMapData>(index)->c_str();
 }
 
 static int VS_CC propGetDataSize(const VSMap *props, const char *name, int index, int *error) {
@@ -276,7 +276,7 @@ static int VS_CC propGetDataSize(const VSMap *props, const char *name, int index
     if (err)
         return 0;
 
-    return (*props)[name].getValue<std::string>(index).size();
+    return (*props)[name].getValue<VSMapData>(index)->size();
 }
 
 static VSNodeRef *VS_CC propGetNode(const VSMap *props, const char *name, int index, int *error) {

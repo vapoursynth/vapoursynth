@@ -136,7 +136,7 @@ void VSVariant::append(double val) {
 
 void VSVariant::append(const std::string &val) {
     initStorage(vData);
-    reinterpret_cast<DataList *>(storage)->append(val);
+    reinterpret_cast<DataList *>(storage)->append(std::make_shared<std::string>(val));
     internalSize++;
 }
 
