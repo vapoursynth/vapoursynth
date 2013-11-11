@@ -31,7 +31,7 @@
 #include "x86utils.h"
 #endif
 
-#ifdef VS_TARGET_OS_WINDOWS 
+#ifdef VS_TARGET_OS_WINDOWS
 #define WIN32_LEAN_AND_MEAN
 #include <ShlObj.h>
 #include <codecvt>

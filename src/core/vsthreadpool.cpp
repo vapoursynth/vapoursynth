@@ -24,7 +24,7 @@
 #include "x86utils.h"
 #endif
 
-void VSThreadPool::runTasks(VSThreadPool *owner, volatile bool &stop) {
+void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isMMXStateOk())
         vsFatal("Bad MMX state detected after creating new thread");

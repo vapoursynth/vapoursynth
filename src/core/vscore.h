@@ -384,12 +384,12 @@ private:
     std::atomic<unsigned> activeThreads;
     std::atomic<unsigned> idleThreads;
     unsigned maxThreads;
-    volatile bool stopThreads;
+    std::atomic<bool> stopThreads;
     void wakeThread();
     void notifyCaches(bool needMemory);
     void startInternal(const PFrameContext &context);
     void spawnThread();
-    static void runTasks(VSThreadPool *owner, volatile bool &stop);
+    static void runTasks(VSThreadPool *owner, std::atomic<bool> &stop);
 public:
     VSThreadPool(VSCore *core, int threads);
     ~VSThreadPool();
