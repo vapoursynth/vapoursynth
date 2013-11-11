@@ -54,12 +54,12 @@ inline VSCache::VSCache(int maxSize, int maxHistorySize, bool fixedSize)
     clear();
 }
 
-inline PVideoFrame VSCache::object(const int key) const {
-    return const_cast<VSCache *>(this)->relink(key);
+inline PVideoFrame VSCache::object(const int key) {
+    return this->relink(key);
 }
 
 
-inline PVideoFrame VSCache::operator[](const int key) const {
+inline PVideoFrame VSCache::operator[](const int key) {
     return object(key);
 }
 

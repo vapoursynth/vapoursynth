@@ -188,11 +188,11 @@ public:
     }
 
     bool insert(const int key, const PVideoFrame &object);
-    PVideoFrame object(const int key) const;
+    PVideoFrame object(const int key);
     inline bool contains(const int key) const {
         return hash.count(key);
     }
-    PVideoFrame operator[](const int key) const;
+    PVideoFrame operator[](const int key);
 
     bool remove(const int key);
 
