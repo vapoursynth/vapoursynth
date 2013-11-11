@@ -25,7 +25,6 @@
 #include <QtCore/QDir>
 #include <QtCore/QDirIterator>
 #include <assert.h>
-#include <regex>
 
 #ifdef VS_TARGET_CPU_X86
 #include "x86utils.h"
@@ -51,12 +50,25 @@ extern "C" {
 
 const VSAPI *VS_CC getVapourSynthAPI(int version);
 
+static inline bool isAlpha(char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+}
 
-static const std::regex idRegExp("^[a-zA-Z][a-zA-Z0-9_]*$");
-static const std::regex sysPropRegExp("^_[a-zA-Z0-9_]*$");
+static inline bool isAlphaNumUnderscore(char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+}
 
 static bool isValidIdentifier(const std::string &s) {
-    return std::regex_match(s, idRegExp);
+    size_t len = s.length();
+    if (!len)
+        return false;
+    
+    if (!isAlpha(s[0]))
+        return false;
+    for (size_t i = 1; i < len; i++)
+        if (!isAlphaNumUnderscore(s[i]))
+            return false;
+    return true;
 }
 
 FrameContext::FrameContext(int n, int index, VSNode *clip, const PFrameContext &upstreamContext) : numFrameRequests(0), index(index), n(n), node(NULL), clip(clip), upstreamContext(upstreamContext), userData(NULL), frameContext(NULL), frameDone(NULL), error(false), lastCompletedN(-1), lastCompletedNode(NULL) {
