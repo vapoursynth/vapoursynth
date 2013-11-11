@@ -78,6 +78,16 @@ class ConvUnsigned
 };
 #endif
 
+#define AvsFilterRepair16_SORT_AXIS_CPP \
+    const int      ma1 = std::max(a1, a8);   \
+    const int      mi1 = std::min(a1, a8);   \
+    const int      ma2 = std::max(a2, a7);   \
+    const int      mi2 = std::min(a2, a7);   \
+    const int      ma3 = std::max(a3, a6);   \
+    const int      mi3 = std::min(a3, a6);   \
+    const int      ma4 = std::max(a4, a5);   \
+    const int      mi4 = std::min(a4, a5);
+
 
 class OpRG01
 {
@@ -435,6 +445,133 @@ public:
 #endif
 };
 
+class OpRG15 {
+public:
+    static __forceinline int
+        rg(int cr, int a1, int a2, int a3, int a4, int c, int a5, int a6, int a7, int a8) {
+            AvsFilterRepair16_SORT_AXIS_CPP
+
+            const int      c1 = std::abs(c - limit(c, mi1, ma1));
+            const int      c2 = std::abs(c - limit(c, mi2, ma2));
+            const int      c3 = std::abs(c - limit(c, mi3, ma3));
+            const int      c4 = std::abs(c - limit(c, mi4, ma4));
+
+            const int      mindiff = std::min(std::min(c1, c2), std::min(c3, c4));
+
+            int            mi;
+            int            ma;
+            if (mindiff == c4) {
+                mi = mi4;
+                ma = ma4;
+            } else if (mindiff == c2) {
+                mi = mi2;
+                ma = ma2;
+            } else if (mindiff == c3) {
+                mi = mi3;
+                ma = ma3;
+            } else {
+                mi = mi1;
+                ma = ma1;
+            }
+
+            mi = std::min(mi, c);
+            ma = std::max(ma, c);
+
+            return (limit(cr, mi, ma));
+        }
+};
+
+class OpRG16 {
+public:
+    static __forceinline int
+        rg(int cr, int a1, int a2, int a3, int a4, int c, int a5, int a6, int a7, int a8) {
+            AvsFilterRepair16_SORT_AXIS_CPP
+
+            const int      d1 = ma1 - mi1;
+            const int      d2 = ma2 - mi2;
+            const int      d3 = ma3 - mi3;
+            const int      d4 = ma4 - mi4;
+
+            const int      c1 = limit((std::abs(c - limit(c, mi1, ma1)) << 1) + d1, 0, 0xFFFF);
+            const int      c2 = limit((std::abs(c - limit(c, mi2, ma2)) << 1) + d2, 0, 0xFFFF);
+            const int      c3 = limit((std::abs(c - limit(c, mi3, ma3)) << 1) + d3, 0, 0xFFFF);
+            const int      c4 = limit((std::abs(c - limit(c, mi4, ma4)) << 1) + d4, 0, 0xFFFF);
+
+            const int      mindiff = std::min(std::min(c1, c2), std::min(c3, c4));
+
+            int            mi;
+            int            ma;
+            if (mindiff == c4) {
+                mi = mi4;
+                ma = ma4;
+            } else if (mindiff == c2) {
+                mi = mi2;
+                ma = ma2;
+            } else if (mindiff == c3) {
+                mi = mi3;
+                ma = ma3;
+            } else {
+                mi = mi1;
+                ma = ma1;
+            }
+
+            mi = std::min(mi, c);
+            ma = std::max(ma, c);
+
+            return (limit(cr, mi, ma));
+        }
+};
+
+class OpRG17 {
+public:
+    static __forceinline int
+        rg(int cr, int a1, int a2, int a3, int a4, int c, int a5, int a6, int a7, int a8) {
+            AvsFilterRepair16_SORT_AXIS_CPP
+
+            const int      l = std::max(std::max(mi1, mi2), std::max(mi3, mi4));
+            const int      u = std::min(std::min(ma1, ma2), std::min(ma3, ma4));
+
+            const int      mi = std::min(std::min(l, u), c);
+            const int      ma = std::max(std::max(l, u), c);
+
+            return (limit(cr, mi, ma));
+        }
+};
+
+class OpRG18 {
+public:
+    static __forceinline int
+        rg(int cr, int a1, int a2, int a3, int a4, int c, int a5, int a6, int a7, int a8) {
+            const int      d1 = std::max(std::abs(c - a1), std::abs(c - a8));
+            const int      d2 = std::max(std::abs(c - a2), std::abs(c - a7));
+            const int      d3 = std::max(std::abs(c - a3), std::abs(c - a6));
+            const int      d4 = std::max(std::abs(c - a4), std::abs(c - a5));
+
+            const int      mindiff = std::min(std::min(d1, d2), std::min(d3, d4));
+
+            int            mi;
+            int            ma;
+            if (mindiff == d4) {
+                mi = std::min(a4, a5);
+                ma = std::max(a4, a5);
+            } else if (mindiff == d2) {
+                mi = std::min(a2, a7);
+                ma = std::max(a2, a7);
+            } else if (mindiff == d3) {
+                mi = std::min(a3, a6);
+                ma = std::max(a3, a6);
+            } else {
+                mi = std::min(a1, a8);
+                ma = std::max(a1, a8);
+            }
+
+            mi = std::min(mi, c);
+            ma = std::max(ma, c);
+
+            return (limit(cr, mi, ma));
+        }
+};
+
 
 template <class OP, class T>
 class PlaneProc {
@@ -631,25 +768,34 @@ static const VSFrameRef *VS_CC repairGetFrame(int n, int activationReason, void 
         VSFrameRef *dst_frame = vsapi->newVideoFrame2(vsapi->getFrameFormat(src1_frame), vsapi->getFrameWidth(src1_frame, 0), vsapi->getFrameHeight(src1_frame, 0), cp_planes, planes, src1_frame, core);
 
 
-#ifdef VS_TARGET_CPU_X86
-#define PROC_ARGS_16(op) PlaneProc <op, uint16_t>::do_process_plane_sse2<op, uint16_t>(src1_frame, src2_frame, dst_frame, i, vsapi); break;
-#define PROC_ARGS_8(op) PlaneProc <op, uint8_t>::do_process_plane_sse2<op, uint8_t>(src1_frame, src2_frame, dst_frame, i, vsapi); break;
-#else
 #define PROC_ARGS_16(op) PlaneProc <op, uint16_t>::do_process_plane_cpp<op, uint16_t>(src1_frame, src2_frame, dst_frame, i, vsapi); break;
 #define PROC_ARGS_8(op) PlaneProc <op, uint16_t>::do_process_plane_cpp<op, uint8_t>(src1_frame, src2_frame, dst_frame, i, vsapi); break;
+
+#ifdef VS_TARGET_CPU_X86
+#define PROC_ARGS_16_FAST(op) PlaneProc <op, uint16_t>::do_process_plane_sse2<op, uint16_t>(src1_frame, src2_frame, dst_frame, i, vsapi); break;
+#define PROC_ARGS_8_FAST(op) PlaneProc <op, uint8_t>::do_process_plane_sse2<op, uint8_t>(src1_frame, src2_frame, dst_frame, i, vsapi); break;
+#else
+#define PROC_ARGS_16_FAST(op) PROC_ARGS_16(op)
+#define PROC_ARGS_8_FAST(op) PROC_ARGS_8(op)
 #endif
+
+
         if (d->vi->format->bytesPerSample == 1) {
             for (int i = 0; i < d->vi->format->numPlanes; i++) {
                 switch (d->mode[i])
                 {
-                    case  1: PROC_ARGS_8(OpRG01)
-                    case  2: PROC_ARGS_8(OpRG02)
-                    case  3: PROC_ARGS_8(OpRG03)
-                    case  4: PROC_ARGS_8(OpRG04)
-                    case 11: PROC_ARGS_8(OpRG01)
-                    case 12: PROC_ARGS_8(OpRG12)
-                    case 13: PROC_ARGS_8(OpRG13)
-                    case 14: PROC_ARGS_8(OpRG14)
+                    case  1: PROC_ARGS_8_FAST(OpRG01)
+                    case  2: PROC_ARGS_8_FAST(OpRG02)
+                    case  3: PROC_ARGS_8_FAST(OpRG03)
+                    case  4: PROC_ARGS_8_FAST(OpRG04)
+                    case 11: PROC_ARGS_8_FAST(OpRG01)
+                    case 12: PROC_ARGS_8_FAST(OpRG12)
+                    case 13: PROC_ARGS_8_FAST(OpRG13)
+                    case 14: PROC_ARGS_8_FAST(OpRG14)
+                    case 15: PROC_ARGS_8(OpRG15)
+                    case 16: PROC_ARGS_8(OpRG16)
+                    case 17: PROC_ARGS_8(OpRG17)
+                    case 18: PROC_ARGS_8(OpRG18)
                     default: break;
                 }
             }
@@ -657,14 +803,18 @@ static const VSFrameRef *VS_CC repairGetFrame(int n, int activationReason, void 
             for (int i = 0; i < d->vi->format->numPlanes; i++) {
                 switch (d->mode[i])
                 {
-                    case  1: PROC_ARGS_16(OpRG01)
-                    case  2: PROC_ARGS_16(OpRG02)
-                    case  3: PROC_ARGS_16(OpRG03)
-                    case  4: PROC_ARGS_16(OpRG04)
-                    case 11: PROC_ARGS_16(OpRG01)
-                    case 12: PROC_ARGS_16(OpRG12)
-                    case 13: PROC_ARGS_16(OpRG13)
-                    case 14: PROC_ARGS_16(OpRG14)
+                    case  1: PROC_ARGS_16_FAST(OpRG01)
+                    case  2: PROC_ARGS_16_FAST(OpRG02)
+                    case  3: PROC_ARGS_16_FAST(OpRG03)
+                    case  4: PROC_ARGS_16_FAST(OpRG04)
+                    case 11: PROC_ARGS_16_FAST(OpRG01)
+                    case 12: PROC_ARGS_16_FAST(OpRG12)
+                    case 13: PROC_ARGS_16_FAST(OpRG13)
+                    case 14: PROC_ARGS_16_FAST(OpRG14)
+                    case 15: PROC_ARGS_16(OpRG15)
+                    case 16: PROC_ARGS_16(OpRG16)
+                    case 17: PROC_ARGS_16(OpRG17)
+                    case 18: PROC_ARGS_16(OpRG18)
                     default: break;
                 }
             }
