@@ -55,7 +55,14 @@ static __forceinline void sort_pair (__m128i &mi, __m128i &ma, __m128i a1, __m12
 }
 #endif
 
+enum cleanseMode {
+    cmNormal,
+    cmForward,
+    cmBackward
+};
+
 void VS_CC removeGrainCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
 void VS_CC repairCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
+void VS_CC clenseCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
 
 #endif
