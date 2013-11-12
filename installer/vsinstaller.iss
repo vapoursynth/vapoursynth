@@ -18,7 +18,7 @@ AppPublisherURL=http://www.vapoursynth.com/
 AppSupportURL=http://www.vapoursynth.com/
 AppUpdatesURL=http://www.vapoursynth.com/
 VersionInfoVersion=1.21.0.0
-DefaultDirName={pf}\VapourSynth
+DefaultDirName={pf32}\VapourSynth
 DefaultGroupName=VapourSynth
 AllowCancelDuringInstall=no
 AllowNoIcons=yes
@@ -26,110 +26,186 @@ AllowUNCPath=no
 MinVersion=0,5.1
 PrivilegesRequired=poweruser
 FlatComponentsList=yes
+ArchitecturesAllowed=x86 x64
+ArchitecturesInstallIn64BitMode=x64
 
 [Types]
 Name: Full; Description: Full installation
 
+[Components]
+Name: "vs64"; Description: "VapourSynth 64bit"; Types: Full; Check: HasPython64
+Name: "vs32"; Description: "VapourSynth 32bit"; Types: Full; Check: HasPython32
+Name: "sdk"; Description: "VapourSynth SDK"; Flags: fixed; Types: Full
+
 [Tasks]
 Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to shell context menu"; GroupDescription: "New File Shortcuts:"
-Name: registervsfs; Description: "Register the VSFS handler"; GroupDescription: "Pismo File Mount:"
+Name: registervsfs; Description: "Register the VSFS handler"; GroupDescription: "Pismo File Mount:"; Components: vs32 vs64
 
 [Files]
 ;core binaries
-Source: vapoursynth.pth; DestDir: {code:GetPythonPath}; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: vapoursynth.dll; DestDir: {code:GetPythonPath}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: vapoursynth.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: vapoursynth.pyd; DestDir: {code:GetPythonPath}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: Qt5Core.dll; DestDir: {code:GetPythonPath}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: Qt5Core.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: vsfs.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: template.vpy; DestDir: {app}; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: vsvfw.dll; DestDir: {sys}; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: vsscript.dll; DestDir: {sys}; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: vspipe.exe; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: template.vpy; DestDir: {app}; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32 vs64
+Source: vapoursynth.pth; DestDir: {code:GetPythonPath32}; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: vapoursynth.pth; DestDir: {code:GetPythonPath64}; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+
+Source: x86\vapoursynth.pyd; DestDir: {code:GetPythonPath32}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: x64\vapoursynth.pyd; DestDir: {code:GetPythonPath64}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+
+Source: x86\vapoursynth.dll; DestDir: {code:GetPythonPath32}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: x64\vapoursynth.dll; DestDir: {code:GetPythonPath64}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+Source: x86\vapoursynth.dll; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: x64\vapoursynth.dll; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+
+Source: x86\Qt5Core.dll; DestDir: {code:GetPythonPath32}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: x64\Qt5Core.dll; DestDir: {code:GetPythonPath64}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+Source: x86\Qt5Core.dll; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: x64\Qt5Core.dll; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+
+Source: x86\vsfs.dll; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: x64\vsfs.dll; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+
+Source: x86\vspipe.exe; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: x64\vspipe.exe; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+
+Source: x86\vspipe.exe; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: x64\vspipe.exe; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+
+Source: x86\vsvfw.dll; DestDir: {sys}; Flags: ignoreversion uninsrestartdelete restartreplace 32bit; Components: vs32
+Source: x64\vsvfw.dll; DestDir: {sys}; Flags: ignoreversion uninsrestartdelete restartreplace 64bit; Components: vs64
+
+Source: x86\vsscript.dll; DestDir: {sys}; Flags: ignoreversion uninsrestartdelete restartreplace 32bit; Components: vs32
+Source: x64\vsscript.dll; DestDir: {sys}; Flags: ignoreversion uninsrestartdelete restartreplace 64bit; Components: vs64
 ;vs2010 runtime
-Source: msvcr100.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile
-Source: msvcp100.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile
+Source: x86\msvcr100.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile 32bit; Components: vs32
+Source: x64\msvcr100.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile 64bit; Components: vs64
+
+Source: x86\msvcp100.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile 32bit; Components: vs32
+Source: x64\msvcp100.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile 64bit; Components: vs64
 ;vs2013 runtime
-Source: msvcr120.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile
-Source: msvcp120.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile
-Source: vccorlib120.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile
+Source: x86\msvcr120.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile 32bit; Components: vs32
+Source: x64\msvcr120.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile 64bit; Components: vs64
+
+Source: x86\msvcp120.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile 32bit; Components: vs32
+Source: x64\msvcp120.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile 64bit; Components: vs64
+
+Source: x86\vccorlib120.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile 32bit; Components: vs32
+Source: x64\vccorlib120.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile 64bit; Components: vs64
 ;sdk
-Source: ..\include\VapourSynth.h; DestDir: {app}\sdk\include; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: ..\include\VSHelper.h; DestDir: {app}\sdk\include; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: ..\include\VSScript.h; DestDir: {app}\sdk\include; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: vsscript.lib; DestDir: {app}\sdk\lib; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: vapoursynth.lib; DestDir: {app}\sdk\lib; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: ..\sdk\filter_skeleton.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: ..\sdk\invert_example.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: ..\sdk\vsscript_example.cpp; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: ..\include\VapourSynth.h; DestDir: {app}\sdk\include; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
+Source: ..\include\VSHelper.h; DestDir: {app}\sdk\include; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
+Source: ..\include\VSScript.h; DestDir: {app}\sdk\include; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
+Source: x86\vsscript.lib; DestDir: {app}\sdk\lib32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
+Source: x64\vsscript.lib; DestDir: {app}\sdk\lib64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
+Source: x86\vapoursynth.lib; DestDir: {app}\sdk\lib32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
+Source: x64\vapoursynth.lib; DestDir: {app}\sdk\lib64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
+Source: ..\sdk\filter_skeleton.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
+Source: ..\sdk\invert_example.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
+Source: ..\sdk\vsscript_example.cpp; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
 ;bundled plugins
-Source: plugins\avisource.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: plugins\vinverse.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: plugins\vivtc.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: plugins\eedi3.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: plugins\assvapour.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: plugins\temporalsoften.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: plugins\histogram.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
-Source: plugins\removegrainvs.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace
+Source: x86\plugins\*; DestDir: {app}\core32\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: x64\plugins\*; DestDir: {app}\core64\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 
 ; Create the general autoload directory
 [Dirs]
-Name: "{app}\plugins"; Flags: uninsalwaysuninstall
+Name: "{app}\plugins32"; Flags: uninsalwaysuninstall; Components: vs32
+Name: "{app}\plugins64"; Flags: uninsalwaysuninstall; Components: vs64
 
 [Icons]
 Name: {group}\VapourSynth Website; Filename: http://www.vapoursynth.com/
 Name: {group}\Documentation; Filename: http://www.vapoursynth.com/doc/
-Name: {group}\Autoload Directory; Filename: {app}\plugins
-Name: {group}\VapourSynth SDK; Filename: {app}\sdk
+Name: {group}\Autoload Directory (32bit); Filename: {app}\plugins32; Components: vs32
+Name: {group}\Autoload Directory (64bit); Filename: {app}\plugins64; Components: vs64
+Name: {group}\VapourSynth SDK; Filename: {app}\sdk; Components: sdk
 
 [Registry]
-Root: HKLM; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "Version"; ValueData: {#= Version}; Flags: uninsdeletevalue uninsdeletekeyifempty
-Root: HKLM; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "Path"; ValueData: "{app}"; Flags: uninsdeletevalue uninsdeletekeyifempty
-Root: HKLM; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "CorePlugins"; ValueData: "{app}\core\plugins"; Flags: uninsdeletevalue uninsdeletekeyifempty
-Root: HKLM; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "Plugins"; ValueData: "{app}\plugins"; Flags: uninsdeletevalue uninsdeletekeyifempty
+Root: HKLM32; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "Version"; ValueData: {#= Version}; Flags: uninsdeletevalue uninsdeletekeyifempty
+Root: HKLM32; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "Path"; ValueData: "{app}"; Flags: uninsdeletevalue uninsdeletekeyifempty
+Root: HKLM32; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "CorePlugins32"; ValueData: "{app}\core32\plugins"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
+Root: HKLM32; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "CorePlugins64"; ValueData: "{app}\core64\plugins"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
+Root: HKLM32; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "Plugins32"; ValueData: "{app}\plugins32"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
+Root: HKLM32; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "Plugins64"; ValueData: "{app}\plugins64"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
 
-Root: HKLM; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}; ValueType: string; ValueName: ""; ValueData: "VapourSynth"; Flags: uninsdeletevalue uninsdeletekeyifempty
-Root: HKLM; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32; ValueType: string; ValueName: ""; ValueData: "vsvfw.dll"; Flags: uninsdeletevalue uninsdeletekeyifempty
-Root: HKLM; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32; ValueType: string; ValueName: "ThreadingModel"; ValueData: "Apartment"; Flags: uninsdeletevalue uninsdeletekeyifempty
-Root: HKLM; Subkey: SOFTWARE\Classes\Media Type\Extensions\.vpy; ValueType: string; ValueName: ""; ValueData: ""; Flags: uninsdeletevalue uninsdeletekeyifempty
-Root: HKLM; Subkey: SOFTWARE\Classes\Media Type\Extensions\.vpy; ValueType: string; ValueName: "Source Filter"; ValueData: "{{D3588AB0-0781-11CE-B03A-0020AF0BA770}"; Flags: uninsdeletevalue uninsdeletekeyifempty
-Root: HKLM; Subkey: SOFTWARE\Classes\.vpy; ValueType: string; ValueName: ""; ValueData: "vsfile"; Flags: uninsdeletevalue uninsdeletekeyifempty
-Root: HKLM; Subkey: SOFTWARE\Classes\vsfile; ValueType: string; ValueName: ""; ValueData: "VapourSynth Python Script"; Flags: uninsdeletevalue uninsdeletekeyifempty
-Root: HKLM; Subkey: SOFTWARE\Classes\vsfile\DefaultIcon; ValueType: string; ValueName: ""; ValueData: "vsvfw.dll,0"; Flags: uninsdeletevalue uninsdeletekeyifempty
-Root: HKLM; Subkey: SOFTWARE\Classes\AVIFile\Extensions\VPY; ValueType: string; ValueName: ""; ValueData: "{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}"; Flags: uninsdeletevalue uninsdeletekeyifempty
+; new vpy file shortcut task
 Root: HKLM; Subkey: SOFTWARE\Classes\.vpy\ShellNew; ValueType: string; ValueName: "FileName"; ValueData: "{app}\template.vpy"; Flags: uninsdeletevalue uninsdeletekeyifempty; Tasks: newvpyfile
 
+; 32bit vfw
+Root: HKLM32; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}; ValueType: string; ValueName: ""; ValueData: "VapourSynth"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
+Root: HKLM32; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32; ValueType: string; ValueName: ""; ValueData: "vsvfw.dll"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
+Root: HKLM32; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32; ValueType: string; ValueName: "ThreadingModel"; ValueData: "Apartment"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
+Root: HKLM32; Subkey: SOFTWARE\Classes\Media Type\Extensions\.vpy; ValueType: string; ValueName: ""; ValueData: ""; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
+Root: HKLM32; Subkey: SOFTWARE\Classes\Media Type\Extensions\.vpy; ValueType: string; ValueName: "Source Filter"; ValueData: "{{D3588AB0-0781-11CE-B03A-0020AF0BA770}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
+Root: HKLM32; Subkey: SOFTWARE\Classes\.vpy; ValueType: string; ValueName: ""; ValueData: "vsfile"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
+Root: HKLM32; Subkey: SOFTWARE\Classes\vsfile; ValueType: string; ValueName: ""; ValueData: "VapourSynth Python Script"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
+Root: HKLM32; Subkey: SOFTWARE\Classes\vsfile\DefaultIcon; ValueType: string; ValueName: ""; ValueData: "vsvfw.dll,0"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
+Root: HKLM32; Subkey: SOFTWARE\Classes\AVIFile\Extensions\VPY; ValueType: string; ValueName: ""; ValueData: "{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
+
+; 64bit vfw
+Root: HKLM; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}; ValueType: string; ValueName: ""; ValueData: "VapourSynth"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
+Root: HKLM; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32; ValueType: string; ValueName: ""; ValueData: "vsvfw.dll"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
+Root: HKLM; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32; ValueType: string; ValueName: "ThreadingModel"; ValueData: "Apartment"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
+Root: HKLM; Subkey: SOFTWARE\Classes\Media Type\Extensions\.vpy; ValueType: string; ValueName: ""; ValueData: ""; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
+Root: HKLM; Subkey: SOFTWARE\Classes\Media Type\Extensions\.vpy; ValueType: string; ValueName: "Source Filter"; ValueData: "{{D3588AB0-0781-11CE-B03A-0020AF0BA770}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
+Root: HKLM; Subkey: SOFTWARE\Classes\.vpy; ValueType: string; ValueName: ""; ValueData: "vsfile"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
+Root: HKLM; Subkey: SOFTWARE\Classes\vsfile; ValueType: string; ValueName: ""; ValueData: "VapourSynth Python Script"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
+Root: HKLM; Subkey: SOFTWARE\Classes\vsfile\DefaultIcon; ValueType: string; ValueName: ""; ValueData: "vsvfw.dll,0"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
+Root: HKLM; Subkey: SOFTWARE\Classes\AVIFile\Extensions\VPY; ValueType: string; ValueName: ""; ValueData: "{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
+
 [Run]
-Filename: "{win}\pfm.exe"; Parameters: "register ""{app}\core\vsfs.dll"""; Tasks: registervsfs; Flags: skipifdoesntexist
+Filename: "{win}\pfm.exe"; Parameters: "register ""{app}\core64\vsfs.dll"""; Tasks: registervsfs; Flags: skipifdoesntexist; Components: vs64
+Filename: "{win}\pfm.exe"; Parameters: "register ""{app}\core32\vsfs.dll"""; Tasks: registervsfs; Flags: skipifdoesntexist; Components: vs32 and not vs64
 
 [UninstallRun]
-Filename: "{win}\pfm.exe"; Parameters: "unregister ""{app}\core\vsfs.dll"""; Tasks: registervsfs; Flags: skipifdoesntexist
+Filename: "{win}\pfm.exe"; Parameters: "unregister ""{app}\core64\vsfs.dll"""; Tasks: registervsfs; Flags: skipifdoesntexist; Components: vs64
+Filename: "{win}\pfm.exe"; Parameters: "unregister ""{app}\core32\vsfs.dll"""; Tasks: registervsfs; Flags: skipifdoesntexist; Components: vs32 and not vs64
 
 [Code]
 
-var PythonPath: string;
+var
+  PythonPath32: string;
+  PythonPath64: string;
 
-function InitializeSetup(): Boolean;
+function HasPython32: Boolean;
 begin
-  Result := RegQueryStringValue(HKCU, 'SOFTWARE\Python\PythonCore\3.3\InstallPath', '', PythonPath);
-  if not Result then
-  begin
-    Result := RegQueryStringValue(HKLM, 'SOFTWARE\Python\PythonCore\3.3\InstallPath', '', PythonPath);
-    if not Result then
-        MsgBox('Python 3.3 installation not found.', mbCriticalError, MB_OK);
-  end;
+  Result := PythonPath32 <> '';
 end;
 
-function GetPythonPath(Param: String): String;
+function HasPython64: Boolean;
 begin
-  Result := PythonPath + '\Lib\site-packages';
+  Result := PythonPath64 <> '';
+end;
+
+function InitializeSetup: Boolean;
+var Success: Boolean;
+begin
+  Success := RegQueryStringValue(HKCU32, 'SOFTWARE\Python\PythonCore\3.3\InstallPath', '', PythonPath32);
+  if not Success then
+    RegQueryStringValue(HKLM32, 'SOFTWARE\Python\PythonCore\3.3\InstallPath', '', PythonPath32);
+
+  if Is64BitInstallMode then
+  begin
+    Success := RegQueryStringValue(HKCU, 'SOFTWARE\Python\PythonCore\3.3\InstallPath', '', PythonPath64);
+    if not Success then
+      RegQueryStringValue(HKLM, 'SOFTWARE\Python\PythonCore\3.3\InstallPath', '', PythonPath64);
+  end;
+
+  Result := HasPython32 or HasPython64;
+  if not Result then
+    MsgBox('No Python 3.3 installations found.', mbCriticalError, MB_OK);
+end;
+
+function GetPythonPath32(Param: string): String;
+begin
+  Result := PythonPath32 + '\Lib\site-packages';
+end;
+
+function GetPythonPath64(Param: String): String;
+begin
+  Result := PythonPath64 + '\Lib\site-packages';
 end;
 
 // copied from the internets
 
 /////////////////////////////////////////////////////////////////////
-function GetUninstallString(): String;
+function GetUninstallString: String;
 var
   sUnInstPath: String;
   sUnInstallString: String;
@@ -143,14 +219,14 @@ end;
 
 
 /////////////////////////////////////////////////////////////////////
-function IsUpgrade(): Boolean;
+function IsUpgrade: Boolean;
 begin
   Result := (GetUninstallString() <> '');
 end;
 
 
 /////////////////////////////////////////////////////////////////////
-function UnInstallOldVersion(): Integer;
+function UnInstallOldVersion: Integer;
 var
   sUnInstallString: String;
   iResultCode: Integer;
@@ -171,7 +247,8 @@ begin
       Result := 3
     else
       Result := 2;
-  end else
+  end
+  else
     Result := 1;
 end;
 
@@ -181,8 +258,6 @@ begin
   if (CurStep=ssInstall) then
   begin
     if (IsUpgrade()) then
-    begin
       UnInstallOldVersion();
-    end;
   end;
 end;

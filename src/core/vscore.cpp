@@ -631,7 +631,10 @@ void VS_CC registerFunction(const char *name, const char *args, VSPublicFunction
 static void VS_CC loadPlugin(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     try {
         int err;
-        core->loadPlugin(vsapi->propGetData(in, "path", 0, 0), vsapi->propGetData(in, "forcens", 0, &err));
+        const char *forcens = vsapi->propGetData(in, "forcens", 0, &err);
+        if (!forcens)
+            forcens = "";
+        core->loadPlugin(vsapi->propGetData(in, "path", 0, 0), forcens);
     } catch (VSException &e) {
         vsapi->setError(out, e.what());
     }
@@ -764,22 +767,28 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
     std::vector<wchar_t> appDataBuffer(MAX_PATH + 1);
     SHGetFolderPath(NULL, CSIDL_APPDATA, NULL, SHGFP_TYPE_CURRENT, &appDataBuffer[0]);
 
-    QString appDataPath = QString::fromUtf16((const ushort *)&appDataBuffer[0]) + "\\VapourSynth\\plugins";
+#ifdef _WIN64
+#define ADDPEND_STR_6432(x) x##"64"
+#else
+#define ADDPEND_STR_6432(x) x##"32"
+#endif
+
+    QString appDataPath = QString::fromUtf16((const ushort *)&appDataBuffer[0]) + ADDPEND_STR_6432("\\VapourSynth\\plugins");
     if (!loadAllPluginsInPath(appDataPath, filter))
         vsWarning("User specific plugin autoloading failed. Directory '%s' doesn't exist?", appDataPath.toUtf8().constData());
 
     // Autoload bundled plugins
     QSettings settings("HKEY_LOCAL_MACHINE\\Software\\VapourSynth", QSettings::NativeFormat);
-    QString corePluginPath = settings.value("CorePlugins").toString();
+    QString corePluginPath = settings.value(ADDPEND_STR_6432("CorePlugins")).toString();
     if (!loadAllPluginsInPath(corePluginPath, filter))
         vsWarning("Core plugin autoloading failed. Directory '%s' doesn't exist?", corePluginPath.toUtf8().constData());
 
     // Autoload global plugins last, this is so the bundled plugins cannot be overridden easily
     // and accidentally block updated bundled versions
-    QString globalPluginPath = settings.value("Plugins").toString();
+    QString globalPluginPath = settings.value(ADDPEND_STR_6432("Plugins")).toString();
     if (!loadAllPluginsInPath(globalPluginPath, filter))
         vsWarning("Global plugin autoloading failed. Directory '%s' doesn't exist?", globalPluginPath.toUtf8().constData());
-#elif defined(VS_TARGET_OS_LINUX) || defined(VS_TARGET_OS_DARWIN)
+#else
 
 #ifdef VS_TARGET_OS_DARWIN
     QString filter = "*.dylib";
