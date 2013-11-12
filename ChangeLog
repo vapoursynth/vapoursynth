@@ -1,4 +1,6 @@
 r22:
+added clense and the missing modes to rgvs
+switched to C++11/C99 and VS2013, this means that both the VS2010 and VS2013 runtimes are now installed, the source code is also compatible with Qt5 now
 added a port of vinverse (lachs0r)
 
 r21:

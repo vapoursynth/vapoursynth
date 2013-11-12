@@ -1029,7 +1029,7 @@ public:
         return (_mm_xor_si128(val, mask_sign));
     }
 private:
-    ALIGNED_ARRAY(static const uint32_t
+    ALIGNED_ARRAY(static const int32_t
         _bias[4], 16);
     ALIGNED_ARRAY(static const uint16_t
         _mult[8], 16);
@@ -1237,7 +1237,7 @@ ALIGNED_ARRAY(const uint16_t    OpRG12sse2::_bias [8], 16) =
 ALIGNED_ARRAY(const uint16_t    OpRG19::_bias [8], 16) =
 { 1, 1, 1, 1, 1, 1, 1, 1 };
 
-ALIGNED_ARRAY(const uint32_t OpRG20::_bias[4], 16) =
+ALIGNED_ARRAY(const int32_t OpRG20::_bias[4], 16) =
 { -0x8000 * 9, -0x8000 * 9, -0x8000 * 9, -0x8000 * 9 };
 
 ALIGNED_ARRAY(const uint16_t OpRG20::_mult[8], 16) =

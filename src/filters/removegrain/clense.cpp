@@ -149,7 +149,7 @@ void VS_CC clenseCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
     int n, m, o;
     int i;
 
-    d.mode = (int)userData;
+    d.mode = int64ToIntS((intptr_t)userData);
     d.cnode = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = vsapi->getVideoInfo(d.cnode);
     if (!isConstantFormat(d.vi))
