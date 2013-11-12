@@ -22,7 +22,6 @@
 #define VSCORE_H
 
 #include <QtCore/QMap>
-#include <QtCore/QSharedData>
 #include <QtCore/QByteArray>
 #include "VapourSynth.h"
 #include "vslog.h"
@@ -228,22 +227,24 @@ public:
     }
 };
 
-class VSFrameData : public QSharedData {
+class VSPlaneData {
 private:
     MemoryUse *mem;
-    quint32 size;
+    uint32_t size;
 public:
     uint8_t *data;
-    VSFrameData(quint32 size, MemoryUse *mem);
-    VSFrameData(const VSFrameData &d);
-    ~VSFrameData();
+    VSPlaneData(uint32_t size, MemoryUse *mem);
+    VSPlaneData(const VSPlaneData &d);
+    ~VSPlaneData();
 };
+
+typedef std::shared_ptr<VSPlaneData> VSPlaneDataPtr;
 
 class VSFrame {
 private:
     enum FrameLocation { flLocal = 0, flGPU = 1 };
     const VSFormat *format;
-    QSharedDataPointer<VSFrameData> data[3];
+    VSPlaneDataPtr data[3];
     int width;
     int height;
     int stride[3];

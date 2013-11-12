@@ -193,7 +193,7 @@ void VSVariant::initStorage(VSVType t) {
 
 ///////////////
 
-VSFrameData::VSFrameData(quint32 size, MemoryUse *mem) : QSharedData(), mem(mem), size(size) {
+VSPlaneData::VSPlaneData(uint32_t size, MemoryUse *mem) : mem(mem), size(size) {
     data = vs_aligned_malloc<uint8_t>(size, VSFrame::alignment);
     assert(data);
     if (!data)
@@ -201,7 +201,7 @@ VSFrameData::VSFrameData(quint32 size, MemoryUse *mem) : QSharedData(), mem(mem)
     mem->add(size);
 }
 
-VSFrameData::VSFrameData(const VSFrameData &d) : QSharedData(d) {
+VSPlaneData::VSPlaneData(const VSPlaneData &d) {
     size = d.size;
     mem = d.mem;
     data = vs_aligned_malloc<uint8_t>(size, VSFrame::alignment);
@@ -212,7 +212,7 @@ VSFrameData::VSFrameData(const VSFrameData &d) : QSharedData(d) {
     memcpy(data, d.data, size);
 }
 
-VSFrameData::~VSFrameData() {
+VSPlaneData::~VSPlaneData() {
     vs_aligned_free(data);
     mem->subtract(size);
 }
@@ -237,11 +237,11 @@ VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSr
         stride[2] = 0;
     }
 
-    data[0] = new VSFrameData(stride[0] * height, core->memory);
+    data[0] = std::make_shared<VSPlaneData>(stride[0] * height, core->memory);
     if (f->numPlanes == 3) {
         int size23 = stride[1] * (height >> f->subSamplingH);
-        data[1] = new VSFrameData(size23, core->memory);
-        data[2] = new VSFrameData(size23, core->memory);
+        data[1] = std::make_shared<VSPlaneData>(size23, core->memory);
+        data[2] = std::make_shared<VSPlaneData>(size23, core->memory);
     }
 }
 
@@ -272,9 +272,9 @@ VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame * const
             data[i] = planeSrc[i]->data[plane[i]];
         } else {
             if (i == 0) {
-                data[i] = new VSFrameData(stride[0] * height, core->memory);
+                data[i] = std::make_shared<VSPlaneData>(stride[0] * height, core->memory);
             } else {
-                data[i] = new VSFrameData(stride[i] * (height >> f->subSamplingH), core->memory);
+                data[i] = std::make_shared<VSPlaneData>(stride[i] * (height >> f->subSamplingH), core->memory);
             }
         }
     }
@@ -307,11 +307,11 @@ const uint8_t *VSFrame::getReadPtr(int plane) const {
 
     switch (plane) {
     case 0:
-        return data[0].constData()->data;
+        return data[0]->data;
     case 1:
-        return data[1].constData()->data;
+        return data[1]->data;
     case 2:
-        return data[2].constData()->data;
+        return data[2]->data;
     default:
         return NULL;
     }
@@ -321,16 +321,10 @@ uint8_t *VSFrame::getWritePtr(int plane) {
     if (plane < 0 || plane >= format->numPlanes)
         vsFatal("Invalid plane requested");
 
-    switch (plane) {
-    case 0:
-        return data[0].data()->data;
-    case 1:
-        return data[1].data()->data;
-    case 2:
-        return data[2].data()->data;
-    default:
-        return NULL;
-    }
+    // copy the plane data if this isn't the only reference
+    if (!data[plane].unique())
+        data[plane] = std::make_shared<VSPlaneData>(*data[plane].get());
+    return data[plane]->data;
 }
 
 struct split1 {
