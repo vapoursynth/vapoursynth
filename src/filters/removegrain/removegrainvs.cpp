@@ -1553,10 +1553,10 @@ void VS_CC removeGrainCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     for (int i = 0; i < 3; i++) {
         if (i < m) {
             d.mode[i] = int64ToIntS(vsapi->propGetInt(in, "mode", i, NULL));
-            if (d.mode[i] != 0 && d.mode[i] != 1 && d.mode[i] != 2 && d.mode[i] != 3 && d.mode[i] != 4 && d.mode[i] != 11 && d.mode[i] != 12 && d.mode[i] != 19 && d.mode[i] != 20)
+            if (d.mode[i] < 0 || d.mode[i] > 24)
             {
                 vsapi->freeNode(d.node);
-                vsapi->setError(out, "RemoveGrain: Invalid mode specified, only 0-4, 11-12, 19-20 allowed");
+                vsapi->setError(out, "RemoveGrain: Invalid mode specified, only modes 0-24 supported");
                 return;
             }
         } else {

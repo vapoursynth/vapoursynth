@@ -875,11 +875,11 @@ void VS_CC repairCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
     for (int i = 0; i < 3; i++) {
         if (i < m) {
             d.mode[i] = int64ToIntS(vsapi->propGetInt(in, "mode", i, NULL));
-            if (d.mode[i] != 0 && d.mode[i] != 1 && d.mode[i] != 2 && d.mode[i] != 3 && d.mode[i] != 4 && d.mode[i] != 11 && d.mode[i] != 12 && d.mode[i] != 13 && d.mode[i] != 14)
+            if (d.mode[i] < 0 || d.mode[i] > 18 || (d.mode[i] > 4 && d.mode[i] < 11)) 
             {
                 vsapi->freeNode(d.node1);
                 vsapi->freeNode(d.node2);
-                vsapi->setError(out, "Repair: Invalid mode specified, only 0-4, 11-14 allowed");
+                vsapi->setError(out, "Repair: Invalid mode specified, only 0-4, 11-18 supported");
                 return;
             }
         } else {
