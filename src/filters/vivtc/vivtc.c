@@ -405,9 +405,9 @@ static int compareFieldsSlow(const VSFrameRef *prv, const VSFrameRef *src, const
     int match2, int mchroma, int field, int y0, int y1, uint8_t *tbuffer, int tpitchy, int tpitchuv, const VSAPI *vsapi)
 {
     int plane, ret;
-    const unsigned char *prvp, *srcp, *nxtp;
-    const unsigned char *curpf, *curf, *curnf;
-    const unsigned char *prvpf, *prvnf, *nxtpf, *nxtnf;
+    const unsigned char *prvp = 0, *srcp = 0, *nxtp = 0;
+    const unsigned char *curpf = 0, *curf = 0, *curnf = 0;
+    const unsigned char *prvpf = 0, *prvnf = 0, *nxtpf = 0, *nxtnf = 0;
     unsigned char *mapp;
     int src_stride, Width, Height;
     int curf_pitch, stopx, map_pitch;

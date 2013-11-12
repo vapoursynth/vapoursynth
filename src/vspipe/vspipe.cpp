@@ -56,7 +56,7 @@ BOOL WINAPI HandlerRoutine(DWORD dwCtrlType) {
 typedef std::wstring nstring;
 #define NSTRING(x) L##x
 std::string nstringToUtf8(const nstring &s) {
-    std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> conversion;
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
     return conversion.to_bytes(s);
 }
 #else

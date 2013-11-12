@@ -741,8 +741,8 @@ PVideoFrame FakeAvisynth::SubframePlanar(PVideoFrame src, int rel_offset, int ne
 static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     FakeAvisynth *avs = new FakeAvisynth(core, vsapi);
     const char *rawPath = vsapi->propGetData(in, "path", 0, NULL);
-    std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> conversion;
-    std::wstring  wPath = conversion.from_bytes(rawPath);
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
+    std::wstring wPath = conversion.from_bytes(rawPath);
 
     HMODULE plugin = LoadLibraryW(wPath.c_str());
     typedef const char*(__stdcall * AvisynthPluginInitFunc)(IScriptEnvironment * env);

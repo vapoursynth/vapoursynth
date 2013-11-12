@@ -1,3 +1,4 @@
+#include "VapourSynth.h"
 #include "VSScript.h"
 #include "cython/vapoursynth_api.h"
 #include <mutex>

@@ -171,7 +171,7 @@ static void VS_CC VinverseCreate(const VSMap *in, VSMap *out, void *userData,
     if (err)
         d.sstr = 2.7;
 
-    d.amnt = vsapi->propGetInt(in, "amnt", 0, &err);
+    d.amnt = int64ToIntS(vsapi->propGetInt(in, "amnt", 0, &err));
 
     if (err)
         d.amnt = 255;

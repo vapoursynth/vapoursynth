@@ -770,7 +770,7 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
     std::vector<wchar_t> appDataBuffer(MAX_PATH + 1);
     SHGetFolderPath(NULL, CSIDL_APPDATA, NULL, SHGFP_TYPE_CURRENT, &appDataBuffer[0]);
 
-    QString appDataPath = QString::fromUtf16(&appDataBuffer[0]) + "\\VapourSynth\\plugins";
+    QString appDataPath = QString::fromUtf16((const ushort *)&appDataBuffer[0]) + "\\VapourSynth\\plugins";
     if (!loadAllPluginsInPath(appDataPath, filter))
         vsWarning("User specific plugin autoloading failed. Directory '%s' doesn't exist?", appDataPath.toUtf8().constData());
 
@@ -898,8 +898,8 @@ VSPlugin::VSPlugin(VSCore *core)
 VSPlugin::VSPlugin(const std::string &filename, const std::string &forcedNamespace, VSCore *core)
     : apiVersion(0), hasConfig(false), readOnly(false), compat(false), libHandle(0), filename(filename), core(core), fnamespace(forcedNamespace) {
 #ifdef VS_TARGET_OS_WINDOWS
-    std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> conversion;
-    std::wstring  wPath = conversion.from_bytes(filename);
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
+    std::wstring wPath = conversion.from_bytes(filename);
     
     libHandle = LoadLibrary(wPath.c_str());
 

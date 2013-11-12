@@ -870,7 +870,7 @@ static void VS_CC flipHorizontalCreate(const VSMap *in, VSMap *out, void *userDa
     FlipHorizontalData d;
     FlipHorizontalData *data;
 
-    d.flip = (intptr_t)(userData);
+    d.flip = int64ToIntS((intptr_t)userData);
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     data = malloc(sizeof(d));
     *data = d;
@@ -956,7 +956,7 @@ static void VS_CC stackCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     VSNodeRef *cref;
     int i;
 
-    d.vertical = (intptr_t)userData;
+    d.vertical = int64ToIntS((intptr_t)userData);
     d.numclips = vsapi->propNumElements(in, "clips");
 
     if (d.numclips == 1) { // passthrough for the special case with only one clip
