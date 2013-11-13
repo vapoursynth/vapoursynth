@@ -38,7 +38,7 @@ Name: "vs32"; Description: "VapourSynth 32bit"; Types: Full; Check: HasPython32
 Name: "sdk"; Description: "VapourSynth SDK"; Flags: fixed; Types: Full
 
 [Tasks]
-Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to shell context menu"; GroupDescription: "New File Shortcuts:"
+Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to shell context menu"; GroupDescription: "New File Shortcuts:"; Components: vs32 vs64
 Name: registervsfs; Description: "Register the VSFS handler"; GroupDescription: "Pismo File Mount:"; Components: vs32 vs64
 
 [Files]
@@ -54,11 +54,6 @@ Source: x86\vapoursynth.dll; DestDir: {code:GetPythonPath32}\vapoursynth; Flags:
 Source: x64\vapoursynth.dll; DestDir: {code:GetPythonPath64}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 Source: x86\vapoursynth.dll; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
 Source: x64\vapoursynth.dll; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
-
-Source: x86\Qt5Core.dll; DestDir: {code:GetPythonPath32}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: x64\Qt5Core.dll; DestDir: {code:GetPythonPath64}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
-Source: x86\Qt5Core.dll; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: x64\Qt5Core.dll; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 
 Source: x86\vsfs.dll; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
 Source: x64\vsfs.dll; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
