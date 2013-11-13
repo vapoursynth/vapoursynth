@@ -30,7 +30,7 @@ ArchitecturesAllowed=x86 x64
 ArchitecturesInstallIn64BitMode=x64
 
 [Types]
-Name: Full; Description: Full installation
+Name: Full; Description: Full installation; Flags: iscustom
 
 [Components]
 Name: "vs64"; Description: "VapourSynth 64bit"; Types: Full; Check: HasPython64
