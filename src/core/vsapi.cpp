@@ -457,7 +457,6 @@ static VSFuncRef *VS_CC propGetFunc(const VSMap *props, const char *name, int in
     if (err)
         return 0;
 
-    const VSVariant &l = (*props)[name];
     return new VSFuncRef((*props)[name].getValue<PExtFunction>(index));
 }
 
