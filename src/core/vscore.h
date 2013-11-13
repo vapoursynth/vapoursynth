@@ -21,7 +21,6 @@
 #ifndef VSCORE_H
 #define VSCORE_H
 
-#include <QtCore/QString>
 #include "VapourSynth.h"
 #include "vslog.h"
 #include <stdlib.h>
@@ -520,7 +519,11 @@ private:
     std::mutex cacheLock;
 
     void registerFormats();
-    bool loadAllPluginsInPath(const QString &path, const QString &filter);
+#ifdef VS_TARGET_OS_WINDOWS
+    bool loadAllPluginsInPath(const std::wstring &path, const std::wstring &filter);
+#else
+    bool loadAllPluginsInPath(const std::string &path, const std::string &filter);
+#endif
 public:
     VSThreadPool *threadPool;
     MemoryUse *memory;

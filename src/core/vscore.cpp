@@ -21,9 +21,11 @@
 #include "vscore.h"
 #include "VSHelper.h"
 #include "version.h"
+#ifndef VS_TARGET_OS_WINDOWS
 #include <QtCore/QSettings>
 #include <QtCore/QDir>
 #include <QtCore/QDirIterator>
+#endif
 #include <assert.h>
 
 #ifdef VS_TARGET_CPU_X86
@@ -32,6 +34,7 @@
 
 #ifdef VS_TARGET_OS_WINDOWS
 #define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 #include <ShlObj.h>
 #include <codecvt>
 #endif
@@ -70,6 +73,27 @@ static bool isValidIdentifier(const std::string &s) {
             return false;
     return true;
 }
+
+#ifdef VS_TARGET_OS_WINDOWS
+static std::wstring readRegistryValue(const std::wstring keyName, const std::wstring &valueName) {
+    HKEY hKey;
+#ifdef _WIN64
+    LONG lRes = RegOpenKeyEx(HKEY_LOCAL_MACHINE, keyName.c_str(), KEY_WOW64_32KEY, KEY_READ, &hKey);
+#else
+    LONG lRes = RegOpenKeyEx(HKEY_LOCAL_MACHINE, keyName.c_str(), 0, KEY_READ, &hKey);
+#endif
+    if (lRes != ERROR_SUCCESS)
+        return std::wstring();
+    WCHAR szBuffer[512];
+    DWORD dwBufferSize = sizeof(szBuffer);
+    ULONG nError;
+    nError = RegQueryValueEx(hKey, valueName.c_str(), 0, NULL, (LPBYTE)szBuffer, &dwBufferSize);
+    RegCloseKey(hKey);
+    if (ERROR_SUCCESS == nError)
+        return szBuffer;
+    return std::wstring();
+}
+#endif
 
 FrameContext::FrameContext(int n, int index, VSNode *clip, const PFrameContext &upstreamContext) : numFrameRequests(0), index(index), n(n), node(NULL), clip(clip), upstreamContext(upstreamContext), userData(NULL), frameContext(NULL), frameDone(NULL), error(false), lastCompletedN(-1), lastCompletedNode(NULL) {
 }
@@ -691,10 +715,31 @@ void VSCore::registerFormats() {
     registerFormat(cmCompat,  stInteger, 16, 1, 0, "CompatYUY2", pfCompatYUY2);
 }
 
-bool VSCore::loadAllPluginsInPath(const QString &path, const QString &filter) {
-    if (path.isEmpty())
+
+#ifdef VS_TARGET_OS_WINDOWS
+bool VSCore::loadAllPluginsInPath(const std::wstring &path, const std::wstring &filter) {
+#else
+bool VSCore::loadAllPluginsInPath(const std::string &path, const std::string &filter) {
+#endif
+    if (path.empty())
         return false;
 
+#ifdef VS_TARGET_OS_WINDOWS
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
+    std::wstring wPath = path + L"\\" + filter;
+    WIN32_FIND_DATA findData;
+    HANDLE findHandle = FindFirstFile(wPath.c_str(), &findData);
+    if (findHandle == INVALID_HANDLE_VALUE)
+        return false;
+    do {
+        try {
+            loadPlugin(conversion.to_bytes(path + L"\\" + findData.cFileName));
+        } catch (VSException &) {
+            // Ignore any errors
+        }
+    } while (FindNextFile(findHandle, &findData));
+    FindClose(findHandle);
+#else
     QDir dir(path, filter, QDir::Name | QDir::IgnoreCase, QDir::Files | QDir::NoDotDot);
     if (!dir.exists())
         return false;
@@ -707,6 +752,7 @@ bool VSCore::loadAllPluginsInPath(const QString &path, const QString &filter) {
             // Ignore any errors
         }
     }
+#endif
 
     return true;
 }
@@ -762,32 +808,35 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
     p->enableCompat();
 
 #ifdef VS_TARGET_OS_WINDOWS
-    QString filter = "*.dll";
+    const std::wstring filter = L"*.dll";
     // Autoload user specific plugins first so a user can always override
     std::vector<wchar_t> appDataBuffer(MAX_PATH + 1);
     SHGetFolderPath(NULL, CSIDL_APPDATA, NULL, SHGFP_TYPE_CURRENT, &appDataBuffer[0]);
 
 #ifdef _WIN64
-#define ADDPEND_STR_6432(x) x##"64"
+#define ADDPEND_STR_6432(x) x##L"64"
 #else
-#define ADDPEND_STR_6432(x) x##"32"
+#define ADDPEND_STR_6432(x) x##L"32"
 #endif
 
-    QString appDataPath = QString::fromUtf16((const ushort *)&appDataBuffer[0]) + ADDPEND_STR_6432("\\VapourSynth\\plugins");
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
+
+    std::wstring appDataPath = std::wstring(&appDataBuffer[0]) + ADDPEND_STR_6432(L"\\VapourSynth\\plugins");
+
+    // FIXME, DOESN'T PRINT UTF8 STRING
     if (!loadAllPluginsInPath(appDataPath, filter))
-        vsWarning("User specific plugin autoloading failed. Directory '%s' doesn't exist?", appDataPath.toUtf8().constData());
+        vsWarning("User specific plugin autoloading failed. Directory '%s' doesn't exist or is empty?", conversion.to_bytes(appDataPath).c_str());
 
     // Autoload bundled plugins
-    QSettings settings("HKEY_LOCAL_MACHINE\\Software\\VapourSynth", QSettings::NativeFormat);
-    QString corePluginPath = settings.value(ADDPEND_STR_6432("CorePlugins")).toString();
+    std::wstring corePluginPath = readRegistryValue(L"Software\\VapourSynth", ADDPEND_STR_6432(L"CorePlugins"));
     if (!loadAllPluginsInPath(corePluginPath, filter))
-        vsWarning("Core plugin autoloading failed. Directory '%s' doesn't exist?", corePluginPath.toUtf8().constData());
+        vsWarning("Core plugin autoloading failed. Directory '%s' doesn't exist or is empty?", conversion.to_bytes(corePluginPath).c_str());
 
     // Autoload global plugins last, this is so the bundled plugins cannot be overridden easily
     // and accidentally block updated bundled versions
-    QString globalPluginPath = settings.value(ADDPEND_STR_6432("Plugins")).toString();
+    std::wstring globalPluginPath = readRegistryValue(L"Software\\VapourSynth", ADDPEND_STR_6432(L"Plugins"));
     if (!loadAllPluginsInPath(globalPluginPath, filter))
-        vsWarning("Global plugin autoloading failed. Directory '%s' doesn't exist?", globalPluginPath.toUtf8().constData());
+        vsWarning("Global plugin autoloading failed. Directory '%s' doesn't exist or is empty?", conversion.to_bytes(globalPluginPath).c_str());
 #else
 
 #ifdef VS_TARGET_OS_DARWIN
@@ -957,7 +1006,7 @@ VSPlugin::VSPlugin(const std::string &filename, const std::string &forcedNamespa
 #else
         dlclose(libHandle);
 #endif
-        throw VSException((QString("Core only supports API R") + QString::number(VAPOURSYNTH_API_VERSION) + QString(" but the loaded plugin uses API R") + QString::number(apiVersion)).toUtf8());
+        throw VSException("Core only supports API R" + std::to_string(VAPOURSYNTH_API_VERSION) + " but the loaded plugin uses API R" + std::to_string(apiVersion));
     }
 }
 

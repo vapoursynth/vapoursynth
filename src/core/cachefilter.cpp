@@ -21,6 +21,7 @@
 #include "cachefilter.h"
 #include "VSHelper.h"
 #include <string>
+#include <algorithm>
 
 
 VSCache::CacheAction VSCache::recommendSize() {

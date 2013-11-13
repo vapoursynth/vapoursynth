@@ -393,7 +393,7 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
 
 bool VSThreadPool::isWorkerThread() {
     std::lock_guard<std::mutex> m(lock);
-    return allThreads.count(std::this_thread::get_id());
+    return allThreads.count(std::this_thread::get_id()) > 0;
 }
 
 void VSThreadPool::waitForDone() {

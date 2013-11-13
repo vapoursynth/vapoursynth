@@ -24,7 +24,7 @@
 #include <assert.h>
 
 void VS_CC configPlugin(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readOnly, VSPlugin *plugin) {
-    plugin->configPlugin(identifier, defaultNamespace, name, apiVersion, readOnly);
+    plugin->configPlugin(identifier, defaultNamespace, name, apiVersion, !!readOnly);
 }
 
 void VS_CC registerFunction(const char *name, const char *args, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) {
