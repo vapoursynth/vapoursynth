@@ -136,37 +136,37 @@ VSVariant::VSVType VSVariant::getType() const {
 
 void VSVariant::append(int64_t val) {
     initStorage(vInt);
-    reinterpret_cast<IntList *>(storage)->append(val);
+    reinterpret_cast<IntList *>(storage)->push_back(val);
     internalSize++;
 }
 
 void VSVariant::append(double val) {
     initStorage(vFloat);
-    reinterpret_cast<FloatList *>(storage)->append(val);
+    reinterpret_cast<FloatList *>(storage)->push_back(val);
     internalSize++;
 }
 
 void VSVariant::append(const std::string &val) {
     initStorage(vData);
-    reinterpret_cast<DataList *>(storage)->append(std::make_shared<std::string>(val));
+    reinterpret_cast<DataList *>(storage)->push_back(std::make_shared<std::string>(val));
     internalSize++;
 }
 
 void VSVariant::append(const VSNodeRef &val) {
     initStorage(vNode);
-    reinterpret_cast<NodeList *>(storage)->append(val);
+    reinterpret_cast<NodeList *>(storage)->push_back(val);
     internalSize++;
 }
 
 void VSVariant::append(const PVideoFrame &val) {
     initStorage(vFrame);
-    reinterpret_cast<FrameList *>(storage)->append(val);
+    reinterpret_cast<FrameList *>(storage)->push_back(val);
     internalSize++;
 }
 
 void VSVariant::append(const PExtFunction &val) {
     initStorage(vMethod);
-    reinterpret_cast<FuncList *>(storage)->append(val);
+    reinterpret_cast<FuncList *>(storage)->push_back(val);
     internalSize++;
 }
 

@@ -81,12 +81,12 @@ public:
 
 // variant types
 typedef std::shared_ptr<std::string> VSMapData;
-typedef QList<int64_t> IntList;
-typedef QList<double> FloatList;
-typedef QList<VSMapData> DataList;
-typedef QList<VSNodeRef> NodeList;
-typedef QList<PVideoFrame> FrameList;
-typedef QList<PExtFunction> FuncList;
+typedef std::vector<int64_t> IntList;
+typedef std::vector<double> FloatList;
+typedef std::vector<VSMapData> DataList;
+typedef std::vector<VSNodeRef> NodeList;
+typedef std::vector<PVideoFrame> FrameList;
+typedef std::vector<PExtFunction> FuncList;
 
 class ExtFunction {
 private:
@@ -122,7 +122,7 @@ public:
 
     template<typename T>
     const T &getValue(int index) const {
-        return reinterpret_cast<QList<T>*>(storage)->at(index);
+        return reinterpret_cast<std::vector<T>*>(storage)->at(index);
     }
 
 private:
@@ -368,7 +368,7 @@ public:
 
 struct VSFrameContext {
     PFrameContext &ctx;
-    std::list<PFrameContext> reqList;
+    std::vector<PFrameContext> reqList;
     VSFrameContext(PFrameContext &ctx) : ctx(ctx) {}
 };
 
