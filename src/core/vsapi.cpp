@@ -192,14 +192,14 @@ static VSMap *VS_CC getFramePropsRW(VSFrameRef *frame) {
 }
 
 static int VS_CC propNumKeys(const VSMap *props) {
-    return props->keys().count();
+    return props->size();
 }
 
 static const char *VS_CC propGetKey(const VSMap *props, int index) {
-    if (index < 0 || index >= props->count())
+    if (index < 0 || index >= props->size())
         vsFatal("Out of bound index");
 
-    return props->keys()[index].constData();
+    return props->key(index);
 }
 
 static int VS_CC propNumElements(const VSMap *props, const char *name) {
@@ -226,7 +226,7 @@ static int getPropErrorCheck(const VSMap *props, const char *name, int index, in
     if (!props->contains(name))
         err |= peUnset;
 
-    if (!err && props->value(name).getType() != type)
+    if (!err && (*props)[name].getType() != type)
         err |= peType;
 
     int c = propNumElements(props, name);
@@ -298,7 +298,7 @@ static const VSFrameRef *VS_CC propGetFrame(const VSMap *props, const char *name
 }
 
 static int VS_CC propDeleteKey(VSMap *props, const char *name) {
-    return props->remove(name);
+    return props->erase(name);
 }
 
 static void sharedPropSet(VSMap *props, const char *name, int &append) {
@@ -306,7 +306,7 @@ static void sharedPropSet(VSMap *props, const char *name, int &append) {
         vsFatal("Invalid prop append mode given");
 
     if (append == paReplace) {
-        props->remove(name);
+        props->erase(name);
         append = paAppend;
     }
 }
@@ -463,7 +463,7 @@ static VSFuncRef *VS_CC propGetFunc(const VSMap *props, const char *name, int in
 
 static int VS_CC propSetFunc(VSMap *props, const char *name, VSFuncRef *func, int append) {
     if (!append)
-        props->remove(name);
+        props->erase(name);
 
     if (props->contains(name)) {
         VSVariant &l = (*props)[name];

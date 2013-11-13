@@ -137,8 +137,6 @@ private:
         return n.frame;
     }
 
-    Q_DISABLE_COPY(VSCache)
-
 public:
     enum CacheAction {
         caGrow,
@@ -190,7 +188,7 @@ public:
     bool insert(const int key, const PVideoFrame &object);
     PVideoFrame object(const int key);
     inline bool contains(const int key) const {
-        return hash.count(key);
+        return hash.count(key) > 0;
     }
     PVideoFrame operator[](const int key);
 

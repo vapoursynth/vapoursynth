@@ -1001,11 +1001,11 @@ void VSPlugin::registerFunction(const std::string &name, const std::string &args
 }
 
 static bool hasCompatNodes(const VSMap &m) {
-    foreach(const VSVariant & vsv, m) {
-        if (vsv.getType() == VSVariant::vNode) {
-            for (int i = 0; i < vsv.size(); i++) {
-                for (int j = 0; j < vsv.getValue<VSNodeRef>(i).clip->getNumOutputs(); j++) {
-                    const VSVideoInfo &vi = vsv.getValue<VSNodeRef>(i).clip->getVideoInfo(j);
+    for (const auto &vsv : m.getStorage()) {
+        if (vsv.second.getType() == VSVariant::vNode) {
+            for (int i = 0; i < vsv.second.size(); i++) {
+                for (int j = 0; j < vsv.second.getValue<VSNodeRef>(i).clip->getNumOutputs(); j++) {
+                    const VSVideoInfo &vi = vsv.second.getValue<VSNodeRef>(i).clip->getVideoInfo(j);
                     if (vi.format && vi.format->colorFamily == cmCompat)
                         return true;
                 }
@@ -1026,9 +1026,8 @@ VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
                 throw VSException(funcName + ": only special filters may accept compat input");
 
             std::set<std::string> remainingArgs;
-            QList<QByteArray> keys = args.keys();
-            for (const auto &key : keys)
-                remainingArgs.insert(key.constData());
+            for (const auto &key : args.getStorage())
+                remainingArgs.insert(key.first);
 
             for (const FilterArgument &fa : f.args) {
                 char c = vsapi.propGetType(&args, fa.name.c_str());

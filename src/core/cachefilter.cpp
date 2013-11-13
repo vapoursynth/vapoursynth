@@ -19,6 +19,7 @@
 */
 
 #include "cachefilter.h"
+#include "VSHelper.h"
 #include <string>
 
 
@@ -131,7 +132,7 @@ void VSCache::adjustSize(bool needMemory) {
                 setMaxFrames(getMaxFrames() + 2);
                 break;
             case VSCache::caShrink:
-                setMaxFrames(qMax(getMaxFrames() - 1, 1));
+                setMaxFrames(std::max(getMaxFrames() - 1, 1));
                 break;
             }
         } else {
@@ -142,12 +143,12 @@ void VSCache::adjustSize(bool needMemory) {
             case VSCache::caShrink:
                 if (getMaxFrames() <= 2)
                     clear();
-                setMaxFrames(qMax(getMaxFrames() - 2, 1));
+                setMaxFrames(std::max(getMaxFrames() - 2, 1));
                 break;
             case VSCache::caNoChange:
                 if (getMaxFrames() <= 1)
                     clear();
-                setMaxFrames(qMax(getMaxFrames() - 1, 1));
+                setMaxFrames(std::max(getMaxFrames() - 1, 1));
                 break;;
             }
         }
@@ -157,10 +158,10 @@ void VSCache::adjustSize(bool needMemory) {
 static void VS_CC cacheInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     VSNodeRef *video = vsapi->propGetNode(in, "clip", 0, 0);
     int err;
-    int fixed = vsapi->propGetInt(in, "fixed", 0, &err);
+    int fixed = !!vsapi->propGetInt(in, "fixed", 0, &err);
     CacheInstance *c = new CacheInstance(video, node, core, !!fixed);
 
-    int size = vsapi->propGetInt(in, "size", 0, &err);
+    int size = int64ToIntS(vsapi->propGetInt(in, "size", 0, &err));
 
     if (!err && size > 0)
         c->cache.setMaxFrames(size);

@@ -21,14 +21,15 @@
 #ifndef VSCORE_H
 #define VSCORE_H
 
-#include <QtCore/QMap>
-#include <QtCore/QByteArray>
+#include <QtCore/QString>
 #include "VapourSynth.h"
 #include "vslog.h"
 #include <stdlib.h>
 #include <stdexcept>
 #include <vector>
+#include <list>
 #include <set>
+#include <map>
 #include <memory>
 #include <atomic>
 #include <mutex>
@@ -133,21 +134,68 @@ private:
     void initStorage(VSVType t);
 };
 
-struct VSMap : public QMap<QByteArray, VSVariant> {
+typedef std::map<std::string, VSVariant> VSMapStorageType;
+typedef std::shared_ptr<VSMapStorageType> VSMapStorage;
+
+struct VSMap {
+private:
+    VSMapStorage data;
 public:
-    VSVariant &operator[](const QByteArray &key) {
-        return QMap<QByteArray, VSVariant>::operator[](key);
+    VSMap() : data(std::make_shared<VSMapStorageType>()) {}
+
+    VSMap(const VSMap &map) : data(map.data) {}
+
+    bool contains(const std::string &key) const {
+        return data->count(key) > 0;
     }
-    const VSVariant operator[](const QByteArray &key) const {
-        return QMap<QByteArray, VSVariant>::operator[](key);
+
+    VSVariant &operator[](const std::string &key) const {
+        return data->at(key);
     }
+
+    bool erase(const std::string &key) {
+        if (!data.unique())
+            data = std::make_shared<VSMapStorageType>(*data.get());
+        return data->erase(key) > 0;
+    }
+
+    bool insert(const std::string &key, const VSVariant &v) {
+        if (!data.unique())
+            data = std::make_shared<VSMapStorageType>(*data.get());
+        data->insert(std::pair<std::string, VSVariant>(key, v));
+        return true;
+    }
+
+    int size() const {
+        return data->size();
+    }
+
+    void clear() {
+        return data->clear();
+    }
+
+    const char *key(int n) const {
+        auto iter = data->cbegin();
+        while (n-- > 0)
+            ++iter;
+        return iter->first.c_str();
+    }
+
+    const VSMapStorageType &getStorage() const {
+        return *data.get();
+    }
+
     void setError(const std::string &error) {
-        clear();
+        if (!data.unique())
+            data = std::make_shared<VSMapStorageType>(*data.get());
+        data->clear();
         VSVariant v(VSVariant::vData);
         v.append(error);
         insert("_Error", v);
     }
 };
+
+
 
 struct VSFrameRef {
     PVideoFrame frame;
