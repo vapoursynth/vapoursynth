@@ -1,4 +1,6 @@
 r22:
+simplified the vsscript api sample to use getFrame() and to be pure C code
+added VS2013 projects
 runtime registered formats now get automatically generated names so they're easier to identify
 there should longer be "an exception happened when handling an exception" errors in python to keep the backtrace clearer
 the python module now accepts any iterable as an array input
@@ -46,7 +48,7 @@ added override support to vdecimate (nodame)
 added -version option to vspipe and other small fixes
 addborders now properly rejects clips where the colorspace can change
 addborders and blankclip now properly default to black for all colorspaces
-added tdeint propery to the prefetch list_functions
+added tdeint properly to the prefetch list
 fixed a cache bug that would make caches adapt too slowly/not at all
 only output the first 200 slow warnings per avisynth filter
 don't prefetch any frames by default for avisynth filters
