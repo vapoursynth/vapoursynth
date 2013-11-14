@@ -159,7 +159,7 @@ static void VS_CC setError(VSMap *map, const char *errorMessage) {
 
 static const char *VS_CC getError(const VSMap *map) {
     if (map->contains("_Error") && (*map)["_Error"].size() > 0)
-        return (*map)["_Error"].getValue<std::string>(0).c_str();
+        return (*map)["_Error"].getValue<VSMapData>(0)->c_str();
     else
         return NULL;
 }
