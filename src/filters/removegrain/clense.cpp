@@ -88,11 +88,11 @@ static const VSFrameRef *VS_CC clenseGetFrame(int n, int activationReason, void 
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = nullptr, *frame1 = nullptr, *frame2 = nullptr;
 
-        if (!frameData) // skip processing on first/last frames
+        if (!*frameData) // skip processing on first/last frames
             return vsapi->getFrameFilter(n, d->cnode, frameCtx);
 
         if (d->mode == cmNormal) {
-            frame1 = vsapi->getFrameFilter(std::max(n, 0), d->cnode, frameCtx);
+            frame1 = vsapi->getFrameFilter(n - 1, d->pnode, frameCtx);
             src = vsapi->getFrameFilter(n, d->cnode, frameCtx);
             frame2 = vsapi->getFrameFilter(n + 1, d->nnode, frameCtx);
         } else if (d->mode == cmForward) {
@@ -100,8 +100,8 @@ static const VSFrameRef *VS_CC clenseGetFrame(int n, int activationReason, void 
             frame1 = vsapi->getFrameFilter(n + 1, d->cnode, frameCtx);
             frame2 = vsapi->getFrameFilter(n + 2, d->cnode, frameCtx);
         } else if (d->mode == cmBackward) {
-            frame2 = vsapi->getFrameFilter(std::max(n - 2, 0), d->cnode, frameCtx);
-            frame1 = vsapi->getFrameFilter(std::max(n - 1, 0), d->cnode, frameCtx);
+            frame2 = vsapi->getFrameFilter(n - 2, d->cnode, frameCtx);
+            frame1 = vsapi->getFrameFilter(n - 1, d->cnode, frameCtx);
             src = vsapi->getFrameFilter(n, d->cnode, frameCtx);
         }
 
@@ -114,13 +114,13 @@ static const VSFrameRef *VS_CC clenseGetFrame(int n, int activationReason, void 
         for (int i = 0; i < numPlanes; i++) {
             if (d->process[i]) {
                 clenseProcessPlane<T>(
-                    reinterpret_cast<T * VS_RESTRICT>(vsapi->getWritePtr(dst, i)),
-                    reinterpret_cast<const T * VS_RESTRICT>(vsapi->getReadPtr(src, i)),
-                    reinterpret_cast<const T * VS_RESTRICT>(vsapi->getReadPtr(frame1, i)),
-                    reinterpret_cast<const T * VS_RESTRICT>(vsapi->getReadPtr(frame2, i)),
-                    vsapi->getStride(dst, i),
-                    d->vi->width,
-                    d->vi->height);
+                    reinterpret_cast<T *>(vsapi->getWritePtr(dst, i)),
+                    reinterpret_cast<const T *>(vsapi->getReadPtr(src, i)),
+                    reinterpret_cast<const T *>(vsapi->getReadPtr(frame1, i)),
+                    reinterpret_cast<const T *>(vsapi->getReadPtr(frame2, i)),
+                    vsapi->getStride(dst, i)/sizeof(T),
+                    vsapi->getFrameWidth(dst, i),
+                    vsapi->getFrameHeight(dst, i));
             }
         }
 
