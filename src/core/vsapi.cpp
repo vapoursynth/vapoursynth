@@ -151,6 +151,8 @@ static void VS_CC copyFrameProps(const VSFrameRef *src, VSFrameRef *dst, VSCore 
 }
 
 static void VS_CC createFilter(const VSMap *in, VSMap *out, const char *name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) {
+    if (!name)
+        vsFatal("NULL name pointer passed to createFilter()");
     core->createFilter(in, out, name, init, getFrame, free, static_cast<VSFilterMode>(filterMode), flags, instanceData, VAPOURSYNTH_API_VERSION);
 }
 
