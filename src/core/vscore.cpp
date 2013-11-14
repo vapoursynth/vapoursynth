@@ -686,7 +686,7 @@ void VS_CC loadPluginInitialize(VSConfigPlugin configFunc, VSRegisterFunction re
     registerFunc("LoadPlugin", "path:data;forcens:data:opt;", &loadPlugin, NULL, plugin);
 }
 
-// fixme, not the most elegant way but avoids the mess that would happen if avscompat.h was included
+// not the most elegant way but avoids the mess that would happen if avscompat.h was included
 #if defined(VS_TARGET_OS_WINDOWS) && defined(VS_FEATURE_AVISYNTH)
 extern "C" void VS_CC avsWrapperInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
 #endif
@@ -841,7 +841,7 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
 
     std::wstring appDataPath = std::wstring(&appDataBuffer[0]) + ADDPEND_STR_6432(L"\\VapourSynth\\plugins");
 
-    // FIXME, DOESN'T PRINT UTF8 STRING
+    // Autoload per user plugins
     if (!loadAllPluginsInPath(appDataPath, filter))
         vsWarning("User specific plugin autoloading failed. Directory '%s' doesn't exist or is empty?", conversion.to_bytes(appDataPath).c_str());
 

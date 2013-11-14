@@ -103,15 +103,21 @@ static const VSFrameRef *VS_CC getFrame(int n, VSNodeRef *clip, char *errorMsg, 
 }
 
 static void VS_CC requestFrameFilter(int n, VSNodeRef *clip, VSFrameContext *frameCtx) {
+    int numFrames = clip->clip->getVideoInfo(clip->index).numFrames;
+    if (numFrames && n >= numFrames)
+        n = numFrames - 1;
     frameCtx->reqList.push_back(std::make_shared<FrameContext>(n, clip->index, clip->clip.get(), frameCtx->ctx));
 }
 
 static const VSFrameRef *VS_CC getFrameFilter(int n, VSNodeRef *clip, VSFrameContext *frameCtx) {
     try {
+        int numFrames = clip->clip->getVideoInfo(clip->index).numFrames;
+        if (numFrames && n >= numFrames)
+            n = numFrames - 1;
         return new VSFrameRef(frameCtx->ctx->availableFrames.at(NodeOutputKey(clip->clip.get(), n, clip->index)));
     } catch (std::out_of_range &) {
     }
-    return NULL;
+    return nullptr;
 }
 
 static void VS_CC freeFrame(const VSFrameRef *frame) {

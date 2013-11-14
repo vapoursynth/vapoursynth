@@ -131,7 +131,6 @@ static std::string charToFilterArgumentString(char c) {
 
 PVideoFrame VSClip::GetFrame(int n, IScriptEnvironment *env) {
     const VSFrameRef *ref;
-    // fixme, remove when all filters have their frame number limited
     n = std::min(std::max(0, n), vi.num_frames - 1);
 
     if (fakeEnv->initializing)
