@@ -411,7 +411,7 @@ static VSMap *VS_CC invoke(VSPlugin *plugin, const char *name, const VSMap *args
     return new VSMap(plugin->invoke(name, *args));
 }
 
-static VSMap *VS_CC newMap() {
+static VSMap *VS_CC createMap() {
     return new VSMap();
 }
 
@@ -559,7 +559,7 @@ const VSAPI vsapi = {
     &createFunc,
     &callFunc,
 
-    &newMap,
+    &createMap,
     &freeMap,
     &clearMap,
 
