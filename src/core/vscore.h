@@ -479,6 +479,7 @@ private:
 #endif
     std::string filename;
     std::map<std::string, VSFunction> funcs;
+    std::mutex registerFunctionLock;
     VSCore *core;
 public:
     std::string fullname;

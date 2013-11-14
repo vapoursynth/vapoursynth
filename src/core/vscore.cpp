@@ -1064,7 +1064,12 @@ void VSPlugin::registerFunction(const std::string &name, const std::string &args
     if (funcs.count(name))
         vsFatal("Duplicate function registered");        
 
-    funcs.insert(std::pair<std::string, VSFunction>(name, VSFunction(args, argsFunc, functionData)));
+    if (!readOnly) {
+        std::lock_guard<std::mutex> lock(registerFunctionLock);
+        funcs.insert(std::pair<std::string, VSFunction>(name, VSFunction(args, argsFunc, functionData)));
+    } else {
+        funcs.insert(std::pair<std::string, VSFunction>(name, VSFunction(args, argsFunc, functionData)));
+    }
 }
 
 static bool hasCompatNodes(const VSMap &m) {
