@@ -1,4 +1,5 @@
 r22:
+Lut2, Merge and MaskedMerge functions changed, they now take two clip arguments named clipa and clipb instead of a 2 clip array, the old version is accepted as well for now, do vs.get_core(r21_arg_compat=False) to disable backward compatibility
 minor API change, filters will no longer receive requests for frames beyond the end of a clip, instead the requested frame number is truncated, unknown length clip behavior is unchanged
 simplified the vsscript api sample to use getFrame() and to be pure C code
 added VS2013 projects

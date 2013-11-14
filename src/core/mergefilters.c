@@ -149,11 +149,8 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         d.weight[i] = (int)(d.fweight[i] * (1 << MergeShift) + 0.5f);
     }
 
-    if (vsapi->propNumElements(in, "clips") != 2)
-        RETERROR("Merge: exactly two input clips must be specified");
-
-    d.node1 = vsapi->propGetNode(in, "clips", 0, 0);
-    d.node2 = vsapi->propGetNode(in, "clips", 1, 0);
+    d.node1 = vsapi->propGetNode(in, "clipa", 0, 0);
+    d.node2 = vsapi->propGetNode(in, "clipb", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node1);
 
     for (i = 0; i < 3; i++) {
@@ -319,12 +316,9 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
     int m, n, o, i;
     VSMap *mout, *min;
 
-    if (vsapi->propNumElements(in, "clips") != 2)
-        RETERROR("MaskedMerge: exactly two input clips must be specified");
-
     d.mask23 = 0;
-    d.node1 = vsapi->propGetNode(in, "clips", 0, 0);
-    d.node2 = vsapi->propGetNode(in, "clips", 1, 0);
+    d.node1 = vsapi->propGetNode(in, "clipa", 0, 0);
+    d.node2 = vsapi->propGetNode(in, "clipb", 0, 0);
     d.mask = vsapi->propGetNode(in, "mask", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node1);
     maskvi = vsapi->getVideoInfo(d.mask);
@@ -406,6 +400,6 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
 
 void VS_CC mergeInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     //configFunc("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("Merge", "clips:clip[];weight:float[]:opt;", mergeCreate, 0, plugin);
-    registerFunc("MaskedMerge", "clips:clip[];mask:clip;planes:int[]:opt;first_plane:int:opt;", maskedMergeCreate, 0, plugin);
+    registerFunc("Merge", "clipa:clip;clipb:clip;weight:float[]:opt;", mergeCreate, 0, plugin);
+    registerFunc("MaskedMerge", "clipa:clip;clipb:clip;mask:clip;planes:int[]:opt;first_plane:int:opt;", maskedMergeCreate, 0, plugin);
 }

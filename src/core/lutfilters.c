@@ -448,11 +448,8 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
     int err;
     int bits;
 
-    if (vsapi->propNumElements(in, "clips") != 2)
-        RETERROR("Lut2: needs 2 clips");
-
-    d.node[0] = vsapi->propGetNode(in, "clips", 0, 0);
-    d.node[1] = vsapi->propGetNode(in, "clips", 1, 0);
+    d.node[0] = vsapi->propGetNode(in, "clipa", 0, 0);
+    d.node[1] = vsapi->propGetNode(in, "clipb", 0, 0);
     d.vi[0] = vsapi->getVideoInfo(d.node[0]);
     d.vi[1] = vsapi->getVideoInfo(d.node[1]);
 
@@ -589,5 +586,5 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
 void VS_CC lutInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     //configFunc("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 1, plugin);
     registerFunc("Lut", "clip:clip;planes:int[]:opt;lut:int[]:opt;function:func:opt;", lutCreate, 0, plugin);
-    registerFunc("Lut2", "clips:clip[];planes:int[]:opt;lut:int[]:opt;function:func:opt;bits:int:opt;", lut2Create, 0, plugin);
+    registerFunc("Lut2", "clipa:clip;clipb:clip;planes:int[]:opt;lut:int[]:opt;function:func:opt;bits:int:opt;", lut2Create, 0, plugin);
 }

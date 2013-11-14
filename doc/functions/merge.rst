@@ -1,12 +1,12 @@
 Merge
 =====
 
-.. function::   Merge(clip[] clips[, float[] weight])
+.. function::   Merge(clip clipa, clip clipb[, float[] weight = 0.5])
    :module: std
 
-   Merges two *clips* using the specified *weight* for each plane. The default
-   is to use a 0.5 *weight* for all planes. A zero *weight* means that the first
-   clip is returned and 1 means the second clip is returned unchanged. If a
+   Merges *clipa* and *clipb* using the specified *weight* for each plane. The default
+   is to use a 0.5 *weight* for all planes. A zero *weight* means that *clipa*
+   is returned unchanged and 1 means that *clipb* is returned unchanged. If a
    single *weight* is specified it will be used for all planes. If two weights
    are given then the second value will be used for the third plane as well.
 
@@ -16,12 +16,12 @@ Merge
 
    How to merge luma::
 
-      Merge(clips=[A, B], weight=[0, 1])
+      Merge(clipa=A, clipb=B, weight=[0, 1])
 
    How to merge chroma::
 
-      Merge(clips=[A, B], weight=[1, 0])
+      Merge(clipa=A, clipb=B, weight=[1, 0])
 
    The average of two clips::
 
-      Merge(clips=[A, B])
+      Merge(clipa=A, clipb=B)
