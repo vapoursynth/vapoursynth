@@ -22,6 +22,7 @@
 #include "cpufeatures.h"
 #include "vslog.h"
 #include <assert.h>
+#include <string.h>
 
 void VS_CC configPlugin(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readOnly, VSPlugin *plugin) {
     plugin->configPlugin(identifier, defaultNamespace, name, apiVersion, !!readOnly);

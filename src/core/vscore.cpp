@@ -612,16 +612,16 @@ const VSFormat *VSCore::registerFormat(VSColorFamily colorFamily, VSSampleType s
 
         switch (colorFamily) {
         case cmGray:
-            sprintf(f->name, "Gray%s%d", bitsPerSample, sampleTypeStr);
+            sprintf(f->name, "Gray%s%d", sampleTypeStr, bitsPerSample);
             break;
         case cmRGB:
-            sprintf(f->name, "RGB%s%d", bitsPerSample, sampleTypeStr);
+            sprintf(f->name, "RGB%s%d", sampleTypeStr, bitsPerSample);
             break;
         case cmYUV:
-            sprintf(f->name, "YUV%d%dP%s%d", subSamplingW, subSamplingH, bitsPerSample, sampleTypeStr);
+            sprintf(f->name, "YUV%d%dP%s%d", subSamplingW, subSamplingH, sampleTypeStr, bitsPerSample);
             break;
         case cmYCoCg:
-            sprintf(f->name, "YCoCg%d%dP%s%d", subSamplingW, subSamplingH, bitsPerSample, sampleTypeStr);
+            sprintf(f->name, "YCoCg%d%dP%s%d", subSamplingW, subSamplingH, sampleTypeStr, bitsPerSample);
             break;
         }
     }
@@ -758,7 +758,7 @@ bool VSCore::loadAllPluginsInPath(const std::string &path, const std::string &fi
     } while (FindNextFile(findHandle, &findData));
     FindClose(findHandle);
 #else
-    QDir dir(path, filter, QDir::Name | QDir::IgnoreCase, QDir::Files | QDir::NoDotDot);
+    QDir dir(QString::fromUtf8(path.c_str()), QString::fromUtf8(filter.c_str()), QDir::Name | QDir::IgnoreCase, QDir::Files | QDir::NoDotDot);
     if (!dir.exists())
         return false;
 
@@ -858,9 +858,9 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
 #else
 
 #ifdef VS_TARGET_OS_DARWIN
-    QString filter = "*.dylib";
+    std::string filter = "*.dylib";
 #else
-    QString filter = "*.so";
+    std::string filter = "*.so";
 #endif
 
     // Will read "~/.config/vapoursynth/vapoursynth.conf"
@@ -870,7 +870,7 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
     bool autoloadUserPluginDir = settings.value("AutoloadUserPluginDir", true).toBool();
     QString userPluginDir = settings.value("UserPluginDir").toString();
     if (autoloadUserPluginDir && !userPluginDir.isEmpty()) {
-        if (!loadAllPluginsInPath(userPluginDir, filter)) {
+        if (!loadAllPluginsInPath(userPluginDir.toUtf8().constData(), filter)) {
             vsWarning("Autoloading the user plugin dir '%s' failed. Directory doesn't exist?", userPluginDir.toUtf8().constData());
         }
     }
@@ -878,7 +878,7 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
     bool autoloadSystemPluginDir = settings.value("AutoloadSystemPluginDir", true).toBool();
     QString systemPluginDir = settings.value("SystemPluginDir", QString(VS_PATH_PLUGINDIR)).toString();
     if (autoloadSystemPluginDir) {
-        if (!loadAllPluginsInPath(systemPluginDir, filter)) {
+        if (!loadAllPluginsInPath(systemPluginDir.toUtf8().constData(), filter)) {
             vsWarning("Autoloading the system plugin dir '%s' failed. Directory doesn't exist?", systemPluginDir.toUtf8().constData());
         }
     }
