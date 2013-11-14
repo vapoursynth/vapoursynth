@@ -1261,7 +1261,7 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
 
     bool success = true;
     uint64_t fileOffset = inFileOffset;
-    unsigned remainingSize = inRequestedSize;
+    unsigned remainingSize = static_cast<unsigned>(inRequestedSize);
     uint8_t* buffer = static_cast<uint8_t*>(inBuffer);
     unsigned segi = 0;
     unsigned offset = 0;

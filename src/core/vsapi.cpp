@@ -192,11 +192,11 @@ static VSMap *VS_CC getFramePropsRW(VSFrameRef *frame) {
 }
 
 static int VS_CC propNumKeys(const VSMap *props) {
-    return props->size();
+    return static_cast<int>(props->size());
 }
 
 static const char *VS_CC propGetKey(const VSMap *props, int index) {
-    if (index < 0 || index >= props->size())
+    if (index < 0 || static_cast<size_t>(index) >= props->size())
         vsFatal("Out of bound index");
 
     return props->key(index);
@@ -276,7 +276,7 @@ static int VS_CC propGetDataSize(const VSMap *props, const char *name, int index
     if (err)
         return 0;
 
-    return (*props)[name].getValue<VSMapData>(index)->size();
+    return static_cast<int>((*props)[name].getValue<VSMapData>(index)->size());
 }
 
 static VSNodeRef *VS_CC propGetNode(const VSMap *props, const char *name, int index, int *error) {

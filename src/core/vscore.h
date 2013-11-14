@@ -165,7 +165,7 @@ public:
         return true;
     }
 
-    int size() const {
+    size_t size() const {
         return data->size();
     }
 
@@ -397,7 +397,7 @@ public:
 
     void setVideoInfo(const VSVideoInfo *vi, int numOutputs);
 
-    int getNumOutputs() const {
+    size_t getNumOutputs() const {
         return vi.size();
     }
 

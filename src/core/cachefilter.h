@@ -165,7 +165,7 @@ public:
         trim(maxSize, maxHistorySize);
     }
 
-    inline int size() const {
+    inline size_t size() const {
         return hash.size();
     }
 

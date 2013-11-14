@@ -928,7 +928,7 @@ void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNa
 void VSCore::createFilter(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion) {
     try {
         PVideoNode node(std::make_shared<VSNode>(in, out, name, init, getFrame, free, filterMode, flags, instanceData, apiVersion, this));
-        for (int i = 0; i < node->getNumOutputs(); i++) {
+        for (size_t i = 0; i < node->getNumOutputs(); i++) {
             // fixme, not that elegant but saves more variant poking code
             VSNodeRef *ref = new VSNodeRef(node, i);
             vsapi.propSetNode(out, "clip", ref, paAppend);
@@ -1053,7 +1053,7 @@ static bool hasCompatNodes(const VSMap &m) {
     for (const auto &vsv : m.getStorage()) {
         if (vsv.second.getType() == VSVariant::vNode) {
             for (int i = 0; i < vsv.second.size(); i++) {
-                for (int j = 0; j < vsv.second.getValue<VSNodeRef>(i).clip->getNumOutputs(); j++) {
+                for (size_t j = 0; j < vsv.second.getValue<VSNodeRef>(i).clip->getNumOutputs(); j++) {
                     const VSVideoInfo &vi = vsv.second.getValue<VSNodeRef>(i).clip->getVideoInfo(j);
                     if (vi.format && vi.format->colorFamily == cmCompat)
                         return true;
