@@ -85,6 +85,9 @@ class Error(Exception):
         self.value = value
 
     def __str__(self):
+        return str(self.value)
+        
+    def __repr__(self):
         return repr(self.value)
 
 def clear_output(int index = 0):
