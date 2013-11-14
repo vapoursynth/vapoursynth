@@ -1,4 +1,5 @@
 r22:
+runtime registered formats now get automatically generated names so they're easier to identify
 there should longer be "an exception happened when handling an exception" errors in python to keep the backtrace clearer
 the python module now accepts any iterable as an array input
 completely removed the Qt dependency on windows

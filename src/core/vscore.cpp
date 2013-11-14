@@ -601,11 +601,29 @@ const VSFormat *VSCore::registerFormat(VSColorFamily colorFamily, VSSampleType s
     }
 
     VSFormat *f = new VSFormat();
+    memset(f->name, 0, sizeof(f->name));
 
     if (name) {
         strcpy(f->name, name);
     } else {
-        strcpy(f->name, "Runtime Registered");
+        const char *sampleTypeStr = "";
+        if (sampleType == stFloat)
+            sampleTypeStr = (bitsPerSample == 32) ? "S" : "H";
+
+        switch (colorFamily) {
+        case cmGray:
+            sprintf(f->name, "Gray%s%d", bitsPerSample, sampleTypeStr);
+            break;
+        case cmRGB:
+            sprintf(f->name, "RGB%s%d", bitsPerSample, sampleTypeStr);
+            break;
+        case cmYUV:
+            sprintf(f->name, "YUV%d%dP%s%d", subSamplingW, subSamplingH, bitsPerSample, sampleTypeStr);
+            break;
+        case cmYCoCg:
+            sprintf(f->name, "YCoCg%d%dP%s%d", subSamplingW, subSamplingH, bitsPerSample, sampleTypeStr);
+            break;
+        }
     }
 
     if (id != pfNone)
