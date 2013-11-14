@@ -1,4 +1,6 @@
 r22:
+there should longer be "an exception happened when handling an exception" errors in python to keep the backtrace clearer
+the python module now accepts any iterable as an array input
 completely removed the Qt dependency on windows
 added clense and the missing modes to removegrainvs
 switched to C++11/C99 and VS2013, this means that both the VS2010 and VS2013 runtimes are both installed

@@ -208,8 +208,13 @@ cdef void dictToMap(dict ndict, VSMap *inm, Core core, const VSAPI *funcs) excep
         ckey = key.encode('utf-8')
         val = ndict[key]
 
-        if not isinstance(val, list):
+        if isinstance(val, str) or isinstance(val, bytes) or isinstance(val, bytearray) or isinstance(val, VideoNode):
             val = [val]
+        else:
+            try:
+                iter(val)
+            except:
+                val = [val]     
 
         for v in val:
             if isinstance(v, VideoNode):
@@ -237,7 +242,7 @@ cdef void dictToMap(dict ndict, VSMap *inm, Core core, const VSAPI *funcs) excep
 
                 if funcs.propSetData(inm, ckey, s, -1, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
-            elif type(v) == bytes:
+            elif type(v) == bytes or type(v) == bytearray:
                 if funcs.propSetData(inm, ckey, v, len(v), 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             else:
@@ -249,8 +254,13 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, Core core, const V
         ckey = key.encode('utf-8')
         val = ndict[key]
 
-        if not isinstance(val, list):
+        if isinstance(val, str) or isinstance(val, bytes) or isinstance(val, bytearray) or isinstance(val, VideoNode):
             val = [val]
+        else:
+            try:
+                iter(val)
+            except:
+                val = [val]
 
         for v in val:
             if atypes[key][:4] == 'clip' and isinstance(v, VideoNode):
@@ -272,7 +282,7 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, Core core, const V
             elif atypes[key][:5] == 'float' and (type(v) == int or type(v) == long or type(v) == float):
                 if funcs.propSetFloat(inm, ckey, float(v), 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
-            elif atypes[key][:4] == 'data' and (type(v) == str or type(v) == bytes):
+            elif atypes[key][:4] == 'data' and (type(v) == str or type(v) == bytes or type(v) == bytearray):
                 if type(v) == str:
                     s = str(v).encode('utf-8')
                 else:
@@ -985,11 +995,17 @@ cdef class Function(object):
 
         inm = self.funcs.createMap()
 
+        dtomsuccess = True
+        dtomexceptmsg = ''
         try:
             typedDictToMap(processed, atypes, inm, self.plugin.core, self.funcs)
         except Error as e:
             self.funcs.freeMap(inm)
-            raise Error(self.name + ': ' + str(e))
+            dtomsuccess = False
+            dtomexceptmsg = str(e)    
+        
+        if dtomsuccess == False:
+            raise Error(self.name + ': ' + dtomexceptmsg)
 
         tname = self.name.encode('utf-8')
         cname = tname
