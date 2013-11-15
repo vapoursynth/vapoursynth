@@ -181,7 +181,7 @@ cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, Core core,
                 if add_cache and not newval.flags:
                     newval = core.std.Cache(clip=newval)
 
-                    if type(newval) == dict:
+                    if isinstance(newval, dict):
                         newval = newval['dict']
             elif proptype =='v':
                 newval = createConstVideoFrame(funcs.propGetFrame(map, retkey, y, NULL), funcs, core)
@@ -234,18 +234,18 @@ cdef void dictToMap(dict ndict, VSMap *inm, Core core, const VSAPI *funcs) excep
 
                 if funcs.propSetFunc(inm, ckey, tf.ref, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
-            elif type(v) == int or type(v) == long or type(v) == bool:
+            elif isinstance(v, int):
                 if funcs.propSetInt(inm, ckey, int(v), 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
-            elif type(v) == float:
+            elif isinstance(v, float):
                 if funcs.propSetFloat(inm, ckey, float(v), 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
-            elif type(v) == str:
+            elif isinstance(v, str):
                 s = str(v).encode('utf-8')
 
                 if funcs.propSetData(inm, ckey, s, -1, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
-            elif type(v) == bytes or type(v) == bytearray:
+            elif isinstance(v, bytes) or isinstance(v, bytearray):
                 if funcs.propSetData(inm, ckey, v, len(v), 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             else:
@@ -285,8 +285,8 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, Core core, const V
             elif atypes[key][:5] == 'float' and (type(v) == int or type(v) == long or type(v) == float):
                 if funcs.propSetFloat(inm, ckey, float(v), 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
-            elif atypes[key][:4] == 'data' and (type(v) == str or type(v) == bytes or type(v) == bytearray):
-                if type(v) == str:
+            elif atypes[key][:4] == 'data' and (isinstance(v, str) or isinstance(v, bytes) or isinstance(v, bytearray)):
+                if isinstance(v, str):
                     s = str(v).encode('utf-8')
                 else:
                     s = v
@@ -433,17 +433,17 @@ cdef class VideoProps(object):
                     tf = Func(v, self.core)
                     if funcs.propSetFunc(m, b, tf.ref, 1) != 0:
                         raise Error('Not all values are of the same type')
-                elif type(v) == int or type(v) == long or type(v) == bool:
+                elif isinstance(v, int):
                     if funcs.propSetInt(m, b, int(v), 1) != 0:
                         raise Error('Not all values are of the same type')
-                elif type(v) == float:
+                elif isinstance(v, float):
                     if funcs.propSetFloat(m, b, float(v), 1) != 0:
                         raise Error('Not all values are of the same type')
-                elif type(v) == str:
+                elif isinstance(v, str):
                     s = str(v).encode('utf-8')
                     if funcs.propSetData(m, b, s, -1, 1) != 0:
                         raise Error('Not all values are of the same type')
-                elif type(v) == bytes:
+                elif isinstance(v, bytes) or isinstance(v, bytearray):
                     if funcs.propSetData(m, b, v, len(v), 1) != 0:
                         raise Error('Not all values are of the same type')
                 else:
