@@ -833,6 +833,10 @@ cdef class Core(object):
     def version(self):
         cdef const VSCoreInfo *v = self.funcs.getCoreInfo(self.core)
         return v.versionString.decode('utf-8')
+        
+    def version_number(self):
+        cdef const VSCoreInfo *v = self.funcs.getCoreInfo(self.core)
+        return v.core
 
     def __str__(self):
         cdef str s = 'Core\n'

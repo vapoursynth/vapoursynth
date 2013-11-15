@@ -57,6 +57,10 @@ Classes and Functions
    .. py:method:: version()
 
       Returns version information as a string.
+      
+   .. py:method:: version_number()
+
+      Returns the core version as a number.
 
 .. py:class:: VideoNode
 
