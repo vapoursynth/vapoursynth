@@ -256,6 +256,8 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, Core core, const V
     for key in ndict:
         ckey = key.encode('utf-8')
         val = ndict[key]
+        if val is None:
+            continue
 
         if isinstance(val, str) or isinstance(val, bytes) or isinstance(val, bytearray) or isinstance(val, VideoNode):
             val = [val]
@@ -982,8 +984,6 @@ cdef class Function(object):
             
         # handle Merge, MaskedMerge, Lut2 r21 compat
         if self.plugin.core.r21_arg_compat and ((self.name == 'Merge') or (self.name == 'MaskedMerge') or (self.name == 'Lut2')):
-            print(self.name)
-            print('compat')
             try:
                 if 'clips' in ndict:
                     ndict['clipa'] = ndict['clips'][0]

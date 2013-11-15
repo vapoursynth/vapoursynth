@@ -50,6 +50,19 @@ class CoreTestSequence(unittest.TestCase):
         with self.assertRaises(vs.Error):
             self.core.std.FlipVertical()
 
+    def test_arg11(self):
+        clip = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 242, 115])
+        self.core.text.ClipInfo(clip, None)
+
+    def test_arg12(self):
+        clip = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 242, 115])
+        with self.assertRaises(vs.Error):
+            self.core.text.ClipInfo(clip, alignment2=None)
+
+    def test_arg13(self):
+        clip = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 242, 115])
+        self.core.text.ClipInfo(clip, alignment=None)
+
 #lut argument tests
     def test_lut_arg1(self):
         clip = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 242, 115])
