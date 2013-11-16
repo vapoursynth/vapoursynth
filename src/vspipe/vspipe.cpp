@@ -213,9 +213,8 @@ bool outputNode() {
     std::string header = "YUV4MPEG2 " + y4mFormat + "W" + std::to_string(vi->width) + " H" + std::to_string(vi->height) + " F" + std::to_string(vi->fpsNum) + ":" + std::to_string(vi->fpsDen) + " Ip A0:0\n";
 
     if (y4m) {
-        if (!fwrite(header.c_str(), header.size(), 1, outFile)) {
-            errorMessage = "Error: fwrite() call failed";
-            fprintf(stderr, "%s\n", errorMessage.c_str());
+        if (fwrite(header.c_str(), 1, header.size(), outFile) != header.size()) {
+            errorMessage = "Error: fwrite() call failed when writing initial header, errno: " + std::to_string(errno);
             outputError = true;
             return outputError;
         }
