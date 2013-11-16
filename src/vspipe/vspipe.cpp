@@ -427,7 +427,7 @@ int main(int argc, char **argv) {
     fflush(outFile);
     std::chrono::time_point<std::chrono::high_resolution_clock> end(std::chrono::high_resolution_clock::now());
     std::chrono::duration<double> elapsedSeconds = end - start;
-    fprintf(stderr, "Output %d frames in %f seconds (%f fps)\n", outputFrames, elapsedSeconds.count(), outputFrames / elapsedSeconds.count());
+    fprintf(stderr, "Output %d frames in %.2f seconds (%.2f fps)\n", outputFrames, elapsedSeconds.count(), outputFrames / elapsedSeconds.count());
     vsapi->freeNode(node);
     vsscript_freeScript(se);
     vsscript_finalize();
