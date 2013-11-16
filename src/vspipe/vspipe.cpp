@@ -29,6 +29,8 @@
 #include <chrono>
 #ifdef VS_TARGET_OS_WINDOWS
 #include <codecvt>
+#include <io.h>
+#include <fcntl.h>
 #endif
 
 #define __STDC_FORMAT_MACROS
@@ -99,9 +101,9 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
             reorderMap.erase(outputFrames);
             if (!outputError) {
                 if (y4m) {
-                    if (!fwrite("FRAME\n", 6, 1, outFile)) {
+                    if (fwrite("FRAME\n", 1, 6, outFile) != 6) {
                         if (errorMessage.empty())
-                            errorMessage = "Error: fwrite() call failed";
+                            errorMessage = "Error: fwrite() call failed when writing header, errno: " + std::to_string(errno);
                         totalFrames = requestedFrames;
                         outputError = true;
                     }
@@ -115,9 +117,10 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
                         int rowSize = vsapi->getFrameWidth(frame, p) * fi->bytesPerSample;
                         int height = vsapi->getFrameHeight(frame, p);
                         for (int y = 0; y < height; y++) {
-                            if (!fwrite(readPtr, rowSize, 1, outFile)) {
+                            if (fwrite(readPtr, 1, rowSize, outFile) != rowSize) {
                                 if (errorMessage.empty())
-                                    errorMessage = "Error: fwrite() call failed";
+                                    errorMessage = "Error: fwrite() call failed when writing frame: " + std::to_string(outputFrames) + ", plane: " + std::to_string(p) + 
+                                        ", line: " + std::to_string(y) + ", errno: " + std::to_string(errno);
                                 totalFrames = requestedFrames;
                                 outputError = true;
                                 p = 100; // break out of the outer loop
@@ -261,6 +264,8 @@ bool nstringToInt(const nstring &ns, int &result) {
 // fixme, only allow info without output
 #ifdef VS_TARGET_OS_WINDOWS
 int wmain(int argc, wchar_t **argv) {
+    if (_setmode(_fileno(stdout), _O_BINARY) == -1)
+        fprintf(stderr, "Failed to set stdout to binary mode\n");
     SetConsoleCtrlHandler(HandlerRoutine, TRUE);
 #else
 int main(int argc, char **argv) {
