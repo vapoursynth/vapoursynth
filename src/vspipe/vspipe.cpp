@@ -85,14 +85,28 @@ bool y4m = false;
 bool outputError = false;
 bool showInfo = false;
 bool printFrameNumber = false;
+double fps = 0;
 std::map<int, const VSFrameRef *> reorderMap;
 
 std::string errorMessage;
 std::condition_variable condition;
 std::mutex mutex;
 
+std::chrono::time_point<std::chrono::high_resolution_clock> lastFpsReportTime;
+int lastFpsReportFrame = 0;
+
 void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg) {
     completedFrames++;
+
+    if (printFrameNumber) {
+        std::chrono::time_point<std::chrono::high_resolution_clock> currentTime(std::chrono::high_resolution_clock::now());
+        std::chrono::duration<double> elapsedSeconds = currentTime - lastFpsReportTime;
+        if (elapsedSeconds.count() > 10) {
+            fps = (completedFrames - lastFpsReportFrame) / elapsedSeconds.count();
+            lastFpsReportTime = currentTime;
+            lastFpsReportFrame = completedFrames;
+        }
+    }
 
     if (f) {
         reorderMap.insert(std::pair<int, const VSFrameRef *>(n, f));
@@ -151,7 +165,7 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
     }
 
     if (printFrameNumber && !outputError)
-        fprintf(stderr, "Frame: %d/%d\r", completedFrames, totalFrames);
+        fprintf(stderr, "Frame: %d/%d (%.2f fps)\r", completedFrames, totalFrames, fps);
 
     if (totalFrames == completedFrames) {
         std::lock_guard<std::mutex> lock(mutex);
@@ -421,6 +435,7 @@ int main(int argc, char **argv) {
             return 1;
         }
 
+        lastFpsReportTime = std::chrono::high_resolution_clock::now();
         error = outputNode();
     }
 
