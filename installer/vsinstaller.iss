@@ -1,5 +1,5 @@
 #define AppName = 'VapourSynth'
-#define Version = 'R21'
+#define Version = 'R22 test 1'
 
 [Setup]
 OutputDir=Compiled
@@ -94,7 +94,7 @@ Source: x86\vapoursynth.lib; DestDir: {app}\sdk\lib32; Flags: ignoreversion unin
 Source: x64\vapoursynth.lib; DestDir: {app}\sdk\lib64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
 Source: ..\sdk\filter_skeleton.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
 Source: ..\sdk\invert_example.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
-Source: ..\sdk\vsscript_example.cpp; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
+Source: ..\sdk\vsscript_example.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
 ;bundled plugins
 Source: x86\plugins\*; DestDir: {app}\core32\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
 Source: x64\plugins\*; DestDir: {app}\core64\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
