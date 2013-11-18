@@ -78,7 +78,8 @@ static bool isValidIdentifier(const std::string &s) {
 static std::wstring readRegistryValue(const std::wstring keyName, const std::wstring &valueName) {
     HKEY hKey;
 #ifdef _WIN64
-    LONG lRes = RegOpenKeyEx(HKEY_LOCAL_MACHINE, keyName.c_str(), KEY_WOW64_32KEY, KEY_READ, &hKey);
+    LONG lRes = RegOpenKeyEx(HKEY_LOCAL_MACHINE, keyName.c_str(), 0, KEY_READ | KEY_WOW64_32KEY, &hKey);
+    printf("%l\n", lRes);
 #else
     LONG lRes = RegOpenKeyEx(HKEY_LOCAL_MACHINE, keyName.c_str(), 0, KEY_READ, &hKey);
 #endif
