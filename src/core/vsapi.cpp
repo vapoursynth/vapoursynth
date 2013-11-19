@@ -23,6 +23,7 @@
 #include "vslog.h"
 #include <assert.h>
 #include <string.h>
+#include <string>
 
 void VS_CC configPlugin(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readOnly, VSPlugin *plugin) {
     assert(identifier && defaultNamespace && name && plugin);
@@ -71,7 +72,14 @@ static uint8_t *VS_CC getWritePtr(VSFrameRef *frame, int plane) {
 
 static void VS_CC getFrameAsync(int n, VSNodeRef *clip, VSFrameDoneCallback fdc, void *userData) {
     assert(clip && fdc);
-    clip->clip->getFrame(std::make_shared<FrameContext>(n, clip->index, clip, fdc, userData));
+    int numFrames = clip->clip->getVideoInfo(clip->index).numFrames;
+    if (n < 0 || (numFrames && n >= numFrames)) {
+        PFrameContext ctx(std::make_shared<FrameContext>(n, clip->index, clip, fdc, userData));
+        ctx->setError("Invalid frame number requested, clip only has " + std::to_string(numFrames) + " frames");
+        clip->clip->getFrame(ctx);
+    } else {
+        clip->clip->getFrame(std::make_shared<FrameContext>(n, clip->index, clip, fdc, userData));
+    }
 }
 
 struct GetFrameWaiter {
