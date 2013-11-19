@@ -291,7 +291,7 @@ VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame * const
     for (int i = 0; i < format->numPlanes; i++) {
         if (planeSrc[i]) {
             if (plane[i] < 0 || plane[i] >= planeSrc[i]->format->numPlanes)
-                vsFatal("Plane does no exist, error in frame creation");
+                vsFatal("Plane does not exist, error in frame creation");
             if (planeSrc[i]->getHeight(plane[i]) != getHeight(i) || planeSrc[i]->getWidth(plane[i]) != getWidth(i))
                 vsFatal("Copied plane dimensions do not match, error in frame creation");
             data[i] = planeSrc[i]->data[plane[i]];
