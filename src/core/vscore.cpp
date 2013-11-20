@@ -830,7 +830,7 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
     const std::wstring filter = L"*.dll";
     // Autoload user specific plugins first so a user can always override
     std::vector<wchar_t> appDataBuffer(MAX_PATH + 1);
-    SHGetFolderPath(NULL, CSIDL_APPDATA, NULL, SHGFP_TYPE_CURRENT, &appDataBuffer[0]);
+    SHGetFolderPath(NULL, CSIDL_APPDATA, NULL, SHGFP_TYPE_CURRENT, appDataBuffer.data());
 
 #ifdef _WIN64
 #define ADDPEND_STR_6432(x) x##L"64"
@@ -840,7 +840,7 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
 
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
 
-    std::wstring appDataPath = std::wstring(&appDataBuffer[0]) + ADDPEND_STR_6432(L"\\VapourSynth\\plugins");
+    std::wstring appDataPath = std::wstring(appDataBuffer.data()) + ADDPEND_STR_6432(L"\\VapourSynth\\plugins");
 
     // Autoload per user plugins
     if (!loadAllPluginsInPath(appDataPath, filter))
