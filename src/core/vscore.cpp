@@ -843,19 +843,17 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
     std::wstring appDataPath = std::wstring(appDataBuffer.data()) + ADDPEND_STR_6432(L"\\VapourSynth\\plugins");
 
     // Autoload per user plugins
-    if (!loadAllPluginsInPath(appDataPath, filter))
-        vsWarning("User specific plugin autoloading failed. Directory '%s' doesn't exist or is empty?", conversion.to_bytes(appDataPath).c_str());
+    loadAllPluginsInPath(appDataPath, filter);
 
     // Autoload bundled plugins
     std::wstring corePluginPath = readRegistryValue(L"Software\\VapourSynth", ADDPEND_STR_6432(L"CorePlugins"));
     if (!loadAllPluginsInPath(corePluginPath, filter))
-        vsWarning("Core plugin autoloading failed. Directory '%s' doesn't exist or is empty?", conversion.to_bytes(corePluginPath).c_str());
+        vsCritical("Core plugin autoloading failed. Installation is broken?");
 
     // Autoload global plugins last, this is so the bundled plugins cannot be overridden easily
     // and accidentally block updated bundled versions
     std::wstring globalPluginPath = readRegistryValue(L"Software\\VapourSynth", ADDPEND_STR_6432(L"Plugins"));
-    if (!loadAllPluginsInPath(globalPluginPath, filter))
-        vsWarning("Global plugin autoloading failed. Directory '%s' doesn't exist or is empty?", conversion.to_bytes(globalPluginPath).c_str());
+    loadAllPluginsInPath(globalPluginPath, filter);
 #else
 
 #ifdef VS_TARGET_OS_DARWIN
@@ -871,17 +869,15 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
     bool autoloadUserPluginDir = settings.value("AutoloadUserPluginDir", true).toBool();
     QString userPluginDir = settings.value("UserPluginDir").toString();
     if (autoloadUserPluginDir && !userPluginDir.isEmpty()) {
-        if (!loadAllPluginsInPath(userPluginDir.toUtf8().constData(), filter)) {
+        if (!loadAllPluginsInPath(userPluginDir.toUtf8().constData(), filter))
             vsWarning("Autoloading the user plugin dir '%s' failed. Directory doesn't exist?", userPluginDir.toUtf8().constData());
-        }
     }
 
     bool autoloadSystemPluginDir = settings.value("AutoloadSystemPluginDir", true).toBool();
     QString systemPluginDir = settings.value("SystemPluginDir", QString(VS_PATH_PLUGINDIR)).toString();
     if (autoloadSystemPluginDir) {
-        if (!loadAllPluginsInPath(systemPluginDir.toUtf8().constData(), filter)) {
-            vsWarning("Autoloading the system plugin dir '%s' failed. Directory doesn't exist?", systemPluginDir.toUtf8().constData());
-        }
+        if (!loadAllPluginsInPath(systemPluginDir.toUtf8().constData(), filter))
+            vsCritical("Autoloading the system plugin dir '%s' failed. Directory doesn't exist?", systemPluginDir.toUtf8().constData());
     }
 #endif
 }
