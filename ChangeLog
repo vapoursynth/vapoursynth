@@ -1,4 +1,5 @@
 r22:
+the installer will no longer prompt about closing applications unless it's really necessary
 vspipe now prints the fps as well
 now arguments that are None in python aren't passed on to functions, this makes supplying defaults a lot easier
 added core.version_number() so scripts can easily check for a supported core version

@@ -24,7 +24,7 @@ AllowCancelDuringInstall=no
 AllowNoIcons=yes
 AllowUNCPath=no
 MinVersion=0,5.1
-PrivilegesRequired=poweruser
+PrivilegesRequired=admin
 FlatComponentsList=yes
 ArchitecturesAllowed=x86 x64
 ArchitecturesInstallIn64BitMode=x64
@@ -64,26 +64,14 @@ Source: x64\vspipe.exe; DestDir: {app}\core64; Flags: ignoreversion uninsrestart
 Source: x86\vspipe.exe; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
 Source: x64\vspipe.exe; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 
-Source: x86\vsvfw.dll; DestDir: {sys}; Flags: ignoreversion uninsrestartdelete restartreplace 32bit; Components: vs32
-Source: x64\vsvfw.dll; DestDir: {sys}; Flags: ignoreversion uninsrestartdelete restartreplace 64bit; Components: vs64
+Source: x86\vsvfw.dll; DestDir: {sys}; Flags: uninsrestartdelete restartreplace 32bit; Components: vs32
+Source: x64\vsvfw.dll; DestDir: {sys}; Flags: uninsrestartdelete restartreplace 64bit; Components: vs64
 
-Source: x86\vsscript.dll; DestDir: {sys}; Flags: ignoreversion uninsrestartdelete restartreplace 32bit; Components: vs32
-Source: x64\vsscript.dll; DestDir: {sys}; Flags: ignoreversion uninsrestartdelete restartreplace 64bit; Components: vs64
-;vs2010 runtime
-Source: x86\msvcr100.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile 32bit; Components: vs32
-Source: x64\msvcr100.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile 64bit; Components: vs64
-
-Source: x86\msvcp100.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile 32bit; Components: vs32
-Source: x64\msvcp100.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile 64bit; Components: vs64
-;vs2013 runtime
-Source: x86\msvcr120.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile 32bit; Components: vs32
-Source: x64\msvcr120.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile 64bit; Components: vs64
-
-Source: x86\msvcp120.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile 32bit; Components: vs32
-Source: x64\msvcp120.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile 64bit; Components: vs64
-
-Source: x86\vccorlib120.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile 32bit; Components: vs32
-Source: x64\vccorlib120.dll; DestDir: {sys}; Flags: restartreplace uninsneveruninstall sharedfile 64bit; Components: vs64
+Source: x86\vsscript.dll; DestDir: {sys}; Flags: uninsrestartdelete restartreplace 32bit; Components: vs32
+Source: x64\vsscript.dll; DestDir: {sys}; Flags: uninsrestartdelete restartreplace 64bit; Components: vs64
+;vs2010 and vs2013 runtime installers
+Source: x86\rtx86.msi; DestDir: {app}\runtimes; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: x64\rtx64.msi; DestDir: {app}\runtimes; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 ;sdk
 Source: ..\include\VapourSynth.h; DestDir: {app}\sdk\include; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
 Source: ..\include\VSHelper.h; DestDir: {app}\sdk\include; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
@@ -107,8 +95,8 @@ Name: "{app}\plugins64"; Flags: uninsalwaysuninstall; Components: vs64
 [Icons]
 Name: {group}\VapourSynth Website; Filename: http://www.vapoursynth.com/
 Name: {group}\Documentation; Filename: http://www.vapoursynth.com/doc/
-Name: {group}\Autoload Directory (32bit); Filename: {app}\plugins32; Components: vs32
-Name: {group}\Autoload Directory (64bit); Filename: {app}\plugins64; Components: vs64
+Name: {group}\Global Autoload Directory (32bit); Filename: {app}\plugins32; Components: vs32
+Name: {group}\Global Autoload Directory (64bit); Filename: {app}\plugins64; Components: vs64
 Name: {group}\VapourSynth SDK; Filename: {app}\sdk; Components: sdk
 
 [Registry]
@@ -145,6 +133,9 @@ Root: HKLM; Subkey: SOFTWARE\Classes\vsfile\DefaultIcon; ValueType: string; Valu
 Root: HKLM; Subkey: SOFTWARE\Classes\AVIFile\Extensions\VPY; ValueType: string; ValueName: ""; ValueData: "{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
 
 [Run]
+Filename: "msiexec.exe"; Parameters: "/package ""{app}\runtimes\rtx86.msi"" /quiet /norestart"; Components: vs32
+Filename: "msiexec.exe"; Parameters: "/package ""{app}\runtimes\rtx64.msi"" /quiet /norestart"; Components: vs64
+
 Filename: "{win}\pfm.exe"; Parameters: "register ""{app}\core64\vsfs.dll"""; Tasks: registervsfs; Flags: skipifdoesntexist; Components: vs64
 Filename: "{win}\pfm.exe"; Parameters: "register ""{app}\core32\vsfs.dll"""; Tasks: registervsfs; Flags: skipifdoesntexist; Components: vs32 and not vs64
 
