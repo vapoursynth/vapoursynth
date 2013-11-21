@@ -161,7 +161,7 @@ public:
     bool insert(const std::string &key, const VSVariant &v) {
         if (!data.unique())
             data = std::make_shared<VSMapStorageType>(*data.get());
-        data->insert(std::pair<std::string, VSVariant>(key, v));
+        data->insert(std::make_pair(key, v));
         return true;
     }
 

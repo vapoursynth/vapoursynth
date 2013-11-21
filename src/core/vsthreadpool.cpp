@@ -148,7 +148,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                     ar = arAllFramesReady;
 
                 assert(mainContext->numFrameRequests >= 0);
-                mainContext->availableFrames.insert(std::pair<NodeOutputKey, PVideoFrame>(NodeOutputKey(leafContext->clip, leafContext->n, leafContext->index), leafContext->returnedFrame));
+                mainContext->availableFrames.insert(std::make_pair(NodeOutputKey(leafContext->clip, leafContext->n, leafContext->index), leafContext->returnedFrame));
                 mainContext->lastCompletedN = leafContext->n;
                 mainContext->lastCompletedNode = leafContext->node;
             }
@@ -283,7 +283,7 @@ int VSThreadPool::threadCount() const {
 
 void VSThreadPool::spawnThread() {
     std::thread *thread = new std::thread(runTasks, this, std::ref(stopThreads));
-    allThreads.insert(std::pair<std::thread::id, std::thread *>(thread->get_id(), thread));
+    allThreads.insert(std::make_pair(thread->get_id(), thread));
 }
 
 void VSThreadPool::setThreadCount(int threads) {

@@ -109,7 +109,7 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
     }
 
     if (f) {
-        reorderMap.insert(std::pair<int, const VSFrameRef *>(n, f));
+        reorderMap.insert(std::make_pair(n, f));
         while (reorderMap.count(outputFrames)) {
             const VSFrameRef *frame = reorderMap[outputFrames];
             reorderMap.erase(outputFrames);

@@ -167,7 +167,7 @@ PVideoFrame VSClip::GetFrame(int n, IScriptEnvironment *env) {
         isYV12 ? vsapi->getReadPtr(ref, 2) - firstPlanePtr : 0,
         isYV12 ? vsapi->getStride(ref, 1) : 0);
     PVideoFrame pvf(vfb);
-    fakeEnv->ownedFrames.insert(std::pair<VideoFrame *, const VSFrameRef *>(vfb, ref));
+    fakeEnv->ownedFrames.insert(std::make_pair(vfb, ref));
     return pvf;
 }
 
@@ -623,7 +623,7 @@ PVideoFrame FakeAvisynth::NewVideoFrame(const VideoInfo &vi, int align) {
         isYV12 ? vsapi->getWritePtr(ref, 2) - firstPlanePtr : 0,
         isYV12 ? vsapi->getStride(ref, 1) : 0);
     PVideoFrame pvf(vfb);
-    ownedFrames.insert(std::pair<VideoFrame *, const VSFrameRef *>(vfb, ref));
+    ownedFrames.insert(std::make_pair(vfb, ref));
     return pvf;
 }
 
@@ -646,7 +646,7 @@ bool FakeAvisynth::MakeWritable(PVideoFrame *pvf) {
         vsapi->getWritePtr(ref, 2) - firstPlanePtr,
         vsapi->getStride(ref, 1));
     *pvf = PVideoFrame(newVfb);
-    ownedFrames.insert(std::pair<VideoFrame *, const VSFrameRef *>(newVfb, ref));
+    ownedFrames.insert(std::make_pair(newVfb, ref));
     return true;
 }
 

@@ -644,7 +644,7 @@ const VSFormat *VSCore::registerFormat(VSColorFamily colorFamily, VSSampleType s
     f->subSamplingH = subSamplingH;
     f->numPlanes = (colorFamily == cmGray || colorFamily == cmCompat) ? 1 : 3;
 
-    formats.insert(std::pair<int, VSFormat *>(f->id, f));
+    formats.insert(std::make_pair(f->id, f));
     return f;
 }
 
@@ -798,7 +798,7 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
 #if defined(VS_TARGET_OS_WINDOWS) && defined(VS_FEATURE_AVISYNTH)
     p = new VSPlugin(this);
     avsWrapperInitialize(::configPlugin, ::registerFunction, p);
-    plugins.insert(std::pair<std::string, VSPlugin *>(p->identifier, p));
+    plugins.insert(std::make_pair(p->identifier, p));
     p->enableCompat();
 #endif
 
@@ -814,16 +814,16 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
     p->enableCompat();
     p->lock();
 
-    plugins.insert(std::pair<std::string, VSPlugin *>(p->identifier, p));
+    plugins.insert(std::make_pair(p->identifier, p));
     p = new VSPlugin(this);
     resizeInitialize(::configPlugin, ::registerFunction, p);
-    plugins.insert(std::pair<std::string, VSPlugin *>(p->identifier, p));
+    plugins.insert(std::make_pair(p->identifier, p));
     p->enableCompat();
 
-    plugins.insert(std::pair<std::string, VSPlugin *>(p->identifier, p));
+    plugins.insert(std::make_pair(p->identifier, p));
     p = new VSPlugin(this);
     textInitialize(::configPlugin, ::registerFunction, p);
-    plugins.insert(std::pair<std::string, VSPlugin *>(p->identifier, p));
+    plugins.insert(std::make_pair(p->identifier, p));
     p->enableCompat();
 
 #ifdef VS_TARGET_OS_WINDOWS
@@ -937,7 +937,7 @@ void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNa
         throw VSException(error);
     }
 
-    plugins.insert(std::pair<std::string, VSPlugin *>(p->identifier, p));
+    plugins.insert(std::make_pair(p->identifier, p));
 }
 
 void VSCore::createFilter(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion) {
@@ -1063,9 +1063,9 @@ void VSPlugin::registerFunction(const std::string &name, const std::string &args
 
     if (!readOnly) {
         std::lock_guard<std::mutex> lock(registerFunctionLock);
-        funcs.insert(std::pair<std::string, VSFunction>(name, VSFunction(args, argsFunc, functionData)));
+        funcs.insert(std::make_pair(name, VSFunction(args, argsFunc, functionData)));
     } else {
-        funcs.insert(std::pair<std::string, VSFunction>(name, VSFunction(args, argsFunc, functionData)));
+        funcs.insert(std::make_pair(name, VSFunction(args, argsFunc, functionData)));
     }
 }
 

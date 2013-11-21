@@ -82,7 +82,7 @@ bool VSCache::insert(const int akey, const PVideoFrame &aobject) {
     assert(akey >= 0);
     remove(akey);
     trim(maxSize - 1, maxHistorySize);
-    auto i = hash.insert(std::pair<int, Node>(akey, Node(akey, aobject)));
+    auto i = hash.insert(std::make_pair(akey, Node(akey, aobject)));
     currentSize++;
     Node *n = &i.first->second;
 
