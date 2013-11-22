@@ -303,7 +303,7 @@ void VSThreadPool::releaseThread() {
 }
 
 void VSThreadPool::reserveThread() {
-    --activeThreads;
+    ++activeThreads;
 }
 
 void VSThreadPool::notifyCaches(bool needMemory) {
