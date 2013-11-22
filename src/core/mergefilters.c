@@ -23,8 +23,6 @@
 #include "filtershared.h"
 #include <stdlib.h>
 
-#undef VS_TARGET_CPU_X86
-
 #define CLAMP(value, lower, upper) do { if (value < lower) value = lower; else if (value > upper) value = upper; } while(0)
 
 //////////////////////////////////////////
