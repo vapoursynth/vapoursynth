@@ -146,7 +146,7 @@ typedef struct VSFormat {
 } VSFormat;
 
 typedef enum VSNodeFlags {
-    nfNoCache = 1,
+    nfNoCache = 1
 } VSNodeFlags;
 
 typedef enum VSPropTypes {
