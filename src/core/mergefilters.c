@@ -23,6 +23,8 @@
 #include "filtershared.h"
 #include <stdlib.h>
 
+#undef VS_TARGET_CPU_X86
+
 #define CLAMP(value, lower, upper) do { if (value < lower) value = lower; else if (value > upper) value = upper; } while(0)
 
 //////////////////////////////////////////
@@ -400,6 +402,10 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
 //////////////////////////////////////////
 // MakeDiff
 
+#ifdef VS_TARGET_CPU_X86
+extern void vs_make_diff_uint8_sse2(const uint8_t *srcp1, const uint8_t *srcp2, uint8_t *dstp, int stride, int height);
+#endif
+
 typedef struct {
     VSNodeRef *node1;
     VSNodeRef *node2;
@@ -422,7 +428,7 @@ static const VSFrameRef *VS_CC makeDiffGetFrame(int n, int activationReason, voi
         const VSFrameRef *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
         const VSFrameRef *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
         const int pl[] = { 0, 1, 2 };
-        const VSFrameRef *fr[] = { d->process[0] ? src1 : 0, d->process[1] ? src1 : 0, d->process[2] ? src1 : 0 };
+        const VSFrameRef *fr[] = { d->process[0] ? 0 : src1, d->process[1] ? 0 : src1, d->process[2] ? 0 : src1 };
         VSFrameRef *dst = vsapi->newVideoFrame2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
         int plane;
         int x, y;
@@ -437,6 +443,9 @@ static const VSFrameRef *VS_CC makeDiffGetFrame(int n, int activationReason, voi
 
                 if (d->vi->format->sampleType == stInteger) {
                     if (d->vi->format->bytesPerSample == 1) {
+#ifdef VS_TARGET_CPU_X86
+                        vs_make_diff_uint8_sse2(srcp1, srcp2, dstp, stride, h);
+#else
                         for (y = 0; y < h; y++) {
                             for (x = 0; x < w; x++) {
                                 int temp = srcp1[x] - srcp2[x] + 128;
@@ -447,6 +456,7 @@ static const VSFrameRef *VS_CC makeDiffGetFrame(int n, int activationReason, voi
                             srcp2 += stride;
                             dstp += stride;
                         }
+#endif
                     } else if (d->vi->format->bytesPerSample == 2) {
                         int halfpoint = 1 << (d->vi->format->bitsPerSample - 1);
                         int maxvalue = (1 << d->vi->format->bitsPerSample) - 1;
@@ -562,6 +572,10 @@ static void VS_CC makeDiffCreate(const VSMap *in, VSMap *out, void *userData, VS
 //////////////////////////////////////////
 // MergeDiff
 
+#ifdef VS_TARGET_CPU_X86
+extern void vs_merge_diff_uint8_sse2(const uint8_t *srcp1, const uint8_t *srcp2, uint8_t *dstp, int stride, int height);
+#endif
+
 typedef struct {
     VSNodeRef *node1;
     VSNodeRef *node2;
@@ -584,7 +598,7 @@ static const VSFrameRef *VS_CC mergeDiffGetFrame(int n, int activationReason, vo
         const VSFrameRef *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
         const VSFrameRef *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
         const int pl[] = { 0, 1, 2 };
-        const VSFrameRef *fr[] = { d->process[0] ? src1 : 0, d->process[1] ? src1 : 0, d->process[2] ? src1 : 0 };
+        const VSFrameRef *fr[] = { d->process[0] ? 0 : src1, d->process[1] ? 0 : src1, d->process[2] ? 0 : src1 };
         VSFrameRef *dst = vsapi->newVideoFrame2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
         int plane;
         int x, y;
@@ -599,6 +613,9 @@ static const VSFrameRef *VS_CC mergeDiffGetFrame(int n, int activationReason, vo
 
                 if (d->vi->format->sampleType == stInteger) {
                     if (d->vi->format->bytesPerSample == 1) {
+#ifdef VS_TARGET_CPU_X86
+                        vs_merge_diff_uint8_sse2(srcp1, srcp2, dstp, stride, h);
+#else
                         for (y = 0; y < h; y++) {
                             for (x = 0; x < w; x++) {
                                 int temp = srcp1[x] + srcp2[x] - 128;
@@ -609,6 +626,7 @@ static const VSFrameRef *VS_CC mergeDiffGetFrame(int n, int activationReason, vo
                             srcp2 += stride;
                             dstp += stride;
                         }
+#endif
                     } else if (d->vi->format->bytesPerSample == 2) {
                         int halfpoint = 1 << (d->vi->format->bitsPerSample - 1);
                         int maxvalue = (1 << d->vi->format->bitsPerSample) - 1;
@@ -728,6 +746,6 @@ void VS_CC mergeInitialize(VSConfigPlugin configFunc, VSRegisterFunction registe
     //configFunc("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 1, plugin);
     registerFunc("Merge", "clipa:clip;clipb:clip;weight:float[]:opt;", mergeCreate, 0, plugin);
     registerFunc("MaskedMerge", "clipa:clip;clipb:clip;mask:clip;planes:int[]:opt;first_plane:int:opt;", maskedMergeCreate, 0, plugin);
-    registerFunc("MakeDiff", "clipa:clip;clipb:clip;planes:int[]:opt;", maskedMergeCreate, 0, plugin);
-    registerFunc("MergeDiff", "clipa:clip;clipb:clip;planes:int[]:opt;", maskedMergeCreate, 0, plugin);
+    registerFunc("MakeDiff", "clipa:clip;clipb:clip;planes:int[]:opt;", makeDiffCreate, 0, plugin);
+    registerFunc("MergeDiff", "clipa:clip;clipb:clip;planes:int[]:opt;", mergeDiffCreate, 0, plugin);
 }

@@ -157,3 +157,91 @@ cglobal merge_uint8_sse2, 6, 7, 8, src1, src2, mask, dst, stride, height, lineof
 
 .yloopdone:
    RET
+
+INIT_XMM
+cglobal make_diff_uint8_sse2, 5, 6, 5, src1, src2, dst, stride, height, lineoffset
+   pcmpeqb m4, m4
+   psllw m4, 15
+   mova m0, m4
+   psrlw m4, 8
+   por m4, m0
+.yloop:
+   xor lineoffsetq, lineoffsetq
+.xloop:
+   ; load 32 pixels
+   mova m0, [src1q+lineoffsetq]
+   mova m1, [src2q+lineoffsetq]
+   mova m2, [src1q+lineoffsetq + mmsize]
+   mova m3, [src2q+lineoffsetq + mmsize]
+
+   psubb m0, m4
+   psubb m1, m4
+   psubb m2, m4
+   psubb m3, m4
+
+   psubsb m0, m1
+   psubsb m2, m3
+
+   paddb m0, m4
+   paddb m2, m4
+
+   mova [dstq+lineoffsetq], m0
+   mova [dstq+lineoffsetq + mmsize], m2
+
+   add lineoffsetq, mmsize*2
+   cmp lineoffsetq, strideq
+   jnz .xloop
+.xloopdone:
+   add src1q, strideq
+   add src2q, strideq
+   add dstq, strideq
+
+   sub heightq, 1
+   jnz .yloop
+
+.yloopdone:
+   RET
+
+INIT_XMM
+cglobal merge_diff_uint8_sse2, 5, 6, 5, src1, src2, dst, stride, height, lineoffset
+   pcmpeqb m4, m4
+   psllw m4, 15
+   mova m0, m4
+   psrlw m4, 8
+   por m4, m0
+.yloop:
+   xor lineoffsetq, lineoffsetq
+.xloop:
+   ; load 32 pixels
+   mova m0, [src1q+lineoffsetq]
+   mova m1, [src2q+lineoffsetq]
+   mova m2, [src1q+lineoffsetq + mmsize]
+   mova m3, [src2q+lineoffsetq + mmsize]
+
+   psubb m0, m4
+   psubb m1, m4
+   psubb m2, m4
+   psubb m3, m4
+
+   paddsb m0, m1
+   paddsb m2, m3
+
+   paddb m0, m4
+   paddb m2, m4
+
+   mova [dstq+lineoffsetq], m0
+   mova [dstq+lineoffsetq + mmsize], m2
+
+   add lineoffsetq, mmsize*2
+   cmp lineoffsetq, strideq
+   jnz .xloop
+.xloopdone:
+   add src1q, strideq
+   add src2q, strideq
+   add dstq, strideq
+
+   sub heightq, 1
+   jnz .yloop
+
+.yloopdone:
+   RET
