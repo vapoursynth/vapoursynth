@@ -4,12 +4,14 @@ Here all the classes and functions in the Python module will be documented.
 
 Classes and Functions
 #####################
-.. py:function:: get_core([threads = 0, add_cache = True, accept_lowercase = False])
+.. py:function:: get_core([threads = 0, add_cache = True, accept_lowercase = False, r21_arg_compat = True])
 
    Get the singleton Core object. If it is the first time the function is called
    the Core will be instantiated with the given options. If the Core already has
    been instantiated all options are ignored. Setting *threads* to a value
-   greater than zero overrides the autodetection.
+   greater than zero overrides the autodetection. The argument *r21_arg_compat*
+   determines if the python front end adjusts certain filter arguments to match
+   the new order used after r21 when necessary.
 
 .. py:function:: get_output([index = 0])
 
