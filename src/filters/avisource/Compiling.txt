@@ -1,5 +1,5 @@
 The code was derived from virtualdub 1.10.3 test 8 so use that as a starting point for diffs if you want to try to update the included files.
-Most files are copied unchanged or only had some logging commented out, the bigget exception being misc.cpp where large parts were stripped out.
+Most files are copied unchanged or only had some logging commented out, the biggest exception being misc.cpp where large parts were stripped out.
 
 To compile it you need a full copy of the vdub source. First compile only the system project in the vdub solution. It is needed to link to later.
 
