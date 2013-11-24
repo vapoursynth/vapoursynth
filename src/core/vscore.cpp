@@ -23,8 +23,7 @@
 #include "version.h"
 #ifndef VS_TARGET_OS_WINDOWS
 #include <QtCore/QSettings>
-#include <QtCore/QDir>
-#include <QtCore/QDirIterator>
+#include <dirent.h>
 #endif
 #include <assert.h>
 
@@ -759,17 +758,34 @@ bool VSCore::loadAllPluginsInPath(const std::string &path, const std::string &fi
     } while (FindNextFile(findHandle, &findData));
     FindClose(findHandle);
 #else
-    QDir dir(QString::fromUtf8(path.c_str()), QString::fromUtf8(filter.c_str()), QDir::Name | QDir::IgnoreCase, QDir::Files | QDir::NoDotDot);
-    if (!dir.exists())
+    DIR *dir = opendir(path.c_str());
+    if (!dir)
         return false;
 
-    QDirIterator dirIterator(dir);
-    while (dirIterator.hasNext()) {
+    while (true) {
+        struct dirent *entry = readdir(dir);
+        if (!entry)
+            break;
+
+        std::string name(entry->d_name);
         try {
-            loadPlugin(dirIterator.next().toUtf8().constData());
-        } catch (VSException &) {
-            // Ignore any errors
+            // If name ends with filter
+            if (name.compare(name.size() - filter.size(), filter.size(), filter) == 0) {
+                try {
+                    std::string fullname;
+                    fullname.append(path).append("/").append(name);
+                    loadPlugin(fullname);
+                } catch (VSException &) {
+                    // Ignore any errors
+                }
+            }
+        } catch (std::out_of_range &) {
+            //
         }
+    }
+
+    if (closedir(dir)) {
+        // Shouldn't happen
     }
 #endif
 
@@ -857,9 +873,9 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
 #else
 
 #ifdef VS_TARGET_OS_DARWIN
-    std::string filter = "*.dylib";
+    std::string filter = ".dylib";
 #else
-    std::string filter = "*.so";
+    std::string filter = ".so";
 #endif
 
     // Will read "~/.config/vapoursynth/vapoursynth.conf"
