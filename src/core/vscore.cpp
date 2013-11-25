@@ -22,8 +22,8 @@
 #include "VSHelper.h"
 #include "version.h"
 #ifndef VS_TARGET_OS_WINDOWS
-#include <QtCore/QSettings>
 #include <dirent.h>
+#include <errno.h>
 #endif
 #include <assert.h>
 
@@ -792,6 +792,144 @@ bool VSCore::loadAllPluginsInPath(const std::string &path, const std::string &fi
     return true;
 }
 
+enum ParserStates {
+    WANT_KEY_START,
+    WANT_KEY_CHAR,
+    WANT_DELIMITER,
+    WANT_VALUE_START,
+    WANT_VALUE_CHAR
+};
+
+static VSMap *readSettings(const std::string &path) {
+    VSMap *settings = vsapi.createMap();
+    std::string err;
+
+    FILE *f = fopen(path.c_str(), "rb");
+    if (!f) {
+        // Ignore "No such file or directory"
+        if (errno != ENOENT) {
+            err.append("Couldn't open '").append(path).append("' for reading. Error: ").append(strerror(errno));
+            vsapi.setError(settings, err.c_str());
+        }
+        return settings;
+    }
+
+    if (fseek(f, 0, SEEK_END)) {
+        err.append("Couldn't find the size of '").append(path).append("' by seeking to its end. Error: ").append(strerror(errno));
+        vsapi.setError(settings, err.c_str());
+        fclose(f);
+        return settings;
+    }
+
+    long size = ftell(f);
+    if (size == -1) {
+        err.append("Couldn't find the size of '").append(path).append("'. ftell failed with the error: ").append(strerror(errno));
+        vsapi.setError(settings, err.c_str());
+        fclose(f);
+        return settings;
+    }
+
+    if (size > 100*1024) {
+        err.append("Configuration file '").append(path).append("' is ridiculously large. Ignoring.");
+        vsapi.setError(settings, err.c_str());
+        fclose(f);
+        return settings;
+    }
+
+    rewind(f);
+
+    std::vector<char> buffer(size);
+
+    if (fread(buffer.data(), 1, size, f) != size) {
+        err.append("Didn't read the expected number of bytes from '").append(path).append("'.");
+        vsapi.setError(settings, err.c_str());
+        fclose(f);
+        return settings;
+    }
+    fclose(f);
+
+    buffer.push_back('\n');
+
+    int key_start = 0, key_end = 0, value_start = 0, value_end = 0;
+    err.append("Error while parsing '").append(path).append("': ");
+    ParserStates state = WANT_KEY_START;
+    int line = 1;
+    std::string line_str(std::string("Line ").append(std::to_string(line)).append(": "));
+
+    for (int i = 0; i < size; i++) {
+        switch (state) {
+            case WANT_KEY_START:
+                if (isAlphaNumUnderscore(buffer[i])) {
+                    key_start = i;
+                    state = WANT_KEY_CHAR;
+                }
+                break;
+            case WANT_KEY_CHAR:
+                if (buffer[i] == '\n') {
+                    err.append(line_str).append("No delimiter found before reaching the end of the line.");
+                    vsapi.setError(settings, err.c_str());
+                    return settings;
+                } else if (buffer[i] == ' ') {
+                    key_end = i - 1;
+                    state = WANT_DELIMITER;
+                } else if (buffer[i] == '=') {
+                    key_end = i - 1;
+                    state = WANT_VALUE_START;
+                } else if (!isAlphaNumUnderscore(buffer[i])) {
+                    err.append(line_str).append("Garbage found inside key.");
+                    vsapi.setError(settings, err.c_str());
+                    return settings;
+                }
+                break;
+            case WANT_DELIMITER:
+                if (buffer[i] == '=') {
+                    state = WANT_VALUE_START;
+                } else if (buffer[i] == '\n') {
+                    err.append(line_str).append("No delimiter found before reaching the end of the line.");
+                    vsapi.setError(settings, err.c_str());
+                    return settings;
+                } else {
+                    err.append(line_str).append("Expected '=' but found garbage instead.");
+                    vsapi.setError(settings, err.c_str());
+                    return settings;
+                }
+                break;
+            case WANT_VALUE_START:
+                if (buffer[i] == '\n') {
+                    err.append(line_str).append("No value found for key before reaching the end of the line.");
+                    vsapi.setError(settings, err.c_str());
+                    return settings;
+                }
+                if (buffer[i] != ' ') {
+                    value_start = i;
+                    state = WANT_VALUE_CHAR;
+                }
+                break;
+            case WANT_VALUE_CHAR:
+                if (buffer[i] == '\n') {
+                    value_end = i - 1;
+                    std::string key(&buffer[key_start], key_end - key_start + 1);
+                    std::string value(&buffer[value_start], value_end - value_start + 1);
+                    vsapi.propSetData(settings, key.c_str(), value.c_str(), value.size(), paReplace);
+                    state = WANT_KEY_START;
+                }
+                break;
+            default:
+                err.append(line_str).append("Shit broke. This should never happen.");
+                vsapi.setError(settings, err.c_str());
+                return settings;
+                break;
+        }
+
+        if (buffer[i] == '\n') {
+            line++;
+            line_str = std::string("Line ").append(std::to_string(line)).append(": ");
+        }
+    }
+
+    return settings;
+}
+
 VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
 
 #ifdef VS_TARGET_OS_WINDOWS
@@ -872,29 +1010,57 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
     loadAllPluginsInPath(globalPluginPath, filter);
 #else
 
+    std::string configFile;
+    const char *home = getenv("HOME");
 #ifdef VS_TARGET_OS_DARWIN
     std::string filter = ".dylib";
+    if (home) {
+        configFile.append(home).append("/Library/Application Support/VapourSynth/vapoursynth.conf");
+    }
 #else
     std::string filter = ".so";
+    const char *xdg_config_home = getenv("XDG_CONFIG_HOME");
+    if (xdg_config_home) {
+        configFile.append(xdg_config_home).append("/vapoursynth/vapoursynth.conf");
+    } else if (home) {
+        configFile.append(home).append("/.config/vapoursynth/vapoursynth.conf");
+    } // If neither exists, an empty string will do.
 #endif
 
-    // Will read "~/.config/vapoursynth/vapoursynth.conf"
-    // or "/etc/xdg/vapoursynth/vapoursynth.conf".
-    QSettings settings("vapoursynth", "vapoursynth");
+    VSMap *settings = readSettings(configFile);
+    const char *error = vsapi.getError(settings);
+    if (error) {
+        vsWarning("%s\n", error);
+    } else {
+        int err;
+        const char *tmp;
 
-    bool autoloadUserPluginDir = settings.value("AutoloadUserPluginDir", true).toBool();
-    QString userPluginDir = settings.value("UserPluginDir").toString();
-    if (autoloadUserPluginDir && !userPluginDir.isEmpty()) {
-        if (!loadAllPluginsInPath(userPluginDir.toUtf8().constData(), filter))
-            vsWarning("Autoloading the user plugin dir '%s' failed. Directory doesn't exist?", userPluginDir.toUtf8().constData());
+        tmp = vsapi.propGetData(settings, "UserPluginDir", 0, &err);
+        std::string userPluginDir(tmp ? tmp : "");
+
+        tmp = vsapi.propGetData(settings, "SystemPluginDir", 0, &err);
+        std::string systemPluginDir(tmp ? tmp : VS_PATH_PLUGINDIR);
+
+        tmp = vsapi.propGetData(settings, "AutoloadUserPluginDir", 0, &err);
+        bool autoloadUserPluginDir = tmp ? std::string(tmp) == "true" : true;
+
+        tmp = vsapi.propGetData(settings, "AutoloadSystemPluginDir", 0, &err);
+        bool autoloadSystemPluginDir = tmp ? std::string(tmp) == "true" : true;
+
+        if (autoloadUserPluginDir && !userPluginDir.empty()) {
+            if (!loadAllPluginsInPath(userPluginDir, filter)) {
+                vsWarning("Autoloading the user plugin dir '%s' failed. Directory doesn't exist?", userPluginDir.c_str());
+            }
+        }
+
+        if (autoloadSystemPluginDir) {
+            if (!loadAllPluginsInPath(systemPluginDir, filter)) {
+                vsCritical("Autoloading the system plugin dir '%s' failed. Directory doesn't exist?", systemPluginDir.c_str());
+            }
+        }
     }
 
-    bool autoloadSystemPluginDir = settings.value("AutoloadSystemPluginDir", true).toBool();
-    QString systemPluginDir = settings.value("SystemPluginDir", QString(VS_PATH_PLUGINDIR)).toString();
-    if (autoloadSystemPluginDir) {
-        if (!loadAllPluginsInPath(systemPluginDir.toUtf8().constData(), filter))
-            vsCritical("Autoloading the system plugin dir '%s' failed. Directory doesn't exist?", systemPluginDir.toUtf8().constData());
-    }
+    vsapi.freeMap(settings);
 #endif
 }
 
