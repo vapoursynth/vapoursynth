@@ -108,15 +108,15 @@ cdef extern from "include/VapourSynth.h" nogil:
         int subSamplingH
         int numPlanes
 
-    cdef enum NodeFlags:
+    cdef enum VSNodeFlags:
         nfNoCache = 1
 
-    cdef enum GetPropErrors:
+    cdef enum VSGetPropErrors:
         peUnset = 1
         peType  = 2
         peIndex = 4
 
-    cdef enum PropAppendMode:
+    cdef enum VSPropAppendMode:
         paReplace = 0
         paAppend  = 1
         paTouch   = 2
@@ -138,11 +138,17 @@ cdef extern from "include/VapourSynth.h" nogil:
         int fpsDen
         int flags
 
-    cdef enum ActivationReason:
+    cdef enum VSActivationReason:
         arInitial = 0
         arFrameReady = 1
         arAllFramesReady = 2
         arError = -1
+        
+    cdef enum VSMessageType:
+        mtDebug = 0,
+        mtWarning = 1,
+        mtCritical = 2,
+        mtFatal = 3
 
     ctypedef void (__stdcall *VSFrameDoneCallback)(void *userData, const VSFrameRef *f, int n, VSNodeRef *node, const char *errorMsg)
     ctypedef void (__stdcall *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI *vsapi)
@@ -151,7 +157,7 @@ cdef extern from "include/VapourSynth.h" nogil:
     ctypedef const VSFrameRef *(__stdcall *VSFilterGetFrame)(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi)
     ctypedef void (__stdcall *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI *vsapi)
     ctypedef void (__stdcall *VSFreeFuncData)(void *userData)
-    ctypedef void (__stdcall *VSMessageHandler)(int msgType, const char *msg)
+    ctypedef void (__stdcall *VSMessageHandler)(int msgType, const char *msg, void *userData)
 
     ctypedef struct VSAPI:
         VSCore *createCore(int threads) nogil
@@ -226,5 +232,5 @@ cdef extern from "include/VapourSynth.h" nogil:
 
         int64_t setMaxCacheSize(int64_t bytes, VSCore *core) nogil
 
-        void setMessageHandler(VSMessageHandler handler) nogil
+        void setMessageHandler(VSMessageHandler handler, void *userData) nogil
     const VSAPI *getVapourSynthAPI(int version) nogil

@@ -777,7 +777,7 @@ bool VSCore::loadAllPluginsInPath(const std::string &path, const std::string &fi
 }
 
 VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
-
+    vsWarning("wohoo %d!", 5);
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isMMXStateOk())
         vsFatal("Bad MMX state detected creating new core");

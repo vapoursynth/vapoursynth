@@ -49,8 +49,10 @@ void vsLog(const char *file, long line, VSMessageType type, const char *msg, ...
         try {
             int size = vsnprintf(nullptr, 0, msg, alist);
             std::vector<char> buf(size+1);
-            vsnprintf(&buf[0], buf.size(), msg, alist);
+            vsnprintf(buf.data(), buf.size(), msg, alist);
+            messageHandler(type, buf.data(), messageUserData);
         } catch (std::bad_alloc &) {
+            fprintf(stderr, "Bad alloc exception in log handler\n");
             vfprintf(stderr, msg, alist);
             fprintf(stderr, "\n");
         }

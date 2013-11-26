@@ -13,6 +13,11 @@ Classes and Functions
    determines if the python front end adjusts certain filter arguments to match
    the new order used after r21 when necessary.
 
+.. py:function:: set_message_handler(handler_func)
+
+   Sets a function to handle all debug output and fatal errors. The function should have the form *handler(level, message)*,
+   where level correcsponds to the vapoursynth.mt constants. Passing *None* restores the default handler which prints to stderr.
+   
 .. py:function:: get_output([index = 0])
 
    Get a previously set output node. Throws an error if the index hasn't been

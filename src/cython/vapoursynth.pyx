@@ -34,6 +34,7 @@ _stored_outputs = {}
 _cores = {}
 _stored_output = {}
 _core = None
+_message_handler = None
 
 GRAY  = vapoursynth.cmGray
 RGB   = vapoursynth.cmRGB
@@ -90,6 +91,25 @@ class Error(Exception):
     def __repr__(self):
         return repr(self.value)
 
+cdef void __stdcall message_handler_wrapper(int msgType, const char *msg, void *userData) nogil:
+    with gil:
+        global _message_handler
+        _message_handler(msgType, msg.decode('utf-8'))
+        
+def set_message_handler(handler_func):
+    cdef const VSAPI *funcs
+    global _message_handler
+    funcs = getVapourSynthAPI(3)
+    if funcs == NULL:
+        raise Error('Failed to obtain VapourSynth API pointer. Is the Python module and loaded core library mismatched?')
+    if handler_func is None:
+        _message_handler = None
+        funcs.setMessageHandler(NULL, NULL)
+    else:
+        handler_func(vapoursynth.mtDebug, 'New message handler installed from python')
+        _message_handler = handler_func
+        funcs.setMessageHandler(message_handler_wrapper, NULL)
+    
 def clear_output(int index = 0):
     global _using_vsscript
     if _using_vsscript:
