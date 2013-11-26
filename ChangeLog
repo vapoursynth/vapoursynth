@@ -1,4 +1,5 @@
 r22:
+it's now possible to set a custom debug message handler from python, also a bug happening when setting a custom handler was fixed
 added makediff and mergediff functions
 the installer will no longer prompt about closing applications unless it's really necessary
 vspipe now prints the fps as well
