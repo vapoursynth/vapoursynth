@@ -23,6 +23,8 @@
 #include "version.h"
 #ifndef VS_TARGET_OS_WINDOWS
 #include <dirent.h>
+#include <stddef.h>
+#include <unistd.h>
 #include <errno.h>
 #endif
 #include <assert.h>
@@ -762,9 +764,17 @@ bool VSCore::loadAllPluginsInPath(const std::string &path, const std::string &fi
     if (!dir)
         return false;
 
+    int name_max = pathconf(path.c_str(), _PC_NAME_MAX);
+    if (name_max == -1)
+        name_max = 255;
+
+    size_t len = offsetof(struct dirent, d_name) + name_max + 1;
+
     while (true) {
-        struct dirent *entry = readdir(dir);
-        if (!entry)
+        struct dirent *entry = (struct dirent *)malloc(len);
+        struct dirent *result;
+        readdir_r(dir, entry, &result);
+        if (!result)
             break;
 
         std::string name(entry->d_name);
@@ -782,6 +792,8 @@ bool VSCore::loadAllPluginsInPath(const std::string &path, const std::string &fi
         } catch (std::out_of_range &) {
             //
         }
+
+        free(entry);
     }
 
     if (closedir(dir)) {
