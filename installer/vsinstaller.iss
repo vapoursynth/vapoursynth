@@ -1,5 +1,5 @@
 #define AppName = 'VapourSynth'
-#define Version = 'R22 test 1'
+#define Version = 'R22 test 3'
 
 [Setup]
 OutputDir=Compiled
@@ -17,13 +17,13 @@ AppPublisher=Fredrik Mellbin
 AppPublisherURL=http://www.vapoursynth.com/
 AppSupportURL=http://www.vapoursynth.com/
 AppUpdatesURL=http://www.vapoursynth.com/
-VersionInfoVersion=1.21.0.0
+VersionInfoVersion=1.22.0.0
 DefaultDirName={pf32}\VapourSynth
 DefaultGroupName=VapourSynth
 AllowCancelDuringInstall=no
 AllowNoIcons=yes
 AllowUNCPath=no
-MinVersion=0,5.1
+MinVersion=5.1sp3
 PrivilegesRequired=admin
 FlatComponentsList=yes
 ArchitecturesAllowed=x86 x64
@@ -133,8 +133,8 @@ Root: HKLM; Subkey: SOFTWARE\Classes\vsfile\DefaultIcon; ValueType: string; Valu
 Root: HKLM; Subkey: SOFTWARE\Classes\AVIFile\Extensions\VPY; ValueType: string; ValueName: ""; ValueData: "{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
 
 [Run]
-Filename: "msiexec.exe"; Parameters: "/package ""{app}\runtimes\rtx86.msi"" /quiet /norestart"; Components: vs32
-Filename: "msiexec.exe"; Parameters: "/package ""{app}\runtimes\rtx64.msi"" /quiet /norestart"; Components: vs64
+Filename: "msiexec.exe"; Parameters: "/package ""{app}\runtimes\rtx86.msi"" /quiet /norestart ARPSYSTEMCOMPONENT=1"; Components: vs32
+Filename: "msiexec.exe"; Parameters: "/package ""{app}\runtimes\rtx64.msi"" /quiet /norestart ARPSYSTEMCOMPONENT=1"; Components: vs64
 
 Filename: "{win}\pfm.exe"; Parameters: "register ""{app}\core64\vsfs.dll"""; Tasks: registervsfs; Flags: skipifdoesntexist; Components: vs64
 Filename: "{win}\pfm.exe"; Parameters: "register ""{app}\core32\vsfs.dll"""; Tasks: registervsfs; Flags: skipifdoesntexist; Components: vs32 and not vs64
