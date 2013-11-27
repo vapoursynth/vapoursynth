@@ -72,7 +72,6 @@ def apply_rst(self):
 def options(opt):
     opt.load('compiler_c')
     opt.load('compiler_cxx')
-    opt.load('qt4')
 
     opt.add_option('--libdir', action = 'store', default = '${PREFIX}/lib', help = 'library installation directory')
     opt.add_option('--plugindir', action = 'store', default = '${LIBDIR}/vapoursynth', help = 'plugin installation directory')
@@ -293,11 +292,6 @@ def configure(conf):
                          '-Wl,-z,noexecstack'])
 
     if conf.env.CORE == 'true':
-        conf.load('qt4')
-
-        conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore')
-        conf.check_cxx(use = ['QTCORE'], header_name = 'QtCore/QtCore', type_name = 'QAtomicInt')
-
         conf.check_cc(lib = 'swscale')
         conf.check_cc(use = ['SWSCALE'], header_name = 'libswscale/swscale.h')
         conf.check_cc(use = ['SWSCALE'], header_name = 'libswscale/swscale.h', function_name = 'swscale_license')
@@ -354,61 +348,61 @@ def build(bld):
         if bld.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin'] and bld.env.AVISYNTH == 'true':
             sources += search_paths([os.path.join('src', 'avisynth')])
 
-        bld(features = 'c qxx asm',
+        bld(features = 'c cxx asm',
             includes = 'include',
-            use = ['QTCORE', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
+            use = ['SWSCALE', 'AVUTIL', 'AVCODEC'],
             source = bld.path.ant_glob(sources),
             target = 'objs')
 
         if bld.env.SHARED == 'true':
-            bld(features = 'c qxx asm cxxshlib',
+            bld(features = 'c cxx asm cxxshlib',
                 use = ['objs'],
                 target = 'vapoursynth',
                 install_path = '${LIBDIR}')
 
         if bld.env.STATIC == 'true':
-            bld(features = 'c qxx asm cxxstlib',
-                use = ['objs', 'QTCORE', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
+            bld(features = 'c cxx asm cxxstlib',
+                use = ['objs', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
                 target = 'vapoursynth',
                 install_path = '${LIBDIR}')
 
     if bld.env.SCRIPT == 'true':
         script_sources = search_paths([os.path.join('src', 'vsscript')])
 
-        bld(features = 'c qxx asm pyembed',
+        bld(features = 'c cxx asm pyembed',
             includes = 'include',
-            use = ['QTCORE', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
+            use = ['SWSCALE', 'AVUTIL', 'AVCODEC'],
             source = bld.path.ant_glob(script_sources),
             target = 'script_objs')
 
         if bld.env.SHARED == 'true':
-            bld(features = 'c qxx asm cxxshlib pyembed',
+            bld(features = 'c cxx asm cxxshlib pyembed',
                 use = ['script_objs'],
                 target = 'vapoursynth-script',
                 install_path = '${LIBDIR}')
 
         if bld.env.STATIC == 'true':
-            bld(features = 'c qxx asm cxxstlib pyembed',
-                use = ['script_objs', 'QTCORE', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
+            bld(features = 'c cxx asm cxxstlib pyembed',
+                use = ['script_objs', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
                 target = 'vapoursynth-script',
                 install_path = '${LIBDIR}')
 
     if bld.env.PIPE == 'true':
         pipe_sources = search_paths([os.path.join('src', 'vspipe')])
 
-        bld(features = 'c qxx asm',
+        bld(features = 'c cxx asm',
             includes = 'include',
-            use = ['QTCORE', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
+            use = ['SWSCALE', 'AVUTIL', 'AVCODEC'],
             source = bld.path.ant_glob(pipe_sources),
             target = 'pipe_objs')
 
-        bld(features = 'c qxx asm cxxprogram',
+        bld(features = 'c cxx asm cxxprogram',
             includes = 'include',
-            use = ['pipe_objs', 'vapoursynth', 'vapoursynth-script', 'QTCORE', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
+            use = ['pipe_objs', 'vapoursynth', 'vapoursynth-script', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
             target = 'vspipe')
 
     if bld.env.FILTERS == 'true':
-        bld(features = 'c qxx asm cxxshlib',
+        bld(features = 'c cxx asm cxxshlib',
             includes = 'include',
             source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'eedi3')])),
             target = 'eedi3',
@@ -420,13 +414,13 @@ def build(bld):
             target = 'vinverse',
             install_path = '${PLUGINDIR}')
 
-        bld(features = 'c qxx asm cxxshlib',
+        bld(features = 'c cxx asm cxxshlib',
             includes = 'include',
             source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'vivtc')])),
             target = 'vivtc',
             install_path = '${PLUGINDIR}')
 
-        bld(features = 'c qxx asm cxxshlib',
+        bld(features = 'c cxx asm cxxshlib',
             includes = 'include',
             source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'removegrain')])),
             target = 'removegrain',

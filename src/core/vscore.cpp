@@ -22,9 +22,10 @@
 #include "VSHelper.h"
 #include "version.h"
 #ifndef VS_TARGET_OS_WINDOWS
-#include <QtCore/QSettings>
-#include <QtCore/QDir>
-#include <QtCore/QDirIterator>
+#include <dirent.h>
+#include <stddef.h>
+#include <unistd.h>
+#include "settings.h"
 #endif
 #include <assert.h>
 
@@ -759,17 +760,44 @@ bool VSCore::loadAllPluginsInPath(const std::string &path, const std::string &fi
     } while (FindNextFile(findHandle, &findData));
     FindClose(findHandle);
 #else
-    QDir dir(QString::fromUtf8(path.c_str()), QString::fromUtf8(filter.c_str()), QDir::Name | QDir::IgnoreCase, QDir::Files | QDir::NoDotDot);
-    if (!dir.exists())
+    DIR *dir = opendir(path.c_str());
+    if (!dir)
         return false;
 
-    QDirIterator dirIterator(dir);
-    while (dirIterator.hasNext()) {
+    int name_max = pathconf(path.c_str(), _PC_NAME_MAX);
+    if (name_max == -1)
+        name_max = 255;
+
+    size_t len = offsetof(struct dirent, d_name) + name_max + 1;
+
+    while (true) {
+        struct dirent *entry = (struct dirent *)malloc(len);
+        struct dirent *result;
+        readdir_r(dir, entry, &result);
+        if (!result)
+            break;
+
+        std::string name(entry->d_name);
         try {
-            loadPlugin(dirIterator.next().toUtf8().constData());
-        } catch (VSException &) {
-            // Ignore any errors
+            // If name ends with filter
+            if (name.compare(name.size() - filter.size(), filter.size(), filter) == 0) {
+                try {
+                    std::string fullname;
+                    fullname.append(path).append("/").append(name);
+                    loadPlugin(fullname);
+                } catch (VSException &) {
+                    // Ignore any errors
+                }
+            }
+        } catch (std::out_of_range &) {
+            //
         }
+
+        free(entry);
+    }
+
+    if (closedir(dir)) {
+        // Shouldn't happen
     }
 #endif
 
@@ -855,29 +883,57 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
     loadAllPluginsInPath(globalPluginPath, filter);
 #else
 
+    std::string configFile;
+    const char *home = getenv("HOME");
 #ifdef VS_TARGET_OS_DARWIN
-    std::string filter = "*.dylib";
+    std::string filter = ".dylib";
+    if (home) {
+        configFile.append(home).append("/Library/Application Support/VapourSynth/vapoursynth.conf");
+    }
 #else
-    std::string filter = "*.so";
+    std::string filter = ".so";
+    const char *xdg_config_home = getenv("XDG_CONFIG_HOME");
+    if (xdg_config_home) {
+        configFile.append(xdg_config_home).append("/vapoursynth/vapoursynth.conf");
+    } else if (home) {
+        configFile.append(home).append("/.config/vapoursynth/vapoursynth.conf");
+    } // If neither exists, an empty string will do.
 #endif
 
-    // Will read "~/.config/vapoursynth/vapoursynth.conf"
-    // or "/etc/xdg/vapoursynth/vapoursynth.conf".
-    QSettings settings("vapoursynth", "vapoursynth");
+    VSMap *settings = readSettings(configFile);
+    const char *error = vsapi.getError(settings);
+    if (error) {
+        vsWarning("%s\n", error);
+    } else {
+        int err;
+        const char *tmp;
 
-    bool autoloadUserPluginDir = settings.value("AutoloadUserPluginDir", true).toBool();
-    QString userPluginDir = settings.value("UserPluginDir").toString();
-    if (autoloadUserPluginDir && !userPluginDir.isEmpty()) {
-        if (!loadAllPluginsInPath(userPluginDir.toUtf8().constData(), filter))
-            vsWarning("Autoloading the user plugin dir '%s' failed. Directory doesn't exist?", userPluginDir.toUtf8().constData());
+        tmp = vsapi.propGetData(settings, "UserPluginDir", 0, &err);
+        std::string userPluginDir(tmp ? tmp : "");
+
+        tmp = vsapi.propGetData(settings, "SystemPluginDir", 0, &err);
+        std::string systemPluginDir(tmp ? tmp : VS_PATH_PLUGINDIR);
+
+        tmp = vsapi.propGetData(settings, "AutoloadUserPluginDir", 0, &err);
+        bool autoloadUserPluginDir = tmp ? std::string(tmp) == "true" : true;
+
+        tmp = vsapi.propGetData(settings, "AutoloadSystemPluginDir", 0, &err);
+        bool autoloadSystemPluginDir = tmp ? std::string(tmp) == "true" : true;
+
+        if (autoloadUserPluginDir && !userPluginDir.empty()) {
+            if (!loadAllPluginsInPath(userPluginDir, filter)) {
+                vsWarning("Autoloading the user plugin dir '%s' failed. Directory doesn't exist?", userPluginDir.c_str());
+            }
+        }
+
+        if (autoloadSystemPluginDir) {
+            if (!loadAllPluginsInPath(systemPluginDir, filter)) {
+                vsCritical("Autoloading the system plugin dir '%s' failed. Directory doesn't exist?", systemPluginDir.c_str());
+            }
+        }
     }
 
-    bool autoloadSystemPluginDir = settings.value("AutoloadSystemPluginDir", true).toBool();
-    QString systemPluginDir = settings.value("SystemPluginDir", QString(VS_PATH_PLUGINDIR)).toString();
-    if (autoloadSystemPluginDir) {
-        if (!loadAllPluginsInPath(systemPluginDir.toUtf8().constData(), filter))
-            vsCritical("Autoloading the system plugin dir '%s' failed. Directory doesn't exist?", systemPluginDir.toUtf8().constData());
-    }
+    vsapi.freeMap(settings);
 #endif
 }
 
