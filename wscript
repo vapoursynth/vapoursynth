@@ -292,17 +292,9 @@ def configure(conf):
                          '-Wl,-z,noexecstack'])
 
     if conf.env.CORE == 'true':
-        conf.check_cc(lib = 'swscale')
-        conf.check_cc(use = ['SWSCALE'], header_name = 'libswscale/swscale.h')
-        conf.check_cc(use = ['SWSCALE'], header_name = 'libswscale/swscale.h', function_name = 'swscale_license')
-
-        conf.check_cc(lib = 'avutil')
-        conf.check_cc(use = ['AVUTIL'], header_name = 'libavutil/avutil.h')
-        conf.check_cc(use = ['AVUTIL'], header_name = 'libavutil/avutil.h', function_name = 'avutil_license')
-
-        conf.check_cc(lib = 'avcodec')
-        conf.check_cc(use = ['AVCODEC'], header_name = 'libavcodec/avcodec.h')
-        conf.check_cc(use = ['AVCODEC'], header_name = 'libavcodec/avcodec.h', function_name = 'avcodec_license')
+        conf.check_cfg(package = 'libswscale', args = '--libs --cflags', uselib_store = 'SWSCALE')
+        conf.check_cfg(package = 'libavutil', args = '--libs --cflags', uselib_store = 'AVUTIL')
+        conf.check_cfg(package = 'libavcodec', args = '--libs --cflags', uselib_store = 'AVCODEC')
 
     if conf.env.SCRIPT == 'true':
         conf.load('python')
@@ -319,9 +311,7 @@ def configure(conf):
         conf.env.LIBS = libs.strip()
 
     if conf.env.FILTERS == 'true':
-        conf.check_cc(lib = 'ass', mandatory = False)
-        conf.check_cc(use = ['ASS'], header_name = 'ass/ass.h', mandatory = False)
-        conf.check_cc(use = ['ASS'], header_name = 'ass/ass.h', function_name = 'ass_library_init', mandatory = False)
+        conf.check_cfg(package = 'libass', args = '--libs --cflags', uselib_store = 'ASS')
 
 def build(bld):
     def search_paths(paths):
