@@ -4,7 +4,6 @@ Installation
 First, a couple of things to note:
 
 * You need to be on Windows, Linux, or OS X.
-* You need to have the QtCore libraries and headers installed.
 * You need to have the libraries and headers for libavutil,
   libavcodec, and libswscale installed.
 * You need to have either GCC, Clang, MSVC, or ICC/ICL installed.
