@@ -6,7 +6,7 @@ Name: vapoursynth
 Description: A frameserver for the 21st century
 Version: @VERSION@
 
-Requires.private: libavutil, libswscale, QtCore
+Requires.private: libswscale, libavutil, libavcodec
 Libs: -L${libdir} -lvapoursynth
 Libs.private: @LIBS@
 Cflags: -I${includedir}
