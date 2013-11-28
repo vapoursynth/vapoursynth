@@ -28,6 +28,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 #include "shared.h"
 
 #define CLENSE_RETERROR(x) do { vsapi->setError(out, (x)); vsapi->freeNode(d.cnode); vsapi->freeNode(d.pnode); vsapi->freeNode(d.nnode); return; } while (0)
+#define CLAMP(value, lower, upper) do { if (value < lower) value = lower; else if (value > upper) value = upper; } while(0)
 
 typedef struct {
     VSNodeRef *cnode;
@@ -44,19 +45,43 @@ static void VS_CC clenseInit(VSMap *in, VSMap *out, void **instanceData, VSNode 
     vsapi->setVideoInfo(d->vi, 1, node);
 }
 
-template<typename T>
-static void clenseProcessPlane(T* VS_RESTRICT pDst, const T* VS_RESTRICT pSrc, const T* VS_RESTRICT pRef1, const T* VS_RESTRICT pRef2, int stride, int width, int height) {
-    for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x)
-            pDst[x] = std::min(std::max(pSrc[x], std::min(pRef1[x], pRef2[x])), std::max(pRef1[x], pRef2[x]));
-        pDst += stride;
-        pSrc += stride;
-        pRef1 += stride;
-        pRef2 += stride;
+struct PlaneProc {
+    template<typename T>
+    static void clenseProcessPlane(T* VS_RESTRICT pDst, const T* VS_RESTRICT pSrc, const T* VS_RESTRICT pRef1, const T* VS_RESTRICT pRef2, int stride, int width, int height) {
+        for (int y = 0; y < height; ++y) {
+            for (int x = 0; x < width; ++x)
+                pDst[x] = std::min(std::max(pSrc[x], std::min(pRef1[x], pRef2[x])), std::max(pRef1[x], pRef2[x]));
+            pDst += stride;
+            pSrc += stride;
+            pRef1 += stride;
+            pRef2 += stride;
+        }
     }
-}
+};
 
-template<typename T>
+struct PlaneProcFB {
+    template<typename T>
+    static void clenseProcessPlane(T* VS_RESTRICT pDst, const T* VS_RESTRICT pSrc, const T* VS_RESTRICT pRef1, const T* VS_RESTRICT pRef2, int stride, int width, int height) {
+        for (int y = 0; y < height; ++y) {
+            for (int x = 0; x < width; ++x) {
+                T minref = std::min(pRef1[x], pRef2[x]);
+                T maxref = std::max(pRef1[x], pRef2[x]);
+                int lowref = minref * 2 - pRef2[x];
+                int upref = maxref * 2 - pRef2[x];
+                T src = pSrc[x];
+                CLAMP(src, std::max<int>(lowref, std::numeric_limits<T>::min()), std::min<int>(upref, std::numeric_limits<T>::max()));
+                pDst[x] = src;
+            }
+
+            pDst += stride;
+            pSrc += stride;
+            pRef1 += stride;
+            pRef2 += stride;
+        }
+    }
+};
+
+template<typename T, typename Processor>
 static const VSFrameRef *VS_CC clenseGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     ClenseData *d = (ClenseData *)* instanceData;
 
@@ -113,7 +138,7 @@ static const VSFrameRef *VS_CC clenseGetFrame(int n, int activationReason, void 
         int numPlanes = d->vi->format->numPlanes;
         for (int i = 0; i < numPlanes; i++) {
             if (d->process[i]) {
-                clenseProcessPlane<T>(
+                Processor::clenseProcessPlane<T>(
                     reinterpret_cast<T *>(vsapi->getWritePtr(dst, i)),
                     reinterpret_cast<const T *>(vsapi->getReadPtr(src, i)),
                     reinterpret_cast<const T *>(vsapi->getReadPtr(frame1, i)),
@@ -189,18 +214,23 @@ void VS_CC clenseCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
     }
 
     VSFilterGetFrame getFrameFunc = nullptr;
-    if (d.vi->format->sampleType == stFloat) {
-        if (d.vi->format->bytesPerSample != 4)
-            CLENSE_RETERROR("Clense: only 32 bit float input supported");
-        getFrameFunc = clenseGetFrame<float>;
-    } else if (d.vi->format->sampleType == stInteger) {
-        switch (d.vi->format->bytesPerSample) {
-            case 1: getFrameFunc = clenseGetFrame<uint8_t>; break;
-            case 2: getFrameFunc = clenseGetFrame<uint16_t>; break;
-            case 4: getFrameFunc = clenseGetFrame<uint32_t>; break;
+    if (d.vi->format->sampleType == stInteger) {
+        if (d.mode == cmNormal) {
+            switch (d.vi->format->bitsPerSample) {
+            case 8: getFrameFunc = clenseGetFrame<uint8_t, PlaneProc>; break;
+            case 16: getFrameFunc = clenseGetFrame<uint16_t, PlaneProc>; break;
+            }
+        } else {
+            switch (d.vi->format->bitsPerSample) {
+            case 8: getFrameFunc = clenseGetFrame<uint8_t, PlaneProcFB>; break;
+            case 16: getFrameFunc = clenseGetFrame<uint16_t, PlaneProcFB>; break;
+            }
         }
     }
 
+    if (!getFrameFunc)
+        CLENSE_RETERROR("Clense: only 8 and 16 bit integer input supported");
+    
     data = new ClenseData(d);
 
     vsapi->createFilter(in, out, "Clense", clenseInit, getFrameFunc, clenseFree, fmParallel, 0, data, core);

@@ -1,4 +1,5 @@
 r22:
+chikuzen's genericfilters is now included in the installer
 it's now possible to set a custom debug message handler from python, also a bug happening when setting a custom handler was fixed
 added makediff and mergediff functions
 the installer will no longer prompt about closing applications unless it's really necessary
@@ -13,7 +14,7 @@ added VS2013 projects
 runtime registered formats now get automatically generated names so they're easier to identify
 there should longer be "an exception happened when handling an exception" errors in python to keep the backtrace clearer
 the python module now accepts any iterable as an array input
-completely removed the Qt dependency on windows
+completely removed the Qt dependency (with some help from nodame on linux)
 added clense and the missing modes to removegrainvs
 switched to C++11/C99 and VS2013, this means that both the VS2010 and VS2013 runtimes are both installed
 added a port of vinverse (lachs0r)
