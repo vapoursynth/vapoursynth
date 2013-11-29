@@ -138,7 +138,7 @@ static const VSFrameRef *VS_CC clenseGetFrame(int n, int activationReason, void 
         int numPlanes = d->vi->format->numPlanes;
         for (int i = 0; i < numPlanes; i++) {
             if (d->process[i]) {
-                Processor::clenseProcessPlane<T>(
+                Processor::template clenseProcessPlane<T>(
                     reinterpret_cast<T *>(vsapi->getWritePtr(dst, i)),
                     reinterpret_cast<const T *>(vsapi->getReadPtr(src, i)),
                     reinterpret_cast<const T *>(vsapi->getReadPtr(frame1, i)),
