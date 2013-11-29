@@ -1,4 +1,5 @@
 r22:
+list_functions() now sorts function names alphabetically and plugins by their unique identifier
 fixed memory leaks when per frame errors happen in several filters
 the resize filter now reports more errors at construction time
 shuffleplanes format argument renamed to colorfamily to make more sense

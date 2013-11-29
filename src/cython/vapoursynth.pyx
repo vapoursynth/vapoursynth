@@ -832,11 +832,11 @@ cdef class Core(object):
     def list_functions(self):
         sout = ""
         plugins = self.get_plugins()
-        for plugin in plugins:
+        for plugin in sorted(plugins.keys()):
             sout += 'name: ' + plugins[plugin]['name'] + '\n'
             sout += 'namespace: ' + plugins[plugin]['namespace'] + '\n'
             sout += 'identifier: ' + plugins[plugin]['identifier'] + '\n'
-            for function in plugins[plugin]['functions']:
+            for function in sorted(plugins[plugin]['functions'].keys()):
                 line = '\t' + function + '(' + plugins[plugin]['functions'][function].replace(';', '; ') + ')\n'
                 sout += line.replace('; )', ')')
         return sout
@@ -959,7 +959,7 @@ cdef class Plugin(object):
     def list_functions(self):
         sout = ""
         functions = self.get_functions()
-        for key in functions:
+        for key in sorted(functions.keys()):
             sout += key + '(' + functions[key].replace(';', '; ') + ')\n'
         return sout.replace('; )', ')')
 
