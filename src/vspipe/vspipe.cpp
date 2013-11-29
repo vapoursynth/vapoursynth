@@ -92,6 +92,7 @@ std::string errorMessage;
 std::condition_variable condition;
 std::mutex mutex;
 
+std::chrono::time_point<std::chrono::high_resolution_clock> start;
 std::chrono::time_point<std::chrono::high_resolution_clock> lastFpsReportTime;
 int lastFpsReportFrame = 0;
 
@@ -391,8 +392,6 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    std::chrono::time_point<std::chrono::high_resolution_clock> start(std::chrono::high_resolution_clock::now());
-
     if (vsscript_evaluateFile(&se,  nstringToUtf8(argv[1]).c_str(), efSetWorkingDir)) {
         fprintf(stderr, "Script evaluation failed:\n%s\n", vsscript_getError(se));
         vsscript_freeScript(se);
@@ -435,13 +434,13 @@ int main(int argc, char **argv) {
             return 1;
         }
 
-        lastFpsReportTime = std::chrono::high_resolution_clock::now();
+        start = std::chrono::high_resolution_clock::now();
+        lastFpsReportTime = start;
         error = outputNode();
     }
 
     fflush(outFile);
-    std::chrono::time_point<std::chrono::high_resolution_clock> end(std::chrono::high_resolution_clock::now());
-    std::chrono::duration<double> elapsedSeconds = end - start;
+    std::chrono::duration<double> elapsedSeconds = std::chrono::high_resolution_clock::now() - start;
     fprintf(stderr, "Output %d frames in %.2f seconds (%.2f fps)\n", outputFrames, elapsedSeconds.count(), outputFrames / elapsedSeconds.count());
     vsapi->freeNode(node);
     vsscript_freeScript(se);
