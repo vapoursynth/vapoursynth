@@ -1,7 +1,7 @@
 ShufflePlanes
 =============
 
-.. function::   ShufflePlanes(clip[] clips, int[] planes, int format)
+.. function::   ShufflePlanes(clip[] clips, int[] planes, int colorfamily)
    :module: std
 
    ShufflePlanes can extract and combine planes from different clips in the most
@@ -17,7 +17,7 @@ ShufflePlanes
    The argument *planes* controls which of the input clips' planes to use.
    Zero indexed.
 
-   The only thing that needs to be specified is *format*, which controls which
+   The only thing that needs to be specified is *colorfamily*, which controls which
    color family (YUV, RGB, GRAY) the output clip will be.
    Properties such as subsampling are determined from the relative size of the
    given planes to combine.
@@ -27,18 +27,18 @@ ShufflePlanes
    Extract plane with index X. X=0 will mean luma on a YUV clip and R on an RGB
    clip. Likewise 1 will return the U and G channel, respectively::
 
-      ShufflePlanes(clips=clip, planes=X, format=vs.GRAY)
+      ShufflePlanes(clips=clip, planes=X, colorfamily=vs.GRAY)
 
    Swap U and V in a YUV clip::
 
-      ShufflePlanes(clips=clip, planes=[0, 2, 1], format=vs.YUV)
+      ShufflePlanes(clips=clip, planes=[0, 2, 1], colorfamily=vs.YUV)
 
    Merge 3 grayscale clips into a YUV clip::
 
-      ShufflePlanes(clips=[Yclip, Uclip, Vclip], planes=[0, 0, 0], format=vs.YUV)
+      ShufflePlanes(clips=[Yclip, Uclip, Vclip], planes=[0, 0, 0], colorfamily=vs.YUV)
 
    Cast a YUV clip to RGB::
 
-      ShufflePlanes(clips=[YUVclip], planes=[0, 1, 2], format=vs.RGB)
+      ShufflePlanes(clips=[YUVclip], planes=[0, 1, 2], colorfamily=vs.RGB)
 
    ShufflePlanes accepts variable format and size frames only when extracting a single plane.

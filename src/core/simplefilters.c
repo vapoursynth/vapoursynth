@@ -479,10 +479,10 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
         d.node[i] = 0;
     }
 
-    d.format = int64ToIntS(vsapi->propGetInt(in, "format", 0, 0));
+    d.format = int64ToIntS(vsapi->propGetInt(in, "colorfamily", 0, 0));
 
     if (d.format != cmRGB && d.format != cmYUV && d.format != cmYCoCg && d.format != cmGray)
-        RETERROR("ShufflePlanes: invalid output colorspace");
+        RETERROR("ShufflePlanes: invalid output colorfamily");
 
     outplanes = (d.format == cmGray ? 1 : 3);
 
@@ -2194,7 +2194,7 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("CropAbs", "clip:clip;width:int;height:int;x:int:opt;y:int:opt;", cropAbsCreate, 0, plugin);
     registerFunc("CropRel", "clip:clip;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;", cropRelCreate, 0, plugin);
     registerFunc("AddBorders", "clip:clip;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;color:float[]:opt;", addBordersCreate, 0, plugin);
-    registerFunc("ShufflePlanes", "clips:clip[];planes:int[];format:int;", shufflePlanesCreate, 0, plugin);
+    registerFunc("ShufflePlanes", "clips:clip[];planes:int[];colorfamily:int;", shufflePlanesCreate, 0, plugin);
     registerFunc("SeparateFields", "clip:clip;tff:int;", separateFieldsCreate, 0, plugin);
     registerFunc("DoubleWeave", "clip:clip;tff:int;", doubleWeaveCreate, 0, plugin);
     registerFunc("FlipVertical", "clip:clip;", flipVerticalCreate, 0, plugin);
