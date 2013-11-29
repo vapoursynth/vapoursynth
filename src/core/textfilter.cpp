@@ -347,6 +347,7 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **
         const VSFormat *frame_format = vsapi->getFrameFormat(dst);
         if ((frame_format->sampleType == stInteger && frame_format->bitsPerSample > 16) ||
             (frame_format->sampleType == stFloat && frame_format->bitsPerSample != 32)) {
+                vsapi->freeFrame(dst);
                 vsapi->setFilterError((d->instanceName + ": Only 8..16 bit integer and 32 bit float formats supported").c_str(), frameCtx);
                 return NULL;
         }

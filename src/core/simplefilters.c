@@ -244,6 +244,7 @@ static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, v
         VSFrameRef *dst;
 
         if (addBordersVerify(d->left, d->right, d->top, d->bottom, fi, msg)) {
+            vsapi->freeFrame(src);
             vsapi->setFilterError(msg, frameCtx);
             return 0;
         }
@@ -853,7 +854,10 @@ static const VSFrameRef *VS_CC flipHorizontalGetframe(int n, int activationReaso
 
                 break;
             default:
+                vsapi->freeFrame(src);
+                vsapi->freeFrame(dst);
                 vsapi->setFilterError("FlipHorizontal: Unsupported sample size", frameCtx);
+                return 0;
             }
 
         }
@@ -1496,16 +1500,19 @@ static const VSFrameRef *VS_CC modifyFrameGetFrame(int n, int activationReason, 
         f = vsapi->propGetFrame(d->out, "val", 0, &err);
         vsapi->clearMap(d->out);
         if (err) {
+            vsapi->freeFrame(f);
             vsapi->setFilterError("ModifyFrame: Returned value not a frame", frameCtx);
             return 0;
         }
 
         if (d->vi->format && d->vi->format != vsapi->getFrameFormat(f)) {
+            vsapi->freeFrame(f);
             vsapi->setFilterError("ModifyFrame: Returned frame has the wrong format", frameCtx);
             return 0;
         }
 
         if ((d->vi->width || d->vi->height) && (d->vi->width != vsapi->getFrameWidth(f, 0) || d->vi->height != vsapi->getFrameHeight(f, 0))) {
+            vsapi->freeFrame(f);
             vsapi->setFilterError("ModifyFrame: Returned frame has the wrong dimensions", frameCtx);
             return 0;
         }

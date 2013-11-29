@@ -174,6 +174,8 @@ static const VSFrameRef *VS_CC resizeGetframe(int n, int activationReason, void 
             int srcid = formatIdToPixelFormat(fi->id);
 
             if (srcid == PIX_FMT_NONE) {
+                vsapi->freeFrame(src);
+                vsapi->freeFrame(dst);
                 vsapi->setFilterError("Resize: input format not supported", frameCtx);
                 return 0;
             }
@@ -187,6 +189,8 @@ static const VSFrameRef *VS_CC resizeGetframe(int n, int activationReason, void 
                              d->flags);
 
             if (!d->context) {
+                vsapi->freeFrame(src);
+                vsapi->freeFrame(dst);
                 vsapi->setFilterError("Resize: context creation failed", frameCtx);
                 return 0;
             }
@@ -252,6 +256,7 @@ static void VS_CC resizeCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     int dstheight;
     int pf;
     int err;
+    const VSFormat *inputFormat;
     d.context = 0;
     d.dstrange = 0;
     d.lsrcformat = 0;
@@ -261,6 +266,9 @@ static void VS_CC resizeCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     d.flags = int64ToIntS((intptr_t)userData);
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = *vsapi->getVideoInfo(d.node);
+    if (d.vi.format && formatIdToPixelFormat(d.vi.format->id) == PIX_FMT_NONE)
+        RETERROR("Resize: input format not supported");
+
     dstwidth = int64ToIntS(vsapi->propGetInt(in, "width", 0, &err));
 
     if (err)

@@ -1,4 +1,6 @@
 r22:
+fixed memory leaks when per frame errors happen in several filters
+the resize filter now reports more errors at construction time
 shuffleplanes format argument renamed to colorfamily to make more sense
 chikuzen's genericfilters is now included in the installer
 it's now possible to set a custom debug message handler from python, also a bug happening when setting a custom handler was fixed
