@@ -302,10 +302,12 @@ def configure(conf):
         conf.check_python_version((3, 0, 0))
         conf.check_python_headers()
 
-    if 'true' in [conf.env.CORE, conf.env.SCRIPT]:
+    if 'true' in [conf.env.CORE, conf.env.SCRIPT] and not conf.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin']:
+        conf.env.LIB_M = ['m']
         libs = '-lm '
 
         if not conf.env.DEST_OS in ['darwin', 'freebsd', 'netbsd', 'openbsd']:
+            conf.env.LIB_DL = ['dl']
             libs += '-ldl '
 
         conf.env.LIBS = libs.strip()
@@ -328,6 +330,14 @@ def build(bld):
 
         return srcpaths
 
+    uses = ['SWSCALE', 'AVUTIL', 'AVCODEC', 'M']
+
+    if not bld.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin']:
+        uses += ['M']
+
+        if not bld.env.DEST_OS in ['darwin', 'freebsd', 'netbsd', 'openbsd']:
+            uses += ['DL']
+
     if bld.env.CORE == 'true':
         sources = search_paths([os.path.join('src', 'core'),
                                 os.path.join('src', 'core', 'asm'),
@@ -340,7 +350,7 @@ def build(bld):
 
         bld(features = 'c cxx asm',
             includes = 'include',
-            use = ['SWSCALE', 'AVUTIL', 'AVCODEC'],
+            use = uses,
             source = bld.path.ant_glob(sources),
             target = 'objs')
 
@@ -352,7 +362,7 @@ def build(bld):
 
         if bld.env.STATIC == 'true':
             bld(features = 'c cxx asm cxxstlib',
-                use = ['objs', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
+                use = ['objs'] + uses,
                 target = 'vapoursynth',
                 install_path = '${LIBDIR}')
 
@@ -361,7 +371,7 @@ def build(bld):
 
         bld(features = 'c cxx asm pyembed',
             includes = 'include',
-            use = ['SWSCALE', 'AVUTIL', 'AVCODEC'],
+            use = uses,
             source = bld.path.ant_glob(script_sources),
             target = 'script_objs')
 
@@ -373,7 +383,7 @@ def build(bld):
 
         if bld.env.STATIC == 'true':
             bld(features = 'c cxx asm cxxstlib pyembed',
-                use = ['script_objs', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
+                use = ['script_objs'] + uses,
                 target = 'vapoursynth-script',
                 install_path = '${LIBDIR}')
 
@@ -382,13 +392,13 @@ def build(bld):
 
         bld(features = 'c cxx asm',
             includes = 'include',
-            use = ['SWSCALE', 'AVUTIL', 'AVCODEC'],
+            use = uses,
             source = bld.path.ant_glob(pipe_sources),
             target = 'pipe_objs')
 
         bld(features = 'c cxx asm cxxprogram',
             includes = 'include',
-            use = ['pipe_objs', 'vapoursynth', 'vapoursynth-script', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
+            use = ['pipe_objs', 'vapoursynth', 'vapoursynth-script'] + uses,
             target = 'vspipe')
 
     if bld.env.FILTERS == 'true':
