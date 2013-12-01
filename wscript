@@ -330,7 +330,7 @@ def build(bld):
 
         return srcpaths
 
-    uses = ['SWSCALE', 'AVUTIL', 'AVCODEC', 'M']
+    uses = ['SWSCALE', 'AVUTIL', 'AVCODEC']
 
     if not bld.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin']:
         uses += ['M']
