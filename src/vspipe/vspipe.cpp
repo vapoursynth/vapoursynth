@@ -86,6 +86,7 @@ bool outputError = false;
 bool showInfo = false;
 bool printFrameNumber = false;
 double fps = 0;
+bool hasMeaningfulFps = false;
 std::map<int, const VSFrameRef *> reorderMap;
 
 std::string errorMessage;
@@ -103,6 +104,7 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
         std::chrono::time_point<std::chrono::high_resolution_clock> currentTime(std::chrono::high_resolution_clock::now());
         std::chrono::duration<double> elapsedSeconds = currentTime - lastFpsReportTime;
         if (elapsedSeconds.count() > 10) {
+            hasMeaningfulFps = true;
             fps = (completedFrames - lastFpsReportFrame) / elapsedSeconds.count();
             lastFpsReportTime = currentTime;
             lastFpsReportFrame = completedFrames;
@@ -165,8 +167,12 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
         requestedFrames++;
     }
 
-    if (printFrameNumber && !outputError)
-        fprintf(stderr, "Frame: %d/%d (%.2f fps)\r", completedFrames, totalFrames, fps);
+    if (printFrameNumber && !outputError) {
+        if (hasMeaningfulFps)
+            fprintf(stderr, "Frame: %d/%d (%.2f fps)\r", completedFrames, totalFrames, fps);
+        else
+            fprintf(stderr, "Frame: %d/%d\r", completedFrames, totalFrames);
+    }
 
     if (totalFrames == completedFrames) {
         std::lock_guard<std::mutex> lock(mutex);
@@ -392,6 +398,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    start = std::chrono::high_resolution_clock::now();
     if (vsscript_evaluateFile(&se,  nstringToUtf8(argv[1]).c_str(), efSetWorkingDir)) {
         fprintf(stderr, "Script evaluation failed:\n%s\n", vsscript_getError(se));
         vsscript_freeScript(se);
@@ -434,8 +441,7 @@ int main(int argc, char **argv) {
             return 1;
         }
 
-        start = std::chrono::high_resolution_clock::now();
-        lastFpsReportTime = start;
+        lastFpsReportTime = std::chrono::high_resolution_clock::now();;
         error = outputNode();
     }
 
