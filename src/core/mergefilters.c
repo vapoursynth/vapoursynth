@@ -29,7 +29,7 @@
 // Merge
 
 #ifdef VS_TARGET_CPU_X86
-extern void vs_merge_uint8_sse2(const uint8_t *srcp1, const uint8_t *srcp2, int maskp, uint8_t *dstp, int stride, int height);
+extern void vs_merge_uint8_sse2(const uint8_t *srcp1, const uint8_t *srcp2, int maskp, uint8_t *dstp, intptr_t stride, int height);
 #endif
 
 typedef struct {
@@ -200,7 +200,7 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
 // MaskedMerge
 
 #ifdef VS_TARGET_CPU_X86
-extern void vs_masked_merge_uint8_sse2(const uint8_t *srcp1, const uint8_t *srcp2, const uint8_t *maskp, uint8_t *dstp, int stride, int height);
+extern void vs_masked_merge_uint8_sse2(const uint8_t *srcp1, const uint8_t *srcp2, const uint8_t *maskp, uint8_t *dstp, intptr_t stride, int height);
 #endif
 
 typedef struct {
@@ -401,7 +401,7 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
 // MakeDiff
 
 #ifdef VS_TARGET_CPU_X86
-extern void vs_make_diff_uint8_sse2(const uint8_t *srcp1, const uint8_t *srcp2, uint8_t *dstp, int stride, int height);
+extern void vs_make_diff_uint8_sse2(const uint8_t *srcp1, const uint8_t *srcp2, uint8_t *dstp, intptr_t stride, int height);
 #endif
 
 typedef struct {
@@ -571,7 +571,7 @@ static void VS_CC makeDiffCreate(const VSMap *in, VSMap *out, void *userData, VS
 // MergeDiff
 
 #ifdef VS_TARGET_CPU_X86
-extern void vs_merge_diff_uint8_sse2(const uint8_t *srcp1, const uint8_t *srcp2, uint8_t *dstp, int stride, int height);
+extern void vs_merge_diff_uint8_sse2(const uint8_t *srcp1, const uint8_t *srcp2, uint8_t *dstp, intptr_t stride, int height);
 #endif
 
 typedef struct {
@@ -603,7 +603,7 @@ static const VSFrameRef *VS_CC mergeDiffGetFrame(int n, int activationReason, vo
         for (plane = 0; plane < d->vi->format->numPlanes; plane++) {
             if (d->process[plane]) {
                 int h = vsapi->getFrameHeight(src1, plane);
-                int w = vsapi->getFrameWidth(src2, plane);
+                int w = vsapi->getFrameWidth(src1, plane);
                 int stride = vsapi->getStride(src1, plane);
                 const uint8_t *srcp1 = vsapi->getReadPtr(src1, plane);
                 const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);

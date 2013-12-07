@@ -84,7 +84,7 @@ cglobal masked_merge_uint8_sse2, 6, 7, 6, src1, src2, mask, dst, stride, height,
    add maskq, strideq
    add dstq, strideq
 
-   sub heightq, 1
+   sub heightd, 1
    jnz .yloop
 
 .yloopdone:
@@ -92,7 +92,7 @@ cglobal masked_merge_uint8_sse2, 6, 7, 6, src1, src2, mask, dst, stride, height,
 
 INIT_XMM
 cglobal merge_uint8_sse2, 6, 7, 8, src1, src2, mask, dst, stride, height, lineoffset
-   movd m1, maskq ;mask
+   movd m1, maskd
    pshuflw m1, m1, 0
    pshufd m1, m1, 0
    pxor m2, m2
@@ -152,7 +152,7 @@ cglobal merge_uint8_sse2, 6, 7, 8, src1, src2, mask, dst, stride, height, lineof
    add src2q, strideq
    add dstq, strideq
 
-   sub heightq, 1
+   sub heightd, 1
    jnz .yloop
 
 .yloopdone:
@@ -196,7 +196,7 @@ cglobal make_diff_uint8_sse2, 5, 6, 5, src1, src2, dst, stride, height, lineoffs
    add src2q, strideq
    add dstq, strideq
 
-   sub heightq, 1
+   sub heightd, 1
    jnz .yloop
 
 .yloopdone:
@@ -240,7 +240,7 @@ cglobal merge_diff_uint8_sse2, 5, 6, 5, src1, src2, dst, stride, height, lineoff
    add src2q, strideq
    add dstq, strideq
 
-   sub heightq, 1
+   sub heightd, 1
    jnz .yloop
 
 .yloopdone:

@@ -1561,10 +1561,10 @@ static void VS_CC modifyFrameCreate(const VSMap *in, VSMap *out, void *userData,
 // Transpose
 
 #ifdef VS_TARGET_CPU_X86
-extern void vs_transpose_word(const uint8_t *src, int srcstride, uint8_t *dst, int dststride);
-extern void vs_transpose_word_partial(const uint8_t *src, int srcstride, uint8_t *dst, int dststride, int dst_lines);
+extern void vs_transpose_word(const uint8_t *src, intptr_t srcstride, uint8_t *dst, intptr_t dststride);
+extern void vs_transpose_word_partial(const uint8_t *src, intptr_t srcstride, uint8_t *dst, intptr_t dststride, int dst_lines);
 extern void vs_transpose_byte(const uint8_t *src, int srcstride, uint8_t *dst, int dststride);
-extern void vs_transpose_byte_partial(const uint8_t *src, int srcstride, uint8_t *dst, int dststride, int dst_lines);
+extern void vs_transpose_byte_partial(const uint8_t *src, intptr_t srcstride, uint8_t *dst, intptr_t dststride, int dst_lines);
 #endif
 
 typedef struct {
