@@ -1,4 +1,6 @@
 r22:
+the installer will now refuse to run if the 32 and 64 bit python installation directory is the same or if python wasn't installed for all users
+fixed a rare bug on x64 windows that could cause crashes in a few internal functions with asm
 list_functions() now sorts function names alphabetically and plugins by their unique identifier
 fixed memory leaks when per frame errors happen in several filters
 the resize filter now reports more errors at construction time

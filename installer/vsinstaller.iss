@@ -1,5 +1,5 @@
 #define AppName = 'VapourSynth'
-#define Version = 'R22 RC1'
+#define Version = 'R22 RC2'
 
 [Setup]
 OutputDir=Compiled
@@ -175,7 +175,14 @@ begin
 
   Result := HasPython32 or HasPython64;
   if not Result then
+  begin
     MsgBox('No Python 3.3 installations found.', mbCriticalError, MB_OK);
+  end
+  else if PythonPath32 = PythonPath64 then
+  begin
+    Result := False;
+    MsgBox('Corrupt Python installation detected. 32 and 64 bit install path is the same. Uninstall and re-install Python for all users.', mbCriticalError, MB_OK)
+  end;
 end;
 
 function GetPythonPath32(Param: string): String;
