@@ -326,7 +326,7 @@ cglobal evaluate_expr, 5, 7, 8, exprbase, rwptrs, ptroffsets, niterations, stack
     .l_exp, .l_log
 %endif
     .loop:
-    dec niterationsd
+    sub niterationsd, 1
     jz .end
 
 %if ARCH_X86_64
