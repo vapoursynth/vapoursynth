@@ -5,7 +5,7 @@ Prerequisites
 #############
 
 First download and install the prerequisites:
-   * `Python 3.3 <http://www.python.org/>`_ (32 or 64 bit version, make sure to install to different directories if using both)
+   * `Python 3.3 <http://www.python.org/>`_ (32 or 64 bit version, make sure to install for all users)
    * `Pismo File Mount Audit Package <http://www.pismotechnic.com/download/>`_
      (only if you want to use the advanced virtual filesystem features)
 
@@ -33,7 +33,7 @@ By default VSFS will be registered if the Pismo File Mount Audit Package was
 installed before VapourSynth. If you install the Pismo File Mount Audit Package
 after VapourSynth and still want to use this feature either reinstall
 VapourSynth or register it from the commandline with
-"pfm register <path>\\core\\vsfs.dll".
+"pfm register <path>\\core32\\vsfs.dll" or "pfm register <path>\\core64\\vsfs.dll".
 
 Compiling
 #########
