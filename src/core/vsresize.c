@@ -256,7 +256,6 @@ static void VS_CC resizeCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     int dstheight;
     int pf;
     int err;
-    const VSFormat *inputFormat;
     d.context = 0;
     d.dstrange = 0;
     d.lsrcformat = 0;

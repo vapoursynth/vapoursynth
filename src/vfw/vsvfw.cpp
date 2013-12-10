@@ -193,8 +193,6 @@ BOOL APIENTRY DllMain(HANDLE hModule, ULONG ulReason, LPVOID lpReserved) {
 
 // From the Microsoft AVIFile docs.  Dense code...
 
-extern "C" STDAPI DllGetClassObject(const CLSID& rclsid, const IID& riid, void **ppv);
-
 STDAPI DllGetClassObject(const CLSID& rclsid, const IID& riid, void **ppv) {
 
     if (rclsid != CLSID_VapourSynth)
@@ -202,8 +200,6 @@ STDAPI DllGetClassObject(const CLSID& rclsid, const IID& riid, void **ppv) {
     HRESULT hresult = VapourSynthFile::Create(rclsid, riid, ppv);
     return hresult;
 }
-
-extern "C" STDAPI DllCanUnloadNow();
 
 STDAPI DllCanUnloadNow() {
     return refCount ? S_FALSE : S_OK;
