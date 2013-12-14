@@ -1,3 +1,6 @@
+r23:
+installer improvements, it's now possible to select if VSFS should be registered for 32 or 64 bit
+
 r22:
 chikuzen's genericfilters plugin is now bundled with the installer
 the installer will now refuse to run if the 32 and 64 bit python installation directory is the same or if python wasn't installed for all users

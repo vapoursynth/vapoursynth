@@ -39,7 +39,9 @@ Name: "sdk"; Description: "VapourSynth SDK"; Flags: fixed; Types: Full
 
 [Tasks]
 Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to shell context menu"; GroupDescription: "New File Shortcuts:"; Components: vs32 vs64
-Name: registervsfs; Description: "Register the VSFS handler"; GroupDescription: "Pismo File Mount:"; Components: vs32 vs64
+Name: registervsfs; Description: "Register the VSFS handler"; GroupDescription: "Pismo File Mount:";
+Name: registervsfs\registervsfs32; Description: "32-bit VSFS handler"; GroupDescription: "Pismo File Mount:"; Flags: Exclusive; Components: vs32
+Name: registervsfs\registervsfs64; Description: "64-bit VSFS handler"; GroupDescription: "Pismo File Mount:"; Flags: Exclusive; Components: vs64
 
 [Files]
 ;core binaries
@@ -136,12 +138,12 @@ Root: HKLM; Subkey: SOFTWARE\Classes\AVIFile\Extensions\VPY; ValueType: string; 
 Filename: "msiexec.exe"; Parameters: "/package ""{app}\runtimes\rtx86.msi"" /quiet /norestart ARPSYSTEMCOMPONENT=1"; Components: vs32
 Filename: "msiexec.exe"; Parameters: "/package ""{app}\runtimes\rtx64.msi"" /quiet /norestart ARPSYSTEMCOMPONENT=1"; Components: vs64
 
-Filename: "{win}\pfm.exe"; Parameters: "register ""{app}\core64\vsfs.dll"""; Tasks: registervsfs; Flags: skipifdoesntexist; Components: vs64
-Filename: "{win}\pfm.exe"; Parameters: "register ""{app}\core32\vsfs.dll"""; Tasks: registervsfs; Flags: skipifdoesntexist; Components: vs32 and not vs64
+Filename: "{win}\pfm.exe"; Parameters: "register ""{app}\core64\vsfs.dll"""; Tasks: registervsfs\registervsfs64; Flags: skipifdoesntexist
+Filename: "{win}\pfm.exe"; Parameters: "register ""{app}\core32\vsfs.dll"""; Tasks: registervsfs\registervsfs32; Flags: skipifdoesntexist
 
 [UninstallRun]
-Filename: "{win}\pfm.exe"; Parameters: "unregister ""{app}\core64\vsfs.dll"""; Tasks: registervsfs; Flags: skipifdoesntexist; Components: vs64
-Filename: "{win}\pfm.exe"; Parameters: "unregister ""{app}\core32\vsfs.dll"""; Tasks: registervsfs; Flags: skipifdoesntexist; Components: vs32 and not vs64
+Filename: "{win}\pfm.exe"; Parameters: "unregister ""{app}\core64\vsfs.dll"""; Tasks: registervsfs\registervsfs64; Flags: skipifdoesntexist
+Filename: "{win}\pfm.exe"; Parameters: "unregister ""{app}\core32\vsfs.dll"""; Tasks: registervsfs\registervsfs32; Flags: skipifdoesntexist
 
 [Code]
 
