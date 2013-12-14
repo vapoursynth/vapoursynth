@@ -1,5 +1,5 @@
 r23:
-installer improvements, it's now possible to select if VSFS should be registered for 32 or 64 bit
+installer improvements
 
 r22:
 chikuzen's genericfilters plugin is now bundled with the installer

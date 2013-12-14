@@ -33,8 +33,8 @@ ArchitecturesInstallIn64BitMode=x64
 Name: Full; Description: Full installation; Flags: iscustom
 
 [Components]
-Name: "vs64"; Description: "VapourSynth 64bit"; Types: Full; Check: HasPython64
-Name: "vs32"; Description: "VapourSynth 32bit"; Types: Full; Check: HasPython32
+Name: "vs64"; Description: "VapourSynth 64bit"; Types: Full; Check: HasPython64; Flags: disablenouninstallwarning
+Name: "vs32"; Description: "VapourSynth 32bit"; Types: Full; Check: HasPython32; Flags: disablenouninstallwarning
 Name: "sdk"; Description: "VapourSynth SDK"; Flags: fixed; Types: Full
 
 [Tasks]
@@ -250,9 +250,23 @@ end;
 /////////////////////////////////////////////////////////////////////
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
-  if (CurStep=ssInstall) then
+  if CurStep=ssInstall then
   begin
-    if (IsUpgrade()) then
+    if IsUpgrade() then
       UnInstallOldVersion();
+  end;
+end;
+
+/////////////////////////////////////////////////////////////////////
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  Result := True;
+  if CurPageID = wpSelectComponents then
+  begin
+    if not IsComponentSelected('vs32 or vs64') then
+    begin
+      Result := False;
+      MsgBox('At least one version of the core library has to be installed.', mbCriticalError, MB_OK)
+    end;
   end;
 end;
