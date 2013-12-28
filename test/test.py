@@ -154,33 +154,33 @@ class CoreTestSequence(unittest.TestCase):
     def test_suffleplanes_arg1(self):
         clip = self.core.std.BlankClip(format=vs.YUV420P8)
         with self.assertRaises(vs.Error):
-            self.core.std.ShufflePlanes(clip, planes=[0, 1, 2], format=vs.RGB)
+            self.core.std.ShufflePlanes(clip, planes=[0, 1, 2], colorfamily=vs.RGB)
 
     def test_suffleplanes_arg2(self):
         clip = self.core.std.BlankClip(format=vs.YUV420P8)
-        self.core.std.ShufflePlanes(clip, planes=[0, 1, 2], format=vs.YCOCG)
+        self.core.std.ShufflePlanes(clip, planes=[0, 1, 2], colorfamily=vs.YCOCG)
 
     def test_suffleplanes_arg3(self):
         clip = self.core.std.BlankClip(format=vs.YUV420P8)
-        self.core.std.ShufflePlanes(clip, planes=[1, 1, 2], format=vs.RGB)
+        self.core.std.ShufflePlanes(clip, planes=[1, 1, 2], colorfamily=vs.RGB)
 
     def test_suffleplanes_arg4(self):
         clip1 = self.core.std.BlankClip(format=vs.YUV420P8)
         clip2 = self.core.std.BlankClip(format=vs.YUV420P9)
         with self.assertRaises(vs.Error):
-            self.core.std.ShufflePlanes([clip1, clip2], planes=[0, 1, 2], format=vs.YUV)
+            self.core.std.ShufflePlanes([clip1, clip2], planes=[0, 1, 2], colorfamily=vs.YUV)
 
     def test_suffleplanes_arg5(self):
         clip1 = self.core.std.BlankClip(format=vs.YUV420P8)
         clip2 = self.core.std.BlankClip(format=vs.RGB24)
         with self.assertRaises(vs.Error):
-            self.core.std.ShufflePlanes([clip1, clip2], planes=[2, 1, 2], format=vs.RGB)
+            self.core.std.ShufflePlanes([clip1, clip2], planes=[2, 1, 2], colorfamily=vs.RGB)
 
     def test_suffleplanes_arg6(self):
         clip1 = self.core.std.BlankClip(format=vs.YUV420P8)
         clip2 = self.core.std.BlankClip(format=vs.RGB24)
         with self.assertRaises(vs.Error):
-            self.core.std.ShufflePlanes([clip1, clip2, clip1], planes=[0, 1, 2], format=vs.RGB)
+            self.core.std.ShufflePlanes([clip1, clip2, clip1], planes=[0, 1, 2], colorfamily=vs.RGB)
 
 if __name__ == '__main__':
     unittest.main()
