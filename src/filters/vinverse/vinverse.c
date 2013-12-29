@@ -139,6 +139,7 @@ static void VS_CC VinverseFree(void *instanceData,
     VinverseData *d = (VinverseData *)instanceData;
 
     free(d->dlut);
+    vsapi->freeNode(d->node);
     free(d);
 }
 
