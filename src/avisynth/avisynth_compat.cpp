@@ -296,7 +296,7 @@ static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, co
     PREFETCHR0(AssRender)
     PREFETCHR0(TextSub)
     PREFETCHR0(VobSub)
-    PREFETCHR2(FFT3DGPU)
+    PREFETCHR2(fft3dGPU)
     PREFETCHR2(FFT3DFilter)
     PREFETCHR1(Convolution3D)
     PREFETCHR1(deen)
