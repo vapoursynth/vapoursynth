@@ -399,7 +399,7 @@ int main(int argc, char **argv) {
     }
 
     start = std::chrono::high_resolution_clock::now();
-    if (vsscript_evaluateFile(&se,  nstringToUtf8(argv[1]).c_str(), efSetWorkingDir)) {
+    if (vsscript_evaluateFile(&se, nstringToUtf8(argv[1]).c_str(), efSetWorkingDir)) {
         fprintf(stderr, "Script evaluation failed:\n%s\n", vsscript_getError(se));
         vsscript_freeScript(se);
         vsscript_finalize();
