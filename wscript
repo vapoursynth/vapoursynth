@@ -484,7 +484,12 @@ def test(ctx):
     '''runs the Cython tests'''
 
     for name in glob.glob(os.path.join('test', '*.py')):
-        code = subprocess.Popen([ctx.env.PYTHON[0], name]).wait()
+        env = os.environ.copy()
+
+        if not ctx.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin']:
+            env['LD_LIBRARY_PATH'] = "{0}:{1}".format(ctx.env.LIBDIR, env['LD_LIBRARY_PATH'])
+
+        code = subprocess.Popen([ctx.env.PYTHON[0], name], env = env).wait()
 
         if code != 0:
             ctx.fatal('Test {0} failed: {1}'.format(name, code))
