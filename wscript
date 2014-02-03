@@ -207,7 +207,8 @@ def configure(conf):
     if conf.env.CXX_NAME == 'gcc':
         add_options(['CFLAGS', 'CXXFLAGS'],
                     ['-DVS_CORE_EXPORTS',
-                     '-fPIC'])
+                     '-fPIC',
+                     '-msse2'])
         add_options(['CXXFLAGS'],
                     ['-std=c++0x'])
         add_options(['CFLAGS'],
