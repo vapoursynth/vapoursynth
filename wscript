@@ -484,8 +484,10 @@ def test(ctx):
     '''runs the Cython tests'''
 
     for name in glob.glob(os.path.join('test', '*.py')):
-        if subprocess.Popen([ctx.env.PYTHON[0], name]).wait() != 0:
-            ctx.fatal('Test {0} failed'.format(name))
+        code = subprocess.Popen([ctx.env.PYTHON[0], name]).wait()
+
+        if code != 0:
+            ctx.fatal('Test {0} failed: {1}'.format(name, code))
 
 class TestContext(Build.BuildContext):
     cmd = 'test'
