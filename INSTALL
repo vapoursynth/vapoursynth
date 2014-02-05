@@ -25,10 +25,7 @@ http://code.google.com/p/waf
 
 Then, configure the project:
 
-    $ PYTHON=python3 ./waf configure
-
-The PYTHON environment variable has to be set as a workaround
-on systems where the python binary is not Python 3.
+    $ ./waf configure
 
 The configure operation has some options which can be used to
 fine-tune the build:
