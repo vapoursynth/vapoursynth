@@ -298,6 +298,7 @@ def configure(conf):
         conf.check_cfg(package = 'libavcodec', args = '--libs --cflags', uselib_store = 'AVCODEC')
 
     if conf.env.SCRIPT == 'true':
+        conf.find_program(['python3', 'python'], var = 'PYTHON')
         conf.load('python')
 
         conf.check_python_version((3, 0, 0))
