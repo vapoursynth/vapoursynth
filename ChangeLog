@@ -1,4 +1,8 @@
 r23:
+documentation fixes
+minor build system improvement/fix (Zor)
+removed debug printfs in windows x64 build, fixes piping to stdout
+fixed tests
 installer improvements
 
 r22:

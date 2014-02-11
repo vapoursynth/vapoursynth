@@ -23,7 +23,7 @@ Here's a sample script to be inspired by::
    # open a video file; ret is now a clip object
    ret = core.ffms2.Source(source='Super Size Me.avi')
    # apply the undot filter to the video
-   ret = core.avs.UnDot(clip=ret)
+   ret = core.avs.UnDot(ret)
    # set the clip to be output
    ret.set_output()
 
