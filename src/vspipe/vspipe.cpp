@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2013 Fredrik Mellbin
+* Copyright (c) 2013-2014 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -79,7 +79,7 @@ int outputIndex = 0;
 int outputFrames = 0;
 int requestedFrames = 0;
 int completedFrames = 0;
-int totalFrames = 0;
+int totalFrames = -1;
 int numPlanes = 0;
 bool y4m = false;
 bool outputError = false;
@@ -187,7 +187,6 @@ bool outputNode() {
     }
 
     const VSVideoInfo *vi = vsapi->getVideoInfo(node);
-    totalFrames = vi->numFrames;
 
     if (y4m && (vi->format->colorFamily != cmGray && vi->format->colorFamily != cmYUV)) {
         errorMessage = "Error: Can only apply y4m headers to YUV and Gray format clips";
@@ -243,9 +242,10 @@ bool outputNode() {
 
     std::unique_lock<std::mutex> lock(mutex);
 
-    int intitalRequestSize = std::min(requests, totalFrames);
-    requestedFrames = intitalRequestSize;
-    for (int n = 0; n < intitalRequestSize; n++)
+    int requestStart = completedFrames;
+    int intitalRequestSize = std::min(requests, totalFrames - requestStart);
+    requestedFrames = requestStart + intitalRequestSize;
+    for (int n = requestStart; n < requestStart + intitalRequestSize; n++)
         vsapi->getFrameAsync(n, node, frameDoneCallback, NULL);
 
     condition.wait(lock);
@@ -315,6 +315,7 @@ int main(int argc, char **argv) {
             const VSCoreInfo *info = vsapi->getCoreInfo(core);
             printf("%s", info->versionString);
             vsapi->freeCore(core);
+            vsscript_finalize();
             return 0;
         }
     }
@@ -324,8 +325,10 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Show version info: vspipe -version\n");
         fprintf(stderr, "Show script info: vspipe script.vpy - -info\n");
         fprintf(stderr, "Write to stdout: vspipe script.vpy - [options]\n");
-        fprintf(stderr, "Write to file: vspipe script.vpy <outFile> [options]\n");
+        fprintf(stderr, "Write frame 5-100 to file: vspipe script.vpy <outFile> [options]\n");
         fprintf(stderr, "Available options:\n");
+        fprintf(stderr, "Specify output frame range (first frame): -start N\n");
+        fprintf(stderr, "Specify output frame range (last frame): -end N\n");
         fprintf(stderr, "Select output index: -index N\n");
         fprintf(stderr, "Set number of concurrent frame requests: -requests N\n");
         fprintf(stderr, "Add YUV4MPEG headers: -y4m\n");
@@ -355,6 +358,45 @@ int main(int argc, char **argv) {
             y4m = true;
         } else if (argString == NSTRING("-info")) {
             showInfo = true;
+        } else if (argString == NSTRING("-start")) {
+            if (argc <= arg + 1) {
+                fprintf(stderr, "No start frame specified\n");
+                return 1;
+            }
+
+            if (!nstringToInt(argv[arg + 1], completedFrames)) {
+                fprintf(stderr, "Couldn't convert %s to an integer (start)\n", nstringToUtf8(argv[arg + 1]).c_str());
+                return 1;
+            }
+
+            if (completedFrames < 0) {
+                fprintf(stderr, "Negative start frame specified\n");
+                return 1;
+            }
+
+            arg++;
+
+            outputFrames = completedFrames;
+            requestedFrames = completedFrames;
+            lastFpsReportFrame = completedFrames;
+        } else if (argString == NSTRING("-end")) {
+            if (argc <= arg + 1) {
+                fprintf(stderr, "No end frame specified\n");
+                return 1;
+            }
+
+            if (!nstringToInt(argv[arg + 1], totalFrames)) {
+                fprintf(stderr, "Couldn't convert %s to an integer (end)\n", nstringToUtf8(argv[arg + 1]).c_str());
+                return 1;
+            }
+
+            if (totalFrames < 0) {
+                fprintf(stderr, "Negative end frame specified\n");
+                return 1;
+            }
+
+            totalFrames++;
+            arg++;
         } else if (argString == NSTRING("-index")) {
             bool ok = false;
             if (argc <= arg + 1) {
@@ -363,7 +405,7 @@ int main(int argc, char **argv) {
             }
 
             if (!nstringToInt(argv[arg + 1], outputIndex)) {
-                fprintf(stderr, "Couldn't convert %s to an integer\n", nstringToUtf8(argv[arg + 1]).c_str());
+                fprintf(stderr, "Couldn't convert %s to an integer (index)\n", nstringToUtf8(argv[arg + 1]).c_str());
                 return 1;
             }
             arg++;
@@ -374,7 +416,7 @@ int main(int argc, char **argv) {
                 return 1;
             }
             if (!nstringToInt(argv[arg + 1], requests)) {
-                fprintf(stderr, "Couldn't convert %s to an integer\n", nstringToUtf8(argv[arg + 1]).c_str());
+                fprintf(stderr, "Couldn't convert %s to an integer (requests)\n", nstringToUtf8(argv[arg + 1]).c_str());
                 return 1;
             }
             arg++;
@@ -433,13 +475,25 @@ int main(int argc, char **argv) {
             fprintf(outFile, "Format Name: Variable\n");
         }
     } else {
-        if (!isConstantFormat(vi) || vi->numFrames == 0) {
+        const VSVideoInfo *vi = vsapi->getVideoInfo(node);
+        if (totalFrames == -1)
+            totalFrames = vi->numFrames;
+        if ((vi->numFrames && vi->numFrames < totalFrames) || completedFrames >= totalFrames) {
+            fprintf(stderr, "Invalid range of frames to output specified:\nfirst: %d\nlast: %d\nclip length: %d\nframes to output: %d\n", completedFrames, totalFrames, vi->numFrames, totalFrames - completedFrames);
+            vsapi->freeNode(node);
+            vsscript_freeScript(se);
+            vsscript_finalize();
+            return 1;
+        }
+
+        if (!isConstantFormat(vi) || !totalFrames) {
             fprintf(stderr, "Cannot output clips with varying dimensions or unknown length\n");
             vsapi->freeNode(node);
             vsscript_freeScript(se);
             vsscript_finalize();
             return 1;
         }
+
 
         lastFpsReportTime = std::chrono::high_resolution_clock::now();;
         error = outputNode();
