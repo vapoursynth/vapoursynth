@@ -45,11 +45,11 @@
 #endif
 
 #ifdef _WIN32
-#define VS_ALIGNED_MALLOC(pptr, size, alignment) *(pptr) = _aligned_malloc((size), (alignment))
-#define VS_ALIGNED_FREE(ptr) _aligned_free((ptr))
+#define VS_ALIGNED_MALLOC(pptr, size, alignment) do { *(pptr) = _aligned_malloc((size), (alignment)); } while (0)
+#define VS_ALIGNED_FREE(ptr) do { _aligned_free((ptr)); } while (0)
 #else
-#define VS_ALIGNED_MALLOC(pptr, size, alignment) posix_memalign((void**)(pptr), (alignment), (size))
-#define VS_ALIGNED_FREE(ptr) free((ptr))
+#define VS_ALIGNED_MALLOC(pptr, size, alignment) do { posix_memalign((void**)(pptr), (alignment), (size)); } while (0)
+#define VS_ALIGNED_FREE(ptr) do { free((ptr)); } while (0)
 #endif
 
 #ifdef __cplusplus
@@ -59,7 +59,7 @@ static inline T* vs_aligned_malloc(size_t size, size_t alignment) {
 #ifdef _WIN32
     return (T*)_aligned_malloc(size, alignment);
 #else
-    void *tmp;
+    void *tmp = NULL;
     if (posix_memalign(&tmp, alignment, size))
         tmp = 0;
     return (T*)tmp;

@@ -484,8 +484,9 @@ static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *
         VSFrameRef *dst = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, src, core);
         vsapi->freeFrame(src);
 
-        float *workspace;
-        if (VS_ALIGNED_MALLOC((void **)&workspace, d->vi.width * MAX(d->mdis * 4 + 1, 16) * 4 * sizeof(float), 16)) {
+        float *workspace = NULL;
+        VS_ALIGNED_MALLOC((void **)&workspace, d->vi.width * MAX(d->mdis * 4 + 1, 16) * 4 * sizeof(float), 16);
+        if (!workspace){
             vsapi->setFilterError("EEDI3: Memory allocation failed", frameCtx);
             vsapi->freeFrame(scpPF);
             vsapi->freeFrame(srcPF);
@@ -493,8 +494,9 @@ static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *
             return 0;
         }
 
-        int *dmapa;
-        if (VS_ALIGNED_MALLOC((void **)&dmapa, vsapi->getStride(dst, 0)*vsapi->getFrameHeight(dst, 0)*sizeof(int), 16)) {
+        int *dmapa = NULL;
+        VS_ALIGNED_MALLOC((void **)&dmapa, vsapi->getStride(dst, 0)*vsapi->getFrameHeight(dst, 0)*sizeof(int), 16);
+        if (!dmapa) {
             VS_ALIGNED_FREE(workspace);
             vsapi->setFilterError("EEDI3: Memory allocation failed", frameCtx);
             vsapi->freeFrame(scpPF);
