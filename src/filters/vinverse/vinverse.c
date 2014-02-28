@@ -127,6 +127,8 @@ static const VSFrameRef *VS_CC VinverseGetFrame(int n, int activationReason,
             Vinverse(srcp, dstp, width, height, stride, d);
         }
 
+        vsapi->freeFrame(src);
+
         return dst;
     }
 
