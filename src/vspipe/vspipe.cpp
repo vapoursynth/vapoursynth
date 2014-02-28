@@ -40,7 +40,7 @@
 
 // Needed so windows doesn't drool on itself when ctrl-c is pressed
 #ifdef VS_TARGET_OS_WINDOWS
-#define NOMINMAX 
+#define NOMINMAX
 #include <Windows.h>
 BOOL WINAPI HandlerRoutine(DWORD dwCtrlType) {
     switch (dwCtrlType) {
@@ -136,7 +136,7 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
                         for (int y = 0; y < height; y++) {
                             if (fwrite(readPtr, 1, rowSize, outFile) != rowSize) {
                                 if (errorMessage.empty())
-                                    errorMessage = "Error: fwrite() call failed when writing frame: " + std::to_string(outputFrames) + ", plane: " + std::to_string(p) + 
+                                    errorMessage = "Error: fwrite() call failed when writing frame: " + std::to_string(outputFrames) + ", plane: " + std::to_string(p) +
                                         ", line: " + std::to_string(y) + ", errno: " + std::to_string(errno);
                                 totalFrames = requestedFrames;
                                 outputError = true;
@@ -321,19 +321,29 @@ int main(int argc, char **argv) {
     }
 
     if (argc < 3) {
-        fprintf(stderr, "VSPipe usage:\n");
-        fprintf(stderr, "Show version info: vspipe -version\n");
-        fprintf(stderr, "Show script info: vspipe script.vpy - -info\n");
-        fprintf(stderr, "Write to stdout: vspipe script.vpy - [options]\n");
-        fprintf(stderr, "Write frame 5-100 to file: vspipe script.vpy <outFile> [options]\n");
-        fprintf(stderr, "Available options:\n");
-        fprintf(stderr, "Specify output frame range (first frame): -start N\n");
-        fprintf(stderr, "Specify output frame range (last frame): -end N\n");
-        fprintf(stderr, "Select output index: -index N\n");
-        fprintf(stderr, "Set number of concurrent frame requests: -requests N\n");
-        fprintf(stderr, "Add YUV4MPEG headers: -y4m\n");
-        fprintf(stderr, "Print progress to stderr: -progress\n");
-        fprintf(stderr, "Show video info: -info (overrides other options)\n");
+        fprintf(stderr,
+            "VSPipe usage:\n"
+            "  %1$s <script> <outFile> [options]\n"
+            "\n"
+            "Available options:\n"
+            "  -start N     Specify output frame range (first frame)\n"
+            "  -end N       Specify output frame range (last frame)\n"
+            "  -index N     Select output index\n"
+            "  -requests N  Set number of concurrent frame requests\n"
+            "  -y4m         Add YUV4MPEG headers to output\n"
+            "  -progress    Print progress to stderr\n"
+            "  -info        Show video info (overrides other options)\n"
+            "  -version     Show version info\n"
+            "\n"
+            "Examples:\n"
+            "  Show script info:\n"
+            "    %1$s script.vpy - -info\n"
+            "  Write to stdout:\n"
+            "    %1$s script.vpy - [options]\n"
+            "  Write frames 5-100 to file:\n"
+            "    %1$s script.vpy <outFile> -start 5 -end 100\n"
+            , argv[0]
+        );
         return 1;
     }
 
