@@ -33,14 +33,6 @@
 
 // Shared
 
-#ifndef max
-#define max(a,b)   (((a) > (b)) ? (a) : (b))
-#endif
-
-#ifndef min
-#define min(a,b)   (((a) < (b)) ? (a) : (b))
-#endif
-
 static int isPowerOf2(int i) {
     return i && !(i & (i - 1));
 }
@@ -373,7 +365,7 @@ static void buildDiffMap(const unsigned char *prvp, const unsigned char *nxtp,
                         if (count > 3) {
                             if (!upper || !lower) {
                                 int upper2 = 0, lower2 = 0;
-                                for (u=max(x-4,0); u<min(x+5,Width); ++u)
+                                for (u=VSMAX(x-4,0); u<VSMIN(x+5,Width); ++u)
                                 {
                                     if (y != 2 && dp[u-2*tpitch] > 19)
                                         upper2 = 1;
@@ -518,7 +510,7 @@ static int compareFieldsSlow(const VSFrameRef *prv, const VSFrameRef *src, const
         }
     }
     if (accumPm < 500 && accumNm < 500 && (accumPml >= 500 || accumNml >= 500) &&
-        max(accumPml,accumNml) > 3*min(accumPml,accumNml))
+        VSMAX(accumPml,accumNml) > 3*VSMIN(accumPml,accumNml))
     {
         accumPm = accumPml;
         accumNm = accumNml;
@@ -527,9 +519,9 @@ static int compareFieldsSlow(const VSFrameRef *prv, const VSFrameRef *src, const
     norm2 = (int)((accumNc / 6.0f) + 0.5f);
     mtn1 = (int)((accumPm / 6.0f) + 0.5f);
     mtn2 = (int)((accumNm / 6.0f) + 0.5f);
-    c1 = ((float)max(norm1,norm2))/((float)max(min(norm1,norm2),1));
-    c2 = ((float)max(mtn1,mtn2))/((float)max(min(mtn1,mtn2),1));
-    mr = ((float)max(mtn1,mtn2))/((float)max(max(norm1,norm2),1));
+    c1 = ((float)VSMAX(norm1,norm2))/((float)VSMAX(VSMIN(norm1,norm2),1));
+    c2 = ((float)VSMAX(mtn1,mtn2))/((float)VSMAX(VSMIN(mtn1,mtn2),1));
+    mr = ((float)VSMAX(mtn1,mtn2))/((float)VSMAX(VSMAX(norm1,norm2),1));
     if (((mtn1 >= 500  || mtn2 >= 500)  && (mtn1*2 < mtn2*1 || mtn2*2 < mtn1*1)) ||
         ((mtn1 >= 1000 || mtn2 >= 1000) && (mtn1*3 < mtn2*2 || mtn2*3 < mtn1*2)) ||
         ((mtn1 >= 2000 || mtn2 >= 2000) && (mtn1*5 < mtn2*4 || mtn2*5 < mtn1*4)) ||
@@ -539,7 +531,7 @@ static int compareFieldsSlow(const VSFrameRef *prv, const VSFrameRef *src, const
             ret = match2;
         else
             ret = match1;
-    } else if (mr > 0.005 && max(mtn1,mtn2) > 150 && (mtn1*2 < mtn2*1 || mtn2*2 < mtn1*1)) {
+    } else if (mr > 0.005 && VSMAX(mtn1,mtn2) > 150 && (mtn1*2 < mtn2*1 || mtn2*2 < mtn1*1)) {
         if (mtn1 > mtn2)
             ret = match2;
         else
@@ -616,7 +608,7 @@ typedef enum {
 
 static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     VFMData *vfm = (VFMData *)*instanceData;
-    n = min(vfm->vi->numFrames - 1, n);
+    n = VSMIN(vfm->vi->numFrames - 1, n);
     if (activationReason == arInitial) {
         if (n > 0) {
             vsapi->requestFrameFilter(n-1, vfm->node, frameCtx);
@@ -920,7 +912,7 @@ static int64_t calcMetric(const VSFrameRef *f1, const VSFrameRef *f2, int64_t *t
             if (fi->bitsPerSample == 8) {
                 for (x = 0; x < width; x+= hblockx) {
                     int acc = 0;
-                    int m = min(width, x + hblockx);
+                    int m = VSMIN(width, x + hblockx);
                     for (xl = x; xl < m; xl++)
                         acc += abs(f1p[xl] - f2p[xl]);
                     bdiffs[ydest * nxblocks + xdest] += acc;
@@ -929,7 +921,7 @@ static int64_t calcMetric(const VSFrameRef *f1, const VSFrameRef *f2, int64_t *t
             } else {
                 for (x = 0; x < width; x+= hblockx) {
                     int acc = 0;
-                    int m = min(width, x + hblockx);
+                    int m = VSMIN(width, x + hblockx);
                     for (xl = x; xl < m; xl++)
                         acc += abs(((const uint16_t *)f1p)[xl] - ((const uint16_t *)f2p)[xl]);
                     bdiffs[ydest * nxblocks + xdest] += acc;
@@ -1120,7 +1112,7 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
         if (override == -1) {
             for (i = cyclestart; i < cycleend; i++) {
                 if (vdm->vmi[i].maxbdiff < 0) {
-                    const VSFrameRef *prv = vsapi->getFrameFilter(max(i - 1, 0), vdm->node, frameCtx);
+                    const VSFrameRef *prv = vsapi->getFrameFilter(VSMAX(i - 1, 0), vdm->node, frameCtx);
                     const VSFrameRef *cur = vsapi->getFrameFilter(i, vdm->node, frameCtx);
                     vdm->vmi[i].maxbdiff = calcMetric(prv, cur, &vdm->vmi[i].totdiff, vdm, vsapi);
                     vsapi->freeFrame(prv);

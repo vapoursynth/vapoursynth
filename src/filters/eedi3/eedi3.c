@@ -34,10 +34,6 @@
 #include "VSHelper.h"
 
 
-#define MIN(a, b)  (((a) < (b)) ? (a) : (b))
-#define MAX(a, b)  (((a) > (b)) ? (a) : (b))
-
-
 typedef struct {
     VSNodeRef *node;
     VSVideoInfo vi;
@@ -78,7 +74,7 @@ void interpLineFP(const uint8_t *srcp, const int width, const int pitch,
     // calculate all connection costs
     if(!cost3) {
         for(x = 0; x < width; ++x) {
-            const int umax = MIN(MIN(x, width - 1 - x), mdis);
+            const int umax = VSMIN(VSMIN(x, width - 1 - x), mdis);
 
             for(u = -umax; u <= umax; ++u) {
                 int s = 0;
@@ -96,7 +92,7 @@ void interpLineFP(const uint8_t *srcp, const int width, const int pitch,
         }
     } else {
         for(x = 0; x < width; ++x) {
-            const int umax = MIN(MIN(x, width - 1 - x), mdis);
+            const int umax = VSMIN(VSMIN(x, width - 1 - x), mdis);
 
             for(u = -umax; u <= umax; ++u) {
                 int s0 = 0, s1 = -1, s2 = -1;
@@ -144,16 +140,16 @@ void interpLineFP(const uint8_t *srcp, const int width, const int pitch,
         float *ppT = pcosts + (x - 1) * tpitch;
         float *pT = pcosts + x * tpitch;
         int *piT = pbackt + (x - 1) * tpitch;
-        const int umax = MIN(MIN(x, width - 1 - x), mdis);
+        const int umax = VSMIN(VSMIN(x, width - 1 - x), mdis);
 
         for(u = -umax; u <= umax; ++u) {
             int idx;
             float bval = FLT_MAX;
-            const int umax2 = MIN(MIN(x - 1, width - x), mdis);
+            const int umax2 = VSMIN(VSMIN(x - 1, width - x), mdis);
 
-            for(v = MAX(-umax2, u - 1); v <= MIN(umax2, u + 1); ++v) {
+            for(v = VSMAX(-umax2, u - 1); v <= VSMIN(umax2, u + 1); ++v) {
                 const double y = ppT[mdis + v] + gamma * abs(u - v);
-                const float ccost = (float)MIN(y, FLT_MAX * 0.9);
+                const float ccost = (float)VSMIN(y, FLT_MAX * 0.9);
 
                 if(ccost < bval) {
                     bval = ccost;
@@ -163,7 +159,7 @@ void interpLineFP(const uint8_t *srcp, const int width, const int pitch,
 
             const double y = bval + tT[mdis + u];
 
-            pT[mdis + u] = (float)MIN(y, FLT_MAX * 0.9);
+            pT[mdis + u] = (float)VSMIN(y, FLT_MAX * 0.9);
 
             piT[mdis + u] = idx;
         }
@@ -182,7 +178,7 @@ void interpLineFP(const uint8_t *srcp, const int width, const int pitch,
         const int ad = abs(dir);
 
         if(ucubic && x >= ad * 3 && x <= width - 1 - ad * 3)
-            dstp[x] = MIN(MAX((36 * (src1p[x + dir] + src1n[x - dir]) -
+            dstp[x] = VSMIN(VSMAX((36 * (src1p[x + dir] + src1n[x - dir]) -
                                4 * (src3p[x + dir * 3] + src3n[x - dir * 3]) + 32) >> 6, 0), 255);
         else
             dstp[x] = (src1p[x + dir] + src1n[x - dir] + 1) >> 1;
@@ -219,17 +215,17 @@ void interpLineHP(const uint8_t *srcp, const int width, const int pitch,
             hp1n[x] = (src1n[x] + src1n[x + 1] + 1) >> 1;
             hp3n[x] = (src3n[x] + src3n[x + 1] + 1) >> 1;
         } else {
-            hp3p[x] = MIN(MAX((36 * (src3p[x] + src3p[x + 1]) - 4 * (src3p[x - 1] + src3p[x + 2]) + 32) >> 6, 0), 255);
-            hp1p[x] = MIN(MAX((36 * (src1p[x] + src1p[x + 1]) - 4 * (src1p[x - 1] + src1p[x + 2]) + 32) >> 6, 0), 255);
-            hp1n[x] = MIN(MAX((36 * (src1n[x] + src1n[x + 1]) - 4 * (src1n[x - 1] + src1n[x + 2]) + 32) >> 6, 0), 255);
-            hp3n[x] = MIN(MAX((36 * (src3n[x] + src3n[x + 1]) - 4 * (src3n[x - 1] + src3n[x + 2]) + 32) >> 6, 0), 255);
+            hp3p[x] = VSMIN(VSMAX((36 * (src3p[x] + src3p[x + 1]) - 4 * (src3p[x - 1] + src3p[x + 2]) + 32) >> 6, 0), 255);
+            hp1p[x] = VSMIN(VSMAX((36 * (src1p[x] + src1p[x + 1]) - 4 * (src1p[x - 1] + src1p[x + 2]) + 32) >> 6, 0), 255);
+            hp1n[x] = VSMIN(VSMAX((36 * (src1n[x] + src1n[x + 1]) - 4 * (src1n[x - 1] + src1n[x + 2]) + 32) >> 6, 0), 255);
+            hp3n[x] = VSMIN(VSMAX((36 * (src3n[x] + src3n[x + 1]) - 4 * (src3n[x - 1] + src3n[x + 2]) + 32) >> 6, 0), 255);
         }
     }
 
     // calculate all connection costs
     if(!cost3) {
         for(x = 0; x < width; ++x) {
-            const int umax = MIN(MIN(x, width - 1 - x), mdis);
+            const int umax = VSMIN(VSMIN(x, width - 1 - x), mdis);
 
             for(u = -umax * 2; u <= umax * 2; ++u) {
                 int s = 0, ip;
@@ -260,7 +256,7 @@ void interpLineHP(const uint8_t *srcp, const int width, const int pitch,
         }
     } else {
         for(x = 0; x < width; ++x) {
-            const int umax = MIN(MIN(x, width - 1 - x), mdis);
+            const int umax = VSMIN(VSMIN(x, width - 1 - x), mdis);
 
             for(u = -umax * 2; u <= umax * 2; ++u) {
                 int s0 = 0, s1 = -1, s2 = -1, ip;
@@ -320,16 +316,16 @@ void interpLineHP(const uint8_t *srcp, const int width, const int pitch,
         float *ppT = pcosts + (x - 1) * tpitch;
         float *pT = pcosts + x * tpitch;
         int *piT = pbackt + (x - 1) * tpitch;
-        const int umax = MIN(MIN(x, width - 1 - x), mdis);
+        const int umax = VSMIN(VSMIN(x, width - 1 - x), mdis);
 
         for(u = -umax * 2; u <= umax * 2; ++u) {
             int idx;
             float bval = FLT_MAX;
-            const int umax2 = MIN(MIN(x - 1, width - x), mdis);
+            const int umax2 = VSMIN(VSMIN(x - 1, width - x), mdis);
 
-            for(v = MAX(-umax2 * 2, u - 2); v <= MIN(umax2 * 2, u + 2); ++v) {
+            for(v = VSMAX(-umax2 * 2, u - 2); v <= VSMIN(umax2 * 2, u + 2); ++v) {
                 const double y = ppT[mdis * 2 + v] + gamma * abs(u - v) * 0.5f;
-                const float ccost = (float)MIN(y, FLT_MAX * 0.9);
+                const float ccost = (float)VSMIN(y, FLT_MAX * 0.9);
 
                 if(ccost < bval) {
                     bval = ccost;
@@ -339,7 +335,7 @@ void interpLineHP(const uint8_t *srcp, const int width, const int pitch,
 
             const double y = bval + tT[mdis * 2 + u];
 
-            pT[mdis * 2 + u] = (float)MIN(y, FLT_MAX * 0.9);
+            pT[mdis * 2 + u] = (float)VSMIN(y, FLT_MAX * 0.9);
 
             piT[mdis * 2 + u] = idx;
         }
@@ -361,7 +357,7 @@ void interpLineHP(const uint8_t *srcp, const int width, const int pitch,
             const int ad = abs(d2);
 
             if(ucubic && x >= ad * 3 && x <= width - 1 - ad * 3)
-                dstp[x] = MIN(MAX((36 * (src1p[x + d2] + src1n[x - d2]) -
+                dstp[x] = VSMIN(VSMAX((36 * (src1p[x + d2] + src1n[x - d2]) -
                                    4 * (src3p[x + d2 * 3] + src3n[x - d2 * 3]) + 32) >> 6, 0), 255);
             else
                 dstp[x] = (src1p[x + d2] + src1n[x - d2] + 1) >> 1;
@@ -370,14 +366,14 @@ void interpLineHP(const uint8_t *srcp, const int width, const int pitch,
             const int d21 = (dir + 1) >> 1;
             const int d30 = (dir * 3) >> 1;
             const int d31 = (dir * 3 + 1) >> 1;
-            const int ad = MAX(abs(d30), abs(d31));
+            const int ad = VSMAX(abs(d30), abs(d31));
 
             if(ucubic && x >= ad && x <= width - 1 - ad) {
                 const int c0 = src3p[x + d30] + src3p[x + d31];
                 const int c1 = src1p[x + d20] + src1p[x + d21]; // should use cubic if ucubic=true
                 const int c2 = src1n[x - d20] + src1n[x - d21]; // should use cubic if ucubic=true
                 const int c3 = src3n[x - d30] + src3n[x - d31];
-                dstp[x] = MIN(MAX((36 * (c1 + c2) - 4 * (c0 + c3) + 64) >> 7, 0), 255);
+                dstp[x] = VSMIN(VSMAX((36 * (c1 + c2) - 4 * (c0 + c3) + 64) >> 7, 0), 255);
             } else
                 dstp[x] = (src1p[x + d20] + src1p[x + d21] + src1n[x - d20] + src1n[x - d21] + 2) >> 2;
         }
@@ -485,7 +481,7 @@ static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *
         vsapi->freeFrame(src);
 
         float *workspace = NULL;
-        VS_ALIGNED_MALLOC((void **)&workspace, d->vi.width * MAX(d->mdis * 4 + 1, 16) * 4 * sizeof(float), 16);
+        VS_ALIGNED_MALLOC((void **)&workspace, d->vi.width * VSMAX(d->mdis * 4 + 1, 16) * 4 * sizeof(float), 16);
         if (!workspace){
             vsapi->setFilterError("EEDI3: Memory allocation failed", frameCtx);
             vsapi->freeFrame(scpPF);
@@ -561,7 +557,7 @@ static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *
                         for(x = 0; x < width - 24; ++x) {
                             const int dirc = dstpd[x];
                             const int cint = scpp ? scpp[x] :
-                                             MIN(MAX((36 * (dst1p[x] + dst1n[x]) - 4 * (dst3p[x] + dst3n[x]) + 32) >> 6, 0), 255);
+                                             VSMIN(VSMAX((36 * (dst1p[x] + dst1n[x]) - 4 * (dst3p[x] + dst3n[x]) + 32) >> 6, 0), 255);
 
                             if(dirc == 0) {
                                 tline[x] = cint;
@@ -572,7 +568,7 @@ static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *
 
                             const int dirb = dstpd[x + dpitch];
 
-                            if(MAX(dirc * dirt, dirc * dirb) < 0 || (dirt == dirb && dirt == 0)) {
+                            if(VSMAX(dirc * dirt, dirc * dirb) < 0 || (dirt == dirb && dirt == 0)) {
                                 tline[x] = cint;
                                 continue;
                             }
@@ -613,16 +609,16 @@ static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *
                             const int d2 = abs(vt - vc);
                             const int d3 = abs(vb - vc);
 
-                            const int mdiff0 = d->vcheck == 1 ? MIN(d0, d1) : d->vcheck == 2 ? ((d0 + d1 + 1) >> 1) : MAX(d0, d1);
-                            const int mdiff1 = d->vcheck == 1 ? MIN(d2, d3) : d->vcheck == 2 ? ((d2 + d3 + 1) >> 1) : MAX(d2, d3);
+                            const int mdiff0 = d->vcheck == 1 ? VSMIN(d0, d1) : d->vcheck == 2 ? ((d0 + d1 + 1) >> 1) : VSMAX(d0, d1);
+                            const int mdiff1 = d->vcheck == 1 ? VSMIN(d2, d3) : d->vcheck == 2 ? ((d2 + d3 + 1) >> 1) : VSMAX(d2, d3);
 
                             const float a0 = mdiff0 / d->vthresh0;
                             const float a1 = mdiff1 / d->vthresh1;
 
                             const int dircv = d->hp ? (abs(dirc) >> 1) : abs(dirc);
 
-                            const float a2 = MAX((d->vthresh2 - dircv) / d->vthresh2, 0.0f);
-                            const float a = MIN(MAX(MAX(a0, a1), a2), 1.0f);
+                            const float a2 = VSMAX((d->vthresh2 - dircv) / d->vthresh2, 0.0f);
+                            const float a = VSMIN(VSMAX(VSMAX(a0, a1), a2), 1.0f);
 
                             tline[x] = (int)((1.0 - a) * dstp[x] + a * cint);
                         }

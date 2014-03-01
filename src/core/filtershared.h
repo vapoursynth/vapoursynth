@@ -26,8 +26,6 @@
 #include <string.h>
 
 #define RETERROR(x) do { vsapi->setError(out, (x)); return; } while (0)
-#define MAX(a, b)  (((a) > (b)) ? (a) : (b))
-#define MIN(a, b)  (((a) < (b)) ? (a) : (b))
 
 static inline void vs_memset8(void *ptr, int value, size_t num) {
     memset(ptr, value, num);

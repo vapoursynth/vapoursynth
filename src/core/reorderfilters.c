@@ -227,7 +227,7 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
             // this is exactly how avisynth does it
             d.vi.numFrames = (vsapi->getVideoInfo(d.node[0])->numFrames - 1) * d.numclips + 1;
             for (i = 1; i < d.numclips; i++)
-                d.vi.numFrames = MAX(d.vi.numFrames, (vsapi->getVideoInfo(d.node[i])->numFrames - 1) * d.numclips + i + 1);
+                d.vi.numFrames = VSMAX(d.vi.numFrames, (vsapi->getVideoInfo(d.node[i])->numFrames - 1) * d.numclips + i + 1);
         }
         d.vi.fpsNum *= d.numclips;
 
@@ -245,9 +245,9 @@ static const VSFrameRef *VS_CC reverseGetframe(int n, int activationReason, void
     SingleClipData *d = (SingleClipData *) * instanceData;
 
     if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(MAX(d->vi->numFrames - n - 1, 0), d->node, frameCtx);
+        vsapi->requestFrameFilter(VSMAX(d->vi->numFrames - n - 1, 0), d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        return vsapi->getFrameFilter(MAX(d->vi->numFrames - n - 1, 0), d->node, frameCtx);
+        return vsapi->getFrameFilter(VSMAX(d->vi->numFrames - n - 1, 0), d->node, frameCtx);
     }
 
     return 0;

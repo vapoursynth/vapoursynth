@@ -23,8 +23,6 @@
 #include "VapourSynth.h"
 #include "VSHelper.h"
 
-#define MAX(a, b) a > b ? a : b
-
 #define _r(c) ((c) >> 24)
 #define _g(c) (((c) >> 16) & 0xFF)
 #define _b(c) (((c) >> 8) & 0xFF)
@@ -78,7 +76,7 @@ static char *strrepl(const char *in, const char *str, const char *repl)
     siz = (strlen(in) - strlen(str) * count + strlen(repl) * count) *
           sizeof(char) + 1;
 
-    res = malloc(MAX(siz, strlen(in) * sizeof(char) + 1));
+    res = malloc(VSMAX(siz, strlen(in) * sizeof(char) + 1));
     strcpy(res, in);
 
     outptr = res;

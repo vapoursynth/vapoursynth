@@ -52,6 +52,9 @@
 #define VS_ALIGNED_FREE(ptr) do { free((ptr)); } while (0)
 #endif
 
+#define VSMAX(a,b) ((a) > (b) ? (a) : (b))
+#define VSMIN(a,b) ((a) > (b) ? (b) : (a))
+
 #ifdef __cplusplus
 // A nicer templated malloc for all the C++ users out there
 template<class T>

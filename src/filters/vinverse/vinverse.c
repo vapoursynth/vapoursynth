@@ -24,9 +24,6 @@
 #include "VapourSynth.h"
 #include "VSHelper.h"
 
-#define MAX(a, b) a > b ? a : b
-#define MIN(a, b) a < b ? a : b
-
 struct VinverseData {
     VSNodeRef *node;
     VSVideoInfo vi;
@@ -83,8 +80,8 @@ static void Vinverse(const uint8_t *src, uint8_t *dst,
             int d2 = b3p - b6p + 255;
             int df = b3p + d->dlut[(d1 << 9) + d2];
 
-            int minm = MAX(src[x] - d->amnt, 0);
-            int maxm = MIN(src[x] + d->amnt, 255);
+            int minm = VSMAX(src[x] - d->amnt, 0);
+            int maxm = VSMIN(src[x] + d->amnt, 255);
 
             if (df <= minm)
                 dst[x] = minm;
