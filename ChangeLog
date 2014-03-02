@@ -1,4 +1,5 @@
 r23:
+fixed bugs in rgvs mode 20, eedi3 crash on windows and genericfilters crash in canny
 the frame range to output can now be set in vspipe as well using -start and -end
 documentation fixes
 minor build system improvement/fix (Zor)

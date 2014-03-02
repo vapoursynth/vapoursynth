@@ -1022,6 +1022,11 @@ public:
         add_x16_s32(sum_0, sum_1, a7, zero);
         add_x16_s32(sum_0, sum_1, a8, zero);
 
+        const __m128i  fix_0 = _mm_srai_epi32(sum_0, 15);
+        const __m128i  fix_1 = _mm_srai_epi32(sum_1, 15);
+        sum_0 = _mm_sub_epi32(sum_0, fix_0);
+        sum_1 = _mm_sub_epi32(sum_1, fix_1);
+
         const __m128i  mult =
             _mm_load_si128(reinterpret_cast <const __m128i *> (_mult));
         const __m128i  val = mul_s32_s15_s16(sum_0, sum_1, mult);
@@ -1238,7 +1243,7 @@ ALIGNED_ARRAY(const uint16_t    OpRG19::_bias [8], 16) =
 { 1, 1, 1, 1, 1, 1, 1, 1 };
 
 ALIGNED_ARRAY(const int32_t OpRG20::_bias[4], 16) =
-{ -0x8000 * 9, -0x8000 * 9, -0x8000 * 9, -0x8000 * 9 };
+{ -0x8000 * 9 + 4, -0x8000 * 9 + 4, -0x8000 * 9 + 4, -0x8000 * 9 + 4};
 
 ALIGNED_ARRAY(const uint16_t OpRG20::_mult[8], 16) =
 { 7282, 7282, 7282, 7282, 7282, 7282, 7282, 7282 };	// (1^16 + 4) / 9
