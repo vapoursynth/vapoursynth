@@ -417,6 +417,12 @@ def build(bld):
             target = 'vinverse',
             install_path = '${PLUGINDIR}')
 
+        bld(features = 'c cxxshlib',
+            includes = 'include',
+            source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'morpho')])),
+            target = 'morpho',
+            install_path = '${PLUGINDIR}')
+
         if bld.env.LIB_OCR:
             bld(features = 'c cxxshlib',
                 includes = 'include',
