@@ -6,6 +6,8 @@ Native Plugins
 * AviSource -- in the source tree
 * :ref:`AssVapour <assvapour>` -- subtitle renderer, in the source tree
 * :ref:`EEDI3 <eedi3>` -- in the source tree
+* :ref:`Morpho <morpho>` -- simple morphological filters, in the source tree
+* :ref:`OCR <ocr>` -- optical character recognition on video frames, in the source tree
 * RemoveGrain/Repair -- in the source tree
 * :ref:`Vinverse <vinverse>` -- in the source tree
 * :ref:`VIVTC <vivtc>` -- in the source tree
