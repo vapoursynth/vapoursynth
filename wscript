@@ -316,6 +316,7 @@ def configure(conf):
 
     if conf.env.FILTERS == 'true':
         conf.check_cfg(package = 'libass', args = '--libs --cflags', uselib_store = 'ASS')
+        conf.check_cfg(package = 'tesseract', args = '--libs --cflags', uselib_store = 'OCR')
 
 def build(bld):
     def search_paths(paths):
@@ -415,6 +416,14 @@ def build(bld):
             source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'vinverse')])),
             target = 'vinverse',
             install_path = '${PLUGINDIR}')
+
+        if bld.env.LIB_OCR:
+            bld(features = 'c cxxshlib',
+                includes = 'include',
+                use = ['OCR'],
+                source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'ocr')])),
+                target = 'ocr',
+                install_path = '${PLUGINDIR}')
 
         bld(features = 'c cxx asm cxxshlib',
             includes = 'include',
