@@ -32,10 +32,10 @@ class FilterTestSequence(unittest.TestCase):
         clipx = self.BlankClip(format=vs.YUV420P8, color=[69, 242, 115])
         clipy = self.BlankClip(format=vs.YUV420P8, color=[115, 103, 205])
 
-        ret = self.Lut2(clips=[clipx, clipy], planes=[0, 1, 2], function=lambda x, y: x, bits=8)
+        ret = self.Lut2(clipa=clipx, clipb=clipy, planes=[0, 1, 2], function=lambda x, y: x, bits=8)
         self.checkDifference(clipx, ret)
 
-        ret = self.Lut2(clips=[clipx, clipy], planes=[0, 1, 2], function=lambda x, y: x, bits=10)
+        ret = self.Lut2(clipa=clipx, clipb=clipy, planes=[0, 1, 2], function=lambda x, y: x, bits=10)
         comp = self.BlankClip(format=vs.YUV420P10, color=[69, 242, 115])
         self.checkDifference(comp, ret)
 
@@ -44,10 +44,10 @@ class FilterTestSequence(unittest.TestCase):
         clipx = self.BlankClip(format=vs.YUV420P8, color=[69, 242, 115])
         clipy = self.BlankClip(format=vs.YUV420P10, color=[15, 900, 442])
 
-        ret = self.Lut2(clips=[clipx, clipy], planes=[0, 1, 2], function=lambda x, y: self.mask(x, 8), bits=8)
+        ret = self.Lut2(clipa=clipx, clipb=clipy, planes=[0, 1, 2], function=lambda x, y: self.mask(x, 8), bits=8)
         self.checkDifference(clipx, ret)
 
-        ret = self.Lut2(clips=[clipx, clipy], planes=[0, 1, 2], function=lambda x, y: x, bits=10)
+        ret = self.Lut2(clipa=clipx, clipb=clipy, planes=[0, 1, 2], function=lambda x, y: x, bits=10)
         comp = self.BlankClip(format=vs.YUV420P10, color=[69, 242, 115])
         self.checkDifference(comp, ret)
 
@@ -56,11 +56,11 @@ class FilterTestSequence(unittest.TestCase):
         clipx = self.BlankClip(format=vs.YUV420P10, color=[15, 235, 115])
         clipy = self.BlankClip(format=vs.YUV420P8, color=[69, 242, 115])
 
-        ret = self.Lut2(clips=[clipx, clipy], planes=[0, 1, 2], function=lambda x, y: self.mask(x, 8), bits=8)
+        ret = self.Lut2(clipa=clipx, clipb=clipy, planes=[0, 1, 2], function=lambda x, y: self.mask(x, 8), bits=8)
         comp = self.BlankClip(format=vs.YUV420P8, color=[15, 235, 115])
         self.checkDifference(comp, ret)
 
-        ret = self.Lut2(clips=[clipx, clipy], planes=[0, 1, 2], function=lambda x, y: x, bits=10)
+        ret = self.Lut2(clipa=clipx, clipb=clipy, planes=[0, 1, 2], function=lambda x, y: x, bits=10)
         self.checkDifference(clipx, ret)
 
     def testLUT2_9Bit_10Bit(self):
@@ -68,10 +68,10 @@ class FilterTestSequence(unittest.TestCase):
         clipx = self.BlankClip(format=vs.YUV420P9, color=[384, 10, 500])
         clipy = self.BlankClip(format=vs.YUV420P10, color=[15, 600, 900])
 
-        ret = self.Lut2(clips=[clipx, clipy], planes=[0, 1, 2], function=lambda x, y: self.mask(x, 9), bits=9)
+        ret = self.Lut2(clipa=clipx, clipb=clipy, planes=[0, 1, 2], function=lambda x, y: self.mask(x, 9), bits=9)
         self.checkDifference(clipx, ret)
 
-        ret = self.Lut2(clips=[clipx, clipy], planes=[0, 1, 2], function=lambda x, y: self.mask(x, 8), bits=8)
+        ret = self.Lut2(clipa=clipx, clipb=clipy, planes=[0, 1, 2], function=lambda x, y: self.mask(x, 8), bits=8)
         comp = self.BlankClip(format=vs.YUV420P8, color=[128, 10, 244])
         self.checkDifference(comp, ret)
 
@@ -79,11 +79,11 @@ class FilterTestSequence(unittest.TestCase):
         clipx = self.BlankClip(format=vs.YUV420P10, color=[384, 10, 500])
         clipy = self.BlankClip(format=vs.YUV420P9, color=[15, 384, 511])
 
-        ret = self.Lut2(clips=[clipx, clipy], planes=[0, 1, 2], function=lambda x, y: self.mask(x, 9), bits=9)
+        ret = self.Lut2(clipa=clipx, clipb=clipy, planes=[0, 1, 2], function=lambda x, y: self.mask(x, 9), bits=9)
         comp = self.BlankClip(format=vs.YUV420P9, color=[384, 10, 500])
         self.checkDifference(comp, ret)
 
-        ret = self.Lut2(clips=[clipx, clipy], planes=[0, 1, 2], function=lambda x, y: self.mask(x, 8), bits=8)
+        ret = self.Lut2(clipa=clipx, clipb=clipy, planes=[0, 1, 2], function=lambda x, y: self.mask(x, 8), bits=8)
         comp = self.BlankClip(format=vs.YUV420P8, color=[128, 10, 244])
         self.checkDifference(comp, ret)
 
