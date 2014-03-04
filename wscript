@@ -226,7 +226,7 @@ def is_debug_build(ctx):
     return getattr(ctx.options, 'enable_debug')
 
 def configure(ctx):
-    ctx.check_waf_version(mini='1.7.13')
+    ctx.check_waf_version(mini='1.7.15')
 
     ctx.env['VSVERSION'] = VERSION
 
