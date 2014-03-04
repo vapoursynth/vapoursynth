@@ -64,6 +64,11 @@ main_dependencies = [
         'func': check_python
     },
     {
+        'name': 'sphinx',
+        'desc': 'Sphinx',
+        'func': check_sphinx
+    },
+    {
         'name': 'ffmpeg',
         'desc': 'FFmpeg/libav',
         'func': check_pkg_config(*libav_pkg_config_checks)
@@ -128,7 +133,8 @@ features = [
     {
         'name': '--docs',
         'desc': 'HTML documentation',
-        'func': check_true #check_ctx_vars('SPHINX')
+        'deps': ['sphinx'],
+        'func': check_true
     },
     {
         'name': '--examples',
@@ -241,7 +247,6 @@ def configure(ctx):
     ctx.find_program(cc,                var='CC')
     ctx.find_program(cxx,               var='CXX')
     ctx.find_program(pkg_config,        var='PKG_CONFIG')
-    ctx.find_program('sphinx-build',    var='SPHINX', mandatory=False)
 
     for ident, _, _ in _INSTALL_DIRS_LIST:
         varname = ident.upper()

@@ -115,7 +115,9 @@ def build(ctx):
                 install_path = ctx.env.PLUGINDIR)
 
     def _build_docs():
-        pass # TODO
+        ctx(features = 'sphinxhtml',
+            source = os.path.join('doc', 'conf.py'),
+            install_path = ctx.env.DOCDIR)
 
     if ctx.dependency_satisfied('vapoursynth'):
         _build_core()
