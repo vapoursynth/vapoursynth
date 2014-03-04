@@ -65,8 +65,7 @@ class CoreTestSequence(unittest.TestCase):
 
     def test_arg14(self):
         clip = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 242, 115])
-        with self.assertRaises(vs.Error):
-            self.core.text.ClipInfo(clip, alignment=None)
+        self.core.text.ClipInfo(clip, alignment=None)
 
 #lut argument tests
     def test_lut_arg1(self):
@@ -123,9 +122,14 @@ class CoreTestSequence(unittest.TestCase):
         with self.assertRaises(vs.Error):
             self.core.std.Lut2(clip, clip)
 
-    def test_lut2_arg3(self):
+    def test_lut2_arg3_1(self):
         clip = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 242, 115])
         self.core.std.Lut2(clip, clip, lut=[5]*65536)
+
+    def test_lut2_arg3_2(self):
+        # this is intentional to test old argument order rewrite
+        clip = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 242, 115])
+        self.core.std.Lut2([clip, clip], lut=[5]*65536)
 
     def test_lut2_arg4(self):
         clip = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 242, 115])
