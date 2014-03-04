@@ -28,44 +28,9 @@ Then, configure the project:
     $ ./waf configure
 
 The configure operation has some options which can be used to
-fine-tune the build:
+fine-tune the build. To see a list, use:
 
-* --prefix=path (default: /usr/local)
-  Specifies where to install the final VapourSynth artifacts.
-* --libdir=path (default: ${PREFIX}/lib)
-  Specifies where to install VapourSynth libraries.
-* --plugindir=path (default: ${LIBDIR}/vapoursynth)
-  Specifies where to install plugins/filters.
-* --docdir=path (default: ${PREFIX}/share/doc/vapoursynth)
-  Specifies where to install Sphinx documentation and examples.
-* --includedir=path (default: ${PREFIX}/include/vapoursynth)
-  Specifies where to install C/C++ headers.
-* --mode=debug/release (default: release)
-  Specifies what mode to compile C and C++ code in. When in
-  debug mode, debug info and debugging helpers will be emitted
-  by the compiler, and no optimization will be done. In release
-  mode, all (safe) optimizations are performed and no debug
-  info is generated.
-* --shared=true/false (default: true)
-  Specifies whether to build a shared library.
-* --static=true/false (default: false)
-  Specifies whether to build a static library.
-* --core=true/false (default: true)
-  Specifies whether to build libvapoursynth.
-* --avisynth=true/false (default: true)
-  Specifies whether to build the Avisynth compatibility layer
-  when building on Windows (has no effect on other OSs).
-* --script=true/false (default: true)
-  Specifies whether to build libvapoursynth-script.
-* --pipe=true/false (default: true)
-  Specifies whether to build VSPipe.
-* --filters=true/false (default: true)
-  Specifies whether to build the included filters. These are
-  always built as shared libraries.
-* --examples=true/false (default: false)
-  Specifies whether to install the SDK examples.
-* --docs=true/false (default: false)
-  Specifies whether to build the Sphinx-based documentation.
+    $ ./waf configure --help
 
 Once the project is configured, simply execute:
 
