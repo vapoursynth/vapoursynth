@@ -1009,7 +1009,7 @@ cdef class Function(object):
                     ndict['clipa'] = ndict['clips'][0]
                     ndict['clipb'] = ndict['clips'][1]
                     del ndict['clips']
-                else:
+                elif not isinstance(arglist[0], VideoNode) and isinstance(arglist[0][0], VideoNode) and isinstance(arglist[0][1], VideoNode):
                     ndict['clipa'] = arglist[0][0]
                     ndict['clipb'] = arglist[0][1]
                     del arglist[0]

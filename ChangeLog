@@ -1,4 +1,5 @@
 r23:
+fixed an issue with rearranging old order arguments for Lut2, Merge and MaskedMerge
 fixed bugs in rgvs mode 20, eedi3 crash on windows and genericfilters crash in canny
 the frame range to output can now be set in vspipe as well using -start and -end
 documentation fixes
