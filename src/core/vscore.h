@@ -484,9 +484,9 @@ private:
 public:
     std::string fullname;
     std::string fnamespace;
-    std::string identifier;
+    std::string id;
     VSPlugin(VSCore *core);
-    VSPlugin(const std::string &filename, const std::string &forcedNamespace, VSCore *core);
+    VSPlugin(const std::string &filename, const std::string &forcedNamespace, const std::string &forcedId, VSCore *core);
     ~VSPlugin();
     void lock() {
         readOnly = true;
@@ -538,7 +538,7 @@ public:
     const VSFormat *registerFormat(VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name = NULL, int id = pfNone);
     bool isValidFormatPointer(const VSFormat *f);
 
-    void loadPlugin(const std::string &filename, const std::string &forcedNamespace = std::string());
+    void loadPlugin(const std::string &filename, const std::string &forcedNamespace = std::string(), const std::string &forcedId = std::string());
     void createFilter(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion);
 
     VSMap getPlugins();

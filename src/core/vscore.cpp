@@ -677,14 +677,17 @@ static void VS_CC loadPlugin(const VSMap *in, VSMap *out, void *userData, VSCore
         const char *forcens = vsapi->propGetData(in, "forcens", 0, &err);
         if (!forcens)
             forcens = "";
-        core->loadPlugin(vsapi->propGetData(in, "path", 0, 0), forcens);
+        const char *forceid = vsapi->propGetData(in, "forceid", 0, &err);
+        if (!forceid)
+            forceid = "";
+        core->loadPlugin(vsapi->propGetData(in, "path", 0, 0), forcens, forceid);
     } catch (VSException &e) {
         vsapi->setError(out, e.what());
     }
 }
 
 void VS_CC loadPluginInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
-    registerFunc("LoadPlugin", "path:data;forcens:data:opt;", &loadPlugin, NULL, plugin);
+    registerFunc("LoadPlugin", "path:data;forcens:data:opt;forceid:data:opt;", &loadPlugin, NULL, plugin);
 }
 
 // not the most elegant way but avoids the mess that would happen if avscompat.h was included
@@ -824,7 +827,7 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
 #if defined(VS_TARGET_OS_WINDOWS) && defined(VS_FEATURE_AVISYNTH)
     p = new VSPlugin(this);
     avsWrapperInitialize(::configPlugin, ::registerFunction, p);
-    plugins.insert(std::make_pair(p->identifier, p));
+    plugins.insert(std::make_pair(p->id, p));
     p->enableCompat();
 #endif
 
@@ -840,16 +843,16 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
     p->enableCompat();
     p->lock();
 
-    plugins.insert(std::make_pair(p->identifier, p));
+    plugins.insert(std::make_pair(p->id, p));
     p = new VSPlugin(this);
     resizeInitialize(::configPlugin, ::registerFunction, p);
-    plugins.insert(std::make_pair(p->identifier, p));
+    plugins.insert(std::make_pair(p->id, p));
     p->enableCompat();
 
-    plugins.insert(std::make_pair(p->identifier, p));
+    plugins.insert(std::make_pair(p->id, p));
     p = new VSPlugin(this);
     textInitialize(::configPlugin, ::registerFunction, p);
-    plugins.insert(std::make_pair(p->identifier, p));
+    plugins.insert(std::make_pair(p->id, p));
     p->enableCompat();
 
 #ifdef VS_TARGET_OS_WINDOWS
@@ -951,8 +954,8 @@ VSMap VSCore::getPlugins() {
     VSMap m;
     std::lock_guard<std::recursive_mutex> lock(pluginLock);
     for (const auto &iter : plugins) {
-        std::string b = iter.second->fnamespace + ";" + iter.second->identifier + ";" + iter.second->fullname;
-        vsapi.propSetData(&m, iter.second->identifier.c_str(), b.c_str(), b.size(), 0);
+        std::string b = iter.second->fnamespace + ";" + iter.second->id + ";" + iter.second->fullname;
+        vsapi.propSetData(&m, iter.second->id.c_str(), b.c_str(), b.size(), 0);
     }
     return m;
 }
@@ -975,12 +978,12 @@ VSPlugin *VSCore::getPluginByNs(const std::string &ns) {
     return NULL;
 }
 
-void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNamespace) {
-    VSPlugin *p = new VSPlugin(filename, forcedNamespace, this);
+void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNamespace, const std::string &forcedId) {
+    VSPlugin *p = new VSPlugin(filename, forcedNamespace, forcedId, this);
 
     std::lock_guard<std::recursive_mutex> lock(pluginLock);
-    if (getPluginById(p->identifier)) {
-        std::string error = "Plugin " + filename + " already loaded (" + p->identifier + ")";
+    if (getPluginById(p->id)) {
+        std::string error = "Plugin " + filename + " already loaded (" + p->id + ")";
         delete p;
         throw VSException(error);
     }
@@ -991,7 +994,7 @@ void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNa
         throw VSException(error);
     }
 
-    plugins.insert(std::make_pair(p->identifier, p));
+    plugins.insert(std::make_pair(p->id, p));
 }
 
 void VSCore::createFilter(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion) {
@@ -1016,8 +1019,8 @@ VSPlugin::VSPlugin(VSCore *core)
     : apiVersion(0), hasConfig(false), readOnly(false), compat(false), libHandle(0), core(core) {
 }
 
-VSPlugin::VSPlugin(const std::string &filename, const std::string &forcedNamespace, VSCore *core)
-    : apiVersion(0), hasConfig(false), readOnly(false), compat(false), libHandle(0), filename(filename), core(core), fnamespace(forcedNamespace) {
+VSPlugin::VSPlugin(const std::string &filename, const std::string &forcedNamespace, const std::string &forcedId, VSCore *core)
+    : apiVersion(0), hasConfig(false), readOnly(false), compat(false), libHandle(0), filename(filename), core(core), fnamespace(forcedNamespace), id(forcedId) {
 #ifdef VS_TARGET_OS_WINDOWS
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
     std::wstring wPath = conversion.from_bytes(filename);
@@ -1093,10 +1096,11 @@ void VSPlugin::configPlugin(const std::string &identifier, const std::string &de
     if (hasConfig)
         vsFatal("Attempted to configure plugin %s twice", identifier.c_str());
 
-    this->identifier = identifier;
+    if (id.empty())
+        id = identifier;
 
-    if (!this->fnamespace.size())
-        this->fnamespace = defaultNamespace;
+    if (fnamespace.empty())
+        fnamespace = defaultNamespace;
 
     this->fullname = fullname;
     this->apiVersion = apiVersion;
