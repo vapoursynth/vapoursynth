@@ -726,7 +726,7 @@ static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void **i
         for (i = 0; i < 5; i++)
             vsapi->propSetInt(m, "VFMMics", mics[fxo[i]], paAppend);
         vsapi->propSetInt(m, "_Combed", mics[match] >= vfm->mi, paReplace);
-        vsapi->propSetInt(m, "VFMMatch", fxo[match], paReplace);
+        vsapi->propSetInt(m, "VFMMatch", match, paReplace);
         vsapi->propSetInt(m, "VFMSceneChange", sc, paReplace);
         return dst2;
     }
