@@ -8,7 +8,7 @@ Native Plugins
 * :ref:`EEDI3 <eedi3>` -- in the source tree
 * :ref:`Morpho <morpho>` -- simple morphological filters, in the source tree
 * :ref:`OCR <ocr>` -- optical character recognition on video frames, in the source tree
-* RemoveGrain/Repair -- in the source tree
+* :ref:`RemoveGrain/Repair <rgvs>` -- in the source tree
 * :ref:`Vinverse <vinverse>` -- in the source tree
 * :ref:`VIVTC <vivtc>` -- in the source tree
 * `Bifrost 2000 <https://github.com/dubhater/vapoursynth-bifrost>`_ -- A rainbow remover based on the Bifrost filter for Avisynth
