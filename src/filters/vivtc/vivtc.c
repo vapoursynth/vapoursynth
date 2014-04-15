@@ -43,7 +43,7 @@ typedef struct {
     VSNodeRef *node;
     VSNodeRef *clip2;
     const VSVideoInfo *vi;
-    int64_t scthresh;
+    double scthresh;
     int tpitchy;
     int tpitchuv;
     int order;
@@ -70,23 +70,6 @@ static void copyField(VSFrameRef *dst, const VSFrameRef *src, int field, const V
             vsapi->getReadPtr(src, plane)+field*vsapi->getStride(src, plane),vsapi->getStride(src, plane)*2,
             vsapi->getFrameWidth(src, plane),vsapi->getFrameHeight(src,plane)/2);
     }
-}
-
-static int64_t calcAbsDiff(const VSFrameRef *f1, const VSFrameRef *f2, const VSAPI *vsapi) {
-    const uint8_t *srcp1 = vsapi->getReadPtr(f1, 0);
-    const uint8_t *srcp2 = vsapi->getReadPtr(f2, 0);
-    int stride = vsapi->getStride(f1, 0);
-    int width = vsapi->getFrameWidth(f1, 0);
-    int height = vsapi->getFrameHeight(f1, 0);
-    int x, y;
-    int64_t acc = 0;
-    for (y = 0; y < height; y++) {
-        for (x = 0; x < width; x++)
-            acc += abs(srcp1[x] - srcp2[x]);
-        srcp1 += stride;
-        srcp2 += stride;
-    }
-    return acc;
 }
 
 // the secret is that tbuffer is an interlaced, offset subset of all the lines
@@ -648,10 +631,12 @@ static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void **i
         // check if it's a scenechange so micmatch can be used
         // only relevant for mm mode 1
         if (vfm->micmatch == 1) {
-            sc = calcAbsDiff(prv, src, vsapi) > vfm->scthresh;
+            const VSMap *props = vsapi->getFramePropsRO(src);
+            sc = vsapi->propGetFloat(props, "VFMPlaneDifference", 0, 0) > vfm->scthresh;
 
             if (!sc) {
-                sc = calcAbsDiff(src, nxt, vsapi) > vfm->scthresh;
+                props = vsapi->getFramePropsRO(nxt);
+                sc = vsapi->propGetFloat(props, "VFMPlaneDifference", 0, 0) > vfm->scthresh;
             }
         }
 
@@ -739,12 +724,65 @@ static void VS_CC vfmFree(void *instanceData, VSCore *core, const VSAPI *vsapi) 
     free(vfm);
 }
 
+static VSMap *invokePlaneDifference(VSNodeRef *node, VSCore *core, const VSAPI *vsapi) {
+    VSNodeRef *node2;
+    VSMap *args, *ret;
+    const char *prop = "VFMPlaneDifference";
+    VSPlugin *stdplugin = vsapi->getPluginById("com.vapoursynth.std", core);
+
+    args = vsapi->createMap();
+    vsapi->propSetNode(args, "clip", node, paReplace);
+    vsapi->propSetInt(args, "frames", 0, paReplace);
+    ret = vsapi->invoke(stdplugin, "DuplicateFrames", args);
+    if (vsapi->getError(ret)) {
+        vsapi->freeMap(args);
+        return ret;
+    }
+    node2 = vsapi->propGetNode(ret, "clip", 0, 0);
+    vsapi->freeMap(ret);
+    vsapi->clearMap(args);
+
+    vsapi->propSetNode(args, "clips", node, paReplace);
+    vsapi->propSetNode(args, "clips", node2, paAppend);
+    vsapi->freeNode(node2);
+    vsapi->propSetInt(args, "plane", 0, paReplace);
+    vsapi->propSetData(args, "prop", prop, strlen(prop), paReplace);
+    ret = vsapi->invoke(stdplugin, "PlaneDifference", args);
+    if (vsapi->getError(ret)) {
+       vsapi->freeMap(args);
+       return ret;
+    }
+    node2 = vsapi->propGetNode(ret, "clip", 0, 0);
+    vsapi->freeMap(ret);
+    vsapi->clearMap(args);
+
+    vsapi->propSetNode(args, "clip", node2, paReplace);
+    vsapi->freeNode(node2);
+    ret = vsapi->invoke(stdplugin, "Cache", args);
+    vsapi->freeMap(args);
+    return ret;
+}
+
+static char *prefix_string(const char *message, const char *prefix) {
+    size_t message_length = strlen(message);
+    size_t prefix_length = strlen(prefix);
+    size_t length = message_length + prefix_length + 1;
+
+    char *result = (char *)malloc(length);
+
+    strncpy(result, prefix, prefix_length);
+    strncpy(result + prefix_length, message, message_length);
+
+    result[length - 1] = '\0';
+
+    return result;
+}
+
 static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     int err;
     VFMData vfm;
     VFMData *vfmd ;
     const VSVideoInfo *vi;
-    double scthresh;
 
     vfm.order = !!vsapi->propGetInt(in, "order", 0, 0);
     vfm.field = int64ToIntS(vsapi->propGetInt(in, "field", 0, &err));
@@ -778,9 +816,9 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
     vfm.y1 = int64ToIntS(vsapi->propGetInt(in, "y1", 0, &err));
     if (err)
         vfm.y1 = 16;
-    scthresh = vsapi->propGetFloat(in, "scthresh", 0, &err);
+    vfm.scthresh = vsapi->propGetFloat(in, "scthresh", 0, &err);
     if (err)
-        scthresh = 12.0;
+        vfm.scthresh = 12.0;
     vfm.micmatch = int64ToIntS(vsapi->propGetInt(in, "micmatch", 0, &err));
     if (err)
         vfm.micmatch = 1;
@@ -801,7 +839,7 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
         return;
     }
 
-    if (scthresh < 0 || scthresh > 100) {
+    if (vfm.scthresh < 0 || vfm.scthresh > 100) {
         vsapi->setError(out, "VFM: Invalid scthresh specified");
         return;
     }
@@ -835,7 +873,23 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
         return;
     }
 
-    vfm.scthresh =  (int64_t)((vi->width * vi->height * 255.0 * scthresh) / 100.0);
+    vfm.scthresh = vfm.scthresh / 100.0;
+
+    if (vfm.micmatch == 1) {
+        VSMap *ret = invokePlaneDifference(vfm.node, core, vsapi);
+        vsapi->freeNode(vfm.node);
+        char *error = (char *)vsapi->getError(ret);
+        if (error) {
+            vsapi->freeMap(ret);
+            error = prefix_string(error, "VFM: ");
+            vsapi->setError(out, error);
+            free(error);
+            vsapi->freeNode(vfm.clip2);
+            return;
+        }
+        vfm.node = vsapi->propGetNode(ret, "clip", 0, 0);
+        vsapi->freeMap(ret);
+    }
 
     vfm.tpitchy = (vi->width&15) ? vi->width+16-(vi->width&15) : vi->width;
     vfm.tpitchuv = ((vi->width>>1)&15) ? (vi->width>>1)+16-((vi->width>>1)&15) : (vi->width>>1);
