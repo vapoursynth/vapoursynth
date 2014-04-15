@@ -2134,7 +2134,8 @@ typedef void (VS_CC \*VSInitPlugin)(VSConfigPlugin configFunc, VSRegisterFunctio
          unique.
 
          Only lowercase letters and the underscore should be used, and it
-         shouldn't be too long.
+         shouldn't be too long. Additionally, words that are special to
+         Python, e.g. "del", should be avoided.
 
          Example: "resize"
 
