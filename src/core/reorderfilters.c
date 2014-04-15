@@ -534,6 +534,287 @@ static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 }
 
 //////////////////////////////////////////
+// DuplicateFrames
+
+typedef struct {
+    VSNodeRef *node;
+    VSVideoInfo vi;
+
+    int *dups;
+    int num_dups;
+} DuplicateFramesData;
+
+static void VS_CC duplicateFramesInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
+    DuplicateFramesData *d = (DuplicateFramesData *) * instanceData;
+    vsapi->setVideoInfo(&d->vi, 1, node);
+}
+
+static const VSFrameRef *VS_CC duplicateFramesGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    DuplicateFramesData *d = (DuplicateFramesData *) * instanceData;
+
+    if (activationReason == arInitial) {
+        int i;
+
+        for (i = 0; i < d->num_dups; i++)
+            if (n > d->dups[i])
+                n--;
+            else
+                break;
+
+        *frameData = (void *)(intptr_t)n;
+
+        vsapi->requestFrameFilter(n, d->node, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        return vsapi->getFrameFilter((intptr_t)(*frameData), d->node, frameCtx);
+    }
+
+    return 0;
+}
+
+static void VS_CC duplicateFramesFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+    DuplicateFramesData *d = (DuplicateFramesData *)instanceData;
+
+    vsapi->freeNode(d->node);
+    free(d->dups);
+    free(d);
+}
+
+static void VS_CC duplicateFramesCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    DuplicateFramesData d;
+    DuplicateFramesData *data;
+    int i;
+
+    d.node = vsapi->propGetNode(in, "clip", 0, 0);
+    d.vi = *vsapi->getVideoInfo(d.node);
+
+    d.num_dups = vsapi->propNumElements(in, "frames");
+
+    d.dups = (int *)malloc(d.num_dups * sizeof(int));
+
+    for (i = 0; i < d.num_dups; i++) {
+        d.dups[i] = vsapi->propGetInt(in, "frames", i, 0);
+
+        if (d.dups[i] < 0 || (d.vi.numFrames && d.dups[i] > d.vi.numFrames - 1)) {
+            vsapi->setError(out, "DuplicateFrames: Out of bounds frame number.");
+            vsapi->freeNode(d.node);
+            free(d.dups);
+            return;
+        }
+    }
+
+    for (i = 0; i < d.num_dups - 1; i++)
+        if (d.dups[i] > d.dups[i + 1]) {
+            vsapi->setError(out, "DuplicateFrames: The frame numbers must be in ascending order.");
+            vsapi->freeNode(d.node);
+            free(d.dups);
+            return;
+        }
+
+    d.vi.numFrames += d.num_dups;
+
+    data = malloc(sizeof(d));
+    *data = d;
+
+    vsapi->createFilter(in, out, "DuplicateFrames", duplicateFramesInit, duplicateFramesGetFrame, duplicateFramesFree, fmParallel, nfNoCache, data, core);
+}
+
+//////////////////////////////////////////
+// DeleteFrames
+
+typedef struct {
+    VSNodeRef *node;
+    VSVideoInfo vi;
+
+    int *delete;
+    int num_delete;
+} DeleteFramesData;
+
+static void VS_CC deleteFramesInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
+    DeleteFramesData *d = (DeleteFramesData *) * instanceData;
+    vsapi->setVideoInfo(&d->vi, 1, node);
+}
+
+static const VSFrameRef *VS_CC deleteFramesGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    DeleteFramesData *d = (DeleteFramesData *) * instanceData;
+
+    if (activationReason == arInitial) {
+        int i;
+
+        for (i = 0; i < d->num_delete; i++)
+            if (n >= d->delete[i])
+                n++;
+            else
+                break;
+
+        *frameData = (void *)(intptr_t)n;
+
+        vsapi->requestFrameFilter(n, d->node, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        return vsapi->getFrameFilter((intptr_t)(*frameData), d->node, frameCtx);
+    }
+
+    return 0;
+}
+
+static void VS_CC deleteFramesFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+    DeleteFramesData *d = (DeleteFramesData *)instanceData;
+
+    vsapi->freeNode(d->node);
+    free(d->delete);
+    free(d);
+}
+
+static void VS_CC deleteFramesCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    DeleteFramesData d;
+    DeleteFramesData *data;
+    int i;
+
+    d.node = vsapi->propGetNode(in, "clip", 0, 0);
+    d.vi = *vsapi->getVideoInfo(d.node);
+
+    d.num_delete = vsapi->propNumElements(in, "frames");
+
+    d.delete = (int *)malloc(d.num_delete * sizeof(int));
+
+    for (i = 0; i < d.num_delete; i++) {
+        d.delete[i] = vsapi->propGetInt(in, "frames", i, 0);
+
+        if (d.delete[i] < 0 || (d.vi.numFrames && d.delete[i] > d.vi.numFrames - 1)) {
+            vsapi->setError(out, "DeleteFrames: Out of bounds frame number.");
+            vsapi->freeNode(d.node);
+            free(d.delete);
+            return;
+        }
+    }
+
+    for (i = 0; i < d.num_delete - 1; i++) {
+        if (d.delete[i] > d.delete[i + 1]) {
+            vsapi->setError(out, "DeleteFrames: The frame numbers must be in ascending order.");
+            vsapi->freeNode(d.node);
+            free(d.delete);
+            return;
+        }
+
+        if (d.delete[i] == d.delete[i + 1]) {
+            vsapi->setError(out, "DeleteFrames: Can't delete a frame more than once.");
+            vsapi->freeNode(d.node);
+            free(d.delete);
+            return;
+        }
+    }
+
+    d.vi.numFrames -= d.num_delete;
+
+    data = malloc(sizeof(d));
+    *data = d;
+
+    vsapi->createFilter(in, out, "DeleteFrames", deleteFramesInit, deleteFramesGetFrame, deleteFramesFree, fmParallel, nfNoCache, data, core);
+}
+
+//////////////////////////////////////////
+// FreezeFrames
+
+struct Freeze {
+    int first;
+    int last;
+    int replacement;
+};
+
+typedef struct {
+    VSNodeRef *node;
+    const VSVideoInfo *vi;
+
+    struct Freeze *freeze;
+    int num_freeze;
+} FreezeFramesData;
+
+static void VS_CC freezeFramesInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
+    FreezeFramesData *d = (FreezeFramesData *) * instanceData;
+    vsapi->setVideoInfo(d->vi, 1, node);
+}
+
+static const VSFrameRef *VS_CC freezeFramesGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    FreezeFramesData *d = (FreezeFramesData *) * instanceData;
+
+    if (activationReason == arInitial) {
+        int i;
+
+        if (n >= d->freeze[0].first && n <= d->freeze[d->num_freeze - 1].last)
+            for (i = 0; i < d->num_freeze; i++)
+                if (n >= d->freeze[i].first && n <= d->freeze[i].last) {
+                    n = d->freeze[i].replacement;
+                    break;
+                }
+
+        *frameData = (void *)(intptr_t)n;
+
+        vsapi->requestFrameFilter(n, d->node, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        return vsapi->getFrameFilter((intptr_t)(*frameData), d->node, frameCtx);
+    }
+
+    return 0;
+}
+
+static void VS_CC freezeFramesFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+    FreezeFramesData *d = (FreezeFramesData *)instanceData;
+
+    vsapi->freeNode(d->node);
+    free(d->freeze);
+    free(d);
+}
+
+static void VS_CC freezeFramesCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    FreezeFramesData d;
+    FreezeFramesData *data;
+    int i;
+
+    d.num_freeze = vsapi->propNumElements(in, "first");
+    if (d.num_freeze != vsapi->propNumElements(in, "last") || d.num_freeze != vsapi->propNumElements(in, "replacement")) {
+        vsapi->setError(out, "FreezeFrames: 'first', 'last', and 'replacement' must have the same length.");
+        return;
+    }
+
+    d.node = vsapi->propGetNode(in, "clip", 0, 0);
+    d.vi = vsapi->getVideoInfo(d.node);
+
+    d.freeze = (struct Freeze *)malloc(d.num_freeze * sizeof(struct Freeze));
+
+    for (i = 0; i < d.num_freeze; i++) {
+        d.freeze[i].first = vsapi->propGetInt(in, "first", i, 0);
+        d.freeze[i].last = vsapi->propGetInt(in, "last", i, 0);
+        d.freeze[i].replacement = vsapi->propGetInt(in, "replacement", i, 0);
+
+        if (d.freeze[i].first > d.freeze[i].last) {
+            int tmp = d.freeze[i].first;
+            d.freeze[i].first = d.freeze[i].last;
+            d.freeze[i].last = tmp;
+        }
+
+        if (d.freeze[i].first < 0 || (d.vi->numFrames && d.freeze[i].last > d.vi->numFrames - 1) ||
+            d.freeze[i].replacement < 0 || (d.vi->numFrames && d.freeze[i].replacement > d.vi->numFrames - 1)) {
+            vsapi->setError(out, "FreezeFrames: Out of bounds frame number(s).");
+            vsapi->freeNode(d.node);
+            free(d.freeze);
+            return;
+        }
+    }
+
+    for (i = 0; i < d.num_freeze - 1; i++)
+        if (d.freeze[i].last >= d.freeze[i + 1].first) {
+            vsapi->setError(out, "FreezeFrames: The frame ranges must not overlap and must be in ascending order.");
+            vsapi->freeNode(d.node);
+            free(d.freeze);
+            return;
+        }
+
+    data = malloc(sizeof(d));
+    *data = d;
+
+    vsapi->createFilter(in, out, "FreezeFrames", freezeFramesInit, freezeFramesGetFrame, freezeFramesFree, fmParallel, nfNoCache, data, core);
+}
+
+//////////////////////////////////////////
 // Init
 
 void VS_CC reorderInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
@@ -544,4 +825,7 @@ void VS_CC reorderInitialize(VSConfigPlugin configFunc, VSRegisterFunction regis
     registerFunc("Interleave", "clips:clip[];extend:int:opt;mismatch:int:opt;", interleaveCreate, 0, plugin);
     registerFunc("SelectEvery", "clip:clip;cycle:int;offsets:int[];", selectEveryCreate, 0, plugin);
     registerFunc("Splice", "clips:clip[];mismatch:int:opt;", spliceCreate, 0, plugin);
+    registerFunc("DuplicateFrames", "clip:clip;frames:int[];", duplicateFramesCreate, 0, plugin);
+    registerFunc("DeleteFrames", "clip:clip;frames:int[];", deleteFramesCreate, 0, plugin);
+    registerFunc("FreezeFrames", "clip:clip;first:int[];last:int[];replacement:int[];", freezeFramesCreate, 0, plugin);
 }

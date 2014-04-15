@@ -23,6 +23,9 @@ It is a rewrite of some of tritical's TIVTC filters.
          (p/c/n/b/u). Some of them may be unset (-1), depending on *micout*
          and *micmatch*.
 
+         These numbers represent the highest concentration of combed pixels
+         found in any block in the frame.
+
       _Combed
          1 if VFM thinks the frame is combed, 0 if not.
 
@@ -49,17 +52,19 @@ It is a rewrite of some of tritical's TIVTC filters.
 
       order
          Sets the field order of the clip. If this parameter has the wrong
-         value, VFM's output will be visibly wrong.
+         value, VFM's output will be visibly wrong in mode 0.
 
          0 - bottom field first
 
          1 - top field first
 
       field
-         Sets the field to match from. It is recommended to set this to the same
-         value as *order* unless you experience matching failures with that
-         setting. In certain circumstances changing the field that is used to
-         match from can have a large impact on matching performance.
+         Sets the field to match from. This is the field that VFM will take
+         from the current frame in case of p or n matches. It is recommended
+         to set this to the same value as *order* unless you experience
+         matching failures with that setting. In certain circumstances
+         changing the field that is used to match from can have a large
+         impact on matching performance.
 
          0 - bottom field
 
@@ -90,8 +95,8 @@ It is a rewrite of some of tritical's TIVTC filters.
             4 = 3-way match                                                          (p/c/n)
             5 = 3-way match + 4th/5th matches on combed                              (p/c/n + u/b)
 
-         The () at the end indicate the matches that would be used for that mode
-         assuming order=1 and field=1.
+         The parantheses at the end indicate the matches that would be used
+         for each mode assuming order=1 and field=1.
 
          0 is the fastest and 5 is the slowest.
 

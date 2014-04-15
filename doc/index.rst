@@ -16,6 +16,7 @@ Contents:
    gettingstarted
    pythonbindings
    pythonreference
+   autoloading
    vsfs
    pluginlist
    apireference
