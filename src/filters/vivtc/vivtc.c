@@ -749,8 +749,8 @@ static VSMap *invokePlaneDifference(VSNodeRef *node, VSCore *core, const VSAPI *
     vsapi->propSetData(args, "prop", prop, strlen(prop), paReplace);
     ret = vsapi->invoke(stdplugin, "PlaneDifference", args);
     if (vsapi->getError(ret)) {
-       vsapi->freeMap(args);
-       return ret;
+        vsapi->freeMap(args);
+        return ret;
     }
     node2 = vsapi->propGetNode(ret, "clip", 0, 0);
     vsapi->freeMap(ret);
