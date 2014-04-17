@@ -1,3 +1,10 @@
+r24:
+fixed mac compilation of genericfilters
+added FreezeFrames, DuplicateFrames and DeleteFrames, they can all delete/duplicate/freeze multiple frames with one command (nodame)
+mixed documentation improvements (nodame)
+fixed tracking of memory usage that was broken in r22 (nodame)
+vivtc now uses framedifference internally and runs completely in parallel, also minor metric reporting fixes (nodame)
+
 r23:
 fixed an issue with rearranging old order arguments for Lut2, Merge and MaskedMerge
 fixed bugs in rgvs mode 20, eedi3 crash on windows and genericfilters crash in canny
