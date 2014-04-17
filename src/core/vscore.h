@@ -269,7 +269,7 @@ public:
         if (!usedKiloBytes)
             delete this;
     }
-    MemoryUse() : freeOnZero(false) {
+    MemoryUse() : usedKiloBytes(0), freeOnZero(false) {
         maxMemoryUse = 1024*1024*1024;
     }
 };
