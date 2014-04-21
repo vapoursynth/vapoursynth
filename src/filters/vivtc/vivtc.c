@@ -1327,7 +1327,8 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
     vdm.vi.numFrames /= vdm.cycle;
     vdm.vi.numFrames *= vdm.cycle - 1;
     vdm.vi.numFrames += vdm.tail;
-    muldivRational(&vdm.vi.fpsNum, &vdm.vi.fpsDen, vdm.cycle-1, vdm.cycle);
+    if (vdm.vi.fpsNum && vdm.vi.fpsDen)
+        muldivRational(&vdm.vi.fpsNum, &vdm.vi.fpsDen, vdm.cycle-1, vdm.cycle);
 
     d = (VDecimateData *)malloc(sizeof(vdm));
     *d = vdm;

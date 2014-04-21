@@ -263,6 +263,8 @@ def configure(conf):
         if conf.env.DEST_CPU in ['x86', 'x86_64', 'x64', 'amd64', 'x86_amd64']:
             if conf.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin']:
                 dbgfmt = 'cv8'
+            elif conf.env.DEST_OS == 'darwin':
+                dbgfmt = 'null'
             else:
                 dbgfmt = 'dwarf2'
 

@@ -708,6 +708,10 @@ struct VSCoreInfo
 
       Version of the API.
 
+   .. c:member:: int numThreads
+
+      Number of worker threads.
+
    .. c:member:: int64_t maxFramebufferSize
 
       The framebuffer cache will be allowed to grow up to this size (bytes).
