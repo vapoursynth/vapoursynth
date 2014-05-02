@@ -1093,6 +1093,7 @@ static void VS_CC vdecimateInit(VSMap *in, VSMap *out, void **instanceData, VSNo
             free(vdm->bdiffs);
             free(vdm->vmi);
             vsapi->freeNode(vdm->node);
+            vsapi->freeNode(vdm->clip2);
             free(vdm);
             vsapi->setError(out, err);
             return;
@@ -1219,9 +1220,10 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
 
 static void VS_CC vdecimateFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     VDecimateData *vdm = (VDecimateData *)instanceData;
-    if (vdm->ovrfile) {
+    if (vdm->ovrfile)
         free(vdm->ovr);
-    }
+    vsapi->freeNode(vdm->node);
+    vsapi->freeNode(vdm->clip2);
     free(vdm->bdiffs);
     free(vdm->vmi);
     free(vdm);
