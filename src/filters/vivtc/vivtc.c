@@ -904,6 +904,11 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
 // VDecimate
 
 typedef struct {
+    int64_t num;
+    int64_t den;
+} FrameDuration;
+
+typedef struct {
     int64_t maxbdiff;
     int64_t totdiff;
 } VDInfo;
@@ -929,6 +934,7 @@ typedef struct {
     const char *ovrfile;
     int dryrun;
     char *drop;
+    FrameDuration *durations;
 } VDecimateData;
 
 static int64_t calcMetric(const VSFrameRef *f1, const VSFrameRef *f2, int64_t *totdiff, VDecimateData *vdm, const VSAPI *vsapi) {
@@ -1128,6 +1134,62 @@ static inline char findDropFrame(VDInfo *metrics, int cycleLength, int scthresh,
     return drop;
 }
 
+static inline void addRational(int64_t *num, int64_t *den, int64_t addnum, int64_t addden) {
+    if (*den == addden) {
+        *num += addnum;
+    } else {
+        int64_t temp = addden;
+        addnum *= *den;
+        addden *= *den;
+        *num *= temp;
+        *den *= temp;
+
+        *num += addnum;
+
+        // Simplify
+        muldivRational(num, den, 1, 1);
+    }
+}
+
+static void calculateNewDurations(const FrameDuration *oldDurations, FrameDuration *newDurations, int cycle, int drop) {
+    FrameDuration dropDuration = oldDurations[drop];
+    FrameDuration cycleDuration = { .num = 0, .den = 1 };
+    int missingDurations = 0;
+    int i;
+
+    for (i = 0; i < cycle; i++)
+        if (oldDurations[i].den == 0) {
+            missingDurations = 1;
+            break;
+        }
+
+    if (missingDurations) {
+        for (i = 0; i < cycle - 1; i++)
+            newDurations[i].num = newDurations[i].den = -1;
+        return;
+    }
+
+    for (i = 0; i < cycle; i++) {
+        if (i != drop) {
+            addRational(&cycleDuration.num, &cycleDuration.den, oldDurations[i].num, oldDurations[i].den);
+        }
+    }
+
+    for (i = 0; i < cycle - 1; i++) {
+        if (i == drop)
+            oldDurations++;
+
+        // newDuration = oldDuration / cycleDuration * dropDuration + oldDuration
+        *newDurations = *oldDurations;
+        muldivRational(&newDurations->num, &newDurations->den, cycleDuration.den, cycleDuration.num);
+        muldivRational(&newDurations->num, &newDurations->den, dropDuration.num, dropDuration.den);
+        addRational(&newDurations->num, &newDurations->den, oldDurations->num, oldDurations->den);
+
+        newDurations++;
+        oldDurations++;
+    }
+}
+
 static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     VDecimateData *vdm = (VDecimateData *)*instanceData;
     int i;
@@ -1149,11 +1211,17 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
 
             for (i = cyclestart; i < cycleend; i++)
                 vsapi->requestFrameFilter(i, vdm->node, frameCtx);
-        } else {
+        }
+
+        if (drop > -1) {
             int outputFrame = findOutputFrame(n, cyclestart, vdm->outCycle, drop, vdm->dryrun);
 
             vsapi->requestFrameFilter(outputFrame, vdm->clip2 ? vdm->clip2 : vdm->node, frameCtx);
         }
+
+        if (!vdm->dryrun && vdm->durations[n].den == 0)
+            for (i = cyclestart; i < cycleend; i++)
+                vsapi->requestFrameFilter(i, vdm->clip2 ? vdm->clip2 : vdm->node, frameCtx);
 
         return NULL;
     }
@@ -1186,14 +1254,21 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
 
             if (*drop < 0)
                 *drop = findDropFrame(&vdm->vmi[cyclestart], cycleend - cyclestart, vdm->scthresh, vdm->dupthresh);
+        }
 
-            if (vdm->clip2) {
-                outputFrame = findOutputFrame(n, cyclestart, vdm->outCycle, *drop, vdm->dryrun);
+        if (!vdm->dryrun && vdm->durations[n].den == 0) {
+            FrameDuration oldDurations[vdm->inCycle];
 
-                vsapi->requestFrameFilter(outputFrame, vdm->clip2, frameCtx);
-
-                return NULL;
+            for (i = cyclestart; i < cyclestart + vdm->inCycle; i++) {
+                const VSFrameRef *frame = vsapi->getFrameFilter(i, vdm->clip2 ? vdm->clip2 : vdm->node, frameCtx);
+                const VSMap *frameProps = vsapi->getFramePropsRO(frame);
+                int err;
+                oldDurations[i % vdm->inCycle].num = vsapi->propGetInt(frameProps, "_DurationNum", 0, &err);
+                oldDurations[i % vdm->inCycle].den = vsapi->propGetInt(frameProps, "_DurationDen", 0, &err);
+                vsapi->freeFrame(frame);
             }
+
+            calculateNewDurations(oldDurations, &vdm->durations[(n / vdm->outCycle) * vdm->outCycle], vdm->inCycle, *drop);
         }
 
         outputFrame = findOutputFrame(n, cyclestart, vdm->outCycle, *drop, vdm->dryrun);
@@ -1207,6 +1282,12 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
             vsapi->propSetInt(dstProps, "VDecimateDrop", outputFrame % vdm->inCycle == vdm->drop[cyclestart / vdm->inCycle], paReplace);
             vsapi->propSetInt(dstProps, "VDecimateTotalDiff", vdm->vmi[outputFrame].totdiff, paReplace);
             vsapi->propSetInt(dstProps, "VDecimateMaxBlockDiff", vdm->vmi[outputFrame].maxbdiff, paReplace);
+        } else {
+            if (vdm->durations[n].den > 0) {
+                dstProps = vsapi->getFramePropsRW(dst);
+                vsapi->propSetInt(dstProps, "_DurationNum", vdm->durations[n].num, paReplace);
+                vsapi->propSetInt(dstProps, "_DurationDen", vdm->durations[n].den, paReplace);
+            }
         }
 
         return dst;
@@ -1221,6 +1302,8 @@ static void VS_CC vdecimateFree(void *instanceData, VSCore *core, const VSAPI *v
     free(vdm->bdiffs);
     free(vdm->vmi);
     free(vdm->drop);
+    if (!vdm->dryrun)
+        free(vdm->durations);
     free(vdm);
 }
 
@@ -1346,12 +1429,20 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
 
     vdm.inputNumFrames = vdm.vi.numFrames;
     if (!vdm.dryrun) {
+        int durationsLength;
+
         vdm.tail = vdm.vi.numFrames % vdm.inCycle;
         vdm.vi.numFrames /= vdm.inCycle;
         vdm.vi.numFrames *= vdm.outCycle;
         vdm.vi.numFrames += vdm.tail;
         if (vdm.vi.fpsNum && vdm.vi.fpsDen)
             muldivRational(&vdm.vi.fpsNum, &vdm.vi.fpsDen, vdm.outCycle, vdm.inCycle);
+
+        // Allocate a bit more than necessary to avoid reading and writing
+        // past the end when the last cycle is incomplete.
+        durationsLength = ((vdm.vi.numFrames + vdm.outCycle - 1) / vdm.outCycle) * vdm.outCycle;
+        vdm.durations = (FrameDuration *)malloc(durationsLength * sizeof(FrameDuration));
+        memset(vdm.durations, 0, durationsLength * sizeof(FrameDuration));
     }
 
     d = (VDecimateData *)malloc(sizeof(vdm));
@@ -1367,7 +1458,6 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegiste
         "mchroma:int:opt;cthresh:int:opt;mi:int:opt;" \
         "chroma:int:opt;blockx:int:opt;blocky:int:opt;y0:int:opt;y1:int:opt;" \
         "scthresh:float:opt;micmatch:int:opt;micout:int:opt;clip2:clip:opt;", createVFM, NULL, plugin);
-    // adjust frame durations too/cfr it all?
     registerFunc("VDecimate", "clip:clip;cycle:int:opt;" \
         "chroma:int:opt;dupthresh:float:opt;scthresh:float:opt;" \
         "blockx:int:opt;blocky:int:opt;clip2:clip:opt;ovr:data:opt;dryrun:int:opt;", createVDecimate, NULL, plugin);
