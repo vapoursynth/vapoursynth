@@ -912,7 +912,8 @@ typedef struct {
     VSNodeRef *node;
     VSNodeRef *clip2;
     VSVideoInfo vi;
-    int cycle;
+    int inCycle;
+    int outCycle;
     int chroma;
     int tail;
     int inputNumFrames;
@@ -926,7 +927,7 @@ typedef struct {
     int64_t *bdiffs;
     VDInfo *vmi;
     const char *ovrfile;
-    char *ovr;
+    char *drop;
 } VDecimateData;
 
 static int64_t calcMetric(const VSFrameRef *f1, const VSFrameRef *f2, int64_t *totdiff, VDecimateData *vdm, const VSAPI *vsapi) {
@@ -996,11 +997,10 @@ static int64_t calcMetric(const VSFrameRef *f1, const VSFrameRef *f2, int64_t *t
     return maxdiff;
 }
 
-static int vdecimateLoadOVR(const char *ovrfile, char **overrides, int cycle, int numFrames, char err[80]) {
+static int vdecimateLoadOVR(const char *ovrfile, char *drop, int cycle, int numFrames, char err[80]) {
     int line = 0;
     char buf[80];
     char* pos;
-    char *ovr;
 #ifdef _WIN32
     FILE* moo = NULL;
     int len, ret;
@@ -1020,9 +1020,6 @@ static int vdecimateLoadOVR(const char *ovrfile, char **overrides, int cycle, in
         sprintf(err, "VDecimate: can't open ovr file");
         return 1;
     }
-
-    ovr = malloc(numFrames);
-    memset(ovr, 0, numFrames);
 
     memset(buf, 0, sizeof(buf));
     while (fgets(buf, 80, moo)) {
@@ -1049,12 +1046,12 @@ static int vdecimateLoadOVR(const char *ovrfile, char **overrides, int cycle, in
         } else {
             sprintf(err, "VDecimate: sscanf failed to parse override at line %d", line);
             fclose(moo);
-            free(ovr);
             return 1;
         }
 
         if (frame >= 0 && frame < numFrames && drop_char == '-') {
-            ovr[frame] = 1;
+            if (drop[frame / cycle] < 0)
+                drop[frame / cycle] = frame % cycle;
         } else if (frame_start >= 0 && frame_start < numFrames &&
                    frame_end >= 0 && frame_end < numFrames &&
                    frame_start < frame_end &&
@@ -1062,12 +1059,12 @@ static int vdecimateLoadOVR(const char *ovrfile, char **overrides, int cycle, in
                    drop_pos > -1) {
             int i;
             for (i = frame_start + drop_pos; i <= frame_end; i += cycle) {
-                ovr[i] = 1;
+                if (drop[i / cycle] < 0)
+                    drop[i / cycle] = i % cycle;
             }
         } else {
             sprintf(err, "VDecimate: Bad override at line %d in ovr", line);
             fclose(moo);
-            free(ovr);
             return 1;
         }
 
@@ -1077,7 +1074,6 @@ static int vdecimateLoadOVR(const char *ovrfile, char **overrides, int cycle, in
     }
 
     fclose(moo);
-    *overrides = ovr;
     return 0;
 }
 
@@ -1088,8 +1084,8 @@ static void VS_CC vdecimateInit(VSMap *in, VSMap *out, void **instanceData, VSNo
     if (vdm->ovrfile) {
         char err[80];
 
-        vdm->ovr = NULL;
-        if (vdecimateLoadOVR(vdm->ovrfile, &vdm->ovr, vdm->cycle, vdm->inputNumFrames, err)) {
+        if (vdecimateLoadOVR(vdm->ovrfile, vdm->drop, vdm->inCycle, vdm->inputNumFrames, err)) {
+            free(vdm->drop);
             free(vdm->bdiffs);
             free(vdm->vmi);
             vsapi->freeNode(vdm->node);
@@ -1101,131 +1097,125 @@ static void VS_CC vdecimateInit(VSMap *in, VSMap *out, void **instanceData, VSNo
     }
 }
 
+static inline int findOutputFrame(int requestedFrame, int cycleStart, int outCycle, int drop) {
+    int outputFrame;
+    int frameInOutputCycle = requestedFrame % outCycle;
+    outputFrame = cycleStart + frameInOutputCycle;
+    if (frameInOutputCycle >= drop)
+        outputFrame++;
+
+    return outputFrame;
+}
+
+static inline char findDropFrame(VDInfo *metrics, int cycleLength, int scthresh, int dupthresh) {
+    int scpos = -1;
+    int duppos = -1;
+    int lowest = 0;
+    char drop;
+    int i;
+
+    // make a decision
+    // precalculate the position of the lowest dup metric frame
+    // the last sc and the lowest dup, if any
+
+    for (i = 0; i < cycleLength; i++) {
+        if (metrics[i].totdiff > scthresh)
+            scpos = i;
+        if (metrics[i].maxbdiff < metrics[lowest].maxbdiff)
+            lowest = i;
+    }
+
+    if (metrics[lowest].maxbdiff < dupthresh)
+        duppos = lowest;
+
+    // no dups so drop the frame right after the sc to keep things smooth
+    if (scpos >= 0 && duppos < 0) {
+        drop = scpos;
+    } else {
+        drop = lowest;
+    }
+
+    return drop;
+}
+
 static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     VDecimateData *vdm = (VDecimateData *)*instanceData;
-    int hasall = 1;
     int i;
 
     if (activationReason == arInitial) {
-        int prevreqd = 0;
-        int cyclestart = (n / (vdm->cycle - 1)) * vdm->cycle;
-        int cycleend = cyclestart + vdm->cycle;
+        int cyclestart, cycleend;
+        char drop;
+
+        cyclestart = (n / vdm->outCycle) * vdm->inCycle;
+        cycleend = cyclestart + vdm->inCycle;
         if (cycleend > vdm->inputNumFrames)
             cycleend = vdm->inputNumFrames;
 
+        drop = vdm->drop[cyclestart / vdm->inCycle];
 
-        for (i = cyclestart; i < cycleend; i++) {
-            if (vdm->vmi[i].maxbdiff < 0) {
-                hasall = 0;
-                if (!prevreqd && i-1 >= 0)
-                    vsapi->requestFrameFilter(i - 1, vdm->node, frameCtx);
+        if (drop < 0) {
+            if (cyclestart > 0)
+                vsapi->requestFrameFilter(cyclestart - 1, vdm->node, frameCtx);
+
+            for (i = cyclestart; i < cycleend; i++)
                 vsapi->requestFrameFilter(i, vdm->node, frameCtx);
-                prevreqd = 1;
-            } else {
-                prevreqd = 0;
-            }
+        } else {
+            int outputFrame = findOutputFrame(n, cyclestart, vdm->outCycle, drop);
+
+            vsapi->requestFrameFilter(outputFrame, vdm->clip2 ? vdm->clip2 : vdm->node, frameCtx);
         }
-        *frameData = (void *)-1;
+
+        return NULL;
     }
 
-    if (activationReason == arAllFramesReady || (hasall && activationReason == arInitial)) {
-        int fin, fcut;
-        intptr_t fout;
-        int cyclestart, cycleend, lowest;
-        int scpos = -1;
-        int duppos = -1;
-        int override = -1;
+    if (activationReason == arAllFramesReady) {
+        int outputFrame;
+        int cyclestart, cycleend;
+        char *drop;
 
-        intptr_t rframe = (intptr_t)*frameData;
-        if(rframe >= 0) {
-            if (vdm->clip2)
-                return vsapi->getFrameFilter(rframe, vdm->clip2, frameCtx);
-            else
-                return vsapi->getFrameFilter(rframe, vdm->node, frameCtx);
-        }
+        cyclestart = (n / vdm->outCycle) * vdm->inCycle;
+        cycleend = cyclestart + vdm->inCycle;
 
-        // calculate all the needed metrics
-        cyclestart = (n / (vdm->cycle - 1)) * vdm->cycle;
-        cycleend = cyclestart + vdm->cycle;
         if (cycleend > vdm->inputNumFrames)
             cycleend = vdm->inputNumFrames;
 
-        if (vdm->ovrfile) {
+        drop = &vdm->drop[cyclestart / vdm->inCycle];
+
+        if (*drop < 0) {
+            // Calculate metrics
             for (i = cyclestart; i < cycleend; i++) {
-                if (vdm->ovr[i]) {
-                    override = i;
-                    break;
-                }
+                const VSFrameRef *prv = vsapi->getFrameFilter(VSMAX(i - 1, 0), vdm->node, frameCtx);
+                const VSFrameRef *cur = vsapi->getFrameFilter(i, vdm->node, frameCtx);
+                vdm->vmi[i].maxbdiff = calcMetric(prv, cur, &vdm->vmi[i].totdiff, vdm, vsapi);
+                vsapi->freeFrame(prv);
+                vsapi->freeFrame(cur);
+            }
+
+            *drop = findDropFrame(&vdm->vmi[cyclestart], cycleend - cyclestart, vdm->scthresh, vdm->dupthresh);
+
+            if (vdm->clip2) {
+                outputFrame = findOutputFrame(n, cyclestart, vdm->outCycle, *drop);
+
+                vsapi->requestFrameFilter(outputFrame, vdm->clip2, frameCtx);
+
+                return NULL;
             }
         }
 
-        if (override == -1) {
-            for (i = cyclestart; i < cycleend; i++) {
-                if (vdm->vmi[i].maxbdiff < 0) {
-                    const VSFrameRef *prv = vsapi->getFrameFilter(VSMAX(i - 1, 0), vdm->node, frameCtx);
-                    const VSFrameRef *cur = vsapi->getFrameFilter(i, vdm->node, frameCtx);
-                    vdm->vmi[i].maxbdiff = calcMetric(prv, cur, &vdm->vmi[i].totdiff, vdm, vsapi);
-                    vsapi->freeFrame(prv);
-                    vsapi->freeFrame(cur);
-                }
-            }
+        outputFrame = findOutputFrame(n, cyclestart, vdm->outCycle, *drop);
 
-            // make a decision
-            // precalculate the position of the lowest dup metric frame
-            // the last sc and the lowest dup, if any
-
-            lowest = cyclestart;
-            for (i = cyclestart; i < cycleend; i++) {
-                if (vdm->vmi[i].totdiff > vdm->scthresh)
-                    scpos = i;
-                if (vdm->vmi[i].maxbdiff < vdm->vmi[lowest].maxbdiff)
-                    lowest = i;
-            }
-
-            if (vdm->vmi[lowest].maxbdiff < vdm->dupthresh)
-                duppos = lowest;
-
-            // if there is no scenechange simply drop the frame with lowest difference
-            // if there is a scenechange see if any frame qualifies as a duplicate and drop it
-            // otherwise drop the first frame right after the sc to keep the motion smooth
-
-            fin = n % (vdm->cycle - 1);
-            // no dups so drop the frame right after the sc to keep things smooth
-            if (scpos >= 0 && duppos < 0) {
-                fcut = scpos % vdm->cycle;
-            } else {
-                fcut = lowest % vdm->cycle;
-            }
-
-        } else {
-            fin = n % (vdm->cycle - 1);
-            fcut = override % vdm->cycle;
-        }
-
-        fout = cyclestart + (fcut > fin ? fin : (fin + 1));
-
-        if (vdm->clip2) {
-            vsapi->requestFrameFilter(fout, vdm->clip2, frameCtx);
-        } else {
-            const VSFrameRef *ftry = vsapi->getFrameFilter(fout, vdm->node, frameCtx);
-            if (ftry)
-                return ftry;
-            vsapi->requestFrameFilter(fout, vdm->node, frameCtx);
-        }
-        *frameData = (void *)fout;
-
+        return vsapi->getFrameFilter(outputFrame, vdm->clip2 ? vdm->clip2 : vdm->node, frameCtx);
     }
     return NULL;
 }
 
 static void VS_CC vdecimateFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     VDecimateData *vdm = (VDecimateData *)instanceData;
-    if (vdm->ovrfile)
-        free(vdm->ovr);
     vsapi->freeNode(vdm->node);
     vsapi->freeNode(vdm->clip2);
     free(vdm->bdiffs);
     free(vdm->vmi);
+    free(vdm->drop);
     free(vdm);
 }
 
@@ -1236,9 +1226,9 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
     int i, err, max_value;
     double dupthresh, scthresh;
 
-    vdm.cycle = int64ToIntS(vsapi->propGetInt(in, "cycle", 0, &err));
+    vdm.inCycle = int64ToIntS(vsapi->propGetInt(in, "cycle", 0, &err));
     if (err)
-        vdm.cycle = 5;
+        vdm.inCycle = 5;
     vdm.blockx = int64ToIntS(vsapi->propGetInt(in, "blockx", 0, &err));
     if (err)
         vdm.blockx = 32;
@@ -1252,7 +1242,7 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
     if (err)
         scthresh = 15.0;
 
-    if (vdm.cycle < 2 || vdm.cycle > 25) {
+    if (vdm.inCycle < 2 || vdm.inCycle > 25) {
         vsapi->setError(out, "VDecimate: Invalid cycle size specified");
         return;
     }
@@ -1326,17 +1316,22 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
         vdm.vmi[i].totdiff = -1;
     }
 
+    vdm.drop = (char *)malloc(vdm.vi.numFrames / vdm.inCycle + 1);
+    memset(vdm.drop, -1, vdm.vi.numFrames / vdm.inCycle + 1);
+
+    vdm.outCycle = vdm.inCycle - 1;
+
     vdm.inputNumFrames = vdm.vi.numFrames;
-    vdm.tail = vdm.vi.numFrames % vdm.cycle;
-    vdm.vi.numFrames /= vdm.cycle;
-    vdm.vi.numFrames *= vdm.cycle - 1;
+    vdm.tail = vdm.vi.numFrames % vdm.inCycle;
+    vdm.vi.numFrames /= vdm.inCycle;
+    vdm.vi.numFrames *= vdm.outCycle;
     vdm.vi.numFrames += vdm.tail;
     if (vdm.vi.fpsNum && vdm.vi.fpsDen)
-        muldivRational(&vdm.vi.fpsNum, &vdm.vi.fpsDen, vdm.cycle-1, vdm.cycle);
+        muldivRational(&vdm.vi.fpsNum, &vdm.vi.fpsDen, vdm.outCycle, vdm.inCycle);
 
     d = (VDecimateData *)malloc(sizeof(vdm));
     *d = vdm;
-    vsapi->createFilter(in, out, "VDecimate", vdecimateInit, vdecimateGetFrame, vdecimateFree, fmUnordered, 0, d, core);
+    vsapi->createFilter(in, out, "VDecimate", vdecimateInit, vdecimateGetFrame, vdecimateFree, fmSerial, 0, d, core);
 }
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin)
