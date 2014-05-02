@@ -1080,21 +1080,6 @@ static int vdecimateLoadOVR(const char *ovrfile, char *drop, int cycle, int numF
 static void VS_CC vdecimateInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     VDecimateData *vdm = (VDecimateData *)*instanceData;
     vsapi->setVideoInfo(&vdm->vi, 1, node);
-
-    if (vdm->ovrfile) {
-        char err[80];
-
-        if (vdecimateLoadOVR(vdm->ovrfile, vdm->drop, vdm->inCycle, vdm->inputNumFrames, err)) {
-            free(vdm->drop);
-            free(vdm->bdiffs);
-            free(vdm->vmi);
-            vsapi->freeNode(vdm->node);
-            vsapi->freeNode(vdm->clip2);
-            free(vdm);
-            vsapi->setError(out, err);
-            return;
-        }
-    }
 }
 
 static inline int findOutputFrame(int requestedFrame, int cycleStart, int outCycle, int drop) {
@@ -1318,6 +1303,20 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
 
     vdm.drop = (char *)malloc(vdm.vi.numFrames / vdm.inCycle + 1);
     memset(vdm.drop, -1, vdm.vi.numFrames / vdm.inCycle + 1);
+
+    if (vdm.ovrfile) {
+        char err[80];
+
+        if (vdecimateLoadOVR(vdm.ovrfile, vdm.drop, vdm.inCycle, vdm.vi.numFrames, err)) {
+            free(vdm.drop);
+            free(vdm.bdiffs);
+            free(vdm.vmi);
+            vsapi->freeNode(vdm.node);
+            vsapi->freeNode(vdm.clip2);
+            vsapi->setError(out, err);
+            return;
+        }
+    }
 
     vdm.outCycle = vdm.inCycle - 1;
 
