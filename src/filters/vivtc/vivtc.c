@@ -721,6 +721,8 @@ static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void **i
 
 static void VS_CC vfmFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     VFMData *vfm = (VFMData *)instanceData;
+    vsapi->freeNode(vfm->node);
+    vsapi->freeNode(vfm->clip2);
     free(vfm);
 }
 
