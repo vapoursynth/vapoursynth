@@ -927,6 +927,7 @@ typedef struct {
     int64_t *bdiffs;
     VDInfo *vmi;
     const char *ovrfile;
+    int dryrun;
     char *drop;
 } VDecimateData;
 
@@ -1082,14 +1083,18 @@ static void VS_CC vdecimateInit(VSMap *in, VSMap *out, void **instanceData, VSNo
     vsapi->setVideoInfo(&vdm->vi, 1, node);
 }
 
-static inline int findOutputFrame(int requestedFrame, int cycleStart, int outCycle, int drop) {
-    int outputFrame;
-    int frameInOutputCycle = requestedFrame % outCycle;
-    outputFrame = cycleStart + frameInOutputCycle;
-    if (frameInOutputCycle >= drop)
-        outputFrame++;
+static inline int findOutputFrame(int requestedFrame, int cycleStart, int outCycle, int drop, int dryrun) {
+    if (dryrun)
+        return requestedFrame;
+    else {
+        int outputFrame;
+        int frameInOutputCycle = requestedFrame % outCycle;
+        outputFrame = cycleStart + frameInOutputCycle;
+        if (frameInOutputCycle >= drop)
+            outputFrame++;
 
-    return outputFrame;
+        return outputFrame;
+    }
 }
 
 static inline char findDropFrame(VDInfo *metrics, int cycleLength, int scthresh, int dupthresh) {
@@ -1138,14 +1143,14 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
 
         drop = vdm->drop[cyclestart / vdm->inCycle];
 
-        if (drop < 0) {
+        if (drop < 0 || (vdm->dryrun && vdm->vmi[cyclestart].totdiff < 0)) {
             if (cyclestart > 0)
                 vsapi->requestFrameFilter(cyclestart - 1, vdm->node, frameCtx);
 
             for (i = cyclestart; i < cycleend; i++)
                 vsapi->requestFrameFilter(i, vdm->node, frameCtx);
         } else {
-            int outputFrame = findOutputFrame(n, cyclestart, vdm->outCycle, drop);
+            int outputFrame = findOutputFrame(n, cyclestart, vdm->outCycle, drop, vdm->dryrun);
 
             vsapi->requestFrameFilter(outputFrame, vdm->clip2 ? vdm->clip2 : vdm->node, frameCtx);
         }
@@ -1154,6 +1159,9 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
     }
 
     if (activationReason == arAllFramesReady) {
+        const VSFrameRef *src;
+        VSFrameRef *dst;
+        VSMap *dstProps;
         int outputFrame;
         int cyclestart, cycleend;
         char *drop;
@@ -1166,7 +1174,7 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
 
         drop = &vdm->drop[cyclestart / vdm->inCycle];
 
-        if (*drop < 0) {
+        if (*drop < 0 || (vdm->dryrun && vdm->vmi[cyclestart].totdiff < 0)) {
             // Calculate metrics
             for (i = cyclestart; i < cycleend; i++) {
                 const VSFrameRef *prv = vsapi->getFrameFilter(VSMAX(i - 1, 0), vdm->node, frameCtx);
@@ -1176,10 +1184,11 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
                 vsapi->freeFrame(cur);
             }
 
-            *drop = findDropFrame(&vdm->vmi[cyclestart], cycleend - cyclestart, vdm->scthresh, vdm->dupthresh);
+            if (*drop < 0)
+                *drop = findDropFrame(&vdm->vmi[cyclestart], cycleend - cyclestart, vdm->scthresh, vdm->dupthresh);
 
             if (vdm->clip2) {
-                outputFrame = findOutputFrame(n, cyclestart, vdm->outCycle, *drop);
+                outputFrame = findOutputFrame(n, cyclestart, vdm->outCycle, *drop, vdm->dryrun);
 
                 vsapi->requestFrameFilter(outputFrame, vdm->clip2, frameCtx);
 
@@ -1187,9 +1196,20 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
             }
         }
 
-        outputFrame = findOutputFrame(n, cyclestart, vdm->outCycle, *drop);
+        outputFrame = findOutputFrame(n, cyclestart, vdm->outCycle, *drop, vdm->dryrun);
 
-        return vsapi->getFrameFilter(outputFrame, vdm->clip2 ? vdm->clip2 : vdm->node, frameCtx);
+        src = vsapi->getFrameFilter(outputFrame, vdm->clip2 ? vdm->clip2 : vdm->node, frameCtx);
+        dst = vsapi->copyFrame(src, core);
+        vsapi->freeFrame(src);
+
+        if (vdm->dryrun) {
+            dstProps = vsapi->getFramePropsRW(dst);
+            vsapi->propSetInt(dstProps, "VDecimateDrop", outputFrame % vdm->inCycle == vdm->drop[cyclestart / vdm->inCycle], paReplace);
+            vsapi->propSetInt(dstProps, "VDecimateTotalDiff", vdm->vmi[outputFrame].totdiff, paReplace);
+            vsapi->propSetInt(dstProps, "VDecimateMaxBlockDiff", vdm->vmi[outputFrame].maxbdiff, paReplace);
+        }
+
+        return dst;
     }
     return NULL;
 }
@@ -1285,6 +1305,7 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
 
     vdm.ovrfile = vsapi->propGetData(in, "ovr", 0, &err);
 
+    vdm.dryrun = !!vsapi->propGetInt(in, "dryrun", 0, &err);
 
     max_value = (1 << vi->format->bitsPerSample) - 1;
     // Casting max_value to int64_t to avoid losing the high 32 bits of the result
@@ -1318,15 +1339,20 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
         }
     }
 
-    vdm.outCycle = vdm.inCycle - 1;
+    if (vdm.dryrun)
+        vdm.outCycle = vdm.inCycle;
+    else
+        vdm.outCycle = vdm.inCycle - 1;
 
     vdm.inputNumFrames = vdm.vi.numFrames;
-    vdm.tail = vdm.vi.numFrames % vdm.inCycle;
-    vdm.vi.numFrames /= vdm.inCycle;
-    vdm.vi.numFrames *= vdm.outCycle;
-    vdm.vi.numFrames += vdm.tail;
-    if (vdm.vi.fpsNum && vdm.vi.fpsDen)
-        muldivRational(&vdm.vi.fpsNum, &vdm.vi.fpsDen, vdm.outCycle, vdm.inCycle);
+    if (!vdm.dryrun) {
+        vdm.tail = vdm.vi.numFrames % vdm.inCycle;
+        vdm.vi.numFrames /= vdm.inCycle;
+        vdm.vi.numFrames *= vdm.outCycle;
+        vdm.vi.numFrames += vdm.tail;
+        if (vdm.vi.fpsNum && vdm.vi.fpsDen)
+            muldivRational(&vdm.vi.fpsNum, &vdm.vi.fpsDen, vdm.outCycle, vdm.inCycle);
+    }
 
     d = (VDecimateData *)malloc(sizeof(vdm));
     *d = vdm;
@@ -1341,9 +1367,8 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegiste
         "mchroma:int:opt;cthresh:int:opt;mi:int:opt;" \
         "chroma:int:opt;blockx:int:opt;blocky:int:opt;y0:int:opt;y1:int:opt;" \
         "scthresh:float:opt;micmatch:int:opt;micout:int:opt;clip2:clip:opt;", createVFM, NULL, plugin);
-    // add metrics output
     // adjust frame durations too/cfr it all?
     registerFunc("VDecimate", "clip:clip;cycle:int:opt;" \
         "chroma:int:opt;dupthresh:float:opt;scthresh:float:opt;" \
-        "blockx:int:opt;blocky:int:opt;clip2:clip:opt;ovr:data:opt;", createVDecimate, NULL, plugin);
+        "blockx:int:opt;blocky:int:opt;clip2:clip:opt;ovr:data:opt;dryrun:int:opt;", createVDecimate, NULL, plugin);
 }
