@@ -2,7 +2,7 @@ VapourSynth C API Reference
 ===========================
 
 See the example filters in the sdk dir. Reading simplefilters.c, which contains
-almost all built-in functions, can also be very helpful.
+several built-in functions, can also be very helpful.
 
 Public Headers
 ##############
