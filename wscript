@@ -1,510 +1,312 @@
-import glob, os, subprocess, sys
-from waflib import Build, Task, TaskGen, Utils
+import sys, os, re, glob, subprocess
+sys.path.insert(0, os.path.join(os.getcwd(), 'waftools'))
+sys.path.insert(0, os.getcwd())
+from waflib.Configure import conf
+from waflib import Build, Utils
+from waftools.checks.generic import *
+from waftools.checks.custom import *
 
-APPNAME = 'VapourSynth'
 VERSION = '23'
 
-TOP = os.curdir
-OUT = 'build'
+libav_pkg_config_checks = [
+    'libavutil',   '>= 52.3.0',
+    'libavcodec',  '> 54.34.0',
+    'libswscale',  '>= 2.0.0'
+]
 
-class docs(Task.Task):
-    "Build Sphinx documentation"
+system_dependencies = [
+    {
+        'name': 'os-windows',
+        'desc': 'Windows',
+        'deps_any': ['os-win32', 'os-cygwin', 'os-msys', 'os-uwin'],
+        'func': check_true
+    },
+    {
+        'name': 'cpu-x86',
+        'desc': 'x86 CPU',
+        'func': check_cpu_x86
+    },
+    {
+        'name': 'cpu-x86_64',
+        'desc': 'x86_64 CPU',
+        'func': check_cpu_x86_64
+    }
+]
 
-    ext_out = ['.html']
-    inst_to = None
-    color = 'PINK'
+main_dependencies = [
+    {
+        'name': 'noexecstack',
+        'desc': 'compiler support for noexecstack',
+        'global': True,
+        'func': check_cc(linkflags='-Wl,-z,noexecstack')
+    },
+    {
+        'name': 'libdl',
+        'desc': 'dynamic loader',
+        'func': check_libs(['dl'], check_statement('dlfcn.h', 'dlopen("", 0)'))
+    },
+    {
+        'name': 'dlopen',
+        'desc': 'dlopen',
+        'global': True,
+        'deps_any': [ 'libdl', 'os-windows' ],
+        'func': check_true
+    },
+    {
+        'name': 'libm',
+        'desc': '-lm',
+        'global': True,
+        'func': check_cc(lib='m')
+    },
+    {
+        'name': 'python3',
+        'desc': 'Python 3',
+        'func': check_python
+    },
+    {
+        'name': 'sphinx',
+        'desc': 'Sphinx',
+        'func': check_sphinx
+    },
+    {
+        'name': 'ffmpeg',
+        'desc': 'FFmpeg/libav',
+        'func': check_pkg_config(*libav_pkg_config_checks)
+    }
+]
 
-    def run(self):
-        subprocess.Popen('make html BUILDDIR={0}'.format(os.path.join(os.pardir, OUT)),
-                         shell = True,
-                         cwd = 'doc',
-                         stdout = subprocess.PIPE).wait()
+build_options = [
+    {
+        'name': '--shared',
+        'desc': 'shared libraries',
+        'default': 'enable',
+        'func': check_true
+    },
+    {
+        'name': '--static',
+        'desc': 'static libraries',
+        'default': 'disable',
+        'func': check_true
+    },
+    {
+        'name': '--debug',
+        'desc': 'debug build',
+        'default': 'disable',
+        'func': check_true
+    }
+]
 
-@TaskGen.feature('docs')
-@TaskGen.before_method('process_source')
-def apply_rst(self):
-    rst_nodes = []
-    no_nodes = []
+features = [
+    {
+        'name': '--vapoursynth',
+        'desc': 'core library',
+        'deps_any': ['shared', 'static'],
+        'deps': ['dlopen', 'ffmpeg'],
+        'default': 'enable',
+        'func': check_true
+    },
+    {
+        'name': '--avisynth-compat',
+        'desc': 'AviSynth compatibility layer',
+        'deps': ['vapoursynth', 'os-windows'],
+        'func': check_true
+    },
+    {
+        'name': '--vapoursynth-script',
+        'desc': 'Python scripting',
+        'deps_any': ['shared', 'static'],
+        'deps': ['dlopen', 'python3'],
+        'func': check_true
+    },
+    {
+        'name': '--vspipe',
+        'desc': 'VSPipe',
+        'deps': ['vapoursynth', 'vapoursynth-script'],
+        'func': check_true
+    },
+    {
+        'name': '--filters',
+        'desc': 'bundled filter plugins',
+        'default': 'enable',
+        'func': check_true
+    },
+    {
+        'name': '--docs',
+        'desc': 'HTML documentation',
+        'deps': ['sphinx'],
+        'func': check_true
+    },
+    {
+        'name': '--examples',
+        'desc': 'SDK examples',
+        'default': 'disable',
+        'func': check_true
+    }
+]
 
-    for x in self.to_nodes(self.source):
-        if x.name.endswith('.rst'):
-            rst_nodes.append(x)
-        else:
-            no_nodes.append(x)
+filter_dependencies = [
+    {
+        'name': 'libass',
+        'desc': 'libass',
+        'func': check_pkg_config('libass')
+    },
+    {
+        'name': 'tesseract',
+        'desc': 'Tesseract',
+        'func': check_pkg_config('tesseract')
+    }
+]
 
-    self.source = no_nodes
+filters = [
+    {
+        'name': '--assvapour',
+        'desc': 'AssVapour',
+        'deps': ['libass'],
+        'func': check_true
+    },
+    {
+        'name': '--eedi3',
+        'desc': 'EEDI3',
+        'func': check_true
+    },
+    {
+        'name': '--morpho',
+        'desc': 'Morpho',
+        'func': check_true
+    },
+    {
+        'name': '--ocr',
+        'desc': 'OCR',
+        'deps': ['tesseract'],
+        'func': check_true
+    },
+    {
+        'name': '--removegrain',
+        'desc': 'RemoveGrain',
+        'func': check_true
+    },
+    {
+        'name': '--vinverse',
+        'desc': 'Vinverse',
+        'func': check_true
+    },
+    {
+        'name': '--vivtc',
+        'desc': 'VIVTC',
+        'func': check_true
+    }
+]
 
-    inst = getattr(self, 'install_path', '${DOCDIR}')
-    mod = getattr(self, 'chmod', Utils.O644)
-
-    bld_nodes = []
-    i = 0
-
-    for node in rst_nodes:
-        n = self.path.find_node(OUT).make_node('html')
-
-        cur = node.parent
-        dirs = []
-
-        while not cur is self.path.find_node('doc'):
-            dirs.append(cur)
-            cur = cur.parent
-
-        for dir in reversed(dirs):
-            n = n.make_node(dir.name)
-
-        n = n.make_node(node.name).change_ext('.html')
-
-        bld_nodes.append(n)
-
-        if inst:
-            path = inst
-
-            for dir in reversed(dirs):
-                path = os.path.join(path, dir.name)
-
-            setattr(self, 'install_task_{0}'.format(i), self.bld.install_files(path, n, env = self.env, chmod = mod))
-
-        i += 1
-
-    self.rst_task = self.create_task('docs', rst_nodes, bld_nodes)
+_INSTALL_DIRS_LIST = [
+    ('bindir',      '${PREFIX}/bin',                'binary files'),
+    ('includedir',  '${PREFIX}/include',            'header files'),
+    ('libdir',      '${PREFIX}/lib',                'library files'),
+    ('plugindir',   '${LIBDIR}/vapoursynth',        'plugins'),
+    ('datadir',     '${PREFIX}/share',              'data files'),
+    ('docdir',      '${DATADIR}/doc/vapoursynth',   'documentation files')
+]
 
 def options(opt):
     opt.load('compiler_c')
     opt.load('compiler_cxx')
+    opt.load('features')
 
-    opt.add_option('--libdir', action = 'store', default = '${PREFIX}/lib', help = 'library installation directory')
-    opt.add_option('--plugindir', action = 'store', default = '${LIBDIR}/vapoursynth', help = 'plugin installation directory')
-    opt.add_option('--docdir', action = 'store', default = '${PREFIX}/share/doc/vapoursynth', help = 'documentation installation directory')
-    opt.add_option('--includedir', action = 'store', default = '${PREFIX}/include/vapoursynth', help = 'header installation directory')
+    group = opt.get_option_group("build and install options")
+    for ident, default, desc in _INSTALL_DIRS_LIST:
+        group.add_option('--{0}'.format(ident),
+            type    = 'string',
+            dest    = ident,
+            default = default,
+            help    = 'directory for installing {0} [{1}]' \
+                      .format(desc, default))
 
-    opt.add_option('--mode', action = 'store', default = 'release', help = 'the mode to compile in (debug/release)')
+    opt.parse_features('build and install options', build_options)
+    opt.parse_features('features', features)
 
-    opt.add_option('--shared', action = 'store', default = 'true', help = 'build shared libraries (true/false)')
-    opt.add_option('--static', action = 'store', default = 'false', help = 'build static libraries (true/false)')
+    for f in filters:
+        f['groups'] = (f.get('groups') or []) + ['filters']
+    opt.parse_features('filters', filters)
 
-    opt.add_option('--core', action = 'store', default = 'true', help = 'build the libvapoursynth library (true/false)')
-    opt.add_option('--avisynth', action = 'store', default = 'true', help = 'build Avisynth compatibility layer (true/false)')
-    opt.add_option('--script', action = 'store', default = 'true', help = 'build the libvapoursynth-script library (true/false)')
-    opt.add_option('--pipe', action = 'store', default = 'true', help = 'build the vspipe program (true/false)')
+@conf
+def is_debug_build(ctx):
+    return getattr(ctx.options, 'enable_debug')
 
-    opt.add_option('--filters', action = 'store', default = 'true', help = 'build included filters (true/false)')
-    opt.add_option('--examples', action = 'store', default = 'false', help = 'install SDK examples (true/false)')
+def configure(ctx):
+    ctx.check_waf_version(mini='1.7.15')
 
-    opt.add_option('--docs', action = 'store', default = 'false', help = 'build the documentation (true/false)')
+    ctx.env['VSVERSION'] = VERSION
 
-def configure(conf):
-    def add_options(flags, options):
-        for flag in flags:
-            conf.env.append_unique(flag, options)
+    target = os.environ.get('TARGET')
+    (cc, cxx, pkg_config) = ('cc', 'c++', 'pkg-config')
 
-    conf.load('compiler_c')
-    conf.load('compiler_cxx')
+    if target:
+        cc         = '-'.join([target, 'gcc'])
+        cxx        = '-'.join([target, 'g++'])
+        pkg_config = '-'.join([target, pkg_config])
 
-    # Normalize OS.
-    os = 'windows' if conf.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin'] else conf.env.DEST_OS
+    ctx.find_program(cc,                var='CC')
+    ctx.find_program(cxx,               var='CXX')
+    ctx.find_program(pkg_config,        var='PKG_CONFIG')
 
-    conf.define('VS_TARGET_OS_' + os.upper(), 1)
-    conf.msg('Settting DEST_OS to', conf.env.DEST_OS)
+    for ident, _, _ in _INSTALL_DIRS_LIST:
+        varname = ident.upper()
+        ctx.env[varname] = getattr(ctx.options, ident)
 
-    # Normalize CPU values.
-    if conf.env.DEST_CPU in ['x86', 'x86_64', 'x64', 'amd64', 'x86_amd64']:
+        # keep substituting vars, until the paths are fully expanded
+        while re.match('\$\{([^}]+)\}', ctx.env[varname]):
+            ctx.env[varname] = Utils.subst_vars(ctx.env[varname], ctx.env)
+
+        ctx.define("VS_PATH_" + varname, ctx.env[varname])
+
+    ctx.load('compiler_c')
+    ctx.load('compiler_cxx')
+    ctx.load('dependencies')
+    ctx.parse_dependencies(system_dependencies)
+    ctx.load('detections.compiler')
+
+    ctx.parse_dependencies(build_options)
+    ctx.parse_dependencies(main_dependencies)
+    ctx.parse_dependencies(features)
+    ctx.parse_dependencies(filter_dependencies)
+    ctx.parse_dependencies(filters)
+
+    ctx.store_dependencies_lists()
+
+    if ctx.dependency_satisfied("avisynth-compat"):
+        ctx.define("VS_FEATURE_AVISYNTH", 1)
+
+    if ctx.dependency_satisfied("os-windows"):
+        ctx.define("VS_TARGET_OS_WINDOWS", 1)
+    else:
+        ctx.define("VS_TARGET_OS_" + ctx.env.DEST_OS.upper(), 1)
+
+    if ctx.dependency_satisfied("cpu-x86"):
         cpu = 'x86'
-    elif conf.env.DEST_CPU == 'ia':
-        cpu = 'ia64'
-    elif conf.env.DEST_CPU in ['aarch64', 'thumb']:
-        cpu = 'arm'
-    elif conf.env.DEST_CPU == 's390x':
-        cpu = 's390'
     else:
-        cpu = conf.env.DEST_CPU
-
-    conf.define('VS_TARGET_CPU_' + cpu.upper(), 1)
-    conf.msg('Settting DEST_CPU to', conf.env.DEST_CPU)
-
-    # No need to sanitize BINFMT.
-    conf.define('VS_TARGET_BINFMT_' + conf.env.DEST_BINFMT.upper(), 1)
-    conf.msg('Settting DEST_BINFMT to', conf.env.DEST_BINFMT)
-
-    for x in ['shared',
-              'static',
-              'core',
-              'avisynth',
-              'script',
-              'pipe',
-              'filters',
-              'examples',
-              'docs']:
-        val = conf.options.__dict__[x]
-
-        if not val in ['true', 'false']:
-            conf.fatal('--{0} must be either true or false.'.format(x))
+        if ctx.env.DEST_CPU == 'ia':
+            cpu = 'ia64'
+        elif ctx.env.DEST_CPU in ['aarch64', 'thumb']:
+            cpu = 'arm'
+        elif ctx.env.DEST_CPU == 's390x':
+            cpu = 's390'
         else:
-            u = x.upper()
+            cpu = ctx.env.DEST_CPU
 
-            conf.env[u] = val
-            conf.define('VS_FEATURE_' + u, 1 if val == 'true' else 0)
+    ctx.define('VS_TARGET_CPU_' + cpu.upper(), 1)
 
-    if conf.env.CORE == 'false':
-        conf.env.AVISYNTH = 'false'
-        conf.env.SCRIPT = 'false'
-
-    if 'false' in [conf.env.CORE, conf.env.SCRIPT]:
-        conf.env.PIPE = 'false'
-
-    if conf.env.CORE == 'false' and \
-       conf.env.SCRIPT == 'false' and \
-       conf.env.FILTERS == 'false' and \
-       conf.env.EXAMPLES == 'false':
-        conf.env.SHARED = 'false'
-        conf.env.STATIC = 'false'
-    else:
-        if (conf.env.SHARED, conf.env.STATIC) == ('false', 'false') and not have_libs:
-            conf.fatal('--static and --shared cannot both be false.')
-
-    for (x, y) in [('SHARED', 'shared libraries'),
-                   ('STATIC', 'static libraries'),
-                   ('CORE', 'libvapoursynth'),
-                   ('AVISYNTH', 'Avisynth compatibility'),
-                   ('SCRIPT', 'libvapoursynth-script'),
-                   ('PIPE', 'vspipe'),
-                   ('FILTERS', 'included filters'),
-                   ('EXAMPLES', 'plugin examples'),
-                   ('DOCS', 'documentation')]:
-        conf.msg('Enabling {0}?'.format(y), 'yes' if conf.env[x] == 'true' else 'no')
-
-    conf.define('VS_PATH_PREFIX', conf.env.PREFIX)
-    conf.msg('Setting PREFIX to', conf.env.PREFIX)
-
-    for dir in ['libdir', 'plugindir', 'docdir', 'includedir']:
-        u = dir.upper()
-
-        conf.env[u] = Utils.subst_vars(conf.options.__dict__[dir], conf.env)
-        conf.define('VS_PATH_' + u, conf.env[u])
-        conf.msg('Setting {0} to'.format(u), conf.env[u])
-
-    if conf.env.DEST_CPU in ['x86', 'x86_64', 'x64', 'amd64', 'x86_amd64']:
-        # Load Yasm explicitly, then the Nasm module which
-        # supports both Nasm and Yasm.
-        conf.find_program('yasm', var = 'AS', mandatory = True)
-        conf.load('nasm')
-
-        add_options(['ASFLAGS'],
-                    ['-w',
-                     '-Worphan-labels',
-                     '-Wunrecognized-char',
-                     '-Dprivate_prefix=vs'])
-    else:
-        # For all non-x86 targets, use the GNU assembler.
-        # Waf uses GCC instead of the assembler directly.
-        conf.load('gas')
-
-    if conf.env.DEST_OS == 'darwin' and conf.env.DEST_CPU in ['x86', 'x86_64']:
-        if conf.env.CXX_NAME == 'gcc':
-            add_options(['ASFLAGS'],
-                        ['-DPREFIX=1'])
-
-    if conf.env.CXX_NAME == 'gcc':
-        add_options(['CFLAGS', 'CXXFLAGS'],
-                    ['-DVS_CORE_EXPORTS',
-                     '-fPIC',
-                     '-msse2'])
-        add_options(['CXXFLAGS'],
-                    ['-std=c++0x'])
-        add_options(['CFLAGS'],
-                    ['-std=c99'])
-    elif conf.env.CXX_NAME == 'msvc':
-        add_options(['CFLAGS', 'CXXFLAGS'],
-                    ['/DVS_CORE_EXPORTS',
-                     '/EHsc',
-                     '/Zc:wchar_t-'])
-
-    if conf.env.DEST_CPU in ['x86_64', 'x64', 'amd64', 'x86_amd64']:
-        add_options(['ASFLAGS'],
-                    ['-DARCH_X86_64=1',
-                     '-DPIC=1'])
-
-        if conf.env.DEST_OS == 'darwin':
-            fmt = 'macho64'
-        elif conf.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin']:
-            fmt = 'win64'
-        else:
-            fmt = 'elf64'
-    elif conf.env.DEST_CPU == 'x86':
-        add_options(['ASFLAGS'],
-                    ['-DARCH_X86_64=0'])
-
-        if conf.env.DEST_OS == 'darwin':
-            fmt = 'macho32'
-        elif conf.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin']:
-            fmt = 'win32'
-        else:
-            fmt = 'elf32'
-
-    if conf.env.DEST_CPU in ['x86', 'x86_64', 'x64', 'amd64', 'x86_amd64']:
-        add_options(['ASFLAGS'],
-                    ['-f{0}'.format(fmt)])
-
-    if conf.options.mode == 'debug':
-        if conf.env.CXX_NAME == 'gcc':
-            add_options(['CFLAGS', 'CXXFLAGS'],
-                        ['-DVS_CORE_DEBUG',
-                         '-g',
-                         '-ggdb',
-                         '-ftrapv'])
-        elif conf.env.CXX_NAME == 'msvc':
-            add_options(['CFLAGS', 'CXXFLAGS'],
-                        ['/DVS_CORE_DEBUG',
-                         '/Z7'])
-
-        add_options(['ASFLAGS'],
-                    ['-DVS_CORE_DEBUG'])
-
-        if conf.env.DEST_CPU in ['x86', 'x86_64', 'x64', 'amd64', 'x86_amd64']:
-            if conf.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin']:
-                dbgfmt = 'cv8'
-            elif conf.env.DEST_OS == 'darwin':
-                dbgfmt = 'null'
-            else:
-                dbgfmt = 'dwarf2'
-
-            add_options(['ASFLAGS'],
-                        ['-g{0}'.format(dbgfmt)])
-        else:
-            add_options(['ASFLAGS'],
-                        ['-Wa,-g'])
-    elif conf.options.mode == 'release':
-        if conf.env.CXX_NAME == 'gcc':
-            add_options(['CFLAGS', 'CXXFLAGS'],
-                        ['-O3'])
-        elif conf.env.CXX_NAME == 'msvc':
-            add_options(['CFLAGS', 'CXXFLAGS'],
-                        ['/Ox'])
-    else:
-        conf.fatal('--mode must be either debug or release.')
-
-    # Waf always uses gcc/g++ for linking when using a GCC
-    # compatible C/C++ compiler.
-    if conf.env.CXX_NAME == 'gcc':
-        if not conf.env.DEST_OS in ['darwin', 'win32', 'cygwin', 'msys', 'uwin']:
-            add_options(['LINKFLAGS_cshlib',
-                         'LINKFLAGS_cprogram',
-                         'LINKFLAGS_cxxshlib',
-                         'LINKFLAGS_cxxprogram'],
-                        ['-Wl,-Bsymbolic',
-                         '-Wl,-z,noexecstack'])
-
-    if conf.env.CORE == 'true':
-        conf.check_cfg(package = 'libswscale', args = '--libs --cflags', uselib_store = 'SWSCALE')
-        conf.check_cfg(package = 'libavutil', args = '--libs --cflags', uselib_store = 'AVUTIL')
-        conf.check_cfg(package = 'libavcodec', args = '--libs --cflags', uselib_store = 'AVCODEC')
-
-    if conf.env.SCRIPT == 'true':
-        conf.find_program(['python3', 'python'], var = 'PYTHON')
-        conf.load('python')
-
-        conf.check_python_version((3, 0, 0))
-        conf.check_python_headers()
-
-    if 'true' in [conf.env.CORE, conf.env.SCRIPT] and not conf.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin']:
-        conf.env.LIB_M = ['m']
-        libs = '-lm '
-
-        if not conf.env.DEST_OS in ['darwin', 'freebsd', 'netbsd', 'openbsd']:
-            conf.env.LIB_DL = ['dl']
-            libs += '-ldl '
-
-        conf.env.LIBS = libs.strip()
-
-    if conf.env.FILTERS == 'true':
-        conf.check_cfg(package = 'libass', args = '--libs --cflags', uselib_store = 'ASS')
-        conf.check_cfg(package = 'tesseract', args = '--libs --cflags', uselib_store = 'OCR')
-
-def build(bld):
-    def search_paths(paths):
-        srcpaths = []
-
-        for path in paths:
-            srcpaths += [os.path.join(path, '*.c'),
-                         os.path.join(path, '*.cpp')]
-
-            if bld.env.DEST_CPU in ['x86', 'x86_64', 'x64', 'amd64', 'x86_amd64']:
-                srcpaths += [os.path.join(path, '*.asm')]
-            else:
-                srcpaths += [os.path.join(path, '*.S')]
-
-        return srcpaths
-
-    uses = ['SWSCALE', 'AVUTIL', 'AVCODEC']
-
-    if not bld.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin']:
-        uses += ['M']
-
-        if not bld.env.DEST_OS in ['darwin', 'freebsd', 'netbsd', 'openbsd']:
-            uses += ['DL']
-
-    if bld.env.CORE == 'true':
-        sources = search_paths([os.path.join('src', 'core'),
-                                os.path.join('src', 'core', 'asm'),
-                                os.path.join('src', 'core', 'asm', 'x86'),
-                                os.path.join('src', 'core', 'asm', 'arm'),
-                                os.path.join('src', 'core', 'asm', 'ppc')])
-
-        if bld.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin'] and bld.env.AVISYNTH == 'true':
-            sources += search_paths([os.path.join('src', 'avisynth')])
-
-        bld(features = 'c cxx asm',
-            includes = 'include',
-            use = uses,
-            source = bld.path.ant_glob(sources),
-            target = 'objs')
-
-        if bld.env.SHARED == 'true':
-            bld(features = 'c cxx asm cxxshlib',
-                use = ['objs'],
-                target = 'vapoursynth',
-                install_path = '${LIBDIR}')
-
-        if bld.env.STATIC == 'true':
-            bld(features = 'c cxx asm cxxstlib',
-                use = ['objs'] + uses,
-                target = 'vapoursynth',
-                install_path = '${LIBDIR}')
-
-    if bld.env.SCRIPT == 'true':
-        script_sources = search_paths([os.path.join('src', 'vsscript')])
-
-        bld(features = 'c cxx asm pyembed',
-            includes = 'include',
-            use = uses,
-            source = bld.path.ant_glob(script_sources),
-            target = 'script_objs')
-
-        if bld.env.SHARED == 'true':
-            bld(features = 'c cxx asm cxxshlib pyembed',
-                use = ['script_objs'],
-                target = 'vapoursynth-script',
-                install_path = '${LIBDIR}')
-
-        if bld.env.STATIC == 'true':
-            bld(features = 'c cxx asm cxxstlib pyembed',
-                use = ['script_objs'] + uses,
-                target = 'vapoursynth-script',
-                install_path = '${LIBDIR}')
-
-    if bld.env.PIPE == 'true':
-        pipe_sources = search_paths([os.path.join('src', 'vspipe')])
-
-        bld(features = 'c cxx asm',
-            includes = 'include',
-            use = uses,
-            source = bld.path.ant_glob(pipe_sources),
-            target = 'pipe_objs')
-
-        bld(features = 'c cxx asm cxxprogram',
-            includes = 'include',
-            use = ['pipe_objs', 'vapoursynth', 'vapoursynth-script'] + uses,
-            target = 'vspipe')
-
-    if bld.env.FILTERS == 'true':
-        bld(features = 'c cxx asm cxxshlib',
-            includes = 'include',
-            source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'eedi3')])),
-            target = 'eedi3',
-            install_path = '${PLUGINDIR}')
-
-        bld(features = 'c cxxshlib',
-            includes = 'include',
-            source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'vinverse')])),
-            target = 'vinverse',
-            install_path = '${PLUGINDIR}')
-
-        bld(features = 'c cxxshlib',
-            includes = 'include',
-            source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'morpho')])),
-            target = 'morpho',
-            install_path = '${PLUGINDIR}')
-
-        if bld.env.LIB_OCR:
-            bld(features = 'c cxxshlib',
-                includes = 'include',
-                use = ['OCR'],
-                source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'ocr')])),
-                target = 'ocr',
-                install_path = '${PLUGINDIR}')
-
-        bld(features = 'c cxx asm cxxshlib',
-            includes = 'include',
-            source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'vivtc')])),
-            target = 'vivtc',
-            install_path = '${PLUGINDIR}')
-
-        bld(features = 'c cxx asm cxxshlib',
-            includes = 'include',
-            source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'removegrain')])),
-            target = 'removegrain',
-            install_path = '${PLUGINDIR}')
-
-        if bld.env.LIB_ASS:
-            bld(features = 'c cxxshlib',
-                includes = 'include',
-                use = ['ASS'],
-                source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'assvapour')])),
-                target = 'assvapour',
-                install_path = '${PLUGINDIR}')
-
-    if bld.env.DOCS == 'true':
-        bld(features = 'docs',
-            source = bld.path.ant_glob([os.path.join('doc', '*.rst'),
-                                        os.path.join('doc', '**', '*.rst')]),
-            install_path = '${DOCDIR}')
-
-    if bld.env.EXAMPLES == 'true':
-        bld(features = 'c cxxshlib',
-            includes = 'include',
-            source = os.path.join('sdk', 'filter_skeleton.c'),
-            target = 'example_skeleton',
-            install_path = '${PLUGINDIR}')
-
-        bld(features = 'c cxxshlib',
-            includes = 'include',
-            source = os.path.join('sdk', 'invert_example.c'),
-            target = 'example_invert',
-            install_path = '${PLUGINDIR}')
-
-        bld.install_files('${DOCDIR}/examples',
-                          bld.path.ant_glob([os.path.join('sdk', '*')]))
-
-    if bld.env.CORE == 'true':
-        bld.install_files('${INCLUDEDIR}', [os.path.join('include', 'VapourSynth.h'),
-                                            os.path.join('include', 'VSHelper.h')])
-
-        bld(source = os.path.join('pc', 'vapoursynth.pc.in'),
-            install_path = '${LIBDIR}/pkgconfig',
-            PREFIX = bld.env.PREFIX,
-            LIBDIR = bld.env.LIBDIR,
-            INCLUDEDIR = bld.env.INCLUDEDIR,
-            LIBS = bld.env.LIBS,
-            VERSION = VERSION)
-
-    if bld.env.SCRIPT == 'true':
-        bld.install_files('${INCLUDEDIR}', [os.path.join('include', 'VSScript.h')])
-
-        bld(source = os.path.join('pc', 'vapoursynth-script.pc.in'),
-            install_path = '${LIBDIR}/pkgconfig',
-            PREFIX = bld.env.PREFIX,
-            LIBDIR = bld.env.LIBDIR,
-            INCLUDEDIR = bld.env.INCLUDEDIR,
-            LIBS = bld.env.LIBS,
-            VERSION = VERSION)
+def build(ctx):
+    ctx.unpack_dependencies_lists()
+    ctx.load('wscript_build')
 
 def test(ctx):
     '''runs the Cython tests'''
 
+    ctx.unpack_dependencies_lists()
+
     for name in glob.glob(os.path.join('test', '*.py')):
         env = os.environ.copy()
 
-        if not ctx.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin']:
+        if not ctx.dependency_satisfied('os-windows'):
             env['LD_LIBRARY_PATH'] = "{0}:{1}".format(ctx.env.LIBDIR, env['LD_LIBRARY_PATH'])
 
         code = subprocess.Popen([ctx.env.PYTHON[0], name], env = env).wait()

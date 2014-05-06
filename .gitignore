@@ -1,6 +1,9 @@
 build/*
 doc/_build/*
 
+*.pyc
+__pycache__
+
 .lock-*
 .waf*
 
