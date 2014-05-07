@@ -134,7 +134,7 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
                         int rowSize = vsapi->getFrameWidth(frame, p) * fi->bytesPerSample;
                         int height = vsapi->getFrameHeight(frame, p);
                         for (int y = 0; y < height; y++) {
-                            if (fwrite(readPtr, 1, rowSize, outFile) != rowSize) {
+                            if (fwrite(readPtr, 1, rowSize, outFile) != (size_t)rowSize) {
                                 if (errorMessage.empty())
                                     errorMessage = "Error: fwrite() call failed when writing frame: " + std::to_string(outputFrames) + ", plane: " + std::to_string(p) +
                                         ", line: " + std::to_string(y) + ", errno: " + std::to_string(errno);
@@ -408,7 +408,6 @@ int main(int argc, char **argv) {
             totalFrames++;
             arg++;
         } else if (argString == NSTRING("-index")) {
-            bool ok = false;
             if (argc <= arg + 1) {
                 fprintf(stderr, "No index number specified\n");
                 return 1;
@@ -420,7 +419,6 @@ int main(int argc, char **argv) {
             }
             arg++;
         } else if (argString == NSTRING("-requests")) {
-            bool ok = false;
             if (argc <= arg + 1) {
                 fprintf(stderr, "No request number specified\n");
                 return 1;
