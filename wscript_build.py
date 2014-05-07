@@ -30,7 +30,7 @@ def build(ctx):
             target = 'core_objs')
 
         uses = ['core_objs'] + \
-            ctx.dependencies_use('core') + ctx.dependencies_global()
+            ctx.dependencies_use('vapoursynth') + ctx.dependencies_global()
 
         if ctx.dependency_satisfied('shared'):
             ctx(features = 'c cxx asm cxxshlib',
@@ -67,7 +67,7 @@ def build(ctx):
             target = 'vsscript_objs')
 
         uses = ['vsscript_objs'] + \
-            ctx.dependencies_use('vsscript') + ctx.dependencies_global()
+            ctx.dependencies_use('vapoursynth_script') + ctx.dependencies_global()
 
         if ctx.dependency_satisfied('shared'):
             ctx(features = 'c cxx asm cxxshlib pyembed',
