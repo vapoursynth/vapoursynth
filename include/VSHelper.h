@@ -36,7 +36,7 @@
 #endif
 
 // A kinda portable definition of the C99 restrict keyword (or its inofficial C++ equivalent)
-#if __STDC_VERSION__ >= 199901L // Available in C99
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L // Available in C99
 #define VS_RESTRICT restrict
 #elif defined(__cplusplus) || defined(_MSC_VER) // Almost all relevant C++ compilers support it so just assume it works
 #define VS_RESTRICT __restrict
