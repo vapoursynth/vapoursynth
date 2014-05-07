@@ -754,7 +754,7 @@ struct VSVideoInfo
 
    .. c:member:: int flags
 
-      What is this?
+      The flags passed to createFilter_ (either 0 or nfNoCache).
 
 
 .. _VSAPI:
