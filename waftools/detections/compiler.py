@@ -22,11 +22,10 @@ def __add_gcc_flags__(ctx):
     __add_options__(ctx, ['CFLAGS', 'CXXFLAGS'],
                     ['-Wall', '-Wundef',
                      #'-Wshadow',
-                     '-Wno-switch',
+                     '-Wno-switch', '-Wno-unused-function',
                      '-Wno-parentheses', '-Wpointer-arith', '-Wredundant-decls',
                      '-Werror=implicit-function-declaration',
-                     '-Wno-error=deprecated-declarations',
-                     '-Wno-error=unused-function' ])
+                     '-Wno-error=deprecated-declarations'])
 
     __add_options__(ctx, ['CFLAGS', 'CXXFLAGS'],
                     ['-DVS_CORE_EXPORTS', '-fPIC', '-msse2'])
