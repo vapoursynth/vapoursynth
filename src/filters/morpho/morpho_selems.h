@@ -22,9 +22,4 @@ void SquareSElem(uint8_t *selem, int size);
 void DiamondSElem(uint8_t *selem, int size);
 void CircleSElem(uint8_t *selem, int size);
 
-const SElemFunc SElemFuncs[] = {
-    SquareSElem,
-    DiamondSElem,
-    CircleSElem,
-    NULL
-};
+extern const SElemFunc SElemFuncs[];

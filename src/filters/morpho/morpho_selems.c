@@ -20,6 +20,15 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "morpho_selems.h"
+
+const SElemFunc SElemFuncs[] = {
+    SquareSElem,
+    DiamondSElem,
+    CircleSElem,
+    NULL
+};
+
 void SquareSElem(uint8_t *selem, int size) {
     memset(selem, 1, sizeof(uint8_t) * size * size);
 }

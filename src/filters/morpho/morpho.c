@@ -90,8 +90,7 @@ error:
 static void VS_CC MorphoInit(VSMap *in, VSMap *out, void **instanceData,
                              VSNode *node, VSCore *core, const VSAPI *vsapi)
 {
-    int x, y, hs, pads;
-    uint8_t *selem;
+    int pads;
 
     MorphoData *d = (MorphoData *) * instanceData;
     vsapi->setVideoInfo(&d->vi, 1, node);
@@ -154,8 +153,8 @@ static void VS_CC MorphoFree(void *instanceData, VSCore *core,
 }
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
-                                 VSRegisterFunction registerFunc,
-                                 VSPlugin *plugin)
+                                            VSRegisterFunction registerFunc,
+                                            VSPlugin *plugin)
 {
     int i;
     static const char *params = "clip:clip;size:int:opt;shape:int:opt";

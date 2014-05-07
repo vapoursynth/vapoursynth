@@ -31,22 +31,5 @@ void MorphoTopHat(const uint8_t *src, uint8_t *dst,
 void MorphoBottomHat(const uint8_t *src, uint8_t *dst,
                      int width, int height, int stride, MorphoData *d);
 
-const char *FilterNames[] = {
-    "Dilate",
-    "Erode",
-    "Open",
-    "Close",
-    "TopHat",
-    "BottomHat",
-    NULL
-};
-
-const MorphoFilter FilterFuncs[] = {
-    MorphoDilate,
-    MorphoErode,
-    MorphoOpen,
-    MorphoClose,
-    MorphoTopHat,
-    MorphoBottomHat,
-    NULL
-};
+extern const char *FilterNames[];
+extern const MorphoFilter FilterFuncs[];

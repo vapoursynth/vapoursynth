@@ -39,3 +39,7 @@ static const VSFrameRef *VS_CC MorphoGetFrame(int n, int activationReason,
 
 static void VS_CC MorphoFree(void *instanceData, VSCore *core,
                              const VSAPI *vsapi);
+
+VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
+                                            VSRegisterFunction registerFunc,
+                                            VSPlugin *plugin);

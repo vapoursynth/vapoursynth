@@ -23,6 +23,27 @@
 #include "VSHelper.h"
 
 #include "morpho.h"
+#include "morpho_filters.h"
+
+const char *FilterNames[] = {
+    "Dilate",
+    "Erode",
+    "Open",
+    "Close",
+    "TopHat",
+    "BottomHat",
+    NULL
+};
+
+const MorphoFilter FilterFuncs[] = {
+    MorphoDilate,
+    MorphoErode,
+    MorphoOpen,
+    MorphoClose,
+    MorphoTopHat,
+    MorphoBottomHat,
+    NULL
+};
 
 static inline int Border(int v, int max) {
     if (v < 0)
