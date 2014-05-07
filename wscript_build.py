@@ -91,6 +91,9 @@ def build(ctx):
             LIBS = ' '.join(libs),
             VERSION = ctx.env.VSVERSION)
 
+        ctx.install_files(ctx.env.INCLUDEDIR,
+                          [os.path.join('include', 'VSScript.h')])
+
     def _build_vspipe():
         sources = _search_paths([os.path.join('src', 'vspipe')])
 
