@@ -374,8 +374,12 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
 }
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
-                                 VSRegisterFunction registerFunc,
-                                 VSPlugin *plugin)
+                                            VSRegisterFunction registerFunc,
+                                            VSPlugin *plugin);
+
+VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
+                                            VSRegisterFunction registerFunc,
+                                            VSPlugin *plugin)
 {
     configFunc("biz.srsfckn.vapour", "assvapour",
                "A subtitling filter based on libass.",
