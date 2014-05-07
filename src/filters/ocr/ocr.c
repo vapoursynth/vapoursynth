@@ -98,8 +98,6 @@ static const VSFrameRef *VS_CC OCRGetFrame(int n, int activationReason,
 
                 if (!TessBaseAPISetVariable(api, key, value)) {
                     char msg[200];
-                    int keySize = vsapi->propGetDataSize(d->options, "options",
-                                                         i, &err);
 
                     snprintf(msg, 200,
                              "Failed to set Tesseract option '%s'", key);
@@ -263,8 +261,12 @@ error:
 }
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
-                                 VSRegisterFunction registerFunc,
-                                 VSPlugin *plugin)
+                                            VSRegisterFunction registerFunc,
+                                            VSPlugin *plugin);
+
+VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
+                                            VSRegisterFunction registerFunc,
+                                            VSPlugin *plugin)
 {
     configFunc("biz.srsfckn.ocr", "ocr", "Tesseract OCR Filter",
                VAPOURSYNTH_API_VERSION, 1, plugin);
