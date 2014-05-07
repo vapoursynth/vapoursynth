@@ -654,7 +654,6 @@ static void process_subplane_sse2 (const T *src1_ptr, const T *src2_ptr, T *dst_
 
     const int        x_e =   width - 1;
     const int        w8  = ((width - 2) & -8) + 1;
-    const int        w7  = x_e - w8;
 
     for (int y = y_b; y < y_e; ++y)
     {
@@ -875,7 +874,7 @@ void VS_CC repairCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
     for (int i = 0; i < 3; i++) {
         if (i < m) {
             d.mode[i] = int64ToIntS(vsapi->propGetInt(in, "mode", i, NULL));
-            if (d.mode[i] < 0 || d.mode[i] > 18 || (d.mode[i] > 4 && d.mode[i] < 11)) 
+            if (d.mode[i] < 0 || d.mode[i] > 18 || (d.mode[i] > 4 && d.mode[i] < 11))
             {
                 vsapi->freeNode(d.node1);
                 vsapi->freeNode(d.node2);
