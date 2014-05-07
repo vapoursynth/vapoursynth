@@ -54,10 +54,10 @@ static void VS_CC eedi3Init(VSMap *in, VSMap *out, void **instanceData, VSNode *
 }
 
 
-void interpLineFP(const uint8_t *srcp, const int width, const int pitch,
-                  const float alpha, const float beta, const float gamma, const int nrad,
-                  const int mdis, float *temp, uint8_t *dstp, int *dmap, const int ucubic,
-                  const int cost3)
+static void interpLineFP(const uint8_t *srcp, const int width, const int pitch,
+                         const float alpha, const float beta, const float gamma, const int nrad,
+                         const int mdis, float *temp, uint8_t *dstp, int *dmap, const int ucubic,
+                         const int cost3)
 {
     const uint8_t *src3p = srcp - 3 * pitch;
     const uint8_t *src1p = srcp - 1 * pitch;
@@ -143,7 +143,7 @@ void interpLineFP(const uint8_t *srcp, const int width, const int pitch,
         const int umax = VSMIN(VSMIN(x, width - 1 - x), mdis);
 
         for(u = -umax; u <= umax; ++u) {
-            int idx;
+            int idx = 0;
             float bval = FLT_MAX;
             const int umax2 = VSMIN(VSMIN(x - 1, width - x), mdis);
 
@@ -186,10 +186,10 @@ void interpLineFP(const uint8_t *srcp, const int width, const int pitch,
 }
 
 
-void interpLineHP(const uint8_t *srcp, const int width, const int pitch,
-                  const float alpha, const float beta, const float gamma, const int nrad,
-                  const int mdis, float *temp, uint8_t *dstp, int *dmap, const int ucubic,
-                  const int cost3)
+static void interpLineHP(const uint8_t *srcp, const int width, const int pitch,
+                         const float alpha, const float beta, const float gamma, const int nrad,
+                         const int mdis, float *temp, uint8_t *dstp, int *dmap, const int ucubic,
+                         const int cost3)
 {
     const uint8_t *src3p = srcp - 3 * pitch;
     const uint8_t *src1p = srcp - 1 * pitch;
@@ -319,7 +319,7 @@ void interpLineHP(const uint8_t *srcp, const int width, const int pitch,
         const int umax = VSMIN(VSMIN(x, width - 1 - x), mdis);
 
         for(u = -umax * 2; u <= umax * 2; ++u) {
-            int idx;
+            int idx = 0;
             float bval = FLT_MAX;
             const int umax2 = VSMIN(VSMIN(x - 1, width - x), mdis);
 
@@ -381,7 +381,7 @@ void interpLineHP(const uint8_t *srcp, const int width, const int pitch,
 }
 
 
-VSFrameRef *copyPad(const VSFrameRef *src, int fn, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi, void **instanceData)
+static VSFrameRef *copyPad(const VSFrameRef *src, int fn, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi, void **instanceData)
 {
     eedi3Data *d = (eedi3Data *) * instanceData;
 
@@ -537,7 +537,7 @@ static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *
             if(d->vcheck > 0) {
                 int *dstpd = dmapa;
                 const uint8_t *scpp = NULL;
-                int scpitch;
+                int scpitch = 0;
 
                 if(d->sclip) {
                     scpitch = vsapi->getStride(scpPF, b);
@@ -842,6 +842,7 @@ error:
     return;
 }
 
+VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin)
 {
