@@ -782,7 +782,6 @@ public:
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
     static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
-        AvsFilterRemoveGrain16_READ_PIX
         return (OpRG12sse2::rg(src_ptr, stride_src, mask_sign));
     }
 #endif
@@ -1331,7 +1330,6 @@ static void process_subplane_sse2 (const T *src_ptr, int stride_src, T *dst_ptr,
 
     const int        x_e =   width - 1;
     const int        w8  = ((width - 2) & -8) + 1;
-    const int        w7  = x_e - w8;
 
     for (int y = y_b; y < y_e; ++y)
     {
