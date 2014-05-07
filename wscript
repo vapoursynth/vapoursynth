@@ -41,6 +41,12 @@ main_dependencies = [
         'func': check_cc(linkflags='-Wl,-z,noexecstack')
     },
     {
+        'name': 'bsymbolic',
+        'desc': 'compiler support for -Wl,-Bsymbolic',
+        'global': True,
+        'func': check_cc(linkflags='-Wl,-Bsymbolic')
+    },
+    {
         'name': 'libdl',
         'desc': 'dynamic loader',
         'func': check_libs(['dl'], check_statement('dlfcn.h', 'dlopen("", 0)'))
