@@ -52,8 +52,6 @@ extern "C" {
 #include "exprfilter.h"
 #include "textfilter.h"
 
-const VSAPI *VS_CC getVapourSynthAPI(int version);
-
 static inline bool isAlpha(char c) {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
 }
@@ -66,7 +64,7 @@ static bool isValidIdentifier(const std::string &s) {
     size_t len = s.length();
     if (!len)
         return false;
-    
+
     if (!isAlpha(s[0]))
         return false;
     for (size_t i = 1; i < len; i++)
@@ -96,10 +94,12 @@ static std::wstring readRegistryValue(const std::wstring keyName, const std::wst
 }
 #endif
 
-FrameContext::FrameContext(int n, int index, VSNode *clip, const PFrameContext &upstreamContext) : numFrameRequests(0), index(index), n(n), node(NULL), clip(clip), upstreamContext(upstreamContext), userData(NULL), frameContext(NULL), frameDone(NULL), error(false), lastCompletedN(-1), lastCompletedNode(NULL) {
+FrameContext::FrameContext(int n, int index, VSNode *clip, const PFrameContext &upstreamContext) :
+numFrameRequests(0), n(n), node(NULL), clip(clip), upstreamContext(upstreamContext), userData(NULL), frameDone(NULL), error(false), lastCompletedN(-1), index(index), lastCompletedNode(NULL), frameContext(NULL) {
 }
 
-FrameContext::FrameContext(int n, int index, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData) : numFrameRequests(0), index(index), n(n), node(node), clip(node->clip.get()), frameContext(NULL), userData(userData), frameDone(frameDone), error(false), lastCompletedN(-1), lastCompletedNode(NULL) {
+FrameContext::FrameContext(int n, int index, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData) :
+numFrameRequests(0), n(n), node(node), clip(node->clip.get()), userData(userData), frameDone(frameDone), error(false), lastCompletedN(-1), index(index), lastCompletedNode(NULL), frameContext(NULL) {
 }
 
 void FrameContext::setError(const std::string &errorMsg) {
@@ -806,7 +806,7 @@ bool VSCore::loadAllPluginsInPath(const std::string &path, const std::string &fi
     return true;
 }
 
-VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
+VSCore::VSCore(int threads) : formatIdOffset(1000), memory(new MemoryUse()) {
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isMMXStateOk())
         vsFatal("Bad MMX state detected creating new core");
@@ -1024,7 +1024,7 @@ VSPlugin::VSPlugin(const std::string &filename, const std::string &forcedNamespa
 #ifdef VS_TARGET_OS_WINDOWS
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
     std::wstring wPath = conversion.from_bytes(filename);
-    
+
     libHandle = LoadLibrary(wPath.c_str());
 
     if (!libHandle)
@@ -1117,7 +1117,7 @@ void VSPlugin::registerFunction(const std::string &name, const std::string &args
 
 
     if (funcs.count(name))
-        vsFatal("Duplicate function registered");        
+        vsFatal("Duplicate function registered");
 
     if (!readOnly) {
         std::lock_guard<std::mutex> lock(registerFunctionLock);

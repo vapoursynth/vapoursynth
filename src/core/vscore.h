@@ -338,10 +338,10 @@ private:
     PVideoFrame returnedFrame;
     PFrameContext upstreamContext;
     PFrameContext notificationChain;
-    bool error;
-    std::string errorMessage;
     void *userData;
     VSFrameDoneCallback frameDone;
+    bool error;
+    std::string errorMessage;
 public:
     std::map<NodeOutputKey, PVideoFrame> availableFrames;
     int lastCompletedN;
@@ -364,16 +364,17 @@ struct VSNode {
     friend class VSThreadPool;
 private:
     void *instanceData;
+    std::string name;
     VSFilterInit init;
     VSFilterGetFrame filterGetFrame;
     VSFilterFree free;
-    std::string name;
-    VSCore *core;
-    std::vector<VSVideoInfo> vi;
-    int flags;
-    int apiVersion;
-    bool hasVi;
     VSFilterMode filterMode;
+
+    int apiVersion;
+    VSCore *core;
+    int flags;
+    bool hasVi;
+    std::vector<VSVideoInfo> vi;
 
     // for keeping track of when a filter is busy in the exclusive section and with which frame
     // used for fmSerial and fmParallel (mutex only)
@@ -428,12 +429,12 @@ private:
     std::map<std::thread::id, std::thread *> allThreads;
     std::list<PFrameContext> tasks;
     std::map<NodeOutputKey, PFrameContext> allContexts;
-    std::atomic<unsigned> ticks;
     std::condition_variable newWork;
     std::atomic<unsigned> activeThreads;
     std::atomic<unsigned> idleThreads;
     unsigned maxThreads;
     std::atomic<bool> stopThreads;
+    std::atomic<unsigned> ticks;
     void wakeThread();
     void notifyCaches(bool needMemory);
     void startInternal(const PFrameContext &context);

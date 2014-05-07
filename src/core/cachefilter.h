@@ -43,12 +43,12 @@ private:
 
     std::unordered_map<int, Node> hash;
 
-    bool fixedSize;
-
     int maxSize;
     int currentSize;
     int maxHistorySize;
     int historySize;
+
+    bool fixedSize;
 
     int hits;
     int nearMiss;
@@ -94,7 +94,7 @@ private:
                 n.frame = PVideoFrame(n.weakFrame);
             } catch (std::bad_weak_ptr &) {
                 return PVideoFrame();
-            }                
+            }
 
             currentSize++;
             historySize--;
@@ -212,7 +212,7 @@ public:
     VSCore *core;
     CacheInstance(VSNodeRef *clip, VSNode *node, VSCore *core, bool fixedSize) : cache(20, 20, fixedSize), clip(clip), node(node), core(core) { }
     void addCache() {
-        std::lock_guard<std::mutex> lock(core->cacheLock); 
+        std::lock_guard<std::mutex> lock(core->cacheLock);
         core->caches.insert(node);
     }
     void removeCache() {

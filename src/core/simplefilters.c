@@ -89,7 +89,6 @@ static const VSFrameRef *VS_CC cropAbsGetframe(int n, int activationReason, void
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSFormat *fi = vsapi->getFrameFormat(src);
         VSFrameRef *dst = vsapi->newVideoFrame(fi, d->width, d->height, src, core);
-        const VSMap *m = vsapi->getFramePropsRO(src);
 
         // now that argument validation is over we can spend the next few lines actually cropping
         for (plane = 0; plane < fi->numPlanes; plane++) {
@@ -1870,7 +1869,6 @@ static const VSFrameRef *VS_CC planeAverageGetFrame(int n, int activationReason,
         const uint8_t *srcp = vsapi->getReadPtr(src, d->plane);
         int src_stride = vsapi->getStride(src, d->plane);
         int64_t acc = 0;
-        double r;
         switch (d->vi->format->bytesPerSample) {
         case 1:
             for (y = 0; y < height; y++) {
@@ -1887,7 +1885,6 @@ static const VSFrameRef *VS_CC planeAverageGetFrame(int n, int activationReason,
             }
             break;
         }
-        r = acc / (double)(width * height * (((int64_t)1 << d->vi->format->bitsPerSample) - 1));
         vsapi->propSetFloat(vsapi->getFramePropsRW(dst), d->prop, acc / (double)(width * height * (((int64_t)1 << d->vi->format->bitsPerSample) - 1)), paReplace);
 
         vsapi->freeFrame(src);

@@ -90,7 +90,7 @@ static enum PixelFormat formatIdToPixelFormat(int id) {
 //////////////////////////////////////////
 // Resize
 
-struct SwsContext *getSwsContext(int SrcW, int SrcH, enum PixelFormat SrcFormat, int SrcColorSpace, int SrcColorRange, int DstW, int DstH, enum PixelFormat DstFormat, int DstColorSpace, int DstColorRange, int64_t Flags) {
+static struct SwsContext *getSwsContext(int SrcW, int SrcH, enum PixelFormat SrcFormat, int SrcColorSpace, int SrcColorRange, int DstW, int DstH, enum PixelFormat DstFormat, int DstColorSpace, int DstColorRange, int64_t Flags) {
     struct SwsContext *Context = sws_alloc_context();
     // 0 = limited range, 1 = full range
     int SrcRange = SrcColorRange == AVCOL_RANGE_JPEG;
@@ -123,7 +123,7 @@ struct SwsContext *getSwsContext(int SrcW, int SrcH, enum PixelFormat SrcFormat,
     return Context;
 }
 
-enum AVColorSpace GetAssumedColorSpace(int W, int H) {
+static enum AVColorSpace GetAssumedColorSpace(int W, int H) {
     if (W > 1024 || H >= 600)
         return AVCOL_SPC_BT709;
     else
