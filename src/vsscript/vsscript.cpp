@@ -19,7 +19,7 @@ static void real_init(void) {
     int preInitialized = Py_IsInitialized();
     if (!preInitialized)
         Py_InitializeEx(0);
-    PyGILState_STATE s = PyGILState_Ensure();
+    s = PyGILState_Ensure();
     int result = import_vapoursynth();
     if (result)
         return;
