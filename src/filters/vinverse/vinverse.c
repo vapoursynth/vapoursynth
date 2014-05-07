@@ -195,8 +195,12 @@ static void VS_CC VinverseCreate(const VSMap *in, VSMap *out, void *userData,
 }
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
-                                 VSRegisterFunction registerFunc,
-                                 VSPlugin *plugin)
+                                            VSRegisterFunction registerFunc,
+                                            VSPlugin *plugin);
+
+VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
+                                            VSRegisterFunction registerFunc,
+                                            VSPlugin *plugin)
 {
     configFunc("biz.srsfckn.Vinverse", "vinverse",
                "A simple filter to remove residual combing.",
