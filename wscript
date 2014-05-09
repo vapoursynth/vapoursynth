@@ -204,12 +204,12 @@ filters = [
 ]
 
 _INSTALL_DIRS_LIST = [
-    ('bindir',      '${PREFIX}/bin',                'binary files'),
-    ('includedir',  '${PREFIX}/include',            'header files'),
-    ('libdir',      '${PREFIX}/lib',                'library files'),
-    ('plugindir',   '${LIBDIR}/vapoursynth',        'plugins'),
-    ('datadir',     '${PREFIX}/share',              'data files'),
-    ('docdir',      '${DATADIR}/doc/vapoursynth',   'documentation files')
+    ('bindir',      '${PREFIX}/bin',                    'binary files'),
+    ('includedir',  '${PREFIX}/include/vapoursynth',    'header files'),
+    ('libdir',      '${PREFIX}/lib',                    'library files'),
+    ('plugindir',   '${LIBDIR}/vapoursynth',            'plugins'),
+    ('datadir',     '${PREFIX}/share',                  'data files'),
+    ('docdir',      '${DATADIR}/doc/vapoursynth',       'documentation files')
 ]
 
 def options(opt):
