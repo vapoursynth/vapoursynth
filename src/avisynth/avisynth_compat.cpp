@@ -23,6 +23,7 @@
 #include "../core/vslog.h"
 #include <codecvt>
 #include <algorithm>
+#include "../core/cpufeatures.h"
 
 namespace AvisynthCompat {
 
@@ -66,7 +67,14 @@ FakeAvisynth::~FakeAvisynth() {
 }
 
 long FakeAvisynth::GetCPUFlags() {
-    long flags = CPUF_FPU | CPUF_MMX | CPUF_INTEGER_SSE | CPUF_SSE | CPUF_SSE2;
+    CPUFeatures cpuf;
+    getCPUFeatures(&cpuf);
+    long flags = CPUF_FPU | CPUF_MMX | CPUF_INTEGER_SSE | CPUF_SSE | CPUF_SSE2; // minimum to run VS
+    if (cpuf.sse3)   flags |= CPUF_SSE3;
+    if (cpuf.ssse3)  flags |= CPUF_SSSE3;
+    if (cpuf.sse4_1) flags |= CPUF_SSE4_1;
+    if (cpuf.sse4_2) flags |= CPUF_SSE4_2;
+    if (cpuf.avx)    flags |= CPUF_AVX;
     return flags;
 }
 
