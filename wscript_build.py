@@ -25,7 +25,7 @@ def build(ctx):
             sources += _search_paths([os.path.join('src', 'avisynth')])
 
         ctx(features = 'c cxx asm',
-            includes = 'include',
+            includes = ['include'] + ctx.dependencies_includes('vapoursynth'),
             source = ctx.path.ant_glob(sources),
             target = 'core_objs')
 
@@ -62,7 +62,7 @@ def build(ctx):
         sources = _search_paths([os.path.join('src', 'vsscript')])
 
         ctx(features = 'c cxx asm pyembed',
-            includes = 'include',
+            includes = ['include'] + ctx.dependencies_includes('vsscript'),
             source = ctx.path.ant_glob(sources),
             target = 'vsscript_objs')
 
@@ -98,7 +98,7 @@ def build(ctx):
         sources = _search_paths([os.path.join('src', 'vspipe')])
 
         ctx(features = 'c cxx asm cxxprogram',
-            includes = 'include',
+            includes = ['include'] + ctx.dependencies_includes('vspipe'),
             source = ctx.path.ant_glob(sources),
             use =  ctx.dependencies_use('vspipe') + ctx.dependencies_global(),
             target = 'vspipe',
