@@ -1252,6 +1252,12 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
                 vsapi->freeFrame(cur);
             }
 
+            // The first frame's metrics are always 0, thus it's always considered a duplicate.
+            if (cyclestart == 0) {
+                vdm->vmi[0].maxbdiff = vdm->vmi[1].maxbdiff;
+                vdm->vmi[0].totdiff = vdm->scthresh + 1;
+            }
+
             if (*drop < 0)
                 *drop = findDropFrame(&vdm->vmi[cyclestart], cycleend - cyclestart, vdm->scthresh, vdm->dupthresh);
         }
