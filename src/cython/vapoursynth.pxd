@@ -110,6 +110,7 @@ cdef extern from "include/VapourSynth.h" nogil:
 
     cdef enum VSNodeFlags:
         nfNoCache = 1
+        nfIsCache = 2
 
     cdef enum VSGetPropErrors:
         peUnset = 1

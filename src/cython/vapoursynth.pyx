@@ -735,7 +735,9 @@ cdef class VideoNode(object):
             s += '\tFPS Num: ' + str(self.fps_num) + '\n'
             s += '\tFPS Den: ' + str(self.fps_den) + '\n'
 
-        if self.flags == vapoursynth.nfNoCache:
+        if self.flags == (vapoursynth.nfNoCache + vapoursynth.nfIsCache):
+            s += '\tFlags: Is Cache, No Cache\n'
+        elif self.flags == vapoursynth.nfNoCache:
             s += '\tFlags: No Cache\n'
         else:
             s += '\tFlags: None\n'
