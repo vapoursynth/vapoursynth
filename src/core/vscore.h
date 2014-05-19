@@ -25,6 +25,7 @@
 #include "vslog.h"
 #include <stdlib.h>
 #include <stdexcept>
+#include <string>
 #include <vector>
 #include <list>
 #include <set>

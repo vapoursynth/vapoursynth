@@ -21,6 +21,7 @@ http://sam.zoy.org/wtfpl/COPYING for more details.
 #include "VSHelper.h"
 #include <stdint.h>
 #include <algorithm>
+#include <cstdlib>
 #ifdef VS_TARGET_CPU_X86
 #include <emmintrin.h>
 #endif
