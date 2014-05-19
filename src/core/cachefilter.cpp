@@ -203,7 +203,7 @@ static void VS_CC cacheFree(void *instanceData, VSCore *core, const VSAPI *vsapi
 static std::atomic<unsigned> cacheId(1);
 
 static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    vsapi->createFilter(in, out, ("Cache" + std::to_string(cacheId++)).c_str(), cacheInit, cacheGetframe, cacheFree, fmUnordered, nfNoCache, userData, core);
+    vsapi->createFilter(in, out, ("Cache" + std::to_string(cacheId++)).c_str(), cacheInit, cacheGetframe, cacheFree, fmUnordered, nfNoCache | nfIsCache, userData, core);
 }
 
 void VS_CC cacheInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {

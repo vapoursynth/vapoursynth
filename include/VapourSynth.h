@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012 Fredrik Mellbin
+* Copyright (c) 2012-2014 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -146,7 +146,8 @@ typedef struct VSFormat {
 } VSFormat;
 
 typedef enum VSNodeFlags {
-    nfNoCache = 1
+    nfNoCache = 1,
+    nfIsCache = 2
 } VSNodeFlags;
 
 typedef enum VSPropTypes {

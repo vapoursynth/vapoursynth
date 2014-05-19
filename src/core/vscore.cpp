@@ -454,6 +454,13 @@ VSFunction::VSFunction(const std::string &argString, VSPublicFunction func, void
 
 VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion, VSCore *core) :
     instanceData(instanceData), name(name), init(init), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiVersion(apiVersion), core(core), flags(flags), hasVi(false), serialFrame(-1) {
+
+    if (flags & ~(nfNoCache | nfIsCache))
+        vsFatal("Filter %s specified unknown flags", name.c_str());
+
+    if ((flags & nfIsCache) && !(flags & nfNoCache))
+        vsFatal("Filter %s specified an illegal combination of flags (%d)", name.c_str(), flags);
+
     VSMap inval(*in);
     init(&inval, out, &this->instanceData, this, core, getVSAPIInternal(apiVersion));
 
