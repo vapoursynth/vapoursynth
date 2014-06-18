@@ -1474,6 +1474,8 @@ cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, 
                     orig_path = os.getcwd()
                     os.chdir(os.path.dirname(abspath))
 
+            evaldict['__name__'] = "__vapoursynth__"
+            
             if se.errstr:
                 errstr = <bytes>se.errstr
                 se.errstr = NULL
