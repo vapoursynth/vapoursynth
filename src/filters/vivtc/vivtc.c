@@ -1036,7 +1036,7 @@ static int vdecimateLoadOVR(const char *ovrfile, char *drop, int cycle, int numF
 
         char drop_char = 0;
         char drop_pattern[26] = { 0 }; // 25 (maximum cycle size allowed in vdecimate) + \0
-        int drop_pos = -1;
+        ptrdiff_t drop_pos = -1;
 
         line++;
         pos = buf + strspn(buf, " \t\r\n");
@@ -1103,7 +1103,7 @@ static inline int findOutputFrame(int requestedFrame, int cycleStart, int outCyc
     }
 }
 
-static inline char findDropFrame(VDInfo *metrics, int cycleLength, int scthresh, int dupthresh) {
+static inline char findDropFrame(VDInfo *metrics, int cycleLength, int64_t scthresh, int64_t dupthresh) {
     int scpos = -1;
     int duppos = -1;
     int lowest = 0;
@@ -1263,7 +1263,7 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
         }
 
         if (!vdm->dryrun && vdm->durations[n].den == 0) {
-            FrameDuration oldDurations[vdm->inCycle];
+            FrameDuration oldDurations[25];
 
             for (i = cyclestart; i < cyclestart + vdm->inCycle; i++) {
                 const VSFrameRef *frame = vsapi->getFrameFilter(i, vdm->clip2 ? vdm->clip2 : vdm->node, frameCtx);
