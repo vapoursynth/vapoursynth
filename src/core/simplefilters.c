@@ -1843,6 +1843,11 @@ static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData,
 //////////////////////////////////////////
 // PlaneAverage
 
+#ifdef VS_TARGET_CPU_X86
+extern int64_t vs_planeavg_uint8_sse2(const uint8_t *srcp, intptr_t width, intptr_t height, intptr_t stride);
+extern int64_t vs_planeavg_uint16_sse2(const uint8_t *srcp, intptr_t width, intptr_t height, intptr_t stride);
+#endif
+
 typedef struct {
     VSNodeRef *node;
     const VSVideoInfo *vi;
@@ -1871,18 +1876,26 @@ static const VSFrameRef *VS_CC planeAverageGetFrame(int n, int activationReason,
         int64_t acc = 0;
         switch (d->vi->format->bytesPerSample) {
         case 1:
+#ifdef VS_TARGET_CPU_X86
+            acc = vs_planeavg_uint8_sse2(srcp, width, height, src_stride);
+#else
             for (y = 0; y < height; y++) {
                 for (x = 0; x < width; x++)
                     acc += srcp[x];
                 srcp += src_stride;
             }
+#endif
             break;
         case 2:
+#ifdef VS_TARGET_CPU_X86
+            acc = vs_planeavg_uint16_sse2(srcp, width, height, src_stride);
+#else
             for (y = 0; y < height; y++) {
                 for (x = 0; x < width; x++)
                     acc += ((const uint16_t *)srcp)[x];
                 srcp += src_stride;
             }
+#endif
             break;
         }
         vsapi->propSetFloat(vsapi->getFramePropsRW(dst), d->prop, acc / (double)(width * height * (((int64_t)1 << d->vi->format->bitsPerSample) - 1)), paReplace);
@@ -1935,6 +1948,11 @@ static void VS_CC planeAverageCreate(const VSMap *in, VSMap *out, void *userData
 //////////////////////////////////////////
 // PlaneDifference
 
+#ifdef VS_TARGET_CPU_X86
+extern int64_t vs_planediff_uint8_sse2(const uint8_t *srcp1, const uint8_t *srcp2, intptr_t width, intptr_t height, intptr_t stride);
+extern int64_t vs_planediff_uint16_sse2(const uint8_t *srcp1, const uint8_t *srcp2, intptr_t width, intptr_t height, intptr_t stride);
+#endif
+
 typedef struct {
     VSNodeRef *node1;
     VSNodeRef *node2;
@@ -1968,20 +1986,28 @@ static const VSFrameRef *VS_CC planeDifferenceGetFrame(int n, int activationReas
 
         switch (d->vi->format->bytesPerSample) {
         case 1:
+#ifdef VS_TARGET_CPU_X86
+            acc = vs_planediff_uint8_sse2(srcp1, srcp2, width, height, src_stride);
+#else
             for (y = 0; y < height; y++) {
                 for (x = 0; x < width; x++)
                     acc += abs(srcp1[x] - srcp2[x]);
                 srcp1 += src_stride;
                 srcp2 += src_stride;
             }
+#endif
             break;
         case 2:
+#ifdef VS_TARGET_CPU_X86
+            acc = vs_planediff_uint16_sse2(srcp1, srcp2, width, height, src_stride);
+#else
             for (y = 0; y < height; y++) {
                 for (x = 0; x < width; x++)
                     acc += abs(((const uint16_t *)srcp1)[x] - ((const uint16_t *)srcp2)[x]);
                 srcp1 += src_stride;
                 srcp2 += src_stride;
             }
+#endif
             break;
         }
 
