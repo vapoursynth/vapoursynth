@@ -1263,7 +1263,7 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
         }
 
         if (!vdm->dryrun && vdm->durations[n].den == 0) {
-            FrameDuration oldDurations[vdm->inCycle];
+            FrameDuration oldDurations[25];
 
             for (i = cyclestart; i < cyclestart + vdm->inCycle; i++) {
                 const VSFrameRef *frame = vsapi->getFrameFilter(i, vdm->clip2 ? vdm->clip2 : vdm->node, frameCtx);
