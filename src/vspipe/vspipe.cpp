@@ -508,8 +508,11 @@ int main(int argc, char **argv) {
     }
 
     fflush(outFile);
-    std::chrono::duration<double> elapsedSeconds = std::chrono::high_resolution_clock::now() - start;
-    fprintf(stderr, "Output %d frames in %.2f seconds (%.2f fps)\n", outputFrames, elapsedSeconds.count(), outputFrames / elapsedSeconds.count());
+
+    if (!showInfo) {
+        std::chrono::duration<double> elapsedSeconds = std::chrono::high_resolution_clock::now() - start;
+        fprintf(stderr, "Output %d frames in %.2f seconds (%.2f fps)\n", outputFrames, elapsedSeconds.count(), outputFrames / elapsedSeconds.count());
+    }
     vsapi->freeNode(node);
     vsscript_freeScript(se);
     vsscript_finalize();
