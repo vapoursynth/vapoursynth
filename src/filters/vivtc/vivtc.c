@@ -1103,7 +1103,7 @@ static inline int findOutputFrame(int requestedFrame, int cycleStart, int outCyc
     }
 }
 
-static inline char findDropFrame(VDInfo *metrics, int cycleLength, int scthresh, int dupthresh) {
+static inline char findDropFrame(VDInfo *metrics, int cycleLength, int64_t scthresh, int64_t dupthresh) {
     int scpos = -1;
     int duppos = -1;
     int lowest = 0;
