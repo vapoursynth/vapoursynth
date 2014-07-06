@@ -748,7 +748,7 @@ static VSMap *invokePlaneDifference(VSNodeRef *node, VSCore *core, const VSAPI *
     vsapi->propSetNode(args, "clips", node2, paAppend);
     vsapi->freeNode(node2);
     vsapi->propSetInt(args, "plane", 0, paReplace);
-    vsapi->propSetData(args, "prop", prop, strlen(prop), paReplace);
+    vsapi->propSetData(args, "prop", prop, -1, paReplace);
     ret = vsapi->invoke(stdplugin, "PlaneDifference", args);
     if (vsapi->getError(ret)) {
         vsapi->freeMap(args);
@@ -1064,7 +1064,7 @@ static int vdecimateLoadOVR(const char *ovrfile, char *drop, int cycle, int numF
                    frame_start < frame_end &&
                    strlen(drop_pattern) == (size_t)cycle &&
                    drop_pos > -1) {
-            int i;
+            ptrdiff_t i;
             for (i = frame_start + drop_pos; i <= frame_end; i += cycle) {
                 if (drop[i / cycle] < 0)
                     drop[i / cycle] = i % cycle;
