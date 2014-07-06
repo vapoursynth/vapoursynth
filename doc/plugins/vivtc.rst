@@ -208,7 +208,7 @@ It is a rewrite of some of tritical's TIVTC filters.
 
 
 
-.. function:: VDecimate(clip clip[, int cycle=5, bint chroma=1, float dupthresh=1.1, float scthresh=15, int blockx=32, int blocky=32, clip clip2, string ovr=""])
+.. function:: VDecimate(clip clip[, int cycle=5, bint chroma=1, float dupthresh=1.1, float scthresh=15, int blockx=32, int blocky=32, clip clip2, string ovr="", bint dryrun=0])
    :module: vivtc
 
    VDecimate is a decimation filter. It drops one in every *cycle* frames -- the
@@ -277,6 +277,23 @@ It is a rewrite of some of tritical's TIVTC filters.
 
          If the overrides mark more than one frame per cycle, the first frame
          marked for decimation in the cycle will be dropped.
+
+      dryrun
+         If true, VDecimate will not drop any frames. Instead, it will attach
+         the following properties to every frame:
+            VDecimateDrop
+               1 if VDecimate would normally drop the frame, 0 otherwise.
+
+            VDecimateMaxBlockDiff
+               This is the highest absolute difference between the current
+               frame and the previous frame found in any *blockx*\ \*\ *blocky*
+               block. It is known in Yatta as "DMetric".
+
+            VDecimateTotalDiff
+               This is the absolute difference between the current frame and
+               the previous frame.
+
+         Default: false.
 
 
 Large parts of this document were copied from "TFM - READ ME.txt" and
