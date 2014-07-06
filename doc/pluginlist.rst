@@ -17,6 +17,8 @@ Native Plugins
 * `f3kdb <http://forum.doom9.org/showthread.php?t=161411>`_ -- Debanding filter
 * `FFMS2 <https://github.com/FFMS/ffms2>`_
 * `FieldHint <https://github.com/dubhater/vapoursynth-fieldhint>`_ -- Takes fields from arbitrary input frames to create the output frames
+* `FillBorders <https://github.com/dubhater/vapoursynth-fillborders>`_
+* `FluxSmooth <https://github.com/dubhater/vapoursynth-fluxsmooth>`_ -- Temporal/spatiotemporal denoiser
 * `fmtconv <http://forum.doom9.org/showthread.php?t=166504>`_ -- High quality bitdepth and colorspace conversion, resizing
 * `GenericFilters <http://forum.doom9.org/showthread.php?t=166842>`_ -- Common image processing filters (replaces most of masktools)
 * `Histogram <https://github.com/dubhater/vapoursynth-histogram>`_ -- bundled with the installer
@@ -31,6 +33,7 @@ Native Plugins
 * `Videoscope <https://github.com/dubhater/vapoursynth-videoscope>`_ -- Similar to the Histogram plugin
 * `vsavsreader <http://forum.doom9.org/showthread.php?t=165957>`_ -- import plugin so Avisynth scripts can be opened in VapourSynth
 * `vsrawsource <http://forum.doom9.org/showthread.php?t=166075>`_ -- raw video reader
+* `WWXD <https://github.com/dubhater/vapoursynth-wwxd>`_ -- Xvid-like scene change detection
 
 
 Scripts

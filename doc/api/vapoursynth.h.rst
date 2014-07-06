@@ -405,6 +405,15 @@ enum VSNodeFlags
 
    * nfNoCache
 
+     This flag indicates that the frames returned by the filter should not
+     be cached.
+
+   * nfIsCache
+
+     This flag must not be used in third-party filters. It is used to mark
+     instances of the built-in Cache filter. Strange things may happen to
+     your filter if you use this flag.
+
 
 .. _VSPropTypes:
 
@@ -754,7 +763,7 @@ struct VSVideoInfo
 
    .. c:member:: int flags
 
-      What is this?
+      The flags passed to createFilter_ (either 0 or one or more of VSNodeFlags_).
 
 
 .. _VSAPI:
