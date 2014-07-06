@@ -1036,7 +1036,7 @@ static int vdecimateLoadOVR(const char *ovrfile, char *drop, int cycle, int numF
 
         char drop_char = 0;
         char drop_pattern[26] = { 0 }; // 25 (maximum cycle size allowed in vdecimate) + \0
-        int drop_pos = -1;
+        ptrdiff_t drop_pos = -1;
 
         line++;
         pos = buf + strspn(buf, " \t\r\n");
