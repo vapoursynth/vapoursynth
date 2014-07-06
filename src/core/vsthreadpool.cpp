@@ -141,17 +141,18 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             if (hasLeafContext && leafContext->hasError()) {
                 ar = arError;
                 mainContext->setError(leafContext->getErrorMessage());
+                --mainContext->numFrameRequests;
             } else if (hasLeafContext && leafContext->returnedFrame) {
                 if (--mainContext->numFrameRequests > 0)
                     ar = arFrameReady;
                 else
                     ar = arAllFramesReady;
-
-                assert(mainContext->numFrameRequests >= 0);
                 mainContext->availableFrames.insert(std::make_pair(NodeOutputKey(leafContext->clip, leafContext->n, leafContext->index), leafContext->returnedFrame));
                 mainContext->lastCompletedN = leafContext->n;
                 mainContext->lastCompletedNode = leafContext->node;
             }
+
+            assert(mainContext->numFrameRequests >= 0);
 
             bool hasExistingRequests = !!mainContext->numFrameRequests;
 
@@ -202,7 +203,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 // Propagate status to other linked contexts
 // CHANGES mainContextRef!!!
 
-            if (mainContext->hasError()) {
+            if (mainContext->hasError() && !hasExistingRequests && !requestedFrames) {
                 PFrameContext n;
                 do {
                     n = mainContextRef->notificationChain;

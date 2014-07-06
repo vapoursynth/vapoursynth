@@ -1,4 +1,5 @@
 r24:
+fixed a filter error propagation issue
 mixed improvements to vivtc (nodame)
 fixed mac compilation of genericfilters
 added FreezeFrames, DuplicateFrames and DeleteFrames, they can all delete/duplicate/freeze multiple frames with one command (nodame)
