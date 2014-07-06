@@ -1280,16 +1280,19 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
         outputFrame = findOutputFrame(n, cyclestart, vdm->outCycle, *drop, vdm->dryrun);
 
         src = vsapi->getFrameFilter(outputFrame, vdm->clip2 ? vdm->clip2 : vdm->node, frameCtx);
-        dst = vsapi->copyFrame(src, core);
-        vsapi->freeFrame(src);
+        dst = src;
 
         if (vdm->dryrun) {
+            dst = vsapi->copyFrame(src, core);
+            vsapi->freeFrame(src);
             dstProps = vsapi->getFramePropsRW(dst);
             vsapi->propSetInt(dstProps, "VDecimateDrop", outputFrame % vdm->inCycle == vdm->drop[cyclestart / vdm->inCycle], paReplace);
             vsapi->propSetInt(dstProps, "VDecimateTotalDiff", vdm->vmi[outputFrame].totdiff, paReplace);
             vsapi->propSetInt(dstProps, "VDecimateMaxBlockDiff", vdm->vmi[outputFrame].maxbdiff, paReplace);
         } else {
             if (vdm->durations[n].den > 0) {
+                dst = vsapi->copyFrame(src, core);
+                vsapi->freeFrame(src);
                 dstProps = vsapi->getFramePropsRW(dst);
                 vsapi->propSetInt(dstProps, "_DurationNum", vdm->durations[n].num, paReplace);
                 vsapi->propSetInt(dstProps, "_DurationDen", vdm->durations[n].den, paReplace);
