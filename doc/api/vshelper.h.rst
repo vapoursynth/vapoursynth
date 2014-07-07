@@ -109,7 +109,7 @@ Functions
 vs_aligned_malloc
 -----------------
 
-.. cpp:function:: template<class T> static inline T* vs_aligned_malloc(size_t size, size_t alignment)
+.. cpp:function:: T* vs_aligned_malloc(size_t size, size_t alignment)
 
    A templated aligned malloc for C++. It uses the same functions as the
    `VS_ALIGNED_MALLOC <VS_ALIGNED_MALLOC_c_>`_ macro.
@@ -120,7 +120,7 @@ vs_aligned_malloc
 vs_aligned_free
 ---------------
 
-.. cpp:function:: static inline void vs_aligned_free(void *ptr)
+.. cpp:function:: void vs_aligned_free(void *ptr)
 
    This simply uses the `VS_ALIGNED_FREE <VS_ALIGNED_FREE_c_>`_ macro.
 
