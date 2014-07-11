@@ -164,21 +164,21 @@ end;
 function InitializeSetup: Boolean;
 var Success: Boolean;
 begin
-  Success := RegQueryStringValue(HKCU32, 'SOFTWARE\Python\PythonCore\3.3\InstallPath', '', PythonPath32);
+  Success := RegQueryStringValue(HKCU32, 'SOFTWARE\Python\PythonCore\3.4\InstallPath', '', PythonPath32);
   if not Success then
-    RegQueryStringValue(HKLM32, 'SOFTWARE\Python\PythonCore\3.3\InstallPath', '', PythonPath32);
+    RegQueryStringValue(HKLM32, 'SOFTWARE\Python\PythonCore\3.4\InstallPath', '', PythonPath32);
 
   if Is64BitInstallMode then
   begin
-    Success := RegQueryStringValue(HKCU, 'SOFTWARE\Python\PythonCore\3.3\InstallPath', '', PythonPath64);
+    Success := RegQueryStringValue(HKCU, 'SOFTWARE\Python\PythonCore\3.4\InstallPath', '', PythonPath64);
     if not Success then
-      RegQueryStringValue(HKLM, 'SOFTWARE\Python\PythonCore\3.3\InstallPath', '', PythonPath64);
+      RegQueryStringValue(HKLM, 'SOFTWARE\Python\PythonCore\3.4\InstallPath', '', PythonPath64);
   end;
 
   Result := HasPython32 or HasPython64;
   if not Result then
   begin
-    MsgBox('No Python 3.3 installations found.', mbCriticalError, MB_OK);
+    MsgBox('No Python 3.4 installations found.', mbCriticalError, MB_OK);
   end
   else if PythonPath32 = PythonPath64 then
   begin
