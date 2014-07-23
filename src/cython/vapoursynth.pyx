@@ -1,4 +1,4 @@
-#  Copyright (c) 2012-2013 Fredrik Mellbin
+#  Copyright (c) 2012-2014 Fredrik Mellbin
 #
 #  This file is part of VapourSynth.
 #
@@ -19,13 +19,26 @@
 
 cimport vapoursynth
 cimport cython.parallel
+from libc.stdint cimport intptr_t
 from cpython.ref cimport Py_INCREF, Py_DECREF, Py_CLEAR, PyObject
+
+# Assume windows when UNAME_SYSNAME is unset, it's the simplest detection
+# and shouldn't break any other relevant os where os.uname() actually works
+# in python
+IF str(UNAME_SYSNAME) == str():
+    DEF UNAME_SYSNAME = "Windows"
+IF UNAME_SYSNAME == "Windows":
+    cimport windows
+ELSE:
+    cimport posix.unistd
 import os
 import sys
 import ctypes
 import threading
 import traceback
 import gc
+IF UNAME_SYSNAME == "Windows":
+    import msvcrt
 
 _using_vsscript = False
 _environment_id_stack = []
@@ -177,6 +190,127 @@ cdef Plugin createFunc(VSFuncRef *ref, Core core):
     instance.func = None
     instance.ref = ref
     return instance
+    
+cdef intptr_t translateFileHandle(int handle):
+    IF UNAME_SYSNAME == "Windows":
+        return msvcrt.get_osfhandle(handle)
+    ELSE:
+        return handle
+    
+cdef class CallbackData(object):
+    cdef VideoNode node
+    cdef const VSAPI *funcs
+    cdef intptr_t handle
+    cdef int output
+    cdef int requested
+    cdef int completed
+    cdef int total
+    cdef int num_planes
+    cdef bint y4m
+    cdef dict reorder
+    cdef object condition
+    cdef object progress_update
+    cdef str error
+
+    def __init__(self, handle, requested, total, num_planes, y4m, node, progress_update):
+        self.handle = translateFileHandle(handle)
+        self.output = 0
+        self.requested = requested
+        self.completed = 0
+        self.total = total
+        self.num_planes = num_planes
+        self.y4m = y4m
+        self.condition = threading.Condition()
+        self.node = node
+        self.progress_update = progress_update
+        self.funcs = (<VideoNode>node).funcs
+        self.reorder = {}
+ 
+cdef class FramePtr(object):
+    cdef const VSFrameRef *f
+    cdef VSAPI *funcs
+
+    def __init__(self):
+        raise Error('Class cannot be instantiated directly')
+
+    def __dealloc__(self):
+        self.funcs.freeFrame(self.f)
+
+cdef FramePtr createFramePtr(const VSFrameRef *f, const VSAPI *funcs):
+    cdef FramePtr instance = FramePtr.__new__(FramePtr)    
+    instance.f = f
+    instance.funcs = funcs
+    return instance
+
+cdef bint writeFileData(intptr_t handle, const char *data, int size):  
+    IF UNAME_SYSNAME == "Windows":
+        return not windows.WriteFile(<void *>handle, <const void *>data, size, NULL, NULL)
+    ELSE:
+        return posix.unistd.write(handle, <const void *>data, size) < 0
+
+cdef void __stdcall frameDoneCallback(void *data, const VSFrameRef *f, int n, VSNodeRef *node, char *errormsg) nogil:
+    cdef int pitch
+    cdef uint8_t *readptr
+    cdef const VSFormat *fi
+    cdef int row_size
+    cdef int height
+    cdef char err[512]
+    cdef char *header = 'FRAME\n'
+    cdef int p
+    cdef int y
+
+    with gil:
+        d = <CallbackData>data
+        d.completed = d.completed + 1
+        
+        if f == NULL:
+            d.total = d.requested
+            if errormsg == NULL:
+                d.error = 'Failed to retrieve frame ' + str(n)
+            else:
+                d.error = 'Failed to retrieve frame ' + str(n) + ' with error: ' + errormsg.decode('utf-8')
+            d.output = d.output + 1
+
+        else:
+            d.reorder[n] = createFramePtr(f, d.funcs)
+
+            while d.output in d.reorder:
+                frame_obj = <FramePtr>d.reorder[d.output]
+                if d.y4m:
+                    writeFileData(d.handle, header, 6)   
+                p = 0
+                fi = d.funcs.getFrameFormat(frame_obj.f)
+ 
+                while p < d.num_planes:
+                    pitch = d.funcs.getStride(frame_obj.f, p)
+                    readptr = d.funcs.getReadPtr(frame_obj.f, p)
+                    row_size = d.funcs.getFrameWidth(frame_obj.f, p) * fi.bytesPerSample
+                    height = d.funcs.getFrameHeight(frame_obj.f, p)
+                    y = 0
+
+                    while y < height:
+                        if writeFileData(d.handle, <char*>readptr, row_size):
+                            d.error = 'File write call returned an error'
+
+                        readptr += pitch
+                        y = y + 1
+
+                    p = p + 1
+
+                del d.reorder[d.output]
+                d.output = d.output + 1
+
+            if (d.progress_update is not None):
+                d.progress_update(d.completed, d.total)
+
+        if d.requested < d.total:
+            d.node.funcs.getFrameAsync(d.requested, d.node.node, frameDoneCallback, data)
+            d.requested = d.requested + 1
+
+        if d.total == d.completed:
+            d.condition.acquire()
+            d.condition.notify()
+            d.condition.release()
 
 cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, Core core, const VSAPI *funcs):
     cdef int numKeys = funcs.propNumKeys(map)
@@ -622,7 +756,65 @@ cdef class VideoNode(object):
             global _stored_output
             _stored_output[index] = self
 
+    def output(self, object fileobj not None, bint y4m = False, int prefetch = 0, object progress_update = None):
+        if prefetch < 1:
+            prefetch = self.core.num_threads
 
+        cdef CallbackData d = CallbackData(fileobj.fileno(), min(prefetch, self.num_frames), self.num_frames, self.format.num_planes, y4m, self, progress_update)
+
+        if d.total <= 0:
+            raise Error('Cannot output unknown length clip')
+
+        #// this is also an implicit test that the progress_update callback at least vaguely matches the requirements
+        if (progress_update is not None):
+            progress_update(0, d.total)
+
+        if (self.format is None or (self.format.color_family != YUV and self.format.color_family != GRAY)) and y4m:
+            raise Error('Can only apply y4m headers to YUV and Gray format clips')
+
+        y4mformat = ''
+        numbits = ''
+
+        if y4m:
+            if self.format.color_family == GRAY:
+                y4mformat = 'mono'
+                if self.format.bits_per_sample > 8:
+                    y4mformat = y4mformat + str(self.format.bits_per_sample)
+            elif self.format.color_family == YUV:
+                if self.format.subsampling_w == 1 and self.format.subsampling_h == 1:
+                    y4mformat = '420'
+                elif self.format.subsampling_w == 1 and self.format.subsampling_h == 0:
+                    y4mformat = '422'
+                elif self.format.subsampling_w == 0 and self.format.subsampling_h == 0:
+                    y4mformat = '444'
+                elif self.format.subsampling_w == 2 and self.format.subsampling_h == 2:
+                    y4mformat = '410'
+                elif self.format.subsampling_w == 2 and self.format.subsampling_h == 0:
+                    y4mformat = '411'
+                elif self.format.subsampling_w == 0 and self.format.subsampling_h == 1:
+                    y4mformat = '440'
+                if self.format.bits_per_sample > 8:
+                    y4mformat = y4mformat + 'p' + str(self.format.bits_per_sample)
+
+        if len(y4mformat) > 0:
+            y4mformat = 'C' + y4mformat + ' '
+
+        cdef str header = 'YUV4MPEG2 ' + y4mformat + 'W' + str(self.width) + ' H' + str(self.height) + ' F' + str(self.fps_num) + ':' + str(self.fps_den) + ' Ip A0:0\n'
+        cdef bytes b = header.encode('utf-8')
+        cdef int dummy = 0
+        if y4m:
+            writeFileData(d.handle, <char*>b, len(b))
+        d.condition.acquire()
+
+        for n in range(min(prefetch, d.total)):
+            self.funcs.getFrameAsync(n, self.node, frameDoneCallback, <void *>d)
+
+        d.condition.wait()
+        d.condition.release()
+
+        if d.error:
+            raise Error(d.error)
+            
     def __add__(self, other):
         if not isinstance(other, VideoNode):
             raise TypeError('Only clips can be spliced')
