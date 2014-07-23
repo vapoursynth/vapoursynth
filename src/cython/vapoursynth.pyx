@@ -22,12 +22,7 @@ cimport cython.parallel
 from libc.stdint cimport intptr_t
 from cpython.ref cimport Py_INCREF, Py_DECREF, Py_CLEAR, PyObject
 
-# Assume windows when UNAME_SYSNAME is unset, it's the simplest detection
-# and shouldn't break any other relevant os where os.uname() actually works
-# in python
-IF str(UNAME_SYSNAME) == str():
-    DEF UNAME_SYSNAME = "Windows"
-IF UNAME_SYSNAME == "Windows":
+IF str(UNAME_SYSNAME) == str('Windows'):
     cimport windows
 ELSE:
     cimport posix.unistd
@@ -37,7 +32,7 @@ import ctypes
 import threading
 import traceback
 import gc
-IF UNAME_SYSNAME == "Windows":
+IF str(UNAME_SYSNAME) == str('Windows'):
     import msvcrt
 
 _using_vsscript = False
@@ -192,7 +187,7 @@ cdef Plugin createFunc(VSFuncRef *ref, Core core):
     return instance
     
 cdef intptr_t translateFileHandle(int handle):
-    IF UNAME_SYSNAME == "Windows":
+    IF str(UNAME_SYSNAME) == str('Windows'):
         return msvcrt.get_osfhandle(handle)
     ELSE:
         return handle
@@ -243,7 +238,7 @@ cdef FramePtr createFramePtr(const VSFrameRef *f, const VSAPI *funcs):
     return instance
 
 cdef bint writeFileData(intptr_t handle, const char *data, int size):  
-    IF UNAME_SYSNAME == "Windows":
+    IF str(UNAME_SYSNAME) == str('Windows'):
         return not windows.WriteFile(<void *>handle, <const void *>data, size, NULL, NULL)
     ELSE:
         return posix.unistd.write(handle, <const void *>data, size) < 0
