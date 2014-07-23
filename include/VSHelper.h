@@ -48,7 +48,7 @@
 #define VS_ALIGNED_MALLOC(pptr, size, alignment) do { *(pptr) = _aligned_malloc((size), (alignment)); } while (0)
 #define VS_ALIGNED_FREE(ptr) do { _aligned_free((ptr)); } while (0)
 #else
-#define VS_ALIGNED_MALLOC(pptr, size, alignment) do { posix_memalign((void**)(pptr), (alignment), (size)); } while (0)
+#define VS_ALIGNED_MALLOC(pptr, size, alignment) do { if(posix_memalign((void**)(pptr), (alignment), (size))) *((void**)pptr) = NULL; } while (0)
 #define VS_ALIGNED_FREE(ptr) do { free((ptr)); } while (0)
 #endif
 
