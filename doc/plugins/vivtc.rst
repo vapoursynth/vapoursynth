@@ -281,6 +281,7 @@ It is a rewrite of some of tritical's TIVTC filters.
       dryrun
          If true, VDecimate will not drop any frames. Instead, it will attach
          the following properties to every frame:
+         
             VDecimateDrop
                1 if VDecimate would normally drop the frame, 0 otherwise.
 
