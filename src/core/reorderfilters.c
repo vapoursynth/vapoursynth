@@ -592,7 +592,7 @@ static void VS_CC duplicateFramesCreate(const VSMap *in, VSMap *out, void *userD
     d.dups = (int *)malloc(d.num_dups * sizeof(int));
 
     for (i = 0; i < d.num_dups; i++) {
-        d.dups[i] = vsapi->propGetInt(in, "frames", i, 0);
+        d.dups[i] = int64ToIntS(vsapi->propGetInt(in, "frames", i, 0));
 
         if (d.dups[i] < 0 || (d.vi.numFrames && d.dups[i] > d.vi.numFrames - 1)) {
             vsapi->setError(out, "DuplicateFrames: Out of bounds frame number.");
@@ -677,7 +677,7 @@ static void VS_CC deleteFramesCreate(const VSMap *in, VSMap *out, void *userData
     d.delete = (int *)malloc(d.num_delete * sizeof(int));
 
     for (i = 0; i < d.num_delete; i++) {
-        d.delete[i] = vsapi->propGetInt(in, "frames", i, 0);
+        d.delete[i] = int64ToIntS(vsapi->propGetInt(in, "frames", i, 0));
 
         if (d.delete[i] < 0 || (d.vi.numFrames && d.delete[i] > d.vi.numFrames - 1)) {
             vsapi->setError(out, "DeleteFrames: Out of bounds frame number.");
@@ -781,9 +781,9 @@ static void VS_CC freezeFramesCreate(const VSMap *in, VSMap *out, void *userData
     d.freeze = (struct Freeze *)malloc(d.num_freeze * sizeof(struct Freeze));
 
     for (i = 0; i < d.num_freeze; i++) {
-        d.freeze[i].first = vsapi->propGetInt(in, "first", i, 0);
-        d.freeze[i].last = vsapi->propGetInt(in, "last", i, 0);
-        d.freeze[i].replacement = vsapi->propGetInt(in, "replacement", i, 0);
+        d.freeze[i].first = int64ToIntS(vsapi->propGetInt(in, "first", i, 0));
+        d.freeze[i].last = int64ToIntS(vsapi->propGetInt(in, "last", i, 0));
+        d.freeze[i].replacement = int64ToIntS(vsapi->propGetInt(in, "replacement", i, 0));
 
         if (d.freeze[i].first > d.freeze[i].last) {
             int tmp = d.freeze[i].first;
