@@ -206,8 +206,9 @@ typedef enum VSMessageType {
 } VSMessageType;
 
 // core function typedefs
-typedef    VSCore *(VS_CC *VSCreateCore)(int threads);
-typedef    void (VS_CC *VSFreeCore)(VSCore *core);
+typedef const VSAPI *(VS_CC *VSGetVapourSynthAPI)(int version);
+typedef VSCore *(VS_CC *VSCreateCore)(int threads);
+typedef void (VS_CC *VSFreeCore)(VSCore *core);
 typedef const VSCoreInfo *(VS_CC *VSGetCoreInfo)(VSCore *core);
 
 // function/filter typedefs
@@ -281,7 +282,6 @@ typedef int (VS_CC *VSPropSetFrame)(VSMap *map, const char *key, const VSFrameRe
 typedef int (VS_CC *VSPropSetFunc)(VSMap *map, const char *key, VSFuncRef *func, int append);
 
 // mixed
-
 typedef void (VS_CC *VSConfigPlugin)(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readonly, VSPlugin *plugin);
 typedef void (VS_CC *VSInitPlugin)(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
 
