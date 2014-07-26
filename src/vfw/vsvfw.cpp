@@ -466,8 +466,10 @@ bool VapourSynthFile::DelayInit2() {
     if (!szScriptName.empty() && !vi) {
         if (!vsscript_evaluateFile(&se, szScriptName.c_str(), efSetWorkingDir)) {
             node = vsscript_getOutput(se, 0);
-            if (!node)
+            if (!node) {
+                error_msg = "Couldn't get output clip, no output set?";
                 goto vpyerror;
+            }
             vi = vsapi->getVideoInfo(node);
             error_msg.clear();
 
@@ -527,7 +529,6 @@ bool VapourSynthFile::DelayInit2() {
             error_script += error_msg;
             error_script += ErrorScript2;
             int res = vsscript_evaluateScript(&se, error_script.c_str(), "vfw_error.bleh", 0);
-            const char *et = vsscript_getError(se);
             node = vsscript_getOutput(se, 0);
             vi = vsapi->getVideoInfo(node);
             return true;

@@ -1,4 +1,5 @@
 r24:
+vsvfw now properly returns an error message when no output has been set instead of silently failing
 fixed a reference leak in vsscript
 vspipe has a new argument for passing on values to the script environment from the command line 
 vspipe now has improved command line parsing and short forms, however old command lines will have to be modified to work
