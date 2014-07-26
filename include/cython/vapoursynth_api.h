@@ -3,6 +3,8 @@
 #include "Python.h"
 #include "vapoursynth.h"
 
+static int (*__pyx_f_11vapoursynth_vpy_createScript)(struct VPYScriptExport *) = 0;
+#define vpy_createScript __pyx_f_11vapoursynth_vpy_createScript
 static int (*__pyx_f_11vapoursynth_vpy_evaluateScript)(struct VPYScriptExport *, char const *, char const *, int) = 0;
 #define vpy_evaluateScript __pyx_f_11vapoursynth_vpy_evaluateScript
 static int (*__pyx_f_11vapoursynth_vpy_evaluateFile)(struct VPYScriptExport *, char const *, int) = 0;
@@ -69,14 +71,14 @@ static int __Pyx_ImportFunction(PyObject *module, const char *funcname, void (**
     cobj = PyDict_GetItemString(d, funcname);
     if (!cobj) {
         PyErr_Format(PyExc_ImportError,
-            "%s does not export expected C function %s",
+            "%.200s does not export expected C function %.200s",
                 PyModule_GetName(module), funcname);
         goto bad;
     }
 #if PY_VERSION_HEX >= 0x02070000 && !(PY_MAJOR_VERSION==3 && PY_MINOR_VERSION==0)
     if (!PyCapsule_IsValid(cobj, sig)) {
         PyErr_Format(PyExc_TypeError,
-            "C function %s.%s has wrong signature (expected %s, got %s)",
+            "C function %.200s.%.200s has wrong signature (expected %.500s, got %.500s)",
              PyModule_GetName(module), funcname, sig, PyCapsule_GetName(cobj));
         goto bad;
     }
@@ -90,7 +92,7 @@ static int __Pyx_ImportFunction(PyObject *module, const char *funcname, void (**
     while (*s1 != '\0' && *s1 == *s2) { s1++; s2++; }
     if (*s1 != *s2) {
         PyErr_Format(PyExc_TypeError,
-            "C function %s.%s has wrong signature (expected %s, got %s)",
+            "C function %.200s.%.200s has wrong signature (expected %.500s, got %.500s)",
              PyModule_GetName(module), funcname, sig, desc);
         goto bad;
     }
@@ -112,6 +114,7 @@ static int import_vapoursynth(void) {
   PyObject *module = 0;
   module = __Pyx_ImportModule("vapoursynth");
   if (!module) goto bad;
+  if (__Pyx_ImportFunction(module, "vpy_createScript", (void (**)(void))&__pyx_f_11vapoursynth_vpy_createScript, "int (struct VPYScriptExport *)") < 0) goto bad;
   if (__Pyx_ImportFunction(module, "vpy_evaluateScript", (void (**)(void))&__pyx_f_11vapoursynth_vpy_evaluateScript, "int (struct VPYScriptExport *, char const *, char const *, int)") < 0) goto bad;
   if (__Pyx_ImportFunction(module, "vpy_evaluateFile", (void (**)(void))&__pyx_f_11vapoursynth_vpy_evaluateFile, "int (struct VPYScriptExport *, char const *, int)") < 0) goto bad;
   if (__Pyx_ImportFunction(module, "vpy_freeScript", (void (**)(void))&__pyx_f_11vapoursynth_vpy_freeScript, "void (struct VPYScriptExport *)") < 0) goto bad;

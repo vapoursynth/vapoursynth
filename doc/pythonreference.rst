@@ -122,6 +122,13 @@ Classes and Functions
       specify which clip(s) to output and all VapourSynth tools (vsvfw, vsfs,
       vspipe) use the clip in *index* 0.
 
+   .. py:method:: output(fileobj[, y4m = False, prefetch = 0, progress_update = None])
+ 
+      Write the whole clip to the specified file handle. It is possible to pipe to stdout by specifying *sys.stdout* as the file.
+      YUV4MPEG2 headers will be appended when *y4m* is true.
+      The current progress can be reported by passing a callback function of the form *func(current_frame, total_frames)* to *progress_update*.
+      The *prefetch* argument is only for debugging purposes and should never need to be changed.
+      
 .. py:class:: VideoFrame
 
       This class represents a video frame and all metadata attached to it.

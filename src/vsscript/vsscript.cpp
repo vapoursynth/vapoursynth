@@ -40,6 +40,14 @@ VS_API(int) vsscript_finalize(void) {
     return --initializationCount;
 }
 
+VS_API(int) vsscript_createScript(VSScript **handle) {
+    *handle = new(std::nothrow)VSScript();
+    (*handle)->pyenvdict = NULL;
+    (*handle)->errstr = NULL;
+    (*handle)->id = ++scriptId;
+    return vpy_createScript(*handle);
+}
+
 VS_API(int) vsscript_evaluateScript(VSScript **handle, const char *script, const char *scriptFilename, int flags) {
     if (*handle == NULL) {
         *handle = new(std::nothrow)VSScript();

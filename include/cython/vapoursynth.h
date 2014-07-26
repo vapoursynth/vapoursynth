@@ -3,8 +3,8 @@
 
 struct VPYScriptExport;
 
-/* "vapoursynth.pyx":1015
- *
+/* "vapoursynth.pyx":1296
+ * 
  * # for whole script evaluation and export
  * cdef public struct VPYScriptExport:             # <<<<<<<<<<<<<<
  *     void *pyenvdict
@@ -26,6 +26,7 @@ struct VPYScriptExport {
   #endif
 #endif
 
+__PYX_EXTERN_C DL_IMPORT(int) vpy_createScript(struct VPYScriptExport *);
 __PYX_EXTERN_C DL_IMPORT(int) vpy_evaluateScript(struct VPYScriptExport *, char const *, char const *, int);
 __PYX_EXTERN_C DL_IMPORT(int) vpy_evaluateFile(struct VPYScriptExport *, char const *, int);
 __PYX_EXTERN_C DL_IMPORT(void) vpy_freeScript(struct VPYScriptExport *);

@@ -751,7 +751,7 @@ cdef class VideoNode(object):
             global _stored_output
             _stored_output[index] = self
 
-    def output(self, object fileobj not None, bint y4m = False, int prefetch = 0, object progress_update = None):
+    def output(self, object fileobj not None, bint y4m = False, object progress_update = None, int prefetch = 0):
         if prefetch < 1:
             prefetch = self.core.num_threads
 
@@ -760,7 +760,7 @@ cdef class VideoNode(object):
         if d.total <= 0:
             raise Error('Cannot output unknown length clip')
 
-        #// this is also an implicit test that the progress_update callback at least vaguely matches the requirements
+        # this is also an implicit test that the progress_update callback at least vaguely matches the requirements
         if (progress_update is not None):
             progress_update(0, d.total)
 
@@ -1298,6 +1298,29 @@ cdef public struct VPYScriptExport:
     void *errstr
     int id
 
+cdef public api int vpy_createScript(VPYScriptExport *se) nogil:
+    with gil:
+        global _environment_id
+        global _environment_id_stack
+        _environment_id_stack.append(_environment_id)
+        _environment_id = se.id
+        try:
+            evaldict = {}
+            Py_INCREF(evaldict)
+            se.pyenvdict = <void *>evaldict
+            global _stored_outputs
+            _stored_outputs[se.id] = {}
+
+        except:
+            errstr = 'Unspecified Python exception' + '\n' + traceback.format_exc()
+            errstr = errstr.encode('utf-8')
+            Py_INCREF(errstr)
+            se.errstr = <void *>errstr
+            return 1
+        finally:
+            _environment_id = _environment_id_stack.pop()
+        return 0         
+    
 cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, const char *scriptFilename, int flags) nogil:
     with gil:
         global _environment_id
@@ -1314,8 +1337,6 @@ cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, 
                 se.pyenvdict = <void *>evaldict
                 global _stored_outputs
                 _stored_outputs[se.id] = {}
-
-            Py_INCREF(evaldict)
 
             fn = scriptFilename.decode('utf-8')
 
@@ -1383,10 +1404,11 @@ cdef public api int vpy_evaluateFile(VPYScriptExport *se, const char *scriptFile
 cdef public api void vpy_freeScript(VPYScriptExport *se) nogil:
     with gil:
         vpy_clearEnvironment(se)
-        evaldict = <dict>se.pyenvdict
-        se.pyenvdict = NULL
-        Py_DECREF(evaldict)
-        evaldict = None
+        if se.pyenvdict:
+            evaldict = <dict>se.pyenvdict
+            se.pyenvdict = NULL
+            Py_DECREF(evaldict)
+            evaldict = None
 
         if se.errstr:
             errstr = <bytes>se.errstr

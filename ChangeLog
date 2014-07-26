@@ -1,4 +1,8 @@
 r24:
+fixed a reference leak in vsscript
+vspipe has a new argument for passing on values to the script environment from the command line 
+vspipe now has improved command line parsing and short forms, however old command lines will have to be modified to work
+re-added clip.output()
 fixed a filter error propagation issue
 mixed improvements to vivtc (nodame)
 fixed mac compilation of genericfilters

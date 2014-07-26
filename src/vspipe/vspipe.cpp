@@ -84,6 +84,7 @@ int numPlanes = 0;
 bool y4m = false;
 bool outputError = false;
 bool showInfo = false;
+bool showVersion = false;
 bool printFrameNumber = false;
 double fps = 0;
 bool hasMeaningfulFps = false;
@@ -281,6 +282,62 @@ bool nstringToInt(const nstring &ns, int &result) {
     return pos == s.length();
 }
 
+bool printVersion() {
+    if (!vsscript_init()) {
+        fprintf(stderr, "Failed to initialize VapourSynth environment\n");
+        return false;
+    }
+
+    vsapi = vsscript_getVSApi();
+    if (!vsapi) {
+        fprintf(stderr, "Failed to get VapourSynth API pointer\n");
+        vsscript_finalize();
+        return false;
+    }
+
+    VSCore *core = vsapi->createCore(0);
+    if (!core) {
+        fprintf(stderr, "Failed to create core\n");
+        vsscript_finalize();
+        return false;
+    }
+
+    const VSCoreInfo *info = vsapi->getCoreInfo(core);
+    printf("%s", info->versionString);
+    vsapi->freeCore(core);
+    vsscript_finalize();
+    return true;
+}
+
+void printHelp(const std::string &name) {
+    fprintf(stderr,
+        "VSPipe usage:\n"
+        "  %1$s [options] <script> <outfile>\n"
+        "\n"
+        "Available options:\n"
+        "  -a, --arg key=value  Argument to pass to the script environment"
+        "  -s, --start N         Set output frame range (first frame)\n"
+        "  -e, --end N           Set output frame range (last frame)\n"
+        "  -o, --outputindex N   Select output index\n"
+        "  -r, --requests N      Set number of concurrent frame requests\n"
+        "  -y, --y4m             Add YUV4MPEG headers to output\n"
+        "  -p, --progress        Print progress to stderr\n"
+        "  -i, --info            Show video info and exit\n"
+        "  -v, --version         Show version info and exit\n"
+        "\n"
+        "Examples:\n"
+        "  Show script info:\n"
+        "    %1$s --info script.vpy -\n"
+        "  Write to stdout:\n"
+        "    %1$s [options] script.vpy -\n"
+        "  Write frames 5-100 to file:\n"
+        "    %1$s --start 5 --end 100 script.vpy output.raw\n"
+        "  Pass values to a script:\n"
+        "    %1$s --arg deinterlace=yes --arg \"message=fluffy kittens\" script.vpy output.raw\n"
+        , name.c_str()
+        );
+}
+
 // fixme, only allow info without output
 #ifdef VS_TARGET_OS_WINDOWS
 int wmain(int argc, wchar_t **argv) {
@@ -290,85 +347,23 @@ int wmain(int argc, wchar_t **argv) {
 #else
 int main(int argc, char **argv) {
 #endif
+    nstring outputFilename, scriptFilename;
+    bool showHelp = false;
+    std::map<std::string, std::string> scriptArgs;
 
-    if (argc == 2) {
-        if (nstring(argv[1]) == NSTRING("-version")) {
-            if (!vsscript_init()) {
-                fprintf(stderr, "Failed to initialize VapourSynth environment\n");
-                return 1;
-            }
-
-            vsapi = vsscript_getVSApi();
-            if (!vsapi) {
-                fprintf(stderr, "Failed to get VapourSynth API pointer\n");
-                vsscript_finalize();
-                return 1;
-            }
-
-            VSCore *core = vsapi->createCore(0);
-            if (!core) {
-                fprintf(stderr, "Failed to create core\n");
-                vsscript_finalize();
-                return 1;
-            }
-
-            const VSCoreInfo *info = vsapi->getCoreInfo(core);
-            printf("%s", info->versionString);
-            vsapi->freeCore(core);
-            vsscript_finalize();
-            return 0;
-        }
-    }
-
-    if (argc < 3) {
-        fprintf(stderr,
-            "VSPipe usage:\n"
-            "  %1$s <script> <outFile> [options]\n"
-            "\n"
-            "Available options:\n"
-            "  -start N     Specify output frame range (first frame)\n"
-            "  -end N       Specify output frame range (last frame)\n"
-            "  -index N     Select output index\n"
-            "  -requests N  Set number of concurrent frame requests\n"
-            "  -y4m         Add YUV4MPEG headers to output\n"
-            "  -progress    Print progress to stderr\n"
-            "  -info        Show video info (overrides other options)\n"
-            "  -version     Show version info\n"
-            "\n"
-            "Examples:\n"
-            "  Show script info:\n"
-            "    %1$s script.vpy - -info\n"
-            "  Write to stdout:\n"
-            "    %1$s script.vpy - [options]\n"
-            "  Write frames 5-100 to file:\n"
-            "    %1$s script.vpy <outFile> -start 5 -end 100\n"
-            , argv[0]
-        );
-        return 1;
-    }
-
-    nstring outputFilename = argv[2];
-    if (outputFilename == NSTRING("-")) {
-        outFile = stdout;
-    } else {
-#ifdef VS_TARGET_OS_WINDOWS
-        outFile = _wfopen(outputFilename.c_str(), L"wb");
-#else
-        outFile = fopen(outputFilename.c_str(), "wb");
-#endif
-        if (!outFile) {
-            fprintf(stderr, "Failed to open output for writing\n");
-            return 1;
-        }
-    }
-
-    for (int arg = 3; arg < argc; arg++) {
+    for (int arg = 1; arg < argc; arg++) {
         nstring argString = argv[arg];
-        if (argString == NSTRING("-y4m")) {
+        if (argString == NSTRING("-v") || argString == NSTRING("--version")) {
+            showVersion = true;
+        } else if (argString == NSTRING("-y") || argString == NSTRING("--y4m")) {
             y4m = true;
-        } else if (argString == NSTRING("-info")) {
+        } else if (argString == NSTRING("-p") || argString == NSTRING("--progress")) {
+            printFrameNumber = true;
+        } else if (argString == NSTRING("-i") || argString == NSTRING("--info")) {
             showInfo = true;
-        } else if (argString == NSTRING("-start")) {
+        } else if (argString == NSTRING("-h") || argString == NSTRING("--help")) {
+            showHelp = true;
+        } else if (argString == NSTRING("-s") || argString == NSTRING("--start")) {
             if (argc <= arg + 1) {
                 fprintf(stderr, "No start frame specified\n");
                 return 1;
@@ -384,12 +379,12 @@ int main(int argc, char **argv) {
                 return 1;
             }
 
-            arg++;
-
             outputFrames = completedFrames;
             requestedFrames = completedFrames;
             lastFpsReportFrame = completedFrames;
-        } else if (argString == NSTRING("-end")) {
+
+            arg++;
+        } else if (argString == NSTRING("-e") || argString == NSTRING("--end")) {
             if (argc <= arg + 1) {
                 fprintf(stderr, "No end frame specified\n");
                 return 1;
@@ -407,9 +402,9 @@ int main(int argc, char **argv) {
 
             totalFrames++;
             arg++;
-        } else if (argString == NSTRING("-index")) {
+        } else if (argString == NSTRING("-o") || argString == NSTRING("--outputindex")) {
             if (argc <= arg + 1) {
-                fprintf(stderr, "No index number specified\n");
+                fprintf(stderr, "No output index specified\n");
                 return 1;
             }
 
@@ -418,9 +413,9 @@ int main(int argc, char **argv) {
                 return 1;
             }
             arg++;
-        } else if (argString == NSTRING("-requests")) {
+        } else if (argString == NSTRING("-r") || argString == NSTRING("--requests")) {
             if (argc <= arg + 1) {
-                fprintf(stderr, "No request number specified\n");
+                fprintf(stderr, "Number of requests not specified\n");
                 return 1;
             }
             if (!nstringToInt(argv[arg + 1], requests)) {
@@ -428,10 +423,56 @@ int main(int argc, char **argv) {
                 return 1;
             }
             arg++;
-        } else if (argString == NSTRING("-progress")) {
-            printFrameNumber = true;
+        } else if (argString == NSTRING("-a") || argString == NSTRING("--arg")) {
+            if (argc <= arg + 1) {
+                fprintf(stderr, "No argument specified\n");
+                return 1;
+            }
+
+            std::string aLine = nstringToUtf8(argv[arg + 1]).c_str();
+            size_t equalsPos = aLine.find("=");
+            if (equalsPos == std::string::npos) {
+                fprintf(stderr, "No value specified for argument: %s\n", aLine.c_str());
+                return 1;
+            }
+
+            scriptArgs[aLine.substr(0, equalsPos)] = aLine.substr(equalsPos + 1);
+
+            arg++;
+        } else if (scriptFilename.empty()) {
+            scriptFilename = argString;
+        } else if (outputFilename.empty()) {
+            outputFilename = argString;
         } else {
             fprintf(stderr, "Unknown argument: %s\n", nstringToUtf8(argString).c_str());
+            return 1;
+        }
+    }
+
+    if (showVersion && argc > 2) {
+        fprintf(stderr, "Cannot combine version information with other options\n");
+        return 1;
+    } else if (showHelp || argc <= 1) {
+        printHelp(nstringToUtf8(argv[0]));
+        return 1;
+    } else if (scriptFilename.empty()) {
+        fprintf(stderr, "No script file specified\n");
+        return 1;
+    } else if (outputFilename.empty()) {
+        fprintf(stderr, "No output file specified\n");
+        return 1;
+    }
+
+    if (outputFilename == NSTRING("-")) {
+        outFile = stdout;
+    } else {
+#ifdef VS_TARGET_OS_WINDOWS
+        outFile = _wfopen(outputFilename.c_str(), L"wb");
+#else
+        outFile = fopen(outputFilename.c_str(), "wb");
+#endif
+        if (!outFile) {
+            fprintf(stderr, "Failed to open output for writing\n");
             return 1;
         }
     }
@@ -446,6 +487,22 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Failed to get VapourSynth API pointer\n");
         vsscript_finalize();
         return 1;
+    }
+    
+    // Should always succeed
+    if (vsscript_createScript(&se)) {
+        fprintf(stderr, "Script environment initialization failed:\n%s\n", vsscript_getError(se));
+        vsscript_freeScript(se);
+        vsscript_finalize();
+        return 1;
+    }
+
+    {
+        VSMap *foldedArgs = vsapi->createMap();
+        for (const auto &iter : scriptArgs)
+            vsapi->propSetData(foldedArgs, iter.first.c_str(), iter.second.c_str(), iter.second.size(), paAppend);
+        vsscript_setVariable(se, foldedArgs);
+        vsapi->freeMap(foldedArgs);
     }
 
     start = std::chrono::high_resolution_clock::now();
@@ -468,10 +525,21 @@ int main(int argc, char **argv) {
     const VSVideoInfo *vi = vsapi->getVideoInfo(node);
 
     if (showInfo) {
-        fprintf(outFile, "Width: %d\n", vi->width);
-        fprintf(outFile, "Height: %d\n", vi->height);
-        fprintf(outFile, "Frames: %d\n", vi->numFrames);
-        fprintf(outFile, "FPS: %" PRId64 "/%" PRId64 "\n", vi->fpsNum, vi->fpsDen);
+        if (vi->width && vi->height) {
+            fprintf(outFile, "Width: %d\n", vi->width);
+            fprintf(outFile, "Height: %d\n", vi->height);
+        } else {
+            fprintf(outFile, "Width: Variable\n");
+            fprintf(outFile, "Height: Variable\n");
+        }
+        if (vi->numFrames)
+            fprintf(outFile, "Frames: %d\n", vi->numFrames);
+        else
+            fprintf(outFile, "Frames: Unknown\n");
+        if (vi->fpsNum && vi->fpsDen)
+            fprintf(outFile, "FPS: %" PRId64 "/%" PRId64 "(%.3f fps)\n", vi->fpsNum, vi->fpsDen, vi->fpsDen/(double)vi->fpsNum);
+        else
+            fprintf(outFile, "FPS: Variable\n");
 
         if (vi->format) {
             fprintf(outFile, "Format Name: %s\n", vi->format->name);
@@ -502,7 +570,6 @@ int main(int argc, char **argv) {
             return 1;
         }
 
-
         lastFpsReportTime = std::chrono::high_resolution_clock::now();;
         error = outputNode();
     }
@@ -517,5 +584,5 @@ int main(int argc, char **argv) {
     vsscript_freeScript(se);
     vsscript_finalize();
 
-    return error;
+    return error ? 1 : 0;
 }
