@@ -1406,6 +1406,7 @@ cdef public api void vpy_freeScript(VPYScriptExport *se) nogil:
         vpy_clearEnvironment(se)
         if se.pyenvdict:
             evaldict = <dict>se.pyenvdict
+            evaldict.clear()
             se.pyenvdict = NULL
             Py_DECREF(evaldict)
             evaldict = None
