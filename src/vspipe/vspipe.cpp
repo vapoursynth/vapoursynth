@@ -312,7 +312,7 @@ bool printVersion() {
 void printHelp(const std::string &name) {
     fprintf(stderr,
         "VSPipe usage:\n"
-        "  %1$s [options] <script> <outfile>\n"
+        "  %s [options] <script> <outfile>\n"
         "\n"
         "Available options:\n"
         "  -a, --arg key=value  Argument to pass to the script environment"
@@ -327,14 +327,14 @@ void printHelp(const std::string &name) {
         "\n"
         "Examples:\n"
         "  Show script info:\n"
-        "    %1$s --info script.vpy -\n"
+        "    %s --info script.vpy -\n"
         "  Write to stdout:\n"
-        "    %1$s [options] script.vpy -\n"
+        "    %s [options] script.vpy -\n"
         "  Write frames 5-100 to file:\n"
-        "    %1$s --start 5 --end 100 script.vpy output.raw\n"
+        "    %s --start 5 --end 100 script.vpy output.raw\n"
         "  Pass values to a script:\n"
-        "    %1$s --arg deinterlace=yes --arg \"message=fluffy kittens\" script.vpy output.raw\n"
-        , name.c_str()
+        "    %s --arg deinterlace=yes --arg \"message=fluffy kittens\" script.vpy output.raw\n"
+        , name.c_str(), name.c_str(), name.c_str(), name.c_str(), name.c_str()
         );
 }
 
