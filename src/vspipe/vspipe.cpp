@@ -295,7 +295,7 @@ bool printVersion() {
         return false;
     }
 
-    VSCore *core = vsapi->createCore(0);
+    VSCore *core = vsapi->createCore(1);
     if (!core) {
         fprintf(stderr, "Failed to create core\n");
         vsscript_finalize();
@@ -439,9 +439,9 @@ int main(int argc, char **argv) {
             scriptArgs[aLine.substr(0, equalsPos)] = aLine.substr(equalsPos + 1);
 
             arg++;
-        } else if (scriptFilename.empty()) {
+        } else if (scriptFilename.empty() && !argString.empty() && argString.substr(0, 1) != NSTRING("-")) {
             scriptFilename = argString;
-        } else if (outputFilename.empty()) {
+        } else if (outputFilename.empty() && !argString.empty() && (argString == NSTRING("-") || (argString.substr(0, 1) != NSTRING("-")))) {
             outputFilename = argString;
         } else {
             fprintf(stderr, "Unknown argument: %s\n", nstringToUtf8(argString).c_str());
@@ -452,6 +452,8 @@ int main(int argc, char **argv) {
     if (showVersion && argc > 2) {
         fprintf(stderr, "Cannot combine version information with other options\n");
         return 1;
+    } else if (showVersion) {
+        return printVersion() ? 0 : 1;
     } else if (showHelp || argc <= 1) {
         printHelp(nstringToUtf8(argv[0]));
         return 1;
@@ -506,7 +508,7 @@ int main(int argc, char **argv) {
     }
 
     start = std::chrono::high_resolution_clock::now();
-    if (vsscript_evaluateFile(&se, nstringToUtf8(argv[1]).c_str(), efSetWorkingDir)) {
+    if (vsscript_evaluateFile(&se, nstringToUtf8(scriptFilename).c_str(), efSetWorkingDir)) {
         fprintf(stderr, "Script evaluation failed:\n%s\n", vsscript_getError(se));
         vsscript_freeScript(se);
         vsscript_finalize();
@@ -537,7 +539,7 @@ int main(int argc, char **argv) {
         else
             fprintf(outFile, "Frames: Unknown\n");
         if (vi->fpsNum && vi->fpsDen)
-            fprintf(outFile, "FPS: %" PRId64 "/%" PRId64 "(%.3f fps)\n", vi->fpsNum, vi->fpsDen, vi->fpsDen/(double)vi->fpsNum);
+            fprintf(outFile, "FPS: %" PRId64 "/%" PRId64 " (%.3f fps)\n", vi->fpsNum, vi->fpsDen, vi->fpsNum/(double)vi->fpsDen);
         else
             fprintf(outFile, "FPS: Variable\n");
 
