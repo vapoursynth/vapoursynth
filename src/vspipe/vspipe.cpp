@@ -309,10 +309,10 @@ bool printVersion() {
     return true;
 }
 
-void printHelp(const std::string &name) {
+void printHelp() {
     fprintf(stderr,
         "VSPipe usage:\n"
-        "  %s [options] <script> <outfile>\n"
+        "  vspipe [options] <script> <outfile>\n"
         "\n"
         "Available options:\n"
         "  -a, --arg key=value  Argument to pass to the script environment"
@@ -327,14 +327,13 @@ void printHelp(const std::string &name) {
         "\n"
         "Examples:\n"
         "  Show script info:\n"
-        "    %s --info script.vpy -\n"
+        "    vspipe --info script.vpy -\n"
         "  Write to stdout:\n"
-        "    %s [options] script.vpy -\n"
+        "    vspipe [options] script.vpy -\n"
         "  Write frames 5-100 to file:\n"
-        "    %s --start 5 --end 100 script.vpy output.raw\n"
+        "    vspipe --start 5 --end 100 script.vpy output.raw\n"
         "  Pass values to a script:\n"
-        "    %s --arg deinterlace=yes --arg \"message=fluffy kittens\" script.vpy output.raw\n"
-        , name.c_str(), name.c_str(), name.c_str(), name.c_str(), name.c_str()
+        "    vspipe --arg deinterlace=yes --arg \"message=fluffy kittens\" script.vpy output.raw\n"
         );
 }
 
@@ -455,7 +454,7 @@ int main(int argc, char **argv) {
     } else if (showVersion) {
         return printVersion() ? 0 : 1;
     } else if (showHelp || argc <= 1) {
-        printHelp(nstringToUtf8(argv[0]));
+        printHelp();
         return 1;
     } else if (scriptFilename.empty()) {
         fprintf(stderr, "No script file specified\n");
