@@ -19,23 +19,24 @@ Avisynth functions and their VapourSynth equivalents
 +------------------------+---------------------+----------------------------------------------------------------------+
 | ColorYUV               | std.Lut             | Do the adjustment yourself with a lut                                |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| GreyScale              | std.ShufflePlanes   | ShufflePlanes(clips=inclip, planes=0, format=vs.GRAY)                |
+| GreyScale              | std.ShufflePlanes   | ShufflePlanes(clips=inclip, planes=0, colorfamily=vs.GRAY)           |
 |                        |                     | Extracts the first plane. Y for YUV, R for RGB, planes=1/2 = U/V G/B |
 +------------------------+---------------------+----------------------------------------------------------------------+
 | Invert                 | std.Lut             | Do the adjustment yourself with a lut                                |
 +------------------------+---------------------+----------------------------------------------------------------------+
 | Limiter                | std.Lut             | Do the adjustment yourself with a lut                                |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| MergeRGB               | std.ShufflePlanes   | ShufflePlanes(clips=[R,G,B], planes=[0, 0, 0], format=vs.RGB)        |
+| MergeRGB               | std.ShufflePlanes   | ShufflePlanes(clips=[R,G,B], planes=[0, 0, 0], colorfamily=vs.RGB)   |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| MergeChroma/MergeLuma  | std.ShufflePlanes   | ShufflePlanes(clips=[Yclip,UVclip], planes=[0, 1, 2], format=vs.YUV) |
+| MergeChroma/MergeLuma  | std.ShufflePlanes   | ShufflePlanes(clips=[Yclip,UVclip], planes=[0, 1, 2],                |
+|                        |                     | colorfamily=vs.YUV)                                                  |
 +------------------------+---------------------+----------------------------------------------------------------------+
 | RGBAdjust              | std.Lut             | Do the adjustment yourself with a lut                                |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| ShowAlpha/ShowRed/     | std.ShufflePlanes   | ShufflePlanes(clips=inclip, planes=0, format=vs.GRAY)                |
+| ShowAlpha/ShowRed/     | std.ShufflePlanes   | ShufflePlanes(clips=inclip, planes=0, colorfamily=vs.GRAY)           |
 | ShowGreen/ShowBlue     |                     | Extracts the first plane. Y for YUV, R for RGB, planes=1/2 = U/V G/B |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| SwapUV                 | std.ShufflePlanes   | ShufflePlanes(clips=inclip, planes=[0, 2, 1], format=vs.YUV)         |
+| SwapUV                 | std.ShufflePlanes   | ShufflePlanes(clips=inclip, planes=[0, 2, 1], colorfamily=vs.YUV)    |
 +------------------------+---------------------+----------------------------------------------------------------------+
 | Tweak                  | std.Lut             | Do the adjustment yourself with a lut                                |
 +------------------------+---------------------+----------------------------------------------------------------------+
