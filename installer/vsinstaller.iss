@@ -75,9 +75,9 @@ Source: x64\vsscript.dll; DestDir: {sys}; Flags: uninsrestartdelete restartrepla
 Source: x86\rtx86.msi; DestDir: {app}\runtimes; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
 Source: x64\rtx64.msi; DestDir: {app}\runtimes; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 ;sdk
-Source: ..\include\VapourSynth.h; DestDir: {app}\sdk\include; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
-Source: ..\include\VSHelper.h; DestDir: {app}\sdk\include; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
-Source: ..\include\VSScript.h; DestDir: {app}\sdk\include; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
+Source: ..\include\VapourSynth.h; DestDir: {app}\sdk\include\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
+Source: ..\include\VSHelper.h; DestDir: {app}\sdk\include\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
+Source: ..\include\VSScript.h; DestDir: {app}\sdk\include\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
 Source: x86\vsscript.lib; DestDir: {app}\sdk\lib32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
 Source: x64\vsscript.lib; DestDir: {app}\sdk\lib64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
 Source: x86\vapoursynth.lib; DestDir: {app}\sdk\lib32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
