@@ -100,7 +100,7 @@ VS_API(int) vsscript_getVariable(VSScript *handle, const char *name, VSMap *dst)
 }
 
 VS_API(void) vsscript_setVariable(VSScript *handle, const VSMap *vars) {
-    vpy_setVariable(handle, (VSMap *)vars);
+    vpy_setVariable(handle, vars);
 }
 
 VS_API(int) vsscript_clearVariable(VSScript *handle, const char *name) {
