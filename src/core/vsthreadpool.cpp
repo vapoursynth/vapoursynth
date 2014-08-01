@@ -267,11 +267,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 }
 
 VSThreadPool::VSThreadPool(VSCore *core, int threads) : core(core), activeThreads(0), idleThreads(0), stopThreads(false), ticks(0) {
-    maxThreads = threads > 0 ? threads : std::thread::hardware_concurrency();
-    if (maxThreads == 0) {
-        maxThreads = 1;
-        vsWarning("Couldn't detect optimal number of threads. Thread count set to 1.");
-    }
+    setThreadCount(threads);
 }
 
 int VSThreadPool::activeThreadCount() const {
@@ -288,7 +284,11 @@ void VSThreadPool::spawnThread() {
 }
 
 void VSThreadPool::setThreadCount(int threads) {
-    maxThreads = threads;
+    maxThreads = threads > 0 ? threads : std::thread::hardware_concurrency();
+    if (maxThreads == 0) {
+        maxThreads = 1;
+        vsWarning("Couldn't detect optimal number of threads. Thread count set to 1.");
+    }
 }
 
 void VSThreadPool::wakeThread() {
