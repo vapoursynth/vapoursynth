@@ -957,7 +957,6 @@ cdef class Core(object):
     cdef readonly int num_threads
     cdef readonly bint add_cache
     cdef readonly bint accept_lowercase
-    cdef readonly bint r21_arg_compat
 
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
@@ -1057,7 +1056,7 @@ cdef class Core(object):
         s += '\tAccept Lowercase: ' + str(self.accept_lowercase) + '\n'
         return s
 
-cdef Core createCore(int threads = 0, bint add_cache = True, bint accept_lowercase = False, bint r21_arg_compat = True):
+cdef Core createCore(int threads = 0, bint add_cache = True, bint accept_lowercase = False):
     cdef Core instance = Core.__new__(Core)
     instance.funcs = getVapourSynthAPI(3)
     if instance.funcs == NULL:
@@ -1065,12 +1064,11 @@ cdef Core createCore(int threads = 0, bint add_cache = True, bint accept_lowerca
     instance.core = instance.funcs.createCore(threads)
     instance.add_cache = add_cache
     instance.accept_lowercase = accept_lowercase
-    instance.r21_arg_compat = r21_arg_compat
     cdef const VSCoreInfo *info = instance.funcs.getCoreInfo(instance.core)
     instance.num_threads = info.numThreads
     return instance
 
-def get_core(int threads = 0, bint add_cache = True, bint accept_lowercase = False, bint r21_arg_compat = True):
+def get_core(int threads = 0, bint add_cache = True, bint accept_lowercase = False):
     global _using_vsscript
     if _using_vsscript:
         global _cores
@@ -1079,12 +1077,12 @@ def get_core(int threads = 0, bint add_cache = True, bint accept_lowercase = Fal
             raise Error('Internal environment id not set. Was get_core() called from a filter callback?')
 
         if not _environment_id in _cores:
-            _cores[_environment_id] = createCore(threads, add_cache, accept_lowercase, r21_arg_compat)
+            _cores[_environment_id] = createCore(threads, add_cache, accept_lowercase)
         return _cores[_environment_id]
     else:
         global _core
         if _core is None:
-            _core = createCore(threads, add_cache, accept_lowercase, r21_arg_compat)
+            _core = createCore(threads, add_cache, accept_lowercase)
         return _core
 
 cdef get_core_internal(int _environment_id, int threads = 0, bint add_cache = True, bint accept_lowercase = False):
@@ -1190,20 +1188,6 @@ cdef class Function(object):
             else:
                 nkey = key
             ndict[nkey] = kwargs[key]
-            
-        # handle Merge, MaskedMerge, Lut2 r21 compat
-        if self.plugin.core.r21_arg_compat and ((self.name == 'Merge') or (self.name == 'MaskedMerge') or (self.name == 'Lut2')):
-            try:
-                if 'clips' in ndict:
-                    ndict['clipa'] = ndict['clips'][0]
-                    ndict['clipb'] = ndict['clips'][1]
-                    del ndict['clips']
-                elif not isinstance(arglist[0], VideoNode) and isinstance(arglist[0][0], VideoNode) and isinstance(arglist[0][1], VideoNode):
-                    ndict['clipa'] = arglist[0][0]
-                    ndict['clipb'] = arglist[0][1]
-                    del arglist[0]
-            except:
-                pass
 
         # match up unnamed arguments to the first unused name in order
         sigs = self.signature.split(';')
