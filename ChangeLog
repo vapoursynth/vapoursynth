@@ -1,4 +1,6 @@
 r24:
+include file paths in the windows sdk have been changed to better match linux and osx
+the core will no longer be completely freed until all filter instances belonging to it have been released, this prevents crashes in some circumstances
 vsvfw now properly returns an error message when no output has been set instead of silently failing
 fixed a reference leak in vsscript
 vspipe has a new argument for passing on values to the script environment from the command line 

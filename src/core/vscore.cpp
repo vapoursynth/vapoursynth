@@ -461,19 +461,26 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, VSFilterIni
     if ((flags & nfIsCache) && !(flags & nfNoCache))
         vsFatal("Filter %s specified an illegal combination of flags (%d)", name.c_str(), flags);
 
+    core->FilterInstanceCreated();
     VSMap inval(*in);
     init(&inval, out, &this->instanceData, this, core, getVSAPIInternal(apiVersion));
 
-    if (vsapi.getError(out))
+    if (vsapi.getError(out)) {
+        core->FilterInstanceDestroyed();
         throw VSException(vsapi.getError(out));
+    }
 
     if (!hasVi)
         vsFatal("Filter %s didn't set vi", name.c_str());
+
+    
 }
 
 VSNode::~VSNode() {
     if (free)
         free(instanceData, core, &vsapi);
+
+    core->FilterInstanceDestroyed();
 }
 
 void VSNode::getFrame(const PFrameContext &ct) {
@@ -813,7 +820,18 @@ bool VSCore::loadAllPluginsInPath(const std::string &path, const std::string &fi
     return true;
 }
 
-VSCore::VSCore(int threads) : formatIdOffset(1000), memory(new MemoryUse()) {
+void VSCore::FilterInstanceCreated() {
+    ++numFilterInstances;
+}
+
+void VSCore::FilterInstanceDestroyed() {
+    if (!--numFilterInstances) {
+        assert(coreFreed);
+        delete this;
+    }
+}
+
+VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), formatIdOffset(1000), memory(new MemoryUse()) {
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isMMXStateOk())
         vsFatal("Bad MMX state detected creating new core");
@@ -944,6 +962,14 @@ VSCore::VSCore(int threads) : formatIdOffset(1000), memory(new MemoryUse()) {
 
     vsapi.freeMap(settings);
 #endif
+}
+
+void VSCore::Free() {
+    if (coreFreed)
+        vsFatal("Double free of core");
+    coreFreed = true;
+    // Release the extra filter instance that always keeps the core alive
+    FilterInstanceDestroyed();
 }
 
 VSCore::~VSCore() {

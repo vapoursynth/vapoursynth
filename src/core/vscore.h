@@ -512,6 +512,11 @@ struct VSCore {
     friend class VSThreadPool;
     friend class CacheInstance;
 private:
+    //number of filter instances plus one, freeing the core reduces it by one
+    // the core will be freed once it reaches 0
+    std::atomic<bool> coreFreed;
+    std::atomic<int> numFilterInstances; 
+
     std::map<std::string, VSPlugin *> plugins;
     std::recursive_mutex pluginLock;
     std::map<int, VSFormat *> formats;
@@ -520,6 +525,8 @@ private:
     VSCoreInfo coreInfo;
     std::set<VSNode *> caches;
     std::mutex cacheLock;
+
+    ~VSCore();
 
     void registerFormats();
 #ifdef VS_TARGET_OS_WINDOWS
@@ -551,8 +558,11 @@ public:
     int getAPIVersion();
     const VSCoreInfo &getCoreInfo();
 
+    void FilterInstanceCreated();
+    void FilterInstanceDestroyed();
+
     VSCore(int threads);
-    ~VSCore();
+    void Free();
 };
 
 #endif // VSCORE_H
