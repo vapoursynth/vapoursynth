@@ -1,18 +1,24 @@
-Plugins and Scripts
-===================
+Plugins, Editors and Scripts
+============================
+
+Editors
+#######
+* `VapourSynth Editor <https://bitbucket.org/mystery_keeper/vapoursynth-editor>`_ -- an editor with syntax completion and fast preview support
 
 Native Plugins
 ##############
 * AviSource -- in the source tree
 * :ref:`AssVapour <assvapour>` -- subtitle renderer, in the source tree
 * :ref:`EEDI3 <eedi3>` -- in the source tree
+* :ref:`ImageMagick Writer/Reader <imwri>` -- image writer and reader, in the source tree
 * :ref:`Morpho <morpho>` -- simple morphological filters, in the source tree
 * :ref:`OCR <ocr>` -- optical character recognition on video frames, in the source tree
 * :ref:`RemoveGrain/Repair <rgvs>` -- in the source tree
 * :ref:`Vinverse <vinverse>` -- in the source tree
-* :ref:`VIVTC <vivtc>` -- in the source tree
+* :ref:`VIVTC <vivtc>` -- field matching and inverse telecine, in the source tree
 * `Bifrost 2000 <https://github.com/dubhater/vapoursynth-bifrost>`_ -- A rainbow remover based on the Bifrost filter for Avisynth
 * `d2vsource <http://forum.doom9.org/showthread.php?t=166399>`_ -- Frame accurate mpeg2 source filter
+* `Deblock <http://forum.doom9.org/showthread.php?t=170975>`_ -- h.264 style deblocking
 * `Example plugins for Vapoursynth <http://forum.doom9.org/showthread.php?t=166147>`_ -- by thewebchat
 * `f3kdb <http://forum.doom9.org/showthread.php?t=161411>`_ -- Debanding filter
 * `FFMS2 <https://github.com/FFMS/ffms2>`_
@@ -34,7 +40,6 @@ Native Plugins
 * `vsavsreader <http://forum.doom9.org/showthread.php?t=165957>`_ -- import plugin so Avisynth scripts can be opened in VapourSynth
 * `vsrawsource <http://forum.doom9.org/showthread.php?t=166075>`_ -- raw video reader
 * `WWXD <https://github.com/dubhater/vapoursynth-wwxd>`_ -- Xvid-like scene change detection
-
 
 Scripts
 #######
