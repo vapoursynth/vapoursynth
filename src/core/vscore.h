@@ -563,7 +563,7 @@ public:
     void filterInstanceDestroyed();
 
     VSCore(int threads);
-    void free();
+    void freeCore();
 };
 
 #endif // VSCORE_H

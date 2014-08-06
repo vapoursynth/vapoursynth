@@ -478,7 +478,7 @@ static VSCore *VS_CC createCore(int threads) {
 
 static void VS_CC freeCore(VSCore *core) {
     if (core)
-        core->free();
+        core->freeCore();
 }
 
 static VSPlugin *VS_CC getPluginById(const char *identifier, VSCore *core) {

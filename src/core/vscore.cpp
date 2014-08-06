@@ -963,7 +963,7 @@ VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), formatIdO
 #endif
 }
 
-void VSCore::free() {
+void VSCore::freeCore() {
     if (coreFreed)
         vsFatal("Double free of core");
     coreFreed = true;
