@@ -18,9 +18,9 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-
-#include "VSScript.h"
+#include "VapourSynth.h"
 #include "VSHelper.h"
+#include "VSScript.h"
 #include <string>
 #include <map>
 #include <mutex>

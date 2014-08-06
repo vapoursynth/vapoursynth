@@ -290,13 +290,11 @@ typedef std::shared_ptr<VSPlaneData> VSPlaneDataPtr;
 
 class VSFrame {
 private:
-    enum FrameLocation { flLocal = 0, flGPU = 1 };
     const VSFormat *format;
     VSPlaneDataPtr data[3];
     int width;
     int height;
     int stride[3];
-    FrameLocation frameLocation;
     VSMap properties;
 public:
     static const int alignment = 32;

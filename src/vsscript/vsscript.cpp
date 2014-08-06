@@ -20,10 +20,10 @@ static void real_init(void) {
     if (!preInitialized)
         Py_InitializeEx(0);
     s = PyGILState_Ensure();
-    int result = import_vapoursynth();
-    if (result)
+    if (import_vapoursynth())
         return;
-    vpy_initVSScript();
+    if (vpy_initVSScript())
+        return;
     ts = PyEval_SaveThread();
     initialized = true;
 }
@@ -83,8 +83,8 @@ VS_API(VSNodeRef *) vsscript_getOutput(VSScript *handle, int index) {
     return vpy_getOutput(handle, index);
 }
 
-VS_API(void) vsscript_clearOutput(VSScript *handle, int index) {
-    vpy_clearOutput(handle, index);
+VS_API(int) vsscript_clearOutput(VSScript *handle, int index) {
+    return vpy_clearOutput(handle, index);
 }
 
 VS_API(VSCore *) vsscript_getCore(VSScript *handle) {
@@ -99,8 +99,8 @@ VS_API(int) vsscript_getVariable(VSScript *handle, const char *name, VSMap *dst)
     return vpy_getVariable(handle, name, dst);
 }
 
-VS_API(void) vsscript_setVariable(VSScript *handle, const VSMap *vars) {
-    vpy_setVariable(handle, vars);
+VS_API(int) vsscript_setVariable(VSScript *handle, const VSMap *vars) {
+    return vpy_setVariable(handle, vars);
 }
 
 VS_API(int) vsscript_clearVariable(VSScript *handle, const char *name) {

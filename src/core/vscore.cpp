@@ -244,7 +244,7 @@ VSPlaneData::~VSPlaneData() {
 
 ///////////////
 
-VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, VSCore *core) : format(f), width(width), height(height), frameLocation(flLocal) {
+VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, VSCore *core) : format(f), width(width), height(height) {
     if (!f || width <= 0 || height <= 0)
         vsFatal("Invalid new frame");
 
@@ -315,7 +315,6 @@ VSFrame::VSFrame(const VSFrame &f) {
     stride[0] = f.stride[0];
     stride[1] = f.stride[1];
     stride[2] = f.stride[2];
-    frameLocation = f.frameLocation;
     properties = f.properties;
 }
 

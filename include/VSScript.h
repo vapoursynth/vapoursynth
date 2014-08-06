@@ -53,14 +53,14 @@ VS_API(void) vsscript_freeScript(VSScript *handle);
 VS_API(const char *) vsscript_getError(VSScript *handle);
 // The node returned must be freed using freeNode() before calling vsscript_freeScript()
 VS_API(VSNodeRef *) vsscript_getOutput(VSScript *handle, int index);
-VS_API(void) vsscript_clearOutput(VSScript *handle, int index);
+VS_API(int) vsscript_clearOutput(VSScript *handle, int index);
 // The core is valid as long as the environment exists
 VS_API(VSCore *) vsscript_getCore(VSScript *handle);
 VS_API(const VSAPI *) vsscript_getVSApi(void);
 
 // Variables names that are not set or not of a convertible type will return an error
 VS_API(int) vsscript_getVariable(VSScript *handle, const char *name, VSMap *dst);
-VS_API(void) vsscript_setVariable(VSScript *handle, const VSMap *vars);
+VS_API(int) vsscript_setVariable(VSScript *handle, const VSMap *vars);
 VS_API(int) vsscript_clearVariable(VSScript *handle, const char *name);
 // Tries to clear everything set in an environment, normally it is better to simply free an environment completely and create a new one
 VS_API(void) vsscript_clearEnvironment(VSScript *handle);
