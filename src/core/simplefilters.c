@@ -1432,6 +1432,7 @@ static void VS_CC frameEvalCreate(const VSMap *in, VSMap *out, void *userData, V
     VSNodeRef *node = vsapi->propGetNode(in, "clip", 0, 0);
     d.propsrc = 0;
     d.vi = vsapi->getVideoInfo(node);
+    vsapi->freeNode(node);
     d.func = vsapi->propGetFunc(in, "eval", 0, 0);
     d.numpropsrc = vsapi->propNumElements(in, "prop_src");
     if (d.numpropsrc < 0)
