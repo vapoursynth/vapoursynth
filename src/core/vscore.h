@@ -94,12 +94,15 @@ private:
     VSPublicFunction func;
     void *userData;
     VSFreeFuncData free;
+    VSCore *core;
+    const VSAPI *vsapi;
 public:
-    ExtFunction(VSPublicFunction func, void *userData, VSFreeFuncData free) : func(func), userData(userData), free(free) {}
+    ExtFunction(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core, const VSAPI *vsapi) : func(func), userData(userData), free(free), core(core), vsapi(vsapi) {}
     ~ExtFunction() {
-        if (free) free(userData);
+        if (free)
+            free(userData);
     }
-    void call(const VSMap *in, VSMap *out, VSCore *core, const VSAPI *vsapi) {
+    void call(const VSMap *in, VSMap *out) {
         func(in, out, userData, core, vsapi);
     }
 };
@@ -556,11 +559,11 @@ public:
     int getAPIVersion();
     const VSCoreInfo &getCoreInfo();
 
-    void FilterInstanceCreated();
-    void FilterInstanceDestroyed();
+    void filterInstanceCreated();
+    void filterInstanceDestroyed();
 
     VSCore(int threads);
-    void Free();
+    void free();
 };
 
 #endif // VSCORE_H

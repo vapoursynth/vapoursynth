@@ -270,7 +270,7 @@ VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSr
     }
 }
 
-VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core) : format(f), width(width), height(height), frameLocation(flLocal) {
+VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core) : format(f), width(width), height(height) {
     if (!f || width <= 0 || height <= 0)
         vsFatal("Invalid new frame");
 
@@ -460,12 +460,12 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, VSFilterIni
     if ((flags & nfIsCache) && !(flags & nfNoCache))
         vsFatal("Filter %s specified an illegal combination of flags (%d)", name.c_str(), flags);
 
-    core->FilterInstanceCreated();
+    core->filterInstanceCreated();
     VSMap inval(*in);
     init(&inval, out, &this->instanceData, this, core, getVSAPIInternal(apiVersion));
 
     if (vsapi.getError(out)) {
-        core->FilterInstanceDestroyed();
+        core->filterInstanceDestroyed();
         throw VSException(vsapi.getError(out));
     }
 
@@ -479,7 +479,7 @@ VSNode::~VSNode() {
     if (free)
         free(instanceData, core, &vsapi);
 
-    core->FilterInstanceDestroyed();
+    core->filterInstanceDestroyed();
 }
 
 void VSNode::getFrame(const PFrameContext &ct) {
@@ -819,11 +819,11 @@ bool VSCore::loadAllPluginsInPath(const std::string &path, const std::string &fi
     return true;
 }
 
-void VSCore::FilterInstanceCreated() {
+void VSCore::filterInstanceCreated() {
     ++numFilterInstances;
 }
 
-void VSCore::FilterInstanceDestroyed() {
+void VSCore::filterInstanceDestroyed() {
     if (!--numFilterInstances) {
         assert(coreFreed);
         delete this;
@@ -963,12 +963,12 @@ VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), formatIdO
 #endif
 }
 
-void VSCore::Free() {
+void VSCore::free() {
     if (coreFreed)
         vsFatal("Double free of core");
     coreFreed = true;
     // Release the extra filter instance that always keeps the core alive
-    FilterInstanceDestroyed();
+    filterInstanceDestroyed();
 }
 
 VSCore::~VSCore() {

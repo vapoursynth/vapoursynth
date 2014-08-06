@@ -228,7 +228,7 @@ cdef extern from "include/VapourSynth.h" nogil:
         VSFuncRef *propGetFunc(const VSMap *map, const char *key, int index, int *error) nogil
         bint propSetFunc(VSMap *map, const char *key, VSFuncRef *func, int append) nogil
         void callFunc(VSFuncRef *func, const VSMap *inm, VSMap *outm, VSCore *core, const VSAPI *vsapi) nogil
-        VSFuncRef *createFunc(VSPublicFunction func, void *userData, VSFreeFuncData free) nogil
+        VSFuncRef *createFunc(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core, const VSAPI *vsapi) nogil
         void freeFunc(VSFuncRef *f) nogil
 
         int64_t setMaxCacheSize(int64_t bytes, VSCore *core) nogil

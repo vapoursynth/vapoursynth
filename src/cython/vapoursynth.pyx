@@ -43,6 +43,7 @@ _cores = {}
 _stored_output = {}
 _core = None
 _message_handler = None
+cdef const VSAPI *_vsapi = NULL
 
 GRAY  = vapoursynth.cmGray
 RGB   = vapoursynth.cmRGB
@@ -161,28 +162,64 @@ def get_output(int index = 0):
         global _stored_output
         return _stored_output[index]
 
-# fixme, make it possible for this to call functions not defined in python
-cdef class Func(object):
-    cdef Core core
+cdef class FuncData(object):
     cdef object func
-    cdef VSFuncRef *ref
-
-    def __init__(self, object func not None, Core core not None):
-        self.core = core
-        self.func = func
-        self.ref = core.funcs.createFunc(publicFunction, <void *>self, freeFunc)
-        Py_INCREF(self)
-
-    def __dealloc__(self):
-        self.core.funcs.freeFunc(self.ref)
-
+    cdef Core core
+    
+    def __init__(self):
+        raise Error('Class cannot be instantiated directly')
+        
     def __call__(self, **kwargs):
         return self.func(**kwargs)
-
-cdef Plugin createFunc(VSFuncRef *ref, Core core):
-    cdef Func instance = Func.__new__(Func)
+    
+cdef FuncData createFuncData(object func, Core core):
+    cdef FuncData instance = FuncData.__new__(FuncData)
+    instance.func = func
     instance.core = core
-    instance.func = None
+    return instance
+    
+cdef class Func(object):
+    cdef const VSAPI *funcs
+    cdef VSFuncRef *ref
+    
+    def __init__(self):
+        raise Error('Class cannot be instantiated directly')
+        
+    def __dealloc__(self):
+        self.funcs.freeFunc(self.ref)
+        
+    def __call__(self, **kwargs):
+        cdef VSMap *outm
+        cdef VSMap *inm
+        cdef const VSAPI *vsapi
+        vsapi = vpy_getVSApi();
+        outm = self.funcs.createMap()
+        inm = self.funcs.createMap()
+        try:
+            dictToMap(kwargs, inm, None, vsapi)
+            self.funcs.callFunc(self.ref, inm, outm, NULL, NULL)  
+            ret = mapToDict(outm, False, False, None, vsapi)
+            if not isinstance(ret, dict):
+                ret = {'val':ret}
+            
+        except BaseException, e:
+            emsg = str(e).encode('utf-8')
+            vsapi.setError(outm, emsg)
+        finally:
+            vsapi.freeMap(outm)
+            vsapi.freeMap(inm)
+        
+cdef Func createFuncPython(object func, Core core):
+    cdef Func instance = Func.__new__(Func)
+    instance.funcs = core.funcs
+    fdata = createFuncData(func, core)
+    Py_INCREF(fdata)
+    instance.ref = instance.funcs.createFunc(publicFunction, <void *>fdata, freeFunc, core.core, core.funcs)
+    return instance
+        
+cdef Func createFuncRef(VSFuncRef *ref, const VSAPI *funcs):
+    cdef Func instance = Func.__new__(Func)
+    instance.funcs = funcs
     instance.ref = ref
     return instance
     
@@ -335,7 +372,7 @@ cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, Core core,
             elif proptype =='v':
                 newval = createConstVideoFrame(funcs.propGetFrame(map, retkey, y, NULL), funcs, core)
             elif proptype =='m':
-                newval = createFunc(funcs.propGetFunc(map, retkey, y, NULL), core)
+                newval = createFuncRef(funcs.propGetFunc(map, retkey, y, NULL), funcs)
 
             if y == 0:
                 vval = newval
@@ -379,7 +416,7 @@ cdef void dictToMap(dict ndict, VSMap *inm, Core core, const VSAPI *funcs) excep
                 if funcs.propSetFunc(inm, ckey, (<Func>v).ref, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif callable(v):
-                tf = Func(v, core)
+                tf = createFuncPython(v, core)
 
                 if funcs.propSetFunc(inm, ckey, tf.ref, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
@@ -427,7 +464,7 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, Core core, const V
                 if funcs.propSetFunc(inm, ckey, (<Func>v).ref, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif atypes[key][:4] == 'func' and callable(v):
-                tf = Func(v, core)
+                tf = createFuncPython(v, core)
                 if funcs.propSetFunc(inm, ckey, tf.ref, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif atypes[key][:3] == 'int' and (type(v) == int or type(v) == long or type(v) == bool):
@@ -547,7 +584,7 @@ cdef class VideoProps(object):
                 ol.append(createConstVideoFrame(self.funcs.propGetFrame(m, b, i, NULL), self.funcs, self.core))
         elif t == 'm':
             for i in range(numelem):
-                ol.append(createFunc(self.funcs.propGetFunc(m, b, i, NULL), self.core))
+                ol.append(createFuncRef(self.funcs.propGetFunc(m, b, i, NULL), self.funcs))
 
         if len(ol) == 1:
             return ol[0]
@@ -581,7 +618,7 @@ cdef class VideoProps(object):
                     if funcs.propSetFunc(m, b, (<Func>v).ref, 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif callable(v):
-                    tf = Func(v, self.core)
+                    tf = createFuncPython(v, self.core)
                     if funcs.propSetFunc(m, b, tf.ref, 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif isinstance(v, int):
@@ -1085,10 +1122,13 @@ def get_core(int threads = 0, bint add_cache = True, bint accept_lowercase = Fal
             _core = createCore(threads, add_cache, accept_lowercase)
         return _core
 
-cdef get_core_internal(int _environment_id, int threads = 0, bint add_cache = True, bint accept_lowercase = False):
+cdef object get_core_internal(int _environment_id, bint create_core = True, int threads = 0, bint add_cache = True, bint accept_lowercase = False):
     global _cores
     if not _environment_id in _cores:
-        _cores[_environment_id] = createCore(threads, add_cache, accept_lowercase)
+        if create_core:
+            _cores[_environment_id] = createCore(threads, add_cache, accept_lowercase)
+        else:
+            return None
     return _cores[_environment_id]
 
 cdef class Plugin(object):
@@ -1261,10 +1301,11 @@ cdef void __stdcall freeFunc(void *pobj) nogil:
     with gil:
         fobj = <object>pobj
         Py_DECREF(fobj)
+        fobj = None
 
 cdef void __stdcall publicFunction(const VSMap *inm, VSMap *outm, void *userData, VSCore *core, const VSAPI *vsapi) nogil:
     with gil:
-        d = <Func>userData
+        d = <FuncData>userData
 
         try:
             m = mapToDict(inm, False, False, d.core, vsapi)
@@ -1431,42 +1472,54 @@ cdef public api VSNodeRef *vpy_getOutput(VPYScriptExport *se, int index) nogil:
         else:
             return NULL
 
-cdef public api void vpy_clearOutput(VPYScriptExport *se, int index) nogil:
+cdef public api int vpy_clearOutput(VPYScriptExport *se, int index) nogil:
     with gil:
         try:
             global _stored_outputs
             del _stored_outputs[se.id][index]
         except:
-            pass
+            return 1
+        return 0
 
 cdef public api VSCore *vpy_getCore(VPYScriptExport *se) nogil:
     with gil:
         try:
-            core = get_core_internal(se.id)
-            return (<Core>core).core
+            core = get_core_internal(se.id, False)
+            if core is not None:
+                return (<Core>core).core
+            else:
+                return NULL
         except:
             return NULL
 
 cdef public api const VSAPI *vpy_getVSApi() nogil:
-    return getVapourSynthAPI(3)
+    global _vsapi
+    if _vsapi == NULL:
+        _vsapi = getVapourSynthAPI(3)
+    return _vsapi
 
 cdef public api int vpy_getVariable(VPYScriptExport *se, const char *name, VSMap *dst) nogil:
     with gil:
+        if vpy_getVSApi() == NULL:
+            return 1
         evaldict = <dict>se.pyenvdict
-        core = get_core_internal(se.id)
         try:
             dname = name.decode('utf-8')
             read_var = { dname:evaldict[dname]}
-            dictToMap(read_var, dst, core, (<Core>core).funcs)
+            core = get_core_internal(se.id, False)
+            dictToMap(read_var, dst, core, vpy_getVSApi())
             return 0
         except:
             return 1
 
-cdef public api void vpy_setVariable(VPYScriptExport *se, const VSMap *vars) nogil:
+cdef public api int vpy_setVariable(VPYScriptExport *se, const VSMap *vars) nogil:
     with gil:
+        if vpy_getVSApi() == NULL:
+            return 1
         evaldict = <dict>se.pyenvdict
-        core = get_core_internal(se.id)
-        new_vars = mapToDict(vars, False, False, core, (<Core>core).funcs)
+        
+        core = get_core_internal(se.id, False)
+        new_vars = mapToDict(vars, False, False, core, vpy_getVSApi())
         for key in new_vars:
             evaldict[key] = new_vars[key]
 
@@ -1484,6 +1537,7 @@ cdef public api void vpy_clearEnvironment(VPYScriptExport *se) nogil:
         evaldict = <dict>se.pyenvdict
         for key in evaldict:
             evaldict[key] = None
+        evaldict.clear()
         try:
             global _stored_outputs
             del _stored_outputs[se.id]
@@ -1491,7 +1545,10 @@ cdef public api void vpy_clearEnvironment(VPYScriptExport *se) nogil:
             pass
         gc.collect()
 
-cdef public api void vpy_initVSScript() nogil:
+cdef public api int vpy_initVSScript() nogil:
     with gil:
+        if vpy_getVSApi() == NULL:
+            return 1
         global _using_vsscript
         _using_vsscript = True
+        return 0

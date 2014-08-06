@@ -478,7 +478,7 @@ static VSCore *VS_CC createCore(int threads) {
 
 static void VS_CC freeCore(VSCore *core) {
     if (core)
-        core->Free();
+        core->free();
 }
 
 static VSPlugin *VS_CC getPluginById(const char *identifier, VSCore *core) {
@@ -538,13 +538,13 @@ static int VS_CC propSetFunc(VSMap *props, const char *name, VSFuncRef *func, in
 }
 
 static void VS_CC callFunc(VSFuncRef *func, const VSMap *in, VSMap *out, VSCore *core, const VSAPI *vsapi) {
-    assert(func && in && out && core && vsapi);
-    func->func->call(in, out, core, vsapi);
+    assert(func && in && out);
+    func->func->call(in, out);
 }
 
-static VSFuncRef *VS_CC createFunc(VSPublicFunction func, void *userData, VSFreeFuncData free) {
-    assert(func);
-    return new VSFuncRef(std::make_shared<ExtFunction>(func, userData, free));
+static VSFuncRef *VS_CC createFunc(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core, const VSAPI *vsapi) {
+    assert(func && core && vsapi);
+    return new VSFuncRef(std::make_shared<ExtFunction>(func, userData, free, core, vsapi));
 }
 
 static void VS_CC freeFunc(VSFuncRef *f) {
