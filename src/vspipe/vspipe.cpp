@@ -315,7 +315,7 @@ void printHelp() {
         "  vspipe [options] <script> <outfile>\n"
         "\n"
         "Available options:\n"
-        "  -a, --arg key=value  Argument to pass to the script environment"
+        "  -a, --arg key=value   Argument to pass to the script environment\n"
         "  -s, --start N         Set output frame range (first frame)\n"
         "  -e, --end N           Set output frame range (last frame)\n"
         "  -o, --outputindex N   Select output index\n"
