@@ -152,6 +152,11 @@ features = [
 
 filter_dependencies = [
     {
+        'name': 'imagemagick',
+        'desc': 'imagemagick',
+        'func': check_pkg_config('imagemagick')
+    },
+    {
         'name': 'libass',
         'desc': 'libass',
         'func': check_pkg_config('libass')
@@ -173,6 +178,12 @@ filters = [
     {
         'name': '--eedi3',
         'desc': 'EEDI3',
+        'func': check_true
+    },
+    {
+        'name': '--imwri',
+        'desc': 'ImageMagick Writer/Reader',
+        'deps': ['imagemagick'],
         'func': check_true
     },
     {
