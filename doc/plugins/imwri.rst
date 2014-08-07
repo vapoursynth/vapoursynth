@@ -3,9 +3,9 @@
 ImageMagick Writer-Reader
 =========================
 
-ImageMagick Writer-Reader (IMWRI) is a plugin that can read and write many image formats and is based around ImageMagick.
+ImageMagick Writer-Reader (IMWRI) is a plugin that can read and write many image formats with up to 16 bits per channel.
 
-.. function:: Write(clip clip, string imgformat, string filename, string dllpath[, int quality=75, bint dither=1, clip alpha])
+.. function:: Write(clip clip, string imgformat, string filename[, int quality=75, bint dither=1, clip alpha])
    :module: imwri
 
    Write will write each frame to disk as it's requested. If a frame is never requested it's also never written to disk.
@@ -16,7 +16,6 @@ ImageMagick Writer-Reader (IMWRI) is a plugin that can read and write many image
 
       imgformat
          The name of the output format. Examples of supported format strings are JPEG, PNG and DPX. Visit the ImageMagick website for a full list.
-         value, VFM's output will be visibly wrong in mode 0.
          
       filename
          The filename string must have one or more frame number substitutions. The syntax is printf style. For example "image%06d.png" or "/images/%d.jpg" is common usage.
@@ -32,7 +31,7 @@ ImageMagick Writer-Reader (IMWRI) is a plugin that can read and write many image
 
 
 
-.. function:: Read(string[] filename, string dllpath[, bint mismatch=0, bint alpha=0])
+.. function:: Read(string[] filename[, bint mismatch=0, bint alpha=0])
    :module: imwri
 
    Read is a simple function for reading single or series of images and returning them as a clip.
