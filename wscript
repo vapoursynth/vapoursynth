@@ -182,6 +182,7 @@ filters = [
     },
     {
         'name': '--imwri',
+        'default': 'disable',
         'desc': 'ImageMagick Writer/Reader',
         'deps': ['ImageMagick++'],
         'func': check_true
