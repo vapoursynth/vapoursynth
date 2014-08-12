@@ -172,13 +172,17 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
             if (alphaFrame)
                 image.alphaChannel(Magick::ActivateAlphaChannel);
 
+            bool isGray = fi->colorFamily == cmGray;
+            if (isGray)
+                image.colorSpace(Magick::GRAYColorspace);
+
             int strideR = vsapi->getStride(frame, 0);
-            int strideG = vsapi->getStride(frame, 1);
-            int strideB = vsapi->getStride(frame, 2);
+            int strideG = vsapi->getStride(frame, isGray ? 0 : 1);
+            int strideB = vsapi->getStride(frame, isGray ? 0 : 2);
             int strideA = 0;
             if (alphaFrame)
                 strideA = vsapi->getStride(alphaFrame, 0);
-            //image.colorSpace()
+
             if (fi->bitsPerSample < static_cast<int>(image.depth()))
                 image.depth(fi->bitsPerSample);
 
@@ -189,8 +193,8 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
                 const int shiftR = fi->bitsPerSample;
 
                 const uint16_t *r = reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(frame, 0));
-                const uint16_t *g = reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(frame, 1));
-                const uint16_t *b = reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(frame, 2));
+                const uint16_t *g = reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(frame, isGray ? 0 : 1));
+                const uint16_t *b = reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(frame, isGray ? 0 : 2));
                 const uint16_t *a = reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(alphaFrame, 0));
 
                 for (int y = 0; y < height; y++) {
@@ -214,8 +218,8 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
                 const int shiftR = fi->bitsPerSample;
 
                 const uint16_t *r = reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(frame, 0));
-                const uint16_t *g = reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(frame, 1));
-                const uint16_t *b = reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(frame, 2));
+                const uint16_t *g = reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(frame, isGray ? 0 : 1));
+                const uint16_t *b = reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(frame, isGray ? 0 : 2));
 
                 for (int y = 0; y < height; y++) {
                     Magick::PixelPacket* pixels = pixelCache.get(0, y, width, 1);
@@ -234,8 +238,8 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
                 }
             } else if (fi->bytesPerSample == 1 && alphaFrame) {
                 const uint8_t *r = vsapi->getReadPtr(frame, 0);
-                const uint8_t *g = vsapi->getReadPtr(frame, 1);
-                const uint8_t *b = vsapi->getReadPtr(frame, 2);
+                const uint8_t *g = vsapi->getReadPtr(frame, isGray ? 0 : 1);
+                const uint8_t *b = vsapi->getReadPtr(frame, isGray ? 0 : 2);
                 const uint8_t *a = vsapi->getReadPtr(alphaFrame, 0);
 
                 for (int y = 0; y < height; y++) {
@@ -256,8 +260,8 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
                 }
             } else /*if (fi->bytesPerSample == 1)*/ {
                 const uint8_t *r = vsapi->getReadPtr(frame, 0);
-                const uint8_t *g = vsapi->getReadPtr(frame, 1);
-                const uint8_t *b = vsapi->getReadPtr(frame, 2);
+                const uint8_t *g = vsapi->getReadPtr(frame, isGray ? 0 : 1);
+                const uint8_t *b = vsapi->getReadPtr(frame, isGray ? 0 : 2);
 
                 for (int y = 0; y < height; y++) {
                     Magick::PixelPacket* pixels = pixelCache.get(0, y, width, 1);
@@ -320,9 +324,9 @@ static void VS_CC writeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
 
     d->videoNode = vsapi->propGetNode(in, "clip", 0, nullptr);
     d->vi = vsapi->getVideoInfo(d->videoNode);
-    if (!d->vi->format || d->vi->format->colorFamily != cmRGB || d->vi->format->sampleType != stInteger || d->vi->format->bitsPerSample > 16) {
+    if (!d->vi->format || (d->vi->format->colorFamily != cmRGB && d->vi->format->colorFamily != cmGray) || d->vi->format->sampleType != stInteger || d->vi->format->bitsPerSample > 16) {
         vsapi->freeNode(d->videoNode);
-        vsapi->setError(out, "Write: Only constant format 8-16 bit RGB input supported");
+        vsapi->setError(out, "Write: Only constant format 8-16 bit RGB and Grayscale input supported");
         return;
     }
 
