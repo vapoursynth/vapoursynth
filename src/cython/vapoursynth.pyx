@@ -1014,7 +1014,7 @@ cdef class Core(object):
             cdef const VSCoreInfo *info = self.funcs.getCoreInfo(self.core)
             cdef int64_t current_size = <int64_t>info.maxFramebufferSize
             current_size = current_size + 1024 * 1024 - 1
-            current_size = current_size // 1024 * 1024
+            current_size = current_size // (1024 * 1024)
             return current_size
         
         def __set__(self, int mb):
