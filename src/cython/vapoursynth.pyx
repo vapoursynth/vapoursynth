@@ -991,9 +991,8 @@ cdef VideoNode createVideoNode(VSNodeRef *node, const VSAPI *funcs, Core core):
 cdef class Core(object):
     cdef VSCore *core
     cdef const VSAPI *funcs
-    cdef readonly int num_threads
-    cdef readonly bint add_cache
-    cdef readonly bint accept_lowercase
+    cdef public bint add_cache
+    cdef public bint accept_lowercase
 
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
@@ -1001,6 +1000,14 @@ cdef class Core(object):
     def __dealloc__(self):
         if self.funcs:
             self.funcs.freeCore(self.core)
+            
+    property num_threads:
+        def __get__(self):
+            cdef const VSCoreInfo *info = self.funcs.getCoreInfo(self.core)
+            return info.numThreads
+        
+        def __set__(self, int value):
+            self.funcs.setThreadCount(value, self.core)
 
     def __getattr__(self, name):
         cdef VSPlugin *plugin
@@ -1101,8 +1108,6 @@ cdef Core createCore(int threads = 0, bint add_cache = True, bint accept_lowerca
     instance.core = instance.funcs.createCore(threads)
     instance.add_cache = add_cache
     instance.accept_lowercase = accept_lowercase
-    cdef const VSCoreInfo *info = instance.funcs.getCoreInfo(instance.core)
-    instance.num_threads = info.numThreads
     return instance
 
 def get_core(int threads = 0, bint add_cache = True, bint accept_lowercase = False):

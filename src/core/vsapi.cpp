@@ -581,6 +581,11 @@ static void VS_CC setMessageHandler(VSMessageHandler handler, void *userData) {
     vsSetMessageHandler(handler, userData);
 }
 
+static int VS_CC setThreadCount(int threads, VSCore *core) {
+    core->threadPool->setThreadCount(threads);
+    return core->threadPool->threadCount();
+}
+
 const VSAPI vsapi = {
     &createCore,
     &freeCore,
@@ -658,7 +663,8 @@ const VSAPI vsapi = {
     &getOutputIndex,
     &newVideoFrame2,
 
-    &setMessageHandler
+    &setMessageHandler,
+    &setThreadCount
 };
 
 ///////////////////////////////

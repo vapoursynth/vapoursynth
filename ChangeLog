@@ -1,4 +1,5 @@
 r24:
+num_threads, add_cache and accept_lowercase can now be set at any time in python and not only during the first call to get_core()
 fixed reference leak in FrameEval
 more functions in the vsscript api now return success or failure
 improved handling of the vsfunc type in python, it should now have all the functionality originally intended

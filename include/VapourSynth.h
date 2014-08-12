@@ -298,6 +298,7 @@ typedef void (VS_CC *VSQueryCompletedFrame)(VSNodeRef **node, int *n, VSFrameCon
 typedef void (VS_CC *VSReleaseFrameEarly)(VSNodeRef *node, int n, VSFrameContext *frameCtx);
 
 typedef int64_t (VS_CC *VSSetMaxCacheSize)(int64_t bytes, VSCore *core);
+typedef int (VS_CC *VSSetThreadCount)(int threads, VSCore *core);
 
 typedef void (VS_CC *VSMessageHandler)(int msgType, const char *msg, void *userData);
 typedef void (VS_CC *VSSetMessageHandler)(VSMessageHandler handler, void *userData);
@@ -385,6 +386,7 @@ struct VSAPI {
     VSNewVideoFrame2 newVideoFrame2;
 
     VSSetMessageHandler setMessageHandler;
+    VSSetThreadCount setThreadCount;
 };
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version);
