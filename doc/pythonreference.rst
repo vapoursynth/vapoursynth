@@ -36,11 +36,27 @@ Classes and Functions
    These attributes in turn hold the contained functions in the plugin.
    Use *get_plugins()* to obtain a full list of all currently loaded plugins
    you may call this way.
+   
+   .. py:attribute:: num_threads
+      
+      The number of concurrent threads used by the core. Can be set to change the number. Setting to a value less than one makes it default to the number of hardware threads.
+      
+   .. py:attribute:: add_cache
+   
+      For debugging purposes only. When set to *False* no caches will be automatically inserted between filters.
+      
+   .. py:attribute:: accept_lowercase
+   
+      When set to *True* function name lookups in the core
+      
+   .. py:attribute:: max_cache_size
+   
+      Set the upper framebuffer cache size after which memory is aggressively
+      freed. The value is in megabytes.
 
    .. py:method:: set_max_cache_size(mb)
 
-      Set the upper framebuffer cache size after which memory is aggressively
-      freed. The value is in megabytes.
+      An alias for setting *max_cache_size*. Kept for compatibility with older scripts.
 
    .. py:method:: get_plugins()
 

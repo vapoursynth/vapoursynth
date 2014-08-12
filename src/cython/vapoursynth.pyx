@@ -1008,6 +1008,21 @@ cdef class Core(object):
         
         def __set__(self, int value):
             self.funcs.setThreadCount(value, self.core)
+            
+    property max_cache_size:
+        def __get__(self):
+            cdef const VSCoreInfo *info = self.funcs.getCoreInfo(self.core)
+            cdef int64_t current_size = <int64_t>info.maxFramebufferSize
+            current_size = current_size + 1024 * 1024 - 1
+            current_size = current_size // 1024 * 1024
+            return current_size
+        
+        def __set__(self, int mb):
+            if mb <= 0:
+                raise ValueError('Maximum cache size must be a positive number')
+            cdef int64_t new_size = mb
+            new_size = new_size * 1024 * 1024
+            self.funcs.setMaxCacheSize(new_size, self.core)
 
     def __getattr__(self, name):
         cdef VSPlugin *plugin
@@ -1021,11 +1036,8 @@ cdef class Core(object):
             raise Error('No attribute with the name ' + name + ' exists. Did you mistype a plugin namespace?')
 
     def set_max_cache_size(self, int mb):
-        if mb <= 0:
-            raise ValueError('Maximum cache size must be a positive number')
-        cdef int64_t new_size = mb
-        new_size = new_size * 1024 * 1024
-        return self.funcs.setMaxCacheSize(new_size, self.core)
+        self.max_cache_size = mb
+        return self.max_cache_size
 
     def get_plugins(self):
         cdef VSMap *m = self.funcs.getPlugins(self.core)
@@ -1127,13 +1139,10 @@ def get_core(int threads = 0, bint add_cache = True, bint accept_lowercase = Fal
             _core = createCore(threads, add_cache, accept_lowercase)
         return _core
 
-cdef object get_core_internal(int _environment_id, bint create_core = True, int threads = 0, bint add_cache = True, bint accept_lowercase = False):
+cdef object vsscript_get_core_internal(int _environment_id, int threads = 0, bint add_cache = True, bint accept_lowercase = False):
     global _cores
     if not _environment_id in _cores:
-        if create_core:
-            _cores[_environment_id] = createCore(threads, add_cache, accept_lowercase)
-        else:
-            return None
+        _cores[_environment_id] = createCore(threads, add_cache, accept_lowercase)
     return _cores[_environment_id]
 
 cdef class Plugin(object):
@@ -1489,7 +1498,7 @@ cdef public api int vpy_clearOutput(VPYScriptExport *se, int index) nogil:
 cdef public api VSCore *vpy_getCore(VPYScriptExport *se) nogil:
     with gil:
         try:
-            core = get_core_internal(se.id, False)
+            core = vsscript_get_core_internal(se.id)
             if core is not None:
                 return (<Core>core).core
             else:
@@ -1511,7 +1520,7 @@ cdef public api int vpy_getVariable(VPYScriptExport *se, const char *name, VSMap
         try:
             dname = name.decode('utf-8')
             read_var = { dname:evaldict[dname]}
-            core = get_core_internal(se.id, False)
+            core = vsscript_get_core_internal(se.id)
             dictToMap(read_var, dst, core, vpy_getVSApi())
             return 0
         except:
@@ -1523,7 +1532,7 @@ cdef public api int vpy_setVariable(VPYScriptExport *se, const VSMap *vars) nogi
             return 1
         evaldict = <dict>se.pyenvdict
         
-        core = get_core_internal(se.id, False)
+        core = vsscript_get_core_internal(se.id)
         new_vars = mapToDict(vars, False, False, core, vpy_getVSApi())
         for key in new_vars:
             evaldict[key] = new_vars[key]
