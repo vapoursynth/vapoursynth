@@ -47,7 +47,7 @@ Classes and Functions
       
    .. py:attribute:: accept_lowercase
    
-      When set to *True* function name lookups in the core
+      When set to *True* function name lookups in the core are case insensitive. Don't distribute scripts that need it to be set.
       
    .. py:attribute:: max_cache_size
    
