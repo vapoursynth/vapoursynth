@@ -1108,22 +1108,23 @@ cdef class Core(object):
         cdef str s = 'Core\n'
         s += self.version() + '\n'
         s += '\tNumber of Threads: ' + str(self.num_threads) + '\n'
-        s += '\tAdd Caches: ' + str(self.add_cache) + '\n'
+        s += '\tAdd Cache: ' + str(self.add_cache) + '\n'
         s += '\tAccept Lowercase: ' + str(self.accept_lowercase) + '\n'
         return s
 
-cdef Core createCore(int threads = 0, bint add_cache = True, bint accept_lowercase = False):
+cdef Core createCore():
     cdef Core instance = Core.__new__(Core)
     instance.funcs = getVapourSynthAPI(3)
     if instance.funcs == NULL:
         raise Error('Failed to obtain VapourSynth API pointer. System does not support SSE2 or is the Python module and loaded core library mismatched?')
-    instance.core = instance.funcs.createCore(threads)
-    instance.add_cache = add_cache
-    instance.accept_lowercase = accept_lowercase
+    instance.core = instance.funcs.createCore(0)
+    instance.add_cache = True
+    instance.accept_lowercase = False
     return instance
 
-def get_core(int threads = 0, bint add_cache = True, bint accept_lowercase = False):
+def get_core(threads = None, add_cache = None, accept_lowercase = None):
     global _using_vsscript
+    ret_core = None
     if _using_vsscript:
         global _cores
         global _environment_id
@@ -1131,19 +1132,27 @@ def get_core(int threads = 0, bint add_cache = True, bint accept_lowercase = Fal
             raise Error('Internal environment id not set. Was get_core() called from a filter callback?')
 
         if not _environment_id in _cores:
-            _cores[_environment_id] = createCore(threads, add_cache, accept_lowercase)
-        return _cores[_environment_id]
+            _cores[_environment_id] = createCore()
+        ret_core = _cores[_environment_id]
     else:
         global _core
         if _core is None:
-            _core = createCore(threads, add_cache, accept_lowercase)
-        return _core
+            _core = createCore()
+        ret_core = _core
+    if ret_core is not None:
+        if threads is not None:
+            ret_core.num_threads = threads
+        if add_cache is not None:
+            ret_core.add_cache = add_cache
+        if accept_lowercase is not None:
+            ret_core.accept_lowercase = accept_lowercase
+    return ret_core
 
-cdef object vsscript_get_core_internal(int _environment_id, int threads = 0, bint add_cache = True, bint accept_lowercase = False):
+cdef object vsscript_get_core_internal(int environment_id):
     global _cores
-    if not _environment_id in _cores:
-        _cores[_environment_id] = createCore(threads, add_cache, accept_lowercase)
-    return _cores[_environment_id]
+    if not environment_id in _cores:
+        _cores[environment_id] = createCore()
+    return _cores[environment_id]
 
 cdef class Plugin(object):
     cdef Core core
