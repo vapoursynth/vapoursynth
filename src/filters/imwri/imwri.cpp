@@ -405,9 +405,11 @@ static const VSFrameRef *VS_CC readGetFrame(int n, int activationReason, void **
                 alphaFrame = vsapi->newVideoFrame(d->vi[1].format ? d->vi[1].format : vsapi->registerFormat(cmGray, stInteger, image.depth(), 0, 0, core), width, height, nullptr, core);
             const VSFormat *fi = vsapi->getFrameFormat(frame);
  
+            bool isGray = fi->colorFamily == cmGray;
+
             int strideR = vsapi->getStride(frame, 0);
-            int strideG = vsapi->getStride(frame, 1);
-            int strideB = vsapi->getStride(frame, 2);
+            int strideG = vsapi->getStride(frame, isGray ? 0 : 1);
+            int strideB = vsapi->getStride(frame, isGray ? 0 : 2);
             int strideA = 0;
             if (alphaFrame)
                 strideA = vsapi->getStride(alphaFrame, 0);
@@ -418,8 +420,8 @@ static const VSFrameRef *VS_CC readGetFrame(int n, int activationReason, void **
                 const int shiftR = 16 - fi->bitsPerSample;
 
                 uint16_t *r = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(frame, 0));
-                uint16_t *g = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(frame, 1));
-                uint16_t *b = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(frame, 2));
+                uint16_t *g = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(frame, isGray ? 0 : 1));
+                uint16_t *b = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(frame, isGray ? 0 : 2));
                 uint16_t *a = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(alphaFrame, 0));
 
                 for (int y = 0; y < height; y++) {
@@ -440,8 +442,8 @@ static const VSFrameRef *VS_CC readGetFrame(int n, int activationReason, void **
                 const int shiftR = 16 - fi->bitsPerSample;
 
                 uint16_t *r = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(frame, 0));
-                uint16_t *g = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(frame, 1));
-                uint16_t *b = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(frame, 2));
+                uint16_t *g = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(frame, isGray ? 0 : 1));
+                uint16_t *b = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(frame, isGray ? 0 : 2));
 
                 for (int y = 0; y < height; y++) {
                     const Magick::PixelPacket* pixels = pixelCache.getConst(0, y, width, 1);
@@ -457,8 +459,8 @@ static const VSFrameRef *VS_CC readGetFrame(int n, int activationReason, void **
                 }
             } else if (fi->bytesPerSample == 1 && alphaFrame) {
                 uint8_t *r = vsapi->getWritePtr(frame, 0);
-                uint8_t *g = vsapi->getWritePtr(frame, 1);
-                uint8_t *b = vsapi->getWritePtr(frame, 2);
+                uint8_t *g = vsapi->getWritePtr(frame, isGray ? 0 : 1);
+                uint8_t *b = vsapi->getWritePtr(frame, isGray ? 0 : 2);
                 uint8_t *a = vsapi->getWritePtr(alphaFrame, 0);
 
                 for (int y = 0; y < height; y++) {
@@ -477,8 +479,8 @@ static const VSFrameRef *VS_CC readGetFrame(int n, int activationReason, void **
                 }
             } else /*if (fi->bytesPerSample == 1)*/ {
                 uint8_t *r = vsapi->getWritePtr(frame, 0);
-                uint8_t *g = vsapi->getWritePtr(frame, 1);
-                uint8_t *b = vsapi->getWritePtr(frame, 2);
+                uint8_t *g = vsapi->getWritePtr(frame, isGray ? 0 : 1);
+                uint8_t *b = vsapi->getWritePtr(frame, isGray ? 0 : 2);
 
                 for (int y = 0; y < height; y++) {
                     const Magick::PixelPacket* pixels = pixelCache.getConst(0, y, width, 1);
@@ -554,7 +556,7 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 #ifdef _WIN32
             std::string printedStr(specialPrintf(d->filenames[0], i));
             int numChars = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, printedStr.c_str(), printedStr.length(), nullptr, 0);
-            std::vector<wchar_t> charBuf(numChars);
+            std::vector<wchar_t> charBuf(numChars + 1);
             MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, printedStr.c_str(), printedStr.length(), charBuf.data(), charBuf.size());
             FILE * f = _wfopen(charBuf.data(), L"rb");
 #else
@@ -582,7 +584,10 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         if (!d->mismatch || d->vi[0].numFrames == 1) {
             d->vi[0].height = img.rows();
             d->vi[0].width = img.columns();
-            d->vi[0].format = vsapi->registerFormat(cmRGB, stInteger, depth, 0, 0, core);
+            VSColorFamily cf = cmRGB;
+            if (img.colorSpace() == Magick::GRAYColorspace)
+                cf = cmGray;
+            d->vi[0].format = vsapi->registerFormat(cf, stInteger, depth, 0, 0, core);
         }
 
         if (d->alpha) {
