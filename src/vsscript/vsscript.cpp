@@ -37,7 +37,9 @@ VS_API(int) vsscript_init() {
 }
 
 VS_API(int) vsscript_finalize(void) {
-    return --initializationCount;
+    int count = --initializationCount;
+    assert(count >= 0);
+    return count;
 }
 
 VS_API(int) vsscript_createScript(VSScript **handle) {
