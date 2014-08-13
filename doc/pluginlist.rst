@@ -19,7 +19,6 @@ Native Plugins
 * `Bifrost 2000 <https://github.com/dubhater/vapoursynth-bifrost>`_ -- A rainbow remover based on the Bifrost filter for Avisynth
 * `d2vsource <http://forum.doom9.org/showthread.php?t=166399>`_ -- Frame accurate mpeg2 source filter
 * `Deblock <http://forum.doom9.org/showthread.php?t=170975>`_ -- h.264 style deblocking
-* `Example plugins for Vapoursynth <http://forum.doom9.org/showthread.php?t=166147>`_ -- by thewebchat
 * `f3kdb <http://forum.doom9.org/showthread.php?t=161411>`_ -- Debanding filter
 * `FFMS2 <https://github.com/FFMS/ffms2>`_
 * `FieldHint <https://github.com/dubhater/vapoursynth-fieldhint>`_ -- Takes fields from arbitrary input frames to create the output frames
@@ -28,7 +27,6 @@ Native Plugins
 * `fmtconv <http://forum.doom9.org/showthread.php?t=166504>`_ -- High quality bitdepth and colorspace conversion, resizing
 * `GenericFilters <http://forum.doom9.org/showthread.php?t=166842>`_ -- Common image processing filters (replaces most of masktools)
 * `Histogram <https://github.com/dubhater/vapoursynth-histogram>`_ -- bundled with the installer
-* `Image reader collection <http://forum.doom9.org/showthread.php?t=166088>`_
 * `L-SMASH Source <http://forum.doom9.org/showthread.php?t=167435>`_
 * `nnedi3 <http://forum.doom9.org/showthread.php?t=166434>`_ -- Field interpolator/deinterlacer
 * `SceneChange <http://forum.doom9.org/showthread.php?t=166769>`_ -- Scene change detection and flagging
@@ -40,6 +38,12 @@ Native Plugins
 * `vsavsreader <http://forum.doom9.org/showthread.php?t=165957>`_ -- import plugin so Avisynth scripts can be opened in VapourSynth
 * `vsrawsource <http://forum.doom9.org/showthread.php?t=166075>`_ -- raw video reader
 * `WWXD <https://github.com/dubhater/vapoursynth-wwxd>`_ -- Xvid-like scene change detection
+* `Yadifmod <http://forum.doom9.org/showthread.php?t=171028>`_ -- Port of the Avisynth deinterlacer
+
+Obsolete Plugins
+################
+* `Image reader collection <http://forum.doom9.org/showthread.php?t=166088>`_ -- Unmaintained and has a tendency to crash
+* `Example plugins for Vapoursynth <http://forum.doom9.org/showthread.php?t=166147>`_ -- Not that good examples
 
 Scripts
 #######
