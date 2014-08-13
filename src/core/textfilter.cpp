@@ -126,7 +126,7 @@ stringlist split_text(const std::string& txt, int width, int height) {
     stringlist lines;
 
     // First split by \n
-    int prev_pos = -1;
+    size_t prev_pos = -1;
     for (size_t i = 0; i < txt.length(); i++) {
         if (txt[i] == '\n') {
             //if (i > 0 && i - prev_pos > 1) { // No empty lines allowed
@@ -181,12 +181,12 @@ void scrawl_text(std::string txt, int alignment, VSFrameRef *frame, const VSAPI 
     case 4:
     case 5:
     case 6:
-        start_y = (height - lines.size()*character_height) / 2;
+        start_y = (height - static_cast<int>(lines.size())*character_height) / 2;
         break;
     case 1:
     case 2:
     case 3:
-        start_y = height - lines.size()*character_height - margin_v;
+        start_y = height - static_cast<int>(lines.size())*character_height - margin_v;
         break;
     }
 
@@ -200,17 +200,17 @@ void scrawl_text(std::string txt, int alignment, VSFrameRef *frame, const VSAPI 
         case 2:
         case 5:
         case 8:
-            start_x = (width - iter->size()*character_width) / 2;
+            start_x = (width - static_cast<int>(iter->size())*character_width) / 2;
             break;
         case 3:
         case 6:
         case 9:
-            start_x = width - iter->size()*character_width - margin_h;
+            start_x = width - static_cast<int>(iter->size())*character_width - margin_h;
             break;
         }
 
         for (size_t i = 0; i < iter->size(); i++) {
-            int dest_x = start_x + i*character_width;
+            int dest_x = start_x + static_cast<int>(i)*character_width;
             int dest_y = start_y;
 
             if (frame_format->colorFamily == cmRGB) {

@@ -987,7 +987,7 @@ VSMap VSCore::getPlugins() {
     std::lock_guard<std::recursive_mutex> lock(pluginLock);
     for (const auto &iter : plugins) {
         std::string b = iter.second->fnamespace + ";" + iter.second->id + ";" + iter.second->fullname;
-        vsapi.propSetData(&m, iter.second->id.c_str(), b.c_str(), b.size(), 0);
+        vsapi.propSetData(&m, iter.second->id.c_str(), b.c_str(), static_cast<int>(b.size()), 0);
     }
     return m;
 }
@@ -1034,7 +1034,7 @@ void VSCore::createFilter(const VSMap *in, VSMap *out, const std::string &name, 
         PVideoNode node(std::make_shared<VSNode>(in, out, name, init, getFrame, free, filterMode, flags, instanceData, apiVersion, this));
         for (size_t i = 0; i < node->getNumOutputs(); i++) {
             // fixme, not that elegant but saves more variant poking code
-            VSNodeRef *ref = new VSNodeRef(node, i);
+            VSNodeRef *ref = new VSNodeRef(node, static_cast<int>(i));
             vsapi.propSetNode(out, "clip", ref, paAppend);
             delete ref;
         }
@@ -1164,7 +1164,7 @@ static bool hasCompatNodes(const VSMap &m) {
         if (vsv.second.getType() == VSVariant::vNode) {
             for (int i = 0; i < vsv.second.size(); i++) {
                 for (size_t j = 0; j < vsv.second.getValue<VSNodeRef>(i).clip->getNumOutputs(); j++) {
-                    const VSVideoInfo &vi = vsv.second.getValue<VSNodeRef>(i).clip->getVideoInfo(j);
+                    const VSVideoInfo &vi = vsv.second.getValue<VSNodeRef>(i).clip->getVideoInfo(static_cast<int>(j));
                     if (vi.format && vi.format->colorFamily == cmCompat)
                         return true;
                 }
@@ -1237,7 +1237,7 @@ VSMap VSPlugin::getFunctions() {
     VSMap m;
     for (const auto & f : funcs) {
         std::string b = f.first + ";" + f.second.argString;
-        vsapi.propSetData(&m, f.first.c_str(), b.c_str(), b.size(), 0);
+        vsapi.propSetData(&m, f.first.c_str(), b.c_str(), static_cast<int>(b.size()), 0);
     }
     return m;
 }
