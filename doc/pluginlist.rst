@@ -18,9 +18,10 @@ Native Plugins
 * :ref:`VIVTC <vivtc>` -- field matching and inverse telecine, in the source tree
 * `Bifrost 2000 <https://github.com/dubhater/vapoursynth-bifrost>`_ -- A rainbow remover based on the Bifrost filter for Avisynth
 * `d2vsource <http://forum.doom9.org/showthread.php?t=166399>`_ -- Frame accurate mpeg2 source filter
+* `DCT Filter <http://forum.doom9.org/showthread.php?t=171039>`_ -- Block based DCT coefficient adjustment
 * `Deblock <http://forum.doom9.org/showthread.php?t=170975>`_ -- h.264 style deblocking
 * `f3kdb <http://forum.doom9.org/showthread.php?t=161411>`_ -- Debanding filter
-* `FFMS2 <https://github.com/FFMS/ffms2>`_
+* `FFMS2 <https://github.com/FFMS/ffms2>`_ -- FFmpeg based source filter
 * `FieldHint <https://github.com/dubhater/vapoursynth-fieldhint>`_ -- Takes fields from arbitrary input frames to create the output frames
 * `FillBorders <https://github.com/dubhater/vapoursynth-fillborders>`_
 * `FluxSmooth <https://github.com/dubhater/vapoursynth-fluxsmooth>`_ -- Temporal/spatiotemporal denoiser
