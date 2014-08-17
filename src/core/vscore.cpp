@@ -1051,7 +1051,7 @@ VSPlugin::VSPlugin(const std::string &aFilename, const std::string &forcedNamesp
     std::wstring wPath = conversion.from_bytes(aFilename);
     DWORD bufSize = GetFullPathName((L"\\\\?\\" + wPath).c_str(), 0, nullptr, nullptr);
     std::vector<wchar_t> fullPathBuffer(bufSize + 1);
-    GetFullPathName((L"\\\\?\\" + wPath).c_str(), fullPathBuffer.size() + 1, fullPathBuffer.data(), nullptr);
+    GetFullPathName((L"\\\\?\\" + wPath).c_str(), fullPathBuffer.size(), fullPathBuffer.data(), nullptr);
     filename = conversion.to_bytes(fullPathBuffer.data());
 
     libHandle = LoadLibrary(wPath.c_str());
