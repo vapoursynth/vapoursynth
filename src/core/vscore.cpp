@@ -1044,16 +1044,20 @@ VSPlugin::VSPlugin(VSCore *core)
     : apiVersion(0), hasConfig(false), readOnly(false), compat(false), libHandle(0), core(core) {
 }
 
-VSPlugin::VSPlugin(const std::string &filename, const std::string &forcedNamespace, const std::string &forcedId, VSCore *core)
-    : apiVersion(0), hasConfig(false), readOnly(false), compat(false), libHandle(0), filename(filename), core(core), fnamespace(forcedNamespace), id(forcedId) {
+VSPlugin::VSPlugin(const std::string &aFilename, const std::string &forcedNamespace, const std::string &forcedId, VSCore *core)
+    : apiVersion(0), hasConfig(false), readOnly(false), compat(false), libHandle(0), core(core), fnamespace(forcedNamespace), id(forcedId) {
 #ifdef VS_TARGET_OS_WINDOWS
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
-    std::wstring wPath = conversion.from_bytes(filename);
+    std::wstring wPath = conversion.from_bytes(aFilename);
+    DWORD bufSize = GetFullPathName((L"\\\\?\\" + wPath).c_str(), 0, nullptr, nullptr);
+    std::vector<wchar_t> fullPathBuffer(bufSize + 1);
+    GetFullPathName((L"\\\\?\\" + wPath).c_str(), fullPathBuffer.size() + 1, fullPathBuffer.data(), nullptr);
+    filename = conversion.to_bytes(fullPathBuffer.data());
 
     libHandle = LoadLibrary(wPath.c_str());
 
     if (!libHandle)
-        throw VSException("Failed to load " + filename);
+        throw VSException("Failed to load " + aFilename);
 
     VSInitPlugin pluginInit = (VSInitPlugin)GetProcAddress(libHandle, "VapourSynthPluginInit");
 
@@ -1062,25 +1066,29 @@ VSPlugin::VSPlugin(const std::string &filename, const std::string &forcedNamespa
 
     if (!pluginInit) {
         FreeLibrary(libHandle);
-        throw VSException("No entry point found in " + filename);
+        throw VSException("No entry point found in " + aFilename);
     }
 #else
-    libHandle = dlopen(filename.c_str(), RTLD_LAZY);
+    libHandle = dlopen(aFilename.c_str(), RTLD_LAZY);
 
     if (!libHandle) {
         const char *dlError = dlerror();
         if (dlError)
-            throw VSException("Failed to load " + filename + ". Error given: " + std::string(dlError));
+            throw VSException("Failed to load " + aFilename + ". Error given: " + std::string(dlError));
         else
-            throw VSException("Failed to load " + filename);
+            throw VSException("Failed to load " + aFilename);
     }
 
     VSInitPlugin pluginInit = (VSInitPlugin)dlsym(libHandle, "VapourSynthPluginInit");
 
     if (!pluginInit) {
         dlclose(libHandle);
-        throw VSException("No entry point found in " + filename);
+        throw VSException("No entry point found in " + aFilename);
     }
+
+    std::vector<char> fullPathBuffer(MAX_PATH + 1);
+    realpath(aFilename.c_str(), fullPathBuffer.data());
+    filename = fullPathBuffer.data();
 #endif
     pluginInit(&::configPlugin, &::registerFunction, this);
 
