@@ -574,12 +574,10 @@ void VSCore::copyFrameProps(const PVideoFrame &src, PVideoFrame &dst) {
 const VSFormat *VSCore::getFormatPreset(int id) {
     std::lock_guard<std::mutex> lock(formatLock);
 
-    try {
-        return formats.at(id);
-    } catch (std::out_of_range &) {
-    }
-
-    return NULL;
+    auto f = formats.find(id);
+    if (f != formats.end())
+        return f->second;
+    return nullptr;
 }
 
 const VSFormat *VSCore::registerFormat(VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name, int id) {
@@ -793,19 +791,15 @@ bool VSCore::loadAllPluginsInPath(const std::string &path, const std::string &fi
             break;
 
         std::string name(entry->d_name);
-        try {
-            // If name ends with filter
-            if (name.compare(name.size() - filter.size(), filter.size(), filter) == 0) {
-                try {
-                    std::string fullname;
-                    fullname.append(path).append("/").append(name);
-                    loadPlugin(fullname);
-                } catch (VSException &) {
-                    // Ignore any errors
-                }
+        // If name ends with filter
+        if (name.compare(name.size() - filter.size(), filter.size(), filter) == 0) {
+            try {
+                std::string fullname;
+                fullname.append(path).append("/").append(name);
+                loadPlugin(fullname);
+            } catch (VSException &) {
+                // Ignore any errors
             }
-        } catch (std::out_of_range &) {
-            //
         }
 
         free(entry);
@@ -994,11 +988,10 @@ VSMap VSCore::getPlugins() {
 
 VSPlugin *VSCore::getPluginById(const std::string &identifier) {
     std::lock_guard<std::recursive_mutex> lock(pluginLock);
-    try {
-        return plugins.at(identifier);
-    } catch (std::out_of_range &) {
-    }
-    return NULL;
+    auto p = plugins.find(identifier);
+    if (p != plugins.end())
+        return p->second;
+    return nullptr;
 }
 
 VSPlugin *VSCore::getPluginByNs(const std::string &ns) {
@@ -1007,7 +1000,7 @@ VSPlugin *VSCore::getPluginByNs(const std::string &ns) {
         if (iter.second->fnamespace == ns)
             return iter.second;
     }
-    return NULL;
+    return nullptr;
 }
 
 void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNamespace, const std::string &forcedId) {

@@ -130,13 +130,13 @@ static void VS_CC requestFrameFilter(int n, VSNodeRef *clip, VSFrameContext *fra
 
 static const VSFrameRef *VS_CC getFrameFilter(int n, VSNodeRef *clip, VSFrameContext *frameCtx) {
     assert(clip && frameCtx);
-    try {
-        int numFrames = clip->clip->getVideoInfo(clip->index).numFrames;
-        if (numFrames && n >= numFrames)
-            n = numFrames - 1;
-        return new VSFrameRef(frameCtx->ctx->availableFrames.at(NodeOutputKey(clip->clip.get(), n, clip->index)));
-    } catch (std::out_of_range &) {
-    }
+
+    int numFrames = clip->clip->getVideoInfo(clip->index).numFrames;
+    if (numFrames && n >= numFrames)
+        n = numFrames - 1;
+    auto ref = frameCtx->ctx->availableFrames.find(NodeOutputKey(clip->clip.get(), n, clip->index));
+    if (ref != frameCtx->ctx->availableFrames.end())
+        return new VSFrameRef(ref->second);
     return nullptr;
 }
 
