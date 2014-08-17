@@ -792,7 +792,7 @@ bool VSCore::loadAllPluginsInPath(const std::string &path, const std::string &fi
 
         std::string name(entry->d_name);
         // If name ends with filter
-        if (name.compare(name.size() - filter.size(), filter.size(), filter) == 0) {
+        if (name.size() >= filter.size() && name.compare(name.size() - filter.size(), filter.size(), filter) == 0) {
             try {
                 std::string fullname;
                 fullname.append(path).append("/").append(name);
