@@ -1,3 +1,6 @@
+r25:
+automatically generated names for runtime registered yuv formats now make sense
+
 r24:
 fixed rare crashes in 64 bit windows asm in a few filters
 core.max_cache_size should now be used instead of core.set_max_cache_size()

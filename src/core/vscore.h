@@ -489,7 +489,7 @@ public:
     std::string fnamespace;
     std::string id;
     VSPlugin(VSCore *core);
-    VSPlugin(const std::string &filename, const std::string &forcedNamespace, const std::string &forcedId, VSCore *core);
+    VSPlugin(const std::string &relFilename, const std::string &forcedNamespace, const std::string &forcedId, VSCore *core);
     ~VSPlugin();
     void lock() {
         readOnly = true;
