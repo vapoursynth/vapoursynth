@@ -1067,10 +1067,15 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
     std::wstring wPath = conversion.from_bytes(relFilename);
     std::vector<wchar_t> fullPathBuffer(32767 + 1); // add 1 since msdn sucks at mentioning whether or not it includes the final null
-    GetFullPathName((L"\\\\?\\" + wPath).c_str(), static_cast<DWORD>(fullPathBuffer.size()), fullPathBuffer.data(), nullptr);
-    filename = conversion.to_bytes(fullPathBuffer.data());
+    if (wPath.substr(0, 4) != L"\\\\?\\")
+        wPath = L"\\\\?\\" + wPath;
+    GetFullPathName(wPath.c_str(), static_cast<DWORD>(fullPathBuffer.size()), fullPathBuffer.data(), nullptr);
+    wPath = fullPathBuffer.data();
+    if (wPath.substr(0, 4) == L"\\\\?\\")
+        wPath = wPath.substr(4);
+    filename = conversion.to_bytes(wPath);
 
-    libHandle = LoadLibrary(fullPathBuffer.data());
+    libHandle = LoadLibrary(wPath.c_str());
 
     if (!libHandle)
         throw VSException("Failed to load " + relFilename);
