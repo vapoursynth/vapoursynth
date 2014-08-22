@@ -122,6 +122,7 @@ struct WriteData {
     const VSVideoInfo *vi;
     std::string imgFormat;
     std::string filename;
+    int firstNum;
     int quality;
     bool dither;
 
@@ -280,7 +281,7 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
                 }
             }
 
-            image.write(specialPrintf(d->filename, n));
+            image.write(specialPrintf(d->filename, n + d->firstNum));
 
             vsapi->freeFrame(alphaFrame);
             return frame;
@@ -313,6 +314,12 @@ static void VS_CC writeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         inited = true;
     }
 #endif
+
+    d->firstNum = int64ToIntS(vsapi->propGetInt(in, "firstnum", 0, &err));
+    if (d->firstNum < 0) {
+        vsapi->setError(out, "Write: Frame number offset can't be negative");
+        return;
+    }
 
     d->quality = int64ToIntS(vsapi->propGetInt(in, "quality", 0, &err));
     if (err)
@@ -367,6 +374,7 @@ static void VS_CC writeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
 struct ReadData {
     VSVideoInfo vi[2];
     std::vector<std::string> filenames;
+    int firstNum;
     bool alpha;
     bool mismatch;
     bool fileListMode;
@@ -401,7 +409,7 @@ static const VSFrameRef *VS_CC readGetFrame(int n, int activationReason, void **
         VSFrameRef *alphaFrame = nullptr;
         
         try {
-            Magick::Image image(d->fileListMode ? d->filenames[n] : specialPrintf(d->filenames[0], n));
+            Magick::Image image(d->fileListMode ? d->filenames[n] : specialPrintf(d->filenames[0], n + d->firstNum));
             int width = image.columns();
             int height = image.rows();
             frame = vsapi->newVideoFrame(d->vi[0].format ? d->vi[0].format : vsapi->registerFormat(cmRGB, stInteger, image.depth(), 0, 0, core), width, height, nullptr, core);
@@ -544,6 +552,12 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     }
 #endif
 
+    d->firstNum = int64ToIntS(vsapi->propGetInt(in, "firstnum", 0, &err));
+    if (d->firstNum < 0) {
+        vsapi->setError(out, "Read: Frame number offset can't be negative");
+        return;
+    }
+
     d->alpha = !!vsapi->propGetInt(in, "alpha", 0, &err);
     d->mismatch = !!vsapi->propGetInt(in, "mismatch", 0, &err);
     int numElem = vsapi->propNumElements(in, "filename");
@@ -556,7 +570,7 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     if (d->vi[0].numFrames == 1 && specialPrintf(d->filenames[0], 0) != d->filenames[0]) {
         d->fileListMode = false;
 
-        for (int i = 0; i < INT_MAX; i++) {
+        for (int i = d->firstNum; i < INT_MAX; i++) {
 #ifdef _WIN32
             std::string printedStr(specialPrintf(d->filenames[0], i));
             int numChars = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, printedStr.c_str(), printedStr.length(), nullptr, 0);
@@ -569,7 +583,7 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
             if (f) {
                 fclose(f);
             } else {
-                d->vi[0].numFrames = i;
+                d->vi[0].numFrames = i - d->firstNum;
                 break;
             }
         }
@@ -582,14 +596,14 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     try {
         Magick::Image img;
-        img.ping(d->fileListMode ? d->filenames[0] : specialPrintf(d->filenames[0], 0));
+        img.ping(d->fileListMode ? d->filenames[0] : specialPrintf(d->filenames[0], d->firstNum));
         int depth = std::min(std::max<int>(img.depth(), 8), 16);
 
         if (!d->mismatch || d->vi[0].numFrames == 1) {
             d->vi[0].height = img.rows();
             d->vi[0].width = img.columns();
             VSColorFamily cf = cmRGB;
-            if (img.colorSpace() == Magick::GRAYColorspace)
+            if (img.colorSpace() == Magick::GRAYColorspace || img.colorSpace() == Magick::Rec601LumaColorspace || img.colorSpace() == Magick::Rec709LumaColorspace)
                 cf = cmGray;
             d->vi[0].format = vsapi->registerFormat(cf, stInteger, depth, 0, 0, core);
         }
@@ -613,6 +627,6 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     configFunc("com.vapoursynth.imwri", "imwri", "VapourSynth ImageMagick Writer/Reader", VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("Write", "clip:clip;imgformat:data;filename:data;" DLLPATHARG "quality:int:opt;dither:int:opt;alpha:clip:opt;", writeCreate, nullptr, plugin);
-    registerFunc("Read", "filename:data[];" DLLPATHARG "mismatch:int:opt;alpha:int:opt;", readCreate, nullptr, plugin);
+    registerFunc("Write", "clip:clip;imgformat:data;filename:data;" DLLPATHARG "firstnum:int:opt;quality:int:opt;dither:int:opt;alpha:clip:opt;", writeCreate, nullptr, plugin);
+    registerFunc("Read", "filename:data[];" DLLPATHARG "firstnum:int:opt;mismatch:int:opt;alpha:int:opt;", readCreate, nullptr, plugin);
 }
