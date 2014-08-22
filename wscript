@@ -143,6 +143,12 @@ features = [
         'func': check_true
     },
     {
+        'name': '--mime',
+        'desc': 'MIME types definitions',
+        'default': 'disable',
+        'func': check_true
+    },
+    {
         'name': '--examples',
         'desc': 'SDK examples',
         'default': 'disable',
@@ -221,7 +227,8 @@ _INSTALL_DIRS_LIST = [
     ('libdir',      '${PREFIX}/lib',                    'library files'),
     ('plugindir',   '${LIBDIR}/vapoursynth',            'plugins'),
     ('datadir',     '${PREFIX}/share',                  'data files'),
-    ('docdir',      '${DATADIR}/doc/vapoursynth',       'documentation files')
+    ('docdir',      '${DATADIR}/doc/vapoursynth',       'documentation files'),
+    ('mimedir',     '${DATADIR}/mime/packages',         'mimetype definitions')
 ]
 
 def options(opt):

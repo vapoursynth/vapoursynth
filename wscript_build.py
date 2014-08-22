@@ -122,6 +122,10 @@ def build(ctx):
             source = os.path.join('doc', 'conf.py'),
             install_path = ctx.env.DOCDIR)
 
+    def _install_mime():
+        ctx.install_files(ctx.env.MIMEDIR,
+                          [os.path.join('data', 'vapoursynth.xml')])
+
     if ctx.dependency_satisfied('vapoursynth'):
         _build_core()
 
@@ -135,3 +139,6 @@ def build(ctx):
 
     if ctx.dependency_satisfied('docs'):
         _build_docs()
+
+    if ctx.dependency_satisfied('mime'):
+        _install_mime()
