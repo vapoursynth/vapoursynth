@@ -16,6 +16,7 @@ Native Plugins
 * :ref:`RemoveGrain/Repair <rgvs>` -- in the source tree
 * :ref:`Vinverse <vinverse>` -- in the source tree
 * :ref:`VIVTC <vivtc>` -- field matching and inverse telecine, in the source tree
+* `AddGrain <http://forum.doom9.org/showthread.php?t=171073>`_ -- Port of the Avisynth AddGrain filter
 * `Bifrost 2000 <https://github.com/dubhater/vapoursynth-bifrost>`_ -- A rainbow remover based on the Bifrost filter for Avisynth
 * `d2vsource <http://forum.doom9.org/showthread.php?t=166399>`_ -- Frame accurate mpeg2 source filter
 * `DCT Filter <http://forum.doom9.org/showthread.php?t=171039>`_ -- Block based DCT coefficient adjustment
