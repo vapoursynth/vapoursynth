@@ -1090,7 +1090,7 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
         throw VSException("No entry point found in " + relFilename);
     }
 #else
-    std::vector<char> fullPathBuffer(MAX_PATH + 1);
+    std::vector<char> fullPathBuffer(PATH_MAX + 1);
     realpath(relFilename.c_str(), fullPathBuffer.data());
     filename = fullPathBuffer.data();
 
