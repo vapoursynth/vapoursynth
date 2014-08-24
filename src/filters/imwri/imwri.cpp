@@ -30,6 +30,7 @@
 #include <VSHelper.h>
 #include <cstring>
 #include <string>
+#include <vector>
 #include <algorithm>
 #include <memory>
 
@@ -59,6 +60,10 @@ static bool inited = false;
 
 //////////////////////////////////////////
 // Shared
+
+static bool isGrayColorspace(Magick::ColorspaceType colorspace) {
+    return colorspace == Magick::GRAYColorspace || colorspace == Magick::Rec601LumaColorspace || colorspace == Magick::Rec709LumaColorspace;
+}
 
 static void initMagick(const char *path) {
     Magick::InitializeMagick(path);
@@ -410,11 +415,30 @@ static const VSFrameRef *VS_CC readGetFrame(int n, int activationReason, void **
         
         try {
             Magick::Image image(d->fileListMode ? d->filenames[n] : specialPrintf(d->filenames[0], n + d->firstNum));
+            VSColorFamily cf = cmRGB;
+            if (isGrayColorspace(image.colorSpace()))
+                cf = cmGray;
+
             int width = image.columns();
             int height = image.rows();
-            frame = vsapi->newVideoFrame(d->vi[0].format ? d->vi[0].format : vsapi->registerFormat(cmRGB, stInteger, image.depth(), 0, 0, core), width, height, nullptr, core);
+            int depth = std::min(std::max<int>(image.depth(), 8), 16);
+
+            if (d->vi[0].format && (cf != d->vi[0].format->colorFamily || depth != d->vi[0].format->bitsPerSample)) {
+                std::string err = "Read: Format mismatch for frame " + std::to_string(n) + ", is ";
+                err += vsapi->registerFormat(cf, stInteger, depth, 0, 0, core)->name + std::string(" but should be ") + d->vi[0].format->name;
+                vsapi->setFilterError(err.c_str(), frameCtx);
+                return nullptr;
+            }
+
+            if (d->vi[0].width && (width != d->vi[0].width || height != d->vi[0].height)) {
+                std::string err = "Read: Size mismatch for frame " + std::to_string(n) + ", is " + std::to_string(width) + "x" + std::to_string(height) + " but should be " + std::to_string(d->vi[0].width) + "x" + std::to_string(d->vi[0].height);
+                vsapi->setFilterError(err.c_str(), frameCtx);
+                return nullptr;
+            }
+
+            frame = vsapi->newVideoFrame(d->vi[0].format ? d->vi[0].format : vsapi->registerFormat(cf, stInteger, depth, 0, 0, core), width, height, nullptr, core);
             if (d->alpha)
-                alphaFrame = vsapi->newVideoFrame(d->vi[1].format ? d->vi[1].format : vsapi->registerFormat(cmGray, stInteger, image.depth(), 0, 0, core), width, height, nullptr, core);
+                alphaFrame = vsapi->newVideoFrame(d->vi[1].format ? d->vi[1].format : vsapi->registerFormat(cmGray, stInteger, depth, 0, 0, core), width, height, nullptr, core);
             const VSFormat *fi = vsapi->getFrameFormat(frame);
  
             bool isGray = fi->colorFamily == cmGray;
@@ -595,15 +619,15 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     }
 
     try {
-        Magick::Image img;
-        img.ping(d->fileListMode ? d->filenames[0] : specialPrintf(d->filenames[0], d->firstNum));
-        int depth = std::min(std::max<int>(img.depth(), 8), 16);
+        Magick::Image image;
+        image.ping(d->fileListMode ? d->filenames[0] : specialPrintf(d->filenames[0], d->firstNum));
+        int depth = std::min(std::max<int>(image.depth(), 8), 16);
 
         if (!d->mismatch || d->vi[0].numFrames == 1) {
-            d->vi[0].height = img.rows();
-            d->vi[0].width = img.columns();
+            d->vi[0].height = image.rows();
+            d->vi[0].width = image.columns();
             VSColorFamily cf = cmRGB;
-            if (img.colorSpace() == Magick::GRAYColorspace || img.colorSpace() == Magick::Rec601LumaColorspace || img.colorSpace() == Magick::Rec709LumaColorspace)
+            if (isGrayColorspace(image.colorSpace()))
                 cf = cmGray;
             d->vi[0].format = vsapi->registerFormat(cf, stInteger, depth, 0, 0, core);
         }
