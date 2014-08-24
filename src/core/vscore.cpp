@@ -1091,8 +1091,8 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
     }
 #else
     std::vector<char> fullPathBuffer(PATH_MAX + 1);
-    realpath(relFilename.c_str(), fullPathBuffer.data());
-    filename = fullPathBuffer.data();
+    if (realpath(relFilename.c_str(), fullPathBuffer.data()))
+        filename = fullPathBuffer.data();
 
     libHandle = dlopen(filename.c_str(), RTLD_LAZY);
 
