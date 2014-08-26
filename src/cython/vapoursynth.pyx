@@ -20,20 +20,13 @@
 cimport vapoursynth
 cimport cython.parallel
 from libc.stdint cimport intptr_t
-from cpython.ref cimport Py_INCREF, Py_DECREF, Py_CLEAR, PyObject
-
-IF str(UNAME_SYSNAME) == str('Windows'):
-    cimport windows
-ELSE:
-    cimport posix.unistd
+from cpython.ref cimport Py_INCREF, Py_DECREF
 import os
-import sys
 import ctypes
 import threading
 import traceback
 import gc
-IF str(UNAME_SYSNAME) == str('Windows'):
-    import msvcrt
+import sys
 
 _using_vsscript = False
 _environment_id_stack = []
@@ -222,17 +215,11 @@ cdef Func createFuncRef(VSFuncRef *ref, const VSAPI *funcs):
     instance.funcs = funcs
     instance.ref = ref
     return instance
-    
-cdef intptr_t translateFileHandle(int handle):
-    IF str(UNAME_SYSNAME) == str('Windows'):
-        return msvcrt.get_osfhandle(handle)
-    ELSE:
-        return handle
-    
+        
 cdef class CallbackData(object):
     cdef VideoNode node
     cdef const VSAPI *funcs
-    cdef intptr_t handle
+    cdef object fileobj
     cdef int output
     cdef int requested
     cdef int completed
@@ -244,8 +231,8 @@ cdef class CallbackData(object):
     cdef object progress_update
     cdef str error
 
-    def __init__(self, handle, requested, total, num_planes, y4m, node, progress_update):
-        self.handle = translateFileHandle(handle)
+    def __init__(self, fileobj, requested, total, num_planes, y4m, node, progress_update):
+        self.fileobj = fileobj
         self.output = 0
         self.requested = requested
         self.completed = 0
@@ -260,7 +247,7 @@ cdef class CallbackData(object):
  
 cdef class FramePtr(object):
     cdef const VSFrameRef *f
-    cdef VSAPI *funcs
+    cdef const VSAPI *funcs
 
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
@@ -274,20 +261,13 @@ cdef FramePtr createFramePtr(const VSFrameRef *f, const VSAPI *funcs):
     instance.funcs = funcs
     return instance
 
-cdef bint writeFileData(intptr_t handle, const char *data, int size):  
-    IF str(UNAME_SYSNAME) == str('Windows'):
-        return not windows.WriteFile(<void *>handle, <const void *>data, size, NULL, NULL)
-    ELSE:
-        return posix.unistd.write(handle, <const void *>data, size) < 0
-
 cdef void __stdcall frameDoneCallback(void *data, const VSFrameRef *f, int n, VSNodeRef *node, char *errormsg) nogil:
     cdef int pitch
-    cdef uint8_t *readptr
+    cdef const uint8_t *readptr
     cdef const VSFormat *fi
     cdef int row_size
     cdef int height
     cdef char err[512]
-    cdef char *header = 'FRAME\n'
     cdef int p
     cdef int y
 
@@ -309,7 +289,11 @@ cdef void __stdcall frameDoneCallback(void *data, const VSFrameRef *f, int n, VS
             while d.output in d.reorder:
                 frame_obj = <FramePtr>d.reorder[d.output]
                 if d.y4m:
-                    writeFileData(d.handle, header, 6)   
+                    try:
+                        d.fileobj.write(b'FRAME\n')
+                    except:
+                        d.error = 'File write call returned an error'
+                        d.total = d.requested
                 p = 0
                 fi = d.funcs.getFrameFormat(frame_obj.f)
  
@@ -321,8 +305,11 @@ cdef void __stdcall frameDoneCallback(void *data, const VSFrameRef *f, int n, VS
                     y = 0
 
                     while y < height:
-                        if writeFileData(d.handle, <char*>readptr, row_size):
+                        try:
+                            d.fileobj.write(bytes((<const char*>readptr)[:row_size]))
+                        except:
                             d.error = 'File write call returned an error'
+                            d.total = d.requested
 
                         readptr += pitch
                         y = y + 1
@@ -333,7 +320,11 @@ cdef void __stdcall frameDoneCallback(void *data, const VSFrameRef *f, int n, VS
                 d.output = d.output + 1
 
             if (d.progress_update is not None):
-                d.progress_update(d.completed, d.total)
+                try:
+                    d.progress_update(d.completed, d.total)
+                except BaseException, e:
+                    d.error = 'Progress update caused an exception: ' + str(e)
+                    d.total = d.requested
 
         if d.requested < d.total:
             d.node.funcs.getFrameAsync(d.requested, d.node.node, frameDoneCallback, data)
@@ -432,7 +423,7 @@ cdef void dictToMap(dict ndict, VSMap *inm, Core core, const VSAPI *funcs) excep
                 if funcs.propSetData(inm, ckey, s, -1, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif isinstance(v, bytes) or isinstance(v, bytearray):
-                if funcs.propSetData(inm, ckey, v, len(v), 1) != 0:
+                if funcs.propSetData(inm, ckey, v, <int>len(v), 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             else:
                 raise Error('argument ' + key + ' was passed an unsupported type')
@@ -478,7 +469,7 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, Core core, const V
                     s = str(v).encode('utf-8')
                 else:
                     s = v
-                if funcs.propSetData(inm, ckey, s, len(s), 1) != 0:
+                if funcs.propSetData(inm, ckey, s, <int>len(s), 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             else:
                 raise Error('argument ' + key + ' was passed an unsupported type')
@@ -632,7 +623,7 @@ cdef class VideoProps(object):
                     if funcs.propSetData(m, b, s, -1, 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif isinstance(v, bytes) or isinstance(v, bytearray):
-                    if funcs.propSetData(m, b, v, len(v), 1) != 0:
+                    if funcs.propSetData(m, b, v, <int>len(v), 1) != 0:
                         raise Error('Not all values are of the same type')
                 else:
                     raise Error('Setter was passed an unsupported type')
@@ -791,8 +782,12 @@ cdef class VideoNode(object):
     def output(self, object fileobj not None, bint y4m = False, object progress_update = None, int prefetch = 0):
         if prefetch < 1:
             prefetch = self.core.num_threads
-
-        cdef CallbackData d = CallbackData(fileobj.fileno(), min(prefetch, self.num_frames), self.num_frames, self.format.num_planes, y4m, self, progress_update)
+            
+        # stdout usually isn't in binary mode so let's automatically compensate for that
+        if fileobj == sys.stdout:
+            fileobj = sys.stdout.buffer
+            
+        cdef CallbackData d = CallbackData(fileobj, min(prefetch, self.num_frames), self.num_frames, self.format.num_planes, y4m, self, progress_update)
 
         if d.total <= 0:
             raise Error('Cannot output unknown length clip')
@@ -832,10 +827,8 @@ cdef class VideoNode(object):
             y4mformat = 'C' + y4mformat + ' '
 
         cdef str header = 'YUV4MPEG2 ' + y4mformat + 'W' + str(self.width) + ' H' + str(self.height) + ' F' + str(self.fps_num) + ':' + str(self.fps_den) + ' Ip A0:0\n'
-        cdef bytes b = header.encode('utf-8')
-        cdef int dummy = 0
         if y4m:
-            writeFileData(d.handle, <char*>b, len(b))
+            fileobj.write(header.encode('utf-8'))
         d.condition.acquire()
 
         for n in range(min(prefetch, d.total)):
@@ -1014,7 +1007,7 @@ cdef class Core(object):
             cdef const VSCoreInfo *info = self.funcs.getCoreInfo(self.core)
             cdef int64_t current_size = <int64_t>info.maxFramebufferSize
             current_size = current_size + 1024 * 1024 - 1
-            current_size = current_size // (1024 * 1024)
+            current_size = current_size // <int64_t>(1024 * 1024)
             return current_size
         
         def __set__(self, int mb):

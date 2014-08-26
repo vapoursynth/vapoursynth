@@ -1,4 +1,6 @@
 r25:
+fixed several minor issues in the python module
+clip.output() now accepts normal python file-like objects
 automatically generated names for runtime registered yuv formats now make sense
 
 r24:
