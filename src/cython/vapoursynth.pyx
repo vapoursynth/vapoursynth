@@ -329,11 +329,10 @@ cdef void __stdcall frameDoneCallback(void *data, const VSFrameRef *f, int n, VS
         if d.requested < d.total:
             d.node.funcs.getFrameAsync(d.requested, d.node.node, frameDoneCallback, data)
             d.requested = d.requested + 1
-
-        if d.total == d.completed:
-            d.condition.acquire()
-            d.condition.notify()
-            d.condition.release()
+       
+        d.condition.acquire()
+        d.condition.notify()
+        d.condition.release()
 
 cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, Core core, const VSAPI *funcs):
     cdef int numKeys = funcs.propNumKeys(map)
@@ -834,8 +833,17 @@ cdef class VideoNode(object):
         for n in range(min(prefetch, d.total)):
             self.funcs.getFrameAsync(n, self.node, frameDoneCallback, <void *>d)
 
-        d.condition.wait()
+        stored_exception = None
+        while d.total != d.completed:
+            try:
+                d.condition.wait()
+            except BaseException, e:
+                d.total = d.requested
+                stored_exception = e
         d.condition.release()
+        
+        if stored_exception is not None:
+            raise stored_exception
 
         if d.error:
             raise Error(d.error)

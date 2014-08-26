@@ -1,5 +1,5 @@
 r25:
-fixed several minor issues in the python module
+fixed ctrl-c handling in clip.output() and some other small adjustments
 clip.output() now accepts normal python file-like objects
 automatically generated names for runtime registered yuv formats now make sense
 
