@@ -4,51 +4,50 @@ Avisynth functions and their VapourSynth equivalents
 +------------------------+---------------------+----------------------------------------------------------------------+
 | Avisynth               | VapourSynth         | Notes                                                                |
 +========================+=====================+======================================================================+
-| AviSource              | avisource.AVISource |                                                                      |
-|                        |                     |                                                                      |
+| AviSource              | avisource.AVISource | Use FFMS2 instead when possible                                      |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| DirectShowSource       | none                | DirectShowSource will at least have a special compatible avisynth    |
-|                        |                     | version created. Or VapourSynth will get varargs support.            |
+| DirectShowSource       | none                | There will be no source filter using DirectShow because there's no   |
+|                        |                     | real need for it. Use FFMS2 instead.                                 |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| ImageReader/ImageWriter| none                | Planned, contributions welcome                                       |
+| ImageReader/ImageWriter| imwri plugin        | Planned, contributions welcome                                       |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| Import                 | none                | See the documentation for Python's import command                    |
+| Import                 | none                | See the documentation for Python's import for scripts.               |
 +------------------------+---------------------+----------------------------------------------------------------------+
 | ConvertTo*             | resize.Bicubic(     | This also determines the resizer used for chroma resampling,         |
 |                        | format=vs.YUV444P8) | if needed                                                            |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| ColorYUV               | std.Lut             | Do the adjustment yourself with a lut                                |
+| ColorYUV               | std.Lut/std.Expr    | Do the adjustment yourself                                           |
 +------------------------+---------------------+----------------------------------------------------------------------+
 | GreyScale              | std.ShufflePlanes   | ShufflePlanes(clips=inclip, planes=0, colorfamily=vs.GRAY)           |
 |                        |                     | Extracts the first plane. Y for YUV, R for RGB, planes=1/2 = U/V G/B |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| Invert                 | std.Lut             | Do the adjustment yourself with a lut                                |
+| Invert                 | std.Lut/std.Expr    | Do the adjustment yourself                                           |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| Limiter                | std.Lut             | Do the adjustment yourself with a lut                                |
+| Limiter                | std.Lut/std.Expr    | Do the adjustment yourself                                           |
 +------------------------+---------------------+----------------------------------------------------------------------+
 | MergeRGB               | std.ShufflePlanes   | ShufflePlanes(clips=[R,G,B], planes=[0, 0, 0], colorfamily=vs.RGB)   |
 +------------------------+---------------------+----------------------------------------------------------------------+
 | MergeChroma/MergeLuma  | std.ShufflePlanes   | ShufflePlanes(clips=[Yclip,UVclip], planes=[0, 1, 2],                |
 |                        |                     | colorfamily=vs.YUV)                                                  |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| RGBAdjust              | std.Lut             | Do the adjustment yourself with a lut                                |
+| RGBAdjust              | std.Lut/std.Expr    | Do the adjustment yourself                                           |
 +------------------------+---------------------+----------------------------------------------------------------------+
 | ShowAlpha/ShowRed/     | std.ShufflePlanes   | ShufflePlanes(clips=inclip, planes=0, colorfamily=vs.GRAY)           |
 | ShowGreen/ShowBlue     |                     | Extracts the first plane. Y for YUV, R for RGB, planes=1/2 = U/V G/B |
 +------------------------+---------------------+----------------------------------------------------------------------+
 | SwapUV                 | std.ShufflePlanes   | ShufflePlanes(clips=inclip, planes=[0, 2, 1], colorfamily=vs.YUV)    |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| Tweak                  | std.Lut             | Do the adjustment yourself with a lut                                |
+| Tweak                  | std.Lut/std.Expr    | Do the adjustment yourself                                           |
 +------------------------+---------------------+----------------------------------------------------------------------+
 | UToY/VToY/*            | std.ShufflePlanes   | See GreyScale and the other examples                                 |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| ColorKeyMask           | std.Lut             | Not perfect but probably good enough for a clever person             |
+| ColorKeyMask           | std.Lut/std.Expr    | Do the adjustment yourself                                           |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| Layer                  | std.Lut2            | Do the adjustment yourself with a lut                                |
+| Layer                  | std.Lut2/std.Expr   | Do the adjustment yourself                                           |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| Overlay                | std.Lut2            | Do the adjustment yourself with a lut. Missing offset and other stuff|
+| Overlay                | std.Lut2/std.Expr   | Do the adjustment yourself                                           |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| Subtract               | std.Lut2            | Do the adjustment yourself with a lut                                |
+| Subtract               | std.Lut2/std.Expr   | Do the adjustment yourself                                           |
 +------------------------+---------------------+----------------------------------------------------------------------+
 | AddBorders             | std.AddBorders      |                                                                      |
 +------------------------+---------------------+----------------------------------------------------------------------+
@@ -68,9 +67,11 @@ Avisynth functions and their VapourSynth equivalents
 +------------------------+---------------------+----------------------------------------------------------------------+
 | TurnRight/TurnLeft     | std.Transpose       | Add std.FlipHorizontal/std.FlipVertical to create a true turn        |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| ConditionalFilter      | std.SelectClip      | Can also substitute many of the other conditionals                   |
+| ConditionalFilter      | std.FrameEval       | Can also substitute many of the other conditionals                   |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| Animate/ApplyRange     | none                | Will never have an equivalent                                        |
+| Animate                | std.FrameEval       | Combine with python scripting                                        |
++------------------------+---------------------+----------------------------------------------------------------------+
+| ApplyRange             | none                | Use python scripting instead                                         |
 +------------------------+---------------------+----------------------------------------------------------------------+
 | BlankClip              | std.BlankClip       |                                                                      |
 +------------------------+---------------------+----------------------------------------------------------------------+

@@ -21,6 +21,7 @@ Native Plugins
 * `d2vsource <http://forum.doom9.org/showthread.php?t=166399>`_ -- Frame accurate mpeg2 source filter
 * `DCT Filter <http://forum.doom9.org/showthread.php?t=171039>`_ -- Block based DCT coefficient adjustment
 * `Deblock <http://forum.doom9.org/showthread.php?t=170975>`_ -- h.264 style deblocking
+* `EEDI2 <http://forum.doom9.org/showthread.php?t=171136>`_
 * `f3kdb <http://forum.doom9.org/showthread.php?t=161411>`_ -- Debanding filter
 * `FFMS2 <https://github.com/FFMS/ffms2>`_ -- FFmpeg based source filter
 * `FieldHint <https://github.com/dubhater/vapoursynth-fieldhint>`_ -- Takes fields from arbitrary input frames to create the output frames
@@ -30,9 +31,11 @@ Native Plugins
 * `GenericFilters <http://forum.doom9.org/showthread.php?t=166842>`_ -- Common image processing filters (replaces most of masktools)
 * `Histogram <https://github.com/dubhater/vapoursynth-histogram>`_ -- bundled with the installer
 * `L-SMASH Source <http://forum.doom9.org/showthread.php?t=167435>`_
+* `MSmoosh <http://forum.doom9.org/showthread.php?t=171159>`_ -- MSmooth and MSharpen ports
 * `nnedi3 <http://forum.doom9.org/showthread.php?t=166434>`_ -- Field interpolator/deinterlacer
 * `SceneChange <http://forum.doom9.org/showthread.php?t=166769>`_ -- Scene change detection and flagging
 * `SSIQ <https://github.com/dubhater/vapoursynth-ssiq>`_ -- Spatial derainbowing filter
+* `TComb <http://forum.doom9.org/showthread.php?t=171124>`_ -- port of the Avisynth script
 * `TempLinearApproximate <http://forum.doom9.org/showthread.php?t=169782>`_ -- A temporal smoother
 * `TemporalSoften <https://github.com/dubhater/vapoursynth-temporalsoften>`_ -- bundled with the installer
 * `Unresize <http://forum.doom9.org/showthread.php?t=169829>`_ -- Undoes resizing
