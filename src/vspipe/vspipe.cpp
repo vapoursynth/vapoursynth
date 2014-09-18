@@ -349,6 +349,7 @@ int main(int argc, char **argv) {
     nstring outputFilename, scriptFilename;
     bool showHelp = false;
     std::map<std::string, std::string> scriptArgs;
+    int startFrame = 0;
 
     for (int arg = 1; arg < argc; arg++) {
         nstring argString = argv[arg];
@@ -368,19 +369,20 @@ int main(int argc, char **argv) {
                 return 1;
             }
 
-            if (!nstringToInt(argv[arg + 1], completedFrames)) {
+            if (!nstringToInt(argv[arg + 1], startFrame)) {
                 fprintf(stderr, "Couldn't convert %s to an integer (start)\n", nstringToUtf8(argv[arg + 1]).c_str());
                 return 1;
             }
 
-            if (completedFrames < 0) {
+            if (startFrame < 0) {
                 fprintf(stderr, "Negative start frame specified\n");
                 return 1;
             }
 
-            outputFrames = completedFrames;
-            requestedFrames = completedFrames;
-            lastFpsReportFrame = completedFrames;
+            completedFrames = startFrame;
+            outputFrames = startFrame;
+            requestedFrames = startFrame;
+            lastFpsReportFrame = startFrame;
 
             arg++;
         } else if (argString == NSTRING("-e") || argString == NSTRING("--end")) {
@@ -578,8 +580,9 @@ int main(int argc, char **argv) {
     fflush(outFile);
 
     if (!showInfo) {
+        int totalFrames = outputFrames - startFrame;
         std::chrono::duration<double> elapsedSeconds = std::chrono::high_resolution_clock::now() - start;
-        fprintf(stderr, "Output %d frames in %.2f seconds (%.2f fps)\n", outputFrames, elapsedSeconds.count(), outputFrames / elapsedSeconds.count());
+        fprintf(stderr, "Output %d frames in %.2f seconds (%.2f fps)\n", totalFrames, elapsedSeconds.count(), totalFrames / elapsedSeconds.count());
     }
     vsapi->freeNode(node);
     vsscript_freeScript(se);
