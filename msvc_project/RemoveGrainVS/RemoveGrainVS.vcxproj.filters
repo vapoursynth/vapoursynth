@@ -41,5 +41,8 @@
     <ClCompile Include="..\..\src\filters\removegrain\shared.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\filters\removegrain\verticalcleaner.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
