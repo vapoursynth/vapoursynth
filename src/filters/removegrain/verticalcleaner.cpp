@@ -141,11 +141,11 @@ void VS_CC verticalCleanerCreate(const VSMap *in, VSMap *out, void *userData, VS
 
         const int height = d.vi->height >> (i ? d.vi->format->subSamplingH : 0);
         if (d.mode[i] == 1 && height < 3) {
-            vsapi->setError(out, "VerticalCleaner: each plane's height must be at least 3 for mode 1");
+            vsapi->setError(out, "VerticalCleaner: corresponding plane's height must be greater than or equal to 3 for mode 1");
             vsapi->freeNode(d.node);
             return;
         } else if (d.mode[i] == 2 && height < 5) {
-            vsapi->setError(out, "VerticalCleaner: each plane's height must be at least 5 for mode 2");
+            vsapi->setError(out, "VerticalCleaner: corresponding plane's height must be greater than or equal to 5 for mode 2");
             vsapi->freeNode(d.node);
             return;
         }
