@@ -7,8 +7,8 @@ struct VerticalCleanerData {
 };
 
 template<typename T>
-static void verticalMedian(const T * VS_RESTRICT srcp, T * VS_RESTRICT dstp, const int width, const int height, const int stride, const VerticalCleanerData * d) {
-    vs_bitblt(dstp, stride * d->vi->format->bytesPerSample, srcp, stride * d->vi->format->bytesPerSample, width * d->vi->format->bytesPerSample, 1);
+static void verticalMedian(const T * VS_RESTRICT srcp, T * VS_RESTRICT dstp, const int width, const int height, const int stride) {
+    memcpy(dstp, srcp, stride * sizeof(T));
 
     srcp += stride;
     dstp += stride;
@@ -25,14 +25,14 @@ static void verticalMedian(const T * VS_RESTRICT srcp, T * VS_RESTRICT dstp, con
         dstp += stride;
     }
 
-    vs_bitblt(dstp, stride * d->vi->format->bytesPerSample, srcp, stride * d->vi->format->bytesPerSample, width * d->vi->format->bytesPerSample, 1);
+    memcpy(dstp, srcp, stride * sizeof(T));
 }
 
 template<typename T>
 static void relaxedVerticalMedian(const T * VS_RESTRICT srcp, T * VS_RESTRICT dstp, const int width, const int height, const int stride, const VerticalCleanerData * d) {
     const int peak = (1 << d->vi->format->bitsPerSample) - 1;
 
-    vs_bitblt(dstp, stride * d->vi->format->bytesPerSample, srcp, stride * d->vi->format->bytesPerSample, width * d->vi->format->bytesPerSample, 2);
+    memcpy(dstp, srcp, stride * sizeof(T) * 2);
 
     srcp += stride * 2;
     dstp += stride * 2;
@@ -55,7 +55,7 @@ static void relaxedVerticalMedian(const T * VS_RESTRICT srcp, T * VS_RESTRICT ds
         dstp += stride;
     }
 
-    vs_bitblt(dstp, stride * d->vi->format->bytesPerSample, srcp, stride * d->vi->format->bytesPerSample, width * d->vi->format->bytesPerSample, 2);
+    memcpy(dstp, srcp, stride * sizeof(T) * 2);
 }
 
 static void VS_CC verticalCleanerInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -83,9 +83,9 @@ static const VSFrameRef *VS_CC verticalCleanerGetFrame(int n, int activationReas
 
             if (d->mode[plane] == 1) {
                 if (d->vi->format->bytesPerSample == 1)
-                    verticalMedian<uint8_t>(srcp, dstp, width, height, stride, d);
+                    verticalMedian<uint8_t>(srcp, dstp, width, height, stride);
                 else
-                    verticalMedian<uint16_t>((const uint16_t *)srcp, (uint16_t *)dstp, width, height, stride / 2, d);
+                    verticalMedian<uint16_t>((const uint16_t *)srcp, (uint16_t *)dstp, width, height, stride / 2);
             } else if (d->mode[plane] == 2) {
                 if (d->vi->format->bytesPerSample == 1)
                     relaxedVerticalMedian<uint8_t>(srcp, dstp, width, height, stride, d);
@@ -137,6 +137,17 @@ void VS_CC verticalCleanerCreate(const VSMap *in, VSMap *out, void *userData, VS
             }
         } else {
             d.mode[i] = d.mode[i - 1];
+        }
+
+        const int height = d.vi->height >> (i ? d.vi->format->subSamplingH : 0);
+        if (d.mode[i] == 1 && height < 3) {
+            vsapi->setError(out, "VerticalCleaner: each plane's height must be at least 3 for mode 1");
+            vsapi->freeNode(d.node);
+            return;
+        } else if (d.mode[i] == 2 && height < 5) {
+            vsapi->setError(out, "VerticalCleaner: each plane's height must be at least 5 for mode 2");
+            vsapi->freeNode(d.node);
+            return;
         }
     }
 
