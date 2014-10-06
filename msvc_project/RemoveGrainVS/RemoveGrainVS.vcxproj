@@ -144,6 +144,7 @@
     <ClCompile Include="..\..\src\filters\removegrain\removegrainvs.cpp" />
     <ClCompile Include="..\..\src\filters\removegrain\repairvs.cpp" />
     <ClCompile Include="..\..\src\filters\removegrain\shared.cpp" />
+    <ClCompile Include="..\..\src\filters\removegrain\verticalcleaner.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

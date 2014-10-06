@@ -26,4 +26,5 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegiste
     registerFunc("Clense", "clip:clip;previous:clip:opt;next:clip:opt;planes:int[]:opt;", clenseCreate, reinterpret_cast<void *>(cmNormal), plugin);
     registerFunc("ForwardClense", "clip:clip;planes:int[]:opt;", clenseCreate, reinterpret_cast<void *>(cmForward), plugin);
     registerFunc("BackwardClense", "clip:clip;planes:int[]:opt;", clenseCreate, reinterpret_cast<void *>(cmBackward), plugin);
+    registerFunc("VerticalCleaner", "clip:clip;mode:int[];", verticalCleanerCreate, nullptr, plugin);
 }
