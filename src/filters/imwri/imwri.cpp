@@ -22,7 +22,6 @@
 // TODO:
 // need to remember working dir on load in case something dicks around with it
 // don't write frames twice in the event that a frame really is requested twice since it's a waste of time
-// should be able to specify start/end frame?
 // have some way to make sure all frames get written? add a separate function for writing frames that isn't a filter?
 
 #include <Magick++.h>
