@@ -1,4 +1,5 @@
 r25:
+added verticalcleaner to rgvs (HolyWu)
 fixed negative single frame indexing of clips in python
 vspipe now reports the correct number of frames as output when a non-zero start frame is specified
 fixed ctrl-c handling in clip.output() and some other small adjustments
