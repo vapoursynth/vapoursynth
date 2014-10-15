@@ -419,4 +419,7 @@ VSThreadPool::~VSThreadPool() {
         delete thread;
         newWork.notify_all();
     }
+
+    assert(activeThreads == 0);
+    assert(idleThreads == 0);
 };
