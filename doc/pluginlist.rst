@@ -15,13 +15,14 @@ Native Plugins
 * :ref:`OCR <ocr>` -- optical character recognition on video frames, in the source tree
 * :ref:`RemoveGrain/Repair <rgvs>` -- in the source tree
 * :ref:`Vinverse <vinverse>` -- in the source tree
-* :ref:`VIVTC <vivtc>` -- field matching and inverse telecine, in the source tree
+* :ref:`VIVTC <vivtc>` -- field matching, inverse telecine and decimation,  in the source tree
 * `AddGrain <http://forum.doom9.org/showthread.php?t=171073>`_ -- Port of the Avisynth AddGrain filter
 * `Bifrost 2000 <https://github.com/dubhater/vapoursynth-bifrost>`_ -- A rainbow remover based on the Bifrost filter for Avisynth
 * `CTMF <http://forum.doom9.org/showthread.php?t=171213>`_ -- Constant Time Median Filtering
 * `d2vsource <http://forum.doom9.org/showthread.php?t=166399>`_ -- Frame accurate mpeg2 source filter
 * `DCT Filter <http://forum.doom9.org/showthread.php?t=171039>`_ -- Block based DCT coefficient adjustment
 * `Deblock <http://forum.doom9.org/showthread.php?t=170975>`_ -- h.264 style deblocking
+* `DeLogo <http://forum.doom9.org/showthread.php?t=171252>`_ -- Port of the Avisynth logo removal filter
 * `EEDI2 <http://forum.doom9.org/showthread.php?t=171136>`_
 * `f3kdb <http://forum.doom9.org/showthread.php?t=161411>`_ -- Debanding filter
 * `FFMS2 <https://github.com/FFMS/ffms2>`_ -- FFmpeg based source filter
@@ -30,26 +31,27 @@ Native Plugins
 * `FluxSmooth <https://github.com/dubhater/vapoursynth-fluxsmooth>`_ -- Temporal/spatiotemporal denoiser
 * `fmtconv <http://forum.doom9.org/showthread.php?t=166504>`_ -- High quality bitdepth and colorspace conversion, resizing
 * `GenericFilters <http://forum.doom9.org/showthread.php?t=166842>`_ -- Common image processing filters (replaces most of masktools)
-* `Histogram <https://github.com/dubhater/vapoursynth-histogram>`_ -- bundled with the installer
+* `Histogram <https://github.com/dubhater/vapoursynth-histogram>`_ -- Bundled with the installer
+* `IT <http://forum.doom9.org/showthread.php?t=171246>`_ -- Port of the inverse telecine filter for Avisynth
 * `L-SMASH Source <http://forum.doom9.org/showthread.php?t=167435>`_
 * `MSmoosh <http://forum.doom9.org/showthread.php?t=171159>`_ -- MSmooth and MSharpen ports
 * `MVTools <http://forum.doom9.org/showthread.php?t=171207>`_ -- MVTools port
 * `nnedi3 <http://forum.doom9.org/showthread.php?t=166434>`_ -- Field interpolator/deinterlacer
 * `SceneChange <http://forum.doom9.org/showthread.php?t=166769>`_ -- Scene change detection and flagging
 * `SSIQ <https://github.com/dubhater/vapoursynth-ssiq>`_ -- Spatial derainbowing filter
-* `TComb <http://forum.doom9.org/showthread.php?t=171124>`_ -- port of the Avisynth script
+* `TComb <http://forum.doom9.org/showthread.php?t=171124>`_ -- Port of the Avisynth script
 * `TempLinearApproximate <http://forum.doom9.org/showthread.php?t=169782>`_ -- A temporal smoother
-* `TemporalSoften <https://github.com/dubhater/vapoursynth-temporalsoften>`_ -- bundled with the installer
+* `TemporalSoften <https://github.com/dubhater/vapoursynth-temporalsoften>`_ -- Bundled with the installer and based on the Avisynth filter with the same name
 * `Unresize <http://forum.doom9.org/showthread.php?t=169829>`_ -- Undoes resizing
 * `Videoscope <https://github.com/dubhater/vapoursynth-videoscope>`_ -- Similar to the Histogram plugin
-* `vsavsreader <http://forum.doom9.org/showthread.php?t=165957>`_ -- import plugin so Avisynth scripts can be opened in VapourSynth
-* `vsrawsource <http://forum.doom9.org/showthread.php?t=166075>`_ -- raw video reader
+* `vsavsreader <http://forum.doom9.org/showthread.php?t=165957>`_ -- Import plugin so Avisynth scripts can be opened in VapourSynth
+* `vsrawsource <http://forum.doom9.org/showthread.php?t=166075>`_ -- Raw video reader
 * `WWXD <https://github.com/dubhater/vapoursynth-wwxd>`_ -- Xvid-like scene change detection
 * `Yadifmod <http://forum.doom9.org/showthread.php?t=171028>`_ -- Port of the Avisynth deinterlacer
 
 Obsolete Plugins
 ################
-* `Image reader collection <http://forum.doom9.org/showthread.php?t=166088>`_ -- Unmaintained and has a tendency to crash
+* `Image reader collection <http://forum.doom9.org/showthread.php?t=166088>`_ -- Superseded in most ways by the ImageMagick Writer/Reader
 * `Example plugins for Vapoursynth <http://forum.doom9.org/showthread.php?t=166147>`_ -- Not that good examples
 
 Scripts
