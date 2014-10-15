@@ -509,10 +509,12 @@ void VSNode::setVideoInfo(const VSVideoInfo *vi, int numOutputs) {
 
 PVideoFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext &frameCtx) {
     const VSFrameRef *r = filterGetFrame(n, activationReason, &instanceData, &frameCtx.ctx->frameContext, &frameCtx, core, &vsapi);
-// This stuff really only works properly on windows, feel free to investigate what the linux ABI thinks about it
-#ifdef VS_TARGET_OS_WINDOWS
+
+#ifdef VS_TARGET_CPU_X86
     if (!vs_isMMXStateOk())
         vsFatal("Bad MMX state detected after return from %s", name.c_str());
+#endif
+#ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isFPUStateOk())
         vsWarning("Bad FPU state detected after return from %s", name.c_str());
     if (!vs_isSSEStateOk())
@@ -844,13 +846,15 @@ void VSCore::filterInstanceDestroyed() {
 }
 
 VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), formatIdOffset(1000), memory(new MemoryUse()) {
-#ifdef VS_TARGET_OS_WINDOWS
+#ifdef VS_TARGET_CPU_X86
     if (!vs_isMMXStateOk())
-        vsFatal("Bad MMX state detected creating new core");
+        vsFatal("Bad MMX state detected when creating new core");
+#endif
+#ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isFPUStateOk())
-        vsWarning("Bad FPU state detected after creating new core. Any other FPU state warnings after this one should be ignored.");
+        vsWarning("Bad FPU state detected when creating new core. Any other FPU state warnings after this one should be ignored.");
     if (!vs_isSSEStateOk())
-        vsFatal("Bad SSE state detected after creating new core");
+        vsFatal("Bad SSE state detected when creating new core");
 #endif
 
     threadPool = new VSThreadPool(this, threads);
@@ -1117,10 +1121,11 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
 #endif
     pluginInit(&::configPlugin, &::registerFunction, this);
 
-// This stuff really only works properly on windows, feel free to investigate what the linux ABI thinks about it
-#ifdef VS_TARGET_OS_WINDOWS
+#ifdef VS_TARGET_CPU_X86
     if (!vs_isMMXStateOk())
         vsFatal("Bad MMX state detected after loading %s", fullname.c_str());
+#endif
+#ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isFPUStateOk())
         vsWarning("Bad FPU state detected after loading %s", fullname.c_str());
     if (!vs_isSSEStateOk())

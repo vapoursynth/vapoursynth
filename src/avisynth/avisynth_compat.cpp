@@ -771,10 +771,11 @@ static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSC
 
     avisynthPluginInit(avs);
 
-// This stuff really only works properly on windows, feel free to investigate what the linux ABI thinks about it
-#ifdef VS_TARGET_OS_WINDOWS
+#ifdef VS_TARGET_CPU_X86
     if (!vs_isMMXStateOk())
         vsFatal("Bad MMX state detected after loading %s", rawPath);
+#endif
+#ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isFPUStateOk())
         vsWarning("Bad FPU state detected after loading %s", rawPath);
     if (!vs_isSSEStateOk())

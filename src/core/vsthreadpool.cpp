@@ -25,9 +25,11 @@
 #endif
 
 void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
-#ifdef VS_TARGET_OS_WINDOWS
+#ifdef VS_TARGET_CPU_X86
     if (!vs_isMMXStateOk())
         vsFatal("Bad MMX state detected after creating new thread");
+#endif
+#ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isFPUStateOk())
         vsWarning("Bad FPU state detected after creating new thread");
     if (!vs_isSSEStateOk())

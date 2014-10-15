@@ -1,4 +1,5 @@
 r25:
+enabled x86 mmx state checks on all platforms
 fixed a filter error propagation issue that could lead to crashes
 fixed a race condition that could lead to too many threads being spawned to do nothing
 added verticalcleaner to rgvs (HolyWu)
