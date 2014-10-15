@@ -22,5 +22,5 @@
 
 #define XSTR(x) STR(x)
 #define STR(x) #x
-#define VAPOURSYNTH_CORE_VERSION 24
+#define VAPOURSYNTH_CORE_VERSION 25
 #define VAPOURSYNTH_VERSION_STRING "VapourSynth Video Processing Library\nCopyright (c) 2012-2014 Fredrik Mellbin\nCore r" XSTR(VAPOURSYNTH_CORE_VERSION) "\nAPI r" XSTR(VAPOURSYNTH_API_VERSION) "\n"

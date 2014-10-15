@@ -6,7 +6,7 @@ from waflib import Build, Utils
 from waftools.checks.generic import *
 from waftools.checks.custom import *
 
-VERSION = '24'
+VERSION = '25'
 
 libav_pkg_config_checks = [
     'libavutil',   '>= 52.3.0',
