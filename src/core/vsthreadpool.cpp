@@ -263,7 +263,6 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 
         if (stop) {
             --owner->idleThreads;
-            ++owner->activeThreads;
             lock.unlock();
             return;
         }
