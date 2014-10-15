@@ -134,8 +134,8 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 
             owner->tasks.erase(iter);
 
-/////////////////////////////////////////////////////////////////////////////////////////////
-// Figure out the activation reason
+            /////////////////////////////////////////////////////////////////////////////////////////////
+            // Figure out the activation reason
 
             VSActivationReason ar = arInitial;
             if (hasLeafContext && leafContext->hasError()) {
@@ -162,6 +162,8 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             lock.unlock();
 
             VSFrameContext externalFrameCtx(mainContextRef);
+            if (ar != arError && mainContext->hasError())
+                vsFatal("Bad internal error state");
             PVideoFrame f(clip->getFrameInternal(mainContext->n, ar, externalFrameCtx));
             ranTask = true;
             bool frameProcessingDone = f || mainContext->hasError();
@@ -186,7 +188,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Handle frames that were requested
-            bool requestedFrames = !externalFrameCtx.reqList.empty();
+            bool requestedFrames = !externalFrameCtx.reqList.empty() && !frameProcessingDone;
 
             lock.lock();
 

@@ -352,7 +352,7 @@ public:
 
     void *frameContext;
     void setError(const std::string &errorMsg);
-    inline bool hasError() {
+    inline bool hasError() const {
         return error;
     }
     const std::string &getErrorMessage() {
