@@ -35,7 +35,6 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 #endif
 
     std::unique_lock<std::mutex> lock(owner->lock);
-    ++owner->activeThreads;
 
     while (true) {
         bool ranTask = false;
@@ -286,6 +285,7 @@ int VSThreadPool::threadCount() const {
 void VSThreadPool::spawnThread() {
     std::thread *thread = new std::thread(runTasks, this, std::ref(stopThreads));
     allThreads.insert(std::make_pair(thread->get_id(), thread));
+    ++activeThreads;
 }
 
 void VSThreadPool::setThreadCount(int threads) {
@@ -297,11 +297,12 @@ void VSThreadPool::setThreadCount(int threads) {
 }
 
 void VSThreadPool::wakeThread() {
-    if (activeThreads < maxThreads && idleThreads == 0)
-        spawnThread();
-
-    if (activeThreads < maxThreads)
-        newWork.notify_one();
+    if (activeThreads < maxThreads) {
+        if (idleThreads == 0) // newly spawned threads are active so no need to notify an additional thread
+            spawnThread();
+        else
+            newWork.notify_one();
+    }
 }
 
 void VSThreadPool::releaseThread() {

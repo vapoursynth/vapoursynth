@@ -1,4 +1,6 @@
 r25:
+fixed a filter error propagation issue that could lead to crashes
+fixed a race condition that could lead to too many threads being spawned to do nothing
 added verticalcleaner to rgvs (HolyWu)
 fixed negative single frame indexing of clips in python
 vspipe now reports the correct number of frames as output when a non-zero start frame is specified
