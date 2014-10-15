@@ -40,6 +40,7 @@ Native Plugins
 * `SceneChange <http://forum.doom9.org/showthread.php?t=166769>`_ -- Scene change detection and flagging
 * `SSIQ <https://github.com/dubhater/vapoursynth-ssiq>`_ -- Spatial derainbowing filter
 * `TComb <http://forum.doom9.org/showthread.php?t=171124>`_ -- Port of the Avisynth script
+* `TDeintMod <http://forum.doom9.org/showthread.php?t=171295>`_ -- Port of the Avisynth deinterlacer
 * `TempLinearApproximate <http://forum.doom9.org/showthread.php?t=169782>`_ -- A temporal smoother
 * `TemporalSoften <https://github.com/dubhater/vapoursynth-temporalsoften>`_ -- Bundled with the installer and based on the Avisynth filter with the same name
 * `Unresize <http://forum.doom9.org/showthread.php?t=169829>`_ -- Undoes resizing
