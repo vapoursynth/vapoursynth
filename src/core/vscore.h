@@ -342,8 +342,8 @@ private:
     PFrameContext notificationChain;
     void *userData;
     VSFrameDoneCallback frameDone;
-    bool error;
     std::string errorMessage;
+    bool error;
 public:
     std::map<NodeOutputKey, PVideoFrame> availableFrames;
     int lastCompletedN;
@@ -351,7 +351,7 @@ public:
     VSNodeRef *lastCompletedNode;
 
     void *frameContext;
-    void setError(const std::string &errorMsg);
+    bool setError(const std::string &errorMsg);
     inline bool hasError() const {
         return error;
     }

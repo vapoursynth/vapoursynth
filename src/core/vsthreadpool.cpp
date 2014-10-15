@@ -138,15 +138,17 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             // Figure out the activation reason
 
             VSActivationReason ar = arInitial;
-            if (hasLeafContext && leafContext->hasError()) {
+            bool skipCall = false; // Used to avoid multiple error calls for the same frame request going into a filter
+            if (hasLeafContext && leafContext->hasError() || mainContext->hasError()) {
                 ar = arError;
-                mainContext->setError(leafContext->getErrorMessage());
+                skipCall = mainContext->setError(leafContext->getErrorMessage());
                 --mainContext->numFrameRequests;
             } else if (hasLeafContext && leafContext->returnedFrame) {
                 if (--mainContext->numFrameRequests > 0)
                     ar = arFrameReady;
                 else
                     ar = arAllFramesReady;
+
                 mainContext->availableFrames.insert(std::make_pair(NodeOutputKey(leafContext->clip, leafContext->n, leafContext->index), leafContext->returnedFrame));
                 mainContext->lastCompletedN = leafContext->n;
                 mainContext->lastCompletedNode = leafContext->node;
@@ -162,9 +164,10 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             lock.unlock();
 
             VSFrameContext externalFrameCtx(mainContextRef);
-            if (ar != arError && mainContext->hasError())
-                vsFatal("Bad internal error state");
-            PVideoFrame f(clip->getFrameInternal(mainContext->n, ar, externalFrameCtx));
+            assert(ar == arError || !mainContext->hasError());
+            PVideoFrame f;
+            if (!skipCall)
+                f = clip->getFrameInternal(mainContext->n, ar, externalFrameCtx);
             ranTask = true;
             bool frameProcessingDone = f || mainContext->hasError();
 

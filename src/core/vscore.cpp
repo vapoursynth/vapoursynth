@@ -102,9 +102,11 @@ FrameContext::FrameContext(int n, int index, VSNodeRef *node, VSFrameDoneCallbac
 numFrameRequests(0), n(n), node(node), clip(node->clip.get()), userData(userData), frameDone(frameDone), error(false), lastCompletedN(-1), index(index), lastCompletedNode(NULL), frameContext(NULL) {
 }
 
-void FrameContext::setError(const std::string &errorMsg) {
+bool FrameContext::setError(const std::string &errorMsg) {
+    bool prevState = error;
     error = true;
     errorMessage = errorMsg;
+    return prevState;
 }
 
 ///////////////
