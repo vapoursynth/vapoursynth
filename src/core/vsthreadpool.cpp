@@ -253,18 +253,16 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
         }
 
 
-        if ((!ranTask && !stop) || (owner->activeThreadCount() > owner->threadCount())) {
+        if (!ranTask || owner->activeThreadCount() > owner->threadCount()) {
             --owner->activeThreads;
+            if (stop) {
+                lock.unlock();
+                break;
+            }
             ++owner->idleThreads;
             owner->newWork.wait(lock);
             --owner->idleThreads;
             ++owner->activeThreads;
-        }
-
-        if (stop) {
-            --owner->idleThreads;
-            lock.unlock();
-            return;
         }
     }
 }
