@@ -10,7 +10,7 @@ VERSION = '25'
 
 libav_pkg_config_checks = [
     'libavutil',   '>= 52.3.0',
-    'libavcodec',  '> 54.34.0',
+    'libavcodec',  '>= 54.34.1',
     'libswscale',  '>= 2.0.0'
 ]
 
