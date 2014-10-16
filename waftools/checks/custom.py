@@ -24,7 +24,7 @@ def check_cpu_x86_64(ctx, dependency_identifier):
 
 def check_sphinx(ctx, dependency_identifier):
     try:
-        ctx.load("tasks.sphinx")
+        ctx.load("tasks.sphinxbuild")
         return True
     except Errors.WafError:
         return False
