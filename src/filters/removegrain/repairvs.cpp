@@ -66,6 +66,17 @@ public:
        a7 = ConvSign::cv (_mm_loadu_si128 (reinterpret_cast<const __m128i *>(src2_ptr + o0)), mask_sign); \
        a8 = ConvSign::cv (_mm_loadu_si128 (reinterpret_cast<const __m128i *>(src2_ptr + op)), mask_sign); \
    }
+
+#define AvsFilterRepair16_SORT_AXIS_SSE2   \
+    const __m128i  ma1 = _mm_max_epi16(a1, a8); \
+    const __m128i  mi1 = _mm_min_epi16(a1, a8); \
+    const __m128i  ma2 = _mm_max_epi16(a2, a7); \
+    const __m128i  mi2 = _mm_min_epi16(a2, a7); \
+    const __m128i  ma3 = _mm_max_epi16(a3, a6); \
+    const __m128i  mi3 = _mm_min_epi16(a3, a6); \
+    const __m128i  ma4 = _mm_max_epi16(a4, a5); \
+    const __m128i  mi4 = _mm_min_epi16(a4, a5);
+
 #else
 
 class ConvSigned
@@ -167,12 +178,9 @@ public:
         sort_pair (a2, a8);
 
         a2 = _mm_min_epi16 (a2,  c);    // sort_pair (a2,  c);
-                                                // sort_pair (a4, a6);
         a8 = _mm_max_epi16 (a5, a8);    // sort_pair (a5, a8);
 
         a2 = _mm_min_epi16 (a2, a3);    // sort_pair (a2, a3);
-                                                // sort_pair (a4,  c);
-                                                // sort_pair (a5, a6);
         a7 = _mm_min_epi16 (a7, a8);    // sort_pair (a7, a8);
 
         return (_mm_min_epi16 (_mm_max_epi16 (cr, a2), a7));
@@ -227,9 +235,7 @@ public:
         a5 = _mm_min_epi16 (a5, a8);    // sort_pair (a5, a8);
 
         a3 = _mm_max_epi16 (a2, a3);    // sort_pair (a2, a3);
-                                                // sort_pair (a4,  c);
         a6 = _mm_max_epi16 (a5, a6);    // sort_pair (a5, a6);
-                                                // sort_pair (a7, a8);
 
         return (_mm_min_epi16 (_mm_max_epi16 (cr, a3), a6));
     }
@@ -284,12 +290,531 @@ public:
         sort_pair (a4, a6);
         a5 = _mm_min_epi16 (a5, a8);    // sort_pair (a5, a8);
 
-                                                // sort_pair (a2, a3);
         a4 = _mm_min_epi16 (a4,  c);    // sort_pair (a4,  c);
         a5 = _mm_min_epi16 (a5, a6);    // sort_pair (a5, a6);
-                                                // sort_pair (a7, a8);
 
         return (_mm_min_epi16 (_mm_max_epi16 (cr, a4), a5));
+    }
+#endif
+};
+
+class OpRG05
+{
+public:
+    typedef    ConvSigned    ConvSign;
+    static __forceinline int rg(int cr, int a1, int a2, int a3, int a4, int c, int a5, int a6, int a7, int a8) {
+        const int mal1 = std::max(std::max(a1, a8), c);
+        const int mil1 = std::min(std::min(a1, a8), c);
+
+        const int mal2 = std::max(std::max(a2, a7), c);
+        const int mil2 = std::min(std::min(a2, a7), c);
+
+        const int mal3 = std::max(std::max(a3, a6), c);
+        const int mil3 = std::min(std::min(a3, a6), c);
+
+        const int mal4 = std::max(std::max(a4, a5), c);
+        const int mil4 = std::min(std::min(a4, a5), c);
+
+        const int clipped1 = limit(cr, mil1, mal1);
+        const int clipped2 = limit(cr, mil2, mal2);
+        const int clipped3 = limit(cr, mil3, mal3);
+        const int clipped4 = limit(cr, mil4, mal4);
+
+        const int c1 = std::abs(cr - clipped1);
+        const int c2 = std::abs(cr - clipped2);
+        const int c3 = std::abs(cr - clipped3);
+        const int c4 = std::abs(cr - clipped4);
+
+        const int mindiff = std::min(std::min(c1, c2), std::min(c3, c4));
+
+        if (mindiff == c4)
+            return clipped4;
+        else if (mindiff == c2)
+            return clipped2;
+        else if (mindiff == c3)
+            return clipped3;
+        else
+            return clipped1;
+    }
+#ifdef VS_TARGET_CPU_X86
+    template<typename T>
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+        AvsFilterRepair16_READ_PIX
+
+        const __m128i mal1 = _mm_max_epi16(_mm_max_epi16(a1, a8), c);
+        const __m128i mil1 = _mm_min_epi16(_mm_min_epi16(a1, a8), c);
+
+        const __m128i mal2 = _mm_max_epi16(_mm_max_epi16(a2, a7), c);
+        const __m128i mil2 = _mm_min_epi16(_mm_min_epi16(a2, a7), c);
+
+        const __m128i mal3 = _mm_max_epi16(_mm_max_epi16(a3, a6), c);
+        const __m128i mil3 = _mm_min_epi16(_mm_min_epi16(a3, a6), c);
+
+        const __m128i mal4 = _mm_max_epi16(_mm_max_epi16(a4, a5), c);
+        const __m128i mil4 = _mm_min_epi16(_mm_min_epi16(a4, a5), c);
+
+        const __m128i clipped1 = limit_epi16(cr, mil1, mal1);
+        const __m128i clipped2 = limit_epi16(cr, mil2, mal2);
+        const __m128i clipped3 = limit_epi16(cr, mil3, mal3);
+        const __m128i clipped4 = limit_epi16(cr, mil4, mal4);
+
+        const __m128i clipped1u = _mm_xor_si128(clipped1, mask_sign);
+        const __m128i clipped2u = _mm_xor_si128(clipped2, mask_sign);
+        const __m128i clipped3u = _mm_xor_si128(clipped3, mask_sign);
+        const __m128i clipped4u = _mm_xor_si128(clipped4, mask_sign);
+        const __m128i cru = _mm_xor_si128(cr, mask_sign);
+
+        const __m128i c1u = abs_dif_epu16(cru, clipped1u);
+        const __m128i c2u = abs_dif_epu16(cru, clipped2u);
+        const __m128i c3u = abs_dif_epu16(cru, clipped3u);
+        const __m128i c4u = abs_dif_epu16(cru, clipped4u);
+
+        const __m128i c1 = _mm_xor_si128(c1u, mask_sign);
+        const __m128i c2 = _mm_xor_si128(c2u, mask_sign);
+        const __m128i c3 = _mm_xor_si128(c3u, mask_sign);
+        const __m128i c4 = _mm_xor_si128(c4u, mask_sign);
+
+        const __m128i mindiff = _mm_min_epi16(_mm_min_epi16(c1, c2), _mm_min_epi16(c3, c4));
+
+        __m128i result = select_16_equ(mindiff, c1, clipped1, cr);
+        result = select_16_equ(mindiff, c3, clipped3, result);
+        result = select_16_equ(mindiff, c2, clipped2, result);
+        return select_16_equ(mindiff, c4, clipped4, result);
+}
+#endif
+};
+
+class OpRG06
+{
+public:
+    typedef    ConvSigned    ConvSign;
+    static __forceinline int rg(int cr, int a1, int a2, int a3, int a4, int c, int a5, int a6, int a7, int a8) {
+        const int mal1 = std::max(std::max(a1, a8), c);
+        const int mil1 = std::min(std::min(a1, a8), c);
+
+        const int mal2 = std::max(std::max(a2, a7), c);
+        const int mil2 = std::min(std::min(a2, a7), c);
+
+        const int mal3 = std::max(std::max(a3, a6), c);
+        const int mil3 = std::min(std::min(a3, a6), c);
+
+        const int mal4 = std::max(std::max(a4, a5), c);
+        const int mil4 = std::min(std::min(a4, a5), c);
+
+        const int d1 = mal1 - mil1;
+        const int d2 = mal2 - mil2;
+        const int d3 = mal3 - mil3;
+        const int d4 = mal4 - mil4;
+
+        const int clipped1 = limit(cr, mil1, mal1);
+        const int clipped2 = limit(cr, mil2, mal2);
+        const int clipped3 = limit(cr, mil3, mal3);
+        const int clipped4 = limit(cr, mil4, mal4);
+
+        const int c1 = limit((std::abs(cr - clipped1) << 1) + d1, 0, 0xFFFF);
+        const int c2 = limit((std::abs(cr - clipped2) << 1) + d2, 0, 0xFFFF);
+        const int c3 = limit((std::abs(cr - clipped3) << 1) + d3, 0, 0xFFFF);
+        const int c4 = limit((std::abs(cr - clipped4) << 1) + d4, 0, 0xFFFF);
+
+        const int mindiff = std::min(std::min(c1, c2), std::min(c3, c4));
+
+        if (mindiff == c4)
+            return clipped4;
+        else if (mindiff == c2)
+            return clipped2;
+        else if (mindiff == c3)
+            return clipped3;
+        else
+            return clipped1;
+    }
+#ifdef VS_TARGET_CPU_X86
+    template<typename T>
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+        AvsFilterRepair16_READ_PIX
+
+        const __m128i mal1 = _mm_max_epi16(_mm_max_epi16(a1, a8), c);
+        const __m128i mil1 = _mm_min_epi16(_mm_min_epi16(a1, a8), c);
+
+        const __m128i mal2 = _mm_max_epi16(_mm_max_epi16(a2, a7), c);
+        const __m128i mil2 = _mm_min_epi16(_mm_min_epi16(a2, a7), c);
+
+        const __m128i mal3 = _mm_max_epi16(_mm_max_epi16(a3, a6), c);
+        const __m128i mil3 = _mm_min_epi16(_mm_min_epi16(a3, a6), c);
+
+        const __m128i mal4 = _mm_max_epi16(_mm_max_epi16(a4, a5), c);
+        const __m128i mil4 = _mm_min_epi16(_mm_min_epi16(a4, a5), c);
+
+        const __m128i d1 = _mm_sub_epi16(mal1, mil1);
+        const __m128i d2 = _mm_sub_epi16(mal2, mil2);
+        const __m128i d3 = _mm_sub_epi16(mal3, mil3);
+        const __m128i d4 = _mm_sub_epi16(mal4, mil4);
+
+        const __m128i clipped1 = limit_epi16(cr, mil1, mal1);
+        const __m128i clipped2 = limit_epi16(cr, mil2, mal2);
+        const __m128i clipped3 = limit_epi16(cr, mil3, mal3);
+        const __m128i clipped4 = limit_epi16(cr, mil4, mal4);
+
+        const __m128i clipped1u = _mm_xor_si128(clipped1, mask_sign);
+        const __m128i clipped2u = _mm_xor_si128(clipped2, mask_sign);
+        const __m128i clipped3u = _mm_xor_si128(clipped3, mask_sign);
+        const __m128i clipped4u = _mm_xor_si128(clipped4, mask_sign);
+        const __m128i cru = _mm_xor_si128(cr, mask_sign);
+
+        const __m128i absdiff1 = abs_dif_epu16(cru, clipped1u);
+        const __m128i absdiff2 = abs_dif_epu16(cru, clipped2u);
+        const __m128i absdiff3 = abs_dif_epu16(cru, clipped3u);
+        const __m128i absdiff4 = abs_dif_epu16(cru, clipped4u);
+
+        const __m128i c1u = _mm_adds_epu16(_mm_adds_epu16(absdiff1, absdiff1), d1);
+        const __m128i c2u = _mm_adds_epu16(_mm_adds_epu16(absdiff2, absdiff2), d2);
+        const __m128i c3u = _mm_adds_epu16(_mm_adds_epu16(absdiff3, absdiff3), d3);
+        const __m128i c4u = _mm_adds_epu16(_mm_adds_epu16(absdiff4, absdiff4), d4);
+
+        const __m128i c1 = _mm_xor_si128(c1u, mask_sign);
+        const __m128i c2 = _mm_xor_si128(c2u, mask_sign);
+        const __m128i c3 = _mm_xor_si128(c3u, mask_sign);
+        const __m128i c4 = _mm_xor_si128(c4u, mask_sign);
+
+        const __m128i mindiff = _mm_min_epi16(_mm_min_epi16(c1, c2), _mm_min_epi16(c3, c4));
+
+        __m128i result = select_16_equ(mindiff, c1, clipped1, cr);
+        result = select_16_equ(mindiff, c3, clipped3, result);
+        result = select_16_equ(mindiff, c2, clipped2, result);
+        return select_16_equ(mindiff, c4, clipped4, result);
+    }
+#endif
+};
+
+class OpRG07
+{
+public:
+    typedef    ConvSigned    ConvSign;
+    static __forceinline int rg(int cr, int a1, int a2, int a3, int a4, int c, int a5, int a6, int a7, int a8) {
+        const int mal1 = std::max(std::max(a1, a8), c);
+        const int mil1 = std::min(std::min(a1, a8), c);
+
+        const int mal2 = std::max(std::max(a2, a7), c);
+        const int mil2 = std::min(std::min(a2, a7), c);
+
+        const int mal3 = std::max(std::max(a3, a6), c);
+        const int mil3 = std::min(std::min(a3, a6), c);
+
+        const int mal4 = std::max(std::max(a4, a5), c);
+        const int mil4 = std::min(std::min(a4, a5), c);
+
+        const int d1 = mal1 - mil1;
+        const int d2 = mal2 - mil2;
+        const int d3 = mal3 - mil3;
+        const int d4 = mal4 - mil4;
+
+        const int clipped1 = limit(cr, mil1, mal1);
+        const int clipped2 = limit(cr, mil2, mal2);
+        const int clipped3 = limit(cr, mil3, mal3);
+        const int clipped4 = limit(cr, mil4, mal4);
+
+        const int c1 = std::abs(cr - clipped1) + d1;
+        const int c2 = std::abs(cr - clipped2) + d2;
+        const int c3 = std::abs(cr - clipped3) + d3;
+        const int c4 = std::abs(cr - clipped4) + d4;
+
+        const int mindiff = std::min(std::min(c1, c2), std::min(c3, c4));
+
+        if (mindiff == c4)
+            return clipped4;
+        else if (mindiff == c2)
+            return clipped2;
+        else if (mindiff == c3)
+            return clipped3;
+        else
+            return clipped1;
+    }
+#ifdef VS_TARGET_CPU_X86
+    template<typename T>
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+        AvsFilterRepair16_READ_PIX
+
+        const __m128i mal1 = _mm_max_epi16(_mm_max_epi16(a1, a8), c);
+        const __m128i mil1 = _mm_min_epi16(_mm_min_epi16(a1, a8), c);
+
+        const __m128i mal2 = _mm_max_epi16(_mm_max_epi16(a2, a7), c);
+        const __m128i mil2 = _mm_min_epi16(_mm_min_epi16(a2, a7), c);
+
+        const __m128i mal3 = _mm_max_epi16(_mm_max_epi16(a3, a6), c);
+        const __m128i mil3 = _mm_min_epi16(_mm_min_epi16(a3, a6), c);
+
+        const __m128i mal4 = _mm_max_epi16(_mm_max_epi16(a4, a5), c);
+        const __m128i mil4 = _mm_min_epi16(_mm_min_epi16(a4, a5), c);
+
+        const __m128i d1 = _mm_sub_epi16(mal1, mil1);
+        const __m128i d2 = _mm_sub_epi16(mal2, mil2);
+        const __m128i d3 = _mm_sub_epi16(mal3, mil3);
+        const __m128i d4 = _mm_sub_epi16(mal4, mil4);
+
+        const __m128i clipped1 = limit_epi16(cr, mil1, mal1);
+        const __m128i clipped2 = limit_epi16(cr, mil2, mal2);
+        const __m128i clipped3 = limit_epi16(cr, mil3, mal3);
+        const __m128i clipped4 = limit_epi16(cr, mil4, mal4);
+
+        const __m128i clipped1u = _mm_xor_si128(clipped1, mask_sign);
+        const __m128i clipped2u = _mm_xor_si128(clipped2, mask_sign);
+        const __m128i clipped3u = _mm_xor_si128(clipped3, mask_sign);
+        const __m128i clipped4u = _mm_xor_si128(clipped4, mask_sign);
+        const __m128i cru = _mm_xor_si128(cr, mask_sign);
+
+        //todo: what happens when this overflows?
+        const __m128i c1u = _mm_adds_epu16(abs_dif_epu16(cru, clipped1u), d1);
+        const __m128i c2u = _mm_adds_epu16(abs_dif_epu16(cru, clipped2u), d2);
+        const __m128i c3u = _mm_adds_epu16(abs_dif_epu16(cru, clipped3u), d3);
+        const __m128i c4u = _mm_adds_epu16(abs_dif_epu16(cru, clipped4u), d4);
+
+        const __m128i c1 = _mm_xor_si128(c1u, mask_sign);
+        const __m128i c2 = _mm_xor_si128(c2u, mask_sign);
+        const __m128i c3 = _mm_xor_si128(c3u, mask_sign);
+        const __m128i c4 = _mm_xor_si128(c4u, mask_sign);
+
+        const __m128i mindiff = _mm_min_epi16(_mm_min_epi16(c1, c2), _mm_min_epi16(c3, c4));
+
+        __m128i result = select_16_equ(mindiff, c1, clipped1, cr);
+        result = select_16_equ(mindiff, c3, clipped3, result);
+        result = select_16_equ(mindiff, c2, clipped2, result);
+        return select_16_equ(mindiff, c4, clipped4, result);
+    }
+#endif
+};
+
+class OpRG08
+{
+public:
+    typedef    ConvSigned    ConvSign;
+    static __forceinline int rg(int cr, int a1, int a2, int a3, int a4, int c, int a5, int a6, int a7, int a8) {
+        const int mal1 = std::max(std::max(a1, a8), c);
+        const int mil1 = std::min(std::min(a1, a8), c);
+
+        const int mal2 = std::max(std::max(a2, a7), c);
+        const int mil2 = std::min(std::min(a2, a7), c);
+
+        const int mal3 = std::max(std::max(a3, a6), c);
+        const int mil3 = std::min(std::min(a3, a6), c);
+
+        const int mal4 = std::max(std::max(a4, a5), c);
+        const int mil4 = std::min(std::min(a4, a5), c);
+
+        const int d1 = mal1 - mil1;
+        const int d2 = mal2 - mil2;
+        const int d3 = mal3 - mil3;
+        const int d4 = mal4 - mil4;
+
+        const int clipped1 = limit(cr, mil1, mal1);
+        const int clipped2 = limit(cr, mil2, mal2);
+        const int clipped3 = limit(cr, mil3, mal3);
+        const int clipped4 = limit(cr, mil4, mal4);
+
+        const int c1 = limit(std::abs(cr - clipped1) + (d1 << 1), 0, 0xFFFF);
+        const int c2 = limit(std::abs(cr - clipped2) + (d2 << 1), 0, 0xFFFF);
+        const int c3 = limit(std::abs(cr - clipped3) + (d3 << 1), 0, 0xFFFF);
+        const int c4 = limit(std::abs(cr - clipped4) + (d4 << 1), 0, 0xFFFF);
+
+        const int mindiff = std::min(std::min(c1, c2), std::min(c3, c4));
+
+        if (mindiff == c4)
+            return clipped4;
+        else if (mindiff == c2)
+            return clipped2;
+        else if (mindiff == c3)
+            return clipped3;
+        else
+            return clipped1;
+    }
+#ifdef VS_TARGET_CPU_X86
+    template<typename T>
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+        AvsFilterRepair16_READ_PIX
+
+        const __m128i mal1 = _mm_max_epi16(_mm_max_epi16(a1, a8), c);
+        const __m128i mil1 = _mm_min_epi16(_mm_min_epi16(a1, a8), c);
+
+        const __m128i mal2 = _mm_max_epi16(_mm_max_epi16(a2, a7), c);
+        const __m128i mil2 = _mm_min_epi16(_mm_min_epi16(a2, a7), c);
+
+        const __m128i mal3 = _mm_max_epi16(_mm_max_epi16(a3, a6), c);
+        const __m128i mil3 = _mm_min_epi16(_mm_min_epi16(a3, a6), c);
+
+        const __m128i mal4 = _mm_max_epi16(_mm_max_epi16(a4, a5), c);
+        const __m128i mil4 = _mm_min_epi16(_mm_min_epi16(a4, a5), c);
+
+        const __m128i d1 = _mm_sub_epi16(mal1, mil1);
+        const __m128i d2 = _mm_sub_epi16(mal2, mil2);
+        const __m128i d3 = _mm_sub_epi16(mal3, mil3);
+        const __m128i d4 = _mm_sub_epi16(mal4, mil4);
+
+        const __m128i clipped1 = limit_epi16(cr, mil1, mal1);
+        const __m128i clipped2 = limit_epi16(cr, mil2, mal2);
+        const __m128i clipped3 = limit_epi16(cr, mil3, mal3);
+        const __m128i clipped4 = limit_epi16(cr, mil4, mal4);
+
+        const __m128i clipped1u = _mm_xor_si128(clipped1, mask_sign);
+        const __m128i clipped2u = _mm_xor_si128(clipped2, mask_sign);
+        const __m128i clipped3u = _mm_xor_si128(clipped3, mask_sign);
+        const __m128i clipped4u = _mm_xor_si128(clipped4, mask_sign);
+        const __m128i cru = _mm_xor_si128(cr, mask_sign);
+
+        const __m128i c1u = _mm_adds_epu16(abs_dif_epu16(cru, clipped1u), _mm_adds_epu16(d1, d1));
+        const __m128i c2u = _mm_adds_epu16(abs_dif_epu16(cru, clipped2u), _mm_adds_epu16(d2, d2));
+        const __m128i c3u = _mm_adds_epu16(abs_dif_epu16(cru, clipped3u), _mm_adds_epu16(d3, d3));
+        const __m128i c4u = _mm_adds_epu16(abs_dif_epu16(cru, clipped4u), _mm_adds_epu16(d4, d4));
+
+        const __m128i c1 = _mm_xor_si128(c1u, mask_sign);
+        const __m128i c2 = _mm_xor_si128(c2u, mask_sign);
+        const __m128i c3 = _mm_xor_si128(c3u, mask_sign);
+        const __m128i c4 = _mm_xor_si128(c4u, mask_sign);
+
+        const __m128i mindiff = _mm_min_epi16(_mm_min_epi16(c1, c2), _mm_min_epi16(c3, c4));
+
+        __m128i result = select_16_equ(mindiff, c1, clipped1, cr);
+        result = select_16_equ(mindiff, c3, clipped3, result);
+        result = select_16_equ(mindiff, c2, clipped2, result);
+        return select_16_equ(mindiff, c4, clipped4, result);
+    }
+#endif
+};
+
+class OpRG09
+{
+public:
+    typedef    ConvSigned    ConvSign;
+    static __forceinline int rg(int cr, int a1, int a2, int a3, int a4, int c, int a5, int a6, int a7, int a8) {
+        const int mal1 = std::max(std::max(a1, a8), c);
+        const int mil1 = std::min(std::min(a1, a8), c);
+
+        const int mal2 = std::max(std::max(a2, a7), c);
+        const int mil2 = std::min(std::min(a2, a7), c);
+
+        const int mal3 = std::max(std::max(a3, a6), c);
+        const int mil3 = std::min(std::min(a3, a6), c);
+
+        const int mal4 = std::max(std::max(a4, a5), c);
+        const int mil4 = std::min(std::min(a4, a5), c);
+
+        const int d1 = mal1 - mil1;
+        const int d2 = mal2 - mil2;
+        const int d3 = mal3 - mil3;
+        const int d4 = mal4 - mil4;
+
+        const int mindiff = std::min(std::min(d1, d2), std::min(d3, d4));
+
+        if (mindiff == d4)
+            return limit(cr, mil4, mal4);
+        else if (mindiff == d2)
+            return limit(cr, mil2, mal2);
+        else if (mindiff == d3)
+            return limit(cr, mil3, mal3);
+        else
+            return limit(cr, mil1, mal1);
+    }
+#ifdef VS_TARGET_CPU_X86
+    template<typename T>
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+        AvsFilterRepair16_READ_PIX
+
+        const __m128i mal1 = _mm_max_epi16(_mm_max_epi16(a1, a8), c);
+        const __m128i mil1 = _mm_min_epi16(_mm_min_epi16(a1, a8), c);
+
+        const __m128i mal2 = _mm_max_epi16(_mm_max_epi16(a2, a7), c);
+        const __m128i mil2 = _mm_min_epi16(_mm_min_epi16(a2, a7), c);
+
+        const __m128i mal3 = _mm_max_epi16(_mm_max_epi16(a3, a6), c);
+        const __m128i mil3 = _mm_min_epi16(_mm_min_epi16(a3, a6), c);
+
+        const __m128i mal4 = _mm_max_epi16(_mm_max_epi16(a4, a5), c);
+        const __m128i mil4 = _mm_min_epi16(_mm_min_epi16(a4, a5), c);
+
+        const __m128i d1 = _mm_sub_epi16(mal1, mil1);
+        const __m128i d2 = _mm_sub_epi16(mal2, mil2);
+        const __m128i d3 = _mm_sub_epi16(mal3, mil3);
+        const __m128i d4 = _mm_sub_epi16(mal4, mil4);
+
+        const __m128i mindiff = _mm_min_epi16(_mm_min_epi16(d1, d2), _mm_min_epi16(d3, d4));
+
+        __m128i result = select_16_equ(mindiff, d1, limit_epi16(cr, mil1, mal1), cr);
+        result = select_16_equ(mindiff, d3, limit_epi16(cr, mil3, mal3), result);
+        result = select_16_equ(mindiff, d2, limit_epi16(cr, mil2, mal2), result);
+        return select_16_equ(mindiff, d4, limit_epi16(cr, mil4, mal4), result);
+    }
+#endif
+};
+
+class OpRG10
+{
+public:
+    typedef    ConvUnsigned    ConvSign;
+    static __forceinline int rg(int cr, int a1, int a2, int a3, int a4, int c, int a5, int a6, int a7, int a8) {
+        const int d1 = std::abs(cr - a1);
+        const int d2 = std::abs(cr - a2);
+        const int d3 = std::abs(cr - a3);
+        const int d4 = std::abs(cr - a4);
+        const int d5 = std::abs(cr - a5);
+        const int d6 = std::abs(cr - a6);
+        const int d7 = std::abs(cr - a7);
+        const int d8 = std::abs(cr - a8);
+        const int dc = std::abs(cr - c);
+
+        const int mindiff = std::min(std::min(std::min(std::min(d1, d2), std::min(d3, d4)), std::min(std::min(d5, d6), std::min(d7, d8))), dc);
+
+        if (mindiff == d7)
+            return a7;
+        else if (mindiff == d8)
+            return a8;
+        else if (mindiff == d6)
+            return a6;
+        else if (mindiff == d2)
+            return a2;
+        else if (mindiff == d3)
+            return a3;
+        else if (mindiff == d1)
+            return a1;
+        else if (mindiff == d5)
+            return a5;
+        else if (mindiff == dc)
+            return c;
+        else
+            return a4;
+    }
+#ifdef VS_TARGET_CPU_X86
+    template<typename T>
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+        AvsFilterRepair16_READ_PIX
+
+        const __m128i d1u = abs_dif_epu16(cr, a1);
+        const __m128i d2u = abs_dif_epu16(cr, a2);
+        const __m128i d3u = abs_dif_epu16(cr, a3);
+        const __m128i d4u = abs_dif_epu16(cr, a4);
+        const __m128i d5u = abs_dif_epu16(cr, a5);
+        const __m128i d6u = abs_dif_epu16(cr, a6);
+        const __m128i d7u = abs_dif_epu16(cr, a7);
+        const __m128i d8u = abs_dif_epu16(cr, a8);
+        const __m128i dcu = abs_dif_epu16(cr, c);
+
+        const __m128i d1 = _mm_xor_si128(d1u, mask_sign);
+        const __m128i d2 = _mm_xor_si128(d2u, mask_sign);
+        const __m128i d3 = _mm_xor_si128(d3u, mask_sign);
+        const __m128i d4 = _mm_xor_si128(d4u, mask_sign);
+        const __m128i d5 = _mm_xor_si128(d5u, mask_sign);
+        const __m128i d6 = _mm_xor_si128(d6u, mask_sign);
+        const __m128i d7 = _mm_xor_si128(d7u, mask_sign);
+        const __m128i d8 = _mm_xor_si128(d8u, mask_sign);
+        const __m128i dc = _mm_xor_si128(dcu, mask_sign);
+
+        const __m128i mindiff = _mm_min_epi16(_mm_min_epi16(_mm_min_epi16(_mm_min_epi16(d1, d2), _mm_min_epi16(d3, d4)), _mm_min_epi16(_mm_min_epi16(d5, d6), _mm_min_epi16(d7, d8))), dc);
+
+        __m128i result = select_16_equ(mindiff, d4, a4, c);
+        result = select_16_equ(mindiff, dc, c, result);
+        result = select_16_equ(mindiff, d5, a5, result);
+        result = select_16_equ(mindiff, d1, a1, result);
+        result = select_16_equ(mindiff, d3, a3, result);
+        result = select_16_equ(mindiff, d2, a2, result);
+        result = select_16_equ(mindiff, d6, a6, result);
+        result = select_16_equ(mindiff, d8, a8, result);
+        return select_16_equ(mindiff, d7, a7, result);
     }
 #endif
 };
@@ -299,7 +824,7 @@ class OpRG12
 public:
     typedef    ConvSigned    ConvSign;
     static __forceinline int rg (int cr, int a1, int a2, int a3, int a4, int c, int a5, int a6, int a7, int a8) {
-        int                a [10] = { a1, a2, a3, a4, a5, a6, a7, a8 };
+        int                a [8] = { a1, a2, a3, a4, a5, a6, a7, a8 };
 
         std::sort (&a [0], (&a [0]) + 8);
         const int        mi = std::min (a [2-1], c);
@@ -349,7 +874,7 @@ class OpRG13
 public:
     typedef    ConvSigned    ConvSign;
     static __forceinline int rg (int cr, int a1, int a2, int a3, int a4, int c, int a5, int a6, int a7, int a8) {
-        int                a [10] = { a1, a2, a3, a4, a5, a6, a7, a8 };
+        int                a [8] = { a1, a2, a3, a4, a5, a6, a7, a8 };
 
         std::sort (&a [0], (&a [0]) + 8);
         const int        mi = std::min (a [3-1], c);
@@ -399,7 +924,7 @@ class OpRG14
 public:
     typedef    ConvSigned    ConvSign;
     static __forceinline int rg (int cr, int a1, int a2, int a3, int a4, int c, int a5, int a6, int a7, int a8) {
-        int                a [10] = { a1, a2, a3, a4, a5, a6, a7, a8 };
+        int                a [8] = { a1, a2, a3, a4, a5, a6, a7, a8 };
 
         std::sort (&a [0], (&a [0]) + 8);
         const int        mi = std::min (a [4-1], c);
@@ -433,9 +958,7 @@ public:
         a5 = _mm_max_epi16 (a3, a5);    // sort_pair (a3, a5);
         a4 = _mm_min_epi16 (a4, a6);    // sort_pair (a4, a6);
 
-                                                // sort_pair (a2, a3);
         sort_pair (a4, a5);
-                                                // sort_pair (a6, a7);
 
         const __m128i    mi = _mm_min_epi16 (c, a4);
         const __m128i    ma = _mm_max_epi16 (c, a5);
@@ -447,129 +970,697 @@ public:
 
 class OpRG15 {
 public:
-    static __forceinline int
-        rg(int cr, int a1, int a2, int a3, int a4, int c, int a5, int a6, int a7, int a8) {
-            AvsFilterRepair16_SORT_AXIS_CPP
+    typedef    ConvSigned    ConvSign;
+    static __forceinline int rg(int cr, int a1, int a2, int a3, int a4, int c, int a5, int a6, int a7, int a8) {
+        AvsFilterRepair16_SORT_AXIS_CPP
 
-            const int      c1 = std::abs(c - limit(c, mi1, ma1));
-            const int      c2 = std::abs(c - limit(c, mi2, ma2));
-            const int      c3 = std::abs(c - limit(c, mi3, ma3));
-            const int      c4 = std::abs(c - limit(c, mi4, ma4));
+        const int      c1 = std::abs(c - limit(c, mi1, ma1));
+        const int      c2 = std::abs(c - limit(c, mi2, ma2));
+        const int      c3 = std::abs(c - limit(c, mi3, ma3));
+        const int      c4 = std::abs(c - limit(c, mi4, ma4));
 
-            const int      mindiff = std::min(std::min(c1, c2), std::min(c3, c4));
+        const int      mindiff = std::min(std::min(c1, c2), std::min(c3, c4));
 
-            int            mi;
-            int            ma;
-            if (mindiff == c4) {
-                mi = mi4;
-                ma = ma4;
-            } else if (mindiff == c2) {
-                mi = mi2;
-                ma = ma2;
-            } else if (mindiff == c3) {
-                mi = mi3;
-                ma = ma3;
-            } else {
-                mi = mi1;
-                ma = ma1;
-            }
-
-            mi = std::min(mi, c);
-            ma = std::max(ma, c);
-
-            return (limit(cr, mi, ma));
+        int            mi;
+        int            ma;
+        if (mindiff == c4) {
+            mi = mi4;
+            ma = ma4;
+        } else if (mindiff == c2) {
+            mi = mi2;
+            ma = ma2;
+        } else if (mindiff == c3) {
+            mi = mi3;
+            ma = ma3;
+        } else {
+            mi = mi1;
+            ma = ma1;
         }
+
+        mi = std::min(mi, c);
+        ma = std::max(ma, c);
+
+        return (limit(cr, mi, ma));
+    }
+#ifdef VS_TARGET_CPU_X86
+    template<typename T>
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+        AvsFilterRepair16_READ_PIX
+        AvsFilterRepair16_SORT_AXIS_SSE2
+
+        const __m128i cma1 = _mm_max_epi16(c, ma1);
+        const __m128i cma2 = _mm_max_epi16(c, ma2);
+        const __m128i cma3 = _mm_max_epi16(c, ma3);
+        const __m128i cma4 = _mm_max_epi16(c, ma4);
+
+        const __m128i cmi1 = _mm_min_epi16(c, mi1);
+        const __m128i cmi2 = _mm_min_epi16(c, mi2);
+        const __m128i cmi3 = _mm_min_epi16(c, mi3);
+        const __m128i cmi4 = _mm_min_epi16(c, mi4);
+
+        const __m128i clipped1 = limit_epi16(c, mi1, ma1);
+        const __m128i clipped2 = limit_epi16(c, mi2, ma2);
+        const __m128i clipped3 = limit_epi16(c, mi3, ma3);
+        const __m128i clipped4 = limit_epi16(c, mi4, ma4);
+
+        const __m128i clipped1u = _mm_xor_si128(clipped1, mask_sign);
+        const __m128i clipped2u = _mm_xor_si128(clipped2, mask_sign);
+        const __m128i clipped3u = _mm_xor_si128(clipped3, mask_sign);
+        const __m128i clipped4u = _mm_xor_si128(clipped4, mask_sign);
+        const __m128i cu = _mm_xor_si128(c, mask_sign);
+
+        const __m128i c1u = abs_dif_epu16(cu, clipped1u);
+        const __m128i c2u = abs_dif_epu16(cu, clipped2u);
+        const __m128i c3u = abs_dif_epu16(cu, clipped3u);
+        const __m128i c4u = abs_dif_epu16(cu, clipped4u);
+
+        const __m128i c1 = _mm_xor_si128(c1u, mask_sign);
+        const __m128i c2 = _mm_xor_si128(c2u, mask_sign);
+        const __m128i c3 = _mm_xor_si128(c3u, mask_sign);
+        const __m128i c4 = _mm_xor_si128(c4u, mask_sign);
+
+        const __m128i mindiff = _mm_min_epi16(_mm_min_epi16(c1, c2), _mm_min_epi16(c3, c4));
+
+        __m128i result = select_16_equ(mindiff, c1, limit_epi16(cr, cmi1, cma1), cr);
+        result = select_16_equ(mindiff, c3, limit_epi16(cr, cmi3, cma3), result);
+        result = select_16_equ(mindiff, c2, limit_epi16(cr, cmi2, cma2), result);
+        return select_16_equ(mindiff, c4, limit_epi16(cr, cmi4, cma4), result);
+    }
+#endif
 };
 
 class OpRG16 {
 public:
-    static __forceinline int
-        rg(int cr, int a1, int a2, int a3, int a4, int c, int a5, int a6, int a7, int a8) {
-            AvsFilterRepair16_SORT_AXIS_CPP
+    typedef    ConvSigned    ConvSign;
+    static __forceinline int rg(int cr, int a1, int a2, int a3, int a4, int c, int a5, int a6, int a7, int a8) {
+        AvsFilterRepair16_SORT_AXIS_CPP
 
-            const int      d1 = ma1 - mi1;
-            const int      d2 = ma2 - mi2;
-            const int      d3 = ma3 - mi3;
-            const int      d4 = ma4 - mi4;
+        const int      d1 = ma1 - mi1;
+        const int      d2 = ma2 - mi2;
+        const int      d3 = ma3 - mi3;
+        const int      d4 = ma4 - mi4;
 
-            const int      c1 = limit((std::abs(c - limit(c, mi1, ma1)) << 1) + d1, 0, 0xFFFF);
-            const int      c2 = limit((std::abs(c - limit(c, mi2, ma2)) << 1) + d2, 0, 0xFFFF);
-            const int      c3 = limit((std::abs(c - limit(c, mi3, ma3)) << 1) + d3, 0, 0xFFFF);
-            const int      c4 = limit((std::abs(c - limit(c, mi4, ma4)) << 1) + d4, 0, 0xFFFF);
+        const int      c1 = limit((std::abs(c - limit(c, mi1, ma1)) << 1) + d1, 0, 0xFFFF);
+        const int      c2 = limit((std::abs(c - limit(c, mi2, ma2)) << 1) + d2, 0, 0xFFFF);
+        const int      c3 = limit((std::abs(c - limit(c, mi3, ma3)) << 1) + d3, 0, 0xFFFF);
+        const int      c4 = limit((std::abs(c - limit(c, mi4, ma4)) << 1) + d4, 0, 0xFFFF);
 
-            const int      mindiff = std::min(std::min(c1, c2), std::min(c3, c4));
+        const int      mindiff = std::min(std::min(c1, c2), std::min(c3, c4));
 
-            int            mi;
-            int            ma;
-            if (mindiff == c4) {
-                mi = mi4;
-                ma = ma4;
-            } else if (mindiff == c2) {
-                mi = mi2;
-                ma = ma2;
-            } else if (mindiff == c3) {
-                mi = mi3;
-                ma = ma3;
-            } else {
-                mi = mi1;
-                ma = ma1;
-            }
-
-            mi = std::min(mi, c);
-            ma = std::max(ma, c);
-
-            return (limit(cr, mi, ma));
+        int            mi;
+        int            ma;
+        if (mindiff == c4) {
+            mi = mi4;
+            ma = ma4;
+        } else if (mindiff == c2) {
+            mi = mi2;
+            ma = ma2;
+        } else if (mindiff == c3) {
+            mi = mi3;
+            ma = ma3;
+        } else {
+            mi = mi1;
+            ma = ma1;
         }
+
+        mi = std::min(mi, c);
+        ma = std::max(ma, c);
+
+        return (limit(cr, mi, ma));
+    }
+#ifdef VS_TARGET_CPU_X86
+    template<typename T>
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+        AvsFilterRepair16_READ_PIX
+        AvsFilterRepair16_SORT_AXIS_SSE2
+
+        const __m128i cma1 = _mm_max_epi16(c, ma1);
+        const __m128i cma2 = _mm_max_epi16(c, ma2);
+        const __m128i cma3 = _mm_max_epi16(c, ma3);
+        const __m128i cma4 = _mm_max_epi16(c, ma4);
+
+        const __m128i cmi1 = _mm_min_epi16(c, mi1);
+        const __m128i cmi2 = _mm_min_epi16(c, mi2);
+        const __m128i cmi3 = _mm_min_epi16(c, mi3);
+        const __m128i cmi4 = _mm_min_epi16(c, mi4);
+
+        const __m128i d1 = _mm_sub_epi16(ma1, mi1);
+        const __m128i d2 = _mm_sub_epi16(ma2, mi2);
+        const __m128i d3 = _mm_sub_epi16(ma3, mi3);
+        const __m128i d4 = _mm_sub_epi16(ma4, mi4);
+
+        const __m128i clipped1 = limit_epi16(c, mi1, ma1);
+        const __m128i clipped2 = limit_epi16(c, mi2, ma2);
+        const __m128i clipped3 = limit_epi16(c, mi3, ma3);
+        const __m128i clipped4 = limit_epi16(c, mi4, ma4);
+
+        const __m128i clipped1u = _mm_xor_si128(clipped1, mask_sign);
+        const __m128i clipped2u = _mm_xor_si128(clipped2, mask_sign);
+        const __m128i clipped3u = _mm_xor_si128(clipped3, mask_sign);
+        const __m128i clipped4u = _mm_xor_si128(clipped4, mask_sign);
+        const __m128i cu = _mm_xor_si128(c, mask_sign);
+
+        const __m128i absdiff1 = abs_dif_epu16(cu, clipped1u);
+        const __m128i absdiff2 = abs_dif_epu16(cu, clipped2u);
+        const __m128i absdiff3 = abs_dif_epu16(cu, clipped3u);
+        const __m128i absdiff4 = abs_dif_epu16(cu, clipped4u);
+
+        const __m128i c1u = _mm_adds_epu16(_mm_adds_epu16(absdiff1, absdiff1), d1);
+        const __m128i c2u = _mm_adds_epu16(_mm_adds_epu16(absdiff2, absdiff2), d2);
+        const __m128i c3u = _mm_adds_epu16(_mm_adds_epu16(absdiff3, absdiff3), d3);
+        const __m128i c4u = _mm_adds_epu16(_mm_adds_epu16(absdiff4, absdiff4), d4);
+
+        const __m128i c1 = _mm_xor_si128(c1u, mask_sign);
+        const __m128i c2 = _mm_xor_si128(c2u, mask_sign);
+        const __m128i c3 = _mm_xor_si128(c3u, mask_sign);
+        const __m128i c4 = _mm_xor_si128(c4u, mask_sign);
+
+        const __m128i mindiff = _mm_min_epi16(_mm_min_epi16(c1, c2), _mm_min_epi16(c3, c4));
+
+        __m128i result = select_16_equ(mindiff, c1, limit_epi16(cr, cmi1, cma1), cr);
+        result = select_16_equ(mindiff, c3, limit_epi16(cr, cmi3, cma3), result);
+        result = select_16_equ(mindiff, c2, limit_epi16(cr, cmi2, cma2), result);
+        return select_16_equ(mindiff, c4, limit_epi16(cr, cmi4, cma4), result);
+    }
+#endif
 };
 
 class OpRG17 {
 public:
-    static __forceinline int
-        rg(int cr, int a1, int a2, int a3, int a4, int c, int a5, int a6, int a7, int a8) {
-            AvsFilterRepair16_SORT_AXIS_CPP
+    typedef    ConvSigned    ConvSign;
+    static __forceinline int rg(int cr, int a1, int a2, int a3, int a4, int c, int a5, int a6, int a7, int a8) {
+        AvsFilterRepair16_SORT_AXIS_CPP
 
-            const int      l = std::max(std::max(mi1, mi2), std::max(mi3, mi4));
-            const int      u = std::min(std::min(ma1, ma2), std::min(ma3, ma4));
+        const int      l = std::max(std::max(mi1, mi2), std::max(mi3, mi4));
+        const int      u = std::min(std::min(ma1, ma2), std::min(ma3, ma4));
 
-            const int      mi = std::min(std::min(l, u), c);
-            const int      ma = std::max(std::max(l, u), c);
+        const int      mi = std::min(std::min(l, u), c);
+        const int      ma = std::max(std::max(l, u), c);
 
-            return (limit(cr, mi, ma));
-        }
+        return (limit(cr, mi, ma));
+    }
+#ifdef VS_TARGET_CPU_X86
+    template<typename T>
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+        AvsFilterRepair16_READ_PIX
+        AvsFilterRepair16_SORT_AXIS_SSE2
+
+        const __m128i lower = _mm_max_epi16(_mm_max_epi16(mi1, mi2), _mm_max_epi16(mi3, mi4));
+        const __m128i upper = _mm_min_epi16(_mm_min_epi16(ma1, ma2), _mm_min_epi16(ma3, ma4));
+
+        const __m128i real_upper = _mm_max_epi16(_mm_max_epi16(upper, lower), c);
+        const __m128i real_lower = _mm_min_epi16(_mm_min_epi16(upper, lower), c);
+
+        return limit_epi16(cr, real_lower, real_upper);
+    }
+#endif
 };
 
 class OpRG18 {
 public:
-    static __forceinline int
-        rg(int cr, int a1, int a2, int a3, int a4, int c, int a5, int a6, int a7, int a8) {
-            const int      d1 = std::max(std::abs(c - a1), std::abs(c - a8));
-            const int      d2 = std::max(std::abs(c - a2), std::abs(c - a7));
-            const int      d3 = std::max(std::abs(c - a3), std::abs(c - a6));
-            const int      d4 = std::max(std::abs(c - a4), std::abs(c - a5));
+    typedef    ConvSigned    ConvSign;
+    static __forceinline int rg(int cr, int a1, int a2, int a3, int a4, int c, int a5, int a6, int a7, int a8) {
+        const int      d1 = std::max(std::abs(c - a1), std::abs(c - a8));
+        const int      d2 = std::max(std::abs(c - a2), std::abs(c - a7));
+        const int      d3 = std::max(std::abs(c - a3), std::abs(c - a6));
+        const int      d4 = std::max(std::abs(c - a4), std::abs(c - a5));
 
-            const int      mindiff = std::min(std::min(d1, d2), std::min(d3, d4));
+        const int      mindiff = std::min(std::min(d1, d2), std::min(d3, d4));
 
-            int            mi;
-            int            ma;
-            if (mindiff == d4) {
-                mi = std::min(a4, a5);
-                ma = std::max(a4, a5);
-            } else if (mindiff == d2) {
-                mi = std::min(a2, a7);
-                ma = std::max(a2, a7);
-            } else if (mindiff == d3) {
-                mi = std::min(a3, a6);
-                ma = std::max(a3, a6);
-            } else {
-                mi = std::min(a1, a8);
-                ma = std::max(a1, a8);
-            }
-
-            mi = std::min(mi, c);
-            ma = std::max(ma, c);
-
-            return (limit(cr, mi, ma));
+        int            mi;
+        int            ma;
+        if (mindiff == d4) {
+            mi = std::min(a4, a5);
+            ma = std::max(a4, a5);
+        } else if (mindiff == d2) {
+            mi = std::min(a2, a7);
+            ma = std::max(a2, a7);
+        } else if (mindiff == d3) {
+            mi = std::min(a3, a6);
+            ma = std::max(a3, a6);
+        } else {
+            mi = std::min(a1, a8);
+            ma = std::max(a1, a8);
         }
+
+        mi = std::min(mi, c);
+        ma = std::max(ma, c);
+
+        return (limit(cr, mi, ma));
+    }
+#ifdef VS_TARGET_CPU_X86
+    template<typename T>
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+        AvsFilterRepair16_READ_PIX
+
+        const __m128i a1u = _mm_xor_si128(a1, mask_sign);
+        const __m128i a2u = _mm_xor_si128(a2, mask_sign);
+        const __m128i a3u = _mm_xor_si128(a3, mask_sign);
+        const __m128i a4u = _mm_xor_si128(a4, mask_sign);
+        const __m128i a5u = _mm_xor_si128(a5, mask_sign);
+        const __m128i a6u = _mm_xor_si128(a6, mask_sign);
+        const __m128i a7u = _mm_xor_si128(a7, mask_sign);
+        const __m128i a8u = _mm_xor_si128(a8, mask_sign);
+        const __m128i cu = _mm_xor_si128(c, mask_sign);
+
+        const __m128i absdiff1u = abs_dif_epu16(cu, a1u);
+        const __m128i absdiff2u = abs_dif_epu16(cu, a2u);
+        const __m128i absdiff3u = abs_dif_epu16(cu, a3u);
+        const __m128i absdiff4u = abs_dif_epu16(cu, a4u);
+        const __m128i absdiff5u = abs_dif_epu16(cu, a5u);
+        const __m128i absdiff6u = abs_dif_epu16(cu, a6u);
+        const __m128i absdiff7u = abs_dif_epu16(cu, a7u);
+        const __m128i absdiff8u = abs_dif_epu16(cu, a8u);
+
+        const __m128i absdiff1 = _mm_xor_si128(absdiff1u, mask_sign);
+        const __m128i absdiff2 = _mm_xor_si128(absdiff2u, mask_sign);
+        const __m128i absdiff3 = _mm_xor_si128(absdiff3u, mask_sign);
+        const __m128i absdiff4 = _mm_xor_si128(absdiff4u, mask_sign);
+        const __m128i absdiff5 = _mm_xor_si128(absdiff5u, mask_sign);
+        const __m128i absdiff6 = _mm_xor_si128(absdiff6u, mask_sign);
+        const __m128i absdiff7 = _mm_xor_si128(absdiff7u, mask_sign);
+        const __m128i absdiff8 = _mm_xor_si128(absdiff8u, mask_sign);
+
+        const __m128i d1 = _mm_max_epi16(absdiff1, absdiff8);
+        const __m128i d2 = _mm_max_epi16(absdiff2, absdiff7);
+        const __m128i d3 = _mm_max_epi16(absdiff3, absdiff6);
+        const __m128i d4 = _mm_max_epi16(absdiff4, absdiff5);
+
+        const __m128i mindiff = _mm_min_epi16(_mm_min_epi16(d1, d2), _mm_min_epi16(d3, d4));
+
+        const __m128i mi1 = _mm_min_epi16(c, _mm_min_epi16(a1, a8));
+        const __m128i mi2 = _mm_min_epi16(c, _mm_min_epi16(a2, a7));
+        const __m128i mi3 = _mm_min_epi16(c, _mm_min_epi16(a3, a6));
+        const __m128i mi4 = _mm_min_epi16(c, _mm_min_epi16(a4, a5));
+
+        const __m128i ma1 = _mm_max_epi16(c, _mm_max_epi16(a1, a8));
+        const __m128i ma2 = _mm_max_epi16(c, _mm_max_epi16(a2, a7));
+        const __m128i ma3 = _mm_max_epi16(c, _mm_max_epi16(a3, a6));
+        const __m128i ma4 = _mm_max_epi16(c, _mm_max_epi16(a4, a5));
+
+        const __m128i c1 = limit_epi16(cr, mi1, ma1);
+        const __m128i c2 = limit_epi16(cr, mi2, ma2);
+        const __m128i c3 = limit_epi16(cr, mi3, ma3);
+        const __m128i c4 = limit_epi16(cr, mi4, ma4);
+
+        __m128i result = select_16_equ(mindiff, d1, c1, cr);
+        result = select_16_equ(mindiff, d3, c3, result);
+        result = select_16_equ(mindiff, d2, c2, result);
+        return select_16_equ(mindiff, d4, c4, result);
+    }
+#endif
+};
+
+class OpRG19 {
+public:
+    typedef    ConvUnsigned    ConvSign;
+    static __forceinline int rg(int cr, int a1, int a2, int a3, int a4, int c, int a5, int a6, int a7, int a8) {
+        const int d1 = std::abs(c - a1);
+        const int d2 = std::abs(c - a2);
+        const int d3 = std::abs(c - a3);
+        const int d4 = std::abs(c - a4);
+        const int d5 = std::abs(c - a5);
+        const int d6 = std::abs(c - a6);
+        const int d7 = std::abs(c - a7);
+        const int d8 = std::abs(c - a8);
+
+        const int mindiff = std::min(std::min(std::min(d1, d2), std::min(d3, d4)), std::min(std::min(d5, d6), std::min(d7, d8)));
+
+        return limit(cr, limit(c - mindiff, 0, 0xFFFF), limit(c + mindiff, 0, 0xFFFF));
+    }
+#ifdef VS_TARGET_CPU_X86
+    template<typename T>
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+        AvsFilterRepair16_READ_PIX
+
+        const __m128i d1u = abs_dif_epu16(c, a1);
+        const __m128i d2u = abs_dif_epu16(c, a2);
+        const __m128i d3u = abs_dif_epu16(c, a3);
+        const __m128i d4u = abs_dif_epu16(c, a4);
+        const __m128i d5u = abs_dif_epu16(c, a5);
+        const __m128i d6u = abs_dif_epu16(c, a6);
+        const __m128i d7u = abs_dif_epu16(c, a7);
+        const __m128i d8u = abs_dif_epu16(c, a8);
+
+        const __m128i d1 = _mm_xor_si128(d1u, mask_sign);
+        const __m128i d2 = _mm_xor_si128(d2u, mask_sign);
+        const __m128i d3 = _mm_xor_si128(d3u, mask_sign);
+        const __m128i d4 = _mm_xor_si128(d4u, mask_sign);
+        const __m128i d5 = _mm_xor_si128(d5u, mask_sign);
+        const __m128i d6 = _mm_xor_si128(d6u, mask_sign);
+        const __m128i d7 = _mm_xor_si128(d7u, mask_sign);
+        const __m128i d8 = _mm_xor_si128(d8u, mask_sign);
+
+        const __m128i mindiff = _mm_min_epi16(_mm_min_epi16(_mm_min_epi16(d1, d2), _mm_min_epi16(d3, d4)), _mm_min_epi16(_mm_min_epi16(d5, d6), _mm_min_epi16(d7, d8)));
+
+        const __m128i mindiffu = _mm_xor_si128(mindiff, mask_sign);
+
+        const __m128i mi = _mm_xor_si128(_mm_subs_epu16(c, mindiffu), mask_sign);
+        const __m128i ma = _mm_xor_si128(_mm_adds_epu16(c, mindiffu), mask_sign);
+
+        return _mm_xor_si128(limit_epi16(_mm_xor_si128(cr, mask_sign), mi, ma), mask_sign);
+    }
+#endif
+};
+
+class OpRG20 {
+public:
+    typedef    ConvUnsigned    ConvSign;
+    static __forceinline int rg(int cr, int a1, int a2, int a3, int a4, int c, int a5, int a6, int a7, int a8) {
+        const int d1 = std::abs(c - a1);
+        const int d2 = std::abs(c - a2);
+        const int d3 = std::abs(c - a3);
+        const int d4 = std::abs(c - a4);
+        const int d5 = std::abs(c - a5);
+        const int d6 = std::abs(c - a6);
+        const int d7 = std::abs(c - a7);
+        const int d8 = std::abs(c - a8);
+
+        int mindiff = std::min(d1, d2);
+        int maxdiff = std::max(d1, d2);
+
+        maxdiff = limit(maxdiff, mindiff, d3);
+        mindiff = std::min(mindiff, d3);
+
+        maxdiff = limit(maxdiff, mindiff, d4);
+        mindiff = std::min(mindiff, d4);
+
+        maxdiff = limit(maxdiff, mindiff, d5);
+        mindiff = std::min(mindiff, d5);
+
+        maxdiff = limit(maxdiff, mindiff, d6);
+        mindiff = std::min(mindiff, d6);
+
+        maxdiff = limit(maxdiff, mindiff, d7);
+        mindiff = std::min(mindiff, d7);
+
+        maxdiff = limit(maxdiff, mindiff, d8);
+
+        return limit(cr, limit(c - maxdiff, 0, 0xFFFF), limit(c + maxdiff, 0, 0xFFFF));
+    }
+#ifdef VS_TARGET_CPU_X86
+    template<typename T>
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+        AvsFilterRepair16_READ_PIX
+
+        const __m128i d1u = abs_dif_epu16(c, a1);
+        const __m128i d2u = abs_dif_epu16(c, a2);
+        const __m128i d3u = abs_dif_epu16(c, a3);
+        const __m128i d4u = abs_dif_epu16(c, a4);
+        const __m128i d5u = abs_dif_epu16(c, a5);
+        const __m128i d6u = abs_dif_epu16(c, a6);
+        const __m128i d7u = abs_dif_epu16(c, a7);
+        const __m128i d8u = abs_dif_epu16(c, a8);
+
+        const __m128i d1 = _mm_xor_si128(d1u, mask_sign);
+        const __m128i d2 = _mm_xor_si128(d2u, mask_sign);
+        const __m128i d3 = _mm_xor_si128(d3u, mask_sign);
+        const __m128i d4 = _mm_xor_si128(d4u, mask_sign);
+        const __m128i d5 = _mm_xor_si128(d5u, mask_sign);
+        const __m128i d6 = _mm_xor_si128(d6u, mask_sign);
+        const __m128i d7 = _mm_xor_si128(d7u, mask_sign);
+        const __m128i d8 = _mm_xor_si128(d8u, mask_sign);
+
+        __m128i mindiff = _mm_min_epi16(d1, d2);
+        __m128i maxdiff = _mm_max_epi16(d1, d2);
+
+        maxdiff = limit_epi16(maxdiff, mindiff, d3);
+        mindiff = _mm_min_epi16(mindiff, d3);
+
+        maxdiff = limit_epi16(maxdiff, mindiff, d4);
+        mindiff = _mm_min_epi16(mindiff, d4);
+
+        maxdiff = limit_epi16(maxdiff, mindiff, d5);
+        mindiff = _mm_min_epi16(mindiff, d5);
+
+        maxdiff = limit_epi16(maxdiff, mindiff, d6);
+        mindiff = _mm_min_epi16(mindiff, d6);
+
+        maxdiff = limit_epi16(maxdiff, mindiff, d7);
+        mindiff = _mm_min_epi16(mindiff, d7);
+
+        maxdiff = limit_epi16(maxdiff, mindiff, d8);
+
+        const __m128i maxdiffu = _mm_xor_si128(maxdiff, mask_sign);
+
+        const __m128i mi = _mm_xor_si128(_mm_subs_epu16(c, maxdiffu), mask_sign);
+        const __m128i ma = _mm_xor_si128(_mm_adds_epu16(c, maxdiffu), mask_sign);
+
+        return _mm_xor_si128(limit_epi16(_mm_xor_si128(cr, mask_sign), mi, ma), mask_sign);
+    }
+#endif
+};
+
+class OpRG21 {
+public:
+    typedef    ConvSigned    ConvSign;
+    static __forceinline int rg(int cr, int a1, int a2, int a3, int a4, int c, int a5, int a6, int a7, int a8) {
+        AvsFilterRepair16_SORT_AXIS_CPP
+
+        const int d1 = limit(ma1 - c, 0, 0xFFFF);
+        const int d2 = limit(ma2 - c, 0, 0xFFFF);
+        const int d3 = limit(ma3 - c, 0, 0xFFFF);
+        const int d4 = limit(ma4 - c, 0, 0xFFFF);
+
+        const int rd1 = limit(c - mi1, 0, 0xFFFF);
+        const int rd2 = limit(c - mi2, 0, 0xFFFF);
+        const int rd3 = limit(c - mi3, 0, 0xFFFF);
+        const int rd4 = limit(c - mi4, 0, 0xFFFF);
+
+        const int u1 = std::max(d1, rd1);
+        const int u2 = std::max(d2, rd2);
+        const int u3 = std::max(d3, rd3);
+        const int u4 = std::max(d4, rd4);
+
+        const int u = std::min(std::min(u1, u2), std::min(u3, u4));
+
+        return limit(cr, limit(c - u, 0, 0xFFFF), limit(c + u, 0, 0xFFFF));
+    }
+#ifdef VS_TARGET_CPU_X86
+    template<typename T>
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+        AvsFilterRepair16_READ_PIX
+        AvsFilterRepair16_SORT_AXIS_SSE2
+
+        const __m128i d1 = _mm_subs_epi16(ma1, c);
+        const __m128i d2 = _mm_subs_epi16(ma2, c);
+        const __m128i d3 = _mm_subs_epi16(ma3, c);
+        const __m128i d4 = _mm_subs_epi16(ma4, c);
+
+        const __m128i rd1 = _mm_subs_epi16(c, mi1);
+        const __m128i rd2 = _mm_subs_epi16(c, mi2);
+        const __m128i rd3 = _mm_subs_epi16(c, mi3);
+        const __m128i rd4 = _mm_subs_epi16(c, mi4);
+
+        const __m128i u1 = _mm_max_epi16(d1, rd1);
+        const __m128i u2 = _mm_max_epi16(d2, rd2);
+        const __m128i u3 = _mm_max_epi16(d3, rd3);
+        const __m128i u4 = _mm_max_epi16(d4, rd4);
+
+        const __m128i u = _mm_min_epi16(_mm_min_epi16(u1, u2), _mm_min_epi16(u3, u4));
+
+        const __m128i mi = _mm_subs_epi16(c, u);
+        const __m128i ma = _mm_adds_epi16(c, u);
+
+        return limit_epi16(cr, mi, ma);
+    }
+#endif
+};
+
+class OpRG22 {
+public:
+    typedef    ConvUnsigned    ConvSign;
+    static __forceinline int rg(int cr, int a1, int a2, int a3, int a4, int c, int a5, int a6, int a7, int a8) {
+        const int d1 = std::abs(cr - a1);
+        const int d2 = std::abs(cr - a2);
+        const int d3 = std::abs(cr - a3);
+        const int d4 = std::abs(cr - a4);
+        const int d5 = std::abs(cr - a5);
+        const int d6 = std::abs(cr - a6);
+        const int d7 = std::abs(cr - a7);
+        const int d8 = std::abs(cr - a8);
+
+        const int mindiff = std::min(std::min(std::min(d1, d2), std::min(d3, d4)), std::min(std::min(d5, d6), std::min(d7, d8)));
+
+        return limit(c, limit(cr - mindiff, 0, 0xFFFF), limit(cr + mindiff, 0, 0xFFFF));
+    }
+#ifdef VS_TARGET_CPU_X86
+    template<typename T>
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+        AvsFilterRepair16_READ_PIX
+
+        const __m128i d1u = abs_dif_epu16(cr, a1);
+        const __m128i d2u = abs_dif_epu16(cr, a2);
+        const __m128i d3u = abs_dif_epu16(cr, a3);
+        const __m128i d4u = abs_dif_epu16(cr, a4);
+        const __m128i d5u = abs_dif_epu16(cr, a5);
+        const __m128i d6u = abs_dif_epu16(cr, a6);
+        const __m128i d7u = abs_dif_epu16(cr, a7);
+        const __m128i d8u = abs_dif_epu16(cr, a8);
+
+        const __m128i d1 = _mm_xor_si128(d1u, mask_sign);
+        const __m128i d2 = _mm_xor_si128(d2u, mask_sign);
+        const __m128i d3 = _mm_xor_si128(d3u, mask_sign);
+        const __m128i d4 = _mm_xor_si128(d4u, mask_sign);
+        const __m128i d5 = _mm_xor_si128(d5u, mask_sign);
+        const __m128i d6 = _mm_xor_si128(d6u, mask_sign);
+        const __m128i d7 = _mm_xor_si128(d7u, mask_sign);
+        const __m128i d8 = _mm_xor_si128(d8u, mask_sign);
+
+        const __m128i mindiff = _mm_min_epi16(_mm_min_epi16(_mm_min_epi16(d1, d2), _mm_min_epi16(d3, d4)), _mm_min_epi16(_mm_min_epi16(d5, d6), _mm_min_epi16(d7, d8)));
+
+        const __m128i mindiffu = _mm_xor_si128(mindiff, mask_sign);
+
+        const __m128i mi = _mm_xor_si128(_mm_subs_epu16(cr, mindiffu), mask_sign);
+        const __m128i ma = _mm_xor_si128(_mm_adds_epu16(cr, mindiffu), mask_sign);
+
+        return _mm_xor_si128(limit_epi16(_mm_xor_si128(c, mask_sign), mi, ma), mask_sign);
+    }
+#endif
+};
+
+class OpRG23 {
+public:
+    typedef    ConvUnsigned    ConvSign;
+    static __forceinline int rg(int cr, int a1, int a2, int a3, int a4, int c, int a5, int a6, int a7, int a8) {
+        const int d1 = std::abs(cr - a1);
+        const int d2 = std::abs(cr - a2);
+        const int d3 = std::abs(cr - a3);
+        const int d4 = std::abs(cr - a4);
+        const int d5 = std::abs(cr - a5);
+        const int d6 = std::abs(cr - a6);
+        const int d7 = std::abs(cr - a7);
+        const int d8 = std::abs(cr - a8);
+
+        int mindiff = std::min(d1, d2);
+        int maxdiff = std::max(d1, d2);
+
+        maxdiff = limit(maxdiff, mindiff, d3);
+        mindiff = std::min(mindiff, d3);
+
+        maxdiff = limit(maxdiff, mindiff, d4);
+        mindiff = std::min(mindiff, d4);
+
+        maxdiff = limit(maxdiff, mindiff, d5);
+        mindiff = std::min(mindiff, d5);
+
+        maxdiff = limit(maxdiff, mindiff, d6);
+        mindiff = std::min(mindiff, d6);
+
+        maxdiff = limit(maxdiff, mindiff, d7);
+        mindiff = std::min(mindiff, d7);
+
+        maxdiff = limit(maxdiff, mindiff, d8);
+
+        return limit(c, limit(cr - maxdiff, 0, 0xFFFF), limit(cr + maxdiff, 0, 0xFFFF));
+    }
+#ifdef VS_TARGET_CPU_X86
+    template<typename T>
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+        AvsFilterRepair16_READ_PIX
+
+        const __m128i d1u = abs_dif_epu16(cr, a1);
+        const __m128i d2u = abs_dif_epu16(cr, a2);
+        const __m128i d3u = abs_dif_epu16(cr, a3);
+        const __m128i d4u = abs_dif_epu16(cr, a4);
+        const __m128i d5u = abs_dif_epu16(cr, a5);
+        const __m128i d6u = abs_dif_epu16(cr, a6);
+        const __m128i d7u = abs_dif_epu16(cr, a7);
+        const __m128i d8u = abs_dif_epu16(cr, a8);
+
+        const __m128i d1 = _mm_xor_si128(d1u, mask_sign);
+        const __m128i d2 = _mm_xor_si128(d2u, mask_sign);
+        const __m128i d3 = _mm_xor_si128(d3u, mask_sign);
+        const __m128i d4 = _mm_xor_si128(d4u, mask_sign);
+        const __m128i d5 = _mm_xor_si128(d5u, mask_sign);
+        const __m128i d6 = _mm_xor_si128(d6u, mask_sign);
+        const __m128i d7 = _mm_xor_si128(d7u, mask_sign);
+        const __m128i d8 = _mm_xor_si128(d8u, mask_sign);
+
+        __m128i mindiff = _mm_min_epi16(d1, d2);
+        __m128i maxdiff = _mm_max_epi16(d1, d2);
+
+        maxdiff = limit_epi16(maxdiff, mindiff, d3);
+        mindiff = _mm_min_epi16(mindiff, d3);
+
+        maxdiff = limit_epi16(maxdiff, mindiff, d4);
+        mindiff = _mm_min_epi16(mindiff, d4);
+
+        maxdiff = limit_epi16(maxdiff, mindiff, d5);
+        mindiff = _mm_min_epi16(mindiff, d5);
+
+        maxdiff = limit_epi16(maxdiff, mindiff, d6);
+        mindiff = _mm_min_epi16(mindiff, d6);
+
+        maxdiff = limit_epi16(maxdiff, mindiff, d7);
+        mindiff = _mm_min_epi16(mindiff, d7);
+
+        maxdiff = limit_epi16(maxdiff, mindiff, d8);
+
+        const __m128i maxdiffu = _mm_xor_si128(maxdiff, mask_sign);
+
+        const __m128i mi = _mm_xor_si128(_mm_subs_epu16(cr, maxdiffu), mask_sign);
+        const __m128i ma = _mm_xor_si128(_mm_adds_epu16(cr, maxdiffu), mask_sign);
+
+        return _mm_xor_si128(limit_epi16(_mm_xor_si128(c, mask_sign), mi, ma), mask_sign);
+    }
+#endif
+};
+
+class OpRG24 {
+public:
+    typedef    ConvSigned    ConvSign;
+    static __forceinline int rg(int cr, int a1, int a2, int a3, int a4, int c, int a5, int a6, int a7, int a8) {
+        AvsFilterRepair16_SORT_AXIS_CPP
+
+        const int d1 = limit(ma1 - cr, 0, 0xFFFF);
+        const int d2 = limit(ma2 - cr, 0, 0xFFFF);
+        const int d3 = limit(ma3 - cr, 0, 0xFFFF);
+        const int d4 = limit(ma4 - cr, 0, 0xFFFF);
+
+        const int rd1 = limit(cr - mi1, 0, 0xFFFF);
+        const int rd2 = limit(cr - mi2, 0, 0xFFFF);
+        const int rd3 = limit(cr - mi3, 0, 0xFFFF);
+        const int rd4 = limit(cr - mi4, 0, 0xFFFF);
+
+        const int u1 = std::max(d1, rd1);
+        const int u2 = std::max(d2, rd2);
+        const int u3 = std::max(d3, rd3);
+        const int u4 = std::max(d4, rd4);
+
+        const int u = std::min(std::min(u1, u2), std::min(u3, u4));
+
+        return limit(c, limit(cr - u, 0, 0xFFFF), limit(cr + u, 0, 0xFFFF));
+    }
+#ifdef VS_TARGET_CPU_X86
+    template<typename T>
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+        AvsFilterRepair16_READ_PIX
+        AvsFilterRepair16_SORT_AXIS_SSE2
+
+        const __m128i d1 = _mm_subs_epi16(ma1, cr);
+        const __m128i d2 = _mm_subs_epi16(ma2, cr);
+        const __m128i d3 = _mm_subs_epi16(ma3, cr);
+        const __m128i d4 = _mm_subs_epi16(ma4, cr);
+
+        const __m128i rd1 = _mm_subs_epi16(cr, mi1);
+        const __m128i rd2 = _mm_subs_epi16(cr, mi2);
+        const __m128i rd3 = _mm_subs_epi16(cr, mi3);
+        const __m128i rd4 = _mm_subs_epi16(cr, mi4);
+
+        const __m128i u1 = _mm_max_epi16(d1, rd1);
+        const __m128i u2 = _mm_max_epi16(d2, rd2);
+        const __m128i u3 = _mm_max_epi16(d3, rd3);
+        const __m128i u4 = _mm_max_epi16(d4, rd4);
+
+        const __m128i u = _mm_min_epi16(_mm_min_epi16(u1, u2), _mm_min_epi16(u3, u4));
+
+        const __m128i mi = _mm_subs_epi16(cr, u);
+        const __m128i ma = _mm_adds_epi16(cr, u);
+
+        return limit_epi16(c, mi, ma);
+    }
+#endif
 };
 
 
@@ -787,14 +1878,26 @@ static const VSFrameRef *VS_CC repairGetFrame(int n, int activationReason, void 
                     case  2: PROC_ARGS_8_FAST(OpRG02)
                     case  3: PROC_ARGS_8_FAST(OpRG03)
                     case  4: PROC_ARGS_8_FAST(OpRG04)
+                    case  5: PROC_ARGS_8_FAST(OpRG05)
+                    case  6: PROC_ARGS_8_FAST(OpRG06)
+                    case  7: PROC_ARGS_8_FAST(OpRG07)
+                    case  8: PROC_ARGS_8_FAST(OpRG08)
+                    case  9: PROC_ARGS_8_FAST(OpRG09)
+                    case 10: PROC_ARGS_8_FAST(OpRG10)
                     case 11: PROC_ARGS_8_FAST(OpRG01)
                     case 12: PROC_ARGS_8_FAST(OpRG12)
                     case 13: PROC_ARGS_8_FAST(OpRG13)
                     case 14: PROC_ARGS_8_FAST(OpRG14)
-                    case 15: PROC_ARGS_8(OpRG15)
-                    case 16: PROC_ARGS_8(OpRG16)
-                    case 17: PROC_ARGS_8(OpRG17)
-                    case 18: PROC_ARGS_8(OpRG18)
+                    case 15: PROC_ARGS_8_FAST(OpRG15)
+                    case 16: PROC_ARGS_8_FAST(OpRG16)
+                    case 17: PROC_ARGS_8_FAST(OpRG17)
+                    case 18: PROC_ARGS_8_FAST(OpRG18)
+                    case 19: PROC_ARGS_8_FAST(OpRG19)
+                    case 20: PROC_ARGS_8_FAST(OpRG20)
+                    case 21: PROC_ARGS_8_FAST(OpRG21)
+                    case 22: PROC_ARGS_8_FAST(OpRG22)
+                    case 23: PROC_ARGS_8_FAST(OpRG23)
+                    case 24: PROC_ARGS_8_FAST(OpRG24)
                     default: break;
                 }
             }
@@ -806,14 +1909,26 @@ static const VSFrameRef *VS_CC repairGetFrame(int n, int activationReason, void 
                     case  2: PROC_ARGS_16_FAST(OpRG02)
                     case  3: PROC_ARGS_16_FAST(OpRG03)
                     case  4: PROC_ARGS_16_FAST(OpRG04)
+                    case  5: PROC_ARGS_16_FAST(OpRG05)
+                    case  6: PROC_ARGS_16_FAST(OpRG06)
+                    case  7: PROC_ARGS_16_FAST(OpRG07)
+                    case  8: PROC_ARGS_16_FAST(OpRG08)
+                    case  9: PROC_ARGS_16_FAST(OpRG09)
+                    case 10: PROC_ARGS_16_FAST(OpRG10)
                     case 11: PROC_ARGS_16_FAST(OpRG01)
                     case 12: PROC_ARGS_16_FAST(OpRG12)
                     case 13: PROC_ARGS_16_FAST(OpRG13)
                     case 14: PROC_ARGS_16_FAST(OpRG14)
-                    case 15: PROC_ARGS_16(OpRG15)
-                    case 16: PROC_ARGS_16(OpRG16)
-                    case 17: PROC_ARGS_16(OpRG17)
-                    case 18: PROC_ARGS_16(OpRG18)
+                    case 15: PROC_ARGS_16_FAST(OpRG15)
+                    case 16: PROC_ARGS_16_FAST(OpRG16)
+                    case 17: PROC_ARGS_16_FAST(OpRG17)
+                    case 18: PROC_ARGS_16_FAST(OpRG18)
+                    case 19: PROC_ARGS_16_FAST(OpRG19)
+                    case 20: PROC_ARGS_16_FAST(OpRG20)
+                    case 21: PROC_ARGS_16_FAST(OpRG21)
+                    case 22: PROC_ARGS_16_FAST(OpRG22)
+                    case 23: PROC_ARGS_16_FAST(OpRG23)
+                    case 24: PROC_ARGS_16_FAST(OpRG24)
                     default: break;
                 }
             }
@@ -874,11 +1989,11 @@ void VS_CC repairCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
     for (int i = 0; i < 3; i++) {
         if (i < m) {
             d.mode[i] = int64ToIntS(vsapi->propGetInt(in, "mode", i, NULL));
-            if (d.mode[i] < 0 || d.mode[i] > 18 || (d.mode[i] > 4 && d.mode[i] < 11))
+            if (d.mode[i] < 0 || d.mode[i] > 24)
             {
                 vsapi->freeNode(d.node1);
                 vsapi->freeNode(d.node2);
-                vsapi->setError(out, "Repair: Invalid mode specified, only 0-4, 11-18 supported");
+                vsapi->setError(out, "Repair: Invalid mode specified, only 0-24 supported");
                 return;
             }
         } else {
@@ -891,5 +2006,3 @@ void VS_CC repairCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
 
     vsapi->createFilter(in, out, "Repair", repairInit, repairGetFrame, repairFree, fmParallel, 0, data, core);
 }
-
-
