@@ -41,6 +41,7 @@ static __forceinline T limit (T x, T mi, T ma)
     return ((x < mi) ? mi : ((x > ma) ? ma : x));
 }
 
+#ifdef VS_TARGET_CPU_X86
 static inline __m128i	limit_epi16(const __m128i &x, const __m128i &mi, const __m128i &ma) {
     return (_mm_max_epi16(_mm_min_epi16(x, ma), mi));
 }
@@ -92,6 +93,7 @@ static inline __m128i	mul_s32_s15_s16(__m128i src0, __m128i src1, __m128i coef) 
 
     return (res);
 }
+#endif
 
 class LineProcAll {
 public:
