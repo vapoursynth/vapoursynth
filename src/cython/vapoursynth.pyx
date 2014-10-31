@@ -20,7 +20,7 @@
 cimport vapoursynth
 cimport cython.parallel
 from cython cimport view
-from libc.stdint cimport intptr_t, uint16_t, uint32_t, uint64_t
+from libc.stdint cimport intptr_t, uint16_t, uint32_t
 from cpython.ref cimport Py_INCREF, Py_DECREF
 import os
 import ctypes
@@ -700,8 +700,8 @@ cdef class VideoFrame(object):
                 return <uint16_t[:width, :height]> (<uint16_t*>d)
             elif self.format.bytes_per_sample == 4:
                 return <uint32_t[:width, :height]> (<uint32_t*>d)
-            elif self.format.bytes_per_sample == 8:
-                return <uint64_t[:width, :height]> (<uint64_t*>d)
+        elif self.format.sample_type == stFloat:
+            return <float[:width, :height]> (<float*>d)
         return None
 
     def get_write_ptr(self, int plane):
@@ -730,8 +730,8 @@ cdef class VideoFrame(object):
                 return <uint16_t[:width, :height]> (<uint16_t*>d)
             elif self.format.bytes_per_sample == 4:
                 return <uint32_t[:width, :height]> (<uint32_t*>d)
-            elif self.format.bytes_per_sample == 8:
-                return <uint64_t[:width, :height]> (<uint64_t*>d)
+        elif self.format.sample_type == stFloat:
+            return <float[:width, :height]> (<float*>d)
         return None
 
     def get_stride(self, int plane):
