@@ -190,14 +190,12 @@ cdef class Func(object):
         inm = self.funcs.createMap()
         try:
             dictToMap(kwargs, inm, None, vsapi)
-            self.funcs.callFunc(self.ref, inm, outm, NULL, NULL)  
+            self.funcs.callFunc(self.ref, inm, outm, NULL, NULL)
+            if self.funcs.getError(outm):
+                raise Error(self.funcs.getError(outm).decode('utf-8'))
             ret = mapToDict(outm, False, False, None, vsapi)
             if not isinstance(ret, dict):
                 ret = {'val':ret}
-            
-        except BaseException, e:
-            emsg = str(e).encode('utf-8')
-            vsapi.setError(outm, emsg)
         finally:
             vsapi.freeMap(outm)
             vsapi.freeMap(inm)
