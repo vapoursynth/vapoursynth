@@ -19,7 +19,8 @@
 
 cimport vapoursynth
 cimport cython.parallel
-from libc.stdint cimport intptr_t
+from cython cimport view
+from libc.stdint cimport intptr_t, uint16_t, uint32_t, uint64_t
 from cpython.ref cimport Py_INCREF, Py_DECREF
 import os
 import ctypes
@@ -683,6 +684,26 @@ cdef class VideoFrame(object):
         cdef const uint8_t *d = self.funcs.getReadPtr(self.constf, plane)
         return ctypes.c_void_p(<uintptr_t>d)
 
+    def get_read_frame(self, int plane):
+        if plane < 0 or plane >= self.format.num_planes:
+            raise IndexError('Specified plane index out of range')
+        cdef const uint8_t *d = self.funcs.getReadPtr(self.constf, plane)
+        width = self.width
+        height = self.height
+        if plane is not 0:
+            width >>= self.format.subsampling_w
+            height >>= self.format.subsampling_h
+        if self.format.sample_type == stInteger:
+            if self.format.bytes_per_sample == 1:
+                return <uint8_t[:width, :height]> d
+            elif self.format.bytes_per_sample == 2:
+                return <uint16_t[:width, :height]> (<uint16_t*>d)
+            elif self.format.bytes_per_sample == 4:
+                return <uint32_t[:width, :height]> (<uint32_t*>d)
+            elif self.format.bytes_per_sample == 8:
+                return <uint64_t[:width, :height]> (<uint64_t*>d)
+        return None
+
     def get_write_ptr(self, int plane):
         if self.readonly:
             raise Error('Cannot obtain write pointer to read only frame')
@@ -690,6 +711,28 @@ cdef class VideoFrame(object):
             raise IndexError('Specified plane index out of range')
         cdef uint8_t *d = self.funcs.getWritePtr(self.f, plane)
         return ctypes.c_void_p(<uintptr_t>d)
+
+    def get_write_frame(self, int plane):
+        if self.readonly:
+            raise Error('Cannot obtain write pointer to read only frame')
+        if plane < 0 or plane >= self.format.num_planes:
+            raise IndexError('Specified plane index out of range')
+        cdef uint8_t *d = self.funcs.getWritePtr(self.f, plane)
+        width = self.width
+        height = self.height
+        if plane is not 0:
+            width >>= self.format.subsampling_w
+            height >>= self.format.subsampling_h
+        if self.format.sample_type == stInteger:
+            if self.format.bytes_per_sample == 1:
+                return <uint8_t[:width, :height]> d
+            elif self.format.bytes_per_sample == 2:
+                return <uint16_t[:width, :height]> (<uint16_t*>d)
+            elif self.format.bytes_per_sample == 4:
+                return <uint32_t[:width, :height]> (<uint32_t*>d)
+            elif self.format.bytes_per_sample == 8:
+                return <uint64_t[:width, :height]> (<uint64_t*>d)
+        return None
 
     def get_stride(self, int plane):
         if plane < 0 or plane >= self.format.num_planes:
