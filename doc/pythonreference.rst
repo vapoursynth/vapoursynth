@@ -174,11 +174,19 @@ Classes and Functions
    .. py:method:: get_read_ptr(plane)
 
       Returns a pointer to the raw frame data. The data may not be modified.
+      
+   .. py:method:: get_read_frame(plane)
+
+      Returns a memoryview of the frame data that's only valid as long as the VideoFrame object exists. The data may not be modified.
 
    .. py:method:: get_write_ptr(plane)
 
       Returns a pointer to the raw frame data. It may be written to using ctypes
       or some other similar python package.
+      
+   .. py:method:: get_write_frame(plane)
+
+      Returns a memoryview of the frame data that's only valid as long as the VideoFrame object exists.
 
    .. py:method:: get_stride(plane)
 

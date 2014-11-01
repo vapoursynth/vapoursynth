@@ -686,10 +686,9 @@ cdef class VideoFrame(object):
         if plane < 0 or plane >= self.format.num_planes:
             raise IndexError('Specified plane index out of range')
         cdef const uint8_t *d = self.funcs.getReadPtr(self.constf, plane)
-        width = self.width
+        width = self.get_stride(plane) // self.format.bytes_per_sample
         height = self.height
         if plane is not 0:
-            width >>= self.format.subsampling_w
             height >>= self.format.subsampling_h
         if self.format.sample_type == stInteger:
             if self.format.bytes_per_sample == 1:
@@ -716,10 +715,9 @@ cdef class VideoFrame(object):
         if plane < 0 or plane >= self.format.num_planes:
             raise IndexError('Specified plane index out of range')
         cdef uint8_t *d = self.funcs.getWritePtr(self.f, plane)
-        width = self.width
+        width = self.get_stride(plane) // self.format.bytes_per_sample
         height = self.height
         if plane is not 0:
-            width >>= self.format.subsampling_w
             height >>= self.format.subsampling_h
         if self.format.sample_type == stInteger:
             if self.format.bytes_per_sample == 1:

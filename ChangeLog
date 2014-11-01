@@ -1,4 +1,5 @@
 r25:
+frame data is now exposed in a more python friendly way, use the get_read_frame and get_write_frame methods to get fast and efficient arrays
 enabled x86 mmx state checks on all platforms
 fixed a filter error propagation issue that could lead to crashes
 fixed a race condition that could lead to too many threads being spawned to do nothing
