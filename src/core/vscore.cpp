@@ -589,22 +589,22 @@ const VSFormat *VSCore::registerFormat(VSColorFamily colorFamily, VSSampleType s
 
     // block nonsense formats
     if (subSamplingH < 0 || subSamplingW < 0 || subSamplingH > 4 || subSamplingW > 4)
-        vsFatal("Nonsense format registration");
+        return nullptr;
 
     if (sampleType < 0 || sampleType > 1)
-        vsFatal("Invalid sample type");
+        return nullptr;
 
     if (colorFamily == cmRGB && (subSamplingH != 0 || subSamplingW != 0))
-        vsFatal("We do not like subsampled rgb around here");
+        return nullptr;
 
     if (sampleType == stFloat && (bitsPerSample != 16 && bitsPerSample != 32))
-        vsFatal("Only floating point formats with 16 or 32 bit precision are allowed");
+        return nullptr;
 
     if (bitsPerSample < 8 || bitsPerSample > 32)
-        vsFatal("Only formats with 8-32 bits per sample are allowed");
+        return nullptr;
 
     if (colorFamily == cmCompat && !name)
-        vsFatal("No compatibility formats may be registered");
+        return nullptr;
 
     std::lock_guard<std::mutex> lock(formatLock);
 
