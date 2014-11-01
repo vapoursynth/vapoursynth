@@ -1,4 +1,5 @@
 r25:
+added getPluginPath function to the api so it's possible for plugins to load resources in relative paths in a reliable way, the returned paths are always absolute and use forward slashes
 registerFormat now returns null instead of terminating the program on invalid formats, this is so plugin developers won't have to duplicate logic and instead can simply try if a format is valid
 frame data is now exposed in a more python friendly way, use the get_read_frame and get_write_frame methods to get fast and efficient arrays
 enabled x86 mmx state checks on all platforms

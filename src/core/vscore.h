@@ -480,11 +480,11 @@ private:
 #else
     void *libHandle;
 #endif
-    std::string filename;
     std::map<std::string, VSFunction> funcs;
     std::mutex registerFunctionLock;
     VSCore *core;
 public:
+    std::string filename;
     std::string fullname;
     std::string fnamespace;
     std::string id;

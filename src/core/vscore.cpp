@@ -1080,6 +1080,9 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
     if (wPath.substr(0, 4) == L"\\\\?\\")
         wPath = wPath.substr(4);
     filename = conversion.to_bytes(wPath);
+    for (auto &iter : filename)
+        if (iter == '\\')
+            iter = '/';
 
     libHandle = LoadLibrary(wPath.c_str());
 

@@ -303,7 +303,7 @@ typedef int (VS_CC *VSSetThreadCount)(int threads, VSCore *core);
 typedef void (VS_CC *VSMessageHandler)(int msgType, const char *msg, void *userData);
 typedef void (VS_CC *VSSetMessageHandler)(VSMessageHandler handler, void *userData);
 
-typedef void (VS_CC *VSGetPluginPath)(const char **path, const char **filename, const char **fullpath);
+typedef const char *(VS_CC *VSGetPluginPath)(const VSPlugin *plugin);
 
 struct VSAPI {
     VSCreateCore createCore;
@@ -389,6 +389,8 @@ struct VSAPI {
 
     VSSetMessageHandler setMessageHandler;
     VSSetThreadCount setThreadCount;
+
+    VSGetPluginPath getPluginPath;
 };
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version);

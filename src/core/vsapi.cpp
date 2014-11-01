@@ -586,6 +586,14 @@ static int VS_CC setThreadCount(int threads, VSCore *core) {
     return core->threadPool->threadCount();
 }
 
+static const char *VS_CC getPluginPath(const VSPlugin *plugin) {
+    assert(plugin);
+    if (!plugin->fullname.empty())
+        return plugin->fullname.c_str();
+    else
+        return nullptr;
+}
+
 const VSAPI vsapi = {
     &createCore,
     &freeCore,
@@ -664,7 +672,9 @@ const VSAPI vsapi = {
     &newVideoFrame2,
 
     &setMessageHandler,
-    &setThreadCount
+    &setThreadCount,
+
+    &getPluginPath
 };
 
 ///////////////////////////////
