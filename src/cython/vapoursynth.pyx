@@ -786,6 +786,17 @@ cdef class VideoNode(object):
 
     def __dealloc__(self):
         self.funcs.freeNode(self.node)
+        
+    def __getattr__(self, name):
+        try:
+            obj = self.core.__getattr__(name)
+            if isinstance(obj, Plugin):
+                (<Plugin>obj).injected_arg = self
+            elif isinstance(obj, Function):
+                (<Function>obj).plugin.injected_arg = self
+            return obj
+        except AttributeError:
+            raise AttributeError('There is no attribute or command named ' + name)
 
     def get_frame(self, int n):
         cdef char errorMsg[512]
@@ -1201,6 +1212,7 @@ cdef class Plugin(object):
     cdef Core core
     cdef VSPlugin *plugin
     cdef const VSAPI *funcs
+    cdef object injected_arg
 
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
@@ -1268,6 +1280,7 @@ cdef Plugin createPlugin(VSPlugin *plugin, const VSAPI *funcs, Core core):
     instance.core = core
     instance.plugin = plugin
     instance.funcs = funcs
+    instance.injected_arg = None
     return instance
 
 cdef class Function(object):
@@ -1284,6 +1297,8 @@ cdef class Function(object):
         cdef VSMap *outm
         cdef char *cname
         arglist = list(args)
+        if self.plugin.injected_arg is not None:
+            arglist.insert(0, self.plugin.injected_arg)
         ndict = {}
         processed = {}
         atypes = {}
