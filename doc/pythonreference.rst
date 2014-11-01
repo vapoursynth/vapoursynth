@@ -69,11 +69,11 @@ Classes and Functions
    .. py:method:: register_format(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h)
 
       Register a new Format object or obtain a reference to an existing one if
-      it has already been registered.
+      it has already been registered. Invalid formats throw an exception.
 
    .. py:method:: get_format(id)
 
-      Retrieve a Format object corresponding to the id.
+      Retrieve a Format object corresponding to the id. Returns None if there is no format with the corresponding *id*.
 
    .. py:method:: version()
 

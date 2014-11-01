@@ -303,6 +303,8 @@ typedef int (VS_CC *VSSetThreadCount)(int threads, VSCore *core);
 typedef void (VS_CC *VSMessageHandler)(int msgType, const char *msg, void *userData);
 typedef void (VS_CC *VSSetMessageHandler)(VSMessageHandler handler, void *userData);
 
+typedef void (VS_CC *VSGetPluginPath)(const char **path, const char **filename, const char **fullpath);
+
 struct VSAPI {
     VSCreateCore createCore;
     VSFreeCore freeCore;

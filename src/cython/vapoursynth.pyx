@@ -1126,13 +1126,16 @@ cdef class Core(object):
         return sout
 
     def register_format(self, int color_family, int sample_type, int bits_per_sample, int subsampling_w, int subsampling_h):
-        return createFormat(self.funcs.registerFormat(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h, self.core))
+        cdef const VSFormat *fmt = self.funcs.registerFormat(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h, self.core)
+        if fmt == NULL:
+            raise Error('Invalid format specified')
+        return createFormat(fmt)
 
     def get_format(self, int id):
         cdef const VSFormat *f = self.funcs.getFormatPreset(id, self.core)
 
         if f == NULL:
-            raise Error('Internal error')
+            raise Error('Format not registered')
         else:
             return createFormat(f)
 
