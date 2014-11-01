@@ -18,6 +18,7 @@ Native Plugins
 * :ref:`VIVTC <vivtc>` -- field matching, inverse telecine and decimation,  in the source tree
 * `AddGrain <http://forum.doom9.org/showthread.php?t=171073>`_ -- Port of the Avisynth AddGrain filter
 * `Bifrost 2000 <https://github.com/dubhater/vapoursynth-bifrost>`_ -- A rainbow remover based on the Bifrost filter for Avisynth
+* `Bilateral <http://forum.doom9.org/showthread.php?t=171306>`_ -- Bilateral filtering
 * `CTMF <http://forum.doom9.org/showthread.php?t=171213>`_ -- Constant Time Median Filtering
 * `d2vsource <http://forum.doom9.org/showthread.php?t=166399>`_ -- Frame accurate mpeg2 source filter
 * `DCT Filter <http://forum.doom9.org/showthread.php?t=171039>`_ -- Block based DCT coefficient adjustment
@@ -37,6 +38,7 @@ Native Plugins
 * `MSmoosh <http://forum.doom9.org/showthread.php?t=171159>`_ -- MSmooth and MSharpen ports
 * `MVTools <http://forum.doom9.org/showthread.php?t=171207>`_ -- MVTools port
 * `nnedi3 <http://forum.doom9.org/showthread.php?t=166434>`_ -- Field interpolator/deinterlacer
+* `Retinex <http://forum.doom9.org/showthread.php?t=171307>`_ -- Dynamic range compression
 * `SceneChange <http://forum.doom9.org/showthread.php?t=166769>`_ -- Scene change detection and flagging
 * `SSIQ <https://github.com/dubhater/vapoursynth-ssiq>`_ -- Spatial derainbowing filter
 * `TComb <http://forum.doom9.org/showthread.php?t=171124>`_ -- Port of the Avisynth script
