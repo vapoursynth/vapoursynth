@@ -1,4 +1,5 @@
 r25:
+added experimental . syntax, for example core.BlankClip().VFM(order=1) will now work, if multiple functions have the same name they still need to be prefixed with the namespace
 now uses the proper python exception for missing attributes
 added getPluginPath function to the api so it's possible for plugins to load resources in relative paths in a reliable way, the returned paths are always absolute and use forward slashes
 registerFormat now returns null instead of terminating the program on invalid formats, this is so plugin developers won't have to duplicate logic and instead can simply try if a format is valid
