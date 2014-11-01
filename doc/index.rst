@@ -13,6 +13,7 @@ Contents:
    :maxdepth: 3
 
    installation
+   osxcompilation
    gettingstarted
    pythonbindings
    pythonreference

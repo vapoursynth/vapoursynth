@@ -1,5 +1,5 @@
-Installation Instructions
-=========================
+Windows Installation Instructions
+=================================
 
 Prerequisites
 #############
@@ -34,9 +34,3 @@ installed before VapourSynth. If you install the Pismo File Mount Audit Package
 after VapourSynth and still want to use this feature either reinstall
 VapourSynth or register it from the commandline with
 "pfm register <path>\\core32\\vsfs.dll" or "pfm register <path>\\core64\\vsfs.dll".
-
-Compiling
-#########
-
-If you're not on Windows you have to compile VapourSynth yourself.
-Check out the source and follow the instructions in the INSTALL file.
