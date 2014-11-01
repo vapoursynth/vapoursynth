@@ -1073,7 +1073,7 @@ cdef class Core(object):
         if plugin:
             return createPlugin(plugin, self.funcs, self)
         else:
-            raise Error('No attribute with the name ' + name + ' exists. Did you mistype a plugin namespace?')
+            raise AttributeError('No attribute with the name ' + name + ' exists. Did you mistype a plugin namespace?')
 
     def set_max_cache_size(self, int mb):
         self.max_cache_size = mb
@@ -1231,7 +1231,7 @@ cdef class Plugin(object):
             return createFunction(orig_name, signature[1], self, self.funcs)
         else:
             self.funcs.freeMap(m)
-            raise Error('There is no function named ' + name)
+            raise AttributeError('There is no function named ' + name)
 
     def get_functions(self):
         cdef VSMap *n
