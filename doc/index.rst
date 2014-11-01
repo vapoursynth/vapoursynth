@@ -14,6 +14,7 @@ Contents:
 
    installation
    osxcompilation
+   linuxcompilation
    gettingstarted
    pythonbindings
    pythonreference
