@@ -386,7 +386,7 @@ cdef void dictToMap(dict ndict, VSMap *inm, Core core, const VSAPI *funcs) excep
         ckey = key.encode('utf-8')
         val = ndict[key]
 
-        if isinstance(val, str) or isinstance(val, bytes) or isinstance(val, bytearray) or isinstance(val, VideoNode):
+        if isinstance(val, (str, bytes, bytearray, VideoNode)):
             val = [val]
         else:
             try:
@@ -420,7 +420,7 @@ cdef void dictToMap(dict ndict, VSMap *inm, Core core, const VSAPI *funcs) excep
 
                 if funcs.propSetData(inm, ckey, s, -1, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
-            elif isinstance(v, bytes) or isinstance(v, bytearray):
+            elif isinstance(v, (bytes, bytearray)):
                 if funcs.propSetData(inm, ckey, v, <int>len(v), 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             else:
@@ -434,7 +434,7 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, Core core, const V
         if val is None:
             continue
 
-        if isinstance(val, str) or isinstance(val, bytes) or isinstance(val, bytearray) or isinstance(val, VideoNode):
+        if isinstance(val, (str, bytes, bytearray, VideoNode))):
             val = [val]
         else:
             try:
@@ -462,7 +462,7 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, Core core, const V
             elif atypes[key][:5] == 'float' and (type(v) == int or type(v) == long or type(v) == float):
                 if funcs.propSetFloat(inm, ckey, float(v), 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
-            elif atypes[key][:4] == 'data' and (isinstance(v, str) or isinstance(v, bytes) or isinstance(v, bytearray)):
+            elif atypes[key][:4] == 'data' and isinstance(v, (str, bytes, bytearray)):
                 if isinstance(v, str):
                     s = str(v).encode('utf-8')
                 else:
@@ -587,7 +587,7 @@ cdef class VideoProps(object):
         cdef bytes b = name.encode('utf-8')
         cdef const VSAPI *funcs = self.funcs
         val = value
-        if isinstance(val, str) or isinstance(val, bytes) or isinstance(val, bytearray) or isinstance(val, VideoNode):
+        if isinstance(val, (str, bytes, bytearray, VideoNode)):
             val = [val]
         else:
             try:
@@ -620,7 +620,7 @@ cdef class VideoProps(object):
                     s = str(v).encode('utf-8')
                     if funcs.propSetData(m, b, s, -1, 1) != 0:
                         raise Error('Not all values are of the same type')
-                elif isinstance(v, bytes) or isinstance(v, bytearray):
+                elif isinstance(v, (bytes, bytearray)):
                     if funcs.propSetData(m, b, v, <int>len(v), 1) != 0:
                         raise Error('Not all values are of the same type')
                 else:
