@@ -434,7 +434,7 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, Core core, const V
         if val is None:
             continue
 
-        if isinstance(val, (str, bytes, bytearray, VideoNode))):
+        if isinstance(val, (str, bytes, bytearray, VideoNode)):
             val = [val]
         else:
             try:
