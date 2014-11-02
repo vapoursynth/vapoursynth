@@ -1,8 +1,8 @@
-OSX Compilation Instructions
-============================
+OS X Compilation Instructions
+=============================
 
 This is a simple guide to on how to compile VapourSynth on OSX for those who are a bit lazy.
-It's been tested on a clean install of OSX 10.10 and compiles all parts except the OCR and ImageMagick filters.
+It's been tested on a clean install of OS X 10.10 and compiles all parts except the OCR and ImageMagick filters.
 
 Prerequisites
 #############

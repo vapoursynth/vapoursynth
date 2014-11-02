@@ -9,6 +9,9 @@ If you don't know the basics of Python you may want to check out the
 You can "play around" in the python interpreter if you want, but that's not how
 most video scripts are created.
 
+Example Script
+##############
+
 Here's a sample script to be inspired by::
 
    import vapoursynth as vs
@@ -29,3 +32,14 @@ Here's a sample script to be inspired by::
 
 Remember that most VapourSynth objects have a quite nice string representation
 in Python, so if you want to know more about an instance just call print().
+
+Output with VSPipe
+##################
+
+VSPipe is very useful to pipe the output to various applications, for example x264 and FFmpeg for encoding.
+Here are two examples of commandlines that automatically pass on most video attributes.
+
+For x264::
+
+For FFmpeg::
+
