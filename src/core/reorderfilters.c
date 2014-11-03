@@ -610,7 +610,8 @@ static void VS_CC duplicateFramesCreate(const VSMap *in, VSMap *out, void *userD
             return;
         }
 
-    d.vi.numFrames += d.num_dups;
+    if (d.vi.numFrames)
+        d.vi.numFrames += d.num_dups;
 
     data = malloc(sizeof(d));
     *data = d;
@@ -679,7 +680,7 @@ static void VS_CC deleteFramesCreate(const VSMap *in, VSMap *out, void *userData
     for (i = 0; i < d.num_delete; i++) {
         d.delete[i] = int64ToIntS(vsapi->propGetInt(in, "frames", i, 0));
 
-        if (d.delete[i] < 0 || (d.vi.numFrames && d.delete[i] > d.vi.numFrames - 1)) {
+        if (d.delete[i] < 0 || (d.vi.numFrames && d.delete[i] >= d.vi.numFrames)) {
             vsapi->setError(out, "DeleteFrames: Out of bounds frame number.");
             vsapi->freeNode(d.node);
             free(d.delete);
@@ -703,7 +704,15 @@ static void VS_CC deleteFramesCreate(const VSMap *in, VSMap *out, void *userData
         }
     }
 
-    d.vi.numFrames -= d.num_delete;
+    if (d.vi.numFrames) {
+        d.vi.numFrames -= d.num_delete;
+        if (!d.vi.numFrames) {
+            vsapi->setError(out, "DeleteFrames: Can't delete all frames.");
+            vsapi->freeNode(d.node);
+            free(d.delete);
+            return;
+        }
+    }
 
     data = malloc(sizeof(d));
     *data = d;
@@ -791,8 +800,8 @@ static void VS_CC freezeFramesCreate(const VSMap *in, VSMap *out, void *userData
             d.freeze[i].last = tmp;
         }
 
-        if (d.freeze[i].first < 0 || (d.vi->numFrames && d.freeze[i].last > d.vi->numFrames - 1) ||
-            d.freeze[i].replacement < 0 || (d.vi->numFrames && d.freeze[i].replacement > d.vi->numFrames - 1)) {
+        if (d.freeze[i].first < 0 || (d.vi->numFrames && d.freeze[i].last >= d.vi->numFrames) ||
+            d.freeze[i].replacement < 0 || (d.vi->numFrames && d.freeze[i].replacement >= d.vi->numFrames)) {
             vsapi->setError(out, "FreezeFrames: Out of bounds frame number(s).");
             vsapi->freeNode(d.node);
             free(d.freeze);
