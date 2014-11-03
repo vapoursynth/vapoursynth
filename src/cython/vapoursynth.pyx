@@ -685,7 +685,7 @@ cdef class VideoFrame(object):
         cdef const uint8_t *d = self.funcs.getReadPtr(self.constf, plane)
         return ctypes.c_void_p(<uintptr_t>d)
 
-    def get_read_frame(self, int plane):
+    def get_read_array(self, int plane):
         if plane < 0 or plane >= self.format.num_planes:
             raise IndexError('Specified plane index out of range')
         cdef const uint8_t *d = self.funcs.getReadPtr(self.constf, plane)
@@ -712,7 +712,7 @@ cdef class VideoFrame(object):
         cdef uint8_t *d = self.funcs.getWritePtr(self.f, plane)
         return ctypes.c_void_p(<uintptr_t>d)
 
-    def get_write_frame(self, int plane):
+    def get_write_array(self, int plane):
         if self.readonly:
             raise Error('Cannot obtain write pointer to read only frame')
         if plane < 0 or plane >= self.format.num_planes:

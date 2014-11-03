@@ -175,7 +175,7 @@ Classes and Functions
 
       Returns a pointer to the raw frame data. The data may not be modified.
       
-   .. py:method:: get_read_frame(plane)
+   .. py:method:: get_read_array(plane)
 
       Returns a memoryview of the frame data that's only valid as long as the VideoFrame object exists. The data may not be modified.
 
@@ -184,7 +184,7 @@ Classes and Functions
       Returns a pointer to the raw frame data. It may be written to using ctypes
       or some other similar python package.
       
-   .. py:method:: get_write_frame(plane)
+   .. py:method:: get_write_array(plane)
 
       Returns a memoryview of the frame data that's only valid as long as the VideoFrame object exists.
 
