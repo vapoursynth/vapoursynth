@@ -249,6 +249,16 @@ Classes and Functions
    .. py:method:: list_functions()
 
       Works similar to *get_functions()* but returns a human readable string.
+      
+.. py:class:: Function
+
+   Function is a simple wrapper class for a function provided by a VapourSynth plugin.
+   Its main purpose is to be called and nothing else.
+   
+.. py:class:: Func
+
+   Func is a simple wrapper class for VapourSynth VSFunc objects.
+   Its main purpose is to be called and manage reference counting.
 
 .. py:exception:: Error
 
