@@ -84,6 +84,9 @@ RGBS = vapoursynth.pfRGBS
 COMPATBGR32 = vapoursynth.pfCompatBGR32
 COMPATYUY2 = vapoursynth.pfCompatYUY2
 
+INTEGER = vapoursynth.stInteger
+FLOAT = vapoursynth.stFloat
+
 class Error(Exception):
     def __init__(self, value):
         self.value = value
