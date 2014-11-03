@@ -1095,7 +1095,8 @@ cdef class Core(object):
         for p in plugins:
             if name in plugins[p]['functions']:
                 ns_list.append(plugins[p]['namespace'])
-                plugin = self.funcs.getPluginById(plugins[p]['identifier'].encode('utf-8'), self.core)
+                id = plugins[p]['identifier'].encode('utf-8')
+                plugin = self.funcs.getPluginById(id, self.core)
 
         if len(ns_list) > 1:  
             raise AttributeError('Ambiguous function name reference, the attribute ' + name + ' has multiple possible candidates in namespaces: ' + ns_list.join(' '))
