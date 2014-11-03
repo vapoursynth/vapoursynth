@@ -16,7 +16,7 @@ global plugins are placed last to prevent them from overriding any of the includ
 The searched paths are:
 
 #. *<AppData>*\\VapourSynth\\plugins32 or *<AppData>*\\VapourSynth\\plugins64
-#. *<VapourSynth path>*\\core32\plugins or *<VapourSynth path>*\\core64\\plugins
+#. *<VapourSynth path>*\\core32\\plugins or *<VapourSynth path>*\\core64\\plugins
 #. *<VapourSynth path>*\\plugins32 or *<VapourSynth path>*\\plugins64
 
 Note that the per user path is not created by default. Shortcuts to the global autoload directory are also located in the start menu.
