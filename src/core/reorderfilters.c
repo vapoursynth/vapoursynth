@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2013 Fredrik Mellbin
+* Copyright (c) 2012-2014 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -55,6 +55,16 @@ static int findCommonVi(VSNodeRef **nodes, int num, VSVideoInfo *outvi, int igno
     }
 
     return mismatch;
+}
+
+static int compareInts(const void* a, const void* b) {
+    int arg1 = *((const int*)a);
+    int arg2 = *((const int*)b);
+    if (arg1 < arg2)
+        return -1;
+    if (arg1 > arg2)
+        return 1;
+    return 0;
 }
 
 //////////////////////////////////////////
@@ -602,13 +612,7 @@ static void VS_CC duplicateFramesCreate(const VSMap *in, VSMap *out, void *userD
         }
     }
 
-    for (i = 0; i < d.num_dups - 1; i++)
-        if (d.dups[i] > d.dups[i + 1]) {
-            vsapi->setError(out, "DuplicateFrames: The frame numbers must be in ascending order.");
-            vsapi->freeNode(d.node);
-            free(d.dups);
-            return;
-        }
+    qsort(d.dups, d.num_dups, sizeof(int), compareInts);
 
     if (d.vi.numFrames)
         d.vi.numFrames += d.num_dups;
@@ -688,14 +692,9 @@ static void VS_CC deleteFramesCreate(const VSMap *in, VSMap *out, void *userData
         }
     }
 
-    for (i = 0; i < d.num_delete - 1; i++) {
-        if (d.delete[i] > d.delete[i + 1]) {
-            vsapi->setError(out, "DeleteFrames: The frame numbers must be in ascending order.");
-            vsapi->freeNode(d.node);
-            free(d.delete);
-            return;
-        }
+    qsort(d.delete, d.num_delete, sizeof(int), compareInts);
 
+    for (i = 0; i < d.num_delete - 1; i++) {
         if (d.delete[i] == d.delete[i + 1]) {
             vsapi->setError(out, "DeleteFrames: Can't delete a frame more than once.");
             vsapi->freeNode(d.node);

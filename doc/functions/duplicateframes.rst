@@ -9,5 +9,3 @@ DuplicateFrames
    A frame may be duplicated several times.
 
    All frame numbers apply to the input clip.
-
-   The frame numbers must be in ascending order.
