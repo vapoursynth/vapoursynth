@@ -587,9 +587,10 @@ static int VS_CC setThreadCount(int threads, VSCore *core) {
 }
 
 static const char *VS_CC getPluginPath(const VSPlugin *plugin) {
-    assert(plugin);
-    if (!plugin->fullname.empty())
-        return plugin->fullname.c_str();
+    if (!plugin)
+        vsFatal("NULL passed to getPluginPath");
+    if (!plugin->filename.empty())
+        return plugin->filename.c_str();
     else
         return nullptr;
 }
