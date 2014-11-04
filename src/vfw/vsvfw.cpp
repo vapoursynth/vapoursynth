@@ -784,27 +784,27 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
     
     if (fi->id == pfYUV422P10 && parent->enable_v210) {
         taffy_param p = {0};
-        p.dst_stride[0] = taffy_get_v210_stride(p.width[0]);
-        p.dstp[0] = lpBuffer;
         for (int plane = 0; plane < 3; plane++) {
             p.srcp[plane] = vsapi->getReadPtr(f, plane);
             p.src_stride[plane] = vsapi->getStride(f, plane);
             p.width[plane] = vsapi->getFrameWidth(f, plane);
             p.height[plane] = vsapi->getFrameHeight(f, plane);
         }
+        p.dst_stride[0] = taffy_get_v210_stride(p.width[0]);
+        p.dstp[0] = lpBuffer;
         taffy_pack_v210(&p);
     } else if ((fi->id == pfYUV420P16) || (fi->id == pfYUV422P16) || (fi->id == pfYUV420P10) || (fi->id == pfYUV422P10)) {
         taffy_param p = { 0 };
+        for (int plane = 0; plane < 3; plane++) {
+            p.srcp[plane] = vsapi->getReadPtr(f, plane);
+            p.src_stride[plane] = vsapi->getStride(f, plane);
+            p.width[plane] = vsapi->getFrameWidth(f, plane);
+            p.height[plane] = vsapi->getFrameHeight(f, plane);
+        }
         p.dst_stride[0] = p.width[0] * fi->bytesPerSample;
         p.dst_stride[1] = p.width[1] * 2 * fi->bytesPerSample;
         p.dstp[0] = lpBuffer;
         p.dstp[1] = (BYTE *)lpBuffer + p.dst_stride[0] * p.height[0];
-        for (int plane = 0; plane < 3; plane++) {
-            p.srcp[plane] = vsapi->getReadPtr(f, plane);
-            p.src_stride[plane] = vsapi->getStride(f, plane);
-            p.width[plane] = vsapi->getFrameWidth(f, plane);
-            p.height[plane] = vsapi->getFrameHeight(f, plane);
-        }
         if ((fi->id == pfYUV420P10) || (fi->id == pfYUV422P10))
             taffy_pack_px10(&p);
         else
