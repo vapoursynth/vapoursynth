@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2013 Fredrik Mellbin
+* Copyright (c) 2012-2014 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -22,22 +22,20 @@
 
 #define INITGUID
 #define WIN32_LEAN_AND_MEAN
-#include <objbase.h>
-#include <vfw.h>
+#define NOMINMAX
 #include <windows.h>
-#include <stdio.h>
-#include <assert.h>
+#include <vfw.h>
 #include <string>
 #include <algorithm>
-#include <fstream>
-#include <string>
-#include <errno.h>
 #include <mutex>
+#include <atomic>
+#include <codecvt>
 
 #include "VSScript.h"
 #include "VSHelper.h"
+#include "taffy.h"
 
-static long refCount=0;
+static std::atomic<long> refCount(0);
 
 static int BMPSize(int height, int rowsize) {
     return height * ((rowsize+3) & ~3);
@@ -63,13 +61,12 @@ private:
     const VSAPI *vsapi;
     VSScript *se;
     bool enable_v210;
-    bool pad_scanlines;
     VSNodeRef *node;
-    long m_refs;
+    std::atomic<long> m_refs;
     std::string szScriptName;
     const VSVideoInfo* vi;
     std::string error_msg;
-    volatile long pending_requests;
+    std::atomic<long> pending_requests;
 
     std::mutex cs_filter_graph;
 
@@ -168,7 +165,7 @@ public:
     STDMETHODIMP End();
 
 private:
-    long m_refs;
+    std::atomic<long> m_refs;
 
     VapourSynthFile *parent;
     std::string sName;
@@ -239,9 +236,8 @@ STDMETHODIMP VapourSynthFile::IsDirty() {
 }
 
 STDMETHODIMP VapourSynthFile::Load(LPCOLESTR lpszFileName, DWORD grfMode) {
-    char filename[MAX_PATH*2];
-    WideCharToMultiByte(CP_UTF8, 0, lpszFileName, -1, filename, sizeof(filename), NULL, NULL);
-    return Open(filename, grfMode, lpszFileName);
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
+    return Open(conversion.to_bytes(lpszFileName).c_str(), grfMode, lpszFileName);
 }
 
 STDMETHODIMP VapourSynthFile::Save(LPCOLESTR lpszFileName, BOOL fRemember) {
@@ -254,7 +250,7 @@ STDMETHODIMP VapourSynthFile::SaveCompleted(LPCOLESTR lpszFileName) {
 
 STDMETHODIMP VapourSynthFile::GetCurFile(LPOLESTR *lplpszFileName) {
     if (lplpszFileName)
-        *lplpszFileName = NULL;
+        *lplpszFileName = nullptr;
     return E_FAIL;
 }
 
@@ -291,7 +287,7 @@ STDMETHODIMP VapourSynthFile::QueryInterface(const IID& iid, void **ppv) {
     } else if (iid == IID_IAvisynthClipInfo) {
         *ppv = (IAvisynthClipInfo *)this;
     } else {
-        *ppv = NULL;
+        *ppv = nullptr;
         return E_NOINTERFACE;
     }
 
@@ -301,14 +297,14 @@ STDMETHODIMP VapourSynthFile::QueryInterface(const IID& iid, void **ppv) {
 }
 
 STDMETHODIMP_(ULONG) VapourSynthFile::AddRef() {
-    const int refs = InterlockedIncrement(&m_refs);
-    InterlockedIncrement(&refCount);
+    const int refs = ++m_refs;
+    ++refCount;
     return refs;
 }
 
 STDMETHODIMP_(ULONG) VapourSynthFile::Release() {
-    const int refs = InterlockedDecrement(&m_refs);
-    InterlockedDecrement(&refCount);
+    const int refs = --m_refs;
+    --refCount;
     if (!refs)
         delete this;
     return refs;
@@ -333,7 +329,7 @@ STDMETHODIMP VapourSynthStream::QueryInterface(const IID& iid, void **ppv) {
     } else if (iid == IID_IAVIStreaming) {
         *ppv = (IAVIStreaming *)this;
     } else {
-        *ppv = NULL;
+        *ppv = nullptr;
         return E_NOINTERFACE;
     }
 
@@ -343,14 +339,14 @@ STDMETHODIMP VapourSynthStream::QueryInterface(const IID& iid, void **ppv) {
 }
 
 STDMETHODIMP_(ULONG) VapourSynthStream::AddRef() {
-    const int refs = InterlockedIncrement(&m_refs);
-    InterlockedIncrement(&refCount);
+    const int refs = ++m_refs;
+    ++refCount;
     return refs;
 }
 
 STDMETHODIMP_(ULONG) VapourSynthStream::Release() {
-    const int refs = InterlockedDecrement(&m_refs);
-    InterlockedDecrement(&refCount);
+    const int refs = --m_refs;
+    --refCount;
     if (!refs) delete this;
     return refs;
 }
@@ -363,7 +359,7 @@ STDMETHODIMP_(ULONG) VapourSynthStream::Release() {
 //////////// IAVIFile
 
 STDMETHODIMP VapourSynthFile::CreateStream(PAVISTREAM *ppStream, AVISTREAMINFOW *psi) {
-    *ppStream = NULL;
+    *ppStream = nullptr;
     return S_OK;
 }
 
@@ -392,7 +388,7 @@ STDMETHODIMP VapourSynthFile::DeleteStream(DWORD fccType, LONG lParam) {
 ///////////////////////////////////////////////////
 /////// local
 
-VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : num_threads(1), node(NULL), se(NULL), vsapi(NULL), enable_v210(false), pad_scanlines(false), m_refs(0), vi(NULL), pending_requests(0) {
+VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : num_threads(1), node(nullptr), se(nullptr), vsapi(nullptr), enable_v210(false), m_refs(0), vi(nullptr), pending_requests(0) {
     vsapi = vsscript_getVSApi();
     AddRef();
 }
@@ -401,7 +397,7 @@ VapourSynthFile::~VapourSynthFile() {
     Lock();
     if (vi) {
         while (pending_requests > 0) {};
-        vi = NULL;
+        vi = nullptr;
         vsapi->freeNode(node);
         vsscript_freeScript(se);
     }
@@ -416,11 +412,9 @@ int VapourSynthFile::ImageSize() {
     if (vi->format->id == pfYUV422P10 && enable_v210) {
         image_size = ((16*((vi->width + 5) / 6) + 127) & ~127);
         image_size *= vi->height;
-    } else if (vi->format->numPlanes == 1 || pad_scanlines) {
+    } else if (vi->format->numPlanes == 1) {
         image_size = BMPSize(vi->height, vi->width * vi->format->bytesPerSample);
-        if (vi->format->numPlanes == 3)
-            image_size += 2 * BMPSize(vi->height >> vi->format->subSamplingH, (vi->width >> vi->format->subSamplingW) * vi->format->bytesPerSample);
-    } else { // Packed size
+    } else {
         image_size = (vi->width * vi->format->bytesPerSample) >> vi->format->subSamplingW;
         if (image_size) {
             image_size  *= vi->height;
@@ -473,7 +467,7 @@ bool VapourSynthFile::DelayInit2() {
             vi = vsapi->getVideoInfo(node);
             error_msg.clear();
 
-            if (vi->width == 0 || vi->height == 0 || vi->format == NULL || vi->numFrames == 0) {
+            if (vi->width == 0 || vi->height == 0 || vi->format == nullptr || vi->numFrames == 0) {
                 error_msg = "Cannot open clips with varying dimensions or format in vfw";
                 goto vpyerror;
             }
@@ -499,20 +493,11 @@ bool VapourSynthFile::DelayInit2() {
 
             // set the special options hidden in global variables
             int error;
-            int64_t val;
             VSMap *options = vsapi->createMap();
             vsscript_getVariable(se, "enable_v210", options);
-            val = vsapi->propGetInt(options, "enable_v210", 0, &error);
-            if (!error)
-                enable_v210 = !!val;
-            else
+            enable_v210 = !!vsapi->propGetInt(options, "enable_v210", 0, &error);
+            if (error)
                 enable_v210 = false;
-            vsscript_getVariable(se, "pad_scanlines", options);
-            val = vsapi->propGetInt(options, "pad_scanlines", 0, &error);
-            if (!error)
-                pad_scanlines = !!val;
-            else
-                pad_scanlines = false;
             vsapi->freeMap(options);
 
             const VSCoreInfo *info = vsapi->getCoreInfo(vsscript_getCore(se));
@@ -522,9 +507,9 @@ bool VapourSynthFile::DelayInit2() {
         } else {
             error_msg = vsscript_getError(se);
             vpyerror:
-            vi = NULL;
+            vi = nullptr;
             vsscript_freeScript(se);
-            se = NULL;
+            se = nullptr;
             std::string error_script = ErrorScript1;
             error_script += error_msg;
             error_script += ErrorScript2;
@@ -577,7 +562,7 @@ STDMETHODIMP VapourSynthFile::Info(AVIFILEINFOW *pfi, LONG lSize) {
 
     // Maybe should return AVIERR_BUFFERTOOSMALL for lSize < sizeof(afi)
     memset(pfi, 0, lSize);
-    memcpy(pfi, &afi, min(size_t(lSize), sizeof(afi)));
+    memcpy(pfi, &afi, std::min(size_t(lSize), sizeof(afi)));
     return S_OK;
 }
 
@@ -600,7 +585,7 @@ STDMETHODIMP VapourSynthFile::GetStream(PAVISTREAM *ppStream, DWORD fccType, LON
     if (!DelayInit())
         return E_FAIL;
 
-    *ppStream = NULL;
+    *ppStream = nullptr;
 
     if (!fccType) {
         if (lParam==0)
@@ -697,9 +682,7 @@ STDMETHODIMP VapourSynthStream::SetInfo(AVISTREAMINFOW *psi, LONG lSize) {
 ////////////////////////////////////////////////////////////////////////
 //////////// local
 
-VapourSynthStream::VapourSynthStream(VapourSynthFile *parentPtr, bool isAudio) {
-    sName = "video";
-    m_refs = 0;
+VapourSynthStream::VapourSynthStream(VapourSynthFile *parentPtr, bool isAudio) : sName("video"), m_refs(0) {
     AddRef();
     parent = parentPtr;
     parent->AddRef();
@@ -767,7 +750,7 @@ STDMETHODIMP_(LONG) VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) {
 
     // Maybe should return AVIERR_BUFFERTOOSMALL for lSize < sizeof(asi)
     memset(psi, 0, lSize);
-    memcpy(psi, &asi, min(size_t(lSize), sizeof(asi)));
+    memcpy(psi, &asi, std::min(size_t(lSize), sizeof(asi)));
     return S_OK;
 }
 
@@ -788,7 +771,7 @@ STDMETHODIMP_(LONG) VapourSynthStream::FindSample(LONG lPos, LONG lFlags) {
 void VS_CC VapourSynthFile::frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg) {
     VapourSynthFile *vsfile = (VapourSynthFile *)userData;
     vsfile->vsapi->freeFrame(f);
-    InterlockedDecrement(&vsfile->pending_requests);
+    --vsfile->pending_requests;
 }
 
 bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
@@ -798,121 +781,62 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
         return false;
 
     const VSFormat *fi = vsapi->getFrameFormat(f);
-    const int pitch    = vsapi->getStride(f, 0);
-    const int row_size = vsapi->getFrameWidth(f, 0) * fi->bytesPerSample;
-    const int height   = vsapi->getFrameHeight(f, 0);
-
-    int out_pitch;
-    int out_pitchUV;
-
-    bool semi_packed_p10 = (fi->id == pfYUV420P10) || (fi->id == pfYUV422P10);
-    bool semi_packed_p16 = (fi->id == pfYUV420P16) || (fi->id == pfYUV422P16);
-
-    // BMP scanlines are dword-aligned
-    if (fi->numPlanes == 1) {
-        out_pitch = (row_size+3) & ~3;
-        out_pitchUV = (vsapi->getFrameWidth(f, 1) * fi->bytesPerSample+3) & ~3;
-    }
-    // Planar scanlines are packed
-    else {
-        out_pitch = row_size;
-        out_pitchUV = vsapi->getFrameWidth(f, 1) * fi->bytesPerSample;
-    }
-
+    
     if (fi->id == pfYUV422P10 && parent->enable_v210) {
-        int width = vsapi->getFrameWidth(f, 0);
-        int pstride_y = vsapi->getStride(f, 0)/2;
-        int pstride_uv = vsapi->getStride(f, 1)/2;
-        const uint16_t *yptr = (const uint16_t *)vsapi->getReadPtr(f, 0);
-        const uint16_t *uptr = (const uint16_t *)vsapi->getReadPtr(f, 1);
-        const uint16_t *vptr = (const uint16_t *)vsapi->getReadPtr(f, 2);
-        uint32_t *outbuf = (uint32_t *)lpBuffer;
-        out_pitch = ((16*((width + 5) / 6) + 127) & ~127)/4;
-        for (int y = 0; y < height; y++) {
-            const uint16_t *yline = yptr;
-            const uint16_t *uline = uptr;
-            const uint16_t *vline = vptr;
-            uint32_t *out_line = outbuf;
-            for (int x = 0; x < width + 5; x += 6) {
-                out_line[0] = (uline[0] | (yline[0] << 10) | (vline[0] << 20));
-                out_line[1] = (yline[1] | (uline[1] << 10) | (yline[2] << 20));
-                out_line[2] = (vline[1] | (yline[3] << 10) | (uline[2] << 20));
-                out_line[3] = (yline[4] | (vline[2] << 10) | (yline[5] << 20));
-                out_line += 4;
-                yline += 6;
-                uline += 3;
-                vline += 3;
-            }
-            outbuf += out_pitch;
-            yptr += pstride_y;
-            uptr += pstride_uv;
-            vptr += pstride_uv;
+        taffy_param p = {0};
+        p.dst_stride[0] = taffy_get_v210_stride(p.width[0]);
+        p.dstp[0] = lpBuffer;
+        for (int plane = 0; plane < 3; plane++) {
+            p.srcp[plane] = vsapi->getReadPtr(f, plane);
+            p.src_stride[plane] = vsapi->getStride(f, plane);
+            p.width[plane] = vsapi->getFrameWidth(f, plane);
+            p.height[plane] = vsapi->getFrameHeight(f, plane);
         }
-    } else if (semi_packed_p10) {
-        int pwidth = vsapi->getFrameWidth(f, 0);
-        int pstride = vsapi->getStride(f, 0) / 2;
-        uint16_t *outbuf = (uint16_t *)lpBuffer;
-        const uint16_t *yptr = (const uint16_t *)vsapi->getReadPtr(f, 0);
-
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < pwidth; x++) {
-                outbuf[x] = yptr[x] << 6;
-            }
-            outbuf += out_pitch/2;
-            yptr += pstride;
+        taffy_pack_v210(&p);
+    } else if ((fi->id == pfYUV420P16) || (fi->id == pfYUV422P16) || (fi->id == pfYUV420P10) || (fi->id == pfYUV422P10)) {
+        taffy_param p = { 0 };
+        p.dst_stride[0] = p.width[0] * fi->bytesPerSample;
+        p.dst_stride[1] = p.width[1] * 2 * fi->bytesPerSample;
+        p.dstp[0] = lpBuffer;
+        p.dstp[1] = (BYTE *)lpBuffer + p.dst_stride[0] * p.height[0];
+        for (int plane = 0; plane < 3; plane++) {
+            p.srcp[plane] = vsapi->getReadPtr(f, plane);
+            p.src_stride[plane] = vsapi->getStride(f, plane);
+            p.width[plane] = vsapi->getFrameWidth(f, plane);
+            p.height[plane] = vsapi->getFrameHeight(f, plane);
         }
+        if ((fi->id == pfYUV420P10) || (fi->id == pfYUV422P10))
+            taffy_pack_px10(&p);
+        else
+            taffy_pack_px16(&p);
+        taffy_pack_px16(&p);
     } else {
-        vs_bitblt(lpBuffer, out_pitch, vsapi->getReadPtr(f, 0), pitch, row_size, height);
-    }
+        const int stride = vsapi->getStride(f, 0);
+        const int height = vsapi->getFrameHeight(f, 0);
+        int row_size = vsapi->getFrameWidth(f, 0) * fi->bytesPerSample;
+        if (fi->numPlanes == 1) {
+            vs_bitblt(lpBuffer, (row_size + 3) & ~3, vsapi->getReadPtr(f, 0), stride, row_size, height);
+        } else if (fi->numPlanes == 3) {
+            int row_size23 = vsapi->getFrameWidth(f, 1) * fi->bytesPerSample;
 
-    if (fi->id == pfYUV422P10 && parent->enable_v210) {
-         // intentionally empty
-    } else if (semi_packed_p10 || semi_packed_p16) {
-        int pheight = vsapi->getFrameHeight(f, 1);
-        int pwidth = vsapi->getFrameWidth(f, 1);
-        int pstride = vsapi->getStride(f, 1) / 2;
-        BYTE *outadj = (BYTE*)lpBuffer + out_pitch*height;
-        uint16_t *outbuf = (uint16_t *)outadj;
-        const uint16_t *uptr = (const uint16_t *)vsapi->getReadPtr(f, 1);
-        const uint16_t *vptr = (const uint16_t *)vsapi->getReadPtr(f, 2);
+            vs_bitblt(lpBuffer, row_size, vsapi->getReadPtr(f, 0), stride, row_size, height);
 
-        if (semi_packed_p16) {
-            for (int y = 0; y < pheight; y++) {
-                for (int x = 0; x < pwidth; x++) {
-                    outbuf[2*x] = uptr[x];
-                    outbuf[2*x + 1] = vptr[x];
-                }
-                outbuf += out_pitchUV;
-                uptr += pstride;
-                vptr += pstride;
-            }
-        } else {
-            for (int y = 0; y < pheight; y++) {
-                for (int x = 0; x < pwidth; x++) {
-                    outbuf[2*x] = uptr[x] << 6;
-                    outbuf[2*x + 1] = vptr[x] << 6;
-                }
-                outbuf += out_pitchUV;
-                uptr += pstride;
-                vptr += pstride;
-            }
+            vs_bitblt((BYTE *)lpBuffer + (row_size*height),
+                row_size23, vsapi->getReadPtr(f, 2),
+                vsapi->getStride(f, 2), vsapi->getFrameWidth(f, 2),
+                vsapi->getFrameHeight(f, 2));
+
+            vs_bitblt((BYTE *)lpBuffer + (row_size*height + vsapi->getFrameHeight(f, 1)*row_size23),
+                row_size23, vsapi->getReadPtr(f, 1),
+                vsapi->getStride(f, 1), vsapi->getFrameWidth(f, 1),
+                vsapi->getFrameHeight(f, 1));
         }
-    } else if (fi->numPlanes == 3) {
-        vs_bitblt((BYTE *)lpBuffer + (out_pitch*height),
-            out_pitchUV,               vsapi->getReadPtr(f, 2),
-            vsapi->getStride(f, 2), vsapi->getFrameWidth(f, 2),
-            vsapi->getFrameHeight(f, 2) );
-
-        vs_bitblt((BYTE *)lpBuffer + (out_pitch*height + vsapi->getFrameHeight(f, 1)*out_pitchUV),
-            out_pitchUV,               vsapi->getReadPtr(f, 1),
-            vsapi->getStride(f, 1), vsapi->getFrameWidth(f, 1),
-            vsapi->getFrameHeight(f, 1) );
     }
 
     vsapi->freeFrame(f);
 
     for (int i = n + 1; i < std::min<int>(n + parent->num_threads, parent->vi->numFrames); i++) {
-        InterlockedIncrement(&parent->pending_requests);
+        ++parent->pending_requests;
         vsapi->getFrameAsync(i, parent->node, VapourSynthFile::frameDoneCallback, (void *)parent);
     }
 
@@ -1009,7 +933,7 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
         return E_FAIL;
 
     bi.biSizeImage = parent->ImageSize();
-    *lpcbFormat = min(*lpcbFormat, sizeof(bi));
+    *lpcbFormat = std::min<LONG>(*lpcbFormat, sizeof(bi));
     memcpy(lpFormat, &bi, size_t(*lpcbFormat));
 
     return S_OK;

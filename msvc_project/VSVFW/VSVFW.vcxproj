@@ -100,7 +100,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;VS_TARGET_OS_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -145,12 +145,14 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\src\vfw\taffy.cpp" />
     <ClCompile Include="..\..\src\vfw\vsvfw.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\VapourSynth.h" />
     <ClInclude Include="..\..\include\VSHelper.h" />
     <ClInclude Include="..\..\include\VSScript.h" />
+    <ClInclude Include="..\..\src\vfw\taffy.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
