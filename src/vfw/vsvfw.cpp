@@ -809,7 +809,6 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
             taffy_pack_px10(&p);
         else
             taffy_pack_px16(&p);
-        taffy_pack_px16(&p);
     } else {
         const int stride = vsapi->getStride(f, 0);
         const int height = vsapi->getFrameHeight(f, 0);
