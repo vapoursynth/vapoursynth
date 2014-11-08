@@ -796,13 +796,11 @@ cdef class VideoNode(object):
             obj = self.core.__getattr__(name)
             if isinstance(obj, Plugin):
                 (<Plugin>obj).injected_arg = self
-            elif isinstance(obj, Function):
-                (<Function>obj).plugin.injected_arg = self
             return obj
         except AttributeError:
             err = True
         if err:
-            raise AttributeError('There is no attribute, namespace or function named ' + name)
+            raise AttributeError('There is no attribute or namespace named ' + name)
 
     def get_frame(self, int n):
         cdef char errorMsg[512]
@@ -1089,22 +1087,8 @@ cdef class Core(object):
 
         if plugin:
             return createPlugin(plugin, self.funcs, self)
-        
-        ns_list = []
-        plugins = self.get_plugins()
-        for p in plugins:
-            if name in plugins[p]['functions']:
-                ns_list.append(plugins[p]['namespace'])
-                id = plugins[p]['identifier'].encode('utf-8')
-                plugin = self.funcs.getPluginById(id, self.core)
-
-        if len(ns_list) > 1:  
-            raise AttributeError('Ambiguous function name reference, the attribute ' + name + ' has multiple possible candidates in namespaces: ' + ns_list.join(' '))
-        
-        if plugin:
-            return createPlugin(plugin, self.funcs, self).__getattr__(name)
-            
-        raise AttributeError('No attribute with the name ' + name + ' exists. Did you mistype a plugin namespace?')
+        else:
+            raise AttributeError('No attribute with the name ' + name + ' exists. Did you mistype a plugin namespace?')
 
     def set_max_cache_size(self, int mb):
         self.max_cache_size = mb
