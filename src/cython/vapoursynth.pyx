@@ -690,9 +690,11 @@ cdef class VideoFrame(object):
             raise IndexError('Specified plane index out of range')
         cdef const uint8_t *d = self.funcs.getReadPtr(self.constf, plane)
         stride = self.get_stride(plane) // self.format.bytes_per_sample
+        width = self.width
         height = self.height
         if plane is not 0:
             height >>= self.format.subsampling_h
+            width >>= self.format.subsampling_w
         array = None
         if self.format.sample_type == stInteger:
             if self.format.bytes_per_sample == 1:
@@ -704,7 +706,7 @@ cdef class VideoFrame(object):
         elif self.format.sample_type == stFloat:
             array = <float[:height, :stride]> (<float*>d)
         if array is not None:
-            return array[:height, :self.width]
+            return array[:height, :width]
         return None
 
     def get_write_ptr(self, int plane):
@@ -722,9 +724,11 @@ cdef class VideoFrame(object):
             raise IndexError('Specified plane index out of range')
         cdef uint8_t *d = self.funcs.getWritePtr(self.f, plane)
         stride = self.get_stride(plane) // self.format.bytes_per_sample
+        width = self.width
         height = self.height
         if plane is not 0:
             height >>= self.format.subsampling_h
+            width >>= self.format.subsampling_w
         array = None
         if self.format.sample_type == stInteger:
             if self.format.bytes_per_sample == 1:
@@ -736,7 +740,7 @@ cdef class VideoFrame(object):
         elif self.format.sample_type == stFloat:
             array = <float[:height, :stride]> (<float*>d)
         if array is not None:
-            return array[:height, :self.width]
+            return array[:height, :width]
         return None
 
     def get_stride(self, int plane):
