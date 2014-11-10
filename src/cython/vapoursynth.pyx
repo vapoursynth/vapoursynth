@@ -693,15 +693,18 @@ cdef class VideoFrame(object):
         height = self.height
         if plane is not 0:
             height >>= self.format.subsampling_h
+        array = None
         if self.format.sample_type == stInteger:
             if self.format.bytes_per_sample == 1:
-                return <uint8_t[:height, :stride]> d
+                array = <uint8_t[:height, :stride]> d
             elif self.format.bytes_per_sample == 2:
-                return <uint16_t[:height, :stride]> (<uint16_t*>d)
+                array = <uint16_t[:height, :stride]> (<uint16_t*>d)
             elif self.format.bytes_per_sample == 4:
-                return <uint32_t[:height, :stride]> (<uint32_t*>d)
+                array = <uint32_t[:height, :stride]> (<uint32_t*>d)
         elif self.format.sample_type == stFloat:
-            return <float[:height, :stride]> (<float*>d)
+            array = <float[:height, :stride]> (<float*>d)
+        if array is not None:
+            return array[:height, :self.width]
         return None
 
     def get_write_ptr(self, int plane):
@@ -722,15 +725,18 @@ cdef class VideoFrame(object):
         height = self.height
         if plane is not 0:
             height >>= self.format.subsampling_h
+        array = None
         if self.format.sample_type == stInteger:
             if self.format.bytes_per_sample == 1:
-                return <uint8_t[:height, :stride]> d
+                array = <uint8_t[:height, :stride]> d
             elif self.format.bytes_per_sample == 2:
-                return <uint16_t[:height, :stride]> (<uint16_t*>d)
+                array = <uint16_t[:height, :stride]> (<uint16_t*>d)
             elif self.format.bytes_per_sample == 4:
-                return <uint32_t[:height, :stride]> (<uint32_t*>d)
+                array = <uint32_t[:height, :stride]> (<uint32_t*>d)
         elif self.format.sample_type == stFloat:
-            return <float[:height, :stride]> (<float*>d)
+            array = <float[:height, :stride]> (<float*>d)
+        if array is not None:
+            return array[:height, :self.width]
         return None
 
     def get_stride(self, int plane):
