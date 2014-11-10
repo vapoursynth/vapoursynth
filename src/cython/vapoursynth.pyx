@@ -689,19 +689,19 @@ cdef class VideoFrame(object):
         if plane < 0 or plane >= self.format.num_planes:
             raise IndexError('Specified plane index out of range')
         cdef const uint8_t *d = self.funcs.getReadPtr(self.constf, plane)
-        width = self.get_stride(plane) // self.format.bytes_per_sample
+        stride = self.get_stride(plane) // self.format.bytes_per_sample
         height = self.height
         if plane is not 0:
             height >>= self.format.subsampling_h
         if self.format.sample_type == stInteger:
             if self.format.bytes_per_sample == 1:
-                return <uint8_t[:height, :width]> d
+                return <uint8_t[:height, :stride]> d
             elif self.format.bytes_per_sample == 2:
-                return <uint16_t[:height, :width]> (<uint16_t*>d)
+                return <uint16_t[:height, :stride]> (<uint16_t*>d)
             elif self.format.bytes_per_sample == 4:
-                return <uint32_t[:height, :width]> (<uint32_t*>d)
+                return <uint32_t[:height, :stride]> (<uint32_t*>d)
         elif self.format.sample_type == stFloat:
-            return <float[:height, :width]> (<float*>d)
+            return <float[:height, :stride]> (<float*>d)
         return None
 
     def get_write_ptr(self, int plane):
@@ -718,19 +718,19 @@ cdef class VideoFrame(object):
         if plane < 0 or plane >= self.format.num_planes:
             raise IndexError('Specified plane index out of range')
         cdef uint8_t *d = self.funcs.getWritePtr(self.f, plane)
-        width = self.get_stride(plane) // self.format.bytes_per_sample
+        stride = self.get_stride(plane) // self.format.bytes_per_sample
         height = self.height
         if plane is not 0:
             height >>= self.format.subsampling_h
         if self.format.sample_type == stInteger:
             if self.format.bytes_per_sample == 1:
-                return <uint8_t[:height, :width]> d
+                return <uint8_t[:height, :stride]> d
             elif self.format.bytes_per_sample == 2:
-                return <uint16_t[:height, :width]> (<uint16_t*>d)
+                return <uint16_t[:height, :stride]> (<uint16_t*>d)
             elif self.format.bytes_per_sample == 4:
-                return <uint32_t[:height, :width]> (<uint32_t*>d)
+                return <uint32_t[:height, :stride]> (<uint32_t*>d)
         elif self.format.sample_type == stFloat:
-            return <float[:height, :width]> (<float*>d)
+            return <float[:height, :stride]> (<float*>d)
         return None
 
     def get_stride(self, int plane):
