@@ -14,6 +14,8 @@ http://sam.zoy.org/wtfpl/COPYING for more details.
 
 *Tab=3***********************************************************************/
 
+#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
+
 #include "shared.h"
 
 #ifdef VS_TARGET_CPU_X86
