@@ -10,11 +10,16 @@ yasm_verbose_ = $(yasm_verbose_$(AM_DEFAULT_VERBOSITY))
 yasm_verbose_0 = @echo "  YASM    " $@;
 
 
+cython_verbose = $(cython_verbose_$(V))
+cython_verbose_ = $(cython_verbose_$(AM_DEFAULT_VERBOSITY))
+cython_verbose_0 = @echo "  CYTHON  " $@;
+
+
 .asm.lo:
 	$(yasm_verbose)$(LIBTOOL) $(AM_V_lt) --mode=compile --tag=CC $(AS) $(ASFLAGS) -o $@ $< -prefer-non-pic
 
 .pyx.c:
-	$(CYTHON) -o $@ $<
+	$(cython_verbose)$(CYTHON) -o $@ $<
 
 
 commonlibtoolflags = --tag=disable-static
