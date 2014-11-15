@@ -19,9 +19,8 @@ AS_IF(
       [test "x$enable_debug" = "xyes"],
       [
        AC_DEFINE([VS_CORE_DEBUG])
-       AC_SUBST([DEBUG_CFLAGS], ["-O0 -g3 -ggdb -ftrapv"])
-      ],
-      [AC_SUBST([DEBUG_CFLAGS], [""])]
+       AC_SUBST([DEBUGCFLAGS], ["-O0 -g3 -ggdb -ftrapv"])
+      ]
 )
 
 
@@ -101,6 +100,8 @@ AS_IF(
              [test "x$enable_debug" = "xyes"],
              [ASFLAGS="$ASFLAGS -g$DEBUG_FORMAT"]
        )
+
+       AC_SUBST([MFLAGS], ["-mfpmath=sse -msse2"])
       ]
 )
 
