@@ -26,13 +26,95 @@ AS_IF(
 
 
 
-AC_ARG_WITH([plugindir], AS_HELP_STRING([--with-plugindir], [Folder where the included plugins will be installed. (default=LIBDIR/vapoursynth)]), [PLUGINDIR=$with_plugindir], [PLUGINDIR=$libdir/$PACKAGE_NAME])
+AC_ARG_WITH(
+            [plugindir],
+            AS_HELP_STRING([--with-plugindir], [Folder where the included plugins will be installed. (default=LIBDIR/vapoursynth)]),
+            [PLUGINDIR=$with_plugindir],
+            [PLUGINDIR=$libdir/$PACKAGE_NAME]
+)
 dnl Can't do it with AC_DEFINE because $libdir wouldn't be expanded fully.
 AC_SUBST([PLUGINDIR])
 
 
 
+AC_ARG_WITH([yasm], AS_HELP_STRING([--with-yasm], [Override the automatic detection of the yasm executable. (default=check)]), [], [with_yasm=check])
+
+
+
 AC_CANONICAL_HOST
+
+
+X86="false"
+PPC="false"
+ARM="false"
+
+AS_CASE(
+        [$host_cpu],
+        [i?86], [BITS="32" ASFLAGS="$ASFLAGS -DARCH_X86_64=0" X86="true"],
+        [x86_64], [BITS="64" ASFLAGS="$ASFLAGS -DARCH_X86_64=1 -DPIC -m amd64" X86="true"],
+        [powerpc*], [PPC="true"],
+        [arm*], [ARM="true"] # Maybe doesn't work for all arm systems?
+)
+
+AS_CASE(
+        [$host_os],
+        [darwin*],
+        [
+         ASFLAGS="$ASFLAGS -f macho$BITS -DPREFIX"
+         AC_DEFINE([VS_TARGET_OS_DARWIN])
+         DEBUG_FORMAT="null"
+        ],
+        [*linux*|gnu*|dragonfly*|*bsd*], # The BSDs are close enough, right?
+        [
+         ASFLAGS="$ASFLAGS -f elf"
+         AC_DEFINE([VS_TARGET_OS_LINUX])
+         DEBUG_FORMAT="dwarf2"
+        ],
+        [cygwin*|mingw*],
+        [
+         ASFLAGS="$ASFLAGS -f win32"
+         AS_IF(
+               [test "x$BITS" = "x32"],
+               [ASFLAGS="$ASFLAGS -DPREFIX"]
+         )
+         AC_DEFINE([VS_TARGET_OS_WINDOWS])
+         DEBUG_FORMAT="null"
+        ],
+        [AC_MSG_ERROR([Unknown host OS])]
+)
+
+AS_IF(
+      [test "x$X86" = "xtrue"],
+      [
+       AC_ARG_ENABLE([x86-asm], AS_HELP_STRING([--enable-x86-asm], [Enable assembler code for x86 CPUs. Requires yasm if building the core. (default=yes)]))
+
+       AS_IF(
+             [test "x$enable_x86_asm" != "xno"],
+             [
+              AC_DEFINE([VS_TARGET_CPU_X86])
+             ]
+       )
+
+       ASFLAGS="$ASFLAGS -I$srcdir/include -w -Worphan-labels -Wunrecognized-char -Dprivate_prefix=vs"
+
+       AS_IF(
+             [test "x$enable_debug" = "xyes"],
+             [ASFLAGS="$ASFLAGS -g$DEBUG_FORMAT"]
+       )
+      ]
+)
+
+AS_IF(
+      [test "x$PPC" = "xtrue"],
+      [AC_DEFINE([VS_TARGET_CPU_POWERPC])]
+)
+
+AS_IF(
+      [test "x$ARM" = "xtrue"],
+      [AC_DEFINE([VS_TARGET_CPU_ARM])]
+)
+
+AC_SUBST([ASFLAGS])
 
 
 
@@ -48,88 +130,22 @@ AS_IF(
 
        AC_CONFIG_FILES([pc/vapoursynth.pc:pc/autotools-vapoursynth.pc.in])
 
-       ASFLAGS="$ASFLAGS -I$srcdir/include -w -Worphan-labels -Wunrecognized-char -Dprivate_prefix=vs"
-       
-       X86="false"
-       PPC="false"
-       ARM="false"
-       
-       AS_CASE(
-               [$host_cpu],
-               [i?86],   [BITS="32" ASFLAGS="$ASFLAGS -DARCH_X86_64=0" X86="true"],
-               [x86_64], [BITS="64" ASFLAGS="$ASFLAGS -DARCH_X86_64=1 -DPIC -m amd64" X86="true"],
-               [powerpc*], [PPC="true"],
-               [arm*], [ARM="true"] # Maybe doesn't work for all arm systems?
-       )
-       
        AS_IF(
-             [test "x$X86" = "xtrue"],
+             [test "x$X86" = "xtrue" -a "x$enable_x86_asm" != "xno"],
              [
-              AC_ARG_WITH([yasm], AS_HELP_STRING([--with-yasm], [Override the automatic detection of the yasm executable.]), [], [with_yasm=check])
-       
-              AC_ARG_ENABLE([x86-asm], AS_HELP_STRING([--enable-x86-asm], [Enable assembler code for x86 CPUs. Requires yasm. (default=yes)]))
               AS_IF(
-                    [test "x$enable_x86_asm" != "xno"],
-                    [
-                     AS_IF(
-                           [test "x$with_yasm" = "xcheck"],
-                           [AC_CHECK_PROGS([YASM], [yasm])],
-                           [YASM="$with_yasm"]
-                     )
+                    [test "x$with_yasm" = "xcheck"],
+                    [AC_CHECK_PROGS([YASM], [yasm])],
+                    [YASM="$with_yasm"]
+              )
        
-                     AS_IF([test "x$YASM" = "x"],
-                           [AC_MSG_ERROR([yasm required but not found.])],
-                           [AS="$YASM"])
-                     AC_DEFINE([VS_TARGET_CPU_X86])
-                    ]
+              AS_IF(
+                    [test "x$YASM" = "x"],
+                    [AC_MSG_ERROR([yasm required but not found.])],
+                    [AS="$YASM"]
               )
              ]
        )
-
-       AS_IF(
-             [test "x$PPC" = "xtrue"],
-             [AC_DEFINE([VS_TARGET_CPU_POWERPC])]
-       )
-
-       AS_IF(
-             [test "x$ARM" = "xtrue"],
-             [AC_DEFINE([VS_TARGET_CPU_ARM])]
-       )
-
-       AS_CASE(
-          [$host_os],
-          [darwin*],
-          [
-             ASFLAGS="$ASFLAGS -f macho$BITS -DPREFIX"
-             AC_DEFINE([VS_TARGET_OS_DARWIN])
-             DEBUG_FORMAT="null"
-          ],
-          [*linux*|gnu*|dragonfly*|*bsd*], # The BSDs are close enough, right?
-          [
-             ASFLAGS="$ASFLAGS -f elf"
-             AC_DEFINE([VS_TARGET_OS_LINUX])
-             DEBUG_FORMAT="dwarf2"
-          ],
-          [cygwin*|mingw*],
-          [
-             ASFLAGS="$ASFLAGS -f win32"
-             AS_IF(
-                   [test "x$BITS" = "x32"],
-                   [ASFLAGS="$ASFLAGS -DPREFIX"]
-             )
-             AC_DEFINE([VS_TARGET_OS_WINDOWS])
-             DEBUG_FORMAT="null"
-          ],
-          [AC_MSG_ERROR([Unknown host OS])]
-       )
-       
-       AS_IF(
-             [test "x$enable_debug" = "xyes"],
-             [ASFLAGS="$ASFLAGS -g$DEBUG_FORMAT"]
-       )
-       
-       AC_SUBST([ASFLAGS])
-
       ]
 )
 AM_CONDITIONAL([VSCORE], [test "x$enable_core" != "xno"])
@@ -176,7 +192,7 @@ AS_IF(
        )
       ],
       [
-       AC_ARG_WITH([cython], AS_HELP_STRING([--with-cython], [Override the automatic detection of the Cython executable.]), [], [with_cython=check])
+       AC_ARG_WITH([cython], AS_HELP_STRING([--with-cython], [Override the automatic detection of the Cython executable. (default=check)]), [], [with_cython=check])
        AS_IF(
              [test "x$with_cython" = "xcheck"],
              [AC_CHECK_PROGS([CYTHON], [cython])],
