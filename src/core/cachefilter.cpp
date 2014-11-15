@@ -135,8 +135,6 @@ void VSCache::adjustSize(bool needMemory) {
             case VSCache::caShrink:
                 setMaxFrames(std::max(getMaxFrames() - 1, 1));
                 break;
-            default:
-                break;
             }
         } else {
             switch (recommendSize()) {
@@ -152,9 +150,7 @@ void VSCache::adjustSize(bool needMemory) {
                 if (getMaxFrames() <= 1)
                     clear();
                 setMaxFrames(std::max(getMaxFrames() - 1, 1));
-                break;
-            default:
-                break;
+                break;;
             }
         }
     }
