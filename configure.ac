@@ -147,6 +147,22 @@ AS_IF(
               )
              ]
        )
+
+       dnl Annoying shit...
+       AS_CASE(
+               [$host_os],
+               [cygwin*|mingw*],
+               [],
+               [
+                saved_libs="$LIBS"
+                AC_SEARCH_LIBS([dlopen], [dl dld], [], [AC_MSG_ERROR([Unable to find the dlopen() function.])])
+                AS_IF(
+                      [test "x$ac_cv_search_dlopen" != "xnone required"],
+                      [AC_SUBST([DLOPENLIB], ["$ac_cv_search_dlopen"])]
+                )
+                LIBS="$saved_libs"
+               ]
+       )
       ]
 )
 AM_CONDITIONAL([VSCORE], [test "x$enable_core" != "xno"])
