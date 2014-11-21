@@ -25,7 +25,7 @@
 
 #define VAPOURSYNTH_API_VERSION 3
 
-// Convenience for C++ users.
+/* Convenience for C++ users. */
 #ifdef __cplusplus
 #    define VS_EXTERN_C extern "C"
 #else
@@ -38,8 +38,8 @@
 #    define VS_CC
 #endif
 
-// And now for some symbol hide-and-seek...
-#if defined(_WIN32) // Windows being special
+/* And now for some symbol hide-and-seek... */
+#if defined(_WIN32) /* Windows being special */
 #    define VS_EXTERNAL_API(ret) VS_EXTERN_C __declspec(dllexport) ret VS_CC
 #elif defined(__GNUC__) && __GNUC__ >= 4
 #    define VS_EXTERNAL_API(ret) VS_EXTERN_C __attribute__((visibility("default"))) ret VS_CC
@@ -64,12 +64,12 @@ typedef struct VSAPI VSAPI;
 typedef struct VSFrameContext VSFrameContext;
 
 typedef enum VSColorFamily {
-    // all planar formats
+    /* all planar formats */
     cmGray   = 1000000,
     cmRGB    = 2000000,
     cmYUV    = 3000000,
     cmYCoCg  = 4000000,
-    // special for compatibility
+    /* special for compatibility */
     cmCompat = 9000000
 } VSColorFamily;
 
@@ -78,7 +78,7 @@ typedef enum VSSampleType {
     stFloat = 1
 } VSSampleType;
 
-// The +10 is so people won't be using the constants interchangably "by accident"
+/* The +10 is so people won't be using the constants interchangably "by accident" */
 typedef enum VSPresetFormat {
     pfNone = 0,
 
@@ -118,31 +118,31 @@ typedef enum VSPresetFormat {
     pfRGBH,
     pfRGBS,
 
-    // special for compatibility, if you implement these in any filter I'll personally kill you
-    // I'll also change their ids around to break your stuff regularly
+    /* special for compatibility, if you implement these in any filter I'll personally kill you */
+    /* I'll also change their ids around to break your stuff regularly */
     pfCompatBGR32 = cmCompat + 10,
     pfCompatYUY2
 } VSPresetFormat;
 
 typedef enum VSFilterMode {
-    fmParallel = 100, // completely parallel execution
-    fmParallelRequests = 200, // for filters that are serial in nature but can request one or more frames they need in advance
-    fmUnordered = 300, // for filters that modify their internal state every request
-    fmSerial = 400 // for source filters and compatibility with other filtering architectures
+    fmParallel = 100, /* completely parallel execution */
+    fmParallelRequests = 200, /* for filters that are serial in nature but can request one or more frames they need in advance */
+    fmUnordered = 300, /* for filters that modify their internal state every request */
+    fmSerial = 400 /* for source filters and compatibility with other filtering architectures */
 } VSFilterMode;
 
 typedef struct VSFormat {
     char name[32];
     int id;
-    int colorFamily; // see VSColorFamily
-    int sampleType; // see VSSampleType
-    int bitsPerSample; // number of significant bits
-    int bytesPerSample; // actual storage is always in a power of 2 and the smallest possible that can fit the number of bits used per sample
+    int colorFamily; /* see VSColorFamily */
+    int sampleType; /* see VSSampleType */
+    int bitsPerSample; /* number of significant bits */
+    int bytesPerSample; /* actual storage is always in a power of 2 and the smallest possible that can fit the number of bits used per sample */
 
-    int subSamplingW; // log2 subsampling factor, applied to second and third plane
+    int subSamplingW; /* log2 subsampling factor, applied to second and third plane */
     int subSamplingH;
 
-    int numPlanes; // implicit from colorFamily
+    int numPlanes; /* implicit from colorFamily */
 } VSFormat;
 
 typedef enum VSNodeFlags {
@@ -205,13 +205,13 @@ typedef enum VSMessageType {
     mtFatal = 3
 } VSMessageType;
 
-// core function typedefs
+/* core function typedefs */
 typedef const VSAPI *(VS_CC *VSGetVapourSynthAPI)(int version);
 typedef VSCore *(VS_CC *VSCreateCore)(int threads);
 typedef void (VS_CC *VSFreeCore)(VSCore *core);
 typedef const VSCoreInfo *(VS_CC *VSGetCoreInfo)(VSCore *core);
 
-// function/filter typedefs
+/* function/filter typedefs */
 typedef void (VS_CC *VSPublicFunction)(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
 typedef void (VS_CC *VSFreeFuncData)(void *userData);
 typedef void (VS_CC *VSFilterInit)(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi);
@@ -228,7 +228,7 @@ typedef void (VS_CC *VSSetFilterError)(const char *errorMessage, VSFrameContext 
 typedef const VSFormat *(VS_CC *VSGetFormatPreset)(int id, VSCore *core);
 typedef const VSFormat *(VS_CC *VSRegisterFormat)(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core);
 
-// frame and clip handling
+/* frame and clip handling */
 typedef void (VS_CC *VSFrameDoneCallback)(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg);
 typedef void (VS_CC *VSGetFrameAsync)(int n, VSNodeRef *node, VSFrameDoneCallback callback, void *userData);
 typedef const VSFrameRef *(VS_CC *VSGetFrame)(int n, VSNodeRef *node, char *errorMsg, int bufSize);
@@ -248,7 +248,7 @@ typedef int (VS_CC *VSGetStride)(const VSFrameRef *f, int plane);
 typedef const uint8_t *(VS_CC *VSGetReadPtr)(const VSFrameRef *f, int plane);
 typedef uint8_t *(VS_CC *VSGetWritePtr)(VSFrameRef *f, int plane);
 
-// property access
+/* property access */
 typedef const VSVideoInfo *(VS_CC *VSGetVideoInfo)(VSNodeRef *node);
 typedef void (VS_CC *VSSetVideoInfo)(const VSVideoInfo *vi, int numOutputs, VSNode *node);
 typedef const VSFormat *(VS_CC *VSGetFrameFormat)(const VSFrameRef *f);
@@ -281,7 +281,7 @@ typedef int (VS_CC *VSPropSetNode)(VSMap *map, const char *key, VSNodeRef *node,
 typedef int (VS_CC *VSPropSetFrame)(VSMap *map, const char *key, const VSFrameRef *f, int append);
 typedef int (VS_CC *VSPropSetFunc)(VSMap *map, const char *key, VSFuncRef *func, int append);
 
-// mixed
+/* mixed */
 typedef void (VS_CC *VSConfigPlugin)(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readonly, VSPlugin *plugin);
 typedef void (VS_CC *VSInitPlugin)(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
 
@@ -291,7 +291,7 @@ typedef VSPlugin *(VS_CC *VSGetPluginByNs)(const char *ns, VSCore *core);
 typedef VSMap *(VS_CC *VSGetPlugins)(VSCore *core);
 typedef VSMap *(VS_CC *VSGetFunctions)(VSPlugin *plugin);
 
-typedef void (VS_CC *VSCallFunc)(VSFuncRef *func, const VSMap *in, VSMap *out, VSCore *core, const VSAPI *vsapi); // core and vsapi arguments are completely ignored, they only remain to preserve ABI
+typedef void (VS_CC *VSCallFunc)(VSFuncRef *func, const VSMap *in, VSMap *out, VSCore *core, const VSAPI *vsapi); /* core and vsapi arguments are completely ignored, they only remain to preserve ABI */
 typedef VSFuncRef *(VS_CC *VSCreateFunc)(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core, const VSAPI *vsapi);
 
 typedef void (VS_CC *VSQueryCompletedFrame)(VSNodeRef **node, int *n, VSFrameContext *frameCtx);
@@ -328,20 +328,20 @@ struct VSAPI {
     VSGetPlugins getPlugins;
     VSGetFunctions getFunctions;
     VSCreateFilter createFilter;
-    VSSetError setError; // use to signal errors outside filter getframe functions
-    VSGetError getError; // use to query errors, returns 0 if no error
-    VSSetFilterError setFilterError; // use to signal errors in the filter getframe function
-    VSInvoke invoke; // may not be used inside a filter's getframe method
+    VSSetError setError; /* use to signal errors outside filter getframe functions */
+    VSGetError getError; /* use to query errors, returns 0 if no error */
+    VSSetFilterError setFilterError; /* use to signal errors in the filter getframe function */
+    VSInvoke invoke; /* may not be used inside a filter's getframe method */
 
-    VSGetFormatPreset getFormatPreset; //threadsafe
-    VSRegisterFormat registerFormat; // threadsafe
+    VSGetFormatPreset getFormatPreset; /* threadsafe */
+    VSRegisterFormat registerFormat; /* threadsafe */
 
-    VSGetFrame getFrame; // do never use inside a filter's getframe function, for external applications using the core as a library or for requesting frames in a filter constructor
-    VSGetFrameAsync getFrameAsync; // do never use inside a filter's getframe function, for external applications using the core as a library or for requesting frames in a filter constructor
-    VSGetFrameFilter getFrameFilter; // only use inside a filter's getframe function
-    VSRequestFrameFilter requestFrameFilter; // only use inside a filter's getframe function
-    VSQueryCompletedFrame queryCompletedFrame; // only use inside a filter's getframe function
-    VSReleaseFrameEarly releaseFrameEarly; // only use inside a filter's getframe function
+    VSGetFrame getFrame; /* do never use inside a filter's getframe function, for external applications using the core as a library or for requesting frames in a filter constructor */
+    VSGetFrameAsync getFrameAsync; /* do never use inside a filter's getframe function, for external applications using the core as a library or for requesting frames in a filter constructor */
+    VSGetFrameFilter getFrameFilter; /* only use inside a filter's getframe function */
+    VSRequestFrameFilter requestFrameFilter; /* only use inside a filter's getframe function */
+    VSQueryCompletedFrame queryCompletedFrame; /* only use inside a filter's getframe function */
+    VSReleaseFrameEarly releaseFrameEarly; /* only use inside a filter's getframe function */
 
     VSGetStride getStride;
     VSGetReadPtr getReadPtr;
@@ -350,7 +350,7 @@ struct VSAPI {
     VSCreateFunc createFunc;
     VSCallFunc callFunc;
 
-    //property access functions
+    /* property access functions */
     VSCreateMap createMap;
     VSFreeMap freeMap;
     VSClearMap clearMap;
@@ -395,4 +395,4 @@ struct VSAPI {
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version);
 
-#endif // VAPOURSYNTH_H
+#endif /* VAPOURSYNTH_H */

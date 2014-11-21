@@ -29,40 +29,42 @@ typedef enum VSEvalFlags {
     efSetWorkingDir = 1,
 } VSEvalFlags;
 
-// Initialize the available scripting runtimes, returns zero on failure
+/* Initialize the available scripting runtimes, returns zero on failure */
 VS_API(int) vsscript_init(void);
 
-// Free all scripting runtimes
+/* Free all scripting runtimes */
 VS_API(int) vsscript_finalize(void);
 
-// Pass a pointer to a null handle to create a new one
-// The values returned by the query functions are only valid during the lifetime of the VSScript
-// scriptFilename is if the error message should reference a certain file, NULL allowed in vsscript_evaluateScript()
-// core is to pass in an already created instance so that mixed environments can be used,
-// NULL creates a new core that can be fetched with vsscript_getCore() later OR implicitly uses the one associated with an already existing handle when passed
-// If efSetWorkingDir is passed to flags the current working directory will be changed to the path of the script
-// note that if scriptFilename is NULL in vsscript_evaluateScript() then __file__ won't be set and the working directory won't be changed
-// Set efSetWorkingDir to get the default and recommended behavior
+/*
+* Pass a pointer to a null handle to create a new one
+* The values returned by the query functions are only valid during the lifetime of the VSScript
+* scriptFilename is if the error message should reference a certain file, NULL allowed in vsscript_evaluateScript()
+* core is to pass in an already created instance so that mixed environments can be used,
+* NULL creates a new core that can be fetched with vsscript_getCore() later OR implicitly uses the one associated with an already existing handle when passed
+* If efSetWorkingDir is passed to flags the current working directory will be changed to the path of the script
+* note that if scriptFilename is NULL in vsscript_evaluateScript() then __file__ won't be set and the working directory won't be changed
+* Set efSetWorkingDir to get the default and recommended behavior
+*/
 VS_API(int) vsscript_evaluateScript(VSScript **handle, const char *script, const char *scriptFilename, int flags);
-// Convenience version of the above function that loads the script from a file
+/* Convenience version of the above function that loads the script from a file */
 VS_API(int) vsscript_evaluateFile(VSScript **handle, const char *scriptFilename, int flags);
-// Create an empty environment for use in later invocations, mostly useful to set script variables before execution 
+/* Create an empty environment for use in later invocations, mostly useful to set script variables before execution */
 VS_API(int) vsscript_createScript(VSScript **handle);
 
 VS_API(void) vsscript_freeScript(VSScript *handle);
 VS_API(const char *) vsscript_getError(VSScript *handle);
-// The node returned must be freed using freeNode() before calling vsscript_freeScript()
+/* The node returned must be freed using freeNode() before calling vsscript_freeScript() */
 VS_API(VSNodeRef *) vsscript_getOutput(VSScript *handle, int index);
 VS_API(int) vsscript_clearOutput(VSScript *handle, int index);
-// The core is valid as long as the environment exists
+/* The core is valid as long as the environment exists */
 VS_API(VSCore *) vsscript_getCore(VSScript *handle);
 VS_API(const VSAPI *) vsscript_getVSApi(void);
 
-// Variables names that are not set or not of a convertible type will return an error
+/* Variables names that are not set or not of a convertible type will return an error */
 VS_API(int) vsscript_getVariable(VSScript *handle, const char *name, VSMap *dst);
 VS_API(int) vsscript_setVariable(VSScript *handle, const VSMap *vars);
 VS_API(int) vsscript_clearVariable(VSScript *handle, const char *name);
-// Tries to clear everything set in an environment, normally it is better to simply free an environment completely and create a new one
+/* Tries to clear everything set in an environment, normally it is better to simply free an environment completely and create a new one */
 VS_API(void) vsscript_clearEnvironment(VSScript *handle);
 
-#endif // VSSCRIPT_H
+#endif /* VSSCRIPT_H */
