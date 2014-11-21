@@ -582,6 +582,7 @@ static void VS_CC setMessageHandler(VSMessageHandler handler, void *userData) {
 }
 
 static int VS_CC setThreadCount(int threads, VSCore *core) {
+    assert(core);
     core->threadPool->setThreadCount(threads);
     return core->threadPool->threadCount();
 }
