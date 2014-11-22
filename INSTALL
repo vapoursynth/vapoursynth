@@ -1,6 +1,32 @@
 Installation
 ------------
 
+With autotools
+==============
+
+The dependencies are the same as with waf, except autotools are
+required instead of waf.
+
+The usual sequence of commands works:
+
+    $ ./autogen.sh
+    $ ./configure
+    $ make
+    $ make install
+
+This will build the core, the Python module, VSScript, vspipe, and all
+the plugins that are enabled by default. See ./configure --help.
+
+The documentation can be built using its own Makefile:
+
+    $ make -C doc/ html
+
+Probably only the plugins can be cross-compiled with Mingw-w64.
+
+
+With waf
+========
+
 First, a couple of things to note:
 
 * You need to be on Windows, Linux, or OS X.
