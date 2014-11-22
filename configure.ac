@@ -11,8 +11,6 @@ LT_INIT([win32-dll])
 AC_PROG_CC
 AC_PROG_CXX
 
-dnl TODO: maybe add libdl check, maybe add <mutex> check
-
 
 AC_ARG_ENABLE([debug], AS_HELP_STRING([--enable-debug], [Enable compilation options required for debugging. (default=no)]))
 AS_IF(
@@ -209,25 +207,30 @@ AS_IF(
        )
       ],
       [
-       AC_ARG_WITH([cython], AS_HELP_STRING([--with-cython], [Override the automatic detection of the Cython executable. (default=check)]), [], [with_cython=check])
        AS_IF(
-             [test "x$with_cython" = "xcheck"],
-             [AC_CHECK_PROGS([CYTHON], [cython])],
-             [CYTHON="$with_cython"]
-       )
+             [test "x$enable_python_module" != "xno"],
+             [
+              AC_ARG_WITH([cython], AS_HELP_STRING([--with-cython], [Override the automatic detection of the Cython executable. (default=check)]), [], [with_cython=check])
+              AS_IF(
+                    [test "x$with_cython" = "xcheck"],
+                    [AC_CHECK_PROGS([CYTHON], [cython])],
+                    [CYTHON="$with_cython"]
+              )
 
-       AS_IF(
-             [test "x$CYTHON" = "x"],
-             [AC_MSG_ERROR([Cython required but not found.])]
-       )
-       AC_SUBST([CYTHON])
+              AS_IF(
+                    [test "x$CYTHON" = "x"],
+                    [AC_MSG_ERROR([Cython required but not found.])]
+              )
+              AC_SUBST([CYTHON])
 
-       AS_IF(
-             [test -z "$PYTHON3_LIBS"],
-             [PKG_CHECK_MODULES([PYTHON3], [python3], [], [PKG_CHECK_MODULES([PYTHON3], [python >= 3])])]
-       )
+              AS_IF(
+                    [test -z "$PYTHON3_LIBS"],
+                    [PKG_CHECK_MODULES([PYTHON3], [python3], [], [PKG_CHECK_MODULES([PYTHON3], [python >= 3])])]
+              )
 
-       AM_PATH_PYTHON([3])
+              AM_PATH_PYTHON([3])
+             ]
+       )
       ]
 )
 AM_CONDITIONAL([PYTHONMODULE], [test "x$enable_python_module" != "xno"])
