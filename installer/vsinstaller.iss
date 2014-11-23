@@ -55,7 +55,9 @@ Source: x64\vapoursynth.pyd; DestDir: {code:GetPythonPath64}\vapoursynth; Flags:
 Source: x86\vapoursynth.dll; DestDir: {code:GetPythonPath32}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
 Source: x64\vapoursynth.dll; DestDir: {code:GetPythonPath64}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 Source: x86\vapoursynth.dll; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: x86\vapoursynth.pdb; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
 Source: x64\vapoursynth.dll; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+Source: x64\vapoursynth.pdb; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 
 Source: x86\vsfs.dll; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
 Source: x64\vsfs.dll; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
