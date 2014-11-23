@@ -215,6 +215,8 @@ latex_documents = [
 # (source start file, name, description, authors, manual section).
 man_pages = [
     ('index', 'vapoursynth', 'VapourSynth Documentation',
+     ['Fredrik Mellbin'], 1),
+    ('vspipe', 'vspipe', 'pipe output of a Vapoursynth script',
      ['Fredrik Mellbin'], 1)
 ]
 
