@@ -34,8 +34,6 @@
 #endif
 
 #ifdef VS_TARGET_OS_WINDOWS
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
 #include <ShlObj.h>
 #include <codecvt>
 #endif
@@ -1084,7 +1082,7 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
         if (iter == '\\')
             iter = '/';
 
-    libHandle = LoadLibrary(wPath.c_str());
+    libHandle = LoadLibraryEx(wPath.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
 
     if (!libHandle)
         throw VSException("Failed to load " + relFilename);

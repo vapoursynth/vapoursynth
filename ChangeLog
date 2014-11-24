@@ -1,4 +1,6 @@
 r25:
+now requires vista/2008 or later because there are no relevant xp users left
+now uses loadlibraryex to search the loaded dll path as well for dependencies to make plugin loading saner
 the windows installer now comes with pdb files for vapoursynth.dll to make plugin debugging easier
 added an alternative autotools based build system, it will probably become the default in the next release (nodame)
 the public headers are now mostly C89 compliant
