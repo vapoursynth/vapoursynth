@@ -43,18 +43,7 @@
 
 #ifdef HAS_CALL_ONCE
 #include <mutex>
-#endif
-
-#ifdef USING_VISUAL_STUDIO
-#define DLLPATHARG "dllpath:data;"
-#else
-#define DLLPATHARG ""
-#endif
-
-#ifdef HAS_CALL_ONCE
 static std::once_flag flag;
-#else
-static bool inited = false;
 #endif
 
 //////////////////////////////////////////
@@ -64,8 +53,26 @@ static bool isGrayColorspace(Magick::ColorspaceType colorspace) {
     return colorspace == Magick::GRAYColorspace || colorspace == Magick::Rec601LumaColorspace || colorspace == Magick::Rec709LumaColorspace;
 }
 
-static void initMagick(const char *path) {
-    Magick::InitializeMagick(path);
+static void realInitMagick(VSCore *core, const VSAPI *vsapi) {
+    const char *pathPtr = vsapi->getPluginPath(vsapi->getPluginById("com.vapoursynth.imwri", core));
+    std::string path;
+    if (pathPtr) {
+        path = pathPtr;
+        path = path.substr(0, path.find_last_of('/') + 1);
+    }
+    Magick::InitializeMagick(path.c_str());
+}
+
+static void initMagick(VSCore *core, const VSAPI *vsapi) {
+#ifndef HAS_CALL_ONCE
+    static bool inited = false;
+    if (!inited) {
+        realInitMagick(core, vsapi);
+        inited = true;
+    }
+#else
+    std::call_once(flag, realInitMagick, core, vsapi);
+#endif
 }
 
 static std::string specialPrintf(const std::string &filename, int number) {
@@ -310,14 +317,8 @@ static void VS_CC writeFree(void *instanceData, VSCore *core, const VSAPI *vsapi
 static void VS_CC writeCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<WriteData> d(new WriteData());
     int err = 0;
-#ifdef HAS_CALL_ONCE
-    std::call_once(flag, initMagick, vsapi->propGetData(in, "dllpath", 0, &err));
-#else
-    if (!inited) {
-        initMagick(vsapi->propGetData(in, "dllpath", 0, &err));
-        inited = true;
-    }
-#endif
+
+    initMagick(core, vsapi);
 
     d->firstNum = int64ToIntS(vsapi->propGetInt(in, "firstnum", 0, &err));
     if (d->firstNum < 0) {
@@ -418,8 +419,8 @@ static const VSFrameRef *VS_CC readGetFrame(int n, int activationReason, void **
             if (isGrayColorspace(image.colorSpace()))
                 cf = cmGray;
 
-            int width = image.columns();
-            int height = image.rows();
+            int width = static_cast<int>(image.columns());
+            int height = static_cast<int>(image.rows());
             int depth = std::min(std::max<int>(image.depth(), 8), 16);
 
             if (d->vi[0].format && (cf != d->vi[0].format->colorFamily || depth != d->vi[0].format->bitsPerSample)) {
@@ -566,14 +567,7 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     std::unique_ptr<ReadData> d(new ReadData());
     int err = 0;
 
-#ifdef HAS_CALL_ONCE
-    std::call_once(flag, initMagick, vsapi->propGetData(in, "dllpath", 0, &err));
-#else
-    if (!inited) {
-        initMagick(vsapi->propGetData(in, "dllpath", 0, &err));
-        inited = true;
-    }
-#endif
+    initMagick(core, vsapi);
 
     d->firstNum = int64ToIntS(vsapi->propGetInt(in, "firstnum", 0, &err));
     if (d->firstNum < 0) {
@@ -588,7 +582,7 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     for (int i = 0; i < numElem; i++)
         d->filenames[i] = vsapi->propGetData(in, "filename", i, nullptr);
     
-    d->vi[0] = { nullptr, 30, 1, 0, 0, d->filenames.size(), 0 };
+    d->vi[0] = { nullptr, 30, 1, 0, 0, static_cast<int>(d->filenames.size()), 0 };
     // See if it's a single filename with number substitution and check how many files exist
     if (d->vi[0].numFrames == 1 && specialPrintf(d->filenames[0], 0) != d->filenames[0]) {
         d->fileListMode = false;
@@ -596,9 +590,9 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         for (int i = d->firstNum; i < INT_MAX; i++) {
 #ifdef _WIN32
             std::string printedStr(specialPrintf(d->filenames[0], i));
-            int numChars = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, printedStr.c_str(), printedStr.length(), nullptr, 0);
+            int numChars = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, printedStr.c_str(), static_cast<int>(printedStr.length()), nullptr, 0);
             std::vector<wchar_t> charBuf(numChars + 1);
-            MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, printedStr.c_str(), printedStr.length(), charBuf.data(), charBuf.size());
+            MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, printedStr.c_str(), static_cast<int>(printedStr.length()), charBuf.data(), static_cast<int>(charBuf.size()));
             FILE * f = _wfopen(charBuf.data(), L"rb");
 #else
             FILE * f = fopen(specialPrintf(d->filenames[0], i).c_str(), "rb");
@@ -620,11 +614,11 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     try {
         Magick::Image image;
         image.ping(d->fileListMode ? d->filenames[0] : specialPrintf(d->filenames[0], d->firstNum));
-        int depth = std::min(std::max<int>(image.depth(), 8), 16);
+        int depth = std::min(std::max(static_cast<int>(image.depth()), 8), 16);
 
         if (!d->mismatch || d->vi[0].numFrames == 1) {
-            d->vi[0].height = image.rows();
-            d->vi[0].width = image.columns();
+            d->vi[0].height = static_cast<int>(image.rows());
+            d->vi[0].width = static_cast<int>(image.columns());
             VSColorFamily cf = cmRGB;
             if (isGrayColorspace(image.colorSpace()))
                 cf = cmGray;
@@ -650,6 +644,6 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     configFunc("com.vapoursynth.imwri", "imwri", "VapourSynth ImageMagick Writer/Reader", VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("Write", "clip:clip;imgformat:data;filename:data;" DLLPATHARG "firstnum:int:opt;quality:int:opt;dither:int:opt;alpha:clip:opt;", writeCreate, nullptr, plugin);
-    registerFunc("Read", "filename:data[];" DLLPATHARG "firstnum:int:opt;mismatch:int:opt;alpha:int:opt;", readCreate, nullptr, plugin);
+    registerFunc("Write", "clip:clip;imgformat:data;filename:data;firstnum:int:opt;quality:int:opt;dither:int:opt;alpha:clip:opt;", writeCreate, nullptr, plugin);
+    registerFunc("Read", "filename:data[];firstnum:int:opt;mismatch:int:opt;alpha:int:opt;", readCreate, nullptr, plugin);
 }
