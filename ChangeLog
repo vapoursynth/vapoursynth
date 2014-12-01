@@ -1,3 +1,6 @@
+r26:
+now uses tcmalloc instead of the normal malloc implementation to increase performance
+
 r25:
 now requires vista/2008 or later because there are no relevant xp users left
 now uses loadlibraryex to search the loaded dll path as well for dependencies to make plugin loading saner
