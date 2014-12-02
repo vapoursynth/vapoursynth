@@ -326,3 +326,11 @@ bits for all 3 planes added together. The long list of values::
 
    COMPATBGR32
    COMPATYUY2
+
+Sample Type Constants
+#####################
+
+::
+
+   INTEGER
+   FLOAT
