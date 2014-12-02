@@ -16,7 +16,6 @@ Contents:
    osxcompilation
    linuxcompilation
    gettingstarted
-   pythonbindings
    pythonreference
    autoloading
    vsfs
