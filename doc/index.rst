@@ -24,6 +24,7 @@ Contents:
    avisynthcomp
    includedplugins
    functions
+   vspipe
    about
 
 

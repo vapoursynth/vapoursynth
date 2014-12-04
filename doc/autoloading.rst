@@ -37,7 +37,8 @@ defined.
 
 Two configuration options may be used: **UserPluginDir**, empty by default,
 and **SystemPluginDir**, whose default value is set at compile time by passing
-the ``--plugin-dir`` argument to ``waf configure``.
+the ``--plugin-dir`` argument to ``waf configure``, or the ``--with-plugindir``
+argument to ``configure``.
 
 UserPluginDir is tried first, then SystemPluginDir.
 

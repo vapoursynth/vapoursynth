@@ -9,7 +9,7 @@ Avisynth functions and their VapourSynth equivalents
 | DirectShowSource       | none                | There will be no source filter using DirectShow because there's no   |
 |                        |                     | real need for it. Use FFMS2 instead.                                 |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| ImageReader/ImageWriter| imwri plugin        | Planned, contributions welcome                                       |
+| ImageReader/ImageWriter| imwri plugin        |                                                                      |
 +------------------------+---------------------+----------------------------------------------------------------------+
 | Import                 | none                | See the documentation for Python's import for scripts.               |
 +------------------------+---------------------+----------------------------------------------------------------------+

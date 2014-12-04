@@ -26,7 +26,7 @@ AssVapour is a subtitle renderer that uses libass.
 
       debuglevel
          Debug level. Increase to make libass more chatty.
-         See `ass_utils.h <https://code.google.com/p/libass/source/browse/libass/ass_utils.h>`_
+         See `ass_utils.h <https://github.com/libass/libass/blob/master/libass/ass_utils.h>`_
          in libass for the list of meaningful values.
 
       fontdir
@@ -67,5 +67,5 @@ Example::
    # assume c is the core and video is a YUV420P8 clip
    subs = c.assvapour.AssRender(video, "asdf.ass")
    subs[0] = c.resize.Bicubic(subs[0], format=vs.YUV420P8)
-   hardsubbed_video = c.std.MaskedMerge([video, subs[0]], subs[1])
+   hardsubbed_video = c.std.MaskedMerge(video, subs[0], subs[1])
 

@@ -9,7 +9,7 @@ RGVS
 
    RemoveGrain is a spatial denoising filter.
 
-   Modes 0-4, 11, 12, 19, and 20 are implemented. Different modes can be
+   Modes 0-24 are implemented. Different modes can be
    specified for each plane. If there are fewer modes than planes, the last
    mode specified will be used for the remaining planes.
 
@@ -32,6 +32,24 @@ RGVS
       Same as mode 1, except the fourth-lowest and fourth-highest values are
       used.
 
+   **Mode 5**
+      TODO
+
+   **Mode 6**
+      TODO
+
+   **Mode 7**
+      TODO
+
+   **Mode 8**
+      TODO
+
+   **Mode 9**
+      TODO
+
+   **Mode 10**
+      TODO
+
    **Mode 11**
       Every pixel is replaced with a weighted arithmetic mean of its 3x3
       neighborhood.
@@ -43,6 +61,24 @@ RGVS
    **Mode 12**
       In this implementation, mode 12 is identical to mode 11.
 
+   **Mode 13**
+      TODO
+
+   **Mode 14**
+      TODO
+
+   **Mode 15**
+      TODO
+
+   **Mode 16**
+      TODO
+
+   **Mode 17**
+      TODO
+
+   **Mode 18**
+      TODO
+
    **Mode 19**
       Every pixel is replaced with the arithmetic mean of its 3x3 neighborhood,
       center pixel not included. In other words, the 8 neighbors are summed up
@@ -51,6 +87,18 @@ RGVS
    **Mode 20**
       Every pixel is replaced with the arithmetic mean of its 3x3 neighborhood.
       In other words, all 9 pixels are summed up and the sum is divided by 9.
+
+   **Mode 21**
+      TODO
+
+   **Mode 22**
+      TODO
+
+   **Mode 23**
+      TODO
+
+   **Mode 24**
+      TODO
 
    The top and bottom rows and the leftmost and rightmost columns are not
    processed. They are simply copied from the source.
