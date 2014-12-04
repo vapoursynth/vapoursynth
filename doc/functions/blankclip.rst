@@ -10,8 +10,8 @@ BlankClip
    the properties from *clip*. If both an argument such as *width*, and *clip*
    are set, then *width* will take precedence.
 
-   If *keep* is set a reference to the same frame is returned on every request,
-   otherwise a new frame is generated every frame. There should usually be no
+   If *keep* is set, a reference to the same frame is returned on every request.
+   Otherwise a new frame is generated every time. There should usually be no
    reason to change this setting.
 
    It is never an error to use BlankClip.

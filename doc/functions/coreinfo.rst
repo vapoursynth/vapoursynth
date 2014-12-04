@@ -5,6 +5,6 @@ CoreInfo (Text)
    :module: text
 
    Prints information about the VapourSynth core, such as version and memory
-   use. If no *clip* is supplied a default blank one is used.
+   use. If no *clip* is supplied, a default blank one is used.
 
    This is a convenience function for *Text*.

@@ -10,10 +10,10 @@ CropAbs/CropRel
    CropRel is the simplest to use of the two. The arguments specify how many
    pixels to crop from each side.
 
-   CropAbs, on the other hand, is special because it can accept variable frame
-   size clips and crop out a fixed size area, thus making it a fixed size clip.
-   The arguments *x* and *y* can be linked to frame properties to extract a
-   moving window from a clip.
+   CropAbs, on the other hand, is special, because it can accept clips with
+   variable frame sizes and crop out a fixed size area, thus making it a fixed
+   size clip. The arguments *x* and *y* can be linked to frame properties to
+   extract a moving window from a clip.
 
    Both functions return an error if the whole picture is cropped away or if the
    subsampling restrictions aren't met.

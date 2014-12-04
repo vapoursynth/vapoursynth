@@ -15,7 +15,7 @@ Native Plugins
 * :ref:`OCR <ocr>` -- optical character recognition on video frames, in the source tree
 * :ref:`RemoveGrain/Repair <rgvs>` -- in the source tree
 * :ref:`Vinverse <vinverse>` -- in the source tree
-* :ref:`VIVTC <vivtc>` -- field matching, inverse telecine and decimation,  in the source tree
+* :ref:`VIVTC <vivtc>` -- field matching, inverse telecine and decimation, in the source tree
 * `AddGrain <http://forum.doom9.org/showthread.php?t=171073>`_ -- Port of the Avisynth AddGrain filter
 * `Bifrost 2000 <https://github.com/dubhater/vapoursynth-bifrost>`_ -- A rainbow remover based on the Bifrost filter for Avisynth
 * `Bilateral <http://forum.doom9.org/showthread.php?t=171306>`_ -- Bilateral filtering
@@ -41,7 +41,7 @@ Native Plugins
 * `Retinex <http://forum.doom9.org/showthread.php?t=171307>`_ -- Dynamic range compression
 * `SceneChange <http://forum.doom9.org/showthread.php?t=166769>`_ -- Scene change detection and flagging
 * `SSIQ <https://github.com/dubhater/vapoursynth-ssiq>`_ -- Spatial derainbowing filter
-* `TComb <http://forum.doom9.org/showthread.php?t=171124>`_ -- Port of the Avisynth script
+* `TComb <http://forum.doom9.org/showthread.php?t=171124>`_ -- Port of the Avisynth filter
 * `TDeintMod <http://forum.doom9.org/showthread.php?t=171295>`_ -- Port of the Avisynth deinterlacer
 * `TempLinearApproximate <http://forum.doom9.org/showthread.php?t=169782>`_ -- A temporal smoother
 * `TemporalSoften <https://github.com/dubhater/vapoursynth-temporalsoften>`_ -- Bundled with the installer and based on the Avisynth filter with the same name

@@ -9,9 +9,9 @@ that any errors encountered while loading a plugin are silently ignored.
 Windows
 #######
 
-Windows has in total 3 different autoloading directories and they are searched in the order of user plugins, core plugins and global plugins.
-User plugins are always loaded first so that the current user always can decide which exact version of a plugin is used. Core plugins follow
-global plugins are placed last to prevent them from overriding any of the included plugins by accident.
+Windows has in total 3 different autoloading directories: user plugins, core plugins and global plugins. They are searched in that order.
+User plugins are always loaded first so that the current user can always decide which exact version of a plugin is used. Core plugins follow.
+Global plugins are placed last to prevent them from overriding any of the included plugins by accident.
 
 The searched paths are:
 
@@ -19,8 +19,10 @@ The searched paths are:
 #. *<VapourSynth path>*\\core32\\plugins or *<VapourSynth path>*\\core64\\plugins
 #. *<VapourSynth path>*\\plugins32 or *<VapourSynth path>*\\plugins64
 
-Note that the per user path is not created by default. Shortcuts to the global autoload directory are also located in the start menu.
-On modern windows versions the *AppData* directory is located in *<user>*\\AppData\\Roaming by default.
+Note that the per user path is not created by default. 
+On modern Windows versions the *AppData* directory is located in *<user>*\\AppData\\Roaming by default.
+
+Shortcuts to the global autoload directory are located in the start menu.
 
 Avisynth plugins are never autoloaded. Support for this may be added in the future.
 

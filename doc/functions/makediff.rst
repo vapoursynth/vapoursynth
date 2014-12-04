@@ -4,8 +4,8 @@ MakeDiff
 .. function::   MakeDiff(clip clipa, clip clipb[, int[] planes])
    :module: std
 
-   Caculates the difference between *clipa* and *clipb* and clamps the result.
-   By default all *planes* are processed. This function is usually used together with *MergeDiff* which can be used to add back the difference.
+   Calculates the difference between *clipa* and *clipb* and clamps the result.
+   By default all *planes* are processed. This function is usually used together with *MergeDiff*, which can be used to add back the difference.
 
    Unsharp masking of luma::
 

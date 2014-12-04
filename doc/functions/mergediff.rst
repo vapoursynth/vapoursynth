@@ -5,7 +5,7 @@ MergeDiff
    :module: std
 
    Merges back the difference in *clipb* to *clipa* and clamps the result.
-   By default all *planes* are processed. This function is usually used together with *MakeDiff* which is normally used to calculate the difference.
+   By default all *planes* are processed. This function is usually used together with *MakeDiff*, which is normally used to calculate the difference.
 
    Unsharp masking of luma::
 

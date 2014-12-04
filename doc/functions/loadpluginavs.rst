@@ -4,7 +4,7 @@ LoadPlugin (Avisynth Compatibility)
 .. function::   LoadPlugin(string path)
    :module: avs
 
-   Load an Avisynth plugin. If successful the loaded plugin's functions will end
+   Load an Avisynth plugin. If successful, the loaded plugin's functions will end
    up in the avs namespace.
 
    The compatibility module can work with a large number of Avisynth's plugins.

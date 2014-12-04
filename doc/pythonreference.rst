@@ -2,15 +2,15 @@ Python Reference
 ================
 
 VapourSynth is separated into a core library and a Python module. This section
-deals with how the core library is exposed through Python and some of the
-special things, such as slicing and output, unique to Python scripting.
+explains how the core library is exposed through Python and some of the
+special things unique to Python scripting, such as slicing and output.
 
 
 VapourSynth Structure
 #####################
 
 To use the VapourSynth library you must first retrieve the Core object, using
-get_core(). This core may then load plugins which all end up in their own unit,
+get_core(). This core may then load plugins, which all end up in their own unit,
 or namespace, so to say, to avoid naming conflicts in the contained functions.
 For this reason you call a plugin function with *core.unit.Function()*.
 
@@ -22,14 +22,14 @@ remember. If you do not like CamelCase for function names you can pass
 Slicing
 #######
 
-The VideoNode class (always referred to as clip in practice) supports the full
+The VideoNode class (always called "clip" in practice) supports the full
 range of indexing and slicing operations in Python. If you do perform a slicing
-operation on a clip you will get a new clip back with the desired frames.
+operation on a clip, you will get a new clip back with the desired frames.
 Here are some examples to illustrate::
 
    # ret will be a one frame clip containing the 6th frame
    ret = clip[5]
-   # ret will contain frames 6 to 9 (unlike trim the end value of python slicing is not inclusive)
+   # ret will contain frames 6 to 9 (unlike Trim, the end value of python slicing is not inclusive)
    ret = clip[6:10]
 
    # Select even numbered frames
@@ -37,7 +37,7 @@ Here are some examples to illustrate::
    # Select odd numbered frames
    ret = clip[1::2]
 
-   # Negative step is also allowed so this reverses a clip
+   # Negative step is also allowed, so this reverses a clip
    ret = clip[::-1]
 
    # It may all be combined at once to confuse people, just like normal Python lists
@@ -48,9 +48,9 @@ Output
 
 The normal way of specifying the clip(s) to output is to call
 *clip.set_output()*. All standard VapourSynth components only use output
-index 0 but other tools may use something similar.
+index 0, but other tools may use something different.
 There are also other variables that can be set to control how a format is
-output. For example setting *enable_v210=True* changes the packing of the
+output. For example, setting *enable_v210=True* changes the packing of the
 YUV422P10 format to one that is common in professional software (like Adobe
 products).
 An example on how to get v210 output::
@@ -65,7 +65,7 @@ Raw Access to Frame Data
 The VideoFrame class simply contains one picture and all the metadata
 associated with it. It is possible to access the raw data using ctypes and
 some persistence. The three relevant functions are *get_read_ptr(plane)*,
-*get_write_ptr(plane)* and *get_stride(plane)*, all of which take the plane
+*get_write_ptr(plane)*, and *get_stride(plane)*, all of which take the plane
 to access as an argument. Accessing the data is a bit trickier as
 *get_read_ptr()* and *get_write_ptr()* only return a pointer. To get a frame
 simply call *get_frame(n)* on a clip.
@@ -74,15 +74,15 @@ Classes and Functions
 #####################
 .. py:function:: get_core([threads = 0, add_cache = True, accept_lowercase = False])
 
-   Get the singleton Core object. If it is the first time the function is called
-   the Core will be instantiated with the given options. If the Core already has
-   been instantiated all options are ignored. Setting *threads* to a value
+   Get the singleton Core object. If it is the first time the function is called,
+   the Core will be instantiated with the given options. If the Core has already
+   been instantiated, all options are ignored. Setting *threads* to a value
    greater than zero overrides the autodetection.
 
 .. py:function:: set_message_handler(handler_func)
 
    Sets a function to handle all debug output and fatal errors. The function should have the form *handler(level, message)*,
-   where level correcsponds to the vapoursynth.mt constants. Passing *None* restores the default handler which prints to stderr.
+   where level corresponds to the vapoursynth.mt constants. Passing *None* restores the default handler, which prints to stderr.
    
 .. py:function:: get_output([index = 0])
 
@@ -91,7 +91,7 @@ Classes and Functions
 
 .. py:function:: clear_output([index = 0])
 
-   Clears a previously set clip for output.
+   Clears a clip previously set for output.
 
 .. py:function:: clear_outputs()
 
@@ -99,9 +99,9 @@ Classes and Functions
 
 .. py:class:: Core
 
-   The *Core* class uses a singleton pattern, use *get_core()* to obtain an
+   The *Core* class uses a singleton pattern. Use *get_core()* to obtain an
    instance. All loaded plugins are exposed as attributes of the core object.
-   These attributes in turn hold the contained functions in the plugin.
+   These attributes in turn hold the functions contained in the plugin.
    Use *get_plugins()* to obtain a full list of all currently loaded plugins
    you may call this way.
    
@@ -132,7 +132,7 @@ Classes and Functions
 
    .. py:method:: list_functions()
 
-      Works similar to *get_plugins()* but returns a human readable string.
+      Works similar to *get_plugins()* but returns a human-readable string.
 
    .. py:method:: register_format(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h)
 
@@ -141,7 +141,7 @@ Classes and Functions
 
    .. py:method:: get_format(id)
 
-      Retrieve a Format object corresponding to the id. Returns None if there is no format with the corresponding *id*.
+      Retrieve a Format object corresponding to the specified id. Returns None if there is no format with that *id*.
 
    .. py:method:: version()
 
@@ -162,7 +162,7 @@ Classes and Functions
    .. py:attribute:: format
 
       A Format object describing the frame data. If the format can change
-      between frames this value is None.
+      between frames, this value is None.
 
    .. py:attribute:: width
 
@@ -181,12 +181,12 @@ Classes and Functions
 
    .. py:attribute:: fps_num
 
-      The numerator of the framerate. If the clip has variable framerate the
+      The numerator of the framerate. If the clip has variable framerate, the
       value will be 0.
 
    .. py:attribute:: fps_den
 
-      The denominator of the framerate. If the clip has variable framerate the
+      The denominator of the framerate. If the clip has variable framerate, the
       value will be 0.
 
    .. py:attribute:: flags
@@ -201,13 +201,13 @@ Classes and Functions
    .. py:method:: set_output(index = 0)
 
       Set the clip to be accessible for output. This is the standard way to
-      specify which clip(s) to output and all VapourSynth tools (vsvfw, vsfs,
+      specify which clip(s) to output. All VapourSynth tools (vsvfw, vsfs,
       vspipe) use the clip in *index* 0.
 
    .. py:method:: output(fileobj[, y4m = False, prefetch = 0, progress_update = None])
  
       Write the whole clip to the specified file handle. It is possible to pipe to stdout by specifying *sys.stdout* as the file.
-      YUV4MPEG2 headers will be appended when *y4m* is true.
+      YUV4MPEG2 headers will be added when *y4m* is true.
       The current progress can be reported by passing a callback function of the form *func(current_frame, total_frames)* to *progress_update*.
       The *prefetch* argument is only for debugging purposes and should never need to be changed.
       
@@ -229,7 +229,7 @@ Classes and Functions
 
    .. py:attribute:: readonly
 
-      If *readonly* is True the frame data and properties cannot be modified.
+      If *readonly* is True, the frame data and properties cannot be modified.
 
    .. py:attribute:: props
 
@@ -249,7 +249,7 @@ Classes and Functions
 
    .. py:method:: get_write_ptr(plane)
 
-      Returns a pointer to the raw frame data. It may be written to using ctypes
+      Returns a pointer to the raw frame data. It may be modified using ctypes
       or some other similar python package.
       
    .. py:method:: get_write_array(plane)
@@ -316,7 +316,7 @@ Classes and Functions
 
    .. py:method:: list_functions()
 
-      Works similar to *get_functions()* but returns a human readable string.
+      Works similar to *get_functions()* but returns a human-readable string.
       
 .. py:class:: Function
 
@@ -338,7 +338,7 @@ Color Family Constants
 
 The color family constants describe groups of formats and the basic way their
 color information is stored. You should be familiar with all of them apart from
-maybe *YCOCG* and *COMPAT* which is a special junk category for non-planar
+maybe *YCOCG* and *COMPAT*. The latter is a special junk category for non-planar
 formats. These are the declared constants in the module::
 
    RGB
@@ -349,6 +349,7 @@ formats. These are the declared constants in the module::
 
 Format Constants
 ################
+
 Format constants exactly describe a format. All common and even more uncommon
 formats have handy constants predefined so in practice no one should really
 need to register one of their own. These values are mostly used by the resizers

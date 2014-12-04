@@ -4,7 +4,7 @@ Lut2
 .. function:: Lut2(clip clipa, clip clipb[, int[] planes, int[] lut, func function, int bits])
    :module: std
 
-   Applies a lut that takes the pixel values of two clips into account. The
+   Applies a look-up table that takes into account the pixel values of two clips. The
    *lut* needs to contain 2^(clip1.bits_per_sample + clip2.bits_per_sample)
    entries and will be applied to the planes listed in *planes*. Alternatively
    a *function* taking *x* and *y* as arguments can be used to make the lut.

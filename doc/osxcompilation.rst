@@ -1,7 +1,7 @@
 OS X Compilation Instructions
 =============================
 
-This is a simple guide to on how to compile VapourSynth on OSX for those who are a bit lazy.
+This is a simple guide for compiling VapourSynth on OS X for those who are a bit lazy.
 It's been tested on a clean install of OS X 10.10 and compiles all parts except the OCR and ImageMagick filters.
 
 Prerequisites
@@ -19,7 +19,7 @@ Installation of the required packages is very easy. Simply run these commands in
    brew install python3 yasm ffmpeg libass
    pip3 install cython sphinx
    
-If you've already installed all the required packages and instead want to update them simply run::
+If you've already installed all the required packages and instead want to update them, simply run::
 
    brew update && brew upgrade
    pip3 install --upgrade cython sphinx
@@ -27,11 +27,11 @@ If you've already installed all the required packages and instead want to update
 Compilation
 ###########
 
-If you haven't checked out the source code before use git to do so::
+If you haven't checked out the source code before, use git to do so::
 
    git clone https://github.com/vapoursynth/vapoursynth.git
    
-Or if if you already have a copy of the source update it with::
+Or if you already have a copy of the source, update it with::
 
    git pull
 

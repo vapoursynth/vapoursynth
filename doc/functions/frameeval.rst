@@ -21,7 +21,7 @@ FrameEval
    modify per frame properties you should use *ModifyFrame*.
 
    How to animate a BlankClip to fade from white to black. This is the simplest
-   usage case without using the *prop_src* argument::
+   use case without using the *prop_src* argument::
 
       import vapoursynth as vs
       import functools

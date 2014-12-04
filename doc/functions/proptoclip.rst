@@ -8,4 +8,5 @@ PropToClip
    *clip*.
    This function is mainly used to extract a mask/alpha clip that was stored in
    another one.
+
    It is the inverse of ClipToProp().

@@ -7,7 +7,7 @@ SelectEvery
    Returns a clip with only some of the frames in every *cycle* selected. The
    *offsets* given must be between 0 and *cycle* - 1.
 
-   Here are some examples of useful operations...
+   Below are some examples of useful operations.
 
    Return even numbered frames, starting with 0::
 

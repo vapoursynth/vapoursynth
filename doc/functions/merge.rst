@@ -7,7 +7,7 @@ Merge
    Merges *clipa* and *clipb* using the specified *weight* for each plane. The default
    is to use a 0.5 *weight* for all planes. A zero *weight* means that *clipa*
    is returned unchanged and 1 means that *clipb* is returned unchanged. If a
-   single *weight* is specified it will be used for all planes. If two weights
+   single *weight* is specified, it will be used for all planes. If two weights
    are given then the second value will be used for the third plane as well.
 
    Values outside the 0-1 range are considered to be an error. Specifying more

@@ -6,6 +6,7 @@ It's hard to tell because it has a core library written in C++ and a Python
 module to allow video scripts to be created. It came to be when I started
 thinking about alternative designs for Avisynth and most of it was written
 over a 3 month period.
+
 The software has been heavily inspired by `Avisynth <http://www.avisynth.org>`_
 and aims to be a 21st century rewrite, taking advantage of the advancements
 computers have made since the late 90s.

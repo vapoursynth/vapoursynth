@@ -14,10 +14,10 @@ Expr
 
    Specifying an empty string as the expression enables a fast plane copy from
    the first specified clip, when possible. If it is not possible due to the
-   output *format* being incompatible the plane contents will be undefined.
+   output *format* being incompatible, the plane contents will be undefined.
 
-   Since the expression is evaluated at runtime there are a few pitfalls. In
-   order to keep speed up the input ranges are not normalized to the usual
+   Since the expression is evaluated at runtime, there are a few pitfalls. In
+   order to keep speed up, the input ranges are not normalized to the usual
    floating point ranges. Instead they are left as is, meaning that an 8 bit
    clip will have values in the 0-255 range and a 10 bit clip will have values
    in the 0-1023 range.

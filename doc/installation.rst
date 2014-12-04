@@ -23,7 +23,7 @@ and type this::
 
 After typing the final line you should see the version printed along with a
 few other lines describing the options used when instantiating the Core object.
-If this for some reason fails there may be a bug in the installer or there are
+If this for some reason fails, there may be a bug in the installer or there are
 old copies of vapoursynth.pyd and vapoursynth.dll lying around.
 
 Installation of VSFS
@@ -31,6 +31,6 @@ Installation of VSFS
 
 By default VSFS will be registered if the Pismo File Mount Audit Package was
 installed before VapourSynth. If you install the Pismo File Mount Audit Package
-after VapourSynth and still want to use this feature either reinstall
-VapourSynth or register it from the commandline with
+after VapourSynth and still want to use this feature, either reinstall
+VapourSynth or register it from the command line with
 "pfm register <path>\\core32\\vsfs.dll" or "pfm register <path>\\core64\\vsfs.dll".

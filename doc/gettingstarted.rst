@@ -3,7 +3,7 @@ Getting Started
 
 So you managed to install VapourSynth. Now what?
 
-If you don't know the basics of Python you may want to check out the
+If you don't know the basics of Python, you may want to check out the
 `tutorial <http://docs.python.org/py3k/tutorial/index.html>`_.
 
 You can "play around" in the python interpreter if you want, but that's not how
@@ -37,7 +37,7 @@ Output with VSPipe
 ##################
 
 VSPipe is very useful to pipe the output to various applications, for example x264 and FFmpeg for encoding.
-Here are two examples of commandlines that automatically pass on most video attributes.
+Here are two examples of command lines that automatically pass on most video attributes.
 
 For x264::
 

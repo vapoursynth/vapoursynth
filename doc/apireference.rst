@@ -26,7 +26,7 @@ unknown. It is also a fatal error to set them to a value not specified below.
 
    The frame's absolute timestamp in seconds if reported by the source filter.
    Should only be set by the source filter and not be modified. Use durations
-   all operations that depend on frame length.
+   for all operations that depend on frame length.
    _AbsoluteTime float
 
    Chroma sample position in YUV formats.

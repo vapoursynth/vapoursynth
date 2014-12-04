@@ -17,5 +17,5 @@ Text
    The *alignment* parameter takes a number from 1 to 9, corresponding to the
    positions of the keys on a numpad.
 
-   *ClipInfo*, *CoreInfo*, *FrameNum* and *FrameProps* are convenience functions
+   *ClipInfo*, *CoreInfo*, *FrameNum*, and *FrameProps* are convenience functions
    based on *Text*.
