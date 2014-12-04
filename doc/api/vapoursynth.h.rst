@@ -199,6 +199,10 @@ Structs_
 
       * setMessageHandler_
 
+      * setThreadCount_
+
+      * getPluginPath_
+
 
 Functions_
    getVapourSynthAPI_
@@ -2084,6 +2088,33 @@ struct VSAPI
 
       *userData*
          Pointer that gets passed to the message handler.
+
+----------
+
+   .. _setThreadCount:
+
+   .. c:member:: VSSetThreadCount setThreadCount
+
+      typedef int (VS_CC \*VSSetThreadCount)(int threads, VSCore_ \*core)
+
+      Sets the number of worker threads for the given core. If the requested
+      number of threads is zero or lower, the number of hardware threads will
+      be detected and used.
+
+      Returns the new thread count.
+
+----------
+
+   .. _getPluginPath:
+
+   .. c:member:: VSGetPluginPath getPluginPath
+
+      typedef const char \*(VS_CC \*VSGetPluginPath)(const VSPlugin_ \*plugin)
+
+      Returns the absolute path to the plugin, including the plugin's file
+      name. Path elements are always delimited with forward slashes.
+
+      VapourSynth retains ownership of the returned pointer.
 
 
 Functions
