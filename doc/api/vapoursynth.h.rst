@@ -62,146 +62,164 @@ Structs_
 
    VSAPI_
 
-   .. hlist::
-      :columns: 4
+      * Functions that deal with the core:
 
-      * createCore_
+          * createCore_
 
-      * freeCore_
+          * freeCore_
 
-      * getCoreInfo_
+          * getCoreInfo_
 
-      * cloneFrameRef_
+          * setMaxCacheSize_
 
-      * cloneNodeRef_
+          * setMessageHandler_
 
-      * cloneFuncRef_
+          * setThreadCount_
 
-      * freeFrame_
+      * Functions that deal with frames:
 
-      * freeNode_
+          * newVideoFrame_
 
-      * freeFunc_
+          * newVideoFrame2_
 
-      * newVideoFrame_
+          * copyFrame_
 
-      * copyFrame_
+          * cloneFrameRef_
 
-      * copyFrameProps_
+          * freeFrame_
 
-      * registerFunction_
+          * getStride_
 
-      * getPluginById_
+          * getReadPtr_
 
-      * getPluginByNs_
+          * getWritePtr_
 
-      * getPlugins_
+          * getFrameFormat_
 
-      * getFunctions_
+          * getFrameWidth_
 
-      * createFilter_
+          * getFrameHeight_
 
-      * setError_
+          * copyFrameProps_
 
-      * getError_
+          * getFramePropsRO_
 
-      * setFilterError_
+          * getFramePropsRW_
 
-      * invoke_
+      * Functions that deal with nodes:
 
-      * getFormatPreset_
+          * cloneNodeRef_
 
-      * registerFormat_
+          * freeNode_
 
-      * getFrame_
+          * getFrame_
 
-      * getFrameAsync_
+          * getFrameAsync_
 
-      * getFrameFilter_
+          * getFrameFilter_
 
-      * requestFrameFilter_
+          * requestFrameFilter_
 
-      * queryCompletedFrame_
+          * getVideoInfo_
 
-      * releaseFrameEarly_
+          * setVideoInfo_
 
-      * getStride_
+      * Functions that deal with formats:
 
-      * getReadPtr_
+          * getFormatPreset_
 
-      * getWritePtr_
+          * registerFormat_
 
-      * createFunc_
+      * Functions that deal with maps:
 
-      * callFunc_
+          * createMap_
 
-      * createMap_
+          * freeMap_
 
-      * freeMap_
+          * clearMap_
 
-      * clearMap_
+          * setError_
 
-      * getVideoInfo_
+          * getError_
 
-      * setVideoInfo_
+          * propNumKeys_
 
-      * getFrameFormat_
+          * propGetKey_
 
-      * getFrameWidth_
+          * propDeleteKey_
 
-      * getFrameHeight_
+          * propGetType_
 
-      * getFramePropsRO_
+          * propNumElements_
 
-      * getFramePropsRW_
+          * propGetInt_
 
-      * propNumKeys_
+          * propGetFloat_
 
-      * propGetKey_
+          * propGetData_
 
-      * propNumElements_
+          * propGetDataSize_
 
-      * propGetType_
+          * propGetNode_
 
-      * propGetInt_
+          * propGetFrame_
 
-      * propGetFloat_
+          * propGetFunc_
 
-      * propGetData_
+          * propSetInt_
 
-      * propGetDataSize_
+          * propSetFloat_
 
-      * propGetNode_
+          * propSetData_
 
-      * propGetFrame_
+          * propSetNode_
 
-      * propGetFunc_
+          * propSetFrame_
 
-      * propDeleteKey_
+          * propSetFunc_
 
-      * propSetInt_
+      * Functions that deal with plugins:
 
-      * propSetFloat_
+          * getPluginById_
 
-      * propSetData_
+          * getPluginByNs_
 
-      * propSetNode_
+          * getPlugins_
 
-      * propSetFrame_
+          * getFunctions_
 
-      * propSetFunc_
+          * getPluginPath_
 
-      * setMaxCacheSize_
+      * Functions that deal with functions:
 
-      * getOutputIndex_
+          * createFunc_
 
-      * newVideoFrame2_
+          * cloneFuncRef_
 
-      * setMessageHandler_
+          * callFunc_
 
-      * setThreadCount_
+          * freeFunc_
 
-      * getPluginPath_
+      * Functions that are mostly used in plugins:
+
+          * createFilter_
+
+          * registerFunction_
+
+      * Functions that resist classification:
+
+          * invoke_
+
+      * Functions that are useful only in a filter's getframe function,
+        but otherwise still resist classification:
+
+          * setFilterError_
+
+          * getOutputIndex_
+
+          * queryCompletedFrame_
+
+          * releaseFrameEarly_
 
 
 Functions_
@@ -819,69 +837,59 @@ struct VSAPI
 
 ----------
 
-   .. _cloneFrameRef:
+   .. _setMaxCacheSize:
 
-   .. c:member:: VSCloneFrameRef cloneFrameRef
+   .. c:member:: VSSetMaxCacheSize setMaxCacheSize
 
-      typedef const VSFrameRef_ \*(VS_CC \*VSCloneFrameRef)(const VSFrameRef_ \*f)
+      typedef int64_t (VS_CC \*VSSetMaxCacheSize)(int64_t bytes, VSCore_ \*core)
 
-      Duplicates a frame reference. This new reference has to be deleted with
-      freeFrame_\ () when it is no longer needed.
-
-----------
-
-   .. _cloneNodeRef:
-
-   .. c:member:: VSCloneNodeRef cloneNodeRef
-
-      typedef VSNodeRef_ \*(VS_CC \*VSCloneNodeRef)(VSNodeRef_ \*node)
-
-      Duplicates a node reference. This new reference has to be deleted with
-      freeNode_\ () when it is no longer needed.
+      Sets the maximum size of the framebuffer cache. Returns the new maximum
+      size.
 
 ----------
 
-   .. _cloneFuncRef:
+   .. _setMessageHandler:
 
-   .. c:member:: VSCloneFuncRef cloneFuncRef
+   .. c:member:: VSSetMessageHandler setMessageHandler
 
-      typedef VSFuncRef_ \*(VS_CC \*VSCloneFuncRef)(VSFuncRef_ \*f)
+      typedef void (VS_CC \*VSSetMessageHandler)(VSMessageHandler handler, void \*userData)
 
-      TODO
+      Installs a custom handler for the various error messages VapourSynth
+      emits. The message handler is currently global, i.e. per process, not
+      per VSCore_ instance.
 
-----------
+      This function wraps `qInstallMsgHandler <http://qt-project.org/doc/qt-4.8/qtglobal.html#qInstallMsgHandler>`_.
 
-   .. _freeFrame:
+      *handler*
+         typedef void (VS_CC \*VSMessageHandler)(int msgType, const char \*msg, void \*userdata)
 
-   .. c:member:: VSFreeFrame freeFrame
+         Custom message handler.
 
-      typedef void (VS_CC \*VSFreeFrame)(const VSFrameRef_ \*f)
+         *msgType*
+            The type of message. One of VSMessageType_.
 
-      Deletes a frame reference, releasing the caller's ownership of the frame.
+            If *msgType* is mtFatal, VapourSynth will call abort() after the
+            message handler returns.
 
-      Don't try to use the frame once the reference has been deleted.
+         *msg*
+            The message.
 
-----------
-
-   .. _freeNode:
-
-   .. c:member:: VSFreeNode freeNode
-
-      typedef void (VS_CC \*VSFreeNode)(VSNodeRef_ \*node)
-
-      Deletes a node reference, releasing the caller's ownership of the node.
-
-      Don't try to use the node once the reference has been deleted.
+      *userData*
+         Pointer that gets passed to the message handler.
 
 ----------
 
-   .. _freeFunc:
+   .. _setThreadCount:
 
-   .. c:member:: VSFreeFunc freeFunc
+   .. c:member:: VSSetThreadCount setThreadCount
 
-      typedef void (VS_CC \*VSFreeFunc)(VSFuncRef_ \*f)
+      typedef int (VS_CC \*VSSetThreadCount)(int threads, VSCore_ \*core)
 
-      TODO
+      Sets the number of worker threads for the given core. If the requested
+      number of threads is zero or lower, the number of hardware threads will
+      be detected and used.
+
+      Returns the new thread count.
 
 ----------
 
@@ -914,6 +922,53 @@ struct VSAPI
 
 ----------
 
+   .. _newVideoFrame2:
+
+   .. c:member:: VSNewVideoFrame2 newVideoFrame2
+
+      typedef VSFrameRef_ \*(VS_CC \*VSNewVideoFrame2)(const VSFormat_ \*format, int width, int height, const VSFrameRef_ \**planeSrc, const int \*planes, const VSFrameRef_ \*propSrc, VSCore_ \*core)
+
+      Creates a new frame from the planes of existing frames, optionally copying
+      the properties attached to another frame.
+
+      *format*
+         The desired colorspace format. Must not be NULL.
+
+      *width*
+
+      *height*
+         The desired dimensions of the frame, in pixels. Must be greater than 0.
+
+      *planeSrc*
+         Array of frames from which planes will be copied. If any elements of
+         the array are NULL, the corresponding planes in the new frame will
+         contain uninitialised memory.
+
+      *planes*
+         Array of plane numbers indicating which plane to copy from the
+         corresponding source frame.
+
+      *propSrc*
+         A frame from which properties will be copied. Can be NULL.
+
+      Returns a pointer to the created frame. Ownership of the new frame is
+      transferred to the caller.
+
+      Example:
+
+      .. code-block:: c
+
+         // Assume frameA, frameB, frameC are existing frames.
+         const VSFrameRef * frames[3] = { frameA, frameB, frameC };
+         const int planes[3] = { 1, 0, 2 };
+
+         VSFrameRef * newFrame = vsapi->newVideoFrame2(f, w, h, frames, planes, NULL, core);
+         // newFrame's first plane is now a copy of frameA's second plane,
+         // the second plane is a copy of frameB's first plane,
+         // the third plane is a copy of frameC's third plane.
+
+----------
+
    .. _copyFrame:
 
    .. c:member:: VSCopyFrame copyFrame
@@ -928,6 +983,102 @@ struct VSAPI
 
 ----------
 
+   .. _cloneFrameRef:
+
+   .. c:member:: VSCloneFrameRef cloneFrameRef
+
+      typedef const VSFrameRef_ \*(VS_CC \*VSCloneFrameRef)(const VSFrameRef_ \*f)
+
+      Duplicates a frame reference. This new reference has to be deleted with
+      freeFrame_\ () when it is no longer needed.
+
+----------
+
+   .. _freeFrame:
+
+   .. c:member:: VSFreeFrame freeFrame
+
+      typedef void (VS_CC \*VSFreeFrame)(const VSFrameRef_ \*f)
+
+      Deletes a frame reference, releasing the caller's ownership of the frame.
+
+      Don't try to use the frame once the reference has been deleted.
+
+----------
+
+   .. _getStride:
+
+   .. c:member:: VSGetStride getStride
+
+      typedef int (VS_CC \*VSGetStride)(const VSFrameRef_ \*f, int plane)
+
+      Returns the distance in bytes between two consecutive lines of a plane of
+      a frame.
+
+      Passing an invalid plane number will cause a fatal error.
+
+----------
+
+   .. _getReadPtr:
+
+   .. c:member:: VSGetReadPtr getReadPtr
+
+      typedef const uint8_t \*(VS_CC \*VSGetReadPtr)(const VSFrameRef_ \*f, int plane)
+
+      Returns a read-only pointer to a plane of a frame.
+
+      Passing an invalid plane number will cause a fatal error.
+
+      .. note::
+         Don't assume all three planes of a frame are allocated in one
+         contiguous chunk (they're not).
+
+----------
+
+   .. _getWritePtr:
+
+   .. c:member:: VSGetWritePtr getWritePtr
+
+      typedef uint8_t \*(VS_CC \*VSGetWritePtr)(VSFrameRef_ \*f, int plane)
+
+      Returns a read/write pointer to a plane of a frame.
+
+      Passing an invalid plane number will cause a fatal error.
+
+----------
+
+   .. _getFrameFormat:
+
+   .. c:member:: VSGetFrameFormat getFrameFormat
+
+      typedef const VSFormat_ \*(VS_CC \*VSGetFrameFormat)(const VSFrameRef_ \*f)
+
+      Retrieves the format of a frame.
+
+----------
+
+   .. _getFrameWidth:
+
+   .. c:member:: VSGetFrameWidth getFrameWidth
+
+      typedef int (VS_CC \*VSGetFrameWidth)(const VSFrameRef_ \*f, int plane)
+
+      Returns the width of a plane of a given frame, in pixels. The width
+      depends on the plane number because of the possible chroma subsampling.
+
+----------
+
+   .. _getFrameHeight:
+
+   .. c:member:: VSGetFrameHeight getFrameHeight
+
+      typedef int (VS_CC \*VSGetFrameHeight)(const VSFrameRef_ \*f, int plane)
+
+      Returns the height of a plane of a given frame, in pixels. The height
+      depends on the plane number because of the possible chroma subsampling.
+
+----------
+
    .. _copyFrameProps:
 
    .. c:member:: VSCopyFrameProps copyFrameProps
@@ -939,266 +1090,48 @@ struct VSAPI
 
 ----------
 
-   .. _registerFunction:
+   .. _getFramePropsRO:
 
-   .. c:member:: VSRegisterFunction registerFunction
+   .. c:member:: VSGetFramePropsRO getFramePropsRO
 
-      typedef void (VS_CC \*VSRegisterFunction)(const char \*name, const char \*args, VSPublicFunction argsFunc, void \*functionData, VSPlugin_ \*plugin)
+      typedef const VSMap_ \*(VS_CC \*VSGetFramePropsRO)(const VSFrameRef_ \*f)
 
-      See VSInitPlugin_.
-
-----------
-
-   .. _getPluginById:
-
-   .. c:member:: VSGetPluginById getPluginById
-
-      typedef VSPlugin_ \*(VS_CC \*VSGetPluginById)(const char \*identifier, VSCore_ \*core)
-
-      Returns a pointer to the plugin with the given identifier, or NULL
-      if not found.
-
-      *identifier*
-         Reverse URL that uniquely identifies the plugin.
+      Returns a read-only pointer to a frame's properties. The pointer is valid
+      as long as the frame lives.
 
 ----------
 
-   .. _getPluginByNs:
+   .. _getFramePropsRW:
 
-   .. c:member:: VSGetPluginByNs getPluginByNs
+   .. c:member:: VSGetFramePropsRW getFramePropsRW
 
-      typedef VSPlugin_ \*(VS_CC \*VSGetPluginByNs)(const char \*ns, VSCore_ \*core)
+      typedef VSMap_ \*(VS_CC \*VSGetFramePropsRW)(VSFrameRef_ \*f)
 
-      Returns a pointer to the plugin with the given namespace, or NULL
-      if not found.
-
-      *ns*
-         Namespace.
+      Returns a read/write pointer to a frame's properties. The pointer is valid
+      as long as the frame lives.
 
 ----------
 
-   .. _getPlugins:
+   .. _cloneNodeRef:
 
-   .. c:member:: VSGetPlugins getPlugins
+   .. c:member:: VSCloneNodeRef cloneNodeRef
 
-      typedef VSMap_ \*(VS_CC \*VSGetPlugins)(VSCore_ \*core)
+      typedef VSNodeRef_ \*(VS_CC \*VSCloneNodeRef)(VSNodeRef_ \*node)
 
-      Returns a map containing a list of all loaded plugins.
-
-      Keys:
-         The plugins' unique identifiers.
-
-      Values:
-         Namespace, identifier, and full name, separated by semicolons.
+      Duplicates a node reference. This new reference has to be deleted with
+      freeNode_\ () when it is no longer needed.
 
 ----------
 
-   .. _getFunctions:
+   .. _freeNode:
 
-   .. c:member:: VSGetFunctions getFunctions
+   .. c:member:: VSFreeNode freeNode
 
-      typedef VSMap_ \*(VS_CC \*VSGetFunctions)(VSPlugin_ \*plugin)
+      typedef void (VS_CC \*VSFreeNode)(VSNodeRef_ \*node)
 
-      Returns a map containing a list of the filters exported by a plugin.
+      Deletes a node reference, releasing the caller's ownership of the node.
 
-      Keys:
-         The filter names.
-
-      Values:
-         The filter name followed by its argument string, separated by a semicolon.
-
-----------
-
-   .. _createFilter:
-
-   .. c:member:: VSCreateFilter createFilter
-
-      typedef void (VS_CC \*VSCreateFilter)(const VSMap_ \*in, VSMap_ \*out, const char \*name, VSFilterInit_ init, VSFilterGetFrame_ getFrame, VSFilterFree_ free, int filterMode, int flags, void \*instanceData, VSCore_ \*core)
-
-      Creates a new filter node.
-
-      *in*
-         List of the filter's arguments.
-
-      *out*
-         List of the filter's return values (clip(s) or an error).
-
-      *name*
-         Instance name. Please make it the same as the filter's name.
-
-      *init*
-         The filter's "init" function. Must not be NULL.
-
-      *getFrame*
-         The filter's "getframe" function. Must not be NULL.
-
-      *free*
-         The filter's "free" function. Can be NULL.
-
-      *filterMode*
-         One of VSFilterMode_. Indicates the level of parallelism
-         supported by the filter.
-
-      *flags*
-         Set to nfNoCache (VSNodeFlags_) if the frames generated by the filter
-         should not be cached. It is useful for filters that only shuffle
-         frames around without modifying them (e.g. std.Interleave). For most
-         filters this should be 0.
-
-      *instanceData*
-         A pointer to the private filter data, usually allocated in the filter's
-         argsFunc function.
-
-      After this function returns, *out* will contain the new node(s) in the
-      "clip" property, or an error, if something went wrong.
-
-      .. warning::
-         Never use inside a filter's "getframe" function.
-
-----------
-
-   .. _setError:
-
-   .. c:member:: VSSetError setError
-
-      typedef void (VS_CC \*VSSetError)(VSMap_ \*map, const char \*errorMessage)
-
-      Adds an error message to a map. The map is cleared first.
-
-      Never call from a filter's "getframe" function. See setFilterError_.
-
-      *errorMessage*
-         Pass NULL to get a useless default error message.
-
-----------
-
-   .. _getError:
-
-   .. c:member:: VSGetError getError
-
-      typedef const char \*(VS_CC \*VSGetError)(const VSMap_ \*map)
-
-      Returns a pointer to the error message contained in the map,
-      or NULL if there is no error message. The pointer is valid as long as
-      the map lives.
-
-----------
-
-   .. _setFilterError:
-
-   .. c:member:: VSSetFilterError setFilterError
-
-      typedef void (VS_CC \*VSSetFilterError)(const char \*errorMessage, VSFrameContext_ \*frameCtx)
-
-      Adds an error message to a frame context, replacing the existing message,
-      if any.
-
-      This is the way to report errors in a filter's "getframe" function.
-      Such errors are not fatal, i.e. the caller can try to request the same
-      frame again.
-
-----------
-
-   .. _invoke:
-
-   .. c:member:: VSInvoke invoke
-
-      typedef VSMap_ \*(VS_CC \*VSInvoke)(VSPlugin_ \*plugin, const char \*name, const VSMap_ \*args)
-
-      Invokes a filter.
-
-      invoke() makes sure the filter has no compat input nodes, checks that
-      the *args* passed to the filter are consistent with the argument list
-      registered by the plugin, calls the filter's "create" function, and
-      checks that the filter doesn't return any compat nodes. If everything
-      goes smoothly, the filter will be ready to generate frames after
-      invoke() returns.
-
-      ??? Concurrent call with other functions ???
-
-      *plugin*
-         A pointer to the plugin where the filter is located. Must not be NULL.
-
-         See getPluginById_\ () and getPluginByNs_\ ().
-
-      *name*
-         Name of the filter to invoke.
-
-      *args*
-         Arguments for the filter.
-
-      Returns a map containing the filter's return value(s). The caller gets
-      ownership of the map. Use getError_\ () to check if the filter was invoked
-      successfully.
-
-      Most filters will either add an error to the map, or one or more clips
-      with the key "clip". One exception is the special LoadPlugin "filter",
-      which doesn't return any clips for obvious reasons.
-
-      .. warning::
-         Never use inside a filter's "getframe" function.
-
-----------
-
-   .. _getFormatPreset:
-
-   .. c:member:: VSGetFormatPreset getFormatPreset
-
-      typedef const VSFormat_ \*(VS_CC \*VSGetFormatPreset)(int id, VSCore_ \*core)
-
-      Returns a VSFormat structure from a video format identifier.
-
-      Concurrent access allowed with other video format functions.
-
-      *id*
-         The format identifier: one of VSPresetFormat_ or a custom registered
-         format.
-
-      Returns NULL if the identifier is not known.
-
-----------
-
-   .. _registerFormat:
-
-   .. c:member:: VSRegisterFormat registerFormat
-
-      typedef const VSFormat_ \*(VS_CC \*VSRegisterFormat)(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore_ \*core)
-
-      Registers a custom video format.
-
-      Concurrent access allowed with other video format functions.
-
-      *colorFamily*
-         One of VSColorFamily_.
-
-         .. note::
-            Registering compat formats is not allowed.
-
-      *sampleType*
-         One of VSSampleType_.
-
-      *bitsPerSample*
-         Number of meaningful bits for a single component. The valid range is
-         8-32.
-
-         For floating point formats, only 16 or 32 bits are allowed.
-
-      *subSamplingW*
-         log2 of the horizontal chroma subsampling. 0 == no subsampling.
-
-      *subSamplingH*
-         log2 of the vertical chroma subsampling. The valid range is 0-4.
-
-         .. note::
-            RGB formats are not allowed to be subsampled in VapourSynth.
-
-      Returns a pointer to the created VSFormat_ object. Its *id* member
-      contains the attributed format identifier. The pointer is valid as long
-      as the VSCore_ instance lives.
-
-      If the parameters specify a format that is already registered (including
-      preset formats), then no new format is created and the existing one is
-      returned.
+      Don't try to use the node once the reference has been deleted.
 
 ----------
 
@@ -1356,102 +1289,96 @@ struct VSAPI
 
 ----------
 
-   .. _queryCompletedFrame:
+   .. _getVideoInfo:
 
-   .. c:member:: VSQueryCompletedFrame queryCompletedFrame
+   .. c:member:: VSGetVideoInfo getVideoInfo
 
-      typedef void (VS_CC \*VSQueryCompletedFrame)(VSNodeRef_ \**node, int \*n, VSFrameContext_ \*frameCtx)
+      typedef const VSVideoInfo_ \*(VS_CC \*VSGetVideoInfo)(VSNodeRef_ \*node)
 
-      Finds out which requested frame is ready. To be used in a filter's
-      "getframe" function, when it is called with *activationReason*
-      arFrameReady.
-
-      The node and the frame number will be available in *node* and *n*.
+      Returns a pointer to the video info associated with a node. The pointer is
+      valid as long as the node lives.
 
 ----------
 
-   .. _releaseFrameEarly:
+   .. _setVideoInfo:
 
-   .. c:member:: VSReleaseFrameEarly releaseFrameEarly
+   .. c:member:: VSSetVideoInfo setVideoInfo
 
-      typedef void (VS_CC \*VSReleaseFrameEarly)(VSNodeRef_ \*node, int n, VSFrameContext_ \*frameCtx)
+      typedef void (VS_CC \*VSSetVideoInfo)(const VSVideoInfo_ \*vi, int numOutputs, VSNode_ \*node)
 
-      TODO
+      Sets the node's video info.
 
-      Only use inside a filter's "getframe" function.
+      *vi*
+         Pointer to *numOutputs* VSVideoInfo_ instances. The structures are
+         copied by the core.
 
-----------
+      *numOutputs*
+         Number of clips the filter wants to return. Must be greater than 0.
 
-   .. _getStride:
-
-   .. c:member:: VSGetStride getStride
-
-      typedef int (VS_CC \*VSGetStride)(const VSFrameRef_ \*f, int plane)
-
-      Returns the distance in bytes between two consecutive lines of a plane of
-      a frame.
-
-      Passing an invalid plane number will cause a fatal error.
+      *node*
+         Pointer to the node whose video info is to be set.
 
 ----------
 
-   .. _getReadPtr:
+   .. _getFormatPreset:
 
-   .. c:member:: VSGetReadPtr getReadPtr
+   .. c:member:: VSGetFormatPreset getFormatPreset
 
-      typedef const uint8_t \*(VS_CC \*VSGetReadPtr)(const VSFrameRef_ \*f, int plane)
+      typedef const VSFormat_ \*(VS_CC \*VSGetFormatPreset)(int id, VSCore_ \*core)
 
-      Returns a read-only pointer to a plane of a frame.
+      Returns a VSFormat structure from a video format identifier.
 
-      Passing an invalid plane number will cause a fatal error.
+      Concurrent access allowed with other video format functions.
 
-      .. note::
-         Don't assume all three planes of a frame are allocated in one
-         contiguous chunk (they're not).
+      *id*
+         The format identifier: one of VSPresetFormat_ or a custom registered
+         format.
 
-----------
-
-   .. _getWritePtr:
-
-   .. c:member:: VSGetWritePtr getWritePtr
-
-      typedef uint8_t \*(VS_CC \*VSGetWritePtr)(VSFrameRef_ \*f, int plane)
-
-      Returns a read/write pointer to a plane of a frame.
-
-      Passing an invalid plane number will cause a fatal error.
+      Returns NULL if the identifier is not known.
 
 ----------
 
-   .. _createFunc:
+   .. _registerFormat:
 
-   .. c:member:: VSCreateFunc createFunc
+   .. c:member:: VSRegisterFormat registerFormat
 
-      typedef VSFuncRef_ \*(VS_CC \*VSCreateFunc)(VSPublicFunction func, void \*userData, VSFreeFuncData free)
+      typedef const VSFormat_ \*(VS_CC \*VSRegisterFormat)(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore_ \*core)
 
-      *func*
-         typedef void (VS_CC \*VSPublicFunction)(const VSMap_ \*in, VSMap_ \*out, void \*userData, VSCore_ \*core, const VSAPI_ \*vsapi)
+      Registers a custom video format.
 
-         User-defined function that does stuff. ???
+      Concurrent access allowed with other video format functions.
 
-      *userData*
-         Pointer passed to *func*
+      *colorFamily*
+         One of VSColorFamily_.
 
+         .. note::
+            Registering compat formats is not allowed.
 
-      *free*
-         typedef void (VS_CC \*VSFreeFuncData)(void \*userData)
+      *sampleType*
+         One of VSSampleType_.
 
-         Callback tasked with freeing *userData*.
+      *bitsPerSample*
+         Number of meaningful bits for a single component. The valid range is
+         8-32.
 
-----------
+         For floating point formats, only 16 or 32 bits are allowed.
 
-   .. _callFunc:
+      *subSamplingW*
+         log2 of the horizontal chroma subsampling. 0 == no subsampling.
 
-   .. c:member:: VSCallFunc callFunc
+      *subSamplingH*
+         log2 of the vertical chroma subsampling. The valid range is 0-4.
 
-      typedef void (VS_CC \*VSCallFunc)(VSFuncRef_ \*func, const VSMap_ \*in, VSMap_ \*out, VSCore_ \*core, const VSAPI_ \*vsapi)
+         .. note::
+            RGB formats are not allowed to be subsampled in VapourSynth.
 
-      TODO
+      Returns a pointer to the created VSFormat_ object. Its *id* member
+      contains the attributed format identifier. The pointer is valid as long
+      as the VSCore_ instance lives.
+
+      If the parameters specify a format that is already registered (including
+      preset formats), then no new format is created and the existing one is
+      returned.
 
 ----------
 
@@ -1487,88 +1414,30 @@ struct VSAPI
 
 ----------
 
-   .. _getVideoInfo:
+   .. _setError:
 
-   .. c:member:: VSGetVideoInfo getVideoInfo
+   .. c:member:: VSSetError setError
 
-      typedef const VSVideoInfo_ \*(VS_CC \*VSGetVideoInfo)(VSNodeRef_ \*node)
+      typedef void (VS_CC \*VSSetError)(VSMap_ \*map, const char \*errorMessage)
 
-      Returns a pointer to the video info associated with a node. The pointer is
-      valid as long as the node lives.
+      Adds an error message to a map. The map is cleared first.
 
-----------
+      Never call from a filter's "getframe" function. See setFilterError_.
 
-   .. _setVideoInfo:
-
-   .. c:member:: VSSetVideoInfo setVideoInfo
-
-      typedef void (VS_CC \*VSSetVideoInfo)(const VSVideoInfo_ \*vi, int numOutputs, VSNode_ \*node)
-
-      Sets the node's video info.
-
-      *vi*
-         Pointer to *numOutputs* VSVideoInfo_ instances. The structures are
-         copied by the core.
-
-      *numOutputs*
-         Number of clips the filter wants to return. Must be greater than 0.
-
-      *node*
-         Pointer to the node whose video info is to be set.
+      *errorMessage*
+         Pass NULL to get a useless default error message.
 
 ----------
 
-   .. _getFrameFormat:
+   .. _getError:
 
-   .. c:member:: VSGetFrameFormat getFrameFormat
+   .. c:member:: VSGetError getError
 
-      typedef const VSFormat_ \*(VS_CC \*VSGetFrameFormat)(const VSFrameRef_ \*f)
+      typedef const char \*(VS_CC \*VSGetError)(const VSMap_ \*map)
 
-      Retrieves the format of a frame.
-
-----------
-
-   .. _getFrameWidth:
-
-   .. c:member:: VSGetFrameWidth getFrameWidth
-
-      typedef int (VS_CC \*VSGetFrameWidth)(const VSFrameRef_ \*f, int plane)
-
-      Returns the width of a plane of a given frame, in pixels. The width
-      depends on the plane number because of the possible chroma subsampling.
-
-----------
-
-   .. _getFrameHeight:
-
-   .. c:member:: VSGetFrameHeight getFrameHeight
-
-      typedef int (VS_CC \*VSGetFrameHeight)(const VSFrameRef_ \*f, int plane)
-
-      Returns the height of a plane of a given frame, in pixels. The height
-      depends on the plane number because of the possible chroma subsampling.
-
-----------
-
-   .. _getFramePropsRO:
-
-   .. c:member:: VSGetFramePropsRO getFramePropsRO
-
-      typedef const VSMap_ \*(VS_CC \*VSGetFramePropsRO)(const VSFrameRef_ \*f)
-
-      Returns a read-only pointer to a frame's properties. The pointer is valid
-      as long as the frame lives.
-
-----------
-
-   .. _getFramePropsRW:
-
-   .. c:member:: VSGetFramePropsRW getFramePropsRW
-
-      typedef VSMap_ \*(VS_CC \*VSGetFramePropsRW)(VSFrameRef_ \*f)
-
-      Returns a read/write pointer to a frame's properties. The pointer is valid
-      as long as the frame lives.
+      Returns a pointer to the error message contained in the map,
+      or NULL if there is no error message. The pointer is valid as long as
+      the map lives.
 
 ----------
 
@@ -1596,14 +1465,16 @@ struct VSAPI
 
 ----------
 
-   .. _propNumElements:
+   .. _propDeleteKey:
 
-   .. c:member:: VSPropNumElements propNumElements
+   .. c:member:: VSPropDeleteKey propDeleteKey
 
-      typedef int (VS_CC \*VSPropNumElements)(const VSMap_ \*map, const char \*key)
+      typedef int (VS_CC \*VSPropDeleteKey)(VSMap_ \*map, const char \*key)
 
-      Returns the number of elements associated with a key in a property map.
-      Returns -1 if there is no such key in the map.
+      Removes the property with the given key. All values associated with the
+      key are lost.
+
+      Returns 0 if the key isn't in the map. Otherwise it returns 1.
 
 ----------
 
@@ -1618,6 +1489,17 @@ struct VSAPI
 
       The returned value is one of VSPropTypes_. If there is no such key in the
       map, the returned value is ptUnset.
+
+----------
+
+   .. _propNumElements:
+
+   .. c:member:: VSPropNumElements propNumElements
+
+      typedef int (VS_CC \*VSPropNumElements)(const VSMap_ \*map, const char \*key)
+
+      Returns the number of elements associated with a key in a property map.
+      Returns -1 if there is no such key in the map.
 
 ----------
 
@@ -1811,19 +1693,6 @@ struct VSAPI
 
 ----------
 
-   .. _propDeleteKey:
-
-   .. c:member:: VSPropDeleteKey propDeleteKey
-
-      typedef int (VS_CC \*VSPropDeleteKey)(VSMap_ \*map, const char \*key)
-
-      Removes the property with the given key. All values associated with the
-      key are lost.
-
-      Returns 0 if the key isn't in the map. Otherwise it returns 1.
-
-----------
-
    .. _propSetInt:
 
    .. c:member:: VSPropSetInt propSetInt
@@ -1989,14 +1858,242 @@ struct VSAPI
 
 ----------
 
-   .. _setMaxCacheSize:
+   .. _getPluginById:
 
-   .. c:member:: VSSetMaxCacheSize setMaxCacheSize
+   .. c:member:: VSGetPluginById getPluginById
 
-      typedef int64_t (VS_CC \*VSSetMaxCacheSize)(int64_t bytes, VSCore_ \*core)
+      typedef VSPlugin_ \*(VS_CC \*VSGetPluginById)(const char \*identifier, VSCore_ \*core)
 
-      Sets the maximum size of the framebuffer cache. Returns the new maximum
-      size.
+      Returns a pointer to the plugin with the given identifier, or NULL
+      if not found.
+
+      *identifier*
+         Reverse URL that uniquely identifies the plugin.
+
+----------
+
+   .. _getPluginByNs:
+
+   .. c:member:: VSGetPluginByNs getPluginByNs
+
+      typedef VSPlugin_ \*(VS_CC \*VSGetPluginByNs)(const char \*ns, VSCore_ \*core)
+
+      Returns a pointer to the plugin with the given namespace, or NULL
+      if not found.
+
+      *ns*
+         Namespace.
+
+----------
+
+   .. _getPlugins:
+
+   .. c:member:: VSGetPlugins getPlugins
+
+      typedef VSMap_ \*(VS_CC \*VSGetPlugins)(VSCore_ \*core)
+
+      Returns a map containing a list of all loaded plugins.
+
+      Keys:
+         The plugins' unique identifiers.
+
+      Values:
+         Namespace, identifier, and full name, separated by semicolons.
+
+----------
+
+   .. _getFunctions:
+
+   .. c:member:: VSGetFunctions getFunctions
+
+      typedef VSMap_ \*(VS_CC \*VSGetFunctions)(VSPlugin_ \*plugin)
+
+      Returns a map containing a list of the filters exported by a plugin.
+
+      Keys:
+         The filter names.
+
+      Values:
+         The filter name followed by its argument string, separated by a semicolon.
+
+----------
+
+   .. _getPluginPath:
+
+   .. c:member:: VSGetPluginPath getPluginPath
+
+      typedef const char \*(VS_CC \*VSGetPluginPath)(const VSPlugin_ \*plugin)
+
+      Returns the absolute path to the plugin, including the plugin's file
+      name. Path elements are always delimited with forward slashes.
+
+      VapourSynth retains ownership of the returned pointer.
+
+----------
+
+   .. _createFunc:
+
+   .. c:member:: VSCreateFunc createFunc
+
+      typedef VSFuncRef_ \*(VS_CC \*VSCreateFunc)(VSPublicFunction func, void \*userData, VSFreeFuncData free)
+
+      *func*
+         typedef void (VS_CC \*VSPublicFunction)(const VSMap_ \*in, VSMap_ \*out, void \*userData, VSCore_ \*core, const VSAPI_ \*vsapi)
+
+         User-defined function that does stuff. ???
+
+      *userData*
+         Pointer passed to *func*
+
+
+      *free*
+         typedef void (VS_CC \*VSFreeFuncData)(void \*userData)
+
+         Callback tasked with freeing *userData*.
+
+----------
+
+   .. _cloneFuncRef:
+
+   .. c:member:: VSCloneFuncRef cloneFuncRef
+
+      typedef VSFuncRef_ \*(VS_CC \*VSCloneFuncRef)(VSFuncRef_ \*f)
+
+      TODO
+
+----------
+
+   .. _callFunc:
+
+   .. c:member:: VSCallFunc callFunc
+
+      typedef void (VS_CC \*VSCallFunc)(VSFuncRef_ \*func, const VSMap_ \*in, VSMap_ \*out, VSCore_ \*core, const VSAPI_ \*vsapi)
+
+      TODO
+
+----------
+
+   .. _freeFunc:
+
+   .. c:member:: VSFreeFunc freeFunc
+
+      typedef void (VS_CC \*VSFreeFunc)(VSFuncRef_ \*f)
+
+      TODO
+
+----------
+
+   .. _createFilter:
+
+   .. c:member:: VSCreateFilter createFilter
+
+      typedef void (VS_CC \*VSCreateFilter)(const VSMap_ \*in, VSMap_ \*out, const char \*name, VSFilterInit_ init, VSFilterGetFrame_ getFrame, VSFilterFree_ free, int filterMode, int flags, void \*instanceData, VSCore_ \*core)
+
+      Creates a new filter node.
+
+      *in*
+         List of the filter's arguments.
+
+      *out*
+         List of the filter's return values (clip(s) or an error).
+
+      *name*
+         Instance name. Please make it the same as the filter's name.
+
+      *init*
+         The filter's "init" function. Must not be NULL.
+
+      *getFrame*
+         The filter's "getframe" function. Must not be NULL.
+
+      *free*
+         The filter's "free" function. Can be NULL.
+
+      *filterMode*
+         One of VSFilterMode_. Indicates the level of parallelism
+         supported by the filter.
+
+      *flags*
+         Set to nfNoCache (VSNodeFlags_) if the frames generated by the filter
+         should not be cached. It is useful for filters that only shuffle
+         frames around without modifying them (e.g. std.Interleave). For most
+         filters this should be 0.
+
+      *instanceData*
+         A pointer to the private filter data, usually allocated in the filter's
+         argsFunc function.
+
+      After this function returns, *out* will contain the new node(s) in the
+      "clip" property, or an error, if something went wrong.
+
+      .. warning::
+         Never use inside a filter's "getframe" function.
+
+----------
+
+   .. _registerFunction:
+
+   .. c:member:: VSRegisterFunction registerFunction
+
+      typedef void (VS_CC \*VSRegisterFunction)(const char \*name, const char \*args, VSPublicFunction argsFunc, void \*functionData, VSPlugin_ \*plugin)
+
+      See VSInitPlugin_.
+
+----------
+
+   .. _invoke:
+
+   .. c:member:: VSInvoke invoke
+
+      typedef VSMap_ \*(VS_CC \*VSInvoke)(VSPlugin_ \*plugin, const char \*name, const VSMap_ \*args)
+
+      Invokes a filter.
+
+      invoke() makes sure the filter has no compat input nodes, checks that
+      the *args* passed to the filter are consistent with the argument list
+      registered by the plugin, calls the filter's "create" function, and
+      checks that the filter doesn't return any compat nodes. If everything
+      goes smoothly, the filter will be ready to generate frames after
+      invoke() returns.
+
+      ??? Concurrent call with other functions ???
+
+      *plugin*
+         A pointer to the plugin where the filter is located. Must not be NULL.
+
+         See getPluginById_\ () and getPluginByNs_\ ().
+
+      *name*
+         Name of the filter to invoke.
+
+      *args*
+         Arguments for the filter.
+
+      Returns a map containing the filter's return value(s). The caller gets
+      ownership of the map. Use getError_\ () to check if the filter was invoked
+      successfully.
+
+      Most filters will either add an error to the map, or one or more clips
+      with the key "clip". One exception is the special LoadPlugin "filter",
+      which doesn't return any clips for obvious reasons.
+
+      .. warning::
+         Never use inside a filter's "getframe" function.
+
+----------
+
+   .. _setFilterError:
+
+   .. c:member:: VSSetFilterError setFilterError
+
+      typedef void (VS_CC \*VSSetFilterError)(const char \*errorMessage, VSFrameContext_ \*frameCtx)
+
+      Adds an error message to a frame context, replacing the existing message,
+      if any.
+
+      This is the way to report errors in a filter's "getframe" function.
+      Such errors are not fatal, i.e. the caller can try to request the same
+      frame again.
 
 ----------
 
@@ -2013,108 +2110,29 @@ struct VSAPI
 
 ----------
 
-   .. _newVideoFrame2:
+   .. _queryCompletedFrame:
 
-   .. c:member:: VSNewVideoFrame2 newVideoFrame2
+   .. c:member:: VSQueryCompletedFrame queryCompletedFrame
 
-      typedef VSFrameRef_ \*(VS_CC \*VSNewVideoFrame2)(const VSFormat_ \*format, int width, int height, const VSFrameRef_ \**planeSrc, const int \*planes, const VSFrameRef_ \*propSrc, VSCore_ \*core)
+      typedef void (VS_CC \*VSQueryCompletedFrame)(VSNodeRef_ \**node, int \*n, VSFrameContext_ \*frameCtx)
 
-      Creates a new frame from the planes of existing frames, optionally copying
-      the properties attached to another frame.
+      Finds out which requested frame is ready. To be used in a filter's
+      "getframe" function, when it is called with *activationReason*
+      arFrameReady.
 
-      *format*
-         The desired colorspace format. Must not be NULL.
-
-      *width*
-
-      *height*
-         The desired dimensions of the frame, in pixels. Must be greater than 0.
-
-      *planeSrc*
-         Array of frames from which planes will be copied. If any elements of
-         the array are NULL, the corresponding planes in the new frame will
-         contain uninitialised memory.
-
-      *planes*
-         Array of plane numbers indicating which plane to copy from the
-         corresponding source frame.
-
-      *propSrc*
-         A frame from which properties will be copied. Can be NULL.
-
-      Returns a pointer to the created frame. Ownership of the new frame is
-      transferred to the caller.
-
-      Example:
-
-      .. code-block:: c
-
-         // Assume frameA, frameB, frameC are existing frames.
-         const VSFrameRef * frames[3] = { frameA, frameB, frameC };
-         const int planes[3] = { 1, 0, 2 };
-
-         VSFrameRef * newFrame = vsapi->newVideoFrame2(f, w, h, frames, planes, NULL, core);
-         // newFrame's first plane is now a copy of frameA's second plane,
-         // the second plane is a copy of frameB's first plane,
-         // the third plane is a copy of frameC's third plane.
+      The node and the frame number will be available in *node* and *n*.
 
 ----------
 
-   .. _setMessageHandler:
+   .. _releaseFrameEarly:
 
-   .. c:member:: VSSetMessageHandler setMessageHandler
+   .. c:member:: VSReleaseFrameEarly releaseFrameEarly
 
-      typedef void (VS_CC \*VSSetMessageHandler)(VSMessageHandler handler, void \*userData)
+      typedef void (VS_CC \*VSReleaseFrameEarly)(VSNodeRef_ \*node, int n, VSFrameContext_ \*frameCtx)
 
-      Installs a custom handler for the various error messages VapourSynth
-      emits. The message handler is currently global, i.e. per process, not
-      per VSCore_ instance.
+      TODO
 
-      This function wraps `qInstallMsgHandler <http://qt-project.org/doc/qt-4.8/qtglobal.html#qInstallMsgHandler>`_.
-
-      *handler*
-         typedef void (VS_CC \*VSMessageHandler)(int msgType, const char \*msg, void \*userdata)
-
-         Custom message handler.
-
-         *msgType*
-            The type of message. One of VSMessageType_.
-
-            If *msgType* is mtFatal, VapourSynth will call abort() after the
-            message handler returns.
-
-         *msg*
-            The message.
-
-      *userData*
-         Pointer that gets passed to the message handler.
-
-----------
-
-   .. _setThreadCount:
-
-   .. c:member:: VSSetThreadCount setThreadCount
-
-      typedef int (VS_CC \*VSSetThreadCount)(int threads, VSCore_ \*core)
-
-      Sets the number of worker threads for the given core. If the requested
-      number of threads is zero or lower, the number of hardware threads will
-      be detected and used.
-
-      Returns the new thread count.
-
-----------
-
-   .. _getPluginPath:
-
-   .. c:member:: VSGetPluginPath getPluginPath
-
-      typedef const char \*(VS_CC \*VSGetPluginPath)(const VSPlugin_ \*plugin)
-
-      Returns the absolute path to the plugin, including the plugin's file
-      name. Path elements are always delimited with forward slashes.
-
-      VapourSynth retains ownership of the returned pointer.
+      Only use inside a filter's "getframe" function.
 
 
 Functions
