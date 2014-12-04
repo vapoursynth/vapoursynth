@@ -464,11 +464,23 @@ enum VSPropTypes
 enum VSGetPropErrors
 --------------------
 
+   When a propGet* function fails, it returns one of these in the *err*
+   parameter.
+
+   They are all non-zero.
+
    * peUnset
+
+     The requested key was not found in the map.
 
    * peType
 
+     The wrong function was used to retrieve the property. E.g.
+     propGetInt_\ () was used on a property of type ptFloat.
+
    * peIndex
+
+     The requested index was out of bounds.
 
 
 .. _VSPropAppendMode:
@@ -540,7 +552,7 @@ struct VSFrameRef
 
    A frame.
 
-   The contents of a frame (pixels) are guaranteed to have an alignment of 32
+   Each row of pixels in a frame is guaranteed to have an alignment of 32
    bytes.
 
    Two frames with the same width are guaranteed to have the same stride.
@@ -598,11 +610,15 @@ struct VSPlugin
 
       - The VapourSynth API version the plugin requires.
 
+      - A file name.
+
    Things you can do with a VSPlugin:
 
       - Get a list of all the filters it exports, using getFunctions_\ ().
 
       - Invoke one of its filters, using invoke_\ ().
+
+      - Get its location in the file system, using getPluginPath_\ ().
 
    A list of all loaded plugins (including built-in) can be obtained with
    getPlugins_\ ().
@@ -615,7 +631,7 @@ struct VSPlugin
 struct VSNode
 -------------
 
-   TODO
+   Not really interesting.
 
 
 .. _VSFuncRef:
@@ -648,8 +664,8 @@ struct VSMap
    places certain restrictions on the characters allowed in filters' arguments.
    See registerFunc in VSInitPlugin_.
 
-   Creating and destroying a map are done with createMap_\ () and freeMap_\ (),
-   respectively.
+   Creating and destroying a map can be done with createMap_\ () and
+   freeMap_\ (), respectively.
 
    A map's contents can be retrieved and modified using a number of functions,
    all prefixed with "prop".
@@ -662,7 +678,7 @@ struct VSMap
 struct VSFrameContext
 ---------------------
 
-   TODO
+   Not really interesting.
 
 
 .. _VSFormat:
@@ -675,12 +691,11 @@ struct VSFormat
    Don't create an instance of this struct manually (``struct VSFormat moo;``),
    but only through registerFormat_\ (). Registered VSFormat instances will be
    valid as long as the VapourSynth core object lives. They can be retrieved
-   with getFormatPreset_\ ().
+   with getFormatPreset_\ () or registerFormat_\ ().
 
    .. c:member:: char name[32]
 
-      A nice, printable name, like "YUV444P10", or "runtime registered",
-      for custom formats.
+      A nice, printable name, like "YUV444P10".
 
    .. c:member:: int id
 
@@ -765,11 +780,13 @@ struct VSVideoInfo
 
    .. c:member:: int64_t fpsNum
 
-      Numerator part of the clip's frame rate.
+      Numerator part of the clip's frame rate. It will be 0 if the frame
+      rate can vary.
 
    .. c:member:: int64_t fpsDen
 
-      Denominator part of the clip's frame rate.
+      Denominator part of the clip's frame rate. It will be 0 if the frame
+      rate can vary.
 
    .. c:member:: int width
 
@@ -785,7 +802,8 @@ struct VSVideoInfo
 
    .. c:member:: int flags
 
-      The flags passed to createFilter_ (either 0 or one or more of VSNodeFlags_).
+      The flags passed to createFilter_ (either 0, or one or more of
+      VSNodeFlags_).
 
 
 .. _VSAPI:
@@ -810,7 +828,7 @@ struct VSAPI
       automatically loaded.
 
       *threads*
-         Number of desired worker threads. If 0, a suitable value is
+         Number of desired worker threads. If 0 or lower, a suitable value is
          automatically chosen, based on the number of logical CPUs.
 
 ----------
@@ -834,6 +852,8 @@ struct VSAPI
       typedef const VSCoreInfo_ \*(VS_CC \*VSGetCoreInfo)(VSCore_ \*core)
 
       Returns information about the VapourSynth core.
+      
+      VapourSynth retains ownership of the returned pointer.
 
 ----------
 
@@ -857,8 +877,6 @@ struct VSAPI
       Installs a custom handler for the various error messages VapourSynth
       emits. The message handler is currently global, i.e. per process, not
       per VSCore_ instance.
-
-      This function wraps `qInstallMsgHandler <http://qt-project.org/doc/qt-4.8/qtglobal.html#qInstallMsgHandler>`_.
 
       *handler*
          typedef void (VS_CC \*VSMessageHandler)(int msgType, const char \*msg, void \*userdata)
@@ -1002,6 +1020,8 @@ struct VSAPI
 
       Deletes a frame reference, releasing the caller's ownership of the frame.
 
+      It is safe to pass NULL.
+
       Don't try to use the frame once the reference has been deleted.
 
 ----------
@@ -1044,6 +1064,10 @@ struct VSAPI
       Returns a read/write pointer to a plane of a frame.
 
       Passing an invalid plane number will cause a fatal error.
+
+      .. note::
+         Don't assume all three planes of a frame are allocated in one
+         contiguous chunk (they're not).
 
 ----------
 
@@ -1130,6 +1154,8 @@ struct VSAPI
       typedef void (VS_CC \*VSFreeNode)(VSNodeRef_ \*node)
 
       Deletes a node reference, releasing the caller's ownership of the node.
+
+      It is safe to pass NULL.
 
       Don't try to use the node once the reference has been deleted.
 
@@ -1246,7 +1272,10 @@ struct VSAPI
       Only use inside a filter's "getframe" function.
 
       A filter usually calls this function when its activation reason is
-      arAllFramesReady or arFrameReady.
+      arAllFramesReady or arFrameReady. See VSActivationReason_.
+
+      It is safe to retrieve a frame more than once, but each unused reference
+      needs to be freed.
 
       *n*
          The frame number.
@@ -1276,7 +1305,13 @@ struct VSAPI
       A filter usually calls this function when its activation reason is
       arInitial. The requested frame can then be retrieved using
       getFrameFilter_\ (), when the filter's activation reason is
-      arAllFramesReady or arFrameReady.
+      arAllFramesReady or arFrameReady. See VSActivationReason_.
+
+      It is safe to request a frame more than once. An unimportant consequence
+      of requesting a frame more than once is that the getframe function may
+      be called more than once for the same frame with reason arFrameReady.
+
+      It is best to request frames in ascending order, i.e. n, n+1, n+2, etc.
 
       *n*
          The frame number. Negative values will cause an error.
@@ -1352,7 +1387,8 @@ struct VSAPI
          One of VSColorFamily_.
 
          .. note::
-            Registering compat formats is not allowed.
+            Registering compat formats is not allowed. Only certain privileged
+            built-in filters are allowed to handle compat formats.
 
       *sampleType*
          One of VSSampleType_.
@@ -1374,7 +1410,7 @@ struct VSAPI
 
       Returns a pointer to the created VSFormat_ object. Its *id* member
       contains the attributed format identifier. The pointer is valid as long
-      as the VSCore_ instance lives.
+      as the VSCore_ instance lives. Returns NULL in case of errors.
 
       If the parameters specify a format that is already registered (including
       preset formats), then no new format is created and the existing one is
@@ -1420,12 +1456,11 @@ struct VSAPI
 
       typedef void (VS_CC \*VSSetError)(VSMap_ \*map, const char \*errorMessage)
 
-      Adds an error message to a map. The map is cleared first.
+      Adds an error message to a map. The map is cleared first. The error
+      message is copied.
 
-      Never call from a filter's "getframe" function. See setFilterError_.
-
-      *errorMessage*
-         Pass NULL to get a useless default error message.
+      For errors encountered in a filter's "getframe" function, use
+      setFilterError_.
 
 ----------
 
@@ -1513,7 +1548,7 @@ struct VSAPI
 
       Returns the number on success, or 0 in case of error.
 
-      If the map has an error set (i.e. if getError_\ () returns non-NULL)
+      If the map has an error set (i.e. if getError_\ () returns non-NULL),
       VapourSynth will die with a fatal error.
 
       *index*
@@ -1523,7 +1558,7 @@ struct VSAPI
          associated with a key.
 
       *error*
-         A bitwise OR of VSGetPropErrors_, or 0 on success.
+         One of VSGetPropErrors_, or 0 on success.
 
          You may pass NULL here, but then any problems encountered while
          retrieving the property will cause VapourSynth to die with a fatal
@@ -1541,7 +1576,7 @@ struct VSAPI
 
       Returns the number on success, or 0 in case of error.
 
-      If the map has an error set (i.e. if getError_\ () returns non-NULL)
+      If the map has an error set (i.e. if getError_\ () returns non-NULL),
       VapourSynth will die with a fatal error.
 
       *index*
@@ -1551,7 +1586,7 @@ struct VSAPI
          associated with a key.
 
       *error*
-         A bitwise OR of VSGetPropErrors_, or 0 on success.
+         One of VSGetPropErrors_, or 0 on success.
 
          You may pass NULL here, but then any problems encountered while
          retrieving the property will cause VapourSynth to die with a fatal
@@ -1572,7 +1607,7 @@ struct VSAPI
       The pointer is valid until the map is destroyed, or until the
       corresponding key is removed from the map or altered.
 
-      If the map has an error set (i.e. if getError_\ () returns non-NULL)
+      If the map has an error set (i.e. if getError_\ () returns non-NULL),
       VapourSynth will die with a fatal error.
 
       *index*
@@ -1582,7 +1617,7 @@ struct VSAPI
          associated with a key.
 
       *error*
-         A bitwise OR of VSGetPropErrors_, or 0 on success.
+         One of VSGetPropErrors_, or 0 on success.
 
          You may pass NULL here, but then any problems encountered while
          retrieving the property will cause VapourSynth to die with a fatal
@@ -1613,7 +1648,7 @@ struct VSAPI
       This function increases the node's reference count, so freeNode_\ () must
       be used when the node is no longer needed.
 
-      If the map has an error set (i.e. if getError_\ () returns non-NULL)
+      If the map has an error set (i.e. if getError_\ () returns non-NULL),
       VapourSynth will die with a fatal error.
 
       *index*
@@ -1623,7 +1658,7 @@ struct VSAPI
          associated with a key.
 
       *error*
-         A bitwise OR of VSGetPropErrors_, or 0 on success.
+         One of VSGetPropErrors_, or 0 on success.
 
          You may pass NULL here, but then any problems encountered while
          retrieving the property will cause VapourSynth to die with a fatal
@@ -1644,7 +1679,7 @@ struct VSAPI
       This function increases the frame's reference count, so freeFrame_\ () must
       be used when the frame is no longer needed.
 
-      If the map has an error set (i.e. if getError_\ () returns non-NULL)
+      If the map has an error set (i.e. if getError_\ () returns non-NULL),
       VapourSynth will die with a fatal error.
 
       *index*
@@ -1654,7 +1689,7 @@ struct VSAPI
          associated with a key.
 
       *error*
-         A bitwise OR of VSGetPropErrors_, or 0 on success.
+         One of VSGetPropErrors_, or 0 on success.
 
          You may pass NULL here, but then any problems encountered while
          retrieving the property will cause VapourSynth to die with a fatal
@@ -1675,7 +1710,7 @@ struct VSAPI
       This function increases the function's reference count, so freeFunc_\ () must
       be used when the function is no longer needed.
 
-      If the map has an error set (i.e. if getError_\ () returns non-NULL)
+      If the map has an error set (i.e. if getError_\ () returns non-NULL),
       VapourSynth will die with a fatal error.
 
       *index*
@@ -1685,7 +1720,7 @@ struct VSAPI
          with a key.
 
       *error*
-         A bitwise OR of VSGetPropErrors_, or 0 on success.
+         One of VSGetPropErrors_, or 0 on success.
 
          You may pass NULL here, but then any problems encountered while
          retrieving the property will cause VapourSynth to die with a fatal
@@ -1881,6 +1916,8 @@ struct VSAPI
       Returns a pointer to the plugin with the given namespace, or NULL
       if not found.
 
+      getPluginById_ should be used instead.
+
       *ns*
          Namespace.
 
@@ -1945,7 +1982,6 @@ struct VSAPI
       *userData*
          Pointer passed to *func*
 
-
       *free*
          typedef void (VS_CC \*VSFreeFuncData)(void \*userData)
 
@@ -1980,6 +2016,8 @@ struct VSAPI
       typedef void (VS_CC \*VSFreeFunc)(VSFuncRef_ \*f)
 
       TODO
+
+      It is safe to pass NULL.
 
 ----------
 
@@ -2020,8 +2058,9 @@ struct VSAPI
          filters this should be 0.
 
       *instanceData*
-         A pointer to the private filter data, usually allocated in the filter's
-         argsFunc function.
+         A pointer to the private filter data. This pointer will be passed to
+         the *init*, *getFrame*, and *free* functions. It should be freed by
+         the *free* function.
 
       After this function returns, *out* will contain the new node(s) in the
       "clip" property, or an error, if something went wrong.
@@ -2051,10 +2090,10 @@ struct VSAPI
 
       invoke() makes sure the filter has no compat input nodes, checks that
       the *args* passed to the filter are consistent with the argument list
-      registered by the plugin, calls the filter's "create" function, and
-      checks that the filter doesn't return any compat nodes. If everything
-      goes smoothly, the filter will be ready to generate frames after
-      invoke() returns.
+      registered by the plugin that contains the filter, calls the filter's
+      "create" function, and checks that the filter doesn't return any compat
+      nodes. If everything goes smoothly, the filter will be ready to generate
+      frames after invoke() returns.
 
       ??? Concurrent call with other functions ???
 
@@ -2092,8 +2131,8 @@ struct VSAPI
       if any.
 
       This is the way to report errors in a filter's "getframe" function.
-      Such errors are not fatal, i.e. the caller can try to request the same
-      frame again.
+      Such errors are not necessarily fatal, i.e. the caller can try to
+      request the same frame again.
 
 ----------
 
@@ -2277,7 +2316,8 @@ typedef void (VS_CC \*VSInitPlugin)(VSConfigPlugin configFunc, VSRegisterFunctio
 
          In this function, the filter's input parameters should be retrieved
          and validated, the filter's private instance data should be
-         initialised, and createFilter_\ () should be called.
+         initialised, and createFilter_\ () should be called. This is where
+         the filter should perform any other initialisation it requires.
 
          If for some reason you cannot create the filter, you have to free any
          created node references using freeNode_\ (), call setError_\ () on
@@ -2323,11 +2363,10 @@ typedef void (VS_CC \*VSFilterInit)(VSMap_ \*in, VSMap_ \*out, void \**instanceD
 
    This function is called by createFilter_\ () (indirectly).
 
-   This is where the filter should perform whatever initialisation it requires.
-   This is the only place where the video properties may be set (see
-   setVideoInfo_\ ()).
+   This is the only place where setVideoInfo_\ () can be called. There is no
+   reason to do anything else here.
 
-   If an error occurs during initialisation:
+   If an error occurs in this function:
       - free the input nodes, if any
 
       - free the instance data
@@ -2369,10 +2408,11 @@ typedef const VSFrameRef_ \*(VS_CC \*VSFilterGetFrame)(int n, int activationReas
       One of VSActivationReason_.
 
       This function is first called with *activationReason* arInitial. At this
-      point the function should request the input frames and return. When one or
-      all of the requested frames are ready, this function is called again with
-      *activationReason* arFrameReady or arAllFramesReady. The function should
-      only return a frame when called with *activationReason* arAllFramesReady.
+      point the function should request the input frames it needs and return
+      NULL. When one or all of the requested frames are ready, this function
+      is called again with *activationReason* arFrameReady or arAllFramesReady.
+      The function should only return a frame when called with
+      *activationReason* arAllFramesReady.
 
       In the case of arFrameReady, use queryCompletedFrame_\ () to find out
       which of the requested frames is ready.
