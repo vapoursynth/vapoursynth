@@ -2095,7 +2095,7 @@ struct VSAPI
       nodes. If everything goes smoothly, the filter will be ready to generate
       frames after invoke() returns.
 
-      ??? Concurrent call with other functions ???
+      It is safe to call invoke() from multiple threads at the same time,
 
       *plugin*
          A pointer to the plugin where the filter is located. Must not be NULL.
@@ -2115,9 +2115,6 @@ struct VSAPI
       Most filters will either add an error to the map, or one or more clips
       with the key "clip". One exception is the special LoadPlugin "filter",
       which doesn't return any clips for obvious reasons.
-
-      .. warning::
-         Never use inside a filter's "getframe" function.
 
 ----------
 
