@@ -30,7 +30,7 @@ Native Plugins
 * `FieldHint <https://github.com/dubhater/vapoursynth-fieldhint>`_ -- Takes fields from arbitrary input frames to create the output frames
 * `FillBorders <https://github.com/dubhater/vapoursynth-fillborders>`_
 * `FluxSmooth <https://github.com/dubhater/vapoursynth-fluxsmooth>`_ -- Temporal/spatiotemporal denoiser
-* `fmtconv <http://forum.doom9.org/showthread.php?t=166504>`_ -- High quality bitdepth and colorspace conversion, resizing
+* `fmtconv <http://forum.doom9.org/showthread.php?t=166504>`_ -- High quality bitdepth, colorspace conversion and resizing
 * `GenericFilters <http://forum.doom9.org/showthread.php?t=166842>`_ -- Common image processing filters (replaces most of masktools)
 * `Histogram <https://github.com/dubhater/vapoursynth-histogram>`_ -- Bundled with the installer
 * `IT <http://forum.doom9.org/showthread.php?t=171246>`_ -- Port of the inverse telecine filter for Avisynth
@@ -46,11 +46,15 @@ Native Plugins
 * `TempLinearApproximate <http://forum.doom9.org/showthread.php?t=169782>`_ -- A temporal smoother
 * `TemporalSoften <https://github.com/dubhater/vapoursynth-temporalsoften>`_ -- Bundled with the installer and based on the Avisynth filter with the same name
 * `Unresize <http://forum.doom9.org/showthread.php?t=169829>`_ -- Undoes resizing
+* `vcfreq <http://forum.doom9.org/showthread.php?t=171413>`_ -- Frequency domain denoiser
+* `vcmod <http://forum.doom9.org/showthread.php?t=171412>`_ -- Various filters such as histogram equalization, blur, and watershed segmentation
+* `vcmove <http://forum.doom9.org/showthread.php?t=171414>`_ -- Rotate, debarrel and other distortion correction filters
 * `Videoscope <https://github.com/dubhater/vapoursynth-videoscope>`_ -- Similar to the Histogram plugin
 * `vsavsreader <http://forum.doom9.org/showthread.php?t=165957>`_ -- Import plugin so Avisynth scripts can be opened in VapourSynth
 * `vsrawsource <http://forum.doom9.org/showthread.php?t=166075>`_ -- Raw video reader
 * `WWXD <https://github.com/dubhater/vapoursynth-wwxd>`_ -- Xvid-like scene change detection
 * `Yadifmod <http://forum.doom9.org/showthread.php?t=171028>`_ -- Port of the Avisynth deinterlacer
+* `zimg <http://forum.doom9.org/showthread.php?t=171334>`_ -- High quality bitdepth, colorspace conversion and resizing
 
 Obsolete Plugins
 ################
