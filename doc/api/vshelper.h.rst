@@ -68,7 +68,8 @@ VS_ALIGNED_MALLOC
 
 VS_ALIGNED_MALLOC(pptr, size, alignment)
 
-Expands to _aligned_malloc() in Windows, and posix_memalign() elsewhere.
+Expands to _aligned_malloc() in Windows, and posix_memalign() elsewhere. Note that
+the arguments are in the style of posix_memalign().
 
 *pptr* is a pointer to a pointer.
 
@@ -112,7 +113,7 @@ vs_aligned_malloc
 .. cpp:function:: T* vs_aligned_malloc(size_t size, size_t alignment)
 
    A templated aligned malloc for C++. It uses the same functions as the
-   `VS_ALIGNED_MALLOC <VS_ALIGNED_MALLOC_c_>`_ macro.
+   `VS_ALIGNED_MALLOC <VS_ALIGNED_MALLOC_c_>`_ macro but is easier to use.
 
 
 .. _vs_aligned_free_cpp:
@@ -146,14 +147,12 @@ isSameFormat
 muldivRational
 --------------
 
-.. c:function:: static inline int muldivRational(int64_t *num, int64_t *den, int64_t mul, int64_t div)
+.. c:function:: static inline void muldivRational(int64_t *num, int64_t *den, int64_t mul, int64_t div)
 
    Multiplies two rational numbers and reduces the result, i.e.
    *num*\ /\ *den* \* *mul*\ /\ *div*. The result is stored in *num* and *den*.
 
    The caller must ensure that *div* is not 0.
-
-   The function's return value is always 0.
 
 
 int64ToIntS
@@ -162,7 +161,7 @@ int64ToIntS
 .. c:function:: static inline int int64ToIntS(int64_t i)
 
    Converts an int64_t to int with signed saturation. It's useful to silence
-   warnings when reading integer properties from a VSMap.
+   warnings when reading integer properties from a VSMap and to avoid unexpected behavior on int overflow.
 
 
 vs_bitblt
