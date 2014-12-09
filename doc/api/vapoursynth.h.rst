@@ -407,17 +407,18 @@ enum VSFilterMode
      more frames they need.
      A filter's "getframe" function will be called from multiple threads at a
      time with activation reason arInitial, but only one thread will call it
-     with activation reason arAllFramesReady.
+     with activation reason arAllFramesReady at a time.
 
    * fmUnordered
 
-     For filters that modify their internal state every request.
+     Only one thread can call the filter's "getframe" function at a time.
+     Useful for filters that modify or examine their internal state to determine which frames to request.
 
    * fmSerial
 
-     For source filters and compatibility with other filtering architectures.
+     For compatibility with other filtering architectures.
      The filter's "getframe" function only ever gets called from one thread at a
-     time.
+     time. Unlike fmUnordered only one frame is processed at a time.
 
 
 .. _VSNodeFlags:
@@ -428,7 +429,7 @@ enum VSNodeFlags
    * nfNoCache
 
      This flag indicates that the frames returned by the filter should not
-     be cached.
+     be cached. "Fast" filters should set this to reduce cache bloat.
 
    * nfIsCache
 
@@ -541,8 +542,7 @@ enum VSMessageType
 Structs
 #######
 
-Most of the structs are implemented in C++, therefore constructing instances
-of them directly is not possible.
+Most structs are opaque and their contents can only be accessed using functions in the API.
 
 
 .. _VSFrameRef:
@@ -565,7 +565,8 @@ struct VSFrameRef
 struct VSNodeRef
 ----------------
 
-   TODO
+   A reference to a node in the constructed filter graph. Its primary use
+   is as an argument to other filter or to request frames from.
 
 
 .. _VSCore:
@@ -573,7 +574,8 @@ struct VSNodeRef
 struct VSCore
 -------------
 
-   TODO
+   The core represents one instance of VapourSynth. Every core individually
+   loads plugins and keeps track of memory.
 
 
 .. _VSPlugin:
@@ -639,7 +641,8 @@ struct VSNode
 struct VSFuncRef
 ----------------
 
-   TODO
+   Holds a reference to a function that may be called. This type primarily exists
+   so functions can be shared between the scripting layer and plugins in the core. 
 
 
 .. _VSMap:
@@ -760,7 +763,7 @@ struct VSCoreInfo
 
    .. c:member:: int64_t maxFramebufferSize
 
-      The framebuffer cache will be allowed to grow up to this size (bytes).
+      The framebuffer cache will be allowed to grow up to this size (bytes) before memory is aggressively reclaimed.
 
    .. c:member:: int64_t usedFramebufferSize
 
@@ -790,11 +793,11 @@ struct VSVideoInfo
 
    .. c:member:: int width
 
-      Width of the clip. It will be 0 if the clip's dimensions can vary.
+      Width of the clip. Both width and height will be 0 if the clip's dimensions can vary.
 
    .. c:member:: int height
 
-      Height of the clip. It will be 0 if the clip's dimensions can vary.
+      Height of the clip. Both width and height will be 0 if the clip's dimensions can vary.
 
    .. c:member:: int numFrames
 
@@ -822,10 +825,7 @@ struct VSAPI
       typedef VSCore_ \*(VS_CC \*VSCreateCore)(int threads)
 
       Creates the Vapoursynth processing core and returns a pointer to it. It is
-      legal to create multiple cores.
-
-      If plugin autoloading is enabled, plugins found in certain folders are
-      automatically loaded.
+      legal to create multiple cores but in most cases it shouldn't be needed.
 
       *threads*
          Number of desired worker threads. If 0 or lower, a suitable value is
@@ -839,9 +839,8 @@ struct VSAPI
 
       typedef void (VS_CC \*VSFreeCore)(VSCore_ \*core)
 
-      Frees a core.
-
-      ??? Conditions on the object state, threading ???
+      Frees a core. Should only be done after all frame requests have completed
+      and all objects belonging to the core have been released.
 
 ----------
 
@@ -918,7 +917,7 @@ struct VSAPI
       typedef VSFrameRef_ \*(VS_CC \*VSNewVideoFrame)(const VSFormat_ \*format, int width, int height, const VSFrameRef_ \*propSrc, VSCore_ \*core)
 
       Creates a new frame, optionally copying the properties attached to another
-      frame.
+      frame. It is a fatal error to pass invalid arguments to this function.
 
       The new frame contains uninitialised memory.
 
@@ -928,7 +927,7 @@ struct VSAPI
       *width*
 
       *height*
-         The desired dimensions of the frame, in pixels. Must be greater than 0.
+         The desired dimensions of the frame, in pixels. Must be greater than 0 and have a suitable multiple for the subsampling in format.
 
       *propSrc*
          A frame from which properties will be copied. Can be NULL.
@@ -947,7 +946,7 @@ struct VSAPI
       typedef VSFrameRef_ \*(VS_CC \*VSNewVideoFrame2)(const VSFormat_ \*format, int width, int height, const VSFrameRef_ \**planeSrc, const int \*planes, const VSFrameRef_ \*propSrc, VSCore_ \*core)
 
       Creates a new frame from the planes of existing frames, optionally copying
-      the properties attached to another frame.
+      the properties attached to another frame. It is a fatal error to pass invalid arguments to this function.
 
       *format*
          The desired colorspace format. Must not be NULL.
@@ -955,7 +954,7 @@ struct VSAPI
       *width*
 
       *height*
-         The desired dimensions of the frame, in pixels. Must be greater than 0.
+         The desired dimensions of the frame, in pixels. Must be greater than 0 and have a suitable multiple for the subsampling in format.
 
       *planeSrc*
          Array of frames from which planes will be copied. If any elements of
@@ -1173,6 +1172,8 @@ struct VSAPI
       This function is meant for external applications using the core as a
       library, or if frame requests are necessary during a filter's
       initialization.
+      
+      Thread-safe.
 
       *n*
          The frame number. Negative values will cause an error.
@@ -1180,13 +1181,13 @@ struct VSAPI
       *node*
          The node from which the frame is requested.
 
-      *bufSize*
-         Maximum length for the error message, in bytes (including the
-         trailing '\0'). Can be 0 if no error message is wanted.
-
       *errorMsg*
          Pointer to a buffer of *bufSize* bytes to store a possible error
          message. Can be NULL if no error message is wanted.
+         
+      *bufSize*
+         Maximum length for the error message, in bytes (including the
+         trailing '\0'). Can be 0 if no error message is wanted.
 
       Returns a reference to the generated frame, or NULL in case of failure.
       The ownership of the frame is transferred to the caller.
@@ -1204,10 +1205,10 @@ struct VSAPI
 
       Requests the generation of a frame. When the frame is ready,
       a user-provided function is called.
-
+      
       This function is meant for applications using VapourSynth as a library.
-
-      ??? Could be called concurrently ???
+      
+      Thread-safe.
 
       *n*
          Frame number. Negative values will cause an error.
@@ -1234,13 +1235,8 @@ struct VSAPI
             previously to getFrameAsync().
 
          *f*
-            The finished frame.
-
-            The ownership of the frame is kept by the core, hence a new
-            reference must be created if the frame has to be stored for later
-            use (after the function returns).
-
-            It will be NULL in case of error.
+            Contains a reference to the generated frame, or NULL in case of failure.
+            The ownership of the frame is transferred to the caller.
 
          *n*
             The frame number.
@@ -1274,7 +1270,7 @@ struct VSAPI
       A filter usually calls this function when its activation reason is
       arAllFramesReady or arFrameReady. See VSActivationReason_.
 
-      It is safe to retrieve a frame more than once, but each unused reference
+      It is safe to retrieve a frame more than once, but each reference
       needs to be freed.
 
       *n*
@@ -1345,7 +1341,8 @@ struct VSAPI
 
       *vi*
          Pointer to *numOutputs* VSVideoInfo_ instances. The structures are
-         copied by the core.
+         copied by the core. The flags are however ignored and replaced by the
+         flags passed to _createFilter.
 
       *numOutputs*
          Number of clips the filter wants to return. Must be greater than 0.
@@ -1363,7 +1360,7 @@ struct VSAPI
 
       Returns a VSFormat structure from a video format identifier.
 
-      Concurrent access allowed with other video format functions.
+      Thread-safe.
 
       *id*
          The format identifier: one of VSPresetFormat_ or a custom registered
@@ -1381,7 +1378,7 @@ struct VSAPI
 
       Registers a custom video format.
 
-      Concurrent access allowed with other video format functions.
+      Thread-safe.
 
       *colorFamily*
          One of VSColorFamily_.
@@ -1410,7 +1407,8 @@ struct VSAPI
 
       Returns a pointer to the created VSFormat_ object. Its *id* member
       contains the attributed format identifier. The pointer is valid as long
-      as the VSCore_ instance lives. Returns NULL in case of errors.
+      as the VSCore_ instance lives. Returns NULL in case an invalid format
+      is described.
 
       If the parameters specify a format that is already registered (including
       preset formats), then no new format is created and the existing one is
@@ -1457,7 +1455,8 @@ struct VSAPI
       typedef void (VS_CC \*VSSetError)(VSMap_ \*map, const char \*errorMessage)
 
       Adds an error message to a map. The map is cleared first. The error
-      message is copied.
+      message is copied. In this state the map may only be freed, cleared
+      or queried for the error message.
 
       For errors encountered in a filter's "getframe" function, use
       setFilterError_.
@@ -1977,10 +1976,10 @@ struct VSAPI
       *func*
          typedef void (VS_CC \*VSPublicFunction)(const VSMap_ \*in, VSMap_ \*out, void \*userData, VSCore_ \*core, const VSAPI_ \*vsapi)
 
-         User-defined function that does stuff. ???
+         User-defined function that may be called in any context.
 
       *userData*
-         Pointer passed to *func*
+         Pointer passed to *func*.
 
       *free*
          typedef void (VS_CC \*VSFreeFuncData)(void \*userData)
@@ -1995,7 +1994,8 @@ struct VSAPI
 
       typedef VSFuncRef_ \*(VS_CC \*VSCloneFuncRef)(VSFuncRef_ \*f)
 
-      TODO
+      Duplicates a func reference. This new reference has to be deleted with
+      freeFunc_\ () when it is no longer needed.
 
 ----------
 
@@ -2005,7 +2005,22 @@ struct VSAPI
 
       typedef void (VS_CC \*VSCallFunc)(VSFuncRef_ \*func, const VSMap_ \*in, VSMap_ \*out, VSCore_ \*core, const VSAPI_ \*vsapi)
 
-      TODO
+      Calls a function. If the call fails *out* will have an error set.
+      
+      *func*
+         Function to be called.
+
+      *in*
+         Arguments passed to *func*.
+         
+      *out*
+         Returned values from *func*.
+
+      *core*
+         Must be be NULL.
+         
+      *vsapi*
+         Must be be NULL.
 
 ----------
 
@@ -2015,9 +2030,11 @@ struct VSAPI
 
       typedef void (VS_CC \*VSFreeFunc)(VSFuncRef_ \*f)
 
-      TODO
+      Deletes a function reference, releasing the caller's ownership of the function.
 
       It is safe to pass NULL.
+
+      Don't try to use the function once the reference has been deleted.
 
 ----------
 
@@ -2065,9 +2082,6 @@ struct VSAPI
       After this function returns, *out* will contain the new node(s) in the
       "clip" property, or an error, if something went wrong.
 
-      .. warning::
-         Never use inside a filter's "getframe" function.
-
 ----------
 
    .. _registerFunction:
@@ -2095,7 +2109,7 @@ struct VSAPI
       nodes. If everything goes smoothly, the filter will be ready to generate
       frames after invoke() returns.
 
-      It is safe to call invoke() from multiple threads at the same time,
+      Thread-safe.
 
       *plugin*
          A pointer to the plugin where the filter is located. Must not be NULL.
@@ -2113,8 +2127,8 @@ struct VSAPI
       successfully.
 
       Most filters will either add an error to the map, or one or more clips
-      with the key "clip". One exception is the special LoadPlugin "filter",
-      which doesn't return any clips for obvious reasons.
+      with the key "clip". The exception to this are functions, for example
+      LoadPlugin, which doesn't return any clips for obvious reasons.
 
 ----------
 
@@ -2166,7 +2180,9 @@ struct VSAPI
 
       typedef void (VS_CC \*VSReleaseFrameEarly)(VSNodeRef_ \*node, int n, VSFrameContext_ \*frameCtx)
 
-      TODO
+      Normally a reference is kept to all requested frames until the current frame is complete.
+      If a filter scans a large number of frames this can consume all memory, instead the filter
+      should release the internal frame references as well immediately by calling this function.
 
       Only use inside a filter's "getframe" function.
 
@@ -2395,8 +2411,7 @@ typedef const VSFrameRef_ \*(VS_CC \*VSFilterGetFrame)(int n, int activationReas
    Depending on the VSFilterMode_ set for the filter, multiple output frames
    could be requested concurrently.
 
-   ??? Could there be concurrent calls for the same output frame with
-   arFrameReady and arAllFramesReady ???
+   It is never called concurrently for the same frame number.
 
    *n*
       Requested frame number.
