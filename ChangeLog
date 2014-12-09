@@ -1,4 +1,6 @@
 r26:
+added half precision float support to blankclip
+improved documentation a lot (nodame)
 now uses tcmalloc instead of the normal malloc implementation to increase performance
 
 r25:

@@ -1016,6 +1016,50 @@ typedef struct {
     } color;
 } BlankClipData;
 
+static inline uint32_t bit_cast_uint32(float v) {
+    uint32_t ret;
+    memcpy(&ret, &v, sizeof(ret));
+    return ret;
+}
+
+static inline float bit_cast_float(uint32_t v) {
+    float ret;
+    memcpy(&ret, &v, sizeof(ret));
+    return ret;
+}
+
+static inline uint16_t float_to_half(float x) {
+    float magic = bit_cast_float((uint32_t)15 << 23);
+    uint32_t inf = 255UL << 23;
+    uint32_t f16inf = 31UL << 23;
+    uint32_t sign_mask = 0x80000000UL;
+    uint32_t round_mask = ~0x0FFFU;
+
+    uint32_t f;
+    uint32_t sign;
+    uint16_t ret;
+
+    f = bit_cast_uint32(x);
+    sign = f & sign_mask;
+    f ^= sign;
+
+    if (f >= inf) {
+        ret = f > inf ? 0x7E00 : 0x7C00;
+    } else {
+        f &= round_mask;
+        f = bit_cast_uint32(bit_cast_float(f)* magic);
+        f -= round_mask;
+
+        if (bit_cast_uint32(f) > f16inf)
+            f = f16inf;
+
+        ret = (uint16_t)(f >> 13);
+    }
+
+    ret |= (uint16_t)(sign >> 16);
+    return ret;
+}
+
 static void VS_CC blankClipInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     BlankClipData *d = (BlankClipData *) * instanceData;
     vsapi->setVideoInfo(&d->vi, 1, node);
@@ -1145,9 +1189,6 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     if (!d.vi.format)
         RETERROR("BlankClip: Invalid format");
 
-    if (d.vi.format->sampleType != stInteger && !(d.vi.format->sampleType == stFloat && d.vi.format->bitsPerSample == 32))
-        RETERROR("BlankClip: Invalid output format specified");
-
     temp = vsapi->propGetInt(in, "length", 0, &err);
 
     if (err) {
@@ -1177,7 +1218,10 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
                 if (lcolor < 0 || d.color.i[i] >= ((int64_t)1 << d.vi.format->bitsPerSample))
                     RETERROR("BlankClip: color value out of range");
             } else {
-                d.color.f[i] = (float)lcolor;
+                if (d.vi.format->bitsPerSample == 2)
+                    d.color.i[i] = float_to_half((float)lcolor);
+                else
+                    d.color.f[i] = (float)lcolor;
                 if (d.vi.format->colorFamily == cmRGB || i == 0) {
                     if (lcolor < 0 || lcolor > 1)
                         RETERROR("BlankClip: color value out of range");
