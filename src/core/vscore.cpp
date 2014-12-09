@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2013 Fredrik Mellbin
+* Copyright (c) 2012-2014 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -1062,11 +1062,11 @@ int64_t VSCore::setMaxCacheSize(int64_t bytes) {
 }
 
 VSPlugin::VSPlugin(VSCore *core)
-    : apiVersion(0), hasConfig(false), readOnly(false), compat(false), libHandle(0), core(core) {
+    : apiMajor(0), apiMinor(0), hasConfig(false), readOnly(false), compat(false), libHandle(0), core(core) {
 }
 
 VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedNamespace, const std::string &forcedId, VSCore *core)
-    : apiVersion(0), hasConfig(false), readOnly(false), compat(false), libHandle(0), core(core), fnamespace(forcedNamespace), id(forcedId) {
+    : apiMajor(0), apiMinor(0), hasConfig(false), readOnly(false), compat(false), libHandle(0), core(core), fnamespace(forcedNamespace), id(forcedId) {
 #ifdef VS_TARGET_OS_WINDOWS
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
     std::wstring wPath = conversion.from_bytes(relFilename);
@@ -1136,13 +1136,13 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
     if (readOnlySet)
         readOnly = true;
 
-    if (apiVersion != VAPOURSYNTH_API_VERSION) {
+    if (apiMajor != VAPOURSYNTH_API_VERSION || apiMinor > 0) {
 #ifdef VS_TARGET_OS_WINDOWS
         FreeLibrary(libHandle);
 #else
         dlclose(libHandle);
 #endif
-        throw VSException("Core only supports API R" + std::to_string(VAPOURSYNTH_API_VERSION) + " but the loaded plugin uses API R" + std::to_string(apiVersion));
+        throw VSException("Core only supports API R" + std::to_string(VAPOURSYNTH_API_VERSION) + "." + std::to_string(0) + " but the loaded plugin requires API R" + std::to_string(apiMajor) + "." + std::to_string(apiMinor));
     }
 }
 
@@ -1167,7 +1167,13 @@ void VSPlugin::configPlugin(const std::string &identifier, const std::string &de
         fnamespace = defaultNamespace;
 
     this->fullname = fullname;
-    this->apiVersion = apiVersion;
+
+    apiMajor = apiVersion;
+    if (apiMajor >= 0x10000) {
+        apiMinor = (apiMajor & 0xFFFF);
+        apiMajor >>= 16;
+    }
+
     readOnlySet = readOnly;
     hasConfig = true;
 }
@@ -1178,7 +1184,6 @@ void VSPlugin::registerFunction(const std::string &name, const std::string &args
 
     if (!isValidIdentifier(name))
         vsFatal("Illegal identifier specified for function");
-
 
     if (funcs.count(name))
         vsFatal("Duplicate function registered");
@@ -1249,7 +1254,7 @@ VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
                 throw VSException(funcName + ": no argument(s) named " + s);
             }
 
-            f.func(&args, &v, f.functionData, core, getVSAPIInternal(apiVersion));
+            f.func(&args, &v, f.functionData, core, getVSAPIInternal(apiMajor));
 
             if (!compat && hasCompatNodes(v))
                 vsFatal("%s: illegal filter node returning a compat format detected, DO NOT USE THE COMPAT FORMATS IN NEW FILTERS", funcName.c_str());
