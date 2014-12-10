@@ -304,7 +304,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                                 dstp[x] = std::max(0.0f, std::min(stacktop, 255.0f)) + 0.5f;
                                 goto loopend;
                             case opStore16:
-                                ((uint16_t *)dstp)[x] = std::max(0.0f, std::min(stacktop, 256*255.0f)) + 0.5f;
+                                ((uint16_t *)dstp)[x] = std::max(0.0f, std::min(stacktop, 65535.0f)) + 0.5f;
                                 goto loopend;
                             case opStoreF:
                                 ((float *)dstp)[x] = stacktop;
