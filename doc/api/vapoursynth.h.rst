@@ -2017,10 +2017,10 @@ struct VSAPI
          Returned values from *func*.
 
       *core*
-         Must be be NULL.
+         Must be NULL.
          
       *vsapi*
-         Must be be NULL.
+         Must be NULL.
 
 ----------
 
