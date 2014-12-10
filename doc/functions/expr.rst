@@ -27,6 +27,13 @@ Expr
    If you mix clips with different input formats this must be taken into
    consideration.
 
+   When the output format uses 1 byte per sample, the result of the expression
+   is clamped to [0, 255] before it is stored in the output frame. When the
+   output format uses 2 bytes per sample, the result of the expression is
+   clamped to [0, 65535], irrespective of the number of bits actually used.
+   When the output format uses float samples, the result of the expression is
+   stored without any clamping.
+
    By default the output *format* is the same as the first input clip's format.
    You can override it by setting *format*. The only restriction is that the
    output *format* must have the same subsampling as the input *clips* and be
