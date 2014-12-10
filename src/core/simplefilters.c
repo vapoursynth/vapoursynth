@@ -1218,7 +1218,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
                 if (lcolor < 0 || d.color.i[i] >= ((int64_t)1 << d.vi.format->bitsPerSample))
                     RETERROR("BlankClip: color value out of range");
             } else {
-                if (d.vi.format->bitsPerSample == 2)
+                if (d.vi.format->bitsPerSample == 16)
                     d.color.i[i] = float_to_half((float)lcolor);
                 else
                     d.color.f[i] = (float)lcolor;
