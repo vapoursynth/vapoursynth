@@ -37,12 +37,13 @@ Expr
    By default the output *format* is the same as the first input clip's format.
    You can override it by setting *format*. The only restriction is that the
    output *format* must have the same subsampling as the input *clips* and be
-   8 or 16 bit integer or 32 bit float.
+   8..16 bit integer or 32 bit float.
 
    Logical operators are also a bit special, since everything is done in
    floating point arithmetic.
    All values greater than 0 are considered true for the purpose of comparisons.
    Logical operators return 0.0 for false and 1.0 for true in their operations.
+
    Since the expression is being evaluated at runtime, there are also the stack
    manipulation operators, *swap* and *dup*. The former swaps the topmost and
    second topmost values, and the latter duplicates the topmost stack value.
@@ -74,9 +75,9 @@ Expr
       std.Expr(clips=[clipa16bit, clipb10bit, clipa8bit],
          expr=["x y 64 * + z 256 * + 3 /", ""])
 
-   Setting the output format because the input format isn't allowed as output
-   (note that the U and V planes will contain junk since direct copy isn't
-   possible)::
+   Setting the output format because the resulting values are illegal in a 10
+   bit clip (note that the U and V planes will contain junk since direct copy
+   isn't possible)::
 
       std.Expr(clips=[clipa10bit, clipb16bit, clipa8bit],
          expr=["x 64 * y + z 256 * + 3 /", ""], format=vs.YUV420P16)
