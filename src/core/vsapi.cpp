@@ -192,7 +192,7 @@ static const char *VS_CC getError(const VSMap *map) {
 }
 
 static void VS_CC setFilterError(const char *errorMessage, VSFrameContext *context) {
-    assert(errorMessage && errorMessage);
+    assert(errorMessage && context);
     context->ctx->setError(errorMessage);
 }
 
