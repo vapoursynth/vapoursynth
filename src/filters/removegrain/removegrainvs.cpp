@@ -1338,7 +1338,6 @@ static void process_subplane_sse2 (const T *src_ptr, int stride_src, T *dst_ptr,
             memcpy(dst_ptr, src_ptr, stride_dst);
         } else {
             dst_ptr[0] = src_ptr[0];
-            dst_ptr[0] = src_ptr[0];
 
             for (int x = 1; x < w8; x += 8) {
                 __m128i            res = OP::rg(

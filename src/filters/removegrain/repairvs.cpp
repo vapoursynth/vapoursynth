@@ -1749,7 +1749,6 @@ static void process_subplane_sse2 (const T *src1_ptr, const T *src2_ptr, T *dst_
     for (int y = y_b; y < y_e; ++y)
     {
         dst_ptr [0] = src1_ptr [0];
-        dst_ptr [0] = src1_ptr [0];
 
         for (int x = 1; x < w8; x += 8)
         {
