@@ -1598,7 +1598,7 @@ static void VS_CC modifyFrameCreate(const VSMap *in, VSMap *out, void *userData,
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "ModifyFrame", modifyFrameInit, modifyFrameGetFrame, modifyFrameFree, fmUnordered, 0, data, core);
+    vsapi->createFilter(in, out, "ModifyFrame", modifyFrameInit, modifyFrameGetFrame, modifyFrameFree, fmParallelRequests, 0, data, core);
 }
 
 //////////////////////////////////////////
