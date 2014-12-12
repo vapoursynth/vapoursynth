@@ -265,7 +265,6 @@ static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, co
     PREFETCHR0(mt_expand)
     PREFETCHR0(mt_inpand)
     PREFETCHR0(mt_inflate)
-    PREFETCHR0(mt_inflate)
     PREFETCHR0(mt_lut)
     PREFETCHR0(mt_lutxy)
     PREFETCHR0(mt_lutf)
