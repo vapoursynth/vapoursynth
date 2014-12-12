@@ -259,7 +259,7 @@ STDMETHODIMP VapourSynthFile::GetCurFile(LPOLESTR *lplpszFileName) {
 
 HRESULT VapourSynthFile::Create(const CLSID& rclsid, const IID& riid, void **ppv) {
     HRESULT hresult;
-    VapourSynthFile* pAVIFileSynth = new VapourSynthFile(rclsid);
+    VapourSynthFile* pAVIFileSynth = new(std::nothrow)VapourSynthFile(rclsid);
     if (!pAVIFileSynth)
         return E_OUTOFMEMORY;
     hresult = pAVIFileSynth->QueryInterface(riid, ppv);
@@ -596,7 +596,7 @@ STDMETHODIMP VapourSynthFile::GetStream(PAVISTREAM *ppStream, DWORD fccType, LON
         return AVIERR_NODATA;
 
     if (fccType == streamtypeVIDEO) {
-        if ((casr = new VapourSynthStream(this, false)) == 0)
+        if ((casr = new(std::nothrow)VapourSynthStream(this, false)) == 0)
             return AVIERR_MEMORY;
 
         *ppStream = (IAVIStream *)casr;
@@ -604,7 +604,7 @@ STDMETHODIMP VapourSynthFile::GetStream(PAVISTREAM *ppStream, DWORD fccType, LON
     } else if (fccType == streamtypeAUDIO) {
         return AVIERR_NODATA;
 
-        if ((casr = new VapourSynthStream(this, true)) == 0)
+        if ((casr = new(std::nothrow)VapourSynthStream(this, true)) == 0)
             return AVIERR_MEMORY;
         *ppStream = (IAVIStream *)casr;
     } else

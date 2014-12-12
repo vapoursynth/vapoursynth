@@ -8,8 +8,8 @@ inline size_t sslen(const char* s) { return s?strlen(s):0; }
 inline size_t sssize(const wchar_t* s) { return sslen(s)*sizeof(s[0]); }
 inline size_t sssize(const char* s) { return sslen(s)*sizeof(s[0]); }
 void sscpy(wchar_t* dest,size_t maxDestChars,const wchar_t* source);
-inline void ssfree(wchar_t* d) { if(d) free(d); }
-inline void ssfree(char* d) { if(d) free(d); }
+inline void ssfree(wchar_t* d) { free(d); }
+inline void ssfree(char* d) { free(d); }
 wchar_t* ssalloc(size_t count);
 wchar_t* ssdup(const wchar_t* s);
 int sscmpi(const wchar_t* s1,const wchar_t* s2);

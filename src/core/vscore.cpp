@@ -906,8 +906,6 @@ VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), formatIdO
 #define ADDPEND_STR_6432(x) x##L"32"
 #endif
 
-    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
-
     std::wstring appDataPath = std::wstring(appDataBuffer.data()) + ADDPEND_STR_6432(L"\\VapourSynth\\plugins");
 
     // Autoload per user plugins
