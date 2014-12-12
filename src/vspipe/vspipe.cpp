@@ -196,7 +196,6 @@ bool outputNode() {
     }
 
     std::string y4mFormat;
-    std::string numBits;
 
     if (y4m) {
         if (vi->format->colorFamily == cmGray) {
