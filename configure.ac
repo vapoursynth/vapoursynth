@@ -72,7 +72,10 @@ AS_CASE(
          ASFLAGS="$ASFLAGS -f win32"
          AS_IF(
                [test "x$BITS" = "x32"],
-               [ASFLAGS="$ASFLAGS -DPREFIX"]
+               [
+                ASFLAGS="$ASFLAGS -DPREFIX"
+                AC_SUBST([PLUGINLDFLAGS], ["-Wl,--kill-at"])
+               ]
          )
          AC_DEFINE([VS_TARGET_OS_WINDOWS])
          DEBUG_FORMAT="null"

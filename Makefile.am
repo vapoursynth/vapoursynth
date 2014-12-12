@@ -131,7 +131,7 @@ endif # VSSCRIPT
 
 pkglib_LTLIBRARIES =
 
-commonpluginldflags = -no-undefined -avoid-version
+commonpluginldflags = -no-undefined -avoid-version $(PLUGINLDFLAGS)
 
 if ASSVAPOUR
 pkglib_LTLIBRARIES += libassvapour.la
