@@ -405,8 +405,7 @@ const VSVideoInfo& VapourSynther::GetVideoInfo() {
 // Take a copy of the current error message
 void VapourSynther::setError(const char *_text, const wchar_t *alt) {
 
-    if (errText)
-        free(errText);
+    free(errText);
 
     const int maxLength = 2046;
     char text[maxLength+2];
