@@ -130,7 +130,7 @@ AS_IF(
        PKG_CHECK_MODULES([AVUTIL], [libavutil >= 52.3.0])
        PKG_CHECK_MODULES([SWSCALE], [libswscale >= 2.0.0])
 
-       AC_CONFIG_FILES([pc/vapoursynth.pc:pc/autotools-vapoursynth.pc.in])
+       AC_CONFIG_FILES([pc/vapoursynth.pc])
 
        AS_IF(
              [test "x$X86" = "xtrue" -a "x$enable_x86_asm" != "xno"],
@@ -177,7 +177,7 @@ AS_IF(
       [
        PKG_CHECK_MODULES([PYTHON3], [python3], [], [PKG_CHECK_MODULES([PYTHON3], [python >= 3])])
 
-       AC_CONFIG_FILES([pc/vapoursynth-script.pc:pc/autotools-vapoursynth-script.pc.in])
+       AC_CONFIG_FILES([pc/vapoursynth-script.pc])
       ]
 )
 AM_CONDITIONAL([VSSCRIPT], [test "x$enable_vsscript" != "xno"])

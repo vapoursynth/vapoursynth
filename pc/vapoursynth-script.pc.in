@@ -1,6 +1,7 @@
-prefix=@PREFIX@
-libdir=@LIBDIR@
-includedir=@INCLUDEDIR@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@/vapoursynth
 
 Name: vapoursynth-script
 Description: Library for interfacing VapourSynth with Python
@@ -9,5 +10,5 @@ Version: @VERSION@
 Requires: vapoursynth
 Requires.private: python3
 Libs: -L${libdir} -lvapoursynth-script
-Libs.private: @LIBS@
+Libs.private: @PYTHON3_LIBS@
 Cflags: -I${includedir}

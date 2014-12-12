@@ -1,6 +1,7 @@
-prefix=@PREFIX@
-libdir=@LIBDIR@
-includedir=@INCLUDEDIR@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@/vapoursynth
 
 Name: vapoursynth
 Description: A frameserver for the 21st century
@@ -8,5 +9,5 @@ Version: @VERSION@
 
 Requires.private: libswscale, libavutil, libavcodec
 Libs: -L${libdir} -lvapoursynth
-Libs.private: @LIBS@
+Libs.private: @AVUTIL_LIBS@ @SWSCALE_LIBS@ @DLOPENLIB@
 Cflags: -I${includedir}

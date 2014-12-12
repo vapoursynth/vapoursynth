@@ -1,11 +1,18 @@
 Installation
 ------------
 
-With autotools
-==============
+First, a couple of things to note:
 
-The dependencies are the same as with waf, except autotools are
-required instead of waf.
+* You need to be on Linux or OS X. A BSD might work too.
+* You need autotools, probably recent versions.
+* You need to have the libraries and headers for libavutil,
+  libavcodec, and libswscale installed.
+* You need to have either GCC or Clang installed.
+  Both a C and C++ compiler are required.
+* You need to have Yasm installed.
+* You need Python 3 for VSScript and to build the Python module.
+* You need to have Cython installed in your Python 3 environment.
+* You need Sphinx if you want to build the documentation.
 
 The usual sequence of commands works:
 
@@ -21,74 +28,6 @@ The documentation can be built using its own Makefile:
 
     $ make -C doc/ html
 
+The documentation can be installed using the standard program `cp`.
+
 Probably only the plugins can be cross-compiled with Mingw-w64.
-
-
-With waf
-========
-
-First, a couple of things to note:
-
-* You need to be on Windows, Linux, or OS X.
-* You need to have the libraries and headers for libavutil,
-  libavcodec, and libswscale installed.
-* You need to have either GCC, Clang, MSVC, or ICC/ICL installed.
-  Both a C and C++ compiler are required.
-* You need to have Yasm installed.
-* You need Python 3 for VSScript and to build the Python module.
-* You need to have Cython installed in your Python 3 environment
-  in order to invoke the Python wrapper setup script.
-* You need Sphinx if you want to build the documentation.
-
-First off, you'll want to fetch Waf which is the build tool
-VapourSynth uses:
-
-    $ ./bootstrap.py
-
-You don't have to fetch it with this script; you can also
-simply download it from the official Google Code repository:
-http://code.google.com/p/waf
-
-Then, configure the project:
-
-    $ ./waf configure
-
-The configure operation has some options which can be used to
-fine-tune the build. To see a list, use:
-
-    $ ./waf configure --help
-
-Once the project is configured, simply execute:
-
-    $ ./waf build
-
-By default, Waf builds tasks in parallel. You can control the
-level of parallelism with the -j option, like with Make.
-
-If you want to build the Cython wrapper, you can do so now by
-executing:
-
-    $ ./setup.py build
-
-Finally, to install VapourSynth:
-
-    $ ./waf install
-
-And to uninstall:
-
-    $ ./waf uninstall
-
-The install and uninstall commands accept a --destdir option
-which prepends a value to the prefix given earlier in the
-configure phase, in case this may be of use to you.
-
-To install the Cython wrapper:
-
-    $ ./setup.py install
-
-Note that the setup script has a --prefix option like Waf.
-
-Finally, you can run the Python tests if you have installed
-the Python module:
-
-    $ ./waf test
