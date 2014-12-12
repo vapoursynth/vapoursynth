@@ -252,10 +252,7 @@ AvfsFormatter::FileNode::~FileNode(void)
         }
     }
     ssfree(name);
-    if(fileData)
-    {
-        free(fileData);
-    }
+    free(fileData);
     if(mediaFile)
     {
         mediaFile->Release();

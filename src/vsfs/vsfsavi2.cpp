@@ -520,16 +520,12 @@ AvfsAvi2File::~AvfsAvi2File(void)
     unsigned segi;
     avs->Release();
     if (segs) {
-        for (segi = 0; segi < fileSegCount; segi ++) {
-            if (segs[segi]) {
-                free(segs[segi]);
-            }
+        for (segi = 0; segi < fileSegCount; segi++) {
+            free(segs[segi]);
         }
         free(segs);
     }
-    if (sampleScratch) {
-        free(sampleScratch);
-    }
+    free(sampleScratch);
 }
 
 // Return the starting Audio sample number for frame N
