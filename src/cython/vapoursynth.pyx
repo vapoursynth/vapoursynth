@@ -1619,6 +1619,7 @@ cdef public api int vpy_setVariable(VPYScriptExport *se, const VSMap *vars) nogi
         new_vars = mapToDict(vars, False, False, core, vpy_getVSApi())
         for key in new_vars:
             evaldict[key] = new_vars[key]
+        return 0
 
 cdef public api int vpy_clearVariable(VPYScriptExport *se, const char *name) nogil:
     with gil:

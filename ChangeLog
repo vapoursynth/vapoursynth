@@ -1,4 +1,5 @@
 r26:
+modifyframe is now set to a more appropriate level of parallelism
 added half precision float support to blankclip
 improved documentation a lot (nodame)
 now uses tcmalloc instead of the normal malloc implementation to increase performance
