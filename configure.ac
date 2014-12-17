@@ -216,7 +216,7 @@ AS_IF(
               AC_ARG_WITH([cython], AS_HELP_STRING([--with-cython], [Override the automatic detection of the Cython executable. (default=check)]), [], [with_cython=check])
               AS_IF(
                     [test "x$with_cython" = "xcheck"],
-                    [AC_CHECK_PROGS([CYTHON], [cython])],
+                    [AC_CHECK_PROGS([CYTHON], [cython3 cython])],
                     [CYTHON="$with_cython"]
               )
 
