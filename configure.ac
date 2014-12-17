@@ -130,6 +130,44 @@ AS_IF(
        PKG_CHECK_MODULES([AVUTIL], [libavutil >= 52.3.0])
        PKG_CHECK_MODULES([SWSCALE], [libswscale >= 2.0.0])
 
+       AC_LANG_PUSH([C])
+       saved_cppflags="$CPPFLAGS"
+       saved_libs="$LIBS"
+       CPPFLAGS="$SWSCALE_CFLAGS"
+       LIBS="$SWSCALE_LIBS"
+       AC_LINK_IFELSE(
+                         [AC_LANG_PROGRAM(
+                                         [[
+#include <libswscale/swscale.h>
+                                         ]],
+                                         [[
+(void) swscale_version();
+                                         ]]
+                         )],
+                         [],
+                         [AC_MSG_ERROR([failed to link libswscale. See config.log for details.])]
+       )
+
+       CPPFLAGS="$AVUTIL_CFLAGS"
+       LIBS="$AVUTIL_LIBS"
+       AC_LINK_IFELSE(
+                         [AC_LANG_PROGRAM(
+                                         [[
+#include <libavutil/avutil.h>
+                                         ]],
+                                         [[
+(void) avutil_version();
+                                         ]]
+                         )],
+                         [],
+                         [AC_MSG_ERROR([failed to link libavutil. See config.log for details.])]
+       )
+
+       CPPFLAGS="$saved_cppflags"
+       LIBS="$saved_libs"
+       AC_LANG_POP([C])
+
+
        AC_CONFIG_FILES([pc/vapoursynth.pc])
 
        AS_IF(
