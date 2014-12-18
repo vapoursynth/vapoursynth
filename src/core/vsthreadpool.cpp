@@ -140,7 +140,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 
             VSActivationReason ar = arInitial;
             bool skipCall = false; // Used to avoid multiple error calls for the same frame request going into a filter
-            if (hasLeafContext && leafContext->hasError() || mainContext->hasError()) {
+            if ((hasLeafContext && leafContext->hasError()) || mainContext->hasError()) {
                 ar = arError;
                 skipCall = mainContext->setError(leafContext->getErrorMessage());
                 --mainContext->numFrameRequests;
