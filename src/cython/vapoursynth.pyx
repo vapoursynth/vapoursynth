@@ -38,6 +38,7 @@ _stored_output = {}
 _core = None
 _message_handler = None
 cdef const VSAPI *_vsapi = NULL
+cdef int _api_version = 0x30000
 
 GRAY  = vapoursynth.cmGray
 RGB   = vapoursynth.cmRGB
@@ -105,7 +106,7 @@ cdef void __stdcall message_handler_wrapper(int msgType, const char *msg, void *
 def set_message_handler(handler_func):
     cdef const VSAPI *funcs
     global _message_handler
-    funcs = getVapourSynthAPI(3)
+    funcs = getVapourSynthAPI(_api_version)
     if funcs == NULL:
         raise Error('Failed to obtain VapourSynth API pointer. Is the Python module and loaded core library mismatched?')
     if handler_func is None:
@@ -1182,7 +1183,7 @@ cdef class Core(object):
 
 cdef Core createCore():
     cdef Core instance = Core.__new__(Core)
-    instance.funcs = getVapourSynthAPI(3)
+    instance.funcs = getVapourSynthAPI(_api_version)
     if instance.funcs == NULL:
         raise Error('Failed to obtain VapourSynth API pointer. System does not support SSE2 or is the Python module and loaded core library mismatched?')
     instance.core = instance.funcs.createCore(0)
@@ -1592,7 +1593,7 @@ cdef public api VSCore *vpy_getCore(VPYScriptExport *se) nogil:
 cdef public api const VSAPI *vpy_getVSApi() nogil:
     global _vsapi
     if _vsapi == NULL:
-        _vsapi = getVapourSynthAPI(3)
+        _vsapi = getVapourSynthAPI(_api_version)
     return _vsapi
 
 cdef public api int vpy_getVariable(VPYScriptExport *se, const char *name, VSMap *dst) nogil:

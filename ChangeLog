@@ -1,4 +1,5 @@
 r26:
+there is now a minor api version as well that will be bumped when features are added
 expr filter can now run fully in parallel
 now returns an error if nodes are passed between different cores
 modifyframe is now properly set to parallelrequests which should speed it up slightly
