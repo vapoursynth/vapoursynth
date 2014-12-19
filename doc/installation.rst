@@ -34,3 +34,60 @@ installed before VapourSynth. If you install the Pismo File Mount Audit Package
 after VapourSynth and still want to use this feature, either reinstall
 VapourSynth or register it from the command line with
 "pfm register <path>\\core32\\vsfs.dll" or "pfm register <path>\\core64\\vsfs.dll".
+
+Linux and OS X Installation Instructions
+========================================
+
+This is a simple guide for compiling VapourSynth on OS X or Linux Mint (or any other Ubuntu derivative) for those who are a bit lazy.
+It's been tested on a clean install of OS X 10.10 and Linux Mint 17.1 and compiles all parts except the OCR and ImageMagick filters.
+
+Required packages (OS X)
+#########################
+
+First download and install the prerequisites:
+   * Xcode -- Available from the AppStore
+   * `Homebrew <http://brew.sh/>`_ -- A package manager
+
+Installation of the required packages is very easy. Simply run these commands in a terminal and wait for them to complete::
+
+   brew install python3 yasm ffmpeg libass
+   pip3 install cython
+   
+If you've already installed all the required packages and instead want to update them, simply run::
+
+   brew update && brew upgrade
+   pip3 install --upgrade cython
+   
+Required packages (Linux Mint)
+##############################
+
+First download and install the required packages. Cython is installed through pip in order to get a more recent version than the system packages provide::
+
+   apt-get install build-essential yasm git libavcodec-dev libswscale-dev libass-dev python3-pip python3-dev
+   pip3 install cython
+   
+If you've already installed all the required packages and instead want to update them, simply update your system like normal and use pip to update Cython::
+
+   pip3 install --upgrade cython
+
+Compilation (Both)
+##################
+
+If you haven't checked out the source code before, use git to do so::
+
+   git clone https://github.com/vapoursynth/vapoursynth.git
+   
+Or if you already have a copy of the source, update it with::
+
+   git pull
+
+Enter the VapourSynth directory and run these commands to compile and install::
+   
+   ./autogen.sh
+   ./configure
+   make
+   make install
+   
+You should now have a working installation based on the latest git.
+
+

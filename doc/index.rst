@@ -13,8 +13,6 @@ Contents:
    :maxdepth: 3
 
    installation
-   osxcompilation
-   linuxcompilation
    gettingstarted
    pythonreference
    autoloading
