@@ -1050,7 +1050,7 @@ static inline uint16_t float_to_half(float x) {
         f = bit_cast_uint32(bit_cast_float(f)* magic);
         f -= round_mask;
 
-        if (bit_cast_uint32(f) > f16inf)
+        if (f > f16inf)
             f = f16inf;
 
         ret = (uint16_t)(f >> 13);
