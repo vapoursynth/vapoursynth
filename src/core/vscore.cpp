@@ -451,8 +451,8 @@ VSFunction::VSFunction(const std::string &argString, VSPublicFunction func, void
     }
 }
 
-VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion, VSCore *core) :
-    instanceData(instanceData), name(name), init(init), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiVersion(apiVersion), core(core), flags(flags), hasVi(false), serialFrame(-1) {
+VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
+instanceData(instanceData), name(name), init(init), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), hasVi(false), serialFrame(-1) {
 
     if (flags & ~(nfNoCache | nfIsCache))
         vsFatal("Filter %s specified unknown flags", name.c_str());
@@ -462,7 +462,7 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, VSFilterIni
 
     core->filterInstanceCreated();
     VSMap inval(*in);
-    init(&inval, out, &this->instanceData, this, core, getVSAPIInternal(apiVersion));
+    init(&inval, out, &this->instanceData, this, core, getVSAPIInternal(apiMajor));
 
     if (vsapi.getError(out)) {
         core->filterInstanceDestroyed();
@@ -471,8 +471,6 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, VSFilterIni
 
     if (!hasVi)
         vsFatal("Filter %s didn't set vi", name.c_str());
-
-    
 }
 
 VSNode::~VSNode() {
@@ -1041,9 +1039,9 @@ void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNa
     plugins.insert(std::make_pair(p->id, p));
 }
 
-void VSCore::createFilter(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion) {
+void VSCore::createFilter(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
     try {
-        PVideoNode node(std::make_shared<VSNode>(in, out, name, init, getFrame, free, filterMode, flags, instanceData, apiVersion, this));
+        PVideoNode node(std::make_shared<VSNode>(in, out, name, init, getFrame, free, filterMode, flags, instanceData, apiMajor, this));
         for (size_t i = 0; i < node->getNumOutputs(); i++) {
             // fixme, not that elegant but saves more variant poking code
             VSNodeRef *ref = new VSNodeRef(node, static_cast<int>(i));

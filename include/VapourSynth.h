@@ -23,7 +23,9 @@
 
 #include <stdint.h>
 
-#define VAPOURSYNTH_API_VERSION 3
+#define VAPOURSYNTH_API_MAJOR 3
+#define VAPOURSYNTH_API_MINOR 0
+#define VAPOURSYNTH_API_VERSION ((VAPOURSYNTH_API_MAJOR << 16) | (VAPOURSYNTH_API_MINOR))
 
 /* Convenience for C++ users. */
 #ifdef __cplusplus

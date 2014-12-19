@@ -57,7 +57,7 @@ typedef std::shared_ptr<ExtFunction> PExtFunction;
 typedef std::shared_ptr<FrameContext> PFrameContext;
 
 extern const VSAPI vsapi;
-const VSAPI *getVSAPIInternal(int version);
+const VSAPI *getVSAPIInternal(int apiMajor);
 
 class VSException : public std::runtime_error {
 public:
@@ -372,7 +372,7 @@ private:
     VSFilterFree free;
     VSFilterMode filterMode;
 
-    int apiVersion;
+    int apiMajor;
     VSCore *core;
     int flags;
     bool hasVi;
@@ -390,7 +390,7 @@ private:
 
     PVideoFrame getFrameInternal(int n, int activationReason, VSFrameContext &frameCtx);
 public:
-    VSNode(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion, VSCore *core);
+    VSNode(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core);
 
     ~VSNode();
 

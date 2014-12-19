@@ -175,7 +175,7 @@ static void VS_CC createFilter(const VSMap *in, VSMap *out, const char *name, VS
     assert(in && out && name && init && getFrame && core);
     if (!name)
         vsFatal("NULL name pointer passed to createFilter()");
-    core->createFilter(in, out, name, init, getFrame, free, static_cast<VSFilterMode>(filterMode), flags, instanceData, VAPOURSYNTH_API_VERSION);
+    core->createFilter(in, out, name, init, getFrame, free, static_cast<VSFilterMode>(filterMode), flags, instanceData, VAPOURSYNTH_API_MAJOR);
 }
 
 static void VS_CC setError(VSMap *map, const char *errorMessage) {
@@ -681,24 +681,30 @@ const VSAPI vsapi = {
 
 ///////////////////////////////
 
-const VSAPI *getVSAPIInternal(int version) {
-    if (version == VAPOURSYNTH_API_VERSION) {
+const VSAPI *getVSAPIInternal(int apiMajor) {
+    if (apiMajor == VAPOURSYNTH_API_MAJOR) {
         return &vsapi;
     } else {
-        vsFatal("Internally requested API version %d not supported", version);
-        return NULL;
+        vsFatal("Internally requested API version %d not supported", apiMajor);
+        return nullptr;
     }
 }
 
 const VSAPI *VS_CC getVapourSynthAPI(int version) {
+    int apiMajor = version;
+    int apiMinor = 0;
+    if (apiMajor >= 0x10000) {
+        apiMinor = (apiMajor & 0xFFFF);
+        apiMajor >>= 16;
+    }
+
     CPUFeatures f;
     getCPUFeatures(&f);
     if (!f.can_run_vs) {
-        vsWarning("System does not meet minimum requirements to run VapourSynth");
-        return NULL;
-    } else if (version == VAPOURSYNTH_API_VERSION) {
+        return nullptr;
+    } else if (apiMajor == VAPOURSYNTH_API_MAJOR && apiMinor <= VAPOURSYNTH_API_MINOR) {
         return &vsapi;
     } else {
-        return NULL;
+        return nullptr;
     }
 }
