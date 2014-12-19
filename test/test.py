@@ -11,7 +11,7 @@ class CoreTestSequence(unittest.TestCase):
         self.assertEqual(self.core.num_threads, 10)
 
     def test_func1(self):
-        with self.assertRaises(vs.Error):
+        with self.assertRaises(AttributeError):
             self.core.blah.list_functions()
 
     def test_arg1(self):
