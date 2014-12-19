@@ -69,15 +69,3 @@ Scripts
 Avisynth Interop
 ################
 * `HBVFWSource <http://forum.doom9.org/showthread.php?t=166038>`_ -- load high bitdepth avis into Avisynth (such as a VapourSynth .vpy)
-
-Avisynth 2.5 -- Quirky
-#######################
-* DGMPGDec -- internal cropping ignored
-* MVTools2 -- in some versions you have to delete AVSTP.dll to make it work
-
-Avisynth 2.5 -- Broken
-######################
-* ColorMatrix
-* IsCombed
-* RemoveGrain
-* Repair
