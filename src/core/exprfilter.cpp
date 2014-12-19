@@ -22,6 +22,7 @@
 #include <string>
 #include <algorithm>
 #include <stdexcept>
+#include <memory>
 #include "VapourSynth.h"
 #include "VSHelper.h"
 #include "exprfilter.h"
@@ -88,11 +89,7 @@ typedef struct {
     VSVideoInfo vi;
     std::vector<ExprOp> ops[3];
     int plane[3];
-#ifdef VS_TARGET_CPU_X86
-    void *stack;
-#else
-    std::vector<float> stack;
-#endif
+    size_t maxStackSize;
 } ExprData;
 
 #ifdef VS_TARGET_CPU_X86
@@ -123,13 +120,14 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
         int height = vsapi->getFrameHeight(src[0], 0);
         int width = vsapi->getFrameWidth(src[0], 0);
         int planes[3] = { 0, 1, 2 };
-        const VSFrameRef *srcf[3] = { d->plane[0] != poCopy ? NULL : src[0], d->plane[1] != poCopy ? NULL : src[0], d->plane[2] != poCopy ? NULL : src[0] };
+        const VSFrameRef *srcf[3] = { d->plane[0] != poCopy ? nullptr : src[0], d->plane[1] != poCopy ? nullptr : src[0], d->plane[2] != poCopy ? nullptr : src[0] };
         VSFrameRef *dst = vsapi->newVideoFrame2(fi, width, height, srcf, planes, src[0], core);
 
         const uint8_t *srcp[3];
         int src_stride[3];
 
 #ifdef VS_TARGET_CPU_X86
+        void *stack = vs_aligned_malloc<void>(d->maxStackSize * 32, 32);
 
         intptr_t ptroffsets[4] = { d->vi.format->bytesPerSample * 8, 0, 0, 0 };
 
@@ -154,7 +152,6 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
 
                 int niterations = (w + 7)/8;
                 const ExprOp *ops = &d->ops[plane][0];
-                void *stack = d->stack;
                 for (int y = 0; y < h; y++) {
                     const uint8_t *rwptrs[4] = { dstp + dst_stride * y, srcp[0] + src_stride[0] * y, srcp[1] + src_stride[1] * y, srcp[2] + src_stride[2] * y };
                     vs_evaluate_expr_sse2(ops, rwptrs, ptroffsets, niterations, stack);
@@ -162,7 +159,9 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
             }
         }
 
+        vs_aligned_free(stack);
 #else
+        std::vector<float> stackVector(d->maxStackSize);
 
         for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {
             if (d->plane[plane] == poProcess) {
@@ -181,7 +180,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                 int h = vsapi->getFrameHeight(src[0], plane);
                 int w = vsapi->getFrameWidth(src[0], plane);
                 const ExprOp *vops = &d->ops[plane][0];
-                float *stack = &d->stack[0];
+                float *stack = stackVector.data();
                 float stacktop = 0;
                 float tmp;
 
@@ -366,12 +365,12 @@ static SOperation getStoreOp(const VSVideoInfo *vi) {
 #define TWO_ARG_OP(op) GENERAL_OP(op, 2, 1)
 #define THREE_ARG_OP(op) GENERAL_OP(op, 3, 2)
 
-static int parseExpression(const std::string &expr, std::vector<ExprOp> &ops, const SOperation loadOp[], const SOperation storeOp) {
+static size_t parseExpression(const std::string &expr, std::vector<ExprOp> &ops, const SOperation loadOp[], const SOperation storeOp) {
     std::vector<std::string> tokens;
     split(tokens, expr, " ", split1::no_empties);
 
-    int maxStackSize = 0;
-    int stackSize = 0;
+    size_t maxStackSize = 0;
+    size_t stackSize = 0;
 
     for (size_t i = 0; i < tokens.size(); i++) {
         if (tokens[i] == "+") {
@@ -431,7 +430,7 @@ static int parseExpression(const std::string &expr, std::vector<ExprOp> &ops, co
         else {
             size_t pos = 0;
             try {
-            LOAD_OP(opLoadConst, std::stof(tokens[i], &pos));
+                LOAD_OP(opLoadConst, std::stof(tokens[i], &pos));
             } catch (std::invalid_argument &) {
                 throw std::runtime_error("Failed to convert '" + tokens[i] + "' to float");
             } catch (std::out_of_range &) {
@@ -439,7 +438,6 @@ static int parseExpression(const std::string &expr, std::vector<ExprOp> &ops, co
             }
             if (pos != tokens[i].length())
                 throw std::runtime_error("Failed to convert '" + tokens[i] + "' to float");
-                
         }
     }
 
@@ -524,15 +522,10 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         }
 
         const SOperation sop[3] = { getLoadOp(vi[0]), getLoadOp(vi[1]), getLoadOp(vi[2]) };
-        int maxStackSize = 0;
+        d.maxStackSize = 0;
         for (int i = 0; i < d.vi.format->numPlanes; i++)
-            maxStackSize = std::max(parseExpression(expr[i], d.ops[i], sop, getStoreOp(&d.vi)), maxStackSize);
+            d.maxStackSize = std::max(parseExpression(expr[i], d.ops[i], sop, getStoreOp(&d.vi)), d.maxStackSize);
 
-#ifdef VS_TARGET_CPU_X86
-        d.stack = vs_aligned_malloc<void>(maxStackSize * 32, 32);
-#else
-        d.stack.resize(maxStackSize);
-#endif
     } catch (std::runtime_error &e) {
         for (int i = 0; i < 3; i++)
             vsapi->freeNode(d.node[i]);
@@ -545,7 +538,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     data = new ExprData();
     *data = d;
 
-    vsapi->createFilter(in, out, "Expr", exprInit, exprGetFrame, exprFree, fmParallelRequests, 0, data, core);
+    vsapi->createFilter(in, out, "Expr", exprInit, exprGetFrame, exprFree, fmParallel, 0, data, core);
 }
 
 //////////////////////////////////////////
