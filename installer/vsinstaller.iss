@@ -1,5 +1,5 @@
 #define AppName = 'VapourSynth'
-#define Version = 'R25'
+#define Version = 'R26'
 
 [Setup]
 OutputDir=Compiled
