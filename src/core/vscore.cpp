@@ -1199,8 +1199,24 @@ static bool hasCompatNodes(const VSMap &m) {
         if (vsv.second.getType() == VSVariant::vNode) {
             for (int i = 0; i < vsv.second.size(); i++) {
                 for (size_t j = 0; j < vsv.second.getValue<VSNodeRef>(i).clip->getNumOutputs(); j++) {
-                    const VSVideoInfo &vi = vsv.second.getValue<VSNodeRef>(i).clip->getVideoInfo(static_cast<int>(j));
+                    const VSNodeRef &ref = vsv.second.getValue<VSNodeRef>(i);
+                    const VSVideoInfo &vi = ref.clip->getVideoInfo(static_cast<int>(j));
                     if (vi.format && vi.format->colorFamily == cmCompat)
+                        return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+static bool hasForeignNodes(const VSMap &m, const VSCore *core) {
+    for (const auto &vsv : m.getStorage()) {
+        if (vsv.second.getType() == VSVariant::vNode) {
+            for (int i = 0; i < vsv.second.size(); i++) {
+                for (size_t j = 0; j < vsv.second.getValue<VSNodeRef>(i).clip->getNumOutputs(); j++) {
+                    const VSNodeRef &ref = vsv.second.getValue<VSNodeRef>(i);
+                    if (!ref.clip->isRightCore(core))
                         return true;
                 }
             }
@@ -1218,6 +1234,8 @@ VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
             const VSFunction &f = funcs[funcName];
             if (!compat && hasCompatNodes(args))
                 throw VSException(funcName + ": only special filters may accept compat input");
+            if (hasForeignNodes(args, core))
+                throw VSException(funcName + ": nodes foreign to this core passed as input, improper api usage detected");
 
             std::set<std::string> remainingArgs;
             for (const auto &key : args.getStorage())

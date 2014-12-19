@@ -394,6 +394,10 @@ public:
 
     ~VSNode();
 
+    bool isRightCore(const VSCore *core2) const {
+        return core == core2;
+    }
+
     void getFrame(const PFrameContext &ct);
 
     const VSVideoInfo &getVideoInfo(int index);
