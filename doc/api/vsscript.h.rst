@@ -56,7 +56,15 @@ For reasons unknown, the VSScript library is called ``VSScript`` in Windows and 
 
 At this time, VapourSynth scripts can be written only in Python (version 3).
 
-A real-world program that uses VSScript is `vspipe <https://github.com/vapoursynth/vapoursynth/blob/master/src/vspipe/vspipe.cpp>`_. There is also an `example program <https://github.com/vapoursynth/vapoursynth/blob/master/sdk/vsscript_example.c>`_.
+Here are a few users of the VSScript library:
+
+   * `vspipe <https://github.com/vapoursynth/vapoursynth/blob/master/src/vspipe/vspipe.cpp>`_
+
+   * `vsvfw <https://github.com/vapoursynth/vapoursynth/blob/master/src/vfw/vsvfw.cpp>`_
+
+   * `an example program <https://github.com/vapoursynth/vapoursynth/blob/master/sdk/vsscript_example.c>`_
+
+   * the video player `mpv <https://github.com/mpv-player/mpv/blob/master/video/filter/vf_vapoursynth.c>`_
 
 
 Structs
@@ -87,7 +95,7 @@ vsscript_init
 
     Initialises the available scripting interfaces.
 
-    Returns the number of times vsscript_init_\ () has been called so far, including this call, or 0 in case of failure. There is no way to find out the reason for the failure.
+    Returns the number of times vsscript_init_\ () has been called so far, including this call, or 0 in case of failure. This function will only fail if the VapourSynth installation is broken in some way.
 
 
 vsscript_finalize
@@ -122,6 +130,8 @@ vsscript_evaluateScript
         0 or efSetWorkingDir (see VSEvalFlags_).
 
         If *scriptFilename* is not NULL and efSetWorkingDir is passed, the working directory will be changed to *scriptFilename*'s directory prior to evaluating the script.
+
+        It is recommended to use efSetWorkingDir, so that relative paths in VapourSynth scripts work as expected.
 
     Restores the working directory before returning.
 
@@ -165,8 +175,6 @@ vsscript_freeScript
 
     * Frees the VapourSynth core used in the script environment, if there is one.
 
-    * Calls Python's garbage collector.
-
     Since this function frees the VapourSynth core, it must be called only after all frame requests are finished and all objects obtained from the script have been freed (frames, nodes, etc).
 
     It is safe to pass NULL.
@@ -209,7 +217,7 @@ vsscript_getCore
 
 .. c:function:: VSCore * vsscript_getCore(VSScript *handle)
 
-    Retrieves the VapourSynth core that was created in the script environment. If a VapourSynth core has not been created yet, it will be created now, with the options ``threads=0``, ``add_cache=True``, and ``accept_lowercase=False``.
+    Retrieves the VapourSynth core that was created in the script environment. If a VapourSynth core has not been created yet, it will be created now, with the default options (see the :doc:`../pythonreference`).
     
     VSScript retains ownership of the pointer.
 
@@ -233,7 +241,7 @@ vsscript_getVariable
 
     Retrieves a variable from the script environment.
 
-    If a VapourSynth core has not been created yet in the script environment, one will be created now, with the options ``threads=0``, ``add_cache=True``, and ``accept_lowercase=False``.
+    If a VapourSynth core has not been created yet in the script environment, one will be created now, with the default options (see the :doc:`../pythonreference`).
 
     *name*
         Name of the variable to retrieve.
@@ -253,7 +261,7 @@ vsscript_setVariable
 
     The variables are now available to the script.
 
-    If a VapourSynth core has not been created yet in the script environment, one will be created now, with the options ``threads=0``, ``add_cache=True``, and ``accept_lowercase=False``.
+    If a VapourSynth core has not been created yet in the script environment, one will be created now, with the default options (see the :doc:`../pythonreference`).
 
     *vars*
         Map containing the variables to set.
@@ -281,5 +289,3 @@ vsscript_clearEnvironment
     * Cancels any clips set for output in the script environment.
 
     * Clears any variables set in the script environment.
-
-    * Calls Python's garbage collector.
