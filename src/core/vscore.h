@@ -114,7 +114,7 @@ public:
     VSVariant(const VSVariant &v);
     ~VSVariant();
 
-    int size() const;
+    size_t size() const;
     VSVType getType() const;
 
     void append(int64_t val);
@@ -129,9 +129,23 @@ public:
         return reinterpret_cast<std::vector<T>*>(storage)->at(index);
     }
 
+    template<typename T>
+    const T *getArray() const {
+        return reinterpret_cast<std::vector<T>*>(storage)->data();
+    }
+
+    template<typename T>
+    void setArray(const T *val, size_t size) {
+        std::vector<T> *vect = reinterpret_cast<std::vector<T>*>(storage);
+        vect->clear();
+        vect->resize(size);
+        memcpy(vect->data(), val, size * sizeof(T));
+        internalSize = size;
+    }
+
 private:
     VSVType vtype;
-    int internalSize;
+    size_t internalSize;
     void *storage;
 
     void initStorage(VSVType t);

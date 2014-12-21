@@ -250,7 +250,7 @@ static int VS_CC propNumElements(const VSMap *props, const char *name) {
     if (!props->contains(name))
         return -1;
 
-    return (*props)[name].size();
+    return static_cast<int>((*props)[name].size());
 }
 
 static char VS_CC propGetType(const VSMap *props, const char *name) {
@@ -596,6 +596,55 @@ static const char *VS_CC getPluginPath(const VSPlugin *plugin) {
         return nullptr;
 }
 
+
+static const int64_t *VS_CC propGetIntArray(const VSMap *map, const char *key, int *error) {
+    int err = getPropErrorCheck(map, key, 0, error, VSVariant::vInt);
+
+    if (err)
+        return nullptr;
+
+    return (*map)[key].getArray<int64_t>();
+}
+
+static const double *VS_CC propGetFloatArray(const VSMap *map, const char *key, int *error) {
+    int err = getPropErrorCheck(map, key, 0, error, VSVariant::vFloat);
+
+    if (err)
+        return nullptr;
+
+    return (*map)[key].getArray<double>();
+}
+
+static int VS_CC propSetIntArray(VSMap *map, const char *key, const int64_t *i, int size) {
+    assert(size >= 0);
+    if (size < 0)
+        return 1;
+    int append = size ? paReplace : paTouch;
+    sharedPropSet(map, key, append);
+
+    VSVariant l(VSVariant::vInt);
+    if (append == paAppend)
+        l.setArray(i, size);
+    map->insert(key, l);
+
+    return 0;
+}
+
+static int VS_CC propSetFloatArray(VSMap *map, const char *key, const double *d, int size) {
+    assert(size >= 0);
+    if (size < 0)
+        return 1;
+    int append = size ? paReplace : paTouch;
+    sharedPropSet(map, key, append);
+
+    VSVariant l(VSVariant::vFloat);
+    if (append == paAppend)
+        l.setArray(d, size);
+    map->insert(key, l);
+
+    return 0;
+}
+
 const VSAPI vsapi = {
     &createCore,
     &freeCore,
@@ -676,7 +725,12 @@ const VSAPI vsapi = {
     &setMessageHandler,
     &setThreadCount,
 
-    &getPluginPath
+    &getPluginPath,
+
+    &propGetIntArray,
+    &propGetFloatArray,
+    &propSetIntArray,
+    &propSetFloatArray
 };
 
 ///////////////////////////////

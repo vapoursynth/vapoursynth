@@ -151,7 +151,7 @@ VSVariant::~VSVariant() {
     }
 }
 
-int VSVariant::size() const {
+size_t VSVariant::size() const {
     return internalSize;
 }
 

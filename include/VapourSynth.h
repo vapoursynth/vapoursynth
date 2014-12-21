@@ -24,7 +24,7 @@
 #include <stdint.h>
 
 #define VAPOURSYNTH_API_MAJOR 3
-#define VAPOURSYNTH_API_MINOR 0
+#define VAPOURSYNTH_API_MINOR 1
 #define VAPOURSYNTH_API_VERSION ((VAPOURSYNTH_API_MAJOR << 16) | (VAPOURSYNTH_API_MINOR))
 
 /* Convenience for C++ users. */
@@ -307,6 +307,13 @@ typedef void (VS_CC *VSSetMessageHandler)(VSMessageHandler handler, void *userDa
 
 typedef const char *(VS_CC *VSGetPluginPath)(const VSPlugin *plugin);
 
+typedef const int64_t *(VS_CC *VSPropGetIntArray)(const VSMap *map, const char *key, int *error);
+typedef const double *(VS_CC *VSPropGetFloatArray)(const VSMap *map, const char *key, int *error);
+
+typedef int (VS_CC *VSPropSetIntArray)(VSMap *map, const char *key, const int64_t *i, int size);
+typedef int (VS_CC *VSPropSetFloatArray)(VSMap *map, const char *key, const double *d, int size);
+
+
 struct VSAPI {
     VSCreateCore createCore;
     VSFreeCore freeCore;
@@ -393,6 +400,12 @@ struct VSAPI {
     VSSetThreadCount setThreadCount;
 
     VSGetPluginPath getPluginPath;
+
+    VSPropGetIntArray propGetIntArray;
+    VSPropGetFloatArray propGetFloatArray;
+
+    VSPropSetIntArray propSetIntArray;
+    VSPropSetFloatArray propSetFloatArray;
 };
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version);
