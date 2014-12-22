@@ -1132,13 +1132,13 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
     if (readOnlySet)
         readOnly = true;
 
-    if (apiMajor != VAPOURSYNTH_API_VERSION || apiMinor > 0) {
+    if (apiMajor != VAPOURSYNTH_API_MAJOR || apiMinor > VAPOURSYNTH_API_MINOR) {
 #ifdef VS_TARGET_OS_WINDOWS
         FreeLibrary(libHandle);
 #else
         dlclose(libHandle);
 #endif
-        throw VSException("Core only supports API R" + std::to_string(VAPOURSYNTH_API_VERSION) + "." + std::to_string(0) + " but the loaded plugin requires API R" + std::to_string(apiMajor) + "." + std::to_string(apiMinor));
+        throw VSException("Core only supports API R" + std::to_string(VAPOURSYNTH_API_MAJOR) + "." + std::to_string(VAPOURSYNTH_API_MINOR) + " but the loaded plugin requires API R" + std::to_string(apiMajor) + "." + std::to_string(apiMinor));
     }
 }
 
