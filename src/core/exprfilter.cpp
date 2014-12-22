@@ -18,6 +18,9 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
+#include <iostream>
+#include <locale>
+#include <sstream>
 #include <vector>
 #include <string>
 #include <algorithm>
@@ -428,16 +431,15 @@ static size_t parseExpression(const std::string &expr, std::vector<ExprOp> &ops,
         else if (tokens[i] == "z")
             LOAD_OP(loadOp[2], 2);
         else {
-            size_t pos = 0;
-            try {
-                LOAD_OP(opLoadConst, std::stof(tokens[i], &pos));
-            } catch (std::invalid_argument &) {
+            float f;
+            std::string s;
+            std::istringstream numStream(tokens[i]);
+            numStream.imbue(std::locale("C"));
+            if (!(numStream >> f))
                 throw std::runtime_error("Failed to convert '" + tokens[i] + "' to float");
-            } catch (std::out_of_range &) {
-                throw std::runtime_error("Failed to convert '" + tokens[i] + "' to float");
-            }
-            if (pos != tokens[i].length())
-                throw std::runtime_error("Failed to convert '" + tokens[i] + "' to float");
+            if (numStream >> s)
+                throw std::runtime_error("Failed to convert '" + tokens[i] + "' to float, not the whole token could be converted");
+            LOAD_OP(opLoadConst, f);
         }
     }
 
