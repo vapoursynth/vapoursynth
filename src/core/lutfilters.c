@@ -54,14 +54,13 @@ static const VSFrameRef *VS_CC lutGetframe(int n, int activationReason, void **i
         VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
 
         for (plane = 0; plane < fi->numPlanes; plane++) {
-            const uint8_t *srcp = vsapi->getReadPtr(src, plane);
-            int src_stride = vsapi->getStride(src, plane);
-            uint8_t *dstp = vsapi->getWritePtr(dst, plane);
-            int dst_stride = vsapi->getStride(dst, plane);
-            int h = vsapi->getFrameHeight(src, plane);
 
             if (d->process[plane]) {
-
+                const uint8_t *srcp = vsapi->getReadPtr(src, plane);
+                int src_stride = vsapi->getStride(src, plane);
+                uint8_t *dstp = vsapi->getWritePtr(dst, plane);
+                int dst_stride = vsapi->getStride(dst, plane);
+                int h = vsapi->getFrameHeight(src, plane);
                 int hl;
                 int w = vsapi->getFrameWidth(src, plane);
                 int x;
@@ -312,15 +311,15 @@ static const VSFrameRef *VS_CC lut2Getframe(int n, int activationReason, void **
         VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(srcx, 0), vsapi->getFrameHeight(srcx, 0), fr, pl, srcx, core);
 
         for (plane = 0; plane < fi->numPlanes; plane++) {
-            const uint8_t *srcpx = vsapi->getReadPtr(srcx, plane);
-            const uint8_t *srcpy = vsapi->getReadPtr(srcy, plane);
-            int srcx_stride = vsapi->getStride(srcx, plane);
-            int srcy_stride = vsapi->getStride(srcy, plane);
-            uint8_t *dstp = vsapi->getWritePtr(dst, plane);
-            int dst_stride = vsapi->getStride(dst, plane);
-            int h = vsapi->getFrameHeight(srcx, plane);
 
             if (d->process[plane]) {
+                const uint8_t *srcpx = vsapi->getReadPtr(srcx, plane);
+                const uint8_t *srcpy = vsapi->getReadPtr(srcy, plane);
+                int srcx_stride = vsapi->getStride(srcx, plane);
+                int srcy_stride = vsapi->getStride(srcy, plane);
+                uint8_t *dstp = vsapi->getWritePtr(dst, plane);
+                int dst_stride = vsapi->getStride(dst, plane);
+                int h = vsapi->getFrameHeight(srcx, plane);
                 int shift = d->vi[0]->format->bitsPerSample;
                 int hl;
                 int w = vsapi->getFrameWidth(srcx, plane);
