@@ -139,8 +139,7 @@ stringlist split_text(const std::string& txt, int width, int height) {
 
     // Then split any lines that don't fit
     size_t horizontal_capacity = width / character_width;
-    stringlist::iterator iter;
-    for (iter = lines.begin(); iter != lines.end(); iter++) {
+    for (stringlist::iterator iter = lines.begin(); iter != lines.end(); iter++) {
         if (iter->size() > horizontal_capacity) {
             lines.insert(std::next(iter), iter->substr(horizontal_capacity));
             iter->erase(horizontal_capacity);
@@ -190,7 +189,7 @@ void scrawl_text(std::string txt, int alignment, VSFrameRef *frame, const VSAPI 
         break;
     }
 
-    for (stringlist::const_iterator iter = lines.begin(); iter != lines.end(); iter++) {
+    for (const auto &iter : lines) {
         switch (alignment) {
         case 1:
         case 4:
@@ -200,16 +199,16 @@ void scrawl_text(std::string txt, int alignment, VSFrameRef *frame, const VSAPI 
         case 2:
         case 5:
         case 8:
-            start_x = (width - static_cast<int>(iter->size())*character_width) / 2;
+            start_x = (width - static_cast<int>(iter.size())*character_width) / 2;
             break;
         case 3:
         case 6:
         case 9:
-            start_x = width - static_cast<int>(iter->size())*character_width - margin_h;
+            start_x = width - static_cast<int>(iter.size())*character_width - margin_h;
             break;
         }
 
-        for (size_t i = 0; i < iter->size(); i++) {
+        for (size_t i = 0; i < iter.size(); i++) {
             int dest_x = start_x + static_cast<int>(i)*character_width;
             int dest_y = start_y;
 
@@ -219,9 +218,9 @@ void scrawl_text(std::string txt, int alignment, VSFrameRef *frame, const VSAPI 
                     int stride = vsapi->getStride(frame, plane);
 
                     if (frame_format->sampleType == stInteger) {
-                        scrawl_character_int((*iter)[i], image, stride, dest_x, dest_y, frame_format->bitsPerSample);
+                        scrawl_character_int(iter[i], image, stride, dest_x, dest_y, frame_format->bitsPerSample);
                     } else {
-                        scrawl_character_float((*iter)[i], image, stride, dest_x, dest_y);
+                        scrawl_character_float(iter[i], image, stride, dest_x, dest_y);
                     }
                 }
             } else {
@@ -231,9 +230,9 @@ void scrawl_text(std::string txt, int alignment, VSFrameRef *frame, const VSAPI 
 
                     if (plane == 0) {
                         if (frame_format->sampleType == stInteger) {
-                            scrawl_character_int((*iter)[i], image, stride, dest_x, dest_y, frame_format->bitsPerSample);
+                            scrawl_character_int(iter[i], image, stride, dest_x, dest_y, frame_format->bitsPerSample);
                         } else {
-                            scrawl_character_float((*iter)[i], image, stride, dest_x, dest_y);
+                            scrawl_character_float(iter[i], image, stride, dest_x, dest_y);
                         }
                     } else {
                         int sub_w = character_width  >> frame_format->subSamplingW;
@@ -361,8 +360,8 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **
             std::string text = "Frame properties:\n";
 
             if (!d->props.empty()) {
-                for (stringlist::const_iterator iter = d->props.begin(); iter != d->props.end(); ++iter) {
-                    append_prop(text, *iter, props, vsapi);
+                for (const auto &iter : d->props) {
+                    append_prop(text, iter, props, vsapi);
                 }
             } else {
                 for (i = 0; i < numKeys; i++) {
