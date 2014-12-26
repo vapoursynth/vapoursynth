@@ -544,9 +544,10 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
         }
     } else if (bits == 8) {
         uint8_t *lut = d.lut;
+        const int64_t *arr = vsapi->propGetIntArray(in, "lut", NULL);
 
         for (i = 0; i < n; i++) {
-            int64_t v = vsapi->propGetInt(in, "lut", i, 0);
+            int64_t v = arr[i];
 
             if (v < 0 || v > m) {
                 free(d.lut);
@@ -559,9 +560,10 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
         }
     } else {
         uint16_t *lut = d.lut;
+        const int64_t *arr = vsapi->propGetIntArray(in, "lut", NULL);
 
         for (i = 0; i < n; i++) {
-            int64_t v = vsapi->propGetInt(in, "lut", i, 0);
+            int64_t v = arr[i];
 
             if (v < 0 || v > m) {
                 free(d.lut);
