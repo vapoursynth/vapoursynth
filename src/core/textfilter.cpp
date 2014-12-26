@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2013 John Smith
+* Copyright (c) 2013-2014 John Smith
 *
 * This file is part of VapourSynth.
 *
@@ -295,41 +295,32 @@ static void append_prop(std::string &text, const std::string &key, const VSMap *
     int numElements = vsapi->propNumElements(map, key.c_str());
     int idx;
     // "<key>: <val0> <val1> <val2> ... <valn-1>"
-    text.append(key).append(": ");
+    text += key + ":";
     if (type == ptInt) {
-        for (idx = 0; idx < numElements; idx++) {
-            int64_t value = vsapi->propGetInt(map, key.c_str(), idx, NULL);
-            text.append(std::to_string(value));
-            if (idx < numElements-1) {
-                text.append(" ");
-            }
-        }
+        const int64_t *intArr = vsapi->propGetIntArray(map, key.c_str(), nullptr);
+        for (idx = 0; idx < numElements; idx++)
+            text += " " + std::to_string(intArr[idx]);
+        text.resize(text.size() - 1);
     } else if (type == ptFloat) {
-        for (idx = 0; idx < numElements; idx++) {
-            double value = vsapi->propGetFloat(map, key.c_str(), idx, NULL);
-            text.append(std::to_string(value));
-            if (idx < numElements-1) {
-                text.append(" ");
-            }
-        }
+        const double *floatArr = vsapi->propGetFloatArray(map, key.c_str(), nullptr);
+        for (idx = 0; idx < numElements; idx++)
+            text += " " + std::to_string(floatArr[idx]);
     } else if (type == ptData) {
         for (idx = 0; idx < numElements; idx++) {
             const char *value = vsapi->propGetData(map, key.c_str(), idx, NULL);
             int size = vsapi->propGetDataSize(map, key.c_str(), idx, NULL);
+            text += " ";
             if (size > 100) {
-                text.append("<property too long>");
+                text += "<property too long>";
             } else {
-                text.append(value);
-            }
-            if (idx < numElements-1) {
-                text.append(" ");
+                text += value;
             }
         }
     } else if (type == ptUnset) {
-        text.append("<no such property>");
+        text += " <no such property>";
     }
 
-    text.append("\n");
+    text += "\n";
 }
 
 
@@ -414,7 +405,7 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         const char *error = vsapi->getError(ret);
         if (error) {
             std::string msg = "CoreInfo: No input clip was given and invoking BlankClip failed. The error message from BlankClip is:\n";
-            msg.append(error);
+            msg += error;
             vsapi->setError(out, msg.c_str());
             vsapi->freeMap(ret);
             return;
@@ -457,20 +448,20 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         d.instanceName = "Text";
         break;
     case FILTER_CLIPINFO:
-        d.text.append("Clip info:\n");
+        d.text += "Clip info:\n";
 
         if (d.vi->width) {
-            d.text.append("Width: ").append(std::to_string(d.vi->width)).append(" px\n");
-            d.text.append("Height: ").append(std::to_string(d.vi->height)).append(" px\n");
+            d.text += "Width: " + std::to_string(d.vi->width) + " px\n";
+            d.text += "Height: " + std::to_string(d.vi->height) + " px\n";
         } else {
-            d.text.append("Width: may vary\n");
-            d.text.append("Height: may vary\n");
+            d.text += "Width: may vary\n";
+            d.text += "Height: may vary\n";
         }
 
         if (d.vi->numFrames) {
-            d.text.append("Length: ").append(std::to_string(d.vi->numFrames)).append(" frames\n");
+            d.text += "Length: " + std::to_string(d.vi->numFrames) + " frames\n";
         } else {
-            d.text.append("Length: unknown\n");
+            d.text += "Length: unknown\n";
         }
 
         if (d.vi->format) {
