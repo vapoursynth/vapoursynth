@@ -236,4 +236,12 @@ cdef extern from "include/VapourSynth.h" nogil:
         void setMessageHandler(VSMessageHandler handler, void *userData) nogil
         
         int setThreadCount(int threads, VSCore *core) nogil
+        
+        const char *getPluginPath(const VSPlugin *plugin) nogil
+
+        const int64_t *propGetIntArray(const VSMap *map, const char *key, int *error) nogil
+        const double *propGetFloatArray(const VSMap *map, const char *key, int *error) nogil
+        int propSetIntArray(VSMap *map, const char *key, const int64_t *i, int size) nogil
+        int propSetFloatArray(VSMap *map, const char *key, const double *d, int size) nogil
+        
     const VSAPI *getVapourSynthAPI(int version) nogil
