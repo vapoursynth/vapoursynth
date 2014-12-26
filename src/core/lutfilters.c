@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2013 Fredrik Mellbin
+* Copyright (c) 2012-2014 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -213,7 +213,7 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
         RETERROR("Lut: Both lut and function are set");
     }
 
-    n = 1 << d.vi->format->bitsPerSample;
+    n = (1 << d.vi->format->bitsPerSample);
 
     if (m > 0 && m != n) {
         vsapi->freeNode(d.node);
@@ -234,10 +234,10 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
         }
     } else if (d.vi->format->bytesPerSample == 1) {
         uint8_t *lut = d.lut;
+        const int64_t *arr = vsapi->propGetIntArray(in, "lut", NULL);
 
         for (i = 0; i < n; i++) {
-            int64_t v = vsapi->propGetInt(in, "lut", i, 0);
-
+            int64_t v = arr[i];
             if (v < 0 || v >= n) {
                 free(d.lut);
                 vsapi->freeNode(d.node);
@@ -248,10 +248,10 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
         }
     } else {
         uint16_t *lut = d.lut;
+        const int64_t *arr = vsapi->propGetIntArray(in, "lut", NULL);
 
         for (i = 0; i < n; i++) {
-            int64_t v = vsapi->propGetInt(in, "lut", i, 0);
-
+            int64_t v = arr[i];
             if (v < 0 || v >= n) {
                 free(d.lut);
                 vsapi->freeNode(d.node);
