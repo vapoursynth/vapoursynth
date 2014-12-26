@@ -307,8 +307,8 @@ static void append_prop(std::string &text, const std::string &key, const VSMap *
             text += " " + std::to_string(floatArr[idx]);
     } else if (type == ptData) {
         for (idx = 0; idx < numElements; idx++) {
-            const char *value = vsapi->propGetData(map, key.c_str(), idx, NULL);
-            int size = vsapi->propGetDataSize(map, key.c_str(), idx, NULL);
+            const char *value = vsapi->propGetData(map, key.c_str(), idx, nullptr);
+            int size = vsapi->propGetDataSize(map, key.c_str(), idx, nullptr);
             text += " ";
             if (size > 100) {
                 text += "<property too long>";
@@ -339,7 +339,7 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **
             (frame_format->sampleType == stFloat && frame_format->bitsPerSample != 32)) {
                 vsapi->freeFrame(dst);
                 vsapi->setFilterError((d->instanceName + ": Only 8..16 bit integer and 32 bit float formats supported").c_str(), frameCtx);
-                return NULL;
+                return nullptr;
         }
 
         if (d->filter == FILTER_FRAMENUM) {
