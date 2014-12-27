@@ -383,9 +383,9 @@ static void VS_CC funcToLut2(char *buff, int bits, int x, int y, uint8_t *lut, V
 
     if (bits == 8) {
         for (i = 0; i < y; i++) {
+            vsapi->propSetInt(in, "y", i, paReplace);
             for (j = 0; j < x; j++) {
                 vsapi->propSetInt(in, "x", j, paReplace);
-                vsapi->propSetInt(in, "y", i, paReplace);
                 vsapi->callFunc(func, in, out, core, vsapi);
 
                 ret = vsapi->getError(out);
@@ -409,9 +409,9 @@ static void VS_CC funcToLut2(char *buff, int bits, int x, int y, uint8_t *lut, V
         uint16_t *t = (uint16_t *)lut;
 
         for (i = 0; i < y; i++) {
+            vsapi->propSetInt(in, "y", i, paReplace);
             for (j = 0; j < x; j++) {
                 vsapi->propSetInt(in, "x", j, paReplace);
-                vsapi->propSetInt(in, "y", i, paReplace);
                 vsapi->callFunc(func, in, out, core, vsapi);
 
                 ret = vsapi->getError(out);
