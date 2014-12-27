@@ -167,8 +167,17 @@ public:
     VSMap() : data(std::make_shared<VSMapStorageType>()), error(false) {}
 
     VSMap(const VSMap &map) : data(map.data), error(map.error) {}
-    VSMap(VSMap &&map) : data(std::move(map.data)), error(map.error) { map.data = std::make_shared<VSMapStorageType>(); map.error = false; }
-    VSMap &operator=(const VSMap &map) { data = map.data; error = map.error; return *this; }
+
+    VSMap(VSMap &&map) : data(std::move(map.data)), error(map.error) {
+        map.data = std::make_shared<VSMapStorageType>();
+        map.error = false;
+    }
+
+    VSMap &operator=(const VSMap &map) {
+        data = map.data;
+        error = map.error;
+        return *this;
+    }
 
     bool contains(const std::string &key) const {
         return data->count(key) > 0;
