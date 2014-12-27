@@ -8,7 +8,7 @@ Description: Library for interfacing VapourSynth with Python
 Version: @VERSION@
 
 Requires: vapoursynth
-Requires.private: python3
+Requires.private: python-@PYTHON_VERSION@
 Libs: -L${libdir} -lvapoursynth-script
 Libs.private: @PYTHON3_LIBS@
 Cflags: -I${includedir}
