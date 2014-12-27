@@ -557,15 +557,20 @@ cdef class VideoProps(object):
         cdef bytes b = name.encode('utf-8')
         cdef list ol = []
         cdef int numelem = self.funcs.propNumElements(m, b)
+        cdef const int64_t *intArray
+        cdef const double *floatArray
+        
         if numelem < 0:
             raise KeyError('No key named ' + name + ' exists')
         cdef char t = self.funcs.propGetType(m, b)
         if t == 'i':
+            intArray = self.funcs.propGetIntArray(m, b, NULL)
             for i in range(numelem):
-                ol.append(self.funcs.propGetInt(m, b, i, NULL))
+                ol.append(intArray[i])
         elif t == 'f':
+            floatArray = self.funcs.propGetFloatArray(m, b, NULL)
             for i in range(numelem):
-                ol.append(self.funcs.propGetFloat(m, b, i, NULL))
+                ol.append(floatArray[i])
         elif t == 's':
             for i in range(numelem):
                 ol.append(self.funcs.propGetData(m, b, i, NULL))
