@@ -158,10 +158,11 @@ typedef std::shared_ptr<VSMapStorageType> VSMapStorage;
 struct VSMap {
 private:
     VSMapStorage data;
+    bool error;
 public:
-    VSMap() : data(std::make_shared<VSMapStorageType>()) {}
+    VSMap() : data(std::make_shared<VSMapStorageType>()), error(false) {}
 
-    VSMap(const VSMap &map) : data(map.data) {}
+    VSMap(const VSMap &map) : data(map.data), error(map.error) {}
 
     bool contains(const std::string &key) const {
         return data->count(key) > 0;
@@ -189,10 +190,13 @@ public:
     }
 
     void clear() {
-        return data->clear();
+        data->clear();
+        error = false;
     }
 
     const char *key(int n) const {
+        if (n >= size())
+            return nullptr;
         auto iter = data->cbegin();
         while (n-- > 0)
             ++iter;
@@ -203,13 +207,22 @@ public:
         return *data.get();
     }
 
-    void setError(const std::string &error) {
+    void setError(const std::string &errMsg) {
         if (!data.unique())
             data = std::make_shared<VSMapStorageType>(*data.get());
         data->clear();
         VSVariant v(VSVariant::vData);
-        v.append(error);
+        v.append(errMsg);
         insert("_Error", v);
+        error = true;
+    }
+
+    bool hasError() const {
+        return error;
+    }
+
+    const std::string &getErrorMessage() const {
+        return *((*this)["_Error"].getValue<VSMapData>(0).get());
     }
 };
 
@@ -569,7 +582,7 @@ public:
     bool isValidFormatPointer(const VSFormat *f);
 
     void loadPlugin(const std::string &filename, const std::string &forcedNamespace = std::string(), const std::string &forcedId = std::string());
-    void createFilter(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiVersion);
+    void createFilter(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
 
     VSMap getPlugins();
     VSPlugin *getPluginById(const std::string &identifier);

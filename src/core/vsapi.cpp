@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2013 Fredrik Mellbin
+* Copyright (c) 2012-2014 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -185,10 +185,10 @@ static void VS_CC setError(VSMap *map, const char *errorMessage) {
 
 static const char *VS_CC getError(const VSMap *map) {
     assert(map);
-    if (map->size() == 1 && map->contains("_Error") && (*map)["_Error"].size() > 0)
-        return (*map)["_Error"].getValue<VSMapData>(0)->c_str();
+    if (map->hasError())
+        return map->getErrorMessage().c_str();
     else
-        return NULL;
+        return nullptr;
 }
 
 static void VS_CC setFilterError(const char *errorMessage, VSFrameContext *context) {
@@ -245,29 +245,35 @@ static const char *VS_CC propGetKey(const VSMap *props, int index) {
     return props->key(index);
 }
 
+static int propNumElementsInternal(const VSMap *props, const std::string &name) {
+    try {
+        return static_cast<int>((*props)[name].size());
+    } catch (std::out_of_range &) {
+        return -1;
+    }
+}
+
+
 static int VS_CC propNumElements(const VSMap *props, const char *name) {
     assert(props && name);
-    if (!props->contains(name))
-        return -1;
-
-    return static_cast<int>((*props)[name].size());
+    return propNumElementsInternal(props, name);
 }
 
 static char VS_CC propGetType(const VSMap *props, const char *name) {
     assert(props && name);
-    if (!props->contains(name))
+    try {
+        const char a[] = { 'u', 'i', 'f', 's', 'c', 'v', 'm'};
+        return a[(*props)[name].getType()];
+    } catch (std::out_of_range &) {
         return 'u';
-
-    const char a[] = { 'u', 'i', 'f', 's', 'c', 'v', 'm'};
-    return a[(*props)[name].getType()];
+    }
 }
 
-static int getPropErrorCheck(const VSMap *props, const char *name, int index, int *error, int type) {
-    assert(props && name);
+static int getPropErrorCheck(const VSMap *props, const std::string &name, int index, int *error, int type) {
     int err = 0;
 
-    if (getError(props))
-        vsFatal("Attempted to read from a map with error set: %s", getError(props));
+    if (props->hasError())
+        vsFatal("Attempted to read from a map with error set: %s", props->getErrorMessage().c_str());
 
     if (!props->contains(name))
         err |= peUnset;
@@ -275,13 +281,13 @@ static int getPropErrorCheck(const VSMap *props, const char *name, int index, in
     if (!err && (*props)[name].getType() != type)
         err |= peType;
 
-    int c = propNumElements(props, name);
+    int c = propNumElementsInternal(props, name);
 
     if ((!err && c <= index) || index < 0)
         err |= peIndex;
 
     if (err && !error)
-        vsFatal("Property read unsuccessful but no error output: %s", name);
+        vsFatal("Property read unsuccessful but no error output: %s", name.c_str());
 
     if (error)
         *error = err;
@@ -290,57 +296,69 @@ static int getPropErrorCheck(const VSMap *props, const char *name, int index, in
 }
 
 static int64_t VS_CC propGetInt(const VSMap *props, const char *name, int index, int *error) {
-    int err = getPropErrorCheck(props, name, index, error, VSVariant::vInt);
+    assert(props && name);
+    std::string sname = name;
+    int err = getPropErrorCheck(props, sname, index, error, VSVariant::vInt);
 
     if (err)
         return 0;
 
-    return (*props)[name].getValue<int64_t>(index);
+    return (*props)[sname].getValue<int64_t>(index);
 }
 
 static double VS_CC propGetFloat(const VSMap *props, const char *name, int index, int *error) {
-    int err = getPropErrorCheck(props, name, index, error, VSVariant::vFloat);
+    assert(props && name);
+    std::string sname = name;
+    int err = getPropErrorCheck(props, sname, index, error, VSVariant::vFloat);
 
     if (err)
         return 0;
 
-    return (*props)[name].getValue<double>(index);
+    return (*props)[sname].getValue<double>(index);
 }
 
 static const char *VS_CC propGetData(const VSMap *props, const char *name, int index, int *error) {
-    int err = getPropErrorCheck(props, name, index, error, VSVariant::vData);
+    assert(props && name);
+    std::string sname = name;
+    int err = getPropErrorCheck(props, sname, index, error, VSVariant::vData);
 
     if (err)
         return 0;
 
-    return (*props)[name].getValue<VSMapData>(index)->c_str();
+    return (*props)[sname].getValue<VSMapData>(index)->c_str();
 }
 
 static int VS_CC propGetDataSize(const VSMap *props, const char *name, int index, int *error) {
-    int err = getPropErrorCheck(props, name, index, error, VSVariant::vData);
+    assert(props && name);
+    std::string sname = name;
+    int err = getPropErrorCheck(props, sname, index, error, VSVariant::vData);
 
     if (err)
         return 0;
 
-    return static_cast<int>((*props)[name].getValue<VSMapData>(index)->size());
+    return static_cast<int>((*props)[sname].getValue<VSMapData>(index)->size());
 }
 
 static VSNodeRef *VS_CC propGetNode(const VSMap *props, const char *name, int index, int *error) {
-    int err = getPropErrorCheck(props, name, index, error, VSVariant::vNode);
+    assert(props && name);
+    std::string sname = name;
+    int err = getPropErrorCheck(props, sname, index, error, VSVariant::vNode);
 
     if (err)
-        return 0;
+        return nullptr;
 
-    return new VSNodeRef((*props)[name].getValue<VSNodeRef>(index));
+    return new VSNodeRef((*props)[sname].getValue<VSNodeRef>(index));
 }
 
 static const VSFrameRef *VS_CC propGetFrame(const VSMap *props, const char *name, int index, int *error) {
-    int err = getPropErrorCheck(props, name, index, error, VSVariant::vFrame);
+    assert(props && name);
+    std::string sname = name;
+    int err = getPropErrorCheck(props, sname, index, error, VSVariant::vFrame);
 
     if (err)
-        return 0;
+        return nullptr;
 
-    return new VSFrameRef((*props)[name].getValue<PVideoFrame>(index));
+    return new VSFrameRef((*props)[sname].getValue<PVideoFrame>(index));
 }
 
 static int VS_CC propDeleteKey(VSMap *props, const char *name) {
@@ -348,8 +366,7 @@ static int VS_CC propDeleteKey(VSMap *props, const char *name) {
     return props->erase(name);
 }
 
-static void sharedPropSet(VSMap *props, const char *name, int &append) {
-    assert(props && name);
+static void sharedPropSet(VSMap *props, const std::string &name, int &append) {
     if (append != paReplace && append != paAppend && append != paTouch)
         vsFatal("Invalid prop append mode given");
 
@@ -360,9 +377,11 @@ static void sharedPropSet(VSMap *props, const char *name, int &append) {
 }
 
 static int VS_CC propSetInt(VSMap *props, const char *name, int64_t i, int append) {
-    sharedPropSet(props, name, append);
-    if (props->contains(name)) {
-        VSVariant &l = (*props)[name];
+    assert(props && name);
+    std::string sname = name;
+    sharedPropSet(props, sname, append);
+    if (props->contains(sname)) {
+        VSVariant &l = (*props)[sname];
 
         if (l.getType() != VSVariant::vInt)
             return 1;
@@ -372,16 +391,18 @@ static int VS_CC propSetInt(VSMap *props, const char *name, int64_t i, int appen
         VSVariant l(VSVariant::vInt);
         if (append == paAppend)
             l.append(i);
-        props->insert(name, l);
+        props->insert(sname, l);
     }
 
     return 0;
 }
 
 static int VS_CC propSetFloat(VSMap *props, const char *name, double d, int append) {
-    sharedPropSet(props, name, append);
-    if (props->contains(name)) {
-        VSVariant &l = (*props)[name];
+    assert(props && name);
+    std::string sname = name;
+    sharedPropSet(props, sname, append);
+    if (props->contains(sname)) {
+        VSVariant &l = (*props)[sname];
 
         if (l.getType() != VSVariant::vFloat)
             return 1;
@@ -391,16 +412,18 @@ static int VS_CC propSetFloat(VSMap *props, const char *name, double d, int appe
         VSVariant l(VSVariant::vFloat);
         if (append == paAppend)
             l.append(d);
-        props->insert(name, l);
+        props->insert(sname, l);
     }
 
     return 0;
 }
 
 static int VS_CC propSetData(VSMap *props, const char *name, const char *d, int length, int append) {
-    sharedPropSet(props, name, append);
-    if (props->contains(name)) {
-        VSVariant &l = (*props)[name];
+    assert(props && name);
+    std::string sname = name;
+    sharedPropSet(props, sname, append);
+    if (props->contains(sname)) {
+        VSVariant &l = (*props)[sname];
 
         if (l.getType() != VSVariant::vData)
             return 1;
@@ -410,16 +433,18 @@ static int VS_CC propSetData(VSMap *props, const char *name, const char *d, int 
         VSVariant l(VSVariant::vData);
         if (append == paAppend)
             l.append(length >= 0 ? std::string(d, length) : std::string(d));
-        props->insert(name, l);
+        props->insert(sname, l);
     }
 
     return 0;
 }
 
 static int VS_CC propSetNode(VSMap *props, const char *name, VSNodeRef *clip, int append) {
-    sharedPropSet(props, name, append);
-    if (props->contains(name)) {
-        VSVariant &l = (*props)[name];
+    assert(props && name);
+    std::string sname = name;
+    sharedPropSet(props, sname, append);
+    if (props->contains(sname)) {
+        VSVariant &l = (*props)[sname];
 
         if (l.getType() != VSVariant::vNode)
             return 1;
@@ -429,16 +454,18 @@ static int VS_CC propSetNode(VSMap *props, const char *name, VSNodeRef *clip, in
         VSVariant l(VSVariant::vNode);
         if (append == paAppend)
             l.append(*clip);
-        props->insert(name, l);
+        props->insert(sname, l);
     }
 
     return 0;
 }
 
 static int VS_CC propSetFrame(VSMap *props, const char *name, const VSFrameRef *frame, int append) {
-    sharedPropSet(props, name, append);
-    if (props->contains(name)) {
-        VSVariant &l = (*props)[name];
+    assert(props && name);
+    std::string sname = name;
+    sharedPropSet(props, sname, append);
+    if (props->contains(sname)) {
+        VSVariant &l = (*props)[sname];
 
         if (l.getType() != VSVariant::vFrame)
             return 1;
@@ -448,7 +475,7 @@ static int VS_CC propSetFrame(VSMap *props, const char *name, const VSFrameRef *
         VSVariant l(VSVariant::vFrame);
         if (append == paAppend)
             l.append(frame->frame);
-        props->insert(name, l);
+        props->insert(sname, l);
     }
 
     return 0;
@@ -598,49 +625,55 @@ static const char *VS_CC getPluginPath(const VSPlugin *plugin) {
 
 
 static const int64_t *VS_CC propGetIntArray(const VSMap *map, const char *key, int *error) {
-    int err = getPropErrorCheck(map, key, 0, error, VSVariant::vInt);
+    assert(map && key);
+    std::string skey = key;
+    int err = getPropErrorCheck(map, skey, 0, error, VSVariant::vInt);
 
     if (err)
         return nullptr;
 
-    return (*map)[key].getArray<int64_t>();
+    return (*map)[skey].getArray<int64_t>();
 }
 
 static const double *VS_CC propGetFloatArray(const VSMap *map, const char *key, int *error) {
-    int err = getPropErrorCheck(map, key, 0, error, VSVariant::vFloat);
+    assert(map && key);
+    std::string skey = key;
+    int err = getPropErrorCheck(map, skey, 0, error, VSVariant::vFloat);
 
     if (err)
         return nullptr;
 
-    return (*map)[key].getArray<double>();
+    return (*map)[skey].getArray<double>();
 }
 
 static int VS_CC propSetIntArray(VSMap *map, const char *key, const int64_t *i, int size) {
-    assert(size >= 0);
+    assert(map && key && size >= 0);
     if (size < 0)
         return 1;
+    std::string skey = key;
     int append = size ? paReplace : paTouch;
-    sharedPropSet(map, key, append);
+    sharedPropSet(map, skey, append);
 
     VSVariant l(VSVariant::vInt);
     if (append == paAppend)
         l.setArray(i, size);
-    map->insert(key, l);
+    map->insert(skey, l);
 
     return 0;
 }
 
 static int VS_CC propSetFloatArray(VSMap *map, const char *key, const double *d, int size) {
-    assert(size >= 0);
+    assert(map && key && size >= 0);
     if (size < 0)
         return 1;
+    std::string skey = key;
     int append = size ? paReplace : paTouch;
-    sharedPropSet(map, key, append);
+    sharedPropSet(map, skey, append);
 
     VSVariant l(VSVariant::vFloat);
     if (append == paAppend)
         l.setArray(d, size);
-    map->insert(key, l);
+    map->insert(skey, l);
 
     return 0;
 }

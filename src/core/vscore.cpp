@@ -464,7 +464,7 @@ instanceData(instanceData), name(name), init(init), filterGetFrame(getFrame), fr
     VSMap inval(*in);
     init(&inval, out, &this->instanceData, this, core, getVSAPIInternal(apiMajor));
 
-    if (vsapi.getError(out)) {
+    if (out->hasError()) {
         core->filterInstanceDestroyed();
         throw VSException(vsapi.getError(out));
     }
