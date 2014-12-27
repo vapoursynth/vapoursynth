@@ -141,8 +141,10 @@ public:
     void setArray(const T *val, size_t size) {
         std::vector<T> *vect = reinterpret_cast<std::vector<T>*>(storage);
         vect->clear();
-        vect->resize(size);
-        memcpy(vect->data(), val, size * sizeof(T));
+        if (size) {
+            vect->resize(size);
+            memcpy(vect->data(), val, size * sizeof(T));
+        }
         internalSize = size;
     }
 
@@ -165,7 +167,8 @@ public:
     VSMap() : data(std::make_shared<VSMapStorageType>()), error(false) {}
 
     VSMap(const VSMap &map) : data(map.data), error(map.error) {}
-    VSMap(VSMap &&map) : data(map.data), error(map.error) { map.data = std::make_shared<VSMapStorageType>(); map.error = false; }
+    VSMap(VSMap &&map) : data(std::move(map.data)), error(map.error) { map.data = std::make_shared<VSMapStorageType>(); map.error = false; }
+    VSMap &operator=(const VSMap &map) { data = map.data; error = map.error; return *this; }
 
     bool contains(const std::string &key) const {
         return data->count(key) > 0;
@@ -201,8 +204,7 @@ public:
         if (n >= size())
             return nullptr;
         auto iter = data->cbegin();
-        while (n-- > 0)
-            ++iter;
+        std::advance(iter, n);
         return iter->first.c_str();
     }
 
