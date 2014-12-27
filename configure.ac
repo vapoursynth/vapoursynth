@@ -213,7 +213,9 @@ AC_ARG_ENABLE([vsscript], AS_HELP_STRING([--enable-vsscript], [Enable VSScript. 
 AS_IF(
       [test "x$enable_vsscript" != "xno"],
       [
-       PKG_CHECK_MODULES([PYTHON3], [python3], [], [PKG_CHECK_MODULES([PYTHON3], [python >= 3])])
+       AM_PATH_PYTHON([3])
+
+       PKG_CHECK_MODULES([PYTHON3], [python-$PYTHON_VERSION])
 
        AC_CONFIG_FILES([pc/vapoursynth-script.pc])
       ]
@@ -265,11 +267,14 @@ AS_IF(
               AC_SUBST([CYTHON])
 
               AS_IF(
-                    [test -z "$PYTHON3_LIBS"],
-                    [PKG_CHECK_MODULES([PYTHON3], [python3], [], [PKG_CHECK_MODULES([PYTHON3], [python >= 3])])]
+                    [test -z "$PYTHON_VERSION"],
+                    [AM_PATH_PYTHON([3])]
               )
 
-              AM_PATH_PYTHON([3])
+              AS_IF(
+                    [test -z "$PYTHON3_LIBS"],
+                    [PKG_CHECK_MODULES([PYTHON3], [python-$PYTHON_VERSION])]
+              )
              ]
        )
       ]
