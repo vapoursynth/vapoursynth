@@ -596,7 +596,7 @@ static VSFuncRef *VS_CC cloneFuncRef(VSFuncRef *f) {
 
 static int64_t VS_CC setMaxCacheSize(int64_t bytes, VSCore *core) {
     assert(core);
-    return core->setMaxCacheSize(bytes);
+    return core->memory->setMaxMemoryUse(bytes);
 }
 
 static int VS_CC getOutputIndex(VSFrameContext *frameCtx) {

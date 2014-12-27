@@ -46,6 +46,7 @@
 
 class VSFrame;
 struct VSCore;
+class VSCache;
 struct VSNode;
 class VSThreadPool;
 class FrameContext;
@@ -113,6 +114,7 @@ public:
     enum VSVType { vUnset, vInt, vFloat, vData, vNode, vFrame, vMethod };
     VSVariant(VSVType vtype = vUnset);
     VSVariant(const VSVariant &v);
+    VSVariant(VSVariant &&v);
     ~VSVariant();
 
     size_t size() const;
@@ -163,6 +165,7 @@ public:
     VSMap() : data(std::make_shared<VSMapStorageType>()), error(false) {}
 
     VSMap(const VSMap &map) : data(map.data), error(map.error) {}
+    VSMap(VSMap &&map) : data(map.data), error(map.error) { map.data = std::make_shared<VSMapStorageType>(); map.error = false; }
 
     bool contains(const std::string &key) const {
         return data->count(key) > 0;
@@ -288,9 +291,8 @@ public:
         return maxMemoryUse;
     }
     int64_t setMaxMemoryUse(int64_t bytes) {
-        if (bytes <= 0)
-            vsFatal("Maximum memory usage set to a negative number");
-        maxMemoryUse = bytes;
+        if (bytes > 0)
+            maxMemoryUse = bytes;
         return maxMemoryUse;
     }
     bool isOverLimit() {
@@ -536,10 +538,6 @@ public:
     VSMap getFunctions();
 };
 
-
-
-class VSCache;
-
 struct VSCore {
     friend struct VSNode;
     friend class VSFrame;
@@ -588,7 +586,6 @@ public:
     VSPlugin *getPluginById(const std::string &identifier);
     VSPlugin *getPluginByNs(const std::string &ns);
 
-    int64_t setMaxCacheSize(int64_t bytes);
     int getAPIVersion();
     const VSCoreInfo &getCoreInfo();
 

@@ -113,7 +113,7 @@ bool FrameContext::setError(const std::string &errorMsg) {
 VSVariant::VSVariant(VSVType vtype) : vtype(vtype), internalSize(0), storage(NULL) {
 }
 
-VSVariant::VSVariant(const VSVariant &v) : vtype(v.vtype), internalSize(v.internalSize), storage(NULL) {
+VSVariant::VSVariant(const VSVariant &v) : vtype(v.vtype), internalSize(v.internalSize), storage(nullptr) {
     if (internalSize) {
         switch (vtype) {
         case VSVariant::vInt:
@@ -130,6 +130,12 @@ VSVariant::VSVariant(const VSVariant &v) : vtype(v.vtype), internalSize(v.intern
             storage = new FuncList(*reinterpret_cast<FuncList *>(v.storage)); break;
         }
     }
+}
+
+VSVariant::VSVariant(VSVariant &&v) : vtype(v.vtype), internalSize(v.internalSize), storage(v.storage) {
+    v.vtype = vUnset;
+    v.storage = nullptr;
+    v.internalSize = 0;
 }
 
 VSVariant::~VSVariant() {
@@ -1051,10 +1057,6 @@ void VSCore::createFilter(const VSMap *in, VSMap *out, const std::string &name, 
     } catch (VSException &e) {
         vsapi.setError(out, e.what());
     }
-}
-
-int64_t VSCore::setMaxCacheSize(int64_t bytes) {
-    return memory->setMaxMemoryUse(bytes);
 }
 
 VSPlugin::VSPlugin(VSCore *core)
