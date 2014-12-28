@@ -36,8 +36,8 @@ or $HOME/.config/vapoursynth/vapoursynth.conf if XDG_CONFIG_HOME is not
 defined.
 
 Two configuration options may be used: **UserPluginDir**, empty by default,
-and **SystemPluginDir**, whose default value is set at compile time by passing
-the ``--plugin-dir`` argument to ``waf configure``, or the ``--with-plugindir``
+and **SystemPluginDir**, whose default value is set at compile time to
+``$libdir/vapoursynth``, or to the location passed to the ``--with-plugindir``
 argument to ``configure``.
 
 UserPluginDir is tried first, then SystemPluginDir.
