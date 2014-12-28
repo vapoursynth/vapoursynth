@@ -17,16 +17,13 @@ Here's a sample script to be inspired by::
    import vapoursynth as vs
    # get the core instance
    core = vs.get_core()
-   # load a native vapoursynth plugin
+   # load a native vapoursynth plugin, you can also use the auto-loading
    # you should use absolute paths as the working directory may not be what you think it is
-   core.std.LoadPlugin(path=r'c:\plugins\ffms2.dll')
-   # load an avisynth plugin
-   # the loaded functions will always end up in the avs namespace
-   core.avs.LoadPlugin(path=r'c:\avisynth\UnDot.dll')
+   core.std.LoadPlugin('c:/plugins/ffms2.dll')
    # open a video file; ret is now a clip object
    ret = core.ffms2.Source(source='Super Size Me.avi')
-   # apply the undot filter to the video
-   ret = core.avs.UnDot(ret)
+   # flip the video a bit
+   ret = core.std.Transpose(ret)
    # set the clip to be output
    ret.set_output()
 

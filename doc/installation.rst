@@ -81,6 +81,7 @@ Or if you already have a copy of the source, update it with::
 
    git pull
 
+Note that you may have to specify the prefix to use when calling configure to install VapourSynth into a path where your system will search for it by default.
 Enter the VapourSynth directory and run these commands to compile and install::
    
    ./autogen.sh

@@ -17,6 +17,7 @@ Native Plugins
 * :ref:`Vinverse <vinverse>` -- in the source tree
 * :ref:`VIVTC <vivtc>` -- field matching, inverse telecine and decimation, in the source tree
 * `AddGrain <http://forum.doom9.org/showthread.php?t=171073>`_ -- Port of the Avisynth AddGrain filter
+* `Basic audio support <http://forum.doom9.org/showthread.php?t=171555>`_ -- A plugin that adds basic audio support
 * `Bifrost 2000 <https://github.com/dubhater/vapoursynth-bifrost>`_ -- A rainbow remover based on the Bifrost filter for Avisynth
 * `Bilateral <http://forum.doom9.org/showthread.php?t=171306>`_ -- Bilateral filtering
 * `CTMF <http://forum.doom9.org/showthread.php?t=171213>`_ -- Constant Time Median Filtering
