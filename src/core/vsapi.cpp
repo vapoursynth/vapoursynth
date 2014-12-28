@@ -348,119 +348,45 @@ static int VS_CC propDeleteKey(VSMap *props, const char *name) {
     return props->erase(name);
 }
 
-static void sharedPropSet(int append) {
-    if (append != paReplace && append != paAppend && append != paTouch)
-        vsFatal("Invalid prop append mode given");
-}
+
+#define PROP_SET_SHARED(vv, appendexpr) \
+    assert(props && name); \
+    if (append != paReplace && append != paAppend && append != paTouch) \
+        vsFatal("Invalid prop append mode given"); \
+    std::string sname = name; \
+    if (append != paReplace && props->contains(sname)) { \
+        VSVariant &l = props->at(sname); \
+        if (l.getType() != (vv)) \
+            return 1; \
+        else if (append == paAppend) \
+            l.append(appendexpr); \
+    } else { \
+        VSVariant l((vv)); \
+        if (append != paTouch) \
+            l.append(appendexpr); \
+        props->insert(sname, std::move(l)); \
+    } \
+    return 0;
+
 
 static int VS_CC propSetInt(VSMap *props, const char *name, int64_t i, int append) {
-    assert(props && name);
-    sharedPropSet(append);
-    std::string sname = name;
-
-    if (append != paReplace && props->contains(sname)) {
-        VSVariant &l = props->at(sname);
-
-        if (l.getType() != VSVariant::vInt)
-            return 1;
-        else if (append == paAppend)
-            l.append(i);
-    } else {
-        VSVariant l(VSVariant::vInt);
-        if (append != paTouch)
-            l.append(i);
-        props->insert(sname, std::move(l));
-    }
-
-    return 0;
+    PROP_SET_SHARED(VSVariant::vInt, i)
 }
 
 static int VS_CC propSetFloat(VSMap *props, const char *name, double d, int append) {
-    assert(props && name);
-    sharedPropSet(append);
-    std::string sname = name;
-
-    if (append != paReplace && props->contains(sname)) {
-        VSVariant &l = props->at(sname);
-
-        if (l.getType() != VSVariant::vFloat)
-            return 1;
-        else if (append == paAppend)
-            l.append(d);
-    } else {
-        VSVariant l(VSVariant::vFloat);
-        if (append != paTouch)
-            l.append(d);
-        props->insert(sname, std::move(l));
-    }
-
-    return 0;
+    PROP_SET_SHARED(VSVariant::vFloat, d)
 }
 
 static int VS_CC propSetData(VSMap *props, const char *name, const char *d, int length, int append) {
-    assert(props && name);
-    sharedPropSet(append);
-    std::string sname = name;
-
-    if (append != paReplace && props->contains(sname)) {
-        VSVariant &l = props->at(sname);
-
-        if (l.getType() != VSVariant::vData)
-            return 1;
-        else if (append == paAppend)
-            l.append(d);
-    } else {
-        VSVariant l(VSVariant::vData);
-        if (append != paTouch)
-            l.append(length >= 0 ? std::string(d, length) : std::string(d));
-        props->insert(sname, std::move(l));
-    }
-
-    return 0;
+    PROP_SET_SHARED(VSVariant::vData, length >= 0 ? std::string(d, length) : std::string(d))
 }
 
 static int VS_CC propSetNode(VSMap *props, const char *name, VSNodeRef *clip, int append) {
-    assert(props && name);
-    sharedPropSet(append);
-    std::string sname = name;
-
-    if (append != paReplace && props->contains(sname)) {
-        VSVariant &l = props->at(sname);
-
-        if (l.getType() != VSVariant::vNode)
-            return 1;
-        else if (append == paAppend)
-            l.append(*clip);
-    } else {
-        VSVariant l(VSVariant::vNode);
-        if (append != paTouch)
-            l.append(*clip);
-        props->insert(sname, std::move(l));
-    }
-
-    return 0;
+    PROP_SET_SHARED(VSVariant::vNode, *clip)
 }
 
 static int VS_CC propSetFrame(VSMap *props, const char *name, const VSFrameRef *frame, int append) {
-    assert(props && name);
-    sharedPropSet(append);
-    std::string sname = name;
-
-    if (append != paReplace && props->contains(sname)) {
-        VSVariant &l = props->at(sname);
-
-        if (l.getType() != VSVariant::vFrame)
-            return 1;
-        else if (append == paAppend)
-            l.append(frame->frame);
-    } else {
-        VSVariant l(VSVariant::vFrame);
-        if (append != paTouch)
-            l.append(frame->frame);
-        props->insert(sname, std::move(l));
-    }
-
-    return 0;
+    PROP_SET_SHARED(VSVariant::vFrame, frame->frame)
 }
 
 static VSMap *VS_CC invoke(VSPlugin *plugin, const char *name, const VSMap *args) {
@@ -520,25 +446,8 @@ static VSFuncRef *VS_CC propGetFunc(const VSMap *props, const char *name, int in
 }
 
 static int VS_CC propSetFunc(VSMap *props, const char *name, VSFuncRef *func, int append) {
-    assert(props && name && func);
-    sharedPropSet(append);
-    std::string sname = name;
-
-    if (append != paReplace && props->contains(sname)) {
-        VSVariant &l = props->at(sname);
-
-        if (l.getType() != VSVariant::vMethod)
-            return 1;
-        else if (append == paAppend)
-            l.append(func->func);
-    } else {
-        VSVariant l(VSVariant::vMethod);
-        if (append != paTouch)
-            l.append(func->func);
-        props->insert(sname, std::move(l));
-    }
-
-    return 0;
+    assert(func);
+    PROP_SET_SHARED(VSVariant::vMethod, func->func)
 }
 
 static void VS_CC callFunc(VSFuncRef *func, const VSMap *in, VSMap *out, VSCore *core, const VSAPI *vsapi) {
