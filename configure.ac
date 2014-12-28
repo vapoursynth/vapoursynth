@@ -18,6 +18,9 @@ AS_IF(
       [
        AC_DEFINE([VS_CORE_DEBUG])
        AC_SUBST([DEBUGCFLAGS], ["-O0 -g3 -ggdb -ftrapv"])
+      ],
+      [
+       AC_DEFINE([NDEBUG])
       ]
 )
 
