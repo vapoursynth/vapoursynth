@@ -154,7 +154,11 @@ Structs_
 
           * propGetInt_
 
+          * propGetIntArray_
+
           * propGetFloat_
+
+          * propGetFloatArray_
 
           * propGetData_
 
@@ -168,7 +172,11 @@ Structs_
 
           * propSetInt_
 
+          * propSetIntArray_
+
           * propSetFloat_
+
+          * propSetFloatArray_
 
           * propSetData_
 
@@ -1565,6 +1573,34 @@ struct VSAPI
 
 ----------
 
+   .. _propGetIntArray:
+
+   .. c:member:: VSPropGetIntArray propGetIntArray
+
+      typedef const int64_t \*(VS_CC \*VSPropGetIntArray)(const VSMap_ \*map, const char \*key, int \*error)
+
+      Retrieves an array of integers from a map. Use this function if there
+      are a lot of numbers associated with a key, because it is faster than
+      calling propGetInt_\ () in a loop.
+
+      Returns a pointer to the first element of the array on success, or NULL
+      in case of error.
+
+      If the map has an error set (i.e. if getError_\ () returns non-NULL),
+      VapourSynth will die with a fatal error.
+
+      Use propNumElements_\ () to know the total number of elements associated
+      with a key.
+
+      *error*
+         One of VSGetPropErrors_, or 0 on success.
+
+         You may pass NULL here, but then any problems encountered while
+         retrieving the property will cause VapourSynth to die with a fatal
+         error.
+
+----------
+
    .. _propGetFloat:
 
    .. c:member:: VSPropGetFloat propGetFloat
@@ -1583,6 +1619,34 @@ struct VSAPI
 
          Use propNumElements_\ () to know the total number of elements
          associated with a key.
+
+      *error*
+         One of VSGetPropErrors_, or 0 on success.
+
+         You may pass NULL here, but then any problems encountered while
+         retrieving the property will cause VapourSynth to die with a fatal
+         error.
+
+----------
+
+   .. _propGetFloatArray:
+
+   .. c:member:: VSPropGetFloatArray propGetFloatArray
+
+      typedef const double \*(VS_CC \*VSPropGetFloatArray)(const VSMap_ \*map, const char \*key, int \*error)
+
+      Retrieves an array of floating point numbers from a map. Use this
+      function if there are a lot of numbers associated with a key, because
+      it is faster than calling propGetFloat_\ () in a loop.
+
+      Returns a pointer to the first element of the array on success, or NULL
+      in case of error.
+
+      If the map has an error set (i.e. if getError_\ () returns non-NULL),
+      VapourSynth will die with a fatal error.
+
+      Use propNumElements_\ () to know the total number of elements associated
+      with a key.
 
       *error*
          One of VSGetPropErrors_, or 0 on success.
@@ -1752,6 +1816,34 @@ struct VSAPI
 
 ----------
 
+   .. _propSetIntArray:
+
+   .. c:member:: VSPropSetIntArray propSetIntArray
+
+      typedef int (VS_CC \*VSPropSetIntArray)(VSMap_ \*map, const char \*key, const int64_t \*i, int size)
+
+      Adds an array of integers to a map. Use this function if there are a
+      lot of numbers to add, because it is faster than calling propSetInt_\ ()
+      in a loop.
+
+      If *map* already contains a property with this *key*, that property will
+      be overwritten and all old values will be lost.
+
+      *key*
+         Name of the property. Any characters may be used.
+
+      *i*
+         Pointer to the first element of the array to store.
+
+      *size*
+         Number of integers to read from the array. It can be 0, in which case
+         no integers are read from the array, and the property will be created
+         empty.
+
+      Returns 0 on success, or 1 if *size* is negative.
+
+----------
+
    .. _propSetFloat:
 
    .. c:member:: VSPropSetFloat propSetFloat
@@ -1774,6 +1866,34 @@ struct VSAPI
 
       Returns 0 on success, or 1 if trying to append to a property with the
       wrong type.
+
+----------
+
+   .. _propSetFloatArray:
+
+   .. c:member:: VSPropSetFloatArray propSetFloatArray
+
+      typedef int (VS_CC \*VSPropSetFloatArray)(VSMap_ \*map, const char \*key, const double \*d, int size)
+
+      Adds an array of floating point numbers to a map. Use this function if
+      there are a lot of numbers to add, because it is faster than calling
+      propSetFloat_\ () in a loop.
+
+      If *map* already contains a property with this *key*, that property will
+      be overwritten and all old values will be lost.
+
+      *key*
+         Name of the property. Any characters may be used.
+
+      *d*
+         Pointer to the first element of the array to store.
+
+      *size*
+         Number of floating point numbers to read from the array. It can be 0,
+         in which case no numbers are read from the array, and the property
+         will be created empty.
+
+      Returns 0 on success, or 1 if *size* is negative.
 
 ----------
 
