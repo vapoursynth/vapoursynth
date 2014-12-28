@@ -1,4 +1,5 @@
 r26:
+improved the performance of vsmap operations
 the c version of the expr filter now clamps 16bit output properly (nobody noticed this bug because everyone used the x86 asm version of the code)
 expr filoter now always uses . as the decimal separator in expressions, previously it would wrongly use the current locale's separator
 there is now a minor api version as well that will be bumped when features are added
