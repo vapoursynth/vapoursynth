@@ -180,11 +180,16 @@ public:
     }
 
     bool contains(const std::string &key) const {
-        return data->count(key) > 0;
+        return !!data->count(key);
+    }
+
+    VSVariant &at(const std::string &key) const {
+        return data->at(key);
     }
 
     VSVariant &operator[](const std::string &key) const {
-        return data->at(key);
+        // implicit creation is unwanted so make sure it doesn't happen by wrapping at() instead
+        return data->at(key); 
     }
 
     bool erase(const std::string &key) {

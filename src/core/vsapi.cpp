@@ -303,7 +303,7 @@ static int64_t VS_CC propGetInt(const VSMap *props, const char *name, int index,
     if (err)
         return 0;
 
-    return (*props)[sname].getValue<int64_t>(index);
+    return props->at(sname).getValue<int64_t>(index);
 }
 
 static double VS_CC propGetFloat(const VSMap *props, const char *name, int index, int *error) {
@@ -314,7 +314,7 @@ static double VS_CC propGetFloat(const VSMap *props, const char *name, int index
     if (err)
         return 0;
 
-    return (*props)[sname].getValue<double>(index);
+    return props->at(sname).getValue<double>(index);
 }
 
 static const char *VS_CC propGetData(const VSMap *props, const char *name, int index, int *error) {
@@ -325,7 +325,7 @@ static const char *VS_CC propGetData(const VSMap *props, const char *name, int i
     if (err)
         return 0;
 
-    return (*props)[sname].getValue<VSMapData>(index)->c_str();
+    return props->at(sname).getValue<VSMapData>(index)->c_str();
 }
 
 static int VS_CC propGetDataSize(const VSMap *props, const char *name, int index, int *error) {
@@ -336,7 +336,7 @@ static int VS_CC propGetDataSize(const VSMap *props, const char *name, int index
     if (err)
         return 0;
 
-    return static_cast<int>((*props)[sname].getValue<VSMapData>(index)->size());
+    return static_cast<int>(props->at(sname).getValue<VSMapData>(index)->size());
 }
 
 static VSNodeRef *VS_CC propGetNode(const VSMap *props, const char *name, int index, int *error) {
@@ -347,7 +347,7 @@ static VSNodeRef *VS_CC propGetNode(const VSMap *props, const char *name, int in
     if (err)
         return nullptr;
 
-    return new VSNodeRef((*props)[sname].getValue<VSNodeRef>(index));
+    return new VSNodeRef(props->at(sname).getValue<VSNodeRef>(index));
 }
 
 static const VSFrameRef *VS_CC propGetFrame(const VSMap *props, const char *name, int index, int *error) {
@@ -358,7 +358,7 @@ static const VSFrameRef *VS_CC propGetFrame(const VSMap *props, const char *name
     if (err)
         return nullptr;
 
-    return new VSFrameRef((*props)[sname].getValue<PVideoFrame>(index));
+    return new VSFrameRef(props->at(sname).getValue<PVideoFrame>(index));
 }
 
 static int VS_CC propDeleteKey(VSMap *props, const char *name) {
@@ -539,7 +539,7 @@ static VSFuncRef *VS_CC propGetFunc(const VSMap *props, const char *name, int in
     if (err)
         return 0;
 
-    return new VSFuncRef((*props)[name].getValue<PExtFunction>(index));
+    return new VSFuncRef(props->at(name).getValue<PExtFunction>(index));
 }
 
 static int VS_CC propSetFunc(VSMap *props, const char *name, VSFuncRef *func, int append) {
@@ -632,7 +632,7 @@ static const int64_t *VS_CC propGetIntArray(const VSMap *map, const char *key, i
     if (err)
         return nullptr;
 
-    return (*map)[skey].getArray<int64_t>();
+    return map->at(skey).getArray<int64_t>();
 }
 
 static const double *VS_CC propGetFloatArray(const VSMap *map, const char *key, int *error) {
@@ -643,7 +643,7 @@ static const double *VS_CC propGetFloatArray(const VSMap *map, const char *key, 
     if (err)
         return nullptr;
 
-    return (*map)[skey].getArray<double>();
+    return map->at(skey).getArray<double>();
 }
 
 static int VS_CC propSetIntArray(VSMap *map, const char *key, const int64_t *i, int size) {
@@ -651,12 +651,11 @@ static int VS_CC propSetIntArray(VSMap *map, const char *key, const int64_t *i, 
     if (size < 0)
         return 1;
     std::string skey = key;
-    int append = size ? paReplace : paTouch;
+    int append = paReplace;
     sharedPropSet(map, skey, append);
 
     VSVariant l(VSVariant::vInt);
-    if (append == paAppend)
-        l.setArray(i, size);
+    l.setArray(i, size);
     map->insert(skey, l);
 
     return 0;
@@ -667,12 +666,11 @@ static int VS_CC propSetFloatArray(VSMap *map, const char *key, const double *d,
     if (size < 0)
         return 1;
     std::string skey = key;
-    int append = size ? paReplace : paTouch;
+    int append = paReplace;
     sharedPropSet(map, skey, append);
 
     VSVariant l(VSVariant::vFloat);
-    if (append == paAppend)
-        l.setArray(d, size);
+    l.setArray(d, size);
     map->insert(skey, l);
 
     return 0;
