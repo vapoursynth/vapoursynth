@@ -295,70 +295,52 @@ static int getPropErrorCheck(const VSMap *props, const std::string &name, int in
     return err;
 }
 
+#define PROP_GET_SHARED(vt, retexpr) \
+    assert(props && name); \
+    if (props->hasError()) \
+        vsFatal("Attempted to read from a map with error set: %s", props->getErrorMessage().c_str()); \
+    int err = 0; \
+    try { \
+        VSVariant &l = props->at(name); \
+        if (l.getType() == (vt)) { \
+            if (index >= 0 && index < l.size()) { \
+                return (retexpr); \
+            } else { \
+                err |= peIndex; \
+            } \
+        } else { \
+            err |= peType; \
+        } \
+    } catch (std::out_of_range &) { \
+        err = peUnset; \
+    } \
+    if (!error) \
+        vsFatal("Property read unsuccessful but no error output: %s", name); \
+    *error = err; \
+    return 0;
+
 static int64_t VS_CC propGetInt(const VSMap *props, const char *name, int index, int *error) {
-    assert(props && name);
-    std::string sname = name;
-    int err = getPropErrorCheck(props, sname, index, error, VSVariant::vInt);
-
-    if (err)
-        return 0;
-
-    return props->at(sname).getValue<int64_t>(index);
+    PROP_GET_SHARED(VSVariant::vInt, l.getValue<int64_t>(index))
 }
 
 static double VS_CC propGetFloat(const VSMap *props, const char *name, int index, int *error) {
-    assert(props && name);
-    std::string sname = name;
-    int err = getPropErrorCheck(props, sname, index, error, VSVariant::vFloat);
-
-    if (err)
-        return 0;
-
-    return props->at(sname).getValue<double>(index);
+    PROP_GET_SHARED(VSVariant::vFloat, l.getValue<double>(index))
 }
 
 static const char *VS_CC propGetData(const VSMap *props, const char *name, int index, int *error) {
-    assert(props && name);
-    std::string sname = name;
-    int err = getPropErrorCheck(props, sname, index, error, VSVariant::vData);
-
-    if (err)
-        return 0;
-
-    return props->at(sname).getValue<VSMapData>(index)->c_str();
+    PROP_GET_SHARED(VSVariant::vData, l.getValue<VSMapData>(index)->c_str())
 }
 
 static int VS_CC propGetDataSize(const VSMap *props, const char *name, int index, int *error) {
-    assert(props && name);
-    std::string sname = name;
-    int err = getPropErrorCheck(props, sname, index, error, VSVariant::vData);
-
-    if (err)
-        return 0;
-
-    return static_cast<int>(props->at(sname).getValue<VSMapData>(index)->size());
+    PROP_GET_SHARED(VSVariant::vData, static_cast<int>(l.getValue<VSMapData>(index)->size()))
 }
 
 static VSNodeRef *VS_CC propGetNode(const VSMap *props, const char *name, int index, int *error) {
-    assert(props && name);
-    std::string sname = name;
-    int err = getPropErrorCheck(props, sname, index, error, VSVariant::vNode);
-
-    if (err)
-        return nullptr;
-
-    return new VSNodeRef(props->at(sname).getValue<VSNodeRef>(index));
+    PROP_GET_SHARED(VSVariant::vNode, new VSNodeRef(l.getValue<VSNodeRef>(index)))
 }
 
 static const VSFrameRef *VS_CC propGetFrame(const VSMap *props, const char *name, int index, int *error) {
-    assert(props && name);
-    std::string sname = name;
-    int err = getPropErrorCheck(props, sname, index, error, VSVariant::vFrame);
-
-    if (err)
-        return nullptr;
-
-    return new VSFrameRef(props->at(sname).getValue<PVideoFrame>(index));
+    PROP_GET_SHARED(VSVariant::vFrame, new VSFrameRef(l.getValue<PVideoFrame>(index)))
 }
 
 static int VS_CC propDeleteKey(VSMap *props, const char *name) {
@@ -534,14 +516,7 @@ static const VSCoreInfo *VS_CC getCoreInfo(VSCore *core) {
 }
 
 static VSFuncRef *VS_CC propGetFunc(const VSMap *props, const char *name, int index, int *error) {
-    assert(props && name);
-    std::string sname = name;
-    int err = getPropErrorCheck(props, sname, index, error, VSVariant::vMethod);
-
-    if (err)
-        return nullptr;
-
-    return new VSFuncRef(props->at(sname).getValue<PExtFunction>(index));
+    PROP_GET_SHARED(VSVariant::vMethod, new VSFuncRef(l.getValue<PExtFunction>(index)))
 }
 
 static int VS_CC propSetFunc(VSMap *props, const char *name, VSFuncRef *func, int append) {
