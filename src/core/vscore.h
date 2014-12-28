@@ -198,9 +198,10 @@ public:
         return data->erase(key) > 0;
     }
 
-    bool insert(const std::string &key, const VSVariant &v) {
+    bool insert(const std::string &key, VSVariant &&v) {
         if (!data.unique())
             data = std::make_shared<VSMapStorageType>(*data.get());
+        data->erase(key);
         data->insert(std::make_pair(key, v));
         return true;
     }
@@ -232,7 +233,7 @@ public:
         data->clear();
         VSVariant v(VSVariant::vData);
         v.append(errMsg);
-        insert("_Error", v);
+        insert("_Error", std::move(v));
         error = true;
     }
 
