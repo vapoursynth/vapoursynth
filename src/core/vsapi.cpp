@@ -278,6 +278,8 @@ static char VS_CC propGetType(const VSMap *map, const char *key) {
         VSVariant &l = map->at(key); \
         if (l.getType() == (vt)) { \
             if (index >= 0 && index < l.size()) { \
+                if (error) \
+                    *error = 0; \
                 return (retexpr); \
             } else { \
                 err |= peIndex; \

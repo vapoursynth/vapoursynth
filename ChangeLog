@@ -1,14 +1,14 @@
 r26:
 improved the performance of vsmap operations
 the c version of the expr filter now clamps 16bit output properly (nobody noticed this bug because everyone used the x86 asm version of the code)
-expr filoter now always uses . as the decimal separator in expressions, previously it would wrongly use the current locale's separator
+expr filter now always uses . as the decimal separator in expressions, previously it would wrongly use the current locale's separator
 there is now a minor api version as well that will be bumped when features are added
 expr filter can now run fully in parallel
 now returns an error if nodes are passed between different cores
 modifyframe is now properly set to parallelrequests which should speed it up slightly
 added half precision float support to blankclip
-improved documentation a lot (nodame)
-now uses tcmalloc instead of the normal malloc implementation to increase performance
+improved documentation a lot, every single python and c api function is now documented properly (nodame)
+now uses tcmalloc instead of the normal malloc implementation to increase performance on windows
 
 r25:
 now requires vista/2008 or later because there are no relevant xp users left
