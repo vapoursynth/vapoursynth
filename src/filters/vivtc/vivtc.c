@@ -869,7 +869,7 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
         return;
     }
 
-    if (vi->numFrames != vfm.vi->numFrames || !isConstantFormat(vi)) {
+    if (vi->numFrames != vfm.vi->numFrames || !isConstantFormat(vfm.vi)) {
         vsapi->setError(out, "VFM: the number of frames must be the same in both input clips and clip2 must be constant format");
         vsapi->freeNode(vfm.node);
         vsapi->freeNode(vfm.clip2);
