@@ -340,10 +340,10 @@ struct VSAPI {
     VSSetError setError; /* use to signal errors outside filter getframe functions */
     VSGetError getError; /* use to query errors, returns 0 if no error */
     VSSetFilterError setFilterError; /* use to signal errors in the filter getframe function */
-    VSInvoke invoke; /* may not be used inside a filter's getframe method */
+    VSInvoke invoke;
 
-    VSGetFormatPreset getFormatPreset; /* threadsafe */
-    VSRegisterFormat registerFormat; /* threadsafe */
+    VSGetFormatPreset getFormatPreset;
+    VSRegisterFormat registerFormat;
 
     VSGetFrame getFrame; /* do never use inside a filter's getframe function, for external applications using the core as a library or for requesting frames in a filter constructor */
     VSGetFrameAsync getFrameAsync; /* do never use inside a filter's getframe function, for external applications using the core as a library or for requesting frames in a filter constructor */
