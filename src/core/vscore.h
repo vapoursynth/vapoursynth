@@ -216,7 +216,7 @@ public:
     }
 
     const char *key(int n) const {
-        if (n >= size())
+        if (n >= static_cast<int>(size()))
             return nullptr;
         auto iter = data->cbegin();
         std::advance(iter, n);
