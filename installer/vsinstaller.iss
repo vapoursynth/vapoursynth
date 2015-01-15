@@ -92,10 +92,10 @@ Source: ..\msvc_project\Release\Vinverse.dll; DestDir: {app}\core32\plugins; Fla
 Source: ..\msvc_project\Release\VIVTC.dll; DestDir: {app}\core32\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
 
 Source: x64\plugins\*; DestDir: {app}\core64\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
-Source: ..\msvc_project\x64\Release\EEDI3.dll; DestDir: {app}\core32\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
-Source: ..\msvc_project\x64\Release\RemoveGrainVS.dll; DestDir: {app}\core32\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
-Source: ..\msvc_project\x64\Release\Vinverse.dll; DestDir: {app}\core32\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
-Source: ..\msvc_project\x64\Release\VIVTC.dll; DestDir: {app}\core32\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+Source: ..\msvc_project\x64\Release\EEDI3.dll; DestDir: {app}\core64\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+Source: ..\msvc_project\x64\Release\RemoveGrainVS.dll; DestDir: {app}\core64\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+Source: ..\msvc_project\x64\Release\Vinverse.dll; DestDir: {app}\core64\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+Source: ..\msvc_project\x64\Release\VIVTC.dll; DestDir: {app}\core64\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 
 ; Create the general autoload directory
 [Dirs]
