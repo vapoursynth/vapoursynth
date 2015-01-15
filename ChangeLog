@@ -1,4 +1,6 @@
 r26:
+installer creation has been streamlined
+fixed assumefps when using a clip as the fps source (nodame)
 improved the performance of vsmap operations
 the c version of the expr filter now clamps 16bit output properly (nobody noticed this bug because everyone used the x86 asm version of the code)
 expr filter now always uses . as the decimal separator in expressions, previously it would wrongly use the current locale's separator
