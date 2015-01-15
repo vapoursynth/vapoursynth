@@ -17,7 +17,7 @@ AppPublisher=Fredrik Mellbin
 AppPublisherURL=http://www.vapoursynth.com/
 AppSupportURL=http://www.vapoursynth.com/
 AppUpdatesURL=http://www.vapoursynth.com/
-VersionInfoVersion=1.25.0.0
+VersionInfoVersion=1.26.0.0
 DefaultDirName={pf32}\VapourSynth
 DefaultGroupName=VapourSynth
 AllowCancelDuringInstall=no
@@ -52,27 +52,24 @@ Source: vapoursynth.pth; DestDir: {code:GetPythonPath64}; Flags: ignoreversion u
 Source: x86\vapoursynth.pyd; DestDir: {code:GetPythonPath32}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
 Source: x64\vapoursynth.pyd; DestDir: {code:GetPythonPath64}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 
-Source: x86\vapoursynth.dll; DestDir: {code:GetPythonPath32}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: x64\vapoursynth.dll; DestDir: {code:GetPythonPath64}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
-Source: x86\vapoursynth.dll; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: x86\vapoursynth.pdb; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: x64\vapoursynth.dll; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
-Source: x64\vapoursynth.pdb; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+Source: ..\msvc_project\Release\vapoursynth.dll; DestDir: {code:GetPythonPath32}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: ..\msvc_project\x64\Release\vapoursynth.dll; DestDir: {code:GetPythonPath64}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+Source: ..\msvc_project\Release\vapoursynth.dll; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: ..\msvc_project\Release\vapoursynth.pdb; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: ..\msvc_project\x64\Release\vapoursynth.dll; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+Source: ..\msvc_project\x64\Release\vapoursynth.pdb; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 
-Source: x86\vsfs.dll; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: x64\vsfs.dll; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+Source: ..\msvc_project\Release\vsfs.dll; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: ..\msvc_project\x64\Release\vsfs.dll; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 
-Source: x86\vspipe.exe; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: x64\vspipe.exe; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+Source: ..\msvc_project\Release\vspipe.exe; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: ..\msvc_project\x64\Release\vspipe.exe; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 
-Source: x86\vspipe.exe; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: x64\vspipe.exe; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+Source: ..\msvc_project\Release\vsvfw.dll; DestDir: {sys}; Flags: uninsrestartdelete restartreplace 32bit; Components: vs32
+Source: ..\msvc_project\x64\Release\vsvfw.dll; DestDir: {sys}; Flags: uninsrestartdelete restartreplace 64bit; Components: vs64
 
-Source: x86\vsvfw.dll; DestDir: {sys}; Flags: uninsrestartdelete restartreplace 32bit; Components: vs32
-Source: x64\vsvfw.dll; DestDir: {sys}; Flags: uninsrestartdelete restartreplace 64bit; Components: vs64
-
-Source: x86\vsscript.dll; DestDir: {sys}; Flags: uninsrestartdelete restartreplace 32bit; Components: vs32
-Source: x64\vsscript.dll; DestDir: {sys}; Flags: uninsrestartdelete restartreplace 64bit; Components: vs64
+Source: ..\msvc_project\Release\vsscript.dll; DestDir: {sys}; Flags: uninsrestartdelete restartreplace 32bit; Components: vs32
+Source: ..\msvc_project\x64\Release\vsscript.dll; DestDir: {sys}; Flags: uninsrestartdelete restartreplace 64bit; Components: vs64
 ;vs2010 and vs2013 runtime installers
 Source: x86\rtx86.msi; DestDir: {app}\runtimes; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
 Source: x64\rtx64.msi; DestDir: {app}\runtimes; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
@@ -80,16 +77,25 @@ Source: x64\rtx64.msi; DestDir: {app}\runtimes; Flags: ignoreversion uninsrestar
 Source: ..\include\VapourSynth.h; DestDir: {app}\sdk\include\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
 Source: ..\include\VSHelper.h; DestDir: {app}\sdk\include\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
 Source: ..\include\VSScript.h; DestDir: {app}\sdk\include\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
-Source: x86\vsscript.lib; DestDir: {app}\sdk\lib32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
-Source: x64\vsscript.lib; DestDir: {app}\sdk\lib64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
-Source: x86\vapoursynth.lib; DestDir: {app}\sdk\lib32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
-Source: x64\vapoursynth.lib; DestDir: {app}\sdk\lib64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
+Source: ..\msvc_project\Release\vsscript.lib; DestDir: {app}\sdk\lib32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
+Source: ..\msvc_project\x64\Release\vsscript.lib; DestDir: {app}\sdk\lib64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
+Source: ..\msvc_project\Release\vapoursynth.lib; DestDir: {app}\sdk\lib32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
+Source: ..\msvc_project\x64\Release\vapoursynth.lib; DestDir: {app}\sdk\lib64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
 Source: ..\sdk\filter_skeleton.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
 Source: ..\sdk\invert_example.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
 Source: ..\sdk\vsscript_example.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
 ;bundled plugins
 Source: x86\plugins\*; DestDir: {app}\core32\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: ..\msvc_project\Release\EEDI3.dll; DestDir: {app}\core32\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: ..\msvc_project\Release\RemoveGrainVS.dll; DestDir: {app}\core32\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: ..\msvc_project\Release\Vinverse.dll; DestDir: {app}\core32\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: ..\msvc_project\Release\VIVTC.dll; DestDir: {app}\core32\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+
 Source: x64\plugins\*; DestDir: {app}\core64\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+Source: ..\msvc_project\x64\Release\EEDI3.dll; DestDir: {app}\core32\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+Source: ..\msvc_project\x64\Release\RemoveGrainVS.dll; DestDir: {app}\core32\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+Source: ..\msvc_project\x64\Release\Vinverse.dll; DestDir: {app}\core32\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+Source: ..\msvc_project\x64\Release\VIVTC.dll; DestDir: {app}\core32\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 
 ; Create the general autoload directory
 [Dirs]
