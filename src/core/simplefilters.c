@@ -1284,15 +1284,6 @@ static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, V
 
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = *vsapi->getVideoInfo(d.node);
-    src = vsapi->propGetNode(in, "src", 0, &err);
-
-    if (!err) {
-        const VSVideoInfo *vi = vsapi->getVideoInfo(src);
-        d.vi.fpsNum = vi->fpsNum;
-        d.vi.fpsDen = vi->fpsDen;
-        vsapi->freeNode(src);
-        hassrc = 1;
-    }
 
     d.vi.fpsNum = vsapi->propGetInt(in, "fpsnum", 0, &err);
 
@@ -1303,6 +1294,16 @@ static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, V
 
     if (err)
         d.vi.fpsDen = 1;
+
+    src = vsapi->propGetNode(in, "src", 0, &err);
+
+    if (!err) {
+        const VSVideoInfo *vi = vsapi->getVideoInfo(src);
+        d.vi.fpsNum = vi->fpsNum;
+        d.vi.fpsDen = vi->fpsDen;
+        vsapi->freeNode(src);
+        hassrc = 1;
+    }
 
     if (hasfps == hassrc) {
         vsapi->freeNode(d.node);
