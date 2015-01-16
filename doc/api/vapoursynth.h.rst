@@ -1116,7 +1116,7 @@ struct VSAPI
 
       typedef void (VS_CC \*VSCopyFrameProps)(const VSFrameRef_ \*src, VSFrameRef_ \*dst, VSCore_ \*core)
 
-      Copies the property map of a frame to another frame, owerwriting all
+      Copies the property map of a frame to another frame, overwriting all
       existing properties.
 
 ----------
