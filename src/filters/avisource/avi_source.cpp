@@ -296,7 +296,6 @@ class AVISource {
     BITMAPINFOHEADER* pbiSrc;
     BITMAPINFOHEADER biDst;
     bool ex;
-    bool dropped_frame;
     bool bIsType1;
     bool bInvertFrames;
     char buf[1024];
@@ -307,7 +306,7 @@ class AVISource {
     int last_frame_no;
 
     LRESULT DecompressBegin(LPBITMAPINFOHEADER lpbiSrc, LPBITMAPINFOHEADER lpbiDst);
-    LRESULT DecompressFrame(int n, bool preroll, VSFrameRef *frame, VSFrameRef *alpha, VSCore *core, const VSAPI *vsapi);
+    LRESULT DecompressFrame(int n, bool preroll, bool &dropped_frame, VSFrameRef *frame, VSFrameRef *alpha, VSCore *core, const VSAPI *vsapi);
 
     void CheckHresult(HRESULT hr, const char* msg, VSCore *core, const VSAPI *vsapi);
     bool AttemptCodecNegotiation(DWORD fccHandler, BITMAPINFOHEADER* bmih);
@@ -412,7 +411,7 @@ LRESULT AVISource::DecompressBegin(LPBITMAPINFOHEADER lpbiSrc, LPBITMAPINFOHEADE
         lpbiDst, 0, 0, 0, lpbiDst->biWidth, lpbiDst->biHeight);
 }
 
-LRESULT AVISource::DecompressFrame(int n, bool preroll, VSFrameRef *frame, VSFrameRef *alpha, VSCore *core, const VSAPI *vsapi) {
+LRESULT AVISource::DecompressFrame(int n, bool preroll, bool &dropped_frame, VSFrameRef *frame, VSFrameRef *alpha, VSCore *core, const VSAPI *vsapi) {
     _RPT2(0,"AVISource: Decompressing frame %d%s\n", n, preroll ? " (preroll)" : "");
     long bytes_read;
     if (!hic) {
@@ -758,7 +757,7 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
 
         // try to decompress frame 0 if not audio only.
 
-        dropped_frame=false;
+        bool dropped_frame = false;
 
         if (mode != MODE_WAV) {
             decbuf = vs_aligned_malloc<BYTE>(hic ? biDst.biSizeImage : pbiSrc->biSizeImage, 32);
@@ -767,7 +766,7 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
             VSFrameRef *alpha_frame = nullptr;
             if (numOutputs == 2)
                 alpha_frame = vsapi->newVideoFrame(vi[1].format, vi[1].width, vi[1].height, NULL, core);
-            LRESULT error = DecompressFrame(keyframe, false, frame, alpha_frame, core, vsapi);
+            LRESULT error = DecompressFrame(keyframe, false, dropped_frame, frame, alpha_frame, core, vsapi);
             if (error != ICERR_OK)   // shutdown, if init not succesful.
                 throw std::runtime_error("AviSource: Could not decompress frame 0");
 
@@ -775,7 +774,7 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
             // frames, just return the first key frame
             if (dropped_frame) {
                 keyframe = pvideo->NextKeyFrame(0);
-                error = DecompressFrame(keyframe, false, frame, alpha_frame, core, vsapi);
+                error = DecompressFrame(keyframe, false, dropped_frame, frame, alpha_frame, core, vsapi);
                 if (error != ICERR_OK) {   // shutdown, if init not succesful.
                     sprintf(buf, "AviSource: Could not decompress first keyframe %d", keyframe);
                     throw std::runtime_error(buf);
@@ -818,7 +817,7 @@ void AVISource::CleanUp() {
 const VSFrameRef *AVISource::GetFrame(int n, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
 
     n = min(max(n, 0), vi[0].numFrames-1);
-    dropped_frame = false;
+    bool dropped_frame = false;
     if (n != last_frame_no || !last_frame) {
         // find the last keyframe
         VDPosition keyframe = pvideo->NearestKeyFrame(n);
@@ -836,7 +835,7 @@ const VSFrameRef *AVISource::GetFrame(int n, VSFrameContext *frameCtx, VSCore *c
         do {
             not_found_yet=false;
             for (VDPosition i = keyframe; i <= n; ++i) {
-                LRESULT error = DecompressFrame(i, i != n, frame, alpha_frame, core, vsapi);
+                LRESULT error = DecompressFrame(i, i != n, dropped_frame, frame, alpha_frame, core, vsapi);
                 if ((!dropped_frame) && (error == ICERR_OK))
                     frameok = true;   // Better safe than sorry
             }
