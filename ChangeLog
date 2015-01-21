@@ -1,4 +1,5 @@
 r26:
+fixed dropped frame handling in avisource which was broken by accident when adapting the code for vapoursynth
 fixed crash on undecodable frames in avisource
 installer creation has been streamlined
 fixed assumefps when using a clip as the fps source (nodame)

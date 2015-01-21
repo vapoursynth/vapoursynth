@@ -445,6 +445,9 @@ LRESULT AVISource::DecompressFrame(int n, bool preroll, bool &dropped_frame, VSF
     DWORD ret = (!ex ? ICDecompress(hic, flags, pbiSrc, srcbuffer, &biDst, decbuf)
         : ICDecompressEx(hic, flags, pbiSrc, srcbuffer, 0, 0, vi[0].width, vi[0].height, &biDst, decbuf, 0, 0, vi[0].width, vi[0].height));
 
+    if (ret != ICERR_OK)
+        return ret;
+
     unpackframe(vi, frame, alpha, decbuf, 0, biDst.biCompression, biDst.biBitCount, bInvertFrames, vsapi);
 
     if (pvideo->IsKeyFrame(n)) {
@@ -457,7 +460,7 @@ LRESULT AVISource::DecompressFrame(int n, bool preroll, bool &dropped_frame, VSF
             vsapi->propSetData(vsapi->getFramePropsRW(alpha), "_PictType", "P", 1, paAppend);
     }
 
-    return ret;
+    return ICERR_OK;
 }
 
 
