@@ -1,4 +1,5 @@
 r26:
+fixed crash on undecodable frames in avisource
 installer creation has been streamlined
 fixed assumefps when using a clip as the fps source (nodame)
 improved the performance of vsmap operations

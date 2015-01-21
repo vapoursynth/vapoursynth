@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012 Fredrik Mellbin
+* Copyright (c) 2012-2015 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -764,10 +764,10 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
             decbuf = vs_aligned_malloc<BYTE>(hic ? biDst.biSizeImage : pbiSrc->biSizeImage, 32);
             int keyframe = pvideo->NearestKeyFrame(0);
             VSFrameRef *frame = vsapi->newVideoFrame(vi[0].format, vi[0].width, vi[0].height, NULL, core);
-            VSFrameRef *alpha = NULL;
+            VSFrameRef *alpha_frame = nullptr;
             if (numOutputs == 2)
-                alpha = vsapi->newVideoFrame(vi[1].format, vi[1].width, vi[1].height, NULL, core);
-            LRESULT error = DecompressFrame(keyframe, false, frame, alpha, core, vsapi);
+                alpha_frame = vsapi->newVideoFrame(vi[1].format, vi[1].width, vi[1].height, NULL, core);
+            LRESULT error = DecompressFrame(keyframe, false, frame, alpha_frame, core, vsapi);
             if (error != ICERR_OK)   // shutdown, if init not succesful.
                 throw std::runtime_error("AviSource: Could not decompress frame 0");
 
@@ -775,7 +775,7 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
             // frames, just return the first key frame
             if (dropped_frame) {
                 keyframe = pvideo->NextKeyFrame(0);
-                error = DecompressFrame(keyframe, false, frame, alpha, core, vsapi);
+                error = DecompressFrame(keyframe, false, frame, alpha_frame, core, vsapi);
                 if (error != ICERR_OK) {   // shutdown, if init not succesful.
                     sprintf(buf, "AviSource: Could not decompress first keyframe %d", keyframe);
                     throw std::runtime_error(buf);
@@ -784,7 +784,7 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
 
             last_frame_no=0;
             last_frame=frame;
-            last_alpha_frame=alpha;
+            last_alpha_frame = alpha_frame;
         }
     }
     catch (std::runtime_error) {
@@ -818,8 +818,8 @@ void AVISource::CleanUp() {
 const VSFrameRef *AVISource::GetFrame(int n, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
 
     n = min(max(n, 0), vi[0].numFrames-1);
-    dropped_frame=false;
-    if (n != last_frame_no) {
+    dropped_frame = false;
+    if (n != last_frame_no || !last_frame) {
         // find the last keyframe
         VDPosition keyframe = pvideo->NearestKeyFrame(n);
         // maybe we don't need to go back that far
@@ -829,15 +829,16 @@ const VSFrameRef *AVISource::GetFrame(int n, VSFrameContext *frameCtx, VSCore *c
 
         bool frameok = false;
         VSFrameRef *frame = vsapi->newVideoFrame(vi[0].format, vi[0].width, vi[0].height, NULL, core);
-        VSFrameRef *alpha = NULL;
+        VSFrameRef *alpha_frame = nullptr;
         if (numOutputs == 2)
-            alpha = vsapi->newVideoFrame(vi[1].format, vi[1].width, vi[1].height, NULL, core);
+            alpha_frame = vsapi->newVideoFrame(vi[1].format, vi[1].width, vi[1].height, NULL, core);
         bool not_found_yet;
         do {
             not_found_yet=false;
             for (VDPosition i = keyframe; i <= n; ++i) {
-                LRESULT error = DecompressFrame(i, i != n, frame, alpha, core, vsapi);
-                if ((!dropped_frame) && (error == ICERR_OK)) frameok = true;   // Better safe than sorry
+                LRESULT error = DecompressFrame(i, i != n, frame, alpha_frame, core, vsapi);
+                if ((!dropped_frame) && (error == ICERR_OK))
+                    frameok = true;   // Better safe than sorry
             }
             last_frame_no = n;
 
@@ -858,12 +859,22 @@ const VSFrameRef *AVISource::GetFrame(int n, VSFrameContext *frameCtx, VSCore *c
             vsapi->freeFrame(last_frame);
             vsapi->freeFrame(last_alpha_frame);
             last_frame = frame;
-            last_alpha_frame = alpha;
+            last_alpha_frame = alpha_frame;
         } else {
-            vsapi->freeFrame(frame);
+            vsapi->freeFrame(last_frame);
             vsapi->freeFrame(last_alpha_frame);
+            vsapi->freeFrame(frame);
+            vsapi->freeFrame(alpha_frame);
+            last_frame = nullptr;
+            last_alpha_frame = nullptr;
         }
     }
+
+    if (!last_frame) {
+        sprintf(buf, "AVISource: failed to decode frame %d.", n);
+        throw std::runtime_error(buf);
+    }
+
     int o = vsapi->getOutputIndex(frameCtx);
     if (vsapi->getOutputIndex(frameCtx) == 0)
         return vsapi->cloneFrameRef(last_frame);
