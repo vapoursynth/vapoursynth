@@ -25,6 +25,7 @@ Native Plugins
 * `DCT Filter <http://forum.doom9.org/showthread.php?t=171039>`_ -- Block based DCT coefficient adjustment
 * `Deblock <http://forum.doom9.org/showthread.php?t=170975>`_ -- h.264 style deblocking
 * `DeLogo <http://forum.doom9.org/showthread.php?t=171252>`_ -- Port of the Avisynth logo removal filter
+* `DFTTest <http://forum.doom9.org/showthread.php?t=171678>`_
 * `EEDI2 <http://forum.doom9.org/showthread.php?t=171136>`_
 * `f3kdb <http://forum.doom9.org/showthread.php?t=161411>`_ -- Debanding filter
 * `FFMS2 <https://github.com/FFMS/ffms2>`_ -- FFmpeg based source filter
