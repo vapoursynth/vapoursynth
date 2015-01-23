@@ -818,15 +818,14 @@ void AVISource::CleanUp() {
 }
 
 const VSFrameRef *AVISource::GetFrame(int n, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-
-    n = min(max(n, 0), vi[0].numFrames-1);
+    n = min(max(n, 0), vi[0].numFrames - 1);
     bool dropped_frame = false;
     if (n != last_frame_no || !last_frame) {
         // find the last keyframe
         VDPosition keyframe = pvideo->NearestKeyFrame(n);
         // maybe we don't need to go back that far
         if (last_frame_no < n && last_frame_no >= keyframe)
-            keyframe = last_frame_no+1;
+            keyframe = last_frame_no + 1;
         if (keyframe < 0) keyframe = 0;
 
         bool frameok = false;
@@ -836,7 +835,7 @@ const VSFrameRef *AVISource::GetFrame(int n, VSFrameContext *frameCtx, VSCore *c
             alpha_frame = vsapi->newVideoFrame(vi[1].format, vi[1].width, vi[1].height, NULL, core);
         bool not_found_yet;
         do {
-            not_found_yet=false;
+            not_found_yet = false;
             for (VDPosition i = keyframe; i <= n; ++i) {
                 LRESULT error = DecompressFrame(i, i != n, dropped_frame, frame, alpha_frame, core, vsapi);
                 if ((!dropped_frame) && (error == ICERR_OK))
@@ -845,30 +844,23 @@ const VSFrameRef *AVISource::GetFrame(int n, VSFrameContext *frameCtx, VSCore *c
             last_frame_no = n;
 
             if (!last_frame && !frameok) {  // Last keyframe was not valid.
-                const VDPosition key_pre=keyframe;
-                keyframe = pvideo->NearestKeyFrame(keyframe-1);
+                const VDPosition key_pre = keyframe;
+                keyframe = pvideo->NearestKeyFrame(keyframe - 1);
                 if (keyframe < 0) keyframe = 0;
                 if (keyframe == key_pre) {
                     sprintf(buf, "AVISource: could not find valid keyframe for frame %d.", n);
                     throw std::runtime_error(buf);
                 }
 
-                not_found_yet=true;
+                not_found_yet = true;
             }
-        } while(not_found_yet);
+        } while (not_found_yet);
 
         if (frameok) {
             vsapi->freeFrame(last_frame);
             vsapi->freeFrame(last_alpha_frame);
             last_frame = frame;
             last_alpha_frame = alpha_frame;
-        } else {
-            vsapi->freeFrame(last_frame);
-            vsapi->freeFrame(last_alpha_frame);
-            vsapi->freeFrame(frame);
-            vsapi->freeFrame(alpha_frame);
-            last_frame = nullptr;
-            last_alpha_frame = nullptr;
         }
     }
 
