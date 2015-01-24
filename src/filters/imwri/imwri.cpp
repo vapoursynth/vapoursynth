@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2014 Fredrik Mellbin
+* Copyright (c) 2014-2015 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -32,6 +32,7 @@
 #include <vector>
 #include <algorithm>
 #include <memory>
+#include <mutex>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -41,10 +42,8 @@
 #include <windows.h>
 #endif
 
-#ifdef HAS_CALL_ONCE
-#include <mutex>
+
 static std::once_flag flag;
-#endif
 
 //////////////////////////////////////////
 // Shared
@@ -54,25 +53,21 @@ static bool isGrayColorspace(Magick::ColorspaceType colorspace) {
 }
 
 static void realInitMagick(VSCore *core, const VSAPI *vsapi) {
+#ifdef _WIN32
     const char *pathPtr = vsapi->getPluginPath(vsapi->getPluginById("com.vapoursynth.imwri", core));
     std::string path;
     if (pathPtr) {
         path = pathPtr;
-        path = path.substr(0, path.find_last_of('/') + 1);
+        for (auto &c : path)
+            if (c == '/')
+                c = '\\';
     }
+#endif
     Magick::InitializeMagick(path.c_str());
 }
 
 static void initMagick(VSCore *core, const VSAPI *vsapi) {
-#ifndef HAS_CALL_ONCE
-    static bool inited = false;
-    if (!inited) {
-        realInitMagick(core, vsapi);
-        inited = true;
-    }
-#else
     std::call_once(flag, realInitMagick, core, vsapi);
-#endif
 }
 
 static std::string specialPrintf(const std::string &filename, int number) {
@@ -167,7 +162,7 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
             alphaWidth = vsapi->getFrameWidth(alphaFrame, 0);
             alphaHeight = vsapi->getFrameHeight(alphaFrame, 0);
 
-            if ( width != alphaWidth || height != alphaHeight) {
+            if (width != alphaWidth || height != alphaHeight) {
                 vsapi->setFilterError("Write: Mismatched dimension of the alpha clip", frameCtx);
                 vsapi->freeFrame(frame);
                 vsapi->freeFrame(alphaFrame);
@@ -631,6 +626,7 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
                 d->vi[1].format = vsapi->registerFormat(cmGray, stInteger, depth, 0, 0, core);
         }
     } catch (Magick::Exception &e) {
+        const char *p = e.what();
         vsapi->setError(out, (std::string("Read: Failed to read image properties: ") + e.what()).c_str());
         return;
     }
