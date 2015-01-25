@@ -18,11 +18,11 @@ Contents:
    autoloading
    vsfs
    pluginlist
-   apireference
    avisynthcomp
    includedplugins
    functions
    vspipe
+   apireference
    about
 
 
