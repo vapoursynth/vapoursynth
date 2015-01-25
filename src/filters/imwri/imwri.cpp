@@ -53,9 +53,9 @@ static bool isGrayColorspace(Magick::ColorspaceType colorspace) {
 }
 
 static void realInitMagick(VSCore *core, const VSAPI *vsapi) {
+    std::string path;
 #ifdef _WIN32
     const char *pathPtr = vsapi->getPluginPath(vsapi->getPluginById("com.vapoursynth.imwri", core));
-    std::string path;
     if (pathPtr) {
         path = pathPtr;
         for (auto &c : path)
