@@ -1,4 +1,5 @@
 r26:
+fixed that frame error messages would sometimes become lost
 fixed dropped frame handling in avisource which was broken by accident when adapting the code for vapoursynth
 fixed crash on undecodable frames in avisource
 installer creation has been streamlined

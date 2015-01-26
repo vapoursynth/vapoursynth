@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2014 Fredrik Mellbin
+* Copyright (c) 2012-2015 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -103,7 +103,8 @@ numFrameRequests(0), n(n), node(node), clip(node->clip.get()), userData(userData
 bool FrameContext::setError(const std::string &errorMsg) {
     bool prevState = error;
     error = true;
-    errorMessage = errorMsg;
+    if (!prevState)
+        errorMessage = errorMsg;
     return prevState;
 }
 
