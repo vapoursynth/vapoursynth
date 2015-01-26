@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2014 Fredrik Mellbin
+* Copyright (c) 2012-2015 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -139,13 +139,12 @@ public:
 
     template<typename T>
     void setArray(const T *val, size_t size) {
-        std::vector<T> *vect = reinterpret_cast<std::vector<T>*>(storage);
-        vect->clear();
-        if (size) {
-            vect->resize(size);
+        assert(val && !storage);
+        std::vector<T> *vect = new std::vector<T>(size);
+        if (size)
             memcpy(vect->data(), val, size * sizeof(T));
-        }
         internalSize = size;
+        storage = vect;
     }
 
 private:

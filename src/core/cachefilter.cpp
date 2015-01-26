@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2013 Fredrik Mellbin
+* Copyright (c) 2012-2015 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -190,7 +190,7 @@ static const VSFrameRef *VS_CC cacheGetframe(int n, int activationReason, void *
         return r;
     }
 
-    return NULL;
+    return nullptr;
 }
 
 static void VS_CC cacheFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
