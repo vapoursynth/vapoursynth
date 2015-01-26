@@ -564,13 +564,15 @@ cdef class VideoProps(object):
             raise KeyError('No key named ' + name + ' exists')
         cdef char t = self.funcs.propGetType(m, b)
         if t == 'i':
-            intArray = self.funcs.propGetIntArray(m, b, NULL)
-            for i in range(numelem):
-                ol.append(intArray[i])
+            if numelem > 0:
+                intArray = self.funcs.propGetIntArray(m, b, NULL)
+                for i in range(numelem):
+                    ol.append(intArray[i])
         elif t == 'f':
-            floatArray = self.funcs.propGetFloatArray(m, b, NULL)
-            for i in range(numelem):
-                ol.append(floatArray[i])
+            if numelem > 0:
+                floatArray = self.funcs.propGetFloatArray(m, b, NULL)
+                for i in range(numelem):
+                    ol.append(floatArray[i])
         elif t == 's':
             for i in range(numelem):
                 ol.append(self.funcs.propGetData(m, b, i, NULL))
