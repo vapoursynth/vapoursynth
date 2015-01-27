@@ -27,6 +27,7 @@
 #include <stdexcept>
 #include <string>
 #include <string.h>
+#include <assert.h>
 #include <vector>
 #include <list>
 #include <set>
