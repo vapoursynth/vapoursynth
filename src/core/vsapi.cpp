@@ -324,12 +324,34 @@ static int VS_CC propDeleteKey(VSMap *map, const char *key) {
     return map->erase(key);
 }
 
+static inline bool isAlphaUnderscore(char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
+}
+
+static inline bool isAlphaNumUnderscore(char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+}
+
+static bool isValidVSMapKey(const std::string &s) {
+    size_t len = s.length();
+    if (!len)
+        return false;
+
+    if (!isAlphaUnderscore(s[0]))
+        return false;
+    for (size_t i = 1; i < len; i++)
+        if (!isAlphaNumUnderscore(s[i]))
+            return false;
+    return true;
+}
 
 #define PROP_SET_SHARED(vv, appendexpr) \
     assert(map && key); \
     if (append != paReplace && append != paAppend && append != paTouch) \
         vsFatal("Invalid prop append mode given"); \
     std::string skey = key; \
+    if (!isValidVSMapKey(skey)) \
+        return 1; \
     if (append != paReplace && map->contains(skey)) { \
         VSVariant &l = map->at(skey); \
         if (l.getType() != (vv)) \
@@ -499,9 +521,12 @@ static int VS_CC propSetIntArray(VSMap *map, const char *key, const int64_t *i, 
     assert(map && key && size >= 0);
     if (size < 0)
         return 1;
+    std::string skey = key;
+    if (!isValidVSMapKey(skey))
+        return 1;
     VSVariant l(VSVariant::vInt);
     l.setArray(i, size);
-    map->insert(key, std::move(l));
+    map->insert(skey, std::move(l));
     return 0;
 }
 
@@ -509,9 +534,12 @@ static int VS_CC propSetFloatArray(VSMap *map, const char *key, const double *d,
     assert(map && key && size >= 0);
     if (size < 0)
         return 1;
+    std::string skey = key;
+    if (!isValidVSMapKey(skey))
+        return 1;
     VSVariant l(VSVariant::vFloat);
     l.setArray(d, size);
-    map->insert(key, std::move(l));
+    map->insert(skey, std::move(l));
     return 0;
 }
 
