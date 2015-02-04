@@ -671,9 +671,7 @@ struct VSMap
 
       - storing the properties attached to frames
 
-   VSMap itself allows any non-zero bytes to be used in keys, but VapourSynth
-   places certain restrictions on the characters allowed in filters' arguments.
-   See registerFunc in VSInitPlugin_.
+   Only alphanumeric characters and the underscore may be used in keys.
 
    Creating and destroying a map can be done with createMap_\ () and
    freeMap_\ (), respectively.
@@ -1803,7 +1801,8 @@ struct VSAPI
       same type.
 
       *key*
-         Name of the property. Any characters may be used.
+         Name of the property. Alphanumeric characters and the underscore
+         may be used.
 
       *i*
          Value to store.
@@ -1830,7 +1829,8 @@ struct VSAPI
       be overwritten and all old values will be lost.
 
       *key*
-         Name of the property. Any characters may be used.
+         Name of the property. Alphanumeric characters and the underscore
+         may be used.
 
       *i*
          Pointer to the first element of the array to store.
@@ -1856,7 +1856,8 @@ struct VSAPI
       same type.
 
       *key*
-         Name of the property. Any characters may be used.
+         Name of the property. Alphanumeric characters and the underscore
+         may be used.
 
       *d*
          Value to store.
@@ -1883,7 +1884,8 @@ struct VSAPI
       be overwritten and all old values will be lost.
 
       *key*
-         Name of the property. Any characters may be used.
+         Name of the property. Alphanumeric characters and the underscore
+         may be used.
 
       *d*
          Pointer to the first element of the array to store.
@@ -1909,7 +1911,8 @@ struct VSAPI
       same type.
 
       *key*
-         Name of the property. Any characters may be used.
+         Name of the property. Alphanumeric characters and the underscore
+         may be used.
 
       *data*
          Value to store.
@@ -1940,7 +1943,8 @@ struct VSAPI
       same type.
 
       *key*
-         Name of the property. Any characters may be used.
+         Name of the property. Alphanumeric characters and the underscore
+         may be used.
 
       *node*
          Value to store.
@@ -1968,7 +1972,8 @@ struct VSAPI
       same type.
 
       *key*
-         Name of the property. Any characters may be used.
+         Name of the property. Alphanumeric characters and the underscore
+         may be used.
 
       *f*
          Value to store.
@@ -1996,7 +2001,8 @@ struct VSAPI
       same type.
 
       *key*
-         Name of the property. Any characters may be used.
+         Name of the property. Alphanumeric characters and the underscore
+         may be used.
 
       *func*
          Value to store.
