@@ -300,7 +300,6 @@ static void append_prop(std::string &text, const std::string &key, const VSMap *
         const int64_t *intArr = vsapi->propGetIntArray(map, key.c_str(), nullptr);
         for (idx = 0; idx < numElements; idx++)
             text += " " + std::to_string(intArr[idx]);
-        text.resize(text.size() - 1);
     } else if (type == ptFloat) {
         const double *floatArr = vsapi->propGetFloatArray(map, key.c_str(), nullptr);
         for (idx = 0; idx < numElements; idx++)
