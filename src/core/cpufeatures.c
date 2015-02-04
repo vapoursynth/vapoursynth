@@ -58,6 +58,8 @@ void getCPUFeatures(CPUFeatures *cpuFeatures) {
 void getCPUFeatures(CPUFeatures *cpuFeatures) {
     unsigned long long hwcap = getauxval(AT_HWCAP);
 
+    cpuFeatures->can_run_vs = 1;
+
 #ifdef VS_TARGET_CPU_ARM
     cpuFeatures->half_fp = !!(hwcap & HWCAP_ARM_HALF);
     cpuFeatures->edsp = !!(hwcap & HWCAP_ARM_EDSP);
