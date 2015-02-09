@@ -18,6 +18,8 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
+#include <string.h>
+
 #include "cpufeatures.h"
 
 #ifdef VS_TARGET_CPU_X86
@@ -26,6 +28,8 @@ extern void vs_cpu_xgetbv(int op, int *eax, int *edx);
 extern void vs_cpu_cpuid_test(void);
 
 void getCPUFeatures(CPUFeatures *cpuFeatures) {
+    memset(cpuFeatures, 0, sizeof(CPUFeatures));
+
     int eax = 0;
     int ebx = 0;
     int ecx = 0;
@@ -56,6 +60,8 @@ void getCPUFeatures(CPUFeatures *cpuFeatures) {
 #include <sys/auxv.h>
 
 void getCPUFeatures(CPUFeatures *cpuFeatures) {
+    memset(cpuFeatures, 0, sizeof(CPUFeatures));
+
     unsigned long long hwcap = getauxval(AT_HWCAP);
 
     cpuFeatures->can_run_vs = 1;
