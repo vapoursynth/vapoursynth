@@ -32,7 +32,6 @@
 #include <vector>
 #include <algorithm>
 #include <memory>
-#include <mutex>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -43,8 +42,6 @@
 #endif
 
 
-static std::once_flag flag;
-
 //////////////////////////////////////////
 // Shared
 
@@ -52,7 +49,7 @@ static bool isGrayColorspace(Magick::ColorspaceType colorspace) {
     return colorspace == Magick::GRAYColorspace || colorspace == Magick::Rec601LumaColorspace || colorspace == Magick::Rec709LumaColorspace;
 }
 
-static void realInitMagick(VSCore *core, const VSAPI *vsapi) {
+static void initMagick(VSCore *core, const VSAPI *vsapi) {
     std::string path;
 #ifdef _WIN32
     const char *pathPtr = vsapi->getPluginPath(vsapi->getPluginById("com.vapoursynth.imwri", core));
@@ -64,10 +61,6 @@ static void realInitMagick(VSCore *core, const VSAPI *vsapi) {
     }
 #endif
     Magick::InitializeMagick(path.c_str());
-}
-
-static void initMagick(VSCore *core, const VSAPI *vsapi) {
-    std::call_once(flag, realInitMagick, core, vsapi);
 }
 
 static std::string specialPrintf(const std::string &filename, int number) {
@@ -577,7 +570,7 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     for (int i = 0; i < numElem; i++)
         d->filenames[i] = vsapi->propGetData(in, "filename", i, nullptr);
     
-    d->vi[0] = { nullptr, 30, 1, 0, 0, static_cast<int>(d->filenames.size()), 0 };
+    d->vi[0] = { nullptr, 30, 1, 0, 0, d->filenames.size(), 0 };
     // See if it's a single filename with number substitution and check how many files exist
     if (d->vi[0].numFrames == 1 && specialPrintf(d->filenames[0], 0) != d->filenames[0]) {
         d->fileListMode = false;
@@ -626,7 +619,6 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
                 d->vi[1].format = vsapi->registerFormat(cmGray, stInteger, depth, 0, 0, core);
         }
     } catch (Magick::Exception &e) {
-        const char *p = e.what();
         vsapi->setError(out, (std::string("Read: Failed to read image properties: ") + e.what()).c_str());
         return;
     }
