@@ -1325,7 +1325,7 @@ static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, V
 // FrameEval
 
 typedef struct {
-    const VSVideoInfo *vi;
+    VSVideoInfo vi;
     VSFuncRef *func;
     VSNodeRef **propsrc;
     int numpropsrc;
@@ -1335,7 +1335,7 @@ typedef struct {
 
 static void VS_CC frameEvalInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     FrameEvalData *d = (FrameEvalData *) * instanceData;
-    vsapi->setVideoInfo(d->vi, 1, node);
+    vsapi->setVideoInfo(&d->vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC frameEvalGetFrameWithProps(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -1379,16 +1379,16 @@ static const VSFrameRef *VS_CC frameEvalGetFrameWithProps(int n, int activationR
         frame = vsapi->getFrameFilter(n, node, frameCtx);
         vsapi->freeNode(node);
 
-        if (d->vi->width || d->vi->height) {
-            if (d->vi->width != vsapi->getFrameWidth(frame, 0) || d->vi->height != vsapi->getFrameHeight(frame, 0)) {
+        if (d->vi.width || d->vi.height) {
+            if (d->vi.width != vsapi->getFrameWidth(frame, 0) || d->vi.height != vsapi->getFrameHeight(frame, 0)) {
                 vsapi->freeFrame(frame);
                 vsapi->setFilterError("FrameEval: Returned frame has wrong dimensions", frameCtx);
                 return 0;
             }
         }
 
-        if (d->vi->format) {
-            if (d->vi->format != vsapi->getFrameFormat(frame)) {
+        if (d->vi.format) {
+            if (d->vi.format != vsapi->getFrameFormat(frame)) {
                 vsapi->freeFrame(frame);
                 vsapi->setFilterError("FrameEval: Returned frame has wrong format", frameCtx);
                 return 0;
@@ -1435,16 +1435,16 @@ static const VSFrameRef *VS_CC frameEvalGetFrameNoProps(int n, int activationRea
         frame = vsapi->getFrameFilter(n, node, frameCtx);
         vsapi->freeNode(node);
 
-        if (d->vi->width || d->vi->height) {
-            if (d->vi->width != vsapi->getFrameWidth(frame, 0) || d->vi->height != vsapi->getFrameHeight(frame, 0)) {
+        if (d->vi.width || d->vi.height) {
+            if (d->vi.width != vsapi->getFrameWidth(frame, 0) || d->vi.height != vsapi->getFrameHeight(frame, 0)) {
                 vsapi->freeFrame(frame);
                 vsapi->setFilterError("FrameEval: Returned frame has wrong dimensions", frameCtx);
                 return 0;
             }
         }
 
-        if (d->vi->format) {
-            if (d->vi->format != vsapi->getFrameFormat(frame)) {
+        if (d->vi.format) {
+            if (d->vi.format != vsapi->getFrameFormat(frame)) {
                 vsapi->freeFrame(frame);
                 vsapi->setFilterError("FrameEval: Returned frame has wrong format", frameCtx);
                 return 0;
@@ -1476,7 +1476,7 @@ static void VS_CC frameEvalCreate(const VSMap *in, VSMap *out, void *userData, V
     int i;
     VSNodeRef *node = vsapi->propGetNode(in, "clip", 0, 0);
     d.propsrc = 0;
-    d.vi = vsapi->getVideoInfo(node);
+    d.vi = *vsapi->getVideoInfo(node);
     vsapi->freeNode(node);
     d.func = vsapi->propGetFunc(in, "eval", 0, 0);
     d.numpropsrc = vsapi->propNumElements(in, "prop_src");
