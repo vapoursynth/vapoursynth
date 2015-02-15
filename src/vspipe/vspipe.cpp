@@ -43,7 +43,7 @@
 // Needed so windows doesn't drool on itself when ctrl-c is pressed
 #ifdef VS_TARGET_OS_WINDOWS
 #define NOMINMAX
-#include <Windows.h>
+#include <windows.h>
 BOOL WINAPI HandlerRoutine(DWORD dwCtrlType) {
     switch (dwCtrlType) {
     case CTRL_C_EVENT:

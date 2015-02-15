@@ -34,7 +34,7 @@
 #endif
 
 #ifdef VS_TARGET_OS_WINDOWS
-#include <ShlObj.h>
+#include <shlobj.h>
 #include <codecvt>
 #endif
 
