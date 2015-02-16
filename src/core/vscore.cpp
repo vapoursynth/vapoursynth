@@ -938,24 +938,24 @@ VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), formatIdO
     SHGetFolderPath(NULL, CSIDL_APPDATA, NULL, SHGFP_TYPE_CURRENT, appDataBuffer.data());
 
 #ifdef _WIN64
-#define ADDPEND_STR_6432(x) x##L"64"
+    std::wstring bits(L"64");
 #else
-#define ADDPEND_STR_6432(x) x##L"32"
+    std::wstring bits(L"32");
 #endif
 
-    std::wstring appDataPath = std::wstring(appDataBuffer.data()) + ADDPEND_STR_6432(L"\\VapourSynth\\plugins");
+    std::wstring appDataPath = std::wstring(appDataBuffer.data()) + L"\\VapourSynth\\plugins" + bits;
 
     // Autoload per user plugins
     loadAllPluginsInPath(appDataPath, filter);
 
     // Autoload bundled plugins
-    std::wstring corePluginPath = readRegistryValue(L"Software\\VapourSynth", ADDPEND_STR_6432(L"CorePlugins"));
+    std::wstring corePluginPath = readRegistryValue(L"Software\\VapourSynth", L"CorePlugins" + bits);
     if (!loadAllPluginsInPath(corePluginPath, filter))
         vsCritical("Core plugin autoloading failed. Installation is broken?");
 
     // Autoload global plugins last, this is so the bundled plugins cannot be overridden easily
     // and accidentally block updated bundled versions
-    std::wstring globalPluginPath = readRegistryValue(L"Software\\VapourSynth", ADDPEND_STR_6432(L"Plugins"));
+    std::wstring globalPluginPath = readRegistryValue(L"Software\\VapourSynth", L"Plugins" + bits);
     loadAllPluginsInPath(globalPluginPath, filter);
 #else
 
