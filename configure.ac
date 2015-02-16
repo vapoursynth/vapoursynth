@@ -82,6 +82,7 @@ AS_CASE(
          )
          AC_DEFINE([VS_TARGET_OS_WINDOWS])
          DEBUG_FORMAT="null"
+         AC_SUBST([UNICODEFLAGS], ["-DUNICODE -D_UNICODE"])
         ],
         [AC_MSG_ERROR([Unknown host OS])]
 )
