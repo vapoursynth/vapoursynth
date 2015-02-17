@@ -46,6 +46,12 @@ static int findCommonVi(VSNodeRef **nodes, int num, VSVideoInfo *outvi, int igno
             mismatch = 1;
         }
 
+        if (outvi->fpsNum != vi->fpsNum || outvi->fpsDen != vi->fpsDen) {
+            outvi->fpsDen = 0;
+            outvi->fpsNum = 0;
+            mismatch = 1;
+        }
+
         if ((outvi->numFrames < vi->numFrames && outvi->numFrames) || (!vi->numFrames && outvi->numFrames)) {
             outvi->numFrames = vi->numFrames;
 

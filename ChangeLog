@@ -1,3 +1,8 @@
+r27:
+splice and interleave now properly reject clips with mismatched fps unless mismatch is set
+fixed possible bad behavior/crash in FrameEval under rare circumstances
+fixed truncation of last digit of integers in text.FrameProps
+
 r26:
 fixed that frame error messages would sometimes become lost
 fixed dropped frame handling in avisource which was broken by accident when adapting the code for vapoursynth
