@@ -1,5 +1,5 @@
 warningflags = -Wall -Wextra -Wno-unused-parameter -Wno-unused-function
-commoncflags = -O3 $(warningflags) -I$(srcdir)/include $(DEBUGCFLAGS) $(MFLAGS) $(UNICODEFLAGS)
+commoncflags = -O3 $(warningflags) -I$(srcdir)/include $(DEBUGCFLAGS) $(MFLAGS) $(UNICODECFLAGS)
 AM_CXXFLAGS = -std=c++11 $(commoncflags)
 AM_CFLAGS = -std=c99 $(commoncflags)
 
@@ -124,6 +124,7 @@ bin_PROGRAMS = vspipe
 
 vspipe_SOURCES = src/vspipe/vspipe.cpp
 vspipe_LDADD = libvapoursynth-script.la
+vspipe_LDFLAGS = $(UNICODELDFLAGS)
 endif # VSPIPE
 endif # VSSCRIPT
 
