@@ -20,6 +20,7 @@ Native Plugins
 * `Basic audio support <http://forum.doom9.org/showthread.php?t=171555>`_ -- A plugin that adds basic audio support
 * `Bifrost 2000 <https://github.com/dubhater/vapoursynth-bifrost>`_ -- A rainbow remover based on the Bifrost filter for Avisynth
 * `Bilateral <http://forum.doom9.org/showthread.php?t=171306>`_ -- Bilateral filtering
+* `Continuity Fixer <http://forum.doom9.org/showthread.php?t=171785>`_ -- Can help repair damaged borders of frames
 * `CTMF <http://forum.doom9.org/showthread.php?t=171213>`_ -- Constant Time Median Filtering
 * `d2vsource <http://forum.doom9.org/showthread.php?t=166399>`_ -- Frame accurate mpeg2 source filter
 * `DCT Filter <http://forum.doom9.org/showthread.php?t=171039>`_ -- Block based DCT coefficient adjustment
@@ -48,6 +49,7 @@ Native Plugins
 * `TempLinearApproximate <http://forum.doom9.org/showthread.php?t=169782>`_ -- A temporal smoother
 * `TemporalSoften <https://github.com/dubhater/vapoursynth-temporalsoften>`_ -- Bundled with the installer and based on the Avisynth filter with the same name
 * `Unresize <http://forum.doom9.org/showthread.php?t=169829>`_ -- Undoes resizing
+* `VagueDenoiser <http://forum.doom9.org/showthread.php?t=171723>`_ -- Wavelet based denoiser
 * `vcfreq <http://forum.doom9.org/showthread.php?t=171413>`_ -- Frequency domain denoiser
 * `vcmod <http://forum.doom9.org/showthread.php?t=171412>`_ -- Various filters such as histogram equalization, blur, and watershed segmentation
 * `vcmove <http://forum.doom9.org/showthread.php?t=171414>`_ -- Rotate, debarrel and other distortion correction filters
