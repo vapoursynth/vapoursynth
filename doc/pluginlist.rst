@@ -34,7 +34,7 @@ Native Plugins
 * `FillBorders <https://github.com/dubhater/vapoursynth-fillborders>`_
 * `FluxSmooth <https://github.com/dubhater/vapoursynth-fluxsmooth>`_ -- Temporal/spatiotemporal denoiser
 * `fmtconv <http://forum.doom9.org/showthread.php?t=166504>`_ -- High quality bitdepth, colorspace conversion and resizing
-* `GenericFilters <http://forum.doom9.org/showthread.php?t=166842>`_ -- Common image processing filters (replaces most of masktools)
+* `GenericFilters <http://forum.doom9.org/showthread.php?p=1656901#post1656901>`_ -- Common image processing filters (replaces most of masktools)
 * `Histogram <https://github.com/dubhater/vapoursynth-histogram>`_ -- Bundled with the installer
 * `IT <http://forum.doom9.org/showthread.php?t=171246>`_ -- Port of the inverse telecine filter for Avisynth
 * `L-SMASH Source <http://forum.doom9.org/showthread.php?t=167435>`_
