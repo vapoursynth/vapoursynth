@@ -28,6 +28,9 @@ OPTIONS
 -y,  --y4m
     Add YUV4MPEG headers to output
 
+-t,  --timecodes FILE
+    Write timecodes v2 file
+
 -p,  --progress
     Print progress to stderr
 
@@ -52,4 +55,7 @@ Write frames 5-100 to file:
 
 Pass values to a script:
     vspipe --arg deinterlace=yes --arg "message=fluffy kittens" script.vpy output.raw
+
+Pipe to x264 and write timecodes file:
+    vspipe script.vpy - --y4m --timecodes timecodes.txt | x264 --demuxer y4m -o script.mkv -
 
