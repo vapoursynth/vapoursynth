@@ -168,7 +168,7 @@ static void VS_CC clenseFree(void *instanceData, VSCore *core, const VSAPI *vsap
 }
 
 void VS_CC clenseCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    ClenseData d = {0};
+    ClenseData d = { 0, 0, 0, 0, 0, 0 };
     ClenseData *data;
     int err;
     int n, m, o;
