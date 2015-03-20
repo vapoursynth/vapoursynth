@@ -27,6 +27,8 @@
 #include <condition_variable>
 #include <algorithm>
 #include <chrono>
+#include <locale>
+#include <sstream>
 #ifdef VS_TARGET_OS_WINDOWS
 #include <codecvt>
 #include <io.h>
@@ -73,6 +75,7 @@ const VSAPI *vsapi = NULL;
 VSScript *se = NULL;
 VSNodeRef *node = NULL;
 FILE *outFile = NULL;
+FILE *timecodesFile = NULL;
 
 int requests = 0;
 int outputIndex = 0;
@@ -82,6 +85,9 @@ int completedFrames = 0;
 int totalFrames = -1;
 int numPlanes = 0;
 bool y4m = false;
+bool timecodes = false;
+int64_t currentTimecodeNum = 0;
+int64_t currentTimecodeDen = 1;
 bool outputError = false;
 bool showInfo = false;
 bool showVersion = false;
@@ -97,6 +103,23 @@ std::mutex mutex;
 std::chrono::time_point<std::chrono::high_resolution_clock> start;
 std::chrono::time_point<std::chrono::high_resolution_clock> lastFpsReportTime;
 int lastFpsReportFrame = 0;
+
+static inline void addRational(int64_t *num, int64_t *den, int64_t addnum, int64_t addden) {
+    if (*den == addden) {
+        *num += addnum;
+    } else {
+        int64_t temp = addden;
+        addnum *= *den;
+        addden *= *den;
+        *num *= temp;
+        *den *= temp;
+
+        *num += addnum;
+
+        // Simplify
+        muldivRational(num, den, 1, 1);
+    }
+}
 
 void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg) {
     completedFrames++;
@@ -145,6 +168,39 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
                                 break;
                             }
                             readPtr += stride;
+                        }
+                    }
+                }
+
+                if (!outputError) {
+                    std::ostringstream stream;
+                    stream.imbue(std::locale("C"));
+                    stream.setf(std::ios::fixed, std::ios::floatfield);
+                    stream << (currentTimecodeNum * 1000 / (double)currentTimecodeDen);
+                    if (fprintf(timecodesFile, "%s\n", stream.str().c_str()) < 0) {
+                        if (errorMessage.empty())
+                            errorMessage = "Error: failed to write timecode for frame " + std::to_string(outputFrames) + ". errno: " + std::to_string(errno);
+                        totalFrames = requestedFrames;
+                        outputError = true;
+                    } else {
+                        const VSMap *props = vsapi->getFramePropsRO(frame);
+                        int err_num, err_den;
+                        int64_t duration_num = vsapi->propGetInt(props, "_DurationNum", 0, &err_num);
+                        int64_t duration_den = vsapi->propGetInt(props, "_DurationDen", 0, &err_den);
+
+                        if (err_num || err_den || !duration_den) {
+                            if (errorMessage.empty()) {
+                                if (err_num || err_den)
+                                    errorMessage = "Error: missing duration at frame ";
+                                else if (!duration_den)
+                                    errorMessage = "Error: duration denominator is zero at frame ";
+                                errorMessage += std::to_string(outputFrames);
+                            }
+
+                            totalFrames = requestedFrames;
+                            outputError = true;
+                        } else {
+                            addRational(&currentTimecodeNum, &currentTimecodeDen, duration_num, duration_den);
                         }
                     }
                 }
@@ -240,6 +296,14 @@ bool outputNode() {
         }
     }
 
+    if (timecodes && !outputError) {
+        if (fprintf(timecodesFile, "# timecode format v2\n") < 0) {
+            errorMessage = "Error: failed to write timecodes file header, errno: " + std::to_string(errno);
+            outputError = true;
+            return outputError;
+        }
+    }
+
     std::unique_lock<std::mutex> lock(mutex);
 
     int requestStart = completedFrames;
@@ -320,6 +384,7 @@ void printHelp() {
         "  -o, --outputindex N   Select output index\n"
         "  -r, --requests N      Set number of concurrent frame requests\n"
         "  -y, --y4m             Add YUV4MPEG headers to output\n"
+        "  -t, --timecodes FILE  Write timecodes v2 file\n"
         "  -p, --progress        Print progress to stderr\n"
         "  -i, --info            Show video info and exit\n"
         "  -v, --version         Show version info and exit\n"
@@ -333,6 +398,8 @@ void printHelp() {
         "    vspipe --start 5 --end 100 script.vpy output.raw\n"
         "  Pass values to a script:\n"
         "    vspipe --arg deinterlace=yes --arg \"message=fluffy kittens\" script.vpy output.raw\n"
+        "  Pipe to x264 and write timecodes file:\n"
+        "    vspipe script.vpy - --y4m --timecodes timecodes.txt | x264 --demuxer y4m -o script.mkv -\n"
         );
 }
 
@@ -345,7 +412,7 @@ int wmain(int argc, wchar_t **argv) {
 #else
 int main(int argc, char **argv) {
 #endif
-    nstring outputFilename, scriptFilename;
+    nstring outputFilename, scriptFilename, timecodesFilename;
     bool showHelp = false;
     std::map<std::string, std::string> scriptArgs;
     int startFrame = 0;
@@ -439,6 +506,16 @@ int main(int argc, char **argv) {
             scriptArgs[aLine.substr(0, equalsPos)] = aLine.substr(equalsPos + 1);
 
             arg++;
+        } else if (argString == NSTRING("-t") || argString == NSTRING("--timecodes")) {
+            if (argc <= arg + 1) {
+                fprintf(stderr, "No timecodes file specified\n");
+                return 1;
+            }
+
+            timecodes = true;
+            timecodesFilename = argv[arg + 1];
+
+            arg++;
         } else if (scriptFilename.empty() && !argString.empty() && argString.substr(0, 1) != NSTRING("-")) {
             scriptFilename = argString;
         } else if (outputFilename.empty() && !argString.empty() && (argString == NSTRING("-") || (argString.substr(0, 1) != NSTRING("-")))) {
@@ -475,6 +552,18 @@ int main(int argc, char **argv) {
 #endif
         if (!outFile) {
             fprintf(stderr, "Failed to open output for writing\n");
+            return 1;
+        }
+    }
+
+    if (timecodes) {
+#ifdef VS_TARGET_OS_WINDOWS
+        timecodesFile = _wfopen(timecodesFilename.c_str(), L"wb");
+#else
+        timecodesFile = fopen(timecodesFilename.c_str(), "wb");
+#endif
+        if (!timecodesFile) {
+            fprintf(stderr, "Failed to open timecodes file for writing\n");
             return 1;
         }
     }
@@ -577,6 +666,8 @@ int main(int argc, char **argv) {
     }
 
     fflush(outFile);
+    if (timecodesFile)
+        fclose(timecodesFile);
 
     if (!showInfo) {
         int totalFrames = outputFrames - startFrame;
