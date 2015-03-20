@@ -783,7 +783,7 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
     const VSFormat *fi = vsapi->getFrameFormat(f);
     
     if (fi->id == pfYUV422P10 && parent->enable_v210) {
-        taffy_param p = {0};
+        taffy_param p = {};
         for (int plane = 0; plane < 3; plane++) {
             p.srcp[plane] = vsapi->getReadPtr(f, plane);
             p.src_stride[plane] = vsapi->getStride(f, plane);

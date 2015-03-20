@@ -1,4 +1,5 @@
 r27:
+vspipe can now output timecode v2 files (nodame)
 splice and interleave now properly reject clips with mismatched fps unless mismatch is set
 fixed possible bad behavior/crash in FrameEval under rare circumstances
 fixed truncation of last digit of integers in text.FrameProps
