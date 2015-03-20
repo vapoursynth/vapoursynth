@@ -188,8 +188,6 @@ BOOL APIENTRY DllMain(HANDLE hModule, ULONG ulReason, LPVOID lpReserved) {
     return TRUE;
 }
 
-// From the Microsoft AVIFile docs.  Dense code...
-
 STDAPI DllGetClassObject(const CLSID& rclsid, const IID& riid, void **ppv) {
 
     if (rclsid != CLSID_VapourSynth)

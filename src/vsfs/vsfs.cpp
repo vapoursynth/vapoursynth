@@ -143,7 +143,7 @@ std::string get_file_contents(const char *filename)
 // (Re)Open the Script File
 int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName)
 {
-    char szScriptName[MAX_PATH*2];
+    char szScriptName[MAX_PATH * 2] = {};
     WideCharToMultiByte(CP_UTF8, 0, wszScriptName, -1, szScriptName, sizeof(szScriptName), NULL, NULL);
     if(*szScriptName)
     {
