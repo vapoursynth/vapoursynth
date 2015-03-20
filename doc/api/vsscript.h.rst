@@ -135,7 +135,7 @@ vsscript_evaluateScript
 
     Restores the working directory before returning.
 
-    Returns non-zero in case of errors. The error message can be retrieved with vsscript_getError_\ ().
+    Returns non-zero in case of errors. The error message can be retrieved with vsscript_getError_\ (), except when allocating the new VSScript object fails. In that case, *handle* remains a pointer to NULL, thus there is no error message to retrieve.
 
     
 vsscript_evaluateFile
@@ -157,7 +157,7 @@ vsscript_createScript
 
     If *handle* points to an existing script environment, you must call vsscript_freeScript_\ () first to avoid leaking memory.
 
-    Returns non-zero in case of errors. The error message can be retrieved with vsscript_getError_\ ().
+    Returns non-zero in case of errors. The error message can be retrieved with vsscript_getError_\ (), except when allocating the new VSScript object fails. In that case, *handle* becomes a pointer to NULL, thus there is no error message to retrieve.
 
 
 vsscript_freeScript
@@ -186,6 +186,8 @@ vsscript_getError
 .. c:function:: const char * vsscript_getError(VSScript *handle)
 
     Returns the error message from a script environment, or NULL, if there is no error message.
+
+    Don't pass NULL.
     
     VSScript retains ownership of the pointer.
 
