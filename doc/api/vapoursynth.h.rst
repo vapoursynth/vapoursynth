@@ -2565,6 +2565,8 @@ typedef const VSFrameRef_ \*(VS_CC \*VSFilterGetFrame)(int n, int activationReas
       It must be deallocated before the last call for the given frame
       (arAllFramesReady or error).
 
+      By default, *frameData* is a pointer to NULL.
+
    Return a reference to the output frame number *n* when it is ready, or NULL.
    The ownership of the frame is transferred to the caller.
 
