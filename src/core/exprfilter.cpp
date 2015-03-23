@@ -452,6 +452,232 @@ static size_t parseExpression(const std::string &expr, std::vector<ExprOp> &ops,
     return maxStackSize;
 }
 
+static float calculateOneOperand(uint32_t op, float a) {
+    switch (op) {
+        case opSqrt:
+            return sqrtf(a);
+        case opAbs:
+            return fabsf(a);
+        case opNeg:
+            return (a > 0) ? 0.0f : 1.0f;
+        case opExp:
+            return expf(a);
+        case opLog:
+            return logf(a);
+    }
+
+    return 0.0f;
+}
+
+static float calculateTwoOperands(uint32_t op, float a, float b) {
+    switch (op) {
+        case opAdd:
+            return a + b;
+        case opSub:
+            return a - b;
+        case opMul:
+            return a * b;
+        case opDiv:
+            return a / b;
+        case opMax:
+            return std::max(a, b);
+        case opMin:
+            return std::min(a, b);
+        case opGt:
+            return (a > b) ? 1.0f : 0.0f;
+        case opLt:
+            return (a < b) ? 1.0f : 0.0f;
+        case opEq:
+            return (a == b) ? 1.0f : 0.0f;
+        case opLE:
+            return (a <= b) ? 1.0f : 0.0f;
+        case opGE:
+            return (a >= b) ? 1.0f : 0.0f;
+        case opAnd:
+            return (a > 0 && b > 0) ? 1.0f : 0.0f;
+        case opOr:
+            return (a > 0 || b > 0) ? 1.0f : 0.0f;
+        case opXor:
+            return ((a > 0) != (b > 0)) ? 1.0f : 0.0f;
+        case opPow:
+            return powf(a, b);
+    }
+
+    return 0.0f;
+}
+
+static int numOperands(uint32_t op) {
+    switch (op) {
+        case opDup:
+        case opSqrt:
+        case opAbs:
+        case opNeg:
+        case opExp:
+        case opLog:
+            return 1;
+
+        case opSwap:
+        case opAdd:
+        case opSub:
+        case opMul:
+        case opDiv:
+        case opMax:
+        case opMin:
+        case opGt:
+        case opLt:
+        case opEq:
+        case opLE:
+        case opGE:
+        case opAnd:
+        case opOr:
+        case opXor:
+        case opPow:
+            return 2;
+
+        case opTernary:
+            return 3;
+    }
+
+    return 0;
+}
+
+static bool isLoadOp(uint32_t op) {
+    switch (op) {
+        case opLoadConst:
+        case opLoadSrc8:
+        case opLoadSrc16:
+        case opLoadSrcF:
+            return true;
+    }
+
+    return false;
+}
+
+static void findBranches(std::vector<ExprOp> &ops, size_t pos, size_t *start1, size_t *start2, size_t *start3) {
+    int operands = numOperands(ops[pos].op);
+
+    size_t temp1, temp2, temp3;
+
+    if (operands == 1) {
+        if (isLoadOp(ops[pos - 1].op)) {
+            *start1 = pos - 1;
+        } else {
+            findBranches(ops, pos - 1, &temp1, &temp2, &temp3);
+            *start1 = temp1;
+        }
+    } else if (operands == 2) {
+        if (isLoadOp(ops[pos - 1].op)) {
+            *start2 = pos - 1;
+        } else {
+            findBranches(ops, pos - 1, &temp1, &temp2, &temp3);
+            *start2 = temp1;
+        }
+
+        if (isLoadOp(ops[*start2 - 1].op)) {
+            *start1 = *start2 - 1;
+        } else {
+            findBranches(ops, *start2 - 1, &temp1, &temp2, &temp3);
+            *start1 = temp1;
+        }
+    } else if (operands == 3) {
+        if (isLoadOp(ops[pos - 1].op)) {
+            *start3 = pos - 1;
+        } else {
+            findBranches(ops, pos - 1, &temp1, &temp2, &temp3);
+            *start3 = temp1;
+        }
+
+        if (isLoadOp(ops[*start3 - 1].op)) {
+            *start2 = *start3 - 1;
+        } else {
+            findBranches(ops, *start3 - 1, &temp1, &temp2, &temp3);
+            *start2 = temp1;
+        }
+
+        if (isLoadOp(ops[*start2 - 1].op)) {
+            *start1 = *start2 - 1;
+        } else {
+            findBranches(ops, *start2 - 1, &temp1, &temp2, &temp3);
+            *start1 = temp1;
+        }
+    }
+}
+
+static void foldConstants(std::vector<ExprOp> &ops) {
+    for (size_t i = 0; i < ops.size(); i++) {
+        switch (ops[i].op) {
+            case opDup:
+                if (ops[i - 1].op == opLoadConst) {
+                    ops[i] = ops[i - 1];
+                }
+                break;
+
+            case opSqrt:
+            case opAbs:
+            case opNeg:
+            case opExp:
+            case opLog:
+                if (ops[i - 1].op == opLoadConst) {
+                    ops[i].e.fval = calculateOneOperand(ops[i].op, ops[i - 1].e.fval);
+                    ops[i].op = opLoadConst;
+                    ops.erase(ops.begin() + i - 1);
+                    i--;
+                }
+                break;
+
+            case opSwap:
+                if (ops[i - 2].op == opLoadConst && ops[i - 1].op == opLoadConst) {
+                    const float temp = ops[i - 2].e.fval;
+                    ops[i - 2].e.fval = ops[i - 1].e.fval;
+                    ops[i - 1].e.fval = temp;
+                    ops.erase(ops.begin() + i);
+                    i--;
+                }
+                break;
+
+            case opAdd:
+            case opSub:
+            case opMul:
+            case opDiv:
+            case opMax:
+            case opMin:
+            case opGt:
+            case opLt:
+            case opEq:
+            case opLE:
+            case opGE:
+            case opAnd:
+            case opOr:
+            case opXor:
+            case opPow:
+                if (ops[i - 2].op == opLoadConst && ops[i - 1].op == opLoadConst) {
+                    ops[i].e.fval = calculateTwoOperands(ops[i].op, ops[i - 2].e.fval, ops[i - 1].e.fval);
+                    ops[i].op = opLoadConst;
+                    ops.erase(ops.begin() + i - 2, ops.begin() + i);
+                    i -= 2;
+                }
+                break;
+
+            case opTernary:
+                size_t start1, start2, start3;
+                findBranches(ops, i, &start1, &start2, &start3);
+                if (ops[start1].op == opLoadConst) {
+                    ops.erase(ops.begin() + i);
+                    if (ops[start1].e.fval > 0.0f) {
+                        ops.erase(ops.begin() + start3, ops.begin() + i);
+                        i = start3;
+                    } else {
+                        ops.erase(ops.begin() + start2, ops.begin() + start3);
+                        i -= start3 - start2;
+                    }
+                    ops.erase(ops.begin() + start1);
+                    i -= 2;
+                }
+                break;
+        }
+    }
+}
+
 static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     ExprData d;
     ExprData *data;
@@ -525,8 +751,10 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
         const SOperation sop[3] = { getLoadOp(vi[0]), getLoadOp(vi[1]), getLoadOp(vi[2]) };
         d.maxStackSize = 0;
-        for (int i = 0; i < d.vi.format->numPlanes; i++)
+        for (int i = 0; i < d.vi.format->numPlanes; i++) {
             d.maxStackSize = std::max(parseExpression(expr[i], d.ops[i], sop, getStoreOp(&d.vi)), d.maxStackSize);
+            foldConstants(d.ops[i]);
+        }
 
     } catch (std::runtime_error &e) {
         for (int i = 0; i < 3; i++)
