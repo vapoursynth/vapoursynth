@@ -248,20 +248,20 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                                 stacktop = std::min(stacktop, stack[si]);
                                 break;
                             case opExp:
-                                stacktop = exp(stacktop);
+                                stacktop = expf(stacktop);
                                 break;
                             case opLog:
-                                stacktop = log(stacktop);
+                                stacktop = logf(stacktop);
                                 break;
                             case opPow:
                                 --si;
-                                stacktop = pow(stack[si], stacktop);
+                                stacktop = powf(stack[si], stacktop);
                                 break;
                             case opSqrt:
-                                stacktop = sqrt(stacktop);
+                                stacktop = sqrtf(stacktop);
                                 break;
                             case opAbs:
-                                stacktop = abs(stacktop);
+                                stacktop = fabsf(stacktop);
                                 break;
                             case opGt:
                                 --si;
