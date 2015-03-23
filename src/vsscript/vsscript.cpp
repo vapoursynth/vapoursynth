@@ -32,7 +32,7 @@ struct VSScript : public VPYScriptExport {
 std::atomic<int> initializationCount(0);
 std::atomic<int> scriptId(1000);
 bool initialized = false;
-PyThreadState *ts = NULL;
+PyThreadState *ts = nullptr;
 PyGILState_STATE s;
 
 static void real_init(void) {
@@ -65,8 +65,8 @@ VS_API(int) vsscript_finalize(void) {
 VS_API(int) vsscript_createScript(VSScript **handle) {
     *handle = new(std::nothrow)VSScript();
     if (*handle) {
-        (*handle)->pyenvdict = NULL;
-        (*handle)->errstr = NULL;
+        (*handle)->pyenvdict = nullptr;
+        (*handle)->errstr = nullptr;
         (*handle)->id = ++scriptId;
         return vpy_createScript(*handle);
     } else {
@@ -75,11 +75,11 @@ VS_API(int) vsscript_createScript(VSScript **handle) {
 }
 
 VS_API(int) vsscript_evaluateScript(VSScript **handle, const char *script, const char *scriptFilename, int flags) {
-    if (*handle == NULL) {
+    if (*handle == nullptr) {
         *handle = new(std::nothrow)VSScript();
         if (*handle) {
-            (*handle)->pyenvdict = NULL;
-            (*handle)->errstr = NULL;
+            (*handle)->pyenvdict = nullptr;
+            (*handle)->errstr = nullptr;
             (*handle)->id = ++scriptId;
         } else {
             return 1;
@@ -89,11 +89,11 @@ VS_API(int) vsscript_evaluateScript(VSScript **handle, const char *script, const
 }
 
 VS_API(int) vsscript_evaluateFile(VSScript **handle, const char *scriptFilename, int flags) {
-    if (*handle == NULL) {
+    if (*handle == nullptr) {
         *handle = new(std::nothrow)VSScript();
         if (*handle) {
-            (*handle)->pyenvdict = NULL;
-            (*handle)->errstr = NULL;
+            (*handle)->pyenvdict = nullptr;
+            (*handle)->errstr = nullptr;
             (*handle)->id = ++scriptId;
         } else {
             return 1;
