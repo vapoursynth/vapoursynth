@@ -53,7 +53,7 @@ unknown. It is also a fatal error to set them to a value not specified below.
    _Field int (0 = from bottom field, 1 = from top field)
 
    If the frame is composed of two independent fields (interlaced).
-   _FieldBased int (0 = frame based, 1 = field based)
+   _FieldBased int (0 or missing = frame based, 1 = BFF, 2 = TFF)
 
    A single character describing the frame type. It uses the common
    IPB letters but other letters may also be used for formats with
