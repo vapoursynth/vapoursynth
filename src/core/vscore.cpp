@@ -1003,9 +1003,10 @@ VSCore::~VSCore() {
 VSMap VSCore::getPlugins() {
     VSMap m;
     std::lock_guard<std::recursive_mutex> lock(pluginLock);
+    int num = 0;
     for (const auto &iter : plugins) {
         std::string b = iter.second->fnamespace + ";" + iter.second->id + ";" + iter.second->fullname;
-        vsapi.propSetData(&m, iter.second->id.c_str(), b.c_str(), static_cast<int>(b.size()), 0);
+        vsapi.propSetData(&m, ("Plugin" + std::to_string(++num)).c_str(), b.c_str(), static_cast<int>(b.size()), 0);
     }
     return m;
 }
