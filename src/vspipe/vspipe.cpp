@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2013-2014 Fredrik Mellbin
+* Copyright (c) 2013-2015 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -71,11 +71,11 @@ std::string nstringToUtf8(const nstring &s) {
 }
 #endif
 
-const VSAPI *vsapi = NULL;
-VSScript *se = NULL;
-VSNodeRef *node = NULL;
-FILE *outFile = NULL;
-FILE *timecodesFile = NULL;
+const VSAPI *vsapi = nullptr;
+VSScript *se = nullptr;
+VSNodeRef *node = nullptr;
+FILE *outFile = nullptr;
+FILE *timecodesFile = nullptr;
 
 int requests = 0;
 int outputIndex = 0;
@@ -220,7 +220,7 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
     }
 
     if (requestedFrames < totalFrames) {
-        vsapi->getFrameAsync(requestedFrames, node, frameDoneCallback, NULL);
+        vsapi->getFrameAsync(requestedFrames, node, frameDoneCallback, nullptr);
         requestedFrames++;
     }
 
@@ -310,7 +310,7 @@ bool outputNode() {
     int intitalRequestSize = std::min(requests, totalFrames - requestStart);
     requestedFrames = requestStart + intitalRequestSize;
     for (int n = requestStart; n < requestStart + intitalRequestSize; n++)
-        vsapi->getFrameAsync(n, node, frameDoneCallback, NULL);
+        vsapi->getFrameAsync(n, node, frameDoneCallback, nullptr);
 
     condition.wait(lock);
 
