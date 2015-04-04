@@ -286,6 +286,8 @@ static void VS_CC assFree(void *instanceData, VSCore *core, const VSAPI *vsapi)
 {
     AssData *d = (AssData *)instanceData;
     vsapi->freeNode(d->node);
+    vsapi->freeFrame(d->lastframe);
+    vsapi->freeFrame(d->lastalpha);
     ass_renderer_done(d->ass_renderer);
     ass_library_done(d->ass_library);
     ass_free_track(d->ass);
