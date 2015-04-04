@@ -26,6 +26,7 @@
 #include <algorithm>
 #include <stdexcept>
 #include <memory>
+#include <cmath>
 #include "VapourSynth.h"
 #include "VSHelper.h"
 #include "exprfilter.h"
@@ -248,20 +249,20 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                                 stacktop = std::min(stacktop, stack[si]);
                                 break;
                             case opExp:
-                                stacktop = expf(stacktop);
+                                stacktop = std::exp(stacktop);
                                 break;
                             case opLog:
-                                stacktop = logf(stacktop);
+                                stacktop = std::log(stacktop);
                                 break;
                             case opPow:
                                 --si;
-                                stacktop = powf(stack[si], stacktop);
+                                stacktop = std::pow(stack[si], stacktop);
                                 break;
                             case opSqrt:
-                                stacktop = sqrtf(stacktop);
+                                stacktop = std::sqrt(stacktop);
                                 break;
                             case opAbs:
-                                stacktop = fabsf(stacktop);
+                                stacktop = std::abs(stacktop);
                                 break;
                             case opGt:
                                 --si;
@@ -455,15 +456,15 @@ static size_t parseExpression(const std::string &expr, std::vector<ExprOp> &ops,
 static float calculateOneOperand(uint32_t op, float a) {
     switch (op) {
         case opSqrt:
-            return sqrtf(a);
+            return std::sqrt(a);
         case opAbs:
-            return fabsf(a);
+            return std::abs(a);
         case opNeg:
             return (a > 0) ? 0.0f : 1.0f;
         case opExp:
-            return expf(a);
+            return std::exp(a);
         case opLog:
-            return logf(a);
+            return std::log(a);
     }
 
     return 0.0f;
@@ -500,7 +501,7 @@ static float calculateTwoOperands(uint32_t op, float a, float b) {
         case opXor:
             return ((a > 0) != (b > 0)) ? 1.0f : 0.0f;
         case opPow:
-            return powf(a, b);
+            return std::pow(a, b);
     }
 
     return 0.0f;
