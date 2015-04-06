@@ -46,6 +46,8 @@ libvapoursynth_la_SOURCES = src/core/cachefilter.cpp \
 							src/core/exprfilter.cpp \
 							src/core/exprfilter.h \
 							src/core/filtershared.h \
+							src/core/genericfilters.cpp \
+							src/core/genericfilters.h \
 							src/core/lutfilters.c \
 							src/core/lutfilters.h \
 							src/core/mergefilters.c \

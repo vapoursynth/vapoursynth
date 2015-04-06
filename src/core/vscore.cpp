@@ -49,6 +49,7 @@ extern "C" {
 #include "cachefilter.h"
 #include "exprfilter.h"
 #include "textfilter.h"
+#include "genericfilters.h"
 
 static inline bool isAlpha(char c) {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
@@ -906,6 +907,7 @@ VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), formatIdO
     loadPluginInitialize(::configPlugin, ::registerFunction, p);
     cacheInitialize(::configPlugin, ::registerFunction, p);
     exprInitialize(::configPlugin, ::registerFunction, p);
+    genericInitialize(::configPlugin, ::registerFunction, p);
     lutInitialize(::configPlugin, ::registerFunction, p);
     mergeInitialize(::configPlugin, ::registerFunction, p);
     reorderInitialize(::configPlugin, ::registerFunction, p);
