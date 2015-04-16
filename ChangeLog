@@ -1,4 +1,8 @@
 r27:
+changed the meaning of _FieldBased to be able to signal progressive/bff/tff material, this is now used by ffms2, eedi3 and separatefields
+fixed memory leak in assvapour
+the identifiers used for keys in vsmap can only be alphanumeric and _, anything else will be rejected
+the expr filter now does constant folding which makes it faster in many cases (nodame)
 vspipe can now output timecode v2 files (nodame)
 splice and interleave now properly reject clips with mismatched fps unless mismatch is set
 fixed possible bad behavior/crash in FrameEval under rare circumstances
