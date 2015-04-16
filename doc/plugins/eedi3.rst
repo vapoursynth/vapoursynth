@@ -22,7 +22,7 @@ small changes).
          Clip to be processed. The bit depth must be 8 bits per sample.
 
       field
-         Selects the mode of operation and which field will be kept. Mode 2 and 3 will use the field order specified in the source frames and will only fall back to the specified order if not present.
+         Selects the mode of operation and which field will be kept. All modes will use the field order specified in the source frames and will only fall back to the specified order if not present.
 
          0 - same rate, keep bottom field
 
