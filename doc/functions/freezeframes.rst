@@ -17,4 +17,4 @@ FreezeFrames
    original frame number 2, not frame number 2 after it was replaced with
    number 8 by the first range).
 
-   The frame ranges must not overlap and must be in ascending order.
+   The frame ranges must not overlap.

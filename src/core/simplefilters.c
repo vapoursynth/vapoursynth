@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2013 Fredrik Mellbin
+* Copyright (c) 2012-2015 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -84,14 +84,12 @@ static const VSFrameRef *VS_CC cropAbsGetframe(int n, int activationReason, void
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        int plane;
-        int hloop;
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSFormat *fi = vsapi->getFrameFormat(src);
         VSFrameRef *dst = vsapi->newVideoFrame(fi, d->width, d->height, src, core);
 
         // now that argument validation is over we can spend the next few lines actually cropping
-        for (plane = 0; plane < fi->numPlanes; plane++) {
+        for (int plane = 0; plane < fi->numPlanes; plane++) {
             int rowsize = (d->width >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample;
             int srcstride = vsapi->getStride(src, plane);
             int dststride = vsapi->getStride(dst, plane);
@@ -101,7 +99,7 @@ static const VSFrameRef *VS_CC cropAbsGetframe(int n, int activationReason, void
             srcdata += srcstride * (d->y >> (plane ? fi->subSamplingH : 0));
             srcdata += (d->x >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample;
 
-            for (hloop = 0; hloop < pheight; hloop++) {
+            for (int hloop = 0; hloop < pheight; hloop++) {
                 memcpy(dstdata, srcdata, rowsize);
                 srcdata += srcstride;
                 dstdata += dststride;
@@ -166,7 +164,7 @@ static void VS_CC cropRelCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
     // passthrough for the no cropping case
     if (d.x == 0 && d.y == 0 && d.width == d.vi->width && d.height == d.vi->height) {
-        vsapi->propSetNode(out, "clip", d.node, 0);
+        vsapi->propSetNode(out, "clip", d.node, paReplace);
         vsapi->freeNode(d.node);
         return;
     }
@@ -236,8 +234,6 @@ static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, v
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        int plane;
-        int hloop;
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSFormat *fi = vsapi->getFrameFormat(src);
         VSFrameRef *dst;
@@ -251,7 +247,7 @@ static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, v
         dst = vsapi->newVideoFrame(fi, vsapi->getFrameWidth(src, 0) + d->left + d->right, vsapi->getFrameHeight(src, 0) + d->top + d->bottom, src, core);
 
         // now that argument validation is over we can spend the next few lines actually adding borders
-        for (plane = 0; plane < fi->numPlanes; plane++) {
+        for (int plane = 0; plane < fi->numPlanes; plane++) {
             int rowsize = vsapi->getFrameWidth(src, plane) * fi->bytesPerSample;
             int srcstride = vsapi->getStride(src, plane);
             int dststride = vsapi->getStride(dst, plane);
@@ -277,7 +273,7 @@ static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, v
             }
             dstdata += padt * dststride;
 
-            for (hloop = 0; hloop < srcheight; hloop++) {
+            for (int hloop = 0; hloop < srcheight; hloop++) {
                 switch (d->vi->format->bytesPerSample) {
                 case 1:
                     vs_memset8(dstdata, color, padl);
@@ -409,16 +405,15 @@ static const VSFrameRef *VS_CC shufflePlanesGetframe(int n, int activationReason
             vsapi->requestFrameFilter(n, d->node[2], frameCtx);
     } else if (activationReason == arAllFramesReady) {
         if (d->vi.format->colorFamily != cmGray) {
-            int i;
             const VSFrameRef *src[3];
             VSFrameRef *dst;
 
-            for (i = 0; i < 3; i++)
+            for (int i = 0; i < 3; i++)
                 src[i] = vsapi->getFrameFilter(n, d->node[i], frameCtx);
 
             dst = vsapi->newVideoFrame2(d->vi.format, d->vi.width, d->vi.height, src, d->plane, src[0], core);
 
-            for (i = 0; i < 3; i++)
+            for (int i = 0; i < 3; i++)
                 vsapi->freeFrame(src[i]);
 
             return dst;
@@ -445,23 +440,17 @@ static const VSFrameRef *VS_CC shufflePlanesGetframe(int n, int activationReason
 
 static void VS_CC shufflePlanesFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     ShufflePlanesData *d = (ShufflePlanesData *)instanceData;
-    int i;
-
-    for (i = 0; i < 3; i++)
+    for (int i = 0; i < 3; i++)
         vsapi->freeNode(d->node[i]);
-
     free(d);
 }
 
-#define SHUFFLEERROR(x) do { for (i = 0; i < 3; i++) vsapi->freeNode(d.node[i]); RETERROR(x); } while (0)
+#define SHUFFLEERROR(x) do { for (int j = 0; j < 3; j++) vsapi->freeNode(d.node[j]); RETERROR(x); } while (0)
 
 static int findSubSampling(int s1, int s2) {
-    int i;
-
-    for (i = 0; i < 6; i++)
+    for (int i = 0; i < 6; i++)
         if (s1 - (s2 << i) == 0)
             return i;
-
     return -1;
 }
 
@@ -470,11 +459,9 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
     ShufflePlanesData *data;
     int nclips = vsapi->propNumElements(in, "clips");
     int nplanes = vsapi->propNumElements(in, "planes");
-    int i;
     int err;
-    int outplanes;
 
-    for (i = 0; i < 3; i++) {
+    for (int i = 0; i < 3; i++) {
         d.plane[i] = 0;
         d.node[i] = 0;
     }
@@ -484,7 +471,7 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
     if (d.format != cmRGB && d.format != cmYUV && d.format != cmYCoCg && d.format != cmGray)
         RETERROR("ShufflePlanes: invalid output colorfamily");
 
-    outplanes = (d.format == cmGray ? 1 : 3);
+    int outplanes = (d.format == cmGray ? 1 : 3);
 
     // please don't make this assumption if you ever write a plugin, it's only accepted in the core where all existing color families may be known
     if (nclips > outplanes)
@@ -493,13 +480,13 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
     if (nplanes > outplanes)
         RETERROR("ShufflePlanes: too many planes specified");
 
-    for (i = 0; i < nplanes; i++)
+    for (int i = 0; i < nplanes; i++)
         d.plane[i] = int64ToIntS(vsapi->propGetInt(in, "planes", i, 0));
 
-    for (i = 0; i < 3; i++)
+    for (int i = 0; i < 3; i++)
         d.node[i] = vsapi->propGetNode(in, "clips", i, &err);
 
-    for (i = 0; i < 3; i++) {
+    for (int i = 0; i < 3; i++) {
         if (d.node[i] && isCompatFormat(vsapi->getVideoInfo(d.node[i])))
             SHUFFLEERROR("ShufflePlanes: compat formats not supported");
         if (d.node[i] && !isConstantFormat(vsapi->getVideoInfo(d.node[i])))
@@ -513,7 +500,7 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
         d.node[2] = vsapi->cloneNodeRef(d.node[1]);
     }
 
-    for (i = 0; i < outplanes; i++) {
+    for (int i = 0; i < outplanes; i++) {
         if (d.plane[i] < 0 || (vsapi->getVideoInfo(d.node[i])->format && d.plane[i] >= vsapi->getVideoInfo(d.node[i])->format->numPlanes))
             SHUFFLEERROR("ShufflePlanes: invalid plane specified");
     }
@@ -535,8 +522,6 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
         int c1width = planeWidth(vsapi->getVideoInfo(d.node[1]), d.plane[1]);
         int c2height = planeHeight(vsapi->getVideoInfo(d.node[2]), d.plane[2]);
         int c2width = planeWidth(vsapi->getVideoInfo(d.node[2]), d.plane[2]);
-        int ssH;
-        int ssW;
 
         d.vi.width = c0width;
         d.vi.height = c0height;
@@ -544,16 +529,16 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
         if (c1width != c2width || c1height != c2height)
             SHUFFLEERROR("ShufflePlanes: plane 1 and 2 do not have the same size");
 
-        ssH = findSubSampling(c0height, c1height);
-        ssW = findSubSampling(c0width, c1width);
+        int ssH = findSubSampling(c0height, c1height);
+        int ssW = findSubSampling(c0width, c1width);
 
         if (ssH < 0 || ssW < 0)
             SHUFFLEERROR("ShufflePlanes: Plane 1 and 2 are not subsampled multiples of first plane");
 
-        for (i = 1; i < 3; i++) {
+        for (int i = 1; i < 3; i++) {
             const VSVideoInfo *pvi = vsapi->getVideoInfo(d.node[i]);
 
-            if (d.vi.numFrames && (!pvi->numFrames || d.vi.numFrames < pvi->numFrames))
+            if (d.vi.numFrames < pvi->numFrames)
                 d.vi.numFrames = pvi->numFrames;
 
             // simple binary compatibility
@@ -585,9 +570,6 @@ typedef struct {
 
 static void VS_CC separateFieldsInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     SeparateFieldsData *d = (SeparateFieldsData *) * instanceData;
-    d->vi.numFrames *= 2;
-    d->vi.height /= 2;
-    d->vi.fpsNum *= 2;
     vsapi->setVideoInfo(&d->vi, 1, node);
 }
 
@@ -608,23 +590,21 @@ static const VSFrameRef *VS_CC separateFieldsGetframe(int n, int activationReaso
             effectiveTFF = 1;
 
         VSFrameRef *dst = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, src, core);
-        int plane;
-        vsapi->propSetInt(vsapi->getFramePropsRW(dst), "_Field", ((n & 1) ^ effectiveTFF), 0);
+        vsapi->propSetInt(vsapi->getFramePropsRW(dst), "_Field", ((n & 1) ^ effectiveTFF), paReplace);
 
-        for (plane = 0; plane < d->vi.format->numPlanes; plane++) {
+        for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {
             const uint8_t *srcp = vsapi->getReadPtr(src, plane);
             int src_stride = vsapi->getStride(src, plane);
             uint8_t *dstp = vsapi->getWritePtr(dst, plane);
             int dst_stride = vsapi->getStride(dst, plane);
             int h = vsapi->getFrameHeight(dst, plane);
-            int hl;
 
             if (!((n & 1) ^ effectiveTFF))
                 srcp += src_stride;
 
             src_stride *= 2;
 
-            for (hl = 0; hl < h; hl++) {
+            for (int hl = 0; hl < h; hl++) {
                 memcpy(dstp, srcp, dst_stride);
                 srcp += src_stride;
                 dstp += dst_stride;
@@ -656,6 +636,14 @@ static void VS_CC separateFieldsCreate(const VSMap *in, VSMap *out, void *userDa
         RETERROR("SeparateFields: clip height must be mod 2 in the smallest subsampled plane");
     }
 
+    int64_t temp = (int64_t)d.vi.numFrames * 2;
+    if (temp > INT_MAX) {
+        vsapi->freeNode(d.node);
+        RETERROR("SeparateFields: resulting clip is too long");
+    }
+
+    d.vi.height /= 2;
+
     data = malloc(sizeof(d));
     *data = d;
 
@@ -673,7 +661,6 @@ typedef struct {
 
 static void VS_CC doubleWeaveInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     DoubleWeaveData *d = (DoubleWeaveData *) * instanceData;
-    d->vi.height *= 2;
     vsapi->setVideoInfo(&d->vi, 1, node);
 }
 
@@ -684,7 +671,6 @@ static const VSFrameRef *VS_CC doubleWeaveGetframe(int n, int activationReason, 
         vsapi->requestFrameFilter(n, d->node, frameCtx);
         vsapi->requestFrameFilter(n + 1, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        int plane;
         int par = (n & 1) ^ d->tff;
         const VSFrameRef *srctop = vsapi->getFrameFilter(n + !par, d->node, frameCtx);
         const VSFrameRef *srcbtn = vsapi->getFrameFilter(n + par, d->node, frameCtx);
@@ -692,16 +678,15 @@ static const VSFrameRef *VS_CC doubleWeaveGetframe(int n, int activationReason, 
         VSFrameRef *dst = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, srctop, core);
         vsapi->propDeleteKey(vsapi->getFramePropsRW(dst), "_Field");
 
-        for (plane = 0; plane < d->vi.format->numPlanes; plane++) {
+        for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {
             const uint8_t *srcptop = vsapi->getReadPtr(srctop, plane);
             const uint8_t *srcpbtn = vsapi->getReadPtr(srcbtn, plane);
             int src_stride = vsapi->getStride(srcbtn, plane);
             uint8_t *dstp = vsapi->getWritePtr(dst, plane);
             int dst_stride = vsapi->getStride(dst, plane);
             int h = vsapi->getFrameHeight(srctop, plane);
-            int hl;
 
-            for (hl = 0; hl < h; hl++) {
+            for (int hl = 0; hl < h; hl++) {
                 memcpy(dstp, srcptop, dst_stride);
                 dstp += dst_stride;
                 memcpy(dstp, srcpbtn, dst_stride);
@@ -726,6 +711,7 @@ static void VS_CC doubleWeaveCreate(const VSMap *in, VSMap *out, void *userData,
     d.tff = !!vsapi->propGetInt(in, "tff", 0, 0);
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = *vsapi->getVideoInfo(d.node);
+    d.vi.height *= 2;
 
     if (!isConstantFormat(&d.vi)) {
         vsapi->freeNode(d.node);
@@ -747,21 +733,19 @@ static const VSFrameRef *VS_CC flipVerticalGetframe(int n, int activationReason,
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        int plane;
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSFormat *fi = vsapi->getFrameFormat(src);
         VSFrameRef *dst = vsapi->newVideoFrame(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core);
 
-        for (plane = 0; plane < fi->numPlanes; plane++) {
+        for (int plane = 0; plane < fi->numPlanes; plane++) {
             const uint8_t *srcp = vsapi->getReadPtr(src, plane);
             int src_stride = vsapi->getStride(src, plane);
             uint8_t *dstp = vsapi->getWritePtr(dst, plane);
             int dst_stride = vsapi->getStride(dst, plane);
             int h = vsapi->getFrameHeight(src, plane);
-            int hl;
             dstp += dst_stride * (h - 1);
 
-            for (hl = 0; hl < h; hl++) {
+            for (int hl = 0; hl < h; hl++) {
                 memcpy(dstp, srcp, dst_stride);
                 dstp -= dst_stride;
                 srcp += src_stride;
@@ -801,12 +785,11 @@ static const VSFrameRef *VS_CC flipHorizontalGetframe(int n, int activationReaso
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        int plane;
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSFormat *fi = vsapi->getFrameFormat(src);
         VSFrameRef *dst = vsapi->newVideoFrame(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core);
 
-        for (plane = 0; plane < fi->numPlanes; plane++) {
+        for (int plane = 0; plane < fi->numPlanes; plane++) {
             const uint8_t *srcp = vsapi->getReadPtr(src, plane);
             int src_stride = vsapi->getStride(src, plane);
             uint8_t *dstp = vsapi->getWritePtr(dst, plane);
@@ -907,22 +890,20 @@ static void VS_CC stackInit(VSMap *in, VSMap *out, void **instanceData, VSNode *
 
 static const VSFrameRef *VS_CC stackGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     StackData *d = (StackData *) * instanceData;
-    int i;
 
     if (activationReason == arInitial) {
-        for (i = 0; i < d->numclips; i++)
+        for (int i = 0; i < d->numclips; i++)
             vsapi->requestFrameFilter(n, d->node[i], frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        int plane;
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node[0], frameCtx);
         VSFrameRef *dst = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, src, core);
         vsapi->freeFrame(src);
 
-        for (plane = 0; plane < d->vi.format->numPlanes; plane++) {
+        for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {
             uint8_t *dstp = vsapi->getWritePtr(dst, plane);
             int dst_stride = vsapi->getStride(dst, plane);
 
-            for (i = 0; i < d->numclips; i++) {
+            for (int i = 0; i < d->numclips; i++) {
                 src = vsapi->getFrameFilter(n, d->node[i], frameCtx);
 
                 if (d->vertical) {
@@ -953,9 +934,7 @@ static const VSFrameRef *VS_CC stackGetframe(int n, int activationReason, void *
 
 static void VS_CC stackFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     StackData *d = (StackData *)instanceData;
-    int i;
-
-    for (i = 0; i < d->numclips; i++)
+    for (int i = 0; i < d->numclips; i++)
         vsapi->freeNode(d->node[i]);
 
     free(d->node);
@@ -966,37 +945,38 @@ static void VS_CC stackCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     StackData d;
     StackData *data;
     VSNodeRef *cref;
-    int i;
 
     d.vertical = int64ToIntS((intptr_t)userData);
     d.numclips = vsapi->propNumElements(in, "clips");
 
     if (d.numclips == 1) { // passthrough for the special case with only one clip
         cref = vsapi->propGetNode(in, "clips", 0, 0);
-        vsapi->propSetNode(out, "clip", cref, 0);
+        vsapi->propSetNode(out, "clip", cref, paReplace);
         vsapi->freeNode(cref);
     } else {
         d.node = malloc(sizeof(d.node[0]) * d.numclips);
 
-        for (i = 0; i < d.numclips; i++)
+        for (int i = 0; i < d.numclips; i++)
             d.node[i] = vsapi->propGetNode(in, "clips", i, 0);
 
         d.vi = *vsapi->getVideoInfo(d.node[0]);
 
-        for (i = 1; i < d.numclips; i++) {
+        for (int i = 1; i < d.numclips; i++) {
             const VSVideoInfo *vi = vsapi->getVideoInfo(d.node[i]);
 
-            if (!vi->numFrames)
-                d.vi.numFrames = 0;
-            else if (d.vi.numFrames && d.vi.numFrames < vi->numFrames)
+            if (d.vi.numFrames < vi->numFrames)
                 d.vi.numFrames = vi->numFrames;
 
             if (!isConstantFormat(vi) || vi->format != d.vi.format || (d.vertical && vi->width != d.vi.width) || (!d.vertical && vi->height != d.vi.height)) {
-                for (i = 0; i < d.numclips; i++)
-                    vsapi->freeNode(d.node[i]);
+                for (int j = 0; j < d.numclips; j++)
+                    vsapi->freeNode(d.node[j]);
 
                 free(d.node);
-                RETERROR("Stack: clip format and dimensions must match");
+                if (d.vertical) {
+                    RETERROR("StackVertical: clip format and width must match");
+                } else {
+                    RETERROR("StackHorizontal: clip format and height must match");
+                }
             }
 
             if (d.vertical)
@@ -1043,13 +1023,9 @@ static inline uint16_t float_to_half(float x) {
     uint32_t f16inf = 31UL << 23;
     uint32_t sign_mask = 0x80000000UL;
     uint32_t round_mask = ~0x0FFFU;
-
-    uint32_t f;
-    uint32_t sign;
     uint16_t ret;
-
-    f = bit_cast_uint32(x);
-    sign = f & sign_mask;
+    uint32_t f = bit_cast_uint32(x);
+    uint32_t sign = f & sign_mask;
     f ^= sign;
 
     if (f >= inf) {
@@ -1077,14 +1053,13 @@ static void VS_CC blankClipInit(VSMap *in, VSMap *out, void **instanceData, VSNo
 static const VSFrameRef *VS_CC blankClipGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     BlankClipData *d = (BlankClipData *) * instanceData;
     VSMap *frameProps;
-    int plane;
 
     if (activationReason == arInitial) {
         VSFrameRef *frame = NULL;
         if (!d->f) {
             frame = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, 0, core);
 
-            for (plane = 0; plane < d->vi.format->numPlanes; plane++) {
+            for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {
                 switch (d->vi.format->bytesPerSample) {
                 case 1:
                     vs_memset8(vsapi->getWritePtr(frame, plane), d->color.i[plane], vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane));
@@ -1100,8 +1075,8 @@ static const VSFrameRef *VS_CC blankClipGetframe(int n, int activationReason, vo
 
             frameProps = vsapi->getFramePropsRW(frame);
 
-            vsapi->propSetInt(frameProps, "_DurationNum", d->vi.fpsDen, 0);
-            vsapi->propSetInt(frameProps, "_DurationDen", d->vi.fpsNum, 0);
+            vsapi->propSetInt(frameProps, "_DurationNum", d->vi.fpsDen, paReplace);
+            vsapi->propSetInt(frameProps, "_DurationDen", d->vi.fpsNum, paReplace);
         }
 
         if (d->keep) {
@@ -1125,17 +1100,14 @@ static void VS_CC blankClipFree(void *instanceData, VSCore *core, const VSAPI *v
 static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     BlankClipData d;
     BlankClipData *data;
-    VSNodeRef *node;
     int hasvi = 0;
     int format = 0;
-    int ncolors;
     int64_t temp;
     int err;
-    int i;
     int compat = 0;
     memset(&d, 0, sizeof(d));
 
-    node = vsapi->propGetNode(in, "clip", 0, &err);
+    VSNodeRef *node = vsapi->propGetNode(in, "clip", 0, &err);
 
     if (!err) {
         d.vi = *vsapi->getVideoInfo(node);
@@ -1184,7 +1156,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
         d.vi.fpsDen = temp;
 
     if (d.vi.fpsDen < 1 || d.vi.fpsNum < 1)
-        RETERROR("BlankClip: Invalid framerate specified");
+        RETERROR("BlankClip: invalid framerate specified");
 
     format = int64ToIntS(vsapi->propGetInt(in, "format", 0, &err));
 
@@ -1196,7 +1168,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
         d.vi.format = vsapi->getFormatPreset(format, core);
 
     if (!d.vi.format)
-        RETERROR("BlankClip: Invalid format");
+        RETERROR("BlankClip: invalid format");
 
     temp = vsapi->propGetInt(in, "length", 0, &err);
 
@@ -1207,20 +1179,20 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     else
         d.vi.numFrames = int64ToIntS(temp);
     if (d.vi.width <= 0 || d.vi.width % (1 << d.vi.format->subSamplingW))
-        RETERROR("BlankClip: Invalid width");
+        RETERROR("BlankClip: invalid width");
 
     if (d.vi.height <= 0 || d.vi.height % (1 << d.vi.format->subSamplingH))
-        RETERROR("BlankClip: Invalid height");
+        RETERROR("BlankClip: invalid height");
 
-    if (d.vi.numFrames < 0)
-        RETERROR("BlankClip: Invalid length");
+    if (d.vi.numFrames <= 0)
+        RETERROR("BlankClip: invalid length");
 
     setBlack(d.color.i, d.vi.format);
 
-    ncolors = vsapi->propNumElements(in, "color");
+    int ncolors = vsapi->propNumElements(in, "color");
 
     if (ncolors == d.vi.format->numPlanes) {
-        for (i = 0; i < ncolors; i++) {
+        for (int i = 0; i < ncolors; i++) {
             double lcolor = vsapi->propGetFloat(in, "color", i, 0);
             if (d.vi.format->sampleType == stInteger) {
                 d.color.i[i] = (int)(lcolor + 0.5);
@@ -1275,8 +1247,8 @@ static const VSFrameRef *VS_CC assumeFPSGetframe(int n, int activationReason, vo
         VSFrameRef *dst = vsapi->copyFrame(src, core);
         VSMap *m = vsapi->getFramePropsRW(dst);
         vsapi->freeFrame(src);
-        vsapi->propSetInt(m, "_DurationNum", d->vi.fpsDen, 0);
-        vsapi->propSetInt(m, "_DurationDen", d->vi.fpsNum, 0);
+        vsapi->propSetInt(m, "_DurationNum", d->vi.fpsDen, paReplace);
+        vsapi->propSetInt(m, "_DurationDen", d->vi.fpsNum, paReplace);
         return dst;
     }
 
@@ -1316,12 +1288,12 @@ static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, V
 
     if (hasfps == hassrc) {
         vsapi->freeNode(d.node);
-        RETERROR("AssumeFPS: Need to specify source clip or fps");
+        RETERROR("AssumeFPS: need to specify source clip or fps");
     }
 
     if (d.vi.fpsDen < 1 || d.vi.fpsNum < 1) {
         vsapi->freeNode(d.node);
-        RETERROR("AssumeFPS: Invalid framerate specified");
+        RETERROR("AssumeFPS: invalid framerate specified");
     }
 
     data = malloc(sizeof(d));
@@ -1349,16 +1321,15 @@ static void VS_CC frameEvalInit(VSMap *in, VSMap *out, void **instanceData, VSNo
 
 static const VSFrameRef *VS_CC frameEvalGetFrameWithProps(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     FrameEvalData *d = (FrameEvalData *) * instanceData;
-    int i;
 
     VSNodeRef *node = NULL;
     if (activationReason == arInitial) {
-        for (i = 0; i < d->numpropsrc; i++)
+        for (int i = 0; i < d->numpropsrc; i++)
             vsapi->requestFrameFilter(n, d->propsrc[i], frameCtx);
     } else if (activationReason == arAllFramesReady && !*frameData) {
         int err;
         vsapi->propSetInt(d->in, "n", n, paAppend);
-        for (i = 0; i < d->numpropsrc; i++) {
+        for (int i = 0; i < d->numpropsrc; i++) {
             const VSFrameRef *f = vsapi->getFrameFilter(n, d->propsrc[i], frameCtx);
             vsapi->propSetFrame(d->in, "f", f, paAppend);
             vsapi->freeFrame(f);
@@ -1469,8 +1440,7 @@ static const VSFrameRef *VS_CC frameEvalGetFrameNoProps(int n, int activationRea
 
 static void VS_CC frameEvalFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     FrameEvalData *d = (FrameEvalData *)instanceData;
-    int i;
-    for (i = 0; i < d->numpropsrc; i++)
+    for (int i = 0; i < d->numpropsrc; i++)
         vsapi->freeNode(d->propsrc[i]);
     free(d->propsrc);
     vsapi->freeFunc(d->func);
@@ -1482,7 +1452,6 @@ static void VS_CC frameEvalFree(void *instanceData, VSCore *core, const VSAPI *v
 static void VS_CC frameEvalCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     FrameEvalData d;
     FrameEvalData *data;
-    int i;
     VSNodeRef *node = vsapi->propGetNode(in, "clip", 0, 0);
     d.propsrc = 0;
     d.vi = *vsapi->getVideoInfo(node);
@@ -1493,7 +1462,7 @@ static void VS_CC frameEvalCreate(const VSMap *in, VSMap *out, void *userData, V
         d.numpropsrc = 0;
     if (d.numpropsrc > 0) {
         d.propsrc = malloc(sizeof(VSNodeRef *)*d.numpropsrc);
-        for (i = 0; i < d.numpropsrc; i++)
+        for (int i = 0; i < d.numpropsrc; i++)
             d.propsrc[i] = vsapi->propGetNode(in, "prop_src", i, 0);
     }
 
@@ -1525,10 +1494,9 @@ static void VS_CC modifyFrameInit(VSMap *in, VSMap *out, void **instanceData, VS
 
 static const VSFrameRef *VS_CC modifyFrameGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     ModifyFrameData *d = (ModifyFrameData *) * instanceData;
-    int i;
 
     if (activationReason == arInitial) {
-        for (i = 0; i < d->numnode; i++)
+        for (int i = 0; i < d->numnode; i++)
             vsapi->requestFrameFilter(n, d->node[i], frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *f;
@@ -1536,7 +1504,7 @@ static const VSFrameRef *VS_CC modifyFrameGetFrame(int n, int activationReason, 
 
         vsapi->propSetInt(d->in, "n", n, paAppend);
 
-        for (i = 0; i < d->numnode; i++) {
+        for (int i = 0; i < d->numnode; i++) {
             f = vsapi->getFrameFilter(n, d->node[i], frameCtx);
             vsapi->propSetFrame(d->in, "f", f, paAppend);
             vsapi->freeFrame(f);
@@ -1579,8 +1547,7 @@ static const VSFrameRef *VS_CC modifyFrameGetFrame(int n, int activationReason, 
 
 static void VS_CC modifyFrameFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     ModifyFrameData *d = (ModifyFrameData *)instanceData;
-    int i;
-    for (i = 0; i < d->numnode; i++)
+    for (int i = 0; i < d->numnode; i++)
         vsapi->freeNode(d->node[i]);
     vsapi->freeMap(d->in);
     vsapi->freeMap(d->out);
@@ -1591,14 +1558,13 @@ static void VS_CC modifyFrameFree(void *instanceData, VSCore *core, const VSAPI 
 static void VS_CC modifyFrameCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     ModifyFrameData d;
     ModifyFrameData *data;
-    int i;
     VSNodeRef *formatnode = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = vsapi->getVideoInfo(formatnode);
     vsapi->freeNode(formatnode);
 
     d.numnode = vsapi->propNumElements(in, "clips");
     d.node = malloc(d.numnode * sizeof(d.node[0]));
-    for (i = 0; i < d.numnode; i++)
+    for (int i = 0; i < d.numnode; i++)
         d.node[i] = vsapi->propGetNode(in, "clips", i, 0);
 
     d.func = vsapi->propGetFunc(in, "selector", 0, 0);
@@ -1639,9 +1605,6 @@ static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, vo
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         VSFrameRef *dst = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, src, core);
-        int plane;
-        int x;
-        int y;
         int width, modwidth;
         int height, modheight;
         const uint8_t *srcp;
@@ -1650,13 +1613,14 @@ static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, vo
         int dst_stride;
         int partial_lines;
 
-        for (plane = 0; plane < d->vi.format->numPlanes; plane++) {
+        for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {
             width = vsapi->getFrameWidth(src, plane);
             height = vsapi->getFrameHeight(src, plane);
             srcp = vsapi->getReadPtr(src, plane);
             src_stride = vsapi->getStride(src, plane);
             dstp = vsapi->getWritePtr(dst, plane);
             dst_stride = vsapi->getStride(dst, plane);
+            int x;
 
             switch (d->vi.format->bytesPerSample) {
             case 1:
@@ -1664,7 +1628,7 @@ static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, vo
                 modwidth = width & ~7;
                 modheight = height & ~7;
 
-                for (y = 0; y < modheight; y += 8) {
+                for (int y = 0; y < modheight; y += 8) {
                     for (x = 0; x < modwidth; x += 8)
                         vs_transpose_byte(srcp + src_stride * y + x, src_stride, dstp + dst_stride * x + y, dst_stride);
 
@@ -1674,13 +1638,13 @@ static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, vo
                         vs_transpose_byte_partial(srcp + src_stride * y + x, src_stride, dstp + dst_stride * x + y, dst_stride, partial_lines);
                 }
 
-                for (y = modheight; y < height; y++)
+                for (int y = modheight; y < height; y++)
                     for (x = 0; x < width; x++)
                         dstp[dst_stride * x + y] = srcp[src_stride * y + x];
 
                 break;
 #else
-                for (y = 0; y < height; y++)
+                for (int y = 0; y < height; y++)
                     for (x = 0; x < width; x++)
                         dstp[dst_stride * x + y] = srcp[src_stride * y + x];
                 break;
@@ -1690,7 +1654,7 @@ static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, vo
                 modwidth = width & ~3;
                 modheight = height & ~3;
 
-                for (y = 0; y < modheight; y += 4) {
+                for (int y = 0; y < modheight; y += 4) {
                     for (x = 0; x < modwidth; x += 4)
                         vs_transpose_word(srcp + src_stride * y + x * 2, src_stride, dstp + dst_stride * x + y * 2, dst_stride);
 
@@ -1703,7 +1667,7 @@ static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, vo
                 src_stride /= 2;
                 dst_stride /= 2;
 
-                for (y = modheight; y < height; y++)
+                for (int y = modheight; y < height; y++)
                     for (x = 0; x < width; x++)
                         ((uint16_t *)dstp)[dst_stride * x + y] = ((const uint16_t *)srcp)[src_stride * y + x];
 
@@ -1719,7 +1683,7 @@ static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, vo
             case 4:
                 src_stride /= 4;
                 dst_stride /= 4;
-                for (y = 0; y < height; y++)
+                for (int y = 0; y < height; y++)
                     for (x = 0; x < width; x++)
                         ((uint32_t *)dstp)[dst_stride * x + y] = ((const uint32_t *)srcp)[src_stride * y + x];
                 break;
@@ -1768,7 +1732,7 @@ static void VS_CC transposeCreate(const VSMap *in, VSMap *out, void *userData, V
 }
 
 //////////////////////////////////////////
-// LevelVerifier
+// PEM(Level)Verifier
 
 typedef struct {
     VSNodeRef *node;
@@ -1789,25 +1753,18 @@ static const VSFrameRef *VS_CC pemVerifierGetFrame(int n, int activationReason, 
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        int plane;
-        int x;
-        int y;
-        int width;
-        int height;
-        const uint8_t *srcp;
-        int src_stride;
         char strbuf[512];
 
-        for (plane = 0; plane < d->vi->format->numPlanes; plane++) {
-            width = vsapi->getFrameWidth(src, plane);
-            height = vsapi->getFrameHeight(src, plane);
-            srcp = vsapi->getReadPtr(src, plane);
-            src_stride = vsapi->getStride(src, plane);
+        for (int plane = 0; plane < d->vi->format->numPlanes; plane++) {
+            int width = vsapi->getFrameWidth(src, plane);
+            int height = vsapi->getFrameHeight(src, plane);
+            const uint8_t *srcp = vsapi->getReadPtr(src, plane);
+            int src_stride = vsapi->getStride(src, plane);
 
             switch (d->vi->format->bytesPerSample) {
             case 1:
-                for (y = 0; y < height; y++) {
-                    for (x = 0; x < width; x++)
+                for (int y = 0; y < height; y++) {
+                    for (int x = 0; x < width; x++)
                         if (srcp[x] < d->lower[plane] || srcp[x] > d->upper[plane]) {
                             sprintf(strbuf, "PEMVerifier: Illegal sample value (%d) at: plane: %d Y: %d, X: %d, Frame: %d", (int)srcp[x], plane, y, x, n);
                             vsapi->setFilterError(strbuf, frameCtx);
@@ -1818,8 +1775,8 @@ static const VSFrameRef *VS_CC pemVerifierGetFrame(int n, int activationReason, 
                 }
                 break;
             case 2:
-                for (y = 0; y < height; y++) {
-                    for (x = 0; x < width; x++)
+                for (int y = 0; y < height; y++) {
+                    for (int x = 0; x < width; x++)
                         if (((const uint16_t *)srcp)[x] < d->lower[plane] || ((const uint16_t *)srcp)[x] > d->upper[plane]) {
                             sprintf(strbuf, "PEMVerifier: Illegal sample value (%d) at: plane: %d Y: %d, X: %d, Frame: %d", (int)((const uint16_t *)srcp)[x], plane, y, x, n);
                             vsapi->setFilterError(strbuf, frameCtx);
@@ -1845,7 +1802,6 @@ static void VS_CC pemVerifierFree(void *instanceData, VSCore *core, const VSAPI 
 static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     PEMVerifierData d;
     PEMVerifierData *data;
-    int i;
     int numupper = vsapi->propNumElements(in, "upper");
     int numlower = vsapi->propNumElements(in, "lower");
 
@@ -1858,10 +1814,10 @@ static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData,
     }
 
     if (numlower < 0) {
-        for (i = 0; i < d.vi->format->numPlanes; i++)
+        for (int i = 0; i < d.vi->format->numPlanes; i++)
             d.lower[i] = 0;
     } else if (numlower == d.vi->format->numPlanes) {
-        for (i = 0; i < d.vi->format->numPlanes; i++) {
+        for (int i = 0; i < d.vi->format->numPlanes; i++) {
             d.lower[i] = vsapi->propGetInt(in, "lower", i, 0);
             if (d.lower[i] < 0 || d.lower[i] >= ((int64_t)1 << d.vi->format->bitsPerSample)) {
                 vsapi->freeNode(d.node);
@@ -1874,10 +1830,10 @@ static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData,
     }
 
     if (numupper < 0) {
-        for (i = 0; i < d.vi->format->numPlanes; i++)
+        for (int i = 0; i < d.vi->format->numPlanes; i++)
             d.upper[i] = ((int64_t)1 << d.vi->format->bitsPerSample)-1;
     } else if (numupper == d.vi->format->numPlanes) {
-        for (i = 0; i < d.vi->format->numPlanes; i++) {
+        for (int i = 0; i < d.vi->format->numPlanes; i++) {
             d.upper[i] = vsapi->propGetInt(in, "upper", i, 0);
             if (d.upper[i] < d.lower[i] || d.upper[i] >= ((int64_t)1 << d.vi->format->bitsPerSample)) {
                 vsapi->freeNode(d.node);
@@ -1959,7 +1915,6 @@ static void VS_CC planeAverageCreate(const VSMap *in, VSMap *out, void *userData
     PlaneAverageData d;
     PlaneAverageData *data;
     int err;
-    const char *tempprop;
 
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node);
@@ -1975,7 +1930,7 @@ static void VS_CC planeAverageCreate(const VSMap *in, VSMap *out, void *userData
         RETERROR("PlaneAverage: invalid plane specified");
     }
 
-    tempprop = vsapi->propGetData(in, "prop", 0, &err);
+    const char *tempprop = vsapi->propGetData(in, "prop", 0, &err);
     if (err)
         tempprop = "PlaneAverage";
     d.prop = malloc(strlen(tempprop)+1);
@@ -2061,7 +2016,6 @@ static void VS_CC planeDifferenceCreate(const VSMap *in, VSMap *out, void *userD
     PlaneDifferenceData d;
     PlaneDifferenceData *data;
     int err;
-    const char *tempprop;
 
     if (vsapi->propNumElements(in, "clips") != 2)
         RETERROR("PlaneDifference: exactly two clips are required as input");
@@ -2082,7 +2036,7 @@ static void VS_CC planeDifferenceCreate(const VSMap *in, VSMap *out, void *userD
         RETERROR("PlaneDifference: invalid plane specified");
     }
 
-    tempprop = vsapi->propGetData(in, "prop", 0, &err);
+    const char *tempprop = vsapi->propGetData(in, "prop", 0, &err);
     if (err)
         tempprop = "PlaneDifference";
     d.prop = malloc(strlen(tempprop)+1);
@@ -2141,7 +2095,6 @@ static void VS_CC clipToPropCreate(const VSMap *in, VSMap *out, void *userData, 
     ClipToPropData d;
     ClipToPropData *data;
     int err;
-    const char *tempprop;
 
     d.node1 = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node1);
@@ -2153,7 +2106,7 @@ static void VS_CC clipToPropCreate(const VSMap *in, VSMap *out, void *userData, 
         RETERROR("ClipToProp: clip must be constant format");
     }
 
-    tempprop = vsapi->propGetData(in, "prop", 0, &err);
+    const char *tempprop = vsapi->propGetData(in, "prop", 0, &err);
     if (err)
         tempprop = "_Alpha";
     d.prop = malloc(strlen(tempprop)+1);
@@ -2212,9 +2165,6 @@ static void VS_CC propToClipCreate(const VSMap *in, VSMap *out, void *userData, 
     PropToClipData *data;
     int err;
     char errmsg[512];
-    const VSFrameRef *src;
-    const VSFrameRef *msrc;
-    const char *tempprop;
 
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = *vsapi->getVideoInfo(d.node);
@@ -2224,14 +2174,14 @@ static void VS_CC propToClipCreate(const VSMap *in, VSMap *out, void *userData, 
         RETERROR("PropToClip: clip must be constant format");
     }
 
-    tempprop = vsapi->propGetData(in, "prop", 0, &err);
+    const char *tempprop = vsapi->propGetData(in, "prop", 0, &err);
     if (err)
         tempprop = "_Alpha";
     d.prop = malloc(strlen(tempprop)+1);
     strcpy(d.prop, tempprop);
 
-    src = vsapi->getFrame(0, d.node, errmsg, sizeof(errmsg));
-    msrc = vsapi->propGetFrame(vsapi->getFramePropsRO(src), d.prop, 0, &err);
+    const VSFrameRef *src = vsapi->getFrame(0, d.node, errmsg, sizeof(errmsg));
+    const VSFrameRef *msrc = vsapi->propGetFrame(vsapi->getFramePropsRO(src), d.prop, 0, &err);
 
     d.vi.format = vsapi->getFrameFormat(msrc);
     d.vi.width = vsapi->getFrameWidth(msrc, 0);

@@ -10,9 +10,6 @@ Trim
    neither *last* nor *length* is specified, no frames are removed from the end
    of the clip.
 
-   Trim can be used on infinite length clips to extract a clip with a finite
-   length.
-
    Specifying both *last* and *length* is considered to be an error.
    Likewise is calling Trim in a way that returns no frames, as 0 frame clips are
    not allowed in VapourSynth.

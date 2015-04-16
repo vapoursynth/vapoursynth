@@ -504,6 +504,9 @@ void VSNode::setVideoInfo(const VSVideoInfo *vi, int numOutputs) {
             vsFatal("Variable dimension clips must have both width and height set to 0");
         if (vi[i].format && !core->isValidFormatPointer(vi[i].format))
             vsFatal("The VSFormat pointer passed to setVideoInfo() was not gotten from registerFormat() or getFormatPreset()");
+        if (vi[i].numFrames == 0)
+            vsFatal("Unknown length (0) clips are no longer supported");
+
         this->vi.push_back(vi[i]);
         this->vi[i].flags = flags;
     }
@@ -1006,7 +1009,7 @@ VSMap VSCore::getPlugins() {
     int num = 0;
     for (const auto &iter : plugins) {
         std::string b = iter.second->fnamespace + ";" + iter.second->id + ";" + iter.second->fullname;
-        vsapi.propSetData(&m, ("Plugin" + std::to_string(++num)).c_str(), b.c_str(), static_cast<int>(b.size()), 0);
+        vsapi.propSetData(&m, ("Plugin" + std::to_string(++num)).c_str(), b.c_str(), static_cast<int>(b.size()), paReplace);
     }
     return m;
 }
@@ -1294,7 +1297,7 @@ VSMap VSPlugin::getFunctions() {
     VSMap m;
     for (const auto & f : funcs) {
         std::string b = f.first + ";" + f.second.argString;
-        vsapi.propSetData(&m, f.first.c_str(), b.c_str(), static_cast<int>(b.size()), 0);
+        vsapi.propSetData(&m, f.first.c_str(), b.c_str(), static_cast<int>(b.size()), paReplace);
     }
     return m;
 }

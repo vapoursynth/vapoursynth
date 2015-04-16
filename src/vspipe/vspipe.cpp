@@ -623,10 +623,7 @@ int main(int argc, char **argv) {
             fprintf(outFile, "Width: Variable\n");
             fprintf(outFile, "Height: Variable\n");
         }
-        if (vi->numFrames)
-            fprintf(outFile, "Frames: %d\n", vi->numFrames);
-        else
-            fprintf(outFile, "Frames: Unknown\n");
+        fprintf(outFile, "Frames: %d\n", vi->numFrames);
         if (vi->fpsNum && vi->fpsDen)
             fprintf(outFile, "FPS: %" PRId64 "/%" PRId64 " (%.3f fps)\n", vi->fpsNum, vi->fpsDen, vi->fpsNum/(double)vi->fpsDen);
         else
@@ -653,8 +650,8 @@ int main(int argc, char **argv) {
             return 1;
         }
 
-        if (!isConstantFormat(vi) || !totalFrames) {
-            fprintf(stderr, "Cannot output clips with varying dimensions or unknown length\n");
+        if (!isConstantFormat(vi)) {
+            fprintf(stderr, "Cannot output clips with varying dimensions\n");
             vsapi->freeNode(node);
             vsscript_freeScript(se);
             vsscript_finalize();

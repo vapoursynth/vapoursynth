@@ -807,7 +807,7 @@ struct VSVideoInfo
 
    .. c:member:: int numFrames
 
-      Length of the clip. It will be 0 if the clip's length is unknown.
+      Length of the clip.
 
    .. c:member:: int flags
 

@@ -1,4 +1,4 @@
-#  Copyright (c) 2012-2014 Fredrik Mellbin
+#  Copyright (c) 2012-2015 Fredrik Mellbin
 #
 #  This file is part of VapourSynth.
 #
@@ -38,7 +38,7 @@ _stored_output = {}
 _core = None
 _message_handler = None
 cdef const VSAPI *_vsapi = NULL
-cdef int _api_version = 0x30000
+cdef int _api_version = 0x30002
 
 GRAY  = vapoursynth.cmGray
 RGB   = vapoursynth.cmRGB
@@ -860,9 +860,6 @@ cdef class VideoNode(object):
             
         cdef CallbackData d = CallbackData(fileobj, min(prefetch, self.num_frames), self.num_frames, self.format.num_planes, y4m, self, progress_update)
 
-        if d.total <= 0:
-            raise Error('Cannot output unknown length clip')
-
         # this is also an implicit test that the progress_update callback at least vaguely matches the requirements
         if (progress_update is not None):
             progress_update(0, d.total)
@@ -943,22 +940,9 @@ cdef class VideoNode(object):
         if isinstance(val, slice):
             if val.step is not None and val.step == 0:
                 raise ValueError('Slice step cannot be zero')
-            if val.step is not None and val.step < 0 and self.num_frames == 0:
-                raise ValueError('Negative step cannot be used with infinite/unknown length clips')
-            if ((val.start is not None and val.start < 0) or (val.stop is not None and val.stop < 0)) and self.num_frames == 0:
-                raise ValueError('Negative indices cannot be used with infinite/unknown length clips')
-            # this is just a big number that no one's likely to use, hence the -68
-            max_int = 2**31-68
-            if self.num_frames == 0:
-                indices = val.indices(max_int)
-            else:
-                indices = val.indices(self.num_frames)
 
-            if indices[0] == max_int:
-                indices[0] = None
-            if indices[1] == max_int:
-                indices[1] = None
-
+            indices = val.indices(self.num_frames)
+            
             step = indices[2]
 
             if step > 0:
@@ -990,9 +974,7 @@ cdef class VideoNode(object):
 
             return ret
         elif isinstance(val, int):
-            if val < 0 and self.num_frames == 0:
-                raise IndexError('Negative index cannot be used with infinite/unknown length clips')
-            elif val < 0:
+            if val < 0:
                 n = self.num_frames + val
             else:
                 n = val
@@ -1020,10 +1002,7 @@ cdef class VideoNode(object):
             s += '\tWidth: ' + str(self.width) + '\n'
             s += '\tHeight: ' + str(self.height) + '\n'
 
-        if not self.num_frames:
-            s += '\tNum Frames: unknown\n'
-        else:
-            s += '\tNum Frames: ' + str(self.num_frames) + '\n'
+        s += '\tNum Frames: ' + str(self.num_frames) + '\n'
 
         if not self.fps_num or not self.fps_den:
             s += '\tFPS Num: dynamic\n'

@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2014 Fredrik Mellbin
+* Copyright (c) 2012-2015 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -24,7 +24,7 @@
 #include <stdint.h>
 
 #define VAPOURSYNTH_API_MAJOR 3
-#define VAPOURSYNTH_API_MINOR 1
+#define VAPOURSYNTH_API_MINOR 2
 #define VAPOURSYNTH_API_VERSION ((VAPOURSYNTH_API_MAJOR << 16) | (VAPOURSYNTH_API_MINOR))
 
 /* Convenience for C++ users. */
