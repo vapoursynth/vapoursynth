@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2013 Fredrik Mellbin
+* Copyright (c) 2012-2015 Fredrik Mellbin
 *
 * Permission is hereby granted, free of charge, to any person obtaining a copy
 * of this software and associated documentation files (the "Software"), to deal
@@ -32,17 +32,17 @@
 #endif
 #include "VapourSynth.h"
 
-// Visual Studio doesn't recognize inline in c mode
+/* Visual Studio doesn't recognize inline in c mode */
 #if defined(_MSC_VER) && !defined(__cplusplus)
 #define inline _inline
 #endif
 
-// A kinda portable definition of the C99 restrict keyword (or its inofficial C++ equivalent)
-#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L // Available in C99
+/* A kinda portable definition of the C99 restrict keyword (or its inofficial C++ equivalent) */
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L /* Available in C99 */
 #define VS_RESTRICT restrict
-#elif defined(__cplusplus) || defined(_MSC_VER) // Almost all relevant C++ compilers support it so just assume it works
+#elif defined(__cplusplus) || defined(_MSC_VER) /* Almost all relevant C++ compilers support it so just assume it works */
 #define VS_RESTRICT __restrict
-#else // Not supported
+#else /* Not supported */
 #define VS_RESTRICT
 #endif
 
