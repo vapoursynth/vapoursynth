@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2014 Fredrik Mellbin
+* Copyright (c) 2012-2015 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -22,5 +22,5 @@
 
 #define XSTR(x) STR(x)
 #define STR(x) #x
-#define VAPOURSYNTH_CORE_VERSION 26
+#define VAPOURSYNTH_CORE_VERSION 27
 #define VAPOURSYNTH_VERSION_STRING "VapourSynth Video Processing Library\nCopyright (c) 2012-2014 Fredrik Mellbin\nCore R" XSTR(VAPOURSYNTH_CORE_VERSION) "\nAPI R" XSTR(VAPOURSYNTH_API_MAJOR) "." XSTR(VAPOURSYNTH_API_MINOR) "\n"
