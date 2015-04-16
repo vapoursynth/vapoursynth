@@ -456,17 +456,28 @@ static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *
             vsapi->requestFrameFilter(n, d->sclip, frameCtx);
     } else if(activationReason == arAllFramesReady) {
 
+        const VSFrameRef *src = vsapi->getFrameFilter(d->field > 1 ? (n >> 1) : n, d->node, frameCtx);
+
         int field_n;
 
         if(d->field > 1) {
+            int effective_field = d->field;
+            const VSMap *props = vsapi->getFramePropsRO(src);
+            int err = 0;
+            int fieldbased = int64ToIntS(vsapi->propGetInt(props, "_FieldBased", 0, &err));
+            if (fieldbased == 1)
+                effective_field = 2;
+            else if (fieldbased == 2)
+                effective_field = 3;
+
             if(n & 1)
-                field_n = d->field == 3 ? 0 : 1;
+                field_n = effective_field == 3 ? 0 : 1;
             else
-                field_n = d->field == 3 ? 1 : 0;
+                field_n = effective_field == 3 ? 1 : 0;
         } else
             field_n = d->field;
 
-        const VSFrameRef *src = vsapi->getFrameFilter(d->field > 1 ? (n >> 1) : n, d->node, frameCtx);
+
         VSFrameRef *srcPF = copyPad(src, field_n, frameCtx, core, vsapi, instanceData);
 
         const VSFrameRef *scpPF;
