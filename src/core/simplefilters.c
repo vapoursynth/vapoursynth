@@ -598,9 +598,18 @@ static const VSFrameRef *VS_CC separateFieldsGetframe(int n, int activationReaso
         vsapi->requestFrameFilter(n / 2, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n / 2, d->node, frameCtx);
+        const VSMap *props = vsapi->getFramePropsRO(src);
+        int err = 0;
+        int fieldBased = int64ToIntS(vsapi->propGetInt(props, "_FieldBased", 0, &err));
+        int effectiveTFF = d->tff;
+        if (fieldBased == 1)
+            effectiveTFF = 0;
+        else if (fieldBased == 2)
+            effectiveTFF = 1;
+
         VSFrameRef *dst = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, src, core);
         int plane;
-        vsapi->propSetInt(vsapi->getFramePropsRW(dst), "_Field", ((n & 1) ^ d->tff), 0);
+        vsapi->propSetInt(vsapi->getFramePropsRW(dst), "_Field", ((n & 1) ^ effectiveTFF), 0);
 
         for (plane = 0; plane < d->vi.format->numPlanes; plane++) {
             const uint8_t *srcp = vsapi->getReadPtr(src, plane);
@@ -610,7 +619,7 @@ static const VSFrameRef *VS_CC separateFieldsGetframe(int n, int activationReaso
             int h = vsapi->getFrameHeight(dst, plane);
             int hl;
 
-            if (!((n & 1) ^ d->tff))
+            if (!((n & 1) ^ effectiveTFF))
                 srcp += src_stride;
 
             src_stride *= 2;
