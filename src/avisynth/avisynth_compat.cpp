@@ -408,8 +408,8 @@ static const VSFrameRef *VS_CC avisynthFilterGetFrame(int n, int activationReaso
         ref = clip->fakeEnv->avsToVSFrame((VideoFrame *)((void *)frame));
         VSFrameRef *ref2 = vsapi->copyFrame(ref, core);
         vsapi->freeFrame(ref);
-        vsapi->propSetInt(vsapi->getFramePropsRW(ref2), "MVToolsHackNumAudioSamples", clip->magicalNumAudioSamplesForMVTools, 0);
-        vsapi->propSetInt(vsapi->getFramePropsRW(ref2), "MVToolsHackNChannels", clip->magicalNChannelsForMVTools, 0);
+        vsapi->propSetInt(vsapi->getFramePropsRW(ref2), "MVToolsHackNumAudioSamples", clip->magicalNumAudioSamplesForMVTools, paReplace);
+        vsapi->propSetInt(vsapi->getFramePropsRW(ref2), "MVToolsHackNChannels", clip->magicalNChannelsForMVTools, paReplace);
         ref = ref2;
     }
 
@@ -495,13 +495,13 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
                                     filterData,
                                     core);
     } else if (ret.IsBool()) {
-        vsapi->propSetInt(out, "val", ret.AsBool() ? 1 : 0, 0);
+        vsapi->propSetInt(out, "val", ret.AsBool() ? 1 : 0, paReplace);
     } else if (ret.IsInt()) {
-        vsapi->propSetInt(out, "val", ret.AsInt(), 0);
+        vsapi->propSetInt(out, "val", ret.AsInt(), paReplace);
     } else if (ret.IsFloat()) {
-        vsapi->propSetFloat(out, "val", ret.AsFloat(), 0);
+        vsapi->propSetFloat(out, "val", ret.AsFloat(), paReplace);
     } else if (ret.IsString()) {
-        vsapi->propSetData(out, "val", ret.AsString(), -1, 0);
+        vsapi->propSetData(out, "val", ret.AsString(), -1, paReplace);
     }
 }
 
