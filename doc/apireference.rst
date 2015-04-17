@@ -31,13 +31,13 @@ unknown. It is also a fatal error to set them to a value not specified below.
    int _ColorRange (0=full range, 1=limited range)
  
    As specified in ISO/IEC 14496-10, Colour primaries table
-   int _ColorPrimaries
+   int _Primaries
    
    As specified in ISO/IEC 14496-10, Matrix coefficients table
-   int _ColorMatrix
+   int _Matrix
    
    As specified in ISO/IEC 14496-10, Transfer characteristics table
-   int _TransferCharacteristics
+   int _Transfer
    
    If the frame is composed of two independent fields (interlaced).
    int _FieldBased (0=frame based, 1=BFF, 2=TFF)
