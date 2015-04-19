@@ -641,6 +641,7 @@ static void VS_CC separateFieldsCreate(const VSMap *in, VSMap *out, void *userDa
         vsapi->freeNode(d.node);
         RETERROR("SeparateFields: resulting clip is too long");
     }
+	d.vi.numFrames = (int)temp;
 
     d.vi.height /= 2;
 
