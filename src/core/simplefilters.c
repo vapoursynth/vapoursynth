@@ -636,12 +636,11 @@ static void VS_CC separateFieldsCreate(const VSMap *in, VSMap *out, void *userDa
         RETERROR("SeparateFields: clip height must be mod 2 in the smallest subsampled plane");
     }
 
-    int64_t temp = (int64_t)d.vi.numFrames * 2;
-    if (temp > INT_MAX) {
+	if (d.vi.numFrames > INT_MAX / 2) {
         vsapi->freeNode(d.node);
         RETERROR("SeparateFields: resulting clip is too long");
     }
-	d.vi.numFrames = (int)temp;
+	d.vi.numFrames *= 2;
 
     d.vi.height /= 2;
 

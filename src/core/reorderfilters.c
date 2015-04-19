@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2014 Fredrik Mellbin
+* Copyright (c) 2012-2015 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -229,10 +229,9 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
         int overflow = 0;
 
         if (extend) {
-            int64_t temp = (int64_t)d.vi.numFrames * d.numclips;
-            if (temp > INT_MAX)
+			if (d.vi.numFrames > INT_MAX / d.numclips)
                 overflow = 1;
-            d.vi.numFrames = (int)temp;
+			d.vi.numFrames *= d.numclips;
         } else if (d.vi.numFrames) {
             // this is exactly how avisynth does it
             d.vi.numFrames = (vsapi->getVideoInfo(d.node[0])->numFrames - 1) * d.numclips + 1;
@@ -328,13 +327,12 @@ static void VS_CC loopCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     }
 
     if (times > 0) {
-        int64_t temp = d.vi.numFrames * times;
-        if (temp > INT_MAX) {
+		if (d.vi.numFrames > INT_MAX / times) {
             vsapi->freeNode(d.node);
             RETERROR("Interleave: resulting clip is too long");
         }
 
-        d.vi.numFrames = (int)temp;
+		d.vi.numFrames *= times;
     } else { // loop for maximum duration
         d.vi.numFrames = INT_MAX;
     }
