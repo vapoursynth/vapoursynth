@@ -12,6 +12,10 @@ Macros_
 
    VS_EXTERNAL_API_
 
+   VAPOURSYNTH_API_MAJOR_
+
+   VAPOURSYNTH_API_MINOR_
+
    VAPOURSYNTH_API_VERSION_
 
 
@@ -287,10 +291,23 @@ This macro must be used for a plugin's entry point, like so:
    VS_EXTERNAL_API(void) VapourSynthPluginInit(...) { ... }
 
 
+VAPOURSYNTH_API_MAJOR
+---------------------
+
+Major API version.
+
+
+VAPOURSYNTH_API_MINOR
+---------------------
+
+Minor API version. It is bumped when new functions are added to VSAPI_.
+
+
 VAPOURSYNTH_API_VERSION
 -----------------------
 
-Self-explanatory. Expands to an integer.
+API version. The high 16 bits are VAPOURSYNTH_API_MAJOR_, the low 16
+bits are VAPOURSYNTH_API_MINOR_.
 
 
 Enums
@@ -826,11 +843,9 @@ struct VSAPI
 
    .. _createCore:
 
-   .. c:member:: VSCreateCore createCore
+   VSCore_ \*createCore(int threads)
 
-      typedef VSCore_ \*(VS_CC \*VSCreateCore)(int threads)
-
-      Creates the Vapoursynth processing core and returns a pointer to it. It is
+      Creates the VapourSynth processing core and returns a pointer to it. It is
       legal to create multiple cores but in most cases it shouldn't be needed.
 
       *threads*
@@ -841,9 +856,7 @@ struct VSAPI
 
    .. _freeCore:
 
-   .. c:member:: VSFreeCore freeCore
-
-      typedef void (VS_CC \*VSFreeCore)(VSCore_ \*core)
+   void freeCore(VSCore_ \*core)
 
       Frees a core. Should only be done after all frame requests have completed
       and all objects belonging to the core have been released.
@@ -852,9 +865,7 @@ struct VSAPI
 
    .. _getCoreInfo:
 
-   .. c:member:: VSGetCoreInfo getCoreInfo
-
-      typedef const VSCoreInfo_ \*(VS_CC \*VSGetCoreInfo)(VSCore_ \*core)
+   const VSCoreInfo_ \*getCoreInfo(VSCore_ \*core)
 
       Returns information about the VapourSynth core.
       
@@ -864,9 +875,7 @@ struct VSAPI
 
    .. _setMaxCacheSize:
 
-   .. c:member:: VSSetMaxCacheSize setMaxCacheSize
-
-      typedef int64_t (VS_CC \*VSSetMaxCacheSize)(int64_t bytes, VSCore_ \*core)
+   int64_t setMaxCacheSize(int64_t bytes, VSCore_ \*core)
 
       Sets the maximum size of the framebuffer cache. Returns the new maximum
       size.
@@ -875,9 +884,7 @@ struct VSAPI
 
    .. _setMessageHandler:
 
-   .. c:member:: VSSetMessageHandler setMessageHandler
-
-      typedef void (VS_CC \*VSSetMessageHandler)(VSMessageHandler handler, void \*userData)
+   void setMessageHandler(VSMessageHandler handler, void \*userData)
 
       Installs a custom handler for the various error messages VapourSynth
       emits. The message handler is currently global, i.e. per process, not
@@ -904,9 +911,7 @@ struct VSAPI
 
    .. _setThreadCount:
 
-   .. c:member:: VSSetThreadCount setThreadCount
-
-      typedef int (VS_CC \*VSSetThreadCount)(int threads, VSCore_ \*core)
+   int setThreadCount(int threads, VSCore_ \*core)
 
       Sets the number of worker threads for the given core. If the requested
       number of threads is zero or lower, the number of hardware threads will
@@ -918,9 +923,7 @@ struct VSAPI
 
    .. _newVideoFrame:
 
-   .. c:member:: VSNewVideoFrame newVideoFrame
-
-      typedef VSFrameRef_ \*(VS_CC \*VSNewVideoFrame)(const VSFormat_ \*format, int width, int height, const VSFrameRef_ \*propSrc, VSCore_ \*core)
+   VSFrameRef_ \*newVideoFrame(const VSFormat_ \*format, int width, int height, const VSFrameRef_ \*propSrc, VSCore_ \*core)
 
       Creates a new frame, optionally copying the properties attached to another
       frame. It is a fatal error to pass invalid arguments to this function.
@@ -947,9 +950,7 @@ struct VSAPI
 
    .. _newVideoFrame2:
 
-   .. c:member:: VSNewVideoFrame2 newVideoFrame2
-
-      typedef VSFrameRef_ \*(VS_CC \*VSNewVideoFrame2)(const VSFormat_ \*format, int width, int height, const VSFrameRef_ \**planeSrc, const int \*planes, const VSFrameRef_ \*propSrc, VSCore_ \*core)
+   VSFrameRef_ \*newVideoFrame2(const VSFormat_ \*format, int width, int height, const VSFrameRef_ \**planeSrc, const int \*planes, const VSFrameRef_ \*propSrc, VSCore_ \*core)
 
       Creates a new frame from the planes of existing frames, optionally copying
       the properties attached to another frame. It is a fatal error to pass invalid arguments to this function.
@@ -994,9 +995,7 @@ struct VSAPI
 
    .. _copyFrame:
 
-   .. c:member:: VSCopyFrame copyFrame
-
-      typedef VSFrameRef_ \*(VS_CC \*VSCopyFrame)(const VSFrameRef_ \*f, VSCore_ \*core)
+   VSFrameRef_ \*copyFrame(const VSFrameRef_ \*f, VSCore_ \*core)
 
       Duplicates the frame (not just the reference). As the frame buffer is
       shared in a copy-on-write fashion, the frame content is not really
@@ -1008,9 +1007,7 @@ struct VSAPI
 
    .. _cloneFrameRef:
 
-   .. c:member:: VSCloneFrameRef cloneFrameRef
-
-      typedef const VSFrameRef_ \*(VS_CC \*VSCloneFrameRef)(const VSFrameRef_ \*f)
+   const VSFrameRef_ \*cloneFrameRef(const VSFrameRef_ \*f)
 
       Duplicates a frame reference. This new reference has to be deleted with
       freeFrame_\ () when it is no longer needed.
@@ -1019,9 +1016,7 @@ struct VSAPI
 
    .. _freeFrame:
 
-   .. c:member:: VSFreeFrame freeFrame
-
-      typedef void (VS_CC \*VSFreeFrame)(const VSFrameRef_ \*f)
+   void freeFrame(const VSFrameRef_ \*f)
 
       Deletes a frame reference, releasing the caller's ownership of the frame.
 
@@ -1033,9 +1028,7 @@ struct VSAPI
 
    .. _getStride:
 
-   .. c:member:: VSGetStride getStride
-
-      typedef int (VS_CC \*VSGetStride)(const VSFrameRef_ \*f, int plane)
+   int getStride(const VSFrameRef_ \*f, int plane)
 
       Returns the distance in bytes between two consecutive lines of a plane of
       a frame.
@@ -1046,9 +1039,7 @@ struct VSAPI
 
    .. _getReadPtr:
 
-   .. c:member:: VSGetReadPtr getReadPtr
-
-      typedef const uint8_t \*(VS_CC \*VSGetReadPtr)(const VSFrameRef_ \*f, int plane)
+   const uint8_t \*getReadPtr(const VSFrameRef_ \*f, int plane)
 
       Returns a read-only pointer to a plane of a frame.
 
@@ -1062,9 +1053,7 @@ struct VSAPI
 
    .. _getWritePtr:
 
-   .. c:member:: VSGetWritePtr getWritePtr
-
-      typedef uint8_t \*(VS_CC \*VSGetWritePtr)(VSFrameRef_ \*f, int plane)
+   uint8_t \*getWritePtr(VSFrameRef_ \*f, int plane)
 
       Returns a read/write pointer to a plane of a frame.
 
@@ -1078,9 +1067,7 @@ struct VSAPI
 
    .. _getFrameFormat:
 
-   .. c:member:: VSGetFrameFormat getFrameFormat
-
-      typedef const VSFormat_ \*(VS_CC \*VSGetFrameFormat)(const VSFrameRef_ \*f)
+   const VSFormat_ \*getFrameFormat(const VSFrameRef_ \*f)
 
       Retrieves the format of a frame.
 
@@ -1088,9 +1075,7 @@ struct VSAPI
 
    .. _getFrameWidth:
 
-   .. c:member:: VSGetFrameWidth getFrameWidth
-
-      typedef int (VS_CC \*VSGetFrameWidth)(const VSFrameRef_ \*f, int plane)
+   int getFrameWidth(const VSFrameRef_ \*f, int plane)
 
       Returns the width of a plane of a given frame, in pixels. The width
       depends on the plane number because of the possible chroma subsampling.
@@ -1099,9 +1084,7 @@ struct VSAPI
 
    .. _getFrameHeight:
 
-   .. c:member:: VSGetFrameHeight getFrameHeight
-
-      typedef int (VS_CC \*VSGetFrameHeight)(const VSFrameRef_ \*f, int plane)
+   int getFrameHeight(const VSFrameRef_ \*f, int plane)
 
       Returns the height of a plane of a given frame, in pixels. The height
       depends on the plane number because of the possible chroma subsampling.
@@ -1110,9 +1093,7 @@ struct VSAPI
 
    .. _copyFrameProps:
 
-   .. c:member:: VSCopyFrameProps copyFrameProps
-
-      typedef void (VS_CC \*VSCopyFrameProps)(const VSFrameRef_ \*src, VSFrameRef_ \*dst, VSCore_ \*core)
+   void copyFrameProps(const VSFrameRef_ \*src, VSFrameRef_ \*dst, VSCore_ \*core)
 
       Copies the property map of a frame to another frame, overwriting all
       existing properties.
@@ -1121,9 +1102,7 @@ struct VSAPI
 
    .. _getFramePropsRO:
 
-   .. c:member:: VSGetFramePropsRO getFramePropsRO
-
-      typedef const VSMap_ \*(VS_CC \*VSGetFramePropsRO)(const VSFrameRef_ \*f)
+   const VSMap_ \*getFramePropsRO(const VSFrameRef_ \*f)
 
       Returns a read-only pointer to a frame's properties. The pointer is valid
       as long as the frame lives.
@@ -1132,9 +1111,7 @@ struct VSAPI
 
    .. _getFramePropsRW:
 
-   .. c:member:: VSGetFramePropsRW getFramePropsRW
-
-      typedef VSMap_ \*(VS_CC \*VSGetFramePropsRW)(VSFrameRef_ \*f)
+   VSMap_ \*getFramePropsRW(VSFrameRef_ \*f)
 
       Returns a read/write pointer to a frame's properties. The pointer is valid
       as long as the frame lives.
@@ -1143,9 +1120,7 @@ struct VSAPI
 
    .. _cloneNodeRef:
 
-   .. c:member:: VSCloneNodeRef cloneNodeRef
-
-      typedef VSNodeRef_ \*(VS_CC \*VSCloneNodeRef)(VSNodeRef_ \*node)
+   VSNodeRef_ \*cloneNodeRef(VSNodeRef_ \*node)
 
       Duplicates a node reference. This new reference has to be deleted with
       freeNode_\ () when it is no longer needed.
@@ -1154,9 +1129,7 @@ struct VSAPI
 
    .. _freeNode:
 
-   .. c:member:: VSFreeNode freeNode
-
-      typedef void (VS_CC \*VSFreeNode)(VSNodeRef_ \*node)
+   void freeNode(VSNodeRef_ \*node)
 
       Deletes a node reference, releasing the caller's ownership of the node.
 
@@ -1168,9 +1141,7 @@ struct VSAPI
 
    .. _getFrame:
 
-   .. c:member:: VSGetFrame getFrame
-
-      typedef const VSFrameRef_ \*(VS_CC \*VSGetFrame)(int n, VSNodeRef_ \*node, char \*errorMsg, int bufSize)
+   const VSFrameRef_ \*getFrame(int n, VSNodeRef_ \*node, char \*errorMsg, int bufSize)
 
       Generates a frame directly. The frame is available when the function
       returns.
@@ -1205,9 +1176,7 @@ struct VSAPI
 
    .. _getFrameAsync:
 
-   .. c:member:: VSGetFrameAsync getFrameAsync
-
-      typedef void (VS_CC \*VSGetFrameAsync)(int n, VSNodeRef_ \*node, VSFrameDoneCallback callback, void \*userData)
+   void getFrameAsync(int n, VSNodeRef_ \*node, VSFrameDoneCallback callback, void \*userData)
 
       Requests the generation of a frame. When the frame is ready,
       a user-provided function is called.
@@ -1264,9 +1233,7 @@ struct VSAPI
 
    .. _getFrameFilter:
 
-   .. c:member:: VSGetFrameFilter getFrameFilter
-
-      typedef const VSFrameRef_ \*(VS_CC \*VSGetFrameFilter)(int n, VSNodeRef_ \*node, VSFrameContext_ \*frameCtx)
+   const VSFrameRef_ \*getFrameFilter(int n, VSNodeRef_ \*node, VSFrameContext_ \*frameCtx)
 
       Retrieves a frame that was previously requested with
       requestFrameFilter_\ ().
@@ -1296,9 +1263,7 @@ struct VSAPI
 
    .. _requestFrameFilter:
 
-   .. c:member:: VSRequestFrameFilter requestFrameFilter
-
-      typedef void (VS_CC \*VSRequestFrameFilter)(int n, VSNodeRef_ \*node, VSFrameContext_ \*frameCtx)
+   void requestFrameFilter(int n, VSNodeRef_ \*node, VSFrameContext_ \*frameCtx)
 
       Requests a frame from a node and returns immediately.
 
@@ -1328,9 +1293,7 @@ struct VSAPI
 
    .. _getVideoInfo:
 
-   .. c:member:: VSGetVideoInfo getVideoInfo
-
-      typedef const VSVideoInfo_ \*(VS_CC \*VSGetVideoInfo)(VSNodeRef_ \*node)
+   const VSVideoInfo_ \*getVideoInfo(VSNodeRef_ \*node)
 
       Returns a pointer to the video info associated with a node. The pointer is
       valid as long as the node lives.
@@ -1339,9 +1302,7 @@ struct VSAPI
 
    .. _setVideoInfo:
 
-   .. c:member:: VSSetVideoInfo setVideoInfo
-
-      typedef void (VS_CC \*VSSetVideoInfo)(const VSVideoInfo_ \*vi, int numOutputs, VSNode_ \*node)
+   void setVideoInfo(const VSVideoInfo_ \*vi, int numOutputs, VSNode_ \*node)
 
       Sets the node's video info.
 
@@ -1360,9 +1321,7 @@ struct VSAPI
 
    .. _getFormatPreset:
 
-   .. c:member:: VSGetFormatPreset getFormatPreset
-
-      typedef const VSFormat_ \*(VS_CC \*VSGetFormatPreset)(int id, VSCore_ \*core)
+   const VSFormat_ \*getFormatPreset(int id, VSCore_ \*core)
 
       Returns a VSFormat structure from a video format identifier.
 
@@ -1378,9 +1337,7 @@ struct VSAPI
 
    .. _registerFormat:
 
-   .. c:member:: VSRegisterFormat registerFormat
-
-      typedef const VSFormat_ \*(VS_CC \*VSRegisterFormat)(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore_ \*core)
+   const VSFormat_ \*registerFormat(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore_ \*core)
 
       Registers a custom video format.
 
@@ -1424,9 +1381,7 @@ struct VSAPI
 
    .. _createMap:
 
-   .. c:member:: VSCreateMap createMap
-
-      typedef VSMap_ \*(VS_CC \*VSCreateMap)(void)
+   VSMap_ \*createMap(void)
 
       Creates a new property map. It must be deallocated later with
       freeMap_\ ().
@@ -1435,9 +1390,7 @@ struct VSAPI
 
    .. _freeMap:
 
-   .. c:member:: VSFreeMap freeMap
-
-      typedef void (VS_CC \*VSFreeMap)(VSMap_ \*map)
+   void freeMap(VSMap_ \*map)
 
       Frees a map and all the objects it contains.
 
@@ -1445,9 +1398,7 @@ struct VSAPI
 
    .. _clearMap:
 
-   .. c:member:: VSClearMap clearMap
-
-      typedef void (VS_CC \*VSClearMap)(VSMap_ \*map)
+   void clearMap(VSMap_ \*map)
 
       Deletes all the keys and their associated values from the map, leaving it
       empty.
@@ -1456,9 +1407,7 @@ struct VSAPI
 
    .. _setError:
 
-   .. c:member:: VSSetError setError
-
-      typedef void (VS_CC \*VSSetError)(VSMap_ \*map, const char \*errorMessage)
+   void setError(VSMap_ \*map, const char \*errorMessage)
 
       Adds an error message to a map. The map is cleared first. The error
       message is copied. In this state the map may only be freed, cleared
@@ -1471,9 +1420,7 @@ struct VSAPI
 
    .. _getError:
 
-   .. c:member:: VSGetError getError
-
-      typedef const char \*(VS_CC \*VSGetError)(const VSMap_ \*map)
+   const char \*getError(const VSMap_ \*map)
 
       Returns a pointer to the error message contained in the map,
       or NULL if there is no error message. The pointer is valid as long as
@@ -1483,9 +1430,7 @@ struct VSAPI
 
    .. _propNumKeys:
 
-   .. c:member:: VSPropNumKeys propNumKeys
-
-      typedef int (VS_CC \*VSPropNumKeys)(const VSMap_ \*map)
+   int propNumKeys(const VSMap_ \*map)
 
       Returns the number of keys contained in a property map.
 
@@ -1493,9 +1438,7 @@ struct VSAPI
 
    .. _propGetKey:
 
-   .. c:member:: VSPropGetKey propGetKey
-
-      typedef const char \*(VS_CC \*VSPropGetKey)(const VSMap_ \*map, int index)
+   const char \*propGetKey(const VSMap_ \*map, int index)
 
       Returns a key from a property map.
 
@@ -1507,9 +1450,7 @@ struct VSAPI
 
    .. _propDeleteKey:
 
-   .. c:member:: VSPropDeleteKey propDeleteKey
-
-      typedef int (VS_CC \*VSPropDeleteKey)(VSMap_ \*map, const char \*key)
+   int propDeleteKey(VSMap_ \*map, const char \*key)
 
       Removes the property with the given key. All values associated with the
       key are lost.
@@ -1520,9 +1461,7 @@ struct VSAPI
 
    .. _propGetType:
 
-   .. c:member:: VSPropGetType propGetType
-
-      typedef char (VS_CC \*VSPropGetType)(const VSMap_ \*map, const char \*key)
+   char propGetType(const VSMap_ \*map, const char \*key)
 
       Returns the type of the elements associated with the given key in a
       property map.
@@ -1534,9 +1473,7 @@ struct VSAPI
 
    .. _propNumElements:
 
-   .. c:member:: VSPropNumElements propNumElements
-
-      typedef int (VS_CC \*VSPropNumElements)(const VSMap_ \*map, const char \*key)
+   int propNumElements(const VSMap_ \*map, const char \*key)
 
       Returns the number of elements associated with a key in a property map.
       Returns -1 if there is no such key in the map.
@@ -1545,9 +1482,7 @@ struct VSAPI
 
    .. _propGetInt:
 
-   .. c:member:: VSPropGetInt propGetInt
-
-      typedef int64_t (VS_CC \*VSPropGetInt)(const VSMap_ \*map, const char \*key, int index, int \*error)
+   int64_t propGetInt(const VSMap_ \*map, const char \*key, int index, int \*error)
 
       Retrieves an integer from a map.
 
@@ -1573,9 +1508,7 @@ struct VSAPI
 
    .. _propGetIntArray:
 
-   .. c:member:: VSPropGetIntArray propGetIntArray
-
-      typedef const int64_t \*(VS_CC \*VSPropGetIntArray)(const VSMap_ \*map, const char \*key, int \*error)
+   const int64_t \*propGetIntArray(const VSMap_ \*map, const char \*key, int \*error)
 
       Retrieves an array of integers from a map. Use this function if there
       are a lot of numbers associated with a key, because it is faster than
@@ -1601,9 +1534,7 @@ struct VSAPI
 
    .. _propGetFloat:
 
-   .. c:member:: VSPropGetFloat propGetFloat
-
-      typedef double (VS_CC \*VSPropGetFloat)(const VSMap_ \*map, const char \*key, int index, int \*error)
+   double propGetFloat(const VSMap_ \*map, const char \*key, int index, int \*error)
 
       Retrieves a floating point number from a map.
 
@@ -1629,9 +1560,7 @@ struct VSAPI
 
    .. _propGetFloatArray:
 
-   .. c:member:: VSPropGetFloatArray propGetFloatArray
-
-      typedef const double \*(VS_CC \*VSPropGetFloatArray)(const VSMap_ \*map, const char \*key, int \*error)
+   const double \*propGetFloatArray(const VSMap_ \*map, const char \*key, int \*error)
 
       Retrieves an array of floating point numbers from a map. Use this
       function if there are a lot of numbers associated with a key, because
@@ -1657,13 +1586,15 @@ struct VSAPI
 
    .. _propGetData:
 
-   .. c:member:: VSPropGetData propGetData
-
-      typedef const char \*(VS_CC \*VSPropGetData)(const VSMap_ \*map, const char \*key, int index, int \*error)
+   const char \*propGetData(const VSMap_ \*map, const char \*key, int index, int \*error)
 
       Retrieves arbitrary binary data from a map.
 
       Returns a pointer to the data on success, or NULL in case of error.
+
+      The array returned is guaranteed to be NULL-terminated. The NULL
+      byte is not considered to be part of the array (propGetDataSize_
+      doesn't count it).
 
       The pointer is valid until the map is destroyed, or until the
       corresponding key is removed from the map or altered.
@@ -1688,19 +1619,18 @@ struct VSAPI
 
    .. _propGetDataSize:
 
-   .. c:member:: VSPropGetDataSize propGetDataSize
+   int propGetDataSize(const VSMap_ \*map, const char \*key, int index, int \*error)
 
-      typedef int (VS_CC \*VSPropGetDataSize)(const VSMap_ \*map, const char \*key, int index, int \*error)
+      Returns the size in bytes of a property of type ptData (see VSPropTypes_).
+      The terminating NULL byte is not counted.
 
-      Returns the size in bytes of a property of type ptData. See VSPropTypes_.
+
 
 ----------
 
    .. _propGetNode:
 
-   .. c:member:: VSPropGetNode propGetNode
-
-      typedef VSNodeRef_ \*(VS_CC \*VSPropGetNode)(const VSMap_ \*map, const char \*key, int index, int \*error)
+   VSNodeRef_ \*propGetNode(const VSMap_ \*map, const char \*key, int index, int \*error)
 
       Retrieves a node from a map.
 
@@ -1729,9 +1659,7 @@ struct VSAPI
 
    .. _propGetFrame:
 
-   .. c:member:: VSPropGetFrame propGetFrame
-
-      typedef const VSFrameRef_ \*(VS_CC \*VSPropGetFrame)(const VSMap_ \*map, const char \*key, int index, int \*error)
+   const VSFrameRef_ \*propGetFrame(const VSMap_ \*map, const char \*key, int index, int \*error)
 
       Retrieves a frame from a map.
 
@@ -1760,9 +1688,7 @@ struct VSAPI
 
    .. _propGetFunc:
 
-   .. c:member:: VSPropGetFunc propGetFunc
-
-      typedef VSFuncRef_ \*(VS_CC \*VSPropGetFunc)(const VSMap_ \*map, const char \*key, int index, int \*error)
+   VSFuncRef_ \*propGetFunc(const VSMap_ \*map, const char \*key, int index, int \*error)
 
       Retrieves a function from a map.
 
@@ -1791,9 +1717,7 @@ struct VSAPI
 
    .. _propSetInt:
 
-   .. c:member:: VSPropSetInt propSetInt
-
-      typedef int (VS_CC \*VSPropSetInt)(VSMap_ \*map, const char \*key, int64_t i, int append)
+   int propSetInt(VSMap_ \*map, const char \*key, int64_t i, int append)
 
       Adds a property to a map.
 
@@ -1817,9 +1741,7 @@ struct VSAPI
 
    .. _propSetIntArray:
 
-   .. c:member:: VSPropSetIntArray propSetIntArray
-
-      typedef int (VS_CC \*VSPropSetIntArray)(VSMap_ \*map, const char \*key, const int64_t \*i, int size)
+   int propSetIntArray(VSMap_ \*map, const char \*key, const int64_t \*i, int size)
 
       Adds an array of integers to a map. Use this function if there are a
       lot of numbers to add, because it is faster than calling propSetInt_\ ()
@@ -1846,9 +1768,7 @@ struct VSAPI
 
    .. _propSetFloat:
 
-   .. c:member:: VSPropSetFloat propSetFloat
-
-      typedef int (VS_CC \*VSPropSetFloat)(VSMap_ \*map, const char \*key, double d, int append)
+   int propSetFloat(VSMap_ \*map, const char \*key, double d, int append)
 
       Adds a property to a map.
 
@@ -1872,9 +1792,7 @@ struct VSAPI
 
    .. _propSetFloatArray:
 
-   .. c:member:: VSPropSetFloatArray propSetFloatArray
-
-      typedef int (VS_CC \*VSPropSetFloatArray)(VSMap_ \*map, const char \*key, const double \*d, int size)
+   int propSetFloatArray(VSMap_ \*map, const char \*key, const double \*d, int size)
 
       Adds an array of floating point numbers to a map. Use this function if
       there are a lot of numbers to add, because it is faster than calling
@@ -1901,9 +1819,7 @@ struct VSAPI
 
    .. _propSetData:
 
-   .. c:member:: VSPropSetData propSetData
-
-      typedef int (VS_CC \*VSPropSetData)(VSMap_ \*map, const char \*key, const char \*data, int size, int append)
+   int propSetData(VSMap_ \*map, const char \*key, const char \*data, int size, int append)
 
       Adds a property to a map.
 
@@ -1921,7 +1837,8 @@ struct VSAPI
          no longer needed.
 
       *size*
-         The number of bytes to copy.
+         The number of bytes to copy. If this is negative, everything up to
+         the first NULL byte will be copied.
 
       *append*
          One of VSPropAppendMode_.
@@ -1933,9 +1850,7 @@ struct VSAPI
 
    .. _propSetNode:
 
-   .. c:member:: VSPropSetNode propSetNode
-
-      typedef int (VS_CC \*VSPropSetNode)(VSMap_ \*map, const char \*key, VSNodeRef_ \*node, int append)
+   int propSetNode(VSMap_ \*map, const char \*key, VSNodeRef_ \*node, int append)
 
       Adds a property to a map.
 
@@ -1962,9 +1877,7 @@ struct VSAPI
 
    .. _propSetFrame:
 
-   .. c:member:: VSPropSetFrame propSetFrame
-
-      typedef int (VS_CC \*VSPropSetFrame)(VSMap_ \*map, const char \*key, const VSFrameRef_ \*f, int append)
+   int propSetFrame(VSMap_ \*map, const char \*key, const VSFrameRef_ \*f, int append)
 
       Adds a property to a map.
 
@@ -1991,9 +1904,7 @@ struct VSAPI
 
    .. _propSetFunc:
 
-   .. c:member:: VSPropSetFunc propSetFunc
-
-      typedef int (VS_CC \*VSPropSetFunc)(VSMap_ \*map, const char \*key, VSFuncRef_ \*func, int append)
+   int propSetFunc(VSMap_ \*map, const char \*key, VSFuncRef_ \*func, int append)
 
       Adds a property to a map.
 
@@ -2020,9 +1931,7 @@ struct VSAPI
 
    .. _getPluginById:
 
-   .. c:member:: VSGetPluginById getPluginById
-
-      typedef VSPlugin_ \*(VS_CC \*VSGetPluginById)(const char \*identifier, VSCore_ \*core)
+   VSPlugin_ \*getPluginById(const char \*identifier, VSCore_ \*core)
 
       Returns a pointer to the plugin with the given identifier, or NULL
       if not found.
@@ -2034,9 +1943,7 @@ struct VSAPI
 
    .. _getPluginByNs:
 
-   .. c:member:: VSGetPluginByNs getPluginByNs
-
-      typedef VSPlugin_ \*(VS_CC \*VSGetPluginByNs)(const char \*ns, VSCore_ \*core)
+   VSPlugin_ \*getPluginByNs(const char \*ns, VSCore_ \*core)
 
       Returns a pointer to the plugin with the given namespace, or NULL
       if not found.
@@ -2050,9 +1957,7 @@ struct VSAPI
 
    .. _getPlugins:
 
-   .. c:member:: VSGetPlugins getPlugins
-
-      typedef VSMap_ \*(VS_CC \*VSGetPlugins)(VSCore_ \*core)
+   VSMap_ \*getPlugins(VSCore_ \*core)
 
       Returns a map containing a list of all loaded plugins.
 
@@ -2066,9 +1971,7 @@ struct VSAPI
 
    .. _getFunctions:
 
-   .. c:member:: VSGetFunctions getFunctions
-
-      typedef VSMap_ \*(VS_CC \*VSGetFunctions)(VSPlugin_ \*plugin)
+   VSMap_ \*getFunctions(VSPlugin_ \*plugin)
 
       Returns a map containing a list of the filters exported by a plugin.
 
@@ -2082,12 +1985,13 @@ struct VSAPI
 
    .. _getPluginPath:
 
-   .. c:member:: VSGetPluginPath getPluginPath
-
-      typedef const char \*(VS_CC \*VSGetPluginPath)(const VSPlugin_ \*plugin)
+   const char \*getPluginPath(const VSPlugin_ \*plugin)
 
       Returns the absolute path to the plugin, including the plugin's file
-      name. Path elements are always delimited with forward slashes.
+      name. This is the real location of the plugin, i.e. there are no
+      symbolic links in the path.
+
+      Path elements are always delimited with forward slashes.
 
       VapourSynth retains ownership of the returned pointer.
 
@@ -2095,9 +1999,7 @@ struct VSAPI
 
    .. _createFunc:
 
-   .. c:member:: VSCreateFunc createFunc
-
-      typedef VSFuncRef_ \*(VS_CC \*VSCreateFunc)(VSPublicFunction func, void \*userData, VSFreeFuncData free)
+   VSFuncRef_ \*createFunc(VSPublicFunction func, void \*userData, VSFreeFuncData free)
 
       *func*
          typedef void (VS_CC \*VSPublicFunction)(const VSMap_ \*in, VSMap_ \*out, void \*userData, VSCore_ \*core, const VSAPI_ \*vsapi)
@@ -2116,9 +2018,7 @@ struct VSAPI
 
    .. _cloneFuncRef:
 
-   .. c:member:: VSCloneFuncRef cloneFuncRef
-
-      typedef VSFuncRef_ \*(VS_CC \*VSCloneFuncRef)(VSFuncRef_ \*f)
+   VSFuncRef_ \*cloneFuncRef(VSFuncRef_ \*f)
 
       Duplicates a func reference. This new reference has to be deleted with
       freeFunc_\ () when it is no longer needed.
@@ -2127,9 +2027,7 @@ struct VSAPI
 
    .. _callFunc:
 
-   .. c:member:: VSCallFunc callFunc
-
-      typedef void (VS_CC \*VSCallFunc)(VSFuncRef_ \*func, const VSMap_ \*in, VSMap_ \*out, VSCore_ \*core, const VSAPI_ \*vsapi)
+   void callFunc(VSFuncRef_ \*func, const VSMap_ \*in, VSMap_ \*out, VSCore_ \*core, const VSAPI_ \*vsapi)
 
       Calls a function. If the call fails *out* will have an error set.
       
@@ -2152,9 +2050,7 @@ struct VSAPI
 
    .. _freeFunc:
 
-   .. c:member:: VSFreeFunc freeFunc
-
-      typedef void (VS_CC \*VSFreeFunc)(VSFuncRef_ \*f)
+   void freeFunc(VSFuncRef_ \*f)
 
       Deletes a function reference, releasing the caller's ownership of the function.
 
@@ -2166,9 +2062,7 @@ struct VSAPI
 
    .. _createFilter:
 
-   .. c:member:: VSCreateFilter createFilter
-
-      typedef void (VS_CC \*VSCreateFilter)(const VSMap_ \*in, VSMap_ \*out, const char \*name, VSFilterInit_ init, VSFilterGetFrame_ getFrame, VSFilterFree_ free, int filterMode, int flags, void \*instanceData, VSCore_ \*core)
+   void createFilter(const VSMap_ \*in, VSMap_ \*out, const char \*name, VSFilterInit_ init, VSFilterGetFrame_ getFrame, VSFilterFree_ free, int filterMode, int flags, void \*instanceData, VSCore_ \*core)
 
       Creates a new filter node.
 
@@ -2212,9 +2106,7 @@ struct VSAPI
 
    .. _registerFunction:
 
-   .. c:member:: VSRegisterFunction registerFunction
-
-      typedef void (VS_CC \*VSRegisterFunction)(const char \*name, const char \*args, VSPublicFunction argsFunc, void \*functionData, VSPlugin_ \*plugin)
+   void registerFunction(const char \*name, const char \*args, VSPublicFunction argsFunc, void \*functionData, VSPlugin_ \*plugin)
 
       See VSInitPlugin_.
 
@@ -2222,9 +2114,7 @@ struct VSAPI
 
    .. _invoke:
 
-   .. c:member:: VSInvoke invoke
-
-      typedef VSMap_ \*(VS_CC \*VSInvoke)(VSPlugin_ \*plugin, const char \*name, const VSMap_ \*args)
+   VSMap_ \*invoke(VSPlugin_ \*plugin, const char \*name, const VSMap_ \*args)
 
       Invokes a filter.
 
@@ -2260,9 +2150,7 @@ struct VSAPI
 
    .. _setFilterError:
 
-   .. c:member:: VSSetFilterError setFilterError
-
-      typedef void (VS_CC \*VSSetFilterError)(const char \*errorMessage, VSFrameContext_ \*frameCtx)
+   void setFilterError(const char \*errorMessage, VSFrameContext_ \*frameCtx)
 
       Adds an error message to a frame context, replacing the existing message,
       if any.
@@ -2275,9 +2163,7 @@ struct VSAPI
 
    .. _getOutputIndex:
 
-   .. c:member:: VSGetOutputIndex getOutputIndex
-
-      typedef int (VS_CC \*VSGetOutputIndex)(VSFrameContext_ \*frameCtx)
+   int getOutputIndex(VSFrameContext_ \*frameCtx)
 
       Returns the index of the node from which the frame is being requested.
 
@@ -2288,9 +2174,7 @@ struct VSAPI
 
    .. _queryCompletedFrame:
 
-   .. c:member:: VSQueryCompletedFrame queryCompletedFrame
-
-      typedef void (VS_CC \*VSQueryCompletedFrame)(VSNodeRef_ \**node, int \*n, VSFrameContext_ \*frameCtx)
+   void queryCompletedFrame(VSNodeRef_ \**node, int \*n, VSFrameContext_ \*frameCtx)
 
       Finds out which requested frame is ready. To be used in a filter's
       "getframe" function, when it is called with *activationReason*
@@ -2302,9 +2186,7 @@ struct VSAPI
 
    .. _releaseFrameEarly:
 
-   .. c:member:: VSReleaseFrameEarly releaseFrameEarly
-
-      typedef void (VS_CC \*VSReleaseFrameEarly)(VSNodeRef_ \*node, int n, VSFrameContext_ \*frameCtx)
+   void releaseFrameEarly(VSNodeRef_ \*node, int n, VSFrameContext_ \*frameCtx)
 
       Normally a reference is kept to all requested frames until the current frame is complete.
       If a filter scans a large number of frames this can consume all memory, instead the filter
