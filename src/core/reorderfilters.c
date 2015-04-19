@@ -235,11 +235,10 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
         } else if (d.vi.numFrames) {
             // this is exactly how avisynth does it
             d.vi.numFrames = (vsapi->getVideoInfo(d.node[0])->numFrames - 1) * d.numclips + 1;
-            for (int i = 1; i < d.numclips; i++) {
-                int64_t temp = ((int64_t)vsapi->getVideoInfo(d.node[i])->numFrames - 1) * d.numclips + i + 1;
-                if (temp > INT_MAX)
+            for (int i = 0; i < d.numclips; i++) {
+                if (vsapi->getVideoInfo(d.node[i])->numFrames > ((INT_MAX - i - 1) / d.numclips + 1))
                     overflow = 1;
-                d.vi.numFrames = VSMAX(d.vi.numFrames, (int)temp);
+                d.vi.numFrames = VSMAX(d.vi.numFrames, (vsapi->getVideoInfo(d.node[i])->numFrames - 1) * d.numclips + i + 1);
             }
         }
 
