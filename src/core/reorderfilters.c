@@ -113,7 +113,7 @@ static void VS_CC trimCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     d.first = int64ToIntS(vsapi->propGetInt(in, "first", 0, &err));
     int firstset = !err;
     d.last = int64ToIntS(vsapi->propGetInt(in, "last", 0, &err));
-    int lastset =  !err;
+    int lastset = !err;
     d.length = int64ToIntS(vsapi->propGetInt(in, "length", 0, &err));
     int lengthset = !err;
 
@@ -229,9 +229,9 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
         int overflow = 0;
 
         if (extend) {
-			if (d.vi.numFrames > INT_MAX / d.numclips)
+            if (d.vi.numFrames > INT_MAX / d.numclips)
                 overflow = 1;
-			d.vi.numFrames *= d.numclips;
+            d.vi.numFrames *= d.numclips;
         } else if (d.vi.numFrames) {
             // this is exactly how avisynth does it
             d.vi.numFrames = (vsapi->getVideoInfo(d.node[0])->numFrames - 1) * d.numclips + 1;
@@ -327,12 +327,12 @@ static void VS_CC loopCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     }
 
     if (times > 0) {
-		if (d.vi.numFrames > INT_MAX / times) {
+        if (d.vi.numFrames > INT_MAX / times) {
             vsapi->freeNode(d.node);
             RETERROR("Interleave: resulting clip is too long");
         }
 
-		d.vi.numFrames *= times;
+        d.vi.numFrames *= times;
     } else { // loop for maximum duration
         d.vi.numFrames = INT_MAX;
     }
@@ -601,7 +601,7 @@ static void VS_CC duplicateFramesCreate(const VSMap *in, VSMap *out, void *userD
 
     qsort(d.dups, d.num_dups, sizeof(int), compareInts);
 
-    if (d.vi.numFrames + d.num_dups < d.vi.numFrames) {   
+    if (d.vi.numFrames + d.num_dups < d.vi.numFrames) {
         vsapi->freeNode(d.node);
         free(d.dups);
         RETERROR("DuplicateFrames: resulting clip is too long");
@@ -672,7 +672,7 @@ static void VS_CC deleteFramesCreate(const VSMap *in, VSMap *out, void *userData
     for (int i = 0; i < d.num_delete; i++) {
         d.delete[i] = int64ToIntS(vsapi->propGetInt(in, "frames", i, 0));
 
-        if (d.delete[i] < 0 || (d.vi.numFrames && d.delete[i] >= d.vi.numFrames)) {    
+        if (d.delete[i] < 0 || (d.vi.numFrames && d.delete[i] >= d.vi.numFrames)) {
             vsapi->freeNode(d.node);
             free(d.delete);
             RETERROR("DeleteFrames: out of bounds frame number");

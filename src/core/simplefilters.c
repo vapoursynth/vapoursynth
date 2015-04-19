@@ -543,7 +543,7 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
 
             // simple binary compatibility
             if (d.vi.format->bitsPerSample != pvi->format->bitsPerSample ||
-                    d.vi.format->sampleType != pvi->format->sampleType)
+                d.vi.format->sampleType != pvi->format->sampleType)
                 SHUFFLEERROR("ShufflePlanes: plane 1 and 2 do not have binary compatible storage");
         }
 
@@ -636,11 +636,11 @@ static void VS_CC separateFieldsCreate(const VSMap *in, VSMap *out, void *userDa
         RETERROR("SeparateFields: clip height must be mod 2 in the smallest subsampled plane");
     }
 
-	if (d.vi.numFrames > INT_MAX / 2) {
+    if (d.vi.numFrames > INT_MAX / 2) {
         vsapi->freeNode(d.node);
         RETERROR("SeparateFields: resulting clip is too long");
     }
-	d.vi.numFrames *= 2;
+    d.vi.numFrames *= 2;
 
     d.vi.height /= 2;
 
@@ -916,9 +916,9 @@ static const VSFrameRef *VS_CC stackGetframe(int n, int activationReason, void *
                     int src_stride = vsapi->getStride(src, plane);
                     int rowsize = vsapi->getFrameWidth(src, plane) * d->vi.format->bytesPerSample;
                     vs_bitblt(dstp, dst_stride,
-                           srcp, src_stride,
-                           rowsize,
-                           vsapi->getFrameHeight(src, plane));
+                        srcp, src_stride,
+                        rowsize,
+                        vsapi->getFrameHeight(src, plane));
                     dstp += rowsize;
                 }
 
@@ -1124,35 +1124,34 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     if (err) {
         if (!hasvi)
             d.vi.width = 640;
-    }
-    else
+    } else {
         d.vi.width = int64ToIntS(temp);
+    }
 
     temp = vsapi->propGetInt(in, "height", 0, &err);
 
     if (err) {
         if (!hasvi)
             d.vi.height = 480;
-    }
-    else
+    } else {
         d.vi.height = int64ToIntS(temp);
+    }
 
     temp = vsapi->propGetInt(in, "fpsnum", 0, &err);
 
     if (err) {
         if (!hasvi)
             d.vi.fpsNum = 24;
-    }
-    else
+    } else {
         d.vi.fpsNum = temp;
+    }
 
     temp = vsapi->propGetInt(in, "fpsden", 0, &err);
 
     if (err) {
         if (!hasvi)
             d.vi.fpsDen = 1;
-    }
-    else
+    } else
         d.vi.fpsDen = temp;
 
     if (d.vi.fpsDen < 1 || d.vi.fpsNum < 1)
@@ -1163,9 +1162,9 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     if (err) {
         if (!hasvi)
             d.vi.format = vsapi->getFormatPreset(pfRGB24, core);
-    }
-    else
+    } else {
         d.vi.format = vsapi->getFormatPreset(format, core);
+    }
 
     if (!d.vi.format)
         RETERROR("BlankClip: invalid format");
@@ -1175,9 +1174,10 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     if (err) {
         if (!hasvi)
             d.vi.numFrames = int64ToIntS((d.vi.fpsNum * 10) / d.vi.fpsDen);
-    }
-    else
+    } else {
         d.vi.numFrames = int64ToIntS(temp);
+    }
+
     if (d.vi.width <= 0 || d.vi.width % (1 << d.vi.format->subSamplingW))
         RETERROR("BlankClip: invalid width");
 
@@ -1472,7 +1472,7 @@ static void VS_CC frameEvalCreate(const VSMap *in, VSMap *out, void *userData, V
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "FrameEval", frameEvalInit, d.numpropsrc ? frameEvalGetFrameWithProps : frameEvalGetFrameNoProps, frameEvalFree,  d.numpropsrc ? fmParallelRequests : fmUnordered, 0, data, core);
+    vsapi->createFilter(in, out, "FrameEval", frameEvalInit, d.numpropsrc ? frameEvalGetFrameWithProps : frameEvalGetFrameNoProps, frameEvalFree, d.numpropsrc ? fmParallelRequests : fmUnordered, 0, data, core);
 }
 
 //////////////////////////////////////////
@@ -1808,7 +1808,7 @@ static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData,
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node);
 
-    if (!isConstantFormat(d.vi) || isCompatFormat(d.vi) || d.vi->format->sampleType != stInteger || (d.vi->format->bytesPerSample != 1 &&  d.vi->format->bytesPerSample != 2)) {
+    if (!isConstantFormat(d.vi) || isCompatFormat(d.vi) || d.vi->format->sampleType != stInteger || (d.vi->format->bytesPerSample != 1 && d.vi->format->bytesPerSample != 2)) {
         vsapi->freeNode(d.node);
         RETERROR("PEMVerifier: clip must be constant format and of integer 8-16 bit type");
     }
@@ -1831,7 +1831,7 @@ static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData,
 
     if (numupper < 0) {
         for (int i = 0; i < d.vi->format->numPlanes; i++)
-            d.upper[i] = ((int64_t)1 << d.vi->format->bitsPerSample)-1;
+            d.upper[i] = ((int64_t)1 << d.vi->format->bitsPerSample) - 1;
     } else if (numupper == d.vi->format->numPlanes) {
         for (int i = 0; i < d.vi->format->numPlanes; i++) {
             d.upper[i] = vsapi->propGetInt(in, "upper", i, 0);
@@ -1919,7 +1919,7 @@ static void VS_CC planeAverageCreate(const VSMap *in, VSMap *out, void *userData
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node);
 
-    if (!isConstantFormat(d.vi) || isCompatFormat(d.vi) || d.vi->format->sampleType != stInteger || (d.vi->format->bytesPerSample != 1 &&  d.vi->format->bytesPerSample != 2)) {
+    if (!isConstantFormat(d.vi) || isCompatFormat(d.vi) || d.vi->format->sampleType != stInteger || (d.vi->format->bytesPerSample != 1 && d.vi->format->bytesPerSample != 2)) {
         vsapi->freeNode(d.node);
         RETERROR("PlaneAverage: clip must be constant format and of integer 8-16 bit type");
     }
@@ -1933,7 +1933,7 @@ static void VS_CC planeAverageCreate(const VSMap *in, VSMap *out, void *userData
     const char *tempprop = vsapi->propGetData(in, "prop", 0, &err);
     if (err)
         tempprop = "PlaneAverage";
-    d.prop = malloc(strlen(tempprop)+1);
+    d.prop = malloc(strlen(tempprop) + 1);
     strcpy(d.prop, tempprop);
 
     data = malloc(sizeof(d));
@@ -2023,7 +2023,7 @@ static void VS_CC planeDifferenceCreate(const VSMap *in, VSMap *out, void *userD
     d.node2 = vsapi->propGetNode(in, "clips", 1, 0);
     d.vi = vsapi->getVideoInfo(d.node1);
 
-    if (!isConstantFormat(d.vi) || isCompatFormat(d.vi) || !isSameFormat(d.vi, vsapi->getVideoInfo(d.node2)) || d.vi->format->sampleType != stInteger || (d.vi->format->bytesPerSample != 1 &&  d.vi->format->bytesPerSample != 2)) {
+    if (!isConstantFormat(d.vi) || isCompatFormat(d.vi) || !isSameFormat(d.vi, vsapi->getVideoInfo(d.node2)) || d.vi->format->sampleType != stInteger || (d.vi->format->bytesPerSample != 1 && d.vi->format->bytesPerSample != 2)) {
         vsapi->freeNode(d.node1);
         vsapi->freeNode(d.node2);
         RETERROR("PlaneDifference: clips must be the same format, constant format and of integer 8-16 bit type");
@@ -2039,7 +2039,7 @@ static void VS_CC planeDifferenceCreate(const VSMap *in, VSMap *out, void *userD
     const char *tempprop = vsapi->propGetData(in, "prop", 0, &err);
     if (err)
         tempprop = "PlaneDifference";
-    d.prop = malloc(strlen(tempprop)+1);
+    d.prop = malloc(strlen(tempprop) + 1);
     strcpy(d.prop, tempprop);
 
     data = malloc(sizeof(d));
@@ -2109,7 +2109,7 @@ static void VS_CC clipToPropCreate(const VSMap *in, VSMap *out, void *userData, 
     const char *tempprop = vsapi->propGetData(in, "prop", 0, &err);
     if (err)
         tempprop = "_Alpha";
-    d.prop = malloc(strlen(tempprop)+1);
+    d.prop = malloc(strlen(tempprop) + 1);
     strcpy(d.prop, tempprop);
 
     data = malloc(sizeof(d));
@@ -2177,7 +2177,7 @@ static void VS_CC propToClipCreate(const VSMap *in, VSMap *out, void *userData, 
     const char *tempprop = vsapi->propGetData(in, "prop", 0, &err);
     if (err)
         tempprop = "_Alpha";
-    d.prop = malloc(strlen(tempprop)+1);
+    d.prop = malloc(strlen(tempprop) + 1);
     strcpy(d.prop, tempprop);
 
     const VSFrameRef *src = vsapi->getFrame(0, d.node, errmsg, sizeof(errmsg));
