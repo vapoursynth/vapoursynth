@@ -655,6 +655,19 @@ static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *
         VS_ALIGNED_FREE(workspace);
         vsapi->freeFrame(srcPF);
         vsapi->freeFrame(scpPF);
+
+        if (d->field > 1) {
+            VSMap *dst_props = vsapi->getFramePropsRW(dst);
+            int err_num, err_den;
+            int64_t duration_num = vsapi->propGetInt(dst_props, "_DurationNum", 0, &err_num);
+            int64_t duration_den = vsapi->propGetInt(dst_props, "_DurationDen", 0, &err_den);
+            if (!err_num && !err_den) {
+                muldivRational(&duration_num, &duration_den, 1, 2); // Divide duration by 2.
+                vsapi->propSetInt(dst_props, "_DurationNum", duration_num, paReplace);
+                vsapi->propSetInt(dst_props, "_DurationDen", duration_den, paReplace);
+            }
+        }
+
         return dst;
     }
 
