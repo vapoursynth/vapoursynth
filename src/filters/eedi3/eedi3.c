@@ -842,11 +842,7 @@ static void VS_CC eedi3Create(const VSMap *in, VSMap *out, void *userData, VSCor
 
     if(d.field > 1) {
         d.vi.numFrames *= 2;
-        int64_t fpsNum = d.vi.fpsNum;
-        int64_t fpsDen = d.vi.fpsDen;
-        muldivRational(&fpsNum, &fpsDen, 2, 1);
-        d.vi.fpsNum = fpsNum;
-        d.vi.fpsDen = fpsDen;
+        muldivRational(&d.vi.fpsNum, &d.vi.fpsDen, 2, 1);
     }
 
     if(d.dh)
