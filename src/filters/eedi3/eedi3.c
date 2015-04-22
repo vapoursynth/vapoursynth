@@ -782,6 +782,11 @@ static void VS_CC eedi3Create(const VSMap *in, VSMap *out, void *userData, VSCor
         goto error;
     }
 
+    if (d.field > 1 && (d.vi.numFrames > INT_MAX / 2)) {
+        sprintf(msg, "eedi3:  field must be set to 0 or 1 when dh=true!");
+        goto error;
+    }
+
     if(d.alpha < 0.0f || d.alpha > 1.0f) {
         sprintf(msg, "eedi3:  0 <= alpha <= 1!");
         goto error;
@@ -824,7 +829,10 @@ static void VS_CC eedi3Create(const VSMap *in, VSMap *out, void *userData, VSCor
 
     if(d.field > 1) {
         d.vi.numFrames *= 2;
-        d.vi.fpsNum *= 2;
+        if (d.vi.fpsDen & 1)
+            d.vi.fpsNum *= 2;
+        else
+            d.vi.fpsDen /= 2;
     }
 
     if(d.dh)
