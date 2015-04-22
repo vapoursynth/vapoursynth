@@ -796,7 +796,7 @@ static void VS_CC eedi3Create(const VSMap *in, VSMap *out, void *userData, VSCor
     }
 
     if (d.field > 1 && (d.vi.numFrames > INT_MAX / 2)) {
-        sprintf(msg, "eedi3:  field must be set to 0 or 1 when dh=true!");
+        sprintf(msg, "eedi3:  resulting clip is too long!");
         goto error;
     }
 
