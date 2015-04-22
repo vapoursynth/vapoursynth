@@ -842,10 +842,11 @@ static void VS_CC eedi3Create(const VSMap *in, VSMap *out, void *userData, VSCor
 
     if(d.field > 1) {
         d.vi.numFrames *= 2;
-        if (d.vi.fpsDen & 1)
-            d.vi.fpsNum *= 2;
-        else
-            d.vi.fpsDen /= 2;
+        int64_t fpsNum = d.vi.fpsNum;
+        int64_t fpsDen = d.vi.fpsDen;
+        muldivRational(&fpsNum, &fpsDen, 1, 2); // Divide duration by 2.
+        d.vi.fpsNum = fpsNum;
+        d.vi.fpsDen = fpsDen;
     }
 
     if(d.dh)
