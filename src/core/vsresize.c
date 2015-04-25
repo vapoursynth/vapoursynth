@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2013 Fredrik Mellbin
+* Copyright (c) 2012-2015 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -19,10 +19,10 @@
 */
 
 #include <stdlib.h>
-#include <libswscale/swscale.h>
 #ifdef _MSC_VER
 #define inline _inline
 #endif
+#include <libswscale/swscale.h>
 #include <libavutil/opt.h>
 #include <libavcodec/avcodec.h>
 #include "vsresize.h"
