@@ -1,3 +1,5 @@
+.. _pythonreference:
+
 Python Reference
 ================
 
@@ -19,8 +21,8 @@ are CamelCase. Unit names are also lowercase and usually short. This is good to
 remember. If you do not like CamelCase for function names you can pass
 *accept_lowercase=True* to get_core().
 
-Slicing
-#######
+Slicing and other syntactic sugar
+#################################
 
 The VideoNode class (always called "clip" in practice) supports the full
 range of indexing and slicing operations in Python. If you do perform a slicing
@@ -42,6 +44,20 @@ Here are some examples to illustrate::
 
    # It may all be combined at once to confuse people, just like normal Python lists
    ret = clip[-400:-800:-5]
+
+The addition operator can be used to splice clips together::
+
+   clip4 = clip1 + clip2 + clip3
+
+   # Equivalent to:
+   clip4 = core.std.Splice([core.std.Splice([clip1, clip2], mismatch=False), clip3], mismatch=False)
+
+The multiplication operator can be used to loop a clip::
+
+   clip = clip * 42
+
+   # Equivalent to:
+   clip = core.std.Loop(clip, times=42)
 
 Output
 ######

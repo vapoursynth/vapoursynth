@@ -13,3 +13,5 @@ Trim
    Specifying both *last* and *length* is considered to be an error.
    Likewise is calling Trim in a way that returns no frames, as 0 frame clips are
    not allowed in VapourSynth.
+
+   In Python, std.Trim can also be invoked by :ref:`slicing a clip <pythonreference>`.
