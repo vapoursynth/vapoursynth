@@ -45,6 +45,10 @@
 #    include <dlfcn.h>
 #endif
 
+#ifdef VS_FRAME_GUARD
+static const uint32_t VS_FRAME_GUARD_PATTERN = 0xDEADBEEF;
+#endif
+
 class VSFrame;
 struct VSCore;
 class VSCache;
@@ -328,9 +332,9 @@ public:
 class VSPlaneData {
 private:
     MemoryUse *mem;
-    uint32_t size;
 public:
     uint8_t *data;
+    const uint32_t size;
     VSPlaneData(uint32_t size, MemoryUse *mem);
     VSPlaneData(const VSPlaneData &d);
     ~VSPlaneData();
@@ -374,6 +378,10 @@ public:
     int getStride(int plane) const;
     const uint8_t *getReadPtr(int plane) const;
     uint8_t *getWritePtr(int plane);
+
+#ifdef VS_FRAME_GUARD
+    bool verifyGuardPattern();
+#endif
 };
 
 class FrameContext {
@@ -382,7 +390,6 @@ class FrameContext {
 private:
     int numFrameRequests;
     int n;
-    VSNodeRef *node;
     VSNode *clip;
     PVideoFrame returnedFrame;
     PFrameContext upstreamContext;
@@ -392,6 +399,7 @@ private:
     std::string errorMessage;
     bool error;
 public:
+    VSNodeRef *node;
     std::map<NodeOutputKey, PVideoFrame> availableFrames;
     int lastCompletedN;
     int index;

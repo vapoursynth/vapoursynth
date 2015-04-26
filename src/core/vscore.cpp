@@ -231,11 +231,15 @@ VSPlaneData::VSPlaneData(uint32_t size, MemoryUse *mem) : mem(mem), size(size) {
     if (!data)
         vsFatal("Failed to allocate memory for planes. Out of memory.");
     mem->add(size);
+#ifdef VS_FRAME_GUARD
+    for (int i = 0; i < VSFrame::alignment / sizeof(uint32_t); i++) {
+        reinterpret_cast<uint32_t *>(data)[i] = VS_FRAME_GUARD_PATTERN;
+        reinterpret_cast<uint32_t *>(data + size - VSFrame::alignment)[i] = VS_FRAME_GUARD_PATTERN;
+    }
+#endif
 }
 
-VSPlaneData::VSPlaneData(const VSPlaneData &d) {
-    size = d.size;
-    mem = d.mem;
+VSPlaneData::VSPlaneData(const VSPlaneData &d) : size(d.size), mem(d.mem) {
     data = vs_aligned_malloc<uint8_t>(size, VSFrame::alignment);
     assert(data);
     if (!data)
@@ -336,16 +340,11 @@ const uint8_t *VSFrame::getReadPtr(int plane) const {
     if (plane < 0 || plane >= format->numPlanes)
         vsFatal("Invalid plane requested");
 
-    switch (plane) {
-    case 0:
-        return data[0]->data;
-    case 1:
-        return data[1]->data;
-    case 2:
-        return data[2]->data;
-    default:
-        return NULL;
-    }
+#ifdef VS_FRAME_GUARD
+    return data[plane]->data + VSFrame::alignment;
+#else
+    return data[plane]->data;
+#endif
 }
 
 uint8_t *VSFrame::getWritePtr(int plane) {
@@ -355,8 +354,27 @@ uint8_t *VSFrame::getWritePtr(int plane) {
     // copy the plane data if this isn't the only reference
     if (!data[plane].unique())
         data[plane] = std::make_shared<VSPlaneData>(*data[plane].get());
+#ifdef VS_FRAME_GUARD
+    return data[plane]->data + VSFrame::alignment;
+#else
     return data[plane]->data;
+#endif
 }
+
+#ifdef VS_FRAME_GUARD
+bool VSFrame::verifyGuardPattern() {
+
+    for (int p = 0; p < format->numPlanes; p++) {
+        for (int i = 0; i < VSFrame::alignment / sizeof(uint32_t); i++) {
+            if (reinterpret_cast<uint32_t *>(data[p]->data)[i] != VS_FRAME_GUARD_PATTERN ||
+                reinterpret_cast<uint32_t *>(data[p]->data + data[p]->size - VSFrame::alignment)[i] != VS_FRAME_GUARD_PATTERN)
+                return false;
+        }
+    }
+
+    return true;
+}
+#endif
 
 struct split1 {
     enum empties_t { empties_ok, no_empties };
@@ -528,7 +546,7 @@ PVideoFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext
 #endif
 
     if (r) {
-        PVideoFrame p(r->frame);
+        PVideoFrame p(std::move(r->frame));
         delete r;
         const VSFormat *fi = p->getFormat();
         const VSVideoInfo &lvi = vi[frameCtx.ctx->index];
@@ -539,6 +557,11 @@ PVideoFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext
             vsFatal("Frame returned not of the declared type");
         else if ((lvi.width || lvi.height) && (p->getWidth(0) != lvi.width || p->getHeight(0) != lvi.height))
             vsFatal("Frame returned of not of the declared dimensions");
+
+#ifdef VS_FRAME_GUARD
+        if (!p->verifyGuardPattern())
+            vsFatal("Guard memory corrupted in frame %d returned from %s", n, frameCtx.ctx->node->clip->name.c_str());
+#endif
 
         return p;
     }

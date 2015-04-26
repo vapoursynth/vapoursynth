@@ -47,8 +47,9 @@ unknown. It is also a fatal error to set them to a value not specified below.
    for all operations that depend on frame length.
    float _AbsoluteTime
 
-   The frame's duration in seconds as a rational number.
-   Filters that modify the framerate should also change this value.
+   The frame's duration in seconds as a rational number. Filters that
+   modify the framerate should also change this value.
+   Should always be normalized.
    int _DurationNum
    int _DurationDen
    
