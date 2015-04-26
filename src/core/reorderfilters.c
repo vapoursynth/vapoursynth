@@ -179,7 +179,22 @@ static const VSFrameRef *VS_CC interleaveGetframe(int n, int activationReason, v
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n / d->numclips, d->node[n % d->numclips], frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        return vsapi->getFrameFilter(n / d->numclips, d->node[n % d->numclips], frameCtx);
+        const VSFrameRef *src = vsapi->getFrameFilter(n / d->numclips, d->node[n % d->numclips], frameCtx);
+        VSFrameRef *dst = vsapi->copyFrame(src, core);
+        vsapi->freeFrame(src);
+
+        VSMap *dst_props = vsapi->getFramePropsRW(dst);
+
+        int errNum, errDen;
+        int64_t durationNum = vsapi->propGetInt(dst_props, "_DurationNum", 0, &errNum);
+        int64_t durationDen = vsapi->propGetInt(dst_props, "_DurationDen", 0, &errDen);
+        if (!errNum && !errDen) {
+            muldivRational(&durationNum, &durationDen, 1, d->numclips);
+            vsapi->propSetInt(dst_props, "_DurationNum", durationNum, paReplace);
+            vsapi->propSetInt(dst_props, "_DurationDen", durationDen, paReplace);
+        }
+
+        return dst;
     }
 
     return 0;
@@ -249,6 +264,9 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
             free(d.node);
             RETERROR("Interleave: resulting clip is too long");
         }
+
+        if (d.vi.fpsNum && d.vi.fpsDen)
+            muldivRational(&d.vi.fpsNum, &d.vi.fpsDen, d.numclips, 1);
 
         data = malloc(sizeof(d));
         *data = d;
