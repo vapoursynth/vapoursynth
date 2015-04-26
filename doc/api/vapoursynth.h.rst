@@ -807,12 +807,12 @@ struct VSVideoInfo
    .. c:member:: int64_t fpsNum
 
       Numerator part of the clip's frame rate. It will be 0 if the frame
-      rate can vary.
+      rate can vary. Should be normalized.
 
    .. c:member:: int64_t fpsDen
 
       Denominator part of the clip's frame rate. It will be 0 if the frame
-      rate can vary.
+      rate can vary. Should be normalized.
 
    .. c:member:: int width
 
