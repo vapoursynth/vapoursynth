@@ -590,7 +590,6 @@ static const VSFrameRef *VS_CC separateFieldsGetframe(int n, int activationReaso
             effectiveTFF = 1;
 
         VSFrameRef *dst = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, src, core);
-        vsapi->propSetInt(vsapi->getFramePropsRW(dst), "_Field", ((n & 1) ^ effectiveTFF), paReplace);
 
         for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {
             const uint8_t *srcp = vsapi->getReadPtr(src, plane);
@@ -612,6 +611,20 @@ static const VSFrameRef *VS_CC separateFieldsGetframe(int n, int activationReaso
         }
 
         vsapi->freeFrame(src);
+
+        VSMap *dst_props = vsapi->getFramePropsRW(dst);
+        vsapi->propSetInt(dst_props, "_Field", ((n & 1) ^ effectiveTFF), paReplace);
+        vsapi->propDeleteKey(dst_props, "_FieldBased");
+
+        int errNum, errDen;
+        int64_t durationNum = vsapi->propGetInt(dst_props, "_DurationNum", 0, &errNum);
+        int64_t durationDen = vsapi->propGetInt(dst_props, "_DurationDen", 0, &errDen);
+        if (!errNum && !errDen) {
+            muldivRational(&durationNum, &durationDen, 1, 2); // Divide duration by 2
+            vsapi->propSetInt(dst_props, "_DurationNum", durationNum, paReplace);
+            vsapi->propSetInt(dst_props, "_DurationDen", durationDen, paReplace);
+        }
+
         return dst;
     }
 
@@ -643,6 +656,8 @@ static void VS_CC separateFieldsCreate(const VSMap *in, VSMap *out, void *userDa
     d.vi.numFrames *= 2;
 
     d.vi.height /= 2;
+
+    muldivRational(&d.vi.fpsNum, &d.vi.fpsDen, 2, 1);
 
     data = malloc(sizeof(d));
     *data = d;
@@ -1157,6 +1172,8 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     if (d.vi.fpsDen < 1 || d.vi.fpsNum < 1)
         RETERROR("BlankClip: invalid framerate specified");
 
+    muldivRational(d.vi.fpsNum, d.vi.fpsDen, 1, 1);
+
     format = int64ToIntS(vsapi->propGetInt(in, "format", 0, &err));
 
     if (err) {
@@ -1295,6 +1312,8 @@ static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, V
         vsapi->freeNode(d.node);
         RETERROR("AssumeFPS: invalid framerate specified");
     }
+
+    muldivRational(&d.vi.fpsNum, &d.vi.fpsDen, 1, 1);
 
     data = malloc(sizeof(d));
     *data = d;
