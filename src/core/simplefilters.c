@@ -654,9 +654,7 @@ static void VS_CC separateFieldsCreate(const VSMap *in, VSMap *out, void *userDa
         RETERROR("SeparateFields: resulting clip is too long");
     }
     d.vi.numFrames *= 2;
-
     d.vi.height /= 2;
-
     muldivRational(&d.vi.fpsNum, &d.vi.fpsDen, 2, 1);
 
     data = malloc(sizeof(d));

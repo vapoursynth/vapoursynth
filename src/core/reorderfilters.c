@@ -265,8 +265,7 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
             RETERROR("Interleave: resulting clip is too long");
         }
 
-        if (d.vi.fpsNum && d.vi.fpsDen)
-            muldivRational(&d.vi.fpsNum, &d.vi.fpsDen, d.numclips, 1);
+        muldivRational(&d.vi.fpsNum, &d.vi.fpsDen, d.numclips, 1);
 
         data = malloc(sizeof(d));
         *data = d;
@@ -365,6 +364,7 @@ static void VS_CC loopCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
 typedef struct {
     VSNodeRef *node;
+    VSVideoInfo vi;
     int cycle;
     int *offsets;
     int num;
@@ -372,15 +372,7 @@ typedef struct {
 
 static void VS_CC selectEveryInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     SelectEveryData *d = (SelectEveryData *) * instanceData;
-    VSVideoInfo vi = *vsapi->getVideoInfo(d->node);
-    int inputnframes = vi.numFrames;
-    if (inputnframes) {
-        vi.numFrames = (inputnframes / d->cycle) * d->num;
-        for (int i = 0; i < d->num; i++)
-            if (d->offsets[i] < inputnframes % d->cycle)
-                vi.numFrames++;
-    }
-    vsapi->setVideoInfo(&vi, 1, node);
+    vsapi->setVideoInfo(&d->vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC selectEveryGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -390,7 +382,21 @@ static const VSFrameRef *VS_CC selectEveryGetframe(int n, int activationReason, 
         *frameData = (void *)(intptr_t)((n / d->num) * d->cycle + d->offsets[n % d->num]);
         vsapi->requestFrameFilter((intptr_t)*frameData, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        return vsapi->getFrameFilter((intptr_t) * frameData, d->node, frameCtx);
+        const VSFrameRef *src = vsapi->getFrameFilter((intptr_t) * frameData, d->node, frameCtx);
+        VSFrameRef *dst = vsapi->copyFrame(src, core);
+
+        VSMap *dst_props = vsapi->getFramePropsRW(dst);
+
+        int errNum, errDen;
+        int64_t durationNum = vsapi->propGetInt(dst_props, "_DurationNum", 0, &errNum);
+        int64_t durationDen = vsapi->propGetInt(dst_props, "_DurationDen", 0, &errDen);
+        if (!errNum && !errDen) {
+            muldivRational(&durationNum, &durationDen, d->cycle, d->num);
+            vsapi->propSetInt(dst_props, "_DurationNum", durationNum, paReplace);
+            vsapi->propSetInt(dst_props, "_DurationDen", durationDen, paReplace);
+        }
+
+        return dst;
     }
 
     return 0;
@@ -424,6 +430,17 @@ static void VS_CC selectEveryCreate(const VSMap *in, VSMap *out, void *userData,
     }
 
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
+
+    d.vi = *vsapi->getVideoInfo(d.node);
+    int inputnframes = d.vi.numFrames;
+    if (inputnframes) {
+        d.vi.numFrames = (inputnframes / d.cycle) * d.num;
+        for (int i = 0; i < d.num; i++)
+            if (d.offsets[i] < inputnframes % d.cycle)
+                d.vi.numFrames++;
+    }
+
+    muldivRational(&d.vi.fpsNum, &d.vi.fpsDen, d.num, d.cycle);
 
     data = malloc(sizeof(d));
     *data = d;
