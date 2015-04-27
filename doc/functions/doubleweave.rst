@@ -20,3 +20,5 @@ DoubleWeave
       # maybe do stuff to the fields here
       woven = c.std.DoubleWeave(sep, tff=True)
       woven = c.std.SelectEvery(woven, 2, 0)
+
+   The ``_Field`` frame property is deleted.

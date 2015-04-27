@@ -25,3 +25,5 @@ Merge
    The average of two clips::
 
       Merge(clipa=A, clipb=B)
+
+   The frame properties are copied from the first clip.

@@ -22,7 +22,10 @@ small changes).
          Clip to be processed. The bit depth must be 8 bits per sample.
 
       field
-         Selects the mode of operation and which field will be kept. All modes will use the field order specified in the source frames and will only fall back to the specified order if not present.
+         Selects the mode of operation and which field will be kept.
+         All modes will use the field order specified in the source
+         frames and will only fall back to the specified order if not
+         present.
 
          0 - same rate, keep bottom field
 
@@ -31,6 +34,9 @@ small changes).
          2 - double rate, start with bottom field
 
          3 - double rate, start with top field
+
+         In case of double rate output, the frame rate is doubled and
+         the frame durations are halved.
 
       dh
          Doubles the height of the input. If field=0, the input is copied to the

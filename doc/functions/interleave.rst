@@ -13,3 +13,7 @@ Interleave
 
    Interleaving clips with different formats or dimensions is considered an
    error unless *mismatch* is true.
+
+   The output clip's frame rate is the first input clip's frame rate
+   multiplied by the number of input clips. The frame durations are divided
+   by the number of input clips.

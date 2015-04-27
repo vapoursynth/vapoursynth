@@ -25,3 +25,4 @@ MaskedMerge
 
       MaskedMerge(clipa=A, clipb=B, mask=Mask, planes=[1, 2], first_plane=True)
 
+   The frame properties are copied from the first clip.
