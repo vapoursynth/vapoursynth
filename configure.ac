@@ -26,6 +26,16 @@ AS_IF(
 
 
 
+AC_ARG_ENABLE([guard-pattern], AS_HELP_STRING([--enable-guard-pattern], [Adds 4 bytes on the left and the right sides of each frame, fills them with a certain value, and checks their integrity after each filter. It can be used to detect buggy filters that write a little outside the frame.]))
+AS_IF(
+      [test "x$enable_guard_pattern" = "xyes"],
+      [
+       AC_DEFINE([VS_FRAME_GUARD])
+      ]
+)
+
+
+
 AC_ARG_WITH(
             [plugindir],
             AS_HELP_STRING([--with-plugindir], [Folder where the included plugins will be installed. (default=LIBDIR/vapoursynth)]),
