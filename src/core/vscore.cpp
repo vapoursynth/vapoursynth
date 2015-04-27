@@ -225,7 +225,7 @@ void VSVariant::initStorage(VSVType t) {
 
 ///////////////
 
-VSPlaneData::VSPlaneData(uint32_t size, MemoryUse *mem) : mem(mem), size(size) {
+VSPlaneData::VSPlaneData(uint32_t dataSize, MemoryUse *mem) : mem(mem), size(dataSize + 2 * VSFrame::guardSpace) {
     data = vs_aligned_malloc<uint8_t>(size + 2 * VSFrame::guardSpace, VSFrame::alignment);
     assert(data);
     if (!data)
@@ -358,6 +358,8 @@ uint8_t *VSFrame::getWritePtr(int plane) {
 bool VSFrame::verifyGuardPattern() {
     for (int p = 0; p < format->numPlanes; p++) {
         for (size_t i = 0; i < guardSpace / sizeof(VS_FRAME_GUARD_PATTERN); i++) {
+            uint32_t p1 = reinterpret_cast<uint32_t *>(data[p]->data)[i];
+            uint32_t p2 = reinterpret_cast<uint32_t *>(data[p]->data + data[p]->size - guardSpace)[i];
             if (reinterpret_cast<uint32_t *>(data[p]->data)[i] != VS_FRAME_GUARD_PATTERN ||
                 reinterpret_cast<uint32_t *>(data[p]->data + data[p]->size - guardSpace)[i] != VS_FRAME_GUARD_PATTERN)
                 return false;
@@ -558,7 +560,7 @@ PVideoFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext
 
 #ifdef VS_FRAME_GUARD
         if (!p->verifyGuardPattern())
-            vsFatal("Guard memory corrupted in frame %d returned from %s", n, frameCtx.ctx->node->clip->name.c_str());
+            vsFatal("Guard memory corrupted in frame %d returned from %s", n, name.c_str());
 #endif
 
         return p;

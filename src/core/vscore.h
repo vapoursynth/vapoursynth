@@ -337,7 +337,7 @@ private:
 public:
     uint8_t *data;
     const uint32_t size;
-    VSPlaneData(uint32_t size, MemoryUse *mem);
+    VSPlaneData(uint32_t dataSize, MemoryUse *mem);
     VSPlaneData(const VSPlaneData &d);
     ~VSPlaneData();
 };
