@@ -2213,6 +2213,138 @@ static void VS_CC propToClipCreate(const VSMap *in, VSMap *out, void *userData, 
 }
 
 //////////////////////////////////////////
+// SetFrameProp
+
+typedef struct {
+    VSNodeRef *node;
+    const VSVideoInfo *vi;
+    char *prop;
+    int delete;
+    int64_t *ints;
+    double *floats;
+    char **strings;
+    int num_ints;
+    int num_floats;
+    int num_strings;
+} SetFramePropData;
+
+static void VS_CC setFramePropInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
+    SetFramePropData *d = (SetFramePropData *) * instanceData;
+
+    vsapi->setVideoInfo(d->vi, 1, node);
+}
+
+static const VSFrameRef *VS_CC setFramePropGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    SetFramePropData *d = (SetFramePropData *) * instanceData;
+
+    if (activationReason == arInitial) {
+        vsapi->requestFrameFilter(n, d->node, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        VSFrameRef *dst = vsapi->copyFrame(src, core);
+        vsapi->freeFrame(src);
+
+        VSMap *props = vsapi->getFramePropsRW(dst);
+
+        if (d->delete)
+            vsapi->propDeleteKey(props, d->prop);
+        else {
+            if (d->ints)
+                vsapi->propSetIntArray(props, d->prop, d->ints, d->num_ints);
+            else if (d->floats)
+                vsapi->propSetFloatArray(props, d->prop, d->floats, d->num_floats);
+            else if (d->strings) {
+                vsapi->propSetData(props, d->prop, d->strings[0], -1, paReplace);
+                for (int i = 1; i < d->num_strings; i++)
+                    vsapi->propSetData(props, d->prop, d->strings[i], -1, paAppend);
+            }
+        }
+
+        return dst;
+    }
+
+    return 0;
+}
+
+static void VS_CC setFramePropFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+    SetFramePropData *d = (SetFramePropData *)instanceData;
+
+    vsapi->freeNode(d->node);
+    free(d->prop);
+    if (d->ints)
+        free(d->ints);
+    if (d->floats)
+        free(d->floats);
+    if (d->strings) {
+        for (int i = 0; i < d->num_strings; i++)
+            free(d->strings[i]);
+        free(d->strings);
+    }
+
+    free(d);
+}
+
+static void VS_CC setFramePropCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    SetFramePropData d;
+    SetFramePropData *data;
+    int err;
+
+    d.delete = !!vsapi->propGetInt(in, "delete", 0, &err);
+
+    d.num_ints = vsapi->propNumElements(in, "intval");
+    d.num_floats = vsapi->propNumElements(in, "floatval");
+    d.num_strings = vsapi->propNumElements(in, "data");
+
+    if ((d.num_ints > -1) + (d.num_floats > -1) + (d.num_strings > -1) > 1)
+        RETERROR("SetFrameProp: only one of 'intval', 'floatval', and 'data' can be passed.");
+
+    if (d.delete && (d.num_ints + d.num_floats + d.num_strings > -3))
+        RETERROR("SetFrameProp: 'delete' can't be True when passing one of 'intval', 'floatval', or 'data'.");
+
+    if (!d.delete && (d.num_ints + d.num_floats + d.num_strings == -3))
+        RETERROR("SetFrameProp: one of 'intval', 'floatval', or 'data' must be passed.");
+
+    int prop_len = vsapi->propGetDataSize(in, "prop", 0, NULL);
+
+    if (prop_len == 0)
+        RETERROR("SetFrameProp: 'prop' can't be an empty string.");
+
+    d.prop = malloc(prop_len + 1);
+    memcpy(d.prop, vsapi->propGetData(in, "prop", 0, NULL), prop_len + 1); // It's NULL-terminated.
+
+    d.node = vsapi->propGetNode(in, "clip", 0, NULL);
+    d.vi = vsapi->getVideoInfo(d.node);
+
+    d.ints = NULL;
+    d.floats = NULL;
+    d.strings = NULL;
+
+    if (d.num_ints > -1) {
+        d.ints = malloc(d.num_ints * sizeof(int64_t));
+        memcpy(d.ints, vsapi->propGetIntArray(in, "intval", NULL), d.num_ints * sizeof(int64_t));
+    }
+
+    if (d.num_floats > -1) {
+        d.floats = malloc(d.num_floats * sizeof(double));
+        memcpy(d.floats, vsapi->propGetFloatArray(in, "floatval", NULL), d.num_floats * sizeof(double));
+    }
+
+    if (d.num_strings > -1) {
+        d.strings = malloc(d.num_strings * sizeof(char *));
+        for (int i = 0; i < d.num_strings; i++) {
+            int string_len = vsapi->propGetDataSize(in, "data", i, NULL);
+            d.strings[i] = malloc(string_len + 1);
+            memcpy(d.strings[i], vsapi->propGetData(in, "data", i, NULL), string_len + 1);
+        }
+    }
+
+    data = malloc(sizeof(d));
+    *data = d;
+
+    vsapi->createFilter(in, out, "SetFrameProp", setFramePropInit, setFramePropGetFrame, setFramePropFree, fmParallel, nfNoCache, data, core);
+}
+
+//////////////////////////////////////////
 // Init
 
 void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
@@ -2238,4 +2370,5 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("PlaneDifference", "clips:clip[];plane:int;prop:data:opt;", planeDifferenceCreate, 0, plugin);
     registerFunc("ClipToProp", "clip:clip;mclip:clip;prop:data:opt;", clipToPropCreate, 0, plugin);
     registerFunc("PropToClip", "clip:clip;prop:data:opt;", propToClipCreate, 0, plugin);
+    registerFunc("SetFrameProp", "clip:clip;prop:data;delete:int:opt;intval:int[]:opt;floatval:float[]:opt;data:data[]:opt;", setFramePropCreate, 0, plugin);
 }
