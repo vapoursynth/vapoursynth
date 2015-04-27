@@ -1,4 +1,4 @@
-AC_INIT([vapoursynth], [26], [https://github.com/vapoursynth/vapoursynth/issues], [vapoursynth], [http://www.vapoursynth.com/])
+AC_INIT([vapoursynth], [27], [https://github.com/vapoursynth/vapoursynth/issues], [vapoursynth], [http://www.vapoursynth.com/])
 
 : ${CFLAGS=""}
 : ${CXXFLAGS=""}
@@ -26,7 +26,7 @@ AS_IF(
 
 
 
-AC_ARG_ENABLE([guard-pattern], AS_HELP_STRING([--enable-guard-pattern], [Adds 4 bytes on the left and the right sides of each frame, fills them with a certain value, and checks their integrity after each filter. It can be used to detect buggy filters that write a little outside the frame.]))
+AC_ARG_ENABLE([guard-pattern], AS_HELP_STRING([--enable-guard-pattern], [Adds 32 bytes on the left and the right sides of each frame, fills them with a certain value, and checks their integrity after each filter. It can be used to detect buggy filters that write a little outside the frame.]))
 AS_IF(
       [test "x$enable_guard_pattern" = "xyes"],
       [
