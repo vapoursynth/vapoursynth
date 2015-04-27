@@ -93,11 +93,11 @@ static std::wstring readRegistryValue(const std::wstring keyName, const std::wst
 #endif
 
 FrameContext::FrameContext(int n, int index, VSNode *clip, const PFrameContext &upstreamContext) :
-numFrameRequests(0), n(n), node(NULL), clip(clip), upstreamContext(upstreamContext), userData(NULL), frameDone(NULL), error(false), lastCompletedN(-1), index(index), lastCompletedNode(NULL), frameContext(NULL) {
+numFrameRequests(0), n(n), clip(clip), upstreamContext(upstreamContext), userData(NULL), frameDone(NULL), error(false), node(NULL), lastCompletedN(-1), index(index), lastCompletedNode(NULL), frameContext(NULL) {
 }
 
 FrameContext::FrameContext(int n, int index, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData) :
-numFrameRequests(0), n(n), node(node), clip(node->clip.get()), userData(userData), frameDone(frameDone), error(false), lastCompletedN(-1), index(index), lastCompletedNode(NULL), frameContext(NULL) {
+numFrameRequests(0), n(n), clip(node->clip.get()), userData(userData), frameDone(frameDone), error(false), node(node), lastCompletedN(-1), index(index), lastCompletedNode(NULL), frameContext(NULL) {
 }
 
 bool FrameContext::setError(const std::string &errorMsg) {
@@ -232,14 +232,14 @@ VSPlaneData::VSPlaneData(uint32_t size, MemoryUse *mem) : mem(mem), size(size) {
         vsFatal("Failed to allocate memory for planes. Out of memory.");
     mem->add(size);
 #ifdef VS_FRAME_GUARD
-    for (int i = 0; i < VSFrame::alignment / sizeof(uint32_t); i++) {
+    for (size_t i = 0; i < VSFrame::alignment / sizeof(uint32_t); i++) {
         reinterpret_cast<uint32_t *>(data)[i] = VS_FRAME_GUARD_PATTERN;
         reinterpret_cast<uint32_t *>(data + size - VSFrame::alignment)[i] = VS_FRAME_GUARD_PATTERN;
     }
 #endif
 }
 
-VSPlaneData::VSPlaneData(const VSPlaneData &d) : size(d.size), mem(d.mem) {
+VSPlaneData::VSPlaneData(const VSPlaneData &d) : mem(d.mem), size(d.size) {
     data = vs_aligned_malloc<uint8_t>(size, VSFrame::alignment);
     assert(data);
     if (!data)
@@ -365,7 +365,7 @@ uint8_t *VSFrame::getWritePtr(int plane) {
 bool VSFrame::verifyGuardPattern() {
 
     for (int p = 0; p < format->numPlanes; p++) {
-        for (int i = 0; i < VSFrame::alignment / sizeof(uint32_t); i++) {
+        for (size_t i = 0; i < VSFrame::alignment / sizeof(uint32_t); i++) {
             if (reinterpret_cast<uint32_t *>(data[p]->data)[i] != VS_FRAME_GUARD_PATTERN ||
                 reinterpret_cast<uint32_t *>(data[p]->data + data[p]->size - VSFrame::alignment)[i] != VS_FRAME_GUARD_PATTERN)
                 return false;
