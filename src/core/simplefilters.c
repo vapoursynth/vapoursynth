@@ -1170,7 +1170,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     if (d.vi.fpsDen < 1 || d.vi.fpsNum < 1)
         RETERROR("BlankClip: invalid framerate specified");
 
-    muldivRational(d.vi.fpsNum, d.vi.fpsDen, 1, 1);
+    muldivRational(&d.vi.fpsNum, &d.vi.fpsDen, 1, 1);
 
     format = int64ToIntS(vsapi->propGetInt(in, "format", 0, &err));
 
