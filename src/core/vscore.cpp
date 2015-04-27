@@ -496,6 +496,13 @@ instanceData(instanceData), name(name), init(init), filterGetFrame(getFrame), fr
 
     if (!hasVi)
         vsFatal("Filter %s didn't set vi", name.c_str());
+
+    for (const auto &iter : vi) {
+        if (iter.numFrames <= 0) {
+            core->filterInstanceDestroyed();
+            throw VSException("Filter creation aborted, zero (unknown) and negative length clips not allowed");
+        }
+    }
 }
 
 VSNode::~VSNode() {
@@ -514,6 +521,7 @@ const VSVideoInfo &VSNode::getVideoInfo(int index) {
         vsFatal("Out of bounds videoinfo index");
     return vi[index];
 }
+
 void VSNode::setVideoInfo(const VSVideoInfo *vi, int numOutputs) {
     if (numOutputs < 1)
         vsFatal("Video filter needs to have at least one output");
@@ -522,8 +530,6 @@ void VSNode::setVideoInfo(const VSVideoInfo *vi, int numOutputs) {
             vsFatal("Variable dimension clips must have both width and height set to 0");
         if (vi[i].format && !core->isValidFormatPointer(vi[i].format))
             vsFatal("The VSFormat pointer passed to setVideoInfo() was not gotten from registerFormat() or getFormatPreset()");
-        if (vi[i].numFrames == 0)
-            vsFatal("Unknown length (0) clips are no longer supported");
 
         this->vi.push_back(vi[i]);
         this->vi[i].flags = flags;
