@@ -354,6 +354,11 @@ private:
     VSMap properties;
 public:
     static const int alignment = 32;
+#ifdef VS_FRAME_GUARD
+    static const int guardSpace = alignment;
+#else
+    static const int guardSpace = 0;
+#endif
 
     VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, VSCore *core);
     VSFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core);

@@ -226,15 +226,15 @@ void VSVariant::initStorage(VSVType t) {
 ///////////////
 
 VSPlaneData::VSPlaneData(uint32_t size, MemoryUse *mem) : mem(mem), size(size) {
-    data = vs_aligned_malloc<uint8_t>(size, VSFrame::alignment);
+    data = vs_aligned_malloc<uint8_t>(size + 2 * VSFrame::guardSpace, VSFrame::alignment);
     assert(data);
     if (!data)
         vsFatal("Failed to allocate memory for planes. Out of memory.");
     mem->add(size);
 #ifdef VS_FRAME_GUARD
-    for (size_t i = 0; i < VSFrame::alignment / sizeof(uint32_t); i++) {
+    for (size_t i = 0; i < VSFrame::guardSpace / sizeof(VS_FRAME_GUARD_PATTERN); i++) {
         reinterpret_cast<uint32_t *>(data)[i] = VS_FRAME_GUARD_PATTERN;
-        reinterpret_cast<uint32_t *>(data + size - VSFrame::alignment)[i] = VS_FRAME_GUARD_PATTERN;
+        reinterpret_cast<uint32_t *>(data + size - VSFrame::guardSpace)[i] = VS_FRAME_GUARD_PATTERN;
     }
 #endif
 }
@@ -340,11 +340,7 @@ const uint8_t *VSFrame::getReadPtr(int plane) const {
     if (plane < 0 || plane >= format->numPlanes)
         vsFatal("Invalid plane requested");
 
-#ifdef VS_FRAME_GUARD
-    return data[plane]->data + VSFrame::alignment;
-#else
-    return data[plane]->data;
-#endif
+    return data[plane]->data + guardSpace;
 }
 
 uint8_t *VSFrame::getWritePtr(int plane) {
@@ -354,20 +350,16 @@ uint8_t *VSFrame::getWritePtr(int plane) {
     // copy the plane data if this isn't the only reference
     if (!data[plane].unique())
         data[plane] = std::make_shared<VSPlaneData>(*data[plane].get());
-#ifdef VS_FRAME_GUARD
-    return data[plane]->data + VSFrame::alignment;
-#else
-    return data[plane]->data;
-#endif
+
+    return data[plane]->data + guardSpace;
 }
 
 #ifdef VS_FRAME_GUARD
 bool VSFrame::verifyGuardPattern() {
-
     for (int p = 0; p < format->numPlanes; p++) {
-        for (size_t i = 0; i < VSFrame::alignment / sizeof(uint32_t); i++) {
+        for (size_t i = 0; i < guardSpace / sizeof(VS_FRAME_GUARD_PATTERN); i++) {
             if (reinterpret_cast<uint32_t *>(data[p]->data)[i] != VS_FRAME_GUARD_PATTERN ||
-                reinterpret_cast<uint32_t *>(data[p]->data + data[p]->size - VSFrame::alignment)[i] != VS_FRAME_GUARD_PATTERN)
+                reinterpret_cast<uint32_t *>(data[p]->data + data[p]->size - guardSpace)[i] != VS_FRAME_GUARD_PATTERN)
                 return false;
         }
     }
