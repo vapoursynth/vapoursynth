@@ -328,6 +328,18 @@ static void VS_CC addBordersCreate(const VSMap *in, VSMap *out, void *userData, 
     d.bottom = int64ToIntS(vsapi->propGetInt(in, "bottom", 0, &err));
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
 
+    // pass through if nothing to be done
+    if (d.left == 0 && d.right == 0 && d.top == 0 && d.bottom == 0) {
+        vsapi->propSetNode(out, "clip", d.node, paReplace);
+        vsapi->freeNode(d.node);
+        return;
+    }
+
+    if (d.left < 0 || d.right < 0 || d.top < 0 || d.bottom < 0) {
+        vsapi->freeNode(d.node);
+        RETERROR("AddBorders: border size to add must be positive");
+    }
+
     d.vi = vsapi->getVideoInfo(d.node);
 
     if (isCompatFormat(d.vi)) {

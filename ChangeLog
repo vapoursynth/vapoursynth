@@ -1,11 +1,15 @@
 r27:
+addborders now rejects negative borders properly and passes through clips unchanged when all borders are 0
+several bugfixes to the bundled genericfilters
+added compile time option to have additional guard memory around frames to detect out of bounds writes in filters
+added setframeprop filter (nodame)
 the framerate and the frame duration property should now be a normalized number
 all internal filters now return an error if the returned clip is longer than INT_MAX instead of undefined behavior
 "unknown" length clips have been deprecated and a fatal error will happen if any plugin returns them, this change is because it was complicated, annoying and accomplished nothing compared to INT_MAX length clips
 freezeframes now doesn't need to have the ranges specified in ascending order
 interleave, separatefield and selectevery now properly adjusts the framerate including the durations
 changed the meaning of _FieldBased to be able to signal progressive/bff/tff material, this is now used by ffms2, eedi3 and separatefields
-fixed memory leak in assvapour
+fixed memory leak in assvapour destructor
 the identifiers used for keys in vsmap can only be alphanumeric and _, anything else will be rejected
 the expr filter now does constant folding which makes it faster in many cases (nodame)
 vspipe can now output timecode v2 files (nodame)
