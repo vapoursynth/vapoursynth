@@ -49,27 +49,27 @@ static int cropAbsVerify(int x, int y, int width, int height, int srcwidth, int 
     msg[0] = 0;
 
     if (y < 0 || x < 0)
-        sprintf(msg, "CropAbs: negative corner coordinates not allowed");
+        sprintf(msg, "Crop: negative corner coordinates not allowed");
 
     if (width <= 0 || height <= 0)
-        sprintf(msg, "CropAbs: negative/zero cropping dimensions not allowed");
+        sprintf(msg, "Crop: negative/zero cropping dimensions not allowed");
 
     if (srcheight > 0 && srcwidth > 0)
         if (srcheight < height + y || srcwidth < width + x)
-            sprintf(msg, "CropAbs: cropped area extends beyond frame dimensions");
+            sprintf(msg, "Crop: cropped area extends beyond frame dimensions");
 
     if (fi) {
         if (width % (1 << fi->subSamplingW))
-            sprintf(msg, "CropAbs: cropped area needs to have mod %d width", 1 << fi->subSamplingW);
+            sprintf(msg, "Crop: cropped area needs to have mod %d width", 1 << fi->subSamplingW);
 
         if (height % (1 << fi->subSamplingH))
-            sprintf(msg, "CropAbs: cropped area needs to have mod %d height", 1 << fi->subSamplingH);
+            sprintf(msg, "Crop: cropped area needs to have mod %d height", 1 << fi->subSamplingH);
 
         if (x % (1 << fi->subSamplingW))
-            sprintf(msg, "CropAbs: cropped area needs to have mod %d width offset", 1 << fi->subSamplingW);
+            sprintf(msg, "Crop: cropped area needs to have mod %d width offset", 1 << fi->subSamplingW);
 
         if (y % (1 << fi->subSamplingH))
-            sprintf(msg, "CropAbs: cropped area needs to have mod %d height offset", 1 << fi->subSamplingH);
+            sprintf(msg, "Crop: cropped area needs to have mod %d height offset", 1 << fi->subSamplingH);
     }
 
     if (msg[0])
@@ -153,7 +153,7 @@ static void VS_CC cropRelCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
     if (!isConstantFormat(d.vi)) {
         vsapi->freeNode(d.node);
-        RETERROR("CropRel: constant format needed... for now");
+        RETERROR("CropRel: constant format needed");
     }
 
     d.x = int64ToIntS(vsapi->propGetInt(in, "left", 0, &err));
