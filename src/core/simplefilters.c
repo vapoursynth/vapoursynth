@@ -119,8 +119,8 @@ static void VS_CC cropAbsCreate(const VSMap *in, VSMap *out, void *userData, VSC
     CropAbsData *data;
     int err;
 
-    d.x = int64ToIntS(vsapi->propGetInt(in, "x", 0, &err));
-    d.y = int64ToIntS(vsapi->propGetInt(in, "y", 0, &err));
+    d.x = int64ToIntS(vsapi->propGetInt(in, "left", 0, &err));
+    d.y = int64ToIntS(vsapi->propGetInt(in, "top", 0, &err));
 
     d.height = int64ToIntS(vsapi->propGetInt(in, "height", 0, 0));
     d.width = int64ToIntS(vsapi->propGetInt(in, "width", 0, 0));
@@ -2361,7 +2361,7 @@ static void VS_CC setFramePropCreate(const VSMap *in, VSMap *out, void *userData
 
 void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     //configFunc("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("CropAbs", "clip:clip;width:int;height:int;x:int:opt;y:int:opt;", cropAbsCreate, 0, plugin);
+    registerFunc("CropAbs", "clip:clip;width:int;height:int;left:int:opt;top:int:opt;", cropAbsCreate, 0, plugin);
     registerFunc("CropRel", "clip:clip;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;", cropRelCreate, 0, plugin);
     registerFunc("AddBorders", "clip:clip;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;color:float[]:opt;", addBordersCreate, 0, plugin);
     registerFunc("ShufflePlanes", "clips:clip[];planes:int[];colorfamily:int;", shufflePlanesCreate, 0, plugin);

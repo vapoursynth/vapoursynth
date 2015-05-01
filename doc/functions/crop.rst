@@ -1,7 +1,7 @@
 CropAbs/CropRel
 ===============
 
-.. function::   CropAbs(clip clip, int width, int height[, int x=0, int y=0])
+.. function::   CropAbs(clip clip, int width, int height[, int left=0, int right=0])
                 CropRel(clip clip[, int left=0, int right=0, int top=0, int bottom=0])
    :module: std
 
@@ -12,8 +12,8 @@ CropAbs/CropRel
 
    CropAbs, on the other hand, is special, because it can accept clips with
    variable frame sizes and crop out a fixed size area, thus making it a fixed
-   size clip. The arguments *x* and *y* can be linked to frame properties to
-   extract a moving window from a clip.
+   size clip.
 
-   Both functions return an error if the whole picture is cropped away or if the
-   subsampling restrictions aren't met.
+   Both functions return an error if the whole picture is cropped away, if the
+   cropped area extends beyond the input or if the subsampling restrictions
+   aren't met.
