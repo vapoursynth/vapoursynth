@@ -129,7 +129,11 @@ static void VS_CC cropAbsCreate(const VSMap *in, VSMap *out, void *userData, VSC
     int err;
 
     d.x = int64ToIntS(vsapi->propGetInt(in, "left", 0, &err));
+    if (err)
+        d.x = int64ToIntS(vsapi->propGetInt(in, "x", 0, &err));
     d.y = int64ToIntS(vsapi->propGetInt(in, "top", 0, &err));
+    if (err)
+        d.y = int64ToIntS(vsapi->propGetInt(in, "y", 0, &err));
 
     d.height = int64ToIntS(vsapi->propGetInt(in, "height", 0, 0));
     d.width = int64ToIntS(vsapi->propGetInt(in, "width", 0, 0));
