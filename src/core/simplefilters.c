@@ -26,7 +26,7 @@
 #include <stdio.h>
 
 //////////////////////////////////////////
-// CropAbs
+// Crop
 
 typedef struct {
     VSNodeRef *node;
@@ -35,17 +35,17 @@ typedef struct {
     int y;
     int width;
     int height;
-} CropAbsData;
+} CropData;
 
-static void VS_CC cropAbsInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    CropAbsData *d = (CropAbsData *) * instanceData;
+static void VS_CC cropInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
+    CropData *d = (CropData *) * instanceData;
     VSVideoInfo vi = *d->vi;
     vi.height = d->height;
     vi.width = d->width;
     vsapi->setVideoInfo(&vi, 1, node);
 }
 
-static int cropAbsVerify(int x, int y, int width, int height, int srcwidth, int srcheight, const VSFormat *fi, char *msg) {
+static int cropVerify(int x, int y, int width, int height, int srcwidth, int srcheight, const VSFormat *fi, char *msg) {
     msg[0] = 0;
 
     if (y < 0 || x < 0)
@@ -78,17 +78,26 @@ static int cropAbsVerify(int x, int y, int width, int height, int srcwidth, int 
         return 0;
 }
 
-static const VSFrameRef *VS_CC cropAbsGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    CropAbsData *d = (CropAbsData *) * instanceData;
+static const VSFrameRef *VS_CC cropGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    CropData *d = (CropData *) * instanceData;
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
+        char msg[150];
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSFormat *fi = vsapi->getFrameFormat(src);
+        int width = vsapi->getFrameWidth(src, 0);
+        int height = vsapi->getFrameHeight(src, 0);
+
+        if (cropVerify(d->x, d->y, d->width, d->height, width, height, fi, msg)) {
+            vsapi->freeFrame(src);
+            vsapi->setFilterError(msg, frameCtx);
+            return NULL;
+        }
+
         VSFrameRef *dst = vsapi->newVideoFrame(fi, d->width, d->height, src, core);
 
-        // now that argument validation is over we can spend the next few lines actually cropping
         for (int plane = 0; plane < fi->numPlanes; plane++) {
             int rowsize = (d->width >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample;
             int srcstride = vsapi->getStride(src, plane);
@@ -115,8 +124,8 @@ static const VSFrameRef *VS_CC cropAbsGetframe(int n, int activationReason, void
 
 static void VS_CC cropAbsCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     char msg[150];
-    CropAbsData d;
-    CropAbsData *data;
+    CropData d;
+    CropData *data;
     int err;
 
     d.x = int64ToIntS(vsapi->propGetInt(in, "left", 0, &err));
@@ -128,7 +137,7 @@ static void VS_CC cropAbsCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
     d.vi = vsapi->getVideoInfo(d.node);
 
-    if (cropAbsVerify(d.x, d.y, d.width, d.height, d.vi->width, d.vi->height, d.vi->format, msg)) {
+    if (cropVerify(d.x, d.y, d.width, d.height, d.vi->width, d.vi->height, d.vi->format, msg)) {
         vsapi->freeNode(d.node);
         RETERROR(msg);
     }
@@ -136,16 +145,13 @@ static void VS_CC cropAbsCreate(const VSMap *in, VSMap *out, void *userData, VSC
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "CropAbs", cropAbsInit, cropAbsGetframe, singleClipFree, fmParallel, 0, data, core);
+    vsapi->createFilter(in, out, "Crop", cropInit, cropGetframe, singleClipFree, fmParallel, 0, data, core);
 }
-
-//////////////////////////////////////////
-// CropRel
 
 static void VS_CC cropRelCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     char msg[150];
-    CropAbsData d;
-    CropAbsData *data;
+    CropData d;
+    CropData *data;
     int err;
 
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
@@ -153,7 +159,7 @@ static void VS_CC cropRelCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
     if (!isConstantFormat(d.vi)) {
         vsapi->freeNode(d.node);
-        RETERROR("CropRel: constant format needed");
+        RETERROR("Crop: constant format needed");
     }
 
     d.x = int64ToIntS(vsapi->propGetInt(in, "left", 0, &err));
@@ -169,7 +175,7 @@ static void VS_CC cropRelCreate(const VSMap *in, VSMap *out, void *userData, VSC
         return;
     }
 
-    if (cropAbsVerify(d.x, d.y, d.width, d.height, d.vi->width, d.vi->height, d.vi->format, msg)) {
+    if (cropVerify(d.x, d.y, d.width, d.height, d.vi->width, d.vi->height, d.vi->format, msg)) {
         vsapi->freeNode(d.node);
         RETERROR(msg);
     }
@@ -177,7 +183,7 @@ static void VS_CC cropRelCreate(const VSMap *in, VSMap *out, void *userData, VSC
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "CropAbs", cropAbsInit, cropAbsGetframe, singleClipFree, fmParallel, 0, data, core);
+    vsapi->createFilter(in, out, "Crop", cropInit, cropGetframe, singleClipFree, fmParallel, 0, data, core);
 }
 
 //////////////////////////////////////////
@@ -2361,7 +2367,7 @@ static void VS_CC setFramePropCreate(const VSMap *in, VSMap *out, void *userData
 
 void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     //configFunc("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("CropAbs", "clip:clip;width:int;height:int;left:int:opt;top:int:opt;", cropAbsCreate, 0, plugin);
+    registerFunc("CropAbs", "clip:clip;width:int;height:int;left:int:opt;top:int:opt;x:int:opt;y:int:opt;", cropAbsCreate, 0, plugin);
     registerFunc("CropRel", "clip:clip;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;", cropRelCreate, 0, plugin);
     registerFunc("AddBorders", "clip:clip;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;color:float[]:opt;", addBordersCreate, 0, plugin);
     registerFunc("ShufflePlanes", "clips:clip[];planes:int[];colorfamily:int;", shufflePlanesCreate, 0, plugin);
