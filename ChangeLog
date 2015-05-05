@@ -1,4 +1,5 @@
 r27:
+fixed the not (required two operands instead of one, asm broken) and swap (only required one operand instead of two) operators in the expr filter
 renamed the x and y arguments in cropabs to left and top to be clearer and match croprel
 addborders now rejects negative borders properly and passes through clips unchanged when all borders are 0
 several bugfixes to the bundled genericfilters
