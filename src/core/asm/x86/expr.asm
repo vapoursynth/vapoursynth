@@ -523,12 +523,10 @@ cglobal evaluate_expr, 5, 7, 8, exprbase, rwptrs, ptroffsets, niterations, stack
 
     .l_neg:
     movaps m2, [float_one]
-    xorps m6, m6
-    cmpltps m6, m0
-    cmpltps m7, m1
+    cmpleps m0, m7
+    cmpleps m1, m7
     andps m0, m2
     andps m1, m2
-    xorps m7, m7
     NEXT_EXPR
 
     .l_exp:
