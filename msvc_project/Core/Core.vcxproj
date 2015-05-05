@@ -181,6 +181,7 @@
     <ClCompile Include="..\..\src\core\cachefilter.cpp" />
     <ClCompile Include="..\..\src\core\cpufeatures.c" />
     <ClCompile Include="..\..\src\core\exprfilter.cpp" />
+    <ClCompile Include="..\..\src\core\genericfilters.cpp" />
     <ClCompile Include="..\..\src\core\lutfilters.c" />
     <ClCompile Include="..\..\src\core\mergefilters.c" />
     <ClCompile Include="..\..\src\core\reorderfilters.c" />
@@ -264,6 +265,7 @@
     <ClInclude Include="..\..\src\core\cpufeatures.h" />
     <ClInclude Include="..\..\src\core\exprfilter.h" />
     <ClInclude Include="..\..\src\core\filtershared.h" />
+    <ClInclude Include="..\..\src\core\genericfilters.h" />
     <ClInclude Include="..\..\src\core\lutfilters.h" />
     <ClInclude Include="..\..\src\core\mergefilters.h" />
     <ClInclude Include="..\..\src\core\reorderfilters.h" />

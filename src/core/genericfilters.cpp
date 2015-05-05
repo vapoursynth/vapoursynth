@@ -159,7 +159,7 @@ static inline FORCE_INLINE PixelType generic_3x3(
             gy = a13 + 2 * a23 + a33 - a11 - 2 * a21 - a31;
         }
 
-        int g = (int)(std::sqrt((double)(gx * gx + gy * gy)) + 0.5);
+		int g = static_cast<int>(std::sqrt(static_cast<double>(gx * gx + gy * gy)) + 0.5);
         g = g >> rshift;
 
         if (g >= thresh_high)
@@ -253,7 +253,7 @@ static inline FORCE_INLINE PixelType generic_3x3(
         for (int i = 0; i < 9; i++)
             sum += pixels[i] * matrix[i];
 
-        sum = (int)(sum * rdiv + bias + 0.5f);
+		sum = static_cast<int>(sum * rdiv + bias + 0.5f);
 
         if (!saturate)
             sum = std::abs(sum);
@@ -367,7 +367,7 @@ static inline FORCE_INLINE PixelType generic_5x5(
         for (int i = 0; i < 25; i++)
             sum += pixels[i] * matrix[i];
 
-        sum = (int)(sum * rdiv + bias + 0.5f);
+		sum = static_cast<int>(sum * rdiv + bias + 0.5f);
 
         if (!saturate)
             sum = std::abs(sum);
@@ -383,7 +383,7 @@ static inline FORCE_INLINE PixelType generic_5x5(
 
         int64_t gx = a13 * 4 - a23 * 25 + a43 * 25 - a53 * 4;
         int64_t gy = a31 * -4 + a32 * 25 - a34 * 25 + a35 * 4;
-        int g = (int)(std::sqrt((double)(gx * gx + gy * gy)) + 0.5);
+		int g = static_cast<int>(std::sqrt(static_cast<double>(gx * gx + gy * gy)) + 0.5);
         g = g >> rshift;
 
         if (g >= thresh_high)
@@ -422,7 +422,7 @@ static void process_plane_convolution_horizontal(uint8_t *dstp8, const uint8_t *
             for (int i = 0; i < matrix_elements; i++)
                 sum += srcp[std::abs(x + i - border)] * matrix[i];
 
-            sum = (int)(sum * rdiv + bias + 0.5f);
+			sum = static_cast<int>(sum * rdiv + bias + 0.5f);
 
             if (!saturate)
                 sum = std::abs(sum);
@@ -436,7 +436,7 @@ static void process_plane_convolution_horizontal(uint8_t *dstp8, const uint8_t *
             for (int i = 0; i < matrix_elements; i++)
                 sum += srcp[x + i - border] * matrix[i];
 
-            sum = (int)(sum * rdiv + bias + 0.5f);
+			sum = static_cast<int>(sum * rdiv + bias + 0.5f);
 
             if (!saturate)
                 sum = std::abs(sum);
@@ -454,7 +454,7 @@ static void process_plane_convolution_horizontal(uint8_t *dstp8, const uint8_t *
                 sum += srcp[idx] * matrix[i];
             }
 
-            sum = (int)(sum * rdiv + bias + 0.5f);
+			sum = static_cast<int>(sum * rdiv + bias + 0.5f);
 
             if (!saturate)
                 sum = std::abs(sum);
@@ -491,7 +491,7 @@ static void process_plane_convolution_vertical(uint8_t *dstp8, const uint8_t *sr
             for (int i = 0; i < matrix_elements; i++)
                 sum += srcp[x + std::abs(y + i - border) * stride] * matrix[i];
 
-            sum = (int)(sum * rdiv + bias + 0.5f);
+			sum = static_cast<int>(sum * rdiv + bias + 0.5f);
 
             if (!saturate)
                 sum = std::abs(sum);
@@ -505,7 +505,7 @@ static void process_plane_convolution_vertical(uint8_t *dstp8, const uint8_t *sr
             for (int i = 0; i < matrix_elements; i++)
                 sum += srcp[x + (y + i - border) * stride] * matrix[i];
 
-            sum = (int)(sum * rdiv + bias + 0.5f);
+			sum = static_cast<int>(sum * rdiv + bias + 0.5f);
 
             if (!saturate)
                 sum = std::abs(sum);
@@ -523,7 +523,7 @@ static void process_plane_convolution_vertical(uint8_t *dstp8, const uint8_t *sr
                 sum += srcp[x + idx * stride] * matrix[i];
             }
 
-            sum = (int)(sum * rdiv + bias + 0.5f);
+			sum = static_cast<int>(sum * rdiv + bias + 0.5f);
 
             if (!saturate)
                 sum = std::abs(sum);
@@ -773,11 +773,11 @@ static void process_plane_1x1(uint8_t *dstp8, const uint8_t *srcp8, int width, i
 
             } else if (op == GenericLimiter) {
 
-                dstp[x] = std::min(params->thresh_high, std::max(params->thresh_low, (int)srcp[x]));
+                dstp[x] = std::min(params->thresh_high, std::max<int>(params->thresh_low, srcp[x]));
 
             } else if (op == GenericLevels) {
 
-                dstp[x] = (int)(std::pow((float)(srcp[x] - params->min_in) / (params->max_in - params->min_in), 1.0f / params->gamma) * (params->max_out - params->min_out) + params->min_out + 0.5f);
+				dstp[x] = static_cast<int>(std::pow(static_cast<float>(srcp[x] - params->min_in) / (params->max_in - params->min_in), 1.0f / params->gamma) * (params->max_out - params->min_out) + params->min_out + 0.5f);
 
             } else if (op == GenericBinarize) {
 
@@ -984,7 +984,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
 
         if (op == GenericConvolution) {
-            d.params.bias = (float)vsapi->propGetFloat(in, "bias", 0, &err);
+			d.params.bias = static_cast<float>(vsapi->propGetFloat(in, "bias", 0, &err));
 
             d.params.saturate = !!vsapi->propGetInt(in, "saturate", 0, &err);
             if (err)
@@ -1014,24 +1014,24 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
             }
 
             int64_t matrix_sum = 0;
-            const int64_t *matrix = vsapi->propGetIntArray(in, "matrix", NULL);
+            const int64_t *matrix = vsapi->propGetIntArray(in, "matrix", nullptr);
             for (int i = 0; i < d.params.matrix_elements; i++) {
                 // Supporting coefficients outside this range would probably require int64_t accumulator.
                 if (matrix[i] < -1024 || matrix[i] > 1023)
                     throw std::string("The numbers in matrix must be between -1024 and 1023.");
 
-                d.params.matrix[i] = (int)matrix[i];
+                d.params.matrix[i] = int64ToIntS(matrix[i]);
                 matrix_sum += matrix[i];
             }
 
             if (matrix_sum == 0)
                 matrix_sum = 1;
 
-            d.params.rdiv = (float)vsapi->propGetFloat(in, "divisor", 0, &err);
-            if (d.params.rdiv == 0.0)
-                d.params.rdiv = matrix_sum;
+            d.params.rdiv = static_cast<float>(vsapi->propGetFloat(in, "divisor", 0, &err));
+            if (d.params.rdiv == 0.0f)
+				d.params.rdiv = static_cast<float>(matrix_sum);
 
-            d.params.rdiv = 1.0 / d.params.rdiv;
+            d.params.rdiv = 1.0f / d.params.rdiv;
         }
 
 
@@ -1082,7 +1082,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
             if (err)
                 d.params.max_out = max_value;
 
-            d.params.gamma = (float)vsapi->propGetFloat(in, "gamma", 0, &err);
+			d.params.gamma = static_cast<float>(vsapi->propGetFloat(in, "gamma", 0, &err));
             if (err)
                 d.params.gamma = 1.0f;
 

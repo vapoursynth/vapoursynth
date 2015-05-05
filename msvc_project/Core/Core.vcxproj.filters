@@ -72,6 +72,9 @@
     <ClCompile Include="..\..\sdk\vsscript_example.c">
       <Filter>sdk</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\core\genericfilters.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <YASM Include="..\..\src\core\asm\x86\check.asm">
@@ -149,6 +152,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\avisynth\avisynth_wrapper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core\genericfilters.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
