@@ -377,9 +377,9 @@ static size_t parseExpression(const std::string &expr, std::vector<ExprOp> &ops,
     size_t stackSize = 0;
 
     for (size_t i = 0; i < tokens.size(); i++) {
-        if (tokens[i] == "+") {
+        if (tokens[i] == "+")
             TWO_ARG_OP(opAdd);
-        } else if (tokens[i] == "-")
+        else if (tokens[i] == "-")
             TWO_ARG_OP(opSub);
         else if (tokens[i] == "*")
             TWO_ARG_OP(opMul);
@@ -420,7 +420,7 @@ static size_t parseExpression(const std::string &expr, std::vector<ExprOp> &ops,
         else if (tokens[i] == "xor")
             TWO_ARG_OP(opXor);
         else if (tokens[i] == "not")
-            TWO_ARG_OP(opNeg);
+            ONE_ARG_OP(opNeg);
         else if (tokens[i] == "dup")
             LOAD_OP(opDup, 0);
         else if (tokens[i] == "swap")
