@@ -424,7 +424,7 @@ static size_t parseExpression(const std::string &expr, std::vector<ExprOp> &ops,
         else if (tokens[i] == "dup")
             LOAD_OP(opDup, 0);
         else if (tokens[i] == "swap")
-            GENERAL_OP(opSwap, 1, 0);
+            GENERAL_OP(opSwap, 2, 0);
         else if (tokens[i] == "x")
             LOAD_OP(loadOp[0], 0);
         else if (tokens[i] == "y")
