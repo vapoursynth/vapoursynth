@@ -16,7 +16,6 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define _BSD_SOURCE
 #include <string.h>
 #include <ass/ass.h>
 
@@ -70,8 +69,12 @@ static char *strrepl(const char *in, const char *str, const char *repl)
         inptr++;
     }
 
-    if(count == 0)
-        return strdup(in);
+    if(count == 0) {
+        size_t in_len = strlen(in);
+        res = malloc(in_len + 1);
+        memcpy(res, in, in_len + 1);
+        return res;
+    }
 
     siz = (strlen(in) - strlen(str) * count + strlen(repl) * count) *
           sizeof(char) + 1;
