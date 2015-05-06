@@ -131,7 +131,7 @@ std::string get_file_contents(const char *filename)
     in.seekg(0, std::ios::end);
     if (in.tellg() > 16 * 1024 * 1014)
         return "";
-    contents.resize(in.tellg());
+    contents.resize(static_cast<unsigned>(in.tellg()));
     in.seekg(0, std::ios::beg);
     in.read(&contents[0], contents.size());
     in.close();

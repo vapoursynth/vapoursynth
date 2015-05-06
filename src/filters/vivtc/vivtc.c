@@ -1068,7 +1068,7 @@ static int vdecimateLoadOVR(const char *ovrfile, char *drop, int cycle, int numF
             ptrdiff_t i;
             for (i = frame_start + drop_pos; i <= frame_end; i += cycle) {
                 if (drop[i / cycle] < 0)
-                    drop[i / cycle] = i % cycle;
+                    drop[i / cycle] = (char)(i % cycle);
             }
         } else {
             sprintf(err, "VDecimate: Bad override at line %d in ovr", line);
