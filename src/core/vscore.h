@@ -296,48 +296,48 @@ public:
 
 class MemoryUse {
 private:
-    std::atomic<unsigned> usedKiloBytes;
+    std::atomic<size_t> used;
+    size_t maxMemoryUse;
     bool freeOnZero;
-    int64_t maxMemoryUse;
 public:
-    void add(unsigned bytes) {
-        usedKiloBytes.fetch_add((bytes + 1023) / 1024);
+    void add(size_t bytes) {
+        used.fetch_add(bytes);
     }
-    void subtract(unsigned bytes) {
-        usedKiloBytes.fetch_sub((bytes + 1023) / 1024);
+    void subtract(size_t bytes) {
+        used.fetch_sub(bytes);
     }
-    int64_t memoryUse() {
-        int64_t temp = usedKiloBytes;
-        return temp * 1024;
+    size_t memoryUse() {
+        return used;
     }
-    int64_t getLimit() {
+    size_t getLimit() {
         return maxMemoryUse;
     }
-    int64_t setMaxMemoryUse(int64_t bytes) {
+    size_t setMaxMemoryUse(size_t bytes) {
         if (bytes > 0)
             maxMemoryUse = bytes;
         return maxMemoryUse;
     }
     bool isOverLimit() {
-        return memoryUse() > maxMemoryUse;
+        return used > maxMemoryUse;
     }
     void signalFree() {
         freeOnZero = true;
-        if (!usedKiloBytes)
+        if (!used)
             delete this;
     }
-    MemoryUse() : usedKiloBytes(0), freeOnZero(false) {
+    MemoryUse() : used(0), freeOnZero(false) {
+        // 1GB
         maxMemoryUse = 1024*1024*1024;
     }
 };
 
 class VSPlaneData {
 private:
-    MemoryUse *mem;
+    MemoryUse &mem;
 public:
     uint8_t *data;
-    const uint32_t size;
-    VSPlaneData(uint32_t dataSize, MemoryUse *mem);
+    const size_t size;
+    VSPlaneData(size_t dataSize, MemoryUse &mem);
     VSPlaneData(const VSPlaneData &d);
     ~VSPlaneData();
 };

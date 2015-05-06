@@ -226,12 +226,12 @@ void VSVariant::initStorage(VSVType t) {
 
 ///////////////
 
-VSPlaneData::VSPlaneData(uint32_t dataSize, MemoryUse *mem) : mem(mem), size(dataSize + 2 * VSFrame::guardSpace) {
+VSPlaneData::VSPlaneData(size_t dataSize, MemoryUse &mem) : mem(mem), size(dataSize + 2 * VSFrame::guardSpace) {
     data = vs_aligned_malloc<uint8_t>(size + 2 * VSFrame::guardSpace, VSFrame::alignment);
     assert(data);
     if (!data)
         vsFatal("Failed to allocate memory for planes. Out of memory.");
-    mem->add(size);
+    mem.add(size);
 #ifdef VS_FRAME_GUARD
     for (size_t i = 0; i < VSFrame::guardSpace / sizeof(VS_FRAME_GUARD_PATTERN); i++) {
         reinterpret_cast<uint32_t *>(data)[i] = VS_FRAME_GUARD_PATTERN;
@@ -245,13 +245,13 @@ VSPlaneData::VSPlaneData(const VSPlaneData &d) : mem(d.mem), size(d.size) {
     assert(data);
     if (!data)
         vsFatal("Failed to allocate memory for plane in copy constructor. Out of memory.");
-    mem->add(size);
+    mem.add(size);
     memcpy(data, d.data, size);
 }
 
 VSPlaneData::~VSPlaneData() {
     vs_aligned_free(data);
-    mem->subtract(size);
+    mem.subtract(size);
 }
 
 ///////////////
@@ -274,11 +274,11 @@ VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSr
         stride[2] = 0;
     }
 
-    data[0] = std::make_shared<VSPlaneData>(stride[0] * height, core->memory);
+    data[0] = std::make_shared<VSPlaneData>(stride[0] * height, *core->memory);
     if (f->numPlanes == 3) {
         int size23 = stride[1] * (height >> f->subSamplingH);
-        data[1] = std::make_shared<VSPlaneData>(size23, core->memory);
-        data[2] = std::make_shared<VSPlaneData>(size23, core->memory);
+        data[1] = std::make_shared<VSPlaneData>(size23, *core->memory);
+        data[2] = std::make_shared<VSPlaneData>(size23, *core->memory);
     }
 }
 
@@ -309,9 +309,9 @@ VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame * const
             data[i] = planeSrc[i]->data[plane[i]];
         } else {
             if (i == 0) {
-                data[i] = std::make_shared<VSPlaneData>(stride[0] * height, core->memory);
+                data[i] = std::make_shared<VSPlaneData>(stride[0] * height, *core->memory);
             } else {
-                data[i] = std::make_shared<VSPlaneData>(stride[i] * (height >> f->subSamplingH), core->memory);
+                data[i] = std::make_shared<VSPlaneData>(stride[i] * (height >> f->subSamplingH), *core->memory);
             }
         }
     }
