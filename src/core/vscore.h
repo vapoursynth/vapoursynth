@@ -135,7 +135,7 @@ public:
     void append(const PExtFunction &val);
 
     template<typename T>
-    const T &getValue(int index) const {
+    const T &getValue(size_t index) const {
         return reinterpret_cast<std::vector<T>*>(storage)->at(index);
     }
 
@@ -312,9 +312,9 @@ public:
     size_t getLimit() {
         return maxMemoryUse;
     }
-    size_t setMaxMemoryUse(size_t bytes) {
-        if (bytes > 0)
-            maxMemoryUse = bytes;
+    int64_t setMaxMemoryUse(int64_t bytes) {
+        if (bytes > 0 && bytes <= SIZE_MAX)
+            maxMemoryUse = static_cast<size_t>(bytes);
         return maxMemoryUse;
     }
     bool isOverLimit() {
