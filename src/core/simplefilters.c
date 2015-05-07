@@ -2173,19 +2173,24 @@ static void VS_CC propToClipInit(VSMap *in, VSMap *out, void **instanceData, VSN
 
 static const VSFrameRef *VS_CC propToClipGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     PropToClipData *d = (PropToClipData *) * instanceData;
-    int err;
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
+        int err;
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSFrameRef *dst = vsapi->propGetFrame(vsapi->getFramePropsRO(src), d->prop, 0, &err);
         vsapi->freeFrame(src);
 
         if (dst) {
+            if (d->vi.format != vsapi->getFrameFormat(dst) || d->vi.height != vsapi->getFrameHeight(dst, 0) || d->vi.width != vsapi->getFrameWidth(dst, 0)) {
+                vsapi->setFilterError("PropToClip: retrieved frame doesn't match output format", frameCtx);
+                return 0;
+            }
+
             return dst;
         } else {
-            vsapi->setFilterError("PropToClip: Failed to extract frame from specified property", frameCtx);
+            vsapi->setFilterError("PropToClip: failed to extract frame from specified property", frameCtx);
             return 0;
         }
     }
@@ -2196,6 +2201,7 @@ static const VSFrameRef *VS_CC propToClipGetFrame(int n, int activationReason, v
 static void VS_CC propToClipFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     PropToClipData *d = (PropToClipData *)instanceData;
     vsapi->freeNode(d->node);
+    free(d->prop);
     free(d);
 }
 
@@ -2216,11 +2222,25 @@ static void VS_CC propToClipCreate(const VSMap *in, VSMap *out, void *userData, 
     const char *tempprop = vsapi->propGetData(in, "prop", 0, &err);
     if (err)
         tempprop = "_Alpha";
-    d.prop = malloc(strlen(tempprop) + 1);
-    strcpy(d.prop, tempprop);
+
 
     const VSFrameRef *src = vsapi->getFrame(0, d.node, errmsg, sizeof(errmsg));
-    const VSFrameRef *msrc = vsapi->propGetFrame(vsapi->getFramePropsRO(src), d.prop, 0, &err);
+    if (!src) {
+        char errmsg2[1024];
+        vsapi->freeNode(d.node);
+        sprintf(errmsg2, "PropToClip: upstream error: %s", errmsg);
+        RETERROR(errmsg2);
+    }
+
+    const VSFrameRef *msrc = vsapi->propGetFrame(vsapi->getFramePropsRO(src), tempprop, 0, &err);
+    if (err) {
+        vsapi->freeNode(d.node);
+        vsapi->freeFrame(src);
+        RETERROR("PropToClip: no frame stored in property");
+    }
+
+    d.prop = malloc(strlen(tempprop) + 1);
+    strcpy(d.prop, tempprop);
 
     d.vi.format = vsapi->getFrameFormat(msrc);
     d.vi.width = vsapi->getFrameWidth(msrc, 0);
