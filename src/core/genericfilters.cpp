@@ -38,7 +38,6 @@
 enum GenericOperations {
     GenericPrewitt,
     GenericSobel,
-    GenericTEdge,
 
     GenericMinimum,
     GenericMaximum,
@@ -68,11 +67,11 @@ struct GenericParams {
     // Used by all.
     int max_value;
 
-    // Prewitt, Sobel, TEdge, Limiter.
+    // Prewitt, Sobel, Limiter.
     int thresh_low;
     int thresh_high;
 
-    // Prewitt, Sobel, TEdge.
+    // Prewitt, Sobel.
     int rshift;
 
     // Minimum, Maximum, Deflate, Inflate, Binarize.
@@ -346,56 +345,31 @@ static inline FORCE_INLINE PixelType generic_5x5(
         PixelType a14, PixelType a24, PixelType a34, PixelType a44, PixelType a54,
         PixelType a15, PixelType a25, PixelType a35, PixelType a45, PixelType a55, GenericParams *params) {
 
-    if (op == GenericConvolution) {
+    int *matrix = params->matrix;
+    float rdiv = params->rdiv;
+    float bias = params->bias;
+    bool saturate = params->saturate;
+    int max_value = params->max_value;
 
-        int *matrix = params->matrix;
-        float rdiv = params->rdiv;
-        float bias = params->bias;
-        bool saturate = params->saturate;
-        int max_value = params->max_value;
+    PixelType pixels[25] = {
+        a11, a21, a31, a41, a51,
+        a12, a22, a32, a42, a52,
+        a13, a23, a33, a43, a53,
+        a14, a24, a34, a44, a54,
+        a15, a25, a35, a45, a55
+    };
 
-        PixelType pixels[25] = {
-            a11, a21, a31, a41, a51,
-            a12, a22, a32, a42, a52,
-            a13, a23, a33, a43, a53,
-            a14, a24, a34, a44, a54,
-            a15, a25, a35, a45, a55
-        };
+    int sum = 0;
 
-        int sum = 0;
+    for (int i = 0; i < 25; i++)
+        sum += pixels[i] * matrix[i];
 
-        for (int i = 0; i < 25; i++)
-            sum += pixels[i] * matrix[i];
+    sum = static_cast<int>(sum * rdiv + bias + 0.5f);
 
-        sum = static_cast<int>(sum * rdiv + bias + 0.5f);
+    if (!saturate)
+        sum = std::abs(sum);
 
-        if (!saturate)
-            sum = std::abs(sum);
-
-        return std::min(max_value, std::max(sum, 0));
-
-    } else if (op == GenericTEdge) {
-
-        int thresh_low = params->thresh_low;
-        int thresh_high = params->thresh_high;
-        int max_value = params->max_value;
-        int rshift = params->rshift;
-
-        int64_t gx = a13 * 4 - a23 * 25 + a43 * 25 - a53 * 4;
-        int64_t gy = a31 * -4 + a32 * 25 - a34 * 25 + a35 * 4;
-        int g = static_cast<int>(std::sqrt(static_cast<double>(gx * gx + gy * gy)) + 0.5);
-        g = g >> rshift;
-
-        if (g >= thresh_high)
-            g = max_value;
-        if (g <= thresh_low)
-            g = 0;
-
-        return g;
-
-    }
-
-    return 42; // Silence warning.
+    return std::min(max_value, std::max(sum, 0));
 }
 
 
@@ -835,7 +809,7 @@ static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void
 
         int bits = fi->bitsPerSample;
 
-        if (op == GenericTEdge || (op == GenericConvolution && d->params.matrix_elements == 25))
+        if (op == GenericConvolution && d->params.matrix_elements == 25)
 
             process_plane = bits == 8 ? process_plane_5x5<uint8_t, op> : process_plane_5x5<uint16_t, op>;
 
@@ -960,7 +934,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
         }
 
 
-        if (op == GenericPrewitt || op == GenericSobel || op == GenericTEdge || op == GenericLimiter) {
+        if (op == GenericPrewitt || op == GenericSobel || op == GenericLimiter) {
             d.params.thresh_low = int64ToIntS(vsapi->propGetInt(in, "min", 0, &err));
 
             d.params.thresh_high = int64ToIntS(vsapi->propGetInt(in, "max", 0, &err));
@@ -975,7 +949,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
         }
 
 
-        if (op == GenericPrewitt || op == GenericSobel || op == GenericTEdge) {
+        if (op == GenericPrewitt || op == GenericSobel) {
             d.params.rshift = int64ToIntS(vsapi->propGetInt(in, "rshift", 0, &err));
 
             if (d.params.rshift < 0)
@@ -1175,14 +1149,6 @@ void VS_CC genericInitialize(VSConfigPlugin configFunc, VSRegisterFunction regis
             "planes:int[]:opt;"
             "rshift:int:opt;"
             , genericCreate<GenericSobel>, (void *)"Sobel", plugin);
-
-    registerFunc("TEdge",
-            "clip:clip;"
-            "min:int:opt;"
-            "max:int:opt;"
-            "planes:int[]:opt;"
-            "rshift:int:opt;"
-            , genericCreate<GenericTEdge>, (void *)"TEdge", plugin);
 
     registerFunc("Invert",
             "clip:clip;"

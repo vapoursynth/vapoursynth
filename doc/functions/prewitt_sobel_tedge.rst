@@ -1,4 +1,4 @@
-Prewitt/Sobel/TEdge
+Prewitt/Sobel
 ===================
 
 .. function:: Prewitt(clip clip[, int min=0, int max=65535, int[] planes=[0, 1, 2], int rshift=0])
@@ -10,12 +10,6 @@ Prewitt/Sobel/TEdge
    :module: std
 
    Creates an edge mask using the Sobel operator.
-
-.. function:: TEdge(clip clip[, int min=0, int max=65535, int[] planes=[0, 1, 2], int rshift=0])
-   :module: std
-
-   Creates an edge mask using approximately the same algorithm as the
-   Avisynth plugin TEdgeMask with mode=2.
 
    *clip*
       Clip to process. It must have integer sample type, and bit depth
