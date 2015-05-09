@@ -155,7 +155,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                 int w = vsapi->getFrameWidth(dst, plane);
 
                 int niterations = (w + 7)/8;
-                const ExprOp *ops = &d->ops[plane][0];
+                const ExprOp *ops = d->ops[plane].data();
                 for (int y = 0; y < h; y++) {
                     const uint8_t *rwptrs[4] = { dstp + dst_stride * y, srcp[0] + src_stride[0] * y, srcp[1] + src_stride[1] * y, srcp[2] + src_stride[2] * y };
                     vs_evaluate_expr_sse2(ops, rwptrs, ptroffsets, niterations, stack);
@@ -183,7 +183,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                 int dst_stride = vsapi->getStride(dst, plane);
                 int h = vsapi->getFrameHeight(src[0], plane);
                 int w = vsapi->getFrameWidth(src[0], plane);
-                const ExprOp *vops = &d->ops[plane][0];
+                const ExprOp *vops = d->ops[plane].data();
                 float *stack = stackVector.data();
                 float stacktop = 0;
                 float tmp;

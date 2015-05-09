@@ -629,11 +629,11 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
 
         std::vector<wchar_t> wfilename;
         wfilename.resize(MultiByteToWideChar(CP_UTF8, 0, filename, -1, nullptr, 0));
-        MultiByteToWideChar(CP_UTF8, 0, filename, -1, &wfilename[0], wfilename.size());
+        MultiByteToWideChar(CP_UTF8, 0, filename, -1, wfilename.data(), wfilename.size());
 
         if (mode == MODE_NORMAL) {
             // if it looks like an AVI file, open in OpenDML mode; otherwise AVIFile mode
-            HANDLE h = CreateFile(&wfilename[0], GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+            HANDLE h = CreateFile(wfilename.data(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
             if (h == INVALID_HANDLE_VALUE) {
                 sprintf(buf, "AVISource autodetect: couldn't open file '%s'\nError code: %d", filename, GetLastError());
                 throw std::runtime_error(buf);
@@ -649,14 +649,14 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
 
         if (mode == MODE_AVIFILE || mode == MODE_WAV) {    // AVIFile mode
             PAVIFILE paf;
-            if (FAILED(AVIFileOpen(&paf, &wfilename[0], OF_READ, 0))) {
+            if (FAILED(AVIFileOpen(&paf, wfilename.data(), OF_READ, 0))) {
                 sprintf(buf, "AVIFileSource: couldn't open file '%s'", filename);
                 throw std::runtime_error(buf);
             }
 
             pfile = CreateAVIReadHandler(paf);
         } else {              // OpenDML mode
-            pfile = CreateAVIReadHandler(&wfilename[0]);
+            pfile = CreateAVIReadHandler(wfilename.data());
         }
 
         if (mode != MODE_WAV) { // check for video stream

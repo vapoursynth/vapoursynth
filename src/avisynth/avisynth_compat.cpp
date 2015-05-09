@@ -103,10 +103,10 @@ char *FakeAvisynth::VSprintf(const char *fmt, void *val) {
 
     while (count == -1) {
         buf.resize(buf.size() + 4096);
-        count = vsnprintf(&buf[0], size - 1, fmt, (va_list)val);
+        count = vsnprintf(buf.data(), size - 1, fmt, (va_list)val);
     }
 
-    char *i = SaveString(&buf[0]);
+    char *i = SaveString(buf.data());
     return i;
 }
 
@@ -154,11 +154,11 @@ PVideoFrame VSClip::GetFrame(int n, IScriptEnvironment *env) {
             std::string s = std::string("Avisynth Compat: requested frame ") + std::to_string(n) + std::string(" not prefetched, using slow method");
             vsWarning("%s", s.c_str());
         }
-        ref = vsapi->getFrame(n, clip, &buf[0], buf.size());
+        ref = vsapi->getFrame(n, clip, buf.data(), buf.size());
     }
 
     if (!ref)
-        vsFatal("Avisynth Compat: error while getting input frame synchronously: %s", &buf[0]);
+        vsFatal("Avisynth Compat: error while getting input frame synchronously: %s", buf.data());
 
     bool isYV12 = vi.IsYV12();
 
