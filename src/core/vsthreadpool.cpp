@@ -45,7 +45,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 // Go through all tasks from the top (oldest) and process the first one possible
         for (std::list<PFrameContext>::iterator iter = owner->tasks.begin(); iter != owner->tasks.end(); ++iter) {
             FrameContext *mainContext = iter->get();
-            FrameContext *leafContext = NULL;
+            FrameContext *leafContext = nullptr;
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Handle the output tasks
@@ -331,7 +331,7 @@ void VSThreadPool::returnFrame(const PFrameContext &rCtx, const PVideoFrame &f) 
     lock.unlock();
     VSFrameRef *ref = new VSFrameRef(f);
     callbackLock.lock();
-    rCtx->frameDone(rCtx->userData, ref, rCtx->n, rCtx->node, NULL);
+    rCtx->frameDone(rCtx->userData, ref, rCtx->n, rCtx->node, nullptr);
     callbackLock.unlock();
     lock.lock();
 }
@@ -342,7 +342,7 @@ void VSThreadPool::returnFrame(const PFrameContext &rCtx, const std::string &err
     // AND so that slow callbacks will only block operations in this thread, not all the others
     lock.unlock();
     callbackLock.lock();
-    rCtx->frameDone(rCtx->userData, NULL, rCtx->n, rCtx->node, errMsg.c_str());
+    rCtx->frameDone(rCtx->userData, nullptr, rCtx->n, rCtx->node, errMsg.c_str());
     callbackLock.unlock();
     lock.lock();
 }

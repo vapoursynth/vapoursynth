@@ -150,15 +150,15 @@ static void VS_CC freeNode(VSNodeRef *clip) {
 
 static VSFrameRef *VS_CC newVideoFrame(const VSFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core) {
     assert(format && core);
-    return new VSFrameRef(core->newVideoFrame(format, width, height, propSrc ? propSrc->frame.get() : NULL));
+    return new VSFrameRef(core->newVideoFrame(format, width, height, propSrc ? propSrc->frame.get() : nullptr));
 }
 
 static VSFrameRef *VS_CC newVideoFrame2(const VSFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core) {
     assert(format && core);
     VSFrame *fp[3];
     for (int i = 0; i < format->numPlanes; i++)
-        fp[i] = planeSrc[i] ? planeSrc[i]->frame.get() : NULL;
-    return new VSFrameRef(core->newVideoFrame(format, width, height, fp, planes, propSrc ? propSrc->frame.get() : NULL));
+        fp[i] = planeSrc[i] ? planeSrc[i]->frame.get() : nullptr;
+    return new VSFrameRef(core->newVideoFrame(format, width, height, fp, planes, propSrc ? propSrc->frame.get() : nullptr));
 }
 
 static VSFrameRef *VS_CC copyFrame(const VSFrameRef *frame, VSCore *core) {

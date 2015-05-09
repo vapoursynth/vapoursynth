@@ -50,7 +50,7 @@ public:
     VSNodeRef *uglyNode;
     VSFrameContext *uglyCtx;
 
-    FakeAvisynth(VSCore *core, const VSAPI *vsapi) : core(core), vsapi(vsapi), initializing(true), uglyN(-1), uglyNode(NULL), uglyCtx(NULL) {}
+    FakeAvisynth(VSCore *core, const VSAPI *vsapi) : core(core), vsapi(vsapi), initializing(true), uglyN(-1), uglyNode(nullptr), uglyCtx(nullptr) {}
     // virtual avisynth functions
     ~FakeAvisynth();
     long __stdcall GetCPUFlags();
@@ -145,7 +145,7 @@ struct WrappedClip {
     int magicalNChannelsForMVTools;
     WrappedClip(const std::string &filterName, const PClip &clip, const std::vector<VSNodeRef *> &preFetchClips, const PrefetchInfo &prefetchInfo, FakeAvisynth *fakeEnv);
     ~WrappedClip() {
-        clip = NULL;
+        clip = nullptr;
         delete fakeEnv;
     }
 };

@@ -131,7 +131,7 @@ static const VSFrameRef *VS_CC clenseGetFrame(int n, int activationReason, void 
         }
 
         const int pl[] = { 0, 1, 2 };
-        const VSFrameRef *fr[] = { d->process[0] ? 0 : src, d->process[1] ? 0 : src, d->process[2] ? 0 : src };
+        const VSFrameRef *fr[] = { d->process[0] ? nullptr : src, d->process[1] ? nullptr : src, d->process[2] ? nullptr : src };
 
         VSFrameRef *dst = vsapi->newVideoFrame2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src, core);
 
@@ -175,7 +175,7 @@ void VS_CC clenseCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
     int i;
 
     d.mode = int64ToIntS((intptr_t)userData);
-    d.cnode = vsapi->propGetNode(in, "clip", 0, 0);
+    d.cnode = vsapi->propGetNode(in, "clip", 0, nullptr);
     d.vi = vsapi->getVideoInfo(d.cnode);
     if (!isConstantFormat(d.vi))
         CLENSE_RETERROR("Clense: only constant format input supported");
@@ -202,7 +202,7 @@ void VS_CC clenseCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
         d.process[i] = m <= 0;
 
     for (i = 0; i < m; i++) {
-        o = int64ToIntS(vsapi->propGetInt(in, "planes", i, 0));
+        o = int64ToIntS(vsapi->propGetInt(in, "planes", i, nullptr));
 
         if (o < 0 || o >= n) 
             CLENSE_RETERROR("Clense: plane index out of range");

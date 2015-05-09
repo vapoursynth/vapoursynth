@@ -257,14 +257,14 @@ public:
 };
 
 AVIStreamNode::AVIStreamNode() {
-    pFormat = NULL;
+    pFormat = nullptr;
     bytes = 0;
     handler_count = 0;
     streaming_count = 0;
 
     stream_bytes = 0;
     stream_pushes = 0;
-    cache = NULL;
+    cache = nullptr;
 
     is_VBR = false;
 }
@@ -506,7 +506,7 @@ sint32 AVIReadStream::EndStreaming() {
 
     if (!--psnData->streaming_count) {
         delete psnData->cache;
-        psnData->cache = NULL;
+        psnData->cache = nullptr;
     }
     return 0;
 }
@@ -938,12 +938,12 @@ AVIReadHandler::AVIReadHandler(const wchar_t *s)
     streams=0;
     fStreamsActive = 0;
     fDisableFastIO = false;
-    streamBuffer = NULL;
+    streamBuffer = nullptr;
     nRealTime = 0;
     nActiveStreamers = 0;
     fFakeIndex = false;
     nFiles = 1;
-    pSegmentHint = NULL;
+    pSegmentHint = nullptr;
 
     _construct(s);
 }
@@ -982,7 +982,7 @@ void AVIReadHandler::_construct(const wchar_t *pszFile) {
 
 bool AVIReadHandler::AppendFile(const wchar_t *pszFile) {
     List2<AVIStreamNode> newstreams;
-    AVIStreamNode *pasn_old, *pasn_new, *pasn_old_next=NULL, *pasn_new_next=NULL;
+    AVIStreamNode *pasn_old, *pasn_new, *pasn_old_next=nullptr, *pasn_new_next=nullptr;
 
     // open file
 
@@ -1006,7 +1006,7 @@ bool AVIReadHandler::AppendFile(const wchar_t *pszFile) {
         pasn_new = newstreams.AtHead();
 
         while(!!(pasn_old_next = pasn_old->NextFromHead()) & !!(pasn_new_next = pasn_new->NextFromHead())) {
-            const char *szStreamType = NULL;
+            const char *szStreamType = nullptr;
 
             switch(pasn_old->hdr.fccType) {
             case kAVIStreamTypeAudio:    szStreamType = "audio"; break;
@@ -1112,7 +1112,7 @@ bool AVIReadHandler::AppendFile(const wchar_t *pszFile) {
         while(pasn_new = newstreams.RemoveHead())
             delete pasn_new;
 
-        mpCurrentFile = NULL;
+        mpCurrentFile = nullptr;
         mCurrentFile = -1;
         delete mFiles.back();
         mFiles.pop_back();
@@ -1699,7 +1699,7 @@ bool AVIReadHandler::_parseStreamHeader(List2<AVIStreamNode>& streamlist, uint32
                 pasn->keyframe_only = true;
             } else if (pasn->hdr.fccType == kAVIStreamTypeVideo) {
                 switch(((BITMAPINFOHEADER *)pasn->pFormat)->biCompression) {
-                    case NULL:
+                    case nullptr:
                     case ' WAR':
                     case ' BID':
                     case '1bmd':
@@ -2035,7 +2035,7 @@ IAVIReadStream *AVIReadHandler::GetStream(uint32 fccType, int lParam) {
         return new AVIReadStream(this, pasn, streamno);
     }
 
-    return NULL;
+    return nullptr;
 }
 
 void AVIReadHandler::EnableFastIO(bool f) {
@@ -2057,7 +2057,7 @@ bool AVIReadHandler::isIndexFabricated() {
 bool AVIReadHandler::getSegmentHint(const char **ppszPath) {
     if (!pSegmentHint) {
         if (ppszPath)
-            *ppszPath = NULL;
+            *ppszPath = nullptr;
 
         return false;
     }
@@ -2099,7 +2099,7 @@ void AVIReadHandler::DisableStreaming(int stream) {
 
     if (!fStreamsActive) {
         delete streamBuffer;
-        streamBuffer = NULL;
+        streamBuffer = nullptr;
     }
     --nActiveStreamers;
 }
@@ -2144,7 +2144,7 @@ char *AVIReadHandler::_StreamRead(long& bytes) {
     }
 
     if (sbPosition >= sbSize)
-        return NULL;
+        return nullptr;
 
     if (bytes > sbSize - sbPosition)
         bytes = sbSize - sbPosition;
@@ -2338,7 +2338,7 @@ void AVIReadHandler::FixCacheProblems(AVIReadStream *arse) {
     // low bandwidth and running at least 512K ahead of the cache-missing stream,
     // disable its cache.
 
-    AVIStreamNode *stream_leader = NULL;
+    AVIStreamNode *stream_leader = nullptr;
     int stream_leader_no;
     int streamno=0;
 
@@ -2361,7 +2361,7 @@ void AVIReadHandler::FixCacheProblems(AVIReadStream *arse) {
         VDTRACE_AVISTREAMING("caching disabled on fast puny leader\n");
 
         delete stream_leader->cache;
-        stream_leader->cache = NULL;
+        stream_leader->cache = nullptr;
 
         DisableStreaming(stream_leader_no);
 

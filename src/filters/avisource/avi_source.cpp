@@ -331,7 +331,7 @@ public:
         try {
             const int mode = int(userData);
             int err;
-            const char* path = vsapi->propGetData(in, "path", 0, 0);
+            const char* path = vsapi->propGetData(in, "path", 0, nullptr);
             const char* pixel_type = vsapi->propGetData(in, "pixel_type", 0, &err);
             if (!pixel_type)
                 pixel_type = "";
@@ -362,7 +362,7 @@ public:
                 vsapi->setFilterError(e.what(), frameCtx);
             }
         }
-        return NULL;
+        return nullptr;
     }
 
     static void VS_CC filterFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
@@ -416,19 +416,19 @@ LRESULT AVISource::DecompressFrame(int n, bool preroll, bool &dropped_frame, VSF
     long bytes_read;
     if (!hic) {
         bytes_read = pbiSrc->biSizeImage;
-        pvideo->Read(n, 1, decbuf, pbiSrc->biSizeImage, &bytes_read, NULL);
+        pvideo->Read(n, 1, decbuf, pbiSrc->biSizeImage, &bytes_read, nullptr);
         dropped_frame = !bytes_read;
         unpackframe(vi, frame, alpha, decbuf, bytes_read, pbiSrc->biCompression, pbiSrc->biBitCount, bInvertFrames, vsapi);
         return ICERR_OK;
     }
     bytes_read = srcbuffer_size;
-    LRESULT err = pvideo->Read(n, 1, srcbuffer, srcbuffer_size, &bytes_read, NULL);
+    LRESULT err = pvideo->Read(n, 1, srcbuffer, srcbuffer_size, &bytes_read, nullptr);
     while (err == AVIERR_BUFFERTOOSMALL || (err == 0 && !srcbuffer)) {
         delete[] srcbuffer;
-        pvideo->Read(n, 1, 0, srcbuffer_size, &bytes_read, NULL);
+        pvideo->Read(n, 1, 0, srcbuffer_size, &bytes_read, nullptr);
         srcbuffer_size = bytes_read;
         srcbuffer = new BYTE[bytes_read + 16]; // Provide 16 hidden guard bytes for HuffYUV, Xvid, etc bug
-        err = pvideo->Read(n, 1, srcbuffer, srcbuffer_size, &bytes_read, NULL);
+        err = pvideo->Read(n, 1, srcbuffer, srcbuffer_size, &bytes_read, nullptr);
     }
     dropped_frame = !bytes_read;
     if (dropped_frame) return ICERR_OK;  // If frame is 0 bytes (dropped), return instead of attempt decompressing as Vdub.
@@ -467,7 +467,7 @@ LRESULT AVISource::DecompressFrame(int n, bool preroll, bool &dropped_frame, VSF
 void AVISource::CheckHresult(HRESULT hr, const char* msg, VSCore *core, const VSAPI *vsapi) {
     if (SUCCEEDED(hr)) return;
     char buf2[1024] = {0};
-    if (!FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM, NULL, hr, 0, buf, 1024, NULL))
+    if (!FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM, nullptr, hr, 0, buf, 1024, nullptr))
         wsprintfA(buf2, "error code 0x%x", hr);
     sprintf(buf, "AVISource: %s:\n%s", msg, buf2);
     throw std::runtime_error(buf);
@@ -483,7 +483,7 @@ bool AVISource::AttemptCodecNegotiation(DWORD fccHandler, BITMAPINFOHEADER* bmih
     if (fccHandler)
         hic = ICOpen(ICTYPE_VIDEO, fccHandler, ICMODE_DECOMPRESS);
 
-    if (!hic || ICERR_OK!=ICDecompressQuery(hic, bmih, NULL)) {
+    if (!hic || ICERR_OK!=ICDecompressQuery(hic, bmih, nullptr)) {
         if (hic)
             ICClose(hic);
 
@@ -491,13 +491,13 @@ bool AVISource::AttemptCodecNegotiation(DWORD fccHandler, BITMAPINFOHEADER* bmih
 
         hic = ICOpen(ICTYPE_VIDEO, bmih->biCompression, ICMODE_DECOMPRESS);
 
-        if (!hic || ICERR_OK!=ICDecompressQuery(hic, bmih, NULL)) {
+        if (!hic || ICERR_OK!=ICDecompressQuery(hic, bmih, nullptr)) {
             if (hic)
                 ICClose(hic);
 
             // This never seems to work...
 
-            hic = ICLocate(ICTYPE_VIDEO, NULL, bmih, NULL, ICMODE_DECOMPRESS);
+            hic = ICLocate(ICTYPE_VIDEO, nullptr, bmih, nullptr, ICMODE_DECOMPRESS);
         }
     }
 
@@ -548,7 +548,7 @@ void AVISource::LocateVideoCodec(const char fourCC[], VSCore *core, const VSAPI 
     vi[0].numFrames = asi.dwLength;
 
     // try the requested decoder, if specified
-    if (fourCC != NULL && strlen(fourCC) == 4) {
+    if (fourCC != nullptr && strlen(fourCC) == 4) {
         DWORD fcc = fourCC[0] | (fourCC[1] << 8) | (fourCC[2] << 16) | (fourCC[3] << 24);
         asi.fccHandler = pbiSrc->biCompression = fcc;
     }
@@ -620,27 +620,27 @@ void AVISource::LocateVideoCodec(const char fourCC[], VSCore *core, const VSAPI 
 
 
 AVISource::AVISource(const char filename[], const char pixel_type[], const char fourCC[], int mode, VSCore *core, const VSAPI *vsapi)
-    : numOutputs(1), last_frame_no(-1), last_frame(NULL), last_alpha_frame(NULL), srcbuffer(NULL), srcbuffer_size(0), ex(false), pbiSrc(NULL),
-    pvideo(NULL), pfile(NULL), bIsType1(false), hic(0), bInvertFrames(false), decbuf(NULL)  {
+    : numOutputs(1), last_frame_no(-1), last_frame(nullptr), last_alpha_frame(nullptr), srcbuffer(nullptr), srcbuffer_size(0), ex(false), pbiSrc(nullptr),
+    pvideo(nullptr), pfile(nullptr), bIsType1(false), hic(0), bInvertFrames(false), decbuf(nullptr)  {
     memset(vi, 0, sizeof(vi));
 
     AVIFileInit();
     try {
 
         std::vector<wchar_t> wfilename;
-        wfilename.resize(MultiByteToWideChar(CP_UTF8, 0, filename, -1, NULL, 0));
+        wfilename.resize(MultiByteToWideChar(CP_UTF8, 0, filename, -1, nullptr, 0));
         MultiByteToWideChar(CP_UTF8, 0, filename, -1, &wfilename[0], wfilename.size());
 
         if (mode == MODE_NORMAL) {
             // if it looks like an AVI file, open in OpenDML mode; otherwise AVIFile mode
-            HANDLE h = CreateFile(&wfilename[0], GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+            HANDLE h = CreateFile(&wfilename[0], GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
             if (h == INVALID_HANDLE_VALUE) {
                 sprintf(buf, "AVISource autodetect: couldn't open file '%s'\nError code: %d", filename, GetLastError());
                 throw std::runtime_error(buf);
             }
             unsigned int buf[3];
             DWORD bytes_read;
-            if (ReadFile(h, buf, 12, &bytes_read, NULL) && bytes_read == 12 && buf[0] == 'FFIR' && buf[2] == ' IVA')
+            if (ReadFile(h, buf, 12, &bytes_read, nullptr) && bytes_read == 12 && buf[0] == 'FFIR' && buf[2] == ' IVA')
                 mode = MODE_OPENDML;
             else
                 mode = MODE_AVIFILE;
@@ -765,10 +765,10 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
         if (mode != MODE_WAV) {
             decbuf = vs_aligned_malloc<BYTE>(hic ? biDst.biSizeImage : pbiSrc->biSizeImage, 32);
             int keyframe = pvideo->NearestKeyFrame(0);
-            VSFrameRef *frame = vsapi->newVideoFrame(vi[0].format, vi[0].width, vi[0].height, NULL, core);
+            VSFrameRef *frame = vsapi->newVideoFrame(vi[0].format, vi[0].width, vi[0].height, nullptr, core);
             VSFrameRef *alpha_frame = nullptr;
             if (numOutputs == 2)
-                alpha_frame = vsapi->newVideoFrame(vi[1].format, vi[1].width, vi[1].height, NULL, core);
+                alpha_frame = vsapi->newVideoFrame(vi[1].format, vi[1].width, vi[1].height, nullptr, core);
             LRESULT error = DecompressFrame(keyframe, false, dropped_frame, frame, alpha_frame, core, vsapi);
             if (error != ICERR_OK)   // shutdown, if init not succesful.
                 throw std::runtime_error("AviSource: Could not decompress frame 0");
@@ -829,10 +829,10 @@ const VSFrameRef *AVISource::GetFrame(int n, VSFrameContext *frameCtx, VSCore *c
         if (keyframe < 0) keyframe = 0;
 
         bool frameok = false;
-        VSFrameRef *frame = vsapi->newVideoFrame(vi[0].format, vi[0].width, vi[0].height, NULL, core);
+        VSFrameRef *frame = vsapi->newVideoFrame(vi[0].format, vi[0].width, vi[0].height, nullptr, core);
         VSFrameRef *alpha_frame = nullptr;
         if (numOutputs == 2)
-            alpha_frame = vsapi->newVideoFrame(vi[1].format, vi[1].width, vi[1].height, NULL, core);
+            alpha_frame = vsapi->newVideoFrame(vi[1].format, vi[1].width, vi[1].height, nullptr, core);
         bool not_found_yet;
         do {
             not_found_yet = false;

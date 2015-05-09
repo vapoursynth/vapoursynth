@@ -798,9 +798,9 @@ static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void
 
         const int pl[] = { 0, 1, 2 };
         const VSFrameRef *fr[] = {
-            d->process[0] ? 0 : src,
-            d->process[1] ? 0 : src,
-            d->process[2] ? 0 : src
+            d->process[0] ? nullptr : src,
+            d->process[1] ? nullptr : src,
+            d->process[2] ? nullptr : src
         };
 
         VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
@@ -879,7 +879,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
     d.filter_name = (const char *)userData;
 
-    d.node = vsapi->propGetNode(in, "clip", 0, 0);
+    d.node = vsapi->propGetNode(in, "clip", 0, nullptr);
     d.vi = vsapi->getVideoInfo(d.node);
 
     try {
@@ -895,7 +895,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
             d.process[i] = (m <= 0);
 
         for (int i = 0; i < m; i++) {
-            int o = int64ToIntS(vsapi->propGetInt(in, "planes", i, 0));
+            int o = int64ToIntS(vsapi->propGetInt(in, "planes", i, nullptr));
 
             if (o < 0 || o >= 3)
                 throw std::string("plane index out of range");

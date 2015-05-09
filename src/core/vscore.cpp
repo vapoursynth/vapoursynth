@@ -85,7 +85,7 @@ static std::wstring readRegistryValue(const std::wstring keyName, const std::wst
     WCHAR szBuffer[512];
     DWORD dwBufferSize = sizeof(szBuffer);
     ULONG nError;
-    nError = RegQueryValueEx(hKey, valueName.c_str(), 0, NULL, (LPBYTE)szBuffer, &dwBufferSize);
+    nError = RegQueryValueEx(hKey, valueName.c_str(), 0, nullptr, (LPBYTE)szBuffer, &dwBufferSize);
     RegCloseKey(hKey);
     if (ERROR_SUCCESS == nError)
         return szBuffer;
@@ -94,11 +94,11 @@ static std::wstring readRegistryValue(const std::wstring keyName, const std::wst
 #endif
 
 FrameContext::FrameContext(int n, int index, VSNode *clip, const PFrameContext &upstreamContext) :
-numFrameRequests(0), n(n), clip(clip), upstreamContext(upstreamContext), userData(NULL), frameDone(NULL), error(false), node(NULL), lastCompletedN(-1), index(index), lastCompletedNode(NULL), frameContext(NULL) {
+numFrameRequests(0), n(n), clip(clip), upstreamContext(upstreamContext), userData(nullptr), frameDone(nullptr), error(false), node(nullptr), lastCompletedN(-1), index(index), lastCompletedNode(nullptr), frameContext(nullptr) {
 }
 
 FrameContext::FrameContext(int n, int index, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData) :
-numFrameRequests(0), n(n), clip(node->clip.get()), userData(userData), frameDone(frameDone), error(false), node(node), lastCompletedN(-1), index(index), lastCompletedNode(NULL), frameContext(NULL) {
+numFrameRequests(0), n(n), clip(node->clip.get()), userData(userData), frameDone(frameDone), error(false), node(node), lastCompletedN(-1), index(index), lastCompletedNode(nullptr), frameContext(nullptr) {
 }
 
 bool FrameContext::setError(const std::string &errorMsg) {
@@ -112,7 +112,7 @@ bool FrameContext::setError(const std::string &errorMsg) {
 ///////////////
 
 
-VSVariant::VSVariant(VSVType vtype) : vtype(vtype), internalSize(0), storage(NULL) {
+VSVariant::VSVariant(VSVType vtype) : vtype(vtype), internalSize(0), storage(nullptr) {
 }
 
 VSVariant::VSVariant(const VSVariant &v) : vtype(v.vtype), internalSize(v.internalSize), storage(nullptr) {
@@ -742,14 +742,14 @@ static void VS_CC loadPlugin(const VSMap *in, VSMap *out, void *userData, VSCore
         const char *forceid = vsapi->propGetData(in, "forceid", 0, &err);
         if (!forceid)
             forceid = "";
-        core->loadPlugin(vsapi->propGetData(in, "path", 0, 0), forcens, forceid);
+        core->loadPlugin(vsapi->propGetData(in, "path", 0, nullptr), forcens, forceid);
     } catch (VSException &e) {
         vsapi->setError(out, e.what());
     }
 }
 
 void VS_CC loadPluginInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
-    registerFunc("LoadPlugin", "path:data;forcens:data:opt;forceid:data:opt;", &loadPlugin, NULL, plugin);
+    registerFunc("LoadPlugin", "path:data;forcens:data:opt;forceid:data:opt;", &loadPlugin, nullptr, plugin);
 }
 
 // not the most elegant way but avoids the mess that would happen if avscompat.h was included
@@ -931,7 +931,7 @@ VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), formatIdO
     const std::wstring filter = L"*.dll";
     // Autoload user specific plugins first so a user can always override
     std::vector<wchar_t> appDataBuffer(MAX_PATH + 1);
-    SHGetFolderPath(NULL, CSIDL_APPDATA, NULL, SHGFP_TYPE_CURRENT, appDataBuffer.data());
+    SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, SHGFP_TYPE_CURRENT, appDataBuffer.data());
 
 #ifdef _WIN64
     std::wstring bits(L"64");

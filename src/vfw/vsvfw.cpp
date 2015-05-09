@@ -774,7 +774,7 @@ void VS_CC VapourSynthFile::frameDoneCallback(void *userData, const VSFrameRef *
 
 bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
     const VSAPI *vsapi = parent->vsapi;
-    const VSFrameRef *f = vsapi->getFrame(n, parent->node, 0, 0);
+    const VSFrameRef *f = vsapi->getFrame(n, parent->node, nullptr, 0);
     if (!f)
         return false;
 
