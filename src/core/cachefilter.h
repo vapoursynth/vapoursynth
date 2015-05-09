@@ -171,9 +171,9 @@ public:
 
     inline void clear() {
         hash.clear();
-        first = NULL;
-        last = NULL;
-        weakpoint = NULL;
+        first = nullptr;
+        last = nullptr;
+        weakpoint = nullptr;
         currentSize = 0;
         historySize = 0;
         clearStats();

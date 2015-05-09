@@ -1853,7 +1853,7 @@ static const VSFrameRef *VS_CC repairGetFrame(int n, int activationReason, void 
         const VSFrameRef *src1_frame = vsapi->getFrameFilter(n, d->node1, frameCtx);
         const VSFrameRef *src2_frame = vsapi->getFrameFilter(n, d->node2, frameCtx);
         int planes[3] = {0, 1, 2};
-        const VSFrameRef * cp_planes[3] = { d->mode[0] ? NULL : src1_frame, d->mode[1] ? NULL : src1_frame, d->mode[2] ? NULL : src1_frame };
+        const VSFrameRef * cp_planes[3] = { d->mode[0] ? nullptr : src1_frame, d->mode[1] ? nullptr : src1_frame, d->mode[2] ? nullptr : src1_frame };
         VSFrameRef *dst_frame = vsapi->newVideoFrame2(vsapi->getFrameFormat(src1_frame), vsapi->getFrameWidth(src1_frame, 0), vsapi->getFrameHeight(src1_frame, 0), cp_planes, planes, src1_frame, core);
 
 
@@ -1951,7 +1951,7 @@ static void VS_CC repairFree(void *instanceData, VSCore *core, const VSAPI *vsap
 void VS_CC repairCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     RepairData d;
 
-    d.node1 = vsapi->propGetNode(in, "clip", 0, 0);
+    d.node1 = vsapi->propGetNode(in, "clip", 0, nullptr);
     d.vi = vsapi->getVideoInfo(d.node1);
 
     if (!isConstantFormat(d.vi)) {
@@ -1960,7 +1960,7 @@ void VS_CC repairCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
         return;
     }
 
-    d.node2 = vsapi->propGetNode(in, "repairclip", 0, 0);
+    d.node2 = vsapi->propGetNode(in, "repairclip", 0, nullptr);
 
     if (!isSameFormat(d.vi, vsapi->getVideoInfo(d.node2))) {
         vsapi->freeNode(d.node1);
@@ -1987,7 +1987,7 @@ void VS_CC repairCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
 
     for (int i = 0; i < 3; i++) {
         if (i < m) {
-            d.mode[i] = int64ToIntS(vsapi->propGetInt(in, "mode", i, NULL));
+            d.mode[i] = int64ToIntS(vsapi->propGetInt(in, "mode", i, nullptr));
             if (d.mode[i] < 0 || d.mode[i] > 24)
             {
                 vsapi->freeNode(d.node1);

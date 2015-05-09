@@ -20,7 +20,7 @@
 #include "DubSource.h"
 
 DubSource::DubSource() {
-    format = NULL;
+    format = nullptr;
 }
 
 DubSource::~DubSource() {

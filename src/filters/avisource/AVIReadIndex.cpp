@@ -367,7 +367,7 @@ VDAVIReadIndex::IndexEntry *VDAVIReadIndex::FindChunk(sint64 sample, uint32 sect
         return &mIndex[index >> kBlockSizeBits][index & kBlockMask];
     }
 
-    IndexEntry *ient = NULL;
+    IndexEntry *ient = nullptr;
     uint32 mid;
     while(lo < hi) {
         mid = (lo + hi + 1) >> 1;

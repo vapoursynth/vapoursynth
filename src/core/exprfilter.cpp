@@ -118,7 +118,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
             if (d->node[i])
                 src[i] = vsapi->getFrameFilter(n, d->node[i], frameCtx);
             else
-                src[i] = NULL;
+                src[i] = nullptr;
 
         const VSFormat *fi = d->vi.format;
         int height = vsapi->getFrameHeight(src[0], 0);
@@ -143,7 +143,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                         src_stride[i] = vsapi->getStride(src[i], plane);
                         ptroffsets[i + 1] = vsapi->getFrameFormat(src[i])->bytesPerSample * 8;
                     } else {
-                        srcp[i] = NULL;
+                        srcp[i] = nullptr;
                         src_stride[i] = 0;
                         ptroffsets[i + 1] = 0;
                     }
@@ -174,7 +174,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                         srcp[i] = vsapi->getReadPtr(src[i], plane);
                         src_stride[i] = vsapi->getStride(src[i], plane);
                     } else {
-                        srcp[i] = NULL;
+                        srcp[i] = nullptr;
                         src_stride[i] = 0;
                     }
                 }
@@ -694,7 +694,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
             if (d.node[i])
                 vi[i] = vsapi->getVideoInfo(d.node[i]);
             else
-                vi[i] = NULL;
+                vi[i] = nullptr;
 
         for (int i = 0; i < 3; i++) {
             if (vi[i]) {
@@ -731,7 +731,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
         std::string expr[3];
         for (int i = 0; i < nexpr; i++)
-            expr[i] = vsapi->propGetData(in, "expr", i, 0);
+            expr[i] = vsapi->propGetData(in, "expr", i, nullptr);
         if (nexpr == 1) {
             expr[1] = expr[0];
             expr[2] = expr[0];
@@ -777,5 +777,5 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
 void VS_CC exprInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     //configFunc("com.vapoursynth.expr", "expr", "VapourSynth Expr Filter", VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("Expr", "clips:clip[];expr:data[];format:int:opt;", exprCreate, 0, plugin);
+    registerFunc("Expr", "clips:clip[];expr:data[];format:int:opt;", exprCreate, nullptr, plugin);
 }

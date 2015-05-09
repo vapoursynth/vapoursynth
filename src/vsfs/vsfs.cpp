@@ -144,7 +144,7 @@ std::string get_file_contents(const char *filename)
 int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName)
 {
     char szScriptName[MAX_PATH * 2] = {};
-    WideCharToMultiByte(CP_UTF8, 0, wszScriptName, -1, szScriptName, sizeof(szScriptName), NULL, NULL);
+    WideCharToMultiByte(CP_UTF8, 0, wszScriptName, -1, szScriptName, sizeof(szScriptName), nullptr, nullptr);
     if(*szScriptName)
     {
 
@@ -159,7 +159,7 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName)
                 goto vpyerror;
             vi = vsapi->getVideoInfo(node);
 
-            if (vi->width == 0 || vi->height == 0 || vi->format == NULL || vi->numFrames == 0) {
+            if (vi->width == 0 || vi->height == 0 || vi->format == nullptr || vi->numFrames == 0) {
                 setError("Cannot open clips with varying dimensions or format in VSFS");
                 return ERROR_ACCESS_DENIED;
             }
@@ -462,9 +462,9 @@ int/*error*/ VapourSynther::newEnv()
 {
     if (vi) {
         vsapi->freeNode(node);
-        node = NULL;
+        node = nullptr;
         vsscript_freeScript(se);
-        se = NULL;
+        se = nullptr;
         delete [] packedPlane1;
         delete [] packedPlane2;
     }
@@ -480,10 +480,10 @@ VapourSynther::VapourSynther(void) :
 references(1),
 
     num_threads(1),
-    se(NULL),
+    se(nullptr),
     enable_v210(false),
     pad_scanlines(false),
-    node(NULL),
+    node(nullptr),
 
     //  trace(tropen(L"AVFS")),
     vi(0),
@@ -512,7 +512,7 @@ VapourSynther::~VapourSynther(void)
         if (vsapi)
             vsapi->freeFrame(lastFrame);
         vsscript_freeScript(se);
-        se = NULL;
+        se = nullptr;
     }
     ssfree(lastStringValue);
     ssfree(errText);
