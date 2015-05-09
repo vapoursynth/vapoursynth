@@ -1839,12 +1839,12 @@ typedef struct {
 } RepairData;
 
 static void VS_CC repairInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    RepairData *d = (RepairData *) * instanceData;
+    RepairData *d = static_cast<RepairData *>(*instanceData);
     vsapi->setVideoInfo(d->vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC repairGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    RepairData *d = (RepairData *) * instanceData;
+    RepairData *d = static_cast<RepairData *>(*instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node1, frameCtx);
@@ -1938,11 +1938,11 @@ static const VSFrameRef *VS_CC repairGetFrame(int n, int activationReason, void 
         return dst_frame;
     }
 
-    return 0;
+    return nullptr;
 }
 
 static void VS_CC repairFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    RepairData *d = (RepairData *)instanceData;
+    RepairData *d = static_cast<RepairData *>(instanceData);
     vsapi->freeNode(d->node1);
     vsapi->freeNode(d->node2);
     delete d;
@@ -2000,8 +2000,7 @@ void VS_CC repairCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
         }
     }
 
-    RepairData *data = new RepairData;
-    *data = d;
+    RepairData *data = new RepairData(d);
 
     vsapi->createFilter(in, out, "Repair", repairInit, repairGetFrame, repairFree, fmParallel, 0, data, core);
 }

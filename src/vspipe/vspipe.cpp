@@ -158,7 +158,7 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
                         int rowSize = vsapi->getFrameWidth(frame, p) * fi->bytesPerSample;
                         int height = vsapi->getFrameHeight(frame, p);
                         for (int y = 0; y < height; y++) {
-                            if (fwrite(readPtr, 1, rowSize, outFile) != (size_t)rowSize) {
+                            if (fwrite(readPtr, 1, rowSize, outFile) != static_cast<size_t>(rowSize)) {
                                 if (errorMessage.empty())
                                     errorMessage = "Error: fwrite() call failed when writing frame: " + std::to_string(outputFrames) + ", plane: " + std::to_string(p) +
                                         ", line: " + std::to_string(y) + ", errno: " + std::to_string(errno);
@@ -176,7 +176,7 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
                     std::ostringstream stream;
                     stream.imbue(std::locale("C"));
                     stream.setf(std::ios::fixed, std::ios::floatfield);
-                    stream << (currentTimecodeNum * 1000 / (double)currentTimecodeDen);
+                    stream << (currentTimecodeNum * 1000 / static_cast<double>(currentTimecodeDen));
                     if (fprintf(timecodesFile, "%s\n", stream.str().c_str()) < 0) {
                         if (errorMessage.empty())
                             errorMessage = "Error: failed to write timecode for frame " + std::to_string(outputFrames) + ". errno: " + std::to_string(errno);
@@ -625,7 +625,7 @@ int main(int argc, char **argv) {
         }
         fprintf(outFile, "Frames: %d\n", vi->numFrames);
         if (vi->fpsNum && vi->fpsDen)
-            fprintf(outFile, "FPS: %" PRId64 "/%" PRId64 " (%.3f fps)\n", vi->fpsNum, vi->fpsDen, vi->fpsNum/(double)vi->fpsDen);
+            fprintf(outFile, "FPS: %" PRId64 "/%" PRId64 " (%.3f fps)\n", vi->fpsNum, vi->fpsDen, vi->fpsNum/static_cast<double>(vi->fpsDen));
         else
             fprintf(outFile, "FPS: Variable\n");
 

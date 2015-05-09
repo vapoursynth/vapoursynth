@@ -41,7 +41,7 @@ typedef struct {
 
 
 static void VS_CC clenseInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    ClenseData *d = (ClenseData *)* instanceData;
+    ClenseData *d = static_cast<ClenseData *>(*instanceData);
     vsapi->setVideoInfo(d->vi, 1, node);
 }
 
@@ -83,7 +83,7 @@ struct PlaneProcFB {
 
 template<typename T, typename Processor>
 static const VSFrameRef *VS_CC clenseGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    ClenseData *d = (ClenseData *)* instanceData;
+    ClenseData *d = static_cast<ClenseData *>(*instanceData);
 
     if (activationReason == arInitial) {
         if (d->mode == cmNormal) {
@@ -160,7 +160,7 @@ static const VSFrameRef *VS_CC clenseGetFrame(int n, int activationReason, void 
 }
 
 static void VS_CC clenseFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    ClenseData *d = (ClenseData *)instanceData;
+    ClenseData *d = static_cast<ClenseData *>(instanceData);
     vsapi->freeNode(d->cnode);
     vsapi->freeNode(d->pnode);
     vsapi->freeNode(d->nnode);
@@ -174,7 +174,7 @@ void VS_CC clenseCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
     int n, m, o;
     int i;
 
-    d.mode = int64ToIntS((intptr_t)userData);
+    d.mode = int64ToIntS(reinterpret_cast<intptr_t>(userData));
     d.cnode = vsapi->propGetNode(in, "clip", 0, nullptr);
     d.vi = vsapi->getVideoInfo(d.cnode);
     if (!isConstantFormat(d.vi))
@@ -235,4 +235,3 @@ void VS_CC clenseCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
 
     vsapi->createFilter(in, out, "Clense", clenseInit, getFrameFunc, clenseFree, fmParallel, 0, data, core);
 }
-

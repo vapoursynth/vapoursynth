@@ -59,7 +59,7 @@ VSMap *readSettings(const std::string &path) {
 
     std::vector<char> buffer(size);
 
-    if (fread(buffer.data(), 1, size, f) != (size_t)size) {
+    if (fread(buffer.data(), 1, size, f) != static_cast<size_t>(size)) {
         err.append("Didn't read the expected number of bytes from '").append(path).append("'.");
         vsapi.setError(settings, err.c_str());
         fclose(f);

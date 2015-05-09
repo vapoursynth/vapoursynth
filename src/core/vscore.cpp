@@ -512,7 +512,7 @@ void VSNode::getFrame(const PFrameContext &ct) {
 }
 
 const VSVideoInfo &VSNode::getVideoInfo(int index) {
-    if (index < 0 || index >= (int)vi.size())
+    if (index < 0 || index >= static_cast<int>(vi.size()))
         vsFatal("Out of bounds videoinfo index");
     return vi[index];
 }
@@ -1279,7 +1279,7 @@ VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
                 if (c != 'u') {
                     remainingArgs.erase(fa.name);
 
-                    if (lookup[(int)fa.type] != c)
+                    if (lookup[static_cast<int>(fa.type)] != c)
                         throw VSException(funcName + ": argument " + fa.name + " is not of the correct type");
 
                     if (!fa.arr && args[fa.name.c_str()].size() > 1)
@@ -1326,4 +1326,3 @@ VSMap VSPlugin::getFunctions() {
     }
     return m;
 }
-

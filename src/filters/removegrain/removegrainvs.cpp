@@ -1421,12 +1421,12 @@ typedef struct {
 } RemoveGrainData;
 
 static void VS_CC removeGrainInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    RemoveGrainData *d = (RemoveGrainData *) * instanceData;
+    RemoveGrainData *d = static_cast<RemoveGrainData *>(*instanceData);
     vsapi->setVideoInfo(d->vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC removeGrainGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    RemoveGrainData *d = (RemoveGrainData *) * instanceData;
+    RemoveGrainData *d = static_cast<RemoveGrainData *>(*instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
@@ -1517,11 +1517,11 @@ static const VSFrameRef *VS_CC removeGrainGetFrame(int n, int activationReason, 
         return dst_frame;
     }
 
-    return 0;
+    return nullptr;
 }
 
 static void VS_CC removeGrainFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    RemoveGrainData *d = (RemoveGrainData *)instanceData;
+    RemoveGrainData *d = static_cast<RemoveGrainData *>(instanceData);
     vsapi->freeNode(d->node);
     delete d;
 }
@@ -1566,9 +1566,7 @@ void VS_CC removeGrainCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         }
     }
 
-    RemoveGrainData *data = new RemoveGrainData;
-    *data = d;
+    RemoveGrainData *data = new RemoveGrainData(d);
 
     vsapi->createFilter(in, out, "RemoveGrain", removeGrainInit, removeGrainGetFrame, removeGrainFree, fmParallel, 0, data, core);
 }
-

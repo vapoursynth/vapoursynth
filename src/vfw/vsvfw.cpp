@@ -560,7 +560,7 @@ STDMETHODIMP VapourSynthFile::Info(AVIFILEINFOW *pfi, LONG lSize) {
 
     // Maybe should return AVIERR_BUFFERTOOSMALL for lSize < sizeof(afi)
     memset(pfi, 0, lSize);
-    memcpy(pfi, &afi, std::min(size_t(lSize), sizeof(afi)));
+    memcpy(pfi, &afi, std::min(static_cast<size_t>(lSize), sizeof(afi)));
     return S_OK;
 }
 
@@ -748,7 +748,7 @@ STDMETHODIMP_(LONG) VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) {
 
     // Maybe should return AVIERR_BUFFERTOOSMALL for lSize < sizeof(asi)
     memset(psi, 0, lSize);
-    memcpy(psi, &asi, std::min(size_t(lSize), sizeof(asi)));
+    memcpy(psi, &asi, std::min(static_cast<size_t>(lSize), sizeof(asi)));
     return S_OK;
 }
 
@@ -767,7 +767,7 @@ STDMETHODIMP_(LONG) VapourSynthStream::FindSample(LONG lPos, LONG lFlags) {
 //////////// local
 
 void VS_CC VapourSynthFile::frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg) {
-    VapourSynthFile *vsfile = (VapourSynthFile *)userData;
+    VapourSynthFile *vsfile = static_cast<VapourSynthFile *>(userData);
     vsfile->vsapi->freeFrame(f);
     --vsfile->pending_requests;
 }
@@ -834,7 +834,7 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
 
     for (int i = n + 1; i < std::min<int>(n + parent->num_threads, parent->vi->numFrames); i++) {
         ++parent->pending_requests;
-        vsapi->getFrameAsync(i, parent->node, VapourSynthFile::frameDoneCallback, (void *)parent);
+        vsapi->getFrameAsync(i, parent->node, VapourSynthFile::frameDoneCallback, static_cast<void *>(parent));
     }
 
     return true;
@@ -931,7 +931,7 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
 
     bi.biSizeImage = parent->ImageSize();
     *lpcbFormat = std::min<LONG>(*lpcbFormat, sizeof(bi));
-    memcpy(lpFormat, &bi, size_t(*lpcbFormat));
+    memcpy(lpFormat, &bi, static_cast<size_t>(*lpcbFormat));
 
     return S_OK;
 }
