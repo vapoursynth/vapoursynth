@@ -495,7 +495,7 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **
             scrawl_text(text, d->alignment, dst, vsapi);
         } else if (d->filter == FILTER_CLIPINFO) {
             const VSMap *props = vsapi->getFramePropsRO(src);
-            std::string text;
+            std::string text = "Clip info:\n";
 
             if (d->vi->width) {
                 text += "Width: " + std::to_string(vsapi->getFrameWidth(dst, 0)) + " px\n";
@@ -511,7 +511,7 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **
             if (snerr || sderr)
                 text += "Aspect ratio: Unknown\n";
             else
-                text += "Aspect ratio: " + std::to_string(sn) + ":" + std::to_string(sd) + "\n";
+                text += "Sample aspect ratio: " + std::to_string(sn) + ":" + std::to_string(sd) + "\n";
 
             text += "Length: " + std::to_string(d->vi->numFrames) + " frames\n";
 
