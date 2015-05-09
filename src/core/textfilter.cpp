@@ -322,6 +322,128 @@ static void append_prop(std::string &text, const std::string &key, const VSMap *
     text += "\n";
 }
 
+static std::string fieldBasedToString(int field) {
+    std::string s = "Unknown";
+    if (field == 0)
+        s = "Frame based";
+    else if (field == 1)
+        s = "Bottom field first";
+    else if (field == 2)
+        s = "Top field first";
+    return s;
+}
+
+static std::string colorFamilyToString(int cf) {
+    std::string family = "Unknown";
+    if (cf == cmGray)
+        family = "Gray";
+    else if (cf == cmRGB)
+        family = "RGB";
+    else if (cf == cmYUV)
+        family = "YUV";
+    else if (cf == cmYCoCg)
+        family = "YCoCg";
+    else if (cf == cmCompat)
+        family = "Compat";
+    return family;
+}
+
+static std::string chromaLocationToString(int location) {
+    std::string s = "Unknown";
+    if (location == 0)
+        s = "Left";
+    else if (location == 1)
+        s = "Center";
+    else if (location == 2)
+        s = "Top left";
+    else if (location == 3)
+        s = "Top";
+    else if (location == 4)
+        s = "Bottom left";
+    else if (location == 5)
+        s = "Bottom";
+    return s;
+}
+
+static std::string rangeToString(int range) {
+    std::string s = "Unknown";
+    if (range == 0)
+        s = "Full range";
+    else if (range == 1)
+        s = "Limited range";
+    return s;
+}
+
+static std::string matrixToString(int matrix) {
+    std::string s = "Unknown";
+    if (matrix == 0)
+        s = "sRGB";
+    else if (matrix == 1)
+        s = "BT.709";
+    else if (matrix == 4)
+        s = "FCC";
+    else if (matrix == 5 || matrix  == 6)
+        s = "BT.601";
+    else if (matrix == 7)
+        s = "SMPTE 240M";
+    else if (matrix == 7)
+        s = "YCoCg";
+    else if (matrix == 8)
+        s = "BT.2020 NCL";
+    else if (matrix == 9)
+        s = "BT.2020 CL";
+    return s;
+}
+
+static std::string primariesToString(int primaries) {
+    std::string s = "Unknown";
+    if (primaries == 1)
+        s = "BT.709";
+    else if (primaries == 4)
+        s = "BT.470M";
+    else if (primaries == 5)
+        s = "BT.470BG";
+    else if (primaries == 6)
+        s = "SMPTE 170M";
+    else if (primaries == 7)
+        s = "SMPTE 240M";
+    else if (primaries == 8)
+        s = "FILM";
+    else if (primaries == 9)
+        s = "BT.2020";
+    return s;
+}
+
+static std::string transferToString(int transfer) {
+        std::string s = "Unknown";
+        if (transfer == 1)
+            s = "BT.709";
+        else if (transfer == 4)
+            s = "Gamma 2.2";
+        else if (transfer == 5)
+            s = "Gamma 2.8";
+        else if (transfer == 6)
+            s = "SMPTE 170M";
+        else if (transfer == 7)
+            s = "SMPTE 240M";
+        else if (transfer == 8)
+            s = "Linear";
+        else if (transfer == 9)
+            s = "Logaritmic (100:1 range)";
+        else if (transfer == 10)
+            s = "Logaritmic (100 * Sqrt(10) : 1 range)";
+        else if (transfer == 11)
+            s = "IEC 61966-2-4";
+        else if (transfer == 12)
+            s = "BT.1361 Extended Colour Gamut";
+        else if (transfer == 13)
+            s = "IEC 61966-2-1";
+        else if (transfer == 14)
+            s = "BT.2020 for 10 bit system";
+        else if (transfer == 15)
+            s = "BT.2020 for 12 bit system";
+        return s;
+}
 
 static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     TextData *d = (TextData *) * instanceData;
@@ -329,17 +451,17 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        VSFrameRef *dst = vsapi->copyFrame(src, core);
-        vsapi->freeFrame(src);
+        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);       
 
-        const VSFormat *frame_format = vsapi->getFrameFormat(dst);
+        const VSFormat *frame_format = vsapi->getFrameFormat(src);
         if ((frame_format->sampleType == stInteger && frame_format->bitsPerSample > 16) ||
             (frame_format->sampleType == stFloat && frame_format->bitsPerSample != 32)) {
-                vsapi->freeFrame(dst);
+                vsapi->freeFrame(src);
                 vsapi->setFilterError((d->instanceName + ": Only 8..16 bit integer and 32 bit float formats supported").c_str(), frameCtx);
                 return nullptr;
         }
+
+        VSFrameRef *dst = vsapi->copyFrame(src, core);
 
         if (d->filter == FILTER_FRAMENUM) {
             scrawl_text(std::to_string(n), d->alignment, dst, vsapi);
@@ -371,10 +493,86 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **
             text.append("Used framebuffer cache size: ").append(std::to_string(ci->usedFramebufferSize)).append(" bytes");
 
             scrawl_text(text, d->alignment, dst, vsapi);
+        } else if (d->filter == FILTER_CLIPINFO) {
+            const VSMap *props = vsapi->getFramePropsRO(src);
+            std::string text;
+
+            if (d->vi->width) {
+                text += "Width: " + std::to_string(vsapi->getFrameWidth(dst, 0)) + " px\n";
+                text += "Height: " + std::to_string(vsapi->getFrameHeight(dst, 0)) + " px\n";
+            } else {
+                text += "Width: " + std::to_string(vsapi->getFrameWidth(dst, 0)) + " px (may vary)\n";
+                text += "Height: " + std::to_string(vsapi->getFrameHeight(dst, 0)) + " px (may vary)\n";
+            }
+
+            int snerr, sderr;
+            int sn = int64ToIntS(vsapi->propGetInt(props, "_SARNum", 0, &snerr));
+            int sd = int64ToIntS(vsapi->propGetInt(props, "_SARDen", 0, &sderr));
+            if (snerr || sderr)
+                text += "Aspect ratio: Unknown\n";
+            else
+                text += "Aspect ratio: " + std::to_string(sn) + ":" + std::to_string(sd) + "\n";
+
+            text += "Length: " + std::to_string(d->vi->numFrames) + " frames\n";
+
+            text += "Format name: " + std::string(frame_format->name) + (d->vi->format ? "\n" : " (may vary)\n");
+
+            text += "Color family: " + colorFamilyToString(frame_format->colorFamily) + "\n";
+            text += "Sample type: " + std::string(frame_format->sampleType == stInteger ? "Integer" : "Float") + "\n";
+            text += "Bits per sample: " + std::to_string(frame_format->bitsPerSample) + "\n";
+            text += "Subsampling Height/Width: " + std::to_string(1 << frame_format->subSamplingH) + "x/" + std::to_string(1 << frame_format->subSamplingW) + "x\n";
+
+            int err;
+            int matrix = int64ToIntS(vsapi->propGetInt(props, "_Matrix", 0, &err));
+            if (err)
+                matrix = -1;
+            int primaries = int64ToIntS(vsapi->propGetInt(props, "_Primaries", 0, &err));
+            if (err)
+                primaries = -1;
+            int transfer = int64ToIntS(vsapi->propGetInt(props, "_Transfer", 0, &err));
+            if (err)
+                transfer = -1;
+            int range = int64ToIntS(vsapi->propGetInt(props, "_ColorRange", 0, &err));
+            if (err)
+                range = -1;
+            int location = int64ToIntS(vsapi->propGetInt(props, "_ChromaLocation", 0, &err));
+            if (err)
+                location = -1;
+            int field = int64ToIntS(vsapi->propGetInt(props, "_FieldBased", 0, &err));
+            if (err)
+                field = -1;
+
+            const char *picttype = vsapi->propGetData(props, "_PictType", 0, &err);
+
+            text += "Matrix: " + matrixToString(matrix) + "\n";
+            text += "Primaries: " + primariesToString(primaries) + "\n";
+            text += "Transfer: " + transferToString(transfer) + "\n";
+            text += "Range: " + rangeToString(range) + "\n";
+            text += "Chroma Location: " + chromaLocationToString(location) + "\n";
+            text += "Field handling: " + fieldBasedToString(field) + "\n";
+            text += "Picture type: " + std::string(picttype ? picttype : "Unknown") + "\n";
+
+            if (d->vi->fpsNum && d->vi->fpsDen) {
+                text += "Fps: " + std::to_string(d->vi->fpsNum) + "/" + std::to_string(d->vi->fpsDen) + " (" + std::to_string(static_cast<double>(d->vi->fpsNum) / d->vi->fpsDen) + ")\n";
+            } else {
+                text += "Fps: Unknown\n";
+            }
+
+            int fnerr, fderr;
+            int fn = int64ToIntS(vsapi->propGetInt(props, "_DurationNum", 0, &fnerr));
+            int fd = int64ToIntS(vsapi->propGetInt(props, "_DurationDen", 0, &fderr));
+            if (fnerr || fderr) {
+                text += "Frame duration: Unknown\n";
+            } else {
+                text += "Frame duration: " + std::to_string(fn) + "/" + std::to_string(fd) + " (" + std::to_string(static_cast<double>(fd) / fn) + ")\n";
+            }
+
+            scrawl_text(text, d->alignment, dst, vsapi);
         } else {
             scrawl_text(d->text, d->alignment, dst, vsapi);
         }
 
+        vsapi->freeFrame(src);
         return dst;
     }
 
@@ -443,79 +641,9 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     switch (d.filter) {
     case FILTER_TEXT:
         d.text = vsapi->propGetData(in, "text", 0, nullptr);
-
         d.instanceName = "Text";
         break;
     case FILTER_CLIPINFO:
-        d.text += "Clip info:\n";
-
-        if (d.vi->width) {
-            d.text += "Width: " + std::to_string(d.vi->width) + " px\n";
-            d.text += "Height: " + std::to_string(d.vi->height) + " px\n";
-        } else {
-            d.text += "Width: may vary\n";
-            d.text += "Height: may vary\n";
-        }
-
-        if (d.vi->numFrames) {
-            d.text += "Length: " + std::to_string(d.vi->numFrames) + " frames\n";
-        } else {
-            d.text += "Length: unknown\n";
-        }
-
-        if (d.vi->format) {
-            const VSFormat *fi = d.vi->format;
-            const char *family;
-            switch (fi->colorFamily) {
-            case cmGray:
-                family = "Gray";
-                break;
-            case cmRGB:
-                family = "RGB";
-                break;
-            case cmYUV:
-                family = "YUV";
-                break;
-            case cmYCoCg:
-                family = "YCoCg";
-                break;
-            case cmCompat:
-                family = "Compat";
-                break;
-            default:
-                family = "impossible";
-                break;
-            }
-
-            const char *type;
-            switch (fi->sampleType) {
-            case stInteger:
-                type = "integer";
-                break;
-            case stFloat:
-                type = "float";
-                break;
-            default:
-                type = "impossible";
-                break;
-            }
-
-            d.text.append("Format name: ").append(fi->name).append("\n");
-            d.text.append("Format id: ").append(std::to_string(fi->id)).append("\n");
-            d.text.append("Color family: ").append(family).append("\n");
-            d.text.append("Sample type: ").append(type).append("\n");
-            d.text.append("Bits per sample: ").append(std::to_string(fi->bitsPerSample)).append("\n");
-            d.text.append("Bytes per sample: ").append(std::to_string(fi->bytesPerSample)).append("\n");
-            d.text.append("Horizontal subsampling: ").append(std::to_string(fi->subSamplingW)).append("\n");
-            d.text.append("Vertical subsampling: ").append(std::to_string(fi->subSamplingH)).append("\n");
-            d.text.append("Number of planes: ").append(std::to_string(fi->numPlanes)).append("\n");
-        } else {
-            d.text.append("Format: may vary").append("\n");
-        }
-
-        d.text.append("FpsNum: ").append(std::to_string(d.vi->fpsNum)).append("\n");
-        d.text.append("FpsDen: ").append(std::to_string(d.vi->fpsDen));
-
         d.instanceName = "ClipInfo";
         break;
     case FILTER_COREINFO:
