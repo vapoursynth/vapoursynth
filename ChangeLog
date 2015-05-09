@@ -1,4 +1,5 @@
 r27:
+fixed proptoclip crash on certain errors
 added a rewritten version of genericfilters to the core (nodame)
 fixed the not (required two operands instead of one, asm broken) and swap (only required one operand instead of two) operators in the expr filter
 renamed the x and y arguments in cropabs to left and top to be clearer and match croprel
