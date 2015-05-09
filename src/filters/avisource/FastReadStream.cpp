@@ -49,14 +49,14 @@ void FastReadStream::_Init(long lBlockCount, long lBlockSize) {
     this->lBlockCount    = lBlockCount;
     this->lBlockSize    = (lBlockSize + 4095) & -4096;
     this->pHeaders        = new FastReadStreamHeader[this->lBlockCount];
-    this->pBuffer        = VirtualAlloc(NULL, this->lBlockCount * this->lBlockSize, MEM_COMMIT, PAGE_READWRITE);
+    this->pBuffer        = VirtualAlloc(nullptr, this->lBlockCount * this->lBlockSize, MEM_COMMIT, PAGE_READWRITE);
 
     if (!this->pHeaders || !this->pBuffer) {
         delete this->pHeaders;
         if (this->pBuffer) VirtualFree(this->pBuffer, 0, MEM_RELEASE);
 
-        this->pHeaders = NULL;
-        this->pBuffer = NULL;
+        this->pHeaders = nullptr;
+        this->pBuffer = nullptr;
     } else {
         Flush();
     }
@@ -232,7 +232,7 @@ int FastReadStream::_Commit(int stream, __int64 i64BlockNo) {
                 if ((err = GetLastError()) != NO_ERROR)
                     throw MyWin32Error("FastRead seek error: %%s", GetLastError());
 
-            if (!ReadFile(hFile, (char *)pBuffer + iCacheBlock * lBlockSize, lBlockSize, &dwActual, NULL))
+            if (!ReadFile(hFile, (char *)pBuffer + iCacheBlock * lBlockSize, lBlockSize, &dwActual, nullptr))
                 throw MyWin32Error("FastRead read error: %%s", GetLastError());
 
             pHeaders[iCacheBlock].lBytes = dwActual;

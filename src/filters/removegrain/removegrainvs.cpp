@@ -1433,7 +1433,7 @@ static const VSFrameRef *VS_CC removeGrainGetFrame(int n, int activationReason, 
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src_frame = vsapi->getFrameFilter(n, d->node, frameCtx);
         int planes[3] = {0, 1, 2};
-        const VSFrameRef * cp_planes[3] = { d->mode[0] ? NULL : src_frame, d->mode[1] ? NULL : src_frame, d->mode[2] ? NULL : src_frame };
+        const VSFrameRef * cp_planes[3] = { d->mode[0] ? nullptr : src_frame, d->mode[1] ? nullptr : src_frame, d->mode[2] ? nullptr : src_frame };
         VSFrameRef *dst_frame = vsapi->newVideoFrame2(vsapi->getFrameFormat(src_frame), vsapi->getFrameWidth(src_frame, 0), vsapi->getFrameHeight(src_frame, 0), cp_planes, planes, src_frame, core);
 
 
@@ -1529,7 +1529,7 @@ static void VS_CC removeGrainFree(void *instanceData, VSCore *core, const VSAPI 
 void VS_CC removeGrainCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     RemoveGrainData d;
 
-    d.node = vsapi->propGetNode(in, "clip", 0, 0);
+    d.node = vsapi->propGetNode(in, "clip", 0, nullptr);
     d.vi = vsapi->getVideoInfo(d.node);
 
     if (!d.vi->format) {
@@ -1554,7 +1554,7 @@ void VS_CC removeGrainCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     for (int i = 0; i < 3; i++) {
         if (i < m) {
-            d.mode[i] = int64ToIntS(vsapi->propGetInt(in, "mode", i, NULL));
+            d.mode[i] = int64ToIntS(vsapi->propGetInt(in, "mode", i, nullptr));
             if (d.mode[i] < 0 || d.mode[i] > 24)
             {
                 vsapi->freeNode(d.node);

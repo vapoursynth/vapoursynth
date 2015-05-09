@@ -409,7 +409,7 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
             vsapi->freeMap(ret);
             return;
         }
-        d.node = vsapi->propGetNode(ret, "clip", 0, 0);
+        d.node = vsapi->propGetNode(ret, "clip", 0, nullptr);
         vsapi->freeMap(ret);
     }
     d.vi = vsapi->getVideoInfo(d.node);
@@ -442,7 +442,7 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     switch (d.filter) {
     case FILTER_TEXT:
-        d.text = vsapi->propGetData(in, "text", 0, 0);
+        d.text = vsapi->propGetData(in, "text", 0, nullptr);
 
         d.instanceName = "Text";
         break;
@@ -530,7 +530,7 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         int numProps = vsapi->propNumElements(in, "props");
 
         for (int i = 0; i < numProps; i++) {
-            d.props.push_back(vsapi->propGetData(in, "props", i, 0));
+            d.props.push_back(vsapi->propGetData(in, "props", i, nullptr));
         }
 
         d.instanceName = "FrameProps";

@@ -276,21 +276,21 @@ IAVIReadHandler *CreateAVIReadHandler(PAVIFILE paf) {
 ///////////////////////////////////////////////////////////////////////////////
 
 AVIReadHandlerTunnelW32::AVIReadHandlerTunnelW32(PAVIFILE pAVIFile)
-    : mpAvisynthClipInfo(NULL)
+    : mpAvisynthClipInfo(nullptr)
     , mpAVIFile(pAVIFile)
     , mRefCount(1)
 {
     if (FAILED(mpAVIFile->QueryInterface(IID_IAvisynthClipInfo, (void **)&mpAvisynthClipInfo)))
-        mpAvisynthClipInfo = NULL;
+        mpAvisynthClipInfo = nullptr;
     else {
         const char *s;
 
         if (mpAvisynthClipInfo->GetError(&s)) {
             MyError e("Avisynth open failure:\n%s", s);
             mpAvisynthClipInfo->Release();
-            mpAvisynthClipInfo = NULL;
+            mpAvisynthClipInfo = nullptr;
             AVIFileRelease(mpAVIFile);
-            mpAVIFile = NULL;
+            mpAVIFile = nullptr;
             throw e;
         }
 
@@ -301,12 +301,12 @@ AVIReadHandlerTunnelW32::AVIReadHandlerTunnelW32(PAVIFILE pAVIFile)
 AVIReadHandlerTunnelW32::~AVIReadHandlerTunnelW32() {
     if (mpAvisynthClipInfo) {
         mpAvisynthClipInfo->Release();
-        mpAvisynthClipInfo = NULL;
+        mpAvisynthClipInfo = nullptr;
     }
 
     if (mpAVIFile) {
         AVIFileRelease(mpAVIFile);
-        mpAVIFile = NULL;
+        mpAVIFile = nullptr;
     }
 }
 
@@ -335,7 +335,7 @@ IAVIReadStream *AVIReadHandlerTunnelW32::GetStream(uint32 fccType, int lParam) {
     ClearMMXState();
 
     if (hr)
-        return NULL;
+        return nullptr;
 
     return new AVIReadTunnelStream(this, pas, mpAvisynthClipInfo);
 }
@@ -357,7 +357,7 @@ bool AVIReadHandlerTunnelW32::isIndexFabricated() {
 
 bool AVIReadHandlerTunnelW32::getSegmentHint(const char **ppszPath) {
     if (ppszPath)
-        *ppszPath = NULL;
+        *ppszPath = nullptr;
 
     return false;
 }

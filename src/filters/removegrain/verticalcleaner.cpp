@@ -29,8 +29,8 @@ static void verticalMedian(const T * VS_RESTRICT srcp, T * VS_RESTRICT dstp, con
 }
 
 template<typename T>
-static void relaxedVerticalMedian(const T * VS_RESTRICT srcp, T * VS_RESTRICT dstp, const int width, const int height, const int stride, const VerticalCleanerData * d) {
-    const int peak = (1 << d->vi->format->bitsPerSample) - 1;
+static void relaxedVerticalMedian(const T * VS_RESTRICT srcp, T * VS_RESTRICT dstp, const int width, const int height, const int stride, const int bitsPerSample) {
+    const int peak = (1 << bitsPerSample) - 1;
 
     memcpy(dstp, srcp, stride * sizeof(T) * 2);
 
@@ -88,9 +88,9 @@ static const VSFrameRef *VS_CC verticalCleanerGetFrame(int n, int activationReas
                     verticalMedian<uint16_t>((const uint16_t *)srcp, (uint16_t *)dstp, width, height, stride / 2);
             } else if (d->mode[plane] == 2) {
                 if (d->vi->format->bytesPerSample == 1)
-                    relaxedVerticalMedian<uint8_t>(srcp, dstp, width, height, stride, d);
+                    relaxedVerticalMedian<uint8_t>(srcp, dstp, width, height, stride, d->vi->format->bitsPerSample);
                 else
-                    relaxedVerticalMedian<uint16_t>((const uint16_t *)srcp, (uint16_t *)dstp, width, height, stride / 2, d);
+                    relaxedVerticalMedian<uint16_t>((const uint16_t *)srcp, (uint16_t *)dstp, width, height, stride / 2, d->vi->format->bitsPerSample);
             }
         }
 

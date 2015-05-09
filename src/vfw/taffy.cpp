@@ -15,7 +15,7 @@ static void pack_4444(taffy_param *args) {
     int *src_stride = args->src_stride;
     int dst_stride = args->dst_stride[0];
 
-    if (srcp[0] == NULL) {
+    if (srcp[0] == nullptr) {
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 dstp[x * 4 + 0] = 0;
@@ -30,7 +30,7 @@ static void pack_4444(taffy_param *args) {
 
             dstp += dst_stride / sizeof(T);
         }
-    } else if (srcp[3] == NULL) {
+    } else if (srcp[3] == nullptr) {
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 dstp[x * 4 + 0] = srcp[0][x];
@@ -76,7 +76,7 @@ static void unpack_4444(taffy_param *args) {
     int src_stride = args->src_stride[0];
     int *dst_stride = args->dst_stride;
 
-    if (dstp[0] == NULL) {
+    if (dstp[0] == nullptr) {
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 dstp[1][x] = srcp[x * 4 + 1];
@@ -90,7 +90,7 @@ static void unpack_4444(taffy_param *args) {
             dstp[2] += dst_stride[2] / sizeof(T);
             dstp[3] += dst_stride[3] / sizeof(T);
         }
-    } else if (dstp[3] == NULL) {
+    } else if (dstp[3] == nullptr) {
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 dstp[0][x] = srcp[x * 4 + 0];

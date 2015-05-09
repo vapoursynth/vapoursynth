@@ -608,7 +608,7 @@ public:
     void copyFrameProps(const PVideoFrame &src, PVideoFrame &dst);
 
     const VSFormat *getFormatPreset(int id);
-    const VSFormat *registerFormat(VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name = NULL, int id = pfNone);
+    const VSFormat *registerFormat(VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name = nullptr, int id = pfNone);
     bool isValidFormatPointer(const VSFormat *f);
 
     void loadPlugin(const std::string &filename, const std::string &forcedNamespace = std::string(), const std::string &forcedId = std::string());

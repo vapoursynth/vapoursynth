@@ -157,10 +157,10 @@ void VSCache::adjustSize(bool needMemory) {
 }
 
 static void VS_CC cacheInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    VSNodeRef *video = vsapi->propGetNode(in, "clip", 0, 0);
+    VSNodeRef *video = vsapi->propGetNode(in, "clip", 0, nullptr);
     int err;
-    int fixed = !!vsapi->propGetInt(in, "fixed", 0, &err);
-    CacheInstance *c = new CacheInstance(video, node, core, !!fixed);
+    bool fixed = !!vsapi->propGetInt(in, "fixed", 0, &err);
+    CacheInstance *c = new CacheInstance(video, node, core, fixed);
 
     int size = int64ToIntS(vsapi->propGetInt(in, "size", 0, &err));
 
@@ -183,7 +183,7 @@ static const VSFrameRef *VS_CC cacheGetframe(int n, int activationReason, void *
             return new VSFrameRef(f);
 
         vsapi->requestFrameFilter(n, c->clip, frameCtx);
-        return NULL;
+        return nullptr;
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *r = vsapi->getFrameFilter(n, c->clip, frameCtx);
         c->cache.insert(n, r->frame);
@@ -207,5 +207,5 @@ static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData,
 }
 
 void VS_CC cacheInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
-    registerFunc("Cache", "clip:clip;size:int:opt;fixed:int:opt;", &createCacheFilter, NULL, plugin);
+    registerFunc("Cache", "clip:clip;size:int:opt;fixed:int:opt;", &createCacheFilter, nullptr, plugin);
 }
