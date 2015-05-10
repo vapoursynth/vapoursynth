@@ -1098,31 +1098,31 @@ void VS_CC genericInitialize(VSConfigPlugin configFunc, VSRegisterFunction regis
             "planes:int[]:opt;"
             "threshold:int:opt;"
             "coordinates:int[]:opt;"
-            , genericCreate<GenericMinimum>, reinterpret_cast<void *>("Minimum"), plugin);
+            , genericCreate<GenericMinimum>, const_cast<char *>("Minimum"), plugin);
 
     registerFunc("Maximum",
             "clip:clip;"
             "planes:int[]:opt;"
             "threshold:int:opt;"
             "coordinates:int[]:opt;"
-            , genericCreate<GenericMaximum>, reinterpret_cast<void *>("Maximum"), plugin);
+            , genericCreate<GenericMaximum>, const_cast<char *>("Maximum"), plugin);
 
     registerFunc("Median",
             "clip:clip;"
             "planes:int[]:opt;"
-            , genericCreate<GenericMedian>, reinterpret_cast<void *>("Median"), plugin);
+            , genericCreate<GenericMedian>, const_cast<char *>("Median"), plugin);
 
     registerFunc("Deflate",
             "clip:clip;"
             "planes:int[]:opt;"
             "threshold:int:opt;"
-            , genericCreate<GenericDeflate>, reinterpret_cast<void *>("Deflate"), plugin);
+            , genericCreate<GenericDeflate>, const_cast<char *>("Deflate"), plugin);
 
     registerFunc("Inflate",
             "clip:clip;"
             "planes:int[]:opt;"
             "threshold:int:opt;"
-            , genericCreate<GenericInflate>, reinterpret_cast<void *>("Inflate"), plugin);
+            , genericCreate<GenericInflate>, const_cast<char *>("Inflate"), plugin);
 
     registerFunc("Convolution",
             "clip:clip;"
@@ -1132,7 +1132,7 @@ void VS_CC genericInitialize(VSConfigPlugin configFunc, VSRegisterFunction regis
             "planes:int[]:opt;"
             "saturate:int:opt;"
             "mode:data:opt;"
-            , genericCreate<GenericConvolution>, reinterpret_cast<void *>("Convolution"), plugin);
+            , genericCreate<GenericConvolution>, const_cast<char *>("Convolution"), plugin);
 
     registerFunc("Prewitt",
             "clip:clip;"
@@ -1140,7 +1140,7 @@ void VS_CC genericInitialize(VSConfigPlugin configFunc, VSRegisterFunction regis
             "max:int:opt;"
             "planes:int[]:opt;"
             "rshift:int:opt;"
-            , genericCreate<GenericPrewitt>, reinterpret_cast<void *>("Prewitt"), plugin);
+            , genericCreate<GenericPrewitt>, const_cast<char *>("Prewitt"), plugin);
 
     registerFunc("Sobel",
             "clip:clip;"
@@ -1148,19 +1148,19 @@ void VS_CC genericInitialize(VSConfigPlugin configFunc, VSRegisterFunction regis
             "max:int:opt;"
             "planes:int[]:opt;"
             "rshift:int:opt;"
-            , genericCreate<GenericSobel>, reinterpret_cast<void *>("Sobel"), plugin);
+            , genericCreate<GenericSobel>, const_cast<char *>("Sobel"), plugin);
 
     registerFunc("Invert",
             "clip:clip;"
             "planes:int[]:opt;"
-            , genericCreate<GenericInvert>, reinterpret_cast<void *>("Invert"), plugin);
+            , genericCreate<GenericInvert>, const_cast<char *>("Invert"), plugin);
 
     registerFunc("Limiter",
             "clip:clip;"
             "min:int:opt;"
             "max:int:opt;"
             "planes:int[]:opt;"
-            , genericCreate<GenericLimiter>, reinterpret_cast<void *>("Limiter"), plugin);
+            , genericCreate<GenericLimiter>, const_cast<char *>("Limiter"), plugin);
 
     registerFunc("Levels",
             "clip:clip;"
@@ -1170,7 +1170,7 @@ void VS_CC genericInitialize(VSConfigPlugin configFunc, VSRegisterFunction regis
             "min_out:int:opt;"
             "max_out:int:opt;"
             "planes:int[]:opt;"
-            , genericCreate<GenericLevels>, reinterpret_cast<void *>("Levels"), plugin);
+            , genericCreate<GenericLevels>, const_cast<char *>("Levels"), plugin);
 
     registerFunc("Binarize",
             "clip:clip;"
@@ -1178,5 +1178,5 @@ void VS_CC genericInitialize(VSConfigPlugin configFunc, VSRegisterFunction regis
             "v0:int:opt;"
             "v1:int:opt;"
             "planes:int[]:opt;"
-            , genericCreate<GenericBinarize>, reinterpret_cast<void *>("Binarize"), plugin);
+            , genericCreate<GenericBinarize>, const_cast<char *>("Binarize"), plugin);
 }
