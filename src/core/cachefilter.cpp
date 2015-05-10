@@ -174,7 +174,7 @@ static void VS_CC cacheInit(VSMap *in, VSMap *out, void **instanceData, VSNode *
 }
 
 static const VSFrameRef *VS_CC cacheGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    CacheInstance *c = (CacheInstance *) * instanceData;
+    CacheInstance *c = static_cast<CacheInstance *>(*instanceData);
 
     if (activationReason == arInitial) {
         PVideoFrame f(c->cache[n]);
@@ -194,7 +194,7 @@ static const VSFrameRef *VS_CC cacheGetframe(int n, int activationReason, void *
 }
 
 static void VS_CC cacheFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    CacheInstance *c = (CacheInstance *)instanceData;
+    CacheInstance *c = static_cast<CacheInstance *>(instanceData);
     c->removeCache();
     vsapi->freeNode(c->clip);
     delete c;

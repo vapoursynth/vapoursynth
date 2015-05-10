@@ -92,7 +92,7 @@ struct GetFrameWaiter {
 };
 
 static void VS_CC frameWaiterCallback(void *userData, const VSFrameRef *frame, int n, VSNodeRef *node, const char *errorMsg) {
-    GetFrameWaiter *g = (GetFrameWaiter *)userData;
+    GetFrameWaiter *g = static_cast<GetFrameWaiter *>(userData);
     std::lock_guard<std::mutex> l(g->b);
     g->r = frame;
     if (g->errorMsg && g->bufSize > 0) {

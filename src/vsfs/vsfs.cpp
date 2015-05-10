@@ -95,8 +95,8 @@ public:
     const VSAPI *GetVSAPI() { return vsapi; }
     bool EnableV210() { return enable_v210; }
     int ImageSize();
-    const uint8_t *GetExtraPlane1() { return (const uint8_t *)packedPlane1; }
-    const uint8_t *GetExtraPlane2() { return (const uint8_t *)packedPlane2; }
+    const uint8_t *GetExtraPlane1() { return reinterpret_cast<const uint8_t *>(packedPlane1); }
+    const uint8_t *GetExtraPlane2() { return reinterpret_cast<const uint8_t *>(packedPlane2); }
     VapourSynther(void);
     ~VapourSynther(void);
     int/*error*/ Init(AvfsLog_* log,AvfsVolume_* volume);
@@ -238,15 +238,15 @@ void VapourSynther::reportFormat(AvfsLog_* log)
 
     log->Printf(L"  Width:%4d pixels, Height:%4d pixels.\n", vi->width, vi->height);
 
-    log->Printf(L"  Frames per second: %7.4f (%u/%u)\n", (double)vi->fpsNum/vi->fpsDen,
-        (unsigned)vi->fpsNum, (unsigned)vi->fpsDen);
+    log->Printf(L"  Frames per second: %7.4f (%u/%u)\n", static_cast<double>(vi->fpsNum)/vi->fpsDen,
+        static_cast<unsigned>(vi->fpsNum), static_cast<unsigned>(vi->fpsDen));
 }
 
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
 
 void VS_CC VapourSynther::frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg) {
-    VapourSynther *vsfile = (VapourSynther *)userData;
+    VapourSynther *vsfile = static_cast<VapourSynther *>(userData);
     vsfile->vsapi->freeFrame(f);
     InterlockedDecrement(&vsfile->pending_requests);
 }
@@ -297,10 +297,10 @@ const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) 
                     int width = vsapi->getFrameWidth(f, 0);
                     int pstride_y = vsapi->getStride(f, 0)/2;
                     int pstride_uv = vsapi->getStride(f, 1)/2;
-                    const uint16_t *yptr = (const uint16_t *)vsapi->getReadPtr(f, 0);
-                    const uint16_t *uptr = (const uint16_t *)vsapi->getReadPtr(f, 1);
-                    const uint16_t *vptr = (const uint16_t *)vsapi->getReadPtr(f, 2);
-                    uint32_t *outbuf = (uint32_t *)packedPlane1;
+                    const uint16_t *yptr = reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(f, 0));
+                    const uint16_t *uptr = reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(f, 1));
+                    const uint16_t *vptr = reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(f, 2));
+                    uint32_t *outbuf = reinterpret_cast<uint32_t *>(packedPlane1);
                     out_pitch = ((16*((width + 5) / 6) + 127) & ~127)/4;
                     for (int y = 0; y < height; y++) {
                         const uint16_t *yline = yptr;
@@ -326,7 +326,7 @@ const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) 
                     int pwidth = vsapi->getFrameWidth(f, 0);
                     int pstride = vsapi->getStride(f, 0) / 2;
                     uint16_t *outbuf = packedPlane1;
-                    const uint16_t *yptr = (const uint16_t *)vsapi->getReadPtr(f, 0);
+                    const uint16_t *yptr = reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(f, 0));
 
                     for (int y = 0; y < height; y++) {
                         for (int x = 0; x < pwidth; x++) {
@@ -343,9 +343,9 @@ const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) 
                     int pheight = vsapi->getFrameHeight(f, 1);
                     int pwidth = vsapi->getFrameWidth(f, 1);
                     int pstride = vsapi->getStride(f, 1) / 2;
-                    uint16_t *outbuf = (uint16_t *)packedPlane2;
-                    const uint16_t *uptr = (const uint16_t *)vsapi->getReadPtr(f, 1);
-                    const uint16_t *vptr = (const uint16_t *)vsapi->getReadPtr(f, 2);
+                    uint16_t *outbuf = reinterpret_cast<uint16_t *>(packedPlane2);
+                    const uint16_t *uptr = reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(f, 1));
+                    const uint16_t *vptr = reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(f, 2));
 
                     if (semi_packed_p16) {
                         for (int y = 0; y < pheight; y++) {
@@ -380,7 +380,7 @@ const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) 
 
             for (int i = n + 1; i < std::min<int>(n + num_threads, vi->numFrames); i++) {
                 InterlockedIncrement(&pending_requests);
-                vsapi->getFrameAsync(i, node, frameDoneCallback, (void *)this);
+                vsapi->getFrameAsync(i, node, frameDoneCallback, static_cast<void *>(this));
             }
         }
     }

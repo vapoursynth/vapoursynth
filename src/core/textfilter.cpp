@@ -53,9 +53,9 @@ void scrawl_character_int(unsigned char c, uint8_t *image, int stride, int dest_
         for (y = 0; y < character_height; y++) {
             for (x = 0; x < character_width; x++) {
                 if (__font_bitmap__[c * character_height + y] & (1 << (7 - x))) {
-                    ((uint16_t*)image)[dest_y*stride/2 + dest_x + x] = white;
+                    reinterpret_cast<uint16_t *>(image)[dest_y*stride/2 + dest_x + x] = white;
                 } else {
-                    ((uint16_t*)image)[dest_y*stride/2 + dest_x + x] = black;
+                    reinterpret_cast<uint16_t *>(image)[dest_y*stride/2 + dest_x + x] = black;
                 }
             }
 
@@ -73,9 +73,9 @@ void scrawl_character_float(unsigned char c, uint8_t *image, int stride, int des
     for (y = 0; y < character_height; y++) {
         for (x = 0; x < character_width; x++) {
             if (__font_bitmap__[c * character_height + y] & (1 << (7 - x))) {
-                ((float*)image)[dest_y*stride/4 + dest_x + x] = white;
+                reinterpret_cast<float *>(image)[dest_y*stride/4 + dest_x + x] = white;
             } else {
-                ((float*)image)[dest_y*stride/4 + dest_x + x] = black;
+                reinterpret_cast<float *>(image)[dest_y*stride/4 + dest_x + x] = black;
             }
         }
 
@@ -98,7 +98,7 @@ void sanitise_text(std::string& txt) {
 
         // Must adjust the character code because of the five characters
         // missing from the font.
-        unsigned char current_char = (unsigned char)txt[i];
+        unsigned char current_char = static_cast<unsigned char>(txt[i]);
         if (current_char < 32 ||
             current_char == 129 ||
             current_char == 141 ||
@@ -247,11 +247,11 @@ void scrawl_text(std::string txt, int alignment, VSFrameRef *frame, const VSAPI 
                             }
                         } else if (frame_format->bitsPerSample <= 16) {
                             for (y = 0; y < sub_h; y++) {
-                                vs_memset16((uint16_t*)image + (y+sub_dest_y)*stride/2 + sub_dest_x, 128 << (frame_format->bitsPerSample - 8), sub_w);
+                                vs_memset16(reinterpret_cast<uint16_t *>(image) + (y+sub_dest_y)*stride/2 + sub_dest_x, 128 << (frame_format->bitsPerSample - 8), sub_w);
                             }
                         } else {
                             for (y = 0; y < sub_h; y++) {
-                                vs_memset_float((float*)image + (y+sub_dest_y)*stride/4 + sub_dest_x, 0.0f, sub_w);
+                                vs_memset_float(reinterpret_cast<float *>(image) + (y+sub_dest_y)*stride/4 + sub_dest_x, 0.0f, sub_w);
                             }
                         }
                     } // if plane
@@ -285,7 +285,7 @@ typedef struct {
 
 
 static void VS_CC textInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    TextData *d = (TextData *) * instanceData;
+    TextData *d = static_cast<TextData *>(*instanceData);
     vsapi->setVideoInfo(d->vi, 1, node);
 }
 
@@ -446,7 +446,7 @@ static std::string transferToString(int transfer) {
 }
 
 static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    TextData *d = (TextData *) * instanceData;
+    TextData *d = static_cast<TextData *>(*instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
@@ -576,12 +576,12 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **
         return dst;
     }
 
-    return 0;
+    return nullptr;
 }
 
 
 static void VS_CC textFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    TextData *d = (TextData *)instanceData;
+    TextData *d = static_cast<TextData *>(instanceData);
     vsapi->freeNode(d->node);
     delete d;
 }
@@ -636,7 +636,7 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         return;
     }
 
-    d.filter = (intptr_t)userData;
+    d.filter = reinterpret_cast<intptr_t>(userData);
 
     switch (d.filter) {
     case FILTER_TEXT:
@@ -665,8 +665,7 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         break;
     }
 
-    data = new TextData();
-    *data = d;
+    data = new TextData(d);
 
     vsapi->createFilter(in, out, d.instanceName.c_str(), textInit, textGetFrame, textFree, fmParallel, 0, data, core);
 }
@@ -678,22 +677,22 @@ void VS_CC textInitialize(VSConfigPlugin configFunc, VSRegisterFunction register
         "clip:clip;"
         "text:data;"
         "alignment:int:opt;",
-        textCreate, (void *)FILTER_TEXT, plugin);
+        textCreate, reinterpret_cast<void *>(FILTER_TEXT), plugin);
     registerFunc("ClipInfo",
         "clip:clip;"
         "alignment:int:opt;",
-        textCreate, (void *)FILTER_CLIPINFO, plugin);
+        textCreate, reinterpret_cast<void *>(FILTER_CLIPINFO), plugin);
     registerFunc("CoreInfo",
         "clip:clip:opt;"
         "alignment:int:opt;",
-        textCreate, (void *)FILTER_COREINFO, plugin);
+        textCreate, reinterpret_cast<void *>(FILTER_COREINFO), plugin);
     registerFunc("FrameNum",
         "clip:clip;"
         "alignment:int:opt;",
-        textCreate, (void *)FILTER_FRAMENUM, plugin);
+        textCreate, reinterpret_cast<void *>(FILTER_FRAMENUM), plugin);
     registerFunc("FrameProps",
         "clip:clip;"
         "props:data[]:opt;"
         "alignment:int:opt;",
-        textCreate, (void *)FILTER_FRAMEPROPS, plugin);
+        textCreate, reinterpret_cast<void *>(FILTER_FRAMEPROPS), plugin);
 }

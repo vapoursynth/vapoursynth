@@ -269,8 +269,8 @@ template <typename PixelType, GenericOperations op>
 static void process_plane_3x3(uint8_t *dstp8, const uint8_t *srcp8, int width, int height, int stride, GenericParams *params) {
     stride /= sizeof(PixelType);
 
-    PixelType *dstp = (PixelType *)dstp8;
-    const PixelType *srcp = (const PixelType *)srcp8;
+    PixelType *dstp = reinterpret_cast<PixelType *>(dstp8);
+    const PixelType *srcp = reinterpret_cast<const PixelType *>(srcp8);
 
     const PixelType *above = srcp - stride;
     const PixelType *below = srcp + stride;
@@ -377,8 +377,8 @@ template <typename PixelType>
 static void process_plane_convolution_horizontal(uint8_t *dstp8, const uint8_t *srcp8, int width, int height, int stride, GenericParams *params) {
     stride /= sizeof(PixelType);
 
-    PixelType *dstp = (PixelType *)dstp8;
-    const PixelType *srcp = (const PixelType *)srcp8;
+    PixelType *dstp = reinterpret_cast<PixelType *>(dstp8);
+    const PixelType *srcp = reinterpret_cast<const PixelType *>(srcp8);
 
     int *matrix = params->matrix;
     int matrix_elements = params->matrix_elements;
@@ -446,8 +446,8 @@ template <typename PixelType>
 static void process_plane_convolution_vertical(uint8_t *dstp8, const uint8_t *srcp8, int width, int height, int stride, GenericParams *params) {
     stride /= sizeof(PixelType);
 
-    PixelType *dstp = (PixelType *)dstp8;
-    const PixelType *srcp = (const PixelType *)srcp8;
+    PixelType *dstp = reinterpret_cast<PixelType *>(dstp8);
+    const PixelType *srcp = reinterpret_cast<const PixelType *>(srcp8);
 
     int *matrix = params->matrix;
     int matrix_elements = params->matrix_elements;
@@ -512,8 +512,8 @@ template <typename PixelType, GenericOperations op>
 static void process_plane_5x5(uint8_t *dstp8, const uint8_t *srcp8, int width, int height, int stride, GenericParams *params) {
     stride /= sizeof(PixelType);
 
-    PixelType *dstp = (PixelType *)dstp8;
-    const PixelType *srcp = (const PixelType *)srcp8;
+    PixelType *dstp = reinterpret_cast<PixelType *>(dstp8);
+    const PixelType *srcp = reinterpret_cast<const PixelType *>(srcp8);
 
     const PixelType *above2 = srcp - stride * 2;
     const PixelType *above1 = srcp - stride;
@@ -736,8 +736,8 @@ template <typename PixelType, GenericOperations op>
 static void process_plane_1x1(uint8_t *dstp8, const uint8_t *srcp8, int width, int height, int stride, GenericParams *params) {
     stride /= sizeof(PixelType);
 
-    PixelType *dstp = (PixelType *)dstp8;
-    const PixelType *srcp = (const PixelType *)srcp8;
+    PixelType *dstp = reinterpret_cast<PixelType *>(dstp8);
+    const PixelType *srcp = reinterpret_cast<const PixelType *>(srcp8);
 
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
@@ -770,14 +770,14 @@ static void process_plane_1x1(uint8_t *dstp8, const uint8_t *srcp8, int width, i
 
 
 static void VS_CC genericInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    GenericData *d = (GenericData *) * instanceData;
+    GenericData *d = static_cast<GenericData *>(*instanceData);
     vsapi->setVideoInfo(d->vi, 1, node);
 }
 
 
 template <GenericOperations op>
 static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    GenericData *d = (GenericData *) * instanceData;
+    GenericData *d = static_cast<GenericData *>(*instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
@@ -860,12 +860,12 @@ static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void
         return dst;
     }
 
-    return 0;
+    return nullptr;
 }
 
 
 static void VS_CC genericFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    GenericData *d = (GenericData *)instanceData;
+    GenericData *d = static_cast<GenericData *>(instanceData);
 
     vsapi->freeNode(d->node);
     delete d;
@@ -877,7 +877,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
     GenericData d;
     GenericData *data;
 
-    d.filter_name = (const char *)userData;
+    d.filter_name = static_cast<const char *>(userData);
 
     d.node = vsapi->propGetNode(in, "clip", 0, nullptr);
     d.vi = vsapi->getVideoInfo(d.node);
@@ -1098,31 +1098,31 @@ void VS_CC genericInitialize(VSConfigPlugin configFunc, VSRegisterFunction regis
             "planes:int[]:opt;"
             "threshold:int:opt;"
             "coordinates:int[]:opt;"
-            , genericCreate<GenericMinimum>, (void *)"Minimum", plugin);
+            , genericCreate<GenericMinimum>, static_cast<void *>("Minimum"), plugin);
 
     registerFunc("Maximum",
             "clip:clip;"
             "planes:int[]:opt;"
             "threshold:int:opt;"
             "coordinates:int[]:opt;"
-            , genericCreate<GenericMaximum>, (void *)"Maximum", plugin);
+            , genericCreate<GenericMaximum>, static_cast<void *>("Maximum"), plugin);
 
     registerFunc("Median",
             "clip:clip;"
             "planes:int[]:opt;"
-            , genericCreate<GenericMedian>, (void *)"Median", plugin);
+            , genericCreate<GenericMedian>, static_cast<void *>("Median"), plugin);
 
     registerFunc("Deflate",
             "clip:clip;"
             "planes:int[]:opt;"
             "threshold:int:opt;"
-            , genericCreate<GenericDeflate>, (void *)"Deflate", plugin);
+            , genericCreate<GenericDeflate>, static_cast<void *>("Deflate"), plugin);
 
     registerFunc("Inflate",
             "clip:clip;"
             "planes:int[]:opt;"
             "threshold:int:opt;"
-            , genericCreate<GenericInflate>, (void *)"Inflate", plugin);
+            , genericCreate<GenericInflate>, static_cast<void *>("Inflate"), plugin);
 
     registerFunc("Convolution",
             "clip:clip;"
@@ -1132,7 +1132,7 @@ void VS_CC genericInitialize(VSConfigPlugin configFunc, VSRegisterFunction regis
             "planes:int[]:opt;"
             "saturate:int:opt;"
             "mode:data:opt;"
-            , genericCreate<GenericConvolution>, (void *)"Convolution", plugin);
+            , genericCreate<GenericConvolution>, static_cast<void *>("Convolution"), plugin);
 
     registerFunc("Prewitt",
             "clip:clip;"
@@ -1140,7 +1140,7 @@ void VS_CC genericInitialize(VSConfigPlugin configFunc, VSRegisterFunction regis
             "max:int:opt;"
             "planes:int[]:opt;"
             "rshift:int:opt;"
-            , genericCreate<GenericPrewitt>, (void *)"Prewitt", plugin);
+            , genericCreate<GenericPrewitt>, static_cast<void *>("Prewitt"), plugin);
 
     registerFunc("Sobel",
             "clip:clip;"
@@ -1148,19 +1148,19 @@ void VS_CC genericInitialize(VSConfigPlugin configFunc, VSRegisterFunction regis
             "max:int:opt;"
             "planes:int[]:opt;"
             "rshift:int:opt;"
-            , genericCreate<GenericSobel>, (void *)"Sobel", plugin);
+            , genericCreate<GenericSobel>, static_cast<void *>("Sobel"), plugin);
 
     registerFunc("Invert",
             "clip:clip;"
             "planes:int[]:opt;"
-            , genericCreate<GenericInvert>, (void *)"Invert", plugin);
+            , genericCreate<GenericInvert>, static_cast<void *>("Invert"), plugin);
 
     registerFunc("Limiter",
             "clip:clip;"
             "min:int:opt;"
             "max:int:opt;"
             "planes:int[]:opt;"
-            , genericCreate<GenericLimiter>, (void *)"Limiter", plugin);
+            , genericCreate<GenericLimiter>, static_cast<void *>("Limiter"), plugin);
 
     registerFunc("Levels",
             "clip:clip;"
@@ -1170,7 +1170,7 @@ void VS_CC genericInitialize(VSConfigPlugin configFunc, VSRegisterFunction regis
             "min_out:int:opt;"
             "max_out:int:opt;"
             "planes:int[]:opt;"
-            , genericCreate<GenericLevels>, (void *)"Levels", plugin);
+            , genericCreate<GenericLevels>, static_cast<void *>("Levels"), plugin);
 
     registerFunc("Binarize",
             "clip:clip;"
@@ -1178,5 +1178,5 @@ void VS_CC genericInitialize(VSConfigPlugin configFunc, VSRegisterFunction regis
             "v0:int:opt;"
             "v1:int:opt;"
             "planes:int[]:opt;"
-            , genericCreate<GenericBinarize>, (void *)"Binarize", plugin);
+            , genericCreate<GenericBinarize>, static_cast<void *>("Binarize"), plugin);
 }

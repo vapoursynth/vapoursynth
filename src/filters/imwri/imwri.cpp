@@ -129,12 +129,12 @@ struct WriteData {
 };
 
 static void VS_CC writeInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    WriteData *d = (WriteData *)* instanceData;
+    WriteData *d = static_cast<WriteData *>(*instanceData);
     vsapi->setVideoInfo(d->vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    WriteData *d = (WriteData *)* instanceData;
+    WriteData *d = static_cast<WriteData *>(*instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->videoNode, frameCtx);
@@ -296,7 +296,7 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
 }
 
 static void VS_CC writeFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    WriteData *d = (WriteData *)instanceData;
+    WriteData *d = static_cast<WriteData *>(instanceData);
     vsapi->freeNode(d->videoNode);
     vsapi->freeNode(d->alphaNode);
     delete d;
@@ -379,15 +379,14 @@ struct ReadData {
 };
 
 static void VS_CC readInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    ReadData *d = (ReadData *)* instanceData;
+    ReadData *d = static_cast<ReadData *>(*instanceData);
     vsapi->setVideoInfo(d->vi, d->alpha ? 2 : 1, node);
 }
 
 static const VSFrameRef *VS_CC readGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    ReadData *d = (ReadData *)* instanceData;
+    ReadData *d = static_cast<ReadData *>(*instanceData);
 
     if (activationReason == arInitial) {
-
         int index = vsapi->getOutputIndex(frameCtx);
         if (d->alpha && d->cachedFrameNum == n) {
             if ((index == 0 && !d->cachedAlpha) || (index == 1 && d->cachedAlpha)) {
@@ -547,7 +546,7 @@ static const VSFrameRef *VS_CC readGetFrame(int n, int activationReason, void **
 }
 
 static void VS_CC readFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    ReadData *d = (ReadData *)instanceData;
+    ReadData *d = static_cast<ReadData *>(instanceData);
     delete d;
 }
 

@@ -59,12 +59,12 @@ static void relaxedVerticalMedian(const T * VS_RESTRICT srcp, T * VS_RESTRICT ds
 }
 
 static void VS_CC verticalCleanerInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    VerticalCleanerData * d = (VerticalCleanerData *)*instanceData;
+    VerticalCleanerData * d = static_cast<VerticalCleanerData *>(*instanceData);
     vsapi->setVideoInfo(d->vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC verticalCleanerGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    const VerticalCleanerData * d = (const VerticalCleanerData *)*instanceData;
+    const VerticalCleanerData * d = static_cast<const VerticalCleanerData *>(*instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
@@ -85,12 +85,12 @@ static const VSFrameRef *VS_CC verticalCleanerGetFrame(int n, int activationReas
                 if (d->vi->format->bytesPerSample == 1)
                     verticalMedian<uint8_t>(srcp, dstp, width, height, stride);
                 else
-                    verticalMedian<uint16_t>((const uint16_t *)srcp, (uint16_t *)dstp, width, height, stride / 2);
+                    verticalMedian<uint16_t>(reinterpret_cast<const uint16_t *>(srcp), reinterpret_cast<uint16_t *>(dstp), width, height, stride / 2);
             } else if (d->mode[plane] == 2) {
                 if (d->vi->format->bytesPerSample == 1)
                     relaxedVerticalMedian<uint8_t>(srcp, dstp, width, height, stride, d->vi->format->bitsPerSample);
                 else
-                    relaxedVerticalMedian<uint16_t>((const uint16_t *)srcp, (uint16_t *)dstp, width, height, stride / 2, d->vi->format->bitsPerSample);
+                    relaxedVerticalMedian<uint16_t>(reinterpret_cast<const uint16_t *>(srcp), reinterpret_cast<uint16_t *>(dstp), width, height, stride / 2, d->vi->format->bitsPerSample);
             }
         }
 
@@ -102,7 +102,7 @@ static const VSFrameRef *VS_CC verticalCleanerGetFrame(int n, int activationReas
 }
 
 static void VS_CC verticalCleanerFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    VerticalCleanerData * d = (VerticalCleanerData *)instanceData;
+    VerticalCleanerData * d = static_cast<VerticalCleanerData *>(instanceData);
     vsapi->freeNode(d->node);
     delete d;
 }

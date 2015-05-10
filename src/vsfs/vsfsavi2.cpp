@@ -560,7 +560,7 @@ uint64_t/*start*/ AvfsAvi2File::LocateFrameSamples(
     }
     */
     if(outSampleCount) {
-        *outSampleCount = unsigned(endSample-startSample);
+        *outSampleCount = static_cast<unsigned>(endSample-startSample);
     }
     return startSample;
 }
@@ -604,9 +604,9 @@ bool/*success*/ AvfsAvi2File::Init(
     bool noInterleave = false;
 
     // Setup video attributes.
-    vidFrameCount = unsigned(vi.numFrames);
+    vidFrameCount = static_cast<unsigned>(vi.numFrames);
     frameVidDataSize = avs->ImageSize();
-    bitsPerPixel = uint16_t(vi.format->bytesPerSample * 8);
+    bitsPerPixel = static_cast<uint16_t>(vi.format->bytesPerSample * 8);
     if (vi.format->numPlanes == 3)
         bitsPerPixel += (bitsPerPixel * 2) >> (vi.format->subSamplingH + vi.format->subSamplingW);
     if (avs->EnableV210() && vi.format->id == pfYUV422P10)
@@ -680,7 +680,7 @@ bool/*success*/ AvfsAvi2File::Init(
     fileSampleCount = 0;
 
     if (clippedSampleCount > fileSampleCount) {
-        clippedSampleCount = unsigned(fileSampleCount);
+        clippedSampleCount = static_cast<unsigned>(fileSampleCount);
     }
 
     // Fixme - No video AVIs although unusual are valid
@@ -870,7 +870,7 @@ bool/*success*/ AvfsAvi2File::Init(
                 //                                               -- AVIMAINHEADER
                 seg->hdr.seg0.hdrLst.mainHdr.tag.fcc                  = avi2MainHdrFcc;          // 'avih'
                 seg->hdr.seg0.hdrLst.mainHdr.tag.cb                   = sizeof(seg->hdr.seg0.hdrLst.mainHdr)-sizeof(RiffTag);
-                seg->hdr.seg0.hdrLst.mainHdr.dwMicroSecPerFrame       = unsigned((uint64_t(1000000)*unsigned(vi.fpsDen)+unsigned(vi.fpsNum)/2)/unsigned(vi.fpsNum));
+                seg->hdr.seg0.hdrLst.mainHdr.dwMicroSecPerFrame       = static_cast<unsigned>((static_cast<uint64_t>(1000000)*static_cast<unsigned>(vi.fpsDen)+static_cast<unsigned>(vi.fpsNum)/2)/static_cast<unsigned>(vi.fpsNum));
                 seg->hdr.seg0.hdrLst.mainHdr.dwFlags                  = AVIF_HASINDEX | AVIF_ISINTERLEAVED;
                 seg->hdr.seg0.hdrLst.mainHdr.dwTotalFrames            = segDurFrameCount;
                 seg->hdr.seg0.hdrLst.mainHdr.dwStreams                = 1+!!fileSampleCount;
@@ -888,13 +888,13 @@ bool/*success*/ AvfsAvi2File::Init(
                 seg->hdr.seg0.hdrLst.vidLst.hdr.tag.cb                = sizeof(seg->hdr.seg0.hdrLst.vidLst.hdr)-sizeof(RiffTag);
                 seg->hdr.seg0.hdrLst.vidLst.hdr.fccType               = avi2VidStrTypeFcc;       // 'vids'
                 seg->hdr.seg0.hdrLst.vidLst.hdr.fccHandler            = vidType;
-                seg->hdr.seg0.hdrLst.vidLst.hdr.dwScale               = uint32_t(vi.fpsDen);
-                seg->hdr.seg0.hdrLst.vidLst.hdr.dwRate                = uint32_t(vi.fpsNum);
+                seg->hdr.seg0.hdrLst.vidLst.hdr.dwScale               = static_cast<uint32_t>(vi.fpsDen);
+                seg->hdr.seg0.hdrLst.vidLst.hdr.dwRate                = static_cast<uint32_t>(vi.fpsNum);
                 seg->hdr.seg0.hdrLst.vidLst.hdr.dwLength              = vidFrameCount;
                 seg->hdr.seg0.hdrLst.vidLst.hdr.dwSuggestedBufferSize = frameVidDataSize;
                 seg->hdr.seg0.hdrLst.vidLst.hdr.dwQuality             = 0xFFFFFFFF;
-                seg->hdr.seg0.hdrLst.vidLst.hdr.frameRight            = int16_t(vi.width);
-                seg->hdr.seg0.hdrLst.vidLst.hdr.frameBottom           = int16_t(vi.height);
+                seg->hdr.seg0.hdrLst.vidLst.hdr.frameRight            = static_cast<int16_t>(vi.width);
+                seg->hdr.seg0.hdrLst.vidLst.hdr.frameBottom           = static_cast<int16_t>(vi.height);
 
                 //                                               -- RIFFCHUNK
                 seg->hdr.seg0.hdrLst.vidLst.vidFrmt.tag.fcc           = avi2VidFrmtFcc;          // 'strf'
@@ -932,7 +932,7 @@ bool/*success*/ AvfsAvi2File::Init(
                 seg->hdr.seg0.hdrLst.audLst.hdr.dwScale               = sampleSize;
                 seg->hdr.seg0.hdrLst.audLst.hdr.dwRate                = 0;
                 seg->hdr.seg0.hdrLst.audLst.hdr.dwLength              = clippedSampleCount;
-                seg->hdr.seg0.hdrLst.audLst.hdr.dwSuggestedBufferSize = unsigned(LocateFrameSamples(1, 1, 0)+1)*sampleSize;
+                seg->hdr.seg0.hdrLst.audLst.hdr.dwSuggestedBufferSize = static_cast<unsigned>(LocateFrameSamples(1, 1, 0)+1)*sampleSize;
                 seg->hdr.seg0.hdrLst.audLst.hdr.dwQuality             = 0xFFFFFFFF;
                 seg->hdr.seg0.hdrLst.audLst.hdr.dwSampleSize          = sampleSize;
 
@@ -945,7 +945,7 @@ bool/*success*/ AvfsAvi2File::Init(
                 seg->hdr.seg0.hdrLst.audLst.audFrmt.nChannels         = 0;
                 seg->hdr.seg0.hdrLst.audLst.audFrmt.nSamplesPerSec    = 0;
                 seg->hdr.seg0.hdrLst.audLst.audFrmt.nAvgBytesPerSec   = 0;
-                seg->hdr.seg0.hdrLst.audLst.audFrmt.nBlockAlign       = uint16_t(sampleSize);
+                seg->hdr.seg0.hdrLst.audLst.audFrmt.nBlockAlign       = static_cast<uint16_t>(sampleSize);
                 seg->hdr.seg0.hdrLst.audLst.audFrmt.wBitsPerSample    = 0;
 
                 //                                               -- AVISUPERINDEX
@@ -1064,11 +1064,11 @@ bool/*success*/ AvfsAvi2File::Init(
             seg->vidIndx->hdr.bIndxType        = AVI_INDEX_OF_CHUNKS;
             seg->vidIndx->hdr.nEntriesInUse    = segVidFrameCount;
             seg->vidIndx->hdr.dwChunkId        = frameVidFcc;
-            seg->vidIndx->hdr.qwBaseOffsetLow  = uint32_t(fileSize);
-            seg->vidIndx->hdr.qwBaseOffsetHigh = uint32_t(fileSize>>32);
+            seg->vidIndx->hdr.qwBaseOffsetLow  = static_cast<uint32_t>(fileSize);
+            seg->vidIndx->hdr.qwBaseOffsetHigh = static_cast<uint32_t>(fileSize>>32);
 
-            vidIndxEnts[segi].qwOffsetLow  = uint32_t(fileSize+segSize);
-            vidIndxEnts[segi].qwOffsetHigh = uint32_t((fileSize+segSize)>>32);
+            vidIndxEnts[segi].qwOffsetLow  = static_cast<uint32_t>(fileSize+segSize);
+            vidIndxEnts[segi].qwOffsetHigh = static_cast<uint32_t>((fileSize+segSize)>>32);
             vidIndxEnts[segi].dwSize       = offsetof(AvfsAvi2Indx, ents)+sizeof(seg->vidIndx->ents[0])*segFrameCount;
             vidIndxEnts[segi].dwDuration   = segVidFrameCount;
 
@@ -1083,11 +1083,11 @@ bool/*success*/ AvfsAvi2File::Init(
                 seg->audIndx->hdr.bIndxType        = AVI_INDEX_OF_CHUNKS;
                 seg->audIndx->hdr.nEntriesInUse    = segAudFrameCount;
                 seg->audIndx->hdr.dwChunkId        = avfsAvi2AudFcc;         // '01wb'
-                seg->audIndx->hdr.qwBaseOffsetLow  = uint32_t(fileSize);
-                seg->audIndx->hdr.qwBaseOffsetHigh = uint32_t(fileSize>>32);
+                seg->audIndx->hdr.qwBaseOffsetLow  = static_cast<uint32_t>(fileSize);
+                seg->audIndx->hdr.qwBaseOffsetHigh = static_cast<uint32_t>(fileSize>>32);
 
-                audIndxEnts[segi].qwOffsetLow  = uint32_t(fileSize+segSize);
-                audIndxEnts[segi].qwOffsetHigh = uint32_t((fileSize+segSize)>>32);
+                audIndxEnts[segi].qwOffsetLow  = static_cast<uint32_t>(fileSize+segSize);
+                audIndxEnts[segi].qwOffsetHigh = static_cast<uint32_t>((fileSize+segSize)>>32);
                 audIndxEnts[segi].dwSize       = offsetof(AvfsAvi2Indx, ents)+sizeof(seg->audIndx->ents[0])*segFrameCount;
                 audIndxEnts[segi].dwDuration   = frameSampleCount;
 
@@ -1131,10 +1131,10 @@ bool/*success*/ AvfsAvi2File::Init(
     }
 
     if (segs && segs[0]) {
-        duration = (uint64_t(durFrameCount)*unsigned(vi.fpsDen)+
-            unsigned(vi.fpsNum)/2)/unsigned(vi.fpsNum);
+        duration = (static_cast<uint64_t>(durFrameCount)*static_cast<unsigned>(vi.fpsDen)+
+            static_cast<unsigned>(vi.fpsNum)/2)/static_cast<unsigned>(vi.fpsNum);
         duration += !duration;
-        segs[0]->hdr.seg0.hdrLst.mainHdr.dwMaxBytesPerSec = unsigned(fileSize/duration);
+        segs[0]->hdr.seg0.hdrLst.mainHdr.dwMaxBytesPerSec = static_cast<unsigned>(fileSize/duration);
     }
 
     ASSERT(!success || segStartFrame == fileFrameCount);
@@ -1284,7 +1284,7 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
             segi &= ~b;
         }
     }
-    offset = unsigned(fileOffset-segs[segi]->startOffset);
+    offset = static_cast<unsigned>(fileOffset-segs[segi]->startOffset);
 
     // For each segment containing needed data.
     while (success && remainingSize) {

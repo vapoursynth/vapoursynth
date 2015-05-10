@@ -101,12 +101,12 @@ extern "C" void vs_evaluate_expr_sse2(const void *exprs, const uint8_t **rwptrs,
 #endif
 
 static void VS_CC exprInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    ExprData *d = (ExprData *) * instanceData;
+    ExprData *d = static_cast<ExprData *>(*instanceData);
     vsapi->setVideoInfo(&d->vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    ExprData *d = (ExprData *) * instanceData;
+    ExprData *d = static_cast<ExprData *>(*instanceData);
 
     if (activationReason == arInitial) {
         for (int i = 0; i < 3; i++)
@@ -155,7 +155,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                 int w = vsapi->getFrameWidth(dst, plane);
 
                 int niterations = (w + 7)/8;
-                const ExprOp *ops = &d->ops[plane][0];
+                const ExprOp *ops = d->ops[plane].data();
                 for (int y = 0; y < h; y++) {
                     const uint8_t *rwptrs[4] = { dstp + dst_stride * y, srcp[0] + src_stride[0] * y, srcp[1] + src_stride[1] * y, srcp[2] + src_stride[2] * y };
                     vs_evaluate_expr_sse2(ops, rwptrs, ptroffsets, niterations, stack);
@@ -183,7 +183,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                 int dst_stride = vsapi->getStride(dst, plane);
                 int h = vsapi->getFrameHeight(src[0], plane);
                 int w = vsapi->getFrameWidth(src[0], plane);
-                const ExprOp *vops = &d->ops[plane][0];
+                const ExprOp *vops = d->ops[plane].data();
                 float *stack = stackVector.data();
                 float stacktop = 0;
                 float tmp;
@@ -202,12 +202,12 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                                 break;
                             case opLoadSrc16:
                                 stack[si] = stacktop;
-                                stacktop = ((const uint16_t *)srcp[vops[i].e.ival])[x];
+                                stacktop = reinterpret_cast<const uint16_t *>(srcp[vops[i].e.ival])[x];
                                 ++si;
                                 break;
                             case opLoadSrcF:
                                 stack[si] = stacktop;
-                                stacktop = ((const float *)srcp[vops[i].e.ival])[x];
+                                stacktop = reinterpret_cast<const float *>(srcp[vops[i].e.ival])[x];
                                 ++si;
                                 break;
                             case opLoadConst:
@@ -307,10 +307,10 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                                 dstp[x] = std::max(0.0f, std::min(stacktop, 255.0f)) + 0.5f;
                                 goto loopend;
                             case opStore16:
-                                ((uint16_t *)dstp)[x] = std::max(0.0f, std::min(stacktop, 65535.0f)) + 0.5f;
+                                reinterpret_cast<uint16_t *>(dstp)[x] = std::max(0.0f, std::min(stacktop, 65535.0f)) + 0.5f;
                                 goto loopend;
                             case opStoreF:
-                                ((float *)dstp)[x] = stacktop;
+                                reinterpret_cast<float *>(dstp)[x] = stacktop;
                                 goto loopend;
                             }
                         }
@@ -329,11 +329,11 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
         return dst;
     }
 
-    return 0;
+    return nullptr;
 }
 
 static void VS_CC exprFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    ExprData *d = (ExprData *)instanceData;
+    ExprData *d = static_cast<ExprData *>(instanceData);
     for (int i = 0; i < 3; i++)
         vsapi->freeNode(d->node[i]);
     delete d;
@@ -766,8 +766,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         return;
     }
 
-    data = new ExprData();
-    *data = d;
+    data = new ExprData(d);
 
     vsapi->createFilter(in, out, "Expr", exprInit, exprGetFrame, exprFree, fmParallel, 0, data, core);
 }
