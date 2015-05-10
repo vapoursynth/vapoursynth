@@ -331,6 +331,14 @@ static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, co
     PREFETCHR1(MFlowBlur)
     PREFETCHR1(MRecalculate)
 
+    // aWarpShit
+    PREFETCHR0(aBlur)
+    PREFETCHR0(aSobel)
+    PREFETCHR0(aWarp)
+    PREFETCHR0(aWarp4)
+    PREFETCHR0(aWarpSharp)
+    PREFETCHR0(aWarpSharp2)
+
     // Avisynth internal
     PREFETCH(Bob, 2, 1, 0, 0)
     PREFETCH(TemporalSoften, 1, 1, -5, 5)
