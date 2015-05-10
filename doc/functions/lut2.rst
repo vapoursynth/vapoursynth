@@ -31,6 +31,6 @@ Lut2
 
    .. code-block:: python
 
-      def f(x, y)
+      def f(x, y):
          return (x*4 + y)//2
       Lut2(clipa=clipa8bit, clipb=clipb10bit, function=f, bits=10)

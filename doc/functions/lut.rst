@@ -27,9 +27,9 @@ Lut
 
    .. code-block:: python
 
-      def limity(x)
+      def limity(x):
          return max(min(x, 235), 16)
-      def limituv(x)
+      def limituv(x):
          return max(min(x, 240), 16)
       ret = Lut(clip=clip, planes=0, function=limity)
       limited_clip = Lut(clip=ret, planes=[1, 2], function=limituv)
