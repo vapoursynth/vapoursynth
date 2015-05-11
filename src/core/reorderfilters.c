@@ -395,7 +395,7 @@ static const VSFrameRef *VS_CC selectEveryGetframe(int n, int activationReason, 
             vsapi->propSetInt(dst_props, "_DurationNum", durationNum, paReplace);
             vsapi->propSetInt(dst_props, "_DurationDen", durationDen, paReplace);
         }
-
+        vsapi->freeFrame(src);
         return dst;
     }
 
