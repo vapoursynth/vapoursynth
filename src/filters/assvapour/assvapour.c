@@ -115,6 +115,16 @@ static void VS_CC assInit(VSMap *in, VSMap *out, void **instanceData,
     AssData *d = (AssData *) * instanceData;
     vsapi->setVideoInfo(d->vi, 2, node);
 
+    d->lastframe = vsapi->newVideoFrame(d->vi[0].format,
+                                        d->vi[0].width,
+                                        d->vi[0].height,
+                                        NULL, core);
+
+    d->lastalpha = vsapi->newVideoFrame(d->vi[1].format,
+                                        d->vi[1].width,
+                                        d->vi[1].height,
+                                        NULL, core);
+
     d->ass_library = ass_library_init();
 
     if(!d->ass_library) {
@@ -263,30 +273,34 @@ static const VSFrameRef *VS_CC assGetFrame(int n, int activationReason,
     AssData *d = (AssData *) * instanceData;
 
     if(n != d->lastn) {
-        VSFrameRef *dst = vsapi->newVideoFrame(d->vi[0].format,
-                                               d->vi[0].width,
-                                               d->vi[0].height,
-                                               NULL, core);
-
-        VSFrameRef *a = vsapi->newVideoFrame(d->vi[1].format,
-                                             d->vi[1].width,
-                                             d->vi[1].height,
-                                             NULL, core);
-
         ASS_Image *img;
         int64_t ts = 0;
+        int changed;
 
         if(d->file != NULL)
             ts = (int64_t)n * 1000 * d->vi[0].fpsDen / d->vi[0].fpsNum;
 
-        img = ass_render_frame(d->ass_renderer, d->ass, ts, NULL);
+        img = ass_render_frame(d->ass_renderer, d->ass, ts, &changed);
 
-        assRender(dst, a, vsapi, img);
+        if (changed) {
+            VSFrameRef *dst = vsapi->newVideoFrame(d->vi[0].format,
+                                                   d->vi[0].width,
+                                                   d->vi[0].height,
+                                                   NULL, core);
+
+            VSFrameRef *a = vsapi->newVideoFrame(d->vi[1].format,
+                                                 d->vi[1].width,
+                                                 d->vi[1].height,
+                                                 NULL, core);
+
+            assRender(dst, a, vsapi, img);
+            vsapi->freeFrame(d->lastframe);
+            vsapi->freeFrame(d->lastalpha);
+            d->lastframe = dst;
+            d->lastalpha = a;
+        }
+
         d->lastn = n;
-        vsapi->freeFrame(d->lastframe);
-        vsapi->freeFrame(d->lastalpha);
-        d->lastframe = dst;
-        d->lastalpha = a;
     }
 
     if(vsapi->getOutputIndex(frameCtx) == 0)
