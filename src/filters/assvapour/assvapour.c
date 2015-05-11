@@ -27,8 +27,11 @@
 #define _b(c) (((c) >> 8) & 0xFF)
 #define _a(c) (255 - ((c) & 0xFF))
 
+#define div256(x) (((x + 128) >> 8))
+#define div255(x) ((div256(x + div256(x))))
+
 #define blend(srcA, srcRGB, dstA, dstRGB, outA)  \
-    (((srcA * 255 * srcRGB + (dstRGB * dstA * (255 - srcA))) / outA + 255) >> 8)
+    ((srcA * 255 * srcRGB + (dstRGB * dstA * (255 - srcA))) / outA)
 
 struct AssData {
     VSNodeRef *node;
@@ -206,7 +209,8 @@ static void assRender(VSFrameRef *dst, VSFrameRef *alpha, const VSAPI *vsapi,
     }
 
     while(img) {
-        uint8_t *dstp, *alphap, *sp, color[4], outa;
+        uint8_t *dstp[4], *alphap, *sp, color[4];
+        uint16_t outa;
         int x, y, k;
 
         if(img->w == 0 || img->h == 0) {
@@ -219,26 +223,32 @@ static void assRender(VSFrameRef *dst, VSFrameRef *alpha, const VSAPI *vsapi,
         color[2] = _b(img->color);
         color[3] = _a(img->color);
 
-        for(p = 0; p < 4; p++) {
-            dstp = planes[p] + (strides[p] * img->dst_y) + img->dst_x;
-            alphap = planes[3] + (strides[3] * img->dst_y) + img->dst_x;
-            sp = img->bitmap;
+        dstp[0] = planes[0] + (strides[0] * img->dst_y) + img->dst_x;
+        dstp[1] = planes[1] + (strides[1] * img->dst_y) + img->dst_x;
+        dstp[2] = planes[2] + (strides[2] * img->dst_y) + img->dst_x;
+        dstp[3] = planes[3] + (strides[3] * img->dst_y) + img->dst_x;
+        alphap = dstp[3];
+        sp = img->bitmap;
 
-            for(y = 0; y < img->h; y++) {
-                for(x = 0; x < img->w; x++) {
-                    k = (sp[x] * color[3] + 255) >> 8;
-                    outa = (k * 255 + (alphap[x] * (255 - k)) + 255) >> 8;
+        for(y = 0; y < img->h; y++) {
+            for(x = 0; x < img->w; x++) {
+                k = div255(sp[x] * color[3]);
+                outa = k * 255 + (alphap[x] * (255 - k));
 
-                    if(p == 3)
-                        dstp[x] = outa;
-                    else if(outa != 0)
-                        dstp[x] = blend(k, color[p], alphap[x], dstp[x], outa);
+                if(outa != 0) {
+                    dstp[0][x] = blend(k, color[0], alphap[x], dstp[0][x], outa);
+                    dstp[1][x] = blend(k, color[1], alphap[x], dstp[1][x], outa);
+                    dstp[2][x] = blend(k, color[2], alphap[x], dstp[2][x], outa);
+                    dstp[3][x] = div255(outa);
                 }
-
-                dstp += strides[p];
-                alphap += strides[3];
-                sp += img->stride;
             }
+
+            dstp[0] += strides[0];
+            dstp[1] += strides[1];
+            dstp[2] += strides[2];
+            dstp[3] += strides[3];
+            alphap += strides[3];
+            sp += img->stride;
         }
 
         img = img->next;
