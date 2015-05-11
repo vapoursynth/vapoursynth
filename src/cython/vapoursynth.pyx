@@ -190,14 +190,16 @@ cdef class Func(object):
         cdef VSMap *outm
         cdef VSMap *inm
         cdef const VSAPI *vsapi
+        cdef const char *error
         vsapi = vpy_getVSApi();
         outm = self.funcs.createMap()
         inm = self.funcs.createMap()
         try:
             dictToMap(kwargs, inm, None, vsapi)
             self.funcs.callFunc(self.ref, inm, outm, NULL, NULL)
-            if self.funcs.getError(outm):
-                raise Error(self.funcs.getError(outm).decode('utf-8'))
+            error = self.funcs.getError(outm)
+            if error:
+                raise Error(error.decode('utf-8'))
             ret = mapToDict(outm, False, False, None, vsapi)
             if not isinstance(ret, dict):
                 ret = {'val':ret}
@@ -264,7 +266,7 @@ cdef FramePtr createFramePtr(const VSFrameRef *f, const VSAPI *funcs):
     instance.funcs = funcs
     return instance
 
-cdef void __stdcall frameDoneCallback(void *data, const VSFrameRef *f, int n, VSNodeRef *node, char *errormsg) nogil:
+cdef void __stdcall frameDoneCallback(void *data, const VSFrameRef *f, int n, VSNodeRef *node, const char *errormsg) nogil:
     cdef int pitch
     cdef const uint8_t *readptr
     cdef const VSFormat *fi
@@ -529,7 +531,7 @@ cdef class Format(object):
 cdef Format createFormat(const VSFormat *f):
     cdef Format instance = Format.__new__(Format)
     instance.id = f.id
-    instance.name = f.name.decode('utf-8')
+    instance.name = (<const char *>f.name).decode('utf-8')
     instance.color_family = f.colorFamily
     instance.sample_type = f.sampleType
     instance.bits_per_sample = f.bitsPerSample
@@ -1153,7 +1155,7 @@ cdef class Core(object):
 
     def version(self):
         cdef const VSCoreInfo *v = self.funcs.getCoreInfo(self.core)
-        return v.versionString.decode('utf-8')
+        return (<const char *>v.versionString).decode('utf-8')
         
     def version_number(self):
         cdef const VSCoreInfo *v = self.funcs.getCoreInfo(self.core)
