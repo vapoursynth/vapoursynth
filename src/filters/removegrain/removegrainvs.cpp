@@ -971,6 +971,8 @@ public:
     static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
         AvsFilterRemoveGrain16_READ_PIX
 
+        (void)c;
+
         const __m128i    bias =
             _mm_load_si128 (reinterpret_cast <const __m128i *> (_bias));
 
