@@ -21,9 +21,9 @@ Avisynth functions and their VapourSynth equivalents
 | GreyScale              | std.ShufflePlanes   | ShufflePlanes(clips=inclip, planes=0, colorfamily=vs.GRAY)           |
 |                        |                     | Extracts the first plane. Y for YUV, R for RGB, planes=1/2 = U/V G/B |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| Invert                 | std.Lut/std.Expr    | Do the adjustment yourself                                           |
+| Invert                 | std.Invert          |                                                                      |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| Limiter                | std.Lut/std.Expr    | Do the adjustment yourself                                           |
+| Limiter                | std.Limiter         |                                                                      |
 +------------------------+---------------------+----------------------------------------------------------------------+
 | MergeRGB               | std.ShufflePlanes   | ShufflePlanes(clips=[R,G,B], planes=[0, 0, 0], colorfamily=vs.RGB)   |
 +------------------------+---------------------+----------------------------------------------------------------------+
