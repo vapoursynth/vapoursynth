@@ -313,7 +313,7 @@ public:
         return maxMemoryUse;
     }
     int64_t setMaxMemoryUse(int64_t bytes) {
-        if (bytes > 0 && bytes <= SIZE_MAX)
+        if (bytes > 0 && static_cast<uint64_t>(bytes) <= SIZE_MAX)
             maxMemoryUse = static_cast<size_t>(bytes);
         return maxMemoryUse;
     }
