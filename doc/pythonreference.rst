@@ -29,7 +29,8 @@ range of indexing and slicing operations in Python. If you do perform a slicing
 operation on a clip, you will get a new clip back with the desired frames.
 Here are some examples to illustrate::
 
-   # ret will be a one frame clip containing the 6th frame
+   # ret will be a one frame clip containing frame number 5
+   # note that frame numbers, like python arrays, start counting at 0
    ret = clip[5]
    # ret will contain frames 6 to 9 (unlike Trim, the end value of python slicing is not inclusive)
    ret = clip[6:10]
@@ -58,6 +59,8 @@ The multiplication operator can be used to loop a clip::
 
    # Equivalent to:
    clip = core.std.Loop(clip, times=42)
+   
+Note that multiplication by 0 is a special case that will repeat the clip up to the maximum frame count.
 
 Output
 ######

@@ -332,6 +332,9 @@ static void VS_CC loopCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     LoopData *data;
     int err;
     int times = int64ToIntS(vsapi->propGetInt(in, "times", 0, &err));
+    if (times < 0)
+        RETERROR("Loop: cannot repeat clip a negative number of times");
+
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = *vsapi->getVideoInfo(d.node);
 
@@ -345,7 +348,7 @@ static void VS_CC loopCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     if (times > 0) {
         if (d.vi.numFrames > INT_MAX / times) {
             vsapi->freeNode(d.node);
-            RETERROR("Interleave: resulting clip is too long");
+            RETERROR("Loop: resulting clip is too long");
         }
 
         d.vi.numFrames *= times;
