@@ -1644,13 +1644,17 @@ static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, vo
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         VSFrameRef *dst = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, src, core);
-        int width, modwidth;
-        int height, modheight;
+        int width;
+        int height;
         const uint8_t *srcp;
         int src_stride;
         uint8_t *dstp;
         int dst_stride;
+#ifdef VS_TARGET_CPU_X86
         int partial_lines;
+        int modwidth;
+        int modheight;
+#endif
 
         for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {
             width = vsapi->getFrameWidth(src, plane);
@@ -1714,7 +1718,7 @@ static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, vo
 #else
                 src_stride /= 2;
                 dst_stride /= 2;
-                for (y = 0; y < height; y++)
+                for (int y = 0; y < height; y++)
                     for (x = 0; x < width; x++)
                         ((uint16_t *)dstp)[dst_stride * x + y] = ((const uint16_t *)srcp)[src_stride * y + x];
                 break;
