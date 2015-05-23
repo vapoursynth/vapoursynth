@@ -23,4 +23,13 @@
 #define XSTR(x) STR(x)
 #define STR(x) #x
 #define VAPOURSYNTH_CORE_VERSION 27
-#define VAPOURSYNTH_VERSION_STRING "VapourSynth Video Processing Library\nCopyright (c) 2012-2014 Fredrik Mellbin\nCore R" XSTR(VAPOURSYNTH_CORE_VERSION) "\nAPI R" XSTR(VAPOURSYNTH_API_MAJOR) "." XSTR(VAPOURSYNTH_API_MINOR) "\n"
+#ifdef VS_FRAME_GUARD
+#define VS_OPTIONS_TEXT "Options: Frame guard\n"
+#else
+#define VS_OPTIONS_TEXT "Options: None\n"
+#endif
+#define VAPOURSYNTH_VERSION_STRING "VapourSynth Video Processing Library\n" \
+    "Copyright (c) 2012-2015 Fredrik Mellbin\n" \
+    "Core R" XSTR(VAPOURSYNTH_CORE_VERSION) "\n" \
+    "API R" XSTR(VAPOURSYNTH_API_MAJOR) "." XSTR(VAPOURSYNTH_API_MINOR) "\n" \
+    VS_OPTIONS_TEXT
