@@ -20,6 +20,7 @@ Native Plugins
 * `Basic audio support <http://forum.doom9.org/showthread.php?t=171555>`_ -- A plugin that adds basic audio support
 * `Bifrost 2000 <https://github.com/dubhater/vapoursynth-bifrost>`_ -- A rainbow remover based on the Bifrost filter for Avisynth
 * `Bilateral <http://forum.doom9.org/showthread.php?t=171306>`_ -- Bilateral filtering
+* `BM3D <http://forum.doom9.org/showthread.php?t=172172>`_ -- Denoising filter using the BM3D algorithm
 * `Continuity Fixer <http://forum.doom9.org/showthread.php?t=171785>`_ -- Can help repair damaged borders of frames
 * `CTMF <http://forum.doom9.org/showthread.php?t=171213>`_ -- Constant Time Median Filtering
 * `d2vsource <http://forum.doom9.org/showthread.php?t=166399>`_ -- Frame accurate mpeg2 source filter
@@ -37,6 +38,7 @@ Native Plugins
 * `GenericFilters <http://forum.doom9.org/showthread.php?p=1656901#post1656901>`_ -- Common image processing filters (replaces most of masktools)
 * `Histogram <https://github.com/dubhater/vapoursynth-histogram>`_ -- Bundled with the installer
 * `IT <http://forum.doom9.org/showthread.php?t=171246>`_ -- Port of the inverse telecine filter for Avisynth
+* `KNLMeans <http://forum.doom9.org/showthread.php?t=171379>`_ -- OpenCL Non-local means denoising
 * `L-SMASH Source <http://forum.doom9.org/showthread.php?t=167435>`_
 * `MSmoosh <http://forum.doom9.org/showthread.php?t=171159>`_ -- MSmooth and MSharpen ports
 * `MVTools <http://forum.doom9.org/showthread.php?t=171207>`_ -- MVTools port
