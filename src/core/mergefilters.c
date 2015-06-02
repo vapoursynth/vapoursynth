@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2013 Fredrik Mellbin
+* Copyright (c) 2012-2015 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -134,7 +134,7 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
 
     nweight = vsapi->propNumElements(in, "weight");
     for (i = 0; i < 3; i++)
-        d.fweight[i] = 0.5;
+        d.fweight[i] = 0.5f;
     for (i = 0; i < nweight; i++)
         d.fweight[i] = (float)vsapi->propGetFloat(in, "weight", i, 0);
 

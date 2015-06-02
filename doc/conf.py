@@ -42,7 +42,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'VapourSynth'
-copyright = '2012-2014, Fredrik Mellbin'
+copyright = '2012-2015, Fredrik Mellbin'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the

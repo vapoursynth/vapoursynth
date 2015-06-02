@@ -25,6 +25,54 @@
 #include <string.h>
 #include <stdio.h>
 
+static uint32_t doubleToUInt32S(double v) {
+	if (v < 0)
+		return 0;
+	if (v > UINT32_MAX)
+		return UINT32_MAX;
+	return (uint32_t)(v + 0.5);
+}
+
+static inline uint32_t bit_cast_uint32(float v) {
+	uint32_t ret;
+	memcpy(&ret, &v, sizeof(ret));
+	return ret;
+}
+
+static inline float bit_cast_float(uint32_t v) {
+	float ret;
+	memcpy(&ret, &v, sizeof(ret));
+	return ret;
+}
+
+static inline uint16_t float_to_half(float x) {
+	float magic = bit_cast_float((uint32_t)15 << 23);
+	uint32_t inf = 255UL << 23;
+	uint32_t f16inf = 31UL << 23;
+	uint32_t sign_mask = 0x80000000UL;
+	uint32_t round_mask = ~0x0FFFU;
+	uint16_t ret;
+	uint32_t f = bit_cast_uint32(x);
+	uint32_t sign = f & sign_mask;
+	f ^= sign;
+
+	if (f >= inf) {
+		ret = f > inf ? 0x7E00 : 0x7C00;
+	} else {
+		f &= round_mask;
+		f = bit_cast_uint32(bit_cast_float(f)* magic);
+		f -= round_mask;
+
+		if (f > f16inf)
+			f = f16inf;
+
+		ret = (uint16_t)(f >> 13);
+	}
+
+	ret |= (uint16_t)(sign >> 16);
+	return ret;
+}
+
 //////////////////////////////////////////
 // Crop
 
@@ -375,7 +423,7 @@ static void VS_CC addBordersCreate(const VSMap *in, VSMap *out, void *userData, 
         for (i = 0; i < ncolors; i++) {
             double color = vsapi->propGetFloat(in, "color", i, 0);
             if (d.vi->format->sampleType == stInteger) {
-                d.color.i[i] = (int)(color + 0.5);
+				d.color.i[i] = doubleToUInt32S(color);
                 if (color < 0 || d.color.i[i] >= ((uint64_t)1 << d.vi->format->bitsPerSample))
                     RETERROR("AddBorders: color value out of range");
             } else {
@@ -1040,45 +1088,7 @@ typedef struct {
     } color;
 } BlankClipData;
 
-static inline uint32_t bit_cast_uint32(float v) {
-    uint32_t ret;
-    memcpy(&ret, &v, sizeof(ret));
-    return ret;
-}
 
-static inline float bit_cast_float(uint32_t v) {
-    float ret;
-    memcpy(&ret, &v, sizeof(ret));
-    return ret;
-}
-
-static inline uint16_t float_to_half(float x) {
-    float magic = bit_cast_float((uint32_t)15 << 23);
-    uint32_t inf = 255UL << 23;
-    uint32_t f16inf = 31UL << 23;
-    uint32_t sign_mask = 0x80000000UL;
-    uint32_t round_mask = ~0x0FFFU;
-    uint16_t ret;
-    uint32_t f = bit_cast_uint32(x);
-    uint32_t sign = f & sign_mask;
-    f ^= sign;
-
-    if (f >= inf) {
-        ret = f > inf ? 0x7E00 : 0x7C00;
-    } else {
-        f &= round_mask;
-        f = bit_cast_uint32(bit_cast_float(f)* magic);
-        f -= round_mask;
-
-        if (f > f16inf)
-            f = f16inf;
-
-        ret = (uint16_t)(f >> 13);
-    }
-
-    ret |= (uint16_t)(sign >> 16);
-    return ret;
-}
 
 static void VS_CC blankClipInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     BlankClipData *d = (BlankClipData *) * instanceData;
@@ -1232,7 +1242,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
         for (int i = 0; i < ncolors; i++) {
             double lcolor = vsapi->propGetFloat(in, "color", i, 0);
             if (d.vi.format->sampleType == stInteger) {
-                d.color.i[i] = (int)(lcolor + 0.5);
+				d.color.i[i] = doubleToUInt32S(lcolor);
                 if (lcolor < 0 || d.color.i[i] >= ((int64_t)1 << d.vi.format->bitsPerSample))
                     RETERROR("BlankClip: color value out of range");
             } else {
