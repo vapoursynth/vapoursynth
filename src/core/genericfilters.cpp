@@ -31,7 +31,7 @@
 #ifdef VS_TARGET_OS_WINDOWS
 #define FORCE_INLINE __forceinline
 #else
-#define FORCE_INLINE __attribute__((always_inline))
+#define FORCE_INLINE inline __attribute__((always_inline))
 #endif
 
 
@@ -114,7 +114,7 @@ struct GenericData {
 
 
 template <GenericOperations op>
-static inline FORCE_INLINE int min_max(int a, int b) {
+static FORCE_INLINE int min_max(int a, int b) {
     if (op == GenericMinimum || op == GenericDeflate)
         return std::min(a, b);
     else if (op == GenericMaximum || op == GenericInflate)
@@ -125,7 +125,7 @@ static inline FORCE_INLINE int min_max(int a, int b) {
 
 
 template <GenericOperations op>
-static inline FORCE_INLINE int max_min(int a, int b) {
+static FORCE_INLINE int max_min(int a, int b) {
     if (op == GenericMinimum || op == GenericDeflate)
         return std::max(a, b);
     else if (op == GenericMaximum || op == GenericInflate)
@@ -136,7 +136,7 @@ static inline FORCE_INLINE int max_min(int a, int b) {
 
 
 template <typename PixelType, GenericOperations op>
-static inline FORCE_INLINE PixelType generic_3x3(
+static FORCE_INLINE PixelType generic_3x3(
         PixelType a11, PixelType a21, PixelType a31,
         PixelType a12, PixelType a22, PixelType a32,
         PixelType a13, PixelType a23, PixelType a33, GenericParams *params) {
@@ -338,7 +338,7 @@ static void process_plane_3x3(uint8_t *dstp8, const uint8_t *srcp8, int width, i
 
 
 template <typename PixelType, GenericOperations op>
-static inline FORCE_INLINE PixelType generic_5x5(
+static FORCE_INLINE PixelType generic_5x5(
         PixelType a11, PixelType a21, PixelType a31, PixelType a41, PixelType a51,
         PixelType a12, PixelType a22, PixelType a32, PixelType a42, PixelType a52,
         PixelType a13, PixelType a23, PixelType a33, PixelType a43, PixelType a53,
