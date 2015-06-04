@@ -147,20 +147,13 @@ static const VSFrameRef *VS_CC cropGetframe(int n, int activationReason, void **
         VSFrameRef *dst = vsapi->newVideoFrame(fi, d->width, d->height, src, core);
 
         for (int plane = 0; plane < fi->numPlanes; plane++) {
-            int rowsize = (d->width >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample;
             int srcstride = vsapi->getStride(src, plane);
             int dststride = vsapi->getStride(dst, plane);
-            int pheight = vsapi->getFrameHeight(dst, plane);
             const uint8_t *srcdata = vsapi->getReadPtr(src, plane);
             uint8_t *dstdata = vsapi->getWritePtr(dst, plane);
             srcdata += srcstride * (d->y >> (plane ? fi->subSamplingH : 0));
             srcdata += (d->x >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample;
-
-            for (int hloop = 0; hloop < pheight; hloop++) {
-                memcpy(dstdata, srcdata, rowsize);
-                srcdata += srcstride;
-                dstdata += dststride;
-            }
+			vs_bitblt(dstdata, dststride, srcdata, srcstride, (d->width >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample, vsapi->getFrameHeight(dst, plane));
         }
 
         vsapi->freeFrame(src);
@@ -669,19 +662,12 @@ static const VSFrameRef *VS_CC separateFieldsGetframe(int n, int activationReaso
             int src_stride = vsapi->getStride(src, plane);
             uint8_t *dstp = vsapi->getWritePtr(dst, plane);
             int dst_stride = vsapi->getStride(dst, plane);
-            int h = vsapi->getFrameHeight(dst, plane);
 
             if (!((n & 1) ^ effectiveTFF))
                 srcp += src_stride;
-
             src_stride *= 2;
-			size_t row_size = vsapi->getFrameWidth(dst, plane) * fi->bytesPerSample;
 
-            for (int hl = 0; hl < h; hl++) {
-				memcpy(dstp, srcp, row_size);
-                srcp += src_stride;
-                dstp += dst_stride;
-            }
+			vs_bitblt(dstp, dst_stride, srcp, src_stride, vsapi->getFrameWidth(dst, plane) * fi->bytesPerSample, vsapi->getFrameHeight(dst, plane));
         }
 
         vsapi->freeFrame(src);
@@ -831,15 +817,9 @@ static const VSFrameRef *VS_CC flipVerticalGetframe(int n, int activationReason,
             int src_stride = vsapi->getStride(src, plane);
             uint8_t *dstp = vsapi->getWritePtr(dst, plane);
             int dst_stride = vsapi->getStride(dst, plane);
-            int h = vsapi->getFrameHeight(src, plane);
-            dstp += dst_stride * (h - 1);
-			size_t row_size = vsapi->getFrameWidth(dst, plane) * fi->bytesPerSample;
-
-            for (int hl = 0; hl < h; hl++) {
-				memcpy(dstp, srcp, row_size);
-                dstp -= dst_stride;
-                srcp += src_stride;
-            }
+			int height = vsapi->getFrameHeight(src, plane);
+			dstp += dst_stride * (height - 1);
+			vs_bitblt(dstp, -dst_stride, srcp, src_stride, vsapi->getFrameWidth(dst, plane) * fi->bytesPerSample, height);
         }
 
         vsapi->freeFrame(src);

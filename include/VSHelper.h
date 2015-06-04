@@ -113,15 +113,14 @@ static inline int int64ToIntS(int64_t i) {
     else return (int)i;
 }
 
-static inline void vs_bitblt(void *dstp, int dst_stride, const void *srcp, int src_stride, int row_size, int height) {
-    if (height > 0) {
+static inline void vs_bitblt(void *dstp, int dst_stride, const void *srcp, int src_stride, size_t row_size, size_t height) {
+    if (height) {
         if (src_stride == dst_stride && src_stride == row_size) {
             memcpy(dstp, srcp, row_size * height);
         } else {
-            int i;
             uint8_t *srcp8 = (uint8_t *)srcp;
             uint8_t *dstp8 = (uint8_t *)dstp;
-            for (i = 0; i < height; i++) {
+            for (size_t i = 0; i < height; i++) {
                 memcpy(dstp8, srcp8, row_size);
                 srcp8 += src_stride;
                 dstp8 += dst_stride;
