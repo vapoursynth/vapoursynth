@@ -1,3 +1,8 @@
+r28:
+
+added half support to addborders
+relevant compile time options are now in the version string
+
 r27:
 improved clipinfo so it shows more relevant information
 fixed proptoclip crash on certain errors

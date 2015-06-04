@@ -45,7 +45,7 @@ static inline float bit_cast_float(uint32_t v) {
 	return ret;
 }
 
-static inline uint16_t float_to_half(float x) {
+static inline uint16_t floatToHalf(float x) {
 	float magic = bit_cast_float((uint32_t)15 << 23);
 	uint32_t inf = 255UL << 23;
 	uint32_t f16inf = 31UL << 23;
@@ -429,12 +429,14 @@ static void VS_CC addBordersCreate(const VSMap *in, VSMap *out, void *userData, 
             } else {
                 d.color.f[i] = (float)color;
                 if (d.vi->format->colorFamily == cmRGB || i == 0) {
-                    if (color < 0 || color > 1)
+					if (d.color.f[i] < 0 || d.color.f[i] > 1)
                         RETERROR("AddBorders: color value out of range");
                 } else {
-                    if (color < -0.5 || color > 0.5)
+					if (d.color.f[i] < -0.5 || d.color.f[i] > 0.5)
                         RETERROR("AddBorders: color value out of range");
                 }
+				if (d.vi->format->bitsPerSample == 2)
+					d.color.i[i] = floatToHalf(d.color.f[i]);
             }
         }
     } else if (ncolors > 0) {
@@ -1247,7 +1249,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
                     RETERROR("BlankClip: color value out of range");
             } else {
                 if (d.vi.format->bitsPerSample == 16)
-                    d.color.i[i] = float_to_half((float)lcolor);
+                    d.color.i[i] = floatToHalf((float)lcolor);
                 else
                     d.color.f[i] = (float)lcolor;
                 if (d.vi.format->colorFamily == cmRGB || i == 0) {
