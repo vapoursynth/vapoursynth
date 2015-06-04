@@ -1135,23 +1135,6 @@ static inline char findDropFrame(VDInfo *metrics, int cycleLength, int64_t scthr
     return drop;
 }
 
-static inline void addRational(int64_t *num, int64_t *den, int64_t addnum, int64_t addden) {
-    if (*den == addden) {
-        *num += addnum;
-    } else {
-        int64_t temp = addden;
-        addnum *= *den;
-        addden *= *den;
-        *num *= temp;
-        *den *= temp;
-
-        *num += addnum;
-
-        // Simplify
-        muldivRational(num, den, 1, 1);
-    }
-}
-
 static void calculateNewDurations(const FrameDuration *oldDurations, FrameDuration *newDurations, int cycle, int drop) {
     FrameDuration dropDuration = oldDurations[drop];
     FrameDuration cycleDuration = { .num = 0, .den = 1 };
@@ -1172,7 +1155,7 @@ static void calculateNewDurations(const FrameDuration *oldDurations, FrameDurati
 
     for (i = 0; i < cycle; i++) {
         if (i != drop) {
-            addRational(&cycleDuration.num, &cycleDuration.den, oldDurations[i].num, oldDurations[i].den);
+            vs_addRational(&cycleDuration.num, &cycleDuration.den, oldDurations[i].num, oldDurations[i].den);
         }
     }
 
@@ -1184,7 +1167,7 @@ static void calculateNewDurations(const FrameDuration *oldDurations, FrameDurati
         *newDurations = *oldDurations;
         muldivRational(&newDurations->num, &newDurations->den, cycleDuration.den, cycleDuration.num);
         muldivRational(&newDurations->num, &newDurations->den, dropDuration.num, dropDuration.den);
-        addRational(&newDurations->num, &newDurations->den, oldDurations->num, oldDurations->den);
+        vs_addRational(&newDurations->num, &newDurations->den, oldDurations->num, oldDurations->den);
 
         newDurations++;
         oldDurations++;

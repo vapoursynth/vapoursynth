@@ -981,7 +981,7 @@ static const VSFrameRef *VS_CC stackGetframe(int n, int activationReason, void *
                 } else {
                     const uint8_t *srcp = vsapi->getReadPtr(src, plane);
                     int src_stride = vsapi->getStride(src, plane);
-                    int rowsize = vsapi->getFrameWidth(src, plane) * d->vi.format->bytesPerSample;
+                    size_t rowsize = vsapi->getFrameWidth(src, plane) * d->vi.format->bytesPerSample;
                     vs_bitblt(dstp, dst_stride,
                         srcp, src_stride,
                         rowsize,
@@ -1011,15 +1011,14 @@ static void VS_CC stackFree(void *instanceData, VSCore *core, const VSAPI *vsapi
 static void VS_CC stackCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     StackData d;
     StackData *data;
-    VSNodeRef *cref;
 
     d.vertical = int64ToIntS((intptr_t)userData);
     d.numclips = vsapi->propNumElements(in, "clips");
 
     if (d.numclips == 1) { // passthrough for the special case with only one clip
-        cref = vsapi->propGetNode(in, "clips", 0, 0);
-        vsapi->propSetNode(out, "clip", cref, paReplace);
-        vsapi->freeNode(cref);
+		VSNodeRef *node = vsapi->propGetNode(in, "clips", 0, 0);
+		vsapi->propSetNode(out, "clip", node, paReplace);
+		vsapi->freeNode(node);
     } else {
         d.node = malloc(sizeof(d.node[0]) * d.numclips);
 
@@ -1072,8 +1071,6 @@ typedef struct {
     } color;
 } BlankClipData;
 
-
-
 static void VS_CC blankClipInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     BlankClipData *d = (BlankClipData *) * instanceData;
     vsapi->setVideoInfo(&d->vi, 1, node);
@@ -1094,10 +1091,10 @@ static const VSFrameRef *VS_CC blankClipGetframe(int n, int activationReason, vo
                     vs_memset8(vsapi->getWritePtr(frame, plane), d->color.i[plane], vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane));
                     break;
                 case 2:
-                    vs_memset16(vsapi->getWritePtr(frame, plane), d->color.i[plane], vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane) / 2);
+                    vs_memset16(vsapi->getWritePtr(frame, plane), d->color.i[plane], (vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane)) / 2);
                     break;
                 case 4:
-                    vs_memset32(vsapi->getWritePtr(frame, plane), d->color.i[plane], vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane) / 4);
+                    vs_memset32(vsapi->getWritePtr(frame, plane), d->color.i[plane], (vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane)) / 4);
                     break;
                 }
             }
@@ -1186,7 +1183,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     if (d.vi.fpsDen < 1 || d.vi.fpsNum < 1)
         RETERROR("BlankClip: invalid framerate specified");
 
-    muldivRational(&d.vi.fpsNum, &d.vi.fpsDen, 1, 1);
+	vs_normalizeRational(&d.vi.fpsNum, &d.vi.fpsDen);
 
     format = int64ToIntS(vsapi->propGetInt(in, "format", 0, &err));
 
@@ -1230,17 +1227,16 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
                 if (lcolor < 0 || d.color.i[i] >= ((int64_t)1 << d.vi.format->bitsPerSample))
                     RETERROR("BlankClip: color value out of range");
             } else {
-                if (d.vi.format->bitsPerSample == 16)
-                    d.color.i[i] = floatToHalf((float)lcolor);
-                else
-                    d.color.f[i] = (float)lcolor;
+                d.color.f[i] = (float)lcolor;
                 if (d.vi.format->colorFamily == cmRGB || i == 0) {
-                    if (lcolor < 0 || lcolor > 1)
+					if (d.color.f[i] < 0 || d.color.f[i] > 1)
                         RETERROR("BlankClip: color value out of range");
                 } else {
-                    if (lcolor < -0.5 || lcolor > 0.5)
+					if (d.color.f[i] < -0.5 || d.color.f[i] > 0.5)
                         RETERROR("BlankClip: color value out of range");
                 }
+				if (d.vi.format->bitsPerSample == 16)
+					d.color.i[i] = floatToHalf(d.color.f[i]);
             }
         }
     } else if (ncolors > 0) {
@@ -1289,7 +1285,6 @@ static const VSFrameRef *VS_CC assumeFPSGetframe(int n, int activationReason, vo
 static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     AssumeFPSData d;
     AssumeFPSData *data;
-    VSNodeRef *src;
     int hasfps = 0;
     int hassrc = 0;
     int err;
@@ -1307,7 +1302,7 @@ static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, V
     if (err)
         d.vi.fpsDen = 1;
 
-    src = vsapi->propGetNode(in, "src", 0, &err);
+	VSNodeRef *src = vsapi->propGetNode(in, "src", 0, &err);
 
     if (!err) {
         const VSVideoInfo *vi = vsapi->getVideoInfo(src);
@@ -1327,7 +1322,7 @@ static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, V
         RETERROR("AssumeFPS: invalid framerate specified");
     }
 
-    muldivRational(&d.vi.fpsNum, &d.vi.fpsDen, 1, 1);
+	vs_normalizeRational(&d.vi.fpsNum, &d.vi.fpsDen);
 
     data = malloc(sizeof(d));
     *data = d;
