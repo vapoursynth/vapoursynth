@@ -27,51 +27,51 @@
 #include <math.h>
 
 static uint32_t doubleToUInt32S(double v) {
-	if (v < 0)
-		return 0;
-	if (v > UINT32_MAX)
-		return UINT32_MAX;
-	return (uint32_t)(v + 0.5);
+    if (v < 0)
+        return 0;
+    if (v > UINT32_MAX)
+        return UINT32_MAX;
+    return (uint32_t)(v + 0.5);
 }
 
 static inline uint32_t bit_cast_uint32(float v) {
-	uint32_t ret;
-	memcpy(&ret, &v, sizeof(ret));
-	return ret;
+    uint32_t ret;
+    memcpy(&ret, &v, sizeof(ret));
+    return ret;
 }
 
 static inline float bit_cast_float(uint32_t v) {
-	float ret;
-	memcpy(&ret, &v, sizeof(ret));
-	return ret;
+    float ret;
+    memcpy(&ret, &v, sizeof(ret));
+    return ret;
 }
 
 static inline uint16_t floatToHalf(float x) {
-	float magic = bit_cast_float((uint32_t)15 << 23);
-	uint32_t inf = 255UL << 23;
-	uint32_t f16inf = 31UL << 23;
-	uint32_t sign_mask = 0x80000000UL;
-	uint32_t round_mask = ~0x0FFFU;
-	uint16_t ret;
-	uint32_t f = bit_cast_uint32(x);
-	uint32_t sign = f & sign_mask;
-	f ^= sign;
+    float magic = bit_cast_float((uint32_t)15 << 23);
+    uint32_t inf = 255UL << 23;
+    uint32_t f16inf = 31UL << 23;
+    uint32_t sign_mask = 0x80000000UL;
+    uint32_t round_mask = ~0x0FFFU;
+    uint16_t ret;
+    uint32_t f = bit_cast_uint32(x);
+    uint32_t sign = f & sign_mask;
+    f ^= sign;
 
-	if (f >= inf) {
-		ret = f > inf ? 0x7E00 : 0x7C00;
-	} else {
-		f &= round_mask;
-		f = bit_cast_uint32(bit_cast_float(f)* magic);
-		f -= round_mask;
+    if (f >= inf) {
+        ret = f > inf ? 0x7E00 : 0x7C00;
+    } else {
+        f &= round_mask;
+        f = bit_cast_uint32(bit_cast_float(f)* magic);
+        f -= round_mask;
 
-		if (f > f16inf)
-			f = f16inf;
+        if (f > f16inf)
+            f = f16inf;
 
-		ret = (uint16_t)(f >> 13);
-	}
+        ret = (uint16_t)(f >> 13);
+    }
 
-	ret |= (uint16_t)(sign >> 16);
-	return ret;
+    ret |= (uint16_t)(sign >> 16);
+    return ret;
 }
 
 //////////////////////////////////////////
@@ -154,7 +154,7 @@ static const VSFrameRef *VS_CC cropGetframe(int n, int activationReason, void **
             uint8_t *dstdata = vsapi->getWritePtr(dst, plane);
             srcdata += srcstride * (d->y >> (plane ? fi->subSamplingH : 0));
             srcdata += (d->x >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample;
-			vs_bitblt(dstdata, dststride, srcdata, srcstride, (d->width >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample, vsapi->getFrameHeight(dst, plane));
+            vs_bitblt(dstdata, dststride, srcdata, srcstride, (d->width >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample, vsapi->getFrameHeight(dst, plane));
         }
 
         vsapi->freeFrame(src);
@@ -417,20 +417,20 @@ static void VS_CC addBordersCreate(const VSMap *in, VSMap *out, void *userData, 
         for (i = 0; i < ncolors; i++) {
             double color = vsapi->propGetFloat(in, "color", i, 0);
             if (d.vi->format->sampleType == stInteger) {
-				d.color.i[i] = doubleToUInt32S(color);
+                d.color.i[i] = doubleToUInt32S(color);
                 if (color < 0 || d.color.i[i] >= ((uint64_t)1 << d.vi->format->bitsPerSample))
                     RETERROR("AddBorders: color value out of range");
             } else {
                 d.color.f[i] = (float)color;
                 if (d.vi->format->colorFamily == cmRGB || i == 0) {
-					if (d.color.f[i] < 0 || d.color.f[i] > 1)
+                    if (d.color.f[i] < 0 || d.color.f[i] > 1)
                         RETERROR("AddBorders: color value out of range");
                 } else {
-					if (d.color.f[i] < -0.5 || d.color.f[i] > 0.5)
+                    if (d.color.f[i] < -0.5 || d.color.f[i] > 0.5)
                         RETERROR("AddBorders: color value out of range");
                 }
-				if (d.vi->format->bitsPerSample == 2)
-					d.color.i[i] = floatToHalf(d.color.f[i]);
+                if (d.vi->format->bitsPerSample == 2)
+                    d.color.i[i] = floatToHalf(d.color.f[i]);
             }
         }
     } else if (ncolors > 0) {
@@ -656,7 +656,7 @@ static const VSFrameRef *VS_CC separateFieldsGetframe(int n, int activationReaso
             effectiveTFF = 1;
 
         VSFrameRef *dst = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, src, core);
-		const VSFormat *fi = vsapi->getFrameFormat(dst);
+        const VSFormat *fi = vsapi->getFrameFormat(dst);
 
         for (int plane = 0; plane < fi->numPlanes; plane++) {
             const uint8_t *srcp = vsapi->getReadPtr(src, plane);
@@ -668,7 +668,7 @@ static const VSFrameRef *VS_CC separateFieldsGetframe(int n, int activationReaso
                 srcp += src_stride;
             src_stride *= 2;
 
-			vs_bitblt(dstp, dst_stride, srcp, src_stride, vsapi->getFrameWidth(dst, plane) * fi->bytesPerSample, vsapi->getFrameHeight(dst, plane));
+            vs_bitblt(dstp, dst_stride, srcp, src_stride, vsapi->getFrameWidth(dst, plane) * fi->bytesPerSample, vsapi->getFrameHeight(dst, plane));
         }
 
         vsapi->freeFrame(src);
@@ -750,7 +750,7 @@ static const VSFrameRef *VS_CC doubleWeaveGetframe(int n, int activationReason, 
         const VSFrameRef *srcbtn = vsapi->getFrameFilter(n + par, d->node, frameCtx);
 
         VSFrameRef *dst = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, srctop, core);
-		const VSFormat *fi = vsapi->getFrameFormat(dst);
+        const VSFormat *fi = vsapi->getFrameFormat(dst);
         vsapi->propDeleteKey(vsapi->getFramePropsRW(dst), "_Field");
 
         for (int plane = 0; plane < fi->numPlanes; plane++) {
@@ -760,12 +760,12 @@ static const VSFrameRef *VS_CC doubleWeaveGetframe(int n, int activationReason, 
             uint8_t *dstp = vsapi->getWritePtr(dst, plane);
             int dst_stride = vsapi->getStride(dst, plane);
             int h = vsapi->getFrameHeight(srctop, plane);
-			size_t row_size = vsapi->getFrameWidth(dst, plane) * fi->bytesPerSample;
+            size_t row_size = vsapi->getFrameWidth(dst, plane) * fi->bytesPerSample;
 
             for (int hl = 0; hl < h; hl++) {
-				memcpy(dstp, srcptop, row_size);
+                memcpy(dstp, srcptop, row_size);
                 dstp += dst_stride;
-				memcpy(dstp, srcpbtn, row_size);
+                memcpy(dstp, srcpbtn, row_size);
                 srcpbtn += src_stride;
                 srcptop += src_stride;
                 dstp += dst_stride;
@@ -818,9 +818,9 @@ static const VSFrameRef *VS_CC flipVerticalGetframe(int n, int activationReason,
             int src_stride = vsapi->getStride(src, plane);
             uint8_t *dstp = vsapi->getWritePtr(dst, plane);
             int dst_stride = vsapi->getStride(dst, plane);
-			int height = vsapi->getFrameHeight(src, plane);
-			dstp += dst_stride * (height - 1);
-			vs_bitblt(dstp, -dst_stride, srcp, src_stride, vsapi->getFrameWidth(dst, plane) * fi->bytesPerSample, height);
+            int height = vsapi->getFrameHeight(src, plane);
+            dstp += dst_stride * (height - 1);
+            vs_bitblt(dstp, -dst_stride, srcp, src_stride, vsapi->getFrameWidth(dst, plane) * fi->bytesPerSample, height);
         }
 
         vsapi->freeFrame(src);
@@ -1017,9 +1017,9 @@ static void VS_CC stackCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     d.numclips = vsapi->propNumElements(in, "clips");
 
     if (d.numclips == 1) { // passthrough for the special case with only one clip
-		VSNodeRef *node = vsapi->propGetNode(in, "clips", 0, 0);
-		vsapi->propSetNode(out, "clip", node, paReplace);
-		vsapi->freeNode(node);
+        VSNodeRef *node = vsapi->propGetNode(in, "clips", 0, 0);
+        vsapi->propSetNode(out, "clip", node, paReplace);
+        vsapi->freeNode(node);
     } else {
         d.node = malloc(sizeof(d.node[0]) * d.numclips);
 
@@ -1184,7 +1184,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     if (d.vi.fpsDen < 1 || d.vi.fpsNum < 1)
         RETERROR("BlankClip: invalid framerate specified");
 
-	vs_normalizeRational(&d.vi.fpsNum, &d.vi.fpsDen);
+    vs_normalizeRational(&d.vi.fpsNum, &d.vi.fpsDen);
 
     format = int64ToIntS(vsapi->propGetInt(in, "format", 0, &err));
 
@@ -1224,20 +1224,20 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
         for (int i = 0; i < ncolors; i++) {
             double lcolor = vsapi->propGetFloat(in, "color", i, 0);
             if (d.vi.format->sampleType == stInteger) {
-				d.color.i[i] = doubleToUInt32S(lcolor);
+                d.color.i[i] = doubleToUInt32S(lcolor);
                 if (lcolor < 0 || d.color.i[i] >= ((int64_t)1 << d.vi.format->bitsPerSample))
                     RETERROR("BlankClip: color value out of range");
             } else {
                 d.color.f[i] = (float)lcolor;
                 if (d.vi.format->colorFamily == cmRGB || i == 0) {
-					if (d.color.f[i] < 0 || d.color.f[i] > 1)
+                    if (d.color.f[i] < 0 || d.color.f[i] > 1)
                         RETERROR("BlankClip: color value out of range");
                 } else {
-					if (d.color.f[i] < -0.5 || d.color.f[i] > 0.5)
+                    if (d.color.f[i] < -0.5 || d.color.f[i] > 0.5)
                         RETERROR("BlankClip: color value out of range");
                 }
-				if (d.vi.format->bitsPerSample == 16)
-					d.color.i[i] = floatToHalf(d.color.f[i]);
+                if (d.vi.format->bitsPerSample == 16)
+                    d.color.i[i] = floatToHalf(d.color.f[i]);
             }
         }
     } else if (ncolors > 0) {
@@ -1303,7 +1303,7 @@ static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, V
     if (err)
         d.vi.fpsDen = 1;
 
-	VSNodeRef *src = vsapi->propGetNode(in, "src", 0, &err);
+    VSNodeRef *src = vsapi->propGetNode(in, "src", 0, &err);
 
     if (!err) {
         const VSVideoInfo *vi = vsapi->getVideoInfo(src);
@@ -1323,7 +1323,7 @@ static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, V
         RETERROR("AssumeFPS: invalid framerate specified");
     }
 
-	vs_normalizeRational(&d.vi.fpsNum, &d.vi.fpsDen);
+    vs_normalizeRational(&d.vi.fpsNum, &d.vi.fpsDen);
 
     data = malloc(sizeof(d));
     *data = d;
@@ -1370,7 +1370,7 @@ static const VSFrameRef *VS_CC frameEvalGetFrameWithProps(int n, int activationR
             return 0;
         }
 
-		VSNodeRef *node = vsapi->propGetNode(d->out, "val", 0, &err);
+        VSNodeRef *node = vsapi->propGetNode(d->out, "val", 0, &err);
         vsapi->clearMap(d->out);
 
         if (err) {
@@ -1383,7 +1383,7 @@ static const VSFrameRef *VS_CC frameEvalGetFrameWithProps(int n, int activationR
         vsapi->requestFrameFilter(n, node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *frame;
-		VSNodeRef *node = (VSNodeRef *)*frameData;
+        VSNodeRef *node = (VSNodeRef *)*frameData;
         frame = vsapi->getFrameFilter(n, node, frameCtx);
         vsapi->freeNode(node);
 
@@ -1425,7 +1425,7 @@ static const VSFrameRef *VS_CC frameEvalGetFrameNoProps(int n, int activationRea
             return 0;
         }
 
-		VSNodeRef *node = vsapi->propGetNode(d->out, "val", 0, &err);
+        VSNodeRef *node = vsapi->propGetNode(d->out, "val", 0, &err);
         vsapi->clearMap(d->out);
 
         if (err) {
@@ -1437,8 +1437,8 @@ static const VSFrameRef *VS_CC frameEvalGetFrameNoProps(int n, int activationRea
 
         vsapi->requestFrameFilter(n, node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-		VSNodeRef *node = (VSNodeRef *)*frameData;
-		const VSFrameRef *frame = vsapi->getFrameFilter(n, node, frameCtx);
+        VSNodeRef *node = (VSNodeRef *)*frameData;
+        const VSFrameRef *frame = vsapi->getFrameFilter(n, node, frameCtx);
         vsapi->freeNode(node);
 
         if (d->vi.width || d->vi.height) {
@@ -1530,7 +1530,7 @@ static const VSFrameRef *VS_CC modifyFrameGetFrame(int n, int activationReason, 
         vsapi->propSetInt(d->in, "n", n, paAppend);
 
         for (int i = 0; i < d->numnode; i++) {
-			const VSFrameRef *f = vsapi->getFrameFilter(n, d->node[i], frameCtx);
+            const VSFrameRef *f = vsapi->getFrameFilter(n, d->node[i], frameCtx);
             vsapi->propSetFrame(d->in, "f", f, paAppend);
             vsapi->freeFrame(f);
         }
@@ -1544,7 +1544,7 @@ static const VSFrameRef *VS_CC modifyFrameGetFrame(int n, int activationReason, 
             return 0;
         }
 
-		const VSFrameRef *f = vsapi->propGetFrame(d->out, "val", 0, &err);
+        const VSFrameRef *f = vsapi->propGetFrame(d->out, "val", 0, &err);
         vsapi->clearMap(d->out);
         if (err) {
             vsapi->freeFrame(f);
@@ -1837,9 +1837,9 @@ static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData,
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node);
 
-	if (!isConstantFormat(d.vi) || isCompatFormat(d.vi) || d.vi->format->sampleType != stInteger || (d.vi->format->bytesPerSample != 1 && d.vi->format->bytesPerSample != 2)) {
-		vsapi->freeNode(d.node);
-		RETERROR("PEMVerifier: clip must be constant format and of integer 8-16 bit type");
+    if (!isConstantFormat(d.vi) || isCompatFormat(d.vi) || d.vi->format->sampleType != stInteger || (d.vi->format->bytesPerSample != 1 && d.vi->format->bytesPerSample != 2)) {
+        vsapi->freeNode(d.node);
+        RETERROR("PEMVerifier: clip must be constant format and of integer 8-16 bit type");
     }
 
     if (numlower < 0) {
@@ -1902,7 +1902,7 @@ static const VSFrameRef *VS_CC planeAverageGetFrame(int n, int activationReason,
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         VSFrameRef *dst = vsapi->copyFrame(src, core);
-		const VSFormat *fi = vsapi->getFrameFormat(dst);
+        const VSFormat *fi = vsapi->getFrameFormat(dst);
         int x;
         int y;
         int width = vsapi->getFrameWidth(src, d->plane);
@@ -1910,7 +1910,7 @@ static const VSFrameRef *VS_CC planeAverageGetFrame(int n, int activationReason,
         const uint8_t *srcp = vsapi->getReadPtr(src, d->plane);
         int src_stride = vsapi->getStride(src, d->plane);
         int64_t acc = 0;
-		double facc = 0;
+        double facc = 0;
         switch (fi->bytesPerSample) {
         case 1:
             for (y = 0; y < height; y++) {
@@ -1926,19 +1926,19 @@ static const VSFrameRef *VS_CC planeAverageGetFrame(int n, int activationReason,
                 srcp += src_stride;
             }
             break;
-		case 4:
-			for (y = 0; y < height; y++) {
-				for (x = 0; x < width; x++)
-					facc += ((const float *)srcp)[x];
-				srcp += src_stride;
-			}
-			break;
+        case 4:
+            for (y = 0; y < height; y++) {
+                for (x = 0; x < width; x++)
+                    facc += ((const float *)srcp)[x];
+                srcp += src_stride;
+            }
+            break;
         }
 
-		if (fi->sampleType == stInteger)
-			vsapi->propSetFloat(vsapi->getFramePropsRW(dst), d->prop, acc / (double)(width * height * (((int64_t)1 << fi->bitsPerSample) - 1)), paReplace);
-		else
-			vsapi->propSetFloat(vsapi->getFramePropsRW(dst), d->prop, facc / (double)(width * height), paReplace);
+        if (fi->sampleType == stInteger)
+            vsapi->propSetFloat(vsapi->getFramePropsRW(dst), d->prop, acc / (double)(width * height * (((int64_t)1 << fi->bitsPerSample) - 1)), paReplace);
+        else
+            vsapi->propSetFloat(vsapi->getFramePropsRW(dst), d->prop, facc / (double)(width * height), paReplace);
 
         vsapi->freeFrame(src);
         return dst;
@@ -1961,9 +1961,9 @@ static void VS_CC planeAverageCreate(const VSMap *in, VSMap *out, void *userData
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node);
 
-	
+    
 
-	if (!d.vi->format || isCompatFormat(d.vi) || (d.vi->format->sampleType == stInteger && (d.vi->format->bytesPerSample != 1 && d.vi->format->bytesPerSample != 2)) || (d.vi->format->sampleType == stFloat && d.vi->format->bytesPerSample != 4)) {
+    if (!d.vi->format || isCompatFormat(d.vi) || (d.vi->format->sampleType == stInteger && (d.vi->format->bytesPerSample != 1 && d.vi->format->bytesPerSample != 2)) || (d.vi->format->sampleType == stFloat && d.vi->format->bytesPerSample != 4)) {
         vsapi->freeNode(d.node);
         RETERROR("PlaneAverage: clip must be constant format and of integer 8-16 bit type or 32 bit float");
     }
@@ -2011,7 +2011,7 @@ static const VSFrameRef *VS_CC planeDifferenceGetFrame(int n, int activationReas
         const VSFrameRef *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
         const VSFrameRef *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
         VSFrameRef *dst = vsapi->copyFrame(src1, core);
-		const VSFormat *fi = vsapi->getFrameFormat(dst);
+        const VSFormat *fi = vsapi->getFrameFormat(dst);
         int x;
         int y;
         int width = vsapi->getFrameWidth(src1, d->plane);
@@ -2020,9 +2020,9 @@ static const VSFrameRef *VS_CC planeDifferenceGetFrame(int n, int activationReas
         const uint8_t *srcp2 = vsapi->getReadPtr(src2, d->plane);
         int src_stride = vsapi->getStride(src1, d->plane);
         int64_t acc = 0;
-		double facc = 0;
+        double facc = 0;
 
-		switch (fi->bytesPerSample) {
+        switch (fi->bytesPerSample) {
         case 1:
             for (y = 0; y < height; y++) {
                 for (x = 0; x < width; x++)
@@ -2039,20 +2039,20 @@ static const VSFrameRef *VS_CC planeDifferenceGetFrame(int n, int activationReas
                 srcp2 += src_stride;
             }
             break;
-		case 4:
-			for (y = 0; y < height; y++) {
-				for (x = 0; x < width; x++)
-					facc += fabs(((const float *)srcp1)[x] - ((const float *)srcp2)[x]);
-				srcp1 += src_stride;
-				srcp2 += src_stride;
-			}
-			break;
+        case 4:
+            for (y = 0; y < height; y++) {
+                for (x = 0; x < width; x++)
+                    facc += fabs(((const float *)srcp1)[x] - ((const float *)srcp2)[x]);
+                srcp1 += src_stride;
+                srcp2 += src_stride;
+            }
+            break;
         }
 
-		if (fi->sampleType == stInteger)
-			vsapi->propSetFloat(vsapi->getFramePropsRW(dst), d->prop, acc / (double)(width * height * (((int64_t)1 << fi->bitsPerSample) - 1)), paReplace);
-		else
-			vsapi->propSetFloat(vsapi->getFramePropsRW(dst), d->prop, facc / (double)(width * height), paReplace);
+        if (fi->sampleType == stInteger)
+            vsapi->propSetFloat(vsapi->getFramePropsRW(dst), d->prop, acc / (double)(width * height * (((int64_t)1 << fi->bitsPerSample) - 1)), paReplace);
+        else
+            vsapi->propSetFloat(vsapi->getFramePropsRW(dst), d->prop, facc / (double)(width * height), paReplace);
 
         vsapi->freeFrame(src1);
         vsapi->freeFrame(src2);
@@ -2080,8 +2080,8 @@ static void VS_CC planeDifferenceCreate(const VSMap *in, VSMap *out, void *userD
     d.node2 = vsapi->propGetNode(in, "clips", 1, 0);
     d.vi = vsapi->getVideoInfo(d.node1);
 
-	if (!d.vi->format || isCompatFormat(d.vi) || !isSameFormat(d.vi, vsapi->getVideoInfo(d.node2))
-		|| (d.vi->format->sampleType == stInteger && (d.vi->format->bytesPerSample != 1 && d.vi->format->bytesPerSample != 2)) || (d.vi->format->sampleType == stFloat && d.vi->format->bytesPerSample != 4)) {
+    if (!d.vi->format || isCompatFormat(d.vi) || !isSameFormat(d.vi, vsapi->getVideoInfo(d.node2))
+        || (d.vi->format->sampleType == stInteger && (d.vi->format->bytesPerSample != 1 && d.vi->format->bytesPerSample != 2)) || (d.vi->format->sampleType == stFloat && d.vi->format->bytesPerSample != 4)) {
         vsapi->freeNode(d.node1);
         vsapi->freeNode(d.node2);
         RETERROR("PlaneDifference: clips must be the same format, constant format and of integer 8-16 bit type");
