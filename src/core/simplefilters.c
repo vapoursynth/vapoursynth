@@ -662,8 +662,9 @@ static const VSFrameRef *VS_CC separateFieldsGetframe(int n, int activationReaso
             effectiveTFF = 1;
 
         VSFrameRef *dst = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, src, core);
+		const VSFormat *fi = vsapi->getFrameFormat(dst);
 
-        for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {
+        for (int plane = 0; plane < fi->numPlanes; plane++) {
             const uint8_t *srcp = vsapi->getReadPtr(src, plane);
             int src_stride = vsapi->getStride(src, plane);
             uint8_t *dstp = vsapi->getWritePtr(dst, plane);
@@ -674,9 +675,10 @@ static const VSFrameRef *VS_CC separateFieldsGetframe(int n, int activationReaso
                 srcp += src_stride;
 
             src_stride *= 2;
+			size_t row_size = vsapi->getFrameWidth(dst, plane) * fi->bytesPerSample;
 
             for (int hl = 0; hl < h; hl++) {
-                memcpy(dstp, srcp, dst_stride);
+				memcpy(dstp, srcp, row_size);
                 srcp += src_stride;
                 dstp += dst_stride;
             }
@@ -761,20 +763,22 @@ static const VSFrameRef *VS_CC doubleWeaveGetframe(int n, int activationReason, 
         const VSFrameRef *srcbtn = vsapi->getFrameFilter(n + par, d->node, frameCtx);
 
         VSFrameRef *dst = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, srctop, core);
+		const VSFormat *fi = vsapi->getFrameFormat(dst);
         vsapi->propDeleteKey(vsapi->getFramePropsRW(dst), "_Field");
 
-        for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {
+        for (int plane = 0; plane < fi->numPlanes; plane++) {
             const uint8_t *srcptop = vsapi->getReadPtr(srctop, plane);
             const uint8_t *srcpbtn = vsapi->getReadPtr(srcbtn, plane);
             int src_stride = vsapi->getStride(srcbtn, plane);
             uint8_t *dstp = vsapi->getWritePtr(dst, plane);
             int dst_stride = vsapi->getStride(dst, plane);
             int h = vsapi->getFrameHeight(srctop, plane);
+			size_t row_size = vsapi->getFrameWidth(dst, plane) * fi->bytesPerSample;
 
             for (int hl = 0; hl < h; hl++) {
-                memcpy(dstp, srcptop, dst_stride);
+				memcpy(dstp, srcptop, row_size);
                 dstp += dst_stride;
-                memcpy(dstp, srcpbtn, dst_stride);
+				memcpy(dstp, srcpbtn, row_size);
                 srcpbtn += src_stride;
                 srcptop += src_stride;
                 dstp += dst_stride;
@@ -829,9 +833,10 @@ static const VSFrameRef *VS_CC flipVerticalGetframe(int n, int activationReason,
             int dst_stride = vsapi->getStride(dst, plane);
             int h = vsapi->getFrameHeight(src, plane);
             dstp += dst_stride * (h - 1);
+			size_t row_size = vsapi->getFrameWidth(dst, plane) * fi->bytesPerSample;
 
             for (int hl = 0; hl < h; hl++) {
-                memcpy(dstp, srcp, dst_stride);
+				memcpy(dstp, srcp, row_size);
                 dstp -= dst_stride;
                 srcp += src_stride;
             }
@@ -891,7 +896,6 @@ static const VSFrameRef *VS_CC flipHorizontalGetframe(int n, int activationReaso
 
             switch (fi->bytesPerSample) {
             case 1:
-
                 for (hl = 0; hl < h; hl++) {
                     for (x = 0; x <= w; x++)
                         dstp[w - x] = srcp[x];
@@ -902,7 +906,6 @@ static const VSFrameRef *VS_CC flipHorizontalGetframe(int n, int activationReaso
 
                 break;
             case 2:
-
                 for (hl = 0; hl < h; hl++) {
                     const int16_t *srcp16 = (const int16_t *)srcp;
                     int16_t *dstp16 = (int16_t *)dstp;
@@ -916,13 +919,12 @@ static const VSFrameRef *VS_CC flipHorizontalGetframe(int n, int activationReaso
 
                 break;
             case 4:
-
                 for (hl = 0; hl < h; hl++) {
-                    const int32_t *srcp16 = (const int32_t *)srcp;
-                    int32_t *dstp16 = (int32_t *)dstp;
+                    const int32_t *srcp32 = (const int32_t *)srcp;
+                    int32_t *dstp32 = (int32_t *)dstp;
 
                     for (x = 0; x <= w; x++)
-                        dstp16[w - x] = srcp16[x];
+                        dstp32[w - x] = srcp32[x];
 
                     dstp += dst_stride;
                     srcp += src_stride;
