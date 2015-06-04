@@ -1,5 +1,5 @@
 r28:
-
+added float support to planedifference and planeaverage
 added half support to addborders
 relevant compile time options are now in the version string
 

@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <math.h>
 
 static uint32_t doubleToUInt32S(double v) {
 	if (v < 0)
@@ -1836,9 +1837,9 @@ static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData,
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node);
 
-    if (!isConstantFormat(d.vi) || isCompatFormat(d.vi) || d.vi->format->sampleType != stInteger || (d.vi->format->bytesPerSample != 1 && d.vi->format->bytesPerSample != 2)) {
-        vsapi->freeNode(d.node);
-        RETERROR("PEMVerifier: clip must be constant format and of integer 8-16 bit type");
+	if (!isConstantFormat(d.vi) || isCompatFormat(d.vi) || d.vi->format->sampleType != stInteger || (d.vi->format->bytesPerSample != 1 && d.vi->format->bytesPerSample != 2)) {
+		vsapi->freeNode(d.node);
+		RETERROR("PEMVerifier: clip must be constant format and of integer 8-16 bit type");
     }
 
     if (numlower < 0) {
@@ -1901,6 +1902,7 @@ static const VSFrameRef *VS_CC planeAverageGetFrame(int n, int activationReason,
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         VSFrameRef *dst = vsapi->copyFrame(src, core);
+		const VSFormat *fi = vsapi->getFrameFormat(dst);
         int x;
         int y;
         int width = vsapi->getFrameWidth(src, d->plane);
@@ -1908,7 +1910,8 @@ static const VSFrameRef *VS_CC planeAverageGetFrame(int n, int activationReason,
         const uint8_t *srcp = vsapi->getReadPtr(src, d->plane);
         int src_stride = vsapi->getStride(src, d->plane);
         int64_t acc = 0;
-        switch (d->vi->format->bytesPerSample) {
+		double facc = 0;
+        switch (fi->bytesPerSample) {
         case 1:
             for (y = 0; y < height; y++) {
                 for (x = 0; x < width; x++)
@@ -1923,8 +1926,19 @@ static const VSFrameRef *VS_CC planeAverageGetFrame(int n, int activationReason,
                 srcp += src_stride;
             }
             break;
+		case 4:
+			for (y = 0; y < height; y++) {
+				for (x = 0; x < width; x++)
+					facc += ((const float *)srcp)[x];
+				srcp += src_stride;
+			}
+			break;
         }
-        vsapi->propSetFloat(vsapi->getFramePropsRW(dst), d->prop, acc / (double)(width * height * (((int64_t)1 << d->vi->format->bitsPerSample) - 1)), paReplace);
+
+		if (fi->sampleType == stInteger)
+			vsapi->propSetFloat(vsapi->getFramePropsRW(dst), d->prop, acc / (double)(width * height * (((int64_t)1 << fi->bitsPerSample) - 1)), paReplace);
+		else
+			vsapi->propSetFloat(vsapi->getFramePropsRW(dst), d->prop, facc / (double)(width * height), paReplace);
 
         vsapi->freeFrame(src);
         return dst;
@@ -1947,9 +1961,11 @@ static void VS_CC planeAverageCreate(const VSMap *in, VSMap *out, void *userData
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node);
 
-    if (!isConstantFormat(d.vi) || isCompatFormat(d.vi) || d.vi->format->sampleType != stInteger || (d.vi->format->bytesPerSample != 1 && d.vi->format->bytesPerSample != 2)) {
+	
+
+	if (!d.vi->format || isCompatFormat(d.vi) || (d.vi->format->sampleType == stInteger && (d.vi->format->bytesPerSample != 1 && d.vi->format->bytesPerSample != 2)) || (d.vi->format->sampleType == stFloat && d.vi->format->bytesPerSample != 4)) {
         vsapi->freeNode(d.node);
-        RETERROR("PlaneAverage: clip must be constant format and of integer 8-16 bit type");
+        RETERROR("PlaneAverage: clip must be constant format and of integer 8-16 bit type or 32 bit float");
     }
 
     d.plane = int64ToIntS(vsapi->propGetInt(in, "plane", 0, 0));
@@ -1995,6 +2011,7 @@ static const VSFrameRef *VS_CC planeDifferenceGetFrame(int n, int activationReas
         const VSFrameRef *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
         const VSFrameRef *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
         VSFrameRef *dst = vsapi->copyFrame(src1, core);
+		const VSFormat *fi = vsapi->getFrameFormat(dst);
         int x;
         int y;
         int width = vsapi->getFrameWidth(src1, d->plane);
@@ -2003,8 +2020,9 @@ static const VSFrameRef *VS_CC planeDifferenceGetFrame(int n, int activationReas
         const uint8_t *srcp2 = vsapi->getReadPtr(src2, d->plane);
         int src_stride = vsapi->getStride(src1, d->plane);
         int64_t acc = 0;
+		double facc = 0;
 
-        switch (d->vi->format->bytesPerSample) {
+		switch (fi->bytesPerSample) {
         case 1:
             for (y = 0; y < height; y++) {
                 for (x = 0; x < width; x++)
@@ -2021,9 +2039,20 @@ static const VSFrameRef *VS_CC planeDifferenceGetFrame(int n, int activationReas
                 srcp2 += src_stride;
             }
             break;
+		case 4:
+			for (y = 0; y < height; y++) {
+				for (x = 0; x < width; x++)
+					facc += fabs(((const float *)srcp1)[x] - ((const float *)srcp2)[x]);
+				srcp1 += src_stride;
+				srcp2 += src_stride;
+			}
+			break;
         }
 
-        vsapi->propSetFloat(vsapi->getFramePropsRW(dst), d->prop, acc / (double)(width * height * (((int64_t)1 << d->vi->format->bitsPerSample) - 1)), paReplace);
+		if (fi->sampleType == stInteger)
+			vsapi->propSetFloat(vsapi->getFramePropsRW(dst), d->prop, acc / (double)(width * height * (((int64_t)1 << fi->bitsPerSample) - 1)), paReplace);
+		else
+			vsapi->propSetFloat(vsapi->getFramePropsRW(dst), d->prop, facc / (double)(width * height), paReplace);
 
         vsapi->freeFrame(src1);
         vsapi->freeFrame(src2);
@@ -2051,7 +2080,8 @@ static void VS_CC planeDifferenceCreate(const VSMap *in, VSMap *out, void *userD
     d.node2 = vsapi->propGetNode(in, "clips", 1, 0);
     d.vi = vsapi->getVideoInfo(d.node1);
 
-    if (!isConstantFormat(d.vi) || isCompatFormat(d.vi) || !isSameFormat(d.vi, vsapi->getVideoInfo(d.node2)) || d.vi->format->sampleType != stInteger || (d.vi->format->bytesPerSample != 1 && d.vi->format->bytesPerSample != 2)) {
+	if (!d.vi->format || isCompatFormat(d.vi) || !isSameFormat(d.vi, vsapi->getVideoInfo(d.node2))
+		|| (d.vi->format->sampleType == stInteger && (d.vi->format->bytesPerSample != 1 && d.vi->format->bytesPerSample != 2)) || (d.vi->format->sampleType == stFloat && d.vi->format->bytesPerSample != 4)) {
         vsapi->freeNode(d.node1);
         vsapi->freeNode(d.node2);
         RETERROR("PlaneDifference: clips must be the same format, constant format and of integer 8-16 bit type");
