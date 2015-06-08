@@ -32,6 +32,10 @@ Functions_
 
    muldivRational_
 
+   vs_addRational_
+
+   vs_normalizeRational_
+
    int64ToIntS_
 
    vs_bitblt_
@@ -153,6 +157,23 @@ muldivRational
    *num*\ /\ *den* \* *mul*\ /\ *div*. The result is stored in *num* and *den*.
 
    The caller must ensure that *div* is not 0.
+
+
+vs_addRational
+--------------
+
+.. c:function:: static inline void vs_addRational(int64_t *num, int64_t *den, int64_t addnum, int64_t addden)
+
+   Adds two rational numbers and reduces the result, i.e.
+   *num*\ /\ *den* + *addnum*\ /\ *addden*. The result is stored in *num* and *den*.
+
+
+vs_normalizeRational
+--------------------
+
+.. c:function:: static inline void vs_normalizeRational(int64_t *num, int64_t *den)
+
+   Normalizes (reduces) a rational number.
 
 
 int64ToIntS
