@@ -167,7 +167,7 @@ int64ToIntS
 vs_bitblt
 ---------
 
-.. c:function:: static inline void vs_bitblt(void *dstp, int dst_stride, const void *srcp, int src_stride, int row_size, int height)
+.. c:function:: static inline void vs_bitblt(void *dstp, int dst_stride, const void *srcp, int src_stride, size_t row_size, size_t height)
 
    Copies bytes from one plane to another. Basically, it is memcpy in a loop.
 
