@@ -46,6 +46,11 @@ Here are some examples to illustrate::
    # It may all be combined at once to confuse people, just like normal Python lists
    ret = clip[-400:-800:-5]
 
+Filters can be chained with a dot, like in Avisynth::
+
+   clip = core.ffms2.Source("asdf.mov")
+   clip = clip.std.Trim(first=100, last=2000).std.FlipVertical()
+
 The addition operator can be used to splice clips together::
 
    clip4 = clip1 + clip2 + clip3
