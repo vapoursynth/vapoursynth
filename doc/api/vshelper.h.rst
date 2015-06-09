@@ -32,6 +32,10 @@ Functions_
 
    muldivRational_
 
+   vs_addRational_
+
+   vs_normalizeRational_
+
    int64ToIntS_
 
    vs_bitblt_
@@ -155,6 +159,23 @@ muldivRational
    The caller must ensure that *div* is not 0.
 
 
+vs_addRational
+--------------
+
+.. c:function:: static inline void vs_addRational(int64_t *num, int64_t *den, int64_t addnum, int64_t addden)
+
+   Adds two rational numbers and reduces the result, i.e.
+   *num*\ /\ *den* + *addnum*\ /\ *addden*. The result is stored in *num* and *den*.
+
+
+vs_normalizeRational
+--------------------
+
+.. c:function:: static inline void vs_normalizeRational(int64_t *num, int64_t *den)
+
+   Normalizes (reduces) a rational number.
+
+
 int64ToIntS
 -----------
 
@@ -167,7 +188,7 @@ int64ToIntS
 vs_bitblt
 ---------
 
-.. c:function:: static inline void vs_bitblt(void *dstp, int dst_stride, const void *srcp, int src_stride, int row_size, int height)
+.. c:function:: static inline void vs_bitblt(void *dstp, int dst_stride, const void *srcp, int src_stride, size_t row_size, size_t height)
 
    Copies bytes from one plane to another. Basically, it is memcpy in a loop.
 
