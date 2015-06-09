@@ -1079,7 +1079,6 @@ static void VS_CC blankClipInit(VSMap *in, VSMap *out, void **instanceData, VSNo
 
 static const VSFrameRef *VS_CC blankClipGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     BlankClipData *d = (BlankClipData *) * instanceData;
-    VSMap *frameProps;
 
     if (activationReason == arInitial) {
         VSFrameRef *frame = NULL;
@@ -1100,10 +1099,11 @@ static const VSFrameRef *VS_CC blankClipGetframe(int n, int activationReason, vo
                 }
             }
 
-            frameProps = vsapi->getFramePropsRW(frame);
-
-            vsapi->propSetInt(frameProps, "_DurationNum", d->vi.fpsDen, paReplace);
-            vsapi->propSetInt(frameProps, "_DurationDen", d->vi.fpsNum, paReplace);
+            if (d->vi.fpsNum > 0) {
+                VSMap *frameProps = vsapi->getFramePropsRW(frame);
+                vsapi->propSetInt(frameProps, "_DurationNum", d->vi.fpsDen, paReplace);
+                vsapi->propSetInt(frameProps, "_DurationDen", d->vi.fpsNum, paReplace);
+            }
         }
 
         if (d->keep) {
@@ -1125,14 +1125,13 @@ static void VS_CC blankClipFree(void *instanceData, VSCore *core, const VSAPI *v
 }
 
 static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    BlankClipData d;
+    BlankClipData d = {0};
     BlankClipData *data;
     int hasvi = 0;
     int format = 0;
     int64_t temp;
     int err;
     int compat = 0;
-    memset(&d, 0, sizeof(d));
 
     VSNodeRef *node = vsapi->propGetNode(in, "clip", 0, &err);
 
@@ -1181,8 +1180,13 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     } else
         d.vi.fpsDen = temp;
 
-    if (d.vi.fpsDen < 1 || d.vi.fpsNum < 1)
+    if (d.vi.fpsDen < 0 || d.vi.fpsNum < 0)
         RETERROR("BlankClip: invalid framerate specified");
+
+    if (d.vi.fpsDen == 0 || d.vi.fpsNum == 0) {
+        d.vi.fpsNum = 0;
+        d.vi.fpsDen = 0;
+    }
 
     vs_normalizeRational(&d.vi.fpsNum, &d.vi.fpsDen);
 
@@ -1275,8 +1279,10 @@ static const VSFrameRef *VS_CC assumeFPSGetframe(int n, int activationReason, vo
         VSFrameRef *dst = vsapi->copyFrame(src, core);
         VSMap *m = vsapi->getFramePropsRW(dst);
         vsapi->freeFrame(src);
-        vsapi->propSetInt(m, "_DurationNum", d->vi.fpsDen, paReplace);
-        vsapi->propSetInt(m, "_DurationDen", d->vi.fpsNum, paReplace);
+        if (d->vi.fpsNum > 0) {
+            vsapi->propSetInt(m, "_DurationNum", d->vi.fpsDen, paReplace);
+            vsapi->propSetInt(m, "_DurationDen", d->vi.fpsNum, paReplace);
+        }
         return dst;
     }
 
@@ -1318,9 +1324,14 @@ static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, V
         RETERROR("AssumeFPS: need to specify source clip or fps");
     }
 
-    if (d.vi.fpsDen < 1 || d.vi.fpsNum < 1) {
+    if (d.vi.fpsDen < 0 || d.vi.fpsNum < 0) {
         vsapi->freeNode(d.node);
         RETERROR("AssumeFPS: invalid framerate specified");
+    }
+
+    if (d.vi.fpsDen == 0 || d.vi.fpsNum == 0) {
+        d.vi.fpsNum = 0;
+        d.vi.fpsDen = 0;
     }
 
     vs_normalizeRational(&d.vi.fpsNum, &d.vi.fpsDen);
