@@ -1279,10 +1279,8 @@ static const VSFrameRef *VS_CC assumeFPSGetframe(int n, int activationReason, vo
         VSFrameRef *dst = vsapi->copyFrame(src, core);
         VSMap *m = vsapi->getFramePropsRW(dst);
         vsapi->freeFrame(src);
-        if (d->vi.fpsNum > 0) {
-            vsapi->propSetInt(m, "_DurationNum", d->vi.fpsDen, paReplace);
-            vsapi->propSetInt(m, "_DurationDen", d->vi.fpsNum, paReplace);
-        }
+        vsapi->propSetInt(m, "_DurationNum", d->vi.fpsDen, paReplace);
+        vsapi->propSetInt(m, "_DurationDen", d->vi.fpsNum, paReplace);
         return dst;
     }
 
@@ -1324,14 +1322,9 @@ static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, V
         RETERROR("AssumeFPS: need to specify source clip or fps");
     }
 
-    if (d.vi.fpsDen < 0 || d.vi.fpsNum < 0) {
+    if (d.vi.fpsDen < 1 || d.vi.fpsNum < 1) {
         vsapi->freeNode(d.node);
         RETERROR("AssumeFPS: invalid framerate specified");
-    }
-
-    if (d.vi.fpsDen == 0 || d.vi.fpsNum == 0) {
-        d.vi.fpsNum = 0;
-        d.vi.fpsDen = 0;
     }
 
     vs_normalizeRational(&d.vi.fpsNum, &d.vi.fpsDen);

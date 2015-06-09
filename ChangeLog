@@ -1,5 +1,6 @@
 r28:
-blankclip and assumefps can now create 0 (unknown/variable) fps clip
+fixed division by zero issues in muldivrational in vshelper.h
+blankclip can now create 0 (unknown/variable) fps clips
 added float support to planedifference and planeaverage
 added half support to addborders
 relevant compile time options are now in the version string
