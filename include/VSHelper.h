@@ -27,6 +27,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 #ifdef _WIN32
 #include <malloc.h>
 #endif
@@ -88,6 +89,13 @@ static inline int isSameFormat(const VSVideoInfo *v1, const VSVideoInfo *v2) {
 
 /* multiplies and divides a rational number, such as a frame duration, in place and reduces the result */
 static inline void muldivRational(int64_t *num, int64_t *den, int64_t mul, int64_t div) {
+    /* do nothing if the rational number is invalid */
+    if (!*den)
+        return;
+
+    /* nobody wants to accidentally divide by zero */
+    assert(div);
+
     int64_t a, b;
     *num *= mul;
     *den *= div;
@@ -111,6 +119,13 @@ static inline void vs_normalizeRational(int64_t *num, int64_t *den) {
 
 /* add two rational numbers and normalize the result */
 static inline void vs_addRational(int64_t *num, int64_t *den, int64_t addnum, int64_t addden) {
+    /* do nothing if the rational number is invalid */
+    if (!*den)
+        return;
+
+    /* nobody wants to accidentally add an invalid rational number */
+    assert(addden);
+
 	if (*den == addden) {
 		*num += addnum;
 	} else {
