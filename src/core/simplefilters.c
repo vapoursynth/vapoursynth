@@ -429,7 +429,7 @@ static void VS_CC addBordersCreate(const VSMap *in, VSMap *out, void *userData, 
                     if (d.color.f[i] < -0.5 || d.color.f[i] > 0.5)
                         RETERROR("AddBorders: color value out of range");
                 }
-                if (d.vi->format->bitsPerSample == 2)
+                if (d.vi->format->bitsPerSample == 16)
                     d.color.i[i] = floatToHalf(d.color.f[i]);
             }
         }

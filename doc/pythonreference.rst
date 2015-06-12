@@ -200,8 +200,7 @@ Classes and Functions
 
    .. py:attribute:: num_frames
 
-      The number of frames in the clip. This value will be 0 if the total number
-      of frames is unknown or infinite.
+      The number of frames in the clip.
 
    .. py:attribute:: fps_num
 
