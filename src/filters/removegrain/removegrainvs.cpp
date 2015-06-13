@@ -1270,7 +1270,7 @@ static void process_subplane_cpp (const T *src_ptr, int stride_src, T *dst_ptr, 
     for (int y = y_b; y < y_e; ++y)
     {
         if (OP::skip_line(y)) {
-            memcpy(dst_ptr, src_ptr, stride_dst);
+            memcpy(dst_ptr, src_ptr, width * sizeof(T));
         } else {
 
             dst_ptr[0] = src_ptr[0];
@@ -1337,7 +1337,7 @@ static void process_subplane_sse2 (const T *src_ptr, int stride_src, T *dst_ptr,
     {
 
         if (OP::skip_line(y)) {
-            memcpy(dst_ptr, src_ptr, stride_dst);
+            memcpy(dst_ptr, src_ptr, width * sizeof(T));
         } else {
             dst_ptr[0] = src_ptr[0];
 
