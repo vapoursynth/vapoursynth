@@ -23,7 +23,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <string>
-#include <vector>
+#include <array>
 
 #include "VSHelper.h"
 
@@ -227,7 +227,7 @@ static FORCE_INLINE PixelType generic_3x3(
     } else if (op == GenericMedian) {
 
         // Extra extra lazy.
-        std::vector<PixelType> v{ a11, a21, a31, a12, a22, a32, a13, a23, a33 };
+        std::array<PixelType, 9> v{ a11, a21, a31, a12, a22, a32, a13, a23, a33 };
 
         std::nth_element(v.begin(), v.begin() + v.size() / 2, v.end());
 
