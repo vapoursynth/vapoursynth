@@ -1404,14 +1404,14 @@ static void do_process_plane_cpp (const VSFrameRef *src_frame, VSFrameRef *dst_f
     const T1*        src_ptr       = reinterpret_cast<const T1*>(vsapi->getReadPtr(src_frame, plane_id));
 
     // First line
-    memcpy (dst_ptr, src_ptr, stride);
+    memcpy(dst_ptr, src_ptr, w * sizeof(T1));
 
     // Main content
     PlaneProc<OP1, T1>::process_subplane_cpp(src_ptr, stride/sizeof(T1), dst_ptr, stride/sizeof(T1), w, h);
 
     // Last line
     const int        lp = (h - 1) * stride/sizeof(T1);
-    memcpy (dst_ptr + lp, src_ptr + lp, stride);
+    memcpy(dst_ptr + lp, src_ptr + lp, w * sizeof(T1));
 }
 
 };

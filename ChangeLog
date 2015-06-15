@@ -1,4 +1,5 @@
 r28:
+fixed an image corruption bug with 9-16 bit input to rgvs when the c++ code is used
 fixed division by zero issues in muldivrational in vshelper.h
 blankclip can now create 0 (unknown/variable) fps clips
 added float support to planedifference and planeaverage
