@@ -7,7 +7,7 @@ Editors
 
 Native Plugins
 ##############
-* AviSource -- in the source tree
+* :ref:`AviSource <avisource>` -- in the source tree
 * :ref:`AssVapour <assvapour>` -- subtitle renderer, in the source tree
 * :ref:`EEDI3 <eedi3>` -- in the source tree
 * :ref:`ImageMagick Writer/Reader <imwri>` -- image writer and reader, in the source tree
