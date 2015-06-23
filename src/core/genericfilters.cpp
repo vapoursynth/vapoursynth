@@ -220,7 +220,7 @@ static FORCE_INLINE PixelType generic_3x3(
 
         int limit = max_min<op>(a22 + th, lower_or_upper_bound);
 
-        int sum = a11 + a21 + a31 + a12 + a32 + a13 + a23 + a33;
+        int sum = a11 + a21 + a31 + a12 + a32 + a13 + a23 + a33 + 4;
 
         return max_min<op>(min_max<op>(sum >> 3, a22), limit);
 
