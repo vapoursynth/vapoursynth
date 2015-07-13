@@ -308,6 +308,7 @@ static void VS_CC reverseCreate(const VSMap *in, VSMap *out, void *userData, VSC
 typedef struct {
     VSNodeRef *node;
     VSVideoInfo vi;
+    int numFramesIn;
 } LoopData;
 
 static void VS_CC loopInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -319,9 +320,9 @@ static const VSFrameRef *VS_CC loopGetframe(int n, int activationReason, void **
     LoopData *d = (LoopData *) * instanceData;
 
     if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n % d->vi.numFrames, d->node, frameCtx);
+        vsapi->requestFrameFilter(n % d->numFramesIn, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        return vsapi->getFrameFilter(n % d->vi.numFrames, d->node, frameCtx);
+        return vsapi->getFrameFilter(n % d->numFramesIn, d->node, frameCtx);
     }
 
     return 0;
@@ -337,6 +338,7 @@ static void VS_CC loopCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = *vsapi->getVideoInfo(d.node);
+    d.numFramesIn = d.vi.numFrames;
 
     // early termination for the trivial case
     if (times == 1) {
