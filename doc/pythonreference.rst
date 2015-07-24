@@ -21,7 +21,7 @@ are CamelCase. Unit names are also lowercase and usually short. This is good to
 remember. If you do not like CamelCase for function names you can pass
 *accept_lowercase=True* to get_core().
 
-Slicing and other syntactic sugar
+Slicing and Other Syntactic Sugar
 #################################
 
 The VideoNode class (always called "clip" in practice) supports the full
@@ -66,6 +66,23 @@ The multiplication operator can be used to loop a clip::
    clip = core.std.Loop(clip, times=42)
    
 Note that multiplication by 0 is a special case that will repeat the clip up to the maximum frame count.
+
+Python Keywords as Filter Arguments
+###################################
+
+If a filter's argument happens to be a Python keyword, you may prepend
+an underscore to the argument's name when invoking the filter. The Python
+module will strip one leading underscore from all filter arguments before
+passing them to the filters.
+
+::
+
+   clip = core.plugin.Filter(clip, _lambda=1)
+
+Another way to deal with such arguments is to place them in a dictionary::
+
+   args = { "lambda": 1 }
+   clip = core.plugin.Filter(clip, **args)
 
 Output
 ######
