@@ -30,8 +30,6 @@ The documentation can be built using its own Makefile:
 
 The documentation can be installed using the standard program `cp`.
 
-Probably only the plugins can be cross-compiled with Mingw-w64.
-
 
 Depending on your operating system's configuration, VapourSynth may not
 work out of the box with the default prefix of /usr/local. Two errors
