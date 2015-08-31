@@ -134,7 +134,7 @@ bool funcToLut(int nin, int nout, void *vlut, VSFuncRef *func, const VSAPI *vsap
             double v = vsapi->propGetFloat(out, "val", 0, &err);
             vsapi->clearMap(out);
 
-            if (!isfinite(v) || err) {
+            if (err) {
                 errstr = "Lut: function(" + std::to_string(i) + ") returned invalid value: " + std::to_string(v);
                 break;
             }
