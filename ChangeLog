@@ -1,4 +1,7 @@
 r28:
+fixed loop filter (nodame)
+lut and lut2 can now output float as well
+now accepts scripts that start with a BOM as well
 fixed an image corruption bug with 9-16 bit input to rgvs when the c++ code is used
 fixed division by zero issues in muldivrational in vshelper.h
 blankclip can now create 0 (unknown/variable) fps clips

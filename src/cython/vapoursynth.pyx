@@ -1465,7 +1465,7 @@ cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, 
                 Py_DECREF(errstr)
                 errstr = None
 
-            comp = compile(script.decode('utf-8'), fn, 'exec')
+            comp = compile(script.decode('utf-8-sig'), fn, 'exec')
             exec(comp) in evaldict
 
         except BaseException, e:
