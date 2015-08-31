@@ -1,14 +1,18 @@
 Lut
 ===
 
-.. function:: Lut(clip clip[, int[] planes, int[] lut, func function])
+.. function:: Lut(clip clip[, int[] planes, int[] lut, float[] lutf, func function, int bits, bint floatout])
    :module: std
 
    Applies a look-up table to the given clip. The lut can be specified as either an array
    of 2^bits_per_sample values or given as a *function* having an argument named
-   *x* to be evaluated. Either *lut* or *function* must be used. The lut will be
+   *x* to be evaluated. Either *lut*, *lutf* or *function* must be used. The lut will be
    applied to the planes listed in *planes* and the other planes will simply be
    passed through unchanged. By default all *planes* are processed.
+   
+   If *floatout* is set then the output will be floating point instead, and either
+   *lutf* needs to be set or *function* always needs to return floating point
+   values.
 
    How to limit YUV range (by passing an array):
 

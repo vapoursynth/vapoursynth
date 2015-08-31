@@ -30,9 +30,6 @@
     <ClCompile Include="..\..\src\core\exprfilter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\core\lutfilters.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\core\mergefilters.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -73,6 +70,9 @@
       <Filter>sdk</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core\genericfilters.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core\lutfilters.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

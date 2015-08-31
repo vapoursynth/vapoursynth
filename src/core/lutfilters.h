@@ -23,6 +23,6 @@
 
 #include "VapourSynth.h"
 
-void VS_CC lutInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
+VS_API(void) lutInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
 
 #endif // LUTFILTERS_H
