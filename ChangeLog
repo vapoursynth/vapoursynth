@@ -1,4 +1,5 @@
 r28:
+now returns an error message saying that windows needs to be updated in certain cases when plugin loading fails
 fixed loop filter (nodame)
 lut and lut2 can now output float as well
 now accepts scripts that start with a BOM as well
