@@ -163,17 +163,19 @@ def get_output(int index = 0):
 cdef class FuncData(object):
     cdef object func
     cdef Core core
+    cdef int id
     
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
         
     def __call__(self, **kwargs):
         return self.func(**kwargs)
-    
-cdef FuncData createFuncData(object func, Core core):
+
+cdef FuncData createFuncData(object func, Core core, int id):
     cdef FuncData instance = FuncData.__new__(FuncData)
     instance.func = func
     instance.core = core
+    instance.id = id
     return instance
     
 cdef class Func(object):
@@ -210,7 +212,10 @@ cdef class Func(object):
 cdef Func createFuncPython(object func, Core core):
     cdef Func instance = Func.__new__(Func)
     instance.funcs = core.funcs
-    fdata = createFuncData(func, core)
+    global _environment_id
+    if _environment_id is None:
+        raise Error('Internal environment id not set. Report this function wrapper creation error.')
+    fdata = createFuncData(func, core, _environment_id)
     Py_INCREF(fdata)
     instance.ref = instance.funcs.createFunc(publicFunction, <void *>fdata, freeFunc, core.core, core.funcs)
     return instance
@@ -1389,8 +1394,13 @@ cdef void __stdcall freeFunc(void *pobj) nogil:
 
 cdef void __stdcall publicFunction(const VSMap *inm, VSMap *outm, void *userData, VSCore *core, const VSAPI *vsapi) nogil:
     with gil:
+        global _environment_id
+        global _environment_id_stack
+    
         d = <FuncData>userData
-
+        _environment_id_stack.append(_environment_id)
+        _environment_id = d.id
+   
         try:
             m = mapToDict(inm, False, False, d.core, vsapi)
             ret = d(**m)
@@ -1400,6 +1410,8 @@ cdef void __stdcall publicFunction(const VSMap *inm, VSMap *outm, void *userData
         except BaseException, e:
             emsg = str(e).encode('utf-8')
             vsapi.setError(outm, emsg)
+        finally:
+            _environment_id = _environment_id_stack.pop()
 
 # for whole script evaluation and export
 cdef public struct VPYScriptExport:
