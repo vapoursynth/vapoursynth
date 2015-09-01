@@ -155,7 +155,7 @@ static inline void vs_bitblt(void *dstp, int dst_stride, const void *srcp, int s
         if (src_stride == dst_stride && src_stride == (int)row_size) {
             memcpy(dstp, srcp, row_size * height);
         } else {
-            uint8_t *srcp8 = (uint8_t *)srcp;
+            const uint8_t *srcp8 = (const uint8_t *)srcp;
             uint8_t *dstp8 = (uint8_t *)dstp;
             for (size_t i = 0; i < height; i++) {
                 memcpy(dstp8, srcp8, row_size);
