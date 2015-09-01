@@ -44,7 +44,7 @@ typedef struct LutData {
     bool process[3];
     void (VS_CC *freeNode)(VSNodeRef *);
     LutData(const VSAPI *vsapi) : node(nullptr), vi(), lut(nullptr), process(), freeNode(vsapi->freeNode) {}
-    ~LutData() { delete[] lut; freeNode(node); };
+    ~LutData() { free(lut); freeNode(node); };
 } LutData;
 
 static void VS_CC lutInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -154,7 +154,7 @@ static void lutCreateHelper(const VSMap *in, VSMap *out, VSFuncRef *func, std::u
     int inrange = 1 << d->vi->format->bitsPerSample;
     int maxval = 1 << d->vi_out.format->bitsPerSample;
 
-	d->lut = new U[inrange];
+	d->lut = malloc(inrange * sizeof(U));
 
     if (func) {
         std::string errstr;
@@ -181,8 +181,6 @@ static void lutCreateHelper(const VSMap *in, VSMap *out, VSFuncRef *func, std::u
 
             for (int i = 0; i < inrange; i++) {
                 double v = arr[i];
-                if (!isfinite(v))
-                    RETERROR("Lut: lut value out of range");
                 lut[i] = static_cast<U>(v);
             }
         }
@@ -412,7 +410,7 @@ static void lut2CreateHelper(const VSMap *in, VSMap *out, VSFuncRef *func, std::
     int inrange = (1 << d->vi[0]->format->bitsPerSample) * (1 << d->vi[1]->format->bitsPerSample);
     int maxval = 1 << d->vi_out.format->bitsPerSample;
 
-	d->lut = new V[inrange];
+	d->lut = malloc(inrange * sizeof(V));
 
     if (func) {
         std::string errstr;
@@ -439,9 +437,6 @@ static void lut2CreateHelper(const VSMap *in, VSMap *out, VSFuncRef *func, std::
 
             for (int i = 0; i < inrange; i++) {
                 double v = arr[i];
-                // fixme, should inf and nan be illegal?
-                //if (!isfinite(v))
-                //    RETERROR("Lut2: invalid float, Inf or NaN not allowed");
                 lut[i] = static_cast<V>(v);
             }
         }
