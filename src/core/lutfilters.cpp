@@ -287,7 +287,7 @@ struct Lut2Data {
     bool process[3];
     void (VS_CC *freeNode)(VSNodeRef *);
     Lut2Data(const VSAPI *vsapi) : node(), vi(), vi_out(), lut(nullptr), process(), freeNode(vsapi->freeNode) {}
-    ~Lut2Data() { delete[] lut; freeNode(node[0]); freeNode(node[1]); };
+    ~Lut2Data() { free(lut); freeNode(node[0]); freeNode(node[1]); };
 };
 
 static void VS_CC lut2Init(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
