@@ -569,7 +569,7 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     for (int i = 0; i < numElem; i++)
         d->filenames[i] = vsapi->propGetData(in, "filename", i, nullptr);
     
-    d->vi[0] = { nullptr, 30, 1, 0, 0, d->filenames.size(), 0 };
+    d->vi[0] = { nullptr, 30, 1, 0, 0, static_cast<int>(d->filenames.size()), 0 };
     // See if it's a single filename with number substitution and check how many files exist
     if (d->vi[0].numFrames == 1 && specialPrintf(d->filenames[0], 0) != d->filenames[0]) {
         d->fileListMode = false;
