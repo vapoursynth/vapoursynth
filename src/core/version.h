@@ -22,7 +22,7 @@
 
 #define XSTR(x) STR(x)
 #define STR(x) #x
-#define VAPOURSYNTH_CORE_VERSION 27
+#define VAPOURSYNTH_CORE_VERSION 28
 #ifdef VS_FRAME_GUARD
 #define VS_OPTIONS_TEXT "Options: Frame guard\n"
 #else
