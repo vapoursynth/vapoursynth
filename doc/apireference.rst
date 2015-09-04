@@ -12,6 +12,54 @@ Public Headers
    :glob:
 
    api/*
+   
+Common Pitfalls
+###############
+
+There are several minor pitfalls related to the threading and design that have to be taken into consideration. Most of them are usually aren't a problem but here's a small checklist of things you have to watch out for sometimes.
+
+General API
+-----------
+You may not pass objects (clips, functions and so on) owned by one core as arguments to filters in another core. A manual full deep copy of the data you want to pass on is required. This is generally not a problem since you should never need more than one core per filter graph.
+
+Plugins
+-------
+Plugin code may run more multithreaded than it initially appears. *VapourSynthPluginInit* is the only function always guaranteed to not run in parallel. This means that the contructor and destructor of a filter may be run in parallel for several instances. Use proper synchronization if you need to initialize shared data.
+
+The *GetFrame* function is a bit more complicated so see the reference of the constants. Do however note that the parallelism is per instance. Even if a filter is *fmUnordered* or *fmSerial* other instances may enter *GetFrame* simultaneously.
+
+There are two common misconseptions about which mode should be used. A simple rule is that *fmSerial* should never be used. And source filters (those returning a frame on *arInitial*) that need locking should use *fmUnordered*.
+
+VSScript/Python
+---------------
+Python state is global, if an additional module has once been loaded it won't refresh automatically. Therefore never call vs.get_core() in the global scope of a module that can be imported.
+
+   WRONG::
+   
+      user_function.py:
+      import vapoursynth as vs
+      core = vs.get_core()
+      def foo():
+         return core.std.BlankClip()
+
+   RIGHT::
+   
+      user_function.py:
+      import vapoursynth as vs
+      def foo():
+         core = vs.get_core()
+         return core.std.BlankClip()
+
+   MAIN SCRIPT::
+   
+      main.vpy:
+      import vapoursynth as vs
+      import user_function
+      core = vs.get_core()
+      user_function.foo().set_output()
+
+In the wrong case the core variable in user_function.py will only be assigned the first time the script it run, meaning that it won't use the same core as the rest of the script after a reload.
+In R26 and later this will return an error. Earlier versions may or may not crash with a fatal error.
 
 Reserved Frame Properties
 #########################
