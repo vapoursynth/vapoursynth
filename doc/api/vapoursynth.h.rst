@@ -1031,7 +1031,7 @@ struct VSAPI
    int getStride(const VSFrameRef_ \*f, int plane)
 
       Returns the distance in bytes between two consecutive lines of a plane of
-      a frame.
+      a frame. The stride is always positive.
 
       Passing an invalid plane number will cause a fatal error.
 
