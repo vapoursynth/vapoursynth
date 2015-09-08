@@ -497,7 +497,7 @@ bool AVISource::AttemptCodecNegotiation(DWORD fccHandler, BITMAPINFOHEADER* bmih
 
             // This never seems to work...
 
-            hic = ICLocate(ICTYPE_VIDEO, nullptr, bmih, nullptr, ICMODE_DECOMPRESS);
+            hic = ICLocate(ICTYPE_VIDEO, 0, bmih, nullptr, ICMODE_DECOMPRESS);
         }
     }
 

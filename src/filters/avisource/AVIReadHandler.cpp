@@ -1699,7 +1699,7 @@ bool AVIReadHandler::_parseStreamHeader(List2<AVIStreamNode>& streamlist, uint32
                 pasn->keyframe_only = true;
             } else if (pasn->hdr.fccType == kAVIStreamTypeVideo) {
                 switch(((BITMAPINFOHEADER *)pasn->pFormat)->biCompression) {
-                    case nullptr:
+                    case 0:
                     case ' WAR':
                     case ' BID':
                     case '1bmd':
