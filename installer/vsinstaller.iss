@@ -49,8 +49,8 @@ Source: template.vpy; DestDir: {app}; Flags: ignoreversion uninsrestartdelete re
 Source: vapoursynth.pth; DestDir: {code:GetPythonPath32}; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
 Source: vapoursynth.pth; DestDir: {code:GetPythonPath64}; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 
-Source: x86\vapoursynth.pyd; DestDir: {code:GetPythonPath32}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: x64\vapoursynth.pyd; DestDir: {code:GetPythonPath64}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+Source: ..\vapoursynth.cp35-win32.pyd; DestDir: {code:GetPythonPath32}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: ..\vapoursynth.cp35-win_amd64.pyd; DestDir: {code:GetPythonPath64}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 
 Source: ..\msvc_project\Release\vapoursynth.dll; DestDir: {code:GetPythonPath32}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
 Source: ..\msvc_project\x64\Release\vapoursynth.dll; DestDir: {code:GetPythonPath64}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
@@ -172,9 +172,9 @@ end;
 function InitializeSetup: Boolean;
 var Success: Boolean;
 begin
-  Success := RegQueryStringValue(HKCU32, 'SOFTWARE\Python\PythonCore\3.5\InstallPath', '', PythonPath32);
+  Success := RegQueryStringValue(HKCU32, 'SOFTWARE\Python\PythonCore\3.5-32\InstallPath', '', PythonPath32);
   if not Success then
-    RegQueryStringValue(HKLM32, 'SOFTWARE\Python\PythonCore\3.5\InstallPath', '', PythonPath32);
+    RegQueryStringValue(HKLM32, 'SOFTWARE\Python\PythonCore\3.5-32\InstallPath', '', PythonPath32);
 
   if Is64BitInstallMode then
   begin
