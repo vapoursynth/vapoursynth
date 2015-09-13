@@ -1,9 +1,20 @@
 #!/usr/bin/env python
 
+from platform import architecture
 from os import curdir, pardir
 from os.path import join
 from distutils.core import setup
 from Cython.Distutils import Extension, build_ext
+
+is_win = (architecture()[1] == "WindowsPE")
+is_64 = (architecture()[0] == "64bit")
+
+library_dirs = [curdir, "build"]
+if is_win:
+    if is_64:
+        library_dirs.append(join("msvc_project", "x64", "Release"))
+    else:
+        library_dirs.append(join("msvc_project", "Release"))
 
 setup(
     name = "VapourSynth",
@@ -19,7 +30,7 @@ setup(
     cmdclass = {'build_ext': build_ext},
     ext_modules = [Extension("vapoursynth", [join("src", "cython", "vapoursynth.pyx")],
                              libraries = ["vapoursynth"],
-                             library_dirs = [curdir, "build"],
+                             library_dirs = library_dirs,
                              include_dirs = [curdir, join("src", "cython")],
                              cython_c_in_temp = 1)]
 )
