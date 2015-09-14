@@ -66,20 +66,20 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>../../include;c:\Python34\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Python34\libs;$(LibraryPath)</LibraryPath>
+    <IncludePath>../../include;C:\Program Files %28x86%29\Python 3.5\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Program Files %28x86%29\Python 3.5\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>../../include;c:\Python34_x64\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Python34_x64\libs;$(LibraryPath)</LibraryPath>
+    <IncludePath>../../include;C:\Program Files\Python 3.5\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Program Files\Python 3.5\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>../../include;c:\Python34\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Python34\libs;$(LibraryPath)</LibraryPath>
+    <IncludePath>../../include;C:\Program Files %28x86%29\Python 3.5\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Program Files %28x86%29\Python 3.5\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>../../include;c:\Python34_x64\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Python34_x64\libs;$(LibraryPath)</LibraryPath>
+    <IncludePath>../../include;C:\Program Files\Python 3.5\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Program Files\Python 3.5\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
