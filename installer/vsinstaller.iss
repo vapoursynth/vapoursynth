@@ -70,7 +70,7 @@ Source: ..\msvc_project\x64\Release\vsvfw.dll; DestDir: {sys}; Flags: uninsresta
 
 Source: ..\msvc_project\Release\vsscript.dll; DestDir: {sys}; Flags: uninsrestartdelete restartreplace 32bit; Components: vs32
 Source: ..\msvc_project\x64\Release\vsscript.dll; DestDir: {sys}; Flags: uninsrestartdelete restartreplace 64bit; Components: vs64
-;vs2010 and vs2013 runtime installers
+;vs2015 runtime installers
 Source: x86\rtx86.msi; DestDir: {app}\runtimes; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
 Source: x64\rtx64.msi; DestDir: {app}\runtimes; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 ;sdk
