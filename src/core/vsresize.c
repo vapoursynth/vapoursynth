@@ -32,58 +32,58 @@
 static enum PixelFormat formatIdToPixelFormat(int id) {
     switch (id) {
     case pfGray8:
-        return PIX_FMT_GRAY8;
+        return AV_PIX_FMT_GRAY8;
     case pfGray16:
-        return PIX_FMT_GRAY16;
+        return AV_PIX_FMT_GRAY16;
     case pfYUV420P8:
-        return PIX_FMT_YUV420P;
+        return AV_PIX_FMT_YUV420P;
     case pfYUV422P8:
-        return PIX_FMT_YUV422P;
+        return AV_PIX_FMT_YUV422P;
     case pfYUV444P8:
-        return PIX_FMT_YUV444P;
+        return AV_PIX_FMT_YUV444P;
     case pfYUV410P8:
-        return PIX_FMT_YUV410P;
+        return AV_PIX_FMT_YUV410P;
     case pfYUV411P8:
-        return PIX_FMT_YUV411P;
+        return AV_PIX_FMT_YUV411P;
     case pfYUV440P8:
-        return PIX_FMT_YUV440P;
+        return AV_PIX_FMT_YUV440P;
 
     case pfYUV420P9:
-        return PIX_FMT_YUV420P9;
+        return AV_PIX_FMT_YUV420P9;
     case pfYUV422P9:
-        return PIX_FMT_YUV422P9;
+        return AV_PIX_FMT_YUV422P9;
     case pfYUV444P9:
-        return PIX_FMT_YUV444P9;
+        return AV_PIX_FMT_YUV444P9;
 
     case pfYUV420P10:
-        return PIX_FMT_YUV420P10;
+        return AV_PIX_FMT_YUV420P10;
     case pfYUV422P10:
-        return PIX_FMT_YUV422P10;
+        return AV_PIX_FMT_YUV422P10;
     case pfYUV444P10:
-        return PIX_FMT_YUV444P10;
+        return AV_PIX_FMT_YUV444P10;
 
     case pfYUV420P16:
-        return PIX_FMT_YUV420P16;
+        return AV_PIX_FMT_YUV420P16;
     case pfYUV422P16:
-        return PIX_FMT_YUV422P16;
+        return AV_PIX_FMT_YUV422P16;
     case pfYUV444P16:
-        return PIX_FMT_YUV444P16;
+        return AV_PIX_FMT_YUV444P16;
 
     case pfRGB24:
-        return PIX_FMT_GBRP;
+        return AV_PIX_FMT_GBRP;
     case pfRGB27:
-        return PIX_FMT_GBRP9;
+        return AV_PIX_FMT_GBRP9;
     case pfRGB30:
-        return PIX_FMT_GBRP10;
+        return AV_PIX_FMT_GBRP10;
     case pfRGB48:
-        return PIX_FMT_GBRP16;
+        return AV_PIX_FMT_GBRP16;
 
     case pfCompatBGR32:
-        return PIX_FMT_RGB32;
+        return AV_PIX_FMT_RGB32;
     case pfCompatYUY2:
-        return PIX_FMT_YUYV422;
+        return AV_PIX_FMT_YUYV422;
     default:
-        return PIX_FMT_NONE;
+        return AV_PIX_FMT_NONE;
     }
 }
 
@@ -173,7 +173,7 @@ static const VSFrameRef *VS_CC resizeGetframe(int n, int activationReason, void 
         if (!d->context || d->lsrcformat != fi || d->lsrcw != w || d->lsrch != h) {
             int srcid = formatIdToPixelFormat(fi->id);
 
-            if (srcid == PIX_FMT_NONE) {
+            if (srcid == AV_PIX_FMT_NONE) {
                 vsapi->freeFrame(src);
                 vsapi->freeFrame(dst);
                 vsapi->setFilterError("Resize: input format not supported", frameCtx);
@@ -265,7 +265,7 @@ static void VS_CC resizeCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     d.flags = int64ToIntS((intptr_t)userData);
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = *vsapi->getVideoInfo(d.node);
-    if (d.vi.format && formatIdToPixelFormat(d.vi.format->id) == PIX_FMT_NONE)
+    if (d.vi.format && formatIdToPixelFormat(d.vi.format->id) == AV_PIX_FMT_NONE)
         RETERROR("Resize: input format not supported");
 
     dstwidth = int64ToIntS(vsapi->propGetInt(in, "width", 0, &err));
@@ -291,7 +291,7 @@ static void VS_CC resizeCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 
     pf = formatIdToPixelFormat(id);
 
-    if (pf == PIX_FMT_NONE) {
+    if (pf == AV_PIX_FMT_NONE) {
         vsapi->freeNode(d.node);
         RETERROR("Resize: unsupported output format");
     }
