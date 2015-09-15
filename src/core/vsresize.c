@@ -29,7 +29,7 @@
 #include "VSHelper.h"
 #include "filtershared.h"
 
-static enum PixelFormat formatIdToPixelFormat(int id) {
+static enum AVPixelFormat formatIdToPixelFormat(int id) {
     switch (id) {
     case pfGray8:
         return AV_PIX_FMT_GRAY8;
@@ -90,7 +90,7 @@ static enum PixelFormat formatIdToPixelFormat(int id) {
 //////////////////////////////////////////
 // Resize
 
-static struct SwsContext *getSwsContext(int SrcW, int SrcH, enum PixelFormat SrcFormat, int SrcColorSpace, int SrcColorRange, int DstW, int DstH, enum PixelFormat DstFormat, int DstColorSpace, int DstColorRange, int64_t Flags) {
+static struct SwsContext *getSwsContext(int SrcW, int SrcH, enum AVPixelFormat SrcFormat, int SrcColorSpace, int SrcColorRange, int DstW, int DstH, enum AVPixelFormat DstFormat, int DstColorSpace, int DstColorRange, int64_t Flags) {
     struct SwsContext *Context = sws_alloc_context();
     // 0 = limited range, 1 = full range
     int SrcRange = SrcColorRange == AVCOL_RANGE_JPEG;
