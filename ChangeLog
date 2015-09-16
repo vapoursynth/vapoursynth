@@ -2,6 +2,7 @@ r28:
 now uses python 3.5
 now normalizes the framerate returned from avisynth filters
 it is now a fatal error to set the videoinfo of a filter to a non-normalized framerate
+added a few more checks for proper api usage
 get_core() can now be used in callbacks and other external functions in python
 now returns an error message saying that windows needs to be updated in certain cases when plugin loading fails
 fixed loop filter (nodame)

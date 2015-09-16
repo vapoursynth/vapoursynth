@@ -135,8 +135,8 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 
             owner->tasks.erase(iter);
 
-            /////////////////////////////////////////////////////////////////////////////////////////////
-            // Figure out the activation reason
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Figure out the activation reason
 
             VSActivationReason ar = arInitial;
             bool skipCall = false; // Used to avoid multiple error calls for the same frame request going into a filter
@@ -171,7 +171,9 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 f = clip->getFrameInternal(mainContext->n, ar, externalFrameCtx);
             ranTask = true;
             bool frameProcessingDone = f || mainContext->hasError();
-
+            if (mainContext->hasError() && f)
+                vsFatal("A frame was returned by %s but an error was also set, this is not allowed", clip->name.c_str());
+                
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Unlock so the next job can run on the context
             if (filterMode == fmUnordered) {
