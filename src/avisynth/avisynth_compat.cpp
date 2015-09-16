@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2013 Fredrik Mellbin
+* Copyright (c) 2012-2015 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -360,6 +360,7 @@ static void VS_CC avisynthFilterInit(VSMap *in, VSMap *out, void **instanceData,
     vi.numFrames = viAvs.num_frames;
     vi.fpsNum = viAvs.fps_numerator;
     vi.fpsDen = viAvs.fps_denominator;
+    vs_normalizeRational(&vi.fpsNum, &vi.fpsDen);
 
     if (viAvs.IsYV12())
         vi.format = vsapi->getFormatPreset(pfYUV420P8, core);

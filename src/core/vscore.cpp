@@ -526,6 +526,11 @@ void VSNode::setVideoInfo(const VSVideoInfo *vi, int numOutputs) {
             vsFatal("Variable dimension clips must have both width and height set to 0");
         if (vi[i].format && !core->isValidFormatPointer(vi[i].format))
             vsFatal("The VSFormat pointer passed to setVideoInfo() was not gotten from registerFormat() or getFormatPreset()");
+        int64_t num = vi[i].fpsNum;
+        int64_t den = vi[i].fpsDen;
+        vs_normalizeRational(&num, &den);
+        if (num != vi[i].fpsNum || den != vi[i].fpsDen)
+            vsFatal("Specified filter framerate must be normalized");
 
         this->vi.push_back(vi[i]);
         this->vi[i].flags = flags;
