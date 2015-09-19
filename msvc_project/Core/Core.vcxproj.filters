@@ -83,9 +83,6 @@
     <YASM Include="..\..\src\core\asm\x86\cpu.asm">
       <Filter>asm</Filter>
     </YASM>
-    <YASM Include="..\..\src\core\asm\x86\expr.asm">
-      <Filter>asm</Filter>
-    </YASM>
     <YASM Include="..\..\src\core\asm\x86\merge.asm">
       <Filter>asm</Filter>
     </YASM>

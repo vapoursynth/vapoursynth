@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012 Fredrik Mellbin
+* Copyright (c) 2012-2015 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -22,6 +22,7 @@
 #include <locale>
 #include <sstream>
 #include <vector>
+#include <stack>
 #include <string>
 #include <algorithm>
 #include <stdexcept>
@@ -30,6 +31,17 @@
 #include "VapourSynth.h"
 #include "VSHelper.h"
 #include "exprfilter.h"
+#include "cpufeatures.h"
+#ifdef VS_TARGET_CPU_X86
+#define NOMINMAX
+#include "jitasm.h"
+#ifndef VS_TARGET_OS_WINDOWS
+#include <sys/mman.h>
+#endif
+#endif
+
+
+#define MAX_EXPR_INPUTS 26
 
 struct split1 {
     enum empties_t { empties_ok, no_empties };
@@ -59,8 +71,8 @@ Container& split(
 }
 
 typedef enum {
-    opLoadSrc8, opLoadSrc16, opLoadSrcF, opLoadConst,
-    opStore8, opStore16, opStoreF,
+    opLoadSrc8, opLoadSrc16, opLoadSrcF32, opLoadSrcF16, opLoadConst,
+    opStore8, opStore16, opStoreF32, opStoreF16,
     opDup, opSwap,
     opAdd, opSub, opMul, opDiv, opMax, opMin, opSqrt, opAbs,
     opGt, opLt, opEq, opLE, opGE, opTernary,
@@ -72,6 +84,12 @@ typedef union {
     float fval;
     int32_t ival;
 } ExprUnion;
+
+struct FloatIntUnion {
+    ExprUnion u;
+    FloatIntUnion(int32_t i) { u.ival = i; }
+    FloatIntUnion(float f) { u.fval = f; }
+};
 
 struct ExprOp {
     ExprUnion e;
@@ -88,16 +106,458 @@ enum PlaneOp {
     poProcess, poCopy, poUndefined
 };
 
-typedef struct {
-    VSNodeRef *node[3];
+struct ExprData {
+    VSNodeRef *node[MAX_EXPR_INPUTS];
     VSVideoInfo vi;
     std::vector<ExprOp> ops[3];
     int plane[3];
     size_t maxStackSize;
-} ExprData;
+    int numInputs;
+#ifdef VS_TARGET_CPU_X86
+    typedef void(*ProcessLineProc)(void *rwptrs, intptr_t ptroff[MAX_EXPR_INPUTS + 1], intptr_t niter);
+    ProcessLineProc proc[3];
+#endif
+    ExprData() : node(), vi(), proc() {}
+    ~ExprData() {
+#ifdef VS_TARGET_CPU_X86
+        for (int i = 0; i < 3; i++)
+#ifdef VS_TARGET_OS_WINDOWS
+            VirtualFree(proc[i], 0, MEM_RELEASE);
+#else
+            munmap(proc[i], 0);
+#endif
+#endif
+    }
+};
 
 #ifdef VS_TARGET_CPU_X86
-extern "C" void vs_evaluate_expr_sse2(const void *exprs, const uint8_t **rwptrs, const intptr_t *ptroffsets, intptr_t numiterations, void *stack);
+
+#define OneArgOp(instr) \
+auto &t1 = stack.top(); \
+instr(t1.first, t1.first); \
+instr(t1.second, t1.second);
+
+#define TwoArgOp(instr) \
+auto t1 = stack.top(); \
+stack.pop(); \
+auto &t2 = stack.top(); \
+instr(t2.first, t1.first); \
+instr(t2.second, t1.second);
+
+#define CmpOp(instr) \
+auto t1 = stack.top(); \
+stack.pop(); \
+auto t2 = stack.top(); \
+stack.pop(); \
+instr(t1.first, t2.first); \
+instr(t1.second, t2.second); \
+andps(t1.first, CPTR(elfloat_one)); \
+andps(t1.second, CPTR(elfloat_one)); \
+stack.push(t1);
+
+#define LogicOp(instr) \
+auto t1 = stack.top(); \
+stack.pop(); \
+auto t2 = stack.top(); \
+stack.pop(); \
+cmpnleps(t1.first, zero); \
+cmpnleps(t1.second, zero); \
+cmpnleps(t2.first, zero); \
+cmpnleps(t2.second, zero); \
+instr(t1.first, t2.first); \
+instr(t1.second, t2.second); \
+andps(t1.first, CPTR(elfloat_one)); \
+andps(t1.second, CPTR(elfloat_one)); \
+stack.push(t1);
+
+enum {
+    elabsmask, elc7F, elmin_norm_pos, elinv_mant_mask,
+    elfloat_one, elfloat_half, elstore8, elstore16,
+    elexp_hi, elexp_lo, elcephes_LOG2EF, elcephes_exp_C1, elcephes_exp_C2, elcephes_exp_p0, elcephes_exp_p1, elcephes_exp_p2, elcephes_exp_p3, elcephes_exp_p4, elcephes_exp_p5, elcephes_SQRTHF,
+    elcephes_log_p0, elcephes_log_p1, elcephes_log_p2, elcephes_log_p3, elcephes_log_p4, elcephes_log_p5, elcephes_log_p6, elcephes_log_p7, elcephes_log_p8, elcephes_log_q1, elcephes_log_q2
+};
+
+#define XCONST(x) { x, x, x, x }
+
+alignas(16) static const FloatIntUnion logexpconst[][4] = {
+    XCONST(0x7FFFFFFF),
+    XCONST(0x7F),
+    XCONST(0x00800000),
+    XCONST(0x7f800000),
+    XCONST(1.0f),
+    XCONST(0.5f),
+    XCONST(255.0f),
+    XCONST(65535.0f),
+    XCONST(88.3762626647949f),
+    XCONST(-88.3762626647949f),
+    XCONST(1.44269504088896341f),
+    XCONST(-2.12194440e-4f),
+    XCONST(1.9875691500E-4f),
+    XCONST(1.3981999507E-3f),
+    XCONST(8.3334519073E-3f),
+    XCONST(4.1665795894E-2f),
+    XCONST(1.6666665459E-1f),
+    XCONST(5.0000001201E-1f),
+    XCONST(0.707106781186547524f),
+    XCONST(7.0376836292E-2f),
+    XCONST(-1.1514610310E-1f),
+    XCONST(1.1676998740E-1f),
+    XCONST(-1.2420140846E-1f),
+    XCONST(+1.4249322787E-1f),
+    XCONST(-1.6668057665E-1f),
+    XCONST(+2.0000714765E-1f),
+    XCONST(-2.4999993993E-1f),
+    XCONST(+3.3333331174E-1f),
+    XCONST(-2.12194440e-4f),
+    XCONST(0.693359375f)
+};
+
+
+#define CPTR(x) (xmmword_ptr[constptr + (x) * 16])
+
+#define EXP_PS(x) { \
+XmmReg fx, emm0, etmp, y, mask, z; \
+minps(x, CPTR(elexp_hi)); \
+maxps(x, CPTR(elexp_lo)); \
+movaps(fx, x); \
+mulps(fx, CPTR(elcephes_LOG2EF)); \
+addps(fx, CPTR(elfloat_half)); \
+cvttps2dq(emm0, fx); \
+cvtdq2ps(etmp, emm0); \
+movaps(mask, etmp); \
+cmpnleps(mask, fx); \
+andps(mask, CPTR(elfloat_one)); \
+movaps(fx, etmp); \
+subps(fx, mask); \
+movaps(etmp, fx); \
+mulps(etmp, CPTR(elcephes_exp_C1)); \
+movaps(z, fx); \
+mulps(z, CPTR(elcephes_exp_C2)); \
+subps(x, etmp); \
+subps(x, z); \
+movaps(z, x); \
+mulps(z, z); \
+movaps(y, CPTR(elcephes_exp_p0)); \
+mulps(y, x); \
+addps(y, CPTR(elcephes_exp_p1)); \
+mulps(y, x); \
+addps(y, CPTR(elcephes_exp_p2)); \
+mulps(y, x); \
+addps(y, CPTR(elcephes_exp_p3)); \
+mulps(y, x); \
+addps(y, CPTR(elcephes_exp_p4)); \
+mulps(y, x); \
+addps(y, CPTR(elcephes_exp_p5)); \
+mulps(y, z); \
+addps(y, x); \
+addps(y, CPTR(elfloat_one)); \
+cvttps2dq(emm0, fx); \
+paddd(emm0, CPTR(elc7F)); \
+pslld(emm0, 23); \
+mulps(y, emm0); \
+x = y; }
+
+#define LOG_PS(x) { \
+XmmReg emm0, invalid_mask, mask, y, etmp, z; \
+xorps(invalid_mask, invalid_mask); \
+cmpnleps(invalid_mask, x); \
+maxps(x, CPTR(elmin_norm_pos)); \
+movaps(emm0, x); \
+psrld(emm0, 23); \
+andps(x, CPTR(elinv_mant_mask)); \
+orps(x, CPTR(elfloat_half)); \
+psubd(emm0, CPTR(elc7F)); \
+cvtdq2ps(emm0, emm0); \
+addps(emm0, CPTR(elfloat_one)); \
+movaps(mask, x); \
+cmpltps(mask, CPTR(elcephes_SQRTHF)); \
+movaps(etmp, x); \
+andps(etmp, mask); \
+subps(x, CPTR(elfloat_one)); \
+andps(mask, CPTR(elfloat_one)); \
+subps(emm0, mask); \
+addps(x, etmp); \
+movaps(z, x); \
+mulps(z, z); \
+movaps(y, CPTR(elcephes_log_p0)); \
+mulps(y, x); \
+addps(y, CPTR(elcephes_log_p1)); \
+mulps(y, x); \
+addps(y, CPTR(elcephes_log_p2)); \
+mulps(y, x); \
+addps(y, CPTR(elcephes_log_p3)); \
+mulps(y, x); \
+addps(y, CPTR(elcephes_log_p4)); \
+mulps(y, x); \
+addps(y, CPTR(elcephes_log_p5)); \
+mulps(y, x); \
+addps(y, CPTR(elcephes_log_p6)); \
+mulps(y, x); \
+addps(y, CPTR(elcephes_log_p7)); \
+mulps(y, x); \
+addps(y, CPTR(elcephes_log_p8)); \
+mulps(y, x); \
+mulps(y, z); \
+movaps(etmp, emm0); \
+mulps(etmp, CPTR(elcephes_log_q1)); \
+addps(y, etmp); \
+mulps(z, CPTR(elfloat_half)); \
+subps(y, z); \
+mulps(emm0, CPTR(elcephes_log_q2)); \
+addps(x, y); \
+addps(x, emm0); \
+orps(x, invalid_mask); }
+
+struct ExprEval : public jitasm::function<void, ExprEval, uint8_t *, const intptr_t *, intptr_t> {
+
+    std::vector<ExprOp> ops;
+    int numInputs;
+
+    ExprEval(std::vector<ExprOp> &ops, int numInputs) : ops(ops), numInputs(numInputs) {}
+
+    void main(Addr rwptrs, Addr ptroff, Reg niter)
+    {
+        XmmReg zero;
+        pxor(zero, zero);
+        Reg regptrs, regoffs, constptr;
+        mov(regptrs, ptr[rwptrs]);
+        mov(regoffs, ptr[ptroff]);
+        mov(constptr, (uintptr_t)logexpconst);
+
+        L("wloop");
+
+        std::stack<std::pair<XmmReg, XmmReg>> stack;
+        for (const auto &iter : ops) {
+            if (iter.op == opLoadSrc8) {
+                XmmReg r1, r2;
+                Reg a;
+                mov(a, ptr[regptrs + sizeof(void *) * (iter.e.ival + 1)]);
+                movq(r1, mmword_ptr[a]);
+                punpcklbw(r1, zero);
+                movdqa(r2, r1);
+                punpckhwd(r1, zero);
+                punpcklwd(r2, zero);
+                cvtdq2ps(r1, r1);
+                cvtdq2ps(r2, r2);
+                stack.push(std::make_pair(r1, r2));
+            } else if (iter.op == opLoadSrc16) {
+                XmmReg r1, r2;
+                Reg a;
+                mov(a, ptr[regptrs + sizeof(void *) * (iter.e.ival + 1)]);
+                movdqa(r1, xmmword_ptr[a]);
+                movdqa(r2, r1);
+                punpckhwd(r1, zero);
+                punpcklwd(r2, zero);
+                cvtdq2ps(r1, r1);
+                cvtdq2ps(r2, r2);
+                stack.push(std::make_pair(r1, r2));
+            } else if (iter.op == opLoadSrcF32) {
+                XmmReg r1, r2;
+                Reg a;
+                mov(a, ptr[regptrs + sizeof(void *) * (iter.e.ival + 1)]);
+                movdqa(r1, xmmword_ptr[a]);
+                movdqa(r2, xmmword_ptr[a + 16]);
+                stack.push(std::make_pair(r1, r2));
+            } else if (iter.op == opLoadSrcF16) {
+                XmmReg r1, r2;
+                Reg a;
+                mov(a, ptr[regptrs + sizeof(void *) * (iter.e.ival + 1)]);
+                vcvtph2ps(r1, qword_ptr[a]);
+                vcvtph2ps(r2, qword_ptr[a + 8]);
+                stack.push(std::make_pair(r1, r2));
+            } else if (iter.op == opLoadConst) {
+                XmmReg r1;
+                Reg a;
+                mov(a, iter.e.ival);
+                movd(r1, a);
+                shufps(r1, r1, 0);
+                stack.push(std::make_pair(r1, r1));
+            } else if (iter.op == opDup) {
+                XmmReg r1, r2;
+                movaps(r1, stack.top().first);
+                movaps(r2, stack.top().second);
+                stack.push(std::make_pair(r1, r2));
+            } else if (iter.op == opSwap) {
+                auto t1 = stack.top();
+                stack.pop();
+                auto t2 = stack.top();
+                stack.pop();
+                stack.push(t1);
+                stack.push(t2);
+            } else if (iter.op == opAdd) {
+                TwoArgOp(addps)
+            } else if (iter.op == opSub) {
+                TwoArgOp(subps)
+            } else if (iter.op == opMul) {
+                TwoArgOp(mulps)
+            } else if (iter.op == opDiv) {
+                TwoArgOp(divps)
+            } else if (iter.op == opMax) {
+                TwoArgOp(maxps)
+            } else if (iter.op == opMin) {
+                TwoArgOp(minps)
+            } else if (iter.op == opSqrt) {
+                auto &t1 = stack.top();
+                maxps(t1.first, zero);
+                maxps(t1.second, zero);
+                sqrtps(t1.first, zero);
+                sqrtps(t1.second, zero);
+            } else if (iter.op == opSqrt) {
+                auto &t1 = stack.top();
+                maxps(t1.first, zero);
+                maxps(t1.second, zero);
+                sqrtps(t1.first, zero);
+                sqrtps(t1.second, zero);
+            } else if (iter.op == opStore8) {
+                auto t1 = stack.top();
+                stack.pop();
+                XmmReg r1, r2;
+                Reg a;
+                maxps(t1.first, zero);
+                maxps(t1.second, zero);  
+                minps(t1.first, CPTR(elstore8));
+                minps(t1.second, CPTR(elstore8));
+                mov(a, ptr[regptrs]);
+                cvtps2dq(t1.first, t1.first);
+                cvtps2dq(t1.second, t1.second);
+                movdqa(r1, t1.first);
+                movdqa(r2, t1.second);
+                psrldq(t1.first, 6);
+                psrldq(t1.second, 6);
+                por(t1.first, r1);
+                por(t1.second, r2);
+                pshuflw(t1.first, t1.first, 0b11011000);
+                pshuflw(t1.second, t1.second, 0b11011000);
+                punpcklqdq(t1.second, t1.first);
+                packuswb(t1.second, zero);
+                movq(mmword_ptr[a], t1.second);
+            } else if (iter.op == opStore16) {
+                auto t1 = stack.top();
+                stack.pop();
+                XmmReg r1, r2;
+                Reg a;
+                maxps(t1.first, zero);
+                maxps(t1.second, zero);
+                minps(t1.first, CPTR(elstore16));
+                minps(t1.second, CPTR(elstore16));
+                mov(a, ptr[regptrs]);
+                cvtps2dq(t1.first, t1.first);
+                cvtps2dq(t1.second, t1.second);
+                movdqa(r1, t1.first);
+                movdqa(r2, t1.second);
+                psrldq(t1.first, 6);
+                psrldq(t1.second, 6);
+                por(t1.first, r1);
+                por(t1.second, r2);
+                pshuflw(t1.first, t1.first, 0b11011000);
+                pshuflw(t1.second, t1.second, 0b11011000);
+                punpcklqdq(t1.second, t1.first);
+                movdqa(xmmword_ptr[a], t1.second);
+            } else if (iter.op == opStoreF32) {
+                auto t1 = stack.top();
+                stack.pop();
+                Reg a;
+                mov(a, ptr[regptrs]);
+                movaps(xmmword_ptr[a], t1.first);
+                movaps(xmmword_ptr[a + 16], t1.second);
+            } else if (iter.op == opStoreF16) {
+                auto t1 = stack.top();
+                stack.pop();
+                Reg a;
+                mov(a, ptr[regptrs]);
+                vcvtps2ph(qword_ptr[a], t1.first, 0);
+                vcvtps2ph(qword_ptr[a + 8], t1.second, 0);
+            } else if (iter.op == opAbs) {
+                auto &t1 = stack.top();
+                andps(t1.first, CPTR(elabsmask));
+                andps(t1.second, CPTR(elabsmask));
+            } else if (iter.op == opNeg) {
+                auto &t1 = stack.top();
+                cmpleps(t1.first, zero);
+                cmpleps(t1.second, zero);
+                andps(t1.first, CPTR(elfloat_one));
+                andps(t1.second, CPTR(elfloat_one));
+            } else if (iter.op == opAnd) {
+                LogicOp(andps)
+            } else if (iter.op == opOr) {
+                LogicOp(orps)
+            } else if (iter.op == opXor) {
+                LogicOp(xorps)
+            } else if (iter.op == opGt) {
+                CmpOp(cmpltps)
+            } else if (iter.op == opLt) {
+                CmpOp(cmpnleps)
+            } else if (iter.op == opEq) {
+                CmpOp(cmpeqps)
+            } else if (iter.op == opLE) {
+                CmpOp(cmpnltps)
+            } else if (iter.op == opGE) {
+                CmpOp(cmpleps)
+            } else if (iter.op == opTernary) {
+                auto t1 = stack.top();
+                stack.pop();
+                auto t2 = stack.top();
+                stack.pop();
+                auto t3 = stack.top();
+                stack.pop();
+                XmmReg r1, r2;
+                xorps(r1, r1);
+                xorps(r2, r2);
+                cmpltps(r1, t3.first);
+                cmpltps(r2, t3.second);
+                andps(t2.first, r1);
+                andps(t2.second, r2);
+                andnps(r1, t1.first);
+                andnps(r2, t1.second);
+                orps(r1, t2.first);
+                orps(r2, t2.second);
+                stack.push(std::make_pair(r1, r2));
+            } else if (iter.op == opExp) {
+                auto &t1 = stack.top();
+                EXP_PS(t1.first)
+                EXP_PS(t1.second)
+            } else if (iter.op == opLog) {
+                auto &t1 = stack.top();
+                LOG_PS(t1.first)
+                LOG_PS(t1.second)
+            } else if (iter.op == opPow) {
+                auto t1 = stack.top();
+                stack.pop();
+                auto &t2 = stack.top();
+                LOG_PS(t2.first)
+                mulps(t2.first, t1.first);
+                EXP_PS(t2.first)
+                LOG_PS(t2.second)
+                mulps(t2.second, t1.second);
+                EXP_PS(t2.second)
+            }
+        }
+
+        if (sizeof(void *) == 8) {
+            int numIter = (numInputs + 1 + 1) / 2;
+
+            for (int i = 0; i < numIter; i++) {
+                XmmReg r1, r2;
+                movdqu(r1, xmmword_ptr[regptrs + 16 * i]);
+                movdqu(r2, xmmword_ptr[regoffs + 16 * i]);
+                paddd(r1, r2);
+                movdqu(xmmword_ptr[regptrs + 16 * i], r1);
+            }
+        } else {
+            int numIter = (numInputs + 1 + 3) / 4;
+            for (int i = 0; i < numIter; i++) {
+                XmmReg r1, r2;
+                movdqu(r1, xmmword_ptr[regptrs + 16 * i]);
+                movdqu(r2, xmmword_ptr[regoffs + 16 * i]);
+                paddd(r1, r2);
+                movdqu(xmmword_ptr[regptrs + 16 * i], r1);
+            }
+        }
+
+        sub(niter, 1);
+        jnz("wloop");
+    }
+};
 #endif
 
 static void VS_CC exprInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -107,18 +567,16 @@ static void VS_CC exprInit(VSMap *in, VSMap *out, void **instanceData, VSNode *n
 
 static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     ExprData *d = static_cast<ExprData *>(*instanceData);
+    int numInputs = d->numInputs;
 
     if (activationReason == arInitial) {
-        for (int i = 0; i < 3; i++)
-            if (d->node[i])
-                vsapi->requestFrameFilter(n, d->node[i], frameCtx);
+        for (int i = 0; i < numInputs; i++)
+            vsapi->requestFrameFilter(n, d->node[i], frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src[3];
-        for (int i = 0; i < 3; i++)
-            if (d->node[i])
-                src[i] = vsapi->getFrameFilter(n, d->node[i], frameCtx);
-            else
-                src[i] = nullptr;
+
+        const VSFrameRef *src[MAX_EXPR_INPUTS] = {};
+        for (int i = 0; i < numInputs; i++)
+            src[i] = vsapi->getFrameFilter(n, d->node[i], frameCtx);
 
         const VSFormat *fi = d->vi.format;
         int height = vsapi->getFrameHeight(src[0], 0);
@@ -127,56 +585,49 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
         const VSFrameRef *srcf[3] = { d->plane[0] != poCopy ? nullptr : src[0], d->plane[1] != poCopy ? nullptr : src[0], d->plane[2] != poCopy ? nullptr : src[0] };
         VSFrameRef *dst = vsapi->newVideoFrame2(fi, width, height, srcf, planes, src[0], core);
 
-        const uint8_t *srcp[3];
-        int src_stride[3];
+        const uint8_t *srcp[MAX_EXPR_INPUTS] = {};
+        int src_stride[MAX_EXPR_INPUTS] = {};
 
 #ifdef VS_TARGET_CPU_X86
-        void *stack = vs_aligned_malloc<void>(d->maxStackSize * 32, 32);
-
-        intptr_t ptroffsets[4] = { d->vi.format->bytesPerSample * 8, 0, 0, 0 };
+        intptr_t ptroffsets[MAX_EXPR_INPUTS + 1] = { d->vi.format->bytesPerSample * 8 };
 
         for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {
             if (d->plane[plane] == poProcess) {
-                for (int i = 0; i < 3; i++) {
+                for (int i = 0; i < numInputs; i++) {
                     if (d->node[i]) {
                         srcp[i] = vsapi->getReadPtr(src[i], plane);
                         src_stride[i] = vsapi->getStride(src[i], plane);
                         ptroffsets[i + 1] = vsapi->getFrameFormat(src[i])->bytesPerSample * 8;
-                    } else {
-                        srcp[i] = nullptr;
-                        src_stride[i] = 0;
-                        ptroffsets[i + 1] = 0;
                     }
-                }
+                }               
 
                 uint8_t *dstp = vsapi->getWritePtr(dst, plane);
                 int dst_stride = vsapi->getStride(dst, plane);
                 int h = vsapi->getFrameHeight(dst, plane);
                 int w = vsapi->getFrameWidth(dst, plane);
+                int niterations = (w + 7) / 8;
 
-                int niterations = (w + 7)/8;
-                const ExprOp *ops = d->ops[plane].data();
+                ExprData::ProcessLineProc proc = d->proc[plane];
+
                 for (int y = 0; y < h; y++) {
-                    const uint8_t *rwptrs[4] = { dstp + dst_stride * y, srcp[0] + src_stride[0] * y, srcp[1] + src_stride[1] * y, srcp[2] + src_stride[2] * y };
-                    vs_evaluate_expr_sse2(ops, rwptrs, ptroffsets, niterations, stack);
+                    const uint8_t *rwptrs[MAX_EXPR_INPUTS + 1] = { dstp + dst_stride * y };
+                    for (int i = 0; i < numInputs; i++)
+                        rwptrs[i + 1] = srcp[i] + src_stride[i] * y;
+                    proc(rwptrs, ptroffsets, niterations);
                 }
             }
         }
 
-        vs_aligned_free(stack);
 #else
         std::vector<float> stackVector(d->maxStackSize);
 
         for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {
             if (d->plane[plane] == poProcess) {
-                for (int i = 0; i < 3; i++) {
+                for (int i = 0; i < numInputs; i++) {
                     if (d->node[i]) {
                         srcp[i] = vsapi->getReadPtr(src[i], plane);
                         src_stride[i] = vsapi->getStride(src[i], plane);
-                    } else {
-                        srcp[i] = nullptr;
-                        src_stride[i] = 0;
-                    }
+                    } 
                 }
 
                 uint8_t *dstp = vsapi->getWritePtr(dst, plane);
@@ -317,14 +768,13 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                         loopend:;
                     }
                     dstp += dst_stride;
-                    srcp[0] += src_stride[0];
-                    srcp[1] += src_stride[1];
-                    srcp[2] += src_stride[2];
+                    for (int i = 0; i < numInputs; i++)
+                        srcp[i] += src_stride[i];
                 }
             }
         }
 #endif
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < MAX_EXPR_INPUTS; i++)
             vsapi->freeFrame(src[i]);
         return dst;
     }
@@ -334,32 +784,38 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
 
 static void VS_CC exprFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     ExprData *d = static_cast<ExprData *>(instanceData);
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < MAX_EXPR_INPUTS; i++)
         vsapi->freeNode(d->node[i]);
     delete d;
 }
 
 static SOperation getLoadOp(const VSVideoInfo *vi) {
     if (!vi)
-        return opLoadSrcF;
+        return opLoadSrcF32;
     if (vi->format->sampleType == stInteger) {
         if (vi->format->bitsPerSample == 8)
             return opLoadSrc8;
         return opLoadSrc16;
     } else {
-        return opLoadSrcF;
+        if (vi->format->bitsPerSample == 16)
+            return opLoadSrcF16;
+        else
+            return opLoadSrcF32;
     }
 }
 
 static SOperation getStoreOp(const VSVideoInfo *vi) {
     if (!vi)
-        return opLoadSrcF;
+        return opLoadSrcF32;
     if (vi->format->sampleType == stInteger) {
         if (vi->format->bitsPerSample == 8)
             return opStore8;
         return opStore16;
     } else {
-        return opStoreF;
+        if (vi->format->bitsPerSample == 16)
+            return opStoreF16;
+        else
+            return opStoreF32;
     }
 }
 
@@ -369,7 +825,7 @@ static SOperation getStoreOp(const VSVideoInfo *vi) {
 #define TWO_ARG_OP(op) GENERAL_OP(op, 2, 1)
 #define THREE_ARG_OP(op) GENERAL_OP(op, 3, 2)
 
-static size_t parseExpression(const std::string &expr, std::vector<ExprOp> &ops, const SOperation loadOp[], const SOperation storeOp) {
+static size_t parseExpression(const std::string &expr, std::vector<ExprOp> &ops, const VSVideoInfo **vi, const SOperation storeOp, int numInputs) {
     std::vector<std::string> tokens;
     split(tokens, expr, " ", split1::no_empties);
 
@@ -393,10 +849,8 @@ static size_t parseExpression(const std::string &expr, std::vector<ExprOp> &ops,
             ONE_ARG_OP(opExp);
         else if (tokens[i] == "log")
             ONE_ARG_OP(opLog);
-        /*
         else if (tokens[i] == "pow")
-            ONE_ARG_OP(opPow);
-            */
+            TWO_ARG_OP(opPow);
         else if (tokens[i] == "sqrt")
             ONE_ARG_OP(opSqrt);
         else if (tokens[i] == "abs")
@@ -425,17 +879,21 @@ static size_t parseExpression(const std::string &expr, std::vector<ExprOp> &ops,
             LOAD_OP(opDup, 0);
         else if (tokens[i] == "swap")
             GENERAL_OP(opSwap, 2, 0);
-        else if (tokens[i] == "x")
-            LOAD_OP(loadOp[0], 0);
-        else if (tokens[i] == "y")
-            LOAD_OP(loadOp[1], 1);
-        else if (tokens[i] == "z")
-            LOAD_OP(loadOp[2], 2);
-        else {
+        else if (tokens[i].length() == 1 && tokens[i][0] >= 'a' && tokens[i][0] <= 'z') {
+            char srcChar = tokens[i][0];
+            int loadIndex;
+            if (srcChar >= 'x')
+                loadIndex = srcChar - 'x';
+            else
+                loadIndex = srcChar - 'a' + 3;
+            if (loadIndex >= numInputs)
+                throw std::runtime_error("Too few input clips supplied to reference '" + tokens[i] + "'");
+            LOAD_OP(getLoadOp(vi[loadIndex]), loadIndex);
+        } else {
             float f;
             std::string s;
             std::istringstream numStream(tokens[i]);
-            numStream.imbue(std::locale("C"));
+            numStream.imbue(std::locale::classic());
             if (!(numStream >> f))
                 throw std::runtime_error("Failed to convert '" + tokens[i] + "' to float");
             if (numStream >> s)
@@ -547,7 +1005,8 @@ static bool isLoadOp(uint32_t op) {
         case opLoadConst:
         case opLoadSrc8:
         case opLoadSrc16:
-        case opLoadSrcF:
+        case opLoadSrcF32:
+        case opLoadSrcF16:
             return true;
     }
 
@@ -680,53 +1139,52 @@ static void foldConstants(std::vector<ExprOp> &ops) {
 }
 
 static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    ExprData d;
-    ExprData *data;
+    std::unique_ptr<ExprData> d(new ExprData);
     int err;
 
     try {
 
-        for (int i = 0; i < 3; i++)
-            d.node[i] = vsapi->propGetNode(in, "clips", i, &err);
+        d->numInputs = vsapi->propNumElements(in, "clips");
+        if (d->numInputs > 26)
+            throw std::runtime_error("More than 26 input clips provided");
 
-        const VSVideoInfo *vi[3];
-        for (int i = 0; i < 3; i++)
-            if (d.node[i])
-                vi[i] = vsapi->getVideoInfo(d.node[i]);
-            else
-                vi[i] = nullptr;
+        for (int i = 0; i < d->numInputs; i++)
+            d->node[i] = vsapi->propGetNode(in, "clips", i, &err);
 
-        for (int i = 0; i < 3; i++) {
-            if (vi[i]) {
-                if (!isConstantFormat(vi[i]))
-                    throw std::runtime_error("Only constant format input allowed");
-                if (vi[0]->format->numPlanes != vi[i]->format->numPlanes
-                    || vi[0]->format->subSamplingW != vi[i]->format->subSamplingW
-                    || vi[0]->format->subSamplingH != vi[i]->format->subSamplingH
-                    || vi[0]->width != vi[i]->width
-                    || vi[0]->height != vi[i]->height)
-                    throw std::runtime_error("All inputs must have the same number of planes and the same dimensions, subsampling included");
-                if ((vi[i]->format->bitsPerSample > 16 && vi[i]->format->sampleType == stInteger)
-                    || (vi[i]->format->bitsPerSample != 32 && vi[i]->format->sampleType == stFloat))
-                    throw std::runtime_error("Input clips must be 8-16 bit integer or 32 bit float format");
-            }
+        const VSVideoInfo *vi[MAX_EXPR_INPUTS] = {};
+        for (int i = 0; i < d->numInputs; i++)
+            if (d->node[i])
+                vi[i] = vsapi->getVideoInfo(d->node[i]);
+
+        for (int i = 0; i < d->numInputs; i++) {
+            if (!isConstantFormat(vi[i]))
+                throw std::runtime_error("Only constant format input allowed");
+            if (vi[0]->format->numPlanes != vi[i]->format->numPlanes
+                || vi[0]->format->subSamplingW != vi[i]->format->subSamplingW
+                || vi[0]->format->subSamplingH != vi[i]->format->subSamplingH
+                || vi[0]->width != vi[i]->width
+                || vi[0]->height != vi[i]->height)
+                throw std::runtime_error("All inputs must have the same number of planes and the same dimensions, subsampling included");
+            if ((vi[i]->format->bitsPerSample > 16 && vi[i]->format->sampleType == stInteger)
+                || (vi[i]->format->bitsPerSample != 32 && vi[i]->format->sampleType == stFloat))
+                throw std::runtime_error("Input clips must be 8-16 bit integer or 32 bit float format");
         }
 
-        d.vi = *vi[0];
+        d->vi = *vi[0];
         int format = int64ToIntS(vsapi->propGetInt(in, "format", 0, &err));
         if (!err) {
             const VSFormat *f = vsapi->getFormatPreset(format, core);
             if (f) {
-                if (d.vi.format->colorFamily == cmCompat)
+                if (d->vi.format->colorFamily == cmCompat)
                     throw std::runtime_error("No compat formats allowed");
-                if (d.vi.format->numPlanes != f->numPlanes)
+                if (d->vi.format->numPlanes != f->numPlanes)
                     throw std::runtime_error("The number of planes in the inputs and output must match");
-                d.vi.format = vsapi->registerFormat(d.vi.format->colorFamily, f->sampleType, f->bitsPerSample, d.vi.format->subSamplingW, d.vi.format->subSamplingH, core);
+                d->vi.format = vsapi->registerFormat(d->vi.format->colorFamily, f->sampleType, f->bitsPerSample, d->vi.format->subSamplingW, d->vi.format->subSamplingH, core);
             }
         }
 
         int nexpr = vsapi->propNumElements(in, "expr");
-        if (nexpr > d.vi.format->numPlanes)
+        if (nexpr > d->vi.format->numPlanes)
             throw std::runtime_error("More expressions given than there are planes");
 
         std::string expr[3];
@@ -741,34 +1199,51 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
         for (int i = 0; i < 3; i++) {
             if (!expr[i].empty()) {
-                d.plane[i] = poProcess;
+                d->plane[i] = poProcess;
             } else {
-                if (d.vi.format->bitsPerSample == vi[0]->format->bitsPerSample && d.vi.format->sampleType == vi[0]->format->sampleType)
-                    d.plane[i] = poCopy;
+                if (d->vi.format->bitsPerSample == vi[0]->format->bitsPerSample && d->vi.format->sampleType == vi[0]->format->sampleType)
+                    d->plane[i] = poCopy;
                 else
-                    d.plane[i] = poUndefined;
+                    d->plane[i] = poUndefined;
             }
         }
 
-        const SOperation sop[3] = { getLoadOp(vi[0]), getLoadOp(vi[1]), getLoadOp(vi[2]) };
-        d.maxStackSize = 0;
-        for (int i = 0; i < d.vi.format->numPlanes; i++) {
-            d.maxStackSize = std::max(parseExpression(expr[i], d.ops[i], sop, getStoreOp(&d.vi)), d.maxStackSize);
-            foldConstants(d.ops[i]);
+        d->maxStackSize = 0;
+        for (int i = 0; i < d->vi.format->numPlanes; i++) {
+            d->maxStackSize = std::max(parseExpression(expr[i], d->ops[i], vi, getStoreOp(&d->vi), d->numInputs), d->maxStackSize);
+            foldConstants(d->ops[i]);
         }
 
+#ifdef VS_TARGET_CPU_X86
+        for (int i = 0; i < d->vi.format->numPlanes; i++) {
+            if (d->plane[i] == poProcess) {
+                ExprEval ExprObj(d->ops[i], d->numInputs);
+                if (ExprObj.GetCode() && ExprObj.GetCodeSize()) {
+#ifdef VS_TARGET_OS_WINDOWS
+                    d->proc[i] = (ExprData::ProcessLineProc)VirtualAlloc(nullptr, ExprObj.GetCodeSize(), MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+#else
+                    d->proc[i] = (ExprData::ProcessLineProc)mmap(nullptr, ExprObj.GetCodeSize(), PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANONYMOUS | MAP_PRIVATE, 0, 0);
+#endif
+                    memcpy(d->proc[i], ExprObj.GetCode(), ExprObj.GetCodeSize());
+                }
+            }
+        }
+#ifdef VS_TARGET_OS_WINDOWS
+        FlushInstructionCache(GetCurrentProcess(), nullptr, 0);
+#endif
+#endif
+
+
     } catch (std::runtime_error &e) {
-        for (int i = 0; i < 3; i++)
-            vsapi->freeNode(d.node[i]);
+        for (int i = 0; i < MAX_EXPR_INPUTS; i++)
+            vsapi->freeNode(d->node[i]);
         std::string s = "Expr: ";
         s += e.what();
         vsapi->setError(out, s.c_str());
         return;
     }
 
-    data = new ExprData(d);
-
-    vsapi->createFilter(in, out, "Expr", exprInit, exprGetFrame, exprFree, fmParallel, 0, data, core);
+    vsapi->createFilter(in, out, "Expr", exprInit, exprGetFrame, exprFree, fmParallel, 0, d.release(), core);
 }
 
 //////////////////////////////////////////
