@@ -124,7 +124,7 @@ struct ExprData {
 #ifdef VS_TARGET_OS_WINDOWS
             VirtualFree(proc[i], 0, MEM_RELEASE);
 #else
-            munmap(proc[i], 0);
+            munmap((void *)proc[i], 0);
 #endif
 #endif
     }
@@ -1224,7 +1224,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 #else
                     d->proc[i] = (ExprData::ProcessLineProc)mmap(nullptr, ExprObj.GetCodeSize(), PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANONYMOUS | MAP_PRIVATE, 0, 0);
 #endif
-                    memcpy(d->proc[i], ExprObj.GetCode(), ExprObj.GetCodeSize());
+                    memcpy((void *)d->proc[i], ExprObj.GetCode(), ExprObj.GetCodeSize());
                 }
             }
         }

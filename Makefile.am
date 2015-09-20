@@ -48,6 +48,7 @@ libvapoursynth_la_SOURCES = src/core/cachefilter.cpp \
 							src/core/filtershared.h \
 							src/core/genericfilters.cpp \
 							src/core/genericfilters.h \
+							src/core/jitasm.h \
 							src/core/lutfilters.cpp \
 							src/core/lutfilters.h \
 							src/core/mergefilters.c \
@@ -75,7 +76,6 @@ libvapoursynth_la_SOURCES = src/core/cachefilter.cpp \
 if X86ASM
 libvapoursynth_la_SOURCES += src/core/asm/x86/check.asm \
 							 src/core/asm/x86/cpu.asm \
-							 src/core/asm/x86/expr.asm \
 							 src/core/asm/x86/merge.asm \
 							 src/core/asm/x86/transpose.asm
 endif # X86ASM
