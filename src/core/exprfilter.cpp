@@ -315,13 +315,11 @@ struct ExprEval : public jitasm::function<void, ExprEval, uint8_t *, const intpt
 
     ExprEval(std::vector<ExprOp> &ops, int numInputs) : ops(ops), numInputs(numInputs) {}
 
-    void main(Addr rwptrs, Addr ptroff, Reg niter)
+    void main(Reg regptrs, Reg regoffs, Reg niter)
     {
         XmmReg zero;
         pxor(zero, zero);
-        Reg regptrs, regoffs, constptr;
-        mov(regptrs, ptr[rwptrs]);
-        mov(regoffs, ptr[ptroff]);
+        Reg constptr;
         mov(constptr, (uintptr_t)logexpconst);
 
         L("wloop");
@@ -366,12 +364,13 @@ struct ExprEval : public jitasm::function<void, ExprEval, uint8_t *, const intpt
                 vcvtph2ps(r2, qword_ptr[a + 8]);
                 stack.push(std::make_pair(r1, r2));
             } else if (iter.op == opLoadConst) {
-                XmmReg r1;
+                XmmReg r1, r2;
                 Reg a;
                 mov(a, iter.e.ival);
                 movd(r1, a);
                 shufps(r1, r1, 0);
-                stack.push(std::make_pair(r1, r1));
+                movaps(r2, r1);
+                stack.push(std::make_pair(r1, r2));
             } else if (iter.op == opDup) {
                 XmmReg r1, r2;
                 movaps(r1, stack.top().first);
@@ -540,7 +539,7 @@ struct ExprEval : public jitasm::function<void, ExprEval, uint8_t *, const intpt
                 XmmReg r1, r2;
                 movdqu(r1, xmmword_ptr[regptrs + 16 * i]);
                 movdqu(r2, xmmword_ptr[regoffs + 16 * i]);
-                paddd(r1, r2);
+                paddq(r1, r2);
                 movdqu(xmmword_ptr[regptrs + 16 * i], r1);
             }
         } else {
