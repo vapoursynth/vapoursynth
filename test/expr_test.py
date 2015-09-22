@@ -205,14 +205,15 @@ class CoreTestSequence(unittest.TestCase):
         self.assertTrue(val == 1)
 
     def test_expr_op34(self):
-        clip = self.core.std.BlankClip(format=vs.GRAY8, color=58)
-        clip = self.core.std.Expr(clip, "x 58 =")
+        clip1 = self.core.std.BlankClip(format=vs.GRAY8, color=58)
+        clip2 = self.core.std.BlankClip(format=vs.GRAY8, color=58)
+        clip = self.core.std.Expr((clip1, clip2), "x y =")
         val = clip.get_frame(0).get_read_array(0)[0,0]
-        self.assertTrue(val == 1)
+        self.assertTrue(val == 1)  
 
     def test_expr_op35(self):
-        clip = self.core.std.BlankClip(format=vs.GRAY8, color=58)
-        clip = self.core.std.Expr(clip, "x 59 =")
+        clip = self.core.std.BlankClip(format=vs.GRAY8, color=4)
+        clip = self.core.std.Expr(clip, "x x 1 - =")
         val = clip.get_frame(0).get_read_array(0)[0,0]
         self.assertTrue(val == 0)
 
@@ -332,5 +333,17 @@ class CoreTestSequence(unittest.TestCase):
         val = clip.get_frame(0).get_read_array(0)[0,0]
         self.assertTrue(val == 200)
 
+    def test_expr_op52(self):
+        clip = self.core.std.BlankClip(format=vs.GRAY8, color=58)
+        clip = self.core.std.Expr(clip, "x not")
+        val = clip.get_frame(0).get_read_array(0)[0,0]
+        self.assertTrue(val == 0)
+
+    def test_expr_op53(self):
+        clip = self.core.std.BlankClip(format=vs.GRAY8, color=58)
+        clip = self.core.std.Expr(clip, "x not not")
+        val = clip.get_frame(0).get_read_array(0)[0,0]
+        self.assertTrue(val == 1)
+        
 if __name__ == '__main__':
     unittest.main()

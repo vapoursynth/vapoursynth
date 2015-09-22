@@ -7593,7 +7593,7 @@ namespace compiler
 #else
 		if (stack_size > 0) {
 			// Align stack pointer
-			f.and(f.esp, 0xFFFFFFF0);
+			f.and_(f.esp, 0xFFFFFFF0);
 
 			// Stack base
 			f.mov(f.ebx, f.esp);
