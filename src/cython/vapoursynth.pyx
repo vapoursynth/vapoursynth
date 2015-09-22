@@ -212,10 +212,13 @@ cdef class Func(object):
 cdef Func createFuncPython(object func, Core core):
     cdef Func instance = Func.__new__(Func)
     instance.funcs = core.funcs
-    global _environment_id
-    if _environment_id is None:
-        raise Error('Internal environment id not set. Report this function wrapper creation error.')
-    fdata = createFuncData(func, core, _environment_id)
+    if _using_vsscript:
+        global _environment_id
+        if _environment_id is None:
+            raise Error('Internal environment id not set. Report this function wrapper creation error.')
+        fdata = createFuncData(func, core, _environment_id)
+    else:
+        fdata = createFuncData(func, core, 0)
     Py_INCREF(fdata)
     instance.ref = instance.funcs.createFunc(publicFunction, <void *>fdata, freeFunc, core.core, core.funcs)
     return instance

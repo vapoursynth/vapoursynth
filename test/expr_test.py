@@ -351,5 +351,18 @@ class CoreTestSequence(unittest.TestCase):
         val = clip.get_frame(0).get_read_array(0)[0,0]
         self.assertEqual(val, 1)
         
+    def test_expr_op55(self):
+        clip = self.core.std.BlankClip(format=vs.GRAY8, color=3)
+        clip = self.core.std.Expr(clip, "x 2 pow")
+        val = clip.get_frame(0).get_read_array(0)[0,0]
+        self.assertEqual(val, 9)
+        
+    def test_expr_op56(self):
+        clip = self.core.std.BlankClip(format=vs.GRAY8, color=6)
+        clip = self.core.std.Expr(clip, "2 x pow")
+        val = clip.get_frame(0).get_read_array(0)[0,0]
+        self.assertEqual(val, 64)
+                
+        
 if __name__ == '__main__':
     unittest.main()

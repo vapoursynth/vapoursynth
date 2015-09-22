@@ -1,5 +1,7 @@
 r28:
 now uses python 3.5
+expr now accepts up to 26 inputs
+expr now has runtime code generation on x86 cpus using jitasm
 now normalizes the framerate returned from avisynth filters
 it is now a fatal error to set the videoinfo of a filter to a non-normalized framerate
 added a few more checks for proper api usage
