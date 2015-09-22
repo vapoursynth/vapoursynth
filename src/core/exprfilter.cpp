@@ -174,42 +174,41 @@ enum {
     elabsmask, elc7F, elmin_norm_pos, elinv_mant_mask,
     elfloat_one, elfloat_half, elstore8, elstore16,
     elexp_hi, elexp_lo, elcephes_LOG2EF, elcephes_exp_C1, elcephes_exp_C2, elcephes_exp_p0, elcephes_exp_p1, elcephes_exp_p2, elcephes_exp_p3, elcephes_exp_p4, elcephes_exp_p5, elcephes_SQRTHF,
-    elcephes_log_p0, elcephes_log_p1, elcephes_log_p2, elcephes_log_p3, elcephes_log_p4, elcephes_log_p5, elcephes_log_p6, elcephes_log_p7, elcephes_log_p8, elcephes_log_q1, elcephes_log_q2
+    elcephes_log_p0, elcephes_log_p1, elcephes_log_p2, elcephes_log_p3, elcephes_log_p4, elcephes_log_p5, elcephes_log_p6, elcephes_log_p7, elcephes_log_p8, elcephes_log_q1 = elcephes_exp_C2, elcephes_log_q2 = elcephes_exp_C1
 };
 
 #define XCONST(x) { x, x, x, x }
 
 alignas(16) static const FloatIntUnion logexpconst[][4] = {
-    XCONST(0x7FFFFFFF),
-    XCONST(0x7F),
-    XCONST(0x00800000),
-    XCONST(0x7f800000),
-    XCONST(1.0f),
-    XCONST(0.5f),
-    XCONST(255.0f),
-    XCONST(65535.0f),
-    XCONST(88.3762626647949f),
-    XCONST(-88.3762626647949f),
-    XCONST(1.44269504088896341f),
-    XCONST(-2.12194440e-4f),
-    XCONST(1.9875691500E-4f),
-    XCONST(1.3981999507E-3f),
-    XCONST(8.3334519073E-3f),
-    XCONST(4.1665795894E-2f),
-    XCONST(1.6666665459E-1f),
-    XCONST(5.0000001201E-1f),
-    XCONST(0.707106781186547524f),
-    XCONST(7.0376836292E-2f),
-    XCONST(-1.1514610310E-1f),
-    XCONST(1.1676998740E-1f),
-    XCONST(-1.2420140846E-1f),
-    XCONST(+1.4249322787E-1f),
-    XCONST(-1.6668057665E-1f),
-    XCONST(+2.0000714765E-1f),
-    XCONST(-2.4999993993E-1f),
-    XCONST(+3.3333331174E-1f),
-    XCONST(-2.12194440e-4f),
-    XCONST(0.693359375f)
+    XCONST(0x7FFFFFFF), // absmask
+    XCONST(0x7F), // c7F
+    XCONST(0x00800000), // min_norm_pos
+    XCONST(~0x7f800000), // inv_mant_mask
+    XCONST(1.0f), // float_one
+    XCONST(0.5f), // float_half
+    XCONST(255.0f), // store8
+    XCONST(65535.0f), // store16
+    XCONST(88.3762626647949f), // exp_hi
+    XCONST(-88.3762626647949f), // exp_lo
+    XCONST(1.44269504088896341f), // cephes_LOG2EF
+    XCONST(0.693359375f), // cephes_exp_C1
+    XCONST(-2.12194440e-4f), // cephes_exp_C2
+    XCONST(1.9875691500E-4f), // cephes_exp_p0
+    XCONST(1.3981999507E-3f), // cephes_exp_p1
+    XCONST(8.3334519073E-3f), // cephes_exp_p2
+    XCONST(4.1665795894E-2f), // cephes_exp_p3
+    XCONST(1.6666665459E-1f), // cephes_exp_p4
+    XCONST(5.0000001201E-1f), // cephes_exp_p5
+    XCONST(0.707106781186547524f), // cephes_SQRTHF
+    XCONST(7.0376836292E-2f), // cephes_log_p0
+    XCONST(-1.1514610310E-1f), // cephes_log_p1
+    XCONST(1.1676998740E-1f), // cephes_log_p2
+    XCONST(-1.2420140846E-1f), // cephes_log_p3
+    XCONST(+1.4249322787E-1f), // cephes_log_p4
+    XCONST(-1.6668057665E-1f), // cephes_log_p5
+    XCONST(+2.0000714765E-1f), // cephes_log_p6
+    XCONST(-2.4999993993E-1f), // cephes_log_p7
+    XCONST(+3.3333331174E-1f) // cephes_log_p8
 };
 
 
