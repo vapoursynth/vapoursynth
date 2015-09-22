@@ -154,5 +154,8 @@
     <ClInclude Include="..\..\src\core\genericfilters.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\core\jitasm.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

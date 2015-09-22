@@ -399,14 +399,8 @@ struct ExprEval : public jitasm::function<void, ExprEval, uint8_t *, const intpt
                 auto &t1 = stack.top();
                 maxps(t1.first, zero);
                 maxps(t1.second, zero);
-                sqrtps(t1.first, zero);
-                sqrtps(t1.second, zero);
-            } else if (iter.op == opSqrt) {
-                auto &t1 = stack.top();
-                maxps(t1.first, zero);
-                maxps(t1.second, zero);
-                sqrtps(t1.first, zero);
-                sqrtps(t1.second, zero);
+                sqrtps(t1.first, t1.first);
+                sqrtps(t1.second, t1.second);
             } else if (iter.op == opStore8) {
                 auto t1 = stack.top();
                 stack.pop();

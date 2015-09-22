@@ -256,6 +256,7 @@
     <ClInclude Include="..\..\src\core\exprfilter.h" />
     <ClInclude Include="..\..\src\core\filtershared.h" />
     <ClInclude Include="..\..\src\core\genericfilters.h" />
+    <ClInclude Include="..\..\src\core\jitasm.h" />
     <ClInclude Include="..\..\src\core\lutfilters.h" />
     <ClInclude Include="..\..\src\core\mergefilters.h" />
     <ClInclude Include="..\..\src\core\reorderfilters.h" />

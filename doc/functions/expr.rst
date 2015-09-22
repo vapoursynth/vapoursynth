@@ -50,7 +50,7 @@ Expr
 
    Load operators::
 
-      x y z
+      x-z, a-w, floating point literals
 
    The operators taking one argument are::
 
@@ -58,7 +58,7 @@ Expr
 
    The operators taking two arguments are::
 
-      + - * / max min > < = >= <= and or xor swap
+      + - * / max min > < = >= <= and or xor swap pow
 
    The operators taking three arguments are::
 

@@ -178,7 +178,8 @@ class CoreTestSequence(unittest.TestCase):
         clip = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 242, 115])
         with self.assertRaises(vs.Error):
             self.core.std.Lut2(clip, clip, function=lambda x,y: (x+y)//2, planes=[3])
-
+            
+#shuffleplanes argument tests
     def test_suffleplanes_arg1(self):
         clip = self.core.std.BlankClip(format=vs.YUV420P8)
         with self.assertRaises(vs.Error):
@@ -208,7 +209,7 @@ class CoreTestSequence(unittest.TestCase):
         clip1 = self.core.std.BlankClip(format=vs.YUV420P8)
         clip2 = self.core.std.BlankClip(format=vs.RGB24)
         with self.assertRaises(vs.Error):
-            self.core.std.ShufflePlanes([clip1, clip2, clip1], planes=[0, 1, 2], colorfamily=vs.RGB)
+            self.core.std.ShufflePlanes([clip1, clip2, clip1], planes=[0, 1, 2], colorfamily=vs.RGB)               
 
 if __name__ == '__main__':
     unittest.main()
