@@ -1214,7 +1214,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 #ifdef VS_TARGET_OS_WINDOWS
                     d->proc[i] = (ExprData::ProcessLineProc)VirtualAlloc(nullptr, ExprObj.GetCodeSize(), MEM_COMMIT, PAGE_EXECUTE_READWRITE);
 #else
-                    d->proc[i] = (ExprData::ProcessLineProc)mmap(nullptr, ExprObj.GetCodeSize(), PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANONYMOUS | MAP_PRIVATE, 0, 0);
+                    d->proc[i] = (ExprData::ProcessLineProc)mmap(nullptr, ExprObj.GetCodeSize(), PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANON | MAP_PRIVATE, 0, 0);
 #endif
                     memcpy((void *)d->proc[i], ExprObj.GetCode(), ExprObj.GetCodeSize());
                 }
