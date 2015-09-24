@@ -25,52 +25,52 @@
 #include <string.h>
 #include <string>
 
-void VS_CC configPlugin(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readOnly, VSPlugin *plugin) {
+void VS_CC configPlugin(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readOnly, VSPlugin *plugin) noexcept {
     assert(identifier && defaultNamespace && name && plugin);
     plugin->configPlugin(identifier, defaultNamespace, name, apiVersion, !!readOnly);
 }
 
-void VS_CC registerFunction(const char *name, const char *args, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) {
+void VS_CC registerFunction(const char *name, const char *args, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) noexcept {
     assert(name && args && argsFunc && plugin);
     plugin->registerFunction(name, args, argsFunc, functionData);
 }
 
-static const VSFormat *VS_CC getFormatPreset(int id, VSCore *core) {
+static const VSFormat *VS_CC getFormatPreset(int id, VSCore *core) noexcept {
     assert(core);
     return core->getFormatPreset((VSPresetFormat)id);
 }
 
-static const VSFormat *VS_CC registerFormat(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) {
+static const VSFormat *VS_CC registerFormat(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) noexcept {
     assert(core);
     return core->registerFormat((VSColorFamily)colorFamily, (VSSampleType)sampleType, bitsPerSample, subSamplingW, subSamplingH);
 }
 
-static const VSFrameRef *VS_CC cloneFrameRef(const VSFrameRef *frame) {
+static const VSFrameRef *VS_CC cloneFrameRef(const VSFrameRef *frame) noexcept {
     assert(frame);
     return new VSFrameRef(frame->frame);
 }
 
-static VSNodeRef *VS_CC cloneNodeRef(VSNodeRef *node) {
+static VSNodeRef *VS_CC cloneNodeRef(VSNodeRef *node) noexcept {
     assert(node);
     return new VSNodeRef(node->clip, node->index);
 }
 
-static int VS_CC getStride(const VSFrameRef *frame, int plane) {
+static int VS_CC getStride(const VSFrameRef *frame, int plane) noexcept {
     assert(frame);
     return frame->frame->getStride(plane);
 }
 
-static const uint8_t *VS_CC getReadPtr(const VSFrameRef *frame, int plane) {
+static const uint8_t *VS_CC getReadPtr(const VSFrameRef *frame, int plane) noexcept {
     assert(frame);
     return frame->frame->getReadPtr(plane);
 }
 
-static uint8_t *VS_CC getWritePtr(VSFrameRef *frame, int plane) {
+static uint8_t *VS_CC getWritePtr(VSFrameRef *frame, int plane) noexcept {
     assert(frame);
     return frame->frame->getWritePtr(plane);
 }
 
-static void VS_CC getFrameAsync(int n, VSNodeRef *clip, VSFrameDoneCallback fdc, void *userData) {
+static void VS_CC getFrameAsync(int n, VSNodeRef *clip, VSFrameDoneCallback fdc, void *userData) noexcept {
     assert(clip && fdc);
     int numFrames = clip->clip->getVideoInfo(clip->index).numFrames;
     if (n < 0 || (numFrames && n >= numFrames)) {
@@ -91,7 +91,7 @@ struct GetFrameWaiter {
     GetFrameWaiter(char *errorMsg, int bufSize) : errorMsg(errorMsg), bufSize(bufSize) {}
 };
 
-static void VS_CC frameWaiterCallback(void *userData, const VSFrameRef *frame, int n, VSNodeRef *node, const char *errorMsg) {
+static void VS_CC frameWaiterCallback(void *userData, const VSFrameRef *frame, int n, VSNodeRef *node, const char *errorMsg) noexcept {
     GetFrameWaiter *g = static_cast<GetFrameWaiter *>(userData);
     std::lock_guard<std::mutex> l(g->b);
     g->r = frame;
@@ -105,7 +105,7 @@ static void VS_CC frameWaiterCallback(void *userData, const VSFrameRef *frame, i
     g->a.notify_one();
 }
 
-static const VSFrameRef *VS_CC getFrame(int n, VSNodeRef *clip, char *errorMsg, int bufSize) {
+static const VSFrameRef *VS_CC getFrame(int n, VSNodeRef *clip, char *errorMsg, int bufSize) noexcept {
     assert(clip);
     GetFrameWaiter g(errorMsg, bufSize);
     std::unique_lock<std::mutex> l(g.b);
@@ -120,7 +120,7 @@ static const VSFrameRef *VS_CC getFrame(int n, VSNodeRef *clip, char *errorMsg, 
     return g.r;
 }
 
-static void VS_CC requestFrameFilter(int n, VSNodeRef *clip, VSFrameContext *frameCtx) {
+static void VS_CC requestFrameFilter(int n, VSNodeRef *clip, VSFrameContext *frameCtx) noexcept {
     assert(clip && frameCtx);
     int numFrames = clip->clip->getVideoInfo(clip->index).numFrames;
     if (numFrames && n >= numFrames)
@@ -128,7 +128,7 @@ static void VS_CC requestFrameFilter(int n, VSNodeRef *clip, VSFrameContext *fra
     frameCtx->reqList.push_back(std::make_shared<FrameContext>(n, clip->index, clip->clip.get(), frameCtx->ctx));
 }
 
-static const VSFrameRef *VS_CC getFrameFilter(int n, VSNodeRef *clip, VSFrameContext *frameCtx) {
+static const VSFrameRef *VS_CC getFrameFilter(int n, VSNodeRef *clip, VSFrameContext *frameCtx) noexcept {
     assert(clip && frameCtx);
 
     int numFrames = clip->clip->getVideoInfo(clip->index).numFrames;
@@ -140,20 +140,20 @@ static const VSFrameRef *VS_CC getFrameFilter(int n, VSNodeRef *clip, VSFrameCon
     return nullptr;
 }
 
-static void VS_CC freeFrame(const VSFrameRef *frame) {
+static void VS_CC freeFrame(const VSFrameRef *frame) noexcept {
     delete frame;
 }
 
-static void VS_CC freeNode(VSNodeRef *clip) {
+static void VS_CC freeNode(VSNodeRef *clip) noexcept {
     delete clip;
 }
 
-static VSFrameRef *VS_CC newVideoFrame(const VSFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core) {
+static VSFrameRef *VS_CC newVideoFrame(const VSFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core) noexcept {
     assert(format && core);
     return new VSFrameRef(core->newVideoFrame(format, width, height, propSrc ? propSrc->frame.get() : nullptr));
 }
 
-static VSFrameRef *VS_CC newVideoFrame2(const VSFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core) {
+static VSFrameRef *VS_CC newVideoFrame2(const VSFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core) noexcept {
     assert(format && core);
     VSFrame *fp[3];
     for (int i = 0; i < format->numPlanes; i++)
@@ -161,29 +161,29 @@ static VSFrameRef *VS_CC newVideoFrame2(const VSFormat *format, int width, int h
     return new VSFrameRef(core->newVideoFrame(format, width, height, fp, planes, propSrc ? propSrc->frame.get() : nullptr));
 }
 
-static VSFrameRef *VS_CC copyFrame(const VSFrameRef *frame, VSCore *core) {
+static VSFrameRef *VS_CC copyFrame(const VSFrameRef *frame, VSCore *core) noexcept {
     assert(frame && core);
     return new VSFrameRef(core->copyFrame(frame->frame));
 }
 
-static void VS_CC copyFrameProps(const VSFrameRef *src, VSFrameRef *dst, VSCore *core) {
+static void VS_CC copyFrameProps(const VSFrameRef *src, VSFrameRef *dst, VSCore *core) noexcept {
     assert(src && dst && core);
     core->copyFrameProps(src->frame, dst->frame);
 }
 
-static void VS_CC createFilter(const VSMap *in, VSMap *out, const char *name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) {
+static void VS_CC createFilter(const VSMap *in, VSMap *out, const char *name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) noexcept {
     assert(in && out && name && init && getFrame && core);
     if (!name)
         vsFatal("NULL name pointer passed to createFilter()");
     core->createFilter(in, out, name, init, getFrame, free, static_cast<VSFilterMode>(filterMode), flags, instanceData, VAPOURSYNTH_API_MAJOR);
 }
 
-static void VS_CC setError(VSMap *map, const char *errorMessage) {
+static void VS_CC setError(VSMap *map, const char *errorMessage) noexcept {
     assert(map && errorMessage);
     map->setError(errorMessage ? errorMessage : "Error: no error specified");
 }
 
-static const char *VS_CC getError(const VSMap *map) {
+static const char *VS_CC getError(const VSMap *map) noexcept {
     assert(map);
     if (map->hasError())
         return map->getErrorMessage().c_str();
@@ -191,53 +191,55 @@ static const char *VS_CC getError(const VSMap *map) {
         return nullptr;
 }
 
-static void VS_CC setFilterError(const char *errorMessage, VSFrameContext *context) {
+static void VS_CC setFilterError(const char *errorMessage, VSFrameContext *context) noexcept {
     assert(errorMessage && context);
     context->ctx->setError(errorMessage);
 }
 
 //property access functions
-static const VSVideoInfo *VS_CC getVideoInfo(VSNodeRef *c) {
+static const VSVideoInfo *VS_CC getVideoInfo(VSNodeRef *c) noexcept {
     assert(c);
     return &c->clip->getVideoInfo(c->index);
 }
 
-static void VS_CC setVideoInfo(const VSVideoInfo *vi, int numOutputs, VSNode *c) {
+static void VS_CC setVideoInfo(const VSVideoInfo *vi, int numOutputs, VSNode *c) noexcept {
     assert(vi && numOutputs > 0 && c);
     c->setVideoInfo(vi, numOutputs);
 }
 
-static const VSFormat *VS_CC getFrameFormat(const VSFrameRef *f) {
+static const VSFormat *VS_CC getFrameFormat(const VSFrameRef *f) noexcept {
     assert(f);
     return f->frame->getFormat();
 }
 
-static int VS_CC getFrameWidth(const VSFrameRef *f, int plane) {
+static int VS_CC getFrameWidth(const VSFrameRef *f, int plane) noexcept {
     assert(f);
+    assert(plane >= 0);
     return f->frame->getWidth(plane);
 }
 
-static int VS_CC getFrameHeight(const VSFrameRef *f, int plane) {
+static int VS_CC getFrameHeight(const VSFrameRef *f, int plane) noexcept {
     assert(f);
+    assert(plane >= 0);
     return f->frame->getHeight(plane);
 }
 
-static const VSMap *VS_CC getFramePropsRO(const VSFrameRef *frame) {
+static const VSMap *VS_CC getFramePropsRO(const VSFrameRef *frame) noexcept {
     assert(frame);
     return &frame->frame->getConstProperties();
 }
 
-static VSMap *VS_CC getFramePropsRW(VSFrameRef *frame) {
+static VSMap *VS_CC getFramePropsRW(VSFrameRef *frame) noexcept {
     assert(frame);
     return &frame->frame->getProperties();
 }
 
-static int VS_CC propNumKeys(const VSMap *map) {
+static int VS_CC propNumKeys(const VSMap *map) noexcept {
     assert(map);
     return static_cast<int>(map->size());
 }
 
-static const char *VS_CC propGetKey(const VSMap *map, int index) {
+static const char *VS_CC propGetKey(const VSMap *map, int index) noexcept {
     assert(map);
     if (index < 0 || static_cast<size_t>(index) >= map->size())
         vsFatal("Out of bound index");
@@ -245,7 +247,7 @@ static const char *VS_CC propGetKey(const VSMap *map, int index) {
     return map->key(index);
 }
 
-static int propNumElementsInternal(const VSMap *map, const std::string &key) {
+static int propNumElementsInternal(const VSMap *map, const std::string &key) noexcept {
     try {
         return static_cast<int>(map->at(key).size());
     } catch (std::out_of_range &) {
@@ -254,12 +256,12 @@ static int propNumElementsInternal(const VSMap *map, const std::string &key) {
 }
 
 
-static int VS_CC propNumElements(const VSMap *map, const char *key) {
+static int VS_CC propNumElements(const VSMap *map, const char *key) noexcept {
     assert(map && key);
     return propNumElementsInternal(map, key);
 }
 
-static char VS_CC propGetType(const VSMap *map, const char *key) {
+static char VS_CC propGetType(const VSMap *map, const char *key) noexcept {
     assert(map && key);
     try {
         const char a[] = { 'u', 'i', 'f', 's', 'c', 'v', 'm'};
@@ -295,31 +297,31 @@ static char VS_CC propGetType(const VSMap *map, const char *key) {
     *error = err; \
     return 0;
 
-static int64_t VS_CC propGetInt(const VSMap *map, const char *key, int index, int *error) {
+static int64_t VS_CC propGetInt(const VSMap *map, const char *key, int index, int *error) noexcept {
     PROP_GET_SHARED(VSVariant::vInt, l.getValue<int64_t>(index))
 }
 
-static double VS_CC propGetFloat(const VSMap *map, const char *key, int index, int *error) {
+static double VS_CC propGetFloat(const VSMap *map, const char *key, int index, int *error) noexcept {
     PROP_GET_SHARED(VSVariant::vFloat, l.getValue<double>(index))
 }
 
-static const char *VS_CC propGetData(const VSMap *map, const char *key, int index, int *error) {
+static const char *VS_CC propGetData(const VSMap *map, const char *key, int index, int *error) noexcept {
     PROP_GET_SHARED(VSVariant::vData, l.getValue<VSMapData>(index)->c_str())
 }
 
-static int VS_CC propGetDataSize(const VSMap *map, const char *key, int index, int *error) {
+static int VS_CC propGetDataSize(const VSMap *map, const char *key, int index, int *error) noexcept {
     PROP_GET_SHARED(VSVariant::vData, static_cast<int>(l.getValue<VSMapData>(index)->size()))
 }
 
-static VSNodeRef *VS_CC propGetNode(const VSMap *map, const char *key, int index, int *error) {
+static VSNodeRef *VS_CC propGetNode(const VSMap *map, const char *key, int index, int *error) noexcept {
     PROP_GET_SHARED(VSVariant::vNode, new VSNodeRef(l.getValue<VSNodeRef>(index)))
 }
 
-static const VSFrameRef *VS_CC propGetFrame(const VSMap *map, const char *key, int index, int *error) {
+static const VSFrameRef *VS_CC propGetFrame(const VSMap *map, const char *key, int index, int *error) noexcept {
     PROP_GET_SHARED(VSVariant::vFrame, new VSFrameRef(l.getValue<PVideoFrame>(index)))
 }
 
-static int VS_CC propDeleteKey(VSMap *map, const char *key) {
+static int VS_CC propDeleteKey(VSMap *map, const char *key) noexcept {
     assert(map && key);
     return map->erase(key);
 }
@@ -367,138 +369,138 @@ static bool isValidVSMapKey(const std::string &s) {
     return 0;
 
 
-static int VS_CC propSetInt(VSMap *map, const char *key, int64_t i, int append) {
+static int VS_CC propSetInt(VSMap *map, const char *key, int64_t i, int append) noexcept {
     PROP_SET_SHARED(VSVariant::vInt, i)
 }
 
-static int VS_CC propSetFloat(VSMap *map, const char *key, double d, int append) {
+static int VS_CC propSetFloat(VSMap *map, const char *key, double d, int append) noexcept {
     PROP_SET_SHARED(VSVariant::vFloat, d)
 }
 
-static int VS_CC propSetData(VSMap *map, const char *key, const char *d, int length, int append) {
+static int VS_CC propSetData(VSMap *map, const char *key, const char *d, int length, int append) noexcept {
     PROP_SET_SHARED(VSVariant::vData, length >= 0 ? std::string(d, length) : std::string(d))
 }
 
-static int VS_CC propSetNode(VSMap *map, const char *key, VSNodeRef *clip, int append) {
+static int VS_CC propSetNode(VSMap *map, const char *key, VSNodeRef *clip, int append) noexcept {
     PROP_SET_SHARED(VSVariant::vNode, *clip)
 }
 
-static int VS_CC propSetFrame(VSMap *map, const char *key, const VSFrameRef *frame, int append) {
+static int VS_CC propSetFrame(VSMap *map, const char *key, const VSFrameRef *frame, int append) noexcept {
     PROP_SET_SHARED(VSVariant::vFrame, frame->frame)
 }
 
-static VSMap *VS_CC invoke(VSPlugin *plugin, const char *name, const VSMap *args) {
+static VSMap *VS_CC invoke(VSPlugin *plugin, const char *name, const VSMap *args) noexcept {
     assert(plugin && name && args);
     return new VSMap(plugin->invoke(name, *args));
 }
 
-static VSMap *VS_CC createMap() {
+static VSMap *VS_CC createMap() noexcept {
     return new VSMap();
 }
 
-static void VS_CC freeMap(VSMap *map) {
+static void VS_CC freeMap(VSMap *map) noexcept {
     delete map;
 }
 
-static void VS_CC clearMap(VSMap *map) {
+static void VS_CC clearMap(VSMap *map) noexcept {
     assert(map);
     map->clear();
 }
 
-static VSCore *VS_CC createCore(int threads) {
+static VSCore *VS_CC createCore(int threads) noexcept {
     return new VSCore(threads);
 }
 
-static void VS_CC freeCore(VSCore *core) {
+static void VS_CC freeCore(VSCore *core) noexcept {
     if (core)
         core->freeCore();
 }
 
-static VSPlugin *VS_CC getPluginById(const char *identifier, VSCore *core) {
+static VSPlugin *VS_CC getPluginById(const char *identifier, VSCore *core) noexcept {
     assert(identifier && core);
     return core->getPluginById(identifier);
 }
 
-static VSPlugin *VS_CC getPluginByNs(const char *ns, VSCore *core) {
+static VSPlugin *VS_CC getPluginByNs(const char *ns, VSCore *core) noexcept {
     assert(ns && core);
     return core->getPluginByNs(ns);
 }
 
-static VSMap *VS_CC getPlugins(VSCore *core) {
+static VSMap *VS_CC getPlugins(VSCore *core) noexcept {
     assert(core);
     return new VSMap(core->getPlugins());
 }
 
-static VSMap *VS_CC getFunctions(VSPlugin *plugin) {
+static VSMap *VS_CC getFunctions(VSPlugin *plugin) noexcept {
     assert(plugin);
     return new VSMap(plugin->getFunctions());
 }
 
-static const VSCoreInfo *VS_CC getCoreInfo(VSCore *core) {
+static const VSCoreInfo *VS_CC getCoreInfo(VSCore *core) noexcept {
     assert(core);
     return &core->getCoreInfo();
 }
 
-static VSFuncRef *VS_CC propGetFunc(const VSMap *map, const char *key, int index, int *error) {
+static VSFuncRef *VS_CC propGetFunc(const VSMap *map, const char *key, int index, int *error) noexcept {
     PROP_GET_SHARED(VSVariant::vMethod, new VSFuncRef(l.getValue<PExtFunction>(index)))
 }
 
-static int VS_CC propSetFunc(VSMap *map, const char *key, VSFuncRef *func, int append) {
+static int VS_CC propSetFunc(VSMap *map, const char *key, VSFuncRef *func, int append) noexcept {
     assert(func);
     PROP_SET_SHARED(VSVariant::vMethod, func->func)
 }
 
-static void VS_CC callFunc(VSFuncRef *func, const VSMap *in, VSMap *out, VSCore *core, const VSAPI *vsapi) {
+static void VS_CC callFunc(VSFuncRef *func, const VSMap *in, VSMap *out, VSCore *core, const VSAPI *vsapi) noexcept {
     assert(func && in && out);
     func->func->call(in, out);
 }
 
-static VSFuncRef *VS_CC createFunc(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core, const VSAPI *vsapi) {
+static VSFuncRef *VS_CC createFunc(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core, const VSAPI *vsapi) noexcept {
     assert(func && core && vsapi);
     return new VSFuncRef(std::make_shared<ExtFunction>(func, userData, free, core, vsapi));
 }
 
-static void VS_CC freeFunc(VSFuncRef *f) {
+static void VS_CC freeFunc(VSFuncRef *f) noexcept {
     delete f;
 }
 
-static void VS_CC queryCompletedFrame(VSNodeRef **node, int *n, VSFrameContext *frameCtx) {
+static void VS_CC queryCompletedFrame(VSNodeRef **node, int *n, VSFrameContext *frameCtx) noexcept {
     assert(node && n && frameCtx);
     *node = frameCtx->ctx->lastCompletedNode;
     *n = frameCtx->ctx->lastCompletedN;
 }
 
-static void VS_CC releaseFrameEarly(VSNodeRef *node, int n, VSFrameContext *frameCtx) {
+static void VS_CC releaseFrameEarly(VSNodeRef *node, int n, VSFrameContext *frameCtx) noexcept {
     assert(node && frameCtx);
     frameCtx->ctx->availableFrames.erase(NodeOutputKey(node->clip.get(), n, node->index));
 }
 
-static VSFuncRef *VS_CC cloneFuncRef(VSFuncRef *f) {
+static VSFuncRef *VS_CC cloneFuncRef(VSFuncRef *f) noexcept {
     assert(f);
     return new VSFuncRef(f->func);
 }
 
-static int64_t VS_CC setMaxCacheSize(int64_t bytes, VSCore *core) {
+static int64_t VS_CC setMaxCacheSize(int64_t bytes, VSCore *core) noexcept {
     assert(core);
     return core->memory->setMaxMemoryUse(bytes);
 }
 
-static int VS_CC getOutputIndex(VSFrameContext *frameCtx) {
+static int VS_CC getOutputIndex(VSFrameContext *frameCtx) noexcept {
     assert(frameCtx);
     return frameCtx->ctx->index;
 }
 
-static void VS_CC setMessageHandler(VSMessageHandler handler, void *userData) {
+static void VS_CC setMessageHandler(VSMessageHandler handler, void *userData) noexcept {
     vsSetMessageHandler(handler, userData);
 }
 
-static int VS_CC setThreadCount(int threads, VSCore *core) {
+static int VS_CC setThreadCount(int threads, VSCore *core) noexcept {
     assert(core);
     core->threadPool->setThreadCount(threads);
     return core->threadPool->threadCount();
 }
 
-static const char *VS_CC getPluginPath(const VSPlugin *plugin) {
+static const char *VS_CC getPluginPath(const VSPlugin *plugin) noexcept {
     if (!plugin)
         vsFatal("NULL passed to getPluginPath");
     if (!plugin->filename.empty())
@@ -507,17 +509,17 @@ static const char *VS_CC getPluginPath(const VSPlugin *plugin) {
         return nullptr;
 }
 
-static const int64_t *VS_CC propGetIntArray(const VSMap *map, const char *key, int *error) {
+static const int64_t *VS_CC propGetIntArray(const VSMap *map, const char *key, int *error) noexcept {
     int index = 0;
     PROP_GET_SHARED(VSVariant::vInt, l.getArray<int64_t>())
 }
 
-static const double *VS_CC propGetFloatArray(const VSMap *map, const char *key, int *error) {
+static const double *VS_CC propGetFloatArray(const VSMap *map, const char *key, int *error) noexcept {
     int index = 0;
     PROP_GET_SHARED(VSVariant::vFloat, l.getArray<double>())
 }
 
-static int VS_CC propSetIntArray(VSMap *map, const char *key, const int64_t *i, int size) {
+static int VS_CC propSetIntArray(VSMap *map, const char *key, const int64_t *i, int size) noexcept {
     assert(map && key && size >= 0);
     if (size < 0)
         return 1;
@@ -530,7 +532,7 @@ static int VS_CC propSetIntArray(VSMap *map, const char *key, const int64_t *i, 
     return 0;
 }
 
-static int VS_CC propSetFloatArray(VSMap *map, const char *key, const double *d, int size) {
+static int VS_CC propSetFloatArray(VSMap *map, const char *key, const double *d, int size) noexcept {
     assert(map && key && size >= 0);
     if (size < 0)
         return 1;
@@ -642,7 +644,7 @@ const VSAPI *getVSAPIInternal(int apiMajor) {
     }
 }
 
-const VSAPI *VS_CC getVapourSynthAPI(int version) {
+const VSAPI *VS_CC getVapourSynthAPI(int version) noexcept {
     int apiMajor = version;
     int apiMinor = 0;
     if (apiMajor >= 0x10000) {
