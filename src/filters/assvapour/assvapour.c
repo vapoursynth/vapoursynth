@@ -19,6 +19,7 @@
 #include <string.h>
 #include <ass/ass.h>
 #include <time.h>
+#include <inttypes.h>
 
 #include "VapourSynth.h"
 #include "VSHelper.h"
@@ -175,7 +176,6 @@ static void VS_CC assInit(VSMap *in, VSMap *out, void **instanceData,
 
     if(d->file == NULL) {
         char *str, *text, x[16], y[16], start[16], end[16];
-        time_t time_secs;
         size_t siz;
         const char *fmt = "[Script Info]\n"
                           "ScriptType: v4.00+\n"
@@ -199,7 +199,7 @@ static void VS_CC assInit(VSMap *in, VSMap *out, void **instanceData,
             time_secs = timeint / 100;
             time_ms = timeint % 100;
             ti = gmtime(&time_secs);
-            sprintf(start, "%d:%02d:%02d.%02d", ti->tm_hour, ti->tm_min, ti->tm_sec, time_ms);
+            sprintf(start, "%d:%02d:%02d.%02"PRIu64, ti->tm_hour, ti->tm_min, ti->tm_sec, time_ms);
         }
 
         {
@@ -210,7 +210,7 @@ static void VS_CC assInit(VSMap *in, VSMap *out, void **instanceData,
             time_secs = timeint / 100;
             time_ms = timeint % 100;
             ti = gmtime(&time_secs);
-            sprintf(end, "%d:%02d:%02d.%02d", ti->tm_hour, ti->tm_min, ti->tm_sec, time_ms);
+            sprintf(end, "%d:%02d:%02d.%02"PRIu64, ti->tm_hour, ti->tm_min, ti->tm_sec, time_ms);
         }
 
         text = strrepl(d->text, "\n", "\\N");
@@ -358,7 +358,7 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
 {
     AssData d;
     AssData *data;
-    int err, i, framenum;
+    int err, i;
 
     d.lastn = -1;
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
@@ -382,12 +382,12 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
             d.style = "sans-serif,20,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,7,10,10,10,1";
         }
 
-        d.startframe = vsapi->propGetInt(in, "start", 0, &err);
+        d.startframe = int64ToIntS(vsapi->propGetInt(in, "start", 0, &err));
         if (err) {
             d.startframe = 0;
         }
         
-        d.endframe = vsapi->propGetInt(in, "end", 0, &err);
+        d.endframe = int64ToIntS(vsapi->propGetInt(in, "end", 0, &err));
         if(err) {
             d.endframe = d.vi[0].numFrames;
         }
