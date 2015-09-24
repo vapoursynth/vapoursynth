@@ -277,8 +277,7 @@ static const VSFrameRef *VS_CC assGetFrame(int n, int activationReason,
         int64_t ts = 0;
         int changed;
 
-        if(d->file != NULL)
-            ts = (int64_t)n * 1000 * d->vi[0].fpsDen / d->vi[0].fpsNum;
+        ts = (int64_t)n * 1000 * d->vi[0].fpsDen / d->vi[0].fpsNum;
 
         img = ass_render_frame(d->ass_renderer, d->ass, ts, &changed);
 
