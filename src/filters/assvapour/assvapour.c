@@ -386,10 +386,20 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
         if (err) {
             d.startframe = 0;
         }
+        else if(d.startframe > d.vi[0].numFrames) {
+            vsapi->setError(out, "startframe must be smaller than the clip length");
+        }
+        
         
         d.endframe = int64ToIntS(vsapi->propGetInt(in, "end", 0, &err));
         if(err) {
             d.endframe = d.vi[0].numFrames;
+        }
+        else if(d.endframe > d.vi[0].numFrames) {
+            vsapi->setError(out, "endframe must be smaller than the clip length");
+        }
+        else if(!(d.startframe < d.endframe)) {
+            vsapi->setError(out, "endframe must be larger than startframe");
         }
     }
 
