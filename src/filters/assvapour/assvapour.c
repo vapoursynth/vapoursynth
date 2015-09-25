@@ -195,7 +195,14 @@ static void VS_CC assInit(VSMap *in, VSMap *out, void **instanceData,
             int64_t timeint, time_ms;
             time_t time_secs;
             struct tm * ti;
-            timeint = (int64_t)d->startframe * 100 * d->vi[0].fpsDen / d->vi[0].fpsNum;
+            if(d->startframe != 0 && (INT64_MAX / d->vi[0].fpsDen) < ((int64_t)d->startframe * 100)) {
+                //Overflow would occur
+                vsapi->setError(out, "Unable to calculate start time");
+                timeint = 0;
+            }
+            else {
+                timeint = (int64_t)d->startframe * 100 * d->vi[0].fpsDen / d->vi[0].fpsNum;
+            }
             time_secs = timeint / 100;
             time_ms = timeint % 100;
             ti = gmtime(&time_secs);
@@ -206,7 +213,14 @@ static void VS_CC assInit(VSMap *in, VSMap *out, void **instanceData,
             int64_t timeint, time_ms;
             time_t time_secs;
             struct tm * ti;
-            timeint = (int64_t)d->endframe * 100 * d->vi[0].fpsDen / d->vi[0].fpsNum;
+            if(d->endframe != 0 && (INT64_MAX / d->vi[0].fpsDen) < ((int64_t)d->endframe * 100)) {
+                //Overflow would occur
+                vsapi->setError(out, "Unable to calculate end time");
+                timeint = 0;
+            }
+            else {
+                timeint = (int64_t)d->endframe * 100 * d->vi[0].fpsDen / d->vi[0].fpsNum;
+            }
             time_secs = timeint / 100;
             time_ms = timeint % 100;
             ti = gmtime(&time_secs);
@@ -387,7 +401,7 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
             d.startframe = 0;
         }
         else if(d.startframe > d.vi[0].numFrames) {
-            vsapi->setError(out, "startframe must be smaller than the clip length");
+            vsapi->setError(out, "start must be smaller than the clip length");
         }
         
         
@@ -396,10 +410,10 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
             d.endframe = d.vi[0].numFrames;
         }
         else if(d.endframe > d.vi[0].numFrames) {
-            vsapi->setError(out, "endframe must be smaller than the clip length");
+            vsapi->setError(out, "end must be smaller than the clip length");
         }
         else if(!(d.startframe < d.endframe)) {
-            vsapi->setError(out, "endframe must be larger than startframe");
+            vsapi->setError(out, "end must be larger than start");
         }
     }
 
