@@ -29,6 +29,9 @@ FlatComponentsList=yes
 ArchitecturesAllowed=x86 x64
 ArchitecturesInstallIn64BitMode=x64
 
+[Languages]
+Name: "en"; MessagesFile: "compiler:Default.isl"
+
 [Types]
 Name: Full; Description: Full installation; Flags: iscustom
 
@@ -70,9 +73,7 @@ Source: ..\msvc_project\x64\Release\vsvfw.dll; DestDir: {sys}; Flags: uninsresta
 
 Source: ..\msvc_project\Release\vsscript.dll; DestDir: {sys}; Flags: uninsrestartdelete restartreplace 32bit; Components: vs32
 Source: ..\msvc_project\x64\Release\vsscript.dll; DestDir: {sys}; Flags: uninsrestartdelete restartreplace 64bit; Components: vs64
-;vs2015 runtime installers
-Source: x86\rtx86.msi; DestDir: {app}\runtimes; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: x64\rtx64.msi; DestDir: {app}\runtimes; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+
 ;sdk
 Source: ..\include\VapourSynth.h; DestDir: {app}\sdk\include\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
 Source: ..\include\VSHelper.h; DestDir: {app}\sdk\include\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
@@ -143,9 +144,6 @@ Root: HKLM; Subkey: SOFTWARE\Classes\vsfile\DefaultIcon; ValueType: string; Valu
 Root: HKLM; Subkey: SOFTWARE\Classes\AVIFile\Extensions\VPY; ValueType: string; ValueName: ""; ValueData: "{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
 
 [Run]
-Filename: "msiexec.exe"; Parameters: "/package ""{app}\runtimes\rtx86.msi"" /quiet /norestart ARPSYSTEMCOMPONENT=1"; Components: vs32
-Filename: "msiexec.exe"; Parameters: "/package ""{app}\runtimes\rtx64.msi"" /quiet /norestart ARPSYSTEMCOMPONENT=1"; Components: vs64
-
 Filename: "{win}\pfm.exe"; Parameters: "register ""{app}\core64\vsfs.dll"""; Tasks: registervsfs\registervsfs64; Flags: skipifdoesntexist
 Filename: "{win}\pfm.exe"; Parameters: "register ""{app}\core32\vsfs.dll"""; Tasks: registervsfs\registervsfs32; Flags: skipifdoesntexist
 
@@ -154,10 +152,16 @@ Filename: "{win}\pfm.exe"; Parameters: "unregister ""{app}\core64\vsfs.dll"""; T
 Filename: "{win}\pfm.exe"; Parameters: "unregister ""{app}\core32\vsfs.dll"""; Tasks: registervsfs\registervsfs32; Flags: skipifdoesntexist
 
 [Code]
+#include "scripts\products.iss"
+#include "scripts\products\msiproduct.iss"
+#include "scripts\products\vcredist2013.iss"
+#include "scripts\products\vcredist2015.iss"
 
 var
   PythonPath32: string;
   PythonPath64: string;
+  Runtimes32Added: Boolean;
+  Runtimes64Added: Boolean;
 
 function HasPython32: Boolean;
 begin
@@ -172,6 +176,9 @@ end;
 function InitializeSetup: Boolean;
 var Success: Boolean;
 begin
+  Runtimes32Added := False;
+  Runtimes64Added := False;
+
   Success := RegQueryStringValue(HKCU32, 'SOFTWARE\Python\PythonCore\3.5-32\InstallPath', '', PythonPath32);
   if not Success then
     RegQueryStringValue(HKLM32, 'SOFTWARE\Python\PythonCore\3.5-32\InstallPath', '', PythonPath32);
@@ -276,5 +283,24 @@ begin
       Result := False;
       MsgBox('At least one version of the core library has to be installed.', mbCriticalError, MB_OK)
     end;
+  end
+  else if CurPageID = wpReady then
+  begin
+    if IsComponentSelected('vs32') and not Runtimes32Added then
+    begin
+      SetForceX86(True);
+      vcredist2013();
+      vcredist2015();
+      SetForceX86(False);
+      Runtimes32Added := True;
+    end;
+    if IsComponentSelected('vs64') and not Runtimes64Added then
+    begin
+      vcredist2013();
+      vcredist2015();
+      Runtimes64Added := True;
+    end;
+    Result := NextButtonClick2(CurPageID);
   end;
 end;
+

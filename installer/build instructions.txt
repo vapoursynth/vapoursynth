@@ -1,0 +1,4 @@
+In order to build the installer you need to download
+and place isxdl.dll in "installer\scripts\isxdl".
+It can be downloaded from:
+http://www.codeproject.com/Articles/20868/NET-Framework-Installer-for-InnoSetup
