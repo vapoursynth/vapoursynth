@@ -60,7 +60,7 @@ AssVapour is a subtitle renderer that uses libass.
          Custom ASS style to be used.
       
       start, end
-         Subtitle will be shown from *start* up until *end*.
+         Subtitle will be shown from *start* up until *end*. By default this will be for all frames in *clip*.
 
    The other parameters have the same meanings as with AssRender.
 
