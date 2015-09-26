@@ -1,6 +1,9 @@
 r28:
+the installer will now download and install the vs2013 and vs2015 runtimes if needed
 now uses python 3.5
-expr now accepts up to 26 inputs
+fixed vdecimate parallel mode
+pow is now accepted in expr expressions
+expr now accepts up to 26 inputs (x-z, a-w)
 expr now has runtime code generation on x86 cpus using jitasm
 now normalizes the framerate returned from avisynth filters
 it is now a fatal error to set the videoinfo of a filter to a non-normalized framerate
