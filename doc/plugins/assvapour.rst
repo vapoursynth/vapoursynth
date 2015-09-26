@@ -46,7 +46,7 @@ AssVapour is a subtitle renderer that uses libass.
          Font scale.
 
 
-.. function::   Subtitle(clip clip, string text[, int debuglevel=0, string fontdir="", float linespacing=0, int[] margins=[0, 0, 0, 0], float sar=0, string style="sans-serif,20,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,7,10,10,10,1"])
+.. function::   Subtitle(clip clip, string text[, int debuglevel=0, string fontdir="", float linespacing=0, int[] margins=[0, 0, 0, 0], float sar=0, string style="sans-serif,20,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,7,10,10,10,1"], int start=0, int end=clip.numFrames)
    :module: assvapour
 
    Instead of rendering an ASS script, Subtitle renders the string *text*.
@@ -54,10 +54,13 @@ AssVapour is a subtitle renderer that uses libass.
 
    Parameters:
       text
-         String to be rendered.
+         String to be rendered. This can include ASS tags to enable rich text and animation.
 
       style
          Custom ASS style to be used.
+      
+      start, end
+         Subtitle will be shown from *start* up until *end*. By default this will be for all frames in *clip*.
 
    The other parameters have the same meanings as with AssRender.
 
