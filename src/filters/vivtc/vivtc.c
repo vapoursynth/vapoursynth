@@ -1441,7 +1441,7 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
 
     d = (VDecimateData *)malloc(sizeof(vdm));
     *d = vdm;
-    vsapi->createFilter(in, out, "VDecimate", vdecimateInit, vdecimateGetFrame, vdecimateFree, fmSerial, 0, d, core);
+    vsapi->createFilter(in, out, "VDecimate", vdecimateInit, vdecimateGetFrame, vdecimateFree, fmUnordered, 0, d, core);
 }
 
 // Needed to silence warnings
