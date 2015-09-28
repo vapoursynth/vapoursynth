@@ -584,8 +584,26 @@ typedef enum {
     mU = 4
 } FMP;
 
+typedef enum {
+    VSFieldBasedProgressive = 0,
+    VSFieldBasedBFF,
+    VSFieldBasedTFF
+} VSFieldBased;
+
+typedef enum {
+    VFMOrderBFF = 0,
+    VFMOrderTFF = 1
+} VFMOrder;
+
+typedef enum {
+    VFMFieldBottom = VFMOrderBFF,
+    VFMFieldTop = VFMOrderTFF,
+    VFMFieldSameAsOrder,
+    VFMFieldOppositeOfOrder
+} VFMField;
+
 static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    VFMData *vfm = (VFMData *)*instanceData;
+    const VFMData *vfm = (const VFMData *)*instanceData;
     n = VSMIN(vfm->vi->numFrames - 1, n);
     if (activationReason == arInitial) {
         if (n > 0) {
@@ -607,10 +625,26 @@ static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void **i
         const VSFrameRef *nxt = vsapi->getFrameFilter(n < vfm->vi->numFrames - 1 ? n+1 : vfm->vi->numFrames - 1, vfm->node, frameCtx);
         int mics[] = { -1,-1,-1,-1,-1 };
 
+        int order, field;
+        int missing;
+        const VSMap *props = vsapi->getFramePropsRO(src);
+        int64_t fieldBased = vsapi->propGetInt(props, "_FieldBased", 0, &missing);
+        if (missing || (fieldBased != VSFieldBasedBFF && fieldBased != VSFieldBasedTFF))
+            order = vfm->order;
+        else
+            order = fieldBased - 1;
+
+        if (vfm->field == VFMFieldSameAsOrder)
+            field = order;
+        else if (vfm->field == VFMFieldOppositeOfOrder)
+            field = !order;
+        else
+            field = vfm->field;
+
         // selected based on field^order
         const int fxo0m[] = { 0, 1, 2, 3, 4 };
         const int fxo1m[] = { 2, 1, 0, 4, 3};
-        const int *fxo = vfm->field^vfm->order ? fxo1m : fxo0m;
+        const int *fxo = field ^ order ? fxo1m : fxo0m;
         int match;
         int i;
         const VSFrameRef *genFrames[] =  { NULL, NULL, NULL, NULL, NULL };
@@ -632,7 +666,6 @@ static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void **i
         // check if it's a scenechange so micmatch can be used
         // only relevant for mm mode 1
         if (vfm->micmatch == 1) {
-            const VSMap *props = vsapi->getFramePropsRO(src);
             sc = vsapi->propGetFloat(props, "VFMPlaneDifference", 0, 0) > vfm->scthresh;
 
             if (!sc) {
@@ -642,18 +675,18 @@ static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void **i
         }
 
         // p/c selection
-        match = compareFieldsSlow(prv, src, nxt, map, fxo[mC], fxo[mP], vfm->mchroma, vfm->field, vfm->y0, vfm->y1, tbuffer, vfm->tpitchy, vfm->tpitchuv, vsapi);
+        match = compareFieldsSlow(prv, src, nxt, map, fxo[mC], fxo[mP], vfm->mchroma, field, vfm->y0, vfm->y1, tbuffer, vfm->tpitchy, vfm->tpitchuv, vsapi);
         // the mode has 3-way p/c/n matches
         if (vfm->mode >= 4)
-            match = compareFieldsSlow(prv, src, nxt, map, match, fxo[mN], vfm->mchroma, vfm->field, vfm->y0, vfm->y1, tbuffer, vfm->tpitchy, vfm->tpitchuv, vsapi);
+            match = compareFieldsSlow(prv, src, nxt, map, match, fxo[mN], vfm->mchroma, field, vfm->y0, vfm->y1, tbuffer, vfm->tpitchy, vfm->tpitchuv, vsapi);
 
         genFrames[mC] = vsapi->cloneFrameRef(src);
 
         // calculate all values for mic output, checkmm calculates and prepares it for the two matches if not already done
         if (vfm->micout) {
-            checkmm(0, 1, &mics[0], &mics[1], &blockN, vfm->mi, vfm->field, vfm->chroma, vfm->cthresh, genFrames, prv, src, nxt, cmask, &cArray[0], vfm->blockx, vfm->blocky, vsapi, core);
-            checkmm(2, 3, &mics[2], &mics[3], &blockN, vfm->mi, vfm->field, vfm->chroma, vfm->cthresh, genFrames, prv, src, nxt, cmask, &cArray[0], vfm->blockx, vfm->blocky, vsapi, core);
-            checkmm(4, 0, &mics[4], &mics[0], &blockN, vfm->mi, vfm->field, vfm->chroma, vfm->cthresh, genFrames, prv, src, nxt, cmask, &cArray[0], vfm->blockx, vfm->blocky, vsapi, core);
+            checkmm(0, 1, &mics[0], &mics[1], &blockN, vfm->mi, field, vfm->chroma, vfm->cthresh, genFrames, prv, src, nxt, cmask, &cArray[0], vfm->blockx, vfm->blocky, vsapi, core);
+            checkmm(2, 3, &mics[2], &mics[3], &blockN, vfm->mi, field, vfm->chroma, vfm->cthresh, genFrames, prv, src, nxt, cmask, &cArray[0], vfm->blockx, vfm->blocky, vsapi, core);
+            checkmm(4, 0, &mics[4], &mics[0], &blockN, vfm->mi, field, vfm->chroma, vfm->cthresh, genFrames, prv, src, nxt, cmask, &cArray[0], vfm->blockx, vfm->blocky, vsapi, core);
         }
 
         // check the micmatches to see if one of the options are better
@@ -663,21 +696,21 @@ static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void **i
             // here comes the conditional hell to try to approximate mode 0-5 in tfm
             if (vfm->mode == 0) {
                 // maybe not completely appropriate but go back and see if the discarded match is less sucky
-                match = checkmm(match, match == fxo[mP] ? fxo[mC] : fxo[mP], &mics[match], &mics[match == fxo[mP] ? fxo[mC] : fxo[mP]], &blockN, vfm->mi, vfm->field, vfm->chroma, vfm->cthresh, genFrames, prv, src, nxt, cmask, &cArray[0], vfm->blockx, vfm->blocky, vsapi, core);
+                match = checkmm(match, match == fxo[mP] ? fxo[mC] : fxo[mP], &mics[match], &mics[match == fxo[mP] ? fxo[mC] : fxo[mP]], &blockN, vfm->mi, field, vfm->chroma, vfm->cthresh, genFrames, prv, src, nxt, cmask, &cArray[0], vfm->blockx, vfm->blocky, vsapi, core);
             } else if (vfm->mode == 1) {
-                match = checkmm(match, fxo[mN], &mics[match], &mics[fxo[mN]], &blockN, vfm->mi, vfm->field, vfm->chroma, vfm->cthresh, genFrames, prv, src, nxt, cmask, &cArray[0], vfm->blockx, vfm->blocky, vsapi, core);
+                match = checkmm(match, fxo[mN], &mics[match], &mics[fxo[mN]], &blockN, vfm->mi, field, vfm->chroma, vfm->cthresh, genFrames, prv, src, nxt, cmask, &cArray[0], vfm->blockx, vfm->blocky, vsapi, core);
             } else if (vfm->mode == 2) {
-                match = checkmm(match, fxo[mU], &mics[match], &mics[fxo[mU]], &blockN, vfm->mi, vfm->field, vfm->chroma, vfm->cthresh, genFrames, prv, src, nxt, cmask, &cArray[0], vfm->blockx, vfm->blocky, vsapi, core);
+                match = checkmm(match, fxo[mU], &mics[match], &mics[fxo[mU]], &blockN, vfm->mi, field, vfm->chroma, vfm->cthresh, genFrames, prv, src, nxt, cmask, &cArray[0], vfm->blockx, vfm->blocky, vsapi, core);
             } else if (vfm->mode == 3) {
-                match = checkmm(match, fxo[mN], &mics[match], &mics[fxo[mN]], &blockN, vfm->mi, vfm->field, vfm->chroma, vfm->cthresh, genFrames, prv, src, nxt, cmask, &cArray[0], vfm->blockx, vfm->blocky, vsapi, core);
-                match = checkmm(match, fxo[mU], &mics[match], &mics[fxo[mU]], &blockN, vfm->mi, vfm->field, vfm->chroma, vfm->cthresh, genFrames, prv, src, nxt, cmask, &cArray[0], vfm->blockx, vfm->blocky, vsapi, core);
-                match = checkmm(match, fxo[mB], &mics[match], &mics[fxo[mB]], &blockN, vfm->mi, vfm->field, vfm->chroma, vfm->cthresh, genFrames, prv, src, nxt, cmask, &cArray[0], vfm->blockx, vfm->blocky, vsapi, core);
+                match = checkmm(match, fxo[mN], &mics[match], &mics[fxo[mN]], &blockN, vfm->mi, field, vfm->chroma, vfm->cthresh, genFrames, prv, src, nxt, cmask, &cArray[0], vfm->blockx, vfm->blocky, vsapi, core);
+                match = checkmm(match, fxo[mU], &mics[match], &mics[fxo[mU]], &blockN, vfm->mi, field, vfm->chroma, vfm->cthresh, genFrames, prv, src, nxt, cmask, &cArray[0], vfm->blockx, vfm->blocky, vsapi, core);
+                match = checkmm(match, fxo[mB], &mics[match], &mics[fxo[mB]], &blockN, vfm->mi, field, vfm->chroma, vfm->cthresh, genFrames, prv, src, nxt, cmask, &cArray[0], vfm->blockx, vfm->blocky, vsapi, core);
             } else if (vfm->mode == 4) {
                 // degenerate check because I'm lazy
-                match = checkmm(match, match == fxo[mP] ? fxo[mC] : fxo[mP], &mics[match], &mics[match == fxo[mP] ? fxo[mC] : fxo[mP]], &blockN, vfm->mi, vfm->field, vfm->chroma, vfm->cthresh, genFrames, prv, src, nxt, cmask, &cArray[0], vfm->blockx, vfm->blocky,vsapi, core);
+                match = checkmm(match, match == fxo[mP] ? fxo[mC] : fxo[mP], &mics[match], &mics[match == fxo[mP] ? fxo[mC] : fxo[mP]], &blockN, vfm->mi, field, vfm->chroma, vfm->cthresh, genFrames, prv, src, nxt, cmask, &cArray[0], vfm->blockx, vfm->blocky,vsapi, core);
             } else if (vfm->mode == 5) {
-                match = checkmm(match, fxo[mU], &mics[match], &mics[fxo[mU]], &blockN, vfm->mi, vfm->field, vfm->chroma, vfm->cthresh, genFrames, prv, src, nxt, cmask, &cArray[0], vfm->blockx, vfm->blocky, vsapi, core);
-                match = checkmm(match, fxo[mB], &mics[match], &mics[fxo[mB]], &blockN, vfm->mi, vfm->field, vfm->chroma, vfm->cthresh, genFrames, prv, src, nxt, cmask, &cArray[0], vfm->blockx, vfm->blocky, vsapi, core);
+                match = checkmm(match, fxo[mU], &mics[match], &mics[fxo[mU]], &blockN, vfm->mi, field, vfm->chroma, vfm->cthresh, genFrames, prv, src, nxt, cmask, &cArray[0], vfm->blockx, vfm->blocky, vsapi, core);
+                match = checkmm(match, fxo[mB], &mics[match], &mics[fxo[mB]], &blockN, vfm->mi, field, vfm->chroma, vfm->cthresh, genFrames, prv, src, nxt, cmask, &cArray[0], vfm->blockx, vfm->blocky, vsapi, core);
             }
         }
 
@@ -685,13 +718,13 @@ static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void **i
             const VSFrameRef *prv2 = vsapi->getFrameFilter(n > 0 ? n-1 : 0, vfm->clip2, frameCtx);
             const VSFrameRef *src2 = vsapi->getFrameFilter(n, vfm->clip2, frameCtx);
             const VSFrameRef *nxt2 = vsapi->getFrameFilter(n < vfm->vi->numFrames - 1 ? n+1 : vfm->vi->numFrames - 1, vfm->clip2, frameCtx);
-            dst1 = createWeaveFrame(prv2, src2, nxt2, vsapi, core, match, vfm->field);
+            dst1 = createWeaveFrame(prv2, src2, nxt2, vsapi, core, match, field);
             vsapi->freeFrame(prv2);
             vsapi->freeFrame(src2);
             vsapi->freeFrame(nxt2);
         } else {
             if (!genFrames[match])
-                genFrames[match] = createWeaveFrame(prv, src, nxt, vsapi, core, match, vfm->field);
+                genFrames[match] = createWeaveFrame(prv, src, nxt, vsapi, core, match, field);
             dst1 = vsapi->cloneFrameRef(genFrames[match]);
         }
 
@@ -787,10 +820,10 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
     VFMData *vfmd ;
     const VSVideoInfo *vi;
 
-    vfm.order = !!vsapi->propGetInt(in, "order", 0, 0);
+    vfm.order = int64ToIntS(vsapi->propGetInt(in, "order", 0, 0));
     vfm.field = int64ToIntS(vsapi->propGetInt(in, "field", 0, &err));
-    if (err || vfm.field != !!vfm.field)
-        vfm.field = vfm.order;
+    if (err)
+        vfm.field = VFMFieldSameAsOrder;
 
     vfm.mode = int64ToIntS(vsapi->propGetInt(in, "mode", 0, &err));
     if (err)
@@ -826,6 +859,16 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
     if (err)
         vfm.micmatch = 1;
     vfm.micout = !!vsapi->propGetInt(in, "micout", 0, &err);
+
+    if (vfm.order < VFMOrderBFF || vfm.order > VFMOrderTFF) {
+        vsapi->setError(out, "VFM: Invalid order specified; only 0-1 allowed");
+        return;
+    }
+
+    if (vfm.field < VFMFieldBottom || vfm.field > VFMFieldOppositeOfOrder) {
+        vsapi->setError(out, "VFM: Invalid field specified; only 0-3 allowed");
+        return;
+    }
 
     if (vfm.mode < 0 || vfm.mode > 5) {
         vsapi->setError(out, "VFM: Invalid mode specified, only 0-5 allowed");

@@ -6,7 +6,7 @@ VIVTC
 VIVTC is a set of filters that can be used for inverse telecine.
 It is a rewrite of some of tritical's TIVTC filters.
 
-.. function:: VFM(clip clip, int order[, int field=order, int mode=1, bint mchroma=1, int cthresh=9, int mi=80, bint chroma=1, int blockx=16, int blocky=16, int y0=16, int y1=16, float scthresh=12, int micmatch=1, bint micout=0, clip clip2])
+.. function:: VFM(clip clip, int order[, int field=2, int mode=1, bint mchroma=1, int cthresh=9, int mi=80, bint chroma=1, int blockx=16, int blocky=16, int y0=16, int y1=16, float scthresh=12, int micmatch=1, bint micout=0, clip clip2])
    :module: vivtc
 
    VFM is a field matching filter that recovers the original progressive frames
@@ -51,8 +51,13 @@ It is a rewrite of some of tritical's TIVTC filters.
          Input clip. Only YUV420P8 with constant dimensions supported.
 
       order
-         Sets the field order of the clip. If this parameter has the wrong
-         value, VFM's output will be visibly wrong in mode 0.
+         Sets the field order of the clip. Normally the field order is
+         obtained from the ``_FieldBased`` frame property. This parameter
+         is only used for those frames where the ``_FieldBased`` property
+         has an invalid value or doesn't exist.
+
+         If the field order is wrong, VFM's output will be visibly wrong
+         in mode 0.
 
          0 - bottom field first
 
@@ -61,7 +66,7 @@ It is a rewrite of some of tritical's TIVTC filters.
       field
          Sets the field to match from. This is the field that VFM will take
          from the current frame in case of p or n matches. It is recommended
-         to set this to the same value as *order* unless you experience
+         to make this the same as the field order, unless you experience
          matching failures with that setting. In certain circumstances
          changing the field that is used to match from can have a large
          impact on matching performance.
@@ -70,7 +75,15 @@ It is a rewrite of some of tritical's TIVTC filters.
 
          1 - top field
 
-         Default: same as *order*.
+         2 - same as the field order
+
+         3 - opposite of the field order
+
+         0 and 1 will disregard the ``_FieldBased`` frame property. 2 and 3
+         will adapt to the field order obtained from the ``_FieldBased``
+         property.
+
+         Default: 2.
 
       mode
          Sets the matching mode or strategy to use. Plain 2-way matching
