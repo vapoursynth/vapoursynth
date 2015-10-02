@@ -23,11 +23,11 @@
 
 #include "VapourSynth.h"
 #include "vslog.h"
-#include <stdlib.h>
+#include <cstdlib>
 #include <stdexcept>
 #include <string>
-#include <string.h>
-#include <assert.h>
+#include <cstring>
+#include <cassert>
 #include <vector>
 #include <list>
 #include <set>
@@ -37,12 +37,14 @@
 #include <mutex>
 #include <thread>
 #include <condition_variable>
+#include <random>
 #ifdef VS_TARGET_OS_WINDOWS
 #    define WIN32_LEAN_AND_MEAN
 #    ifndef NOMINMAX
 #        define NOMINMAX
 #    endif
 #    include <windows.h>
+#    define VS_FRAME_POOL
 #else
 #    include <dlfcn.h>
 #endif
@@ -299,36 +301,22 @@ private:
     std::atomic<size_t> used;
     size_t maxMemoryUse;
     bool freeOnZero;
+    std::multimap<size_t, uint8_t *> buffers;
+    size_t unusedBufferSize;
+    std::minstd_rand generator;
+    std::mutex mutex;
 public:
-    void add(size_t bytes) {
-        used.fetch_add(bytes);
-    }
-    void subtract(size_t bytes) {
-        used.fetch_sub(bytes);
-    }
-    size_t memoryUse() {
-        return used;
-    }
-    size_t getLimit() {
-        return maxMemoryUse;
-    }
-    int64_t setMaxMemoryUse(int64_t bytes) {
-        if (bytes > 0 && static_cast<uint64_t>(bytes) <= SIZE_MAX)
-            maxMemoryUse = static_cast<size_t>(bytes);
-        return maxMemoryUse;
-    }
-    bool isOverLimit() {
-        return used > maxMemoryUse;
-    }
-    void signalFree() {
-        freeOnZero = true;
-        if (!used)
-            delete this;
-    }
-    MemoryUse() : used(0), freeOnZero(false) {
-        // 1GB
-        maxMemoryUse = 1024*1024*1024;
-    }
+    void add(size_t bytes);
+    void subtract(size_t bytes);
+    uint8_t *allocBuffer(size_t bytes);
+    void freeBuffer(uint8_t *buf);
+    size_t memoryUse();
+    size_t getLimit();
+    int64_t setMaxMemoryUse(int64_t bytes);
+    bool isOverLimit();
+    void signalFree();
+    MemoryUse();
+    ~MemoryUse();
 };
 
 class VSPlaneData {

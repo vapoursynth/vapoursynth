@@ -23,11 +23,11 @@
 #include "version.h"
 #ifndef VS_TARGET_OS_WINDOWS
 #include <dirent.h>
-#include <stddef.h>
+#include <cstddef>
 #include <unistd.h>
 #include "settings.h"
 #endif
-#include <assert.h>
+#include <cassert>
 
 #ifdef VS_TARGET_CPU_X86
 #include "x86utils.h"
@@ -227,8 +227,91 @@ void VSVariant::initStorage(VSVType t) {
 
 ///////////////
 
+void MemoryUse::add(size_t bytes) {
+    used.fetch_add(bytes);
+}
+
+void MemoryUse::subtract(size_t bytes) {
+    used.fetch_sub(bytes);
+}
+
+uint8_t *MemoryUse::allocBuffer(size_t bytes) {
+    std::lock_guard<std::mutex> lock(mutex);
+    auto iter = buffers.lower_bound(bytes);
+    if (iter != buffers.end()) {
+        if (iter->first <= (bytes + (bytes >> 3))) {
+            unusedBufferSize -= iter->first;
+            uint8_t *buf = iter->second;
+            buffers.erase(iter);
+            return buf + VSFrame::alignment;
+        }
+    }
+
+    uint8_t *buf = vs_aligned_malloc<uint8_t>(VSFrame::alignment + bytes, VSFrame::alignment);
+    memcpy(buf, &bytes, sizeof(bytes));
+    return buf + VSFrame::alignment;
+}
+
+void MemoryUse::freeBuffer(uint8_t *buf) {
+    assert(buf);
+    std::lock_guard<std::mutex> lock(mutex);
+    buf -= VSFrame::alignment;
+    size_t bytes;
+    memcpy(&bytes, buf, sizeof(bytes));
+    buffers.emplace(std::make_pair(bytes, buf));
+    unusedBufferSize += bytes;
+    while (unusedBufferSize > 1024 * 1024 * 100) {
+        std::uniform_int_distribution<size_t> randSrc(0, buffers.size() - 1);
+        auto iter = buffers.begin();
+        std::advance(iter, randSrc(generator));
+        unusedBufferSize -= iter->first;
+        vs_aligned_free(iter->second);
+        buffers.erase(iter);
+    }
+}
+
+size_t MemoryUse::memoryUse() {
+    return used;
+}
+
+size_t MemoryUse::getLimit() {
+    return maxMemoryUse;
+}
+
+int64_t MemoryUse::setMaxMemoryUse(int64_t bytes) {
+    if (bytes > 0 && static_cast<uint64_t>(bytes) <= SIZE_MAX)
+        maxMemoryUse = static_cast<size_t>(bytes);
+    return maxMemoryUse;
+}
+
+bool MemoryUse::isOverLimit() {
+    return used > maxMemoryUse;
+}
+
+void MemoryUse::signalFree() {
+    freeOnZero = true;
+    if (!used)
+        delete this;
+}
+
+MemoryUse::MemoryUse() : used(0), freeOnZero(false) {
+    // 1GB
+    maxMemoryUse = 1024 * 1024 * 1024;
+}
+
+MemoryUse::~MemoryUse() {
+    for (auto &iter : buffers)
+        vs_aligned_free(iter.second);
+}
+
+///////////////
+
 VSPlaneData::VSPlaneData(size_t dataSize, MemoryUse &mem) : mem(mem), size(dataSize + 2 * VSFrame::guardSpace) {
+#ifdef VS_FRAME_POOL
+    data = mem.allocBuffer(size + 2 * VSFrame::guardSpace);
+#else
     data = vs_aligned_malloc<uint8_t>(size + 2 * VSFrame::guardSpace, VSFrame::alignment);
+#endif
     assert(data);
     if (!data)
         vsFatal("Failed to allocate memory for planes. Out of memory.");
@@ -242,7 +325,11 @@ VSPlaneData::VSPlaneData(size_t dataSize, MemoryUse &mem) : mem(mem), size(dataS
 }
 
 VSPlaneData::VSPlaneData(const VSPlaneData &d) : mem(d.mem), size(d.size) {
+#ifdef VS_FRAME_POOL
+    data = mem.allocBuffer(size);
+#else
     data = vs_aligned_malloc<uint8_t>(size, VSFrame::alignment);
+#endif
     assert(data);
     if (!data)
         vsFatal("Failed to allocate memory for plane in copy constructor. Out of memory.");
@@ -251,7 +338,11 @@ VSPlaneData::VSPlaneData(const VSPlaneData &d) : mem(d.mem), size(d.size) {
 }
 
 VSPlaneData::~VSPlaneData() {
+#ifdef VS_FRAME_POOL
+    mem.freeBuffer(data);
+#else
     vs_aligned_free(data);
+#endif
     mem.subtract(size);
 }
 
