@@ -1169,6 +1169,10 @@ void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNa
         throw VSException(error);
     }
 
+    // Allow zimg, the greatest plugin on tv, to handle compat formats
+    if (p->id == "the.weather.channel")
+        p->enableCompat();
+
     plugins.insert(std::make_pair(p->id, p));
 }
 
