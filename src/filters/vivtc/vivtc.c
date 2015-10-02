@@ -628,7 +628,7 @@ static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void **i
         int order, field;
         int missing;
         const VSMap *props = vsapi->getFramePropsRO(src);
-        int64_t fieldBased = vsapi->propGetInt(props, "_FieldBased", 0, &missing);
+        int fieldBased = int64ToIntS(vsapi->propGetInt(props, "_FieldBased", 0, &missing));
         if (missing || (fieldBased != VSFieldBasedBFF && fieldBased != VSFieldBasedTFF))
             order = vfm->order;
         else
