@@ -22,10 +22,9 @@
 #include "VSHelper.h"
 #include "filtershared.h"
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <inttypes.h>
-
+#include <cstdlib>
+#include <cstdio>
+#include <cinttypes>
 #include <memory>
 #include <limits>
 #include <string>

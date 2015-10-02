@@ -23,7 +23,7 @@
 
 #include "vscore.h"
 #include <unordered_map>
-#include <assert.h>
+#include <cassert>
 
 class VSCache {
 private:

@@ -21,7 +21,7 @@
 #ifndef VSLOG_H
 #define VSLOG_H
 
-#include <VapourSynth.h>
+#include "VapourSynth.h"
 
 #define vsDebug(...)    vsLog(__FILE__, __LINE__, mtDebug, __VA_ARGS__)
 #define vsWarning(...)  vsLog(__FILE__, __LINE__, mtWarning, __VA_ARGS__)

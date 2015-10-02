@@ -19,10 +19,10 @@
 */
 
 #include "vslog.h"
-#include <assert.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdarg.h>
+#include <cassert>
+#include <cstdlib>
+#include <cstdio>
+#include <cstdarg>
 #include <mutex>
 #include <vector>
 

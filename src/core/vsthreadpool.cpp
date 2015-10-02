@@ -19,7 +19,7 @@
 */
 
 #include "vscore.h"
-#include <assert.h>
+#include <cassert>
 #ifdef VS_TARGET_CPU_X86
 #include "x86utils.h"
 #endif
