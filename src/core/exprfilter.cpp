@@ -787,7 +787,8 @@ static SOperation getLoadOp(const VSVideoInfo *vi) {
     if (vi->format->sampleType == stInteger) {
         if (vi->format->bitsPerSample == 8)
             return opLoadSrc8;
-        return opLoadSrc16;
+        else
+            return opLoadSrc16;
     } else {
         if (vi->format->bitsPerSample == 16)
             return opLoadSrcF16;

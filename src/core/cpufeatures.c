@@ -41,6 +41,10 @@ void getCPUFeatures(CPUFeatures *cpuFeatures) {
     cpuFeatures->sse4_1 = !!(ecx & (1 << 19));
     cpuFeatures->sse4_2 = !!(ecx & (1 << 20));
     cpuFeatures->fma3 = !!(ecx & (1 << 12));
+    cpuFeatures->f16c = !!(ecx & (1 << 29));
+    cpuFeatures->aes = !!(ecx & (1 << 25));
+    cpuFeatures->movbe = !!(ecx & (1 << 22));
+    cpuFeatures->popcnt = !!(ecx & (1 << 23));
     eax = 0;
     edx = 0;
     if ((ecx & (1 << 27)) && (ecx & (1 << 28))) {
