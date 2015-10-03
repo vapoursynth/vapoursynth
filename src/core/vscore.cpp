@@ -621,7 +621,7 @@ void VSNode::setVideoInfo(const VSVideoInfo *vi, int numOutputs) {
         int64_t den = vi[i].fpsDen;
         vs_normalizeRational(&num, &den);
         if (num != vi[i].fpsNum || den != vi[i].fpsDen)
-            vsFatal("Specified filter framerate must be normalized");
+            vsFatal("Specified filter framerate must be a reduced fraction");
 
         this->vi.push_back(vi[i]);
         this->vi[i].flags = flags;
