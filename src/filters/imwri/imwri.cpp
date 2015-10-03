@@ -123,9 +123,10 @@ struct WriteData {
     std::string filename;
     int firstNum;
     int quality;
+    MagickCore::CompressionType compressType;
     bool dither;
 
-    WriteData() : videoNode(nullptr), alphaNode(nullptr), vi(nullptr), quality(0), dither(true) {}
+    WriteData() : videoNode(nullptr), alphaNode(nullptr), vi(nullptr), quality(0), compressType(MagickCore::UndefinedCompression), dither(true) {}
 };
 
 static void VS_CC writeInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -166,6 +167,8 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
         try {
             Magick::Image image(Magick::Geometry(width, height), Magick::Color(0, 0, 0, 0));
             image.magick(d->imgFormat);
+            if (d->compressType != MagickCore::UndefinedCompression)
+                image.compressType(d->compressType);
             image.quantizeDitherMethod(Magick::FloydSteinbergDitherMethod);
             image.quantizeDither(d->dither);
             image.quality(d->quality);
@@ -320,6 +323,60 @@ static void VS_CC writeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     if (d->quality < 0 || d->quality > 100) {
         vsapi->setError(out, "Write: Quality must be between 0 and 100");
         return;
+    }
+
+    const char *compressType = vsapi->propGetData(in, "compression_type", 0, &err);
+    if (!err) {
+        std::string s = compressType;
+        std::transform(s.begin(), s.end(), s.begin(), toupper);
+        if (s == "" || s == "UNDEFINED")
+            d->compressType = MagickCore::UndefinedCompression;
+        else if (s == "NONE")
+            d->compressType = MagickCore::NoCompression;
+        else if (s == "BZIP")
+            d->compressType = MagickCore::BZipCompression;
+        else if (s == "DXT1")
+            d->compressType = MagickCore::DXT1Compression;
+        else if (s == "DXT3")
+            d->compressType = MagickCore::DXT3Compression;
+        else if (s == "DXT5")
+            d->compressType = MagickCore::DXT5Compression;
+        else if (s == "FAX")
+            d->compressType = MagickCore::FaxCompression;
+        else if (s == "GROUP4")
+            d->compressType = MagickCore::Group4Compression;
+        else if (s == "JPEG")
+            d->compressType = MagickCore::JPEGCompression;
+        else if (s == "JPEG2000")
+            d->compressType = MagickCore::JPEG2000Compression;
+        else if (s == "LOSSLESSJPEG")
+            d->compressType = MagickCore::LosslessJPEGCompression;
+        else if (s == "LZW")
+            d->compressType = MagickCore::LZWCompression;
+        else if (s == "RLE")
+            d->compressType = MagickCore::RLECompression;
+        else if (s == "ZIP")
+            d->compressType = MagickCore::ZipCompression;
+        else if (s == "ZIPS")
+            d->compressType = MagickCore::ZipSCompression;
+        else if (s == "PIZ")
+            d->compressType = MagickCore::PizCompression;
+        else if (s == "PXR24")
+            d->compressType = MagickCore::Pxr24Compression;
+        else if (s == "B44")
+            d->compressType = MagickCore::B44Compression;
+        else if (s == "B44A")
+            d->compressType = MagickCore::B44ACompression;
+        else if (s == "LZMA")
+            d->compressType = MagickCore::LZMACompression;
+        else if (s == "JBIG1")
+            d->compressType = MagickCore::JBIG1Compression;
+        else if (s == "JBIG2")
+            d->compressType = MagickCore::JBIG2Compression;
+        else {
+            vsapi->setError(out, "Write: Unrecognized compression type");
+            return;
+        }
     }
 
     d->videoNode = vsapi->propGetNode(in, "clip", 0, nullptr);
@@ -564,6 +621,7 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     d->alpha = !!vsapi->propGetInt(in, "alpha", 0, &err);
     d->mismatch = !!vsapi->propGetInt(in, "mismatch", 0, &err);
+
     int numElem = vsapi->propNumElements(in, "filename");
     d->filenames.resize(numElem);
     for (int i = 0; i < numElem; i++)
@@ -631,6 +689,6 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     configFunc("com.vapoursynth.imwri", "imwri", "VapourSynth ImageMagick Writer/Reader", VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("Write", "clip:clip;imgformat:data;filename:data;firstnum:int:opt;quality:int:opt;dither:int:opt;alpha:clip:opt;", writeCreate, nullptr, plugin);
+    registerFunc("Write", "clip:clip;imgformat:data;filename:data;firstnum:int:opt;quality:int:opt;dither:int:opt;compression_type:data:opt;alpha:clip:opt;", writeCreate, nullptr, plugin);
     registerFunc("Read", "filename:data[];firstnum:int:opt;mismatch:int:opt;alpha:int:opt;", readCreate, nullptr, plugin);
 }
