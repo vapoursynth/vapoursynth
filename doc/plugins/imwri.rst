@@ -12,7 +12,7 @@ ImageMagick Writer-Reader (IMWRI) is a plugin that can read and write many image
  
    Parameters:
       clip
-         Input clip. Only 8-16 bit RGB supported. Variable dimensions are allowed.
+         Input clip. Only 8-16 bit RGB and Gray supported. Variable dimensions are allowed. If compiled against a HDRI enabled ImageMagick float is also supported.
 
       imgformat
          The name of the output format. Examples of supported format strings are "JPEG", "PNG", and "DPX". Visit the ImageMagick website for a full list.

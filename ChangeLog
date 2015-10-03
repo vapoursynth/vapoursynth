@@ -1,4 +1,6 @@
 r28:
+added float support to imwri, can now input and output float when compiled against a hdri enabled q16 imagemagick
+added an argument to set the compression type in imwri
 the installer will now download and install the vs2013 and vs2015 runtimes if needed
 now uses python 3.5
 fixed vdecimate parallel mode
