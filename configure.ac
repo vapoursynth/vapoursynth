@@ -367,18 +367,6 @@ AS_IF(
        AC_COMPILE_IFELSE(
                          [AC_LANG_SOURCE(
                                          [[
-#if defined(MAGICKCORE_HDRI_ENABLE) && MAGICKCORE_HDRI_ENABLE == 1
-#error imwri plugin requires ImageMagick without HDRI support.
-#endif
-                                         ]]
-                         )],
-                         [],
-                         [AC_MSG_ERROR([imwri plugin requires ImageMagick without HDRI support.])]
-       )
-
-       AC_COMPILE_IFELSE(
-                         [AC_LANG_SOURCE(
-                                         [[
 #if !defined(MAGICKCORE_QUANTUM_DEPTH) || MAGICKCORE_QUANTUM_DEPTH != 16
 #error imwri plugin requires ImageMagick with quantum depth of 16.
 #endif
