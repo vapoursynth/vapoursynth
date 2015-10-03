@@ -100,12 +100,12 @@ static inline void muldivRational(int64_t *num, int64_t *den, int64_t mul, int64
     *den /= a;
 }
 
-/* normalizes a rational number */
+/* reduces a rational number */
 static inline void vs_normalizeRational(int64_t *num, int64_t *den) {
 	muldivRational(num, den, 1, 1);
 }
 
-/* add two rational numbers and normalize the result */
+/* add two rational numbers and reduces the result */
 static inline void vs_addRational(int64_t *num, int64_t *den, int64_t addnum, int64_t addden) {
     /* do nothing if the rational number is invalid */
     if (!*den)

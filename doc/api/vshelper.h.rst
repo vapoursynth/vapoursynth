@@ -173,7 +173,7 @@ vs_normalizeRational
 
 .. c:function:: static inline void vs_normalizeRational(int64_t *num, int64_t *den)
 
-   Normalizes (reduces) a rational number.
+   Reduces a rational number.
 
 
 int64ToIntS
