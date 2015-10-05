@@ -412,7 +412,7 @@ static VSFrameRef *copyPad(const VSFrameRef *src, int fn, VSFrameContext *frameC
         // fixme, probably pads a bit too much with subsampled formats
         uint8_t *dstp = vsapi->getWritePtr(srcPF, b);
         const int dst_pitch = vsapi->getStride(srcPF, b);
-        const int height = vsapi->getFrameHeight(src, b) + 8;
+        const int height = vsapi->getFrameHeight(src, b) * (d->dh ? 2 : 1) + 8;
         const int width = vsapi->getFrameWidth(src, b) + 24;
         dstp += (4 + off) * dst_pitch;
 
