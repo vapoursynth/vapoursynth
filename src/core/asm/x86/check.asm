@@ -27,7 +27,7 @@ cglobal isFPUStateOk, 0, 0, 0
     xor rcx, rcx
     fnstcw [rsp - 4]
     mov ax, [rsp - 4]
-    and ax, 0x0f3f
+    and ax, 0x0e3f
     cmp ax, 0x023f
     cmovne rax, rcx
     RET
