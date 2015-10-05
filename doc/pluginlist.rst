@@ -17,7 +17,6 @@ Source/Output
 -------------
 * :ref:`AviSource <avisource>` -- in the source tree
 * `d2vsource <http://forum.doom9.org/showthread.php?t=166399>`_ -- Frame accurate mpeg2 source filter
-* `DGDecNV <http://rationalqm.us/dgdecnv/dgdecnv.html>`_ -- GPU-Enabled AVC, MPEG2 and VC1 decoder. Requires Nvidia graphics card and a paid license
 * `FFMS2 <https://github.com/FFMS/ffms2>`_ -- FFmpeg based source filter
 * :ref:`ImageMagick Writer/Reader <imwri>` -- image writer and reader, in the source tree
 * `L-SMASH Source <http://forum.doom9.org/showthread.php?t=167435>`_
