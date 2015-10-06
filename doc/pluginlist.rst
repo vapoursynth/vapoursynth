@@ -1,9 +1,10 @@
-Plugins, Editors and Scripts
-============================
+Plugins, Applications and Scripts
+=================================
 
-Editors
-#######
+Applications
+############
 * `VapourSynth Editor <https://bitbucket.org/mystery_keeper/vapoursynth-editor>`_ -- an editor with syntax completion and fast preview support
+* `Wobbly <http://forum.doom9.org/showthread.php?t=172496>`_ -- IVTC assistant similar to Yatta
 
 Scripts
 #######
@@ -53,11 +54,14 @@ Denoising
 * `Bilateral <http://forum.doom9.org/showthread.php?t=171306>`_ -- Bilateral filtering
 * `BM3D <http://forum.doom9.org/showthread.php?t=172172>`_ -- Denoising filter using the BM3D algorithm
 * `DFTTest <http://forum.doom9.org/showthread.php?t=171678>`_
+* `FFT3DFilter <https://github.com/VFR-maniac/VapourSynth-FFT3DFilter>`_ -- 3D frequency domain denoiser/sharpener
 * `FluxSmooth <https://github.com/dubhater/vapoursynth-fluxsmooth>`_ -- Temporal/spatiotemporal denoiser
 * `KNLMeans <http://forum.doom9.org/showthread.php?t=171379>`_ -- OpenCL Non-local means denoising
+* `ReduceFlicker <https://github.com/VFR-maniac/VapourSynth-ReduceFlicker>`_
 * :ref:`RemoveGrain/Repair <rgvs>` -- A collection of 3x3 median and convolution denoising filters, in the source tree
 * `TempLinearApproximate <http://forum.doom9.org/showthread.php?t=169782>`_ -- A temporal smoother
 * `TemporalSoften <https://github.com/dubhater/vapoursynth-temporalsoften>`_ -- Bundled with the installer and based on the Avisynth filter with the same name
+* `TNLMeans <https://github.com/VFR-maniac/VapourSynth-TNLMeans>`_ -- Non-local means denoising
 * `VagueDenoiser <http://forum.doom9.org/showthread.php?t=171723>`_ -- Wavelet based denoiser
 * `vcfreq <http://forum.doom9.org/showthread.php?t=171413>`_ -- Frequency domain denoiser
 
@@ -71,6 +75,7 @@ Metrics and Analysis
 --------------------
 * `Histogram <https://github.com/dubhater/vapoursynth-histogram>`_ -- Bundled with the installer
 * `SceneChange <http://forum.doom9.org/showthread.php?t=166769>`_ -- Scene change detection and flagging
+* `Scxvid <https://github.com/dubhater/vapoursynth-scxvid>`_ -- Scene change detection using libxvidcore
 * `Videoscope <https://github.com/dubhater/vapoursynth-videoscope>`_ -- Similar to the Histogram plugin
 * `WWXD <https://github.com/dubhater/vapoursynth-wwxd>`_ -- Xvid-like scene change detection
 
