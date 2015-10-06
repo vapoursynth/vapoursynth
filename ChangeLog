@@ -1,4 +1,6 @@
 r28:
+fixed eedi3 image corruption with dh=true (nodame)
+planedifference is now considered deprecated, it can be replaced with one or two calls to planeaverage which will also yield a sign
 fpu state check now doesn't mind if precision is set to more than double
 VFM now uses the _FieldBased flag
 added float support to imwri, can now input and output float when compiled against a hdri enabled q16 imagemagick
