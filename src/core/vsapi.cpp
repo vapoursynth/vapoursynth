@@ -75,7 +75,7 @@ static void VS_CC getFrameAsync(int n, VSNodeRef *clip, VSFrameDoneCallback fdc,
     int numFrames = clip->clip->getVideoInfo(clip->index).numFrames;
     if (n < 0 || (numFrames && n >= numFrames)) {
         PFrameContext ctx(std::make_shared<FrameContext>(n, clip->index, clip, fdc, userData));
-        ctx->setError("Invalid frame number requested, clip only has " + std::to_string(numFrames) + " frames");
+        ctx->setError("Invalid frame number " + std::to_string(n) + " requested, clip only has " + std::to_string(numFrames) + " frames");
         clip->clip->getFrame(ctx);
     } else {
         clip->clip->getFrame(std::make_shared<FrameContext>(n, clip->index, clip, fdc, userData));
@@ -242,7 +242,7 @@ static int VS_CC propNumKeys(const VSMap *map) VS_NOEXCEPT {
 static const char *VS_CC propGetKey(const VSMap *map, int index) VS_NOEXCEPT {
     assert(map);
     if (index < 0 || static_cast<size_t>(index) >= map->size())
-        vsFatal("Out of bound index");
+        vsFatal(("propGetKey: Out of bounds index " + std::to_string(index) + " passed. Valid range: [0," + std::to_string(map->size() - 1) + "]").c_str());
 
     return map->key(index);
 }
@@ -274,7 +274,7 @@ static char VS_CC propGetType(const VSMap *map, const char *key) VS_NOEXCEPT {
 #define PROP_GET_SHARED(vt, retexpr) \
     assert(map && key); \
     if (map->hasError()) \
-        vsFatal("Attempted to read from a map with error set: %s", map->getErrorMessage().c_str()); \
+        vsFatal("Attempted to read key '%s' from a map with error set: %s", key, map->getErrorMessage().c_str()); \
     int err = 0; \
     try { \
         VSVariant &l = map->at(key); \
@@ -350,7 +350,7 @@ static bool isValidVSMapKey(const std::string &s) {
 #define PROP_SET_SHARED(vv, appendexpr) \
     assert(map && key); \
     if (append != paReplace && append != paAppend && append != paTouch) \
-        vsFatal("Invalid prop append mode given"); \
+        vsFatal("Invalid prop append mode given when setting key '%s'", key); \
     std::string skey = key; \
     if (!isValidVSMapKey(skey)) \
         return 1; \

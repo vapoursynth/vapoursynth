@@ -26,6 +26,13 @@
 //////////////////////////////////////////
 // Shared
 
+enum MismatchCauses {
+    DifferentDimensions = 1,
+    DifferentFormats,
+    DifferentFrameRates,
+    DifferentLengths
+};
+
 static int findCommonVi(VSNodeRef **nodes, int num, VSVideoInfo *outvi, int ignorelength, const VSAPI *vsapi) {
     int mismatch = 0;
     const VSVideoInfo *vi;
@@ -37,25 +44,25 @@ static int findCommonVi(VSNodeRef **nodes, int num, VSVideoInfo *outvi, int igno
         if (outvi->width != vi->width || outvi->height != vi->height) {
             outvi->width = 0;
             outvi->height = 0;
-            mismatch = 1;
+            mismatch = DifferentDimensions;
         }
 
         if (outvi->format != vi->format) {
             outvi->format = 0;
-            mismatch = 1;
+            mismatch = DifferentFormats;
         }
 
         if (outvi->fpsNum != vi->fpsNum || outvi->fpsDen != vi->fpsDen) {
             outvi->fpsDen = 0;
             outvi->fpsNum = 0;
-            mismatch = 1;
+            mismatch = DifferentFrameRates;
         }
 
         if (outvi->numFrames < vi->numFrames) {
             outvi->numFrames = vi->numFrames;
 
             if (!ignorelength)
-                mismatch = 1;
+                mismatch = DifferentLengths;
         }
     }
 
@@ -121,13 +128,13 @@ static void VS_CC trimCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         RETERROR("Trim: both last frame and length specified");
 
     if (lastset && d.last < d.first)
-        RETERROR("Trim: invalid last frame specified");
+        RETERROR("Trim: invalid last frame specified (last is less than first)");
 
     if (lengthset && d.length < 1)
-        RETERROR("Trim: invalid length specified");
+        RETERROR("Trim: invalid length specified (less than 1)");
 
     if (d.first < 0)
-        RETERROR("Trim: invalid first frame specified");
+        RETERROR("Trim: invalid first frame specified (less than 0)");
 
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
 
@@ -233,12 +240,21 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
                 compat = 1;
         }
 
-        if (findCommonVi(d.node, d.numclips, &d.vi, 1, vsapi) && (!mismatch || compat)) {
+        int mismatchCause = findCommonVi(d.node, d.numclips, &d.vi, 1, vsapi);
+        if (mismatchCause && (!mismatch || compat)) {
             for (int i = 0; i < d.numclips; i++)
                 vsapi->freeNode(d.node[i]);
 
             free(d.node);
-            RETERROR("Interleave: clip property mismatch");
+
+            if (mismatchCause == DifferentDimensions)
+                RETERROR("Interleave: the clips' dimensions don't match");
+            else if (mismatchCause == DifferentFormats)
+                RETERROR("Interleave: the clips' formats don't match");
+            else if (mismatchCause == DifferentFrameRates)
+                RETERROR("Interleave: the clips' frame rates don't match");
+            else if (mismatchCause == DifferentLengths)
+                RETERROR("Interleave: the clips' lengths don't match");
         }
 
         int overflow = 0;
@@ -420,7 +436,7 @@ static void VS_CC selectEveryCreate(const VSMap *in, VSMap *out, void *userData,
     d.cycle = int64ToIntS(vsapi->propGetInt(in, "cycle", 0, 0));
 
     if (d.cycle <= 1)
-        RETERROR("SelectEvery: invalid cycle size");
+        RETERROR("SelectEvery: invalid cycle size (must be greater than 1)");
 
     d.num = vsapi->propNumElements(in, "offsets");
     d.offsets = malloc(sizeof(d.offsets[0]) * d.num);
@@ -539,12 +555,21 @@ static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCo
                 compat = 1;
         }
 
-        if (findCommonVi(d.node, d.numclips, &d.vi, 0, vsapi) && (!mismatch || compat) && !isSameFormat(&d.vi, vsapi->getVideoInfo(d.node[0]))) {
+        int mismatchCause = findCommonVi(d.node, d.numclips, &d.vi, 0, vsapi);
+        if (mismatchCause && (!mismatch || compat) && !isSameFormat(&d.vi, vsapi->getVideoInfo(d.node[0]))) {
             for (int i = 0; i < d.numclips; i++)
                 vsapi->freeNode(d.node[i]);
 
             free(d.node);
-            RETERROR("Splice: clip property mismatch");
+
+            if (mismatchCause == DifferentDimensions)
+                RETERROR("Splice: the clips' dimensions don't match");
+            else if (mismatchCause == DifferentFormats)
+                RETERROR("Splice: the clips' formats don't match");
+            else if (mismatchCause == DifferentFrameRates)
+                RETERROR("Splice: the clips' frame rates don't match");
+            else if (mismatchCause == DifferentLengths)
+                RETERROR("Splice: the clips' lengths don't match");
         }
 
         d.numframes = malloc(sizeof(d.numframes[0]) * d.numclips);

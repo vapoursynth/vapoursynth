@@ -172,7 +172,7 @@ static void lutCreateHelper(const VSMap *in, VSMap *out, VSFuncRef *func, std::u
             for (int i = 0; i < inrange; i++) {
                 int64_t v = arr[i];
                 if (v < 0 || v >= maxval) 
-                    RETERROR("Lut: lut value out of range");
+                    RETERROR(("Lut: lut value " + std::to_string(v) + " out of valid range [0," + std::to_string(maxval) + "]").c_str());
                 lut[i] = static_cast<U>(v);
             }
         } else {
@@ -196,7 +196,13 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
     d->vi = vsapi->getVideoInfo(d->node);
     d->vi_out = *d->vi;
 
-    if (!isConstantFormat(d->vi) || d->vi->format->sampleType != stInteger || d->vi->format->bitsPerSample > 16 || isCompatFormat(d->vi))
+    if (!isConstantFormat(d->vi))
+        RETERROR("Lut: only clips with constant format and dimensions supported");
+
+    if (isCompatFormat(d->vi))
+        RETERROR("Lut: compat formats are not supported");
+
+    if (d->vi->format->sampleType != stInteger || d->vi->format->bitsPerSample > 16)
         RETERROR("Lut: only clips with integer samples and up to 16 bit per channel precision supported");
 
     bool floatout = !!vsapi->propGetInt(in, "floatout", 0, &err);
@@ -204,7 +210,7 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
     if (err)
         bitsout = floatout ? sizeof(float) * 8 : d->vi->format->bitsPerSample;
     if ((floatout && bitsout != 32) || (!floatout && (bitsout < 8 || bitsout > 16)))
-        RETERROR("Lut: only 8-16 bit and 32 bit float output supported");
+        RETERROR("Lut: only 8-16 bit integer and 32 bit float output supported");
 
     int n = d->vi->format->numPlanes;
     int num_planes = vsapi->propNumElements(in, "planes");
@@ -256,7 +262,7 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
 
 	if (lut_length >= 0 && lut_length != n) {
 		vsapi->freeFunc(func);
-		RETERROR("Lut: bad lut length");
+		RETERROR(("Lut: bad lut length. Expected " + std::to_string(n) + " elements, got " + std::to_string(lut_length) + " instead").c_str());
 	}
 
     d->vi_out.format = vsapi->registerFormat(d->vi->format->colorFamily, floatout ? stFloat : stInteger, bitsout, d->vi->format->subSamplingW, d->vi->format->subSamplingH, core);
@@ -428,7 +434,7 @@ static void lut2CreateHelper(const VSMap *in, VSMap *out, VSFuncRef *func, std::
             for (int i = 0; i < inrange; i++) {
                 int64_t v = arr[i];
                 if (v < 0 || v >= maxval)
-                    RETERROR("Lut2: lut value out of range");
+                    RETERROR(("Lut2: lut value " + std::to_string(v) + " out of valid range [0," + std::to_string(maxval) + "]").c_str());
                 lut[i] = static_cast<V>(v);
             }
         } else {
@@ -452,12 +458,17 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
     d->vi[0] = vsapi->getVideoInfo(d->node[0]);
     d->vi[1] = vsapi->getVideoInfo(d->node[1]);
 
-    if (!isConstantFormat(d->vi[0]) || !isConstantFormat(d->vi[1])
-        || d->vi[0]->format->sampleType != stInteger || d->vi[1]->format->sampleType != stInteger
+    if (!isConstantFormat(d->vi[0]) || !isConstantFormat(d->vi[1]))
+        RETERROR("Lut2: only clips with constant format and dimensions supported");
+
+    if (isCompatFormat(d->vi[0]) || isCompatFormat(d->vi[1]))
+        RETERROR("Lut2: compat formats are not supported");
+
+    if (d->vi[0]->format->sampleType != stInteger || d->vi[1]->format->sampleType != stInteger
         || (d->vi[0]->format->bitsPerSample + d->vi[1]->format->bitsPerSample) > 20
         || d->vi[0]->format->subSamplingH != d->vi[1]->format->subSamplingH
         || d->vi[0]->format->subSamplingW != d->vi[1]->format->subSamplingW
-        || d->vi[0]->width != d->vi[1]->width || d->vi[0]->height != d->vi[1]->height || isCompatFormat(d->vi[0]) || isCompatFormat(d->vi[1]))
+        || d->vi[0]->width != d->vi[1]->width || d->vi[0]->height != d->vi[1]->height)
         RETERROR("Lut2: only clips with integer samples, same dimensions, same subsampling and up to a total of 20 indexing bits supported");
 
     int n = d->vi[0]->format->numPlanes;
@@ -512,7 +523,7 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
 
 	if (lut_length >= 0 && lut_length != n) {
 		vsapi->freeFunc(func);
-		RETERROR("Lut2: bad lut length");
+		RETERROR(("Lut2: bad lut length. Expected " + std::to_string(n) + " elements, got " + std::to_string(lut_length) + " instead").c_str());
 	}
 
     int bitsout = int64ToIntS(vsapi->propGetInt(in, "bits", 0, &err));
@@ -520,7 +531,7 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
         bitsout = floatout ? sizeof(float) * 8 : d->vi[0]->format->bitsPerSample;
 	if ((floatout && bitsout != 32) || (!floatout && (bitsout < 8 || bitsout > 16))) {
 		vsapi->freeFunc(func);
-		RETERROR("Lut2: only 8-16 bit and 32 bit float output supported");
+		RETERROR("Lut2: only 8-16 bit integer and 32 bit float output supported");
 	}
 
     d->vi_out = *d->vi[0];

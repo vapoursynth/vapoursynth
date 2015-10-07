@@ -168,11 +168,16 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         }
     }
 
-    if (!isConstantFormat(d.vi) || !isSameFormat(d.vi, vsapi->getVideoInfo(d.node2))
-        || isCompatFormat(vsapi->getVideoInfo(d.node1)) || isCompatFormat(vsapi->getVideoInfo(d.node2))) {
+    if (isCompatFormat(d.vi) || isCompatFormat(vsapi->getVideoInfo(d.node2))) {
         vsapi->freeNode(d.node1);
         vsapi->freeNode(d.node2);
-        RETERROR("Merge: both clips must be constant format and also be the same format and dimensions");
+        RETERROR("Merge: compat formats are not supported");
+    }
+
+    if (!isConstantFormat(d.vi) || !isSameFormat(d.vi, vsapi->getVideoInfo(d.node2))) {
+        vsapi->freeNode(d.node1);
+        vsapi->freeNode(d.node2);
+        RETERROR("Merge: both clips must have constant format and dimensions, and the same format and dimensions");
     }
 
     if ((d.vi->format->sampleType == stInteger && d.vi->format->bytesPerSample != 1 && d.vi->format->bytesPerSample != 2)
@@ -325,12 +330,18 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
     if (maskvi->format->numPlanes == 1)
         d.first_plane = 1;
 
-    if (!isConstantFormat(d.vi) || !isSameFormat(d.vi, vsapi->getVideoInfo(d.node2))
-        || isCompatFormat(vsapi->getVideoInfo(d.node1)) || isCompatFormat(vsapi->getVideoInfo(d.node2)) || isCompatFormat(maskvi)) {
+    if (isCompatFormat(d.vi) || isCompatFormat(vsapi->getVideoInfo(d.node2)) || isCompatFormat(maskvi)) {
         vsapi->freeNode(d.node1);
         vsapi->freeNode(d.node2);
         vsapi->freeNode(d.mask);
-        RETERROR("MaskedMerge: both clips must be constant format and have the same format and dimensions");
+        RETERROR("MaskedMerge: compat formats are not supported");
+    }
+
+    if (!isConstantFormat(d.vi) || !isSameFormat(d.vi, vsapi->getVideoInfo(d.node2))) {
+        vsapi->freeNode(d.node1);
+        vsapi->freeNode(d.node2);
+        vsapi->freeNode(d.mask);
+        RETERROR("MaskedMerge: both clips must have constant format and dimensions, and the same format and dimensions");
     }
 
     if ((d.vi->format->sampleType == stInteger && d.vi->format->bytesPerSample != 1 && d.vi->format->bytesPerSample != 2)
@@ -517,11 +528,16 @@ static void VS_CC makeDiffCreate(const VSMap *in, VSMap *out, void *userData, VS
     d.node2 = vsapi->propGetNode(in, "clipb", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node1);
 
-    if (!isConstantFormat(d.vi) || !isSameFormat(d.vi, vsapi->getVideoInfo(d.node2))
-        || isCompatFormat(vsapi->getVideoInfo(d.node1)) || isCompatFormat(vsapi->getVideoInfo(d.node2))) {
+    if (isCompatFormat(d.vi) || isCompatFormat(vsapi->getVideoInfo(d.node2))) {
         vsapi->freeNode(d.node1);
         vsapi->freeNode(d.node2);
-        RETERROR("MakeDiff: both clips must be constant format and also be the same format and dimensions");
+        RETERROR("MakeDiff: compat formats are not supported");
+    }
+
+    if (!isConstantFormat(d.vi) || !isSameFormat(d.vi, vsapi->getVideoInfo(d.node2))) {
+        vsapi->freeNode(d.node1);
+        vsapi->freeNode(d.node2);
+        RETERROR("MakeDiff: both clips must have constant format and dimensions, and the same format and dimensions");
     }
 
     if ((d.vi->format->sampleType == stInteger && d.vi->format->bytesPerSample != 1 && d.vi->format->bytesPerSample != 2)
@@ -684,11 +700,16 @@ static void VS_CC mergeDiffCreate(const VSMap *in, VSMap *out, void *userData, V
     d.node2 = vsapi->propGetNode(in, "clipb", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node1);
 
-    if (!isConstantFormat(d.vi) || !isSameFormat(d.vi, vsapi->getVideoInfo(d.node2))
-        || isCompatFormat(vsapi->getVideoInfo(d.node1)) || isCompatFormat(vsapi->getVideoInfo(d.node2))) {
+    if (isCompatFormat(d.vi) || isCompatFormat(vsapi->getVideoInfo(d.node2))) {
         vsapi->freeNode(d.node1);
         vsapi->freeNode(d.node2);
-        RETERROR("MergeDiff: both clips must be constant format and also be the same format and dimensions");
+        RETERROR("MergeDiff: compat formats are not supported");
+    }
+
+    if (!isConstantFormat(d.vi) || !isSameFormat(d.vi, vsapi->getVideoInfo(d.node2))) {
+        vsapi->freeNode(d.node1);
+        vsapi->freeNode(d.node2);
+        RETERROR("MergeDiff: both clips must have constant format and dimensions, and the same format and dimensions");
     }
 
     if ((d.vi->format->sampleType == stInteger && d.vi->format->bytesPerSample != 1 && d.vi->format->bytesPerSample != 2)
