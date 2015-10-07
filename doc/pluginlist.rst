@@ -84,6 +84,7 @@ Others
 * :ref:`Morpho <morpho>` -- simple morphological filters, in the source tree
 * :ref:`Vinverse <vinverse>` -- in the source tree
 * `AddGrain <http://forum.doom9.org/showthread.php?t=171073>`_ -- Port of the Avisynth AddGrain filter
+* `AWarpSharp2 <http://forum.doom9.org/showthread.php?t=172721>`_ -- Sharpens edges by warping them
 * `Basic audio support <http://forum.doom9.org/showthread.php?t=171555>`_ -- A plugin that adds basic audio support
 * `Continuity Fixer <http://forum.doom9.org/showthread.php?t=171785>`_ -- Can help repair damaged borders of frames
 * `CTMF <http://forum.doom9.org/showthread.php?t=171213>`_ -- Constant Time Median Filtering
