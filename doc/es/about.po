@@ -1,0 +1,120 @@
+# VapourSynth
+# Copyright (C) 2012-2015, Fredrik Mellbin
+# This file is distributed under the same license as the VapourSynth package.
+# fredrik.mellbin@gmail.com, 2012.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: VapourSynth R28\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2015-10-08 16:26+0200\n"
+"PO-Revision-Date: 2015-10-08 16:51+0200\n"
+"Language-Team: fredrik.mellbin@gmail.com\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Poedit 1.8.5\n"
+"Last-Translator: Israel Lucas Torrijos <lukillas.ole@gmail.com>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Language: es_ES\n"
+"X-Poedit-SourceCharset: UTF-8\n"
+
+#: ..\vapoursynth-master\doc\about.rst:2
+msgid "About"
+msgstr "Acerca de"
+
+#: ..\vapoursynth-master\doc\about.rst:4
+msgid ""
+"VapourSynth is an application for video manipulation. Or a plugin. Or a "
+"library. It's hard to tell because it has a core library written in C++ and "
+"a Python module to allow video scripts to be created. It came to be when I "
+"started thinking about alternative designs for Avisynth and most of it was "
+"written over a 3 month period."
+msgstr ""
+"VapourSynth es una aplicación para la manipulación de video. O un plugin, o "
+"una librería. Es duro decirlo porque tiene una librería core escrita en C++ "
+"y un módulo Python que permite crear scripts de video. Llegó a ser así "
+"cuando empecé a pensar en diseños alternativos para Avisynth escribiendo la "
+"mayor parte en 3 meses."
+
+#: ..\vapoursynth-master\doc\about.rst:10
+msgid ""
+"The software has been heavily inspired by `Avisynth <http://www.avisynth."
+"org>`_ and aims to be a 21st century rewrite, taking advantage of the "
+"advancements computers have made since the late 90s. The main features "
+"compared to Avisynth are:"
+msgstr ""
+"El software está muy influenciado por `Avisynth <http://www.avisynth.org>`_ "
+"y pretende ser una reescritura del siglo 21, aprovechando el avance que se "
+"ha producido en la computación desde los años 90. Las principales "
+"características comparadas con Avisynth, son:"
+
+#: ..\vapoursynth-master\doc\about.rst:15
+msgid "Multithreaded - Frame level multithreading that scales well"
+msgstr "Multithreaded - Multihilo a nivel de fotograma que es escalable"
+
+#: ..\vapoursynth-master\doc\about.rst:16
+msgid "Generalized Colorspaces - New colorspaces can be specified at runtime"
+msgstr ""
+"Espacios de color generalizados - Nuevos espacios de color pueden ser "
+"especificados en tiempo de ejecución"
+
+#: ..\vapoursynth-master\doc\about.rst:17
+msgid "Per Frame Properties - Additional metadata can be attached to frames"
+msgstr ""
+"Propiedades por fotograma - Metadatos adicionales pueden ser anexados a los "
+"fotogramas"
+
+#: ..\vapoursynth-master\doc\about.rst:18
+msgid ""
+"Python Based - The scripting part is implemented as a Python module so you "
+"don't have to learn a special language"
+msgstr ""
+"Basado en Python - La parte de scripting está implementando como un módulo "
+"Python para que no tengas que aprender un lenguaje especial"
+
+#: ..\vapoursynth-master\doc\about.rst:20
+msgid ""
+"Support for video with format changes - Some video just can't stick to one "
+"format or frame size. VapourSynth can handle any kind of change"
+msgstr ""
+"Soporte para video con cambios de formato - Sólo algunos videos no se ciñen "
+"a un formato o tamaño de fotograma. VapourSynth pueden manejar cualquier "
+"tipo de cambio"
+
+#: ..\vapoursynth-master\doc\about.rst:22
+msgid "Compatible with a large number of already existing Avisynth plugins"
+msgstr "Compatible con un gran número de los existentes plugins de Avisynth"
+
+#: ..\vapoursynth-master\doc\about.rst:25
+msgid "About the author"
+msgstr "Acerca del autor"
+
+#: ..\vapoursynth-master\doc\about.rst:27
+msgid ""
+"Fredrik Mellbin majored in electrical engineering with a focus on image "
+"analysis and processing with medical applications. He has previously worked "
+"with digital electronics and likes to plan his own software projects in his "
+"spare time. When he one day found himself out of work he needed something to "
+"do between sending out job applications and waiting for a reply. The natural "
+"choice for the author was to try to improve Avisynth, the software that once "
+"made him interested in video editing. VapourSynth is the result of all that "
+"time waiting."
+msgstr ""
+"Fredrik Mellbin se graduó en ingeniería eléctrica enfocándose al análisis y "
+"procesamiento de imagen con fines médicos. Anteriormente, estuvo trabajando "
+"con electrónica digital y le gusta planificar sus propios proyectos de "
+"software en su tiempo libre. Un día se vio sin trabajo y necesitó matar el "
+"tiempo mientras esperaba a que le contestasen a sus solicitudes de empleo. "
+"La elección lógica para el autor fue mejorar Avisynth, el software que le "
+"hizo interesarse por la edición de video. Vapoursynth es el resultado de "
+"todo ese tiempo de espera."
+
+#: ..\vapoursynth-master\doc\about.rst:35
+msgid ""
+"Feel free to contact me at fredrik.mellbin that round thingy with an a gmail."
+"com if you need help to port a filter or want to sponsor the development."
+msgstr ""
+"Siéntete libre para contactar conmigo en fredrik.mellbin junto con una "
+"arroba gmail.com si necesitas ayuda para portar un filtro o quieres "
+"financiar el desarrollo."
