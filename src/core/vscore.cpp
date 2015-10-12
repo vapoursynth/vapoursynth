@@ -131,6 +131,7 @@ VSVariant::VSVariant(const VSVariant &v) : vtype(v.vtype), internalSize(v.intern
             storage = new FrameList(*reinterpret_cast<FrameList *>(v.storage)); break;
         case VSVariant::vMethod:
             storage = new FuncList(*reinterpret_cast<FuncList *>(v.storage)); break;
+        default:;
         }
     }
 }
@@ -156,6 +157,7 @@ VSVariant::~VSVariant() {
             delete reinterpret_cast<FrameList *>(storage); break;
         case VSVariant::vMethod:
             delete reinterpret_cast<FuncList *>(storage); break;
+        default:;
         }
     }
 }
@@ -221,6 +223,7 @@ void VSVariant::initStorage(VSVType t) {
             storage = new FrameList(); break;
         case VSVariant::vMethod:
             storage = new FuncList(); break;
+        default:;
         }
     }
 }
@@ -783,6 +786,7 @@ const VSFormat *VSCore::registerFormat(VSColorFamily colorFamily, VSSampleType s
         case cmYCoCg:
             sprintf(f->name, "YCoCgssw%dssh%dP%s%d", subSamplingW, subSamplingH, sampleTypeStr, bitsPerSample);
             break;
+        default:;
         }
     }
 
