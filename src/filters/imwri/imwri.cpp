@@ -33,9 +33,8 @@
 #include <algorithm>
 #include <memory>
 
-#if MAGICKCORE_QUANTUM_DEPTH != 16
-#error "Only Quantum Depth 16 ImageMagick builds are supported"
-#endif
+
+
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -46,6 +45,8 @@
 #include <windows.h>
 #endif
 
+// Because ImageMagick has no idea how to make sane headers
+using namespace MagickCore;
 
 //////////////////////////////////////////
 // Shared
