@@ -122,7 +122,7 @@ struct ExprData {
 #ifdef VS_TARGET_CPU_X86
         for (int i = 0; i < 3; i++)
 #ifdef VS_TARGET_OS_WINDOWS
-            VirtualFree(proc[i], 0, MEM_RELEASE);
+            VirtualFree((LPVOID)proc[i], 0, MEM_RELEASE);
 #else
             munmap((void *)proc[i], 0);
 #endif

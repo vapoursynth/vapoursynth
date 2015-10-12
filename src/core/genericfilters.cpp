@@ -793,6 +793,7 @@ static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void
                 throw std::string("Only clips with integer samples and 8..16 bits per sample supported.");
         } catch (std::string &error) {
             vsapi->setFilterError(std::string(d->filter_name).append(": ").append(error).c_str(), frameCtx);
+            vsapi->freeFrame(src);
             return 0;
         }
 
