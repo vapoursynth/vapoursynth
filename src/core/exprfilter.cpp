@@ -116,8 +116,10 @@ struct ExprData {
 #ifdef VS_TARGET_CPU_X86
     typedef void(*ProcessLineProc)(void *rwptrs, intptr_t ptroff[MAX_EXPR_INPUTS + 1], intptr_t niter);
     ProcessLineProc proc[3];
-#endif
     ExprData() : node(), vi(), proc() {}
+#else
+    ExprData() : node(), vi() {}
+#endif
     ~ExprData() {
 #ifdef VS_TARGET_CPU_X86
         for (int i = 0; i < 3; i++)
@@ -648,7 +650,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                                 stacktop = reinterpret_cast<const uint16_t *>(srcp[vops[i].e.ival])[x];
                                 ++si;
                                 break;
-                            case opLoadSrcF:
+                            case opLoadSrcF32:
                                 stack[si] = stacktop;
                                 stacktop = reinterpret_cast<const float *>(srcp[vops[i].e.ival])[x];
                                 ++si;
@@ -752,7 +754,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                             case opStore16:
                                 reinterpret_cast<uint16_t *>(dstp)[x] = std::max(0.0f, std::min(stacktop, 65535.0f)) + 0.5f;
                                 goto loopend;
-                            case opStoreF:
+                            case opStoreF32:
                                 reinterpret_cast<float *>(dstp)[x] = stacktop;
                                 goto loopend;
                             }
