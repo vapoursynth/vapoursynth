@@ -48,7 +48,11 @@
 
 #ifdef __cplusplus
 /* A nicer templated malloc for all the C++ users out there */
+#if __cplusplus >= 201103L
 template<typename T=void>
+#else
+template<typename T>
+#endif
 static inline T* vs_aligned_malloc(size_t size, size_t alignment) {
 #ifdef _WIN32
     return (T*)_aligned_malloc(size, alignment);
