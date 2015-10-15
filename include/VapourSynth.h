@@ -30,7 +30,11 @@
 /* Convenience for C++ users. */
 #ifdef __cplusplus
 #    define VS_EXTERN_C extern "C"
-#    define VS_NOEXCEPT noexcept
+#    if __cplusplus >= 201103L || defined(_MSC_VER)
+#        define VS_NOEXCEPT noexcept
+#    else
+#        define VS_NOEXCEPT
+#    endif
 #else
 #    define VS_EXTERN_C
 #    define VS_NOEXCEPT
