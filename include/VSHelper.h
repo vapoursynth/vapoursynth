@@ -48,7 +48,7 @@
 
 #ifdef __cplusplus 
 /* A nicer templated malloc for all the C++ users out there */
-#if __cplusplus >= 201103L || defined(_MSC_VER)
+#if __cplusplus >= 201103L || (defined(_MSC_VER) && _MSC_VER >= 1900)
 template<typename T=void>
 #else
 template<typename T>
