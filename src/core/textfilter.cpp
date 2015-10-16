@@ -386,11 +386,11 @@ static std::string matrixToString(int matrix) {
         s = "BT.601";
     else if (matrix == 7)
         s = "SMPTE 240M";
-    else if (matrix == 7)
-        s = "YCoCg";
     else if (matrix == 8)
-        s = "BT.2020 NCL";
+        s = "YCoCg";
     else if (matrix == 9)
+        s = "BT.2020 NCL";
+    else if (matrix == 10)
         s = "BT.2020 CL";
     return s;
 }
