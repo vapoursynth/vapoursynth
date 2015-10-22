@@ -353,8 +353,11 @@ VSPlaneData::~VSPlaneData() {
 ///////////////
 
 VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, VSCore *core) : format(f), width(width), height(height) {
-    if (!f || width <= 0 || height <= 0)
-        vsFatal("Invalid new frame");
+    if (!f)
+        vsFatal("Error in frame creation: null format");
+
+    if (width <= 0 || height <= 0)
+        vsFatal("Error in frame creation: dimensions are negative (%dx%d)", width, height);
 
     if (propSrc)
         properties = propSrc->properties;
@@ -379,8 +382,11 @@ VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSr
 }
 
 VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core) : format(f), width(width), height(height) {
-    if (!f || width <= 0 || height <= 0)
-        vsFatal("Invalid new frame");
+    if (!f)
+        vsFatal("Error in frame creation: null format");
+
+    if (width <= 0 || height <= 0)
+        vsFatal("Error in frame creation: dimensions are negative (%dx%d)", width, height);
 
     if (propSrc)
         properties = propSrc->properties;
@@ -399,9 +405,9 @@ VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame * const
     for (int i = 0; i < format->numPlanes; i++) {
         if (planeSrc[i]) {
             if (plane[i] < 0 || plane[i] >= planeSrc[i]->format->numPlanes)
-                vsFatal("Plane does not exist, error in frame creation");
+                vsFatal("Error in frame creation: plane %d does not exist in the source frame", plane[i]);
             if (planeSrc[i]->getHeight(plane[i]) != getHeight(i) || planeSrc[i]->getWidth(plane[i]) != getWidth(i))
-                vsFatal("Copied plane dimensions do not match, error in frame creation");
+                vsFatal("Error in frame creation: dimensions of plane %d do not match. Source: %dx%d; destination: %dx%d", plane[i], planeSrc[i]->getWidth(plane[i]), planeSrc[i]->getHeight(plane[i]), getWidth(i), getHeight(i));
             data[i] = planeSrc[i]->data[plane[i]];
         } else {
             if (i == 0) {
@@ -429,20 +435,20 @@ VSFrame::VSFrame(const VSFrame &f) {
 int VSFrame::getStride(int plane) const {
     assert(plane >= 0 && plane < 3);
     if (plane < 0 || plane >= format->numPlanes)
-        vsFatal("Invalid plane stride requested");
+        vsFatal("Requested stride of nonexistent plane %d", plane);
     return stride[plane];
 }
 
 const uint8_t *VSFrame::getReadPtr(int plane) const {
     if (plane < 0 || plane >= format->numPlanes)
-        vsFatal("Invalid plane requested");
+        vsFatal("Requested read pointer for nonexistent plane %d", plane);
 
     return data[plane]->data + guardSpace;
 }
 
 uint8_t *VSFrame::getWritePtr(int plane) {
     if (plane < 0 || plane >= format->numPlanes)
-        vsFatal("Invalid plane requested");
+        vsFatal("Requested write pointer for nonexistent plane %d", plane);
 
     // copy the plane data if this isn't the only reference
     if (!data[plane].unique())
@@ -502,7 +508,7 @@ VSFunction::VSFunction(const std::string &argString, VSPublicFunction func, void
         split(argParts, arg, std::string(":"), split1::no_empties);
 
         if (argParts.size() < 2)
-            vsFatal("Invalid argument specifier: %s", arg.c_str());
+            vsFatal("Invalid argument specifier '%s'. It appears to be incomplete.", arg.c_str());
 
         bool arr = false;
         enum FilterArgumentType type = faNone;
@@ -537,7 +543,7 @@ VSFunction::VSFunction(const std::string &argString, VSPublicFunction func, void
             else if (typeName == "func[]")
                 type = faFunc;
             else
-                vsFatal("Invalid arg string: %s", typeName.c_str());
+                vsFatal("Argument '%s' has invalid type '%s'.", argName.c_str(), typeName.c_str());
         }
 
         bool opt = false;
@@ -546,22 +552,22 @@ VSFunction::VSFunction(const std::string &argString, VSPublicFunction func, void
         for (size_t i = 2; i < argParts.size(); i++) {
             if (argParts[i] == "opt") {
                 if (opt)
-                    vsFatal("Duplicate argument specifier: %s", argParts[i].c_str());
+                    vsFatal("Argument '%s' has duplicate argument specifier '%s'", argName.c_str(), argParts[i].c_str());
                 opt = true;
             } else if (argParts[i] == "empty") {
                 if (empty)
-                    vsFatal("Duplicate argument specifier: %s", argParts[i].c_str());
+                    vsFatal("Argument '%s' has duplicate argument specifier '%s'", argName.c_str(), argParts[i].c_str());
                 empty = true;
             }  else {
-                vsFatal("Unknown argument modifier: %s", argParts[i].c_str());
+                vsFatal("Argument '%s' has unknown argument modifier '%s'", argName.c_str(), argParts[i].c_str());
             }
         }
 
         if (!isValidIdentifier(argName))
-            vsFatal("Illegal argument identifier specified for function");
+            vsFatal("Argument name '%s' contains illegal characters.", argName.c_str());
 
         if (empty && !arr)
-            vsFatal("Only array arguments can have the empty flag set");
+            vsFatal("Argument '%s' is not an array. Only array arguments can have the empty flag set.", argName.c_str());
 
         args.push_back(FilterArgument(argName, type, arr, empty, opt));
     }
@@ -571,7 +577,7 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, VSFilterIni
 instanceData(instanceData), name(name), init(init), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), hasVi(false), serialFrame(-1) {
 
     if (flags & ~(nfNoCache | nfIsCache))
-        vsFatal("Filter %s specified unknown flags", name.c_str());
+        vsFatal("Filter %s specified unknown flags (%d)", name.c_str(), flags);
 
     if ((flags & nfIsCache) && !(flags & nfNoCache))
         vsFatal("Filter %s specified an illegal combination of flags (%d)", name.c_str(), flags);
@@ -591,7 +597,7 @@ instanceData(instanceData), name(name), init(init), filterGetFrame(getFrame), fr
     for (const auto &iter : vi) {
         if (iter.numFrames <= 0) {
             core->filterInstanceDestroyed();
-            throw VSException("Filter creation aborted, zero (unknown) and negative length clips not allowed");
+            throw VSException("Creation of filter " + name + " aborted, zero (unknown) and negative length clips not allowed");
         }
     }
 }
@@ -609,23 +615,23 @@ void VSNode::getFrame(const PFrameContext &ct) {
 
 const VSVideoInfo &VSNode::getVideoInfo(int index) {
     if (index < 0 || index >= static_cast<int>(vi.size()))
-        vsFatal("Out of bounds videoinfo index");
+        vsFatal("getVideoInfo: Out of bounds videoinfo index %d. Valid range: [0,%d].", index, static_cast<int>(vi.size() - 1));
     return vi[index];
 }
 
 void VSNode::setVideoInfo(const VSVideoInfo *vi, int numOutputs) {
     if (numOutputs < 1)
-        vsFatal("Video filter needs to have at least one output");
+        vsFatal("setVideoInfo: Video filter %s needs to have at least one output (%d were given).", name.c_str(), numOutputs);
     for (int i = 0; i < numOutputs; i++) {
         if ((!!vi[i].height) ^ (!!vi[i].width))
-            vsFatal("Variable dimension clips must have both width and height set to 0");
+            vsFatal("setVideoInfo: Variable dimension clips must have both width and height set to 0. Dimensions given by filter %s: %dx%d.", name.c_str(), vi[i].width, vi[i].height);
         if (vi[i].format && !core->isValidFormatPointer(vi[i].format))
-            vsFatal("The VSFormat pointer passed to setVideoInfo() was not gotten from registerFormat() or getFormatPreset()");
+            vsFatal("setVideoInfo: The VSFormat pointer passed by %s was not obtained from registerFormat() or getFormatPreset().", name.c_str());
         int64_t num = vi[i].fpsNum;
         int64_t den = vi[i].fpsDen;
         vs_normalizeRational(&num, &den);
         if (num != vi[i].fpsNum || den != vi[i].fpsDen)
-            vsFatal("Specified filter framerate must be a reduced fraction");
+            vsFatal(("setVideoInfo: The frame rate specified by " + name + " must be a reduced fraction. (Instead, it is " + std::to_string(vi[i].fpsNum) + "/" + std::to_string(vi[i].fpsDen) + ".)").c_str());
 
         this->vi.push_back(vi[i]);
         this->vi[i].flags = flags;
@@ -654,11 +660,11 @@ PVideoFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext
         const VSVideoInfo &lvi = vi[frameCtx.ctx->index];
 
         if (!lvi.format && fi->colorFamily == cmCompat)
-            vsFatal("Illegal compat frame returned");
+            vsFatal("Illegal compat frame returned by %s.", name.c_str());
         else if (lvi.format && lvi.format != fi)
-            vsFatal("Frame returned not of the declared type");
+            vsFatal("Filter %s declared the format %s (id %d), but it returned a frame with the format %s (id %d).", name.c_str(), lvi.format->name, lvi.format->id, fi->name, fi->id);
         else if ((lvi.width || lvi.height) && (p->getWidth(0) != lvi.width || p->getHeight(0) != lvi.height))
-            vsFatal("Frame returned of not of the declared dimensions");
+            vsFatal("Filter %s declared the size %dx%d, but it returned a frame with the size %dx%d.", name.c_str(), lvi.width, lvi.height, p->getWidth(0), p->getHeight(0));
 
 #ifdef VS_FRAME_GUARD
         if (!p->verifyGuardPattern())
@@ -1219,9 +1225,11 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
     libHandle = LoadLibraryEx(wPath.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
 
 	if (!libHandle) {
-		if (GetLastError() == 87)
+		DWORD lastError = GetLastError();
+
+		if (lastError == 87)
 			throw VSException("LoadLibraryEx failed with code 87: update windows and try again");
-		throw VSException("Failed to load " + relFilename);
+		throw VSException("Failed to load " + relFilename + ". GetLastError() returned " + std::to_string(lastError) + ".");
 	}
 
     VSInitPlugin pluginInit = (VSInitPlugin)GetProcAddress(libHandle, "VapourSynthPluginInit");
@@ -1263,13 +1271,13 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
 
 #ifdef VS_TARGET_CPU_X86
     if (!vs_isMMXStateOk())
-        vsFatal("Bad MMX state detected after loading %s", fullname.c_str());
+        vsFatal("Bad MMX state detected after loading %s", filename.c_str());
 #endif
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isFPUStateOk())
-        vsWarning("Bad FPU state detected after loading %s", fullname.c_str());
+        vsWarning("Bad FPU state detected after loading %s", filename.c_str());
     if (!vs_isSSEStateOk())
-        vsFatal("Bad SSE state detected after loading %s", fullname.c_str());
+        vsFatal("Bad SSE state detected after loading %s", filename.c_str());
 #endif
 
     if (readOnlySet)
@@ -1319,13 +1327,13 @@ void VSPlugin::configPlugin(const std::string &identifier, const std::string &de
 
 void VSPlugin::registerFunction(const std::string &name, const std::string &args, VSPublicFunction argsFunc, void *functionData) {
     if (readOnly)
-        vsFatal("Tried to modify read only namespace");
+        vsFatal("Plugin %s tried to modify read only namespace.", filename.c_str());
 
     if (!isValidIdentifier(name))
-        vsFatal("Illegal identifier specified for function");
+        vsFatal("Plugin %s tried to register '%s', an illegal identifier.", filename.c_str(), name.c_str());
 
     if (funcs.count(name))
-        vsFatal("Duplicate function registered");
+        vsFatal("Plugin %s tried to register '%s' more than once.", filename.c_str(), name.c_str());
 
     if (!readOnly) {
         std::lock_guard<std::mutex> lock(registerFunctionLock);
@@ -1423,7 +1431,7 @@ VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
         return v;
     }
 
-    vsapi.setError(&v, ("Function '" + funcName + "' not found in " + fullname).c_str());
+    vsapi.setError(&v, ("Function '" + funcName + "' not found in " + filename).c_str());
     return v;
 }
 

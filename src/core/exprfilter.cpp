@@ -1153,7 +1153,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
         for (int i = 0; i < d->numInputs; i++) {
             if (!isConstantFormat(vi[i]))
-                throw std::runtime_error("Only constant format input allowed");
+                throw std::runtime_error("Only clips with constant format and dimensions allowed");
             if (vi[0]->format->numPlanes != vi[i]->format->numPlanes
                 || vi[0]->format->subSamplingW != vi[i]->format->subSamplingW
                 || vi[0]->format->subSamplingH != vi[i]->format->subSamplingH
