@@ -267,6 +267,7 @@ void MemoryUse::freeBuffer(uint8_t *buf) {
         std::uniform_int_distribution<size_t> randSrc(0, buffers.size() - 1);
         auto iter = buffers.begin();
         std::advance(iter, randSrc(generator));
+        assert(unusedBufferSize >= iter->first);
         unusedBufferSize -= iter->first;
         vs_aligned_free(iter->second);
         buffers.erase(iter);
