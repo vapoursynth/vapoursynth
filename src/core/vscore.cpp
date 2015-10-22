@@ -298,7 +298,7 @@ void MemoryUse::signalFree() {
         delete this;
 }
 
-MemoryUse::MemoryUse() : used(0), freeOnZero(false) {
+MemoryUse::MemoryUse() : used(0), freeOnZero(false), unusedBufferSize(0) {
     // 1GB
     maxMemoryUse = 1024 * 1024 * 1024;
 }
