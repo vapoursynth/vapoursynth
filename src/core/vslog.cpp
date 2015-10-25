@@ -45,18 +45,22 @@ void vsLog(const char *file, long line, VSMessageType type, const char *msg, ...
     std::lock_guard<std::mutex> lock(logMutex);
     if (messageHandler) {
         va_list alist;
-        va_start(alist, msg);
         try {
+            va_start(alist, msg);
             int size = vsnprintf(nullptr, 0, msg, alist);
+            va_end(alist);
             std::vector<char> buf(size+1);
+            va_start(alist, msg);
             vsnprintf(buf.data(), buf.size(), msg, alist);
+            va_end(alist);
             messageHandler(type, buf.data(), messageUserData);
         } catch (std::bad_alloc &) {
             fprintf(stderr, "Bad alloc exception in log handler\n");
+            va_start(alist, msg);
             vfprintf(stderr, msg, alist);
+            va_end(alist);
             fprintf(stderr, "\n");
         }
-        va_end(alist);
     } else {
         va_list alist;
         va_start(alist, msg);
