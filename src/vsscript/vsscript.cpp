@@ -44,18 +44,21 @@ PyGILState_STATE s;
 static void real_init(void) {
 #ifdef VS_TARGET_OS_WINDOWS
 
-    const wchar_t *keyPython64 = L"SOFTWARE\\Python\\PythonCore\\3.5\\InstallPath";
-    const wchar_t *keyPython32 = L"SOFTWARE\\Python\\PythonCore\\3.5-32\\InstallPath";
+#if defined(_WIN32) && defined(_WIN64)
+    const wchar_t *keyPython = L"SOFTWARE\\Python\\PythonCore\\3.5\\InstallPath";
+#elif defined(_WIN32) && !defined(_WIN64)
+    const wchar_t *keyPython = L"SOFTWARE\\Python\\PythonCore\\3.5-32\\InstallPath";
+#else
+#error "Cannot determine Compiler Bitdepth - is this really Windows?"
+#endif
 
     DWORD dwType = REG_SZ;
     HKEY hKey = 0;
 
     wchar_t value[1024];
     DWORD valueLength = 1000;
-    if (RegOpenKeyW(HKEY_CURRENT_USER, keyPython64, &hKey) != ERROR_SUCCESS
-        && RegOpenKeyW(HKEY_CURRENT_USER, keyPython32, &hKey) != ERROR_SUCCESS
-        && RegOpenKeyW(HKEY_LOCAL_MACHINE, keyPython64, &hKey) != ERROR_SUCCESS
-        && RegOpenKeyW(HKEY_LOCAL_MACHINE, keyPython32, &hKey) != ERROR_SUCCESS)
+    if (RegOpenKeyW(HKEY_CURRENT_USER, keyPython, &hKey) != ERROR_SUCCESS
+        && RegOpenKeyW(HKEY_LOCAL_MACHINE, keyPython, &hKey) != ERROR_SUCCESS)
         return;
     LSTATUS status = RegQueryValueExW(hKey, L"", nullptr, &dwType, (LPBYTE)&value, &valueLength);
     RegCloseKey(hKey);
