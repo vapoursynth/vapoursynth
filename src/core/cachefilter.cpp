@@ -36,13 +36,15 @@ VSCache::CacheAction VSCache::recommendSize() {
         return caNoChange; // not enough requests to know what to do so keep it this way
     }
 
-    //bool shrink = (nearMiss == 0 && hits == 0 && ((farMiss*10) / total >= 9));
-    //vsWarning("Cache #%d stats (%s): %d %d %d %d, size: %d", id, shrink ? "shrink" : "keep", total, farMiss, nearMiss, hits, getMaxFrames());
-    if ((nearMiss*10) / total >= 1) { // growing the cache would be beneficial
+    bool shrink = (nearMiss == 0 && hits == 0 && ((farMiss * 10) / total >= 9));
+    bool grow = ((nearMiss * 10) / total >= 1);
+#ifdef VS_CACHE_DEBUG
+    vsWarning("Cache (%p) stats (%s): %d %d %d %d, size: %d", (void *)this, shrink ? "shrink" : (grow ? "grow" : "keep"), total, farMiss, nearMiss, hits, maxSize);
+#endif
+    if (grow) { // growing the cache would be beneficial
         clearStats();
         return caGrow;
-    } else if (nearMiss == 0 && hits == 0 && ((farMiss*10) / total >= 9)) { // probably a linear scan, no reason to waste space here
-
+    } else if (shrink) { // probably a linear scan, no reason to waste space here
         clearStats();
         return caShrink;
     } else {
