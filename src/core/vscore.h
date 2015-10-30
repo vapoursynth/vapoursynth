@@ -38,6 +38,7 @@
 #include <thread>
 #include <condition_variable>
 #include <random>
+#include <algorithm>
 #ifdef VS_TARGET_OS_WINDOWS
 #    define WIN32_LEAN_AND_MEAN
 #    ifndef NOMINMAX
@@ -383,7 +384,8 @@ class FrameContext {
     friend class VSThreadPool;
     friend void runTasks(VSThreadPool *owner, volatile bool &stop);
 private:
-    int numFrameRequests;
+    uintptr_t reqOrder;
+    unsigned numFrameRequests;
     int n;
     VSNode *clip;
     PVideoFrame returnedFrame;
@@ -488,6 +490,7 @@ private:
     std::condition_variable newWork;
     std::atomic<unsigned> activeThreads;
     std::atomic<unsigned> idleThreads;
+    std::atomic<uintptr_t> reqCounter;
     unsigned maxThreads;
     std::atomic<bool> stopThreads;
     std::atomic<unsigned> ticks;
@@ -496,6 +499,7 @@ private:
     void startInternal(const PFrameContext &context);
     void spawnThread();
     static void runTasks(VSThreadPool *owner, std::atomic<bool> &stop);
+    static bool VSThreadPool::taskCmp(const PFrameContext &a, const PFrameContext &b);
 public:
     VSThreadPool(VSCore *core, int threads);
     ~VSThreadPool();

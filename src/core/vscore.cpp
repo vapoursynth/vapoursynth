@@ -95,11 +95,11 @@ static std::wstring readRegistryValue(const std::wstring keyName, const std::wst
 #endif
 
 FrameContext::FrameContext(int n, int index, VSNode *clip, const PFrameContext &upstreamContext) :
-numFrameRequests(0), n(n), clip(clip), upstreamContext(upstreamContext), userData(nullptr), frameDone(nullptr), error(false), node(nullptr), lastCompletedN(-1), index(index), lastCompletedNode(nullptr), frameContext(nullptr) {
+    reqOrder(upstreamContext->reqOrder), numFrameRequests(0), n(n), clip(clip), upstreamContext(upstreamContext), userData(nullptr), frameDone(nullptr), error(false), node(nullptr), lastCompletedN(-1), index(index), lastCompletedNode(nullptr), frameContext(nullptr) {
 }
 
 FrameContext::FrameContext(int n, int index, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData) :
-numFrameRequests(0), n(n), clip(node->clip.get()), userData(userData), frameDone(frameDone), error(false), node(node), lastCompletedN(-1), index(index), lastCompletedNode(nullptr), frameContext(nullptr) {
+    reqOrder(0), numFrameRequests(0), n(n), clip(node->clip.get()), userData(userData), frameDone(frameDone), error(false), node(node), lastCompletedN(-1), index(index), lastCompletedNode(nullptr), frameContext(nullptr) {
 }
 
 bool FrameContext::setError(const std::string &errorMsg) {

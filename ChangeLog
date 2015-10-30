@@ -1,8 +1,9 @@
 r29:
+now internally prioritizes frames based on original request order, should improve speed and frame time consistency in certain conditions
 more specific error messages in many filters (nodame)
 fixed the shown matrix names in clipinfo
 fixed compilation on non x86 targets, in imwri and vshelper.h without c++11 enabled, all introduced in r28
-fixed vsfatal not printing the last character (nodame)
+fixed vsfatal corrupt output (nodame)
 fixed uninitialized value in frame pool
 
 r28:

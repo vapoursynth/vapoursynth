@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2013 Fredrik Mellbin
+* Copyright (c) 2012-2015 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -24,6 +24,10 @@
 #include "x86utils.h"
 #endif
 
+bool VSThreadPool::taskCmp(const PFrameContext &a, const PFrameContext &b) {
+    return (a->reqOrder < b->reqOrder) || (a->reqOrder == b->reqOrder && a->n < b->n);
+}
+
 void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 #ifdef VS_TARGET_CPU_X86
     if (!vs_isMMXStateOk())
@@ -43,7 +47,9 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Go through all tasks from the top (oldest) and process the first one possible
-        for (std::list<PFrameContext>::iterator iter = owner->tasks.begin(); iter != owner->tasks.end(); ++iter) {
+        owner->tasks.sort(taskCmp);
+
+        for (auto iter = owner->tasks.begin(); iter != owner->tasks.end(); ++iter) {
             FrameContext *mainContext = iter->get();
             FrameContext *leafContext = nullptr;
 
@@ -167,7 +173,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             VSFrameContext externalFrameCtx(mainContextRef);
             assert(ar == arError || !mainContext->hasError());
 #ifdef VS_FRAME_REQ_DEBUG
-            vsWarning("Entering: %s Frame: %d Index: %d AR: %d", mainContext->clip->name.c_str(), mainContext->n, mainContext->index, (int)ar);
+                vsWarning("Entering: %s Frame: %d Index: %d AR: %d", mainContext->clip->name.c_str(), mainContext->n, mainContext->index, (int)ar);
 #endif
             PVideoFrame f;
             if (!skipCall)
@@ -277,7 +283,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
     }
 }
 
-VSThreadPool::VSThreadPool(VSCore *core, int threads) : core(core), activeThreads(0), idleThreads(0), stopThreads(false), ticks(0) {
+VSThreadPool::VSThreadPool(VSCore *core, int threads) : core(core), activeThreads(0), idleThreads(0), reqCounter(0), stopThreads(false), ticks(0) {
     setThreadCount(threads);
 }
 
@@ -329,6 +335,7 @@ void VSThreadPool::notifyCaches(bool needMemory) {
 void VSThreadPool::start(const PFrameContext &context) {
     assert(context);
     std::lock_guard<std::mutex> l(lock);
+    context->reqOrder = ++reqCounter;
     startInternal(context);
 }
 
@@ -395,6 +402,7 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
                 // add it to the list of contexts to notify when it's available
                 context->notificationChain = ctx->notificationChain;
                 ctx->notificationChain = context;
+                ctx->reqOrder = std::min(ctx->reqOrder, context->reqOrder);
             }
         } else {
             // create a new context and append it to the tasks
