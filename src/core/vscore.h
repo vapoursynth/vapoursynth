@@ -499,7 +499,7 @@ private:
     void startInternal(const PFrameContext &context);
     void spawnThread();
     static void runTasks(VSThreadPool *owner, std::atomic<bool> &stop);
-    static bool VSThreadPool::taskCmp(const PFrameContext &a, const PFrameContext &b);
+    static bool taskCmp(const PFrameContext &a, const PFrameContext &b);
 public:
     VSThreadPool(VSCore *core, int threads);
     ~VSThreadPool();
