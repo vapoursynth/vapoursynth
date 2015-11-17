@@ -1185,7 +1185,7 @@ static void calculateNewDurations(const FrameDuration *oldDurations, FrameDurati
     int i;
 
     for (i = 0; i < cycle; i++)
-        if (oldDurations[i].den == 0) {
+        if (oldDurations[i].den == 0 || oldDurations[i].num == 0) {
             missingDurations = 1;
             break;
         }
