@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2013
-VisualStudioVersion = 12.0.21005.1
+# Visual Studio 14
+VisualStudioVersion = 14.0.23107.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VapourSynth", "Core\Core.vcxproj", "{8C2696F2-47FC-425A-989E-9C02AE4E76D2}"
 EndProject
@@ -32,6 +32,15 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VIVTC", "VIVTC\VIVTC.vcxproj", "{FF30D074-47D8-493C-800C-461EEE154525}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "EEDI3", "EEDI3\EEDI3.vcxproj", "{F0D1A580-AEAF-429E-9A3F-E06A5FBB8E35}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "zimg", "zimg", "{F525D60C-7AA0-4CE8-A959-237CEF39CC5E}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "zimg", "..\zimg\_msvc\zimg\zimg.vcxproj", "{C8629E57-4D6F-40FA-82FC-B39824195932}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "vszimg", "..\zimg\_msvc\vszimg\vszimg.vcxproj", "{DB71496E-6A65-49EA-AC40-F3F47C77161F}"
+	ProjectSection(ProjectDependencies) = postProject
+		{C8629E57-4D6F-40FA-82FC-B39824195932} = {C8629E57-4D6F-40FA-82FC-B39824195932}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -113,8 +122,28 @@ Global
 		{F0D1A580-AEAF-429E-9A3F-E06A5FBB8E35}.Release|Win32.Build.0 = Release|Win32
 		{F0D1A580-AEAF-429E-9A3F-E06A5FBB8E35}.Release|x64.ActiveCfg = Release|x64
 		{F0D1A580-AEAF-429E-9A3F-E06A5FBB8E35}.Release|x64.Build.0 = Release|x64
+		{C8629E57-4D6F-40FA-82FC-B39824195932}.Debug|Win32.ActiveCfg = Debug|Win32
+		{C8629E57-4D6F-40FA-82FC-B39824195932}.Debug|Win32.Build.0 = Debug|Win32
+		{C8629E57-4D6F-40FA-82FC-B39824195932}.Debug|x64.ActiveCfg = Debug|x64
+		{C8629E57-4D6F-40FA-82FC-B39824195932}.Debug|x64.Build.0 = Debug|x64
+		{C8629E57-4D6F-40FA-82FC-B39824195932}.Release|Win32.ActiveCfg = Release|Win32
+		{C8629E57-4D6F-40FA-82FC-B39824195932}.Release|Win32.Build.0 = Release|Win32
+		{C8629E57-4D6F-40FA-82FC-B39824195932}.Release|x64.ActiveCfg = Release|x64
+		{C8629E57-4D6F-40FA-82FC-B39824195932}.Release|x64.Build.0 = Release|x64
+		{DB71496E-6A65-49EA-AC40-F3F47C77161F}.Debug|Win32.ActiveCfg = Debug|Win32
+		{DB71496E-6A65-49EA-AC40-F3F47C77161F}.Debug|Win32.Build.0 = Debug|Win32
+		{DB71496E-6A65-49EA-AC40-F3F47C77161F}.Debug|x64.ActiveCfg = Debug|x64
+		{DB71496E-6A65-49EA-AC40-F3F47C77161F}.Debug|x64.Build.0 = Debug|x64
+		{DB71496E-6A65-49EA-AC40-F3F47C77161F}.Release|Win32.ActiveCfg = Release|Win32
+		{DB71496E-6A65-49EA-AC40-F3F47C77161F}.Release|Win32.Build.0 = Release|Win32
+		{DB71496E-6A65-49EA-AC40-F3F47C77161F}.Release|x64.ActiveCfg = Release|x64
+		{DB71496E-6A65-49EA-AC40-F3F47C77161F}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{C8629E57-4D6F-40FA-82FC-B39824195932} = {F525D60C-7AA0-4CE8-A959-237CEF39CC5E}
+		{DB71496E-6A65-49EA-AC40-F3F47C77161F} = {F525D60C-7AA0-4CE8-A959-237CEF39CC5E}
 	EndGlobalSection
 EndGlobal

@@ -1,4 +1,7 @@
 r29:
+maskedmerge should now properly resize the mask without truncating it to limited range
+made zimg the default resizer, swscale is no longer used
+fixed crash in vdecimate (nodame)
 now internally prioritizes frames based on original request order, should improve speed and frame time consistency in certain conditions
 more specific error messages in many filters (nodame)
 fixed the shown matrix names in clipinfo

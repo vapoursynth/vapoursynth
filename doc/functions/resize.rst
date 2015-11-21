@@ -1,14 +1,18 @@
 Resize
 ======
 
-.. function::   Bilinear(clip clip[, int width, int height, int format])
-                Bicubic(clip clip[, int width, int height, int format])
-                Point(clip clip[, int width, int height, int format])
-                Gauss(clip clip[, int width, int height, int format])
-                Sinc(clip clip[, int width, int height, int format])
-                Lanczos(clip clip[, int width, int height, int format])
-                Spline(clip clip[, int width, int height, int format])
+.. function::   Bilinear(clip clip[, int width, int height, int format, ...])
+                Bicubic(clip clip[, int width, int height, int format, ...])
+                Point(clip clip[, int width, int height, int format, ...])
+                Lanczos(clip clip[, int width, int height, int format, ...])
+                Spline16(clip clip[, int width, int height, int format, ...])
+                Spline36(clip clip[, int width, int height, int format, ...])
    :module: resize
+   
+   Note that the resize functions are a simple wrapper for zimg. See the zimg
+   documentation for the full list of arguments. The differently named
+   functions simply set the *resample_filter* argument to the appropriate
+   value and passes all the other arguments through.
 
    In VapourSynth the resizers have several functions. In addition to scaling,
    they also do colorspace conversions and conversions to and from the compat
