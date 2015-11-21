@@ -1,0 +1,3 @@
+[submodule "zimg"]
+	path = zimg
+	url = https://github.com/vapoursynth/zimg.git
