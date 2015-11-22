@@ -28,6 +28,11 @@
 
 static void VS_CC resizeCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     VSPlugin *p = vsapi->getPluginById("the.weather.channel", core);
+    if (!p) {
+        vsapi->setError(out, "Core component couldn't be located");
+        return;
+    }
+
     int nkeys = vsapi->propNumKeys(in);
 
     VSMap *newIn = vsapi->createMap();
