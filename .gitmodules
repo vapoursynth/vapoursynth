@@ -1,3 +1,4 @@
 [submodule "zimg"]
 	path = zimg
-	url = https://github.com/vapoursynth/zimg.git
+	url = https://github.com/sekrit-twc/zimg.git
+	branch = v2.0
