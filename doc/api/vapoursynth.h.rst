@@ -2176,11 +2176,13 @@ struct VSAPI
 
    void queryCompletedFrame(VSNodeRef_ \**node, int \*n, VSFrameContext_ \*frameCtx)
 
+      .. warning::
+         This function has several issues and may or may not return the
+         actual node or frame number.
+         
       Finds out which requested frame is ready. To be used in a filter's
       "getframe" function, when it is called with *activationReason*
       arFrameReady.
-
-      The node and the frame number will be available in *node* and *n*.
 
 ----------
 
