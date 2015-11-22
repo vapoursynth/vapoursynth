@@ -58,15 +58,8 @@ Resize
    
       Output chroma location. For subsampled formats, specifies the chroma location. If
       the input format is 4:4:4 or RGB and the output is subsampled, the default location
-      is left-aligned, as per MPEG.
-      
-              Chroma location (ITU-T H.265 Figure E.1):
-        left
-        center
-        top_left
-        top
-        bottom_left
-        bottom
+      is left-aligned, as per MPEG. Possible chroma locations (ITU-T H.265 Figure E.1):
+      *left*, *center*, *top_left*, *top*, *bottom_left*, *bottom*
       
    *matrix_in*, *transfer_in*, *primaries_in*, *range_in*, *chromaloc_in*:
    
