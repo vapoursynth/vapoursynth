@@ -30,12 +30,9 @@ static void VS_CC resizeCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     VSPlugin *p = vsapi->getPluginById("the.weather.channel", core);
     int nkeys = vsapi->propNumKeys(in);
 
-    int seenResampleFilter = 0;
     VSMap *newIn = vsapi->createMap();
     for (int i = 0; i < nkeys; i++) {
         const char *key = vsapi->propGetKey(in, i);
-        if (!strcmp(key, "resample_filter"))
-            seenResampleFilter = 1;
 
         char t = vsapi->propGetType(in, key);
         if (t == 'i') {
@@ -51,8 +48,9 @@ static void VS_CC resizeCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         }
     }
 
-    if (!seenResampleFilter)
-        vsapi->propSetData(newIn, "resample_filter", userData, -1, paAppend);
+    vsapi->propSetData(newIn, "resample_filter", userData, -1, paAppend);
+    if (vsapi->propNumElements("resample_filter_uv") < 0)
+        vsapi->propSetData(newIn, "resample_filter_uv", userData, -1, paAppend);
 
     VSMap *newOut = vsapi->invoke(p, "Format", newIn);
     vsapi->freeMap(newIn);
@@ -72,6 +70,7 @@ static void VS_CC resizeCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 // Init
 
 // Copied from vszimg.c, needs to be updated when it changes
+// resample_filter argument removed since it's implicit from the fucntion name
 
 #define INT_OPT(x) #x":int:opt;"
 #define FLOAT_OPT(x) #x":float:opt;"
@@ -92,7 +91,6 @@ ENUM_OPT(transfer_in)
 ENUM_OPT(primaries_in)
 ENUM_OPT(range_in)
 ENUM_OPT(chromaloc_in)
-DATA_OPT(resample_filter)
 FLOAT_OPT(filter_param_a)
 FLOAT_OPT(filter_param_b)
 DATA_OPT(resample_filter_uv)
