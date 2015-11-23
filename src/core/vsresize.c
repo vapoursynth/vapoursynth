@@ -1063,8 +1063,11 @@ static void VS_CC vszimg_create(const VSMap *in, VSMap *out, void *userData, VSC
     data->params.filter_param_a_uv = propGetFloatDef(vsapi, in, "filter_param_a_uv", data->params.filter_param_a_uv);
     data->params.filter_param_b_uv = propGetFloatDef(vsapi, in, "filter_param_b_uv", data->params.filter_param_b_uv);
 
-    if (vsapi->propNumElements(in, "resample_filter_uv") <= 0)
+    if (vsapi->propNumElements(in, "resample_filter_uv") <= 0) {
         data->params.resample_filter_uv = data->params.resample_filter;
+        data->params.filter_param_a_uv = data->params.filter_param_a;
+        data->params.filter_param_b_uv = data->params.filter_param_b;
+    }
 
     TRY_GET_ENUM_STR("dither_type", data->params.dither_type, g_dither_type_table);
     TRY_GET_ENUM_STR("cpu_type", data->params.cpu_type, g_cpu_type_table);

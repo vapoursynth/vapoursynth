@@ -31,7 +31,7 @@ Resize
 
    *clip*:
    
-      The input may be of COMPAT color family (requires VS R28).
+      Accepts all kinds of input.
 
    *width*, *height*:
    
