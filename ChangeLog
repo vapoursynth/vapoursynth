@@ -1,4 +1,5 @@
 r29:
+added . as a special output filename to vspipe, specifying it will simply skip all output writing
 maskedmerge should now properly resize the mask without truncating it to limited range
 made zimg the default resizer, swscale is no longer used
 fixed crash in vdecimate (nodame)

@@ -85,7 +85,6 @@ int completedFrames = 0;
 int totalFrames = -1;
 int numPlanes = 0;
 bool y4m = false;
-bool timecodes = false;
 int64_t currentTimecodeNum = 0;
 int64_t currentTimecodeDen = 1;
 bool outputError = false;
@@ -141,7 +140,7 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
             const VSFrameRef *frame = reorderMap[outputFrames];
             reorderMap.erase(outputFrames);
             if (!outputError) {
-                if (y4m) {
+                if (y4m && outFile) {
                     if (fwrite("FRAME\n", 1, 6, outFile) != 6) {
                         if (errorMessage.empty())
                             errorMessage = "Error: fwrite() call failed when writing header, errno: " + std::to_string(errno);
@@ -150,7 +149,7 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
                     }
                 }
 
-                if (!outputError) {
+                if (!outputError && outFile) {
                     const VSFormat *fi = vsapi->getFrameFormat(frame);
                     for (int p = 0; p < fi->numPlanes; p++) {
                         int stride = vsapi->getStride(frame, p);
@@ -172,7 +171,7 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
                     }
                 }
 
-                if (timecodes && !outputError) {
+                if (timecodesFile && !outputError) {
                     std::ostringstream stream;
                     stream.imbue(std::locale("C"));
                     stream.setf(std::ios::fixed, std::ios::floatfield);
@@ -288,7 +287,7 @@ bool outputNode() {
 
     std::string header = "YUV4MPEG2 " + y4mFormat + "W" + std::to_string(vi->width) + " H" + std::to_string(vi->height) + " F" + std::to_string(vi->fpsNum) + ":" + std::to_string(vi->fpsDen) + " Ip A0:0\n";
 
-    if (y4m) {
+    if (y4m && outFile) {
         if (fwrite(header.c_str(), 1, header.size(), outFile) != header.size()) {
             errorMessage = "Error: fwrite() call failed when writing initial header, errno: " + std::to_string(errno);
             outputError = true;
@@ -296,7 +295,7 @@ bool outputNode() {
         }
     }
 
-    if (timecodes && !outputError) {
+    if (timecodesFile && !outputError) {
         if (fprintf(timecodesFile, "# timecode format v2\n") < 0) {
             errorMessage = "Error: failed to write timecodes file header, errno: " + std::to_string(errno);
             outputError = true;
@@ -394,6 +393,8 @@ void printHelp() {
         "    vspipe --info script.vpy -\n"
         "  Write to stdout:\n"
         "    vspipe [options] script.vpy -\n"
+        "  Request all frames but don't output them:\n"
+        "    vspipe [options] script.vpy .\n"
         "  Write frames 5-100 to file:\n"
         "    vspipe --start 5 --end 100 script.vpy output.raw\n"
         "  Pass values to a script:\n"
@@ -512,7 +513,6 @@ int main(int argc, char **argv) {
                 return 1;
             }
 
-            timecodes = true;
             timecodesFilename = argv[arg + 1];
 
             arg++;
@@ -544,6 +544,8 @@ int main(int argc, char **argv) {
 
     if (outputFilename == NSTRING("-")) {
         outFile = stdout;
+    } else if (outputFilename == NSTRING(".")) {
+        // do nothing
     } else {
 #ifdef VS_TARGET_OS_WINDOWS
         outFile = _wfopen(outputFilename.c_str(), L"wb");
@@ -556,7 +558,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (timecodes) {
+    if (!timecodesFilename.empty()) {
 #ifdef VS_TARGET_OS_WINDOWS
         timecodesFile = _wfopen(timecodesFilename.c_str(), L"wb");
 #else
@@ -616,27 +618,29 @@ int main(int argc, char **argv) {
     const VSVideoInfo *vi = vsapi->getVideoInfo(node);
 
     if (showInfo) {
-        if (vi->width && vi->height) {
-            fprintf(outFile, "Width: %d\n", vi->width);
-            fprintf(outFile, "Height: %d\n", vi->height);
-        } else {
-            fprintf(outFile, "Width: Variable\n");
-            fprintf(outFile, "Height: Variable\n");
-        }
-        fprintf(outFile, "Frames: %d\n", vi->numFrames);
-        if (vi->fpsNum && vi->fpsDen)
-            fprintf(outFile, "FPS: %" PRId64 "/%" PRId64 " (%.3f fps)\n", vi->fpsNum, vi->fpsDen, vi->fpsNum/static_cast<double>(vi->fpsDen));
-        else
-            fprintf(outFile, "FPS: Variable\n");
+        if (outFile) {
+            if (vi->width && vi->height) {
+                fprintf(outFile, "Width: %d\n", vi->width);
+                fprintf(outFile, "Height: %d\n", vi->height);
+            } else {
+                fprintf(outFile, "Width: Variable\n");
+                fprintf(outFile, "Height: Variable\n");
+            }
+            fprintf(outFile, "Frames: %d\n", vi->numFrames);
+            if (vi->fpsNum && vi->fpsDen)
+                fprintf(outFile, "FPS: %" PRId64 "/%" PRId64 " (%.3f fps)\n", vi->fpsNum, vi->fpsDen, vi->fpsNum / static_cast<double>(vi->fpsDen));
+            else
+                fprintf(outFile, "FPS: Variable\n");
 
-        if (vi->format) {
-            fprintf(outFile, "Format Name: %s\n", vi->format->name);
-            fprintf(outFile, "Color Family: %s\n", colorFamilyToString(vi->format->colorFamily));
-            fprintf(outFile, "Bits: %d\n", vi->format->bitsPerSample);
-            fprintf(outFile, "SubSampling W: %d\n", vi->format->subSamplingW);
-            fprintf(outFile, "SubSampling H: %d\n", vi->format->subSamplingH);
-        } else {
-            fprintf(outFile, "Format Name: Variable\n");
+            if (vi->format) {
+                fprintf(outFile, "Format Name: %s\n", vi->format->name);
+                fprintf(outFile, "Color Family: %s\n", colorFamilyToString(vi->format->colorFamily));
+                fprintf(outFile, "Bits: %d\n", vi->format->bitsPerSample);
+                fprintf(outFile, "SubSampling W: %d\n", vi->format->subSamplingW);
+                fprintf(outFile, "SubSampling H: %d\n", vi->format->subSamplingH);
+            } else {
+                fprintf(outFile, "Format Name: Variable\n");
+            }
         }
     } else {
         const VSVideoInfo *vi = vsapi->getVideoInfo(node);
@@ -662,7 +666,8 @@ int main(int argc, char **argv) {
         error = outputNode();
     }
 
-    fflush(outFile);
+    if (outFile)
+        fflush(outFile);
     if (timecodesFile)
         fclose(timecodesFile);
 
