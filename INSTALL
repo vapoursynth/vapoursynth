@@ -5,8 +5,7 @@ First, a couple of things to note:
 
 * You need to be on Linux or OS X. A BSD might work too.
 * You need autotools, probably recent versions.
-* You need to have the libraries and headers for libavutil,
-  libavcodec, and libswscale installed.
+* You need zimg v2.
 * You need to have either GCC or Clang installed.
   Both a C and C++ compiler are required.
 * You need to have Yasm installed.

@@ -7,7 +7,7 @@ Name: vapoursynth
 Description: A frameserver for the 21st century
 Version: @VERSION@
 
-Requires.private: libswscale, libavutil, libavcodec
+Requires.private: zimg
 Libs: -L${libdir} -lvapoursynth
-Libs.private: @AVUTIL_LIBS@ @SWSCALE_LIBS@ @DLOPENLIB@
+Libs.private: @ZIMG_LIBS@ @DLOPENLIB@
 Cflags: -I${includedir}

@@ -50,7 +50,7 @@ First download and install the prerequisites:
 
 Installation of the required packages is very easy. Simply run these commands in a terminal and wait for them to complete::
 
-   brew install python3 yasm ffmpeg libass
+   brew install python3 yasm libass
    pip3 install cython
    
 If you've already installed all the required packages and instead want to update them, simply run::
@@ -63,12 +63,24 @@ Required packages (Linux Mint)
 
 First download and install the required packages. Cython is installed through pip in order to get a more recent version than the system packages provide::
 
-   apt-get install build-essential yasm git libavcodec-dev libswscale-dev libass-dev python3-pip python3-dev
+   apt-get install build-essential yasm git libass-dev python3-pip python3-dev
    pip3 install cython
    
 If you've already installed all the required packages and instead want to update them, simply update your system like normal and use pip to update Cython::
 
    pip3 install --upgrade cython
+
+Zimg
+####
+
+Additionally, you need to install `zimg v2 <https://github.com/sekrit-twc/zimg/releases>`_. The core requires it.
+
+::
+
+   ./autogen.sh
+   ./configure --enable-x86simd
+   make
+   make install
 
 Compilation (Both)
 ##################

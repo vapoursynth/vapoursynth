@@ -1,4 +1,4 @@
-AC_INIT([vapoursynth], [28], [https://github.com/vapoursynth/vapoursynth/issues], [vapoursynth], [http://www.vapoursynth.com/])
+AC_INIT([vapoursynth], [29], [https://github.com/vapoursynth/vapoursynth/issues], [vapoursynth], [http://www.vapoursynth.com/])
 
 : ${CFLAGS=""}
 : ${CXXFLAGS=""}
@@ -141,42 +141,31 @@ AS_IF(
       [
        AC_DEFINE([VS_CORE_EXPORTS])
 
-       PKG_CHECK_MODULES([AVCODEC], [libavcodec >= 54.34.1])
-       PKG_CHECK_MODULES([AVUTIL], [libavutil >= 52.3.0])
-       PKG_CHECK_MODULES([SWSCALE], [libswscale >= 2.0.0])
+       PKG_CHECK_MODULES([ZIMG], [zimg])
 
        AC_LANG_PUSH([C])
        saved_cppflags="$CPPFLAGS"
        saved_libs="$LIBS"
-       CPPFLAGS="$SWSCALE_CFLAGS"
-       LIBS="$SWSCALE_LIBS"
+       CPPFLAGS="$ZIMG_CFLAGS"
+       LIBS="$ZIMG_LIBS"
        AC_LINK_IFELSE(
                          [AC_LANG_PROGRAM(
                                          [[
-#include <libswscale/swscale.h>
+#include <zimg.h>
+
+#if ZIMG_API_VERSION < ZIMG_MAKE_API_VERSION(2, 0)
+#error zimg API v2 or greater required
+#endif
                                          ]],
                                          [[
-(void) swscale_version();
+unsigned major, minor, micro;
+zimg_get_version_info(&major, &minor, &micro);
                                          ]]
                          )],
                          [],
-                         [AC_MSG_ERROR([failed to link libswscale. See config.log for details.])]
+                         [AC_MSG_ERROR([failed to link zimg. See config.log for details.])]
        )
 
-       CPPFLAGS="$AVUTIL_CFLAGS"
-       LIBS="$AVUTIL_LIBS"
-       AC_LINK_IFELSE(
-                         [AC_LANG_PROGRAM(
-                                         [[
-#include <libavutil/avutil.h>
-                                         ]],
-                                         [[
-(void) avutil_version();
-                                         ]]
-                         )],
-                         [],
-                         [AC_MSG_ERROR([failed to link libavutil. See config.log for details.])]
-       )
 
        CPPFLAGS="$saved_cppflags"
        LIBS="$saved_libs"

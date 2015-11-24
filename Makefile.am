@@ -89,8 +89,8 @@ noinst_HEADERS = include/asm/x86/x86inc.asm
 pkgconfig_DATA += pc/vapoursynth.pc
 
 libvapoursynth_la_LDFLAGS = -no-undefined -avoid-version
-libvapoursynth_la_CPPFLAGS = $(AVCODEC_CFLAGS) $(AVUTIL_CFLAGS) $(SWSCALE_CFLAGS) -DVS_PATH_PLUGINDIR='"$(PLUGINDIR)"'
-libvapoursynth_la_LIBADD = $(AVUTIL_LIBS) $(SWSCALE_LIBS) $(DLOPENLIB)
+libvapoursynth_la_CPPFLAGS = $(ZIMG_CFLAGS) -DVS_PATH_PLUGINDIR='"$(PLUGINDIR)"'
+libvapoursynth_la_LIBADD = $(ZIMG_LIBS) $(DLOPENLIB)
 
 
 if PYTHONMODULE
