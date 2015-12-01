@@ -140,6 +140,74 @@ static void VS_CC writeInit(VSMap *in, VSMap *out, void **instanceData, VSNode *
     vsapi->setVideoInfo(d->vi, 1, node);
 }
 
+template<typename T>
+static void writeImageHelper(const VSFrameRef *frame, const VSFrameRef *alphaFrame, bool isGray, Magick::Image &image, int width, int height, int bitsPerSample, const VSAPI *vsapi) {
+    unsigned prepeat = (MAGICKCORE_QUANTUM_DEPTH - 1) / bitsPerSample;
+    unsigned pleftover = MAGICKCORE_QUANTUM_DEPTH - (bitsPerSample * prepeat);
+    unsigned shiftFactor = bitsPerSample - pleftover;
+    unsigned scaleFactor = 0;
+    for (unsigned i = 0; i < prepeat; i++) {
+        scaleFactor <<= bitsPerSample;
+        scaleFactor += 1;
+    }
+    scaleFactor <<= pleftover;
+
+    Magick::Pixels pixelCache(image);
+
+    if (alphaFrame) {
+        int strideR = vsapi->getStride(frame, 0);
+        int strideG = vsapi->getStride(frame, isGray ? 0 : 1);
+        int strideB = vsapi->getStride(frame, isGray ? 0 : 2);
+        int strideA = vsapi->getStride(alphaFrame, 0);
+
+        const T *r = reinterpret_cast<const T *>(vsapi->getReadPtr(frame, 0));
+        const T *g = reinterpret_cast<const T *>(vsapi->getReadPtr(frame, isGray ? 0 : 1));
+        const T *b = reinterpret_cast<const T *>(vsapi->getReadPtr(frame, isGray ? 0 : 2));
+        const T *a = reinterpret_cast<const T *>(vsapi->getReadPtr(alphaFrame, 0));
+
+        for (int y = 0; y < height; y++) {
+            Magick::PixelPacket* pixels = pixelCache.get(0, y, width, 1);
+            for (int x = 0; x < width; x++) {
+                pixels[x].red = r[x] * scaleFactor + (r[x] >> shiftFactor);
+                pixels[x].green = g[x] * scaleFactor + (g[x] >> shiftFactor);
+                pixels[x].blue = b[x] * scaleFactor + (b[x] >> shiftFactor);
+                pixels[x].opacity = a[x] * scaleFactor + (a[x] >> shiftFactor);
+            }
+
+            r += strideR / sizeof(T);
+            g += strideG / sizeof(T);
+            b += strideB / sizeof(T);
+            a += strideA / sizeof(T);
+
+            pixelCache.sync();
+        }
+    } else {
+        int strideR = vsapi->getStride(frame, 0);
+        int strideG = vsapi->getStride(frame, isGray ? 0 : 1);
+        int strideB = vsapi->getStride(frame, isGray ? 0 : 2);
+
+        const T *r = reinterpret_cast<const T *>(vsapi->getReadPtr(frame, 0));
+        const T *g = reinterpret_cast<const T *>(vsapi->getReadPtr(frame, isGray ? 0 : 1));
+        const T *b = reinterpret_cast<const T *>(vsapi->getReadPtr(frame, isGray ? 0 : 2));
+
+        for (int y = 0; y < height; y++) {
+            Magick::PixelPacket* pixels = pixelCache.get(0, y, width, 1);
+            for (int x = 0; x < width; x++) {
+                pixels[x].red = r[x] * scaleFactor + (r[x] >> shiftFactor);
+                pixels[x].green = g[x] * scaleFactor + (g[x] >> shiftFactor);
+                pixels[x].blue = b[x] * scaleFactor + (b[x] >> shiftFactor);
+                pixels[x].opacity = 0;
+            }
+
+            r += strideR / sizeof(T);
+            g += strideG / sizeof(T);
+            b += strideB / sizeof(T);
+
+            pixelCache.sync();
+        }
+    }
+}
+
 static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     WriteData *d = static_cast<WriteData *>(*instanceData);
 
@@ -185,154 +253,70 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
             if (isGray)
                 image.colorSpace(Magick::GRAYColorspace);
 
-            int strideR = vsapi->getStride(frame, 0);
-            int strideG = vsapi->getStride(frame, isGray ? 0 : 1);
-            int strideB = vsapi->getStride(frame, isGray ? 0 : 2);
-            int strideA = 0;
-            if (alphaFrame)
-                strideA = vsapi->getStride(alphaFrame, 0);
+
 
             if (fi->bitsPerSample < static_cast<int>(image.depth()))
                 image.depth(fi->bitsPerSample);
 
-            Magick::Pixels pixelCache(image);
-
-            if (fi->bytesPerSample == 4 && alphaFrame) {
+            if (fi->bytesPerSample == 4 && fi->sampleType == stFloat) {
+                Magick::Pixels pixelCache(image);
                 const float scaleFactor = QuantumRange;
 
                 const float *r = reinterpret_cast<const float *>(vsapi->getReadPtr(frame, 0));
                 const float *g = reinterpret_cast<const float *>(vsapi->getReadPtr(frame, isGray ? 0 : 1));
                 const float *b = reinterpret_cast<const float *>(vsapi->getReadPtr(frame, isGray ? 0 : 2));
-                const float *a = reinterpret_cast<const float *>(vsapi->getReadPtr(alphaFrame, 0));
+               
+                int strideR = vsapi->getStride(frame, 0);
+                int strideG = vsapi->getStride(frame, isGray ? 0 : 1);
+                int strideB = vsapi->getStride(frame, isGray ? 0 : 2);
+                    
+                if (alphaFrame) {
+                    const float *a = reinterpret_cast<const float *>(vsapi->getReadPtr(alphaFrame, 0));
+                    int strideA = vsapi->getStride(alphaFrame, 0);
 
-                for (int y = 0; y < height; y++) {
-                    Magick::PixelPacket* pixels = pixelCache.get(0, y, width, 1);
-                    for (int x = 0; x < width; x++) {
-                        pixels[x].red = r[x] * scaleFactor;
-                        pixels[x].green = g[x] * scaleFactor;
-                        pixels[x].blue = b[x] * scaleFactor;
-                        pixels[x].opacity = a[x] * scaleFactor;
+                    for (int y = 0; y < height; y++) {
+                        Magick::PixelPacket* pixels = pixelCache.get(0, y, width, 1);
+                        for (int x = 0; x < width; x++) {
+                            pixels[x].red = r[x] * scaleFactor;
+                            pixels[x].green = g[x] * scaleFactor;
+                            pixels[x].blue = b[x] * scaleFactor;
+                            pixels[x].opacity = a[x] * scaleFactor;
+                        }
+
+                        r += strideR / sizeof(float);
+                        g += strideG / sizeof(float);
+                        b += strideB / sizeof(float);
+                        a += strideA / sizeof(float);
+
+                        pixelCache.sync();
                     }
+                } else {
+                    const float *r = reinterpret_cast<const float *>(vsapi->getReadPtr(frame, 0));
+                    const float *g = reinterpret_cast<const float *>(vsapi->getReadPtr(frame, isGray ? 0 : 1));
+                    const float *b = reinterpret_cast<const float *>(vsapi->getReadPtr(frame, isGray ? 0 : 2));
 
-                    r += strideR / sizeof(float);
-                    g += strideG / sizeof(float);
-                    b += strideB / sizeof(float);
-                    a += strideA / sizeof(float);
+                    for (int y = 0; y < height; y++) {
+                        Magick::PixelPacket* pixels = pixelCache.get(0, y, width, 1);
+                        for (int x = 0; x < width; x++) {
+                            pixels[x].red = r[x] * scaleFactor;
+                            pixels[x].green = g[x] * scaleFactor;
+                            pixels[x].blue = b[x] * scaleFactor;
+                            pixels[x].opacity = 0;
+                        }
 
-                    pixelCache.sync();
+                        r += strideR / sizeof(float);
+                        g += strideG / sizeof(float);
+                        b += strideB / sizeof(float);
+
+                        pixelCache.sync();
+                    }
                 }
             } else if (fi->bytesPerSample == 4) {
-                const float scaleFactor = QuantumRange;
-
-                const float *r = reinterpret_cast<const float *>(vsapi->getReadPtr(frame, 0));
-                const float *g = reinterpret_cast<const float *>(vsapi->getReadPtr(frame, isGray ? 0 : 1));
-                const float *b = reinterpret_cast<const float *>(vsapi->getReadPtr(frame, isGray ? 0 : 2));
-
-                for (int y = 0; y < height; y++) {
-                    Magick::PixelPacket* pixels = pixelCache.get(0, y, width, 1);
-                    for (int x = 0; x < width; x++) {
-                        pixels[x].red = r[x] * scaleFactor;
-                        pixels[x].green = g[x] * scaleFactor;
-                        pixels[x].blue = b[x] * scaleFactor;
-                        pixels[x].opacity = 0;
-                    }
-
-                    r += strideR / sizeof(float);
-                    g += strideG / sizeof(float);
-                    b += strideB / sizeof(float);
-
-                    pixelCache.sync();
-                }
-            } else if (fi->bytesPerSample == 2 && alphaFrame) {
-                const int shiftL = 16 - fi->bitsPerSample;
-                const int shiftR = fi->bitsPerSample;
-
-                const uint16_t *r = reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(frame, 0));
-                const uint16_t *g = reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(frame, isGray ? 0 : 1));
-                const uint16_t *b = reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(frame, isGray ? 0 : 2));
-                const uint16_t *a = reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(alphaFrame, 0));
-
-                for (int y = 0; y < height; y++) {
-                    Magick::PixelPacket* pixels = pixelCache.get(0, y, width, 1);
-                    for (int x = 0; x < width; x++) {
-                        pixels[x].red = (r[x] << shiftL) + (r[x] >> shiftR);
-                        pixels[x].green = (g[x] << shiftL) + (b[x] >> shiftR);
-                        pixels[x].blue = (b[x] << shiftL) + (b[x] >> shiftR);
-                        pixels[x].opacity = (a[x] << shiftL) + (a[x] >> shiftR);
-                    }
-
-                    r += strideR / sizeof(uint16_t);
-                    g += strideG / sizeof(uint16_t);
-                    b += strideB / sizeof(uint16_t);
-                    a += strideA / sizeof(uint16_t);
-
-                    pixelCache.sync();
-                }
+                writeImageHelper<uint32_t>(frame, alphaFrame, isGray, image, width, height, fi->bitsPerSample, vsapi);
             } else if (fi->bytesPerSample == 2) {
-                const int shiftL = 16 - fi->bitsPerSample;
-                const int shiftR = fi->bitsPerSample;
-
-                const uint16_t *r = reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(frame, 0));
-                const uint16_t *g = reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(frame, isGray ? 0 : 1));
-                const uint16_t *b = reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(frame, isGray ? 0 : 2));
-
-                for (int y = 0; y < height; y++) {
-                    Magick::PixelPacket* pixels = pixelCache.get(0, y, width, 1);
-                    for (int x = 0; x < width; x++) {
-                        pixels[x].red = (r[x] << shiftL) + (r[x] >> shiftR);
-                        pixels[x].green = (g[x] << shiftL) + (b[x] >> shiftR);
-                        pixels[x].blue = (b[x] << shiftL) + (b[x] >> shiftR);
-                        pixels[x].opacity = 0;
-                    }
-
-                    r += strideR / sizeof(uint16_t);
-                    g += strideG / sizeof(uint16_t);
-                    b += strideB / sizeof(uint16_t);
-
-                    pixelCache.sync();
-                }
-            } else if (fi->bytesPerSample == 1 && alphaFrame) {
-                const uint8_t *r = vsapi->getReadPtr(frame, 0);
-                const uint8_t *g = vsapi->getReadPtr(frame, isGray ? 0 : 1);
-                const uint8_t *b = vsapi->getReadPtr(frame, isGray ? 0 : 2);
-                const uint8_t *a = vsapi->getReadPtr(alphaFrame, 0);
-
-                for (int y = 0; y < height; y++) {
-                    Magick::PixelPacket* pixels = pixelCache.get(0, y, width, 1);
-                    for (int x = 0; x < width; x++) {
-                        pixels[x].red = (r[x] << 8) + r[x];
-                        pixels[x].green = (g[x] << 8) + g[x];
-                        pixels[x].blue = (b[x] << 8) + b[x];
-                        pixels[x].opacity = (a[x] << 8) + a[x];
-                    }
-
-                    r += strideR;
-                    g += strideG;
-                    b += strideB;
-                    a += strideA;
-
-                    pixelCache.sync();
-                }
-            } else /*if (fi->bytesPerSample == 1)*/ {
-                const uint8_t *r = vsapi->getReadPtr(frame, 0);
-                const uint8_t *g = vsapi->getReadPtr(frame, isGray ? 0 : 1);
-                const uint8_t *b = vsapi->getReadPtr(frame, isGray ? 0 : 2);
-
-                for (int y = 0; y < height; y++) {
-                    Magick::PixelPacket* pixels = pixelCache.get(0, y, width, 1);
-                    for (int x = 0; x < width; x++) {
-                        pixels[x].red = (r[x] << 8) + r[x];
-                        pixels[x].green = (g[x] << 8) + g[x];
-                        pixels[x].blue = (b[x] << 8) + b[x];
-                        pixels[x].opacity = 0;
-                    }
-
-                    r += strideR;
-                    g += strideG;
-                    b += strideB;
-
-                    pixelCache.sync();
-                }
+                writeImageHelper<uint16_t>(frame, alphaFrame, isGray, image, width, height, fi->bitsPerSample, vsapi);
+            } else if (fi->bytesPerSample == 1) {
+                writeImageHelper<uint8_t>(frame, alphaFrame, isGray, image, width, height, fi->bitsPerSample, vsapi);
             }
 
             image.write(specialPrintf(d->filename, n + d->firstNum));
@@ -503,6 +487,55 @@ static void VS_CC readInit(VSMap *in, VSMap *out, void **instanceData, VSNode *n
     vsapi->setVideoInfo(d->vi, d->alpha ? 2 : 1, node);
 }
 
+template<typename T>
+static void readImageHelper(VSFrameRef *frame, VSFrameRef *alphaFrame, bool isGray, Magick::Image &image, int width, int height, int bitsPerSample, const VSAPI *vsapi) {
+    unsigned shiftR = MAGICKCORE_QUANTUM_DEPTH - bitsPerSample;
+    Magick::Pixels pixelCache(image);
+
+    T *r = reinterpret_cast<T *>(vsapi->getWritePtr(frame, 0));
+    T *g = reinterpret_cast<T *>(vsapi->getWritePtr(frame, isGray ? 0 : 1));
+    T *b = reinterpret_cast<T *>(vsapi->getWritePtr(frame, isGray ? 0 : 2));
+
+    int strideR = vsapi->getStride(frame, 0);
+    int strideG = vsapi->getStride(frame, isGray ? 0 : 1);
+    int strideB = vsapi->getStride(frame, isGray ? 0 : 2);
+
+    if (alphaFrame) {
+        T *a = reinterpret_cast<T *>(vsapi->getWritePtr(alphaFrame, 0));
+        int strideA = strideA = vsapi->getStride(alphaFrame, 0);;            
+
+        for (int y = 0; y < height; y++) {
+            const Magick::PixelPacket* pixels = pixelCache.getConst(0, y, width, 1);
+            for (int x = 0; x < width; x++) {
+                r[x] = (unsigned)pixels[x].red >> shiftR;
+                g[x] = (unsigned)pixels[x].green >> shiftR;
+                b[x] = (unsigned)pixels[x].blue >> shiftR;
+                a[x] = (unsigned)pixels[x].opacity >> shiftR;
+            }
+
+            r += strideR / sizeof(T);
+            g += strideG / sizeof(T);
+            b += strideB / sizeof(T);
+            a += strideA / sizeof(T);
+        }
+    } else {
+
+
+        for (int y = 0; y < height; y++) {
+            const Magick::PixelPacket* pixels = pixelCache.getConst(0, y, width, 1);
+            for (int x = 0; x < width; x++) {
+                r[x] = (unsigned)pixels[x].red >> shiftR;
+                g[x] = (unsigned)pixels[x].green >> shiftR;
+                b[x] = (unsigned)pixels[x].blue >> shiftR;
+            }
+
+            r += strideR / sizeof(T);
+            g += strideG / sizeof(T);
+            b += strideB / sizeof(T);
+        }
+    }
+}
+
 static const VSFrameRef *VS_CC readGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     ReadData *d = static_cast<ReadData *>(*instanceData);
 
@@ -548,135 +581,58 @@ static const VSFrameRef *VS_CC readGetFrame(int n, int activationReason, void **
                 alphaFrame = vsapi->newVideoFrame(d->vi[1].format ? d->vi[1].format : vsapi->registerFormat(cmGray, stInteger, depth, 0, 0, core), width, height, nullptr, core);
             const VSFormat *fi = vsapi->getFrameFormat(frame);
  
-            bool isGray = fi->colorFamily == cmGray;
-
-            int strideR = vsapi->getStride(frame, 0);
-            int strideG = vsapi->getStride(frame, isGray ? 0 : 1);
-            int strideB = vsapi->getStride(frame, isGray ? 0 : 2);
-            int strideA = 0;
-            if (alphaFrame)
-                strideA = vsapi->getStride(alphaFrame, 0);
-
-            Magick::Pixels pixelCache(image);
-            if (fi->bytesPerSample == 4 && alphaFrame) {
+            bool isGray = fi->colorFamily == cmGray;                
+     
+            if (fi->bytesPerSample == 4 && fi->sampleType == stFloat) {
                 const float scaleFactor = QuantumRange;
+                Magick::Pixels pixelCache(image);
 
                 float *r = reinterpret_cast<float *>(vsapi->getWritePtr(frame, 0));
                 float *g = reinterpret_cast<float *>(vsapi->getWritePtr(frame, isGray ? 0 : 1));
                 float *b = reinterpret_cast<float *>(vsapi->getWritePtr(frame, isGray ? 0 : 2));
-                float *a = reinterpret_cast<float *>(vsapi->getWritePtr(alphaFrame, 0));
 
-                for (int y = 0; y < height; y++) {
-                    const Magick::PixelPacket* pixels = pixelCache.getConst(0, y, width, 1);
-                    for (int x = 0; x < width; x++) {
-                        r[x] = pixels[x].red / scaleFactor;
-                        g[x] = pixels[x].green / scaleFactor;
-                        b[x] = pixels[x].blue / scaleFactor;
-                        a[x] = pixels[x].opacity / scaleFactor;
+                int strideR = vsapi->getStride(frame, 0);
+                int strideG = vsapi->getStride(frame, isGray ? 0 : 1);
+                int strideB = vsapi->getStride(frame, isGray ? 0 : 2);
+
+                if (alphaFrame) {
+                    float *a = reinterpret_cast<float *>(vsapi->getWritePtr(alphaFrame, 0));
+                    int strideA = vsapi->getStride(alphaFrame, 0);
+
+                    for (int y = 0; y < height; y++) {
+                        const Magick::PixelPacket* pixels = pixelCache.getConst(0, y, width, 1);
+                        for (int x = 0; x < width; x++) {
+                            r[x] = pixels[x].red / scaleFactor;
+                            g[x] = pixels[x].green / scaleFactor;
+                            b[x] = pixels[x].blue / scaleFactor;
+                            a[x] = pixels[x].opacity / scaleFactor;
+                        }
+
+                        r += strideR / sizeof(float);
+                        g += strideG / sizeof(float);
+                        b += strideB / sizeof(float);
+                        a += strideA / sizeof(float);
                     }
+                } else {
+                    for (int y = 0; y < height; y++) {
+                        const Magick::PixelPacket* pixels = pixelCache.getConst(0, y, width, 1);
+                        for (int x = 0; x < width; x++) {
+                            r[x] = pixels[x].red / scaleFactor;
+                            g[x] = pixels[x].green / scaleFactor;
+                            b[x] = pixels[x].blue / scaleFactor;
+                        }
 
-                    r += strideR / sizeof(float);
-                    g += strideG / sizeof(float);
-                    b += strideB / sizeof(float);
-                    a += strideA / sizeof(float);
+                        r += strideR / sizeof(float);
+                        g += strideG / sizeof(float);
+                        b += strideB / sizeof(float);
+                    }
                 }
             } else if (fi->bytesPerSample == 4) {
-                const float scaleFactor = QuantumRange;
-
-                float *r = reinterpret_cast<float *>(vsapi->getWritePtr(frame, 0));
-                float *g = reinterpret_cast<float *>(vsapi->getWritePtr(frame, isGray ? 0 : 1));
-                float *b = reinterpret_cast<float *>(vsapi->getWritePtr(frame, isGray ? 0 : 2));
-
-                for (int y = 0; y < height; y++) {
-                    const Magick::PixelPacket* pixels = pixelCache.getConst(0, y, width, 1);
-                    for (int x = 0; x < width; x++) {
-                        r[x] = pixels[x].red / scaleFactor;
-                        g[x] = pixels[x].green / scaleFactor;
-                        b[x] = pixels[x].blue / scaleFactor;
-                    }
-
-                    r += strideR / sizeof(float);
-                    g += strideG / sizeof(float);
-                    b += strideB / sizeof(float);
-                }
-            } else if (fi->bytesPerSample == 2 && alphaFrame) {
-                const int shiftR = 16 - fi->bitsPerSample;
-
-                uint16_t *r = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(frame, 0));
-                uint16_t *g = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(frame, isGray ? 0 : 1));
-                uint16_t *b = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(frame, isGray ? 0 : 2));
-                uint16_t *a = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(alphaFrame, 0));
-
-                for (int y = 0; y < height; y++) {
-                    const Magick::PixelPacket* pixels = pixelCache.getConst(0, y, width, 1);
-                    for (int x = 0; x < width; x++) {
-                        r[x] = (unsigned)pixels[x].red >> shiftR;
-                        g[x] = (unsigned)pixels[x].green >> shiftR;
-                        b[x] = (unsigned)pixels[x].blue >> shiftR;
-                        a[x] = (unsigned)pixels[x].opacity >> shiftR;
-                    }
-
-                    r += strideR / sizeof(uint16_t);
-                    g += strideG / sizeof(uint16_t);
-                    b += strideB / sizeof(uint16_t);
-                    a += strideA / sizeof(uint16_t);
-                }
+                readImageHelper<uint32_t>(frame, alphaFrame, isGray, image, width, height, fi->bitsPerSample, vsapi);
             } else if (fi->bytesPerSample == 2) {
-                const int shiftR = 16 - fi->bitsPerSample;
-
-                uint16_t *r = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(frame, 0));
-                uint16_t *g = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(frame, isGray ? 0 : 1));
-                uint16_t *b = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(frame, isGray ? 0 : 2));
-
-                for (int y = 0; y < height; y++) {
-                    const Magick::PixelPacket* pixels = pixelCache.getConst(0, y, width, 1);
-                    for (int x = 0; x < width; x++) {
-                        r[x] = (unsigned)pixels[x].red >> shiftR;
-                        g[x] = (unsigned)pixels[x].green >> shiftR;
-                        b[x] = (unsigned)pixels[x].blue >> shiftR;
-                    }
-
-                    r += strideR / sizeof(uint16_t);
-                    g += strideG / sizeof(uint16_t);
-                    b += strideB / sizeof(uint16_t);
-                }
-            } else if (fi->bytesPerSample == 1 && alphaFrame) {
-                uint8_t *r = vsapi->getWritePtr(frame, 0);
-                uint8_t *g = vsapi->getWritePtr(frame, isGray ? 0 : 1);
-                uint8_t *b = vsapi->getWritePtr(frame, isGray ? 0 : 2);
-                uint8_t *a = vsapi->getWritePtr(alphaFrame, 0);
-
-                for (int y = 0; y < height; y++) {
-                    const Magick::PixelPacket* pixels = pixelCache.getConst(0, y, width, 1);
-                    for (int x = 0; x < width; x++) {
-                        r[x] = (unsigned)pixels[x].red >> 8;
-                        g[x] = (unsigned)pixels[x].green >> 8;
-                        b[x] = (unsigned)pixels[x].blue >> 8;
-                        a[x] = (unsigned)pixels[x].opacity >> 8;
-                    }
-
-                    r += strideR;
-                    g += strideG;
-                    b += strideB;
-                    a += strideA;
-                }
-            } else /*if (fi->bytesPerSample == 1)*/ {
-                uint8_t *r = vsapi->getWritePtr(frame, 0);
-                uint8_t *g = vsapi->getWritePtr(frame, isGray ? 0 : 1);
-                uint8_t *b = vsapi->getWritePtr(frame, isGray ? 0 : 2);
-
-                for (int y = 0; y < height; y++) {
-                    const Magick::PixelPacket* pixels = pixelCache.getConst(0, y, width, 1);
-                    for (int x = 0; x < width; x++) {
-                        r[x] = (unsigned)pixels[x].red >> 8;
-                        g[x] = (unsigned)pixels[x].green >> 8;
-                        b[x] = (unsigned)pixels[x].blue >> 8;
-                    }
-
-                    r += strideR;
-                    g += strideG;
-                    b += strideB;
-                }
+                readImageHelper<uint16_t>(frame, alphaFrame, isGray, image, width, height, fi->bitsPerSample, vsapi);
+            } else if (fi->bytesPerSample == 1) {
+                readImageHelper<uint8_t>(frame, alphaFrame, isGray, image, width, height, fi->bitsPerSample, vsapi);
             }
         } catch (Magick::Exception &e) {
             vsapi->setFilterError((std::string("Read: ImageMagick error: ") + e.what()).c_str(), frameCtx);
