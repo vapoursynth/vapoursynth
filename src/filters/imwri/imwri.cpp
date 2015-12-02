@@ -33,9 +33,6 @@
 #include <algorithm>
 #include <memory>
 
-
-
-
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #ifndef NOMINMAX
@@ -154,15 +151,15 @@ static void writeImageHelper(const VSFrameRef *frame, const VSFrameRef *alphaFra
 
     Magick::Pixels pixelCache(image);
 
-    if (alphaFrame) {
-        int strideR = vsapi->getStride(frame, 0);
-        int strideG = vsapi->getStride(frame, isGray ? 0 : 1);
-        int strideB = vsapi->getStride(frame, isGray ? 0 : 2);
-        int strideA = vsapi->getStride(alphaFrame, 0);
+    const T *r = reinterpret_cast<const T *>(vsapi->getReadPtr(frame, 0));
+    const T *g = reinterpret_cast<const T *>(vsapi->getReadPtr(frame, isGray ? 0 : 1));
+    const T *b = reinterpret_cast<const T *>(vsapi->getReadPtr(frame, isGray ? 0 : 2));
+    int strideR = vsapi->getStride(frame, 0);
+    int strideG = vsapi->getStride(frame, isGray ? 0 : 1);
+    int strideB = vsapi->getStride(frame, isGray ? 0 : 2);
 
-        const T *r = reinterpret_cast<const T *>(vsapi->getReadPtr(frame, 0));
-        const T *g = reinterpret_cast<const T *>(vsapi->getReadPtr(frame, isGray ? 0 : 1));
-        const T *b = reinterpret_cast<const T *>(vsapi->getReadPtr(frame, isGray ? 0 : 2));
+    if (alphaFrame) {
+        int strideA = vsapi->getStride(alphaFrame, 0);
         const T *a = reinterpret_cast<const T *>(vsapi->getReadPtr(alphaFrame, 0));
 
         for (int y = 0; y < height; y++) {
@@ -182,14 +179,6 @@ static void writeImageHelper(const VSFrameRef *frame, const VSFrameRef *alphaFra
             pixelCache.sync();
         }
     } else {
-        int strideR = vsapi->getStride(frame, 0);
-        int strideG = vsapi->getStride(frame, isGray ? 0 : 1);
-        int strideB = vsapi->getStride(frame, isGray ? 0 : 2);
-
-        const T *r = reinterpret_cast<const T *>(vsapi->getReadPtr(frame, 0));
-        const T *g = reinterpret_cast<const T *>(vsapi->getReadPtr(frame, isGray ? 0 : 1));
-        const T *b = reinterpret_cast<const T *>(vsapi->getReadPtr(frame, isGray ? 0 : 2));
-
         for (int y = 0; y < height; y++) {
             Magick::PixelPacket* pixels = pixelCache.get(0, y, width, 1);
             for (int x = 0; x < width; x++) {
@@ -341,6 +330,8 @@ static void VS_CC writeFree(void *instanceData, VSCore *core, const VSAPI *vsapi
     delete d;
 }
 
+#define STR(x) #x
+
 static void VS_CC writeCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<WriteData> d(new WriteData());
     int err = 0;
@@ -418,18 +409,18 @@ static void VS_CC writeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     d->videoNode = vsapi->propGetNode(in, "clip", 0, nullptr);
     d->vi = vsapi->getVideoInfo(d->videoNode);
     if (!d->vi->format || (d->vi->format->colorFamily != cmRGB && d->vi->format->colorFamily != cmGray)
-        || (d->vi->format->sampleType == stInteger && d->vi->format->bitsPerSample > 16)
 #ifdef MAGICKCORE_HDRI_ENABLE
         || (d->vi->format->sampleType == stFloat && d->vi->format->bitsPerSample != 32))
 #else
+        || (d->vi->format->sampleType == stInteger && d->vi->format->bitsPerSample > MAGICKCORE_QUANTUM_DEPTH)
         || (d->vi->format->sampleType == stFloat))
 #endif
     {
         vsapi->freeNode(d->videoNode);
 #ifdef MAGICKCORE_HDRI_ENABLE
-        vsapi->setError(out, "Write: Only constant format 8-16 bit integer or float RGB and Grayscale input supported");
+        vsapi->setError(out, "Write: Only constant format 8-32 bit integer or float RGB and Grayscale input supported");
 #else
-        vsapi->setError(out, "Write: Only constant format 8-16 bit integer RGB and Grayscale input supported");
+        vsapi->setError(out, "Write: Only constant format 8-" STR(MAGICKCORE_QUANTUM_DEPTH) " bit integer RGB and Grayscale input supported");
 #endif
         return;
     }
@@ -718,9 +709,11 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         Magick::Image image;
         image.ping(d->fileListMode ? d->filenames[0] : specialPrintf(d->filenames[0], d->firstNum));
 #ifdef MAGICKCORE_HDRI_ENABLE
-        int depth = std::min(std::max(static_cast<int>(image.depth()), 8), 32);
+        VSSampleType st = stFloat;
+        int depth = 32;
 #else
-        int depth = std::min(std::max(static_cast<int>(image.depth()), 8), 16);
+        VSSampleType st = stInteger;
+        int depth = std::min(std::max(static_cast<int>(image.depth()), 8), MAGICKCORE_QUANTUM_DEPTH);
 #endif
 
         if (!d->mismatch || d->vi[0].numFrames == 1) {
@@ -729,7 +722,7 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
             VSColorFamily cf = cmRGB;
             if (isGrayColorspace(image.colorSpace()))
                 cf = cmGray;
-            d->vi[0].format = vsapi->registerFormat(cf, (depth > 16) ? stFloat : stInteger, depth, 0, 0, core);
+            d->vi[0].format = vsapi->registerFormat(cf, st, depth, 0, 0, core);
         }
 
         if (d->alpha) {

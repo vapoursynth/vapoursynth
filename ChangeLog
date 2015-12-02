@@ -1,4 +1,6 @@
 r29:
+imwri will now always output a float image when built against a hdri imagemagick
+imwri now supports QD32 with and without hdri
 added . as a special output filename to vspipe, specifying it will simply skip all output writing
 maskedmerge should now properly resize the mask without truncating it to limited range
 made zimg the default resizer, swscale is no longer used

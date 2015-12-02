@@ -7,12 +7,18 @@ ImageMagick Writer-Reader (IMWRI) is a plugin that can read and write many image
 
 .. function:: Write(clip clip, string imgformat, string filename[, int firstnum = 0, int quality=75, bint dither=1, string compression_type, clip alpha])
    :module: imwri
-
+   
+   Supported input formats for writing:
+      QD16: 8-16 bit integer
+      QD32: 8-32 bit integer
+      QD16 HDRI: 8-16 bit integer, 32 bit float
+      QD32 HDRI: 8-32 bit integer, 32 bit float
+      
    Write will write each frame to disk as it's requested. If a frame is never requested it's also never written to disk.
  
    Parameters:
       clip
-         Input clip. Only 8-16 bit RGB and Gray supported. Variable dimensions are allowed. If compiled against a HDRI enabled ImageMagick float is also supported.
+         Input clip. RGB and Gray supported. See list for accepted inputs.
 
       imgformat
          The name of the output format. Examples of supported format strings are "JPEG", "PNG", and "DPX". Visit the ImageMagick website for a full list.
@@ -36,7 +42,11 @@ ImageMagick Writer-Reader (IMWRI) is a plugin that can read and write many image
       alpha
          A grayscale clip containing the alpha channel for the image to write. Apart from being grayscale, its properties must be identical to the main *clip*.
 
-
+   Possible output formats when reading:
+      QD16: 8-16 bit integer
+      QD32: 8-32 bit integer
+      QD16 HDRI: 32 bit float
+      QD32 HDRI: 32 bit float
 
 .. function:: Read(string[] filename[, int firstnum = 0, bint mismatch=0, bint alpha=0])
    :module: imwri
