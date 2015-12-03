@@ -1090,7 +1090,7 @@ static void VS_CC vszimg_create(const VSMap *in, VSMap *out, void *userData, VSC
         dst_format.width = data->vi.width;
         dst_format.height = data->vi.height;
 
-        if (data->vi.format->colorFamily == cmYUV && node_vi->format->colorFamily != cmYUV && data->matrix == ZIMG_MATRIX_UNSPECIFIED) {
+        if ((data->vi.format->colorFamily == cmYUV || data->vi.format->id == pfCompatYUY2) && (node_vi->format->colorFamily != cmYUV && node_vi->format->id != pfCompatYUY2) && !data->have_matrix) {
             strcpy(err_msg, "Matrix must be specified when converting to YUV");
             goto fail;
         }
