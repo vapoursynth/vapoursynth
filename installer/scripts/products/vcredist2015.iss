@@ -15,8 +15,8 @@ const
 	vcredist2015_url = 'http://download.microsoft.com/download/C/E/5/CE514EAE-78A8-4381-86E8-29108D78DBD4/VC_redist.x86.exe';
 	vcredist2015_url_x64 = 'http://download.microsoft.com/download/C/E/5/CE514EAE-78A8-4381-86E8-29108D78DBD4/VC_redist.x64.exe';
 
-	vcredist2015_productcode = '{23daf363-3020-4059-b3ae-dc4ad39fed19}';
-	vcredist2015_productcode_x64 = '{3ee5e5bb-b7cc-4556-8861-a00a82977d6c}';
+	vcredist2015_productcode = '{1045AB6F-6151-3634-8C2C-EE308AA1A6A7}';
+	vcredist2015_productcode_x64 = '{B0B194F8-E0CE-33FE-AA11-636428A4B73D}';
 
 procedure vcredist2015();
 begin
