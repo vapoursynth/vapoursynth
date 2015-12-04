@@ -48,16 +48,16 @@ const std::unordered_map<std::string, zimg_cpu_type_e> g_cpu_type_table{
 	{ "none",  ZIMG_CPU_NONE },
 	{ "auto",  ZIMG_CPU_AUTO },
 #if defined(__i386) || defined(_M_IX86) || defined(_M_X64) || defined(__x86_64__)
-    { "mmx",   ZIMG_CPU_X86_MMX },
-    { "sse",   ZIMG_CPU_X86_SSE },
-    { "sse2",  ZIMG_CPU_X86_SSE2 },
-    { "sse3",  ZIMG_CPU_X86_SSE3 },
-    { "ssse3", ZIMG_CPU_X86_SSSE3 },
-    { "sse41", ZIMG_CPU_X86_SSE41 },
-    { "sse42", ZIMG_CPU_X86_SSE42 },
-    { "avx",   ZIMG_CPU_X86_AVX },
-    { "f16c",  ZIMG_CPU_X86_F16C },
-    { "avx2",  ZIMG_CPU_X86_AVX2 },
+	{ "mmx",   ZIMG_CPU_X86_MMX },
+	{ "sse",   ZIMG_CPU_X86_SSE },
+	{ "sse2",  ZIMG_CPU_X86_SSE2 },
+	{ "sse3",  ZIMG_CPU_X86_SSE3 },
+	{ "ssse3", ZIMG_CPU_X86_SSSE3 },
+	{ "sse41", ZIMG_CPU_X86_SSE41 },
+	{ "sse42", ZIMG_CPU_X86_SSE42 },
+	{ "avx",   ZIMG_CPU_X86_AVX },
+	{ "f16c",  ZIMG_CPU_X86_F16C },
+	{ "avx2",  ZIMG_CPU_X86_AVX2 },
 #endif
 };
 
@@ -250,7 +250,7 @@ void import_frame_props(const VSMap *props, zimg_image_format *format, const VSA
 	propGetIfValid<int>(props, "_Transfer", &format->transfer_characteristics, [](int x) { return x != ZIMG_TRANSFER_UNSPECIFIED; }, vsapi);
 	propGetIfValid<int>(props, "_Primaries", &format->color_primaries, [](int x) { return x != ZIMG_PRIMARIES_UNSPECIFIED; }, vsapi);
 
-	if (vsapi->propNumElements(props, "_FieldBased") && vsapi->propGetInt(props, "_FieldBased", 0, nullptr))
+	if (vsapi->propNumElements(props, "_FieldBased") > 0 && vsapi->propGetInt(props, "_FieldBased", 0, nullptr))
 		throw std::runtime_error{ "field-based video not supported" };
 }
 
@@ -374,10 +374,10 @@ class vszimg_callback {
 
 	static int unpack_bgr32(void *user, unsigned i, unsigned left, unsigned right) {
 		const vszimg_callback *cb = static_cast<const vszimg_callback *>(user);
-		const uint8_t *bgr32 = static_cast<const uint8_t *>(cb->m_plane_buf.c.line_at(0, cb->m_height - i - 1));
-		uint8_t *planar_r = static_cast<uint8_t *>(cb->m_line_buf.m.line_at(0, i));
-		uint8_t *planar_g = static_cast<uint8_t *>(cb->m_line_buf.m.line_at(1, i));
-		uint8_t *planar_b = static_cast<uint8_t *>(cb->m_line_buf.m.line_at(2, i));
+		const uint8_t *bgr32 = static_cast<const uint8_t *>(cb->m_plane_buf.c.line_at(cb->m_height - i - 1));
+		uint8_t *planar_r = static_cast<uint8_t *>(cb->m_line_buf.m.line_at(i, 0));
+		uint8_t *planar_g = static_cast<uint8_t *>(cb->m_line_buf.m.line_at(i, 1));
+		uint8_t *planar_b = static_cast<uint8_t *>(cb->m_line_buf.m.line_at(i, 2));
 		unsigned j;
 
 		for (j = left; j < right; ++j) {
@@ -397,10 +397,10 @@ class vszimg_callback {
 
 	static int unpack_yuy2(void *user, unsigned i, unsigned left, unsigned right) {
 		const vszimg_callback *cb = static_cast<const vszimg_callback *>(user);
-		const uint8_t *yuy2 = static_cast<const uint8_t *>(cb->m_plane_buf.c.line_at(0, cb->m_height - i - 1));
-		uint8_t *planar_y = static_cast<uint8_t *>(cb->m_line_buf.m.line_at(0, i));
-		uint8_t *planar_u = static_cast<uint8_t *>(cb->m_line_buf.m.line_at(1, i));
-		uint8_t *planar_v = static_cast<uint8_t *>(cb->m_line_buf.m.line_at(2, i));
+		const uint8_t *yuy2 = static_cast<const uint8_t *>(cb->m_plane_buf.c.line_at(cb->m_height - i - 1));
+		uint8_t *planar_y = static_cast<uint8_t *>(cb->m_line_buf.m.line_at(i, 0));
+		uint8_t *planar_u = static_cast<uint8_t *>(cb->m_line_buf.m.line_at(i, 1));
+		uint8_t *planar_v = static_cast<uint8_t *>(cb->m_line_buf.m.line_at(i, 2));
 		unsigned j;
 
 		left = left % 2 ? left - 1 : left;
@@ -425,10 +425,10 @@ class vszimg_callback {
 
 	static int pack_bgr32(void *user, unsigned i, unsigned left, unsigned right) {
 		const vszimg_callback *cb = static_cast<const vszimg_callback *>(user);
-		const uint8_t *planar_r = static_cast<const uint8_t *>(cb->m_line_buf.c.line_at(0, i));
-		const uint8_t *planar_g = static_cast<const uint8_t *>(cb->m_line_buf.c.line_at(1, i));
-		const uint8_t *planar_b = static_cast<const uint8_t *>(cb->m_line_buf.c.line_at(2, i));
-		uint8_t *bgr32 = static_cast<uint8_t *>(cb->m_plane_buf.m.line_at(0, cb->m_height - i - 1));
+		const uint8_t *planar_r = static_cast<const uint8_t *>(cb->m_line_buf.c.line_at(i, 0));
+		const uint8_t *planar_g = static_cast<const uint8_t *>(cb->m_line_buf.c.line_at(i, 1));
+		const uint8_t *planar_b = static_cast<const uint8_t *>(cb->m_line_buf.c.line_at(i, 2));
+		uint8_t *bgr32 = static_cast<uint8_t *>(cb->m_plane_buf.m.line_at(cb->m_height - i - 1));
 		unsigned j;
 
 		for (j = left; j < right; ++j) {
@@ -448,10 +448,10 @@ class vszimg_callback {
 
 	static int pack_yuy2(void *user, unsigned i, unsigned left, unsigned right) {
 		const vszimg_callback *cb = static_cast<const vszimg_callback *>(user);
-		const uint8_t *planar_y = static_cast<const uint8_t *>(cb->m_line_buf.c.line_at(0, i));
-		const uint8_t *planar_u = static_cast<const uint8_t *>(cb->m_line_buf.c.line_at(1, i));
-		const uint8_t *planar_v = static_cast<const uint8_t *>(cb->m_line_buf.c.line_at(2, i));
-		uint8_t *yuy2 = static_cast<uint8_t *>(cb->m_plane_buf.m.line_at(0, cb->m_height - i - 1));
+		const uint8_t *planar_y = static_cast<const uint8_t *>(cb->m_line_buf.c.line_at(i, 0));
+		const uint8_t *planar_u = static_cast<const uint8_t *>(cb->m_line_buf.c.line_at(i, 1));
+		const uint8_t *planar_v = static_cast<const uint8_t *>(cb->m_line_buf.c.line_at(i, 2));
+		uint8_t *yuy2 = static_cast<uint8_t *>(cb->m_plane_buf.m.line_at(cb->m_height - i - 1));
 		unsigned j;
 
 		left = left % 2 ? left - 1 : left;
@@ -499,7 +499,8 @@ public:
 	}
 
 	void init_unpack(const vszimgxx::FilterGraph &graph, const VSFrameRef *frame, const zimg_image_format &format, const VSFormat *vsformat, VSCore *core, const VSAPI *vsapi) {
-		import_frame_as_buffer(frame, &m_line_buf.c, ZIMG_BUFFER_MAX, vsapi);
+		init_common(graph, false, format, vsformat, core, vsapi);
+		import_frame_as_buffer(frame, &m_plane_buf.c, ZIMG_BUFFER_MAX, vsapi);
 
 		if (vsformat->colorFamily != cmCompat) {
 			m_line_buf = m_plane_buf;
@@ -510,6 +511,7 @@ public:
 	}
 
 	void init_pack(const vszimgxx::FilterGraph &graph, VSFrameRef *frame, const zimg_image_format &format, const VSFormat *vsformat, VSCore *core, const VSAPI *vsapi) {
+		init_common(graph, true, format, vsformat, core, vsapi);
 		import_frame_as_buffer(frame, &m_plane_buf.m, ZIMG_BUFFER_MAX, vsapi);
 
 		if (vsformat->colorFamily != cmCompat) {
@@ -606,10 +608,12 @@ class vszimg {
 
 	template <class T, class Map>
 	static void lookup_enum(const VSMap *map, const char *key, const Map &enum_table, optional_of<T> *out, const VSAPI *vsapi) {
-		if (vsapi->propNumElements(map, key) > 0)
+		if (vsapi->propNumElements(map, key) > 0) {
 			*out = static_cast<T>(propGetScalar<int>(map, key, vsapi));
-		else
-			lookup_enum_str(map, key, enum_table, out, vsapi);
+		} else {
+			std::string altkey = std::string{ key } + "_s";
+			lookup_enum_str(map, altkey.c_str(), enum_table, out, vsapi);
+		}
 	}
 
 	template <class T, class Map>
@@ -622,13 +626,9 @@ class vszimg {
 	}
 
 	template <class T>
-	static bool propagate_if_present(const optional_of<T> &in, T *out) {
-		if (in.is_present()) {
+	static void propagate_if_present(const optional_of<T> &in, T *out) {
+		if (in.is_present())
 			*out = in.get();
-			return true;
-		} else {
-			return false;
-		}
 	}
 
 	vszimg(const VSMap *in, void *userData, VSCore *core, const VSAPI *vsapi) :
@@ -829,7 +829,7 @@ public:
 		}
 
 		vsapi->freeFrame(src_frame);
-		return nullptr;
+		return ret;
 	}
 
 	static void create(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
