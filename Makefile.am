@@ -68,7 +68,7 @@ libvapoursynth_la_SOURCES = src/core/cachefilter.cpp \
 							src/core/vscore.h \
 							src/core/vslog.cpp \
 							src/core/vslog.h \
-							src/core/vsresize.c \
+							src/core/vsresize.cpp \
 							src/core/vsresize.h \
 							src/core/vsthreadpool.cpp \
 							src/core/x86utils.h

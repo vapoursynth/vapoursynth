@@ -198,7 +198,7 @@
     <ClCompile Include="..\..\src\core\vsapi.cpp" />
     <ClCompile Include="..\..\src\core\vscore.cpp" />
     <ClCompile Include="..\..\src\core\vslog.cpp" />
-    <ClCompile Include="..\..\src\core\vsresize.c" />
+    <ClCompile Include="..\..\src\core\vsresize.cpp" />
     <ClCompile Include="..\..\src\core\vsthreadpool.cpp" />
   </ItemGroup>
   <ItemGroup>
