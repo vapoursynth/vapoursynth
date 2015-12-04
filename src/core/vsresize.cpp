@@ -538,8 +538,6 @@ public:
 	}
 };
 
-
-void VS_CC vszimg_create(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
 void VS_CC vszimg_free(void *instanceData, VSCore *core, const VSAPI *vsapi);
 void VS_CC vszimg_init(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi);
 const VSFrameRef * VS_CC vszimg_get_frame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
@@ -846,22 +844,22 @@ public:
 	}
 };
 
-void vszimg_create(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+void VS_CC vszimg_create(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
 	vszimg::create(in, out, userData, core, vsapi);
 }
 
-void vszimg_free(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+void VS_CC vszimg_free(void *instanceData, VSCore *core, const VSAPI *vsapi) {
 	auto x = static_cast<vszimg *>(instanceData);
 	x->free(core, vsapi);
 	delete x;
 }
 
-void vszimg_init(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi)
+void VS_CC vszimg_init(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi)
 {
 	static_cast<vszimg *>(*instanceData)->init(in, out, node, core, vsapi);
 }
 
-const VSFrameRef *vszimg_get_frame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+const VSFrameRef * VS_CC vszimg_get_frame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
 	return static_cast<vszimg *>(*instanceData)->get_frame(n, activationReason, frameData, frameCtx, core, vsapi);
 }
 
