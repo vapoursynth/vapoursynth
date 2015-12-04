@@ -495,7 +495,7 @@ public:
 	vszimg_callback() : m_cb{}, m_frame_tmp{}, m_height{} {}
 
 	~vszimg_callback() {
-		assert(!frame_tmp);
+		assert(!m_frame_tmp);
 	}
 
 	void init_unpack(const vszimgxx::FilterGraph &graph, const VSFrameRef *frame, const zimg_image_format &format, const VSFormat *vsformat, VSCore *core, const VSAPI *vsapi) {
@@ -685,13 +685,14 @@ class vszimg {
 				dst_format.width = m_vi.width;
 				dst_format.height = m_vi.height;
 
-				if ((m_vi.format->colorFamily == cmYUV || m_vi.format->id == pfCompatYUY2) &&
-					(node_vi.format->colorFamily != cmYUV && node_vi.format->id != pfCompatYUY2)) {
-					throw std::runtime_error{ "Matrix must be specified when converting to YUV" };
-				}
-
 				translate_vsformat(node_vi.format, &src_format);
 				translate_vsformat(m_vi.format, &dst_format);
+
+                if (dst_format.color_family == ZIMG_COLOR_YUV
+                    && src_format.color_family != ZIMG_COLOR_YUV
+                    && !m_frame_params.matrix.is_present()) {
+                    throw std::runtime_error{ "Matrix must be specified when converting to YUV" };
+                }
 			}
 		} catch (...) {
 			free(core, vsapi);
