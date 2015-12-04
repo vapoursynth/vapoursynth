@@ -561,7 +561,7 @@ class vszimg {
 		}
 
 		const T &get() const {
-			assert(!is_present());
+			assert(is_present());
 			return m_value;
 		}
 
