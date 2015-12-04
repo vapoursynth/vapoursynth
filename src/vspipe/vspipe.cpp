@@ -283,12 +283,14 @@ bool outputNode() {
         }
     }
     if (!y4mFormat.empty())
-        y4mFormat = "C" + y4mFormat + " ";
+        y4mFormat = " C" + y4mFormat;
 
-    std::string header = "YUV4MPEG2 " + y4mFormat + "W" + std::to_string(vi->width) + " H" + std::to_string(vi->height);
-    if (vi->fpsNum && vi->fpsDen)
-        header += " F" + std::to_string(vi->fpsNum) + ":" + std::to_string(vi->fpsDen);
-    header += " Ip A0:0\n";
+    std::string header = "YUV4MPEG2" + y4mFormat
+        + " W" + std::to_string(vi->width)
+        + " H" + std::to_string(vi->height)
+        + " F" + std::to_string(vi->fpsNum) + ":" + std::to_string(vi->fpsDen)
+        + " Ip A0:0"
+        + " XLENGTH=" + std::to_string(vi->numFrames) + "\n";
 
     if (y4m && outFile) {
         if (fwrite(header.c_str(), 1, header.size(), outFile) != header.size()) {
