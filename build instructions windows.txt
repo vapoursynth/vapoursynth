@@ -1,0 +1,18 @@
+Needs Visual Studio 2015 Update 1 with vsyasm (yasm for use with VS2010)
+It also needs both 32 and 64 bit Python 3.5 series with cython
+installed in both (also needs sphinx as well to generate docs)
+Inno setup is needed to create the installer
+
+Clone VapourSynth
+Clone zimg v2.0 branch into the VapourSynth dir
+Compile 32 and 64 bit release using the VapourSynth solution
+Run cython_build.bat to compile the Python modules
+
+In order to build the installer you need to download
+and place isxdl.dll in "installer\scripts\isxdl".
+It can be downloaded from:
+http://www.codeproject.com/Articles/20868/NET-Framework-Installer-for-InnoSetup
+
+There are also a few plugins that aren't included
+which are easier to simply retrieve from an existing
+VapourSynth installation.
