@@ -220,6 +220,7 @@ void translate_vsformat(const VSFormat *vsformat, zimg_image_format *format) {
 	} else {
 		translate_color_family(static_cast<VSColorFamily>(vsformat->colorFamily), &format->color_family, &format->matrix_coefficients);
 		translate_pixel_type(vsformat, &format->pixel_type);
+		format->depth = vsformat->bitsPerSample;
 	}
 
 	format->subsample_w = vsformat->subSamplingW;
@@ -299,8 +300,8 @@ void propagate_sar(const VSMap *src_props, VSMap *dst_props, const zimg_image_fo
 		vsapi->propDeleteKey(dst_props, "_SARNum");
 		vsapi->propDeleteKey(dst_props, "_SARDen");
 	} else {
-		muldivRational(&sar_num, &sar_den, dst_format.width, src_format.width);
-		muldivRational(&sar_num, &sar_den, src_format.height, dst_format.height);
+		muldivRational(&sar_num, &sar_den, src_format.width, dst_format.width);
+		muldivRational(&sar_num, &sar_den, dst_format.height, src_format.height);
 
 		vsapi->propSetInt(dst_props, "_SARNum", sar_num, paReplace);
 		vsapi->propSetInt(dst_props, "_SARDen", sar_den, paReplace);
