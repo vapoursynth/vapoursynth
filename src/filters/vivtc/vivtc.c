@@ -714,6 +714,14 @@ static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void **i
             }
         }
 
+        // Make sure mic is always calculated for selected match so _Combed will work
+        if (mics[match] < 0) {
+            if (!genFrames[match])
+                genFrames[match] = createWeaveFrame(prv, src, nxt, vsapi, core, match, field);
+            mics[match] = calcMI(genFrames[match], vsapi, &blockN, vfm->chroma, vfm->cthresh, cmask, cArray, vfm->blockx, vfm->blocky);
+        }
+
+        // Alternative clip handling
         if (vfm->clip2) {
             const VSFrameRef *prv2 = vsapi->getFrameFilter(n > 0 ? n-1 : 0, vfm->clip2, frameCtx);
             const VSFrameRef *src2 = vsapi->getFrameFilter(n, vfm->clip2, frameCtx);

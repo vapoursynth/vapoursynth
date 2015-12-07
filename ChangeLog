@@ -1,4 +1,5 @@
 r29:
+fixed bug where vfm wouldn't set _Combed property properly unless micout=true or micmatch=2 used
 vfm now sets _fieldbased=0 after matching
 added XLENGTH field to y4m headers so the total number of frames can be automatically passed to encoders
 imwri will now always output a float image when built against a hdri imagemagick
