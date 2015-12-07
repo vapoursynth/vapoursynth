@@ -1,4 +1,5 @@
 r29:
+vfm now sets _fieldbased=0 after matching
 added XLENGTH field to y4m headers so the total number of frames can be automatically passed to encoders
 imwri will now always output a float image when built against a hdri imagemagick
 imwri now supports QD32 with and without hdri

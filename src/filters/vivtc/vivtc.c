@@ -742,7 +742,8 @@ static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void **i
 
         dst2 = vsapi->copyFrame(dst1, core);
         vsapi->freeFrame(dst1);
-        m = vsapi->getFramePropsRW(dst2);
+        m = vsapi->getFramePropsRW(dst2);      
+        vsapi->propSetInt(m, "_FieldBased", 0, paReplace);
         for (i = 0; i < 5; i++)
             vsapi->propSetInt(m, "VFMMics", mics[i], i ? paAppend : paReplace);
         vsapi->propSetInt(m, "_Combed", mics[match] >= vfm->mi, paReplace);
