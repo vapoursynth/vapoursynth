@@ -582,8 +582,8 @@ class vszimg {
 		zimg_image_format src_format;
 		zimg_image_format dst_format;
 
-		graph_data(const zimg_image_format &src_format, const zimg_image_format &dst_format, const zimg_graph_builder_params *params = nullptr) :
-			graph(vszimgxx::FilterGraph::build(src_format, dst_format, params)),
+		graph_data(const zimg_image_format &src_format, const zimg_image_format &dst_format, const zimg_graph_builder_params &params) :
+			graph(vszimgxx::FilterGraph::build(src_format, dst_format, &params)),
 			src_format(src_format),
 			dst_format(dst_format) {}
 	};
@@ -604,6 +604,8 @@ class vszimg {
 			auto it = enum_table.find(enum_str);
 			if (it != enum_table.end())
 				*out = it->second;
+			else
+				throw std::runtime_error{ std::string{ "bad value: " } + key };
 		}
 	}
 
@@ -705,7 +707,7 @@ class vszimg {
 		std::shared_ptr<graph_data> data = m_graph_data;
 
 		if (!data || data->src_format != src_format || data->dst_format != dst_format) {
-			data = std::make_shared<graph_data>(src_format, dst_format);
+			data = std::make_shared<graph_data>(src_format, dst_format, m_params);
 			m_graph_data = data;
 		}
 
