@@ -83,6 +83,7 @@ int outputFrames = 0;
 int requestedFrames = 0;
 int completedFrames = 0;
 int totalFrames = -1;
+int startFrame = 0;
 int numPlanes = 0;
 bool y4m = false;
 int64_t currentTimecodeNum = 0;
@@ -225,9 +226,9 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
 
     if (printFrameNumber && !outputError) {
         if (hasMeaningfulFps)
-            fprintf(stderr, "Frame: %d/%d (%.2f fps)\r", completedFrames, totalFrames, fps);
+            fprintf(stderr, "Frame: %d/%d (%.2f fps)\r", completedFrames - startFrame, totalFrames - startFrame, fps);
         else
-            fprintf(stderr, "Frame: %d/%d\r", completedFrames, totalFrames);
+            fprintf(stderr, "Frame: %d/%d\r", completedFrames - startFrame, totalFrames - startFrame);
     }
 
     if (totalFrames == completedFrames) {
@@ -421,7 +422,6 @@ int main(int argc, char **argv) {
     nstring outputFilename, scriptFilename, timecodesFilename;
     bool showHelp = false;
     std::map<std::string, std::string> scriptArgs;
-    int startFrame = 0;
 
     for (int arg = 1; arg < argc; arg++) {
         nstring argString = argv[arg];
