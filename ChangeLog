@@ -1,3 +1,6 @@
+r30:
+vspipe now displays the correct number of total frames when -s is used
+
 r29:
 fixed bug where vfm wouldn't set _Combed property properly unless micout=true or micmatch=2 used
 vfm now sets _fieldbased=0 after matching
