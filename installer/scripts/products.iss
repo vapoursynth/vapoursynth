@@ -119,7 +119,7 @@ begin
 						Result := InstallRebootRequired;
 					end;
 					break;
-				end else if (ResultCode = 0) then begin
+				end else if (ResultCode = 0) or (ResultCode = 1638) then begin
 					finishCount := finishCount + 1;
 				end else if (ResultCode = 3010) then begin
 					//ResultCode 3010: A restart is required to complete the installation. This message indicates success.
