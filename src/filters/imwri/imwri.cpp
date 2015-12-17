@@ -242,8 +242,6 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
             if (isGray)
                 image.colorSpace(Magick::GRAYColorspace);
 
-
-
             if (fi->bitsPerSample < static_cast<int>(image.depth()))
                 image.depth(fi->bitsPerSample);
 
@@ -493,7 +491,7 @@ static void readImageHelper(VSFrameRef *frame, VSFrameRef *alphaFrame, bool isGr
 
     if (alphaFrame) {
         T *a = reinterpret_cast<T *>(vsapi->getWritePtr(alphaFrame, 0));
-        int strideA = strideA = vsapi->getStride(alphaFrame, 0);;            
+        int strideA = vsapi->getStride(alphaFrame, 0);;            
 
         for (int y = 0; y < height; y++) {
             const Magick::PixelPacket* pixels = pixelCache.getConst(0, y, width, 1);
@@ -552,11 +550,18 @@ static const VSFrameRef *VS_CC readGetFrame(int n, int activationReason, void **
 
             int width = static_cast<int>(image.columns());
             int height = static_cast<int>(image.rows());
-            int depth = std::min(std::max<int>(image.depth(), 8), 16);
+
+#ifdef MAGICKCORE_HDRI_ENABLE
+            VSSampleType st = stFloat;
+            int depth = 32;
+#else
+            VSSampleType st = stInteger;
+            int depth = std::min(std::max(static_cast<int>(image.depth()), 8), MAGICKCORE_QUANTUM_DEPTH);
+#endif
 
             if (d->vi[0].format && (cf != d->vi[0].format->colorFamily || depth != d->vi[0].format->bitsPerSample)) {
                 std::string err = "Read: Format mismatch for frame " + std::to_string(n) + ", is ";
-                err += vsapi->registerFormat(cf, stInteger, depth, 0, 0, core)->name + std::string(" but should be ") + d->vi[0].format->name;
+                err += vsapi->registerFormat(cf, st, depth, 0, 0, core)->name + std::string(" but should be ") + d->vi[0].format->name;
                 vsapi->setFilterError(err.c_str(), frameCtx);
                 return nullptr;
             }
