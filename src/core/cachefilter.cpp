@@ -177,7 +177,7 @@ static const VSFrameRef *VS_CC cacheGetframe(int n, int activationReason, void *
         if (f)
             return new VSFrameRef(f);
 
-        if (c->makeLinear && n != c->lastN + 1 && n > c->lastN && n < c->lastN + 40) {
+        if (c->makeLinear && n != c->lastN + 1 && n > c->lastN && n < c->lastN + 7) {
             for (int i = c->lastN + 1; i <= n; i++)
                 vsapi->requestFrameFilter(i, c->clip, frameCtx);
             *fd = c->lastN;

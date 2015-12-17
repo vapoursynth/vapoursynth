@@ -181,14 +181,14 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             VSFrameContext externalFrameCtx(mainContextRef);
             assert(ar == arError || !mainContext->hasError());
 #ifdef VS_FRAME_REQ_DEBUG
-            vsWarning("Entering: %s Frame: %d Index: %d AR: %d", mainContext->clip->name.c_str(), mainContext->n, mainContext->index, (int)ar);
+            vsWarning("Entering: %s Frame: %d Index: %d AR: %d Req: %d", mainContext->clip->name.c_str(), mainContext->n, mainContext->index, (int)ar, (int)mainContext->reqOrder);
 #endif
             PVideoFrame f;
             if (!skipCall)
                 f = clip->getFrameInternal(mainContext->n, ar, externalFrameCtx);
             ranTask = true;
 #ifdef VS_FRAME_REQ_DEBUG
-            vsWarning("Exiting: %s Frame: %d Index: %d AR: %d", mainContext->clip->name.c_str(), mainContext->n, mainContext->index, (int)ar);
+            vsWarning("Exiting: %s Frame: %d Index: %d AR: %d Req: %d", mainContext->clip->name.c_str(), mainContext->n, mainContext->index, (int)ar, (int)mainContext->reqOrder);
 #endif
             bool frameProcessingDone = f || mainContext->hasError();
             if (mainContext->hasError() && f)
