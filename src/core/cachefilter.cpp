@@ -161,24 +161,15 @@ void VSCache::adjustSize(bool needMemory) {
 }
 
 static void VS_CC cacheInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    VSNodeRef *video = vsapi->propGetNode(in, "clip", 0, nullptr);
-    int err;
-    bool fixed = !!vsapi->propGetInt(in, "fixed", 0, &err);
-    CacheInstance *c = new CacheInstance(video, node, core, fixed);
-
-    int size = int64ToIntS(vsapi->propGetInt(in, "size", 0, &err));
-
-    if (!err && size > 0)
-        c->cache.setMaxFrames(size);
-
-    *instanceData = c;
-    vsapi->setVideoInfo(vsapi->getVideoInfo(video), 1, node);
-
-    c->addCache();
+    CacheInstance *c = (CacheInstance *)*instanceData;
+    c->node = node;
+    vsapi->setVideoInfo(vsapi->getVideoInfo(c->clip), 1, node);
 }
 
 static const VSFrameRef *VS_CC cacheGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     CacheInstance *c = static_cast<CacheInstance *>(*instanceData);
+
+    intptr_t *fd = (intptr_t *)frameData;
 
     if (activationReason == arInitial) {
         PVideoFrame f(c->cache[n]);
@@ -186,9 +177,26 @@ static const VSFrameRef *VS_CC cacheGetframe(int n, int activationReason, void *
         if (f)
             return new VSFrameRef(f);
 
-        vsapi->requestFrameFilter(n, c->clip, frameCtx);
+        if (c->makeLinear && n != c->lastN + 1 && n > c->lastN && n < c->lastN + 40) {
+            for (int i = c->lastN + 1; i <= n; i++)
+                vsapi->requestFrameFilter(i, c->clip, frameCtx);
+            *fd = c->lastN;
+        } else {
+            vsapi->requestFrameFilter(n, c->clip, frameCtx);
+            *fd = -2;
+        }
+
+        c->lastN = n;
         return nullptr;
     } else if (activationReason == arAllFramesReady) {
+        if (*fd >= -1) {
+            for (intptr_t i = *fd + 1; i < n; i++) {
+                const VSFrameRef *r = vsapi->getFrameFilter((int)i, c->clip, frameCtx);
+                c->cache.insert((int)i, r->frame);
+                vsapi->freeFrame(r);
+            }
+        }
+        
         const VSFrameRef *r = vsapi->getFrameFilter(n, c->clip, frameCtx);
         c->cache.insert(n, r->frame);
         return r;
@@ -207,9 +215,25 @@ static void VS_CC cacheFree(void *instanceData, VSCore *core, const VSAPI *vsapi
 static std::atomic<unsigned> cacheId(1);
 
 static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    vsapi->createFilter(in, out, ("Cache" + std::to_string(cacheId++)).c_str(), cacheInit, cacheGetframe, cacheFree, fmUnordered, nfNoCache | nfIsCache, userData, core);
+    VSNodeRef *video = vsapi->propGetNode(in, "clip", 0, nullptr);
+    int err;
+    bool fixed = !!vsapi->propGetInt(in, "fixed", 0, &err);
+    CacheInstance *c = new CacheInstance(video, core, fixed);
+
+    int size = int64ToIntS(vsapi->propGetInt(in, "size", 0, &err));
+
+    if (!err && size > 0)
+        c->cache.setMaxFrames(size);
+    
+    c->makeLinear = !!(vsapi->getVideoInfo(video)->flags & nfMakeLinear);
+    if (vsapi->propGetInt(in, "make_linear", 0, &err))
+        c->makeLinear = true;
+
+    vsapi->createFilter(in, out, ("Cache" + std::to_string(cacheId++)).c_str(), cacheInit, cacheGetframe, cacheFree, c->makeLinear ? fmUnorderedLinear : fmUnordered, nfNoCache | nfIsCache, c, core);
+
+    c->addCache();
 }
 
 void VS_CC cacheInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
-    registerFunc("Cache", "clip:clip;size:int:opt;fixed:int:opt;", &createCacheFilter, nullptr, plugin);
+    registerFunc("Cache", "clip:clip;size:int:opt;fixed:int:opt;make_linear:int:opt;", createCacheFilter, nullptr, plugin);
 }

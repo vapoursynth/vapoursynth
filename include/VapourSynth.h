@@ -24,7 +24,7 @@
 #include <stdint.h>
 
 #define VAPOURSYNTH_API_MAJOR 3
-#define VAPOURSYNTH_API_MINOR 2
+#define VAPOURSYNTH_API_MINOR 3
 #define VAPOURSYNTH_API_VERSION ((VAPOURSYNTH_API_MAJOR << 16) | (VAPOURSYNTH_API_MINOR))
 
 /* Convenience for C++ users. */
@@ -154,8 +154,9 @@ typedef struct VSFormat {
 } VSFormat;
 
 typedef enum VSNodeFlags {
-    nfNoCache = 1,
-    nfIsCache = 2
+    nfNoCache    = 1,
+    nfIsCache    = 2,
+    nfMakeLinear = 4
 } VSNodeFlags;
 
 typedef enum VSPropTypes {

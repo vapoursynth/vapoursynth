@@ -576,11 +576,19 @@ VSFunction::VSFunction(const std::string &argString, VSPublicFunction func, void
 VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
 instanceData(instanceData), name(name), init(init), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), hasVi(false), serialFrame(-1) {
 
-    if (flags & ~(nfNoCache | nfIsCache))
-        vsFatal("Filter %s specified unknown flags (%d)", name.c_str(), flags);
+    if (flags & ~(nfNoCache | nfIsCache | nfMakeLinear))
+        throw VSException("Filter " + name  + " specified unknown flags");
 
     if ((flags & nfIsCache) && !(flags & nfNoCache))
-        vsFatal("Filter %s specified an illegal combination of flags (%d)", name.c_str(), flags);
+        throw VSException("Filter " + name + " specified an illegal combination of flags (nfNoCache must always be set with nfIsCache)");
+
+    if ((flags & nfMakeLinear) && (filterMode == fmSerial))
+        throw VSException("Filter " + name + " specified an illegal combination of flags (nfMakeLinear cannot be used with fmSerial filters)");
+
+    if (flags & nfMakeLinear) {
+        this->flags = (nfNoCache | nfIsCache);
+        this->filterMode = fmUnordered;
+    }
 
     core->filterInstanceCreated();
     VSMap inval(*in);
@@ -591,13 +599,15 @@ instanceData(instanceData), name(name), init(init), filterGetFrame(getFrame), fr
         throw VSException(vsapi.getError(out));
     }
 
-    if (!hasVi)
-        vsFatal("Filter %s didn't set vi", name.c_str());
+    if (!hasVi) {
+        core->filterInstanceDestroyed();
+        throw VSException("Filter " + name + " didn't set vi");
+    }
 
     for (const auto &iter : vi) {
         if (iter.numFrames <= 0) {
             core->filterInstanceDestroyed();
-            throw VSException("Creation of filter " + name + " aborted, zero (unknown) and negative length clips not allowed");
+            throw VSException("Filter " + name + " returned zero or negative frame count");
         }
     }
 }

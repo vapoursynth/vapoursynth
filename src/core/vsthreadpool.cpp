@@ -49,6 +49,9 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 // Go through all tasks from the top (oldest) and process the first one possible
         owner->tasks.sort(taskCmp);
 
+        // fixme, test if this matters at all!
+        std::set<VSNode *> seenNodes;
+
         for (auto iter = owner->tasks.begin(); iter != owner->tasks.end(); ++iter) {
             FrameContext *mainContext = iter->get();
             FrameContext *leafContext = nullptr;
@@ -71,9 +74,12 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 break;
             }
 
+            if (seenNodes.count(mainContext->clip))
+                continue;
+            seenNodes.insert(mainContext->clip);
+
             bool hasLeafContext = mainContext->returnedFrame || mainContext->hasError();
-            if (hasLeafContext)
-            {
+            if (hasLeafContext) {
                 leafContext = mainContext;
                 mainContext = mainContext->upstreamContext.get();
             }
@@ -85,7 +91,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 // This part handles the locking for the different filter modes
 
             bool parallelRequestsNeedsUnlock = false;
-            if (filterMode == fmUnordered) {
+            if (filterMode == fmUnordered || filterMode == fmUnorderedLinear) {
                 // already busy?
                 if (!clip->serialMutex.try_lock())
                     continue;
@@ -164,11 +170,13 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             assert(mainContext->numFrameRequests >= 0);
 
             bool hasExistingRequests = !!mainContext->numFrameRequests;
+            bool isLinear = (filterMode == fmUnorderedLinear);
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Do the actual processing
 
-            lock.unlock();
+            if (!isLinear)
+                lock.unlock();
 
             VSFrameContext externalFrameCtx(mainContextRef);
             assert(ar == arError || !mainContext->hasError());
@@ -188,7 +196,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Unlock so the next job can run on the context
-            if (filterMode == fmUnordered) {
+            if (filterMode == fmUnordered || filterMode == fmUnorderedLinear) {
                 clip->serialMutex.unlock();
             } else if (filterMode == fmSerial) {
                 if (frameProcessingDone)
@@ -208,7 +216,8 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 // Handle frames that were requested
             bool requestedFrames = !externalFrameCtx.reqList.empty() && !frameProcessingDone;
 
-            lock.lock();
+            if (!isLinear)
+                lock.lock();
 
             if (requestedFrames) {
                 for (auto &reqIter : externalFrameCtx.reqList)

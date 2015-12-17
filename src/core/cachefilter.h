@@ -208,13 +208,18 @@ class CacheInstance {
 public:
     VSCache cache;
     VSNodeRef *clip;
-    VSNode *node;
     VSCore *core;
-    CacheInstance(VSNodeRef *clip, VSNode *node, VSCore *core, bool fixedSize) : cache(20, 20, fixedSize), clip(clip), node(node), core(core) { }
+    VSNode *node;
+    int lastN;
+    bool makeLinear;
+
+    CacheInstance(VSNodeRef *clip, VSCore *core, bool fixedSize) : cache(20, 20, fixedSize), clip(clip), core(core), node(nullptr), lastN(-1), makeLinear(false) { }
+
     void addCache() {
         std::lock_guard<std::mutex> lock(core->cacheLock);
         core->caches.insert(node);
     }
+
     void removeCache() {
         std::lock_guard<std::mutex> lock(core->cacheLock);
         core->caches.erase(node);
