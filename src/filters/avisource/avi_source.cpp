@@ -340,7 +340,7 @@ public:
                 fourCC = "";
 
             AVISource *avs = new AVISource(path, pixel_type, fourCC, mode, core, vsapi);
-            vsapi->createFilter(in, out, "AVISource", filterInit, filterGetFrame, filterFree, fmSerial, 0, static_cast<void *>(avs), core);
+            vsapi->createFilter(in, out, "AVISource", filterInit, filterGetFrame, filterFree, fmUnordered, nfMakeLinear, static_cast<void *>(avs), core);
 
         } catch (std::runtime_error &e) {
             vsapi->setError(out, e.what());
