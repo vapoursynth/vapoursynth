@@ -582,14 +582,6 @@ instanceData(instanceData), name(name), init(init), filterGetFrame(getFrame), fr
     if ((flags & nfIsCache) && !(flags & nfNoCache))
         throw VSException("Filter " + name + " specified an illegal combination of flags (nfNoCache must always be set with nfIsCache)");
 
-    if ((flags & nfMakeLinear) && (filterMode == fmSerial))
-        throw VSException("Filter " + name + " specified an illegal combination of flags (nfMakeLinear cannot be used with fmSerial filters)");
-
-    if (flags & nfMakeLinear) {
-        this->flags = (nfNoCache | nfIsCache);
-        this->filterMode = fmUnordered;
-    }
-
     core->filterInstanceCreated();
     VSMap inval(*in);
     init(&inval, out, &this->instanceData, this, core, getVSAPIInternal(apiMajor));
