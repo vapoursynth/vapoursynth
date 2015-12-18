@@ -75,6 +75,9 @@
     <ClCompile Include="..\..\src\core\vsresize.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\avisynth\interface.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <YASM Include="..\..\src\core\asm\x86\check.asm">
@@ -148,13 +151,13 @@
     <ClInclude Include="..\..\src\avisynth\avisynth_compat.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\avisynth\avisynth_wrapper.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\core\genericfilters.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\core\jitasm.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\avisynth\avisynth.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

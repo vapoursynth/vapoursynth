@@ -25,6 +25,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
+#include <float.h>
 
 static uint32_t doubleToUInt32S(double v) {
     if (v < 0)
@@ -1892,6 +1893,140 @@ static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData,
     *data = d;
 
     vsapi->createFilter(in, out, "PEMVerifier", pemVerifierInit, pemVerifierGetFrame, pemVerifierFree, fmParallel, 0, data, core);
+}
+
+//////////////////////////////////////////
+// PlaneStats
+
+typedef struct {
+    VSNodeRef *node;
+    const VSVideoInfo *vi;
+    char *prop;
+    int plane;
+    int average;
+} PlaneStatsData;
+
+static void VS_CC planeStatsInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
+    PlaneStatsData *d = (PlaneStatsData *)* instanceData;
+    vsapi->setVideoInfo(d->vi, 1, node);
+}
+
+static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    PlaneStatsData *d = (PlaneStatsData *)* instanceData;
+    if (activationReason == arInitial) {
+        vsapi->requestFrameFilter(n, d->node, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        VSFrameRef *dst = vsapi->copyFrame(src, core);
+        const VSFormat *fi = vsapi->getFrameFormat(dst);
+        int x;
+        int y;
+        int width = vsapi->getFrameWidth(src, d->plane);
+        int height = vsapi->getFrameHeight(src, d->plane);
+        const uint8_t *srcp = vsapi->getReadPtr(src, d->plane);
+        int src_stride = vsapi->getStride(src, d->plane);
+        int64_t acc = 0;
+        uint16_t imin = UINT16_MAX;
+        uint16_t imax = 0;
+        double facc = 0;
+        float fmin = FLT_MAX;
+        float fmax = FLT_MIN;
+
+        switch (fi->bytesPerSample) {
+        case 1:
+
+            for (y = 0; y < height; y++) {
+                for (x = 0; x < width; x++) {
+                    uint8_t v = srcp[x];
+                    imin = min(imin, v);
+                    imax = max(imax, v);
+                    acc += v;
+                }
+                srcp += src_stride;
+            }
+            break;
+        case 2:
+            for (y = 0; y < height; y++) {
+                for (x = 0; x < width; x++) {
+                    uint16_t v = ((const uint16_t *)srcp)[x];
+                    imin = min(imin, v);
+                    imax = max(imax, v);
+                    acc += v;
+                }
+                srcp += src_stride;
+            }
+            break;
+        case 4:
+            for (y = 0; y < height; y++) {
+                for (x = 0; x < width; x++) {
+                    float v = ((const float *)srcp)[x];
+                    fmin = min(fmin, v);
+                    fmax = max(fmax, v);
+                    facc += v;
+                }
+                srcp += src_stride;
+            }
+            break;
+        }
+
+        VSMap *dstProps = vsapi->getFramePropsRW(dst);
+
+        if (!d->average) {
+            vsapi->propSetFloat(dstProps, d->prop, (fi->sampleType == stInteger) ? imin : fmin, paReplace);
+            vsapi->propSetFloat(dstProps, d->prop, (fi->sampleType == stInteger) ? imax : fmax, paAppend);
+        }
+
+        double avg;
+        if (fi->sampleType == stInteger)
+            avg = acc / (double)(width * height * (((int64_t)1 << fi->bitsPerSample) - 1));
+        else
+            avg = facc / (double)((int64_t)width * height);
+        
+        vsapi->propSetFloat(dstProps, d->prop, avg, d->average ? paReplace : paAppend);
+
+        vsapi->freeFrame(src);
+        return dst;
+    }
+    return 0;
+}
+
+static void VS_CC planeStatsFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+    PlaneStatsData *d = (PlaneStatsData *)instanceData;
+    vsapi->freeNode(d->node);
+    free(d->prop);
+    free(d);
+}
+
+static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    PlaneStatsData d;
+    PlaneStatsData *data;
+    int err;
+
+    d.node = vsapi->propGetNode(in, "clip", 0, 0);
+    d.vi = vsapi->getVideoInfo(d.node);
+
+    if (!d.vi->format || isCompatFormat(d.vi) || (d.vi->format->sampleType == stInteger && (d.vi->format->bytesPerSample != 1 && d.vi->format->bytesPerSample != 2))
+        || (d.vi->format->sampleType == stFloat && d.vi->format->bytesPerSample != 4)) {
+        vsapi->freeNode(d.node);
+        RETERROR("PlaneStats: clip must be constant format and of integer 8-16 bit type or 32 bit float");
+    }
+
+    d.plane = int64ToIntS(vsapi->propGetInt(in, "plane", 0, 0));
+    if (d.plane < 0 || d.plane >= d.vi->format->numPlanes) {
+        vsapi->freeNode(d.node);
+        RETERROR("PlaneStats: invalid plane specified");
+    }
+
+    const char *tempprop = vsapi->propGetData(in, "prop", 0, &err);
+    if (err)
+        tempprop = "PlaneStats";
+    d.prop = malloc(strlen(tempprop) + 1);
+    strcpy(d.prop, tempprop);
+
+    data = malloc(sizeof(d));
+    *data = d;
+
+    vsapi->createFilter(in, out, "PlaneStats", planeStatsInit, planeStatsGetFrame, planeStatsFree, fmParallel, 0, data, core);
 }
 
 //////////////////////////////////////////

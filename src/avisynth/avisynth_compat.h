@@ -21,7 +21,7 @@
 #ifndef AVISYNTH_COMPAT_H
 #define AVISYNTH_COMPAT_H
 
-#include "avisynth_wrapper.h"
+#include "avisynth.h"
 #include "VapourSynth.h"
 #include "VSHelper.h"
 #include <list>
@@ -35,6 +35,7 @@ struct WrappedClip;
 
 class FakeAvisynth : public IScriptEnvironment {
     friend class VSClip;
+    friend class VideoFrame;
 private:
     VSCore *core;
     std::list<std::string> savedStrings;
@@ -60,7 +61,7 @@ public:
     __declspec(noreturn) void ThrowError(const char *fmt, ...);
     void __stdcall AddFunction(const char *name, const char *params, ApplyFunc apply, void *user_data);
     bool __stdcall FunctionExists(const char *name);
-    AVSValue __stdcall Invoke(const char *name, const AVSValue args, const char **arg_names);
+    AVSValue __stdcall Invoke(const char *name, const AVSValue args, const char* const* arg_names = 0);
     AVSValue __stdcall GetVar(const char *name);
     bool __stdcall SetVar(const char *name, const AVSValue &val);
     bool __stdcall SetGlobalVar(const char *name, const AVSValue &val);
@@ -77,6 +78,15 @@ public:
     void *__stdcall ManageCache(int key, void *data);
     bool __stdcall PlanarChromaAlignment(PlanarChromaAlignmentMode key);
     PVideoFrame __stdcall SubframePlanar(PVideoFrame src, int rel_offset, int new_pitch, int new_row_size, int new_height, int rel_offsetU, int rel_offsetV, int new_pitchUV);
+
+    /* 2.6 new */
+    void __stdcall DeleteScriptEnvironment();
+    void __stdcall ApplyMessage(PVideoFrame* frame, const VideoInfo& vi, const char* message, int size,
+        int textcolor, int halocolor, int bgcolor);
+    const AVS_Linkage* const __stdcall GetAVSLinkage();
+
+    // noThrow version of GetVar
+    AVSValue __stdcall GetVarDef(const char* name, const AVSValue& def = AVSValue());
 };
 
 class VSClip : public IClip {
@@ -115,8 +125,9 @@ public:
         return true;
     }
     void __stdcall GetAudio(void *buf, int64_t start, int64_t count, IScriptEnvironment *env) {}
-    void __stdcall SetCacheHints(int cachehints, int frame_range) {
+    int __stdcall SetCacheHints(int cachehints, int frame_range) {
         // intentionally ignore
+        return 0;
     }
     const VideoInfo &__stdcall GetVideoInfo() {
         return vi;
