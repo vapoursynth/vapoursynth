@@ -68,8 +68,8 @@ Source: ..\msvc_project\x64\Release\vsfs.dll; DestDir: {app}\core64; Flags: igno
 Source: ..\msvc_project\Release\vspipe.exe; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
 Source: ..\msvc_project\x64\Release\vspipe.exe; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 
-Source: ..\msvc_project\Release\vsvfw.dll; DestDir: {sys}; Flags: uninsrestartdelete restartreplace 32bit; Components: vs32
-Source: ..\msvc_project\x64\Release\vsvfw.dll; DestDir: {sys}; Flags: uninsrestartdelete restartreplace 64bit; Components: vs64
+Source: ..\msvc_project\Release\vsvfw.dll; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: ..\msvc_project\x64\Release\vsvfw.dll; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 
 Source: ..\msvc_project\Release\vsscript.dll; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
 Source: ..\msvc_project\x64\Release\vsscript.dll; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
@@ -126,24 +126,24 @@ Root: HKLM; Subkey: SOFTWARE\Classes\.vpy\ShellNew; ValueType: string; ValueName
 
 ; 32bit vfw
 Root: HKLM32; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}; ValueType: string; ValueName: ""; ValueData: "VapourSynth"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
-Root: HKLM32; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32; ValueType: string; ValueName: ""; ValueData: "vsvfw.dll"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
+Root: HKLM32; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32; ValueType: string; ValueName: ""; ValueData: "{app}\core32\vsvfw.dll"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
 Root: HKLM32; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32; ValueType: string; ValueName: "ThreadingModel"; ValueData: "Apartment"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
 Root: HKLM32; Subkey: SOFTWARE\Classes\Media Type\Extensions\.vpy; ValueType: string; ValueName: ""; ValueData: ""; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
 Root: HKLM32; Subkey: SOFTWARE\Classes\Media Type\Extensions\.vpy; ValueType: string; ValueName: "Source Filter"; ValueData: "{{D3588AB0-0781-11CE-B03A-0020AF0BA770}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
 Root: HKLM32; Subkey: SOFTWARE\Classes\.vpy; ValueType: string; ValueName: ""; ValueData: "vsfile"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
 Root: HKLM32; Subkey: SOFTWARE\Classes\vsfile; ValueType: string; ValueName: ""; ValueData: "VapourSynth Python Script"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
-Root: HKLM32; Subkey: SOFTWARE\Classes\vsfile\DefaultIcon; ValueType: string; ValueName: ""; ValueData: "vsvfw.dll,0"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
+Root: HKLM32; Subkey: SOFTWARE\Classes\vsfile\DefaultIcon; ValueType: string; ValueName: ""; ValueData: "{app}\core32\vsvfw.dll,0"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
 Root: HKLM32; Subkey: SOFTWARE\Classes\AVIFile\Extensions\VPY; ValueType: string; ValueName: ""; ValueData: "{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
 
 ; 64bit vfw
 Root: HKLM; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}; ValueType: string; ValueName: ""; ValueData: "VapourSynth"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
-Root: HKLM; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32; ValueType: string; ValueName: ""; ValueData: "vsvfw.dll"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
+Root: HKLM; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32; ValueType: string; ValueName: ""; ValueData: "{app}\core64\vsvfw.dll"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
 Root: HKLM; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32; ValueType: string; ValueName: "ThreadingModel"; ValueData: "Apartment"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
 Root: HKLM; Subkey: SOFTWARE\Classes\Media Type\Extensions\.vpy; ValueType: string; ValueName: ""; ValueData: ""; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
 Root: HKLM; Subkey: SOFTWARE\Classes\Media Type\Extensions\.vpy; ValueType: string; ValueName: "Source Filter"; ValueData: "{{D3588AB0-0781-11CE-B03A-0020AF0BA770}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
 Root: HKLM; Subkey: SOFTWARE\Classes\.vpy; ValueType: string; ValueName: ""; ValueData: "vsfile"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
 Root: HKLM; Subkey: SOFTWARE\Classes\vsfile; ValueType: string; ValueName: ""; ValueData: "VapourSynth Python Script"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
-Root: HKLM; Subkey: SOFTWARE\Classes\vsfile\DefaultIcon; ValueType: string; ValueName: ""; ValueData: "vsvfw.dll,0"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
+Root: HKLM; Subkey: SOFTWARE\Classes\vsfile\DefaultIcon; ValueType: string; ValueName: ""; ValueData: "{app}\core64\vsvfw.dll,0"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
 Root: HKLM; Subkey: SOFTWARE\Classes\AVIFile\Extensions\VPY; ValueType: string; ValueName: ""; ValueData: "{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
 
 [Run]

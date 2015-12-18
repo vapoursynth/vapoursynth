@@ -1,4 +1,5 @@
 r30:
+no longer installs vsvfw.dlls into system dirs
 added nfMakeLinear, this flag will make the immediately following cache do its best to make requests more linear, set it on source filters where seeking is slow
 the installer will no longer fail if a newer than expected version of the visual studio runtimes are installed
 vspipe now displays the correct number of total frames when -s is used
