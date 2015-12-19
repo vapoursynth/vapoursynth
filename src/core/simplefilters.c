@@ -1899,10 +1899,12 @@ static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData,
 // PlaneStats
 
 typedef struct {
-    VSNodeRef *node;
+    VSNodeRef *node1;
+    VSNodeRef *node2;
     const VSVideoInfo *vi;
     char *propAverage;
     char *propMinMax;
+    char *propDiff;
     int plane;
 } PlaneStatsData;
 
@@ -1914,58 +1916,114 @@ static void VS_CC planeStatsInit(VSMap *in, VSMap *out, void **instanceData, VSN
 static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     PlaneStatsData *d = (PlaneStatsData *)* instanceData;
     if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n, d->node, frameCtx);
+        vsapi->requestFrameFilter(n, d->node1, frameCtx);
+        if (d->node2)
+            vsapi->requestFrameFilter(n, d->node2, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        VSFrameRef *dst = vsapi->copyFrame(src, core);
+        const VSFrameRef *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
+        const VSFrameRef *src2 = NULL;
+        if (d->node2)
+            src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
+        VSFrameRef *dst = vsapi->copyFrame(src1, core);
         const VSFormat *fi = vsapi->getFrameFormat(dst);
         int x;
         int y;
-        int width = vsapi->getFrameWidth(src, d->plane);
-        int height = vsapi->getFrameHeight(src, d->plane);
-        const uint8_t *srcp = vsapi->getReadPtr(src, d->plane);
-        int src_stride = vsapi->getStride(src, d->plane);
+        int width = vsapi->getFrameWidth(src1, d->plane);
+        int height = vsapi->getFrameHeight(src1, d->plane);
+        const uint8_t *srcp = vsapi->getReadPtr(src1, d->plane);
+        int src_stride = vsapi->getStride(src1, d->plane);
         int64_t acc = 0;
+        int64_t diffacc = 0;
         uint16_t imin = UINT16_MAX;
         uint16_t imax = 0;
         double facc = 0;
+        double fdiffacc = 0;
         float fmin = FLT_MAX;
         float fmax = FLT_MIN;
 
-        switch (fi->bytesPerSample) {
-        case 1:
-            for (y = 0; y < height; y++) {
-                for (x = 0; x < width; x++) {
-                    uint8_t v = srcp[x];
-                    imin = min(imin, v);
-                    imax = max(imax, v);
-                    acc += v;
+        if (src2) {
+            const uint8_t *srcp2 = vsapi->getReadPtr(src2, d->plane);
+
+            switch (fi->bytesPerSample) {
+            case 1:
+                for (y = 0; y < height; y++) {
+                    for (x = 0; x < width; x++) {
+                        uint8_t v = srcp[x];
+                        uint8_t t = srcp2[x];
+                        imin = min(imin, v);
+                        imax = max(imax, v);
+                        acc += v;
+                        diffacc += abs(v - t);
+                    }
+                    srcp += src_stride;
+                    srcp2 += src_stride;
                 }
-                srcp += src_stride;
-            }
-            break;
-        case 2:
-            for (y = 0; y < height; y++) {
-                for (x = 0; x < width; x++) {
-                    uint16_t v = ((const uint16_t *)srcp)[x];
-                    imin = min(imin, v);
-                    imax = max(imax, v);
-                    acc += v;
+                break;
+            case 2:
+                for (y = 0; y < height; y++) {
+                    for (x = 0; x < width; x++) {
+                        uint16_t v = ((const uint16_t *)srcp)[x];
+                        uint16_t t = ((const uint16_t *)srcp2)[x];
+                        imin = min(imin, v);
+                        imax = max(imax, v);
+                        acc += v;
+                        diffacc += abs(v - t);
+                    }
+                    srcp += src_stride;
+                    srcp2 += src_stride;
                 }
-                srcp += src_stride;
-            }
-            break;
-        case 4:
-            for (y = 0; y < height; y++) {
-                for (x = 0; x < width; x++) {
-                    float v = ((const float *)srcp)[x];
-                    fmin = min(fmin, v);
-                    fmax = max(fmax, v);
-                    facc += v;
+                break;
+            case 4:
+                for (y = 0; y < height; y++) {
+                    for (x = 0; x < width; x++) {
+                        float v = ((const float *)srcp)[x];
+                        float t = ((const float *)srcp2)[x];
+                        fmin = min(fmin, v);
+                        fmax = max(fmax, v);
+                        facc += v;
+                        fdiffacc += fabs(v - t);
+                    }
+                    srcp += src_stride;
+                    srcp2 += src_stride;
                 }
-                srcp += src_stride;
+                break;
             }
-            break;
+        } else {
+            switch (fi->bytesPerSample) {
+            case 1:
+                for (y = 0; y < height; y++) {
+                    for (x = 0; x < width; x++) {
+                        uint8_t v = srcp[x];
+                        imin = min(imin, v);
+                        imax = max(imax, v);
+                        acc += v;
+                    }
+                    srcp += src_stride;
+                }
+                break;
+            case 2:
+                for (y = 0; y < height; y++) {
+                    for (x = 0; x < width; x++) {
+                        uint16_t v = ((const uint16_t *)srcp)[x];
+                        imin = min(imin, v);
+                        imax = max(imax, v);
+                        acc += v;
+                    }
+                    srcp += src_stride;
+                }
+                break;
+            case 4:
+                for (y = 0; y < height; y++) {
+                    for (x = 0; x < width; x++) {
+                        float v = ((const float *)srcp)[x];
+                        fmin = min(fmin, v);
+                        fmax = max(fmax, v);
+                        facc += v;
+                    }
+                    srcp += src_stride;
+                }
+                break;
+            }
         }
 
         VSMap *dstProps = vsapi->getFramePropsRW(dst);
@@ -1979,14 +2037,23 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
         }
 
         double avg;
-        if (fi->sampleType == stInteger)
+        double diff;
+        if (fi->sampleType == stInteger) {
             avg = acc / (double)(width * height * (((int64_t)1 << fi->bitsPerSample) - 1));
-        else
+            if (d->node2)
+                diff = diffacc / (double)(width * height * (((int64_t)1 << fi->bitsPerSample) - 1));
+        } else {
             avg = facc / (double)((int64_t)width * height);
+            if (d->node2)
+                diff = fdiffacc / (double)((int64_t)width * height);
+        }
         
         vsapi->propSetFloat(dstProps, d->propAverage, avg, paReplace);
+        if (d->node2)
+            vsapi->propSetFloat(dstProps, d->propDiff, diff, paReplace);
 
-        vsapi->freeFrame(src);
+        vsapi->freeFrame(src1);
+        vsapi->freeFrame(src2);
         return dst;
     }
     return 0;
@@ -1994,7 +2061,8 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
 
 static void VS_CC planeStatsFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     PlaneStatsData *d = (PlaneStatsData *)instanceData;
-    vsapi->freeNode(d->node);
+    vsapi->freeNode(d->node1);
+    vsapi->freeNode(d->node2);
     free(d->propAverage);
     free(d->propMinMax);
     free(d);
@@ -2005,19 +2073,26 @@ static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, 
     PlaneStatsData *data;
     int err;
 
-    d.node = vsapi->propGetNode(in, "clip", 0, 0);
-    d.vi = vsapi->getVideoInfo(d.node);
+    d.node1 = vsapi->propGetNode(in, "clipa", 0, 0);
+    d.vi = vsapi->getVideoInfo(d.node1);
 
     if (!d.vi->format || isCompatFormat(d.vi) || (d.vi->format->sampleType == stInteger && (d.vi->format->bytesPerSample != 1 && d.vi->format->bytesPerSample != 2))
         || (d.vi->format->sampleType == stFloat && d.vi->format->bytesPerSample != 4)) {
-        vsapi->freeNode(d.node);
+        vsapi->freeNode(d.node1);
         RETERROR("PlaneStats: clip must be constant format and of integer 8-16 bit type or 32 bit float");
     }
 
-    d.plane = int64ToIntS(vsapi->propGetInt(in, "plane", 0, 0));
+    d.plane = int64ToIntS(vsapi->propGetInt(in, "plane", 0, &err));
     if (d.plane < 0 || d.plane >= d.vi->format->numPlanes) {
-        vsapi->freeNode(d.node);
+        vsapi->freeNode(d.node1);
         RETERROR("PlaneStats: invalid plane specified");
+    }
+
+    d.node2 = vsapi->propGetNode(in, "clipb", 0, &err);
+    if (!isSameFormat(d.node1, d.node2) || !isConstantFormat(d.node2)) {
+        vsapi->freeNode(d.node1);
+        vsapi->freeNode(d.node2);
+        RETERROR("PlaneStats: both input clips must have the same format when clipb is used");
     }
 
     const char *tempprop = vsapi->propGetData(in, "prop", 0, &err);
@@ -2026,10 +2101,13 @@ static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, 
     size_t l = strlen(tempprop);
     d.propMinMax = malloc(l + 6 + 1);
     d.propAverage = malloc(l + 7 + 1);
+    d.propDiff = malloc(l + 4 + 1);
     strcpy(d.propMinMax, tempprop);
     strcpy(d.propAverage, tempprop);
+    strcpy(d.propDiff, tempprop);
     strcpy(d.propMinMax + l, "MinMax");
     strcpy(d.propAverage + l, "Average");
+    strcpy(d.propDiff + l, "Diff");
 
     data = malloc(sizeof(d));
     *data = d;
@@ -2469,7 +2547,7 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("Transpose", "clip:clip;", transposeCreate, 0, plugin);
     registerFunc("PEMVerifier", "clip:clip;upper:int[]:opt;lower:int[]:opt;", pemVerifierCreate, 0, plugin);
     registerFunc("PlaneAverage", "clip:clip;plane:int;prop:data:opt;", planeAverageCreate, 0, plugin);
-    registerFunc("PlaneStats", "clips:clip[];plane:int;prop:data:opt;", planeStatsCreate, 0, plugin);
+    registerFunc("PlaneStats", "clipa:clip;clipb:clip:opt;plane:int:opt;prop:data:opt;", planeStatsCreate, 0, plugin);
     registerFunc("ClipToProp", "clip:clip;mclip:clip;prop:data:opt;", clipToPropCreate, 0, plugin);
     registerFunc("PropToClip", "clip:clip;prop:data:opt;", propToClipCreate, 0, plugin);
     registerFunc("SetFrameProp", "clip:clip;prop:data;delete:int:opt;intval:int[]:opt;floatval:float[]:opt;data:data[]:opt;", setFramePropCreate, 0, plugin);
