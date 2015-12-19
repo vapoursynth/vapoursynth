@@ -46,9 +46,9 @@ FrameEval
       import math
 
       def GrayWorld1Adjust(n, f, clip, core):
-         red   = f[0].props.PlaneAverage
-         green = f[1].props.PlaneAverage
-         blue  = f[2].props.PlaneAverage
+         red   = f[0].props.PlaneStatsAverage
+         green = f[1].props.PlaneStatsAverage
+         blue  = f[2].props.PlaneStatsAverage
          max_rgb = max(red, green, blue)
          red_corr   = max_rgb/red
          green_corr = max_rgb/green
@@ -62,9 +62,9 @@ FrameEval
       def GrayWorld1(clip):
          core = vs.get_core()
          rgb_clip = core.resize.Bilinear(clip, format=vs.RGB24)
-         r_avg = core.std.PlaneAverage(rgb_clip, plane=0)
-         g_avg = core.std.PlaneAverage(rgb_clip, plane=1)
-         b_avg = core.std.PlaneAverage(rgb_clip, plane=2)
+         r_avg = core.std.PlaneStats(rgb_clip, plane=0)
+         g_avg = core.std.PlaneStats(rgb_clip, plane=1)
+         b_avg = core.std.PlaneStats(rgb_clip, plane=2)
          adjusted_clip = core.std.FrameEval(rgb_clip, functools.partial(GrayWorld1Adjust, clip=rgb_clip, core=core), propsrc=[r_avg, g_avg, b_avg])
          return core.resize.Bilinear(adjusted_clip, format=clip.format.id)
 
