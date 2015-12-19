@@ -606,8 +606,9 @@ void AVSValue::Assign(const AVSValue* src, bool init) {
   if (!init && IsClip() && clip)
     clip->Release();
   // make sure this copies the whole struct!
-  ((__int32*)this)[0] = ((__int32*)src)[0];
-  ((__int32*)this)[1] = ((__int32*)src)[1];
+  array_size = src->array_size;
+  type = src->type;
+  string = src->string;
 }
 
 // end class AVSValue
