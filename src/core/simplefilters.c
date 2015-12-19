@@ -2089,7 +2089,7 @@ static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, 
     }
 
     d.node2 = vsapi->propGetNode(in, "clipb", 0, &err);
-    if (!isSameFormat(d.node1, d.node2) || !isConstantFormat(d.node2)) {
+    if (!isSameFormat(d.vi, vsapi->getVideoInfo(d.node2)) || !isConstantFormat(vsapi->getVideoInfo(d.node2))) {
         vsapi->freeNode(d.node1);
         vsapi->freeNode(d.node2);
         RETERROR("PlaneStats: both input clips must have the same format when clipb is used");
