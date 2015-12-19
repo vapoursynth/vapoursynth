@@ -1901,9 +1901,9 @@ static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData,
 typedef struct {
     VSNodeRef *node;
     const VSVideoInfo *vi;
-    char *prop;
+    char *propAverage;
+    char *propMinMax;
     int plane;
-    int average;
 } PlaneStatsData;
 
 static void VS_CC planeStatsInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -1934,7 +1934,6 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
 
         switch (fi->bytesPerSample) {
         case 1:
-
             for (y = 0; y < height; y++) {
                 for (x = 0; x < width; x++) {
                     uint8_t v = srcp[x];
@@ -1971,9 +1970,12 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
 
         VSMap *dstProps = vsapi->getFramePropsRW(dst);
 
-        if (!d->average) {
-            vsapi->propSetFloat(dstProps, d->prop, (fi->sampleType == stInteger) ? imin : fmin, paReplace);
-            vsapi->propSetFloat(dstProps, d->prop, (fi->sampleType == stInteger) ? imax : fmax, paAppend);
+        if (fi->sampleType == stInteger) {
+            vsapi->propSetInt(dstProps, d->propMinMax, imin, paReplace);
+            vsapi->propSetInt(dstProps, d->propMinMax, imax, paAppend);
+        } else {
+            vsapi->propSetFloat(dstProps, d->propMinMax, fmin, paReplace);
+            vsapi->propSetFloat(dstProps, d->propMinMax, fmax, paAppend);
         }
 
         double avg;
@@ -1982,7 +1984,7 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
         else
             avg = facc / (double)((int64_t)width * height);
         
-        vsapi->propSetFloat(dstProps, d->prop, avg, d->average ? paReplace : paAppend);
+        vsapi->propSetFloat(dstProps, d->propAverage, avg, paReplace);
 
         vsapi->freeFrame(src);
         return dst;
@@ -1993,7 +1995,8 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
 static void VS_CC planeStatsFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     PlaneStatsData *d = (PlaneStatsData *)instanceData;
     vsapi->freeNode(d->node);
-    free(d->prop);
+    free(d->propAverage);
+    free(d->propMinMax);
     free(d);
 }
 
@@ -2020,8 +2023,13 @@ static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, 
     const char *tempprop = vsapi->propGetData(in, "prop", 0, &err);
     if (err)
         tempprop = "PlaneStats";
-    d.prop = malloc(strlen(tempprop) + 1);
-    strcpy(d.prop, tempprop);
+    size_t l = strlen(tempprop);
+    d.propMinMax = malloc(l + 6 + 1);
+    d.propAverage = malloc(l + 7 + 1);
+    strcpy(d.propMinMax, tempprop);
+    strcpy(d.propAverage, tempprop);
+    strcpy(d.propMinMax + l, "MinMax");
+    strcpy(d.propAverage + l, "Average");
 
     data = malloc(sizeof(d));
     *data = d;
@@ -2461,7 +2469,7 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("Transpose", "clip:clip;", transposeCreate, 0, plugin);
     registerFunc("PEMVerifier", "clip:clip;upper:int[]:opt;lower:int[]:opt;", pemVerifierCreate, 0, plugin);
     registerFunc("PlaneAverage", "clip:clip;plane:int;prop:data:opt;", planeAverageCreate, 0, plugin);
-    registerFunc("PlaneDifference", "clips:clip[];plane:int;prop:data:opt;", planeDifferenceCreate, 0, plugin);
+    registerFunc("PlaneStats", "clips:clip[];plane:int;prop:data:opt;", planeStatsCreate, 0, plugin);
     registerFunc("ClipToProp", "clip:clip;mclip:clip;prop:data:opt;", clipToPropCreate, 0, plugin);
     registerFunc("PropToClip", "clip:clip;prop:data:opt;", propToClipCreate, 0, plugin);
     registerFunc("SetFrameProp", "clip:clip;prop:data;delete:int:opt;intval:int[]:opt;floatval:float[]:opt;data:data[]:opt;", setFramePropCreate, 0, plugin);
