@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2014 Fredrik Mellbin
+* Copyright (c) 2012-2015 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -666,11 +666,11 @@ static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void **i
         // check if it's a scenechange so micmatch can be used
         // only relevant for mm mode 1
         if (vfm->micmatch == 1) {
-            sc = vsapi->propGetFloat(props, "VFMPlaneDifference", 0, 0) > vfm->scthresh;
+            sc = vsapi->propGetFloat(props, "VFMPlaneStatsDiff", 0, 0) > vfm->scthresh;
 
             if (!sc) {
                 props = vsapi->getFramePropsRO(nxt);
-                sc = vsapi->propGetFloat(props, "VFMPlaneDifference", 0, 0) > vfm->scthresh;
+                sc = vsapi->propGetFloat(props, "VFMPlaneStatsDiff", 0, 0) > vfm->scthresh;
             }
         }
 
@@ -772,12 +772,12 @@ static void VS_CC vfmFree(void *instanceData, VSCore *core, const VSAPI *vsapi) 
 static VSMap *invokePlaneDifference(VSNodeRef *node, VSCore *core, const VSAPI *vsapi) {
     VSNodeRef *node2;
     VSMap *args, *ret;
-    const char *prop = "VFMPlaneDifference";
+    const char *prop = "VFMPlaneStats";
     VSPlugin *stdplugin = vsapi->getPluginById("com.vapoursynth.std", core);
 
     args = vsapi->createMap();
-    vsapi->propSetNode(args, "clip", node, paReplace);
-    vsapi->propSetInt(args, "frames", 0, paReplace);
+    vsapi->propSetNode(args, "clip", node, paAppend);
+    vsapi->propSetInt(args, "frames", 0, paAppend);
     ret = vsapi->invoke(stdplugin, "DuplicateFrames", args);
     if (vsapi->getError(ret)) {
         vsapi->freeMap(args);
@@ -787,12 +787,12 @@ static VSMap *invokePlaneDifference(VSNodeRef *node, VSCore *core, const VSAPI *
     vsapi->freeMap(ret);
     vsapi->clearMap(args);
 
-    vsapi->propSetNode(args, "clips", node, paReplace);
-    vsapi->propSetNode(args, "clips", node2, paAppend);
+    vsapi->propSetNode(args, "clipa", node, paAppend);
+    vsapi->propSetNode(args, "clipb", node2, paAppend);
     vsapi->freeNode(node2);
-    vsapi->propSetInt(args, "plane", 0, paReplace);
-    vsapi->propSetData(args, "prop", prop, -1, paReplace);
-    ret = vsapi->invoke(stdplugin, "PlaneDifference", args);
+    vsapi->propSetInt(args, "plane", 0, paAppend);
+    vsapi->propSetData(args, "prop", prop, -1, paAppend);
+    ret = vsapi->invoke(stdplugin, "PlaneStats", args);
     if (vsapi->getError(ret)) {
         vsapi->freeMap(args);
         return ret;
@@ -801,7 +801,7 @@ static VSMap *invokePlaneDifference(VSNodeRef *node, VSCore *core, const VSAPI *
     vsapi->freeMap(ret);
     vsapi->clearMap(args);
 
-    vsapi->propSetNode(args, "clip", node2, paReplace);
+    vsapi->propSetNode(args, "clip", node2, paAppend);
     vsapi->freeNode(node2);
     ret = vsapi->invoke(stdplugin, "Cache", args);
     vsapi->freeMap(args);
