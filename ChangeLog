@@ -1,5 +1,5 @@
 r30:
-planeaverage is now deprecated
+planeaverage is now deprecated, use planestats instead
 added planestats, a function that calculates min, max, average and difference of a frame at the same time
 removed planedifference, deprecated since r28
 added avisynth 2.6 and x64 support, note that x64 can only load 2.6 but not 2.5 plugins
