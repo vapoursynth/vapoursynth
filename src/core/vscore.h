@@ -385,7 +385,6 @@ public:
 
 class FrameContext {
     friend class VSThreadPool;
-    friend void runTasks(VSThreadPool *owner, volatile bool &stop);
 private:
     uintptr_t reqOrder;
     unsigned numFrameRequests;
