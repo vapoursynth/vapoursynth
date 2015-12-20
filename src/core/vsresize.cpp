@@ -723,8 +723,8 @@ class vszimg {
 	}
 
 	void set_dst_colorspace(const zimg_image_format &src_format, zimg_image_format *dst_format) {
-		// Avoid propagating RGB matrix coefficients.
-		if (src_format.color_family != ZIMG_COLOR_RGB && dst_format->color_family != ZIMG_COLOR_RGB)
+		// Avoid copying matrix coefficients when restricted by color family.
+		if (dst_format->matrix_coefficients != ZIMG_MATRIX_RGB && dst_format->matrix_coefficients != ZIMG_MATRIX_YCGCO)
 			dst_format->matrix_coefficients = src_format.matrix_coefficients;
 
 		dst_format->transfer_characteristics = src_format.transfer_characteristics;
