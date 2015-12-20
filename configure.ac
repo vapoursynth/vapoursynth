@@ -291,7 +291,7 @@ AC_ARG_ENABLE([plugins], AS_HELP_STRING([--enable-plugins], [Enable all included
 
 AC_ARG_ENABLE([assvapour],      AS_HELP_STRING([--enable-assvapour],    [Enable the ASS rendering plugin. Requires libass. (default=yes)]))
 AC_ARG_ENABLE([eedi3],          AS_HELP_STRING([--enable-eedi3],        [Enable the eedi3 plugin. (default=yes)]))
-AC_ARG_ENABLE([imwri],          AS_HELP_STRING([--enable-imwri],        [Enable the image reader/writer plugin. Requires ImageMagick. (default=no)]))
+AC_ARG_ENABLE([imwri],          AS_HELP_STRING([--enable-imwri],        [Enable the image reader/writer plugin. Requires ImageMagick. (default=yes)]))
 AC_ARG_ENABLE([morpho],         AS_HELP_STRING([--enable-morpho],       [Enable the morpho plugin. (default=yes)]))
 AC_ARG_ENABLE([ocr],            AS_HELP_STRING([--enable-ocr],          [Enable the ocr plugin. Requires tesseract. (default=yes)]))
 AC_ARG_ENABLE([removegrain],    AS_HELP_STRING([--enable-removegrain],  [Enable the removegrain plugin. (default=yes)]))
@@ -332,7 +332,7 @@ AS_CASE(
         [
          AS_IF([test "x$enable_assvapour"   != "xno"], [assvapour="yes"])
          AS_IF([test "x$enable_eedi3"       != "xno"], [eedi3="yes"])
-         AS_IF([test "x$enable_imwri"       = "xyes"], [imwri="yes"])
+         AS_IF([test "x$enable_imwri"       != "xno"], [imwri="yes"])
          AS_IF([test "x$enable_morpho"      != "xno"], [morpho="yes"])
          AS_IF([test "x$enable_ocr"         != "xno"], [ocr="yes"])
          AS_IF([test "x$enable_removegrain" != "xno"], [removegrain="yes"])
