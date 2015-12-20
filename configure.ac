@@ -60,10 +60,10 @@ ARM="false"
 
 AS_CASE(
         [$host_cpu],
-        [i?86], [BITS="32" ASFLAGS="$ASFLAGS -DARCH_X86_64=0" X86="true"],
-        [x86_64], [BITS="64" ASFLAGS="$ASFLAGS -DARCH_X86_64=1 -DPIC -m amd64" X86="true"],
+        [i?86],     [BITS="32" ASFLAGS="$ASFLAGS -DARCH_X86_64=0" X86="true"],
+        [x86_64],   [BITS="64" ASFLAGS="$ASFLAGS -DARCH_X86_64=1 -DPIC -m amd64" X86="true"],
         [powerpc*], [PPC="true"],
-        [arm*], [ARM="true"] # Maybe doesn't work for all arm systems?
+        [arm*],     [ARM="true"] # Maybe doesn't work for all arm systems?
 )
 
 AS_CASE(
@@ -289,14 +289,14 @@ AM_CONDITIONAL([PYTHONMODULE], [test "x$enable_python_module" != "xno"])
 
 AC_ARG_ENABLE([plugins], AS_HELP_STRING([--enable-plugins], [Enable all included plugins. Each individual plugin has a switch which overrides this. (default=)]))
 
-AC_ARG_ENABLE([assvapour], AS_HELP_STRING([--enable-assvapour], [Enable the ASS rendering plugin. Requires libass. (default=yes)]))
-AC_ARG_ENABLE([eedi3], AS_HELP_STRING([--enable-eedi3], [Enable the eedi3 plugin. (default=yes)]))
-AC_ARG_ENABLE([imwri], AS_HELP_STRING([--enable-imwri], [Enable the image reader/writer plugin. Requires ImageMagick. (default=no)]))
-AC_ARG_ENABLE([morpho], AS_HELP_STRING([--enable-morpho], [Enable the morpho plugin. (default=yes)]))
-AC_ARG_ENABLE([ocr], AS_HELP_STRING([--enable-ocr], [Enable the ocr plugin. Requires tesseract. (default=yes)]))
-AC_ARG_ENABLE([removegrain], AS_HELP_STRING([--enable-removegrain], [Enable the removegrain plugin. (default=yes)]))
-AC_ARG_ENABLE([vinverse], AS_HELP_STRING([--enable-vinverse], [Enable the vinverse plugin. (default=yes)]))
-AC_ARG_ENABLE([vivtc], AS_HELP_STRING([--enable-vivtc], [Enable the vivtc plugin. (default=yes)]))
+AC_ARG_ENABLE([assvapour],      AS_HELP_STRING([--enable-assvapour],    [Enable the ASS rendering plugin. Requires libass. (default=yes)]))
+AC_ARG_ENABLE([eedi3],          AS_HELP_STRING([--enable-eedi3],        [Enable the eedi3 plugin. (default=yes)]))
+AC_ARG_ENABLE([imwri],          AS_HELP_STRING([--enable-imwri],        [Enable the image reader/writer plugin. Requires ImageMagick. (default=no)]))
+AC_ARG_ENABLE([morpho],         AS_HELP_STRING([--enable-morpho],       [Enable the morpho plugin. (default=yes)]))
+AC_ARG_ENABLE([ocr],            AS_HELP_STRING([--enable-ocr],          [Enable the ocr plugin. Requires tesseract. (default=yes)]))
+AC_ARG_ENABLE([removegrain],    AS_HELP_STRING([--enable-removegrain],  [Enable the removegrain plugin. (default=yes)]))
+AC_ARG_ENABLE([vinverse],       AS_HELP_STRING([--enable-vinverse],     [Enable the vinverse plugin. (default=yes)]))
+AC_ARG_ENABLE([vivtc],          AS_HELP_STRING([--enable-vivtc],        [Enable the vivtc plugin. (default=yes)]))
 
 assvapour=""
 eedi3=""
@@ -310,34 +310,34 @@ vivtc=""
 AS_CASE(
         [$enable_plugins],
         [yes], [
-                AS_IF([test "x$enable_assvapour" != "xno"], [assvapour="yes"])
-                AS_IF([test "x$enable_eedi3" != "xno"], [eedi3="yes"])
-                AS_IF([test "x$enable_imwri" != "xno"], [imwri="yes"])
-                AS_IF([test "x$enable_morpho" != "xno"], [morpho="yes"])
-                AS_IF([test "x$enable_ocr" != "xno"], [ocr="yes"])
-                AS_IF([test "x$enable_removegrain" != "xno"], [removegrain="yes"])
-                AS_IF([test "x$enable_vinverse" != "xno"], [vinverse="yes"])
-                AS_IF([test "x$enable_vivtc" != "xno"], [vivtc="yes"])
+                AS_IF([test "x$enable_assvapour"    != "xno"], [assvapour="yes"])
+                AS_IF([test "x$enable_eedi3"        != "xno"], [eedi3="yes"])
+                AS_IF([test "x$enable_imwri"        != "xno"], [imwri="yes"])
+                AS_IF([test "x$enable_morpho"       != "xno"], [morpho="yes"])
+                AS_IF([test "x$enable_ocr"          != "xno"], [ocr="yes"])
+                AS_IF([test "x$enable_removegrain"  != "xno"], [removegrain="yes"])
+                AS_IF([test "x$enable_vinverse"     != "xno"], [vinverse="yes"])
+                AS_IF([test "x$enable_vivtc"        != "xno"], [vivtc="yes"])
                ],
         [no], [
-                AS_IF([test "x$enable_assvapour" = "xyes"], [assvapour="yes"])
-                AS_IF([test "x$enable_eedi3" = "xyes"], [eedi3="yes"])
-                AS_IF([test "x$enable_imwri" = "xyes"], [imwri="yes"])
-                AS_IF([test "x$enable_morpho" = "xyes"], [morpho="yes"])
-                AS_IF([test "x$enable_ocr" = "xyes"], [ocr="yes"])
-                AS_IF([test "x$enable_removegrain" = "xyes"], [removegrain="yes"])
-                AS_IF([test "x$enable_vinverse" = "xyes"], [vinverse="yes"])
-                AS_IF([test "x$enable_vivtc" = "xyes"], [vivtc="yes"])
+                AS_IF([test "x$enable_assvapour"    = "xyes"], [assvapour="yes"])
+                AS_IF([test "x$enable_eedi3"        = "xyes"], [eedi3="yes"])
+                AS_IF([test "x$enable_imwri"        = "xyes"], [imwri="yes"])
+                AS_IF([test "x$enable_morpho"       = "xyes"], [morpho="yes"])
+                AS_IF([test "x$enable_ocr"          = "xyes"], [ocr="yes"])
+                AS_IF([test "x$enable_removegrain"  = "xyes"], [removegrain="yes"])
+                AS_IF([test "x$enable_vinverse"     = "xyes"], [vinverse="yes"])
+                AS_IF([test "x$enable_vivtc"        = "xyes"], [vivtc="yes"])
               ],
         [
-         AS_IF([test "x$enable_assvapour" != "xno"], [assvapour="yes"])
-         AS_IF([test "x$enable_eedi3" != "xno"], [eedi3="yes"])
-         AS_IF([test "x$enable_imwri" = "xyes"], [imwri="yes"])
-         AS_IF([test "x$enable_morpho" != "xno"], [morpho="yes"])
-         AS_IF([test "x$enable_ocr" != "xno"], [ocr="yes"])
+         AS_IF([test "x$enable_assvapour"   != "xno"], [assvapour="yes"])
+         AS_IF([test "x$enable_eedi3"       != "xno"], [eedi3="yes"])
+         AS_IF([test "x$enable_imwri"       = "xyes"], [imwri="yes"])
+         AS_IF([test "x$enable_morpho"      != "xno"], [morpho="yes"])
+         AS_IF([test "x$enable_ocr"         != "xno"], [ocr="yes"])
          AS_IF([test "x$enable_removegrain" != "xno"], [removegrain="yes"])
-         AS_IF([test "x$enable_vinverse" != "xno"], [vinverse="yes"])
-         AS_IF([test "x$enable_vivtc" != "xno"], [vivtc="yes"])
+         AS_IF([test "x$enable_vinverse"    != "xno"], [vinverse="yes"])
+         AS_IF([test "x$enable_vivtc"       != "xno"], [vivtc="yes"])
         ]
 )
 
@@ -373,14 +373,14 @@ AS_IF(
       [PKG_CHECK_MODULES([TESSERACT], [tesseract])]
 )
 
-AM_CONDITIONAL([ASSVAPOUR], [test "$assvapour"])
-AM_CONDITIONAL([EEDI3], [test "$eedi3"])
-AM_CONDITIONAL([IMWRI], [test "$imwri"])
-AM_CONDITIONAL([MORPHO], [test "$morpho"])
-AM_CONDITIONAL([OCR], [test "$ocr"])
-AM_CONDITIONAL([REMOVEGRAIN], [test "$removegrain"])
-AM_CONDITIONAL([VINVERSE], [test "$vinverse"])
-AM_CONDITIONAL([VIVTC], [test "$vivtc"])
+AM_CONDITIONAL([ASSVAPOUR],     [test "$assvapour"])
+AM_CONDITIONAL([EEDI3],         [test "$eedi3"])
+AM_CONDITIONAL([IMWRI],         [test "$imwri"])
+AM_CONDITIONAL([MORPHO],        [test "$morpho"])
+AM_CONDITIONAL([OCR],           [test "$ocr"])
+AM_CONDITIONAL([REMOVEGRAIN],   [test "$removegrain"])
+AM_CONDITIONAL([VINVERSE],      [test "$vinverse"])
+AM_CONDITIONAL([VIVTC],         [test "$vivtc"])
 
 
 AS_IF(
