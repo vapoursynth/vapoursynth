@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2013 Fredrik Mellbin
+* Copyright (c) 2012-2015 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -84,8 +84,6 @@ public:
     void __stdcall ApplyMessage(PVideoFrame* frame, const VideoInfo& vi, const char* message, int size,
         int textcolor, int halocolor, int bgcolor);
     const AVS_Linkage* const __stdcall GetAVSLinkage();
-
-    // noThrow version of GetVar
     AVSValue __stdcall GetVarDef(const char* name, const AVSValue& def = AVSValue());
 };
 
