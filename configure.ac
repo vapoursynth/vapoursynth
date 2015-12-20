@@ -427,7 +427,7 @@ AM_CONDITIONAL([VIVTC],         [test "$vivtc"])
 
 
 AS_IF(
-      [test "x$enable_core" != "xno" -o "x$enable_vsscript" != "xno" -o "x$enable_vspipe" != "xno" -o "x$enable_imwri" = "xyes"],
+      [test "x$enable_core" != "xno" -o "x$enable_vsscript" != "xno" -o "x$enable_vspipe" != "xno" -o "x$imwri" != "x"],
       [
        saved_cxxflags="$CXXFLAGS"
        CXXFLAGS="-std=c++11"
