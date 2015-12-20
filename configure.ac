@@ -289,11 +289,11 @@ AM_CONDITIONAL([PYTHONMODULE], [test "x$enable_python_module" != "xno"])
 
 AC_ARG_ENABLE([plugins], AS_HELP_STRING([--enable-plugins], [Enable all included plugins. Each individual plugin has a switch which overrides this. (default=)]))
 
-AC_ARG_ENABLE([assvapour],      AS_HELP_STRING([--enable-assvapour],    [Enable the ASS rendering plugin. Requires libass. (default=yes)]))
+AC_ARG_ENABLE([assvapour],      AS_HELP_STRING([--enable-assvapour],    [Enable the ASS rendering plugin. Requires libass. (default=auto)]))
 AC_ARG_ENABLE([eedi3],          AS_HELP_STRING([--enable-eedi3],        [Enable the eedi3 plugin. (default=yes)]))
-AC_ARG_ENABLE([imwri],          AS_HELP_STRING([--enable-imwri],        [Enable the image reader/writer plugin. Requires ImageMagick. (default=yes)]))
+AC_ARG_ENABLE([imwri],          AS_HELP_STRING([--enable-imwri],        [Enable the image reader/writer plugin. Requires ImageMagick. (default=auto)]))
 AC_ARG_ENABLE([morpho],         AS_HELP_STRING([--enable-morpho],       [Enable the morpho plugin. (default=yes)]))
-AC_ARG_ENABLE([ocr],            AS_HELP_STRING([--enable-ocr],          [Enable the ocr plugin. Requires tesseract. (default=yes)]))
+AC_ARG_ENABLE([ocr],            AS_HELP_STRING([--enable-ocr],          [Enable the ocr plugin. Requires tesseract. (default=auto)]))
 AC_ARG_ENABLE([removegrain],    AS_HELP_STRING([--enable-removegrain],  [Enable the removegrain plugin. (default=yes)]))
 AC_ARG_ENABLE([vinverse],       AS_HELP_STRING([--enable-vinverse],     [Enable the vinverse plugin. (default=yes)]))
 AC_ARG_ENABLE([vivtc],          AS_HELP_STRING([--enable-vivtc],        [Enable the vivtc plugin. (default=yes)]))
@@ -330,48 +330,91 @@ AS_CASE(
                 AS_IF([test "x$enable_vivtc"        = "xyes"], [vivtc="yes"])
               ],
         [
-         AS_IF([test "x$enable_assvapour"   != "xno"], [assvapour="yes"])
+         AS_IF([test "x$enable_assvapour"   != "xno"], [AS_IF([test "x$enable_assvapour" = "xyes"], [assvapour="yes"], [assvapour="auto"])])
          AS_IF([test "x$enable_eedi3"       != "xno"], [eedi3="yes"])
-         AS_IF([test "x$enable_imwri"       != "xno"], [imwri="yes"])
+         AS_IF([test "x$enable_imwri"       != "xno"], [AS_IF([test "x$enable_imwri" = "xyes"], [imwri="yes"], [imwri="auto"])])
          AS_IF([test "x$enable_morpho"      != "xno"], [morpho="yes"])
-         AS_IF([test "x$enable_ocr"         != "xno"], [ocr="yes"])
+         AS_IF([test "x$enable_ocr"         != "xno"], [AS_IF([test "x$enable_ocr" = "xyes"], [ocr="yes"], [ocr="auto"])])
          AS_IF([test "x$enable_removegrain" != "xno"], [removegrain="yes"])
          AS_IF([test "x$enable_vinverse"    != "xno"], [vinverse="yes"])
          AS_IF([test "x$enable_vivtc"       != "xno"], [vivtc="yes"])
         ]
 )
 
-AS_IF(
-      [test "$assvapour"],
-      [PKG_CHECK_MODULES([LIBASS], [libass])]
-)
+PKG_CHECK_MODULES(
+                  [LIBASS],
+                  [libass],
+                  [],
+                  [
+                   AS_IF(
+                         [test "x$assvapour" = "xyes"],
+                         [AC_MSG_ERROR([the assvapour plugin was explicitly enabled, but libass cannot be found.])],
+                         [assvapour=""]
+                        )
+                  ]
+                 )
 
-AS_IF(
-      [test "$imwri"],
-      [
-       PKG_CHECK_MODULES([IMAGEMAGICK], [ImageMagick++])
+PKG_CHECK_MODULES(
+                  [IMAGEMAGICK],
+                  [ImageMagick++],
+                  [
+                   AC_MSG_CHECKING([whether imagemagick is usable])
 
-       saved_cppflags="$CPPFLAGS"
-       CPPFLAGS="$IMAGEMAGICK_CFLAGS $CPPFLAGS"
-       AC_COMPILE_IFELSE(
-                         [AC_LANG_SOURCE(
-                                         [[
+                   saved_cppflags="$CPPFLAGS"
+                   CPPFLAGS="$IMAGEMAGICK_CFLAGS $CPPFLAGS"
+                   AC_COMPILE_IFELSE(
+                                     [
+                                      AC_LANG_SOURCE(
+                                                     [[
 #if !defined(MAGICKCORE_QUANTUM_DEPTH) || (MAGICKCORE_QUANTUM_DEPTH != 16 && MAGICKCORE_QUANTUM_DEPTH != 32)
 #error imwri plugin requires ImageMagick with quantum depth of 16 or 32.
 #endif
-                                         ]]
-                         )],
-                         [],
-                         [AC_MSG_ERROR([imwri plugin requires ImageMagick with quantum depth of 16 or 32.])]
-       )
-       CPPFLAGS="$saved_cppflags"
-      ]
-)
+                                                     ]]
+                                                    )
+                                     ],
+                                     [usable_imagemagick="yes"],
+                                     [usable_imagemagick="no"]
+                                    )
+                   CPPFLAGS="$saved_cppflags"
 
-AS_IF(
-      [test "$ocr"],
-      [PKG_CHECK_MODULES([TESSERACT], [tesseract])]
-)
+                   AC_MSG_RESULT([$usable_imagemagick])
+
+                   AS_CASE([$imwri],
+                           [yes], [
+                                    AS_IF(
+                                          [test "x$usable_imagemagick" = "xno"],
+                                          [AC_MSG_ERROR([the imwri plugin was explicitly enabled, but imagemagick is not usable.])]
+                                         )
+                                  ],
+                           [auto], [
+                                    AS_IF(
+                                          [test "x$usable_imagemagick" = "xno"],
+                                          [imwri=""]
+                                         )
+                                   ]
+                          )
+                  ],
+                  [
+                   AS_IF(
+                         [test "x$imwri" = "xyes"],
+                         [AC_MSG_ERROR([the imwri plugin was explicitly enabled, but imagemagick cannot be found.])],
+                         [imwri=""]
+                        )
+                  ]
+                 )
+
+PKG_CHECK_MODULES(
+                  [TESSERACT],
+                  [tesseract],
+                  [],
+                  [
+                   AS_IF(
+                         [test "x$ocr" = "xyes"],
+                         [AC_MSG_ERROR([the ocr plugin was explicitly enabled, but tesseract cannot be found.])],
+                         [ocr=""]
+                        )
+                  ]
+                 )
 
 AM_CONDITIONAL([ASSVAPOUR],     [test "$assvapour"])
 AM_CONDITIONAL([EEDI3],         [test "$eedi3"])
