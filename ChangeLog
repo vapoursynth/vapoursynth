@@ -1,4 +1,6 @@
 r30:
+the build system should now autodetect which optional libraries are available
+fixed ycocg conversions
 planeaverage is now deprecated, use planestats instead
 added planestats, a function that calculates min, max, average and difference of a frame at the same time
 removed planedifference, deprecated since r28
