@@ -462,6 +462,13 @@ enum VSNodeFlags
      instances of the built-in Cache filter. Strange things may happen to
      your filter if you use this flag.
 
+   * nfMakeLinear
+
+     This flag should be used by filters which prefer linear access,
+     like source filters, where seeking around can cause significant
+     slowdowns. This flag only has any effect if the filter using it
+     is immediately followed by an instance of the built-in Cache filter.
+
 
 .. _VSPropTypes:
 

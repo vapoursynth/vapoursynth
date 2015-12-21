@@ -12,6 +12,6 @@ Cache
    be cached at the start, and *fixed* controls whether the size is
    automatically adjusted.
    
-   There is also *make_linear* which can be used to test which will make the
-   cache try to make requests more linear if at all possible. This obviously
-   comes with a speed penalty so never use it unless necessary.
+   There is also *make_linear* which will make the cache try to make requests
+   more linear if at all possible. This obviously comes with a speed penalty
+   so never use it unless necessary.

@@ -3,16 +3,19 @@
 ImageMagick Writer-Reader
 =========================
 
-ImageMagick Writer-Reader (IMWRI) is a plugin that can read and write many image formats with up to 16 bits per channel.
+ImageMagick Writer-Reader (IMWRI) is a plugin that can read and write many image formats.
 
-.. function:: Write(clip clip, string imgformat, string filename[, int firstnum = 0, int quality=75, bint dither=1, string compression_type, clip alpha])
+.. function:: Write(clip clip, string imgformat, string filename[, int firstnum=0, int quality=75, bint dither=True, string compression_type, clip alpha])
    :module: imwri
    
    Supported input formats for writing:
-      QD16: 8-16 bit integer
-      QD32: 8-32 bit integer
-      QD16 HDRI: 8-16 bit integer, 32 bit float
-      QD32 HDRI: 8-32 bit integer, 32 bit float
+      ImageMagick with Quantum Depth 16: 8-16 bit integer
+
+      ImageMagick with Quantum Depth 32: 8-32 bit integer
+
+      ImageMagick with Quantum Depth 16 and HDRI: 8-16 bit integer, 32 bit float
+
+      ImageMagick with Quantum Depth 32 and HDRI: 8-32 bit integer, 32 bit float
       
    Write will write each frame to disk as it's requested. If a frame is never requested it's also never written to disk.
  
@@ -42,14 +45,17 @@ ImageMagick Writer-Reader (IMWRI) is a plugin that can read and write many image
       alpha
          A grayscale clip containing the alpha channel for the image to write. Apart from being grayscale, its properties must be identical to the main *clip*.
 
-   Possible output formats when reading:
-      QD16: 8-16 bit integer
-      QD32: 8-32 bit integer
-      QD16 HDRI: 32 bit float
-      QD32 HDRI: 32 bit float
-
-.. function:: Read(string[] filename[, int firstnum = 0, bint mismatch=0, bint alpha=0])
+.. function:: Read(string[] filename[, int firstnum=0, bint mismatch=False, bint alpha=False])
    :module: imwri
+
+   Possible output formats when reading:
+      ImageMagick with Quantum Depth 16: 8-16 bit integer
+
+      ImageMagick with Quantum Depth 32: 8-32 bit integer
+
+      ImageMagick with Quantum Depth 16 and HDRI: 32 bit float
+
+      ImageMagick with Quantum Depth 32 and HDRI: 32 bit float
 
    Read is a simple function for reading single or series of images and returning them as a clip.
 

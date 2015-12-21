@@ -4,7 +4,8 @@ PlaneAverage (deprecated)
 .. function:: PlaneAverage(clip clip, int plane[, string prop = 'PlaneAverage'])
    :module: std
 
-   This function is deprecated. Use *PlaneStats* instead which 
+   This function is deprecated and will be removed in a future version. Use
+   *PlaneStats* instead, which does the same thing (and more).
    
    This function calculates the average normalized value of all the pixels in
    the specified *plane* and stores the value in the frame property named

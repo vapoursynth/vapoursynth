@@ -11,16 +11,18 @@ Resize
    
    In VapourSynth the resizers have several functions. In addition to scaling,
    they also do colorspace conversions and conversions to and from the compat
-   formats. Resize converts a clip of known or unknown format to
-   another clip of known or unknown format, changing only the parameters
-   specified by the user. Arguments denoted as type *enum* may be specified
-   by numerical index (see ITU-T H.265 Annex E.3) or by name. Enums specified
-   by name have their argument name suffixed with "_s". The resize filters can
-   handle varying size and format input clips and turn them into constant
-   format clips.
+   formats. Resize converts a clip of known or unknown format to another clip
+   of known or unknown format, changing only the parameters specified by the
+   user. The resize filters can handle varying size and format input clips
+   and turn them into constant format clips.
 
    If you do not know which resizer to choose, then try Bicubic. It usually
    makes a good neutral default.
+
+   Arguments denoted as type *enum* may be specified by numerical index (see
+   ITU-T H.265 Annex E.3) or by name. Enums specified by name have their
+   argument name suffixed with "_s". For example, a destination matrix of
+   BT 709 can be specified either with ``matrix=1`` or with ``matrix_s="709"``.
 
    Note that *matrix* is not an optional argument when converting to YUV.
    If no matrix is specified in an input YUV frame's properties then *matrix_in*
@@ -35,11 +37,11 @@ Resize
 
    *width*, *height*:
    
-      Output image dimensions
+      Output image dimensions.
 
    *format*:
    
-      Output format id
+      Output format id.
 
    *matrix*, *transfer*, *primaries*:
 
@@ -70,15 +72,19 @@ Resize
 
    *filter_param_a*, *filter_param_b*:
    
-      Scaling method for RGB and Y-channel. For the bicubic filter, filter_param_a/b
-      represents the "b" and "c" parameters. For the lanczos filter, filter_param_a
-      represents the number of taps.
+      Parameters for the scaler used for RGB and Y-channel. For the bicubic filter,
+      filter_param_a/b represent the "b" and "c" parameters. For the lanczos filter,
+      filter_param_a represents the number of taps.
 
-   *resample_filter_uv*, *resample_filter_uv_a*, *resample_filter_uv_b*:
+   *resample_filter_uv*:
    
       Scaling method for UV channels. It defaults to the same as for the Y-channel. The
       following values can be used with *resample_filter_uv*: *point*, *bilinear*, *bicubic*,
-      *spline16*, *spline36*, *lanczos*
+      *spline16*, *spline36*, *lanczos*.
+
+   *filter_param_a_uv*, *filter_param_b_uv*:
+
+      Parameters for the scaler used for UV channels.
 
    *dither_type*:
       Dithering method. Dithering is used only for conversions resulting in an integer
@@ -87,7 +93,7 @@ Resize
       
    To convert to YV12::
 
-      Bicubic(clip=clip, format=vs.YUV420P8, matrix="709")
+      Bicubic(clip=clip, format=vs.YUV420P8, matrix_s="709")
 
    To resize and convert YUV with color information frame properties to planar RGB::
 
@@ -95,7 +101,7 @@ Resize
 
    To resize and convert YUV without color information frame properties to planar RGB::
 
-      Bicubic(clip=clip, width=1920, height=1080, format=vs.RGB24, matrix_in="709")   
+      Bicubic(clip=clip, width=1920, height=1080, format=vs.RGB24, matrix_in_s="709")
 
    The following tables list values of selected colorspace enumerations and
    their abbreviated names. For all possible values, see ITU-T H.265.
