@@ -4,10 +4,9 @@ doc/_build/*
 *.pyc
 __pycache__
 
-.lock-*
-.waf*
-
-waf
+src/cython/vapoursynth.c
+src/cython/vapoursynth.h
+src/cython/vapoursynth_api.h
 
 *.o
 *.la
