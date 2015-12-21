@@ -1950,8 +1950,8 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
                     for (x = 0; x < width; x++) {
                         uint8_t v = srcp[x];
                         uint8_t t = srcp2[x];
-                        imin = min(imin, v);
-                        imax = max(imax, v);
+                        imin = VSMIN(imin, v);
+                        imax = VSMAX(imax, v);
                         acc += v;
                         diffacc += abs(v - t);
                     }
@@ -1964,8 +1964,8 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
                     for (x = 0; x < width; x++) {
                         uint16_t v = ((const uint16_t *)srcp)[x];
                         uint16_t t = ((const uint16_t *)srcp2)[x];
-                        imin = min(imin, v);
-                        imax = max(imax, v);
+                        imin = VSMIN(imin, v);
+                        imax = VSMAX(imax, v);
                         acc += v;
                         diffacc += abs(v - t);
                     }
@@ -1978,8 +1978,8 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
                     for (x = 0; x < width; x++) {
                         float v = ((const float *)srcp)[x];
                         float t = ((const float *)srcp2)[x];
-                        fmin = min(fmin, v);
-                        fmax = max(fmax, v);
+                        fmin = VSMIN(fmin, v);
+                        fmax = VSMAX(fmax, v);
                         facc += v;
                         fdiffacc += fabs(v - t);
                     }
@@ -1994,8 +1994,8 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
                 for (y = 0; y < height; y++) {
                     for (x = 0; x < width; x++) {
                         uint8_t v = srcp[x];
-                        imin = min(imin, v);
-                        imax = max(imax, v);
+                        imin = VSMIN(imin, v);
+                        imax = VSMAX(imax, v);
                         acc += v;
                     }
                     srcp += src_stride;
@@ -2005,8 +2005,8 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
                 for (y = 0; y < height; y++) {
                     for (x = 0; x < width; x++) {
                         uint16_t v = ((const uint16_t *)srcp)[x];
-                        imin = min(imin, v);
-                        imax = max(imax, v);
+                        imin = VSMIN(imin, v);
+                        imax = VSMAX(imax, v);
                         acc += v;
                     }
                     srcp += src_stride;
@@ -2016,8 +2016,8 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
                 for (y = 0; y < height; y++) {
                     for (x = 0; x < width; x++) {
                         float v = ((const float *)srcp)[x];
-                        fmin = min(fmin, v);
-                        fmax = max(fmax, v);
+                        fmin = VSMIN(fmin, v);
+                        fmax = VSMAX(fmax, v);
                         facc += v;
                     }
                     srcp += src_stride;
@@ -2037,7 +2037,7 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
         }
 
         double avg;
-        double diff;
+        double diff = 0.0;
         if (fi->sampleType == stInteger) {
             avg = acc / (double)(width * height * (((int64_t)1 << fi->bitsPerSample) - 1));
             if (d->node2)
