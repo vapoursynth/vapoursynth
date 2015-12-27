@@ -279,6 +279,19 @@ AS_IF(
                     [test -z "$PYTHON3_LIBS"],
                     [PKG_CHECK_MODULES([PYTHON3], [python-$PYTHON_VERSION])]
               )
+
+              AS_CASE(
+                      [$host_os],
+                      [darwin*],
+                      [
+                       AC_SUBST([PYTHON_MODULE_UNDEFINED], ["-undefined dynamic_lookup"])
+                      ],
+                      [cygwin*|mingw*],
+                      [
+                       AC_SUBST([PYTHON_MODULE_UNDEFINED], ["-no-undefined"])
+                       AC_SUBST([MAYBE_PYTHON3_LIBS], ["$PYTHON3_LIBS"])
+                      ]
+                     )
              ]
        )
       ]

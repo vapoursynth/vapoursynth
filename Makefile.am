@@ -98,8 +98,8 @@ pyexec_LTLIBRARIES = vapoursynth.la
 
 vapoursynth_la_SOURCES = src/cython/vapoursynth.pyx
 vapoursynth_la_CPPFLAGS = $(PYTHON3_CFLAGS)
-vapoursynth_la_LIBADD = $(PYTHON3_LIBS) libvapoursynth.la
-vapoursynth_la_LDFLAGS = -no-undefined -avoid-version -module
+vapoursynth_la_LIBADD = $(MAYBE_PYTHON3_LIBS) libvapoursynth.la
+vapoursynth_la_LDFLAGS = $(PYTHON_MODULE_UNDEFINED) -avoid-version -module
 vapoursynth_la_LIBTOOLFLAGS = $(commonlibtoolflags)
 
 MOSTLYCLEANFILES = src/cython/vapoursynth.c \
