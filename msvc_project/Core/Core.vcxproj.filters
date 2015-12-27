@@ -54,9 +54,6 @@
     <ClCompile Include="..\..\src\core\vsthreadpool.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\avisynth\avisynth_compat.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\sdk\filter_skeleton.c">
       <Filter>sdk</Filter>
     </ClCompile>
@@ -75,21 +72,18 @@
     <ClCompile Include="..\..\src\core\vsresize.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\avisynth\interface.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <YASM Include="..\..\src\core\asm\x86\check.asm">
+    <YASM Include="..\..\src\core\asm\x86\merge.asm">
+      <Filter>asm</Filter>
+    </YASM>
+    <YASM Include="..\..\src\core\asm\x86\transpose.asm">
       <Filter>asm</Filter>
     </YASM>
     <YASM Include="..\..\src\core\asm\x86\cpu.asm">
       <Filter>asm</Filter>
     </YASM>
-    <YASM Include="..\..\src\core\asm\x86\merge.asm">
-      <Filter>asm</Filter>
-    </YASM>
-    <YASM Include="..\..\src\core\asm\x86\transpose.asm">
+    <YASM Include="..\..\src\core\asm\x86\check.asm">
       <Filter>asm</Filter>
     </YASM>
   </ItemGroup>
@@ -148,16 +142,10 @@
     <ClInclude Include="..\..\include\VSHelper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\avisynth\avisynth_compat.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\core\genericfilters.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\core\jitasm.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\avisynth\avisynth.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

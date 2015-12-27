@@ -862,11 +862,6 @@ void VS_CC loadPluginInitialize(VSConfigPlugin configFunc, VSRegisterFunction re
     registerFunc("LoadPlugin", "path:data;forcens:data:opt;forceid:data:opt;", &loadPlugin, nullptr, plugin);
 }
 
-// not the most elegant way but avoids the mess that would happen if avscompat.h was included
-#if defined(VS_TARGET_OS_WINDOWS) && defined(VS_FEATURE_AVISYNTH)
-extern "C" void VS_CC avsWrapperInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
-#endif
-
 void VSCore::registerFormats() {
     // Register known formats with informational names
     registerFormat(cmGray, stInteger,  8, 0, 0, "Gray8", pfGray8);
@@ -1005,13 +1000,6 @@ VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), formatIdO
     VSPlugin *p;
 
     // Initialize internal plugins
-#if defined(VS_TARGET_OS_WINDOWS) && defined(VS_FEATURE_AVISYNTH)
-    p = new VSPlugin(this);
-    avsWrapperInitialize(::configPlugin, ::registerFunction, p);
-    plugins.insert(std::make_pair(p->id, p));
-    p->enableCompat();
-#endif
-
     p = new VSPlugin(this);
     configPlugin("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 0, p);
     loadPluginInitialize(::configPlugin, ::registerFunction, p);
@@ -1183,6 +1171,10 @@ void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNa
     }
 
     plugins.insert(std::make_pair(p->id, p));
+
+    // allow avisynth plugins to accept legacy avisynth formats
+    if (p->fnamespace == "avs" && p->id == "com.vapoursynth.avisynth")
+        p->enableCompat();
 }
 
 void VSCore::createFilter(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {

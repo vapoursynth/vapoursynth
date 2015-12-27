@@ -65,8 +65,8 @@ void vsLog(const char *file, long line, VSMessageType type, const char *msg, ...
         va_list alist;
         va_start(alist, msg);
         vfprintf(stderr, msg, alist);
-        fprintf(stderr, "\n");
         va_end(alist);
+        fprintf(stderr, "\n");
     }
 
     if (type == mtFatal) {

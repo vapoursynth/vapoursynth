@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2014 Fredrik Mellbin
+* Copyright (c) 2012-2015 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -545,6 +545,10 @@ static int VS_CC propSetFloatArray(VSMap *map, const char *key, const double *d,
     return 0;
 }
 
+static void VS_CC logMessage(int msgType, const char *msg) VS_NOEXCEPT {
+    vsLog(__FILE__, __LINE__, static_cast<VSMessageType>(msgType), "%s", msg);
+}
+
 const VSAPI vsapi = {
     &createCore,
     &freeCore,
@@ -630,7 +634,9 @@ const VSAPI vsapi = {
     &propGetIntArray,
     &propGetFloatArray,
     &propSetIntArray,
-    &propSetFloatArray
+    &propSetFloatArray,
+
+    &logMessage
 };
 
 ///////////////////////////////
