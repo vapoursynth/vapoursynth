@@ -1138,7 +1138,6 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     int err;
 
     try {
-
         d->numInputs = vsapi->propNumElements(in, "clips");
         if (d->numInputs > 26)
             throw std::runtime_error("More than 26 input clips provided");
@@ -1160,9 +1159,18 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
                 || vi[0]->width != vi[i]->width
                 || vi[0]->height != vi[i]->height)
                 throw std::runtime_error("All inputs must have the same number of planes and the same dimensions, subsampling included");
-            if ((vi[i]->format->bitsPerSample > 16 && vi[i]->format->sampleType == stInteger)
-                || (vi[i]->format->bitsPerSample != 32 && vi[i]->format->sampleType == stFloat))
-                throw std::runtime_error("Input clips must be 8-16 bit integer or 32 bit float format");
+
+            CPUFeatures f;
+            getCPUFeatures(&f);
+            if (f.f16c) {
+                if ((vi[i]->format->bitsPerSample > 16 && vi[i]->format->sampleType == stInteger)
+                    || (vi[i]->format->bitsPerSample != 32 && vi[i]->format->sampleType == stFloat))
+                    throw std::runtime_error("Input clips must be 8-16 bit integer or 32 bit float format");
+            } else {
+                if ((vi[i]->format->bitsPerSample > 16 && vi[i]->format->sampleType == stInteger)
+                    || (vi[i]->format->bitsPerSample != 16 && vi[i]->format->bitsPerSample != 32 && vi[i]->format->sampleType == stFloat))
+                    throw std::runtime_error("Input clips must be 8-16 bit integer or 16/32 bit float format");
+            }
         }
 
         d->vi = *vi[0];

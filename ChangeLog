@@ -1,4 +1,6 @@
 r30:
+added half precision float input/output to expr on cpus that have the f16c extension (ivy bridge or later)
+added the possibility for plugins to print messages through the standard logging as well, don't use it unless you really have to
 the build system should now autodetect which optional libraries are available
 fixed ycocg conversions
 planeaverage is now deprecated, use planestats instead

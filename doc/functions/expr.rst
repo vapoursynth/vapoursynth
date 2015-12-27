@@ -37,7 +37,8 @@ Expr
    By default the output *format* is the same as the first input clip's format.
    You can override it by setting *format*. The only restriction is that the
    output *format* must have the same subsampling as the input *clips* and be
-   8..16 bit integer or 32 bit float.
+   8..16 bit integer or 32 bit float. 16 bit float is also supported on cpus
+   with the f16c instructions.
 
    Logical operators are also a bit special, since everything is done in
    floating point arithmetic.
