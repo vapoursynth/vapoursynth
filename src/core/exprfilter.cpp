@@ -1137,6 +1137,14 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     std::unique_ptr<ExprData> d(new ExprData);
     int err;
 
+#ifdef VS_TARGET_CPU_X86
+    CPUFeatures f;
+    getCPUFeatures(&f);
+#   define EXPR_F16C_TEST (f.f16c)
+#else
+#   define EXPR_F16C_TEST (false)
+#endif
+
     try {
         d->numInputs = vsapi->propNumElements(in, "clips");
         if (d->numInputs > 26)
@@ -1160,9 +1168,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
                 || vi[0]->height != vi[i]->height)
                 throw std::runtime_error("All inputs must have the same number of planes and the same dimensions, subsampling included");
 
-            CPUFeatures f;
-            getCPUFeatures(&f);
-            if (f.f16c) {
+            if (EXPR_F16C_TEST) {
                 if ((vi[i]->format->bitsPerSample > 16 && vi[i]->format->sampleType == stInteger)
                     || (vi[i]->format->bitsPerSample != 32 && vi[i]->format->sampleType == stFloat))
                     throw std::runtime_error("Input clips must be 8-16 bit integer or 32 bit float format");
