@@ -78,6 +78,8 @@ Structs_
 
           * setMessageHandler_
 
+          * logMessage_
+
           * setThreadCount_
 
       * Functions that deal with frames:
@@ -897,10 +899,16 @@ struct VSAPI
       emits. The message handler is currently global, i.e. per process, not
       per VSCore_ instance.
 
+      The default message handler simply sends the messages to the
+      standard error stream.
+
+      This function is thread-safe.
+
       *handler*
          typedef void (VS_CC \*VSMessageHandler)(int msgType, const char \*msg, void \*userdata)
 
-         Custom message handler.
+         Custom message handler. If this is NULL, the default message
+         handler will be restored.
 
          *msgType*
             The type of message. One of VSMessageType_.
@@ -913,6 +921,26 @@ struct VSAPI
 
       *userData*
          Pointer that gets passed to the message handler.
+
+----------
+
+   .. _logMessage:
+
+   void logMessage(int msgType, const char \*msg)
+
+      Send a message through VapourSynth's logging framework. See
+      setMessageHandler_.
+
+      This function is thread-safe.
+
+      *msgType*
+         The type of message. One of VSMessageType_.
+
+         If *msgType* is mtFatal, VapourSynth will call abort() after
+         delivering the message.
+
+      *msg*
+         The message.
 
 ----------
 
