@@ -10,7 +10,7 @@ SolidCompression=yes
 LZMAUseSeparateProcess=yes
 VersionInfoDescription={#= AppName} {#= Version} Installer
 AppId={#= AppName}
-AppName={#= AppName}
+AppName={#= AppName} {#= Version}
 AppVersion={#= Version}
 AppVerName={#= AppName} {#= Version}
 AppPublisher=Fredrik Mellbin
