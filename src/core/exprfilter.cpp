@@ -1170,12 +1170,12 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
             if (EXPR_F16C_TEST) {
                 if ((vi[i]->format->bitsPerSample > 16 && vi[i]->format->sampleType == stInteger)
-                    || (vi[i]->format->bitsPerSample != 32 && vi[i]->format->sampleType == stFloat))
-                    throw std::runtime_error("Input clips must be 8-16 bit integer or 32 bit float format");
-            } else {
-                if ((vi[i]->format->bitsPerSample > 16 && vi[i]->format->sampleType == stInteger)
                     || (vi[i]->format->bitsPerSample != 16 && vi[i]->format->bitsPerSample != 32 && vi[i]->format->sampleType == stFloat))
                     throw std::runtime_error("Input clips must be 8-16 bit integer or 16/32 bit float format");
+            } else {
+                if ((vi[i]->format->bitsPerSample > 16 && vi[i]->format->sampleType == stInteger)
+                    || (vi[i]->format->bitsPerSample != 32 && vi[i]->format->sampleType == stFloat))
+                    throw std::runtime_error("Input clips must be 8-16 bit integer or 32 bit float format");
             }
         }
 
