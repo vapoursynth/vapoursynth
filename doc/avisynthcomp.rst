@@ -61,7 +61,7 @@ Avisynth functions and their VapourSynth equivalents
 +------------------------+---------------------+----------------------------------------------------------------------+
 | ReduceBy2              | resize.*            | Too specialized to ever be included in the core                      |
 +------------------------+---------------------+----------------------------------------------------------------------+
-| Resize (all kinds)     | resize.*            | Chroma placement/shift/range conversion not supported in swscale     |
+| Resize (all kinds)     | resize.*            | Chroma shift currently not supported                                 |
 +------------------------+---------------------+----------------------------------------------------------------------+
 | Turn180                | std.Turn180         |                                                                      |
 +------------------------+---------------------+----------------------------------------------------------------------+

@@ -11,11 +11,12 @@ LoadPlugin
    has been loaded. This is to prevent naming collisions or multiple versions
    of the same plugin being loaded at once.
 
-   Watch out for escape characters::
+   Beware of Python's escape character, this will fail::
 
-      # Causes an error because \ is Python's escape character
       LoadPlugin(path='c:\plugins\filter.dll')
-      # The correct way(s)
+
+   Correct ways::
+   
       LoadPlugin(path='c:/plugins/filter.dll')
       LoadPlugin(path=r'c:\plugins\filter.dll')
       LoadPlugin(path='c:\\plugins\\filter.dll')

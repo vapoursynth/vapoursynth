@@ -49,9 +49,9 @@ Expr
    manipulation operators, *swap* and *dup*. The former swaps the topmost and
    second topmost values, and the latter duplicates the topmost stack value.
 
-   Load operators::
+   Clip load operators::
 
-      x-z, a-w, floating point literals
+      x-z, a-w
 
    The operators taking one argument are::
 
@@ -63,7 +63,11 @@ Expr
 
    The operators taking three arguments are::
 
-      ? (ternary operator, equivalent to a ? b : c in C)
+      ?
+      
+   Which is equivelent to the ternary operator in C::
+   
+      a ? b : c
 
    How to average the Y planes of 3 YUV clips and pass through the UV planes
    unchanged (assuming same format)::

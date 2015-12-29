@@ -67,8 +67,7 @@ AssVapour is a subtitle renderer that uses libass.
 
 Example::
 
-   # assume c is the core and video is a YUV420P8 clip
-   subs = c.assvapour.AssRender(video, "asdf.ass")
-   subs[0] = c.resize.Bicubic(subs[0], format=vs.YUV420P8)
-   hardsubbed_video = c.std.MaskedMerge(video, subs[0], subs[1])
+   subs = core.assvapour.AssRender(yuv420P8video, "asdf.ass")
+   subs[0] = core.resize.Bicubic(subs[0], format=vs.YUV420P8)
+   hardsubbed_video = core.std.MaskedMerge(video, subs[0], subs[1])
 

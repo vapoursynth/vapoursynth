@@ -33,8 +33,6 @@ Resizing and Format Conversion
 ------------------------------
 * `fmtconv <http://forum.doom9.org/showthread.php?t=166504>`_ -- High quality bitdepth, colorspace conversion and resizing
 * `Unresize <http://forum.doom9.org/showthread.php?t=169829>`_ -- Undoes resizing
-* `zimg <http://forum.doom9.org/showthread.php?t=171334>`_ -- High quality bitdepth, colorspace conversion and resizing
-
 
 Deinterlacing
 -------------

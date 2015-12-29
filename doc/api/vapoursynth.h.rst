@@ -985,18 +985,18 @@ struct VSAPI
       Returns a pointer to the created frame. Ownership of the new frame is
       transferred to the caller.
 
-      Example:
-
+      Example (assume *frameA*, *frameB*, *frameC* are existing frames):
+      
       .. code-block:: c
 
-         // Assume frameA, frameB, frameC are existing frames.
          const VSFrameRef * frames[3] = { frameA, frameB, frameC };
          const int planes[3] = { 1, 0, 2 };
-
-         VSFrameRef * newFrame = vsapi->newVideoFrame2(f, w, h, frames, planes, NULL, core);
-         // newFrame's first plane is now a copy of frameA's second plane,
-         // the second plane is a copy of frameB's first plane,
-         // the third plane is a copy of frameC's third plane.
+         VSFrameRef * newFrame = vsapi->newVideoFrame2(f, w, h, frames, planes, frameB, core);
+         
+      The newFrame's first plane is now a copy of *frameA*'s second plane,
+      the second plane is a copy of *frameB*'s first plane,
+      the third plane is a copy of *frameC*'s third plane
+      and the properties have been copied from *frameB*.
 
 ----------
 

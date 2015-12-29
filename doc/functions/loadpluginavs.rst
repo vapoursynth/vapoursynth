@@ -4,8 +4,8 @@ LoadPlugin (Avisynth Compatibility)
 .. function::   LoadPlugin(string path)
    :module: avs
 
-   Load an Avisynth plugin. If successful, the loaded plugin's functions will end
-   up in the avs namespace.
+   Load an Avisynth 2.5 (32 bit) or 2.6 (32 and 64 bit) plugin. If successful,
+   the loaded plugin's functions will end up in the avs namespace.
 
    The compatibility module can work with a large number of Avisynth's plugins.
    However, the wrapping is not complete, so the following things will cause
@@ -25,11 +25,12 @@ LoadPlugin (Avisynth Compatibility)
 
    Returns an error if there are function name collisions.
 
-   Watch out for escape characters::
+   Beware of Python's escape character, this will fail::
 
-      # Causes an error because \ is Python's escape character
       LoadPlugin(path='c:\plugins\filter.dll')
-      # The correct way(s)
+
+   Correct ways::
+   
       LoadPlugin(path='c:/plugins/filter.dll')
       LoadPlugin(path=r'c:\plugins\filter.dll')
       LoadPlugin(path='c:\\plugins\\filter.dll')

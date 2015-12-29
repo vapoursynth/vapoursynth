@@ -3,23 +3,6 @@
 Morpho
 ======
 
-A set of simple morphological filters. Useful for working with mask clips.
-
-Parameters (common to all functions):
-
-    clip
-        Clip to be processed. Must be 8-16 bits per sample.
-
-    size
-        Size of the structuring element, in pixels.
-
-    shape
-        Shape of the structuring element. Possible values are:
-
-            0: Square
-            1: Diamond
-            2: Circle
-
 .. function:: Dilate(clip clip[, int size=5, int shape=0])
    :module: morpho
 
@@ -37,3 +20,21 @@ Parameters (common to all functions):
 
 .. function:: BottomHat(clip clip[, int size=5, int shape=0])
    :module: morpho
+
+   A set of simple morphological filters. Useful for working with mask clips.
+
+Parameters (common to all functions):
+
+    clip
+        Clip to be processed. Must be 8-16 bits per sample.
+
+    size
+        Size of the structuring element, in pixels.
+
+    shape
+        Shape of the structuring element. Possible values are:
+
+            0: Square
+            1: Diamond
+            2: Circle
+            

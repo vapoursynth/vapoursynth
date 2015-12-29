@@ -12,20 +12,16 @@ most video scripts are created.
 Example Script
 ##############
 
-Here's a sample script to be inspired by::
+Here's a sample script to be inspired by, it assumes that ffms2 is installed and auto-loaded::
 
    import vapoursynth as vs
-   # get the core instance
    core = vs.get_core()
-   # load a native vapoursynth plugin, you can also use the auto-loading
-   # you should use absolute paths as the working directory may not be what you think it is
-   core.std.LoadPlugin('c:/plugins/ffms2.dll')
-   # open a video file; ret is now a clip object
-   ret = core.ffms2.Source(source='Super Size Me.avi')
-   # flip the video a bit
-   ret = core.std.Transpose(ret)
-   # set the clip to be output
-   ret.set_output()
+   video = core.ffms2.Source(source='Rule6.mkv')
+   video = core.std.Transpose(video)
+   video.set_output()
+   
+What it does is to get an instance of the core and load a video file using FFMS2. The video is then transposed
+(think matrix transpose, or if you don't know that, a 90 degree rotation plus horizontal flip).
 
 Remember that most VapourSynth objects have a quite nice string representation
 in Python, so if you want to know more about an instance just call print().

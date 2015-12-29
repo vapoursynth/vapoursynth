@@ -12,13 +12,11 @@ DoubleWeave
 
    DoubleWeave's output has the same number of frames as the input. One must
    use DoubleWeave together with SelectEvery to undo the effect of
-   SeparateFields:
+   SeparateFields::
 
-   .. code-block:: python
-
-      sep = c.std.SeparateFields(source, tff=True)
-      # maybe do stuff to the fields here
-      woven = c.std.DoubleWeave(sep, tff=True)
-      woven = c.std.SelectEvery(woven, 2, 0)
+      sep = core.std.SeparateFields(source, tff=True)
+      ...
+      woven = core.std.DoubleWeave(sep, tff=True)
+      woven = core.std.SelectEvery(woven, 2, 0)
 
    The ``_Field`` frame property is deleted.

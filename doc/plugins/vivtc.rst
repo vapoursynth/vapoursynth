@@ -99,19 +99,20 @@ It is a rewrite of some of tritical's TIVTC filters.
          finding good matches in sections with bad edits, orphaned fields,
          blended fields, etc.
 
-         Possible settings are::
-
-            0 = 2-way match                                                          (p/c)
-            1 = 2-way match + 3rd match on combed                                    (p/c + n)
-            2 = 2-way match + 3rd match (same order) on combed                       (p/c + u)
-            3 = 2-way match + 3rd match on combed + 4th/5th matches if still combed  (p/c + n + u/b)
-            4 = 3-way match                                                          (p/c/n)
-            5 = 3-way match + 4th/5th matches on combed                              (p/c/n + u/b)
+         0 = 2-way match (p/c)
+         
+         1 = 2-way match + 3rd match on combed (p/c + n)
+         
+         2 = 2-way match + 3rd match (same order) on combed (p/c + u)
+         
+         3 = 2-way match + 3rd match on combed + 4th/5th matches if still combed (p/c + n + u/b)
+         
+         4 = 3-way match (p/c/n)
+         
+         5 = 3-way match + 4th/5th matches on combed (p/c/n + u/b)
 
          The parantheses at the end indicate the matches that would be used
          for each mode assuming order=1 and field=1.
-
-         0 is the fastest and 5 is the slowest.
 
          Default: 1.
 
@@ -212,14 +213,14 @@ It is a rewrite of some of tritical's TIVTC filters.
          Clip that VFM will use to create the output frames. If *clip2* is used,
          VFM will perform all calculations based on *clip*, but will copy the
          chosen fields from *clip2*. This can be used to work around VFM's video
-         format limitations. For example::
+         format limitations. For example if you have a YUV444P16 input clip::
 
-            # Assume original is a YUV444P16 clip.
-            yv12 = c.resize.Bicubic(clip=original, format=vs.YUV420P8)
-            # fieldmatched will be YUV444P16.
-            fieldmatched = c.vivtc.VFM(clip=yv12, order=1, clip2=original)
+            yv12 = core.resize.Bicubic(clip=original, format=vs.YUV420P8)
+            fieldmatched = core.vivtc.VFM(clip=yv12, order=1, chroma=False, clip2=original)
 
-
+         .. note::
+            In this example chroma is ignored because the used conversion to YUV420P8
+            will not accurately preserve it.
 
 .. function:: VDecimate(clip clip[, int cycle=5, bint chroma=1, float dupthresh=1.1, float scthresh=15, int blockx=32, int blocky=32, clip clip2, string ovr="", bint dryrun=0])
    :module: vivtc
@@ -274,14 +275,14 @@ It is a rewrite of some of tritical's TIVTC filters.
 
       ovr
          Text file containing overrides. This can be used to manually choose
-         what frames get dropped.
+         what frames get dropped. Lines starting with # are ignored.
 
-         Example::
+         Drop a specific frame::
 
-            # A comment. Lines starting with # will be ignored.
-            # Drop a specific frame:
             314 -
-            # Drop every fourth frame, starting at frame 1001, up to frame 5403:
+            
+         Drop every fourth frame, starting at frame 1001, up to frame 5403::
+         
             1001,5403 +++-+
 
          The frame numbers apply to the undecimated input clip, of course.

@@ -27,26 +27,34 @@ Slicing and Other Syntactic Sugar
 The VideoNode class (always called "clip" in practice) supports the full
 range of indexing and slicing operations in Python. If you do perform a slicing
 operation on a clip, you will get a new clip back with the desired frames.
-Here are some examples to illustrate::
+Note that frame numbers, like python arrays, start counting at 0.
+Here are a few examples.
 
-   # ret will be a one frame clip containing frame number 5
-   # note that frame numbers, like python arrays, start counting at 0
-   ret = clip[5]
-   # ret will contain frames 6 to 9 (unlike Trim, the end value of python slicing is not inclusive)
-   ret = clip[6:10]
+Make a single frame clip containing frame number 5::
 
-   # Select even numbered frames
-   ret = clip[::2]
-   # Select odd numbered frames
-   ret = clip[1::2]
+   video = clip[5]
+   
+Make a clip containing frames 6 to 9 (unlike Trim, the end value of python slicing is not inclusive)::
 
-   # Negative step is also allowed, so this reverses a clip
-   ret = clip[::-1]
+   video = clip[6:10]
 
-   # It may all be combined at once to confuse people, just like normal Python lists
-   ret = clip[-400:-800:-5]
+Select even numbered frames::
 
-Filters can be chained with a dot, like in Avisynth::
+   video = clip[::2]
+   
+Select odd numbered frames::
+
+   video = clip[1::2]
+
+Negative step is also allowed, so this reverses a clip::
+
+   video = clip[::-1]
+
+It may all be combined at once to confuse people, just like normal Python slicing::
+
+   video = clip[-400:-800:-5]
+
+Filters can be chained with a dot, it mostly works like Avisynth::
 
    clip = core.ffms2.Source("asdf.mov")
    clip = clip.std.Trim(first=100, last=2000).std.FlipVertical()
@@ -55,14 +63,16 @@ The addition operator can be used to splice clips together::
 
    clip4 = clip1 + clip2 + clip3
 
-   # Equivalent to:
+Which is equivalent to::
+
    clip4 = core.std.Splice([core.std.Splice([clip1, clip2], mismatch=False), clip3], mismatch=False)
 
 The multiplication operator can be used to loop a clip::
 
    clip = clip * 42
 
-   # Equivalent to:
+Which is equivalent to::
+
    clip = core.std.Loop(clip, times=42)
    
 Note that multiplication by 0 is a special case that will repeat the clip up to the maximum frame count.

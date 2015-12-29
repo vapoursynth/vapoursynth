@@ -124,6 +124,4 @@ unknown. It is also a fatal error to set them to a value not specified below.
 
 Deprecated frame properties::
 
-   Encoded as in avcodec.h in libavcodec. It's so convoluted I'm not
-   going to try to describe it here.
    int _ColorSpace
