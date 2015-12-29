@@ -30,9 +30,9 @@ Minimum/Maximum
       Here is how each number corresponds to a pixel in the 3x3
       neighbourhood::
 
-         [    top left,    top center,    top right,
-           middle left,                middle right,
-           bottom left, bottom center, bottom right ]
+         1 2 3
+         4   5
+         6 7 8
 
 
 .. function:: Maximum(clip clip[, int[] planes=[0, 1, 2], int threshold=65535, int[] coordinates=[1, 1, 1, 1, 1, 1, 1, 1]])
@@ -64,6 +64,6 @@ Minimum/Maximum
       Here is how each number corresponds to a pixel in the 3x3
       neighbourhood::
 
-         [    top left,    top center,    top right,
-           middle left,                middle right,
-           bottom left, bottom center, bottom right ]
+         1 2 3
+         4   5
+         6 7 8

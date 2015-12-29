@@ -35,9 +35,9 @@ Convolution
       This is how the elements of *matrix* correspond to the pixels in
       a 3x3 neighbourhood::
 
-         [    top left,    top center,    top right,
-           middle left, middle center, middle right,
-           bottom left, bottom center, bottom right ]
+         1 2 3
+         4 5 6
+         7 8 9
 
       It's the same principle for the other types of convolutions. The
       middle element of *matrix* always corresponds to the center pixel.
