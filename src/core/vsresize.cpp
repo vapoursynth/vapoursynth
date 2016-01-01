@@ -256,20 +256,12 @@ void import_frame_props(const VSMap *props, zimg_image_format *format, const VSA
 }
 
 void export_frame_props(const zimg_image_format &format, VSMap *props, const VSAPI *vsapi) {
-	char version_str[64];
-
 	auto set_int_if_positive = [&](const char *key, int x) {
 		if (x >= 0)
 			vsapi->propSetInt(props, key, x, paReplace);
 		else
 			vsapi->propDeleteKey(props, key);
 	};
-
-	sprintf(version_str, "%u.%u.%u", g_version_info[0], g_version_info[1], g_version_info[2]);
-	vsapi->propSetData(props, "ZimgVersion", version_str, (int)strlen(version_str) + 1, paReplace);
-
-	sprintf(version_str, "%u.%u", g_api_version[0], g_api_version[1]);
-	vsapi->propSetData(props, "ZimgApiVersion", version_str, (int)strlen(version_str) + 1, paReplace);
 
 	set_int_if_positive("_ChromaLocation", format.chroma_location);
 
