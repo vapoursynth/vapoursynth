@@ -842,18 +842,18 @@ static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSC
         return;
     }
 
-#ifdef _WIN64
-    if (avisynthPluginInit2) {
-        vsapi->setError(out, "Avisynth Loader: 2.5 plugins can't be loaded on x64");
-        return;
-    }
-#endif
+
 
     if (avisynthPluginInit3) {
         avisynthPluginInit3(avs, AVS_linkage);
     } else {
+#ifdef _WIN64
+        vsapi->setError(out, "Avisynth Loader: 2.5 plugins can't be loaded on x64");
+        return;
+#else
         vsapi->logMessage(mtWarning, ("Avisynth Loader: old 2.5 plugin loaded from " + std::string(rawPath)).c_str());
         avisynthPluginInit2(avs);
+#endif
     }
 
 #ifdef VS_TARGET_CPU_X86

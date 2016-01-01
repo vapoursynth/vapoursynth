@@ -41,7 +41,6 @@ private:
     std::list<std::string> savedStrings;
     const VSAPI *vsapi;
     std::map<VideoFrame *, const VSFrameRef *> ownedFrames;
-
     std::string charToFilterArgumentString(char c);
 public:
     const VSFrameRef *avsToVSFrame(VideoFrame *frame);
