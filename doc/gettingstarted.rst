@@ -12,7 +12,7 @@ most video scripts are created.
 Example Script
 ##############
 
-Here's a sample script to be inspired by, it assumes that ffms2 is installed and auto-loaded::
+Here's a sample script to be inspired by, it assumes that ffms2 is installed and :doc:`auto-loaded <autoloading>`::
 
    import vapoursynth as vs
    core = vs.get_core()
