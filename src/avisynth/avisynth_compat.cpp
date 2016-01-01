@@ -440,14 +440,17 @@ static void VS_CC avisynthFilterFree(void *instanceData, VSCore *core, const VSA
     delete clip;
 }
 
-static bool isSupportedPF(int pf) {
-    return (pf == pfYUV420P8) || (pf == pfYUV444P8) || (pf == pfYUV422P8) || (pf == pfYUV410P8) || (pf == pfYUV411P8) || (pf == pfGray8) || (pf == pfCompatYUY2) || (pf == pfCompatBGR32);
+static bool isSupportedPF(int pf, int interfaceVersion) {
+    if (interfaceVersion == 2)
+        return (pf == pfYUV420P8) || (pf == pfCompatYUY2) || (pf == pfCompatBGR32);
+    else
+        return (pf == pfYUV420P8) || (pf == pfYUV444P8) || (pf == pfYUV422P8) || (pf == pfYUV410P8) || (pf == pfYUV411P8) || (pf == pfGray8) || (pf == pfCompatYUY2) || (pf == pfCompatBGR32);
 }
 
 static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void *userData,
         VSCore *core, const VSAPI *vsapi) {
     WrappedFunction *wf = (WrappedFunction *)userData;
-    FakeAvisynth *fakeEnv = new FakeAvisynth(core, vsapi);
+    FakeAvisynth *fakeEnv = new FakeAvisynth(wf->interfaceVersion, core, vsapi);
     std::vector<AVSValue> inArgs(wf->parsedArgs.size());
     std::vector<VSNodeRef *> preFetchClips;
 
@@ -471,7 +474,7 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
             case 'c':
                 VSNodeRef *cr = vsapi->propGetNode(in, parsedArg.name.c_str(), 0, nullptr);
                 const VSVideoInfo *vi = vsapi->getVideoInfo(cr);
-                if (!isConstantFormat(vi) || vi->numFrames == 0 || !isSupportedPF(vi->format->id)) {
+                if (!isConstantFormat(vi) || !isSupportedPF(vi->format->id, wf->interfaceVersion)) {
                     vsapi->setError(out, "Invalid avisynth colorspace in one of the input clips");
                     vsapi->freeNode(cr);
                     delete fakeEnv;
@@ -571,7 +574,7 @@ void FakeAvisynth::AddFunction(const char *name, const char *params, ApplyFunc a
         numArgs++;
     }
 
-    vsapi->registerFunction(name, newArgs.c_str(), fakeAvisynthFunctionWrapper, new WrappedFunction(name, apply, parsedArgs, user_data), vsapi->getPluginById("com.vapoursynth.avisynth", core));
+    vsapi->registerFunction(name, newArgs.c_str(), fakeAvisynthFunctionWrapper, new WrappedFunction(name, apply, parsedArgs, user_data, interfaceVersion), vsapi->getPluginById("com.vapoursynth.avisynth", core));
 }
 
 bool FakeAvisynth::FunctionExists(const char *name) {
@@ -809,7 +812,6 @@ AVSValue FakeAvisynth::GetVarDef(const char* name, const AVSValue& def) {
 }
 
 static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    FakeAvisynth *avs = new FakeAvisynth(core, vsapi);
     const char *rawPath = vsapi->propGetData(in, "path", 0, nullptr);
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
     std::wstring wPath = conversion.from_bytes(rawPath);
@@ -839,10 +841,11 @@ static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSC
 
     if (!avisynthPluginInit3 && !avisynthPluginInit2) {
         vsapi->setError(out, "Avisynth Loader: no entry point found");
+        FreeLibrary(plugin);
         return;
     }
 
-
+    FakeAvisynth *avs = new FakeAvisynth(avisynthPluginInit3 ? 3 : 2, core, vsapi);
 
     if (avisynthPluginInit3) {
         avisynthPluginInit3(avs, AVS_linkage);
@@ -871,8 +874,8 @@ static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSC
     // a new one will be created for each filter instance
 }
 
-WrappedFunction::WrappedFunction(const std::string &name, FakeAvisynth::ApplyFunc apply, const std::vector<AvisynthArgs> &parsedArgs, void *avsUserData) :
-    name(name), apply(apply), parsedArgs(parsedArgs), avsUserData(avsUserData) {
+WrappedFunction::WrappedFunction(const std::string &name, FakeAvisynth::ApplyFunc apply, const std::vector<AvisynthArgs> &parsedArgs, void *avsUserData, int interfaceVersion) :
+    name(name), apply(apply), parsedArgs(parsedArgs), avsUserData(avsUserData), interfaceVersion(interfaceVersion) {
 }
 
 VS_EXTERNAL_API(void) avsWrapperInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {

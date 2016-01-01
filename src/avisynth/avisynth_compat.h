@@ -41,6 +41,7 @@ private:
     std::list<std::string> savedStrings;
     const VSAPI *vsapi;
     std::map<VideoFrame *, const VSFrameRef *> ownedFrames;
+    int interfaceVersion;
     std::string charToFilterArgumentString(char c);
 public:
     const VSFrameRef *avsToVSFrame(VideoFrame *frame);
@@ -52,7 +53,7 @@ public:
     VSNodeRef *uglyNode;
     VSFrameContext *uglyCtx;
 
-    FakeAvisynth(VSCore *core, const VSAPI *vsapi) : core(core), vsapi(vsapi), initializing(true), uglyN(-1), uglyNode(nullptr), uglyCtx(nullptr) {}
+    FakeAvisynth(int interfaceVersion, VSCore *core, const VSAPI *vsapi) : core(core), vsapi(vsapi), interfaceVersion(interfaceVersion), initializing(true), uglyN(-1), uglyNode(nullptr), uglyCtx(nullptr) {}
     // virtual avisynth functions
     ~FakeAvisynth();
     long __stdcall GetCPUFlags();
@@ -172,7 +173,8 @@ struct WrappedFunction {
     FakeAvisynth::ApplyFunc apply;
     std::vector<AvisynthArgs> parsedArgs;
     void *avsUserData;
-    WrappedFunction(const std::string &name, FakeAvisynth::ApplyFunc apply, const std::vector<AvisynthArgs> &parsedArgs, void *avsUserData);
+    int interfaceVersion;
+    WrappedFunction(const std::string &name, FakeAvisynth::ApplyFunc apply, const std::vector<AvisynthArgs> &parsedArgs, void *avsUserData, int interfaceVersion);
 };
 
 }
