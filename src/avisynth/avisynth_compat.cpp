@@ -845,17 +845,18 @@ static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSC
         return;
     }
 
-    FakeAvisynth *avs = new FakeAvisynth(avisynthPluginInit3 ? 3 : 2, core, vsapi);
-
     if (avisynthPluginInit3) {
+        FakeAvisynth *avs = new FakeAvisynth(3, core, vsapi);
         avisynthPluginInit3(avs, AVS_linkage);
+        delete avs;
     } else {
 #ifdef _WIN64
         vsapi->setError(out, "Avisynth Loader: 2.5 plugins can't be loaded on x64");
         return;
 #else
-        vsapi->logMessage(mtWarning, ("Avisynth Loader: old 2.5 plugin loaded from " + std::string(rawPath)).c_str());
+        FakeAvisynth *avs = new FakeAvisynth(2, core, vsapi);
         avisynthPluginInit2(avs);
+        delete avs;
 #endif
     }
 
@@ -869,9 +870,6 @@ static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSC
     if (!vs_isSSEStateOk())
         vsapi->logMessage(mtFatal, ("Bad SSE state detected after loading " + std::string(rawPath)).c_str());
 #endif
-
-    delete avs; // the environment is just temporary to add the functions,
-    // a new one will be created for each filter instance
 }
 
 WrappedFunction::WrappedFunction(const std::string &name, FakeAvisynth::ApplyFunc apply, const std::vector<AvisynthArgs> &parsedArgs, void *avsUserData, int interfaceVersion) :
