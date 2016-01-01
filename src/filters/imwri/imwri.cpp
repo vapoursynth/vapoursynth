@@ -407,7 +407,7 @@ static void VS_CC writeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     d->videoNode = vsapi->propGetNode(in, "clip", 0, nullptr);
     d->vi = vsapi->getVideoInfo(d->videoNode);
     if (!d->vi->format || (d->vi->format->colorFamily != cmRGB && d->vi->format->colorFamily != cmGray)
-#ifdef MAGICKCORE_HDRI_ENABLE
+#if MAGICKCORE_HDRI_ENABLE
         || (d->vi->format->sampleType == stFloat && d->vi->format->bitsPerSample != 32))
 #else
         || (d->vi->format->sampleType == stInteger && d->vi->format->bitsPerSample > MAGICKCORE_QUANTUM_DEPTH)
@@ -415,7 +415,7 @@ static void VS_CC writeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
 #endif
     {
         vsapi->freeNode(d->videoNode);
-#ifdef MAGICKCORE_HDRI_ENABLE
+#if MAGICKCORE_HDRI_ENABLE
         vsapi->setError(out, "Write: Only constant format 8-32 bit integer or float RGB and Grayscale input supported");
 #else
         vsapi->setError(out, "Write: Only constant format 8-" STR(MAGICKCORE_QUANTUM_DEPTH) " bit integer RGB and Grayscale input supported");
@@ -551,7 +551,7 @@ static const VSFrameRef *VS_CC readGetFrame(int n, int activationReason, void **
             int width = static_cast<int>(image.columns());
             int height = static_cast<int>(image.rows());
 
-#ifdef MAGICKCORE_HDRI_ENABLE
+#if MAGICKCORE_HDRI_ENABLE
             VSSampleType st = stFloat;
             int depth = 32;
 #else
@@ -713,7 +713,7 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     try {
         Magick::Image image;
         image.ping(d->fileListMode ? d->filenames[0] : specialPrintf(d->filenames[0], d->firstNum));
-#ifdef MAGICKCORE_HDRI_ENABLE
+#if MAGICKCORE_HDRI_ENABLE
         VSSampleType st = stFloat;
         int depth = 32;
 #else
