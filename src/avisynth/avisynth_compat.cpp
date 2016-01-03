@@ -876,7 +876,7 @@ WrappedFunction::WrappedFunction(const std::string &name, FakeAvisynth::ApplyFun
     name(name), apply(apply), parsedArgs(parsedArgs), avsUserData(avsUserData), interfaceVersion(interfaceVersion) {
 }
 
-VS_EXTERNAL_API(void) avsWrapperInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
+VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     configFunc("com.vapoursynth.avisynth", "avs", "VapourSynth Avisynth Compatibility", VAPOURSYNTH_API_VERSION, 0, plugin);
     registerFunc("LoadPlugin", "path:data;", &avsLoadPlugin, plugin, plugin);
 }
