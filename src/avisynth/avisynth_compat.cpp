@@ -545,6 +545,11 @@ void FakeAvisynth::AddFunction(const char *name, const char *params, ApplyFunc a
         return;
     }
 
+    if (name2 == "FFMS2" || name2 == "FFCopyrightInfringement") {
+        vsapi->logMessage(mtWarning, ("Avisynth Compat: rejected adding Avisynth function " + std::string(name) + "because it calls invoke").c_str());
+        return;
+    }
+
     while (paramPos < paramLength) {
         if (params[paramPos] == '*' || params[paramPos] == '+' || params[paramPos] == '.') {
             vsapi->logMessage(mtWarning, (std::string("Avisynth Compat: varargs not implemented so I'm just gonna skip importing ") + name).c_str());
