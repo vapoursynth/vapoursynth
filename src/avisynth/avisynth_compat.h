@@ -105,10 +105,22 @@ public:
 
         if (srcVi->format->id == pfYUV420P8)
             vi.pixel_type = VideoInfo::CS_YV12;
+        else if (srcVi->format->id == pfYUV444P8)
+            vi.pixel_type = VideoInfo::CS_YV24;
+        else if (srcVi->format->id == pfYUV422P8)
+            vi.pixel_type = VideoInfo::CS_YV16;
+        else if (srcVi->format->id == pfYUV410P8)
+            vi.pixel_type = VideoInfo::CS_YUV9;
+        else if (srcVi->format->id == pfYUV411P8)
+            vi.pixel_type = VideoInfo::CS_YV411;
+        else if (srcVi->format->id == pfGray8)
+            vi.pixel_type = VideoInfo::CS_Y8;
         else if (srcVi->format->id == pfCompatYUY2)
             vi.pixel_type = VideoInfo::CS_YUY2;
         else if (srcVi->format->id == pfCompatBGR32)
             vi.pixel_type = VideoInfo::CS_BGR32;
+        else
+            vsapi->logMessage(mtFatal, "Bad colorspace");
 
         vi.image_type = VideoInfo::IT_BFF;
         vi.fps_numerator = int64ToIntS(srcVi->fpsNum);

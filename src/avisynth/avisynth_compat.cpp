@@ -578,7 +578,7 @@ void FakeAvisynth::AddFunction(const char *name, const char *params, ApplyFunc a
 }
 
 bool FakeAvisynth::FunctionExists(const char *name) {
-    vsapi->logMessage(mtFatal, "FunctionExists not implemented");
+    vsapi->logMessage(mtWarning, "FunctionExists not implemented");
     return false;
 }
 
@@ -818,8 +818,8 @@ static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSC
 
     HMODULE plugin = LoadLibraryW(wPath.c_str());
 
-    typedef const char *(__stdcall * AvisynthPluginInit2Func)(IScriptEnvironment * env);
-    typedef const char *(__stdcall *AvisynthPluginInit3Func)(IScriptEnvironment* env, const AVS_Linkage* const vectors);
+    typedef const char *(__stdcall *AvisynthPluginInit2Func)(IScriptEnvironment *env);
+    typedef const char *(__stdcall *AvisynthPluginInit3Func)(IScriptEnvironment *env, const AVS_Linkage *const vectors);
 
     if (!plugin) {
         vsapi->setError(out, "Avisynth Loader: failed to load module");
