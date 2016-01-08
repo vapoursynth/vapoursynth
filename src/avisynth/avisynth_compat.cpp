@@ -497,7 +497,7 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
 
     try {
         ret = wf->apply(inArgAVSValue, wf->avsUserData, fakeEnv);
-    } catch (AvisynthError &e) {
+    } catch (const AvisynthError &e) {
         vsapi->setError(out, e.msg);
         return;
     } catch (const IScriptEnvironment::NotFound &) {
