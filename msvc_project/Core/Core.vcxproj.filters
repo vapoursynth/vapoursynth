@@ -86,6 +86,9 @@
     <YASM Include="..\..\src\core\asm\x86\check.asm">
       <Filter>asm</Filter>
     </YASM>
+    <YASM Include="..\..\include\asm\x86\x86inc.asm">
+      <Filter>asm</Filter>
+    </YASM>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\VapourSynth.h">
