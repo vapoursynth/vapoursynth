@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2015 Fredrik Mellbin
+# Copyright (c) 2012-2016 Fredrik Mellbin
 #
 # This file is part of VapourSynth.
 #
@@ -109,8 +109,9 @@ cdef extern from "include/VapourSynth.h" nogil:
         int numPlanes
 
     cdef enum VSNodeFlags:
-        nfNoCache = 1
-        nfIsCache = 2
+        nfNoCache    = 1
+        nfIsCache    = 2
+        nfMakeLinear = 4
 
     cdef enum VSGetPropErrors:
         peUnset = 1

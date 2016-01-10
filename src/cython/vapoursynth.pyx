@@ -1,4 +1,4 @@
-#  Copyright (c) 2012-2015 Fredrik Mellbin
+#  Copyright (c) 2012-2016 Fredrik Mellbin
 #
 #  This file is part of VapourSynth.
 #
@@ -38,7 +38,7 @@ _stored_output = {}
 _core = None
 _message_handler = None
 cdef const VSAPI *_vsapi = NULL
-cdef int _api_version = 0x30002
+cdef int _api_version = 0x30004
 
 GRAY  = vapoursynth.cmGray
 RGB   = vapoursynth.cmRGB
@@ -1021,10 +1021,15 @@ cdef class VideoNode(object):
             s += '\tFPS Num: ' + str(self.fps_num) + '\n'
             s += '\tFPS Den: ' + str(self.fps_den) + '\n'
 
-        if self.flags == (vapoursynth.nfNoCache + vapoursynth.nfIsCache):
-            s += '\tFlags: Is Cache, No Cache\n'
-        elif self.flags == vapoursynth.nfNoCache:
-            s += '\tFlags: No Cache\n'
+        if self.flags:
+            s += '\tFlags:'
+            if (self.flags & vapoursynth.nfNoCache):
+                s += ' NoCache'
+            if (self.flags & vapoursynth.nfIsCache):
+                s += ' IsCache'
+            if (self.flags & vapoursynth.nfMakeLinear):
+                s += ' MakeLinear'
+            s += '\n'
         else:
             s += '\tFlags: None\n'
 
