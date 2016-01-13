@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2013-2015 Fredrik Mellbin
+* Copyright (c) 2013-2016 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -52,25 +52,30 @@ static void real_init(void) {
 #error "Cannot determine Compiler Bitdepth - is this really Windows?"
 #endif
 
-    DWORD dwType = REG_SZ;
-    HKEY hKey = 0;
+    const std::wstring pythonDllName = L"python35.dll";
+    HMODULE pythonDll = LoadLibraryW(pythonDllName.c_str());
+    if (!pythonDll) {
+        DWORD dwType = REG_SZ;
+        HKEY hKey = 0;
 
-    wchar_t value[1024];
-    DWORD valueLength = 1000;
-    if (RegOpenKeyW(HKEY_CURRENT_USER, keyPython, &hKey) != ERROR_SUCCESS
-        && RegOpenKeyW(HKEY_LOCAL_MACHINE, keyPython, &hKey) != ERROR_SUCCESS)
-        return;
-    LSTATUS status = RegQueryValueExW(hKey, L"", nullptr, &dwType, (LPBYTE)&value, &valueLength);
-    RegCloseKey(hKey);
-    if (status != ERROR_SUCCESS)
-        return;
+        wchar_t value[1024];
+        DWORD valueLength = 1000;
+        if (RegOpenKeyW(HKEY_CURRENT_USER, keyPython, &hKey) != ERROR_SUCCESS
+            && RegOpenKeyW(HKEY_LOCAL_MACHINE, keyPython, &hKey) != ERROR_SUCCESS)
+            return;
+        LSTATUS status = RegQueryValueExW(hKey, L"", nullptr, &dwType, (LPBYTE)&value, &valueLength);
+        RegCloseKey(hKey);
+        if (status != ERROR_SUCCESS)
+            return;
 
-    std::wstring pyPath = value;
-    pyPath += L"python35.dll";
+        std::wstring pyPath = value;
+        pyPath += L"python35.dll";
 
-    HMODULE pythonDll = LoadLibraryW(pyPath.c_str());
-    if (!pythonDll)
-        return;
+        pythonDll = LoadLibraryW(pyPath.c_str());
+        if (!pythonDll)
+            return;
+    }
+
 #endif
     int preInitialized = Py_IsInitialized();
     if (!preInitialized)
