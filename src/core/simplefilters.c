@@ -2065,6 +2065,7 @@ static void VS_CC planeStatsFree(void *instanceData, VSCore *core, const VSAPI *
     vsapi->freeNode(d->node2);
     free(d->propAverage);
     free(d->propMinMax);
+    free(d->propDiff);
     free(d);
 }
 
