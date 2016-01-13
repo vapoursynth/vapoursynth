@@ -10,12 +10,12 @@ copy ..\msvc_project\x64\Release\EEDI3.dll buildp64\vapoursynth64\coreplugins
 copy ..\msvc_project\x64\Release\RemoveGrainVS.dll buildp64\vapoursynth64\coreplugins
 copy ..\msvc_project\x64\Release\Vinverse.dll buildp64\vapoursynth64\coreplugins
 copy ..\msvc_project\x64\Release\VIVTC.dll buildp64\vapoursynth64\coreplugins
-rem needs vs2015 runtimes
+copy "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\redist\x64\Microsoft.VC140.CRT\*" buildp64
 copy x64\plugins\* buildp64\vapoursynth64\coreplugins
 type nul >buildp64\portable.vs
-rm vapoursynth64-portable.7z
+rm Compiled\vapoursynth64-portable.7z
 cd buildp64
-"C:\Program Files\7-Zip\7z.exe" a ..\vapoursynth64-portable.7z *
+"C:\Program Files\7-Zip\7z.exe" a ..\Compiled\vapoursynth64-portable.7z *
 cd ..
 rmdir /s /q buildp64
 
@@ -31,11 +31,11 @@ copy ..\msvc_project\Release\EEDI3.dll buildp32\vapoursynth32\coreplugins
 copy ..\msvc_project\Release\RemoveGrainVS.dll buildp32\vapoursynth32\coreplugins
 copy ..\msvc_project\Release\Vinverse.dll buildp32\vapoursynth32\coreplugins
 copy ..\msvc_project\Release\VIVTC.dll buildp32\vapoursynth32\coreplugins
-rem needs vs2015 runtimes
+copy "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\redist\x86\Microsoft.VC140.CRT\*" buildp32
 copy x86\plugins\* buildp32\vapoursynth32\coreplugins
 type nul >buildp32\portable.vs
-rm vapoursynth32-portable.7z
+rm Compiled\vapoursynth32-portable.7z
 cd buildp32
-"C:\Program Files\7-Zip\7z.exe" a ..\vapoursynth32-portable.7z *
+"C:\Program Files\7-Zip\7z.exe" a ..\Compiled\vapoursynth32-portable.7z *
 cd ..
 rmdir /s /q buildp32
