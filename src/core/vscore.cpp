@@ -1026,10 +1026,8 @@ VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), formatIdO
     p->enableCompat();
 
 #ifdef VS_TARGET_OS_WINDOWS
+
     const std::wstring filter = L"*.dll";
-    // Autoload user specific plugins first so a user can always override
-    std::vector<wchar_t> appDataBuffer(MAX_PATH + 1);
-    SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, SHGFP_TYPE_CURRENT, appDataBuffer.data());
 
 #ifdef _WIN64
     std::wstring bits(L"64");
@@ -1037,22 +1035,52 @@ VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), formatIdO
     std::wstring bits(L"32");
 #endif
 
-    std::wstring appDataPath = std::wstring(appDataBuffer.data()) + L"\\VapourSynth\\plugins" + bits;
+    HMODULE module;
+    GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCWSTR)&configPlugin, &module);
+    std::vector<wchar_t> pathBuf(65536);
+    GetModuleFileName(module, pathBuf.data(), (DWORD)pathBuf.size());
+    std::wstring dllPath = pathBuf.data();
+    dllPath.resize(dllPath.find_last_of('\\') + 1);
+    std::wstring portableFilePath = dllPath + L"portable.vs";
+    FILE *portableFile = _wfopen(portableFilePath.c_str(), L"r");
+    bool isPortable = !!portableFile;
+    if (portableFile)
+        fclose(portableFile);
 
-    // Autoload per user plugins
-    loadAllPluginsInPath(appDataPath, filter);
+    if (isPortable) {
+        // Use alternative search strategy relative to dll path
 
-    // Autoload bundled plugins
-    std::wstring corePluginPath = readRegistryValue(L"Software\\VapourSynth", L"CorePlugins" + bits);
-    if (!loadAllPluginsInPath(corePluginPath, filter))
-        vsCritical("Core plugin autoloading failed. Installation is broken?");
+        // Autoload bundled plugins
+        std::wstring corePluginPath = dllPath + L"vapoursynth" + bits + L"\\coreplugins";
+        if (!loadAllPluginsInPath(corePluginPath, filter))
+            vsCritical("Core plugin autoloading failed. Installation is broken?");
 
-    // Autoload global plugins last, this is so the bundled plugins cannot be overridden easily
-    // and accidentally block updated bundled versions
-    std::wstring globalPluginPath = readRegistryValue(L"Software\\VapourSynth", L"Plugins" + bits);
-    loadAllPluginsInPath(globalPluginPath, filter);
+        // Autoload global plugins last, this is so the bundled plugins cannot be overridden easily
+        // and accidentally block updated bundled versions
+        std::wstring globalPluginPath = dllPath + L"vapoursynth" + bits + L"\\plugins";
+        loadAllPluginsInPath(globalPluginPath, filter);
+    } else {
+        // Autoload user specific plugins first so a user can always override
+        std::vector<wchar_t> appDataBuffer(MAX_PATH + 1);
+        SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, SHGFP_TYPE_CURRENT, appDataBuffer.data());
+
+        std::wstring appDataPath = std::wstring(appDataBuffer.data()) + L"\\VapourSynth\\plugins" + bits;
+
+        // Autoload per user plugins
+        loadAllPluginsInPath(appDataPath, filter);
+
+        // Autoload bundled plugins
+        std::wstring corePluginPath = readRegistryValue(L"Software\\VapourSynth", L"CorePlugins" + bits);
+        if (!loadAllPluginsInPath(corePluginPath, filter))
+            vsCritical("Core plugin autoloading failed. Installation is broken?");
+
+        // Autoload global plugins last, this is so the bundled plugins cannot be overridden easily
+        // and accidentally block updated bundled versions
+        std::wstring globalPluginPath = readRegistryValue(L"Software\\VapourSynth", L"Plugins" + bits);
+        loadAllPluginsInPath(globalPluginPath, filter);
+    }
+
 #else
-
     std::string configFile;
     const char *home = getenv("HOME");
 #ifdef VS_TARGET_OS_DARWIN
