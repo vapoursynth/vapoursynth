@@ -26,6 +26,17 @@ Shortcuts to the global autoload directory are located in the start menu.
 
 Avisynth plugins are never autoloaded. Support for this may be added in the future.
 
+User plugins should never be put into the *core\\plugins* directory.
+
+Windows Portable
+################
+
+The searched paths are:
+
+#. *<VapourSynth.dll path>*\\vapoursynth32\\coreplugins or *<VapourSynth.dll path>*\\vapoursynth64\\coreplugins
+#. *<VapourSynth.dll path>*\\vapoursynth32\\plugins or *<VapourSynth.dll path>*\\vapoursynth64\\plugins
+
+User plugins should never be put into the *coreplugins* directory.
 
 Linux
 #####

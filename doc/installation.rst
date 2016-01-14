@@ -35,6 +35,17 @@ after VapourSynth and still want to use this feature, either reinstall
 VapourSynth or register it from the command line with
 "pfm register <path>\\core32\\vsfs.dll" or "pfm register <path>\\core64\\vsfs.dll".
 
+Windows Portable Instructions
+=============================
+
+First download and decompress the prerequisites:
+   * `Python 3.5 <http://www.python.org/>`_  -- 32 or 64 bit embeddable version
+   
+Simply decompress the portable VapourSynth archive into the Python dir and
+overwrite all existing files. Done.
+
+You can also use the VapourSynth Editor by decompressing it into the same directory.
+
 Linux and OS X Installation Instructions
 ========================================
 
