@@ -69,17 +69,14 @@ If you've already installed all the required packages and instead want to update
    brew update && brew upgrade
    pip3 install --upgrade cython
    
-Required packages (Linux Mint)
-##############################
+Required packages (Ubuntu)
+##########################
 
-First download and install the required packages. Cython is installed through pip in order to get a more recent version than the system packages provide::
+First download and install the required packages::
 
-   apt-get install build-essential yasm git libass-dev python3-pip python3-dev
-   pip3 install cython
+   apt-get install build-essential yasm git libass-dev python3-pip python3-dev cython3 autoconf libtool libmagick++-dev
    
-If you've already installed all the required packages and instead want to update them, simply update your system like normal and use pip to update Cython::
-
-   pip3 install --upgrade cython
+Note that this specific list of packages was tested with Ubuntu 15.10. They may have different names in your distribution.
 
 Zimg
 ####
