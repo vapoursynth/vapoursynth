@@ -584,6 +584,7 @@ class vszimg {
 
 	VSNodeRef *m_node;
 	VSVideoInfo m_vi;
+    bool m_prefer_props;
 	vszimgxx::zfilter_graph_builder_params m_params;
 
 	frame_params m_frame_params;
@@ -628,7 +629,8 @@ class vszimg {
 
 	vszimg(const VSMap *in, void *userData, VSCore *core, const VSAPI *vsapi) :
 		m_node{ nullptr },
-		m_vi()
+		m_vi(),
+        m_prefer_props(false)
 	{
 		try {
 			m_node = vsapi->propGetNode(in, "clip", 0, nullptr);
@@ -670,6 +672,7 @@ class vszimg {
 
 			lookup_enum_str_opt(in, "dither_type", g_dither_type_table, &m_params.dither_type, vsapi);
 			lookup_enum_str_opt(in, "cpu_type", g_cpu_type_table, &m_params.cpu_type, vsapi);
+            m_prefer_props = !!propGetScalarDef<int>(in, "prefer_props", 0, vsapi);
 
 			// Basic compatibility check.
 			if (isConstantFormat(&node_vi) && isConstantFormat(&m_vi)) {
@@ -754,8 +757,11 @@ class vszimg {
 			translate_vsformat(src_vsformat, &src_format);
 			translate_vsformat(dst_vsformat, &dst_format);
 
-			set_src_colorspace(&src_format);
+            if (m_prefer_props)
+                set_src_colorspace(&src_format);
 			import_frame_props(src_props, &src_format, vsapi);
+            if (!m_prefer_props)
+                set_src_colorspace(&src_format);
 
 			set_dst_colorspace(src_format, &dst_format);
 
@@ -882,14 +888,14 @@ void VS_CC resizeInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
 		ENUM_OPT(primaries_in)
 		ENUM_OPT(range_in)
 		ENUM_OPT(chromaloc_in)
-		//DATA_OPT(resample_filter)
 		FLOAT_OPT(filter_param_a)
 		FLOAT_OPT(filter_param_b)
 		DATA_OPT(resample_filter_uv)
 		FLOAT_OPT(filter_param_a_uv)
 		FLOAT_OPT(filter_param_b_uv)
 		DATA_OPT(dither_type)
-		DATA_OPT(cpu_type);
+		DATA_OPT(cpu_type)
+        INT_OPT(prefer_props);
 #undef INT_OPT
 #undef FLOAT_OPT
 #undef DATA_OPT

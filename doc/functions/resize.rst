@@ -1,7 +1,7 @@
 Resize
 ======
 
-.. function::   Bilinear(clip clip[, int width, int height, int format, enum matrix, enum transfer, enum primaries, enum range, enum chromaloc, enum matrix_in, enum transfer_in, enum primaries_in, enum range_in, enum chromaloc_in, float filter_param_a, float filter_param_b, string resample_filter_uv, float filter_param_a_uv, float filter_param_b_uv, string dither_type])
+.. function::   Bilinear(clip clip[, int width, int height, int format, enum matrix, enum transfer, enum primaries, enum range, enum chromaloc, enum matrix_in, enum transfer_in, enum primaries_in, enum range_in, enum chromaloc_in, float filter_param_a, float filter_param_b, string resample_filter_uv, float filter_param_a_uv, float filter_param_b_uv, string dither_type, string cpu_type, bint prefer_props])
                 Bicubic(clip clip[, ...])
                 Point(clip clip[, ...])
                 Lanczos(clip clip[, ...])
@@ -25,8 +25,8 @@ Resize
    BT 709 can be specified either with ``matrix=1`` or with ``matrix_s="709"``.
 
    Note that *matrix* is not an optional argument when converting to YUV.
-   If no matrix is specified in an input YUV frame's properties then *matrix_in*
-   also needs to be set.
+   Also note that if no matrix is specified in an input YUV frame's properties
+   then *matrix_in* also needs to be set.
    
    The function will return an error if the subsampling restrictions aren't
    followed.  
@@ -68,7 +68,9 @@ Resize
       Input colorspace/format specification. If the corresponding frame property is set
       to a value other than unspecified, the frame property is used instead of this parameter.
       Default values are set for certain color families. See the equivalent output arguments
-      for more information.
+      for more information. By default these override the corresponding frame properties if
+      present, to instead give the frame properties precedence when both are present set
+      *prefer_props*.
 
    *filter_param_a*, *filter_param_b*:
    
@@ -87,9 +89,20 @@ Resize
       Parameters for the scaler used for UV channels.
 
    *dither_type*:
+   
       Dithering method. Dithering is used only for conversions resulting in an integer
       format. The following dithering methods are available: *none*, *ordered*, *random*,
-      *error_diffusion*
+      *error_diffusion*.
+      
+   *cpu_type*:
+   
+      Only used for testing.
+      
+   *prefer_props*:
+   
+      Determines whether frame properties or arguments take precedence when both are present.
+      This option affects the *matrix_in*, *transfer_in*, *primaries_in*, *range_in*
+      and *chromaloc_in* arguments and their frame property equivalents.
       
    To convert to YV12::
 
