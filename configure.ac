@@ -143,7 +143,7 @@ AS_IF(
 
        PKG_CHECK_MODULES([ZIMG], [zimg])
 
-       AC_LANG_PUSH([C])
+       AC_LANG_PUSH([C++])
        saved_cppflags="$CPPFLAGS"
        saved_libs="$LIBS"
        CPPFLAGS="$ZIMG_CFLAGS"
@@ -169,7 +169,7 @@ zimg_get_version_info(&major, &minor, &micro);
 
        CPPFLAGS="$saved_cppflags"
        LIBS="$saved_libs"
-       AC_LANG_POP([C])
+       AC_LANG_POP([C++])
 
 
        AC_CONFIG_FILES([pc/vapoursynth.pc])
