@@ -711,8 +711,7 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     }
 
     try {
-        Magick::Image image;
-        image.ping(d->fileListMode ? d->filenames[0] : specialPrintf(d->filenames[0], d->firstNum));
+        Magick::Image image(d->fileListMode ? d->filenames[0] : specialPrintf(d->filenames[0], d->firstNum));
 #if MAGICKCORE_HDRI_ENABLE
         VSSampleType st = stFloat;
         int depth = 32;
