@@ -1,4 +1,5 @@
 r30:
+fixed imwri bug related to detecting the bitdepth and dimensions of an image
 zimg bug fixes
 changed behavior of resize, now matrix_in, transfer_in, primaries_in, range_in and chromaloc_in take precendence over frame properties by default, the new prefer_props argument restores old behavior
 added the possibility to make portable builds on windows
