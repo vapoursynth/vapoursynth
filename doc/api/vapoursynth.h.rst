@@ -298,11 +298,15 @@ VAPOURSYNTH_API_MAJOR
 
 Major API version.
 
+This macro was added in VapourSynth R26 (API R3).
+
 
 VAPOURSYNTH_API_MINOR
 ---------------------
 
 Minor API version. It is bumped when new functions are added to VSAPI_.
+
+This macro was added in VapourSynth R26 (API R3).
 
 
 VAPOURSYNTH_API_VERSION
@@ -310,6 +314,9 @@ VAPOURSYNTH_API_VERSION
 
 API version. The high 16 bits are VAPOURSYNTH_API_MAJOR_, the low 16
 bits are VAPOURSYNTH_API_MINOR_.
+
+Prior to VapourSynth R26, the API version consisted of only the major
+component.
 
 
 Enums
@@ -464,12 +471,17 @@ enum VSNodeFlags
      instances of the built-in Cache filter. Strange things may happen to
      your filter if you use this flag.
 
+     This flag was introduced in VapourSynth R24 without bumping the
+     API version (R3).
+
    * nfMakeLinear
 
      This flag should be used by filters which prefer linear access,
      like source filters, where seeking around can cause significant
      slowdowns. This flag only has any effect if the filter using it
      is immediately followed by an instance of the built-in Cache filter.
+
+     This flag was introduced in API R3.3 (VapourSynth R30).
 
 
 .. _VSPropTypes:
@@ -835,6 +847,9 @@ struct VSVideoInfo
 
       Length of the clip.
 
+      Since API R3.2 (VapourSynth R27) this is no longer allowed to be 0,
+      i.e. clips with unknown length are not supported.
+
    .. c:member:: int flags
 
       The flags passed to createFilter_ (either 0, or one or more of
@@ -942,6 +957,8 @@ struct VSAPI
       *msg*
          The message.
 
+      This function was introduced in API R3.4 (VapourSynth R30).
+
 ----------
 
    .. _setThreadCount:
@@ -953,6 +970,9 @@ struct VSAPI
       be detected and used.
 
       Returns the new thread count.
+
+      This function was introduced in VapourSynth R24 without bumping
+      the API version (R3).
 
 ----------
 
@@ -1565,6 +1585,8 @@ struct VSAPI
          retrieving the property will cause VapourSynth to die with a fatal
          error.
 
+      This function was introduced in API R3.1 (VapourSynth R26).
+
 ----------
 
    .. _propGetFloat:
@@ -1616,6 +1638,8 @@ struct VSAPI
          You may pass NULL here, but then any problems encountered while
          retrieving the property will cause VapourSynth to die with a fatal
          error.
+
+      This function was introduced in API R3.1 (VapourSynth R26).
 
 ----------
 
@@ -1799,6 +1823,8 @@ struct VSAPI
 
       Returns 0 on success, or 1 if *size* is negative.
 
+      This function was introduced in API R3.1 (VapourSynth R26).
+
 ----------
 
    .. _propSetFloat:
@@ -1849,6 +1875,8 @@ struct VSAPI
          will be created empty.
 
       Returns 0 on success, or 1 if *size* is negative.
+
+      This function was introduced in API R3.1 (VapourSynth R26).
 
 ----------
 
@@ -2029,6 +2057,9 @@ struct VSAPI
       Path elements are always delimited with forward slashes.
 
       VapourSynth retains ownership of the returned pointer.
+
+      This function was introduced in VapourSynth R25 without bumping
+      the API version (R3).
 
 ----------
 
