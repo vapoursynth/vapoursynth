@@ -1,3 +1,6 @@
+r31:
+more zimg bug fixes, to/from float conversions will no longer sometimes get stuck
+
 r30:
 fixed imwri bug related to detecting the bitdepth and dimensions of an image
 zimg bug fixes
