@@ -687,6 +687,7 @@ namespace {
                     translate_vsformat(m_vi.format, &dst_format);
 
                     if (dst_format.color_family == ZIMG_COLOR_YUV
+                        && dst_format.matrix_coefficients == ZIMG_MATRIX_UNSPECIFIED
                         && src_format.color_family != ZIMG_COLOR_YUV
                         && src_format.color_family != ZIMG_COLOR_GREY
                         && !m_frame_params.matrix.is_present()) {
