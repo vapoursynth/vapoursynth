@@ -688,6 +688,7 @@ namespace {
 
                     if (dst_format.color_family == ZIMG_COLOR_YUV
                         && src_format.color_family != ZIMG_COLOR_YUV
+                        && src_format.color_family != ZIMG_COLOR_GREY
                         && !m_frame_params.matrix.is_present()) {
                         throw std::runtime_error{ "Matrix must be specified when converting to YUV" };
                     }
