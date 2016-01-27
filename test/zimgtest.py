@@ -2,7 +2,7 @@ import vapoursynth as vs
 core = vs.get_core()
 
 colorfamilies = (vs.GRAY, vs.YUV, vs.RGB, vs.YCOCG)
-intbitdepths = (8, 9, 11, 11, 12, 13, 14, 15, 16)
+intbitdepths = (8, 9, 10, 11, 12, 13, 14, 15, 16)
 floatbitdepths = (16, 32)
 yuvss = (0, 1, 2)
 

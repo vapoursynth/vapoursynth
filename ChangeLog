@@ -1,4 +1,5 @@
 r31:
+the resize matrix check will no longer reject several valid combinations
 more zimg bug fixes, to/from float conversions will no longer sometimes get stuck
 
 r30:
