@@ -32,9 +32,9 @@ for informat in formatids:
     for outformat in formatids:
         clip = core.std.BlankClip(format=informat)     
         try:
-            if (clip.format.color_family == vs.YUV):
+            if (clip.format.color_family in (vs.YUV, vs.GRAY)):
                 clip = core.resize.Bicubic(clip, format=outformat, matrix_in_s="709")
-            elif (core.get_format(outformat).color_family == vs.YUV):
+            elif (core.get_format(outformat).color_family in (vs.YUV, vs.GRAY)):
                 clip = core.resize.Bicubic(clip, format=outformat, matrix_s="709")       
             else:
                 clip = core.resize.Bicubic(clip, format=outformat) 

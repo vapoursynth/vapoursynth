@@ -686,12 +686,12 @@ namespace {
                     translate_vsformat(node_vi.format, &src_format);
                     translate_vsformat(m_vi.format, &dst_format);
 
-                    if (dst_format.color_family == ZIMG_COLOR_YUV
+                    if ((dst_format.color_family == ZIMG_COLOR_YUV || dst_format.color_family == ZIMG_COLOR_GREY)
                         && dst_format.matrix_coefficients == ZIMG_MATRIX_UNSPECIFIED
                         && src_format.color_family != ZIMG_COLOR_YUV
                         && src_format.color_family != ZIMG_COLOR_GREY
                         && !m_frame_params.matrix.is_present()) {
-                        throw std::runtime_error{ "Matrix must be specified when converting to YUV" };
+                        throw std::runtime_error{ "Matrix must be specified when converting to YUV or GRAY from RGB" };
                     }
                 }
             } catch (...) {
