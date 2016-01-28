@@ -1,4 +1,6 @@
 r31:
+the installer now also writes the path to vapoursynth.dll and vsscript.dll to the registry to make them easier to locate, vsscript.dll will probably stop being installed in the system dir in r33
+changed registry entry structure to make more sense (no more 32/64 suffix, instead writes to HKLM32 or 64 as appropriate), the old entries will be kept for a few versions
 portable version now includes vsfs and vsvfw to be more complete
 the resize matrix check will no longer reject several valid combinations
 more zimg bug fixes, to/from float conversions will no longer sometimes get stuck

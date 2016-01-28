@@ -76,11 +76,7 @@ static bool isValidIdentifier(const std::string &s) {
 #ifdef VS_TARGET_OS_WINDOWS
 static std::wstring readRegistryValue(const std::wstring keyName, const std::wstring &valueName) {
     HKEY hKey;
-#ifdef _WIN64
-    LONG lRes = RegOpenKeyEx(HKEY_LOCAL_MACHINE, keyName.c_str(), 0, KEY_READ | KEY_WOW64_32KEY, &hKey);
-#else
     LONG lRes = RegOpenKeyEx(HKEY_LOCAL_MACHINE, keyName.c_str(), 0, KEY_READ, &hKey);
-#endif
     if (lRes != ERROR_SUCCESS)
         return std::wstring();
     WCHAR szBuffer[512];
@@ -1070,13 +1066,13 @@ VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), formatIdO
         loadAllPluginsInPath(appDataPath, filter);
 
         // Autoload bundled plugins
-        std::wstring corePluginPath = readRegistryValue(L"Software\\VapourSynth", L"CorePlugins" + bits);
+        std::wstring corePluginPath = readRegistryValue(L"Software\\VapourSynth", L"CorePlugins");
         if (!loadAllPluginsInPath(corePluginPath, filter))
             vsCritical("Core plugin autoloading failed. Installation is broken?");
 
         // Autoload global plugins last, this is so the bundled plugins cannot be overridden easily
         // and accidentally block updated bundled versions
-        std::wstring globalPluginPath = readRegistryValue(L"Software\\VapourSynth", L"Plugins" + bits);
+        std::wstring globalPluginPath = readRegistryValue(L"Software\\VapourSynth", L"Plugins");
         loadAllPluginsInPath(globalPluginPath, filter);
     }
 
