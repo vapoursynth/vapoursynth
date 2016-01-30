@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2014-2015 Fredrik Mellbin
+* Copyright (c) 2014-2016 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -747,7 +747,14 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 // Init
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
-    configFunc("com.vapoursynth.imwri", "imwri", "VapourSynth ImageMagick Writer/Reader", VAPOURSYNTH_API_VERSION, 1, plugin);
+#if MAGICKCORE_HDRI_ENABLE
+#define IMWRI_NAMESPACE "imwrif"
+#define IMWRI_PLUGIN_NAME "VapourSynth ImageMagick HDRI Writer/Reader"
+#else
+#define IMWRI_NAMESPACE "imwri"
+#define IMWRI_PLUGIN_NAME "VapourSynth ImageMagick Writer/Reader"
+#endif
+    configFunc("com.vapoursynth.imwri", IMWRI_NAMESPACE, IMWRI_PLUGIN_NAME, VAPOURSYNTH_API_VERSION, 1, plugin);
     registerFunc("Write", "clip:clip;imgformat:data;filename:data;firstnum:int:opt;quality:int:opt;dither:int:opt;compression_type:data:opt;alpha:clip:opt;", writeCreate, nullptr, plugin);
     registerFunc("Read", "filename:data[];firstnum:int:opt;mismatch:int:opt;alpha:int:opt;", readCreate, nullptr, plugin);
 }

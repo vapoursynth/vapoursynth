@@ -8,6 +8,8 @@ ImageMagick Writer-Reader (IMWRI) is a plugin that can read and write many image
 .. function:: Write(clip clip, string imgformat, string filename[, int firstnum=0, int quality=75, bint dither=True, string compression_type, clip alpha])
    :module: imwri
    
+   Note that the namespace will be *imrif* when compiled with a HDRI ImageMagick to distinguish the behavior and accepted format input/output formats.
+   
    Supported input formats for writing:
       ImageMagick with Quantum Depth 16: 8-16 bit integer
 
