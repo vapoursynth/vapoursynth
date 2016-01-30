@@ -39,6 +39,7 @@
 #define NOMINMAX
 #endif
 #include <codecvt>
+#include <locale>
 #include <windows.h>
 #endif
 
