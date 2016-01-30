@@ -252,7 +252,7 @@ namespace {
         propGetIfValid<int>(props, "_Primaries", &format->color_primaries, [](int x) { return x != ZIMG_PRIMARIES_UNSPECIFIED; }, vsapi);
 
         if (vsapi->propNumElements(props, "_FieldBased") > 0 && vsapi->propGetInt(props, "_FieldBased", 0, nullptr))
-            throw std::runtime_error{ "field-based video not supported" };
+            throw std::runtime_error{ "Resize: field-based video not supported" };
     }
 
     void export_frame_props(const zimg_image_format &format, VSMap *props, const VSAPI *vsapi) {
@@ -825,10 +825,10 @@ namespace {
                     ret = real_get_frame(src_frame, core, vsapi);
                 }
             } catch (const vszimgxx::zerror &e) {
-                std::string errmsg = std::string{ "zimg error " } +std::to_string(e.code) + ": " + e.msg;
+                std::string errmsg = std::string{ "Resize error " } +std::to_string(e.code) + ": " + e.msg;
                 vsapi->setFilterError(errmsg.c_str(), frameCtx);
             } catch (const std::exception &e) {
-                vsapi->setFilterError(e.what(), frameCtx);
+                vsapi->setFilterError((std::string("Resize error: ") + e.what()).c_str(), frameCtx);
             }
 
             vsapi->freeFrame(src_frame);
@@ -840,10 +840,10 @@ namespace {
                 vszimg *x = new vszimg{ in, userData, core, vsapi };
                 vsapi->createFilter(in, out, "format", vszimg_init, vszimg_get_frame, vszimg_free, fmParallel, 0, x, core);
             } catch (const vszimgxx::zerror &e) {
-                std::string errmsg = std::string{ "zimg error " } + std::to_string(e.code) + ": " + e.msg;
+                std::string errmsg = std::string{ "Resize error " } + std::to_string(e.code) + ": " + e.msg;
                 vsapi->setError(out, errmsg.c_str());
             } catch (const std::exception &e) {
-                vsapi->setError(out, e.what());
+                vsapi->setError(out, (std::string("Resize error: ") + e.what()).c_str());
             }
         }
     };
