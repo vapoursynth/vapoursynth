@@ -939,8 +939,10 @@ bool VSCore::loadAllPluginsInPath(const std::string &path, const std::string &fi
         struct dirent *entry = (struct dirent *)malloc(len);
         struct dirent *result;
         readdir_r(dir, entry, &result);
-        if (!result)
+        if (!result) {
+            free(entry);
             break;
+        }
 
         std::string name(entry->d_name);
         // If name ends with filter
