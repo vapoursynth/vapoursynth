@@ -751,11 +751,13 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegiste
 #if MAGICKCORE_HDRI_ENABLE
 #define IMWRI_NAMESPACE "imwrif"
 #define IMWRI_PLUGIN_NAME "VapourSynth ImageMagick HDRI Writer/Reader"
+#define IMWRI_ID "com.vapoursynth.imwrif"
 #else
 #define IMWRI_NAMESPACE "imwri"
 #define IMWRI_PLUGIN_NAME "VapourSynth ImageMagick Writer/Reader"
+#define IMWRI_ID "com.vapoursynth.imwri"
 #endif
-    configFunc("com.vapoursynth.imwri", IMWRI_NAMESPACE, IMWRI_PLUGIN_NAME, VAPOURSYNTH_API_VERSION, 1, plugin);
+    configFunc(IMWRI_ID, IMWRI_NAMESPACE, IMWRI_PLUGIN_NAME, VAPOURSYNTH_API_VERSION, 1, plugin);
     registerFunc("Write", "clip:clip;imgformat:data;filename:data;firstnum:int:opt;quality:int:opt;dither:int:opt;compression_type:data:opt;alpha:clip:opt;", writeCreate, nullptr, plugin);
     registerFunc("Read", "filename:data[];firstnum:int:opt;mismatch:int:opt;alpha:int:opt;", readCreate, nullptr, plugin);
 }
