@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2015 Fredrik Mellbin
+* Copyright (c) 2012-2016 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -166,6 +166,9 @@ static void VS_CC cacheInit(VSMap *in, VSMap *out, void **instanceData, VSNode *
     vsapi->setVideoInfo(vsapi->getVideoInfo(c->clip), 1, node);
 }
 
+// controls how many frames beyond the number of threads is a good margin to catch bigger temporal radius filters that are out of order, just a guess
+static const int extraFrames = 7;
+
 static const VSFrameRef *VS_CC cacheGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     CacheInstance *c = static_cast<CacheInstance *>(*instanceData);
 
@@ -177,7 +180,7 @@ static const VSFrameRef *VS_CC cacheGetframe(int n, int activationReason, void *
         if (f)
             return new VSFrameRef(f);
 
-        if (c->makeLinear && n != c->lastN + 1 && n > c->lastN && n < c->lastN + 7) {
+        if (c->makeLinear && n != c->lastN + 1 && n > c->lastN && n < c->lastN + c->numThreads + extraFrames) {
             for (int i = c->lastN + 1; i <= n; i++)
                 vsapi->requestFrameFilter(i, c->clip, frameCtx);
             *fd = c->lastN;
@@ -219,15 +222,20 @@ static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData,
     int err;
     bool fixed = !!vsapi->propGetInt(in, "fixed", 0, &err);
     CacheInstance *c = new CacheInstance(video, core, fixed);
+    
+    c->makeLinear = !!(vsapi->getVideoInfo(video)->flags & nfMakeLinear);
+    if (vsapi->propGetInt(in, "make_linear", 0, &err))
+        c->makeLinear = true;
+
+    if (c->makeLinear) {
+        c->numThreads = vsapi->getCoreInfo(core)->numThreads;
+        c->cache.setMaxFrames(std::max((c->numThreads + extraFrames) * 2, c->cache.getMaxFrames()));
+    }
 
     int size = int64ToIntS(vsapi->propGetInt(in, "size", 0, &err));
 
     if (!err && size > 0)
         c->cache.setMaxFrames(size);
-    
-    c->makeLinear = !!(vsapi->getVideoInfo(video)->flags & nfMakeLinear);
-    if (vsapi->propGetInt(in, "make_linear", 0, &err))
-        c->makeLinear = true;
 
     vsapi->createFilter(in, out, ("Cache" + std::to_string(cacheId++)).c_str(), cacheInit, cacheGetframe, cacheFree, c->makeLinear ? fmUnorderedLinear : fmUnordered, nfNoCache | nfIsCache, c, core);
 

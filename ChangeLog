@@ -1,4 +1,5 @@
 r31:
+the nfmakelinear handling now takes the number of used threads into consideration, this makes it work properly with hundreds of threads
 the imwri namespace will now be imwrif when compiled against a hdri imagemagick, this is to properly distinguish it from the integer version which has distincly different input and output support
 the installer now also writes the path to vapoursynth.dll and vsscript.dll to the registry to make them easier to locate, vsscript.dll will probably stop being installed in the system dir in r33
 changed registry entry structure to make more sense (no more 32/64 suffix, instead writes to HKLM32 or 64 as appropriate), the old entries will be kept for a few versions

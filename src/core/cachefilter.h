@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2013 Fredrik Mellbin
+* Copyright (c) 2012-2016 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -211,9 +211,10 @@ public:
     VSCore *core;
     VSNode *node;
     int lastN;
+    int numThreads;
     bool makeLinear;
 
-    CacheInstance(VSNodeRef *clip, VSCore *core, bool fixedSize) : cache(20, 20, fixedSize), clip(clip), core(core), node(nullptr), lastN(-1), makeLinear(false) { }
+    CacheInstance(VSNodeRef *clip, VSCore *core, bool fixedSize) : cache(20, 20, fixedSize), clip(clip), core(core), node(nullptr), lastN(-1), numThreads(0), makeLinear(false) { }
 
     void addCache() {
         std::lock_guard<std::mutex> lock(core->cacheLock);
