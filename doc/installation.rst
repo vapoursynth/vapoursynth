@@ -49,6 +49,8 @@ You can also use the VapourSynth Editor by decompressing it into the same direct
 Linux and OS X Installation Instructions
 ========================================
 
+Note: **any version of Python 3 will do.** A specific version is only required when using the official Windows binaries.
+
 This is a simple guide for compiling VapourSynth on OS X or Linux Mint (or any other Ubuntu derivative) for those who are a bit lazy.
 It's been tested on a clean install of OS X 10.10 and Linux Mint 17.1 and compiles all parts except the OCR and ImageMagick filters.
 
