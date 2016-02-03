@@ -1,3 +1,6 @@
+r32:
+removed planeaverage
+
 r31:
 the nfmakelinear handling now takes the number of used threads into consideration, this makes it work properly with hundreds of threads
 the imwri namespace will now be imwrif when compiled against a hdri imagemagick, this is to properly distinguish it from the integer version which has distincly different input and output support

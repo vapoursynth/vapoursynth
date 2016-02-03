@@ -2119,117 +2119,6 @@ static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, 
 }
 
 //////////////////////////////////////////
-// PlaneAverage
-
-typedef struct {
-    VSNodeRef *node;
-    const VSVideoInfo *vi;
-    char *prop;
-    int plane;
-} PlaneAverageData;
-
-static void VS_CC planeAverageInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    PlaneAverageData *d = (PlaneAverageData *) * instanceData;
-    vsapi->setVideoInfo(d->vi, 1, node);
-}
-
-static const VSFrameRef *VS_CC planeAverageGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    PlaneAverageData *d = (PlaneAverageData *) * instanceData;
-    if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n, d->node, frameCtx);
-    } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        VSFrameRef *dst = vsapi->copyFrame(src, core);
-        const VSFormat *fi = vsapi->getFrameFormat(dst);
-        int x;
-        int y;
-        int width = vsapi->getFrameWidth(src, d->plane);
-        int height = vsapi->getFrameHeight(src, d->plane);
-        const uint8_t *srcp = vsapi->getReadPtr(src, d->plane);
-        int src_stride = vsapi->getStride(src, d->plane);
-        int64_t acc = 0;
-        double facc = 0;
-        switch (fi->bytesPerSample) {
-        case 1:
-            for (y = 0; y < height; y++) {
-                for (x = 0; x < width; x++)
-                    acc += srcp[x];
-                srcp += src_stride;
-            }
-            break;
-        case 2:
-            for (y = 0; y < height; y++) {
-                for (x = 0; x < width; x++)
-                    acc += ((const uint16_t *)srcp)[x];
-                srcp += src_stride;
-            }
-            break;
-        case 4:
-            for (y = 0; y < height; y++) {
-                for (x = 0; x < width; x++)
-                    facc += ((const float *)srcp)[x];
-                srcp += src_stride;
-            }
-            break;
-        }
-
-        if (fi->sampleType == stInteger)
-            vsapi->propSetFloat(vsapi->getFramePropsRW(dst), d->prop, acc / (double)(width * height * (((int64_t)1 << fi->bitsPerSample) - 1)), paReplace);
-        else
-            vsapi->propSetFloat(vsapi->getFramePropsRW(dst), d->prop, facc / (double)(width * height), paReplace);
-
-        vsapi->freeFrame(src);
-        return dst;
-    }
-    return 0;
-}
-
-static void VS_CC planeAverageFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    PlaneAverageData *d = (PlaneAverageData *)instanceData;
-    vsapi->freeNode(d->node);
-    free(d->prop);
-    free(d);
-}
-
-static void VS_CC planeAverageCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    PlaneAverageData d;
-    PlaneAverageData *data;
-    int err;
-
-    d.node = vsapi->propGetNode(in, "clip", 0, 0);
-    d.vi = vsapi->getVideoInfo(d.node);
-
-    
-
-    if (isCompatFormat(d.vi)) {
-        vsapi->freeNode(d.node);
-        RETERROR("PlaneAverage: compat formats are not supported");
-    }
-
-    if (!d.vi->format || (d.vi->format->sampleType == stInteger && (d.vi->format->bytesPerSample != 1 && d.vi->format->bytesPerSample != 2)) || (d.vi->format->sampleType == stFloat && d.vi->format->bytesPerSample != 4)) {
-        vsapi->freeNode(d.node);
-        RETERROR("PlaneAverage: clip must be constant format and of integer 8-16 bit type or 32 bit float");
-    }
-
-    d.plane = int64ToIntS(vsapi->propGetInt(in, "plane", 0, 0));
-    if (d.plane < 0 || d.plane >= d.vi->format->numPlanes) {
-        vsapi->freeNode(d.node);
-        RETERROR("PlaneAverage: invalid plane specified");
-    }
-
-    const char *tempprop = vsapi->propGetData(in, "prop", 0, &err);
-    if (err)
-        tempprop = "PlaneAverage";
-    d.prop = malloc(strlen(tempprop) + 1);
-    strcpy(d.prop, tempprop);
-
-    data = malloc(sizeof(d));
-    *data = d;
-
-    vsapi->createFilter(in, out, "PlaneAverage", planeAverageInit, planeAverageGetFrame, planeAverageFree, fmParallel, 0, data, core);
-}
-
-//////////////////////////////////////////
 // ClipToProp
 
 typedef struct {
@@ -2549,7 +2438,6 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("ModifyFrame", "clip:clip;clips:clip[];selector:func;", modifyFrameCreate, 0, plugin);
     registerFunc("Transpose", "clip:clip;", transposeCreate, 0, plugin);
     registerFunc("PEMVerifier", "clip:clip;upper:int[]:opt;lower:int[]:opt;", pemVerifierCreate, 0, plugin);
-    registerFunc("PlaneAverage", "clip:clip;plane:int;prop:data:opt;", planeAverageCreate, 0, plugin);
     registerFunc("PlaneStats", "clipa:clip;clipb:clip:opt;plane:int:opt;prop:data:opt;", planeStatsCreate, 0, plugin);
     registerFunc("ClipToProp", "clip:clip;mclip:clip;prop:data:opt;", clipToPropCreate, 0, plugin);
     registerFunc("PropToClip", "clip:clip;prop:data:opt;", propToClipCreate, 0, plugin);
