@@ -46,8 +46,27 @@ overwrite all existing files. Done.
 
 You can also use the VapourSynth Editor by decompressing it into the same directory.
 
-Linux and OS X Installation Instructions
-========================================
+OS X Installation from Packages 
+===============================
+
+First download and install the prerequisites:
+   * Xcode -- Available from the AppStore
+   * `Homebrew <http://brew.sh/>`_ -- A package manager
+   
+Simply run these commands in a terminal and wait for them to complete::
+
+   brew install vapoursynth
+
+Linux Installation from Packages 
+================================
+
+Several disitribution have existing packages
+
+   * `Gentoo <https://github.com/4re/vapoursynth-portage>`_  -- Portage overlay and instructions
+   * `Arch Linux <https://www.archlinux.org/packages/community/x86_64/vapoursynth/>`_  -- Packages
+
+Linux and OS X Compilation Instructions
+=======================================
 
 Note: **any version of Python 3 will do.** A specific version is only required when using the official Windows binaries.
 
