@@ -438,7 +438,7 @@ cdef void dictToMap(dict ndict, VSMap *inm, Core core, const VSAPI *funcs) excep
                 if funcs.propSetData(inm, ckey, v, <int>len(v), 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             else:
-                raise Error('argument ' + key + ' was passed an unsupported type')
+                raise Error('argument ' + key + ' was passed an unsupported type (' + type(v).__name__ + ')')
 
 
 cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, Core core, const VSAPI *funcs) except *:
@@ -484,7 +484,7 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, Core core, const V
                 if funcs.propSetData(inm, ckey, s, <int>len(s), 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             else:
-                raise Error('argument ' + key + ' was passed an unsupported type')
+                raise Error('argument ' + key + ' was passed an unsupported type (expected ' + atypes[key] + ' compatible type but got ' + type(v).__name__ + ')')
         if len(val) == 0:
         # set an empty key if it's an empty array
             if atypes[key][:4] == 'clip':
@@ -645,7 +645,7 @@ cdef class VideoProps(object):
                     if funcs.propSetData(m, b, v, <int>len(v), 1) != 0:
                         raise Error('Not all values are of the same type')
                 else:
-                    raise Error('Setter was passed an unsupported type')
+                    raise Error('Setter was passed an unsupported type (' + type(v).__name__ + ')')
         except Error:
             self.__delattr__(name)
             raise
