@@ -786,7 +786,7 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
         if (parent->vi->format->colorFamily == cmYUV || parent->vi->format->colorFamily == cmGray || parent->vi->format->id == pfCompatYUY2)
             matrix = ", matrix_s=\"709\"";
 
-        std::string frameErrorScript = "import vapoursynth as vs\n\import sys\n\core = vs.get_core()\n";
+        std::string frameErrorScript = "import vapoursynth as vs\nimport sys\ncore = vs.get_core()\n";
         frameErrorScript += "err_script_formatid = " + std::to_string(parent->vi->format->id) + "\n";
         frameErrorScript += "err_script_width = " + std::to_string(parent->vi->width) + "\n";
         frameErrorScript += "err_script_height = " + std::to_string(parent->vi->height) + "\n";
