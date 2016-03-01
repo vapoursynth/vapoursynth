@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2014 Fredrik Mellbin
+* Copyright (c) 2012-2016 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -30,6 +30,7 @@
 #include <mutex>
 #include <atomic>
 #include <codecvt>
+#include <vector>
 
 #include "VSScript.h"
 #include "VSHelper.h"
@@ -511,7 +512,7 @@ bool VapourSynthFile::DelayInit2() {
             std::string error_script = ErrorScript1;
             error_script += error_msg;
             error_script += ErrorScript2;
-            int res = vsscript_evaluateScript(&se, error_script.c_str(), "vfw_error.bleh", 0);
+            int res = vsscript_evaluateScript(&se, error_script.c_str(), "vfw_error.message", 0);
             node = vsscript_getOutput(se, 0);
             vi = vsapi->getVideoInfo(node);
             return true;
@@ -774,9 +775,38 @@ void VS_CC VapourSynthFile::frameDoneCallback(void *userData, const VSFrameRef *
 
 bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
     const VSAPI *vsapi = parent->vsapi;
-    const VSFrameRef *f = vsapi->getFrame(n, parent->node, nullptr, 0);
-    if (!f)
-        return false;
+    std::vector<char> errMsg(32 * 1024);
+    const VSFrameRef *f = vsapi->getFrame(n, parent->node, errMsg.data(), errMsg.size());
+    VSScript *errSe = nullptr;
+    if (!f) {
+        std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
+        OutputDebugString(conversion.from_bytes(errMsg.data()).c_str());
+
+        std::string matrix;
+        if (parent->vi->format->colorFamily == cmYUV || parent->vi->format->colorFamily == cmGray || parent->vi->format->id == pfCompatYUY2)
+            matrix = ", matrix_s=\"709\"";
+
+        std::string frameErrorScript = "import vapoursynth as vs\n\import sys\n\core = vs.get_core()\n";
+        frameErrorScript += "err_script_formatid = " + std::to_string(parent->vi->format->id) + "\n";
+        frameErrorScript += "err_script_width = " + std::to_string(parent->vi->width) + "\n";
+        frameErrorScript += "err_script_height = " + std::to_string(parent->vi->height) + "\n";
+        frameErrorScript += "err_script_background = core.std.BlankClip(width=err_script_width, height=err_script_height, format=vs.RGB24)\n";
+        frameErrorScript += "err_script_clip = core.text.Text(err_script_background, r\"\"\"";
+        frameErrorScript += errMsg.data();
+        frameErrorScript += "\"\"\")\n";
+        frameErrorScript += "err_script_clip = core.resize.Bilinear(err_script_clip, format=err_script_formatid" + matrix + ")\n";
+        frameErrorScript += "err_script_clip.set_output()\n";
+
+        vsscript_evaluateScript(&errSe, frameErrorScript.c_str(), "vfw_error.message", 0);
+        VSNodeRef *node = vsscript_getOutput(errSe, 0);
+        f = vsapi->getFrame(0, node, nullptr, 0);
+        vsapi->freeNode(node);
+
+        if (!f) {
+            vsscript_freeScript(errSe);
+            return false;
+        }
+    }
 
     const VSFormat *fi = vsapi->getFrameFormat(f);
     
@@ -831,13 +861,14 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
     }
 
     vsapi->freeFrame(f);
+    vsscript_freeScript(errSe);
 
     for (int i = n + 1; i < std::min<int>(n + parent->num_threads, parent->vi->numFrames); i++) {
         ++parent->pending_requests;
         vsapi->getFrameAsync(i, parent->node, VapourSynthFile::frameDoneCallback, static_cast<void *>(parent));
     }
 
-    return true;
+    return !errSe;
 }
 
 ////////////////////////////////////////////////////////////////////////
