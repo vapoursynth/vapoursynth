@@ -49,7 +49,7 @@ copyright = '2012-2016, Fredrik Mellbin'
 # built documents.
 #
 # The short X.Y version.
-version = 'R31'
+version = 'R32'
 # The full version, including alpha/beta/rc tags.
 release = version
 
