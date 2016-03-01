@@ -390,7 +390,7 @@ namespace {
 
         static int unpack_yuy2(void *user, unsigned i, unsigned left, unsigned right) {
             const vszimg_callback *cb = static_cast<const vszimg_callback *>(user);
-            const uint8_t *yuy2 = static_cast<const uint8_t *>(cb->m_plane_buf.c.line_at(cb->m_height - i - 1));
+            const uint8_t *yuy2 = static_cast<const uint8_t *>(cb->m_plane_buf.c.line_at(i));
             uint8_t *planar_y = static_cast<uint8_t *>(cb->m_line_buf.m.line_at(i, 0));
             uint8_t *planar_u = static_cast<uint8_t *>(cb->m_line_buf.m.line_at(i, 1));
             uint8_t *planar_v = static_cast<uint8_t *>(cb->m_line_buf.m.line_at(i, 2));
@@ -444,7 +444,7 @@ namespace {
             const uint8_t *planar_y = static_cast<const uint8_t *>(cb->m_line_buf.c.line_at(i, 0));
             const uint8_t *planar_u = static_cast<const uint8_t *>(cb->m_line_buf.c.line_at(i, 1));
             const uint8_t *planar_v = static_cast<const uint8_t *>(cb->m_line_buf.c.line_at(i, 2));
-            uint8_t *yuy2 = static_cast<uint8_t *>(cb->m_plane_buf.m.line_at(cb->m_height - i - 1));
+            uint8_t *yuy2 = static_cast<uint8_t *>(cb->m_plane_buf.m.line_at(i));
             unsigned j;
 
             left = left % 2 ? left - 1 : left;
