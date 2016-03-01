@@ -1,4 +1,5 @@
 r32:
+splicing two incompatible clips could sometimes give a confusing error message
 removed planeaverage
 
 r31:

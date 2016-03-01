@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2015 Fredrik Mellbin
+* Copyright (c) 2012-2016 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -555,7 +555,7 @@ static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCo
                 compat = 1;
         }
 
-        int mismatchCause = findCommonVi(d.node, d.numclips, &d.vi, 0, vsapi);
+        int mismatchCause = findCommonVi(d.node, d.numclips, &d.vi, 1, vsapi);
         if (mismatchCause && (!mismatch || compat) && !isSameFormat(&d.vi, vsapi->getVideoInfo(d.node[0]))) {
             for (int i = 0; i < d.numclips; i++)
                 vsapi->freeNode(d.node[i]);
