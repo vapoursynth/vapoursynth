@@ -252,7 +252,7 @@ namespace {
         propGetIfValid<int>(props, "_Primaries", &format->color_primaries, [](int x) { return x != ZIMG_PRIMARIES_UNSPECIFIED; }, vsapi);
 
         if (vsapi->propNumElements(props, "_FieldBased") > 0 && vsapi->propGetInt(props, "_FieldBased", 0, nullptr))
-            throw std::runtime_error{ "Resize: field-based video not supported" };
+            throw std::runtime_error{ "field-based video not supported" };
     }
 
     void export_frame_props(const zimg_image_format &format, VSMap *props, const VSAPI *vsapi) {
