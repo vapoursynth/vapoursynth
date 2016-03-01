@@ -1,4 +1,5 @@
 r32:
+vspipe now outputs planar rgb in gbr plane order to better match what other software expects as input
 now has a slightly more informative error message when the wrong type is passed as an argument in python
 vsvfw now prints per frame errors on the corresponding frame
 splicing two incompatible clips could sometimes give a confusing error message

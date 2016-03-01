@@ -152,7 +152,9 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
 
                 if (!outputError && outFile) {
                     const VSFormat *fi = vsapi->getFrameFormat(frame);
-                    for (int p = 0; p < fi->numPlanes; p++) {
+                    const int rgbRemap[] = { 1, 2, 0 };
+                    for (int rp = 0; rp < fi->numPlanes; rp++) {
+                        int p = (fi->colorFamily == cmRGB) ? rgbRemap[rp] : rp;
                         int stride = vsapi->getStride(frame, p);
                         const uint8_t *readPtr = vsapi->getReadPtr(frame, p);
                         int rowSize = vsapi->getFrameWidth(frame, p) * fi->bytesPerSample;
@@ -164,7 +166,7 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
                                         ", line: " + std::to_string(y) + ", errno: " + std::to_string(errno);
                                 totalFrames = requestedFrames;
                                 outputError = true;
-                                p = 100; // break out of the outer loop
+                                rp = 100; // break out of the outer loop
                                 break;
                             }
                             readPtr += stride;
