@@ -1,4 +1,5 @@
 r32:
+extended avisynth mvtools compatibility hack to work for 64bit version as well 
 fixed regression from r29 that would make compatyuy2 conversions vertically flipped
 vspipe now outputs planar rgb in gbr plane order to better match what other software expects as input
 now has a slightly more informative error message when the wrong type is passed as an argument in python

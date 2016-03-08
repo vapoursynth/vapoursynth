@@ -182,7 +182,8 @@ PVideoFrame VSClip::GetFrame(int n, IScriptEnvironment *env) {
 WrappedClip::WrappedClip(const std::string &filterName, const PClip &clip, const std::vector<VSNodeRef *> &preFetchClips, const PrefetchInfo &prefetchInfo, FakeAvisynth *fakeEnv)
     : filterName(filterName), prefetchInfo(prefetchInfo), preFetchClips(preFetchClips), clip(clip), fakeEnv(fakeEnv),
       magicalNumAudioSamplesForMVTools(clip->GetVideoInfo().num_audio_samples),
-      magicalNChannelsForMVTools(clip->GetVideoInfo().nchannels) {
+      magicalNChannelsForMVTools(clip->GetVideoInfo().nchannels),
+      magicalSampleTypeForMVTools(clip->GetVideoInfo().sample_type) {  
 }
 
 static void prefetchHelper(int n, VSNodeRef *node, const PrefetchInfo &p, VSFrameContext *frameCtx, const VSAPI *vsapi) {
@@ -427,8 +428,10 @@ static const VSFrameRef *VS_CC avisynthFilterGetFrame(int n, int activationReaso
         ref = clip->fakeEnv->avsToVSFrame((VideoFrame *)((void *)frame));
         VSFrameRef *ref2 = vsapi->copyFrame(ref, core);
         vsapi->freeFrame(ref);
-        vsapi->propSetInt(vsapi->getFramePropsRW(ref2), "MVToolsHackNumAudioSamples", clip->magicalNumAudioSamplesForMVTools, paReplace);
-        vsapi->propSetInt(vsapi->getFramePropsRW(ref2), "MVToolsHackNChannels", clip->magicalNChannelsForMVTools, paReplace);
+        VSMap *props = vsapi->getFramePropsRW(ref2);
+        vsapi->propSetInt(props, "MVToolsHackNumAudioSamples", clip->magicalNumAudioSamplesForMVTools, paReplace);
+        vsapi->propSetInt(props, "MVToolsHackNChannels", clip->magicalNChannelsForMVTools, paReplace);
+        vsapi->propSetInt(props, "MVToolsHackSampleType", clip->magicalSampleTypeForMVTools, paReplace);
         ref = ref2;
     }
 
@@ -483,10 +486,12 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
 
                 const VSFrameRef *fr = vsapi->getFrame(0, cr, nullptr, 0);
                 int err;
-                int64_t numAudioSamples = vsapi->propGetInt(vsapi->getFramePropsRO(fr), "MVToolsHackNumAudioSamples", 0, &err);
-                int nChannels = int64ToIntS(vsapi->propGetInt(vsapi->getFramePropsRO(fr), "MVToolsHackNChannels", 0, &err));
+                const VSMap *props = vsapi->getFramePropsRO(fr);
+                int64_t numAudioSamples = vsapi->propGetInt(props, "MVToolsHackNumAudioSamples", 0, &err);
+                int nChannels = int64ToIntS(vsapi->propGetInt(props, "MVToolsHackNChannels", 0, &err));
+                int sampleType = int64ToIntS(vsapi->propGetInt(props, "MVToolsHackSampleType", 0, &err));
                 preFetchClips.push_back(cr);
-                inArgs[i] = new VSClip(cr, numAudioSamples, nChannels, fakeEnv, vsapi);
+                inArgs[i] = new VSClip(cr, numAudioSamples, nChannels, sampleType, fakeEnv, vsapi);
                 break;
             }
         }

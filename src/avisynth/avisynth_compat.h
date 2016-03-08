@@ -97,7 +97,7 @@ private:
     int numSlowWarnings;
     VideoInfo vi;
 public:
-    VSClip(VSNodeRef *clip, int64_t numAudioSamples, int nChannels, FakeAvisynth *fakeEnv, const VSAPI *vsapi)
+    VSClip(VSNodeRef *clip, int64_t numAudioSamples, int nChannels, int sampleType, FakeAvisynth *fakeEnv, const VSAPI *vsapi)
         : clip(clip), fakeEnv(fakeEnv), vsapi(vsapi), numSlowWarnings(0) {
         const ::VSVideoInfo *srcVi = vsapi->getVideoInfo(clip);
         vi.width = srcVi->width;
@@ -127,7 +127,7 @@ public:
         vi.fps_denominator = int64ToIntS(srcVi->fpsDen);
         vi.num_frames = srcVi->numFrames;
         vi.audio_samples_per_second = 0;
-        vi.sample_type = 0;
+        vi.sample_type = sampleType;
         vi.num_audio_samples = numAudioSamples;
         vi.nchannels = nChannels;
     }
@@ -166,6 +166,7 @@ struct WrappedClip {
     FakeAvisynth *fakeEnv;
     int64_t magicalNumAudioSamplesForMVTools;
     int magicalNChannelsForMVTools;
+    int magicalSampleTypeForMVTools;
     WrappedClip(const std::string &filterName, const PClip &clip, const std::vector<VSNodeRef *> &preFetchClips, const PrefetchInfo &prefetchInfo, FakeAvisynth *fakeEnv);
     ~WrappedClip() {
         clip = nullptr;
