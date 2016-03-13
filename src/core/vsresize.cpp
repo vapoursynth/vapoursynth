@@ -18,6 +18,7 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
+#include <algorithm>
 #include <limits>
 #include <memory>
 #include <stdexcept>
@@ -232,7 +233,7 @@ namespace {
     }
 
 
-    void import_frame_props(const VSMap *props, zimg_image_format *format, const VSAPI *vsapi) {
+    bool import_frame_props(const VSMap *props, zimg_image_format *format, const VSAPI *vsapi) {
         propGetIfValid<int>(props, "_ChromaLocation", &format->chroma_location, [](int x) { return x >= 0; }, vsapi);
 
         if (vsapi->propNumElements(props, "_ColorRange") > 0) {
@@ -251,8 +252,25 @@ namespace {
         propGetIfValid<int>(props, "_Transfer", &format->transfer_characteristics, [](int x) { return x != ZIMG_TRANSFER_UNSPECIFIED; }, vsapi);
         propGetIfValid<int>(props, "_Primaries", &format->color_primaries, [](int x) { return x != ZIMG_PRIMARIES_UNSPECIFIED; }, vsapi);
 
-        if (vsapi->propNumElements(props, "_FieldBased") > 0 && vsapi->propGetInt(props, "_FieldBased", 0, nullptr))
-            throw std::runtime_error{ "field-based video not supported" };
+        bool is_interlaced = false;
+        if (vsapi->propNumElements(props, "_Field") > 0) {
+            int64_t x = vsapi->propGetInt(props, "_Field", 0, nullptr);
+
+            if (x == 0)
+                format->field_parity = ZIMG_FIELD_BOTTOM;
+            else if (x == 1)
+                format->field_parity = ZIMG_FIELD_TOP;
+            else
+                throw std::runtime_error{ std::string{ "bad _Field value: " } + std::to_string(x) };
+        } else if (vsapi->propNumElements(props, "_FieldBased") > 0) {
+            int64_t x = vsapi->propGetInt(props, "_FieldBased", 0, nullptr);
+
+            if (x != 0 && x != 1 && x != 2)
+                throw std::runtime_error{ std::string{ "bad _FieldBased value: " } + std::to_string(x) };
+
+            is_interlaced = x == 1 || x == 2;
+        }
+        return is_interlaced;
     }
 
     void export_frame_props(const zimg_image_format &format, VSMap *props, const VSAPI *vsapi) {
@@ -275,8 +293,6 @@ namespace {
         set_int_if_positive("_Matrix", format.matrix_coefficients);
         set_int_if_positive("_Transfer", format.transfer_characteristics);
         set_int_if_positive("_Primaries", format.color_primaries);
-
-        vsapi->propSetInt(props, "_FieldBased", 0, paReplace);
     }
 
     void propagate_sar(const VSMap *src_props, VSMap *dst_props, const zimg_image_format &src_format, const zimg_image_format &dst_format, const VSAPI *vsapi) {
@@ -491,9 +507,23 @@ namespace {
             assert(!m_frame_tmp);
         }
 
-        void init_unpack(const vszimgxx::FilterGraph &graph, const VSFrameRef *frame, const zimg_image_format &format, const VSFormat *vsformat, VSCore *core, const VSAPI *vsapi) {
+        void init_unpack(const vszimgxx::FilterGraph &graph, const VSFrameRef *frame, const zimg_image_format &format, bool interlaced,
+                         const VSFormat *vsformat, VSCore *core, const VSAPI *vsapi) {
             init_common(graph, false, format, vsformat, core, vsapi);
             import_frame_as_buffer(frame, &m_plane_buf.c, ZIMG_BUFFER_MAX, vsapi);
+
+            if (interlaced) {
+                unsigned order = format.field_parity == ZIMG_FIELD_BOTTOM ? 1 : 0;
+
+                // CompatBGR32 is upside-down.
+                if (vsformat->id == pfCompatBGR32)
+                    order = !order;
+
+                for (unsigned p = 0; p < static_cast<unsigned>(vsformat->numPlanes); ++p) {
+                    m_plane_buf.c.data(p) = m_plane_buf.c.line_at(order, p);
+                    m_plane_buf.c.stride(p) *= 2;
+                }
+            }
 
             if (vsformat->colorFamily != cmCompat) {
                 m_line_buf = m_plane_buf;
@@ -503,9 +533,23 @@ namespace {
             m_cb = (vsformat->id == pfCompatBGR32) ? unpack_bgr32 : unpack_yuy2;
         }
 
-        void init_pack(const vszimgxx::FilterGraph &graph, VSFrameRef *frame, const zimg_image_format &format, const VSFormat *vsformat, VSCore *core, const VSAPI *vsapi) {
+        void init_pack(const vszimgxx::FilterGraph &graph, VSFrameRef *frame, const zimg_image_format &format, bool interlaced,
+                       const VSFormat *vsformat, VSCore *core, const VSAPI *vsapi) {
             init_common(graph, true, format, vsformat, core, vsapi);
             import_frame_as_buffer(frame, &m_plane_buf.m, ZIMG_BUFFER_MAX, vsapi);
+
+            if (interlaced) {
+                unsigned order = format.field_parity == ZIMG_FIELD_BOTTOM ? 1 : 0;
+
+                // CompatBGR32 is upside-down.
+                if (vsformat->id == pfCompatBGR32)
+                    order = !order;
+
+                for (unsigned p = 0; p < static_cast<unsigned>(vsformat->numPlanes); ++p) {
+                    m_plane_buf.m.data(p) = m_plane_buf.m.line_at(order, p);
+                    m_plane_buf.m.stride(p) *= 2;
+                }
+            }
 
             if (vsformat->colorFamily != cmCompat) {
                 m_line_buf = m_plane_buf;
@@ -580,7 +624,9 @@ namespace {
                 dst_format(dst_format) {}
         };
 
-        std::shared_ptr<graph_data> m_graph_data;
+        std::shared_ptr<graph_data> m_graph_data_p;
+        std::shared_ptr<graph_data> m_graph_data_t;
+        std::shared_ptr<graph_data> m_graph_data_b;
 
         VSNodeRef *m_node;
         VSVideoInfo m_vi;
@@ -701,11 +747,19 @@ namespace {
         }
 
         std::shared_ptr<graph_data> get_graph_data(const zimg_image_format &src_format, const zimg_image_format &dst_format) {
-            std::shared_ptr<graph_data> data = m_graph_data;
+            std::shared_ptr<graph_data> *data_ptr;
 
+            if (src_format.field_parity == ZIMG_FIELD_TOP)
+                data_ptr = &m_graph_data_t;
+            else if (src_format.field_parity == ZIMG_FIELD_BOTTOM)
+                data_ptr = &m_graph_data_b;
+            else
+                data_ptr = &m_graph_data_p;
+
+            std::shared_ptr<graph_data> data = *data_ptr;
             if (!data || data->src_format != src_format || data->dst_format != dst_format) {
                 data = std::make_shared<graph_data>(src_format, dst_format, m_params);
-                m_graph_data = data;
+                *data_ptr = data;
             }
 
             return data;
@@ -733,6 +787,8 @@ namespace {
                 dst_format->chroma_location = src_format.chroma_location;
             }
 
+            dst_format->field_parity = src_format.field_parity;
+
             propagate_if_present(m_frame_params.matrix, &dst_format->matrix_coefficients);
             propagate_if_present(m_frame_params.transfer, &dst_format->transfer_characteristics);
             propagate_if_present(m_frame_params.primaries, &dst_format->color_primaries);
@@ -742,7 +798,8 @@ namespace {
 
         const VSFrameRef *real_get_frame(const VSFrameRef *src_frame, VSCore *core, const VSAPI *vsapi) {
             VSFrameRef *dst_frame = nullptr;
-            vszimg_callback unpack_cb, pack_cb;
+            vszimg_callback unpack_cb_t, pack_cb_t;
+            vszimg_callback unpack_cb_b, pack_cb_b;
 
             try {
                 vszimgxx::zimage_format src_format, dst_format;
@@ -761,42 +818,83 @@ namespace {
 
                 if (m_prefer_props)
                     set_src_colorspace(&src_format);
-                import_frame_props(src_props, &src_format, vsapi);
+                bool interlaced = import_frame_props(src_props, &src_format, vsapi);
                 if (!m_prefer_props)
                     set_src_colorspace(&src_format);
 
                 set_dst_colorspace(src_format, &dst_format);
-
-                std::shared_ptr<graph_data> graph = get_graph_data(src_format, dst_format);
-
                 dst_frame = vsapi->newVideoFrame(dst_vsformat, dst_format.width, dst_format.height, src_frame, core);
+
+                if (interlaced) {
+                    vszimgxx::zimage_format src_format_t = src_format;
+                    vszimgxx::zimage_format dst_format_t = dst_format;
+
+                    src_format_t.height /= 2;
+                    dst_format_t.height /= 2;
+
+                    src_format_t.field_parity = ZIMG_FIELD_TOP;
+                    dst_format_t.field_parity = ZIMG_FIELD_TOP;
+                    std::shared_ptr<graph_data> graph_t = get_graph_data(src_format_t, dst_format_t);
+
+                    vszimgxx::zimage_format src_format_b = src_format_t;
+                    vszimgxx::zimage_format dst_format_b = dst_format_t;
+                    src_format_b.field_parity = ZIMG_FIELD_BOTTOM;
+                    dst_format_b.field_parity = ZIMG_FIELD_BOTTOM;
+                    std::shared_ptr<graph_data> graph_b = get_graph_data(src_format_b, dst_format_b);
+
+                    std::unique_ptr<void, decltype(&vs_aligned_free)> tmp{
+                        vs_aligned_malloc(std::max(graph_t->graph.get_tmp_size(), graph_b->graph.get_tmp_size()), 64),
+                        vs_aligned_free
+                    };
+                    if (!tmp)
+                        throw std::bad_alloc{};
+
+                    unpack_cb_t.init_unpack(graph_t->graph, src_frame, src_format_t, true, src_vsformat, core, vsapi);
+                    pack_cb_t.init_pack(graph_t->graph, dst_frame, dst_format_t, true, dst_vsformat, core, vsapi);
+
+                    unpack_cb_b.init_unpack(graph_b->graph, src_frame, src_format_b, true, src_vsformat, core, vsapi);
+                    pack_cb_b.init_pack(graph_b->graph, dst_frame, dst_format_b, true, dst_vsformat, core, vsapi);
+
+                    graph_t->graph.process(
+                        unpack_cb_t.get_read_buffer(), pack_cb_t.get_write_buffer(), tmp.get(),
+                        unpack_cb_t.get_callback(), &unpack_cb_t, pack_cb_t.get_callback(), &pack_cb_t);
+                    graph_b->graph.process(
+                        unpack_cb_b.get_read_buffer(), pack_cb_b.get_write_buffer(), tmp.get(),
+                        unpack_cb_b.get_callback(), &unpack_cb_b, pack_cb_b.get_callback(), &pack_cb_b);
+                } else {
+                    std::shared_ptr<graph_data> graph = get_graph_data(src_format, dst_format);
+
+                    unpack_cb_t.init_unpack(graph->graph, src_frame, src_format, false, src_vsformat, core, vsapi);
+                    pack_cb_t.init_pack(graph->graph, dst_frame, dst_format, false, dst_vsformat, core, vsapi);
+
+                    std::unique_ptr<void, decltype(&vs_aligned_free)> tmp{
+                        vs_aligned_malloc(graph->graph.get_tmp_size(), 64),
+                        vs_aligned_free
+                    };
+                    if (!tmp)
+                        throw std::bad_alloc{};
+
+                    graph->graph.process(
+                        unpack_cb_t.get_read_buffer(), pack_cb_t.get_write_buffer(), tmp.get(),
+                        unpack_cb_t.get_callback(), &unpack_cb_t, pack_cb_t.get_callback(), &pack_cb_t);
+                }
+
                 VSMap *dst_props = vsapi->getFramePropsRW(dst_frame);
-
-                unpack_cb.init_unpack(graph->graph, src_frame, src_format, src_vsformat, core, vsapi);
-                pack_cb.init_pack(graph->graph, dst_frame, dst_format, dst_vsformat, core, vsapi);
-
-                std::unique_ptr<void, decltype(&vs_aligned_free)> tmp{
-                    vs_aligned_malloc(graph->graph.get_tmp_size(), 64),
-                    vs_aligned_free
-                };
-                if (!tmp)
-                    throw std::bad_alloc{};
-
-                graph->graph.process(
-                    unpack_cb.get_read_buffer(), pack_cb.get_write_buffer(), tmp.get(),
-                    unpack_cb.get_callback(), &unpack_cb, pack_cb.get_callback(), &pack_cb);
-
                 propagate_sar(src_props, dst_props, src_format, dst_format, vsapi);
                 export_frame_props(dst_format, dst_props, vsapi);
             } catch (...) {
                 vsapi->freeFrame(dst_frame);
-                unpack_cb.release(vsapi);
-                pack_cb.release(vsapi);
+                unpack_cb_t.release(vsapi);
+                pack_cb_t.release(vsapi);
+                unpack_cb_b.release(vsapi);
+                pack_cb_b.release(vsapi);
                 throw;
             }
 
-            unpack_cb.release(vsapi);
-            pack_cb.release(vsapi);
+            unpack_cb_t.release(vsapi);
+            pack_cb_t.release(vsapi);
+            unpack_cb_b.release(vsapi);
+            pack_cb_b.release(vsapi);
             return dst_frame;
         }
     public:
