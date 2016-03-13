@@ -756,10 +756,10 @@ namespace {
             else
                 data_ptr = &m_graph_data_p;
 
-            std::shared_ptr<graph_data> data = *data_ptr;
+            std::shared_ptr<graph_data> data = std::atomic_load(data_ptr);
             if (!data || data->src_format != src_format || data->dst_format != dst_format) {
                 data = std::make_shared<graph_data>(src_format, dst_format, m_params);
-                *data_ptr = data;
+                std::atomic_store(data_ptr, data);
             }
 
             return data;
