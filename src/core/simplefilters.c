@@ -655,6 +655,11 @@ static const VSFrameRef *VS_CC separateFieldsGetframe(int n, int activationReaso
             effectiveTFF = 0;
         else if (fieldBased == 2)
             effectiveTFF = 1;
+        if (effectiveTFF == -1) {
+            vsapi->setFilterError("SeparateFields: no field order provided");
+            vsapi->freeFrame(src);
+            return NULL;
+        }
 
         VSFrameRef *dst = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, src, core);
         const VSFormat *fi = vsapi->getFrameFormat(dst);
@@ -697,7 +702,10 @@ static void VS_CC separateFieldsCreate(const VSMap *in, VSMap *out, void *userDa
     SeparateFieldsData d;
     SeparateFieldsData *data;
 
-    d.tff = !!vsapi->propGetInt(in, "tff", 0, 0);
+    int err;
+    d.tff = !!vsapi->propGetInt(in, "tff", 0, &err);
+    if (err)
+        d.tff = -1;
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = *vsapi->getVideoInfo(d.node);
 
@@ -2425,7 +2433,7 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("CropRel", "clip:clip;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;", cropRelCreate, 0, plugin);
     registerFunc("AddBorders", "clip:clip;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;color:float[]:opt;", addBordersCreate, 0, plugin);
     registerFunc("ShufflePlanes", "clips:clip[];planes:int[];colorfamily:int;", shufflePlanesCreate, 0, plugin);
-    registerFunc("SeparateFields", "clip:clip;tff:int;", separateFieldsCreate, 0, plugin);
+    registerFunc("SeparateFields", "clip:clip;tff:int:opt;", separateFieldsCreate, 0, plugin);
     registerFunc("DoubleWeave", "clip:clip;tff:int;", doubleWeaveCreate, 0, plugin);
     registerFunc("FlipVertical", "clip:clip;", flipVerticalCreate, 0, plugin);
     registerFunc("FlipHorizontal", "clip:clip;", flipHorizontalCreate, 0, plugin);

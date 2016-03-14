@@ -1,4 +1,6 @@
 r32:
+the tff argument is now optional for separatefields
+added support for interlaced resizing
 extended avisynth mvtools compatibility hack to work for 64bit version as well 
 fixed regression from r29 that would make compatyuy2 conversions vertically flipped
 vspipe now outputs planar rgb in gbr plane order to better match what other software expects as input
