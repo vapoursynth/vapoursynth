@@ -656,7 +656,7 @@ static const VSFrameRef *VS_CC separateFieldsGetframe(int n, int activationReaso
         else if (fieldBased == 2)
             effectiveTFF = 1;
         if (effectiveTFF == -1) {
-            vsapi->setFilterError("SeparateFields: no field order provided");
+            vsapi->setFilterError("SeparateFields: no field order provided", frameCtx);
             vsapi->freeFrame(src);
             return NULL;
         }
