@@ -1,7 +1,7 @@
 ;*****************************************************************************
 ;* x86inc.asm: x264asm abstraction layer
 ;*****************************************************************************
-;* Copyright (C) 2005-2015 x264 project
+;* Copyright (C) 2005-2016 x264 project
 ;*
 ;* Authors: Loren Merritt <lorenm@u.washington.edu>
 ;*          Anton Mitrofanov <BugMaster@narod.ru>
@@ -171,9 +171,9 @@
     %define e%1h %3
     %define r%1b %2
     %define e%1b %2
-%if ARCH_X86_64 == 0
-    %define r%1  e%1
-%endif
+    %if ARCH_X86_64 == 0
+        %define r%1 e%1
+    %endif
 %endmacro
 
 DECLARE_REG_SIZE ax, al, ah
@@ -283,7 +283,7 @@ DECLARE_REG_TMP_SIZE 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14
 
 %macro ASSERT 1
     %if (%1) == 0
-        %error assert failed
+        %error assertion ``%1'' failed
     %endif
 %endmacro
 
@@ -374,8 +374,10 @@ DECLARE_REG_TMP_SIZE 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14
         %if %1 != 0 && required_stack_alignment > STACK_ALIGNMENT
             %if %1 > 0
                 %assign regs_used (regs_used + 1)
-            %elif ARCH_X86_64 && regs_used == num_args && num_args <= 4 + UNIX64 * 2
-                %warning "Stack pointer will overwrite register argument"
+            %endif
+            %if ARCH_X86_64 && regs_used < 5 + UNIX64 * 3
+                ; Ensure that we don't clobber any registers containing arguments
+                %assign regs_used 5 + UNIX64 * 3
             %endif
         %endif
     %endif
@@ -489,9 +491,9 @@ DECLARE_REG 14, R15, 120
 %macro RET 0
     WIN64_RESTORE_XMM_INTERNAL rsp
     POP_IF_USED 14, 13, 12, 11, 10, 9, 8, 7
-%if mmsize == 32
-    vzeroupper
-%endif
+    %if mmsize == 32
+        vzeroupper
+    %endif
     AUTO_REP_RET
 %endmacro
 
@@ -528,17 +530,17 @@ DECLARE_REG 14, R15, 72
 %define has_epilogue regs_used > 9 || mmsize == 32 || stack_size > 0
 
 %macro RET 0
-%if stack_size_padded > 0
-%if required_stack_alignment > STACK_ALIGNMENT
-    mov rsp, rstkm
-%else
-    add rsp, stack_size_padded
-%endif
-%endif
+    %if stack_size_padded > 0
+        %if required_stack_alignment > STACK_ALIGNMENT
+            mov rsp, rstkm
+        %else
+            add rsp, stack_size_padded
+        %endif
+    %endif
     POP_IF_USED 14, 13, 12, 11, 10, 9
-%if mmsize == 32
-    vzeroupper
-%endif
+    %if mmsize == 32
+        vzeroupper
+    %endif
     AUTO_REP_RET
 %endmacro
 
@@ -584,29 +586,29 @@ DECLARE_ARG 7, 8, 9, 10, 11, 12, 13, 14
 %define has_epilogue regs_used > 3 || mmsize == 32 || stack_size > 0
 
 %macro RET 0
-%if stack_size_padded > 0
-%if required_stack_alignment > STACK_ALIGNMENT
-    mov rsp, rstkm
-%else
-    add rsp, stack_size_padded
-%endif
-%endif
+    %if stack_size_padded > 0
+        %if required_stack_alignment > STACK_ALIGNMENT
+            mov rsp, rstkm
+        %else
+            add rsp, stack_size_padded
+        %endif
+    %endif
     POP_IF_USED 6, 5, 4, 3
-%if mmsize == 32
-    vzeroupper
-%endif
+    %if mmsize == 32
+        vzeroupper
+    %endif
     AUTO_REP_RET
 %endmacro
 
 %endif ;======================================================================
 
 %if WIN64 == 0
-%macro WIN64_SPILL_XMM 1
-%endmacro
-%macro WIN64_RESTORE_XMM 1
-%endmacro
-%macro WIN64_PUSH_XMM 0
-%endmacro
+    %macro WIN64_SPILL_XMM 1
+    %endmacro
+    %macro WIN64_RESTORE_XMM 1
+    %endmacro
+    %macro WIN64_PUSH_XMM 0
+    %endmacro
 %endif
 
 ; On AMD cpus <=K10, an ordinary ret is slow if it immediately follows either
@@ -619,24 +621,26 @@ DECLARE_ARG 7, 8, 9, 10, 11, 12, 13, 14
     %else
         rep ret
     %endif
+    annotate_function_size
 %endmacro
 
 %define last_branch_adr $$
 %macro AUTO_REP_RET 0
-    %ifndef cpuflags
-        times ((last_branch_adr-$)>>31)+1 rep ; times 1 iff $ != last_branch_adr.
-    %elif notcpuflag(ssse3)
-        times ((last_branch_adr-$)>>31)+1 rep
+    %if notcpuflag(ssse3)
+        times ((last_branch_adr-$)>>31)+1 rep ; times 1 iff $ == last_branch_adr.
     %endif
     ret
+    annotate_function_size
 %endmacro
 
 %macro BRANCH_INSTR 0-*
     %rep %0
         %macro %1 1-2 %1
             %2 %1
-            %%branch_instr:
-            %xdefine last_branch_adr %%branch_instr
+            %if notcpuflag(ssse3)
+                %%branch_instr equ $
+                %xdefine last_branch_adr %%branch_instr
+            %endif
         %endmacro
         %rotate 1
     %endrep
@@ -651,6 +655,7 @@ BRANCH_INSTR jz, je, jnz, jne, jl, jle, jnl, jnle, jg, jge, jng, jnge, ja, jae, 
     %elif %2
         jmp %1
     %endif
+    annotate_function_size
 %endmacro
 
 ;=============================================================================
@@ -672,6 +677,7 @@ BRANCH_INSTR jz, je, jnz, jne, jl, jle, jnl, jnle, jg, jge, jng, jnge, ja, jae, 
     cglobal_internal 0, %1 %+ SUFFIX, %2
 %endmacro
 %macro cglobal_internal 2-3+
+    annotate_function_size
     %if %1
         %xdefine %%FUNCTION_PREFIX private_prefix
         %xdefine %%VISIBILITY hidden
@@ -685,6 +691,7 @@ BRANCH_INSTR jz, je, jnz, jne, jl, jle, jnl, jnle, jg, jge, jng, jnge, ja, jae, 
         CAT_XDEFINE cglobaled_, %2, 1
     %endif
     %xdefine current_function %2
+    %xdefine current_function_section __SECT__
     %if FORMAT_ELF
         global %2:function %%VISIBILITY
     %else
@@ -733,6 +740,24 @@ BRANCH_INSTR jz, je, jnz, jne, jl, jle, jnl, jnle, jg, jge, jng, jnge, ja, jae, 
     [SECTION .note.GNU-stack noalloc noexec nowrite progbits]
 %endif
 
+; Tell debuggers how large the function was.
+; This may be invoked multiple times per function; we rely on later instances overriding earlier ones.
+; This is invoked by RET and similar macros, and also cglobal does it for the previous function,
+; but if the last function in a source file doesn't use any of the standard macros for its epilogue,
+; then its size might be unspecified.
+%macro annotate_function_size 0
+    %ifdef __YASM_VER__
+        %ifdef current_function
+            %if FORMAT_ELF
+                current_function_section
+                %%ecf equ $
+                size current_function %%ecf - current_function
+                __SECT__
+            %endif
+        %endif
+    %endif
+%endmacro
+
 ; cpuflags
 
 %assign cpuflags_mmx      (1<<0)
@@ -761,8 +786,9 @@ BRANCH_INSTR jz, je, jnz, jne, jl, jle, jnl, jnle, jg, jge, jng, jnge, ja, jae, 
 %assign cpuflags_bmi1     (1<<22)|cpuflags_lzcnt
 %assign cpuflags_bmi2     (1<<23)|cpuflags_bmi1
 
-%define    cpuflag(x) ((cpuflags & (cpuflags_ %+ x)) == (cpuflags_ %+ x))
-%define notcpuflag(x) ((cpuflags & (cpuflags_ %+ x)) != (cpuflags_ %+ x))
+; Returns a boolean value expressing whether or not the specified cpuflag is enabled.
+%define    cpuflag(x) (((((cpuflags & (cpuflags_ %+ x)) ^ (cpuflags_ %+ x)) - 1) >> 31) & 1)
+%define notcpuflag(x) (cpuflag(x) ^ 1)
 
 ; Takes an arbitrary number of cpuflags from the above list.
 ; All subsequent functions (up to the next INIT_CPUFLAGS) is built for the specified cpu.
@@ -839,14 +865,14 @@ BRANCH_INSTR jz, je, jnz, jne, jl, jle, jnl, jnle, jg, jge, jng, jnge, ja, jae, 
     %define movnta movntq
     %assign %%i 0
     %rep 8
-    CAT_XDEFINE m, %%i, mm %+ %%i
-    CAT_XDEFINE nnmm, %%i, %%i
-    %assign %%i %%i+1
+        CAT_XDEFINE m, %%i, mm %+ %%i
+        CAT_XDEFINE nnmm, %%i, %%i
+        %assign %%i %%i+1
     %endrep
     %rep 8
-    CAT_UNDEF m, %%i
-    CAT_UNDEF nnmm, %%i
-    %assign %%i %%i+1
+        CAT_UNDEF m, %%i
+        CAT_UNDEF nnmm, %%i
+        %assign %%i %%i+1
     %endrep
     INIT_CPUFLAGS %1
 %endmacro
@@ -857,7 +883,7 @@ BRANCH_INSTR jz, je, jnz, jne, jl, jle, jnl, jnle, jg, jge, jng, jnge, ja, jae, 
     %define mmsize 16
     %define num_mmregs 8
     %if ARCH_X86_64
-    %define num_mmregs 16
+        %define num_mmregs 16
     %endif
     %define mova movdqa
     %define movu movdqu
@@ -865,9 +891,9 @@ BRANCH_INSTR jz, je, jnz, jne, jl, jle, jnl, jnle, jg, jge, jng, jnge, ja, jae, 
     %define movnta movntdq
     %assign %%i 0
     %rep num_mmregs
-    CAT_XDEFINE m, %%i, xmm %+ %%i
-    CAT_XDEFINE nnxmm, %%i, %%i
-    %assign %%i %%i+1
+        CAT_XDEFINE m, %%i, xmm %+ %%i
+        CAT_XDEFINE nnxmm, %%i, %%i
+        %assign %%i %%i+1
     %endrep
     INIT_CPUFLAGS %1
 %endmacro
@@ -878,7 +904,7 @@ BRANCH_INSTR jz, je, jnz, jne, jl, jle, jnl, jnle, jg, jge, jng, jnge, ja, jae, 
     %define mmsize 32
     %define num_mmregs 8
     %if ARCH_X86_64
-    %define num_mmregs 16
+        %define num_mmregs 16
     %endif
     %define mova movdqa
     %define movu movdqu
@@ -886,9 +912,9 @@ BRANCH_INSTR jz, je, jnz, jne, jl, jle, jnl, jnle, jg, jge, jng, jnge, ja, jae, 
     %define movnta movntdq
     %assign %%i 0
     %rep num_mmregs
-    CAT_XDEFINE m, %%i, ymm %+ %%i
-    CAT_XDEFINE nnymm, %%i, %%i
-    %assign %%i %%i+1
+        CAT_XDEFINE m, %%i, ymm %+ %%i
+        CAT_XDEFINE nnymm, %%i, %%i
+        %assign %%i %%i+1
     %endrep
     INIT_CPUFLAGS %1
 %endmacro
@@ -912,7 +938,7 @@ INIT_XMM
 %assign i 0
 %rep 16
     DECLARE_MMCAST i
-%assign i i+1
+    %assign i i+1
 %endrep
 
 ; I often want to use macros that permute their arguments. e.g. there's no
@@ -930,23 +956,23 @@ INIT_XMM
 ; doesn't cost any cycles.
 
 %macro PERMUTE 2-* ; takes a list of pairs to swap
-%rep %0/2
-    %xdefine %%tmp%2 m%2
-    %rotate 2
-%endrep
-%rep %0/2
-    %xdefine m%1 %%tmp%2
-    CAT_XDEFINE nn, m%1, %1
-    %rotate 2
-%endrep
+    %rep %0/2
+        %xdefine %%tmp%2 m%2
+        %rotate 2
+    %endrep
+    %rep %0/2
+        %xdefine m%1 %%tmp%2
+        CAT_XDEFINE nn, m%1, %1
+        %rotate 2
+    %endrep
 %endmacro
 
 %macro SWAP 2+ ; swaps a single chain (sometimes more concise than pairs)
-%ifnum %1 ; SWAP 0, 1, ...
-    SWAP_INTERNAL_NUM %1, %2
-%else ; SWAP m0, m1, ...
-    SWAP_INTERNAL_NAME %1, %2
-%endif
+    %ifnum %1 ; SWAP 0, 1, ...
+        SWAP_INTERNAL_NUM %1, %2
+    %else ; SWAP m0, m1, ...
+        SWAP_INTERNAL_NAME %1, %2
+    %endif
 %endmacro
 
 %macro SWAP_INTERNAL_NUM 2-*
@@ -956,7 +982,7 @@ INIT_XMM
         %xdefine m%2 %%tmp
         CAT_XDEFINE nn, m%1, %1
         CAT_XDEFINE nn, m%2, %2
-    %rotate 1
+        %rotate 1
     %endrep
 %endmacro
 
@@ -964,7 +990,7 @@ INIT_XMM
     %xdefine %%args nn %+ %1
     %rep %0-1
         %xdefine %%args %%args, nn %+ %2
-    %rotate 1
+        %rotate 1
     %endrep
     SWAP_INTERNAL_NUM %%args
 %endmacro
@@ -981,7 +1007,7 @@ INIT_XMM
     %assign %%i 0
     %rep num_mmregs
         CAT_XDEFINE %%f, %%i, m %+ %%i
-    %assign %%i %%i+1
+        %assign %%i %%i+1
     %endrep
 %endmacro
 
@@ -991,7 +1017,7 @@ INIT_XMM
         %rep num_mmregs
             CAT_XDEFINE m, %%i, %1_m %+ %%i
             CAT_XDEFINE nn, m %+ %%i, %%i
-        %assign %%i %%i+1
+            %assign %%i %%i+1
         %endrep
     %endif
 %endmacro
@@ -1047,7 +1073,7 @@ INIT_XMM
     %endif
     CAT_XDEFINE sizeofxmm, i, 16
     CAT_XDEFINE sizeofymm, i, 32
-%assign i i+1
+    %assign i i+1
 %endrep
 %undef i
 
@@ -1424,7 +1450,7 @@ AVX_INSTR pfmul, 3dnow, 1, 0, 1
     %else
         CAT_XDEFINE q, j, i
     %endif
-%assign i i+1
+    %assign i i+1
 %endrep
 %undef i
 %undef j
@@ -1447,47 +1473,44 @@ FMA_INSTR  pmacsdd,  pmulld, paddd ; sse4 emulation
 FMA_INSTR pmacsdql,  pmuldq, paddq ; sse4 emulation
 FMA_INSTR pmadcswd, pmaddwd, paddd
 
-; convert FMA4 to FMA3 if possible
-%macro FMA4_INSTR 4
-    %macro %1 4-8 %1, %2, %3, %4
-        %if cpuflag(fma4)
-            v%5 %1, %2, %3, %4
-        %elifidn %1, %2
-            v%6 %1, %4, %3 ; %1 = %1 * %3 + %4
-        %elifidn %1, %3
-            v%7 %1, %2, %4 ; %1 = %2 * %1 + %4
-        %elifidn %1, %4
-            v%8 %1, %2, %3 ; %1 = %2 * %3 + %1
-        %else
-            %error fma3 emulation of ``%5 %1, %2, %3, %4'' is not supported
-        %endif
-    %endmacro
+; Macros for consolidating FMA3 and FMA4 using 4-operand (dst, src1, src2, src3) syntax.
+; FMA3 is only possible if dst is the same as one of the src registers.
+; Either src2 or src3 can be a memory operand.
+%macro FMA4_INSTR 2-*
+    %push fma4_instr
+    %xdefine %$prefix %1
+    %rep %0 - 1
+        %macro %$prefix%2 4-6 %$prefix, %2
+            %if notcpuflag(fma3) && notcpuflag(fma4)
+                %error use of ``%5%6'' fma instruction in cpuname function: current_function
+            %elif cpuflag(fma4)
+                v%5%6 %1, %2, %3, %4
+            %elifidn %1, %2
+                ; If %3 or %4 is a memory operand it needs to be encoded as the last operand.
+                %ifid %3
+                    v%{5}213%6 %2, %3, %4
+                %else
+                    v%{5}132%6 %2, %4, %3
+                %endif
+            %elifidn %1, %3
+                v%{5}213%6 %3, %2, %4
+            %elifidn %1, %4
+                v%{5}231%6 %4, %2, %3
+            %else
+                %error fma3 emulation of ``%5%6 %1, %2, %3, %4'' is not supported
+            %endif
+        %endmacro
+        %rotate 1
+    %endrep
+    %pop
 %endmacro
 
-FMA4_INSTR fmaddpd, fmadd132pd, fmadd213pd, fmadd231pd
-FMA4_INSTR fmaddps, fmadd132ps, fmadd213ps, fmadd231ps
-FMA4_INSTR fmaddsd, fmadd132sd, fmadd213sd, fmadd231sd
-FMA4_INSTR fmaddss, fmadd132ss, fmadd213ss, fmadd231ss
-
-FMA4_INSTR fmaddsubpd, fmaddsub132pd, fmaddsub213pd, fmaddsub231pd
-FMA4_INSTR fmaddsubps, fmaddsub132ps, fmaddsub213ps, fmaddsub231ps
-FMA4_INSTR fmsubaddpd, fmsubadd132pd, fmsubadd213pd, fmsubadd231pd
-FMA4_INSTR fmsubaddps, fmsubadd132ps, fmsubadd213ps, fmsubadd231ps
-
-FMA4_INSTR fmsubpd, fmsub132pd, fmsub213pd, fmsub231pd
-FMA4_INSTR fmsubps, fmsub132ps, fmsub213ps, fmsub231ps
-FMA4_INSTR fmsubsd, fmsub132sd, fmsub213sd, fmsub231sd
-FMA4_INSTR fmsubss, fmsub132ss, fmsub213ss, fmsub231ss
-
-FMA4_INSTR fnmaddpd, fnmadd132pd, fnmadd213pd, fnmadd231pd
-FMA4_INSTR fnmaddps, fnmadd132ps, fnmadd213ps, fnmadd231ps
-FMA4_INSTR fnmaddsd, fnmadd132sd, fnmadd213sd, fnmadd231sd
-FMA4_INSTR fnmaddss, fnmadd132ss, fnmadd213ss, fnmadd231ss
-
-FMA4_INSTR fnmsubpd, fnmsub132pd, fnmsub213pd, fnmsub231pd
-FMA4_INSTR fnmsubps, fnmsub132ps, fnmsub213ps, fnmsub231ps
-FMA4_INSTR fnmsubsd, fnmsub132sd, fnmsub213sd, fnmsub231sd
-FMA4_INSTR fnmsubss, fnmsub132ss, fnmsub213ss, fnmsub231ss
+FMA4_INSTR fmadd,    pd, ps, sd, ss
+FMA4_INSTR fmaddsub, pd, ps
+FMA4_INSTR fmsub,    pd, ps, sd, ss
+FMA4_INSTR fmsubadd, pd, ps
+FMA4_INSTR fnmadd,   pd, ps, sd, ss
+FMA4_INSTR fnmsub,   pd, ps, sd, ss
 
 ; workaround: vpbroadcastq is broken in x86_32 due to a yasm bug (fixed in 1.3.0)
 %ifdef __YASM_VER__
