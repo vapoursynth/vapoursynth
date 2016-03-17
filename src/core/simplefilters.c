@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2015 Fredrik Mellbin
+* Copyright (c) 2012-2016 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -754,13 +754,47 @@ static const VSFrameRef *VS_CC doubleWeaveGetframe(int n, int activationReason, 
         vsapi->requestFrameFilter(n, d->node, frameCtx);
         vsapi->requestFrameFilter(n + 1, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        int par = (n & 1) ^ d->tff;
-        const VSFrameRef *srctop = vsapi->getFrameFilter(n + !par, d->node, frameCtx);
-        const VSFrameRef *srcbtn = vsapi->getFrameFilter(n + par, d->node, frameCtx);
+        const VSFrameRef *src1 = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSFrameRef *src2 = vsapi->getFrameFilter(n + 1, d->node, frameCtx);
 
-        VSFrameRef *dst = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, srctop, core);
+        int err;
+        int src1_field = vsapi->propGetInt(vsapi->getFramePropsRO(src1), "_Field", 0, &err);
+        if (err)
+            src1_field = -1;
+        int src2_field = vsapi->propGetInt(vsapi->getFramePropsRO(src2), "_Field", 0, &err);
+        if (err)
+            src2_field = -1;
+
+        const VSFrameRef *srctop = NULL;
+        const VSFrameRef *srcbtn = NULL;
+
+        if (src1_field == 0 && src2_field == 1) {
+            srcbtn = src1;
+            srctop = src2;
+        } else if (src1_field == 1 && src2_field == 0) {
+            srctop = src1;
+            srcbtn = src2;
+        } else if (d->tff != -1) {
+            int par = (n & 1) ^ d->tff;
+            if (par) {
+                srctop = src2;
+                srcbtn = src1;
+            } else {
+                srctop = src1;
+                srcbtn = src2;
+            }
+        } else {
+            vsapi->setFilterError("DoubleWeave: field order could not be determined from frame properties", frameCtx);
+            vsapi->freeFrame(src1);
+            vsapi->freeFrame(src2);
+            return NULL;
+        }
+
+        VSFrameRef *dst = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, src1, core);
         const VSFormat *fi = vsapi->getFrameFormat(dst);
-        vsapi->propDeleteKey(vsapi->getFramePropsRW(dst), "_Field");
+        VSMap *dstprops = vsapi->getFramePropsRW(dst);
+        vsapi->propDeleteKey(dstprops, "_Field");
+        vsapi->propSetInt(dstprops, "_FieldBased", 1 + (srctop == src1), paReplace);
 
         for (int plane = 0; plane < fi->numPlanes; plane++) {
             const uint8_t *srcptop = vsapi->getReadPtr(srctop, plane);
@@ -781,8 +815,8 @@ static const VSFrameRef *VS_CC doubleWeaveGetframe(int n, int activationReason, 
             }
         }
 
-        vsapi->freeFrame(srcbtn);
-        vsapi->freeFrame(srctop);
+        vsapi->freeFrame(src1);
+        vsapi->freeFrame(src2);
         return dst;
     }
 
@@ -793,7 +827,10 @@ static void VS_CC doubleWeaveCreate(const VSMap *in, VSMap *out, void *userData,
     DoubleWeaveData d;
     DoubleWeaveData *data;
 
-    d.tff = !!vsapi->propGetInt(in, "tff", 0, 0);
+    int err;
+    d.tff = !!vsapi->propGetInt(in, "tff", 0, &err);
+    if (err)
+        d.tff = -1;
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = *vsapi->getVideoInfo(d.node);
     d.vi.height *= 2;
@@ -2434,7 +2471,7 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("AddBorders", "clip:clip;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;color:float[]:opt;", addBordersCreate, 0, plugin);
     registerFunc("ShufflePlanes", "clips:clip[];planes:int[];colorfamily:int;", shufflePlanesCreate, 0, plugin);
     registerFunc("SeparateFields", "clip:clip;tff:int:opt;", separateFieldsCreate, 0, plugin);
-    registerFunc("DoubleWeave", "clip:clip;tff:int;", doubleWeaveCreate, 0, plugin);
+    registerFunc("DoubleWeave", "clip:clip;tff:int:opt;", doubleWeaveCreate, 0, plugin);
     registerFunc("FlipVertical", "clip:clip;", flipVerticalCreate, 0, plugin);
     registerFunc("FlipHorizontal", "clip:clip;", flipHorizontalCreate, 0, plugin);
     registerFunc("Turn180", "clip:clip;", flipHorizontalCreate, (void *)1, plugin);

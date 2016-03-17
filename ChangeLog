@@ -1,5 +1,6 @@
 r32:
-the tff argument is now optional for separatefields
+the tff argument is now optional and ignored for doubleweave when the _field property is present in a valid combination, _fieldbased will also be properly set now
+the tff argument is now optional and ignored for separatefields when the _fieldbased property is present
 added support for interlaced resizing
 extended avisynth mvtools compatibility hack to work for 64bit version as well 
 fixed regression from r29 that would make compatyuy2 conversions vertically flipped
