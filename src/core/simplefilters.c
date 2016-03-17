@@ -2462,6 +2462,51 @@ static void VS_CC setFramePropCreate(const VSMap *in, VSMap *out, void *userData
 }
 
 //////////////////////////////////////////
+// SetFieldBased
+
+typedef struct {
+    VSNodeRef *node;
+    const VSVideoInfo *vi;
+    int64_t fieldbased;
+} SetFieldBasedData;
+
+static const VSFrameRef *VS_CC setFieldBasedGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    SetFieldBasedData *d = (SetFieldBasedData *)* instanceData;
+
+    if (activationReason == arInitial) {
+        vsapi->requestFrameFilter(n, d->node, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        VSFrameRef *dst = vsapi->copyFrame(src, core);
+        vsapi->freeFrame(src);
+
+        VSMap *props = vsapi->getFramePropsRW(dst);
+        vsapi->propDeleteKey(props, "_Field");
+        vsapi->propSetInt(props, "_FieldBased", d->fieldbased, paReplace);
+
+        return dst;
+    }
+
+    return 0;
+}
+
+static void VS_CC setFieldBasedCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    SetFieldBasedData d;
+    SetFieldBasedData *data;
+    
+    d.fieldbased = vsapi->propGetInt(in, "value", 0, NULL);
+    if (d.fieldbased < 0 || d.fieldbased > 2)
+        RETERROR("SetFieldBased: value must be 0, 1 or 2");
+    d.node = vsapi->propGetNode(in, "clip", 0, NULL);
+    d.vi = vsapi->getVideoInfo(d.node);
+
+    data = malloc(sizeof(d));
+    *data = d;
+
+    vsapi->createFilter(in, out, "SetFieldBased", singleClipInit, setFieldBasedGetFrame, singleClipFree, fmParallel, nfNoCache, data, core);
+}
+
+//////////////////////////////////////////
 // Init
 
 void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
@@ -2487,4 +2532,5 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("ClipToProp", "clip:clip;mclip:clip;prop:data:opt;", clipToPropCreate, 0, plugin);
     registerFunc("PropToClip", "clip:clip;prop:data:opt;", propToClipCreate, 0, plugin);
     registerFunc("SetFrameProp", "clip:clip;prop:data;delete:int:opt;intval:int[]:opt;floatval:float[]:opt;data:data[]:opt;", setFramePropCreate, 0, plugin);
+    registerFunc("SetFieldBased", "clip:clip;value:int;", setFieldBasedCreate, 0, plugin);
 }
