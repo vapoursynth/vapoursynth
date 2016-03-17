@@ -39,6 +39,32 @@ extern "C" {
 #include "vsresize.h"
 }
 
+#if defined(__GNUC__) && (__GNUC__ < 5)
+#include <mutex>
+namespace {
+
+    std::mutex g_shared_ptr_mutex;
+
+    template <class T>
+    std::shared_ptr<T> sp_atomic_load(const std::shared_ptr<T> *p)
+    {
+        std::lock_guard<std::mutex> lock{ g_shared_ptr_mutex };
+        return *p;
+    }
+
+    template <class T>
+    void sp_atomic_store(std::shared_ptr<T> *p, std::shared_ptr<T> r)
+    {
+        std::lock_guard<std::mutex> lock{ g_shared_ptr_mutex };
+        *p = r;
+    }
+
+} // namespace
+#else
+#define sp_atomic_load std::atomic_load
+#define sp_atomic_store std::atomic_store
+#endif
+
 namespace {
 
     unsigned g_version_info[3];
@@ -756,10 +782,10 @@ namespace {
             else
                 data_ptr = &m_graph_data_p;
 
-            std::shared_ptr<graph_data> data = std::atomic_load(data_ptr);
+            std::shared_ptr<graph_data> data = sp_atomic_load(data_ptr);
             if (!data || data->src_format != src_format || data->dst_format != dst_format) {
                 data = std::make_shared<graph_data>(src_format, dst_format, m_params);
-                std::atomic_store(data_ptr, data);
+                sp_atomic_store(data_ptr, data);
             }
 
             return data;
