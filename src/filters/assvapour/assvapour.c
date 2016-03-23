@@ -396,7 +396,12 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
     ass_set_fonts(d.ass_renderer, NULL, NULL, 1, NULL, 1);
 
     if(d.file == NULL) {
-        char *str, *text, x[16], y[16], start[16], end[16];
+        char *str, *text;
+#define MAX_DIGITS 15
+        char x[MAX_DIGITS + 1] = { 0 };
+        char y[MAX_DIGITS + 1] = { 0 };
+        char start[MAX_DIGITS + 1] = { 0 };
+        char end[MAX_DIGITS + 1] = { 0 };
         size_t siz;
         const char *fmt = "[Script Info]\n"
                           "ScriptType: v4.00+\n"
@@ -409,8 +414,8 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
                           "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
                           "Dialogue: 0,%s,%s,Default,,0,0,0,,%s\n";
 
-        sprintf(x, "%d", d.vi[0].width);
-        sprintf(y, "%d", d.vi[0].height);
+        snprintf(x, MAX_DIGITS, "%d", d.vi[0].width);
+        snprintf(y, MAX_DIGITS, "%d", d.vi[0].height);
 
         {
             int64_t timeint, time_ms;
@@ -431,7 +436,7 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
             time_secs = timeint / 100;
             time_ms = timeint % 100;
             ti = gmtime(&time_secs);
-            sprintf(start, "%d:%02d:%02d.%02" PRIu64, ti->tm_hour, ti->tm_min, ti->tm_sec, time_ms);
+            snprintf(start, MAX_DIGITS, "%d:%02d:%02d.%02" PRIu64, ti->tm_hour, ti->tm_min, ti->tm_sec, time_ms);
         }
 
         {
@@ -453,7 +458,8 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
             time_secs = timeint / 100;
             time_ms = timeint % 100;
             ti = gmtime(&time_secs);
-            sprintf(end, "%d:%02d:%02d.%02" PRIu64, ti->tm_hour, ti->tm_min, ti->tm_sec, time_ms);
+            snprintf(end, MAX_DIGITS, "%d:%02d:%02d.%02" PRIu64, ti->tm_hour, ti->tm_min, ti->tm_sec, time_ms);
+#undef MAX_DIGITS
         }
 
         text = strrepl(d.text, "\n", "\\N");
@@ -461,8 +467,9 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
         siz = (strlen(fmt) + strlen(x) + strlen(y) + strlen(d.style) +
                strlen(start) + strlen(end) + strlen(text)) * sizeof(char);
 
-        str = malloc(siz);
-        sprintf(str, fmt, x, y, d.style, start, end, text);
+        str = malloc(siz + 1);
+        memset(str, 0, siz + 1);
+        snprintf(str, siz, fmt, x, y, d.style, start, end, text);
 
         free(text);
 
