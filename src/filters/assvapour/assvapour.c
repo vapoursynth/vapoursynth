@@ -130,142 +130,6 @@ static void VS_CC assInit(VSMap *in, VSMap *out, void **instanceData,
 {
     AssData *d = (AssData *) * instanceData;
     vsapi->setVideoInfo(d->vi, 2, node);
-
-    d->ass_library = ass_library_init();
-
-    if(!d->ass_library) {
-        vsapi->setError(out, "failed to initialize ASS library");
-        vsapi->freeNode(d->node);
-        return;
-    }
-
-    ass_set_message_cb(d->ass_library, assDebugCallback, (void *)d->debuglevel);
-    ass_set_extract_fonts(d->ass_library, 0);
-    ass_set_style_overrides(d->ass_library, 0);
-
-    d->ass_renderer = ass_renderer_init(d->ass_library);
-
-    if(!d->ass_renderer) {
-        vsapi->setError(out, "failed to initialize ASS renderer");
-        vsapi->freeNode(d->node);
-        ass_library_done(d->ass_library);
-        return;
-    }
-
-    ass_set_font_scale(d->ass_renderer, d->scale);
-    ass_set_frame_size(d->ass_renderer, d->vi[0].width, d->vi[0].height);
-    ass_set_margins(d->ass_renderer,
-                    d->margins[0], d->margins[1], d->margins[2], d->margins[3]);
-    ass_set_use_margins(d->ass_renderer, 1);
-
-    if(d->linespacing)
-        ass_set_line_spacing(d->ass_renderer, d->linespacing);
-
-    if(d->sar) {
-        ass_set_aspect_ratio(d->ass_renderer,
-                             (double)d->vi[0].width /
-                             d->vi[0].height * d->sar, 1);
-    }
-
-    if(d->fontdir)
-        ass_set_fonts_dir(d->ass_library, d->fontdir);
-
-    ass_set_fonts(d->ass_renderer, NULL, NULL, 1, NULL, 1);
-
-    if(d->file == NULL) {
-        char *str, *text, x[16], y[16], start[16], end[16];
-        size_t siz;
-        const char *fmt = "[Script Info]\n"
-                          "ScriptType: v4.00+\n"
-                          "PlayResX: %s\n"
-                          "PlayResY: %s\n"
-                          "[V4+ Styles]\n"
-                          "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
-                          "Style: Default,%s\n"
-                          "[Events]\n"
-                          "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
-                          "Dialogue: 0,%s,%s,Default,,0,0,0,,%s\n";
-
-        sprintf(x, "%d", d->vi[0].width);
-        sprintf(y, "%d", d->vi[0].height);
-
-        {
-            int64_t timeint, time_ms;
-            time_t time_secs;
-            struct tm * ti;
-            if(d->startframe != 0 && (INT64_MAX / d->vi[0].fpsDen) < ((int64_t)d->startframe * 100)) {
-                //Overflow would occur
-                vsapi->setError(out, "Unable to calculate start time");
-                vsapi->freeNode(d->node);
-                ass_renderer_done(d->ass_renderer);
-                ass_library_done(d->ass_library);
-                return;
-            }
-            else {
-                timeint = (int64_t)d->startframe * 100 * d->vi[0].fpsDen / d->vi[0].fpsNum;
-            }
-            time_secs = timeint / 100;
-            time_ms = timeint % 100;
-            ti = gmtime(&time_secs);
-            sprintf(start, "%d:%02d:%02d.%02" PRIu64, ti->tm_hour, ti->tm_min, ti->tm_sec, time_ms);
-        }
-
-        {
-            int64_t timeint, time_ms;
-            time_t time_secs;
-            struct tm * ti;
-            if(d->endframe != 0 && (INT64_MAX / d->vi[0].fpsDen) < ((int64_t)d->endframe * 100)) {
-                //Overflow would occur
-                vsapi->setError(out, "Unable to calculate end time");
-                vsapi->freeNode(d->node);
-                ass_renderer_done(d->ass_renderer);
-                ass_library_done(d->ass_library);
-                return;
-            }
-            else {
-                timeint = (int64_t)d->endframe * 100 * d->vi[0].fpsDen / d->vi[0].fpsNum;
-            }
-            time_secs = timeint / 100;
-            time_ms = timeint % 100;
-            ti = gmtime(&time_secs);
-            sprintf(end, "%d:%02d:%02d.%02" PRIu64, ti->tm_hour, ti->tm_min, ti->tm_sec, time_ms);
-        }
-
-        text = strrepl(d->text, "\n", "\\N");
-
-        siz = (strlen(fmt) + strlen(x) + strlen(y) + strlen(d->style) +
-               strlen(start) + strlen(end) + strlen(text)) * sizeof(char);
-
-        str = malloc(siz);
-        sprintf(str, fmt, x, y, d->style, start, end, text);
-
-        free(text);
-
-        d->ass = ass_new_track(d->ass_library);
-        ass_process_data(d->ass, str, strlen(str));
-
-        free(str);
-    } else {
-        d->ass = ass_read_file(d->ass_library, (char *)d->file, (char *)d->charset);
-    }
-
-    if(!d->ass) {
-        vsapi->setError(out, "unable to parse input file");
-        vsapi->freeNode(d->node);
-        ass_renderer_done(d->ass_renderer);
-        ass_library_done(d->ass_library);
-        return;
-    }
-
-    d->lastframe = vsapi->newVideoFrame(d->vi[0].format,
-                                        d->vi[0].width,
-                                        d->vi[0].height,
-                                        NULL, core);
-
-    d->lastalpha = vsapi->newVideoFrame(d->vi[1].format,
-                                        d->vi[1].width,
-                                        d->vi[1].height,
-                                        NULL, core);
 }
 
 static void assRender(VSFrameRef *dst, VSFrameRef *alpha, const VSAPI *vsapi,
@@ -482,6 +346,142 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
         return;
     }
 
+    d.ass_library = ass_library_init();
+
+    if(!d.ass_library) {
+        vsapi->setError(out, "failed to initialize ASS library");
+        vsapi->freeNode(d.node);
+        return;
+    }
+
+    ass_set_message_cb(d.ass_library, assDebugCallback, (void *)d.debuglevel);
+    ass_set_extract_fonts(d.ass_library, 0);
+    ass_set_style_overrides(d.ass_library, 0);
+
+    d.ass_renderer = ass_renderer_init(d.ass_library);
+
+    if(!d.ass_renderer) {
+        vsapi->setError(out, "failed to initialize ASS renderer");
+        vsapi->freeNode(d.node);
+        ass_library_done(d.ass_library);
+        return;
+    }
+
+    ass_set_font_scale(d.ass_renderer, d.scale);
+    ass_set_frame_size(d.ass_renderer, d.vi[0].width, d.vi[0].height);
+    ass_set_margins(d.ass_renderer,
+                    d.margins[0], d.margins[1], d.margins[2], d.margins[3]);
+    ass_set_use_margins(d.ass_renderer, 1);
+
+    if(d.linespacing)
+        ass_set_line_spacing(d.ass_renderer, d.linespacing);
+
+    if(d.sar) {
+        ass_set_aspect_ratio(d.ass_renderer,
+                             (double)d.vi[0].width /
+                             d.vi[0].height * d.sar, 1);
+    }
+
+    if(d.fontdir)
+        ass_set_fonts_dir(d.ass_library, d.fontdir);
+
+    ass_set_fonts(d.ass_renderer, NULL, NULL, 1, NULL, 1);
+
+    if(d.file == NULL) {
+        char *str, *text, x[16], y[16], start[16], end[16];
+        size_t siz;
+        const char *fmt = "[Script Info]\n"
+                          "ScriptType: v4.00+\n"
+                          "PlayResX: %s\n"
+                          "PlayResY: %s\n"
+                          "[V4+ Styles]\n"
+                          "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
+                          "Style: Default,%s\n"
+                          "[Events]\n"
+                          "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+                          "Dialogue: 0,%s,%s,Default,,0,0,0,,%s\n";
+
+        sprintf(x, "%d", d.vi[0].width);
+        sprintf(y, "%d", d.vi[0].height);
+
+        {
+            int64_t timeint, time_ms;
+            time_t time_secs;
+            struct tm * ti;
+            if(d.startframe != 0 && (INT64_MAX / d.vi[0].fpsDen) < ((int64_t)d.startframe * 100)) {
+                //Overflow would occur
+                vsapi->setError(out, "Unable to calculate start time");
+                vsapi->freeNode(d.node);
+                ass_renderer_done(d.ass_renderer);
+                ass_library_done(d.ass_library);
+                return;
+            }
+            else {
+                timeint = (int64_t)d.startframe * 100 * d.vi[0].fpsDen / d.vi[0].fpsNum;
+            }
+            time_secs = timeint / 100;
+            time_ms = timeint % 100;
+            ti = gmtime(&time_secs);
+            sprintf(start, "%d:%02d:%02d.%02" PRIu64, ti->tm_hour, ti->tm_min, ti->tm_sec, time_ms);
+        }
+
+        {
+            int64_t timeint, time_ms;
+            time_t time_secs;
+            struct tm * ti;
+            if(d.endframe != 0 && (INT64_MAX / d.vi[0].fpsDen) < ((int64_t)d.endframe * 100)) {
+                //Overflow would occur
+                vsapi->setError(out, "Unable to calculate end time");
+                vsapi->freeNode(d.node);
+                ass_renderer_done(d.ass_renderer);
+                ass_library_done(d.ass_library);
+                return;
+            }
+            else {
+                timeint = (int64_t)d.endframe * 100 * d.vi[0].fpsDen / d.vi[0].fpsNum;
+            }
+            time_secs = timeint / 100;
+            time_ms = timeint % 100;
+            ti = gmtime(&time_secs);
+            sprintf(end, "%d:%02d:%02d.%02" PRIu64, ti->tm_hour, ti->tm_min, ti->tm_sec, time_ms);
+        }
+
+        text = strrepl(d.text, "\n", "\\N");
+
+        siz = (strlen(fmt) + strlen(x) + strlen(y) + strlen(d.style) +
+               strlen(start) + strlen(end) + strlen(text)) * sizeof(char);
+
+        str = malloc(siz);
+        sprintf(str, fmt, x, y, d.style, start, end, text);
+
+        free(text);
+
+        d.ass = ass_new_track(d.ass_library);
+        ass_process_data(d.ass, str, strlen(str));
+
+        free(str);
+    } else {
+        d.ass = ass_read_file(d.ass_library, (char *)d.file, (char *)d.charset);
+    }
+
+    if(!d.ass) {
+        vsapi->setError(out, "unable to parse input file");
+        vsapi->freeNode(d.node);
+        ass_renderer_done(d.ass_renderer);
+        ass_library_done(d.ass_library);
+        return;
+    }
+
+    d.lastframe = vsapi->newVideoFrame(d.vi[0].format,
+                                       d.vi[0].width,
+                                       d.vi[0].height,
+                                       NULL, core);
+
+    d.lastalpha = vsapi->newVideoFrame(d.vi[1].format,
+                                       d.vi[1].width,
+                                       d.vi[1].height,
+                                       NULL, core);
+
     data = malloc(sizeof(d));
     *data = d;
 
@@ -493,9 +493,6 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
         blend = 1;
 
     if (blend) {
-        if (vsapi->getError(out))
-            return;
-
         VSPlugin *std_plugin = vsapi->getPluginById("com.vapoursynth.std", core);
         VSPlugin *resize_plugin = vsapi->getPluginById("com.vapoursynth.resize", core);
 
