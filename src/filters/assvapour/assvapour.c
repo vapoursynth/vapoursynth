@@ -486,7 +486,7 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
     *data = d;
 
     vsapi->createFilter(in, out, "AssRender", assInit, assGetFrame, assFree,
-                        fmSerial, 0, data, core);
+                        fmUnordered, 0, data, core);
 
     int blend = !!vsapi->propGetInt(in, "blend", 0, &err);
     if (err)
