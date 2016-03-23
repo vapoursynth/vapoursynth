@@ -5,18 +5,19 @@ AssVapour
 
 AssVapour is a subtitle renderer that uses libass.
 
-.. function::   AssRender(clip clip, string file[, string charset="UTF-8", int debuglevel=0, string fontdir="", float linespacing=0, int[] margins=[0, 0, 0, 0], float sar=0, float scale=1])
+.. function::   AssRender(clip clip, string file[, string charset="UTF-8", int debuglevel=0, string fontdir="", float linespacing=0, int[] margins=[0, 0, 0, 0], float sar=0, float scale=1, bint blend=True, int matrix, string matrix_s, int transfer, string transfer_s, int primaries, string primaries_s])
    :module: assvapour
 
-   AssRender takes the ASS script *file* and returns a list of two clips. The
-   first one is an RGB24 clip containing the rendered subtitles. The second one
-   is a Y8 clip containing a mask, to be used for blending the rendered
-   subtitles into other clips.
+   AssRender has two modes of operation. With blend=True (the default),
+   it returns *clip* with the subtitles burned in. With blend=False, it
+   returns a list of two clips. The first one is an RGB24 clip
+   containing the rendered subtitles. The second one is a Gray8 clip
+   containing a mask, to be used for blending the rendered subtitles
+   into other clips.
 
    Parameters:
       clip
-         Clip whose dimensions will be used as reference for the output clips.
-         It is not modified.
+         Input clip.
 
       file
          ASS script to be rendered.
@@ -45,12 +46,31 @@ AssVapour is a subtitle renderer that uses libass.
       scale
          Font scale.
 
+      blend
+         If True, the subtitles will be blended into *clip*. Otherwise,
+         the bitmaps will be returned untouched.
 
-.. function::   Subtitle(clip clip, string text[, int debuglevel=0, string fontdir="", float linespacing=0, int[] margins=[0, 0, 0, 0], float sar=0, string style="sans-serif,20,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,7,10,10,10,1"], int start=0, int end=clip.numFrames)
+      matrix
+
+      matrix_s
+
+      transfer
+
+      transfer_s
+
+      primaries
+
+      primaries_s
+         If blend=True, these will be passed to resize.Bicubic when
+         converting the RGB24 subtitles to YUV. The default matrix is
+         "709".
+
+
+.. function::   Subtitle(clip clip, string text[, int debuglevel=0, string fontdir="", float linespacing=0, int[] margins=[0, 0, 0, 0], float sar=0, string style="sans-serif,20,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,7,10,10,10,1", int start=0, int end=clip.numFrames, bint blend=True, int matrix, string matrix_s, int transfer, string transfer_s, int primaries, string primaries_s])
    :module: assvapour
 
    Instead of rendering an ASS script, Subtitle renders the string *text*.
-   It returns two clips, same as AssRender.
+   Otherwise it works the same as AssRender.
 
    Parameters:
       text
@@ -65,9 +85,22 @@ AssVapour is a subtitle renderer that uses libass.
    The other parameters have the same meanings as with AssRender.
 
 
-Example::
+Example with manual blending::
 
-   subs = core.assvapour.AssRender(yuv420P8video, "asdf.ass")
-   subs[0] = core.resize.Bicubic(subs[0], format=vs.YUV420P8)
-   hardsubbed_video = core.std.MaskedMerge(video, subs[0], subs[1])
+   subs = core.assvapour.AssRender(clip=YUV420P10_video, file="asdf.ass", blend=False)
+
+   gray10 = core.register_format(subs[1].format.color_family,
+                                 subs[1].format.sample_type,
+                                 YUV420P10_video.format.bits_per_sample,
+                                 subs[1].format.subsampling_w,
+                                 subs[1].format.subsampling_h)
+
+   subs[0] = core.resize.Bicubic(clip=subs[0], format=YUV420P10_video.format.id, matrix_s="470bg")
+   subs[1] = core.resize.Bicubic(clip=subs[1], format=gray10.id)
+
+   hardsubbed_video = core.std.MaskedMerge(clipa=YUV420P10_video, clipb=subs[0], mask=subs[1])
+
+Example with automatic blending (will use BT709 matrix)::
+
+   hardsubbed_video = core.assvapour.AssRender(clip=YUV420P10_video, file="asdf.ass")
 

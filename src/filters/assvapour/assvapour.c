@@ -35,6 +35,11 @@
 #define blend(srcA, srcRGB, dstA, dstRGB, outA)  \
     ((srcA * 255 * srcRGB + (dstRGB * dstA * (255 - srcA))) / outA)
 
+#ifdef _MSC_VER
+#define snprintf _snprintf
+#endif
+
+
 struct AssTime {
     time_t seconds;
     int milliseconds;
@@ -466,6 +471,134 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
 
     vsapi->createFilter(in, out, "AssRender", assInit, assGetFrame, assFree,
                         fmSerial, 0, data, core);
+
+    int blend = !!vsapi->propGetInt(in, "blend", 0, &err);
+    if (err)
+        blend = 1;
+
+    if (blend) {
+        if (vsapi->getError(out))
+            return;
+
+        VSPlugin *std_plugin = vsapi->getPluginById("com.vapoursynth.std", core);
+        VSPlugin *resize_plugin = vsapi->getPluginById("com.vapoursynth.resize", core);
+
+        VSNodeRef *subs = vsapi->propGetNode(out, "clip", 0, NULL);
+        VSNodeRef *alpha = vsapi->propGetNode(out, "clip", 1, NULL);
+
+        const VSVideoInfo *vi_subs = vsapi->getVideoInfo(d.node);
+
+        VSMap *args = vsapi->createMap();
+        vsapi->propSetNode(args, "clip", subs, paReplace);
+        vsapi->freeNode(subs);
+        vsapi->propSetInt(args, "format", vi_subs->format->id, paReplace);
+        int matrix = vsapi->propGetInt(in, "matrix", 0, &err);
+        if (!err)
+            vsapi->propSetInt(args, "matrix", matrix, paReplace);
+        const char *matrix_s = vsapi->propGetData(in, "matrix_s", 0, &err);
+        if (!err)
+            vsapi->propSetData(args, "matrix_s", matrix_s, -1, paReplace);
+
+        int transfer = vsapi->propGetInt(in, "transfer", 0, &err);
+        if (!err)
+            vsapi->propSetInt(args, "transfer", transfer, paReplace);
+        const char *transfer_s = vsapi->propGetData(in, "transfer_s", 0, &err);
+        if (!err)
+            vsapi->propSetData(args, "transfer_s", transfer_s, -1, paReplace);
+
+        int primaries = vsapi->propGetInt(in, "primaries", 0, &err);
+        if (!err)
+            vsapi->propSetInt(args, "primaries", primaries, paReplace);
+        const char *primaries_s = vsapi->propGetData(in, "primaries_s", 0, &err);
+        if (!err)
+            vsapi->propSetData(args, "primaries_s", primaries_s, -1, paReplace);
+
+        if (vsapi->propGetType(in, "matrix") == ptUnset &&
+            vsapi->propGetType(in, "matrix_s") == ptUnset)
+            vsapi->propSetData(args, "matrix_s", "709", -1, paReplace);
+
+        VSMap *ret = vsapi->invoke(resize_plugin, "Bicubic", args);
+        vsapi->freeMap(args);
+        if (vsapi->getError(ret)) {
+            vsapi->setError(out, vsapi->getError(ret));
+            vsapi->freeMap(ret);
+            vsapi->freeNode(alpha);
+            assFree(data, core, vsapi);
+            return;
+        }
+
+        subs = vsapi->propGetNode(ret, "clip", 0, NULL);
+        vsapi->freeMap(ret);
+
+        if (vi_subs->format->bitsPerSample != d.vi[1].format->bitsPerSample) {
+            const VSFormat *alpha_format = vsapi->registerFormat(d.vi[1].format->colorFamily,
+                                                                 d.vi[1].format->sampleType,
+                                                                 vi_subs->format->bitsPerSample,
+                                                                 d.vi[1].format->subSamplingW,
+                                                                 d.vi[1].format->subSamplingH,
+                                                                 core);
+            if (!alpha_format) {
+#define ERROR_SIZE 512
+                char error[ERROR_SIZE + 1] = { 0 };
+                snprintf(error, ERROR_SIZE,
+                         "Failed to register format with color family %d, "
+                         "sample type %d, "
+                         "bit depth %d, "
+                         "horizontal subsampling %d, "
+                         "vertical subsampling %d.",
+                         d.vi[1].format->colorFamily,
+                         d.vi[1].format->sampleType,
+                         vi_subs->format->bitsPerSample,
+                         d.vi[1].format->subSamplingW,
+                         d.vi[1].format->subSamplingH);
+#undef ERROR_SIZE
+                vsapi->setError(out, error);
+                vsapi->freeNode(subs);
+                vsapi->freeNode(alpha);
+                assFree(data, core, vsapi);
+                return;
+            }
+
+            args = vsapi->createMap();
+            vsapi->propSetNode(args, "clip", alpha, paReplace);
+            vsapi->freeNode(alpha);
+            vsapi->propSetInt(args, "format", alpha_format->id, paReplace);
+
+            ret = vsapi->invoke(resize_plugin, "Bicubic", args);
+            vsapi->freeMap(args);
+            if (vsapi->getError(ret)) {
+                vsapi->setError(out, vsapi->getError(ret));
+                vsapi->freeMap(ret);
+                vsapi->freeNode(subs);
+                assFree(data, core, vsapi);
+                return;
+            }
+
+            alpha = vsapi->propGetNode(ret, "clip", 0, NULL);
+            vsapi->freeMap(ret);
+        }
+
+        args = vsapi->createMap();
+        vsapi->propSetNode(args, "clipa", d.node, paReplace);
+        vsapi->propSetNode(args, "clipb", subs, paReplace);
+        vsapi->freeNode(subs);
+        vsapi->propSetNode(args, "mask", alpha, paReplace);
+        vsapi->freeNode(alpha);
+
+        ret = vsapi->invoke(std_plugin, "MaskedMerge", args);
+        vsapi->freeMap(args);
+        if (vsapi->getError(ret)) {
+            vsapi->setError(out, vsapi->getError(ret));
+            vsapi->freeMap(ret);
+            assFree(data, core, vsapi);
+            return;
+        }
+
+        VSNodeRef *clip = vsapi->propGetNode(ret, "clip", 0, NULL);
+        vsapi->freeMap(ret);
+        vsapi->propSetNode(out, "clip", clip, paReplace);
+        vsapi->freeNode(clip);
+    }
 }
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
@@ -484,8 +617,15 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
                  "linespacing:float:opt;"
                  "margins:int[]:opt;"
                  "sar:float:opt;"
-                 "scale:float:opt;",
-                 assRenderCreate, 0, plugin);
+                 "scale:float:opt;"
+                 "blend:int:opt;"
+                 "matrix:int:opt;"
+                 "matrix_s:data:opt;"
+                 "transfer:int:opt;"
+                 "transfer_s:data:opt;"
+                 "primaries:int:opt;"
+                 "primaries_s:data:opt;"
+                 , assRenderCreate, 0, plugin);
     registerFunc("Subtitle",
                  "clip:clip;"
                  "text:data;"
@@ -496,7 +636,14 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
                  "sar:float:opt;"
                  "style:data:opt;"
                  "start:int:opt;"
-                 "end:int:opt;",
-                 assRenderCreate, 0, plugin);
+                 "end:int:opt;"
+                 "blend:int:opt;"
+                 "matrix:int:opt;"
+                 "matrix_s:data:opt;"
+                 "transfer:int:opt;"
+                 "transfer_s:data:opt;"
+                 "primaries:int:opt;"
+                 "primaries_s:data:opt;"
+                 , assRenderCreate, 0, plugin);
 }
 
