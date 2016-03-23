@@ -1457,7 +1457,7 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
     if (vdm.ovrfile) {
         char err[80];
 
-        if (vdecimateLoadOVR(vdm.ovrfile, vdm.drop, vdm.inCycle, vdm.vi.numFrames, err)) {
+        if (vdecimateLoadOVR(vdm.ovrfile, vdm.drop, vdm.inCycle, vdm.vi.numFrames, err, sizeof(err))) {
             free(vdm.drop);
             free(vdm.bdiffs);
             free(vdm.vmi);
