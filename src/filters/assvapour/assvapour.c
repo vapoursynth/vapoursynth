@@ -382,6 +382,10 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
     d.lastn = -1;
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi[0] = *vsapi->getVideoInfo(d.node);
+
+    if (!d.vi[0].format || !d.vi[0].width || !d.vi[0].height)
+        vsapi->setError(out, "clip must have known format and dimensions.");
+
     d.vi[0].format = vsapi->getFormatPreset(pfRGB24, core);
     d.vi[1] = d.vi[0];
     d.vi[1].format = vsapi->getFormatPreset(pfGray8, core);
