@@ -255,12 +255,17 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
     AssData *data;
     int err, i;
 
+    const char *filter_name = (const char *)userData;
+
+#define ERROR_SIZE 512
+    char error[ERROR_SIZE + 1] = { 0 };
+
     d.lastn = -1;
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi[0] = *vsapi->getVideoInfo(d.node);
 
     if (!d.vi[0].format || !d.vi[0].width || !d.vi[0].height)
-        vsapi->setError(out, "clip must have known format and dimensions.");
+        snprintf(error, ERROR_SIZE, "%s: clip must have known format and dimensions.", filter_name);
 
     d.vi[0].format = vsapi->getFormatPreset(pfRGB24, core);
     d.vi[1] = d.vi[0];
@@ -286,7 +291,7 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
             d.startframe = 0;
         }
         else if(d.startframe > d.vi[0].numFrames) {
-            vsapi->setError(out, "start must be smaller than the clip length");
+            snprintf(error, ERROR_SIZE, "%s: start must be smaller than the clip length", filter_name);
         }
         
         
@@ -295,10 +300,10 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
             d.endframe = d.vi[0].numFrames;
         }
         else if(d.endframe > d.vi[0].numFrames) {
-            vsapi->setError(out, "end must be smaller than the clip length");
+            snprintf(error, ERROR_SIZE, "%s: end must be smaller than the clip length", filter_name);
         }
         else if(!(d.startframe < d.endframe)) {
-            vsapi->setError(out, "end must be larger than start");
+            snprintf(error, ERROR_SIZE, "%s: end must be larger than start", filter_name);
         }
     }
 
@@ -318,30 +323,31 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
         d.scale = 1;
 
     if(d.scale <= 0)
-        vsapi->setError(out, "scale must be greater than 0");
+        snprintf(error, ERROR_SIZE, "%s: scale must be greater than 0", filter_name);
 
     d.linespacing = vsapi->propGetFloat(in, "linespacing", 0, &err);
 
     if(d.linespacing < 0)
-        vsapi->setError(out, "linespacing must be positive");
+        snprintf(error, ERROR_SIZE, "%s: linespacing must be positive", filter_name);
 
     d.sar = vsapi->propGetFloat(in, "sar", 0, &err);
 
     if(d.sar < 0)
-        vsapi->setError(out, "sar must be positive");
+        snprintf(error, ERROR_SIZE, "%s: sar must be positive", filter_name);
 
     for(i = 0; i < 4; i++) {
         d.margins[i] = vsapi->propGetInt(in, "margins", i, &err);
 
         if(d.margins[i] < 0) {
-            vsapi->setError(out, "margins must be positive");
+            snprintf(error, ERROR_SIZE, "%s: margins must be positive", filter_name);
             break;
         }
     }
 
     d.debuglevel = vsapi->propGetInt(in, "debuglevel", 0, &err);
 
-    if(vsapi->getError(out)) {
+    if(error[0]) {
+        vsapi->setError(out, error);
         vsapi->freeNode(d.node);
         return;
     }
@@ -349,7 +355,8 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
     d.ass_library = ass_library_init();
 
     if(!d.ass_library) {
-        vsapi->setError(out, "failed to initialize ASS library");
+        snprintf(error, ERROR_SIZE, "%s: failed to initialize ASS library", filter_name);
+        vsapi->setError(out, error);
         vsapi->freeNode(d.node);
         return;
     }
@@ -361,7 +368,8 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
     d.ass_renderer = ass_renderer_init(d.ass_library);
 
     if(!d.ass_renderer) {
-        vsapi->setError(out, "failed to initialize ASS renderer");
+        snprintf(error, ERROR_SIZE, "%s: failed to initialize ASS renderer", filter_name);
+        vsapi->setError(out, error);
         vsapi->freeNode(d.node);
         ass_library_done(d.ass_library);
         return;
@@ -410,7 +418,8 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
             struct tm * ti;
             if(d.startframe != 0 && (INT64_MAX / d.vi[0].fpsDen) < ((int64_t)d.startframe * 100)) {
                 //Overflow would occur
-                vsapi->setError(out, "Unable to calculate start time");
+                snprintf(error, ERROR_SIZE, "%s: Unable to calculate start time", filter_name);
+                vsapi->setError(out, error);
                 vsapi->freeNode(d.node);
                 ass_renderer_done(d.ass_renderer);
                 ass_library_done(d.ass_library);
@@ -431,7 +440,8 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
             struct tm * ti;
             if(d.endframe != 0 && (INT64_MAX / d.vi[0].fpsDen) < ((int64_t)d.endframe * 100)) {
                 //Overflow would occur
-                vsapi->setError(out, "Unable to calculate end time");
+                snprintf(error, ERROR_SIZE, "%s: Unable to calculate end time", filter_name);
+                vsapi->setError(out, error);
                 vsapi->freeNode(d.node);
                 ass_renderer_done(d.ass_renderer);
                 ass_library_done(d.ass_library);
@@ -465,7 +475,8 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
     }
 
     if(!d.ass) {
-        vsapi->setError(out, "unable to parse input file");
+        snprintf(error, ERROR_SIZE, "%s: unable to parse input file", filter_name);
+        vsapi->setError(out, error);
         vsapi->freeNode(d.node);
         ass_renderer_done(d.ass_renderer);
         ass_library_done(d.ass_library);
@@ -485,7 +496,7 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "AssRender", assInit, assGetFrame, assFree,
+    vsapi->createFilter(in, out, filter_name, assInit, assGetFrame, assFree,
                         fmUnordered, 0, data, core);
 
     int blend = !!vsapi->propGetInt(in, "blend", 0, &err);
@@ -533,7 +544,8 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
         VSMap *ret = vsapi->invoke(resize_plugin, "Bicubic", args);
         vsapi->freeMap(args);
         if (vsapi->getError(ret)) {
-            vsapi->setError(out, vsapi->getError(ret));
+            snprintf(error, ERROR_SIZE, "%s: %s", filter_name, vsapi->getError(ret));
+            vsapi->setError(out, error);
             vsapi->freeMap(ret);
             vsapi->freeNode(alpha);
             assFree(data, core, vsapi);
@@ -551,20 +563,18 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
                                                                  d.vi[1].format->subSamplingH,
                                                                  core);
             if (!alpha_format) {
-#define ERROR_SIZE 512
-                char error[ERROR_SIZE + 1] = { 0 };
                 snprintf(error, ERROR_SIZE,
-                         "Failed to register format with color family %d, "
+                         "%s: Failed to register format with color family %d, "
                          "sample type %d, "
                          "bit depth %d, "
                          "horizontal subsampling %d, "
                          "vertical subsampling %d.",
+                         filter_name,
                          d.vi[1].format->colorFamily,
                          d.vi[1].format->sampleType,
                          vi_subs->format->bitsPerSample,
                          d.vi[1].format->subSamplingW,
                          d.vi[1].format->subSamplingH);
-#undef ERROR_SIZE
                 vsapi->setError(out, error);
                 vsapi->freeNode(subs);
                 vsapi->freeNode(alpha);
@@ -580,7 +590,8 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
             ret = vsapi->invoke(resize_plugin, "Bicubic", args);
             vsapi->freeMap(args);
             if (vsapi->getError(ret)) {
-                vsapi->setError(out, vsapi->getError(ret));
+                snprintf(error, ERROR_SIZE, "%s: %s", filter_name, vsapi->getError(ret));
+                vsapi->setError(out, error);
                 vsapi->freeMap(ret);
                 vsapi->freeNode(subs);
                 assFree(data, core, vsapi);
@@ -601,7 +612,9 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
         ret = vsapi->invoke(std_plugin, "MaskedMerge", args);
         vsapi->freeMap(args);
         if (vsapi->getError(ret)) {
-            vsapi->setError(out, vsapi->getError(ret));
+            snprintf(error, ERROR_SIZE, "%s: %s", filter_name, vsapi->getError(ret));
+#undef ERROR_SIZE
+            vsapi->setError(out, error);
             vsapi->freeMap(ret);
             assFree(data, core, vsapi);
             return;
@@ -642,7 +655,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
                  "charset:data:opt;"
                  "scale:float:opt;"
                  COMMON_PARAMS
-                 , assRenderCreate, 0, plugin);
+                 , assRenderCreate, (void *)"AssRender", plugin);
     registerFunc("Subtitle",
                  "clip:clip;"
                  "text:data;"
@@ -650,7 +663,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
                  "start:int:opt;"
                  "end:int:opt;"
                  COMMON_PARAMS
-                 , assRenderCreate, 0, plugin);
+                 , assRenderCreate, (void *)"Subtitle", plugin);
 
 #undef COMMON_PARAMS
 }
