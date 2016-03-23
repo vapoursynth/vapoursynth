@@ -774,69 +774,67 @@ static void VS_CC eedi3Create(const VSMap *in, VSMap *out, void *userData, VSCor
     char msg[80];
 
     if(d.vi.format->bytesPerSample != 1) {
-        sprintf(msg, "eedi3:  only 8 bits per sample input supported");
+        snprintf(msg, sizeof(msg), "eedi3: only 8 bits per sample input supported");
         goto error;
     }
 
     if((d.vi.height & 1) && !d.dh) {
-        sprintf(msg, "eedi3:  height must be mod 2 when dh=false!");
+        snprintf(msg, sizeof(msg), "eedi3: height must be mod 2 when dh=false!");
         goto error;
     }
 
-
-
     if(d.field < 0 || d.field > 3) {
-        sprintf(msg, "eedi3:  field must be set to 0, 1, 2, or 3!");
+        snprintf(msg, sizeof(msg), "eedi3: field must be set to 0, 1, 2, or 3!");
         goto error;
     }
 
     if(d.dh && d.field > 1) {
-        sprintf(msg, "eedi3:  field must be set to 0 or 1 when dh=true!");
+        snprintf(msg, sizeof(msg), "eedi3: field must be set to 0 or 1 when dh=true!");
         goto error;
     }
 
     if (d.field > 1 && (d.vi.numFrames > INT_MAX / 2)) {
-        sprintf(msg, "eedi3:  resulting clip is too long!");
+        snprintf(msg, sizeof(msg), "eedi3: resulting clip is too long!");
         goto error;
     }
 
     if(d.alpha < 0.0f || d.alpha > 1.0f) {
-        sprintf(msg, "eedi3:  0 <= alpha <= 1!");
+        snprintf(msg, sizeof(msg), "eedi3: 0 <= alpha <= 1!");
         goto error;
     }
 
     if(d.beta < 0.0f || d.beta > 1.0f) {
-        sprintf(msg, "eedi3:  0 <= beta <= 1!");
+        snprintf(msg, sizeof(msg), "eedi3: 0 <= beta <= 1!");
         goto error;
     }
 
     if(d.alpha + d.beta > 1.0f) {
-        sprintf(msg, "eedi3:  0 <= alpha+beta <= 1!");
+        snprintf(msg, sizeof(msg), "eedi3: 0 <= alpha+beta <= 1!");
         goto error;
     }
 
     if(d.gamma < 0.0f) {
-        sprintf(msg, "eedi3:  0 <= gamma!");
+        snprintf(msg, sizeof(msg), "eedi3: 0 <= gamma!");
         goto error;
     }
 
     if(d.nrad < 0 || d.nrad > 3) {
-        sprintf(msg, "eedi3:  0 <= nrad <= 3!");
+        snprintf(msg, sizeof(msg), "eedi3: 0 <= nrad <= 3!");
         goto error;
     }
 
     if(d.mdis < 1 || d.mdis > 40) {
-        sprintf(msg, "eedi3:  1 <= mdis <= 40!");
+        snprintf(msg, sizeof(msg), "eedi3: 1 <= mdis <= 40!");
         goto error;
     }
 
     if(d.vcheck < 0 || d.vcheck > 3) {
-        sprintf(msg, "eedi3:  0 <= vcheck <= 3!");
+        snprintf(msg, sizeof(msg), "eedi3: 0 <= vcheck <= 3!");
         goto error;
     }
 
     if(d.vcheck > 0 && (d.vthresh0 <= 0.0f || d.vthresh1 <= 0.0f || d.vthresh2 <= 0.0f)) {
-        sprintf(msg, "eedi3:  0 < vthresh0 , 0 < vthresh1 , 0 < vthresh2!");
+        snprintf(msg, sizeof(msg), "eedi3: 0 < vthresh0 , 0 < vthresh1 , 0 < vthresh2!");
         goto error;
     }
 
@@ -855,7 +853,7 @@ static void VS_CC eedi3Create(const VSMap *in, VSMap *out, void *userData, VSCor
                 d.vi.width != vi2->width ||
                 d.vi.numFrames != vi2->numFrames ||
                 d.vi.format != vi2->format) {
-            sprintf(msg, "eedi3:  sclip doesn't match!\n");
+            snprintf(msg, sizeof(msg), "eedi3: sclip doesn't match!");
             goto error;
         }
     }

@@ -95,37 +95,34 @@ static void VS_CC cropInit(VSMap *in, VSMap *out, void **instanceData, VSNode *n
     vsapi->setVideoInfo(&vi, 1, node);
 }
 
-static int cropVerify(int x, int y, int width, int height, int srcwidth, int srcheight, const VSFormat *fi, char *msg) {
+static int cropVerify(int x, int y, int width, int height, int srcwidth, int srcheight, const VSFormat *fi, char *msg, size_t len) {
     msg[0] = 0;
 
     if (y < 0 || x < 0)
-        sprintf(msg, "Crop: negative corner coordinates not allowed");
+        snprintf(msg, len, "Crop: negative corner coordinates not allowed");
 
     if (width <= 0 || height <= 0)
-        sprintf(msg, "Crop: negative/zero cropping dimensions not allowed");
+        snprintf(msg, len, "Crop: negative/zero cropping dimensions not allowed");
 
     if (srcheight > 0 && srcwidth > 0)
         if (srcheight < height + y || srcwidth < width + x)
-            sprintf(msg, "Crop: cropped area extends beyond frame dimensions");
+            snprintf(msg, len, "Crop: cropped area extends beyond frame dimensions");
 
     if (fi) {
         if (width % (1 << fi->subSamplingW))
-            sprintf(msg, "Crop: cropped area needs to have mod %d width", 1 << fi->subSamplingW);
+            snprintf(msg, len, "Crop: cropped area needs to have mod %d width", 1 << fi->subSamplingW);
 
         if (height % (1 << fi->subSamplingH))
-            sprintf(msg, "Crop: cropped area needs to have mod %d height", 1 << fi->subSamplingH);
+            snprintf(msg, len, "Crop: cropped area needs to have mod %d height", 1 << fi->subSamplingH);
 
         if (x % (1 << fi->subSamplingW))
-            sprintf(msg, "Crop: cropped area needs to have mod %d width offset", 1 << fi->subSamplingW);
+            snprintf(msg, len, "Crop: cropped area needs to have mod %d width offset", 1 << fi->subSamplingW);
 
         if (y % (1 << fi->subSamplingH))
-            sprintf(msg, "Crop: cropped area needs to have mod %d height offset", 1 << fi->subSamplingH);
+            snprintf(msg, len, "Crop: cropped area needs to have mod %d height offset", 1 << fi->subSamplingH);
     }
 
-    if (msg[0])
-        return 1;
-    else
-        return 0;
+    return !!msg[0];
 }
 
 static const VSFrameRef *VS_CC cropGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -140,7 +137,7 @@ static const VSFrameRef *VS_CC cropGetframe(int n, int activationReason, void **
         int width = vsapi->getFrameWidth(src, 0);
         int height = vsapi->getFrameHeight(src, 0);
 
-        if (cropVerify(d->x, d->y, d->width, d->height, width, height, fi, msg)) {
+        if (cropVerify(d->x, d->y, d->width, d->height, width, height, fi, msg, sizeof(msg))) {
             vsapi->freeFrame(src);
             vsapi->setFilterError(msg, frameCtx);
             return NULL;
@@ -184,7 +181,7 @@ static void VS_CC cropAbsCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
     d.vi = vsapi->getVideoInfo(d.node);
 
-    if (cropVerify(d.x, d.y, d.width, d.height, d.vi->width, d.vi->height, d.vi->format, msg)) {
+    if (cropVerify(d.x, d.y, d.width, d.height, d.vi->width, d.vi->height, d.vi->format, msg, sizeof(msg))) {
         vsapi->freeNode(d.node);
         RETERROR(msg);
     }
@@ -222,7 +219,7 @@ static void VS_CC cropRelCreate(const VSMap *in, VSMap *out, void *userData, VSC
         return;
     }
 
-    if (cropVerify(d.x, d.y, d.width, d.height, d.vi->width, d.vi->height, d.vi->format, msg)) {
+    if (cropVerify(d.x, d.y, d.width, d.height, d.vi->width, d.vi->height, d.vi->format, msg, sizeof(msg))) {
         vsapi->freeNode(d.node);
         RETERROR(msg);
     }
@@ -257,27 +254,24 @@ static void VS_CC addBordersInit(VSMap *in, VSMap *out, void **instanceData, VSN
     vsapi->setVideoInfo(&vi, 1, node);
 }
 
-static int addBordersVerify(int left, int right, int top, int bottom, const VSFormat *fi, char *msg) {
+static int addBordersVerify(int left, int right, int top, int bottom, const VSFormat *fi, char *msg, size_t len) {
     msg[0] = 0;
 
     if (fi) {
         if (left % (1 << fi->subSamplingW))
-            sprintf(msg, "AddBorders: added area needs to have mod %d width", 1 << fi->subSamplingW);
+            snprintf(msg, len, "AddBorders: added area needs to have mod %d width", 1 << fi->subSamplingW);
 
         if (right % (1 << fi->subSamplingW))
-            sprintf(msg, "AddBorders: added area needs to have mod %d width", 1 << fi->subSamplingW);
+            snprintf(msg, len, "AddBorders: added area needs to have mod %d width", 1 << fi->subSamplingW);
 
         if (top % (1 << fi->subSamplingH))
-            sprintf(msg, "AddBorders: added area needs to have mod %d height", 1 << fi->subSamplingH);
+            snprintf(msg, len, "AddBorders: added area needs to have mod %d height", 1 << fi->subSamplingH);
 
         if (bottom % (1 << fi->subSamplingH))
-            sprintf(msg, "AddBorders: added area needs to have mod %d height", 1 << fi->subSamplingH);
+            snprintf(msg, len, "AddBorders: added area needs to have mod %d height", 1 << fi->subSamplingH);
     }
 
-    if (msg[0])
-        return 1;
-    else
-        return 0;
+    return !!msg[0];
 }
 
 static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -291,7 +285,7 @@ static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, v
         const VSFormat *fi = vsapi->getFrameFormat(src);
         VSFrameRef *dst;
 
-        if (addBordersVerify(d->left, d->right, d->top, d->bottom, fi, msg)) {
+        if (addBordersVerify(d->left, d->right, d->top, d->bottom, fi, msg, sizeof(msg))) {
             vsapi->freeFrame(src);
             vsapi->setFilterError(msg, frameCtx);
             return 0;
@@ -405,7 +399,7 @@ static void VS_CC addBordersCreate(const VSMap *in, VSMap *out, void *userData, 
         RETERROR("AddBorders: input needs to be constant format");
     }
 
-    if (addBordersVerify(d.left, d.right, d.top, d.bottom, d.vi->format, msg)) {
+    if (addBordersVerify(d.left, d.right, d.top, d.bottom, d.vi->format, msg, sizeof(msg))) {
         vsapi->freeNode(d.node);
         RETERROR(msg);
     }
@@ -758,10 +752,10 @@ static const VSFrameRef *VS_CC doubleWeaveGetframe(int n, int activationReason, 
         const VSFrameRef *src2 = vsapi->getFrameFilter(n + 1, d->node, frameCtx);
 
         int err;
-        int src1_field = vsapi->propGetInt(vsapi->getFramePropsRO(src1), "_Field", 0, &err);
+        int64_t src1_field = vsapi->propGetInt(vsapi->getFramePropsRO(src1), "_Field", 0, &err);
         if (err)
             src1_field = -1;
-        int src2_field = vsapi->propGetInt(vsapi->getFramePropsRO(src2), "_Field", 0, &err);
+        int64_t src2_field = vsapi->propGetInt(vsapi->getFramePropsRO(src2), "_Field", 0, &err);
         if (err)
             src2_field = -1;
 
@@ -1845,7 +1839,7 @@ static const VSFrameRef *VS_CC pemVerifierGetFrame(int n, int activationReason, 
                 for (int y = 0; y < height; y++) {
                     for (int x = 0; x < width; x++)
                         if (srcp[x] < d->lower[plane] || srcp[x] > d->upper[plane]) {
-                            sprintf(strbuf, "PEMVerifier: Illegal sample value (%d) at: plane: %d Y: %d, X: %d, Frame: %d", (int)srcp[x], plane, y, x, n);
+                            snprintf(strbuf, sizeof(strbuf), "PEMVerifier: Illegal sample value (%d) at: plane: %d Y: %d, X: %d, Frame: %d", (int)srcp[x], plane, y, x, n);
                             vsapi->setFilterError(strbuf, frameCtx);
                             vsapi->freeFrame(src);
                             return 0;
@@ -1857,7 +1851,7 @@ static const VSFrameRef *VS_CC pemVerifierGetFrame(int n, int activationReason, 
                 for (int y = 0; y < height; y++) {
                     for (int x = 0; x < width; x++)
                         if (((const uint16_t *)srcp)[x] < d->lower[plane] || ((const uint16_t *)srcp)[x] > d->upper[plane]) {
-                            sprintf(strbuf, "PEMVerifier: Illegal sample value (%d) at: plane: %d Y: %d, X: %d, Frame: %d", (int)((const uint16_t *)srcp)[x], plane, y, x, n);
+                            snprintf(strbuf, sizeof(strbuf), "PEMVerifier: Illegal sample value (%d) at: plane: %d Y: %d, X: %d, Frame: %d", (int)((const uint16_t *)srcp)[x], plane, y, x, n);
                             vsapi->setFilterError(strbuf, frameCtx);
                             vsapi->freeFrame(src);
                             return 0;
@@ -2303,7 +2297,7 @@ static void VS_CC propToClipCreate(const VSMap *in, VSMap *out, void *userData, 
     if (!src) {
         char errmsg2[1024];
         vsapi->freeNode(d.node);
-        sprintf(errmsg2, "PropToClip: upstream error: %s", errmsg);
+        snprintf(errmsg2, sizeof(errmsg2), "PropToClip: upstream error: %s", errmsg);
         RETERROR(errmsg2);
     }
 

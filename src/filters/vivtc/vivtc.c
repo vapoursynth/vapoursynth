@@ -1057,7 +1057,7 @@ static int64_t calcMetric(const VSFrameRef *f1, const VSFrameRef *f2, int64_t *t
     return maxdiff;
 }
 
-static int vdecimateLoadOVR(const char *ovrfile, char *drop, int cycle, int numFrames, char err[80]) {
+static int vdecimateLoadOVR(const char *ovrfile, char *drop, int cycle, int numFrames, char *err, size_t errlen) {
     int line = 0;
     char buf[80];
     char* pos;
@@ -1077,7 +1077,7 @@ static int vdecimateLoadOVR(const char *ovrfile, char *drop, int cycle, int numF
     FILE* moo = fopen(ovrfile, "r");
 #endif
     if (!moo) {
-        sprintf(err, "VDecimate: can't open ovr file");
+        snprintf(err, errlen, "VDecimate: can't open ovr file");
         return 1;
     }
 
@@ -1104,7 +1104,7 @@ static int vdecimateLoadOVR(const char *ovrfile, char *drop, int cycle, int numF
         } else if (sscanf(pos, " %u %c", &frame, &drop_char) == 2) {
             ;
         } else {
-            sprintf(err, "VDecimate: sscanf failed to parse override at line %d", line);
+            snprintf(err, errlen, "VDecimate: sscanf failed to parse override at line %d", line);
             fclose(moo);
             return 1;
         }
@@ -1123,7 +1123,7 @@ static int vdecimateLoadOVR(const char *ovrfile, char *drop, int cycle, int numF
                     drop[i / cycle] = (char)(i % cycle);
             }
         } else {
-            sprintf(err, "VDecimate: Bad override at line %d in ovr", line);
+            snprintf(err, errlen, "VDecimate: Bad override at line %d in ovr", line);
             fclose(moo);
             return 1;
         }

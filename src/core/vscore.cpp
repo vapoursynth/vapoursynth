@@ -765,10 +765,10 @@ const VSFormat *VSCore::registerFormat(VSColorFamily colorFamily, VSSampleType s
 
         switch (colorFamily) {
         case cmGray:
-            sprintf(f->name, "Gray%s%d", sampleTypeStr, bitsPerSample);
+            snprintf(f->name, sizeof(f->name), "Gray%s%d", sampleTypeStr, bitsPerSample);
             break;
         case cmRGB:
-            sprintf(f->name, "RGB%s%d", sampleTypeStr, bitsPerSample * 3);
+            snprintf(f->name, sizeof(f->name), "RGB%s%d", sampleTypeStr, bitsPerSample * 3);
             break;
         case cmYUV:
             if (subSamplingW == 1 && subSamplingH == 1)
@@ -784,12 +784,12 @@ const VSFormat *VSCore::registerFormat(VSColorFamily colorFamily, VSSampleType s
             else if (subSamplingW == 0 && subSamplingH == 1)
                 yuvName = "440";
             if (yuvName)
-                sprintf(f->name, "YUV%sP%s%d", yuvName, sampleTypeStr, bitsPerSample);
+                snprintf(f->name, sizeof(f->name), "YUV%sP%s%d", yuvName, sampleTypeStr, bitsPerSample);
             else
-                sprintf(f->name, "YUVssw%dssh%dP%s%d", subSamplingW, subSamplingH, sampleTypeStr, bitsPerSample);
+                snprintf(f->name, sizeof(f->name), "YUVssw%dssh%dP%s%d", subSamplingW, subSamplingH, sampleTypeStr, bitsPerSample);
             break;
         case cmYCoCg:
-            sprintf(f->name, "YCoCgssw%dssh%dP%s%d", subSamplingW, subSamplingH, sampleTypeStr, bitsPerSample);
+            snprintf(f->name, sizeof(f->name), "YCoCgssw%dssh%dP%s%d", subSamplingW, subSamplingH, sampleTypeStr, bitsPerSample);
             break;
         default:;
         }
