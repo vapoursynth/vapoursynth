@@ -35,10 +35,6 @@
 #define blend(srcA, srcRGB, dstA, dstRGB, outA)  \
     ((srcA * 255 * srcRGB + (dstRGB * dstA * (255 - srcA))) / outA)
 
-#ifdef _MSC_VER
-#define snprintf _snprintf
-#endif
-
 
 struct AssTime {
     time_t seconds;
@@ -258,7 +254,7 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
     const char *filter_name = (const char *)userData;
 
 #define ERROR_SIZE 512
-    char error[ERROR_SIZE + 1] = { 0 };
+    char error[ERROR_SIZE] = { 0 };
 
     d.lastn = -1;
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
@@ -396,12 +392,8 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
     ass_set_fonts(d.ass_renderer, NULL, NULL, 1, NULL, 1);
 
     if(d.file == NULL) {
-        char *str, *text;
-#define MAX_DIGITS 15
-        char x[MAX_DIGITS + 1] = { 0 };
-        char y[MAX_DIGITS + 1] = { 0 };
-        char start[MAX_DIGITS + 1] = { 0 };
-        char end[MAX_DIGITS + 1] = { 0 };
+#define BUFFER_SIZE 16
+        char *str, *text, x[BUFFER_SIZE], y[BUFFER_SIZE], start[BUFFER_SIZE], end[BUFFER_SIZE];
         size_t siz;
         const char *fmt = "[Script Info]\n"
                           "ScriptType: v4.00+\n"
@@ -414,8 +406,8 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
                           "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
                           "Dialogue: 0,%s,%s,Default,,0,0,0,,%s\n";
 
-        snprintf(x, MAX_DIGITS, "%d", d.vi[0].width);
-        snprintf(y, MAX_DIGITS, "%d", d.vi[0].height);
+        snprintf(x, BUFFER_SIZE, "%d", d.vi[0].width);
+        snprintf(y, BUFFER_SIZE, "%d", d.vi[0].height);
 
         {
             int64_t timeint, time_ms;
@@ -436,7 +428,7 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
             time_secs = timeint / 100;
             time_ms = timeint % 100;
             ti = gmtime(&time_secs);
-            snprintf(start, MAX_DIGITS, "%d:%02d:%02d.%02" PRIu64, ti->tm_hour, ti->tm_min, ti->tm_sec, time_ms);
+            snprintf(start, BUFFER_SIZE, "%d:%02d:%02d.%02" PRIu64, ti->tm_hour, ti->tm_min, ti->tm_sec, time_ms);
         }
 
         {
@@ -458,8 +450,8 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
             time_secs = timeint / 100;
             time_ms = timeint % 100;
             ti = gmtime(&time_secs);
-            snprintf(end, MAX_DIGITS, "%d:%02d:%02d.%02" PRIu64, ti->tm_hour, ti->tm_min, ti->tm_sec, time_ms);
-#undef MAX_DIGITS
+            snprintf(end, BUFFER_SIZE, "%d:%02d:%02d.%02" PRIu64, ti->tm_hour, ti->tm_min, ti->tm_sec, time_ms);
+#undef BUFFER_SIZE
         }
 
         text = strrepl(d.text, "\n", "\\N");
@@ -467,8 +459,7 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
         siz = (strlen(fmt) + strlen(x) + strlen(y) + strlen(d.style) +
                strlen(start) + strlen(end) + strlen(text)) * sizeof(char);
 
-        str = malloc(siz + 1);
-        memset(str, 0, siz + 1);
+        str = malloc(siz);
         snprintf(str, siz, fmt, x, y, d.style, start, end, text);
 
         free(text);
