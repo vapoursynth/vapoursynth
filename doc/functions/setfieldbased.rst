@@ -1,8 +1,12 @@
-SetFieldBased
-=============
+SetFieldBased (Experimental)
+============================
 
 .. function:: SetFieldBased(clip clip, int value)
    :module: std
+   
+   This function is experimental and may be removed or greatly changed
+   in the next version.
+
 
    This is a convenience function. See *SetFrameProps* if you want to
    set other properties.
