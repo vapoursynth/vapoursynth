@@ -624,42 +624,37 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
     configFunc("biz.srsfckn.vapour", "assvapour",
                "A subtitling filter based on libass.",
                VAPOURSYNTH_API_VERSION, 1, plugin);
+
+#define COMMON_PARAMS \
+    "debuglevel:int:opt;" \
+    "fontdir:data:opt;" \
+    "linespacing:float:opt;" \
+    "margins:int[]:opt;" \
+    "sar:float:opt;" \
+    "blend:int:opt;" \
+    "matrix:int:opt;" \
+    "matrix_s:data:opt;" \
+    "transfer:int:opt;" \
+    "transfer_s:data:opt;" \
+    "primaries:int:opt;" \
+    "primaries_s:data:opt;"
+
     registerFunc("AssRender",
                  "clip:clip;"
                  "file:data;"
                  "charset:data:opt;"
-                 "debuglevel:int:opt;"
-                 "fontdir:data:opt;"
-                 "linespacing:float:opt;"
-                 "margins:int[]:opt;"
-                 "sar:float:opt;"
                  "scale:float:opt;"
-                 "blend:int:opt;"
-                 "matrix:int:opt;"
-                 "matrix_s:data:opt;"
-                 "transfer:int:opt;"
-                 "transfer_s:data:opt;"
-                 "primaries:int:opt;"
-                 "primaries_s:data:opt;"
+                 COMMON_PARAMS
                  , assRenderCreate, 0, plugin);
     registerFunc("Subtitle",
                  "clip:clip;"
                  "text:data;"
-                 "debuglevel:int:opt;"
-                 "fontdir:data:opt;"
-                 "linespacing:float:opt;"
-                 "margins:int[]:opt;"
-                 "sar:float:opt;"
                  "style:data:opt;"
                  "start:int:opt;"
                  "end:int:opt;"
-                 "blend:int:opt;"
-                 "matrix:int:opt;"
-                 "matrix_s:data:opt;"
-                 "transfer:int:opt;"
-                 "transfer_s:data:opt;"
-                 "primaries:int:opt;"
-                 "primaries_s:data:opt;"
+                 COMMON_PARAMS
                  , assRenderCreate, 0, plugin);
+
+#undef COMMON_PARAMS
 }
 

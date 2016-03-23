@@ -5,7 +5,7 @@ AssVapour
 
 AssVapour is a subtitle renderer that uses libass.
 
-.. function::   AssRender(clip clip, string file[, string charset="UTF-8", int debuglevel=0, string fontdir="", float linespacing=0, int[] margins=[0, 0, 0, 0], float sar=0, float scale=1, bint blend=True, int matrix, string matrix_s, int transfer, string transfer_s, int primaries, string primaries_s])
+.. function::   AssRender(clip clip, string file[, string charset="UTF-8", float scale=1, int debuglevel=0, string fontdir="", float linespacing=0, int[] margins=[0, 0, 0, 0], float sar=0, bint blend=True, int matrix, string matrix_s, int transfer, string transfer_s, int primaries, string primaries_s])
    :module: assvapour
 
    AssRender has two modes of operation. With blend=True (the default),
@@ -25,6 +25,9 @@ AssVapour is a subtitle renderer that uses libass.
       charset
          Character set of the ASS script, in enca or iconv format.
 
+      scale
+         Font scale.
+
       debuglevel
          Debug level. Increase to make libass more chatty.
          See `ass_utils.h <https://github.com/libass/libass/blob/master/libass/ass_utils.h>`_
@@ -42,9 +45,6 @@ AssVapour is a subtitle renderer that uses libass.
 
       sar
          Storage aspect ratio.
-
-      scale
-         Font scale.
 
       blend
          If True, the subtitles will be blended into *clip*. Otherwise,
@@ -66,7 +66,7 @@ AssVapour is a subtitle renderer that uses libass.
          "709".
 
 
-.. function::   Subtitle(clip clip, string text[, int debuglevel=0, string fontdir="", float linespacing=0, int[] margins=[0, 0, 0, 0], float sar=0, string style="sans-serif,20,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,7,10,10,10,1", int start=0, int end=clip.numFrames, bint blend=True, int matrix, string matrix_s, int transfer, string transfer_s, int primaries, string primaries_s])
+.. function::   Subtitle(clip clip, string text[, string style="sans-serif,20,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,7,10,10,10,1", int start=0, int end=clip.numFrames, int debuglevel=0, string fontdir="", float linespacing=0, int[] margins=[0, 0, 0, 0], float sar=0, bint blend=True, int matrix, string matrix_s, int transfer, string transfer_s, int primaries, string primaries_s])
    :module: assvapour
 
    Instead of rendering an ASS script, Subtitle renders the string *text*.
