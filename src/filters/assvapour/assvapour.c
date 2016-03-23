@@ -131,20 +131,11 @@ static void VS_CC assInit(VSMap *in, VSMap *out, void **instanceData,
     AssData *d = (AssData *) * instanceData;
     vsapi->setVideoInfo(d->vi, 2, node);
 
-    d->lastframe = vsapi->newVideoFrame(d->vi[0].format,
-                                        d->vi[0].width,
-                                        d->vi[0].height,
-                                        NULL, core);
-
-    d->lastalpha = vsapi->newVideoFrame(d->vi[1].format,
-                                        d->vi[1].width,
-                                        d->vi[1].height,
-                                        NULL, core);
-
     d->ass_library = ass_library_init();
 
     if(!d->ass_library) {
         vsapi->setError(out, "failed to initialize ASS library");
+        vsapi->freeNode(d->node);
         return;
     }
 
@@ -156,6 +147,8 @@ static void VS_CC assInit(VSMap *in, VSMap *out, void **instanceData,
 
     if(!d->ass_renderer) {
         vsapi->setError(out, "failed to initialize ASS renderer");
+        vsapi->freeNode(d->node);
+        ass_library_done(d->ass_library);
         return;
     }
 
@@ -203,7 +196,10 @@ static void VS_CC assInit(VSMap *in, VSMap *out, void **instanceData,
             if(d->startframe != 0 && (INT64_MAX / d->vi[0].fpsDen) < ((int64_t)d->startframe * 100)) {
                 //Overflow would occur
                 vsapi->setError(out, "Unable to calculate start time");
-                timeint = 0;
+                vsapi->freeNode(d->node);
+                ass_renderer_done(d->ass_renderer);
+                ass_library_done(d->ass_library);
+                return;
             }
             else {
                 timeint = (int64_t)d->startframe * 100 * d->vi[0].fpsDen / d->vi[0].fpsNum;
@@ -221,7 +217,10 @@ static void VS_CC assInit(VSMap *in, VSMap *out, void **instanceData,
             if(d->endframe != 0 && (INT64_MAX / d->vi[0].fpsDen) < ((int64_t)d->endframe * 100)) {
                 //Overflow would occur
                 vsapi->setError(out, "Unable to calculate end time");
-                timeint = 0;
+                vsapi->freeNode(d->node);
+                ass_renderer_done(d->ass_renderer);
+                ass_library_done(d->ass_library);
+                return;
             }
             else {
                 timeint = (int64_t)d->endframe * 100 * d->vi[0].fpsDen / d->vi[0].fpsNum;
@@ -252,8 +251,21 @@ static void VS_CC assInit(VSMap *in, VSMap *out, void **instanceData,
 
     if(!d->ass) {
         vsapi->setError(out, "unable to parse input file");
+        vsapi->freeNode(d->node);
+        ass_renderer_done(d->ass_renderer);
+        ass_library_done(d->ass_library);
         return;
     }
+
+    d->lastframe = vsapi->newVideoFrame(d->vi[0].format,
+                                        d->vi[0].width,
+                                        d->vi[0].height,
+                                        NULL, core);
+
+    d->lastalpha = vsapi->newVideoFrame(d->vi[1].format,
+                                        d->vi[1].width,
+                                        d->vi[1].height,
+                                        NULL, core);
 }
 
 static void assRender(VSFrameRef *dst, VSFrameRef *alpha, const VSAPI *vsapi,
