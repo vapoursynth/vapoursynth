@@ -207,7 +207,7 @@ static void VS_CC assInit(VSMap *in, VSMap *out, void **instanceData,
             time_secs = timeint / 100;
             time_ms = timeint % 100;
             ti = gmtime(&time_secs);
-            sprintf(start, "%d:%02d:%02d.%02"PRIu64, ti->tm_hour, ti->tm_min, ti->tm_sec, time_ms);
+            sprintf(start, "%d:%02d:%02d.%02" PRIu64, ti->tm_hour, ti->tm_min, ti->tm_sec, time_ms);
         }
 
         {
@@ -228,7 +228,7 @@ static void VS_CC assInit(VSMap *in, VSMap *out, void **instanceData,
             time_secs = timeint / 100;
             time_ms = timeint % 100;
             ti = gmtime(&time_secs);
-            sprintf(end, "%d:%02d:%02d.%02"PRIu64, ti->tm_hour, ti->tm_min, ti->tm_sec, time_ms);
+            sprintf(end, "%d:%02d:%02d.%02" PRIu64, ti->tm_hour, ti->tm_min, ti->tm_sec, time_ms);
         }
 
         text = strrepl(d->text, "\n", "\\N");
