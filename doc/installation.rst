@@ -60,7 +60,7 @@ Simply run these commands in a terminal and wait for them to complete::
 Linux Installation from Packages 
 ================================
 
-Several disitribution have existing packages
+Several distributions have packages:
 
    * `Ubuntu <https://launchpad.net/~djcj/+archive/ubuntu/vapoursynth>`_  -- PPA
    * `Gentoo <https://github.com/4re/vapoursynth-portage>`_  -- Portage overlay and instructions
@@ -69,24 +69,45 @@ Several disitribution have existing packages
 Linux and OS X Compilation Instructions
 =======================================
 
-Note: **any version of Python 3 will do.** A specific version is only required when using the official Windows binaries.
+These are the requirements:
+   * Autoconf, Automake, and Libtool, probably recent versions
 
-This is a simple guide for compiling VapourSynth on OS X or Linux Mint (or any other Ubuntu derivative) for those who are a bit lazy.
-It's been tested on a clean install of OS X 10.10 and Linux Mint 17.1 and compiles all parts except the OCR and ImageMagick filters.
+   * GCC 4.8 or newer, or Clang
+
+   * Yasm
+
+   * `Zimg v2 <https://github.com/sekrit-twc/zimg/releases>`_
+
+   * Python 3
+
+   * Cython installed in your Python 3 environment
+
+   * Sphinx for the documentation (optional)
+
+   * libass for the Assvapour plugin (optional)
+
+   * ImageMagick 6.9.?.? for the Imwri plugin (optional)
+
+   * Tesseract 3 for the OCR plugin (optional)
+
+Note: **any version of Python 3 will do.** A specific version is only
+required when using the official Windows binaries.
 
 Required packages (OS X)
-#########################
+########################
 
 First download and install the prerequisites:
    * Xcode -- Available from the AppStore
    * `Homebrew <http://brew.sh/>`_ -- A package manager
 
-Installation of the required packages is very easy. Simply run these commands in a terminal and wait for them to complete::
+Installation of the required packages is very easy. Simply run these
+commands in a terminal and wait for them to complete::
 
-   brew install python3 yasm libass
+   brew install python3 yasm libass zimg
    pip3 install cython
    
-If you've already installed all the required packages and instead want to update them, simply run::
+If you've already installed all the required packages and instead want
+to update them, simply run::
 
    brew update && brew upgrade
    pip3 install --upgrade cython
@@ -94,26 +115,15 @@ If you've already installed all the required packages and instead want to update
 Required packages (Ubuntu)
 ##########################
 
-First download and install the required packages::
+In Ubuntu 15.10 the following command will install them, minus zimg,
+which needs to be compiled from source::
 
-   apt-get install build-essential yasm git libass-dev python3-pip python3-dev cython3 autoconf libtool libmagick++-dev
+   apt-get install build-essential yasm git libass-dev python3-pip python3-dev cython3 autoconf libtool libmagick++-dev libtesseract-dev
    
-Note that this specific list of packages was tested with Ubuntu 15.10. They may have different names in your distribution.
+The packages may have different names in other distributions.
 
-Zimg
-####
-
-Additionally, you need to install `zimg v2 <https://github.com/sekrit-twc/zimg/releases>`_. The core requires it.
-
-::
-
-   ./autogen.sh
-   ./configure --enable-x86simd
-   make
-   make install
-
-Compilation (Both)
-##################
+Compilation
+###########
 
 If you haven't checked out the source code before, use git to do so::
 
@@ -123,7 +133,6 @@ Or if you already have a copy of the source, update it with::
 
    git pull
 
-Note that you may have to specify the prefix to use when calling configure to install VapourSynth into a path where your system will search for it by default.
 Enter the VapourSynth directory and run these commands to compile and install::
    
    ./autogen.sh
@@ -131,6 +140,34 @@ Enter the VapourSynth directory and run these commands to compile and install::
    make
    make install
    
-You should now have a working installation based on the latest git.
+Depending on your operating system's configuration, VapourSynth may not
+work out of the box with the default prefix of /usr/local. Two errors
+may pop up when running ``vspipe --version``:
+
+* "vspipe: error while loading shared libraries: libvapoursynth-script.so.0:
+  cannot open shared object file: No such file or directory"
+
+  This is caused by the non-standard location of libvapoursynth-script.so.0.
+  Your dynamic loader is not configured to look in /usr/local/lib. One
+  way to work around this error is to use the LD_LIBRARY_PATH environment
+  variable::
+
+     $ LD_LIBRARY_PATH=/usr/local/lib vspipe --version
+
+* "Failed to initialize VapourSynth environment"
+
+  This is caused by the non-standard location of the Python module,
+  vapoursynth.so. Your Python is not configured to look in
+  /usr/local/lib/python3.x/site-packages. One way to work around this
+  error is to use the PYTHONPATH environment variable::
+
+     $ PYTHONPATH=/usr/local/lib/python3.x/site-packages vspipe --version
+
+  Replace "x" with the correct number.
 
 
+The documentation can be built using its own Makefile::
+
+   $ make -C doc/ html
+
+The documentation can be installed using the standard program ``cp``.
