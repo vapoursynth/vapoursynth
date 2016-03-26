@@ -16,7 +16,7 @@ Public Headers
 Common Pitfalls
 ###############
 
-There are several minor pitfalls related to the threading and design that have to be taken into consideration. Most of them are usually aren't a problem but here's a small checklist of things you have to watch out for sometimes.
+There are several minor pitfalls related to the threading and design that have to be taken into consideration. Most of them usually aren't a problem but here's a small checklist of things you have to watch out for sometimes.
 
 General API
 -----------
@@ -70,58 +70,82 @@ special category of keys starting with _ which have strictly defined meanings
 specified below. It is acceptable to not set any of these keys if they are
 unknown. It is also a fatal error to set them to a value not specified below.
 
-::
+int _ChromaLocation
 
    Chroma sample position in YUV formats.
-   int _ChromaLocation (0=left, 1=center, 2=topleft, 3=top, 4=bottomleft, 5=bottom)
    
+   0=left, 1=center, 2=topleft, 3=top, 4=bottomleft, 5=bottom.
+
+int _ColorRange
+
    Full or limited range (PC/TV range). Primarily used with YUV formats.
-   int _ColorRange (0=full range, 1=limited range)
+
+   0=full range, 1=limited range.
  
-   As specified in ISO/IEC 14496-10, Colour primaries table
-   int _Primaries
+int _Primaries
+
+   As specified in ISO/IEC 14496-10, Colour primaries table.
    
-   As specified in ISO/IEC 14496-10, Matrix coefficients table
-   int _Matrix
+int _Matrix
+
+   As specified in ISO/IEC 14496-10, Matrix coefficients table.
    
-   As specified in ISO/IEC 14496-10, Transfer characteristics table
-   int _Transfer
+int _Transfer
+
+   As specified in ISO/IEC 14496-10, Transfer characteristics table.
    
+int _FieldBased
+
    If the frame is composed of two independent fields (interlaced).
-   int _FieldBased (0=frame based, 1=BFF, 2=TFF)
+
+   0=frame based (progressive), 1=bottom field first, 2=top field first.
+
+float _AbsoluteTime
 
    The frame's absolute timestamp in seconds if reported by the source filter.
    Should only be set by the source filter and not be modified. Use durations
    for all operations that depend on frame length.
-   float _AbsoluteTime
+
+int _DurationNum, int _DurationDen
 
    The frame's duration in seconds as a rational number. Filters that
-   modify the framerate should also change this value.
-   Should always be normalized.
-   int _DurationNum
-   int _DurationDen
+   modify the framerate should also change these values.
+
+   This fraction should always be normalized.
    
+bint _Combed
+
    Whether or not the frame needs postprocessing, usually hinted from field
    matching filters.
-   bint _Combed
 
-   If the frame has been split into fields this says if the frame was
-   derived from top or bottom fields.
-   int _Field (0=from bottom field, 1=from top field)
+int _Field
+
+   If the frame was produced by something like core.std.SeparateFields,
+   this property signals which field was used to generate this frame.
+
+   0=from bottom field, 1=from top field.
+
+string _PictType
 
    A single character describing the frame type. It uses the common
    IPB letters but other letters may also be used for formats with
    additional frame types.
-   string _PictType
 
-   Pixel aspect ratio as a rational number.
-   int _SARNum
-   int _SARDen
+int _SARNum, int _SARDen
 
-   Indicates a scenechange for the next/previous frame transition.
-   bint _SceneChangeNext
-   bint _SceneChangePrev
+   Pixel (sample) aspect ratio as a rational number.
 
-Deprecated frame properties::
+bint _SceneChangeNext
 
-   int _ColorSpace
+   If 1, this frame is the last frame of the current scene. The next frame starts a new scene.
+
+bint _SceneChangePrev
+
+   If 1, this frame starts a new scene.
+
+Deprecated Frame Properties
+---------------------------
+
+int _ColorSpace
+
+   Superseded by _Matrix, _Transfer, and _Primaries.
