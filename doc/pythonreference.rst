@@ -94,6 +94,32 @@ Another way to deal with such arguments is to place them in a dictionary::
    args = { "lambda": 1 }
    clip = core.plugin.Filter(clip, **args)
 
+Windows File Paths (Strings With Backslashes)
+#############################################
+
+If you have a string containing backslashes, you must either prefix the
+string with "r", or duplicate every single backslash. The reason is
+that the backslash is an escape character in Python.
+
+Incorrect; Python will think "\\A" and "\\G" are supposed to mean
+something special::
+
+   core.avs.LoadPlugin("B:\Avisynth plugins\GuavaComb.dll")
+
+Correct; Python will think "\\\\" means something special, namely a
+single backslash::
+
+   core.avs.LoadPlugin("B:\\Avisynth plugins\\GuavaComb.dll")
+
+Correct; Python will not consider any combination of characters special::
+
+   core.avs.LoadPlugin(r"B:\Avisynth plugins\GuavaComb.dll")
+
+Additionally, if the string is a Windows file path, it can also be
+written with forward slashes instead of backslashes::
+
+   core.avs.LoadPlugin("B:/Avisynth plugins/GuavaComb.dll")
+
 Output
 ######
 
