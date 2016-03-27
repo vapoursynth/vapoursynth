@@ -569,6 +569,7 @@ cdef class VideoProps(object):
         cdef int numelem = self.funcs.propNumElements(m, b)
         cdef const int64_t *intArray
         cdef const double *floatArray
+        cdef const char *data
         
         if numelem < 0:
             raise KeyError('No key named ' + name + ' exists')
@@ -585,7 +586,8 @@ cdef class VideoProps(object):
                     ol.append(floatArray[i])
         elif t == 's':
             for i in range(numelem):
-                ol.append(self.funcs.propGetData(m, b, i, NULL))
+                data = self.funcs.propGetData(m, b, i, NULL)
+                ol.append(data[:self.funcs.propGetDataSize(m, b, i, NULL)])
         elif t == 'c':
             for i in range(numelem):
                 ol.append(createVideoNode(self.funcs.propGetNode(m, b, i, NULL), self.funcs, self.core))
