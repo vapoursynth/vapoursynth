@@ -2,21 +2,21 @@
 // http://www.microsoft.com/en-US/download/details.aspx?id=48145
 
 [CustomMessages]
-vcredist2015_title=Visual C++ 2015 Update 1 Redistributable
-vcredist2015_title_x64=Visual C++ 2015 Update 1 64-Bit Redistributable
+vcredist2015_title=Visual C++ 2015 Update 2 Redistributable
+vcredist2015_title_x64=Visual C++ 2015 Update 2 64-Bit Redistributable
 
-en.vcredist2015_size=12.8 MB
+en.vcredist2015_size=13.3 MB
 
-en.vcredist2015_size_x64=13.9 MB
+en.vcredist2015_size_x64=14.0 MB
 
 
 [Code]
 const
-	vcredist2015_url = 'http://download.microsoft.com/download/C/E/5/CE514EAE-78A8-4381-86E8-29108D78DBD4/VC_redist.x86.exe';
-	vcredist2015_url_x64 = 'http://download.microsoft.com/download/C/E/5/CE514EAE-78A8-4381-86E8-29108D78DBD4/VC_redist.x64.exe';
+	vcredist2015_url = 'http://download.microsoft.com/download/9/b/3/9b3d2920-49f7-4e76-a55c-d72b51e44537/vc_redist.x86.exe';
+	vcredist2015_url_x64 = 'http://download.microsoft.com/download/8/c/b/8cb4af84-165e-4b36-978d-e867e07fc707/vc_redist.x64.exe';
 
-	vcredist2015_productcode = '{1045AB6F-6151-3634-8C2C-EE308AA1A6A7}';
-	vcredist2015_productcode_x64 = '{B0B194F8-E0CE-33FE-AA11-636428A4B73D}';
+	vcredist2015_productcode = '{BD9CFD69-EB91-354E-9C98-D439E6091932}';
+	vcredist2015_productcode_x64 = '{DFFEB619-5455-3697-B145-243D936DB95B}';
 
 procedure vcredist2015();
 begin
