@@ -776,7 +776,7 @@ void VS_CC VapourSynthFile::frameDoneCallback(void *userData, const VSFrameRef *
 bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
     const VSAPI *vsapi = parent->vsapi;
     std::vector<char> errMsg(32 * 1024);
-    const VSFrameRef *f = vsapi->getFrame(n, parent->node, errMsg.data(), errMsg.size());
+    const VSFrameRef *f = vsapi->getFrame(n, parent->node, errMsg.data(), static_cast<int>(errMsg.size()));
     VSScript *errSe = nullptr;
     if (!f) {
         std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;

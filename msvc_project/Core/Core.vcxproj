@@ -131,7 +131,7 @@
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
-      <OptimizeReferences>false</OptimizeReferences>
+      <OptimizeReferences>true</OptimizeReferences>
       <AdditionalDependencies>z.lib;Advapi32.lib;Shell32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>
       </IgnoreSpecificDefaultLibraries>
