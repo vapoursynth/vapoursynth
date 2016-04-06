@@ -1,9 +1,9 @@
 #define AppName = 'VapourSynth'
-#define Version = 'R32'
+#define Version = 'R32-RC3'
 
 [Setup]
 OutputDir=Compiled
-OutputBaseFilename=vapoursynth_installer
+OutputBaseFilename=VapourSynth-{#= Version}
 Compression=lzma2/max
 InternalCompressLevel=max
 SolidCompression=yes
@@ -326,4 +326,3 @@ begin
     Result := NextButtonClick2(CurPageID);
   end;
 end;
-

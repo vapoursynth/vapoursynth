@@ -17,7 +17,7 @@ copy x64\plugins\* buildp64\vapoursynth64\coreplugins
 type nul >buildp64\portable.vs
 rm Compiled\vapoursynth64-portable.7z
 cd buildp64
-"C:\Program Files\7-Zip\7z.exe" a ..\Compiled\vapoursynth64-portable.7z *
+"C:\Program Files\7-Zip\7z.exe" a ..\Compiled\VapourSynth64-Portable-%1.7z *
 cd ..
 rmdir /s /q buildp64
 
@@ -40,6 +40,6 @@ copy x86\plugins\* buildp32\vapoursynth32\coreplugins
 type nul >buildp32\portable.vs
 rm Compiled\vapoursynth32-portable.7z
 cd buildp32
-"C:\Program Files\7-Zip\7z.exe" a ..\Compiled\vapoursynth32-portable.7z *
+"C:\Program Files\7-Zip\7z.exe" a ..\Compiled\VapourSynth32-Portable-%1.7z *
 cd ..
 rmdir /s /q buildp32

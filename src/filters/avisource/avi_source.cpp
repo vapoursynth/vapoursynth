@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2015 Fredrik Mellbin
+* Copyright (c) 2012-2016 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -170,12 +170,12 @@ static void unpackframe(const VSVideoInfo *vi, VSFrameRef *dst, VSFrameRef *dst_
             uint8_t *g = vsapi->getWritePtr(dst, 1);
             uint8_t *b = vsapi->getWritePtr(dst, 2);
 
-            if (bitcount == 24) {
-                if (flip) {
-                    srcp += rowsize * (vi->height - 1);
-                    rowsize = -rowsize;
-                }
+            if (flip) {
+                srcp += rowsize * (vi->height - 1);
+                rowsize = -rowsize;
+            }
 
+            if (bitcount == 24) {
                 for (int h = 0; h < vi->height; h++) {
                     for (int x = 0; x < vi->width; x++) {
                         b[x] = srcp[x*3+0];
@@ -208,10 +208,18 @@ static void unpackframe(const VSVideoInfo *vi, VSFrameRef *dst, VSFrameRef *dst_
         break;
     case 'r84b':
         {
-            int rowsize = ((vi->width*vi->format->bytesPerSample*3 + 3) & ~3)/2;
+            int rowsize = ((vi->width*vi->format->bytesPerSample*3 + 3) & ~3);
             uint16_t *r = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(dst, 0));
             uint16_t *g = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(dst, 1));
             uint16_t *b = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(dst, 2));
+
+            if (flip) {
+                srcp += rowsize * (vi->height - 1);
+                rowsize = -rowsize;
+            }
+
+            rowsize /= 2;
+
             const uint16_t *srcp16 = reinterpret_cast<const uint16_t *>(srcp);
             for (int h = 0; h < vi->height; h++) {
                 for (int x = 0; x < vi->width; x++) {
@@ -565,10 +573,12 @@ void AVISource::LocateVideoCodec(const char fourCC[], VSCore *core, const VSAPI 
         numOutputs = 2;
         vi[1] = vi[0];
         vi[1].format = vsapi->getFormatPreset(pfGray8, core);
-        if (pbiSrc->biHeight < 0) bInvertFrames = true;
+        if (pbiSrc->biHeight > 0)
+            bInvertFrames = true;
     } else if (pbiSrc->biCompression == BI_RGB && pbiSrc->biBitCount == 24) {
         vi[0].format = vsapi->getFormatPreset(pfRGB24, core);
-        if (pbiSrc->biHeight < 0) bInvertFrames = true;
+        if (pbiSrc->biHeight > 0)
+            bInvertFrames = true;
     } else if (pbiSrc->biCompression == 'r84b') {
         vi[0].format = vsapi->getFormatPreset(pfRGB48, core);
     } else if (pbiSrc->biCompression == 'YERG') {

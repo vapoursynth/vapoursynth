@@ -1,6 +1,8 @@
 r32:
+fixed raw rgb sometimes being upside down in avisource
+fixed cache not being automatically added for filters with nfmakelinear flag set (jackoneill)
 assvapour now has integrated blending (jackoneill)
-added the experimental function setfieldbased for convenience
+added the experimental function setfieldbased for convenience, expect it to change in the future
 the tff argument is now optional and ignored for doubleweave when the _field property is present in a valid combination, _fieldbased will also be properly set now
 the tff argument is now optional and ignored for separatefields when the _fieldbased property is present
 added support for interlaced resizing
