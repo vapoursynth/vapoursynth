@@ -367,7 +367,7 @@ cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, Core core,
             elif proptype =='c':
                 newval = createVideoNode(funcs.propGetNode(map, retkey, y, NULL), funcs, core)
 
-                if add_cache and newval.flags != vapoursynth.nfNoCache:
+                if add_cache and not (newval.flags & vapoursynth.nfNoCache):
                     newval = core.std.Cache(clip=newval)
 
                     if isinstance(newval, dict):
