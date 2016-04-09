@@ -41,6 +41,8 @@
 #include <codecvt>
 #include <locale>
 #include <windows.h>
+#else
+#include <unistd.h>
 #endif
 
 // Because ImageMagick has no idea how to make sane headers
@@ -116,6 +118,38 @@ static std::string specialPrintf(const std::string &filename, int number) {
     return result;
 }
 
+static bool isAbsolute(const std::string &path) {
+#ifdef _WIN32
+    return path.size() > 1 && ((path[0] == '/' && path[1] == '/') || (path[0] == '\\' && path[1] == '\\') || path[1] == ':');
+#else
+    return path.size() && path[0] == '/';
+#endif
+}
+
+static void getWorkingDir(std::string &path) {
+#ifdef _WIN32
+    DWORD size = GetCurrentDirectoryW(0, nullptr);
+
+    std::vector<wchar_t> buffer(size);
+
+    GetCurrentDirectoryW(size, buffer.data());
+
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> utf16;
+
+    path = utf16.to_bytes(buffer.data()) + '\\';
+#else
+    char *buffer = getcwd(nullptr, 0);
+
+    if (buffer) {
+        if (buffer[0] != '(') {
+            path = buffer;
+            path += '/';
+        }
+        free(buffer);
+    }
+#endif
+}
+
 //////////////////////////////////////////
 // Write
 
@@ -125,6 +159,7 @@ struct WriteData {
     const VSVideoInfo *vi;
     std::string imgFormat;
     std::string filename;
+    std::string workingDir;
     int firstNum;
     int quality;
     MagickCore::CompressionType compressType;
@@ -307,7 +342,11 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
                 writeImageHelper<uint8_t>(frame, alphaFrame, isGray, image, width, height, fi->bitsPerSample, vsapi);
             }
 
-            image.write(specialPrintf(d->filename, n + d->firstNum));
+            std::string filename = specialPrintf(d->filename, n + d->firstNum);
+            if (!isAbsolute(filename))
+                filename = d->workingDir + filename;
+
+            image.write(filename);
 
             vsapi->freeFrame(alphaFrame);
             return frame;
@@ -452,6 +491,8 @@ static void VS_CC writeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         return;
     }
 
+    getWorkingDir(d->workingDir);
+
     vsapi->createFilter(in, out, "Write", writeInit, writeGetFrame, writeFree, fmParallelRequests, 0, d.release(), core);
 }
 
@@ -461,6 +502,7 @@ static void VS_CC writeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
 struct ReadData {
     VSVideoInfo vi[2];
     std::vector<std::string> filenames;
+    std::string workingDir;
     int firstNum;
     bool alpha;
     bool mismatch;
@@ -544,7 +586,11 @@ static const VSFrameRef *VS_CC readGetFrame(int n, int activationReason, void **
         VSFrameRef *alphaFrame = nullptr;
         
         try {
-            Magick::Image image(d->fileListMode ? d->filenames[n] : specialPrintf(d->filenames[0], n + d->firstNum));
+            std::string filename = d->fileListMode ? d->filenames[n] : specialPrintf(d->filenames[0], n + d->firstNum);
+            if (!isAbsolute(filename))
+                filename = d->workingDir + filename;
+
+            Magick::Image image(filename);
             VSColorFamily cf = cmRGB;
             if (isGrayColorspace(image.colorSpace()))
                 cf = cmGray;
@@ -739,6 +785,8 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         vsapi->setError(out, (std::string("Read: Failed to read image properties: ") + e.what()).c_str());
         return;
     }
+
+    getWorkingDir(d->workingDir);
 
     vsapi->createFilter(in, out, "Read", readInit, readGetFrame, readFree, fmUnordered, 0, d.release(), core);
 }
