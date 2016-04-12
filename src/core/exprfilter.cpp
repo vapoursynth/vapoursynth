@@ -1116,7 +1116,7 @@ static void foldConstants(std::vector<ExprOp> &ops) {
             case opTernary:
                 size_t start1, start2, start3;
                 findBranches(ops, i, &start1, &start2, &start3);
-                if (ops[start1].op == opLoadConst) {
+                if (ops[start2 - 1].op == opLoadConst) {
                     ops.erase(ops.begin() + i);
                     if (ops[start1].e.fval > 0.0f) {
                         ops.erase(ops.begin() + start3, ops.begin() + i);
