@@ -48,6 +48,17 @@
 // Because ImageMagick has no idea how to make sane headers
 using namespace MagickCore;
 
+// Handle both with and without hdri
+#if MAGICKCORE_HDRI_ENABLE
+#define IMWRI_NAMESPACE "imwrif"
+#define IMWRI_PLUGIN_NAME "VapourSynth ImageMagick HDRI Writer/Reader"
+#define IMWRI_ID "com.vapoursynth.imwrif"
+#else
+#define IMWRI_NAMESPACE "imwri"
+#define IMWRI_PLUGIN_NAME "VapourSynth ImageMagick Writer/Reader"
+#define IMWRI_ID "com.vapoursynth.imwri"
+#endif
+
 //////////////////////////////////////////
 // Shared
 
@@ -58,7 +69,7 @@ static bool isGrayColorspace(Magick::ColorspaceType colorspace) {
 static void initMagick(VSCore *core, const VSAPI *vsapi) {
     std::string path;
 #ifdef _WIN32
-    const char *pathPtr = vsapi->getPluginPath(vsapi->getPluginById("com.vapoursynth.imwri", core));
+    const char *pathPtr = vsapi->getPluginPath(vsapi->getPluginById(IMWRI_ID, core));
     if (pathPtr) {
         path = pathPtr;
         for (auto &c : path)
@@ -796,15 +807,6 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 // Init
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
-#if MAGICKCORE_HDRI_ENABLE
-#define IMWRI_NAMESPACE "imwrif"
-#define IMWRI_PLUGIN_NAME "VapourSynth ImageMagick HDRI Writer/Reader"
-#define IMWRI_ID "com.vapoursynth.imwrif"
-#else
-#define IMWRI_NAMESPACE "imwri"
-#define IMWRI_PLUGIN_NAME "VapourSynth ImageMagick Writer/Reader"
-#define IMWRI_ID "com.vapoursynth.imwri"
-#endif
     configFunc(IMWRI_ID, IMWRI_NAMESPACE, IMWRI_PLUGIN_NAME, VAPOURSYNTH_API_VERSION, 1, plugin);
     registerFunc("Write", "clip:clip;imgformat:data;filename:data;firstnum:int:opt;quality:int:opt;dither:int:opt;compression_type:data:opt;alpha:clip:opt;", writeCreate, nullptr, plugin);
     registerFunc("Read", "filename:data[];firstnum:int:opt;mismatch:int:opt;alpha:int:opt;", readCreate, nullptr, plugin);

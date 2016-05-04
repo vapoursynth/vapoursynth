@@ -1,3 +1,7 @@
+r33:
+mixed imwri fixes
+fixed rare access violation in expr when ternary operator is used (jackoneill)
+
 r32:
 fixed raw rgb sometimes being upside down in avisource
 fixed cache not being automatically added for filters with nfmakelinear flag set (jackoneill)

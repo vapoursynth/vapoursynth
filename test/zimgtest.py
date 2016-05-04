@@ -28,7 +28,11 @@ for cfs in colorfamilies:
 
 print(len(formatids))
 
+cid = 0
+
 for informat in formatids:
+    cid = cid + 1
+    print(cid)
     for outformat in formatids:
         clip = core.std.BlankClip(format=informat)     
         try:
