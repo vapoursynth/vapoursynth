@@ -66,6 +66,9 @@ Here are a few users of the VSScript library:
 
    * the video player `mpv <https://github.com/mpv-player/mpv/blob/master/video/filter/vf_vapoursynth.c>`_
 
+.. note::
+   If libvapoursynth-script is loaded with dlopen(), the RTLD_GLOBAL flag must be used. If not, Python won't be able to import binary modules. This is due to Python's design.
+
 
 Structs
 #######
