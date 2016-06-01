@@ -446,13 +446,20 @@ enum VSFilterMode
    * fmUnordered
 
      Only one thread can call the filter's "getframe" function at a time.
-     Useful for filters that modify or examine their internal state to determine which frames to request.
+     Useful for filters that modify or examine their internal state to
+     determine which frames to request.
+
+     While the "getframe" function will only run in one thread at a
+     time, the calls can happen in any order. For example, it can be
+     called with reason arInitial for frame 0, then again with reason
+     arInitial for frame 1, then with reason arAllFramesReady for
+     frame 0.
 
    * fmSerial
 
      For compatibility with other filtering architectures.
      The filter's "getframe" function only ever gets called from one thread at a
-     time. Unlike fmUnordered only one frame is processed at a time.
+     time. Unlike fmUnordered, only one frame is processed at a time.
 
 
 .. _VSNodeFlags:
@@ -1680,8 +1687,9 @@ struct VSAPI
 
    int propGetDataSize(const VSMap_ \*map, const char \*key, int index, int \*error)
 
-      Returns the size in bytes of a property of type ptData (see VSPropTypes_).
-      The terminating NULL byte is not counted.
+      Returns the size in bytes of a property of type ptData (see
+      VSPropTypes_), or 0 in case of error. The terminating NULL byte
+      added by propSetData_\ () is not counted.
 
 
 
@@ -1902,6 +1910,8 @@ struct VSAPI
       *size*
          The number of bytes to copy. If this is negative, everything up to
          the first NULL byte will be copied.
+
+         This function will always add a NULL byte at the end of the data.
 
       *append*
          One of VSPropAppendMode_.
