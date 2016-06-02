@@ -70,7 +70,7 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
                 int stride = vsapi->getStride(src1, plane);
                 const uint8_t *srcp1 = vsapi->getReadPtr(src1, plane);
                 const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
-                uint8_t *dstp = vsapi->getWritePtr(dst, plane);
+                uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
 
                 if (d->vi->format->sampleType == stInteger) {
                     const unsigned round = 1 << (MergeShift - 1);
@@ -248,7 +248,7 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
                 const uint8_t *srcp1 = vsapi->getReadPtr(src1, plane);
                 const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
                 const uint8_t *maskp = vsapi->getReadPtr((plane && mask23) ? mask23 : mask, d->first_plane ? 0 : plane);
-                uint8_t *dstp = vsapi->getWritePtr(dst, plane);
+                uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
 
                 if (d->vi->format->sampleType == stInteger) {
                     if (d->vi->format->bytesPerSample == 1) {
@@ -442,7 +442,7 @@ static const VSFrameRef *VS_CC makeDiffGetFrame(int n, int activationReason, voi
                 int stride = vsapi->getStride(src1, plane);
                 const uint8_t *srcp1 = vsapi->getReadPtr(src1, plane);
                 const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
-                uint8_t *dstp = vsapi->getWritePtr(dst, plane);
+                uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
 
                 if (d->vi->format->sampleType == stInteger) {
                     if (d->vi->format->bytesPerSample == 1) {
@@ -615,7 +615,7 @@ static const VSFrameRef *VS_CC mergeDiffGetFrame(int n, int activationReason, vo
                 int stride = vsapi->getStride(src1, plane);
                 const uint8_t *srcp1 = vsapi->getReadPtr(src1, plane);
                 const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
-                uint8_t *dstp = vsapi->getWritePtr(dst, plane);
+                uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
 
                 if (d->vi->format->sampleType == stInteger) {
                     if (d->vi->format->bytesPerSample == 1) {

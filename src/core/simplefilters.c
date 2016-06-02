@@ -901,9 +901,9 @@ static const VSFrameRef *VS_CC flipHorizontalGetframe(int n, int activationReaso
         VSFrameRef *dst = vsapi->newVideoFrame(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core);
 
         for (int plane = 0; plane < fi->numPlanes; plane++) {
-            const uint8_t *srcp = vsapi->getReadPtr(src, plane);
+            const uint8_t * VS_RESTRICT srcp = vsapi->getReadPtr(src, plane);
             int src_stride = vsapi->getStride(src, plane);
-            uint8_t *dstp = vsapi->getWritePtr(dst, plane);
+            uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
             int dst_stride = vsapi->getStride(dst, plane);
             int h = vsapi->getFrameHeight(src, plane);
             int hl;
@@ -928,8 +928,8 @@ static const VSFrameRef *VS_CC flipHorizontalGetframe(int n, int activationReaso
                 break;
             case 2:
                 for (hl = 0; hl < h; hl++) {
-                    const int16_t *srcp16 = (const int16_t *)srcp;
-                    int16_t *dstp16 = (int16_t *)dstp;
+                    const int16_t * VS_RESTRICT srcp16 = (const int16_t *)srcp;
+                    int16_t * VS_RESTRICT dstp16 = (int16_t *)dstp;
 
                     for (x = 0; x <= w; x++)
                         dstp16[w - x] = srcp16[x];
@@ -941,8 +941,8 @@ static const VSFrameRef *VS_CC flipHorizontalGetframe(int n, int activationReaso
                 break;
             case 4:
                 for (hl = 0; hl < h; hl++) {
-                    const int32_t *srcp32 = (const int32_t *)srcp;
-                    int32_t *dstp32 = (int32_t *)dstp;
+                    const int32_t * VS_RESTRICT srcp32 = (const int32_t *)srcp;
+                    int32_t * VS_RESTRICT dstp32 = (int32_t *)dstp;
 
                     for (x = 0; x <= w; x++)
                         dstp32[w - x] = srcp32[x];
@@ -1676,9 +1676,9 @@ static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, vo
         VSFrameRef *dst = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, src, core);
         int width;
         int height;
-        const uint8_t *srcp;
+        const uint8_t * VS_RESTRICT srcp;
         int src_stride;
-        uint8_t *dstp;
+        uint8_t * VS_RESTRICT dstp;
         int dst_stride;
 #ifdef VS_TARGET_CPU_X86
         int partial_lines;

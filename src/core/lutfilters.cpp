@@ -69,14 +69,14 @@ static const VSFrameRef *VS_CC lutGetframe(int n, int activationReason, void **i
         for (int plane = 0; plane < fi->numPlanes; plane++) {
 
             if (d->process[plane]) {
-                const T *srcp = reinterpret_cast<const T *>(vsapi->getReadPtr(src, plane));
+                const T * VS_RESTRICT srcp = reinterpret_cast<const T *>(vsapi->getReadPtr(src, plane));
                 int src_stride = vsapi->getStride(src, plane);
-                U *dstp = reinterpret_cast<U *>(vsapi->getWritePtr(dst, plane));
+                U * VS_RESTRICT dstp = reinterpret_cast<U *>(vsapi->getWritePtr(dst, plane));
                 int dst_stride = vsapi->getStride(dst, plane);
                 int h = vsapi->getFrameHeight(src, plane);
                 int w = vsapi->getFrameWidth(src, plane);
 
-                const U *lut = reinterpret_cast<const U *>(d->lut);
+                const U * VS_RESTRICT lut = reinterpret_cast<const U *>(d->lut);
 
                 for (int hl = 0; hl < h; hl++) {
                     for (int x = 0; x < w; x++)
@@ -321,12 +321,12 @@ static const VSFrameRef *VS_CC lut2Getframe(int n, int activationReason, void **
         for (int plane = 0; plane < fi->numPlanes; plane++) {
 
             if (d->process[plane]) {
-                const T *srcpx = reinterpret_cast<const T *>(vsapi->getReadPtr(srcx, plane));
-                const U *srcpy = reinterpret_cast<const U *>(vsapi->getReadPtr(srcy, plane));
+                const T * VS_RESTRICT srcpx = reinterpret_cast<const T *>(vsapi->getReadPtr(srcx, plane));
+                const U * VS_RESTRICT srcpy = reinterpret_cast<const U *>(vsapi->getReadPtr(srcy, plane));
                 int srcx_stride = vsapi->getStride(srcx, plane);
                 int srcy_stride = vsapi->getStride(srcy, plane);
-                V *dstp = reinterpret_cast<V *>(vsapi->getWritePtr(dst, plane));
-                const V *lut = reinterpret_cast<const V *>(d->lut);
+                V * VS_RESTRICT dstp = reinterpret_cast<V *>(vsapi->getWritePtr(dst, plane));
+                const V * VS_RESTRICT lut = reinterpret_cast<const V *>(d->lut);
                 int dst_stride = vsapi->getStride(dst, plane);
                 int h = vsapi->getFrameHeight(srcx, plane);
                 int shift = d->vi[0]->format->bitsPerSample;
