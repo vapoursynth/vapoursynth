@@ -549,7 +549,7 @@ static void VS_CC logMessage(int msgType, const char *msg) VS_NOEXCEPT {
     vsLog(__FILE__, __LINE__, static_cast<VSMessageType>(msgType), "%s", msg);
 }
 
-const VSAPI vsapi = {
+static const VSAPI vsapi = {
     &createCore,
     &freeCore,
     &getCoreInfo,
