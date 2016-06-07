@@ -584,7 +584,7 @@ instanceData(instanceData), name(name), init(init), filterGetFrame(getFrame), fr
 
     if (out->hasError()) {
         core->filterInstanceDestroyed();
-        throw VSException(vsapi.getError(out));
+        throw VSException(vs_internal_vsapi.getError(out));
     }
 
     if (!hasVi) {
@@ -602,7 +602,7 @@ instanceData(instanceData), name(name), init(init), filterGetFrame(getFrame), fr
 
 VSNode::~VSNode() {
     if (free)
-        free(instanceData, core, &vsapi);
+        free(instanceData, core, &vs_internal_vsapi);
 
     core->filterInstanceDestroyed();
 }
@@ -638,7 +638,7 @@ void VSNode::setVideoInfo(const VSVideoInfo *vi, int numOutputs) {
 }
 
 PVideoFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext &frameCtx) {
-    const VSFrameRef *r = filterGetFrame(n, activationReason, &instanceData, &frameCtx.ctx->frameContext, &frameCtx, core, &vsapi);
+    const VSFrameRef *r = filterGetFrame(n, activationReason, &instanceData, &frameCtx.ctx->frameContext, &frameCtx, core, &vs_internal_vsapi);
 
 #ifdef VS_TARGET_CPU_X86
     if (!vs_isMMXStateOk())
@@ -836,8 +836,8 @@ const VSCoreInfo &VSCore::getCoreInfo() {
     return coreInfo;
 }
 
-void VS_CC configPlugin(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readOnly, VSPlugin *plugin);
-void VS_CC registerFunction(const char *name, const char *args, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin);
+void VS_CC vs_internal_configPlugin(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readOnly, VSPlugin *plugin);
+void VS_CC vs_internal_registerFunction(const char *name, const char *args, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin);
 
 static void VS_CC loadPlugin(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     try {
@@ -999,27 +999,27 @@ VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), formatIdO
 
     // Initialize internal plugins
     p = new VSPlugin(this);
-    configPlugin("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 0, p);
-    loadPluginInitialize(::configPlugin, ::registerFunction, p);
-    cacheInitialize(::configPlugin, ::registerFunction, p);
-    exprInitialize(::configPlugin, ::registerFunction, p);
-    genericInitialize(::configPlugin, ::registerFunction, p);
-    lutInitialize(::configPlugin, ::registerFunction, p);
-    mergeInitialize(::configPlugin, ::registerFunction, p);
-    reorderInitialize(::configPlugin, ::registerFunction, p);
-    stdlibInitialize(::configPlugin, ::registerFunction, p);
+    ::vs_internal_configPlugin("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 0, p);
+    loadPluginInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
+    cacheInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
+    exprInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
+    genericInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
+    lutInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
+    mergeInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
+    reorderInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
+    stdlibInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
     p->enableCompat();
     p->lock();
 
     plugins.insert(std::make_pair(p->id, p));
     p = new VSPlugin(this);
-    resizeInitialize(::configPlugin, ::registerFunction, p);
+    resizeInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
     plugins.insert(std::make_pair(p->id, p));
     p->enableCompat();
 
     plugins.insert(std::make_pair(p->id, p));
     p = new VSPlugin(this);
-    textInitialize(::configPlugin, ::registerFunction, p);
+    textInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
     plugins.insert(std::make_pair(p->id, p));
     p->enableCompat();
 
@@ -1034,7 +1034,7 @@ VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), formatIdO
 #endif
 
     HMODULE module;
-    GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCWSTR)&configPlugin, &module);
+    GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCWSTR)&vs_internal_configPlugin, &module);
     std::vector<wchar_t> pathBuf(65536);
     GetModuleFileName(module, pathBuf.data(), (DWORD)pathBuf.size());
     std::wstring dllPath = pathBuf.data();
@@ -1097,23 +1097,23 @@ VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), formatIdO
 #endif
 
     VSMap *settings = readSettings(configFile);
-    const char *error = vsapi.getError(settings);
+    const char *error = vs_internal_vsapi.getError(settings);
     if (error) {
         vsWarning("%s\n", error);
     } else {
         int err;
         const char *tmp;
 
-        tmp = vsapi.propGetData(settings, "UserPluginDir", 0, &err);
+        tmp = vs_internal_vsapi.propGetData(settings, "UserPluginDir", 0, &err);
         std::string userPluginDir(tmp ? tmp : "");
 
-        tmp = vsapi.propGetData(settings, "SystemPluginDir", 0, &err);
+        tmp = vs_internal_vsapi.propGetData(settings, "SystemPluginDir", 0, &err);
         std::string systemPluginDir(tmp ? tmp : VS_PATH_PLUGINDIR);
 
-        tmp = vsapi.propGetData(settings, "AutoloadUserPluginDir", 0, &err);
+        tmp = vs_internal_vsapi.propGetData(settings, "AutoloadUserPluginDir", 0, &err);
         bool autoloadUserPluginDir = tmp ? std::string(tmp) == "true" : true;
 
-        tmp = vsapi.propGetData(settings, "AutoloadSystemPluginDir", 0, &err);
+        tmp = vs_internal_vsapi.propGetData(settings, "AutoloadSystemPluginDir", 0, &err);
         bool autoloadSystemPluginDir = tmp ? std::string(tmp) == "true" : true;
 
         if (autoloadUserPluginDir && !userPluginDir.empty()) {
@@ -1129,7 +1129,7 @@ VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), formatIdO
         }
     }
 
-    vsapi.freeMap(settings);
+    vs_internal_vsapi.freeMap(settings);
 #endif
 }
 
@@ -1158,7 +1158,7 @@ VSMap VSCore::getPlugins() {
     int num = 0;
     for (const auto &iter : plugins) {
         std::string b = iter.second->fnamespace + ";" + iter.second->id + ";" + iter.second->fullname;
-        vsapi.propSetData(&m, ("Plugin" + std::to_string(++num)).c_str(), b.c_str(), static_cast<int>(b.size()), paReplace);
+        vs_internal_vsapi.propSetData(&m, ("Plugin" + std::to_string(++num)).c_str(), b.c_str(), static_cast<int>(b.size()), paReplace);
     }
     return m;
 }
@@ -1209,11 +1209,11 @@ void VSCore::createFilter(const VSMap *in, VSMap *out, const std::string &name, 
         for (size_t i = 0; i < node->getNumOutputs(); i++) {
             // fixme, not that elegant but saves more variant poking code
             VSNodeRef *ref = new VSNodeRef(node, static_cast<int>(i));
-            vsapi.propSetNode(out, "clip", ref, paAppend);
+            vs_internal_vsapi.propSetNode(out, "clip", ref, paAppend);
             delete ref;
         }
     } catch (VSException &e) {
-        vsapi.setError(out, e.what());
+        vs_internal_vsapi.setError(out, e.what());
     }
 }
 
@@ -1283,7 +1283,7 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
 
 
 #endif
-    pluginInit(&::configPlugin, &::registerFunction, this);
+    pluginInit(::vs_internal_configPlugin, ::vs_internal_registerFunction, this);
 
 #ifdef VS_TARGET_CPU_X86
     if (!vs_isMMXStateOk())
@@ -1407,7 +1407,7 @@ VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
                 remainingArgs.insert(key.first);
 
             for (const FilterArgument &fa : f.args) {
-                char c = vsapi.propGetType(&args, fa.name.c_str());
+                char c = vs_internal_vsapi.propGetType(&args, fa.name.c_str());
 
                 if (c != 'u') {
                     remainingArgs.erase(fa.name);
@@ -1443,11 +1443,11 @@ VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
             return v;
         }
     } catch (VSException &e) {
-        vsapi.setError(&v, e.what());
+        vs_internal_vsapi.setError(&v, e.what());
         return v;
     }
 
-    vsapi.setError(&v, ("Function '" + funcName + "' not found in " + filename).c_str());
+    vs_internal_vsapi.setError(&v, ("Function '" + funcName + "' not found in " + filename).c_str());
     return v;
 }
 
@@ -1455,7 +1455,7 @@ VSMap VSPlugin::getFunctions() {
     VSMap m;
     for (const auto & f : funcs) {
         std::string b = f.first + ";" + f.second.argString;
-        vsapi.propSetData(&m, f.first.c_str(), b.c_str(), static_cast<int>(b.size()), paReplace);
+        vs_internal_vsapi.propSetData(&m, f.first.c_str(), b.c_str(), static_cast<int>(b.size()), paReplace);
     }
     return m;
 }

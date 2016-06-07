@@ -25,12 +25,12 @@
 #include <cstring>
 #include <string>
 
-void VS_CC configPlugin(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readOnly, VSPlugin *plugin) VS_NOEXCEPT {
+void VS_CC vs_internal_configPlugin(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readOnly, VSPlugin *plugin) VS_NOEXCEPT {
     assert(identifier && defaultNamespace && name && plugin);
     plugin->configPlugin(identifier, defaultNamespace, name, apiVersion, !!readOnly);
 }
 
-void VS_CC registerFunction(const char *name, const char *args, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) VS_NOEXCEPT {
+void VS_CC vs_internal_registerFunction(const char *name, const char *args, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) VS_NOEXCEPT {
     assert(name && args && argsFunc && plugin);
     plugin->registerFunction(name, args, argsFunc, functionData);
 }
@@ -549,7 +549,7 @@ static void VS_CC logMessage(int msgType, const char *msg) VS_NOEXCEPT {
     vsLog(__FILE__, __LINE__, static_cast<VSMessageType>(msgType), "%s", msg);
 }
 
-static const VSAPI vsapi = {
+const VSAPI vs_internal_vsapi = {
     &createCore,
     &freeCore,
     &getCoreInfo,
@@ -565,7 +565,7 @@ static const VSAPI vsapi = {
     &newVideoFrame,
     &copyFrame,
     &copyFrameProps,
-    &registerFunction,
+    &vs_internal_registerFunction,
     &getPluginById,
     &getPluginByNs,
     &getPlugins,
@@ -643,7 +643,7 @@ static const VSAPI vsapi = {
 
 const VSAPI *getVSAPIInternal(int apiMajor) {
     if (apiMajor == VAPOURSYNTH_API_MAJOR) {
-        return &vsapi;
+        return &vs_internal_vsapi;
     } else {
         vsFatal("Internally requested API version %d not supported", apiMajor);
         return nullptr;
@@ -663,7 +663,7 @@ const VSAPI *VS_CC getVapourSynthAPI(int version) VS_NOEXCEPT {
     if (!f.can_run_vs) {
         return nullptr;
     } else if (apiMajor == VAPOURSYNTH_API_MAJOR && apiMinor <= VAPOURSYNTH_API_MINOR) {
-        return &vsapi;
+        return &vs_internal_vsapi;
     } else {
         return nullptr;
     }

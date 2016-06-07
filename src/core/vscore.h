@@ -71,7 +71,7 @@ typedef std::shared_ptr<VSNode> PVideoNode;
 typedef std::shared_ptr<ExtFunction> PExtFunction;
 typedef std::shared_ptr<FrameContext> PFrameContext;
 
-extern const VSAPI vsapi;
+extern const VSAPI vs_internal_vsapi;
 const VSAPI *getVSAPIInternal(int apiMajor);
 
 class VSException : public std::runtime_error {
