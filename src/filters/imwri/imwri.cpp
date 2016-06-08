@@ -749,7 +749,7 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 #ifdef _WIN32
             std::string printedStr(specialPrintf(d->filenames[0], i));
             std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
-            std::wstring wPath = conversion.from_bytes(d->filenames[0]);
+            std::wstring wPath = conversion.from_bytes(printedStr);
             FILE * f = _wfopen(wPath.c_str(), L"rb");
 #else
             FILE * f = fopen(specialPrintf(d->filenames[0], i).c_str(), "rb");
