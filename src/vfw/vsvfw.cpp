@@ -830,21 +830,23 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
         for (int plane = 0; plane < 3; plane++) {
             p.srcp[2 - plane] = vsapi->getReadPtr(f, plane) + vsapi->getStride(f, plane) * (vsapi->getFrameHeight(f, plane) - 1);
             p.src_stride[2 - plane] = -vsapi->getStride(f, plane);
-            p.width[2 - plane] = vsapi->getFrameWidth(f, plane);
-            p.height[2 - plane] = vsapi->getFrameHeight(f, plane);
         }
+
+        p.width[0] = vsapi->getFrameWidth(f, 0);
+        p.height[0] = vsapi->getFrameHeight(f, 0);
         p.dst_stride[0] = vsapi->getFrameWidth(f, 0) * 4 * fi->bytesPerSample;
         p.dstp[0] = lpBuffer;
         taffy_pack_4444_uint8(&p);
     } else if (fi->id == pfRGB48) {
         taffy_param p = {};
+
         for (int plane = 0; plane < 3; plane++) {
             p.srcp[plane + 1] = vsapi->getReadPtr(f, plane);
             p.src_stride[plane + 1] = vsapi->getStride(f, plane);
-            p.width[plane + 1] = vsapi->getFrameWidth(f, plane);
-            p.height[plane + 1] = vsapi->getFrameHeight(f, plane);
         }
 
+        p.width[0] = vsapi->getFrameWidth(f, 0);
+        p.height[0] = vsapi->getFrameHeight(f, 0);
         p.dst_stride[0] = vsapi->getFrameWidth(f, 0) * 4 * fi->bytesPerSample;
         p.dstp[0] = lpBuffer;
         taffy_pack_4444_uint16(&p, true);
@@ -855,45 +857,40 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
         for (int plane = 0; plane < 3; plane++) {
             p.srcp[remap[plane]] = vsapi->getReadPtr(f, plane);
             p.src_stride[remap[plane]] = vsapi->getStride(f, plane);
-            p.width[remap[plane]] = vsapi->getFrameWidth(f, plane);
-            p.height[remap[plane]] = vsapi->getFrameHeight(f, plane);
         }
         
-
-/*
-
-        p.srcp[0] = vsapi->getReadPtr(f, 2);
-        p.src_stride[0] = vsapi->getStride(f, 1);
-        p.width[0] = vsapi->getFrameWidth(f, 1);
-        p.height[0] = vsapi->getFrameHeight(f, 1);
-  */      
-
+        p.width[0] = vsapi->getFrameWidth(f, 0);
+        p.height[0] = vsapi->getFrameHeight(f, 0);
         p.dst_stride[0] = vsapi->getFrameWidth(f, 0) * 4 * fi->bytesPerSample;
         p.dstp[0] = lpBuffer;
         taffy_pack_4444_uint16(&p, false);
     } else if (fi->id == pfYUV422P10 && parent->enable_v210) {
         taffy_param p = {};
+
         for (int plane = 0; plane < 3; plane++) {
             p.srcp[plane] = vsapi->getReadPtr(f, plane);
             p.src_stride[plane] = vsapi->getStride(f, plane);
-            p.width[plane] = vsapi->getFrameWidth(f, plane);
-            p.height[plane] = vsapi->getFrameHeight(f, plane);
         }
+
+        p.width[0] = vsapi->getFrameWidth(f, 0);
+        p.height[0] = vsapi->getFrameHeight(f, 0);
         p.dst_stride[0] = taffy_get_v210_stride(p.width[0]);
         p.dstp[0] = lpBuffer;
         taffy_pack_v210(&p);
     } else if ((fi->id == pfYUV420P16) || (fi->id == pfYUV422P16) || (fi->id == pfYUV420P10) || (fi->id == pfYUV422P10)) {
-        taffy_param p = { 0 };
+        taffy_param p = {};
+
         for (int plane = 0; plane < 3; plane++) {
             p.srcp[plane] = vsapi->getReadPtr(f, plane);
             p.src_stride[plane] = vsapi->getStride(f, plane);
             p.width[plane] = vsapi->getFrameWidth(f, plane);
             p.height[plane] = vsapi->getFrameHeight(f, plane);
         }
+
         p.dst_stride[0] = p.width[0] * fi->bytesPerSample;
         p.dst_stride[1] = p.width[1] * 2 * fi->bytesPerSample;
         p.dstp[0] = lpBuffer;
-        p.dstp[1] = (BYTE *)lpBuffer + p.dst_stride[0] * p.height[0];
+        p.dstp[1] = (uint8_t *)lpBuffer + p.dst_stride[0] * p.height[0];
         if ((fi->id == pfYUV420P10) || (fi->id == pfYUV422P10))
             taffy_pack_px10(&p);
         else
@@ -909,12 +906,12 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
 
             vs_bitblt(lpBuffer, row_size, vsapi->getReadPtr(f, 0), stride, row_size, height);
 
-            vs_bitblt((BYTE *)lpBuffer + (row_size*height),
+            vs_bitblt((uint8_t *)lpBuffer + (row_size*height),
                 row_size23, vsapi->getReadPtr(f, 2),
                 vsapi->getStride(f, 2), vsapi->getFrameWidth(f, 2),
                 vsapi->getFrameHeight(f, 2));
 
-            vs_bitblt((BYTE *)lpBuffer + (row_size*height + vsapi->getFrameHeight(f, 1)*row_size23),
+            vs_bitblt((uint8_t *)lpBuffer + (row_size*height + vsapi->getFrameHeight(f, 1)*row_size23),
                 row_size23, vsapi->getReadPtr(f, 1),
                 vsapi->getStride(f, 1), vsapi->getFrameWidth(f, 1),
                 vsapi->getFrameHeight(f, 1));
