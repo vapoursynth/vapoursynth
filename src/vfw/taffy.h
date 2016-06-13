@@ -62,10 +62,10 @@ TAFFY_API(void) taffy_unpack_v210(taffy_param *args);
 TAFFY_API(void) taffy_pack_4444_uint8(taffy_param *args);
 TAFFY_API(void) taffy_unpack_4444_uint8(taffy_param *args);
 
-TAFFY_API(void) taffy_pack_4444_uint16(taffy_param *args);
+TAFFY_API(void) taffy_pack_4444_uint16(taffy_param *args, bool be);
 TAFFY_API(void) taffy_unpack_4444_uint16(taffy_param *args);
 
-TAFFY_API(void) taffy_pack_4444_uint32(taffy_param *args);
+TAFFY_API(void) taffy_pack_4444_uint32(taffy_param *args, bool be);
 TAFFY_API(void) taffy_unpack_4444_uint32(taffy_param *args);
 
 

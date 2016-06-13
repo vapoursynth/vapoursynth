@@ -25,6 +25,7 @@
 #define NOMINMAX
 #include <windows.h>
 #include <vfw.h>
+#include <aviriff.h>
 #include <string>
 #include <algorithm>
 #include <mutex>
@@ -411,6 +412,8 @@ int VapourSynthFile::ImageSize() {
     if (vi->format->id == pfYUV422P10 && enable_v210) {
         image_size = ((16*((vi->width + 5) / 6) + 127) & ~127);
         image_size *= vi->height;
+    } else if (vi->format->id == pfRGB24 || vi->format->id == pfRGB48 || vi->format->id == pfYUV444P16) {
+        image_size = BMPSize(vi->height, vi->width * vi->format->bytesPerSample * 4);
     } else if (vi->format->numPlanes == 1) {
         image_size = BMPSize(vi->height, vi->width * vi->format->bytesPerSample);
     } else {
@@ -473,6 +476,8 @@ bool VapourSynthFile::DelayInit2() {
 
             int id = vi->format->id;
             if (id != pfCompatBGR32
+                && id != pfRGB24
+                && id != pfRGB48
                 && id != pfCompatYUY2
                 && id != pfYUV420P8
                 && id != pfGray8
@@ -483,7 +488,8 @@ bool VapourSynthFile::DelayInit2() {
                 && id != pfYUV420P10
                 && id != pfYUV420P16
                 && id != pfYUV422P10
-                && id != pfYUV422P16) {
+                && id != pfYUV422P16
+                && id != pfYUV444P16) {
                 error_msg = "VFW module doesn't support ";
                 error_msg += vi->format->name;
                 error_msg += " output";
@@ -706,35 +712,43 @@ STDMETHODIMP_(LONG) VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) {
     memset(&asi, 0, sizeof(asi));
     asi.fccType = streamtypeVIDEO;
     asi.dwQuality = DWORD(-1);
+    
+    int image_size = parent->ImageSize();
 
-    const int image_size = parent->ImageSize();
-    asi.fccHandler = 'UNKN';
+
+    asi.fccHandler = FCC('UNKN');
     if (vi->format->id == pfCompatBGR32)
-        asi.fccHandler = ' BID';
+        asi.fccHandler = FCC('DIB ');
+    else if (vi->format->id == pfRGB24)
+        asi.fccHandler = FCC('DIB ');
+    else if (vi->format->id == pfRGB48)
+        asi.fccHandler = FCC('b64a');
     else if (vi->format->id == pfCompatYUY2)
-        asi.fccHandler = '2YUY';
+        asi.fccHandler = FCC('YUY2');
     else if (vi->format->id == pfYUV420P8)
-        asi.fccHandler = '21VY';
+        asi.fccHandler = FCC('YV12');
     else if (vi->format->id == pfGray8)
-        asi.fccHandler = '008Y';
+        asi.fccHandler = FCC('Y800');
     else if (vi->format->id == pfYUV444P8)
-        asi.fccHandler = '42VY';
+        asi.fccHandler = FCC('YV24');
     else if (vi->format->id == pfYUV422P8)
-        asi.fccHandler = '61VY';
+        asi.fccHandler = FCC('YV16');
     else if (vi->format->id == pfYUV411P8)
-        asi.fccHandler = 'B14Y';
+        asi.fccHandler = FCC('Y41B');
     else if (vi->format->id == pfYUV410P8)
-        asi.fccHandler = '9UVY';
+        asi.fccHandler = FCC('YVU9');
     else if (vi->format->id == pfYUV420P10)
-        asi.fccHandler = '010P';
+        asi.fccHandler = FCC('P010');
     else if (vi->format->id == pfYUV420P16)
-        asi.fccHandler = '610P';
+        asi.fccHandler = FCC('P016');
     else if (vi->format->id == pfYUV422P10 && parent->enable_v210)
-        asi.fccHandler = '012v';
+        asi.fccHandler = FCC('v210');
     else if (vi->format->id == pfYUV422P10)
-        asi.fccHandler = '012P';
+        asi.fccHandler = FCC('P210');
     else if (vi->format->id == pfYUV422P16)
-        asi.fccHandler = '612P';
+        asi.fccHandler = FCC('P216');
+    else if (vi->format->id == pfYUV444P16)
+        asi.fccHandler = FCC('Y416');
     else
         return E_FAIL;
 
@@ -745,7 +759,7 @@ STDMETHODIMP_(LONG) VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) {
     asi.rcFrame.bottom = vi->height;
     asi.dwSampleSize = image_size;
     asi.dwSuggestedBufferSize = image_size;
-    wcscpy(asi.szName, L"VapourSynth video #1");
+    wcscpy(asi.szName, L"VapourSynth Video #1");
 
     // Maybe should return AVIERR_BUFFERTOOSMALL for lSize < sizeof(asi)
     memset(psi, 0, lSize);
@@ -810,7 +824,54 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
 
     const VSFormat *fi = vsapi->getFrameFormat(f);
     
-    if (fi->id == pfYUV422P10 && parent->enable_v210) {
+    if (fi->id == pfRGB24) {
+        taffy_param p = {};
+        
+        for (int plane = 0; plane < 3; plane++) {
+            p.srcp[2 - plane] = vsapi->getReadPtr(f, plane) + vsapi->getStride(f, plane) * (vsapi->getFrameHeight(f, plane) - 1);
+            p.src_stride[2 - plane] = -vsapi->getStride(f, plane);
+            p.width[2 - plane] = vsapi->getFrameWidth(f, plane);
+            p.height[2 - plane] = vsapi->getFrameHeight(f, plane);
+        }
+        p.dst_stride[0] = vsapi->getFrameWidth(f, 0) * 4 * fi->bytesPerSample;
+        p.dstp[0] = lpBuffer;
+        taffy_pack_4444_uint8(&p);
+    } else if (fi->id == pfRGB48) {
+        taffy_param p = {};
+        for (int plane = 0; plane < 3; plane++) {
+            p.srcp[plane + 1] = vsapi->getReadPtr(f, plane);
+            p.src_stride[plane + 1] = vsapi->getStride(f, plane);
+            p.width[plane + 1] = vsapi->getFrameWidth(f, plane);
+            p.height[plane + 1] = vsapi->getFrameHeight(f, plane);
+        }
+
+        p.dst_stride[0] = vsapi->getFrameWidth(f, 0) * 4 * fi->bytesPerSample;
+        p.dstp[0] = lpBuffer;
+        taffy_pack_4444_uint16(&p, true);
+    } else if (fi->id == pfYUV444P16) {
+        int remap[] = { 2, 3, 1 };
+        taffy_param p = {};
+        
+        for (int plane = 0; plane < 3; plane++) {
+            p.srcp[remap[plane]] = vsapi->getReadPtr(f, plane);
+            p.src_stride[remap[plane]] = vsapi->getStride(f, plane);
+            p.width[remap[plane]] = vsapi->getFrameWidth(f, plane);
+            p.height[remap[plane]] = vsapi->getFrameHeight(f, plane);
+        }
+        
+
+/*
+
+        p.srcp[0] = vsapi->getReadPtr(f, 2);
+        p.src_stride[0] = vsapi->getStride(f, 1);
+        p.width[0] = vsapi->getFrameWidth(f, 1);
+        p.height[0] = vsapi->getFrameHeight(f, 1);
+  */      
+
+        p.dst_stride[0] = vsapi->getFrameWidth(f, 0) * 4 * fi->bytesPerSample;
+        p.dstp[0] = lpBuffer;
+        taffy_pack_4444_uint16(&p, false);
+    } else if (fi->id == pfYUV422P10 && parent->enable_v210) {
         taffy_param p = {};
         for (int plane = 0; plane < 3; plane++) {
             p.srcp[plane] = vsapi->getReadPtr(f, plane);
@@ -927,36 +988,42 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
     bi.biHeight = vi->height;
     bi.biPlanes = 1;
     bi.biBitCount = vi->format->bytesPerSample * 8;
-    if (vi->format->numPlanes == 3)
+    if (vi->format->id == pfRGB24 || vi->format->id == pfRGB48 || vi->format->id == pfYUV444P16)
+        bi.biBitCount *= 4;
+    else if (vi->format->numPlanes == 3)
         bi.biBitCount +=  (bi.biBitCount * 2) >> (vi->format->subSamplingH + vi->format->subSamplingW);
     if (parent->enable_v210 && vi->format->id == pfYUV422P10)
         bi.biBitCount = 20;
-    if (vi->format->id == pfCompatBGR32)
+    if (vi->format->id == pfCompatBGR32 || vi->format->id == pfRGB24)
         bi.biCompression = BI_RGB;
+    else if (vi->format->id == pfRGB48)
+        bi.biCompression = FCC('b64a');
     else if (vi->format->id == pfCompatYUY2)
-        bi.biCompression = '2YUY';
+        bi.biCompression = FCC('YUY2');
     else if (vi->format->id == pfYUV420P8)
-        bi.biCompression = '21VY';
+        bi.biCompression = FCC('YV12');
     else if (vi->format->id == pfGray8)
-        bi.biCompression = '008Y';
+        bi.biCompression = FCC('Y800');
     else if (vi->format->id == pfYUV444P8)
-        bi.biCompression = '42VY';
+        bi.biCompression = FCC('YV24');
     else if (vi->format->id == pfYUV422P8)
-        bi.biCompression = '61VY';
+        bi.biCompression = FCC('YV16');
     else if (vi->format->id == pfYUV411P8)
-        bi.biCompression = 'B14Y';
+        bi.biCompression = FCC('Y41B');
     else if (vi->format->id == pfYUV410P8)
-        bi.biCompression = '9UVY';
+        bi.biCompression = FCC('YVU9');
     else if (vi->format->id == pfYUV420P10)
-        bi.biCompression = '010P';
+        bi.biCompression = FCC('P010');
     else if (vi->format->id == pfYUV420P16)
-        bi.biCompression = '610P';
+        bi.biCompression = FCC('P016');
     else if (vi->format->id == pfYUV422P10 && parent->enable_v210)
-        bi.biCompression = '012v';
+        bi.biCompression = FCC('v210');
     else if (vi->format->id == pfYUV422P10)
-        bi.biCompression = '012P';
+        bi.biCompression = FCC('P210');
     else if (vi->format->id == pfYUV422P16)
-        bi.biCompression = '612P';
+        bi.biCompression = FCC('P216');
+    else if (vi->format->id == pfYUV444P16)
+        bi.biCompression = FCC('Y416');
     else
         return E_FAIL;
 

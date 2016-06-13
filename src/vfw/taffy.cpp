@@ -1,27 +1,54 @@
 #include <cstdint>
 #include <cstring>
+#include <limits>
 
 #include "taffy.h"
+#include "VSHelper.h"
 
+struct no_endian {
+    template <typename T>
+    static T load(T val) {
+        return val;
+    }
+};
 
-template <typename T>
+struct little_endian {
+    template <typename T>
+    static T load(T val) {
+        return val;
+    }
+};
+
+struct big_endian {
+    template <typename T>
+    static T load(T val) {
+        if (sizeof(T) == 1)
+            return val;
+        else if (sizeof(T) == 2)
+            return ((((val) >> 8) & 0xff) | (((val) & 0xff) << 8));
+        else if (sizeof(T) == 4)
+            return ((((val) & 0xff000000) >> 24) | (((val) & 0x00ff0000) >> 8) | (((val) & 0x0000ff00) << 8) | (((val) & 0x000000ff) << 24));
+    }
+};
+
+template <typename T, class endian>
 static void pack_4444(taffy_param *args) {
     int width = args->width[0];
     int height = args->height[0];
 
-    const T **srcp = reinterpret_cast<const T **>(args->srcp);
-    T *dstp = static_cast<T *>(args->dstp[0]);
+    const T ** VS_RESTRICT srcp = reinterpret_cast<const T **>(args->srcp);
+    T * VS_RESTRICT dstp = static_cast<T *>(args->dstp[0]);
 
-    int *src_stride = args->src_stride;
+    int * VS_RESTRICT src_stride = args->src_stride;
     int dst_stride = args->dst_stride[0];
 
     if (srcp[0] == nullptr) {
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 dstp[x * 4 + 0] = 0;
-                dstp[x * 4 + 1] = srcp[1][x];
-                dstp[x * 4 + 2] = srcp[2][x];
-                dstp[x * 4 + 3] = srcp[3][x];
+                dstp[x * 4 + 1] = endian::load(srcp[1][x]);
+                dstp[x * 4 + 2] = endian::load(srcp[2][x]);
+                dstp[x * 4 + 3] = endian::load(srcp[3][x]);
             }
 
             srcp[1] += src_stride[1] / sizeof(T);
@@ -33,9 +60,9 @@ static void pack_4444(taffy_param *args) {
     } else if (srcp[3] == nullptr) {
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                dstp[x * 4 + 0] = srcp[0][x];
-                dstp[x * 4 + 1] = srcp[1][x];
-                dstp[x * 4 + 2] = srcp[2][x];
+                dstp[x * 4 + 0] = endian::load(srcp[0][x]);
+                dstp[x * 4 + 1] = endian::load(srcp[1][x]);
+                dstp[x * 4 + 2] = endian::load(srcp[2][x]);
                 dstp[x * 4 + 3] = 0;
             }
 
@@ -48,10 +75,10 @@ static void pack_4444(taffy_param *args) {
     } else {
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                dstp[x * 4 + 0] = srcp[0][x];
-                dstp[x * 4 + 1] = srcp[1][x];
-                dstp[x * 4 + 2] = srcp[2][x];
-                dstp[x * 4 + 3] = srcp[3][x];
+                dstp[x * 4 + 0] = endian::load(srcp[0][x]);
+                dstp[x * 4 + 1] = endian::load(srcp[1][x]);
+                dstp[x * 4 + 2] = endian::load(srcp[2][x]);
+                dstp[x * 4 + 3] = endian::load(srcp[3][x]);
             }
 
             srcp[0] += src_stride[0] / sizeof(T);
@@ -70,11 +97,11 @@ static void unpack_4444(taffy_param *args) {
     int width = args->width[0];
     int height = args->height[0];
 
-    const T *srcp = static_cast<const T *>(args->srcp[0]);
-    T **dstp = reinterpret_cast<T **>(args->dstp);
+    const T * VS_RESTRICT srcp = static_cast<const T *>(args->srcp[0]);
+    T ** VS_RESTRICT dstp = reinterpret_cast<T **>(args->dstp);
 
     int src_stride = args->src_stride[0];
-    int *dst_stride = args->dst_stride;
+    int * VS_RESTRICT dst_stride = args->dst_stride;
 
     if (dstp[0] == nullptr) {
         for (int y = 0; y < height; y++) {
@@ -130,10 +157,10 @@ static void pack_444(taffy_param *args) {
     int width = args->width[0];
     int height = args->height[0];
 
-    const T **srcp = reinterpret_cast<const T **>(args->srcp);
-    T *dstp = static_cast<T *>(args->dstp[0]);
+    const T ** VS_RESTRICT srcp = reinterpret_cast<const T **>(args->srcp);
+    T * VS_RESTRICT dstp = static_cast<T *>(args->dstp[0]);
 
-    int *src_stride = args->src_stride;
+    int * VS_RESTRICT src_stride = args->src_stride;
     int dst_stride = args->dst_stride[0];
 
     for (int y = 0; y < height; y++) {
@@ -157,11 +184,11 @@ static void unpack_444(taffy_param *args) {
     int width = args->width[0];
     int height = args->height[0];
 
-    const T *srcp = static_cast<const T *>(args->srcp[0]);
-    T **dstp = reinterpret_cast<T **>(args->dstp);
+    const T * VS_RESTRICT srcp = static_cast<const T *>(args->srcp[0]);
+    T ** VS_RESTRICT dstp = reinterpret_cast<T **>(args->dstp);
 
     int src_stride = args->src_stride[0];
-    int *dst_stride = args->dst_stride;
+    int * VS_RESTRICT dst_stride = args->dst_stride;
 
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
@@ -185,10 +212,10 @@ static void pack_422(taffy_param *args) {
     int width = args->width[0];
     int height = args->height[0];
 
-    const T **srcp = reinterpret_cast<const T **>(args->srcp);
-    T *dstp = static_cast<T *>(args->dstp[0]);
+    const T ** VS_RESTRICT srcp = reinterpret_cast<const T **>(args->srcp);
+    T * VS_RESTRICT dstp = static_cast<T *>(args->dstp[0]);
 
-    int *src_stride = args->src_stride;
+    int * VS_RESTRICT src_stride = args->src_stride;
     int dst_stride = args->dst_stride[0];
 
     for (int y = 0; y < height; y++) {
@@ -213,11 +240,11 @@ static void unpack_422(taffy_param *args) {
     int width = args->width[0];
     int height = args->height[0];
 
-    const T *srcp = static_cast<const T *>(args->srcp[0]);
-    T **dstp = reinterpret_cast<T **>(args->dstp);
+    const T * VS_RESTRICT srcp = static_cast<const T *>(args->srcp[0]);
+    T ** VS_RESTRICT dstp = reinterpret_cast<T **>(args->dstp);
 
     int src_stride = args->src_stride[0];
-    int *dst_stride = args->dst_stride;
+    int * VS_RESTRICT dst_stride = args->dst_stride;
 
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x += 2) {
@@ -242,10 +269,10 @@ static void pack_422_uyvy(taffy_param *args) {
     int width = args->width[0];
     int height = args->height[0];
 
-    const T **srcp = reinterpret_cast<const T **>(args->srcp);
-    T *dstp = static_cast<T *>(args->dstp[0]);
+    const T ** VS_RESTRICT srcp = reinterpret_cast<const T **>(args->srcp);
+    T * VS_RESTRICT dstp = static_cast<T *>(args->dstp[0]);
 
-    int *src_stride = args->src_stride;
+    int * VS_RESTRICT src_stride = args->src_stride;
     int dst_stride = args->dst_stride[0];
 
     for (int y = 0; y < height; y++) {
@@ -270,11 +297,11 @@ static void unpack_422_uyvy(taffy_param *args) {
     int width = args->width[0];
     int height = args->height[0];
 
-    const T *srcp = static_cast<const T *>(args->srcp[0]);
-    T **dstp = reinterpret_cast<T **>(args->dstp);
+    const T * VS_RESTRICT srcp = static_cast<const T *>(args->srcp[0]);
+    T ** VS_RESTRICT dstp = reinterpret_cast<T **>(args->dstp);
 
     int src_stride = args->src_stride[0];
-    int *dst_stride = args->dst_stride;
+    int * VS_RESTRICT dst_stride = args->dst_stride;
 
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x += 2) {
@@ -297,14 +324,14 @@ static void unpack_422_uyvy(taffy_param *args) {
 template <typename T, bool left_adj, int used_bits>
 static void pack_nvish(taffy_param *args) {
     const int shift = left_adj ? (sizeof(T) * 8 - used_bits) : 0;
-    int *width = args->width;
-    int *height = args->height;
+    int * VS_RESTRICT width = args->width;
+    int * VS_RESTRICT height = args->height;
 
-    const T **srcp = reinterpret_cast<const T **>(args->srcp);
-    T **dstp = reinterpret_cast<T **>(args->dstp);
+    const T ** VS_RESTRICT srcp = reinterpret_cast<const T **>(args->srcp);
+    T ** VS_RESTRICT dstp = reinterpret_cast<T **>(args->dstp);
 
-    int *src_stride = args->src_stride;
-    int *dst_stride = args->dst_stride;
+    int * VS_RESTRICT src_stride = args->src_stride;
+    int * VS_RESTRICT dst_stride = args->dst_stride;
 
     for (int y = 0; y < height[1]; y++) {
         for (int x = 0; x < width[1]; x++) {
@@ -344,14 +371,14 @@ static void pack_nvish(taffy_param *args) {
 template <typename T, bool left_adj, int used_bits>
 static void unpack_nvish(taffy_param *args) {
     const int shift = left_adj ? (sizeof(T) * 8 - used_bits) : 0;
-    int *width = args->width;
-    int *height = args->height;
+    int * VS_RESTRICT width = args->width;
+    int * VS_RESTRICT height = args->height;
 
-    const T **srcp = reinterpret_cast<const T **>(args->srcp);
-    T **dstp = reinterpret_cast<T **>(args->dstp);
+    const T ** VS_RESTRICT srcp = reinterpret_cast<const T **>(args->srcp);
+    T ** VS_RESTRICT dstp = reinterpret_cast<T **>(args->dstp);
 
-    int *src_stride = args->src_stride;
-    int *dst_stride = args->dst_stride;
+    int * VS_RESTRICT src_stride = args->src_stride;
+    int * VS_RESTRICT dst_stride = args->dst_stride;
 
     for (int y = 0; y < height[1]; y++) {
         for (int x = 0; x < width[1]; x++) {
@@ -420,17 +447,17 @@ TAFFY_API(void) taffy_pack_v210(taffy_param *args) {
     int width = args->width[0];
     int height = args->height[0];
 
-    const uint16_t **srcp = reinterpret_cast<const uint16_t **>(args->srcp);
-    uint32_t *dstp = static_cast<uint32_t *>(args->dstp[0]);
+    const uint16_t ** VS_RESTRICT srcp = reinterpret_cast<const uint16_t **>(args->srcp);
+    uint32_t * VS_RESTRICT dstp = static_cast<uint32_t *>(args->dstp[0]);
 
-    int *src_stride = args->src_stride;
+    int * VS_RESTRICT src_stride = args->src_stride;
     int dst_stride = args->dst_stride[0];
 
     for (int y = 0; y < height; y++) {
-        const uint16_t *yline = srcp[0];
-        const uint16_t *uline = srcp[1];
-        const uint16_t *vline = srcp[2];
-        uint32_t *dstline = dstp;
+        const uint16_t * VS_RESTRICT yline = srcp[0];
+        const uint16_t * VS_RESTRICT uline = srcp[1];
+        const uint16_t * VS_RESTRICT vline = srcp[2];
+        uint32_t * VS_RESTRICT dstline = dstp;
         for (int x = 0; x < width + 5; x += 6) {
             dstline[0] = (uline[0] | (yline[0] << 10) | (vline[0] << 20));
             dstline[1] = (yline[1] | (uline[1] << 10) | (yline[2] << 20));
@@ -454,18 +481,18 @@ TAFFY_API(void) taffy_unpack_v210(taffy_param *args) {
     int height = args->height[0];
 
     int src_stride = args->src_stride[0];
-    int *dst_stride = args->dst_stride;
+    int * VS_RESTRICT dst_stride = args->dst_stride;
 
-    const uint32_t *srcp = static_cast<const uint32_t *>(args->srcp[0]);
-    uint16_t **dstp = reinterpret_cast<uint16_t **>(args->dstp);
+    const uint32_t * VS_RESTRICT srcp = static_cast<const uint32_t *>(args->srcp[0]);
+    uint16_t ** VS_RESTRICT dstp = reinterpret_cast<uint16_t **>(args->dstp);
 
     const uint32_t mask = 1023; // lowest 10 bits
 
     for (int y = 0; y < height; y++) {
-        uint16_t *yline = dstp[0];
-        uint16_t *uline = dstp[1];
-        uint16_t *vline = dstp[2];
-        const uint32_t *srcline = srcp;
+        uint16_t * VS_RESTRICT yline = dstp[0];
+        uint16_t * VS_RESTRICT uline = dstp[1];
+        uint16_t * VS_RESTRICT vline = dstp[2];
+        const uint32_t * VS_RESTRICT srcline = srcp;
 
         for (int x = 0; x < width + 5; x += 6) {
             uline[0] = srcline[0] & mask;
@@ -501,7 +528,7 @@ TAFFY_API(void) taffy_unpack_v210(taffy_param *args) {
 // =================================================
 
 TAFFY_API(void) taffy_pack_4444_uint8(taffy_param *args) {
-    pack_4444<uint8_t>(args);
+    pack_4444<uint8_t, no_endian>(args);
 }
 
 TAFFY_API(void) taffy_unpack_4444_uint8(taffy_param *args) {
@@ -509,8 +536,11 @@ TAFFY_API(void) taffy_unpack_4444_uint8(taffy_param *args) {
 }
 
 
-TAFFY_API(void) taffy_pack_4444_uint16(taffy_param *args) {
-    pack_4444<uint16_t>(args);
+TAFFY_API(void) taffy_pack_4444_uint16(taffy_param *args, bool be) {
+    if (be)
+        pack_4444<uint16_t, big_endian>(args);
+    else
+        pack_4444<uint16_t, little_endian>(args);
 }
 
 TAFFY_API(void) taffy_unpack_4444_uint16(taffy_param *args) {
@@ -518,8 +548,11 @@ TAFFY_API(void) taffy_unpack_4444_uint16(taffy_param *args) {
 }
 
 
-TAFFY_API(void) taffy_pack_4444_uint32(taffy_param *args) {
-    pack_4444<uint32_t>(args);
+TAFFY_API(void) taffy_pack_4444_uint32(taffy_param *args, bool be) {
+    if (be)
+        pack_4444<uint32_t, big_endian>(args);
+    else
+        pack_4444<uint32_t, little_endian>(args);
 }
 
 TAFFY_API(void) taffy_unpack_4444_uint32(taffy_param *args) {
