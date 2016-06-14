@@ -45,7 +45,7 @@ static void pack_4444(taffy_param *args) {
     if (srcp[0] == nullptr) {
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                dstp[x * 4 + 0] = 0;
+                dstp[x * 4 + 0] = std::numeric_limits<T>::max();
                 dstp[x * 4 + 1] = endian::load(srcp[1][x]);
                 dstp[x * 4 + 2] = endian::load(srcp[2][x]);
                 dstp[x * 4 + 3] = endian::load(srcp[3][x]);
@@ -63,7 +63,7 @@ static void pack_4444(taffy_param *args) {
                 dstp[x * 4 + 0] = endian::load(srcp[0][x]);
                 dstp[x * 4 + 1] = endian::load(srcp[1][x]);
                 dstp[x * 4 + 2] = endian::load(srcp[2][x]);
-                dstp[x * 4 + 3] = 0;
+                dstp[x * 4 + 3] = std::numeric_limits<T>::max();
             }
 
             srcp[0] += src_stride[0] / sizeof(T);
