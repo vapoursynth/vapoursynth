@@ -1,4 +1,5 @@
 r33:
+now installs the vs2015 update 3 runtimes on windows
 vsvfw will now automatically convert rgb24 to packed bgra for convenience
 added b64r and P416 output to vsvfw
 updated to zimg v2.1 branch
