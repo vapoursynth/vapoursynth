@@ -370,7 +370,7 @@ PKG_CHECK_MODULES(
 
 PKG_CHECK_MODULES(
                   [IMAGEMAGICK],
-                  [ImageMagick++],
+                  [Magick++],
                   [
                    AC_MSG_CHECKING([whether imagemagick is usable])
 
