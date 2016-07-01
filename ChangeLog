@@ -1,4 +1,5 @@
 r33:
+fixed crash due to stack overflow if an extremely long filter graph is freed
 now installs the vs2015 update 3 runtimes on windows
 vsvfw will now automatically convert rgb24 to packed bgra for convenience
 added b64r and P416 output to vsvfw

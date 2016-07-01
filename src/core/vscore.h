@@ -418,6 +418,7 @@ public:
 
 struct VSNode {
     friend class VSThreadPool;
+    friend struct VSCore;
 private:
     void *instanceData;
     std::string name;
@@ -565,7 +566,6 @@ public:
 };
 
 struct VSCore {
-    friend struct VSNode;
     friend class VSFrame;
     friend class VSThreadPool;
     friend class CacheInstance;
@@ -617,6 +617,7 @@ public:
 
     void filterInstanceCreated();
     void filterInstanceDestroyed();
+    void destroyFilterInstance(VSNode *node);
 
     VSCore(int threads);
     void freeCore();

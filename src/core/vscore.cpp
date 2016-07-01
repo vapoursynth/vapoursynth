@@ -28,6 +28,7 @@
 #include "settings.h"
 #endif
 #include <cassert>
+#include <queue>
 
 #ifdef VS_TARGET_CPU_X86
 #include "x86utils.h"
@@ -601,10 +602,7 @@ instanceData(instanceData), name(name), init(init), filterGetFrame(getFrame), fr
 }
 
 VSNode::~VSNode() {
-    if (free)
-        free(instanceData, core, &vs_internal_vsapi);
-
-    core->filterInstanceDestroyed();
+    core->destroyFilterInstance(this);
 }
 
 void VSNode::getFrame(const PFrameContext &ct) {
@@ -976,6 +974,27 @@ void VSCore::filterInstanceDestroyed() {
         assert(coreFreed);
         delete this;
     }
+}
+
+void VSCore::destroyFilterInstance(VSNode *node) {
+    static thread_local int freeDepth = 0;
+    static thread_local std::queue<std::function<void()>> nodeFreeList;
+    freeDepth++;
+
+    if (node->free) {
+        nodeFreeList.push(std::bind(node->free, node->instanceData, this, &vs_internal_vsapi));
+    } else {
+        filterInstanceDestroyed();
+    }
+
+    if (freeDepth == 1) {
+        while (!nodeFreeList.empty()) {
+            nodeFreeList.front()();
+            nodeFreeList.pop();
+        }
+    }
+
+    freeDepth--;
 }
 
 VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), formatIdOffset(1000), memory(new MemoryUse()) {
