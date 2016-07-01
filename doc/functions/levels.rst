@@ -20,6 +20,11 @@ Levels
       Clip to process. It must have constant format, integer sample type,
       and bit depth between 8 and 16.
 
+   *gamma*
+      Controls the degree of non-linearity of the conversion. Values
+      greater than 1.0 brighten the output, while values less than 1.0
+      darken it.
+
    *planes*
       Specifies which planes will be processed. Any unprocessed planes
       will be simply copied.
