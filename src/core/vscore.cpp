@@ -976,21 +976,30 @@ void VSCore::filterInstanceDestroyed() {
     }
 }
 
+struct VSCoreShittyList {
+    VSFilterFree free;
+    void *instanceData;
+    VSCoreShittyList *next;
+    // add stuff like vsapi here if multiple versions end up floating around for compatibility
+};
+
 void VSCore::destroyFilterInstance(VSNode *node) {
     static thread_local int freeDepth = 0;
-    static thread_local std::queue<std::function<void()>> nodeFreeList;
+    static thread_local VSCoreShittyList *nodeFreeList = nullptr;
     freeDepth++;
 
     if (node->free) {
-        nodeFreeList.push(std::bind(node->free, node->instanceData, this, &vs_internal_vsapi));
+        nodeFreeList = new VSCoreShittyList({ node->free, node->instanceData, nodeFreeList });
     } else {
         filterInstanceDestroyed();
     }
 
     if (freeDepth == 1) {
-        while (!nodeFreeList.empty()) {
-            nodeFreeList.front()();
-            nodeFreeList.pop();
+        while (nodeFreeList) {
+            VSCoreShittyList *current = nodeFreeList;
+            nodeFreeList = current->next;
+            current->free(current->instanceData, this, &vs_internal_vsapi);
+            delete current;
         }
     }
 
