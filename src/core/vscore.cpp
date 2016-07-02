@@ -53,6 +53,10 @@ extern "C" {
 #include "textfilter.h"
 #include "genericfilters.h"
 
+#ifdef VS_TARGET_OS_DARWIN
+#define thread_local __thread
+#endif
+
 static inline bool isAlpha(char c) {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
 }
