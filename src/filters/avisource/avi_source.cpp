@@ -27,6 +27,7 @@
 #include "VapourSynth.h"
 #include "VSHelper.h"
 #include "AVIReadHandler.h"
+#include "../../common/p2p_api.h"
 
 static int BMPSize(int height, int rowsize) {
     return height * ((rowsize+3) & ~3);
@@ -71,193 +72,60 @@ static int ImageSize(const VSVideoInfo *vi, DWORD fourcc, int bitcount = 0) {
 
 static void unpackframe(const VSVideoInfo *vi, VSFrameRef *dst, VSFrameRef *dst_alpha, const uint8_t *srcp, int src_size, DWORD fourcc, int bitcount, bool flip, const VSAPI *vsapi) {
     bool padrows = false;
+
+    const VSFormat *fi = vsapi->getFrameFormat(dst);
+    p2p_buffer_param p = {};
+    p.width = vsapi->getFrameWidth(dst, 0);
+    p.height = vsapi->getFrameHeight(dst, 0);
+    p.src[0] = srcp;
+    p.src_stride[0] = vsapi->getFrameWidth(dst, 0) * 4 * fi->bytesPerSample;
+    p.src[1] = (uint8_t *)p.src[0] + p.src_stride[0] * p.height;
+    p.src_stride[1] = vsapi->getFrameWidth(dst, 0) * 4 * fi->bytesPerSample;
+    for (int plane = 0; plane < fi->numPlanes; plane++) {
+        p.dst[plane] = vsapi->getWritePtr(dst, plane);
+        p.dst_stride[plane] = vsapi->getStride(dst, plane);
+    }
+
     switch (fourcc) {
-    case '010P':
-    case '012P':
-        {
-            uint16_t *y = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(dst, 0));
-            uint16_t *u = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(dst, 1));
-            uint16_t *v = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(dst, 2));
-
-            const uint16_t *srcp16 = reinterpret_cast<const uint16_t *>(srcp);
-            for (int h = 0; h < vi->height; h++) {
-                for (int x = 0; x < vi->width; x++)
-                    y[x] = srcp16[x]>>6;
-                y += vsapi->getStride(dst, 0)/2;
-                srcp16 += vi->width;
-            }
-
-            int fw = vsapi->getFrameWidth(dst, 1);
-            int fh = vsapi->getFrameHeight(dst, 1);
-            for (int h = 0; h < fh; h++) {
-                for (int x = 0; x < fw; x++) {
-                    u[x] = srcp16[x*2+0]>>6;
-                    v[x] = srcp16[x*2+1]>>6;
-                }
-                u += vsapi->getStride(dst, 1)/2;
-                v += vsapi->getStride(dst, 2)/2;
-                srcp16 += fw*2;
-            }
-        }
-        break;
-    case '610P':
-    case '612P':
-        {
-            memcpy(vsapi->getWritePtr(dst, 0), srcp, vi->width*vi->format->bytesPerSample*vi->height);
-            srcp += vi->width*vi->format->bytesPerSample*vi->height;
-
-            uint16_t *u = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(dst, 1));
-            uint16_t *v = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(dst, 2));
-            const uint16_t *srcp16 = reinterpret_cast<const uint16_t *>(srcp);
-            int fw = vsapi->getFrameWidth(dst, 1);
-            int fh = vsapi->getFrameHeight(dst, 1);
-            for (int h = 0; h < fh; h++) {
-                for (int x = 0; x < fw; x++) {
-                    u[x] = srcp16[x*2+0];
-                    v[x] = srcp16[x*2+1];
-                }
-                u += vsapi->getStride(dst, 1)/2;
-                v += vsapi->getStride(dst, 2)/2;
-                srcp16 += fw*2;
-            }
-        }
-        break;
+    case '010P': p.packing = p2p_p010_le; p2p_unpack_frame(&p, 0); break;
+    case '012P': p.packing = p2p_p210_le; p2p_unpack_frame(&p, 0); break;
+    case '610P': p.packing = p2p_p016_le; p2p_unpack_frame(&p, 0); break;
+    case '612P': p.packing = p2p_p216_le; p2p_unpack_frame(&p, 0); break;
+    case '614Y': p.packing = p2p_y416_le; p2p_unpack_frame(&p, 0); break;
     case '012v':
-        {
-            int rowsize = ((16*((vi->width + 5) / 6) + 127) & ~127)/4;
-            uint16_t *y = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(dst, 0));
-            uint16_t *u = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(dst, 1));
-            uint16_t *v = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(dst, 2));
-            const uint32_t *srcp32 = reinterpret_cast<const uint32_t *>(srcp);
-            int adjwidth = vi->width/6;
-            for (int h = 0; h < vi->height; h++) {
-                for (int x = 0; x < adjwidth; x++) {
-                    int off6 = x * 6;
-                    int off3 = x * 3;
-                    uint32_t dw1 = srcp32[x*4+0];
-                    uint32_t dw2 = srcp32[x*4+1];
-                    uint32_t dw3 = srcp32[x*4+2];
-                    uint32_t dw4 = srcp32[x*4+3];
-
-                    u[off3] = dw1 & 0x3FF;
-                    v[off3] = (dw1 >> 20) & 0x3FF;
-                    y[off6] = (dw1 >> 10) & 0x3FF;
-
-                    y[off6+1] = dw2 & 0x3FF;
-                    y[off6+2] = (dw2 >> 20) & 0x3FF;
-                    u[off3+1] = (dw2 >> 10) & 0x3FF;
-
-                    v[off3+1] = dw3 & 0x3FF;
-                    u[off3+2] = (dw3 >> 20) & 0x3FF;
-                    y[off6+3] = (dw3 >> 10) & 0x3FF;
-
-                    y[off6+4] = dw4 & 0x3FF;
-                    y[off6+5] = (dw4 >> 20) & 0x3FF;
-                    v[off3+2] = (dw4 >> 10) & 0x3FF;
-
-                }
-                y += vsapi->getStride(dst, 0)/2;
-                u += vsapi->getStride(dst, 1)/2;
-                v += vsapi->getStride(dst, 2)/2;
-                srcp32 += rowsize;
-            }
-        }
+        p.packing = p2p_v210_le;
+        p.src_stride[0] = ((16 * ((vi->width + 5) / 6) + 127) & ~127) / 4;
+        p2p_unpack_frame(&p, 0);
         break;
     case BI_RGB:
-        {
-            int rowsize = (vi->width*(bitcount/8) + 3) & ~3;
-            uint8_t *r = vsapi->getWritePtr(dst, 0);
-            uint8_t *g = vsapi->getWritePtr(dst, 1);
-            uint8_t *b = vsapi->getWritePtr(dst, 2);
-
-            if (flip) {
-                srcp += rowsize * (vi->height - 1);
-                rowsize = -rowsize;
-            }
-
-            if (bitcount == 24) {
-                for (int h = 0; h < vi->height; h++) {
-                    for (int x = 0; x < vi->width; x++) {
-                        b[x] = srcp[x*3+0];
-                        g[x] = srcp[x*3+1];
-                        r[x] = srcp[x*3+2];
-                    }
-                    r += vsapi->getStride(dst, 0);
-                    g += vsapi->getStride(dst, 1);
-                    b += vsapi->getStride(dst, 2);
-                    srcp += rowsize;
-                }
-            } else if (bitcount == 32) {
-                uint8_t *a = vsapi->getWritePtr(dst_alpha, 0);
-                for (int h = 0; h < vi->height; h++) {
-                    for (int x = 0; x < vi->width; x++) {
-                        b[x] = srcp[x*4+0];
-                        g[x] = srcp[x*4+1];
-                        r[x] = srcp[x*4+2];
-                        a[x] = srcp[x*4+3];
-                    }
-                    r += vsapi->getStride(dst, 0);
-                    g += vsapi->getStride(dst, 1);
-                    b += vsapi->getStride(dst, 2);
-                    a += vsapi->getStride(dst_alpha, 0);
-                    srcp += rowsize;
-                }
-
-            }
+        if (bitcount == 24)
+            p.packing = p2p_rgb24_le;
+        else if (bitcount == 32)
+            p.packing = p2p_argb32_le;
+        p.src_stride[0] = (vi->width*(bitcount/8) + 3) & ~3;
+        if (flip) {
+            p.src[0] = srcp + p.src_stride[0] * (p.height - 1);
+            p.src_stride[0] = -p.src_stride[0];
         }
+        p2p_unpack_frame(&p, 0);
         break;
     case 'r84b':
-        {
-            int rowsize = ((vi->width*vi->format->bytesPerSample*3 + 3) & ~3);
-            uint16_t *r = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(dst, 0));
-            uint16_t *g = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(dst, 1));
-            uint16_t *b = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(dst, 2));
-
-            if (flip) {
-                srcp += rowsize * (vi->height - 1);
-                rowsize = -rowsize;
-            }
-
-            rowsize /= 2;
-
-            const uint16_t *srcp16 = reinterpret_cast<const uint16_t *>(srcp);
-            for (int h = 0; h < vi->height; h++) {
-                for (int x = 0; x < vi->width; x++) {
-                    uint16_t tmp1 = srcp16[3*x+0];
-                    uint16_t tmp2 = srcp16[3*x+1];
-                    uint16_t tmp3 = srcp16[3*x+2];
-                    r[x] = (tmp1 << 8) | (tmp1 >> 8);
-                    g[x] = (tmp2 << 8) | (tmp2 >> 8);
-                    b[x] = (tmp3 << 8) | (tmp3 >> 8);
-                }
-                r += vsapi->getStride(dst, 0)/2;
-                g += vsapi->getStride(dst, 1)/2;
-                b += vsapi->getStride(dst, 2)/2;
-                srcp16 += rowsize;
-            }
+    case 'a46b':
+        if (fourcc == 'r84b')
+            p.packing = p2p_rgb48_be;
+        else if (fourcc == 'a46b')
+            p.packing = p2p_argb64_be;
+        p.src_stride[0] = ((vi->width*vi->format->bytesPerSample*3 + 3) & ~3);
+        if (flip) {
+            p.src[0] = srcp + p.src_stride[0] * (p.height - 1);
+            p.src_stride[0] = -p.src_stride[0];
         }
+        p2p_unpack_frame(&p, 0);
         break;
     case '2YUY':
-        {
-            int rowsize = (vi->width*2+ 3) & ~3;
-            uint8_t *y = vsapi->getWritePtr(dst, 0);
-            uint8_t *u = vsapi->getWritePtr(dst, 1);
-            uint8_t *v = vsapi->getWritePtr(dst, 2);
-            for (int h = 0; h < vi->height; h++) {
-                int hwidth = vi->width/2;
-                for (int x = 0; x < hwidth; x++) {
-                    y[2*x+0] = srcp[x*4+0];
-                    u[x] = srcp[x*4+1];
-                    y[2*x+1] = srcp[x*4+2];
-                    v[x] = srcp[x*4+3];
-
-                }
-                y += vsapi->getStride(dst, 0);
-                u += vsapi->getStride(dst, 1);
-                v += vsapi->getStride(dst, 2);
-                srcp += rowsize;
-            }
-        }
+        p.packing = p2p_yuy2;
+        p.src_stride[0] = (vi->width*2+ 3) & ~3;
+        p2p_unpack_frame(&p, 0);
         break;
     case 'YERG':
     case '008Y':
@@ -337,7 +205,7 @@ public:
 
     static void VS_CC create_AVISource(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
         try {
-            const int mode = reinterpret_cast<int>(userData);
+            const intptr_t mode = reinterpret_cast<intptr_t>(userData);
             int err;
             const char* path = vsapi->propGetData(in, "path", 0, nullptr);
             const char* pixel_type = vsapi->propGetData(in, "pixel_type", 0, &err);
@@ -347,7 +215,7 @@ public:
             if (!fourCC)
                 fourCC = "";
 
-            AVISource *avs = new AVISource(path, pixel_type, fourCC, mode, core, vsapi);
+            AVISource *avs = new AVISource(path, pixel_type, fourCC, static_cast<int>(mode), core, vsapi);
             vsapi->createFilter(in, out, "AVISource", filterInit, filterGetFrame, filterFree, fmUnordered, nfMakeLinear, static_cast<void *>(avs), core);
 
         } catch (std::runtime_error &e) {
@@ -450,7 +318,7 @@ LRESULT AVISource::DecompressFrame(int n, bool preroll, bool &dropped_frame, VSF
     flags |= dropped_frame ? ICDECOMPRESS_NULLFRAME : 0;
     flags |= !pvideo->IsKeyFrame(n) ? ICDECOMPRESS_NOTKEYFRAME : 0;
     pbiSrc->biSizeImage = bytes_read;
-    DWORD ret = (!ex ? ICDecompress(hic, flags, pbiSrc, srcbuffer, &biDst, decbuf)
+    LRESULT ret = (!ex ? ICDecompress(hic, flags, pbiSrc, srcbuffer, &biDst, decbuf)
         : ICDecompressEx(hic, flags, pbiSrc, srcbuffer, 0, 0, vi[0].width, vi[0].height, &biDst, decbuf, 0, 0, vi[0].width, vi[0].height));
 
     if (ret != ICERR_OK)
@@ -581,6 +449,8 @@ void AVISource::LocateVideoCodec(const char fourCC[], VSCore *core, const VSAPI 
             bInvertFrames = true;
     } else if (pbiSrc->biCompression == 'r84b') {
         vi[0].format = vsapi->getFormatPreset(pfRGB48, core);
+    } else if (pbiSrc->biCompression == 'a46b') {
+        vi[0].format = vsapi->getFormatPreset(pfRGB48, core);
     } else if (pbiSrc->biCompression == 'YERG') {
         vi[0].format = vsapi->getFormatPreset(pfGray8, core);
     } else if (pbiSrc->biCompression == '008Y') {
@@ -603,6 +473,8 @@ void AVISource::LocateVideoCodec(const char fourCC[], VSCore *core, const VSAPI 
         vi[0].format = vsapi->getFormatPreset(pfYUV422P16, core);
     } else if (pbiSrc->biCompression == '012v') {
         vi[0].format = vsapi->getFormatPreset(pfYUV422P10, core);
+    } else if (pbiSrc->biCompression == '614Y') {
+        vi[0].format = vsapi->getFormatPreset(pfYUV444P16, core);
 
         // otherwise, find someone who will decompress it
     } else {
@@ -639,7 +511,7 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
 
         std::vector<wchar_t> wfilename;
         wfilename.resize(MultiByteToWideChar(CP_UTF8, 0, filename, -1, nullptr, 0));
-        MultiByteToWideChar(CP_UTF8, 0, filename, -1, wfilename.data(), wfilename.size());
+        MultiByteToWideChar(CP_UTF8, 0, filename, -1, wfilename.data(), static_cast<int>(wfilename.size()));
 
         if (mode == MODE_NORMAL) {
             // if it looks like an AVI file, open in OpenDML mode; otherwise AVIFile mode
@@ -691,14 +563,16 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
                     bool fRGB32 = lstrcmpiA(pixel_type, "RGB32") == 0 || pixel_type[0] == 0;
                     bool fRGB24 = lstrcmpiA(pixel_type, "RGB24") == 0 || pixel_type[0] == 0;
                     bool fRGB48 = lstrcmpiA(pixel_type, "RGB48") == 0 || pixel_type[0] == 0;
+                    bool fRGB64 = lstrcmpiA(pixel_type, "RGB64") == 0 || pixel_type[0] == 0;
                     bool fP010  = lstrcmpiA(pixel_type, "P010")  == 0 || pixel_type[0] == 0;
                     bool fP016  = lstrcmpiA(pixel_type, "P016")  == 0 || pixel_type[0] == 0;
                     bool fP210  = lstrcmpiA(pixel_type, "P210")  == 0 || pixel_type[0] == 0;
                     bool fP216  = lstrcmpiA(pixel_type, "P216")  == 0 || pixel_type[0] == 0;
+                    bool fY416  = lstrcmpiA(pixel_type, "Y416")  == 0 || pixel_type[0] == 0;
                     bool fv210  = lstrcmpiA(pixel_type, "v210")  == 0 || pixel_type[0] == 0;
 
-                    if (!(fY8 || fYV12 || fYV16 || fYV24 || fYV411 || fYUY2 || fRGB32 || fRGB24 || fRGB48 || fP010 || fP016 || fP210 || fP216 || fv210))
-                        throw std::runtime_error("AVISource: requested format must be one of YV24, YV16, YV12, YV411, YUY2, Y8, RGB32, RGB24, RGB48, P010, P016, P210, P216, v210");
+                    if (!(fY8 || fYV12 || fYV16 || fYV24 || fYV411 || fYUY2 || fRGB32 || fRGB24 || fRGB48 || fRGB64 || fP010 || fP016 || fP210 || fP216 || fY416 || fv210))
+                        throw std::runtime_error("AVISource: requested format must be one of YV24, YV16, YV12, YV411, YUY2, Y8, RGB24, RGB32, RGB48, RGB64, P010, P016, P210, P216, Y416, v210");
 
                     // try to decompress to YV12, YV411, YV16, YV24, YUY2, Y8, RGB32, and RGB24 in turn
                     memset(&biDst, 0, sizeof(BITMAPINFOHEADER));
@@ -708,19 +582,21 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
                     biDst.biPlanes = 1;
                     bool bOpen = true;
 
-                    const int fccyv24[] = {'42VY'};
-                    const int fccyv16[] = {'61VY'};
-                    const int fccyv12[] = {'21VY', '024I'};
+                    const int fccyv24[]  = {'42VY'};
+                    const int fccyv16[]  = {'61VY'};
+                    const int fccyv12[]  = {'21VY', '024I'};
                     const int fccyv411[] = {'B14Y'};
-                    const int fccyuy2[] = {'2YUY'};
-                    const int fccrgb[]  = {BI_RGB};
+                    const int fccyuy2[]  = {'2YUY'};
+                    const int fccrgb[]   = {BI_RGB};
                     const int fccb48r[]  = {'r84b'};
-                    const int fccy8[]   = {'008Y', '  8Y', 'YERG'};
-                    const int fccp010[] = {'010P'};
-                    const int fccp016[] = {'610P'};
-                    const int fccp210[] = {'012P'};
-                    const int fccp216[] = {'612P'};
-                    const int fccv210[] = {'012v'};
+                    const int fccb64a[]  = {'a46b'};
+                    const int fccy8[]    = {'008Y', '  8Y', 'YERG'};
+                    const int fccp010[]  = {'010P'};
+                    const int fccp016[]  = {'610P'};
+                    const int fccp210[]  = {'012P'};
+                    const int fccp216[]  = {'612P'};
+                    const int fccy416[]  = {'614Y'};
+                    const int fccv210[]  = {'012v'};
 
                     if (fYV24 && bOpen)
                         bOpen = DecompressQuery(vsapi->getFormatPreset(pfYUV444P8, core), forcedType, 24, fccyv24);
@@ -744,6 +620,8 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
                         bOpen = DecompressQuery(vsapi->getFormatPreset(pfRGB24, core), forcedType, 24, fccrgb);
                     if (fRGB48 && bOpen)
                         bOpen = DecompressQuery(vsapi->getFormatPreset(pfRGB48, core), forcedType, 48, fccb48r);
+                    if (fRGB64 && bOpen)
+                        bOpen = DecompressQuery(vsapi->getFormatPreset(pfRGB48, core), forcedType, 64, fccb64a);
                     if (fY8 && bOpen)
                         bOpen = DecompressQuery(vsapi->getFormatPreset(pfGray8, core), forcedType, 8, fccy8, sizeof(fccy8)/sizeof(fccy8[0]));
                     if (fP010 && bOpen)
@@ -754,6 +632,8 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
                         bOpen = DecompressQuery(vsapi->getFormatPreset(pfYUV422P10, core), forcedType, 24, fccp210);
                     if (fP216 && bOpen)
                         bOpen = DecompressQuery(vsapi->getFormatPreset(pfYUV422P16, core), forcedType, 24, fccp216);
+                    if (fY416 && bOpen)
+                        bOpen = DecompressQuery(vsapi->getFormatPreset(pfYUV444P16, core), forcedType, 32, fccy416);
                     if (fv210 && bOpen)
                         bOpen = DecompressQuery(vsapi->getFormatPreset(pfYUV422P10, core), forcedType, 20, fccv210);
 
@@ -832,7 +712,7 @@ const VSFrameRef *AVISource::GetFrame(int n, VSFrameContext *frameCtx, VSCore *c
     bool dropped_frame = false;
     if (n != last_frame_no || !last_frame) {
         // find the last keyframe
-        VDPosition keyframe = pvideo->NearestKeyFrame(n);
+        int keyframe = pvideo->NearestKeyFrame(n);
         // maybe we don't need to go back that far
         if (last_frame_no < n && last_frame_no >= keyframe)
             keyframe = last_frame_no + 1;
