@@ -824,81 +824,44 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
 
     const VSFormat *fi = vsapi->getFrameFormat(f);
     
-    if (fi->id == pfRGB24) {
-        p2p_buffer_param p = {};
-        p.packing = p2p_argb32_le;
+    p2p_buffer_param p = {};
+    p.width = vsapi->getFrameWidth(f, 0);
+    p.height = vsapi->getFrameHeight(f, 0);
+    p.dst[0] = lpBuffer;
+    // Used by most
+    p.dst_stride[0] = p.width * 4 * fi->bytesPerSample;
 
+    for (int plane = 0; plane < fi->numPlanes; plane++) {
+        p.src[plane] = vsapi->getReadPtr(f, plane);
+        p.src_stride[plane] = vsapi->getStride(f, plane);
+    }
+
+    if (fi->id == pfRGB24) {
+        p.packing = p2p_argb32_le;
         for (int plane = 0; plane < 3; plane++) {
             p.src[plane] = vsapi->getReadPtr(f, plane) + vsapi->getStride(f, plane) * (vsapi->getFrameHeight(f, plane) - 1);
             p.src_stride[plane] = -vsapi->getStride(f, plane);
         }
-
-        p.width = vsapi->getFrameWidth(f, 0);
-        p.height = vsapi->getFrameHeight(f, 0);
-        p.dst_stride[0] = vsapi->getFrameWidth(f, 0) * 4 * fi->bytesPerSample;
-        p.dst[0] = lpBuffer;
         p2p_pack_frame(&p, 0);
     } else if (fi->id == pfRGB48) {
-        p2p_buffer_param p = {};
         p.packing = p2p_argb64_be;
-
-        for (int plane = 0; plane < 3; plane++) {
-            p.src[plane] = vsapi->getReadPtr(f, plane);
-            p.src_stride[plane] = vsapi->getStride(f, plane);
-        }
-
-        p.width = vsapi->getFrameWidth(f, 0);
-        p.height = vsapi->getFrameHeight(f, 0);
-        p.dst_stride[0] = vsapi->getFrameWidth(f, 0) * 4 * fi->bytesPerSample;
-        p.dst[0] = lpBuffer;
         p2p_pack_frame(&p, 0);
     } else if (fi->id == pfYUV444P16) {
-        p2p_buffer_param p = {};
         p.packing = p2p_y416_le;
-       
-        for (int plane = 0; plane < 3; plane++) {
-            p.src[plane] = vsapi->getReadPtr(f, plane);
-            p.src_stride[plane] = vsapi->getStride(f, plane);
-        }
-        
-        p.width = vsapi->getFrameWidth(f, 0);
-        p.height = vsapi->getFrameHeight(f, 0);
-        p.dst_stride[0] = vsapi->getFrameWidth(f, 0) * 4 * fi->bytesPerSample;
-        p.dst[0] = lpBuffer;
         p2p_pack_frame(&p, 0);
     } else if (fi->id == pfYUV422P10 && parent->enable_v210) {
-        p2p_buffer_param p = {};
         p.packing = p2p_v210_le;
-
-        for (int plane = 0; plane < 3; plane++) {
-            p.src[plane] = vsapi->getReadPtr(f, plane);
-            p.src_stride[plane] = vsapi->getStride(f, plane);
-        }
-
-        p.width = vsapi->getFrameWidth(f, 0);
-        p.height = vsapi->getFrameHeight(f, 0);
         p.dst_stride[0] = ((16 * ((p.width + 5) / 6) + 127) & ~127);
-        p.dst[0] = lpBuffer;
         p2p_pack_frame(&p, 0);
     } else if ((fi->id == pfYUV420P16) || (fi->id == pfYUV422P16) || (fi->id == pfYUV420P10) || (fi->id == pfYUV422P10)) {
-        p2p_buffer_param p = {};
         switch (fi->id) {
         case pfYUV420P10: p.packing = p2p_p010_le; break;
         case pfYUV422P10: p.packing = p2p_p210_le; break;
         case pfYUV420P16: p.packing = p2p_p016_le; break;
         case pfYUV422P16: p.packing = p2p_p216_le; break;
         }
-        
-        for (int plane = 0; plane < 3; plane++) {
-            p.src[plane] = vsapi->getReadPtr(f, plane);
-            p.src_stride[plane] = vsapi->getStride(f, plane);
-        }
-
-        p.width = vsapi->getFrameWidth(f, 0);
-        p.height = vsapi->getFrameHeight(f, 0);
         p.dst_stride[0] = p.width * fi->bytesPerSample;
         p.dst_stride[1] = p.width * fi->bytesPerSample;
-        p.dst[0] = lpBuffer;
         p.dst[1] = (uint8_t *)lpBuffer + p.dst_stride[0] * p.height;
         p2p_pack_frame(&p, 0);
     } else {
