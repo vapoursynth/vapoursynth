@@ -52,6 +52,7 @@ Denoising
 ---------
 * `Bilateral <http://forum.doom9.org/showthread.php?t=171306>`_ -- Bilateral filtering
 * `BM3D <http://forum.doom9.org/showthread.php?t=172172>`_ -- Denoising filter using the BM3D algorithm
+* `Cnr2 <http://forum.doom9.org/showthread.php?t=173659>`_ -- Chroma noise reducer
 * `DFTTest <http://forum.doom9.org/showthread.php?t=171678>`_
 * `FFT3DFilter <https://github.com/VFR-maniac/VapourSynth-FFT3DFilter>`_ -- 3D frequency domain denoiser/sharpener
 * `FluxSmooth <https://github.com/dubhater/vapoursynth-fluxsmooth>`_ -- Temporal/spatiotemporal denoiser
