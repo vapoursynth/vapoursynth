@@ -1,4 +1,4 @@
-Welcome to `VapourSynth <http://www.vapoursynth.com/>`_'s documentation!
+Welcome to `VapourSynth <http://www.vapoursynth.com/>`_’s documentation!
 ========================================================================
 
 Contents:
