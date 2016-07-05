@@ -69,7 +69,7 @@ static void copyField(VSFrameRef *dst, const VSFrameRef *src, int field, const V
     for (plane=0; plane<fi->numPlanes; plane++) {
         vs_bitblt(vsapi->getWritePtr(dst, plane)+field*vsapi->getStride(dst, plane),vsapi->getStride(dst, plane)*2,
             vsapi->getReadPtr(src, plane)+field*vsapi->getStride(src, plane),vsapi->getStride(src, plane)*2,
-            vsapi->getFrameWidth(src, plane),vsapi->getFrameHeight(src,plane)/2);
+            vsapi->getFrameWidth(src, plane)*fi->bytesPerSample,vsapi->getFrameHeight(src,plane)/2);
     }
 }
 
