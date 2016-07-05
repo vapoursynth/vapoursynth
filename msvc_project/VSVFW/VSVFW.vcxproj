@@ -149,14 +149,16 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\src\vfw\taffy.cpp" />
+    <ClCompile Include="..\..\libp2p\v210.cpp" />
+    <ClCompile Include="..\..\src\common\p2p_api.cpp" />
     <ClCompile Include="..\..\src\vfw\vsvfw.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\VapourSynth.h" />
     <ClInclude Include="..\..\include\VSHelper.h" />
     <ClInclude Include="..\..\include\VSScript.h" />
-    <ClInclude Include="..\..\src\vfw\taffy.h" />
+    <ClInclude Include="..\..\libp2p\p2p.h" />
+    <ClInclude Include="..\..\libp2p\p2p_api.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

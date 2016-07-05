@@ -18,7 +18,10 @@
     <ClCompile Include="..\..\src\vfw\vsvfw.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\vfw\taffy.cpp">
+    <ClCompile Include="..\..\libp2p\v210.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\common\p2p_api.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -32,7 +35,10 @@
     <ClInclude Include="..\..\include\VSHelper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\vfw\taffy.h">
+    <ClInclude Include="..\..\libp2p\p2p.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\libp2p\p2p_api.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
