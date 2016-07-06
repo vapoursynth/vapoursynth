@@ -43,12 +43,11 @@ static int BMPSize(int height, int rowsize) {
     return height * ((rowsize+3) & ~3);
 }
 
-// {58F74CA0-BD0E-4664-A49B-8D10E6F0C131}
-extern "C" const GUID CLSID_VapourSynth =
-{ 0x58f74ca0, 0xbd0e, 0x4664, { 0xa4, 0x9b, 0x8d, 0x10, 0xe6, 0xf0, 0xc1, 0x31 } };
+static const GUID CLSID_VapourSynth
+    = { 0x58f74ca0, 0xbd0e, 0x4664, { 0xa4, 0x9b, 0x8d, 0x10, 0xe6, 0xf0, 0xc1, 0x31 } };
 
-extern "C" const GUID IID_IAvisynthClipInfo   // {E6D6B708-124D-11D4-86F3-DB80AFD98778}
-    = {0xe6d6b708, 0x124d, 0x11d4, {0x86, 0xf3, 0xdb, 0x80, 0xaf, 0xd9, 0x87, 0x78}};
+static const GUID IID_IAvisynthClipInfo
+    = { 0xe6d6b708, 0x124d, 0x11d4, {0x86, 0xf3, 0xdb, 0x80, 0xaf, 0xd9, 0x87, 0x78} };
 
 struct IAvisynthClipInfo : IUnknown {
     virtual int __stdcall GetError(const char** ppszMessage) = 0;
@@ -79,7 +78,7 @@ private:
     void Unlock();
 
     int ImageSize();
-
+    int BitsPerPixel();
 public:
 
     VapourSynthFile(const CLSID& rclsid);
@@ -428,6 +427,17 @@ int VapourSynthFile::ImageSize() {
     return image_size;
 }
 
+int VapourSynthFile::BitsPerPixel() {
+    int bits = vi->format->bytesPerSample * 8;
+    if (vi->format->id == pfRGB24 || vi->format->id == pfRGB48 || vi->format->id == pfYUV444P16)
+        bits *= 4;
+    else if (vi->format->numPlanes == 3)
+        bits += (bits * 2) >> (vi->format->subSamplingH + vi->format->subSamplingW);
+    if (enable_v210 && vi->format->id == pfYUV422P10)
+        bits = 20;
+    return bits;
+}
+
 STDMETHODIMP VapourSynthFile::Open(LPCSTR szFile, UINT mode, LPCOLESTR lpszFileName) {
     if (mode & (OF_CREATE|OF_WRITE))
         return E_FAIL;
@@ -546,8 +556,7 @@ STDMETHODIMP VapourSynthFile::Info(AVIFILEINFOW *pfi, LONG lSize) {
     if (!DelayInit())
         return E_FAIL;
 
-    AVIFILEINFOW afi;
-    memset(&afi, 0, sizeof(afi));
+    AVIFILEINFOW afi = {};
 
     afi.dwMaxBytesPerSec    = 0;
     afi.dwFlags                = AVIFILEINFO_HASINDEX | AVIFILEINFO_ISINTERLEAVED;
@@ -705,11 +714,10 @@ STDMETHODIMP_(LONG) VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) {
     if (!psi)
         return E_POINTER;
 
-    AVISTREAMINFOW asi;
 
     const VSVideoInfo* const vi = parent->vi;
 
-    memset(&asi, 0, sizeof(asi));
+    AVISTREAMINFOW asi = {};
     asi.fccType = streamtypeVIDEO;
     asi.dwQuality = DWORD(-1);
     
@@ -947,19 +955,12 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
 
     const VSVideoInfo* const vi = parent->vi;
 
-    BITMAPINFOHEADER bi;
-    memset(&bi, 0, sizeof(bi));
+    BITMAPINFOHEADER bi = {};
     bi.biSize = sizeof(bi);
     bi.biWidth = vi->width;
     bi.biHeight = vi->height;
     bi.biPlanes = 1;
-    bi.biBitCount = vi->format->bytesPerSample * 8;
-    if (vi->format->id == pfRGB24 || vi->format->id == pfRGB48 || vi->format->id == pfYUV444P16)
-        bi.biBitCount *= 4;
-    else if (vi->format->numPlanes == 3)
-        bi.biBitCount +=  (bi.biBitCount * 2) >> (vi->format->subSamplingH + vi->format->subSamplingW);
-    if (parent->enable_v210 && vi->format->id == pfYUV422P10)
-        bi.biBitCount = 20;
+    bi.biBitCount = parent->BitsPerPixel();
     if (vi->format->id == pfCompatBGR32 || vi->format->id == pfRGB24)
         bi.biCompression = BI_RGB;
     else if (vi->format->id == pfRGB48)
