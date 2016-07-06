@@ -54,8 +54,8 @@
 #include <windows.h>
 #include "ss.h"
 #include "files.h"
-#include "../pfmkit/include/pfmapi.h"
-#include "../pfmkit/include/pfmmarshaller.h"
+#include "include/pfmapi.h"
+#include "include/pfmmarshaller.h"
 #include "avfspfm.h"
 #include "avfs.rc"
 #include <VSScript.h>

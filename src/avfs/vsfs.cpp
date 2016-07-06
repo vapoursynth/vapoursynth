@@ -696,10 +696,10 @@ VapourSynther::~VapourSynther(void) {
 int/*error*/ VapourSynther::Init(
     AvfsLog_* log,
     AvfsVolume_* volume) {
-    int error = 0;
     // fixme? Load VSScript.dll
     //hlib = LoadLibrary(L"VSScript.dll");
 
+    int error = Import(volume->GetScriptFileName());
     if (error) {
         log->Line(getError());
     } else {
