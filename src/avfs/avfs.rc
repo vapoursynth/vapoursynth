@@ -1,0 +1,45 @@
+
+// Next build: 6
+#define BUILD 6
+
+
+#define _VER_QUOTE_(s) #s
+#define _VER_QUOTE(s) _VER_QUOTE_(s)
+#define BUILDA _VER_QUOTE(BUILD)
+#define VER_DESCRIPTION "Avisynth Virtual File System"
+#define VER_VERSION "1.0.0." BUILDA
+#define VER_COPYRIGHT "Copyright 2008-2015 Ben Rudiak-Gould et al."
+
+#ifdef RC_INVOKED
+#include "winresrc.h"
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 1,0,0,BUILD
+ PRODUCTVERSION 1,0,0,BUILD
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x40004L
+ FILETYPE 0x2L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "000004b0"
+        BEGIN
+            VALUE "FileDescription", VER_DESCRIPTION "\0"
+            VALUE "FileVersion", "1, 0, 0, " BUILDA "0\0"
+            VALUE "LegalCopyright", VER_COPYRIGHT "\0"
+            VALUE "ProductName", VER_DESCRIPTION "\0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0, 1200
+    END
+END
+
+#endif

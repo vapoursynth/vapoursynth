@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
-VisualStudioVersion = 14.0.24720.0
+VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VapourSynth", "Core\Core.vcxproj", "{8C2696F2-47FC-425A-989E-9C02AE4E76D2}"
 	ProjectSection(ProjectDependencies) = postProject
@@ -41,6 +41,8 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "zimg", "..\zimg\_msvc\zimg\zimg.vcxproj", "{C8629E57-4D6F-40FA-82FC-B39824195932}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AvsCompat", "AvsCompat\AvsCompat.vcxproj", "{4965ED05-2B79-427D-A8AB-38CD9B23EBF7}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AVFS", "AVFS\AVFS.vcxproj", "{58FE3116-5843-4C7A-90DA-21A13C8181CC}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -138,6 +140,14 @@ Global
 		{4965ED05-2B79-427D-A8AB-38CD9B23EBF7}.Release|Win32.Build.0 = Release|Win32
 		{4965ED05-2B79-427D-A8AB-38CD9B23EBF7}.Release|x64.ActiveCfg = Release|x64
 		{4965ED05-2B79-427D-A8AB-38CD9B23EBF7}.Release|x64.Build.0 = Release|x64
+		{58FE3116-5843-4C7A-90DA-21A13C8181CC}.Debug|Win32.ActiveCfg = Debug|Win32
+		{58FE3116-5843-4C7A-90DA-21A13C8181CC}.Debug|Win32.Build.0 = Debug|Win32
+		{58FE3116-5843-4C7A-90DA-21A13C8181CC}.Debug|x64.ActiveCfg = Debug|x64
+		{58FE3116-5843-4C7A-90DA-21A13C8181CC}.Debug|x64.Build.0 = Debug|x64
+		{58FE3116-5843-4C7A-90DA-21A13C8181CC}.Release|Win32.ActiveCfg = Release|Win32
+		{58FE3116-5843-4C7A-90DA-21A13C8181CC}.Release|Win32.Build.0 = Release|Win32
+		{58FE3116-5843-4C7A-90DA-21A13C8181CC}.Release|x64.ActiveCfg = Release|x64
+		{58FE3116-5843-4C7A-90DA-21A13C8181CC}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
