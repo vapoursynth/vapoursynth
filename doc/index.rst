@@ -10,7 +10,7 @@ Contents:
    gettingstarted
    pythonreference
    autoloading
-   vsfs
+   avfs
    pluginlist
    avisynthcomp
    includedplugins

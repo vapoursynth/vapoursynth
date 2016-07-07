@@ -766,8 +766,9 @@ void Volume::ProcessScript(void)
             // script to fix errors. Media logic will need to report
             // errors through error log file.
         scriptFile = file;
-        size_t len = sslen(scriptFile->name);    
-        if (!sscmpi(ssrchr(scriptFile->name, '.'), L".vpy") && vsscript_init())
+        size_t len = sslen(scriptFile->name);
+        static HMODULE lib = LoadLibrary(L"VSScript.dll");
+        if (!sscmpi(ssrchr(scriptFile->name, '.'), L".vpy") && lib && vsscript_init())
             VsfsProcessScript(this, this);
         else
             AvfsProcessScript(this, this);
