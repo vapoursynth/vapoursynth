@@ -28,33 +28,33 @@
 #include "VSHelper.h"
 #include "AVIReadHandler.h"
 #include "../../common/p2p_api.h"
-
-static int BMPSize(int height, int rowsize) {
-    return height * ((rowsize+3) & ~3);
-}
+#include "../../common/fourcc.h"
 
 static int ImageSize(const VSVideoInfo *vi, DWORD fourcc, int bitcount = 0) {
     int image_size;
 
     switch (fourcc) {
-    case '012v':
+    case VS_FCC('v210'):
         image_size = ((16*((vi->width + 5) / 6) + 127) & ~127);
         image_size *= vi->height;
         break;
         // general packed
     case BI_RGB:
-        image_size = BMPSize(vi->height, vi->width * bitcount / 8);
+        image_size = BMPSizeHelper(vi->height, vi->width * bitcount / 8);
         break;
-    case 'r84b':
-        image_size = BMPSize(vi->height, vi->width * vi->format->bytesPerSample * 3);
+    case VS_FCC('b48r'):
+        image_size = BMPSizeHelper(vi->height, vi->width * vi->format->bytesPerSample * 3);
         break;
-    case '2YUY':
-        image_size = BMPSize(vi->height, vi->width * 2);
+    case VS_FCC('b64a'):
+        image_size = BMPSizeHelper(vi->height, vi->width * vi->format->bytesPerSample * 4);
         break;
-    case 'YERG':
-    case '008Y':
-    case '  8Y':
-        image_size = BMPSize(vi->height, vi->width * vi->format->bytesPerSample);
+    case VS_FCC('YUY2'):
+        image_size = BMPSizeHelper(vi->height, vi->width * 2);
+        break;
+    case VS_FCC('GREY'):
+    case VS_FCC('Y800'):
+    case VS_FCC('Y8  '):
+        image_size = BMPSizeHelper(vi->height, vi->width * vi->format->bytesPerSample);
         break;
         // general planar
     default:
@@ -87,12 +87,12 @@ static void unpackframe(const VSVideoInfo *vi, VSFrameRef *dst, VSFrameRef *dst_
     }
 
     switch (fourcc) {
-    case '010P': p.packing = p2p_p010_le; p2p_unpack_frame(&p, 0); break;
-    case '012P': p.packing = p2p_p210_le; p2p_unpack_frame(&p, 0); break;
-    case '610P': p.packing = p2p_p016_le; p2p_unpack_frame(&p, 0); break;
-    case '612P': p.packing = p2p_p216_le; p2p_unpack_frame(&p, 0); break;
-    case '614Y': p.packing = p2p_y416_le; p2p_unpack_frame(&p, 0); break;
-    case '012v':
+    case VS_FCC('P010'): p.packing = p2p_p010_le; p2p_unpack_frame(&p, 0); break;
+    case VS_FCC('P210'): p.packing = p2p_p210_le; p2p_unpack_frame(&p, 0); break;
+    case VS_FCC('P016'): p.packing = p2p_p016_le; p2p_unpack_frame(&p, 0); break;
+    case VS_FCC('P216'): p.packing = p2p_p216_le; p2p_unpack_frame(&p, 0); break;
+    case VS_FCC('Y416'): p.packing = p2p_y416_le; p2p_unpack_frame(&p, 0); break;
+    case VS_FCC('v210'):
         p.packing = p2p_v210_le;
         p.src_stride[0] = ((16 * ((vi->width + 5) / 6) + 127) & ~127) / 4;
         p2p_unpack_frame(&p, 0);
@@ -109,11 +109,11 @@ static void unpackframe(const VSVideoInfo *vi, VSFrameRef *dst, VSFrameRef *dst_
         }
         p2p_unpack_frame(&p, 0);
         break;
-    case 'r84b':
-    case 'a46b':
-        if (fourcc == 'r84b')
+    case VS_FCC('b48r'):
+    case VS_FCC('b64a'):
+        if (fourcc == VS_FCC('b48r'))
             p.packing = p2p_rgb48_be;
-        else if (fourcc == 'a46b')
+        else if (fourcc == VS_FCC('b64a'))
             p.packing = p2p_argb64_be;
         p.src_stride[0] = ((vi->width*vi->format->bytesPerSample*3 + 3) & ~3);
         if (flip) {
@@ -122,14 +122,14 @@ static void unpackframe(const VSVideoInfo *vi, VSFrameRef *dst, VSFrameRef *dst_
         }
         p2p_unpack_frame(&p, 0);
         break;
-    case '2YUY':
+    case VS_FCC('YUY2'):
         p.packing = p2p_yuy2;
         p.src_stride[0] = (vi->width*2+ 3) & ~3;
         p2p_unpack_frame(&p, 0);
         break;
-    case 'YERG':
-    case '008Y':
-    case '  8Y':
+    case VS_FCC('GREY'):
+    case VS_FCC('Y800'):
+    case VS_FCC('Y8  '):
         padrows = true;
         // general planar
     default:
@@ -430,11 +430,9 @@ void AVISource::LocateVideoCodec(const char fourCC[], VSCore *core, const VSAPI 
     }
 
     // see if we can handle the video format directly
-    if (pbiSrc->biCompression == '2YUY') { // :FIXME: Handle UYVY, etc
+    if (pbiSrc->biCompression == VS_FCC('YUY2')) {
         vi[0].format = vsapi->getFormatPreset(pfYUV422P8, core);
-    } else if (pbiSrc->biCompression == '21VY') {
-        vi[0].format = vsapi->getFormatPreset(pfYUV420P8, core);
-    } else if (pbiSrc->biCompression == '024I') {
+    } else if (pbiSrc->biCompression == VS_FCC('YV12') || pbiSrc->biCompression == VS_FCC('I420')) {
         vi[0].format = vsapi->getFormatPreset(pfYUV420P8, core);
     } else if (pbiSrc->biCompression == BI_RGB && pbiSrc->biBitCount == 32) {
         vi[0].format = vsapi->getFormatPreset(pfRGB24, core);
@@ -447,50 +445,46 @@ void AVISource::LocateVideoCodec(const char fourCC[], VSCore *core, const VSAPI 
         vi[0].format = vsapi->getFormatPreset(pfRGB24, core);
         if (pbiSrc->biHeight > 0)
             bInvertFrames = true;
-    } else if (pbiSrc->biCompression == 'r84b') {
+    } else if (pbiSrc->biCompression == VS_FCC('b48r')) {
         vi[0].format = vsapi->getFormatPreset(pfRGB48, core);
-    } else if (pbiSrc->biCompression == 'a46b') {
+    } else if (pbiSrc->biCompression == VS_FCC('b64a')) {
         vi[0].format = vsapi->getFormatPreset(pfRGB48, core);
-    } else if (pbiSrc->biCompression == 'YERG') {
+    } else if (pbiSrc->biCompression == VS_FCC('GREY') || pbiSrc->biCompression == VS_FCC('Y800') || pbiSrc->biCompression == VS_FCC('Y8  ')) {
         vi[0].format = vsapi->getFormatPreset(pfGray8, core);
-    } else if (pbiSrc->biCompression == '008Y') {
-        vi[0].format = vsapi->getFormatPreset(pfGray8, core);
-    } else if (pbiSrc->biCompression == '  8Y') {
-        vi[0].format = vsapi->getFormatPreset(pfGray8, core);
-    } else if (pbiSrc->biCompression == '42VY') {
+    } else if (pbiSrc->biCompression == VS_FCC('YV24')) {
         vi[0].format = vsapi->getFormatPreset(pfYUV444P8, core);
-    } else if (pbiSrc->biCompression == '61VY') {
+    } else if (pbiSrc->biCompression == VS_FCC('YV16')) {
         vi[0].format = vsapi->getFormatPreset(pfYUV422P8, core);
-    } else if (pbiSrc->biCompression == 'B14Y') {
+    } else if (pbiSrc->biCompression == VS_FCC('Y41B')) {
         vi[0].format = vsapi->getFormatPreset(pfYUV411P8, core);
-    } else if (pbiSrc->biCompression == '010P') {
+    } else if (pbiSrc->biCompression == VS_FCC('P010')) {
         vi[0].format = vsapi->getFormatPreset(pfYUV420P10, core);
-    } else if (pbiSrc->biCompression == '610P') {
+    } else if (pbiSrc->biCompression == VS_FCC('P016')) {
         vi[0].format = vsapi->getFormatPreset(pfYUV420P16, core);
-    } else if (pbiSrc->biCompression == '012P') {
+    } else if (pbiSrc->biCompression == VS_FCC('P210')) {
         vi[0].format = vsapi->getFormatPreset(pfYUV422P10, core);
-    } else if (pbiSrc->biCompression == '612P') {
+    } else if (pbiSrc->biCompression == VS_FCC('P216')) {
         vi[0].format = vsapi->getFormatPreset(pfYUV422P16, core);
-    } else if (pbiSrc->biCompression == '012v') {
+    } else if (pbiSrc->biCompression == VS_FCC('v210')) {
         vi[0].format = vsapi->getFormatPreset(pfYUV422P10, core);
-    } else if (pbiSrc->biCompression == '614Y') {
+    } else if (pbiSrc->biCompression == VS_FCC('Y416')) {
         vi[0].format = vsapi->getFormatPreset(pfYUV444P16, core);
 
         // otherwise, find someone who will decompress it
     } else {
         switch(pbiSrc->biCompression) {
-        case '34PM':    // Microsoft MPEG-4 V3
-        case '3VID':    // "DivX Low-Motion" (4.10.0.3917)
-        case '4VID':    // "DivX Fast-Motion" (4.10.0.3920)
-        case '14PA':    // "AngelPotion Definitive" (4.0.00.3688)
+        case VS_FCC('MP43'):    // Microsoft MPEG-4 V3
+        case VS_FCC('DIV3'):    // "DivX Low-Motion" (4.10.0.3917)
+        case VS_FCC('DIV4'):    // "DivX Fast-Motion" (4.10.0.3920)
+        case VS_FCC('AP41'):    // "AngelPotion Definitive" (4.0.00.3688)
             if (AttemptCodecNegotiation(asi.fccHandler, pbiSrc)) return;
-            pbiSrc->biCompression = '34PM';
+            pbiSrc->biCompression = VS_FCC('MP43');
             if (AttemptCodecNegotiation(asi.fccHandler, pbiSrc)) return;
-            pbiSrc->biCompression = '3VID';
+            pbiSrc->biCompression = VS_FCC('DIV3');
             if (AttemptCodecNegotiation(asi.fccHandler, pbiSrc)) return;
-            pbiSrc->biCompression = '4VID';
+            pbiSrc->biCompression = VS_FCC('DIV4');
             if (AttemptCodecNegotiation(asi.fccHandler, pbiSrc)) return;
-            pbiSrc->biCompression = '14PA';
+            pbiSrc->biCompression = VS_FCC('AP41');
         default:
             if (AttemptCodecNegotiation(asi.fccHandler, pbiSrc)) return;
         }
@@ -553,7 +547,7 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
                 LocateVideoCodec(fourCC, core, vsapi);
                 if (hic) {
                     bool forcedType = !(pixel_type[0] == 0);
-
+                    
                     bool fY8    = lstrcmpiA(pixel_type, "Y8"   ) == 0 || pixel_type[0] == 0;
                     bool fYV12  = lstrcmpiA(pixel_type, "YV12" ) == 0 || pixel_type[0] == 0;
                     bool fYV16  = lstrcmpiA(pixel_type, "YV16" ) == 0 || pixel_type[0] == 0;
@@ -581,22 +575,22 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
                     biDst.biHeight = vi[0].height;
                     biDst.biPlanes = 1;
                     bool bOpen = true;
-
-                    const int fccyv24[]  = {'42VY'};
-                    const int fccyv16[]  = {'61VY'};
-                    const int fccyv12[]  = {'21VY', '024I'};
-                    const int fccyv411[] = {'B14Y'};
-                    const int fccyuy2[]  = {'2YUY'};
+                    
+                    const int fccyv24[]  = { VS_FCC('YV24') };
+                    const int fccyv16[]  = { VS_FCC('YV16') };
+                    const int fccyv12[]  = { VS_FCC('YV12'), VS_FCC('I420') };
+                    const int fccyv411[] = { VS_FCC('Y41B') };
+                    const int fccyuy2[]  = { VS_FCC('YUY2') };
                     const int fccrgb[]   = {BI_RGB};
-                    const int fccb48r[]  = {'r84b'};
-                    const int fccb64a[]  = {'a46b'};
-                    const int fccy8[]    = {'008Y', '  8Y', 'YERG'};
-                    const int fccp010[]  = {'010P'};
-                    const int fccp016[]  = {'610P'};
-                    const int fccp210[]  = {'012P'};
-                    const int fccp216[]  = {'612P'};
-                    const int fccy416[]  = {'614Y'};
-                    const int fccv210[]  = {'012v'};
+                    const int fccb48r[]  = { VS_FCC('b48r') };
+                    const int fccb64a[]  = { VS_FCC('b64a') };
+                    const int fccy8[]    = { VS_FCC('Y800'), VS_FCC('Y8  '), VS_FCC('GREY') };
+                    const int fccp010[]  = { VS_FCC('P010') };
+                    const int fccp016[]  = { VS_FCC('P016') };
+                    const int fccp210[]  = { VS_FCC('P210') };
+                    const int fccp216[]  = { VS_FCC('P216') };
+                    const int fccy416[]  = { VS_FCC('Y416') };
+                    const int fccv210[]  = { VS_FCC('v210') };
 
                     if (fYV24 && bOpen)
                         bOpen = DecompressQuery(vsapi->getFormatPreset(pfYUV444P8, core), forcedType, 24, fccyv24);
