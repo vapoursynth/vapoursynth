@@ -47,13 +47,6 @@ class VapourSynther :
 
     //  TRCHANNEL trace;
 
-    // Function pointer
-    //ICreateScriptEnvironment CreateScriptEnvironment;
-
-    // VSScript.dll
-    // fixme
-    //HMODULE hlib;
-
     int num_threads;
     const VSAPI *vsapi;
     VSScript *se;
@@ -91,10 +84,10 @@ class VapourSynther :
     // Exception protected take a copy of the current error message
     void setError(const char *text, const wchar_t *alt = 0);
 
-    // Retrieve the current avisynth error message
+    // Retrieve the current error message
     const wchar_t* getError();
 
-    // Exception protected refresh the IScriptEnvironment
+    // Exception protected refresh the environment
     int/*error*/ newEnv();
 
     // (Re)Open the Script File
@@ -120,7 +113,7 @@ public:
     void vprintf(const wchar_t* format, va_list args);
     void printf(const wchar_t* format, ...);
 
-    // Exception protected PVideoFrame->GetFrame()
+    // Exception protected GetFrame()
     const VSFrameRef *GetFrame(AvfsLog_* log, int n, bool *success = 0);
 
     // Readonly reference to VideoInfo
@@ -629,7 +622,6 @@ int/*error*/ VapourSynther::newEnv() {
 VapourSynther::VapourSynther(void) :
     references(1),
     //  trace(tropen(L"AVFS")),
-    // fixme? hlib(nullptr),
     se(nullptr),
     node(nullptr),
     errText(nullptr),
@@ -680,13 +672,6 @@ VapourSynther::~VapourSynther(void) {
         se = nullptr;
     }
 
-    /* fixme, probably shouldn't free this because of delayed loading
-    if (hlib) {
-        ASSERT(FreeLibrary(hlib));
-        hlib = nullptr;
-    }
-    */
-
     free(errText);
 }
 
@@ -696,8 +681,6 @@ VapourSynther::~VapourSynther(void) {
 int/*error*/ VapourSynther::Init(
     AvfsLog_* log,
     AvfsVolume_* volume) {
-    // fixme? Load VSScript.dll
-    //hlib = LoadLibrary(L"VSScript.dll");
 
     int error = Import(volume->GetScriptFileName());
     if (error) {
