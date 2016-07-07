@@ -1,5 +1,5 @@
 r33:
-merged vsfs with the latest version of avfs
+merged vsfs with the latest version of avfs, avfs now work for both vapoursynth and avisynth scripts
 avisource can now open all formats vsvfw can output plus b48r
 fixed corrupted output in vfm when clip2 isn't 8 bit
 fixed crash due to stack overflow if an extremely long filter graph is freed

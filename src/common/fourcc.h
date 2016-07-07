@@ -75,4 +75,45 @@ static inline bool GetBiCompression(int formatid, int output_alt, unsigned long 
     return success;
 }
 
+static inline int BMPSizeHelper(int height, int rowsize) {
+    return height * ((rowsize + 3) & ~3);
+}
+
+static inline int BMPSize(const VSVideoInfo *vi, int output_alt) {
+    if (!vi)
+        return 0;
+    int image_size;
+
+    if (vi->format->id == pfYUV422P10 && output_alt == 1) {
+        image_size = ((16 * ((vi->width + 5) / 6) + 127) & ~127);
+        image_size *= vi->height;
+    } else if (vi->format->id == pfRGB24 || vi->format->id == pfRGB48 || vi->format->id == pfYUV444P16) {
+        image_size = BMPSizeHelper(vi->height, vi->width * vi->format->bytesPerSample * 4);
+    } else if (vi->format->numPlanes == 1) {
+        image_size = BMPSizeHelper(vi->height, vi->width * vi->format->bytesPerSample);
+    } else {
+        image_size = (vi->width * vi->format->bytesPerSample) >> vi->format->subSamplingW;
+        if (image_size) {
+            image_size *= vi->height;
+            image_size >>= vi->format->subSamplingH;
+            image_size *= 2;
+        }
+        image_size += vi->width * vi->format->bytesPerSample * vi->height;
+    }
+    return image_size;
+}
+
+static inline int BitsPerPixel(const VSVideoInfo *vi, int output_alt) {
+    if (!vi)
+        return 0;
+    int bits = vi->format->bytesPerSample * 8;
+    if (vi->format->id == pfRGB24 || vi->format->id == pfRGB48 || vi->format->id == pfYUV444P16)
+        bits *= 4;
+    else if (vi->format->numPlanes == 3)
+        bits += (bits * 2) >> (vi->format->subSamplingH + vi->format->subSamplingW);
+    if (vi->format->id == pfYUV422P10 && output_alt == 1)
+        bits = 20;
+    return bits;
+}
+
 #endif

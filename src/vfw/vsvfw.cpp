@@ -77,9 +77,6 @@ private:
 
     void Lock();
     void Unlock();
-
-    int ImageSize();
-    int BitsPerPixel();
 public:
 
     VapourSynthFile(const CLSID& rclsid);
@@ -404,41 +401,6 @@ VapourSynthFile::~VapourSynthFile() {
     Unlock();
 }
 
-int VapourSynthFile::ImageSize() {
-    if (!vi)
-        return 0;
-    int image_size;
-
-    if (vi->format->id == pfYUV422P10 && enable_v210) {
-        image_size = ((16*((vi->width + 5) / 6) + 127) & ~127);
-        image_size *= vi->height;
-    } else if (vi->format->id == pfRGB24 || vi->format->id == pfRGB48 || vi->format->id == pfYUV444P16) {
-        image_size = BMPSize(vi->height, vi->width * vi->format->bytesPerSample * 4);
-    } else if (vi->format->numPlanes == 1) {
-        image_size = BMPSize(vi->height, vi->width * vi->format->bytesPerSample);
-    } else {
-        image_size = (vi->width * vi->format->bytesPerSample) >> vi->format->subSamplingW;
-        if (image_size) {
-            image_size  *= vi->height;
-            image_size >>= vi->format->subSamplingH;
-            image_size  *= 2;
-        }
-        image_size += vi->width * vi->format->bytesPerSample * vi->height;
-    }
-    return image_size;
-}
-
-int VapourSynthFile::BitsPerPixel() {
-    int bits = vi->format->bytesPerSample * 8;
-    if (vi->format->id == pfRGB24 || vi->format->id == pfRGB48 || vi->format->id == pfYUV444P16)
-        bits *= 4;
-    else if (vi->format->numPlanes == 3)
-        bits += (bits * 2) >> (vi->format->subSamplingH + vi->format->subSamplingW);
-    if (enable_v210 && vi->format->id == pfYUV422P10)
-        bits = 20;
-    return bits;
-}
-
 STDMETHODIMP VapourSynthFile::Open(LPCSTR szFile, UINT mode, LPCOLESTR lpszFileName) {
     if (mode & (OF_CREATE|OF_WRITE))
         return E_FAIL;
@@ -722,7 +684,7 @@ STDMETHODIMP_(LONG) VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) {
     asi.fccType = streamtypeVIDEO;
     asi.dwQuality = DWORD(-1);
     
-    int image_size = parent->ImageSize();
+    int image_size = BMPSize(vi, (vi->format->id == pfYUV422P10 && parent->enable_v210));
 
     if (!GetFourCC(vi->format->id, (vi->format->id == pfYUV422P10 && parent->enable_v210), asi.fccHandler))
         return E_FAIL;
@@ -892,7 +854,7 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
         return S_OK;
     }
 
-    int image_size = parent->ImageSize();
+    int image_size = BMPSize(parent->vi, (parent->vi->format->id == pfYUV422P10 && parent->enable_v210));
     if (plSamples)
         *plSamples = 1;
     if (plBytes)
@@ -927,11 +889,11 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
     bi.biWidth = vi->width;
     bi.biHeight = vi->height;
     bi.biPlanes = 1;
-    bi.biBitCount = parent->BitsPerPixel();
+    bi.biBitCount = BitsPerPixel(vi, (vi->format->id == pfYUV422P10 && parent->enable_v210));
     if (!GetBiCompression(vi->format->id, (vi->format->id == pfYUV422P10 && parent->enable_v210), bi.biCompression))
         return E_FAIL;
 
-    bi.biSizeImage = parent->ImageSize();
+    bi.biSizeImage = BMPSize(vi, (vi->format->id == pfYUV422P10 && parent->enable_v210));
     *lpcbFormat = std::min<LONG>(*lpcbFormat, sizeof(bi));
     memcpy(lpFormat, &bi, static_cast<size_t>(*lpcbFormat));
 

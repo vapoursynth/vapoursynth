@@ -42,9 +42,6 @@ Name: "sdk"; Description: "VapourSynth SDK"; Flags: fixed; Types: Full
 
 [Tasks]
 Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to shell context menu"; GroupDescription: "New File Shortcuts:"; Components: vs32 vs64
-Name: registervsfs; Description: "Register the VSFS handler"; GroupDescription: "Pismo File Mount:";
-Name: registervsfs\registervsfs32; Description: "32-bit VSFS handler"; GroupDescription: "Pismo File Mount:"; Flags: Exclusive; Components: vs32
-Name: registervsfs\registervsfs64; Description: "64-bit VSFS handler"; GroupDescription: "Pismo File Mount:"; Flags: Exclusive; Components: vs64
 
 [Files]
 ;core binaries
@@ -62,8 +59,8 @@ Source: ..\msvc_project\Release\vapoursynth.pdb; DestDir: {app}\core32; Flags: i
 Source: ..\msvc_project\x64\Release\vapoursynth.dll; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 Source: ..\msvc_project\x64\Release\vapoursynth.pdb; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 
-Source: ..\msvc_project\Release\vsfs.dll; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: ..\msvc_project\x64\Release\vsfs.dll; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+Source: ..\msvc_project\Release\avfs.exe; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: ..\msvc_project\x64\Release\avfs.exe; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 
 Source: ..\msvc_project\Release\vspipe.exe; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
 Source: ..\msvc_project\x64\Release\vspipe.exe; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
@@ -165,14 +162,6 @@ Root: HKLM64; Subkey: SOFTWARE\Classes\.vpy; ValueType: string; ValueName: ""; V
 Root: HKLM64; Subkey: SOFTWARE\Classes\vsfile; ValueType: string; ValueName: ""; ValueData: "VapourSynth Python Script"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
 Root: HKLM64; Subkey: SOFTWARE\Classes\vsfile\DefaultIcon; ValueType: string; ValueName: ""; ValueData: "{app}\core64\vsvfw.dll,0"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
 Root: HKLM64; Subkey: SOFTWARE\Classes\AVIFile\Extensions\VPY; ValueType: string; ValueName: ""; ValueData: "{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
-
-[Run]
-Filename: "{win}\pfm.exe"; Parameters: "register ""{app}\core64\vsfs.dll"""; Tasks: registervsfs\registervsfs64; Flags: skipifdoesntexist
-Filename: "{win}\pfm.exe"; Parameters: "register ""{app}\core32\vsfs.dll"""; Tasks: registervsfs\registervsfs32; Flags: skipifdoesntexist
-
-[UninstallRun]
-Filename: "{win}\pfm.exe"; Parameters: "unregister ""{app}\core64\vsfs.dll"""; Tasks: registervsfs\registervsfs64; Flags: skipifdoesntexist
-Filename: "{win}\pfm.exe"; Parameters: "unregister ""{app}\core32\vsfs.dll"""; Tasks: registervsfs\registervsfs32; Flags: skipifdoesntexist
 
 [Code]
 #include "scripts\products.iss"

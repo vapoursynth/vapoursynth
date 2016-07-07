@@ -110,7 +110,7 @@ class VapourSynther :
 public:
 
     int BitsPerPixel();
-    int ImageSize();
+    int BMPSize();
     bool UsePacking();
     uint8_t *GetPackedFrame();
     const VSAPI *GetVSApi();
@@ -243,7 +243,7 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
             const VSCoreInfo *info = vsapi->getCoreInfo(vsscript_getCore(se));
             num_threads = info->numThreads;
 
-            packedFrame.resize(ImageSize());
+            packedFrame.resize(BMPSize());
 
             return 0;
         } else {
@@ -770,48 +770,14 @@ void VapourSynther::Release(void) {
 ---------------------------------------------------------*/
 
 int VapourSynther::BitsPerPixel() {
-    int bits = vi->format->bytesPerSample * 8;
-    if (vi->format->id == pfRGB24 || vi->format->id == pfRGB48 || vi->format->id == pfYUV444P16)
-        bits *= 4;
-    else if (vi->format->numPlanes == 3)
-        bits += (bits * 2) >> (vi->format->subSamplingH + vi->format->subSamplingW);
-    if (enable_v210 && vi->format->id == pfYUV422P10)
-        bits = 20;
-    return bits;
+    return ::BitsPerPixel(vi, (vi->format->id == pfYUV422P10 && enable_v210));
 }
 
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
 
-static int BMPSize(int height, int rowsize) {
-    return height * ((rowsize + 3) & ~3);
-}
-
-/*---------------------------------------------------------
----------------------------------------------------------*/
-
-int VapourSynther::ImageSize() {
-    if (!vi)
-        return 0;
-    int image_size;
-
-    if (vi->format->id == pfYUV422P10 && enable_v210) {
-        image_size = ((16 * ((vi->width + 5) / 6) + 127) & ~127);
-        image_size *= vi->height;
-    } else if (vi->format->id == pfRGB24 || vi->format->id == pfRGB48 || vi->format->id == pfYUV444P16) {
-        image_size = BMPSize(vi->height, vi->width * vi->format->bytesPerSample * 4);
-    } else if (vi->format->numPlanes == 1) {
-        image_size = BMPSize(vi->height, vi->width * vi->format->bytesPerSample);
-    } else {
-        image_size = (vi->width * vi->format->bytesPerSample) >> vi->format->subSamplingW;
-        if (image_size) {
-            image_size *= vi->height;
-            image_size >>= vi->format->subSamplingH;
-            image_size *= 2;
-        }
-        image_size += vi->width * vi->format->bytesPerSample * vi->height;
-    }
-    return image_size;
+int VapourSynther::BMPSize() {
+    return ::BMPSize(vi, (vi->format->id == pfYUV422P10 && enable_v210));
 }
 
 /*---------------------------------------------------------

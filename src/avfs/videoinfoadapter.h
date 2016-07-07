@@ -123,7 +123,7 @@ public:
     }
 
     int BMPSize() const {
-        return vsvi ? vssynther->ImageSize() : avsvi->BMPSize();
+        return vsvi ? vssynther->BMPSize() : avsvi->BMPSize();
     }
 
     int BitsPerPixel() const {
