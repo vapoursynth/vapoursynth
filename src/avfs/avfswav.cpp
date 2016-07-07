@@ -378,5 +378,5 @@ void VsfsWavMediaInit(
     AvfsVolume_* volume) {
     ASSERT(log && avs && volume);
 
-    log->Printf(L"VsfsWavMediaInit: Clip has no audio.\r\n");
+    log->Printf(L"AvfsWavMediaInit: Clip has no audio.\r\n");
 }

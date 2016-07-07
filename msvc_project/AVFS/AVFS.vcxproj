@@ -168,6 +168,7 @@
     <ClInclude Include="..\..\src\avfs\videoinfoadapter.h" />
     <ClInclude Include="..\..\src\avfs\vsfs.h" />
     <ClInclude Include="..\..\src\avfs\xxfs.h" />
+    <ClInclude Include="..\..\src\common\fourcc.h" />
     <ClInclude Include="..\..\src\common\p2p.h" />
     <ClInclude Include="..\..\src\common\p2p_api.h" />
   </ItemGroup>

@@ -36,6 +36,7 @@
 #include "VSScript.h"
 #include "VSHelper.h"
 #include "../common/p2p_api.h"
+#include "../common/fourcc.h"
 
 static std::atomic<long> refCount(0);
 
@@ -723,41 +724,7 @@ STDMETHODIMP_(LONG) VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) {
     
     int image_size = parent->ImageSize();
 
-
-    asi.fccHandler = FCC('UNKN');
-    if (vi->format->id == pfCompatBGR32)
-        asi.fccHandler = FCC('DIB ');
-    else if (vi->format->id == pfRGB24)
-        asi.fccHandler = FCC('DIB ');
-    else if (vi->format->id == pfRGB48)
-        asi.fccHandler = FCC('b64a');
-    else if (vi->format->id == pfCompatYUY2)
-        asi.fccHandler = FCC('YUY2');
-    else if (vi->format->id == pfYUV420P8)
-        asi.fccHandler = FCC('YV12');
-    else if (vi->format->id == pfGray8)
-        asi.fccHandler = FCC('Y800');
-    else if (vi->format->id == pfYUV444P8)
-        asi.fccHandler = FCC('YV24');
-    else if (vi->format->id == pfYUV422P8)
-        asi.fccHandler = FCC('YV16');
-    else if (vi->format->id == pfYUV411P8)
-        asi.fccHandler = FCC('Y41B');
-    else if (vi->format->id == pfYUV410P8)
-        asi.fccHandler = FCC('YVU9');
-    else if (vi->format->id == pfYUV420P10)
-        asi.fccHandler = FCC('P010');
-    else if (vi->format->id == pfYUV420P16)
-        asi.fccHandler = FCC('P016');
-    else if (vi->format->id == pfYUV422P10 && parent->enable_v210)
-        asi.fccHandler = FCC('v210');
-    else if (vi->format->id == pfYUV422P10)
-        asi.fccHandler = FCC('P210');
-    else if (vi->format->id == pfYUV422P16)
-        asi.fccHandler = FCC('P216');
-    else if (vi->format->id == pfYUV444P16)
-        asi.fccHandler = FCC('Y416');
-    else
+    if (!GetFourCC(vi->format->id, (vi->format->id == pfYUV422P10 && parent->enable_v210), asi.fccHandler))
         return E_FAIL;
 
     asi.dwScale = int64ToIntS(vi->fpsDen ? vi->fpsDen : 1);
@@ -961,37 +928,7 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
     bi.biHeight = vi->height;
     bi.biPlanes = 1;
     bi.biBitCount = parent->BitsPerPixel();
-    if (vi->format->id == pfCompatBGR32 || vi->format->id == pfRGB24)
-        bi.biCompression = BI_RGB;
-    else if (vi->format->id == pfRGB48)
-        bi.biCompression = FCC('b64a');
-    else if (vi->format->id == pfCompatYUY2)
-        bi.biCompression = FCC('YUY2');
-    else if (vi->format->id == pfYUV420P8)
-        bi.biCompression = FCC('YV12');
-    else if (vi->format->id == pfGray8)
-        bi.biCompression = FCC('Y800');
-    else if (vi->format->id == pfYUV444P8)
-        bi.biCompression = FCC('YV24');
-    else if (vi->format->id == pfYUV422P8)
-        bi.biCompression = FCC('YV16');
-    else if (vi->format->id == pfYUV411P8)
-        bi.biCompression = FCC('Y41B');
-    else if (vi->format->id == pfYUV410P8)
-        bi.biCompression = FCC('YVU9');
-    else if (vi->format->id == pfYUV420P10)
-        bi.biCompression = FCC('P010');
-    else if (vi->format->id == pfYUV420P16)
-        bi.biCompression = FCC('P016');
-    else if (vi->format->id == pfYUV422P10 && parent->enable_v210)
-        bi.biCompression = FCC('v210');
-    else if (vi->format->id == pfYUV422P10)
-        bi.biCompression = FCC('P210');
-    else if (vi->format->id == pfYUV422P16)
-        bi.biCompression = FCC('P216');
-    else if (vi->format->id == pfYUV444P16)
-        bi.biCompression = FCC('Y416');
-    else
+    if (!GetBiCompression(vi->format->id, (vi->format->id == pfYUV422P10 && parent->enable_v210), bi.biCompression))
         return E_FAIL;
 
     bi.biSizeImage = parent->ImageSize();

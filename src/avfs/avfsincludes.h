@@ -19,6 +19,7 @@
 #define NOMINMAX
 #include <windows.h>
 #include <vfw.h>
+#include <aviriff.h>
 #include "ss.h"
 #pragma warning(disable: 4244) // size conversion warning
 #pragma warning(disable: 4245) // sign conversion warning
@@ -31,3 +32,4 @@
 #include "vsfs.h"
 #include "VideoInfoAdapter.h"
 #include "../common/p2p_api.h"
+#include "../common/fourcc.h"

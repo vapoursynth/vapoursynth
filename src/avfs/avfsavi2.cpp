@@ -616,8 +616,8 @@ bool/*success*/ AvfsAvi2File::Init(
   AvfsLog_* log)
 {
   bool success = true;
-  unsigned vidType;
-  unsigned vidCompress;
+  unsigned long vidType;
+  unsigned long vidCompress;
   unsigned maxFrameAudDataSize = 0;
   uint16_t sampleType = 0;
   unsigned clippedSampleCount = 0xFFFFFFFF;
@@ -659,24 +659,14 @@ bool/*success*/ AvfsAvi2File::Init(
   vidType = 0;
   vidCompress = 0;
 
+  bool vidSuccess = true;
+
   if (vi.HasVideo()) {
-    if (vi.pixel_format == pfCompatBGR32)
-      vidType = MAKETAGUINT32('D','I','B',' ');
-    else if (vi.pixel_format == pfCompatYUY2)
-      vidType = vidCompress = MAKETAGUINT32('Y','U','Y','2');
-    else if (vi.pixel_format == pfGray8)
-      vidType = vidCompress = MAKETAGUINT32('Y','8',' ',' ');
-    else if (vi.pixel_format == pfYUV411P8)
-      vidType = vidCompress = MAKETAGUINT32('Y','4','1','B');
-    else if (vi.pixel_format == pfYUV420P8)
-      vidType = vidCompress = MAKETAGUINT32('Y','V','1','2');
-    else if (vi.pixel_format == pfYUV422P8)
-      vidType = vidCompress = MAKETAGUINT32('Y','V','1','6');
-    else if (vi.pixel_format == pfYUV444P8)
-      vidType = vidCompress = MAKETAGUINT32('Y','V','2','4');
+      vidSuccess = vidSuccess && GetFourCC(vi.pixel_format, vi.output_format, vidType);
+      vidSuccess = vidSuccess && GetBiCompression(vi.pixel_format, vi.output_format, vidCompress);
   }
 
-  if (!vidType || !vidFrameCount || !frameVidDataSize) {
+  if (!vidType || !vidFrameCount || !frameVidDataSize || !vidSuccess) {
     vidType = 0;
     vidFrameCount = 0;
     frameVidDataSize = 0;
