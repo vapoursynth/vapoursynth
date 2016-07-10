@@ -188,7 +188,7 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
             vi = vsapi->getVideoInfo(node);
 
             if (vi->width == 0 || vi->height == 0 || vi->format == nullptr || vi->numFrames == 0) {
-                setError("Cannot open clips with varying dimensions or format in VSFS");
+                setError("Cannot open clips with varying dimensions or format in AVFS");
                 return ERROR_ACCESS_DENIED;
             }
 
@@ -208,7 +208,7 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
                 && id != pfYUV422P10
                 && id != pfYUV422P16
                 && id != pfYUV444P16) {
-                    std::string error_msg = "VSFS module doesn't support ";
+                    std::string error_msg = "AVFS module doesn't support ";
                     error_msg += vi->format->name;
                     error_msg += " output";
                     setError(error_msg.c_str());
@@ -683,6 +683,7 @@ int/*error*/ VapourSynther::Init(
     AvfsVolume_* volume) {
 
     int error = Import(volume->GetScriptFileName());
+
     if (error) {
         log->Line(getError());
     } else {
@@ -712,11 +713,6 @@ int/*error*/ VapourSynther::Init(
         }
     }
 
-    if (error) {
-        log->Line(getError());
-    } else {
-        reportFormat(log);
-    }
     return error;
 }
 

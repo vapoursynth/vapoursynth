@@ -810,17 +810,21 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
         } else if (fi->numPlanes == 3) {
             int row_size23 = vsapi->getFrameWidth(f, 1) * fi->bytesPerSample;
 
+            int plane2 = (fi->id != pfYUV411P8 ? 2 : 1);
+            int plane3 = (fi->id != pfYUV411P8 ? 1 : 2);
+
+
             vs_bitblt(lpBuffer, row_size, vsapi->getReadPtr(f, 0), stride, row_size, height);
 
             vs_bitblt((uint8_t *)lpBuffer + (row_size*height),
-                row_size23, vsapi->getReadPtr(f, 2),
-                vsapi->getStride(f, 2), vsapi->getFrameWidth(f, 2),
-                vsapi->getFrameHeight(f, 2));
+                row_size23, vsapi->getReadPtr(f, plane2),
+                vsapi->getStride(f, plane2), vsapi->getFrameWidth(f, plane2),
+                vsapi->getFrameHeight(f, plane2));
 
-            vs_bitblt((uint8_t *)lpBuffer + (row_size*height + vsapi->getFrameHeight(f, 1)*row_size23),
-                row_size23, vsapi->getReadPtr(f, 1),
-                vsapi->getStride(f, 1), vsapi->getFrameWidth(f, 1),
-                vsapi->getFrameHeight(f, 1));
+            vs_bitblt((uint8_t *)lpBuffer + (row_size*height + vsapi->getFrameHeight(f, plane2)*row_size23),
+                row_size23, vsapi->getReadPtr(f, plane3),
+                vsapi->getStride(f, plane3), vsapi->getFrameWidth(f, plane3),
+                vsapi->getFrameHeight(f, plane3));
         }
     }
 

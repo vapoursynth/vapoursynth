@@ -1269,6 +1269,10 @@ static void copyPlaneVS(
     const VSAPI *vsapi) {
     if (rqsize) {
         const VSFormat *fi = vsapi->getFrameFormat(frame);
+        if (plane == 2 && fi->id != pfYUV411P8)
+            plane = 1;
+        else if (plane == 1 && fi->id != pfYUV411P8)
+            plane = 2;
         const unsigned rowsize = (vsapi->getFrameWidth(frame, plane) * fi->bytesPerSample + alignMask) & ~alignMask;
         const unsigned plsize = vsapi->getFrameHeight(frame, plane) * rowsize;
         const unsigned pitch = vsapi->getStride(frame, plane);
@@ -1311,18 +1315,18 @@ bool/*success*/ AvfsAvi2File::GetFrameData(
           if (vssynther->UsePacking()) {
               memcpy(buffer, vssynther->GetPackedFrame() + offset, size);
           } else {
-              copyPlaneVS(buffer, offset, size, frame, PLANAR_Y, 4 - 1, vssynther->GetVSApi());
-              copyPlaneVS(buffer, offset, size, frame, PLANAR_V, 2 - 1, vssynther->GetVSApi());
-              copyPlaneVS(buffer, offset, size, frame, PLANAR_U, 2 - 1, vssynther->GetVSApi());
+              copyPlaneVS(buffer, offset, size, frame, 0, 3, vssynther->GetVSApi());
+              copyPlaneVS(buffer, offset, size, frame, 1, 1, vssynther->GetVSApi());
+              copyPlaneVS(buffer, offset, size, frame, 2, 1, vssynther->GetVSApi());
               ASSERT(size == 0);
           }
       }
   } else {
       PVideoFrame frame = avssynther->GetFrame(log, n, &success);
       if (success) {
-          copyPlaneAvs(buffer, offset, size, frame, PLANAR_Y, 4 - 1);
-          copyPlaneAvs(buffer, offset, size, frame, PLANAR_V, 2 - 1);
-          copyPlaneAvs(buffer, offset, size, frame, PLANAR_U, 2 - 1);
+          copyPlaneAvs(buffer, offset, size, frame, PLANAR_Y, 3);
+          copyPlaneAvs(buffer, offset, size, frame, PLANAR_V, 1);
+          copyPlaneAvs(buffer, offset, size, frame, PLANAR_U, 1);
           ASSERT(size == 0);
       }
   }
