@@ -44,7 +44,7 @@
 #ifdef VS_TARGET_OS_WINDOWS
 #define NOMINMAX
 #include <windows.h>
-BOOL WINAPI HandlerRoutine(DWORD dwCtrlType) {
+static BOOL WINAPI HandlerRoutine(DWORD dwCtrlType) {
     switch (dwCtrlType) {
     case CTRL_C_EVENT:
     case CTRL_BREAK_EVENT:
@@ -71,38 +71,38 @@ std::string nstringToUtf8(const nstring &s) {
 }
 #endif
 
-const VSAPI *vsapi = nullptr;
-VSScript *se = nullptr;
-VSNodeRef *node = nullptr;
-FILE *outFile = nullptr;
-FILE *timecodesFile = nullptr;
+static const VSAPI *vsapi = nullptr;
+static VSScript *se = nullptr;
+static VSNodeRef *node = nullptr;
+static FILE *outFile = nullptr;
+static FILE *timecodesFile = nullptr;
 
-int requests = 0;
-int outputIndex = 0;
-int outputFrames = 0;
-int requestedFrames = 0;
-int completedFrames = 0;
-int totalFrames = -1;
-int startFrame = 0;
-int numPlanes = 0;
-bool y4m = false;
-int64_t currentTimecodeNum = 0;
-int64_t currentTimecodeDen = 1;
-bool outputError = false;
-bool showInfo = false;
-bool showVersion = false;
-bool printFrameNumber = false;
-double fps = 0;
-bool hasMeaningfulFps = false;
-std::map<int, const VSFrameRef *> reorderMap;
+static int requests = 0;
+static int outputIndex = 0;
+static int outputFrames = 0;
+static int requestedFrames = 0;
+static int completedFrames = 0;
+static int totalFrames = -1;
+static int startFrame = 0;
+static int numPlanes = 0;
+static bool y4m = false;
+static int64_t currentTimecodeNum = 0;
+static int64_t currentTimecodeDen = 1;
+static bool outputError = false;
+static bool showInfo = false;
+static bool showVersion = false;
+static bool printFrameNumber = false;
+static double fps = 0;
+static bool hasMeaningfulFps = false;
+static std::map<int, const VSFrameRef *> reorderMap;
 
-std::string errorMessage;
-std::condition_variable condition;
-std::mutex mutex;
+static std::string errorMessage;
+static std::condition_variable condition;
+static std::mutex mutex;
 
-std::chrono::time_point<std::chrono::high_resolution_clock> start;
-std::chrono::time_point<std::chrono::high_resolution_clock> lastFpsReportTime;
-int lastFpsReportFrame = 0;
+static std::chrono::time_point<std::chrono::high_resolution_clock> start;
+static std::chrono::time_point<std::chrono::high_resolution_clock> lastFpsReportTime;
+static int lastFpsReportFrame = 0;
 
 static inline void addRational(int64_t *num, int64_t *den, int64_t addnum, int64_t addden) {
     if (*den == addden) {
@@ -121,7 +121,7 @@ static inline void addRational(int64_t *num, int64_t *den, int64_t addnum, int64
     }
 }
 
-void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg) {
+static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg) {
     completedFrames++;
 
     if (printFrameNumber) {
@@ -239,7 +239,7 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
     }
 }
 
-bool outputNode() {
+static bool outputNode() {
     if (requests < 1) {
         const VSCoreInfo *info = vsapi->getCoreInfo(vsscript_getCore(se));
         requests = info->numThreads;
@@ -328,7 +328,7 @@ bool outputNode() {
     return outputError;
 }
 
-const char *colorFamilyToString(int colorFamily) {
+static const char *colorFamilyToString(int colorFamily) {
     switch (colorFamily) {
     case cmGray: return "Gray";
     case cmRGB: return "RGB";
@@ -339,7 +339,7 @@ const char *colorFamilyToString(int colorFamily) {
     return "";
 }
 
-bool nstringToInt(const nstring &ns, int &result) {
+static bool nstringToInt(const nstring &ns, int &result) {
     size_t pos = 0;
     std::string s = nstringToUtf8(ns);
     try {
@@ -352,7 +352,7 @@ bool nstringToInt(const nstring &ns, int &result) {
     return pos == s.length();
 }
 
-bool printVersion() {
+static bool printVersion() {
     if (!vsscript_init()) {
         fprintf(stderr, "Failed to initialize VapourSynth environment\n");
         return false;
@@ -379,7 +379,7 @@ bool printVersion() {
     return true;
 }
 
-void printHelp() {
+static void printHelp() {
     fprintf(stderr,
         "VSPipe usage:\n"
         "  vspipe [options] <script> <outfile>\n"
