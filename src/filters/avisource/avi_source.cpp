@@ -141,7 +141,7 @@ static void unpackframe(const VSVideoInfo *vi, VSFrameRef *dst, VSFrameRef *dst_
                 padrows = true;
         }
         for (int i = 0; i < vi->format->numPlanes; i++) {
-            bool switchuv = (fourcc != '024I');
+            bool switchuv =  (fourcc != VS_FCC('I420') && fourcc != VS_FCC('Y41B'));
             int plane = i;
             if (switchuv) {
                 if (i == 1)

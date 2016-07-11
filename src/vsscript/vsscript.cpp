@@ -30,16 +30,16 @@
 #include <Windows.h>
 #endif
 
-std::once_flag flag;
+static std::once_flag flag;
 
 struct VSScript : public VPYScriptExport {
 };
 
-std::atomic<int> initializationCount(0);
-std::atomic<int> scriptId(1000);
-bool initialized = false;
-PyThreadState *ts = nullptr;
-PyGILState_STATE s;
+static std::atomic<int> initializationCount(0);
+static std::atomic<int> scriptId(1000);
+static bool initialized = false;
+static PyThreadState *ts = nullptr;
+static PyGILState_STATE s;
 
 static void real_init(void) {
 #ifdef VS_TARGET_OS_WINDOWS
