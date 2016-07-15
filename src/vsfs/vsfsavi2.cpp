@@ -408,7 +408,7 @@ static const unsigned avfsAvi2MaxDataLstSize = avi2MaxSegSize-
 static const unsigned avfsAvi2Max4GbDataLstSize = avi2Max4GbSegSize-
     offsetof(AvfsAvi2Seg0, dataLst.data)-offsetof(AvfsAvi2OldIndx, ents);
 
-struct AvfsAvi2File: AvfsMediaFile_ {
+struct AvfsAvi2File final: AvfsMediaFile_ {
     int references;
     VapourSynther_* avs;
     const VSVideoInfo& vi;

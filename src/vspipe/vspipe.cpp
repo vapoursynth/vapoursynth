@@ -84,7 +84,6 @@ static int requestedFrames = 0;
 static int completedFrames = 0;
 static int totalFrames = -1;
 static int startFrame = 0;
-static int numPlanes = 0;
 static bool y4m = false;
 static int64_t currentTimecodeNum = 0;
 static int64_t currentTimecodeDen = 1;

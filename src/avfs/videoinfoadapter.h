@@ -54,7 +54,7 @@ public:
 
     VapourSynther_ *vssynther;
 
-    VideoInfoAdapter(const VSVideoInfo *vi, VapourSynther_ *vssynther, int outputFormat) : vsvi(vi), vssynther(vssynther), output_format(outputFormat) {
+    VideoInfoAdapter(const VSVideoInfo *vi, VapourSynther_ *vssynther, int outputFormat) : vsvi(vi), output_format(outputFormat), vssynther(vssynther) {
         num_frames = vi->numFrames;
         fps_numerator = static_cast<uint32_t>(vi->fpsNum);
         fps_denominator = static_cast<uint32_t>(vi->fpsDen);
@@ -65,7 +65,7 @@ public:
         pixel_format = vi->format->id;
     };
 
-    VideoInfoAdapter(const VideoInfo *vi) : avsvi(vi) {
+    VideoInfoAdapter(const VideoInfo *vi) : avsvi(vi), output_format(0) {
         num_frames = vi->num_frames;
         fps_numerator = vi->fps_numerator;
         fps_denominator = vi->fps_denominator;
@@ -73,7 +73,6 @@ public:
         height = vi->height;
         num_audio_samples = vi->num_audio_samples;
         sample_type = vi->sample_type;
-        output_format = 0;
         if (vi->IsRGB())
             pixel_format = pfCompatBGR32;
         else if (vi->IsYUY2())

@@ -40,10 +40,6 @@
 
 static std::atomic<long> refCount(0);
 
-static int BMPSize(int height, int rowsize) {
-    return height * ((rowsize+3) & ~3);
-}
-
 static const GUID CLSID_VapourSynth
     = { 0x58f74ca0, 0xbd0e, 0x4664, { 0xa4, 0x9b, 0x8d, 0x10, 0xe6, 0xf0, 0xc1, 0x31 } };
 
@@ -56,7 +52,7 @@ struct IAvisynthClipInfo : IUnknown {
     virtual bool __stdcall IsFieldBased() = 0;
 };
 
-class VapourSynthFile: public IAVIFile, public IPersistFile, public IClassFactory, public IAvisynthClipInfo {
+class VapourSynthFile final: public IAVIFile, public IPersistFile, public IClassFactory, public IAvisynthClipInfo {
     friend class VapourSynthStream;
 private:
     int num_threads;
@@ -130,7 +126,7 @@ public:
 
 ///////////////////////////////////
 
-class VapourSynthStream: public IAVIStream , public IAVIStreaming {
+class VapourSynthStream final: public IAVIStream , public IAVIStreaming {
 public:
 
     //////////// IUnknown
@@ -385,7 +381,7 @@ STDMETHODIMP VapourSynthFile::DeleteStream(DWORD fccType, LONG lParam) {
 ///////////////////////////////////////////////////
 /////// local
 
-VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : num_threads(1), node(nullptr), se(nullptr), vsapi(nullptr), enable_v210(false), m_refs(0), vi(nullptr), pending_requests(0) {
+VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : num_threads(1), vsapi(nullptr), se(nullptr), enable_v210(false), node(nullptr), m_refs(0), vi(nullptr), pending_requests(0) {
     vsapi = vsscript_getVSApi();
     AddRef();
 }
@@ -491,7 +487,7 @@ bool VapourSynthFile::DelayInit2() {
             std::string error_script = ErrorScript1;
             error_script += error_msg;
             error_script += ErrorScript2;
-            int res = vsscript_evaluateScript(&se, error_script.c_str(), "vfw_error.message", 0);
+            vsscript_evaluateScript(&se, error_script.c_str(), "vfw_error.message", 0);
             node = vsscript_getOutput(se, 0);
             vi = vsapi->getVideoInfo(node);
             return true;
@@ -659,7 +655,7 @@ STDMETHODIMP VapourSynthStream::SetInfo(AVISTREAMINFOW *psi, LONG lSize) {
 ////////////////////////////////////////////////////////////////////////
 //////////// local
 
-VapourSynthStream::VapourSynthStream(VapourSynthFile *parentPtr, bool isAudio) : sName("video"), m_refs(0) {
+VapourSynthStream::VapourSynthStream(VapourSynthFile *parentPtr, bool isAudio) : m_refs(0), sName("video") {
     AddRef();
     parent = parentPtr;
     parent->AddRef();

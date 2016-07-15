@@ -33,7 +33,7 @@
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
 
-class VapourSynther:
+class VapourSynther final:
     public VapourSynther_
 {
     int references;

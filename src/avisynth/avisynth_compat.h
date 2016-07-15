@@ -35,7 +35,7 @@ struct WrappedClip;
 
 class FakeAvisynth : public IScriptEnvironment {
     friend class VSClip;
-    friend class VideoFrame;
+    friend class ::VideoFrame;
 private:
     VSCore *core;
     std::list<std::string> savedStrings;

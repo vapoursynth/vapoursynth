@@ -45,7 +45,7 @@ const AVS_Linkage *AVS_linkage = nullptr;
 
 typedef IScriptEnvironment* (__stdcall *ICreateScriptEnvironment)(int version);
 
-class Avisynther:
+class Avisynther final:
    public Avisynther_
 {
   int references;
