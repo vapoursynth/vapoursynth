@@ -65,7 +65,7 @@ public:
         pixel_format = vi->format->id;
     };
 
-    VideoInfoAdapter(const VideoInfo *vi) : avsvi(vi), output_format(0) {
+    VideoInfoAdapter(const VideoInfo *vi) : avsvi(vi), output_format(0), vssynther(nullptr) {
         num_frames = vi->num_frames;
         fps_numerator = vi->fps_numerator;
         fps_denominator = vi->fps_denominator;
