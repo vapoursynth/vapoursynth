@@ -511,7 +511,7 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
             // if it looks like an AVI file, open in OpenDML mode; otherwise AVIFile mode
             HANDLE h = CreateFile(wfilename.data(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
             if (h == INVALID_HANDLE_VALUE) {
-                sprintf(buf, "AVISource autodetect: couldn't open file '%s'\nError code: %d", filename, GetLastError());
+                sprintf(buf, "AVISource autodetect: couldn't open file '%s'\nError code: %d", filename, (int)GetLastError());
                 throw std::runtime_error(buf);
             }
             unsigned int buf[3];
@@ -753,7 +753,6 @@ const VSFrameRef *AVISource::GetFrame(int n, VSFrameContext *frameCtx, VSCore *c
         throw std::runtime_error(buf);
     }
 
-    int o = vsapi->getOutputIndex(frameCtx);
     if (vsapi->getOutputIndex(frameCtx) == 0)
         return vsapi->cloneFrameRef(last_frame);
     else

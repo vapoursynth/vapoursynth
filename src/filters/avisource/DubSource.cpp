@@ -24,7 +24,7 @@ DubSource::DubSource() {
 }
 
 DubSource::~DubSource() {
-    if (format) delete format;
+    if (format) delete[] format;
 }
 
 BOOL DubSource::init() {
@@ -34,7 +34,7 @@ BOOL DubSource::init() {
 void *DubSource::allocFormat(int format_len) {
     if (format) delete format;
 
-    return format = (void *)new char[this->format_len = format_len];
+    return format = new char[this->format_len = format_len];
 }
 
 bool DubSource::isStreaming() {
