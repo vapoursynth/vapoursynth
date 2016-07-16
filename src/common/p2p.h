@@ -119,8 +119,6 @@ struct uint24 {
 	{
 	}
 
-	constexpr operator uint32_t() const { return to_u32(); }
-
 	template <class T = native_endian_t,
 	          typename std::enable_if<std::is_same<T, big_endian_t>::value>::type * = nullptr>
 	constexpr uint32_t to_u32() const
@@ -134,6 +132,8 @@ struct uint24 {
 	{
 		return make_u32(0, x[2], x[1], x[0]);
 	}
+
+	constexpr operator uint32_t() const { return to_u32(); }
 };
 
 struct uint48 {
@@ -159,8 +159,6 @@ struct uint48 {
 	{
 	}
 
-	constexpr operator uint64_t() const { return to_u64(); }
-
 	template <class T = native_endian_t,
 	          typename std::enable_if<std::is_same<T, big_endian_t>::value>::type * = nullptr>
 	constexpr uint64_t to_u64() const
@@ -174,6 +172,8 @@ struct uint48 {
 	{
 		return make_u64(0, 0, x[5], x[4], x[3], x[2], x[1], x[0]);
 	}
+
+	constexpr operator uint64_t() const { return to_u64(); }
 };
 
 static_assert(std::is_pod<uint24>::value, "uint24 must be POD");

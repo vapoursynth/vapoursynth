@@ -205,7 +205,6 @@ struct Avi2AudFrmt {
 
 static const uint32_t avi2AudHdrLstFcc     = MAKETAGUINT32('s','t','r','l');
 static const uint32_t avi2AudStrTypeFcc    = MAKETAGUINT32('a','u','d','s');
-static const uint32_t avi2AudStrHandlerFcc = MAKETAGUINT32(0, 0, 0, 0);
 
 
 /*  #define ckidAVISUPERINDEX FCC('indx')                FCC('ix00')   FCC('ix01')

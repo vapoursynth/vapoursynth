@@ -104,7 +104,7 @@ struct FileNode
     ~FileNode(void);
 };
 
-struct Volume:
+struct Volume final:
     AvfsLog_,
     AvfsVolume_,
     PfmFormatterDispatch
@@ -830,7 +830,7 @@ void Volume::CreateMediaFile(
     }
 }
 
-static const PfmOpenAttribs zeroOpenAttribs = {{0}};
+static const PfmOpenAttribs zeroOpenAttribs = {};
 
 void CCALL Volume::Open(PfmMarshallerOpenOp* op,void* unused)
 {
@@ -1309,7 +1309,7 @@ void CCALL Volume::Control(PfmMarshallerControlOp* op,void* unused)
     op->Complete(pfmErrorInvalid,0/*outputSize*/);
 }
 
-static const PfmMediaInfo zeroMediaInfo = {0};
+static const PfmMediaInfo zeroMediaInfo = {};
 
 void CCALL Volume::MediaInfo(PfmMarshallerMediaInfoOp* op,void* unused)
 {
