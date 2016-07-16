@@ -10,6 +10,8 @@ Scripts
 #######
 * `FineSharp <http://forum.doom9.org/showthread.php?t=166524>`_ -- Script by Didée, ported by Chikuzen
 * `HAvsFunc <http://forum.doom9.org/showthread.php?t=166582>`_ -- A collection of ported popular Avisynth scripts such as QTGMC
+* `mvsfunc <http://forum.doom9.org/showthread.php?t=172564>`_ -- Wrapper functions to make certain operations simpler
+* `vsTAAmbk <https://github.com/HomeOfVapourSynthEvolution/vsTAAmbk>`_ -- AA-script
 
 Plugins
 #######
@@ -21,26 +23,32 @@ Source/Output
 * `FFMS2 <https://github.com/FFMS/ffms2>`_ -- FFmpeg based source filter
 * :ref:`ImageMagick Writer/Reader <imwri>` -- image writer and reader, in the source tree
 * `L-SMASH Source <http://forum.doom9.org/showthread.php?t=167435>`_
+* `QR Code Source Source <https://github.com/jeremypoulter/QRCodeSource>`_
 * `vsrawsource <http://forum.doom9.org/showthread.php?t=166075>`_ -- Raw video reader
 * `vsavsreader <http://forum.doom9.org/showthread.php?t=165957>`_ -- Import plugin so Avisynth scripts can be opened in VapourSynth
 
 Subtitles
 ---------
-* :ref:`AssVapour <assvapour>` -- subtitle renderer, in the source tree
-* :ref:`OCR <ocr>` -- optical character recognition on video frames, in the source tree
+* :ref:`AssVapour <assvapour>` -- Subtitle renderer, in the source tree
+* :ref:`OCR <ocr>` -- Optical character recognition on video frames, in the source tree
+* `xy-VSFilter <https://github.com/Tsuki/VapourSynth-XY-VSFilter>`_
 
 Resizing and Format Conversion
 ------------------------------
 * `fmtconv <http://forum.doom9.org/showthread.php?t=166504>`_ -- High quality bitdepth, colorspace conversion and resizing
 * `Unresize <http://forum.doom9.org/showthread.php?t=169829>`_ -- Undoes resizing
 * `waifu2x <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-Waifu2x-w2xc/>`_ -- waifu2x upscaling filter based on the w2xc library
+* `waifu2x-caffe <http://forum.doom9.org/showthread.php?t=173673>`_ -- waifu2x upscaling filter based on the waifu2x-caffe library
+* `waifu2x-opt <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-waifu2x-opt>`_ -- waifu2x upscaling filter based on the waifu2x-opt library
 
 Deinterlacing
 -------------
 * `EEDI2 <http://forum.doom9.org/showthread.php?t=171136>`_
 * :ref:`EEDI3 <eedi3>` -- in the source tree
 * `NNEDI3 <http://forum.doom9.org/showthread.php?t=166434>`_ -- Field interpolator/deinterlacer
+* `SangNomMod <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-SangNomMod>`_ -- Port of the Avisynth deinterlacer
 * `TDeintMod <http://forum.doom9.org/showthread.php?t=171295>`_ -- Port of the Avisynth deinterlacer
+* `W3FDIF <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-W3FDIF>`_ -- Weston 3 Field Deinterlacing Filter
 * `Yadifmod <http://forum.doom9.org/showthread.php?t=171028>`_ -- Port of the Avisynth deinterlacer
 
 Inverse Telecine
