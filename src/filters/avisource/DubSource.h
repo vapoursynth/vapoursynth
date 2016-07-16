@@ -23,27 +23,16 @@
 class InputFile;
 
 class DubSource {
-private:
-    char *    format;
-    int        format_len;
-
 protected:
-    void *allocFormat(int format_len);
     virtual BOOL _isKey(LONG lSample);
 
 public:
     VDPosition lSampleFirst, lSampleLast;
     VDAVIStreamInfo    streamInfo;
 
-    DubSource();
-    virtual ~DubSource();
-
     virtual BOOL init();
     int read(LONG lStart, LONG lCount, LPVOID lpBuffer, LONG cbBuffer, LONG *lBytesRead, LONG *lSamplesRead);
     virtual int _read(LONG lStart, LONG lCount, LPVOID lpBuffer, LONG cbBuffer, LONG *lBytesRead, LONG *lSamplesRead) = 0;
-
-    void *getFormat() const { return format; }
-    int getFormatLen() const { return format_len; }
 
     virtual bool isStreaming();
 
