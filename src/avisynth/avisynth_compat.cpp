@@ -602,6 +602,11 @@ AVSValue FakeAvisynth::Invoke(const char *name, const AVSValue args, const char*
         return args[0];
     }
 
+    if (!_stricmp(name, "AudioDub")) {
+        vsapi->logMessage(mtWarning, "Invoke not fully implemented, tried to call AudioDub() but I will do nothing");
+        return args[0];
+    }
+
     vsapi->logMessage(mtWarning, ("Invoke not fully implemented, tried to call: " + std::string(name) + " but I will pretend it doesn't exist").c_str());
     throw IScriptEnvironment::NotFound();
     return AVSValue();

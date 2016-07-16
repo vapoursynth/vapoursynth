@@ -1,4 +1,5 @@
 r33:
+directshowsource from recent avs+ can now be used
 fixed swapped uv planes with yuv411 output in vsvfw and avfs
 merged vsfs with the latest version of avfs, avfs now work for both vapoursynth and avisynth scripts and no longer has shell integration
 avisource can now open all formats vsvfw can output plus b48r
