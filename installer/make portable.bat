@@ -4,7 +4,7 @@ mkdir buildp64\vapoursynth64\plugins
 copy ..\vapoursynth.cp35-win_amd64.pyd buildp64
 copy ..\msvc_project\x64\Release\VapourSynth.dll buildp64
 copy ..\msvc_project\x64\Release\vsscript.dll buildp64
-copy ..\msvc_project\x64\Release\vsfs.dll buildp64
+copy ..\msvc_project\x64\Release\avfs.exe buildp64
 copy ..\msvc_project\x64\Release\vsvfw.dll buildp64
 copy ..\msvc_project\x64\Release\vspipe.exe buildp64
 copy ..\msvc_project\x64\Release\AvsCompat.dll buildp64\vapoursynth64\coreplugins
@@ -27,7 +27,7 @@ mkdir buildp32\vapoursynth32\plugins
 copy ..\vapoursynth.cp35-win32.pyd buildp32
 copy ..\msvc_project\Release\VapourSynth.dll buildp32
 copy ..\msvc_project\Release\vsscript.dll buildp32
-copy ..\msvc_project\Release\vsfs.dll buildp32
+copy ..\msvc_project\Release\avfs.exe buildp32
 copy ..\msvc_project\Release\vsvfw.dll buildp32
 copy ..\msvc_project\Release\vspipe.exe buildp32
 copy ..\msvc_project\Release\AvsCompat.dll buildp32\vapoursynth32\coreplugins
