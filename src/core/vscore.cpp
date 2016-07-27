@@ -41,17 +41,8 @@
 #endif
 
 // Internal filter headers
-extern "C" {
-#include "lutfilters.h"
-#include "mergefilters.h"
-#include "reorderfilters.h"
-#include "simplefilters.h"
-#include "vsresize.h"
-}
+#include "internalfilters.h"
 #include "cachefilter.h"
-#include "exprfilter.h"
-#include "textfilter.h"
-#include "genericfilters.h"
 
 #ifdef VS_TARGET_OS_DARWIN
 #define thread_local __thread

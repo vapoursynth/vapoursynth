@@ -34,10 +34,7 @@
 
 #include "VapourSynth.h"
 #include "VSHelper.h"
-
-extern "C" {
-#include "vsresize.h"
-}
+#include "internalfilters.h"
 
 #if defined(__GNUC__) && (__GNUC__ < 5)
 #include <mutex>

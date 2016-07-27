@@ -19,7 +19,7 @@
 */
 
 #include "VSHelper.h"
-#include "simplefilters.h"
+#include "internalfilters.h"
 #include "filtershared.h"
 #include <stdlib.h>
 #include <string.h>

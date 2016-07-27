@@ -30,7 +30,7 @@
 #include <cmath>
 #include "VapourSynth.h"
 #include "VSHelper.h"
-#include "exprfilter.h"
+#include "internalfilters.h"
 #include "cpufeatures.h"
 #ifdef VS_TARGET_CPU_X86
 #define NOMINMAX

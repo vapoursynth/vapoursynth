@@ -29,7 +29,7 @@
 
 #include "filtershared.h"
 #include "ter-116n.h"
-#include "textfilter.h"
+#include "internalfilters.h"
 
 typedef std::list<std::string> stringlist;
 

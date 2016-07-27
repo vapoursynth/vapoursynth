@@ -127,6 +127,7 @@
       <PreprocessorDefinitions>VS_CORE_EXPORTS;VS_TARGET_OS_WINDOWS;VS_TARGET_CPU_X86;_CRT_SECURE_NO_WARNINGS;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <AdditionalOptions>/Zc:throwingNew %(AdditionalOptions)</AdditionalOptions>
+      <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -260,20 +261,13 @@
     <ClInclude Include="..\..\include\VSScript.h" />
     <ClInclude Include="..\..\src\core\cachefilter.h" />
     <ClInclude Include="..\..\src\core\cpufeatures.h" />
-    <ClInclude Include="..\..\src\core\exprfilter.h" />
     <ClInclude Include="..\..\src\core\filtershared.h" />
-    <ClInclude Include="..\..\src\core\genericfilters.h" />
+    <ClInclude Include="..\..\src\core\internalfilters.h" />
     <ClInclude Include="..\..\src\core\jitasm.h" />
-    <ClInclude Include="..\..\src\core\lutfilters.h" />
-    <ClInclude Include="..\..\src\core\mergefilters.h" />
-    <ClInclude Include="..\..\src\core\reorderfilters.h" />
-    <ClInclude Include="..\..\src\core\simplefilters.h" />
     <ClInclude Include="..\..\src\core\ter-116n.h" />
-    <ClInclude Include="..\..\src\core\textfilter.h" />
     <ClInclude Include="..\..\src\core\version.h" />
     <ClInclude Include="..\..\src\core\vscore.h" />
     <ClInclude Include="..\..\src\core\vslog.h" />
-    <ClInclude Include="..\..\src\core\vsresize.h" />
     <ClInclude Include="..\..\src\core\x86utils.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
