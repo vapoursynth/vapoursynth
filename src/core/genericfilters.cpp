@@ -24,15 +24,29 @@
 #include <cstdlib>
 #include <string>
 #include <array>
-
-#include "VSHelper.h"
-
+#include <memory>
+#include <VapourSynth.h>
+#include <VSHelper.h>
+#include "filtershared.h"
 
 #ifdef VS_TARGET_OS_WINDOWS
 #define FORCE_INLINE __forceinline
 #else
 #define FORCE_INLINE inline __attribute__((always_inline))
 #endif
+
+#ifdef VS_TARGET_CPU_X86
+#include <emmintrin.h>
+#endif
+
+static inline int64_t floatToInt64S(double f) {
+    if (f > INT64_MAX)
+        return INT64_MAX;
+    else if (f < INT64_MIN)
+        return INT64_MIN;
+    else
+        return (int64_t)llrint(f);
+}
 
 
 enum GenericOperations {
@@ -47,14 +61,8 @@ enum GenericOperations {
     GenericDeflate,
     GenericInflate,
 
-    GenericConvolution,
-
-    GenericInvert,
-    GenericLimiter,
-    GenericLevels,
-    GenericBinarize
+    GenericConvolution
 };
-
 
 enum ConvolutionTypes {
     ConvolutionSquare,
@@ -62,59 +70,980 @@ enum ConvolutionTypes {
     ConvolutionVertical
 };
 
+struct GenericData {
+    VSNodeRef *node;
+    const VSVideoInfo *vi;
+    bool process[3];
 
-struct GenericParams {
-    // Used by all.
-    int max_value;
+    ConvolutionTypes convolution_type;
 
-    // Prewitt, Sobel, Limiter.
-    int thresh_low;
-    int thresh_high;
+    const char *filter_name;
+
+    /////////
+    // per filter stuff
 
     // Prewitt, Sobel.
+    float thresh_low;
+    float thresh_high;
     int rshift;
 
-    // Minimum, Maximum, Deflate, Inflate, Binarize.
-    int th;
+    // Minimum, Maximum, Deflate, Inflate.
+    uint16_t th;
+    float thf;
 
-    // Binarize.
-    int v0;
-    int v1;
+    // Minimum, Maximum.
+    int pattern;
+    bool enable[8];
+
+    // Convolution.
+    float matrix[25];
+    int matrix_elements;
+    float rdiv;
+    float bias;
+    bool saturate;
+};
+
+static void sharedFormatCheck(const VSFormat *fi) {
+    if (fi->colorFamily == cmCompat)
+        throw std::string("Cannot process compat formats.");
+
+    if ((fi->sampleType == stInteger && fi->bitsPerSample > 16) || (fi->sampleType == stFloat && fi->bitsPerSample != 32))
+        throw std::string("Only clips with 8..16 bits integer per sample or float supported.");
+}
+
+static void getPlanePixelRangeArgs(const VSFormat *fi, const VSMap *in, const char *propName, uint16_t *ival, float *fval, int mode, const VSAPI *vsapi) {
+    if (vsapi->propNumElements(in, propName) > fi->numPlanes)
+        throw std::string(propName).append(" has more values specified than there are planes");
+    bool prevValid = false;
+    for (int plane = 0; plane < 3; plane++) {
+        int err;
+        bool uv = (plane > 0 && (fi->colorFamily == cmYUV || fi->colorFamily == cmYCoCg));
+        double temp = vsapi->propGetFloat(in, propName, plane, &err);
+        if (err) {
+            if (prevValid) {
+                ival[plane] = ival[plane - 1];
+                fval[plane] = fval[plane - 1];
+            } else if (mode == 0) { // bottom of pixel range
+                ival[plane] = 0;
+                fval[plane] = uv ? -.5f : 0;
+            } else if (mode == 1) { // top of pixel range
+                ival[plane] = (1 << fi->bitsPerSample) - 1;
+                fval[plane] = uv ? .5f : 1.f;
+            } else if (mode == 2) { // middle of pixel range
+                ival[plane] = (1 << fi->bitsPerSample) / 2;
+                fval[plane] = uv ? 0.f : .5f;
+            } else if (mode == 3) { // zero all the things
+                ival[plane] = 0;
+                fval[plane] = 0.f;
+            } else if (mode == 4 || mode == 5) { // max all the things (unlimited threshold)
+                ival[plane] = std::numeric_limits<uint16_t>::max();
+                fval[plane] = std::numeric_limits<float>::max();
+            }
+        } else {
+            if (fi->sampleType == stInteger) {
+                int64_t temp2 = static_cast<int64_t>(temp + .5);
+                if ((temp2 < 0) || (temp2 >(1 << fi->bitsPerSample) - 1))
+                    throw std::string(propName).append(" out of range");
+                ival[plane] = static_cast<uint16_t>(temp2);
+            } else {
+                fval[plane] = static_cast<float>(temp);
+                if (mode == 5 && fval[plane] < 0)
+                    throw std::string(propName).append(" must be positive");
+            }
+            prevValid = true;
+        }
+    }
+}
+
+template<typename T>
+static void getPlaneArgs(const VSFormat *fi, const VSMap *in, const char *propName, T *val, T def, const VSAPI *vsapi) {
+    if (vsapi->propNumElements(in, propName) > fi->numPlanes)
+        throw std::string(propName).append(" has more values specified than there are planes");
+    bool prevValid = false;
+    for (int plane = 0; plane < 3; plane++) {
+        int err;
+        T temp = vsapi->propGetFloat(in, propName, plane, &err);
+        if (err) {
+            val[plane] = prevValid ? val[plane - 1] : def;
+        } else {
+            val[plane] = temp;
+            prevValid = true;
+        }
+    }
+}
+
+template<typename T>
+static void VS_CC templateClipInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
+    T *d = (T *)* instanceData;
+    vsapi->setVideoInfo(vsapi->getVideoInfo(d->node), 1, node);
+}
+
+template<typename T>
+static void VS_CC templateClipFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+    T *d = (T *)instanceData;
+    vsapi->freeNode(d->node);
+    delete instanceData;
+}
+
+template<typename T, typename OP>
+static const VSFrameRef *VS_CC singlePixelGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    T *d = (T *)* instanceData;
+
+    if (activationReason == arInitial) {
+        vsapi->requestFrameFilter(n, d->node, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSFormat *fi = vsapi->getFrameFormat(src);
+
+        try {
+            sharedFormatCheck(fi);
+        } catch (std::string &error) {
+            vsapi->setFilterError(std::string(d->name).append(": ").append(error).c_str(), frameCtx);
+            vsapi->freeFrame(src);
+            return nullptr;
+        }
+
+        const int pl[] = { 0, 1, 2 };
+        const VSFrameRef *fr[] = {
+            d->process[0] ? nullptr : src,
+            d->process[1] ? nullptr : src,
+            d->process[2] ? nullptr : src
+        };
+
+        VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
+
+        for (int plane = 0; plane < fi->numPlanes; plane++) {
+            if (d->process[plane]) {
+                OP opts(d, fi, plane);
+                uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
+                const uint8_t * VS_RESTRICT srcp = vsapi->getReadPtr(src, plane);
+                int width = vsapi->getFrameWidth(src, plane);
+                int height = vsapi->getFrameHeight(src, plane);
+                ptrdiff_t stride = vsapi->getStride(src, plane);
+
+                for (int h = 0; h < height; h++) {
+                    if (fi->bytesPerSample == 1)
+                        OP::processPlane<uint8_t>(srcp, dstp, width, opts);
+                    else if (fi->bytesPerSample == 2)
+                        OP::processPlane<uint16_t>(reinterpret_cast<const uint16_t *>(srcp), reinterpret_cast<uint16_t *>(dstp), width, opts);
+                    else if (fi->bytesPerSample == 4)
+                        OP::processPlaneF<float>(reinterpret_cast<const float *>(srcp), reinterpret_cast<float *>(dstp), width, opts);
+                    srcp += stride;
+                    dstp += stride;
+                }
+            }
+        }
+
+        return dst;
+    }
+
+    return nullptr;
+}
+
+template<typename T>
+static void templateInit(T& d, const char *name, bool allowVariableFormat, const VSMap *in, VSMap *out, const VSAPI *vsapi) {
+    *d = {};
+
+    d->name = name;
+    d->node = vsapi->propGetNode(in, "clip", 0, 0);
+    d->vi = vsapi->getVideoInfo(d->node);
+
+    if (!allowVariableFormat && !d->vi->format)
+        throw std::string("Cannot process variable format.");
+
+    if (d->vi->format)
+        sharedFormatCheck(d->vi->format);
+
+    int m = vsapi->propNumElements(in, "planes");
+
+    for (int i = 0; i < 3; i++)
+        d->process[i] = (m <= 0);
+
+    for (int i = 0; i < m; i++) {
+        int o = int64ToIntS(vsapi->propGetInt(in, "planes", i, nullptr));
+
+        if (o < 0 || o >= 3)
+            throw std::string("plane index out of range");
+
+        if (d->process[o])
+            throw std::string("plane specified twice");
+
+        d->process[o] = true;
+    }
+}
+
+/////////////////
+
+#ifdef VS_TARGET_CPU_X86
+
+alignas(sizeof(__m128i)) static const uint16_t signMask16[8] = { 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000 };
+
+#define CONVSIGN16_IN \
+__m128i convSignMask = _mm_load_si128(reinterpret_cast<const __m128i *>(signMask16)); \
+t1 = _mm_xor_si128(t1, convSignMask); \
+t2 = _mm_xor_si128(t2, convSignMask); \
+t3 = _mm_xor_si128(t3, convSignMask); \
+m1 = _mm_xor_si128(m1, convSignMask); \
+m2 = _mm_xor_si128(m2, convSignMask); \
+m3 = _mm_xor_si128(m3, convSignMask); \
+b1 = _mm_xor_si128(b1, convSignMask); \
+b2 = _mm_xor_si128(b2, convSignMask); \
+b3 = _mm_xor_si128(b3, convSignMask)
+
+#define CONVSIGN16_OUT(x) \
+_mm_xor_si128((x), convSignMask)
+
+#define ReduceAll(OP) \
+t1 = OP(t1, t2); \
+m1 = OP(m1, m2); \
+b1 = OP(b1, b2); \
+t1 = OP(t1, t3); \
+m1 = OP(m1, m3); \
+b1 = OP(b1, b3); \
+t1 = OP(t1, m1); \
+auto reduced = OP(t1, b1)
+
+#define ReducePlus(OP) \
+t2 = OP(t2, b2); \
+m1 = OP(m1, m3); \
+t2 = OP(t2, m2); \
+auto reduced = OP(t2, m1)
+
+#define ReduceHorizontal(OP) \
+auto reduced = OP(OP(m1, m2), m3)
+
+#define ReduceVertical(OP) \
+auto reduced = OP(OP(t2, m2), b2)
+
+struct LimitMehFlateMinOp {
+    static FORCE_INLINE __m128i limit8(__m128i newval, __m128i oldval, uint16_t limit) {
+        return _mm_min_epu8(_mm_max_epu8(newval, oldval), _mm_adds_epu8(oldval, _mm_set1_epi8(limit)));
+    }
+
+    static FORCE_INLINE __m128i limit16(__m128i newval, __m128i oldval, uint16_t limit, __m128i convSignMask) {
+        return CONVSIGN16_OUT(_mm_min_epi16(_mm_max_epi16(CONVSIGN16_OUT(newval), CONVSIGN16_OUT(oldval)), CONVSIGN16_OUT(_mm_adds_epu16(oldval, _mm_set1_epi16(limit)))));
+    }
+
+    static FORCE_INLINE __m128 limitF(__m128 newval, __m128 oldval, float limitf) {
+        return _mm_min_ps(_mm_max_ps(newval, oldval), _mm_add_ps(oldval, _mm_set_ps1(limitf)));
+    }
+};
+
+struct LimitMehFlateMaxOp {
+    static FORCE_INLINE __m128i limit8(__m128i newval, __m128i oldval, uint16_t limit) {
+        return _mm_max_epu8(_mm_min_epu8(newval, oldval), _mm_subs_epu8(oldval, _mm_set1_epi8(limit)));
+    }
+
+    static FORCE_INLINE __m128i limit16(__m128i newval, __m128i oldval, uint16_t limit, __m128i convSignMask) {
+        return CONVSIGN16_OUT(_mm_max_epi16(_mm_min_epi16(CONVSIGN16_OUT(newval), CONVSIGN16_OUT(oldval)), CONVSIGN16_OUT(_mm_subs_epu16(oldval, _mm_set1_epi16(limit)))));
+    }
+
+    static FORCE_INLINE __m128 limitF(__m128 newval, __m128 oldval, float limitf) {
+        return _mm_max_ps(_mm_min_ps(newval, oldval), _mm_sub_ps(oldval, _mm_set_ps1(limitf)));
+    }
+};
+
+struct LimitMinOp {
+    static FORCE_INLINE __m128i limit8(__m128i newval, __m128i oldval, uint16_t limit) {
+        return _mm_min_epu8(newval, _mm_adds_epu8(oldval, _mm_set1_epi8(limit)));
+    }
+
+    static FORCE_INLINE __m128i limit16(__m128i newval, __m128i oldval, uint16_t limit, __m128i convSignMask) {
+        return CONVSIGN16_OUT(_mm_min_epi16(newval, CONVSIGN16_OUT(_mm_adds_epu16(CONVSIGN16_OUT(oldval), _mm_set1_epi16(limit)))));
+    }
+
+    static FORCE_INLINE __m128 limitF(__m128 newval, __m128 oldval, float limitf) {
+        return _mm_min_ps(newval, _mm_add_ps(oldval, _mm_set_ps1(limitf)));
+    }
+};
+
+struct LimitMaxOp {
+    static FORCE_INLINE __m128i limit8(__m128i newval, __m128i oldval, uint16_t limit) {
+        return _mm_max_epu8(newval, _mm_subs_epu8(oldval, _mm_set1_epi8(limit)));
+    }
+
+    static FORCE_INLINE __m128i limit16(__m128i newval, __m128i oldval, uint16_t limit, __m128i convSignMask) {
+        return CONVSIGN16_OUT(_mm_max_epi16(newval, CONVSIGN16_OUT(_mm_subs_epu16(CONVSIGN16_OUT(oldval), _mm_set1_epi16(limit)))));
+    }
+
+    static FORCE_INLINE __m128 limitF(__m128 newval, __m128 oldval, float limitf) {
+        return _mm_max_ps(newval, _mm_sub_ps(oldval, _mm_set_ps1(limitf)));
+    }
+};
+
+#define X86_MAXMINOP(NAME, REDUCE, REDUCEOP, LIMITOP) \
+struct NAME ## Op ## REDUCE { \
+    struct FrameData { \
+        uint16_t limit; \
+        float limitf; \
+        FrameData(const GenericData *d, const VSFormat *fi, int plane) { \
+            limit = d->th; \
+            limitf = d->thf; \
+        } \
+    }; \
+ \
+    static FORCE_INLINE __m128i process8(__m128i t1, __m128i t2, __m128i t3, __m128i m1, __m128i m2, __m128i m3, __m128i b1, __m128i b2, __m128i b3, const FrameData &opts) { \
+        REDUCE(_mm_##REDUCEOP##_epu8); \
+        return LIMITOP::limit8(reduced, m2, opts.limit); \
+    } \
+ \
+    static FORCE_INLINE __m128i process16(__m128i t1, __m128i t2, __m128i t3, __m128i m1, __m128i m2, __m128i m3, __m128i b1, __m128i b2, __m128i b3, const FrameData &opts) { \
+        CONVSIGN16_IN; \
+        REDUCE(_mm_##REDUCEOP##_epi16); \
+        return LIMITOP::limit16(reduced, m2, opts.limit, convSignMask); \
+    } \
+ \
+    static FORCE_INLINE __m128 processF(__m128 t1, __m128 t2, __m128 t3, __m128 m1, __m128 m2, __m128 m3, __m128 b1, __m128 b2, __m128 b3, const FrameData &opts) { \
+        REDUCE(_mm_##REDUCEOP##_ps); \
+        return LIMITOP::limitF(reduced, m2, opts.limitf); \
+    } \
+};
+
+
+X86_MAXMINOP(Max, ReduceAll, max, LimitMinOp)
+X86_MAXMINOP(Max, ReducePlus, max, LimitMinOp)
+X86_MAXMINOP(Max, ReduceHorizontal, max, LimitMinOp)
+X86_MAXMINOP(Max, ReduceVertical, max, LimitMinOp)
+
+X86_MAXMINOP(Min, ReduceAll, min, LimitMaxOp)
+X86_MAXMINOP(Min, ReducePlus, min, LimitMaxOp)
+X86_MAXMINOP(Min, ReduceHorizontal, min, LimitMaxOp)
+X86_MAXMINOP(Min, ReduceVertical, min, LimitMaxOp)
+
+struct Convolution3x3 {
+    struct FrameData {
+        float bias;
+        float divisor;
+        float matrix[9];
+        bool saturate;
+
+        FrameData(const GenericData *d, const VSFormat *fi, int plane) {
+            bias = d->bias;
+            divisor = d->rdiv;
+            saturate = d->saturate;
+            for (int i = 0; i < 9; i++)
+                matrix[i] = d->matrix[i];
+        }
+    };
+
+#define CONV_REDUCE_REG8(reg, idx) \
+    __m128i temp1 ## reg = _mm_unpacklo_epi8(reg, _mm_setzero_si128()); \
+    __m128i temp2 ## reg = _mm_unpackhi_epi8(reg, _mm_setzero_si128()); \
+    acc1 = _mm_add_ps(acc1, _mm_mul_ps(_mm_cvtepi32_ps(_mm_unpacklo_epi16(temp1 ## reg, _mm_setzero_si128())), _mm_set_ps1(opts.matrix[idx]))); \
+    acc2 = _mm_add_ps(acc2, _mm_mul_ps(_mm_cvtepi32_ps(_mm_unpackhi_epi16(temp1 ## reg, _mm_setzero_si128())), _mm_set_ps1(opts.matrix[idx]))); \
+    acc3 = _mm_add_ps(acc3, _mm_mul_ps(_mm_cvtepi32_ps(_mm_unpacklo_epi16(temp2 ## reg, _mm_setzero_si128())), _mm_set_ps1(opts.matrix[idx]))); \
+    acc4 = _mm_add_ps(acc4, _mm_mul_ps(_mm_cvtepi32_ps(_mm_unpackhi_epi16(temp2 ## reg, _mm_setzero_si128())), _mm_set_ps1(opts.matrix[idx])));
+
+    static FORCE_INLINE __m128i process8(__m128i t1, __m128i t2, __m128i t3, __m128i m1, __m128i m2, __m128i m3, __m128i b1, __m128i b2, __m128i b3, const FrameData &opts) {
+        __m128 absMask = _mm_castsi128_ps(!opts.saturate ? _mm_srli_epi32(_mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128()), 1) : _mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128()));
+        __m128 acc1 = _mm_setzero_ps();
+        __m128 acc2 = _mm_setzero_ps();
+        __m128 acc3 = _mm_setzero_ps();
+        __m128 acc4 = _mm_setzero_ps();
+
+        CONV_REDUCE_REG8(t1, 0);
+        CONV_REDUCE_REG8(t2, 1);
+        CONV_REDUCE_REG8(t3, 2);
+        CONV_REDUCE_REG8(m1, 3);
+        CONV_REDUCE_REG8(m2, 4);
+        CONV_REDUCE_REG8(m3, 5);
+        CONV_REDUCE_REG8(b1, 6);
+        CONV_REDUCE_REG8(b2, 7);
+        CONV_REDUCE_REG8(b3, 8);
+
+        acc1 = _mm_max_ps(_mm_and_ps(_mm_add_ps(_mm_mul_ps(acc1, _mm_set_ps1(opts.divisor)), _mm_set_ps1(opts.bias)), absMask), _mm_setzero_ps());
+        acc2 = _mm_max_ps(_mm_and_ps(_mm_add_ps(_mm_mul_ps(acc2, _mm_set_ps1(opts.divisor)), _mm_set_ps1(opts.bias)), absMask), _mm_setzero_ps());
+        acc3 = _mm_max_ps(_mm_and_ps(_mm_add_ps(_mm_mul_ps(acc3, _mm_set_ps1(opts.divisor)), _mm_set_ps1(opts.bias)), absMask), _mm_setzero_ps());
+        acc4 = _mm_max_ps(_mm_and_ps(_mm_add_ps(_mm_mul_ps(acc4, _mm_set_ps1(opts.divisor)), _mm_set_ps1(opts.bias)), absMask), _mm_setzero_ps());
+
+        return _mm_packus_epi16(_mm_packus_epi32(_mm_cvtps_epi32(acc1), _mm_cvtps_epi32(acc2)), _mm_packus_epi32(_mm_cvtps_epi32(acc3), _mm_cvtps_epi32(acc4)));
+    }
+
+#define CONV_REDUCE_REG16(reg, idx) \
+    acc1 = _mm_add_ps(acc1, _mm_mul_ps(_mm_cvtepi32_ps(_mm_unpacklo_epi16(reg, _mm_setzero_si128())), _mm_set_ps1(opts.matrix[idx]))); \
+    acc2 = _mm_add_ps(acc2, _mm_mul_ps(_mm_cvtepi32_ps(_mm_unpackhi_epi16(reg, _mm_setzero_si128())), _mm_set_ps1(opts.matrix[idx])));
+
+    static FORCE_INLINE __m128i process16(__m128i t1, __m128i t2, __m128i t3, __m128i m1, __m128i m2, __m128i m3, __m128i b1, __m128i b2, __m128i b3, const FrameData &opts) {
+        __m128 absMask = _mm_castsi128_ps(!opts.saturate ? _mm_srli_epi32(_mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128()), 1) : _mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128()));
+        __m128 acc1 = _mm_setzero_ps();
+        __m128 acc2 = _mm_setzero_ps();
+
+        CONV_REDUCE_REG16(t1, 0);
+        CONV_REDUCE_REG16(t2, 1);
+        CONV_REDUCE_REG16(t3, 2);
+        CONV_REDUCE_REG16(m1, 3);
+        CONV_REDUCE_REG16(m2, 4);
+        CONV_REDUCE_REG16(m3, 5);
+        CONV_REDUCE_REG16(b1, 6);
+        CONV_REDUCE_REG16(b2, 7);
+        CONV_REDUCE_REG16(b3, 8);
+
+        acc1 = _mm_max_ps(_mm_and_ps(_mm_add_ps(_mm_mul_ps(acc1, _mm_set_ps1(opts.divisor)), _mm_set_ps1(opts.bias)), absMask), _mm_setzero_ps());
+        acc2 = _mm_max_ps(_mm_and_ps(_mm_add_ps(_mm_mul_ps(acc2, _mm_set_ps1(opts.divisor)), _mm_set_ps1(opts.bias)), absMask), _mm_setzero_ps());
+        
+        return _mm_packus_epi32(_mm_cvtps_epi32(acc1), _mm_cvtps_epi32(acc2));
+    }
+
+    static FORCE_INLINE __m128 processF(__m128 t1, __m128 t2, __m128 t3, __m128 m1, __m128 m2, __m128 m3, __m128 b1, __m128 b2, __m128 b3, const FrameData &opts) {
+        __m128 absMask = _mm_castsi128_ps(!opts.saturate ? _mm_srli_epi32(_mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128()), 1) : _mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128()));
+        t1 = _mm_mul_ps(t1, _mm_set_ps1(opts.matrix[0]));
+        t2 = _mm_mul_ps(t2, _mm_set_ps1(opts.matrix[1]));
+        t3 = _mm_mul_ps(t3, _mm_set_ps1(opts.matrix[2]));
+        m1 = _mm_mul_ps(m1, _mm_set_ps1(opts.matrix[3]));
+        m2 = _mm_mul_ps(m2, _mm_set_ps1(opts.matrix[4]));
+        m3 = _mm_mul_ps(m3, _mm_set_ps1(opts.matrix[5]));
+        b1 = _mm_mul_ps(b1, _mm_set_ps1(opts.matrix[6]));
+        b2 = _mm_mul_ps(b2, _mm_set_ps1(opts.matrix[7]));
+        b3 = _mm_mul_ps(b3, _mm_set_ps1(opts.matrix[8]));
+
+        t1 = _mm_add_ps(t1, t2);
+        m1 = _mm_add_ps(m1, m2);
+        b1 = _mm_add_ps(b1, b2);
+        t1 = _mm_add_ps(t1, t3);
+        m1 = _mm_add_ps(m1, m3);
+        b1 = _mm_add_ps(b1, b3);
+        t1 = _mm_add_ps(t1, m1);
+        t1 = _mm_add_ps(t1, b1);
+
+        t1 = _mm_mul_ps(t1, _mm_set_ps1(opts.divisor));
+        t1 = _mm_add_ps(t1, _mm_set_ps1(opts.bias));
+        t1 = _mm_and_ps(t1, absMask);
+
+        return t1;
+    }
+};
+
+#define UNPACK_ACC(add, unpack, reg) \
+    acc1 = _mm_add_epi ## add(acc1, _mm_unpacklo_epi ## unpack(reg, _mm_setzero_si128())); \
+    acc2 = _mm_add_epi ## add(acc2, _mm_unpackhi_epi ## unpack(reg, _mm_setzero_si128()));
+
+template<typename LimitOp>
+struct MehFlate {
+    struct FrameData {
+        uint16_t limit;
+        float limitf;
+        FrameData(const GenericData *d, const VSFormat *fi, int plane) {
+            limit = d->th;
+            limitf = d->thf;
+        }
+    };
+
+    static FORCE_INLINE __m128i process8(__m128i t1, __m128i t2, __m128i t3, __m128i m1, __m128i m2, __m128i m3, __m128i b1, __m128i b2, __m128i b3, const FrameData &opts) {
+        __m128i acc1 = _mm_setzero_si128();
+        __m128i acc2 = _mm_setzero_si128();
+        UNPACK_ACC(16, 8, t1);
+        UNPACK_ACC(16, 8, t2);
+        UNPACK_ACC(16, 8, t3);
+        UNPACK_ACC(16, 8, m1);
+        UNPACK_ACC(16, 8, m3);
+        UNPACK_ACC(16, 8, b1);
+        UNPACK_ACC(16, 8, b2);
+        UNPACK_ACC(16, 8, b3);
+
+        acc1 = _mm_srli_epi16(_mm_add_epi16(acc1, _mm_set1_epi16(4)), 3);
+        acc2 = _mm_srli_epi16(_mm_add_epi16(acc2, _mm_set1_epi16(4)), 3);
+
+        __m128i reduced = _mm_packus_epi16(acc1, acc2);
+        return LimitOp::limit8(reduced, m2, opts.limit);
+    }
+
+    static FORCE_INLINE __m128i process16(__m128i t1, __m128i t2, __m128i t3, __m128i m1, __m128i m2, __m128i m3, __m128i b1, __m128i b2, __m128i b3, const FrameData &opts) {
+        __m128i convSignMask = _mm_load_si128(reinterpret_cast<const __m128i *>(signMask16));
+        __m128i acc1 = _mm_setzero_si128();
+        __m128i acc2 = _mm_setzero_si128();
+        UNPACK_ACC(32, 16, t1);
+        UNPACK_ACC(32, 16, t2);
+        UNPACK_ACC(32, 16, t3);
+        UNPACK_ACC(32, 16, m1);
+        UNPACK_ACC(32, 16, m3);
+        UNPACK_ACC(32, 16, b1);
+        UNPACK_ACC(32, 16, b2);
+        UNPACK_ACC(32, 16, b3);
+
+        acc1 = _mm_srli_epi32(_mm_add_epi32(acc1, _mm_set1_epi32(4)), 3);
+        acc2 = _mm_srli_epi32(_mm_add_epi32(acc2, _mm_set1_epi32(4)), 3);
+
+        __m128i reduced = _mm_packus_epi32(acc1, acc2);
+        return LimitOp::limit16(reduced, m2, opts.limit, convSignMask);
+    }
+
+    static FORCE_INLINE __m128 processF(__m128 t1, __m128 t2, __m128 t3, __m128 m1, __m128 m2, __m128 m3, __m128 b1, __m128 b2, __m128 b3, const FrameData &opts) {
+        ReduceAll(_mm_add_ps);
+        reduced = _mm_mul_ps(reduced, _mm_set_ps1(1.f/8));
+        return LimitOp::limitF(reduced, m2, opts.limitf);
+    }
+};
+
+static FORCE_INLINE void sort_pair8(__m128i &a1, __m128i &a2) {
+    const __m128i tmp = _mm_min_epu8(a1, a2);
+    a2 = _mm_max_epu8(a1, a2);
+    a1 = tmp;
+}
+
+static FORCE_INLINE void sort_pair16(__m128i &a1, __m128i &a2) {
+    const __m128i tmp = _mm_min_epi16(a1, a2);
+    a2 = _mm_max_epi16(a1, a2);
+    a1 = tmp;
+}
+
+static FORCE_INLINE void sort_pairF(__m128 &a1, __m128 &a2) {
+    const __m128 tmp = _mm_min_ps(a1, a2);
+    a2 = _mm_max_ps(a1, a2);
+    a1 = tmp;
+}
+
+struct Median {
+    struct FrameData {
+        FrameData(const GenericData *d, const VSFormat *fi, int plane) {
+        }
+    };
+
+    static FORCE_INLINE __m128i process8(__m128i t1, __m128i t2, __m128i t3, __m128i m1, __m128i m2, __m128i m3, __m128i b1, __m128i b2, __m128i b3, const FrameData &opts) {
+        sort_pair8(t1, t2);
+        sort_pair8(t3, m1);
+        sort_pair8(m3, b1);
+        sort_pair8(b2, b3);
+
+        sort_pair8(t1, t3);
+        sort_pair8(t2, m1);
+        sort_pair8(m3, b2);
+        sort_pair8(b1, b3);
+
+        sort_pair8(t2, t3);
+        sort_pair8(b1, b2);
+
+        m3 = _mm_max_epu8(t1, m3);
+        b1 = _mm_max_epu8(t2, b1);
+        t3 = _mm_min_epu8(t3, b2);
+        m1 = _mm_min_epu8(m1, b3);
+
+        m3 = _mm_max_epu8(t3, m3);
+        m1 = _mm_min_epu8(m1, b1);
+
+        sort_pair8(m1, m3);
+
+        return _mm_min_epu8(_mm_max_epu8(m2, m1), m3);
+    }
+
+    static FORCE_INLINE __m128i process16(__m128i t1, __m128i t2, __m128i t3, __m128i m1, __m128i m2, __m128i m3, __m128i b1, __m128i b2, __m128i b3, const FrameData &opts) {
+        CONVSIGN16_IN;
+
+        sort_pair16(t1, t2);
+        sort_pair16(t3, m1);
+        sort_pair16(m3, b1);
+        sort_pair16(b2, b3);
+
+        sort_pair16(t1, t3);
+        sort_pair16(t2, m1);
+        sort_pair16(m3, b2);
+        sort_pair16(b1, b3);
+
+        sort_pair16(t2, t3);
+        sort_pair16(b1, b2);
+
+        m3 = _mm_max_epi16(t1, m3);    
+        b1 = _mm_max_epi16(t2, b1);   
+        t3 = _mm_min_epi16(t3, b2); 
+        m1 = _mm_min_epi16(m1, b3);    
+
+        m3 = _mm_max_epi16(t3, m3);   
+        m1 = _mm_min_epi16(m1, b1);   
+
+        sort_pair16(m1, m3);
+
+        return CONVSIGN16_OUT(_mm_min_epi16(_mm_max_epi16(m2, m1), m3));
+    }
+
+    static FORCE_INLINE __m128 processF(__m128 t1, __m128 t2, __m128 t3, __m128 m1, __m128 m2, __m128 m3, __m128 b1, __m128 b2, __m128 b3, const FrameData &opts) {
+        sort_pairF(t1, t2);
+        sort_pairF(t3, m1);
+        sort_pairF(m3, b1);
+        sort_pairF(b2, b3);
+
+        sort_pairF(t1, t3);
+        sort_pairF(t2, m1);
+        sort_pairF(m3, b2);
+        sort_pairF(b1, b3);
+
+        sort_pairF(t2, t3);
+        sort_pairF(b1, b2);
+
+        m3 = _mm_max_ps(t1, m3);
+        b1 = _mm_max_ps(t2, b1);
+        t3 = _mm_min_ps(t3, b2);
+        m1 = _mm_min_ps(m1, b3);
+
+        m3 = _mm_max_ps(t3, m3);
+        m1 = _mm_min_ps(m1, b1);
+
+        sort_pairF(m1, m3);
+
+        return _mm_min_ps(_mm_max_ps(m2, m1), m3);
+    }
+};
+
+typedef MehFlate<LimitMehFlateMaxOp> Deflate;
+typedef MehFlate<LimitMehFlateMinOp> Inflate;
+
+template<typename T, typename OP>
+void filterPlane(const uint8_t * VS_RESTRICT src, uint8_t * VS_RESTRICT dst, const ptrdiff_t stride, const unsigned width, const int height, int plane, const VSFormat *fi, const GenericData *data) {
+    // -2 to compensate for first and last part
+    unsigned miter = ((width * sizeof(T) + sizeof(__m128i) - sizeof(T)) / sizeof(__m128i)) - 2;
+    int tailelems = ((width * sizeof(T)) % sizeof(__m128i)) / sizeof(T);
+    if (tailelems == 0)
+        tailelems = sizeof(__m128i) / sizeof(T);
+    unsigned nheight = std::max(height - 2, 0);
+    const uint8_t * VS_RESTRICT srcLineStart = src;
+    uint8_t * VS_RESTRICT dstLineStart = dst;
+    OP::FrameData opts(data, fi, plane);
+
+    if (sizeof(T) == 4) {
+        alignas(sizeof(__m128)) const uint32_t ascendMask[4] = { 0, 1, 2, 3 };
+        
+        __m128 leadmask = _mm_castsi128_ps(_mm_srli_si128(_mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128()), sizeof(__m128i) - sizeof(T)));
+        __m128 tailmask = _mm_castsi128_ps(_mm_cmpeq_epi32(_mm_load_si128(reinterpret_cast<const __m128i *>(ascendMask)), _mm_set1_epi32(tailelems - 1)));
+
+        // first line
+        {
+            // first block
+            {
+                __m128 m2 = _mm_load_ps(reinterpret_cast<const float *>(src));
+                __m128 m3 = _mm_loadu_ps(reinterpret_cast<const float *>(src + sizeof(T)));
+                __m128 m1 = _mm_shuffle_ps(m2, m2, _MM_SHUFFLE(2, 1, 0, 0));
+                __m128 b2 = _mm_load_ps(reinterpret_cast<const float *>(src + stride));
+                __m128 b3 = _mm_loadu_ps(reinterpret_cast<const float *>(src + stride + sizeof(T)));
+                __m128 b1 = _mm_shuffle_ps(b2, b2, _MM_SHUFFLE(2, 1, 0, 0));
+                _mm_store_ps(reinterpret_cast<float *>(dst), OP::processF(m1, m2, m3, m1, m2, m3, b1, b2, b3, opts));
+                src += sizeof(__m128);
+                dst += sizeof(__m128);
+            }
+
+            // middle
+            for (unsigned w = miter; w > 0; w--) {
+                __m128 m1 = _mm_loadu_ps(reinterpret_cast<const float *>(src - sizeof(T)));
+                __m128 m2 = _mm_load_ps(reinterpret_cast<const float *>(src));
+                __m128 m3 = _mm_loadu_ps(reinterpret_cast<const float *>(src + sizeof(T)));
+                __m128 b1 = _mm_loadu_ps(reinterpret_cast<const float *>(src + stride - sizeof(T)));
+                __m128 b2 = _mm_load_ps(reinterpret_cast<const float *>(src + stride));
+                __m128 b3 = _mm_loadu_ps(reinterpret_cast<const float *>(src + stride + sizeof(T)));
+                _mm_store_ps(reinterpret_cast<float *>(dst), OP::processF(m1, m2, m3, m1, m2, m3, b1, b2, b3, opts));
+                src += sizeof(__m128);
+                dst += sizeof(__m128);
+            }
+
+            // last block
+            {
+                __m128 m1 = _mm_loadu_ps(reinterpret_cast<const float *>(src - sizeof(T)));
+                __m128 m2 = _mm_load_ps(reinterpret_cast<const float *>(src));
+                __m128 m3 = _mm_or_ps(_mm_andnot_ps(tailmask, _mm_shuffle_ps(m2, m2, _MM_SHUFFLE(3, 3, 2, 1))), _mm_and_ps(tailmask, m2));
+                __m128 b1 = _mm_loadu_ps(reinterpret_cast<const float *>(src + stride - sizeof(T)));
+                __m128 b2 = _mm_load_ps(reinterpret_cast<const float *>(src + stride));
+                __m128 b3 = _mm_or_ps(_mm_andnot_ps(tailmask, _mm_shuffle_ps(b2, b2, _MM_SHUFFLE(3, 3, 2, 1))), _mm_and_ps(tailmask, b2));
+                _mm_store_ps(reinterpret_cast<float *>(dst), OP::processF(m1, m2, m3, m1, m2, m3, b1, b2, b3, opts));
+            }
+
+            srcLineStart += stride;
+            src = srcLineStart;
+            dstLineStart += stride;
+            dst = dstLineStart;
+        }
+
+        for (unsigned h = nheight; h > 0; h--) {
+            // first block
+            {
+                __m128 t2 = _mm_load_ps(reinterpret_cast<const float *>(src - stride));
+                __m128 t3 = _mm_loadu_ps(reinterpret_cast<const float *>(src - stride + sizeof(T)));
+                __m128 t1 = _mm_shuffle_ps(t2, t2, _MM_SHUFFLE(2, 1, 0, 0));
+                __m128 m2 = _mm_load_ps(reinterpret_cast<const float *>(src));
+                __m128 m3 = _mm_loadu_ps(reinterpret_cast<const float *>(src + sizeof(T)));
+                __m128 m1 = _mm_shuffle_ps(m2, m2, _MM_SHUFFLE(2, 1, 0, 0));
+                __m128 b2 = _mm_load_ps(reinterpret_cast<const float *>(src + stride));
+                __m128 b3 = _mm_loadu_ps(reinterpret_cast<const float *>(src + stride + sizeof(T)));
+                __m128 b1 = _mm_shuffle_ps(b2, b2, _MM_SHUFFLE(2, 1, 0, 0));
+                _mm_store_ps(reinterpret_cast<float *>(dst), OP::processF(t1, t2, t3, m1, m2, m3, b1, b2, b3, opts));
+                src += sizeof(__m128);
+                dst += sizeof(__m128);
+            }
+
+            // middle
+            for (unsigned w = miter; w > 0; w--) {
+                __m128 t1 = _mm_loadu_ps(reinterpret_cast<const float *>(src - stride - sizeof(T)));
+                __m128 t2 = _mm_load_ps(reinterpret_cast<const float *>(src - stride));
+                __m128 t3 = _mm_loadu_ps(reinterpret_cast<const float *>(src - stride + sizeof(T)));
+                __m128 m1 = _mm_loadu_ps(reinterpret_cast<const float *>(src - sizeof(T)));
+                __m128 m2 = _mm_load_ps(reinterpret_cast<const float *>(src));
+                __m128 m3 = _mm_loadu_ps(reinterpret_cast<const float *>(src + sizeof(T)));
+                __m128 b1 = _mm_loadu_ps(reinterpret_cast<const float *>(src + stride - sizeof(T)));
+                __m128 b2 = _mm_load_ps(reinterpret_cast<const float *>(src + stride));
+                __m128 b3 = _mm_loadu_ps(reinterpret_cast<const float *>(src + stride + sizeof(T)));
+                _mm_store_ps(reinterpret_cast<float *>(dst), OP::processF(t1, t2, t3, m1, m2, m3, b1, b2, b3, opts));
+                src += sizeof(__m128);
+                dst += sizeof(__m128);
+            }
+
+            // last block
+            {
+                __m128 t1 = _mm_loadu_ps(reinterpret_cast<const float *>(src - stride - sizeof(T)));
+                __m128 t2 = _mm_load_ps(reinterpret_cast<const float *>(src - stride));
+                __m128 t3 = _mm_or_ps(_mm_andnot_ps(tailmask, _mm_shuffle_ps(t2, t2, _MM_SHUFFLE(3, 3, 2, 1))), _mm_and_ps(tailmask, t2));
+                __m128 m1 = _mm_loadu_ps(reinterpret_cast<const float *>(src - sizeof(T)));
+                __m128 m2 = _mm_load_ps(reinterpret_cast<const float *>(src));
+                __m128 m3 = _mm_or_ps(_mm_andnot_ps(tailmask, _mm_shuffle_ps(m2, m2, _MM_SHUFFLE(3, 3, 2, 1))), _mm_and_ps(tailmask, m2));
+                __m128 b1 = _mm_loadu_ps(reinterpret_cast<const float *>(src + stride - sizeof(T)));
+                __m128 b2 = _mm_load_ps(reinterpret_cast<const float *>(src + stride));
+                __m128 b3 = _mm_or_ps(_mm_andnot_ps(tailmask, _mm_shuffle_ps(b2, b2, _MM_SHUFFLE(3, 3, 2, 1))), _mm_and_ps(tailmask, b2));
+                _mm_store_ps(reinterpret_cast<float *>(dst), OP::processF(t1, t2, t3, m1, m2, m3, b1, b2, b3, opts));
+            }
+
+            srcLineStart += stride;
+            src = srcLineStart;
+            dstLineStart += stride;
+            dst = dstLineStart;
+        }
+
+        // last line
+        {
+            // first block
+            {
+                __m128 t2 = _mm_load_ps(reinterpret_cast<const float *>(src - stride));
+                __m128 t3 = _mm_loadu_ps(reinterpret_cast<const float *>(src - stride + sizeof(T)));
+                __m128 t1 = _mm_shuffle_ps(t2, t2, _MM_SHUFFLE(2, 1, 0, 0));
+                __m128 m2 = _mm_load_ps(reinterpret_cast<const float *>(src));
+                __m128 m3 = _mm_loadu_ps(reinterpret_cast<const float *>(src + sizeof(T)));
+                __m128 m1 = _mm_shuffle_ps(m2, m2, _MM_SHUFFLE(2, 1, 0, 0));
+                _mm_store_ps(reinterpret_cast<float *>(dst), OP::processF(t1, t2, t3, m1, m2, m3, m1, m2, m3, opts));
+                src += sizeof(__m128);
+                dst += sizeof(__m128);
+            }
+
+            // middle
+            for (unsigned w = miter; w > 0; w--) {
+                __m128 t1 = _mm_loadu_ps(reinterpret_cast<const float *>(src - stride - sizeof(T)));
+                __m128 t2 = _mm_load_ps(reinterpret_cast<const float *>(src - stride));
+                __m128 t3 = _mm_loadu_ps(reinterpret_cast<const float *>(src - stride + sizeof(T)));
+                __m128 m1 = _mm_loadu_ps(reinterpret_cast<const float *>(src - sizeof(T)));
+                __m128 m2 = _mm_load_ps(reinterpret_cast<const float *>(src));
+                __m128 m3 = _mm_loadu_ps(reinterpret_cast<const float *>(src + sizeof(T)));
+                _mm_store_ps(reinterpret_cast<float *>(dst), OP::processF(t1, t2, t3, m1, m2, m3, m1, m2, m3, opts));
+                src += sizeof(__m128);
+                dst += sizeof(__m128);
+            }
+
+            // last block
+            {
+                __m128 t1 = _mm_loadu_ps(reinterpret_cast<const float *>(src - stride - sizeof(T)));
+                __m128 t2 = _mm_load_ps(reinterpret_cast<const float *>(src - stride));
+                __m128 t3 = _mm_or_ps(_mm_andnot_ps(tailmask, _mm_shuffle_ps(t2, t2, _MM_SHUFFLE(3, 3, 2, 1))), _mm_and_ps(tailmask, t2));
+                __m128 m1 = _mm_loadu_ps(reinterpret_cast<const float *>(src - sizeof(T)));
+                __m128 m2 = _mm_load_ps(reinterpret_cast<const float *>(src));
+                __m128 m3 = _mm_or_ps(_mm_andnot_ps(tailmask, _mm_shuffle_ps(m2, m2, _MM_SHUFFLE(3, 3, 2, 1))), _mm_and_ps(tailmask, m2));
+                _mm_store_ps(reinterpret_cast<float *>(dst), OP::processF(t1, t2, t3, m1, m2, m3, m1, m2, m3, opts));
+            }
+        }
+    } else {
+        alignas(sizeof(__m128i)) const uint8_t ascendMask1[16] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
+        alignas(sizeof(__m128i)) const uint16_t ascendMask2[8] = { 0, 1, 2, 3, 4, 5, 6, 7 };
+
+        __m128i leadmask = _mm_srli_si128(_mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128()), sizeof(__m128i) - sizeof(T));
+        __m128i tailmask;
+        if (sizeof(T) == 1) {
+            tailmask = _mm_cmpeq_epi8(_mm_load_si128(reinterpret_cast<const __m128i *>(ascendMask1)), _mm_set1_epi8(tailelems - 1));
+        } else {
+            tailmask = _mm_cmpeq_epi16(_mm_load_si128(reinterpret_cast<const __m128i *>(ascendMask2)), _mm_set1_epi16(tailelems - 1));
+        }
+
+
+        // first line
+        {
+            // first block
+            {
+                __m128i m2 = _mm_load_si128(reinterpret_cast<const __m128i *>(src));
+                __m128i m3 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src + sizeof(T)));
+                __m128i m1 = _mm_or_si128(_mm_and_si128(m2, leadmask), _mm_slli_si128(m2, sizeof(T)));
+                __m128i b2 = _mm_load_si128(reinterpret_cast<const __m128i *>(src + stride));
+                __m128i b3 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src + stride + sizeof(T)));
+                __m128i b1 = _mm_or_si128(_mm_and_si128(b2, leadmask), _mm_slli_si128(b2, sizeof(T)));
+                _mm_store_si128(reinterpret_cast<__m128i *>(dst), (sizeof(T) == 1) ? OP::process8(m1, m2, m3, m1, m2, m3, b1, b2, b3, opts) : OP::process16(m1, m2, m3, m1, m2, m3, b1, b2, b3, opts));
+                src += sizeof(__m128i);
+                dst += sizeof(__m128i);
+            }
+
+            // middle
+            for (unsigned w = miter; w > 0; w--) {
+                __m128i m1 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src - sizeof(T)));
+                __m128i m2 = _mm_load_si128(reinterpret_cast<const __m128i *>(src));
+                __m128i m3 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src + sizeof(T)));
+                __m128i b1 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src + stride - sizeof(T)));
+                __m128i b2 = _mm_load_si128(reinterpret_cast<const __m128i *>(src + stride));
+                __m128i b3 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src + stride + sizeof(T)));
+                _mm_store_si128(reinterpret_cast<__m128i *>(dst), (sizeof(T) == 1) ? OP::process8(m1, m2, m3, m1, m2, m3, b1, b2, b3, opts) : OP::process16(m1, m2, m3, m1, m2, m3, b1, b2, b3, opts));
+                src += sizeof(__m128i);
+                dst += sizeof(__m128i);
+            }
+
+            // last block
+            {
+                __m128i m1 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src - sizeof(T)));
+                __m128i m2 = _mm_load_si128(reinterpret_cast<const __m128i *>(src));
+                __m128i m3 = _mm_or_si128(_mm_andnot_si128(tailmask, _mm_srli_si128(m2, sizeof(T))), _mm_and_si128(tailmask, m2));
+                __m128i b1 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src + stride - sizeof(T)));
+                __m128i b2 = _mm_load_si128(reinterpret_cast<const __m128i *>(src + stride));
+                __m128i b3 = _mm_or_si128(_mm_andnot_si128(tailmask, _mm_srli_si128(b2, sizeof(T))), _mm_and_si128(tailmask, b2));
+                _mm_store_si128(reinterpret_cast<__m128i *>(dst), (sizeof(T) == 1) ? OP::process8(m1, m2, m3, m1, m2, m3, b1, b2, b3, opts) : OP::process16(m1, m2, m3, m1, m2, m3, b1, b2, b3, opts));
+            }
+
+            srcLineStart += stride;
+            src = srcLineStart;
+            dstLineStart += stride;
+            dst = dstLineStart;
+        }
+
+        for (unsigned h = nheight; h > 0; h--) {
+            // first block
+            {
+                __m128i t2 = _mm_load_si128(reinterpret_cast<const __m128i *>(src - stride));
+                __m128i t3 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src - stride + sizeof(T)));
+                __m128i t1 = _mm_or_si128(_mm_and_si128(t2, leadmask), _mm_slli_si128(t2, sizeof(T)));
+                __m128i m2 = _mm_load_si128(reinterpret_cast<const __m128i *>(src));
+                __m128i m3 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src + sizeof(T)));
+                __m128i m1 = _mm_or_si128(_mm_and_si128(m2, leadmask), _mm_slli_si128(m2, sizeof(T)));
+                __m128i b2 = _mm_load_si128(reinterpret_cast<const __m128i *>(src + stride));
+                __m128i b3 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src + stride + sizeof(T)));
+                __m128i b1 = _mm_or_si128(_mm_and_si128(b2, leadmask), _mm_slli_si128(b2, sizeof(T)));
+                _mm_store_si128(reinterpret_cast<__m128i *>(dst), (sizeof(T) == 1) ? OP::process8(t1, t2, t3, m1, m2, m3, b1, b2, b3, opts) : OP::process16(t1, t2, t3, m1, m2, m3, b1, b2, b3, opts));
+                src += sizeof(__m128i);
+                dst += sizeof(__m128i);
+            }
+
+            // middle
+            for (unsigned w = miter; w > 0; w--) {
+                __m128i t1 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src - stride - sizeof(T)));
+                __m128i t2 = _mm_load_si128(reinterpret_cast<const __m128i *>(src - stride));
+                __m128i t3 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src - stride + sizeof(T)));
+                __m128i m1 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src - sizeof(T)));
+                __m128i m2 = _mm_load_si128(reinterpret_cast<const __m128i *>(src));
+                __m128i m3 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src + sizeof(T)));
+                __m128i b1 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src + stride - sizeof(T)));
+                __m128i b2 = _mm_load_si128(reinterpret_cast<const __m128i *>(src + stride));
+                __m128i b3 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src + stride + sizeof(T)));
+                _mm_store_si128(reinterpret_cast<__m128i *>(dst), (sizeof(T) == 1) ? OP::process8(t1, t2, t3, m1, m2, m3, b1, b2, b3, opts) : OP::process16(t1, t2, t3, m1, m2, m3, b1, b2, b3, opts));
+                src += sizeof(__m128i);
+                dst += sizeof(__m128i);
+            }
+
+            // last block
+            {
+                __m128i t1 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src - stride - sizeof(T)));
+                __m128i t2 = _mm_load_si128(reinterpret_cast<const __m128i *>(src - stride));
+                __m128i t3 = _mm_or_si128(_mm_andnot_si128(tailmask, _mm_srli_si128(t2, sizeof(T))), _mm_and_si128(tailmask, t2));
+                __m128i m1 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src - sizeof(T)));
+                __m128i m2 = _mm_load_si128(reinterpret_cast<const __m128i *>(src));
+                __m128i m3 = _mm_or_si128(_mm_andnot_si128(tailmask, _mm_srli_si128(m2, sizeof(T))), _mm_and_si128(tailmask, m2));
+                __m128i b1 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src + stride - sizeof(T)));
+                __m128i b2 = _mm_load_si128(reinterpret_cast<const __m128i *>(src + stride));
+                __m128i b3 = _mm_or_si128(_mm_andnot_si128(tailmask, _mm_srli_si128(b2, sizeof(T))), _mm_and_si128(tailmask, b2));
+                _mm_store_si128(reinterpret_cast<__m128i *>(dst), (sizeof(T) == 1) ? OP::process8(t1, t2, t3, m1, m2, m3, b1, b2, b3, opts) : OP::process16(t1, t2, t3, m1, m2, m3, b1, b2, b3, opts));
+            }
+
+            srcLineStart += stride;
+            src = srcLineStart;
+            dstLineStart += stride;
+            dst = dstLineStart;
+        }
+
+        // last line
+        {
+            // first block
+            {
+                __m128i t2 = _mm_load_si128(reinterpret_cast<const __m128i *>(src - stride));
+                __m128i t3 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src - stride + sizeof(T)));
+                __m128i t1 = _mm_or_si128(_mm_and_si128(t2, leadmask), _mm_slli_si128(t2, sizeof(T)));
+                __m128i m2 = _mm_load_si128(reinterpret_cast<const __m128i *>(src));
+                __m128i m3 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src + sizeof(T)));
+                __m128i m1 = _mm_or_si128(_mm_and_si128(m2, leadmask), _mm_slli_si128(m2, sizeof(T)));
+                _mm_store_si128(reinterpret_cast<__m128i *>(dst), (sizeof(T) == 1) ? OP::process8(t1, t2, t3, m1, m2, m3, m1, m2, m3, opts) : OP::process16(t1, t2, t3, m1, m2, m3, m1, m2, m3, opts));
+                src += sizeof(__m128i);
+                dst += sizeof(__m128i);
+            }
+
+            // middle
+            for (unsigned w = miter; w > 0; w--) {
+                __m128i t1 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src - stride - sizeof(T)));
+                __m128i t2 = _mm_load_si128(reinterpret_cast<const __m128i *>(src - stride));
+                __m128i t3 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src - stride + sizeof(T)));
+                __m128i m1 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src - sizeof(T)));
+                __m128i m2 = _mm_load_si128(reinterpret_cast<const __m128i *>(src));
+                __m128i m3 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src + sizeof(T)));
+                _mm_store_si128(reinterpret_cast<__m128i *>(dst), (sizeof(T) == 1) ? OP::process8(t1, t2, t3, m1, m2, m3, m1, m2, m3, opts) : OP::process16(t1, t2, t3, m1, m2, m3, m1, m2, m3, opts));
+                src += sizeof(__m128i);
+                dst += sizeof(__m128i);
+            }
+
+            // last block
+            {
+                __m128i t1 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src - stride - sizeof(T)));
+                __m128i t2 = _mm_load_si128(reinterpret_cast<const __m128i *>(src - stride));
+                __m128i t3 = _mm_or_si128(_mm_andnot_si128(tailmask, _mm_srli_si128(t2, sizeof(T))), _mm_and_si128(tailmask, t2));
+                __m128i m1 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src - sizeof(T)));
+                __m128i m2 = _mm_load_si128(reinterpret_cast<const __m128i *>(src));
+                __m128i m3 = _mm_or_si128(_mm_andnot_si128(tailmask, _mm_srli_si128(m2, sizeof(T))), _mm_and_si128(tailmask, m2));
+                _mm_store_si128(reinterpret_cast<__m128i *>(dst), (sizeof(T) == 1) ? OP::process8(t1, t2, t3, m1, m2, m3, m1, m2, m3, opts) : OP::process16(t1, t2, t3, m1, m2, m3, m1, m2, m3, opts));
+            }
+        }
+    }
+}
+
+#endif
+
+
+struct GenericPlaneParams {
+    uint16_t max_value;
+
+    // Prewitt, Sobel.
+    float thresh_low;
+    float thresh_high;
+    unsigned rshift;
+
+    // Minimum, Maximum, Deflate, Inflate.
+    uint16_t th;
+    float thf;
 
     // Minimum, Maximum.
     int enable[8];
 
     // Convolution.
-    int matrix[25];
+    float matrix[25];
     int matrix_elements;
     float rdiv;
     float bias;
     bool saturate;
 
-    // Levels.
-    int min_in;
-    int max_in;
-    float gamma;
-    int min_out;
-    int max_out;
+    GenericPlaneParams(const GenericData *params, const VSFormat *fi, int plane) {
+        max_value = ((1 << fi->bitsPerSample) - 1);
+
+        thresh_low = params->thresh_low;
+        thresh_high = params->thresh_high;
+        rshift = params->rshift;
+
+        th = params->th;
+        thf = params->thf;
+
+        matrix_elements = params->matrix_elements;
+        rdiv = params->rdiv;
+        bias = params->bias;
+        saturate = params->saturate;
+
+        for (int i = 0; i < 8; i++)
+            enable[i] = params->enable[i];
+        for (int i = 0; i < 25; i++)
+            matrix[i] = params->matrix[i];
+    }
 };
 
 
-struct GenericData {
-    VSNodeRef *node;
-    const VSVideoInfo *vi;
-    int process[3];
 
-    GenericParams params;
-
-    ConvolutionTypes convolution_type;
-
-    const char *filter_name;
-};
-
-
-template <GenericOperations op>
-static FORCE_INLINE int min_max(int a, int b) {
+template <GenericOperations op, typename T>
+static FORCE_INLINE T min_max(T a, T b) {
     if (op == GenericMinimum || op == GenericDeflate)
         return std::min(a, b);
     else if (op == GenericMaximum || op == GenericInflate)
@@ -124,8 +1053,8 @@ static FORCE_INLINE int min_max(int a, int b) {
 }
 
 
-template <GenericOperations op>
-static FORCE_INLINE int max_min(int a, int b) {
+template <GenericOperations op, typename T>
+static FORCE_INLINE T max_min(T a, T b) {
     if (op == GenericMinimum || op == GenericDeflate)
         return std::max(a, b);
     else if (op == GenericMaximum || op == GenericInflate)
@@ -133,20 +1062,18 @@ static FORCE_INLINE int max_min(int a, int b) {
     else
         return 42; // Silence warning.
 }
-
 
 template <typename PixelType, GenericOperations op>
-static FORCE_INLINE PixelType generic_3x3(
-        PixelType a11, PixelType a21, PixelType a31,
-        PixelType a12, PixelType a22, PixelType a32,
-        PixelType a13, PixelType a23, PixelType a33, GenericParams *params) {
+static FORCE_INLINE PixelType generic_3x3I(
+    PixelType a11, PixelType a21, PixelType a31,
+    PixelType a12, PixelType a22, PixelType a32,
+    PixelType a13, PixelType a23, PixelType a33, const GenericPlaneParams &params) {
 
     if (op == GenericPrewitt || op == GenericSobel) {
 
-        int max_value = params->max_value;
-        int thresh_low = params->thresh_low;
-        int thresh_high = params->thresh_high;
-        int rshift = params->rshift;
+        int max_value = params.max_value;
+        float thresh_low = params.thresh_low;
+        float thresh_high = params.thresh_high;
 
         int64_t gx, gy;
 
@@ -158,20 +1085,22 @@ static FORCE_INLINE PixelType generic_3x3(
             gy = a13 + 2 * a23 + a33 - a11 - 2 * a21 - a31;
         }
 
-        int g = static_cast<int>(std::sqrt(static_cast<double>(gx * gx + gy * gy)) + 0.5);
-        g = g >> rshift;
+        float f = std::sqrt(static_cast<float>(gx * gx + gy * gy));
 
-        if (g >= thresh_high)
+        PixelType g;
+        if (f >= (thresh_high * (1 << params.rshift)))
             g = max_value;
-        if (g <= thresh_low)
+        else if (f <= (thresh_low * (1 << params.rshift)))
             g = 0;
+        else
+            g = a22;
 
         return g;
 
     } else if (op == GenericMinimum || op == GenericMaximum) {
 
-        int th = params->th;
-        int *enable = params->enable;
+        int th = params.th;
+        const int *enable = params.enable;
 
         int lower_or_upper_bound;
 
@@ -179,12 +1108,12 @@ static FORCE_INLINE PixelType generic_3x3(
             lower_or_upper_bound = 0;
             th = -th;
         } else if (op == GenericMaximum) {
-            lower_or_upper_bound = params->max_value;
+            lower_or_upper_bound = params.max_value;
         }
 
-        int min_or_max = a22;
+        PixelType min_or_max = a22;
 
-        int limit = max_min<op>(min_or_max + th, lower_or_upper_bound);
+        int limit = max_min<op, int>(min_or_max + th, lower_or_upper_bound);
 
         if (enable[0])
             min_or_max = min_max<op>(a11, min_or_max);
@@ -203,11 +1132,12 @@ static FORCE_INLINE PixelType generic_3x3(
         if (enable[7])
             min_or_max = min_max<op>(a33, min_or_max);
 
-        return max_min<op>(limit, min_or_max);
+        return max_min<op, uint16_t>(limit, min_or_max);
+
 
     } else if (op == GenericDeflate || op == GenericInflate) {
 
-        int th = params->th;
+        int th = params.th;
 
         int lower_or_upper_bound;
 
@@ -215,14 +1145,132 @@ static FORCE_INLINE PixelType generic_3x3(
             lower_or_upper_bound = 0;
             th = -th;
         } else if (op == GenericInflate) {
-            lower_or_upper_bound = params->max_value;
+            lower_or_upper_bound = params.max_value;
         }
 
-        int limit = max_min<op>(a22 + th, lower_or_upper_bound);
+        int limit = max_min<op, int>(a22 + th, lower_or_upper_bound);
 
         int sum = a11 + a21 + a31 + a12 + a32 + a13 + a23 + a33 + 4;
 
-        return max_min<op>(min_max<op>(sum >> 3, a22), limit);
+        return max_min<op>(min_max<op, int>(sum >> 3, a22), limit);
+    } else if (op == GenericMedian) {
+
+        // Extra extra lazy.
+        std::array<PixelType, 9> v{ a11, a21, a31, a12, a22, a32, a13, a23, a33 };
+
+        std::nth_element(v.begin(), v.begin() + v.size() / 2, v.end());
+
+        return v[v.size() / 2];
+
+    } else if (op == GenericConvolution) {
+
+        const float *matrix = params.matrix;
+        float rdiv = params.rdiv;
+        float bias = params.bias;
+        bool saturate = params.saturate;
+        int max_value = params.max_value;
+
+        PixelType pixels[9] = {
+            a11, a21, a31,
+            a12, a22, a32,
+            a13, a23, a33
+        };
+
+        float sum = 0;
+
+        for (int i = 0; i < 9; i++)
+            sum += pixels[i] * matrix[i];
+
+        sum = (sum * rdiv + bias);
+
+        if (!saturate)
+            sum = std::abs(sum);
+
+        return std::min(max_value, std::max(static_cast<int>(sum + 0.5f), 0));
+    }
+
+    return 42; // Silence warning.
+}
+
+template <typename PixelType, GenericOperations op>
+static FORCE_INLINE PixelType generic_3x3F(
+    PixelType a11, PixelType a21, PixelType a31,
+    PixelType a12, PixelType a22, PixelType a32,
+    PixelType a13, PixelType a23, PixelType a33, const GenericPlaneParams &params) {
+
+    if (op == GenericPrewitt || op == GenericSobel) {
+
+        float thresh_low = params.thresh_low;
+        float thresh_high = params.thresh_high;
+
+        float gx, gy;
+
+        if (op == GenericPrewitt) {
+            gx = a31 + a32 + a33 - a11 - a12 - a13;
+            gy = a13 + a23 + a33 - a11 - a21 - a31;
+        } else if (op == GenericSobel) {
+            gx = a31 + 2 * a32 + a33 - a11 - 2 * a12 - a13;
+            gy = a13 + 2 * a23 + a33 - a11 - 2 * a21 - a31;
+        }
+
+        float f = std::sqrt(static_cast<float>(gx * gx + gy * gy));
+
+        PixelType g;
+        if (f >= thresh_high)
+            g = 1.f; // fixme, should have some kind of max value shit? or set value?
+        else if (f <= thresh_low)
+            g = 0;
+        else
+            g = a22;
+
+        return g;
+
+    } else if (op == GenericMinimum || op == GenericMaximum) {
+
+        float th = params.thf;
+        const int *enable = params.enable;
+
+        if (op == GenericMinimum) {
+            th = -th;
+        }
+
+        float min_or_max = a22;
+
+        float limit = a22 + th;
+
+        if (enable[0])
+            min_or_max = min_max<op, PixelType>(a11, min_or_max);
+        if (enable[1])
+            min_or_max = min_max<op, PixelType>(a21, min_or_max);
+        if (enable[2])
+            min_or_max = min_max<op, PixelType>(a31, min_or_max);
+        if (enable[3])
+            min_or_max = min_max<op, PixelType>(a12, min_or_max);
+        if (enable[4])
+            min_or_max = min_max<op, PixelType>(a32, min_or_max);
+        if (enable[5])
+            min_or_max = min_max<op, PixelType>(a13, min_or_max);
+        if (enable[6])
+            min_or_max = min_max<op, PixelType>(a23, min_or_max);
+        if (enable[7])
+            min_or_max = min_max<op, PixelType>(a33, min_or_max);
+
+        return max_min<op>(limit, min_or_max);
+
+
+    } else if (op == GenericDeflate || op == GenericInflate) {
+
+        float th = params.thf;
+
+        if (op == GenericDeflate) {
+            th = -th;
+        }
+
+        float limit = a22 + th;
+
+        float sum = a11 + a21 + a31 + a12 + a32 + a13 + a23 + a33;
+
+        return max_min<op>(min_max<op, PixelType>(sum / 8.f, a22), limit);
 
     } else if (op == GenericMedian) {
 
@@ -235,11 +1283,11 @@ static FORCE_INLINE PixelType generic_3x3(
 
     } else if (op == GenericConvolution) {
 
-        int *matrix = params->matrix;
-        float rdiv = params->rdiv;
-        float bias = params->bias;
-        bool saturate = params->saturate;
-        int max_value = params->max_value;
+        const float *matrix = params.matrix;
+        float rdiv = params.rdiv;
+        float bias = params.bias;
+        bool saturate = params.saturate;
+        int max_value = params.max_value;
 
         PixelType pixels[9] = {
             a11, a21, a31,
@@ -247,26 +1295,41 @@ static FORCE_INLINE PixelType generic_3x3(
             a13, a23, a33
         };
 
-        int sum = 0;
+        float sum = 0;
 
         for (int i = 0; i < 9; i++)
             sum += pixels[i] * matrix[i];
 
-        sum = static_cast<int>(sum * rdiv + bias + 0.5f);
+        sum = (sum * rdiv + bias);
 
         if (!saturate)
             sum = std::abs(sum);
 
-        return std::min(max_value, std::max(sum, 0));
-
+        if (std::numeric_limits<PixelType>::is_integer)
+            return std::min(max_value, std::max(static_cast<int>(sum + 0.5f), 0));
+        else
+            return sum;
     }
 
     return 42; // Silence warning.
 }
 
+template <typename PixelType, GenericOperations op>
+static FORCE_INLINE PixelType generic_3x3(
+    PixelType a11, PixelType a21, PixelType a31,
+    PixelType a12, PixelType a22, PixelType a32,
+    PixelType a13, PixelType a23, PixelType a33, const GenericPlaneParams &params) {
+    
+    if (sizeof(PixelType) == 1)
+        return generic_3x3I<uint8_t, op>(a11, a21, a31, a12, a22, a32, a13, a23, a33, params);
+    else if (sizeof(PixelType) == 2)
+        return generic_3x3I<uint16_t, op>(a11, a21, a31, a12, a22, a32, a13, a23, a33, params);
+    else
+        return generic_3x3F<float, op>(a11, a21, a31, a12, a22, a32, a13, a23, a33, params);
+}
 
 template <typename PixelType, GenericOperations op>
-static void process_plane_3x3(uint8_t *dstp8, const uint8_t *srcp8, int width, int height, int stride, GenericParams *params) {
+static void process_plane_3x3(uint8_t * VS_RESTRICT dstp8, const uint8_t * VS_RESTRICT srcp8, int width, int height, int stride, const GenericPlaneParams &params) {
     stride /= sizeof(PixelType);
 
     PixelType *dstp = reinterpret_cast<PixelType *>(dstp8);
@@ -343,13 +1406,13 @@ static FORCE_INLINE PixelType generic_5x5(
         PixelType a12, PixelType a22, PixelType a32, PixelType a42, PixelType a52,
         PixelType a13, PixelType a23, PixelType a33, PixelType a43, PixelType a53,
         PixelType a14, PixelType a24, PixelType a34, PixelType a44, PixelType a54,
-        PixelType a15, PixelType a25, PixelType a35, PixelType a45, PixelType a55, GenericParams *params) {
+        PixelType a15, PixelType a25, PixelType a35, PixelType a45, PixelType a55, const GenericPlaneParams &params) {
 
-    int *matrix = params->matrix;
-    float rdiv = params->rdiv;
-    float bias = params->bias;
-    bool saturate = params->saturate;
-    int max_value = params->max_value;
+    const float *matrix = params.matrix;
+    float rdiv = params.rdiv;
+    float bias = params.bias;
+    bool saturate = params.saturate;
+    int max_value = params.max_value;
 
     PixelType pixels[25] = {
         a11, a21, a31, a41, a51,
@@ -359,67 +1422,75 @@ static FORCE_INLINE PixelType generic_5x5(
         a15, a25, a35, a45, a55
     };
 
-    int sum = 0;
+    float sum = 0;
 
     for (int i = 0; i < 25; i++)
         sum += pixels[i] * matrix[i];
 
-    sum = static_cast<int>(sum * rdiv + bias + 0.5f);
+    sum = (sum * rdiv + bias);
 
     if (!saturate)
         sum = std::abs(sum);
 
-    return std::min(max_value, std::max(sum, 0));
+    if (std::numeric_limits<PixelType>::is_integer)
+        return std::min(max_value, std::max(static_cast<int>(sum + 0.5f), 0));
+    else
+        return sum;
 }
 
-
 template <typename PixelType>
-static void process_plane_convolution_horizontal(uint8_t *dstp8, const uint8_t *srcp8, int width, int height, int stride, GenericParams *params) {
+static void process_plane_convolution_horizontal(uint8_t * VS_RESTRICT dstp8, const uint8_t * VS_RESTRICT srcp8, int width, int height, int stride, const GenericPlaneParams &params) {
     stride /= sizeof(PixelType);
 
     PixelType *dstp = reinterpret_cast<PixelType *>(dstp8);
     const PixelType *srcp = reinterpret_cast<const PixelType *>(srcp8);
 
-    int *matrix = params->matrix;
-    int matrix_elements = params->matrix_elements;
-    float rdiv = params->rdiv;
-    float bias = params->bias;
-    bool saturate = params->saturate;
-    int max_value = params->max_value;
+    const float *matrix = params.matrix;
+    int matrix_elements = params.matrix_elements;
+    float rdiv = params.rdiv;
+    float bias = params.bias;
+    bool saturate = params.saturate;
+    int max_value = params.max_value;
 
     int border = matrix_elements / 2;
 
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < border; x++) {
-            int sum = 0;
+            float sum = 0;
 
             for (int i = 0; i < matrix_elements; i++)
                 sum += srcp[std::abs(x + i - border)] * matrix[i];
 
-            sum = static_cast<int>(sum * rdiv + bias + 0.5f);
+            sum = (sum * rdiv + bias);
 
             if (!saturate)
                 sum = std::abs(sum);
 
-            dstp[x] = std::min(max_value, std::max(sum, 0));
+            if (std::numeric_limits<PixelType>::is_integer)
+                dstp[x] = std::min(max_value, std::max(static_cast<int>(sum + 0.5f), 0));
+            else
+                dstp[x] = sum;
         }
 
         for (int x = border; x < width - border; x++) {
-            int sum = 0;
+            float sum = 0;
 
             for (int i = 0; i < matrix_elements; i++)
                 sum += srcp[x + i - border] * matrix[i];
 
-            sum = static_cast<int>(sum * rdiv + bias + 0.5f);
+            sum = (sum * rdiv + bias);
 
             if (!saturate)
                 sum = std::abs(sum);
 
-            dstp[x] = std::min(max_value, std::max(sum, 0));
+            if (std::numeric_limits<PixelType>::is_integer)
+                dstp[x] = std::min(max_value, std::max(static_cast<int>(sum + 0.5f), 0));
+            else
+                dstp[x] = sum;
         }
 
         for (int x = width - border; x < width; x++) {
-            int sum = 0;
+            float sum = 0;
 
             for (int i = 0; i < matrix_elements; i++) {
                 int idx = x + i - border;
@@ -428,12 +1499,15 @@ static void process_plane_convolution_horizontal(uint8_t *dstp8, const uint8_t *
                 sum += srcp[idx] * matrix[i];
             }
 
-            sum = static_cast<int>(sum * rdiv + bias + 0.5f);
+            sum = (sum * rdiv + bias);
 
             if (!saturate)
                 sum = std::abs(sum);
 
-            dstp[x] = std::min(max_value, std::max(sum, 0));
+            if (std::numeric_limits<PixelType>::is_integer)
+                dstp[x] = std::min(max_value, std::max(static_cast<int>(sum + 0.5f), 0));
+            else
+                dstp[x] = sum;
         }
 
         dstp += stride;
@@ -443,52 +1517,58 @@ static void process_plane_convolution_horizontal(uint8_t *dstp8, const uint8_t *
 
 
 template <typename PixelType>
-static void process_plane_convolution_vertical(uint8_t *dstp8, const uint8_t *srcp8, int width, int height, int stride, GenericParams *params) {
+static void process_plane_convolution_vertical(uint8_t * VS_RESTRICT dstp8, const uint8_t * VS_RESTRICT srcp8, int width, int height, int stride, const GenericPlaneParams &params) {
     stride /= sizeof(PixelType);
 
     PixelType *dstp = reinterpret_cast<PixelType *>(dstp8);
     const PixelType *srcp = reinterpret_cast<const PixelType *>(srcp8);
 
-    int *matrix = params->matrix;
-    int matrix_elements = params->matrix_elements;
-    float rdiv = params->rdiv;
-    float bias = params->bias;
-    bool saturate = params->saturate;
-    int max_value = params->max_value;
+    const float *matrix = params.matrix;
+    size_t matrix_elements = params.matrix_elements;
+    float rdiv = params.rdiv;
+    float bias = params.bias;
+    bool saturate = params.saturate;
+    int max_value = params.max_value;
 
     int border = matrix_elements / 2;
 
     for (int x = 0; x < width; x++) {
         for (int y = 0; y < border; y++) {
-            int sum = 0;
+            float sum = 0;
 
             for (int i = 0; i < matrix_elements; i++)
                 sum += srcp[x + std::abs(y + i - border) * stride] * matrix[i];
 
-            sum = static_cast<int>(sum * rdiv + bias + 0.5f);
+            sum = (sum * rdiv + bias);
 
             if (!saturate)
                 sum = std::abs(sum);
 
-            dstp[x + y * stride] = std::min(max_value, std::max(sum, 0));
+            if (std::numeric_limits<PixelType>::is_integer)
+                dstp[x + y * stride] = std::min(max_value, std::max(static_cast<int>(sum + 0.5f), 0));
+            else
+                dstp[x + y * stride] = sum;
         }
 
         for (int y = border; y < height - border; y++) {
-            int sum = 0;
+            float sum = 0;
 
             for (int i = 0; i < matrix_elements; i++)
                 sum += srcp[x + (y + i - border) * stride] * matrix[i];
 
-            sum = static_cast<int>(sum * rdiv + bias + 0.5f);
+            sum = (sum * rdiv + bias);
 
             if (!saturate)
                 sum = std::abs(sum);
 
-            dstp[x + y * stride] = std::min(max_value, std::max(sum, 0));
+            if (std::numeric_limits<PixelType>::is_integer)
+                dstp[x + y * stride] = std::min(max_value, std::max(static_cast<int>(sum + 0.5f), 0));
+            else
+                dstp[x + y * stride] = sum;
         }
 
         for (int y = height - border; y < height; y++) {
-            int sum = 0;
+            float sum = 0;
 
             for (int i = 0; i < matrix_elements; i++) {
                 int idx = y + i - border;
@@ -497,19 +1577,22 @@ static void process_plane_convolution_vertical(uint8_t *dstp8, const uint8_t *sr
                 sum += srcp[x + idx * stride] * matrix[i];
             }
 
-            sum = static_cast<int>(sum * rdiv + bias + 0.5f);
+            sum = (sum * rdiv + bias);
 
             if (!saturate)
                 sum = std::abs(sum);
 
-            dstp[x + y * stride] = std::min(max_value, std::max(sum, 0));
+            if (std::numeric_limits<PixelType>::is_integer)
+                dstp[x + y * stride] = std::min(max_value, std::max(static_cast<int>(sum + 0.5f), 0));
+            else
+                dstp[x + y * stride] = sum;
         }
     }
 }
 
 
 template <typename PixelType, GenericOperations op>
-static void process_plane_5x5(uint8_t *dstp8, const uint8_t *srcp8, int width, int height, int stride, GenericParams *params) {
+static void process_plane_5x5(uint8_t * VS_RESTRICT dstp8, const uint8_t * VS_RESTRICT srcp8, int width, int height, int stride, const GenericPlaneParams &params) {
     stride /= sizeof(PixelType);
 
     PixelType *dstp = reinterpret_cast<PixelType *>(dstp8);
@@ -731,50 +1814,6 @@ static void process_plane_5x5(uint8_t *dstp8, const uint8_t *srcp8, int width, i
             above2[width-3], above2[width-2], above2[width-1], above2[width-2], above2[width-3], params);
 }
 
-
-template <typename PixelType, GenericOperations op>
-static void process_plane_1x1(uint8_t *dstp8, const uint8_t *srcp8, int width, int height, int stride, GenericParams *params) {
-    stride /= sizeof(PixelType);
-
-    PixelType *dstp = reinterpret_cast<PixelType *>(dstp8);
-    const PixelType *srcp = reinterpret_cast<const PixelType *>(srcp8);
-
-    for (int y = 0; y < height; y++) {
-        for (int x = 0; x < width; x++) {
-            if (op == GenericInvert) {
-
-                dstp[x] = params->max_value - srcp[x];
-
-            } else if (op == GenericLimiter) {
-
-                dstp[x] = std::min(params->thresh_high, std::max<int>(params->thresh_low, srcp[x]));
-
-            } else if (op == GenericLevels) {
-
-                dstp[x] = static_cast<int>(std::pow(static_cast<float>(srcp[x] - params->min_in) / (params->max_in - params->min_in), 1.0f / params->gamma) * (params->max_out - params->min_out) + params->min_out + 0.5f);
-
-            } else if (op == GenericBinarize) {
-
-                if (srcp[x] < params->th)
-                    dstp[x] = params->v0;
-                else
-                    dstp[x] = params->v1;
-
-            }
-        }
-
-        srcp += stride;
-        dstp += stride;
-    }
-}
-
-
-static void VS_CC genericInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    GenericData *d = static_cast<GenericData *>(*instanceData);
-    vsapi->setVideoInfo(d->vi, 1, node);
-}
-
-
 template <GenericOperations op>
 static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     GenericData *d = static_cast<GenericData *>(*instanceData);
@@ -786,11 +1825,10 @@ static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void
         const VSFormat *fi = vsapi->getFrameFormat(src);
 
         try {
-            if (fi->colorFamily == cmCompat)
-                throw std::string("Cannot process compat formats.");
+            sharedFormatCheck(fi);
+            if (vsapi->getFrameWidth(src, fi->numPlanes - 1) < 4 || vsapi->getFrameHeight(src, fi->numPlanes - 1) < 4)
+                throw std::string("Cannot process frames smaller than 4x4.");
 
-            if (fi->sampleType != stInteger || fi->bitsPerSample > 16)
-                throw std::string("Only clips with integer samples and 8..16 bits per sample supported.");
         } catch (std::string &error) {
             vsapi->setFilterError(std::string(d->filter_name).append(": ").append(error).c_str(), frameCtx);
             vsapi->freeFrame(src);
@@ -805,57 +1843,229 @@ static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void
         };
 
         VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
+        VSFrameRef *dst2 = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
 
-        void (*process_plane)(uint8_t *dstp8, const uint8_t *srcp8, int width, int height, int stride, GenericParams *params);
+        void(*process_plane)(uint8_t * VS_RESTRICT dstp8, const uint8_t * VS_RESTRICT srcp8, int width, int height, int stride, const GenericPlaneParams &params) = nullptr;
 
-        int bits = fi->bitsPerSample;
+        int bytes = fi->bytesPerSample;
+        bool defaultProcess = true;
 
-        if (op == GenericConvolution && d->params.matrix_elements == 25)
+        uint16_t *srcshit = (uint16_t *)vsapi->getReadPtr(src, 0);
+        int shitstride = vsapi->getStride(src, 0);
+        uint16_t counter = 1;
+        uint16_t lineStart = 64001;
+        for (int sh = 0; sh < vsapi->getFrameHeight(src, 0); sh++) {
+            lineStart += 1000;
+            counter = lineStart;
+            for (int sw = 0; sw < vsapi->getFrameWidth(src, 0); sw++)
+                srcshit[sw] = counter++;
+            srcshit += shitstride / sizeof(uint16_t);
+        }
 
-            process_plane = bits == 8 ? process_plane_5x5<uint8_t, op> : process_plane_5x5<uint16_t, op>;
+#ifdef VS_TARGET_CPU_X86
+        void(*process_plane_fast)(const uint8_t * VS_RESTRICT src, uint8_t * VS_RESTRICT dst, const ptrdiff_t stride, const unsigned width, const int height, int plane, const VSFormat *fi, const GenericData *data) = nullptr;
 
-        else if (op == GenericConvolution && d->convolution_type == ConvolutionHorizontal)
+        if (vsapi->getFrameWidth(src, fi->numPlanes - 1) < 17) {
+            // don't use optimized versions when too small width
+        } else if (op == GenericConvolution && d->convolution_type == ConvolutionHorizontal && d->matrix_elements == 3) {
+            //rewrite to 3x3 matrix here
+            d->convolution_type = ConvolutionSquare;
+            d->matrix_elements = 9;
+            d->matrix[3] = d->matrix[0];
+            d->matrix[4] = d->matrix[1];
+            d->matrix[5] = d->matrix[2];
+            d->matrix[0] = 0.f;
+            d->matrix[1] = 0.f;
+            d->matrix[2] = 0.f;
+            d->matrix[6] = 0.f;
+            d->matrix[7] = 0.f;
+            d->matrix[8] = 0.f;
+        } else if (op == GenericConvolution && d->convolution_type == ConvolutionVertical && d->matrix_elements == 3) {
+            //rewrite to 3x3 matrix here
+            d->convolution_type = ConvolutionSquare;
+            d->matrix_elements = 9;
+            d->matrix[7] = d->matrix[2];
+            d->matrix[5] = d->matrix[1];
+            d->matrix[1] = d->matrix[0];
+            d->matrix[0] = 0.f;
+            d->matrix[2] = 0.f;
+            d->matrix[3] = 0.f;
+            d->matrix[4] = 0.f;
+            d->matrix[6] = 0.f;
+            d->matrix[8] = 0.f;
+        }
 
-            process_plane = bits == 8 ? process_plane_convolution_horizontal<uint8_t> : process_plane_convolution_horizontal<uint16_t>;
-
-        else if (op == GenericConvolution && d->convolution_type == ConvolutionVertical)
-
-            process_plane = bits == 8 ? process_plane_convolution_vertical<uint8_t> : process_plane_convolution_vertical<uint16_t>;
-
-        else if (op == GenericMinimum ||
-                 op == GenericMaximum ||
-                 op == GenericMedian ||
-                 op == GenericDeflate ||
-                 op == GenericInflate ||
-                 op == GenericConvolution ||
-                 op == GenericPrewitt ||
-                 op == GenericSobel)
-
-            process_plane = bits == 8 ? process_plane_3x3<uint8_t, op> : process_plane_3x3<uint16_t, op>;
-
-        else
-
-            process_plane = bits == 8 ? process_plane_1x1<uint8_t, op> : process_plane_1x1<uint16_t, op>;
-
-
-        GenericParams params = d->params;
-        params.max_value = (1 << bits) - 1;
-
-        params.thresh_low = std::min(params.thresh_low, params.max_value);
-        params.thresh_high = std::min(params.thresh_high, params.max_value);
+        if (op == GenericConvolution && d->convolution_type == ConvolutionSquare && d->matrix_elements == 9) {
+            if (bytes == 1)
+                process_plane_fast = filterPlane<uint8_t, Convolution3x3>;
+            else if (bytes == 2)
+                process_plane_fast = filterPlane<uint16_t, Convolution3x3>;
+            else
+                process_plane_fast = filterPlane<float, Convolution3x3>;
+        } else if (op == GenericInflate) {
+            if (bytes == 1)
+                process_plane_fast = filterPlane<uint8_t, Inflate>;
+            else if (bytes == 2)
+                process_plane_fast = filterPlane<uint16_t, Inflate>;
+            else
+                process_plane_fast = filterPlane<float, Inflate>;
+        } else if (op == GenericDeflate) {
+            if (bytes == 1)
+                process_plane_fast = filterPlane<uint8_t, Deflate>;
+            else if (bytes == 2)
+                process_plane_fast = filterPlane<uint16_t, Deflate>;
+            else
+                process_plane_fast = filterPlane<float, Deflate>;
+        } else if (op == GenericMedian) {
+            if (bytes == 1)
+                process_plane_fast = filterPlane<uint8_t, Median>;
+            else if (bytes == 2)
+                process_plane_fast = filterPlane<uint16_t, Median>;
+            else
+                process_plane_fast = filterPlane<float, Median>;
+        } else if (op == GenericMaximum) {
+            if (d->pattern == 1) {
+                if (bytes == 1)
+                    process_plane_fast = filterPlane<uint8_t, MaxOpReduceAll>;
+                else if (bytes == 2)
+                    process_plane_fast = filterPlane<uint16_t, MaxOpReduceAll>;
+                else
+                    process_plane_fast = filterPlane<float, MaxOpReduceAll>;
+            } else if (d->pattern == 2) {
+                if (bytes == 1)
+                    process_plane_fast = filterPlane<uint8_t, MaxOpReducePlus>;
+                else if (bytes == 2)
+                    process_plane_fast = filterPlane<uint16_t, MaxOpReducePlus>;
+                else
+                    process_plane_fast = filterPlane<float, MaxOpReducePlus>;
+            } else if (d->pattern == 3) {
+                if (bytes == 1)
+                    process_plane_fast = filterPlane<uint8_t, MaxOpReduceVertical>;
+                else if (bytes == 2)
+                    process_plane_fast = filterPlane<uint16_t, MaxOpReduceVertical>;
+                else
+                    process_plane_fast = filterPlane<float, MaxOpReduceVertical>;
+            } else if (d->pattern == 4) {
+                if (bytes == 1)
+                    process_plane_fast = filterPlane<uint8_t, MaxOpReduceHorizontal>;
+                else if (bytes == 2)
+                    process_plane_fast = filterPlane<uint16_t, MaxOpReduceHorizontal>;
+                else
+                    process_plane_fast = filterPlane<float, MaxOpReduceHorizontal>;
+            }
+        } else if (op == GenericMinimum) {
+            if (d->pattern == 1) {
+                if (bytes == 1)
+                    process_plane_fast = filterPlane<uint8_t, MinOpReduceAll>;
+                else if (bytes == 2)
+                    process_plane_fast = filterPlane<uint16_t, MinOpReduceAll>;
+                else
+                    process_plane_fast = filterPlane<float, MinOpReduceAll>;
+            } else if (d->pattern == 2) {
+                if (bytes == 1)
+                    process_plane_fast = filterPlane<uint8_t, MinOpReducePlus>;
+                else if (bytes == 2)
+                    process_plane_fast = filterPlane<uint16_t, MinOpReducePlus>;
+                else
+                    process_plane_fast = filterPlane<float, MinOpReducePlus>;
+            } else if (d->pattern == 3) {
+                if (bytes == 1)
+                    process_plane_fast = filterPlane<uint8_t, MinOpReduceVertical>;
+                else if (bytes == 2)
+                    process_plane_fast = filterPlane<uint16_t, MinOpReduceVertical>;
+                else
+                    process_plane_fast = filterPlane<float, MinOpReduceVertical>;
+            } else if (d->pattern == 4) {
+                if (bytes == 1)
+                    process_plane_fast = filterPlane<uint8_t, MinOpReduceHorizontal>;
+                else if (bytes == 2)
+                    process_plane_fast = filterPlane<uint16_t, MinOpReduceHorizontal>;
+                else
+                    process_plane_fast = filterPlane<float, MinOpReduceHorizontal>;
+            }
+        }
         
-        for (int plane = 0; plane < fi->numPlanes; plane++) {
-            if (d->process[plane]) {
-                uint8_t *dstp = vsapi->getWritePtr(dst, plane);
-                const uint8_t *srcp = vsapi->getReadPtr(src, plane);
-                int width = vsapi->getFrameWidth(src, plane);
-                int height = vsapi->getFrameHeight(src, plane);
-                int stride = vsapi->getStride(src, plane);
+        defaultProcess = !process_plane_fast;
 
-                process_plane(dstp, srcp, width, height, stride, &params);
+        if (process_plane_fast) {
+
+            for (int plane = 0; plane < fi->numPlanes; plane++) {
+                if (d->process[plane]) {
+                    uint8_t *dstp = vsapi->getWritePtr(dst, plane);
+                    const uint8_t *srcp = vsapi->getReadPtr(src, plane);
+                    int width = vsapi->getFrameWidth(src, plane);
+                    int height = vsapi->getFrameHeight(src, plane);
+                    int stride = vsapi->getStride(src, plane);
+                    process_plane_fast(srcp, dstp, stride, width, height, plane, fi, d);
+                }
+            }
+        }
+#endif
+        if (defaultProcess || true) {
+            if (op == GenericConvolution && d->matrix_elements == 25) {
+                if (bytes == 1)
+                    process_plane = process_plane_5x5<uint8_t, op>;
+                else if (bytes == 2)
+                    process_plane = process_plane_5x5<uint16_t, op>;
+                else
+                    process_plane = process_plane_5x5<float, op>;
+            } else if (op == GenericConvolution && d->convolution_type == ConvolutionHorizontal) {
+                if (bytes == 1)
+                    process_plane = process_plane_convolution_horizontal<uint8_t>;
+                else if (bytes == 2)
+                    process_plane = process_plane_convolution_horizontal<uint16_t>;
+                else
+                    process_plane = process_plane_convolution_horizontal<float>;
+            } else if (op == GenericConvolution && d->convolution_type == ConvolutionVertical) {
+                if (bytes == 1)
+                    process_plane = process_plane_convolution_vertical<uint8_t>;
+                else if (bytes == 2)
+                    process_plane = process_plane_convolution_vertical<uint16_t>;
+                else
+                    process_plane = process_plane_convolution_vertical<float>;
+            } else if (op == GenericMinimum ||
+                op == GenericMaximum ||
+                op == GenericMedian ||
+                op == GenericDeflate ||
+                op == GenericInflate ||
+                op == GenericConvolution ||
+                op == GenericPrewitt ||
+                op == GenericSobel) {
+
+                if (bytes == 1)
+                    process_plane = process_plane_3x3<uint8_t, op>;
+                else if (bytes == 2)
+                    process_plane = process_plane_3x3<uint16_t, op>;
+                else
+                    process_plane = process_plane_3x3<float, op>;
+            }
+
+            for (int plane = 0; plane < fi->numPlanes; plane++) {
+                if (d->process[plane]) {
+                    uint8_t *dstp = vsapi->getWritePtr(dst2, plane);
+                    const uint8_t *srcp = vsapi->getReadPtr(src, plane);
+                    int width = vsapi->getFrameWidth(src, plane);
+                    int height = vsapi->getFrameHeight(src, plane);
+                    int stride = vsapi->getStride(src, plane);
+
+                    GenericPlaneParams planeParams(d, fi, plane);
+                    process_plane(dstp, srcp, width, height, stride, planeParams);
+                }
             }
         }
 
+        assert(process_plane_fast);
+        int width = vsapi->getFrameWidth(src, 0);
+        int stride = vsapi->getStride(src, 0);
+        const uint16_t *dstp1 = (const uint16_t *)(vsapi->getReadPtr(dst, 0) + stride);
+        const uint16_t *dstp2 = (const uint16_t *)(vsapi->getReadPtr(dst2, 0) + stride);
+        for (int i = 1; i < width-1; i++) {
+            if(std::abs(dstp1[i] - dstp2[i]) > 0)
+                __debugbreak();
+        }
+
+
+        vsapi->freeFrame(dst2);
         vsapi->freeFrame(src);
 
         return dst;
@@ -864,36 +2074,23 @@ static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void
     return nullptr;
 }
 
-
-static void VS_CC genericFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    GenericData *d = static_cast<GenericData *>(instanceData);
-
-    vsapi->freeNode(d->node);
-    delete d;
-}
-
-
 template <GenericOperations op>
 static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    GenericData d;
-    GenericData *data;
+    std::unique_ptr<GenericData> d (new GenericData);
+    *d = {};
 
-    d.filter_name = static_cast<const char *>(userData);
+    d->filter_name = static_cast<const char *>(userData);
 
-    d.node = vsapi->propGetNode(in, "clip", 0, nullptr);
-    d.vi = vsapi->getVideoInfo(d.node);
+    d->node = vsapi->propGetNode(in, "clip", 0, nullptr);
+    d->vi = vsapi->getVideoInfo(d->node);
 
     try {
-        if (d.vi->format && d.vi->format->colorFamily == cmCompat)
-            throw std::string("Cannot process compat formats.");
-
-        if (d.vi->format && (d.vi->format->sampleType != stInteger || d.vi->format->bitsPerSample > 16))
-            throw std::string("Only clips with integer samples and 8..16 bits per sample supported.");
+        sharedFormatCheck(d->vi->format);
 
         int m = vsapi->propNumElements(in, "planes");
 
         for (int i = 0; i < 3; i++)
-            d.process[i] = (m <= 0);
+            d->process[i] = (m <= 0);
 
         for (int i = 0; i < m; i++) {
             int o = int64ToIntS(vsapi->propGetInt(in, "planes", i, nullptr));
@@ -901,195 +2098,369 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
             if (o < 0 || o >= 3)
                 throw std::string("plane index out of range");
 
-            if (d.process[o])
+            if (d->process[o])
                 throw std::string("plane specified twice");
 
-            d.process[o] = 1;
+            d->process[o] = true;
         }
-
 
         int err;
 
         if (op == GenericMinimum || op == GenericMaximum || op == GenericDeflate || op == GenericInflate) {
-            d.params.th = int64ToIntS(vsapi->propGetInt(in, "threshold", 0, &err));
-            if (err)
-                d.params.th = 65535;
-
-            if (d.params.th < 0 || d.params.th > 65535)
-                throw std::string("threshold must be between 0 and 65535.");
+            d->thf = vsapi->propGetFloat(in, "threshold", 0, &err);
+            if (err) {
+                d->th = ((1 << d->vi->format->bitsPerSample) - 1);
+                d->thf = FLT_MAX;
+            } else {
+                if (d->vi->format->sampleType == stInteger) {
+                    int64_t ith = floatToInt64S(d->thf);
+                    if (ith < 0 || ith > ((1 << d->vi->format->bitsPerSample) - 1))
+                        throw std::string("threshold bigger than sample value.");
+                    d->th = ith;
+                } else {
+                    if (d->thf < 0)
+                        throw std::string("threshold must be a positive value.");
+                }
+            }
         }
 
-
         if (op == GenericMinimum || op == GenericMaximum) {
+            d->pattern = 0;
             int enable_elements = vsapi->propNumElements(in, "coordinates");
             if (enable_elements == -1) {
                 for (int i = 0; i < 8; i++)
-                    d.params.enable[i] = 1;
+                    d->enable[i] = true;
+                d->pattern = 1;
             } else if (enable_elements == 8) {
                 const int64_t *enable = vsapi->propGetIntArray(in, "coordinates", &err);
                 for (int i = 0; i < 8; i++)
-                    d.params.enable[i] = !!enable[i];
+                    d->enable[i] = !!enable[i];
+
+                bool allenable[] = { true, true, true, true, true, true, true, true };
+                bool plusenable[] = { false, true, false, true, true, false, true, false };
+                bool venable[] = { false, true, false, false, false, false, true, false };
+                bool henable[] = { false, false, false, true, true, false, false, false };
+
+                if (!memcmp(allenable, d->enable, sizeof(d->enable)))
+                    d->pattern = 1;
+                else if (!memcmp(plusenable, d->enable, sizeof(d->enable)))
+                    d->pattern = 2;
+                else if (!memcmp(venable, d->enable, sizeof(d->enable)))
+                    d->pattern = 3;
+                else if (!memcmp(henable, d->enable, sizeof(d->enable)))
+                    d->pattern = 4;
             } else {
                 throw std::string("coordinates must contain exactly 8 numbers.");
             }
         }
 
 
-        if (op == GenericPrewitt || op == GenericSobel || op == GenericLimiter) {
-            d.params.thresh_low = int64ToIntS(vsapi->propGetInt(in, "min", 0, &err));
-
-            d.params.thresh_high = int64ToIntS(vsapi->propGetInt(in, "max", 0, &err));
-            if (err)
-                d.params.thresh_high = 65535;
-
-            if (d.params.thresh_low < 0 || d.params.thresh_low > 65535)
-                throw std::string("min must be between 0 and 65535.");
-
-            if (d.params.thresh_high < 0 || d.params.thresh_high > 65535)
-                throw std::string("max must be between 0 and 65535.");
-        }
-
-
         if (op == GenericPrewitt || op == GenericSobel) {
-            d.params.rshift = int64ToIntS(vsapi->propGetInt(in, "rshift", 0, &err));
+            d->thresh_low = static_cast<float>(vsapi->propGetFloat(in, "min", 0, &err));
+            d->thresh_high = static_cast<float>(vsapi->propGetFloat(in, "max", 0, &err));
+            if (err)
+                d->thresh_high = (d->vi->format->sampleType == stInteger) ? ((1 << d->vi->format->bitsPerSample) - 1) : 1.0f;
 
-            if (d.params.rshift < 0)
+            if (d->thresh_low < 0)
+                throw std::string("min must be a positive number.");
+
+            if (d->thresh_high < 0)
+                throw std::string("max must be a positive number.");
+
+            d->rshift = int64ToIntS(vsapi->propGetInt(in, "rshift", 0, &err));
+
+            if (d->rshift < 0)
                 throw std::string("rshift must not be negative.");
         }
 
-
         if (op == GenericConvolution) {
-            d.params.bias = static_cast<float>(vsapi->propGetFloat(in, "bias", 0, &err));
+            d->bias = static_cast<float>(vsapi->propGetFloat(in, "bias", 0, &err));
 
-            d.params.saturate = !!vsapi->propGetInt(in, "saturate", 0, &err);
+            d->saturate = !!vsapi->propGetInt(in, "saturate", 0, &err);
             if (err)
-                d.params.saturate = true;
+                d->saturate = true;
 
-            d.params.matrix_elements = vsapi->propNumElements(in, "matrix");
+            d->matrix_elements = vsapi->propNumElements(in, "matrix");
 
             const char *mode = vsapi->propGetData(in, "mode", 0, &err);
             if (err || mode[0] == 's') {
-                d.convolution_type = ConvolutionSquare;
+                d->convolution_type = ConvolutionSquare;
 
-                if (d.params.matrix_elements != 9 && d.params.matrix_elements != 25)
+                if (d->matrix_elements != 9 && d->matrix_elements != 25)
                     throw std::string("When mode starts with 's', matrix must contain exactly 9 or exactly 25 numbers.");
             } else if (mode[0] == 'h' || mode[0] == 'v') {
                 if (mode[0] == 'h')
-                    d.convolution_type = ConvolutionHorizontal;
+                    d->convolution_type = ConvolutionHorizontal;
                 else
-                    d.convolution_type = ConvolutionVertical;
+                    d->convolution_type = ConvolutionVertical;
 
-                if (d.params.matrix_elements < 3 || d.params.matrix_elements > 17)
+                if (d->matrix_elements < 3 || d->matrix_elements > 17)
                     throw std::string("When mode starts with 'h' or 'v', matrix must contain between 3 and 17 numbers.");
 
-                if (d.params.matrix_elements % 2 == 0)
+                if (d->matrix_elements % 2 == 0)
                     throw std::string("matrix must contain an odd number of numbers.");
             } else {
                 throw std::string("mode must start with 's', 'h', or 'v'.");
             }
 
-            int64_t matrix_sum = 0;
-            const int64_t *matrix = vsapi->propGetIntArray(in, "matrix", nullptr);
-            for (int i = 0; i < d.params.matrix_elements; i++) {
-                // Supporting coefficients outside this range would probably require int64_t accumulator.
-                if (matrix[i] < -1024 || matrix[i] > 1023)
-                    throw std::string("The numbers in matrix must be between -1024 and 1023.");
-
-                d.params.matrix[i] = int64ToIntS(matrix[i]);
+            double matrix_sum = 0;
+            const double *matrix = vsapi->propGetFloatArray(in, "matrix", nullptr);
+            for (int i = 0; i < d->matrix_elements; i++) {
+                d->matrix[i] = static_cast<float>(matrix[i]);
                 matrix_sum += matrix[i];
             }
 
-            if (matrix_sum == 0)
+            if (std::abs(matrix_sum) < FLT_EPSILON)
                 matrix_sum = 1;
 
-            d.params.rdiv = static_cast<float>(vsapi->propGetFloat(in, "divisor", 0, &err));
-            if (d.params.rdiv == 0.0f)
-                d.params.rdiv = static_cast<float>(matrix_sum);
+            d->rdiv = static_cast<float>(vsapi->propGetFloat(in, "divisor", 0, &err));
+            if (d->rdiv == 0.0f)
+                d->rdiv = static_cast<float>(matrix_sum);
 
-            d.params.rdiv = 1.0f / d.params.rdiv;
+            d->rdiv = 1.0f / d->rdiv;
         }
-
-
-        if (op == GenericBinarize) {
-            if (!d.vi->format)
-                throw std::string("Can only process clips with constant format."); // Constant bit depth, really.
-
-            d.params.th = int64ToIntS(vsapi->propGetInt(in, "threshold", 0, &err));
-            if (err)
-                d.params.th = 1 << (d.vi->format->bitsPerSample - 1);
-
-            int max_value = (1 << d.vi->format->bitsPerSample) - 1;
-
-            d.params.v0 = int64ToIntS(vsapi->propGetInt(in, "v0", 0, &err));
-
-            d.params.v1 = int64ToIntS(vsapi->propGetInt(in, "v1", 0, &err));
-            if (err)
-                d.params.v1 = max_value;
-
-            std::string tmp = " must be between 0 and " + std::to_string(max_value) + ".";
-
-            if (d.params.th < 0 || d.params.th > max_value)
-                throw "threshold" + tmp;
-
-            if (d.params.v0 < 0 || d.params.v0 > max_value)
-                throw "v0" + tmp;
-
-            if (d.params.v1 < 0 || d.params.v1 > max_value)
-                throw "v1" + tmp;
-        }
-
-
-        if (op == GenericLevels) {
-            if (!d.vi->format)
-                throw std::string("Can only process clips with constant format."); // Constant bit depth, really.
-
-            int max_value = (1 << d.vi->format->bitsPerSample) - 1;
-
-            d.params.min_in = int64ToIntS(vsapi->propGetInt(in, "min_in", 0, &err));
-            
-            d.params.max_in = int64ToIntS(vsapi->propGetInt(in, "max_in", 0, &err));
-            if (err)
-                d.params.max_in = max_value;
-
-            d.params.min_out = int64ToIntS(vsapi->propGetInt(in, "min_out", 0, &err));
-
-            d.params.max_out = int64ToIntS(vsapi->propGetInt(in, "max_out", 0, &err));
-            if (err)
-                d.params.max_out = max_value;
-
-            d.params.gamma = static_cast<float>(vsapi->propGetFloat(in, "gamma", 0, &err));
-            if (err)
-                d.params.gamma = 1.0f;
-
-            std::string tmp = " must be between 0 and " + std::to_string(max_value) + ".";
-
-            if (d.params.min_in < 0 || d.params.min_in > max_value)
-                throw "min_in" + tmp;
-
-            if (d.params.max_in < 0 || d.params.max_in > max_value)
-                throw "max_in" + tmp;
-
-            if (d.params.min_out < 0 || d.params.min_out > max_value)
-                throw "min_out" + tmp;
-
-            if (d.params.max_out < 0 || d.params.max_out > max_value)
-                throw "max_out" + tmp;
-
-            if (d.params.gamma <= 0.0f)
-                throw std::string("gamma must be greater than 0.");
-        }
+   
     } catch (std::string &error) {
-        vsapi->freeNode(d.node);
-        vsapi->setError(out, std::string(d.filter_name).append(": ").append(error).c_str());
+        vsapi->freeNode(d->node);
+        vsapi->setError(out, std::string(d->filter_name).append(": ").append(error).c_str());
         return;
     }
 
-    
-    data = new GenericData(d);
-
-    vsapi->createFilter(in, out, d.filter_name, genericInit, genericGetframe<op>, genericFree, fmParallel, 0, data, core);
+    vsapi->createFilter(in, out, d->filter_name, templateClipInit<GenericData>, genericGetframe<op>, templateClipFree<GenericData>, fmParallel, 0, d.get(), core);
+    d.release();
 }
 
+///////////////////////////////
+
+
+struct InvertData {
+    VSNodeRef *node;
+    const VSVideoInfo *vi;
+    const char *name;
+    bool process[3];
+};
+
+struct InvertOp {
+    uint16_t max;
+    bool uv;
+
+    InvertOp(InvertData *d, const VSFormat *fi, int plane) {
+        uv = (fi->colorFamily == cmYUV) || (fi->colorFamily == cmYCoCg) && (plane > 0);
+        max = (1LL << fi->bitsPerSample) - 1;
+    }
+
+    template<typename T>
+    static FORCE_INLINE void processPlane(const T * VS_RESTRICT src, T * VS_RESTRICT dst, unsigned width, const InvertOp &opts) {
+        for (unsigned w = 0; w < width; w++)
+            dst[w] = static_cast<T>(opts.max) - std::min(src[w], static_cast<T>(opts.max));
+    }
+
+    template<typename T>
+    static FORCE_INLINE void processPlaneF(const T * VS_RESTRICT src, T * VS_RESTRICT dst, unsigned width, const InvertOp &opts) {
+        if (opts.uv) {
+            for (unsigned w = 0; w < width; w++)
+                dst[w] = -src[w];
+        } else {
+            for (unsigned w = 0; w < width; w++)
+                dst[w] = 1 - src[w];
+        }
+    }
+};
+
+static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    std::unique_ptr<InvertData> d(new InvertData);
+
+    try {
+        templateInit(d, "Invert", true, in, out, vsapi);
+    } catch (std::string &error) {
+        vsapi->freeNode(d->node);
+        vsapi->setError(out, std::string(d->name).append(": ").append(error).c_str());
+        return;
+    }
+
+    vsapi->createFilter(in, out, d->name, templateClipInit<InvertData>, singlePixelGetFrame<InvertData, InvertOp>, templateClipFree<InvertData>, fmParallel, 0, d.get(), core);
+    d.release();
+}
+
+/////////////////
+
+struct LimitData {
+    VSNodeRef *node;
+    const VSVideoInfo *vi;
+    const char *name;
+    bool process[3];
+    uint16_t max[3], min[3];
+    float maxf[3], minf[3];
+};
+
+struct LimitOp {
+    uint16_t max, min;
+    float maxf, minf;
+
+    LimitOp(LimitData *d, const VSFormat *fi, int plane) {
+        max = d->max[plane];
+        min = d->min[plane];
+        maxf = d->maxf[plane];
+        minf = d->minf[plane];
+    }
+
+    template<typename T>
+    static FORCE_INLINE void processPlane(const T * VS_RESTRICT src, T * VS_RESTRICT dst, unsigned width, const LimitOp &opts) {
+        for (unsigned w = 0; w < width; w++)
+            dst[w] = std::min(static_cast<T>(opts.max), std::max(static_cast<T>(opts.min), src[w]));
+    }
+
+    template<typename T>
+    static FORCE_INLINE void processPlaneF(const T * VS_RESTRICT src, T * VS_RESTRICT dst, unsigned width, const LimitOp &opts) {
+        for (unsigned w = 0; w < width; w++)
+            dst[w] = std::min(opts.maxf, std::max(opts.minf, src[w]));
+    }
+};
+
+static void VS_CC limitCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    std::unique_ptr<LimitData> d(new LimitData);
+
+    try {
+        templateInit(d, "Limiter", false, in, out, vsapi);
+        getPlanePixelRangeArgs(d->vi->format, in, "min", d->min, d->minf, 0, vsapi);
+        getPlanePixelRangeArgs(d->vi->format, in, "max", d->max, d->maxf, 1, vsapi);
+        for (int i = 0; i < 3; i++)
+            if (((d->vi->format->sampleType == stInteger) && (d->min[i] > d->max[i])) || ((d->vi->format->sampleType == stFloat) && (d->minf[i] > d->maxf[i])))
+                throw std::string("min bigger than max");
+    } catch (std::string &error) {
+        vsapi->freeNode(d->node);
+        vsapi->setError(out, std::string(d->name).append(": ").append(error).c_str());
+        return;
+    }
+
+    vsapi->createFilter(in, out, d->name, templateClipInit<LimitData>, singlePixelGetFrame<LimitData, LimitOp>, templateClipFree<LimitData>, fmParallel, 0, d.get(), core);
+    d.release();
+}
+
+/////////////////
+
+struct BinarizeData {
+    VSNodeRef *node;
+    const VSVideoInfo *vi;
+    const char *name;
+    bool process[3];
+    uint16_t v0[3], v1[3], thr[3];
+    float v0f[3], v1f[3], thrf[3];
+};
+
+struct BinarizeOp {
+    uint16_t v0, v1, thr;
+    float v0f, v1f, thrf;
+
+    BinarizeOp(BinarizeData *d, const VSFormat *fi, int plane) {
+        v0 = d->v0[plane];
+        v1 = d->v1[plane];
+        v0f = d->v0f[plane];
+        v1f = d->v1f[plane];
+        thr = d->thr[plane];
+        thrf = d->thrf[plane];
+    }
+
+    template<typename T>
+    static FORCE_INLINE void processPlane(const T * VS_RESTRICT src, T * VS_RESTRICT dst, unsigned width, const BinarizeOp &opts) {
+        for (unsigned w = 0; w < width; w++)
+            if (src[w] < opts.thr)
+                dst[w] = static_cast<T>(opts.v0);
+            else
+                dst[w] = static_cast<T>(opts.v1);
+    }
+
+    template<typename T>
+    static FORCE_INLINE void processPlaneF(const T * VS_RESTRICT src, T * VS_RESTRICT dst, unsigned width, const BinarizeOp &opts) {
+        for (unsigned w = 0; w < width; w++)
+            if (src[w] < opts.thrf)
+                dst[w] = opts.v0f;
+            else
+                dst[w] = opts.v1f;
+    }
+};
+
+static void VS_CC binarizeCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    std::unique_ptr<BinarizeData> d(new BinarizeData);
+
+    try {
+        templateInit(d, "Binarize", false, in, out, vsapi);
+        getPlanePixelRangeArgs(d->vi->format, in, "v0", d->v0, d->v0f, 0, vsapi);
+        getPlanePixelRangeArgs(d->vi->format, in, "v1", d->v1, d->v1f, 1, vsapi);
+        getPlanePixelRangeArgs(d->vi->format, in, "threshold", d->thr, d->thrf, 2, vsapi);
+    } catch (std::string &error) {
+        vsapi->freeNode(d->node);
+        vsapi->setError(out, std::string(d->name).append(": ").append(error).c_str());
+        return;
+    }
+
+    vsapi->createFilter(in, out, d->name, templateClipInit<BinarizeData>, singlePixelGetFrame<BinarizeData, BinarizeOp>, templateClipFree<BinarizeData>, fmParallel, 0, d.get(), core);
+    d.release();
+}
+
+/////////////////
+
+struct LevelsData {
+    VSNodeRef *node;
+    const VSVideoInfo *vi;
+    const char *name;
+    bool process[3];
+    double gamma[3];
+    uint16_t max_in[3], max_out[3], min_in[3], min_out[3];
+    float max_inf[3], max_outf[3], min_inf[3], min_outf[3];
+};
+
+struct LevelsOp {
+    float gamma;
+    uint16_t range_in, range_out, min_in, min_out;
+    float range_inf, range_outf, min_inf, min_outf;
+
+    LevelsOp(LevelsData *d, const VSFormat *fi, int plane) {
+        gamma = static_cast<float>(1.0 / d->gamma[plane]);
+        range_in = d->max_in[plane] - d->min_in[plane];
+        range_inf = d->max_inf[plane] - d->min_inf[plane];
+        range_out = d->max_out[plane] - d->min_out[plane];
+        range_outf = d->max_outf[plane] - d->min_outf[plane];
+        min_in = d->min_in[plane];
+        min_inf = d->min_inf[plane];
+        min_out = d->min_out[plane];
+        min_outf = d->min_outf[plane];
+    }
+
+    template<typename T>
+    static FORCE_INLINE void processPlane(const T * VS_RESTRICT src, T * VS_RESTRICT dst, unsigned width, const LevelsOp &opts) {
+        for (unsigned w = 0; w < width; w++)
+            dst[w] = static_cast<T>(std::pow(static_cast<float>(src[w] - opts.min_in) / (opts.range_in), opts.gamma) * (opts.range_out) + opts.min_out + 0.5f);
+    }
+
+    template<typename T>
+    static FORCE_INLINE void processPlaneF(const T * VS_RESTRICT src, T * VS_RESTRICT dst, unsigned width, const LevelsOp &opts) {
+        for (unsigned w = 0; w < width; w++)
+            dst[w] = std::pow(static_cast<float>(src[w] - opts.min_inf) / (opts.range_inf), opts.gamma) * (opts.range_outf) + opts.min_outf;
+    }
+};
+
+static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    std::unique_ptr<LevelsData> d(new LevelsData);
+
+    try {
+        templateInit(d, "Levels", false, in, out, vsapi);
+        getPlanePixelRangeArgs(d->vi->format, in, "min_in", d->min_in, d->min_inf, 0, vsapi);
+        getPlanePixelRangeArgs(d->vi->format, in, "min_out", d->min_out, d->min_outf, 0, vsapi);
+        getPlanePixelRangeArgs(d->vi->format, in, "max_in", d->max_in, d->max_inf, 1, vsapi);
+        getPlanePixelRangeArgs(d->vi->format, in, "max_out", d->max_out, d->max_outf, 1, vsapi);
+        getPlaneArgs(d->vi->format, in, "gamma", d->gamma, 1., vsapi);
+    } catch (std::string &error) {
+        vsapi->freeNode(d->node);
+        vsapi->setError(out, std::string(d->name).append(": ").append(error).c_str());
+        return;
+    }
+
+    vsapi->createFilter(in, out, d->name, templateClipInit<LevelsData>, singlePixelGetFrame<LevelsData, LevelsOp>, templateClipFree<LevelsData>, fmParallel, 0, d.get(), core);
+    d.release();
+}
+
+//////////////////////////
 
 void VS_CC genericInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     //configFunc("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 1, plugin);
@@ -1097,14 +2468,14 @@ void VS_CC genericInitialize(VSConfigPlugin configFunc, VSRegisterFunction regis
     registerFunc("Minimum",
             "clip:clip;"
             "planes:int[]:opt;"
-            "threshold:int:opt;"
+            "threshold:float:opt;"
             "coordinates:int[]:opt;"
             , genericCreate<GenericMinimum>, const_cast<char *>("Minimum"), plugin);
 
     registerFunc("Maximum",
             "clip:clip;"
             "planes:int[]:opt;"
-            "threshold:int:opt;"
+            "threshold:float:opt;"
             "coordinates:int[]:opt;"
             , genericCreate<GenericMaximum>, const_cast<char *>("Maximum"), plugin);
 
@@ -1116,18 +2487,18 @@ void VS_CC genericInitialize(VSConfigPlugin configFunc, VSRegisterFunction regis
     registerFunc("Deflate",
             "clip:clip;"
             "planes:int[]:opt;"
-            "threshold:int:opt;"
+            "threshold:float:opt;"
             , genericCreate<GenericDeflate>, const_cast<char *>("Deflate"), plugin);
 
     registerFunc("Inflate",
             "clip:clip;"
             "planes:int[]:opt;"
-            "threshold:int:opt;"
+            "threshold:float:opt;"
             , genericCreate<GenericInflate>, const_cast<char *>("Inflate"), plugin);
 
     registerFunc("Convolution",
             "clip:clip;"
-            "matrix:int[];"
+            "matrix:float[];"
             "bias:float:opt;"
             "divisor:float:opt;"
             "planes:int[]:opt;"
@@ -1137,47 +2508,47 @@ void VS_CC genericInitialize(VSConfigPlugin configFunc, VSRegisterFunction regis
 
     registerFunc("Prewitt",
             "clip:clip;"
-            "min:int:opt;"
-            "max:int:opt;"
+            "min:float:opt;"
+            "max:float:opt;"
             "planes:int[]:opt;"
             "rshift:int:opt;"
             , genericCreate<GenericPrewitt>, const_cast<char *>("Prewitt"), plugin);
 
     registerFunc("Sobel",
             "clip:clip;"
-            "min:int:opt;"
-            "max:int:opt;"
+            "min:float:opt;"
+            "max:float:opt;"
             "planes:int[]:opt;"
             "rshift:int:opt;"
             , genericCreate<GenericSobel>, const_cast<char *>("Sobel"), plugin);
 
     registerFunc("Invert",
-            "clip:clip;"
-            "planes:int[]:opt;"
-            , genericCreate<GenericInvert>, const_cast<char *>("Invert"), plugin);
+        "clip:clip;"
+        "planes:int[]:opt;"
+        , invertCreate, nullptr, plugin);
 
     registerFunc("Limiter",
-            "clip:clip;"
-            "min:int:opt;"
-            "max:int:opt;"
-            "planes:int[]:opt;"
-            , genericCreate<GenericLimiter>, const_cast<char *>("Limiter"), plugin);
-
-    registerFunc("Levels",
-            "clip:clip;"
-            "min_in:int:opt;"
-            "max_in:int:opt;"
-            "gamma:float:opt;"
-            "min_out:int:opt;"
-            "max_out:int:opt;"
-            "planes:int[]:opt;"
-            , genericCreate<GenericLevels>, const_cast<char *>("Levels"), plugin);
+        "clip:clip;"
+        "min:float[]:opt;"
+        "max:float[]:opt;"
+        "planes:int[]:opt;"
+        , limitCreate, nullptr, plugin);
 
     registerFunc("Binarize",
-            "clip:clip;"
-            "threshold:int:opt;"
-            "v0:int:opt;"
-            "v1:int:opt;"
-            "planes:int[]:opt;"
-            , genericCreate<GenericBinarize>, const_cast<char *>("Binarize"), plugin);
+        "clip:clip;"
+        "threshold:float[]:opt;"
+        "v0:float[]:opt;"
+        "v1:float[]:opt;"
+        "planes:int[]:opt;"
+        , binarizeCreate, nullptr, plugin);
+
+    registerFunc("Levels",
+        "clip:clip;"
+        "min_in:float[]:opt;"
+        "max_in:float[]:opt;"
+        "gamma:float[]:opt;"
+        "min_out:float[]:opt;"
+        "max_out:float[]:opt;"
+        "planes:int[]:opt;"
+        , levelsCreate, nullptr, plugin);
 }

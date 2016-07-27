@@ -1,7 +1,7 @@
 Deflate/Inflate
 ===============
 
-.. function:: Deflate(clip clip[, int[] planes=[0, 1, 2], int threshold=65535])
+.. function:: Deflate(clip clip[, int[] planes=[0, 1, 2], float threshold])
    :module: std
 
    Replaces each pixel with the average of the eight pixels in its 3x3
@@ -18,8 +18,7 @@ Deflate/Inflate
 
    *threshold*
       Allows to limit how much pixels are changed. Output pixels will not
-      become less than ``input - threshold``. With the default value of
-      65535 there is no limit.
+      become less than ``input - threshold``. The default is no limit.
 
 
 .. function:: Inflate(clip clip[, int[] planes=[0, 1, 2], int threshold=65535])
@@ -40,5 +39,4 @@ Deflate/Inflate
 
    *threshold*
       Allows to limit how much pixels are changed. Output pixels will not
-      become greater than ``input + threshold``. With the default value
-      of 65535 there is no limit.
+      become greater than ``input + threshold``. The default is no limit.

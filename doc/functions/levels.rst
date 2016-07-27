@@ -1,7 +1,7 @@
 Levels
 ======
 
-.. function:: Levels(clip clip[, int min_in=0, int max_in, float gamma=1.0, int min_out=0, int max_out, int[] planes=[0, 1, 2]])
+.. function:: Levels(clip clip[, float[] min_in, float[] max_in, float[] gamma=1.0, float[] min_out, float[] max_out, int[] planes=[0, 1, 2]])
    :module: std
 
    Adjusts brightness, contrast, and gamma.
@@ -13,12 +13,11 @@ Levels
       clip = std.Levels(clip, min_in=16, max_in=235, min_out=0, max_out=255, planes=0)
       clip = std.Levels(clip, min_in=16, max_in=240, min_out=0, max_out=255, planes=[1,2])
 
-   The default value of *max_in* and *max_out* is the format's maximum
-   allowed value.
+   The default value of *max_in* and *max_out* is the format's minimum and maximum
+   allowed values repsectively. Can be specified for each plane individually.
 
    *clip*
-      Clip to process. It must have constant format, integer sample type,
-      and bit depth between 8 and 16.
+      Clip to process.
 
    *gamma*
       Controls the degree of non-linearity of the conversion. Values

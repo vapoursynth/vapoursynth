@@ -1,7 +1,7 @@
 Convolution
 ===========
 
-.. function:: Convolution(clip clip, int[] matrix[, float bias=0.0, float divisor=0.0, int[] planes=[0, 1, 2], bint saturate=True, string mode="s"])
+.. function:: Convolution(clip clip, float[] matrix[, float bias=0.0, float divisor=0.0, int[] planes=[0, 1, 2], bint saturate=True, string mode="s"])
    :module: std
 
    Performs a spatial convolution.
@@ -61,8 +61,8 @@ Convolution
    *saturate*
       The final result is clamped to the format's range of valid values
       (0 .. (2**bitdepth)-1). Therefore, if this parameter is True,
-      negative values become 0. If this parameter is False, negative
-      values are multiplied by -1 before clamping.
+      negative values become 0. If this parameter is False, it's instead
+      the absolute value that is clamped and returned.
 
    *mode*
       Selects the type of convolution. Possible values are "s", for square,

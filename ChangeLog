@@ -1,4 +1,7 @@
 r33:
+the rshift argument of sobel/prewitt is now deprecated because it's pointless, simply scale the min and max args as appropriate
+optimized minimum, maximum, median, deflate, inflate, convolution (1x3, 3x1 and 3x3) on x86 cpus
+added float support to minimum, maximum, median, deflate, inflate, convolution, prewitt, sobel, invert, limiter, binarize and levels functions, note that most of the arguments have been changed from int to float
 the whole project can now be compiled with clang-cl under windows
 directshowsource from recent avs+ can now be used
 fixed swapped uv planes with yuv411 output in vsvfw and avfs

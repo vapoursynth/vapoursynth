@@ -1,12 +1,12 @@
 Prewitt/Sobel
 ===================
 
-.. function:: Prewitt(clip clip[, int min=0, int max=65535, int[] planes=[0, 1, 2], int rshift=0])
+.. function:: Prewitt(clip clip[, float min=0.0, float max, int[] planes=[0, 1, 2], int rshift=0])
    :module: std
 
    Creates an edge mask using the Prewitt operator.
 
-.. function:: Sobel(clip clip[, int min=0, int max=65535, int[] planes=[0, 1, 2], int rshift=0])
+.. function:: Sobel(clip clip[, float min=0.0, float max, int[] planes=[0, 1, 2], int rshift=0])
    :module: std
 
    Creates an edge mask using the Sobel operator.
@@ -22,8 +22,11 @@ Prewitt/Sobel
 
    *max*
       If an output pixel has a value greater than or equal to this, it
-      will be set to the maximum value allowed by the frame's bit depth.
-
+      will be set to the maximum value allowed by the frame's bit depth
+      or 1 if it's float.
+      
+      By default max will be 1 for float and the maximum value for integer.
+      
       Output pixels are compared with *max* first, then with *min*.
 
    *planes*
@@ -31,6 +34,9 @@ Prewitt/Sobel
       will be simply copied.
 
    *rshift*
+      Deprecated as of R33. Simply multiply the *min* and *max* thresholds
+      instead.
+      
       Before comparing with *min* and *max*, output pixels can be shifted
       to the right by *rshift* bits. In other words, they can be divided
       by ``2 ** rshift``.
