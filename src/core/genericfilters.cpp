@@ -149,8 +149,6 @@ static void getPlanePixelRangeArgs(const VSFormat *fi, const VSMap *in, const ch
                 ival[plane] = static_cast<uint16_t>(temp2);
             } else {
                 fval[plane] = static_cast<float>(temp);
-                if (mode == 5 && fval[plane] < 0)
-                    throw std::string(propName).append(" must be positive");
             }
             prevValid = true;
         }
@@ -184,7 +182,7 @@ template<typename T>
 static void VS_CC templateClipFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     T *d = (T *)instanceData;
     vsapi->freeNode(d->node);
-    delete instanceData;
+    delete d;
 }
 
 template<typename T, typename OP>
@@ -225,11 +223,11 @@ static const VSFrameRef *VS_CC singlePixelGetFrame(int n, int activationReason, 
 
                 for (int h = 0; h < height; h++) {
                     if (fi->bytesPerSample == 1)
-                        OP::processPlane<uint8_t>(srcp, dstp, width, opts);
+                        OP::template processPlane<uint8_t>(srcp, dstp, width, opts);
                     else if (fi->bytesPerSample == 2)
-                        OP::processPlane<uint16_t>(reinterpret_cast<const uint16_t *>(srcp), reinterpret_cast<uint16_t *>(dstp), width, opts);
+                        OP::template processPlane<uint16_t>(reinterpret_cast<const uint16_t *>(srcp), reinterpret_cast<uint16_t *>(dstp), width, opts);
                     else if (fi->bytesPerSample == 4)
-                        OP::processPlaneF<float>(reinterpret_cast<const float *>(srcp), reinterpret_cast<float *>(dstp), width, opts);
+                        OP::template processPlaneF<float>(reinterpret_cast<const float *>(srcp), reinterpret_cast<float *>(dstp), width, opts);
                     srcp += stride;
                     dstp += stride;
                 }
@@ -697,7 +695,7 @@ void filterPlane(const uint8_t * VS_RESTRICT src, uint8_t * VS_RESTRICT dst, con
     unsigned nheight = std::max(height - 2, 0);
     const uint8_t * VS_RESTRICT srcLineStart = src;
     uint8_t * VS_RESTRICT dstLineStart = dst;
-    OP::FrameData opts(data, fi, plane);
+    typename OP::FrameData opts(data, fi, plane);
 
     if (sizeof(T) == 4) {
         alignas(sizeof(__m128)) const uint32_t ascendMask[4] = { 0, 1, 2, 3 };
@@ -2084,7 +2082,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
         int err;
 
         if (op == GenericMinimum || op == GenericMaximum || op == GenericDeflate || op == GenericInflate) {
-            d->thf = vsapi->propGetFloat(in, "threshold", 0, &err);
+            d->thf = static_cast<float>(vsapi->propGetFloat(in, "threshold", 0, &err));
             if (err) {
                 d->th = ((1 << d->vi->format->bitsPerSample) - 1);
                 d->thf = FLT_MAX;
@@ -2093,7 +2091,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
                     int64_t ith = floatToInt64S(d->thf);
                     if (ith < 0 || ith > ((1 << d->vi->format->bitsPerSample) - 1))
                         throw std::string("threshold bigger than sample value.");
-                    d->th = ith;
+                    d->th = static_cast<uint16_t>(ith);
                 } else {
                     if (d->thf < 0)
                         throw std::string("threshold must be a positive value.");
@@ -2222,7 +2220,7 @@ struct InvertOp {
     bool uv;
 
     InvertOp(InvertData *d, const VSFormat *fi, int plane) {
-        uv = (fi->colorFamily == cmYUV) || (fi->colorFamily == cmYCoCg) && (plane > 0);
+        uv = ((fi->colorFamily == cmYUV) || (fi->colorFamily == cmYCoCg)) && (plane > 0);
         max = (1LL << fi->bitsPerSample) - 1;
     }
 
