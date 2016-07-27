@@ -20,7 +20,9 @@
 
 
 #include <algorithm>
+#include <cfloat>
 #include <cmath>
+#include <cstddef>
 #include <cstdlib>
 #include <string>
 #include <array>
@@ -707,7 +709,6 @@ void filterPlane(const uint8_t * VS_RESTRICT src, uint8_t * VS_RESTRICT dst, con
     if (sizeof(T) == 4) {
         alignas(sizeof(__m128)) const uint32_t ascendMask[4] = { 0, 1, 2, 3 };
         
-        __m128 leadmask = _mm_castsi128_ps(_mm_srli_si128(_mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128()), sizeof(__m128i) - sizeof(T)));
         __m128 tailmask = _mm_castsi128_ps(_mm_cmpeq_epi32(_mm_load_si128(reinterpret_cast<const __m128i *>(ascendMask)), _mm_set1_epi32(tailelems - 1)));
 
         // first line
@@ -1531,7 +1532,7 @@ static void process_plane_convolution_vertical(uint8_t * VS_RESTRICT dstp8, cons
     const PixelType *srcp = reinterpret_cast<const PixelType *>(srcp8);
 
     const float *matrix = params.matrix;
-    size_t matrix_elements = params.matrix_elements;
+    int matrix_elements = params.matrix_elements;
     float rdiv = params.rdiv;
     float bias = params.bias;
     bool saturate = params.saturate;
