@@ -44,24 +44,18 @@ libvapoursynth_la_SOURCES = src/core/cachefilter.cpp \
 							src/core/cpufeatures.c \
 							src/core/cpufeatures.h \
 							src/core/exprfilter.cpp \
-							src/core/exprfilter.h \
 							src/core/filtershared.h \
 							src/core/genericfilters.cpp \
-							src/core/genericfilters.h \
+							src/core/internalfilters.h \
 							src/core/jitasm.h \
 							src/core/lutfilters.cpp \
-							src/core/lutfilters.h \
 							src/core/mergefilters.c \
-							src/core/mergefilters.h \
 							src/core/reorderfilters.c \
-							src/core/reorderfilters.h \
 							src/core/settings.cpp \
 							src/core/settings.h \
 							src/core/simplefilters.c \
-							src/core/simplefilters.h \
 							src/core/ter-116n.h \
 							src/core/textfilter.cpp \
-							src/core/textfilter.h \
 							src/core/version.h \
 							src/core/vsapi.cpp \
 							src/core/vscore.cpp \
@@ -69,7 +63,6 @@ libvapoursynth_la_SOURCES = src/core/cachefilter.cpp \
 							src/core/vslog.cpp \
 							src/core/vslog.h \
 							src/core/vsresize.cpp \
-							src/core/vsresize.h \
 							src/core/vsthreadpool.cpp \
 							src/core/x86utils.h
 
