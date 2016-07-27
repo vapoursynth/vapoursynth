@@ -410,6 +410,13 @@ X86_MAXMINOP(Min, ReducePlus, min, LimitMaxOp)
 X86_MAXMINOP(Min, ReduceHorizontal, min, LimitMaxOp)
 X86_MAXMINOP(Min, ReduceVertical, min, LimitMaxOp)
 
+static FORCE_INLINE __m128i _mm_packus_epi32_sse2(__m128i v1, __m128i v2) {
+    __m128i ones = _mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128());
+    __m128i subMask32 = _mm_srli_epi32(_mm_slli_epi32(ones, 31), 16);
+    __m128i addMask16 = _mm_slli_epi16(ones, 15);
+    return _mm_add_epi16(_mm_packs_epi32(_mm_sub_epi32(v1, subMask32), _mm_sub_epi32(v2, subMask32)), addMask16);
+}
+
 struct Convolution3x3 {
     struct FrameData {
         float bias;
@@ -456,7 +463,7 @@ struct Convolution3x3 {
         acc3 = _mm_max_ps(_mm_and_ps(_mm_add_ps(_mm_mul_ps(acc3, _mm_set_ps1(opts.divisor)), _mm_set_ps1(opts.bias)), absMask), _mm_setzero_ps());
         acc4 = _mm_max_ps(_mm_and_ps(_mm_add_ps(_mm_mul_ps(acc4, _mm_set_ps1(opts.divisor)), _mm_set_ps1(opts.bias)), absMask), _mm_setzero_ps());
 
-        return _mm_packus_epi16(_mm_packus_epi32(_mm_cvtps_epi32(acc1), _mm_cvtps_epi32(acc2)), _mm_packus_epi32(_mm_cvtps_epi32(acc3), _mm_cvtps_epi32(acc4)));
+        return _mm_packus_epi16(_mm_packus_epi32_sse2(_mm_cvtps_epi32(acc1), _mm_cvtps_epi32(acc2)), _mm_packus_epi32_sse2(_mm_cvtps_epi32(acc3), _mm_cvtps_epi32(acc4)));
     }
 
 #define CONV_REDUCE_REG16(reg, idx) \
@@ -481,7 +488,7 @@ struct Convolution3x3 {
         acc1 = _mm_max_ps(_mm_and_ps(_mm_add_ps(_mm_mul_ps(acc1, _mm_set_ps1(opts.divisor)), _mm_set_ps1(opts.bias)), absMask), _mm_setzero_ps());
         acc2 = _mm_max_ps(_mm_and_ps(_mm_add_ps(_mm_mul_ps(acc2, _mm_set_ps1(opts.divisor)), _mm_set_ps1(opts.bias)), absMask), _mm_setzero_ps());
         
-        return _mm_packus_epi32(_mm_cvtps_epi32(acc1), _mm_cvtps_epi32(acc2));
+        return _mm_packus_epi32_sse2(_mm_cvtps_epi32(acc1), _mm_cvtps_epi32(acc2));
     }
 
     static FORCE_INLINE __m128 processF(__m128 t1, __m128 t2, __m128 t3, __m128 m1, __m128 m2, __m128 m3, __m128 b1, __m128 b2, __m128 b3, const FrameData &opts) {
@@ -563,7 +570,7 @@ struct MehFlate {
         acc1 = _mm_srli_epi32(_mm_add_epi32(acc1, _mm_set1_epi32(4)), 3);
         acc2 = _mm_srli_epi32(_mm_add_epi32(acc2, _mm_set1_epi32(4)), 3);
 
-        __m128i reduced = _mm_packus_epi32(acc1, acc2);
+        __m128i reduced = _mm_packus_epi32_sse2(acc1, acc2);
         return LimitOp::limit16(reduced, m2, opts.limit, convSignMask);
     }
 
