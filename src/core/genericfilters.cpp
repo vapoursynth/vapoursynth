@@ -29,6 +29,8 @@
 #include <VSHelper.h>
 #include "filtershared.h"
 
+
+
 #ifdef VS_TARGET_OS_WINDOWS
 #define FORCE_INLINE __forceinline
 #else
@@ -111,7 +113,13 @@ static void sharedFormatCheck(const VSFormat *fi) {
         throw std::string("Only clips with 8..16 bits integer per sample or float supported.");
 }
 
-static void getPlanePixelRangeArgs(const VSFormat *fi, const VSMap *in, const char *propName, uint16_t *ival, float *fval, int mode, const VSAPI *vsapi) {
+enum RangeArgumentHandling {
+    RangeLower,
+    RangeUpper,
+    RangeMiddle
+};
+
+static void getPlanePixelRangeArgs(const VSFormat *fi, const VSMap *in, const char *propName, uint16_t *ival, float *fval, RangeArgumentHandling mode, const VSAPI *vsapi) {
     if (vsapi->propNumElements(in, propName) > fi->numPlanes)
         throw std::string(propName).append(" has more values specified than there are planes");
     bool prevValid = false;
@@ -123,21 +131,15 @@ static void getPlanePixelRangeArgs(const VSFormat *fi, const VSMap *in, const ch
             if (prevValid) {
                 ival[plane] = ival[plane - 1];
                 fval[plane] = fval[plane - 1];
-            } else if (mode == 0) { // bottom of pixel range
+            } else if (mode == RangeLower) { // bottom of pixel range
                 ival[plane] = 0;
                 fval[plane] = uv ? -.5f : 0;
-            } else if (mode == 1) { // top of pixel range
+            } else if (mode == RangeUpper) { // top of pixel range
                 ival[plane] = (1 << fi->bitsPerSample) - 1;
                 fval[plane] = uv ? .5f : 1.f;
-            } else if (mode == 2) { // middle of pixel range
+            } else if (mode == RangeMiddle) { // middle of pixel range
                 ival[plane] = (1 << fi->bitsPerSample) / 2;
                 fval[plane] = uv ? 0.f : .5f;
-            } else if (mode == 3) { // zero all the things
-                ival[plane] = 0;
-                fval[plane] = 0.f;
-            } else if (mode == 4 || mode == 5) { // max all the things (unlimited threshold)
-                ival[plane] = std::numeric_limits<uint16_t>::max();
-                fval[plane] = std::numeric_limits<float>::max();
             }
         } else {
             if (fi->sampleType == stInteger) {
@@ -1843,24 +1845,11 @@ static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void
         };
 
         VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
-        VSFrameRef *dst2 = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
 
         void(*process_plane)(uint8_t * VS_RESTRICT dstp8, const uint8_t * VS_RESTRICT srcp8, int width, int height, int stride, const GenericPlaneParams &params) = nullptr;
 
         int bytes = fi->bytesPerSample;
         bool defaultProcess = true;
-
-        uint16_t *srcshit = (uint16_t *)vsapi->getReadPtr(src, 0);
-        int shitstride = vsapi->getStride(src, 0);
-        uint16_t counter = 1;
-        uint16_t lineStart = 64001;
-        for (int sh = 0; sh < vsapi->getFrameHeight(src, 0); sh++) {
-            lineStart += 1000;
-            counter = lineStart;
-            for (int sw = 0; sw < vsapi->getFrameWidth(src, 0); sw++)
-                srcshit[sw] = counter++;
-            srcshit += shitstride / sizeof(uint16_t);
-        }
 
 #ifdef VS_TARGET_CPU_X86
         void(*process_plane_fast)(const uint8_t * VS_RESTRICT src, uint8_t * VS_RESTRICT dst, const ptrdiff_t stride, const unsigned width, const int height, int plane, const VSFormat *fi, const GenericData *data) = nullptr;
@@ -2001,7 +1990,7 @@ static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void
             }
         }
 #endif
-        if (defaultProcess || true) {
+        if (defaultProcess) {
             if (op == GenericConvolution && d->matrix_elements == 25) {
                 if (bytes == 1)
                     process_plane = process_plane_5x5<uint8_t, op>;
@@ -2042,7 +2031,7 @@ static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void
 
             for (int plane = 0; plane < fi->numPlanes; plane++) {
                 if (d->process[plane]) {
-                    uint8_t *dstp = vsapi->getWritePtr(dst2, plane);
+                    uint8_t *dstp = vsapi->getWritePtr(dst, plane);
                     const uint8_t *srcp = vsapi->getReadPtr(src, plane);
                     int width = vsapi->getFrameWidth(src, plane);
                     int height = vsapi->getFrameHeight(src, plane);
@@ -2054,18 +2043,6 @@ static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void
             }
         }
 
-        assert(process_plane_fast);
-        int width = vsapi->getFrameWidth(src, 0);
-        int stride = vsapi->getStride(src, 0);
-        const uint16_t *dstp1 = (const uint16_t *)(vsapi->getReadPtr(dst, 0) + stride);
-        const uint16_t *dstp2 = (const uint16_t *)(vsapi->getReadPtr(dst2, 0) + stride);
-        for (int i = 1; i < width-1; i++) {
-            if(std::abs(dstp1[i] - dstp2[i]) > 0)
-                __debugbreak();
-        }
-
-
-        vsapi->freeFrame(dst2);
         vsapi->freeFrame(src);
 
         return dst;
@@ -2322,8 +2299,8 @@ static void VS_CC limitCreate(const VSMap *in, VSMap *out, void *userData, VSCor
 
     try {
         templateInit(d, "Limiter", false, in, out, vsapi);
-        getPlanePixelRangeArgs(d->vi->format, in, "min", d->min, d->minf, 0, vsapi);
-        getPlanePixelRangeArgs(d->vi->format, in, "max", d->max, d->maxf, 1, vsapi);
+        getPlanePixelRangeArgs(d->vi->format, in, "min", d->min, d->minf, RangeLower, vsapi);
+        getPlanePixelRangeArgs(d->vi->format, in, "max", d->max, d->maxf, RangeUpper, vsapi);
         for (int i = 0; i < 3; i++)
             if (((d->vi->format->sampleType == stInteger) && (d->min[i] > d->max[i])) || ((d->vi->format->sampleType == stFloat) && (d->minf[i] > d->maxf[i])))
                 throw std::string("min bigger than max");
@@ -2385,9 +2362,9 @@ static void VS_CC binarizeCreate(const VSMap *in, VSMap *out, void *userData, VS
 
     try {
         templateInit(d, "Binarize", false, in, out, vsapi);
-        getPlanePixelRangeArgs(d->vi->format, in, "v0", d->v0, d->v0f, 0, vsapi);
-        getPlanePixelRangeArgs(d->vi->format, in, "v1", d->v1, d->v1f, 1, vsapi);
-        getPlanePixelRangeArgs(d->vi->format, in, "threshold", d->thr, d->thrf, 2, vsapi);
+        getPlanePixelRangeArgs(d->vi->format, in, "v0", d->v0, d->v0f, RangeLower, vsapi);
+        getPlanePixelRangeArgs(d->vi->format, in, "v1", d->v1, d->v1f, RangeUpper, vsapi);
+        getPlanePixelRangeArgs(d->vi->format, in, "threshold", d->thr, d->thrf, RangeMiddle, vsapi);
     } catch (std::string &error) {
         vsapi->freeNode(d->node);
         vsapi->setError(out, std::string(d->name).append(": ").append(error).c_str());
@@ -2445,10 +2422,10 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 
     try {
         templateInit(d, "Levels", false, in, out, vsapi);
-        getPlanePixelRangeArgs(d->vi->format, in, "min_in", d->min_in, d->min_inf, 0, vsapi);
-        getPlanePixelRangeArgs(d->vi->format, in, "min_out", d->min_out, d->min_outf, 0, vsapi);
-        getPlanePixelRangeArgs(d->vi->format, in, "max_in", d->max_in, d->max_inf, 1, vsapi);
-        getPlanePixelRangeArgs(d->vi->format, in, "max_out", d->max_out, d->max_outf, 1, vsapi);
+        getPlanePixelRangeArgs(d->vi->format, in, "min_in", d->min_in, d->min_inf, RangeLower, vsapi);
+        getPlanePixelRangeArgs(d->vi->format, in, "min_out", d->min_out, d->min_outf, RangeLower, vsapi);
+        getPlanePixelRangeArgs(d->vi->format, in, "max_in", d->max_in, d->max_inf, RangeUpper, vsapi);
+        getPlanePixelRangeArgs(d->vi->format, in, "max_out", d->max_out, d->max_outf, RangeUpper, vsapi);
         getPlaneArgs(d->vi->format, in, "gamma", d->gamma, 1., vsapi);
     } catch (std::string &error) {
         vsapi->freeNode(d->node);
