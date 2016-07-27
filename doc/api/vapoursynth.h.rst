@@ -2032,7 +2032,8 @@ struct VSAPI
 
    VSMap_ \*getPlugins(VSCore_ \*core)
 
-      Returns a map containing a list of all loaded plugins.
+      Returns a map containing a list of all loaded plugins. The map
+      must be freed when no longer needed.
 
       Keys:
          The plugins' unique identifiers.
@@ -2047,6 +2048,7 @@ struct VSAPI
    VSMap_ \*getFunctions(VSPlugin_ \*plugin)
 
       Returns a map containing a list of the filters exported by a plugin.
+      The map must be freed when no longer needed.
 
       Keys:
          The filter names.
