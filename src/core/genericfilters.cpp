@@ -1189,17 +1189,17 @@ static FORCE_INLINE PixelType generic_3x3I(
             a13, a23, a33
         };
 
-        int64_t sum = 0;
+        int sum = 0;
 
         for (int i = 0; i < 9; i++)
             sum += pixels[i] * matrix[i];
 
-        float fsum = (sum * rdiv + bias);
+        sum = static_cast<int>(sum * rdiv + bias + 0.5f);
 
         if (!saturate)
-            fsum = std::abs(fsum);
+            sum = std::abs(sum);
 
-        return std::min(max_value, std::max(static_cast<int>(fsum + 0.5f), 0));
+        return std::min(max_value, std::max(sum, 0));
     }
 
     return 42; // Silence warning.
@@ -1433,17 +1433,17 @@ static FORCE_INLINE PixelType generic_5x5(
     };
 
     if (std::numeric_limits<PixelType>::is_integer) {
-        int64_t sum = 0;
+        int sum = 0;
 
         for (int i = 0; i < 25; i++)
             sum += pixels[i] * matrix[i];
 
-        float fsum = (sum * rdiv + bias);
+        sum = static_cast<int>(sum * rdiv + bias + 0.5f);
 
         if (!saturate)
-            fsum = std::abs(fsum);
+            sum = std::abs(sum);
 
-        return std::min(max_value, std::max(static_cast<int>(fsum + 0.5f), 0));
+        return std::min(max_value, std::max(sum, 0));
     } else {
         float sum = 0;
 
