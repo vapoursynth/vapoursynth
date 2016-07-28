@@ -70,15 +70,15 @@ static bool isValidIdentifier(const std::string &s) {
 }
 
 #ifdef VS_TARGET_OS_WINDOWS
-static std::wstring readRegistryValue(const std::wstring &keyName, const std::wstring &valueName) {
+static std::wstring readRegistryValue(const wchar_t *keyName, const wchar_t *valueName) {
     HKEY hKey;
-    LONG lRes = RegOpenKeyEx(HKEY_LOCAL_MACHINE, keyName.c_str(), 0, KEY_READ, &hKey);
+    LONG lRes = RegOpenKeyEx(HKEY_LOCAL_MACHINE, keyName, 0, KEY_READ, &hKey);
     if (lRes != ERROR_SUCCESS)
         return std::wstring();
     WCHAR szBuffer[512];
     DWORD dwBufferSize = sizeof(szBuffer);
     ULONG nError;
-    nError = RegQueryValueEx(hKey, valueName.c_str(), 0, nullptr, (LPBYTE)szBuffer, &dwBufferSize);
+    nError = RegQueryValueEx(hKey, valueName, 0, nullptr, (LPBYTE)szBuffer, &dwBufferSize);
     RegCloseKey(hKey);
     if (ERROR_SUCCESS == nError)
         return szBuffer;
