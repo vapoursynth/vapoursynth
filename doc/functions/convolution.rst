@@ -29,8 +29,9 @@ Convolution
       When *mode* is "h" or "v", this must be an array of 3 to 17 numbers,
       with an odd number of elements.
 
-      The values of the coefficients must be between -1024 and 1023
-      (inclusive).
+      The values of the coefficients must be between -1023 and 1023
+      (inclusive). The coefficients are rounded to integers when
+      the input is an integer format.
 
       This is how the elements of *matrix* correspond to the pixels in
       a 3x3 neighbourhood::
