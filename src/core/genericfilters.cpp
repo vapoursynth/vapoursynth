@@ -100,7 +100,9 @@ struct GenericData {
     bool enable[8];
 
     // Convolution.
-    float matrix[25];
+    int matrix[25];
+    float matrixf[25];
+    int matrix_sum;
     int matrix_elements;
     float rdiv;
     float bias;
@@ -423,87 +425,88 @@ struct Convolution3x3 {
     struct FrameData {
         float bias;
         float divisor;
-        float matrix[9];
+        int matrix[9];
+        float matrixf[9];
         bool saturate;
+        int matrix_sum2;
 
         FrameData(const GenericData *d, const VSFormat *fi, int plane) {
             bias = d->bias;
             divisor = d->rdiv;
             saturate = d->saturate;
-            for (int i = 0; i < 9; i++)
+            matrix_sum2 = d->matrix_sum * 2;
+            for (int i = 0; i < 9; i++) {
                 matrix[i] = d->matrix[i];
+                matrixf[i] = d->matrixf[i];
+            }
         }
     };
 
-#define CONV_REDUCE_REG8(reg, idx) \
-    __m128i temp1 ## reg = _mm_unpacklo_epi8(reg, _mm_setzero_si128()); \
-    __m128i temp2 ## reg = _mm_unpackhi_epi8(reg, _mm_setzero_si128()); \
-    acc1 = _mm_add_ps(acc1, _mm_mul_ps(_mm_cvtepi32_ps(_mm_unpacklo_epi16(temp1 ## reg, _mm_setzero_si128())), _mm_set_ps1(opts.matrix[idx]))); \
-    acc2 = _mm_add_ps(acc2, _mm_mul_ps(_mm_cvtepi32_ps(_mm_unpackhi_epi16(temp1 ## reg, _mm_setzero_si128())), _mm_set_ps1(opts.matrix[idx]))); \
-    acc3 = _mm_add_ps(acc3, _mm_mul_ps(_mm_cvtepi32_ps(_mm_unpacklo_epi16(temp2 ## reg, _mm_setzero_si128())), _mm_set_ps1(opts.matrix[idx]))); \
-    acc4 = _mm_add_ps(acc4, _mm_mul_ps(_mm_cvtepi32_ps(_mm_unpackhi_epi16(temp2 ## reg, _mm_setzero_si128())), _mm_set_ps1(opts.matrix[idx])));
+#define CONV_REDUCE_REG8(reg1, reg2, idx1, idx2) \
+    __m128i reg1 ## lo = _mm_unpacklo_epi8(reg1, _mm_setzero_si128()); \
+    __m128i reg1 ## hi = _mm_unpackhi_epi8(reg1, _mm_setzero_si128()); \
+    __m128i reg2 ## lo = _mm_unpacklo_epi8(reg2, _mm_setzero_si128()); \
+    __m128i reg2 ## hi = _mm_unpackhi_epi8(reg2, _mm_setzero_si128()); \
+    acc1 = _mm_add_epi32(acc1, _mm_madd_epi16(_mm_unpacklo_epi16(reg1 ## lo, reg2 ## lo), _mm_unpacklo_epi16(_mm_set1_epi16(opts.matrix[idx1]), _mm_set1_epi16(opts.matrix[idx2])))); \
+    acc2 = _mm_add_epi32(acc2, _mm_madd_epi16(_mm_unpackhi_epi16(reg1 ## lo, reg2 ## lo), _mm_unpackhi_epi16(_mm_set1_epi16(opts.matrix[idx1]), _mm_set1_epi16(opts.matrix[idx2])))); \
+    acc3 = _mm_add_epi32(acc3, _mm_madd_epi16(_mm_unpacklo_epi16(reg1 ## hi, reg2 ## hi), _mm_unpacklo_epi16(_mm_set1_epi16(opts.matrix[idx1]), _mm_set1_epi16(opts.matrix[idx2])))); \
+    acc4 = _mm_add_epi32(acc4, _mm_madd_epi16(_mm_unpackhi_epi16(reg1 ## hi, reg2 ## hi), _mm_unpackhi_epi16(_mm_set1_epi16(opts.matrix[idx1]), _mm_set1_epi16(opts.matrix[idx2]))))
+
 
     static FORCE_INLINE __m128i process8(__m128i t1, __m128i t2, __m128i t3, __m128i m1, __m128i m2, __m128i m3, __m128i b1, __m128i b2, __m128i b3, const FrameData &opts) {
         __m128 absMask = _mm_castsi128_ps(!opts.saturate ? _mm_srli_epi32(_mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128()), 1) : _mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128()));
-        __m128 acc1 = _mm_setzero_ps();
-        __m128 acc2 = _mm_setzero_ps();
-        __m128 acc3 = _mm_setzero_ps();
-        __m128 acc4 = _mm_setzero_ps();
 
-        CONV_REDUCE_REG8(t1, 0);
-        CONV_REDUCE_REG8(t2, 1);
-        CONV_REDUCE_REG8(t3, 2);
-        CONV_REDUCE_REG8(m1, 3);
-        CONV_REDUCE_REG8(m2, 4);
-        CONV_REDUCE_REG8(m3, 5);
-        CONV_REDUCE_REG8(b1, 6);
-        CONV_REDUCE_REG8(b2, 7);
-        CONV_REDUCE_REG8(b3, 8);
+        __m128i acc1 = _mm_madd_epi16(_mm_unpacklo_epi16(_mm_unpacklo_epi8(t1, _mm_setzero_si128()), _mm_setzero_si128()), _mm_unpacklo_epi16(_mm_set1_epi16(opts.matrix[0]), _mm_setzero_si128()));
+        __m128i acc2 = _mm_madd_epi16(_mm_unpackhi_epi16(_mm_unpackhi_epi8(t1, _mm_setzero_si128()), _mm_setzero_si128()), _mm_unpackhi_epi16(_mm_set1_epi16(opts.matrix[0]), _mm_setzero_si128()));
+        __m128i acc3 = _mm_madd_epi16(_mm_unpacklo_epi16(_mm_unpacklo_epi8(t1, _mm_setzero_si128()), _mm_setzero_si128()), _mm_unpacklo_epi16(_mm_set1_epi16(opts.matrix[0]), _mm_setzero_si128()));
+        __m128i acc4 = _mm_madd_epi16(_mm_unpackhi_epi16(_mm_unpackhi_epi8(t1, _mm_setzero_si128()), _mm_setzero_si128()), _mm_unpackhi_epi16(_mm_set1_epi16(opts.matrix[0]), _mm_setzero_si128()));
 
-        acc1 = _mm_max_ps(_mm_and_ps(_mm_add_ps(_mm_mul_ps(acc1, _mm_set_ps1(opts.divisor)), _mm_set_ps1(opts.bias)), absMask), _mm_setzero_ps());
-        acc2 = _mm_max_ps(_mm_and_ps(_mm_add_ps(_mm_mul_ps(acc2, _mm_set_ps1(opts.divisor)), _mm_set_ps1(opts.bias)), absMask), _mm_setzero_ps());
-        acc3 = _mm_max_ps(_mm_and_ps(_mm_add_ps(_mm_mul_ps(acc3, _mm_set_ps1(opts.divisor)), _mm_set_ps1(opts.bias)), absMask), _mm_setzero_ps());
-        acc4 = _mm_max_ps(_mm_and_ps(_mm_add_ps(_mm_mul_ps(acc4, _mm_set_ps1(opts.divisor)), _mm_set_ps1(opts.bias)), absMask), _mm_setzero_ps());
+        CONV_REDUCE_REG8(t2, t3, 1, 2);
+        CONV_REDUCE_REG8(m1, m2, 3, 4);
+        CONV_REDUCE_REG8(m3, b1, 5, 6);
+        CONV_REDUCE_REG8(b2, b3, 7, 8);
 
-        return _mm_packus_epi16(_mm_packus_epi32_sse2(_mm_cvtps_epi32(acc1), _mm_cvtps_epi32(acc2)), _mm_packus_epi32_sse2(_mm_cvtps_epi32(acc3), _mm_cvtps_epi32(acc4)));
+        acc1 = _mm_cvtps_epi32(_mm_max_ps(_mm_and_ps(_mm_add_ps(_mm_mul_ps(_mm_cvtepi32_ps(acc1), _mm_set_ps1(opts.divisor)), _mm_set_ps1(opts.bias)), absMask), _mm_setzero_ps()));
+        acc2 = _mm_cvtps_epi32(_mm_max_ps(_mm_and_ps(_mm_add_ps(_mm_mul_ps(_mm_cvtepi32_ps(acc2), _mm_set_ps1(opts.divisor)), _mm_set_ps1(opts.bias)), absMask), _mm_setzero_ps()));
+        acc3 = _mm_cvtps_epi32(_mm_max_ps(_mm_and_ps(_mm_add_ps(_mm_mul_ps(_mm_cvtepi32_ps(acc3), _mm_set_ps1(opts.divisor)), _mm_set_ps1(opts.bias)), absMask), _mm_setzero_ps()));
+        acc4 = _mm_cvtps_epi32(_mm_max_ps(_mm_and_ps(_mm_add_ps(_mm_mul_ps(_mm_cvtepi32_ps(acc4), _mm_set_ps1(opts.divisor)), _mm_set_ps1(opts.bias)), absMask), _mm_setzero_ps()));
+
+        return _mm_packus_epi16(_mm_packus_epi32_sse2(acc1, acc2), _mm_packus_epi32_sse2(acc3, acc4));
     }
-
-#define CONV_REDUCE_REG16(reg, idx) \
-    acc1 = _mm_add_ps(acc1, _mm_mul_ps(_mm_cvtepi32_ps(_mm_unpacklo_epi16(reg, _mm_setzero_si128())), _mm_set_ps1(opts.matrix[idx]))); \
-    acc2 = _mm_add_ps(acc2, _mm_mul_ps(_mm_cvtepi32_ps(_mm_unpackhi_epi16(reg, _mm_setzero_si128())), _mm_set_ps1(opts.matrix[idx])));
 
     static FORCE_INLINE __m128i process16(__m128i t1, __m128i t2, __m128i t3, __m128i m1, __m128i m2, __m128i m3, __m128i b1, __m128i b2, __m128i b3, const FrameData &opts) {
         __m128 absMask = _mm_castsi128_ps(!opts.saturate ? _mm_srli_epi32(_mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128()), 1) : _mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128()));
-        __m128 acc1 = _mm_setzero_ps();
-        __m128 acc2 = _mm_setzero_ps();
+        CONVSIGN16_IN;
 
-        CONV_REDUCE_REG16(t1, 0);
-        CONV_REDUCE_REG16(t2, 1);
-        CONV_REDUCE_REG16(t3, 2);
-        CONV_REDUCE_REG16(m1, 3);
-        CONV_REDUCE_REG16(m2, 4);
-        CONV_REDUCE_REG16(m3, 5);
-        CONV_REDUCE_REG16(b1, 6);
-        CONV_REDUCE_REG16(b2, 7);
-        CONV_REDUCE_REG16(b3, 8);
+        __m128i acc1 = _mm_madd_epi16(_mm_unpacklo_epi16(t1, t2), _mm_unpacklo_epi16(_mm_set1_epi16(opts.matrix[0]), _mm_set1_epi16(opts.matrix[1])));
+        __m128i acc2 = _mm_madd_epi16(_mm_unpackhi_epi16(t1, t2), _mm_unpackhi_epi16(_mm_set1_epi16(opts.matrix[0]), _mm_set1_epi16(opts.matrix[1])));
+        acc1 = _mm_add_epi32(acc1, _mm_madd_epi16(_mm_unpacklo_epi16(t3, m1), _mm_unpacklo_epi16(_mm_set1_epi16(opts.matrix[2]), _mm_set1_epi16(opts.matrix[3]))));
+        acc2 = _mm_add_epi32(acc2, _mm_madd_epi16(_mm_unpackhi_epi16(t3, m1), _mm_unpackhi_epi16(_mm_set1_epi16(opts.matrix[2]), _mm_set1_epi16(opts.matrix[3]))));
+        acc1 = _mm_add_epi32(acc1, _mm_madd_epi16(_mm_unpacklo_epi16(m2, m3), _mm_unpacklo_epi16(_mm_set1_epi16(opts.matrix[4]), _mm_set1_epi16(opts.matrix[5]))));
+        acc2 = _mm_add_epi32(acc2, _mm_madd_epi16(_mm_unpackhi_epi16(m2, m3), _mm_unpackhi_epi16(_mm_set1_epi16(opts.matrix[4]), _mm_set1_epi16(opts.matrix[5]))));
+        acc1 = _mm_add_epi32(acc1, _mm_madd_epi16(_mm_unpacklo_epi16(b1, b2), _mm_unpacklo_epi16(_mm_set1_epi16(opts.matrix[6]), _mm_set1_epi16(opts.matrix[7]))));
+        acc2 = _mm_add_epi32(acc2, _mm_madd_epi16(_mm_unpackhi_epi16(b1, b2), _mm_unpackhi_epi16(_mm_set1_epi16(opts.matrix[6]), _mm_set1_epi16(opts.matrix[7]))));
+        acc1 = _mm_add_epi32(acc1, _mm_madd_epi16(_mm_unpacklo_epi16(b3, _mm_set1_epi16(0x4000)), _mm_unpacklo_epi16(_mm_set1_epi16(opts.matrix[8]), _mm_set1_epi16(opts.matrix_sum2))));
+        acc2 = _mm_add_epi32(acc2, _mm_madd_epi16(_mm_unpackhi_epi16(b3, _mm_set1_epi16(0x4000)), _mm_unpackhi_epi16(_mm_set1_epi16(opts.matrix[8]), _mm_set1_epi16(opts.matrix_sum2))));
 
-        acc1 = _mm_max_ps(_mm_and_ps(_mm_add_ps(_mm_mul_ps(acc1, _mm_set_ps1(opts.divisor)), _mm_set_ps1(opts.bias)), absMask), _mm_setzero_ps());
-        acc2 = _mm_max_ps(_mm_and_ps(_mm_add_ps(_mm_mul_ps(acc2, _mm_set_ps1(opts.divisor)), _mm_set_ps1(opts.bias)), absMask), _mm_setzero_ps());
-        
-        return _mm_packus_epi32_sse2(_mm_cvtps_epi32(acc1), _mm_cvtps_epi32(acc2));
+        // fixme, convert to integer only?
+        acc1 = _mm_cvtps_epi32(_mm_max_ps(_mm_and_ps(_mm_add_ps(_mm_mul_ps(_mm_cvtepi32_ps(acc1), _mm_set_ps1(opts.divisor)), _mm_set_ps1(opts.bias)), absMask), _mm_setzero_ps()));
+        acc2 = _mm_cvtps_epi32(_mm_max_ps(_mm_and_ps(_mm_add_ps(_mm_mul_ps(_mm_cvtepi32_ps(acc2), _mm_set_ps1(opts.divisor)), _mm_set_ps1(opts.bias)), absMask), _mm_setzero_ps()));
+
+        return _mm_packus_epi32_sse2(acc1, acc2);
     }
 
     static FORCE_INLINE __m128 processF(__m128 t1, __m128 t2, __m128 t3, __m128 m1, __m128 m2, __m128 m3, __m128 b1, __m128 b2, __m128 b3, const FrameData &opts) {
         __m128 absMask = _mm_castsi128_ps(!opts.saturate ? _mm_srli_epi32(_mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128()), 1) : _mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128()));
-        t1 = _mm_mul_ps(t1, _mm_set_ps1(opts.matrix[0]));
-        t2 = _mm_mul_ps(t2, _mm_set_ps1(opts.matrix[1]));
-        t3 = _mm_mul_ps(t3, _mm_set_ps1(opts.matrix[2]));
-        m1 = _mm_mul_ps(m1, _mm_set_ps1(opts.matrix[3]));
-        m2 = _mm_mul_ps(m2, _mm_set_ps1(opts.matrix[4]));
-        m3 = _mm_mul_ps(m3, _mm_set_ps1(opts.matrix[5]));
-        b1 = _mm_mul_ps(b1, _mm_set_ps1(opts.matrix[6]));
-        b2 = _mm_mul_ps(b2, _mm_set_ps1(opts.matrix[7]));
-        b3 = _mm_mul_ps(b3, _mm_set_ps1(opts.matrix[8]));
+        t1 = _mm_mul_ps(t1, _mm_set_ps1(opts.matrixf[0]));
+        t2 = _mm_mul_ps(t2, _mm_set_ps1(opts.matrixf[1]));
+        t3 = _mm_mul_ps(t3, _mm_set_ps1(opts.matrixf[2]));
+        m1 = _mm_mul_ps(m1, _mm_set_ps1(opts.matrixf[3]));
+        m2 = _mm_mul_ps(m2, _mm_set_ps1(opts.matrixf[4]));
+        m3 = _mm_mul_ps(m3, _mm_set_ps1(opts.matrixf[5]));
+        b1 = _mm_mul_ps(b1, _mm_set_ps1(opts.matrixf[6]));
+        b2 = _mm_mul_ps(b2, _mm_set_ps1(opts.matrixf[7]));
+        b3 = _mm_mul_ps(b3, _mm_set_ps1(opts.matrixf[8]));
 
         t1 = _mm_add_ps(t1, t2);
         m1 = _mm_add_ps(m1, m2);
@@ -1020,7 +1023,8 @@ struct GenericPlaneParams {
     int enable[8];
 
     // Convolution.
-    float matrix[25];
+    int matrix[25];
+    float matrixf[25];
     int matrix_elements;
     float rdiv;
     float bias;
@@ -1043,8 +1047,10 @@ struct GenericPlaneParams {
 
         for (int i = 0; i < 8; i++)
             enable[i] = params->enable[i];
-        for (int i = 0; i < 25; i++)
+        for (int i = 0; i < 25; i++) {
             matrix[i] = params->matrix[i];
+            matrixf[i] = params->matrixf[i];
+        }
     }
 };
 
@@ -1171,8 +1177,7 @@ static FORCE_INLINE PixelType generic_3x3I(
         return v[v.size() / 2];
 
     } else if (op == GenericConvolution) {
-
-        const float *matrix = params.matrix;
+        const int *matrix = params.matrix;
         float rdiv = params.rdiv;
         float bias = params.bias;
         bool saturate = params.saturate;
@@ -1184,17 +1189,17 @@ static FORCE_INLINE PixelType generic_3x3I(
             a13, a23, a33
         };
 
-        float sum = 0;
+        int64_t sum = 0;
 
         for (int i = 0; i < 9; i++)
             sum += pixels[i] * matrix[i];
 
-        sum = (sum * rdiv + bias);
+        float fsum = (sum * rdiv + bias);
 
         if (!saturate)
-            sum = std::abs(sum);
+            fsum = std::abs(fsum);
 
-        return std::min(max_value, std::max(static_cast<int>(sum + 0.5f), 0));
+        return std::min(max_value, std::max(static_cast<int>(fsum + 0.5f), 0));
     }
 
     return 42; // Silence warning.
@@ -1291,11 +1296,10 @@ static FORCE_INLINE PixelType generic_3x3F(
 
     } else if (op == GenericConvolution) {
 
-        const float *matrix = params.matrix;
+        const float *matrixf = params.matrixf;
         float rdiv = params.rdiv;
         float bias = params.bias;
         bool saturate = params.saturate;
-        int max_value = params.max_value;
 
         PixelType pixels[9] = {
             a11, a21, a31,
@@ -1306,17 +1310,14 @@ static FORCE_INLINE PixelType generic_3x3F(
         float sum = 0;
 
         for (int i = 0; i < 9; i++)
-            sum += pixels[i] * matrix[i];
+            sum += pixels[i] * matrixf[i];
 
         sum = (sum * rdiv + bias);
 
         if (!saturate)
             sum = std::abs(sum);
 
-        if (std::numeric_limits<PixelType>::is_integer)
-            return std::min(max_value, std::max(static_cast<int>(sum + 0.5f), 0));
-        else
-            return sum;
+        return sum;      
     }
 
     return 42; // Silence warning.
@@ -1340,11 +1341,11 @@ template <typename PixelType, GenericOperations op>
 static void process_plane_3x3(uint8_t * VS_RESTRICT dstp8, const uint8_t * VS_RESTRICT srcp8, int width, int height, int stride, const GenericPlaneParams &params) {
     stride /= sizeof(PixelType);
 
-    PixelType *dstp = reinterpret_cast<PixelType *>(dstp8);
-    const PixelType *srcp = reinterpret_cast<const PixelType *>(srcp8);
+    PixelType * VS_RESTRICT dstp = reinterpret_cast<PixelType *>(dstp8);
+    const PixelType * VS_RESTRICT srcp = reinterpret_cast<const PixelType *>(srcp8);
 
-    const PixelType *above = srcp - stride;
-    const PixelType *below = srcp + stride;
+    const PixelType * VS_RESTRICT above = srcp - stride;
+    const PixelType * VS_RESTRICT below = srcp + stride;
 
     dstp[0] = generic_3x3<PixelType, op>(
             below[1], below[0], below[1],
@@ -1416,7 +1417,8 @@ static FORCE_INLINE PixelType generic_5x5(
         PixelType a14, PixelType a24, PixelType a34, PixelType a44, PixelType a54,
         PixelType a15, PixelType a25, PixelType a35, PixelType a45, PixelType a55, const GenericPlaneParams &params) {
 
-    const float *matrix = params.matrix;
+    const float *matrixf = params.matrixf;
+    const int *matrix = params.matrix;
     float rdiv = params.rdiv;
     float bias = params.bias;
     bool saturate = params.saturate;
@@ -1430,20 +1432,31 @@ static FORCE_INLINE PixelType generic_5x5(
         a15, a25, a35, a45, a55
     };
 
-    float sum = 0;
+    if (std::numeric_limits<PixelType>::is_integer) {
+        int64_t sum = 0;
 
-    for (int i = 0; i < 25; i++)
-        sum += pixels[i] * matrix[i];
+        for (int i = 0; i < 25; i++)
+            sum += pixels[i] * matrix[i];
 
-    sum = (sum * rdiv + bias);
+        float fsum = (sum * rdiv + bias);
 
-    if (!saturate)
-        sum = std::abs(sum);
+        if (!saturate)
+            fsum = std::abs(fsum);
 
-    if (std::numeric_limits<PixelType>::is_integer)
-        return std::min(max_value, std::max(static_cast<int>(sum + 0.5f), 0));
-    else
+        return std::min(max_value, std::max(static_cast<int>(fsum + 0.5f), 0));
+    } else {
+        float sum = 0;
+
+        for (int i = 0; i < 25; i++)
+            sum += pixels[i] * matrixf[i];
+
+        sum = (sum * rdiv + bias);
+
+        if (!saturate)
+            sum = std::abs(sum);
+
         return sum;
+    }
 }
 
 template <typename PixelType>
@@ -1453,7 +1466,8 @@ static void process_plane_convolution_horizontal(uint8_t * VS_RESTRICT dstp8, co
     PixelType *dstp = reinterpret_cast<PixelType *>(dstp8);
     const PixelType *srcp = reinterpret_cast<const PixelType *>(srcp8);
 
-    const float *matrix = params.matrix;
+    const float *matrixf = params.matrixf;
+    const int *matrix = params.matrix;
     int matrix_elements = params.matrix_elements;
     float rdiv = params.rdiv;
     float bias = params.bias;
@@ -1467,7 +1481,7 @@ static void process_plane_convolution_horizontal(uint8_t * VS_RESTRICT dstp8, co
             float sum = 0;
 
             for (int i = 0; i < matrix_elements; i++)
-                sum += srcp[std::abs(x + i - border)] * matrix[i];
+                sum += srcp[std::abs(x + i - border)] * matrixf[i];
 
             sum = (sum * rdiv + bias);
 
@@ -1484,7 +1498,7 @@ static void process_plane_convolution_horizontal(uint8_t * VS_RESTRICT dstp8, co
             float sum = 0;
 
             for (int i = 0; i < matrix_elements; i++)
-                sum += srcp[x + i - border] * matrix[i];
+                sum += srcp[x + i - border] * matrixf[i];
 
             sum = (sum * rdiv + bias);
 
@@ -1504,7 +1518,7 @@ static void process_plane_convolution_horizontal(uint8_t * VS_RESTRICT dstp8, co
                 int idx = x + i - border;
                 int diff = width - 1 - idx;
                 idx = idx + std::min(diff*2, 0);
-                sum += srcp[idx] * matrix[i];
+                sum += srcp[idx] * matrixf[i];
             }
 
             sum = (sum * rdiv + bias);
@@ -1531,7 +1545,8 @@ static void process_plane_convolution_vertical(uint8_t * VS_RESTRICT dstp8, cons
     PixelType *dstp = reinterpret_cast<PixelType *>(dstp8);
     const PixelType *srcp = reinterpret_cast<const PixelType *>(srcp8);
 
-    const float *matrix = params.matrix;
+    const float *matrixf = params.matrixf;
+    const int *matrix = params.matrix;
     int matrix_elements = params.matrix_elements;
     float rdiv = params.rdiv;
     float bias = params.bias;
@@ -1545,7 +1560,7 @@ static void process_plane_convolution_vertical(uint8_t * VS_RESTRICT dstp8, cons
             float sum = 0;
 
             for (int i = 0; i < matrix_elements; i++)
-                sum += srcp[x + std::abs(y + i - border) * stride] * matrix[i];
+                sum += srcp[x + std::abs(y + i - border) * stride] * matrixf[i];
 
             sum = (sum * rdiv + bias);
 
@@ -1562,7 +1577,7 @@ static void process_plane_convolution_vertical(uint8_t * VS_RESTRICT dstp8, cons
             float sum = 0;
 
             for (int i = 0; i < matrix_elements; i++)
-                sum += srcp[x + (y + i - border) * stride] * matrix[i];
+                sum += srcp[x + (y + i - border) * stride] * matrixf[i];
 
             sum = (sum * rdiv + bias);
 
@@ -1582,7 +1597,7 @@ static void process_plane_convolution_vertical(uint8_t * VS_RESTRICT dstp8, cons
                 int idx = y + i - border;
                 int diff = height - 1 - idx;
                 idx = idx + std::min(diff*2, 0);
-                sum += srcp[x + idx * stride] * matrix[i];
+                sum += srcp[x + idx * stride] * matrixf[i];
             }
 
             sum = (sum * rdiv + bias);
@@ -1835,7 +1850,7 @@ static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void
         try {
             sharedFormatCheck(fi);
             if (vsapi->getFrameWidth(src, fi->numPlanes - 1) < 4 || vsapi->getFrameHeight(src, fi->numPlanes - 1) < 4)
-                throw std::string("Cannot process frames smaller than 4x4.");
+                throw std::string("Cannot process frames with subsampled planes smaller than 4x4.");
 
         } catch (std::string &error) {
             vsapi->setFilterError(std::string(d->filter_name).append(": ").append(error).c_str(), frameCtx);
@@ -1869,12 +1884,21 @@ static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void
             d->matrix[3] = d->matrix[0];
             d->matrix[4] = d->matrix[1];
             d->matrix[5] = d->matrix[2];
-            d->matrix[0] = 0.f;
-            d->matrix[1] = 0.f;
-            d->matrix[2] = 0.f;
-            d->matrix[6] = 0.f;
-            d->matrix[7] = 0.f;
-            d->matrix[8] = 0.f;
+            d->matrix[0] = 0;
+            d->matrix[1] = 0;
+            d->matrix[2] = 0;
+            d->matrix[6] = 0;
+            d->matrix[7] = 0;
+            d->matrix[8] = 0;
+            d->matrixf[3] = d->matrixf[0];
+            d->matrixf[4] = d->matrixf[1];
+            d->matrixf[5] = d->matrixf[2];
+            d->matrixf[0] = 0.f;
+            d->matrixf[1] = 0.f;
+            d->matrixf[2] = 0.f;
+            d->matrixf[6] = 0.f;
+            d->matrixf[7] = 0.f;
+            d->matrixf[8] = 0.f;
         } else if (op == GenericConvolution && d->convolution_type == ConvolutionVertical && d->matrix_elements == 3) {
             //rewrite to 3x3 matrix here
             d->convolution_type = ConvolutionSquare;
@@ -1882,12 +1906,21 @@ static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void
             d->matrix[7] = d->matrix[2];
             d->matrix[5] = d->matrix[1];
             d->matrix[1] = d->matrix[0];
-            d->matrix[0] = 0.f;
-            d->matrix[2] = 0.f;
-            d->matrix[3] = 0.f;
-            d->matrix[4] = 0.f;
-            d->matrix[6] = 0.f;
-            d->matrix[8] = 0.f;
+            d->matrix[0] = 0;
+            d->matrix[2] = 0;
+            d->matrix[3] = 0;
+            d->matrix[4] = 0;
+            d->matrix[6] = 0;
+            d->matrix[8] = 0;
+            d->matrixf[7] = d->matrixf[2];
+            d->matrixf[5] = d->matrixf[1];
+            d->matrixf[1] = d->matrixf[0];
+            d->matrixf[0] = 0.f;
+            d->matrixf[2] = 0.f;
+            d->matrixf[3] = 0.f;
+            d->matrixf[4] = 0.f;
+            d->matrixf[6] = 0.f;
+            d->matrixf[8] = 0.f;
         }
 
         if (op == GenericConvolution && d->convolution_type == ConvolutionSquare && d->matrix_elements == 9) {
@@ -2068,7 +2101,14 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
     d->vi = vsapi->getVideoInfo(d->node);
 
     try {
+        if (!d->vi->format)
+            throw std::string("cannot process variable format input.");
+
         sharedFormatCheck(d->vi->format);
+
+        if (d->vi->height && d->vi->width)
+            if (planeWidth(d->vi, d->vi->format->numPlanes - 1) < 4 || planeHeight(d->vi, d->vi->format->numPlanes - 1) < 4)
+                throw std::string("Cannot process frames with subsampled planes smaller than 4x4.");
 
         int m = vsapi->propNumElements(in, "planes");
 
@@ -2093,7 +2133,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
             d->thf = static_cast<float>(vsapi->propGetFloat(in, "threshold", 0, &err));
             if (err) {
                 d->th = ((1 << d->vi->format->bitsPerSample) - 1);
-                d->thf = FLT_MAX;
+                d->thf = std::numeric_limits<float>::max();
             } else {
                 if (d->vi->format->sampleType == stInteger) {
                     int64_t ith = floatToInt64S(d->thf);
@@ -2186,19 +2226,30 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
                 throw std::string("mode must start with 's', 'h', or 'v'.");
             }
 
-            double matrix_sum = 0;
+            float matrix_sumf = 0;
+            d->matrix_sum = 0;
             const double *matrix = vsapi->propGetFloatArray(in, "matrix", nullptr);
             for (int i = 0; i < d->matrix_elements; i++) {
-                d->matrix[i] = static_cast<float>(matrix[i]);
-                matrix_sum += matrix[i];
-            }
+                if (d->vi->format->sampleType == stInteger) {
+                    d->matrix[i] = lround(matrix[i]);
+                    d->matrixf[i] = d->matrix[i];
+                    if (std::abs(d->matrix[i]) > 1023)
+                        throw std::string("coefficients may only be between -1023 and 1023");
+                } else {
+                    d->matrix[i] = lround(matrix[i]);
+                    d->matrixf[i] = static_cast<float>(matrix[i]);
+                }
 
-            if (std::abs(matrix_sum) < FLT_EPSILON)
-                matrix_sum = 1;
+                matrix_sumf += d->matrixf[i];
+                d->matrix_sum += d->matrix[i];
+            }
+            
+            if (std::abs(matrix_sumf) < std::numeric_limits<float>::epsilon())
+                matrix_sumf = 1.0;
 
             d->rdiv = static_cast<float>(vsapi->propGetFloat(in, "divisor", 0, &err));
             if (d->rdiv == 0.0f)
-                d->rdiv = static_cast<float>(matrix_sum);
+                d->rdiv = static_cast<float>(matrix_sumf);
 
             d->rdiv = 1.0f / d->rdiv;
         }
