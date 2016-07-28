@@ -38,6 +38,9 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AvsCompat", "AvsCompat\AvsCompat.vcxproj", "{4965ED05-2B79-427D-A8AB-38CD9B23EBF7}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AVFS", "AVFS\AVFS.vcxproj", "{58FE3116-5843-4C7A-90DA-21A13C8181CC}"
+	ProjectSection(ProjectDependencies) = postProject
+		{4E14AA50-4E33-4815-B2F1-94AA86365CEB} = {4E14AA50-4E33-4815-B2F1-94AA86365CEB}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
