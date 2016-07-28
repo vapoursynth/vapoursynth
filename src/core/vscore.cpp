@@ -70,7 +70,7 @@ static bool isValidIdentifier(const std::string &s) {
 }
 
 #ifdef VS_TARGET_OS_WINDOWS
-static std::wstring readRegistryValue(const std::wstring keyName, const std::wstring &valueName) {
+static std::wstring readRegistryValue(const std::wstring &keyName, const std::wstring &valueName) {
     HKEY hKey;
     LONG lRes = RegOpenKeyEx(HKEY_LOCAL_MACHINE, keyName.c_str(), 0, KEY_READ, &hKey);
     if (lRes != ERROR_SUCCESS)
