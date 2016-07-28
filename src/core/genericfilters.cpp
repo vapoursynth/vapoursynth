@@ -320,57 +320,57 @@ auto reduced = OP(OP(m1, m2), m3)
 auto reduced = OP(OP(t2, m2), b2)
 
 struct LimitMehFlateMinOp {
-    static FORCE_INLINE __m128i limit8(__m128i newval, __m128i oldval, uint16_t limit) {
+    static FORCE_INLINE __m128i limit8(__m128i &newval, __m128i &oldval, uint16_t limit) {
         return _mm_min_epu8(_mm_max_epu8(newval, oldval), _mm_adds_epu8(oldval, _mm_set1_epi8(limit)));
     }
 
-    static FORCE_INLINE __m128i limit16(__m128i newval, __m128i oldval, uint16_t limit, __m128i convSignMask) {
+    static FORCE_INLINE __m128i limit16(__m128i &newval, __m128i &oldval, uint16_t limit, __m128i convSignMask) {
         return CONVSIGN16_OUT(_mm_min_epi16(_mm_max_epi16(CONVSIGN16_OUT(newval), CONVSIGN16_OUT(oldval)), CONVSIGN16_OUT(_mm_adds_epu16(oldval, _mm_set1_epi16(limit)))));
     }
 
-    static FORCE_INLINE __m128 limitF(__m128 newval, __m128 oldval, float limitf) {
+    static FORCE_INLINE __m128 limitF(__m128 &newval, __m128 &oldval, float limitf) {
         return _mm_min_ps(_mm_max_ps(newval, oldval), _mm_add_ps(oldval, _mm_set_ps1(limitf)));
     }
 };
 
 struct LimitMehFlateMaxOp {
-    static FORCE_INLINE __m128i limit8(__m128i newval, __m128i oldval, uint16_t limit) {
+    static FORCE_INLINE __m128i limit8(__m128i &newval, __m128i &oldval, uint16_t limit) {
         return _mm_max_epu8(_mm_min_epu8(newval, oldval), _mm_subs_epu8(oldval, _mm_set1_epi8(limit)));
     }
 
-    static FORCE_INLINE __m128i limit16(__m128i newval, __m128i oldval, uint16_t limit, __m128i convSignMask) {
+    static FORCE_INLINE __m128i limit16(__m128i &newval, __m128i &oldval, uint16_t limit, __m128i convSignMask) {
         return CONVSIGN16_OUT(_mm_max_epi16(_mm_min_epi16(CONVSIGN16_OUT(newval), CONVSIGN16_OUT(oldval)), CONVSIGN16_OUT(_mm_subs_epu16(oldval, _mm_set1_epi16(limit)))));
     }
 
-    static FORCE_INLINE __m128 limitF(__m128 newval, __m128 oldval, float limitf) {
+    static FORCE_INLINE __m128 limitF(__m128 &newval, __m128 &oldval, float limitf) {
         return _mm_max_ps(_mm_min_ps(newval, oldval), _mm_sub_ps(oldval, _mm_set_ps1(limitf)));
     }
 };
 
 struct LimitMinOp {
-    static FORCE_INLINE __m128i limit8(__m128i newval, __m128i oldval, uint16_t limit) {
+    static FORCE_INLINE __m128i limit8(__m128i &newval, __m128i &oldval, uint16_t limit) {
         return _mm_min_epu8(newval, _mm_adds_epu8(oldval, _mm_set1_epi8(limit)));
     }
 
-    static FORCE_INLINE __m128i limit16(__m128i newval, __m128i oldval, uint16_t limit, __m128i convSignMask) {
+    static FORCE_INLINE __m128i limit16(__m128i &newval, __m128i &oldval, uint16_t limit, __m128i convSignMask) {
         return CONVSIGN16_OUT(_mm_min_epi16(newval, CONVSIGN16_OUT(_mm_adds_epu16(CONVSIGN16_OUT(oldval), _mm_set1_epi16(limit)))));
     }
 
-    static FORCE_INLINE __m128 limitF(__m128 newval, __m128 oldval, float limitf) {
+    static FORCE_INLINE __m128 limitF(__m128 &newval, __m128 &oldval, float limitf) {
         return _mm_min_ps(newval, _mm_add_ps(oldval, _mm_set_ps1(limitf)));
     }
 };
 
 struct LimitMaxOp {
-    static FORCE_INLINE __m128i limit8(__m128i newval, __m128i oldval, uint16_t limit) {
+    static FORCE_INLINE __m128i limit8(__m128i &newval, __m128i &oldval, uint16_t limit) {
         return _mm_max_epu8(newval, _mm_subs_epu8(oldval, _mm_set1_epi8(limit)));
     }
 
-    static FORCE_INLINE __m128i limit16(__m128i newval, __m128i oldval, uint16_t limit, __m128i convSignMask) {
+    static FORCE_INLINE __m128i limit16(__m128i &newval, __m128i &oldval, uint16_t limit, __m128i convSignMask) {
         return CONVSIGN16_OUT(_mm_max_epi16(newval, CONVSIGN16_OUT(_mm_subs_epu16(CONVSIGN16_OUT(oldval), _mm_set1_epi16(limit)))));
     }
 
-    static FORCE_INLINE __m128 limitF(__m128 newval, __m128 oldval, float limitf) {
+    static FORCE_INLINE __m128 limitF(__m128 &newval, __m128 &oldval, float limitf) {
         return _mm_max_ps(newval, _mm_sub_ps(oldval, _mm_set_ps1(limitf)));
     }
 };
@@ -386,18 +386,18 @@ struct NAME ## Op ## REDUCE { \
         } \
     }; \
  \
-    static FORCE_INLINE __m128i process8(__m128i t1, __m128i t2, __m128i t3, __m128i m1, __m128i m2, __m128i m3, __m128i b1, __m128i b2, __m128i b3, const FrameData &opts) { \
+    static FORCE_INLINE __m128i process8(__m128i &t1, __m128i &t2, __m128i &t3, __m128i &m1, __m128i &m2, __m128i &m3, __m128i &b1, __m128i &b2, __m128i &b3, const FrameData &opts) { \
         REDUCE(_mm_##REDUCEOP##_epu8); \
         return LIMITOP::limit8(reduced, m2, opts.limit); \
     } \
  \
-    static FORCE_INLINE __m128i process16(__m128i t1, __m128i t2, __m128i t3, __m128i m1, __m128i m2, __m128i m3, __m128i b1, __m128i b2, __m128i b3, const FrameData &opts) { \
+    static FORCE_INLINE __m128i process16(__m128i &t1, __m128i &t2, __m128i &t3, __m128i &m1, __m128i &m2, __m128i &m3, __m128i &b1, __m128i &b2, __m128i &b3, const FrameData &opts) { \
         CONVSIGN16_IN; \
         REDUCE(_mm_##REDUCEOP##_epi16); \
         return LIMITOP::limit16(reduced, m2, opts.limit, convSignMask); \
     } \
  \
-    static FORCE_INLINE __m128 processF(__m128 t1, __m128 t2, __m128 t3, __m128 m1, __m128 m2, __m128 m3, __m128 b1, __m128 b2, __m128 b3, const FrameData &opts) { \
+    static FORCE_INLINE __m128 processF(__m128 &t1, __m128 &t2, __m128 &t3, __m128 &m1, __m128 &m2, __m128 &m3, __m128 &b1, __m128 &b2, __m128 &b3, const FrameData &opts) { \
         REDUCE(_mm_##REDUCEOP##_ps); \
         return LIMITOP::limitF(reduced, m2, opts.limitf); \
     } \
@@ -453,7 +453,7 @@ struct Convolution3x3 {
     acc4 = _mm_add_epi32(acc4, _mm_madd_epi16(_mm_unpackhi_epi16(reg1 ## hi, reg2 ## hi), _mm_unpackhi_epi16(_mm_set1_epi16(opts.matrix[idx1]), _mm_set1_epi16(opts.matrix[idx2]))))
 
 
-    static FORCE_INLINE __m128i process8(__m128i t1, __m128i t2, __m128i t3, __m128i m1, __m128i m2, __m128i m3, __m128i b1, __m128i b2, __m128i b3, const FrameData &opts) {
+    static FORCE_INLINE __m128i process8(__m128i &t1, __m128i &t2, __m128i &t3, __m128i &m1, __m128i &m2, __m128i &m3, __m128i &b1, __m128i &b2, __m128i &b3, const FrameData &opts) {
         __m128 absMask = _mm_castsi128_ps(!opts.saturate ? _mm_srli_epi32(_mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128()), 1) : _mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128()));
 
         __m128i acc1 = _mm_madd_epi16(_mm_unpacklo_epi16(_mm_unpacklo_epi8(t1, _mm_setzero_si128()), _mm_setzero_si128()), _mm_unpacklo_epi16(_mm_set1_epi16(opts.matrix[0]), _mm_setzero_si128()));
@@ -474,7 +474,7 @@ struct Convolution3x3 {
         return _mm_packus_epi16(_mm_packus_epi32_sse2(acc1, acc2), _mm_packus_epi32_sse2(acc3, acc4));
     }
 
-    static FORCE_INLINE __m128i process16(__m128i t1, __m128i t2, __m128i t3, __m128i m1, __m128i m2, __m128i m3, __m128i b1, __m128i b2, __m128i b3, const FrameData &opts) {
+    static FORCE_INLINE __m128i process16(__m128i &t1, __m128i &t2, __m128i &t3, __m128i &m1, __m128i &m2, __m128i &m3, __m128i &b1, __m128i &b2, __m128i &b3, const FrameData &opts) {
         __m128 absMask = _mm_castsi128_ps(!opts.saturate ? _mm_srli_epi32(_mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128()), 1) : _mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128()));
         CONVSIGN16_IN;
 
@@ -496,7 +496,7 @@ struct Convolution3x3 {
         return _mm_packus_epi32_sse2(acc1, acc2);
     }
 
-    static FORCE_INLINE __m128 processF(__m128 t1, __m128 t2, __m128 t3, __m128 m1, __m128 m2, __m128 m3, __m128 b1, __m128 b2, __m128 b3, const FrameData &opts) {
+    static FORCE_INLINE __m128 processF(__m128 &t1, __m128 &t2, __m128 &t3, __m128 &m1, __m128 &m2, __m128 &m3, __m128 &b1, __m128 &b2, __m128 &b3, const FrameData &opts) {
         __m128 absMask = _mm_castsi128_ps(!opts.saturate ? _mm_srli_epi32(_mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128()), 1) : _mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128()));
         t1 = _mm_mul_ps(t1, _mm_set_ps1(opts.matrixf[0]));
         t2 = _mm_mul_ps(t2, _mm_set_ps1(opts.matrixf[1]));
@@ -540,7 +540,7 @@ struct MehFlate {
         }
     };
 
-    static FORCE_INLINE __m128i process8(__m128i t1, __m128i t2, __m128i t3, __m128i m1, __m128i m2, __m128i m3, __m128i b1, __m128i b2, __m128i b3, const FrameData &opts) {
+    static FORCE_INLINE __m128i process8(__m128i &t1, __m128i &t2, __m128i &t3, __m128i &m1, __m128i &m2, __m128i &m3, __m128i &b1, __m128i &b2, __m128i &b3, const FrameData &opts) {
         __m128i acc1 = _mm_setzero_si128();
         __m128i acc2 = _mm_setzero_si128();
         UNPACK_ACC(16, 8, t1);
@@ -559,7 +559,7 @@ struct MehFlate {
         return LimitOp::limit8(reduced, m2, opts.limit);
     }
 
-    static FORCE_INLINE __m128i process16(__m128i t1, __m128i t2, __m128i t3, __m128i m1, __m128i m2, __m128i m3, __m128i b1, __m128i b2, __m128i b3, const FrameData &opts) {
+    static FORCE_INLINE __m128i process16(__m128i &t1, __m128i &t2, __m128i &t3, __m128i &m1, __m128i &m2, __m128i &m3, __m128i &b1, __m128i &b2, __m128i &b3, const FrameData &opts) {
         __m128i convSignMask = _mm_load_si128(reinterpret_cast<const __m128i *>(signMask16));
         __m128i acc1 = _mm_setzero_si128();
         __m128i acc2 = _mm_setzero_si128();
@@ -579,7 +579,7 @@ struct MehFlate {
         return LimitOp::limit16(reduced, m2, opts.limit, convSignMask);
     }
 
-    static FORCE_INLINE __m128 processF(__m128 t1, __m128 t2, __m128 t3, __m128 m1, __m128 m2, __m128 m3, __m128 b1, __m128 b2, __m128 b3, const FrameData &opts) {
+    static FORCE_INLINE __m128 processF(__m128 &t1, __m128 &t2, __m128 &t3, __m128 &m1, __m128 &m2, __m128 &m3, __m128 &b1, __m128 &b2, __m128 &b3, const FrameData &opts) {
         ReduceAll(_mm_add_ps);
         reduced = _mm_mul_ps(reduced, _mm_set_ps1(1.f/8));
         return LimitOp::limitF(reduced, m2, opts.limitf);
@@ -610,7 +610,7 @@ struct Median {
         }
     };
 
-    static FORCE_INLINE __m128i process8(__m128i t1, __m128i t2, __m128i t3, __m128i m1, __m128i m2, __m128i m3, __m128i b1, __m128i b2, __m128i b3, const FrameData &opts) {
+    static FORCE_INLINE __m128i process8(__m128i &t1, __m128i &t2, __m128i &t3, __m128i &m1, __m128i &m2, __m128i &m3, __m128i &b1, __m128i &b2, __m128i &b3, const FrameData &opts) {
         sort_pair8(t1, t2);
         sort_pair8(t3, m1);
         sort_pair8(m3, b1);
@@ -637,7 +637,7 @@ struct Median {
         return _mm_min_epu8(_mm_max_epu8(m2, m1), m3);
     }
 
-    static FORCE_INLINE __m128i process16(__m128i t1, __m128i t2, __m128i t3, __m128i m1, __m128i m2, __m128i m3, __m128i b1, __m128i b2, __m128i b3, const FrameData &opts) {
+    static FORCE_INLINE __m128i process16(__m128i &t1, __m128i &t2, __m128i &t3, __m128i &m1, __m128i &m2, __m128i &m3, __m128i &b1, __m128i &b2, __m128i &b3, const FrameData &opts) {
         CONVSIGN16_IN;
 
         sort_pair16(t1, t2);
@@ -666,7 +666,7 @@ struct Median {
         return CONVSIGN16_OUT(_mm_min_epi16(_mm_max_epi16(m2, m1), m3));
     }
 
-    static FORCE_INLINE __m128 processF(__m128 t1, __m128 t2, __m128 t3, __m128 m1, __m128 m2, __m128 m3, __m128 b1, __m128 b2, __m128 b3, const FrameData &opts) {
+    static FORCE_INLINE __m128 processF(__m128 &t1, __m128 &t2, __m128 &t3, __m128 &m1, __m128 &m2, __m128 &m3, __m128 &b1, __m128 &b2, __m128 &b3, const FrameData &opts) {
         sort_pairF(t1, t2);
         sort_pairF(t3, m1);
         sort_pairF(m3, b1);
