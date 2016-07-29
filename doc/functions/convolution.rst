@@ -68,3 +68,16 @@ Convolution
    *mode*
       Selects the type of convolution. Possible values are "s", for square,
       "h" for horizontal, and "v" for vertical.
+
+   How to apply a simple blur equivalent to Avisynth's Blur(1):
+   
+   .. code-block:: python
+   
+      Convolution(matrix=[1, 2, 1, 2, 4, 2, 1, 2, 1])
+   
+   How to apply a stronger blur equivalent to Avisynth's Blur(1.58):
+
+   .. code-block:: python
+      
+      Convolution(matrix=[1, 1, 1, 1, 1, 1, 1, 1, 1])
+      

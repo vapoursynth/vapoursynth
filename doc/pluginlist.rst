@@ -3,6 +3,7 @@ Plugins, Applications and Scripts
 
 Applications
 ############
+* `D2V Witch <https://github.com/dubhater/D2VWitch>`_ -- creates indexes that can be opened by d2vsource
 * `VapourSynth Editor <https://bitbucket.org/mystery_keeper/vapoursynth-editor>`_ -- an editor with syntax completion and fast preview support
 * `Wobbly <http://forum.doom9.org/showthread.php?t=172496>`_ -- IVTC assistant similar to Yatta
 
