@@ -1460,14 +1460,81 @@ static FORCE_INLINE PixelType generic_5x5(
 }
 
 template <typename PixelType>
-static void process_plane_convolution_horizontal(uint8_t * VS_RESTRICT dstp8, const uint8_t * VS_RESTRICT srcp8, int width, int height, int stride, const GenericPlaneParams &params) {
+static void process_plane_convolution_horizontalI(uint8_t * VS_RESTRICT dstp8, const uint8_t * VS_RESTRICT srcp8, int width, int height, int stride, const GenericPlaneParams &params) {
+    stride /= sizeof(PixelType);
+
+    PixelType *dstp = reinterpret_cast<PixelType *>(dstp8);
+    const PixelType *srcp = reinterpret_cast<const PixelType *>(srcp8);
+
+    const int *matrix = params.matrix;
+    int matrix_elements = params.matrix_elements;
+    float rdiv = params.rdiv;
+    float bias = params.bias;
+    bool saturate = params.saturate;
+    int max_value = params.max_value;
+
+    int border = matrix_elements / 2;
+
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < border; x++) {
+            float sum = 0;
+
+            for (int i = 0; i < matrix_elements; i++)
+                sum += srcp[std::abs(x + i - border)] * matrix[i];
+
+            sum = (sum * rdiv + bias);
+
+            if (!saturate)
+                sum = std::abs(sum);
+
+            dstp[x] = std::min(max_value, std::max(static_cast<int>(sum + 0.5f), 0));
+        }
+
+        for (int x = border; x < width - border; x++) {
+            float sum = 0;
+
+            for (int i = 0; i < matrix_elements; i++)
+                sum += srcp[x + i - border] * matrix[i];
+
+            sum = (sum * rdiv + bias);
+
+            if (!saturate)
+                sum = std::abs(sum);
+
+            dstp[x] = std::min(max_value, std::max(static_cast<int>(sum + 0.5f), 0));
+        }
+
+        for (int x = width - border; x < width; x++) {
+            float sum = 0;
+
+            for (int i = 0; i < matrix_elements; i++) {
+                int idx = x + i - border;
+                int diff = width - 1 - idx;
+                idx = idx + std::min(diff*2, 0);
+                sum += srcp[idx] * matrix[i];
+            }
+
+            sum = (sum * rdiv + bias);
+
+            if (!saturate)
+                sum = std::abs(sum);
+
+            dstp[x] = std::min(max_value, std::max(static_cast<int>(sum + 0.5f), 0));
+        }
+
+        dstp += stride;
+        srcp += stride;
+    }
+}
+
+template <typename PixelType>
+static void process_plane_convolution_horizontalF(uint8_t * VS_RESTRICT dstp8, const uint8_t * VS_RESTRICT srcp8, int width, int height, int stride, const GenericPlaneParams &params) {
     stride /= sizeof(PixelType);
 
     PixelType *dstp = reinterpret_cast<PixelType *>(dstp8);
     const PixelType *srcp = reinterpret_cast<const PixelType *>(srcp8);
 
     const float *matrixf = params.matrixf;
-    const int *matrix = params.matrix;
     int matrix_elements = params.matrix_elements;
     float rdiv = params.rdiv;
     float bias = params.bias;
@@ -1488,10 +1555,7 @@ static void process_plane_convolution_horizontal(uint8_t * VS_RESTRICT dstp8, co
             if (!saturate)
                 sum = std::abs(sum);
 
-            if (std::numeric_limits<PixelType>::is_integer)
-                dstp[x] = std::min(max_value, std::max(static_cast<int>(sum + 0.5f), 0));
-            else
-                dstp[x] = sum;
+            dstp[x] = sum;
         }
 
         for (int x = border; x < width - border; x++) {
@@ -1505,10 +1569,7 @@ static void process_plane_convolution_horizontal(uint8_t * VS_RESTRICT dstp8, co
             if (!saturate)
                 sum = std::abs(sum);
 
-            if (std::numeric_limits<PixelType>::is_integer)
-                dstp[x] = std::min(max_value, std::max(static_cast<int>(sum + 0.5f), 0));
-            else
-                dstp[x] = sum;
+            dstp[x] = sum;
         }
 
         for (int x = width - border; x < width; x++) {
@@ -1517,7 +1578,7 @@ static void process_plane_convolution_horizontal(uint8_t * VS_RESTRICT dstp8, co
             for (int i = 0; i < matrix_elements; i++) {
                 int idx = x + i - border;
                 int diff = width - 1 - idx;
-                idx = idx + std::min(diff*2, 0);
+                idx = idx + std::min(diff * 2, 0);
                 sum += srcp[idx] * matrixf[i];
             }
 
@@ -1526,10 +1587,7 @@ static void process_plane_convolution_horizontal(uint8_t * VS_RESTRICT dstp8, co
             if (!saturate)
                 sum = std::abs(sum);
 
-            if (std::numeric_limits<PixelType>::is_integer)
-                dstp[x] = std::min(max_value, std::max(static_cast<int>(sum + 0.5f), 0));
-            else
-                dstp[x] = sum;
+            dstp[x] = sum;
         }
 
         dstp += stride;
@@ -1539,14 +1597,78 @@ static void process_plane_convolution_horizontal(uint8_t * VS_RESTRICT dstp8, co
 
 
 template <typename PixelType>
-static void process_plane_convolution_vertical(uint8_t * VS_RESTRICT dstp8, const uint8_t * VS_RESTRICT srcp8, int width, int height, int stride, const GenericPlaneParams &params) {
+static void process_plane_convolution_verticalI(uint8_t * VS_RESTRICT dstp8, const uint8_t * VS_RESTRICT srcp8, int width, int height, int stride, const GenericPlaneParams &params) {
     stride /= sizeof(PixelType);
 
-    PixelType *dstp = reinterpret_cast<PixelType *>(dstp8);
+    PixelType * dstp = reinterpret_cast<PixelType *>(dstp8);
+    const PixelType *srcp = reinterpret_cast<const PixelType *>(srcp8);
+
+    const int *matrix = params.matrix;
+    int matrix_elements = params.matrix_elements;
+    float rdiv = params.rdiv;
+    float bias = params.bias;
+    bool saturate = params.saturate;
+    int max_value = params.max_value;
+
+    int border = matrix_elements / 2;
+
+    for (int x = 0; x < width; x++) {
+        for (int y = 0; y < border; y++) {
+            float sum = 0;
+
+            for (int i = 0; i < matrix_elements; i++)
+                sum += srcp[x + std::abs(y + i - border) * stride] * matrix[i];
+
+            sum = (sum * rdiv + bias);
+
+            if (!saturate)
+                sum = std::abs(sum);
+
+            dstp[x + y * stride] = std::min(max_value, std::max(static_cast<int>(sum + 0.5f), 0));
+        }
+
+        for (int y = border; y < height - border; y++) {
+            float sum = 0;
+
+            for (int i = 0; i < matrix_elements; i++)
+                sum += srcp[x + (y + i - border) * stride] * matrix[i];
+
+            sum = (sum * rdiv + bias);
+
+            if (!saturate)
+                sum = std::abs(sum);
+
+            dstp[x + y * stride] = std::min(max_value, std::max(static_cast<int>(sum + 0.5f), 0));
+        }
+
+        for (int y = height - border; y < height; y++) {
+            float sum = 0;
+
+            for (int i = 0; i < matrix_elements; i++) {
+                int idx = y + i - border;
+                int diff = height - 1 - idx;
+                idx = idx + std::min(diff*2, 0);
+                sum += srcp[x + idx * stride] * matrix[i];
+            }
+
+            sum = (sum * rdiv + bias);
+
+            if (!saturate)
+                sum = std::abs(sum);
+
+            dstp[x + y * stride] = std::min(max_value, std::max(static_cast<int>(sum + 0.5f), 0));
+        }
+    }
+}
+
+template <typename PixelType>
+static void process_plane_convolution_verticalF(uint8_t * VS_RESTRICT dstp8, const uint8_t * VS_RESTRICT srcp8, int width, int height, int stride, const GenericPlaneParams &params) {
+    stride /= sizeof(PixelType);
+
+    PixelType * dstp = reinterpret_cast<PixelType *>(dstp8);
     const PixelType *srcp = reinterpret_cast<const PixelType *>(srcp8);
 
     const float *matrixf = params.matrixf;
-    const int *matrix = params.matrix;
     int matrix_elements = params.matrix_elements;
     float rdiv = params.rdiv;
     float bias = params.bias;
@@ -1567,10 +1689,7 @@ static void process_plane_convolution_vertical(uint8_t * VS_RESTRICT dstp8, cons
             if (!saturate)
                 sum = std::abs(sum);
 
-            if (std::numeric_limits<PixelType>::is_integer)
-                dstp[x + y * stride] = std::min(max_value, std::max(static_cast<int>(sum + 0.5f), 0));
-            else
-                dstp[x + y * stride] = sum;
+            dstp[x + y * stride] = sum;
         }
 
         for (int y = border; y < height - border; y++) {
@@ -1584,10 +1703,7 @@ static void process_plane_convolution_vertical(uint8_t * VS_RESTRICT dstp8, cons
             if (!saturate)
                 sum = std::abs(sum);
 
-            if (std::numeric_limits<PixelType>::is_integer)
-                dstp[x + y * stride] = std::min(max_value, std::max(static_cast<int>(sum + 0.5f), 0));
-            else
-                dstp[x + y * stride] = sum;
+            dstp[x + y * stride] = sum;
         }
 
         for (int y = height - border; y < height; y++) {
@@ -1596,7 +1712,7 @@ static void process_plane_convolution_vertical(uint8_t * VS_RESTRICT dstp8, cons
             for (int i = 0; i < matrix_elements; i++) {
                 int idx = y + i - border;
                 int diff = height - 1 - idx;
-                idx = idx + std::min(diff*2, 0);
+                idx = idx + std::min(diff * 2, 0);
                 sum += srcp[x + idx * stride] * matrixf[i];
             }
 
@@ -1605,21 +1721,17 @@ static void process_plane_convolution_vertical(uint8_t * VS_RESTRICT dstp8, cons
             if (!saturate)
                 sum = std::abs(sum);
 
-            if (std::numeric_limits<PixelType>::is_integer)
-                dstp[x + y * stride] = std::min(max_value, std::max(static_cast<int>(sum + 0.5f), 0));
-            else
-                dstp[x + y * stride] = sum;
+            dstp[x + y * stride] = sum;
         }
     }
 }
-
 
 template <typename PixelType, GenericOperations op>
 static void process_plane_5x5(uint8_t * VS_RESTRICT dstp8, const uint8_t * VS_RESTRICT srcp8, int width, int height, int stride, const GenericPlaneParams &params) {
     stride /= sizeof(PixelType);
 
-    PixelType *dstp = reinterpret_cast<PixelType *>(dstp8);
-    const PixelType *srcp = reinterpret_cast<const PixelType *>(srcp8);
+    PixelType * VS_RESTRICT dstp = reinterpret_cast<PixelType *>(dstp8);
+    const PixelType * VS_RESTRICT srcp = reinterpret_cast<const PixelType *>(srcp8);
 
     const PixelType *above2 = srcp - stride * 2;
     const PixelType *above1 = srcp - stride;
@@ -2039,18 +2151,18 @@ static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void
                     process_plane = process_plane_5x5<float, op>;
             } else if (op == GenericConvolution && d->convolution_type == ConvolutionHorizontal) {
                 if (bytes == 1)
-                    process_plane = process_plane_convolution_horizontal<uint8_t>;
+                    process_plane = process_plane_convolution_horizontalI<uint8_t>;
                 else if (bytes == 2)
-                    process_plane = process_plane_convolution_horizontal<uint16_t>;
+                    process_plane = process_plane_convolution_horizontalI<uint16_t>;
                 else
-                    process_plane = process_plane_convolution_horizontal<float>;
+                    process_plane = process_plane_convolution_horizontalF<float>;
             } else if (op == GenericConvolution && d->convolution_type == ConvolutionVertical) {
                 if (bytes == 1)
-                    process_plane = process_plane_convolution_vertical<uint8_t>;
+                    process_plane = process_plane_convolution_verticalI<uint8_t>;
                 else if (bytes == 2)
-                    process_plane = process_plane_convolution_vertical<uint16_t>;
+                    process_plane = process_plane_convolution_verticalI<uint16_t>;
                 else
-                    process_plane = process_plane_convolution_vertical<float>;
+                    process_plane = process_plane_convolution_verticalF<float>;
             } else if (op == GenericMinimum ||
                 op == GenericMaximum ||
                 op == GenericMedian ||
