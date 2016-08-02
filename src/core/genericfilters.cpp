@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2015 John Smith
+* Copyright (c) 2015-2016 John Smith & Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -720,11 +720,11 @@ void filterPlane(const uint8_t * VS_RESTRICT src, uint8_t * VS_RESTRICT dst, con
             {
                 __m128 m2 = _mm_load_ps(reinterpret_cast<const float *>(src));
                 __m128 m3 = _mm_loadu_ps(reinterpret_cast<const float *>(src + sizeof(T)));
-                __m128 m1 = _mm_shuffle_ps(m2, m2, _MM_SHUFFLE(2, 1, 0, 0));
+                __m128 m1 = _mm_shuffle_ps(m2, m2, _MM_SHUFFLE(2, 1, 0, 1));
                 __m128 b2 = _mm_load_ps(reinterpret_cast<const float *>(src + stride));
                 __m128 b3 = _mm_loadu_ps(reinterpret_cast<const float *>(src + stride + sizeof(T)));
-                __m128 b1 = _mm_shuffle_ps(b2, b2, _MM_SHUFFLE(2, 1, 0, 0));
-                _mm_store_ps(reinterpret_cast<float *>(dst), OP::processF(m1, m2, m3, m1, m2, m3, b1, b2, b3, opts));
+                __m128 b1 = _mm_shuffle_ps(b2, b2, _MM_SHUFFLE(2, 1, 0, 1));
+                _mm_store_ps(reinterpret_cast<float *>(dst), OP::processF(b1, b2, b3, m1, m2, m3, b1, b2, b3, opts));
                 src += sizeof(__m128);
                 dst += sizeof(__m128);
             }
@@ -737,7 +737,7 @@ void filterPlane(const uint8_t * VS_RESTRICT src, uint8_t * VS_RESTRICT dst, con
                 __m128 b1 = _mm_loadu_ps(reinterpret_cast<const float *>(src + stride - sizeof(T)));
                 __m128 b2 = _mm_load_ps(reinterpret_cast<const float *>(src + stride));
                 __m128 b3 = _mm_loadu_ps(reinterpret_cast<const float *>(src + stride + sizeof(T)));
-                _mm_store_ps(reinterpret_cast<float *>(dst), OP::processF(m1, m2, m3, m1, m2, m3, b1, b2, b3, opts));
+                _mm_store_ps(reinterpret_cast<float *>(dst), OP::processF(b1, b2, b3, m1, m2, m3, b1, b2, b3, opts));
                 src += sizeof(__m128);
                 dst += sizeof(__m128);
             }
@@ -746,11 +746,11 @@ void filterPlane(const uint8_t * VS_RESTRICT src, uint8_t * VS_RESTRICT dst, con
             {
                 __m128 m1 = _mm_loadu_ps(reinterpret_cast<const float *>(src - sizeof(T)));
                 __m128 m2 = _mm_load_ps(reinterpret_cast<const float *>(src));
-                __m128 m3 = _mm_or_ps(_mm_andnot_ps(tailmask, _mm_shuffle_ps(m2, m2, _MM_SHUFFLE(3, 3, 2, 1))), _mm_and_ps(tailmask, m2));
+                __m128 m3 = _mm_or_ps(_mm_andnot_ps(tailmask, _mm_shuffle_ps(m2, m2, _MM_SHUFFLE(2, 3, 2, 1))), _mm_and_ps(tailmask, m2));
                 __m128 b1 = _mm_loadu_ps(reinterpret_cast<const float *>(src + stride - sizeof(T)));
                 __m128 b2 = _mm_load_ps(reinterpret_cast<const float *>(src + stride));
-                __m128 b3 = _mm_or_ps(_mm_andnot_ps(tailmask, _mm_shuffle_ps(b2, b2, _MM_SHUFFLE(3, 3, 2, 1))), _mm_and_ps(tailmask, b2));
-                _mm_store_ps(reinterpret_cast<float *>(dst), OP::processF(m1, m2, m3, m1, m2, m3, b1, b2, b3, opts));
+                __m128 b3 = _mm_or_ps(_mm_andnot_ps(tailmask, _mm_shuffle_ps(b2, b2, _MM_SHUFFLE(2, 3, 2, 1))), _mm_and_ps(tailmask, b2));
+                _mm_store_ps(reinterpret_cast<float *>(dst), OP::processF(b1, b2, b3, m1, m2, m3, b1, b2, b3, opts));
             }
 
             srcLineStart += stride;
@@ -764,13 +764,13 @@ void filterPlane(const uint8_t * VS_RESTRICT src, uint8_t * VS_RESTRICT dst, con
             {
                 __m128 t2 = _mm_load_ps(reinterpret_cast<const float *>(src - stride));
                 __m128 t3 = _mm_loadu_ps(reinterpret_cast<const float *>(src - stride + sizeof(T)));
-                __m128 t1 = _mm_shuffle_ps(t2, t2, _MM_SHUFFLE(2, 1, 0, 0));
+                __m128 t1 = _mm_shuffle_ps(t2, t2, _MM_SHUFFLE(2, 1, 0, 1));
                 __m128 m2 = _mm_load_ps(reinterpret_cast<const float *>(src));
                 __m128 m3 = _mm_loadu_ps(reinterpret_cast<const float *>(src + sizeof(T)));
-                __m128 m1 = _mm_shuffle_ps(m2, m2, _MM_SHUFFLE(2, 1, 0, 0));
+                __m128 m1 = _mm_shuffle_ps(m2, m2, _MM_SHUFFLE(2, 1, 0, 1));
                 __m128 b2 = _mm_load_ps(reinterpret_cast<const float *>(src + stride));
                 __m128 b3 = _mm_loadu_ps(reinterpret_cast<const float *>(src + stride + sizeof(T)));
-                __m128 b1 = _mm_shuffle_ps(b2, b2, _MM_SHUFFLE(2, 1, 0, 0));
+                __m128 b1 = _mm_shuffle_ps(b2, b2, _MM_SHUFFLE(2, 1, 0, 1));
                 _mm_store_ps(reinterpret_cast<float *>(dst), OP::processF(t1, t2, t3, m1, m2, m3, b1, b2, b3, opts));
                 src += sizeof(__m128);
                 dst += sizeof(__m128);
@@ -796,13 +796,13 @@ void filterPlane(const uint8_t * VS_RESTRICT src, uint8_t * VS_RESTRICT dst, con
             {
                 __m128 t1 = _mm_loadu_ps(reinterpret_cast<const float *>(src - stride - sizeof(T)));
                 __m128 t2 = _mm_load_ps(reinterpret_cast<const float *>(src - stride));
-                __m128 t3 = _mm_or_ps(_mm_andnot_ps(tailmask, _mm_shuffle_ps(t2, t2, _MM_SHUFFLE(3, 3, 2, 1))), _mm_and_ps(tailmask, t2));
+                __m128 t3 = _mm_or_ps(_mm_andnot_ps(tailmask, _mm_shuffle_ps(t2, t2, _MM_SHUFFLE(2, 3, 2, 1))), _mm_and_ps(tailmask, t2));
                 __m128 m1 = _mm_loadu_ps(reinterpret_cast<const float *>(src - sizeof(T)));
                 __m128 m2 = _mm_load_ps(reinterpret_cast<const float *>(src));
-                __m128 m3 = _mm_or_ps(_mm_andnot_ps(tailmask, _mm_shuffle_ps(m2, m2, _MM_SHUFFLE(3, 3, 2, 1))), _mm_and_ps(tailmask, m2));
+                __m128 m3 = _mm_or_ps(_mm_andnot_ps(tailmask, _mm_shuffle_ps(m2, m2, _MM_SHUFFLE(2, 3, 2, 1))), _mm_and_ps(tailmask, m2));
                 __m128 b1 = _mm_loadu_ps(reinterpret_cast<const float *>(src + stride - sizeof(T)));
                 __m128 b2 = _mm_load_ps(reinterpret_cast<const float *>(src + stride));
-                __m128 b3 = _mm_or_ps(_mm_andnot_ps(tailmask, _mm_shuffle_ps(b2, b2, _MM_SHUFFLE(3, 3, 2, 1))), _mm_and_ps(tailmask, b2));
+                __m128 b3 = _mm_or_ps(_mm_andnot_ps(tailmask, _mm_shuffle_ps(b2, b2, _MM_SHUFFLE(2, 3, 2, 1))), _mm_and_ps(tailmask, b2));
                 _mm_store_ps(reinterpret_cast<float *>(dst), OP::processF(t1, t2, t3, m1, m2, m3, b1, b2, b3, opts));
             }
 
@@ -818,11 +818,11 @@ void filterPlane(const uint8_t * VS_RESTRICT src, uint8_t * VS_RESTRICT dst, con
             {
                 __m128 t2 = _mm_load_ps(reinterpret_cast<const float *>(src - stride));
                 __m128 t3 = _mm_loadu_ps(reinterpret_cast<const float *>(src - stride + sizeof(T)));
-                __m128 t1 = _mm_shuffle_ps(t2, t2, _MM_SHUFFLE(2, 1, 0, 0));
+                __m128 t1 = _mm_shuffle_ps(t2, t2, _MM_SHUFFLE(2, 1, 0, 1));
                 __m128 m2 = _mm_load_ps(reinterpret_cast<const float *>(src));
                 __m128 m3 = _mm_loadu_ps(reinterpret_cast<const float *>(src + sizeof(T)));
-                __m128 m1 = _mm_shuffle_ps(m2, m2, _MM_SHUFFLE(2, 1, 0, 0));
-                _mm_store_ps(reinterpret_cast<float *>(dst), OP::processF(t1, t2, t3, m1, m2, m3, m1, m2, m3, opts));
+                __m128 m1 = _mm_shuffle_ps(m2, m2, _MM_SHUFFLE(2, 1, 0, 1));
+                _mm_store_ps(reinterpret_cast<float *>(dst), OP::processF(t1, t2, t3, m1, m2, m3, t1, t2, t3, opts));
                 src += sizeof(__m128);
                 dst += sizeof(__m128);
             }
@@ -835,7 +835,7 @@ void filterPlane(const uint8_t * VS_RESTRICT src, uint8_t * VS_RESTRICT dst, con
                 __m128 m1 = _mm_loadu_ps(reinterpret_cast<const float *>(src - sizeof(T)));
                 __m128 m2 = _mm_load_ps(reinterpret_cast<const float *>(src));
                 __m128 m3 = _mm_loadu_ps(reinterpret_cast<const float *>(src + sizeof(T)));
-                _mm_store_ps(reinterpret_cast<float *>(dst), OP::processF(t1, t2, t3, m1, m2, m3, m1, m2, m3, opts));
+                _mm_store_ps(reinterpret_cast<float *>(dst), OP::processF(t1, t2, t3, m1, m2, m3, t1, t2, t3, opts));
                 src += sizeof(__m128);
                 dst += sizeof(__m128);
             }
@@ -844,11 +844,11 @@ void filterPlane(const uint8_t * VS_RESTRICT src, uint8_t * VS_RESTRICT dst, con
             {
                 __m128 t1 = _mm_loadu_ps(reinterpret_cast<const float *>(src - stride - sizeof(T)));
                 __m128 t2 = _mm_load_ps(reinterpret_cast<const float *>(src - stride));
-                __m128 t3 = _mm_or_ps(_mm_andnot_ps(tailmask, _mm_shuffle_ps(t2, t2, _MM_SHUFFLE(3, 3, 2, 1))), _mm_and_ps(tailmask, t2));
+                __m128 t3 = _mm_or_ps(_mm_andnot_ps(tailmask, _mm_shuffle_ps(t2, t2, _MM_SHUFFLE(2, 3, 2, 1))), _mm_and_ps(tailmask, t2));
                 __m128 m1 = _mm_loadu_ps(reinterpret_cast<const float *>(src - sizeof(T)));
                 __m128 m2 = _mm_load_ps(reinterpret_cast<const float *>(src));
-                __m128 m3 = _mm_or_ps(_mm_andnot_ps(tailmask, _mm_shuffle_ps(m2, m2, _MM_SHUFFLE(3, 3, 2, 1))), _mm_and_ps(tailmask, m2));
-                _mm_store_ps(reinterpret_cast<float *>(dst), OP::processF(t1, t2, t3, m1, m2, m3, m1, m2, m3, opts));
+                __m128 m3 = _mm_or_ps(_mm_andnot_ps(tailmask, _mm_shuffle_ps(m2, m2, _MM_SHUFFLE(2, 3, 2, 1))), _mm_and_ps(tailmask, m2));
+                _mm_store_ps(reinterpret_cast<float *>(dst), OP::processF(t1, t2, t3, m1, m2, m3, t1, t2, t3, opts));
             }
         }
     } else {
@@ -874,7 +874,7 @@ void filterPlane(const uint8_t * VS_RESTRICT src, uint8_t * VS_RESTRICT dst, con
                 __m128i b2 = _mm_load_si128(reinterpret_cast<const __m128i *>(src + stride));
                 __m128i b3 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src + stride + sizeof(T)));
                 __m128i b1 = _mm_or_si128(_mm_and_si128(b2, leadmask), _mm_slli_si128(b2, sizeof(T)));
-                _mm_store_si128(reinterpret_cast<__m128i *>(dst), (sizeof(T) == 1) ? OP::process8(m1, m2, m3, m1, m2, m3, b1, b2, b3, opts) : OP::process16(m1, m2, m3, m1, m2, m3, b1, b2, b3, opts));
+                _mm_store_si128(reinterpret_cast<__m128i *>(dst), (sizeof(T) == 1) ? OP::process8(b1, b2, b3, m1, m2, m3, b1, b2, b3, opts) : OP::process16(b1, b2, b3, m1, m2, m3, b1, b2, b3, opts));
                 src += sizeof(__m128i);
                 dst += sizeof(__m128i);
             }
@@ -887,7 +887,7 @@ void filterPlane(const uint8_t * VS_RESTRICT src, uint8_t * VS_RESTRICT dst, con
                 __m128i b1 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src + stride - sizeof(T)));
                 __m128i b2 = _mm_load_si128(reinterpret_cast<const __m128i *>(src + stride));
                 __m128i b3 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src + stride + sizeof(T)));
-                _mm_store_si128(reinterpret_cast<__m128i *>(dst), (sizeof(T) == 1) ? OP::process8(m1, m2, m3, m1, m2, m3, b1, b2, b3, opts) : OP::process16(m1, m2, m3, m1, m2, m3, b1, b2, b3, opts));
+                _mm_store_si128(reinterpret_cast<__m128i *>(dst), (sizeof(T) == 1) ? OP::process8(b1, b2, b3, m1, m2, m3, b1, b2, b3, opts) : OP::process16(b1, b2, b3, m1, m2, m3, b1, b2, b3, opts));
                 src += sizeof(__m128i);
                 dst += sizeof(__m128i);
             }
@@ -900,7 +900,7 @@ void filterPlane(const uint8_t * VS_RESTRICT src, uint8_t * VS_RESTRICT dst, con
                 __m128i b1 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src + stride - sizeof(T)));
                 __m128i b2 = _mm_load_si128(reinterpret_cast<const __m128i *>(src + stride));
                 __m128i b3 = _mm_or_si128(_mm_andnot_si128(tailmask, _mm_srli_si128(b2, sizeof(T))), _mm_and_si128(tailmask, b2));
-                _mm_store_si128(reinterpret_cast<__m128i *>(dst), (sizeof(T) == 1) ? OP::process8(m1, m2, m3, m1, m2, m3, b1, b2, b3, opts) : OP::process16(m1, m2, m3, m1, m2, m3, b1, b2, b3, opts));
+                _mm_store_si128(reinterpret_cast<__m128i *>(dst), (sizeof(T) == 1) ? OP::process8(b1, b2, b3, m1, m2, m3, b1, b2, b3, opts) : OP::process16(b1, b2, b3, m1, m2, m3, b1, b2, b3, opts));
             }
 
             srcLineStart += stride;
@@ -972,7 +972,7 @@ void filterPlane(const uint8_t * VS_RESTRICT src, uint8_t * VS_RESTRICT dst, con
                 __m128i m2 = _mm_load_si128(reinterpret_cast<const __m128i *>(src));
                 __m128i m3 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src + sizeof(T)));
                 __m128i m1 = _mm_or_si128(_mm_and_si128(m2, leadmask), _mm_slli_si128(m2, sizeof(T)));
-                _mm_store_si128(reinterpret_cast<__m128i *>(dst), (sizeof(T) == 1) ? OP::process8(t1, t2, t3, m1, m2, m3, m1, m2, m3, opts) : OP::process16(t1, t2, t3, m1, m2, m3, m1, m2, m3, opts));
+                _mm_store_si128(reinterpret_cast<__m128i *>(dst), (sizeof(T) == 1) ? OP::process8(t1, t2, t3, m1, m2, m3, t1, t2, t3, opts) : OP::process16(t1, t2, t3, m1, m2, m3, t1, t2, t3, opts));
                 src += sizeof(__m128i);
                 dst += sizeof(__m128i);
             }
@@ -985,7 +985,7 @@ void filterPlane(const uint8_t * VS_RESTRICT src, uint8_t * VS_RESTRICT dst, con
                 __m128i m1 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src - sizeof(T)));
                 __m128i m2 = _mm_load_si128(reinterpret_cast<const __m128i *>(src));
                 __m128i m3 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src + sizeof(T)));
-                _mm_store_si128(reinterpret_cast<__m128i *>(dst), (sizeof(T) == 1) ? OP::process8(t1, t2, t3, m1, m2, m3, m1, m2, m3, opts) : OP::process16(t1, t2, t3, m1, m2, m3, m1, m2, m3, opts));
+                _mm_store_si128(reinterpret_cast<__m128i *>(dst), (sizeof(T) == 1) ? OP::process8(t1, t2, t3, m1, m2, m3, t1, t2, t3, opts) : OP::process16(t1, t2, t3, m1, m2, m3, t1, t2, t3, opts));
                 src += sizeof(__m128i);
                 dst += sizeof(__m128i);
             }
@@ -998,7 +998,7 @@ void filterPlane(const uint8_t * VS_RESTRICT src, uint8_t * VS_RESTRICT dst, con
                 __m128i m1 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src - sizeof(T)));
                 __m128i m2 = _mm_load_si128(reinterpret_cast<const __m128i *>(src));
                 __m128i m3 = _mm_or_si128(_mm_andnot_si128(tailmask, _mm_srli_si128(m2, sizeof(T))), _mm_and_si128(tailmask, m2));
-                _mm_store_si128(reinterpret_cast<__m128i *>(dst), (sizeof(T) == 1) ? OP::process8(t1, t2, t3, m1, m2, m3, m1, m2, m3, opts) : OP::process16(t1, t2, t3, m1, m2, m3, m1, m2, m3, opts));
+                _mm_store_si128(reinterpret_cast<__m128i *>(dst), (sizeof(T) == 1) ? OP::process8(t1, t2, t3, m1, m2, m3, t1, t2, t3, opts) : OP::process16(t1, t2, t3, m1, m2, m3, t1, t2, t3, opts));
             }
         }
     }
