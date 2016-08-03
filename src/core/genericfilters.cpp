@@ -1987,142 +1987,145 @@ static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void
 #ifdef VS_TARGET_CPU_X86
         void(*process_plane_fast)(const uint8_t * VS_RESTRICT src, uint8_t * VS_RESTRICT dst, const ptrdiff_t stride, const unsigned width, const int height, int plane, const VSFormat *fi, const GenericData *data) = nullptr;
 
-        if (vsapi->getFrameWidth(src, fi->numPlanes - 1) < 17) {
-            // don't use optimized versions when too small width
-        } else if (op == GenericConvolution && d->convolution_type == ConvolutionHorizontal && d->matrix_elements == 3) {
-            //rewrite to 3x3 matrix here
-            d->convolution_type = ConvolutionSquare;
-            d->matrix_elements = 9;
-            d->matrix[3] = d->matrix[0];
-            d->matrix[4] = d->matrix[1];
-            d->matrix[5] = d->matrix[2];
-            d->matrix[0] = 0;
-            d->matrix[1] = 0;
-            d->matrix[2] = 0;
-            d->matrix[6] = 0;
-            d->matrix[7] = 0;
-            d->matrix[8] = 0;
-            d->matrixf[3] = d->matrixf[0];
-            d->matrixf[4] = d->matrixf[1];
-            d->matrixf[5] = d->matrixf[2];
-            d->matrixf[0] = 0.f;
-            d->matrixf[1] = 0.f;
-            d->matrixf[2] = 0.f;
-            d->matrixf[6] = 0.f;
-            d->matrixf[7] = 0.f;
-            d->matrixf[8] = 0.f;
-        } else if (op == GenericConvolution && d->convolution_type == ConvolutionVertical && d->matrix_elements == 3) {
-            //rewrite to 3x3 matrix here
-            d->convolution_type = ConvolutionSquare;
-            d->matrix_elements = 9;
-            d->matrix[7] = d->matrix[2];
-            d->matrix[5] = d->matrix[1];
-            d->matrix[1] = d->matrix[0];
-            d->matrix[0] = 0;
-            d->matrix[2] = 0;
-            d->matrix[3] = 0;
-            d->matrix[4] = 0;
-            d->matrix[6] = 0;
-            d->matrix[8] = 0;
-            d->matrixf[7] = d->matrixf[2];
-            d->matrixf[5] = d->matrixf[1];
-            d->matrixf[1] = d->matrixf[0];
-            d->matrixf[0] = 0.f;
-            d->matrixf[2] = 0.f;
-            d->matrixf[3] = 0.f;
-            d->matrixf[4] = 0.f;
-            d->matrixf[6] = 0.f;
-            d->matrixf[8] = 0.f;
-        }
+        bool canUseOptimized = (vsapi->getFrameWidth(src, fi->numPlanes - 1) < 17);
 
-        if (op == GenericConvolution && d->convolution_type == ConvolutionSquare && d->matrix_elements == 9) {
-            if (bytes == 1)
-                process_plane_fast = filterPlane<uint8_t, Convolution3x3>;
-            else if (bytes == 2)
-                process_plane_fast = filterPlane<uint16_t, Convolution3x3>;
-            else
-                process_plane_fast = filterPlane<float, Convolution3x3>;
-        } else if (op == GenericInflate) {
-            if (bytes == 1)
-                process_plane_fast = filterPlane<uint8_t, Inflate>;
-            else if (bytes == 2)
-                process_plane_fast = filterPlane<uint16_t, Inflate>;
-            else
-                process_plane_fast = filterPlane<float, Inflate>;
-        } else if (op == GenericDeflate) {
-            if (bytes == 1)
-                process_plane_fast = filterPlane<uint8_t, Deflate>;
-            else if (bytes == 2)
-                process_plane_fast = filterPlane<uint16_t, Deflate>;
-            else
-                process_plane_fast = filterPlane<float, Deflate>;
-        } else if (op == GenericMedian) {
-            if (bytes == 1)
-                process_plane_fast = filterPlane<uint8_t, Median>;
-            else if (bytes == 2)
-                process_plane_fast = filterPlane<uint16_t, Median>;
-            else
-                process_plane_fast = filterPlane<float, Median>;
-        } else if (op == GenericMaximum) {
-            if (d->pattern == 1) {
-                if (bytes == 1)
-                    process_plane_fast = filterPlane<uint8_t, MaxOpReduceAll>;
-                else if (bytes == 2)
-                    process_plane_fast = filterPlane<uint16_t, MaxOpReduceAll>;
-                else
-                    process_plane_fast = filterPlane<float, MaxOpReduceAll>;
-            } else if (d->pattern == 2) {
-                if (bytes == 1)
-                    process_plane_fast = filterPlane<uint8_t, MaxOpReducePlus>;
-                else if (bytes == 2)
-                    process_plane_fast = filterPlane<uint16_t, MaxOpReducePlus>;
-                else
-                    process_plane_fast = filterPlane<float, MaxOpReducePlus>;
-            } else if (d->pattern == 3) {
-                if (bytes == 1)
-                    process_plane_fast = filterPlane<uint8_t, MaxOpReduceVertical>;
-                else if (bytes == 2)
-                    process_plane_fast = filterPlane<uint16_t, MaxOpReduceVertical>;
-                else
-                    process_plane_fast = filterPlane<float, MaxOpReduceVertical>;
-            } else if (d->pattern == 4) {
-                if (bytes == 1)
-                    process_plane_fast = filterPlane<uint8_t, MaxOpReduceHorizontal>;
-                else if (bytes == 2)
-                    process_plane_fast = filterPlane<uint16_t, MaxOpReduceHorizontal>;
-                else
-                    process_plane_fast = filterPlane<float, MaxOpReduceHorizontal>;
+        if (canUseOptimized) {
+            if (op == GenericConvolution && d->convolution_type == ConvolutionHorizontal && d->matrix_elements == 3) {
+                //rewrite to 3x3 matrix here
+                d->convolution_type = ConvolutionSquare;
+                d->matrix_elements = 9;
+                d->matrix[3] = d->matrix[0];
+                d->matrix[4] = d->matrix[1];
+                d->matrix[5] = d->matrix[2];
+                d->matrix[0] = 0;
+                d->matrix[1] = 0;
+                d->matrix[2] = 0;
+                d->matrix[6] = 0;
+                d->matrix[7] = 0;
+                d->matrix[8] = 0;
+                d->matrixf[3] = d->matrixf[0];
+                d->matrixf[4] = d->matrixf[1];
+                d->matrixf[5] = d->matrixf[2];
+                d->matrixf[0] = 0.f;
+                d->matrixf[1] = 0.f;
+                d->matrixf[2] = 0.f;
+                d->matrixf[6] = 0.f;
+                d->matrixf[7] = 0.f;
+                d->matrixf[8] = 0.f;
+            } else if (op == GenericConvolution && d->convolution_type == ConvolutionVertical && d->matrix_elements == 3) {
+                //rewrite to 3x3 matrix here
+                d->convolution_type = ConvolutionSquare;
+                d->matrix_elements = 9;
+                d->matrix[7] = d->matrix[2];
+                d->matrix[5] = d->matrix[1];
+                d->matrix[1] = d->matrix[0];
+                d->matrix[0] = 0;
+                d->matrix[2] = 0;
+                d->matrix[3] = 0;
+                d->matrix[4] = 0;
+                d->matrix[6] = 0;
+                d->matrix[8] = 0;
+                d->matrixf[7] = d->matrixf[2];
+                d->matrixf[5] = d->matrixf[1];
+                d->matrixf[1] = d->matrixf[0];
+                d->matrixf[0] = 0.f;
+                d->matrixf[2] = 0.f;
+                d->matrixf[3] = 0.f;
+                d->matrixf[4] = 0.f;
+                d->matrixf[6] = 0.f;
+                d->matrixf[8] = 0.f;
             }
-        } else if (op == GenericMinimum) {
-            if (d->pattern == 1) {
+
+            if (op == GenericConvolution && d->convolution_type == ConvolutionSquare && d->matrix_elements == 9) {
                 if (bytes == 1)
-                    process_plane_fast = filterPlane<uint8_t, MinOpReduceAll>;
+                    process_plane_fast = filterPlane<uint8_t, Convolution3x3>;
                 else if (bytes == 2)
-                    process_plane_fast = filterPlane<uint16_t, MinOpReduceAll>;
+                    process_plane_fast = filterPlane<uint16_t, Convolution3x3>;
                 else
-                    process_plane_fast = filterPlane<float, MinOpReduceAll>;
-            } else if (d->pattern == 2) {
+                    process_plane_fast = filterPlane<float, Convolution3x3>;
+            } else if (op == GenericInflate) {
                 if (bytes == 1)
-                    process_plane_fast = filterPlane<uint8_t, MinOpReducePlus>;
+                    process_plane_fast = filterPlane<uint8_t, Inflate>;
                 else if (bytes == 2)
-                    process_plane_fast = filterPlane<uint16_t, MinOpReducePlus>;
+                    process_plane_fast = filterPlane<uint16_t, Inflate>;
                 else
-                    process_plane_fast = filterPlane<float, MinOpReducePlus>;
-            } else if (d->pattern == 3) {
+                    process_plane_fast = filterPlane<float, Inflate>;
+            } else if (op == GenericDeflate) {
                 if (bytes == 1)
-                    process_plane_fast = filterPlane<uint8_t, MinOpReduceVertical>;
+                    process_plane_fast = filterPlane<uint8_t, Deflate>;
                 else if (bytes == 2)
-                    process_plane_fast = filterPlane<uint16_t, MinOpReduceVertical>;
+                    process_plane_fast = filterPlane<uint16_t, Deflate>;
                 else
-                    process_plane_fast = filterPlane<float, MinOpReduceVertical>;
-            } else if (d->pattern == 4) {
+                    process_plane_fast = filterPlane<float, Deflate>;
+            } else if (op == GenericMedian) {
                 if (bytes == 1)
-                    process_plane_fast = filterPlane<uint8_t, MinOpReduceHorizontal>;
+                    process_plane_fast = filterPlane<uint8_t, Median>;
                 else if (bytes == 2)
-                    process_plane_fast = filterPlane<uint16_t, MinOpReduceHorizontal>;
+                    process_plane_fast = filterPlane<uint16_t, Median>;
                 else
-                    process_plane_fast = filterPlane<float, MinOpReduceHorizontal>;
+                    process_plane_fast = filterPlane<float, Median>;
+            } else if (op == GenericMaximum) {
+                if (d->pattern == 1) {
+                    if (bytes == 1)
+                        process_plane_fast = filterPlane<uint8_t, MaxOpReduceAll>;
+                    else if (bytes == 2)
+                        process_plane_fast = filterPlane<uint16_t, MaxOpReduceAll>;
+                    else
+                        process_plane_fast = filterPlane<float, MaxOpReduceAll>;
+                } else if (d->pattern == 2) {
+                    if (bytes == 1)
+                        process_plane_fast = filterPlane<uint8_t, MaxOpReducePlus>;
+                    else if (bytes == 2)
+                        process_plane_fast = filterPlane<uint16_t, MaxOpReducePlus>;
+                    else
+                        process_plane_fast = filterPlane<float, MaxOpReducePlus>;
+                } else if (d->pattern == 3) {
+                    if (bytes == 1)
+                        process_plane_fast = filterPlane<uint8_t, MaxOpReduceVertical>;
+                    else if (bytes == 2)
+                        process_plane_fast = filterPlane<uint16_t, MaxOpReduceVertical>;
+                    else
+                        process_plane_fast = filterPlane<float, MaxOpReduceVertical>;
+                } else if (d->pattern == 4) {
+                    if (bytes == 1)
+                        process_plane_fast = filterPlane<uint8_t, MaxOpReduceHorizontal>;
+                    else if (bytes == 2)
+                        process_plane_fast = filterPlane<uint16_t, MaxOpReduceHorizontal>;
+                    else
+                        process_plane_fast = filterPlane<float, MaxOpReduceHorizontal>;
+                }
+            } else if (op == GenericMinimum) {
+                if (d->pattern == 1) {
+                    if (bytes == 1)
+                        process_plane_fast = filterPlane<uint8_t, MinOpReduceAll>;
+                    else if (bytes == 2)
+                        process_plane_fast = filterPlane<uint16_t, MinOpReduceAll>;
+                    else
+                        process_plane_fast = filterPlane<float, MinOpReduceAll>;
+                } else if (d->pattern == 2) {
+                    if (bytes == 1)
+                        process_plane_fast = filterPlane<uint8_t, MinOpReducePlus>;
+                    else if (bytes == 2)
+                        process_plane_fast = filterPlane<uint16_t, MinOpReducePlus>;
+                    else
+                        process_plane_fast = filterPlane<float, MinOpReducePlus>;
+                } else if (d->pattern == 3) {
+                    if (bytes == 1)
+                        process_plane_fast = filterPlane<uint8_t, MinOpReduceVertical>;
+                    else if (bytes == 2)
+                        process_plane_fast = filterPlane<uint16_t, MinOpReduceVertical>;
+                    else
+                        process_plane_fast = filterPlane<float, MinOpReduceVertical>;
+                } else if (d->pattern == 4) {
+                    if (bytes == 1)
+                        process_plane_fast = filterPlane<uint8_t, MinOpReduceHorizontal>;
+                    else if (bytes == 2)
+                        process_plane_fast = filterPlane<uint16_t, MinOpReduceHorizontal>;
+                    else
+                        process_plane_fast = filterPlane<float, MinOpReduceHorizontal>;
+                }
             }
+
         }
         
         defaultProcess = !process_plane_fast;
