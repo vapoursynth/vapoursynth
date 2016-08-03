@@ -1628,7 +1628,7 @@ static void process_plane_convolution_verticalI(uint8_t * VS_RESTRICT dstp8, con
         }
 
         for (int y = border; y < height - border; y++) {
-            float sum = 0;
+            int sum = 0;
 
             for (int i = 0; i < matrix_elements; i++)
                 sum += srcp[x + (y + i - border) * stride] * matrix[i];
@@ -1642,7 +1642,7 @@ static void process_plane_convolution_verticalI(uint8_t * VS_RESTRICT dstp8, con
         }
 
         for (int y = height - border; y < height; y++) {
-            float sum = 0;
+            int sum = 0;
 
             for (int i = 0; i < matrix_elements; i++) {
                 int idx = y + i - border;
@@ -1987,55 +1987,9 @@ static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void
 #ifdef VS_TARGET_CPU_X86
         void(*process_plane_fast)(const uint8_t * VS_RESTRICT src, uint8_t * VS_RESTRICT dst, const ptrdiff_t stride, const unsigned width, const int height, int plane, const VSFormat *fi, const GenericData *data) = nullptr;
 
-        bool canUseOptimized = (vsapi->getFrameWidth(src, fi->numPlanes - 1) < 17);
+        bool canUseOptimized = (vsapi->getFrameWidth(src, fi->numPlanes - 1) >= 17) && (vsapi->getFrameHeight(src, fi->numPlanes - 1) >= 2);
 
         if (canUseOptimized) {
-            if (op == GenericConvolution && d->convolution_type == ConvolutionHorizontal && d->matrix_elements == 3) {
-                //rewrite to 3x3 matrix here
-                d->convolution_type = ConvolutionSquare;
-                d->matrix_elements = 9;
-                d->matrix[3] = d->matrix[0];
-                d->matrix[4] = d->matrix[1];
-                d->matrix[5] = d->matrix[2];
-                d->matrix[0] = 0;
-                d->matrix[1] = 0;
-                d->matrix[2] = 0;
-                d->matrix[6] = 0;
-                d->matrix[7] = 0;
-                d->matrix[8] = 0;
-                d->matrixf[3] = d->matrixf[0];
-                d->matrixf[4] = d->matrixf[1];
-                d->matrixf[5] = d->matrixf[2];
-                d->matrixf[0] = 0.f;
-                d->matrixf[1] = 0.f;
-                d->matrixf[2] = 0.f;
-                d->matrixf[6] = 0.f;
-                d->matrixf[7] = 0.f;
-                d->matrixf[8] = 0.f;
-            } else if (op == GenericConvolution && d->convolution_type == ConvolutionVertical && d->matrix_elements == 3) {
-                //rewrite to 3x3 matrix here
-                d->convolution_type = ConvolutionSquare;
-                d->matrix_elements = 9;
-                d->matrix[7] = d->matrix[2];
-                d->matrix[5] = d->matrix[1];
-                d->matrix[1] = d->matrix[0];
-                d->matrix[0] = 0;
-                d->matrix[2] = 0;
-                d->matrix[3] = 0;
-                d->matrix[4] = 0;
-                d->matrix[6] = 0;
-                d->matrix[8] = 0;
-                d->matrixf[7] = d->matrixf[2];
-                d->matrixf[5] = d->matrixf[1];
-                d->matrixf[1] = d->matrixf[0];
-                d->matrixf[0] = 0.f;
-                d->matrixf[2] = 0.f;
-                d->matrixf[3] = 0.f;
-                d->matrixf[4] = 0.f;
-                d->matrixf[6] = 0.f;
-                d->matrixf[8] = 0.f;
-            }
-
             if (op == GenericConvolution && d->convolution_type == ConvolutionSquare && d->matrix_elements == 9) {
                 if (bytes == 1)
                     process_plane_fast = filterPlane<uint8_t, Convolution3x3>;
@@ -2367,6 +2321,52 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
                 d->rdiv = static_cast<float>(matrix_sumf);
 
             d->rdiv = 1.0f / d->rdiv;
+
+            if (op == GenericConvolution && d->convolution_type == ConvolutionHorizontal && d->matrix_elements == 3) {
+                //rewrite to 3x3 matrix here
+                d->convolution_type = ConvolutionSquare;
+                d->matrix_elements = 9;
+                d->matrix[3] = d->matrix[0];
+                d->matrix[4] = d->matrix[1];
+                d->matrix[5] = d->matrix[2];
+                d->matrix[0] = 0;
+                d->matrix[1] = 0;
+                d->matrix[2] = 0;
+                d->matrix[6] = 0;
+                d->matrix[7] = 0;
+                d->matrix[8] = 0;
+                d->matrixf[3] = d->matrixf[0];
+                d->matrixf[4] = d->matrixf[1];
+                d->matrixf[5] = d->matrixf[2];
+                d->matrixf[0] = 0.f;
+                d->matrixf[1] = 0.f;
+                d->matrixf[2] = 0.f;
+                d->matrixf[6] = 0.f;
+                d->matrixf[7] = 0.f;
+                d->matrixf[8] = 0.f;
+            } else if (op == GenericConvolution && d->convolution_type == ConvolutionVertical && d->matrix_elements == 3) {
+                //rewrite to 3x3 matrix here
+                d->convolution_type = ConvolutionSquare;
+                d->matrix_elements = 9;
+                d->matrix[7] = d->matrix[2];
+                d->matrix[5] = d->matrix[1];
+                d->matrix[1] = d->matrix[0];
+                d->matrix[0] = 0;
+                d->matrix[2] = 0;
+                d->matrix[3] = 0;
+                d->matrix[4] = 0;
+                d->matrix[6] = 0;
+                d->matrix[8] = 0;
+                d->matrixf[7] = d->matrixf[2];
+                d->matrixf[5] = d->matrixf[1];
+                d->matrixf[1] = d->matrixf[0];
+                d->matrixf[0] = 0.f;
+                d->matrixf[2] = 0.f;
+                d->matrixf[3] = 0.f;
+                d->matrixf[4] = 0.f;
+                d->matrixf[6] = 0.f;
+                d->matrixf[8] = 0.f;
+            }
         }
    
     } catch (std::string &error) {
