@@ -315,6 +315,18 @@ static void append_prop(std::string &text, const std::string &key, const VSMap *
                 text += value;
             }
         }
+    } else if (type == ptFrame) {
+        text += std::to_string(numElements) + " frame";
+        if (numElements != 1)
+            text += 's';
+    } else if (type == ptNode) {
+        text += std::to_string(numElements) + " node";
+        if (numElements != 1)
+            text += 's';
+    } else if (type == ptFunction) {
+        text += std::to_string(numElements) + " function";
+        if (numElements != 1)
+            text += 's';
     } else if (type == ptUnset) {
         text += " <no such property>";
     }
