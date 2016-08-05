@@ -46,14 +46,14 @@ Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to sh
 [Files]
 ;core binaries
 Source: template.vpy; DestDir: {app}; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32 vs64
-Source: vapoursynth.pth; DestDir: {code:GetPythonPath32}; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: vapoursynth.pth; DestDir: {code:GetPythonPath64}; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+Source: vapoursynth.pth; DestDir: {code:GetPythonPath32}\Lib\site-packages; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: vapoursynth.pth; DestDir: {code:GetPythonPath64}\Lib\site-packages; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 
-Source: ..\vapoursynth.cp35-win32.pyd; DestDir: {code:GetPythonPath32}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: ..\vapoursynth.cp35-win_amd64.pyd; DestDir: {code:GetPythonPath64}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+Source: ..\vapoursynth.cp35-win32.pyd; DestDir: {code:GetPythonPath32}\Lib\site-packages\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: ..\vapoursynth.cp35-win_amd64.pyd; DestDir: {code:GetPythonPath64}\Lib\site-packages\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 
-Source: ..\msvc_project\Release\vapoursynth.dll; DestDir: {code:GetPythonPath32}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: ..\msvc_project\x64\Release\vapoursynth.dll; DestDir: {code:GetPythonPath64}\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+Source: ..\msvc_project\Release\vapoursynth.dll; DestDir: {code:GetPythonPath32}\Lib\site-packages\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: ..\msvc_project\x64\Release\vapoursynth.dll; DestDir: {code:GetPythonPath64}\Lib\site-packages\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 Source: ..\msvc_project\Release\vapoursynth.dll; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
 Source: ..\msvc_project\Release\vapoursynth.pdb; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
 Source: ..\msvc_project\x64\Release\vapoursynth.dll; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
@@ -130,7 +130,9 @@ Root: HKLM32; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "Vapou
 Root: HKLM64; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "VapourSynthDLL"; ValueData: "{app}\core64\vapoursynth.dll"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
 
 Root: HKLM32; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "VSScriptDLL"; ValueData: "{app}\core32\vsscript.dll"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
+Root: HKLM32; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "PythonPath"; ValueData: "{code:GetPythonPath32}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
 Root: HKLM64; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "VSScriptDLL"; ValueData: "{app}\core64\vsscript.dll"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
+Root: HKLM64; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "PythonPath"; ValueData: "{code:GetPythonPath64}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
 
 ; legacy entries, will one day be removed
 Root: HKLM32; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "CorePlugins32"; ValueData: "{app}\core32\plugins"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
@@ -343,12 +345,12 @@ end;
 
 function GetPythonPath32(Param: string): String;
 begin
-  Result := Python32Path + '\Lib\site-packages';
+  Result := Python32Path;
 end;
 
 function GetPythonPath64(Param: String): String;
 begin
-  Result := Python64Path + '\Lib\site-packages';
+  Result := Python64Path;
 end;
 
 // copied from the internets

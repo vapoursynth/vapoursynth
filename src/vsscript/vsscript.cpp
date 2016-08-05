@@ -43,39 +43,24 @@ static PyGILState_STATE s;
 
 static void real_init(void) {
 #ifdef VS_TARGET_OS_WINDOWS
+    DWORD dwType = REG_SZ;
+    HKEY hKey = 0;
 
-#if defined(_WIN32) && defined(_WIN64)
-    const wchar_t *keyPython = L"SOFTWARE\\Python\\PythonCore\\3.5\\InstallPath";
-#elif defined(_WIN32) && !defined(_WIN64)
-    const wchar_t *keyPython = L"SOFTWARE\\Python\\PythonCore\\3.5-32\\InstallPath";
-#else
-#error "Cannot determine Compiler Bitdepth - is this really Windows?"
-#endif
+    wchar_t value[1024];
+    DWORD valueLength = 1000;
+    if (RegOpenKeyW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\VapourSynth", &hKey) != ERROR_SUCCESS)
+        return;
+    LSTATUS status = RegQueryValueExW(hKey, L"PythonPath", nullptr, &dwType, (LPBYTE)&value, &valueLength);
+    RegCloseKey(hKey);
+    if (status != ERROR_SUCCESS)
+        return;
 
-    const std::wstring pythonDllName = L"python35.dll";
-    HMODULE pythonDll = LoadLibraryW(pythonDllName.c_str());
-    if (!pythonDll) {
-        DWORD dwType = REG_SZ;
-        HKEY hKey = 0;
+    std::wstring pyPath = value;
+    pyPath += L"\\python35.dll";
 
-        wchar_t value[1024];
-        DWORD valueLength = 1000;
-        if (RegOpenKeyW(HKEY_CURRENT_USER, keyPython, &hKey) != ERROR_SUCCESS
-            && RegOpenKeyW(HKEY_LOCAL_MACHINE, keyPython, &hKey) != ERROR_SUCCESS)
-            return;
-        LSTATUS status = RegQueryValueExW(hKey, L"", nullptr, &dwType, (LPBYTE)&value, &valueLength);
-        RegCloseKey(hKey);
-        if (status != ERROR_SUCCESS)
-            return;
-
-        std::wstring pyPath = value;
-        pyPath += L"python35.dll";
-
-        pythonDll = LoadLibraryW(pyPath.c_str());
-        if (!pythonDll)
-            return;
-    }
-
+    HMODULE pythonDll = LoadLibraryExW(pyPath.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
+    if (!pythonDll)
+        return;
 #endif
     int preInitialized = Py_IsInitialized();
     if (!preInitialized)
