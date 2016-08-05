@@ -167,8 +167,6 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 mainContext->lastCompletedNode = leafContext->node;
             }
 
-            assert(mainContext->numFrameRequests >= 0);
-
             bool hasExistingRequests = !!mainContext->numFrameRequests;
             bool isLinear = (filterMode == fmUnorderedLinear);
 
