@@ -2036,7 +2036,7 @@ struct VSAPI
       must be freed when no longer needed.
 
       Keys:
-         The plugins' unique identifiers.
+         Meaningless unique strings.
 
       Values:
          Namespace, identifier, and full name, separated by semicolons.
