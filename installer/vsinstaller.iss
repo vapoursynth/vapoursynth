@@ -169,28 +169,88 @@ Root: HKLM64; Subkey: SOFTWARE\Classes\AVIFile\Extensions\VPY; ValueType: string
 #include "scripts\products\vcredist2013.iss"
 #include "scripts\products\vcredist2015.iss"
 
+type
+  TPythonPath = record
+    DisplayName: string;
+    InstallPath: string;
+    Bitness: Integer;
+  end;
+
 var
-  PythonPath32: string;
-  PythonPath64: string;
   Runtimes32Added: Boolean;
   Runtimes64Added: Boolean;
+  PythonInstallations: array of TPythonPath;  PythonPage: TWizardPage;
+  PythonList: TNewCheckListBox;
+  Python32Path: string;
+  Python64Path: string;
 
 function HasPython32: Boolean;
+var
+  Counter: Integer;
 begin
-  Result := PythonPath32 <> '';
+  Result := False;
+  for Counter := 0 to GetArrayLength(PythonInstallations) - 1 do
+    if PythonInstallations[Counter].Bitness = 32 then
+      Result := True;
 end;
 
 function HasPython64: Boolean;
+var
+  Counter: Integer;
 begin
-  Result := PythonPath64 <> '';
+  Result := False;
+  for Counter := 0 to GetArrayLength(PythonInstallations) - 1 do
+    if PythonInstallations[Counter].Bitness = 64 then
+      Result := True;
 end;
 
-function InitializeSetup: Boolean;
-var Success: Boolean;
+procedure GetPythonInstallations2(RegRoot: Integer; RegPath: string; AssumeBitness: Integer);
+var
+  Names, Tags: TArrayOfString;
+  Nc, Tc: Integer;
+  RegPathTemp: string;
+  Temp: string;
+  DisplayName, InstallPath: string;
+  Bitness: Integer;
 begin
-  Runtimes32Added := False;
-  Runtimes64Added := False;
+  if RegGetSubkeyNames(RegRoot, RegPath, Names) then
+  begin
+    for Nc := 0 to GetArrayLength(Names) - 1 do
+    begin
+      if RegGetSubkeyNames(RegRoot, RegPath + '\' + Names[Nc], Tags) then
+      begin
+        for Tc := 0 to GetArrayLength(Tags) - 1 do
+        begin
+          RegPathTemp := RegPath + '\' + Names[Nc] + '\' + Tags[Tc];
+          Bitness := AssumeBitness;
+          if (not RegQueryStringValue(RegRoot, RegPathTemp, 'SysVersion', Temp)) or (Temp <> '3.5') then
+            continue;
+          if RegQueryStringValue(RegRoot, RegPathTemp, 'SysArchitecture', Temp) then
+          begin
+            if Temp = '32bit' then
+              Bitness := 32
+            else if Temp = '64bit' then              Bitness := 64;              
+          end;
 
+          if RegQueryStringValue(RegRoot, RegPathTemp, 'DisplayName', DisplayName) and RegQueryStringValue(RegRoot, RegPathTemp + '\InstallPath', '', InstallPath) then
+          begin
+             SetArrayLEngth(PythonInstallations, GetArrayLength(PythonInstallations) + 1);
+             PythonInstallations[GetArrayLength(PythonInstallations) - 1].DisplayName := DisplayName;
+             PythonInstallations[GetArrayLength(PythonInstallations) - 1].InstallPath := InstallPath;
+             PythonInstallations[GetArrayLength(PythonInstallations) - 1].Bitness := Bitness;
+          end;
+        end;
+      end;
+    end;
+  end;  
+end;
+
+procedure GetPythonInstallations;
+var
+  Success: Boolean;
+  PythonPath32: string;
+  PythonPath64: string;
+begin
   Success := RegQueryStringValue(HKCU32, 'SOFTWARE\Python\PythonCore\3.5-32\InstallPath', '', PythonPath32);
   if not Success then
     RegQueryStringValue(HKLM32, 'SOFTWARE\Python\PythonCore\3.5-32\InstallPath', '', PythonPath32);
@@ -202,26 +262,93 @@ begin
       RegQueryStringValue(HKLM, 'SOFTWARE\Python\PythonCore\3.5\InstallPath', '', PythonPath64);
   end;
 
-  Result := HasPython32 or HasPython64;
-  if not Result then
+  if PythonPath32 <> '' then
   begin
-    MsgBox('No Python 3.5 installations found.', mbCriticalError, MB_OK);
-  end
-  else if PythonPath32 = PythonPath64 then
-  begin
-    Result := False;
-    MsgBox('Corrupt Python installation detected. 32 and 64 bit install path is the same. Uninstall and re-install Python for all users.', mbCriticalError, MB_OK)
+    SetArrayLEngth(PythonInstallations, GetArrayLength(PythonInstallations) + 1);
+    PythonInstallations[GetArrayLength(PythonInstallations) - 1].DisplayName := 'Python 3.5 (32-bit)';
+    PythonInstallations[GetArrayLength(PythonInstallations) - 1].InstallPath := PythonPath32;
+    PythonInstallations[GetArrayLength(PythonInstallations) - 1].Bitness := 32;
   end;
+
+  if PythonPath64 <> '' then
+  begin
+    SetArrayLEngth(PythonInstallations, GetArrayLength(PythonInstallations) + 1);
+    PythonInstallations[GetArrayLength(PythonInstallations) - 1].DisplayName := 'Python 3.5 (64-bit)';
+    PythonInstallations[GetArrayLength(PythonInstallations) - 1].InstallPath := PythonPath64;
+    PythonInstallations[GetArrayLength(PythonInstallations) - 1].Bitness := 64;
+  end;
+  
+  GetPythonInstallations2(HKCU, 'SOFTWARE\Python', 0);  GetPythonInstallations2(HKLM32, 'SOFTWARE\Python', 32);
+  if Is64BitInstallMode then
+    GetPythonInstallations2(HKLM, 'SOFTWARE\Python', 64);      
+end;
+
+procedure PopulatePythonInstallations(List: TNewCheckListBox);
+var
+  Counter: Integer;
+  First: Boolean;
+begin
+  List.Items.Clear;
+
+  if IsComponentSelected('vs32') then
+  begin
+    First := True;
+    List.AddGroup('Python Environments (32-bit)', '', 0, nil);
+    for Counter := 0 to GetArrayLength(PythonInstallations) - 1 do
+      if PythonInstallations[Counter].Bitness = 32 then
+        with PythonInstallations[Counter] do
+        begin
+          List.AddRadioButton(DisplayName, '(' + InstallPath + ')', 1, First, True, TObject(Counter));
+          First := False;
+        end;
+  end;
+
+  if IsComponentSelected('vs64') then
+  begin
+    First := True;
+    List.AddGroup('Python Environments (64-bit)', '', 0, nil);
+    for Counter := 0 to GetArrayLength(PythonInstallations) - 1 do
+      if PythonInstallations[Counter].Bitness = 64 then
+        with PythonInstallations[Counter] do
+        begin
+          List.AddRadioButton(DisplayName, '(' + InstallPath + ')', 1, First, True, TObject(Counter));
+          First := False;
+        end;
+  end;        
+end;
+
+function InitializeSetup: Boolean;
+begin
+  Runtimes32Added := False;
+  Runtimes64Added := False;
+  PythonList := nil;
+  GetPythonInstallations;
+  Result := True;
+end;
+
+procedure InitializeWizard();
+begin
+  PythonPage := CreateCustomPage(wpSelectComponents, 'Select Python Installations', 'Select one or more Python installations to use');
+  PythonList := TNewCheckListBox.Create(PythonPage);
+
+  with PythonList do
+  begin
+    Parent := PythonPage.Surface;
+    Left := ScaleX(0);
+    Top := ScaleY(0);
+    Width := PythonPage.Surface.Width - ScaleX(0) * 2;
+    Height := PythonPage.Surface.Height;     
+  end; 
 end;
 
 function GetPythonPath32(Param: string): String;
 begin
-  Result := PythonPath32 + '\Lib\site-packages';
+  Result := Python32Path + '\Lib\site-packages';
 end;
 
 function GetPythonPath64(Param: String): String;
 begin
-  Result := PythonPath64 + '\Lib\site-packages';
+  Result := Python64Path + '\Lib\site-packages';
 end;
 
 // copied from the internets
@@ -286,15 +413,37 @@ end;
 
 /////////////////////////////////////////////////////////////////////
 function NextButtonClick(CurPageID: Integer): Boolean;
+var
+  Counter: Integer;
+  Idx: Integer;
 begin
   Result := True;
-  if CurPageID = wpSelectComponents then
+  if CurPageID = PythonPage.ID then
+  begin    
+    for Counter := 0 to PythonList.Items.Count - 1 do
+    begin
+      if (PythonList.Checked[Counter]) and (PythonList.ItemLevel[Counter] = 1) then
+      begin
+        Idx := Integer(PythonList.ItemObject[Counter]);
+        with PythonInstallations[Idx] do
+        begin
+          if Bitness = 64 then
+            Python64Path := InstallPath
+          else if Bitness = 32 then
+            Python32Path := InstallPath;
+        end;
+      end;
+    end;
+  end
+  else if CurPageID = wpSelectComponents then
   begin
     if not IsComponentSelected('vs32 or vs64') then
     begin
       Result := False;
       MsgBox('At least one version of the core library has to be installed.', mbCriticalError, MB_OK)
     end;
+    
+    PopulatePythonInstallations(PythonList); 
   end
   else if CurPageID = wpReady then
   begin
