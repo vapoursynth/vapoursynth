@@ -143,6 +143,11 @@ bint _SceneChangePrev
 
    If 1, this frame starts a new scene.
 
+frame _Alpha
+
+   A clip's alpha channel can be attached to the clip one frame at a
+   time using this property.
+
 Deprecated Frame Properties
 ---------------------------
 
