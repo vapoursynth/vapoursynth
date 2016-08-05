@@ -1063,7 +1063,7 @@ VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), formatIdO
     std::wstring dllPath = pathBuf.data();
     dllPath.resize(dllPath.find_last_of('\\') + 1);
     std::wstring portableFilePath = dllPath + L"portable.vs";
-    FILE *portableFile = _wfopen(portableFilePath.c_str(), L"r");
+    FILE *portableFile = _wfopen(portableFilePath.c_str(), L"rb");
     bool isPortable = !!portableFile;
     if (portableFile)
         fclose(portableFile);
