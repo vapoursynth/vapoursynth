@@ -28,6 +28,7 @@
 #include <stdexcept>
 #include <memory>
 #include <cmath>
+#include <unordered_map>
 #include "VapourSynth.h"
 #include "VSHelper.h"
 #include "internalfilters.h"
@@ -962,7 +963,14 @@ static float calculateTwoOperands(uint32_t op, float a, float b) {
 
 static int numOperands(uint32_t op) {
     switch (op) {
+        case opLoadConst:
+        case opLoadSrc8:
+        case opLoadSrc16:
+        case opLoadSrcF32:
+        case opLoadSrcF16:
         case opDup:
+            return 0;
+
         case opSqrt:
         case opAbs:
         case opNeg:
@@ -1013,7 +1021,9 @@ static void findBranches(std::vector<ExprOp> &ops, size_t pos, size_t *start1, s
 
     size_t temp1, temp2, temp3;
 
-    if (operands == 1) {
+    if (operands == 0) {
+        *start1 = pos;
+    } else if (operands == 1) {
         if (isLoadOp(ops[pos - 1].op)) {
             *start1 = pos - 1;
         } else {
@@ -1057,6 +1067,61 @@ static void findBranches(std::vector<ExprOp> &ops, size_t pos, size_t *start1, s
         }
     }
 }
+
+/*
+#define PAIR(x) { x, #x }
+static std::unordered_map<uint32_t, std::string> op_strings = {
+        PAIR(opLoadSrc8),
+        PAIR(opLoadSrc16),
+        PAIR(opLoadSrcF32),
+        PAIR(opLoadSrcF16),
+        PAIR(opLoadConst),
+        PAIR(opStore8),
+        PAIR(opStore16),
+        PAIR(opStoreF32),
+        PAIR(opStoreF16),
+        PAIR(opDup),
+        PAIR(opSwap),
+        PAIR(opAdd),
+        PAIR(opSub),
+        PAIR(opMul),
+        PAIR(opDiv),
+        PAIR(opMax),
+        PAIR(opMin),
+        PAIR(opSqrt),
+        PAIR(opAbs),
+        PAIR(opGt),
+        PAIR(opLt),
+        PAIR(opEq),
+        PAIR(opLE),
+        PAIR(opGE),
+        PAIR(opTernary),
+        PAIR(opAnd),
+        PAIR(opOr),
+        PAIR(opXor),
+        PAIR(opNeg),
+        PAIR(opExp),
+        PAIR(opLog),
+        PAIR(opPow)
+    };
+#undef PAIR
+
+
+static void printExpression(const std::vector<ExprOp> &ops) {
+    fprintf(stderr, "Expression: '");
+
+    for (size_t i = 0; i < ops.size(); i++) {
+        fprintf(stderr, " %s", op_strings[ops[i].op].c_str());
+
+        if (ops[i].op == opLoadConst)
+            fprintf(stderr, "(%.3f)", ops[i].e.fval);
+        else if (isLoadOp(ops[i].op))
+            fprintf(stderr, "(%d)", ops[i].e.ival);
+    }
+
+    fprintf(stderr, "'\n");
+}
+*/
 
 static void foldConstants(std::vector<ExprOp> &ops) {
     for (size_t i = 0; i < ops.size(); i++) {
