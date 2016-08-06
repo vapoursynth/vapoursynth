@@ -29,6 +29,8 @@ RGVS
       used.
 
    **Mode 4**
+      Deprecated. Use the function Median instead.
+   
       Same as mode 1, except the fourth-lowest and fourth-highest values are
       used.
 
@@ -51,6 +53,8 @@ RGVS
       TODO
 
    **Mode 11**
+      Deprecated. Use Convolution(matrix=[1, 2, 1, 2, 4, 2, 1, 2, 1]) instead.
+   
       Every pixel is replaced with a weighted arithmetic mean of its 3x3
       neighborhood.
 
@@ -59,6 +63,8 @@ RGVS
       and the corner pixels each have a weight of 1.
 
    **Mode 12**
+      Deprecated. Use Convolution(matrix=[1, 2, 1, 2, 4, 2, 1, 2, 1]) instead.
+   
       In this implementation, mode 12 is identical to mode 11.
 
    **Mode 13**
@@ -80,11 +86,15 @@ RGVS
       TODO
 
    **Mode 19**
+      Deprecated. Use Convolution(matrix=[1, 1, 1, 1, 0, 1, 1, 1, 1]) instead.
+   
       Every pixel is replaced with the arithmetic mean of its 3x3 neighborhood,
       center pixel not included. In other words, the 8 neighbors are summed up
       and the sum is divided by 8.
 
    **Mode 20**
+      Deprecated. Use Convolution(matrix=[1, 1, 1, 1, 1, 1, 1, 1, 1]) instead.
+      
       Every pixel is replaced with the arithmetic mean of its 3x3 neighborhood.
       In other words, all 9 pixels are summed up and the sum is divided by 9.
 
