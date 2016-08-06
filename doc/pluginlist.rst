@@ -47,7 +47,7 @@ Deinterlacing
 * `EEDI2 <http://forum.doom9.org/showthread.php?t=171136>`_
 * :ref:`EEDI3 <eedi3>` -- in the source tree
 * `NNEDI3 <http://forum.doom9.org/showthread.php?t=166434>`_ -- Field interpolator/deinterlacer
-* `SangNomMod <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-SangNomMod>`_ -- Port of the Avisynth deinterlacer
+* `SangNom <http://forum.doom9.org/showthread.php?t=173752>`_ -- Port of the Avisynth deinterlacer
 * `TDeintMod <http://forum.doom9.org/showthread.php?t=171295>`_ -- Port of the Avisynth deinterlacer
 * `W3FDIF <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-W3FDIF>`_ -- Weston 3 Field Deinterlacing Filter
 * `Yadifmod <http://forum.doom9.org/showthread.php?t=171028>`_ -- Port of the Avisynth deinterlacer
