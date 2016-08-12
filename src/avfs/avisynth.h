@@ -316,7 +316,7 @@ extern const AVS_Linkage* AVS_linkage;
 # endif
 
 # define AVS_BakedCode(arg) { arg ; }
-# define AVS_LinkCall(arg)  !AVS_linkage || offsetof(AVS_Linkage, arg) >= AVS_linkage->Size ? throw std::exception() : (this->*(AVS_linkage->arg))
+# define AVS_LinkCall(arg)  !AVS_linkage || offsetof(AVS_Linkage, arg) >= AVS_linkage->Size ?     0 : (this->*(AVS_linkage->arg))
 # define AVS_LinkCallV(arg) !AVS_linkage || offsetof(AVS_Linkage, arg) >= AVS_linkage->Size ? *this : (this->*(AVS_linkage->arg))
 
 #endif
