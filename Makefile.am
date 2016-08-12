@@ -132,12 +132,15 @@ commonpluginldflags = -no-undefined -avoid-version $(PLUGINLDFLAGS)
 if SUBTEXT
 pkglib_LTLIBRARIES += libsubtext.la
 
-libsubtext_la_SOURCES = src/filters/subtext/text.c
+libsubtext_la_SOURCES = src/filters/subtext/text.c \
+						src/filters/subtext/common.c \
+						src/filters/subtext/common.h \
+						src/filters/subtext/image.cpp
 
 libsubtext_la_LDFLAGS = $(commonpluginldflags)
 libsubtext_la_LIBTOOLFLAGS = $(commonlibtoolflags)
-libsubtext_la_CPPFLAGS = $(LIBASS_CFLAGS)
-libsubtext_la_LIBADD = $(LIBASS_LIBS)
+libsubtext_la_CPPFLAGS = $(LIBASS_CFLAGS) $(FFMPEG_CFLAGS)
+libsubtext_la_LIBADD = $(LIBASS_LIBS) $(FFMPEG_LIBS)
 endif
 
 

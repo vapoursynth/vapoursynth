@@ -303,7 +303,7 @@ AM_CONDITIONAL([PYTHONMODULE], [test "x$enable_python_module" != "xno"])
 
 AC_ARG_ENABLE([plugins], AS_HELP_STRING([--enable-plugins], [Enable all included plugins. Each individual plugin has a switch which overrides this. (default=)]))
 
-AC_ARG_ENABLE([subtext],        AS_HELP_STRING([--enable-subtext],      [Enable the subtitle rendering plugin. Requires libass. (default=auto)]))
+AC_ARG_ENABLE([subtext],        AS_HELP_STRING([--enable-subtext],      [Enable the subtitle rendering plugin. Requires libass and ffmpeg. (default=auto)]))
 AC_ARG_ENABLE([eedi3],          AS_HELP_STRING([--enable-eedi3],        [Enable the eedi3 plugin. (default=yes)]))
 AC_ARG_ENABLE([imwri],          AS_HELP_STRING([--enable-imwri],        [Enable the image reader/writer plugin. Requires ImageMagick. (default=auto)]))
 AC_ARG_ENABLE([morpho],         AS_HELP_STRING([--enable-morpho],       [Enable the morpho plugin. (default=yes)]))
@@ -363,6 +363,47 @@ PKG_CHECK_MODULES(
                    AS_IF(
                          [test "x$subtext" = "xyes"],
                          [AC_MSG_ERROR([the subtext plugin was explicitly enabled, but libass cannot be found.])],
+                         [subtext=""]
+                        )
+                  ]
+                 )
+
+PKG_CHECK_MODULES(
+                  [FFMPEG],
+                  [libavcodec libavformat libavutil],
+                  [
+                   saved_cppflags="$CPPFLAGS"
+                   CPPFLAGS="$FFMPEG_CFLAGS $CPPFLAGS"
+                   AC_COMPILE_IFELSE(
+                                     [
+                                      AC_LANG_SOURCE(
+                                                     [[
+                                                      #ifdef __cplusplus
+                                                      extern "C" {
+                                                      #endif
+
+                                                      #include <libavcodec/avcodec.h>
+
+                                                      #ifdef __cplusplus
+                                                      }
+                                                      #endif
+
+                                                      void foo() {
+                                                          AVSubtitleRect r;
+                                                          r.data[0] = 0;
+                                                      }
+                                                     ]]
+                                                    )
+                                     ],
+                                     [],
+                                     [AC_DEFINE([VS_HAVE_AVSUBTITLERECT_AVPICTURE])]
+                                    )
+                   CPPFLAGS="$saved_cppflags"
+                  ],
+                  [
+                   AS_IF(
+                         [test "x$subtext" = "xyes"],
+                         [AC_MSG_ERROR([the subtext plugin was explicitly enabled, but the required ffmpeg libraries cannot be found.])],
                          [subtext=""]
                         )
                   ]

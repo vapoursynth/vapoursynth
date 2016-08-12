@@ -24,6 +24,8 @@
 #include "VapourSynth.h"
 #include "VSHelper.h"
 
+#include "common.h"
+
 #define _r(c) ((c) >> 24)
 #define _g(c) (((c) >> 16) & 0xFF)
 #define _b(c) (((c) >> 8) & 0xFF)
@@ -502,143 +504,37 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
         blend = 1;
 
     if (blend) {
-        VSPlugin *std_plugin = vsapi->getPluginById("com.vapoursynth.std", core);
-        VSPlugin *resize_plugin = vsapi->getPluginById("com.vapoursynth.resize", core);
-
         VSNodeRef *subs = vsapi->propGetNode(out, "clip", 0, NULL);
         VSNodeRef *alpha = vsapi->propGetNode(out, "clip", 1, NULL);
 
-        const VSVideoInfo *vi_subs = vsapi->getVideoInfo(d.node);
+        blendSubtitles(d.node, subs, alpha, in, out, filter_name, error, ERROR_SIZE, core, vsapi);
 
-        VSMap *args = vsapi->createMap();
-        vsapi->propSetNode(args, "clip", subs, paReplace);
         vsapi->freeNode(subs);
-        vsapi->propSetInt(args, "format", vi_subs->format->id, paReplace);
-        int matrix = vsapi->propGetInt(in, "matrix", 0, &err);
-        if (!err)
-            vsapi->propSetInt(args, "matrix", matrix, paReplace);
-        const char *matrix_s = vsapi->propGetData(in, "matrix_s", 0, &err);
-        if (!err)
-            vsapi->propSetData(args, "matrix_s", matrix_s, -1, paReplace);
-
-        int transfer = vsapi->propGetInt(in, "transfer", 0, &err);
-        if (!err)
-            vsapi->propSetInt(args, "transfer", transfer, paReplace);
-        const char *transfer_s = vsapi->propGetData(in, "transfer_s", 0, &err);
-        if (!err)
-            vsapi->propSetData(args, "transfer_s", transfer_s, -1, paReplace);
-
-        int primaries = vsapi->propGetInt(in, "primaries", 0, &err);
-        if (!err)
-            vsapi->propSetInt(args, "primaries", primaries, paReplace);
-        const char *primaries_s = vsapi->propGetData(in, "primaries_s", 0, &err);
-        if (!err)
-            vsapi->propSetData(args, "primaries_s", primaries_s, -1, paReplace);
-
-        if (vsapi->propGetType(in, "matrix") == ptUnset &&
-            vsapi->propGetType(in, "matrix_s") == ptUnset)
-            vsapi->propSetData(args, "matrix_s", "709", -1, paReplace);
-
-        VSMap *ret = vsapi->invoke(resize_plugin, "Bicubic", args);
-        vsapi->freeMap(args);
-        if (vsapi->getError(ret)) {
-            snprintf(error, ERROR_SIZE, "%s: %s", filter_name, vsapi->getError(ret));
-            vsapi->setError(out, error);
-            vsapi->freeMap(ret);
-            vsapi->freeNode(alpha);
-            assFree(data, core, vsapi);
-            return;
-        }
-
-        subs = vsapi->propGetNode(ret, "clip", 0, NULL);
-        vsapi->freeMap(ret);
-
-        if (vi_subs->format->bitsPerSample != d.vi[1].format->bitsPerSample) {
-            const VSFormat *alpha_format = vsapi->registerFormat(d.vi[1].format->colorFamily,
-                                                                 d.vi[1].format->sampleType,
-                                                                 vi_subs->format->bitsPerSample,
-                                                                 d.vi[1].format->subSamplingW,
-                                                                 d.vi[1].format->subSamplingH,
-                                                                 core);
-            if (!alpha_format) {
-                snprintf(error, ERROR_SIZE,
-                         "%s: Failed to register format with color family %d, "
-                         "sample type %d, "
-                         "bit depth %d, "
-                         "horizontal subsampling %d, "
-                         "vertical subsampling %d.",
-                         filter_name,
-                         d.vi[1].format->colorFamily,
-                         d.vi[1].format->sampleType,
-                         vi_subs->format->bitsPerSample,
-                         d.vi[1].format->subSamplingW,
-                         d.vi[1].format->subSamplingH);
-                vsapi->setError(out, error);
-                vsapi->freeNode(subs);
-                vsapi->freeNode(alpha);
-                assFree(data, core, vsapi);
-                return;
-            }
-
-            args = vsapi->createMap();
-            vsapi->propSetNode(args, "clip", alpha, paReplace);
-            vsapi->freeNode(alpha);
-            vsapi->propSetInt(args, "format", alpha_format->id, paReplace);
-
-            ret = vsapi->invoke(resize_plugin, "Bicubic", args);
-            vsapi->freeMap(args);
-            if (vsapi->getError(ret)) {
-                snprintf(error, ERROR_SIZE, "%s: %s", filter_name, vsapi->getError(ret));
-                vsapi->setError(out, error);
-                vsapi->freeMap(ret);
-                vsapi->freeNode(subs);
-                assFree(data, core, vsapi);
-                return;
-            }
-
-            alpha = vsapi->propGetNode(ret, "clip", 0, NULL);
-            vsapi->freeMap(ret);
-        }
-
-        args = vsapi->createMap();
-        vsapi->propSetNode(args, "clipa", d.node, paReplace);
-        vsapi->propSetNode(args, "clipb", subs, paReplace);
-        vsapi->freeNode(subs);
-        vsapi->propSetNode(args, "mask", alpha, paReplace);
         vsapi->freeNode(alpha);
 
-        ret = vsapi->invoke(std_plugin, "MaskedMerge", args);
-        vsapi->freeMap(args);
-        if (vsapi->getError(ret)) {
-            snprintf(error, ERROR_SIZE, "%s: %s", filter_name, vsapi->getError(ret));
-#undef ERROR_SIZE
-            vsapi->setError(out, error);
-            vsapi->freeMap(ret);
-            assFree(data, core, vsapi);
+        if (vsapi->getError(out))
             return;
-        }
-
-        VSNodeRef *clip = vsapi->propGetNode(ret, "clip", 0, NULL);
-        vsapi->freeMap(ret);
-        vsapi->propSetNode(out, "clip", clip, paReplace);
-        vsapi->freeNode(clip);
     }
 }
+
+void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
                                  VSRegisterFunction registerFunc,
                                  VSPlugin *plugin)
 {
     configFunc("biz.srsfckn.subtext", "sub",
-               "A subtitling filter based on libass.",
+               "A subtitling filter based on libass and ffmpeg.",
                VAPOURSYNTH_API_VERSION, 1, plugin);
 
-#define COMMON_PARAMS \
+#define COMMON_TEXTFILE_PARAMS \
     "debuglevel:int:opt;" \
     "fontdir:data:opt;" \
     "linespacing:float:opt;" \
     "margins:int[]:opt;" \
-    "sar:float:opt;" \
+    "sar:float:opt;"
+
+#define COMMON_PARAMS \
     "blend:int:opt;" \
     "matrix:int:opt;" \
     "matrix_s:data:opt;" \
@@ -652,6 +548,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
                  "file:data;"
                  "charset:data:opt;"
                  "scale:float:opt;"
+                 COMMON_TEXTFILE_PARAMS
                  COMMON_PARAMS
                  , assRenderCreate, (void *)"TextFile", plugin);
     registerFunc("Subtitle",
@@ -660,9 +557,20 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
                  "style:data:opt;"
                  "start:int:opt;"
                  "end:int:opt;"
+                 COMMON_TEXTFILE_PARAMS
                  COMMON_PARAMS
                  , assRenderCreate, (void *)"Subtitle", plugin);
+    registerFunc("ImageFile",
+                 "clip:clip;"
+                 "file:data;"
+                 "id:int:opt;"
+                 "palette:int[]:opt;"
+                 "gray:int:opt;"
+                 "info:int:opt;"
+                 COMMON_PARAMS
+                 , imageFileCreate, 0, plugin);
 
 #undef COMMON_PARAMS
+#undef COMMON_TEXTFILE_PARAMS
 }
 

@@ -3,10 +3,12 @@
 Subtext
 =======
 
-Subtext is a subtitle renderer that uses libass.
+Subtext is a subtitle renderer that uses libass and ffmpeg.
 
 .. function::   TextFile(clip clip, string file[, string charset="UTF-8", float scale=1, int debuglevel=0, string fontdir="", float linespacing=0, int[] margins=[0, 0, 0, 0], float sar=0, bint blend=True, int matrix, string matrix_s, int transfer, string transfer_s, int primaries, string primaries_s])
    :module: sub
+
+   TextFile renders ASS subtitles.
 
    TextFile has two modes of operation. With blend=True (the default),
    it returns *clip* with the subtitles burned in. With blend=False, it
@@ -85,6 +87,67 @@ Subtext is a subtitle renderer that uses libass.
    The other parameters have the same meanings as with TextFile.
 
 
+.. function::   ImageFile(clip clip, string file[, int id=-1, int[] palette, bint gray=False, bint info=False, bint blend=True, int matrix, string matrix_s, int transfer, string transfer_s, int primaries, string primaries_s])
+   :module: sub
+
+   ImageFile renders image-based subtitles such as VOBSUB and PGS.
+
+   ImageFile has two modes of operation. With blend=True (the default),
+   it returns *clip* with the subtitles burned in. With blend=False, it
+   returns an RGB24 clip containing the rendered subtitles, with a Gray8
+   frame attached to each frame in the ``_Alpha`` frame property. These
+   Gray8 frames can be extracted using std.PropToClip.
+
+   Parameters:
+      *clip*
+         If *blend* is True, the subtitles will be burned into this
+         clip, Otherwise, only the frame rate and number of frames
+         will be obtained from this clip.
+
+      *file*
+         Name of the subtitle file. For VOBSUB, it must the name of the
+         idx file. The corresponding sub file must be in the same
+         folder, and it must have the same name.
+
+      *id*
+         Id of the subtitle track to render. There may be several
+         subtitle tracks in the same file. If this is -1, the first
+         supported subtitle track will be rendered. Use info=True to
+         see a list of all subtitle tracks, including their ids.
+
+         Default: -1.
+
+      *palette*
+         Custom palette. This is an array of at most 256 integers. Each
+         element's least significant four bytes must contain the values
+         for alpha, red, green, and blue, in that order, from most
+         significant to least.
+
+         Additionally, the special value 2**42 means that the
+         corresponding element of the original palette is used. This
+         way it is possible to override only the third element, without
+         overriding the first and second ones, for example.
+
+         An alpha value of 255 means the colour will be completely
+         opaque, and a value of 0 means the colour will be completely
+         transparent.
+
+      *gray*
+         If True, the subtitles will be turned gray.
+
+         Default: False.
+
+      *info*
+         If this is True, a list of all supported subtitle tracks found
+         in the file will be printed on each frame of the output. The
+         information printed about each track includes the id, the
+         language (if known), the resolution, and the format.
+
+         Default: False.
+
+   The other parameters have the same meanings as with TextFile.
+
+
 Example with manual blending::
 
    subs = core.sub.TextFile(clip=YUV420P10_video, file="asdf.ass", blend=False)
@@ -104,3 +167,17 @@ Example with automatic blending (will use BT709 matrix)::
 
    hardsubbed_video = core.sub.TextFile(clip=YUV420P10_video, file="asdf.ass")
 
+Example with a custom palette and automatic blending::
+
+   def rgba(r, g, b, a=255):
+       if r < 0 or r > 255 or g < 0 or g > 255 or b < 0 or b > 255 or a < 0 or a > 255:
+           raise vs.Error("Colours must be in the range [0, 255].")
+
+       return (a << 24) + (r << 16) + (g << 8) + b
+   
+   unused = 1 << 42
+
+   src = core.ffms2.Source("video.mp4")
+
+   # Override only the third element of the palette. Set it to some kind of green.
+   ret = core.sub.ImageFile(src, "subtitles.sup", palette=[unused, unused, rgba(0, 192, 128)])
