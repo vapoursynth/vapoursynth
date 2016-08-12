@@ -629,7 +629,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
                                  VSRegisterFunction registerFunc,
                                  VSPlugin *plugin)
 {
-    configFunc("biz.srsfckn.vapour", "assvapour",
+    configFunc("biz.srsfckn.subtext", "sub",
                "A subtitling filter based on libass.",
                VAPOURSYNTH_API_VERSION, 1, plugin);
 
@@ -647,13 +647,13 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
     "primaries:int:opt;" \
     "primaries_s:data:opt;"
 
-    registerFunc("AssRender",
+    registerFunc("TextFile",
                  "clip:clip;"
                  "file:data;"
                  "charset:data:opt;"
                  "scale:float:opt;"
                  COMMON_PARAMS
-                 , assRenderCreate, (void *)"AssRender", plugin);
+                 , assRenderCreate, (void *)"TextFile", plugin);
     registerFunc("Subtitle",
                  "clip:clip;"
                  "text:data;"

@@ -129,15 +129,15 @@ pkglib_LTLIBRARIES =
 
 commonpluginldflags = -no-undefined -avoid-version $(PLUGINLDFLAGS)
 
-if ASSVAPOUR
-pkglib_LTLIBRARIES += libassvapour.la
+if SUBTEXT
+pkglib_LTLIBRARIES += libsubtext.la
 
-libassvapour_la_SOURCES = src/filters/assvapour/assvapour.c
+libsubtext_la_SOURCES = src/filters/subtext/text.c
 
-libassvapour_la_LDFLAGS = $(commonpluginldflags)
-libassvapour_la_LIBTOOLFLAGS = $(commonlibtoolflags)
-libassvapour_la_CPPFLAGS = $(LIBASS_CFLAGS)
-libassvapour_la_LIBADD = $(LIBASS_LIBS)
+libsubtext_la_LDFLAGS = $(commonpluginldflags)
+libsubtext_la_LIBTOOLFLAGS = $(commonlibtoolflags)
+libsubtext_la_CPPFLAGS = $(LIBASS_CFLAGS)
+libsubtext_la_LIBADD = $(LIBASS_LIBS)
 endif
 
 

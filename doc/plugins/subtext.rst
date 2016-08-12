@@ -1,14 +1,14 @@
-.. _assvapour:
+.. _subtext:
 
-AssVapour
-=========
+Subtext
+=======
 
-AssVapour is a subtitle renderer that uses libass.
+Subtext is a subtitle renderer that uses libass.
 
-.. function::   AssRender(clip clip, string file[, string charset="UTF-8", float scale=1, int debuglevel=0, string fontdir="", float linespacing=0, int[] margins=[0, 0, 0, 0], float sar=0, bint blend=True, int matrix, string matrix_s, int transfer, string transfer_s, int primaries, string primaries_s])
-   :module: assvapour
+.. function::   TextFile(clip clip, string file[, string charset="UTF-8", float scale=1, int debuglevel=0, string fontdir="", float linespacing=0, int[] margins=[0, 0, 0, 0], float sar=0, bint blend=True, int matrix, string matrix_s, int transfer, string transfer_s, int primaries, string primaries_s])
+   :module: sub
 
-   AssRender has two modes of operation. With blend=True (the default),
+   TextFile has two modes of operation. With blend=True (the default),
    it returns *clip* with the subtitles burned in. With blend=False, it
    returns a list of two clips. The first one is an RGB24 clip
    containing the rendered subtitles. The second one is a Gray8 clip
@@ -67,10 +67,10 @@ AssVapour is a subtitle renderer that uses libass.
 
 
 .. function::   Subtitle(clip clip, string text[, string style="sans-serif,20,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,7,10,10,10,1", int start=0, int end=clip.numFrames, int debuglevel=0, string fontdir="", float linespacing=0, int[] margins=[0, 0, 0, 0], float sar=0, bint blend=True, int matrix, string matrix_s, int transfer, string transfer_s, int primaries, string primaries_s])
-   :module: assvapour
+   :module: sub
 
    Instead of rendering an ASS script, Subtitle renders the string *text*.
-   Otherwise it works the same as AssRender.
+   Otherwise it works the same as TextFile.
 
    Parameters:
       text
@@ -82,12 +82,12 @@ AssVapour is a subtitle renderer that uses libass.
       start, end
          Subtitle will be shown from *start* up until *end*. By default this will be for all frames in *clip*.
 
-   The other parameters have the same meanings as with AssRender.
+   The other parameters have the same meanings as with TextFile.
 
 
 Example with manual blending::
 
-   subs = core.assvapour.AssRender(clip=YUV420P10_video, file="asdf.ass", blend=False)
+   subs = core.sub.TextFile(clip=YUV420P10_video, file="asdf.ass", blend=False)
 
    gray10 = core.register_format(subs[1].format.color_family,
                                  YUV420P10_video.format.sample_type,
@@ -102,5 +102,5 @@ Example with manual blending::
 
 Example with automatic blending (will use BT709 matrix)::
 
-   hardsubbed_video = core.assvapour.AssRender(clip=YUV420P10_video, file="asdf.ass")
+   hardsubbed_video = core.sub.TextFile(clip=YUV420P10_video, file="asdf.ass")
 

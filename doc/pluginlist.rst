@@ -30,7 +30,7 @@ Source/Output
 
 Subtitles
 ---------
-* :ref:`AssVapour <assvapour>` -- Subtitle renderer, in the source tree
+* :ref:`Subtext <subtext>` -- Subtitle renderer, in the source tree
 * :ref:`OCR <ocr>` -- Optical character recognition on video frames, in the source tree
 * `xy-VSFilter <https://github.com/Tsuki/VapourSynth-XY-VSFilter>`_
 

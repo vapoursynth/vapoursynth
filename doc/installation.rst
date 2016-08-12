@@ -75,7 +75,7 @@ These are the requirements:
 
    * Sphinx for the documentation (optional)
 
-   * libass for the Assvapour plugin (optional)
+   * libass for the Subtext plugin (optional)
 
    * ImageMagick 6.9.?.? for the Imwri plugin (optional)
 

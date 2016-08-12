@@ -303,7 +303,7 @@ AM_CONDITIONAL([PYTHONMODULE], [test "x$enable_python_module" != "xno"])
 
 AC_ARG_ENABLE([plugins], AS_HELP_STRING([--enable-plugins], [Enable all included plugins. Each individual plugin has a switch which overrides this. (default=)]))
 
-AC_ARG_ENABLE([assvapour],      AS_HELP_STRING([--enable-assvapour],    [Enable the ASS rendering plugin. Requires libass. (default=auto)]))
+AC_ARG_ENABLE([subtext],        AS_HELP_STRING([--enable-subtext],      [Enable the subtitle rendering plugin. Requires libass. (default=auto)]))
 AC_ARG_ENABLE([eedi3],          AS_HELP_STRING([--enable-eedi3],        [Enable the eedi3 plugin. (default=yes)]))
 AC_ARG_ENABLE([imwri],          AS_HELP_STRING([--enable-imwri],        [Enable the image reader/writer plugin. Requires ImageMagick. (default=auto)]))
 AC_ARG_ENABLE([morpho],         AS_HELP_STRING([--enable-morpho],       [Enable the morpho plugin. (default=yes)]))
@@ -312,7 +312,7 @@ AC_ARG_ENABLE([removegrain],    AS_HELP_STRING([--enable-removegrain],  [Enable 
 AC_ARG_ENABLE([vinverse],       AS_HELP_STRING([--enable-vinverse],     [Enable the vinverse plugin. (default=yes)]))
 AC_ARG_ENABLE([vivtc],          AS_HELP_STRING([--enable-vivtc],        [Enable the vivtc plugin. (default=yes)]))
 
-assvapour=""
+subtext=""
 eedi3=""
 imwri=""
 morpho=""
@@ -324,7 +324,7 @@ vivtc=""
 AS_CASE(
         [$enable_plugins],
         [yes], [
-                AS_IF([test "x$enable_assvapour"    != "xno"], [assvapour="yes"])
+                AS_IF([test "x$enable_subtext"      != "xno"], [subtext="yes"])
                 AS_IF([test "x$enable_eedi3"        != "xno"], [eedi3="yes"])
                 AS_IF([test "x$enable_imwri"        != "xno"], [imwri="yes"])
                 AS_IF([test "x$enable_morpho"       != "xno"], [morpho="yes"])
@@ -334,7 +334,7 @@ AS_CASE(
                 AS_IF([test "x$enable_vivtc"        != "xno"], [vivtc="yes"])
                ],
         [no], [
-                AS_IF([test "x$enable_assvapour"    = "xyes"], [assvapour="yes"])
+                AS_IF([test "x$enable_subtext"      = "xyes"], [subtext="yes"])
                 AS_IF([test "x$enable_eedi3"        = "xyes"], [eedi3="yes"])
                 AS_IF([test "x$enable_imwri"        = "xyes"], [imwri="yes"])
                 AS_IF([test "x$enable_morpho"       = "xyes"], [morpho="yes"])
@@ -344,7 +344,7 @@ AS_CASE(
                 AS_IF([test "x$enable_vivtc"        = "xyes"], [vivtc="yes"])
               ],
         [
-         AS_IF([test "x$enable_assvapour"   != "xno"], [AS_IF([test "x$enable_assvapour" = "xyes"], [assvapour="yes"], [assvapour="auto"])])
+         AS_IF([test "x$enable_subtext"     != "xno"], [AS_IF([test "x$enable_subtext" = "xyes"], [subtext="yes"], [subtext="auto"])])
          AS_IF([test "x$enable_eedi3"       != "xno"], [eedi3="yes"])
          AS_IF([test "x$enable_imwri"       != "xno"], [AS_IF([test "x$enable_imwri" = "xyes"], [imwri="yes"], [imwri="auto"])])
          AS_IF([test "x$enable_morpho"      != "xno"], [morpho="yes"])
@@ -361,9 +361,9 @@ PKG_CHECK_MODULES(
                   [],
                   [
                    AS_IF(
-                         [test "x$assvapour" = "xyes"],
-                         [AC_MSG_ERROR([the assvapour plugin was explicitly enabled, but libass cannot be found.])],
-                         [assvapour=""]
+                         [test "x$subtext" = "xyes"],
+                         [AC_MSG_ERROR([the subtext plugin was explicitly enabled, but libass cannot be found.])],
+                         [subtext=""]
                         )
                   ]
                  )
@@ -430,7 +430,7 @@ PKG_CHECK_MODULES(
                   ]
                  )
 
-AM_CONDITIONAL([ASSVAPOUR],     [test "$assvapour"])
+AM_CONDITIONAL([SUBTEXT],       [test "$subtext"])
 AM_CONDITIONAL([EEDI3],         [test "$eedi3"])
 AM_CONDITIONAL([IMWRI],         [test "$imwri"])
 AM_CONDITIONAL([MORPHO],        [test "$morpho"])
