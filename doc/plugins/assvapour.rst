@@ -90,7 +90,7 @@ Example with manual blending::
    subs = core.assvapour.AssRender(clip=YUV420P10_video, file="asdf.ass", blend=False)
 
    gray10 = core.register_format(subs[1].format.color_family,
-                                 subs[1].format.sample_type,
+                                 YUV420P10_video.format.sample_type,
                                  YUV420P10_video.format.bits_per_sample,
                                  subs[1].format.subsampling_w,
                                  subs[1].format.subsampling_h)
