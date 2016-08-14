@@ -161,16 +161,21 @@ static int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
         }
     }
     if (chroma) {
+        const VSFormat *src_fmt = vsapi->getFrameFormat(src);
+
         unsigned char *cmkp = vsapi->getWritePtr(cmask, 0);
         unsigned char *cmkpU = vsapi->getWritePtr(cmask, 1);
         unsigned char *cmkpV = vsapi->getWritePtr(cmask, 2);
         const int Width = vsapi->getFrameWidth(cmask, 2);
         const int Height = vsapi->getFrameHeight(cmask, 2);
-        const int cmk_pitch = vsapi->getStride(cmask, 0) * 2;
+        int cmk_pitch = vsapi->getStride(cmask, 0);
         const int cmk_pitchUV = vsapi->getStride(cmask, 2);
-        unsigned char *cmkpp = cmkp - (cmk_pitch>>1);
-        unsigned char *cmkpn = cmkp + (cmk_pitch>>1);
-        unsigned char *cmkpnn = cmkpn + (cmk_pitch>>1);
+        unsigned char *cmkpp = cmkp - cmk_pitch;
+        unsigned char *cmkpn = cmkp + cmk_pitch;
+        unsigned char *cmkpnn = cmkpn + cmk_pitch;
+
+        cmk_pitch <<= src_fmt->subSamplingH;
+
         for (y=1; y<Height-1; ++y) {
             cmkpp += cmk_pitch;
             cmkp += cmk_pitch;
@@ -186,10 +191,31 @@ static int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
                     cmkpU[x-1 - cmk_pitchUV] == 0xFF || cmkpU[x - cmk_pitchUV] == 0xFF || cmkpU[x+1 - cmk_pitchUV] == 0xFF ||
                     cmkpU[x-1 + cmk_pitchUV] == 0xFF || cmkpU[x + cmk_pitchUV] == 0xFF || cmkpU[x+1 + cmk_pitchUV] == 0xFF)))
                 {
-                    ((unsigned short*)cmkp)[x] = (unsigned short) 0xFFFF;
-                    ((unsigned short*)cmkpn)[x] = (unsigned short) 0xFFFF;
-                    if (y&1) ((unsigned short*)cmkpp)[x] = (unsigned short) 0xFFFF;
-                    else ((unsigned short*)cmkpnn)[x] = (unsigned short) 0xFFFF;
+                    int xx = x << src_fmt->subSamplingW;
+
+                    if (src_fmt->subSamplingH) {
+                        if (y % 2 == 1) {
+                            cmkpp[xx] = 0xFF;
+                            if (src_fmt->subSamplingW)
+                                cmkpp[xx + 1] = 0xFF;
+                        }
+                    }
+
+                    cmkp[xx] = 0xFF;
+                    if (src_fmt->subSamplingW)
+                        cmkp[xx + 1] = 0xFF;
+
+                    if (src_fmt->subSamplingH) {
+                        cmkpn[xx] = 0xFF;
+                        if (src_fmt->subSamplingW)
+                            cmkpn[xx + 1] = 0xFF;
+
+                        if (y % 2 == 0) {
+                            cmkpnn[xx] = 0xFF;
+                            if (src_fmt->subSamplingW)
+                                cmkpnn[xx + 1] = 0xFF;
+                        }
+                    }
                 }
             }
         }
@@ -388,6 +414,8 @@ static int compareFieldsSlow(const VSFrameRef *prv, const VSFrameRef *src, const
     int norm1, norm2, mtn1, mtn2;
     float c1, c2, mr;
 
+    const VSFormat *src_fmt = vsapi->getFrameFormat(src);
+
     for (plane=0; plane<stop; ++plane) {
         mapp = vsapi->getWritePtr(map, plane);
         map_pitch = vsapi->getStride(map, plane);
@@ -398,7 +426,7 @@ static int compareFieldsSlow(const VSFrameRef *prv, const VSFrameRef *src, const
         Height = vsapi->getFrameHeight(src, plane);
         nxtp = vsapi->getReadPtr(nxt, plane);
         memset(mapp,0,Height*map_pitch);
-        startx = (plane == 0 ? 8 : 4);
+        startx = (plane == 0 ? 8 : 8 >> src_fmt->subSamplingW);
         stopx = Width - startx;
         curf_pitch = src_stride<<1;
         if (plane == 0) {
@@ -406,8 +434,8 @@ static int compareFieldsSlow(const VSFrameRef *prv, const VSFrameRef *src, const
             y1a = y1;
             tp = tpitchy;
         } else {
-            y0a = y0>>1;
-            y1a = y1>>1;
+            y0a = y0>>src_fmt->subSamplingH;
+            y1a = y1>>src_fmt->subSamplingH;
             tp = tpitchuv;
         }
         if (match1 < 3) {
@@ -914,8 +942,12 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
     vfm.vi = vsapi->getVideoInfo(vfm.clip2 ? vfm.clip2 : vfm.node);
     vi = vsapi->getVideoInfo(vfm.node);
 
-    if (!isConstantFormat(vi) || !vi->numFrames || vi->format->id != pfYUV420P8) {
-        vsapi->setError(out, "VFM: input clip must be constant format YUV420P8");
+    if (!isConstantFormat(vi) || (vi->format->id != pfYUV420P8 &&
+                                  vi->format->id != pfYUV422P8 &&
+                                  vi->format->id != pfYUV440P8 &&
+                                  vi->format->id != pfYUV444P8 &&
+                                  vi->format->id != pfGray8)) {
+        vsapi->setError(out, "VFM: input clip must be constant format YUV420P8, YUV422P8, YUV440P8, YUV444P8, or GRAY8");
         vsapi->freeNode(vfm.node);
         vsapi->freeNode(vfm.clip2);
         return;
@@ -926,6 +958,11 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
         vsapi->freeNode(vfm.node);
         vsapi->freeNode(vfm.clip2);
         return;
+    }
+
+    if (vi->format->colorFamily == cmGray) {
+        vfm.chroma = 0;
+        vfm.mchroma = 0;
     }
 
     vfm.scthresh = vfm.scthresh / 100.0;
@@ -947,7 +984,9 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
     }
 
     vfm.tpitchy = (vi->width&15) ? vi->width+16-(vi->width&15) : vi->width;
-    vfm.tpitchuv = ((vi->width>>1)&15) ? (vi->width>>1)+16-((vi->width>>1)&15) : (vi->width>>1);
+
+    int widthuv = vi->width >> vi->format->subSamplingW;
+    vfm.tpitchuv = (widthuv&15) ? widthuv+16-(widthuv&15) : widthuv;
 
     vfmd = (VFMData *)malloc(sizeof(vfm));
     *vfmd = vfm;
