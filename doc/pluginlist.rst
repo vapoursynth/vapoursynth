@@ -62,6 +62,7 @@ Denoising
 * `Bilateral <http://forum.doom9.org/showthread.php?t=171306>`_ -- Bilateral filtering
 * `BM3D <http://forum.doom9.org/showthread.php?t=172172>`_ -- Denoising filter using the BM3D algorithm
 * `Cnr2 <http://forum.doom9.org/showthread.php?t=173659>`_ -- Chroma noise reducer
+* `DegrainMedian <http://forum.doom9.org/showthread.php?t=173758>`_ -- Port of the Avisynth filter 
 * `DFTTest <http://forum.doom9.org/showthread.php?t=171678>`_
 * `FFT3DFilter <https://github.com/VFR-maniac/VapourSynth-FFT3DFilter>`_ -- 3D frequency domain denoiser/sharpener
 * `FluxSmooth <https://github.com/dubhater/vapoursynth-fluxsmooth>`_ -- Temporal/spatiotemporal denoiser
@@ -107,6 +108,7 @@ Others
 * `MSmoosh <http://forum.doom9.org/showthread.php?t=171159>`_ -- MSmooth and MSharpen ports
 * `MVTools <http://forum.doom9.org/showthread.php?t=171207>`_ -- MVTools port
 * `Retinex <http://forum.doom9.org/showthread.php?t=171307>`_ -- Dynamic range compression
+* `TCanny <http://forum.doom9.org/showthread.php?t=172158>`_ -- Canny edge detection
 * `vcmod <http://forum.doom9.org/showthread.php?t=171412>`_ -- Various filters such as histogram equalization, blur, and watershed segmentation
 * `vcmove <http://forum.doom9.org/showthread.php?t=171414>`_ -- Rotate, debarrel and other distortion correction filters
 
