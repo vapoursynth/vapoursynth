@@ -1502,11 +1502,34 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegiste
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     configFunc("org.ivtc.v", "vivtc", "VFM", VAPOURSYNTH_API_VERSION, 1, plugin);
     // add ovr support
-    registerFunc("VFM", "clip:clip;order:int;field:int:opt;mode:int:opt;" \
-        "mchroma:int:opt;cthresh:int:opt;mi:int:opt;" \
-        "chroma:int:opt;blockx:int:opt;blocky:int:opt;y0:int:opt;y1:int:opt;" \
-        "scthresh:float:opt;micmatch:int:opt;micout:int:opt;clip2:clip:opt;", createVFM, NULL, plugin);
-    registerFunc("VDecimate", "clip:clip;cycle:int:opt;" \
-        "chroma:int:opt;dupthresh:float:opt;scthresh:float:opt;" \
-        "blockx:int:opt;blocky:int:opt;clip2:clip:opt;ovr:data:opt;dryrun:int:opt;", createVDecimate, NULL, plugin);
+    registerFunc("VFM",
+                 "clip:clip;"
+                 "order:int;"
+                 "field:int:opt;"
+                 "mode:int:opt;"
+                 "mchroma:int:opt;"
+                 "cthresh:int:opt;"
+                 "mi:int:opt;"
+                 "chroma:int:opt;"
+                 "blockx:int:opt;"
+                 "blocky:int:opt;"
+                 "y0:int:opt;"
+                 "y1:int:opt;"
+                 "scthresh:float:opt;"
+                 "micmatch:int:opt;"
+                 "micout:int:opt;"
+                 "clip2:clip:opt;"
+                 , createVFM, NULL, plugin);
+    registerFunc("VDecimate",
+                 "clip:clip;"
+                 "cycle:int:opt;"
+                 "chroma:int:opt;"
+                 "dupthresh:float:opt;"
+                 "scthresh:float:opt;"
+                 "blockx:int:opt;"
+                 "blocky:int:opt;"
+                 "clip2:clip:opt;"
+                 "ovr:data:opt;"
+                 "dryrun:int:opt;"
+                 , createVDecimate, NULL, plugin);
 }
