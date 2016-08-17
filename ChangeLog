@@ -1,4 +1,7 @@
 r33:
+the resizers can now have the active image region specified to do things like subpixel shifts and cropping
+genericfilters is no longer included with the installer and has been deprecated for a long time, if you for some reason miss canny simply use the tcanny plugin instead for a better implementation
+assvapour was renamed to subtext and now supports bitmap subtitles as well (jackoneill)
 alternative python installations can now be selected when installing on windows, note that there many pitfalls when not using python from python.org
 the rshift argument of sobel/prewitt is now deprecated because it's pointless, simply scale the min and max args as appropriate
 optimized minimum, maximum, median, deflate, inflate, convolution (1x3, 3x1 and 3x3) on x86 cpus

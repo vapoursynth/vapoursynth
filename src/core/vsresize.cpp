@@ -28,7 +28,7 @@
 #define ZIMGXX_NAMESPACE vszimgxx
 #include <zimg++.hpp>
 
-#if ZIMG_API_VERSION < ZIMG_MAKE_API_VERSION(2, 0)
+#if ZIMG_API_VERSION < ZIMG_MAKE_API_VERSION(2, 1)
 #error zAPI v2 or greater required
 #endif
 
@@ -654,6 +654,7 @@ namespace {
         VSNodeRef *m_node;
         VSVideoInfo m_vi;
         bool m_prefer_props;
+        double src_left, src_top, src_width, src_height;
         vszimgxx::zfilter_graph_builder_params m_params;
 
         frame_params m_frame_params;
@@ -742,6 +743,11 @@ namespace {
                 lookup_enum_str_opt(in, "dither_type", g_dither_type_table, &m_params.dither_type, vsapi);
                 lookup_enum_str_opt(in, "cpu_type", g_cpu_type_table, &m_params.cpu_type, vsapi);
                 m_prefer_props = !!propGetScalarDef<int>(in, "prefer_props", 0, vsapi);
+
+                src_left = propGetScalarDef<double>(in, "src_left", NAN, vsapi);
+                src_top = propGetScalarDef<double>(in, "src_top", NAN, vsapi);
+                src_width = propGetScalarDef<double>(in, "src_width", NAN, vsapi);
+                src_height = propGetScalarDef<double>(in, "src_height", NAN, vsapi);
 
                 // Basic compatibility check.
                 if (isConstantFormat(&node_vi) && isConstantFormat(&m_vi)) {
@@ -835,6 +841,11 @@ namespace {
                 src_format.height = vsapi->getFrameHeight(src_frame, 0);
                 dst_format.width = m_vi.width ? static_cast<unsigned>(m_vi.width) : src_format.width;
                 dst_format.height = m_vi.height ? static_cast<unsigned>(m_vi.height) : src_format.height;
+
+                src_format.active_region.left = src_left;
+                src_format.active_region.top = src_top;
+                src_format.active_region.width = src_width;
+                src_format.active_region.height = src_height;
 
                 translate_vsformat(src_vsformat, &src_format);
                 translate_vsformat(dst_vsformat, &dst_format);
@@ -1017,7 +1028,11 @@ void VS_CC resizeInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
         FLOAT_OPT(filter_param_b_uv)
         DATA_OPT(dither_type)
         DATA_OPT(cpu_type)
-        INT_OPT(prefer_props);
+        INT_OPT(prefer_props)
+        FLOAT_OPT(src_left)
+        FLOAT_OPT(src_top)
+        FLOAT_OPT(src_width)
+        FLOAT_OPT(src_height);
 #undef INT_OPT
 #undef FLOAT_OPT
 #undef DATA_OPT

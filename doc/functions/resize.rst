@@ -1,7 +1,7 @@
 Resize
 ======
 
-.. function::   Bilinear(clip clip[, int width, int height, int format, enum matrix, enum transfer, enum primaries, enum range, enum chromaloc, enum matrix_in, enum transfer_in, enum primaries_in, enum range_in, enum chromaloc_in, float filter_param_a, float filter_param_b, string resample_filter_uv, float filter_param_a_uv, float filter_param_b_uv, string dither_type, string cpu_type, bint prefer_props])
+.. function::   Bilinear(clip clip[, int width, int height, int format, enum matrix, enum transfer, enum primaries, enum range, enum chromaloc, enum matrix_in, enum transfer_in, enum primaries_in, enum range_in, enum chromaloc_in, float filter_param_a, float filter_param_b, string resample_filter_uv, float filter_param_a_uv, float filter_param_b_uv, string dither_type, string cpu_type, bint prefer_props, float src_left, float src_top, float src_width, float src_height])
                 Bicubic(clip clip[, ...])
                 Point(clip clip[, ...])
                 Lanczos(clip clip[, ...])
@@ -103,6 +103,11 @@ Resize
       Determines whether frame properties or arguments take precedence when both are present.
       This option affects the *matrix_in*, *transfer_in*, *primaries_in*, *range_in*
       and *chromaloc_in* arguments and their frame property equivalents.
+      
+   *src_left*, *src_top*, *src_width*, *src_height*:
+   
+      Used to select the source region of the input to use. Can also be used to shift the image.
+      Defaults to the whole image.
       
    To convert to YV12::
 

@@ -1,14 +1,14 @@
-Needs Visual Studio 2015 Update 1 with vsyasm (yasm for use with VS2010)
-Note that yasm 1.3.0 is broken on windows so so use 1.2.0 instead
+Needs Visual Studio 2015 Update 3 with vsyasm (yasm for use with VS2010)
+Note that yasm 1.3.0 may need to have one configuration file changed to fix the "-f win32" case sensitivity issue
 The proper paths to put things in are:
 C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin
 C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\BuildCustomizations
-It also needs both 32 and 64 bit Python 3.5 series with cython
-installed in both (also needs sphinx and sphinx-intl to generate docs)
+It also needs both 32 and 64 bit Python 3.5 series with cython installed for both
+(also needs sphinx and sphinx-intl to generate docs)
 Inno setup is needed to create the installer
 
 Clone VapourSynth
-Clone zimg v2.0 branch into the VapourSynth dir
+Clone zimg v2.2 branch into the VapourSynth dir
 Compile 32 and 64 bit release using the VapourSynth solution
 Run cython_build.bat to compile the Python modules
 
