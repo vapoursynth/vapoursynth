@@ -1,4 +1,5 @@
 r33:
+added autoadjust to prefetch list
 the resizers can now have the active image region specified to do things like subpixel shifts and cropping
 genericfilters is no longer included with the installer and has been deprecated for a long time, if you for some reason miss canny simply use the tcanny plugin instead for a better implementation
 assvapour was renamed to subtext and now supports bitmap subtitles as well (jackoneill)

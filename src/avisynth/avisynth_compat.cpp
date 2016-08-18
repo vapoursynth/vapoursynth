@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2015 Fredrik Mellbin
+* Copyright (c) 2012-2016 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -312,10 +312,8 @@ static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, co
     // Mvtools
     PREFETCHR0(MSuper)
     temp = int64ToIntS(vsapi->propGetInt(in, "delta", 0, &err));
-
     if (temp < 1)
         temp = 1;
-
     PREFETCH(MAnalyse, 1, 1, -temp, temp)
     PREFETCHR3(MDegrain1)
     PREFETCHR3(MDegrain2)
@@ -343,6 +341,12 @@ static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, co
     // Avisynth internal
     PREFETCH(Bob, 2, 1, 0, 0)
     PREFETCH(TemporalSoften, 1, 1, -5, 5)
+
+    // AutoAdjust
+    temp = int64ToIntS(vsapi->propGetInt(in, "temporal_radius", 0, &err));
+    if (err || temp < 0)
+        temp = 20;
+    PREFETCH(AutoAdjust, 1, 1, -temp, temp)
 
     // prefetch nothing by default
     return PrefetchInfo(1, 1, 0, -1);
