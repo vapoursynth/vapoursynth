@@ -12,6 +12,8 @@ Scripts
 * `FineSharp <http://forum.doom9.org/showthread.php?t=166524>`_ -- Script by Didée, ported by Chikuzen
 * `HAvsFunc <http://forum.doom9.org/showthread.php?t=166582>`_ -- A collection of ported popular Avisynth scripts such as QTGMC
 * `mvsfunc <http://forum.doom9.org/showthread.php?t=172564>`_ -- Wrapper functions to make certain operations simpler
+* `Oyster <http://forum.doom9.org/showthread.php?t=173470>`_ -- Compression artifact removal
+* `Vine <http://forum.doom9.org/showthread.php?t=173703>`_ -- De-halo and morphology functions
 * `vsTAAmbk <https://github.com/HomeOfVapourSynthEvolution/vsTAAmbk>`_ -- AA-script
 
 Plugins

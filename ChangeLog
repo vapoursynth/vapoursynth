@@ -17,7 +17,7 @@ fixed crash due to stack overflow if an extremely long filter graph is freed
 now installs the vs2015 update 3 runtimes on windows
 vsvfw will now automatically convert rgb24 to packed bgra for convenience
 added b64a and P416 output to vsvfw
-updated to zimg v2.1 branch
+updated to zimg v2.2 branch
 mixed imwri fixes
 fixed rare access violation in expr when ternary operator is used (jackoneill)
 
