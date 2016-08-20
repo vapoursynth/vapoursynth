@@ -6,7 +6,7 @@ PlaneStats
 
    This function calculates the min, max and average normalized value of all
    the pixels in the specified *plane* and stores the values in the frame properties
-   named *prop*\ MinMax and *prop*\ Average.
+   named *prop*\ Min, *prop*\ Max and *prop*\ Average.
    
    If *clipb* is supplied, the absolute normalized difference between the two clips
    will be stored in *prop*\ Diff as well.

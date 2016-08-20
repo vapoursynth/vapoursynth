@@ -1942,7 +1942,8 @@ typedef struct {
     VSNodeRef *node2;
     const VSVideoInfo *vi;
     char *propAverage;
-    char *propMinMax;
+    char *propMin;
+    char *propMax;
     char *propDiff;
     int plane;
 } PlaneStatsData;
@@ -2068,11 +2069,11 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
         VSMap *dstProps = vsapi->getFramePropsRW(dst);
 
         if (fi->sampleType == stInteger) {
-            vsapi->propSetInt(dstProps, d->propMinMax, imin, paReplace);
-            vsapi->propSetInt(dstProps, d->propMinMax, imax, paAppend);
+            vsapi->propSetInt(dstProps, d->propMin, imin, paReplace);
+            vsapi->propSetInt(dstProps, d->propMax, imax, paReplace);
         } else {
-            vsapi->propSetFloat(dstProps, d->propMinMax, fmin, paReplace);
-            vsapi->propSetFloat(dstProps, d->propMinMax, fmax, paAppend);
+            vsapi->propSetFloat(dstProps, d->propMin, fmin, paReplace);
+            vsapi->propSetFloat(dstProps, d->propMax, fmax, paReplace);
         }
 
         double avg;
@@ -2103,7 +2104,8 @@ static void VS_CC planeStatsFree(void *instanceData, VSCore *core, const VSAPI *
     vsapi->freeNode(d->node1);
     vsapi->freeNode(d->node2);
     free(d->propAverage);
-    free(d->propMinMax);
+    free(d->propMin);
+    free(d->propMax);
     free(d->propDiff);
     free(d);
 }
@@ -2141,13 +2143,16 @@ static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, 
     if (err)
         tempprop = "PlaneStats";
     size_t l = strlen(tempprop);
-    d.propMinMax = malloc(l + 6 + 1);
+    d.propMin = malloc(l + 3 + 1);
+    d.propMax = malloc(l + 3 + 1);
     d.propAverage = malloc(l + 7 + 1);
     d.propDiff = malloc(l + 4 + 1);
-    strcpy(d.propMinMax, tempprop);
+    strcpy(d.propMin, tempprop);
+    strcpy(d.propMax, tempprop);
     strcpy(d.propAverage, tempprop);
     strcpy(d.propDiff, tempprop);
-    strcpy(d.propMinMax + l, "MinMax");
+    strcpy(d.propMin + l, "Min");
+    strcpy(d.propMax + l, "Max");
     strcpy(d.propAverage + l, "Average");
     strcpy(d.propDiff + l, "Diff");
 
