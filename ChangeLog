@@ -1,4 +1,5 @@
 r33:
+calling getFrame from a getFrameAsync callback no longer deadlocks, but you probably shouldn't have been doing it anyway
 minmax is now split into two separate properties in planestats
 added autoadjust to prefetch list
 the resizers can now have the active image region specified to do things like subpixel shifts and cropping

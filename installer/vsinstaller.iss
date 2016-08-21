@@ -36,8 +36,8 @@ Name: "en"; MessagesFile: "compiler:Default.isl"
 Name: Full; Description: Full installation; Flags: iscustom
 
 [Components]
-Name: "vs64"; Description: "VapourSynth 64bit"; Types: Full; Check: HasPython64; Flags: disablenouninstallwarning
-Name: "vs32"; Description: "VapourSynth 32bit"; Types: Full; Check: HasPython32; Flags: disablenouninstallwarning
+Name: "vs64"; Description: "VapourSynth 64-bit"; Types: Full; Check: HasPython64; Flags: disablenouninstallwarning
+Name: "vs32"; Description: "VapourSynth 32-bit"; Types: Full; Check: HasPython32; Flags: disablenouninstallwarning
 Name: "sdk"; Description: "VapourSynth SDK"; Flags: fixed; Types: Full
 
 [Tasks]

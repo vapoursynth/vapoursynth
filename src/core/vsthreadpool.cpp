@@ -348,24 +348,30 @@ void VSThreadPool::start(const PFrameContext &context) {
 
 void VSThreadPool::returnFrame(const PFrameContext &rCtx, const PVideoFrame &f) {
     assert(rCtx->frameDone);
+    bool outputLock = rCtx->lockOnOutput;
     // we need to unlock here so the callback may request more frames without causing a deadlock
     // AND so that slow callbacks will only block operations in this thread, not all the others
     lock.unlock();
     VSFrameRef *ref = new VSFrameRef(f);
-    callbackLock.lock();
+    if (outputLock)
+        callbackLock.lock();
     rCtx->frameDone(rCtx->userData, ref, rCtx->n, rCtx->node, nullptr);
-    callbackLock.unlock();
+    if (outputLock)
+        callbackLock.unlock();
     lock.lock();
 }
 
 void VSThreadPool::returnFrame(const PFrameContext &rCtx, const std::string &errMsg) {
     assert(rCtx->frameDone);
+    bool outputLock = rCtx->lockOnOutput;
     // we need to unlock here so the callback may request more frames without causing a deadlock
     // AND so that slow callbacks will only block operations in this thread, not all the others
     lock.unlock();
-    callbackLock.lock();
+    if (outputLock)
+        callbackLock.lock();
     rCtx->frameDone(rCtx->userData, nullptr, rCtx->n, rCtx->node, errMsg.c_str());
-    callbackLock.unlock();
+    if (outputLock)
+        callbackLock.unlock();
     lock.lock();
 }
 

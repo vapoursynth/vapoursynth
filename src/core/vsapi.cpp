@@ -113,7 +113,7 @@ static const VSFrameRef *VS_CC getFrame(int n, VSNodeRef *clip, char *errorMsg, 
     bool isWorker = node->isWorkerThread();
     if (isWorker)
         node->releaseThread();
-    node->getFrame(std::make_shared<FrameContext>(n, clip->index, clip, &frameWaiterCallback, &g));
+    node->getFrame(std::make_shared<FrameContext>(n, clip->index, clip, &frameWaiterCallback, &g, false));
     g.a.wait(l);
     if (isWorker)
         node->reserveThread();

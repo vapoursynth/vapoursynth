@@ -397,6 +397,7 @@ private:
     VSFrameDoneCallback frameDone;
     std::string errorMessage;
     bool error;
+    bool lockOnOutput;
 public:
     VSNodeRef *node;
     std::map<NodeOutputKey, PVideoFrame> availableFrames;
@@ -413,7 +414,7 @@ public:
         return errorMessage;
     }
     FrameContext(int n, int index, VSNode *clip, const PFrameContext &upstreamContext);
-    FrameContext(int n, int index, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData);
+    FrameContext(int n, int index, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput = true);
 };
 
 struct VSNode {
