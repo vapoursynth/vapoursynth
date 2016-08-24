@@ -1,3 +1,7 @@
+r34:
+fixes active region offset and height for interlaced resizing
+added support for more different subsampled input formats for vfm (jackoneill)
+
 r33:
 calling getFrame from a getFrameAsync callback no longer deadlocks, but you probably shouldn't have been doing it anyway
 minmax is now split into two separate properties in planestats

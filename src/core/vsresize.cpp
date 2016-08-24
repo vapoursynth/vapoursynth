@@ -294,6 +294,12 @@ namespace {
 
             is_interlaced = x == 1 || x == 2;
         }
+
+        if (is_interlaced) {
+            format->active_region.top /= 2;
+            format->active_region.height /= 2;
+        }
+
         return is_interlaced;
     }
 
