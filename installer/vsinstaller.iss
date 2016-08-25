@@ -1,5 +1,5 @@
 #define AppName = 'VapourSynth'
-#define Version = 'R33'
+#define Version = 'R34'
 
 [Setup]
 OutputDir=Compiled
@@ -17,7 +17,7 @@ AppPublisher=Fredrik Mellbin
 AppPublisherURL=http://www.vapoursynth.com/
 AppSupportURL=http://www.vapoursynth.com/
 AppUpdatesURL=http://www.vapoursynth.com/
-VersionInfoVersion=1.33.0.0
+VersionInfoVersion=1.34.0.0
 DefaultDirName={pf32}\VapourSynth
 DefaultGroupName=VapourSynth
 AllowCancelDuringInstall=no
