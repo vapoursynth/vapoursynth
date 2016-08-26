@@ -18,8 +18,6 @@
 #define WIN32_LEAN_AND_MEAN		// Exclude rarely-used stuff from Windows headers
 #define NOMINMAX
 #include <windows.h>
-#include <vfw.h>
-#include <aviriff.h>
 #include "ss.h"
 #pragma warning(disable: 4244) // size conversion warning
 #pragma warning(disable: 4245) // sign conversion warning
@@ -33,3 +31,6 @@
 #include "videoinfoadapter.h"
 #include "../common/p2p_api.h"
 #include "../common/fourcc.h"
+// Common vfw defines
+#define WAVE_FORMAT_PCM               1
+#define WAVE_FORMAT_IEEE_FLOAT   0x0003
