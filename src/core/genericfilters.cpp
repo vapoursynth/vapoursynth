@@ -244,6 +244,8 @@ static const VSFrameRef *VS_CC singlePixelGetFrame(int n, int activationReason, 
             }
         }
 
+        vsapi->freeFrame(src);
+
         return dst;
     }
 

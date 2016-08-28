@@ -48,7 +48,8 @@ It is a rewrite of some of tritical's TIVTC filters.
 
    Parameters:
       clip
-         Input clip. Only YUV420P8 with constant dimensions supported.
+         Input clip. YUV420P8, YUV422P8, YUV440P8, YUV444P8, and GRAY8
+         are supported. Must have constant format and dimensions.
 
       order
          Sets the field order of the clip. Normally the field order is
