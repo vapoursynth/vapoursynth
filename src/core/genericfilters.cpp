@@ -26,7 +26,13 @@
 #include <cstdlib>
 #include <string>
 #include <array>
+#include <limits>
 #include <memory>
+#include <thread>
+#include <type_traits>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 #include <VapourSynth.h>
 #include <VSHelper.h>
 #include "filtershared.h"
@@ -137,7 +143,7 @@ static void getPlanePixelRangeArgs(const VSFormat *fi, const VSMap *in, const ch
                 fval[plane] = fval[plane - 1];
             } else if (mode == RangeLower) { // bottom of pixel range
                 ival[plane] = 0;
-                fval[plane] = uv ? -.5f : 0;
+                fval[plane] = uv ? -.5f : 0.f;
             } else if (mode == RangeUpper) { // top of pixel range
                 ival[plane] = (1 << fi->bitsPerSample) - 1;
                 fval[plane] = uv ? .5f : 1.f;
@@ -148,7 +154,7 @@ static void getPlanePixelRangeArgs(const VSFormat *fi, const VSMap *in, const ch
         } else {
             if (fi->sampleType == stInteger) {
                 int64_t temp2 = static_cast<int64_t>(temp + .5);
-                if ((temp2 < 0) || (temp2 >(1 << fi->bitsPerSample) - 1))
+                if ((temp2 < 0) || (temp2 > (1 << fi->bitsPerSample) - 1))
                     throw std::string(propName).append(" out of range");
                 ival[plane] = static_cast<uint16_t>(temp2);
             } else {
@@ -2647,67 +2653,262 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     d.release();
 }
 
+/////////////////
+
+struct HysteresisData {
+    VSNodeRef * node1, * node2;
+    const VSVideoInfo * vi;
+    bool process[3];
+    uint16_t peak;
+    float lower[3], upper[3];
+    std::unordered_map<std::thread::id, uint8_t *> label;
+};
+
+template<typename T>
+static void process_frame_hysteresis(const VSFrameRef * src1, const VSFrameRef * src2, VSFrameRef * dst, const HysteresisData * d, const VSAPI * vsapi) VS_NOEXCEPT {
+    uint8_t * VS_RESTRICT label = d->label.at(std::this_thread::get_id());
+
+    for (int plane = 0; plane < d->vi->format->numPlanes; plane++) {
+        if (d->process[plane]) {
+            const int width = vsapi->getFrameWidth(src1, plane);
+            const int height = vsapi->getFrameHeight(src1, plane);
+            const int stride = vsapi->getStride(src1, plane) / sizeof(T);
+            const T * srcp1 = reinterpret_cast<const T *>(vsapi->getReadPtr(src1, plane));
+            const T * srcp2 = reinterpret_cast<const T *>(vsapi->getReadPtr(src2, plane));
+            T * VS_RESTRICT dstp = reinterpret_cast<T *>(vsapi->getWritePtr(dst, plane));
+
+            T lower, upper;
+            if (!std::is_same<T, float>::value) {
+                lower = 0;
+                upper = d->peak;
+            } else {
+                lower = d->lower[plane];
+                upper = d->upper[plane];
+            }
+
+            memset(label, 0, width * height);
+            std::fill_n(dstp, width * height, lower);
+
+            std::vector<std::pair<int, int>> coordinates;
+
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    if (!label[width * y + x] && srcp1[stride * y + x] > lower && srcp2[stride * y + x] > lower) {
+                        label[width * y + x] = std::numeric_limits<uint8_t>::max();
+                        dstp[stride * y + x] = upper;
+
+                        coordinates.emplace_back(std::make_pair(x, y));
+
+                        while (!coordinates.empty()) {
+                            const auto pos = coordinates.back();
+                            coordinates.pop_back();
+
+                            for (int yy = std::max(pos.second - 1, 0); yy <= std::min(pos.second + 1, height - 1); yy++) {
+                                for (int xx = std::max(pos.first - 1, 0); xx <= std::min(pos.first + 1, width - 1); xx++) {
+                                    if (!label[width * yy + xx] && srcp2[stride * yy + xx] > lower) {
+                                        label[width * yy + xx] = std::numeric_limits<uint8_t>::max();
+                                        dstp[stride * yy + xx] = upper;
+
+                                        coordinates.emplace_back(std::make_pair(xx, yy));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+static void VS_CC hysteresisInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
+    HysteresisData * d = static_cast<HysteresisData *>(*instanceData);
+    vsapi->setVideoInfo(d->vi, 1, node);
+}
+
+static const VSFrameRef *VS_CC hysteresisGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    HysteresisData * d = static_cast<HysteresisData *>(*instanceData);
+
+    if (activationReason == arInitial) {
+        vsapi->requestFrameFilter(n, d->node1, frameCtx);
+        vsapi->requestFrameFilter(n, d->node2, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        const VSFrameRef * src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
+        const VSFrameRef * src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
+        const VSFrameRef * fr[] { d->process[0] ? nullptr : src1, d->process[1] ? nullptr : src1, d->process[2] ? nullptr : src1 };
+        const int pl[] { 0, 1, 2 };
+        VSFrameRef * dst = vsapi->newVideoFrame2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
+
+        auto threadId = std::this_thread::get_id();
+        if (!d->label.count(threadId)) {
+            uint8_t * label = new (std::nothrow) uint8_t[d->vi->width * d->vi->height];
+            if (!label) {
+                vsapi->setFilterError("Hysteresis: malloc failure (label)", frameCtx);
+                vsapi->freeFrame(src1);
+                vsapi->freeFrame(src2);
+                vsapi->freeFrame(dst);
+                return nullptr;
+            }
+            d->label.emplace(threadId, label);
+        }
+
+        if (d->vi->format->bytesPerSample == 1)
+            process_plane_hysteresis<uint8_t>(src1, src2, dst, d, vsapi);
+        else if (d->vi->format->bytesPerSample == 2)
+            process_plane_hysteresis<uint16_t>(src1, src2, dst, d, vsapi);
+        else
+            process_plane_hysteresis<float>(src1, src2, dst, d, vsapi);
+
+        vsapi->freeFrame(src1);
+        vsapi->freeFrame(src2);
+        return dst;
+    }
+
+    return nullptr;
+}
+
+static void VS_CC hysteresisFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+    HysteresisData * d = static_cast<HysteresisData *>(instanceData);
+
+    vsapi->freeNode(d->node1);
+    vsapi->freeNode(d->node2);
+
+    for (auto & element : d->label)
+        delete[] element.second;
+
+    delete d;
+}
+
+static void VS_CC hysteresisCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    HysteresisData d;
+    int err;
+
+    d.node1 = vsapi->propGetNode(in, "clipa", 0, nullptr);
+    d.node2 = vsapi->propGetNode(in, "clipb", 0, nullptr);
+    d.vi = vsapi->getVideoInfo(d.node1);
+
+    if (!isConstantFormat(d.vi) || (d.vi->format->sampleType == stInteger && d.vi->format->bitsPerSample > 16) ||
+        (d.vi->format->sampleType == stFloat && d.vi->format->bitsPerSample != 32)) {
+        vsapi->setError(out, "Hysteresis: only constant format 8-16 bits integer and 32 bits float input supported");
+        vsapi->freeNode(d.node1);
+        vsapi->freeNode(d.node2);
+        return;
+    }
+
+    if (!isSameFormat(d.vi, vsapi->getVideoInfo(d.node2))) {
+        vsapi->setError(out, "Hysteresis: both clips must have the same dimensions and the same format");
+        vsapi->freeNode(d.node1);
+        vsapi->freeNode(d.node2);
+        return;
+    }
+
+    const int m = vsapi->propNumElements(in, "planes");
+
+    for (int i = 0; i < 3; i++)
+        d.process[i] = m <= 0;
+
+    for (int i = 0; i < m; i++) {
+        const int n = int64ToIntS(vsapi->propGetInt(in, "planes", i, nullptr));
+
+        if (n < 0 || n >= d.vi->format->numPlanes) {
+            vsapi->setError(out, "Hysteresis: plane index out of range");
+            vsapi->freeNode(d.node1);
+            vsapi->freeNode(d.node2);
+            return;
+        }
+
+        if (d.process[n]) {
+            vsapi->setError(out, "Hysteresis: plane specified twice");
+            vsapi->freeNode(d.node1);
+            vsapi->freeNode(d.node2);
+            return;
+        }
+
+        d.process[n] = true;
+    }
+
+    if (d.vi->format->sampleType == stInteger) {
+        d.peak = (1 << d.vi->format->bitsPerSample) - 1;
+    } else {
+        for (int plane = 0; plane < d.vi->format->numPlanes; plane++) {
+            if (plane == 0 || d.vi->format->colorFamily == cmRGB) {
+                d.lower[plane] = 0.f;
+                d.upper[plane] = 1.f;
+            } else {
+                d.lower[plane] = -0.5f;
+                d.upper[plane] = 0.5f;
+            }
+        }
+    }
+
+    d.label.reserve(vsapi->getCoreInfo(core)->numThreads);
+
+    HysteresisData * data = new HysteresisData { std::move(d) };
+
+    vsapi->createFilter(in, out, "Hysteresis", hysteresisInit, hysteresisGetFrame, hysteresisFree, fmParallel, 0, data, core);
+}
+
 //////////////////////////
 
 void VS_CC genericInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     //configFunc("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 1, plugin);
 
     registerFunc("Minimum",
-            "clip:clip;"
-            "planes:int[]:opt;"
-            "threshold:float:opt;"
-            "coordinates:int[]:opt;"
-            , genericCreate<GenericMinimum>, const_cast<char *>("Minimum"), plugin);
+        "clip:clip;"
+        "planes:int[]:opt;"
+        "threshold:float:opt;"
+        "coordinates:int[]:opt;"
+        , genericCreate<GenericMinimum>, const_cast<char *>("Minimum"), plugin);
 
     registerFunc("Maximum",
-            "clip:clip;"
-            "planes:int[]:opt;"
-            "threshold:float:opt;"
-            "coordinates:int[]:opt;"
-            , genericCreate<GenericMaximum>, const_cast<char *>("Maximum"), plugin);
+        "clip:clip;"
+        "planes:int[]:opt;"
+        "threshold:float:opt;"
+        "coordinates:int[]:opt;"
+        , genericCreate<GenericMaximum>, const_cast<char *>("Maximum"), plugin);
 
     registerFunc("Median",
-            "clip:clip;"
-            "planes:int[]:opt;"
-            , genericCreate<GenericMedian>, const_cast<char *>("Median"), plugin);
+        "clip:clip;"
+        "planes:int[]:opt;"
+        , genericCreate<GenericMedian>, const_cast<char *>("Median"), plugin);
 
     registerFunc("Deflate",
-            "clip:clip;"
-            "planes:int[]:opt;"
-            "threshold:float:opt;"
-            , genericCreate<GenericDeflate>, const_cast<char *>("Deflate"), plugin);
+        "clip:clip;"
+        "planes:int[]:opt;"
+        "threshold:float:opt;"
+        , genericCreate<GenericDeflate>, const_cast<char *>("Deflate"), plugin);
 
     registerFunc("Inflate",
-            "clip:clip;"
-            "planes:int[]:opt;"
-            "threshold:float:opt;"
-            , genericCreate<GenericInflate>, const_cast<char *>("Inflate"), plugin);
+        "clip:clip;"
+        "planes:int[]:opt;"
+        "threshold:float:opt;"
+        , genericCreate<GenericInflate>, const_cast<char *>("Inflate"), plugin);
 
     registerFunc("Convolution",
-            "clip:clip;"
-            "matrix:float[];"
-            "bias:float:opt;"
-            "divisor:float:opt;"
-            "planes:int[]:opt;"
-            "saturate:int:opt;"
-            "mode:data:opt;"
-            , genericCreate<GenericConvolution>, const_cast<char *>("Convolution"), plugin);
+        "clip:clip;"
+        "matrix:float[];"
+        "bias:float:opt;"
+        "divisor:float:opt;"
+        "planes:int[]:opt;"
+        "saturate:int:opt;"
+        "mode:data:opt;"
+        , genericCreate<GenericConvolution>, const_cast<char *>("Convolution"), plugin);
 
     registerFunc("Prewitt",
-            "clip:clip;"
-            "min:float:opt;"
-            "max:float:opt;"
-            "planes:int[]:opt;"
-            "rshift:int:opt;"
-            , genericCreate<GenericPrewitt>, const_cast<char *>("Prewitt"), plugin);
+        "clip:clip;"
+        "min:float:opt;"
+        "max:float:opt;"
+        "planes:int[]:opt;"
+        "rshift:int:opt;"
+        , genericCreate<GenericPrewitt>, const_cast<char *>("Prewitt"), plugin);
 
     registerFunc("Sobel",
-            "clip:clip;"
-            "min:float:opt;"
-            "max:float:opt;"
-            "planes:int[]:opt;"
-            "rshift:int:opt;"
-            , genericCreate<GenericSobel>, const_cast<char *>("Sobel"), plugin);
+        "clip:clip;"
+        "min:float:opt;"
+        "max:float:opt;"
+        "planes:int[]:opt;"
+        "rshift:int:opt;"
+        , genericCreate<GenericSobel>, const_cast<char *>("Sobel"), plugin);
 
     registerFunc("Invert",
         "clip:clip;"
@@ -2738,4 +2939,10 @@ void VS_CC genericInitialize(VSConfigPlugin configFunc, VSRegisterFunction regis
         "max_out:float[]:opt;"
         "planes:int[]:opt;"
         , levelsCreate, nullptr, plugin);
+
+    registerFunc("Hysteresis",
+        "clipa:clip;"
+        "clipb:clip;"
+        "planes:int[]:opt;"
+        , hysteresisCreate, nullptr, plugin);
 }
