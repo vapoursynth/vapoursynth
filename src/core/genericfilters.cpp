@@ -30,6 +30,7 @@
 #include <VapourSynth.h>
 #include <VSHelper.h>
 #include "filtershared.h"
+#include "filtersharedcpp.h"
 
 
 
@@ -42,15 +43,6 @@
 #ifdef VS_TARGET_CPU_X86
 #include <emmintrin.h>
 #endif
-
-static inline int64_t floatToInt64S(double f) {
-    if (f > INT64_MAX)
-        return INT64_MAX;
-    else if (f < INT64_MIN)
-        return INT64_MIN;
-    else
-        return (int64_t)llrint(f);
-}
 
 
 enum GenericOperations {
@@ -109,86 +101,6 @@ struct GenericData {
     bool saturate;
 };
 
-static void sharedFormatCheck(const VSFormat *fi) {
-    if (fi->colorFamily == cmCompat)
-        throw std::string("Cannot process compat formats.");
-
-    if ((fi->sampleType == stInteger && fi->bitsPerSample > 16) || (fi->sampleType == stFloat && fi->bitsPerSample != 32))
-        throw std::string("Only clips with 8..16 bits integer per sample or float supported.");
-}
-
-enum RangeArgumentHandling {
-    RangeLower,
-    RangeUpper,
-    RangeMiddle
-};
-
-static void getPlanePixelRangeArgs(const VSFormat *fi, const VSMap *in, const char *propName, uint16_t *ival, float *fval, RangeArgumentHandling mode, const VSAPI *vsapi) {
-    if (vsapi->propNumElements(in, propName) > fi->numPlanes)
-        throw std::string(propName).append(" has more values specified than there are planes");
-    bool prevValid = false;
-    for (int plane = 0; plane < 3; plane++) {
-        int err;
-        bool uv = (plane > 0 && (fi->colorFamily == cmYUV || fi->colorFamily == cmYCoCg));
-        double temp = vsapi->propGetFloat(in, propName, plane, &err);
-        if (err) {
-            if (prevValid) {
-                ival[plane] = ival[plane - 1];
-                fval[plane] = fval[plane - 1];
-            } else if (mode == RangeLower) { // bottom of pixel range
-                ival[plane] = 0;
-                fval[plane] = uv ? -.5f : 0;
-            } else if (mode == RangeUpper) { // top of pixel range
-                ival[plane] = (1 << fi->bitsPerSample) - 1;
-                fval[plane] = uv ? .5f : 1.f;
-            } else if (mode == RangeMiddle) { // middle of pixel range
-                ival[plane] = (1 << fi->bitsPerSample) / 2;
-                fval[plane] = uv ? 0.f : .5f;
-            }
-        } else {
-            if (fi->sampleType == stInteger) {
-                int64_t temp2 = static_cast<int64_t>(temp + .5);
-                if ((temp2 < 0) || (temp2 >(1 << fi->bitsPerSample) - 1))
-                    throw std::string(propName).append(" out of range");
-                ival[plane] = static_cast<uint16_t>(temp2);
-            } else {
-                fval[plane] = static_cast<float>(temp);
-            }
-            prevValid = true;
-        }
-    }
-}
-
-template<typename T>
-static void getPlaneArgs(const VSFormat *fi, const VSMap *in, const char *propName, T *val, T def, const VSAPI *vsapi) {
-    if (vsapi->propNumElements(in, propName) > fi->numPlanes)
-        throw std::string(propName).append(" has more values specified than there are planes");
-    bool prevValid = false;
-    for (int plane = 0; plane < 3; plane++) {
-        int err;
-        T temp = vsapi->propGetFloat(in, propName, plane, &err);
-        if (err) {
-            val[plane] = prevValid ? val[plane - 1] : def;
-        } else {
-            val[plane] = temp;
-            prevValid = true;
-        }
-    }
-}
-
-template<typename T>
-static void VS_CC templateClipInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    T *d = (T *)* instanceData;
-    vsapi->setVideoInfo(vsapi->getVideoInfo(d->node), 1, node);
-}
-
-template<typename T>
-static void VS_CC templateClipFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    T *d = (T *)instanceData;
-    vsapi->freeNode(d->node);
-    delete d;
-}
-
 template<typename T, typename OP>
 static const VSFrameRef *VS_CC singlePixelGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     T *d = (T *)* instanceData;
@@ -200,7 +112,7 @@ static const VSFrameRef *VS_CC singlePixelGetFrame(int n, int activationReason, 
         const VSFormat *fi = vsapi->getFrameFormat(src);
 
         try {
-            sharedFormatCheck(fi);
+            shared816FFormatCheck(fi);
         } catch (std::string &error) {
             vsapi->setFilterError(std::string(d->name).append(": ").append(error).c_str(), frameCtx);
             vsapi->freeFrame(src);
@@ -258,24 +170,9 @@ static void templateInit(T& d, const char *name, bool allowVariableFormat, const
         throw std::string("Cannot process variable format.");
 
     if (d->vi->format)
-        sharedFormatCheck(d->vi->format);
+        shared816FFormatCheck(d->vi->format);
 
-    int m = vsapi->propNumElements(in, "planes");
-
-    for (int i = 0; i < 3; i++)
-        d->process[i] = (m <= 0);
-
-    for (int i = 0; i < m; i++) {
-        int o = int64ToIntS(vsapi->propGetInt(in, "planes", i, nullptr));
-
-        if (o < 0 || o >= 3)
-            throw std::string("plane index out of range");
-
-        if (d->process[o])
-            throw std::string("plane specified twice");
-
-        d->process[o] = true;
-    }
+    getPlanesArg(in, d->process, vsapi);
 }
 
 /////////////////
@@ -1998,7 +1895,7 @@ static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void
         const VSFormat *fi = vsapi->getFrameFormat(src);
 
         try {
-            sharedFormatCheck(fi);
+            shared816FFormatCheck(fi);
             if (vsapi->getFrameWidth(src, fi->numPlanes - 1) < 4 || vsapi->getFrameHeight(src, fi->numPlanes - 1) < 4)
                 throw std::string("Cannot process frames with subsampled planes smaller than 4x4.");
 
@@ -2211,28 +2108,13 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
         if (!d->vi->format)
             throw std::string("cannot process variable format input.");
 
-        sharedFormatCheck(d->vi->format);
+        shared816FFormatCheck(d->vi->format);
 
         if (d->vi->height && d->vi->width)
             if (planeWidth(d->vi, d->vi->format->numPlanes - 1) < 4 || planeHeight(d->vi, d->vi->format->numPlanes - 1) < 4)
                 throw std::string("Cannot process frames with subsampled planes smaller than 4x4.");
 
-        int m = vsapi->propNumElements(in, "planes");
-
-        for (int i = 0; i < 3; i++)
-            d->process[i] = (m <= 0);
-
-        for (int i = 0; i < m; i++) {
-            int o = int64ToIntS(vsapi->propGetInt(in, "planes", i, nullptr));
-
-            if (o < 0 || o >= 3)
-                throw std::string("plane index out of range");
-
-            if (d->process[o])
-                throw std::string("plane specified twice");
-
-            d->process[o] = true;
-        }
+        getPlanesArg(in, d->process, vsapi);
 
         int err;
 

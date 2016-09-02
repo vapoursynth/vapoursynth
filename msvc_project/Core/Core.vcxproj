@@ -262,6 +262,7 @@
     <ClInclude Include="..\..\src\core\cachefilter.h" />
     <ClInclude Include="..\..\src\core\cpufeatures.h" />
     <ClInclude Include="..\..\src\core\filtershared.h" />
+    <ClInclude Include="..\..\src\core\filtersharedcpp.h" />
     <ClInclude Include="..\..\src\core\internalfilters.h" />
     <ClInclude Include="..\..\src\core\jitasm.h" />
     <ClInclude Include="..\..\src\core\ter-116n.h" />

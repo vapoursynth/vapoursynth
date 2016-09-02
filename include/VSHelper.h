@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <math.h>
 #ifdef _WIN32
 #include <malloc.h>
 #endif
@@ -140,6 +141,15 @@ static inline int int64ToIntS(int64_t i) {
     else if (i < INT_MIN)
         return INT_MIN;
     else return (int)i;
+}
+
+static inline int64_t floatToInt64S(double f) {
+    if (f > INT64_MAX)
+        return INT64_MAX;
+    else if (f < INT64_MIN)
+        return INT64_MIN;
+    else
+        return (int64_t)llround(f);
 }
 
 static inline void vs_bitblt(void *dstp, int dst_stride, const void *srcp, int src_stride, size_t row_size, size_t height) {
