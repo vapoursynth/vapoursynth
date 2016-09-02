@@ -1810,8 +1810,10 @@ static void VS_CC transposeCreate(const VSMap *in, VSMap *out, void *userData, V
 typedef struct {
     VSNodeRef *node;
     const VSVideoInfo *vi;
-    int64_t upper[3];
-    int64_t lower[3];
+    int upper[3];
+    int lower[3];
+    float upperf[3];
+    float lowerf[3];
 } PEMVerifierData;
 
 static void VS_CC pemVerifierInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -1859,6 +1861,18 @@ static const VSFrameRef *VS_CC pemVerifierGetFrame(int n, int activationReason, 
                     srcp += src_stride;
                 }
                 break;
+            case 4:
+                for (int y = 0; y < height; y++) {
+                    for (int x = 0; x < width; x++)
+                        if (((const float *)srcp)[x] < d->lowerf[plane] || ((const float *)srcp)[x] > d->upperf[plane]) {
+                            snprintf(strbuf, sizeof(strbuf), "PEMVerifier: Illegal sample value (%f) at: plane: %d Y: %d, X: %d, Frame: %d", ((const float *)srcp)[x], plane, y, x, n);
+                            vsapi->setFilterError(strbuf, frameCtx);
+                            vsapi->freeFrame(src);
+                            return 0;
+                        }
+                    srcp += src_stride;
+                }
+                break;
             }
         }
         return src;
@@ -1897,12 +1911,15 @@ static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData,
     }
 
     if (numlower < 0) {
-        for (int i = 0; i < d.vi->format->numPlanes; i++)
+        for (int i = 0; i < d.vi->format->numPlanes; i++) {
             d.lower[i] = 0;
+            d.lowerf[i] = ((d.vi->format->colorFamily == cmYUV || d.vi->format->colorFamily == cmYCoCg) && i) ? -0.5f : 0.0f;
+        }
     } else if (numlower == d.vi->format->numPlanes) {
         for (int i = 0; i < d.vi->format->numPlanes; i++) {
-            d.lower[i] = vsapi->propGetInt(in, "lower", i, 0);
-            if (d.lower[i] < 0 || d.lower[i] >= ((int64_t)1 << d.vi->format->bitsPerSample)) {
+            d.lowerf[i] = (float)vsapi->propGetFloat(in, "lower", i, 0);
+            d.lower[i] = floatToIntS(d.lowerf[i]);
+            if (d.vi->format->sampleType == stInteger && (d.lower[i] < 0 || d.lower[i] >= ((uint32_t)1 << d.vi->format->bitsPerSample))) {
                 vsapi->freeNode(d.node);
                 RETERROR("PEMVerifier: Invalid lower bound given");
             }
@@ -1913,12 +1930,18 @@ static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData,
     }
 
     if (numupper < 0) {
-        for (int i = 0; i < d.vi->format->numPlanes; i++)
-            d.upper[i] = ((int64_t)1 << d.vi->format->bitsPerSample) - 1;
+        for (int i = 0; i < d.vi->format->numPlanes; i++) {
+            d.upper[i] = (1 << d.vi->format->bitsPerSample) - 1;
+            d.upperf[i] = ((d.vi->format->colorFamily == cmYUV || d.vi->format->colorFamily == cmYCoCg) && i) ? 0.5f : 1.0f;
+        }
     } else if (numupper == d.vi->format->numPlanes) {
         for (int i = 0; i < d.vi->format->numPlanes; i++) {
-            d.upper[i] = vsapi->propGetInt(in, "upper", i, 0);
-            if (d.upper[i] < d.lower[i] || d.upper[i] >= ((int64_t)1 << d.vi->format->bitsPerSample)) {
+            d.upperf[i] = (float)vsapi->propGetFloat(in, "upper", i, 0);
+            d.upper[i] = floatToIntS(d.upperf[i]);
+            if (d.vi->format->sampleType == stInteger && (d.upper[i] <= d.lower[i] || d.upper[i] >= ((uint32_t)1 << d.vi->format->bitsPerSample))) {
+                vsapi->freeNode(d.node);
+                RETERROR("PEMVerifier: Invalid upper bound given");
+            } else if (d.vi->format->sampleType == stFloat && (d.upperf[i] < d.lowerf[i])) {
                 vsapi->freeNode(d.node);
                 RETERROR("PEMVerifier: Invalid upper bound given");
             }
@@ -2526,7 +2549,7 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("FrameEval", "clip:clip;eval:func;prop_src:clip[]:opt;", frameEvalCreate, 0, plugin);
     registerFunc("ModifyFrame", "clip:clip;clips:clip[];selector:func;", modifyFrameCreate, 0, plugin);
     registerFunc("Transpose", "clip:clip;", transposeCreate, 0, plugin);
-    registerFunc("PEMVerifier", "clip:clip;upper:int[]:opt;lower:int[]:opt;", pemVerifierCreate, 0, plugin);
+    registerFunc("PEMVerifier", "clip:clip;upper:float[]:opt;lower:float[]:opt;", pemVerifierCreate, 0, plugin);
     registerFunc("PlaneStats", "clipa:clip;clipb:clip:opt;plane:int:opt;prop:data:opt;", planeStatsCreate, 0, plugin);
     registerFunc("ClipToProp", "clip:clip;mclip:clip;prop:data:opt;", clipToPropCreate, 0, plugin);
     registerFunc("PropToClip", "clip:clip;prop:data:opt;", propToClipCreate, 0, plugin);

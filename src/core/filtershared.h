@@ -88,4 +88,22 @@ static void VS_CC singleClipFree(void *instanceData, VSCore *core, const VSAPI *
     free(instanceData);
 }
 
+static inline int64_t floatToInt64S(float f) {
+    if (f > INT64_MAX)
+        return INT64_MAX;
+    else if (f < INT64_MIN)
+        return INT64_MIN;
+    else
+        return (int64_t)llround(f);
+}
+
+static inline int floatToIntS(float f) {
+    if (f > INT_MAX)
+        return INT_MAX;
+    else if (f < INT_MIN)
+        return INT_MIN;
+    else
+        return (int)lround(f);
+}
+
 #endif // FILTERSHARED_H

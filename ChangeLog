@@ -1,4 +1,5 @@
 r34:
+added float support to pemverifier
 fixes active region offset and height for interlaced resizing
 added support for more different subsampled input formats for vfm (jackoneill)
 

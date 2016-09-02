@@ -143,15 +143,6 @@ static inline int int64ToIntS(int64_t i) {
     else return (int)i;
 }
 
-static inline int64_t floatToInt64S(double f) {
-    if (f > INT64_MAX)
-        return INT64_MAX;
-    else if (f < INT64_MIN)
-        return INT64_MIN;
-    else
-        return (int64_t)llround(f);
-}
-
 static inline void vs_bitblt(void *dstp, int dst_stride, const void *srcp, int src_stride, size_t row_size, size_t height) {
     if (height) {
         if (src_stride == dst_stride && src_stride == (int)row_size) {
