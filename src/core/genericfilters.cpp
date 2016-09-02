@@ -103,7 +103,7 @@ struct GenericData {
 
 template<typename T, typename OP>
 static const VSFrameRef *VS_CC singlePixelGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    T *d = (T *)* instanceData;
+    T *d = reinterpret_cast<T *>(* instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
@@ -166,11 +166,7 @@ static void templateInit(T& d, const char *name, bool allowVariableFormat, const
     d->node = vsapi->propGetNode(in, "clip", 0, 0);
     d->vi = vsapi->getVideoInfo(d->node);
 
-    if (!allowVariableFormat && !d->vi->format)
-        throw std::string("Cannot process variable format.");
-
-    if (d->vi->format)
-        shared816FFormatCheck(d->vi->format);
+    shared816FFormatCheck(d->vi->format, allowVariableFormat);
 
     getPlanesArg(in, d->process, vsapi);
 }
@@ -2105,9 +2101,6 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
     d->vi = vsapi->getVideoInfo(d->node);
 
     try {
-        if (!d->vi->format)
-            throw std::string("cannot process variable format input.");
-
         shared816FFormatCheck(d->vi->format);
 
         if (d->vi->height && d->vi->width)

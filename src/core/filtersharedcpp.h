@@ -86,14 +86,17 @@ static inline void getPlanePixelRangeArgs(const VSFormat *fi, const VSMap *in, c
     }
 }
 
-static void shared816FFormatCheck(const VSFormat *fi) {
-    assert(fi);
+static void shared816FFormatCheck(const VSFormat *fi, bool allowVariable = false) {
+    if (!fi && !allowVariable)
+        throw std::string("Cannot process variable format.");
 
-    if (fi->colorFamily == cmCompat)
-        throw std::string("Cannot process compat formats.");
+    if (fi) {
+        if (fi->colorFamily == cmCompat)
+            throw std::string("Cannot process compat formats.");
 
-    if ((fi->sampleType == stInteger && fi->bitsPerSample > 16) || (fi->sampleType == stFloat && fi->bitsPerSample != 32))
-        throw std::string("Only clips with 8..16 bits integer per sample or float supported.");
+        if ((fi->sampleType == stInteger && fi->bitsPerSample > 16) || (fi->sampleType == stFloat && fi->bitsPerSample != 32))
+            throw std::string("Only clips with 8..16 bits integer per sample or float supported.");
+    }
 }
 
 template<typename T>
@@ -114,14 +117,20 @@ static void getPlaneArgs(const VSFormat *fi, const VSMap *in, const char *propNa
 }
 
 template<typename T>
-static void VS_CC templateClipInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    T *d = (T *)* instanceData;
+static void VS_CC templateNodeInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
+    T *d = reinterpret_cast<T *>(*instanceData);
     vsapi->setVideoInfo(vsapi->getVideoInfo(d->node), 1, node);
 }
 
 template<typename T>
+static void VS_CC templateViInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
+    T *d = reinterpret_cast<T *>(* instanceData);
+    vsapi->setVideoInfo(&d->vi, 1, node);
+}
+
+template<typename T>
 static void VS_CC templateClipFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    T *d = (T *)instanceData;
+    T *d = reinterpret_cast<T *>(*instanceData);
     vsapi->freeNode(d->node);
     delete d;
 }
