@@ -1919,7 +1919,7 @@ static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData,
         for (int i = 0; i < d.vi->format->numPlanes; i++) {
             d.lowerf[i] = (float)vsapi->propGetFloat(in, "lower", i, 0);
             d.lower[i] = floatToIntS(d.lowerf[i]);
-            if (d.vi->format->sampleType == stInteger && (d.lower[i] < 0 || d.lower[i] >= ((uint32_t)1 << d.vi->format->bitsPerSample))) {
+            if (d.vi->format->sampleType == stInteger && (d.lower[i] < 0 || d.lower[i] >= (1 << d.vi->format->bitsPerSample))) {
                 vsapi->freeNode(d.node);
                 RETERROR("PEMVerifier: Invalid lower bound given");
             }
@@ -1938,7 +1938,7 @@ static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData,
         for (int i = 0; i < d.vi->format->numPlanes; i++) {
             d.upperf[i] = (float)vsapi->propGetFloat(in, "upper", i, 0);
             d.upper[i] = floatToIntS(d.upperf[i]);
-            if (d.vi->format->sampleType == stInteger && (d.upper[i] <= d.lower[i] || d.upper[i] >= ((uint32_t)1 << d.vi->format->bitsPerSample))) {
+            if (d.vi->format->sampleType == stInteger && (d.upper[i] < d.lower[i] || d.upper[i] >= (1 << d.vi->format->bitsPerSample))) {
                 vsapi->freeNode(d.node);
                 RETERROR("PEMVerifier: Invalid upper bound given");
             } else if (d.vi->format->sampleType == stFloat && (d.upperf[i] < d.lowerf[i])) {
