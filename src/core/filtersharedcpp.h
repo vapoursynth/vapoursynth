@@ -130,7 +130,7 @@ static void VS_CC templateViInit(VSMap *in, VSMap *out, void **instanceData, VSN
 
 template<typename T>
 static void VS_CC templateClipFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    T *d = reinterpret_cast<T *>(*instanceData);
+    T *d = reinterpret_cast<T *>(instanceData);
     vsapi->freeNode(d->node);
     delete d;
 }

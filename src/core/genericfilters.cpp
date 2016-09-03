@@ -2215,7 +2215,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
                 if (d->vi->format->sampleType == stInteger) {
                     d->matrix[i] = lround(matrix[i]);
                     d->matrixf[i] = d->matrix[i];
-                    if (std::abs(d->matrix[i]) > 1023)
+                    if (d->vi->format->sampleType == stInteger && std::abs(d->matrix[i]) > 1023)
                         throw std::string("coefficients may only be between -1023 and 1023");
                 } else {
                     d->matrix[i] = lround(matrix[i]);
@@ -2288,7 +2288,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
         return;
     }
 
-    vsapi->createFilter(in, out, d->filter_name, templateClipInit<GenericData>, genericGetframe<op>, templateClipFree<GenericData>, fmParallel, 0, d.get(), core);
+    vsapi->createFilter(in, out, d->filter_name, templateNodeInit<GenericData>, genericGetframe<op>, templateClipFree<GenericData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
@@ -2340,7 +2340,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         return;
     }
 
-    vsapi->createFilter(in, out, d->name, templateClipInit<InvertData>, singlePixelGetFrame<InvertData, InvertOp>, templateClipFree<InvertData>, fmParallel, 0, d.get(), core);
+    vsapi->createFilter(in, out, d->name, templateNodeInit<InvertData>, singlePixelGetFrame<InvertData, InvertOp>, templateClipFree<InvertData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
@@ -2395,7 +2395,7 @@ static void VS_CC limitCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         return;
     }
 
-    vsapi->createFilter(in, out, d->name, templateClipInit<LimitData>, singlePixelGetFrame<LimitData, LimitOp>, templateClipFree<LimitData>, fmParallel, 0, d.get(), core);
+    vsapi->createFilter(in, out, d->name, templateNodeInit<LimitData>, singlePixelGetFrame<LimitData, LimitOp>, templateClipFree<LimitData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
@@ -2456,7 +2456,7 @@ static void VS_CC binarizeCreate(const VSMap *in, VSMap *out, void *userData, VS
         return;
     }
 
-    vsapi->createFilter(in, out, d->name, templateClipInit<BinarizeData>, singlePixelGetFrame<BinarizeData, BinarizeOp>, templateClipFree<BinarizeData>, fmParallel, 0, d.get(), core);
+    vsapi->createFilter(in, out, d->name, templateNodeInit<BinarizeData>, singlePixelGetFrame<BinarizeData, BinarizeOp>, templateClipFree<BinarizeData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
@@ -2518,7 +2518,7 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         return;
     }
 
-    vsapi->createFilter(in, out, d->name, templateClipInit<LevelsData>, singlePixelGetFrame<LevelsData, LevelsOp>, templateClipFree<LevelsData>, fmParallel, 0, d.get(), core);
+    vsapi->createFilter(in, out, d->name, templateNodeInit<LevelsData>, singlePixelGetFrame<LevelsData, LevelsOp>, templateClipFree<LevelsData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
