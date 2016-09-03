@@ -201,7 +201,12 @@ public:
 
     VSVariant &operator[](const std::string &key) const {
         // implicit creation is unwanted so make sure it doesn't happen by wrapping at() instead
-        return data->at(key); 
+        return data->at(key);
+    }
+
+    VSVariant *find(const std::string &key) const {
+        auto it = data->find(key);
+        return it == data->end() ? nullptr : &it->second;
     }
 
     bool erase(const std::string &key) {

@@ -248,11 +248,8 @@ static const char *VS_CC propGetKey(const VSMap *map, int index) VS_NOEXCEPT {
 }
 
 static int propNumElementsInternal(const VSMap *map, const std::string &key) VS_NOEXCEPT {
-    try {
-        return static_cast<int>(map->at(key).size());
-    } catch (std::out_of_range &) {
-        return -1;
-    }
+    VSVariant *val = map->find(key);
+    return val ? val->size() : -1;
 }
 
 
@@ -263,12 +260,9 @@ static int VS_CC propNumElements(const VSMap *map, const char *key) VS_NOEXCEPT 
 
 static char VS_CC propGetType(const VSMap *map, const char *key) VS_NOEXCEPT {
     assert(map && key);
-    try {
-        const char a[] = { 'u', 'i', 'f', 's', 'c', 'v', 'm' };
-        return a[map->at(key).getType()];
-    } catch (std::out_of_range &) {
-        return 'u';
-    }
+    const char a[] = { 'u', 'i', 'f', 's', 'c', 'v', 'm' };
+    VSVariant *val = map->find(key);
+    return val ? a[val->getType()] : 'u';
 }
 
 #define PROP_GET_SHARED(vt, retexpr) \
@@ -276,20 +270,18 @@ static char VS_CC propGetType(const VSMap *map, const char *key) VS_NOEXCEPT {
     if (map->hasError()) \
         vsFatal("Attempted to read key '%s' from a map with error set: %s", key, map->getErrorMessage().c_str()); \
     int err = 0; \
-    try { \
-        VSVariant &l = map->at(key); \
-        if (l.getType() == (vt)) { \
-            if (index >= 0 && static_cast<size_t>(index) < l.size()) { \
-                if (error) \
-                    *error = 0; \
-                return (retexpr); \
-            } else { \
-                err |= peIndex; \
-            } \
+    VSVariant *l = map->find(key); \
+    if (l && l->getType() == (vt)) { \
+        if (index >= 0 && static_cast<size_t>(index) < l->size()) { \
+            if (error) \
+                *error = 0; \
+            return (retexpr); \
         } else { \
-            err |= peType; \
+            err |= peIndex; \
         } \
-    } catch (std::out_of_range &) { \
+    } else if (l) { \
+        err |= peType; \
+    } else { \
         err = peUnset; \
     } \
     if (!error) \
@@ -298,27 +290,27 @@ static char VS_CC propGetType(const VSMap *map, const char *key) VS_NOEXCEPT {
     return 0;
 
 static int64_t VS_CC propGetInt(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    PROP_GET_SHARED(VSVariant::vInt, l.getValue<int64_t>(index))
+    PROP_GET_SHARED(VSVariant::vInt, l->getValue<int64_t>(index))
 }
 
 static double VS_CC propGetFloat(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    PROP_GET_SHARED(VSVariant::vFloat, l.getValue<double>(index))
+    PROP_GET_SHARED(VSVariant::vFloat, l->getValue<double>(index))
 }
 
 static const char *VS_CC propGetData(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    PROP_GET_SHARED(VSVariant::vData, l.getValue<VSMapData>(index)->c_str())
+    PROP_GET_SHARED(VSVariant::vData, l->getValue<VSMapData>(index)->c_str())
 }
 
 static int VS_CC propGetDataSize(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    PROP_GET_SHARED(VSVariant::vData, static_cast<int>(l.getValue<VSMapData>(index)->size()))
+    PROP_GET_SHARED(VSVariant::vData, static_cast<int>(l->getValue<VSMapData>(index)->size()))
 }
 
 static VSNodeRef *VS_CC propGetNode(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    PROP_GET_SHARED(VSVariant::vNode, new VSNodeRef(l.getValue<VSNodeRef>(index)))
+    PROP_GET_SHARED(VSVariant::vNode, new VSNodeRef(l->getValue<VSNodeRef>(index)))
 }
 
 static const VSFrameRef *VS_CC propGetFrame(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    PROP_GET_SHARED(VSVariant::vFrame, new VSFrameRef(l.getValue<PVideoFrame>(index)))
+    PROP_GET_SHARED(VSVariant::vFrame, new VSFrameRef(l->getValue<PVideoFrame>(index)))
 }
 
 static int VS_CC propDeleteKey(VSMap *map, const char *key) VS_NOEXCEPT {
@@ -442,7 +434,7 @@ static const VSCoreInfo *VS_CC getCoreInfo(VSCore *core) VS_NOEXCEPT {
 }
 
 static VSFuncRef *VS_CC propGetFunc(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    PROP_GET_SHARED(VSVariant::vMethod, new VSFuncRef(l.getValue<PExtFunction>(index)))
+    PROP_GET_SHARED(VSVariant::vMethod, new VSFuncRef(l->getValue<PExtFunction>(index)))
 }
 
 static int VS_CC propSetFunc(VSMap *map, const char *key, VSFuncRef *func, int append) VS_NOEXCEPT {
@@ -511,12 +503,12 @@ static const char *VS_CC getPluginPath(const VSPlugin *plugin) VS_NOEXCEPT {
 
 static const int64_t *VS_CC propGetIntArray(const VSMap *map, const char *key, int *error) VS_NOEXCEPT {
     int index = 0;
-    PROP_GET_SHARED(VSVariant::vInt, l.getArray<int64_t>())
+    PROP_GET_SHARED(VSVariant::vInt, l->getArray<int64_t>())
 }
 
 static const double *VS_CC propGetFloatArray(const VSMap *map, const char *key, int *error) VS_NOEXCEPT {
     int index = 0;
-    PROP_GET_SHARED(VSVariant::vFloat, l.getArray<double>())
+    PROP_GET_SHARED(VSVariant::vFloat, l->getArray<double>())
 }
 
 static int VS_CC propSetIntArray(VSMap *map, const char *key, const int64_t *i, int size) VS_NOEXCEPT {
