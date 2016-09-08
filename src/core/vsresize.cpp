@@ -29,7 +29,7 @@
 #define ZIMGXX_NAMESPACE vszimgxx
 #include <zimg++.hpp>
 
-#if ZIMG_API_VERSION < ZIMG_MAKE_API_VERSION(2, 1)
+#if ZIMG_API_VERSION < ZIMG_MAKE_API_VERSION(2, 2)
 #error zAPI v2 or greater required
 #endif
 
@@ -112,12 +112,14 @@ namespace {
     };
 
     const std::unordered_map<std::string, zimg_transfer_characteristics_e> g_transfer_table{
-        { "709",     ZIMG_TRANSFER_709 },
-        { "unspec",  ZIMG_TRANSFER_UNSPECIFIED },
-        { "601",     ZIMG_TRANSFER_601 },
-        { "linear",  ZIMG_TRANSFER_LINEAR },
-        { "2020_10", ZIMG_TRANSFER_2020_10 },
-        { "2020_12", ZIMG_TRANSFER_2020_12 },
+        { "709",      ZIMG_TRANSFER_709 },
+        { "unspec",   ZIMG_TRANSFER_UNSPECIFIED },
+        { "601",      ZIMG_TRANSFER_601 },
+        { "linear",   ZIMG_TRANSFER_LINEAR },
+        { "2020_10",  ZIMG_TRANSFER_2020_10 },
+        { "2020_12",  ZIMG_TRANSFER_2020_12 },
+        { "st2084",   ZIMG_TRANSFER_ST2084 },
+        { "std-b67", ZIMG_TRANSFER_ARIB_B67 },
     };
 
     const std::unordered_map<std::string, zimg_color_primaries_e> g_primaries_table{
@@ -755,7 +757,8 @@ namespace {
                 src_top = propGetScalarDef<double>(in, "src_top", NAN, vsapi);
                 src_width = propGetScalarDef<double>(in, "src_width", NAN, vsapi);
                 src_height = propGetScalarDef<double>(in, "src_height", NAN, vsapi);
-
+                m_params.nominal_peak_luminance = propGetScalarDef<double>(in, "nominal_luminance", NAN, vsapi);
+                
                 // Basic compatibility check.
                 if (isConstantFormat(&node_vi) && isConstantFormat(&m_vi)) {
                     vszimgxx::zimage_format src_format, dst_format;
@@ -967,7 +970,7 @@ namespace {
                 std::string errmsg = std::string{ "Resize error " } +std::to_string(e.code) + ": " + e.msg;
                 vsapi->setFilterError(errmsg.c_str(), frameCtx);
             } catch (const std::exception &e) {
-                vsapi->setFilterError((std::string("Resize error: ") + e.what()).c_str(), frameCtx);
+                vsapi->setFilterError((std::string{ "Resize error: " } +e.what()).c_str(), frameCtx);
             }
 
             vsapi->freeFrame(src_frame);
@@ -1039,7 +1042,8 @@ void VS_CC resizeInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
         FLOAT_OPT(src_left)
         FLOAT_OPT(src_top)
         FLOAT_OPT(src_width)
-        FLOAT_OPT(src_height);
+        FLOAT_OPT(src_height)
+        FLOAT_OPT(nominal_luminance);
 #undef INT_OPT
 #undef FLOAT_OPT
 #undef DATA_OPT

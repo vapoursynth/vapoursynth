@@ -1,7 +1,7 @@
 Resize
 ======
 
-.. function::   Bilinear(clip clip[, int width, int height, int format, enum matrix, enum transfer, enum primaries, enum range, enum chromaloc, enum matrix_in, enum transfer_in, enum primaries_in, enum range_in, enum chromaloc_in, float filter_param_a, float filter_param_b, string resample_filter_uv, float filter_param_a_uv, float filter_param_b_uv, string dither_type, string cpu_type, bint prefer_props, float src_left, float src_top, float src_width, float src_height])
+.. function::   Bilinear(clip clip[, int width, int height, int format, enum matrix, enum transfer, enum primaries, enum range, enum chromaloc, enum matrix_in, enum transfer_in, enum primaries_in, enum range_in, enum chromaloc_in, float filter_param_a, float filter_param_b, string resample_filter_uv, float filter_param_a_uv, float filter_param_b_uv, string dither_type, string cpu_type, bint prefer_props, float src_left, float src_top, float src_width, float src_height, float nominal_luminance])
                 Bicubic(clip clip[, ...])
                 Point(clip clip[, ...])
                 Lanczos(clip clip[, ...])
@@ -108,6 +108,10 @@ Resize
    
       Used to select the source region of the input to use. Can also be used to shift the image.
       Defaults to the whole image.
+      
+   *nominal_luminance*:
+   
+      Determines the physical brightness of the value 1.0. The unit is in cd/m^2.
       
    To convert to YV12::
 
