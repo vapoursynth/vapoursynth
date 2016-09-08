@@ -26,6 +26,9 @@
 #include <stdio.h>
 #include <math.h>
 #include <float.h>
+#ifdef VS_TARGET_CPU_X86
+#include <emmintrin.h>
+#endif
 
 static uint32_t doubleToUInt32S(double v) {
     if (v < 0)
@@ -1995,8 +1998,8 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
         int height = vsapi->getFrameHeight(src1, d->plane);
         const uint8_t *srcp = vsapi->getReadPtr(src1, d->plane);
         int src_stride = vsapi->getStride(src1, d->plane);
-        int64_t acc = 0;
-        int64_t diffacc = 0;
+        uint64_t acc = 0;
+        uint64_t diffacc = 0;
         uint16_t imin = UINT16_MAX;
         uint16_t imax = 0;
         double facc = 0;
@@ -2004,6 +2007,156 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
         float fmin = FLT_MAX;
         float fmax = FLT_MIN;
 
+#ifdef VS_TARGET_CPU_X86
+        __m128i ms1, ms2;
+        __m128i macc, mdiffacc, mmax, mmin;
+        __m128i submask = _mm_set1_epi16(0x8000);
+        __m128 fms1, fms2;
+        __m128 fmacc, fmdiffacc, fmmax, fmmin;
+        __m128 absmask = _mm_castsi128_ps(_mm_set1_epi32(0x7FFFFFFF));
+
+        macc = _mm_setzero_si128();
+        mdiffacc = _mm_setzero_si128();
+        mmax = _mm_setzero_si128();
+        mmin = _mm_setzero_si128();
+
+        fmacc = _mm_setzero_ps();
+        fmdiffacc = _mm_setzero_ps();
+        fmmax = _mm_setzero_ps();
+        fmmin = _mm_setzero_ps();
+
+        if (src2) {
+            const uint8_t *srcp2 = vsapi->getReadPtr(src2, d->plane);
+
+            switch (fi->bytesPerSample) {
+            case 1:
+                for (y = 0; y < height; y++) {
+                    for (x = 0; x < width; x+= sizeof(__m128i)/sizeof(uint8_t)) {
+                        ms1 = _mm_load_si128((const __m128i *)(srcp + x * sizeof(uint8_t)));
+                        ms2 = _mm_load_si128((const __m128i *)(srcp2 + x * sizeof(uint8_t)));
+                        mmax = _mm_max_epu8(mmax, ms1);
+                        mmin = _mm_min_epu8(mmin, ms1);
+                        macc = _mm_add_epi64(macc, _mm_sad_epu8(ms1, _mm_setzero_si128()));
+                        mdiffacc = _mm_add_epi64(mdiffacc, _mm_sad_epu8(ms1, ms2));
+                    }
+                    srcp += src_stride;
+                    srcp2 += src_stride;
+                }
+                mmax = _mm_max_epu8(mmax, _mm_srli_si128(mmax, 8));
+                mmax = _mm_max_epu8(mmax, _mm_srli_si128(mmax, 4));
+                mmax = _mm_max_epu8(mmax, _mm_srli_si128(mmax, 2));
+                mmax = _mm_max_epu8(mmax, _mm_srli_si128(mmax, 1));
+                imax = (_mm_extract_epi16(mmax, 0) & 0xFF);
+                mmin = _mm_min_epu8(mmin, _mm_srli_si128(mmin, 8));
+                mmin = _mm_min_epu8(mmin, _mm_srli_si128(mmin, 4));
+                mmin = _mm_min_epu8(mmin, _mm_srli_si128(mmin, 2));
+                mmin = _mm_min_epu8(mmin, _mm_srli_si128(mmin, 1));
+                imin = (_mm_extract_epi16(mmin, 0) & 0xFF);
+                macc = _mm_add_epi64(macc, _mm_srli_si128(macc, 8));
+                mdiffacc = _mm_add_epi64(mdiffacc, _mm_srli_si128(mdiffacc, 8));
+                _mm_storel_epi64((__m128i *)&acc, macc);
+                _mm_storel_epi64((__m128i *)&diffacc, mdiffacc);
+                break;
+            case 2:
+                for (y = 0; y < height; y++) {
+                    for (x = 0; x < width; x++) {
+                        uint16_t v = ((const uint16_t *)srcp)[x];
+                        uint16_t t = ((const uint16_t *)srcp2)[x];
+                        imin = VSMIN(imin, v);
+                        imax = VSMAX(imax, v);
+                        acc += v;
+                        diffacc += abs(v - t);
+                    }
+                    srcp += src_stride;
+                    srcp2 += src_stride;
+                }
+                break;
+            case 4:
+                for (y = 0; y < height; y++) {
+                    for (x = 0; x < width; x += sizeof(__m128) / sizeof(float)) {
+                        fms1 = _mm_load_ps((const float *)(srcp + x * sizeof(float)));
+                        fms2 = _mm_load_ps((const float *)(srcp2 + x * sizeof(float)));
+                        fmmax = _mm_max_ps(fmmax, fms1);
+                        fmmin = _mm_min_ps(fmmin, fms1);
+                        fmacc = _mm_add_ps(fmacc, fms1);
+                        fmdiffacc = _mm_add_ps(fmdiffacc, _mm_and_ps(_mm_sub_ps(fms2, fms1), absmask));
+                    }
+                    srcp += src_stride;
+                    srcp2 += src_stride;
+                }
+                fmmax = _mm_max_ps(fmmax, _mm_shuffle_ps(fmmax, fmmax, _MM_SHUFFLE(3, 2, 3, 2)));
+                fmmax = _mm_max_ps(fmmax, _mm_shuffle_ps(fmmax, fmmax, _MM_SHUFFLE(1, 1, 1, 1)));
+                _mm_store_ss(&fmax, fmmax);
+                fmmin = _mm_min_ps(fmmin, _mm_shuffle_ps(fmmin, fmmin, _MM_SHUFFLE(3, 2, 3, 2)));
+                fmmin = _mm_min_ps(fmmin, _mm_shuffle_ps(fmmin, fmmin, _MM_SHUFFLE(1, 1, 1, 1)));
+                _mm_store_ss(&fmin, fmmin);
+                fmacc = _mm_add_ps(fmacc, _mm_shuffle_ps(fmacc, fmacc, _MM_SHUFFLE(3, 2, 3, 2)));
+                fmacc = _mm_add_ps(fmacc, _mm_shuffle_ps(fmacc, fmacc, _MM_SHUFFLE(1, 1, 1, 1)));
+                _mm_store_sd(&facc, _mm_cvtps_pd(fmacc));
+                fmdiffacc = _mm_add_ps(fmdiffacc, _mm_shuffle_ps(fmdiffacc, fmdiffacc, _MM_SHUFFLE(3, 2, 3, 2)));
+                fmdiffacc = _mm_add_ps(fmdiffacc, _mm_shuffle_ps(fmdiffacc, fmdiffacc, _MM_SHUFFLE(1, 1, 1, 1)));
+                _mm_store_sd(&fdiffacc, _mm_cvtps_pd(fmdiffacc));
+                break;
+            }
+        } else {
+            switch (fi->bytesPerSample) {
+            case 1:
+                for (y = 0; y < height; y++) {
+                    for (x = 0; x < width; x += sizeof(__m128i) / sizeof(uint8_t)) {
+                        ms1 = _mm_load_si128((const __m128i *)(srcp + x * sizeof(uint8_t)));
+                        mmax = _mm_max_epu8(mmax, ms1);
+                        mmin = _mm_min_epu8(mmin, ms1);
+                        macc = _mm_add_epi64(macc, _mm_sad_epu8(ms1, _mm_setzero_si128()));
+                    }
+                    srcp += src_stride;
+                }
+                mmax = _mm_max_epu8(mmax, _mm_srli_si128(mmax, 8));
+                mmax = _mm_max_epu8(mmax, _mm_srli_si128(mmax, 4));
+                mmax = _mm_max_epu8(mmax, _mm_srli_si128(mmax, 2));
+                mmax = _mm_max_epu8(mmax, _mm_srli_si128(mmax, 1));
+                imax = (_mm_extract_epi16(mmax, 0) & 0xFF);
+                mmin = _mm_min_epu8(mmin, _mm_srli_si128(mmin, 8));
+                mmin = _mm_min_epu8(mmin, _mm_srli_si128(mmin, 4));
+                mmin = _mm_min_epu8(mmin, _mm_srli_si128(mmin, 2));
+                mmin = _mm_min_epu8(mmin, _mm_srli_si128(mmin, 1));
+                imin = (_mm_extract_epi16(mmin, 0) & 0xFF);
+                macc = _mm_add_epi64(macc, _mm_srli_si128(macc, 8));
+                _mm_storel_epi64((__m128i *)&acc, macc);
+                break;
+            case 2:
+                for (y = 0; y < height; y++) {
+                    for (x = 0; x < width; x++) {
+                        uint16_t v = ((const uint16_t *)srcp)[x];
+                        imin = VSMIN(imin, v);
+                        imax = VSMAX(imax, v);
+                        acc += v;
+                    }
+                    srcp += src_stride;
+                }
+                break;
+            case 4:
+                for (y = 0; y < height; y++) {
+                    for (x = 0; x < width; x += sizeof(__m128) / sizeof(float)) {
+                        fms1 = _mm_load_ps((const float *)(srcp + x * sizeof(float)));
+                        fmmax = _mm_max_ps(fmmax, fms1);
+                        fmmin = _mm_min_ps(fmmin, fms1);
+                        fmacc = _mm_add_ps(fmacc, fms1);
+                    }
+                    srcp += src_stride;
+                }
+                fmmax = _mm_max_ps(fmmax, _mm_shuffle_ps(fmmax, fmmax, _MM_SHUFFLE(3, 2, 3, 2)));
+                fmmax = _mm_max_ps(fmmax, _mm_shuffle_ps(fmmax, fmmax, _MM_SHUFFLE(1, 1, 1, 1)));
+                _mm_store_ss(&fmax, fmmax);
+                fmmin = _mm_min_ps(fmmin, _mm_shuffle_ps(fmmin, fmmin, _MM_SHUFFLE(3, 2, 3, 2)));
+                fmmin = _mm_min_ps(fmmin, _mm_shuffle_ps(fmmin, fmmin, _MM_SHUFFLE(1, 1, 1, 1)));
+                _mm_store_ss(&fmin, fmmin);
+                fmacc = _mm_add_ps(fmacc, _mm_shuffle_ps(fmacc, fmacc, _MM_SHUFFLE(3, 2, 3, 2)));
+                fmacc = _mm_add_ps(fmacc, _mm_shuffle_ps(fmacc, fmacc, _MM_SHUFFLE(1, 1, 1, 1)));
+                _mm_store_sd(&facc, _mm_cvtps_pd(fmacc));
+                break;
+            }
+        }
+#else
         if (src2) {
             const uint8_t *srcp2 = vsapi->getReadPtr(src2, d->plane);
 
@@ -2088,6 +2241,7 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
                 break;
             }
         }
+#endif
 
         VSMap *dstProps = vsapi->getFramePropsRW(dst);
 
@@ -2099,7 +2253,7 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
             vsapi->propSetFloat(dstProps, d->propMax, fmax, paReplace);
         }
 
-        double avg;
+        double avg = 0.0;
         double diff = 0.0;
         if (fi->sampleType == stInteger) {
             avg = acc / (double)(width * height * (((int64_t)1 << fi->bitsPerSample) - 1));
