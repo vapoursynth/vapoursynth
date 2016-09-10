@@ -1017,8 +1017,8 @@ static FORCE_INLINE PixelType generic_3x3I(
     if (op == GenericPrewitt || op == GenericSobel) {
 
         int max_value = params.max_value;
-        float thresh_low = params.thresh_low;
-        float thresh_high = params.thresh_high;
+        float thresh_low = params.thresh_low * (1 << params.rshift);
+        float thresh_high = params.thresh_high * (1 << params.rshift);
 
         int64_t gx, gy;
 
@@ -1033,12 +1033,12 @@ static FORCE_INLINE PixelType generic_3x3I(
         float f = std::sqrt(static_cast<float>(gx * gx + gy * gy));
 
         PixelType g;
-        if (f >= (thresh_high * (1 << params.rshift)))
+        if (f >= thresh_high || f > max_value)
             g = max_value;
-        else if (f <= (thresh_low * (1 << params.rshift)))
+        else if (f <= thresh_low)
             g = 0;
         else
-            g = a22;
+            g = lround(f);
 
         return g;
 
@@ -1165,7 +1165,7 @@ static FORCE_INLINE PixelType generic_3x3F(
         else if (f <= thresh_low)
             g = 0;
         else
-            g = a22;
+            g = f;
 
         return g;
 

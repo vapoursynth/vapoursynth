@@ -1,4 +1,7 @@
 r34:
+fixed sobel and prewitt wrongly passing through the input pixel values
+added support for the new hdr formats in zimg
+optimized planestats
 added float support to pemverifier
 fixes active region offset and height for interlaced resizing
 added support for more different subsampled input formats for vfm (jackoneill)
