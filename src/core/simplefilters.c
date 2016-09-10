@@ -2010,7 +2010,9 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
 #ifdef VS_TARGET_CPU_X86
         __m128i ms1, ms2;
         __m128i macc, mdiffacc, mmax, mmin;
+        __m128i temp;
         __m128i submask = _mm_set1_epi16(0x8000);
+        __m128i uppermask = _mm_set1_epi16(0xFF00);
         __m128 fms1, fms2;
         __m128 fmacc, fmdiffacc, fmmax, fmmin;
         __m128 absmask = _mm_castsi128_ps(_mm_set1_epi32(0x7FFFFFFF));
@@ -2059,17 +2061,34 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
                 break;
             case 2:
                 for (y = 0; y < height; y++) {
-                    for (x = 0; x < width; x++) {
-                        uint16_t v = ((const uint16_t *)srcp)[x];
-                        uint16_t t = ((const uint16_t *)srcp2)[x];
-                        imin = VSMIN(imin, v);
-                        imax = VSMAX(imax, v);
-                        acc += v;
-                        diffacc += abs(v - t);
+                    for (x = 0; x < width; x += sizeof(__m128i) / sizeof(uint16_t)) {
+                        ms1 = _mm_load_si128((const __m128i *)(srcp + x * sizeof(uint16_t)));
+                        ms2 = _mm_load_si128((const __m128i *)(srcp2 + x * sizeof(uint16_t)));
+                        temp = _mm_or_si128(_mm_subs_epu16(ms1, ms2), _mm_subs_epu16(ms2, ms1));
+                        mmax = _mm_max_epi16(mmax, _mm_sub_epi16(ms1, submask));
+                        mmin = _mm_min_epi16(mmin, _mm_sub_epi16(ms1, submask));
+                        macc = _mm_add_epi64(macc, _mm_sad_epu8(_mm_andnot_si128(uppermask, ms1), _mm_setzero_si128()));
+                        macc = _mm_add_epi64(macc, _mm_slli_si128(_mm_sad_epu8(_mm_and_si128(uppermask, ms1), _mm_setzero_si128()), 2));
+                        mdiffacc = _mm_add_epi64(mdiffacc, _mm_sad_epu8(_mm_andnot_si128(uppermask, temp), _mm_setzero_si128()));
+                        mdiffacc = _mm_add_epi64(mdiffacc, _mm_slli_si128(_mm_sad_epu8(_mm_and_si128(uppermask, temp), _mm_setzero_si128()), 2));
                     }
                     srcp += src_stride;
                     srcp2 += src_stride;
                 }
+                mmax = _mm_max_epi16(mmax, _mm_srli_si128(mmax, 8));
+                mmax = _mm_max_epi16(mmax, _mm_srli_si128(mmax, 4));
+                mmax = _mm_max_epi16(mmax, _mm_srli_si128(mmax, 2));
+                mmax = _mm_add_epi16(mmax, submask);
+                imax = _mm_extract_epi16(mmax, 0);
+                mmin = _mm_min_epi16(mmin, _mm_srli_si128(mmin, 8));
+                mmin = _mm_min_epi16(mmin, _mm_srli_si128(mmin, 4));
+                mmin = _mm_min_epi16(mmin, _mm_srli_si128(mmin, 2));
+                mmin = _mm_add_epi16(mmin, submask);
+                imin = _mm_extract_epi16(mmin, 0);
+                macc = _mm_add_epi64(macc, _mm_srli_si128(macc, 8));
+                mdiffacc = _mm_add_epi64(mdiffacc, _mm_srli_si128(mdiffacc, 8));
+                _mm_storel_epi64((__m128i *)&acc, macc);
+                _mm_storel_epi64((__m128i *)&diffacc, mdiffacc);
                 break;
             case 4:
                 for (y = 0; y < height; y++) {
@@ -2125,14 +2144,27 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
                 break;
             case 2:
                 for (y = 0; y < height; y++) {
-                    for (x = 0; x < width; x++) {
-                        uint16_t v = ((const uint16_t *)srcp)[x];
-                        imin = VSMIN(imin, v);
-                        imax = VSMAX(imax, v);
-                        acc += v;
+                    for (x = 0; x < width; x += sizeof(__m128i) / sizeof(uint16_t)) {
+                        ms1 = _mm_load_si128((const __m128i *)(srcp + x * sizeof(uint16_t)));
+                        mmax = _mm_max_epi16(mmax, _mm_sub_epi16(ms1, submask));
+                        mmin = _mm_min_epi16(mmin, _mm_sub_epi16(ms1, submask));
+                        macc = _mm_add_epi64(macc, _mm_sad_epu8(_mm_andnot_si128(uppermask, ms1), _mm_setzero_si128()));
+                        macc = _mm_add_epi64(macc, _mm_slli_si128(_mm_sad_epu8(_mm_and_si128(uppermask, ms1), _mm_setzero_si128()), 2));
                     }
                     srcp += src_stride;
                 }
+                mmax = _mm_max_epi16(mmax, _mm_srli_si128(mmax, 8));
+                mmax = _mm_max_epi16(mmax, _mm_srli_si128(mmax, 4));
+                mmax = _mm_max_epi16(mmax, _mm_srli_si128(mmax, 2));
+                mmax = _mm_add_epi16(mmax, submask);
+                imax = _mm_extract_epi16(mmax, 0);
+                mmin = _mm_min_epi16(mmin, _mm_srli_si128(mmin, 8));
+                mmin = _mm_min_epi16(mmin, _mm_srli_si128(mmin, 4));
+                mmin = _mm_min_epi16(mmin, _mm_srli_si128(mmin, 2));
+                mmin = _mm_add_epi16(mmin, submask);
+                imin = _mm_extract_epi16(mmin, 0);
+                macc = _mm_add_epi64(macc, _mm_srli_si128(macc, 8));
+                _mm_storel_epi64((__m128i *)&acc, macc);
                 break;
             case 4:
                 for (y = 0; y < height; y++) {
