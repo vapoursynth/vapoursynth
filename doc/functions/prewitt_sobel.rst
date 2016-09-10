@@ -1,7 +1,7 @@
 Prewitt/Sobel
 ===================
 
-.. function:: Prewitt(clip clip[, float min=0.0, float max, int[] planes=[0, 1, 2], int rshift=0])
+.. function:: Prewitt(clip clip[, float min=0.0, float max, int[] planes=[0, 1, 2], float scale=1])
    :module: std
 
    Creates an edge mask using the Prewitt operator.
@@ -33,10 +33,7 @@ Prewitt/Sobel
       Specifies which planes will be processed. Any unprocessed planes
       will be simply copied.
 
-   *rshift*
-      Deprecated as of R33. Simply multiply the *min* and *max* thresholds
-      instead.
-      
-      Before comparing with *min* and *max*, output pixels can be shifted
-      to the right by *rshift* bits. In other words, they can be divided
-      by ``2 ** rshift``.
+   *scale*
+      Multiply all pixels by scale before outputting. This can be used to
+      increase or decrease the intensity of edges in the output. The test
+      against *min* and *max* is applied after this operation.

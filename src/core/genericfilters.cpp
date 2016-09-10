@@ -81,7 +81,7 @@ struct GenericData {
     // Prewitt, Sobel.
     float thresh_low;
     float thresh_high;
-    int rshift;
+    float scale;
 
     // Minimum, Maximum, Deflate, Inflate.
     uint16_t th;
@@ -944,7 +944,7 @@ struct GenericPlaneParams {
     // Prewitt, Sobel.
     float thresh_low;
     float thresh_high;
-    unsigned rshift;
+    float scale;
 
     // Minimum, Maximum, Deflate, Inflate.
     uint16_t th;
@@ -966,7 +966,7 @@ struct GenericPlaneParams {
 
         thresh_low = params->thresh_low;
         thresh_high = params->thresh_high;
-        rshift = params->rshift;
+        scale = params->scale;
 
         th = params->th;
         thf = params->thf;
@@ -1017,8 +1017,9 @@ static FORCE_INLINE PixelType generic_3x3I(
     if (op == GenericPrewitt || op == GenericSobel) {
 
         int max_value = params.max_value;
-        float thresh_low = params.thresh_low * (1 << params.rshift);
-        float thresh_high = params.thresh_high * (1 << params.rshift);
+        float thresh_low = params.thresh_low;
+        float thresh_high = params.thresh_high;
+        float scale = params.scale;
 
         int64_t gx, gy;
 
@@ -1030,7 +1031,7 @@ static FORCE_INLINE PixelType generic_3x3I(
             gy = a13 + 2 * a23 + a33 - a11 - 2 * a21 - a31;
         }
 
-        float f = std::sqrt(static_cast<float>(gx * gx + gy * gy));
+        float f = std::sqrt(static_cast<float>(gx * gx + gy * gy)) * scale;
 
         PixelType g;
         if (f >= thresh_high || f > max_value)
@@ -1146,6 +1147,7 @@ static FORCE_INLINE PixelType generic_3x3F(
 
         float thresh_low = params.thresh_low;
         float thresh_high = params.thresh_high;
+        float scale = params.scale;
 
         float gx, gy;
 
@@ -1157,11 +1159,11 @@ static FORCE_INLINE PixelType generic_3x3F(
             gy = a13 + 2 * a23 + a33 - a11 - 2 * a21 - a31;
         }
 
-        float f = std::sqrt(static_cast<float>(gx * gx + gy * gy));
+        float f = std::sqrt(static_cast<float>(gx * gx + gy * gy)) * scale;
 
         PixelType g;
         if (f >= thresh_high)
-            g = 1.f; // fixme, should have some kind of max value shit? or set value?
+            g = 1.f;
         else if (f <= thresh_low)
             g = 0;
         else
@@ -2172,10 +2174,12 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
             if (d->thresh_high < 0)
                 throw std::string("max must be a positive number.");
 
-            d->rshift = int64ToIntS(vsapi->propGetInt(in, "rshift", 0, &err));
+            d->scale = vsapi->propGetFloat(in, "scale", 0, &err);
+            if (err)
+                d->scale = 1.0f;
 
-            if (d->rshift < 0)
-                throw std::string("rshift must not be negative.");
+            if (d->scale < 0)
+                throw std::string("scale must not be negative.");
         }
 
         if (op == GenericConvolution) {
@@ -2573,7 +2577,7 @@ void VS_CC genericInitialize(VSConfigPlugin configFunc, VSRegisterFunction regis
             "min:float:opt;"
             "max:float:opt;"
             "planes:int[]:opt;"
-            "rshift:int:opt;"
+            "scale:float:opt;"
             , genericCreate<GenericPrewitt>, const_cast<char *>("Prewitt"), plugin);
 
     registerFunc("Sobel",
@@ -2581,7 +2585,7 @@ void VS_CC genericInitialize(VSConfigPlugin configFunc, VSRegisterFunction regis
             "min:float:opt;"
             "max:float:opt;"
             "planes:int[]:opt;"
-            "rshift:int:opt;"
+            "scale:float:opt;"
             , genericCreate<GenericSobel>, const_cast<char *>("Sobel"), plugin);
 
     registerFunc("Invert",
