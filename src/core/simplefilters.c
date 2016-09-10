@@ -2068,9 +2068,9 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
                         mmax = _mm_max_epi16(mmax, _mm_sub_epi16(ms1, submask));
                         mmin = _mm_min_epi16(mmin, _mm_sub_epi16(ms1, submask));
                         macc = _mm_add_epi64(macc, _mm_sad_epu8(_mm_andnot_si128(uppermask, ms1), _mm_setzero_si128()));
-                        macc = _mm_add_epi64(macc, _mm_slli_si128(_mm_sad_epu8(_mm_and_si128(uppermask, ms1), _mm_setzero_si128()), 2));
+                        macc = _mm_add_epi64(macc, _mm_slli_si128(_mm_sad_epu8(_mm_and_si128(uppermask, ms1), _mm_setzero_si128()), 1));
                         mdiffacc = _mm_add_epi64(mdiffacc, _mm_sad_epu8(_mm_andnot_si128(uppermask, temp), _mm_setzero_si128()));
-                        mdiffacc = _mm_add_epi64(mdiffacc, _mm_slli_si128(_mm_sad_epu8(_mm_and_si128(uppermask, temp), _mm_setzero_si128()), 2));
+                        mdiffacc = _mm_add_epi64(mdiffacc, _mm_slli_si128(_mm_sad_epu8(_mm_and_si128(uppermask, temp), _mm_setzero_si128()), 1));
                     }
                     srcp += src_stride;
                     srcp2 += src_stride;
@@ -2149,7 +2149,7 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
                         mmax = _mm_max_epi16(mmax, _mm_sub_epi16(ms1, submask));
                         mmin = _mm_min_epi16(mmin, _mm_sub_epi16(ms1, submask));
                         macc = _mm_add_epi64(macc, _mm_sad_epu8(_mm_andnot_si128(uppermask, ms1), _mm_setzero_si128()));
-                        macc = _mm_add_epi64(macc, _mm_slli_si128(_mm_sad_epu8(_mm_and_si128(uppermask, ms1), _mm_setzero_si128()), 2));
+                        macc = _mm_add_epi64(macc, _mm_slli_si128(_mm_sad_epu8(_mm_and_si128(uppermask, ms1), _mm_setzero_si128()), 1));
                     }
                     srcp += src_stride;
                 }
