@@ -63,6 +63,8 @@ Linux and OS X Compilation Instructions
 These are the requirements:
    * Autoconf, Automake, and Libtool, probably recent versions
 
+   * pkg-config
+
    * GCC 4.8 or newer, or Clang
 
    * Yasm
