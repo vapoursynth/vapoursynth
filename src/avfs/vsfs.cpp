@@ -382,7 +382,7 @@ const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) 
         FraSuspend();
 
         lastPosition = -1;
-        lastFrame = 0;
+        lastFrame = nullptr;
 
         if (node) {
             char errMsg[512];

@@ -1320,6 +1320,7 @@ bool/*success*/ AvfsAvi2File::GetFrameData(
               ASSERT(size == 0);
           }
       }
+      vssynther->GetVSApi()->freeFrame(frame);
   } else {
       PVideoFrame frame = avssynther->GetFrame(log, n, &success);
       if (success) {
