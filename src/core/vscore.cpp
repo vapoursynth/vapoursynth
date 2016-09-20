@@ -1162,6 +1162,8 @@ void VSCore::freeCore() {
         vsFatal("Double free of core");
     coreFreed = true;
     // Release the extra filter instance that always keeps the core alive
+    if (numFilterInstances > 1)
+        vsWarning("Core freed but %d filter instances still exist", numFilterInstances - 1);
     filterInstanceDestroyed();
 }
 
