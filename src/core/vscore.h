@@ -578,7 +578,7 @@ struct VSCore {
 private:
     //number of filter instances plus one, freeing the core reduces it by one
     // the core will be freed once it reaches 0
-    std::atomic<bool> coreFreed;
+    bool coreFreed;
     std::atomic<int> numFilterInstances; 
 
     std::map<std::string, VSPlugin *> plugins;
