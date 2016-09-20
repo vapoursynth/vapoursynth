@@ -1,4 +1,5 @@
 r34:
+fixed memory leak when the core is freed introduced in the previous version 
 fixed memory leak in avfs introduced in the previous version
 removed rshift and replaced it with a scale argument in sobel and prewitt
 fixed sobel and prewitt wrongly passing through the input pixel values

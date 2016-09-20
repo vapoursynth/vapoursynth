@@ -995,6 +995,7 @@ void VSCore::destroyFilterInstance(VSNode *node) {
             nodeFreeList = current->next;
             current->free(current->instanceData, this, &vs_internal_vsapi);
             delete current;
+            filterInstanceDestroyed();
         }
     }
 
