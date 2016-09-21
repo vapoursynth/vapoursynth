@@ -12,11 +12,11 @@ en.vcredist2015_size_x64=14.6 MB
 
 [Code]
 const
-	vcredist2015_url = 'http://download.microsoft.com/download/9/a/2/9a2a7e36-a8af-46c0-8a78-a5eb111eefe2/vc_redist.x86.exe';
-	vcredist2015_url_x64 = 'http://download.microsoft.com/download/2/a/2/2a2ef9ab-1b4b-49f0-9131-d33f79544e70/vc_redist.x64.exe';
+	vcredist2015_url = 'http://download.microsoft.com/download/6/A/A/6AA4EDFF-645B-48C5-81CC-ED5963AEAD48/vc_redist.x86.exe';
+	vcredist2015_url_x64 = 'http://download.microsoft.com/download/6/A/A/6AA4EDFF-645B-48C5-81CC-ED5963AEAD48/vc_redist.x64.exe';
 
-	vcredist2015_productcode = '{844ECB74-9B63-3D5C-958C-30BD23F19EE4}';
-	vcredist2015_productcode_x64 = '{F20396E5-D84E-3505-A7A8-7358F0155F6C}';
+	vcredist2015_productcode = '{69BCE4AC-9572-3271-A2FB-9423BDA36A43}';
+	vcredist2015_productcode_x64 = '{EF1EC6A9-17DE-3DA9-B040-686A1E8A8B04}';
 
 procedure vcredist2015();
 begin
