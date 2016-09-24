@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2015 Fredrik Mellbin
+* Copyright (c) 2012-2016 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -23,7 +23,126 @@
 #include "filtershared.h"
 #include <stdlib.h>
 
-#define CLAMP(value, lower, upper) do { if (value < lower) value = lower; else if (value > upper) value = upper; } while(0)
+#define CLAMP(value, lower, upper) min(max(value, lower), upper)
+
+//////////////////////////////////////////
+// PreMultiply
+
+typedef struct {
+    VSNodeRef *node1;
+    VSNodeRef *node2;
+    const VSVideoInfo *vi;
+    int process[3];
+} PreMultiplyData;
+
+static void VS_CC preMultiplyInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
+    PreMultiplyData *d = (PreMultiplyData *)*instanceData;
+    vsapi->setVideoInfo(d->vi, 1, node);
+}
+
+static const VSFrameRef *VS_CC preMultiplyGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    PreMultiplyData *d = (PreMultiplyData *)*instanceData;
+
+    if (activationReason == arInitial) {
+        vsapi->requestFrameFilter(n, d->node1, frameCtx);
+        vsapi->requestFrameFilter(n, d->node2, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        const VSFrameRef *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
+        const VSFrameRef *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
+        const int pl[] = { 0, 1, 2 };
+        const VSFrameRef *fs[] = { 0, src1, src2 };
+        const VSFrameRef *fr[] = { fs[d->process[0]], fs[d->process[1]], fs[d->process[2]] };
+        VSFrameRef *dst = vsapi->newVideoFrame2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
+        for (int plane = 0; plane < d->vi->format->numPlanes; plane++) {
+            if (d->process[plane] == 0) {
+                int h = vsapi->getFrameHeight(src1, plane);
+                int w = vsapi->getFrameWidth(src2, plane);
+                int stride = vsapi->getStride(src1, plane);
+                const uint8_t *srcp1 = vsapi->getReadPtr(src1, plane);
+                const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
+                uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
+
+                if (d->vi->format->sampleType == stInteger) {
+                    if (d->vi->format->bytesPerSample == 1) {
+                        for (int y = 0; y < h; y++) {
+                            for (int x = 0; x < w; x++)
+                                dstp[x] = ((srcp1[x] * (((srcp2[x] >> 1) & 1) + srcp2[x])) + 128) >> 8;
+                            srcp1 += stride;
+                            srcp2 += stride;
+                            dstp += stride;
+                        }
+                    } else if (d->vi->format->bytesPerSample == 2) {
+                        const unsigned shift = d->vi->format->bitsPerSample;
+                        const unsigned round = 1 << (shift - 1);
+                        for (int y = 0; y < h; y++) {
+                            for (int x = 0; x < w; x++)
+                                ((uint16_t *)dstp)[x] = ((((const uint16_t *)srcp1)[x] * (((((const uint16_t *)srcp2)[x] >> 1) & 1) + ((const uint16_t *)srcp2)[x])) + round) >> shift;
+                            srcp1 += stride;
+                            srcp2 += stride;
+                            dstp += stride;
+                        }
+                    }
+                } else if (d->vi->format->sampleType == stFloat) {
+                    if (d->vi->format->bytesPerSample == 4) {
+                        for (int y = 0; y < h; y++) {
+                            for (int x = 0; x < w; x++)
+                                ((float *)dstp)[x] = ((const float *)srcp1)[x] * ((const float *)srcp2)[x];
+                            srcp1 += stride;
+                            srcp2 += stride;
+                            dstp += stride;
+                        }
+                    }
+                }
+            }
+        }
+
+        vsapi->freeFrame(src1);
+        vsapi->freeFrame(src2);
+        return dst;
+    }
+
+    return 0;
+}
+
+static void VS_CC preMultiplyFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+    PreMultiplyData *d = (PreMultiplyData *)instanceData;
+    vsapi->freeNode(d->node1);
+    vsapi->freeNode(d->node2);
+    free(d);
+}
+
+static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    PreMultiplyData d;
+    PreMultiplyData *data;
+
+    d.node1 = vsapi->propGetNode(in, "clip", 0, 0);
+    d.node2 = vsapi->propGetNode(in, "alpha", 0, 0);
+    d.vi = vsapi->getVideoInfo(d.node1);
+
+    if (isCompatFormat(d.vi) || isCompatFormat(vsapi->getVideoInfo(d.node2))) {
+        vsapi->freeNode(d.node1);
+        vsapi->freeNode(d.node2);
+        RETERROR("PreMultiply: compat formats are not supported");
+    }
+
+    if (!isConstantFormat(d.vi) || !isSameFormat(d.vi, vsapi->getVideoInfo(d.node2))) {
+        vsapi->freeNode(d.node1);
+        vsapi->freeNode(d.node2);
+        RETERROR("PreMultiply: both clips must have constant format and dimensions, and the same format and dimensions");
+    }
+
+    if ((d.vi->format->sampleType == stInteger && d.vi->format->bytesPerSample != 1 && d.vi->format->bytesPerSample != 2)
+        || (d.vi->format->sampleType == stFloat && d.vi->format->bytesPerSample != 4)) {
+        vsapi->freeNode(d.node1);
+        vsapi->freeNode(d.node2);
+        RETERROR("PreMultiply: only 8-16 bit integer and 32 bit float input supported");
+    }
+
+    data = malloc(sizeof(d));
+    *data = d;
+
+    vsapi->createFilter(in, out, "PreMultiply", preMultiplyInit, preMultiplyGetFrame, preMultiplyFree, fmParallel, 0, data, core);
+}
 
 //////////////////////////////////////////
 // Merge
@@ -212,6 +331,7 @@ typedef struct {
     VSNodeRef *node2;
     VSNodeRef *mask;
     VSNodeRef *mask23;
+    int premultiplied;
     int first_plane;
     int process[3];
 } MaskedMergeData;
@@ -250,42 +370,91 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
                 const uint8_t *maskp = vsapi->getReadPtr((plane && mask23) ? mask23 : mask, d->first_plane ? 0 : plane);
                 uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
 
-                if (d->vi->format->sampleType == stInteger) {
-                    if (d->vi->format->bytesPerSample == 1) {
-#ifdef VS_TARGET_CPU_X86
-                        vs_masked_merge_uint8_sse2(srcp1, srcp2, maskp, dstp, stride, h);
-#else
-                        for (int y = 0; y < h; y++) {
-                            for (int x = 0; x < w; x++)
-                                dstp[x] = srcp1[x] + (((srcp2[x] - srcp1[x]) * (maskp[x] > 2 ? maskp[x] + 1 : maskp[x]) + 128) >> 8);
-                            srcp1 += stride;
-                            srcp2 += stride;
-                            maskp += stride;
-                            dstp += stride;
+                if (d->premultiplied) {
+                    if (d->vi->format->sampleType == stInteger) {
+                        if (d->vi->format->bytesPerSample == 1) {
+                            for (int y = 0; y < h; y++) {
+                                for (int x = 0; x < w; x++) {
+                                    int temp = srcp2[x] + (((256 - (((maskp[x] >> 1) & 1) + maskp[x])) * srcp1[x] + 128) >> 8);
+                                    dstp[x] = min(temp, 255);
+                                }
+                                srcp1 += stride;
+                                srcp2 += stride;
+                                maskp += stride;
+                                dstp += stride;
+                            }
+                        } else if (d->vi->format->bytesPerSample == 2) {
+                            const unsigned shift = d->vi->format->bitsPerSample;
+                            const unsigned maxplusone = 1 << shift;
+                            const int maxv = maxplusone - 1;
+                            const unsigned round = 1 << (shift - 1);
+                            for (int y = 0; y < h; y++) {
+                                for (int x = 0; x < w; x++) {
+                                    uint16_t s1 = ((const uint16_t *)srcp1)[x];
+                                    uint16_t s2 = ((const uint16_t *)srcp2)[x];
+                                    uint16_t m = ((const uint16_t *)maskp)[x];
+                                    int temp = s2 + (((maxplusone - (((m >> 1) & 1) + m)) * s1 + round) >> shift);                            
+                                    ((uint16_t *)dstp)[x] = min(temp, maxv);
+                                }
+                                srcp1 += stride;
+                                srcp2 += stride;
+                                maskp += stride;
+                                dstp += stride;
+                            }
                         }
-#endif
-                    } else if (d->vi->format->bytesPerSample == 2) {
-                        const unsigned shift = d->vi->format->bitsPerSample;
-                        const unsigned round = 1 << (shift - 1);
-                        for (int y = 0; y < h; y++) {
-                            for (int x = 0; x < w; x++)
-                                ((uint16_t *)dstp)[x] = ((const uint16_t *)srcp1)[x] + (((((const uint16_t *)srcp2)[x]
-                                    - ((const uint16_t *)srcp1)[x]) * (((const uint16_t *)maskp)[x] > 2 ? ((const uint16_t *)maskp)[x] + 1 : ((const uint16_t *)maskp)[x]) + round) >> shift);
-                            srcp1 += stride;
-                            srcp2 += stride;
-                            maskp += stride;
-                            dstp += stride;
+                    } else if (d->vi->format->sampleType == stFloat) {
+                        if (d->vi->format->bytesPerSample == 4) {
+                            for (int y = 0; y < h; y++) {
+                                for (int x = 0; x < w; x++)
+                                    ((float *)dstp)[x] = ((const float *)srcp2)[x] + (((const float *)srcp1)[x] * (1.f - ((const float *)maskp)[x]));
+                                srcp1 += stride;
+                                srcp2 += stride;
+                                maskp += stride;
+                                dstp += stride;
+                            }
                         }
                     }
-                } else if (d->vi->format->sampleType == stFloat) {
-                    if (d->vi->format->bytesPerSample == 4) {
-                        for (int y = 0; y < h; y++) {
-                            for (int x = 0; x < w; x++)
-                                ((float *)dstp)[x] = ((const float *)srcp1)[x] + ((((const float *)srcp2)[x] - ((const float *)srcp1)[x]) * ((const float *)maskp)[x]);
-                            srcp1 += stride;
-                            srcp2 += stride;
-                            maskp += stride;
-                            dstp += stride;
+                } else {
+                    if (d->vi->format->sampleType == stInteger) {
+                        if (d->vi->format->bytesPerSample == 1) {
+#ifdef VS_TARGET_CPU_X86
+                            vs_masked_merge_uint8_sse2(srcp1, srcp2, maskp, dstp, stride, h);
+#else
+                            for (int y = 0; y < h; y++) {
+                                for (int x = 0; x < w; x++)
+                                    dstp[x] = srcp1[x] + (((srcp2[x] - srcp1[x]) * (((maskp[x] >> 1) & 1) + maskp[x]) + 128) >> 8);
+                                srcp1 += stride;
+                                srcp2 += stride;
+                                maskp += stride;
+                                dstp += stride;
+                            }
+#endif
+                        } else if (d->vi->format->bytesPerSample == 2) {
+                            const unsigned shift = d->vi->format->bitsPerSample;
+                            const unsigned round = 1 << (shift - 1);
+                            for (int y = 0; y < h; y++) {
+                                for (int x = 0; x < w; x++) {
+                                    uint16_t s1 = ((const uint16_t *)srcp1)[x];
+                                    uint16_t s2 = ((const uint16_t *)srcp2)[x];
+                                    uint16_t m = ((const uint16_t *)maskp)[x];
+                                    ((uint16_t *)dstp)[x] = s1 + (((s2 - s1) * (((m >> 1) & 1) + m) + round) >> shift);
+                                }
+                                srcp1 += stride;
+                                srcp2 += stride;
+                                maskp += stride;
+                                dstp += stride;
+                            }
+                        }
+                    } else if (d->vi->format->sampleType == stFloat) {
+                        if (d->vi->format->bytesPerSample == 4) {
+                            for (int y = 0; y < h; y++) {
+                                for (int x = 0; x < w; x++)
+                                    ((float *)dstp)[x] = ((const float *)srcp1)[x] + ((((const float *)srcp2)[x] - ((const float *)srcp1)[x]) * ((const float *)maskp)[x]);
+                                srcp1 += stride;
+                                srcp2 += stride;
+                                maskp += stride;
+                                dstp += stride;
+                            }
                         }
                     }
                 }
@@ -317,7 +486,6 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
     const VSVideoInfo *maskvi;
     int err;
     int m, n, o, i;
-    VSMap *mout, *min;
 
     d.mask23 = 0;
     d.node1 = vsapi->propGetNode(in, "clipa", 0, 0);
@@ -326,6 +494,7 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
     d.vi = vsapi->getVideoInfo(d.node1);
     maskvi = vsapi->getVideoInfo(d.mask);
     d.first_plane = !!vsapi->propGetInt(in, "first_plane", 0, &err);
+    d.premultiplied = !!vsapi->propGetInt(in, "premultiplied", 0, &err);
     // always use the first mask plane for all planes when it is the only one
     if (maskvi->format->numPlanes == 1)
         d.first_plane = 1;
@@ -388,11 +557,11 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
 
     // do we need to resample the first mask plane and use it for all the planes?
     if ((d.first_plane && d.vi->format->numPlanes > 1) && (d.vi->format->subSamplingH > 0 || d.vi->format->subSamplingW > 0) && (d.process[1] || d.process[2])) {
-        min = vsapi->createMap();
+        VSMap *min = vsapi->createMap();
         vsapi->propSetNode(min, "clip", d.mask, paAppend);
         vsapi->propSetInt(min, "width", d.vi->width >> d.vi->format->subSamplingW, paAppend);
         vsapi->propSetInt(min, "height", d.vi->height >> d.vi->format->subSamplingH, paAppend);
-        mout = vsapi->invoke(vsapi->getPluginById("com.vapoursynth.resize", core), "Bilinear", min);
+        VSMap *mout = vsapi->invoke(vsapi->getPluginById("com.vapoursynth.resize", core), "Bilinear", min);
         d.mask23 = vsapi->propGetNode(mout, "clip", 0, 0);
         vsapi->freeMap(mout);
         vsapi->freeMap(min);
@@ -452,8 +621,7 @@ static const VSFrameRef *VS_CC makeDiffGetFrame(int n, int activationReason, voi
                         for (int y = 0; y < h; y++) {
                             for (int x = 0; x < w; x++) {
                                 int temp = srcp1[x] - srcp2[x] + 128;
-                                CLAMP(temp, 0, 255);
-                                dstp[x] = temp;
+                                dstp[x] = CLAMP(temp, 0, 255);
                             }
                             srcp1 += stride;
                             srcp2 += stride;
@@ -465,9 +633,8 @@ static const VSFrameRef *VS_CC makeDiffGetFrame(int n, int activationReason, voi
                         const int maxvalue = (1 << d->vi->format->bitsPerSample) - 1;
                         for (int y = 0; y < h; y++) {
                             for (int x = 0; x < w; x++) {
-                                int temp = ((const uint16_t *)srcp1)[x] - ((const uint16_t *)srcp2)[x] + halfpoint;
-                                CLAMP(temp, 0, maxvalue);
-                                ((uint16_t *)dstp)[x] = temp;
+                                int temp = ((const uint16_t *)srcp1)[x] - ((const uint16_t *)srcp2)[x] + halfpoint;                           
+                                ((uint16_t *)dstp)[x] = CLAMP(temp, 0, maxvalue);
                             }
                             srcp1 += stride;
                             srcp2 += stride;
@@ -476,29 +643,14 @@ static const VSFrameRef *VS_CC makeDiffGetFrame(int n, int activationReason, voi
                     }
                 } else if (d->vi->format->sampleType == stFloat) {
                     if (d->vi->format->bytesPerSample == 4) {
-                        if (plane == 0 || d->vi->format->colorFamily == cmRGB) {
+
                             for (int y = 0; y < h; y++) {
-                                for (int x = 0; x < w; x++) {
-                                    float temp = ((const float *)srcp1)[x] - ((const float *)srcp2)[x] + 0.5f;
-                                    CLAMP(temp, 0, 1);
-                                    ((float *)dstp)[x] = temp;
-                                }
+                                for (int x = 0; x < w; x++)
+                                    ((float *)dstp)[x] = ((const float *)srcp1)[x] - ((const float *)srcp2)[x];
                                 srcp1 += stride;
                                 srcp2 += stride;
                                 dstp += stride;
                             }
-                        } else {
-                            for (int y = 0; y < h; y++) {
-                                for (int x = 0; x < w; x++) {
-                                    float temp = ((const float *)srcp1)[x] - ((const float *)srcp2)[x];
-                                    CLAMP(temp, -0.5f, 0.5f);
-                                    ((float *)dstp)[x] = temp;
-                                }
-                                srcp1 += stride;
-                                srcp2 += stride;
-                                dstp += stride;
-                            }
-                        }
                     }
                 }
             }
@@ -625,8 +777,7 @@ static const VSFrameRef *VS_CC mergeDiffGetFrame(int n, int activationReason, vo
                         for (int y = 0; y < h; y++) {
                             for (int x = 0; x < w; x++) {
                                 int temp = srcp1[x] + srcp2[x] - 128;
-                                CLAMP(temp, 0, 255);
-                                dstp[x] = temp;
+                                dstp[x] = CLAMP(temp, 0, 255);
                             }
                             srcp1 += stride;
                             srcp2 += stride;
@@ -639,8 +790,7 @@ static const VSFrameRef *VS_CC mergeDiffGetFrame(int n, int activationReason, vo
                         for (int y = 0; y < h; y++) {
                             for (int x = 0; x < w; x++) {
                                 int temp = ((const uint16_t *)srcp1)[x] + ((const uint16_t *)srcp2)[x] - halfpoint;
-                                CLAMP(temp, 0, maxvalue);
-                                ((uint16_t *)dstp)[x] = temp;
+                                ((uint16_t *)dstp)[x] = CLAMP(temp, 0, maxvalue);
                             }
                             srcp1 += stride;
                             srcp2 += stride;
@@ -649,28 +799,14 @@ static const VSFrameRef *VS_CC mergeDiffGetFrame(int n, int activationReason, vo
                     }
                 } else if (d->vi->format->sampleType == stFloat) {
                     if (d->vi->format->bytesPerSample == 4) {
-                        if (plane == 0 || d->vi->format->colorFamily == cmRGB) {
-                            for (int y = 0; y < h; y++) {
-                                for (int x = 0; x < w; x++) {
-                                    float temp = ((const float *)srcp1)[x] + ((const float *)srcp2)[x] - 0.5f;
-                                    CLAMP(temp, 0, 1);
-                                    ((float *)dstp)[x] = temp;
-                                }
-                                srcp1 += stride;
-                                srcp2 += stride;
-                                dstp += stride;
+                        for (int y = 0; y < h; y++) {
+                            for (int x = 0; x < w; x++) {
+                                float temp = ((const float *)srcp1)[x] + ((const float *)srcp2)[x];
+                                ((float *)dstp)[x] = temp;
                             }
-                        } else {
-                            for (int y = 0; y < h; y++) {
-                                for (int x = 0; x < w; x++) {
-                                    float temp = ((const float *)srcp1)[x] + ((const float *)srcp2)[x];
-                                    CLAMP(temp, -0.5f, 0.5f);
-                                    ((float *)dstp)[x] = temp;
-                                }
-                                srcp1 += stride;
-                                srcp2 += stride;
-                                dstp += stride;
-                            }
+                            srcp1 += stride;
+                            srcp2 += stride;
+                            dstp += stride;
                         }
                     }
                 }
@@ -754,8 +890,9 @@ static void VS_CC mergeDiffCreate(const VSMap *in, VSMap *out, void *userData, V
 
 void VS_CC mergeInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     //configFunc("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 1, plugin);
+    registerFunc("PreMultiply", "clip:clip;alpha:clip;", preMultiplyCreate, 0, plugin);
     registerFunc("Merge", "clipa:clip;clipb:clip;weight:float[]:opt;", mergeCreate, 0, plugin);
-    registerFunc("MaskedMerge", "clipa:clip;clipb:clip;mask:clip;planes:int[]:opt;first_plane:int:opt;", maskedMergeCreate, 0, plugin);
+    registerFunc("MaskedMerge", "clipa:clip;clipb:clip;mask:clip;planes:int[]:opt;first_plane:int:opt;premultiplied:int:opt;", maskedMergeCreate, 0, plugin);
     registerFunc("MakeDiff", "clipa:clip;clipb:clip;planes:int[]:opt;", makeDiffCreate, 0, plugin);
     registerFunc("MergeDiff", "clipa:clip;clipb:clip;planes:int[]:opt;", mergeDiffCreate, 0, plugin);
 }

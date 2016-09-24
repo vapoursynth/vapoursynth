@@ -1,7 +1,7 @@
 MaskedMerge
 ===========
 
-.. function::   MaskedMerge(clip clipa, clip clipb, clip mask[, int[] planes, bint first_plane=0])
+.. function::   MaskedMerge(clip clipa, clip clipb, clip mask[, int[] planes, bint first_plane=0, bint premultiplied=0])
    :module: std
 
    MaskedMerge merges *clipa* with *clipb* using the per pixel weights in the *mask*,
@@ -9,6 +9,9 @@ MaskedMerge
    If *mask* is a grayscale clip or if *first_plane* is true, the mask's first
    plane will be used as the mask for merging all planes. The mask will be
    bilinearly resized if necessary.
+   
+   If *premultiplied* is set the blending is performed as if *clipb* has been pre-multiplied
+   with alpha.
 
    By default all planes will be
    processed, but it is also possible to specify a list of the *planes* to merge
