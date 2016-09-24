@@ -62,31 +62,58 @@ static const VSFrameRef *VS_CC preMultiplyGetFrame(int n, int activationReason, 
             const uint8_t *srcp1 = vsapi->getReadPtr(src1, plane);
             const uint8_t *srcp2 = vsapi->getReadPtr(plane > 0 ? src2_23 : src2, 0);
             uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
+            int yuvhandling = (plane > 0) && (d->vi->format->colorFamily == cmYUV || d->vi->format->colorFamily == cmYCoCg);
 
             if (d->vi->format->sampleType == stInteger) {
                 if (d->vi->format->bytesPerSample == 1) {
-                    for (int y = 0; y < h; y++) {
-                        for (int x = 0; x < w; x++) {
-                            unsigned s1 = srcp1[x];
-                            unsigned s2 = srcp2[x];
-                            dstp[x] = ((s1 * (((s2 >> 1) & 1) + s2)) + 128) >> 8;
+                    if (yuvhandling) {
+                        for (int y = 0; y < h; y++) {
+                            for (int x = 0; x < w; x++) {
+                                uint8_t s1 = srcp1[x];
+                                uint8_t s2 = srcp2[x];
+                                dstp[x] = ((((s1 - 128) * (((s2 >> 1) & 1) + s2))) >> 8) + 128;
+                            }
+                            srcp1 += stride;
+                            srcp2 += stride;
+                            dstp += stride;
                         }
-                        srcp1 += stride;
-                        srcp2 += stride;
-                        dstp += stride;
+                    } else {
+                        for (int y = 0; y < h; y++) {
+                            for (int x = 0; x < w; x++) {
+                                uint8_t s1 = srcp1[x];
+                                uint8_t s2 = srcp2[x];
+                                dstp[x] = ((s1 * (((s2 >> 1) & 1) + s2)) + 128) >> 8;
+                            }
+                            srcp1 += stride;
+                            srcp2 += stride;
+                            dstp += stride;
+                        }
                     }
                 } else if (d->vi->format->bytesPerSample == 2) {
                     const unsigned shift = d->vi->format->bitsPerSample;
-                    const unsigned round = 1 << (shift - 1);
-                    for (int y = 0; y < h; y++) {
-                        for (int x = 0; x < w; x++) {
-                            unsigned s1 = srcp1[x];
-                            unsigned s2 = srcp2[x];
-                            ((uint16_t *)dstp)[x] = ((s1 * (((s2 >> 1) & 1) + s2)) + round) >> shift;
-                        }                           
-                        srcp1 += stride;
-                        srcp2 += stride;
-                        dstp += stride;
+                    const unsigned halfpoint = 1 << (shift - 1);
+                    if (yuvhandling) {
+                        for (int y = 0; y < h; y++) {
+                            for (int x = 0; x < w; x++) {
+                                uint16_t s1 = ((const uint16_t *)srcp1)[x];
+                                uint16_t s2 = ((const uint16_t *)srcp2)[x];
+                                ((uint16_t *)dstp)[x] = (((s1 - halfpoint) * (((s2 >> 1) & 1) + s2)) >> shift) + halfpoint;
+                            }
+                            srcp1 += stride;
+                            srcp2 += stride;
+                            dstp += stride;
+                        }
+                    } else {
+                        for (int y = 0; y < h; y++) {
+                            for (int x = 0; x < w; x++) {
+                                uint16_t s1 = ((const uint16_t *)srcp1)[x];
+                                uint16_t s2 = ((const uint16_t *)srcp2)[x];
+                                ((uint16_t *)dstp)[x] = ((s1 * (((s2 >> 1) & 1) + s2)) + halfpoint) >> shift;
+                            }
+                            srcp1 += stride;
+                            srcp2 += stride;
+                            dstp += stride;
+                        }
                     }
                 }
             } else if (d->vi->format->sampleType == stFloat) {
@@ -141,7 +168,7 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
     if (alphavi->format != alphaformat) {
         vsapi->freeNode(d.node1);
         vsapi->freeNode(d.node2);
-        RETERROR("PreMultiply: alpha clip must be grayscale");
+        RETERROR("PreMultiply: alpha clip must be grayscale and same sample format and bitdepth as main clip");
     }
 
     if (!isConstantFormat(d.vi) || !isConstantFormat(alphavi) || d.vi->width != alphavi->width || d.vi->height != alphavi->height) {
