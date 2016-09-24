@@ -91,12 +91,13 @@ static const VSFrameRef *VS_CC preMultiplyGetFrame(int n, int activationReason, 
                     }
                 } else if (d->vi->format->bytesPerSample == 2) {
                     const unsigned shift = d->vi->format->bitsPerSample;
-                    const unsigned halfpoint = 1 << (shift - 1);
+                    const int halfpoint = 1 << (shift - 1);
+                    const int maxvalue = (1 << shift) - 1;
                     if (yuvhandling) {
                         for (int y = 0; y < h; y++) {
                             for (int x = 0; x < w; x++) {
                                 uint16_t s1 = ((const uint16_t *)srcp1)[x];
-                                uint16_t s2 = ((const uint16_t *)srcp2)[x];
+                                uint16_t s2 = min(((const uint16_t *)srcp2)[x], maxvalue);
                                 ((uint16_t *)dstp)[x] = (((s1 - halfpoint) * (((s2 >> 1) & 1) + s2)) >> shift) + halfpoint;
                             }
                             srcp1 += stride;
@@ -429,40 +430,69 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
                 const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
                 const uint8_t *maskp = vsapi->getReadPtr((plane && mask23) ? mask23 : mask, d->first_plane ? 0 : plane);
                 uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
+                int yuvhandling = (plane > 0) && (d->vi->format->colorFamily == cmYUV || d->vi->format->colorFamily == cmYCoCg);
 
                 if (d->premultiplied) {
                     if (d->vi->format->sampleType == stInteger) {
                         if (d->vi->format->bytesPerSample == 1) {
-                            for (int y = 0; y < h; y++) {
-                                for (int x = 0; x < w; x++) {
-                                    unsigned s1 = srcp1[x];
-                                    unsigned s2 = srcp2[x];
-                                    unsigned m = maskp[x];
-                                    unsigned temp = s2 + (((256 - (((m >> 1) & 1) + m)) * s1 + 128) >> 8);
-                                    dstp[x] = min(temp, 255);
+                            if (yuvhandling) {
+                                for (int y = 0; y < h; y++) {
+                                    for (int x = 0; x < w; x++) {
+                                        uint8_t s1 = srcp1[x];
+                                        uint8_t s2 = srcp2[x];
+                                        uint8_t m = maskp[x];
+                                        dstp[x] = CLAMP(s2 + (((256 - (((m >> 1) & 1) + m)) * (s1 - 128)) >> 8), 0, 255);
+                                    }
+                                    srcp1 += stride;
+                                    srcp2 += stride;
+                                    maskp += stride;
+                                    dstp += stride;
                                 }
-                                srcp1 += stride;
-                                srcp2 += stride;
-                                maskp += stride;
-                                dstp += stride;
+                            } else {
+                                for (int y = 0; y < h; y++) {
+                                    for (int x = 0; x < w; x++) {
+                                        uint8_t s1 = srcp1[x];
+                                        uint8_t s2 = srcp2[x];
+                                        uint8_t m = maskp[x];
+                                        dstp[x] = min(s2 + (((256 - (((m >> 1) & 1) + m)) * s1 + 128) >> 8), 255);
+                                    }
+                                    srcp1 += stride;
+                                    srcp2 += stride;
+                                    maskp += stride;
+                                    dstp += stride;
+                                }
                             }
                         } else if (d->vi->format->bytesPerSample == 2) {
                             const unsigned shift = d->vi->format->bitsPerSample;
-                            const unsigned maxplusone = 1 << shift;
-                            const unsigned maxvalue = maxplusone - 1;
-                            const unsigned round = 1 << (shift - 1);
-                            for (int y = 0; y < h; y++) {
-                                for (int x = 0; x < w; x++) {
-                                    unsigned s1 = ((const uint16_t *)srcp1)[x];
-                                    unsigned s2 = ((const uint16_t *)srcp2)[x];
-                                    unsigned m = ((const uint16_t *)maskp)[x];
-                                    unsigned temp = s2 + (((maxplusone - (((m >> 1) & 1) + m)) * s1 + round) >> shift);                            
-                                    ((uint16_t *)dstp)[x] = min(temp, maxvalue);
+                            const int maxplusone = 1 << shift;
+                            const int maxvalue = maxplusone - 1;
+                            const int round = 1 << (shift - 1);
+                            if (yuvhandling) {
+                                for (int y = 0; y < h; y++) {
+                                    for (int x = 0; x < w; x++) {
+                                        uint16_t s1 = ((const uint16_t *)srcp1)[x];
+                                        uint16_t s2 = ((const uint16_t *)srcp2)[x];
+                                        uint16_t m = min(((const uint16_t *)maskp)[x], maxvalue);
+                                        ((uint16_t *)dstp)[x] = CLAMP(s2 + (((maxplusone - (((m >> 1) & 1) + m)) * (s1 - round)) >> shift), 0, maxvalue);
+                                    }
+                                    srcp1 += stride;
+                                    srcp2 += stride;
+                                    maskp += stride;
+                                    dstp += stride;
                                 }
-                                srcp1 += stride;
-                                srcp2 += stride;
-                                maskp += stride;
-                                dstp += stride;
+                            } else {
+                                for (int y = 0; y < h; y++) {
+                                    for (int x = 0; x < w; x++) {
+                                        uint16_t s1 = ((const uint16_t *)srcp1)[x];
+                                        uint16_t s2 = ((const uint16_t *)srcp2)[x];
+                                        uint16_t m = min(((const uint16_t *)maskp)[x], maxvalue);
+                                        ((uint16_t *)dstp)[x] = min(s2 + (((maxplusone - (((m >> 1) & 1) + m)) * s1 + round) >> shift), maxvalue);
+                                    }
+                                    srcp1 += stride;
+                                    srcp2 += stride;
+                                    maskp += stride;
+                                    dstp += stride;
+                                }
                             }
                         }
                     } else if (d->vi->format->sampleType == stFloat) {
@@ -494,7 +524,7 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
 #endif
                         } else if (d->vi->format->bytesPerSample == 2) {
                             const unsigned shift = d->vi->format->bitsPerSample;
-                            const unsigned round = 1 << (shift - 1);
+                            const int round = 1 << (shift - 1);
                             for (int y = 0; y < h; y++) {
                                 for (int x = 0; x < w; x++) {
                                     uint16_t s1 = ((const uint16_t *)srcp1)[x];
