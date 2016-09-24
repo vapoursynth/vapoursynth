@@ -31,8 +31,8 @@
 typedef struct {
     VSNodeRef *node1;
     VSNodeRef *node2;
+    VSNodeRef *node2_23;
     const VSVideoInfo *vi;
-    int process[3];
 } PreMultiplyData;
 
 static void VS_CC preMultiplyInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -46,51 +46,51 @@ static const VSFrameRef *VS_CC preMultiplyGetFrame(int n, int activationReason, 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node1, frameCtx);
         vsapi->requestFrameFilter(n, d->node2, frameCtx);
+        if (d->node2_23)
+            vsapi->requestFrameFilter(n, d->node2_23, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
         const VSFrameRef *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
-        const int pl[] = { 0, 1, 2 };
-        const VSFrameRef *fs[] = { 0, src1, src2 };
-        const VSFrameRef *fr[] = { fs[d->process[0]], fs[d->process[1]], fs[d->process[2]] };
-        VSFrameRef *dst = vsapi->newVideoFrame2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
+        const VSFrameRef *src2_23 = 0;
+        if (d->node2_23)
+            src2_23 = vsapi->getFrameFilter(n, d->node2_23, frameCtx);
+        VSFrameRef *dst = vsapi->newVideoFrame(d->vi->format, d->vi->width, d->vi->height, src1, core);
         for (int plane = 0; plane < d->vi->format->numPlanes; plane++) {
-            if (d->process[plane] == 0) {
-                int h = vsapi->getFrameHeight(src1, plane);
-                int w = vsapi->getFrameWidth(src2, plane);
-                int stride = vsapi->getStride(src1, plane);
-                const uint8_t *srcp1 = vsapi->getReadPtr(src1, plane);
-                const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
-                uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
+            int h = vsapi->getFrameHeight(src1, plane);
+            int w = vsapi->getFrameWidth(src1, plane);
+            int stride = vsapi->getStride(src1, plane);
+            const uint8_t *srcp1 = vsapi->getReadPtr(src1, plane);
+            const uint8_t *srcp2 = vsapi->getReadPtr(plane > 0 ? src2_23 : src2, 0);
+            uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
 
-                if (d->vi->format->sampleType == stInteger) {
-                    if (d->vi->format->bytesPerSample == 1) {
-                        for (int y = 0; y < h; y++) {
-                            for (int x = 0; x < w; x++)
-                                dstp[x] = ((srcp1[x] * (((srcp2[x] >> 1) & 1) + srcp2[x])) + 128) >> 8;
-                            srcp1 += stride;
-                            srcp2 += stride;
-                            dstp += stride;
-                        }
-                    } else if (d->vi->format->bytesPerSample == 2) {
-                        const unsigned shift = d->vi->format->bitsPerSample;
-                        const unsigned round = 1 << (shift - 1);
-                        for (int y = 0; y < h; y++) {
-                            for (int x = 0; x < w; x++)
-                                ((uint16_t *)dstp)[x] = ((((const uint16_t *)srcp1)[x] * (((((const uint16_t *)srcp2)[x] >> 1) & 1) + ((const uint16_t *)srcp2)[x])) + round) >> shift;
-                            srcp1 += stride;
-                            srcp2 += stride;
-                            dstp += stride;
-                        }
+            if (d->vi->format->sampleType == stInteger) {
+                if (d->vi->format->bytesPerSample == 1) {
+                    for (int y = 0; y < h; y++) {
+                        for (int x = 0; x < w; x++)
+                            dstp[x] = ((srcp1[x] * (((srcp2[x] >> 1) & 1) + srcp2[x])) + 128) >> 8;
+                        srcp1 += stride;
+                        srcp2 += stride;
+                        dstp += stride;
                     }
-                } else if (d->vi->format->sampleType == stFloat) {
-                    if (d->vi->format->bytesPerSample == 4) {
-                        for (int y = 0; y < h; y++) {
-                            for (int x = 0; x < w; x++)
-                                ((float *)dstp)[x] = ((const float *)srcp1)[x] * ((const float *)srcp2)[x];
-                            srcp1 += stride;
-                            srcp2 += stride;
-                            dstp += stride;
-                        }
+                } else if (d->vi->format->bytesPerSample == 2) {
+                    const unsigned shift = d->vi->format->bitsPerSample;
+                    const unsigned round = 1 << (shift - 1);
+                    for (int y = 0; y < h; y++) {
+                        for (int x = 0; x < w; x++)
+                            ((uint16_t *)dstp)[x] = ((((const uint16_t *)srcp1)[x] * (((((const uint16_t *)srcp2)[x] >> 1) & 1) + ((const uint16_t *)srcp2)[x])) + round) >> shift;
+                        srcp1 += stride;
+                        srcp2 += stride;
+                        dstp += stride;
+                    }
+                }
+            } else if (d->vi->format->sampleType == stFloat) {
+                if (d->vi->format->bytesPerSample == 4) {
+                    for (int y = 0; y < h; y++) {
+                        for (int x = 0; x < w; x++)
+                            ((float *)dstp)[x] = ((const float *)srcp1)[x] * ((const float *)srcp2)[x];
+                        srcp1 += stride;
+                        srcp2 += stride;
+                        dstp += stride;
                     }
                 }
             }
@@ -108,6 +108,7 @@ static void VS_CC preMultiplyFree(void *instanceData, VSCore *core, const VSAPI 
     PreMultiplyData *d = (PreMultiplyData *)instanceData;
     vsapi->freeNode(d->node1);
     vsapi->freeNode(d->node2);
+    vsapi->freeNode(d->node2_23);
     free(d);
 }
 
@@ -117,6 +118,8 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
 
     d.node1 = vsapi->propGetNode(in, "clip", 0, 0);
     d.node2 = vsapi->propGetNode(in, "alpha", 0, 0);
+    d.node2_23 = 0;
+
     d.vi = vsapi->getVideoInfo(d.node1);
 
     if (isCompatFormat(d.vi) || isCompatFormat(vsapi->getVideoInfo(d.node2))) {
@@ -125,10 +128,19 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
         RETERROR("PreMultiply: compat formats are not supported");
     }
 
-    if (!isConstantFormat(d.vi) || !isSameFormat(d.vi, vsapi->getVideoInfo(d.node2))) {
+    const VSFormat *alphaformat = vsapi->registerFormat(cmGray, d.vi->format->sampleType, d.vi->format->bitsPerSample, 0, 0, core);
+    const VSVideoInfo *alphavi = vsapi->getVideoInfo(d.node2);
+
+    if (alphavi->format != alphaformat) {
         vsapi->freeNode(d.node1);
         vsapi->freeNode(d.node2);
-        RETERROR("PreMultiply: both clips must have constant format and dimensions, and the same format and dimensions");
+        RETERROR("PreMultiply: alpha clip must be grayscale");
+    }
+
+    if (!isConstantFormat(d.vi) || !isConstantFormat(alphavi) || d.vi->width != alphavi->width || d.vi->height != alphavi->height) {
+        vsapi->freeNode(d.node1);
+        vsapi->freeNode(d.node2);
+        RETERROR("PreMultiply: both clips must have constant format and dimensions, and the same dimensions");
     }
 
     if ((d.vi->format->sampleType == stInteger && d.vi->format->bytesPerSample != 1 && d.vi->format->bytesPerSample != 2)
@@ -136,6 +148,20 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
         vsapi->freeNode(d.node1);
         vsapi->freeNode(d.node2);
         RETERROR("PreMultiply: only 8-16 bit integer and 32 bit float input supported");
+    }
+
+    // do we need to resample the first mask plane and use it for all the planes?
+    if ((d.vi->format->numPlanes > 1) && (d.vi->format->subSamplingH > 0 || d.vi->format->subSamplingW > 0)) {
+        VSMap *min = vsapi->createMap();
+        vsapi->propSetNode(min, "clip", d.node2, paAppend);
+        vsapi->propSetInt(min, "width", d.vi->width >> d.vi->format->subSamplingW, paAppend);
+        vsapi->propSetInt(min, "height", d.vi->height >> d.vi->format->subSamplingH, paAppend);
+        VSMap *mout = vsapi->invoke(vsapi->getPluginById("com.vapoursynth.resize", core), "Bilinear", min);
+        d.node2_23 = vsapi->propGetNode(mout, "clip", 0, 0);
+        vsapi->freeMap(mout);
+        vsapi->freeMap(min);
+    } else if (d.vi->format->numPlanes > 1) {
+        d.node2_23 = vsapi->cloneNodeRef(d.node2);
     }
 
     data = malloc(sizeof(d));
