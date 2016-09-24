@@ -66,8 +66,11 @@ static const VSFrameRef *VS_CC preMultiplyGetFrame(int n, int activationReason, 
             if (d->vi->format->sampleType == stInteger) {
                 if (d->vi->format->bytesPerSample == 1) {
                     for (int y = 0; y < h; y++) {
-                        for (int x = 0; x < w; x++)
-                            dstp[x] = ((srcp1[x] * (((srcp2[x] >> 1) & 1) + srcp2[x])) + 128) >> 8;
+                        for (int x = 0; x < w; x++) {
+                            unsigned s1 = srcp1[x];
+                            unsigned s2 = srcp2[x];
+                            dstp[x] = ((s1 * (((s2 >> 1) & 1) + s2)) + 128) >> 8;
+                        }
                         srcp1 += stride;
                         srcp2 += stride;
                         dstp += stride;
@@ -76,8 +79,11 @@ static const VSFrameRef *VS_CC preMultiplyGetFrame(int n, int activationReason, 
                     const unsigned shift = d->vi->format->bitsPerSample;
                     const unsigned round = 1 << (shift - 1);
                     for (int y = 0; y < h; y++) {
-                        for (int x = 0; x < w; x++)
-                            ((uint16_t *)dstp)[x] = ((((const uint16_t *)srcp1)[x] * (((((const uint16_t *)srcp2)[x] >> 1) & 1) + ((const uint16_t *)srcp2)[x])) + round) >> shift;
+                        for (int x = 0; x < w; x++) {
+                            unsigned s1 = srcp1[x];
+                            unsigned s2 = srcp2[x];
+                            ((uint16_t *)dstp)[x] = ((s1 * (((s2 >> 1) & 1) + s2)) + round) >> shift;
+                        }                           
                         srcp1 += stride;
                         srcp2 += stride;
                         dstp += stride;
@@ -98,6 +104,7 @@ static const VSFrameRef *VS_CC preMultiplyGetFrame(int n, int activationReason, 
 
         vsapi->freeFrame(src1);
         vsapi->freeFrame(src2);
+        vsapi->freeFrame(src2_23);
         return dst;
     }
 
@@ -401,7 +408,10 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
                         if (d->vi->format->bytesPerSample == 1) {
                             for (int y = 0; y < h; y++) {
                                 for (int x = 0; x < w; x++) {
-                                    int temp = srcp2[x] + (((256 - (((maskp[x] >> 1) & 1) + maskp[x])) * srcp1[x] + 128) >> 8);
+                                    unsigned s1 = srcp1[x];
+                                    unsigned s2 = srcp2[x];
+                                    unsigned m = maskp[x];
+                                    unsigned temp = s2 + (((256 - (((m >> 1) & 1) + m)) * s1 + 128) >> 8);
                                     dstp[x] = min(temp, 255);
                                 }
                                 srcp1 += stride;
@@ -412,15 +422,15 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
                         } else if (d->vi->format->bytesPerSample == 2) {
                             const unsigned shift = d->vi->format->bitsPerSample;
                             const unsigned maxplusone = 1 << shift;
-                            const int maxv = maxplusone - 1;
+                            const unsigned maxvalue = maxplusone - 1;
                             const unsigned round = 1 << (shift - 1);
                             for (int y = 0; y < h; y++) {
                                 for (int x = 0; x < w; x++) {
-                                    uint16_t s1 = ((const uint16_t *)srcp1)[x];
-                                    uint16_t s2 = ((const uint16_t *)srcp2)[x];
-                                    uint16_t m = ((const uint16_t *)maskp)[x];
-                                    int temp = s2 + (((maxplusone - (((m >> 1) & 1) + m)) * s1 + round) >> shift);                            
-                                    ((uint16_t *)dstp)[x] = min(temp, maxv);
+                                    unsigned s1 = ((const uint16_t *)srcp1)[x];
+                                    unsigned s2 = ((const uint16_t *)srcp2)[x];
+                                    unsigned m = ((const uint16_t *)maskp)[x];
+                                    unsigned temp = s2 + (((maxplusone - (((m >> 1) & 1) + m)) * s1 + round) >> shift);                            
+                                    ((uint16_t *)dstp)[x] = min(temp, maxvalue);
                                 }
                                 srcp1 += stride;
                                 srcp2 += stride;
