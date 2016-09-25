@@ -40,6 +40,14 @@ static void VS_CC preMultiplyInit(VSMap *in, VSMap *out, void **instanceData, VS
     vsapi->setVideoInfo(d->vi, 1, node);
 }
 
+static int getLimitedRangeOffset(const VSFrameRef *f, const VSVideoInfo *vi, const VSAPI *vsapi) {
+    int err;
+    int limited = !!vsapi->propGetInt(vsapi->getFramePropsRO(f), "_ColorRange", 0, &err);
+    if (err)
+        limited = (vi->format->colorFamily == cmGray || vi->format->colorFamily == cmYUV || vi->format->colorFamily == cmYCoCg);
+    return (limited ? (16 << (vi->format->bitsPerSample - 8)) : 0);
+}
+
 static const VSFrameRef *VS_CC preMultiplyGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     PreMultiplyData *d = (PreMultiplyData *)*instanceData;
 
@@ -63,6 +71,7 @@ static const VSFrameRef *VS_CC preMultiplyGetFrame(int n, int activationReason, 
             const uint8_t *srcp2 = vsapi->getReadPtr(plane > 0 ? src2_23 : src2, 0);
             uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
             int yuvhandling = (plane > 0) && (d->vi->format->colorFamily == cmYUV || d->vi->format->colorFamily == cmYCoCg);
+            int offset = getLimitedRangeOffset(src1, d->vi, vsapi);
 
             if (d->vi->format->sampleType == stInteger) {
                 if (d->vi->format->bytesPerSample == 1) {
@@ -82,7 +91,7 @@ static const VSFrameRef *VS_CC preMultiplyGetFrame(int n, int activationReason, 
                             for (int x = 0; x < w; x++) {
                                 uint8_t s1 = srcp1[x];
                                 uint8_t s2 = srcp2[x];
-                                dstp[x] = ((s1 * (((s2 >> 1) & 1) + s2)) + 128) >> 8;
+                                dstp[x] = ((((s1 - offset) * (((s2 >> 1) & 1) + s2)) + 128) >> 8) + offset;
                             }
                             srcp1 += stride;
                             srcp2 += stride;
@@ -109,7 +118,7 @@ static const VSFrameRef *VS_CC preMultiplyGetFrame(int n, int activationReason, 
                             for (int x = 0; x < w; x++) {
                                 uint16_t s1 = ((const uint16_t *)srcp1)[x];
                                 uint16_t s2 = ((const uint16_t *)srcp2)[x];
-                                ((uint16_t *)dstp)[x] = ((s1 * (((s2 >> 1) & 1) + s2)) + halfpoint) >> shift;
+                                ((uint16_t *)dstp)[x] = ((((s1 - offset) * (((s2 >> 1) & 1) + s2)) + halfpoint) >> shift) + offset;
                             }
                             srcp1 += stride;
                             srcp2 += stride;
@@ -416,6 +425,9 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
         const VSFrameRef *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
         const VSFrameRef *mask = vsapi->getFrameFilter(n, d->mask, frameCtx);
         const VSFrameRef *mask23 = 0;
+        int offset1 = getLimitedRangeOffset(src1, d->vi, vsapi);
+        int offset2 = getLimitedRangeOffset(src2, d->vi, vsapi);
+
         const int pl[] = {0, 1, 2};
         const VSFrameRef *fr[] = {d->process[0] ? 0 : src1, d->process[1] ? 0 : src1, d->process[2] ? 0 : src1};
         VSFrameRef *dst = vsapi->newVideoFrame2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
@@ -430,10 +442,21 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
                 const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
                 const uint8_t *maskp = vsapi->getReadPtr((plane && mask23) ? mask23 : mask, d->first_plane ? 0 : plane);
                 uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
-                int yuvhandling = (plane > 0) && (d->vi->format->colorFamily == cmYUV || d->vi->format->colorFamily == cmYCoCg);
 
                 if (d->premultiplied) {
                     if (d->vi->format->sampleType == stInteger) {
+                        if (offset1 != offset2) {
+                            vsapi->freeFrame(src1);
+                            vsapi->freeFrame(src2);
+                            vsapi->freeFrame(mask);
+                            vsapi->freeFrame(mask23);
+                            vsapi->freeFrame(dst);
+                            vsapi->setFilterError("MaskedMerge: Input frames must have the same range", frameCtx);
+                            return 0;
+                        }
+
+                        int yuvhandling = (plane > 0) && (d->vi->format->colorFamily == cmYUV || d->vi->format->colorFamily == cmYCoCg);
+
                         if (d->vi->format->bytesPerSample == 1) {
                             if (yuvhandling) {
                                 for (int y = 0; y < h; y++) {
@@ -451,10 +474,10 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
                             } else {
                                 for (int y = 0; y < h; y++) {
                                     for (int x = 0; x < w; x++) {
-                                        uint8_t s1 = srcp1[x];
-                                        uint8_t s2 = srcp2[x];
+                                        uint8_t s1 = max(srcp1[x] - offset1, 0);
+                                        uint8_t s2 = max(srcp2[x] - offset1, 0);
                                         uint8_t m = maskp[x];
-                                        dstp[x] = min(s2 + (((256 - (((m >> 1) & 1) + m)) * s1 + 128) >> 8), 255);
+                                        dstp[x] = min(s2 + (((256 - (((m >> 1) & 1) + m)) * s1 + 128) >> 8) + offset1, 255);
                                     }
                                     srcp1 += stride;
                                     srcp2 += stride;
@@ -483,10 +506,10 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
                             } else {
                                 for (int y = 0; y < h; y++) {
                                     for (int x = 0; x < w; x++) {
-                                        uint16_t s1 = ((const uint16_t *)srcp1)[x];
-                                        uint16_t s2 = ((const uint16_t *)srcp2)[x];
+                                        uint16_t s1 = max(((const uint16_t *)srcp1)[x] - offset1, 0);
+                                        uint16_t s2 = max(((const uint16_t *)srcp2)[x] - offset1, 0);
                                         uint16_t m = min(((const uint16_t *)maskp)[x], maxvalue);
-                                        ((uint16_t *)dstp)[x] = min(s2 + (((maxplusone - (((m >> 1) & 1) + m)) * s1 + round) >> shift), maxvalue);
+                                        ((uint16_t *)dstp)[x] = min(s2 + (((maxplusone - (((m >> 1) & 1) + m)) * s1 + round) >> shift) + offset1, maxvalue);
                                     }
                                     srcp1 += stride;
                                     srcp2 += stride;

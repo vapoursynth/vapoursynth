@@ -8,3 +8,7 @@ PreMultiply
    later operations. This will yield much better results when resizing and a clip with an
    alpha channel and :doc:`MaskedMerge <maskedmerge>` can use it as input. The *alpha* clip
    must be the same format as *clip* except grayscale only.
+   
+   Note that limited range pre-multiplied contents excludes the offset. For example with
+   8 bit input 60 luma and 128 alpha would be calculated as ((60 - 16) * 128)/255 + 16
+   and not (60 * 128)/255.

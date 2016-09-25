@@ -11,7 +11,9 @@ MaskedMerge
    bilinearly resized if necessary.
    
    If *premultiplied* is set the blending is performed as if *clipb* has been pre-multiplied
-   with alpha.
+   with alpha. In pre-multiplied mode it is an error to try to merge two frames with
+   mismatched full and limited range since it will most likely cause horrible unintended
+   color shitfs.
 
    By default all planes will be
    processed, but it is also possible to specify a list of the *planes* to merge
