@@ -1,8 +1,9 @@
 r34:
+improved avfs prefetch logic for vpy
 added premultiplied blending mode to maskedmerge
 added premultiply filter to premultiply a clip with alpha
 makediff and adddiff no longer pointlessly clamp float to a limited range since there's no good reason to do so
-fixed memory leak when the core is freed introduced in the previous version 
+fixed memory leak when the core is freed introduced in the previous version
 fixed memory leak in avfs introduced in the previous version
 removed rshift and replaced it with a scale argument in sobel and prewitt
 fixed sobel and prewitt wrongly passing through the input pixel values

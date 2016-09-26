@@ -50,12 +50,6 @@ struct Synther_ {
     virtual const char* GetVarAsString(const char* varName, const char* defVal) = 0;
     virtual bool GetVarAsBool(const char* varName, bool defVal) = 0;
     virtual int GetVarAsInt(const char* varName, int defVal) = 0;
-
-    // Frame read-ahead improves encoding performance on multi core/cpu
-    // systems. ReadMedia logic should temporarily disable read-ahead
-    // so it does not kick in before a given read is satisfied.
-    virtual void FraSuspend() = 0;
-    virtual void FraResume() = 0;
 };
 
 #endif

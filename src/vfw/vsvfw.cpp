@@ -389,7 +389,7 @@ VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : num_threads(1), vsapi(nu
 VapourSynthFile::~VapourSynthFile() {
     Lock();
     if (vi) {
-        while (pending_requests > 0) {};
+        while (pending_requests > 0) { Sleep(1); };
         vi = nullptr;
         vsapi->freeNode(node);
         vsscript_freeScript(se);
@@ -827,9 +827,11 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
     vsapi->freeFrame(f);
     vsscript_freeScript(errSe);
 
-    for (int i = n + 1; i < std::min<int>(n + parent->num_threads, parent->vi->numFrames); i++) {
-        ++parent->pending_requests;
-        vsapi->getFrameAsync(i, parent->node, VapourSynthFile::frameDoneCallback, static_cast<void *>(parent));
+    if (!errSe) {
+        for (int i = n + 1; i < std::min<int>(n + parent->num_threads, parent->vi->numFrames); i++) {
+            ++parent->pending_requests;
+            vsapi->getFrameAsync(i, parent->node, VapourSynthFile::frameDoneCallback, static_cast<void *>(parent));
+        }
     }
 
     return !errSe;

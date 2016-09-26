@@ -58,24 +58,13 @@ class VapourSynther final:
 
     const VSVideoInfo *vi;
 
-    char* lastStringValue;
+    std::string lastStringValue;
 
     std::vector<uint8_t> packedFrame;
 
     // Frame read ahead.
-    HANDLE fraThread;
-    CRITICAL_SECTION fraMutex;
-    HANDLE fraResumeEvent;
-    HANDLE fraSuspendedEvent;
-    int fraPosition;
-    int fraEndPosition;
-    int fraSuspendCount;
-    enum { fraDefaultFrameCount = 0 };
-    enum { fraMaxFrameCount = 100 };
-    int fraFrameCount;
-    enum { fraMaxResumeDelay = 1000 };
-    enum { fraDefaultResumeDelay = 10 };
-    int fraResumeDelay;
+    int prefetchFrames;
+    std::atomic<int> pendingRequests;
 
     // Cache last accessed frame, to reduce interference with read-ahead.
     int lastPosition;
@@ -96,10 +85,7 @@ class VapourSynther final:
     // Print the VideoInfo contents to the log file.
     void reportFormat(AvfsLog_* log);
 
-    // Thread to read frames in background to better utilize multi core
-    // systems.
-    void FraThreadMain();
-    static DWORD __stdcall FraThreadMainThunk(void* param);
+    static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg);
 public:
 
     int BitsPerPixel();
@@ -125,17 +111,21 @@ public:
     bool GetVarAsBool(const char* varName, bool defVal);
     int GetVarAsInt(const char* varName, int defVal);
 
-    // Suspend/resume frame read ahead as necessary for
-    // performance optimization.
-    void FraSuspend();
-    void FraResume();
-
     VapourSynther(void);
     ~VapourSynther(void);
     int/*error*/ Init(AvfsLog_* log, AvfsVolume_* volume);
     void AddRef(void);
     void Release(void);
 };
+
+/*---------------------------------------------------------
+---------------------------------------------------------*/
+
+void VS_CC VapourSynther::frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg) {
+    VapourSynther *vsynther = static_cast<VapourSynther *>(userData);
+    vsynther->vsapi->freeFrame(f);
+    --vsynther->pendingRequests;
+}
 
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
@@ -294,94 +284,21 @@ void VapourSynther::reportFormat(AvfsLog_* log) {
 
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
-void VapourSynther::FraThreadMain() {
-    int position;
-
-    EnterCriticalSection(&fraMutex);
-    // Destructor logic sets max suspend count to signal
-    // thread to exit.
-    while (fraSuspendCount != INT_MAX) {
-
-        if (fraSuspendCount > 0 || fraPosition == fraEndPosition) {
-            ResetEvent(fraResumeEvent);
-            // Signal any waiting thread that the ra thread is
-            // suspended, so OK to use env.
-            SetEvent(fraSuspendedEvent);
-            LeaveCriticalSection(&fraMutex);
-            // Wait until more ra is necessary.
-            WaitForSingleObject(fraResumeEvent, INFINITE);
-            // Delay resuming read ahead a bit, to avoid slowing
-            // down sequential reads.
-            Sleep(fraResumeDelay);
-            EnterCriticalSection(&fraMutex);
-        } else {
-            ResetEvent(fraSuspendedEvent);
-            position = fraPosition;
-            fraPosition++;
-            LeaveCriticalSection(&fraMutex);
-
-            // Read the next frame and release it. Might be better
-            // to hold the reference, but the MRU caching in avisynth
-            // is enough for reasonable read ahead depths.
-            //      trace->printf(L"   ra %i\n",position);
-
-            vsapi->freeFrame(vsapi->getFrame(position, node, nullptr, 0));
-
-            EnterCriticalSection(&fraMutex);
-        }
-    }
-    LeaveCriticalSection(&fraMutex);
-}
-
-DWORD __stdcall VapourSynther::FraThreadMainThunk(void* param) {
-    static_cast<VapourSynther*>(param)->FraThreadMain();
-    return 0;
-}
-
-/*---------------------------------------------------------
----------------------------------------------------------*/
-
-void VapourSynther::FraSuspend() {
-    if (fraThread) {
-        EnterCriticalSection(&fraMutex);
-        fraSuspendCount++;
-        LeaveCriticalSection(&fraMutex);
-        WaitForSingleObject(fraSuspendedEvent, INFINITE);
-    }
-}
-
-/*---------------------------------------------------------
----------------------------------------------------------*/
-
-void VapourSynther::FraResume() {
-    if (fraThread) {
-        EnterCriticalSection(&fraMutex);
-        ASSERT(fraSuspendCount);
-        fraSuspendCount--;
-        if (fraSuspendCount == 0 && fraEndPosition > fraPosition) {
-            SetEvent(fraResumeEvent);
-        }
-        LeaveCriticalSection(&fraMutex);
-    }
-}
-
-/*---------------------------------------------------------
----------------------------------------------------------*/
 
 // Exception protected PVideoFrame->GetFrame()
 const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
 
     const VSFrameRef *f = nullptr;
     bool success = false;
+    bool doPrefetch = true;
 
     if (n == lastPosition) {
         f = vsapi->cloneFrameRef(lastFrame);
         success = true;
+        doPrefetch = false;
     } else {
-
-        FraSuspend();
-
         lastPosition = -1;
+        vsapi->freeFrame(lastFrame);
         lastFrame = nullptr;
 
         if (node) {
@@ -464,22 +381,18 @@ const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) 
             log->Line(getError());
         } else {
             lastPosition = n;
-            vsapi->freeFrame(lastFrame);
             lastFrame = vsapi->cloneFrameRef(f);
-            if (fraThread) {
-                // Have read ahead thread continue reading subsequent
-                // frames to allow better multi-core utilization.
-                if (n > fraEndPosition || n + fraFrameCount * 2 < fraPosition) {
-                    fraPosition = n + 1;
-                }
-                fraEndPosition = n + 1 + fraFrameCount;
-            }
         }
-
-        FraResume();
     }
 
     if (_success) *_success = success;
+
+    if (success && doPrefetch) {
+        for (int i = n + 1; i < std::min(n + prefetchFrames, vi->numFrames); i++) {
+            ++pendingRequests;
+            vsapi->getFrameAsync(i, node, VapourSynther::frameDoneCallback, static_cast<void *>(this));
+        }
+    }
 
     return f;
 }
@@ -501,10 +414,6 @@ VideoInfoAdapter VapourSynther::GetVideoInfo() {
 // is valid until next call, so copy if you need it long term.
 const char* VapourSynther::GetVarAsString(
     const char* varName, const char* defVal) {
-    FraSuspend();
-
-    free(lastStringValue);
-    lastStringValue = 0;
 
     VSMap *map = vsapi->createMap();
     vsscript_getVariable(se, varName, map);
@@ -512,13 +421,11 @@ const char* VapourSynther::GetVarAsString(
     const char *result = vsapi->propGetData(map, varName, 0, &err);
     if (err)
         result = defVal;
+
+    lastStringValue = result ? result : "";
     vsapi->freeMap(map);
 
-
-    lastStringValue = strdup(result);
-
-    FraResume();
-    return lastStringValue;
+    return lastStringValue.c_str();
 }
 
 /*---------------------------------------------------------
@@ -532,17 +439,14 @@ bool VapourSynther::GetVarAsBool(const char* varName, bool defVal) {
 ---------------------------------------------------------*/
 
 int VapourSynther::GetVarAsInt(const char* varName, int defVal) {
-    FraSuspend();
-
     VSMap *map = vsapi->createMap();
     vsscript_getVariable(se, varName, map);
     int err = 0;
-    int result = vsapi->propGetInt(map, varName, 0, &err);
+    int result = int64ToIntS(vsapi->propGetInt(map, varName, 0, &err));
     if (err)
         result = defVal;
     vsapi->freeMap(map);
 
-    FraResume();
     return result;
 }
 
@@ -625,20 +529,12 @@ VapourSynther::VapourSynther(void) :
     se(nullptr),
     node(nullptr),
     errText(nullptr),
-    lastStringValue(nullptr),
-    fraThread(nullptr),
-    fraSuspendCount(0),
-    fraPosition(0),
-    fraEndPosition(0),
-    fraFrameCount(0),
-    fraResumeDelay(0),
+    prefetchFrames(0),
+    pendingRequests(0),
     lastPosition(-1),
     lastFrame(nullptr),
     vi(nullptr) {
     vsapi = vsscript_getVSApi();
-    InitializeCriticalSection(&fraMutex);
-    fraResumeEvent = CreateEvent(0, 1, 0, 0);
-    fraSuspendedEvent = CreateEvent(0, 1, 0, 0);
 }
 
 /*---------------------------------------------------------
@@ -647,19 +543,6 @@ VapourSynther::VapourSynther(void) :
 // Destructor
 VapourSynther::~VapourSynther(void) {
     ASSERT(!references);
-
-    if (fraThread) {
-        VERIFY(CloseHandle(fraThread));
-    }
-    if (fraResumeEvent) {
-        VERIFY(CloseHandle(fraResumeEvent));
-    }
-    if (fraSuspendedEvent) {
-        VERIFY(CloseHandle(fraSuspendedEvent));
-    }
-    DeleteCriticalSection(&fraMutex);
-
-    free(lastStringValue);
 
     if (node) {
         lastFrame = 0;
@@ -692,25 +575,10 @@ int/*error*/ VapourSynther::Init(
 
     if (!error) {
         // Initialize frame read-ahead logic.
-        fraFrameCount = GetVarAsInt("AVFS_ReadAheadFrameCount",
-            fraDefaultFrameCount);
-        if (fraFrameCount < 0) {
-            fraFrameCount = 0;
-        }
-        if (fraFrameCount > fraMaxFrameCount) {
-            fraFrameCount = fraMaxFrameCount;
-        }
-        fraResumeDelay = GetVarAsInt("AVFS_ReadAheadDelayMsecs",
-            fraDefaultResumeDelay);
-        if (fraResumeDelay > fraMaxResumeDelay) {
-            fraResumeDelay = fraMaxResumeDelay;
-        }
-        if (fraFrameCount && fraResumeEvent && fraSuspendedEvent) {
-            ResetEvent(fraResumeEvent);
-            SetEvent(fraSuspendedEvent);
-            DWORD unusedThreadId;
-            fraThread = CreateThread(0, 0, FraThreadMainThunk, this, 0, &unusedThreadId);
-        }
+        const VSCoreInfo *info = vsapi->getCoreInfo(vsscript_getCore(se));
+        prefetchFrames = GetVarAsInt("AVFS_ReadAheadFrameCount", -1);
+        if (prefetchFrames < 0)
+            prefetchFrames = info->numThreads;
     }
 
     return error;
@@ -730,17 +598,7 @@ void VapourSynther::AddRef(void) {
 void VapourSynther::Release(void) {
     ASSERT(references);
     if (!--references) {
-        if (fraThread) {
-            // Kill the read-ahead thread before entering
-            // destructor, to make sure it is not partially
-            // torn down while thread running.
-            FraSuspend();
-            EnterCriticalSection(&fraMutex);
-            fraSuspendCount = INT_MAX;
-            SetEvent(fraResumeEvent);
-            LeaveCriticalSection(&fraMutex);
-            WaitForSingleObject(fraThread, INFINITE);
-        }
+        while (pendingRequests > 0) { Sleep(1); };
         delete this;
     }
 }

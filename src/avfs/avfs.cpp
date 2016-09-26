@@ -66,7 +66,7 @@ class Avisynther final:
 
   VideoInfo vi;
 
-  char* lastStringValue;
+  std::string lastStringValue;
 
   // Frame read ahead.
   HANDLE fraThread;
@@ -466,9 +466,6 @@ const char* Avisynther::GetVarAsString(
 {
   FraSuspend();
 
-  free(lastStringValue);
-  lastStringValue = 0;
-
   const char *string = defVal;
   try {
     AVSValue value = env->GetVar(varName);
@@ -478,10 +475,10 @@ const char* Avisynther::GetVarAsString(
   }
   catch (...) {
   }
-  lastStringValue = strdup(string);
+  lastStringValue = string ? string : "";
 
   FraResume();
-  return lastStringValue;
+  return lastStringValue.c_str();
 }
 
 
@@ -665,7 +662,6 @@ Avisynther::Avisynther(void) :
   env(0),
   clip(0),
   errText(0),
-  lastStringValue(0),
   fraThread(0),
   fraSuspendCount(0),
   fraPosition(0),
@@ -675,7 +671,7 @@ Avisynther::Avisynther(void) :
   lastPosition(-1),
   lastFrame(0)
 {
-  memset(&vi, 0, sizeof(vi));
+  vi = {};
 
   InitializeCriticalSection(&fraMutex);
   fraResumeEvent = CreateEvent(0,1,0,0);
@@ -700,9 +696,6 @@ Avisynther::~Avisynther(void)
     VERIFY(CloseHandle(fraSuspendedEvent));
   }
   DeleteCriticalSection(&fraMutex);
-
-  free(lastStringValue);
-
 
   if (env) {
     lastFrame = 0;

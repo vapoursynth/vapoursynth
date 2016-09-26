@@ -1309,18 +1309,19 @@ bool/*success*/ AvfsAvi2File::GetFrameData(
   ASSERT(offset < frameVidDataSize && offset+size <= frameVidDataSize);
   bool success = true;
   if (vssynther) {
+      const VSAPI *vsapi = vssynther->GetVSApi();
       const VSFrameRef *frame = vssynther->GetFrame(log, n, &success);
       if (success) {
           if (vssynther->UsePacking()) {
               memcpy(buffer, vssynther->GetPackedFrame() + offset, size);
           } else {
-              copyPlaneVS(buffer, offset, size, frame, 0, 3, vssynther->GetVSApi());
-              copyPlaneVS(buffer, offset, size, frame, 1, 1, vssynther->GetVSApi());
-              copyPlaneVS(buffer, offset, size, frame, 2, 1, vssynther->GetVSApi());
+              copyPlaneVS(buffer, offset, size, frame, 0, 3, vsapi);
+              copyPlaneVS(buffer, offset, size, frame, 1, 1, vsapi);
+              copyPlaneVS(buffer, offset, size, frame, 2, 1, vsapi);
               ASSERT(size == 0);
           }
       }
-      vssynther->GetVSApi()->freeFrame(frame);
+      vsapi->freeFrame(frame);
   } else {
       PVideoFrame frame = avssynther->GetFrame(log, n, &success);
       if (success) {

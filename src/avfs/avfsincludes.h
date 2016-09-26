@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <wchar.h>
 #include <cstdio>
+#include <atomic>
 #include <algorithm>
 #include <new>
 #include <codecvt>
