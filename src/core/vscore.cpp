@@ -1164,6 +1164,8 @@ void VSCore::freeCore() {
     // Release the extra filter instance that always keeps the core alive
     if (numFilterInstances > 1)
         vsWarning("Core freed but %d filter instances still exist", numFilterInstances - 1);
+    if (memory->memoryUse() > 0)
+        vsWarning("Core freed but %llu bytes still allocated in framebuffers", static_cast<unsigned long long>(memory->memoryUse()));
     filterInstanceDestroyed();
 }
 
