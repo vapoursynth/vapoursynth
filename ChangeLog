@@ -1,4 +1,5 @@
 r34:
+the default max memory usage is now 4GB on 64bit systems
 fixed several unpacking issues in avisource introduced in the previous version
 added warning if there are any nodes or frames still in use when the core is free
 improved avfs prefetch logic for vpy

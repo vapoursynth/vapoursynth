@@ -293,6 +293,10 @@ void MemoryUse::signalFree() {
 MemoryUse::MemoryUse() : used(0), freeOnZero(false), unusedBufferSize(0) {
     // 1GB
     maxMemoryUse = 1024 * 1024 * 1024;
+
+    // set 4GB as default on systems with (probably) 64bit address space
+    if (sizeof(uintptr_t) >= 8)
+        maxMemoryUse *= 4;
 }
 
 MemoryUse::~MemoryUse() {

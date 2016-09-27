@@ -4,6 +4,7 @@ Plugins, Applications and Scripts
 Applications
 ############
 * `D2V Witch <https://github.com/dubhater/D2VWitch>`_ -- creates indexes that can be opened by d2vsource
+* `SmoothVideo Project (SVP) <https://www.svp-team.com/wiki/Main_Page>`_ -- a plugin/video player component for realtime frame interpolation
 * `VapourSynth Editor <https://bitbucket.org/mystery_keeper/vapoursynth-editor>`_ -- an editor with syntax completion and fast preview support
 * `Wobbly <http://forum.doom9.org/showthread.php?t=172496>`_ -- IVTC assistant similar to Yatta
 
