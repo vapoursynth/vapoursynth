@@ -9,7 +9,7 @@ fixed memory leak when the core is freed introduced in the previous version
 fixed memory leak in avfs introduced in the previous version
 removed rshift and replaced it with a scale argument in sobel and prewitt
 fixed sobel and prewitt wrongly passing through the input pixel values
-added support for the new hdr formats in zimg
+added support for hdr formats and dci-p3 in zimg
 optimized planestats
 added float support to pemverifier
 fixes active region offset and height for interlaced resizing

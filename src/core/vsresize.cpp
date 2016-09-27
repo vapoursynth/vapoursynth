@@ -123,11 +123,12 @@ namespace {
     };
 
     const std::unordered_map<std::string, zimg_color_primaries_e> g_primaries_table{
-        { "709",    ZIMG_PRIMARIES_709 },
-        { "unspec", ZIMG_PRIMARIES_UNSPECIFIED },
-        { "170m",   ZIMG_PRIMARIES_170M },
-        { "240m",   ZIMG_PRIMARIES_240M },
-        { "2020",   ZIMG_PRIMARIES_2020 },
+        { "709",     ZIMG_PRIMARIES_709 },
+        { "unspec",  ZIMG_PRIMARIES_UNSPECIFIED },
+        { "170m",    ZIMG_PRIMARIES_170M },
+        { "240m",    ZIMG_PRIMARIES_240M },
+        { "2020",    ZIMG_PRIMARIES_2020 },
+        { "st432-1", ZIMG_PRIMARIES_ST432_1 },      
     };
 
     const std::unordered_map<std::string, zimg_dither_type_e> g_dither_type_table{
