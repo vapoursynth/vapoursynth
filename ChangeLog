@@ -1,4 +1,5 @@
 r34:
+fixed several unpacking issues in avisource introduced in the previous version
 added warning if there are any nodes or frames still in use when the core is free
 improved avfs prefetch logic for vpy
 added premultiplied blending mode to maskedmerge

@@ -75,12 +75,12 @@ static void unpackframe(const VSVideoInfo *vi, VSFrameRef *dst, VSFrameRef *dst_
 
     const VSFormat *fi = vsapi->getFrameFormat(dst);
     p2p_buffer_param p = {};
-    p.width = vsapi->getFrameWidth(dst, 0);
-    p.height = vsapi->getFrameHeight(dst, 0);
+    p.width = vi->width;
+    p.height = vi->height;
     p.src[0] = srcp;
-    p.src_stride[0] = vsapi->getFrameWidth(dst, 0) * 4 * fi->bytesPerSample;
+    p.src_stride[0] = vi->width * fi->bytesPerSample;
     p.src[1] = (uint8_t *)p.src[0] + p.src_stride[0] * p.height;
-    p.src_stride[1] = vsapi->getFrameWidth(dst, 0) * 4 * fi->bytesPerSample;
+    p.src_stride[1] = vi->width * fi->bytesPerSample;
     for (int plane = 0; plane < fi->numPlanes; plane++) {
         p.dst[plane] = vsapi->getWritePtr(dst, plane);
         p.dst_stride[plane] = vsapi->getStride(dst, plane);
@@ -91,10 +91,10 @@ static void unpackframe(const VSVideoInfo *vi, VSFrameRef *dst, VSFrameRef *dst_
     case VS_FCC('P210'): p.packing = p2p_p210_le; p2p_unpack_frame(&p, 0); break;
     case VS_FCC('P016'): p.packing = p2p_p016_le; p2p_unpack_frame(&p, 0); break;
     case VS_FCC('P216'): p.packing = p2p_p216_le; p2p_unpack_frame(&p, 0); break;
-    case VS_FCC('Y416'): p.packing = p2p_y416_le; p2p_unpack_frame(&p, 0); break;
+    case VS_FCC('Y416'): p.src_stride[0] = vi->width * fi->bytesPerSample * 4; p.packing = p2p_y416_le; p2p_unpack_frame(&p, 0); break;
     case VS_FCC('v210'):
         p.packing = p2p_v210_le;
-        p.src_stride[0] = ((16 * ((vi->width + 5) / 6) + 127) & ~127) / 4;
+        p.src_stride[0] = ((16 * ((vi->width + 5) / 6) + 127) & ~127);
         p2p_unpack_frame(&p, 0);
         break;
     case BI_RGB:
@@ -115,7 +115,7 @@ static void unpackframe(const VSVideoInfo *vi, VSFrameRef *dst, VSFrameRef *dst_
             p.packing = p2p_rgb48_be;
         else if (fourcc == VS_FCC('b64a'))
             p.packing = p2p_argb64_be;
-        p.src_stride[0] = ((vi->width*vi->format->bytesPerSample*3 + 3) & ~3);
+        p.src_stride[0] = ((vi->width*vi->format->bytesPerSample*(p.packing == p2p_rgb48_be ? 3 : 4) + 3) & ~3);
         if (flip) {
             p.src[0] = srcp + p.src_stride[0] * (p.height - 1);
             p.src_stride[0] = -p.src_stride[0];
