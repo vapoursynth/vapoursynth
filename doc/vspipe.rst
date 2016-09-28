@@ -1,7 +1,7 @@
-VSPIPE
+VSPipe
 ######
 
-SYNOPSIS
+Synopsis
 ========
 
 **vspipe** <script> <outfile> [options]
@@ -15,7 +15,7 @@ If *outfile* is a dot (``.``), vspipe will do everything as usual, except it
 will not write the video frames anywhere.
 
 
-OPTIONS
+Options
 =======
 
 ``-a, --arg key=value``
@@ -49,7 +49,7 @@ OPTIONS
     Show version info and exit
 
 
-EXAMPLES
+Examples
 ========
 
 Show script info:
