@@ -1,4 +1,6 @@
 r34:
+it's now possible to skip installing the visual studio runtimes in the installer to reduce online dependency of installer (installation may not work until manually installed, obviously)
+temporalsoften plugin is no longer included in the windows installer, it has been replaced by the misc plugin containing various functions useful for avisynth compatibility
 the default max memory usage is now 4GB on 64bit systems
 fixed several unpacking issues in avisource introduced in the previous version
 added warning if there are any nodes or frames still in use when the core is free
