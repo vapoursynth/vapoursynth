@@ -38,7 +38,7 @@ Name: Full; Description: Full installation; Flags: iscustom
 [Components]
 Name: "vs64"; Description: "VapourSynth 64-bit"; Types: Full; Check: HasPython64; Flags: disablenouninstallwarning
 Name: "vs32"; Description: "VapourSynth 32-bit"; Types: Full; Check: HasPython32; Flags: disablenouninstallwarning
-Name: "sdk"; Description: "VapourSynth SDK"; Flags: fixed; Types: Full
+Name: "sdk"; Description: "VapourSynth SDK"; Flags: fixed; Types: FullName: "vsruntimes"; Description: "Visual Studio Runtimes (2013 & 2015)"; Types: Full; Flags: disablenouninstallwarning
 
 [Tasks]
 Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to shell context menu"; GroupDescription: "New File Shortcuts:"; Components: vs32 vs64
@@ -449,7 +449,7 @@ begin
   end
   else if CurPageID = wpReady then
   begin
-    if IsComponentSelected('vs32') and not Runtimes32Added then
+    if IsComponentSelected('vsruntimes') and IsComponentSelected('vs32') and not Runtimes32Added then
     begin
       SetForceX86(True);
       vcredist2013();
@@ -457,7 +457,7 @@ begin
       SetForceX86(False);
       Runtimes32Added := True;
     end;
-    if IsComponentSelected('vs64') and not Runtimes64Added then
+    if IsComponentSelected('vsruntimes') and IsComponentSelected('vs64') and not Runtimes64Added then
     begin
       vcredist2013();
       vcredist2015();
