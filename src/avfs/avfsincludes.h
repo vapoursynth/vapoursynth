@@ -13,18 +13,13 @@
 #include <algorithm>
 #include <new>
 #include <codecvt>
+#include <chrono>
+#include <thread>
 #include <string>
 #include <fstream>
 #include <vector>
-#define WIN32_LEAN_AND_MEAN		// Exclude rarely-used stuff from Windows headers
-#define NOMINMAX
-#include <windows.h>
 #include "ss.h"
-#pragma warning(disable: 4244) // size conversion warning
-#pragma warning(disable: 4245) // sign conversion warning
-#include "avisynth.h"
-#pragma warning(default: 4244)
-#pragma warning(default: 4245)
+#include <avisynth.h>
 #include "avfspfm.h"
 #include "xxfs.h"
 #include "avfs.h"

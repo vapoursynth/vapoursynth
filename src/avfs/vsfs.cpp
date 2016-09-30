@@ -38,6 +38,8 @@
 #include "avfsincludes.h"
 //#include "traces.h"
 
+#define ERROR_ACCESS_DENIED 0x5;
+
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
 
@@ -54,7 +56,7 @@ class VapourSynther final:
     bool pad_scanlines;
     VSNodeRef *node;
 
-    wchar_t *errText;
+    std::wstring errText;
 
     const VSVideoInfo *vi;
 
@@ -455,44 +457,15 @@ int VapourSynther::GetVarAsInt(const char* varName, int defVal) {
 
 // Take a copy of the current error message
 void VapourSynther::setError(const char *_text, const wchar_t *alt) {
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
+    errText.clear();
 
-    if (errText)
-        free(errText);
-
-    const int maxLength = 2046;
-    char text[maxLength + 2] = "";
-    int i = 0;
-
-    // Exception protected copy error message,
-    // reformat \r and \n for windows text output.
-    __try {
-        // We are accessing a string pointer that can easily point to an invalid
-        // memory address or fail to have the expected null string terminator.
-        // Do not call any routines inside the __try { } block.
-        for (i = 0; i<maxLength; i++) {
-            char ch = *_text++;
-            while (ch == '\r') ch = *_text++;
-            text[i] = ch;
-            if (ch == '\0') break;
-            if (ch == '\n') {
-                text[i++] = '\r';
-                text[i] = '\n';
-            }
-        }
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-        text[i] = '\0';
-        //    trace->printf("setError: Trap accessing 0x%08X current contents :-\n%s\n",
-        //	              _text, text);
-        if (alt) {
-            errText = ssdup(alt);
-        } else {
-            errText = ssdup(L"AvisynthError.msg corrupted.");
-        }
-        return;
-    }
-    text[maxLength + 1] = '\0';
-    errText = ssconvalloc(text);
-    //  trace->printf("%s\n",text);
+    if (_text)
+        errText = conversion.from_bytes(_text);
+    else if (alt)
+        errText = alt;
+    else
+        errText = L"VapourSynthError.msg corrupted.";
 }
 
 /*---------------------------------------------------------
@@ -500,9 +473,7 @@ void VapourSynther::setError(const char *_text, const wchar_t *alt) {
 
 // Retrieve the current avisynth error message
 const wchar_t* VapourSynther::getError() {
-
-    return errText;
-
+    return errText.c_str();
 }
 
 /*---------------------------------------------------------
@@ -528,7 +499,6 @@ VapourSynther::VapourSynther(void) :
     //  trace(tropen(L"AVFS")),
     se(nullptr),
     node(nullptr),
-    errText(nullptr),
     prefetchFrames(0),
     pendingRequests(0),
     lastPosition(-1),
@@ -554,8 +524,6 @@ VapourSynther::~VapourSynther(void) {
         vsscript_freeScript(se);
         se = nullptr;
     }
-
-    free(errText);
 }
 
 /*---------------------------------------------------------
@@ -598,7 +566,7 @@ void VapourSynther::AddRef(void) {
 void VapourSynther::Release(void) {
     ASSERT(references);
     if (!--references) {
-        while (pendingRequests > 0) { Sleep(1); };
+        while (pendingRequests > 0) { std::this_thread::sleep_for(std::chrono::milliseconds(1)); };
         delete this;
     }
 }

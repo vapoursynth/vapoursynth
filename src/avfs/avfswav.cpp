@@ -68,7 +68,7 @@ struct waveHdr {
   uint32_t dataSize;
   // uint8_t data[dataSize];
 };                             /* Data Samples */
-C_ASSERT(sizeof(waveHdr) == 44);
+static_assert(sizeof(waveHdr) == 44, "");
 static const uint32_t waveHdrRiffTagVal = MAKETAGUINT32('R','I','F','F');
 static const uint32_t waveHdrWaveTagVal = MAKETAGUINT32('W','A','V','E');
 static const uint32_t waveHdrFmtTagVal  = MAKETAGUINT32('f','m','t',' ');
@@ -92,7 +92,7 @@ struct wave64Hdr {
   uint64_t dataSize;
   // uint8_t data[dataSize];
 };
-C_ASSERT(sizeof(wave64Hdr) == 104);
+static_assert(sizeof(wave64Hdr) == 104, "");
 static const uuid_t wave64HdrRiffUuidVal = { 0x66666972u,0x912Eu,0x11CFu,{0xA5u,0xD6u,0x28u,0xDBu,0x04u,0xC1u,0x00u,0x00u} };
 static const uuid_t wave64HdrWaveUuidVal = { 0x65766177u,0xACF3u,0x11D3u,{0x8Cu,0xD1u,0x00u,0xC0u,0x4Fu,0x8Eu,0xDBu,0x8Au} };
 static const uuid_t wave64HdrFmtUuidVal  = { 0x20746D66u,0xACF3u,0x11D3u,{0x8Cu,0xD1u,0x00u,0xC0u,0x4Fu,0x8Eu,0xDBu,0x8Au} };

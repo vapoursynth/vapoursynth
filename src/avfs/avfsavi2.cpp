@@ -243,7 +243,7 @@ struct Avi2IndxHdr {
   uint32_t qwBaseOffsetHigh;
   uint8_t reserved1[4];
 };
-C_ASSERT(sizeof(Avi2IndxHdr) == 32);
+static_assert(sizeof(Avi2IndxHdr) == 32, "");
 
 
 // hdr.wLongsPerEntry = sizeof(Avi2SuperIndxEntry)/4
