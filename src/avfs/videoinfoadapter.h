@@ -73,20 +73,32 @@ public:
         height = vi->height;
         num_audio_samples = vi->num_audio_samples;
         sample_type = vi->sample_type;
-        if (vi->IsRGB())
+        if (vi->IsColorSpace(VideoInfo::CS_BGR24) || vi->IsColorSpace(VideoInfo::CS_BGR32))
             pixel_format = pfCompatBGR32;
-        else if (vi->IsYUY2())
+        else if (vi->IsColorSpace(VideoInfo::CS_YUY2))
             pixel_format = pfCompatYUY2;
-        else if (vi->IsY8())
+        else if (vi->IsColorSpace(VideoInfo::CS_Y8))
             pixel_format = pfGray8;
-        else if (vi->IsYV411())
+        else if (vi->IsColorSpace(VideoInfo::CS_YV411))
             pixel_format = pfYUV411P8;
-        else if (vi->IsYV12())
+        else if (vi->IsColorSpace(VideoInfo::CS_YV12) || vi->IsColorSpace(VideoInfo::CS_I420) || vi->IsColorSpace(VideoInfo::CS_YUVA420))
             pixel_format = pfYUV420P8;
-        else if (vi->IsYV16())
+        else if (vi->IsColorSpace(VideoInfo::CS_YV16) || vi->IsColorSpace(VideoInfo::CS_YUVA422))
             pixel_format = pfYUV422P8;
-        else if (vi->IsYV24())
+        else if (vi->IsColorSpace(VideoInfo::CS_YV24) || vi->IsColorSpace(VideoInfo::CS_YUVA444))
             pixel_format = pfYUV444P8;
+        else if (vi->IsColorSpace(VideoInfo::CS_YUV420P10) || vi->IsColorSpace(VideoInfo::CS_YUVA420P10))
+            pixel_format = pfYUV420P10;
+        else if (vi->IsColorSpace(VideoInfo::CS_YUV422P10) || vi->IsColorSpace(VideoInfo::CS_YUVA422P10))
+            pixel_format = pfYUV422P10;
+        else if (vi->IsColorSpace(VideoInfo::CS_YUV420P16) || vi->IsColorSpace(VideoInfo::CS_YUVA420P16))
+            pixel_format = pfYUV420P16;
+        else if (vi->IsColorSpace(VideoInfo::CS_YUV422P16) || vi->IsColorSpace(VideoInfo::CS_YUVA422P16))
+            pixel_format = pfYUV422P16;
+        else if (vi->IsColorSpace(VideoInfo::CS_YUV444P16) || vi->IsColorSpace(VideoInfo::CS_YUVA444P16))
+            pixel_format = pfYUV444P16;
+        else if (vi->IsColorSpace(VideoInfo::CS_RGBP16) || vi->IsColorSpace(VideoInfo::CS_RGBAP16))
+            pixel_format = pfRGB48;
     };
 
     bool HasAudio() const {

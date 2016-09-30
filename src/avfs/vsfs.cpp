@@ -36,7 +36,6 @@
 
 
 #include "avfsincludes.h"
-//#include "traces.h"
 
 #define ERROR_ACCESS_DENIED 0x5;
 
@@ -46,8 +45,6 @@
 class VapourSynther final:
     public VapourSynther_ {
     int references;
-
-    //  TRCHANNEL trace;
 
     int num_threads;
     const VSAPI *vsapi;
@@ -96,11 +93,6 @@ public:
     uint8_t *GetPackedFrame();
     const VSAPI *GetVSApi();
 
-    // Avisynther_ interface
-
-    void vprintf(const wchar_t* format, va_list args);
-    void printf(const wchar_t* format, ...);
-
     // Exception protected GetFrame()
     const VSFrameRef *GetFrame(AvfsLog_* log, int n, bool *success = 0);
 
@@ -127,19 +119,6 @@ void VS_CC VapourSynther::frameDoneCallback(void *userData, const VSFrameRef *f,
     VapourSynther *vsynther = static_cast<VapourSynther *>(userData);
     vsynther->vsapi->freeFrame(f);
     --vsynther->pendingRequests;
-}
-
-/*---------------------------------------------------------
----------------------------------------------------------*/
-
-void VapourSynther::vprintf(const wchar_t* format, va_list args) {
-    //   trace->printf(format,args);
-}
-
-void VapourSynther::printf(const wchar_t* format, ...) {
-    va_list args;
-    va_start(args, format);
-    //   trace->vprintf(format,args);
 }
 
 /*---------------------------------------------------------
@@ -228,6 +207,7 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
             const VSCoreInfo *info = vsapi->getCoreInfo(vsscript_getCore(se));
             num_threads = info->numThreads;
 
+            packedFrame.clear();
             packedFrame.resize(BMPSize());
 
             return 0;
@@ -496,7 +476,6 @@ int/*error*/ VapourSynther::newEnv() {
 // Constructor
 VapourSynther::VapourSynther(void) :
     references(1),
-    //  trace(tropen(L"AVFS")),
     se(nullptr),
     node(nullptr),
     prefetchFrames(0),

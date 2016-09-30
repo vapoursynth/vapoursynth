@@ -36,7 +36,6 @@
 
 
 #include "avfsincludes.h"
-//#include "traces.h"
 
 #define WIN32_LEAN_AND_MEAN		// Exclude rarely-used stuff from Windows headers
 #define NOMINMAX
@@ -54,8 +53,6 @@ class Avisynther final:
 {
   int references;
 
-//  TRCHANNEL trace;
-
   // Function pointer
   ICreateScriptEnvironment CreateScriptEnvironment;
 
@@ -66,7 +63,7 @@ class Avisynther final:
 
   PClip clip; // This is a smart pointer, make sure it is released before env gets zapped!
 
-  wchar_t *errText;
+  std::wstring errText;
 
   VideoInfo vi;
 
@@ -116,12 +113,6 @@ class Avisynther final:
 
 public:
 
-
-  // Avisynther_ interface
-
-  void vprintf(const wchar_t* format,va_list args);
-  void printf(const wchar_t* format,...);
-
   // Exception protected clip->GetAudio()
   bool/*success*/ GetAudio(AvfsLog_* log, void* buf, __int64 start, unsigned count);
 
@@ -148,21 +139,6 @@ public:
   void AddRef(void);
   void Release(void);
 };
-
-/*---------------------------------------------------------
----------------------------------------------------------*/
-
-void Avisynther::vprintf(const wchar_t* format,va_list args)
-{
-//   trace->printf(format,args);
-}
-
-void Avisynther::printf(const wchar_t* format,...)
-{
-   va_list args;
-   va_start(args,format);
-//   trace->vprintf(format,args);
-}
 
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
@@ -311,7 +287,6 @@ void Avisynther::FraThreadMain()
       // Read the next frame and release it. Might be better
       // to hold the reference, but the MRU caching in avisynth
       // is enough for reasonable read ahead depths.
-//      trace->printf(L"   ra %i\n",position);
       try {
         PVideoFrame frame = clip->GetFrame(position, env);
       }
@@ -369,7 +344,6 @@ bool/*success*/ Avisynther::GetAudio(AvfsLog_* log, void* buf, __int64 start, un
   bool success = false;
   if (clip) {
     if (vi.HasAudio()) {
-//      trace->printf(L"audio %I64i, %u\n",start, count);
       try {
         clip->GetAudio(buf, start, (__int64)count, env);
         success = true;
@@ -413,7 +387,6 @@ PVideoFrame Avisynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
 
     if (clip) {
       if (vi.HasVideo()) {
-//        trace->printf(L"frame %i\n",n);
         try {
           frame = clip->GetFrame(n, env);
           success = true;
@@ -539,46 +512,15 @@ int Avisynther::GetVarAsInt(const char* varName,int defVal)
 
 // Take a copy of the current error message
 void Avisynther::setError(const char *_text, const wchar_t *alt) {
+  std::wstring_convert<std::codecvt<wchar_t, char, std::mbstate_t>, wchar_t> conversion;
+  errText.clear();
 
-  if (errText)
-    free(errText);
-
-  const int maxLength = 2046;
-  char text[maxLength+2] = "";
-  int i = 0;
-
-  // Exception protected copy error message,
-  // reformat \r and \n for windows text output.
-  __try {
-	// We are accessing a string pointer that can easily point to an invalid
-	// memory address or fail to have the expected null string terminator.
-	// Do not call any routines inside the __try { } block.
-    for (i=0; i<maxLength; i++) {
-      char ch = *_text++;
-      while (ch == '\r') ch = *_text++;
-      text[i] = ch;
-      if (ch == '\0') break;
-      if (ch == '\n') {
-        text[i++] = '\r';
-        text[i]   = '\n';
-      }
-    }
-  }
-  __except (EXCEPTION_EXECUTE_HANDLER) {
-	text[i] = '\0';
-//    trace->printf("setError: Trap accessing 0x%08X current contents :-\n%s\n",
-//	              _text, text);
-    if (alt) {
-      errText = ssdup(alt);
-    }
-    else {
-      errText = ssdup(L"AvisynthError.msg corrupted.");
-    }
-    return;
-  }
-  text[maxLength+1] = '\0';
-  errText = ssconvalloc(text);
-//  trace->printf("%s\n",text);
+  if (_text)
+      errText = conversion.from_bytes(_text);
+  else if (alt)
+      errText = alt;
+  else
+      errText = L"AvisynthError.msg corrupted.";
 }
 
 /*---------------------------------------------------------
@@ -586,9 +528,7 @@ void Avisynther::setError(const char *_text, const wchar_t *alt) {
 
 // Retrieve the current avisynth error message
 const wchar_t* Avisynther::getError() {
-
-  return errText;
-
+  return errText.c_str();
 }
 
 /*---------------------------------------------------------
@@ -660,12 +600,10 @@ AVSValue Avisynther::Invoke(const char* name, const AVSValue args) {
 // Constructor
 Avisynther::Avisynther(void) :
   references(1),
-//  trace(tropen(L"AVFS")),
   CreateScriptEnvironment(nullptr),
   hlib(0),
   env(0),
   clip(0),
-  errText(0),
   fraThread(0),
   fraSuspendCount(0),
   fraPosition(0),
@@ -716,8 +654,6 @@ Avisynther::~Avisynther(void)
     hlib = NULL;
     CreateScriptEnvironment = nullptr;
   }
-
-  free(errText);
 }
 
 /*---------------------------------------------------------

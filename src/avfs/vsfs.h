@@ -41,9 +41,6 @@ struct VapourSynther_ : public Synther_ {
     virtual void AddRef(void) = 0;
     virtual void Release(void) = 0;
 
-    virtual void vprintf(const wchar_t* format, va_list args) = 0;
-    virtual void printf(const wchar_t* format, ...) = 0;
-
     // Exception protected PVideoFrame->GetFrame()
     virtual const VSFrameRef *GetFrame(AvfsLog_* log, int n, bool *success = 0) = 0;
 

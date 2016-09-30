@@ -42,9 +42,6 @@ struct Synther_ {
     virtual void AddRef(void) = 0;
     virtual void Release(void) = 0;
 
-    virtual void vprintf(const wchar_t* format, va_list args) = 0;
-    virtual void printf(const wchar_t* format, ...) = 0;
-
     virtual VideoInfoAdapter GetVideoInfo() = 0;
 
     virtual const char* GetVarAsString(const char* varName, const char* defVal) = 0;

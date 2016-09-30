@@ -42,9 +42,6 @@ struct Avisynther_ : public Synther_
     virtual void AddRef(void) = 0;
     virtual void Release(void) = 0;
 
-    virtual void vprintf(const wchar_t* format,va_list args) = 0;
-    virtual void printf(const wchar_t* format,...) = 0;
-
     // Exception protected PVideoFrame->GetAudio()
     virtual bool/*success*/ GetAudio(AvfsLog_* log, void* buf, __int64 start, unsigned count) = 0;
 
