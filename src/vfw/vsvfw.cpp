@@ -446,21 +446,7 @@ bool VapourSynthFile::DelayInit2() {
             }
 
             int id = vi->format->id;
-            if (id != pfCompatBGR32
-                && id != pfRGB24
-                && id != pfRGB48
-                && id != pfCompatYUY2
-                && id != pfYUV420P8
-                && id != pfGray8
-                && id != pfYUV444P8
-                && id != pfYUV422P8
-                && id != pfYUV411P8
-                && id != pfYUV410P8
-                && id != pfYUV420P10
-                && id != pfYUV420P16
-                && id != pfYUV422P10
-                && id != pfYUV422P16
-                && id != pfYUV444P16) {
+            if (!HasSupportedFourCC(id)) {
                 error_msg = "VFW module doesn't support ";
                 error_msg += vi->format->name;
                 error_msg += " output";

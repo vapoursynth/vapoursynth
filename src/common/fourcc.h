@@ -116,4 +116,26 @@ static inline int BitsPerPixel(const VSVideoInfo *vi, int output_alt) {
     return bits;
 }
 
+static bool HasSupportedFourCC(int id) {
+    return (id == pfCompatBGR32
+        || id == pfRGB24
+        || id == pfRGB48
+        || id == pfCompatYUY2
+        || id == pfYUV420P8
+        || id == pfGray8
+        || id == pfYUV444P8
+        || id == pfYUV422P8
+        || id == pfYUV411P8
+        || id == pfYUV410P8
+        || id == pfYUV420P10
+        || id == pfYUV420P16
+        || id == pfYUV422P10
+        || id == pfYUV422P16
+        || id == pfYUV444P16);
+}
+
+static bool NeedsPacking(int id) {
+    return (id == pfRGB24 || id == pfRGB48 || id == pfYUV420P10 || id == pfYUV420P16 || id == pfYUV422P10 || id == pfYUV422P16 || id == pfYUV444P16);
+}
+
 #endif
