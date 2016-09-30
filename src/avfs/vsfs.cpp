@@ -52,7 +52,6 @@ class VapourSynther final:
     const VSAPI *vsapi;
     VSScript *se;
     bool enable_v210;
-    bool pad_scanlines;
     VSNodeRef *node;
 
     std::wstring errText;
@@ -195,15 +194,9 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
             vsscript_getVariable(se, "enable_v210", options);
             val = vsapi->propGetInt(options, "enable_v210", 0, &error);
             if (!error)
-                enable_v210 = !!val;
+                enable_v210 = !!val && (vi->format->id == pfYUV422P10);
             else
                 enable_v210 = false;
-            vsscript_getVariable(se, "pad_scanlines", options);
-            val = vsapi->propGetInt(options, "pad_scanlines", 0, &error);
-            if (!error)
-                pad_scanlines = !!val;
-            else
-                pad_scanlines = false;
             vsapi->freeMap(options);
 
             const VSCoreInfo *info = vsapi->getCoreInfo(vsscript_getCore(se));
@@ -387,7 +380,7 @@ const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) 
 // Readonly reference to VideoInfo
 VideoInfoAdapter VapourSynther::GetVideoInfo() {
 
-    return { vi, this, (enable_v210 && vi->format->id == pfYUV422P10) };
+    return { vi, this, enable_v210 };
 
 }
 
@@ -556,14 +549,14 @@ void VapourSynther::Release(void) {
 ---------------------------------------------------------*/
 
 int VapourSynther::BitsPerPixel() {
-    return ::BitsPerPixel(vi, (vi->format->id == pfYUV422P10 && enable_v210));
+    return ::BitsPerPixel(vi, enable_v210);
 }
 
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
 
 int VapourSynther::BMPSize() {
-    return ::BMPSize(vi, (vi->format->id == pfYUV422P10 && enable_v210));
+    return ::BMPSize(vi, enable_v210);
 }
 
 /*---------------------------------------------------------

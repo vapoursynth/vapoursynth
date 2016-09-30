@@ -61,6 +61,8 @@ class Avisynther final:
 
   IScriptEnvironment* env;
 
+  bool enable_v210;
+
   PClip clip; // This is a smart pointer, make sure it is released before env gets zapped!
 
   std::wstring errText;
@@ -168,6 +170,8 @@ int/*error*/ Avisynther::Import(const wchar_t* wszScriptName)
           if (clip) {
             vi = clip->GetVideoInfo();
           }
+
+          enable_v210 = GetVarAsBool("enable_v210", false) && (vi.IsColorSpace(VideoInfo::CS_YUV422P10) || vi.IsColorSpace(VideoInfo::CS_YUVA422P10));
         }
         else {
           setError("The script's return value was not a video clip.");
@@ -429,7 +433,7 @@ PVideoFrame Avisynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
 // Readonly reference to VideoInfo
 VideoInfoAdapter Avisynther::GetVideoInfo() {
 
-  return &vi;
+  return VideoInfoAdapter(&vi, enable_v210);
 
 }
 
