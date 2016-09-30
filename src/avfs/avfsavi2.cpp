@@ -1312,7 +1312,7 @@ bool/*success*/ AvfsAvi2File::GetFrameData(
       const VSAPI *vsapi = vssynther->GetVSApi();
       const VSFrameRef *frame = vssynther->GetFrame(log, n, &success);
       if (success) {
-          if (vssynther->UsePacking()) {
+          if (NeedsPacking(vssynther->GetVideoInfo().pixel_format)) {
               memcpy(buffer, vssynther->GetPackedFrame() + offset, size);
           } else {
               copyPlaneVS(buffer, offset, size, frame, 0, 3, vsapi);
@@ -1325,10 +1325,14 @@ bool/*success*/ AvfsAvi2File::GetFrameData(
   } else {
       PVideoFrame frame = avssynther->GetFrame(log, n, &success);
       if (success) {
-          copyPlaneAvs(buffer, offset, size, frame, PLANAR_Y, 3);
-          copyPlaneAvs(buffer, offset, size, frame, PLANAR_V, 1);
-          copyPlaneAvs(buffer, offset, size, frame, PLANAR_U, 1);
-          ASSERT(size == 0);
+          if (NeedsPacking(avssynther->GetVideoInfo().pixel_format)) {
+              memcpy(buffer, avssynther->GetPackedFrame() + offset, size);
+          } else {
+              copyPlaneAvs(buffer, offset, size, frame, PLANAR_Y, 3);
+              copyPlaneAvs(buffer, offset, size, frame, PLANAR_V, 1);
+              copyPlaneAvs(buffer, offset, size, frame, PLANAR_U, 1);
+              ASSERT(size == 0);
+          }
       }
   }
   return success;

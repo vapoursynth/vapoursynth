@@ -57,6 +57,10 @@ struct Avisynther_ : public Synther_
     virtual bool GetVarAsBool(const char* varName,bool defVal) = 0;
     virtual int GetVarAsInt(const char* varName,int defVal) = 0;
 
+    virtual int BitsPerPixel() = 0;
+    virtual int BMPSize() = 0;
+    virtual uint8_t *GetPackedFrame() = 0;
+
     // Frame read-ahead improves encoding performance on multi core/cpu
     // systems. ReadMedia logic should temporarily disable read-ahead
     // so it does not kick in before a given read is satisfied.

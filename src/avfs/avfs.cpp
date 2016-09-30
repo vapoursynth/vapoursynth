@@ -71,6 +71,8 @@ class Avisynther final:
 
   std::string lastStringValue;
 
+  std::vector<uint8_t> packedFrame;
+
   // Frame read ahead.
   HANDLE fraThread;
   CRITICAL_SECTION fraMutex;
@@ -114,6 +116,9 @@ class Avisynther final:
   static DWORD __stdcall FraThreadMainThunk(void* param);
 
 public:
+  int BitsPerPixel();
+  int BMPSize();
+  uint8_t *GetPackedFrame();
 
   // Exception protected clip->GetAudio()
   bool/*success*/ GetAudio(AvfsLog_* log, void* buf, __int64 start, unsigned count);
@@ -172,6 +177,14 @@ int/*error*/ Avisynther::Import(const wchar_t* wszScriptName)
           }
 
           enable_v210 = GetVarAsBool("enable_v210", false) && (vi.IsColorSpace(VideoInfo::CS_YUV422P10) || vi.IsColorSpace(VideoInfo::CS_YUVA422P10));
+
+          if (!HasSupportedFourCC(VideoInfoAdapter(&vi, enable_v210).pixel_format) || NeedsPacking(VideoInfoAdapter(&vi, enable_v210).pixel_format)) {
+              setError("AVFS module doesn't support output of the current format");
+              error = ERROR_ACCESS_DENIED;
+          }
+
+          packedFrame.clear();
+          packedFrame.resize(BMPSize());
         }
         else {
           setError("The script's return value was not a video clip.");
@@ -437,6 +450,51 @@ VideoInfoAdapter Avisynther::GetVideoInfo() {
 
 }
 
+int Avisynther::BMPSize() {
+    if (!vi.HasVideo())
+        return 0;
+    VideoInfoAdapter via = GetVideoInfo();
+    int image_size;
+
+    if (via.pixel_format == pfYUV422P10 && enable_v210) {
+        image_size = ((16 * ((vi.width + 5) / 6) + 127) & ~127);
+        image_size *= vi.height;
+    } else if (via.pixel_format == pfRGB24 || via.pixel_format == pfRGB48 || via.pixel_format == pfCompatBGR32 || via.pixel_format == pfYUV444P16) {
+        image_size = BMPSizeHelper(vi.height, vi.width * vi.ComponentSize() * 4);
+    } else if (via.pixel_format == pfCompatYUY2) {
+        image_size = BMPSizeHelper(vi.height, vi.width * vi.ComponentSize() * 2);
+    } else if (vi.IsY()) {
+        image_size = BMPSizeHelper(vi.height, vi.width * vi.ComponentSize());
+    } else {
+        image_size = (vi.width * vi.ComponentSize()) >> (vi.IsYUV() ? vi.GetPlaneWidthSubsampling(PLANAR_U) : 0);
+        if (image_size) {
+            image_size *= vi.height;
+            image_size >>= (vi.IsYUV() ? vi.GetPlaneHeightSubsampling(PLANAR_U) : 0);
+            image_size *= 2;
+        }
+        image_size += vi.width * vi.ComponentSize() * vi.height;
+    }
+    return image_size;
+}
+
+int Avisynther::BitsPerPixel() {
+    if (!vi.HasVideo())
+        return 0;
+    VideoInfoAdapter via = GetVideoInfo();
+    int bits = vi.ComponentSize() * 8;
+    if (via.pixel_format == pfRGB24 || via.pixel_format == pfRGB48 || via.pixel_format == pfYUV444P16)
+        bits *= 4;
+    else if (vi.NumComponents() >= 3 && vi.IsPlanar())
+        bits += (bits * 2) >> ((vi.IsYUV() ? vi.GetPlaneHeightSubsampling(PLANAR_U) : 0) + (vi.IsYUV() ? vi.GetPlaneWidthSubsampling(PLANAR_U) : 0));
+    if (via.pixel_format == pfCompatBGR32)
+        bits = 32;
+    if (via.pixel_format == pfCompatYUY2)
+        bits = 16;
+    if (via.pixel_format == pfYUV422P10 && enable_v210)
+        bits = 20;
+    return bits;
+}
+
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
 
@@ -535,6 +593,10 @@ const wchar_t* Avisynther::getError() {
   return errText.c_str();
 }
 
+uint8_t *Avisynther::GetPackedFrame() {
+    return packedFrame.data();
+}
+
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
 // Exception protected refresh the IScriptEnvironment
@@ -546,12 +608,12 @@ int/*error*/ Avisynther::newEnv()
 
   // Purge any old IScriptEnvironment
   if (env) {
-    clip = 0; // Must release smartpointer before zapping env!
+    clip = nullptr; // Must release smartpointer before zapping env!
     try {
       delete env;
     }
     catch (...) { }
-    env = 0;
+    env = nullptr;
   }
 
   // Make a new IScriptEnvironment
@@ -655,7 +717,7 @@ Avisynther::~Avisynther(void)
 
   if (hlib) {
     ASSERT(FreeLibrary(hlib));
-    hlib = NULL;
+    hlib = nullptr;
     CreateScriptEnvironment = nullptr;
   }
 }

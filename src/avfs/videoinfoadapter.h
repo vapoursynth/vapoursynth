@@ -80,7 +80,7 @@ public:
         height = vi->height;
         num_audio_samples = vi->num_audio_samples;
         sample_type = vi->SampleType();
-        if (vi->IsColorSpace(VideoInfo::CS_BGR24) || vi->IsColorSpace(VideoInfo::CS_BGR32))
+        if (vi->IsColorSpace(VideoInfo::CS_BGR32))
             pixel_format = pfCompatBGR32;
         else if (vi->IsColorSpace(VideoInfo::CS_YUY2))
             pixel_format = pfCompatYUY2;
