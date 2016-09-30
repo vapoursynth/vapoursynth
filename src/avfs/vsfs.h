@@ -56,9 +56,8 @@ struct VapourSynther_ : public Synther_ {
 
     virtual int BitsPerPixel() = 0;
     virtual int BMPSize() = 0;
-    virtual bool UsePacking() = 0;
-
     virtual uint8_t *GetPackedFrame() = 0;
+
     virtual const VSAPI *GetVSApi() = 0;
 };
 

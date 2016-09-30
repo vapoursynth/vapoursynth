@@ -90,7 +90,6 @@ public:
 
     int BitsPerPixel();
     int BMPSize();
-    bool UsePacking();
     uint8_t *GetPackedFrame();
     const VSAPI *GetVSApi();
 
@@ -164,22 +163,7 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
                 return ERROR_ACCESS_DENIED;
             }
 
-            int id = vi->format->id;
-            if (id != pfCompatBGR32
-                && id != pfRGB24
-                && id != pfRGB48
-                && id != pfCompatYUY2
-                && id != pfYUV420P8
-                && id != pfGray8
-                && id != pfYUV444P8
-                && id != pfYUV422P8
-                && id != pfYUV411P8
-                && id != pfYUV410P8
-                && id != pfYUV420P10
-                && id != pfYUV420P16
-                && id != pfYUV422P10
-                && id != pfYUV422P16
-                && id != pfYUV444P16) {
+            if (!HasSupportedFourCC(vi->format->id)) {
                     std::string error_msg = "AVFS module doesn't support ";
                     error_msg += vi->format->name;
                     error_msg += " output";
@@ -283,7 +267,7 @@ const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) 
             f = vsapi->getFrame(n, node, errMsg, sizeof(errMsg));
             success = !!f;
             if (success) {
-                if (UsePacking()) {
+                if (NeedsPacking(vi->format->id)) {
                     const VSFormat *fi = vsapi->getFrameFormat(f);
 
                     p2p_buffer_param p = {};
@@ -561,10 +545,6 @@ int VapourSynther::BMPSize() {
 
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
-
-bool VapourSynther::UsePacking() {
-    return (vi->format->id == pfRGB24 || vi->format->id == pfRGB48 || vi->format->id == pfYUV420P10 || vi->format->id == pfYUV420P16 || vi->format->id == pfYUV422P10 || vi->format->id == pfYUV422P16 || vi->format->id == pfYUV444P16);
-}
 
 uint8_t *VapourSynther::GetPackedFrame() {
     return packedFrame.data();
