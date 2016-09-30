@@ -737,6 +737,7 @@ namespace {
                 lookup_enum(in, "range_in", g_range_table, &m_frame_params_in.range, vsapi);
                 lookup_enum(in, "chromaloc_in", g_chromaloc_table, &m_frame_params_in.chromaloc, vsapi);
 
+                m_params.allow_approximate_gamma = 1;
                 m_params.resample_filter = static_cast<zimg_resample_filter_e>(reinterpret_cast<intptr_t>(userData));
                 m_params.filter_param_a = propGetScalarDef<double>(in, "filter_param_a", m_params.filter_param_a, vsapi);
                 m_params.filter_param_b = propGetScalarDef<double>(in, "filter_param_b", m_params.filter_param_b, vsapi);
