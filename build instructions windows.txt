@@ -8,7 +8,8 @@ It also needs both 32 and 64 bit Python 3.5 series with cython installed for bot
 Inno setup is needed to create the installer
 
 Clone VapourSynth
-Clone zimg v2.2 branch into the VapourSynth dir
+Clone zimg master branch into the VapourSynth dir
+Clone avs+ mt branch into the VapourSynth dir
 Compile 32 and 64 bit release using the VapourSynth solution
 Run cython_build.bat to compile the Python modules
 
