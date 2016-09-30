@@ -32,6 +32,8 @@
 #include <atomic>
 #include <codecvt>
 #include <vector>
+#include <chrono>
+#include <thread>
 
 #include "VSScript.h"
 #include "VSHelper.h"
@@ -389,7 +391,7 @@ VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : num_threads(1), vsapi(nu
 VapourSynthFile::~VapourSynthFile() {
     Lock();
     if (vi) {
-        while (pending_requests > 0) { Sleep(1); };
+        while (pending_requests > 0) { std::this_thread::sleep_for(std::chrono::milliseconds(1)); };
         vi = nullptr;
         vsapi->freeNode(node);
         vsscript_freeScript(se);
