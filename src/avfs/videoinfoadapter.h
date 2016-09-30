@@ -72,20 +72,22 @@ public:
         }
     };
 
-    VideoInfoAdapter(const VideoInfo *vi, int outputFormat) : avsvi(vi), output_format(outputFormat), vssynther(nullptr), subsampling_w(0), subsampling_h(0) {
+    VideoInfoAdapter(const VideoInfo *vi, int outputFormat) : avsvi(vi), vssynther(nullptr), pixel_format(-1), output_format(outputFormat), subsampling_w(0), subsampling_h(0) {
         num_frames = vi->num_frames;
         fps_numerator = vi->fps_numerator;
         fps_denominator = vi->fps_denominator;
         width = vi->width;
         height = vi->height;
         num_audio_samples = vi->num_audio_samples;
-        sample_type = vi->sample_type;
+        sample_type = vi->SampleType();
         if (vi->IsColorSpace(VideoInfo::CS_BGR24) || vi->IsColorSpace(VideoInfo::CS_BGR32))
             pixel_format = pfCompatBGR32;
         else if (vi->IsColorSpace(VideoInfo::CS_YUY2))
             pixel_format = pfCompatYUY2;
         else if (vi->IsColorSpace(VideoInfo::CS_Y8))
             pixel_format = pfGray8;
+        else if (vi->IsColorSpace(VideoInfo::CS_YUV9))
+            pixel_format = pfYUV410P8;        
         else if (vi->IsColorSpace(VideoInfo::CS_YV411))
             pixel_format = pfYUV411P8;
         else if (vi->IsColorSpace(VideoInfo::CS_YV12) || vi->IsColorSpace(VideoInfo::CS_I420) || vi->IsColorSpace(VideoInfo::CS_YUVA420))
@@ -154,8 +156,7 @@ public:
     }
 
     int SampleType() const {
-        //fixme?
-        return vsvi ? 0 : avsvi->SampleType();
+        return sample_type;
     }
 };
 
