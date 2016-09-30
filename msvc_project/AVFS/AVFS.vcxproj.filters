@@ -36,9 +36,6 @@
     <ClInclude Include="..\..\src\avfs\ss.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\avfs\traces.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\avfs\videoinfoadapter.h">
       <Filter>Header Files</Filter>
     </ClInclude>

@@ -51,10 +51,12 @@ public:
     int sample_type;
     int pixel_format;
     int output_format;
+    int subsampling_w;
+    int subsampling_h;
 
     VapourSynther_ *vssynther;
 
-    VideoInfoAdapter(const VSVideoInfo *vi, VapourSynther_ *vssynther, int outputFormat) : vsvi(vi), output_format(outputFormat), vssynther(vssynther) {
+    VideoInfoAdapter(const VSVideoInfo *vi, VapourSynther_ *vssynther, int outputFormat) : vsvi(vi), output_format(outputFormat), vssynther(vssynther), subsampling_w(0), subsampling_h(0) {
         num_frames = vi->numFrames;
         fps_numerator = static_cast<uint32_t>(vi->fpsNum);
         fps_denominator = static_cast<uint32_t>(vi->fpsDen);
@@ -63,9 +65,14 @@ public:
         num_audio_samples = 0;
         sample_type = 0;
         pixel_format = vi->format->id;
+
+        if (vi->format->numPlanes > 1) {
+            subsampling_w = vi->format->subSamplingW;
+            subsampling_h = vi->format->subSamplingH;
+        }
     };
 
-    VideoInfoAdapter(const VideoInfo *vi) : avsvi(vi), output_format(0), vssynther(nullptr) {
+    VideoInfoAdapter(const VideoInfo *vi, int outputFormat) : avsvi(vi), output_format(outputFormat), vssynther(nullptr), subsampling_w(0), subsampling_h(0) {
         num_frames = vi->num_frames;
         fps_numerator = vi->fps_numerator;
         fps_denominator = vi->fps_denominator;
@@ -99,6 +106,11 @@ public:
             pixel_format = pfYUV444P16;
         else if (vi->IsColorSpace(VideoInfo::CS_RGBP16) || vi->IsColorSpace(VideoInfo::CS_RGBAP16))
             pixel_format = pfRGB48;
+
+        if (vi->IsYUV()) {
+            subsampling_w = vi->GetPlaneWidthSubsampling(PLANAR_U);
+            subsampling_h = vi->GetPlaneHeightSubsampling(PLANAR_U);
+        }
     };
 
     bool HasAudio() const {
