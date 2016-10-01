@@ -54,9 +54,10 @@ public:
     int subsampling_w;
     int subsampling_h;
 
+    Avisynther_ *avssynther;
     VapourSynther_ *vssynther;
 
-    VideoInfoAdapter(const VSVideoInfo *vi, VapourSynther_ *vssynther, int outputFormat) : vsvi(vi), output_format(outputFormat), vssynther(vssynther), subsampling_w(0), subsampling_h(0) {
+    VideoInfoAdapter(const VSVideoInfo *vi, VapourSynther_ *vssynther, int outputFormat) : vsvi(vi), avsvi(nullptr), output_format(outputFormat), vssynther(vssynther), avssynther(nullptr), subsampling_w(0), subsampling_h(0) {
         num_frames = vi->numFrames;
         fps_numerator = static_cast<uint32_t>(vi->fpsNum);
         fps_denominator = static_cast<uint32_t>(vi->fpsDen);
@@ -72,7 +73,7 @@ public:
         }
     };
 
-    VideoInfoAdapter(const VideoInfo *vi, int outputFormat) : avsvi(vi), vssynther(nullptr), pixel_format(-1), output_format(outputFormat), subsampling_w(0), subsampling_h(0) {
+    VideoInfoAdapter(const VideoInfo *vi, Avisynther_ *avssynther, int outputFormat) : vsvi(nullptr), avsvi(vi), vssynther(nullptr), pixel_format(-1), output_format(outputFormat), avssynther(avssynther), subsampling_w(0), subsampling_h(0) {
         num_frames = vi->num_frames;
         fps_numerator = vi->fps_numerator;
         fps_denominator = vi->fps_denominator;
@@ -109,7 +110,7 @@ public:
         else if (vi->IsColorSpace(VideoInfo::CS_RGBP16) || vi->IsColorSpace(VideoInfo::CS_RGBAP16))
             pixel_format = pfRGB48;
 
-        if (vi->IsYUV()) {
+        if (vi->IsYUV() && vi->IsPlanar()) {
             subsampling_w = vi->GetPlaneWidthSubsampling(PLANAR_U);
             subsampling_h = vi->GetPlaneHeightSubsampling(PLANAR_U);
         }
@@ -148,11 +149,11 @@ public:
     }
 
     int BMPSize() const {
-        return vsvi ? vssynther->BMPSize() : avsvi->BMPSize();
+        return vsvi ? vssynther->BMPSize() : avssynther->BMPSize();
     }
 
     int BitsPerPixel() const {
-        return vsvi ? vssynther->BitsPerPixel() : avsvi->BitsPerPixel();
+        return vsvi ? vssynther->BitsPerPixel() : avssynther->BitsPerPixel();
     }
 
     int SampleType() const {

@@ -515,6 +515,7 @@ AvfsAvi2File::AvfsAvi2File(Avisynther_* inAvs)
   references = 1;
   avs = inAvs;
   avssynther = inAvs;
+  vssynther = nullptr;
   avs->AddRef();
   frameVidFcc = 0;
   frameAudHdrSize = 0;
@@ -539,6 +540,7 @@ AvfsAvi2File::AvfsAvi2File(VapourSynther_* inVs)
 {
     references = 1;
     avs = inVs;
+    avssynther = nullptr;
     vssynther = inVs;
     avs->AddRef();
     frameVidFcc = 0;

@@ -37,7 +37,7 @@ wchar_t* ssdup(const wchar_t* s)
     wchar_t* d = 0;
     if(s)
     {
-        d = wcsdup(s);
+        d = _wcsdup(s);
     }
     return d;
 }
@@ -158,7 +158,7 @@ wchar_t* ssvformatalloc(const wchar_t* format,va_list args)
 
     if(scratch)
     {
-        val = wcsdup(scratch);
+        val = _wcsdup(scratch);
     }
     free(heapScratch);
     return val;

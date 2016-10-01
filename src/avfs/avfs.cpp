@@ -102,7 +102,7 @@ class Avisynther final:
   int/*error*/ newEnv();
 
   // Exception protected IScriptEnvironment->Invoke()
-  AVSValue Invoke(const char* name, const AVSValue args);
+  AVSValue Invoke(const char* name, const AVSValue &args);
 
   // (Re)Open the Script File
   int/*error*/ Import(const wchar_t* szScriptName);
@@ -178,7 +178,7 @@ int/*error*/ Avisynther::Import(const wchar_t* wszScriptName)
 
           enable_v210 = GetVarAsBool("enable_v210", false) && (vi.IsColorSpace(VideoInfo::CS_YUV422P10) || vi.IsColorSpace(VideoInfo::CS_YUVA422P10));
 
-          if (!HasSupportedFourCC(VideoInfoAdapter(&vi, enable_v210).pixel_format) || NeedsPacking(VideoInfoAdapter(&vi, enable_v210).pixel_format)) {
+          if (!HasSupportedFourCC(VideoInfoAdapter(&vi, this, enable_v210).pixel_format)) {
               setError("AVFS module doesn't support output of the current format");
               error = ERROR_ACCESS_DENIED;
           }
@@ -385,14 +385,74 @@ bool/*success*/ Avisynther::GetAudio(AvfsLog_* log, void* buf, __int64 start, un
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
 
+static int NumPlanes(const VideoInfo &vi) {
+    if (vi.IsPlanar())
+        return (vi.NumComponents() >= 3 ? 3 : 1);
+    else
+        return 1;
+}
+
+static const BYTE *GetReadPtr(PVideoFrame &f, const VideoInfo &vi, int plane) {
+    if (!vi.IsPlanar())
+        return f->GetReadPtr();
+    else if (vi.IsYUV() || vi.IsY())
+        return f->GetReadPtr(plane == 0 ? PLANAR_Y : (plane == 1 ? PLANAR_U : PLANAR_V));
+    else if (vi.IsRGB())
+        return f->GetReadPtr(plane == 0 ? PLANAR_R : (plane == 1 ? PLANAR_G : PLANAR_B));
+    else
+        return nullptr;
+}
+
+static int GetStride(PVideoFrame &f, const VideoInfo &vi, int plane) {
+    if (!vi.IsPlanar())
+        return f->GetPitch();
+    else if (vi.IsYUV() || vi.IsY())
+        return f->GetPitch(plane == 0 ? PLANAR_Y : (plane == 1 ? PLANAR_U : PLANAR_V));
+    else if (vi.IsRGB())
+        return f->GetPitch(plane == 0 ? PLANAR_R : (plane == 1 ? PLANAR_G : PLANAR_B));
+    else
+        return 0;
+}
+
+static int BytesPerSample(const VideoInfo &vi) {
+    if (vi.IsRGB32())
+        return 4;
+    else if (vi.IsYUY2())
+        return 2;
+    else
+        return vi.ComponentSize();
+}
+
+static int GetSubSamplingH(const VideoInfo &vi, int plane) {
+    if (vi.IsYUV() && vi.IsPlanar() && plane > 0)
+        return vi.GetPlaneHeightSubsampling(plane == 1 ? PLANAR_U : PLANAR_V);
+    else
+        return 0;
+}
+
+static int GetSubSamplingW(const VideoInfo &vi, int plane) {
+    if (vi.IsYUV() && vi.IsPlanar() && plane > 0)
+        return vi.GetPlaneWidthSubsampling(plane == 1 ? PLANAR_U : PLANAR_V);
+    else
+        return 0;
+}
+
+static int GetFrameHeight(const VideoInfo &vi, int plane) {
+    return vi.height >> GetSubSamplingH(vi, plane);
+}
+
+static int GetFrameWidth(const VideoInfo &vi, int plane) {
+    return vi.width >> GetSubSamplingW(vi, plane);
+}
+
 // Exception protected PVideoFrame->GetFrame()
 PVideoFrame Avisynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
 
-  PVideoFrame frame = 0;
+  PVideoFrame f = nullptr;
   bool success = false;
 
   if (n == lastPosition) {
-    frame = lastFrame;
+    f = lastFrame;
     success = true;
   }
   else {
@@ -405,8 +465,75 @@ PVideoFrame Avisynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
     if (clip) {
       if (vi.HasVideo()) {
         try {
-          frame = clip->GetFrame(n, env);
+          f = clip->GetFrame(n, env);
           success = true;
+          int id = GetVideoInfo().pixel_format;
+          
+          if (NeedsPacking(id)) {
+              p2p_buffer_param p = {};
+              p.width = vi.width;
+              p.height = vi.height;
+              p.dst[0] = packedFrame.data();
+              // Used by most
+              p.dst_stride[0] = p.width * 4 * BytesPerSample(vi);
+
+              for (int plane = 0; plane < NumPlanes(vi); plane++) {
+                  p.src[plane] = GetReadPtr(f, vi, plane);
+                  p.src_stride[plane] = GetStride(f, vi, plane);
+              }
+
+              if (id == pfRGB24) {
+                  p.packing = p2p_argb32_le;
+                  for (int plane = 0; plane < 3; plane++) {
+                      p.src[plane] = GetReadPtr(f, vi, plane) + GetStride(f, vi, plane) * (GetFrameHeight(vi, plane) - 1);
+                      p.src_stride[plane] = -GetStride(f, vi, plane);
+                  }
+                  p2p_pack_frame(&p, 0);
+              } else if (id == pfRGB48) {
+                  p.packing = p2p_argb64_be;
+                  p2p_pack_frame(&p, 0);
+              } else if (id == pfYUV444P16) {
+                  p.packing = p2p_y416_le;
+                  p2p_pack_frame(&p, 0);
+              } else if (id == pfYUV422P10 && enable_v210) {
+                  p.packing = p2p_v210_le;
+                  p.dst_stride[0] = ((16 * ((p.width + 5) / 6) + 127) & ~127);
+                  p2p_pack_frame(&p, 0);
+              } else if ((id == pfYUV420P16) || (id == pfYUV422P16) || (id == pfYUV420P10) || (id == pfYUV422P10)) {
+                  switch (id) {
+                  case pfYUV420P10: p.packing = p2p_p010_le; break;
+                  case pfYUV422P10: p.packing = p2p_p210_le; break;
+                  case pfYUV420P16: p.packing = p2p_p016_le; break;
+                  case pfYUV422P16: p.packing = p2p_p216_le; break;
+                  }
+                  p.dst_stride[0] = p.width * BytesPerSample(vi);
+                  p.dst_stride[1] = p.width * BytesPerSample(vi);
+                  p.dst[1] = (uint8_t *)packedFrame.data() + p.dst_stride[0] * p.height;
+                  p2p_pack_frame(&p, 0);
+              } else {
+                  const int stride = GetStride(f, vi, 0);
+                  const int height = GetFrameHeight(vi, 0);
+                  int row_size = GetFrameWidth(vi, 0) * BytesPerSample(vi);
+                  if (NumPlanes(vi) == 1) {
+                      vs_bitblt(packedFrame.data(), (row_size + 3) & ~3, GetReadPtr(f, vi, 0), stride, row_size, height);
+                  } else if (NumPlanes(vi) == 3) {
+                      int row_size23 = GetFrameWidth(vi, 1) * BytesPerSample(vi);
+
+                      vs_bitblt(packedFrame.data(), row_size, GetReadPtr(f, vi, 0), stride, row_size, height);
+
+                      vs_bitblt((uint8_t *)packedFrame.data() + (row_size*height),
+                          row_size23, GetReadPtr(f, vi, 2),
+                          GetStride(f, vi, 2), GetFrameWidth(vi, 2),
+                          GetFrameHeight(vi, 2));
+
+                      vs_bitblt((uint8_t *)packedFrame.data() + (row_size*height + GetFrameHeight(vi, 1)*row_size23),
+                          row_size23, GetReadPtr(f, vi, 1),
+                          GetStride(f, vi, 1), GetFrameWidth(vi, 1),
+                          GetFrameHeight(vi, 1));
+                  }
+              }
+
+          }
         }
         catch(AvisynthError err) {
           setError(err.msg, L"GetFrame: AvisynthError.msg corrupted.");
@@ -421,7 +548,7 @@ PVideoFrame Avisynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
     }
     else {
       lastPosition = n;
-      lastFrame = frame;
+      lastFrame = f;
       if(fraThread) {
         // Have read ahead thread continue reading subsequent
         // frames to allow better multi-core utilization.
@@ -437,7 +564,7 @@ PVideoFrame Avisynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
 
   if (_success) *_success = success;
 
-  return frame;
+  return f;
 }
 
 /*---------------------------------------------------------
@@ -446,7 +573,7 @@ PVideoFrame Avisynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
 // Readonly reference to VideoInfo
 VideoInfoAdapter Avisynther::GetVideoInfo() {
 
-  return VideoInfoAdapter(&vi, enable_v210);
+  return VideoInfoAdapter(&vi, this, enable_v210);
 
 }
 
@@ -459,20 +586,18 @@ int Avisynther::BMPSize() {
     if (via.pixel_format == pfYUV422P10 && enable_v210) {
         image_size = ((16 * ((vi.width + 5) / 6) + 127) & ~127);
         image_size *= vi.height;
-    } else if (via.pixel_format == pfRGB24 || via.pixel_format == pfRGB48 || via.pixel_format == pfCompatBGR32 || via.pixel_format == pfYUV444P16) {
-        image_size = BMPSizeHelper(vi.height, vi.width * vi.ComponentSize() * 4);
-    } else if (via.pixel_format == pfCompatYUY2) {
-        image_size = BMPSizeHelper(vi.height, vi.width * vi.ComponentSize() * 2);
-    } else if (vi.IsY()) {
-        image_size = BMPSizeHelper(vi.height, vi.width * vi.ComponentSize());
+    } else if (via.pixel_format == pfRGB24 || via.pixel_format == pfRGB48 || via.pixel_format == pfYUV444P16) {
+        image_size = BMPSizeHelper(vi.height, vi.width * BytesPerSample(vi) * 4);
+    } else if (NumPlanes(vi) == 1) {
+        image_size = BMPSizeHelper(vi.height, vi.width * BytesPerSample(vi));
     } else {
-        image_size = (vi.width * vi.ComponentSize()) >> (vi.IsYUV() ? vi.GetPlaneWidthSubsampling(PLANAR_U) : 0);
+        image_size = (vi.width * BytesPerSample(vi)) >> GetSubSamplingW(vi, 1);
         if (image_size) {
             image_size *= vi.height;
-            image_size >>= (vi.IsYUV() ? vi.GetPlaneHeightSubsampling(PLANAR_U) : 0);
+            image_size >>= GetSubSamplingH(vi, 1);
             image_size *= 2;
         }
-        image_size += vi.width * vi.ComponentSize() * vi.height;
+        image_size += vi.width * BytesPerSample(vi) * vi.height;
     }
     return image_size;
 }
@@ -481,15 +606,11 @@ int Avisynther::BitsPerPixel() {
     if (!vi.HasVideo())
         return 0;
     VideoInfoAdapter via = GetVideoInfo();
-    int bits = vi.ComponentSize() * 8;
+    int bits = BytesPerSample(vi) * 8;
     if (via.pixel_format == pfRGB24 || via.pixel_format == pfRGB48 || via.pixel_format == pfYUV444P16)
         bits *= 4;
-    else if (vi.NumComponents() >= 3 && vi.IsPlanar())
-        bits += (bits * 2) >> ((vi.IsYUV() ? vi.GetPlaneHeightSubsampling(PLANAR_U) : 0) + (vi.IsYUV() ? vi.GetPlaneWidthSubsampling(PLANAR_U) : 0));
-    if (via.pixel_format == pfCompatBGR32)
-        bits = 32;
-    if (via.pixel_format == pfCompatYUY2)
-        bits = 16;
+    else if (NumPlanes(vi) == 3)
+        bits += (bits * 2) >> (GetSubSamplingH(vi, 1) + GetSubSamplingW(vi, 1));
     if (via.pixel_format == pfYUV422P10 && enable_v210)
         bits = 20;
     return bits;
@@ -529,18 +650,10 @@ bool Avisynther::GetVarAsBool(const char* varName, bool defVal)
   FraSuspend();
 
   bool result = defVal;
-  const char* strVal = 0;
   try {
     AVSValue value = env->GetVar(varName);
-    if (value.IsString()) {
-      strVal = value.AsString(0);
-      result = stricmp(strVal, "true") == 0 ||
-               stricmp(strVal, "yes") == 0 ||
-               stricmp(strVal, "on") == 0 ||
-               stricmp(strVal, "enable") == 0;
-    }
-    else {
-      result = value.AsBool(defVal);
+    if (value.IsBool()) {
+        result = value.AsBool(defVal);
     }
   }
   catch (...) {
@@ -640,7 +753,7 @@ int/*error*/ Avisynther::newEnv()
 ---------------------------------------------------------*/
 
 // Exception protected IScriptEnvironment->Invoke()
-AVSValue Avisynther::Invoke(const char* name, const AVSValue args) {
+AVSValue Avisynther::Invoke(const char* name, const AVSValue &args) {
 
   if (env) {
     try {
