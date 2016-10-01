@@ -1479,7 +1479,7 @@ VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
         return v;
     }
 
-    vs_internal_vsapi.setError(&v, ("Function '" + funcName + "' not found in " + filename).c_str());
+    vs_internal_vsapi.setError(&v, ("Function '" + funcName + "' not found in " + id).c_str());
     return v;
 }
 
