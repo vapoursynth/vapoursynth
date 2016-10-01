@@ -11,14 +11,32 @@ void blendSubtitles(VSNodeRef *clip, VSNodeRef *subs, VSNodeRef *alpha, const VS
     VSPlugin *std_plugin = vsapi->getPluginById("com.vapoursynth.std", core);
     VSPlugin *resize_plugin = vsapi->getPluginById("com.vapoursynth.resize", core);
 
-    const VSVideoInfo *clip_vi = vsapi->getVideoInfo(clip);
-    const VSVideoInfo *subs_vi = vsapi->getVideoInfo(subs);
-    const VSVideoInfo *alpha_vi = vsapi->getVideoInfo(alpha);
-
     subs = vsapi->cloneNodeRef(subs);
     alpha = vsapi->cloneNodeRef(alpha);
 
     VSMap *args, *ret;
+
+    args = vsapi->createMap();
+    vsapi->propSetNode(args, "clip", subs, paReplace);
+    vsapi->freeNode(subs);
+    vsapi->propSetNode(args, "alpha", alpha, paReplace);
+
+    ret = vsapi->invoke(std_plugin, "PreMultiply", args);
+    vsapi->freeMap(args);
+    if (vsapi->getError(ret)) {
+        snprintf(error, error_size, "%s: %s", filter_name, vsapi->getError(ret));
+        vsapi->setError(out, error);
+        vsapi->freeMap(ret);
+        vsapi->freeNode(alpha);
+        return;
+    }
+
+    subs = vsapi->propGetNode(ret, "clip", 0, NULL);
+    vsapi->freeMap(ret);
+
+    const VSVideoInfo *clip_vi = vsapi->getVideoInfo(clip);
+    const VSVideoInfo *subs_vi = vsapi->getVideoInfo(subs);
+    const VSVideoInfo *alpha_vi = vsapi->getVideoInfo(alpha);
 
     int unsuitable_format = clip_vi->format != subs_vi->format;
     int unsuitable_dimensions =
@@ -144,6 +162,7 @@ void blendSubtitles(VSNodeRef *clip, VSNodeRef *subs, VSNodeRef *alpha, const VS
     vsapi->freeNode(subs);
     vsapi->propSetNode(args, "mask", alpha, paReplace);
     vsapi->freeNode(alpha);
+    vsapi->propSetInt(args, "premultiplied", 1, paReplace);
 
     ret = vsapi->invoke(std_plugin, "MaskedMerge", args);
     vsapi->freeMap(args);
