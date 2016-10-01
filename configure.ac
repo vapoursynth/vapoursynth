@@ -155,7 +155,7 @@ AS_IF(
 #include <zimg.h>
 
 #if ZIMG_API_VERSION < ZIMG_MAKE_API_VERSION(2, 1)
-#error zimg API v2 or greater required
+#error zimg API v2.1 or greater required
 #endif
                                          ]],
                                          [[
