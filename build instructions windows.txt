@@ -21,3 +21,6 @@ http://www.codeproject.com/Articles/20868/NET-Framework-Installer-for-InnoSetup
 There are also a few plugins that aren't included
 which are easier to simply retrieve from an existing
 VapourSynth installation.
+
+Note that the Avisynth side of AVFS won't work properly in debug builds (memory allocation and exceptions across module boundaries trolololol)
+Likewise AviSource can only be compiled as a release build (or debug versions of functions that aren't present are referenced)
