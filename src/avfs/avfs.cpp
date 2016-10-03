@@ -386,8 +386,8 @@ bool/*success*/ Avisynther::GetAudio(AvfsLog_* log, void* buf, __int64 start, un
 ---------------------------------------------------------*/
 
 static int NumPlanes(const VideoInfo &vi) {
-    if (vi.IsPlanar())
-        return (vi.NumComponents() >= 3 ? 3 : 1);
+    if (vi.IsPlanar() && (vi.IsYUV() || vi.IsRGB()))
+        return 3;
     else
         return 1;
 }
@@ -395,7 +395,7 @@ static int NumPlanes(const VideoInfo &vi) {
 static const BYTE *GetReadPtr(PVideoFrame &f, const VideoInfo &vi, int plane) {
     if (!vi.IsPlanar())
         return f->GetReadPtr();
-    else if (vi.IsYUV() || vi.IsY())
+    else if (vi.IsYUV() || vi.IsY() || vi.IsY8())
         return f->GetReadPtr(plane == 0 ? PLANAR_Y : (plane == 1 ? PLANAR_U : PLANAR_V));
     else if (vi.IsRGB())
         return f->GetReadPtr(plane == 0 ? PLANAR_R : (plane == 1 ? PLANAR_G : PLANAR_B));
@@ -406,7 +406,7 @@ static const BYTE *GetReadPtr(PVideoFrame &f, const VideoInfo &vi, int plane) {
 static int GetStride(PVideoFrame &f, const VideoInfo &vi, int plane) {
     if (!vi.IsPlanar())
         return f->GetPitch();
-    else if (vi.IsYUV() || vi.IsY())
+    else if (vi.IsYUV() || vi.IsY() || vi.IsY8())
         return f->GetPitch(plane == 0 ? PLANAR_Y : (plane == 1 ? PLANAR_U : PLANAR_V));
     else if (vi.IsRGB())
         return f->GetPitch(plane == 0 ? PLANAR_R : (plane == 1 ? PLANAR_G : PLANAR_B));
@@ -420,7 +420,7 @@ static int BytesPerSample(const VideoInfo &vi) {
     else if (vi.IsYUY2())
         return 2;
     else
-        return vi.ComponentSize();
+        return std::max(1, vi.ComponentSize());
 }
 
 static int GetSubSamplingH(const VideoInfo &vi, int plane) {
