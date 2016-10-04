@@ -23,7 +23,14 @@
 #include "filtershared.h"
 #include <stdlib.h>
 
-#define CLAMP(value, lower, upper) min(max(value, lower), upper)
+static inline int CLAMP(int value, int lower, int upper) {
+    if (value < lower)
+        return lower;
+    else if (value > upper)
+        return upper;
+    else
+        return value;
+}
 
 //////////////////////////////////////////
 // PreMultiply
