@@ -30,7 +30,7 @@
 #include <zimg++.hpp>
 
 #if ZIMG_API_VERSION < ZIMG_MAKE_API_VERSION(2, 2)
-#error zAPI v2 or greater required
+#error zAPI v2.2 or greater required
 #endif
 
 #include "VapourSynth.h"

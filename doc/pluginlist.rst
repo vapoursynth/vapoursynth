@@ -87,7 +87,6 @@ Dot Crawl and Rainbows
 Metrics and Analysis
 --------------------
 * `Histogram <https://github.com/dubhater/vapoursynth-histogram>`_ -- Bundled with the installer
-* `SceneChange <http://forum.doom9.org/showthread.php?t=166769>`_ -- Scene change detection and flagging
 * `Scxvid <https://github.com/dubhater/vapoursynth-scxvid>`_ -- Scene change detection using libxvidcore
 * `Videoscope <https://github.com/dubhater/vapoursynth-videoscope>`_ -- Similar to the Histogram plugin
 * `WWXD <https://github.com/dubhater/vapoursynth-wwxd>`_ -- Xvid-like scene change detection
@@ -108,6 +107,7 @@ Others
 * `FieldHint <https://github.com/dubhater/vapoursynth-fieldhint>`_ -- Takes fields from arbitrary input frames to create the output frames
 * `FillBorders <https://github.com/dubhater/vapoursynth-fillborders>`_
 * `minsharp <http://forum.doom9.org/showthread.php?t=173328>`_ -- Simple 3x3 blur and sharpen
+* `Miscellaneous filters <http://forum.doom9.org/showthread.php?t=173871>`_ -- Scene change detection, frame averaging and other sometimes useful functions
 * `MSmoosh <http://forum.doom9.org/showthread.php?t=171159>`_ -- MSmooth and MSharpen ports
 * `MVTools <http://forum.doom9.org/showthread.php?t=171207>`_ -- MVTools port
 * `Retinex <http://forum.doom9.org/showthread.php?t=171307>`_ -- Dynamic range compression
