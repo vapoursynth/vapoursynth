@@ -528,7 +528,7 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
 
     int bitsout = int64ToIntS(vsapi->propGetInt(in, "bits", 0, &err));
     if (err)
-        bitsout = floatout ? sizeof(float) * 8 : d->vi[0]->format->bitsPerSample;
+        bitsout = (floatout ? sizeof(float) * 8 : d->vi[0]->format->bitsPerSample);
 	if ((floatout && bitsout != 32) || (!floatout && (bitsout < 8 || bitsout > 16))) {
 		vsapi->freeFunc(func);
 		RETERROR("Lut2: only 8-16 bit integer and 32 bit float output supported");

@@ -113,7 +113,7 @@ static const VSFrameRef *VS_CC preMultiplyGetFrame(int n, int activationReason, 
                         for (int y = 0; y < h; y++) {
                             for (int x = 0; x < w; x++) {
                                 uint16_t s1 = ((const uint16_t *)srcp1)[x];
-                                uint16_t s2 = min(((const uint16_t *)srcp2)[x], maxvalue);
+                                uint16_t s2 = VSMIN(((const uint16_t *)srcp2)[x], maxvalue);
                                 ((uint16_t *)dstp)[x] = (((s1 - halfpoint) * (((s2 >> 1) & 1) + s2)) >> shift) + halfpoint;
                             }
                             srcp1 += stride;
@@ -481,10 +481,10 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
                             } else {
                                 for (int y = 0; y < h; y++) {
                                     for (int x = 0; x < w; x++) {
-                                        uint8_t s1 = max(srcp1[x] - offset1, 0);
-                                        uint8_t s2 = max(srcp2[x] - offset1, 0);
+                                        uint8_t s1 = VSMAX(srcp1[x] - offset1, 0);
+                                        uint8_t s2 = VSMAX(srcp2[x] - offset1, 0);
                                         uint8_t m = maskp[x];
-                                        dstp[x] = min(s2 + (((256 - (((m >> 1) & 1) + m)) * s1 + 128) >> 8) + offset1, 255);
+                                        dstp[x] = VSMIN(s2 + (((256 - (((m >> 1) & 1) + m)) * s1 + 128) >> 8) + offset1, 255);
                                     }
                                     srcp1 += stride;
                                     srcp2 += stride;
@@ -502,7 +502,7 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
                                     for (int x = 0; x < w; x++) {
                                         uint16_t s1 = ((const uint16_t *)srcp1)[x];
                                         uint16_t s2 = ((const uint16_t *)srcp2)[x];
-                                        uint16_t m = min(((const uint16_t *)maskp)[x], maxvalue);
+                                        uint16_t m = VSMIN(((const uint16_t *)maskp)[x], maxvalue);
                                         ((uint16_t *)dstp)[x] = CLAMP(s2 + (((maxplusone - (((m >> 1) & 1) + m)) * (s1 - round)) >> shift), 0, maxvalue);
                                     }
                                     srcp1 += stride;
@@ -513,10 +513,10 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
                             } else {
                                 for (int y = 0; y < h; y++) {
                                     for (int x = 0; x < w; x++) {
-                                        uint16_t s1 = max(((const uint16_t *)srcp1)[x] - offset1, 0);
-                                        uint16_t s2 = max(((const uint16_t *)srcp2)[x] - offset1, 0);
-                                        uint16_t m = min(((const uint16_t *)maskp)[x], maxvalue);
-                                        ((uint16_t *)dstp)[x] = min(s2 + (((maxplusone - (((m >> 1) & 1) + m)) * s1 + round) >> shift) + offset1, maxvalue);
+                                        uint16_t s1 = VSMAX(((const uint16_t *)srcp1)[x] - offset1, 0);
+                                        uint16_t s2 = VSMAX(((const uint16_t *)srcp2)[x] - offset1, 0);
+                                        uint16_t m = VSMIN(((const uint16_t *)maskp)[x], maxvalue);
+                                        ((uint16_t *)dstp)[x] = VSMIN(s2 + (((maxplusone - (((m >> 1) & 1) + m)) * s1 + round) >> shift) + offset1, maxvalue);
                                     }
                                     srcp1 += stride;
                                     srcp2 += stride;
