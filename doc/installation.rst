@@ -6,8 +6,6 @@ Prerequisites
 
 First download and install the prerequisites:
    * `Python 3.5 <http://www.python.org/>`_  -- 32 and/or 64 bit version
-   * `Pismo File Mount Audit Package <http://www.pismotechnic.com/download/>`_
-     -- only if you want to use the advanced virtual filesystem features
 
 Installation
 ############
