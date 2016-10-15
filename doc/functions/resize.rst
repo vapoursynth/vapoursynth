@@ -179,6 +179,8 @@ Resize
                     Rec. ITU-R BT.2020
                     (functionally the same as the values 1 (709),
                     6 (601) and 14 (2020_10))
+        st2084      SMPTE ST 2084 (not in table)
+        std-b67     ARIB std-b67 (not in table)
 
       Color primaries (ITU-T H.265 Table E.3)::
       
@@ -211,6 +213,7 @@ Resize
                     red 0.708 0.292
                     white D65 0.3127 0.3290
                     Rec. ITU-R BT.2020
+        st432-1     DCI-P3 (not in table)
 
       Pixel range (ITU-T H.265 Eq E-4 to E-15)::
       
