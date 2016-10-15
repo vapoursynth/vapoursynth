@@ -309,7 +309,7 @@ X86_MAXMINOP(Min, ReducePlus, min, LimitMaxOp)
 X86_MAXMINOP(Min, ReduceHorizontal, min, LimitMaxOp)
 X86_MAXMINOP(Min, ReduceVertical, min, LimitMaxOp)
 
-static FORCE_INLINE __m128i _mm_packus_epi32_sse2(__m128i v1, __m128i v2) {
+static FORCE_INLINE __m128i _mm_packus_epi32_sse2(__m128i &v1, __m128i &v2) {
     __m128i ones = _mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128());
     __m128i subMask32 = _mm_srli_epi32(_mm_slli_epi32(ones, 31), 16);
     __m128i addMask16 = _mm_slli_epi16(ones, 15);
@@ -350,12 +350,14 @@ struct Convolution3x3 {
 
     static FORCE_INLINE __m128i process8(__m128i &t1, __m128i &t2, __m128i &t3, __m128i &m1, __m128i &m2, __m128i &m3, __m128i &b1, __m128i &b2, __m128i &b3, const FrameData &opts) {
         __m128 absMask = _mm_castsi128_ps(!opts.saturate ? _mm_srli_epi32(_mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128()), 1) : _mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128()));
-
-        __m128i acc1 = _mm_madd_epi16(_mm_unpacklo_epi16(_mm_unpacklo_epi8(t1, _mm_setzero_si128()), _mm_setzero_si128()), _mm_unpacklo_epi16(_mm_set1_epi16(opts.matrix[0]), _mm_setzero_si128()));
-        __m128i acc2 = _mm_madd_epi16(_mm_unpackhi_epi16(_mm_unpackhi_epi8(t1, _mm_setzero_si128()), _mm_setzero_si128()), _mm_unpackhi_epi16(_mm_set1_epi16(opts.matrix[0]), _mm_setzero_si128()));
-        __m128i acc3 = _mm_madd_epi16(_mm_unpacklo_epi16(_mm_unpacklo_epi8(t1, _mm_setzero_si128()), _mm_setzero_si128()), _mm_unpacklo_epi16(_mm_set1_epi16(opts.matrix[0]), _mm_setzero_si128()));
-        __m128i acc4 = _mm_madd_epi16(_mm_unpackhi_epi16(_mm_unpackhi_epi8(t1, _mm_setzero_si128()), _mm_setzero_si128()), _mm_unpackhi_epi16(_mm_set1_epi16(opts.matrix[0]), _mm_setzero_si128()));
-
+        
+        __m128i t1lo = _mm_unpacklo_epi8(t1, _mm_setzero_si128());
+        __m128i t1hi = _mm_unpackhi_epi8(t1, _mm_setzero_si128());
+        __m128i acc1 = _mm_madd_epi16(_mm_unpacklo_epi16(t1lo, _mm_setzero_si128()), _mm_unpacklo_epi16(_mm_set1_epi16(opts.matrix[0]), _mm_setzero_si128()));
+        __m128i acc2 = _mm_madd_epi16(_mm_unpackhi_epi16(t1lo, _mm_setzero_si128()), _mm_unpackhi_epi16(_mm_set1_epi16(opts.matrix[0]), _mm_setzero_si128()));
+        __m128i acc3 = _mm_madd_epi16(_mm_unpacklo_epi16(t1hi, _mm_setzero_si128()), _mm_unpacklo_epi16(_mm_set1_epi16(opts.matrix[0]), _mm_setzero_si128()));
+        __m128i acc4 = _mm_madd_epi16(_mm_unpackhi_epi16(t1hi, _mm_setzero_si128()), _mm_unpackhi_epi16(_mm_set1_epi16(opts.matrix[0]), _mm_setzero_si128()));
+        
         CONV_REDUCE_REG8(t2, t3, 1, 2);
         CONV_REDUCE_REG8(m1, m2, 3, 4);
         CONV_REDUCE_REG8(m3, b1, 5, 6);
