@@ -45,7 +45,7 @@ Name: "pismo"; Description: "Pismo PFM Runtime (required for AVFS)"; Types: Full
 Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to shell context menu"; GroupDescription: "New File Shortcuts:"; Components: vs32 vs64
 
 [Run]
-Filename: "{app}\pismo\pfm-183-vapoursynth-win.exe"; Flags: runhidden; Components: pismo
+Filename: "{app}\pismo\pfm-183-vapoursynth-win.exe"; Parameters: "install"; Flags: runhidden; Components: pismo
 
 [Files]
 ;core binaries
