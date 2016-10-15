@@ -38,7 +38,7 @@ Name: Full; Description: Full installation; Flags: iscustom
 [Components]
 Name: "vs64"; Description: "VapourSynth 64-bit"; Types: Full; Check: HasPython64; Flags: disablenouninstallwarning
 Name: "vs32"; Description: "VapourSynth 32-bit"; Types: Full; Check: HasPython32; Flags: disablenouninstallwarning
-Name: "sdk"; Description: "VapourSynth SDK"; Flags: fixed disablenouninstallwarning; Types: Full
+Name: "sdk"; Description: "VapourSynth SDK"; Flags: disablenouninstallwarning; Types: Full
 Name: "pismo"; Description: "Pismo PFM Runtime (required for AVFS)"; Types: Full; Flags: disablenouninstallwarningName: "vsruntimes"; Description: "Visual Studio Runtimes (2013 & 2015)"; Types: Full; Flags: disablenouninstallwarning
 
 [Tasks]
