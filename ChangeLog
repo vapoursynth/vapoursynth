@@ -1,4 +1,5 @@
 r35:
+fixed avfs frame packing so it matches vfw behavior
 fixed one frame leak on script reload in avfs
 fixed 8bit 3x3 convolution where the upper left pixel wouldn't be taken into account correctly on x86
 

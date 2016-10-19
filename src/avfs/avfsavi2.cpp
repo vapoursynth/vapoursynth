@@ -1317,9 +1317,9 @@ bool/*success*/ AvfsAvi2File::GetFrameData(
           if (NeedsPacking(vssynther->GetVideoInfo().pixel_format)) {
               memcpy(buffer, vssynther->GetPackedFrame() + offset, size);
           } else {
-              copyPlaneVS(buffer, offset, size, frame, 0, 3, vsapi);
-              copyPlaneVS(buffer, offset, size, frame, 1, 1, vsapi);
-              copyPlaneVS(buffer, offset, size, frame, 2, 1, vsapi);
+              copyPlaneVS(buffer, offset, size, frame, 0, (vsapi->getFrameFormat(frame)->numPlanes == 1) ? 3 : 0, vsapi);
+              copyPlaneVS(buffer, offset, size, frame, 1, 0, vsapi);
+              copyPlaneVS(buffer, offset, size, frame, 2, 0, vsapi);
               ASSERT(size == 0);
           }
       }
@@ -1327,12 +1327,17 @@ bool/*success*/ AvfsAvi2File::GetFrameData(
   } else {
       PVideoFrame frame = avssynther->GetFrame(log, n, &success);
       if (success) {
-          if (NeedsPacking(avssynther->GetVideoInfo().pixel_format)) {
+          int pixel_format = avssynther->GetVideoInfo().pixel_format;
+          if (NeedsPacking(pixel_format)) {
               memcpy(buffer, avssynther->GetPackedFrame() + offset, size);
           } else {
-              copyPlaneAvs(buffer, offset, size, frame, PLANAR_Y, 3);
-              copyPlaneAvs(buffer, offset, size, frame, PLANAR_V, 1);
-              copyPlaneAvs(buffer, offset, size, frame, PLANAR_U, 1);
+              // This logic is dodgy because of these reasons:
+              // RGB32 and YUY2 has no code path. But PLANAR_Y works just as well for these
+              // They won't be explicitly aligned but it doesn't matter since they're always mod4
+              // Poking extra planes will read nothing so it's harmless
+              copyPlaneAvs(buffer, offset, size, frame, PLANAR_Y, (pixel_format == pfGray8 || pixel_format == pfGray16) ? 3 : 0);
+              copyPlaneAvs(buffer, offset, size, frame, PLANAR_V, 0);
+              copyPlaneAvs(buffer, offset, size, frame, PLANAR_U, 0);
               ASSERT(size == 0);
           }
       }
