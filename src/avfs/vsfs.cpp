@@ -472,11 +472,11 @@ VapourSynther::VapourSynther(void) :
 VapourSynther::~VapourSynther(void) {
     ASSERT(!references);
 
-    if (node) {
-        lastFrame = 0;
-        vsapi->freeNode(node);
-        node = nullptr;
-    }
+    vsapi->freeFrame(lastFrame);
+    lastFrame = nullptr;
+
+    vsapi->freeNode(node);
+    node = nullptr;
 
     if (se) {
         vsscript_freeScript(se);
