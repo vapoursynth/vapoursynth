@@ -37,6 +37,9 @@
 #include "VSHelper.h"
 #include "internalfilters.h"
 
+#define P2P_USER_NAMESPACE vsp2p
+#include "../common/p2p.h"
+
 #if defined(__GNUC__) && (__GNUC__ < 5)
 #include <mutex>
 namespace {
@@ -128,7 +131,7 @@ namespace {
         { "170m",    ZIMG_PRIMARIES_170M },
         { "240m",    ZIMG_PRIMARIES_240M },
         { "2020",    ZIMG_PRIMARIES_2020 },
-        { "st432-1", ZIMG_PRIMARIES_ST432_1 },      
+        { "st432-1", ZIMG_PRIMARIES_ST432_1 },
     };
 
     const std::unordered_map<std::string, zimg_dither_type_e> g_dither_type_table{
@@ -369,6 +372,25 @@ namespace {
     }
 
 
+    template <class T>
+    void get_buffer_flipped(T *buffer, unsigned num_planes, unsigned height) {
+        for (unsigned p = 0; p < num_planes; ++p) {
+            buffer->data(p) = buffer->line_at(height - 1, p);
+            buffer->stride(p) = -buffer->stride(p);
+        }
+    }
+
+    template <class T>
+    void get_buffer_single_field(T *buffer, unsigned num_planes, zimg_field_parity_e parity) {
+        unsigned phase = parity == ZIMG_FIELD_BOTTOM ? 1 : 0;
+
+        for (unsigned p = 0; p < num_planes; ++p) {
+            buffer->data(p) = buffer->line_at(phase, p);
+            buffer->stride(p) *= 2;
+        }
+    }
+
+
     bool operator==(const zimg_image_format &a, const zimg_image_format &b) {
         bool ret = true;
 
@@ -400,214 +422,113 @@ namespace {
     }
 
 
-    class vszimg_callback {
-        union image_buffer_u {
-            vszimgxx::zimage_buffer m;
-            vszimgxx::zimage_buffer_const c;
+    class vszimg_callback_base {
+    protected:
+        vszimgxx::zimage_buffer m_tmp_buffer;
+        VSFrameRef *m_tmp_alloc;
+        const VSAPI *m_vsapi;
 
-            image_buffer_u() : m() {}
-        };
+        vszimg_callback_base() : m_tmp_buffer(), m_tmp_alloc(), m_vsapi() {}
 
-        zimg_filter_graph_callback m_cb;
-        VSFrameRef *m_frame_tmp;
-        image_buffer_u m_line_buf;
-        image_buffer_u m_plane_buf;
-        unsigned m_height;
+        vszimg_callback_base(const vszimg_callback_base &) = delete;
 
-        static int unpack_bgr32(void *user, unsigned i, unsigned left, unsigned right) {
-            const vszimg_callback *cb = static_cast<const vszimg_callback *>(user);
-            const uint8_t *bgr32 = static_cast<const uint8_t *>(cb->m_plane_buf.c.line_at(cb->m_height - i - 1));
-            uint8_t *planar_r = static_cast<uint8_t *>(cb->m_line_buf.m.line_at(i, 0));
-            uint8_t *planar_g = static_cast<uint8_t *>(cb->m_line_buf.m.line_at(i, 1));
-            uint8_t *planar_b = static_cast<uint8_t *>(cb->m_line_buf.m.line_at(i, 2));
-            unsigned j;
-
-            for (j = left; j < right; ++j) {
-                uint8_t r, g, b;
-
-                b = bgr32[j * 4 + 0];
-                g = bgr32[j * 4 + 1];
-                r = bgr32[j * 4 + 2];
-
-                planar_r[j] = r;
-                planar_g[j] = g;
-                planar_b[j] = b;
-            }
-
-            return 0;
+        ~vszimg_callback_base() {
+            if (m_vsapi)
+                m_vsapi->freeFrame(m_tmp_alloc);
         }
 
-        static int unpack_yuy2(void *user, unsigned i, unsigned left, unsigned right) {
-            const vszimg_callback *cb = static_cast<const vszimg_callback *>(user);
-            const uint8_t *yuy2 = static_cast<const uint8_t *>(cb->m_plane_buf.c.line_at(i));
-            uint8_t *planar_y = static_cast<uint8_t *>(cb->m_line_buf.m.line_at(i, 0));
-            uint8_t *planar_u = static_cast<uint8_t *>(cb->m_line_buf.m.line_at(i, 1));
-            uint8_t *planar_v = static_cast<uint8_t *>(cb->m_line_buf.m.line_at(i, 2));
-            unsigned j;
+        vszimg_callback_base &operator=(const vszimg_callback_base &) = delete;
 
-            left = left % 2 ? left - 1 : left;
-            right = right % 2 ? right + 1 : right;
+        void allocate(const VSFormat *vsformat, unsigned width, unsigned height, unsigned lines, const VSAPI *vsapi, VSCore *core) {
+            unsigned mask = zimg_select_buffer_mask(lines);
+            lines = mask == ZIMG_BUFFER_MAX ? height : mask + 1;
 
-            for (j = left; j < right; j += 2) {
-                uint8_t y0, y1, u, v;
+            const VSFormat* buffer_format = vsapi->registerFormat(cmYUV, stInteger, 8, vsformat->subSamplingW, vsformat->subSamplingH, core);
+            m_tmp_alloc = vsapi->newVideoFrame(buffer_format, width, lines, nullptr, core);
+            m_vsapi = vsapi;
 
-                y0 = yuy2[j * 2 + 0];
-                u = yuy2[j * 2 + 1];
-                y1 = yuy2[j * 2 + 2];
-                v = yuy2[j * 2 + 3];
-
-                planar_y[j + 0] = y0;
-                planar_y[j + 1] = y1;
-                planar_u[j / 2] = u;
-                planar_v[j / 2] = v;
-            }
-
-            return 0;
+            import_frame_as_buffer(m_tmp_alloc, &m_tmp_buffer, mask, vsapi);
         }
+    };
 
-        static int pack_bgr32(void *user, unsigned i, unsigned left, unsigned right) {
-            const vszimg_callback *cb = static_cast<const vszimg_callback *>(user);
-            const uint8_t *planar_r = static_cast<const uint8_t *>(cb->m_line_buf.c.line_at(i, 0));
-            const uint8_t *planar_g = static_cast<const uint8_t *>(cb->m_line_buf.c.line_at(i, 1));
-            const uint8_t *planar_b = static_cast<const uint8_t *>(cb->m_line_buf.c.line_at(i, 2));
-            uint8_t *bgr32 = static_cast<uint8_t *>(cb->m_plane_buf.m.line_at(cb->m_height - i - 1));
-            unsigned j;
+    class unpack_callback : private vszimg_callback_base {
+        vszimgxx::zimage_buffer_const m_vs_buffer;
+        void(*m_p2p_func)(const void *, void * const[4], unsigned, unsigned);
 
-            for (j = left; j < right; ++j) {
-                uint8_t r, g, b;
-
-                r = planar_r[j];
-                g = planar_g[j];
-                b = planar_b[j];
-
-                bgr32[j * 4 + 0] = b;
-                bgr32[j * 4 + 1] = g;
-                bgr32[j * 4 + 2] = r;
-            }
-
+        static int callback_func(void *user, unsigned i, unsigned left, unsigned right) {
+            unpack_callback *cb = static_cast<unpack_callback *>(user);
+            const void *packed = cb->m_vs_buffer.line_at(i, 0);
+            void *planar[4] = { cb->m_tmp_buffer.line_at(i, 0), cb->m_tmp_buffer.line_at(i, 1), cb->m_tmp_buffer.line_at(i, 2) };
+            cb->m_p2p_func(packed, planar, left, right);
             return 0;
-        }
-
-        static int pack_yuy2(void *user, unsigned i, unsigned left, unsigned right) {
-            const vszimg_callback *cb = static_cast<const vszimg_callback *>(user);
-            const uint8_t *planar_y = static_cast<const uint8_t *>(cb->m_line_buf.c.line_at(i, 0));
-            const uint8_t *planar_u = static_cast<const uint8_t *>(cb->m_line_buf.c.line_at(i, 1));
-            const uint8_t *planar_v = static_cast<const uint8_t *>(cb->m_line_buf.c.line_at(i, 2));
-            uint8_t *yuy2 = static_cast<uint8_t *>(cb->m_plane_buf.m.line_at(i));
-            unsigned j;
-
-            left = left % 2 ? left - 1 : left;
-            right = right % 2 ? right + 1 : right;
-
-            for (j = left; j < right; j += 2) {
-                uint8_t y0, y1, u, v;
-
-                y0 = planar_y[j + 0];
-                y1 = planar_y[j + 1];
-                u = planar_u[j / 2];
-                v = planar_v[j / 2];
-
-                yuy2[j * 2 + 0] = y0;
-                yuy2[j * 2 + 1] = u;
-                yuy2[j * 2 + 2] = y1;
-                yuy2[j * 2 + 3] = v;
-            }
-
-            return 0;
-        }
-
-        void init_common(const vszimgxx::FilterGraph &graph, bool is_pack, const zimg_image_format &format, const VSFormat *vsformat, VSCore *core, const VSAPI *vsapi) {
-            m_height = format.height;
-
-            if (vsformat->colorFamily != cmCompat)
-                return;
-            if (vsformat->id != pfCompatBGR32 && vsformat->id != pfCompatYUY2)
-                throw std::runtime_error{ std::string{ "unsupported compat format: " } + std::to_string(vsformat->id) + "(" + vsformat->name + ")" };
-
-            unsigned count = is_pack ? graph.get_output_buffering() : graph.get_input_buffering();
-            unsigned mask = zimg_select_buffer_mask(count);
-            count = (mask == ZIMG_BUFFER_MAX) ? format.height : mask + 1;
-
-            m_frame_tmp = vsapi->newVideoFrame(
-                vsapi->registerFormat(cmYUV, stInteger, 8, vsformat->subSamplingW, vsformat->subSamplingH, core),
-                format.width, count, nullptr, core);
-            import_frame_as_buffer(m_frame_tmp, &m_line_buf.m, mask, vsapi);
         }
     public:
-        vszimg_callback() : m_cb{}, m_frame_tmp{}, m_height{} {}
+        unpack_callback(const vszimgxx::FilterGraph &graph, const VSFrameRef *frame, const zimg_image_format &format, const VSFormat *vsformat, VSCore *core, const VSAPI *vsapi) :
+            m_vs_buffer(),
+            m_p2p_func()
+        {
+            import_frame_as_buffer(frame, &m_vs_buffer, ZIMG_BUFFER_MAX, vsapi);
 
-        ~vszimg_callback() {
-            assert(!m_frame_tmp);
-        }
+            if (vsformat->colorFamily == cmCompat) {
+                assert(vsformat->id == pfCompatBGR32 || vsformat->id == pfCompatYUY2);
+                allocate(vsformat, format.width, format.height, graph.get_input_buffering(), vsapi, core);
 
-        void init_unpack(const vszimgxx::FilterGraph &graph, const VSFrameRef *frame, const zimg_image_format &format, bool interlaced,
-                         const VSFormat *vsformat, VSCore *core, const VSAPI *vsapi) {
-            init_common(graph, false, format, vsformat, core, vsapi);
-            import_frame_as_buffer(frame, &m_plane_buf.c, ZIMG_BUFFER_MAX, vsapi);
-
-            if (interlaced) {
-                unsigned order = format.field_parity == ZIMG_FIELD_BOTTOM ? 1 : 0;
-
-                // CompatBGR32 is upside-down.
                 if (vsformat->id == pfCompatBGR32)
-                    order = !order;
+                    m_p2p_func = vsp2p::packed_to_planar<vsp2p::packed_argb32_le>::unpack;
+                else if (vsformat->id == pfCompatYUY2)
+                    m_p2p_func = vsp2p::packed_to_planar<vsp2p::packed_yuy2>::unpack;
 
-                for (unsigned p = 0; p < static_cast<unsigned>(vsformat->numPlanes); ++p) {
-                    m_plane_buf.c.data(p) = m_plane_buf.c.line_at(order, p);
-                    m_plane_buf.c.stride(p) *= 2;
-                }
-            }
-
-            if (vsformat->colorFamily != cmCompat) {
-                m_line_buf = m_plane_buf;
-                return;
-            }
-
-            m_cb = (vsformat->id == pfCompatBGR32) ? unpack_bgr32 : unpack_yuy2;
-        }
-
-        void init_pack(const vszimgxx::FilterGraph &graph, VSFrameRef *frame, const zimg_image_format &format, bool interlaced,
-                       const VSFormat *vsformat, VSCore *core, const VSAPI *vsapi) {
-            init_common(graph, true, format, vsformat, core, vsapi);
-            import_frame_as_buffer(frame, &m_plane_buf.m, ZIMG_BUFFER_MAX, vsapi);
-
-            if (interlaced) {
-                unsigned order = format.field_parity == ZIMG_FIELD_BOTTOM ? 1 : 0;
-
-                // CompatBGR32 is upside-down.
                 if (vsformat->id == pfCompatBGR32)
-                    order = !order;
-
-                for (unsigned p = 0; p < static_cast<unsigned>(vsformat->numPlanes); ++p) {
-                    m_plane_buf.m.data(p) = m_plane_buf.m.line_at(order, p);
-                    m_plane_buf.m.stride(p) *= 2;
-                }
+                    get_buffer_flipped(&m_vs_buffer, vsformat->numPlanes, vsapi->getFrameHeight(frame, 0));
             }
 
-            if (vsformat->colorFamily != cmCompat) {
-                m_line_buf = m_plane_buf;
-                return;
+            if (format.field_parity != ZIMG_FIELD_PROGRESSIVE)
+                get_buffer_single_field(&m_vs_buffer, vsformat->numPlanes, format.field_parity);
+        }
+
+        zimg_image_buffer_const buffer() { return m_p2p_func ? m_tmp_buffer.as_const() : m_vs_buffer; }
+
+        zimg_filter_graph_callback callback() { return m_p2p_func ? &unpack_callback::callback_func : nullptr; }
+    };
+
+    class pack_callback : private vszimg_callback_base {
+        vszimgxx::zimage_buffer m_vs_buffer;
+        void (*m_p2p_func)(const void * const [4], void *, unsigned, unsigned);
+
+        static int callback_func(void *user, unsigned i, unsigned left, unsigned right) {
+            pack_callback *cb = static_cast<pack_callback *>(user);
+            const void *planar[4] = { cb->m_tmp_buffer.line_at(i, 0), cb->m_tmp_buffer.line_at(i, 1), cb->m_tmp_buffer.line_at(i, 2) };
+            void *packed = cb->m_vs_buffer.line_at(i);
+            cb->m_p2p_func(planar, packed, left, right);
+            return 0;
+        }
+    public:
+        pack_callback(const vszimgxx::FilterGraph &graph, VSFrameRef *frame, const zimg_image_format &format, const VSFormat *vsformat, VSCore *core, const VSAPI *vsapi) :
+            m_vs_buffer(),
+            m_p2p_func()
+        {
+            import_frame_as_buffer(frame, &m_vs_buffer, ZIMG_BUFFER_MAX, vsapi);
+
+            if (vsformat->colorFamily == cmCompat) {
+                assert(vsformat->id == pfCompatBGR32 || vsformat->id == pfCompatYUY2);
+                allocate(vsformat, format.width, format.height, graph.get_output_buffering(), vsapi, core);
+
+                if (vsformat->id == pfCompatBGR32)
+                    m_p2p_func = vsp2p::planar_to_packed<vsp2p::packed_argb32_le>::pack;
+                else if (vsformat->id == pfCompatYUY2)
+                    m_p2p_func = vsp2p::planar_to_packed<vsp2p::packed_yuy2>::pack;
+
+                if (vsformat->id == pfCompatBGR32)
+                    get_buffer_flipped(&m_vs_buffer, vsformat->numPlanes, vsapi->getFrameHeight(frame, 0));
             }
 
-            m_cb = (vsformat->id == pfCompatBGR32) ? pack_bgr32 : pack_yuy2;
+            if (format.field_parity != ZIMG_FIELD_PROGRESSIVE)
+                get_buffer_single_field(&m_vs_buffer, vsformat->numPlanes, format.field_parity);
         }
 
-        void release(const VSAPI *vsapi) {
-            vsapi->freeFrame(m_frame_tmp);
-            m_frame_tmp = nullptr;
-        }
+        zimg_image_buffer buffer() { return m_p2p_func ? m_tmp_buffer : m_vs_buffer; }
 
-        zimg_filter_graph_callback get_callback() const {
-            return m_cb;
-        }
-
-        const zimg_image_buffer_const &get_read_buffer() const {
-            return m_line_buf.c;
-        }
-
-        const zimg_image_buffer &get_write_buffer() const {
-            return m_line_buf.m;
-        }
+        zimg_filter_graph_callback callback() { return m_p2p_func ? &pack_callback::callback_func : nullptr; }
     };
 
     void VS_CC vszimg_free(void *instanceData, VSCore *core, const VSAPI *vsapi);
@@ -760,7 +681,7 @@ namespace {
                 src_width = propGetScalarDef<double>(in, "src_width", NAN, vsapi);
                 src_height = propGetScalarDef<double>(in, "src_height", NAN, vsapi);
                 m_params.nominal_peak_luminance = propGetScalarDef<double>(in, "nominal_luminance", NAN, vsapi);
-                
+
                 // Basic compatibility check.
                 if (isConstantFormat(&node_vi) && isConstantFormat(&m_vi)) {
                     vszimgxx::zimage_format src_format, dst_format;
@@ -839,8 +760,6 @@ namespace {
 
         const VSFrameRef *real_get_frame(const VSFrameRef *src_frame, VSCore *core, const VSAPI *vsapi) {
             VSFrameRef *dst_frame = nullptr;
-            vszimg_callback unpack_cb_t, pack_cb_t;
-            vszimg_callback unpack_cb_b, pack_cb_b;
 
             try {
                 vszimgxx::zimage_format src_format, dst_format;
@@ -895,23 +814,18 @@ namespace {
                     if (!tmp)
                         throw std::bad_alloc{};
 
-                    unpack_cb_t.init_unpack(graph_t->graph, src_frame, src_format_t, true, src_vsformat, core, vsapi);
-                    pack_cb_t.init_pack(graph_t->graph, dst_frame, dst_format_t, true, dst_vsformat, core, vsapi);
+                    unpack_callback unpack_cb_t(graph_t->graph, src_frame, src_format_t, src_vsformat, core, vsapi);
+                    unpack_callback unpack_cb_b(graph_b->graph, src_frame, src_format_b, src_vsformat, core, vsapi);
+                    pack_callback pack_cb_t(graph_t->graph, dst_frame, dst_format_t, dst_vsformat, core, vsapi);
+                    pack_callback pack_cb_b(graph_b->graph, dst_frame, dst_format_t, dst_vsformat, core, vsapi);
 
-                    unpack_cb_b.init_unpack(graph_b->graph, src_frame, src_format_b, true, src_vsformat, core, vsapi);
-                    pack_cb_b.init_pack(graph_b->graph, dst_frame, dst_format_b, true, dst_vsformat, core, vsapi);
-
-                    graph_t->graph.process(
-                        unpack_cb_t.get_read_buffer(), pack_cb_t.get_write_buffer(), tmp.get(),
-                        unpack_cb_t.get_callback(), &unpack_cb_t, pack_cb_t.get_callback(), &pack_cb_t);
-                    graph_b->graph.process(
-                        unpack_cb_b.get_read_buffer(), pack_cb_b.get_write_buffer(), tmp.get(),
-                        unpack_cb_b.get_callback(), &unpack_cb_b, pack_cb_b.get_callback(), &pack_cb_b);
+                    graph_t->graph.process(unpack_cb_t.buffer(), pack_cb_t.buffer(), tmp.get(), unpack_cb_t.callback(), &unpack_cb_t, pack_cb_t.callback(), &pack_cb_t);
+                    graph_b->graph.process(unpack_cb_b.buffer(), pack_cb_b.buffer(), tmp.get(), unpack_cb_b.callback(), &unpack_cb_b, pack_cb_b.callback(), &pack_cb_b);
                 } else {
                     std::shared_ptr<graph_data> graph = get_graph_data(src_format, dst_format);
 
-                    unpack_cb_t.init_unpack(graph->graph, src_frame, src_format, false, src_vsformat, core, vsapi);
-                    pack_cb_t.init_pack(graph->graph, dst_frame, dst_format, false, dst_vsformat, core, vsapi);
+                    unpack_callback unpack_cb{ graph->graph, src_frame, src_format, src_vsformat, core, vsapi };
+                    pack_callback pack_cb{ graph->graph, dst_frame, dst_format, dst_vsformat, core, vsapi };
 
                     std::unique_ptr<void, decltype(&vs_aligned_free)> tmp{
                         vs_aligned_malloc(graph->graph.get_tmp_size(), 64),
@@ -920,9 +834,7 @@ namespace {
                     if (!tmp)
                         throw std::bad_alloc{};
 
-                    graph->graph.process(
-                        unpack_cb_t.get_read_buffer(), pack_cb_t.get_write_buffer(), tmp.get(),
-                        unpack_cb_t.get_callback(), &unpack_cb_t, pack_cb_t.get_callback(), &pack_cb_t);
+                    graph->graph.process(unpack_cb.buffer(), pack_cb.buffer(), tmp.get(), unpack_cb.callback(), &unpack_cb, pack_cb.callback(), &pack_cb);
                 }
 
                 VSMap *dst_props = vsapi->getFramePropsRW(dst_frame);
@@ -930,17 +842,9 @@ namespace {
                 export_frame_props(dst_format, dst_props, vsapi);
             } catch (...) {
                 vsapi->freeFrame(dst_frame);
-                unpack_cb_t.release(vsapi);
-                pack_cb_t.release(vsapi);
-                unpack_cb_b.release(vsapi);
-                pack_cb_b.release(vsapi);
                 throw;
             }
 
-            unpack_cb_t.release(vsapi);
-            pack_cb_t.release(vsapi);
-            unpack_cb_b.release(vsapi);
-            pack_cb_b.release(vsapi);
             return dst_frame;
         }
     public:
