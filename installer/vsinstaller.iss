@@ -17,7 +17,7 @@ AppPublisher=Fredrik Mellbin
 AppPublisherURL=http://www.vapoursynth.com/
 AppSupportURL=http://www.vapoursynth.com/
 AppUpdatesURL=http://www.vapoursynth.com/
-VersionInfoVersion=1.34.0.0
+VersionInfoVersion=1.35.0.0
 DefaultDirName={pf32}\VapourSynth
 DefaultGroupName=VapourSynth
 AllowCancelDuringInstall=no
@@ -39,7 +39,8 @@ Name: Full; Description: Full installation; Flags: iscustom
 Name: "vs64"; Description: "VapourSynth 64-bit"; Types: Full; Check: HasPython64; Flags: disablenouninstallwarning
 Name: "vs32"; Description: "VapourSynth 32-bit"; Types: Full; Check: HasPython32; Flags: disablenouninstallwarning
 Name: "sdk"; Description: "VapourSynth SDK"; Flags: disablenouninstallwarning; Types: Full
-Name: "pismo"; Description: "Pismo PFM Runtime (required for AVFS)"; Types: Full; Flags: disablenouninstallwarningName: "vsruntimes"; Description: "Visual Studio Runtimes (2013 & 2015)"; Types: Full; Flags: disablenouninstallwarning
+Name: "pismo"; Description: "Pismo PFM Runtime (required for AVFS)"; Types: Full; Flags: disablenouninstallwarning
+Name: "vsruntimes"; Description: "Visual Studio Runtimes (2013 & 2015)"; Types: Full; Flags: disablenouninstallwarning
 
 [Tasks]
 Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to shell context menu"; GroupDescription: "New File Shortcuts:"; Components: vs32 vs64
@@ -188,7 +189,8 @@ type
 var
   Runtimes32Added: Boolean;
   Runtimes64Added: Boolean;
-  PythonInstallations: array of TPythonPath;  PythonPage: TWizardPage;
+  PythonInstallations: array of TPythonPath;
+  PythonPage: TWizardPage;
   PythonList: TNewCheckListBox;
   Python32Path: string;
   Python64Path: string;
@@ -238,7 +240,8 @@ begin
           begin
             if Temp = '32bit' then
               Bitness := 32
-            else if Temp = '64bit' then              Bitness := 64;              
+            else if Temp = '64bit' then
+              Bitness := 64;              
           end;
 
           if RegQueryStringValue(RegRoot, RegPathTemp, 'DisplayName', DisplayName) and RegQueryStringValue(RegRoot, RegPathTemp + '\InstallPath', '', InstallPath) then
@@ -287,7 +290,8 @@ begin
     PythonInstallations[GetArrayLength(PythonInstallations) - 1].Bitness := 64;
   end;
   
-  GetPythonInstallations2(HKCU, 'SOFTWARE\Python', 0);  GetPythonInstallations2(HKLM32, 'SOFTWARE\Python', 32);
+  GetPythonInstallations2(HKCU, 'SOFTWARE\Python', 0);
+  GetPythonInstallations2(HKLM32, 'SOFTWARE\Python', 32);
   if Is64BitInstallMode then
     GetPythonInstallations2(HKLM, 'SOFTWARE\Python', 64);      
 end;
