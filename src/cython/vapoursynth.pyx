@@ -929,10 +929,10 @@ cdef class VideoNode(object):
         if d.error:
             raise Error(d.error)
             
-    def __add__(self, other):
-        if not isinstance(other, VideoNode):
-            raise TypeError('Only clips can be spliced')
-        return (<VideoNode>self).core.std.Splice(clips=[self, other])
+    def __add__(x, y):
+        if not isinstance(x, VideoNode) or not isinstance(y, VideoNode):
+            return NotImplemented
+        return (<VideoNode>x).core.std.Splice(clips=[x, y])
 
     def __mul__(a, b):
         if isinstance(a, VideoNode):
