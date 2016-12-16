@@ -817,7 +817,7 @@ namespace {
                     unpack_callback unpack_cb_t(graph_t->graph, src_frame, src_format_t, src_vsformat, core, vsapi);
                     unpack_callback unpack_cb_b(graph_b->graph, src_frame, src_format_b, src_vsformat, core, vsapi);
                     pack_callback pack_cb_t(graph_t->graph, dst_frame, dst_format_t, dst_vsformat, core, vsapi);
-                    pack_callback pack_cb_b(graph_b->graph, dst_frame, dst_format_t, dst_vsformat, core, vsapi);
+                    pack_callback pack_cb_b(graph_b->graph, dst_frame, dst_format_b, dst_vsformat, core, vsapi);
 
                     graph_t->graph.process(unpack_cb_t.buffer(), pack_cb_t.buffer(), tmp.get(), unpack_cb_t.callback(), &unpack_cb_t, pack_cb_t.callback(), &pack_cb_t);
                     graph_b->graph.process(unpack_cb_b.buffer(), pack_cb_b.buffer(), tmp.get(), unpack_cb_b.callback(), &unpack_cb_b, pack_cb_b.callback(), &pack_cb_b);
