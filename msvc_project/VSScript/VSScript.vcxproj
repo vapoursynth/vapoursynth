@@ -66,20 +66,20 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>../../include;C:\Program Files %28x86%29\Python35-32\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Program Files %28x86%29\Python35-32\libs;$(LibraryPath)</LibraryPath>
+    <IncludePath>../../include;C:\Program Files %28x86%29\Python36-32\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Program Files %28x86%29\Python36-32\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>../../include;C:\Program Files\Python35\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Program Files\Python35\libs;$(LibraryPath)</LibraryPath>
+    <IncludePath>../../include;C:\Program Files\Python36\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Program Files\Python36\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>../../include;C:\Program Files %28x86%29\Python35-32\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Program Files %28x86%29\Python35-32\libs;$(LibraryPath)</LibraryPath>
+    <IncludePath>../../include;C:\Program Files %28x86%29\Python36-32\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Program Files %28x86%29\Python36-32\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>../../include;C:\Program Files\Python35\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Program Files\Python35\libs;$(LibraryPath)</LibraryPath>
+    <IncludePath>../../include;C:\Program Files\Python36\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Program Files\Python36\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>

@@ -1,5 +1,5 @@
 #define AppName = 'VapourSynth'
-#define Version = 'R35'
+#define Version = 'R36'
 
 [Setup]
 OutputDir=Compiled
@@ -17,7 +17,7 @@ AppPublisher=Fredrik Mellbin
 AppPublisherURL=http://www.vapoursynth.com/
 AppSupportURL=http://www.vapoursynth.com/
 AppUpdatesURL=http://www.vapoursynth.com/
-VersionInfoVersion=1.35.0.0
+VersionInfoVersion=1.36.0.0
 DefaultDirName={pf32}\VapourSynth
 DefaultGroupName=VapourSynth
 AllowCancelDuringInstall=no
@@ -54,8 +54,8 @@ Source: template.vpy; DestDir: {app}; Flags: ignoreversion uninsrestartdelete re
 Source: vapoursynth.pth; DestDir: {code:GetPythonPath32}\Lib\site-packages; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
 Source: vapoursynth.pth; DestDir: {code:GetPythonPath64}\Lib\site-packages; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 
-Source: ..\vapoursynth.cp35-win32.pyd; DestDir: {code:GetPythonPath32}\Lib\site-packages\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: ..\vapoursynth.cp35-win_amd64.pyd; DestDir: {code:GetPythonPath64}\Lib\site-packages\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+Source: ..\vapoursynth.cp36-win32.pyd; DestDir: {code:GetPythonPath32}\Lib\site-packages\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: ..\vapoursynth.cp36-win_amd64.pyd; DestDir: {code:GetPythonPath64}\Lib\site-packages\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 
 Source: ..\msvc_project\Release\vapoursynth.dll; DestDir: {code:GetPythonPath32}\Lib\site-packages\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
 Source: ..\msvc_project\x64\Release\vapoursynth.dll; DestDir: {code:GetPythonPath64}\Lib\site-packages\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
@@ -234,7 +234,7 @@ begin
         begin
           RegPathTemp := RegPath + '\' + Names[Nc] + '\' + Tags[Tc];
           Bitness := AssumeBitness;
-          if (not RegQueryStringValue(RegRoot, RegPathTemp, 'SysVersion', Temp)) or (Temp <> '3.5') then
+          if (not RegQueryStringValue(RegRoot, RegPathTemp, 'SysVersion', Temp)) or (Temp <> '3.6') then
             continue;
           if RegQueryStringValue(RegRoot, RegPathTemp, 'SysArchitecture', Temp) then
           begin
@@ -263,33 +263,6 @@ var
   PythonPath32: string;
   PythonPath64: string;
 begin
-  Success := RegQueryStringValue(HKCU32, 'SOFTWARE\Python\PythonCore\3.5-32\InstallPath', '', PythonPath32);
-  if not Success then
-    RegQueryStringValue(HKLM32, 'SOFTWARE\Python\PythonCore\3.5-32\InstallPath', '', PythonPath32);
-
-  if Is64BitInstallMode then
-  begin
-    Success := RegQueryStringValue(HKCU, 'SOFTWARE\Python\PythonCore\3.5\InstallPath', '', PythonPath64);
-    if not Success then
-      RegQueryStringValue(HKLM, 'SOFTWARE\Python\PythonCore\3.5\InstallPath', '', PythonPath64);
-  end;
-
-  if PythonPath32 <> '' then
-  begin
-    SetArrayLEngth(PythonInstallations, GetArrayLength(PythonInstallations) + 1);
-    PythonInstallations[GetArrayLength(PythonInstallations) - 1].DisplayName := 'Python 3.5 (32-bit)';
-    PythonInstallations[GetArrayLength(PythonInstallations) - 1].InstallPath := PythonPath32;
-    PythonInstallations[GetArrayLength(PythonInstallations) - 1].Bitness := 32;
-  end;
-
-  if PythonPath64 <> '' then
-  begin
-    SetArrayLEngth(PythonInstallations, GetArrayLength(PythonInstallations) + 1);
-    PythonInstallations[GetArrayLength(PythonInstallations) - 1].DisplayName := 'Python 3.5 (64-bit)';
-    PythonInstallations[GetArrayLength(PythonInstallations) - 1].InstallPath := PythonPath64;
-    PythonInstallations[GetArrayLength(PythonInstallations) - 1].Bitness := 64;
-  end;
-  
   GetPythonInstallations2(HKCU, 'SOFTWARE\Python', 0);
   GetPythonInstallations2(HKLM32, 'SOFTWARE\Python', 32);
   if Is64BitInstallMode then
