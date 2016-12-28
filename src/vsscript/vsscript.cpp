@@ -45,6 +45,7 @@ static PyGILState_STATE s;
 static void real_init(void) {
 #ifdef VS_TARGET_OS_WINDOWS
     // portable
+    const std::wstring pythonDllName = L"python36.dll";
     HMODULE module;
     GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCWSTR)&real_init, &module);
     std::vector<wchar_t> pathBuf(65536);
@@ -60,7 +61,7 @@ static void real_init(void) {
     HMODULE pythonDll = nullptr;
 
     if (isPortable) {
-        std::wstring pyPath = dllPath + L"\\python35.dll";
+        std::wstring pyPath = dllPath + L"\\" + pythonDllName;
         pythonDll = LoadLibraryExW(pyPath.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
     } else {
         DWORD dwType = REG_SZ;
@@ -76,7 +77,7 @@ static void real_init(void) {
             return;
 
         std::wstring pyPath = value;
-        pyPath += L"\\python35.dll";
+        pyPath += L"\\" + pythonDllName;
 
         pythonDll = LoadLibraryExW(pyPath.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
     }
