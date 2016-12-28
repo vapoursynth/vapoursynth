@@ -1,6 +1,5 @@
 r36:
 now uses python 3.6 in windows
-fixed corrupted chroma in interlaced resizing, regression introduced in r35
 fixed potential crash when two clips are added together (Kamekameha)
 
 r35:
