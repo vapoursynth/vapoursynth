@@ -257,16 +257,16 @@ begin
   end;  
 end;
 
-procedure GetPythonInstallations;
+function GetPythonInstallations: Boolean;
 var
-  Success: Boolean;
   PythonPath32: string;
   PythonPath64: string;
 begin
   GetPythonInstallations2(HKCU, 'SOFTWARE\Python', 0);
   GetPythonInstallations2(HKLM32, 'SOFTWARE\Python', 32);
   if Is64BitInstallMode then
-    GetPythonInstallations2(HKLM, 'SOFTWARE\Python', 64);      
+    GetPythonInstallations2(HKLM, 'SOFTWARE\Python', 64); 
+  Result := (GetArrayLength(PythonInstallations) > 0);
 end;
 
 procedure PopulatePythonInstallations(List: TNewCheckListBox);
@@ -308,8 +308,9 @@ begin
   Runtimes32Added := False;
   Runtimes64Added := False;
   PythonList := nil;
-  GetPythonInstallations;
-  Result := True;
+  Result := GetPythonInstallations;
+  if not Result then
+    MsgBox('No suitable Python 3.6 installations found. Installer will now exit.', mbCriticalError, MB_OK)
 end;
 
 procedure InitializeWizard();

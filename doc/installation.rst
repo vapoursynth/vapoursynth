@@ -5,7 +5,7 @@ Prerequisites
 #############
 
 First download and install the prerequisites:
-   * `Python 3.5 <http://www.python.org/>`_  -- 32 and/or 64 bit version
+   * `Python 3.6 <http://www.python.org/>`_  -- 32 and/or 64 bit version
 
 Installation
 ############
@@ -28,7 +28,7 @@ Windows Portable Instructions
 =============================
 
 First download and decompress the prerequisites:
-   * `Python 3.5 <http://www.python.org/>`_  -- 32 or 64 bit embeddable version
+   * `Python 3.6 <http://www.python.org/>`_  -- 32 or 64 bit embeddable version
    
 Simply decompress the portable VapourSynth archive into the Python dir and
 overwrite all existing files. Done.
