@@ -463,7 +463,7 @@ namespace {
             return 0;
         }
     public:
-        unpack_callback(const vszimgxx::FilterGraph &graph, const VSFrameRef *frame, const zimg_image_format &format, const VSFormat *vsformat, VSCore *core, const VSAPI *vsapi) :
+        unpack_callback(const vszimgxx::FilterGraph &graph, const VSFrameRef *frame, const zimg_image_format &format, const VSFormat *vsformat, bool interlaced, VSCore *core, const VSAPI *vsapi) :
             m_vs_buffer(),
             m_p2p_func()
         {
@@ -482,7 +482,7 @@ namespace {
                     get_buffer_flipped(&m_vs_buffer, vsformat->numPlanes, vsapi->getFrameHeight(frame, 0));
             }
 
-            if (format.field_parity != ZIMG_FIELD_PROGRESSIVE)
+            if (interlaced)
                 get_buffer_single_field(&m_vs_buffer, vsformat->numPlanes, format.field_parity);
         }
 
@@ -503,7 +503,7 @@ namespace {
             return 0;
         }
     public:
-        pack_callback(const vszimgxx::FilterGraph &graph, VSFrameRef *frame, const zimg_image_format &format, const VSFormat *vsformat, VSCore *core, const VSAPI *vsapi) :
+        pack_callback(const vszimgxx::FilterGraph &graph, VSFrameRef *frame, const zimg_image_format &format, const VSFormat *vsformat, bool interlaced, VSCore *core, const VSAPI *vsapi) :
             m_vs_buffer(),
             m_p2p_func()
         {
@@ -522,7 +522,7 @@ namespace {
                     get_buffer_flipped(&m_vs_buffer, vsformat->numPlanes, vsapi->getFrameHeight(frame, 0));
             }
 
-            if (format.field_parity != ZIMG_FIELD_PROGRESSIVE)
+            if (interlaced)
                 get_buffer_single_field(&m_vs_buffer, vsformat->numPlanes, format.field_parity);
         }
 
@@ -814,18 +814,18 @@ namespace {
                     if (!tmp)
                         throw std::bad_alloc{};
 
-                    unpack_callback unpack_cb_t(graph_t->graph, src_frame, src_format_t, src_vsformat, core, vsapi);
-                    unpack_callback unpack_cb_b(graph_b->graph, src_frame, src_format_b, src_vsformat, core, vsapi);
-                    pack_callback pack_cb_t(graph_t->graph, dst_frame, dst_format_t, dst_vsformat, core, vsapi);
-                    pack_callback pack_cb_b(graph_b->graph, dst_frame, dst_format_b, dst_vsformat, core, vsapi);
+                    unpack_callback unpack_cb_t(graph_t->graph, src_frame, src_format_t, src_vsformat, true, core, vsapi);
+                    unpack_callback unpack_cb_b(graph_b->graph, src_frame, src_format_b, src_vsformat, true, core, vsapi);
+                    pack_callback pack_cb_t(graph_t->graph, dst_frame, dst_format_t, dst_vsformat, true, core, vsapi);
+                    pack_callback pack_cb_b(graph_b->graph, dst_frame, dst_format_b, dst_vsformat, true, core, vsapi);
 
                     graph_t->graph.process(unpack_cb_t.buffer(), pack_cb_t.buffer(), tmp.get(), unpack_cb_t.callback(), &unpack_cb_t, pack_cb_t.callback(), &pack_cb_t);
                     graph_b->graph.process(unpack_cb_b.buffer(), pack_cb_b.buffer(), tmp.get(), unpack_cb_b.callback(), &unpack_cb_b, pack_cb_b.callback(), &pack_cb_b);
                 } else {
                     std::shared_ptr<graph_data> graph = get_graph_data(src_format, dst_format);
 
-                    unpack_callback unpack_cb{ graph->graph, src_frame, src_format, src_vsformat, core, vsapi };
-                    pack_callback pack_cb{ graph->graph, dst_frame, dst_format, dst_vsformat, core, vsapi };
+                    unpack_callback unpack_cb{ graph->graph, src_frame, src_format, src_vsformat, false, core, vsapi };
+                    pack_callback pack_cb{ graph->graph, dst_frame, dst_format, dst_vsformat, false, core, vsapi };
 
                     std::unique_ptr<void, decltype(&vs_aligned_free)> tmp{
                         vs_aligned_malloc(graph->graph.get_tmp_size(), 64),
