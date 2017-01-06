@@ -1,4 +1,5 @@
 r36:
+added sample type to vspipe info output
 improved a few installer error messages when python can't be found
 now uses python 3.6 in windows
 fixed potential crash when two clips are added together (Kamekameha)

@@ -641,6 +641,7 @@ int main(int argc, char **argv) {
             if (vi->format) {
                 fprintf(outFile, "Format Name: %s\n", vi->format->name);
                 fprintf(outFile, "Color Family: %s\n", colorFamilyToString(vi->format->colorFamily));
+                fprintf(outFile, "Sample Type: %s\n", (vi->format->sampleType == stInteger) ? "Integer" : "Float");
                 fprintf(outFile, "Bits: %d\n", vi->format->bitsPerSample);
                 fprintf(outFile, "SubSampling W: %d\n", vi->format->subSamplingW);
                 fprintf(outFile, "SubSampling H: %d\n", vi->format->subSamplingH);
