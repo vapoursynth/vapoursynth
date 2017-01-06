@@ -10,4 +10,8 @@ plain file can always be read.
 To use it simply run ``avfs`` in the ``core32`` or ``core64`` directories with the script name as argument.
 This will create a virtual file in ``C:\\Volumes``.
 
-Note that this avfs version is also compatible with Avisynth scripts.
+Avisynth Support
+################
+Note that this AVFS version is also compatible with Avisynth 2.6 and Avisynth+. When using Avisynth+
+higher bitdepth output is also supported. The easiest way to obtain a recent version is to extract
+``avfs.exe`` from the portable VapourSynth archives.
