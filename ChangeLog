@@ -1,4 +1,6 @@
 r36:
+fixed several edge cases when specifying color values for blankclip and addborders, inf and nan are now always rejected and floating point values can be any finite value
+fixed specifying compat format colors in blankclip, previously it'd most of the time result in garbage colors
 vspipe will now properly report floating point formats in y4m instead of incorrectly making them look like integer, for example C420ps and C420ph will be used to mark single and half precision respectively
 avfs will now reject scripts that don't have an avs or vpy extension to avoid pointless error mounts
 fixed blankclip handling of color for compat formats

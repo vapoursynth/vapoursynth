@@ -30,7 +30,7 @@
 #include <emmintrin.h>
 #endif
 
-static uint32_t doubleToUInt32S(double v) {
+static inline uint32_t doubleToUInt32S(double v) {
     if (v < 0)
         return 0;
     if (v > UINT32_MAX)
@@ -76,6 +76,53 @@ static inline uint16_t floatToHalf(float x) {
 
     ret |= (uint16_t)(sign >> 16);
     return ret;
+}
+
+static inline int isInfHalf(uint16_t v) {
+    return (v & 0x7C00) == 0x7C00;
+}
+
+static inline uint32_t doubleToIntPixelValue(double v, int bits, int *err) {
+    *err = 0;
+
+    if (!isfinite(v) || v < 0) {
+        *err = 1;
+        return 0;
+    }
+
+    uint32_t i = doubleToUInt32S(v);
+    if (i >= ((uint64_t)1 << bits)) {
+        *err = 1;
+        return 0;
+    }
+
+    return i;
+}
+
+static inline uint32_t doubleToFloatPixelValue(double v, int *err) {
+    float f = v;
+    if (!isfinite(f)) {
+        *err = 1;
+        return 0;
+    }
+
+    return bit_cast_uint32(f);
+}
+
+static inline uint16_t doubleToHalfPixelValue(double v, int *err) {
+    float f = v;
+    if (!isfinite(f)) {
+        *err = 1;
+        return 0;
+    }
+
+    uint16_t f16 = floatToHalf(f);
+    if (isInfHalf(f16)) {
+        *err = 1;
+        return 0;
+    }
+
+    return f16;
 }
 
 //////////////////////////////////////////
@@ -243,10 +290,7 @@ typedef struct {
     int right;
     int top;
     int bottom;
-    union {
-        uint32_t i[3];
-        float f[3];
-    } color;
+    uint32_t color[3];
 } AddBordersData;
 
 static void VS_CC addBordersInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -308,7 +352,7 @@ static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, v
             int padb = d->bottom >> (plane ? fi->subSamplingH : 0);
             int padl = (d->left >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample;
             int padr = (d->right >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample;
-            int color = d->color.i[plane];
+            uint32_t color = d->color[plane];
 
             switch (d->vi->format->bytesPerSample) {
             case 1:
@@ -370,7 +414,7 @@ static void VS_CC addBordersCreate(const VSMap *in, VSMap *out, void *userData, 
     char msg[150];
     AddBordersData d;
     AddBordersData *data;
-    int err, ncolors, i;
+    int err;
 
     d.left = int64ToIntS(vsapi->propGetInt(in, "left", 0, &err));
     d.right = int64ToIntS(vsapi->propGetInt(in, "right", 0, &err));
@@ -407,29 +451,24 @@ static void VS_CC addBordersCreate(const VSMap *in, VSMap *out, void *userData, 
         RETERROR(msg);
     }
 
-    ncolors = vsapi->propNumElements(in, "color");
+    int numcomponents = (d.vi->format->colorFamily == cmCompat) ? 3 : d.vi->format->numPlanes;
+    int ncolors = vsapi->propNumElements(in, "color");
 
-    setBlack(d.color.i, d.vi->format);
+    setBlack(d.color, d.vi->format);
 
-    if (ncolors == d.vi->format->numPlanes) {
-        for (i = 0; i < ncolors; i++) {
+    if (ncolors == numcomponents) {
+        for (int i = 0; i < ncolors; i++) {
             double color = vsapi->propGetFloat(in, "color", i, 0);
             if (d.vi->format->sampleType == stInteger) {
-                d.color.i[i] = doubleToUInt32S(color);
-                if (color < 0 || d.color.i[i] >= ((uint64_t)1 << d.vi->format->bitsPerSample))
-                    RETERROR("AddBorders: color value out of range");
+                d.color[i] = doubleToIntPixelValue(color, d.vi->format->bitsPerSample, &err);
             } else {
-                d.color.f[i] = (float)color;
-                if (d.vi->format->colorFamily == cmRGB || i == 0) {
-                    if (d.color.f[i] < 0 || d.color.f[i] > 1)
-                        RETERROR("AddBorders: color value out of range");
-                } else {
-                    if (d.color.f[i] < -0.5 || d.color.f[i] > 0.5)
-                        RETERROR("AddBorders: color value out of range");
-                }
                 if (d.vi->format->bitsPerSample == 16)
-                    d.color.i[i] = floatToHalf(d.color.f[i]);
+                    d.color[i] = doubleToHalfPixelValue(color, &err);
+                else
+                    d.color[i] = doubleToFloatPixelValue(color, &err);
             }
+            if (err)
+                RETERROR("AddBorders: color value out of range");
         }
     } else if (ncolors > 0) {
         RETERROR("AddBorders: invalid number of color values specified");
@@ -1109,10 +1148,7 @@ typedef struct {
     VSFrameRef *f;
     VSVideoInfo vi;
     int keep;
-    union {
-        uint32_t i[3];
-        float f[3];
-    } color;
+    uint32_t color[3];
 } BlankClipData;
 
 static void VS_CC blankClipInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -1132,13 +1168,13 @@ static const VSFrameRef *VS_CC blankClipGetframe(int n, int activationReason, vo
             for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {
                 switch (bytesPerSample) {
                 case 1:
-                    vs_memset8(vsapi->getWritePtr(frame, plane), d->color.i[plane], vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane));
+                    vs_memset8(vsapi->getWritePtr(frame, plane), d->color[plane], vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane));
                     break;
                 case 2:
-                    vs_memset16(vsapi->getWritePtr(frame, plane), d->color.i[plane], (vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane)) / 2);
+                    vs_memset16(vsapi->getWritePtr(frame, plane), d->color[plane], (vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane)) / 2);
                     break;
                 case 4:
-                    vs_memset32(vsapi->getWritePtr(frame, plane), d->color.i[plane], (vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane)) / 4);
+                    vs_memset32(vsapi->getWritePtr(frame, plane), d->color[plane], (vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane)) / 4);
                     break;
                 }
             }
@@ -1264,31 +1300,24 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     if (d.vi.numFrames <= 0)
         RETERROR("BlankClip: invalid length");
 
-    setBlack(d.color.i, d.vi.format);
+    setBlack(d.color, d.vi.format);
 
     int numcomponents = (d.vi.format->colorFamily == cmCompat) ? 3 : d.vi.format->numPlanes;
-
     int ncolors = vsapi->propNumElements(in, "color");
 
     if (ncolors == numcomponents) {
         for (int i = 0; i < ncolors; i++) {
-            double lcolor = vsapi->propGetFloat(in, "color", i, 0);
+            double color = vsapi->propGetFloat(in, "color", i, 0);
             if (d.vi.format->sampleType == stInteger) {
-                d.color.i[i] = doubleToUInt32S(lcolor);
-                if (lcolor < 0 || d.color.i[i] >= ((int64_t)1 << d.vi.format->bitsPerSample))
-                    RETERROR("BlankClip: color value out of range");
+                d.color[i] = doubleToIntPixelValue(color, d.vi.format->bitsPerSample, &err);
             } else {
-                d.color.f[i] = (float)lcolor;
-                if (d.vi.format->colorFamily == cmRGB || i == 0) {
-                    if (d.color.f[i] < 0 || d.color.f[i] > 1)
-                        RETERROR("BlankClip: color value out of range");
-                } else {
-                    if (d.color.f[i] < -0.5 || d.color.f[i] > 0.5)
-                        RETERROR("BlankClip: color value out of range");
-                }
                 if (d.vi.format->bitsPerSample == 16)
-                    d.color.i[i] = floatToHalf(d.color.f[i]);
+                    d.color[i] = doubleToHalfPixelValue(color, &err);
+                else
+                    d.color[i] = doubleToFloatPixelValue(color, &err);
             }
+            if (err)
+                RETERROR("BlankClip: color value out of range");
         }
     } else if (ncolors > 0) {
         RETERROR("BlankClip: invalid number of color values specified");
@@ -1296,12 +1325,12 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
 
     if (d.vi.format->id == pfCompatBGR32 || d.vi.format->id == pfCompatYUY2) {
         for (int i = 0; i < numcomponents; i++)
-            if (d.color.i[i] > 255)
+            if (d.color[i] > 255)
                 RETERROR("BlankClip: color value out of range");
         if (d.vi.format->id == pfCompatBGR32)
-            d.color.i[0] = (0 << 24) | (d.color.i[0] << 16) | (d.color.i[1] << 8) | (d.color.i[2] << 0);
+            d.color[0] = (0 << 24) | (d.color[0] << 16) | (d.color[1] << 8) | (d.color[2] << 0);
         else
-            d.color.i[0] = (d.color.i[2] << 24) | (d.color.i[0] << 16) | (d.color.i[1] << 8) | (d.color.i[0] << 0);
+            d.color[0] = (d.color[2] << 24) | (d.color[0] << 16) | (d.color[1] << 8) | (d.color[0] << 0);
     }
 
     d.keep = !!vsapi->propGetInt(in, "keep", 0, &err);
