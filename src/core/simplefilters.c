@@ -1127,9 +1127,10 @@ static const VSFrameRef *VS_CC blankClipGetframe(int n, int activationReason, vo
         VSFrameRef *frame = NULL;
         if (!d->f) {
             frame = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, 0, core);
+            int bytesPerSample = (d->vi.format->id == pfCompatYUY2) ? 4 : d->vi.format->bytesPerSample;
 
             for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {
-                switch (d->vi.format->bytesPerSample) {
+                switch (bytesPerSample) {
                 case 1:
                     vs_memset8(vsapi->getWritePtr(frame, plane), d->color.i[plane], vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane));
                     break;
@@ -1265,9 +1266,11 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
 
     setBlack(d.color.i, d.vi.format);
 
+    int numcomponents = (d.vi.format->colorFamily == cmCompat) ? 3 : d.vi.format->numPlanes;
+
     int ncolors = vsapi->propNumElements(in, "color");
 
-    if (ncolors == d.vi.format->numPlanes) {
+    if (ncolors == numcomponents) {
         for (int i = 0; i < ncolors; i++) {
             double lcolor = vsapi->propGetFloat(in, "color", i, 0);
             if (d.vi.format->sampleType == stInteger) {
@@ -1289,6 +1292,16 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
         }
     } else if (ncolors > 0) {
         RETERROR("BlankClip: invalid number of color values specified");
+    }
+
+    if (d.vi.format->id == pfCompatBGR32 || d.vi.format->id == pfCompatYUY2) {
+        for (int i = 0; i < numcomponents; i++)
+            if (d.color.i[i] > 255)
+                RETERROR("BlankClip: color value out of range");
+        if (d.vi.format->id == pfCompatBGR32)
+            d.color.i[0] = (0 << 24) | (d.color.i[0] << 16) | (d.color.i[1] << 8) | (d.color.i[2] << 0);
+        else
+            d.color.i[0] = (d.color.i[2] << 24) | (d.color.i[0] << 16) | (d.color.i[1] << 8) | (d.color.i[0] << 0);
     }
 
     d.keep = !!vsapi->propGetInt(in, "keep", 0, &err);
