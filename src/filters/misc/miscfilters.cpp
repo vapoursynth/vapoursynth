@@ -25,6 +25,8 @@
 #include <vector>
 #include <memory>
 #include <algorithm>
+#include <cmath>
+#include <cfloat>
 
 ///////////////////////////////////////
 // SCDetect
