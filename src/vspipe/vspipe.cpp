@@ -238,6 +238,20 @@ static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, 
     }
 }
 
+static std::string floatBitsToLetter(int bits) {
+    switch (bits) {
+    case 16:
+        return "h";
+    case 32:
+        return "s";
+    case 64:
+        return "d";
+    default:
+        assert(false);
+        return "u";
+    }
+}
+
 static bool outputNode() {
     if (requests < 1) {
         const VSCoreInfo *info = vsapi->getCoreInfo(vsscript_getCore(se));
@@ -277,8 +291,10 @@ static bool outputNode() {
                 return true;
             }
 
-            if (vi->format->bitsPerSample > 8)
-                y4mFormat = y4mFormat + "p" + std::to_string(vi->format->bitsPerSample);
+            if (vi->format->bitsPerSample > 8 && vi->format->sampleType == stInteger)
+                y4mFormat += "p" + std::to_string(vi->format->bitsPerSample);
+            else if (vi->format->sampleType == stFloat)
+                y4mFormat += "p" + floatBitsToLetter(vi->format->bitsPerSample);
         } else {
             fprintf(stderr, "No y4m identifier exists for current format\n");
             return true;
