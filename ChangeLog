@@ -1,4 +1,5 @@
 r36:
+avfs will now reject scripts that don't have an avs or vpy extension to avoid pointless error mounts
 fixed blankclip handling of color for compat formats
 added sample type to vspipe info output
 improved a few installer error messages when python can't be found

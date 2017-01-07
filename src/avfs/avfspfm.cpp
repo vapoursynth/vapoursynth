@@ -1516,10 +1516,17 @@ int wmain(int argc,const wchar_t*const* argv)
            "  -s  Serve to stdin/stdout.\n");
     }
 
-    if(!error && !sslen(mcp.mountName))
+
+    size_t fnlen = sslen(mcp.mountName);
+    if(!error && !fnlen)
     {
         error = -1;
         fprintf(fstatus,"ERROR: Must provide name of script to mount\n");
+    }
+
+    if (!error && (fnlen < 4 || (sscmpi(mcp.mountName + fnlen - 4, L".avs") && sscmpi(mcp.mountName + fnlen - 4, L".vpy")))) {
+        error = -1;
+        fprintf(fstatus, "ERROR: Only files with the extensions .vpy and .avs can be mounted\n");
     }
 
     if(!error)
