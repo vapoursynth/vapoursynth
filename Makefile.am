@@ -167,6 +167,16 @@ endif
 
 
 
+if MISCFILTERS
+pkglib_LTLIBRARIES += libmiscfilters.la
+
+libmiscfilters_la_SOURCES = src/filters/misc/miscfilters.cpp
+libmiscfilters_la_LDFLAGS = $(commonpluginldflags)
+libmiscfilters_la_LIBTOOLFLAGS = $(commonlibtoolflags)
+endif
+
+
+
 if MORPHO
 pkglib_LTLIBRARIES += libmorpho.la
 

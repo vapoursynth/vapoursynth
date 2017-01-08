@@ -306,6 +306,7 @@ AC_ARG_ENABLE([plugins], AS_HELP_STRING([--enable-plugins], [Enable all included
 AC_ARG_ENABLE([subtext],        AS_HELP_STRING([--enable-subtext],      [Enable the subtitle rendering plugin. Requires libass and ffmpeg. (default=auto)]))
 AC_ARG_ENABLE([eedi3],          AS_HELP_STRING([--enable-eedi3],        [Enable the eedi3 plugin. (default=yes)]))
 AC_ARG_ENABLE([imwri],          AS_HELP_STRING([--enable-imwri],        [Enable the image reader/writer plugin. Requires ImageMagick. (default=auto)]))
+AC_ARG_ENABLE([miscfilters],    AS_HELP_STRING([--enable-miscfilters],  [Enable the miscellaneous filters plugin. (default=yes)]))
 AC_ARG_ENABLE([morpho],         AS_HELP_STRING([--enable-morpho],       [Enable the morpho plugin. (default=yes)]))
 AC_ARG_ENABLE([ocr],            AS_HELP_STRING([--enable-ocr],          [Enable the ocr plugin. Requires tesseract. (default=auto)]))
 AC_ARG_ENABLE([removegrain],    AS_HELP_STRING([--enable-removegrain],  [Enable the removegrain plugin. (default=yes)]))
@@ -315,6 +316,7 @@ AC_ARG_ENABLE([vivtc],          AS_HELP_STRING([--enable-vivtc],        [Enable 
 subtext=""
 eedi3=""
 imwri=""
+miscfilters=""
 morpho=""
 ocr=""
 removegrain=""
@@ -327,6 +329,7 @@ AS_CASE(
                 AS_IF([test "x$enable_subtext"      != "xno"], [subtext="yes"])
                 AS_IF([test "x$enable_eedi3"        != "xno"], [eedi3="yes"])
                 AS_IF([test "x$enable_imwri"        != "xno"], [imwri="yes"])
+                AS_IF([test "x$enable_miscfilters"  != "xno"], [miscfilters="yes"])
                 AS_IF([test "x$enable_morpho"       != "xno"], [morpho="yes"])
                 AS_IF([test "x$enable_ocr"          != "xno"], [ocr="yes"])
                 AS_IF([test "x$enable_removegrain"  != "xno"], [removegrain="yes"])
@@ -337,6 +340,7 @@ AS_CASE(
                 AS_IF([test "x$enable_subtext"      = "xyes"], [subtext="yes"])
                 AS_IF([test "x$enable_eedi3"        = "xyes"], [eedi3="yes"])
                 AS_IF([test "x$enable_imwri"        = "xyes"], [imwri="yes"])
+                AS_IF([test "x$enable_miscfilters"  = "xyes"], [miscfilters="yes"])
                 AS_IF([test "x$enable_morpho"       = "xyes"], [morpho="yes"])
                 AS_IF([test "x$enable_ocr"          = "xyes"], [ocr="yes"])
                 AS_IF([test "x$enable_removegrain"  = "xyes"], [removegrain="yes"])
@@ -347,6 +351,7 @@ AS_CASE(
          AS_IF([test "x$enable_subtext"     != "xno"], [AS_IF([test "x$enable_subtext" = "xyes"], [subtext="yes"], [subtext="auto"])])
          AS_IF([test "x$enable_eedi3"       != "xno"], [eedi3="yes"])
          AS_IF([test "x$enable_imwri"       != "xno"], [AS_IF([test "x$enable_imwri" = "xyes"], [imwri="yes"], [imwri="auto"])])
+         AS_IF([test "x$enable_miscfilters" != "xno"], [miscfilters="yes"])
          AS_IF([test "x$enable_morpho"      != "xno"], [morpho="yes"])
          AS_IF([test "x$enable_ocr"         != "xno"], [AS_IF([test "x$enable_ocr" = "xyes"], [ocr="yes"], [ocr="auto"])])
          AS_IF([test "x$enable_removegrain" != "xno"], [removegrain="yes"])
@@ -474,6 +479,7 @@ PKG_CHECK_MODULES(
 AM_CONDITIONAL([SUBTEXT],       [test "$subtext"])
 AM_CONDITIONAL([EEDI3],         [test "$eedi3"])
 AM_CONDITIONAL([IMWRI],         [test "$imwri"])
+AM_CONDITIONAL([MISCFILTERS],   [test "$miscfilters"])
 AM_CONDITIONAL([MORPHO],        [test "$morpho"])
 AM_CONDITIONAL([OCR],           [test "$ocr"])
 AM_CONDITIONAL([REMOVEGRAIN],   [test "$removegrain"])
