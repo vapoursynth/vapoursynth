@@ -6,15 +6,16 @@ Prewitt/Sobel
 
    Creates an edge mask using the Prewitt operator.
 
-.. function:: Sobel(clip clip[, float min=0.0, float max, int[] planes=[0, 1, 2], int rshift=0])
+.. function:: Sobel(clip clip[, float min=0.0, float max, int[] planes=[0, 1, 2], float scale=1])
    :module: std
 
    Creates an edge mask using the Sobel operator.
 
    *clip*
-      Clip to process. It must have integer sample type, and bit depth
-      between 8 and 16. If there are any frames with float samples or
-      bit depth greater than 16, an error will be returned.
+      Clip to process. It must have integer sample type and bit depth
+      between 8 and 16, or float sample type and bit depth of 32. If
+      there are any frames with other formats, an error will be
+      returned.
 
    *min*
       If an output pixel has a value less than or equal to this, it will
