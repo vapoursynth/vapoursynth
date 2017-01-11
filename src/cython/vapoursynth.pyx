@@ -1,4 +1,4 @@
-#  Copyright (c) 2012-2016 Fredrik Mellbin
+#  Copyright (c) 2012-2017 Fredrik Mellbin
 #
 #  This file is part of VapourSynth.
 #
@@ -28,6 +28,8 @@ import threading
 import traceback
 import gc
 import sys
+import inspect
+import typing
 
 _using_vsscript = False
 _environment_id_stack = []
@@ -87,9 +89,6 @@ COMPATYUY2 = vapoursynth.pfCompatYUY2
 
 INTEGER = vapoursynth.stInteger
 FLOAT = vapoursynth.stFloat
-
-import inspect
-import typing
 
 def _construct_parameter(signature):
     name,type,*opt = signature.split(":")
