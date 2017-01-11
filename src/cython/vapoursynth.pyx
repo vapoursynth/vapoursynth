@@ -1285,9 +1285,11 @@ cdef class Plugin(object):
     cdef const VSAPI *funcs
     cdef object injected_arg
     cdef readonly str namespace
+    cdef readonly str __doc__
 
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
+        
 
     def __getattr__(self, name):
         tname = name.encode('utf-8')
@@ -1354,6 +1356,9 @@ cdef Plugin createPlugin(VSPlugin *plugin, str namespace, const VSAPI *funcs, Co
     instance.funcs = funcs
     instance.injected_arg = None
     instance.namespace = namespace
+    
+    instance.__doc__ = list(core.get_plugins().values())[0]['name']
+    
     return instance
 
 cdef class Function(object):
