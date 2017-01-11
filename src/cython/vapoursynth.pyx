@@ -91,8 +91,8 @@ FLOAT = vapoursynth.stFloat
 import inspect
 import typing
 
-def _construct_parameter(string):
-    name,type,*opt = string.split(":")
+def _construct_parameter(signature):
+    name,type,*opt = signature.split(":")
 
     # Handle Arrays.
     if type.endswith("[]"):
@@ -134,16 +134,20 @@ def _construct_parameter(string):
         default=opt, annotation=type
     )
 
-def construct_signature(sig):
-    if isinstance(sig, vapoursynth.Function):
-        sig = sig.signature
+def construct_signature(signature, injected=None):
+    if isinstance(signature, vapoursynth.Function):
+        signature = signature.signature
 
-    params = tuple(
+    params = list(
         _construct_parameter(param)
-        for param in sig.split(";")
+        for param in signature.split(";")
         if param
     )
-    return inspect.Signature(params, return_annotation=vapoursynth.VideoNode)
+    
+    if injected:
+        params[0] = params[0].replace(default=injected)
+    
+    return inspect.Signature(tuple(params), return_annotation=vapoursynth.VideoNode)
     
 
 class Error(Exception):
@@ -1369,7 +1373,7 @@ cdef class Function(object):
     
     @property
     def __signature__(self):
-        return construct_signature(self.signature)
+        return construct_signature(self.signature, injected=self.plugin.injected_arg)
 
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
