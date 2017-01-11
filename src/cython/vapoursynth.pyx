@@ -89,7 +89,11 @@ INTEGER = vapoursynth.stInteger
 FLOAT = vapoursynth.stFloat
 
 import inspect
-import typing
+
+try:
+    import typing
+except ImportError as e:
+    typing = None
 
 def _construct_parameter(signature):
     name,type,*opt = signature.split(":")
@@ -135,6 +139,9 @@ def _construct_parameter(signature):
     )
 
 def construct_signature(signature, injected=None):
+    if typing is None:
+        raise RuntimeError("At least Python 3.5 is required to use type-hinting")
+    
     if isinstance(signature, vapoursynth.Function):
         signature = signature.signature
 
@@ -179,48 +186,31 @@ def set_message_handler(handler_func):
         _message_handler = handler_func
         funcs.setMessageHandler(message_handler_wrapper, NULL)
     
-def clear_output(int index = 0):
+def _get_output_dict():
     global _using_vsscript
     if _using_vsscript:
         global _stored_outputs
         global _environment_id
         if _environment_id is None:
             raise Error('Internal environment id not set. Was clear_output() called from a filter callback?')
-        # fixme, should probably catch a more specific exception
-        try:
-            del _stored_outputs[_environment_id][index]
-        except:
-            pass
+            
+        return _stored_outputs[_environment_id]
     else:
-        global _stored_output
-        try:
-            del _stored_output[index]
-        except:
-            pass
+        return _stored_output
+    
+def clear_output(int index = 0):
+    cdef dict outputs = _get_output_dict()
+    try:
+        del outputs[index]
+    except KeyError:
+        pass
 
 def clear_outputs():
-    global _using_vsscript
-    if _using_vsscript:
-        global _stored_outputs
-        global _environment_id
-        if _environment_id is None:
-            raise Error('Internal environment id not set. Was clear_outputs() called from a filter callback?')
-        _stored_outputs[_environment_id] = {}
-    else:
-        global _stored_output
-        _stored_output = {}
+    cdef dict outputs = _get_output_dict()
+    outputs.clear()
 
 def get_output(int index = 0):
-    global _using_vsscript
-    if _using_vsscript:
-        global _stored_outputs
-        global _environment_id
-        if _environment_id is None:
-            raise Error('Internal environment id not set. Was get_output() called from a filter callback?')
-        return _stored_outputs[_environment_id][index]
-    else:
-        global _stored_output
-        return _stored_output[index]
+    return _get_output_dict()[index]
 
 cdef class FuncData(object):
     cdef object func
@@ -913,16 +903,7 @@ cdef class VideoNode(object):
             return createConstVideoFrame(f, self.funcs, self.core)
 
     def set_output(self, int index = 0):
-        global _using_vsscript
-        if _using_vsscript:
-            global _stored_outputs
-            global _environment_id
-            if _environment_id is None:
-                raise Error('Internal environment id not set. Was set_output() called from a filter callback?')
-            _stored_outputs[_environment_id][index] = self
-        else:
-            global _stored_output
-            _stored_output[index] = self
+        _get_output_dict()[index] = self
 
     def output(self, object fileobj not None, bint y4m = False, object progress_update = None, int prefetch = 0):
         if prefetch < 1:
@@ -1373,6 +1354,8 @@ cdef class Function(object):
     
     @property
     def __signature__(self):
+        if typing is None:
+            return None
         return construct_signature(self.signature, injected=self.plugin.injected_arg)
 
     def __init__(self):
