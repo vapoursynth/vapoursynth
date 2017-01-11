@@ -88,6 +88,64 @@ COMPATYUY2 = vapoursynth.pfCompatYUY2
 INTEGER = vapoursynth.stInteger
 FLOAT = vapoursynth.stFloat
 
+import inspect
+import typing
+
+def _construct_parameter(string):
+    name,type,*opt = string.split(":")
+
+    # Handle Arrays.
+    if type.endswith("[]"):
+        array = True
+        type = type[:-2]
+    else:
+        array = False
+
+    # Handle types
+    if type == "clip":
+        type = vapoursynth.VideoNode
+    elif type == "frame":
+        type = vapoursynth.VideoFrame
+    elif type == "func":
+        type = typing.Union[vapoursynth.Func, typing.Callable]
+    elif type == "int":
+        type = int
+    elif type == "float":
+        type = float
+    elif type == "data":
+        type = typing.Union[str, bytes, bytearray]
+    else:
+        raise ValueError("Couldn't determine type")
+
+    # Make the type a sequence.
+    if array:
+        type = typing.Sequence[type]
+
+    # Mark an optional type
+    if opt:
+        type = typing.Optional[type]
+        opt = None
+    else:
+        opt = inspect.Parameter.empty
+        
+        
+    return inspect.Parameter(
+        name, inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        default=opt, annotation=type
+    )
+
+def construct_signature(sig):
+    if isinstance(sig, vapoursynth.Function):
+        sig = sig.signature
+
+    params = tuple(
+        _construct_parameter(param)
+        for param in sig.split(";")
+        if param
+    )
+    return inspect.Signature(params, return_annotation=vapoursynth.VideoNode)
+    
+
 class Error(Exception):
     def __init__(self, value):
         self.value = value
@@ -1308,6 +1366,10 @@ cdef class Function(object):
     cdef const VSAPI *funcs
     cdef readonly str name
     cdef readonly str signature
+    
+    @property
+    def __signature__(self):
+        return construct_signature(self.signature)
 
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
