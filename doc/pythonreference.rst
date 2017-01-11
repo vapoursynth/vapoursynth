@@ -383,6 +383,10 @@ Classes and Functions
 .. py:class:: Plugin
 
    Plugin is a class that represents a loaded plugin and its namespace.
+   
+   .. py:attribute:: name
+
+      The namespace of the plugin.
 
    .. py:method:: get_functions()
 
@@ -398,6 +402,14 @@ Classes and Functions
 
    Function is a simple wrapper class for a function provided by a VapourSynth plugin.
    Its main purpose is to be called and nothing else.
+   
+   .. py:attribute:: name
+
+      The function name. Identical to the string used to register the function.
+      
+   .. py:attribute:: signature
+
+      Raw function signature string. Identical to the string used to register the function.
    
 .. py:class:: Func
 
