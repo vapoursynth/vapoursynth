@@ -173,6 +173,13 @@ Classes and Functions
 .. py:function:: clear_outputs()
 
    Clears all clips set for output in the current environment.
+   
+.. py:function:: construct_signature(signature[, injected=None])
+
+   Creates a *inspect.Signature* object for the given registration signature.
+   
+   If *injected* is not None, the default of the first argument of the signature will be replaced with the value supplied with injected.
+   
 
 .. py:class:: Core
 
@@ -414,6 +421,10 @@ Classes and Functions
    .. py:attribute:: signature
 
       Raw function signature string. Identical to the string used to register the function.
+      
+   .. py:attribute:: plugin
+   
+      Refers to the *Plugin*-instance which registered this function.
    
 .. py:class:: Func
 

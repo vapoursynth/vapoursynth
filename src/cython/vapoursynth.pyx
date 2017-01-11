@@ -88,6 +88,68 @@ COMPATYUY2 = vapoursynth.pfCompatYUY2
 INTEGER = vapoursynth.stInteger
 FLOAT = vapoursynth.stFloat
 
+import inspect
+import typing
+
+def _construct_parameter(signature):
+    name,type,*opt = signature.split(":")
+
+    # Handle Arrays.
+    if type.endswith("[]"):
+        array = True
+        type = type[:-2]
+    else:
+        array = False
+
+    # Handle types
+    if type == "clip":
+        type = vapoursynth.VideoNode
+    elif type == "frame":
+        type = vapoursynth.VideoFrame
+    elif type == "func":
+        type = typing.Union[vapoursynth.Func, typing.Callable]
+    elif type == "int":
+        type = int
+    elif type == "float":
+        type = float
+    elif type == "data":
+        type = typing.Union[str, bytes, bytearray]
+    else:
+        raise ValueError("Couldn't determine type")
+
+    # Make the type a sequence.
+    if array:
+        type = typing.Sequence[type]
+
+    # Mark an optional type
+    if opt:
+        type = typing.Optional[type]
+        opt = None
+    else:
+        opt = inspect.Parameter.empty
+        
+        
+    return inspect.Parameter(
+        name, inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        default=opt, annotation=type
+    )
+
+def construct_signature(signature, injected=None):
+    if isinstance(signature, vapoursynth.Function):
+        signature = signature.signature
+
+    params = list(
+        _construct_parameter(param)
+        for param in signature.split(";")
+        if param
+    )
+    
+    if injected:
+        params[0] = params[0].replace(default=injected)
+    
+    return inspect.Signature(tuple(params), return_annotation=vapoursynth.VideoNode)
+    
+
 class Error(Exception):
     def __init__(self, value):
         self.value = value
@@ -1304,11 +1366,14 @@ cdef Plugin createPlugin(VSPlugin *plugin, str namespace, const VSAPI *funcs, Co
     return instance
 
 cdef class Function(object):
-
     cdef const VSAPI *funcs
     cdef readonly Plugin plugin
     cdef readonly str name
     cdef readonly str signature
+    
+    @property
+    def __signature__(self):
+        return construct_signature(self.signature, injected=self.plugin.injected_arg)
 
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
