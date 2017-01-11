@@ -1362,7 +1362,7 @@ cdef Plugin createPlugin(VSPlugin *plugin, str name, const VSAPI *funcs, Core co
     return instance
 
 cdef class Function(object):
-    cdef Plugin plugin
+    cdef readonly Plugin plugin
     cdef const VSAPI *funcs
     cdef readonly str name
     cdef readonly str signature
