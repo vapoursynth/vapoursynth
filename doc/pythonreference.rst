@@ -414,6 +414,10 @@ Classes and Functions
 
       The function name. Identical to the string used to register the function.
       
+   .. py:attribute:: plugin
+
+      The *Plugin* object the function belongs to.
+      
    .. py:attribute:: signature
 
       Raw function signature string. Identical to the string used to register the function.

@@ -1,5 +1,5 @@
 r36:
-in python function objects now have name and signature attributes, plugin objects now have a name attribute correcpsonding to the namespace
+in python function objects now have name, signature and plugin attributes, plugin objects now have a namespace attribute correcpsonding to the namespace
 added misc filters to included vapoursynth plugins
 fixed several edge cases when specifying color values for blankclip and addborders, inf and nan are now always rejected and floating point values can be any finite value
 vspipe will now properly report floating point formats in y4m instead of incorrectly making them look like integer, for example C420ps and C420ph will be used to mark single and half precision respectively
