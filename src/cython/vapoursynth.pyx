@@ -29,6 +29,9 @@ import traceback
 import gc
 import sys
 import inspect
+
+# Ensure that the import doesn't fail
+# if typing is not available on the python installation.
 try:
     import typing
 except ImportError as e:
