@@ -188,31 +188,31 @@ def set_message_handler(handler_func):
         _message_handler = handler_func
         funcs.setMessageHandler(message_handler_wrapper, NULL)
     
-def _get_output_dict():
+def _get_output_dict(funcname="this function"):
     global _using_vsscript
     if _using_vsscript:
         global _stored_outputs
         global _environment_id
         if _environment_id is None:
-            raise Error('Internal environment id not set. Was clear_output() called from a filter callback?')
+            raise Error('Internal environment id not set. %s called from a filter callback?'%funcname)
             
         return _stored_outputs[_environment_id]
     else:
         return _stored_output
     
 def clear_output(int index = 0):
-    cdef dict outputs = _get_output_dict()
+    cdef dict outputs = _get_output_dict("clear_output")
     try:
         del outputs[index]
     except KeyError:
         pass
 
 def clear_outputs():
-    cdef dict outputs = _get_output_dict()
+    cdef dict outputs = _get_output_dict("clear_outputs")
     outputs.clear()
 
 def get_output(int index = 0):
-    return _get_output_dict()[index]
+    return _get_output_dict("get_output")[index]
 
 cdef class FuncData(object):
     cdef object func
@@ -905,7 +905,7 @@ cdef class VideoNode(object):
             return createConstVideoFrame(f, self.funcs, self.core)
 
     def set_output(self, int index = 0):
-        _get_output_dict()[index] = self
+        _get_output_dict("set_output")[index] = self
 
     def output(self, object fileobj not None, bint y4m = False, object progress_update = None, int prefetch = 0):
         if prefetch < 1:
@@ -1040,6 +1040,10 @@ cdef class VideoNode(object):
             return self.core.std.Trim(clip=self, first=n, length=1)
         else:
             raise TypeError("index must be int or slice")
+            
+    def __dir__(self):
+        plugins = [plugin["namespace"] for plugin in self.core.get_plugins().values()]
+        return super(VideoNode, self).__dir__() + plugins
 
     def __len__(self):
         return self.num_frames
@@ -1220,6 +1224,10 @@ cdef class Core(object):
     def version_number(self):
         cdef const VSCoreInfo *v = self.funcs.getCoreInfo(self.core)
         return v.core
+        
+    def __dir__(self):
+        plugins = [plugin["namespace"] for plugin in self.get_plugins().values()]
+        return super(Core, self).__dir__() + plugins
 
     def __str__(self):
         cdef str s = 'Core\n'
@@ -1277,9 +1285,11 @@ cdef class Plugin(object):
     cdef const VSAPI *funcs
     cdef object injected_arg
     cdef readonly str namespace
+    cdef readonly str __doc__
 
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
+        
 
     def __getattr__(self, name):
         tname = name.encode('utf-8')
@@ -1346,6 +1356,9 @@ cdef Plugin createPlugin(VSPlugin *plugin, str namespace, const VSAPI *funcs, Co
     instance.funcs = funcs
     instance.injected_arg = None
     instance.namespace = namespace
+    
+    instance.__doc__ = list(core.get_plugins().values())[0]['name']
+    
     return instance
 
 cdef class Function(object):
