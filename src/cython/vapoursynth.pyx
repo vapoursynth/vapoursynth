@@ -1356,9 +1356,12 @@ cdef Plugin createPlugin(VSPlugin *plugin, str namespace, const VSAPI *funcs, Co
     instance.funcs = funcs
     instance.injected_arg = None
     instance.namespace = namespace
-    
-    instance.__doc__ = list(core.get_plugins().values())[0]['name']
-    
+
+    for plugin_dict in core.get_plugins().values():
+        if plugin_dict['namespace'] == namespace:
+            instance.__doc__ = plugin_dict['name']
+            break
+
     return instance
 
 cdef class Function(object):
