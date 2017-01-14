@@ -3,7 +3,7 @@ Note that yasm 1.3.0 may need to have one configuration file changed to fix the 
 The proper paths to put things in are:
 C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin
 C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\BuildCustomizations
-It also needs both 32 and 64 bit Python 3.5 series with cython installed for both
+It also needs both 32 and 64 bit Python 3.6 series with cython installed for both
 (also needs sphinx and sphinx-intl to generate docs)
 Inno setup is needed to create the installer
 

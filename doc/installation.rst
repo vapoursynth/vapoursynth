@@ -10,7 +10,8 @@ First download and install the prerequisites:
 Installation
 ############
 
-Simply run the VapourSynth installer. It should automatically detect everything.
+Simply run the `VapourSynth installer <https://github.com/vapoursynth/vapoursynth/releases>`_.
+It should automatically detect everything.
 
 Test it by opening a Python command line (should be added to your start menu)
 and type this::
@@ -30,8 +31,8 @@ Windows Portable Instructions
 First download and decompress the prerequisites:
    * `Python 3.6 <http://www.python.org/>`_  -- 32 or 64 bit embeddable version
    
-Simply decompress the portable VapourSynth archive into the Python dir and
-overwrite all existing files. Done.
+Simply decompress the `portable VapourSynth archive <https://github.com/vapoursynth/vapoursynth/releases>`_
+into the Python dir and overwrite all existing files. Done.
 
 You can also use the VapourSynth Editor by decompressing it into the same directory.
 
