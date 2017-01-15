@@ -1,4 +1,5 @@
 r36:
+added leak warning for functions
 added __signature__ attribute to python function objects (stuxcrystal)
 in python function objects now have name, signature and plugin attributes, plugin objects now have a namespace attribute correcpsonding to the namespace
 added misc filters to included vapoursynth plugins

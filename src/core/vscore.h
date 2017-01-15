@@ -112,14 +112,9 @@ private:
     VSCore *core;
     const VSAPI *vsapi;
 public:
-    ExtFunction(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core, const VSAPI *vsapi) : func(func), userData(userData), free(free), core(core), vsapi(vsapi) {}
-    ~ExtFunction() {
-        if (free)
-            free(userData);
-    }
-    void call(const VSMap *in, VSMap *out) {
-        func(in, out, userData, core, vsapi);
-    }
+    ExtFunction(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core, const VSAPI *vsapi);
+    ~ExtFunction();
+    void call(const VSMap *in, VSMap *out);
 };
 
 class VSVariant {
@@ -580,6 +575,7 @@ private:
     // the core will be freed once it reaches 0
     bool coreFreed;
     std::atomic<int> numFilterInstances; 
+    std::atomic<int> numFunctionInstances;
 
     std::map<std::string, VSPlugin *> plugins;
     std::recursive_mutex pluginLock;
@@ -618,9 +614,10 @@ public:
     VSPlugin *getPluginById(const std::string &identifier);
     VSPlugin *getPluginByNs(const std::string &ns);
 
-    int getAPIVersion();
     const VSCoreInfo &getCoreInfo();
 
+    void functionInstanceCreated();
+    void functionInstanceDestroyed();
     void filterInstanceCreated();
     void filterInstanceDestroyed();
     void destroyFilterInstance(VSNode *node);

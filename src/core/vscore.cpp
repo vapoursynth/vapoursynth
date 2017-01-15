@@ -104,6 +104,21 @@ bool FrameContext::setError(const std::string &errorMsg) {
 
 ///////////////
 
+ExtFunction::ExtFunction(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core, const VSAPI *vsapi) : func(func), userData(userData), free(free), core(core), vsapi(vsapi) {
+    core->functionInstanceCreated();
+}
+
+ExtFunction::~ExtFunction() {
+    if (free)
+        free(userData);
+    core->functionInstanceDestroyed();
+}
+
+void ExtFunction::call(const VSMap *in, VSMap *out) {
+    func(in, out, userData, core, vsapi);
+}
+
+///////////////
 
 VSVariant::VSVariant(VSVType vtype) : vtype(vtype), internalSize(0), storage(nullptr) {
 }
@@ -295,7 +310,7 @@ MemoryUse::MemoryUse() : used(0), freeOnZero(false), unusedBufferSize(0) {
     maxMemoryUse = 1024 * 1024 * 1024;
 
     // set 4GB as default on systems with (probably) 64bit address space
-    if (sizeof(uintptr_t) >= 8)
+    if (sizeof(void *) >= 8)
         maxMemoryUse *= 4;
 }
 
@@ -964,6 +979,14 @@ bool VSCore::loadAllPluginsInPath(const std::string &path, const std::string &fi
     return true;
 }
 
+void VSCore::functionInstanceCreated() {
+    ++numFunctionInstances;
+}
+
+void VSCore::functionInstanceDestroyed() {
+    --numFunctionInstances;
+}
+
 void VSCore::filterInstanceCreated() {
     ++numFilterInstances;
 }
@@ -1006,7 +1029,7 @@ void VSCore::destroyFilterInstance(VSNode *node) {
     freeDepth--;
 }
 
-VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), formatIdOffset(1000), memory(new MemoryUse()) {
+VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), numFunctionInstances(0), formatIdOffset(1000), memory(new MemoryUse()) {
 #ifdef VS_TARGET_CPU_X86
     if (!vs_isMMXStateOk())
         vsFatal("Bad MMX state detected when creating new core");
@@ -1170,6 +1193,8 @@ void VSCore::freeCore() {
         vsWarning("Core freed but %d filter instances still exist", numFilterInstances - 1);
     if (memory->memoryUse() > 0)
         vsWarning("Core freed but %llu bytes still allocated in framebuffers", static_cast<unsigned long long>(memory->memoryUse()));
+    if (numFunctionInstances > 0)
+        vsWarning("Core freed but %d function instances still exist", numFunctionInstances);
     filterInstanceDestroyed();
 }
 
