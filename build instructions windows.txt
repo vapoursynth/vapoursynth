@@ -8,8 +8,8 @@ It also needs both 32 and 64 bit Python 3.6 series with cython installed for bot
 Inno setup is needed to create the installer
 
 Clone VapourSynth
-Clone zimg v2.3 branch into the VapourSynth dir
-Clone avs+ mt branch into the VapourSynth dir
+Clone zimg v2.3 branch into the VapourSynth dir (https://github.com/sekrit-twc/zimg)
+Clone avs+ mt branch into the VapourSynth dir (https://github.com/AviSynth/AviSynthPlus)
 Compile 32 and 64 bit release using the VapourSynth solution
 Run cython_build.bat to compile the Python modules
 
