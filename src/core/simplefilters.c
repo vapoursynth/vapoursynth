@@ -2043,7 +2043,7 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
         double facc = 0;
         double fdiffacc = 0;
         float fmin = FLT_MAX;
-        float fmax = FLT_MIN;
+        float fmax = -FLT_MAX;
 
 #ifdef VS_TARGET_CPU_X86
         unsigned xiter;
@@ -2064,7 +2064,7 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
         __m128 fms1, fms2;
         __m128 fmacc, fmdiffacc, fmmax, fmmin;
         const __m128 fabsmask = _mm_castsi128_ps(_mm_set1_epi32(0x7FFFFFFF));
-        const __m128 fltmin = _mm_set_ps1(FLT_MIN);
+        const __m128 fltmin = _mm_set_ps1(-FLT_MAX);
         const __m128 fltmax = _mm_set_ps1(FLT_MAX);
 
         macc = _mm_setzero_si128();
