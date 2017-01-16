@@ -44,6 +44,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AVFS", "AVFS\AVFS.vcxproj",
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MiscFilters", "MiscFilters\MiscFilters.vcxproj", "{A4161FA6-56F1-4A99-B291-3318458AB703}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Morpho", "Morpho\Morpho.vcxproj", "{8FC3C1C8-3D0B-4B5D-AD92-80A02FA49FAE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -148,6 +150,14 @@ Global
 		{A4161FA6-56F1-4A99-B291-3318458AB703}.Release|Win32.Build.0 = Release|Win32
 		{A4161FA6-56F1-4A99-B291-3318458AB703}.Release|x64.ActiveCfg = Release|x64
 		{A4161FA6-56F1-4A99-B291-3318458AB703}.Release|x64.Build.0 = Release|x64
+		{8FC3C1C8-3D0B-4B5D-AD92-80A02FA49FAE}.Debug|Win32.ActiveCfg = Debug|Win32
+		{8FC3C1C8-3D0B-4B5D-AD92-80A02FA49FAE}.Debug|Win32.Build.0 = Debug|Win32
+		{8FC3C1C8-3D0B-4B5D-AD92-80A02FA49FAE}.Debug|x64.ActiveCfg = Debug|x64
+		{8FC3C1C8-3D0B-4B5D-AD92-80A02FA49FAE}.Debug|x64.Build.0 = Debug|x64
+		{8FC3C1C8-3D0B-4B5D-AD92-80A02FA49FAE}.Release|Win32.ActiveCfg = Release|Win32
+		{8FC3C1C8-3D0B-4B5D-AD92-80A02FA49FAE}.Release|Win32.Build.0 = Release|Win32
+		{8FC3C1C8-3D0B-4B5D-AD92-80A02FA49FAE}.Release|x64.ActiveCfg = Release|x64
+		{8FC3C1C8-3D0B-4B5D-AD92-80A02FA49FAE}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
