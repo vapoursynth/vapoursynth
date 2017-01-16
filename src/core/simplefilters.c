@@ -100,7 +100,7 @@ static inline uint32_t doubleToIntPixelValue(double v, int bits, int *err) {
 }
 
 static inline uint32_t doubleToFloatPixelValue(double v, int *err) {
-    float f = v;
+    float f = (float)v;
     if (!isfinite(f)) {
         *err = 1;
         return 0;
@@ -110,7 +110,7 @@ static inline uint32_t doubleToFloatPixelValue(double v, int *err) {
 }
 
 static inline uint16_t doubleToHalfPixelValue(double v, int *err) {
-    float f = v;
+    float f = (float)v;
     if (!isfinite(f)) {
         *err = 1;
         return 0;
@@ -2071,6 +2071,11 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
         mdiffacc = _mm_setzero_si128();
         mmax = _mm_setzero_si128();
         mmin = ones;
+        // offset max and min for 16 bit instructions
+        if (fi->bytesPerSample == 2) {
+            mmax = _mm_sub_epi16(mmax, submask);
+            mmin = _mm_sub_epi16(mmin, submask);
+        }
 
         fmacc = _mm_setzero_ps();
         fmdiffacc = _mm_setzero_ps();
@@ -2195,12 +2200,17 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
             switch (fi->bytesPerSample) {
             case 1:
                 for (y = 0; y < height; y++) {
-                    for (x = 0; x < width; x += sizeof(__m128i) / sizeof(uint8_t)) {
-                        ms1 = _mm_load_si128((const __m128i *)(srcp + x * sizeof(uint8_t)));
+                    for (xiter = 0; xiter < miter; xiter++) {
+                        ms1 = _mm_load_si128((const __m128i *)(srcp + xiter * sizeof(__m128i)));
                         mmax = _mm_max_epu8(mmax, ms1);
                         mmin = _mm_min_epu8(mmin, ms1);
                         macc = _mm_add_epi64(macc, _mm_sad_epu8(ms1, _mm_setzero_si128()));
                     }
+                    ms1 = _mm_and_si128(_mm_load_si128((const __m128i *)(srcp + miter * sizeof(__m128i))), tailmask);
+                    mmax = _mm_max_epu8(mmax, ms1);
+                    mmin = _mm_min_epu8(mmin, _mm_xor_si128(_mm_and_si128(_mm_xor_si128(ms1, ones), tailmask), ones));
+                    macc = _mm_add_epi64(macc, _mm_sad_epu8(ms1, _mm_setzero_si128()));
+
                     srcp += src_stride;
                 }
                 mmax = _mm_max_epu8(mmax, _mm_srli_si128(mmax, 8));
@@ -2218,13 +2228,19 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
                 break;
             case 2:
                 for (y = 0; y < height; y++) {
-                    for (x = 0; x < width; x += sizeof(__m128i) / sizeof(uint16_t)) {
-                        ms1 = _mm_load_si128((const __m128i *)(srcp + x * sizeof(uint16_t)));
+                    for (xiter = 0; xiter < miter; xiter++) {
+                        ms1 = _mm_load_si128((const __m128i *)(srcp + xiter * sizeof(__m128i)));
                         mmax = _mm_max_epi16(mmax, _mm_sub_epi16(ms1, submask));
                         mmin = _mm_min_epi16(mmin, _mm_sub_epi16(ms1, submask));
                         macc = _mm_add_epi64(macc, _mm_sad_epu8(_mm_andnot_si128(uppermask, ms1), _mm_setzero_si128()));
                         macc = _mm_add_epi64(macc, _mm_slli_si128(_mm_sad_epu8(_mm_and_si128(uppermask, ms1), _mm_setzero_si128()), 1));
                     }
+                    ms1 = _mm_and_si128(_mm_load_si128((const __m128i *)(srcp + miter * sizeof(__m128i))), tailmask);
+                    mmax = _mm_max_epi16(mmax, _mm_sub_epi16(ms1, submask));
+                    mmin = _mm_min_epi16(mmin, _mm_sub_epi16(_mm_xor_si128(_mm_and_si128(_mm_xor_si128(ms1, ones), tailmask), ones), submask));
+                    macc = _mm_add_epi64(macc, _mm_sad_epu8(_mm_andnot_si128(uppermask, ms1), _mm_setzero_si128()));
+                    macc = _mm_add_epi64(macc, _mm_slli_si128(_mm_sad_epu8(_mm_and_si128(uppermask, ms1), _mm_setzero_si128()), 1));
+
                     srcp += src_stride;
                 }
                 mmax = _mm_max_epi16(mmax, _mm_srli_si128(mmax, 8));
@@ -2242,12 +2258,17 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
                 break;
             case 4:
                 for (y = 0; y < height; y++) {
-                    for (x = 0; x < width; x += sizeof(__m128) / sizeof(float)) {
-                        fms1 = _mm_load_ps((const float *)(srcp + x * sizeof(float)));
+                    for (xiter = 0; xiter < miter; xiter++) {
+                        fms1 = _mm_load_ps((const float *)(srcp + xiter * sizeof(__m128)));
                         fmmax = _mm_max_ps(fmmax, fms1);
                         fmmin = _mm_min_ps(fmmin, fms1);
                         fmacc = _mm_add_ps(fmacc, fms1);
                     }
+                    fms1 = _mm_and_ps(_mm_load_ps((const float *)(srcp + miter * sizeof(__m128))), ftailmask);
+                    fmmax = _mm_max_ps(fmmax, _mm_or_ps(fms1, _mm_andnot_ps(ftailmask, fltmin)));
+                    fmmin = _mm_min_ps(fmmin, _mm_or_ps(fms1, _mm_andnot_ps(ftailmask, fltmax)));
+                    fmacc = _mm_add_ps(fmacc, fms1);
+
                     srcp += src_stride;
                 }
                 fmmax = _mm_max_ps(fmmax, _mm_shuffle_ps(fmmax, fmmax, _MM_SHUFFLE(3, 2, 3, 2)));
