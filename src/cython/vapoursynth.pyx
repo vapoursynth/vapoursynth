@@ -784,7 +784,7 @@ cdef class VideoProps(object):
         if 0 < len(args) < 2:
             args = args[0]
             if not isinstance(args, dict):
-                args = dict(args[0])
+                args = dict(args)
         elif len(args) > 1:
             raise TypeError("update takes 1 positional argument but %d was given" % len(args))
         else:
