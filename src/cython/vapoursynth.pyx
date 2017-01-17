@@ -854,6 +854,8 @@ cdef class VideoFrame(object):
     cdef readonly bint readonly
     cdef readonly VideoProps props
 
+    cdef object __weakref__
+
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
 
@@ -977,6 +979,8 @@ cdef class VideoNode(object):
     cdef readonly int64_t fps_num
     cdef readonly int64_t fps_den
     cdef readonly int flags
+
+    cdef object __weakref__
 
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
@@ -1221,6 +1225,8 @@ cdef class Core(object):
     cdef const VSAPI *funcs
     cdef public bint add_cache
     cdef public bint accept_lowercase
+
+    cdef object __weakref__
 
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
