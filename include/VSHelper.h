@@ -166,4 +166,9 @@ static inline int areValidDimensions(const VSFormat *fi, int width, int height) 
     return !(width % (1 << fi->subSamplingW) || height % (1 << fi->subSamplingH));
 }
 
+/* Visual Studio doesn't recognize inline in c mode */
+#if defined(_MSC_VER) && !defined(__cplusplus)
+#undef inline
+#endif
+
 #endif
