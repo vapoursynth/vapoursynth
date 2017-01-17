@@ -524,10 +524,10 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, Core core, const V
                 tf = createFuncPython(v, core)
                 if funcs.propSetFunc(inm, ckey, tf.ref, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
-            elif atypes[key][:3] == 'int' and (type(v) == int or type(v) == long or type(v) == bool):
+            elif atypes[key][:3] == 'int' and isinstance(v, (int, long)):
                 if funcs.propSetInt(inm, ckey, int(v), 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
-            elif atypes[key][:5] == 'float' and (type(v) == int or type(v) == long or type(v) == float):
+            elif atypes[key][:5] == 'float' and isinstance(v, (int, long, float)):
                 if funcs.propSetFloat(inm, ckey, float(v), 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif atypes[key][:4] == 'data' and isinstance(v, (str, bytes, bytearray)):
