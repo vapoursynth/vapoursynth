@@ -99,6 +99,9 @@ COMPATYUY2 = vapoursynth.pfCompatYUY2
 INTEGER = vapoursynth.stInteger
 FLOAT = vapoursynth.stFloat
 
+# Create an empty list whose instance will represent a not passed value.
+_EMPTY = []
+
 def _construct_parameter(signature):
     name,type,*opt = signature.split(":")
 
@@ -756,11 +759,17 @@ cdef class VideoProps(object):
             return self[key]
         return default
         
-    def pop(self, key, default=None):
+    def pop(self, key, default=_EMPTY):
         if key in self:
             value = self[key]
             del self[key]
             return value
+        
+        # The is-operator is required to ensure that
+        # we have actually passed the _EMPTY list.
+        if default is _EMPTY:
+            raise KeyError
+            
         return default
         
     def popitem(self):
