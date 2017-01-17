@@ -1,4 +1,5 @@
 r36:
+fixed several mac compilation issues
 frame.props can now also behave like a proper python dict (stuxcrystal)
 added morpho filter to windows installer
 fixed planestats bug that could sometimes affect non-mod8 calculation
