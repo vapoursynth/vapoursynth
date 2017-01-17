@@ -766,7 +766,7 @@ cdef class VideoProps(object):
             return value
         
         # The is-operator is required to ensure that
-        # we have actually passed the _EMPTY list.
+        # we have actually passed the _EMPTY list instead any other list with length zero.
         if default is _EMPTY:
             raise KeyError
             
