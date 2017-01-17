@@ -23,12 +23,14 @@ from cython cimport view
 from libc.stdint cimport intptr_t, uint16_t, uint32_t
 from cpython.ref cimport Py_INCREF, Py_DECREF
 import os
+import abc
 import ctypes
 import threading
 import traceback
 import gc
 import sys
 import inspect
+from collections.abc import Mapping
 
 # Ensure that the import doesn't fail
 # if typing is not available on the python installation.
@@ -615,8 +617,14 @@ cdef class VideoProps(object):
 
     def __dealloc__(self):
         self.funcs.freeFrame(self.constf)
+        
+    def __contains__(self, name):
+        cdef const VSMap *m = self.funcs.getFramePropsRO(self.constf)
+        cdef bytes b = name.encode('utf-8')
+        cdef int numelem = self.funcs.propNumElements(m, b)
+        return numelem > 0
 
-    def __getattr__(self, name):
+    def __getitem__(self, name):
         cdef const VSMap *m = self.funcs.getFramePropsRO(self.constf)
         cdef bytes b = name.encode('utf-8')
         cdef list ol = []
@@ -657,7 +665,7 @@ cdef class VideoProps(object):
         else:
             return ol
 
-    def __setattr__(self, name, value):
+    def __setitem__(self, name, value):
         if self.readonly:
             raise Error('Cannot delete properties of a read only object')
         cdef VSMap *m = self.funcs.getFramePropsRW(self.f)
@@ -706,20 +714,109 @@ cdef class VideoProps(object):
             self.__delattr__(name)
             raise
 
-    def __delattr__(self, name):
+    def __delitem__(self, name):
         if self.readonly:
             raise Error('Cannot delete properties of a read only object')
         cdef VSMap *m = self.funcs.getFramePropsRW(self.f)
         cdef bytes b = name.encode('utf-8')
         self.funcs.propDeleteKey(m, b)
+        
+    def __setattr__(self, name, value):
+        self[name] = value
+        
+    def __delattr__(self, name):
+        del self[name]
+    
+    # Only the methods __getattr__ and keys are required for the support of
+    #     >>> dict(frame.props)
+    # this can be shown at Objects/dictobject.c:static int dict_merge(PyObject *, PyObject *, int)
+    # in the generic code path.
+    
+    def __getattr__(self, name):
+        try:
+           return self[name]
+        except KeyError as e:
+           raise AttributeError from e
 
-    def __dir__(self):
+    def keys(self):
         cdef const VSMap *m = self.funcs.getFramePropsRO(self.constf)
         cdef int numkeys = self.funcs.propNumKeys(m)
-        attrs = []
         for i in range(numkeys):
-            attrs.append(self.funcs.propGetKey(m, i).decode('utf-8'))
-        return attrs
+            yield self.funcs.propGetKey(m, i).decode('utf-8')
+            
+    def values(self):
+        for key in self.keys():
+            yield self[key]
+            
+    def items(self):
+        yield from zip(self.keys(), self.values())
+        
+    def get(self, key, default=None):
+        if key in self:
+            return self[key]
+        return default
+        
+    def pop(self, key, default=None):
+        if key in self:
+            value = self[key]
+            del self[key]
+            return value
+        return default
+        
+    def popitem(self):
+        if len(self) <= 0:
+            raise KeyError
+        key = next(self.keys())
+        return (key, self.pop(key))
+        
+    def setdefault(self, key, default=0):
+        """
+        Behaves like the dict.setdefault function but since setting None is not supported,
+        it will default to zero.
+        """
+        if key not in self:
+            self[key] = default
+        return self[key]
+        
+    def update(self, *args, **kwargs):
+        # This code converts the positional argument into a dict which we then can update
+        # with the kwargs.
+        if 0 < len(args) < 2:
+            args = args[0]
+            if not isinstance(args, dict):
+                args = dict(args)
+        elif len(args) > 1:
+            raise TypeError("update takes 1 positional argument but %d was given" % len(args))
+        else:
+            args = {}
+            
+        args.update(kwargs)
+        
+        for k, v in args.items():
+            self[k] = v
+            
+    def clear(self):
+        for _ in range(len(self)):
+            self.popitem()
+            
+    def copy(self):
+        """
+        We can't copy VideoFrames directly, so we're just gonna return a real dictionary.
+        """
+        return dict(self)
+        
+    def __iter__(self):
+        yield from self.keys()
+        
+    def __len__(self):
+        cdef const VSMap *m = self.funcs.getFramePropsRO(self.constf)
+        return self.funcs.propNumKeys(m)
+            
+    def __dir__(self):
+        return super(VideoProps, self).__dir__() + list(self.keys())
+        
+    def __repr__(self):
+        return "<vapoursynth.VideoProps %r>" % dict(self)
 
 cdef VideoProps createVideoProps(VideoFrame f):
     cdef VideoProps instance = VideoProps.__new__(VideoProps)
@@ -733,6 +830,10 @@ cdef VideoProps createVideoProps(VideoFrame f):
         instance.f = <VSFrameRef *>instance.constf
     return instance
 
+# Make sure the VideoProps-Object quacks like a Mapping.
+Mapping.register(VideoProps)
+
+    
 cdef class VideoFrame(object):
     cdef const VSFrameRef *constf
     cdef VSFrameRef *f
