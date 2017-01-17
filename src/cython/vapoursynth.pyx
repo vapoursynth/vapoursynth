@@ -51,53 +51,6 @@ _message_handler = None
 cdef const VSAPI *_vsapi = NULL
 cdef int _api_version = 0x30004
 
-GRAY  = vapoursynth.cmGray
-RGB   = vapoursynth.cmRGB
-YUV   = vapoursynth.cmYUV
-YCOCG = vapoursynth.cmYCoCg
-COMPAT= vapoursynth.cmCompat
-
-GRAY8 = vapoursynth.pfGray8
-GRAY16 = vapoursynth.pfGray16
-
-GRAYH = vapoursynth.pfGrayH
-GRAYS = vapoursynth.pfGrayS
-
-YUV420P8 = vapoursynth.pfYUV420P8
-YUV422P8 = vapoursynth.pfYUV422P8
-YUV444P8 = vapoursynth.pfYUV444P8
-YUV410P8 = vapoursynth.pfYUV410P8
-YUV411P8 = vapoursynth.pfYUV411P8
-YUV440P8 = vapoursynth.pfYUV440P8
-
-YUV420P9 = vapoursynth.pfYUV420P9
-YUV422P9 = vapoursynth.pfYUV422P9
-YUV444P9 = vapoursynth.pfYUV444P9
-
-YUV420P10 = vapoursynth.pfYUV420P10
-YUV422P10 = vapoursynth.pfYUV422P10
-YUV444P10 = vapoursynth.pfYUV444P10
-
-YUV420P16 = vapoursynth.pfYUV420P16
-YUV422P16 = vapoursynth.pfYUV422P16
-YUV444P16 = vapoursynth.pfYUV444P16
-
-YUV444PH = vapoursynth.pfYUV444PH
-YUV444PS = vapoursynth.pfYUV444PS
-
-RGB24 = vapoursynth.pfRGB24
-RGB27 = vapoursynth.pfRGB27
-RGB30 = vapoursynth.pfRGB30
-RGB48 = vapoursynth.pfRGB48
-
-RGBH = vapoursynth.pfRGBH
-RGBS = vapoursynth.pfRGBS
-
-COMPATBGR32 = vapoursynth.pfCompatBGR32
-COMPATYUY2 = vapoursynth.pfCompatYUY2
-
-INTEGER = vapoursynth.stInteger
-FLOAT = vapoursynth.stFloat
 
 def _construct_parameter(signature):
     name,type,*opt = signature.split(":")
@@ -561,8 +514,8 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, Core core, const V
 cdef class Format(object):
     cdef readonly int id
     cdef readonly str name
-    cdef readonly int color_family
-    cdef readonly int sample_type
+    cdef readonly object color_family
+    cdef readonly object sample_type
     cdef readonly int bits_per_sample
     cdef readonly int bytes_per_sample
     cdef readonly int subsampling_w
@@ -573,31 +526,23 @@ cdef class Format(object):
         raise Error('Class cannot be instantiated directly')
 
     def __str__(self):
-        cdef dict color_stuff = dict({GRAY:'Gray', RGB:'RGB', YUV:'YUV', YCOCG:'YCoCg', COMPAT:'Compat'})
-        cdef str s = ''
-        s += 'Format Descriptor\n'
-        s += '\tId: ' + str(self.id) + '\n'
-        s += '\tName: ' + self.name + '\n'
-        s += '\tColor Family: ' + color_stuff[self.color_family] + '\n'
-
-        if self.sample_type == stInteger:
-            s += '\tSample Type: Integral\n'
-        else:
-            s += '\tSample Type: Float\n'
-
-        s += '\tBits Per Sample: ' + str(self.bits_per_sample) + '\n'
-        s += '\tBytes Per Sample: ' + str(self.bytes_per_sample) + '\n'
-        s += '\tPlanes: ' + str(self.num_planes) + '\n'
-        s += '\tSubsampling W: ' + str(self.subsampling_w) + '\n'
-        s += '\tSubsampling H: ' + str(self.subsampling_h) + '\n'
-        return s
+        return ('Format Descriptor\n'
+               f'\tId: {self.id:d}\n'
+               f'\tName: {self.name}\n'
+               f'\tColor Family: {self.color_family.name}\n'
+               f'\tSample Type: {self.sample_type.name.capitalize()}\n'
+               f'\tBits Per Sample: {self.bits_per_sample:d}\n'
+               f'\tBytes Per Sample: {self.bytes_per_sample:d}\n'
+               f'\tPlanes: {self.num_planes:d}\n'
+               f'\tSubsampling W: {self.subsampling_w:d}\n'
+               f'\tSubsampling H: {self.subsampling_h:d}\n')
 
 cdef Format createFormat(const VSFormat *f):
     cdef Format instance = Format.__new__(Format)
     instance.id = f.id
     instance.name = (<const char *>f.name).decode('utf-8')
-    instance.color_family = f.colorFamily
-    instance.sample_type = f.sampleType
+    instance.color_family = ColorFamily(f.colorFamily)
+    instance.sample_type = SampleType(f.sampleType)
     instance.bits_per_sample = f.bitsPerSample
     instance.bytes_per_sample = f.bytesPerSample
     instance.subsampling_w = f.subSamplingW
@@ -871,14 +816,14 @@ cdef class VideoFrame(object):
             height >>= self.format.subsampling_h
             width >>= self.format.subsampling_w
         array = None
-        if self.format.sample_type == stInteger:
+        if self.format.sample_type == INTEGER:
             if self.format.bytes_per_sample == 1:
                 array = <uint8_t[:height, :stride]> d
             elif self.format.bytes_per_sample == 2:
                 array = <uint16_t[:height, :stride]> (<uint16_t*>d)
             elif self.format.bytes_per_sample == 4:
                 array = <uint32_t[:height, :stride]> (<uint32_t*>d)
-        elif self.format.sample_type == stFloat:
+        elif self.format.sample_type == FLOAT:
             array = <float[:height, :stride]> (<float*>d)
         if array is not None:
             return array[:height, :width]
@@ -905,14 +850,14 @@ cdef class VideoFrame(object):
             height >>= self.format.subsampling_h
             width >>= self.format.subsampling_w
         array = None
-        if self.format.sample_type == stInteger:
+        if self.format.sample_type == INTEGER:
             if self.format.bytes_per_sample == 1:
                 array = <uint8_t[:height, :stride]> d
             elif self.format.bytes_per_sample == 2:
                 array = <uint16_t[:height, :stride]> (<uint16_t*>d)
             elif self.format.bytes_per_sample == 4:
                 array = <uint32_t[:height, :stride]> (<uint32_t*>d)
-        elif self.format.sample_type == stFloat:
+        elif self.format.sample_type == FLOAT:
             array = <float[:height, :stride]> (<float*>d)
         if array is not None:
             return array[:height, :width]
@@ -1022,7 +967,7 @@ cdef class VideoNode(object):
         if (progress_update is not None):
             progress_update(0, d.total)
 
-        if (self.format is None or (self.format.color_family != YUV and self.format.color_family != GRAY)) and y4m:
+        if (self.format is None or self.format.color_family not in (YUV, GRAY)) and y4m:
             raise Error('Can only apply y4m headers to YUV and Gray format clips')
 
         y4mformat = ''

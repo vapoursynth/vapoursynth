@@ -38,64 +38,64 @@ cdef extern from "include/VapourSynth.h" nogil:
     ctypedef struct VSFrameContext:
         pass
 
-    cdef enum VSColorFamily:
-        cmGray  = 1000000
-        cmRGB   = 2000000
-        cmYUV   = 3000000
-        cmYCoCg = 4000000
-        cmCompat= 9000000
+    cpdef enum ColorFamily "VSColorFamily":
+        GRAY "cmGray"
+        RGB "cmRGB"
+        YUV "cmYUV"
+        YCOCG "cmYCoCg"
+        COMPAT "cmCompat"
 
-    cdef enum VSSampleType:
-        stInteger = 0
-        stFloat   = 1
+    cpdef enum SampleType "VSSampleType":
+        INTEGER "stInteger"
+        FLOAT "stFloat"
 
-    cdef enum VSPresetFormat:
-        pfNone = 0
+    cpdef enum PresetFormat "VSPresetFormat":
+        NONE "pfNone"
 
-        pfGray8 = cmGray + 10
-        pfGray16
+        GRAY8 "pfGray8"
+        GRAY16 "pfGray16"
 
-        pfGrayH
-        pfGrayS
+        GRAYH "pfGrayH"
+        GRAYS "pfGrayS"
 
-        pfYUV420P8 = cmYUV + 10
-        pfYUV422P8
-        pfYUV444P8
-        pfYUV410P8
-        pfYUV411P8
-        pfYUV440P8
+        YUV420P8 "pfYUV420P8"
+        YUV422P8 "pfYUV422P8"
+        YUV444P8 "pfYUV444P8"
+        YUV410P8 "pfYUV410P8"
+        YUV411P8 "pfYUV411P8"
+        YUV440P8 "pfYUV440P8"
 
-        pfYUV420P9
-        pfYUV422P9
-        pfYUV444P9
+        YUV420P9 "pfYUV420P9"
+        YUV422P9 "pfYUV422P9"
+        YUV444P9 "pfYUV444P9"
 
-        pfYUV420P10
-        pfYUV422P10
-        pfYUV444P10
+        YUV420P10 "pfYUV420P10"
+        YUV422P10 "pfYUV422P10"
+        YUV444P10 "pfYUV444P10"
 
-        pfYUV420P16
-        pfYUV422P16
-        pfYUV444P16
+        YUV420P16 "pfYUV420P16"
+        YUV422P16 "pfYUV422P16"
+        YUV444P16 "pfYUV444P16"
 
-        pfYUV444PH
-        pfYUV444PS
+        YUV444PH "pfYUV444PH"
+        YUV444PS "pfYUV444PS"
 
-        pfRGB24 = cmRGB + 10
-        pfRGB27
-        pfRGB30
-        pfRGB48
+        RGB24 "pfRGB24"
+        RGB27 "pfRGB27"
+        RGB30 "pfRGB30"
+        RGB48 "pfRGB48"
 
-        pfRGBH
-        pfRGBS
+        RGBH "pfRGBH"
+        RGBS "pfRGBS"
 
-        pfCompatBGR32 = cmCompat + 10
-        pfCompatYUY2
+        COMPATBGR32 "pfCompatBGR32"
+        COMPATYUY2 "pfCompatYUY2"
 
-    cdef enum VSFilterMode:
-        fmParallel = 100
-        fmParallelRequestsOnly = 200
-        fmUnordered = 300
-        fmSerial = 400
+    enum VSFilterMode:
+        fmParallel
+        fmParallelRequestsOnly
+        fmUnordered
+        fmSerial
 
     ctypedef struct VSFormat:
         char name[32]
@@ -108,22 +108,22 @@ cdef extern from "include/VapourSynth.h" nogil:
         int subSamplingH
         int numPlanes
 
-    cdef enum VSNodeFlags:
-        nfNoCache    = 1
-        nfIsCache    = 2
-        nfMakeLinear = 4
+    enum VSNodeFlags:
+        nfNoCache
+        nfIsCache
+        nfMakeLinear
 
-    cdef enum VSGetPropErrors:
-        peUnset = 1
-        peType  = 2
-        peIndex = 4
+    enum VSGetPropErrors:
+        peUnset
+        peType
+        peIndex
 
-    cdef enum VSPropAppendMode:
-        paReplace = 0
-        paAppend  = 1
-        paTouch   = 2
+    enum VSPropAppendMode:
+        paReplace
+        paAppend
+        paTouch
 
-    cdef struct VSCoreInfo:
+    struct VSCoreInfo:
         char *versionString
         int core
         int api
@@ -131,7 +131,7 @@ cdef extern from "include/VapourSynth.h" nogil:
         int64_t maxFramebufferSize
         int64_t usedFramebufferSize
 
-    cdef struct VSVideoInfo:
+    struct VSVideoInfo:
         VSFormat *format
         int width
         int height
@@ -140,17 +140,17 @@ cdef extern from "include/VapourSynth.h" nogil:
         int fpsDen
         int flags
 
-    cdef enum VSActivationReason:
-        arInitial = 0
-        arFrameReady = 1
-        arAllFramesReady = 2
-        arError = -1
-        
-    cdef enum VSMessageType:
-        mtDebug = 0,
-        mtWarning = 1,
-        mtCritical = 2,
-        mtFatal = 3
+    enum VSActivationReason:
+        arInitial
+        arFrameReady
+        arAllFramesReady
+        arError
+
+    enum VSMessageType:
+        mtDebug
+        mtWarning
+        mtCritical
+        mtFatal
 
     ctypedef void (__stdcall *VSFrameDoneCallback)(void *userData, const VSFrameRef *f, int n, VSNodeRef *node, const char *errorMsg)
     ctypedef void (__stdcall *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI *vsapi)
@@ -235,14 +235,14 @@ cdef extern from "include/VapourSynth.h" nogil:
         int64_t setMaxCacheSize(int64_t bytes, VSCore *core) nogil
 
         void setMessageHandler(VSMessageHandler handler, void *userData) nogil
-        
+
         int setThreadCount(int threads, VSCore *core) nogil
-        
+
         const char *getPluginPath(const VSPlugin *plugin) nogil
 
         const int64_t *propGetIntArray(const VSMap *map, const char *key, int *error) nogil
         const double *propGetFloatArray(const VSMap *map, const char *key, int *error) nogil
         int propSetIntArray(VSMap *map, const char *key, const int64_t *i, int size) nogil
         int propSetFloatArray(VSMap *map, const char *key, const double *d, int size) nogil
-        
+
     const VSAPI *getVapourSynthAPI(int version) nogil
