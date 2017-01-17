@@ -1474,7 +1474,6 @@ static void process_plane_convolution_horizontalF(uint8_t * VS_RESTRICT dstp8, c
     float rdiv = params.rdiv;
     float bias = params.bias;
     bool saturate = params.saturate;
-    int max_value = params.max_value;
 
     int border = matrix_elements / 2;
 
@@ -1608,7 +1607,6 @@ static void process_plane_convolution_verticalF(uint8_t * VS_RESTRICT dstp8, con
     float rdiv = params.rdiv;
     float bias = params.bias;
     bool saturate = params.saturate;
-    int max_value = params.max_value;
 
     int border = matrix_elements / 2;
 

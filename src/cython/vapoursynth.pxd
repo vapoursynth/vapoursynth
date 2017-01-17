@@ -94,7 +94,7 @@ cdef extern from "include/VapourSynth.h" nogil:
     cdef enum VSFilterMode:
         fmParallel = 100
         fmParallelRequestsOnly = 200
-        fmSerialUnordered = 300
+        fmUnordered = 300
         fmSerial = 400
 
     ctypedef struct VSFormat:

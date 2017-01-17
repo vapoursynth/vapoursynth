@@ -36,7 +36,7 @@
   #define P2P_LITTLE_ENDIAN
   #include <stdlib.h>
 #else
-  #include <endian.h>
+  #include <sys/param.h>
   #if __BYTE_ORDER == __BIG_ENDIAN
     #define P2P_BIG_ENDIAN
   #elif __BYTE_ORDER == __LITTLE_ENDIAN

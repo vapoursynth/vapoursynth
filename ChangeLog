@@ -1,9 +1,10 @@
 r36:
+frame.props can now also behave like a proper python dict (stuxcrystal)
 added morpho filter to windows installer
 fixed planestats bug that could sometimes affect non-mod8 calculation
 added leak warning for functions
 added __signature__ attribute to python function objects (stuxcrystal)
-in python function objects now have name, signature and plugin attributes, plugin objects now have a namespace attribute correcpsonding to the namespace
+in python function objects now have name, signature and plugin attributes, plugin objects now have a namespace attribute corresponding to the namespace
 added misc filters to included vapoursynth plugins
 fixed several edge cases when specifying color values for blankclip and addborders, inf and nan are now always rejected and floating point values can be any finite value
 vspipe will now properly report floating point formats in y4m instead of incorrectly making them look like integer, for example C420ps and C420ph will be used to mark single and half precision respectively
