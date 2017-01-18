@@ -1154,6 +1154,10 @@ cdef class VideoNode(object):
             return self.core.std.Trim(clip=self, first=n, length=1)
         else:
             raise TypeError("index must be int or slice")
+
+    def frames(self):
+        for frameno in range(len(self)):
+            yield self.get_frame(frameno)
             
     def __dir__(self):
         plugins = [plugin["namespace"] for plugin in self.core.get_plugins().values()]
