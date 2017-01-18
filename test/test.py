@@ -16,6 +16,18 @@ class CoreTestSequence(unittest.TestCase):
     def test_num_threads(self):
         self.assertEqual(self.core.num_threads, 10)
 
+
+### Clip-Attr tests
+
+    def test_frames_generator(self):
+        clip = self.core.std.BlankClip(length=200)
+        e = -1
+        for e, frame in enumerate(clip.frames()):
+            self.assertIsInstance(frame, vs.VideoFrame)
+        self.assertEquals(e, 199)
+
+### Filter-Call-Tests
+
     def test_func1(self):
         with self.assertRaises(AttributeError):
             self.core.blah.list_functions()

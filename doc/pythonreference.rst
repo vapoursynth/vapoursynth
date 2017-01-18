@@ -144,8 +144,14 @@ associated with it. It is possible to access the raw data using ctypes and
 some persistence. The three relevant functions are *get_read_ptr(plane)*,
 *get_write_ptr(plane)*, and *get_stride(plane)*, all of which take the plane
 to access as an argument. Accessing the data is a bit trickier as
-*get_read_ptr()* and *get_write_ptr()* only return a pointer. To get a frame
-simply call *get_frame(n)* on a clip.
+*get_read_ptr()* and *get_write_ptr()* only return a pointer.
+
+To get a frame simply call *get_frame(n)* on a clip. Should you desire to get
+all frames in a clip, use this code::
+
+   for frame in clip.frames():
+       # Do stuff with your frame
+       pass
 
 Classes and Functions
 #####################
