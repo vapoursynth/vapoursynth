@@ -325,6 +325,7 @@ public:
 
 class VSPlaneData {
 private:
+    std::atomic<int> refCount;
     MemoryUse &mem;
 public:
     uint8_t *data;
@@ -332,14 +333,15 @@ public:
     VSPlaneData(size_t dataSize, MemoryUse &mem);
     VSPlaneData(const VSPlaneData &d);
     ~VSPlaneData();
+    bool unique();
+    void addRef();
+    void release();
 };
-
-typedef std::shared_ptr<VSPlaneData> VSPlaneDataPtr;
 
 class VSFrame {
 private:
     const VSFormat *format;
-    VSPlaneDataPtr data[3];
+    VSPlaneData *data[3];
     int width;
     int height;
     int stride[3];
@@ -355,6 +357,7 @@ public:
     VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, VSCore *core);
     VSFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core);
     VSFrame(const VSFrame &f);
+    ~VSFrame();
 
     VSMap &getProperties() {
         return properties;

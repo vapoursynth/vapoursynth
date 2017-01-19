@@ -321,7 +321,7 @@ MemoryUse::~MemoryUse() {
 
 ///////////////
 
-VSPlaneData::VSPlaneData(size_t dataSize, MemoryUse &mem) : mem(mem), size(dataSize + 2 * VSFrame::guardSpace) {
+VSPlaneData::VSPlaneData(size_t dataSize, MemoryUse &mem) : refCount(1), mem(mem), size(dataSize + 2 * VSFrame::guardSpace) {
 #ifdef VS_FRAME_POOL
     data = mem.allocBuffer(size + 2 * VSFrame::guardSpace);
 #else
@@ -339,7 +339,7 @@ VSPlaneData::VSPlaneData(size_t dataSize, MemoryUse &mem) : mem(mem), size(dataS
 #endif
 }
 
-VSPlaneData::VSPlaneData(const VSPlaneData &d) : mem(d.mem), size(d.size) {
+VSPlaneData::VSPlaneData(const VSPlaneData &d) : refCount(1), mem(d.mem), size(d.size) {
 #ifdef VS_FRAME_POOL
     data = mem.allocBuffer(size);
 #else
@@ -361,9 +361,22 @@ VSPlaneData::~VSPlaneData() {
     mem.subtract(size);
 }
 
+bool VSPlaneData::unique() {
+    return (refCount == 1);
+}
+
+void VSPlaneData::addRef() {
+    ++refCount;
+}
+
+void VSPlaneData::release() {
+    if (!--refCount)
+        delete this;
+}
+
 ///////////////
 
-VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, VSCore *core) : format(f), width(width), height(height) {
+VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, VSCore *core) : format(f), data(), width(width), height(height) {
     if (!f)
         vsFatal("Error in frame creation: null format");
 
@@ -384,15 +397,15 @@ VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSr
         stride[2] = 0;
     }
 
-    data[0] = std::make_shared<VSPlaneData>(stride[0] * height, *core->memory);
+    data[0] = new VSPlaneData(stride[0] * height, *core->memory);
     if (f->numPlanes == 3) {
         int size23 = stride[1] * (height >> f->subSamplingH);
-        data[1] = std::make_shared<VSPlaneData>(size23, *core->memory);
-        data[2] = std::make_shared<VSPlaneData>(size23, *core->memory);
+        data[1] = new VSPlaneData(size23, *core->memory);
+        data[2] = new VSPlaneData(size23, *core->memory);
     }
 }
 
-VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core) : format(f), width(width), height(height) {
+VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core) : format(f), data(), width(width), height(height) {
     if (!f)
         vsFatal("Error in frame creation: null format");
 
@@ -420,11 +433,12 @@ VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame * const
             if (planeSrc[i]->getHeight(plane[i]) != getHeight(i) || planeSrc[i]->getWidth(plane[i]) != getWidth(i))
                 vsFatal("Error in frame creation: dimensions of plane %d do not match. Source: %dx%d; destination: %dx%d", plane[i], planeSrc[i]->getWidth(plane[i]), planeSrc[i]->getHeight(plane[i]), getWidth(i), getHeight(i));
             data[i] = planeSrc[i]->data[plane[i]];
+            data[i]->addRef();
         } else {
             if (i == 0) {
-                data[i] = std::make_shared<VSPlaneData>(stride[0] * height, *core->memory);
+                data[i] = new VSPlaneData(stride[0] * height, *core->memory);
             } else {
-                data[i] = std::make_shared<VSPlaneData>(stride[i] * (height >> f->subSamplingH), *core->memory);
+                data[i] = new VSPlaneData(stride[i] * (height >> f->subSamplingH), *core->memory);
             }
         }
     }
@@ -434,6 +448,11 @@ VSFrame::VSFrame(const VSFrame &f) {
     data[0] = f.data[0];
     data[1] = f.data[1];
     data[2] = f.data[2];
+    data[0]->addRef();
+    if (data[1]) {
+        data[1]->addRef();
+        data[2]->addRef();
+    }
     format = f.format;
     width = f.width;
     height = f.height;
@@ -441,6 +460,14 @@ VSFrame::VSFrame(const VSFrame &f) {
     stride[1] = f.stride[1];
     stride[2] = f.stride[2];
     properties = f.properties;
+}
+
+VSFrame::~VSFrame() {
+    data[0]->release();
+    if (data[1]) {
+        data[1]->release();
+        data[2]->release();
+    }
 }
 
 int VSFrame::getStride(int plane) const {
@@ -462,8 +489,11 @@ uint8_t *VSFrame::getWritePtr(int plane) {
         vsFatal("Requested write pointer for nonexistent plane %d", plane);
 
     // copy the plane data if this isn't the only reference
-    if (!data[plane].unique())
-        data[plane] = std::make_shared<VSPlaneData>(*data[plane].get());
+    if (!data[plane]->unique()) {
+        VSPlaneData *old = data[plane];
+        data[plane] = new VSPlaneData(*data[plane]);
+        old->release();
+    }
 
     return data[plane]->data + guardSpace;
 }
