@@ -436,7 +436,7 @@ VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame * const
             data[i]->addRef();
         } else {
             if (i == 0) {
-                data[i] = new VSPlaneData(stride[0] * height, *core->memory);
+                data[i] = new VSPlaneData(stride[i] * height, *core->memory);
             } else {
                 data[i] = new VSPlaneData(stride[i] * (height >> f->subSamplingH), *core->memory);
             }
