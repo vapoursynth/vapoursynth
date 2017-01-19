@@ -262,9 +262,6 @@ begin
 end;
 
 function GetPythonInstallations: Boolean;
-var
-  PythonPath32: string;
-  PythonPath64: string;
 begin
   GetPythonInstallations2(HKCU, 'SOFTWARE\Python', 0);
   GetPythonInstallations2(HKLM32, 'SOFTWARE\Python', 32);
