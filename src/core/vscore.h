@@ -163,94 +163,124 @@ private:
     void initStorage(VSVType t);
 };
 
-typedef std::map<std::string, VSVariant> VSMapStorageType;
-typedef std::shared_ptr<VSMapStorageType> VSMapStorage;
+class VSMapStorage {
+private:
+    std::atomic<int> refCount;
+public:
+    std::map<std::string, VSVariant> data;
+    bool error;
+
+    VSMapStorage() : refCount(1), error(false) {}
+
+    VSMapStorage(const VSMapStorage &s) : refCount(1), data(s.data), error(s.error) {}
+
+    bool unique() {
+        return (refCount == 1);
+    };
+
+    void addRef() {
+        ++refCount;
+    }
+
+    void release() {
+        if (!--refCount)
+            delete this;
+    }
+};
 
 struct VSMap {
 private:
-    VSMapStorage data;
-    bool error;
+    VSMapStorage *data;
+
+    void detach() {
+        if (!data->unique()) {
+            VSMapStorage *old = data;
+            data = new VSMapStorage(*data);
+            old->release();
+        }
+    }
 public:
-    VSMap() : data(std::make_shared<VSMapStorageType>()), error(false) {}
+    VSMap() : data(new VSMapStorage()) {}
 
-    VSMap(const VSMap &map) : data(map.data), error(map.error) {}
+    VSMap(const VSMap &map) : data(map.data) {
+        data->addRef();
+    }
 
-    VSMap(VSMap &&map) : data(std::move(map.data)), error(map.error) {
-        map.data = std::make_shared<VSMapStorageType>();
-        map.error = false;
+    VSMap(VSMap &&map) : data(map.data) {
+        map.data = new VSMapStorage();
+    }
+
+    ~VSMap() {
+        data->release();
     }
 
     VSMap &operator=(const VSMap &map) {
         data = map.data;
-        error = map.error;
+        data->addRef();
         return *this;
     }
 
     bool contains(const std::string &key) const {
-        return !!data->count(key);
+        return !!data->data.count(key);
     }
 
     VSVariant &at(const std::string &key) const {
-        return data->at(key);
+        return data->data.at(key);
     }
 
     VSVariant &operator[](const std::string &key) const {
         // implicit creation is unwanted so make sure it doesn't happen by wrapping at() instead
-        return data->at(key);
+        return data->data.at(key);
     }
 
     VSVariant *find(const std::string &key) const {
-        auto it = data->find(key);
-        return it == data->end() ? nullptr : &it->second;
+        auto it = data->data.find(key);
+        return it == data->data.end() ? nullptr : &it->second;
     }
 
     bool erase(const std::string &key) {
-        if (!data.unique())
-            data = std::make_shared<VSMapStorageType>(*data.get());
-        return data->erase(key) > 0;
+        detach();
+        return data->data.erase(key) > 0;
     }
 
     bool insert(const std::string &key, VSVariant &&v) {
-        if (!data.unique())
-            data = std::make_shared<VSMapStorageType>(*data.get());
-        data->erase(key);
-        data->insert(std::make_pair(key, v));
+        detach();
+        data->data.erase(key);
+        data->data.insert(std::make_pair(key, v));
         return true;
     }
 
     size_t size() const {
-        return data->size();
+        return data->data.size();
     }
 
     void clear() {
-        data->clear();
-        error = false;
+        data->release();
+        data = new VSMapStorage();
     }
 
     const char *key(int n) const {
         if (n >= static_cast<int>(size()))
             return nullptr;
-        auto iter = data->cbegin();
+        auto iter = data->data.cbegin();
         std::advance(iter, n);
         return iter->first.c_str();
     }
 
-    const VSMapStorageType &getStorage() const {
-        return *data.get();
+    const std::map<std::string, VSVariant> &getStorage() const {
+        return data->data;
     }
 
     void setError(const std::string &errMsg) {
-        if (!data.unique())
-            data = std::make_shared<VSMapStorageType>(*data.get());
-        data->clear();
+        clear();
         VSVariant v(VSVariant::vData);
         v.append(errMsg);
         insert("_Error", std::move(v));
-        error = true;
+        data->error = true;
     }
 
     bool hasError() const {
-        return error;
+        return data->error;
     }
 
     const std::string &getErrorMessage() const {
