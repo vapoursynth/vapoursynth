@@ -335,7 +335,7 @@ cdef void __stdcall frameDoneCallbackRaw(void *data, const VSFrameRef *f, int n,
         if f == NULL:
             result = ''
             if errormsg != NULL:
-                result = str(result)
+                result = errormsg.decode('utf-8')
             result = Error(result)
 
         else:
@@ -343,6 +343,9 @@ cdef void __stdcall frameDoneCallbackRaw(void *data, const VSFrameRef *f, int n,
 
         try:
             d.receive(n, result)
+        except:
+            import traceback
+            traceback.print_exc()
         finally:
             Py_DECREF(d)
 
