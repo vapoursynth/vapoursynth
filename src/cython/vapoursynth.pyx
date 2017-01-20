@@ -23,13 +23,13 @@ from cython cimport view
 from libc.stdint cimport intptr_t, uint16_t, uint32_t
 from cpython.ref cimport Py_INCREF, Py_DECREF
 import os
-import abc
 import ctypes
 import threading
 import traceback
 import gc
 import sys
 import inspect
+from concurrent.futures import Future
 from collections.abc import Mapping
 
 # Ensure that the import doesn't fail
@@ -287,7 +287,49 @@ cdef Func createFuncRef(VSFuncRef *ref, const VSAPI *funcs):
     instance.funcs = funcs
     instance.ref = ref
     return instance
-        
+
+cdef class RawCallbackData(object):
+    cdef const VSAPI *funcs
+    cdef object callback
+
+    cdef VideoNode node
+
+    cdef object wrap_cb
+    cdef object future
+
+    def __init__(self, VideoNode node, object callback = None):
+        self.node = node
+        self.callback = callback
+
+        self.future = None
+        self.wrap_cb = None
+
+    def for_future(self, object future, object wrap_call=None):
+        if wrap_call is None:
+            wrap_call = lambda func, *args, **kwargs: func(*args, **kwargs)
+        self.callback = self.handle_future
+        self.future = future
+        self.wrap_cb = wrap_call
+
+    def handle_future(self, node, n, result):
+        if isinstance(result, Error):
+            func = self.future.set_exception
+        else:
+            func = self.future.set_result
+
+        self.wrap_cb(func, result)
+
+    def receive(self, n, result):
+        self.callback(self.node, n, result)
+
+
+cdef createRawCallbackData(const VSAPI* funcs, VideoNode videonode, object cb, object wrap_call=None):
+    cbd = RawCallbackData(videonode, cb)
+    if not callable(cb):
+        cbd.for_future(cb, wrap_call)
+    cbd.funcs = funcs
+    return cbd
+
 cdef class CallbackData(object):
     cdef VideoNode node
     cdef const VSAPI *funcs
@@ -316,7 +358,8 @@ cdef class CallbackData(object):
         self.progress_update = progress_update
         self.funcs = (<VideoNode>node).funcs
         self.reorder = {}
- 
+
+
 cdef class FramePtr(object):
     cdef const VSFrameRef *f
     cdef const VSAPI *funcs
@@ -333,7 +376,25 @@ cdef FramePtr createFramePtr(const VSFrameRef *f, const VSAPI *funcs):
     instance.funcs = funcs
     return instance
 
-cdef void __stdcall frameDoneCallback(void *data, const VSFrameRef *f, int n, VSNodeRef *node, const char *errormsg) nogil:
+cdef void __stdcall frameDoneCallbackRaw(void *data, const VSFrameRef *f, int n, VSNodeRef *node, const char *errormsg) nogil:
+    with gil:
+        d = <RawCallbackData>data
+        if f == NULL:
+            result = ''
+            if errormsg != NULL:
+                result = str(result)
+            result = Error(result)
+
+        else:
+            result = createConstVideoFrame(f, d.funcs, d.node.core)
+
+        try:
+            d.receive(n, result)
+        finally:
+            Py_DECREF(d)
+
+
+cdef void __stdcall frameDoneCallbackOutput(void *data, const VSFrameRef *f, int n, VSNodeRef *node, const char *errormsg) nogil:
     cdef int pitch
     cdef const uint8_t *readptr
     cdef const VSFormat *fi
@@ -399,7 +460,7 @@ cdef void __stdcall frameDoneCallback(void *data, const VSFrameRef *f, int n, VS
                     d.total = d.requested
 
         if d.requested < d.total:
-            d.node.funcs.getFrameAsync(d.requested, d.node.node, frameDoneCallback, data)
+            d.node.funcs.getFrameAsync(d.requested, d.node.node, frameDoneCallbackOutput, data)
             d.requested = d.requested + 1
        
         d.condition.acquire()
@@ -1000,14 +1061,18 @@ cdef class VideoNode(object):
         if err:
             raise AttributeError('There is no attribute or namespace named ' + name)
 
-    def get_frame(self, int n):
-        cdef char errorMsg[512]
-        cdef char *ep = errorMsg
-        cdef const VSFrameRef *f
+    cdef ensure_valid_frame_number(self, int n):
         if n < 0:
             raise ValueError('Requesting negative frame numbers not allowed')
         if (self.num_frames > 0) and (n >= self.num_frames):
             raise ValueError('Requesting frame number is beyond the last frame')
+
+    def get_frame(self, int n):
+        cdef char errorMsg[512]
+        cdef char *ep = errorMsg
+        cdef const VSFrameRef *f
+        self.ensure_valid_frame_number(n)
+
         with nogil:
             f = self.funcs.getFrame(n, self.node, errorMsg, 500)
         if f == NULL:
@@ -1017,6 +1082,25 @@ cdef class VideoNode(object):
                 raise Error('Internal error - no error given')
         else:
             return createConstVideoFrame(f, self.funcs, self.core)
+
+    def get_frame_async_raw(self, int n, object cb, object future_wrapper=None):
+        self.ensure_valid_frame_number(n)
+
+        data = createRawCallbackData(self.funcs, self, cb, future_wrapper)
+        Py_INCREF(data)
+        with nogil:
+            self.funcs.getFrameAsync(n, self.node, frameDoneCallbackRaw, <void *>data)
+
+    def get_frame_async(self, int n):
+        fut = Future()
+        fut.set_running_or_notify_cancel()
+
+        try:
+            self.get_frame_async_raw(n, fut)
+        except Exception as e:
+            fut.set_exception(e)
+
+        return fut
 
     def set_output(self, int index = 0):
         _get_output_dict("set_output")[index] = self
@@ -1071,7 +1155,7 @@ cdef class VideoNode(object):
         d.condition.acquire()
 
         for n in range(min(prefetch, d.total)):
-            self.funcs.getFrameAsync(n, self.node, frameDoneCallback, <void *>d)
+            self.funcs.getFrameAsync(n, self.node, frameDoneCallbackOutput, <void *>d)
 
         stored_exception = None
         while d.total != d.completed:
