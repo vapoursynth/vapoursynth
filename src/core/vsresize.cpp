@@ -515,9 +515,9 @@ namespace {
                 allocate(vsformat, format.width, format.height, graph.get_output_buffering(), vsapi, core);
 
                 if (vsformat->id == pfCompatBGR32)
-                    m_p2p_func = vsp2p::planar_to_packed<vsp2p::packed_argb32_le>::pack;
+                    m_p2p_func = vsp2p::planar_to_packed<vsp2p::packed_argb32_le, true>::pack;
                 else if (vsformat->id == pfCompatYUY2)
-                    m_p2p_func = vsp2p::planar_to_packed<vsp2p::packed_yuy2>::pack;
+                    m_p2p_func = vsp2p::planar_to_packed<vsp2p::packed_yuy2, true>::pack;
 
                 if (vsformat->id == pfCompatBGR32)
                     get_buffer_flipped(&m_vs_buffer, vsformat->numPlanes, vsapi->getFrameHeight(frame, 0));
