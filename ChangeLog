@@ -1,4 +1,5 @@
 r36:
+updated zimg library
 packed format output now has alpha set instead of being zeroed
 added asynchronous getframe support to python (stuxcrystal)
 fixed several mac compilation issues

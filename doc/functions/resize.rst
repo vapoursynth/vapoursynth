@@ -181,6 +181,7 @@ Resize
                     6 (601) and 14 (2020_10))
         st2084      SMPTE ST 2084 (not in table)
         std-b67     ARIB std-b67 (not in table)
+        srgb        IEC 61966-2-1
 
       Color primaries (ITU-T H.265 Table E.3)::
       

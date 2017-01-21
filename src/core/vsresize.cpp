@@ -123,6 +123,7 @@ namespace {
         { "2020_12",  ZIMG_TRANSFER_2020_12 },
         { "st2084",   ZIMG_TRANSFER_ST2084 },
         { "std-b67",  ZIMG_TRANSFER_ARIB_B67 },
+        { "srgb",     ZIMG_TRANSFER_IEC_61966_2_1 },        
     };
 
     const std::unordered_map<std::string, zimg_color_primaries_e> g_primaries_table{
