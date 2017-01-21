@@ -488,17 +488,17 @@ PVideoFrame Avisynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
                       p.src[plane] = GetReadPtr(f, vi, plane) + GetStride(f, vi, plane) * (GetFrameHeight(vi, plane) - 1);
                       p.src_stride[plane] = -GetStride(f, vi, plane);
                   }
-                  p2p_pack_frame(&p, 0);
+                  p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
               } else if (id == pfRGB48) {
                   p.packing = p2p_argb64_be;
-                  p2p_pack_frame(&p, 0);
+                  p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
               } else if (id == pfYUV444P16) {
                   p.packing = p2p_y416_le;
-                  p2p_pack_frame(&p, 0);
+                  p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
               } else if (id == pfYUV422P10 && enable_v210) {
                   p.packing = p2p_v210_le;
                   p.dst_stride[0] = ((16 * ((p.width + 5) / 6) + 127) & ~127);
-                  p2p_pack_frame(&p, 0);
+                  p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
               } else if ((id == pfYUV420P16) || (id == pfYUV422P16) || (id == pfYUV420P10) || (id == pfYUV422P10)) {
                   switch (id) {
                   case pfYUV420P10: p.packing = p2p_p010_le; break;
@@ -509,7 +509,7 @@ PVideoFrame Avisynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
                   p.dst_stride[0] = p.width * BytesPerSample(vi);
                   p.dst_stride[1] = p.width * BytesPerSample(vi);
                   p.dst[1] = (uint8_t *)packedFrame.data() + p.dst_stride[0] * p.height;
-                  p2p_pack_frame(&p, 0);
+                  p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
               } else {
                   const int stride = GetStride(f, vi, 0);
                   const int height = GetFrameHeight(vi, 0);
