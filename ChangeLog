@@ -1,4 +1,6 @@
 r36:
+packed format output now has alpha set instead of being zeroed
+added asynchronous getframe support to python (stuxcrystal)
 fixed several mac compilation issues
 frame.props can now also behave like a proper python dict (stuxcrystal)
 added morpho filter to windows installer

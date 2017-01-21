@@ -122,12 +122,22 @@ void packed_to_planar<packed_v210_le>::unpack(const void *src, void * const dst[
 	unpack_v210<little_endian_t>(src, dst, left, right);
 }
 
-void planar_to_packed<packed_v210_be>::pack(const void * const src[4], void *dst, unsigned left, unsigned right)
+void planar_to_packed<packed_v210_be, false>::pack(const void * const src[4], void *dst, unsigned left, unsigned right)
 {
 	pack_v210<big_endian_t>(src, dst, left, right);
 }
 
-void planar_to_packed<packed_v210_le>::pack(const void * const src[4], void *dst, unsigned left, unsigned right)
+void planar_to_packed<packed_v210_be, true>::pack(const void * const src[4], void *dst, unsigned left, unsigned right)
+{
+	pack_v210<big_endian_t>(src, dst, left, right);
+}
+
+void planar_to_packed<packed_v210_le, false>::pack(const void * const src[4], void *dst, unsigned left, unsigned right)
+{
+	pack_v210<little_endian_t>(src, dst, left, right);
+}
+
+void planar_to_packed<packed_v210_le, true>::pack(const void * const src[4], void *dst, unsigned left, unsigned right)
 {
 	pack_v210<little_endian_t>(src, dst, left, right);
 }
