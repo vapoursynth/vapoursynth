@@ -215,6 +215,7 @@ public:
     }
 
     VSMap &operator=(const VSMap &map) {
+        data->release();
         data = map.data;
         data->addRef();
         return *this;
