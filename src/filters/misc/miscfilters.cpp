@@ -239,7 +239,7 @@ static const VSFrameRef *VS_CC averageFramesGetFrame(int n, int activationReason
                 }
             }
 
-            for (int i = weights.size() / 2; i < weights.size() - 1; i++) {
+            for (int i = weights.size() / 2; i < static_cast<int>(weights.size()) - 1; i++) {
                 const VSMap *props = vsapi->getFramePropsRO(frames[i]);
                 int err;
                 if (vsapi->propGetInt(props, "_SceneChangeNext", 0, &err)) {
@@ -251,7 +251,7 @@ static const VSFrameRef *VS_CC averageFramesGetFrame(int n, int activationReason
             if (fi->sampleType == stInteger) {
                 int acc = 0;
 
-                for (int i = toFrame + 1; i < weights.size(); i++) {
+                for (int i = toFrame + 1; i < static_cast<int>(weights.size()); i++) {
                     acc += weights[i];
                     weights[i] = 0;
                 }
@@ -265,7 +265,7 @@ static const VSFrameRef *VS_CC averageFramesGetFrame(int n, int activationReason
             } else {
                 float acc = 0;
 
-                for (int i = toFrame + 1; i < fweights.size(); i++) {
+                for (int i = toFrame + 1; i < static_cast<int>(fweights.size()); i++) {
                     acc += fweights[i];
                     fweights[i] = 0;
                 }
