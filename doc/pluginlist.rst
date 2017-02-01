@@ -107,6 +107,7 @@ Others
 * `f3kdb <http://forum.doom9.org/showthread.php?t=161411>`_ -- Debanding filter
 * `FieldHint <https://github.com/dubhater/vapoursynth-fieldhint>`_ -- Takes fields from arbitrary input frames to create the output frames
 * `FillBorders <https://github.com/dubhater/vapoursynth-fillborders>`_
+* `GradCurve <https://forum.doom9.org/showthread.php?t=174096>`_ -- Port of virtualdub Gradation Curves plugin
 * `minsharp <http://forum.doom9.org/showthread.php?t=173328>`_ -- Simple 3x3 blur and sharpen
 * `Miscellaneous filters <http://forum.doom9.org/showthread.php?t=173871>`_ -- Scene change detection, frame averaging and other sometimes useful functions
 * `MSmoosh <http://forum.doom9.org/showthread.php?t=171159>`_ -- MSmooth and MSharpen ports
