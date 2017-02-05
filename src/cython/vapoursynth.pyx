@@ -1424,12 +1424,37 @@ def get_core(threads = None, add_cache = None, accept_lowercase = None):
         if accept_lowercase is not None:
             ret_core.accept_lowercase = accept_lowercase
     return ret_core
-
+    
 cdef object vsscript_get_core_internal(int environment_id):
     global _cores
     if not environment_id in _cores:
         _cores[environment_id] = createCore()
     return _cores[environment_id]
+    
+cdef class _CoreProxy(object):
+
+    def __init__(self):
+        raise Error('Class cannot be instantiated directly')
+    
+    @property
+    def core(self):
+        return get_core()
+        
+    def __dir__(self):
+        d = dir(self.core)
+        if 'core' not in d:
+            d += ['core']
+            
+        return d
+        
+    def __getattr__(self, name):
+        return getattr(self.core, name)
+        
+    def __setattr__(self, name, value):
+        setattr(self.core, name, value)
+    
+core = _CoreProxy.__new__(_CoreProxy)
+    
 
 cdef class Plugin(object):
     cdef Core core
