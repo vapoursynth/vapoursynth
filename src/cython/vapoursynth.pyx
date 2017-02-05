@@ -1388,7 +1388,6 @@ cdef class Core(object):
         s += '\tAdd Cache: ' + str(self.add_cache) + '\n'
         s += '\tAccept Lowercase: ' + str(self.accept_lowercase) + '\n'
         return s
-        
 
 cdef Core createCore():
     cdef Core instance = Core.__new__(Core)
@@ -1425,7 +1424,13 @@ def get_core(threads = None, add_cache = None, accept_lowercase = None):
         if accept_lowercase is not None:
             ret_core.accept_lowercase = accept_lowercase
     return ret_core
-        
+    
+cdef object vsscript_get_core_internal(int environment_id):
+    global _cores
+    if not environment_id in _cores:
+        _cores[environment_id] = createCore()
+    return _cores[environment_id]
+    
 cdef class _CoreProxy(object):
 
     def __init__(self):
@@ -1450,12 +1455,6 @@ cdef class _CoreProxy(object):
     
 core = _CoreProxy.__new__(_CoreProxy)
     
-
-cdef object vsscript_get_core_internal(int environment_id):
-    global _cores
-    if not environment_id in _cores:
-        _cores[environment_id] = createCore()
-    return _cores[environment_id]
 
 cdef class Plugin(object):
     cdef Core core
