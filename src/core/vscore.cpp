@@ -1327,13 +1327,13 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
 
     libHandle = LoadLibraryEx(wPath.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
 
-	if (!libHandle) {
-		DWORD lastError = GetLastError();
+    if (!libHandle) {
+        DWORD lastError = GetLastError();
 
-		if (lastError == 87)
-			throw VSException("LoadLibraryEx failed with code 87: update windows and try again");
-		throw VSException("Failed to load " + relFilename + ". GetLastError() returned " + std::to_string(lastError) + ".");
-	}
+        if (lastError == 87)
+            throw VSException("LoadLibraryEx failed with code 87: update windows and try again");
+        throw VSException("Failed to load " + relFilename + ". GetLastError() returned " + std::to_string(lastError) + ".");
+    }
 
     VSInitPlugin pluginInit = (VSInitPlugin)GetProcAddress(libHandle, "VapourSynthPluginInit");
 
