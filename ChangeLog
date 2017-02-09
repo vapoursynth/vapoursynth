@@ -1,3 +1,7 @@
+r37:
+fixed possible corruption on frames without subtitles in subtext (jackoneill)
+added a proxy object to avoid referencing the wrong core in scripts (stuxcrystal)
+
 r36:
 updated zimg library
 packed format output now has alpha set instead of being zeroed
