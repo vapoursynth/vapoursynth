@@ -493,6 +493,15 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
                                        d.vi[1].height,
                                        NULL, core);
 
+    for (int p = 0; p < 4; p++) {
+        VSFrameRef *frame = p == 3 ? d.lastalpha : d.lastframe;
+        int plane = p % 3;
+
+        memset(vsapi->getWritePtr(frame, plane),
+               0,
+               vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane));
+    }
+
     data = malloc(sizeof(d));
     *data = d;
 
