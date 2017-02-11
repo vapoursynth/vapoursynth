@@ -16,9 +16,8 @@ It should automatically detect everything.
 Test it by opening a Python command line (should be added to your start menu)
 and type this::
 
-   import vapoursynth as vs
-   c = vs.get_core()
-   print(c.version())
+   from vapoursynth import core
+   print(core.version())
 
 After typing the final line you should see the version printed along with a
 few other lines describing the options used when instantiating the Core object.

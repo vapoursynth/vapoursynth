@@ -11,15 +11,14 @@ special things unique to Python scripting, such as slicing and output.
 VapourSynth Structure
 #####################
 
-To use the VapourSynth library you must first retrieve the Core object, using
-get_core(). This core may then load plugins, which all end up in their own unit,
+Most operations in the VapourSynth library are performed through the core object.
+This core may load plugins, which all end up in their own unit,
 or namespace, so to say, to avoid naming conflicts in the contained functions.
 For this reason you call a plugin function with *core.unit.Function()*.
 
 All arguments to functions have names that are lowercase and all function names
 are CamelCase. Unit names are also lowercase and usually short. This is good to
-remember. If you do not like CamelCase for function names you can pass
-*accept_lowercase=True* to get_core().
+remember.
 
 Slicing and Other Syntactic Sugar
 #################################
@@ -155,7 +154,14 @@ all frames in a clip, use this code::
 
 Classes and Functions
 #####################
+.. py:attribute:: core
+   Gets the singleton Core object. If it is the first time the function is called,
+   the Core will be instantiated with the default options. This is the preferred
+   way to reference the core.
+
 .. py:function:: get_core([threads = 0, add_cache = True, accept_lowercase = False])
+
+   Deprecated, use the core attribute instead.
 
    Get the singleton Core object. If it is the first time the function is called,
    the Core will be instantiated with the given options. If the Core has already
@@ -189,7 +195,7 @@ Classes and Functions
 
 .. py:class:: Core
 
-   The *Core* class uses a singleton pattern. Use *get_core()* to obtain an
+   The *Core* class uses a singleton pattern. Use the *core* attribute to obtain an
    instance. All loaded plugins are exposed as attributes of the core object.
    These attributes in turn hold the functions contained in the plugin.
    Use *get_plugins()* to obtain a full list of all currently loaded plugins
