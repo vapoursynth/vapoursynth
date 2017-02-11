@@ -1,4 +1,5 @@
 r37:
+mostly worked around an issue where python would replace the sigint handler
 fixed bug that could sometimes cause false memory leak warnings when freeing core
 fixed possible corruption on frames without subtitles in subtext (jackoneill)
 added a proxy object to avoid referencing the wrong core in scripts (stuxcrystal)

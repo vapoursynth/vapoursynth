@@ -29,7 +29,6 @@ import traceback
 import gc
 import sys
 import inspect
-from concurrent.futures import Future
 from collections.abc import Mapping
 
 # Ensure that the import doesn't fail
@@ -1040,6 +1039,7 @@ cdef class VideoNode(object):
             self.funcs.getFrameAsync(n, self.node, frameDoneCallbackRaw, <void *>data)
 
     def get_frame_async(self, int n):
+        from concurrent.futures import Future
         fut = Future()
         fut.set_running_or_notify_cancel()
 
