@@ -526,6 +526,7 @@ private:
     std::list<PFrameContext> tasks;
     std::map<NodeOutputKey, PFrameContext> allContexts;
     std::condition_variable newWork;
+    std::condition_variable allIdle;
     std::atomic<unsigned> activeThreads;
     std::atomic<unsigned> idleThreads;
     std::atomic<uintptr_t> reqCounter;
@@ -547,10 +548,10 @@ public:
     int threadCount() const;
     void setThreadCount(int threads);
     void start(const PFrameContext &context);
-    void waitForDone();
     void releaseThread();
     void reserveThread();
     bool isWorkerThread();
+    void waitForDone();
 };
 
 class VSFunction {
