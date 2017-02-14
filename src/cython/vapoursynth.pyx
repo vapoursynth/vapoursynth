@@ -1217,12 +1217,7 @@ cdef class VideoNode(object):
 
         s += '\tNum Frames: ' + str(self.num_frames) + '\n'
 
-        if not self.fps_num or not self.fps_den:
-            s += '\tFPS Num: dynamic\n'
-            s += '\tFPS Den: dynamic\n'
-        else:
-            s += '\tFPS Num: ' + str(self.fps_num) + '\n'
-            s += '\tFPS Den: ' + str(self.fps_den) + '\n'
+        s += <str>f"\tFPS: {self.fps or 'dynamic'}\n"
 
         if self.flags:
             s += '\tFlags:'
