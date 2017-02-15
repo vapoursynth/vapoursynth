@@ -627,14 +627,14 @@ cdef class VideoProps(object):
 
     def __dealloc__(self):
         self.funcs.freeFrame(self.constf)
-        
-    def __contains__(self, name):
+
+    def __contains__(self, str name):
         cdef const VSMap *m = self.funcs.getFramePropsRO(self.constf)
         cdef bytes b = name.encode('utf-8')
         cdef int numelem = self.funcs.propNumElements(m, b)
         return numelem > 0
 
-    def __getitem__(self, name):
+    def __getitem__(self, str name):
         cdef const VSMap *m = self.funcs.getFramePropsRO(self.constf)
         cdef bytes b = name.encode('utf-8')
         cdef list ol = []
@@ -642,7 +642,7 @@ cdef class VideoProps(object):
         cdef const int64_t *intArray
         cdef const double *floatArray
         cdef const char *data
-        
+
         if numelem < 0:
             raise KeyError('No key named ' + name + ' exists')
         cdef char t = self.funcs.propGetType(m, b)
@@ -675,7 +675,7 @@ cdef class VideoProps(object):
         else:
             return ol
 
-    def __setitem__(self, name, value):
+    def __setitem__(self, str name, value):
         if self.readonly:
             raise Error('Cannot delete properties of a read only object')
         cdef VSMap *m = self.funcs.getFramePropsRW(self.f)
@@ -688,8 +688,8 @@ cdef class VideoProps(object):
             try:
                 iter(val)
             except:
-                val = [val] 
-        self.__delattr__(name)
+                val = [val]
+        self.__delitem__(name)
         try:
             for v in val:
                 if isinstance(v, VideoNode):
@@ -721,27 +721,27 @@ cdef class VideoProps(object):
                 else:
                     raise Error('Setter was passed an unsupported type (' + type(v).__name__ + ')')
         except Error:
-            self.__delattr__(name)
+            self.__delitem__(name)
             raise
 
-    def __delitem__(self, name):
+    def __delitem__(self, str name):
         if self.readonly:
             raise Error('Cannot delete properties of a read only object')
         cdef VSMap *m = self.funcs.getFramePropsRW(self.f)
         cdef bytes b = name.encode('utf-8')
         self.funcs.propDeleteKey(m, b)
-        
+
     def __setattr__(self, name, value):
         self[name] = value
-        
+
     def __delattr__(self, name):
         del self[name]
-    
+
     # Only the methods __getattr__ and keys are required for the support of
     #     >>> dict(frame.props)
     # this can be shown at Objects/dictobject.c:static int dict_merge(PyObject *, PyObject *, int)
     # in the generic code path.
-    
+
     def __getattr__(self, name):
         try:
            return self[name]
@@ -753,38 +753,38 @@ cdef class VideoProps(object):
         cdef int numkeys = self.funcs.propNumKeys(m)
         for i in range(numkeys):
             yield self.funcs.propGetKey(m, i).decode('utf-8')
-            
+
     def values(self):
         for key in self.keys():
             yield self[key]
-            
+
     def items(self):
         yield from zip(self.keys(), self.values())
-        
+
     def get(self, key, default=None):
         if key in self:
             return self[key]
         return default
-        
+
     def pop(self, key, default=_EMPTY):
         if key in self:
             value = self[key]
             del self[key]
             return value
-        
+
         # The is-operator is required to ensure that
         # we have actually passed the _EMPTY list instead any other list with length zero.
         if default is _EMPTY:
             raise KeyError
-            
+
         return default
-        
+
     def popitem(self):
         if len(self) <= 0:
             raise KeyError
         key = next(self.keys())
         return (key, self.pop(key))
-        
+
     def setdefault(self, key, default=0):
         """
         Behaves like the dict.setdefault function but since setting None is not supported,
@@ -793,7 +793,7 @@ cdef class VideoProps(object):
         if key not in self:
             self[key] = default
         return self[key]
-        
+
     def update(self, *args, **kwargs):
         # This code converts the positional argument into a dict which we then can update
         # with the kwargs.
@@ -805,32 +805,32 @@ cdef class VideoProps(object):
             raise TypeError("update takes 1 positional argument but %d was given" % len(args))
         else:
             args = {}
-            
+
         args.update(kwargs)
-        
+
         for k, v in args.items():
             self[k] = v
-            
+
     def clear(self):
         for _ in range(len(self)):
             self.popitem()
-            
+
     def copy(self):
         """
         We can't copy VideoFrames directly, so we're just gonna return a real dictionary.
         """
         return dict(self)
-        
+
     def __iter__(self):
         yield from self.keys()
-        
+
     def __len__(self):
         cdef const VSMap *m = self.funcs.getFramePropsRO(self.constf)
         return self.funcs.propNumKeys(m)
-            
+
     def __dir__(self):
         return super(VideoProps, self).__dir__() + list(self.keys())
-        
+
     def __repr__(self):
         return "<vapoursynth.VideoProps %r>" % dict(self)
 
