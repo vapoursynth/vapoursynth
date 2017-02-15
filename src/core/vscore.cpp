@@ -1333,6 +1333,8 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
 
         if (lastError == 87)
             throw VSException("LoadLibraryEx failed with code 87: update windows and try again");
+        if (lastError == 126)
+            throw VSException("Failed to load " + relFilename + ". GetLastError() returned " + std::to_string(lastError) + ". A DLL dependency is probably missing.");
         throw VSException("Failed to load " + relFilename + ". GetLastError() returned " + std::to_string(lastError) + ".");
     }
 
