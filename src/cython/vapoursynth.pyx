@@ -30,6 +30,7 @@ import gc
 import sys
 import inspect
 from collections.abc import Mapping
+from fractions import Fraction
 
 # Ensure that the import doesn't fail
 # if typing is not available on the python installation.
@@ -985,6 +986,7 @@ cdef class VideoNode(object):
     cdef readonly int num_frames
     cdef readonly int64_t fps_num
     cdef readonly int64_t fps_den
+    cdef readonly object fps
     cdef readonly int flags
 
     cdef object __weakref__
@@ -1214,12 +1216,7 @@ cdef class VideoNode(object):
 
         s += '\tNum Frames: ' + str(self.num_frames) + '\n'
 
-        if not self.fps_num or not self.fps_den:
-            s += '\tFPS Num: dynamic\n'
-            s += '\tFPS Den: dynamic\n'
-        else:
-            s += '\tFPS Num: ' + str(self.fps_num) + '\n'
-            s += '\tFPS Den: ' + str(self.fps_den) + '\n'
+        s += <str>f"\tFPS: {self.fps or 'dynamic'}\n"
 
         if self.flags:
             s += '\tFlags:'
@@ -1252,6 +1249,11 @@ cdef VideoNode createVideoNode(VSNodeRef *node, const VSAPI *funcs, Core core):
     instance.num_frames = instance.vi.numFrames
     instance.fps_num = <int64_t>instance.vi.fpsNum
     instance.fps_den = <int64_t>instance.vi.fpsDen
+    if instance.vi.fpsDen:
+        instance.fps = Fraction(
+            <int64_t> instance.vi.fpsNum, <int64_t> instance.vi.fpsDen)
+    else:
+        instance.fps = Fraction(0, 1)
     instance.flags = instance.vi.flags
     return instance
 
