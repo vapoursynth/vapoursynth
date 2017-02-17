@@ -274,12 +274,21 @@ Classes and Functions
 
       The number of frames in the clip.
 
+   .. py:attribute:: fps
+
+      The framerate represented as a *Fraction*. It is 0/1 when the clip has a variable
+      framerate.
+      
    .. py:attribute:: fps_num
+   
+      Deprecated, use *fps.numerator* instead
 
       The numerator of the framerate. If the clip has variable framerate, the
       value will be 0.
 
    .. py:attribute:: fps_den
+   
+      Deprecated, use *fps.denominator* instead
 
       The denominator of the framerate. If the clip has variable framerate, the
       value will be 0.
