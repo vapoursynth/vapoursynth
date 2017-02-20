@@ -90,6 +90,7 @@ if PYTHONMODULE
 pyexec_LTLIBRARIES = vapoursynth.la
 
 vapoursynth_la_SOURCES = src/cython/vapoursynth.pyx
+vapoursynth_la_CFLAGS= $(AM_CFLAGS) -fvisibility=default
 vapoursynth_la_CPPFLAGS = $(PYTHON3_CFLAGS)
 vapoursynth_la_LIBADD = $(MAYBE_PYTHON3_LIBS) libvapoursynth.la
 vapoursynth_la_LDFLAGS = $(PYTHON_MODULE_UNDEFINED) -avoid-version -module
