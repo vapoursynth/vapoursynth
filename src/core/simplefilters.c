@@ -100,6 +100,8 @@ static inline uint32_t doubleToIntPixelValue(double v, int bits, int *err) {
 }
 
 static inline uint32_t doubleToFloatPixelValue(double v, int *err) {
+    *err = 0;
+
     float f = (float)v;
     if (!isfinite(f)) {
         *err = 1;
@@ -110,6 +112,8 @@ static inline uint32_t doubleToFloatPixelValue(double v, int *err) {
 }
 
 static inline uint16_t doubleToHalfPixelValue(double v, int *err) {
+    *err = 0;
+
     float f = (float)v;
     if (!isfinite(f)) {
         *err = 1;
