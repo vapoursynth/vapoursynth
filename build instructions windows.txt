@@ -1,4 +1,4 @@
-Needs Visual Studio 2015 Update 3 with vsyasm (yasm for use with VS2010)
+Needs Visual Studio 2015 Update 3 with vsyasm and clang (yasm for use with VS2010)
 Note that yasm 1.3.0 may need to have one configuration file changed to fix the "-f win32" case sensitivity issue
 The proper paths to put things in are:
 C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin
