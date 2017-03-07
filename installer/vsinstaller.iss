@@ -1,5 +1,5 @@
 #define AppName = 'VapourSynth'
-#define Version = 'R37'
+#define Version = 'R37-RC1'
 
 [Setup]
 OutputDir=Compiled
@@ -40,7 +40,7 @@ Name: "vs64"; Description: "VapourSynth 64-bit"; Types: Full; Check: HasPython64
 Name: "vs32"; Description: "VapourSynth 32-bit"; Types: Full; Check: HasPython32; Flags: disablenouninstallwarning
 Name: "sdk"; Description: "VapourSynth SDK"; Flags: disablenouninstallwarning; Types: Full
 Name: "pismo"; Description: "Pismo PFM Runtime (required for AVFS)"; Types: Full; Flags: disablenouninstallwarning
-Name: "vsruntimes"; Description: "Visual Studio Runtimes (2013 & 2015)"; Types: Full; Flags: disablenouninstallwarning
+Name: "vsruntimes"; Description: "Visual Studio Runtimes (2013 & 2017)"; Types: Full; Flags: disablenouninstallwarning
 
 [Tasks]
 Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to shell context menu"; GroupDescription: "New File Shortcuts:"; Components: vs32 vs64
