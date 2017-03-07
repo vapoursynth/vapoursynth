@@ -1773,7 +1773,7 @@ cdef public api int vpy_createScript(VPYScriptExport *se) nogil:
             _stored_outputs[se.id] = {}
 
         except:
-            errstr = 'Unspecified Python exception' + '\n' + traceback.format_exc()
+            errstr = 'Unspecified Python exception' + '\n\n' + traceback.format_exc()
             errstr = errstr.encode('utf-8')
             Py_INCREF(errstr)
             se.errstr = <void *>errstr
@@ -1821,13 +1821,13 @@ cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, 
             exec(comp) in evaldict
 
         except BaseException, e:
-            errstr = 'Python exception: ' + str(e) + '\n' + traceback.format_exc()
+            errstr = 'Python exception: ' + str(e) + '\n\n' + traceback.format_exc()
             errstr = errstr.encode('utf-8')
             Py_INCREF(errstr)
             se.errstr = <void *>errstr
             return 2
         except:
-            errstr = 'Unspecified Python exception' + '\n' + traceback.format_exc()
+            errstr = 'Unspecified Python exception' + '\n\n' + traceback.format_exc()
             errstr = errstr.encode('utf-8')
             Py_INCREF(errstr)
             se.errstr = <void *>errstr
