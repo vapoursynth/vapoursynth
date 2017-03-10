@@ -257,6 +257,8 @@ static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, co
     SOURCE(DGSource)
     BROKEN(IsCombed)
     PREFETCHR0(FieldDeinterlace)
+    PREFETCHR0(DGDenoise)
+    PREFETCHR0(DGSharpen)
     PREFETCH(Telecide, 1, 1, -1, 10) // not goot
     temp = int64ToIntS(vsapi->propGetInt(in, "cycle", 0, &err));
     PREFETCH(Decimate, temp - 1, temp, -temp, temp + 3) // probably suboptimal
