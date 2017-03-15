@@ -1,4 +1,5 @@
 r37:
+updated to zimg v2.5
 fixed blankclip and addborders sometimes rejecting valid floating point color values (jackoneill)
 vdecimate no longer stores the metrics for all frames, thus saving a lot of memory for long clips (jackoneill)
 changed get_read* functions in python so their memory no longer incorrectly is writable (Kamekameha)

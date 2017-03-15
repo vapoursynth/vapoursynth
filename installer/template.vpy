@@ -1,1 +1,1 @@
-from vapoursynth import core
+import vapoursynth as vs
