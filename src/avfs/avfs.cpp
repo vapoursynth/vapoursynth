@@ -63,7 +63,7 @@ class Avisynther final:
 
   bool enable_v210;
 
-  PClip clip; // This is a smart pointer, make sure it is released before env gets zapped!
+  PClip *clip;
 
   std::wstring errText;
 
@@ -170,10 +170,10 @@ int/*error*/ Avisynther::Import(const wchar_t* wszScriptName)
           // Add a Cache to the graph
           var = Invoke("Cache", var);
 
-          clip = var.AsClip();
+          *clip = var.AsClip();
 
-          if (clip) {
-            vi = clip->GetVideoInfo();
+          if (*clip) {
+            vi = (*clip)->GetVideoInfo();
           }
 
           enable_v210 = GetVarAsBool("enable_v210", false) && (vi.IsColorSpace(VideoInfo::CS_YUV422P10) || vi.IsColorSpace(VideoInfo::CS_YUVA422P10));
@@ -231,7 +231,7 @@ void Avisynther::reportFormat(AvfsLog_* log)
     log->Printf(L"  FieldBased (Separated) Video: %hs\n", vi.IsFieldBased() ? "Yes" : "No");
 
     try {
-      log->Printf(L"  Parity: %hs field first.\n", (clip->GetParity(0) ? "Top" : "Bottom"));
+      log->Printf(L"  Parity: %hs field first.\n", ((*clip)->GetParity(0) ? "Top" : "Bottom"));
     }
     catch (...) { }
 
@@ -305,7 +305,7 @@ void Avisynther::FraThreadMain()
       // to hold the reference, but the MRU caching in avisynth
       // is enough for reasonable read ahead depths.
       try {
-        PVideoFrame frame = clip->GetFrame(position, env);
+        PVideoFrame frame = (*clip)->GetFrame(position, env);
       }
       catch (...) { }
 
@@ -359,10 +359,10 @@ bool/*success*/ Avisynther::GetAudio(AvfsLog_* log, void* buf, __int64 start, un
   FraSuspend();
 
   bool success = false;
-  if (clip) {
+  if (*clip) {
     if (vi.HasAudio()) {
       try {
-        clip->GetAudio(buf, start, (__int64)count, env);
+        (*clip)->GetAudio(buf, start, (__int64)count, env);
         success = true;
       }
       catch(AvisynthError err) {
@@ -462,10 +462,10 @@ PVideoFrame Avisynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
     lastPosition = -1;
     lastFrame = 0;
 
-    if (clip) {
+    if (*clip) {
       if (vi.HasVideo()) {
         try {
-          f = clip->GetFrame(n, env);
+          f = (*clip)->GetFrame(n, env);
           success = true;
           int id = GetVideoInfo().pixel_format;
           
@@ -721,7 +721,8 @@ int/*error*/ Avisynther::newEnv()
 
   // Purge any old IScriptEnvironment
   if (env) {
-    clip = nullptr; // Must release smartpointer before zapping env!
+    delete clip;
+    clip = nullptr;
     try {
       delete env;
     }
@@ -735,6 +736,7 @@ int/*error*/ Avisynther::newEnv()
     if(env)
     {
       AVS_linkage = env->GetAVSLinkage();
+      clip = new PClip;
       error = 0;
     }
   }
@@ -782,7 +784,7 @@ Avisynther::Avisynther(void) :
   CreateScriptEnvironment(nullptr),
   hlib(0),
   env(0),
-  clip(0),
+  clip(nullptr),
   fraThread(0),
   fraSuspendCount(0),
   fraPosition(0),
@@ -820,7 +822,8 @@ Avisynther::~Avisynther(void)
 
   if (env) {
     lastFrame = 0;
-    clip = 0; // Must release smartpointer before zapping env!
+    delete clip;
+    clip = nullptr;
     try {
       delete env;
     }
@@ -829,6 +832,7 @@ Avisynther::~Avisynther(void)
   }
 
   if (hlib) {
+    AVS_linkage = nullptr;
     ASSERT(FreeLibrary(hlib));
     hlib = nullptr;
     CreateScriptEnvironment = nullptr;
@@ -939,7 +943,7 @@ void AvfsProcessScript(
   if (avs && avs->Init(log,volume) != 0)
   {
      avs->Release();
-     avs = 0;
+     avs = nullptr;
   }
   if (avs)
   {
