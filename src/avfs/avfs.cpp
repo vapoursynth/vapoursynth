@@ -90,7 +90,7 @@ class Avisynther final:
 
   // Cache last accessed frame, to reduce interference with read-ahead.
   int lastPosition;
-  PVideoFrame lastFrame;
+  PVideoFrame *lastFrame;
 
   // Exception protected take a copy of the current error message
   void setError(const char *text, const wchar_t *alt = 0);
@@ -448,11 +448,11 @@ static int GetFrameWidth(const VideoInfo &vi, int plane) {
 // Exception protected PVideoFrame->GetFrame()
 PVideoFrame Avisynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
 
-  PVideoFrame f = nullptr;
+  PVideoFrame f;
   bool success = false;
 
   if (n == lastPosition) {
-    f = lastFrame;
+    f = *lastFrame;
     success = true;
   }
   else {
@@ -460,7 +460,7 @@ PVideoFrame Avisynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
     FraSuspend();
 
     lastPosition = -1;
-    lastFrame = 0;
+    *lastFrame = nullptr;
 
     if (*clip) {
       if (vi.HasVideo()) {
@@ -548,7 +548,7 @@ PVideoFrame Avisynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
     }
     else {
       lastPosition = n;
-      lastFrame = f;
+      *lastFrame = f;
       if(fraThread) {
         // Have read ahead thread continue reading subsequent
         // frames to allow better multi-core utilization.
@@ -721,6 +721,8 @@ int/*error*/ Avisynther::newEnv()
 
   // Purge any old IScriptEnvironment
   if (env) {
+    delete lastFrame;
+    lastFrame = nullptr;
     delete clip;
     clip = nullptr;
     try {
@@ -737,6 +739,7 @@ int/*error*/ Avisynther::newEnv()
     {
       AVS_linkage = env->GetAVSLinkage();
       clip = new PClip;
+      lastFrame = new PVideoFrame;
       error = 0;
     }
   }
@@ -792,7 +795,7 @@ Avisynther::Avisynther(void) :
   fraFrameCount(0),
   fraResumeDelay(0),
   lastPosition(-1),
-  lastFrame(0)
+  lastFrame(nullptr)
 {
   vi = {};
 
@@ -821,7 +824,8 @@ Avisynther::~Avisynther(void)
   DeleteCriticalSection(&fraMutex);
 
   if (env) {
-    lastFrame = 0;
+    delete lastFrame;
+    lastFrame = nullptr;
     delete clip;
     clip = nullptr;
     try {
