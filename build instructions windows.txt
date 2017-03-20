@@ -1,4 +1,5 @@
-Needs Visual Studio 2015 Update 3 with vsyasm and clang (yasm for use with VS2010)
+Needs Visual Studio 2017 with vsyasm and llvm (yasm for use with VS2010)
+Visual Studio 2015 Update 3 is also required to compile python module
 The proper paths to put things in are:
 C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin
 C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\BuildCustomizations
