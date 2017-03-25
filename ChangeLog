@@ -1,3 +1,7 @@
+r38:
+fixed a one pixel offset error only happening in vertical convolution with a 3 element vector
+switched to a vs2017 and clang in windows projects
+
 r37:
 updated to zimg v2.5
 fixed occasional crashes on startup in avfs when used with avisynth scripts

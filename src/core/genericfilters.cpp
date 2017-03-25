@@ -2266,21 +2266,21 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
                 d->convolution_type = ConvolutionSquare;
                 d->matrix_elements = 9;
                 d->matrix[7] = d->matrix[2];
-                d->matrix[5] = d->matrix[1];
+                d->matrix[4] = d->matrix[1];
                 d->matrix[1] = d->matrix[0];
                 d->matrix[0] = 0;
                 d->matrix[2] = 0;
                 d->matrix[3] = 0;
-                d->matrix[4] = 0;
+                d->matrix[5] = 0;
                 d->matrix[6] = 0;
                 d->matrix[8] = 0;
                 d->matrixf[7] = d->matrixf[2];
-                d->matrixf[5] = d->matrixf[1];
+                d->matrixf[4] = d->matrixf[1];
                 d->matrixf[1] = d->matrixf[0];
                 d->matrixf[0] = 0.f;
                 d->matrixf[2] = 0.f;
                 d->matrixf[3] = 0.f;
-                d->matrixf[4] = 0.f;
+                d->matrixf[5] = 0.f;
                 d->matrixf[6] = 0.f;
                 d->matrixf[8] = 0.f;
             }
