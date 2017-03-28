@@ -576,6 +576,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
                  "palette:int[]:opt;"
                  "gray:int:opt;"
                  "info:int:opt;"
+                 "flatten:int:opt;"
                  COMMON_PARAMS
                  , imageFileCreate, 0, plugin);
 

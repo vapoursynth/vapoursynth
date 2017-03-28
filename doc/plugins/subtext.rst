@@ -87,7 +87,7 @@ Subtext is a subtitle renderer that uses libass and ffmpeg.
    The other parameters have the same meanings as with TextFile.
 
 
-.. function::   ImageFile(clip clip, string file[, int id=-1, int[] palette, bint gray=False, bint info=False, bint blend=True, int matrix, string matrix_s, int transfer, string transfer_s, int primaries, string primaries_s])
+.. function::   ImageFile(clip clip, string file[, int id=-1, int[] palette, bint gray=False, bint info=False, bint flatten=False, bint blend=True, int matrix, string matrix_s, int transfer, string transfer_s, int primaries, string primaries_s])
    :module: sub
 
    ImageFile renders image-based subtitles such as VOBSUB and PGS.
@@ -142,6 +142,14 @@ Subtext is a subtitle renderer that uses libass and ffmpeg.
          in the file will be printed on each frame of the output. The
          information printed about each track includes the id, the
          language (if known), the resolution, and the format.
+
+         Default: False.
+
+      *flatten*
+         If this is True, ImageFile will output a clip with exactly as
+         many frames as there are pictures in the subtitle file.
+
+         If this is True, *blend* has no effect (no automatic blending).
 
          Default: False.
 

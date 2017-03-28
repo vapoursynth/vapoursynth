@@ -45,6 +45,8 @@ typedef struct ImageFileData {
 
     bool gray;
 
+    bool flatten;
+
     AVCodecContext *avctx;
 } ImageFileData;
 
@@ -89,9 +91,14 @@ static const VSFrameRef *VS_CC imageFileGetFrame(int n, int activationReason, vo
     ImageFileData *d = (ImageFileData *) *instanceData;
 
     if (activationReason == arInitial) {
-        int subtitle_index = findSubtitleIndex(n, d->subtitles);
-        if (subtitle_index == d->last_subtitle)
-            return vsapi->cloneFrameRef(d->last_frame);
+        int subtitle_index;
+        if (d->flatten) {
+            subtitle_index = n;
+        } else {
+            subtitle_index = findSubtitleIndex(n, d->subtitles);
+            if (subtitle_index == d->last_subtitle)
+                return vsapi->cloneFrameRef(d->last_frame);
+        }
 
         VSFrameRef *rgb = vsapi->copyFrame(d->blank_rgb, core);
         VSFrameRef *alpha = vsapi->copyFrame(d->blank_alpha, core);
@@ -530,6 +537,10 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
     d.last_subtitle = INT_MIN;
 
 
+    d.flatten = !!vsapi->propGetInt(in, "flatten", 0, &err);
+    if (d.flatten)
+        d.vi.numFrames = (int)d.subtitles.size();
+
     data = new ImageFileData(d);
 
     vsapi->createFilter(in, out, d.filter_name.c_str(), imageFileInit, imageFileGetFrame, imageFileFree, fmUnordered, 0, data, core);
@@ -544,6 +555,9 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
     bool blend = !!vsapi->propGetInt(in, "blend", 0, &err);
     if (err)
         blend = true;
+
+    if (d.flatten)
+        blend = false;
 
     if (blend) {
         VSNodeRef *subs = vsapi->propGetNode(out, "clip", 0, NULL);
