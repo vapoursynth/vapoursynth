@@ -308,6 +308,9 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
     int palette_size = vsapi->propNumElements(in, "palette");
     if (palette_size > AVPALETTE_COUNT) {
         vsapi->setError(out, (d.filter_name + ": the palette can have at most " + std::to_string(AVPALETTE_COUNT) + " elements.").c_str());
+
+        vsapi->freeNode(d.clip);
+
         return;
     }
     if (palette_size > 0) {
@@ -316,6 +319,9 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
         for (int i = 0; i < palette_size; i++) {
             if (palette[i] < 0 || (palette[i] > UINT32_MAX && palette[i] != unused_colour)) {
                 vsapi->setError(out, (d.filter_name + ": palette[" + std::to_string(i) + "] has an invalid value.").c_str());
+
+                vsapi->freeNode(d.clip);
+
                 return;
             }
             d.palette[i] = palette[i];
@@ -355,6 +361,12 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
             error = strerror(err);
 
         vsapi->setError(out, (d.filter_name + ": " + e + error).c_str());
+
+        if (fctx)
+            avformat_close_input(&fctx);
+
+        vsapi->freeNode(d.clip);
+
         return;
     }
 
@@ -364,6 +376,8 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
 
         avformat_close_input(&fctx);
 
+        vsapi->freeNode(d.clip);
+
         return;
     }
 
@@ -371,6 +385,8 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
         vsapi->setError(out, (d.filter_name + ": no streams found.").c_str());
 
         avformat_close_input(&fctx);
+
+        vsapi->freeNode(d.clip);
 
         return;
     }
@@ -427,6 +443,8 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
 
         if (d.avctx)
             avcodec_free_context(&d.avctx);
+
+        vsapi->freeNode(d.clip);
 
         return;
     }
@@ -504,6 +522,8 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
         if (d.avctx)
             avcodec_free_context(&d.avctx);
 
+        vsapi->freeNode(d.clip);
+
         return;
     }
 
@@ -550,7 +570,6 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
 
         return;
     }
-
 
     bool blend = !!vsapi->propGetInt(in, "blend", 0, &err);
     if (err)
