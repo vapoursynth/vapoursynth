@@ -145,53 +145,58 @@ static const VSFrameRef *VS_CC imageFileGetFrame(int n, int activationReason, vo
                 return nullptr;
             }
 
-            uint8_t *dst_a = vsapi->getWritePtr(alpha, 0);
-            uint8_t *dst_r = vsapi->getWritePtr(rgb, 0);
-            uint8_t *dst_g = vsapi->getWritePtr(rgb, 1);
-            uint8_t *dst_b = vsapi->getWritePtr(rgb, 2);
-            int stride = vsapi->getStride(rgb, 0);
+            for (unsigned r = 0; r < avsub.num_rects; r++) {
+                AVSubtitleRect *rect = avsub.rects[r];
 
-            AVSubtitleRect *rect = avsub.rects[0];
+                if (rect->w <= 0 || rect->h <= 0 || rect->type != SUBTITLE_BITMAP)
+                    continue;
 
 #ifdef VS_HAVE_AVSUBTITLERECT_AVPICTURE
-            uint8_t **rect_data = rect->pict.data;
-            int *rect_linesize = rect->pict.linesize;
+                uint8_t **rect_data = rect->pict.data;
+                int *rect_linesize = rect->pict.linesize;
 #else
-            uint8_t **rect_data = rect->data;
-            int *rect_linesize = rect->linesize;
+                uint8_t **rect_data = rect->data;
+                int *rect_linesize = rect->linesize;
 #endif
 
-            uint32_t palette[AVPALETTE_COUNT];
-            memcpy(palette, rect_data[1], AVPALETTE_SIZE);
-            for (size_t i = 0; i < d->palette.size(); i++)
-                if (d->palette[i] != unused_colour)
-                    palette[i] = d->palette[i];
+                uint32_t palette[AVPALETTE_COUNT];
+                memcpy(palette, rect_data[1], AVPALETTE_SIZE);
+                for (size_t i = 0; i < d->palette.size(); i++)
+                    if (d->palette[i] != unused_colour)
+                        palette[i] = d->palette[i];
 
-            if (d->gray)
-                makePaletteGray(palette);
+                if (d->gray)
+                    makePaletteGray(palette);
 
-            const uint8_t *input = rect_data[0];
+                const uint8_t *input = rect_data[0];
 
-            dst_a += rect->y * stride + rect->x;
-            dst_r += rect->y * stride + rect->x;
-            dst_g += rect->y * stride + rect->x;
-            dst_b += rect->y * stride + rect->x;
+                uint8_t *dst_a = vsapi->getWritePtr(alpha, 0);
+                uint8_t *dst_r = vsapi->getWritePtr(rgb, 0);
+                uint8_t *dst_g = vsapi->getWritePtr(rgb, 1);
+                uint8_t *dst_b = vsapi->getWritePtr(rgb, 2);
+                int stride = vsapi->getStride(rgb, 0);
 
-            for (int y = 0; y < rect->h; y++) {
-                for (int x = 0; x < rect->w; x++) {
-                    uint32_t argb = palette[input[x]];
+                dst_a += rect->y * stride + rect->x;
+                dst_r += rect->y * stride + rect->x;
+                dst_g += rect->y * stride + rect->x;
+                dst_b += rect->y * stride + rect->x;
 
-                    dst_a[x] = (argb >> 24) & 0xff;
-                    dst_r[x] = (argb >> 16) & 0xff;
-                    dst_g[x] = (argb >> 8) & 0xff;
-                    dst_b[x] = argb & 0xff;
+                for (int y = 0; y < rect->h; y++) {
+                    for (int x = 0; x < rect->w; x++) {
+                        uint32_t argb = palette[input[x]];
+
+                        dst_a[x] = (argb >> 24) & 0xff;
+                        dst_r[x] = (argb >> 16) & 0xff;
+                        dst_g[x] = (argb >> 8) & 0xff;
+                        dst_b[x] = argb & 0xff;
+                    }
+
+                    input += rect_linesize[0];
+                    dst_a += stride;
+                    dst_r += stride;
+                    dst_g += stride;
+                    dst_b += stride;
                 }
-
-                input += rect_linesize[0];
-                dst_a += stride;
-                dst_r += stride;
-                dst_g += stride;
-                dst_b += stride;
             }
 
             avsubtitle_free(&avsub);
