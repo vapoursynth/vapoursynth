@@ -427,7 +427,7 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
 
     av_opt_get_image_size(fctx->streams[stream_index]->codec, "video_size", 0, &d.vi.width, &d.vi.height);
 
-    Subtitle current_subtitle;
+    Subtitle current_subtitle = { };
 
     AVPacket packet;
     av_init_packet(&packet);
@@ -495,6 +495,17 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
             avcodec_free_context(&d.avctx);
 
         return;
+    }
+
+    // Sometimes there is no AVSubtitle with num_rects = 0 in between two AVSubtitles with num_rects > 0.
+    // In such cases the end_frame of the first subtitle remained 0, so we correct it.
+    for (size_t i = 0; i < d.subtitles.size(); i++) {
+        if (d.subtitles[i].end_frame == 0) {
+            if (i < d.subtitles.size() - 1)
+                d.subtitles[i].end_frame = d.subtitles[i + 1].start_frame;
+            else
+                d.subtitles[i].end_frame = d.vi.numFrames;
+        }
     }
 
 
