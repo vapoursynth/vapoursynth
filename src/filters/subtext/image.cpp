@@ -464,7 +464,8 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
                 current_subtitle.packets.clear();
             } else {
                 Subtitle &previous_subtitle = d.subtitles.back();
-                previous_subtitle.end_frame = timestampToFrameNumber(current_subtitle.packets.front().pts, time_base, d.vi.fpsNum, d.vi.fpsDen);
+                if (d.subtitles.size()) // The first AVSubtitle may be empty.
+                    previous_subtitle.end_frame = timestampToFrameNumber(current_subtitle.packets.front().pts, time_base, d.vi.fpsNum, d.vi.fpsDen);
 
                 for (auto p : current_subtitle.packets)
                     av_packet_unref(&p);
@@ -478,6 +479,17 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
         } else {
             current_subtitle.packets.push_back(packet);
         }
+    }
+
+    if (d.subtitles.size() == 0) {
+        vsapi->setError(out, (d.filter_name + ": no usable subtitle pictures found.").c_str());
+
+        avformat_close_input(&fctx);
+
+        if (d.avctx)
+            avcodec_free_context(&d.avctx);
+
+        return;
     }
 
 
