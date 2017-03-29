@@ -352,52 +352,78 @@ cdef void __stdcall frameDoneCallbackRaw(void *data, const VSFrameRef *f, int n,
             Py_DECREF(d)
 
 
-cdef void __stdcall frameDoneCallbackOutput(void *data, const VSFrameRef *f, int n, VSNodeRef *node, const char *errormsg) with gil:
-    cdef VideoFrame frame_obj
-    cdef VideoPlane plane
+cdef void __stdcall frameDoneCallbackOutput(void *data, const VSFrameRef *f, int n, VSNodeRef *node, const char *errormsg) nogil:
+    cdef int pitch
+    cdef const uint8_t *readptr
+    cdef const VSFormat *fi
+    cdef int row_size
+    cdef int height
+    cdef char err[512]
+    cdef int p
+    cdef int y
 
-    cdef CallbackData d = <CallbackData>data
-    d.completed += 1
+    with gil:
+        d = <CallbackData>data
+        d.completed = d.completed + 1
+        
+        if f == NULL:
+            d.total = d.requested
+            if errormsg == NULL:
+                d.error = 'Failed to retrieve frame ' + str(n)
+            else:
+                d.error = 'Failed to retrieve frame ' + str(n) + ' with error: ' + errormsg.decode('utf-8')
+            d.output = d.output + 1
 
-    if f == NULL:
-        d.total = d.requested
-        if errormsg == NULL:
-            d.error = 'Failed to retrieve frame ' + str(n)
         else:
-            d.error = 'Failed to retrieve frame ' + str(n) + ' with error: ' + errormsg.decode('utf-8')
-        d.output += 1
-    else:
-        d.reorder[n] = createConstVideoFrame(f, d.funcs, d.node.core)
+            d.reorder[n] = createFramePtr(f, d.funcs)
 
-        while d.output in d.reorder:
-            frame_obj = <VideoFrame>d.reorder[d.output]
-            try:
+            while d.output in d.reorder:
+                frame_obj = <FramePtr>d.reorder[d.output]
                 if d.y4m:
-                    d.fileobj.write(b'FRAME\n')
-                for plane in frame_obj.planes:
-                    d.fileobj.write(plane)
-            except:
-                d.error = 'File write call returned an error'
-                d.total = d.requested
+                    try:
+                        d.fileobj.write(b'FRAME\n')
+                    except:
+                        d.error = 'File write call returned an error'
+                        d.total = d.requested
+                p = 0
+                fi = d.funcs.getFrameFormat(frame_obj.f)
+ 
+                while p < d.num_planes:
+                    pitch = d.funcs.getStride(frame_obj.f, p)
+                    readptr = d.funcs.getReadPtr(frame_obj.f, p)
+                    row_size = d.funcs.getFrameWidth(frame_obj.f, p) * fi.bytesPerSample
+                    height = d.funcs.getFrameHeight(frame_obj.f, p)
+                    y = 0
 
-            del d.reorder[d.output]
-            d.output += 1
+                    while y < height:
+                        try:
+                            d.fileobj.write(bytes((<const char*>readptr)[:row_size]))
+                        except:
+                            d.error = 'File write call returned an error'
+                            d.total = d.requested
 
-        if d.progress_update is not None:
-            try:
-                d.progress_update(d.completed, d.total)
-            except BaseException as e:
-                d.error = 'Progress update caused an exception: ' + str(e)
-                d.total = d.requested
+                        readptr += pitch
+                        y = y + 1
 
-    if d.requested < d.total:
-        d.node.funcs.getFrameAsync(d.requested, d.node.node, frameDoneCallbackOutput, data)
-        d.requested += 1
+                    p = p + 1
 
-    d.condition.acquire()
-    d.condition.notify()
-    d.condition.release()
+                del d.reorder[d.output]
+                d.output = d.output + 1
 
+            if (d.progress_update is not None):
+                try:
+                    d.progress_update(d.completed, d.total)
+                except BaseException, e:
+                    d.error = 'Progress update caused an exception: ' + str(e)
+                    d.total = d.requested
+
+        if d.requested < d.total:
+            d.node.funcs.getFrameAsync(d.requested, d.node.node, frameDoneCallbackOutput, data)
+            d.requested = d.requested + 1
+       
+        d.condition.acquire()
+        d.condition.notify()
+        d.condition.release()
 
 cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, Core core, const VSAPI *funcs):
     cdef int numKeys = funcs.propNumKeys(map)
