@@ -24,7 +24,6 @@ from libc.stdint cimport intptr_t, uint16_t, uint32_t
 from cpython.buffer cimport (PyBUF_WRITABLE, PyBUF_FORMAT, PyBUF_STRIDES,
                              PyBUF_F_CONTIGUOUS)
 from cpython.ref cimport Py_INCREF, Py_DECREF
-from cpython.tuple cimport PyTuple_New, PyTuple_SET_ITEM
 import os
 import ctypes
 import threading
@@ -853,7 +852,7 @@ cdef VideoProps createVideoProps(VideoFrame f):
 # Make sure the VideoProps-Object quacks like a Mapping.
 Mapping.register(VideoProps)
 
-
+    
 cdef class VideoFrame(object):
     cdef const VSFrameRef *constf
     cdef VSFrameRef *f
@@ -864,7 +863,6 @@ cdef class VideoFrame(object):
     cdef readonly int height
     cdef readonly bint readonly
     cdef readonly VideoProps props
-    cdef readonly tuple planes
 
     cdef object __weakref__
 
@@ -953,7 +951,6 @@ cdef class VideoFrame(object):
         s += '\tHeight: ' + str(self.height) + '\n'
         return s
 
-
 cdef VideoFrame createConstVideoFrame(const VSFrameRef *constf, const VSAPI *funcs, Core core):
     cdef VideoFrame instance = VideoFrame.__new__(VideoFrame)
     instance.constf = constf
@@ -965,11 +962,7 @@ cdef VideoFrame createConstVideoFrame(const VSFrameRef *constf, const VSAPI *fun
     instance.width = funcs.getFrameWidth(constf, 0)
     instance.height = funcs.getFrameHeight(constf, 0)
     instance.props = createVideoProps(instance)
-
-    _set_vf_planes(instance)
-
     return instance
-
 
 cdef VideoFrame createVideoFrame(VSFrameRef *f, const VSAPI *funcs, Core core):
     cdef VideoFrame instance = VideoFrame.__new__(VideoFrame)
@@ -982,22 +975,7 @@ cdef VideoFrame createVideoFrame(VSFrameRef *f, const VSAPI *funcs, Core core):
     instance.width = funcs.getFrameWidth(f, 0)
     instance.height = funcs.getFrameHeight(f, 0)
     instance.props = createVideoProps(instance)
-
-    _set_vf_planes(instance)
-
     return instance
-
-
-cdef int _set_vf_planes(VideoFrame frame) except -1:
-    cdef int x
-    cdef VideoPlane plane
-
-    frame.planes = PyTuple_New(frame.format.num_planes)
-
-    for x in range(frame.format.num_planes):
-        plane = VideoPlane.__new__(VideoPlane, frame, x)
-        Py_INCREF(plane)
-        PyTuple_SET_ITEM(frame.planes, x, plane)
 
 
 cdef class VideoPlane:
