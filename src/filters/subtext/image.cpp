@@ -104,6 +104,28 @@ static const VSFrameRef *VS_CC imageFileGetFrame(int n, int activationReason, vo
         VSFrameRef *alpha = vsapi->copyFrame(d->blank_alpha, core);
 
         if (subtitle_index > -1) {
+            if (d->avctx->codec_id == AV_CODEC_ID_HDMV_PGS_SUBTITLE &&
+                d->last_subtitle != subtitle_index - 1) {
+                // Random access in PGS doesn't quite work without decoding some previous subtitles.
+                // 5 was not enough. 10 seems to work.
+                for (int s = std::max(0, subtitle_index - 10); s < subtitle_index; s++) {
+                    const Subtitle &sub = d->subtitles[s];
+
+                    int got_subtitle = 0;
+
+                    AVSubtitle avsub;
+
+                    for (size_t i = 0; i < sub.packets.size(); i++) {
+                        AVPacket packet = sub.packets[i];
+
+                        avcodec_decode_subtitle2(d->avctx, &avsub, &got_subtitle, &packet);
+
+                        if (got_subtitle)
+                            avsubtitle_free(&avsub);
+                    }
+                }
+            }
+
             d->last_subtitle = subtitle_index;
 
             const Subtitle &sub = d->subtitles[subtitle_index];
