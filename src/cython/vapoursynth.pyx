@@ -111,7 +111,7 @@ def construct_signature(signature, injected=None):
     )
     
     if injected:
-        params[0] = params[0].replace(default=injected)
+        del params[0]
     
     return inspect.Signature(tuple(params), return_annotation=vapoursynth.VideoNode)
     
