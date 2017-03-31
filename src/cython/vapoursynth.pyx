@@ -24,7 +24,6 @@ from libc.stdint cimport intptr_t, uint16_t, uint32_t
 from cpython.buffer cimport (PyBUF_WRITABLE, PyBUF_FORMAT, PyBUF_STRIDES,
                              PyBUF_F_CONTIGUOUS)
 from cpython.ref cimport Py_INCREF, Py_DECREF
-from cpython.tuple cimport PyTuple_New, PyTuple_SET_ITEM
 import os
 import ctypes
 import threading
@@ -355,6 +354,7 @@ cdef void __stdcall frameDoneCallbackRaw(void *data, const VSFrameRef *f, int n,
 cdef void __stdcall frameDoneCallbackOutput(void *data, const VSFrameRef *f, int n, VSNodeRef *node, const char *errormsg) with gil:
     cdef VideoFrame frame_obj
     cdef VideoPlane plane
+    cdef int x
 
     cdef CallbackData d = <CallbackData>data
     d.completed += 1
@@ -374,7 +374,8 @@ cdef void __stdcall frameDoneCallbackOutput(void *data, const VSFrameRef *f, int
             try:
                 if d.y4m:
                     d.fileobj.write(b'FRAME\n')
-                for plane in frame_obj.planes:
+                for x in range(frame_obj.format.num_planes):
+                    plane = VideoPlane.__new__(VideoPlane, frame_obj, x)
                     d.fileobj.write(plane)
             except:
                 d.error = 'File write call returned an error'
@@ -838,7 +839,6 @@ cdef class VideoFrame(object):
     cdef readonly int height
     cdef readonly bint readonly
     cdef readonly VideoProps props
-    cdef readonly tuple planes
 
     cdef object __weakref__
 
@@ -920,6 +920,11 @@ cdef class VideoFrame(object):
             raise IndexError('Specified plane index out of range')
         return self.funcs.getStride(self.constf, plane)
 
+    def planes(self):
+        cdef int x
+        for x in range(self.format.num_planes):
+            yield VideoPlane.__new__(VideoPlane, self, x)
+
     def __str__(self):
         cdef str s = 'VideoFrame\n'
         s += '\tFormat: ' + self.format.name + '\n'
@@ -940,8 +945,6 @@ cdef VideoFrame createConstVideoFrame(const VSFrameRef *constf, const VSAPI *fun
     instance.height = funcs.getFrameHeight(constf, 0)
     instance.props = createVideoProps(instance)
 
-    _set_vf_planes(instance)
-
     return instance
 
 
@@ -957,21 +960,7 @@ cdef VideoFrame createVideoFrame(VSFrameRef *f, const VSAPI *funcs, Core core):
     instance.height = funcs.getFrameHeight(f, 0)
     instance.props = createVideoProps(instance)
 
-    _set_vf_planes(instance)
-
     return instance
-
-
-cdef int _set_vf_planes(VideoFrame frame) except -1:
-    cdef int x
-    cdef VideoPlane plane
-
-    frame.planes = PyTuple_New(frame.format.num_planes)
-
-    for x in range(frame.format.num_planes):
-        plane = VideoPlane.__new__(VideoPlane, frame, x)
-        Py_INCREF(plane)
-        PyTuple_SET_ITEM(frame.planes, x, plane)
 
 
 cdef class VideoPlane:
