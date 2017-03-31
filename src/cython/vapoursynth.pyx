@@ -21,6 +21,8 @@ cimport vapoursynth
 cimport cython.parallel
 from cython cimport view
 from libc.stdint cimport intptr_t, uint16_t, uint32_t
+from cpython.buffer cimport (PyBUF_WRITABLE, PyBUF_FORMAT, PyBUF_STRIDES,
+                             PyBUF_F_CONTIGUOUS)
 from cpython.ref cimport Py_INCREF, Py_DECREF
 import os
 import ctypes
@@ -349,78 +351,54 @@ cdef void __stdcall frameDoneCallbackRaw(void *data, const VSFrameRef *f, int n,
             Py_DECREF(d)
 
 
-cdef void __stdcall frameDoneCallbackOutput(void *data, const VSFrameRef *f, int n, VSNodeRef *node, const char *errormsg) nogil:
-    cdef int pitch
-    cdef const uint8_t *readptr
-    cdef const VSFormat *fi
-    cdef int row_size
-    cdef int height
-    cdef char err[512]
-    cdef int p
-    cdef int y
+cdef void __stdcall frameDoneCallbackOutput(void *data, const VSFrameRef *f, int n, VSNodeRef *node, const char *errormsg) with gil:
+    cdef VideoFrame frame_obj
+    cdef VideoPlane plane
+    cdef int x
 
-    with gil:
-        d = <CallbackData>data
-        d.completed = d.completed + 1
-        
-        if f == NULL:
-            d.total = d.requested
-            if errormsg == NULL:
-                d.error = 'Failed to retrieve frame ' + str(n)
-            else:
-                d.error = 'Failed to retrieve frame ' + str(n) + ' with error: ' + errormsg.decode('utf-8')
-            d.output = d.output + 1
+    cdef CallbackData d = <CallbackData>data
+    d.completed += 1
 
+    if f == NULL:
+        d.total = d.requested
+        if errormsg == NULL:
+            d.error = 'Failed to retrieve frame ' + str(n)
         else:
-            d.reorder[n] = createFramePtr(f, d.funcs)
+            d.error = 'Failed to retrieve frame ' + str(n) + ' with error: ' + errormsg.decode('utf-8')
+        d.output += 1
+    else:
+        d.reorder[n] = createConstVideoFrame(f, d.funcs, d.node.core)
 
-            while d.output in d.reorder:
-                frame_obj = <FramePtr>d.reorder[d.output]
+        while d.output in d.reorder:
+            frame_obj = <VideoFrame>d.reorder[d.output]
+            try:
                 if d.y4m:
-                    try:
-                        d.fileobj.write(b'FRAME\n')
-                    except:
-                        d.error = 'File write call returned an error'
-                        d.total = d.requested
-                p = 0
-                fi = d.funcs.getFrameFormat(frame_obj.f)
- 
-                while p < d.num_planes:
-                    pitch = d.funcs.getStride(frame_obj.f, p)
-                    readptr = d.funcs.getReadPtr(frame_obj.f, p)
-                    row_size = d.funcs.getFrameWidth(frame_obj.f, p) * fi.bytesPerSample
-                    height = d.funcs.getFrameHeight(frame_obj.f, p)
-                    y = 0
+                    d.fileobj.write(b'FRAME\n')
+                for x in range(frame_obj.format.num_planes):
+                    plane = VideoPlane.__new__(VideoPlane, frame_obj, x)
+                    d.fileobj.write(plane)
+            except:
+                d.error = 'File write call returned an error'
+                d.total = d.requested
 
-                    while y < height:
-                        try:
-                            d.fileobj.write(bytes((<const char*>readptr)[:row_size]))
-                        except:
-                            d.error = 'File write call returned an error'
-                            d.total = d.requested
+            del d.reorder[d.output]
+            d.output += 1
 
-                        readptr += pitch
-                        y = y + 1
+        if d.progress_update is not None:
+            try:
+                d.progress_update(d.completed, d.total)
+            except BaseException as e:
+                d.error = 'Progress update caused an exception: ' + str(e)
+                d.total = d.requested
 
-                    p = p + 1
+    if d.requested < d.total:
+        d.node.funcs.getFrameAsync(d.requested, d.node.node, frameDoneCallbackOutput, data)
+        d.requested += 1
 
-                del d.reorder[d.output]
-                d.output = d.output + 1
+    d.condition.acquire()
+    d.condition.notify()
+    d.condition.release()
 
-            if (d.progress_update is not None):
-                try:
-                    d.progress_update(d.completed, d.total)
-                except BaseException, e:
-                    d.error = 'Progress update caused an exception: ' + str(e)
-                    d.total = d.requested
-
-        if d.requested < d.total:
-            d.node.funcs.getFrameAsync(d.requested, d.node.node, frameDoneCallbackOutput, data)
-            d.requested = d.requested + 1
-       
-        d.condition.acquire()
-        d.condition.notify()
-        d.condition.release()
 
 cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, Core core, const VSAPI *funcs):
     cdef int numKeys = funcs.propNumKeys(map)
@@ -850,7 +828,7 @@ cdef VideoProps createVideoProps(VideoFrame f):
 # Make sure the VideoProps-Object quacks like a Mapping.
 Mapping.register(VideoProps)
 
-    
+
 cdef class VideoFrame(object):
     cdef const VSFrameRef *constf
     cdef VSFrameRef *f
@@ -942,12 +920,18 @@ cdef class VideoFrame(object):
             raise IndexError('Specified plane index out of range')
         return self.funcs.getStride(self.constf, plane)
 
+    def planes(self):
+        cdef int x
+        for x in range(self.format.num_planes):
+            yield VideoPlane.__new__(VideoPlane, self, x)
+
     def __str__(self):
         cdef str s = 'VideoFrame\n'
         s += '\tFormat: ' + self.format.name + '\n'
         s += '\tWidth: ' + str(self.width) + '\n'
         s += '\tHeight: ' + str(self.height) + '\n'
         return s
+
 
 cdef VideoFrame createConstVideoFrame(const VSFrameRef *constf, const VSAPI *funcs, Core core):
     cdef VideoFrame instance = VideoFrame.__new__(VideoFrame)
@@ -960,7 +944,9 @@ cdef VideoFrame createConstVideoFrame(const VSFrameRef *constf, const VSAPI *fun
     instance.width = funcs.getFrameWidth(constf, 0)
     instance.height = funcs.getFrameHeight(constf, 0)
     instance.props = createVideoProps(instance)
+
     return instance
+
 
 cdef VideoFrame createVideoFrame(VSFrameRef *f, const VSAPI *funcs, Core core):
     cdef VideoFrame instance = VideoFrame.__new__(VideoFrame)
@@ -973,7 +959,93 @@ cdef VideoFrame createVideoFrame(VSFrameRef *f, const VSAPI *funcs, Core core):
     instance.width = funcs.getFrameWidth(f, 0)
     instance.height = funcs.getFrameHeight(f, 0)
     instance.props = createVideoProps(instance)
+
     return instance
+
+
+cdef class VideoPlane:
+    cdef VideoFrame frame
+    cdef int plane
+    cdef Py_ssize_t shape[2]
+    cdef Py_ssize_t strides[2]
+    cdef char* format
+
+    def __cinit__(self, VideoFrame frame, int plane):
+        cdef Py_ssize_t itemsize
+
+        if not (0 <= plane < frame.format.num_planes):
+            raise IndexError("specified plane index out of range")
+
+        self.shape[1] = <Py_ssize_t> frame.width
+        self.shape[0] = <Py_ssize_t> frame.height
+        if plane:
+            self.shape[1] >>= <Py_ssize_t> frame.format.subsampling_w
+            self.shape[0] >>= <Py_ssize_t> frame.format.subsampling_h
+
+        self.strides[1] = itemsize = <Py_ssize_t> frame.format.bytes_per_sample
+        self.strides[0] = <Py_ssize_t> frame.funcs.getStride(frame.constf, plane)
+
+        if frame.format.sample_type == INTEGER:
+            if itemsize == 1:
+                self.format = b'B'
+            elif itemsize == 2:
+                self.format = b'H'
+            elif itemsize == 4:
+                self.format = b'I'
+        elif frame.format.sample_type == FLOAT:
+            if itemsize == 2:
+                self.format = b'e'
+            elif itemsize == 4:
+                self.format = b'f'
+
+        self.frame = frame
+        self.plane = plane
+
+    @property
+    def width(self):
+        """Plane's pixel width."""
+        if self.plane:
+            return self.frame.width >> self.frame.format.subsampling_w
+        return self.frame.width
+
+    @property
+    def height(self):
+        """Plane's pixel height."""
+        if self.plane:
+            return self.frame.height >> self.frame.format.subsampling_h
+        return self.frame.height
+
+    def __getbuffer__(self, Py_buffer* view, int flags):
+        if (flags & PyBUF_F_CONTIGUOUS) == PyBUF_F_CONTIGUOUS:
+            raise BufferError("C-contiguous buffer only.")
+
+        if self.frame.readonly:
+            if flags & PyBUF_WRITABLE:
+                raise BufferError("Object is not writable.")
+            view.buf = (<void*> self.frame.funcs.getReadPtr(self.frame.constf, self.plane))
+        else:
+            view.buf = (<void*> self.frame.funcs.getWritePtr(self.frame.f, self.plane))
+
+        if flags & PyBUF_STRIDES:
+            view.shape = self.shape
+            view.strides = self.strides
+        else:
+            view.shape = NULL
+            view.strides = NULL
+
+        if flags & PyBUF_FORMAT:
+            view.format = self.format
+        else:
+            view.format = NULL
+
+        view.obj = self
+        view.len = self.shape[0] * self.shape[1] * self.strides[1]
+        view.readonly = self.frame.readonly
+        view.itemsize = self.strides[1]
+        view.ndim = 2
+        view.suboffsets = NULL
+        view.internal = NULL
+
 
 cdef class VideoNode(object):
     cdef VSNodeRef *node
