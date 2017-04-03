@@ -538,6 +538,14 @@ bits for all 3 planes added together. The long list of values::
    YUV422P10
    YUV444P10
 
+   YUV420P12
+   YUV422P12
+   YUV444P12
+   
+   YUV420P14
+   YUV422P14
+   YUV444P14
+   
    YUV420P16
    YUV422P16
    YUV444P16

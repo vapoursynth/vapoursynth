@@ -292,6 +292,10 @@ const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) 
                     } else if (fi->id == pfRGB48) {
                         p.packing = p2p_argb64_be;
                         p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
+                    } else if (fi->id == pfYUV444P10) {
+                        p.packing = p2p_y410_le;
+                        p.dst_stride[0] = p.width * 2 * fi->bytesPerSample;
+                        p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
                     } else if (fi->id == pfYUV444P16) {
                         p.packing = p2p_y416_le;
                         p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);

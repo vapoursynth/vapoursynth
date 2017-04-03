@@ -492,6 +492,10 @@ PVideoFrame Avisynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
               } else if (id == pfRGB48) {
                   p.packing = p2p_argb64_be;
                   p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
+              } else if (id == pfYUV444P10) {
+                  p.packing = p2p_y410_le;
+                  p.dst_stride[0] = p.width * 2 * BytesPerSample(vi);
+                  p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
               } else if (id == pfYUV444P16) {
                   p.packing = p2p_y416_le;
                   p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
@@ -588,6 +592,8 @@ int Avisynther::BMPSize() {
         image_size *= vi.height;
     } else if (via.pixel_format == pfRGB24 || via.pixel_format == pfRGB48 || via.pixel_format == pfYUV444P16) {
         image_size = BMPSizeHelper(vi.height, vi.width * BytesPerSample(vi) * 4);
+    } else if (via.pixel_format == pfYUV444P10) {
+        image_size = BMPSizeHelper(vi.height, vi.width * BytesPerSample(vi) * 2);
     } else if (NumPlanes(vi) == 1) {
         image_size = BMPSizeHelper(vi.height, vi.width * BytesPerSample(vi));
     } else {
@@ -609,6 +615,8 @@ int Avisynther::BitsPerPixel() {
     int bits = BytesPerSample(vi) * 8;
     if (via.pixel_format == pfRGB24 || via.pixel_format == pfRGB48 || via.pixel_format == pfYUV444P16)
         bits *= 4;
+    else if (via.pixel_format == pfYUV444P10)
+        bits *= 2;
     else if (NumPlanes(vi) == 3)
         bits += (bits * 2) >> (GetSubSamplingH(vi, 1) + GetSubSamplingW(vi, 1));
     if (via.pixel_format == pfYUV422P10 && enable_v210)
