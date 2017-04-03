@@ -923,6 +923,14 @@ void VSCore::registerFormats() {
     registerFormat(cmYUV,  stInteger, 10, 1, 0, "YUV422P10", pfYUV422P10);
     registerFormat(cmYUV,  stInteger, 10, 0, 0, "YUV444P10", pfYUV444P10);
 
+    registerFormat(cmYUV,  stInteger, 12, 1, 1, "YUV420P12", pfYUV420P12);
+    registerFormat(cmYUV,  stInteger, 12, 1, 0, "YUV422P12", pfYUV422P12);
+    registerFormat(cmYUV,  stInteger, 12, 0, 0, "YUV444P12", pfYUV444P12);
+
+    registerFormat(cmYUV,  stInteger, 14, 1, 1, "YUV420P14", pfYUV420P14);
+    registerFormat(cmYUV,  stInteger, 14, 1, 0, "YUV422P14", pfYUV422P14);
+    registerFormat(cmYUV,  stInteger, 14, 0, 0, "YUV444P14", pfYUV444P14);
+
     registerFormat(cmYUV,  stInteger, 16, 1, 1, "YUV420P16", pfYUV420P16);
     registerFormat(cmYUV,  stInteger, 16, 1, 0, "YUV422P16", pfYUV422P16);
     registerFormat(cmYUV,  stInteger, 16, 0, 0, "YUV444P16", pfYUV444P16);
@@ -938,8 +946,8 @@ void VSCore::registerFormats() {
     registerFormat(cmRGB,  stFloat,   16, 0, 0, "RGBH", pfRGBH);
     registerFormat(cmRGB,  stFloat,   32, 0, 0, "RGBS", pfRGBS);
 
-    registerFormat(cmCompat,  stInteger, 32, 0, 0, "CompatBGR32", pfCompatBGR32);
-    registerFormat(cmCompat,  stInteger, 16, 1, 0, "CompatYUY2", pfCompatYUY2);
+    registerFormat(cmCompat, stInteger, 32, 0, 0, "CompatBGR32", pfCompatBGR32);
+    registerFormat(cmCompat, stInteger, 16, 1, 0, "CompatYUY2", pfCompatYUY2);
 }
 
 
