@@ -395,6 +395,18 @@ enum VSPresetFormat
 
    * pfYUV444P10
 
+   * pfYUV420P12
+
+   * pfYUV422P12
+
+   * pfYUV444P12
+
+   * pfYUV420P14
+
+   * pfYUV422P14
+
+   * pfYUV444P14
+
    * pfYUV420P16
 
    * pfYUV422P16
