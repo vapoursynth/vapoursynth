@@ -413,7 +413,7 @@ bool VapourSynthFile::DelayInit() {
     return result;
 }
 
-const char *ErrorScript1 = "\
+static const char *ErrorScript1 = "\
 import vapoursynth as vs\n\
 import sys\n\
 core = vs.get_core()\n\
@@ -425,7 +425,7 @@ blue = core.std.BlankClip(width=w, height=h, format=vs.RGB24, color=[0, 0, 255])
 stacked = core.std.StackHorizontal([red, green, blue])\n\
 msg = core.text.Text(stacked, r\"\"\"";
 
-const char *ErrorScript2 = "\"\"\")\n\
+static const char *ErrorScript2 = "\"\"\")\n\
 final = core.resize.Bilinear(msg, format=vs.COMPATBGR32)\n\
 final.set_output()\n";
 
