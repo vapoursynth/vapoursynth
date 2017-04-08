@@ -1,4 +1,5 @@
 r38:
+added new constants to clipinfo
 fixed several subtext corruption and crash bugs  (jackoneill)
 added y410 output to avfs and vsvfw
 added constants for 12 and 14 bit yuv formats
