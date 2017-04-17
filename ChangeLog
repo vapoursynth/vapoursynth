@@ -1,4 +1,5 @@
 r38:
+updated zimg
 added new constants to clipinfo
 fixed several subtext corruption and crash bugs  (jackoneill)
 added y410 output to avfs and vsvfw
