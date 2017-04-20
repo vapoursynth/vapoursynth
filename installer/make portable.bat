@@ -13,6 +13,7 @@ copy ..\msvc_project\x64\Release\vsvfw.dll buildp64
 copy ..\msvc_project\x64\Release\vspipe.exe buildp64
 copy ..\msvc_project\x64\Release\AvsCompat.dll buildp64\vapoursynth64\coreplugins
 copy ..\msvc_project\x64\Release\EEDI3.dll buildp64\vapoursynth64\coreplugins
+copy ..\msvc_project\x64\Release\MiscFilters.dll buildp64\vapoursynth64\coreplugins
 copy ..\msvc_project\x64\Release\Morpho.dll buildp64\vapoursynth64\coreplugins
 copy ..\msvc_project\x64\Release\RemoveGrainVS.dll buildp64\vapoursynth64\coreplugins
 copy ..\msvc_project\x64\Release\Vinverse.dll buildp64\vapoursynth64\coreplugins
@@ -37,6 +38,7 @@ copy ..\msvc_project\Release\vsvfw.dll buildp32
 copy ..\msvc_project\Release\vspipe.exe buildp32
 copy ..\msvc_project\Release\AvsCompat.dll buildp32\vapoursynth32\coreplugins
 copy ..\msvc_project\Release\EEDI3.dll buildp32\vapoursynth32\coreplugins
+copy ..\msvc_project\Release\MiscFilters.dll buildp32\vapoursynth32\coreplugins
 copy ..\msvc_project\Release\Morpho.dll buildp32\vapoursynth32\coreplugins
 copy ..\msvc_project\Release\RemoveGrainVS.dll buildp32\vapoursynth32\coreplugins
 copy ..\msvc_project\Release\Vinverse.dll buildp32\vapoursynth32\coreplugins
