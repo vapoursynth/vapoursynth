@@ -455,6 +455,13 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
         if (!d.avctx)
             throw std::string("failed to allocate AVCodecContext.");
 
+        int extradata_size = fctx->streams[stream_index]->codec->extradata_size;
+        if (extradata_size) {
+            d.avctx->extradata_size = extradata_size;
+            d.avctx->extradata = (uint8_t *)av_mallocz(extradata_size + AV_INPUT_BUFFER_PADDING_SIZE);
+            memcpy(d.avctx->extradata, fctx->streams[stream_index]->codec->extradata, extradata_size);
+        }
+
         ret = avcodec_open2(d.avctx, decoder, nullptr);
         if (ret < 0)
             throw std::string("failed to open AVCodecContext.");
