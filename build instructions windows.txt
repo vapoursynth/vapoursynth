@@ -1,11 +1,13 @@
-Needs Visual Studio 2017 with vsyasm and llvm (yasm for use with VS2010)
-Visual Studio 2015 Update 3 is also required to compile python module
+Default install paths are assumed in all projects and scripts, be prepared to adjust many things if you changed them
+
+Needs Visual Studio 2017 and vsyasm (yasm for use with VS2010)
+Visual Studio 2015 Update 3 is also (unfortunately) required to compile the python module
 The proper paths to put things in are:
 C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin
 C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\BuildCustomizations
-It also needs both 32 and 64 bit Python 3.6 series with cython installed for both
-(also needs sphinx and sphinx-intl to generate docs)
+It also needs both 32 and 64 bit Python 3.6 series with recent cython, sphinx and sphinx-intl installed
 Inno setup is needed to create the installer
+7-zip is needed to compress the portable version
 
 Clone VapourSynth
 Clone zimg v2.5 branch into the VapourSynth dir (https://github.com/sekrit-twc/zimg)
