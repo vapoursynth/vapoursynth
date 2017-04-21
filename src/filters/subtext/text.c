@@ -246,6 +246,26 @@ static void VS_CC assFree(void *instanceData, VSCore *core, const VSAPI *vsapi)
     free(d);
 }
 
+static int frameToTime(int frame, int64_t fpsNum, int64_t fpsDen, char *str, size_t str_size)
+{
+    int64_t timeint, time_ms;
+    time_t time_secs;
+    struct tm * ti;
+    if(frame != 0 && (INT64_MAX / fpsDen) < ((int64_t)frame * 100)) {
+        //Overflow would occur
+        return 0;
+    }
+    else {
+        timeint = (int64_t)frame * 100 * fpsDen / fpsNum;
+    }
+    time_secs = timeint / 100;
+    time_ms = timeint % 100;
+    ti = gmtime(&time_secs);
+    snprintf(str, str_size, "%d:%02d:%02d.%02" PRIu64, ti->tm_hour, ti->tm_min, ti->tm_sec, time_ms);
+
+    return 1;
+}
+
 static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
                                   VSCore *core, const VSAPI *vsapi)
 {
@@ -395,7 +415,7 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
 
     if(d.file == NULL) {
 #define BUFFER_SIZE 16
-        char *str, *text, x[BUFFER_SIZE], y[BUFFER_SIZE], start[BUFFER_SIZE], end[BUFFER_SIZE];
+        char *str, *text, x[BUFFER_SIZE], y[BUFFER_SIZE], start[BUFFER_SIZE] = { 0 }, end[BUFFER_SIZE] = { 0 };
         size_t siz;
         const char *fmt = "[Script Info]\n"
                           "ScriptType: v4.00+\n"
@@ -411,49 +431,14 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
         snprintf(x, BUFFER_SIZE, "%d", d.vi[0].width);
         snprintf(y, BUFFER_SIZE, "%d", d.vi[0].height);
 
-        {
-            int64_t timeint, time_ms;
-            time_t time_secs;
-            struct tm * ti;
-            if(d.startframe != 0 && (INT64_MAX / d.vi[0].fpsDen) < ((int64_t)d.startframe * 100)) {
-                //Overflow would occur
-                snprintf(error, ERROR_SIZE, "%s: Unable to calculate start time", filter_name);
-                vsapi->setError(out, error);
-                vsapi->freeNode(d.node);
-                ass_renderer_done(d.ass_renderer);
-                ass_library_done(d.ass_library);
-                return;
-            }
-            else {
-                timeint = (int64_t)d.startframe * 100 * d.vi[0].fpsDen / d.vi[0].fpsNum;
-            }
-            time_secs = timeint / 100;
-            time_ms = timeint % 100;
-            ti = gmtime(&time_secs);
-            snprintf(start, BUFFER_SIZE, "%d:%02d:%02d.%02" PRIu64, ti->tm_hour, ti->tm_min, ti->tm_sec, time_ms);
-        }
-
-        {
-            int64_t timeint, time_ms;
-            time_t time_secs;
-            struct tm * ti;
-            if(d.endframe != 0 && (INT64_MAX / d.vi[0].fpsDen) < ((int64_t)d.endframe * 100)) {
-                //Overflow would occur
-                snprintf(error, ERROR_SIZE, "%s: Unable to calculate end time", filter_name);
-                vsapi->setError(out, error);
-                vsapi->freeNode(d.node);
-                ass_renderer_done(d.ass_renderer);
-                ass_library_done(d.ass_library);
-                return;
-            }
-            else {
-                timeint = (int64_t)d.endframe * 100 * d.vi[0].fpsDen / d.vi[0].fpsNum;
-            }
-            time_secs = timeint / 100;
-            time_ms = timeint % 100;
-            ti = gmtime(&time_secs);
-            snprintf(end, BUFFER_SIZE, "%d:%02d:%02d.%02" PRIu64, ti->tm_hour, ti->tm_min, ti->tm_sec, time_ms);
-#undef BUFFER_SIZE
+        if (!frameToTime(d.startframe, d.vi[0].fpsNum, d.vi[0].fpsDen, start, BUFFER_SIZE) ||
+            !frameToTime(d.endframe, d.vi[0].fpsNum, d.vi[0].fpsDen, end, BUFFER_SIZE)) {
+            snprintf(error, ERROR_SIZE, "%s: Unable to calculate %s time", filter_name, start[0] ? "end" : "start");
+            vsapi->setError(out, error);
+            vsapi->freeNode(d.node);
+            ass_renderer_done(d.ass_renderer);
+            ass_library_done(d.ass_library);
+            return;
         }
 
         text = strrepl(d.text, "\n", "\\N");
