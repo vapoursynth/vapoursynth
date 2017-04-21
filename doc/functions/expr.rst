@@ -65,9 +65,21 @@ Expr
 
       ?
       
-   Which is equivelent to the ternary operator in C::
+   For example these operations::
+   
+      a b c ?
+      
+      d e <
+      
+      f abs
+      
+   Are equivelent to these operations in C::
    
       a ? b : c
+      
+      d < e
+      
+      abs(f)
 
    How to average the Y planes of 3 YUV clips and pass through the UV planes
    unchanged (assuming same format)::
