@@ -1,11 +1,12 @@
 r38:
-updated zimg
+updated to zimg v2.5.1
+increased the number of allowed constants in h and v convolution modes to 25
 added new constants to clipinfo
 fixed several subtext corruption and crash bugs (jackoneill)
 added y410 output to avfs and vsvfw
 added constants for 12 and 14 bit yuv formats
 fixed a one pixel offset error only happening in vertical convolution with a 3 element vector
-switched to vs2017 and clang in windows projects
+switched to vs2017 in windows projects
 
 r37:
 updated to zimg v2.5

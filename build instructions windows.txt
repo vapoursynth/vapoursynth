@@ -3,7 +3,7 @@ Default install paths are assumed in all projects and scripts, be prepared to ad
 Needs Visual Studio 2017 and vsyasm (yasm for use with VS2010)
 Visual Studio 2015 Update 3 is also (unfortunately) required to compile the python module
 The proper paths to put things in are:
-C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\MSBuild\15.0\Bin
+<some random exe path>
 C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\VC\VCTargets\BuildCustomizations
 It also needs both 32 and 64 bit Python 3.6 series with recent cython, sphinx and sphinx-intl installed
 Inno setup is needed to create the installer

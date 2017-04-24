@@ -96,6 +96,7 @@ Others
 ------
 * :ref:`Morpho <morpho>` -- simple morphological filters, in the source tree
 * :ref:`Vinverse <vinverse>` -- in the source tree
+* :ref:`Miscellaneous filters <misc>` -- Scene change detection, frame averaging and other sometimes useful functions, in the source tree
 * `AddGrain <http://forum.doom9.org/showthread.php?t=171073>`_ -- Port of the Avisynth AddGrain filter
 * `AutoCrop <https://github.com/Infiziert90/vapoursynth-autocrop>`_
 * `AWarpSharp2 <http://forum.doom9.org/showthread.php?t=172721>`_ -- Sharpens edges by warping them
@@ -110,7 +111,6 @@ Others
 * `FillBorders <https://github.com/dubhater/vapoursynth-fillborders>`_
 * `GradCurve <https://forum.doom9.org/showthread.php?t=174096>`_ -- Port of virtualdub Gradation Curves plugin
 * `minsharp <http://forum.doom9.org/showthread.php?t=173328>`_ -- Simple 3x3 blur and sharpen
-* `Miscellaneous filters <http://forum.doom9.org/showthread.php?t=173871>`_ -- Scene change detection, frame averaging and other sometimes useful functions
 * `MSmoosh <http://forum.doom9.org/showthread.php?t=171159>`_ -- MSmooth and MSharpen ports
 * `MVTools <http://forum.doom9.org/showthread.php?t=171207>`_ -- MVTools port
 * `Retinex <http://forum.doom9.org/showthread.php?t=171307>`_ -- Dynamic range compression

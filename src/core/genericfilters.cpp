@@ -2203,8 +2203,8 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
                 else
                     d->convolution_type = ConvolutionVertical;
 
-                if (d->matrix_elements < 3 || d->matrix_elements > 17)
-                    throw std::string("When mode starts with 'h' or 'v', matrix must contain between 3 and 17 numbers.");
+                if (d->matrix_elements < 3 || d->matrix_elements > 25)
+                    throw std::string("When mode starts with 'h' or 'v', matrix must contain between 3 and 25 numbers.");
 
                 if (d->matrix_elements % 2 == 0)
                     throw std::string("matrix must contain an odd number of numbers.");
@@ -2285,7 +2285,12 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
                 d->matrixf[8] = 0.f;
             }
         }
-   
+
+		if (op == GenericConvolution && d->convolution_type == ConvolutionHorizontal && d->matrix_elements / 2 >= planeWidth(d->vi, d->vi->format->numPlanes - 1))
+			throw std::string("Width must be bigger than convolution radius.");
+		if (op == GenericConvolution && d->convolution_type == ConvolutionVertical && d->matrix_elements / 2 >= planeHeight(d->vi, d->vi->format->numPlanes - 1))
+			throw std::string("Height must be bigger than convolution radius.");
+
     } catch (std::string &error) {
         vsapi->freeNode(d->node);
         vsapi->setError(out, std::string(d->filter_name).append(": ").append(error).c_str());
