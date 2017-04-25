@@ -33,6 +33,8 @@ static inline bool GetFourCC(int formatid, int output_alt, unsigned long &fourcc
     fourcc = VS_FCC('UNKN');
     if (formatid == pfCompatBGR32 || formatid == pfRGB24)
         fourcc = VS_FCC('DIB ');
+	else if (formatid == pfRGB30)
+		fourcc = VS_FCC('r210');
     else if (formatid == pfRGB48)
         fourcc = VS_FCC('b64a');
     else if (formatid == pfCompatYUY2)
@@ -91,6 +93,8 @@ static inline int BMPSize(const VSVideoInfo *vi, int output_alt) {
         image_size *= vi->height;
     } else if (vi->format->id == pfRGB24 || vi->format->id == pfRGB48 || vi->format->id == pfYUV444P16) {
         image_size = BMPSizeHelper(vi->height, vi->width * vi->format->bytesPerSample * 4);
+	} else if (vi->format->id == pfRGB30) {
+		image_size = ((vi->width + 63) / 64) * 256 * vi->height;
     } else if (vi->format->id == pfYUV444P10) {
         image_size = BMPSizeHelper(vi->height, vi->width * vi->format->bytesPerSample * 2);
     } else if (vi->format->numPlanes == 1) {
@@ -113,6 +117,8 @@ static inline int BitsPerPixel(const VSVideoInfo *vi, int output_alt) {
     int bits = vi->format->bytesPerSample * 8;
     if (vi->format->id == pfRGB24 || vi->format->id == pfRGB48 || vi->format->id == pfYUV444P16)
         bits *= 4;
+	else if (vi->format->id == pfRGB30)
+		bits = 30;
     else if (vi->format->id == pfYUV444P10)
         bits *= 2;
     else if (vi->format->numPlanes == 3)
@@ -125,6 +131,7 @@ static inline int BitsPerPixel(const VSVideoInfo *vi, int output_alt) {
 static bool HasSupportedFourCC(int id) {
     return (id == pfCompatBGR32
         || id == pfRGB24
+		|| id == pfRGB30
         || id == pfRGB48
         || id == pfCompatYUY2
         || id == pfYUV420P8
@@ -142,7 +149,7 @@ static bool HasSupportedFourCC(int id) {
 }
 
 static bool NeedsPacking(int id) {
-    return (id == pfRGB24 || id == pfRGB48 || id == pfYUV420P10 || id == pfYUV420P16 || id == pfYUV422P10 || id == pfYUV422P16 || id == pfYUV444P10 || id == pfYUV444P16);
+    return (id == pfRGB24 || id == pfRGB30 || id == pfRGB48 || id == pfYUV420P10 || id == pfYUV420P16 || id == pfYUV422P10 || id == pfYUV422P16 || id == pfYUV444P10 || id == pfYUV444P16);
 }
 
 #endif

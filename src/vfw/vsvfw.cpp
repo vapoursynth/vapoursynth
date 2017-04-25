@@ -764,6 +764,10 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
             p.src_stride[plane] = -vsapi->getStride(f, plane);
         }
         p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
+	} else if (fi->id == pfRGB30) {
+		p.packing = p2p_rgb30_be;
+		p.dst_stride[0] = ((p.width + 63) / 64) * 256;
+		p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
     } else if (fi->id == pfRGB48) {
         p.packing = p2p_argb64_be;
         p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
