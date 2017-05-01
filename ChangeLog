@@ -1,6 +1,6 @@
 r38:
 updated to zimg v2.5.1
-averageframes can now use up to 63 weights 
+averageframes can now use up to 31 weights 
 increased the number of allowed constants in h and v convolution modes to 25
 added new constants to clipinfo
 fixed several subtext corruption and crash bugs (jackoneill)

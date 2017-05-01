@@ -319,7 +319,7 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
         } else if (numWeights != numNodes) {
             throw std::string("Number of weights must match number of clips supplied");
         } else if (numWeights > 63 || numNodes > 63) {
-            throw std::string("Must use between 1 and 63 weights and input clips");
+            throw std::string("Must use between 1 and 31 weights and input clips");
         }
 
         d->useSceneChange = !!vsapi->propGetInt(in, "scenechange", 0, &err);

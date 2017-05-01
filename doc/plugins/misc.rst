@@ -21,7 +21,7 @@ Miscellaneous Filters is a random collection of filters that mostly are useful f
    changes. If this happens then all the weights beyond a scene change are instead applied to the frame
    right before it.
    
-   At most 63 *weights* can be supplied.
+   At most 31 *weights* can be supplied.
     
 .. function:: Hysteresis(clip clipa, clip clipb[, int[] planes])
    :module: misc
