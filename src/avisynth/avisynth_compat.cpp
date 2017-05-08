@@ -253,16 +253,22 @@ static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, co
     PREFETCHR0(LumaYV12)
     PREFETCHR0(BlindPP)
     PREFETCHR0(Deblock)
+
     // Meow
     SOURCE(DGSource)
+	PREFETCHR0(DGDenoise)
+	PREFETCHR0(DGSharpen)
+	temp = int64ToIntS(vsapi->propGetInt(in, "mode", 0, &err));
+	PREFETCH(DGBob, (temp > 0) ? 2 : 1, 1, -2, 2) // close enough?
     BROKEN(IsCombed)
     PREFETCHR0(FieldDeinterlace)
-    PREFETCHR0(DGDenoise)
-    PREFETCHR0(DGSharpen)
-    PREFETCH(Telecide, 1, 1, -1, 10) // not goot
-    temp = int64ToIntS(vsapi->propGetInt(in, "cycle", 0, &err));
-    PREFETCH(Decimate, temp - 1, temp, -temp, temp + 3) // probably suboptimal
-    // Meowtools 2
+    PREFETCH(Telecide, 1, 1, -2, 10) // not good
+	PREFETCH(DGTelecide, 1, 1, -2, 10) // also not good
+	temp = int64ToIntS(vsapi->propGetInt(in, "cycle", 0, &err));
+	PREFETCH(DGDecimate, temp - 1, temp, -(temp + 3), temp + 3) // probably suboptimal
+    PREFETCH(Decimate, temp - 1, temp, -(temp + 3), temp + 3) // probably suboptimal too
+
+    // Masktools2
     PREFETCHR0(mt_edge)
     PREFETCHR1(mt_motion)
     PREFETCHR0(mt_expand)
