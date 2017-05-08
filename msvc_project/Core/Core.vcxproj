@@ -75,6 +75,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <IncludePath>../../include;../../zimg/src/zimg/api;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)$(Platform)\$(Configuration);$(LibraryPath)</LibraryPath>
+    <OutDir>..\..\..\Program Files\Python36\Lib\site-packages\vapoursynth</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <IncludePath>../../include;../../zimg/src/zimg/api;$(IncludePath)</IncludePath>
@@ -182,6 +183,7 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="..\..\src\core\boxblurfilter.cpp" />
     <ClCompile Include="..\..\src\core\cachefilter.cpp" />
     <ClCompile Include="..\..\src\core\cpufeatures.c" />
     <ClCompile Include="..\..\src\core\exprfilter.cpp" />

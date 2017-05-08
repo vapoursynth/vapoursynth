@@ -1094,6 +1094,7 @@ VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), numFuncti
     exprInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
     genericInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
     lutInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
+	boxBlurInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
     mergeInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
     reorderInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
     stdlibInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
