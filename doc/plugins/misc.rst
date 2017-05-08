@@ -13,7 +13,8 @@ Miscellaneous Filters is a random collection of filters that mostly are useful f
    many frames together but it can also be seen as a temporal or multiple frame convolution.
    
    If multiple *clips* are supplied then the frames from each of the *clips* are multiplied by
-   the respective *weights*, summed together and multiplied by *scale* before being output.
+   the respective *weights*, summed together and divided by *scale* before being output. Note
+   that only integer *weights* and *scale* are allowed for integer input formats.
    
    If a single *clip* is supplied then an odd number of *weights* are needed and they will instead
    be temporally centered on the current frame of the *clip*. The rest works as multiple *clip* mode

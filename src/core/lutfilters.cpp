@@ -21,6 +21,7 @@
 #include "internalfilters.h"
 #include "VSHelper.h"
 #include "filtershared.h"
+#include "filtersharedcpp.h"
 
 #include <cstdlib>
 #include <cstdio>
@@ -29,8 +30,6 @@
 #include <limits>
 #include <string>
 #include <algorithm>
-
-typedef void (VS_CC *NodeFreeFunc)(VSNodeRef *);
 
 //////////////////////////////////////////
 // Lut
@@ -203,7 +202,7 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
         RETERROR("Lut: compat formats are not supported");
 
     if (d->vi->format->sampleType != stInteger || d->vi->format->bitsPerSample > 16)
-        RETERROR("Lut: only clips with integer samples and up to 16 bit per channel precision supported");
+        RETERROR("Lut: only clips with integer samples and up to 16 bits per channel precision supported");
 
     bool floatout = !!vsapi->propGetInt(in, "floatout", 0, &err);
     int bitsout = int64ToIntS(vsapi->propGetInt(in, "bits", 0, &err));
@@ -212,23 +211,7 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
     if ((floatout && bitsout != 32) || (!floatout && (bitsout < 8 || bitsout > 16)))
         RETERROR("Lut: only 8-16 bit integer and 32 bit float output supported");
 
-    int n = d->vi->format->numPlanes;
-    int num_planes = vsapi->propNumElements(in, "planes");
-
-    for (int i = 0; i < 3; i++)
-        d->process[i] = (num_planes <= 0);
-
-    for (int i = 0; i < num_planes; i++) {
-        int o = int64ToIntS(vsapi->propGetInt(in, "planes", i, 0));
-
-        if (o < 0 || o >= n)
-            RETERROR("Lut: plane index out of range");
-
-        if (d->process[o])
-            RETERROR("Lut: plane specified twice");
-
-        d->process[o] = true;
-    }
+	getPlanesArg(in, d->process, vsapi);
 
     VSFuncRef *func = vsapi->propGetFunc(in, "function", 0, &err);
     int lut_elem = vsapi->propNumElements(in, "lut");
@@ -256,7 +239,7 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
         RETERROR("Lut: lutf set but float output not specified");
     }
 
-    n = (1 << d->vi->format->bitsPerSample);
+    int n = (1 << d->vi->format->bitsPerSample);
 
     int lut_length = std::max(lut_elem, lutf_elem);
 
@@ -471,23 +454,7 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
         || d->vi[0]->width != d->vi[1]->width || d->vi[0]->height != d->vi[1]->height)
         RETERROR("Lut2: only clips with integer samples, same dimensions, same subsampling and up to a total of 20 indexing bits supported");
 
-    int n = d->vi[0]->format->numPlanes;
-    int num_planes = vsapi->propNumElements(in, "planes");
-
-    for (int i = 0; i < 3; i++)
-        d->process[i] = (num_planes <= 0);
-
-    for (int i = 0; i < num_planes; i++) {
-        int o = int64ToIntS(vsapi->propGetInt(in, "planes", i, 0));
-
-        if (o < 0 || o >= n)
-            RETERROR("Lut2: plane index out of range");
-
-        if (d->process[o])
-            RETERROR("Lut2: plane specified twice");
-
-        d->process[o] = true;
-    }
+	getPlanesArg(in, d->process, vsapi);
 
     int err;
     VSFuncRef *func = vsapi->propGetFunc(in, "function", 0, &err);
@@ -517,7 +484,7 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
         RETERROR("Lut2: lutf set but float output not specified");
     }
 
-    n = 1 << (d->vi[0]->format->bitsPerSample + d->vi[1]->format->bitsPerSample);
+    int n = 1 << (d->vi[0]->format->bitsPerSample + d->vi[1]->format->bitsPerSample);
 
     int lut_length = std::max(lut_elem, lutf_elem);
 

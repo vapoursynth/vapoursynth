@@ -123,13 +123,13 @@ static void VS_CC templateNodeInit(VSMap *in, VSMap *out, void **instanceData, V
 }
 
 template<typename T>
-static void VS_CC templateViInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
+static void VS_CC templateNodeCustomViInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     T *d = reinterpret_cast<T *>(* instanceData);
     vsapi->setVideoInfo(&d->vi, 1, node);
 }
 
 template<typename T>
-static void VS_CC templateClipFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+static void VS_CC templateNodeFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     T *d = reinterpret_cast<T *>(instanceData);
     vsapi->freeNode(d->node);
     delete d;

@@ -286,7 +286,7 @@ static const VSFrameRef *VS_CC averageFramesGetFrame(int n, int activationReason
                 else if (fi->bytesPerSample == 2)
                     averageFramesI<uint16_t>(frames, dst, weights.data(), d->scale, fi->bitsPerSample, plane, vsapi);
                 else
-                    averageFramesF<float>(frames, dst, fweights.data(), d->fscale, plane, vsapi);
+                    averageFramesF<float>(frames, dst, fweights.data(), 1 / d->fscale, plane, vsapi);
             }
         }
 
@@ -318,7 +318,7 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
                 throw std::string("Number of weights must be odd when only one clip supplied");
         } else if (numWeights != numNodes) {
             throw std::string("Number of weights must match number of clips supplied");
-        } else if (numWeights > 63 || numNodes > 63) {
+        } else if (numWeights > 31 || numNodes > 31) {
             throw std::string("Must use between 1 and 31 weights and input clips");
         }
 
@@ -384,7 +384,7 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
         return;
     }
 
-    vsapi->createFilter(in, out, "AverageFrames", templateViInit<AverageFrameData>, averageFramesGetFrame, averageFramesFree, fmParallel, 0, d.release(), core);
+    vsapi->createFilter(in, out, "AverageFrames", templateNodeCustomViInit<AverageFrameData>, averageFramesGetFrame, averageFramesFree, fmParallel, 0, d.release(), core);
 }
 
 ///////////////////////////////////////
