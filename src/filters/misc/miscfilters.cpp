@@ -191,10 +191,12 @@ static void averageFramesF(const std::vector<const VSFrameRef *> &srcs, VSFrameR
 static const VSFrameRef *VS_CC averageFramesGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     AverageFrameData *d = static_cast<AverageFrameData *>(*instanceData);
     bool singleClipMode = (d->nodes.size() == 1);
+    bool clamp = (n > INT_MAX - 1 - (int)(d->weights.size() / 2));
+    int lastframe = clamp ? INT_MAX - 1 : n + (int)(d->weights.size() / 2);
 
     if (activationReason == arInitial) {
         if (singleClipMode) {
-            for (int i = std::max(0, n - (int)(d->weights.size() / 2)); i <= n + (int)(d->weights.size() / 2); i++)
+            for (int i = std::max(0, n - (int)(d->weights.size() / 2)); i <= lastframe; i++)
                 vsapi->requestFrameFilter(i, d->nodes[0], frameCtx);
         } else {
             for (auto iter : d->nodes)
@@ -204,8 +206,12 @@ static const VSFrameRef *VS_CC averageFramesGetFrame(int n, int activationReason
         std::vector<const VSFrameRef *> frames(d->weights.size());
 
         if (singleClipMode) {
-            for (size_t i = 0; i < d->weights.size(); i++)
-                frames[i] = vsapi->getFrameFilter(std::max(0, n + (int)i - (int)(d->weights.size() / 2)), d->nodes[0], frameCtx);
+            int fn = n - (int)(d->weights.size() / 2);
+            for (size_t i = 0; i < d->weights.size(); i++) {
+                frames[i] = vsapi->getFrameFilter(std::max(0, fn), d->nodes[0], frameCtx);
+                if (fn < INT_MAX - 1)
+                    fn++;
+            }
         } else {
             for (size_t i = 0; i < d->weights.size(); i++)
                 frames[i] = vsapi->getFrameFilter(n, d->nodes[i], frameCtx);

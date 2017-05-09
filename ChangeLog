@@ -1,6 +1,7 @@
 r38:
 updated to zimg v2.5.1
 added boxblur filter
+various fixes to averageframes
 averageframes can now use up to 31 weights 
 increased the number of allowed constants in h and v convolution modes to 25
 added new constants to clipinfo

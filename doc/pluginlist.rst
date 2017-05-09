@@ -44,7 +44,6 @@ Resizing and Format Conversion
 
 * `Descale <https://forum.doom9.org/showthread.php?t=174570>`_ -- Undoes resizing
 * `fmtconv <http://forum.doom9.org/showthread.php?t=166504>`_ -- High quality bitdepth, colorspace conversion and resizing
-* `Unresize <http://forum.doom9.org/showthread.php?t=169829>`_ -- Undoes resizing
 * `waifu2x <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-Waifu2x-w2xc/>`_ -- waifu2x upscaling filter based on the w2xc library
 * `waifu2x-caffe <http://forum.doom9.org/showthread.php?t=173673>`_ -- waifu2x upscaling filter based on the waifu2x-caffe library
 * `waifu2x-opt <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-waifu2x-opt>`_ -- waifu2x upscaling filter based on the waifu2x-opt library
