@@ -300,7 +300,7 @@ Classes and Functions
 
    .. py:method:: get_frame(n)
 
-      Returns a VideoFrame from position n.
+      Returns a VideoFrame from position *n*.
 
    .. py:method:: get_frame_async(n)
 
@@ -308,8 +308,6 @@ Classes and Functions
       exception thrown when rendering the frame.
 
       *The future will always be in the running or completed state*
-
-      :param n: The frame number
 
    .. py:method:: get_frame_async_raw(n, cb: callable)
 

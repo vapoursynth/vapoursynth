@@ -29,6 +29,7 @@ Source/Output
 * :ref:`ImageMagick Writer/Reader <imwri>` -- image writer and reader, in the source tree
 * `L-SMASH Source <http://forum.doom9.org/showthread.php?t=167435>`_
 * `QR Code Source Source <https://github.com/jeremypoulter/QRCodeSource>`_
+* `ReadMpls <https://forum.doom9.org/showthread.php?t=174580>`_ -- Automatically loads all files from mpls playlists, needs FFMS2
 * `vsrawsource <http://forum.doom9.org/showthread.php?t=166075>`_ -- Raw video reader
 * `vsavsreader <http://forum.doom9.org/showthread.php?t=165957>`_ -- Import plugin so Avisynth scripts can be opened in VapourSynth
 
@@ -40,6 +41,8 @@ Subtitles
 
 Resizing and Format Conversion
 ------------------------------
+
+* `Descale <https://forum.doom9.org/showthread.php?t=174570>`_ -- Undoes resizing
 * `fmtconv <http://forum.doom9.org/showthread.php?t=166504>`_ -- High quality bitdepth, colorspace conversion and resizing
 * `Unresize <http://forum.doom9.org/showthread.php?t=169829>`_ -- Undoes resizing
 * `waifu2x <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-Waifu2x-w2xc/>`_ -- waifu2x upscaling filter based on the w2xc library
