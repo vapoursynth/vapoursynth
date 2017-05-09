@@ -109,10 +109,16 @@ static void blurHR1(const T *src, T *dst, int width, const unsigned round) {
 	}
 
 	if (width & 1) {
-		//acc += tmp[0];
-		//dst[width - 1] = (acc + round) / 3;
+		acc += tmp[0];
+		dst[width - 1] = (acc + round) / 3;
 	} else {
+		v = src[width - 1];
+		acc += v;
+		dst[width - 2] = (acc + round) / 3;
+		acc -= tmp[1];
 
+		acc += v;
+		dst[width - 1] = (acc + round) / 3;
 	}
 }
 
@@ -139,7 +145,8 @@ static const VSFrameRef *VS_CC boxBlurGetframe(int n, int activationReason, void
 		const VSFrameRef *fr[] = { d->process[0] ? nullptr : src, d->process[1] ? nullptr : src, d->process[2] ? nullptr : src };
 		VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
 		int bytesPerSample = fi->bytesPerSample;
-		uint8_t *tmp = new uint8_t[bytesPerSample * vsapi->getFrameWidth(src, d->process[0] ? 0 : 1)];
+		int radius = d->radius;
+		uint8_t *tmp = (radius > 1) ? new uint8_t[bytesPerSample * vsapi->getFrameWidth(src, d->process[0] ? 0 : 1)] : nullptr;
 
 		for (int plane = 0; plane < fi->numPlanes; plane++) {
 			if (d->process[plane]) {			
@@ -149,16 +156,16 @@ static const VSFrameRef *VS_CC boxBlurGetframe(int n, int activationReason, void
 				int h = vsapi->getFrameHeight(src, plane);
 				int w = vsapi->getFrameWidth(src, plane);
 
-				if (d->radius == 1) {
+				if (radius == 1) {
 					if (bytesPerSample == 1)
 						processPlaneR1<uint8_t>(srcp, dstp, stride, w, h, d->passes);
 					else
 						processPlaneR1<uint16_t>(srcp, dstp, stride, w, h, d->passes);
 				} else {
 					if (bytesPerSample == 1)
-						processPlane<uint8_t>(srcp, dstp, stride, w, h, d->passes, d->radius, tmp);
+						processPlane<uint8_t>(srcp, dstp, stride, w, h, d->passes, radius, tmp);
 					else
-						processPlane<uint16_t>(srcp, dstp, stride, w, h, d->passes, d->radius, tmp);
+						processPlane<uint16_t>(srcp, dstp, stride, w, h, d->passes, radius, tmp);
 				}
 			}
 		}
