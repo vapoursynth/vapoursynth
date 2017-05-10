@@ -39,7 +39,8 @@ lib_LTLIBRARIES =
 if VSCORE
 lib_LTLIBRARIES += libvapoursynth.la
 
-libvapoursynth_la_SOURCES = src/core/cachefilter.cpp \
+libvapoursynth_la_SOURCES = src/core/boxblurfilter.cpp \
+							src/core/cachefilter.cpp \
 							src/core/cachefilter.h \
 							src/core/cpufeatures.c \
 							src/core/cpufeatures.h \
