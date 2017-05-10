@@ -581,7 +581,7 @@ PVideoFrame Avisynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
 // Readonly reference to VideoInfo
 VideoInfoAdapter Avisynther::GetVideoInfo() {
 
-  return VideoInfoAdapter(&vi, this, enable_v210);
+    return VideoInfoAdapter(&vi, this, enable_v210);
 
 }
 
@@ -596,8 +596,8 @@ int Avisynther::BMPSize() {
         image_size *= vi.height;
     } else if (via.pixel_format == pfRGB24 || via.pixel_format == pfRGB48 || via.pixel_format == pfYUV444P16) {
         image_size = BMPSizeHelper(vi.height, vi.width * BytesPerSample(vi) * 4);
-	} else if (via.pixel_format == pfRGB30) {
-		image_size = ((vi.width + 63) / 64) * 256 * vi.height;
+    } else if (via.pixel_format == pfRGB30) {
+        image_size = ((vi.width + 63) / 64) * 256 * vi.height;
     } else if (via.pixel_format == pfYUV444P10) {
         image_size = BMPSizeHelper(vi.height, vi.width * BytesPerSample(vi) * 2);
     } else if (NumPlanes(vi) == 1) {
@@ -621,8 +621,8 @@ int Avisynther::BitsPerPixel() {
     int bits = BytesPerSample(vi) * 8;
     if (via.pixel_format == pfRGB24 || via.pixel_format == pfRGB48 || via.pixel_format == pfYUV444P16)
         bits *= 4;
-	else if (via.pixel_format == pfRGB30)
-		bits = 30;
+    else if (via.pixel_format == pfRGB30)
+        bits = 30;
     else if (via.pixel_format == pfYUV444P10)
         bits *= 2;
     else if (NumPlanes(vi) == 3)
@@ -638,64 +638,58 @@ int Avisynther::BitsPerPixel() {
 // Read value of string variable from script. Returned pointer
 // is valid until next call, so copy if you need it long term.
 const char* Avisynther::GetVarAsString(
-  const char* varName, const char* defVal)
-{
-  FraSuspend();
+    const char* varName, const char* defVal) {
+    FraSuspend();
 
-  const char *string = defVal;
-  try {
-    AVSValue value = env->GetVar(varName);
-    if (value.IsString()) {
-      string = value.AsString(defVal);
+    const char *string = defVal;
+    try {
+        AVSValue value = env->GetVar(varName);
+        if (value.IsString()) {
+            string = value.AsString(defVal);
+        }
+    } catch (...) {
     }
-  }
-  catch (...) {
-  }
-  lastStringValue = string ? string : "";
+    lastStringValue = string ? string : "";
 
-  FraResume();
-  return lastStringValue.c_str();
+    FraResume();
+    return lastStringValue.c_str();
 }
 
 
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
 
-bool Avisynther::GetVarAsBool(const char* varName, bool defVal)
-{
-  FraSuspend();
+bool Avisynther::GetVarAsBool(const char* varName, bool defVal) {
+    FraSuspend();
 
-  bool result = defVal;
-  try {
-    AVSValue value = env->GetVar(varName);
-    if (value.IsBool()) {
-        result = value.AsBool(defVal);
+    bool result = defVal;
+    try {
+        AVSValue value = env->GetVar(varName);
+        if (value.IsBool()) {
+            result = value.AsBool(defVal);
+        }
+    } catch (...) {
     }
-  }
-  catch (...) {
-  }
 
-  FraResume();
-  return result;
+    FraResume();
+    return result;
 }
 
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
 
-int Avisynther::GetVarAsInt(const char* varName,int defVal)
-{
-  FraSuspend();
+int Avisynther::GetVarAsInt(const char* varName, int defVal) {
+    FraSuspend();
 
-  int result = defVal;
-  try {
-    AVSValue value = env->GetVar(varName);
-    result = value.AsInt(defVal);
-  }
-  catch (...) {
-  }
+    int result = defVal;
+    try {
+        AVSValue value = env->GetVar(varName);
+        result = value.AsInt(defVal);
+    } catch (...) {
+    }
 
-  FraResume();
-  return result;
+    FraResume();
+    return result;
 }
 
 /*---------------------------------------------------------
@@ -703,15 +697,15 @@ int Avisynther::GetVarAsInt(const char* varName,int defVal)
 
 // Take a copy of the current error message
 void Avisynther::setError(const char *_text, const wchar_t *alt) {
-  std::wstring_convert<std::codecvt<wchar_t, char, std::mbstate_t>, wchar_t> conversion;
-  errText.clear();
+    std::wstring_convert<std::codecvt<wchar_t, char, std::mbstate_t>, wchar_t> conversion;
+    errText.clear();
 
-  if (_text)
-      errText = conversion.from_bytes(_text);
-  else if (alt)
-      errText = alt;
-  else
-      errText = L"AvisynthError.msg corrupted.";
+    if (_text)
+        errText = conversion.from_bytes(_text);
+    else if (alt)
+        errText = alt;
+    else
+        errText = L"AvisynthError.msg corrupted.";
 }
 
 /*---------------------------------------------------------
@@ -719,7 +713,7 @@ void Avisynther::setError(const char *_text, const wchar_t *alt) {
 
 // Retrieve the current avisynth error message
 const wchar_t* Avisynther::getError() {
-  return errText.c_str();
+    return errText.c_str();
 }
 
 uint8_t *Avisynther::GetPackedFrame() {
@@ -729,45 +723,40 @@ uint8_t *Avisynther::GetPackedFrame() {
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
 // Exception protected refresh the IScriptEnvironment
-int/*error*/ Avisynther::newEnv()
-{
-  int error = ERROR_OUTOFMEMORY;
+int/*error*/ Avisynther::newEnv() {
+    int error = ERROR_OUTOFMEMORY;
 
-  ASSERT(CreateScriptEnvironment);
+    ASSERT(CreateScriptEnvironment);
 
-  // Purge any old IScriptEnvironment
-  if (env) {
-    delete lastFrame;
-    lastFrame = nullptr;
-    delete clip;
-    clip = nullptr;
+    // Purge any old IScriptEnvironment
+    if (env) {
+        delete lastFrame;
+        lastFrame = nullptr;
+        delete clip;
+        clip = nullptr;
+        try {
+            delete env;
+        } catch (...) {}
+        env = nullptr;
+    }
+
+    // Make a new IScriptEnvironment
     try {
-      delete env;
+        env = CreateScriptEnvironment(AVISYNTH_INTERFACE_VERSION);
+        if (env) {
+            AVS_linkage = env->GetAVSLinkage();
+            clip = new PClip;
+            lastFrame = new PVideoFrame;
+            error = 0;
+        }
+    } catch (AvisynthError err) {
+        setError(err.msg, L"CreateScriptEnvironment: AvisynthError.msg corrupted.");
+    } catch (...) {
+        setError("CreateScriptEnvironment: Unknown exception.");
     }
-    catch (...) { }
-    env = nullptr;
-  }
 
-  // Make a new IScriptEnvironment
-  try {
-    env = CreateScriptEnvironment(AVISYNTH_INTERFACE_VERSION);
-    if(env)
-    {
-      AVS_linkage = env->GetAVSLinkage();
-      clip = new PClip;
-      lastFrame = new PVideoFrame;
-      error = 0;
-    }
-  }
-  catch(AvisynthError err) {
-    setError(err.msg, L"CreateScriptEnvironment: AvisynthError.msg corrupted.");
-  }
-  catch (...) {
-    setError("CreateScriptEnvironment: Unknown exception.");
-  }
-
-  ASSERT(!error == !!env);
-  return error;
+    ASSERT(!error == !!env);
+    return error;
 }
 
 /*---------------------------------------------------------
@@ -776,21 +765,18 @@ int/*error*/ Avisynther::newEnv()
 // Exception protected IScriptEnvironment->Invoke()
 AVSValue Avisynther::Invoke(const char* name, const AVSValue &args) {
 
-  if (env) {
-    try {
-      return env->Invoke(name, args);
+    if (env) {
+        try {
+            return env->Invoke(name, args);
+        } catch (IScriptEnvironment::NotFound) {
+            setError("Invoke: Function NotFound.");
+        } catch (AvisynthError err) {
+            setError(err.msg, L"Invoke: AvisynthError.msg corrupted.");
+        } catch (...) {
+            setError("Invoke: Unknown exception.");
+        }
     }
-    catch(IScriptEnvironment::NotFound) {
-      setError("Invoke: Function NotFound.");
-    }
-    catch(AvisynthError err) {
-      setError(err.msg, L"Invoke: AvisynthError.msg corrupted.");
-    }
-    catch (...) {
-      setError("Invoke: Unknown exception.");
-    }
-  }
-  return AVSValue();
+    return AVSValue();
 
 }
 
@@ -799,176 +785,163 @@ AVSValue Avisynther::Invoke(const char* name, const AVSValue &args) {
 
 // Constructor
 Avisynther::Avisynther(void) :
-  references(1),
-  CreateScriptEnvironment(nullptr),
-  hlib(0),
-  env(0),
-  clip(nullptr),
-  fraThread(0),
-  fraSuspendCount(0),
-  fraPosition(0),
-  fraEndPosition(0),
-  fraFrameCount(0),
-  fraResumeDelay(0),
-  lastPosition(-1),
-  lastFrame(nullptr)
-{
-  vi = {};
+    references(1),
+    CreateScriptEnvironment(nullptr),
+    hlib(0),
+    env(0),
+    clip(nullptr),
+    fraThread(0),
+    fraSuspendCount(0),
+    fraPosition(0),
+    fraEndPosition(0),
+    fraFrameCount(0),
+    fraResumeDelay(0),
+    lastPosition(-1),
+    lastFrame(nullptr) {
+    vi = {};
 
-  InitializeCriticalSection(&fraMutex);
-  fraResumeEvent = CreateEvent(0,1,0,0);
-  fraSuspendedEvent = CreateEvent(0,1,0,0);
+    InitializeCriticalSection(&fraMutex);
+    fraResumeEvent = CreateEvent(0, 1, 0, 0);
+    fraSuspendedEvent = CreateEvent(0, 1, 0, 0);
 }
 
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
 
 // Destructor
-Avisynther::~Avisynther(void)
-{
-  ASSERT(!references);
+Avisynther::~Avisynther(void) {
+    ASSERT(!references);
 
-  if (fraThread) {
-    VERIFY(CloseHandle(fraThread));
-  }
-  if (fraResumeEvent) {
-    VERIFY(CloseHandle(fraResumeEvent));
-  }
-  if (fraSuspendedEvent) {
-    VERIFY(CloseHandle(fraSuspendedEvent));
-  }
-  DeleteCriticalSection(&fraMutex);
-
-  if (env) {
-    delete lastFrame;
-    lastFrame = nullptr;
-    delete clip;
-    clip = nullptr;
-    try {
-      delete env;
+    if (fraThread) {
+        VERIFY(CloseHandle(fraThread));
     }
-    catch (...) { }
-    env = 0;
-  }
+    if (fraResumeEvent) {
+        VERIFY(CloseHandle(fraResumeEvent));
+    }
+    if (fraSuspendedEvent) {
+        VERIFY(CloseHandle(fraSuspendedEvent));
+    }
+    DeleteCriticalSection(&fraMutex);
 
-  if (hlib) {
-    AVS_linkage = nullptr;
-    ASSERT(FreeLibrary(hlib));
-    hlib = nullptr;
-    CreateScriptEnvironment = nullptr;
-  }
+    if (env) {
+        delete lastFrame;
+        lastFrame = nullptr;
+        delete clip;
+        clip = nullptr;
+        try {
+            delete env;
+        } catch (...) {}
+        env = 0;
+    }
+
+    if (hlib) {
+        AVS_linkage = nullptr;
+        ASSERT(FreeLibrary(hlib));
+        hlib = nullptr;
+        CreateScriptEnvironment = nullptr;
+    }
 }
 
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
 
 int/*error*/ Avisynther::Init(
-  AvfsLog_* log,
-  AvfsVolume_* volume)
-{
-  int error = 0;
-  // Load Avisynth.dll
-  hlib = LoadLibrary(L"avisynth.dll");
-  // hlib = LoadLibraryEx("c:\\code\\avisynth\\src\\debug\\avisynth.dll",0,LOAD_WITH_ALTERED_SEARCH_PATH);
-  if (hlib) {
-    // Get the CreateScriptEnvironment entry point
-    CreateScriptEnvironment = (ICreateScriptEnvironment)GetProcAddress(hlib, "CreateScriptEnvironment");
-    if (!CreateScriptEnvironment) {
-      error = GetLastError();
-      setError("Cannot find \"CreateScriptEnvironment\" entry point.");
+    AvfsLog_* log,
+    AvfsVolume_* volume) {
+    int error = 0;
+    // Load Avisynth.dll
+    hlib = LoadLibrary(L"avisynth.dll");
+    // hlib = LoadLibraryEx("c:\\code\\avisynth\\src\\debug\\avisynth.dll",0,LOAD_WITH_ALTERED_SEARCH_PATH);
+    if (hlib) {
+        // Get the CreateScriptEnvironment entry point
+        CreateScriptEnvironment = (ICreateScriptEnvironment)GetProcAddress(hlib, "CreateScriptEnvironment");
+        if (!CreateScriptEnvironment) {
+            error = GetLastError();
+            setError("Cannot find \"CreateScriptEnvironment\" entry point.");
+        } else {
+            error = Import(volume->GetScriptFileName());
+        }
+    } else {
+        error = GetLastError();
+        setError("Cannot load \"avisynth.dll\".");
     }
-    else {
-      error = Import(volume->GetScriptFileName());
-    }
-  }
-  else {
-    error = GetLastError();
-    setError("Cannot load \"avisynth.dll\".");
-  }
 
-  if (!error) {
-    // Initialize frame read-ahead logic.
-    fraFrameCount = GetVarAsInt("AVFS_ReadAheadFrameCount",
-      fraDefaultFrameCount);
-    if (fraFrameCount < 0) {
-      fraFrameCount = 0;
+    if (!error) {
+        // Initialize frame read-ahead logic.
+        fraFrameCount = GetVarAsInt("AVFS_ReadAheadFrameCount",
+            fraDefaultFrameCount);
+        if (fraFrameCount < 0) {
+            fraFrameCount = 0;
+        }
+        if (fraFrameCount > fraMaxFrameCount) {
+            fraFrameCount = fraMaxFrameCount;
+        }
+        fraResumeDelay = GetVarAsInt("AVFS_ReadAheadDelayMsecs",
+            fraDefaultResumeDelay);
+        if (fraResumeDelay > fraMaxResumeDelay) {
+            fraResumeDelay = fraMaxResumeDelay;
+        }
+        if (fraFrameCount && fraResumeEvent && fraSuspendedEvent) {
+            ResetEvent(fraResumeEvent);
+            SetEvent(fraSuspendedEvent);
+            DWORD unusedThreadId;
+            fraThread = CreateThread(0, 0, FraThreadMainThunk, this, 0, &unusedThreadId);
+        }
     }
-    if (fraFrameCount > fraMaxFrameCount) {
-      fraFrameCount = fraMaxFrameCount;
-    }
-    fraResumeDelay = GetVarAsInt("AVFS_ReadAheadDelayMsecs",
-      fraDefaultResumeDelay);
-    if (fraResumeDelay > fraMaxResumeDelay) {
-      fraResumeDelay = fraMaxResumeDelay;
-    }
-    if (fraFrameCount && fraResumeEvent && fraSuspendedEvent) {
-      ResetEvent(fraResumeEvent);
-      SetEvent(fraSuspendedEvent);
-      DWORD unusedThreadId;
-      fraThread = CreateThread(0,0,FraThreadMainThunk,this,0,&unusedThreadId);
-    }
-  }
 
-  if (error) {
-    log->Line(getError());
-  }
-  else {
-    reportFormat(log);
-  }
-  return error;
+    if (error) {
+        log->Line(getError());
+    } else {
+        reportFormat(log);
+    }
+    return error;
 }
 
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
 
-void Avisynther::AddRef(void)
-{
-  ASSERT(references);
-  references ++;
+void Avisynther::AddRef(void) {
+    ASSERT(references);
+    references++;
 }
 
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
 
-void Avisynther::Release(void)
-{
-  ASSERT(references);
-  if (!--references)
-  {
-    if (fraThread) {
-      // Kill the read-ahead thread before entering
-      // destructor, to make sure it is not partially
-      // torn down while thread running.
-      FraSuspend();
-      EnterCriticalSection(&fraMutex);
-      fraSuspendCount = INT_MAX;
-      SetEvent(fraResumeEvent);
-      LeaveCriticalSection(&fraMutex);
-      WaitForSingleObject(fraThread,INFINITE);
+void Avisynther::Release(void) {
+    ASSERT(references);
+    if (!--references) {
+        if (fraThread) {
+            // Kill the read-ahead thread before entering
+            // destructor, to make sure it is not partially
+            // torn down while thread running.
+            FraSuspend();
+            EnterCriticalSection(&fraMutex);
+            fraSuspendCount = INT_MAX;
+            SetEvent(fraResumeEvent);
+            LeaveCriticalSection(&fraMutex);
+            WaitForSingleObject(fraThread, INFINITE);
+        }
+        delete this;
     }
-    delete this;
-  }
 }
 
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
 
 void AvfsProcessScript(
-  AvfsLog_* log,
-  AvfsVolume_* volume)
-{
-  // Construct an implementation of the media interface and
-  // initialize the script.
-  Avisynther* avs = new(std::nothrow) Avisynther();
-  if (avs && avs->Init(log,volume) != 0)
-  {
-     avs->Release();
-     avs = nullptr;
-  }
-  if (avs)
-  {
-    AvfsWavMediaInit(log,avs,volume);
-    AvfsAviMediaInit(log,avs,volume);
-    avs->Release();
-  }
+    AvfsLog_* log,
+    AvfsVolume_* volume) {
+    // Construct an implementation of the media interface and
+    // initialize the script.
+    Avisynther* avs = new(std::nothrow) Avisynther();
+    if (avs && avs->Init(log, volume) != 0) {
+        avs->Release();
+        avs = nullptr;
+    }
+    if (avs) {
+        AvfsWavMediaInit(log, avs, volume);
+        AvfsAviMediaInit(log, avs, volume);
+        avs->Release();
+    }
 }

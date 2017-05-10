@@ -54,7 +54,7 @@ struct IAvisynthClipInfo : IUnknown {
     virtual bool __stdcall IsFieldBased() = 0;
 };
 
-class VapourSynthFile final: public IAVIFile, public IPersistFile, public IClassFactory, public IAvisynthClipInfo {
+class VapourSynthFile final : public IAVIFile, public IPersistFile, public IClassFactory, public IAvisynthClipInfo {
     friend class VapourSynthStream;
 private:
     int num_threads;
@@ -91,8 +91,8 @@ public:
 
     //////////// IClassFactory
 
-    STDMETHODIMP CreateInstance (LPUNKNOWN pUnkOuter, REFIID riid,  void * * ppvObj) ;
-    STDMETHODIMP LockServer (BOOL fLock) ;
+    STDMETHODIMP CreateInstance(LPUNKNOWN pUnkOuter, REFIID riid, void * * ppvObj);
+    STDMETHODIMP LockServer(BOOL fLock);
 
     //////////// IPersistFile
 
@@ -128,7 +128,7 @@ public:
 
 ///////////////////////////////////
 
-class VapourSynthStream final: public IAVIStream , public IAVIStreaming {
+class VapourSynthStream final : public IAVIStream, public IAVIStreaming {
 public:
 
     //////////// IUnknown
@@ -205,14 +205,14 @@ STDAPI DllCanUnloadNow() {
 ///////////////////////////////////////////////////////////////////////////
 //////////// IClassFactory
 
-STDMETHODIMP VapourSynthFile::CreateInstance (LPUNKNOWN pUnkOuter, REFIID riid,  void * * ppvObj) {
+STDMETHODIMP VapourSynthFile::CreateInstance(LPUNKNOWN pUnkOuter, REFIID riid, void * * ppvObj) {
     if (pUnkOuter)
         return CLASS_E_NOAGGREGATION;
     HRESULT hresult = Create(CLSID_VapourSynth, riid, ppvObj);
     return hresult;
 }
 
-STDMETHODIMP VapourSynthFile::LockServer (BOOL fLock) {
+STDMETHODIMP VapourSynthFile::LockServer(BOOL fLock) {
     return S_OK;
 }
 
@@ -364,7 +364,7 @@ STDMETHODIMP VapourSynthFile::EndRecord() {
 
 STDMETHODIMP VapourSynthFile::Save(LPCSTR szFile, AVICOMPRESSOPTIONS FAR *lpOptions,
     AVISAVECALLBACK lpfnCallback) {
-        return AVIERR_READONLY;
+    return AVIERR_READONLY;
 }
 
 STDMETHODIMP VapourSynthFile::ReadData(DWORD fcc, LPVOID lp, LONG *lpcb) {
@@ -400,7 +400,7 @@ VapourSynthFile::~VapourSynthFile() {
 }
 
 STDMETHODIMP VapourSynthFile::Open(LPCSTR szFile, UINT mode, LPCOLESTR lpszFileName) {
-    if (mode & (OF_CREATE|OF_WRITE))
+    if (mode & (OF_CREATE | OF_WRITE))
         return E_FAIL;
     szScriptName = szFile;
     return S_OK;
@@ -505,19 +505,19 @@ STDMETHODIMP VapourSynthFile::Info(AVIFILEINFOW *pfi, LONG lSize) {
 
     AVIFILEINFOW afi = {};
 
-    afi.dwMaxBytesPerSec    = 0;
-    afi.dwFlags                = AVIFILEINFO_HASINDEX | AVIFILEINFO_ISINTERLEAVED;
-    afi.dwCaps                = AVIFILECAPS_CANREAD | AVIFILECAPS_ALLKEYFRAMES | AVIFILECAPS_NOCOMPRESSION;
+    afi.dwMaxBytesPerSec = 0;
+    afi.dwFlags = AVIFILEINFO_HASINDEX | AVIFILEINFO_ISINTERLEAVED;
+    afi.dwCaps = AVIFILECAPS_CANREAD | AVIFILECAPS_ALLKEYFRAMES | AVIFILECAPS_NOCOMPRESSION;
 
-    afi.dwStreams                = 1;
-    afi.dwSuggestedBufferSize    = 0;
-    afi.dwWidth                    = vi->width;
-    afi.dwHeight                = vi->height;
-    afi.dwEditCount                = 0;
+    afi.dwStreams = 1;
+    afi.dwSuggestedBufferSize = 0;
+    afi.dwWidth = vi->width;
+    afi.dwHeight = vi->height;
+    afi.dwEditCount = 0;
 
-    afi.dwRate                    = int64ToIntS(vi->fpsNum ? vi->fpsNum : 1);
-    afi.dwScale                    = int64ToIntS(vi->fpsDen ? vi->fpsDen : 30);
-    afi.dwLength                = vi->numFrames;
+    afi.dwRate = int64ToIntS(vi->fpsNum ? vi->fpsNum : 1);
+    afi.dwScale = int64ToIntS(vi->fpsDen ? vi->fpsDen : 30);
+    afi.dwLength = vi->numFrames;
 
     wcscpy(afi.szFileType, L"VapourSynth");
 
@@ -537,8 +537,8 @@ STDMETHODIMP VapourSynthFile::GetStream(PAVISTREAM *ppStream, DWORD fccType, LON
     VapourSynthStream *casr;
     char fcc[5];
 
-    fcc[0] = BePrintable(fccType      );
-    fcc[1] = BePrintable(fccType >>  8);
+    fcc[0] = BePrintable(fccType);
+    fcc[1] = BePrintable(fccType >> 8);
     fcc[2] = BePrintable(fccType >> 16);
     fcc[3] = BePrintable(fccType >> 24);
     fcc[4] = 0;
@@ -549,7 +549,7 @@ STDMETHODIMP VapourSynthFile::GetStream(PAVISTREAM *ppStream, DWORD fccType, LON
     *ppStream = nullptr;
 
     if (!fccType) {
-        if (lParam==0)
+        if (lParam == 0)
             fccType = streamtypeVIDEO;
     }
 
@@ -667,7 +667,7 @@ STDMETHODIMP_(LONG) VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) {
     AVISTREAMINFOW asi = {};
     asi.fccType = streamtypeVIDEO;
     asi.dwQuality = DWORD(-1);
-    
+
     int image_size = BMPSize(vi, (vi->format->id == pfYUV422P10 && parent->enable_v210));
 
     if (!GetFourCC(vi->format->id, (vi->format->id == pfYUV422P10 && parent->enable_v210), asi.fccHandler))
@@ -744,7 +744,7 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
     }
 
     const VSFormat *fi = vsapi->getFrameFormat(f);
-    
+
     p2p_buffer_param p = {};
     p.width = vsapi->getFrameWidth(f, 0);
     p.height = vsapi->getFrameHeight(f, 0);
@@ -764,10 +764,10 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
             p.src_stride[plane] = -vsapi->getStride(f, plane);
         }
         p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-	} else if (fi->id == pfRGB30) {
-		p.packing = p2p_rgb30_be;
-		p.dst_stride[0] = ((p.width + 63) / 64) * 256;
-		p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
+    } else if (fi->id == pfRGB30) {
+        p.packing = p2p_rgb30_be;
+        p.dst_stride[0] = ((p.width + 63) / 64) * 256;
+        p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
     } else if (fi->id == pfRGB48) {
         p.packing = p2p_argb64_be;
         p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
@@ -901,6 +901,6 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
 STDMETHODIMP VapourSynthStream::Write(LONG lStart, LONG lSamples, LPVOID lpBuffer,
     LONG cbBuffer, DWORD dwFlags, LONG FAR *plSampWritten,
     LONG FAR *plBytesWritten) {
-        return AVIERR_READONLY;
+    return AVIERR_READONLY;
 }
 
