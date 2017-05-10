@@ -29,7 +29,7 @@ Source/Output
 * :ref:`ImageMagick Writer/Reader <imwri>` -- image writer and reader, in the source tree
 * `L-SMASH Source <http://forum.doom9.org/showthread.php?t=167435>`_
 * `QR Code Source Source <https://github.com/jeremypoulter/QRCodeSource>`_
-* `ReadMpls <https://forum.doom9.org/showthread.php?t=174580>`_ -- Automatically loads all files from mpls playlists, needs FFMS2
+* `ReadMpls <https://forum.doom9.org/showthread.php?t=174580>`_ -- Returns a list of all files and paths in a mpls playlist
 * `vsrawsource <http://forum.doom9.org/showthread.php?t=166075>`_ -- Raw video reader
 * `vsavsreader <http://forum.doom9.org/showthread.php?t=165957>`_ -- Import plugin so Avisynth scripts can be opened in VapourSynth
 

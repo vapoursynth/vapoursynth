@@ -210,6 +210,12 @@ static void VS_CC boxBlurCreate(const VSMap *in, VSMap *out, void *userData, VSC
 			vpasses = 1;
 		bool vblur = (vradius > 0) && (vpasses > 0);
 
+        if (hpasses < 0 || vpasses < 0)
+            throw std::string("number of passes can't be negative");
+
+        if (hradius < 0 || vradius < 0)
+            throw std::string("radius can't be negative");
+
 		if (!hblur && !vblur)
 			throw std::string("nothing to be performed");
 
