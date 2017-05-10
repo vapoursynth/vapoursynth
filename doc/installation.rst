@@ -75,7 +75,7 @@ These are the requirements:
 
    * Sphinx for the documentation (optional)
 
-   * libass and ffmpeg for the Subtext plugin (optional)
+   * iconv, libass, and ffmpeg for the Subtext plugin (optional)
 
    * ImageMagick 7 for the Imwri plugin (optional)
 

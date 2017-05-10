@@ -5,10 +5,10 @@ Subtext
 
 Subtext is a subtitle renderer that uses libass and ffmpeg.
 
-.. function::   TextFile(clip clip, string file[, string charset="UTF-8", float scale=1, int debuglevel=0, string fontdir="", float linespacing=0, int[] margins=[0, 0, 0, 0], float sar=0, bint blend=True, int matrix, string matrix_s, int transfer, string transfer_s, int primaries, string primaries_s])
+.. function::   TextFile(clip clip, string file[, string charset="UTF-8", float scale=1, int debuglevel=0, string fontdir="", float linespacing=0, int[] margins=[0, 0, 0, 0], float sar=0, string style="", bint blend=True, int matrix, string matrix_s, int transfer, string transfer_s, int primaries, string primaries_s])
    :module: sub
 
-   TextFile renders ASS subtitles.
+   TextFile renders text subtitles, such as ASS and SRT.
 
    TextFile has two modes of operation. With blend=True (the default),
    it returns *clip* with the subtitles burned in. With blend=False, it
@@ -22,10 +22,10 @@ Subtext is a subtitle renderer that uses libass and ffmpeg.
          Input clip.
 
       file
-         ASS script to be rendered.
+         Subtitle file to be rendered.
 
       charset
-         Character set of the ASS script, in enca or iconv format.
+         Character set of the subtitle, in iconv format.
 
       scale
          Font scale.
@@ -48,6 +48,11 @@ Subtext is a subtitle renderer that uses libass and ffmpeg.
       sar
          Storage aspect ratio.
 
+      style
+         Custom ASS style for subtitle formats other than ASS. If empty
+         (the default), libavcodec's default style is used. This
+         parameter has no effect on ASS subtitles.
+
       blend
          If True, the subtitles will be blended into *clip*. Otherwise,
          the bitmaps will be returned untouched.
@@ -68,10 +73,10 @@ Subtext is a subtitle renderer that uses libass and ffmpeg.
          "709".
 
 
-.. function::   Subtitle(clip clip, string text[, string style="sans-serif,20,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,7,10,10,10,1", int start=0, int end=clip.numFrames, int debuglevel=0, string fontdir="", float linespacing=0, int[] margins=[0, 0, 0, 0], float sar=0, bint blend=True, int matrix, string matrix_s, int transfer, string transfer_s, int primaries, string primaries_s])
+.. function::   Subtitle(clip clip, string text[, int start=0, int end=clip.numFrames, int debuglevel=0, string fontdir="", float linespacing=0, int[] margins=[0, 0, 0, 0], float sar=0, string style="sans-serif,20,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,7,10,10,10,1", bint blend=True, int matrix, string matrix_s, int transfer, string transfer_s, int primaries, string primaries_s])
    :module: sub
 
-   Instead of rendering an ASS script, Subtitle renders the string *text*.
+   Instead of rendering a subtitle file, Subtitle renders the string *text*.
    Otherwise it works the same as TextFile.
 
    Parameters:
