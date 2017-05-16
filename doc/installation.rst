@@ -77,7 +77,7 @@ These are the requirements:
 
    * libass and ffmpeg for the Subtext plugin (optional)
 
-   * ImageMagick 6.9.?.? for the Imwri plugin (optional)
+   * ImageMagick 7 for the Imwri plugin (optional)
 
    * Tesseract 3 for the OCR plugin (optional)
 
@@ -94,7 +94,7 @@ First download and install the prerequisites:
 Installation of the required packages is very easy. Simply run these
 commands in a terminal and wait for them to complete::
 
-   brew install python3 yasm ffmpeg libass zimg
+   brew install python3 yasm ffmpeg libass zimg imagemagick
    pip3 install cython
    
 If you've already installed all the required packages and instead want
@@ -109,7 +109,7 @@ Required packages (Ubuntu)
 In Ubuntu 16.10 the following command will install them, minus zimg,
 which needs to be compiled from source::
 
-   apt-get install build-essential yasm git libavcodec-dev libavformat-dev libavutil-dev libass-dev python3-pip python3-dev cython3 autoconf libtool libmagick++-dev libtesseract-dev
+   apt-get install build-essential yasm git libavcodec-dev libavformat-dev libavutil-dev libass-dev python3-pip python3-dev cython3 autoconf libtool libtesseract-dev
    
 The packages may have different names in other distributions.
 
