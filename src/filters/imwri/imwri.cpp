@@ -573,7 +573,7 @@ static void readImageHelper(VSFrameRef *frame, VSFrameRef *alphaFrame, bool isGr
                 a += strideA / sizeof(T);
             }
         } else {
-            memset(a, 0, sizeof(T) * strideA * height);
+            memset(a, 0, strideA  * height);
         }
     } else {
 
@@ -689,7 +689,7 @@ static const VSFrameRef *VS_CC readGetFrame(int n, int activationReason, void **
                             a += strideA / sizeof(float);
                         }
                     } else {
-                        memset(a, 0, sizeof(float) * strideA * height);
+                        memset(a, 0, strideA  * height);
                     }
                 } else {
                     for (int y = 0; y < height; y++) {
