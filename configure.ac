@@ -38,7 +38,7 @@ AS_IF(
 
 AC_ARG_WITH(
             [plugindir],
-            AS_HELP_STRING([--with-plugindir], [Folder where the included plugins will be installed. (default=LIBDIR/vapoursynth)]),
+            AS_HELP_STRING([--with-plugindir], [The default value for the configuration option 'SystemPluginDir' in vapoursynth.conf. (default=LIBDIR/vapoursynth)]),
             [PLUGINDIR=$with_plugindir],
             [PLUGINDIR=$libdir/$PACKAGE_NAME]
 )
