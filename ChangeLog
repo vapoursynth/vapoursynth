@@ -1,5 +1,7 @@
 r38:
 updated to zimg v2.5.1
+updated imwri to use imagemagick 7
+added srt support to subtext (jackoneill)
 added boxblur filter
 various fixes to averageframes
 averageframes can now use up to 31 weights 
