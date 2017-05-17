@@ -8,7 +8,8 @@ Subtext is a subtitle renderer that uses libass and ffmpeg.
 .. function::   TextFile(clip clip, string file[, string charset="UTF-8", float scale=1, int debuglevel=0, string fontdir="", float linespacing=0, int[] margins=[0, 0, 0, 0], float sar=0, string style="", bint blend=True, int matrix, string matrix_s, int transfer, string transfer_s, int primaries, string primaries_s])
    :module: sub
 
-   TextFile renders text subtitles, such as ASS and SRT.
+   TextFile renders text subtitles. Supported formats include ASS,
+   JACOsub, MicroDVD, SAMI, SRT, WebVTT, and some other obscure ones.
 
    TextFile has two modes of operation. With blend=True (the default),
    it returns *clip* with the subtitles burned in. With blend=False, it
