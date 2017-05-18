@@ -17,6 +17,7 @@ Scripts
 * `Oyster <http://forum.doom9.org/showthread.php?t=173470>`_ -- Compression artifact removal
 * `Vine <http://forum.doom9.org/showthread.php?t=173703>`_ -- De-halo and morphology functions
 * `vsTAAmbk <https://github.com/HomeOfVapourSynthEvolution/vsTAAmbk>`_ -- AA-script
+* `YoloCR <https://git.clapity.eu/Id/YoloCR>`_ -- A convenient OCR script
 
 Plugins
 #######
