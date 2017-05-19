@@ -56,6 +56,9 @@
 #define IMWRI_ID "com.vapoursynth.imwri"
 #endif
 
+// Because proper namespace handling is too hard for ImageMagick shitvelopers
+using MagickCore::Quantum;
+
 //////////////////////////////////////////
 // Shared
 
