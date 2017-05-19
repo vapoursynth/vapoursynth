@@ -12,6 +12,10 @@ AC_PROG_CC
 AC_PROG_CXX
 
 
+AC_SYS_LARGEFILE
+AC_FUNC_FSEEKO
+
+
 AC_ARG_ENABLE([debug], AS_HELP_STRING([--enable-debug], [Enable compilation options required for debugging. (default=no)]))
 AS_IF(
       [test "x$enable_debug" = "xyes"],
@@ -360,6 +364,32 @@ AS_CASE(
         ]
 )
 
+AC_CHECK_HEADERS(
+                 [iconv.h],
+                 [],
+                 [
+                  AS_IF(
+                        [test "x$subtext" = "xyes"],
+                        [AC_MSG_ERROR([the subtext plugin was explicitly enabled, but iconv.h cannot be found.])],
+                        [subtext=""]
+                       )
+                 ]
+                )
+
+AC_SEARCH_LIBS([libiconv_open], [iconv])
+AC_SEARCH_LIBS([iconv_open], [iconv])
+
+AS_IF(
+      [test "x$ac_cv_search_libiconv_open" = "xno" -a "x$ac_cv_search_iconv_open" = "xno"],
+      [
+       AS_IF(
+             [test "x$subtext" = "xyes"],
+             [AC_MSG_ERROR([the subtext plugin was explicitly enabled, but iconv_open cannot be found.])],
+             [subtext=""]
+            )
+      ]
+     )
+
 PKG_CHECK_MODULES(
                   [LIBASS],
                   [libass],
@@ -416,7 +446,7 @@ PKG_CHECK_MODULES(
 
 PKG_CHECK_MODULES(
                   [IMAGEMAGICK],
-                  [Magick++],
+                  [Magick++ > 7],
                   [
                    AC_MSG_CHECKING([whether imagemagick is usable])
 

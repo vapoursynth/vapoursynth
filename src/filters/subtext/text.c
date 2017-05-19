@@ -246,6 +246,31 @@ static void VS_CC assFree(void *instanceData, VSCore *core, const VSAPI *vsapi)
     free(d);
 }
 
+static int frameToTime(int frame, int64_t fpsNum, int64_t fpsDen, char *str, size_t str_size)
+{
+    int64_t timeint, time_ms;
+    time_t time_secs;
+    struct tm * ti;
+    if(frame != 0 && (INT64_MAX / fpsDen) < ((int64_t)frame * 100)) {
+        //Overflow would occur
+        return 0;
+    }
+    else {
+        timeint = (int64_t)frame * 100 * fpsDen / fpsNum;
+    }
+    time_secs = timeint / 100;
+    time_ms = timeint % 100;
+    ti = gmtime(&time_secs);
+    snprintf(str, str_size, "%d:%02d:%02d.%02" PRIu64, ti->tm_hour, ti->tm_min, ti->tm_sec, time_ms);
+
+    return 1;
+}
+
+
+char *convertToUtf8(const char *file_name, const char *charset, int64_t *file_size, char *error, size_t error_size);
+ASS_Track *convertToASS(const char *file_name, const char *contents, size_t contents_size, ASS_Library *ass_library, const char *user_style, const char *charset, char *error, size_t error_size);
+
+
 static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
                                   VSCore *core, const VSAPI *vsapi)
 {
@@ -278,12 +303,6 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
         d.file = NULL;
         d.text = vsapi->propGetData(in, "text", 0, &err);
 
-        d.style = vsapi->propGetData(in, "style", 0, &err);
-
-        if(err) {
-            d.style = "sans-serif,20,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,7,10,10,10,1";
-        }
-
         d.startframe = int64ToIntS(vsapi->propGetInt(in, "start", 0, &err));
         if (err) {
             d.startframe = 0;
@@ -303,6 +322,12 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
         else if(!(d.startframe < d.endframe)) {
             snprintf(error, ERROR_SIZE, "%s: end must be larger than start", filter_name);
         }
+    }
+
+    d.style = vsapi->propGetData(in, "style", 0, &err);
+
+    if(err && !d.file) {
+        d.style = "sans-serif,20,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,7,10,10,10,1";
     }
 
     d.charset = vsapi->propGetData(in, "charset", 0, &err);
@@ -395,7 +420,7 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
 
     if(d.file == NULL) {
 #define BUFFER_SIZE 16
-        char *str, *text, x[BUFFER_SIZE], y[BUFFER_SIZE], start[BUFFER_SIZE], end[BUFFER_SIZE];
+        char *str, *text, x[BUFFER_SIZE], y[BUFFER_SIZE], start[BUFFER_SIZE] = { 0 }, end[BUFFER_SIZE] = { 0 };
         size_t siz;
         const char *fmt = "[Script Info]\n"
                           "ScriptType: v4.00+\n"
@@ -411,49 +436,14 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
         snprintf(x, BUFFER_SIZE, "%d", d.vi[0].width);
         snprintf(y, BUFFER_SIZE, "%d", d.vi[0].height);
 
-        {
-            int64_t timeint, time_ms;
-            time_t time_secs;
-            struct tm * ti;
-            if(d.startframe != 0 && (INT64_MAX / d.vi[0].fpsDen) < ((int64_t)d.startframe * 100)) {
-                //Overflow would occur
-                snprintf(error, ERROR_SIZE, "%s: Unable to calculate start time", filter_name);
-                vsapi->setError(out, error);
-                vsapi->freeNode(d.node);
-                ass_renderer_done(d.ass_renderer);
-                ass_library_done(d.ass_library);
-                return;
-            }
-            else {
-                timeint = (int64_t)d.startframe * 100 * d.vi[0].fpsDen / d.vi[0].fpsNum;
-            }
-            time_secs = timeint / 100;
-            time_ms = timeint % 100;
-            ti = gmtime(&time_secs);
-            snprintf(start, BUFFER_SIZE, "%d:%02d:%02d.%02" PRIu64, ti->tm_hour, ti->tm_min, ti->tm_sec, time_ms);
-        }
-
-        {
-            int64_t timeint, time_ms;
-            time_t time_secs;
-            struct tm * ti;
-            if(d.endframe != 0 && (INT64_MAX / d.vi[0].fpsDen) < ((int64_t)d.endframe * 100)) {
-                //Overflow would occur
-                snprintf(error, ERROR_SIZE, "%s: Unable to calculate end time", filter_name);
-                vsapi->setError(out, error);
-                vsapi->freeNode(d.node);
-                ass_renderer_done(d.ass_renderer);
-                ass_library_done(d.ass_library);
-                return;
-            }
-            else {
-                timeint = (int64_t)d.endframe * 100 * d.vi[0].fpsDen / d.vi[0].fpsNum;
-            }
-            time_secs = timeint / 100;
-            time_ms = timeint % 100;
-            ti = gmtime(&time_secs);
-            snprintf(end, BUFFER_SIZE, "%d:%02d:%02d.%02" PRIu64, ti->tm_hour, ti->tm_min, ti->tm_sec, time_ms);
-#undef BUFFER_SIZE
+        if (!frameToTime(d.startframe, d.vi[0].fpsNum, d.vi[0].fpsDen, start, BUFFER_SIZE) ||
+            !frameToTime(d.endframe, d.vi[0].fpsNum, d.vi[0].fpsDen, end, BUFFER_SIZE)) {
+            snprintf(error, ERROR_SIZE, "%s: Unable to calculate %s time", filter_name, start[0] ? "end" : "start");
+            vsapi->setError(out, error);
+            vsapi->freeNode(d.node);
+            ass_renderer_done(d.ass_renderer);
+            ass_library_done(d.ass_library);
+            return;
         }
 
         text = strrepl(d.text, "\n", "\\N");
@@ -471,16 +461,27 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
 
         free(str);
     } else {
-        d.ass = ass_read_file(d.ass_library, (char *)d.file, (char *)d.charset);
-    }
+        snprintf(error, ERROR_SIZE, "%s: ", filter_name);
 
-    if(!d.ass) {
-        snprintf(error, ERROR_SIZE, "%s: unable to parse input file", filter_name);
-        vsapi->setError(out, error);
-        vsapi->freeNode(d.node);
-        ass_renderer_done(d.ass_renderer);
-        ass_library_done(d.ass_library);
-        return;
+        int64_t contents_size;
+        char *contents = convertToUtf8(d.file, d.charset, &contents_size, error + strlen(error), ERROR_SIZE - strlen(error));
+
+        if (contents) {
+            d.ass = ass_read_memory(d.ass_library, contents, contents_size, NULL);
+
+            if (!d.ass)
+                d.ass = convertToASS(d.file, contents, contents_size, d.ass_library, d.style, d.charset, error + strlen(error), ERROR_SIZE - strlen(error));
+
+            free(contents);
+        }
+
+        if (!contents || !d.ass) {
+            vsapi->setError(out, error);
+            vsapi->freeNode(d.node);
+            ass_renderer_done(d.ass_renderer);
+            ass_library_done(d.ass_library);
+            return;
+        }
     }
 
     d.lastframe = vsapi->newVideoFrame(d.vi[0].format,
@@ -541,7 +542,8 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
     "fontdir:data:opt;" \
     "linespacing:float:opt;" \
     "margins:int[]:opt;" \
-    "sar:float:opt;"
+    "sar:float:opt;" \
+    "style:data:opt;"
 
 #define COMMON_PARAMS \
     "blend:int:opt;" \
@@ -563,7 +565,6 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
     registerFunc("Subtitle",
                  "clip:clip;"
                  "text:data;"
-                 "style:data:opt;"
                  "start:int:opt;"
                  "end:int:opt;"
                  COMMON_TEXTFILE_PARAMS

@@ -137,7 +137,9 @@ pkglib_LTLIBRARIES += libsubtext.la
 libsubtext_la_SOURCES = src/filters/subtext/text.c \
 						src/filters/subtext/common.c \
 						src/filters/subtext/common.h \
-						src/filters/subtext/image.cpp
+						src/filters/subtext/image.cpp \
+						src/filters/subtext/toass.cpp \
+						src/filters/subtext/toutf8.c
 
 libsubtext_la_LDFLAGS = $(commonpluginldflags)
 libsubtext_la_LIBTOOLFLAGS = $(commonlibtoolflags)
