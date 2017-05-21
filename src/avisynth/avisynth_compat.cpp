@@ -256,16 +256,16 @@ static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, co
 
     // Meow
     SOURCE(DGSource)
-	PREFETCHR0(DGDenoise)
-	PREFETCHR0(DGSharpen)
-	temp = int64ToIntS(vsapi->propGetInt(in, "mode", 0, &err));
-	PREFETCH(DGBob, (temp > 0) ? 2 : 1, 1, -2, 2) // close enough?
+    PREFETCHR0(DGDenoise)
+    PREFETCHR0(DGSharpen)
+    temp = int64ToIntS(vsapi->propGetInt(in, "mode", 0, &err));
+    PREFETCH(DGBob, (temp > 0) ? 2 : 1, 1, -2, 2) // close enough?
     BROKEN(IsCombed)
     PREFETCHR0(FieldDeinterlace)
     PREFETCH(Telecide, 1, 1, -2, 10) // not good
-	PREFETCH(DGTelecide, 1, 1, -2, 10) // also not good
-	temp = int64ToIntS(vsapi->propGetInt(in, "cycle", 0, &err));
-	PREFETCH(DGDecimate, temp - 1, temp, -(temp + 3), temp + 3) // probably suboptimal
+    PREFETCH(DGTelecide, 1, 1, -2, 10) // also not good
+    temp = int64ToIntS(vsapi->propGetInt(in, "cycle", 0, &err));
+    PREFETCH(DGDecimate, temp - 1, temp, -(temp + 3), temp + 3) // probably suboptimal
     PREFETCH(Decimate, temp - 1, temp, -(temp + 3), temp + 3) // probably suboptimal too
 
     // Masktools2

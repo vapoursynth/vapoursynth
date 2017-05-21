@@ -107,7 +107,7 @@ static inline void muldivRational(int64_t *num, int64_t *den, int64_t mul, int64
 
 /* reduces a rational number */
 static inline void vs_normalizeRational(int64_t *num, int64_t *den) {
-	muldivRational(num, den, 1, 1);
+    muldivRational(num, den, 1, 1);
 }
 
 /* add two rational numbers and reduces the result */
@@ -119,19 +119,19 @@ static inline void vs_addRational(int64_t *num, int64_t *den, int64_t addnum, in
     /* nobody wants to accidentally add an invalid rational number */
     assert(addden);
 
-	if (*den == addden) {
-		*num += addnum;
-	} else {
-		int64_t temp = addden;
-		addnum *= *den;
-		addden *= *den;
-		*num *= temp;
-		*den *= temp;
+    if (*den == addden) {
+        *num += addnum;
+    } else {
+        int64_t temp = addden;
+        addnum *= *den;
+        addden *= *den;
+        *num *= temp;
+        *den *= temp;
 
-		*num += addnum;
+        *num += addnum;
 
-		vs_normalizeRational(num, den);
-	}
+        vs_normalizeRational(num, den);
+    }
 }
 
 /* converts an int64 to int with saturation, useful to silence warnings when reading int properties among other things */

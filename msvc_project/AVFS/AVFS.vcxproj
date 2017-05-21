@@ -169,7 +169,6 @@
     <ClInclude Include="..\..\src\avfs\avfs.h" />
     <ClInclude Include="..\..\src\avfs\avfsincludes.h" />
     <ClInclude Include="..\..\src\avfs\avfspfm.h" />
-    <ClInclude Include="..\..\src\avfs\avisynth.h" />
     <ClInclude Include="..\..\src\avfs\files.h" />
     <ClInclude Include="..\..\src\avfs\ss.h" />
     <ClInclude Include="..\..\src\avfs\videoinfoadapter.h" />

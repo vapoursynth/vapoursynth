@@ -60,9 +60,6 @@
     <ClInclude Include="..\..\src\common\fourcc.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\avfs\avisynth.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\avfs\assertive.cpp">

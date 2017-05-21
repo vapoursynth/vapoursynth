@@ -211,7 +211,7 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
     if ((floatout && bitsout != 32) || (!floatout && (bitsout < 8 || bitsout > 16)))
         RETERROR("Lut: only 8-16 bit integer and 32 bit float output supported");
 
-	getPlanesArg(in, d->process, vsapi);
+    getPlanesArg(in, d->process, vsapi);
 
     VSFuncRef *func = vsapi->propGetFunc(in, "function", 0, &err);
     int lut_elem = vsapi->propNumElements(in, "lut");
@@ -454,7 +454,7 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
         || d->vi[0]->width != d->vi[1]->width || d->vi[0]->height != d->vi[1]->height)
         RETERROR("Lut2: only clips with integer samples, same dimensions, same subsampling and up to a total of 20 indexing bits supported");
 
-	getPlanesArg(in, d->process, vsapi);
+    getPlanesArg(in, d->process, vsapi);
 
     int err;
     VSFuncRef *func = vsapi->propGetFunc(in, "function", 0, &err);

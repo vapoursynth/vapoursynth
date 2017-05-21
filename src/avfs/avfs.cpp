@@ -209,7 +209,7 @@ void Avisynther::reportFormat(AvfsLog_* log)
   if (vi.HasVideo()) {
     log->Print(L"Video stream :-\n");
 
-	int msLen = (int)(1000.0 * vi.num_frames * vi.fps_denominator / vi.fps_numerator);
+    int msLen = (int)(1000.0 * vi.num_frames * vi.fps_denominator / vi.fps_numerator);
     log->Printf(L"  Duration: %8d frames, %02d:%02d:%02d.%03d\n", vi.num_frames,
                           (msLen/(60*60*1000)), (msLen/(60*1000))%60 ,(msLen/1000)%60, msLen%1000); 
     const char* c_space = "";
@@ -254,7 +254,7 @@ void Avisynther::reportFormat(AvfsLog_* log)
 
     int msLen = (int)(1000.0 * vi.num_audio_samples / vi.audio_samples_per_second);
     log->Printf(L"  Audio length: %I64u samples. %02d:%02d:%02d.%03d\n", vi.num_audio_samples,
-  	                      (msLen/(60*60*1000)), (msLen/(60*1000))%60, (msLen/1000)%60, msLen%1000);
+                          (msLen/(60*60*1000)), (msLen/(60*1000))%60, (msLen/1000)%60, msLen%1000);
     log->Printf(L"  Samples Per Second: %5d\n", vi.audio_samples_per_second);
     log->Printf(L"  Audio Channels: %-8d\n", vi.AudioChannels());
 
@@ -489,10 +489,10 @@ PVideoFrame Avisynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
                       p.src_stride[plane] = -GetStride(f, vi, plane);
                   }
                   p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-			  } else if (id == pfRGB30) {
-				  p.packing = p2p_rgb30_be;
-				  p.dst_stride[0] = ((p.width + 63) / 64) * 256;
-				  p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
+              } else if (id == pfRGB30) {
+                  p.packing = p2p_rgb30_be;
+                  p.dst_stride[0] = ((p.width + 63) / 64) * 256;
+                  p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
               } else if (id == pfRGB48) {
                   p.packing = p2p_argb64_be;
                   p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
