@@ -135,4 +135,11 @@ static void VS_CC templateNodeFree(void *instanceData, VSCore *core, const VSAPI
     delete d;
 }
 
+template<typename T>
+static void fillTestPlane(uint8_t *dst, int stride, int height) {
+    T *dstp = reinterpret_cast<T *>(dst);
+    for (int i = 0; i < (stride / sizeof(T)) * height; i++)
+        *dstp++ = i;
+}
+
 #endif
