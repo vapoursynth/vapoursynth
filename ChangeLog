@@ -1,5 +1,6 @@
 r38:
 updated to zimg v2.5.1
+removed the pointless subsampling requirements of transpose
 updated imwri to use imagemagick 7
 added srt support to subtext (jackoneill)
 added boxblur filter
