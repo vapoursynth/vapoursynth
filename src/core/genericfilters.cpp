@@ -2286,10 +2286,10 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
             }
         }
 
-		if (op == GenericConvolution && d->convolution_type == ConvolutionHorizontal && d->matrix_elements / 2 >= planeWidth(d->vi, d->vi->format->numPlanes - 1))
-			throw std::string("Width must be bigger than convolution radius.");
-		if (op == GenericConvolution && d->convolution_type == ConvolutionVertical && d->matrix_elements / 2 >= planeHeight(d->vi, d->vi->format->numPlanes - 1))
-			throw std::string("Height must be bigger than convolution radius.");
+        if (op == GenericConvolution && d->convolution_type == ConvolutionHorizontal && d->matrix_elements / 2 >= planeWidth(d->vi, d->vi->format->numPlanes - 1))
+            throw std::string("Width must be bigger than convolution radius.");
+        if (op == GenericConvolution && d->convolution_type == ConvolutionVertical && d->matrix_elements / 2 >= planeHeight(d->vi, d->vi->format->numPlanes - 1))
+            throw std::string("Height must be bigger than convolution radius.");
 
     } catch (std::string &error) {
         vsapi->freeNode(d->node);
