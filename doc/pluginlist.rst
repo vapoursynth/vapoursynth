@@ -116,6 +116,7 @@ Others
 * `minsharp <http://forum.doom9.org/showthread.php?t=173328>`_ -- Simple 3x3 blur and sharpen
 * `MSmoosh <http://forum.doom9.org/showthread.php?t=171159>`_ -- MSmooth and MSharpen ports
 * `MVTools <http://forum.doom9.org/showthread.php?t=171207>`_ -- MVTools port
+* `Plum <https://forum.doom9.org/showthread.php?t=173775>`_ -- Blind deconvolution enhanced by pixel/block matching
 * `Retinex <http://forum.doom9.org/showthread.php?t=171307>`_ -- Dynamic range compression
 * `TCanny <http://forum.doom9.org/showthread.php?t=172158>`_ -- Canny edge detection
 * `vcmod <http://forum.doom9.org/showthread.php?t=171412>`_ -- Various filters such as histogram equalization, blur, and watershed segmentation
