@@ -31,7 +31,7 @@ import traceback
 import gc
 import sys
 import inspect
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from fractions import Fraction
 
 # Ensure that the import doesn't fail
@@ -501,13 +501,8 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, Core core, const V
         if val is None:
             continue
 
-        if isinstance(val, (str, bytes, bytearray, VideoNode)):
+        if isinstance(val, (str, bytes, bytearray, VideoNode)) or not isinstance(val, Iterable):
             val = [val]
-        else:
-            try:
-                iter(val)
-            except:
-                val = [val]
 
         for v in val:
             if atypes[key][:4] == 'clip' and isinstance(v, VideoNode):
@@ -523,15 +518,17 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, Core core, const V
                 tf = createFuncPython(v, core)
                 if funcs.propSetFunc(inm, ckey, tf.ref, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
-            elif atypes[key][:3] == 'int' and isinstance(v, int):
+            elif atypes[key][:3] == 'int':
                 if funcs.propSetInt(inm, ckey, int(v), 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
-            elif atypes[key][:5] == 'float' and isinstance(v, (int, float)):
+            elif atypes[key][:5] == 'float':
                 if funcs.propSetFloat(inm, ckey, float(v), 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
-            elif atypes[key][:4] == 'data' and isinstance(v, (str, bytes, bytearray)):
+            elif atypes[key][:4] == 'data':
+                if not isinstance(v, (str, bytes, bytearray)):
+                    v = str(v)
                 if isinstance(v, str):
-                    s = str(v).encode('utf-8')
+                    s = v.encode('utf-8')
                 else:
                     s = v
                 if funcs.propSetData(inm, ckey, s, <int>len(s), 1) != 0:
