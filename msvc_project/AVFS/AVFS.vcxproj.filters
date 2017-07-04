@@ -27,9 +27,6 @@
     <ClInclude Include="..\..\src\avfs\avfspfm.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\avfs\avisynth.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\avfs\files.h">
       <Filter>Header Files</Filter>
     </ClInclude>

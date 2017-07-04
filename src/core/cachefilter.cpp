@@ -199,7 +199,7 @@ static const VSFrameRef *VS_CC cacheGetframe(int n, int activationReason, void *
                 vsapi->freeFrame(r);
             }
         }
-        
+
         const VSFrameRef *r = vsapi->getFrameFilter(n, c->clip, frameCtx);
         c->cache.insert(n, r->frame);
         return r;
@@ -222,7 +222,7 @@ static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData,
     int err;
     bool fixed = !!vsapi->propGetInt(in, "fixed", 0, &err);
     CacheInstance *c = new CacheInstance(video, core, fixed);
-    
+
     c->makeLinear = !!(vsapi->getVideoInfo(video)->flags & nfMakeLinear);
     if (vsapi->propGetInt(in, "make_linear", 0, &err))
         c->makeLinear = true;

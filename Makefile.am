@@ -1,5 +1,5 @@
 warningflags = -Wall -Wextra -Wno-unused-parameter -Wno-unused-function
-commoncflags = -O3 $(warningflags) -I$(srcdir)/include $(DEBUGCFLAGS) $(MFLAGS) $(UNICODECFLAGS) $(STACKREALIGN)
+commoncflags = -O3 -fvisibility=hidden $(warningflags) -I$(srcdir)/include $(DEBUGCFLAGS) $(MFLAGS) $(UNICODECFLAGS) $(STACKREALIGN)
 AM_CXXFLAGS = -std=c++11 $(commoncflags)
 AM_CFLAGS = -std=c99 $(commoncflags)
 
@@ -39,7 +39,8 @@ lib_LTLIBRARIES =
 if VSCORE
 lib_LTLIBRARIES += libvapoursynth.la
 
-libvapoursynth_la_SOURCES = src/core/cachefilter.cpp \
+libvapoursynth_la_SOURCES = src/core/boxblurfilter.cpp \
+							src/core/cachefilter.cpp \
 							src/core/cachefilter.h \
 							src/core/cpufeatures.c \
 							src/core/cpufeatures.h \
@@ -90,6 +91,7 @@ if PYTHONMODULE
 pyexec_LTLIBRARIES = vapoursynth.la
 
 vapoursynth_la_SOURCES = src/cython/vapoursynth.pyx
+vapoursynth_la_CFLAGS= $(AM_CFLAGS) -fvisibility=default
 vapoursynth_la_CPPFLAGS = $(PYTHON3_CFLAGS)
 vapoursynth_la_LIBADD = $(MAYBE_PYTHON3_LIBS) libvapoursynth.la
 vapoursynth_la_LDFLAGS = $(PYTHON_MODULE_UNDEFINED) -avoid-version -module
@@ -135,7 +137,9 @@ pkglib_LTLIBRARIES += libsubtext.la
 libsubtext_la_SOURCES = src/filters/subtext/text.c \
 						src/filters/subtext/common.c \
 						src/filters/subtext/common.h \
-						src/filters/subtext/image.cpp
+						src/filters/subtext/image.cpp \
+						src/filters/subtext/toass.cpp \
+						src/filters/subtext/toutf8.c
 
 libsubtext_la_LDFLAGS = $(commonpluginldflags)
 libsubtext_la_LIBTOOLFLAGS = $(commonlibtoolflags)

@@ -100,6 +100,8 @@ static inline uint32_t doubleToIntPixelValue(double v, int bits, int *err) {
 }
 
 static inline uint32_t doubleToFloatPixelValue(double v, int *err) {
+    *err = 0;
+
     float f = (float)v;
     if (!isfinite(f)) {
         *err = 1;
@@ -110,6 +112,8 @@ static inline uint32_t doubleToFloatPixelValue(double v, int *err) {
 }
 
 static inline uint16_t doubleToHalfPixelValue(double v, int *err) {
+    *err = 0;
+
     float f = (float)v;
     if (!isfinite(f)) {
         *err = 1;
@@ -1835,13 +1839,10 @@ static void VS_CC transposeCreate(const VSMap *in, VSMap *out, void *userData, V
 
     if (!isConstantFormat(&d.vi) || d.vi.format->id == pfCompatYUY2) {
         vsapi->freeNode(d.node);
-        RETERROR("Transpose: clip must have constant format and dimensions and must not be CompatYuy2");
+        RETERROR("Transpose: clip must have constant format and dimensions and must not be CompatYUY2");
     }
 
-    if (d.vi.format->subSamplingH != d.vi.format->subSamplingW) {
-        vsapi->freeNode(d.node);
-        RETERROR("Transpose: Clip must have same subsampling in both dimensions");
-    }
+    d.vi.format = vsapi->registerFormat(d.vi.format->colorFamily, d.vi.format->sampleType, d.vi.format->bitsPerSample, d.vi.format->subSamplingH, d.vi.format->subSamplingW, core);
 
     data = malloc(sizeof(d));
     *data = d;

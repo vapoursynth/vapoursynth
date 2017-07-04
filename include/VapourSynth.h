@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2016 Fredrik Mellbin
+* Copyright (c) 2012-2017 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -24,7 +24,7 @@
 #include <stdint.h>
 
 #define VAPOURSYNTH_API_MAJOR 3
-#define VAPOURSYNTH_API_MINOR 4
+#define VAPOURSYNTH_API_MINOR 5
 #define VAPOURSYNTH_API_VERSION ((VAPOURSYNTH_API_MAJOR << 16) | (VAPOURSYNTH_API_MINOR))
 
 /* Convenience for C++ users. */
@@ -117,6 +117,14 @@ typedef enum VSPresetFormat {
 
     pfYUV444PH,
     pfYUV444PS,
+
+    pfYUV420P12,
+    pfYUV422P12,
+    pfYUV444P12,
+
+    pfYUV420P14,
+    pfYUV422P14,
+    pfYUV444P14,
 
     pfRGB24 = cmRGB + 10,
     pfRGB27,

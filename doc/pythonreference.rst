@@ -11,15 +11,14 @@ special things unique to Python scripting, such as slicing and output.
 VapourSynth Structure
 #####################
 
-To use the VapourSynth library you must first retrieve the Core object, using
-get_core(). This core may then load plugins, which all end up in their own unit,
+Most operations in the VapourSynth library are performed through the core object.
+This core may load plugins, which all end up in their own unit,
 or namespace, so to say, to avoid naming conflicts in the contained functions.
 For this reason you call a plugin function with *core.unit.Function()*.
 
 All arguments to functions have names that are lowercase and all function names
 are CamelCase. Unit names are also lowercase and usually short. This is good to
-remember. If you do not like CamelCase for function names you can pass
-*accept_lowercase=True* to get_core().
+remember.
 
 Slicing and Other Syntactic Sugar
 #################################
@@ -144,12 +143,25 @@ associated with it. It is possible to access the raw data using ctypes and
 some persistence. The three relevant functions are *get_read_ptr(plane)*,
 *get_write_ptr(plane)*, and *get_stride(plane)*, all of which take the plane
 to access as an argument. Accessing the data is a bit trickier as
-*get_read_ptr()* and *get_write_ptr()* only return a pointer. To get a frame
-simply call *get_frame(n)* on a clip.
+*get_read_ptr()* and *get_write_ptr()* only return a pointer.
+
+To get a frame simply call *get_frame(n)* on a clip. Should you desire to get
+all frames in a clip, use this code::
+
+   for frame in clip.frames():
+       # Do stuff with your frame
+       pass
 
 Classes and Functions
 #####################
+.. py:attribute:: core
+   Gets the singleton Core object. If it is the first time the function is called,
+   the Core will be instantiated with the default options. This is the preferred
+   way to reference the core.
+
 .. py:function:: get_core([threads = 0, add_cache = True, accept_lowercase = False])
+
+   Deprecated, use the core attribute instead.
 
    Get the singleton Core object. If it is the first time the function is called,
    the Core will be instantiated with the given options. If the Core has already
@@ -183,7 +195,7 @@ Classes and Functions
 
 .. py:class:: Core
 
-   The *Core* class uses a singleton pattern. Use *get_core()* to obtain an
+   The *Core* class uses a singleton pattern. Use the *core* attribute to obtain an
    instance. All loaded plugins are exposed as attributes of the core object.
    These attributes in turn hold the functions contained in the plugin.
    Use *get_plugins()* to obtain a full list of all currently loaded plugins
@@ -262,12 +274,21 @@ Classes and Functions
 
       The number of frames in the clip.
 
+   .. py:attribute:: fps
+
+      The framerate represented as a *Fraction*. It is 0/1 when the clip has a variable
+      framerate.
+      
    .. py:attribute:: fps_num
+   
+      Deprecated, use *fps.numerator* instead
 
       The numerator of the framerate. If the clip has variable framerate, the
       value will be 0.
 
    .. py:attribute:: fps_den
+   
+      Deprecated, use *fps.denominator* instead
 
       The denominator of the framerate. If the clip has variable framerate, the
       value will be 0.
@@ -279,7 +300,41 @@ Classes and Functions
 
    .. py:method:: get_frame(n)
 
-      Returns a VideoFrame from position n.
+      Returns a VideoFrame from position *n*.
+
+   .. py:method:: get_frame_async(n)
+
+      Returns a concurrent.futures.Future-object which result will be a VideoFrame instance or sets the
+      exception thrown when rendering the frame.
+
+      *The future will always be in the running or completed state*
+
+   .. py:method:: get_frame_async_raw(n, cb: callable)
+
+      First form of this method. It will call the callback from another thread as soon as the frame is rendered.
+
+      The `result`-value passed to the callback will either be a VideoFrame-instance on success or a Error-instance
+      on failure.
+
+      *This method is intended for glue code. For normal use, use get_frame_async instead.*
+
+      :param n: The frame number
+      :param cb: A callback in the form `cb(node, n, result)`
+
+   .. py:method:: get_frame_async_raw(n, cb: Future[, wrapper: callable = None])
+
+      Second form of this method. It will take a Future-like object (including asyncio.Future or similar)
+      and set its result or exception according to the result of the function.
+
+      The optional `wrapper`-parameter is intended for calls like asyncio.EventLoop.call_soon_threadsafe in which
+      all calls to its future-object must be wrapped.
+
+      *This method is intended for glue code. For normal use, use get_frame_async instead.*
+
+      :param n: The frame number
+      :param cb: The future-object whose result will be set.
+      :param wrapper: A wrapper-callback which is responsible for moving the result across thread boundaries. If not
+                      given, the result of the future will be set in a random thread.
 
    .. py:method:: set_output(index = 0)
 
@@ -481,6 +536,14 @@ bits for all 3 planes added together. The long list of values::
    YUV422P10
    YUV444P10
 
+   YUV420P12
+   YUV422P12
+   YUV444P12
+   
+   YUV420P14
+   YUV422P14
+   YUV444P14
+   
    YUV420P16
    YUV422P16
    YUV444P16

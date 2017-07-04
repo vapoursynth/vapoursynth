@@ -72,6 +72,9 @@
     <ClCompile Include="..\..\src\core\vsresize.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\core\boxblurfilter.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <YASM Include="..\..\src\core\asm\x86\merge.asm">

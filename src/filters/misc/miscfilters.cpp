@@ -25,6 +25,7 @@
 #include <vector>
 #include <memory>
 #include <algorithm>
+#include <cstdlib>
 #include <cmath>
 #include <cfloat>
 
@@ -190,10 +191,12 @@ static void averageFramesF(const std::vector<const VSFrameRef *> &srcs, VSFrameR
 static const VSFrameRef *VS_CC averageFramesGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     AverageFrameData *d = static_cast<AverageFrameData *>(*instanceData);
     bool singleClipMode = (d->nodes.size() == 1);
+    bool clamp = (n > INT_MAX - 1 - (int)(d->weights.size() / 2));
+    int lastframe = clamp ? INT_MAX - 1 : n + (int)(d->weights.size() / 2);
 
     if (activationReason == arInitial) {
         if (singleClipMode) {
-            for (int i = std::max(0, n - (int)(d->weights.size() / 2)); i <= n + (int)(d->weights.size() / 2); i++)
+            for (int i = std::max(0, n - (int)(d->weights.size() / 2)); i <= lastframe; i++)
                 vsapi->requestFrameFilter(i, d->nodes[0], frameCtx);
         } else {
             for (auto iter : d->nodes)
@@ -203,8 +206,12 @@ static const VSFrameRef *VS_CC averageFramesGetFrame(int n, int activationReason
         std::vector<const VSFrameRef *> frames(d->weights.size());
 
         if (singleClipMode) {
-            for (size_t i = 0; i < d->weights.size(); i++)
-                frames[i] = vsapi->getFrameFilter(std::max(0, n + (int)i - (int)(d->weights.size() / 2)), d->nodes[0], frameCtx);
+            int fn = n - (int)(d->weights.size() / 2);
+            for (size_t i = 0; i < d->weights.size(); i++) {
+                frames[i] = vsapi->getFrameFilter(std::max(0, fn), d->nodes[0], frameCtx);
+                if (fn < INT_MAX - 1)
+                    fn++;
+            }
         } else {
             for (size_t i = 0; i < d->weights.size(); i++)
                 frames[i] = vsapi->getFrameFilter(n, d->nodes[i], frameCtx);
@@ -238,7 +245,7 @@ static const VSFrameRef *VS_CC averageFramesGetFrame(int n, int activationReason
                 }
             }
 
-            for (int i = weights.size() / 2; i < weights.size() - 1; i++) {
+            for (int i = weights.size() / 2; i < static_cast<int>(weights.size()) - 1; i++) {
                 const VSMap *props = vsapi->getFramePropsRO(frames[i]);
                 int err;
                 if (vsapi->propGetInt(props, "_SceneChangeNext", 0, &err)) {
@@ -250,7 +257,7 @@ static const VSFrameRef *VS_CC averageFramesGetFrame(int n, int activationReason
             if (fi->sampleType == stInteger) {
                 int acc = 0;
 
-                for (int i = toFrame + 1; i < weights.size(); i++) {
+                for (int i = toFrame + 1; i < static_cast<int>(weights.size()); i++) {
                     acc += weights[i];
                     weights[i] = 0;
                 }
@@ -264,7 +271,7 @@ static const VSFrameRef *VS_CC averageFramesGetFrame(int n, int activationReason
             } else {
                 float acc = 0;
 
-                for (int i = toFrame + 1; i < fweights.size(); i++) {
+                for (int i = toFrame + 1; i < static_cast<int>(fweights.size()); i++) {
                     acc += fweights[i];
                     fweights[i] = 0;
                 }
@@ -285,7 +292,7 @@ static const VSFrameRef *VS_CC averageFramesGetFrame(int n, int activationReason
                 else if (fi->bytesPerSample == 2)
                     averageFramesI<uint16_t>(frames, dst, weights.data(), d->scale, fi->bitsPerSample, plane, vsapi);
                 else
-                    averageFramesF<float>(frames, dst, fweights.data(), d->fscale, plane, vsapi);
+                    averageFramesF<float>(frames, dst, fweights.data(), 1 / d->fscale, plane, vsapi);
             }
         }
 
@@ -317,8 +324,8 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
                 throw std::string("Number of weights must be odd when only one clip supplied");
         } else if (numWeights != numNodes) {
             throw std::string("Number of weights must match number of clips supplied");
-        } else if (numWeights > 25 || numNodes > 25) {
-            throw std::string("Must use between 1 and 25 weights and input clips");
+        } else if (numWeights > 31 || numNodes > 31) {
+            throw std::string("Must use between 1 and 31 weights and input clips");
         }
 
         d->useSceneChange = !!vsapi->propGetInt(in, "scenechange", 0, &err);
@@ -383,7 +390,7 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
         return;
     }
 
-    vsapi->createFilter(in, out, "AverageFrames", templateViInit<AverageFrameData>, averageFramesGetFrame, averageFramesFree, fmParallel, 0, d.release(), core);
+    vsapi->createFilter(in, out, "AverageFrames", templateNodeCustomViInit<AverageFrameData>, averageFramesGetFrame, averageFramesFree, fmParallel, 0, d.release(), core);
 }
 
 ///////////////////////////////////////

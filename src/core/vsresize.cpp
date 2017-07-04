@@ -123,6 +123,7 @@ namespace {
         { "2020_12",  ZIMG_TRANSFER_2020_12 },
         { "st2084",   ZIMG_TRANSFER_ST2084 },
         { "std-b67",  ZIMG_TRANSFER_ARIB_B67 },
+        { "srgb",     ZIMG_TRANSFER_IEC_61966_2_1 },        
     };
 
     const std::unordered_map<std::string, zimg_color_primaries_e> g_primaries_table{
@@ -514,9 +515,9 @@ namespace {
                 allocate(vsformat, format.width, format.height, graph.get_output_buffering(), vsapi, core);
 
                 if (vsformat->id == pfCompatBGR32)
-                    m_p2p_func = vsp2p::planar_to_packed<vsp2p::packed_argb32_le>::pack;
+                    m_p2p_func = vsp2p::planar_to_packed<vsp2p::packed_argb32_le, true>::pack;
                 else if (vsformat->id == pfCompatYUY2)
-                    m_p2p_func = vsp2p::planar_to_packed<vsp2p::packed_yuy2>::pack;
+                    m_p2p_func = vsp2p::planar_to_packed<vsp2p::packed_yuy2, true>::pack;
 
                 if (vsformat->id == pfCompatBGR32)
                     get_buffer_flipped(&m_vs_buffer, vsformat->numPlanes, vsapi->getFrameHeight(frame, 0));

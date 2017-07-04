@@ -1474,7 +1474,6 @@ static void process_plane_convolution_horizontalF(uint8_t * VS_RESTRICT dstp8, c
     float rdiv = params.rdiv;
     float bias = params.bias;
     bool saturate = params.saturate;
-    int max_value = params.max_value;
 
     int border = matrix_elements / 2;
 
@@ -1608,7 +1607,6 @@ static void process_plane_convolution_verticalF(uint8_t * VS_RESTRICT dstp8, con
     float rdiv = params.rdiv;
     float bias = params.bias;
     bool saturate = params.saturate;
-    int max_value = params.max_value;
 
     int border = matrix_elements / 2;
 
@@ -2205,8 +2203,8 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
                 else
                     d->convolution_type = ConvolutionVertical;
 
-                if (d->matrix_elements < 3 || d->matrix_elements > 17)
-                    throw std::string("When mode starts with 'h' or 'v', matrix must contain between 3 and 17 numbers.");
+                if (d->matrix_elements < 3 || d->matrix_elements > 25)
+                    throw std::string("When mode starts with 'h' or 'v', matrix must contain between 3 and 25 numbers.");
 
                 if (d->matrix_elements % 2 == 0)
                     throw std::string("matrix must contain an odd number of numbers.");
@@ -2268,33 +2266,38 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
                 d->convolution_type = ConvolutionSquare;
                 d->matrix_elements = 9;
                 d->matrix[7] = d->matrix[2];
-                d->matrix[5] = d->matrix[1];
+                d->matrix[4] = d->matrix[1];
                 d->matrix[1] = d->matrix[0];
                 d->matrix[0] = 0;
                 d->matrix[2] = 0;
                 d->matrix[3] = 0;
-                d->matrix[4] = 0;
+                d->matrix[5] = 0;
                 d->matrix[6] = 0;
                 d->matrix[8] = 0;
                 d->matrixf[7] = d->matrixf[2];
-                d->matrixf[5] = d->matrixf[1];
+                d->matrixf[4] = d->matrixf[1];
                 d->matrixf[1] = d->matrixf[0];
                 d->matrixf[0] = 0.f;
                 d->matrixf[2] = 0.f;
                 d->matrixf[3] = 0.f;
-                d->matrixf[4] = 0.f;
+                d->matrixf[5] = 0.f;
                 d->matrixf[6] = 0.f;
                 d->matrixf[8] = 0.f;
             }
         }
-   
+
+        if (op == GenericConvolution && d->convolution_type == ConvolutionHorizontal && d->matrix_elements / 2 >= planeWidth(d->vi, d->vi->format->numPlanes - 1))
+            throw std::string("Width must be bigger than convolution radius.");
+        if (op == GenericConvolution && d->convolution_type == ConvolutionVertical && d->matrix_elements / 2 >= planeHeight(d->vi, d->vi->format->numPlanes - 1))
+            throw std::string("Height must be bigger than convolution radius.");
+
     } catch (std::string &error) {
         vsapi->freeNode(d->node);
         vsapi->setError(out, std::string(d->filter_name).append(": ").append(error).c_str());
         return;
     }
 
-    vsapi->createFilter(in, out, d->filter_name, templateNodeInit<GenericData>, genericGetframe<op>, templateClipFree<GenericData>, fmParallel, 0, d.get(), core);
+    vsapi->createFilter(in, out, d->filter_name, templateNodeInit<GenericData>, genericGetframe<op>, templateNodeFree<GenericData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
@@ -2346,7 +2349,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         return;
     }
 
-    vsapi->createFilter(in, out, d->name, templateNodeInit<InvertData>, singlePixelGetFrame<InvertData, InvertOp>, templateClipFree<InvertData>, fmParallel, 0, d.get(), core);
+    vsapi->createFilter(in, out, d->name, templateNodeInit<InvertData>, singlePixelGetFrame<InvertData, InvertOp>, templateNodeFree<InvertData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
@@ -2401,7 +2404,7 @@ static void VS_CC limitCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         return;
     }
 
-    vsapi->createFilter(in, out, d->name, templateNodeInit<LimitData>, singlePixelGetFrame<LimitData, LimitOp>, templateClipFree<LimitData>, fmParallel, 0, d.get(), core);
+    vsapi->createFilter(in, out, d->name, templateNodeInit<LimitData>, singlePixelGetFrame<LimitData, LimitOp>, templateNodeFree<LimitData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
@@ -2462,7 +2465,7 @@ static void VS_CC binarizeCreate(const VSMap *in, VSMap *out, void *userData, VS
         return;
     }
 
-    vsapi->createFilter(in, out, d->name, templateNodeInit<BinarizeData>, singlePixelGetFrame<BinarizeData, BinarizeOp>, templateClipFree<BinarizeData>, fmParallel, 0, d.get(), core);
+    vsapi->createFilter(in, out, d->name, templateNodeInit<BinarizeData>, singlePixelGetFrame<BinarizeData, BinarizeOp>, templateNodeFree<BinarizeData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
@@ -2524,7 +2527,7 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         return;
     }
 
-    vsapi->createFilter(in, out, d->name, templateNodeInit<LevelsData>, singlePixelGetFrame<LevelsData, LevelsOp>, templateClipFree<LevelsData>, fmParallel, 0, d.get(), core);
+    vsapi->createFilter(in, out, d->name, templateNodeInit<LevelsData>, singlePixelGetFrame<LevelsData, LevelsOp>, templateNodeFree<LevelsData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 

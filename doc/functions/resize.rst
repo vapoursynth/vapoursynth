@@ -1,7 +1,7 @@
 Resize
 ======
 
-.. function::   Bilinear(clip clip[, int width, int height, int format, enum matrix, enum transfer, enum primaries, enum range, enum chromaloc, enum matrix_in, enum transfer_in, enum primaries_in, enum range_in, enum chromaloc_in, float filter_param_a, float filter_param_b, string resample_filter_uv, float filter_param_a_uv, float filter_param_b_uv, string dither_type, string cpu_type, bint prefer_props, float src_left, float src_top, float src_width, float src_height, float nominal_luminance])
+.. function::   Bilinear(clip clip[, int width, int height, int format, enum matrix, enum transfer, enum primaries, enum range, enum chromaloc, enum matrix_in, enum transfer_in, enum primaries_in, enum range_in, enum chromaloc_in, float filter_param_a, float filter_param_b, string resample_filter_uv, float filter_param_a_uv, float filter_param_b_uv, string dither_type="none", string cpu_type, bint prefer_props=False, float src_left, float src_top, float src_width, float src_height, float nominal_luminance])
                 Bicubic(clip clip[, ...])
                 Point(clip clip[, ...])
                 Lanczos(clip clip[, ...])
@@ -181,6 +181,7 @@ Resize
                     6 (601) and 14 (2020_10))
         st2084      SMPTE ST 2084 (not in table)
         std-b67     ARIB std-b67 (not in table)
+        srgb        IEC 61966-2-1
 
       Color primaries (ITU-T H.265 Table E.3)::
       

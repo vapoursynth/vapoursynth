@@ -13,11 +13,12 @@ copy ..\msvc_project\x64\Release\vsvfw.dll buildp64
 copy ..\msvc_project\x64\Release\vspipe.exe buildp64
 copy ..\msvc_project\x64\Release\AvsCompat.dll buildp64\vapoursynth64\coreplugins
 copy ..\msvc_project\x64\Release\EEDI3.dll buildp64\vapoursynth64\coreplugins
+copy ..\msvc_project\x64\Release\MiscFilters.dll buildp64\vapoursynth64\coreplugins
+copy ..\msvc_project\x64\Release\Morpho.dll buildp64\vapoursynth64\coreplugins
 copy ..\msvc_project\x64\Release\RemoveGrainVS.dll buildp64\vapoursynth64\coreplugins
 copy ..\msvc_project\x64\Release\Vinverse.dll buildp64\vapoursynth64\coreplugins
 copy ..\msvc_project\x64\Release\VIVTC.dll buildp64\vapoursynth64\coreplugins
-copy "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\redist\x64\Microsoft.VC140.CRT\*" buildp64
-copy "C:\Program Files (x86)\Windows Kits\10\Redist\ucrt\DLLs\x64\*" buildp64
+copy "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Redist\MSVC\14.10.25008\x64\Microsoft.VC150.CRT\*" buildp64
 copy x64\plugins\* buildp64\vapoursynth64\coreplugins
 type nul >buildp64\portable.vs
 rm Compiled\vapoursynth64-portable-%v%.7z
@@ -37,11 +38,12 @@ copy ..\msvc_project\Release\vsvfw.dll buildp32
 copy ..\msvc_project\Release\vspipe.exe buildp32
 copy ..\msvc_project\Release\AvsCompat.dll buildp32\vapoursynth32\coreplugins
 copy ..\msvc_project\Release\EEDI3.dll buildp32\vapoursynth32\coreplugins
+copy ..\msvc_project\Release\MiscFilters.dll buildp32\vapoursynth32\coreplugins
+copy ..\msvc_project\Release\Morpho.dll buildp32\vapoursynth32\coreplugins
 copy ..\msvc_project\Release\RemoveGrainVS.dll buildp32\vapoursynth32\coreplugins
 copy ..\msvc_project\Release\Vinverse.dll buildp32\vapoursynth32\coreplugins
 copy ..\msvc_project\Release\VIVTC.dll buildp32\vapoursynth32\coreplugins
-copy "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\redist\x86\Microsoft.VC140.CRT\*" buildp32
-copy "C:\Program Files (x86)\Windows Kits\10\Redist\ucrt\DLLs\x86\*" buildp32
+copy "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Redist\MSVC\14.10.25008\x86\Microsoft.VC150.CRT\*" buildp32
 copy x86\plugins\* buildp32\vapoursynth32\coreplugins
 type nul >buildp32\portable.vs
 rm Compiled\vapoursynth32-portable-%v%.7z

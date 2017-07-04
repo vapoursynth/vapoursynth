@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2014-2016 Fredrik Mellbin
+* Copyright (c) 2014-2017 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -45,9 +45,6 @@
 #include <unistd.h>
 #endif
 
-// Because ImageMagick has no idea how to make sane headers
-using namespace MagickCore;
-
 // Handle both with and without hdri
 #if MAGICKCORE_HDRI_ENABLE
 #define IMWRI_NAMESPACE "imwrif"
@@ -59,12 +56,11 @@ using namespace MagickCore;
 #define IMWRI_ID "com.vapoursynth.imwri"
 #endif
 
+// Because proper namespace handling is too hard for ImageMagick shitvelopers
+using MagickCore::Quantum;
+
 //////////////////////////////////////////
 // Shared
-
-static bool isGrayColorspace(Magick::ColorspaceType colorspace) {
-    return colorspace == Magick::GRAYColorspace || colorspace == Magick::Rec601LumaColorspace || colorspace == Magick::Rec709LumaColorspace;
-}
 
 static void initMagick(VSCore *core, const VSAPI *vsapi) {
     std::string path;
@@ -198,24 +194,29 @@ static void writeImageHelper(const VSFrameRef *frame, const VSFrameRef *alphaFra
 
     Magick::Pixels pixelCache(image);
 
-    const T *r = reinterpret_cast<const T *>(vsapi->getReadPtr(frame, 0));
-    const T *g = reinterpret_cast<const T *>(vsapi->getReadPtr(frame, isGray ? 0 : 1));
-    const T *b = reinterpret_cast<const T *>(vsapi->getReadPtr(frame, isGray ? 0 : 2));
+    const T * VS_RESTRICT r = reinterpret_cast<const T *>(vsapi->getReadPtr(frame, 0));
+    const T * VS_RESTRICT g = reinterpret_cast<const T *>(vsapi->getReadPtr(frame, isGray ? 0 : 1));
+    const T * VS_RESTRICT b = reinterpret_cast<const T *>(vsapi->getReadPtr(frame, isGray ? 0 : 2));
     int strideR = vsapi->getStride(frame, 0);
     int strideG = vsapi->getStride(frame, isGray ? 0 : 1);
     int strideB = vsapi->getStride(frame, isGray ? 0 : 2);
+    ssize_t rOff = pixelCache.offset(MagickCore::RedPixelChannel);
+    ssize_t gOff = pixelCache.offset(MagickCore::GreenPixelChannel);
+    ssize_t bOff = pixelCache.offset(MagickCore::BluePixelChannel);
+    ssize_t aOff = pixelCache.offset(MagickCore::AlphaPixelChannel);
+    size_t channels = image.channels();
 
     if (alphaFrame) {
         int strideA = vsapi->getStride(alphaFrame, 0);
-        const T *a = reinterpret_cast<const T *>(vsapi->getReadPtr(alphaFrame, 0));
+        const T * VS_RESTRICT a = reinterpret_cast<const T *>(vsapi->getReadPtr(alphaFrame, 0));
 
         for (int y = 0; y < height; y++) {
-            Magick::PixelPacket* pixels = pixelCache.get(0, y, width, 1);
+            MagickCore::Quantum *pixels = pixelCache.get(0, y, width, 1);
             for (int x = 0; x < width; x++) {
-                pixels[x].red = r[x] * scaleFactor + (r[x] >> shiftFactor);
-                pixels[x].green = g[x] * scaleFactor + (g[x] >> shiftFactor);
-                pixels[x].blue = b[x] * scaleFactor + (b[x] >> shiftFactor);
-                pixels[x].opacity = a[x] * scaleFactor + (a[x] >> shiftFactor);
+                pixels[x * channels + rOff] = r[x] * scaleFactor + (r[x] >> shiftFactor);
+                pixels[x * channels + gOff] = g[x] * scaleFactor + (g[x] >> shiftFactor);
+                pixels[x * channels + bOff] = b[x] * scaleFactor + (b[x] >> shiftFactor);
+                pixels[x * channels + aOff] = a[x] * scaleFactor + (a[x] >> shiftFactor);
             }
 
             r += strideR / sizeof(T);
@@ -227,12 +228,12 @@ static void writeImageHelper(const VSFrameRef *frame, const VSFrameRef *alphaFra
         }
     } else {
         for (int y = 0; y < height; y++) {
-            Magick::PixelPacket* pixels = pixelCache.get(0, y, width, 1);
+            MagickCore::Quantum *pixels = pixelCache.get(0, y, width, 1);
             for (int x = 0; x < width; x++) {
-                pixels[x].red = r[x] * scaleFactor + (r[x] >> shiftFactor);
-                pixels[x].green = g[x] * scaleFactor + (g[x] >> shiftFactor);
-                pixels[x].blue = b[x] * scaleFactor + (b[x] >> shiftFactor);
-                pixels[x].opacity = 0;
+                pixels[x * channels + rOff] = r[x] * scaleFactor + (r[x] >> shiftFactor);
+                pixels[x * channels + gOff] = g[x] * scaleFactor + (g[x] >> shiftFactor);
+                pixels[x * channels + bOff] = b[x] * scaleFactor + (b[x] >> shiftFactor);
+                pixels[x * channels + aOff] = QuantumRange;
             }
 
             r += strideR / sizeof(T);
@@ -296,25 +297,31 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
                 Magick::Pixels pixelCache(image);
                 const float scaleFactor = QuantumRange;
 
-                const float *r = reinterpret_cast<const float *>(vsapi->getReadPtr(frame, 0));
-                const float *g = reinterpret_cast<const float *>(vsapi->getReadPtr(frame, isGray ? 0 : 1));
-                const float *b = reinterpret_cast<const float *>(vsapi->getReadPtr(frame, isGray ? 0 : 2));
+                const float * VS_RESTRICT r = reinterpret_cast<const float *>(vsapi->getReadPtr(frame, 0));
+                const float * VS_RESTRICT g = reinterpret_cast<const float *>(vsapi->getReadPtr(frame, isGray ? 0 : 1));
+                const float * VS_RESTRICT b = reinterpret_cast<const float *>(vsapi->getReadPtr(frame, isGray ? 0 : 2));
                
                 int strideR = vsapi->getStride(frame, 0);
                 int strideG = vsapi->getStride(frame, isGray ? 0 : 1);
                 int strideB = vsapi->getStride(frame, isGray ? 0 : 2);
                     
-                if (alphaFrame) {
-                    const float *a = reinterpret_cast<const float *>(vsapi->getReadPtr(alphaFrame, 0));
-                    int strideA = vsapi->getStride(alphaFrame, 0);
+                ssize_t rOff = pixelCache.offset(MagickCore::RedPixelChannel);
+                ssize_t gOff = pixelCache.offset(MagickCore::GreenPixelChannel);
+                ssize_t bOff = pixelCache.offset(MagickCore::BluePixelChannel);
+                ssize_t aOff = pixelCache.offset(MagickCore::AlphaPixelChannel);
+                size_t channels = image.channels();
 
+                if (alphaFrame) {
+                    const float * VS_RESTRICT a = reinterpret_cast<const float *>(vsapi->getReadPtr(alphaFrame, 0));
+                    int strideA = vsapi->getStride(alphaFrame, 0);
+            
                     for (int y = 0; y < height; y++) {
-                        Magick::PixelPacket* pixels = pixelCache.get(0, y, width, 1);
+                        MagickCore::Quantum* pixels = pixelCache.get(0, y, width, 1);
                         for (int x = 0; x < width; x++) {
-                            pixels[x].red = r[x] * scaleFactor;
-                            pixels[x].green = g[x] * scaleFactor;
-                            pixels[x].blue = b[x] * scaleFactor;
-                            pixels[x].opacity = a[x] * scaleFactor;
+                            pixels[x * channels + rOff] = r[x] * scaleFactor;
+                            pixels[x * channels + gOff] = g[x] * scaleFactor;
+                            pixels[x * channels + bOff] = b[x] * scaleFactor;
+                            pixels[x * channels + aOff] = a[x] * scaleFactor;
                         }
 
                         r += strideR / sizeof(float);
@@ -330,12 +337,12 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
                     const float *b = reinterpret_cast<const float *>(vsapi->getReadPtr(frame, isGray ? 0 : 2));
 
                     for (int y = 0; y < height; y++) {
-                        Magick::PixelPacket* pixels = pixelCache.get(0, y, width, 1);
+                        MagickCore::Quantum* pixels = pixelCache.get(0, y, width, 1);
                         for (int x = 0; x < width; x++) {
-                            pixels[x].red = r[x] * scaleFactor;
-                            pixels[x].green = g[x] * scaleFactor;
-                            pixels[x].blue = b[x] * scaleFactor;
-                            pixels[x].opacity = 0;
+                            pixels[x * channels + rOff] = r[x] * scaleFactor;
+                            pixels[x * channels + gOff] = g[x] * scaleFactor;
+                            pixels[x * channels + bOff] = b[x] * scaleFactor;
+                            pixels[x * channels + aOff] = 1    * scaleFactor;
                         }
 
                         r += strideR / sizeof(float);
@@ -533,6 +540,7 @@ static void VS_CC readInit(VSMap *in, VSMap *out, void **instanceData, VSNode *n
 template<typename T>
 static void readImageHelper(VSFrameRef *frame, VSFrameRef *alphaFrame, bool isGray, Magick::Image &image, int width, int height, int bitsPerSample, const VSAPI *vsapi) {
     unsigned shiftR = MAGICKCORE_QUANTUM_DEPTH - bitsPerSample;
+    size_t channels = image.channels();
     Magick::Pixels pixelCache(image);
 
     T *r = reinterpret_cast<T *>(vsapi->getWritePtr(frame, 0));
@@ -543,33 +551,42 @@ static void readImageHelper(VSFrameRef *frame, VSFrameRef *alphaFrame, bool isGr
     int strideG = vsapi->getStride(frame, isGray ? 0 : 1);
     int strideB = vsapi->getStride(frame, isGray ? 0 : 2);
 
+    ssize_t rOff = pixelCache.offset(MagickCore::RedPixelChannel);
+    ssize_t gOff = pixelCache.offset(MagickCore::GreenPixelChannel);
+    ssize_t bOff = pixelCache.offset(MagickCore::BluePixelChannel);
+    ssize_t aOff = pixelCache.offset(MagickCore::AlphaPixelChannel);
+
     if (alphaFrame) {
         T *a = reinterpret_cast<T *>(vsapi->getWritePtr(alphaFrame, 0));
         int strideA = vsapi->getStride(alphaFrame, 0);;            
 
-        for (int y = 0; y < height; y++) {
-            const Magick::PixelPacket* pixels = pixelCache.getConst(0, y, width, 1);
-            for (int x = 0; x < width; x++) {
-                r[x] = (unsigned)pixels[x].red >> shiftR;
-                g[x] = (unsigned)pixels[x].green >> shiftR;
-                b[x] = (unsigned)pixels[x].blue >> shiftR;
-                a[x] = (unsigned)pixels[x].opacity >> shiftR;
-            }
+        if (aOff >= 0) {
+            for (int y = 0; y < height; y++) {
+                const Magick::Quantum *pixels = pixelCache.getConst(0, y, width, 1);
+                for (int x = 0; x < width; x++) {
+                    r[x] = (unsigned)pixels[x * channels + rOff] >> shiftR;
+                    g[x] = (unsigned)pixels[x * channels + gOff] >> shiftR;
+                    b[x] = (unsigned)pixels[x * channels + bOff] >> shiftR;
+                    a[x] = (unsigned)pixels[x * channels + aOff] >> shiftR;
+                }
 
-            r += strideR / sizeof(T);
-            g += strideG / sizeof(T);
-            b += strideB / sizeof(T);
-            a += strideA / sizeof(T);
+                r += strideR / sizeof(T);
+                g += strideG / sizeof(T);
+                b += strideB / sizeof(T);
+                a += strideA / sizeof(T);
+            }
+        } else {
+            memset(a, 0, strideA  * height);
         }
     } else {
 
 
         for (int y = 0; y < height; y++) {
-            const Magick::PixelPacket* pixels = pixelCache.getConst(0, y, width, 1);
+            const Magick::Quantum *pixels = pixelCache.getConst(0, y, width, 1);
             for (int x = 0; x < width; x++) {
-                r[x] = (unsigned)pixels[x].red >> shiftR;
-                g[x] = (unsigned)pixels[x].green >> shiftR;
-                b[x] = (unsigned)pixels[x].blue >> shiftR;
+                r[x] = (unsigned)pixels[x * channels + rOff] >> shiftR;
+                g[x] = (unsigned)pixels[x * channels + gOff] >> shiftR;
+                b[x] = (unsigned)pixels[x * channels + bOff] >> shiftR;
             }
 
             r += strideR / sizeof(T);
@@ -603,11 +620,12 @@ static const VSFrameRef *VS_CC readGetFrame(int n, int activationReason, void **
 
             Magick::Image image(filename);
             VSColorFamily cf = cmRGB;
-            if (isGrayColorspace(image.colorSpace()))
+            if (image.colorSpace() == Magick::GRAYColorspace)
                 cf = cmGray;
 
             int width = static_cast<int>(image.columns());
             int height = static_cast<int>(image.rows());
+            size_t channels = image.channels();
 
 #if MAGICKCORE_HDRI_ENABLE
             VSSampleType st = stFloat;
@@ -649,31 +667,40 @@ static const VSFrameRef *VS_CC readGetFrame(int n, int activationReason, void **
                 int strideG = vsapi->getStride(frame, isGray ? 0 : 1);
                 int strideB = vsapi->getStride(frame, isGray ? 0 : 2);
 
+                ssize_t rOff = pixelCache.offset(MagickCore::RedPixelChannel);
+                ssize_t gOff = pixelCache.offset(MagickCore::GreenPixelChannel);
+                ssize_t bOff = pixelCache.offset(MagickCore::BluePixelChannel);
+
                 if (alphaFrame) {
                     float *a = reinterpret_cast<float *>(vsapi->getWritePtr(alphaFrame, 0));
                     int strideA = vsapi->getStride(alphaFrame, 0);
+                    ssize_t aOff = pixelCache.offset(MagickCore::AlphaPixelChannel);
 
-                    for (int y = 0; y < height; y++) {
-                        const Magick::PixelPacket* pixels = pixelCache.getConst(0, y, width, 1);
-                        for (int x = 0; x < width; x++) {
-                            r[x] = pixels[x].red / scaleFactor;
-                            g[x] = pixels[x].green / scaleFactor;
-                            b[x] = pixels[x].blue / scaleFactor;
-                            a[x] = pixels[x].opacity / scaleFactor;
+                    if (aOff >= 0) {
+                        for (int y = 0; y < height; y++) {
+                            const MagickCore::Quantum* pixels = pixelCache.getConst(0, y, width, 1);
+                            for (int x = 0; x < width; x++) {
+                                r[x] = pixels[x * channels + rOff] / scaleFactor;
+                                g[x] = pixels[x * channels + gOff] / scaleFactor;
+                                b[x] = pixels[x * channels + bOff] / scaleFactor;
+                                a[x] = pixels[x * channels + aOff] / scaleFactor;
+                            }
+
+                            r += strideR / sizeof(float);
+                            g += strideG / sizeof(float);
+                            b += strideB / sizeof(float);
+                            a += strideA / sizeof(float);
                         }
-
-                        r += strideR / sizeof(float);
-                        g += strideG / sizeof(float);
-                        b += strideB / sizeof(float);
-                        a += strideA / sizeof(float);
+                    } else {
+                        memset(a, 0, strideA  * height);
                     }
                 } else {
                     for (int y = 0; y < height; y++) {
-                        const Magick::PixelPacket* pixels = pixelCache.getConst(0, y, width, 1);
+                        const MagickCore::Quantum* pixels = pixelCache.getConst(0, y, width, 1);
                         for (int x = 0; x < width; x++) {
-                            r[x] = pixels[x].red / scaleFactor;
-                            g[x] = pixels[x].green / scaleFactor;
-                            b[x] = pixels[x].blue / scaleFactor;
+                            r[x] = pixels[x * channels + rOff] / scaleFactor;
+                            g[x] = pixels[x * channels + gOff] / scaleFactor;
+                            b[x] = pixels[x * channels + bOff] / scaleFactor;
                         }
 
                         r += strideR / sizeof(float);
@@ -782,7 +809,7 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
             d->vi[0].height = static_cast<int>(image.rows());
             d->vi[0].width = static_cast<int>(image.columns());
             VSColorFamily cf = cmRGB;
-            if (isGrayColorspace(image.colorSpace()))
+            if (image.colorSpace() == Magick::GRAYColorspace)
                 cf = cmGray;
             d->vi[0].format = vsapi->registerFormat(cf, st, depth, 0, 0, core);
         }

@@ -21,6 +21,7 @@
 #include "internalfilters.h"
 #include "VSHelper.h"
 #include "filtershared.h"
+#include "filtersharedcpp.h"
 
 #include <cstdlib>
 #include <cstdio>
@@ -29,8 +30,6 @@
 #include <limits>
 #include <string>
 #include <algorithm>
-
-typedef void (VS_CC *NodeFreeFunc)(VSNodeRef *);
 
 //////////////////////////////////////////
 // Lut
@@ -153,7 +152,7 @@ static void lutCreateHelper(const VSMap *in, VSMap *out, VSFuncRef *func, std::u
     int inrange = 1 << d->vi->format->bitsPerSample;
     int maxval = 1 << d->vi_out.format->bitsPerSample;
 
-	d->lut = malloc(inrange * sizeof(U));
+    d->lut = malloc(inrange * sizeof(U));
 
     if (func) {
         std::string errstr;
@@ -203,7 +202,7 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
         RETERROR("Lut: compat formats are not supported");
 
     if (d->vi->format->sampleType != stInteger || d->vi->format->bitsPerSample > 16)
-        RETERROR("Lut: only clips with integer samples and up to 16 bit per channel precision supported");
+        RETERROR("Lut: only clips with integer samples and up to 16 bits per channel precision supported");
 
     bool floatout = !!vsapi->propGetInt(in, "floatout", 0, &err);
     int bitsout = int64ToIntS(vsapi->propGetInt(in, "bits", 0, &err));
@@ -212,58 +211,42 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
     if ((floatout && bitsout != 32) || (!floatout && (bitsout < 8 || bitsout > 16)))
         RETERROR("Lut: only 8-16 bit integer and 32 bit float output supported");
 
-    int n = d->vi->format->numPlanes;
-    int num_planes = vsapi->propNumElements(in, "planes");
+    getPlanesArg(in, d->process, vsapi);
 
-    for (int i = 0; i < 3; i++)
-        d->process[i] = (num_planes <= 0);
+    VSFuncRef *func = vsapi->propGetFunc(in, "function", 0, &err);
+    int lut_elem = vsapi->propNumElements(in, "lut");
+    int lutf_elem = vsapi->propNumElements(in, "lutf");
 
-    for (int i = 0; i < num_planes; i++) {
-        int o = int64ToIntS(vsapi->propGetInt(in, "planes", i, 0));
+    int num_set = (lut_elem >= 0) + (lutf_elem >= 0) + !!func;
 
-        if (o < 0 || o >= n)
-            RETERROR("Lut: plane index out of range");
-
-        if (d->process[o])
-            RETERROR("Lut: plane specified twice");
-
-        d->process[o] = true;
+    if (!num_set) {
+        vsapi->freeFunc(func);
+        RETERROR("Lut: none of lut, lutf and function are set");
     }
 
-	VSFuncRef *func = vsapi->propGetFunc(in, "function", 0, &err);
-	int lut_elem = vsapi->propNumElements(in, "lut");
-	int lutf_elem = vsapi->propNumElements(in, "lutf");
+    if (num_set > 1) {
+        vsapi->freeFunc(func);
+        RETERROR("Lut: more than one of lut, lutf and function are set");
+    }
 
-	int num_set = (lut_elem >= 0) + (lutf_elem >= 0) + !!func;
+    if (lut_elem >= 0 && floatout) {
+        vsapi->freeFunc(func);
+        RETERROR("Lut: lut set but float output specified");
+    }
 
-	if (!num_set) {
-		vsapi->freeFunc(func);
-		RETERROR("Lut: none of lut, lutf and function are set");
-	}
+    if (lutf_elem >= 0 && !floatout) {
+        vsapi->freeFunc(func);
+        RETERROR("Lut: lutf set but float output not specified");
+    }
 
-	if (num_set > 1) {
-		vsapi->freeFunc(func);
-		RETERROR("Lut: more than one of lut, lutf and function are set");
-	}
+    int n = (1 << d->vi->format->bitsPerSample);
 
-	if (lut_elem >= 0 && floatout) {
-		vsapi->freeFunc(func);
-		RETERROR("Lut: lut set but float output specified");
-	}
+    int lut_length = std::max(lut_elem, lutf_elem);
 
-	if (lutf_elem >= 0 && !floatout) {
-		vsapi->freeFunc(func);
-		RETERROR("Lut: lutf set but float output not specified");
-	}
-
-	n = (1 << d->vi->format->bitsPerSample);
-
-	int lut_length = std::max(lut_elem, lutf_elem);
-
-	if (lut_length >= 0 && lut_length != n) {
-		vsapi->freeFunc(func);
-		RETERROR(("Lut: bad lut length. Expected " + std::to_string(n) + " elements, got " + std::to_string(lut_length) + " instead").c_str());
-	}
+    if (lut_length >= 0 && lut_length != n) {
+        vsapi->freeFunc(func);
+        RETERROR(("Lut: bad lut length. Expected " + std::to_string(n) + " elements, got " + std::to_string(lut_length) + " instead").c_str());
+    }
 
     d->vi_out.format = vsapi->registerFormat(d->vi->format->colorFamily, floatout ? stFloat : stInteger, bitsout, d->vi->format->subSamplingW, d->vi->format->subSamplingH, core);
 
@@ -371,7 +354,7 @@ bool funcToLut2(int nxin, int nyin, int nout, void *vlut, VSFuncRef *func, const
 
             const char *ret = vsapi->getError(out);
             if (ret) {
-				errstr = "Lut2: function(" + std::to_string(j) + ", " + std::to_string(i) + ") returned an error: ";
+                errstr = "Lut2: function(" + std::to_string(j) + ", " + std::to_string(i) + ") returned an error: ";
                 errstr += ret;
                 break;
             }
@@ -382,10 +365,10 @@ bool funcToLut2(int nxin, int nyin, int nout, void *vlut, VSFuncRef *func, const
                 vsapi->clearMap(out);
 
                 if (v < 0 || v >= nout || err) {
-					if (err)
-						errstr = "Lut2: function(" + std::to_string(j) + ", " + std::to_string(i) + ") didn't return an integer value";
-					else
-						errstr = "Lut2: function(" + std::to_string(j) + ", " + std::to_string(i) + ") returned invalid value: " + std::to_string(v) + ", max allowed: " + std::to_string(nout);
+                    if (err)
+                        errstr = "Lut2: function(" + std::to_string(j) + ", " + std::to_string(i) + ") didn't return an integer value";
+                    else
+                        errstr = "Lut2: function(" + std::to_string(j) + ", " + std::to_string(i) + ") returned invalid value: " + std::to_string(v) + ", max allowed: " + std::to_string(nout);
 
                     break;
                 }
@@ -396,7 +379,7 @@ bool funcToLut2(int nxin, int nyin, int nout, void *vlut, VSFuncRef *func, const
                 vsapi->clearMap(out);
 
                 if (err) {
-					errstr = "Lut2: function(" + std::to_string(j) + ", " + std::to_string(i) + ") didn't return a float value";
+                    errstr = "Lut2: function(" + std::to_string(j) + ", " + std::to_string(i) + ") didn't return a float value";
                     break;
                 }
 
@@ -415,7 +398,7 @@ static void lut2CreateHelper(const VSMap *in, VSMap *out, VSFuncRef *func, std::
     int inrange = (1 << d->vi[0]->format->bitsPerSample) * (1 << d->vi[1]->format->bitsPerSample);
     int maxval = 1 << d->vi_out.format->bitsPerSample;
 
-	d->lut = malloc(inrange * sizeof(V));
+    d->lut = malloc(inrange * sizeof(V));
 
     if (func) {
         std::string errstr;
@@ -471,68 +454,52 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
         || d->vi[0]->width != d->vi[1]->width || d->vi[0]->height != d->vi[1]->height)
         RETERROR("Lut2: only clips with integer samples, same dimensions, same subsampling and up to a total of 20 indexing bits supported");
 
-    int n = d->vi[0]->format->numPlanes;
-    int num_planes = vsapi->propNumElements(in, "planes");
-
-    for (int i = 0; i < 3; i++)
-        d->process[i] = (num_planes <= 0);
-
-    for (int i = 0; i < num_planes; i++) {
-        int o = int64ToIntS(vsapi->propGetInt(in, "planes", i, 0));
-
-        if (o < 0 || o >= n)
-            RETERROR("Lut2: plane index out of range");
-
-        if (d->process[o])
-            RETERROR("Lut2: plane specified twice");
-
-        d->process[o] = true;
-    }
+    getPlanesArg(in, d->process, vsapi);
 
     int err;
     VSFuncRef *func = vsapi->propGetFunc(in, "function", 0, &err);
     int lut_elem = vsapi->propNumElements(in, "lut");
-	int lutf_elem = vsapi->propNumElements(in, "lutf");
-	bool floatout = !!vsapi->propGetInt(in, "floatout", 0, &err);
+    int lutf_elem = vsapi->propNumElements(in, "lutf");
+    bool floatout = !!vsapi->propGetInt(in, "floatout", 0, &err);
 
     int num_set = (lut_elem >= 0) + (lutf_elem >= 0) + !!func;
 
-	if (!num_set) {
-		vsapi->freeFunc(func);
-		RETERROR("Lut2: none of lut, lutf and function are set");
-	}
+    if (!num_set) {
+        vsapi->freeFunc(func);
+        RETERROR("Lut2: none of lut, lutf and function are set");
+    }
 
-	if (num_set > 1) {
-		vsapi->freeFunc(func);
-		RETERROR("Lut2: more than one of lut, lutf and function are set");
-	}
+    if (num_set > 1) {
+        vsapi->freeFunc(func);
+        RETERROR("Lut2: more than one of lut, lutf and function are set");
+    }
 
-	if (lut_elem >= 0 && floatout) {
-		vsapi->freeFunc(func);
-		RETERROR("Lut2: lut set but float output specified");
-	}
+    if (lut_elem >= 0 && floatout) {
+        vsapi->freeFunc(func);
+        RETERROR("Lut2: lut set but float output specified");
+    }
 
-	if (lutf_elem >= 0 && !floatout) {
-		vsapi->freeFunc(func);
-		RETERROR("Lut2: lutf set but float output not specified");
-	}
+    if (lutf_elem >= 0 && !floatout) {
+        vsapi->freeFunc(func);
+        RETERROR("Lut2: lutf set but float output not specified");
+    }
 
-    n = 1 << (d->vi[0]->format->bitsPerSample + d->vi[1]->format->bitsPerSample);
+    int n = 1 << (d->vi[0]->format->bitsPerSample + d->vi[1]->format->bitsPerSample);
 
-	int lut_length = std::max(lut_elem, lutf_elem);
+    int lut_length = std::max(lut_elem, lutf_elem);
 
-	if (lut_length >= 0 && lut_length != n) {
-		vsapi->freeFunc(func);
-		RETERROR(("Lut2: bad lut length. Expected " + std::to_string(n) + " elements, got " + std::to_string(lut_length) + " instead").c_str());
-	}
+    if (lut_length >= 0 && lut_length != n) {
+        vsapi->freeFunc(func);
+        RETERROR(("Lut2: bad lut length. Expected " + std::to_string(n) + " elements, got " + std::to_string(lut_length) + " instead").c_str());
+    }
 
     int bitsout = int64ToIntS(vsapi->propGetInt(in, "bits", 0, &err));
     if (err)
         bitsout = (floatout ? sizeof(float) * 8 : d->vi[0]->format->bitsPerSample);
-	if ((floatout && bitsout != 32) || (!floatout && (bitsout < 8 || bitsout > 16))) {
-		vsapi->freeFunc(func);
-		RETERROR("Lut2: only 8-16 bit integer and 32 bit float output supported");
-	}
+    if ((floatout && bitsout != 32) || (!floatout && (bitsout < 8 || bitsout > 16))) {
+        vsapi->freeFunc(func);
+        RETERROR("Lut2: only 8-16 bit integer and 32 bit float output supported");
+    }
 
     d->vi_out = *d->vi[0];
     d->vi_out.format = vsapi->registerFormat(d->vi[0]->format->colorFamily, floatout ? stFloat : stInteger, bitsout, d->vi[0]->format->subSamplingW, d->vi[0]->format->subSamplingH, core);

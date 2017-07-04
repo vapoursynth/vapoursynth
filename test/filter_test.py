@@ -11,15 +11,15 @@ class FilterTestSequence(unittest.TestCase):
         self.mask = lambda val, bits: val & ((1 << bits) - 1)
 
     def checkDifference(self, cpu, gpu):
-        diff = self.core.std.PlaneDifference([cpu, gpu], 0, prop="PlaneDifference0")
-        diff = self.core.std.PlaneDifference([diff, gpu], 1, prop="PlaneDifference1")
-        diff = self.core.std.PlaneDifference([diff, gpu], 2, prop="PlaneDifference2")
+        diff = self.core.std.PlaneStats(cpu, gpu, 0, prop="PlaneStats0")
+        diff = self.core.std.PlaneStats(diff, gpu, 1, prop="PlaneStats1")
+        diff = self.core.std.PlaneStats(diff, gpu, 2, prop="PlaneStats2")
 
         for i in range(diff.num_frames):
             frame = diff.get_frame(i)
-            self.assertEqual(frame.props.PlaneDifference0, 0)
-            self.assertEqual(frame.props.PlaneDifference1, 0)
-            self.assertEqual(frame.props.PlaneDifference2, 0)
+            self.assertEqual(frame.props['PlaneStats0Diff'], 0)
+            self.assertEqual(frame.props['PlaneStats1Diff'], 0)
+            self.assertEqual(frame.props['PlaneStats2Diff'], 0)
 
     def testLUT16Bit(self):
         clip = self.BlankClip(format=vs.YUV420P16, color=[69, 242, 115])
