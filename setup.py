@@ -1,12 +1,15 @@
 #!/usr/bin/env python
 
 from platform import architecture
+from shutils import which
 from os import curdir
-from os.path import join
+from os.path import join, exists
 from setuptools import setup, Extension
 
 is_win = (architecture()[1] == "WindowsPE")
 is_64 = (architecture()[0] == "64bit")
+
+extra_data = {}
 
 library_dirs = [curdir, "build"]
 if is_win:
@@ -45,7 +48,18 @@ if is_win:
         library_dirs.append(base_dir)
         library_dirs.append(join(base_dir, "sdk", lib_suffix))
 
-
+    for path in library_dirs:
+        dll_path = join(path, "VapourSynth.dll")
+        if exists(dll_path):
+            break
+    else:
+        dll_path = which("VapourSynth.dll")
+        if not which("VapourSynth.dll"):
+            print("Warning: Couldn't detect VapourSynth. Installation may fail.")
+            
+    if dll_path:
+        extra_data["package_data"] = [(r"Lib\site-packages", [dll_path])]
+        
 setup(
     name = "VapourSynth",
     description = "A frameserver for the 21st century",
@@ -65,5 +79,7 @@ setup(
     setup_requires=[
         'setuptools>=36.0',
         "Cython",
-    ]
+    ],
+    
+    **extra_data
 )
