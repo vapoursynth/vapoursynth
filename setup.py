@@ -63,7 +63,7 @@ setup(
                              include_dirs = [curdir, join("src", "cython")],
                              cython_c_in_temp = 1)],
     setup_requires=[
-        'setuptools>=18.0',
+        'setuptools>=36.0',
         "Cython",
     ]
 )
