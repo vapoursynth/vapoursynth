@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from platform import architecture
-from shutils import which
+from shutil import which
 from os import curdir
 from os.path import join, exists
 from setuptools import setup, Extension
