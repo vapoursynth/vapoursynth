@@ -62,7 +62,7 @@ setup(
                              library_dirs = library_dirs,
                              include_dirs = [curdir, join("src", "cython")],
                              cython_c_in_temp = 1)],
-    setup_requires=[
+    install_requires=[
         'setuptools>=36.0',
         "Cython",
     ]
