@@ -37,7 +37,9 @@ if is_win:
 
         return value
 
-    library_dirs.append(join(query(winreg.HKEY_LOCAL_MACHINE, REGISTRY_PATH, REGISTRY_KEY), "sdk", lib_suffix))
+    base_dir = query(winreg.HKEY_LOCAL_MACHINE, REGISTRY_PATH, REGISTRY_KEY)
+    library_dirs.append(base_dir)
+    library_dirs.append(join(base_dir, "sdk", lib_suffix))
 
 
 setup(
@@ -48,7 +50,7 @@ setup(
     author = "Fredrik Mellbin",
     author_email = "fredrik.mellbin@gmail.com",
     license = "LGPL 2.1 or later",
-    version = "1.0.0",
+    version = "39",
     long_description = "A portable replacement for Avisynth",
     platforms = "All",
     ext_modules = [Extension("vapoursynth", [join("src", "cython", "vapoursynth.pyx")],

@@ -33,3 +33,7 @@ ltmain.sh
 missing
 vspipe
 *.pc
+
+dist/
+.eggs
+*.egg-info/
