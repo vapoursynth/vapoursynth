@@ -36,10 +36,14 @@ if is_win:
                 winreg.CloseKey(reg_key)
 
         return value
-
-    base_dir = query(winreg.HKEY_LOCAL_MACHINE, REGISTRY_PATH, REGISTRY_KEY)
-    library_dirs.append(base_dir)
-    library_dirs.append(join(base_dir, "sdk", lib_suffix))
+    
+    try:
+        base_dir = query(winreg.HKEY_LOCAL_MACHINE, REGISTRY_PATH, REGISTRY_KEY)
+    except (IOError, FileNotFoundError):
+        pass
+    else:
+        library_dirs.append(base_dir)
+        library_dirs.append(join(base_dir, "sdk", lib_suffix))
 
 
 setup(
