@@ -37,3 +37,6 @@ vspipe
 dist/
 .eggs
 *.egg-info/
+
+zimg/
+AviSynthPlus
