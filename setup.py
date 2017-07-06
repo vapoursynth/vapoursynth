@@ -3,7 +3,7 @@
 from platform import architecture
 from shutil import which
 from os import curdir
-from os.path import join, exists
+from os.path import join, exists, dirname
 from setuptools import setup, Extension
 
 is_win = (architecture()[1] == "WindowsPE")
@@ -27,7 +27,8 @@ if is_win:
 
     import winreg
     REGISTRY_PATH = r"SOFTWARE\VapourSynth"
-    REGISTRY_KEY = r"Path"
+    REGISTRY_KEY = "VapourSynthDLL"
+    REGISTRY_KEY_PATH = "Path"
 
     def query(hkey, path, key):
         reg_key = None
@@ -39,26 +40,42 @@ if is_win:
                 winreg.CloseKey(reg_key)
 
         return value
-    
-    try:
-        base_dir = query(winreg.HKEY_LOCAL_MACHINE, REGISTRY_PATH, REGISTRY_KEY)
-    except (IOError, FileNotFoundError):
-        pass
-    else:
-        library_dirs.append(base_dir)
-        library_dirs.append(join(base_dir, "sdk", lib_suffix))
 
+    # Locate the vapoursynth dll inside the library directories first
+    # should we find it, it is a clear indicator that VapourSynth
+    # has been compiled by the user.
     for path in library_dirs:
-        dll_path = join(path, "VapourSynth.dll")
+        dll_path = join(path, "vapoursynth.dll")
         if exists(dll_path):
             break
     else:
-        dll_path = which("VapourSynth.dll")
-        if not which("VapourSynth.dll"):
-            print("Warning: Couldn't detect VapourSynth. Installation may fail.")
-            
-    if dll_path:
-        extra_data["package_data"] = [(r"Lib\site-packages", [dll_path])]
+        # In case the user did not compile vapoursynth by themself, we will then
+        # hit the path.
+        #
+        # This is an indicator for portable installations.
+        dll_path = which("vapoursynth.dll")
+        if dll_path is None:
+            # If the vapoursynth.dll is not located in PATH, we then hit the registry
+            try:
+                dll_path = query(winreg.HKEY_LOCAL_MACHINE, REGISTRY_PATH, REGISTRY_KEY)
+            except:
+                # Give up.
+                raise OSError("Couldn't detect vapoursynth installation path")
+            else:
+                # Since the SDK is on a different directory than the DLL insert the SDK to library_dirs
+                sdkpath = join(query(winreg.HKEY_LOCAL_MACHINE, REGISTRY_PATH, REGISTRY_KEY_PATH), "sdk", lib_suffix)
+                if not exists(sdkpath):
+                    raise OSError("It appears you don't have the sdk installed. Please make sure you installed the sdk before running setup.py")
+                library_dirs.append(sdkpath)
+
+        # Insert the DLL Path to the library dirs
+        if dll_path:
+            library_dirs.append(dirname(dll_path))
+
+    # Make sure the setup process copies the VapourSynth.dll into the site-package folder
+    print("Found VapourSynth.dll at:", dll_path)
+    extra_data["data_files"] = [(r"Lib\site-packages", [dll_path])]
+        
         
 setup(
     name = "VapourSynth",
@@ -77,7 +94,7 @@ setup(
                              include_dirs = [curdir, join("src", "cython")],
                              cython_c_in_temp = 1)],
     setup_requires=[
-        'setuptools>=36.0',
+        'setuptools>=18.0',
         "Cython",
     ],
     
