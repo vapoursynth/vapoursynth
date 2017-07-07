@@ -116,11 +116,14 @@ Others
 * `minsharp <http://forum.doom9.org/showthread.php?t=173328>`_ -- Simple 3x3 blur and sharpen
 * `MSmoosh <http://forum.doom9.org/showthread.php?t=171159>`_ -- MSmooth and MSharpen ports
 * `MVTools <http://forum.doom9.org/showthread.php?t=171207>`_ -- MVTools port
+* `MVTools single precision <https://forum.doom9.org/showthread.php?t=172525>`_ -- MVTools fork that works in single precision floating point
 * `Plum <https://forum.doom9.org/showthread.php?t=173775>`_ -- Blind deconvolution enhanced by pixel/block matching
 * `Retinex <http://forum.doom9.org/showthread.php?t=171307>`_ -- Dynamic range compression
 * `TCanny <http://forum.doom9.org/showthread.php?t=172158>`_ -- Canny edge detection
+* `TimeCube <http://forum.doom9.org/showthread.php?p=1809329#post1809329>`_ -- 3D LUT
 * `vcmod <http://forum.doom9.org/showthread.php?t=171412>`_ -- Various filters such as histogram equalization, blur, and watershed segmentation
 * `vcmove <http://forum.doom9.org/showthread.php?t=171414>`_ -- Rotate, debarrel and other distortion correction filters
+* `VFRtoCFR <https://forum.doom9.org/showthread.php?t=174711>`_ -- VFR to CFR conversion using timecode files
 
 Avisynth Interop
 ################
