@@ -581,6 +581,9 @@ cdef class Format(object):
         vals.update(**kwargs)
         return core.register_format(**vals)
 
+    def __int__(self):
+        return self.id
+
     def __str__(self):
         return ('Format Descriptor\n'
                f'\tId: {self.id:d}\n'
