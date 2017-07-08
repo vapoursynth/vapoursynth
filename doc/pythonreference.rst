@@ -442,6 +442,17 @@ Classes and Functions
 
       The number of planes the format has.
 
+   .. py:method:: replace(core=None, **kwargs)
+
+      Returns a new format with the given modifications.
+
+      The only supported attributes that can be replaced are `color_family`,
+      `sample_type`, `bits_per_sample`, `subsampling_w`, `subsampling_h`.
+
+      The optional `core`-parameter defines on which core the new format
+      should be registered. This is usually not needed and defaults
+      to the core of the current environment.
+
 .. py:class:: Plugin
 
    Plugin is a class that represents a loaded plugin and its namespace.
