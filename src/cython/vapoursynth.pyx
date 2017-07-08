@@ -31,6 +31,7 @@ import traceback
 import gc
 import sys
 import inspect
+from types import MappingProxyType
 from collections.abc import Iterable, Mapping
 from fractions import Fraction
 
@@ -169,6 +170,10 @@ def clear_output(int index = 0):
 def clear_outputs():
     cdef dict outputs = _get_output_dict("clear_outputs")
     outputs.clear()
+
+def get_outputs():
+    cdef dict outputs = _get_output_dict("get_outputs")
+    return MappingProxyType(outputs)
 
 def get_output(int index = 0):
     return _get_output_dict("get_output")[index]
