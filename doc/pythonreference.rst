@@ -172,6 +172,12 @@ Classes and Functions
 
    Sets a function to handle all debug output and fatal errors. The function should have the form *handler(level, message)*,
    where level corresponds to the vapoursynth.mt constants. Passing *None* restores the default handler, which prints to stderr.
+
+.. py:function:: get_outputs()
+
+   Return a read-only mapping of all outputs registered on the current node.
+
+   The mapping will automatically update when a new output is registered.
    
 .. py:function:: get_output([index = 0])
 
