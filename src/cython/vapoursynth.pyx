@@ -566,6 +566,24 @@ cdef class Format(object):
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
 
+    def _as_dict(self):
+        return {
+            'color_family': self.color_family,
+            'sample_type': self.sample_type,
+            'bits_per_sample': self.bits_per_sample,
+            'subsampling_w': self.subsampling_w,
+            'subsampling_h': self.subsampling_h
+        }
+
+    def replace(self, **kwargs):
+        core = kwargs.pop("core", None) or get_core()
+        vals = self._as_dict()
+        vals.update(**kwargs)
+        return core.register_format(**vals)
+
+    def __int__(self):
+        return self.id
+
     def __str__(self):
         return ('Format Descriptor\n'
                f'\tId: {self.id:d}\n'
