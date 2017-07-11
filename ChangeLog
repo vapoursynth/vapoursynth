@@ -1,3 +1,11 @@
+r39:
+reverted the argument handling in levels, arguments no longer take a 3 plane list due it making no sense when combined with the planes argument
+optimized levels, the integer version is now implemented with a lut and the floating point version is faster version for gamma=1.0
+improved get_outputs() in python (stuxcrystal)
+format objects can now be cast to int which will return the format id (stuxcrystal)
+added method to make it easier to query formats from python (stuxcrystal)
+made it possible to install the python part as a module (stuxcrystal)
+
 r38:
 updated to zimg v2.5.1
 removed the pointless subsampling requirements of transpose
