@@ -26,7 +26,10 @@
 #include <cstdlib>
 #include <string>
 #include <array>
+#include <vector>
 #include <memory>
+#include <type_traits>
+#include <limits>
 #include <VapourSynth.h>
 #include <VSHelper.h>
 #include "filtershared.h"
@@ -2476,58 +2479,161 @@ struct LevelsData {
     const VSVideoInfo *vi;
     const char *name;
     bool process[3];
-    double gamma[3];
-    uint16_t max_in[3], max_out[3], min_in[3], min_out[3];
-    float max_inf[3], max_outf[3], min_inf[3], min_outf[3];
-};
-
-struct LevelsOp {
     float gamma;
-    uint16_t range_in, range_out, min_in, min_out;
-    float range_inf, range_outf, min_inf, min_outf;
-
-    LevelsOp(LevelsData *d, const VSFormat *fi, int plane) {
-        gamma = static_cast<float>(1.0 / d->gamma[plane]);
-        range_in = d->max_in[plane] - d->min_in[plane];
-        range_inf = d->max_inf[plane] - d->min_inf[plane];
-        range_out = d->max_out[plane] - d->min_out[plane];
-        range_outf = d->max_outf[plane] - d->min_outf[plane];
-        min_in = d->min_in[plane];
-        min_inf = d->min_inf[plane];
-        min_out = d->min_out[plane];
-        min_outf = d->min_outf[plane];
-    }
-
-    template<typename T>
-    static FORCE_INLINE void processPlane(const T * VS_RESTRICT src, T * VS_RESTRICT dst, unsigned width, const LevelsOp &opts) {
-        for (unsigned w = 0; w < width; w++)
-            dst[w] = static_cast<T>(std::pow(static_cast<float>(src[w] - opts.min_in) / (opts.range_in), opts.gamma) * (opts.range_out) + opts.min_out + 0.5f);
-    }
-
-    template<typename T>
-    static FORCE_INLINE void processPlaneF(const T * VS_RESTRICT src, T * VS_RESTRICT dst, unsigned width, const LevelsOp &opts) {
-        for (unsigned w = 0; w < width; w++)
-            dst[w] = std::pow(static_cast<float>(src[w] - opts.min_inf) / (opts.range_inf), opts.gamma) * (opts.range_outf) + opts.min_outf;
-    }
+    float max_in, max_out, min_in, min_out;
+    std::vector<uint8_t> lut;
 };
+
+template<typename T>
+static const VSFrameRef *VS_CC levelsGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    LevelsData *d = reinterpret_cast<LevelsData *>(*instanceData);
+
+    if (activationReason == arInitial) {
+        vsapi->requestFrameFilter(n, d->node, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSFormat *fi = vsapi->getFrameFormat(src);
+        const int pl[] = { 0, 1, 2 };
+        const VSFrameRef *fr[] = { d->process[0] ? 0 : src, d->process[1] ? 0 : src, d->process[2] ? 0 : src };
+        VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
+
+        for (int plane = 0; plane < fi->numPlanes; plane++) {
+            if (d->process[plane]) {
+                const T * VS_RESTRICT srcp = reinterpret_cast<const T *>(vsapi->getReadPtr(src, plane));
+                int src_stride = vsapi->getStride(src, plane);
+                T * VS_RESTRICT dstp = reinterpret_cast<T *>(vsapi->getWritePtr(dst, plane));
+                int dst_stride = vsapi->getStride(dst, plane);
+                int h = vsapi->getFrameHeight(src, plane);
+                int w = vsapi->getFrameWidth(src, plane);
+
+                T maxval = static_cast<T>((static_cast<int64_t>(1) << fi->bitsPerSample) - 1);
+                const T * VS_RESTRICT lut = reinterpret_cast<const T *>(d->lut.data());
+
+                for (int hl = 0; hl < h; hl++) {
+                    for (int x = 0; x < w; x++)
+                        dstp[x] = lut[std::min(srcp[x], maxval)];
+
+                    dstp += dst_stride / sizeof(T);
+                    srcp += src_stride / sizeof(T);
+                } 
+            }
+        }
+
+        vsapi->freeFrame(src);
+        return dst;
+    }
+
+    return nullptr;
+}
+
+template<typename T>
+static const VSFrameRef *VS_CC levelsGetframeF(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    LevelsData *d = reinterpret_cast<LevelsData *>(*instanceData);
+
+    if (activationReason == arInitial) {
+        vsapi->requestFrameFilter(n, d->node, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSFormat *fi = vsapi->getFrameFormat(src);
+        const int pl[] = { 0, 1, 2 };
+        const VSFrameRef *fr[] = { d->process[0] ? 0 : src, d->process[1] ? 0 : src, d->process[2] ? 0 : src };
+        VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
+
+        for (int plane = 0; plane < fi->numPlanes; plane++) {
+            if (d->process[plane]) {
+                const T * VS_RESTRICT srcp = reinterpret_cast<const T *>(vsapi->getReadPtr(src, plane));
+                int src_stride = vsapi->getStride(src, plane);
+                T * VS_RESTRICT dstp = reinterpret_cast<T *>(vsapi->getWritePtr(dst, plane));
+                int dst_stride = vsapi->getStride(dst, plane);
+                int h = vsapi->getFrameHeight(src, plane);
+                int w = vsapi->getFrameWidth(src, plane);
+
+                T gamma = static_cast<T>(1.0) / d->gamma;
+                T range_in = d->max_in - d->min_in;
+                T range_out = d->max_out - d->min_out;
+                T min_in = d->min_in;
+                T min_out = d->min_out;
+
+                if (std::abs(d->gamma - static_cast<T>(1.0)) < std::numeric_limits<T>::epsilon()) {
+                    T range_scale = range_out / range_in;
+                    for (int hl = 0; hl < h; hl++) {
+                        for (int x = 0; x < w; x++)
+                            dstp[x] = (srcp[x] - min_in) * range_scale + min_out;
+
+                        dstp += dst_stride / sizeof(T);
+                        srcp += src_stride / sizeof(T);
+                    }
+                } else {
+                    for (int hl = 0; hl < h; hl++) {
+                        for (int x = 0; x < w; x++)
+                            dstp[x] = std::pow((srcp[x] - min_in) / (range_in), gamma) * range_out + min_out;
+
+                        dstp += dst_stride / sizeof(T);
+                        srcp += src_stride / sizeof(T);
+                    }
+                }       
+            }
+        }
+
+        vsapi->freeFrame(src);
+        return dst;
+    }
+
+    return nullptr;
+}
 
 static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<LevelsData> d(new LevelsData);
 
     try {
         templateInit(d, "Levels", false, in, out, vsapi);
-        getPlanePixelRangeArgs(d->vi->format, in, "min_in", d->min_in, d->min_inf, RangeLower, vsapi);
-        getPlanePixelRangeArgs(d->vi->format, in, "min_out", d->min_out, d->min_outf, RangeLower, vsapi);
-        getPlanePixelRangeArgs(d->vi->format, in, "max_in", d->max_in, d->max_inf, RangeUpper, vsapi);
-        getPlanePixelRangeArgs(d->vi->format, in, "max_out", d->max_out, d->max_outf, RangeUpper, vsapi);
-        getPlaneArgs(d->vi->format, in, "gamma", d->gamma, 1., vsapi);
     } catch (std::string &error) {
         vsapi->freeNode(d->node);
         vsapi->setError(out, std::string(d->name).append(": ").append(error).c_str());
         return;
     }
 
-    vsapi->createFilter(in, out, d->name, templateNodeInit<LevelsData>, singlePixelGetFrame<LevelsData, LevelsOp>, templateNodeFree<LevelsData>, fmParallel, 0, d.get(), core);
+    int err;
+    float maxval = 1.0f;
+    if (d->vi->format->sampleType == stInteger)
+        maxval = (1 << d->vi->format->bitsPerSample);
+    d->min_in = static_cast<float>(vsapi->propGetFloat(in, "min_in", 0, &err));
+    d->min_out = static_cast<float>(vsapi->propGetFloat(in, "min_out", 0, &err));
+    d->max_in = static_cast<float>(vsapi->propGetFloat(in, "max_in", 0, &err));
+    if (err)
+        d->max_in = maxval;
+    d->max_out = static_cast<float>(vsapi->propGetFloat(in, "max_out", 0, &err));
+    if (err)
+        d->max_out = maxval;
+    d->gamma = static_cast<float>(vsapi->propGetFloat(in, "gamma", 0, &err));
+
+    // Implement with simple lut for integer
+    if (d->vi->format->sampleType == stInteger) {
+        d->lut.resize(d->vi->format->bytesPerSample * (1 << d->vi->format->bitsPerSample));
+
+        d->min_in = std::round(d->min_in);
+        d->min_out = std::round(d->min_out);
+        d->max_in = std::round(d->max_in);
+        d->max_out = std::round(d->max_out);
+
+        if (d->vi->format->bytesPerSample == 1) {
+            for (int v = 0; v <= 255; v++)
+                d->lut[v] = static_cast<uint8_t>(std::max(std::min(std::pow(std::max(v - d->min_in, 0.f) / (d->max_in - d->min_in), d->gamma) * (d->max_out - d->min_out) + d->min_out, 255.f), 0.f) + 0.5f);
+        } else {
+            int maxval = (1 << d->vi->format->bitsPerSample) - 1;
+            float maxvalf = maxval;
+            uint16_t *lptr = reinterpret_cast<uint16_t *>(d->lut.data());
+            for (int v = 0; v <= maxval; v++)
+                lptr[v] = static_cast<uint16_t>(std::max(std::min(std::pow(std::max(v - d->min_in, 0.f) / (d->max_in - d->min_in), d->gamma) * (d->max_out - d->min_out) + d->min_out, maxvalf), 0.f) + 0.5f);
+        }
+    }
+
+    if (d->vi->format->bytesPerSample == 1)
+        vsapi->createFilter(in, out, d->name, templateNodeInit<LevelsData>, levelsGetframe<uint8_t>, templateNodeFree<LevelsData>, fmParallel, 0, d.get(), core);
+    else if (d->vi->format->bytesPerSample == 2)
+        vsapi->createFilter(in, out, d->name, templateNodeInit<LevelsData>, levelsGetframe<uint16_t>, templateNodeFree<LevelsData>, fmParallel, 0, d.get(), core);
+    else
+        vsapi->createFilter(in, out, d->name, templateNodeInit<LevelsData>, levelsGetframeF<float>, templateNodeFree<LevelsData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
