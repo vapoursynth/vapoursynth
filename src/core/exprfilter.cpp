@@ -579,7 +579,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
         const uint8_t *srcp[MAX_EXPR_INPUTS] = {};
         int src_stride[MAX_EXPR_INPUTS] = {};
 
-#ifdef VS_TARGET_CPU_X86a
+#ifdef VS_TARGET_CPU_X86
         intptr_t ptroffsets[MAX_EXPR_INPUTS + 1] = { d->vi.format->bytesPerSample * 8 };
 
         for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {

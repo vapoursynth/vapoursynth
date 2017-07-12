@@ -20,6 +20,16 @@
 
 #include "VapourSynth.h"
 
+/*
+
+    Note that the version is stored in several places, in addition to version.h it's also in:
+    setup.py (version = "" near the bottom)
+    configure.ac (number on first line in [])
+    installer/vsinstaller.iss (Version and VersionInfoVersion lines)
+    doc/conf.py (version = '' near the top)
+
+*/
+
 #define XSTR(x) STR(x)
 #define STR(x) #x
 #define VAPOURSYNTH_CORE_VERSION 39
