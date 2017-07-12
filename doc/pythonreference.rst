@@ -7,6 +7,11 @@ VapourSynth is separated into a core library and a Python module. This section
 explains how the core library is exposed through Python and some of the
 special things unique to Python scripting, such as slicing and output.
 
+.. note::
+
+   Any script executed through the vsscript api (that means vspipe, avfs, vsvfw or
+   other API users) will have __name__ set to "__vapoursynth__" unlike normal Python
+   scripts where it usually is "__main__".
 
 VapourSynth Structure
 #####################
