@@ -118,6 +118,7 @@ Others
 * `MVTools <http://forum.doom9.org/showthread.php?t=171207>`_ -- MVTools port
 * `MVTools single precision <https://forum.doom9.org/showthread.php?t=172525>`_ -- MVTools fork that works in single precision floating point
 * `Plum <https://forum.doom9.org/showthread.php?t=173775>`_ -- Blind deconvolution enhanced by pixel/block matching
+* `RemapFrames <https://forum.doom9.org/showthread.php?t=174727>`_ -- Frame re-ordering based on files/strings
 * `Retinex <http://forum.doom9.org/showthread.php?t=171307>`_ -- Dynamic range compression
 * `TCanny <http://forum.doom9.org/showthread.php?t=172158>`_ -- Canny edge detection
 * `TimeCube <http://forum.doom9.org/showthread.php?p=1809329#post1809329>`_ -- 3D LUT
