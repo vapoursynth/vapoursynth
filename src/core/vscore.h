@@ -378,7 +378,7 @@ private:
     int stride[3];
     VSMap properties;
 public:
-    static const int alignment = 32;
+    static const int alignment = 64;
 #ifdef VS_FRAME_GUARD
     static const int guardSpace = alignment;
 #else

@@ -73,19 +73,27 @@ namespace {
 
 
     const std::unordered_map<std::string, zimg_cpu_type_e> g_cpu_type_table{
-        { "none",  ZIMG_CPU_NONE },
-        { "auto",  ZIMG_CPU_AUTO },
+        { "none",      ZIMG_CPU_NONE },
+        { "auto",      ZIMG_CPU_AUTO },
+    #if ZIMG_API_VERSION >= ZIMG_MAKE_API_VERSION(2, 3)
+        { "auto64",    ZIMG_CPU_AUTO_64B },
+    #endif
     #if defined(__i386) || defined(_M_IX86) || defined(_M_X64) || defined(__x86_64__)
-        { "mmx",   ZIMG_CPU_X86_MMX },
-        { "sse",   ZIMG_CPU_X86_SSE },
-        { "sse2",  ZIMG_CPU_X86_SSE2 },
-        { "sse3",  ZIMG_CPU_X86_SSE3 },
-        { "ssse3", ZIMG_CPU_X86_SSSE3 },
-        { "sse41", ZIMG_CPU_X86_SSE41 },
-        { "sse42", ZIMG_CPU_X86_SSE42 },
-        { "avx",   ZIMG_CPU_X86_AVX },
-        { "f16c",  ZIMG_CPU_X86_F16C },
-        { "avx2",  ZIMG_CPU_X86_AVX2 },
+        { "mmx",       ZIMG_CPU_X86_MMX },
+        { "sse",       ZIMG_CPU_X86_SSE },
+        { "sse2",      ZIMG_CPU_X86_SSE2 },
+        { "sse3",      ZIMG_CPU_X86_SSE3 },
+        { "ssse3",     ZIMG_CPU_X86_SSSE3 },
+        { "sse41",     ZIMG_CPU_X86_SSE41 },
+        { "sse42",     ZIMG_CPU_X86_SSE42 },
+        { "avx",       ZIMG_CPU_X86_AVX },
+        { "f16c",      ZIMG_CPU_X86_F16C },
+        { "avx2",      ZIMG_CPU_X86_AVX2 },
+    #if ZIMG_API_VERSION >= ZIMG_MAKE_API_VERSION(2, 3)
+        { "avx512f",   ZIMG_CPU_X86_AVX512F },
+        { "avx512knl", ZIMG_CPU_X86_AVX512_KNL },
+        { "avx512skl", ZIMG_CPU_X86_AVX512_SKL },
+    #endif
     #endif
     };
 
@@ -659,6 +667,9 @@ namespace {
                 lookup_enum(in, "range_in", g_range_table, &m_frame_params_in.range, vsapi);
                 lookup_enum(in, "chromaloc_in", g_chromaloc_table, &m_frame_params_in.chromaloc, vsapi);
 
+            #if ZIMG_API_VERSION >= ZIMG_MAKE_API_VERSION(2, 3)
+                m_params.cpu_type = ZIMG_CPU_AUTO_64B;
+            #endif
                 m_params.allow_approximate_gamma = 1;
                 m_params.resample_filter = static_cast<zimg_resample_filter_e>(reinterpret_cast<intptr_t>(userData));
                 m_params.filter_param_a = propGetScalarDef<double>(in, "filter_param_a", m_params.filter_param_a, vsapi);
