@@ -68,10 +68,6 @@ void sp_atomic_store(std::shared_ptr<T> *p, std::shared_ptr<T> r)
 
 namespace {
 
-unsigned g_version_info[3];
-unsigned g_api_version[2];
-
-
 const std::unordered_map<std::string, zimg_cpu_type_e> g_cpu_type_table{
     { "none",      ZIMG_CPU_NONE },
     { "auto",      ZIMG_CPU_AUTO },
@@ -965,9 +961,6 @@ void VS_CC resizeInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
 #undef FLOAT_OPT
 #undef DATA_OPT
 #undef ENUM_OPT
-
-    zimg_get_version_info(&g_version_info[0], &g_version_info[1], &g_version_info[2]);
-    zimg_get_api_version(&g_api_version[0], &g_api_version[1]);
 
     configFunc("com.vapoursynth.resize", "resize", "VapourSynth Resize", VAPOURSYNTH_API_VERSION, 1, plugin);
     registerFunc("Bilinear", FORMAT_DEFINITION, vszimg_create, (void *)ZIMG_RESIZE_BILINEAR, plugin);
