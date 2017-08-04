@@ -21,6 +21,7 @@
 #include "vscore.h"
 #include "VSHelper.h"
 #include "version.h"
+#include "cpufeatures.h"
 #ifndef VS_TARGET_OS_WINDOWS
 #include <dirent.h>
 #include <cstddef>
@@ -1094,7 +1095,7 @@ VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), numFuncti
     exprInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
     genericInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
     lutInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
-	boxBlurInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
+    boxBlurInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
     mergeInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
     reorderInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
     stdlibInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
@@ -1558,3 +1559,15 @@ VSMap VSPlugin::getFunctions() {
     }
     return m;
 }
+
+#ifdef VS_TARGET_CPU_X86
+static int alignmentHelper() {
+    CPUFeatures f;
+    getCPUFeatures(&f);
+    return f.avx512_f ? 64 : 32;
+}
+
+int VSFrame::alignment = alignmentHelper();
+#else
+int VSFrame::alignment = 32;
+#endif
