@@ -34,6 +34,8 @@ void getCPUFeatures(CPUFeatures *cpuFeatures) {
     int ebx = 0;
     int ecx = 0;
     int edx = 0;
+    int xeax = 0;
+    int xedx = 0;
     vs_cpu_cpuid(1, &eax, &ebx, &ecx, &edx);
     cpuFeatures->can_run_vs = !!(edx & (1 << 26)); //sse2
     cpuFeatures->sse3 = !!(ecx & 1);
@@ -45,11 +47,10 @@ void getCPUFeatures(CPUFeatures *cpuFeatures) {
     cpuFeatures->aes = !!(ecx & (1 << 25));
     cpuFeatures->movbe = !!(ecx & (1 << 22));
     cpuFeatures->popcnt = !!(ecx & (1 << 23));
-    eax = 0;
-    edx = 0;
+
     if ((ecx & (1 << 27)) && (ecx & (1 << 28))) {
-        vs_cpu_xgetbv(0, &eax, &edx);
-        cpuFeatures->avx = ((eax & 0x6) == 0x6);
+        vs_cpu_xgetbv(0, &xeax, &xedx);
+        cpuFeatures->avx = ((xeax & 0x06) == 0x06);
         if (cpuFeatures->avx) {
             eax = 0;
             ebx = 0;
@@ -57,6 +58,14 @@ void getCPUFeatures(CPUFeatures *cpuFeatures) {
             edx = 0;
             vs_cpu_cpuid(7, &eax, &ebx, &ecx, &edx);
             cpuFeatures->avx2 = !!(ebx & (1 << 5));
+            cpuFeatures->avx512_f = !!(ebx & (1 << 16)) && ((xeax & 0xE0) == 0xE0);
+
+            if (cpuFeatures->avx512_f) {
+                cpuFeatures->avx512_cd = !!(ebx & (1 << 28));
+                cpuFeatures->avx512_bw = !!(ebx & (1 << 30));
+                cpuFeatures->avx512_dq = !!(ebx & (1 << 17));
+                cpuFeatures->avx512_vl = !!(ebx & (1 << 31));
+            }
         }
     }
 }
