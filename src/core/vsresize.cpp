@@ -91,7 +91,6 @@ const std::unordered_map<std::string, zimg_cpu_type_e> g_cpu_type_table{
     { "avx2",      ZIMG_CPU_X86_AVX2 },
 #if ZIMG_API_VERSION >= ZIMG_MAKE_API_VERSION(2, 3)
     { "avx512f",   ZIMG_CPU_X86_AVX512F },
-    { "avx512knl", ZIMG_CPU_X86_AVX512_KNL },
     { "avx512skl", ZIMG_CPU_X86_AVX512_SKL },
 #endif
 #endif
