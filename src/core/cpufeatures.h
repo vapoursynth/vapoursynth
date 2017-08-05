@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2013 Fredrik Mellbin
+* Copyright (c) 2012-2017 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -18,6 +18,9 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
+#ifndef CPUFEATURES_H
+#define CPUFEATURES_H
+
 typedef struct CPUFeatures {
     // This is to determine if the cpu is up to the minimum requirements in terms of supported instructions
     // that the VapourSynth core uses.
@@ -35,6 +38,11 @@ typedef struct CPUFeatures {
     char aes;
     char movbe;
     char popcnt;
+    char avx512_f;
+    char avx512_cd;
+    char avx512_bw;
+    char avx512_dq;
+    char avx512_vl;
 #elif defined(VS_TARGET_CPU_ARM)
     // On ARM, VFP-D16+ (16 double registers or more) is required.
     char half_fp;
@@ -63,3 +71,5 @@ typedef struct CPUFeatures {
 #endif
 
 CPU_FEATURES_EXTERN_C void getCPUFeatures(CPUFeatures *cpuFeatures);
+
+#endif
