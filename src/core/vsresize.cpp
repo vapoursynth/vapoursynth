@@ -19,6 +19,7 @@
 */
 
 #include <cmath>
+#include <cstring>
 #include <algorithm>
 #include <limits>
 #include <memory>
@@ -767,10 +768,9 @@ class vszimg {
 
     const VSFrameRef *real_get_frame(const VSFrameRef *src_frame, VSCore *core, const VSAPI *vsapi) {
         VSFrameRef *dst_frame = nullptr;
+        vszimgxx::zimage_format src_format, dst_format;
 
         try {
-            vszimgxx::zimage_format src_format, dst_format;
-
             const VSMap *src_props = vsapi->getFramePropsRO(src_frame);
             const VSFormat *src_vsformat = vsapi->getFrameFormat(src_frame);
             const VSFormat *dst_vsformat = m_vi.format ? m_vi.format : src_vsformat;
@@ -847,6 +847,19 @@ class vszimg {
             VSMap *dst_props = vsapi->getFramePropsRW(dst_frame);
             propagate_sar(src_props, dst_props, src_format, dst_format, vsapi);
             export_frame_props(dst_format, dst_props, vsapi);
+        } catch (const vszimgxx::zerror &e) {
+            vsapi->freeFrame(dst_frame);
+
+            if (e.code == ZIMG_ERROR_NO_COLORSPACE_CONVERSION) {
+                char buf[256];
+
+                snprintf(buf, sizeof(buf), "Resize error %d: %s (%d/%d/%d => %d/%d/%d). May need to specify additional colorspace parameters.",
+                    e.code, e.msg, src_format.matrix_coefficients, src_format.transfer_characteristics, src_format.color_primaries,
+                    dst_format.matrix_coefficients, dst_format.transfer_characteristics, dst_format.color_primaries);
+                throw std::runtime_error{ buf };
+            } else {
+                throw;
+            }
         } catch (...) {
             vsapi->freeFrame(dst_frame);
             throw;
