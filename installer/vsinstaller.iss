@@ -177,11 +177,13 @@ Root: HKLM64; Subkey: SOFTWARE\Classes\vpyfile; ValueType: string; ValueName: ""
 Root: HKLM64; Subkey: SOFTWARE\Classes\vpyfile\DefaultIcon; ValueType: string; ValueName: ""; ValueData: "{app}\core64\vsvfw.dll,0"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
 Root: HKLM64; Subkey: SOFTWARE\Classes\AVIFile\Extensions\VPY; ValueType: string; ValueName: ""; ValueData: "{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
 
-[Code]
 #include "scripts\products.iss"
+#include "scripts\products\stringversion.iss"
 #include "scripts\products\msiproduct.iss"
 #include "scripts\products\vcredist2013.iss"
-#include "scripts\products\vcredist2015.iss"
+#include "scripts\products\vcredist2017.iss"
+
+[Code]
 
 type
   TPythonPath = record
@@ -198,7 +200,7 @@ var
   PythonList: TNewCheckListBox;
   Python32Path: string;
   Python64Path: string;
-
+  
 function HasPython32: Boolean;
 var
   Counter: Integer;
@@ -438,15 +440,15 @@ begin
     if IsComponentSelected('vsruntimes') and IsComponentSelected('vs32') and not Runtimes32Added then
     begin
       SetForceX86(True);
-      vcredist2013();
-      vcredist2015();
+      vcredist2013('12');
+      vcredist2017('14');
       SetForceX86(False);
       Runtimes32Added := True;
     end;
     if IsComponentSelected('vsruntimes') and IsComponentSelected('vs64') and not Runtimes64Added then
     begin
-      vcredist2013();
-      vcredist2015();
+      vcredist2013('12');
+      vcredist2017('14');
       Runtimes64Added := True;
     end;
     Result := NextButtonClick2(CurPageID);
