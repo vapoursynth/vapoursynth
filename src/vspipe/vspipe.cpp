@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2013-2016 Fredrik Mellbin
+* Copyright (c) 2013-2017 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -121,35 +121,78 @@ static inline void addRational(int64_t *num, int64_t *den, int64_t addnum, int64
 }
 
 static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg) {
+    std::lock_guard<std::mutex> lock(mutex);
     completedFrames++;
-
-    if (printFrameNumber) {
-        std::chrono::time_point<std::chrono::high_resolution_clock> currentTime(std::chrono::high_resolution_clock::now());
-        std::chrono::duration<double> elapsedSeconds = currentTime - lastFpsReportTime;
-        if (elapsedSeconds.count() > 10) {
-            hasMeaningfulFps = true;
-            fps = (completedFrames - lastFpsReportFrame) / elapsedSeconds.count();
-            lastFpsReportTime = currentTime;
-            lastFpsReportFrame = completedFrames;
-        }
-    }
 
     if (f) {
         reorderMap.insert(std::make_pair(n, f));
+    } else {
+        outputError = true;
+        totalFrames = requestedFrames;
+        if (errorMessage.empty()) {
+            if (errorMsg)
+                errorMessage = "Error: Failed to retrieve frame " + std::to_string(n) + " with error: " + errorMsg;
+            else
+                errorMessage = "Error: Failed to retrieve frame " + std::to_string(n);
+        }
+    }
+
+    // the actual minimum size of the reorder map can be reasoned about like this:
+    // must be able to hold the number of requests so a new batch can be requested before the main thread is finished
+    // and some margin to avoid stalls when frame times are very uneven for some reason
+    // without an upper limit to the reordermap it may grow too big
+    while (requestedFrames < totalFrames && (requestedFrames - completedFrames) < requests && reorderMap.size() < requests * 5) {
+        vsapi->getFrameAsync(requestedFrames, node, frameDoneCallback, nullptr);
+        requestedFrames++;
+    }
+
+    condition.notify_one();
+    
+    /*
+    // fixme, is this pointless now?
+    if (totalFrames == completedFrames) {
+        condition.notify_one();
+    }
+    */
+}
+
+static std::string floatBitsToLetter(int bits) {
+    switch (bits) {
+    case 16:
+        return "h";
+    case 32:
+        return "s";
+    case 64:
+        return "d";
+    default:
+        assert(false);
+        return "u";
+    }
+}
+
+static void doFrameOutput(std::unique_lock<std::mutex> &lock) {
+    while (outputFrames != totalFrames) {
+        bool hasWork = false;
         while (reorderMap.count(outputFrames)) {
+            hasWork = true;
             const VSFrameRef *frame = reorderMap[outputFrames];
             reorderMap.erase(outputFrames);
-            if (!outputError) {
+            bool localOutputError = outputError;
+            lock.unlock();
+            if (!localOutputError) {
                 if (y4m && outFile) {
                     if (fwrite("FRAME\n", 1, 6, outFile) != 6) {
                         if (errorMessage.empty())
                             errorMessage = "Error: fwrite() call failed when writing header, errno: " + std::to_string(errno);
                         totalFrames = requestedFrames;
+                        lock.lock();
                         outputError = true;
+                        localOutputError = true;
+                        lock.unlock();
                     }
                 }
 
-                if (!outputError && outFile) {
+                if (!localOutputError && outFile) {
                     const VSFormat *fi = vsapi->getFrameFormat(frame);
                     const int rgbRemap[] = { 1, 2, 0 };
                     for (int rp = 0; rp < fi->numPlanes; rp++) {
@@ -162,9 +205,12 @@ static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, 
                             if (fwrite(readPtr, 1, rowSize, outFile) != static_cast<size_t>(rowSize)) {
                                 if (errorMessage.empty())
                                     errorMessage = "Error: fwrite() call failed when writing frame: " + std::to_string(outputFrames) + ", plane: " + std::to_string(p) +
-                                        ", line: " + std::to_string(y) + ", errno: " + std::to_string(errno);
+                                    ", line: " + std::to_string(y) + ", errno: " + std::to_string(errno);
+                                lock.lock();
                                 totalFrames = requestedFrames;
                                 outputError = true;
+                                localOutputError = true;
+                                lock.unlock();
                                 rp = 100; // break out of the outer loop
                                 break;
                             }
@@ -173,7 +219,7 @@ static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, 
                     }
                 }
 
-                if (timecodesFile && !outputError) {
+                if (timecodesFile && !localOutputError) {
                     std::ostringstream stream;
                     stream.imbue(std::locale("C"));
                     stream.setf(std::ios::fixed, std::ios::floatfield);
@@ -181,8 +227,11 @@ static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, 
                     if (fprintf(timecodesFile, "%s\n", stream.str().c_str()) < 0) {
                         if (errorMessage.empty())
                             errorMessage = "Error: failed to write timecode for frame " + std::to_string(outputFrames) + ". errno: " + std::to_string(errno);
+                        lock.lock();
                         totalFrames = requestedFrames;
                         outputError = true;
+                        localOutputError = true;
+                        lock.unlock();
                     } else {
                         const VSMap *props = vsapi->getFramePropsRO(frame);
                         int err_num, err_den;
@@ -198,8 +247,11 @@ static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, 
                                 errorMessage += std::to_string(outputFrames);
                             }
 
+                            lock.lock();
                             totalFrames = requestedFrames;
                             outputError = true;
+                            localOutputError = true;
+                            lock.unlock();
                         } else {
                             addRational(&currentTimecodeNum, &currentTimecodeDen, duration_num, duration_den);
                         }
@@ -208,47 +260,29 @@ static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, 
             }
             vsapi->freeFrame(frame);
             outputFrames++;
+
+            lock.lock();
+            if (printFrameNumber) {
+                std::chrono::time_point<std::chrono::high_resolution_clock> currentTime(std::chrono::high_resolution_clock::now());
+                std::chrono::duration<double> elapsedSeconds = currentTime - lastFpsReportTime;
+                if (elapsedSeconds.count() > 10) {
+                    hasMeaningfulFps = true;
+                    fps = (completedFrames - lastFpsReportFrame) / elapsedSeconds.count();
+                    lastFpsReportTime = currentTime;
+                    lastFpsReportFrame = completedFrames;
+                }
+            }
+
+            if (printFrameNumber && !localOutputError) {
+                if (hasMeaningfulFps)
+                    fprintf(stderr, "Frame: %d/%d (%.2f fps)\r", completedFrames - startFrame, totalFrames - startFrame, fps);
+                else
+                    fprintf(stderr, "Frame: %d/%d\r", completedFrames - startFrame, totalFrames - startFrame);
+            }
         }
-    } else {
-        outputError = true;
-        totalFrames = requestedFrames;
-        if (errorMessage.empty()) {
-            if (errorMsg)
-                errorMessage = "Error: Failed to retrieve frame " + std::to_string(n) + " with error: " + errorMsg;
-            else
-                errorMessage = "Error: Failed to retrieve frame " + std::to_string(n);
-        }
-    }
+        if (!hasWork)
+            condition.wait(lock);
 
-    if (requestedFrames < totalFrames) {
-        vsapi->getFrameAsync(requestedFrames, node, frameDoneCallback, nullptr);
-        requestedFrames++;
-    }
-
-    if (printFrameNumber && !outputError) {
-        if (hasMeaningfulFps)
-            fprintf(stderr, "Frame: %d/%d (%.2f fps)\r", completedFrames - startFrame, totalFrames - startFrame, fps);
-        else
-            fprintf(stderr, "Frame: %d/%d\r", completedFrames - startFrame, totalFrames - startFrame);
-    }
-
-    if (totalFrames == completedFrames) {
-        std::lock_guard<std::mutex> lock(mutex);
-        condition.notify_one();
-    }
-}
-
-static std::string floatBitsToLetter(int bits) {
-    switch (bits) {
-    case 16:
-        return "h";
-    case 32:
-        return "s";
-    case 64:
-        return "d";
-    default:
-        assert(false);
-        return "u";
     }
 }
 
@@ -334,7 +368,7 @@ static bool outputNode() {
     for (int n = requestStart; n < requestStart + intitalRequestSize; n++)
         vsapi->getFrameAsync(n, node, frameDoneCallback, nullptr);
 
-    condition.wait(lock);
+    doFrameOutput(lock);
 
     if (outputError) {
         fprintf(stderr, "%s\n", errorMessage.c_str());
