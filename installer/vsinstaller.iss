@@ -440,15 +440,15 @@ begin
     if IsComponentSelected('vsruntimes') and IsComponentSelected('vs32') and not Runtimes32Added then
     begin
       SetForceX86(True);
-      vcredist2013('12');
-      vcredist2017('14');
+      vcredist2013('12.0.21005');
+      vcredist2017('14.10.25017');
       SetForceX86(False);
       Runtimes32Added := True;
     end;
     if IsComponentSelected('vsruntimes') and IsComponentSelected('vs64') and not Runtimes64Added then
     begin
-      vcredist2013('12');
-      vcredist2017('14');
+      vcredist2013('12.0.21005');
+      vcredist2017('14.10.25017');
       Runtimes64Added := True;
     end;
     Result := NextButtonClick2(CurPageID);
