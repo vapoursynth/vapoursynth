@@ -1,6 +1,6 @@
 r39:
 visual studio runtime detection is improved in the installer, it should no longer attempt re-installs when a newer version is present
-improved threading in vspipe, output is now done in the main thread instead of blocking internal vapoursynth processing threads
+minor optimization in vspipe, you can now output blankclip into the void much faster
 memory will now be 64 byte aligned on systems with avx512 support
 added swapn and dupn operators to expr
 reverted the argument handling in levels, arguments no longer take a 3 plane list due it making no sense when combined with the planes argument
