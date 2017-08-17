@@ -18,8 +18,6 @@
 
 %include "asm/x86/x86inc.asm"
 
-CPU Pentium4
-
 SECTION .text
 
 INIT_XMM

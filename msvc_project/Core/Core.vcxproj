@@ -53,7 +53,7 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
-    <Import Project="..\vsyasm.props" />
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\nasm.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
@@ -199,13 +199,14 @@
     <ClCompile Include="..\..\src\core\vsthreadpool.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <YASM Include="..\..\include\asm\x86\x86inc.asm">
+    <NASM Include="..\..\include\asm\x86\x86inc.asm">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
-    </YASM>
-    <YASM Include="..\..\src\core\asm\x86\check.asm">
+      <FileType>Document</FileType>
+    </NASM>
+    <NASM Include="..\..\src\core\asm\x86\check.asm">
       <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">../../include;%(IncludePaths)</IncludePaths>
       <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../include;%(IncludePaths)</IncludePaths>
       <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">../../include;%(IncludePaths)</IncludePaths>
@@ -216,8 +217,13 @@
       <Defines Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ARCH_X86_64=1;private_prefix=vs</Defines>
       <Debug Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</Debug>
       <Debug Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</Debug>
-    </YASM>
-    <YASM Include="..\..\src\core\asm\x86\cpu.asm">
+      <FileType>Document</FileType>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ARCH_X86_64=1;private_prefix=vs</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ARCH_X86_64=1;private_prefix=vs</PreprocessorDefinitions>
+    </NASM>
+    <NASM Include="..\..\src\core\asm\x86\cpu.asm">
       <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">../../include;%(IncludePaths)</IncludePaths>
       <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../include;%(IncludePaths)</IncludePaths>
       <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">../../include;%(IncludePaths)</IncludePaths>
@@ -228,8 +234,13 @@
       <Defines Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ARCH_X86_64=1;private_prefix=vs</Defines>
       <Debug Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</Debug>
       <Debug Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</Debug>
-    </YASM>
-    <YASM Include="..\..\src\core\asm\x86\merge.asm">
+      <FileType>Document</FileType>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ARCH_X86_64=1;private_prefix=vs</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ARCH_X86_64=1;private_prefix=vs</PreprocessorDefinitions>
+    </NASM>
+    <NASM Include="..\..\src\core\asm\x86\merge.asm">
       <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">../../include;%(IncludePaths)</IncludePaths>
       <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../include;%(IncludePaths)</IncludePaths>
       <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">../../include;%(IncludePaths)</IncludePaths>
@@ -240,8 +251,13 @@
       <Defines Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ARCH_X86_64=1;private_prefix=vs</Defines>
       <Debug Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</Debug>
       <Debug Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</Debug>
-    </YASM>
-    <YASM Include="..\..\src\core\asm\x86\transpose.asm">
+      <FileType>Document</FileType>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ARCH_X86_64=1;private_prefix=vs</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ARCH_X86_64=1;private_prefix=vs</PreprocessorDefinitions>
+    </NASM>
+    <NASM Include="..\..\src\core\asm\x86\transpose.asm">
       <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">../../include;%(IncludePaths)</IncludePaths>
       <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../include;%(IncludePaths)</IncludePaths>
       <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">../../include;%(IncludePaths)</IncludePaths>
@@ -252,7 +268,12 @@
       <Defines Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ARCH_X86_64=1;private_prefix=vs</Defines>
       <Debug Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</Debug>
       <Debug Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</Debug>
-    </YASM>
+      <FileType>Document</FileType>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ARCH_X86_64=1;private_prefix=vs</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ARCH_X86_64=1;private_prefix=vs</PreprocessorDefinitions>
+    </NASM>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\VapourSynth.h" />
@@ -272,6 +293,6 @@
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
-    <Import Project="..\vsyasm.targets" />
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\nasm.targets" />
   </ImportGroup>
 </Project>

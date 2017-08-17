@@ -67,7 +67,7 @@ These are the requirements:
 
    * Yasm
 
-   * `zimg v2.5 branch <https://github.com/sekrit-twc/zimg/releases>`_
+   * `zimg v2.6 branch <https://github.com/sekrit-twc/zimg/releases>`_
 
    * Python 3
 

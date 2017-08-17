@@ -1,4 +1,6 @@
 r39:
+switched to nasm as the assembler
+updated to zimg v2.6
 visual studio runtime detection is improved in the installer, it should no longer attempt re-installs when a newer version is present
 minor optimization in vspipe, you can now output blankclip into the void much faster
 memory will now be 64 byte aligned on systems with avx512 support
