@@ -65,7 +65,7 @@ These are the requirements:
 
    * GCC 4.8 or newer, or Clang
 
-   * Yasm
+   * Nasm
 
    * `zimg v2.6 branch <https://github.com/sekrit-twc/zimg/releases>`_
 
@@ -94,7 +94,7 @@ First download and install the prerequisites:
 Installation of the required packages is very easy. Simply run these
 commands in a terminal and wait for them to complete::
 
-   brew install python3 yasm ffmpeg libass zimg imagemagick
+   brew install python3 nasm ffmpeg libass zimg imagemagick
    pip3 install cython
    
 If you've already installed all the required packages and instead want
@@ -109,7 +109,7 @@ Required packages (Ubuntu)
 In Ubuntu 16.10 the following command will install them, minus zimg,
 which needs to be compiled from source::
 
-   apt-get install build-essential yasm git libavcodec-dev libavformat-dev libavutil-dev libass-dev python3-pip python3-dev cython3 autoconf libtool libtesseract-dev
+   apt-get install build-essential nasm git libavcodec-dev libavformat-dev libavutil-dev libass-dev python3-pip python3-dev cython3 autoconf libtool libtesseract-dev
    
 The packages may have different names in other distributions.
 

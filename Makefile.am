@@ -5,9 +5,9 @@ AM_CFLAGS = -std=c99 $(commoncflags)
 
 
 
-yasm_verbose = $(yasm_verbose_$(V))
-yasm_verbose_ = $(yasm_verbose_$(AM_DEFAULT_VERBOSITY))
-yasm_verbose_0 = @echo "  YASM    " $@;
+nasm_verbose = $(nasm_verbose_$(V))
+nasm_verbose_ = $(nasm_verbose_$(AM_DEFAULT_VERBOSITY))
+nasm_verbose_0 = @echo "  NASM    " $@;
 
 
 cython_verbose = $(cython_verbose_$(V))
@@ -16,7 +16,7 @@ cython_verbose_0 = @echo "  CYTHON  " $@;
 
 
 .asm.lo:
-	$(yasm_verbose)$(LIBTOOL) $(AM_V_lt) --mode=compile --tag=CC $(AS) $(ASFLAGS) -o $@ $< -prefer-non-pic
+	$(nasm_verbose)$(LIBTOOL) $(AM_V_lt) --mode=compile --tag=CC $(AS) $(ASFLAGS) -o $@ $< -prefer-non-pic
 
 .pyx.c:
 	$(cython_verbose)$(CYTHON) -o $@ $<
