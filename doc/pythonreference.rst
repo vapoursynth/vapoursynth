@@ -382,7 +382,7 @@ Classes and Functions
 
    .. py:attribute:: props
 
-      This attribute holds all the frame's properties mapped as sub-attributes.
+      This attribute holds all the frame's properties as a dict. They are also mapped as sub-attributes for compatibility with older scripts.
 
    .. py:method:: copy()
 

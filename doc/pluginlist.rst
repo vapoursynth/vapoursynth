@@ -6,6 +6,7 @@ Applications
 * `D2V Witch <https://github.com/dubhater/D2VWitch>`_ -- creates indexes that can be opened by d2vsource
 * `SmoothVideo Project (SVP) <https://www.svp-team.com/wiki/Main_Page>`_ -- a plugin/video player component for realtime frame interpolation
 * `VapourSynth Editor <https://bitbucket.org/mystery_keeper/vapoursynth-editor>`_ -- an editor with syntax completion and fast preview support
+* `vsmkv <https://github.com/fluxamp/vsmkv>`_ -- a FUSE-based virtual filesystem for exporting VapourSynth scripts as uncompressed videos in the Matroska (MKV) file format
 * `Wobbly <http://forum.doom9.org/showthread.php?t=172496>`_ -- IVTC assistant similar to Yatta
 * `Yuuno <https://yuuno.encode.moe/>`_ -- incorporates VapourSynth into Jupyter
 
