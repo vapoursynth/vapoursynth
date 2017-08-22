@@ -151,6 +151,9 @@ Resize
                     Rec. ITU-R BT.2020 non-constant luminance system
         2020cl      KR = 0.2627; KB = 0.0593
                     Rec. ITU-R BT.2020 constant luminance system
+        chromacl    Cromaticity dervived constant luminance system
+        chromancl   Cromaticity dervived non-constant luminance system
+        ictcp       ICtCp
 
       Transfer characteristics (ITU-T H.265 Table E.4)::
         
@@ -214,6 +217,7 @@ Resize
                     red 0.708 0.292
                     white D65 0.3127 0.3290
                     Rec. ITU-R BT.2020
+        st431-2     DCI-P3 with traditional white point (not in table)
         st432-1     DCI-P3 (not in table)
 
       Pixel range (ITU-T H.265 Eq E-4 to E-15)::

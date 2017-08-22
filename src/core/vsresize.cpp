@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2015-2016 Hoppsan G. Pig
+* Copyright (c) 2015-2017 Hoppsan G. Pig
 *
 * This file is part of VapourSynth.
 *
@@ -30,8 +30,8 @@
 #define ZIMGXX_NAMESPACE vszimgxx
 #include <zimg++.hpp>
 
-#if ZIMG_API_VERSION < ZIMG_MAKE_API_VERSION(2, 2)
-#error zAPI v2.2 or greater required
+#if ZIMG_API_VERSION < ZIMG_MAKE_API_VERSION(2, 3)
+#error zAPI v2.3 or greater required
 #endif
 
 #include "VapourSynth.h"
@@ -72,9 +72,7 @@ namespace {
 const std::unordered_map<std::string, zimg_cpu_type_e> g_cpu_type_table{
     { "none",      ZIMG_CPU_NONE },
     { "auto",      ZIMG_CPU_AUTO },
-#if ZIMG_API_VERSION >= ZIMG_MAKE_API_VERSION(2, 3)
     { "auto64",    ZIMG_CPU_AUTO_64B },
-#endif
 #if defined(__i386) || defined(_M_IX86) || defined(_M_X64) || defined(__x86_64__)
     { "mmx",       ZIMG_CPU_X86_MMX },
     { "sse",       ZIMG_CPU_X86_SSE },
@@ -86,10 +84,8 @@ const std::unordered_map<std::string, zimg_cpu_type_e> g_cpu_type_table{
     { "avx",       ZIMG_CPU_X86_AVX },
     { "f16c",      ZIMG_CPU_X86_F16C },
     { "avx2",      ZIMG_CPU_X86_AVX2 },
-#if ZIMG_API_VERSION >= ZIMG_MAKE_API_VERSION(2, 3)
     { "avx512f",   ZIMG_CPU_X86_AVX512F },
     { "avx512skl", ZIMG_CPU_X86_AVX512_SKL },
-#endif
 #endif
 };
 
@@ -108,14 +104,17 @@ const std::unordered_map<std::string, zimg_chroma_location_e> g_chromaloc_table{
 };
 
 const std::unordered_map<std::string, zimg_matrix_coefficients_e> g_matrix_table{
-    { "rgb",     ZIMG_MATRIX_RGB },
-    { "709",     ZIMG_MATRIX_709 },
-    { "unspec",  ZIMG_MATRIX_UNSPECIFIED },
-    { "470bg",   ZIMG_MATRIX_470BG },
-    { "170m",    ZIMG_MATRIX_170M },
-    { "ycgco",   ZIMG_MATRIX_YCGCO },
-    { "2020ncl", ZIMG_MATRIX_2020_NCL },
-    { "2020cl",  ZIMG_MATRIX_2020_CL },
+    { "rgb",         ZIMG_MATRIX_RGB },
+    { "709",         ZIMG_MATRIX_709 },
+    { "unspec",      ZIMG_MATRIX_UNSPECIFIED },
+    { "470bg",       ZIMG_MATRIX_470BG },
+    { "170m",        ZIMG_MATRIX_170M },
+    { "ycgco",       ZIMG_MATRIX_YCGCO },
+    { "2020ncl",     ZIMG_MATRIX_2020_NCL },
+    { "2020cl",      ZIMG_MATRIX_2020_CL },
+    { "chromacl",    ZIMG_MATRIX_CHROMATICITY_DERIVED_CL },
+    { "chromancl",   ZIMG_MATRIX_CHROMATICITY_DERIVED_NCL },
+    { "ictcp",       ZIMG_MATRIX_ICTCP },
 };
 
 const std::unordered_map<std::string, zimg_transfer_characteristics_e> g_transfer_table{
@@ -136,6 +135,7 @@ const std::unordered_map<std::string, zimg_color_primaries_e> g_primaries_table{
     { "170m",    ZIMG_PRIMARIES_170M },
     { "240m",    ZIMG_PRIMARIES_240M },
     { "2020",    ZIMG_PRIMARIES_2020 },
+    { "st431-2", ZIMG_PRIMARIES_ST431_2 },
     { "st432-1", ZIMG_PRIMARIES_ST432_1 },
 };
 
