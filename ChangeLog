@@ -1,4 +1,5 @@
 r39:
+fixed missing fps correction in avisource that would produce an error with some files
 switched to nasm as the assembler
 updated to zimg v2.6
 visual studio runtime detection is improved in the installer, it should no longer attempt re-installs when a newer version is present
