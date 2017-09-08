@@ -1,4 +1,4 @@
-AC_INIT([vapoursynth], [36], [https://github.com/vapoursynth/vapoursynth/issues], [vapoursynth], [http://www.vapoursynth.com/])
+AC_INIT([vapoursynth], [39], [https://github.com/vapoursynth/vapoursynth/issues], [vapoursynth], [http://www.vapoursynth.com/])
 
 : ${CFLAGS=""}
 : ${CXXFLAGS=""}
@@ -10,6 +10,10 @@ LT_INIT([win32-dll])
 
 AC_PROG_CC
 AC_PROG_CXX
+
+
+AC_SYS_LARGEFILE
+AC_FUNC_FSEEKO
 
 
 AC_ARG_ENABLE([debug], AS_HELP_STRING([--enable-debug], [Enable compilation options required for debugging. (default=no)]))
@@ -38,7 +42,7 @@ AS_IF(
 
 AC_ARG_WITH(
             [plugindir],
-            AS_HELP_STRING([--with-plugindir], [Folder where the included plugins will be installed. (default=LIBDIR/vapoursynth)]),
+            AS_HELP_STRING([--with-plugindir], [The default value for the configuration option 'SystemPluginDir' in vapoursynth.conf. (default=LIBDIR/vapoursynth)]),
             [PLUGINDIR=$with_plugindir],
             [PLUGINDIR=$libdir/$PACKAGE_NAME]
 )
@@ -47,7 +51,7 @@ AC_SUBST([PLUGINDIR])
 
 
 
-AC_ARG_WITH([yasm], AS_HELP_STRING([--with-yasm], [Override the automatic detection of the yasm executable. (default=check)]), [], [with_yasm=check])
+AC_ARG_WITH([nasm], AS_HELP_STRING([--with-nasm], [Override the automatic detection of the nasm executable. (default=check)]), [], [with_nasm=check])
 
 
 
@@ -61,7 +65,7 @@ ARM="false"
 AS_CASE(
         [$host_cpu],
         [i?86],     [BITS="32" ASFLAGS="$ASFLAGS -DARCH_X86_64=0" X86="true"],
-        [x86_64],   [BITS="64" ASFLAGS="$ASFLAGS -DARCH_X86_64=1 -DPIC -m amd64" X86="true"],
+        [x86_64],   [BITS="64" ASFLAGS="$ASFLAGS -DARCH_X86_64=1 -DPIC" X86="true"],
         [powerpc*], [PPC="true"],
         [arm*],     [ARM="true"] # Maybe doesn't work for all arm systems?
 )
@@ -72,17 +76,17 @@ AS_CASE(
         [
          ASFLAGS="$ASFLAGS -f macho$BITS -DPREFIX"
          AC_DEFINE([VS_TARGET_OS_DARWIN])
-         DEBUG_FORMAT="null"
+         DEBUG_FORMAT="-gdwarf"
         ],
         [*linux*|gnu*|dragonfly*|*bsd*], # The BSDs are close enough, right?
         [
-         ASFLAGS="$ASFLAGS -f elf"
+         ASFLAGS="$ASFLAGS -f elf$BITS"
          AC_DEFINE([VS_TARGET_OS_LINUX])
-         DEBUG_FORMAT="dwarf2"
+         DEBUG_FORMAT="-gdwarf"
         ],
         [cygwin*|mingw*],
         [
-         ASFLAGS="$ASFLAGS -f win32"
+         ASFLAGS="$ASFLAGS -f win$BITS"
          AS_IF(
                [test "x$BITS" = "x32"],
                [
@@ -92,7 +96,6 @@ AS_CASE(
                ]
          )
          AC_DEFINE([VS_TARGET_OS_WINDOWS])
-         DEBUG_FORMAT="null"
          AC_SUBST([UNICODECFLAGS], ["-DUNICODE -D_UNICODE"])
          AC_SUBST([UNICODELDFLAGS], ["-municode"])
         ],
@@ -102,7 +105,7 @@ AS_CASE(
 AS_IF(
       [test "x$X86" = "xtrue"],
       [
-       AC_ARG_ENABLE([x86-asm], AS_HELP_STRING([--enable-x86-asm], [Enable assembler code for x86 CPUs. Requires yasm if building the core. (default=yes)]))
+       AC_ARG_ENABLE([x86-asm], AS_HELP_STRING([--enable-x86-asm], [Enable assembler code for x86 CPUs. Requires nasm if building the core. (default=yes)]))
 
        AS_IF(
              [test "x$enable_x86_asm" != "xno"],
@@ -111,11 +114,11 @@ AS_IF(
              ]
        )
 
-       ASFLAGS="$ASFLAGS -I$srcdir/include -w -Worphan-labels -Wunrecognized-char -Dprivate_prefix=vs"
+       ASFLAGS="$ASFLAGS -I$srcdir/include/ -w -Worphan-labels -Wunrecognized-char -Dprivate_prefix=vs"
 
        AS_IF(
              [test "x$enable_debug" = "xyes"],
-             [ASFLAGS="$ASFLAGS -g$DEBUG_FORMAT"]
+             [ASFLAGS="$ASFLAGS $DEBUG_FORMAT"]
        )
 
        AC_SUBST([MFLAGS], ["-mfpmath=sse -msse2"])
@@ -154,8 +157,8 @@ AS_IF(
                                          [[
 #include <zimg.h>
 
-#if ZIMG_API_VERSION < ZIMG_MAKE_API_VERSION(2, 2)
-#error zimg API v2.2 or greater required
+#if ZIMG_API_VERSION < ZIMG_MAKE_API_VERSION(2, 3)
+#error zimg API v2.3 or greater required
 #endif
                                          ]],
                                          [[
@@ -179,15 +182,15 @@ zimg_get_version_info(&major, &minor, &micro);
              [test "x$X86" = "xtrue" -a "x$enable_x86_asm" != "xno"],
              [
               AS_IF(
-                    [test "x$with_yasm" = "xcheck"],
-                    [AC_CHECK_PROGS([YASM], [yasm])],
-                    [YASM="$with_yasm"]
+                    [test "x$with_nasm" = "xcheck"],
+                    [AC_CHECK_PROGS([NASM], [nasm])],
+                    [NASM="$with_nasm"]
               )
        
               AS_IF(
-                    [test "x$YASM" = "x"],
-                    [AC_MSG_ERROR([yasm required but not found.])],
-                    [AS="$YASM"]
+                    [test "x$NASM" = "x"],
+                    [AC_MSG_ERROR([nasm required but not found.])],
+                    [AS="$NASM"]
               )
              ]
        )
@@ -360,6 +363,32 @@ AS_CASE(
         ]
 )
 
+AC_CHECK_HEADERS(
+                 [iconv.h],
+                 [],
+                 [
+                  AS_IF(
+                        [test "x$subtext" = "xyes"],
+                        [AC_MSG_ERROR([the subtext plugin was explicitly enabled, but iconv.h cannot be found.])],
+                        [subtext=""]
+                       )
+                 ]
+                )
+
+AC_SEARCH_LIBS([libiconv_open], [iconv])
+AC_SEARCH_LIBS([iconv_open], [iconv])
+
+AS_IF(
+      [test "x$ac_cv_search_libiconv_open" = "xno" -a "x$ac_cv_search_iconv_open" = "xno"],
+      [
+       AS_IF(
+             [test "x$subtext" = "xyes"],
+             [AC_MSG_ERROR([the subtext plugin was explicitly enabled, but iconv_open cannot be found.])],
+             [subtext=""]
+            )
+      ]
+     )
+
 PKG_CHECK_MODULES(
                   [LIBASS],
                   [libass],
@@ -416,7 +445,7 @@ PKG_CHECK_MODULES(
 
 PKG_CHECK_MODULES(
                   [IMAGEMAGICK],
-                  [Magick++],
+                  [Magick++ >= 7],
                   [
                    AC_MSG_CHECKING([whether imagemagick is usable])
 

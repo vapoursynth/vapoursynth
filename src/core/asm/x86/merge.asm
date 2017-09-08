@@ -18,8 +18,6 @@
 
 %include "asm/x86/x86inc.asm"
 
-CPU Pentium4
-
 SECTION .text
 
 INIT_XMM
@@ -92,7 +90,7 @@ cglobal masked_merge_uint8_sse2, 6, 7, 6, src1, src2, mask, dst, stride, height,
 
 INIT_XMM
 cglobal merge_uint8_sse2, 6, 7, 8, src1, src2, mask, dst, stride, height, lineoffset
-    movd m1, maskq ;mask
+    movd m1, maskd ;mask
     pshuflw m1, m1, 0
     pshufd m1, m1, 0
     pxor m2, m2

@@ -21,8 +21,6 @@
 
 %include "asm/x86/x86inc.asm"
 
-CPU Pentium4
-
 SECTION .text
 
 ; src, srcstride, dst, dststride

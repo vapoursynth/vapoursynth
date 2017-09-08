@@ -283,6 +283,9 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 break;
             }
             ++owner->idleThreads;
+            if (owner->idleThreads == owner->allThreads.size())
+                owner->allIdle.notify_one();
+
             owner->newWork.wait(lock);
             --owner->idleThreads;
             ++owner->activeThreads;
@@ -432,7 +435,9 @@ bool VSThreadPool::isWorkerThread() {
 }
 
 void VSThreadPool::waitForDone() {
-    // todo
+    std::unique_lock<std::mutex> m(lock);
+    if (idleThreads < allThreads.size())
+        allIdle.wait(m);
 }
 
 VSThreadPool::~VSThreadPool() {

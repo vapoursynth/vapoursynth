@@ -14,8 +14,7 @@ Example Script
 
 Here's a sample script to be inspired by, it assumes that ffms2 is installed and :doc:`auto-loaded <autoloading>`::
 
-   import vapoursynth as vs
-   core = vs.get_core()
+   from vapoursynth import core
    video = core.ffms2.Source(source='Rule6.mkv')
    video = core.std.Transpose(video)
    video.set_output()

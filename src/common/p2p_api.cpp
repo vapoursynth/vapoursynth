@@ -34,6 +34,7 @@ struct packing_traits {
 	enum p2p_packing packing;
 	p2p_unpack_func unpack;
 	p2p_pack_func pack;
+	p2p_pack_func pack_one_fill;
 	bool native_endian;
 	unsigned char subsample_w;
 	unsigned char subsample_h;
@@ -43,7 +44,7 @@ struct packing_traits {
 };
 
 #define CASE(x, ...) \
-	{ p2p_##x, &p2p::packed_to_planar<p2p::packed_##x>::unpack, &p2p::planar_to_packed<p2p::packed_##x>::pack, ##__VA_ARGS__}
+	{ p2p_##x, &p2p::packed_to_planar<p2p::packed_##x>::unpack, &p2p::planar_to_packed<p2p::packed_##x, false>::pack, &p2p::planar_to_packed<p2p::packed_##x, true>::pack, ##__VA_ARGS__ }
 #define CASE2(x, ...) \
 	CASE(x##_be, std::is_same<p2p::native_endian_t, p2p::big_endian_t>::value, ##__VA_ARGS__), \
 	CASE(x##_le, std::is_same<p2p::native_endian_t, p2p::little_endian_t>::value, ##__VA_ARGS__), \
@@ -144,7 +145,13 @@ p2p_unpack_func p2p_select_unpack_func(enum p2p_packing packing)
 
 p2p_pack_func p2p_select_pack_func(enum p2p_packing packing)
 {
-	return lookup_traits(packing).pack;
+	return p2p_select_pack_func_ex(packing, 0);
+}
+
+p2p_pack_func p2p_select_pack_func_ex(enum p2p_packing packing, int alpha_one_fill)
+{
+	const packing_traits &traits = lookup_traits(packing);
+	return alpha_one_fill ? traits.pack_one_fill : traits.pack;
 }
 
 void p2p_unpack_frame(const struct p2p_buffer_param *param, unsigned long flags)
@@ -183,6 +190,7 @@ void p2p_unpack_frame(const struct p2p_buffer_param *param, unsigned long flags)
 void p2p_pack_frame(const struct p2p_buffer_param *param, unsigned long flags)
 {
 	const packing_traits &traits = lookup_traits(param->packing);
+	p2p_pack_func pack_func = flags & P2P_ALPHA_SET_ONE ? traits.pack_one_fill : traits.pack;
 
 	// Process interleaved plane.
 	const void *src_p[4] = { param->src[0], param->src[1], param->src[2], param->src[3] };
@@ -191,7 +199,7 @@ void p2p_pack_frame(const struct p2p_buffer_param *param, unsigned long flags)
 	ptrdiff_t dst_stride = traits.is_nv ? param->dst_stride[1] : param->dst_stride[0];
 
 	for (unsigned i = 0; i < (param->height >> traits.subsample_h); ++i) {
-		traits.pack(src_p, dst_p, 0, param->width);
+		pack_func(src_p, dst_p, 0, param->width);
 
 		if (!traits.is_nv) {
 			src_p[0] = increment_ptr(src_p[0], param->src_stride[0]);

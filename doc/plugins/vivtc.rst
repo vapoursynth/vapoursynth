@@ -14,6 +14,26 @@ It is a rewrite of some of tritical's TIVTC filters.
    is why it must be further processed by a decimation filter, like VDecimate.
 
    Unlike TFM, VFM does not have any postprocessing capabilities.
+   
+   You can however script your own like this (make sure the deinterlacer and VFM reference field is the same to avoid jerkiness)::
+
+      import vapoursynth as vs
+      import functools
+
+      core = vs.get_core()
+      input_clip = core.std.BlankClip(format=vs.YUV420P8, length=1000, color=[255, 128, 128])
+
+      def postprocess(n, f, clip, deinterlaced):
+         if f.props['_Combed'] > 0:
+            return deinterlaced
+         else:
+            return clip
+
+      matched_clip = core.vivtc.VFM(input_clip, 1)
+      deinterlaced_clip = core.eedi3.eedi3(matched_clip, field=1)
+      postprocessed_clip = core.std.FrameEval(matched_clip, functools.partial(postprocess, clip=matched_clip, deinterlaced=deinterlaced_clip), prop_src=matched_clip)
+      decimated_clip = core.vivtc.VDecimate(postprocessed_clip)
+      decimated_clip.set_output()
 
    VFM adds the following properties to every frame it outputs:
       VFMMics

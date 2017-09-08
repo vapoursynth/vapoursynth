@@ -48,6 +48,12 @@ Expr
    Since the expression is being evaluated at runtime, there are also the stack
    manipulation operators, *swap* and *dup*. The former swaps the topmost and
    second topmost values, and the latter duplicates the topmost stack value.
+   
+   These operators also have *swapN* and *dupN* forms that allow a value N
+   steps up in the stack to be swapped or duplicated. The top value of the stack
+   has index zero meaning that *dup* is equivalent to *dup0* and *swap* is
+   equivalent to *swap1*. This is because *swapN* always swaps with the topmost
+   value at index 0.
 
    Clip load operators::
 
@@ -55,19 +61,31 @@ Expr
 
    The operators taking one argument are::
 
-      exp log sqrt abs not dup
+      exp log sqrt abs not dup dupN
 
    The operators taking two arguments are::
 
-      + - * / max min > < = >= <= and or xor swap pow
+      + - * / max min pow > < = >= <= and or xor swap swapN
 
    The operators taking three arguments are::
 
       ?
       
-   Which is equivelent to the ternary operator in C::
+   For example these operations::
+   
+      a b c ?
+      
+      d e <
+      
+      f abs
+      
+   Are equivelent to these operations in C::
    
       a ? b : c
+      
+      d < e
+      
+      abs(f)
 
    How to average the Y planes of 3 YUV clips and pass through the UV planes
    unchanged (assuming same format)::

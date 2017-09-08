@@ -6,6 +6,7 @@ Applications
 * `D2V Witch <https://github.com/dubhater/D2VWitch>`_ -- creates indexes that can be opened by d2vsource
 * `SmoothVideo Project (SVP) <https://www.svp-team.com/wiki/Main_Page>`_ -- a plugin/video player component for realtime frame interpolation
 * `VapourSynth Editor <https://bitbucket.org/mystery_keeper/vapoursynth-editor>`_ -- an editor with syntax completion and fast preview support
+* `vsmkv <https://github.com/fluxamp/vsmkv>`_ -- a FUSE-based virtual filesystem for exporting VapourSynth scripts as uncompressed videos in the Matroska (MKV) file format
 * `Wobbly <http://forum.doom9.org/showthread.php?t=172496>`_ -- IVTC assistant similar to Yatta
 * `Yuuno <https://yuuno.encode.moe/>`_ -- incorporates VapourSynth into Jupyter
 
@@ -17,6 +18,7 @@ Scripts
 * `Oyster <http://forum.doom9.org/showthread.php?t=173470>`_ -- Compression artifact removal
 * `Vine <http://forum.doom9.org/showthread.php?t=173703>`_ -- De-halo and morphology functions
 * `vsTAAmbk <https://github.com/HomeOfVapourSynthEvolution/vsTAAmbk>`_ -- AA-script
+* `YoloCR <https://git.clapity.eu/Id/YoloCR>`_ -- A convenient OCR script
 
 Plugins
 #######
@@ -29,6 +31,7 @@ Source/Output
 * :ref:`ImageMagick Writer/Reader <imwri>` -- image writer and reader, in the source tree
 * `L-SMASH Source <http://forum.doom9.org/showthread.php?t=167435>`_
 * `QR Code Source Source <https://github.com/jeremypoulter/QRCodeSource>`_
+* `ReadMpls <https://forum.doom9.org/showthread.php?t=174580>`_ -- Returns a list of all files and paths in a mpls playlist
 * `vsrawsource <http://forum.doom9.org/showthread.php?t=166075>`_ -- Raw video reader
 * `vsavsreader <http://forum.doom9.org/showthread.php?t=165957>`_ -- Import plugin so Avisynth scripts can be opened in VapourSynth
 
@@ -40,8 +43,9 @@ Subtitles
 
 Resizing and Format Conversion
 ------------------------------
+
+* `Descale <https://forum.doom9.org/showthread.php?t=174570>`_ -- Undoes resizing
 * `fmtconv <http://forum.doom9.org/showthread.php?t=166504>`_ -- High quality bitdepth, colorspace conversion and resizing
-* `Unresize <http://forum.doom9.org/showthread.php?t=169829>`_ -- Undoes resizing
 * `waifu2x <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-Waifu2x-w2xc/>`_ -- waifu2x upscaling filter based on the w2xc library
 * `waifu2x-caffe <http://forum.doom9.org/showthread.php?t=173673>`_ -- waifu2x upscaling filter based on the waifu2x-caffe library
 * `waifu2x-opt <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-waifu2x-opt>`_ -- waifu2x upscaling filter based on the waifu2x-opt library
@@ -96,7 +100,9 @@ Others
 ------
 * :ref:`Morpho <morpho>` -- simple morphological filters, in the source tree
 * :ref:`Vinverse <vinverse>` -- in the source tree
+* :ref:`Miscellaneous filters <misc>` -- Scene change detection, frame averaging and other sometimes useful functions, in the source tree
 * `AddGrain <http://forum.doom9.org/showthread.php?t=171073>`_ -- Port of the Avisynth AddGrain filter
+* `AutoCrop <https://github.com/Infiziert90/vapoursynth-autocrop>`_
 * `AWarpSharp2 <http://forum.doom9.org/showthread.php?t=172721>`_ -- Sharpens edges by warping them
 * `Basic audio support <http://forum.doom9.org/showthread.php?t=171555>`_ -- A plugin that adds basic audio support
 * `Continuity Fixer <http://forum.doom9.org/showthread.php?t=171785>`_ -- Can help repair damaged borders of frames
@@ -107,14 +113,19 @@ Others
 * `f3kdb <http://forum.doom9.org/showthread.php?t=161411>`_ -- Debanding filter
 * `FieldHint <https://github.com/dubhater/vapoursynth-fieldhint>`_ -- Takes fields from arbitrary input frames to create the output frames
 * `FillBorders <https://github.com/dubhater/vapoursynth-fillborders>`_
+* `GradCurve <https://forum.doom9.org/showthread.php?t=174096>`_ -- Port of virtualdub Gradation Curves plugin
 * `minsharp <http://forum.doom9.org/showthread.php?t=173328>`_ -- Simple 3x3 blur and sharpen
-* `Miscellaneous filters <http://forum.doom9.org/showthread.php?t=173871>`_ -- Scene change detection, frame averaging and other sometimes useful functions
 * `MSmoosh <http://forum.doom9.org/showthread.php?t=171159>`_ -- MSmooth and MSharpen ports
 * `MVTools <http://forum.doom9.org/showthread.php?t=171207>`_ -- MVTools port
+* `MVTools single precision <https://forum.doom9.org/showthread.php?t=172525>`_ -- MVTools fork that works in single precision floating point
+* `Plum <https://forum.doom9.org/showthread.php?t=173775>`_ -- Blind deconvolution enhanced by pixel/block matching
+* `RemapFrames <https://forum.doom9.org/showthread.php?t=174727>`_ -- Frame re-ordering based on files/strings
 * `Retinex <http://forum.doom9.org/showthread.php?t=171307>`_ -- Dynamic range compression
 * `TCanny <http://forum.doom9.org/showthread.php?t=172158>`_ -- Canny edge detection
+* `TimeCube <http://forum.doom9.org/showthread.php?p=1809329#post1809329>`_ -- 3D LUT
 * `vcmod <http://forum.doom9.org/showthread.php?t=171412>`_ -- Various filters such as histogram equalization, blur, and watershed segmentation
 * `vcmove <http://forum.doom9.org/showthread.php?t=171414>`_ -- Rotate, debarrel and other distortion correction filters
+* `VFRtoCFR <https://forum.doom9.org/showthread.php?t=174711>`_ -- VFR to CFR conversion using timecode files
 
 Avisynth Interop
 ################

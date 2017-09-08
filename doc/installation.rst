@@ -16,9 +16,8 @@ It should automatically detect everything.
 Test it by opening a Python command line (should be added to your start menu)
 and type this::
 
-   import vapoursynth as vs
-   c = vs.get_core()
-   print(c.version())
+   from vapoursynth import core
+   print(core.version())
 
 After typing the final line you should see the version printed along with a
 few other lines describing the options used when instantiating the Core object.
@@ -66,9 +65,9 @@ These are the requirements:
 
    * GCC 4.8 or newer, or Clang
 
-   * Yasm
+   * Nasm
 
-   * `zimg v2.3 <https://github.com/sekrit-twc/zimg/releases>`_
+   * `zimg v2.6 branch <https://github.com/sekrit-twc/zimg/releases>`_
 
    * Python 3
 
@@ -76,9 +75,9 @@ These are the requirements:
 
    * Sphinx for the documentation (optional)
 
-   * libass and ffmpeg for the Subtext plugin (optional)
+   * iconv, libass, and ffmpeg for the Subtext plugin (optional)
 
-   * ImageMagick 6.9.?.? for the Imwri plugin (optional)
+   * ImageMagick 7 for the Imwri plugin (optional)
 
    * Tesseract 3 for the OCR plugin (optional)
 
@@ -95,7 +94,7 @@ First download and install the prerequisites:
 Installation of the required packages is very easy. Simply run these
 commands in a terminal and wait for them to complete::
 
-   brew install python3 yasm ffmpeg libass zimg
+   brew install python3 nasm ffmpeg libass zimg imagemagick
    pip3 install cython
    
 If you've already installed all the required packages and instead want
@@ -107,10 +106,10 @@ to update them, simply run::
 Required packages (Ubuntu)
 ##########################
 
-In Ubuntu 15.10 the following command will install them, minus zimg,
+In Ubuntu 16.10 the following command will install them, minus zimg,
 which needs to be compiled from source::
 
-   apt-get install build-essential yasm git libavcodec-dev libavformat-dev libavutil-dev libass-dev python3-pip python3-dev cython3 autoconf libtool libmagick++-dev libtesseract-dev
+   apt-get install build-essential nasm git libavcodec-dev libavformat-dev libavutil-dev libass-dev python3-pip python3-dev cython3 autoconf libtool libtesseract-dev
    
 The packages may have different names in other distributions.
 

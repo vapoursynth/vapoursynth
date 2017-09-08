@@ -23,6 +23,7 @@
 #include "VSScript.h"
 #include <string>
 #include <map>
+#include <vector>
 #include <mutex>
 #include <condition_variable>
 #include <algorithm>
@@ -98,6 +99,7 @@ static std::map<int, const VSFrameRef *> reorderMap;
 static std::string errorMessage;
 static std::condition_variable condition;
 static std::mutex mutex;
+static std::vector<uint8_t> buffer;
 
 static std::chrono::time_point<std::chrono::high_resolution_clock> start;
 static std::chrono::time_point<std::chrono::high_resolution_clock> lastFpsReportTime;
@@ -135,6 +137,11 @@ static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, 
     }
 
     if (f) {
+        if (requestedFrames < totalFrames) {
+            vsapi->getFrameAsync(requestedFrames, node, frameDoneCallback, nullptr);
+            requestedFrames++;
+        }
+
         reorderMap.insert(std::make_pair(n, f));
         while (reorderMap.count(outputFrames)) {
             const VSFrameRef *frame = reorderMap[outputFrames];
@@ -158,17 +165,19 @@ static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, 
                         const uint8_t *readPtr = vsapi->getReadPtr(frame, p);
                         int rowSize = vsapi->getFrameWidth(frame, p) * fi->bytesPerSample;
                         int height = vsapi->getFrameHeight(frame, p);
-                        for (int y = 0; y < height; y++) {
-                            if (fwrite(readPtr, 1, rowSize, outFile) != static_cast<size_t>(rowSize)) {
-                                if (errorMessage.empty())
-                                    errorMessage = "Error: fwrite() call failed when writing frame: " + std::to_string(outputFrames) + ", plane: " + std::to_string(p) +
-                                        ", line: " + std::to_string(y) + ", errno: " + std::to_string(errno);
-                                totalFrames = requestedFrames;
-                                outputError = true;
-                                rp = 100; // break out of the outer loop
-                                break;
-                            }
-                            readPtr += stride;
+
+                        if (rowSize != stride) {
+                            vs_bitblt(buffer.data(), rowSize, readPtr, stride, rowSize, height);
+                            readPtr = buffer.data();
+                        }
+
+                        if (fwrite(readPtr, 1, rowSize * height, outFile) != static_cast<size_t>(rowSize * height)) {
+                            if (errorMessage.empty())
+                                errorMessage = "Error: fwrite() call failed when writing frame: " + std::to_string(outputFrames) + ", plane: " + std::to_string(p) +
+                                ", errno: " + std::to_string(errno);
+                            totalFrames = requestedFrames;
+                            outputError = true;
+                            break;
                         }
                     }
                 }
@@ -218,11 +227,6 @@ static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, 
             else
                 errorMessage = "Error: Failed to retrieve frame " + std::to_string(n);
         }
-    }
-
-    if (requestedFrames < totalFrames) {
-        vsapi->getFrameAsync(requestedFrames, node, frameDoneCallback, nullptr);
-        requestedFrames++;
     }
 
     if (printFrameNumber && !outputError) {
@@ -325,6 +329,9 @@ static bool outputNode() {
             return outputError;
         }
     }
+
+    size_t size = vi->width * vi->height * vi->format->bytesPerSample;
+    buffer.resize(size);
 
     std::unique_lock<std::mutex> lock(mutex);
 

@@ -1,0 +1,8 @@
+include COPYING.LGPLv2.1
+
+recursive-include test *
+recursive-include src/cython *.pyx *.pxd
+recursive-include include *.h *.asm
+recursive-exclude include/cython *
+
+global-exclude *.dll

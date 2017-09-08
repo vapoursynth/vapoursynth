@@ -214,7 +214,7 @@ public:
     int numThreads;
     bool makeLinear;
 
-    CacheInstance(VSNodeRef *clip, VSCore *core, bool fixedSize) : cache(20, 20, fixedSize), clip(clip), core(core), node(nullptr), lastN(-1), numThreads(0), makeLinear(false) { }
+    CacheInstance(VSNodeRef *clip, VSCore *core, bool fixedSize) : cache(20, 20, fixedSize), clip(clip), core(core), node(nullptr), lastN(-1), numThreads(0), makeLinear(false) {}
 
     void addCache() {
         std::lock_guard<std::mutex> lock(core->cacheLock);

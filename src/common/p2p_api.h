@@ -132,10 +132,13 @@ typedef void (*p2p_pack_func)(const void * const src[4], void *dst, unsigned lef
 /** Select a line pack/unpack function. */
 p2p_unpack_func p2p_select_unpack_func(enum p2p_packing packing);
 p2p_pack_func p2p_select_pack_func(enum p2p_packing packing);
+p2p_pack_func p2p_select_pack_func_ex(enum p2p_packing packing, int alpha_one_fill);
 
 
 /** When processing formats like NV12, ignore the unpacked plane. */
 #define P2P_SKIP_UNPACKED_PLANES (1UL << 0)
+/** When packing, store a bit pattern of all ones in the alpha channel instead of all zeros. */
+#define P2P_ALPHA_SET_ONE (1UL << 1)
 
 /** Helper function to pack/unpack between memory locations. */
 void p2p_unpack_frame(const struct p2p_buffer_param *param, unsigned long flags);

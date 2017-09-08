@@ -1,7 +1,7 @@
 Resize
 ======
 
-.. function::   Bilinear(clip clip[, int width, int height, int format, enum matrix, enum transfer, enum primaries, enum range, enum chromaloc, enum matrix_in, enum transfer_in, enum primaries_in, enum range_in, enum chromaloc_in, float filter_param_a, float filter_param_b, string resample_filter_uv, float filter_param_a_uv, float filter_param_b_uv, string dither_type, string cpu_type, bint prefer_props, float src_left, float src_top, float src_width, float src_height, float nominal_luminance])
+.. function::   Bilinear(clip clip[, int width, int height, int format, enum matrix, enum transfer, enum primaries, enum range, enum chromaloc, enum matrix_in, enum transfer_in, enum primaries_in, enum range_in, enum chromaloc_in, float filter_param_a, float filter_param_b, string resample_filter_uv, float filter_param_a_uv, float filter_param_b_uv, string dither_type="none", string cpu_type, bint prefer_props=False, float src_left, float src_top, float src_width, float src_height, float nominal_luminance])
                 Bicubic(clip clip[, ...])
                 Point(clip clip[, ...])
                 Lanczos(clip clip[, ...])
@@ -151,6 +151,9 @@ Resize
                     Rec. ITU-R BT.2020 non-constant luminance system
         2020cl      KR = 0.2627; KB = 0.0593
                     Rec. ITU-R BT.2020 constant luminance system
+        chromacl    Cromaticity dervived constant luminance system
+        chromancl   Cromaticity dervived non-constant luminance system
+        ictcp       ICtCp
 
       Transfer characteristics (ITU-T H.265 Table E.4)::
         
@@ -179,8 +182,9 @@ Resize
                     Rec. ITU-R BT.2020
                     (functionally the same as the values 1 (709),
                     6 (601) and 14 (2020_10))
-        st2084      SMPTE ST 2084 (not in table)
-        std-b67     ARIB std-b67 (not in table)
+        st2084      SMPTE ST 2084
+        std-b67     ARIB std-b67
+        srgb        IEC 61966-2-1
 
       Color primaries (ITU-T H.265 Table E.3)::
       
@@ -213,7 +217,8 @@ Resize
                     red 0.708 0.292
                     white D65 0.3127 0.3290
                     Rec. ITU-R BT.2020
-        st432-1     DCI-P3 (not in table)
+        st431-2     DCI-P3 with traditional white point
+        st432-1     DCI-P3
 
       Pixel range (ITU-T H.265 Eq E-4 to E-15)::
       

@@ -44,7 +44,7 @@
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
 
-class VapourSynther final:
+class VapourSynther final :
     public VapourSynther_ {
     int references;
 
@@ -145,8 +145,7 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
     std::string scriptName = conversion.to_bytes(wszScriptName);
 
-    if(!scriptName.empty())
-    {
+    if (!scriptName.empty()) {
         std::string script = get_file_contents(wszScriptName);
         if (script.empty())
             goto vpyerror;
@@ -164,11 +163,11 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
             }
 
             if (!HasSupportedFourCC(vi->format->id)) {
-                    std::string error_msg = "AVFS module doesn't support ";
-                    error_msg += vi->format->name;
-                    error_msg += " output";
-                    setError(error_msg.c_str());
-                    return ERROR_ACCESS_DENIED;
+                std::string error_msg = "AVFS module doesn't support ";
+                error_msg += vi->format->name;
+                error_msg += " output";
+                setError(error_msg.c_str());
+                return ERROR_ACCESS_DENIED;
             }
 
             // set the special options hidden in global variables
@@ -191,7 +190,7 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
 
             return 0;
         } else {
-            vpyerror:
+        	vpyerror:
             setError(vsscript_getError(se));
             return ERROR_ACCESS_DENIED;
         }
@@ -288,17 +287,25 @@ const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) 
                             p.src[plane] = vsapi->getReadPtr(f, plane) + vsapi->getStride(f, plane) * (vsapi->getFrameHeight(f, plane) - 1);
                             p.src_stride[plane] = -vsapi->getStride(f, plane);
                         }
-                        p2p_pack_frame(&p, 0);
+                        p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
+                    } else if (fi->id == pfRGB30) {
+                        p.packing = p2p_rgb30_be;
+                        p.dst_stride[0] = ((p.width + 63) / 64) * 256;
+                        p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
                     } else if (fi->id == pfRGB48) {
                         p.packing = p2p_argb64_be;
-                        p2p_pack_frame(&p, 0);
+                        p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
+                    } else if (fi->id == pfYUV444P10) {
+                        p.packing = p2p_y410_le;
+                        p.dst_stride[0] = p.width * 2 * fi->bytesPerSample;
+                        p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
                     } else if (fi->id == pfYUV444P16) {
                         p.packing = p2p_y416_le;
-                        p2p_pack_frame(&p, 0);
+                        p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
                     } else if (fi->id == pfYUV422P10 && enable_v210) {
                         p.packing = p2p_v210_le;
                         p.dst_stride[0] = ((16 * ((p.width + 5) / 6) + 127) & ~127);
-                        p2p_pack_frame(&p, 0);
+                        p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
                     } else if ((fi->id == pfYUV420P16) || (fi->id == pfYUV422P16) || (fi->id == pfYUV420P10) || (fi->id == pfYUV422P10)) {
                         switch (fi->id) {
                         case pfYUV420P10: p.packing = p2p_p010_le; break;
@@ -309,7 +316,7 @@ const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) 
                         p.dst_stride[0] = p.width * fi->bytesPerSample;
                         p.dst_stride[1] = p.width * fi->bytesPerSample;
                         p.dst[1] = (uint8_t *)packedFrame.data() + p.dst_stride[0] * p.height;
-                        p2p_pack_frame(&p, 0);
+                        p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
                     } else {
                         const int stride = vsapi->getStride(f, 0);
                         const int height = vsapi->getFrameHeight(f, 0);

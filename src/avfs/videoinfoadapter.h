@@ -105,8 +105,12 @@ public:
             pixel_format = pfYUV420P16;
         else if (vi->IsColorSpace(VideoInfo::CS_YUV422P16) || vi->IsColorSpace(VideoInfo::CS_YUVA422P16))
             pixel_format = pfYUV422P16;
+        else if (vi->IsColorSpace(VideoInfo::CS_YUV444P10) || vi->IsColorSpace(VideoInfo::CS_YUVA444P10))
+            pixel_format = pfYUV444P10;
         else if (vi->IsColorSpace(VideoInfo::CS_YUV444P16) || vi->IsColorSpace(VideoInfo::CS_YUVA444P16))
             pixel_format = pfYUV444P16;
+        else if (vi->IsColorSpace(VideoInfo::CS_RGBP10) || vi->IsColorSpace(VideoInfo::CS_RGBAP10))
+            pixel_format = pfRGB30;
         else if (vi->IsColorSpace(VideoInfo::CS_RGBP16) || vi->IsColorSpace(VideoInfo::CS_RGBAP16))
             pixel_format = pfRGB48;
 

@@ -404,6 +404,8 @@ static std::string matrixToString(int matrix) {
         s = "BT.2020 NCL";
     else if (matrix == 10)
         s = "BT.2020 CL";
+    else if (matrix == 11)
+        s = "SMPTE 2085";
     return s;
 }
 
@@ -423,6 +425,14 @@ static std::string primariesToString(int primaries) {
         s = "FILM";
     else if (primaries == 9)
         s = "BT.2020";
+    else if (primaries == 10)
+        s = "SMPTE 428";
+    else if (primaries == 11)
+        s = "SMPTE 431";
+    else if (primaries == 12)
+        s = "SMPTE 432";
+    else if (primaries == 22)
+        s = "JEDEC P22";
     return s;
 }
 
@@ -454,6 +464,12 @@ static std::string transferToString(int transfer) {
             s = "BT.2020 for 10 bit system";
         else if (transfer == 15)
             s = "BT.2020 for 12 bit system";
+        else if (transfer == 16)
+            s = "SMPTE 2084";
+        else if (transfer == 17)
+            s = "SMPTE 428";
+        else if (transfer == 18)
+            s = "ARIB STD-B67";
         return s;
 }
 

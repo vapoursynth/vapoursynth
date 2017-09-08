@@ -1,12 +1,14 @@
 Levels
 ======
 
-.. function:: Levels(clip clip[, float[] min_in, float[] max_in, float[] gamma=1.0, float[] min_out, float[] max_out, int[] planes=[0, 1, 2]])
+.. function:: Levels(clip clip[, float min_in, float max_in, float gamma=1.0, float min_out, float max_out, int[] planes=[0, 1, 2]])
    :module: std
 
    Adjusts brightness, contrast, and gamma.
 
-   The range [*min_in*, *max_in*] is remapped into [*min_out*, *max_out*].
+   The range [*min_in*, *max_in*] is remapped into [*min_out*, *max_out*]. Note that the
+   range behavior is unintuitive for YUV float formats since the assumed range will be
+   0-1 even for the UV-planes.
 
    For example, to convert from limited range YUV to full range (8 bit)::
 

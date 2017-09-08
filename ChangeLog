@@ -1,9 +1,57 @@
+r39:
+fixed missing fps correction in avisource that would produce an error with some files
+switched to nasm as the assembler
+updated to zimg v2.6
+visual studio runtime detection is improved in the installer, it should no longer attempt re-installs when a newer version is present
+minor optimization in vspipe, you can now output blankclip into the void much faster
+memory will now be 64 byte aligned on systems with avx512 support
+added swapn and dupn operators to expr
+reverted the argument handling in levels, arguments no longer take a 3 plane list due it making no sense when combined with the planes argument
+optimized levels, the integer version is now implemented with a lut and the floating point version is faster when gamma=1.0
+improved get_outputs() in python (stuxcrystal)
+format objects can now be cast to int which will return the format id (stuxcrystal)
+added method to make it easier to query formats from python (stuxcrystal)
+made it possible to install the python part as a module (stuxcrystal)
+
+r38:
+updated to zimg v2.5.1
+removed the pointless subsampling requirements of transpose
+updated imwri to use imagemagick 7
+added srt support to subtext (jackoneill)
+added boxblur filter
+various fixes to averageframes
+averageframes can now use up to 31 weights 
+increased the number of allowed constants in h and v convolution modes to 25
+added new constants to clipinfo
+fixed several subtext corruption and crash bugs (jackoneill)
+added y410 and r210 output to avfs and vsvfw
+added constants for 12 and 14 bit yuv formats
+fixed a one pixel offset error only happening in vertical convolution with a 3 element vector
+switched to vs2017 in windows projects
+
+r37:
+updated to zimg v2.5
+fixed occasional crashes on startup in avfs when used with avisynth scripts
+fixed blankclip and addborders sometimes rejecting valid floating point color values (jackoneill)
+vdecimate no longer stores the metrics for all frames, thus saving a lot of memory for long clips (jackoneill)
+changed get_read* functions in python so their memory no longer incorrectly is writable (Kamekameha)
+added rational number fps property to clips in python (Kamekameha)
+mostly worked around an issue where python would replace the sigint handler
+fixed bug that could sometimes cause false memory leak warnings when freeing core
+fixed possible corruption on frames without subtitles in subtext (jackoneill)
+added a proxy object to avoid referencing the wrong core in scripts (stuxcrystal)
+
 r36:
+updated zimg library
+packed format output now has alpha set instead of being zeroed
+added asynchronous getframe support to python (stuxcrystal)
+fixed several mac compilation issues
+frame.props can now also behave like a proper python dict (stuxcrystal)
 added morpho filter to windows installer
 fixed planestats bug that could sometimes affect non-mod8 calculation
 added leak warning for functions
 added __signature__ attribute to python function objects (stuxcrystal)
-in python function objects now have name, signature and plugin attributes, plugin objects now have a namespace attribute correcpsonding to the namespace
+in python function objects now have name, signature and plugin attributes, plugin objects now have a namespace attribute corresponding to the namespace
 added misc filters to included vapoursynth plugins
 fixed several edge cases when specifying color values for blankclip and addborders, inf and nan are now always rejected and floating point values can be any finite value
 vspipe will now properly report floating point formats in y4m instead of incorrectly making them look like integer, for example C420ps and C420ph will be used to mark single and half precision respectively

@@ -1,5 +1,5 @@
 #define AppName = 'VapourSynth'
-#define Version = 'R36'
+#define Version = 'R39'
 
 [Setup]
 OutputDir=Compiled
@@ -17,7 +17,7 @@ AppPublisher=Fredrik Mellbin
 AppPublisherURL=http://www.vapoursynth.com/
 AppSupportURL=http://www.vapoursynth.com/
 AppUpdatesURL=http://www.vapoursynth.com/
-VersionInfoVersion=1.36.0.0
+VersionInfoVersion=1.39.0.0
 DefaultDirName={pf32}\VapourSynth
 DefaultGroupName=VapourSynth
 AllowCancelDuringInstall=no
@@ -40,7 +40,7 @@ Name: "vs64"; Description: "VapourSynth 64-bit"; Types: Full; Check: HasPython64
 Name: "vs32"; Description: "VapourSynth 32-bit"; Types: Full; Check: HasPython32; Flags: disablenouninstallwarning
 Name: "sdk"; Description: "VapourSynth SDK"; Flags: disablenouninstallwarning; Types: Full
 Name: "pismo"; Description: "Pismo PFM Runtime (required for AVFS)"; Types: Full; Flags: disablenouninstallwarning
-Name: "vsruntimes"; Description: "Visual Studio Runtimes (2013 & 2015)"; Types: Full; Flags: disablenouninstallwarning
+Name: "vsruntimes"; Description: "Visual Studio Runtimes (2013 & 2017)"; Types: Full; Flags: disablenouninstallwarning
 
 [Tasks]
 Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to shell context menu"; GroupDescription: "New File Shortcuts:"; Components: vs32 vs64
@@ -177,11 +177,13 @@ Root: HKLM64; Subkey: SOFTWARE\Classes\vpyfile; ValueType: string; ValueName: ""
 Root: HKLM64; Subkey: SOFTWARE\Classes\vpyfile\DefaultIcon; ValueType: string; ValueName: ""; ValueData: "{app}\core64\vsvfw.dll,0"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
 Root: HKLM64; Subkey: SOFTWARE\Classes\AVIFile\Extensions\VPY; ValueType: string; ValueName: ""; ValueData: "{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
 
-[Code]
 #include "scripts\products.iss"
+#include "scripts\products\stringversion.iss"
 #include "scripts\products\msiproduct.iss"
 #include "scripts\products\vcredist2013.iss"
-#include "scripts\products\vcredist2015.iss"
+#include "scripts\products\vcredist2017.iss"
+
+[Code]
 
 type
   TPythonPath = record
@@ -198,7 +200,7 @@ var
   PythonList: TNewCheckListBox;
   Python32Path: string;
   Python64Path: string;
-
+  
 function HasPython32: Boolean;
 var
   Counter: Integer;
@@ -262,9 +264,6 @@ begin
 end;
 
 function GetPythonInstallations: Boolean;
-var
-  PythonPath32: string;
-  PythonPath64: string;
 begin
   GetPythonInstallations2(HKCU, 'SOFTWARE\Python', 0);
   GetPythonInstallations2(HKLM32, 'SOFTWARE\Python', 32);
@@ -441,15 +440,15 @@ begin
     if IsComponentSelected('vsruntimes') and IsComponentSelected('vs32') and not Runtimes32Added then
     begin
       SetForceX86(True);
-      vcredist2013();
-      vcredist2015();
+      vcredist2013('12.0.21005');
+      vcredist2017('14.11.25325');
       SetForceX86(False);
       Runtimes32Added := True;
     end;
     if IsComponentSelected('vsruntimes') and IsComponentSelected('vs64') and not Runtimes64Added then
     begin
-      vcredist2013();
-      vcredist2015();
+      vcredist2013('12.0.21005');
+      vcredist2017('14.11.25325');
       Runtimes64Added := True;
     end;
     Result := NextButtonClick2(CurPageID);

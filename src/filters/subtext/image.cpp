@@ -45,6 +45,8 @@ typedef struct ImageFileData {
 
     bool gray;
 
+    bool flatten;
+
     AVCodecContext *avctx;
 } ImageFileData;
 
@@ -89,14 +91,41 @@ static const VSFrameRef *VS_CC imageFileGetFrame(int n, int activationReason, vo
     ImageFileData *d = (ImageFileData *) *instanceData;
 
     if (activationReason == arInitial) {
-        int subtitle_index = findSubtitleIndex(n, d->subtitles);
-        if (subtitle_index == d->last_subtitle)
-            return vsapi->cloneFrameRef(d->last_frame);
+        int subtitle_index;
+        if (d->flatten) {
+            subtitle_index = n;
+        } else {
+            subtitle_index = findSubtitleIndex(n, d->subtitles);
+            if (subtitle_index == d->last_subtitle)
+                return vsapi->cloneFrameRef(d->last_frame);
+        }
 
         VSFrameRef *rgb = vsapi->copyFrame(d->blank_rgb, core);
         VSFrameRef *alpha = vsapi->copyFrame(d->blank_alpha, core);
 
         if (subtitle_index > -1) {
+            if (d->avctx->codec_id == AV_CODEC_ID_HDMV_PGS_SUBTITLE &&
+                d->last_subtitle != subtitle_index - 1) {
+                // Random access in PGS doesn't quite work without decoding some previous subtitles.
+                // 5 was not enough. 10 seems to work.
+                for (int s = std::max(0, subtitle_index - 10); s < subtitle_index; s++) {
+                    const Subtitle &sub = d->subtitles[s];
+
+                    int got_subtitle = 0;
+
+                    AVSubtitle avsub;
+
+                    for (size_t i = 0; i < sub.packets.size(); i++) {
+                        AVPacket packet = sub.packets[i];
+
+                        avcodec_decode_subtitle2(d->avctx, &avsub, &got_subtitle, &packet);
+
+                        if (got_subtitle)
+                            avsubtitle_free(&avsub);
+                    }
+                }
+            }
+
             d->last_subtitle = subtitle_index;
 
             const Subtitle &sub = d->subtitles[subtitle_index];
@@ -145,53 +174,58 @@ static const VSFrameRef *VS_CC imageFileGetFrame(int n, int activationReason, vo
                 return nullptr;
             }
 
-            uint8_t *dst_a = vsapi->getWritePtr(alpha, 0);
-            uint8_t *dst_r = vsapi->getWritePtr(rgb, 0);
-            uint8_t *dst_g = vsapi->getWritePtr(rgb, 1);
-            uint8_t *dst_b = vsapi->getWritePtr(rgb, 2);
-            int stride = vsapi->getStride(rgb, 0);
+            for (unsigned r = 0; r < avsub.num_rects; r++) {
+                AVSubtitleRect *rect = avsub.rects[r];
 
-            AVSubtitleRect *rect = avsub.rects[0];
+                if (rect->w <= 0 || rect->h <= 0 || rect->type != SUBTITLE_BITMAP)
+                    continue;
 
 #ifdef VS_HAVE_AVSUBTITLERECT_AVPICTURE
-            uint8_t **rect_data = rect->pict.data;
-            int *rect_linesize = rect->pict.linesize;
+                uint8_t **rect_data = rect->pict.data;
+                int *rect_linesize = rect->pict.linesize;
 #else
-            uint8_t **rect_data = rect->data;
-            int *rect_linesize = rect->linesize;
+                uint8_t **rect_data = rect->data;
+                int *rect_linesize = rect->linesize;
 #endif
 
-            uint32_t palette[AVPALETTE_COUNT];
-            memcpy(palette, rect_data[1], AVPALETTE_SIZE);
-            for (size_t i = 0; i < d->palette.size(); i++)
-                if (d->palette[i] != unused_colour)
-                    palette[i] = d->palette[i];
+                uint32_t palette[AVPALETTE_COUNT];
+                memcpy(palette, rect_data[1], AVPALETTE_SIZE);
+                for (size_t i = 0; i < d->palette.size(); i++)
+                    if (d->palette[i] != unused_colour)
+                        palette[i] = d->palette[i];
 
-            if (d->gray)
-                makePaletteGray(palette);
+                if (d->gray)
+                    makePaletteGray(palette);
 
-            const uint8_t *input = rect_data[0];
+                const uint8_t *input = rect_data[0];
 
-            dst_a += rect->y * stride + rect->x;
-            dst_r += rect->y * stride + rect->x;
-            dst_g += rect->y * stride + rect->x;
-            dst_b += rect->y * stride + rect->x;
+                uint8_t *dst_a = vsapi->getWritePtr(alpha, 0);
+                uint8_t *dst_r = vsapi->getWritePtr(rgb, 0);
+                uint8_t *dst_g = vsapi->getWritePtr(rgb, 1);
+                uint8_t *dst_b = vsapi->getWritePtr(rgb, 2);
+                int stride = vsapi->getStride(rgb, 0);
 
-            for (int y = 0; y < rect->h; y++) {
-                for (int x = 0; x < rect->w; x++) {
-                    uint32_t argb = palette[input[x]];
+                dst_a += rect->y * stride + rect->x;
+                dst_r += rect->y * stride + rect->x;
+                dst_g += rect->y * stride + rect->x;
+                dst_b += rect->y * stride + rect->x;
 
-                    dst_a[x] = (argb >> 24) & 0xff;
-                    dst_r[x] = (argb >> 16) & 0xff;
-                    dst_g[x] = (argb >> 8) & 0xff;
-                    dst_b[x] = argb & 0xff;
+                for (int y = 0; y < rect->h; y++) {
+                    for (int x = 0; x < rect->w; x++) {
+                        uint32_t argb = palette[input[x]];
+
+                        dst_a[x] = (argb >> 24) & 0xff;
+                        dst_r[x] = (argb >> 16) & 0xff;
+                        dst_g[x] = (argb >> 8) & 0xff;
+                        dst_b[x] = argb & 0xff;
+                    }
+
+                    input += rect_linesize[0];
+                    dst_a += stride;
+                    dst_r += stride;
+                    dst_g += stride;
+                    dst_b += stride;
                 }
-
-                input += rect_linesize[0];
-                dst_a += stride;
-                dst_r += stride;
-                dst_g += stride;
-                dst_b += stride;
             }
 
             avsubtitle_free(&avsub);
@@ -296,6 +330,9 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
     int palette_size = vsapi->propNumElements(in, "palette");
     if (palette_size > AVPALETTE_COUNT) {
         vsapi->setError(out, (d.filter_name + ": the palette can have at most " + std::to_string(AVPALETTE_COUNT) + " elements.").c_str());
+
+        vsapi->freeNode(d.clip);
+
         return;
     }
     if (palette_size > 0) {
@@ -304,6 +341,9 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
         for (int i = 0; i < palette_size; i++) {
             if (palette[i] < 0 || (palette[i] > UINT32_MAX && palette[i] != unused_colour)) {
                 vsapi->setError(out, (d.filter_name + ": palette[" + std::to_string(i) + "] has an invalid value.").c_str());
+
+                vsapi->freeNode(d.clip);
+
                 return;
             }
             d.palette[i] = palette[i];
@@ -343,6 +383,12 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
             error = strerror(err);
 
         vsapi->setError(out, (d.filter_name + ": " + e + error).c_str());
+
+        if (fctx)
+            avformat_close_input(&fctx);
+
+        vsapi->freeNode(d.clip);
+
         return;
     }
 
@@ -352,6 +398,8 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
 
         avformat_close_input(&fctx);
 
+        vsapi->freeNode(d.clip);
+
         return;
     }
 
@@ -359,6 +407,8 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
         vsapi->setError(out, (d.filter_name + ": no streams found.").c_str());
 
         avformat_close_input(&fctx);
+
+        vsapi->freeNode(d.clip);
 
         return;
     }
@@ -405,6 +455,13 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
         if (!d.avctx)
             throw std::string("failed to allocate AVCodecContext.");
 
+        int extradata_size = fctx->streams[stream_index]->codec->extradata_size;
+        if (extradata_size) {
+            d.avctx->extradata_size = extradata_size;
+            d.avctx->extradata = (uint8_t *)av_mallocz(extradata_size + AV_INPUT_BUFFER_PADDING_SIZE);
+            memcpy(d.avctx->extradata, fctx->streams[stream_index]->codec->extradata, extradata_size);
+        }
+
         ret = avcodec_open2(d.avctx, decoder, nullptr);
         if (ret < 0)
             throw std::string("failed to open AVCodecContext.");
@@ -416,13 +473,15 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
         if (d.avctx)
             avcodec_free_context(&d.avctx);
 
+        vsapi->freeNode(d.clip);
+
         return;
     }
 
 
     av_opt_get_image_size(fctx->streams[stream_index]->codec, "video_size", 0, &d.vi.width, &d.vi.height);
 
-    Subtitle current_subtitle;
+    Subtitle current_subtitle = { };
 
     AVPacket packet;
     av_init_packet(&packet);
@@ -456,6 +515,9 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
                     start_time += avsub.start_display_time;
 
                     current_subtitle.end_frame = timestampToFrameNumber(packet.pts + avsub.end_display_time, time_base, d.vi.fpsNum, d.vi.fpsDen);
+                    // If it doesn't say when it should end, display it until the next one.
+                    if (avsub.end_display_time == 0)
+                        current_subtitle.end_frame = 0;
                 }
 
                 current_subtitle.start_frame = timestampToFrameNumber(start_time, time_base, d.vi.fpsNum, d.vi.fpsDen);
@@ -464,7 +526,8 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
                 current_subtitle.packets.clear();
             } else {
                 Subtitle &previous_subtitle = d.subtitles.back();
-                previous_subtitle.end_frame = timestampToFrameNumber(current_subtitle.packets.front().pts, time_base, d.vi.fpsNum, d.vi.fpsDen);
+                if (d.subtitles.size()) // The first AVSubtitle may be empty.
+                    previous_subtitle.end_frame = timestampToFrameNumber(current_subtitle.packets.front().pts, time_base, d.vi.fpsNum, d.vi.fpsDen);
 
                 for (auto p : current_subtitle.packets)
                     av_packet_unref(&p);
@@ -477,6 +540,31 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
             avsubtitle_free(&avsub);
         } else {
             current_subtitle.packets.push_back(packet);
+        }
+    }
+
+    if (d.subtitles.size() == 0) {
+        vsapi->setError(out, (d.filter_name + ": no usable subtitle pictures found.").c_str());
+
+        avformat_close_input(&fctx);
+
+        if (d.avctx)
+            avcodec_free_context(&d.avctx);
+
+        vsapi->freeNode(d.clip);
+
+        return;
+    }
+
+    // Sometimes there is no AVSubtitle with num_rects = 0 in between two AVSubtitles with num_rects > 0 (PGS).
+    // Sometimes end_display_time is 0 (VOBSUB).
+    // In such cases end_frame is 0, so we correct it.
+    for (size_t i = 0; i < d.subtitles.size(); i++) {
+        if (d.subtitles[i].end_frame == 0) {
+            if (i < d.subtitles.size() - 1)
+                d.subtitles[i].end_frame = d.subtitles[i + 1].start_frame;
+            else
+                d.subtitles[i].end_frame = d.vi.numFrames;
         }
     }
 
@@ -498,6 +586,10 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
     d.last_subtitle = INT_MIN;
 
 
+    d.flatten = !!vsapi->propGetInt(in, "flatten", 0, &err);
+    if (d.flatten)
+        d.vi.numFrames = (int)d.subtitles.size();
+
     data = new ImageFileData(d);
 
     vsapi->createFilter(in, out, d.filter_name.c_str(), imageFileInit, imageFileGetFrame, imageFileFree, fmUnordered, 0, data, core);
@@ -508,10 +600,12 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
         return;
     }
 
-
     bool blend = !!vsapi->propGetInt(in, "blend", 0, &err);
     if (err)
         blend = true;
+
+    if (d.flatten)
+        blend = false;
 
     if (blend) {
         VSNodeRef *subs = vsapi->propGetNode(out, "clip", 0, NULL);

@@ -97,11 +97,11 @@ struct RiffTag
 };
 
 /*  typedef struct _rifflist
-	{
-	  FOURCC fcc;
-	  DWORD cb;
-	  FOURCC fccListType;
-	} RIFFLIST, * LPRIFFLIST; */
+    {
+      FOURCC fcc;
+      DWORD cb;
+      FOURCC fccListType;
+    } RIFFLIST, * LPRIFFLIST; */
 
 // RIFFLIST  - 'RIFF', 'LIST'
 
@@ -205,30 +205,6 @@ struct Avi2AudFrmt {
 
 static const uint32_t avi2AudHdrLstFcc     = MAKETAGUINT32('s','t','r','l');
 static const uint32_t avi2AudStrTypeFcc    = MAKETAGUINT32('a','u','d','s');
-
-
-/*  #define ckidAVISUPERINDEX FCC('indx')                FCC('ix00')   FCC('ix01')
-
-	typedef struct _avisuperindex {                      typedef struct _avistdindex {
-	  FOURCC fcc;                                          FOURCC    fcc;
-	  UINT   cb;                                           UINT      cb;
-	  WORD   wLongsPerEntry;                               WORD      wLongsPerEntry;
-	  BYTE   bIndexSubType;                                BYTE      bIndexSubType;
-	  BYTE   bIndexType;                                   BYTE      bIndexType;
-	  DWORD  nEntriesInUse;                                DWORD     nEntriesInUse;
-	  DWORD  dwChunkId;                                    DWORD     dwChunkId;
-
-	  DWORD  dwReserved[3];                                DWORDLONG qwBaseOffset;
-														   DWORD     dwReserved_3;
-
-	  struct _avisuperindex_entry {                        AVISTDINDEX_ENTRY aIndex[ANYSIZE_ARRAY];
-		DWORDLONG qwOffset;
-		DWORD dwSize;                                    } AVISTDINDEX;
-		DWORD dwDuration;
-	  } aIndex[ANYSIZE_ARRAY];                         	 typedef struct _avistdindex_entry {
-														   DWORD dwOffset;
-	} AVISUPERINDEX;                                       DWORD dwSize;
-														 } AVISTDINDEX_ENTRY; */
 
 static const uint32_t avi2IndxFcc = MAKETAGUINT32('i','n','d','x');
 

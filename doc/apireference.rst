@@ -30,37 +30,6 @@ The *GetFrame* function is a bit more complicated so see the reference of the co
 
 There are two common misconseptions about which mode should be used. A simple rule is that *fmSerial* should never be used. And source filters (those returning a frame on *arInitial*) that need locking should use *fmUnordered*.
 
-VSScript/Python
----------------
-Python state is global, if an additional module has once been loaded it won't refresh automatically. Therefore never call vs.get_core() in the global scope of a module that can be imported.
-
-   WRONG::
-   
-      user_function.py:
-      import vapoursynth as vs
-      core = vs.get_core()
-      def foo():
-         return core.std.BlankClip()
-
-   RIGHT::
-   
-      user_function.py:
-      import vapoursynth as vs
-      def foo():
-         core = vs.get_core()
-         return core.std.BlankClip()
-
-   MAIN SCRIPT::
-   
-      main.vpy:
-      import vapoursynth as vs
-      import user_function
-      core = vs.get_core()
-      user_function.foo().set_output()
-
-In the wrong case the core variable in user_function.py will only be assigned the first time the script it run, meaning that it won't use the same core as the rest of the script after a reload.
-In R26 and later this will return an error. Earlier versions may or may not crash with a fatal error.
-
 Reserved Frame Properties
 #########################
 

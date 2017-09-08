@@ -22,7 +22,7 @@
 #include <locale>
 #include <sstream>
 #include <vector>
-#include <stack>
+#include <list>
 #include <string>
 #include <algorithm>
 #include <stdexcept>
@@ -136,33 +136,33 @@ struct ExprData {
 #ifdef VS_TARGET_CPU_X86
 
 #define OneArgOp(instr) \
-auto &t1 = stack.top(); \
+auto &t1 = stack.back(); \
 instr(t1.first, t1.first); \
 instr(t1.second, t1.second);
 
 #define TwoArgOp(instr) \
-auto t1 = stack.top(); \
-stack.pop(); \
-auto &t2 = stack.top(); \
+auto t1 = stack.back(); \
+stack.pop_back(); \
+auto &t2 = stack.back(); \
 instr(t2.first, t1.first); \
 instr(t2.second, t1.second);
 
 #define CmpOp(instr) \
-auto t1 = stack.top(); \
-stack.pop(); \
-auto t2 = stack.top(); \
-stack.pop(); \
+auto t1 = stack.back(); \
+stack.pop_back(); \
+auto t2 = stack.back(); \
+stack.pop_back(); \
 instr(t1.first, t2.first); \
 instr(t1.second, t2.second); \
 andps(t1.first, CPTR(elfloat_one)); \
 andps(t1.second, CPTR(elfloat_one)); \
-stack.push(t1);
+stack.push_back(t1);
 
 #define LogicOp(instr) \
-auto t1 = stack.top(); \
-stack.pop(); \
-auto t2 = stack.top(); \
-stack.pop(); \
+auto t1 = stack.back(); \
+stack.pop_back(); \
+auto t2 = stack.back(); \
+stack.pop_back(); \
 cmpnleps(t1.first, zero); \
 cmpnleps(t1.second, zero); \
 cmpnleps(t2.first, zero); \
@@ -171,7 +171,7 @@ instr(t1.first, t2.first); \
 instr(t1.second, t2.second); \
 andps(t1.first, CPTR(elfloat_one)); \
 andps(t1.second, CPTR(elfloat_one)); \
-stack.push(t1);
+stack.push_back(t1);
 
 enum {
     elabsmask, elc7F, elmin_norm_pos, elinv_mant_mask,
@@ -326,7 +326,7 @@ struct ExprEval : public jitasm::function<void, ExprEval, uint8_t *, const intpt
 
         L("wloop");
 
-        std::stack<std::pair<XmmReg, XmmReg>> stack;
+        std::list<std::pair<XmmReg, XmmReg>> stack;
         for (const auto &iter : ops) {
             if (iter.op == opLoadSrc8) {
                 XmmReg r1, r2;
@@ -339,7 +339,7 @@ struct ExprEval : public jitasm::function<void, ExprEval, uint8_t *, const intpt
                 punpcklwd(r2, zero);
                 cvtdq2ps(r1, r1);
                 cvtdq2ps(r2, r2);
-                stack.push(std::make_pair(r1, r2));
+                stack.push_back(std::make_pair(r1, r2));
             } else if (iter.op == opLoadSrc16) {
                 XmmReg r1, r2;
                 Reg a;
@@ -350,21 +350,21 @@ struct ExprEval : public jitasm::function<void, ExprEval, uint8_t *, const intpt
                 punpcklwd(r2, zero);
                 cvtdq2ps(r1, r1);
                 cvtdq2ps(r2, r2);
-                stack.push(std::make_pair(r1, r2));
+                stack.push_back(std::make_pair(r1, r2));
             } else if (iter.op == opLoadSrcF32) {
                 XmmReg r1, r2;
                 Reg a;
                 mov(a, ptr[regptrs + sizeof(void *) * (iter.e.ival + 1)]);
                 movdqa(r1, xmmword_ptr[a]);
                 movdqa(r2, xmmword_ptr[a + 16]);
-                stack.push(std::make_pair(r1, r2));
+                stack.push_back(std::make_pair(r1, r2));
             } else if (iter.op == opLoadSrcF16) {
                 XmmReg r1, r2;
                 Reg a;
                 mov(a, ptr[regptrs + sizeof(void *) * (iter.e.ival + 1)]);
                 vcvtph2ps(r1, qword_ptr[a]);
                 vcvtph2ps(r2, qword_ptr[a + 8]);
-                stack.push(std::make_pair(r1, r2));
+                stack.push_back(std::make_pair(r1, r2));
             } else if (iter.op == opLoadConst) {
                 XmmReg r1, r2;
                 Reg a;
@@ -372,19 +372,15 @@ struct ExprEval : public jitasm::function<void, ExprEval, uint8_t *, const intpt
                 movd(r1, a);
                 shufps(r1, r1, 0);
                 movaps(r2, r1);
-                stack.push(std::make_pair(r1, r2));
+                stack.push_back(std::make_pair(r1, r2));
             } else if (iter.op == opDup) {
+                auto p = std::next(stack.rbegin(), iter.e.ival);
                 XmmReg r1, r2;
-                movaps(r1, stack.top().first);
-                movaps(r2, stack.top().second);
-                stack.push(std::make_pair(r1, r2));
+                movaps(r1, p->first);
+                movaps(r2, p->second);
+                stack.push_back(std::make_pair(r1, r2));
             } else if (iter.op == opSwap) {
-                auto t1 = stack.top();
-                stack.pop();
-                auto t2 = stack.top();
-                stack.pop();
-                stack.push(t1);
-                stack.push(t2);
+                std::swap(stack.back(), *std::next(stack.rbegin(), iter.e.ival));
             } else if (iter.op == opAdd) {
                 TwoArgOp(addps)
             } else if (iter.op == opSub) {
@@ -398,14 +394,14 @@ struct ExprEval : public jitasm::function<void, ExprEval, uint8_t *, const intpt
             } else if (iter.op == opMin) {
                 TwoArgOp(minps)
             } else if (iter.op == opSqrt) {
-                auto &t1 = stack.top();
+                auto &t1 = stack.back();
                 maxps(t1.first, zero);
                 maxps(t1.second, zero);
                 sqrtps(t1.first, t1.first);
                 sqrtps(t1.second, t1.second);
             } else if (iter.op == opStore8) {
-                auto t1 = stack.top();
-                stack.pop();
+                auto t1 = stack.back();
+                stack.pop_back();
                 XmmReg r1, r2;
                 Reg a;
                 maxps(t1.first, zero);
@@ -427,8 +423,8 @@ struct ExprEval : public jitasm::function<void, ExprEval, uint8_t *, const intpt
                 packuswb(t1.second, zero);
                 movq(mmword_ptr[a], t1.second);
             } else if (iter.op == opStore16) {
-                auto t1 = stack.top();
-                stack.pop();
+                auto t1 = stack.back();
+                stack.pop_back();
                 XmmReg r1, r2;
                 Reg a;
                 maxps(t1.first, zero);
@@ -449,25 +445,25 @@ struct ExprEval : public jitasm::function<void, ExprEval, uint8_t *, const intpt
                 punpcklqdq(t1.second, t1.first);
                 movdqa(xmmword_ptr[a], t1.second);
             } else if (iter.op == opStoreF32) {
-                auto t1 = stack.top();
-                stack.pop();
+                auto t1 = stack.back();
+                stack.pop_back();
                 Reg a;
                 mov(a, ptr[regptrs]);
                 movaps(xmmword_ptr[a], t1.first);
                 movaps(xmmword_ptr[a + 16], t1.second);
             } else if (iter.op == opStoreF16) {
-                auto t1 = stack.top();
-                stack.pop();
+                auto t1 = stack.back();
+                stack.pop_back();
                 Reg a;
                 mov(a, ptr[regptrs]);
                 vcvtps2ph(qword_ptr[a], t1.first, 0);
                 vcvtps2ph(qword_ptr[a + 8], t1.second, 0);
             } else if (iter.op == opAbs) {
-                auto &t1 = stack.top();
+                auto &t1 = stack.back();
                 andps(t1.first, CPTR(elabsmask));
                 andps(t1.second, CPTR(elabsmask));
             } else if (iter.op == opNeg) {
-                auto &t1 = stack.top();
+                auto &t1 = stack.back();
                 cmpleps(t1.first, zero);
                 cmpleps(t1.second, zero);
                 andps(t1.first, CPTR(elfloat_one));
@@ -489,12 +485,12 @@ struct ExprEval : public jitasm::function<void, ExprEval, uint8_t *, const intpt
             } else if (iter.op == opGE) {
                 CmpOp(cmpleps)
             } else if (iter.op == opTernary) {
-                auto t1 = stack.top();
-                stack.pop();
-                auto t2 = stack.top();
-                stack.pop();
-                auto t3 = stack.top();
-                stack.pop();
+                auto t1 = stack.back();
+                stack.pop_back();
+                auto t2 = stack.back();
+                stack.pop_back();
+                auto t3 = stack.back();
+                stack.pop_back();
                 XmmReg r1, r2;
                 xorps(r1, r1);
                 xorps(r2, r2);
@@ -506,19 +502,19 @@ struct ExprEval : public jitasm::function<void, ExprEval, uint8_t *, const intpt
                 andnps(r2, t1.second);
                 orps(r1, t2.first);
                 orps(r2, t2.second);
-                stack.push(std::make_pair(r1, r2));
+                stack.push_back(std::make_pair(r1, r2));
             } else if (iter.op == opExp) {
-                auto &t1 = stack.top();
+                auto &t1 = stack.back();
                 EXP_PS(t1.first)
                 EXP_PS(t1.second)
             } else if (iter.op == opLog) {
-                auto &t1 = stack.top();
+                auto &t1 = stack.back();
                 LOG_PS(t1.first)
                 LOG_PS(t1.second)
             } else if (iter.op == opPow) {
-                auto t1 = stack.top();
-                stack.pop();
-                auto &t2 = stack.top();
+                auto t1 = stack.back();
+                stack.pop_back();
+                auto &t2 = stack.back();
                 LOG_PS(t2.first)
                 mulps(t2.first, t1.first);
                 EXP_PS(t2.first)
@@ -632,7 +628,6 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                 const ExprOp *vops = d->ops[plane].data();
                 float *stack = stackVector.data();
                 float stacktop = 0;
-                float tmp;
 
                 for (int y = 0; y < h; y++) {
                     for (int x = 0; x < w; x++) {
@@ -663,12 +658,11 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                                 break;
                             case opDup:
                                 stack[si] = stacktop;
+                                stacktop = stack[si - vops[i].e.ival];
                                 ++si;
                                 break;
                             case opSwap:
-                                tmp = stacktop;
-                                stacktop = stack[si];
-                                stack[si] = tmp;
+                                std::swap(stacktop, stack[si - vops[i].e.ival]);
                                 break;
                             case opAdd:
                                 --si;
@@ -815,11 +809,11 @@ static SOperation getStoreOp(const VSVideoInfo *vi) {
     }
 }
 
-#define LOAD_OP(op,v) do { ops.push_back(ExprOp(op, (v))); maxStackSize = std::max(++stackSize, maxStackSize); } while(0)
-#define GENERAL_OP(op, req, dec) do { if (stackSize < req) throw std::runtime_error("Not enough elements on stack to perform operation " + tokens[i]); ops.push_back(ExprOp(op)); stackSize-=(dec); } while(0)
-#define ONE_ARG_OP(op) GENERAL_OP(op, 1, 0)
-#define TWO_ARG_OP(op) GENERAL_OP(op, 2, 1)
-#define THREE_ARG_OP(op) GENERAL_OP(op, 3, 2)
+#define LOAD_OP(op,v,req) do { if (stackSize < req) throw std::runtime_error("Not enough elements on stack to perform operation " + tokens[i]); ops.push_back(ExprOp(op, (v))); maxStackSize = std::max(++stackSize, maxStackSize); } while(0)
+#define GENERAL_OP(op, v, req, dec) do { if (stackSize < req) throw std::runtime_error("Not enough elements on stack to perform operation " + tokens[i]); ops.push_back(ExprOp(op, (v))); stackSize-=(dec); } while(0)
+#define ONE_ARG_OP(op) GENERAL_OP(op, 0, 1, 0)
+#define TWO_ARG_OP(op) GENERAL_OP(op, 0, 2, 1)
+#define THREE_ARG_OP(op) GENERAL_OP(op, 0, 3, 2)
 
 static size_t parseExpression(const std::string &expr, std::vector<ExprOp> &ops, const VSVideoInfo **vi, const SOperation storeOp, int numInputs) {
     std::vector<std::string> tokens;
@@ -871,10 +865,32 @@ static size_t parseExpression(const std::string &expr, std::vector<ExprOp> &ops,
             TWO_ARG_OP(opXor);
         else if (tokens[i] == "not")
             ONE_ARG_OP(opNeg);
-        else if (tokens[i] == "dup")
-            LOAD_OP(opDup, 0);
-        else if (tokens[i] == "swap")
-            GENERAL_OP(opSwap, 2, 0);
+        else if (tokens[i].substr(0, 3) == "dup")
+            if (tokens[i].size() == 3) {
+                LOAD_OP(opDup, 0, 1);
+            } else {
+                try {
+                    int tmp = std::stoi(tokens[i].substr(3));
+                    if (tmp < 0)
+                        throw std::runtime_error("Dup suffix can't be less than 0 '" + tokens[i] + "'");
+                    LOAD_OP(opDup, tmp, tmp + 1);
+                } catch (std::logic_error &) {
+                    throw std::runtime_error("Failed to convert dup suffix '" + tokens[i] + "' to valid index");
+                }
+            }
+        else if (tokens[i].substr(0, 4) == "swap")
+            if (tokens[i].size() == 4) {
+                GENERAL_OP(opSwap, 1, 2, 0);
+            } else {
+                try {
+                    int tmp = std::stoi(tokens[i].substr(4));
+                    if (tmp < 1)
+                        throw std::runtime_error("Swap suffix can't be less than 1 '" + tokens[i] + "'");
+                        GENERAL_OP(opSwap, tmp, tmp + 1, 0);
+                } catch (std::logic_error &) {
+                    throw std::runtime_error("Failed to convert swap suffix '" + tokens[i] + "' to valid index");
+                }
+            }
         else if (tokens[i].length() == 1 && tokens[i][0] >= 'a' && tokens[i][0] <= 'z') {
             char srcChar = tokens[i][0];
             int loadIndex;
@@ -884,7 +900,7 @@ static size_t parseExpression(const std::string &expr, std::vector<ExprOp> &ops,
                 loadIndex = srcChar - 'a' + 3;
             if (loadIndex >= numInputs)
                 throw std::runtime_error("Too few input clips supplied to reference '" + tokens[i] + "'");
-            LOAD_OP(getLoadOp(vi[loadIndex]), loadIndex);
+            LOAD_OP(getLoadOp(vi[loadIndex]), loadIndex, 0);
         } else {
             float f;
             std::string s;
@@ -894,7 +910,7 @@ static size_t parseExpression(const std::string &expr, std::vector<ExprOp> &ops,
                 throw std::runtime_error("Failed to convert '" + tokens[i] + "' to float");
             if (numStream >> s)
                 throw std::runtime_error("Failed to convert '" + tokens[i] + "' to float, not the whole token could be converted");
-            LOAD_OP(opLoadConst, f);
+            LOAD_OP(opLoadConst, f, 0);
         }
     }
 
@@ -1127,7 +1143,7 @@ static void foldConstants(std::vector<ExprOp> &ops) {
     for (size_t i = 0; i < ops.size(); i++) {
         switch (ops[i].op) {
             case opDup:
-                if (ops[i - 1].op == opLoadConst) {
+                if (ops[i - 1].op == opLoadConst && ops[i].e.ival == 0) {
                     ops[i] = ops[i - 1];
                 }
                 break;
@@ -1146,7 +1162,7 @@ static void foldConstants(std::vector<ExprOp> &ops) {
                 break;
 
             case opSwap:
-                if (ops[i - 2].op == opLoadConst && ops[i - 1].op == opLoadConst) {
+                if (ops[i - 2].op == opLoadConst && ops[i - 1].op == opLoadConst && ops[i].e.ival == 1) {
                     const float temp = ops[i - 2].e.fval;
                     ops[i - 2].e.fval = ops[i - 1].e.fval;
                     ops[i - 1].e.fval = temp;

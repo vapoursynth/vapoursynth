@@ -421,6 +421,7 @@ void AVISource::LocateVideoCodec(const char fourCC[], VSCore *core, const VSAPI 
     vi[0].height = abs(pbiSrc->biHeight);
     vi[0].fpsNum = asi.dwRate;
     vi[0].fpsDen = asi.dwScale;
+    vs_normalizeRational(&vi[0].fpsNum, &vi[0].fpsDen);
     vi[0].numFrames = asi.dwLength;
 
     // try the requested decoder, if specified

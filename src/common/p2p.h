@@ -36,7 +36,7 @@
   #define P2P_LITTLE_ENDIAN
   #include <stdlib.h>
 #else
-  #include <endian.h>
+  #include <sys/param.h>
   #if __BYTE_ORDER == __BIG_ENDIAN
     #define P2P_BIG_ENDIAN
   #elif __BYTE_ORDER == __LITTLE_ENDIAN
@@ -246,6 +246,10 @@ struct mask4 {
 	constexpr bool contains(unsigned val) const
 	{
 		return (*this)[0] == val || (*this)[1] == val || (*this)[2] == val || (*this)[3] == val;
+	}
+	constexpr unsigned find(uint8_t val) const
+	{
+		return (*this)[0] == val ? 0 : (*this)[1] == val ? 1 : (*this)[2] == val ? 2 : (*this)[3] == val ? 3 : ~0U;
 	}
 };
 
@@ -544,7 +548,7 @@ public:
 	}
 };
 
-template <class Traits>
+template <class Traits, bool AlphaOneFill = false>
 class planar_to_packed {
 	typedef typename Traits::planar_type planar_type;
 	typedef typename Traits::packed_type packed_type;
@@ -582,6 +586,9 @@ public:
 		for (unsigned i = left; i < right; i += Traits::pel_per_pack) {
 			numeric_type x = 0;
 
+			if (AlphaOneFill && Traits::component_mask.contains(C_A) && !alpha_enabled)
+				x |= get_component(~static_cast<planar_type>(0), Traits::component_mask.find(C_A));
+
 			if (P2P_COMPONENT_ENABLED(0))
 				x |= get_component(*src_p[Traits::component_mask[0]]++, 0);
 			if (P2P_COMPONENT_ENABLED(1))
@@ -597,12 +604,7 @@ public:
 #undef P2P_COMPONENT_ENABLED
 };
 
-template <>
-class packed_to_planar<packed_v210_le> {
-public:
-	static void unpack(const void *src, void * const dst[4], unsigned left, unsigned right);
-};
-
+// v210 specializations.
 template <>
 class packed_to_planar<packed_v210_be> {
 public:
@@ -610,13 +612,31 @@ public:
 };
 
 template <>
-class planar_to_packed<packed_v210_le> {
+class packed_to_planar<packed_v210_le> {
+public:
+	static void unpack(const void *src, void * const dst[4], unsigned left, unsigned right);
+};
+
+template <>
+class planar_to_packed<packed_v210_be, false> {
 public:
 	static void pack(const void * const src[4], void *dst, unsigned left, unsigned right);
 };
 
 template <>
-class planar_to_packed<packed_v210_be> {
+class planar_to_packed<packed_v210_be, true> {
+public:
+	static void pack(const void * const src[4], void *dst, unsigned left, unsigned right);
+};
+
+template <>
+class planar_to_packed<packed_v210_le, false> {
+public:
+	static void pack(const void * const src[4], void *dst, unsigned left, unsigned right);
+};
+
+template <>
+class planar_to_packed<packed_v210_le, true> {
 public:
 	static void pack(const void * const src[4], void *dst, unsigned left, unsigned right);
 };
