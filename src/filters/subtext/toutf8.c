@@ -161,14 +161,6 @@ char *convertToUtf8(const char *file_name, const char *charset, int64_t *file_si
         return NULL;
     }
 
-    if (*file_size > 50 * 1024 * 1024) {
-        snprintf(error, error_size, "subtitle file size of %" PRId64 " bytes is unreasonably large.", *file_size);
-
-        fclose(f);
-
-        return NULL;
-    }
-
     if (fseeko(f, 0, SEEK_SET)) {
         snprintf(error, error_size, "failed to seek back to the beginning of the subtitle file: %s.", strerror(errno));
 
