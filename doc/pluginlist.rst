@@ -6,6 +6,7 @@ Applications
 * `D2V Witch <https://github.com/dubhater/D2VWitch>`_ -- creates indexes that can be opened by d2vsource
 * `SmoothVideo Project (SVP) <https://www.svp-team.com/wiki/Main_Page>`_ -- a plugin/video player component for realtime frame interpolation
 * `VapourSynth Editor <https://bitbucket.org/mystery_keeper/vapoursynth-editor>`_ -- an editor with syntax completion and fast preview support
+* `VirtualDub FilterMod <https://sourceforge.net/projects/vdfiltermod/>`_ -- VirtualDub with added support for high bitdepth colorspaces, useful for previewing
 * `vsmkv <https://github.com/fluxamp/vsmkv>`_ -- a FUSE-based virtual filesystem for exporting VapourSynth scripts as uncompressed videos in the Matroska (MKV) file format
 * `Wobbly <http://forum.doom9.org/showthread.php?t=172496>`_ -- IVTC assistant similar to Yatta
 * `Yuuno <https://yuuno.encode.moe/>`_ -- incorporates VapourSynth into Jupyter
@@ -74,6 +75,7 @@ Denoising
 * `DFTTest <http://forum.doom9.org/showthread.php?t=171678>`_
 * `FFT3DFilter <https://github.com/VFR-maniac/VapourSynth-FFT3DFilter>`_ -- 3D frequency domain denoiser/sharpener
 * `FluxSmooth <https://github.com/dubhater/vapoursynth-fluxsmooth>`_ -- Temporal/spatiotemporal denoiser
+* `Hqdn3d <https://github.com/Hinterwaeldlers/vapoursynth-hqdn3d>`_
 * `KNLMeans <http://forum.doom9.org/showthread.php?t=171379>`_ -- OpenCL Non-local means denoising
 * `ReduceFlicker <https://github.com/VFR-maniac/VapourSynth-ReduceFlicker>`_
 * :ref:`RemoveGrain/Repair <rgvs>` -- A collection of 3x3 median and convolution denoising filters, in the source tree
