@@ -34,7 +34,7 @@ Minimum/Maximum
          6 7 8
 
 
-.. function:: Maximum(clip clip[, int[] planes=[0, 1, 2], int threshold=65535, int[] coordinates=[1, 1, 1, 1, 1, 1, 1, 1]])
+.. function:: Maximum(clip clip[, int[] planes=[0, 1, 2], float threshold, bint[] coordinates=[1, 1, 1, 1, 1, 1, 1, 1]])
    :module: std
 
    Replaces each pixel with the largest value in its 3x3 neighbourhood.
@@ -51,8 +51,7 @@ Minimum/Maximum
 
    *threshold*
       Allows to limit how much pixels are changed. Output pixels will not
-      become greater than ``input + threshold``. With the default value
-      of 65535 there is no limit.
+      become less than ``input - threshold``. The default is no limit.
 
    *coordinates*
       Specifies which pixels from the 3x3 neighbourhood are considered.
