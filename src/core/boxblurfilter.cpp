@@ -82,6 +82,49 @@ static void processPlane(const uint8_t *src, uint8_t *dst, int stride, int width
 }
 
 template<typename T>
+static void blurHF(const T * VS_RESTRICT src, T * VS_RESTRICT dst, const int width, const int radius, const T div) {
+    T acc = radius * src[0];
+    for (int x = 0; x < radius; x++)
+        acc += src[std::min(x, width - 1)];
+
+    for (int x = 0; x < std::min(radius, width); x++) {
+        acc += src[std::min(x + radius, width - 1)];
+        dst[x] = acc * div;
+        acc -= src[std::max(x - radius, 0)];
+    }
+
+    if (width > radius) {
+        for (int x = radius; x < width - radius; x++) {
+            acc += src[x + radius];
+            dst[x] = acc * div;
+            acc -= src[x - radius];
+        }
+
+        for (int x = std::max(width - radius, radius); x < width; x++) {
+            acc += src[std::min(x + radius, width - 1)];
+            dst[x] = acc * div;
+            acc -= src[std::max(x - radius, 0)];
+        }
+    }
+}
+
+template<typename T>
+static void processPlaneF(const uint8_t *src, uint8_t *dst, int stride, int width, int height, int passes, int radius, uint8_t *tmp) {
+    const T div = static_cast<T>(1) / (radius * 2 + 1);
+    for (int h = 0; h < height; h++) {
+        uint8_t *dst1 = (passes & 1) ? dst : tmp;
+        uint8_t *dst2 = (passes & 1) ? tmp : dst;
+        blurHF(reinterpret_cast<const T *>(src), reinterpret_cast<T *>(dst1), width, radius, div);
+        for (int p = 1; p < passes; p++) {
+            blurHF(reinterpret_cast<const T *>(dst1), reinterpret_cast<T *>(dst2), width, radius, div);
+            std::swap(dst1, dst2);
+        }
+        src += stride;
+        dst += stride;
+    }
+}
+
+template<typename T>
 static void blurHR1(const T *src, T *dst, int width, const unsigned round) {
     unsigned tmp[2] = { src[0], src[1] };
     unsigned acc = tmp[0] * 2 + tmp[1];
@@ -133,6 +176,60 @@ static void processPlaneR1(const uint8_t *src, uint8_t *dst, int stride, int wid
     }
 }
 
+template<typename T>
+static void blurHR1F(const T *src, T *dst, int width) {
+    T tmp[2] = { src[0], src[1] };
+    T acc = tmp[0] * 2 + tmp[1];
+    const T div = static_cast<T>(1) / 3;
+    dst[0] = acc * div;
+    acc -= tmp[0];
+
+    T v = src[2];
+    acc += v;
+    dst[1] = acc * div;
+    acc -= tmp[0];
+    tmp[0] = v;
+
+    for (int x = 2; x < width - 2; x += 2) {
+        v = src[x + 1];
+        acc += v;
+        dst[x] = acc * div;
+        acc -= tmp[1];
+        tmp[1] = v;
+
+        v = src[x + 2];
+        acc += v;
+        dst[x + 1] = acc * div;
+        acc -= tmp[0];
+        tmp[0] = v;
+    }
+
+    if (width & 1) {
+        acc += tmp[0];
+        dst[width - 1] = acc * div;
+    }
+    else {
+        v = src[width - 1];
+        acc += v;
+        dst[width - 2] = acc * div;
+        acc -= tmp[1];
+
+        acc += v;
+        dst[width - 1] = acc * div;
+    }
+}
+
+template<typename T>
+static void processPlaneR1F(const uint8_t *src, uint8_t *dst, int stride, int width, int height, int passes) {
+    for (int h = 0; h < height; h++) {
+        blurHR1F(reinterpret_cast<const T *>(src), reinterpret_cast<T *>(dst), width);
+        for (int p = 1; p < passes; p++)
+            blurHR1F(reinterpret_cast<const T *>(dst), reinterpret_cast<T *>(dst), width);
+        src += stride;
+        dst += stride;
+    }
+}
+
 static const VSFrameRef *VS_CC boxBlurGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     BoxBlurData *d = reinterpret_cast<BoxBlurData *>(*instanceData);
 
@@ -146,7 +243,7 @@ static const VSFrameRef *VS_CC boxBlurGetframe(int n, int activationReason, void
         VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
         int bytesPerSample = fi->bytesPerSample;
         int radius = d->radius;
-        uint8_t *tmp = (radius > 1) ? new uint8_t[bytesPerSample * vsapi->getFrameWidth(src, d->process[0] ? 0 : 1)] : nullptr;
+        uint8_t *tmp = (radius > 1 && d->passes > 1) ? new uint8_t[bytesPerSample * vsapi->getFrameWidth(src, d->process[0] ? 0 : 1)] : nullptr;
 
         for (int plane = 0; plane < fi->numPlanes; plane++) {
             if (d->process[plane]) {
@@ -159,13 +256,17 @@ static const VSFrameRef *VS_CC boxBlurGetframe(int n, int activationReason, void
                 if (radius == 1) {
                     if (bytesPerSample == 1)
                         processPlaneR1<uint8_t>(srcp, dstp, stride, w, h, d->passes);
-                    else
+                    else if (bytesPerSample == 2)
                         processPlaneR1<uint16_t>(srcp, dstp, stride, w, h, d->passes);
+                    else
+                        processPlaneR1F<float>(srcp, dstp, stride, w, h, d->passes);
                 } else {
                     if (bytesPerSample == 1)
                         processPlane<uint8_t>(srcp, dstp, stride, w, h, d->passes, radius, tmp);
-                    else
+                    else if (bytesPerSample == 2)
                         processPlane<uint16_t>(srcp, dstp, stride, w, h, d->passes, radius, tmp);
+                    else
+                        processPlaneF<float>(srcp, dstp, stride, w, h, d->passes, radius, tmp);
                 }
             }
         }
@@ -186,14 +287,7 @@ static void VS_CC boxBlurCreate(const VSMap *in, VSMap *out, void *userData, VSC
         int err;
         const VSVideoInfo *vi = vsapi->getVideoInfo(node);
 
-        if (isCompatFormat(vi))
-            throw std::string("compat formats are not supported");
-
-        if (!isConstantFormat(vi))
-            throw std::string("only constant format input supported");
-
-        if (vi->format->sampleType != stInteger || vi->format->bitsPerSample > 16)
-            throw std::string("only clips with integer samples and up to 16 bits per channel precision supported");
+        shared816FFormatCheck(vi->format);
 
         bool process[3];
         getPlanesArg(in, process, vsapi);
