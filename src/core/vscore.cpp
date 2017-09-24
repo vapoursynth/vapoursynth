@@ -1448,15 +1448,14 @@ void VSPlugin::registerFunction(const std::string &name, const std::string &args
     if (!isValidIdentifier(name))
         vsFatal("Plugin %s tried to register '%s', an illegal identifier.", filename.c_str(), name.c_str());
 
-    if (funcs.count(name))
-        vsFatal("Plugin %s tried to register '%s' more than once.", filename.c_str(), name.c_str());
+    std::lock_guard<std::mutex> lock(registerFunctionLock);
 
-    if (!readOnly) {
-        std::lock_guard<std::mutex> lock(registerFunctionLock);
-        funcs.insert(std::make_pair(name, VSFunction(args, argsFunc, functionData)));
-    } else {
-        funcs.insert(std::make_pair(name, VSFunction(args, argsFunc, functionData)));
+    if (funcs.count(name)) {
+        vsWarning("Plugin %s tried to register '%s' more than once. Second registration ignored.", filename.c_str(), name.c_str());
+        return;
     }
+
+    funcs.insert(std::make_pair(name, VSFunction(args, argsFunc, functionData)));
 }
 
 static bool hasCompatNodes(const VSMap &m) {

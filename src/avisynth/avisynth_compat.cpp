@@ -555,21 +555,21 @@ void FakeAvisynth::AddFunction(const char *name, const char *params, ApplyFunc a
     int numArgs = 0;
     std::vector<AvisynthArgs> parsedArgs;
     std::string newArgs;
-    std::string name2(name);
+    std::string fname(name);
 
-    if (name2 == "RemoveGrain" || name2 == "Repair" || name2 == "ColorMatrix" || name2 == "IsCombed") {
-        vsapi->logMessage(mtWarning, ("Avisynth Compat: rejected adding Avisynth function " + std::string(name) + "because it is too broken").c_str());
+    if (fname == "RemoveGrain" || fname == "Repair" || fname == "ColorMatrix" || fname == "IsCombed") {
+        vsapi->logMessage(mtWarning, ("Avisynth Compat: rejected adding Avisynth function " + fname + "because it is too broken").c_str());
         return;
     }
 
-    if (name2 == "FFMS2" || name2 == "FFCopyrightInfringement") {
-        vsapi->logMessage(mtWarning, ("Avisynth Compat: rejected adding Avisynth function " + std::string(name) + "because it calls invoke").c_str());
+    if (fname == "FFMS2" || fname == "FFCopyrightInfringement") {
+        vsapi->logMessage(mtWarning, ("Avisynth Compat: rejected adding Avisynth function " + fname + "because it calls invoke").c_str());
         return;
     }
 
     while (paramPos < paramLength) {
         if (params[paramPos] == '*' || params[paramPos] == '+' || params[paramPos] == '.') {
-            vsapi->logMessage(mtWarning, (std::string("Avisynth Compat: varargs not implemented so I'm just gonna skip importing ") + name).c_str());
+            vsapi->logMessage(mtWarning, ("Avisynth Compat: varargs not implemented so I'm just gonna skip importing " + fname).c_str());
             return;
         }
 
@@ -596,7 +596,20 @@ void FakeAvisynth::AddFunction(const char *name, const char *params, ApplyFunc a
         numArgs++;
     }
 
-    vsapi->registerFunction(name, newArgs.c_str(), fakeAvisynthFunctionWrapper, new WrappedFunction(name, apply, parsedArgs, user_data, interfaceVersion), vsapi->getPluginById("com.vapoursynth.avisynth", core));
+    std::lock_guard<std::mutex> lock(registerFunctionLock);
+
+    if (registeredFunctions.count(fname)) {
+        for (size_t i = 2; i < SIZE_MAX; i++) {
+            std::string numberedName = fname + "_" + std::to_string(i);
+            if (!registeredFunctions.count(numberedName)) {
+                fname = numberedName;
+                break;
+            }
+        }
+    }
+
+    registeredFunctions.insert(fname);
+    vsapi->registerFunction(fname.c_str(), newArgs.c_str(), fakeAvisynthFunctionWrapper, new WrappedFunction(fname, apply, parsedArgs, user_data, interfaceVersion), vsapi->getPluginById("com.vapoursynth.avisynth", core));
 }
 
 bool FakeAvisynth::FunctionExists(const char *name) {

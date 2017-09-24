@@ -1,5 +1,6 @@
 r39:
 updated to zimg v2.6
+avisynth compatibility can now handle functions with multiple overloads
 added float support to boxblur
 removed subtext file size limit
 fixed missing fps correction in avisource that would produce an error with some files

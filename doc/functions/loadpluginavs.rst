@@ -4,7 +4,7 @@ LoadPlugin (Avisynth Compatibility)
 .. function::   LoadPlugin(string path)
    :module: avs
 
-   Load an Avisynth 2.5 (32 bit) or 2.6 (32 and 64 bit) plugin. If successful,
+   Load an Avisynth 2.5 (32 bit only) or 2.6 (32 and 64 bit) plugin. If successful,
    the loaded plugin's functions will end up in the avs namespace.
 
    The compatibility module can work with a large number of Avisynth's plugins.
@@ -23,7 +23,11 @@ LoadPlugin (Avisynth Compatibility)
         Can be worked around by increasing the number of threads used if it
         deadlocks.
 
-   Returns an error if there are function name collisions.
+   If there are function name collisions functions will have a number appended
+   to them to make them distinct. For example if three functions are named
+   *func* then they will be named *func*, *func_2* and *func_3*. This means
+   that Avisynth functions that have multiple overloads (rare) will give
+   each overload a different name.
 
    Beware of Python's escape character, this will fail::
 

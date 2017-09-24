@@ -26,8 +26,10 @@
 #include "VSHelper.h"
 #include <list>
 #include <map>
+#include <set>
 #include <vector>
 #include <string>
+#include <mutex>
 
 namespace AvisynthCompat {
 
@@ -43,6 +45,8 @@ private:
     std::map<VideoFrame *, const VSFrameRef *> ownedFrames;
     int interfaceVersion;
     std::string charToFilterArgumentString(char c);
+    std::mutex registerFunctionLock;
+    std::set<std::string> registeredFunctions;
 public:
     const VSFrameRef *avsToVSFrame(VideoFrame *frame);
 
