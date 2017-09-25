@@ -1,5 +1,7 @@
 r39:
 updated to zimg v2.6
+optimized prewitt and sobel
+removed the min and max arguments from sobel and prewitt because they interact very oddly with float formats
 avisynth compatibility can now handle functions with multiple overloads
 added float support to boxblur
 removed subtext file size limit

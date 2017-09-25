@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2015-2016 John Smith & Fredrik Mellbin
+* Copyright (c) 2015-2017 John Smith & Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -26,10 +26,8 @@
 #include <cstdlib>
 #include <string>
 #include <array>
-#include <vector>
 #include <memory>
-#include <type_traits>
-#include <limits>
+#include <vector>
 #include <VapourSynth.h>
 #include <VSHelper.h>
 #include "filtershared.h"
@@ -74,27 +72,21 @@ struct GenericData {
     const VSVideoInfo *vi;
     bool process[3];
 
-    ConvolutionTypes convolution_type;
-
     const char *filter_name;
 
-    /////////
-    // per filter stuff
-
-    // Prewitt, Sobel.
-    float thresh_low;
-    float thresh_high;
+    // Prewitt, Sobel
     float scale;
 
-    // Minimum, Maximum, Deflate, Inflate.
+    // Minimum, Maximum, Deflate, Inflate
     uint16_t th;
     float thf;
 
-    // Minimum, Maximum.
+    // Minimum, Maximum
     int pattern;
     bool enable[8];
 
-    // Convolution.
+    // Convolution
+    ConvolutionTypes convolution_type;
     int matrix[25];
     float matrixf[25];
     int matrix_sum;
@@ -594,8 +586,106 @@ struct Median {
     }
 };
 
+template<int mul>
+struct SobelPrewitt {
+    struct FrameData {
+        uint16_t max_value;
+        float scale;
+
+        FrameData(const GenericData *d, const VSFormat *fi, int plane) {
+            max_value = ((1 << fi->bitsPerSample) - 1);
+            max_value -= 0x8000;
+            scale = d->scale;
+        }
+    };
+
+    static FORCE_INLINE __m128i process8(__m128i &t1, __m128i &t2, __m128i &t3, __m128i &m1, __m128i &m2, __m128i &m3, __m128i &b1, __m128i &b2, __m128i &b3, const FrameData &opts) {
+        __m128i topacc1 = _mm_add_epi16(_mm_unpacklo_epi8(t1, _mm_setzero_si128()), _mm_unpacklo_epi8(t3, _mm_setzero_si128()));
+        __m128i topacc2 = _mm_add_epi16(_mm_unpackhi_epi8(t1, _mm_setzero_si128()), _mm_unpackhi_epi8(t3, _mm_setzero_si128()));
+        topacc1 = _mm_sub_epi16(topacc1, _mm_add_epi16(_mm_unpacklo_epi8(b1, _mm_setzero_si128()), _mm_unpacklo_epi8(b3, _mm_setzero_si128())));
+        topacc2 = _mm_sub_epi16(topacc2, _mm_add_epi16(_mm_unpackhi_epi8(b1, _mm_setzero_si128()), _mm_unpackhi_epi8(b3, _mm_setzero_si128())));
+        topacc1 = _mm_add_epi16(topacc1, _mm_slli_epi16(_mm_sub_epi16(_mm_unpacklo_epi8(t2, _mm_setzero_si128()), _mm_unpacklo_epi8(b2, _mm_setzero_si128())), mul - 1));
+        topacc2 = _mm_add_epi16(topacc2, _mm_slli_epi16(_mm_sub_epi16(_mm_unpackhi_epi8(t2, _mm_setzero_si128()), _mm_unpackhi_epi8(b2, _mm_setzero_si128())), mul - 1));
+
+        __m128i leftacc1 = _mm_add_epi16(_mm_unpacklo_epi8(t1, _mm_setzero_si128()), _mm_unpacklo_epi8(b1, _mm_setzero_si128()));
+        __m128i leftacc2 = _mm_add_epi16(_mm_unpackhi_epi8(t1, _mm_setzero_si128()), _mm_unpackhi_epi8(b1, _mm_setzero_si128()));
+        leftacc1 = _mm_sub_epi16(leftacc1, _mm_add_epi16(_mm_unpacklo_epi8(t3, _mm_setzero_si128()), _mm_unpacklo_epi8(b3, _mm_setzero_si128())));
+        leftacc2 = _mm_sub_epi16(leftacc2, _mm_add_epi16(_mm_unpackhi_epi8(t3, _mm_setzero_si128()), _mm_unpackhi_epi8(b3, _mm_setzero_si128())));
+        leftacc1 = _mm_add_epi16(leftacc1, _mm_slli_epi16(_mm_sub_epi16(_mm_unpacklo_epi8(m1, _mm_setzero_si128()), _mm_unpacklo_epi8(m3, _mm_setzero_si128())), mul - 1));
+        leftacc2 = _mm_add_epi16(leftacc2, _mm_slli_epi16(_mm_sub_epi16(_mm_unpackhi_epi8(m1, _mm_setzero_si128()), _mm_unpackhi_epi8(m3, _mm_setzero_si128())), mul - 1));
+
+        __m128i tmp1 = _mm_unpacklo_epi16(topacc1, leftacc1);
+        __m128i acc1 = _mm_madd_epi16(tmp1, tmp1);
+        __m128i tmp2 = _mm_unpackhi_epi16(topacc1, leftacc1);
+        __m128i acc2 = _mm_madd_epi16(tmp2, tmp2);
+        __m128i tmp3 = _mm_unpacklo_epi16(topacc2, leftacc2);
+        __m128i acc3 = _mm_madd_epi16(tmp3, tmp3);
+        __m128i tmp4 = _mm_unpackhi_epi16(topacc2, leftacc2);
+        __m128i acc4 = _mm_madd_epi16(tmp4, tmp4);
+
+        tmp1 = _mm_packs_epi32(_mm_cvtps_epi32(_mm_mul_ps(_mm_sqrt_ps(_mm_cvtepi32_ps(acc1)), _mm_set1_ps(opts.scale))), _mm_cvtps_epi32(_mm_mul_ps(_mm_sqrt_ps(_mm_cvtepi32_ps(acc2)), _mm_set1_ps(opts.scale))));
+        tmp2 = _mm_packs_epi32(_mm_cvtps_epi32(_mm_mul_ps(_mm_sqrt_ps(_mm_cvtepi32_ps(acc3)), _mm_set1_ps(opts.scale))), _mm_cvtps_epi32(_mm_mul_ps(_mm_sqrt_ps(_mm_cvtepi32_ps(acc4)), _mm_set1_ps(opts.scale))));
+        return _mm_packus_epi16(tmp1, tmp2);
+    }
+
+    static FORCE_INLINE __m128i process16(__m128i &t1, __m128i &t2, __m128i &t3, __m128i &m1, __m128i &m2, __m128i &m3, __m128i &b1, __m128i &b2, __m128i &b3, const FrameData &opts) {
+        __m128i topacc1 = _mm_add_epi32(_mm_unpacklo_epi16(t1, _mm_setzero_si128()), _mm_unpacklo_epi16(t3, _mm_setzero_si128()));
+        __m128i topacc2 = _mm_add_epi32(_mm_unpackhi_epi16(t1, _mm_setzero_si128()), _mm_unpackhi_epi16(t3, _mm_setzero_si128()));
+        topacc1 = _mm_sub_epi32(topacc1, _mm_add_epi32(_mm_unpacklo_epi16(b1, _mm_setzero_si128()), _mm_unpacklo_epi16(b3, _mm_setzero_si128())));
+        topacc2 = _mm_sub_epi32(topacc2, _mm_add_epi32(_mm_unpackhi_epi16(b1, _mm_setzero_si128()), _mm_unpackhi_epi16(b3, _mm_setzero_si128())));
+        topacc1 = _mm_add_epi32(topacc1, _mm_slli_epi32(_mm_sub_epi32(_mm_unpacklo_epi16(t2, _mm_setzero_si128()), _mm_unpacklo_epi16(b2, _mm_setzero_si128())), mul - 1));
+        topacc2 = _mm_add_epi32(topacc2, _mm_slli_epi32(_mm_sub_epi32(_mm_unpackhi_epi16(t2, _mm_setzero_si128()), _mm_unpackhi_epi16(b2, _mm_setzero_si128())), mul - 1));
+
+        __m128i leftacc1 = _mm_add_epi32(_mm_unpacklo_epi16(t1, _mm_setzero_si128()), _mm_unpacklo_epi16(b1, _mm_setzero_si128()));
+        __m128i leftacc2 = _mm_add_epi32(_mm_unpackhi_epi16(t1, _mm_setzero_si128()), _mm_unpackhi_epi16(b1, _mm_setzero_si128()));
+        leftacc1 = _mm_sub_epi32(leftacc1, _mm_add_epi32(_mm_unpacklo_epi16(t3, _mm_setzero_si128()), _mm_unpacklo_epi16(b3, _mm_setzero_si128())));
+        leftacc2 = _mm_sub_epi32(leftacc2, _mm_add_epi32(_mm_unpackhi_epi16(t3, _mm_setzero_si128()), _mm_unpackhi_epi16(b3, _mm_setzero_si128())));
+        leftacc1 = _mm_add_epi32(leftacc1, _mm_slli_epi32(_mm_sub_epi32(_mm_unpacklo_epi16(m1, _mm_setzero_si128()), _mm_unpacklo_epi16(m3, _mm_setzero_si128())), mul - 1));
+        leftacc2 = _mm_add_epi32(leftacc2, _mm_slli_epi32(_mm_sub_epi32(_mm_unpackhi_epi16(m1, _mm_setzero_si128()), _mm_unpackhi_epi16(m3, _mm_setzero_si128())), mul - 1));
+
+        __m128 topacc1f = _mm_cvtepi32_ps(topacc1);
+        __m128 topacc2f = _mm_cvtepi32_ps(topacc2);
+        __m128 leftacc1f = _mm_cvtepi32_ps(leftacc1);
+        __m128 leftacc2f = _mm_cvtepi32_ps(leftacc2);
+
+        topacc1f = _mm_mul_ps(_mm_sqrt_ps(_mm_add_ps(_mm_mul_ps(topacc1f, topacc1f), _mm_mul_ps(leftacc1f, leftacc1f))), _mm_set1_ps(opts.scale));
+        topacc2f = _mm_mul_ps(_mm_sqrt_ps(_mm_add_ps(_mm_mul_ps(topacc2f, topacc2f), _mm_mul_ps(leftacc2f, leftacc2f))), _mm_set1_ps(opts.scale));
+
+        __m128i ones = _mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128());
+        __m128i subMask32 = _mm_srli_epi32(_mm_slli_epi32(ones, 31), 16);
+        __m128i addMask16 = _mm_slli_epi16(ones, 15);
+
+        __m128i tmp = _mm_packs_epi32(_mm_sub_epi32(_mm_cvtps_epi32(topacc1f), subMask32), _mm_sub_epi32(_mm_cvtps_epi32(topacc2f), subMask32));
+        return _mm_add_epi16(_mm_min_epi16(tmp, _mm_set1_epi16(opts.max_value)), addMask16);
+    }
+
+    static FORCE_INLINE __m128 processF(__m128 &t1, __m128 &t2, __m128 &t3, __m128 &m1, __m128 &m2, __m128 &m3, __m128 &b1, __m128 &b2, __m128 &b3, const FrameData &opts) {
+        t2 = _mm_add_ps(t2, t2);
+        b2 = _mm_add_ps(b2, b2);
+        m1 = _mm_add_ps(m1, m1);
+        m3 = _mm_add_ps(m3, m3);
+
+        t2 = _mm_add_ps(t2, t1);
+        b2 = _mm_add_ps(b2, b1);
+        m1 = _mm_add_ps(m1, t1);
+        m3 = _mm_add_ps(m3, t3);
+
+        t2 = _mm_add_ps(t2, t3);
+        b2 = _mm_add_ps(b2, b3);
+        m1 = _mm_add_ps(m1, b1);
+        m3 = _mm_add_ps(m3, b3);
+
+        t2 = _mm_sub_ps(t2, b2);
+        m1 = _mm_sub_ps(m1, m3);
+
+        return _mm_mul_ps(_mm_sqrt_ps(_mm_add_ps(_mm_mul_ps(t2, t2), _mm_mul_ps(m1, m1))), _mm_set1_ps(opts.scale));
+    }
+};
+
 typedef MehFlate<LimitMehFlateMaxOp> Deflate;
 typedef MehFlate<LimitMehFlateMinOp> Inflate;
+typedef SobelPrewitt<2> Sobel;
+typedef SobelPrewitt<1> Prewitt;
 
 template<typename T, typename OP>
 void filterPlane(const uint8_t * VS_RESTRICT src, uint8_t * VS_RESTRICT dst, const ptrdiff_t stride, const unsigned width, const int height, int plane, const VSFormat *fi, const GenericData *data) {
@@ -947,8 +1037,6 @@ struct GenericPlaneParams {
     uint16_t max_value;
 
     // Prewitt, Sobel.
-    float thresh_low;
-    float thresh_high;
     float scale;
 
     // Minimum, Maximum, Deflate, Inflate.
@@ -969,8 +1057,6 @@ struct GenericPlaneParams {
     GenericPlaneParams(const GenericData *params, const VSFormat *fi, int plane) {
         max_value = ((1 << fi->bitsPerSample) - 1);
 
-        thresh_low = params->thresh_low;
-        thresh_high = params->thresh_high;
         scale = params->scale;
 
         th = params->th;
@@ -1022,8 +1108,6 @@ static FORCE_INLINE PixelType generic_3x3I(
     if (op == GenericPrewitt || op == GenericSobel) {
 
         int max_value = params.max_value;
-        float thresh_low = params.thresh_low;
-        float thresh_high = params.thresh_high;
         float scale = params.scale;
 
         int64_t gx, gy;
@@ -1038,16 +1122,10 @@ static FORCE_INLINE PixelType generic_3x3I(
 
         float f = std::sqrt(static_cast<float>(gx * gx + gy * gy)) * scale;
 
-        PixelType g;
-        if (f >= thresh_high || f > max_value)
-            g = max_value;
-        else if (f <= thresh_low)
-            g = 0;
+        if (f > max_value)
+            return max_value;
         else
-            g = lround(f);
-
-        return g;
-
+            return lround(f);
     } else if (op == GenericMinimum || op == GenericMaximum) {
 
         int th = params.th;
@@ -1150,8 +1228,6 @@ static FORCE_INLINE PixelType generic_3x3F(
 
     if (op == GenericPrewitt || op == GenericSobel) {
 
-        float thresh_low = params.thresh_low;
-        float thresh_high = params.thresh_high;
         float scale = params.scale;
 
         float gx, gy;
@@ -1164,17 +1240,9 @@ static FORCE_INLINE PixelType generic_3x3F(
             gy = a13 + 2 * a23 + a33 - a11 - 2 * a21 - a31;
         }
 
-        float f = std::sqrt(static_cast<float>(gx * gx + gy * gy)) * scale;
+        return std::sqrt(static_cast<float>(gx * gx + gy * gy)) * scale;
 
-        PixelType g;
-        if (f >= thresh_high)
-            g = 1.f;
-        else if (f <= thresh_low)
-            g = 0;
-        else
-            g = f;
 
-        return g;
 
     } else if (op == GenericMinimum || op == GenericMaximum) {
 
@@ -2014,6 +2082,20 @@ static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void
                     else
                         process_plane_fast = filterPlane<float, MinOpReduceHorizontal>;
                 }
+            } else if (op == GenericSobel) {
+                if (bytes == 1)
+                    process_plane_fast = filterPlane<uint8_t, Sobel>;
+                else if (bytes == 2)
+                    process_plane_fast = filterPlane<uint16_t, Sobel>;
+                else
+                    process_plane_fast = filterPlane<float, Sobel>;
+            } else if (op == GenericPrewitt) {
+                if (bytes == 1)
+                    process_plane_fast = filterPlane<uint8_t, Prewitt>;
+                else if (bytes == 2)
+                    process_plane_fast = filterPlane<uint16_t, Prewitt>;
+                else
+                    process_plane_fast = filterPlane<float, Prewitt>;
             }
 
         }
@@ -2166,17 +2248,6 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
 
         if (op == GenericPrewitt || op == GenericSobel) {
-            d->thresh_low = static_cast<float>(vsapi->propGetFloat(in, "min", 0, &err));
-            d->thresh_high = static_cast<float>(vsapi->propGetFloat(in, "max", 0, &err));
-            if (err)
-                d->thresh_high = (d->vi->format->sampleType == stInteger) ? ((1 << d->vi->format->bitsPerSample) - 1) : 1.0f;
-
-            if (d->thresh_low < 0)
-                throw std::string("min must be a positive number.");
-
-            if (d->thresh_high < 0)
-                throw std::string("max must be a positive number.");
-
             d->scale = vsapi->propGetFloat(in, "scale", 0, &err);
             if (err)
                 d->scale = 1.0f;
@@ -2685,16 +2756,12 @@ void VS_CC genericInitialize(VSConfigPlugin configFunc, VSRegisterFunction regis
 
     registerFunc("Prewitt",
             "clip:clip;"
-            "min:float:opt;"
-            "max:float:opt;"
             "planes:int[]:opt;"
             "scale:float:opt;"
             , genericCreate<GenericPrewitt>, const_cast<char *>("Prewitt"), plugin);
 
     registerFunc("Sobel",
             "clip:clip;"
-            "min:float:opt;"
-            "max:float:opt;"
             "planes:int[]:opt;"
             "scale:float:opt;"
             , genericCreate<GenericSobel>, const_cast<char *>("Sobel"), plugin);
