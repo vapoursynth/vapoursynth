@@ -319,6 +319,7 @@ struct Convolution3x3 {
         float matrixf[9];
         bool saturate;
         int matrix_sum2;
+        uint16_t max_value;
 
         FrameData(const GenericData *d, const VSFormat *fi, int plane) {
             bias = d->bias;
@@ -329,6 +330,8 @@ struct Convolution3x3 {
                 matrix[i] = d->matrix[i];
                 matrixf[i] = d->matrixf[i];
             }
+            max_value = ((1 << fi->bitsPerSample) - 1);
+            max_value -= 0x8000;
         }
     };
 
@@ -385,7 +388,12 @@ struct Convolution3x3 {
         acc1 = _mm_cvtps_epi32(_mm_max_ps(_mm_and_ps(_mm_add_ps(_mm_mul_ps(_mm_cvtepi32_ps(acc1), _mm_set_ps1(opts.divisor)), _mm_set_ps1(opts.bias)), absMask), _mm_setzero_ps()));
         acc2 = _mm_cvtps_epi32(_mm_max_ps(_mm_and_ps(_mm_add_ps(_mm_mul_ps(_mm_cvtepi32_ps(acc2), _mm_set_ps1(opts.divisor)), _mm_set_ps1(opts.bias)), absMask), _mm_setzero_ps()));
 
-        return _mm_packus_epi32_sse2(acc1, acc2);
+        __m128i ones = _mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128());
+        __m128i subMask32 = _mm_srli_epi32(_mm_slli_epi32(ones, 31), 16);
+        __m128i addMask16 = _mm_slli_epi16(ones, 15);
+
+        __m128i tmp = _mm_packs_epi32(_mm_sub_epi32(acc1, subMask32), _mm_sub_epi32(acc2, subMask32));
+        return _mm_add_epi16(_mm_min_epi16(tmp, _mm_set1_epi16(opts.max_value)), addMask16);
     }
 
     static FORCE_INLINE __m128 processF(__m128 &t1, __m128 &t2, __m128 &t3, __m128 &m1, __m128 &m2, __m128 &m3, __m128 &b1, __m128 &b2, __m128 &b3, const FrameData &opts) {
