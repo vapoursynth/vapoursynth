@@ -77,23 +77,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <YASM Include="..\..\src\core\asm\x86\merge.asm">
-      <Filter>asm</Filter>
-    </YASM>
-    <YASM Include="..\..\src\core\asm\x86\transpose.asm">
-      <Filter>asm</Filter>
-    </YASM>
-    <YASM Include="..\..\src\core\asm\x86\cpu.asm">
-      <Filter>asm</Filter>
-    </YASM>
-    <YASM Include="..\..\src\core\asm\x86\check.asm">
-      <Filter>asm</Filter>
-    </YASM>
-    <YASM Include="..\..\include\asm\x86\x86inc.asm">
-      <Filter>asm</Filter>
-    </YASM>
-  </ItemGroup>
-  <ItemGroup>
     <ClInclude Include="..\..\include\VapourSynth.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -136,5 +119,22 @@
     <ClInclude Include="..\..\src\core\filtersharedcpp.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <NASM Include="..\..\include\asm\x86\x86inc.asm">
+      <Filter>Source Files</Filter>
+    </NASM>
+    <NASM Include="..\..\src\core\asm\x86\check.asm">
+      <Filter>Source Files</Filter>
+    </NASM>
+    <NASM Include="..\..\src\core\asm\x86\cpu.asm">
+      <Filter>Source Files</Filter>
+    </NASM>
+    <NASM Include="..\..\src\core\asm\x86\merge.asm">
+      <Filter>Source Files</Filter>
+    </NASM>
+    <NASM Include="..\..\src\core\asm\x86\transpose.asm">
+      <Filter>Source Files</Filter>
+    </NASM>
   </ItemGroup>
 </Project>
