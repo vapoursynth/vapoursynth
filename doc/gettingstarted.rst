@@ -25,6 +25,8 @@ What it does is to get an instance of the core and load a video file using FFMS2
 Remember that most VapourSynth objects have a quite nice string representation
 in Python, so if you want to know more about an instance just call print().
 
+It it also possible to directly open the script in VapourSynth Editor or VirtualDub FilterMod for previewing.
+
 Output with VSPipe
 ##################
 

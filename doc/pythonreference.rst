@@ -160,6 +160,7 @@ all frames in a clip, use this code::
 Classes and Functions
 #####################
 .. py:attribute:: core
+
    Gets the singleton Core object. If it is the first time the function is called,
    the Core will be instantiated with the default options. This is the preferred
    way to reference the core.
