@@ -1,5 +1,6 @@
 r39:
 updated to zimg v2.6
+renamed the croprel function to crop, croprel will still be kept as an alias for for compatibility with existing scripts
 fixed missing max value clamping for 9-15 bit input with convolution
 optimized prewitt and sobel
 removed the min and max arguments from sobel and prewitt because they interact very oddly with float formats
