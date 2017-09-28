@@ -38,6 +38,7 @@ Name: Full; Description: Full installation; Flags: iscustom
 [Components]
 Name: "vs64"; Description: "VapourSynth 64-bit"; Types: Full; Check: HasPython64; Flags: disablenouninstallwarning
 Name: "vs32"; Description: "VapourSynth 32-bit"; Types: Full; Check: HasPython32; Flags: disablenouninstallwarning
+Name: "docs"; Description: "VapourSynth Documentation"; Types: Full; Flags: disablenouninstallwarning
 Name: "sdk"; Description: "VapourSynth SDK"; Flags: disablenouninstallwarning; Types: Full
 Name: "pismo"; Description: "Pismo PFM Runtime (required for AVFS)"; Types: Full; Flags: disablenouninstallwarning
 Name: "vsruntimes"; Description: "Visual Studio Runtimes (2013 & 2017)"; Types: Full; Flags: disablenouninstallwarning
@@ -78,6 +79,7 @@ Source: ..\msvc_project\x64\Release\vsscript.dll; DestDir: {app}\core64; Flags: 
 Source: ..\msvc_project\Release\vsscript.dll; DestDir: {sys}; Flags: uninsrestartdelete restartreplace 32bit; Components: vs32
 Source: ..\msvc_project\x64\Release\vsscript.dll; DestDir: {sys}; Flags: uninsrestartdelete restartreplace 64bit; Components: vs64
 
+;docsSource: ..\doc\_build\html\*; DestDir: {app}\docs; Flags: ignoreversion uninsrestartdelete restartreplace recursesubdirs; Components: docs
 
 ;sdk
 Source: ..\include\VapourSynth.h; DestDir: {app}\sdk\include\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
@@ -120,7 +122,8 @@ Name: "{app}\plugins64"; Flags: uninsalwaysuninstall; Components: vs64
 
 [Icons]
 Name: {group}\VapourSynth Website; Filename: http://www.vapoursynth.com/
-Name: {group}\Documentation; Filename: http://www.vapoursynth.com/doc/
+Name: {group}\Documentation (Local); Filename: {app}\docs\index.html; Components: docs
+Name: {group}\Documentation (Online); Filename: http://www.vapoursynth.com/doc/
 Name: {group}\Global Autoload Directory (32bit); Filename: {app}\plugins32; Components: vs32
 Name: {group}\Global Autoload Directory (64bit); Filename: {app}\plugins64; Components: vs64
 Name: {group}\VapourSynth SDK; Filename: {app}\sdk; Components: sdk
