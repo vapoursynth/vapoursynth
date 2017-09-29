@@ -2627,17 +2627,18 @@ static const VSFrameRef *VS_CC levelsGetframeF(int n, int activationReason, void
                 int h = vsapi->getFrameHeight(src, plane);
                 int w = vsapi->getFrameWidth(src, plane);
 
-                T gamma = static_cast<T>(1.0) / d->gamma;
+                T gamma = d->gamma;
                 T range_in = d->max_in - d->min_in;
                 T range_out = d->max_out - d->min_out;
                 T min_in = d->min_in;
                 T min_out = d->min_out;
+                T max_in = d->max_in;
 
                 if (std::abs(d->gamma - static_cast<T>(1.0)) < std::numeric_limits<T>::epsilon()) {
                     T range_scale = range_out / range_in;
                     for (int hl = 0; hl < h; hl++) {
                         for (int x = 0; x < w; x++)
-                            dstp[x] = (srcp[x] - min_in) * range_scale + min_out;
+                            dstp[x] = (std::max(std::min(srcp[x], max_in), min_in) - min_in) * range_scale + min_out;
 
                         dstp += dst_stride / sizeof(T);
                         srcp += src_stride / sizeof(T);
@@ -2645,7 +2646,7 @@ static const VSFrameRef *VS_CC levelsGetframeF(int n, int activationReason, void
                 } else {
                     for (int hl = 0; hl < h; hl++) {
                         for (int x = 0; x < w; x++)
-                            dstp[x] = std::pow((srcp[x] - min_in) / (range_in), gamma) * range_out + min_out;
+                            dstp[x] = std::pow((std::max(std::min(srcp[x], max_in), min_in) - min_in) / (range_in), gamma) * range_out + min_out;
 
                         dstp += dst_stride / sizeof(T);
                         srcp += src_stride / sizeof(T);
@@ -2673,21 +2674,23 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     }
 
     int err;
-    float maxval = 1.0f;
+    float maxvalf = 1.0f;
     if (d->vi->format->sampleType == stInteger)
-        maxval = (1 << d->vi->format->bitsPerSample);
+        maxvalf = (1 << d->vi->format->bitsPerSample) - 1;
+
     d->min_in = static_cast<float>(vsapi->propGetFloat(in, "min_in", 0, &err));
     d->min_out = static_cast<float>(vsapi->propGetFloat(in, "min_out", 0, &err));
     d->max_in = static_cast<float>(vsapi->propGetFloat(in, "max_in", 0, &err));
     if (err)
-        d->max_in = maxval;
+        d->max_in = maxvalf;
     d->max_out = static_cast<float>(vsapi->propGetFloat(in, "max_out", 0, &err));
     if (err)
-        d->max_out = maxval;
-    d->gamma = static_cast<float>(vsapi->propGetFloat(in, "gamma", 0, &err));
+        d->max_out = maxvalf;
+    d->gamma = 1.0f / static_cast<float>(vsapi->propGetFloat(in, "gamma", 0, &err));
 
     // Implement with simple lut for integer
     if (d->vi->format->sampleType == stInteger) {
+        int maxval = (1 << d->vi->format->bitsPerSample) - 1;
         d->lut.resize(d->vi->format->bytesPerSample * (1 << d->vi->format->bitsPerSample));
 
         d->min_in = std::round(d->min_in);
@@ -2697,13 +2700,11 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 
         if (d->vi->format->bytesPerSample == 1) {
             for (int v = 0; v <= 255; v++)
-                d->lut[v] = static_cast<uint8_t>(std::max(std::min(std::pow(std::max(v - d->min_in, 0.f) / (d->max_in - d->min_in), d->gamma) * (d->max_out - d->min_out) + d->min_out, 255.f), 0.f) + 0.5f);
+                d->lut[v] = static_cast<uint8_t>(std::max(std::min(std::pow(std::max(std::min<float>(v, d->max_in) - d->min_in, 0.f) / (d->max_in - d->min_in), d->gamma) * (d->max_out - d->min_out) + d->min_out, 255.f), 0.f) + 0.5f);
         } else {
-            int maxval = (1 << d->vi->format->bitsPerSample) - 1;
-            float maxvalf = maxval;
             uint16_t *lptr = reinterpret_cast<uint16_t *>(d->lut.data());
             for (int v = 0; v <= maxval; v++)
-                lptr[v] = static_cast<uint16_t>(std::max(std::min(std::pow(std::max(v - d->min_in, 0.f) / (d->max_in - d->min_in), d->gamma) * (d->max_out - d->min_out) + d->min_out, maxvalf), 0.f) + 0.5f);
+                lptr[v] = static_cast<uint16_t>(std::max(std::min(std::pow(std::max(std::min<float>(v, d->max_in) - d->min_in, 0.f) / (d->max_in - d->min_in), d->gamma) * (d->max_out - d->min_out) + d->min_out, maxvalf), 0.f) + 0.5f);
         }
     }
 
