@@ -10,6 +10,11 @@ class FilterTestSequence(unittest.TestCase):
         self.BlankClip = self.core.std.BlankClip
         self.mask = lambda val, bits: val & ((1 << bits) - 1)
 
+    def testLevels(self):
+        for i in range(1024):
+            levels_clip = self.BlankClip(format=vs.YUV420P10, color=[i, 0, 0]).std.Levels(min_in=504, max_in=520, gamma=1, min_out=0, max_out=1023, planes=0).std.PEMVerifier()
+            levels_clip.get_frame(0)	
+		
     def checkDifference(self, cpu, gpu):
         diff = self.core.std.PlaneStats(cpu, gpu, 0, prop="PlaneStats0")
         diff = self.core.std.PlaneStats(diff, gpu, 1, prop="PlaneStats1")
