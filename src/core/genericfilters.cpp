@@ -2694,6 +2694,7 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         d->min_out = std::round(d->min_out);
         d->max_in = std::round(d->max_in);
         d->max_out = std::round(d->max_out);
+        d->gamma = 1.0f / d->gamma;
 
         if (d->vi->format->bytesPerSample == 1) {
             for (int v = 0; v <= 255; v++)
