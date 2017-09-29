@@ -47,7 +47,7 @@ Name: "vsruntimes"; Description: "Visual Studio Runtimes (2013 & 2017)"; Types: 
 Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to shell context menu"; GroupDescription: "New File Shortcuts:"; Components: vs32 vs64
 
 [Run]
-Filename: "{app}\pismo\pfm-183-vapoursynth-win.exe"; Parameters: "install"; Flags: runhidden; Components: pismo
+Filename: "{app}\pismo\pfm-188-vapoursynth-win.exe"; Parameters: "install"; Flags: runhidden; Components: pismo
 
 [Files]
 ;core binaries
@@ -113,7 +113,7 @@ Source: ..\msvc_project\x64\Release\Vinverse.dll; DestDir: {app}\core64\plugins;
 Source: ..\msvc_project\x64\Release\VIVTC.dll; DestDir: {app}\core64\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 
 ;pismo installer
-Source: "pfm-183-vapoursynth-win.exe"; DestDir: {app}\pismo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: pismo
+Source: "pfm-188-vapoursynth-win.exe"; DestDir: {app}\pismo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: pismo
 
 ; Create the general autoload directory
 [Dirs]
