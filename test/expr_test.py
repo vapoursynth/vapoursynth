@@ -362,7 +362,64 @@ class CoreTestSequence(unittest.TestCase):
         clip = self.core.std.Expr(clip, "2 x pow")
         val = clip.get_frame(0).get_read_array(0)[0,0]
         self.assertEqual(val, 64)
-                
+
+    def test_expr_op57(self):
+        clip1 = self.core.std.BlankClip(format=vs.GRAY8, color=10)
+        clip2 = self.core.std.BlankClip(format=vs.GRAY8, color=2)
+        clip3 = self.core.std.BlankClip(format=vs.GRAY8, color=3)
+        clip = self.core.std.Expr((clip1, clip2, clip3), "x y z swap2 * +")
+        val = clip.get_frame(0).get_read_array(0)[0,0]
+        self.assertEqual(val, 23)
+
+    def test_expr_op58(self):
+        clip1 = self.core.std.BlankClip(format=vs.GRAY8, color=10)
+        clip2 = self.core.std.BlankClip(format=vs.GRAY8, color=2)
+        clip3 = self.core.std.BlankClip(format=vs.GRAY8, color=3)
+        clip = self.core.std.Expr((clip1, clip2, clip3), "10 2 3 swap2 * +")
+        val = clip.get_frame(0).get_read_array(0)[0,0]
+        self.assertEqual(val, 23)
+
+    def test_expr_op59(self):
+        clip1 = self.core.std.BlankClip(format=vs.GRAY8, color=10)
+        clip2 = self.core.std.BlankClip(format=vs.GRAY8, color=2)
+        clip3 = self.core.std.BlankClip(format=vs.GRAY8, color=3)
+        clip = self.core.std.Expr((clip1, clip2, clip3), "x y z swap1 * +")
+        val = clip.get_frame(0).get_read_array(0)[0,0]
+        self.assertEqual(val, 16)
+
+    def test_expr_op60(self):
+        clip1 = self.core.std.BlankClip(format=vs.GRAY8, color=10)
+        clip2 = self.core.std.BlankClip(format=vs.GRAY8, color=2)
+        clip3 = self.core.std.BlankClip(format=vs.GRAY8, color=3)
+        clip = self.core.std.Expr((clip1, clip2, clip3), "10 2 3 swap1 * +")
+        val = clip.get_frame(0).get_read_array(0)[0,0]
+        self.assertEqual(val, 16)
+
+    def test_expr_op61(self):
+        clip1 = self.core.std.BlankClip(format=vs.GRAY8, color=10)
+        clip2 = self.core.std.BlankClip(format=vs.GRAY8, color=2)
+        clip3 = self.core.std.BlankClip(format=vs.GRAY8, color=3)
+        clip = self.core.std.Expr((clip1, clip2, clip3), "x dup0 dup1 dup2 y swap3 z * + + swap / +")
+        val = clip.get_frame(0).get_read_array(0)[0,0]
+        self.assertEqual(val, 35)
+
+    def test_expr_op62(self):
+        clip1 = self.core.std.BlankClip(format=vs.GRAY8, color=10)
+        clip2 = self.core.std.BlankClip(format=vs.GRAY8, color=2)
+        clip3 = self.core.std.BlankClip(format=vs.GRAY8, color=3)
+        clip = self.core.std.Expr((clip1, clip2, clip3), "10 dup0 dup1 dup2 2 swap3 3 * + + swap / +")
+        val = clip.get_frame(0).get_read_array(0)[0,0]
+        self.assertEqual(val, 35)
+
+    def test_expr_op63(self):
+        clip1 = self.core.std.BlankClip(format=vs.GRAY8, color=10)
+        clip2 = self.core.std.BlankClip(format=vs.GRAY8, color=2)
+        clip3 = self.core.std.BlankClip(format=vs.GRAY8, color=3)
+        clip = self.core.std.Expr((clip1, clip2, clip3), "x dup0 10 dup2 y swap3 3 * + + swap / +")
+        val = clip.get_frame(0).get_read_array(0)[0,0]
+        self.assertEqual(val, 35)
+
+
         
 if __name__ == '__main__':
     unittest.main()
