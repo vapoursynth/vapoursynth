@@ -189,79 +189,86 @@ static void lutCreateHelper(const VSMap *in, VSMap *out, VSFuncRef *func, std::u
 
 static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<LutData> d(new LutData(vsapi));
-    int err;
 
-    d->node = vsapi->propGetNode(in, "clip", 0, 0);
-    d->vi = vsapi->getVideoInfo(d->node);
-    d->vi_out = *d->vi;
+    try {
 
-    if (!isConstantFormat(d->vi))
-        RETERROR("Lut: only clips with constant format and dimensions supported");
+        int err;
 
-    if (isCompatFormat(d->vi))
-        RETERROR("Lut: compat formats are not supported");
+        d->node = vsapi->propGetNode(in, "clip", 0, 0);
+        d->vi = vsapi->getVideoInfo(d->node);
+        d->vi_out = *d->vi;
 
-    if (d->vi->format->sampleType != stInteger || d->vi->format->bitsPerSample > 16)
-        RETERROR("Lut: only clips with integer samples and up to 16 bits per channel precision supported");
+        if (!isConstantFormat(d->vi))
+            RETERROR("Lut: only clips with constant format and dimensions supported");
 
-    bool floatout = !!vsapi->propGetInt(in, "floatout", 0, &err);
-    int bitsout = int64ToIntS(vsapi->propGetInt(in, "bits", 0, &err));
-    if (err)
-        bitsout = floatout ? sizeof(float) * 8 : d->vi->format->bitsPerSample;
-    if ((floatout && bitsout != 32) || (!floatout && (bitsout < 8 || bitsout > 16)))
-        RETERROR("Lut: only 8-16 bit integer and 32 bit float output supported");
+        if (isCompatFormat(d->vi))
+            RETERROR("Lut: compat formats are not supported");
 
-    getPlanesArg(in, d->process, vsapi);
+        if (d->vi->format->sampleType != stInteger || d->vi->format->bitsPerSample > 16)
+            RETERROR("Lut: only clips with integer samples and up to 16 bits per channel precision supported");
 
-    VSFuncRef *func = vsapi->propGetFunc(in, "function", 0, &err);
-    int lut_elem = vsapi->propNumElements(in, "lut");
-    int lutf_elem = vsapi->propNumElements(in, "lutf");
+        bool floatout = !!vsapi->propGetInt(in, "floatout", 0, &err);
+        int bitsout = int64ToIntS(vsapi->propGetInt(in, "bits", 0, &err));
+        if (err)
+            bitsout = floatout ? sizeof(float) * 8 : d->vi->format->bitsPerSample;
+        if ((floatout && bitsout != 32) || (!floatout && (bitsout < 8 || bitsout > 16)))
+            RETERROR("Lut: only 8-16 bit integer and 32 bit float output supported");
 
-    int num_set = (lut_elem >= 0) + (lutf_elem >= 0) + !!func;
+        getPlanesArg(in, d->process, vsapi);
 
-    if (!num_set) {
-        vsapi->freeFunc(func);
-        RETERROR("Lut: none of lut, lutf and function are set");
+        VSFuncRef *func = vsapi->propGetFunc(in, "function", 0, &err);
+        int lut_elem = vsapi->propNumElements(in, "lut");
+        int lutf_elem = vsapi->propNumElements(in, "lutf");
+
+        int num_set = (lut_elem >= 0) + (lutf_elem >= 0) + !!func;
+
+        if (!num_set) {
+            vsapi->freeFunc(func);
+            RETERROR("Lut: none of lut, lutf and function are set");
+        }
+
+        if (num_set > 1) {
+            vsapi->freeFunc(func);
+            RETERROR("Lut: more than one of lut, lutf and function are set");
+        }
+
+        if (lut_elem >= 0 && floatout) {
+            vsapi->freeFunc(func);
+            RETERROR("Lut: lut set but float output specified");
+        }
+
+        if (lutf_elem >= 0 && !floatout) {
+            vsapi->freeFunc(func);
+            RETERROR("Lut: lutf set but float output not specified");
+        }
+
+        int n = (1 << d->vi->format->bitsPerSample);
+
+        int lut_length = std::max(lut_elem, lutf_elem);
+
+        if (lut_length >= 0 && lut_length != n) {
+            vsapi->freeFunc(func);
+            RETERROR(("Lut: bad lut length. Expected " + std::to_string(n) + " elements, got " + std::to_string(lut_length) + " instead").c_str());
+        }
+
+        d->vi_out.format = vsapi->registerFormat(d->vi->format->colorFamily, floatout ? stFloat : stInteger, bitsout, d->vi->format->subSamplingW, d->vi->format->subSamplingH, core);
+
+        if (d->vi->format->bytesPerSample == 1 && bitsout == 8)
+            lutCreateHelper<uint8_t, uint8_t>(in, out, func, d, core, vsapi);
+        else if (d->vi->format->bytesPerSample == 1 && bitsout > 8 && bitsout <= 16)
+            lutCreateHelper<uint8_t, uint16_t>(in, out, func, d, core, vsapi);
+        else if (d->vi->format->bytesPerSample == 1 && floatout)
+            lutCreateHelper<uint8_t, float>(in, out, func, d, core, vsapi);
+        else if (d->vi->format->bytesPerSample == 2 && bitsout == 8)
+            lutCreateHelper<uint16_t, uint8_t>(in, out, func, d, core, vsapi);
+        else if (d->vi->format->bytesPerSample == 2 && bitsout > 8 && bitsout <= 16)
+            lutCreateHelper<uint16_t, uint16_t>(in, out, func, d, core, vsapi);
+        else if (d->vi->format->bytesPerSample == 2 && floatout)
+            lutCreateHelper<uint16_t, float>(in, out, func, d, core, vsapi);
+
+    } catch (std::string &e) {
+        RETERROR(("Lut2 " + e).c_str());
     }
-
-    if (num_set > 1) {
-        vsapi->freeFunc(func);
-        RETERROR("Lut: more than one of lut, lutf and function are set");
-    }
-
-    if (lut_elem >= 0 && floatout) {
-        vsapi->freeFunc(func);
-        RETERROR("Lut: lut set but float output specified");
-    }
-
-    if (lutf_elem >= 0 && !floatout) {
-        vsapi->freeFunc(func);
-        RETERROR("Lut: lutf set but float output not specified");
-    }
-
-    int n = (1 << d->vi->format->bitsPerSample);
-
-    int lut_length = std::max(lut_elem, lutf_elem);
-
-    if (lut_length >= 0 && lut_length != n) {
-        vsapi->freeFunc(func);
-        RETERROR(("Lut: bad lut length. Expected " + std::to_string(n) + " elements, got " + std::to_string(lut_length) + " instead").c_str());
-    }
-
-    d->vi_out.format = vsapi->registerFormat(d->vi->format->colorFamily, floatout ? stFloat : stInteger, bitsout, d->vi->format->subSamplingW, d->vi->format->subSamplingH, core);
-
-    if (d->vi->format->bytesPerSample == 1 && bitsout == 8)
-        lutCreateHelper<uint8_t, uint8_t>(in, out, func, d, core, vsapi);
-    else if (d->vi->format->bytesPerSample == 1 && bitsout > 8 && bitsout <= 16)
-        lutCreateHelper<uint8_t, uint16_t>(in, out, func, d, core, vsapi);
-    else if (d->vi->format->bytesPerSample == 1 && floatout)
-        lutCreateHelper<uint8_t, float>(in, out, func, d, core, vsapi);
-    else if (d->vi->format->bytesPerSample == 2 && bitsout == 8)
-        lutCreateHelper<uint16_t, uint8_t>(in, out, func, d, core, vsapi);
-    else if (d->vi->format->bytesPerSample == 2 && bitsout > 8 && bitsout <= 16)
-        lutCreateHelper<uint16_t, uint16_t>(in, out, func, d, core, vsapi);
-    else if (d->vi->format->bytesPerSample == 2 && floatout)
-        lutCreateHelper<uint16_t, float>(in, out, func, d, core, vsapi);
 }
 
 //////////////////////////////////////////
@@ -436,107 +443,112 @@ static void lut2CreateHelper(const VSMap *in, VSMap *out, VSFuncRef *func, std::
 static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<Lut2Data> d(new Lut2Data(vsapi));
 
-    d->node[0] = vsapi->propGetNode(in, "clipa", 0, 0);
-    d->node[1] = vsapi->propGetNode(in, "clipb", 0, 0);
-    d->vi[0] = vsapi->getVideoInfo(d->node[0]);
-    d->vi[1] = vsapi->getVideoInfo(d->node[1]);
+    try {
+        d->node[0] = vsapi->propGetNode(in, "clipa", 0, 0);
+        d->node[1] = vsapi->propGetNode(in, "clipb", 0, 0);
+        d->vi[0] = vsapi->getVideoInfo(d->node[0]);
+        d->vi[1] = vsapi->getVideoInfo(d->node[1]);
 
-    if (!isConstantFormat(d->vi[0]) || !isConstantFormat(d->vi[1]))
-        RETERROR("Lut2: only clips with constant format and dimensions supported");
+        if (!isConstantFormat(d->vi[0]) || !isConstantFormat(d->vi[1]))
+            RETERROR("Lut2: only clips with constant format and dimensions supported");
 
-    if (isCompatFormat(d->vi[0]) || isCompatFormat(d->vi[1]))
-        RETERROR("Lut2: compat formats are not supported");
+        if (isCompatFormat(d->vi[0]) || isCompatFormat(d->vi[1]))
+            RETERROR("Lut2: compat formats are not supported");
 
-    if (d->vi[0]->format->sampleType != stInteger || d->vi[1]->format->sampleType != stInteger
-        || (d->vi[0]->format->bitsPerSample + d->vi[1]->format->bitsPerSample) > 20
-        || d->vi[0]->format->subSamplingH != d->vi[1]->format->subSamplingH
-        || d->vi[0]->format->subSamplingW != d->vi[1]->format->subSamplingW
-        || d->vi[0]->width != d->vi[1]->width || d->vi[0]->height != d->vi[1]->height)
-        RETERROR("Lut2: only clips with integer samples, same dimensions, same subsampling and up to a total of 20 indexing bits supported");
+        if (d->vi[0]->format->sampleType != stInteger || d->vi[1]->format->sampleType != stInteger
+            || (d->vi[0]->format->bitsPerSample + d->vi[1]->format->bitsPerSample) > 20
+            || d->vi[0]->format->subSamplingH != d->vi[1]->format->subSamplingH
+            || d->vi[0]->format->subSamplingW != d->vi[1]->format->subSamplingW
+            || d->vi[0]->width != d->vi[1]->width || d->vi[0]->height != d->vi[1]->height)
+            RETERROR("Lut2: only clips with integer samples, same dimensions, same subsampling and up to a total of 20 indexing bits supported");
 
-    getPlanesArg(in, d->process, vsapi);
+        getPlanesArg(in, d->process, vsapi);
 
-    int err;
-    VSFuncRef *func = vsapi->propGetFunc(in, "function", 0, &err);
-    int lut_elem = vsapi->propNumElements(in, "lut");
-    int lutf_elem = vsapi->propNumElements(in, "lutf");
-    bool floatout = !!vsapi->propGetInt(in, "floatout", 0, &err);
+        int err;
+        VSFuncRef *func = vsapi->propGetFunc(in, "function", 0, &err);
+        int lut_elem = vsapi->propNumElements(in, "lut");
+        int lutf_elem = vsapi->propNumElements(in, "lutf");
+        bool floatout = !!vsapi->propGetInt(in, "floatout", 0, &err);
 
-    int num_set = (lut_elem >= 0) + (lutf_elem >= 0) + !!func;
+        int num_set = (lut_elem >= 0) + (lutf_elem >= 0) + !!func;
 
-    if (!num_set) {
-        vsapi->freeFunc(func);
-        RETERROR("Lut2: none of lut, lutf and function are set");
-    }
-
-    if (num_set > 1) {
-        vsapi->freeFunc(func);
-        RETERROR("Lut2: more than one of lut, lutf and function are set");
-    }
-
-    if (lut_elem >= 0 && floatout) {
-        vsapi->freeFunc(func);
-        RETERROR("Lut2: lut set but float output specified");
-    }
-
-    if (lutf_elem >= 0 && !floatout) {
-        vsapi->freeFunc(func);
-        RETERROR("Lut2: lutf set but float output not specified");
-    }
-
-    int n = 1 << (d->vi[0]->format->bitsPerSample + d->vi[1]->format->bitsPerSample);
-
-    int lut_length = std::max(lut_elem, lutf_elem);
-
-    if (lut_length >= 0 && lut_length != n) {
-        vsapi->freeFunc(func);
-        RETERROR(("Lut2: bad lut length. Expected " + std::to_string(n) + " elements, got " + std::to_string(lut_length) + " instead").c_str());
-    }
-
-    int bitsout = int64ToIntS(vsapi->propGetInt(in, "bits", 0, &err));
-    if (err)
-        bitsout = (floatout ? sizeof(float) * 8 : d->vi[0]->format->bitsPerSample);
-    if ((floatout && bitsout != 32) || (!floatout && (bitsout < 8 || bitsout > 16))) {
-        vsapi->freeFunc(func);
-        RETERROR("Lut2: only 8-16 bit integer and 32 bit float output supported");
-    }
-
-    d->vi_out = *d->vi[0];
-    d->vi_out.format = vsapi->registerFormat(d->vi[0]->format->colorFamily, floatout ? stFloat : stInteger, bitsout, d->vi[0]->format->subSamplingW, d->vi[0]->format->subSamplingH, core);
-
-
-    if (d->vi[0]->format->bytesPerSample == 1) {
-        if (d->vi[1]->format->bytesPerSample == 1) {
-            if (d->vi_out.format->bytesPerSample == 1 && d->vi_out.format->sampleType == stInteger)
-                lut2CreateHelper<uint8_t, uint8_t, uint8_t>(in, out, func, d, core, vsapi);
-            else if (d->vi_out.format->bytesPerSample == 2 && d->vi_out.format->sampleType == stInteger)
-                lut2CreateHelper<uint8_t, uint8_t, uint16_t>(in, out, func, d, core, vsapi);
-            else if (d->vi_out.format->bitsPerSample == 32 && d->vi_out.format->sampleType == stFloat)
-                lut2CreateHelper<uint8_t, uint8_t, float>(in, out, func, d, core, vsapi);
-        } else if (d->vi[1]->format->bytesPerSample == 2) {
-            if (d->vi_out.format->bytesPerSample == 1 && d->vi_out.format->sampleType == stInteger)
-                lut2CreateHelper<uint8_t, uint16_t, uint8_t>(in, out, func, d, core, vsapi);
-            else if (d->vi_out.format->bytesPerSample == 2 && d->vi_out.format->sampleType == stInteger)
-                lut2CreateHelper<uint8_t, uint16_t, uint16_t>(in, out, func, d, core, vsapi);
-            else if (d->vi_out.format->bitsPerSample == 32 && d->vi_out.format->sampleType == stFloat)
-                lut2CreateHelper<uint8_t, uint16_t, float>(in, out, func, d, core, vsapi);
+        if (!num_set) {
+            vsapi->freeFunc(func);
+            RETERROR("Lut2: none of lut, lutf and function are set");
         }
-    } else if (d->vi[0]->format->bytesPerSample == 2) {
-        if (d->vi[1]->format->bytesPerSample == 1) {
-            if (d->vi_out.format->bytesPerSample == 1 && d->vi_out.format->sampleType == stInteger)
-                lut2CreateHelper<uint16_t, uint8_t, uint8_t>(in, out, func, d, core, vsapi);
-            else if (d->vi_out.format->bytesPerSample == 2 && d->vi_out.format->sampleType == stInteger)
-                lut2CreateHelper<uint16_t, uint8_t, uint16_t>(in, out, func, d, core, vsapi);
-            else if (d->vi_out.format->bitsPerSample == 32 && d->vi_out.format->sampleType == stFloat)
-                lut2CreateHelper<uint16_t, uint8_t, float>(in, out, func, d, core, vsapi);
-        } else if (d->vi[1]->format->bytesPerSample == 2) {
-            if (d->vi_out.format->bytesPerSample == 1 && d->vi_out.format->sampleType == stInteger)
-                lut2CreateHelper<uint16_t, uint16_t, uint8_t>(in, out, func, d, core, vsapi);
-            else if (d->vi_out.format->bytesPerSample == 2 && d->vi_out.format->sampleType == stInteger)
-                lut2CreateHelper<uint16_t, uint16_t, uint16_t>(in, out, func, d, core, vsapi);
-            else if (d->vi_out.format->bitsPerSample == 32 && d->vi_out.format->sampleType == stFloat)
-                lut2CreateHelper<uint16_t, uint16_t, float>(in, out, func, d, core, vsapi);
+
+        if (num_set > 1) {
+            vsapi->freeFunc(func);
+            RETERROR("Lut2: more than one of lut, lutf and function are set");
         }
+
+        if (lut_elem >= 0 && floatout) {
+            vsapi->freeFunc(func);
+            RETERROR("Lut2: lut set but float output specified");
+        }
+
+        if (lutf_elem >= 0 && !floatout) {
+            vsapi->freeFunc(func);
+            RETERROR("Lut2: lutf set but float output not specified");
+        }
+
+        int n = 1 << (d->vi[0]->format->bitsPerSample + d->vi[1]->format->bitsPerSample);
+
+        int lut_length = std::max(lut_elem, lutf_elem);
+
+        if (lut_length >= 0 && lut_length != n) {
+            vsapi->freeFunc(func);
+            RETERROR(("Lut2: bad lut length. Expected " + std::to_string(n) + " elements, got " + std::to_string(lut_length) + " instead").c_str());
+        }
+
+        int bitsout = int64ToIntS(vsapi->propGetInt(in, "bits", 0, &err));
+        if (err)
+            bitsout = (floatout ? sizeof(float) * 8 : d->vi[0]->format->bitsPerSample);
+        if ((floatout && bitsout != 32) || (!floatout && (bitsout < 8 || bitsout > 16))) {
+            vsapi->freeFunc(func);
+            RETERROR("Lut2: only 8-16 bit integer and 32 bit float output supported");
+        }
+
+        d->vi_out = *d->vi[0];
+        d->vi_out.format = vsapi->registerFormat(d->vi[0]->format->colorFamily, floatout ? stFloat : stInteger, bitsout, d->vi[0]->format->subSamplingW, d->vi[0]->format->subSamplingH, core);
+
+
+        if (d->vi[0]->format->bytesPerSample == 1) {
+            if (d->vi[1]->format->bytesPerSample == 1) {
+                if (d->vi_out.format->bytesPerSample == 1 && d->vi_out.format->sampleType == stInteger)
+                    lut2CreateHelper<uint8_t, uint8_t, uint8_t>(in, out, func, d, core, vsapi);
+                else if (d->vi_out.format->bytesPerSample == 2 && d->vi_out.format->sampleType == stInteger)
+                    lut2CreateHelper<uint8_t, uint8_t, uint16_t>(in, out, func, d, core, vsapi);
+                else if (d->vi_out.format->bitsPerSample == 32 && d->vi_out.format->sampleType == stFloat)
+                    lut2CreateHelper<uint8_t, uint8_t, float>(in, out, func, d, core, vsapi);
+            } else if (d->vi[1]->format->bytesPerSample == 2) {
+                if (d->vi_out.format->bytesPerSample == 1 && d->vi_out.format->sampleType == stInteger)
+                    lut2CreateHelper<uint8_t, uint16_t, uint8_t>(in, out, func, d, core, vsapi);
+                else if (d->vi_out.format->bytesPerSample == 2 && d->vi_out.format->sampleType == stInteger)
+                    lut2CreateHelper<uint8_t, uint16_t, uint16_t>(in, out, func, d, core, vsapi);
+                else if (d->vi_out.format->bitsPerSample == 32 && d->vi_out.format->sampleType == stFloat)
+                    lut2CreateHelper<uint8_t, uint16_t, float>(in, out, func, d, core, vsapi);
+            }
+        } else if (d->vi[0]->format->bytesPerSample == 2) {
+            if (d->vi[1]->format->bytesPerSample == 1) {
+                if (d->vi_out.format->bytesPerSample == 1 && d->vi_out.format->sampleType == stInteger)
+                    lut2CreateHelper<uint16_t, uint8_t, uint8_t>(in, out, func, d, core, vsapi);
+                else if (d->vi_out.format->bytesPerSample == 2 && d->vi_out.format->sampleType == stInteger)
+                    lut2CreateHelper<uint16_t, uint8_t, uint16_t>(in, out, func, d, core, vsapi);
+                else if (d->vi_out.format->bitsPerSample == 32 && d->vi_out.format->sampleType == stFloat)
+                    lut2CreateHelper<uint16_t, uint8_t, float>(in, out, func, d, core, vsapi);
+            } else if (d->vi[1]->format->bytesPerSample == 2) {
+                if (d->vi_out.format->bytesPerSample == 1 && d->vi_out.format->sampleType == stInteger)
+                    lut2CreateHelper<uint16_t, uint16_t, uint8_t>(in, out, func, d, core, vsapi);
+                else if (d->vi_out.format->bytesPerSample == 2 && d->vi_out.format->sampleType == stInteger)
+                    lut2CreateHelper<uint16_t, uint16_t, uint16_t>(in, out, func, d, core, vsapi);
+                else if (d->vi_out.format->bitsPerSample == 32 && d->vi_out.format->sampleType == stFloat)
+                    lut2CreateHelper<uint16_t, uint16_t, float>(in, out, func, d, core, vsapi);
+            }
+        }
+
+    } catch (std::string &e) {
+        RETERROR(("Lut2: " + e).c_str());
     }
 }
 
