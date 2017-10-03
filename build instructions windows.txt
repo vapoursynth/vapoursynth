@@ -11,6 +11,8 @@ Clone zimg v2.6 branch into the VapourSynth dir (https://github.com/sekrit-twc/z
 Clone avs+ mt branch into the VapourSynth dir (https://github.com/AviSynth/AviSynthPlus)
 Compile 32 and 64 bit release using the VapourSynth solution
 Run cython_build.bat to compile the Python modules
+Run make_docs.bat to compile the documentation
+All the above steps are necessary to create the installer
 
 In order to build the installer you need to download
 and place isxdl.dll in "installer\scripts\isxdl".
