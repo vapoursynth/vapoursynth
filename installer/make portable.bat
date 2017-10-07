@@ -18,7 +18,7 @@ copy ..\msvc_project\x64\Release\Morpho.dll buildp64\vapoursynth64\coreplugins
 copy ..\msvc_project\x64\Release\RemoveGrainVS.dll buildp64\vapoursynth64\coreplugins
 copy ..\msvc_project\x64\Release\Vinverse.dll buildp64\vapoursynth64\coreplugins
 copy ..\msvc_project\x64\Release\VIVTC.dll buildp64\vapoursynth64\coreplugins
-copy "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Redist\MSVC\14.10.25008\x64\Microsoft.VC150.CRT\*" buildp64
+copy "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Redist\MSVC\14.11.25325\x64\Microsoft.VC141.CRT\*" buildp64
 copy x64\plugins\* buildp64\vapoursynth64\coreplugins
 type nul >buildp64\portable.vs
 rm Compiled\vapoursynth64-portable-%v%.7z
@@ -43,7 +43,7 @@ copy ..\msvc_project\Release\Morpho.dll buildp32\vapoursynth32\coreplugins
 copy ..\msvc_project\Release\RemoveGrainVS.dll buildp32\vapoursynth32\coreplugins
 copy ..\msvc_project\Release\Vinverse.dll buildp32\vapoursynth32\coreplugins
 copy ..\msvc_project\Release\VIVTC.dll buildp32\vapoursynth32\coreplugins
-copy "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Redist\MSVC\14.10.25008\x86\Microsoft.VC150.CRT\*" buildp32
+copy "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Redist\MSVC\14.11.25325\x86\Microsoft.VC141.CRT\*" buildp32
 copy x86\plugins\* buildp32\vapoursynth32\coreplugins
 type nul >buildp32\portable.vs
 rm Compiled\vapoursynth32-portable-%v%.7z
