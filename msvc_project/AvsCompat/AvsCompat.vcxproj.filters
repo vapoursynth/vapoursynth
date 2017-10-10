@@ -46,11 +46,11 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <YASM Include="..\..\src\core\asm\x86\check.asm">
-      <Filter>asm</Filter>
-    </YASM>
-    <YASM Include="..\..\src\core\asm\x86\cpu.asm">
-      <Filter>asm</Filter>
-    </YASM>
+    <NASM Include="..\..\src\core\asm\x86\check.asm">
+      <Filter>Source Files</Filter>
+    </NASM>
+    <NASM Include="..\..\src\core\asm\x86\cpu.asm">
+      <Filter>Source Files</Filter>
+    </NASM>
   </ItemGroup>
 </Project>
