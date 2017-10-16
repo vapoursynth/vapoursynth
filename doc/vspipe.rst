@@ -19,7 +19,7 @@ Options
 =======
 
 ``-a, --arg key=value``
-    Argument to pass to the script environment
+    Argument to pass to the script environment, it a key with this name and value (bytes typed) will be set in the globals dict
 
 ``-s, --start N``
     Set output frame range (first frame)
@@ -64,9 +64,9 @@ Request all frames but don't output them:
 Write frames 5-100 to file:
     ``vspipe --start 5 --end 100 script.vpy output.raw``
 
-Pass values to a script:
-    ``vspipe --arg deinterlace=yes --arg "message=fluffy kittens" script.vpy output.raw``
-
 Pipe to x264 and write timecodes file:
     ``vspipe script.vpy - --y4m --timecodes timecodes.txt | x264 --demuxer y4m -o script.mkv -``
+
+Pass values to a script:
+    ``vspipe --arg deinterlace=yes --arg "message=fluffy kittens" script.vpy output.raw``
 
