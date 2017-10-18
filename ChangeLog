@@ -1,3 +1,6 @@
+r40:
+only do prefetching in avfs with vs script when linear access is detected, fixes excessive prefetching that could make opening scripts very slow
+
 r39:
 updated to zimg v2.6
 updated pismo file mount runtime to build 188

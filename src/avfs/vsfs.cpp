@@ -250,13 +250,14 @@ const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) 
 
     const VSFrameRef *f = nullptr;
     bool success = false;
-    bool doPrefetch = true;
+    bool doPrefetch = false;
 
     if (n == lastPosition) {
         f = vsapi->cloneFrameRef(lastFrame);
         success = true;
-        doPrefetch = false;
     } else {
+        int ndiff = n - lastPosition;
+        doPrefetch = (ndiff == 1 && lastPosition >= 0); // only prefetch if seeking forward one or a few frames at a time
         lastPosition = -1;
         vsapi->freeFrame(lastFrame);
         lastFrame = nullptr;
