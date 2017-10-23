@@ -1,4 +1,6 @@
 r40:
+fixed rgb output sometimes being flipped in avisource
+added alpha output settings to avisource, the default is no alpha output
 fixed gamma being infinite if not set in levels, bug introduced in r39
 removed the hack needed to support avisynth mvtools, the native mvtools has been superior for several years now and removing the hack makes avisynth filter creation much faster
 added avisynth+ compatibility
