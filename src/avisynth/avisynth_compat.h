@@ -35,7 +35,7 @@ namespace AvisynthCompat {
 
 struct WrappedClip;
 
-class FakeAvisynth : public IScriptEnvironment {
+class FakeAvisynth : public IScriptEnvironment2 {
     friend class VSClip;
     friend class ::VideoFrame;
 private:
@@ -59,38 +59,105 @@ public:
 
     FakeAvisynth(int interfaceVersion, VSCore *core, const VSAPI *vsapi) : core(core), vsapi(vsapi), interfaceVersion(interfaceVersion), initializing(true), uglyN(-1), uglyNode(nullptr), uglyCtx(nullptr) {}
     // virtual avisynth functions
-    ~FakeAvisynth();
-    long __stdcall GetCPUFlags();
-    char *__stdcall SaveString(const char *s, int length = -1);
-    char *Sprintf(const char *fmt, ...);
-    char *__stdcall VSprintf(const char *fmt, void *val);
-    __declspec(noreturn) void ThrowError(const char *fmt, ...);
-    void __stdcall AddFunction(const char *name, const char *params, ApplyFunc apply, void *user_data);
-    bool __stdcall FunctionExists(const char *name);
-    AVSValue __stdcall Invoke(const char *name, const AVSValue args, const char* const* arg_names = 0);
-    AVSValue __stdcall GetVar(const char *name);
-    bool __stdcall SetVar(const char *name, const AVSValue &val);
-    bool __stdcall SetGlobalVar(const char *name, const AVSValue &val);
-    void __stdcall PushContext(int level);
-    void __stdcall PopContext();
-    PVideoFrame __stdcall NewVideoFrame(const VideoInfo &vi, int align = 32);
-    bool __stdcall MakeWritable(PVideoFrame *pvf);
-    void __stdcall BitBlt(uint8_t *dstp, int dst_pitch, const uint8_t *srcp, int src_pitch, int row_size, int height);
-    void __stdcall AtExit(ShutdownFunc function, void *user_data);
-    void __stdcall CheckVersion(int version);
-    PVideoFrame __stdcall Subframe(PVideoFrame src, int rel_offset, int new_pitch, int new_row_size, int new_height);
-    int __stdcall SetMemoryMax(int mem);
-    int __stdcall SetWorkingDir(const char *newdir);
-    void *__stdcall ManageCache(int key, void *data);
-    bool __stdcall PlanarChromaAlignment(PlanarChromaAlignmentMode key);
-    PVideoFrame __stdcall SubframePlanar(PVideoFrame src, int rel_offset, int new_pitch, int new_row_size, int new_height, int rel_offsetU, int rel_offsetV, int new_pitchUV);
+    AVSC_CC ~FakeAvisynth();
 
-    /* 2.6 new */
+    int __stdcall GetCPUFlags();
+
+    char* __stdcall SaveString(const char* s, int length = -1);
+    char* __stdcall Sprintf(const char* fmt, ...) ;
+    char* __stdcall VSprintf(const char* fmt, void* val);
+
+    __declspec(noreturn) void __stdcall ThrowError(const char* fmt, ...);
+
+    void __stdcall AddFunction(const char* name, const char* params, ApplyFunc apply, void* user_data);
+    bool __stdcall FunctionExists(const char* name);
+    AVSValue __stdcall Invoke(const char* name, const AVSValue args, const char* const* arg_names = 0);
+
+    AVSValue __stdcall GetVar(const char* name);
+    bool __stdcall SetVar(const char* name, const AVSValue& val);
+    bool __stdcall SetGlobalVar(const char* name, const AVSValue& val);
+
+    void __stdcall PushContext(int level = 0);
+    void __stdcall PopContext();
+
+    // align should be 4 or 8
+    PVideoFrame __stdcall NewVideoFrame(const VideoInfo& vi, int align = FRAME_ALIGN);
+
+    bool __stdcall MakeWritable(PVideoFrame* pvf);
+
+    void __stdcall BitBlt(BYTE* dstp, int dst_pitch, const BYTE* srcp, int src_pitch, int row_size, int height);
+
+    void __stdcall AtExit(ShutdownFunc function, void* user_data);
+
+    void __stdcall CheckVersion(int version = AVISYNTH_INTERFACE_VERSION);
+
+    PVideoFrame __stdcall Subframe(PVideoFrame src, int rel_offset, int new_pitch, int new_row_size, int new_height);
+
+    int __stdcall SetMemoryMax(int mem);
+
+    int __stdcall SetWorkingDir(const char * newdir);
+
+    void* __stdcall ManageCache(int key, void* data);
+
+    bool __stdcall PlanarChromaAlignment(PlanarChromaAlignmentMode key);
+
+    PVideoFrame __stdcall SubframePlanar(PVideoFrame src, int rel_offset, int new_pitch, int new_row_size,
+        int new_height, int rel_offsetU, int rel_offsetV, int new_pitchUV);
+
     void __stdcall DeleteScriptEnvironment();
+
     void __stdcall ApplyMessage(PVideoFrame* frame, const VideoInfo& vi, const char* message, int size,
         int textcolor, int halocolor, int bgcolor);
+
     const AVS_Linkage* const __stdcall GetAVSLinkage();
+
+    // noThrow version of GetVar
     AVSValue __stdcall GetVarDef(const char* name, const AVSValue& def = AVSValue());
+
+    /*IScriptEnvironment2*/
+
+    // Generic system to ask for various properties
+    size_t  __stdcall GetProperty(AvsEnvProperty prop);
+
+    // Returns TRUE and the requested variable. If the method fails, returns FALSE and does not touch 'val'.
+    bool  __stdcall GetVar(const char* name, AVSValue *val) const;
+
+    // Return the value of the requested variable.
+    // If the variable was not found or had the wrong type,
+    // return the supplied default value.
+    bool __stdcall GetVar(const char* name, bool def) const;
+    int  __stdcall GetVar(const char* name, int def) const;
+    double  __stdcall GetVar(const char* name, double def) const;
+    const char*  __stdcall GetVar(const char* name, const char* def) const;
+
+    // Plugin functions
+    bool __stdcall LoadPlugin(const char* filePath, bool throwOnError, AVSValue *result);
+    void __stdcall AddAutoloadDir(const char* dirPath, bool toFront);
+    void __stdcall ClearAutoloadDirs();
+    void __stdcall AutoloadPlugins();
+    void __stdcall AddFunction(const char* name, const char* params, ApplyFunc apply, void* user_data, const char *exportVar);
+    bool __stdcall InternalFunctionExists(const char* name);
+
+    // Threading
+    void __stdcall SetFilterMTMode(const char* filter, MtMode mode, bool force); // If filter is "DEFAULT_MT_MODE", sets the default MT mode
+    IJobCompletion* __stdcall NewCompletion(size_t capacity);
+    void __stdcall ParallelJob(ThreadWorkerFuncPtr jobFunc, void* jobData, IJobCompletion* completion);
+
+    // This version of Invoke will return false instead of throwing NotFound().
+    bool __stdcall Invoke(AVSValue *result, const char* name, const AVSValue& args, const char* const* arg_names = 0);
+
+    // Support functions
+    void* __stdcall Allocate(size_t nBytes, size_t alignment, AvsAllocType type);
+    void __stdcall Free(void* ptr);
+
+    // These lines are needed so that we can overload the older functions from IScriptEnvironment.
+    using IScriptEnvironment::Invoke;
+    using IScriptEnvironment::AddFunction;
+    using IScriptEnvironment::GetVar;
+
+    PVideoFrame __stdcall SubframePlanarA(PVideoFrame src, int rel_offset, int new_pitch, int new_row_size,
+        int new_height, int rel_offsetU, int rel_offsetV, int new_pitchUV, int rel_offsetA);
+
 };
 
 class VSClip : public IClip {
@@ -101,41 +168,7 @@ private:
     int numSlowWarnings;
     VideoInfo vi;
 public:
-    VSClip(VSNodeRef *clip, int64_t numAudioSamples, int nChannels, int sampleType, FakeAvisynth *fakeEnv, const VSAPI *vsapi)
-        : clip(clip), fakeEnv(fakeEnv), vsapi(vsapi), numSlowWarnings(0) {
-        const ::VSVideoInfo *srcVi = vsapi->getVideoInfo(clip);
-        vi.width = srcVi->width;
-        vi.height = srcVi->height;
-
-        if (srcVi->format->id == pfYUV420P8)
-            vi.pixel_type = VideoInfo::CS_YV12;
-        else if (srcVi->format->id == pfYUV444P8)
-            vi.pixel_type = VideoInfo::CS_YV24;
-        else if (srcVi->format->id == pfYUV422P8)
-            vi.pixel_type = VideoInfo::CS_YV16;
-        else if (srcVi->format->id == pfYUV410P8)
-            vi.pixel_type = VideoInfo::CS_YUV9;
-        else if (srcVi->format->id == pfYUV411P8)
-            vi.pixel_type = VideoInfo::CS_YV411;
-        else if (srcVi->format->id == pfGray8)
-            vi.pixel_type = VideoInfo::CS_Y8;
-        else if (srcVi->format->id == pfCompatYUY2)
-            vi.pixel_type = VideoInfo::CS_YUY2;
-        else if (srcVi->format->id == pfCompatBGR32)
-            vi.pixel_type = VideoInfo::CS_BGR32;
-        else
-            vsapi->logMessage(mtFatal, "Bad colorspace");
-
-        vi.image_type = VideoInfo::IT_BFF;
-        vi.fps_numerator = int64ToIntS(srcVi->fpsNum);
-        vi.fps_denominator = int64ToIntS(srcVi->fpsDen);
-        vi.num_frames = srcVi->numFrames;
-        vi.audio_samples_per_second = 0;
-        vi.sample_type = sampleType;
-        vi.num_audio_samples = numAudioSamples;
-        vi.nchannels = nChannels;
-    }
-
+    VSClip(VSNodeRef *clip, FakeAvisynth *fakeEnv, const VSAPI *vsapi);
     PVideoFrame __stdcall GetFrame(int n, IScriptEnvironment *env);
     bool __stdcall GetParity(int n) {
         return true;
@@ -168,9 +201,6 @@ struct WrappedClip {
     std::vector<VSNodeRef *> preFetchClips;
     PClip clip;
     FakeAvisynth *fakeEnv;
-    int64_t magicalNumAudioSamplesForMVTools;
-    int magicalNChannelsForMVTools;
-    int magicalSampleTypeForMVTools;
     WrappedClip(const std::string &filterName, const PClip &clip, const std::vector<VSNodeRef *> &preFetchClips, const PrefetchInfo &prefetchInfo, FakeAvisynth *fakeEnv);
     ~WrappedClip() {
         clip = nullptr;

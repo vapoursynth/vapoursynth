@@ -1,4 +1,6 @@
 r40:
+removed the hack needed to support avisynth mvtools, the native mvtools has been superior for several years now and removing the hack makes avisynth filter creation much faster
+added avisynth+ compatibility
 only do prefetching in avfs with vs script when linear access is detected, fixes excessive prefetching that could make opening scripts very slow
 
 r39:

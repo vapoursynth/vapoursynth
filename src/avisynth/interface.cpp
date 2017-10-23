@@ -47,7 +47,8 @@
  *   or mitigating code elsewhere.
  */
 
-#include "avisynth.h"
+#include <avisynth.h>
+#include <avs/win.h>
 
 
 /**********************************************************************/
@@ -58,8 +59,8 @@
 bool VideoInfo::HasVideo() const { return (width!=0); }
 bool VideoInfo::HasAudio() const { return (audio_samples_per_second!=0); }
 bool VideoInfo::IsRGB() const { return !!(pixel_type&CS_BGR); }
-bool VideoInfo::IsRGB24() const { return (pixel_type&CS_BGR24)==CS_BGR24; } // Clear out additional properties
-bool VideoInfo::IsRGB32() const { return (pixel_type & CS_BGR32) == CS_BGR32 ; }
+bool VideoInfo::IsRGB24() const { return ((pixel_type & CS_BGR24) == CS_BGR24) && ((pixel_type & CS_Sample_Bits_Mask) == CS_Sample_Bits_8); } // Clear out additional properties
+bool VideoInfo::IsRGB32() const { return ((pixel_type & CS_BGR32) == CS_BGR32) && ((pixel_type & CS_Sample_Bits_Mask) == CS_Sample_Bits_8); }
 bool VideoInfo::IsYUV() const { return !!(pixel_type&CS_YUV ); }
 bool VideoInfo::IsYUY2() const { return (pixel_type & CS_YUY2) == CS_YUY2; }
 
@@ -75,7 +76,9 @@ bool VideoInfo::IsYV411() const { return (pixel_type & CS_PLANAR_MASK) == (CS_YV
 bool VideoInfo::IsColorSpace(int c_space) const { return ((pixel_type & c_space) == c_space); }
    Baked ********************/
 bool VideoInfo::IsColorSpace(int c_space) const {
-  return IsPlanar() ? ((pixel_type & CS_PLANAR_MASK) == (c_space & CS_PLANAR_FILTER)) : ((pixel_type & c_space) == c_space);
+  return IsPlanar() ? ((pixel_type & CS_PLANAR_MASK) == (c_space & CS_PLANAR_FILTER)) : 
+      ( ((pixel_type & ~CS_Sample_Bits_Mask & c_space) == (c_space & ~CS_Sample_Bits_Mask)) && // RGB got sample bits
+        ((pixel_type & CS_Sample_Bits_Mask) == (c_space & CS_Sample_Bits_Mask)) );
 }
 
 bool VideoInfo::Is(int property) const { return ((image_type & property)==property ); }
@@ -136,37 +139,51 @@ int VideoInfo::BytesPerChannelSample() const {
   case SAMPLE_FLOAT:
     return sizeof(SFLOAT);
   default:
-    _ASSERTE("Sample type not recognized!");
+    _ASSERTE("Audio sample type not recognized!");
     return 0;
   }
 }
 
 bool VideoInfo::IsVPlaneFirst() const {
-  return !IsY8() && IsPlanar() && (pixel_type & (CS_VPlaneFirst | CS_UPlaneFirst)) == CS_VPlaneFirst;   // Shouldn't use this
+  return (NumComponents() > 1) && IsPlanar() && (pixel_type & (CS_VPlaneFirst | CS_UPlaneFirst)) == CS_VPlaneFirst;   // Shouldn't use this
 }
 
 int VideoInfo::BytesFromPixels(int pixels) const {
-  return !IsY8() && IsPlanar() ? pixels << ((pixel_type>>CS_Shift_Sample_Bits) & 3) : pixels * (BitsPerPixel()>>3);   // For planar images, will return luma plane
+    const int componentSizes[8] = {1,2,4,0,0,2,2,2};
+    return (NumComponents() > 1) && IsPlanar() ? pixels * componentSizes[(pixel_type>>CS_Shift_Sample_Bits) & 7] : pixels * (BitsPerPixel()>>3);
+    // For planar images, will return luma plane
 }
 
 int VideoInfo::RowSize(int plane) const {
   const int rowsize = BytesFromPixels(width);
-
   switch (plane) {
     case PLANAR_U: case PLANAR_V:
-      return (!IsY8() && IsPlanar()) ? rowsize>>GetPlaneWidthSubsampling(plane) : 0;
+      return ((NumComponents() > 1) && IsPlanar() && !IsPlanarRGB() && !IsPlanarRGBA()) ? rowsize>>GetPlaneWidthSubsampling(plane) : 0;
 
     case PLANAR_U_ALIGNED: case PLANAR_V_ALIGNED:
-      return (!IsY8() && IsPlanar()) ? ((rowsize>>GetPlaneWidthSubsampling(plane))+FRAME_ALIGN-1)&(~(FRAME_ALIGN-1)) : 0; // Aligned rowsize
+      return ((NumComponents() > 1) && IsPlanar() && !IsPlanarRGB() && !IsPlanarRGBA()) ? ((rowsize>>GetPlaneWidthSubsampling(plane))+FRAME_ALIGN-1)&(~(FRAME_ALIGN-1)) : 0; // Aligned rowsize
 
-    case PLANAR_Y_ALIGNED:
+    case PLANAR_Y_ALIGNED: 
       return (rowsize+FRAME_ALIGN-1)&(~(FRAME_ALIGN-1)); // Aligned rowsize
+    
+    case PLANAR_R: case PLANAR_G: case PLANAR_B: 
+        return ((NumComponents() > 1) && (IsPlanarRGB() || IsPlanarRGBA())) ? rowsize : 0;
+
+    case PLANAR_R_ALIGNED: case PLANAR_G_ALIGNED: case PLANAR_B_ALIGNED:
+        return IsPlanarRGB() || IsPlanarRGBA() ? (rowsize+FRAME_ALIGN-1)&(~(FRAME_ALIGN-1)) : 0; // Aligned rowsize
+
+    case PLANAR_A:
+        return ((NumComponents() == 4) && IsPlanar()) ? rowsize : 0;
+
+    case PLANAR_A_ALIGNED: 
+        return ((NumComponents() == 4) && IsPlanar()) ? (rowsize+FRAME_ALIGN-1)&(~(FRAME_ALIGN-1)) : 0; // Aligned rowsize
+ 
   }
   return rowsize;
 }
 
 int VideoInfo::BMPSize() const {
-  if (!IsY8() && IsPlanar()) {
+  if ((NumComponents() > 1) && IsPlanar()) {
     // Y plane
     const int Ybytes  = ((RowSize(PLANAR_Y)+3) & ~3) * height;
     const int UVbytes = Ybytes >> (GetPlaneWidthSubsampling(PLANAR_U)+GetPlaneHeightSubsampling(PLANAR_U));
@@ -176,10 +193,10 @@ int VideoInfo::BMPSize() const {
 }
 
 int VideoInfo::GetPlaneWidthSubsampling(int plane) const {  // Subsampling in bitshifts!
-  if (plane == PLANAR_Y)  // No subsampling
+  if (plane == PLANAR_Y || plane == PLANAR_R || plane == PLANAR_G || plane == PLANAR_B || plane == PLANAR_A)  // No subsampling
     return 0;
-  if (IsY8())
-    throw AvisynthError("Filter error: GetPlaneWidthSubsampling not available on Y8 pixel type.");
+  if (NumComponents() == 1)
+    throw AvisynthError("Filter error: GetPlaneWidthSubsampling not available on greyscale pixel type.");
   if (plane == PLANAR_U || plane == PLANAR_V) {
     if (IsYUY2())
       return 1;
@@ -192,10 +209,10 @@ int VideoInfo::GetPlaneWidthSubsampling(int plane) const {  // Subsampling in bi
 }
 
 int VideoInfo::GetPlaneHeightSubsampling(int plane) const {  // Subsampling in bitshifts!
-  if (plane == PLANAR_Y)  // No subsampling
+  if (plane == PLANAR_Y || plane == PLANAR_R || plane == PLANAR_G || plane == PLANAR_B || plane == PLANAR_A)  // No subsampling
     return 0;
-  if (IsY8())
-    throw AvisynthError("Filter error: GetPlaneHeightSubsampling not available on Y8 pixel type.");
+  if (NumComponents() == 1)
+    throw AvisynthError("Filter error: GetPlaneHeightSubsampling not available on greyscale pixel type.");
   if (plane == PLANAR_U || plane == PLANAR_V) {
     if (IsYUY2())
       return 0;
@@ -209,6 +226,11 @@ int VideoInfo::GetPlaneHeightSubsampling(int plane) const {  // Subsampling in b
 
 int VideoInfo::BitsPerPixel() const {
 // Lookup Interleaved, calculate PLANAR's
+// Remark:
+// - total bitsize for interleaved/packed types, e.g. RGB48 = 48 = 3x16
+// - byte size corrected with U-V subsampling factor for Planar YUV/YUVA
+// - external softwares may use it for calculating buffer size
+// - use BitsPerComponent instead for returning the pixel component format 8/10/12/14/16/32 bits
     switch (pixel_type) {
       case CS_BGR24:
         return 24;
@@ -218,14 +240,23 @@ int VideoInfo::BitsPerPixel() const {
         return 16;
       case CS_Y8:
         return 8;
-//    case CS_Y16:
-//      return 16;
-//    case CS_Y32:
-//      return 32;
+      case CS_Y10:
+      case CS_Y12:
+      case CS_Y14:
+      case CS_Y16: // AVS16
+        return 16;
+      case CS_Y32: 
+        return 32;
+      case CS_BGR48:
+        return 48;
+      case CS_BGR64:
+        return 64;
     }
     if (IsPlanar()) {
-      const int S = IsYUV() ? GetPlaneWidthSubsampling(PLANAR_U) + GetPlaneHeightSubsampling(PLANAR_U) : 0;
-      return ( ((1<<S)+2) * (8<<((pixel_type>>CS_Shift_Sample_Bits) & 3)) ) >> S;
+      const int componentSizes[8] = {1,2,4,0,0,2,2,2};
+      const int S = (IsYUV() || IsYUVA()) ? GetPlaneWidthSubsampling(PLANAR_U) + GetPlaneHeightSubsampling(PLANAR_U) : 0; // planar RGBA: no subsampling
+      const int fullSizePlaneCount = IsYUVA() || IsPlanarRGBA() ? 2 : 1; // alpha plane is always full size
+      return (((fullSizePlaneCount << S) + 2) * (componentSizes[(pixel_type >> CS_Shift_Sample_Bits) & 7]) * 8) >> S;
     }
     return 0;
 }
@@ -282,6 +313,75 @@ bool VideoInfo::IsSameColorspace(const VideoInfo& vi) const {
   return FALSE;
 }
 
+int VideoInfo::NumComponents() const {
+
+  switch (pixel_type) {
+  case CS_UNKNOWN:
+     return 0;
+  case CS_RAW32:
+  case CS_Y8:
+  case CS_Y10:
+  case CS_Y12:
+  case CS_Y14:
+  case CS_Y16:
+  case CS_Y32:
+    return 1;
+  case CS_BGR32:
+  case CS_BGR64:
+    return 4; // these are not planar but return the count
+  default:
+      return (IsYUVA() || IsPlanarRGBA()) ? 4 : 3;
+      // 3: YUV, planar RGB, 24/48 bit RGB
+      // 4: YUVA and PlanarRGBA
+  }
+}
+
+int VideoInfo::ComponentSize() const {
+// occupied bytes per one pixel component
+  if(IsPlanar()) {
+    const int componentSizes[8] = {1,2,4,0,0,2,2,2};
+    return componentSizes[(pixel_type >> CS_Shift_Sample_Bits) & 7];
+  }
+  switch (pixel_type) {
+  case CS_UNKNOWN:
+    return 0;
+  case CS_RAW32:
+    return 4;
+  case CS_BGR48:
+  case CS_BGR64:
+    return 2;
+  default: // YUY2, packed 8 bit BGRs
+    return 1;
+  }
+}
+
+int VideoInfo::BitsPerComponent() const {
+// unlike BitsPerPixel, this returns the real
+// component size as 8/10/12/14/16/32 bit
+    if (pixel_type == CS_YUY2)
+        return 8;
+    else if (pixel_type == CS_RAW32)
+        return 32;
+    // planar YUV/RGB and packed RGB
+    const int componentBitSizes[8] = {8,16,32,0,0,10,12,14};
+    return componentBitSizes[(pixel_type >> CS_Shift_Sample_Bits) & 7];
+}
+
+// bit-depth independent helper functions instead of 8 bit specific IsYV24/16/12/8
+bool VideoInfo::Is444()  const { return ((pixel_type & CS_PLANAR_MASK & ~CS_Sample_Bits_Mask) == (CS_GENERIC_YUV444 & CS_PLANAR_FILTER)) ||
+                                        ((pixel_type & CS_PLANAR_MASK & ~CS_Sample_Bits_Mask) == (CS_GENERIC_YUVA444 & CS_PLANAR_FILTER)) ; }
+bool VideoInfo::Is422()  const { return ((pixel_type & CS_PLANAR_MASK & ~CS_Sample_Bits_Mask) == (CS_GENERIC_YUV422 & CS_PLANAR_FILTER)) ||
+                                        ((pixel_type & CS_PLANAR_MASK & ~CS_Sample_Bits_Mask) == (CS_GENERIC_YUVA422 & CS_PLANAR_FILTER)); }
+bool VideoInfo::Is420()  const { return ((pixel_type & CS_PLANAR_MASK & ~CS_Sample_Bits_Mask) == (CS_GENERIC_YUV420 & CS_PLANAR_FILTER)) ||
+                                        ((pixel_type & CS_PLANAR_MASK & ~CS_Sample_Bits_Mask) == (CS_GENERIC_YUVA420 & CS_PLANAR_FILTER)); }
+bool VideoInfo::IsY()       const { return (pixel_type & CS_PLANAR_MASK & ~CS_Sample_Bits_Mask) == (CS_GENERIC_Y      & CS_PLANAR_FILTER); }
+bool VideoInfo::IsRGB48()   const { return ((pixel_type & CS_BGR24) == CS_BGR24) && ((pixel_type & CS_Sample_Bits_Mask) == CS_Sample_Bits_16); } // Clear out additional properties
+bool VideoInfo::IsRGB64()   const { return ((pixel_type & CS_BGR32) == CS_BGR32) && ((pixel_type & CS_Sample_Bits_Mask) == CS_Sample_Bits_16); }
+bool VideoInfo::IsYUVA() const { return !!(pixel_type&CS_YUVA ); }
+bool VideoInfo::IsPlanarRGB() const { return !!(pixel_type&CS_PLANAR) && !!(pixel_type&CS_BGR) && !!(pixel_type&CS_RGB_TYPE); }
+bool VideoInfo::IsPlanarRGBA() const { return !!(pixel_type&CS_PLANAR) && !!(pixel_type&CS_BGR) && !!(pixel_type&CS_RGBA_TYPE); }
+
+
 // end struct VideoInfo
 
 /**********************************************************************/
@@ -293,7 +393,7 @@ const BYTE* VideoFrameBuffer::GetReadPtr() const { return data; }
 BYTE* VideoFrameBuffer::GetWritePtr() { ++sequence_number; return data; }
    Baked ********************/
 BYTE* VideoFrameBuffer::GetWritePtr() { InterlockedIncrement(&sequence_number); return data; }
-size_t VideoFrameBuffer::GetDataSize() const { return data_size; }
+int VideoFrameBuffer::GetDataSize() const { return data_size; }
 int VideoFrameBuffer::GetSequenceNumber() const { return sequence_number; }
 int VideoFrameBuffer::GetRefcount() const { return refcount; }
 
@@ -304,8 +404,8 @@ int VideoFrameBuffer::GetRefcount() const { return refcount; }
 // class VideoFrame
 
 /* Baked ********************
-void VideoFrame::AddRef() { InterlockedIncrement((long *)&refcount); }
-void VideoFrame::Release() { if (refcount==1) InterlockedDecrement(&vfb->refcount); InterlockedDecrement((long *)&refcount); }
+void VideoFrame::AddRef() { InterlockedIncrement((int *)&refcount); }
+void VideoFrame::Release() { if (refcount==1) InterlockedDecrement(&vfb->refcount); InterlockedDecrement((int *)&refcount); }
 
 int VideoFrame::GetPitch() const { return pitch; }
 int VideoFrame::GetPitch(int plane) const { switch (plane) {case PLANAR_U: case PLANAR_V: return pitchUV;} return pitch; }
@@ -359,7 +459,7 @@ void VideoFrame::Release() {
     InterlockedDecrement(&_vfb->refcount);
 }
 
-int VideoFrame::GetPitch(int plane) const { switch (plane) {case PLANAR_U: case PLANAR_V: return pitchUV;} return pitch; }
+int VideoFrame::GetPitch(int plane) const { switch (plane) { case PLANAR_U: case PLANAR_V: return pitchUV; case PLANAR_A: return pitchA; } return pitch; }
 
 int VideoFrame::GetRowSize(int plane) const {
   switch (plane) {
@@ -373,18 +473,45 @@ int VideoFrame::GetRowSize(int plane) const {
     }
     else return 0;
   case PLANAR_ALIGNED: case PLANAR_Y_ALIGNED:
+  case PLANAR_R_ALIGNED: case PLANAR_G_ALIGNED: case PLANAR_B_ALIGNED:
+    {
     const int r = (row_size+FRAME_ALIGN-1)&(~(FRAME_ALIGN-1)); // Aligned rowsize
     if (r<=pitch)
       return r;
     return row_size;
   }
-  return row_size; }
+  case PLANAR_A:
+    if (pitchA) return row_sizeA; else return 0;
+  case PLANAR_A_ALIGNED:
+    if(pitchA) {
+      const int r = (row_sizeA+FRAME_ALIGN-1)&(~(FRAME_ALIGN-1)); // Aligned rowsize
+      if (r<=pitchA)
+        return r;
+      return row_sizeA;
+    }
+    else return 0;
+  }
+  return row_size; // PLANAR_Y, PLANAR_G, PLANAR_B, PLANAR_R
+}
 
-int VideoFrame::GetHeight(int plane) const {  switch (plane) {case PLANAR_U: case PLANAR_V: if (pitchUV) return heightUV; return 0;} return height; }
+int VideoFrame::GetHeight(int plane) const {
+  switch (plane) {
+  case PLANAR_U: case PLANAR_V: if (pitchUV) return heightUV; return 0;
+  case PLANAR_A: if (pitchA) return height; return 0;
+  }
+  return height;
+}
 
 // Generally you should not be using these two
 VideoFrameBuffer* VideoFrame::GetFrameBuffer() const { return vfb; }
-size_t VideoFrame::GetOffset(int plane) const { switch (plane) {case PLANAR_U: return offsetU;case PLANAR_V: return offsetV;default: return offset;}; }
+int VideoFrame::GetOffset(int plane) const { 
+    switch (plane) {
+    case PLANAR_U: case PLANAR_B: return offsetU; // G is first. Then B,R order like U,V
+    case PLANAR_V: case PLANAR_R: return offsetV;
+    case PLANAR_A: return offsetA;
+    default: return offset; // PLANAR Y, PLANAR_G
+    }; 
+}
 
 const BYTE* VideoFrame::GetReadPtr(int plane) const { return vfb->GetReadPtr() + GetOffset(plane); }
 
@@ -397,7 +524,7 @@ bool VideoFrame::IsWritable() const {
 }
 
 BYTE* VideoFrame::GetWritePtr(int plane) const {
-  if (!plane || plane == PLANAR_Y) {
+  if (!plane || plane == PLANAR_Y || plane == PLANAR_G) { // planar RGB order GBR
     if (vfb->GetRefcount()>1) {
       _ASSERT(FALSE);
 //        throw AvisynthError("Internal Error - refcount was more than one!");
@@ -411,7 +538,7 @@ BYTE* VideoFrame::GetWritePtr(int plane) const {
 VideoFrame::~VideoFrame() { InterlockedDecrement(&vfb->refcount); }
    Baked ********************/
 VideoFrame::~VideoFrame()     { DESTRUCTOR(); }
-void VideoFrame::DESTRUCTOR() { delete vfb; /*is this right? called Release() before*/ }
+void VideoFrame::DESTRUCTOR() { Release(); }
 
 // end class VideoFrame
 
@@ -420,8 +547,8 @@ void VideoFrame::DESTRUCTOR() { delete vfb; /*is this right? called Release() be
 // class IClip
 
 /* Baked ********************
-  void IClip::AddRef() { InterlockedIncrement((long *)&refcnt); }
-  void IClip::Release() { InterlockedDecrement((long *)&refcnt); if (!refcnt) delete this; }
+  void IClip::AddRef() { InterlockedIncrement((int *)&refcnt); }
+  void IClip::Release() { InterlockedDecrement((int *)&refcnt); if (!refcnt) delete this; }
    Baked ********************/
 void IClip::AddRef() { InterlockedIncrement(&refcnt); }
 void IClip::Release() { if (!InterlockedDecrement(&refcnt)) delete this; }
@@ -506,40 +633,89 @@ void PVideoFrame::DESTRUCTOR()                           { if (p) p->Release(); 
 // class AVSValue
 
 AVSValue::AVSValue()                                     { CONSTRUCTOR0(); }
-void AVSValue::CONSTRUCTOR0()                            { type = 'v'; }
+void AVSValue::CONSTRUCTOR0()                            { type = 'v'; array_size = 0; clip = NULL; }
                                                         
 AVSValue::AVSValue(IClip* c)                             { CONSTRUCTOR1(c); }
-void AVSValue::CONSTRUCTOR1(IClip* c)                    { type = 'c'; clip = c; if (c) c->AddRef(); }
+void AVSValue::CONSTRUCTOR1(IClip* c)                    { type = 'c'; array_size = 0; clip = c; if (c) c->AddRef(); }
                                                         
 AVSValue::AVSValue(const PClip& c)                       { CONSTRUCTOR2(c); }
-void AVSValue::CONSTRUCTOR2(const PClip& c)              { type = 'c'; clip = c.GetPointerWithAddRef(); }
+void AVSValue::CONSTRUCTOR2(const PClip& c)              { type = 'c'; array_size = 0; clip = c.GetPointerWithAddRef(); }
                                                         
 AVSValue::AVSValue(bool b)                               { CONSTRUCTOR3(b); }
-void AVSValue::CONSTRUCTOR3(bool b)                      { type = 'b'; boolean = b; }
+void AVSValue::CONSTRUCTOR3(bool b)                      { type = 'b'; array_size = 0; clip = NULL; boolean = b; }
                                                         
 AVSValue::AVSValue(int i)                                { CONSTRUCTOR4(i); }
-void AVSValue::CONSTRUCTOR4(int i)                       { type = 'i'; integer = i; }
+void AVSValue::CONSTRUCTOR4(int i)                       { type = 'i'; array_size = 0; clip = NULL; integer = i; }
                                                         
 AVSValue::AVSValue(float f)                              { CONSTRUCTOR5(f); }
-void AVSValue::CONSTRUCTOR5(float f)                     { type = 'f'; floating_pt = f; }
-                                                        
+void AVSValue::CONSTRUCTOR5(float f)                     { type = 'f'; array_size = 0; clip = NULL; floating_pt = f; }
+
 AVSValue::AVSValue(double f)                             { CONSTRUCTOR6(f); }
-void AVSValue::CONSTRUCTOR6(double f)                    { type = 'f'; floating_pt = float(f); }
+void AVSValue::CONSTRUCTOR6(double f)                    { type = 'f'; array_size = 0; clip = NULL; floating_pt = float(f); }
                                                         
 AVSValue::AVSValue(const char* s)                        { CONSTRUCTOR7(s); }
-void AVSValue::CONSTRUCTOR7(const char* s)               { type = 's'; string = s; }
+void AVSValue::CONSTRUCTOR7(const char* s)               { type = 's'; array_size = 0; string = s; }
 
 /* Baked ********************
 AVSValue::AVSValue(const AVSValue* a, int size) { type = 'a'; array = a; array_size = size; }
    Baked ********************/
+AVSValue::AVSValue(const AVSValue& a, int size)          { CONSTRUCTOR8(&a, size); }
 AVSValue::AVSValue(const AVSValue* a, int size)          { CONSTRUCTOR8(a, size); }
-void AVSValue::CONSTRUCTOR8(const AVSValue* a, int size) { type = 'a'; array = a; array_size = (short)size; }
+void AVSValue::CONSTRUCTOR8(const AVSValue* a, int size)
+{
+  type = 'a';
+  array_size = (short)size;
+#ifndef NEW_AVSVALUE
+  array = a;
+#else
+  if (a == nullptr || size == 0) {
+    array = nullptr;
+  }
+  else {
+    array = new AVSValue[size];
+    for (int i = 0; i < size; i++) {
+      const_cast<AVSValue *>(array)[i].Assign(&a[i], true); // init from source
+    }
+  }
+#endif
+}
 
 AVSValue::AVSValue(const AVSValue& v)                    { CONSTRUCTOR9(v); }
 void AVSValue::CONSTRUCTOR9(const AVSValue& v)           { Assign(&v, true); }
-                                                        
+
+#ifdef NEW_AVSVALUE
+AVSValue::AVSValue(const AVSValue& v, bool c_arrays) { CONSTRUCTOR10(v, c_arrays); }
+void AVSValue::CONSTRUCTOR10(const AVSValue& v, bool c_arrays)  { Assign2(&v, true, c_arrays); }
+#endif
+
+#ifndef NEW_AVSVALUE
 AVSValue::~AVSValue()                                    { DESTRUCTOR(); }
-void AVSValue::DESTRUCTOR()                              { if (IsClip() && clip) clip->Release(); }
+void AVSValue::DESTRUCTOR()
+{
+  if (IsClip() && clip)
+    clip->Release();
+}
+#else
+AVSValue::~AVSValue()                                    { DESTRUCTOR(); }
+void AVSValue::DESTRUCTOR()
+{
+  if (IsClip() && clip)
+    clip->Release();
+  if (IsArray() && array_size>0) {
+    // array_size < 0: marked as C array internally, don't free elements
+    delete[] array; // calls AVSValue destructors for all elements
+    array = nullptr;
+  }
+}
+
+void AVSValue::MarkArrayAsC()
+{
+  // negative value signs to destructor
+  if(array_size > 0)
+    array_size = -array_size;
+}
+
+#endif
 
 AVSValue& AVSValue::operator=(const AVSValue& v)         { return OPERATOR_ASSIGN(v); }
 AVSValue& AVSValue::OPERATOR_ASSIGN(const AVSValue& v)   { Assign(&v, false); return *this; }
@@ -573,6 +749,7 @@ double AVSValue::AsFloat() const { _ASSERTE(IsFloat()); return IsInt()?integer:f
 
 double AVSValue::AsFloat1() const { _ASSERTE(IsFloat()); return IsInt()?integer:floating_pt; }
 double AVSValue::AsFloat() const { return AsFloat1(); }
+float AVSValue::AsFloatf() const { return float( AsFloat1() ); }
 
 
 bool AVSValue::AsBool2(bool def) const { _ASSERTE(IsBool()||!Defined()); return IsBool() ? boolean : def; }
@@ -588,11 +765,12 @@ double AVSValue::AsDblDef(double def) const { _ASSERTE(IsFloat()||!Defined()); r
 
 double AVSValue::AsFloat2(float def) const { _ASSERTE(IsFloat()||!Defined()); return IsInt() ? integer : type=='f' ? floating_pt : def; }
 double AVSValue::AsFloat(float def) const { return AsFloat2(def); }
+float AVSValue::AsFloatf(float def) const { return float( AsFloat2(def) ); }
 
 const char* AVSValue::AsString2(const char* def) const { _ASSERTE(IsString()||!Defined()); return IsString() ? string : def; }
 const char* AVSValue::AsString(const char* def) const { return AVSValue::AsString2(def); }
 
-int AVSValue::ArraySize() const { _ASSERTE(IsArray()); return IsArray()?array_size:1; }
+int AVSValue::ArraySize() const { _ASSERTE(IsArray()) ; return IsArray() ? array_size : 1; }
 
 const AVSValue& AVSValue::operator[](int index) const     { return OPERATOR_INDEX(index); }
 const AVSValue& AVSValue::OPERATOR_INDEX(int index) const {
@@ -600,16 +778,90 @@ const AVSValue& AVSValue::OPERATOR_INDEX(int index) const {
   return (IsArray() && index>=0 && index<array_size) ? array[index] : *this;
 }
 
+#ifndef NEW_AVSVALUE
 void AVSValue::Assign(const AVSValue* src, bool init) {
   if (src->IsClip() && src->clip)
     src->clip->AddRef();
   if (!init && IsClip() && clip)
     clip->Release();
-  // make sure this copies the whole struct!
-  array_size = src->array_size;
-  type = src->type;
-  string = src->string;
+
+  this->type = src->type;
+  this->array_size = src->array_size;
+  this->clip = src->clip; // "clip" is the largest member of the union, making sure we copy everything
 }
+#else
+// this Assign copies array elements for new AVSVALUE handling
+// For C interface, we use Assign2 through CONSTRUCTOR10
+void AVSValue::Assign(const AVSValue* src, bool init) {
+  Assign2(src, init, false);
+}
+
+void AVSValue::Assign2(const AVSValue* src, bool init, bool c_arrays) {
+  if (src->IsClip() && src->clip)
+    src->clip->AddRef();
+  if (c_arrays) {
+    // don't free array members!
+    if (!init && IsClip() && clip)
+      clip->Release();
+
+    this->type = src->type;
+    this->array_size = src->array_size;
+    this->clip = src->clip; // "clip" is the largest member of the union, making sure we copy everything
+    return;
+  }
+  bool shouldRelease = !init && IsClip() && clip;
+  IClip *prev_clip_pointer = (IClip*)((void*)clip); // release at the end
+
+  bool prevIsArray = IsArray();
+  bool nextIsArray = src->IsArray();
+
+  AVSValue* tmp;
+
+  // save existing
+  short tmp_type = src->type;
+  short tmp_array_size = src->array_size;
+  IClip *tmp_pointer = (IClip*)((void*)src->clip); // covers whole union
+
+  bool needtmpcopy = nextIsArray && tmp_array_size>0;
+  // make backup, avoid args = args[0] case
+  if (needtmpcopy)
+  {
+    tmp = new AVSValue[tmp_array_size];
+    for (int i = 0; i < tmp_array_size; i++) {
+      tmp[i].Assign(&src->array[i], true); // init from source
+    }
+  }
+
+  // remove existing
+  if (prevIsArray && !init)
+  {
+    // same as in destructor
+    if (array_size>0) {
+      delete[] array; // calls destructor of AVSValue elements
+      array = nullptr;
+    }
+  }
+
+  if (nextIsArray) {
+    // copy backup source array
+    if (needtmpcopy)
+      array = tmp; // tmp already allocated and filled
+    else
+      array = nullptr;
+    this->type = tmp_type;
+    this->array_size = tmp_array_size;
+  }
+  else {
+    // using tmp_pointer, because if there were array before, that got free'd before
+    // value = value[x] case where source value[x] is not array
+    this->clip = tmp_pointer; // "clip" is the largest member of the union, making sure we copy everything
+    this->type = tmp_type;
+    this->array_size = tmp_array_size; // n/a
+  }
+  if (shouldRelease)
+    prev_clip_pointer->Release();
+}
+#endif
 
 // end class AVSValue
 
@@ -617,7 +869,7 @@ void AVSValue::Assign(const AVSValue* src, bool init) {
 
 static const AVS_Linkage avs_linkage = {    // struct AVS_Linkage {
 
-  sizeof(AVS_Linkage),                      //   size_t Size;
+  sizeof(AVS_Linkage),                      //   int Size;
 
 /***************************************************************************************************************/
 // struct VideoInfo
@@ -668,7 +920,7 @@ static const AVS_Linkage avs_linkage = {    // struct AVS_Linkage {
 // class VideoFrameBuffer
   &VideoFrameBuffer::GetReadPtr,            //   const BYTE* (VideoFrameBuffer::*VFBGetReadPtr)() const;
   &VideoFrameBuffer::GetWritePtr,           //   BYTE*       (VideoFrameBuffer::*VFBGetWritePtr)();
-  &VideoFrameBuffer::GetDataSize,           //   size_t      (VideoFrameBuffer::*GetDataSize)() const;
+  &VideoFrameBuffer::GetDataSize,           //   int         (VideoFrameBuffer::*GetDataSize)() const;
   &VideoFrameBuffer::GetSequenceNumber,     //   int         (VideoFrameBuffer::*GetSequenceNumber)() const;
   &VideoFrameBuffer::GetRefcount,           //   int         (VideoFrameBuffer::*GetRefcount)() const;
 // end class VideoFrameBuffer
@@ -678,7 +930,7 @@ static const AVS_Linkage avs_linkage = {    // struct AVS_Linkage {
   &VideoFrame::GetRowSize,                  //   int               (VideoFrame::*GetRowSize)(int plane) const;
   &VideoFrame::GetHeight,                   //   int               (VideoFrame::*GetHeight)(int plane) const;
   &VideoFrame::GetFrameBuffer,              //   VideoFrameBuffer* (VideoFrame::*GetFrameBuffer)() const;
-  &VideoFrame::GetOffset,                   //   size_t            (VideoFrame::*GetOffset)(int plane) const;
+  &VideoFrame::GetOffset,                   //   int               (VideoFrame::*GetOffset)(int plane) const;
   &VideoFrame::GetReadPtr,                  //   const BYTE*       (VideoFrame::*VFGetReadPtr)(int plane) const;
   &VideoFrame::IsWritable,                  //   bool              (VideoFrame::*IsWritable)() const;
   &VideoFrame::GetWritePtr,                 //   BYTE*             (VideoFrame::*VFGetWritePtr)(int plane) const;
@@ -740,9 +992,59 @@ static const AVS_Linkage avs_linkage = {    // struct AVS_Linkage {
   &AVSValue::AsString2,                     //   const char*     (AVSValue::*AsString2)(const char* def) const;
   &AVSValue::ArraySize,                     //   int             (AVSValue::*ArraySize)() const;
 // end class AVSValue
+/**********************************************************************/
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+  NULL,                                     //   reserved for AVS classic
+/**********************************************************************/
+  // AviSynth+ additions
+  &VideoInfo::NumComponents,                //   int     (VideoInfo::*NumChannels)() const;
+  &VideoInfo::ComponentSize,                //   int     (VideoInfo::*ComponentSize)() const;
+  &VideoInfo::BitsPerComponent,             //   int     (VideoInfo::*BitsPerComponent)() const;
+  &VideoInfo::Is444,                        //   bool    (VideoInfo::*Is444)()  const;
+  &VideoInfo::Is422,                        //   bool    (VideoInfo::*Is422)()  const;
+  &VideoInfo::Is420,                        //   bool    (VideoInfo::*Is420)()  const;
+  &VideoInfo::IsY,                          //   bool    (VideoInfo::*IsY)()    const;
+  &VideoInfo::IsRGB48,                      //   bool    (VideoInfo::*IsRGB48)()  const;
+  &VideoInfo::IsRGB64,                      //   bool    (VideoInfo::*IsRGB64)()  const;
+  &VideoInfo::IsYUVA,                       //   bool    (VideoInfo::*IsYUVA)()  const;
+  &VideoInfo::IsPlanarRGB,                  //   bool    (VideoInfo::*IsPlanarRGB)()  const;
+  &VideoInfo::IsPlanarRGBA,                 //   bool    (VideoInfo::*IsPlanarRGBA)()  const;
+// this part should be identical with struct AVS_Linkage in avisynth.h
+
+/**********************************************************************/
 };                                          // }
 
-/* extern __declspec(dllexport) */ const AVS_Linkage* const AVS_linkage = &avs_linkage;
+extern __declspec(dllexport) const AVS_Linkage* const AVS_linkage = &avs_linkage;
 
 
 /**********************************************************************/

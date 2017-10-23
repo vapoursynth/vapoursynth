@@ -23,8 +23,103 @@
 #include "avisynth_compat.h"
 #include <codecvt>
 #include <algorithm>
+#include <cstdarg>
+
+#define NOMINMAX
+#include <Windows.h>
+
+extern const AVS_Linkage* const AVS_linkage;
 
 namespace AvisynthCompat {
+
+static int VSFormatToAVSPixelType(const VSFormat *fi) {
+    if (fi->id == pfCompatBGR32)
+        return VideoInfo::CS_BGR32;
+    else if (fi->id == pfCompatYUY2)
+        return VideoInfo::CS_YUY2;
+    else if (fi->id == pfYUV444P8)
+        return VideoInfo::CS_YV24;
+    else if (fi->id == pfYUV422P8)
+        return VideoInfo::CS_YV16;
+    else if (fi->id == pfYUV420P8)
+        return VideoInfo::CS_YV12;
+    else if (fi->id == pfYUV410P8)
+        return VideoInfo::CS_YUV9;
+    else if (fi->id == pfYUV411P8)
+        return VideoInfo::CS_YV411;
+    else if (fi->id == pfGray8)
+        return VideoInfo::CS_Y8;
+    else if (fi->id == pfYUV444P10)
+        return VideoInfo::CS_YUV444P10;
+    else if (fi->id == pfYUV422P10)
+        return VideoInfo::CS_YUV422P10;
+    else if (fi->id == pfYUV420P10)
+        return VideoInfo::CS_YUV420P10;
+    else if (fi->bitsPerSample == 10 && fi->colorFamily == cmGray && fi->sampleType == stInteger)
+        return VideoInfo::CS_Y10;
+    else if (fi->id == pfYUV444P12)
+        return VideoInfo::CS_YUV444P12;
+    else if (fi->id == pfYUV422P12)
+        return VideoInfo::CS_YUV422P12;
+    else if (fi->id == pfYUV420P12)
+        return VideoInfo::CS_YUV420P12;
+    else if (fi->bitsPerSample == 12 && fi->colorFamily == cmGray && fi->sampleType == stInteger)
+        return VideoInfo::CS_Y12;
+    else if (fi->id == pfYUV444P14)
+        return VideoInfo::CS_YUV444P14;
+    else if (fi->id == pfYUV422P14)
+        return VideoInfo::CS_YUV422P14;
+    else if (fi->id == pfYUV420P14)
+        return VideoInfo::CS_YUV420P14;
+    else if (fi->bitsPerSample == 14 && fi->colorFamily == cmGray && fi->sampleType == stInteger)
+        return VideoInfo::CS_Y14;
+    else if (fi->id == pfYUV444P16)
+        return VideoInfo::CS_YUV444P16;
+    else if (fi->id == pfYUV422P16)
+        return VideoInfo::CS_YUV422P16;
+    else if (fi->id == pfYUV420P16)
+        return VideoInfo::CS_YUV420P16;
+    else if (fi->id == pfGray16)
+        return VideoInfo::CS_Y16;
+    else if (fi->id == pfYUV444PS)
+        return VideoInfo::CS_YUV444PS;
+    else if (fi->bitsPerSample == 32 && fi->colorFamily == cmYUV && fi->sampleType == stFloat && fi->subSamplingH == 0 && fi->subSamplingW == 1)
+        return VideoInfo::CS_YUV422PS;
+    else if (fi->bitsPerSample == 32 && fi->colorFamily == cmYUV && fi->sampleType == stFloat && fi->subSamplingH == 1 && fi->subSamplingW == 1)
+        return VideoInfo::CS_YUV420PS;
+    else if (fi->id == pfGrayS)
+        return VideoInfo::CS_Y32;
+    else if (fi->id == pfRGB24)
+        return VideoInfo::CS_RGBP;
+    else if (fi->id == pfRGB30)
+        return VideoInfo::CS_RGBP10;
+    else if (fi->bitsPerSample == 12 && fi->colorFamily == cmRGB)
+        return VideoInfo::CS_RGBP12;
+    else if (fi->bitsPerSample == 14 && fi->colorFamily == cmRGB)
+        return VideoInfo::CS_RGBP14;
+    else if (fi->id == pfRGB48)
+        return VideoInfo::CS_RGBP16;
+    else if (fi->id == pfGrayS)
+        return VideoInfo::CS_Y32;
+    else
+        return 0;
+}
+
+static const VSFormat *AVSPixelTypeToVSFormat(const VideoInfo &vi, VSCore *core, const VSAPI *vsapi) {
+    if (vi.IsYUY2())
+        return vsapi->getFormatPreset(pfCompatYUY2, core);
+    else if (vi.IsRGB32())
+        return vsapi->getFormatPreset(pfCompatBGR32, core);
+
+    if (vi.IsPlanar()) {
+        bool hasSubSampling = vi.IsYUV();
+        int colorspace = vi.IsYUV() ? cmYUV : (vi.IsRGB() ? cmRGB : (vi.IsY() ? cmGray : 0));
+        if (colorspace)
+            return vsapi->registerFormat(colorspace, vi.BitsPerComponent() == 32 ? stFloat : stInteger, vi.BitsPerComponent(), hasSubSampling ? vi.GetPlaneWidthSubsampling(PLANAR_U) : 0, hasSubSampling ? vi.GetPlaneHeightSubsampling(PLANAR_U) : 0, core);
+    }
+
+    return nullptr;
+}
 
 const VSFrameRef *FakeAvisynth::avsToVSFrame(VideoFrame *frame) {
     const VSFrameRef *ref = nullptr;
@@ -65,14 +160,23 @@ FakeAvisynth::~FakeAvisynth() {
     ownedFrames.clear();
 }
 
-long FakeAvisynth::GetCPUFlags() {
+int FakeAvisynth::GetCPUFlags() {
     CPUFeatures cpuf;
     getCPUFeatures(&cpuf);
-    long flags = CPUF_FPU | CPUF_MMX | CPUF_INTEGER_SSE | CPUF_SSE | CPUF_SSE2; // minimum to run VS
-    if (cpuf.sse3)   flags |= CPUF_SSE3;
-    if (cpuf.ssse3)  flags |= CPUF_SSSE3;
-    if (cpuf.sse4_1) flags |= CPUF_SSE4_1;
-    if (cpuf.sse4_2) flags |= CPUF_SSE4_2;
+    int flags = CPUF_FPU | CPUF_MMX | CPUF_INTEGER_SSE | CPUF_SSE | CPUF_SSE2; // minimum to run VS
+    if (cpuf.sse3)      flags |= CPUF_SSE3;
+    if (cpuf.ssse3)     flags |= CPUF_SSSE3;
+    if (cpuf.sse4_1)    flags |= CPUF_SSE4_1;
+    if (cpuf.sse4_2)    flags |= CPUF_SSE4_2;
+    if (cpuf.avx)       flags |= CPUF_AVX;
+    if (cpuf.avx2)      flags |= CPUF_AVX2;
+    if (cpuf.fma3)      flags |= CPUF_FMA3;
+    if (cpuf.f16c)      flags |= CPUF_F16C;
+    if (cpuf.avx512_f)  flags |= CPUF_AVX512F;
+    if (cpuf.avx512_bw) flags |= CPUF_AVX512BW;
+    if (cpuf.avx512_dq) flags |= CPUF_AVX512DQ;
+    if (cpuf.avx512_cd) flags |= CPUF_AVX512CD;
+    if (cpuf.avx512_vl) flags |= CPUF_AVX512VL;
     return flags;
 }
 
@@ -135,6 +239,24 @@ std::string FakeAvisynth::charToFilterArgumentString(char c) {
     }
 }
 
+VSClip::VSClip(VSNodeRef *clip, FakeAvisynth *fakeEnv, const VSAPI *vsapi)
+    : clip(clip), fakeEnv(fakeEnv), vsapi(vsapi), numSlowWarnings(0) {
+    const ::VSVideoInfo *srcVi = vsapi->getVideoInfo(clip);
+    vi = {};
+    vi.width = srcVi->width;
+    vi.height = srcVi->height;
+
+    vi.pixel_type = VSFormatToAVSPixelType(srcVi->format);
+    if (!vi.pixel_type)
+        vsapi->logMessage(mtFatal, "Bad colorspace");
+
+    vi.image_type = VideoInfo::IT_BFF;
+    vi.fps_numerator = int64ToIntS(srcVi->fpsNum);
+    vi.fps_denominator = int64ToIntS(srcVi->fpsDen);
+    vi.num_frames = srcVi->numFrames;
+    vi.sample_type = SAMPLE_INT16;
+}
+
 PVideoFrame VSClip::GetFrame(int n, IScriptEnvironment *env) {
     const VSFrameRef *ref;
     n = std::min(std::max(0, n), vi.num_frames - 1);
@@ -161,6 +283,7 @@ PVideoFrame VSClip::GetFrame(int n, IScriptEnvironment *env) {
     bool isMultiplePlanes = (vi.pixel_type & VideoInfo::CS_PLANAR) && !(vi.pixel_type & VideoInfo::CS_INTERLEAVED);
 
     const uint8_t *firstPlanePtr = vsapi->getReadPtr(ref, 0);
+
     VideoFrame *vfb = new VideoFrame(
         // the data will never be modified due to the writable protections embedded in this mess
         (BYTE *)firstPlanePtr,
@@ -180,10 +303,7 @@ PVideoFrame VSClip::GetFrame(int n, IScriptEnvironment *env) {
 }
 
 WrappedClip::WrappedClip(const std::string &filterName, const PClip &clip, const std::vector<VSNodeRef *> &preFetchClips, const PrefetchInfo &prefetchInfo, FakeAvisynth *fakeEnv)
-    : filterName(filterName), prefetchInfo(prefetchInfo), preFetchClips(preFetchClips), clip(clip), fakeEnv(fakeEnv),
-      magicalNumAudioSamplesForMVTools(clip->GetVideoInfo().num_audio_samples),
-      magicalNChannelsForMVTools(clip->GetVideoInfo().nchannels),
-      magicalSampleTypeForMVTools(clip->GetVideoInfo().sample_type) {  
+    : filterName(filterName), prefetchInfo(prefetchInfo), preFetchClips(preFetchClips), clip(clip), fakeEnv(fakeEnv) {  
 }
 
 static void prefetchHelper(int n, VSNodeRef *node, const PrefetchInfo &p, VSFrameContext *frameCtx, const VSAPI *vsapi) {
@@ -375,24 +495,10 @@ static void VS_CC avisynthFilterInit(VSMap *in, VSMap *out, void **instanceData,
     vi.fpsDen = viAvs.fps_denominator;
     vs_normalizeRational(&vi.fpsNum, &vi.fpsDen);
 
-    if (viAvs.IsYV12())
-        vi.format = vsapi->getFormatPreset(pfYUV420P8, core);
-    else if (viAvs.IsYV24())
-        vi.format = vsapi->getFormatPreset(pfYUV444P8, core);
-    else if (viAvs.IsYV16())
-        vi.format = vsapi->getFormatPreset(pfYUV422P8, core);
-    else if (viAvs.IsYV411())
-        vi.format = vsapi->getFormatPreset(pfYUV411P8, core);
-    else if (viAvs.IsColorSpace(VideoInfo::CS_YUV9))
-        vi.format = vsapi->getFormatPreset(pfYUV410P8, core);
-    else if (viAvs.IsY8())
-        vi.format = vsapi->getFormatPreset(pfGray8, core);
-    else if (viAvs.IsYUY2())
-        vi.format = vsapi->getFormatPreset(pfCompatYUY2, core);
-    else if (viAvs.IsRGB32())
-        vi.format = vsapi->getFormatPreset(pfCompatBGR32, core);
-    else
-        vsapi->setError(out, "Avisynth Compat: Only YV12, YUY2 and RGB32 supported");
+    vi.format = AVSPixelTypeToVSFormat(viAvs, core, vsapi);
+
+    if (!vi.format)
+        vsapi->setError(out, "Avisynth Compat: bad format!");
 
     vi.flags = 0;
     vsapi->setVideoInfo(&vi, 1, node);
@@ -436,16 +542,8 @@ static const VSFrameRef *VS_CC avisynthFilterGetFrame(int n, int activationReaso
 
     const VSFrameRef *ref = nullptr;
 
-    if (frame) {
+    if (frame)
         ref = clip->fakeEnv->avsToVSFrame((VideoFrame *)((void *)frame));
-        VSFrameRef *ref2 = vsapi->copyFrame(ref, core);
-        vsapi->freeFrame(ref);
-        VSMap *props = vsapi->getFramePropsRW(ref2);
-        vsapi->propSetInt(props, "MVToolsHackNumAudioSamples", clip->magicalNumAudioSamplesForMVTools, paReplace);
-        vsapi->propSetInt(props, "MVToolsHackNChannels", clip->magicalNChannelsForMVTools, paReplace);
-        vsapi->propSetInt(props, "MVToolsHackSampleType", clip->magicalSampleTypeForMVTools, paReplace);
-        ref = ref2;
-    }
 
     return ref;
 }
@@ -455,11 +553,11 @@ static void VS_CC avisynthFilterFree(void *instanceData, VSCore *core, const VSA
     delete clip;
 }
 
-static bool isSupportedPF(int pf, int interfaceVersion) {
+static bool isSupportedPF(const VSFormat *f, int interfaceVersion) {
     if (interfaceVersion == 2)
-        return (pf == pfYUV420P8) || (pf == pfCompatYUY2) || (pf == pfCompatBGR32);
+        return (f->id == pfYUV420P8) || (f->id == pfCompatYUY2) || (f->id == pfCompatBGR32);
     else
-        return (pf == pfYUV420P8) || (pf == pfYUV444P8) || (pf == pfYUV422P8) || (pf == pfYUV410P8) || (pf == pfYUV411P8) || (pf == pfGray8) || (pf == pfCompatYUY2) || (pf == pfCompatBGR32);
+        return !!VSFormatToAVSPixelType(f);
 }
 
 static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void *userData,
@@ -489,21 +587,15 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
             case 'c':
                 VSNodeRef *cr = vsapi->propGetNode(in, parsedArg.name.c_str(), 0, nullptr);
                 const VSVideoInfo *vi = vsapi->getVideoInfo(cr);
-                if (!isConstantFormat(vi) || !isSupportedPF(vi->format->id, wf->interfaceVersion)) {
+                if (!isConstantFormat(vi) || !isSupportedPF(vi->format, wf->interfaceVersion)) {
                     vsapi->setError(out, "Invalid avisynth colorspace in one of the input clips");
                     vsapi->freeNode(cr);
                     delete fakeEnv;
                     return;
                 }
 
-                const VSFrameRef *fr = vsapi->getFrame(0, cr, nullptr, 0);
-                int err;
-                const VSMap *props = vsapi->getFramePropsRO(fr);
-                int64_t numAudioSamples = vsapi->propGetInt(props, "MVToolsHackNumAudioSamples", 0, &err);
-                int nChannels = int64ToIntS(vsapi->propGetInt(props, "MVToolsHackNChannels", 0, &err));
-                int sampleType = int64ToIntS(vsapi->propGetInt(props, "MVToolsHackSampleType", 0, &err));
                 preFetchClips.push_back(cr);
-                inArgs[i] = new VSClip(cr, numAudioSamples, nChannels, sampleType, fakeEnv, vsapi);
+                inArgs[i] = new VSClip(cr, fakeEnv, vsapi);
                 break;
             }
         }
@@ -670,25 +762,12 @@ PVideoFrame FakeAvisynth::NewVideoFrame(const VideoInfo &vi, int align) {
 
     bool isMultiplePlanes = (vi.pixel_type & VideoInfo::CS_PLANAR) && !(vi.pixel_type & VideoInfo::CS_INTERLEAVED);
 
-    if (vi.IsYV12()) {
-        ref = vsapi->newVideoFrame(vsapi->getFormatPreset(pfYUV420P8, core), vi.width, vi.height, propSrc, core);
-    } else if (vi.IsYV24()) {
-        ref = vsapi->newVideoFrame(vsapi->getFormatPreset(pfYUV444P8, core), vi.width, vi.height, propSrc, core);
-    } else if (vi.IsYV16()) {
-        ref = vsapi->newVideoFrame(vsapi->getFormatPreset(pfYUV422P8, core), vi.width, vi.height, propSrc, core);
-    } else if (vi.IsColorSpace(VideoInfo::CS_YUV9)) {
-        ref = vsapi->newVideoFrame(vsapi->getFormatPreset(pfYUV410P8, core), vi.width, vi.height, propSrc, core);
-    } else if (vi.IsYV411()) {
-        ref = vsapi->newVideoFrame(vsapi->getFormatPreset(pfYUV411P8, core), vi.width, vi.height, propSrc, core);
-    } else if (vi.IsY8()) {
-        ref = vsapi->newVideoFrame(vsapi->getFormatPreset(pfGray8, core), vi.width, vi.height, propSrc, core);
-    } else if (vi.IsYUY2()) {
-        ref = vsapi->newVideoFrame(vsapi->getFormatPreset(pfCompatYUY2, core), vi.width, vi.height, propSrc, core);
-    } else if (vi.IsRGB32()) {
-        ref = vsapi->newVideoFrame(vsapi->getFormatPreset(pfCompatBGR32, core), vi.width, vi.height, propSrc, core);
-    } else {
-        vsapi->logMessage(mtFatal, "Only YV12, YUY2 and RGB32 supported");
-    }
+    const VSFormat *f = AVSPixelTypeToVSFormat(vi, core, vsapi);
+
+    if (!f)
+        vsapi->logMessage(mtFatal, "Unsupported frame format in newvideoframe (alpha and/or packed RGB not supported)");
+
+    ref = vsapi->newVideoFrame(f, vi.width, vi.height, propSrc, core);
 
     if (propSrc)
         vsapi->freeFrame(propSrc);
@@ -706,6 +785,7 @@ PVideoFrame FakeAvisynth::NewVideoFrame(const VideoInfo &vi, int align) {
         isMultiplePlanes ? vsapi->getStride(ref, 1) : 0,
         vsapi->getFrameWidth(ref, 1) * vsapi->getFrameFormat(ref)->bytesPerSample,
         vsapi->getFrameHeight(ref, 1));
+
     PVideoFrame pvf(vfb);
     ownedFrames.insert(std::make_pair(vfb, ref));
     return pvf;
@@ -736,7 +816,7 @@ bool FakeAvisynth::MakeWritable(PVideoFrame *pvf) {
     return true;
 }
 
-void FakeAvisynth::BitBlt(uint8_t *dstp, int dst_pitch, const uint8_t *srcp, int src_pitch, int row_size, int height) {
+void FakeAvisynth::BitBlt(BYTE* dstp, int dst_pitch, const BYTE* srcp, int src_pitch, int row_size, int height) {
     if (src_pitch == dst_pitch && dst_pitch == row_size) {
         memcpy(dstp, srcp, row_size * height);
     } else {
@@ -810,23 +890,14 @@ PVideoFrame FakeAvisynth::SubframePlanar(PVideoFrame src, int rel_offset, int ne
     vi.height = new_height;
     vi.width = vsapi->getFrameWidth(f, 0);
 
-    if (fi->id == pfYUV420P8)
-        vi.pixel_type = VideoInfo::CS_YV12;
-    else if (fi->id == pfYUV444P8)
-        vi.pixel_type = VideoInfo::CS_YV24;
-    else if (fi->id == pfYUV422P8)
-        vi.pixel_type = VideoInfo::CS_YV16;
-    else if (fi->id == pfYUV410P8)
-        vi.pixel_type = VideoInfo::CS_YUV9;
-    else if (fi->id == pfYUV411P8)
-        vi.pixel_type = VideoInfo::CS_YV411;
-    else if (fi->id == pfGray8)
-        vi.pixel_type = VideoInfo::CS_Y8;
-    else
-        vsapi->logMessage(mtFatal, "Bad colorspace");
+    vi.pixel_type = VSFormatToAVSPixelType(fi);
+
+    if (!vi.pixel_type)
+        vsapi->logMessage(mtFatal, "Bad colorspace, bad!");
 
     PVideoFrame dst = NewVideoFrame(vi);
 
+    vsapi->logMessage(mtWarning, "Subframeplanar only partially implemented, report if it crashed or not (especially if not using YV12)");
     BitBlt(dst->GetWritePtr(PLANAR_Y), dst->GetPitch(PLANAR_Y), src->GetReadPtr(PLANAR_Y) + rel_offset, new_pitch, new_row_size, new_height);
     BitBlt(dst->GetWritePtr(PLANAR_U), dst->GetPitch(PLANAR_U), src->GetReadPtr(PLANAR_U) + rel_offsetU, new_pitchUV, new_row_size/2, new_height/2);
     BitBlt(dst->GetWritePtr(PLANAR_V), dst->GetPitch(PLANAR_V), src->GetReadPtr(PLANAR_V) + rel_offsetV, new_pitchUV, new_row_size/2, new_height/2);
@@ -846,9 +917,113 @@ const AVS_Linkage* const FakeAvisynth::GetAVSLinkage() {
     return AVS_linkage;
 }
 
-// noThrow version of GetVar
 AVSValue FakeAvisynth::GetVarDef(const char* name, const AVSValue& def) {
     return def;
+}
+
+size_t  FakeAvisynth::GetProperty(AvsEnvProperty prop) {
+    switch (prop) {
+    case AEP_FILTERCHAIN_THREADS:
+        return 1;
+    case AEP_PHYSICAL_CPUS:
+        return 1;
+    case AEP_LOGICAL_CPUS:
+        return 1;
+    case AEP_THREAD_ID:
+        return 0;
+    case AEP_THREADPOOL_THREADS:
+        return 1;
+    case AEP_VERSION:
+        return 0;
+    default:
+        this->ThrowError("Invalid property request.");
+        return std::numeric_limits<size_t>::max();
+    }
+
+    assert(0);
+}
+
+bool FakeAvisynth::GetVar(const char* name, AVSValue *val) const {
+    return val;
+}
+
+bool FakeAvisynth::GetVar(const char* name, bool def) const {
+    return def;
+}
+
+int FakeAvisynth::GetVar(const char* name, int def) const {
+    return def;
+}
+
+double FakeAvisynth::GetVar(const char* name, double def) const {
+    return def;
+}
+
+const char* FakeAvisynth::GetVar(const char* name, const char* def) const {
+    return def;
+}
+
+bool FakeAvisynth::LoadPlugin(const char* filePath, bool throwOnError, AVSValue *result) {
+    vsapi->logMessage(mtFatal, "Plugin loading not implemented");
+    return false;
+}
+
+void FakeAvisynth::AddAutoloadDir(const char* dirPath, bool toFront) {
+    vsapi->logMessage(mtFatal, "Autoloading dirs not implemented");
+}
+
+void FakeAvisynth::ClearAutoloadDirs() {
+    vsapi->logMessage(mtFatal, "Clearing autoload dirs not implemented");
+}
+
+void FakeAvisynth::AutoloadPlugins() {
+    vsapi->logMessage(mtFatal, "Autoloading not implemented");
+}
+
+void FakeAvisynth::AddFunction(const char* name, const char* params, ApplyFunc apply, void* user_data, const char *exportVar) {
+    AddFunction(name, params, apply, user_data);
+}
+
+bool FakeAvisynth::InternalFunctionExists(const char* name) {
+    return false;
+}
+
+void FakeAvisynth::SetFilterMTMode(const char* filter, MtMode mode, bool force) {
+    // do nothing
+}
+
+IJobCompletion* FakeAvisynth::NewCompletion(size_t capacity) {
+    vsapi->logMessage(mtFatal, "Completions not implemented");
+    return nullptr;
+}
+
+void FakeAvisynth::ParallelJob(ThreadWorkerFuncPtr jobFunc, void* jobData, IJobCompletion* completion) {
+    vsapi->logMessage(mtFatal, "Threadpool not implemented");
+}
+
+// This version of Invoke will return false instead of throwing NotFound().
+bool FakeAvisynth::Invoke(AVSValue *result, const char* name, const AVSValue& args, const char* const* arg_names) {
+    try {
+        *result = Invoke(name, args, arg_names);
+        return true;
+    } catch (NotFound &) {
+        return false;
+    }
+}
+
+// Support functions
+void* FakeAvisynth::Allocate(size_t nBytes, size_t alignment, AvsAllocType type) {
+    return vs_aligned_malloc(nBytes, alignment);
+}
+
+void FakeAvisynth::Free(void* ptr) {
+    vs_aligned_free(ptr);
+}
+
+PVideoFrame FakeAvisynth::SubframePlanarA(PVideoFrame src, int rel_offset, int new_pitch, int new_row_size,
+    int new_height, int rel_offsetU, int rel_offsetV, int new_pitchUV, int rel_offsetA) {
+    vsapi->logMessage(mtFatal, "SubframePlanarA not implemented");
+    return PVideoFrame();
 }
 
 static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
