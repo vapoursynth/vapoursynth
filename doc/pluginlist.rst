@@ -55,11 +55,14 @@ Deinterlacing
 -------------
 * `EEDI2 <http://forum.doom9.org/showthread.php?t=171136>`_
 * :ref:`EEDI3 <eedi3>` -- in the source tree
+* `EEDI3 <https://forum.doom9.org/showthread.php?t=174845>`_ -- optimized version by HolyWu
 * `NNEDI3 <http://forum.doom9.org/showthread.php?t=166434>`_ -- Field interpolator/deinterlacer
+* `NNEDI3CL <https://forum.doom9.org/showthread.php?t=174902>`_ -- OpenCL version of NNEDI3
 * `SangNom <http://forum.doom9.org/showthread.php?t=173752>`_ -- Port of the Avisynth deinterlacer
 * `TDeintMod <http://forum.doom9.org/showthread.php?t=171295>`_ -- Port of the Avisynth deinterlacer
 * `W3FDIF <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-W3FDIF>`_ -- Weston 3 Field Deinterlacing Filter
 * `Yadifmod <http://forum.doom9.org/showthread.php?t=171028>`_ -- Port of the Avisynth deinterlacer
+* `ZNEDI3 <https://forum.doom9.org/showthread.php?p=1822770#post1822770>`_ -- Alternate optimized version of NNEDI3
 
 Inverse Telecine
 ----------------
