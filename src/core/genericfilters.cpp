@@ -2628,17 +2628,17 @@ static const VSFrameRef *VS_CC levelsGetframeF(int n, int activationReason, void
                 int w = vsapi->getFrameWidth(src, plane);
 
                 T gamma = d->gamma;
-                T range_in = d->max_in - d->min_in;
+                T range_in = 1.f / (d->max_in - d->min_in);
                 T range_out = d->max_out - d->min_out;
                 T min_in = d->min_in;
                 T min_out = d->min_out;
                 T max_in = d->max_in;
 
                 if (std::abs(d->gamma - static_cast<T>(1.0)) < std::numeric_limits<T>::epsilon()) {
-                    T range_scale = range_out / range_in;
+                    T range_scale = range_out / (d->max_in - d->min_in);
                     for (int hl = 0; hl < h; hl++) {
                         for (int x = 0; x < w; x++)
-                            dstp[x] = (std::max(std::min(srcp[x], max_in), min_in) - min_in) * range_scale + min_out;
+                            dstp[x] = (std::max(std::min(srcp[x], max_in) - min_in, 0.f)) * range_scale + min_out;
 
                         dstp += dst_stride / sizeof(T);
                         srcp += src_stride / sizeof(T);
@@ -2646,7 +2646,7 @@ static const VSFrameRef *VS_CC levelsGetframeF(int n, int activationReason, void
                 } else {
                     for (int hl = 0; hl < h; hl++) {
                         for (int x = 0; x < w; x++)
-                            dstp[x] = std::pow((std::max(std::min(srcp[x], max_in), min_in) - min_in) / (range_in), gamma) * range_out + min_out;
+                            dstp[x] = std::pow((std::max(std::min(srcp[x], max_in) - min_in, 0.f)) * range_in, gamma) * range_out + min_out;
 
                         dstp += dst_stride / sizeof(T);
                         srcp += src_stride / sizeof(T);
@@ -2686,7 +2686,11 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     d->max_out = static_cast<float>(vsapi->propGetFloat(in, "max_out", 0, &err));
     if (err)
         d->max_out = maxvalf;
-    d->gamma = 1.0f / static_cast<float>(vsapi->propGetFloat(in, "gamma", 0, &err));
+    d->gamma = static_cast<float>(vsapi->propGetFloat(in, "gamma", 0, &err));
+    if (err)
+        d->gamma = 1.f;
+    else
+        d->gamma = 1.f / d->gamma;
 
     // Implement with simple lut for integer
     if (d->vi->format->sampleType == stInteger) {
