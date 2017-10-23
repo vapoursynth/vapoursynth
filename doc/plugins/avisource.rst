@@ -3,13 +3,13 @@
 AVISource
 =========
 
-.. function:: AVISource(string path[, string pixel_type, string fourcc])
+.. function:: AVISource(string path[, string pixel_type, string fourcc, bint alpha=False])
    :module: avisource
 
-.. function:: AVIFileSource(string path[, string pixel_type, string fourcc])
+.. function:: AVIFileSource(string path[, string pixel_type, string fourcc, bint alpha=False])
    :module: avisource
 
-.. function:: OpenDMLSource(string path[, string pixel_type, string fourcc])
+.. function:: OpenDMLSource(string path[, string pixel_type, string fourcc, bint alpha=False])
    :module: avisource
 
    Opens an AVI file using VFW in windows. *AVISource* should usually be
