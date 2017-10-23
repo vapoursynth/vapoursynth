@@ -881,6 +881,7 @@ bool FakeAvisynth::PlanarChromaAlignment(PlanarChromaAlignmentMode key) {
 }
 
 PVideoFrame FakeAvisynth::SubframePlanar(PVideoFrame src, int rel_offset, int new_pitch, int new_row_size, int new_height, int rel_offsetU, int rel_offsetV, int new_pitchUV) {
+    vsapi->logMessage(mtFatal, "SubframePlanar not implemented");
     if (src->row_size != new_row_size)
         vsapi->logMessage(mtFatal, "SubframePlanar only partially implemented");
     // not pretty at all, but the underlying frame has to be fished out to have any idea what the input really is
