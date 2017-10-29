@@ -442,8 +442,12 @@ void AVISource::LocateVideoCodec(const char fourCC[], VSCore *core, const VSAPI 
         numOutputs = output_alpha ? 2 : 1;
         vi[1] = vi[0];
         vi[1].format = vsapi->getFormatPreset(pfGray8, core);
+        if (pbiSrc->biHeight > 0)
+            bInvertFrames = true;
     } else if (pbiSrc->biCompression == BI_RGB && pbiSrc->biBitCount == 24) {
         vi[0].format = vsapi->getFormatPreset(pfRGB24, core);
+        if (pbiSrc->biHeight > 0)
+            bInvertFrames = true;
     } else if (pbiSrc->biCompression == VS_FCC('b48r')) {
         vi[0].format = vsapi->getFormatPreset(pfRGB48, core);
     } else if (pbiSrc->biCompression == VS_FCC('b64a')) {
@@ -636,7 +640,8 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
                         throw std::runtime_error("AviSource: Could not open video stream in any supported format.");
 
                     DecompressBegin(pbiSrc, &biDst);
-                    bInvertFrames = (biDst.biCompression == BI_RGB) && (biDst.biHeight > 0);
+                    if ((biDst.biCompression == BI_RGB) && (biDst.biHeight > 0))
+                        bInvertFrames = true;
                 }
             } else {
                 throw std::runtime_error("AviSource: Could not locate video stream.");
