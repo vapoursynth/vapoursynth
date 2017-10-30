@@ -504,7 +504,7 @@ int VideoFrame::GetHeight(int plane) const {
 
 // Generally you should not be using these two
 VideoFrameBuffer* VideoFrame::GetFrameBuffer() const { return vfb; }
-int VideoFrame::GetOffset(int plane) const { 
+size_t VideoFrame::GetOffset(int plane) const { 
     switch (plane) {
     case PLANAR_U: case PLANAR_B: return offsetU; // G is first. Then B,R order like U,V
     case PLANAR_V: case PLANAR_R: return offsetV;

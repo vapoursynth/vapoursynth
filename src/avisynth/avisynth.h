@@ -231,7 +231,7 @@ struct AVS_Linkage {
   int               (VideoFrame::*GetRowSize)(int plane) const;
   int               (VideoFrame::*GetHeight)(int plane) const;
   VideoFrameBuffer* (VideoFrame::*GetFrameBuffer)() const;
-  int               (VideoFrame::*GetOffset)(int plane) const;
+  size_t            (VideoFrame::*GetOffset)(int plane) const;
   const BYTE*       (VideoFrame::*VFGetReadPtr)(int plane) const;
   bool              (VideoFrame::*IsWritable)() const;
   BYTE*             (VideoFrame::*VFGetWritePtr)(int plane) const;
@@ -776,12 +776,12 @@ public:
 
   // Due to technical reasons these members are not const, but should be treated as such.
   // That means do not modify them once the class has been constructed.
-  int offset, pitch, row_size, height, offsetU, offsetV, pitchUV;  // U&V offsets are from top of picture.
-  int row_sizeUV, heightUV; // for Planar RGB offsetU, offsetV is for the 2nd and 3rd Plane.
-                            // for Planar RGB pitchUV and row_sizeUV = 0, because when no VideoInfo (MakeWriteable)
-                            // the decision on existance of UV is checked by zero pitch
-  // AVS+ extension, does not break plugins if appended here
-  int offsetA, pitchA, row_sizeA; // 4th alpha plane support, pitch and row_size is 0 is none
+  const size_t offset;
+  const int pitch, row_size, height;
+  const size_t offsetU, offsetV;  // U&V offsets are from top of picture.
+  const int pitchUV, row_sizeUV, heightUV;
+  const size_t offsetA;
+  const int pitchA, row_sizeA; // 4th alpha plane support, pitch and row_size is 0 is none
 
   friend class PVideoFrame;
   void AddRef();
@@ -805,7 +805,7 @@ public:
 
   // generally you shouldn't use these three
   VideoFrameBuffer* GetFrameBuffer() const AVS_BakedCode( return AVS_LinkCall(GetFrameBuffer)() )
-  int GetOffset(int plane=0) const AVS_BakedCode( return AVS_LinkCall(GetOffset)(plane) )
+  size_t GetOffset(int plane=0) const AVS_BakedCode( return AVS_LinkCall(GetOffset)(plane) )
 
   // in plugins use env->SubFrame() -- because implementation code is only available inside avisynth.dll. Doh!
   VideoFrame* Subframe(int rel_offset, int new_pitch, int new_row_size, int new_height) const;
