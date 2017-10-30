@@ -790,8 +790,8 @@ public:
   friend class ScriptEnvironment;
   friend class Cache;
 
-  VideoFrame(BYTE *_vfb, bool writable, int _offset, int _pitch, int _row_size, int _height,
-      int _offsetU, int _offsetV, int _pitchUV, int _row_sizeUV, int _heightUV)
+  VideoFrame(BYTE *_vfb, bool writable, size_t _offset, int _pitch, int _row_size, int _height,
+      size_t _offsetU, size_t _offsetV, int _pitchUV, int _row_sizeUV, int _heightUV)
       : refcount(0), vfb(new VideoFrameBuffer(_vfb, writable)), offset(_offset), pitch(_pitch), row_size(_row_size),
       height(_height), offsetU(_offsetU), offsetV(_offsetV), pitchUV(_pitchUV), row_sizeUV(_row_sizeUV), heightUV(_heightUV),
       offsetA(0), pitchA(0), row_sizeA(0) {
