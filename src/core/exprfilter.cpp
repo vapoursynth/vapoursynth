@@ -175,7 +175,7 @@ stack.push_back(t1);
 
 enum {
     elabsmask, elc7F, elmin_norm_pos, elinv_mant_mask,
-    elfloat_one, elfloat_half, elstore8, elstore16,
+    elfloat_one, elfloat_half, elstore8, elstore16, elpackusdw_sub, elpackusdw_add,
     elexp_hi, elexp_lo, elcephes_LOG2EF, elcephes_exp_C1, elcephes_exp_C2, elcephes_exp_p0, elcephes_exp_p1, elcephes_exp_p2, elcephes_exp_p3, elcephes_exp_p4, elcephes_exp_p5, elcephes_SQRTHF,
     elcephes_log_p0, elcephes_log_p1, elcephes_log_p2, elcephes_log_p3, elcephes_log_p4, elcephes_log_p5, elcephes_log_p6, elcephes_log_p7, elcephes_log_p8, elcephes_log_q1 = elcephes_exp_C2, elcephes_log_q2 = elcephes_exp_C1
 };
@@ -191,6 +191,8 @@ alignas(16) static const FloatIntUnion logexpconst[][4] = {
     XCONST(0.5f), // float_half
     XCONST(255.0f), // store8
     XCONST(65535.0f), // store16
+    XCONST(0x8000), // packusdwsub
+    XCONST(-2147450880), // packusdwadd
     XCONST(88.3762626647949f), // exp_hi
     XCONST(-88.3762626647949f), // exp_lo
     XCONST(1.44269504088896341f), // cephes_LOG2EF
@@ -405,21 +407,13 @@ struct ExprEval : public jitasm::function<void, ExprEval, uint8_t *, const intpt
                 XmmReg r1, r2;
                 Reg a;
                 maxps(t1.first, zero);
-                maxps(t1.second, zero);  
+                maxps(t1.second, zero);
                 minps(t1.first, CPTR(elstore8));
                 minps(t1.second, CPTR(elstore8));
                 mov(a, ptr[regptrs]);
                 cvtps2dq(t1.first, t1.first);
                 cvtps2dq(t1.second, t1.second);
-                movdqa(r1, t1.first);
-                movdqa(r2, t1.second);
-                psrldq(t1.first, 6);
-                psrldq(t1.second, 6);
-                por(t1.first, r1);
-                por(t1.second, r2);
-                pshuflw(t1.first, t1.first, 0b11011000);
-                pshuflw(t1.second, t1.second, 0b11011000);
-                punpcklqdq(t1.second, t1.first);
+                packssdw(t1.second, t1.first);
                 packuswb(t1.second, zero);
                 movq(mmword_ptr[a], t1.second);
             } else if (iter.op == opStore16) {
@@ -434,15 +428,10 @@ struct ExprEval : public jitasm::function<void, ExprEval, uint8_t *, const intpt
                 mov(a, ptr[regptrs]);
                 cvtps2dq(t1.first, t1.first);
                 cvtps2dq(t1.second, t1.second);
-                movdqa(r1, t1.first);
-                movdqa(r2, t1.second);
-                psrldq(t1.first, 6);
-                psrldq(t1.second, 6);
-                por(t1.first, r1);
-                por(t1.second, r2);
-                pshuflw(t1.first, t1.first, 0b11011000);
-                pshuflw(t1.second, t1.second, 0b11011000);
-                punpcklqdq(t1.second, t1.first);
+                psubd(t1.first, CPTR(elpackusdw_sub));
+                psubd(t1.second, CPTR(elpackusdw_sub));
+                packssdw(t1.second, t1.first);
+                paddw(t1.second, CPTR(elpackusdw_add));
                 movdqa(xmmword_ptr[a], t1.second);
             } else if (iter.op == opStoreF32) {
                 auto t1 = stack.back();
@@ -819,8 +808,8 @@ static size_t parseExpression(const std::string &expr, std::vector<ExprOp> &ops,
     std::vector<std::string> tokens;
     split(tokens, expr, " ", split1::no_empties);
 
-    size_t maxStackSize = 0;
-    size_t stackSize = 0;
+    int maxStackSize = 0;
+    int stackSize = 0;
 
     for (size_t i = 0; i < tokens.size(); i++) {
         if (tokens[i] == "+")
