@@ -1,4 +1,5 @@
 r40:
+made the framebuffer memory pool size a percentage of the total allowed memory usage instead of a fixed size, this should scale better when processing 8k and larger resolutions
 fixed rgb output sometimes being flipped in avisource
 added alpha output settings to avisource, the default is no alpha output
 fixed gamma being infinite if not set in levels, bug introduced in r39

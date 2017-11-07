@@ -338,6 +338,7 @@ private:
     bool freeOnZero;
     std::multimap<size_t, uint8_t *> buffers;
     size_t unusedBufferSize;
+    size_t maxUnusedBufferSize;
     std::minstd_rand generator;
     std::mutex mutex;
 public:

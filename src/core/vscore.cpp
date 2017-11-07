@@ -271,7 +271,7 @@ void MemoryUse::freeBuffer(uint8_t *buf) {
     memcpy(&bytes, buf, sizeof(bytes));
     buffers.emplace(std::make_pair(bytes, buf));
     unusedBufferSize += bytes;
-    while (unusedBufferSize > 1024 * 1024 * 100) {
+    while (unusedBufferSize > maxUnusedBufferSize) {
         std::uniform_int_distribution<size_t> randSrc(0, buffers.size() - 1);
         auto iter = buffers.begin();
         std::advance(iter, randSrc(generator));
@@ -291,8 +291,10 @@ size_t MemoryUse::getLimit() {
 }
 
 int64_t MemoryUse::setMaxMemoryUse(int64_t bytes) {
-    if (bytes > 0 && static_cast<uint64_t>(bytes) <= SIZE_MAX)
+    if (bytes > 0 && static_cast<uint64_t>(bytes) <= SIZE_MAX) {
         maxMemoryUse = static_cast<size_t>(bytes);
+        maxUnusedBufferSize = maxMemoryUse / 10;
+    }
     return maxMemoryUse;
 }
 
@@ -308,11 +310,11 @@ void MemoryUse::signalFree() {
 
 MemoryUse::MemoryUse() : used(0), freeOnZero(false), unusedBufferSize(0) {
     // 1GB
-    maxMemoryUse = 1024 * 1024 * 1024;
+    setMaxMemoryUse(1024 * 1024 * 1024);
 
     // set 4GB as default on systems with (probably) 64bit address space
     if (sizeof(void *) >= 8)
-        maxMemoryUse *= 4;
+        setMaxMemoryUse(static_cast<int64_t>(4) * 1024 * 1024 * 1024);
 }
 
 MemoryUse::~MemoryUse() {
