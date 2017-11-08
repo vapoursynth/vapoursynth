@@ -167,7 +167,7 @@ Classes and Functions
 
 .. py:function:: get_core([threads = 0, add_cache = True, accept_lowercase = False])
 
-   Deprecated, use the core attribute instead.
+   Deprecated, use the *core* attribute instead.
 
    Get the singleton Core object. If it is the first time the function is called,
    the Core will be instantiated with the given options. If the Core has already
@@ -231,8 +231,8 @@ Classes and Functions
       freed. The value is in megabytes.
 
    .. py:method:: set_max_cache_size(mb)
-
-      An alias for setting *max_cache_size*. Kept for compatibility with older scripts.
+   
+      Deprecated, use *max_cache_size* instead.
 
    .. py:method:: get_plugins()
 
