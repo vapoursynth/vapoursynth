@@ -1212,22 +1212,16 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     BlankClipData d = {0};
     BlankClipData *data;
     int hasvi = 0;
-    int format = 0;
     int64_t temp;
     int err;
-    int compat = 0;
 
     VSNodeRef *node = vsapi->propGetNode(in, "clip", 0, &err);
 
     if (!err) {
         d.vi = *vsapi->getVideoInfo(node);
-        compat = isCompatFormat(&d.vi);
         vsapi->freeNode(node);
         hasvi = 1;
     }
-
-    if (compat)
-        RETERROR("BlankClip: compat formats not supported");
 
     temp = vsapi->propGetInt(in, "width", 0, &err);
 
@@ -1274,7 +1268,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
 
     vs_normalizeRational(&d.vi.fpsNum, &d.vi.fpsDen);
 
-    format = int64ToIntS(vsapi->propGetInt(in, "format", 0, &err));
+    int format = int64ToIntS(vsapi->propGetInt(in, "format", 0, &err));
 
     if (err) {
         if (!hasvi)
@@ -1285,6 +1279,9 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
 
     if (!d.vi.format)
         RETERROR("BlankClip: invalid format");
+
+    if (isCompatFormat(&d.vi))
+        RETERROR("BlankClip: compat formats not supported");
 
     temp = vsapi->propGetInt(in, "length", 0, &err);
 
@@ -1325,16 +1322,6 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
         }
     } else if (ncolors > 0) {
         RETERROR("BlankClip: invalid number of color values specified");
-    }
-
-    if (d.vi.format->id == pfCompatBGR32 || d.vi.format->id == pfCompatYUY2) {
-        for (int i = 0; i < numcomponents; i++)
-            if (d.color[i] > 255)
-                RETERROR("BlankClip: color value out of range");
-        if (d.vi.format->id == pfCompatBGR32)
-            d.color[0] = (0 << 24) | (d.color[0] << 16) | (d.color[1] << 8) | (d.color[2] << 0);
-        else
-            d.color[0] = (d.color[2] << 24) | (d.color[0] << 16) | (d.color[1] << 8) | (d.color[0] << 0);
     }
 
     d.keep = !!vsapi->propGetInt(in, "keep", 0, &err);

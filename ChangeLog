@@ -1,4 +1,6 @@
 r40:
+updated to zimg v2.6.2
+fixed blankclip format check to not reject substituted format compat clips
 improved expr asm slightly
 made the framebuffer memory pool size a percentage of the total allowed memory usage instead of a fixed size, this should scale better when processing 8k and larger resolutions
 fixed rgb output sometimes being flipped in avisource
