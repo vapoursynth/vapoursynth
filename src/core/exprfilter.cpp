@@ -337,8 +337,8 @@ struct ExprEval : public jitasm::function<void, ExprEval, uint8_t *, const intpt
                 movq(r1, mmword_ptr[a]);
                 punpcklbw(r1, zero);
                 movdqa(r2, r1);
-                punpckhwd(r1, zero);
-                punpcklwd(r2, zero);
+                punpcklwd(r1, zero);
+                punpckhwd(r2, zero);
                 cvtdq2ps(r1, r1);
                 cvtdq2ps(r2, r2);
                 stack.push_back(std::make_pair(r1, r2));
@@ -348,8 +348,8 @@ struct ExprEval : public jitasm::function<void, ExprEval, uint8_t *, const intpt
                 mov(a, ptr[regptrs + sizeof(void *) * (iter.e.ival + 1)]);
                 movdqa(r1, xmmword_ptr[a]);
                 movdqa(r2, r1);
-                punpckhwd(r1, zero);
-                punpcklwd(r2, zero);
+                punpcklwd(r1, zero);
+                punpckhwd(r2, zero);
                 cvtdq2ps(r1, r1);
                 cvtdq2ps(r2, r2);
                 stack.push_back(std::make_pair(r1, r2));
@@ -413,9 +413,9 @@ struct ExprEval : public jitasm::function<void, ExprEval, uint8_t *, const intpt
                 mov(a, ptr[regptrs]);
                 cvtps2dq(t1.first, t1.first);
                 cvtps2dq(t1.second, t1.second);
-                packssdw(t1.second, t1.first);
-                packuswb(t1.second, zero);
-                movq(mmword_ptr[a], t1.second);
+                packssdw(t1.first, t1.second);
+                packuswb(t1.first, zero);
+                movq(mmword_ptr[a], t1.first);
             } else if (iter.op == opStore16) {
                 auto t1 = stack.back();
                 stack.pop_back();
@@ -430,9 +430,9 @@ struct ExprEval : public jitasm::function<void, ExprEval, uint8_t *, const intpt
                 cvtps2dq(t1.second, t1.second);
                 psubd(t1.first, CPTR(elpackusdw_sub));
                 psubd(t1.second, CPTR(elpackusdw_sub));
-                packssdw(t1.second, t1.first);
-                paddw(t1.second, CPTR(elpackusdw_add));
-                movdqa(xmmword_ptr[a], t1.second);
+                packssdw(t1.first, t1.second);
+                paddw(t1.first, CPTR(elpackusdw_add));
+                movdqa(xmmword_ptr[a], t1.first);
             } else if (iter.op == opStoreF32) {
                 auto t1 = stack.back();
                 stack.pop_back();

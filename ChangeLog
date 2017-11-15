@@ -1,3 +1,6 @@
+r41:
+fix corrupted output in expr when mixing int and float for input and output (pinterf)
+
 r40:
 updated to zimg v2.6.2
 fixed blankclip format check to not reject substituted format compat clips
