@@ -1,5 +1,7 @@
 r41:
-fix corrupted output in expr when mixing int and float for input and output (pinterf)
+fixed negative frame request error listing the parent node name instead of the correct name
+fixed expr clamping of 9-15 bit output
+fixed corrupted output in expr when mixing int and float for input and output (pinterf)
 
 r40:
 updated to zimg v2.6.2
