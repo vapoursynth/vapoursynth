@@ -419,19 +419,32 @@ struct ExprEval : public jitasm::function<void, ExprEval, uint8_t *, const intpt
             } else if (iter.op == opStore16) {
                 auto t1 = stack.back();
                 stack.pop_back();
-                XmmReg r1, r2;
                 Reg a;
                 maxps(t1.first, zero);
                 maxps(t1.second, zero);
-                minps(t1.first, CPTR(elstore16));
-                minps(t1.second, CPTR(elstore16));
-                mov(a, ptr[regptrs]);
-                cvtps2dq(t1.first, t1.first);
-                cvtps2dq(t1.second, t1.second);
-                psubd(t1.first, CPTR(elpackusdw_sub));
-                psubd(t1.second, CPTR(elpackusdw_sub));
-                packssdw(t1.first, t1.second);
-                paddw(t1.first, CPTR(elpackusdw_add));
+                if (iter.e.fval > 60000.f) {
+                    minps(t1.first, CPTR(elstore16));
+                    minps(t1.second, CPTR(elstore16));
+                    mov(a, ptr[regptrs]);
+                    cvtps2dq(t1.first, t1.first);
+                    cvtps2dq(t1.second, t1.second);
+                    psubd(t1.first, CPTR(elpackusdw_sub));
+                    psubd(t1.second, CPTR(elpackusdw_sub));
+                    packssdw(t1.first, t1.second);
+                    paddw(t1.first, CPTR(elpackusdw_add));
+                } else {
+                    XmmReg limit;
+                    Reg b;
+                    mov(b, iter.e.ival);
+                    movd(limit, b);
+                    shufps(limit, limit, 0);
+                    minps(t1.first, limit);
+                    minps(t1.second, limit);
+                    mov(a, ptr[regptrs]);
+                    cvtps2dq(t1.first, t1.first);
+                    cvtps2dq(t1.second, t1.second);
+                    packssdw(t1.first, t1.second);
+                }
                 movdqa(xmmword_ptr[a], t1.first);
             } else if (iter.op == opStoreF32) {
                 auto t1 = stack.back();
@@ -804,7 +817,7 @@ static SOperation getStoreOp(const VSVideoInfo *vi) {
 #define TWO_ARG_OP(op) GENERAL_OP(op, 0, 2, 1)
 #define THREE_ARG_OP(op) GENERAL_OP(op, 0, 3, 2)
 
-static size_t parseExpression(const std::string &expr, std::vector<ExprOp> &ops, const VSVideoInfo **vi, const SOperation storeOp, int numInputs) {
+static size_t parseExpression(const std::string &expr, std::vector<ExprOp> &ops, const VSVideoInfo **vi, const VSVideoInfo *outputVi, int numInputs) {
     std::vector<std::string> tokens;
     split(tokens, expr, " ", split1::no_empties);
 
@@ -906,7 +919,7 @@ static size_t parseExpression(const std::string &expr, std::vector<ExprOp> &ops,
     if (tokens.size() > 0) {
         if (stackSize != 1)
             throw std::runtime_error("Stack unbalanced at end of expression. Need to have exactly one value on the stack to return.");
-        ops.push_back(storeOp);
+        ops.push_back(ExprOp(getStoreOp(outputVi), static_cast<float>((static_cast<int64_t>(1) << outputVi->format->bitsPerSample) - 1)));
     }
 
     return maxStackSize;
@@ -1289,7 +1302,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
         d->maxStackSize = 0;
         for (int i = 0; i < d->vi.format->numPlanes; i++) {
-            d->maxStackSize = std::max(parseExpression(expr[i], d->ops[i], vi, getStoreOp(&d->vi), d->numInputs), d->maxStackSize);
+            d->maxStackSize = std::max(parseExpression(expr[i], d->ops[i], vi, &d->vi, d->numInputs), d->maxStackSize);
             foldConstants(d->ops[i]);
         }
 

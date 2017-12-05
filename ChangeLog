@@ -1,6 +1,7 @@
 r41:
+updated to zimg v2.7
 fixed negative frame request error listing the parent node name instead of the correct name
-fixed expr clamping of 9-15 bit output
+fixed expr clamping of 9-15 bit output, previously it would clamp to 16bit
 fixed corrupted output in expr when mixing int and float for input and output (pinterf)
 
 r40:
