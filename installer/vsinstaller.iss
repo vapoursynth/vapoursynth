@@ -1,5 +1,5 @@
 #define AppName = 'VapourSynth'
-#define Version = 'R40'
+#define Version = 'R41'
 
 [Setup]
 OutputDir=Compiled
@@ -17,7 +17,7 @@ AppPublisher=Fredrik Mellbin
 AppPublisherURL=http://www.vapoursynth.com/
 AppSupportURL=http://www.vapoursynth.com/
 AppUpdatesURL=http://www.vapoursynth.com/
-VersionInfoVersion=1.40.0.0
+VersionInfoVersion=1.41.0.0
 DefaultDirName={pf32}\VapourSynth
 DefaultGroupName=VapourSynth
 AllowCancelDuringInstall=no
@@ -47,7 +47,7 @@ Name: "vsruntimes"; Description: "Visual Studio Runtimes (2013 & 2017)"; Types: 
 Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to shell context menu"; GroupDescription: "New File Shortcuts:"; Components: vs32 vs64
 
 [Run]
-Filename: "{app}\pismo\pfm-189-vapoursynth-win.exe"; Parameters: "install"; Flags: runhidden; Components: pismo
+Filename: "{app}\pismo\pfm-190-vapoursynth-win.exe"; Parameters: "install"; Flags: runhidden; Components: pismo
 
 [Files]
 ;core binaries
@@ -113,7 +113,7 @@ Source: ..\msvc_project\x64\Release\Vinverse.dll; DestDir: {app}\core64\plugins;
 Source: ..\msvc_project\x64\Release\VIVTC.dll; DestDir: {app}\core64\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 
 ;pismo installer
-Source: "pfm-189-vapoursynth-win.exe"; DestDir: {app}\pismo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: pismo
+Source: "pfm-190-vapoursynth-win.exe"; DestDir: {app}\pismo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: pismo
 
 ; Create the general autoload directory
 [Dirs]
@@ -444,14 +444,14 @@ begin
     begin
       SetForceX86(True);
       vcredist2013('12.0.21005');
-      vcredist2017('14.11.25325');
+      vcredist2017('14.12.25810');
       SetForceX86(False);
       Runtimes32Added := True;
     end;
     if IsComponentSelected('vsruntimes') and IsComponentSelected('vs64') and not Runtimes64Added then
     begin
       vcredist2013('12.0.21005');
-      vcredist2017('14.11.25325');
+      vcredist2017('14.12.25810');
       Runtimes64Added := True;
     end;
     Result := NextButtonClick2(CurPageID);
