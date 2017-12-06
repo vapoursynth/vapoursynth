@@ -1,14 +1,13 @@
 Default install paths are assumed in all projects and scripts, be prepared to adjust many things if you changed them
 
 Needs Visual Studio 2017 and vsnasm (https://github.com/ShiftMediaProject/VSNASM)
-Visual Studio 2015 Update 3 is also (unfortunately) required to compile the python module
-It also needs both 32 and 64 bit Python 3.6 series with recent cython, sphinx and sphinx-intl installed
+It also needs both 32 and 64 bit Python 3.6 series with recent setuptools, cython, sphinx and sphinx-intl installed
 Inno setup is needed to create the installer (default installation path assumed)
 7-zip is needed to compress the portable version (default installation path assumed)
 
 Clone VapourSynth
-Clone zimg v2.6 branch into the VapourSynth dir (https://github.com/sekrit-twc/zimg)
-Clone avs+ mt branch into the VapourSynth dir (https://github.com/AviSynth/AviSynthPlus)
+Clone zimg v2.7 branch into the VapourSynth dir (https://github.com/sekrit-twc/zimg)
+Clone avs+ pinterf mt branch into the VapourSynth dir (https://github.com/pinterf/AviSynthPlus/tree/MT)
 Compile 32 and 64 bit release using the VapourSynth solution
 Run cython_build.bat to compile the Python modules
 Run make_docs.bat to compile the documentation
