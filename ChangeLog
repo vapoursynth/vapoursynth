@@ -1,5 +1,6 @@
 r41:
 updated to zimg v2.7
+imwri now requires hdri support since that's now the default and more useful option to compile it with
 stackvertical now properly rejects compat formats instead of producing unexpected output
 the default initial cache size now also depends on the number of threads used
 fixed negative frame request error listing the parent node name instead of the correct name

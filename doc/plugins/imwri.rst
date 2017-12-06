@@ -11,13 +11,7 @@ ImageMagick Writer-Reader (IMWRI) is a plugin that can read and write many image
    Note that the namespace will be *imwrif* when compiled with a HDRI ImageMagick to distinguish the behavior and accepted format input/output formats.
    
    Supported input formats for writing:
-      ImageMagick with Quantum Depth 16: 8-16 bit integer
-
-      ImageMagick with Quantum Depth 32: 8-32 bit integer
-
       ImageMagick with Quantum Depth 16 and HDRI: 8-16 bit integer, 32 bit float
-
-      ImageMagick with Quantum Depth 32 and HDRI: 8-32 bit integer, 32 bit float
       
    Write will write each frame to disk as it's requested. If a frame is never requested it's also never written to disk.
  

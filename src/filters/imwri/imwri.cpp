@@ -47,13 +47,11 @@
 
 // Handle both with and without hdri
 #if MAGICKCORE_HDRI_ENABLE
-#define IMWRI_NAMESPACE "imwrif"
-#define IMWRI_PLUGIN_NAME "VapourSynth ImageMagick HDRI Writer/Reader"
-#define IMWRI_ID "com.vapoursynth.imwrif"
-#else
 #define IMWRI_NAMESPACE "imwri"
-#define IMWRI_PLUGIN_NAME "VapourSynth ImageMagick Writer/Reader"
+#define IMWRI_PLUGIN_NAME "VapourSynth ImageMagick 7 HDRI Writer/Reader"
 #define IMWRI_ID "com.vapoursynth.imwri"
+#else
+#error ImageMagick must be compiled with HDRI enabled
 #endif
 
 // Because proper namespace handling is too hard for ImageMagick shitvelopers
@@ -290,8 +288,8 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
             if (isGray)
                 image.colorSpace(Magick::GRAYColorspace);
 
-            if (fi->bitsPerSample < static_cast<int>(image.depth()))
-                image.depth(fi->bitsPerSample);
+            image.modulusDepth(fi->bitsPerSample);
+            image.depth(fi->bitsPerSample);
 
             if (fi->bytesPerSample == 4 && fi->sampleType == stFloat) {
                 Magick::Pixels pixelCache(image);
@@ -465,19 +463,10 @@ static void VS_CC writeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     d->videoNode = vsapi->propGetNode(in, "clip", 0, nullptr);
     d->vi = vsapi->getVideoInfo(d->videoNode);
     if (!d->vi->format || (d->vi->format->colorFamily != cmRGB && d->vi->format->colorFamily != cmGray)
-#if MAGICKCORE_HDRI_ENABLE
         || (d->vi->format->sampleType == stFloat && d->vi->format->bitsPerSample != 32))
-#else
-        || (d->vi->format->sampleType == stInteger && d->vi->format->bitsPerSample > MAGICKCORE_QUANTUM_DEPTH)
-        || (d->vi->format->sampleType == stFloat))
-#endif
     {
         vsapi->freeNode(d->videoNode);
-#if MAGICKCORE_HDRI_ENABLE
         vsapi->setError(out, "Write: Only constant format 8-32 bit integer or float RGB and Grayscale input supported");
-#else
-        vsapi->setError(out, "Write: Only constant format 8-" STR(MAGICKCORE_QUANTUM_DEPTH) " bit integer RGB and Grayscale input supported");
-#endif
         return;
     }
 
@@ -539,7 +528,7 @@ static void VS_CC readInit(VSMap *in, VSMap *out, void **instanceData, VSNode *n
 
 template<typename T>
 static void readImageHelper(VSFrameRef *frame, VSFrameRef *alphaFrame, bool isGray, Magick::Image &image, int width, int height, int bitsPerSample, const VSAPI *vsapi) {
-    unsigned shiftR = MAGICKCORE_QUANTUM_DEPTH - bitsPerSample;
+    float outScale = (1 << bitsPerSample) / (1 << MAGICKCORE_QUANTUM_DEPTH);
     size_t channels = image.channels();
     Magick::Pixels pixelCache(image);
 
@@ -564,10 +553,10 @@ static void readImageHelper(VSFrameRef *frame, VSFrameRef *alphaFrame, bool isGr
             for (int y = 0; y < height; y++) {
                 const Magick::Quantum *pixels = pixelCache.getConst(0, y, width, 1);
                 for (int x = 0; x < width; x++) {
-                    r[x] = (unsigned)pixels[x * channels + rOff] >> shiftR;
-                    g[x] = (unsigned)pixels[x * channels + gOff] >> shiftR;
-                    b[x] = (unsigned)pixels[x * channels + bOff] >> shiftR;
-                    a[x] = (unsigned)pixels[x * channels + aOff] >> shiftR;
+                    r[x] = (unsigned)(pixels[x * channels + rOff] * outScale + .5f);
+                    g[x] = (unsigned)(pixels[x * channels + gOff] * outScale + .5f);
+                    b[x] = (unsigned)(pixels[x * channels + bOff] * outScale + .5f);
+                    a[x] = (unsigned)(pixels[x * channels + aOff] * outScale + .5f);
                 }
 
                 r += strideR / sizeof(T);
@@ -579,14 +568,12 @@ static void readImageHelper(VSFrameRef *frame, VSFrameRef *alphaFrame, bool isGr
             memset(a, 0, strideA  * height);
         }
     } else {
-
-
         for (int y = 0; y < height; y++) {
             const Magick::Quantum *pixels = pixelCache.getConst(0, y, width, 1);
             for (int x = 0; x < width; x++) {
-                r[x] = (unsigned)pixels[x * channels + rOff] >> shiftR;
-                g[x] = (unsigned)pixels[x * channels + gOff] >> shiftR;
-                b[x] = (unsigned)pixels[x * channels + bOff] >> shiftR;
+                r[x] = (unsigned)(pixels[x * channels + rOff] * outScale + .5f);
+                g[x] = (unsigned)(pixels[x * channels + gOff] * outScale + .5f);
+                b[x] = (unsigned)(pixels[x * channels + bOff] * outScale + .5f);
             }
 
             r += strideR / sizeof(T);
@@ -627,13 +614,11 @@ static const VSFrameRef *VS_CC readGetFrame(int n, int activationReason, void **
             int height = static_cast<int>(image.rows());
             size_t channels = image.channels();
 
-#if MAGICKCORE_HDRI_ENABLE
-            VSSampleType st = stFloat;
-            int depth = 32;
-#else
             VSSampleType st = stInteger;
-            int depth = std::min(std::max(static_cast<int>(image.depth()), 8), MAGICKCORE_QUANTUM_DEPTH);
-#endif
+            int depth2 = image.modulusDepth();
+            int depth = std::min(std::max(static_cast<int>(image.modulusDepth()), 8), MAGICKCORE_QUANTUM_DEPTH);
+            if (image.modulusDepth() == 32)
+                st = stFloat;
 
             if (d->vi[0].format && (cf != d->vi[0].format->colorFamily || depth != d->vi[0].format->bitsPerSample)) {
                 std::string err = "Read: Format mismatch for frame " + std::to_string(n) + ", is ";
@@ -797,13 +782,11 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     try {
         Magick::Image image(d->fileListMode ? d->filenames[0] : specialPrintf(d->filenames[0], d->firstNum));
-#if MAGICKCORE_HDRI_ENABLE
-        VSSampleType st = stFloat;
-        int depth = 32;
-#else
+
         VSSampleType st = stInteger;
-        int depth = std::min(std::max(static_cast<int>(image.depth()), 8), MAGICKCORE_QUANTUM_DEPTH);
-#endif
+        int depth = std::min(std::max(static_cast<int>(image.modulusDepth()), 8), MAGICKCORE_QUANTUM_DEPTH);
+        if (image.modulusDepth() == 32)
+            st = stFloat;
 
         if (!d->mismatch || d->vi[0].numFrames == 1) {
             d->vi[0].height = static_cast<int>(image.rows());
