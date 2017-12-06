@@ -1113,6 +1113,13 @@ static void VS_CC stackCreate(const VSMap *in, VSMap *out, void *userData, VSCor
             d.node[i] = vsapi->propGetNode(in, "clips", i, 0);
 
         d.vi = *vsapi->getVideoInfo(d.node[0]);
+        if (isConstantFormat(&d.vi) && isCompatFormat(&d.vi) && d.vertical) {
+            for (int j = 0; j < d.numclips; j++)
+                vsapi->freeNode(d.node[j]);
+            free(d.node);
+
+            RETERROR("StackVertical: compat formats aren't supported");
+        }
 
         for (int i = 1; i < d.numclips; i++) {
             const VSVideoInfo *vi = vsapi->getVideoInfo(d.node[i]);
@@ -1123,8 +1130,8 @@ static void VS_CC stackCreate(const VSMap *in, VSMap *out, void *userData, VSCor
             if (!isConstantFormat(vi) || vi->format != d.vi.format || (d.vertical && vi->width != d.vi.width) || (!d.vertical && vi->height != d.vi.height)) {
                 for (int j = 0; j < d.numclips; j++)
                     vsapi->freeNode(d.node[j]);
-
                 free(d.node);
+
                 if (d.vertical) {
                     RETERROR("StackVertical: clip format and width must match");
                 } else {
