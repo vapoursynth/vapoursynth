@@ -288,8 +288,9 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
             if (isGray)
                 image.colorSpace(Magick::GRAYColorspace);
 
-            image.modulusDepth(fi->bitsPerSample);
-            image.depth(fi->bitsPerSample);
+            int depth = std::min(std::max(static_cast<int>(image.modulusDepth()), 8), MAGICKCORE_QUANTUM_DEPTH);
+            image.modulusDepth(depth);
+            image.depth(depth);
 
             if (fi->bytesPerSample == 4 && fi->sampleType == stFloat) {
                 Magick::Pixels pixelCache(image);
@@ -615,7 +616,6 @@ static const VSFrameRef *VS_CC readGetFrame(int n, int activationReason, void **
             size_t channels = image.channels();
 
             VSSampleType st = stInteger;
-            int depth2 = image.modulusDepth();
             int depth = std::min(std::max(static_cast<int>(image.modulusDepth()), 8), MAGICKCORE_QUANTUM_DEPTH);
             if (image.modulusDepth() == 32)
                 st = stFloat;
