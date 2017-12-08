@@ -107,36 +107,49 @@ const std::unordered_map<std::string, zimg_matrix_coefficients_e> g_matrix_table
     { "rgb",         ZIMG_MATRIX_RGB },
     { "709",         ZIMG_MATRIX_709 },
     { "unspec",      ZIMG_MATRIX_UNSPECIFIED },
-    { "470bg",       ZIMG_MATRIX_470BG },
     { "170m",        ZIMG_MATRIX_170M },
+    { "240m",        ZIMG_MATRIX_240M },
+    { "470bg",       ZIMG_MATRIX_470BG },
+    { "fcc",         ZIMG_MATRIX_FCC },
     { "ycgco",       ZIMG_MATRIX_YCGCO },
     { "2020ncl",     ZIMG_MATRIX_2020_NCL },
     { "2020cl",      ZIMG_MATRIX_2020_CL },
     { "chromacl",    ZIMG_MATRIX_CHROMATICITY_DERIVED_CL },
     { "chromancl",   ZIMG_MATRIX_CHROMATICITY_DERIVED_NCL },
-    { "ictcp",       ZIMG_MATRIX_ICTCP },
+    { "ictcp",       ZIMG_MATRIX_ICTCP }
 };
 
 const std::unordered_map<std::string, zimg_transfer_characteristics_e> g_transfer_table{
-    { "709",      ZIMG_TRANSFER_709 },
-    { "unspec",   ZIMG_TRANSFER_UNSPECIFIED },
-    { "601",      ZIMG_TRANSFER_601 },
-    { "linear",   ZIMG_TRANSFER_LINEAR },
-    { "2020_10",  ZIMG_TRANSFER_2020_10 },
-    { "2020_12",  ZIMG_TRANSFER_2020_12 },
-    { "st2084",   ZIMG_TRANSFER_ST2084 },
-    { "std-b67",  ZIMG_TRANSFER_ARIB_B67 },
-    { "srgb",     ZIMG_TRANSFER_IEC_61966_2_1 },
+    { "709",     ZIMG_TRANSFER_709 },
+    { "unspec",  ZIMG_TRANSFER_UNSPECIFIED },
+    { "601",     ZIMG_TRANSFER_601 },
+    { "linear",  ZIMG_TRANSFER_LINEAR },
+    { "2020_10", ZIMG_TRANSFER_2020_10 },
+    { "2020_12", ZIMG_TRANSFER_2020_12 },
+    { "240m",    ZIMG_TRANSFER_240M },
+    { "470m",    ZIMG_TRANSFER_470_M },
+    { "470bg",   ZIMG_TRANSFER_470_BG },
+    { "log100",  ZIMG_TRANSFER_LOG_100 },
+    { "log316",  ZIMG_TRANSFER_LOG_316 },
+    { "st2084",  ZIMG_TRANSFER_ST2084 },
+    { "std-b67", ZIMG_TRANSFER_ARIB_B67 },
+    { "srgb",    ZIMG_TRANSFER_IEC_61966_2_1 },
+    { "xvycc",   ZIMG_TRANSFER_IEC_61966_2_4 }
 };
 
 const std::unordered_map<std::string, zimg_color_primaries_e> g_primaries_table{
-    { "709",     ZIMG_PRIMARIES_709 },
-    { "unspec",  ZIMG_PRIMARIES_UNSPECIFIED },
-    { "170m",    ZIMG_PRIMARIES_170M },
-    { "240m",    ZIMG_PRIMARIES_240M },
-    { "2020",    ZIMG_PRIMARIES_2020 },
-    { "st431-2", ZIMG_PRIMARIES_ST431_2 },
-    { "st432-1", ZIMG_PRIMARIES_ST432_1 },
+    { "709",       ZIMG_PRIMARIES_709 },
+    { "unspec",    ZIMG_PRIMARIES_UNSPECIFIED },
+    { "170m",      ZIMG_PRIMARIES_170M },
+    { "240m",      ZIMG_PRIMARIES_240M },
+    { "470m",      ZIMG_PRIMARIES_470_M },
+    { "470bg",     ZIMG_PRIMARIES_470_BG },
+    { "film",      ZIMG_PRIMARIES_FILM },
+    { "2020",      ZIMG_PRIMARIES_2020 },
+    { "st428",     ZIMG_PRIMARIES_ST428 },
+    { "st431-2",   ZIMG_PRIMARIES_ST431_2 },
+    { "st432-1",   ZIMG_PRIMARIES_ST432_1 },
+    { "ebu3213-e", ZIMG_PRIMARIES_EBU3213_E }
 };
 
 const std::unordered_map<std::string, zimg_dither_type_e> g_dither_type_table{

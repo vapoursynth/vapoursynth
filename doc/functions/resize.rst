@@ -146,6 +146,8 @@ Resize
         170m        KR = 0.299; KB = 0.114
                     SMPTE 170M (2004)
                     (functionally the same as the value 5 (470bg))
+        240m        SMPTE 240M
+        fcc
         ycgco       YCgCo
         2020ncl     KR = 0.2627; KB = 0.0593
                     Rec. ITU-R BT.2020 non-constant luminance system
@@ -182,9 +184,15 @@ Resize
                     Rec. ITU-R BT.2020
                     (functionally the same as the values 1 (709),
                     6 (601) and 14 (2020_10))
+        240m        SMPTE 240M       
+        470m        ITU-R Rec. BT.470-6 System M       
+        470bg       ITU-R Rec. BT.470-6 System B, G (historical)
+        log100      Log 1:100 contrast
+        log316      Log 1:316 contrast
         st2084      SMPTE ST 2084
         std-b67     ARIB std-b67
         srgb        IEC 61966-2-1
+        xvycc       IEC 61966-2-4
 
       Color primaries (ITU-T H.265 Table E.3)::
       
@@ -211,14 +219,19 @@ Resize
                     white D65 0.3127 0.3290
                     SMPTE 240M (1999)
                     (functionally the same as the value 6 (170m))
+        470m        ITU-R Rec. BT.470-6 System M   
+        470bg       ITU-R Rec. BT.470-6 System B, G (historical)
+        film
         2020        primary x y
                     green 0.170 0.797
                     blue 0.131 0.046
                     red 0.708 0.292
                     white D65 0.3127 0.3290
                     Rec. ITU-R BT.2020
+        st428
         st431-2     DCI-P3 with traditional white point
         st432-1     DCI-P3
+        ebu3213-e   E.B.U. STANDARD FOR CHROMATICITY TOLERANCES FOR STUDIO MONITORS (3213-E)
 
       Pixel range (ITU-T H.265 Eq E-4 to E-15)::
       
