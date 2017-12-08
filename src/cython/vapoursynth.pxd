@@ -257,5 +257,7 @@ cdef extern from "include/VapourSynth.h" nogil:
         const double *propGetFloatArray(const VSMap *map, const char *key, int *error) nogil
         int propSetIntArray(VSMap *map, const char *key, const int64_t *i, int size) nogil
         int propSetFloatArray(VSMap *map, const char *key, const double *d, int size) nogil
+        
+        void logMessage(int msgType, const char *msg) nogil
 
     const VSAPI *getVapourSynthAPI(int version) nogil
