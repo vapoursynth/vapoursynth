@@ -231,7 +231,8 @@ Resize
         st428
         st431-2     DCI-P3 with traditional white point
         st432-1     DCI-P3
-        ebu3213-e   E.B.U. STANDARD FOR CHROMATICITY TOLERANCES FOR STUDIO MONITORS (3213-E)
+        jedec-p22   E.B.U. STANDARD FOR CHROMATICITY TOLERANCES FOR STUDIO MONITORS (3213-E)
+                    Also known as JEDEC P22
 
       Pixel range (ITU-T H.265 Eq E-4 to E-15)::
       

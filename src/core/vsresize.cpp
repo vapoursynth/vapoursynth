@@ -149,7 +149,7 @@ const std::unordered_map<std::string, zimg_color_primaries_e> g_primaries_table{
     { "st428",     ZIMG_PRIMARIES_ST428 },
     { "st431-2",   ZIMG_PRIMARIES_ST431_2 },
     { "st432-1",   ZIMG_PRIMARIES_ST432_1 },
-    { "ebu3213-e", ZIMG_PRIMARIES_EBU3213_E }
+    { "jedec-p22", ZIMG_PRIMARIES_EBU3213_E }
 };
 
 const std::unordered_map<std::string, zimg_dither_type_e> g_dither_type_table{

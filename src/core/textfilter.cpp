@@ -406,6 +406,12 @@ static std::string matrixToString(int matrix) {
         s = "BT.2020 CL";
     else if (matrix == 11)
         s = "SMPTE 2085";
+    else if (matrix == 12)
+        s = "Cromaticity dervived cl";
+    else if (matrix == 13)
+        s = "Cromaticity dervived ncl";
+    else if (matrix == 14)
+        s = "ICtCp";
     return s;
 }
 
