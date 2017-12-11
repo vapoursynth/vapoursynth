@@ -244,6 +244,8 @@ void MemoryUse::add(size_t bytes) {
 
 void MemoryUse::subtract(size_t bytes) {
     used.fetch_sub(bytes);
+    if (freeOnZero && !used)
+        delete this;
 }
 
 uint8_t *MemoryUse::allocBuffer(size_t bytes) {
