@@ -1234,11 +1234,11 @@ void VSCore::freeCore() {
     coreFreed = true;
     threadPool->waitForDone();
     if (numFilterInstances > 1)
-        vsWarning("Core freed but %d filter instances still exist", numFilterInstances.load() - 1);
+        vsWarning("Core freed but %d filter instance(s) still exist", numFilterInstances.load() - 1);
     if (memory->memoryUse() > 0)
         vsWarning("Core freed but %llu bytes still allocated in framebuffers", static_cast<unsigned long long>(memory->memoryUse()));
     if (numFunctionInstances > 0)
-        vsWarning("Core freed but %d function instances still exist", numFunctionInstances.load());
+        vsWarning("Core freed but %d function instance(s) still exist", numFunctionInstances.load());
     // Release the extra filter instance that always keeps the core alive
     filterInstanceDestroyed();
 }
