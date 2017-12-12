@@ -44,13 +44,13 @@ except ImportError as e:
 
 
 _using_vsscript = False
-_environment_id_stack = []
-_environment_id = None
-_stored_outputs = {}
-_cores = {}
-_stored_output = {}
-_core = None
-_message_handler = None
+cdef list _environment_id_stack = []
+cdef object _environment_id = None
+cdef dict _stored_outputs = {}
+cdef dict _cores = {}
+cdef dict _stored_output = {}
+cdef Core _core = None
+cdef object _message_handler = None
 cdef const VSAPI *_vsapi = NULL
 
 
@@ -180,7 +180,7 @@ def get_output(int index = 0):
 
 cdef class FuncData(object):
     cdef object func
-    cdef Core core
+    cdef VSCore *core
     cdef int id
     
     def __init__(self):
@@ -189,7 +189,7 @@ cdef class FuncData(object):
     def __call__(self, **kwargs):
         return self.func(**kwargs)
 
-cdef FuncData createFuncData(object func, Core core, int id):
+cdef FuncData createFuncData(object func, VSCore *core, int id):
     cdef FuncData instance = FuncData.__new__(FuncData)
     instance.func = func
     instance.core = core
@@ -215,21 +215,21 @@ cdef class Func(object):
         outm = self.funcs.createMap()
         inm = self.funcs.createMap()
         try:
-            dictToMap(kwargs, inm, None, vsapi)
+            dictToMap(kwargs, inm, NULL, vsapi)
             self.funcs.callFunc(self.ref, inm, outm, NULL, NULL)
             error = self.funcs.getError(outm)
             if error:
                 raise Error(error.decode('utf-8'))
-            ret = mapToDict(outm, False, False, None, vsapi)
+            ret = mapToDict(outm, False, False, NULL, vsapi)
             if not isinstance(ret, dict):
                 ret = {'val':ret}
         finally:
             vsapi.freeMap(outm)
             vsapi.freeMap(inm)
         
-cdef Func createFuncPython(object func, Core core):
+cdef Func createFuncPython(object func, VSCore *core, const VSAPI *funcs):
     cdef Func instance = Func.__new__(Func)
-    instance.funcs = core.funcs
+    instance.funcs = funcs
     if _using_vsscript:
         global _environment_id
         if _environment_id is None:
@@ -238,7 +238,7 @@ cdef Func createFuncPython(object func, Core core):
     else:
         fdata = createFuncData(func, core, 0)
     Py_INCREF(fdata)
-    instance.ref = instance.funcs.createFunc(publicFunction, <void *>fdata, freeFunc, core.core, core.funcs)
+    instance.ref = instance.funcs.createFunc(publicFunction, <void *>fdata, freeFunc, core, funcs)
     return instance
         
 cdef Func createFuncRef(VSFuncRef *ref, const VSAPI *funcs):
@@ -345,7 +345,7 @@ cdef void __stdcall frameDoneCallbackRaw(void *data, const VSFrameRef *f, int n,
             result = Error(result)
 
         else:
-            result = createConstVideoFrame(f, d.funcs, d.node.core)
+            result = createConstVideoFrame(f, d.funcs, d.node.core.core)
 
         try:
             d.receive(n, result)
@@ -372,7 +372,7 @@ cdef void __stdcall frameDoneCallbackOutput(void *data, const VSFrameRef *f, int
             d.error = 'Failed to retrieve frame ' + str(n) + ' with error: ' + errormsg.decode('utf-8')
         d.output += 1
     else:
-        d.reorder[n] = createConstVideoFrame(f, d.funcs, d.node.core)
+        d.reorder[n] = createConstVideoFrame(f, d.funcs, d.node.core.core)
 
         while d.output in d.reorder:
             frame_obj = <VideoFrame>d.reorder[d.output]
@@ -405,7 +405,7 @@ cdef void __stdcall frameDoneCallbackOutput(void *data, const VSFrameRef *f, int
     d.condition.release()
 
 
-cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, Core core, const VSAPI *funcs):
+cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, VSCore *core, const VSAPI *funcs):
     cdef int numKeys = funcs.propNumKeys(map)
     retdict = {}
     cdef const char *retkey
@@ -423,10 +423,11 @@ cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, Core core,
             elif proptype == 's':
                 newval = funcs.propGetData(map, retkey, y, NULL)
             elif proptype =='c':
-                newval = createVideoNode(funcs.propGetNode(map, retkey, y, NULL), funcs, core)
+                c = get_core()
+                newval = createVideoNode(funcs.propGetNode(map, retkey, y, NULL), funcs, c)
 
                 if add_cache and not (newval.flags & vapoursynth.nfNoCache):
-                    newval = core.std.Cache(clip=newval)
+                    newval = c.std.Cache(clip=newval)
 
                     if isinstance(newval, dict):
                         newval = newval['dict']
@@ -453,7 +454,7 @@ cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, Core core,
     else:
         return retdict
 
-cdef void dictToMap(dict ndict, VSMap *inm, Core core, const VSAPI *funcs) except *:
+cdef void dictToMap(dict ndict, VSMap *inm, VSCore *core, const VSAPI *funcs) except *:
     for key in ndict:
         ckey = key.encode('utf-8')
         val = ndict[key]
@@ -477,7 +478,7 @@ cdef void dictToMap(dict ndict, VSMap *inm, Core core, const VSAPI *funcs) excep
                 if funcs.propSetFunc(inm, ckey, (<Func>v).ref, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif callable(v):
-                tf = createFuncPython(v, core)
+                tf = createFuncPython(v, core, funcs)
 
                 if funcs.propSetFunc(inm, ckey, tf.ref, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
@@ -499,7 +500,7 @@ cdef void dictToMap(dict ndict, VSMap *inm, Core core, const VSAPI *funcs) excep
                 raise Error('argument ' + key + ' was passed an unsupported type (' + type(v).__name__ + ')')
 
 
-cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, Core core, const VSAPI *funcs) except *:
+cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, const VSAPI *funcs) except *:
     for key in ndict:
         ckey = key.encode('utf-8')
         val = ndict[key]
@@ -520,7 +521,7 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, Core core, const V
                 if funcs.propSetFunc(inm, ckey, (<Func>v).ref, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif atypes[key][:4] == 'func' and callable(v):
-                tf = createFuncPython(v, core)
+                tf = createFuncPython(v, core, funcs)
                 if funcs.propSetFunc(inm, ckey, tf.ref, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif atypes[key][:3] == 'int':
@@ -617,7 +618,7 @@ cdef Format createFormat(const VSFormat *f):
 cdef class VideoProps(object):
     cdef const VSFrameRef *constf
     cdef VSFrameRef *f
-    cdef Core core
+    cdef VSCore *core
     cdef const VSAPI *funcs
     cdef bint readonly
 
@@ -661,7 +662,7 @@ cdef class VideoProps(object):
                 ol.append(data[:self.funcs.propGetDataSize(m, b, i, NULL)])
         elif t == 'c':
             for i in range(numelem):
-                ol.append(createVideoNode(self.funcs.propGetNode(m, b, i, NULL), self.funcs, self.core))
+                ol.append(createVideoNode(self.funcs.propGetNode(m, b, i, NULL), self.funcs, get_core()))
         elif t == 'v':
             for i in range(numelem):
                 ol.append(createConstVideoFrame(self.funcs.propGetFrame(m, b, i, NULL), self.funcs, self.core))
@@ -701,7 +702,7 @@ cdef class VideoProps(object):
                     if funcs.propSetFunc(m, b, (<Func>v).ref, 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif callable(v):
-                    tf = createFuncPython(v, self.core)
+                    tf = createFuncPython(v, self.core, self.funcs)
                     if funcs.propSetFunc(m, b, tf.ref, 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif isinstance(v, int):
@@ -852,7 +853,7 @@ Mapping.register(VideoProps)
 cdef class VideoFrame(object):
     cdef const VSFrameRef *constf
     cdef VSFrameRef *f
-    cdef Core core
+    cdef VSCore *core
     cdef const VSAPI *funcs
     cdef readonly Format format
     cdef readonly int width
@@ -869,7 +870,7 @@ cdef class VideoFrame(object):
         self.funcs.freeFrame(self.constf)
 
     def copy(self):
-        return createVideoFrame(self.funcs.copyFrame(self.constf, self.core.core), self.funcs, self.core)
+        return createVideoFrame(self.funcs.copyFrame(self.constf, self.core), self.funcs, self.core)
 
     def get_read_ptr(self, int plane):
         if plane < 0 or plane >= self.format.num_planes:
@@ -953,7 +954,7 @@ cdef class VideoFrame(object):
         return s
 
 
-cdef VideoFrame createConstVideoFrame(const VSFrameRef *constf, const VSAPI *funcs, Core core):
+cdef VideoFrame createConstVideoFrame(const VSFrameRef *constf, const VSAPI *funcs, VSCore *core):
     cdef VideoFrame instance = VideoFrame.__new__(VideoFrame)
     instance.constf = constf
     instance.f = NULL
@@ -964,11 +965,10 @@ cdef VideoFrame createConstVideoFrame(const VSFrameRef *constf, const VSAPI *fun
     instance.width = funcs.getFrameWidth(constf, 0)
     instance.height = funcs.getFrameHeight(constf, 0)
     instance.props = createVideoProps(instance)
-
     return instance
 
 
-cdef VideoFrame createVideoFrame(VSFrameRef *f, const VSAPI *funcs, Core core):
+cdef VideoFrame createVideoFrame(VSFrameRef *f, const VSAPI *funcs, VSCore *core):
     cdef VideoFrame instance = VideoFrame.__new__(VideoFrame)
     instance.constf = f
     instance.f = f
@@ -979,7 +979,6 @@ cdef VideoFrame createVideoFrame(VSFrameRef *f, const VSAPI *funcs, Core core):
     instance.width = funcs.getFrameWidth(f, 0)
     instance.height = funcs.getFrameHeight(f, 0)
     instance.props = createVideoProps(instance)
-
     return instance
 
 
@@ -1121,7 +1120,7 @@ cdef class VideoNode(object):
             else:
                 raise Error('Internal error - no error given')
         else:
-            return createConstVideoFrame(f, self.funcs, self.core)
+            return createConstVideoFrame(f, self.funcs, self.core.core)
 
     def get_frame_async_raw(self, int n, object cb, object future_wrapper=None):
         self.ensure_valid_frame_number(n)
@@ -1518,7 +1517,7 @@ def get_core(threads = None, add_cache = None, accept_lowercase = None):
             ret_core.accept_lowercase = accept_lowercase
     return ret_core
     
-cdef object vsscript_get_core_internal(int environment_id):
+cdef Core vsscript_get_core_internal(int environment_id):
     global _cores
     if not environment_id in _cores:
         _cores[environment_id] = createCore()
@@ -1699,7 +1698,7 @@ cdef class Function(object):
         dtomsuccess = True
         dtomexceptmsg = ''
         try:
-            typedDictToMap(processed, atypes, inm, self.plugin.core, self.funcs)
+            typedDictToMap(processed, atypes, inm, self.plugin.core.core, self.funcs)
         except Error as e:
             self.funcs.freeMap(inm)
             dtomsuccess = False
@@ -1721,7 +1720,7 @@ cdef class Function(object):
             self.funcs.freeMap(outm)
             raise Error(emsg.decode('utf-8'))
 
-        retdict = mapToDict(outm, True, self.plugin.core.add_cache, self.plugin.core, self.funcs)
+        retdict = mapToDict(outm, True, self.plugin.core.add_cache, self.plugin.core.core, self.funcs)
         self.funcs.freeMap(outm)
         return retdict
 
@@ -1751,11 +1750,11 @@ cdef void __stdcall publicFunction(const VSMap *inm, VSMap *outm, void *userData
         _environment_id = d.id
    
         try:
-            m = mapToDict(inm, False, False, d.core, vsapi)
+            m = mapToDict(inm, False, False, core, vsapi)
             ret = d(**m)
             if not isinstance(ret, dict):
                 ret = {'val':ret}
-            dictToMap(ret, outm, d.core, vsapi)
+            dictToMap(ret, outm, core, vsapi)
         except BaseException, e:
             emsg = str(e).encode('utf-8')
             vsapi.setError(outm, emsg)
@@ -1954,7 +1953,7 @@ cdef public api int vpy_getVariable(VPYScriptExport *se, const char *name, VSMap
             dname = name.decode('utf-8')
             read_var = { dname:evaldict[dname]}
             core = vsscript_get_core_internal(se.id)
-            dictToMap(read_var, dst, core, vpy_getVSApi())
+            dictToMap(read_var, dst, core.core, vpy_getVSApi())
             return 0
         except:
             return 1
@@ -1966,7 +1965,7 @@ cdef public api int vpy_setVariable(VPYScriptExport *se, const VSMap *vars) nogi
         evaldict = <dict>se.pyenvdict
         
         core = vsscript_get_core_internal(se.id)
-        new_vars = mapToDict(vars, False, False, core, vpy_getVSApi())
+        new_vars = mapToDict(vars, False, False, core.core, vpy_getVSApi())
         for key in new_vars:
             evaldict[key] = new_vars[key]
         return 0
