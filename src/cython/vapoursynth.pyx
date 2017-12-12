@@ -1736,7 +1736,7 @@ cdef Function createFunction(str name, str signature, Plugin plugin, const VSAPI
 
 cdef void __stdcall freeFunc(void *pobj) nogil:
     with gil:
-        fobj = <object>pobj
+        fobj = <FuncData>pobj
         Py_DECREF(fobj)
         fobj = None
 
