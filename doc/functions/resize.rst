@@ -153,8 +153,8 @@ Resize
                     Rec. ITU-R BT.2020 non-constant luminance system
         2020cl      KR = 0.2627; KB = 0.0593
                     Rec. ITU-R BT.2020 constant luminance system
-        chromacl    Cromaticity dervived constant luminance system
-        chromancl   Cromaticity dervived non-constant luminance system
+        chromacl    Cromaticity derived constant luminance system
+        chromancl   Cromaticity derived non-constant luminance system
         ictcp       ICtCp
 
       Transfer characteristics (ITU-T H.265 Table E.4)::
