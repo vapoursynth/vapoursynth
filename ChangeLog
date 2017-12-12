@@ -1,5 +1,6 @@
 r41:
 updated to zimg v2.7
+fixed memory leak where modifyframe wouldn't release the function reference when done
 fixed a rare memory leak that could happen if the core was freed before the last frame 
 fixed a memory leak that would happen if a python videoframe object was instantiated
 improved imwri's input and output format guessing, now integer and float image formats will most likely be returned in native precision

@@ -1661,9 +1661,10 @@ static void VS_CC modifyFrameFree(void *instanceData, VSCore *core, const VSAPI 
     ModifyFrameData *d = (ModifyFrameData *)instanceData;
     for (int i = 0; i < d->numnode; i++)
         vsapi->freeNode(d->node[i]);
+    free(d->node);
+    vsapi->freeFunc(d->func);
     vsapi->freeMap(d->in);
     vsapi->freeMap(d->out);
-    free(d->node);
     free(d);
 }
 
