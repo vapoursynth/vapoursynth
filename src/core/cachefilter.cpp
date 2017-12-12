@@ -228,13 +228,12 @@ static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData,
     if (vsapi->propGetInt(in, "make_linear", 0, &err))
         c->makeLinear = true;
 
-    if (c->makeLinear)
-        c->cache.setMaxFrames(std::max((c->numThreads + extraFrames) * 2, c->cache.getMaxFrames()));
-
     int size = int64ToIntS(vsapi->propGetInt(in, "size", 0, &err));
 
     if (!err && size > 0)
         c->cache.setMaxFrames(size);
+    else if (c->makeLinear)
+        c->cache.setMaxFrames(std::max((c->numThreads + extraFrames) * 2, 20 + c->numThreads));
     else
         c->cache.setMaxFrames(20 + c->numThreads);
 
