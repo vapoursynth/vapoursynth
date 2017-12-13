@@ -63,7 +63,7 @@ Deinterlacing
 * `TDeintMod <http://forum.doom9.org/showthread.php?t=171295>`_ -- Port of the Avisynth deinterlacer
 * `W3FDIF <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-W3FDIF>`_ -- Weston 3 Field Deinterlacing Filter
 * `Yadifmod <http://forum.doom9.org/showthread.php?t=171028>`_ -- Port of the Avisynth deinterlacer
-* `ZNEDI3 <https://forum.doom9.org/showthread.php?p=1822770#post1822770>`_ -- Alternate optimized version of NNEDI3
+* `ZNEDI3 <https://github.com/sekrit-twc/znedi3>`_ -- Alternate optimized version of NNEDI3
 
 Inverse Telecine
 ----------------
