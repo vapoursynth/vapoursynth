@@ -283,6 +283,7 @@
     <ClInclude Include="..\..\include\VapourSynth.h" />
     <ClInclude Include="..\..\include\VSHelper.h" />
     <ClInclude Include="..\..\include\VSScript.h" />
+    <ClInclude Include="..\..\src\common\vsutf16.h" />
     <ClInclude Include="..\..\src\core\cachefilter.h" />
     <ClInclude Include="..\..\src\core\cpufeatures.h" />
     <ClInclude Include="..\..\src\core\filtershared.h" />

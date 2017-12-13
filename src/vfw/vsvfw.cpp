@@ -30,7 +30,6 @@
 #include <algorithm>
 #include <mutex>
 #include <atomic>
-#include <codecvt>
 #include <vector>
 #include <chrono>
 #include <thread>
@@ -39,6 +38,7 @@
 #include "VSHelper.h"
 #include "../common/p2p_api.h"
 #include "../common/fourcc.h"
+#include "../common/vsutf16.h"
 
 static std::atomic<long> refCount(0);
 
@@ -231,8 +231,7 @@ STDMETHODIMP VapourSynthFile::IsDirty() {
 }
 
 STDMETHODIMP VapourSynthFile::Load(LPCOLESTR lpszFileName, DWORD grfMode) {
-    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
-    return Open(conversion.to_bytes(lpszFileName).c_str(), grfMode, lpszFileName);
+    return Open(utf16_to_utf8(lpszFileName).c_str(), grfMode, lpszFileName);
 }
 
 STDMETHODIMP VapourSynthFile::Save(LPCOLESTR lpszFileName, BOOL fRemember) {
@@ -714,9 +713,6 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
     const VSFrameRef *f = vsapi->getFrame(n, parent->node, errMsg.data(), static_cast<int>(errMsg.size()));
     VSScript *errSe = nullptr;
     if (!f) {
-        std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
-        OutputDebugString(conversion.from_bytes(errMsg.data()).c_str());
-
         std::string matrix;
         if (parent->vi->format->colorFamily == cmYUV || parent->vi->format->colorFamily == cmGray || parent->vi->format->id == pfCompatYUY2)
             matrix = ", matrix_s=\"709\"";

@@ -29,5 +29,8 @@
     <ClInclude Include="..\..\include\VSScript.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\common\vsutf16.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2016 Fredrik Mellbin
+* Copyright (c) 2012-2017 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -21,9 +21,9 @@
 #include "../core/x86utils.h"
 #include "../core/cpufeatures.h"
 #include "avisynth_compat.h"
-#include <codecvt>
 #include <algorithm>
 #include <cstdarg>
+#include "../common/vsutf16.h"
 
 #define NOMINMAX
 #include <Windows.h>
@@ -1029,8 +1029,7 @@ PVideoFrame FakeAvisynth::SubframePlanarA(PVideoFrame src, int rel_offset, int n
 
 static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     const char *rawPath = vsapi->propGetData(in, "path", 0, nullptr);
-    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
-    std::wstring wPath = conversion.from_bytes(rawPath);
+    std::wstring wPath = utf16_from_utf8(rawPath);
 
     HMODULE plugin = LoadLibraryW(wPath.c_str());
 

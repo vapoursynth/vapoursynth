@@ -142,8 +142,7 @@ std::string get_file_contents(const std::wstring &filename) {
 
 // (Re)Open the Script File
 int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
-    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
-    std::string scriptName = conversion.to_bytes(wszScriptName);
+    std::string scriptName = utf16_to_utf8(wszScriptName);
 
     if (!scriptName.empty()) {
         std::string script = get_file_contents(wszScriptName);
@@ -424,11 +423,10 @@ int VapourSynther::GetVarAsInt(const char* varName, int defVal) {
 
 // Take a copy of the current error message
 void VapourSynther::setError(const char *_text, const wchar_t *alt) {
-    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
     errText.clear();
 
     if (_text)
-        errText = conversion.from_bytes(_text);
+        errText = utf16_from_utf8(_text);
     else if (alt)
         errText = alt;
     else

@@ -12,7 +12,6 @@
 #include <atomic>
 #include <algorithm>
 #include <new>
-#include <codecvt>
 #include <chrono>
 #include <thread>
 #include <string>
@@ -27,6 +26,7 @@
 #include "videoinfoadapter.h"
 #include "../common/p2p_api.h"
 #include "../common/fourcc.h"
+#include "../common/vsutf16.h"
 // Common vfw defines
 #define WAVE_FORMAT_PCM               1
 #define WAVE_FORMAT_IEEE_FLOAT   0x0003

@@ -181,6 +181,7 @@
     <ClInclude Include="..\..\src\common\fourcc.h" />
     <ClInclude Include="..\..\src\common\p2p.h" />
     <ClInclude Include="..\..\src\common\p2p_api.h" />
+    <ClInclude Include="..\..\src\common\vsutf16.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\avfs\assertive.cpp" />

@@ -119,6 +119,9 @@
     <ClInclude Include="..\..\src\core\filtersharedcpp.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\common\vsutf16.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <NASM Include="..\..\src\core\asm\x86\cpu.asm">

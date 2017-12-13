@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2013-2016 Fredrik Mellbin
+* Copyright (c) 2013-2017 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -31,9 +31,9 @@
 #include <locale>
 #include <sstream>
 #ifdef VS_TARGET_OS_WINDOWS
-#include <codecvt>
 #include <io.h>
 #include <fcntl.h>
+#include "../common/vsutf16.h"
 #endif
 
 #define __STDC_FORMAT_MACROS
@@ -61,8 +61,7 @@ static BOOL WINAPI HandlerRoutine(DWORD dwCtrlType) {
 typedef std::wstring nstring;
 #define NSTRING(x) L##x
 std::string nstringToUtf8(const nstring &s) {
-    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
-    return conversion.to_bytes(s);
+    return utf16_to_utf8(s);
 }
 #else
 typedef std::string nstring;
