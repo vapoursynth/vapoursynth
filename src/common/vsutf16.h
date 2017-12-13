@@ -32,7 +32,7 @@ static std::string utf16_to_utf8(const std::wstring &wstr) {
     std::string buffer;
     buffer.resize(required_size);
     WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, &buffer[0], required_size, nullptr, nullptr);
-    return buffer.data();
+    return buffer;
 }
 
 static std::wstring utf16_from_utf8(const std::string &str) {
@@ -40,7 +40,7 @@ static std::wstring utf16_from_utf8(const std::string &str) {
     std::wstring wbuffer;
     wbuffer.resize(required_size);
     MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, &wbuffer[0], required_size);
-    return wbuffer.data();
+    return wbuffer;
 }
 
 #endif
