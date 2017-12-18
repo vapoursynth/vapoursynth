@@ -85,6 +85,10 @@ static void unpackframe(const VSVideoInfo *vi, VSFrameRef *dst, VSFrameRef *dst_
         p.dst[plane] = vsapi->getWritePtr(dst, plane);
         p.dst_stride[plane] = vsapi->getStride(dst, plane);
     }
+    if (dst_alpha) {
+        p.dst[3] = vsapi->getWritePtr(dst_alpha, 0);
+        p.dst_stride[3] = vsapi->getStride(dst_alpha, 0);
+    }
 
     switch (fourcc) {
     case VS_FCC('P010'): p.packing = p2p_p010_le; p2p_unpack_frame(&p, 0); break;
