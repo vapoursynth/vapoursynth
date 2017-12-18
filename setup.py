@@ -91,8 +91,7 @@ setup(
     ext_modules = [Extension("vapoursynth", [join("src", "cython", "vapoursynth.pyx")],
                              libraries = ["vapoursynth"],
                              library_dirs = library_dirs,
-                             include_dirs = [curdir, join("src", "cython")],
-                             cython_c_in_temp = 1)],
+                             include_dirs = [curdir, join("src", "cython")])],
     setup_requires=[
         'setuptools>=18.0',
         "Cython",
