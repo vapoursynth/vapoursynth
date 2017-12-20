@@ -58,7 +58,7 @@ static const VSFrameRef *VS_CC lutGetframe(int n, int activationReason, void **i
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        const VSFormat *fi = vsapi->getFrameFormat(src);
+        const VSFormat *fi = d->vi_out.format;
         const int pl[] = {0, 1, 2};
         const VSFrameRef *fr[] = {d->process[0] ? 0 : src, d->process[1] ? 0 : src, d->process[2] ? 0 : src};
         VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
@@ -196,7 +196,6 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
 
         d->node = vsapi->propGetNode(in, "clip", 0, 0);
         d->vi = vsapi->getVideoInfo(d->node);
-        d->vi_out = *d->vi;
 
         if (!isConstantFormat(d->vi))
             RETERROR("Lut: only clips with constant format and dimensions supported");
@@ -210,9 +209,12 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
         bool floatout = !!vsapi->propGetInt(in, "floatout", 0, &err);
         int bitsout = int64ToIntS(vsapi->propGetInt(in, "bits", 0, &err));
         if (err)
-            bitsout = floatout ? sizeof(float) * 8 : d->vi->format->bitsPerSample;
+            bitsout = (floatout ? sizeof(float) * 8 : d->vi->format->bitsPerSample);
         if ((floatout && bitsout != 32) || (!floatout && (bitsout < 8 || bitsout > 16)))
             RETERROR("Lut: only 8-16 bit integer and 32 bit float output supported");
+
+        d->vi_out = *d->vi;
+        d->vi_out.format = vsapi->registerFormat(d->vi->format->colorFamily, floatout ? stFloat : stInteger, bitsout, d->vi->format->subSamplingW, d->vi->format->subSamplingH, core);
 
         getPlanesArg(in, d->process, vsapi);
 
@@ -462,13 +464,22 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
             || d->vi[0]->width != d->vi[1]->width || d->vi[0]->height != d->vi[1]->height)
             RETERROR("Lut2: only clips with integer samples, same dimensions, same subsampling and up to a total of 20 indexing bits supported");
 
+        int err;
+        bool floatout = !!vsapi->propGetInt(in, "floatout", 0, &err);
+        int bitsout = int64ToIntS(vsapi->propGetInt(in, "bits", 0, &err));
+        if (err)
+            bitsout = (floatout ? sizeof(float) * 8 : d->vi[0]->format->bitsPerSample);
+        if ((floatout && bitsout != 32) || (!floatout && (bitsout < 8 || bitsout > 16)))
+            RETERROR("Lut2: only 8-16 bit integer and 32 bit float output supported");
+
+        d->vi_out = *d->vi[0];
+        d->vi_out.format = vsapi->registerFormat(d->vi[0]->format->colorFamily, floatout ? stFloat : stInteger, bitsout, d->vi[0]->format->subSamplingW, d->vi[0]->format->subSamplingH, core);
+
         getPlanesArg(in, d->process, vsapi);
 
-        int err;
         VSFuncRef *func = vsapi->propGetFunc(in, "function", 0, &err);
         int lut_elem = vsapi->propNumElements(in, "lut");
         int lutf_elem = vsapi->propNumElements(in, "lutf");
-        bool floatout = !!vsapi->propGetInt(in, "floatout", 0, &err);
 
         int num_set = (lut_elem >= 0) + (lutf_elem >= 0) + !!func;
 
@@ -500,18 +511,6 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
             vsapi->freeFunc(func);
             RETERROR(("Lut2: bad lut length. Expected " + std::to_string(n) + " elements, got " + std::to_string(lut_length) + " instead").c_str());
         }
-
-        int bitsout = int64ToIntS(vsapi->propGetInt(in, "bits", 0, &err));
-        if (err)
-            bitsout = (floatout ? sizeof(float) * 8 : d->vi[0]->format->bitsPerSample);
-        if ((floatout && bitsout != 32) || (!floatout && (bitsout < 8 || bitsout > 16))) {
-            vsapi->freeFunc(func);
-            RETERROR("Lut2: only 8-16 bit integer and 32 bit float output supported");
-        }
-
-        d->vi_out = *d->vi[0];
-        d->vi_out.format = vsapi->registerFormat(d->vi[0]->format->colorFamily, floatout ? stFloat : stInteger, bitsout, d->vi[0]->format->subSamplingW, d->vi[0]->format->subSamplingH, core);
-
 
         if (d->vi[0]->format->bytesPerSample == 1) {
             if (d->vi[1]->format->bytesPerSample == 1) {

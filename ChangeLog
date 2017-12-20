@@ -1,5 +1,6 @@
 r41:
 updated to zimg v2.7
+fixed lut triggering a fatal error when the bits argument is used
 fixed regression that prevented alpha output from working in avisource
 removed dependency on the now deprecated codecvt header
 fixed memory leak where modifyframe wouldn't release the function reference when done

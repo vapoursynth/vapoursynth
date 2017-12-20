@@ -21,11 +21,14 @@ class FilterTestSequence(unittest.TestCase):
             self.assertEqual(frame.props['PlaneStats1Diff'], 0)
             self.assertEqual(frame.props['PlaneStats2Diff'], 0)
 
+    def testLUT8to16Bit(self):
+        clip = self.BlankClip(format=vs.YUV420P8, color=[0, 0, 0])
+        ret = self.Lut(clip, planes=[0, 1, 2], lut=[0]*256, bits=16)
+        self.checkDifference(ret, self.BlankClip(format=vs.YUV420P16, color=[0, 0, 0]))
+            
     def testLUT16Bit(self):
         clip = self.BlankClip(format=vs.YUV420P16, color=[69, 242, 115])
-
         ret = self.Lut(clip, planes=[0, 1, 2], function=lambda x: x)
-
         self.checkDifference(clip, ret)
 
     def testLUT2_8Bit(self):
