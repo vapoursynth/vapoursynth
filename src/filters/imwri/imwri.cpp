@@ -231,7 +231,6 @@ static void writeImageHelper(const VSFrameRef *frame, const VSFrameRef *alphaFra
                 pixels[x * channels + rOff] = r[x] * scaleFactor + (r[x] >> shiftFactor);
                 pixels[x * channels + gOff] = g[x] * scaleFactor + (g[x] >> shiftFactor);
                 pixels[x * channels + bOff] = b[x] * scaleFactor + (b[x] >> shiftFactor);
-                pixels[x * channels + aOff] = QuantumRange;
             }
 
             r += strideR / sizeof(T);
@@ -274,15 +273,14 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
         }
 
         try {
-            Magick::Image image(Magick::Geometry(width, height), Magick::Color(0, 0, 0, 0));
+            Magick::Image image(Magick::Geometry(width, height), alphaFrame ? Magick::Color(0, 0, 0, 0) : Magick::Color(0, 0, 0));
             image.magick(d->imgFormat);
             if (d->compressType != MagickCore::UndefinedCompression)
                 image.compressType(d->compressType);
             image.quantizeDitherMethod(Magick::FloydSteinbergDitherMethod);
             image.quantizeDither(d->dither);
             image.quality(d->quality);
-            if (alphaFrame)
-                image.alphaChannel(Magick::ActivateAlphaChannel);
+            image.alphaChannel(alphaFrame ? Magick::ActivateAlphaChannel : Magick::DeactivateAlphaChannel);
 
             bool isGray = fi->colorFamily == cmGray;
             if (isGray)
