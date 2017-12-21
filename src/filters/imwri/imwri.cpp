@@ -201,10 +201,10 @@ static void writeImageHelper(const VSFrameRef *frame, const VSFrameRef *alphaFra
     ssize_t rOff = pixelCache.offset(MagickCore::RedPixelChannel);
     ssize_t gOff = pixelCache.offset(MagickCore::GreenPixelChannel);
     ssize_t bOff = pixelCache.offset(MagickCore::BluePixelChannel);
-    ssize_t aOff = pixelCache.offset(MagickCore::AlphaPixelChannel);
     size_t channels = image.channels();
 
     if (alphaFrame) {
+        ssize_t aOff = pixelCache.offset(MagickCore::AlphaPixelChannel);
         int strideA = vsapi->getStride(alphaFrame, 0);
         const T * VS_RESTRICT a = reinterpret_cast<const T *>(vsapi->getReadPtr(alphaFrame, 0));
 
@@ -273,14 +273,14 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
         }
 
         try {
-            Magick::Image image(Magick::Geometry(width, height), alphaFrame ? Magick::Color(0, 0, 0, 0) : Magick::Color(0, 0, 0));
+            Magick::Image image(Magick::Geometry(width, height), Magick::Color(0, 0, 0, 0));
             image.magick(d->imgFormat);
             if (d->compressType != MagickCore::UndefinedCompression)
                 image.compressType(d->compressType);
             image.quantizeDitherMethod(Magick::FloydSteinbergDitherMethod);
             image.quantizeDither(d->dither);
             image.quality(d->quality);
-            image.alphaChannel(alphaFrame ? Magick::ActivateAlphaChannel : Magick::DeactivateAlphaChannel);
+            image.alphaChannel(alphaFrame ? Magick::ActivateAlphaChannel : Magick::RemoveAlphaChannel);
 
             bool isGray = fi->colorFamily == cmGray;
             if (isGray)
