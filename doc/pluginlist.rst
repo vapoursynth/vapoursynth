@@ -18,6 +18,7 @@ Scripts
 * `muvsfunc <https://github.com/WolframRhodium/muvsfunc>`_ -- Various scripts and ports by WolframRhodium
 * `mvsfunc <http://forum.doom9.org/showthread.php?t=172564>`_ -- Wrapper functions to make certain operations simpler
 * `Oyster <http://forum.doom9.org/showthread.php?t=173470>`_ -- Compression artifact removal
+* `Plum <https://github.com/IFeelBloated/Plum>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=173775>`__ -- Blind deconvolution enhanced by pixel/block matching
 * `Vine <http://forum.doom9.org/showthread.php?t=173703>`_ -- De-halo and morphology functions
 * `vsTAAmbk <https://github.com/HomeOfVapourSynthEvolution/vsTAAmbk>`_ -- AA-script
 * `YoloCR <https://git.clapity.eu/Id/YoloCR>`_ -- A convenient OCR script
@@ -27,7 +28,7 @@ Plugins
 
 Source/Output
 -------------
-* :ref:`AviSource <avisource>` -- in the source tree
+* :ref:`AviSource <avisource>` -- Loads AVI files using VFW, in the source tree
 * `d2vsource <http://forum.doom9.org/showthread.php?t=166399>`_ -- Frame accurate mpeg2 source filter
 * `FFMS2 <https://github.com/FFMS/ffms2>`_ -- FFmpeg based source filter
 * :ref:`ImageMagick Writer/Reader <imwri>` -- image writer and reader, in the source tree
@@ -93,7 +94,7 @@ Dot Crawl and Rainbows
 ----------------------
 * `Bifrost 2000 <https://github.com/dubhater/vapoursynth-bifrost>`_ -- A rainbow remover based on the Bifrost filter for Avisynth
 * `SSIQ <https://github.com/dubhater/vapoursynth-ssiq>`_ -- Spatial derainbowing filter
-* `TComb <http://forum.doom9.org/showthread.php?t=171124>`_ -- Port of the Avisynth filter
+* `TComb <https://github.com/dubhater/vapoursynth-tcomb>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171124>`__ -- Port of the Avisynth filter
 
 Metrics and Analysis
 --------------------
@@ -104,35 +105,34 @@ Metrics and Analysis
 
 Others
 ------
-* :ref:`Morpho <morpho>` -- simple morphological filters, in the source tree
-* :ref:`Vinverse <vinverse>` -- in the source tree
+* :ref:`Morpho <morpho>` -- Simple morphological filters, in the source tree
+* :ref:`Vinverse <vinverse>` -- In the source tree
 * :ref:`Miscellaneous filters <misc>` -- Scene change detection, frame averaging and other sometimes useful functions, in the source tree
-* `AddGrain <http://forum.doom9.org/showthread.php?t=171073>`_ -- Port of the Avisynth AddGrain filter
+* `AddGrain <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-AddGrain>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171073>`__ -- Port of the Avisynth AddGrain filter
 * `AutoCrop <https://github.com/Infiziert90/vapoursynth-autocrop>`_
-* `AWarpSharp2 <http://forum.doom9.org/showthread.php?t=172721>`_ -- Sharpens edges by warping them
-* `Basic audio support <http://forum.doom9.org/showthread.php?t=171555>`_ -- A plugin that adds basic audio support
-* `Continuity Fixer <http://forum.doom9.org/showthread.php?t=171785>`_ -- Can help repair damaged borders of frames
-* `CTMF <http://forum.doom9.org/showthread.php?t=171213>`_ -- Constant Time Median Filtering
-* `DCT Filter <http://forum.doom9.org/showthread.php?t=171039>`_ -- Block based DCT coefficient adjustment
-* `Deblock <http://forum.doom9.org/showthread.php?t=170975>`_ -- h.264 style deblocking
-* `DeLogo <http://forum.doom9.org/showthread.php?t=171252>`_ -- Port of the Avisynth logo removal filter
-* `f3kdb <http://forum.doom9.org/showthread.php?t=161411>`_ -- Debanding filter
+* `AWarpSharp2 <https://github.com/dubhater/vapoursynth-awarpsharp2>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=172721>`__ -- Sharpens edges by warping them
+* `Basic audio support <https://github.com/dubhater/vapoursynth-damb>`_ `(Doom9) <http://forum.doom9.org/showthread.php?t=171555>`__ -- A plugin that adds basic audio support
+* `Continuity Fixer <https://github.com/MonoS/VS-ContinuityFixer>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171785>`__ -- Can help repair damaged borders of frames
+* `CTMF <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-CTMF>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171213>`__ -- Constant Time Median Filtering
+* `DCT Filter (renewed) <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-DCTFilter>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=175135>`__ -- Block based DCT coefficient adjustment, optimized version
+* `Deblock <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-Deblock/>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=170975>`__ -- h.264 style deblocking
+* `DeLogo <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-DeLogo>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171252>`__ -- Port of the Avisynth logo removal filter
+* `f3kdb <https://github.com/SAPikachu/flash3kyuu_deband>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=161411>`__ -- Debanding filter
 * `FieldHint <https://github.com/dubhater/vapoursynth-fieldhint>`_ -- Takes fields from arbitrary input frames to create the output frames
 * `FillBorders <https://github.com/dubhater/vapoursynth-fillborders>`_
-* `GradCurve <https://forum.doom9.org/showthread.php?t=174096>`_ -- Port of virtualdub Gradation Curves plugin
-* `minsharp <http://forum.doom9.org/showthread.php?t=173328>`_ -- Simple 3x3 blur and sharpen
-* `MSmoosh <http://forum.doom9.org/showthread.php?t=171159>`_ -- MSmooth and MSharpen ports
-* `MVTools <http://forum.doom9.org/showthread.php?t=171207>`_ -- MVTools port
-* `MVTools single precision <https://forum.doom9.org/showthread.php?t=172525>`_ -- MVTools fork that works in single precision floating point
-* `Plum <https://forum.doom9.org/showthread.php?t=173775>`_ -- Blind deconvolution enhanced by pixel/block matching
-* `RemapFrames <https://forum.doom9.org/showthread.php?t=174727>`_ -- Frame re-ordering based on files/strings
-* `Retinex <http://forum.doom9.org/showthread.php?t=171307>`_ -- Dynamic range compression
-* `TCanny <http://forum.doom9.org/showthread.php?t=172158>`_ -- Canny edge detection
-* `TimeCube <http://forum.doom9.org/showthread.php?p=1809329#post1809329>`_ -- 3D LUT
+* `GradCurve <https://github.com/xekon/GradCurve>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=174096>`__ -- Port of virtualdub Gradation Curves plugin
+* `minsharp <https://github.com/IFeelBloated/minsrp>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=173328>`__ -- Simple 3x3 blur and sharpen
+* `MSmoosh <https://github.com/dubhater/vapoursynth-msmoosh>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171159>`__ -- MSmooth and MSharpen ports
+* `MVTools <https://github.com/dubhater/vapoursynth-mvtools>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171207>`__ -- MVTools port
+* `MVTools single precision <https://github.com/IFeelBloated/vapoursynth-mvtools-sf>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=172525>`__ -- MVTools fork that works in single precision floating point
+* `RemapFrames <https://github.com/Irrational-Encoding-Wizardry/Vapoursynth-RemapFrames>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=174727>`__ -- Frame re-ordering based on files/strings
+* `Retinex <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-Retinex>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=174727>`__ -- Dynamic range compression
+* `TCanny <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-TCanny>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=172158>`__ -- Canny edge detection
+* `TimeCube <https://github.com/sekrit-twc/timecube>`_ -- 3D LUT
 * `vcmod <http://forum.doom9.org/showthread.php?t=171412>`_ -- Various filters such as histogram equalization, blur, and watershed segmentation
 * `vcmove <http://forum.doom9.org/showthread.php?t=171414>`_ -- Rotate, debarrel and other distortion correction filters
-* `VFRtoCFR <https://forum.doom9.org/showthread.php?t=174711>`_ -- VFR to CFR conversion using timecode files
+* `VFRtoCFR <https://github.com/Irrational-Encoding-Wizardry/Vapoursynth-VFRToCFR>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=174711>`__ -- VFR to CFR conversion using timecode files
 
 Avisynth Interop
 ################
-* `HBVFWSource <http://forum.doom9.org/showthread.php?t=166038>`_ -- load high bitdepth avis into Avisynth (such as a VapourSynth .vpy)
+* `HBVFWSource <https://forum.doom9.org/showthread.php?t=166038>`_ -- load high bitdepth avis into Avisynth (such as a VapourSynth .vpy)
