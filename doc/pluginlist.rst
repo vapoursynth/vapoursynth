@@ -47,48 +47,48 @@ Subtitles
 Resizing and Format Conversion
 ------------------------------
 
-* `Descale <https://forum.doom9.org/showthread.php?t=174570>`_ -- Undoes resizing
-* `fmtconv <http://forum.doom9.org/showthread.php?t=166504>`_ -- High quality bitdepth, colorspace conversion and resizing
-* `waifu2x <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-Waifu2x-w2xc/>`_ -- waifu2x upscaling filter based on the w2xc library
-* `waifu2x-caffe <http://forum.doom9.org/showthread.php?t=173673>`_ -- waifu2x upscaling filter based on the waifu2x-caffe library
+* `Descale <https://github.com/Irrational-Encoding-Wizardry/vapoursynth-descale>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=174570>`__ -- Undoes resizing
+* `fmtconv <https://github.com/EleonoreMizo/fmtconv>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=166504>`__ -- High quality bitdepth, colorspace conversion and resizing
+* `waifu2x <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-Waifu2x-w2xc>`_ -- waifu2x upscaling filter based on the w2xc library
+* `waifu2x-caffe <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-Waifu2x-caffe>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=173673>`__ -- waifu2x upscaling filter based on the waifu2x-caffe library
 * `waifu2x-opt <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-waifu2x-opt>`_ -- waifu2x upscaling filter based on the waifu2x-opt library
 
 Deinterlacing
 -------------
-* `EEDI2 <http://forum.doom9.org/showthread.php?t=171136>`_
+* `EEDI2 <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-EEDI2>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171136>`__
 * :ref:`EEDI3 <eedi3>` -- in the source tree
-* `EEDI3 <https://forum.doom9.org/showthread.php?t=174845>`_ -- optimized version by HolyWu
-* `NNEDI3 <http://forum.doom9.org/showthread.php?t=166434>`_ -- Field interpolator/deinterlacer
-* `NNEDI3CL <https://forum.doom9.org/showthread.php?t=174902>`_ -- OpenCL version of NNEDI3
-* `SangNom <http://forum.doom9.org/showthread.php?t=173752>`_ -- Port of the Avisynth deinterlacer
-* `TDeintMod <http://forum.doom9.org/showthread.php?t=171295>`_ -- Port of the Avisynth deinterlacer
+* `EEDI3 <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-EEDI3>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=174845>`__ -- optimized version by HolyWu
+* `NNEDI3 <https://github.com/dubhater/vapoursynth-nnedi3>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=166434>`__ -- Field interpolator/deinterlacer
+* `NNEDI3CL <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-NNEDI3CL>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=174902>`__ -- OpenCL version of NNEDI3
+* `SangNom <https://bitbucket.org/James1201/vapoursynth-sangnom>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=173752>`__ -- Port of the Avisynth deinterlacer
+* `TDeintMod <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-TDeintMod>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171295>`__ -- Port of the Avisynth deinterlacer
 * `W3FDIF <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-W3FDIF>`_ -- Weston 3 Field Deinterlacing Filter
-* `Yadifmod <http://forum.doom9.org/showthread.php?t=171028>`_ -- Port of the Avisynth deinterlacer
+* `Yadifmod <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-Yadifmod>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171028>`__ -- Port of the Avisynth deinterlacer
 * `ZNEDI3 <https://github.com/sekrit-twc/znedi3>`_ -- Alternate optimized version of NNEDI3
 
 Inverse Telecine
 ----------------
-* `IT <http://forum.doom9.org/showthread.php?t=171246>`_ -- Port of the inverse telecine filter for Avisynth
+* `IT <`https://github.com/HomeOfVapourSynthEvolution/VapourSynth-IT>_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171246>`__ -- Port of the inverse telecine filter for Avisynth
 * :ref:`VIVTC <vivtc>` -- field matching, inverse telecine and decimation, in the source tree
 
 Denoising
 ---------
-* `Bilateral <http://forum.doom9.org/showthread.php?t=171306>`_ -- Bilateral filtering
-* `BM3D <http://forum.doom9.org/showthread.php?t=172172>`_ -- Denoising filter using the BM3D algorithm
-* `Cnr2 <http://forum.doom9.org/showthread.php?t=173659>`_ -- Chroma noise reducer
-* `DegrainMedian <http://forum.doom9.org/showthread.php?t=173758>`_ -- Port of the Avisynth filter 
-* `DFTTest <http://forum.doom9.org/showthread.php?t=171678>`_
+* `Bilateral <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-Bilateral>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171306>`__ -- Bilateral filtering
+* `BM3D <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-BM3D>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=172172>`__ -- Denoising filter using the BM3D algorithm
+* `Cnr2 <https://github.com/dubhater/vapoursynth-cnr2>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=173659>`__ -- Chroma noise reducer
+* `DegrainMedian <https://github.com/dubhater/vapoursynth-degrainmedian>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=173758>`__ -- Port of the Avisynth filter 
+* `DFTTest <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-DFTTest>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171678>`__
 * `FFT3DFilter <https://github.com/VFR-maniac/VapourSynth-FFT3DFilter>`_ -- 3D frequency domain denoiser/sharpener
 * `FluxSmooth <https://github.com/dubhater/vapoursynth-fluxsmooth>`_ -- Temporal/spatiotemporal denoiser
 * `Hqdn3d <https://github.com/Hinterwaeldlers/vapoursynth-hqdn3d>`_
-* `KNLMeans <http://forum.doom9.org/showthread.php?t=171379>`_ -- OpenCL Non-local means denoising
+* `KNLMeansCL <https://github.com/Khanattila/KNLMeansCL>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171379>`__ -- OpenCL Non-local means denoising
 * `ReduceFlicker <https://github.com/VFR-maniac/VapourSynth-ReduceFlicker>`_
 * :ref:`RemoveGrain/Repair <rgvs>` -- A collection of 3x3 median and convolution denoising filters, in the source tree
-* `TempLinearApproximate <http://forum.doom9.org/showthread.php?t=169782>`_ -- A temporal smoother
+* `TempLinearApproximate <https://bitbucket.org/mystery_keeper/templinearapproximate-vapoursynth>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=169782>`__ -- A temporal smoother
 * `TemporalSoften <https://github.com/dubhater/vapoursynth-temporalsoften>`_ -- Bundled with the installer and based on the Avisynth filter with the same name
 * `TNLMeans <https://github.com/VFR-maniac/VapourSynth-TNLMeans>`_ -- Non-local means denoising
-* `VagueDenoiser <http://forum.doom9.org/showthread.php?t=171723>`_ -- Wavelet based denoiser
-* `vcfreq <http://forum.doom9.org/showthread.php?t=171413>`_ -- Frequency domain denoiser
+* `VagueDenoiser <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-VagueDenoiser>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171723>`__ -- Wavelet based denoiser
+* `vcfreq <http://www.avisynth.nl/users/vcmohan/>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171413>`__ -- Frequency domain denoiser
 
 Dot Crawl and Rainbows
 ----------------------
@@ -120,6 +120,7 @@ Others
 * `f3kdb <https://github.com/SAPikachu/flash3kyuu_deband>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=161411>`__ -- Debanding filter
 * `FieldHint <https://github.com/dubhater/vapoursynth-fieldhint>`_ -- Takes fields from arbitrary input frames to create the output frames
 * `FillBorders <https://github.com/dubhater/vapoursynth-fillborders>`_
+* `Fix Telecined Fades <https://github.com/IFeelBloated/Fix-Telecined-Fades>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=174151>`__
 * `GradCurve <https://github.com/xekon/GradCurve>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=174096>`__ -- Port of virtualdub Gradation Curves plugin
 * `minsharp <https://github.com/IFeelBloated/minsrp>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=173328>`__ -- Simple 3x3 blur and sharpen
 * `MSmoosh <https://github.com/dubhater/vapoursynth-msmoosh>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171159>`__ -- MSmooth and MSharpen ports
@@ -129,8 +130,8 @@ Others
 * `Retinex <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-Retinex>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=174727>`__ -- Dynamic range compression
 * `TCanny <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-TCanny>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=172158>`__ -- Canny edge detection
 * `TimeCube <https://github.com/sekrit-twc/timecube>`_ -- 3D LUT
-* `vcmod <http://forum.doom9.org/showthread.php?t=171412>`_ -- Various filters such as histogram equalization, blur, and watershed segmentation
-* `vcmove <http://forum.doom9.org/showthread.php?t=171414>`_ -- Rotate, debarrel and other distortion correction filters
+* `vcmod <http://www.avisynth.nl/users/vcmohan/>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171412>`__ -- Various filters such as histogram equalization, blur, and watershed segmentation
+* `vcmove <http://www.avisynth.nl/users/vcmohan/>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171414>`__ -- Rotate, debarrel and other distortion correction filters
 * `VFRtoCFR <https://github.com/Irrational-Encoding-Wizardry/Vapoursynth-VFRToCFR>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=174711>`__ -- VFR to CFR conversion using timecode files
 
 Avisynth Interop
