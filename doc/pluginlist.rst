@@ -5,21 +5,25 @@ Applications
 ############
 * `D2V Witch <https://github.com/dubhater/D2VWitch>`_ -- creates indexes that can be opened by d2vsource
 * `SmoothVideo Project (SVP) <https://www.svp-team.com/wiki/Main_Page>`_ -- a plugin/video player component for realtime frame interpolation
-* `VapourSynth Editor <https://bitbucket.org/mystery_keeper/vapoursynth-editor>`_ -- an editor with syntax completion and fast preview support
-* `VirtualDub FilterMod <https://sourceforge.net/projects/vdfiltermod/>`_ -- VirtualDub with added support for high bitdepth colorspaces, useful for previewing
+* `VapourSynth Editor <https://bitbucket.org/mystery_keeper/vapoursynth-editor>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=170965>`__ -- an editor with syntax completion and fast preview support
+* `VirtualDub FilterMod <https://sourceforge.net/projects/vdfiltermod/>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=172021>`__ -- VirtualDub with added support for high bitdepth colorspaces, useful for previewing
 * `vsmkv <https://github.com/fluxamp/vsmkv>`_ -- a FUSE-based virtual filesystem for exporting VapourSynth scripts as uncompressed videos in the Matroska (MKV) file format
-* `Wobbly <http://forum.doom9.org/showthread.php?t=172496>`_ -- IVTC assistant similar to Yatta
+* `Wobbly <https://github.com/dubhater/Wobbly>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=172496>`__ -- IVTC assistant similar to YATTA
 * `Yuuno <https://yuuno.encode.moe/>`_ -- incorporates VapourSynth into Jupyter
+
+Development
+###########
+* `vsxx <https://github.com/sekrit-twc/vsxx>`_ -- VapourSynth C++ API wrapper
 
 Scripts
 #######
-* `FineSharp <http://forum.doom9.org/showthread.php?t=166524>`_ -- Script by Didée, ported by Chikuzen
-* `HAvsFunc <http://forum.doom9.org/showthread.php?t=166582>`_ -- A collection of ported popular Avisynth scripts such as QTGMC
+* `FineSharp <https://gist.github.com/chikuzen/6103665>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=166524>`__ -- Script by Didée, ported by Chikuzen
+* `HAvsFunc <https://github.com/HomeOfVapourSynthEvolution/havsfunc>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=166582>`__ -- A collection of ported popular Avisynth scripts such as QTGMC
 * `muvsfunc <https://github.com/WolframRhodium/muvsfunc>`_ -- Various scripts and ports by WolframRhodium
-* `mvsfunc <http://forum.doom9.org/showthread.php?t=172564>`_ -- Wrapper functions to make certain operations simpler
-* `Oyster <http://forum.doom9.org/showthread.php?t=173470>`_ -- Compression artifact removal
+* `mvsfunc <https://github.com/HomeOfVapourSynthEvolution/mvsfunc>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=172564>`__ -- Wrapper functions to make certain operations simpler
+* `Oyster <https://github.com/IFeelBloated/Oyster>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=173470>`__ -- Compression artifact removal
 * `Plum <https://github.com/IFeelBloated/Plum>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=173775>`__ -- Blind deconvolution enhanced by pixel/block matching
-* `Vine <http://forum.doom9.org/showthread.php?t=173703>`_ -- De-halo and morphology functions
+* `Vine <https://github.com/IFeelBloated/Vine>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=173703>`__ -- De-halo and morphology functions
 * `vsTAAmbk <https://github.com/HomeOfVapourSynthEvolution/vsTAAmbk>`_ -- AA-script
 * `YoloCR <https://git.clapity.eu/Id/YoloCR>`_ -- A convenient OCR script
 
@@ -29,14 +33,14 @@ Plugins
 Source/Output
 -------------
 * :ref:`AviSource <avisource>` -- Loads AVI files using VFW, in the source tree
-* `d2vsource <http://forum.doom9.org/showthread.php?t=166399>`_ -- Frame accurate mpeg2 source filter
-* `FFMS2 <https://github.com/FFMS/ffms2>`_ -- FFmpeg based source filter
-* :ref:`ImageMagick Writer/Reader <imwri>` -- image writer and reader, in the source tree
+* `d2vsource <https://github.com/dwbuiten/d2vsource>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=166399>`__ -- Frame accurate mpeg2 source filter
+* `FFMS2 <https://github.com/FFMS/ffms2>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=174469>`__ -- FFmpeg based source filter
+* :ref:`ImageMagick Writer/Reader <imwri>` -- Image writer and reader, in the source tree
 * `L-SMASH Source <http://forum.doom9.org/showthread.php?t=167435>`_
-* `QR Code Source Source <https://github.com/jeremypoulter/QRCodeSource>`_
-* `ReadMpls <https://forum.doom9.org/showthread.php?t=174580>`_ -- Returns a list of all files and paths in a mpls playlist
-* `vsrawsource <http://forum.doom9.org/showthread.php?t=166075>`_ -- Raw video reader
-* `vsavsreader <http://forum.doom9.org/showthread.php?t=165957>`_ -- Import plugin so Avisynth scripts can be opened in VapourSynth
+* `QR Code Source <https://github.com/jeremypoulter/QRCodeSource>`_
+* `ReadMpls <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-ReadMpls>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=174580>`__ -- Returns a list of all files and paths in a mpls playlist
+* `vsrawsource <https://github.com/chikuzen/vsrawsource>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=166075>`__ -- Raw video reader
+* `vsavsreader <https://forum.doom9.org/showthread.php?t=165957>`_ -- Import plugin so Avisynth scripts can be opened in VapourSynth
 
 Subtitles
 ---------
@@ -68,7 +72,7 @@ Deinterlacing
 
 Inverse Telecine
 ----------------
-* `IT <`https://github.com/HomeOfVapourSynthEvolution/VapourSynth-IT>_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171246>`__ -- Port of the inverse telecine filter for Avisynth
+* `IT <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-IT>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171246>`__ -- Port of the inverse telecine filter for Avisynth
 * :ref:`VIVTC <vivtc>` -- field matching, inverse telecine and decimation, in the source tree
 
 Denoising
