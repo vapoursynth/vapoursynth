@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2013-2015 Fredrik Mellbin
+* Copyright (c) 2013-2017 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -23,11 +23,18 @@
 
 #include "VapourSynth.h"
 
+#define VSSCRIPT_API_MAJOR 3
+#define VSSCRIPT_API_MINOR 1
+#define VSSCRIPT_API_VERSION ((VSSCRIPT_API_MAJOR << 16) | (VSSCRIPT_API_MINOR))
+
 typedef struct VSScript VSScript;
 
 typedef enum VSEvalFlags {
     efSetWorkingDir = 1,
 } VSEvalFlags;
+
+/* Get the api version */
+VS_API(int) vsscript_getApiVersion(void); /* api 3.1 */
 
 /* Initialize the available scripting runtimes, returns zero on failure */
 VS_API(int) vsscript_init(void);
@@ -55,9 +62,13 @@ VS_API(void) vsscript_freeScript(VSScript *handle);
 VS_API(const char *) vsscript_getError(VSScript *handle);
 /* The node returned must be freed using freeNode() before calling vsscript_freeScript() */
 VS_API(VSNodeRef *) vsscript_getOutput(VSScript *handle, int index);
+/* Both nodes returned must be freed using freeNode() before calling vsscript_freeScript(), the alpha node pointer will only be set if an alpha clip has been set in the script */
+VS_API(VSNodeRef *) vsscript_getOutput2(VSScript *handle, int index, VSNodeRef **alpha); /* api 3.1 */
+/* Unset an output index */
 VS_API(int) vsscript_clearOutput(VSScript *handle, int index);
 /* The core is valid as long as the environment exists */
 VS_API(VSCore *) vsscript_getCore(VSScript *handle);
+/* Convenience function for retrieving a vsapi pointer */
 VS_API(const VSAPI *) vsscript_getVSApi(void);
 
 /* Variables names that are not set or not of a convertible type will return an error */

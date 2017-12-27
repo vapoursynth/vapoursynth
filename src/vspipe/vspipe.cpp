@@ -74,6 +74,7 @@ std::string nstringToUtf8(const nstring &s) {
 static const VSAPI *vsapi = nullptr;
 static VSScript *se = nullptr;
 static VSNodeRef *node = nullptr;
+static VSNodeRef *alphaNode = nullptr;
 static FILE *outFile = nullptr;
 static FILE *timecodesFile = nullptr;
 
@@ -93,7 +94,7 @@ static bool showVersion = false;
 static bool printFrameNumber = false;
 static double fps = 0;
 static bool hasMeaningfulFps = false;
-static std::map<int, const VSFrameRef *> reorderMap;
+static std::map<int, std::pair<const VSFrameRef *, const VSFrameRef *>> reorderMap;
 
 static std::string errorMessage;
 static std::condition_variable condition;
@@ -117,12 +118,43 @@ static inline void addRational(int64_t *num, int64_t *den, int64_t addnum, int64
         *num += addnum;
 
         // Simplify
-        muldivRational(num, den, 1, 1);
+        vs_normalizeRational(num, den);
     }
 }
 
-static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg) {
-    completedFrames++;
+static bool isCompletedFrame(const std::pair<const VSFrameRef *, const VSFrameRef *> &f) {
+    return (f.first && (!alphaNode || f.second));
+}
+
+static void outputFrame(const VSFrameRef *frame) {
+    if (!outputError && outFile) {
+        const VSFormat *fi = vsapi->getFrameFormat(frame);
+        const int rgbRemap[] = { 1, 2, 0 };
+        for (int rp = 0; rp < fi->numPlanes; rp++) {
+            int p = (fi->colorFamily == cmRGB) ? rgbRemap[rp] : rp;
+            int stride = vsapi->getStride(frame, p);
+            const uint8_t *readPtr = vsapi->getReadPtr(frame, p);
+            int rowSize = vsapi->getFrameWidth(frame, p) * fi->bytesPerSample;
+            int height = vsapi->getFrameHeight(frame, p);
+
+            if (rowSize != stride) {
+                vs_bitblt(buffer.data(), rowSize, readPtr, stride, rowSize, height);
+                readPtr = buffer.data();
+            }
+
+            if (fwrite(readPtr, 1, rowSize * height, outFile) != static_cast<size_t>(rowSize * height)) {
+                if (errorMessage.empty())
+                    errorMessage = "Error: fwrite() call failed when writing frame: " + std::to_string(outputFrames) + ", plane: " + std::to_string(p) +
+                    ", errno: " + std::to_string(errno);
+                totalFrames = requestedFrames;
+                outputError = true;
+                break;
+            }
+        }
+    }
+}
+
+static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *rnode, const char *errorMsg) {
 
     if (printFrameNumber) {
         std::chrono::time_point<std::chrono::high_resolution_clock> currentTime(std::chrono::high_resolution_clock::now());
@@ -136,14 +168,26 @@ static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, 
     }
 
     if (f) {
-        if (requestedFrames < totalFrames) {
+        if (rnode == node)
+            reorderMap[n].first = f;
+        else 
+            reorderMap[n].second = f;
+
+        bool completed = isCompletedFrame(reorderMap[n]);
+
+        if (completed)
+            completedFrames++;
+
+        if (completed && requestedFrames < totalFrames) {
             vsapi->getFrameAsync(requestedFrames, node, frameDoneCallback, nullptr);
+            if (alphaNode)
+                vsapi->getFrameAsync(requestedFrames, alphaNode, frameDoneCallback, nullptr);
             requestedFrames++;
         }
 
-        reorderMap.insert(std::make_pair(n, f));
-        while (reorderMap.count(outputFrames)) {
-            const VSFrameRef *frame = reorderMap[outputFrames];
+        while (reorderMap.count(outputFrames) && isCompletedFrame(reorderMap[outputFrames])) {
+            const VSFrameRef *frame = reorderMap[outputFrames].first;
+            const VSFrameRef *alphaFrame = reorderMap[outputFrames].second;
             reorderMap.erase(outputFrames);
             if (!outputError) {
                 if (y4m && outFile) {
@@ -155,31 +199,9 @@ static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, 
                     }
                 }
 
-                if (!outputError && outFile) {
-                    const VSFormat *fi = vsapi->getFrameFormat(frame);
-                    const int rgbRemap[] = { 1, 2, 0 };
-                    for (int rp = 0; rp < fi->numPlanes; rp++) {
-                        int p = (fi->colorFamily == cmRGB) ? rgbRemap[rp] : rp;
-                        int stride = vsapi->getStride(frame, p);
-                        const uint8_t *readPtr = vsapi->getReadPtr(frame, p);
-                        int rowSize = vsapi->getFrameWidth(frame, p) * fi->bytesPerSample;
-                        int height = vsapi->getFrameHeight(frame, p);
-
-                        if (rowSize != stride) {
-                            vs_bitblt(buffer.data(), rowSize, readPtr, stride, rowSize, height);
-                            readPtr = buffer.data();
-                        }
-
-                        if (fwrite(readPtr, 1, rowSize * height, outFile) != static_cast<size_t>(rowSize * height)) {
-                            if (errorMessage.empty())
-                                errorMessage = "Error: fwrite() call failed when writing frame: " + std::to_string(outputFrames) + ", plane: " + std::to_string(p) +
-                                ", errno: " + std::to_string(errno);
-                            totalFrames = requestedFrames;
-                            outputError = true;
-                            break;
-                        }
-                    }
-                }
+                outputFrame(frame);
+                if (alphaFrame)
+                    outputFrame(alphaFrame);
 
                 if (timecodesFile && !outputError) {
                     std::ostringstream stream;
@@ -215,6 +237,7 @@ static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, 
                 }
             }
             vsapi->freeFrame(frame);
+            vsapi->freeFrame(alphaFrame);
             outputFrames++;
         }
     } else {
@@ -263,8 +286,8 @@ static bool outputNode() {
 
     const VSVideoInfo *vi = vsapi->getVideoInfo(node);
 
-    if (y4m && (vi->format->colorFamily != cmGray && vi->format->colorFamily != cmYUV)) {
-        errorMessage = "Error: Can only apply y4m headers to YUV and Gray format clips";
+    if (y4m && ((vi->format->colorFamily != cmGray && vi->format->colorFamily != cmYUV) || alphaNode)) {
+        errorMessage = "Error: Can only apply y4m headers to YUV and Gray format clips without alpha";
         fprintf(stderr, "%s\n", errorMessage.c_str());
         return true;
     }
@@ -337,8 +360,11 @@ static bool outputNode() {
     int requestStart = completedFrames;
     int intitalRequestSize = std::min(requests, totalFrames - requestStart);
     requestedFrames = requestStart + intitalRequestSize;
-    for (int n = requestStart; n < requestStart + intitalRequestSize; n++)
+    for (int n = requestStart; n < requestStart + intitalRequestSize; n++) {
         vsapi->getFrameAsync(n, node, frameDoneCallback, nullptr);
+        if (alphaNode)
+            vsapi->getFrameAsync(n, alphaNode, frameDoneCallback, nullptr);
+    }
 
     condition.wait(lock);
 
@@ -634,7 +660,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    node = vsscript_getOutput(se, outputIndex);
+    node = vsscript_getOutput2(se, outputIndex, &alphaNode);
     if (!node) {
        fprintf(stderr, "Failed to retrieve output node. Invalid index specified?\n");
        vsscript_freeScript(se);
@@ -663,6 +689,7 @@ int main(int argc, char **argv) {
             if (vi->format) {
                 fprintf(outFile, "Format Name: %s\n", vi->format->name);
                 fprintf(outFile, "Color Family: %s\n", colorFamilyToString(vi->format->colorFamily));
+                fprintf(outFile, "Alpha: %s\n", alphaNode ? "Yes" : "No");
                 fprintf(outFile, "Sample Type: %s\n", (vi->format->sampleType == stInteger) ? "Integer" : "Float");
                 fprintf(outFile, "Bits: %d\n", vi->format->bitsPerSample);
                 fprintf(outFile, "SubSampling W: %d\n", vi->format->subSamplingW);
@@ -678,6 +705,7 @@ int main(int argc, char **argv) {
         if ((vi->numFrames && vi->numFrames < totalFrames) || completedFrames >= totalFrames) {
             fprintf(stderr, "Invalid range of frames to output specified:\nfirst: %d\nlast: %d\nclip length: %d\nframes to output: %d\n", completedFrames, totalFrames, vi->numFrames, totalFrames - completedFrames);
             vsapi->freeNode(node);
+            vsapi->freeNode(alphaNode);
             vsscript_freeScript(se);
             vsscript_finalize();
             return 1;
@@ -686,6 +714,7 @@ int main(int argc, char **argv) {
         if (!isConstantFormat(vi)) {
             fprintf(stderr, "Cannot output clips with varying dimensions\n");
             vsapi->freeNode(node);
+            vsapi->freeNode(alphaNode);
             vsscript_freeScript(se);
             vsscript_finalize();
             return 1;
@@ -706,6 +735,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Output %d frames in %.2f seconds (%.2f fps)\n", totalFrames, elapsedSeconds.count(), totalFrames / elapsedSeconds.count());
     }
     vsapi->freeNode(node);
+    vsapi->freeNode(alphaNode);
     vsscript_freeScript(se);
     vsscript_finalize();
 

@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2013-2016 Fredrik Mellbin
+* Copyright (c) 2013-2017 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -96,6 +96,10 @@ static void real_init(void) {
     initialized = true;
 }
 
+VS_API(int) vsscript_getApiVersion(void) {
+    return VSSCRIPT_API_VERSION;
+}
+
 VS_API(int) vsscript_init() {
     std::call_once(flag, real_init);
     if (initialized)
@@ -166,6 +170,10 @@ VS_API(const char *) vsscript_getError(VSScript *handle) {
 
 VS_API(VSNodeRef *) vsscript_getOutput(VSScript *handle, int index) {
     return vpy_getOutput(handle, index);
+}
+
+VS_API(VSNodeRef *) vsscript_getOutput2(VSScript *handle, int index, VSNodeRef **alpha) {
+    return vpy_getOutput2(handle, index, alpha);
 }
 
 VS_API(int) vsscript_clearOutput(VSScript *handle, int index) {

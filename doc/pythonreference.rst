@@ -129,7 +129,7 @@ Output
 
 The normal way of specifying the clip(s) to output is to call
 *clip.set_output()*. All standard VapourSynth components only use output
-index 0, but other tools may use something different.
+index 0, except for vspipe where it's configurable but defaults to 0.
 There are also other variables that can be set to control how a format is
 output. For example, setting *enable_v210=True* changes the packing of the
 YUV422P10 format to one that is common in professional software (like Adobe
@@ -348,11 +348,13 @@ Classes and Functions
       :param wrapper: A wrapper-callback which is responsible for moving the result across thread boundaries. If not
                       given, the result of the future will be set in a random thread.
 
-   .. py:method:: set_output(index = 0)
+   .. py:method:: set_output(index = 0, alpha = None)
 
       Set the clip to be accessible for output. This is the standard way to
       specify which clip(s) to output. All VapourSynth tools (vsvfw, vsfs,
-      vspipe) use the clip in *index* 0.
+      vspipe) use the clip in *index* 0. It's possible to specify an additional
+      containing the *alpha* to output at the same time. Currently only vspipe
+      takes *alpha* into consideration when outputting.
 
    .. py:method:: output(fileobj[, y4m = False, prefetch = 0, progress_update = None])
  

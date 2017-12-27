@@ -1142,8 +1142,20 @@ cdef class VideoNode(object):
 
         return fut
 
-    def set_output(self, int index = 0):
-        _get_output_dict("set_output")[index] = self
+    def set_output(self, int index = 0, VideoNode alpha = None):
+        cdef const VSFormat *aformat = NULL
+        if (alpha is not None):
+            if (self.vi.width != alpha.vi.width) or (self.vi.height != alpha.vi.height):
+                raise Error('Alpha clip dimensions must match the main video')
+            if (self.num_frames != alpha.num_frames):
+                raise Error('Alpha clip length must match the main video')
+            if (self.vi.format) and (alpha.vi.format):
+                if (alpha.vi.format != self.funcs.registerFormat(GRAY, self.vi.format.sampleType, self.vi.format.bitsPerSample, self.vi.format.subSamplingW, self.vi.format.subSamplingH, self.core.core)):
+                    raise Error('Alpha clip format must match the main video')
+            elif (self.vi.format) or (alpha.vi.format):
+                raise Error('Format must be either known or unknown for both alpha and main clip')
+
+        _get_output_dict("set_output")[index] = (self, alpha)
 
     def output(self, object fileobj not None, bint y4m = False, object progress_update = None, int prefetch = 0):
         if prefetch < 1:
@@ -1909,12 +1921,31 @@ cdef public api VSNodeRef *vpy_getOutput(VPYScriptExport *se, int index) nogil:
         node = None
         try:
             global _stored_outputs
-            node = _stored_outputs[se.id][index]
+            node = _stored_outputs[se.id][index][0]
         except:
             return NULL
 
         if isinstance(node, VideoNode):
             return (<VideoNode>node).funcs.cloneNodeRef((<VideoNode>node).node)
+        else:
+            return NULL
+            
+cdef public api VSNodeRef *vpy_getOutput2(VPYScriptExport *se, int index, VSNodeRef **alpha) nogil:
+    if alpha:
+        alpha[0] = NULL
+    with gil:
+        evaldict = <dict>se.pyenvdict
+        node = None
+        try:
+            global _stored_outputs
+            node = _stored_outputs[se.id][index]
+        except:
+            return NULL
+
+        if isinstance(node[0], VideoNode):
+            if (isinstance(node[1], VideoNode) and (alpha != NULL)):
+                alpha[0] = (<VideoNode>(node[1])).funcs.cloneNodeRef((<VideoNode>(node[1])).node)
+            return (<VideoNode>(node[0])).funcs.cloneNodeRef((<VideoNode>(node[0])).node)
         else:
             return NULL
 
