@@ -1,5 +1,7 @@
 r41:
 updated to zimg v2.7
+added an altsearchpath argument to loadplugin, setting it to true alters the search path for dll dependencies to be equivalent to the normal loadlibrary path, experimental and may be removed at any time
+added convenient alpha output to vspipe and vsscript, set_output() in python now takes a second optional alpha clip which will be used for this
 fixed avisource leaking one frame reference on destruction
 updated plugin list to be more consistent with links to source/binaries and doom9 discussion thread
 fixed lut triggering a fatal error when the bits argument is used

@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2016 Fredrik Mellbin
+* Copyright (c) 2012-2017 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -895,14 +895,15 @@ static void VS_CC loadPlugin(const VSMap *in, VSMap *out, void *userData, VSCore
         const char *forceid = vsapi->propGetData(in, "forceid", 0, &err);
         if (!forceid)
             forceid = "";
-        core->loadPlugin(vsapi->propGetData(in, "path", 0, nullptr), forcens, forceid);
+        bool altSearchPath = !!vsapi->propGetInt(in, "altsearchpath", 0, &err);
+        core->loadPlugin(vsapi->propGetData(in, "path", 0, nullptr), forcens, forceid, altSearchPath);
     } catch (VSException &e) {
         vsapi->setError(out, e.what());
     }
 }
 
 void VS_CC loadPluginInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
-    registerFunc("LoadPlugin", "path:data;forcens:data:opt;forceid:data:opt;", &loadPlugin, nullptr, plugin);
+    registerFunc("LoadPlugin", "path:data;altsearchpath:int:opt;forcens:data:opt;forceid:data:opt;", &loadPlugin, nullptr, plugin);
 }
 
 void VSCore::registerFormats() {
@@ -1281,8 +1282,8 @@ VSPlugin *VSCore::getPluginByNs(const std::string &ns) {
     return nullptr;
 }
 
-void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNamespace, const std::string &forcedId) {
-    VSPlugin *p = new VSPlugin(filename, forcedNamespace, forcedId, this);
+void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath) {
+    VSPlugin *p = new VSPlugin(filename, forcedNamespace, forcedId, altSearchPath, this);
 
     std::lock_guard<std::recursive_mutex> lock(pluginLock);
     if (getPluginById(p->id)) {
@@ -1322,7 +1323,7 @@ VSPlugin::VSPlugin(VSCore *core)
     : apiMajor(0), apiMinor(0), hasConfig(false), readOnly(false), compat(false), libHandle(0), core(core) {
 }
 
-VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedNamespace, const std::string &forcedId, VSCore *core)
+VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath, VSCore *core)
     : apiMajor(0), apiMinor(0), hasConfig(false), readOnly(false), compat(false), libHandle(0), core(core), fnamespace(forcedNamespace), id(forcedId) {
 #ifdef VS_TARGET_OS_WINDOWS
     std::wstring wPath = utf16_from_utf8(relFilename);
@@ -1338,13 +1339,13 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
         if (iter == '\\')
             iter = '/';
 
-    libHandle = LoadLibraryEx(wPath.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
+    libHandle = LoadLibraryEx(wPath.c_str(), nullptr, altSearchPath ? 0 : (LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR));
 
     if (!libHandle) {
         DWORD lastError = GetLastError();
 
         if (lastError == 87)
-            throw VSException("LoadLibraryEx failed with code 87: update windows and try again");
+            throw VSException("LoadLibraryEx failed with code 87: Update windows and try again");
         if (lastError == 126)
             throw VSException("Failed to load " + relFilename + ". GetLastError() returned " + std::to_string(lastError) + ". A DLL dependency is probably missing.");
         throw VSException("Failed to load " + relFilename + ". GetLastError() returned " + std::to_string(lastError) + ".");
