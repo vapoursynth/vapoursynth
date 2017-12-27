@@ -204,8 +204,7 @@ public:
 
     AVISource(const char filename[], const char pixel_type[],
         const char fourCC[], bool output_alpha, int mode, VSCore *core, const VSAPI *vsapi);  // mode: 0=detect, 1=avifile, 2=opendml
-    ~AVISource();
-    void CleanUp();
+    void CleanUp(const VSAPI *vsapi);
     const VSFrameRef *GetFrame(int n, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
 
     static void VS_CC create_AVISource(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -249,6 +248,7 @@ public:
 
     static void VS_CC filterFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
         AVISource *d = static_cast<AVISource *>(instanceData);
+        d->CleanUp(vsapi);
         delete d;
     }
 };
@@ -682,33 +682,27 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
             last_frame=frame;
             last_alpha_frame = alpha_frame;
         }
-    }
-    catch (std::runtime_error) {
-        AVISource::CleanUp();
+    } catch (std::runtime_error &) {
+        AVISource::CleanUp(vsapi);
         throw;
     }
 }
 
-AVISource::~AVISource() {
-    AVISource::CleanUp();
-}
-
-void AVISource::CleanUp() {
+void AVISource::CleanUp(const VSAPI *vsapi) {
     if (hic) {
         !ex ? ICDecompressEnd(hic) : ICDecompressExEnd(hic);
         ICClose(hic);
     }
-    if (pvideo) delete pvideo;
+    delete pvideo;
     if (pfile)
         pfile->Release();
     AVIFileExit();
-    if (pbiSrc)
-        free(pbiSrc);
-    if (srcbuffer)
-        delete[] srcbuffer;
+    free(pbiSrc);
+    delete[] srcbuffer;
     vs_aligned_free(decbuf);
-    // fixme
-    //vsapi->freeFrame(last_frame);
+
+    vsapi->freeFrame(last_frame);
+    vsapi->freeFrame(last_alpha_frame);
 }
 
 const VSFrameRef *AVISource::GetFrame(int n, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
