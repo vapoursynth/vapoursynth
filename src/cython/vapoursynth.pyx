@@ -1150,7 +1150,7 @@ cdef class VideoNode(object):
             if (self.num_frames != alpha.num_frames):
                 raise Error('Alpha clip length must match the main video')
             if (self.vi.format) and (alpha.vi.format):
-                if (alpha.vi.format != self.funcs.registerFormat(GRAY, self.vi.format.sampleType, self.vi.format.bitsPerSample, self.vi.format.subSamplingW, self.vi.format.subSamplingH, self.core.core)):
+                if (alpha.vi.format != self.funcs.registerFormat(GRAY, self.vi.format.sampleType, self.vi.format.bitsPerSample, 0, 0, self.core.core)):
                     raise Error('Alpha clip format must match the main video')
             elif (self.vi.format) or (alpha.vi.format):
                 raise Error('Format must be either known or unknown for both alpha and main clip')
