@@ -527,7 +527,7 @@ static void VS_CC readInit(VSMap *in, VSMap *out, void **instanceData, VSNode *n
 
 template<typename T>
 static void readImageHelper(VSFrameRef *frame, VSFrameRef *alphaFrame, bool isGray, Magick::Image &image, int width, int height, int bitsPerSample, const VSAPI *vsapi) {
-    float outScale = ((1 << bitsPerSample) - 1) / static_cast<float>(1 << MAGICKCORE_QUANTUM_DEPTH);
+    float outScale = ((1 << bitsPerSample) - 1) / static_cast<float>((1 << MAGICKCORE_QUANTUM_DEPTH) - 1);
     size_t channels = image.channels();
     Magick::Pixels pixelCache(image);
 
