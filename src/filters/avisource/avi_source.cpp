@@ -29,6 +29,7 @@
 #include "AVIReadHandler.h"
 #include "../../common/p2p_api.h"
 #include "../../common/fourcc.h"
+#include <vd2/system/error.h>
 
 static int ImageSize(const VSVideoInfo *vi, DWORD fourcc, int bitcount = 0) {
     int image_size;
@@ -509,8 +510,8 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
     vi[1] = {};
 
     AVIFileInit();
-    try {
 
+    try {
         std::vector<wchar_t> wfilename;
         wfilename.resize(MultiByteToWideChar(CP_UTF8, 0, filename, -1, nullptr, 0));
         MultiByteToWideChar(CP_UTF8, 0, filename, -1, wfilename.data(), static_cast<int>(wfilename.size()));
@@ -685,6 +686,9 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
     } catch (std::runtime_error &) {
         AVISource::CleanUp(vsapi);
         throw;
+    } catch (MyError &e) {
+        AVISource::CleanUp(vsapi);
+        throw std::runtime_error(e.c_str());
     }
 }
 
