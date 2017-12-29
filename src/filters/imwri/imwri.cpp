@@ -286,9 +286,7 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
             if (isGray)
                 image.colorSpace(Magick::GRAYColorspace);
 
-            int depth = std::min(std::max(static_cast<int>(image.modulusDepth()), 8), MAGICKCORE_QUANTUM_DEPTH);
-            image.modulusDepth(depth);
-            image.depth(depth);
+            image.depth(fi->bitsPerSample);
 
             if (fi->bytesPerSample == 4 && fi->sampleType == stFloat) {
                 Magick::Pixels pixelCache(image);
@@ -382,8 +380,6 @@ static void VS_CC writeFree(void *instanceData, VSCore *core, const VSAPI *vsapi
     vsapi->freeNode(d->alphaNode);
     delete d;
 }
-
-#define STR(x) #x
 
 static void VS_CC writeCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<WriteData> d(new WriteData());
@@ -513,6 +509,7 @@ struct ReadData {
     bool alpha;
     bool mismatch;
     bool fileListMode;
+    bool floatOnly;
     int cachedFrameNum;
     bool cachedAlpha;
     const VSFrameRef *cachedFrame;
@@ -614,9 +611,14 @@ static const VSFrameRef *VS_CC readGetFrame(int n, int activationReason, void **
             size_t channels = image.channels();
 
             VSSampleType st = stInteger;
-            int depth = std::min(std::max(static_cast<int>(image.modulusDepth()), 8), MAGICKCORE_QUANTUM_DEPTH);
-            if (image.modulusDepth() == 32)
+            int depth = image.depth();
+            if (depth == 32)
                 st = stFloat;
+
+            if (d->floatOnly) {
+                depth = 32;
+                st = stFloat;
+            }
 
             if (d->vi[0].format && (cf != d->vi[0].format->colorFamily || depth != d->vi[0].format->bitsPerSample)) {
                 std::string err = "Read: Format mismatch for frame " + std::to_string(n) + ", is ";
@@ -744,6 +746,7 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     d->alpha = !!vsapi->propGetInt(in, "alpha", 0, &err);
     d->mismatch = !!vsapi->propGetInt(in, "mismatch", 0, &err);
+    d->floatOnly = !!vsapi->propGetInt(in, "floatonly", 0, &err);
 
     int numElem = vsapi->propNumElements(in, "filename");
     d->filenames.resize(numElem);
@@ -782,9 +785,14 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         Magick::Image image(d->fileListMode ? d->filenames[0] : specialPrintf(d->filenames[0], d->firstNum));
 
         VSSampleType st = stInteger;
-        int depth = std::min(std::max(static_cast<int>(image.modulusDepth()), 8), MAGICKCORE_QUANTUM_DEPTH);
-        if (image.modulusDepth() == 32)
+        int depth = image.depth();
+        if (depth == 32)
             st = stFloat;
+
+        if (d->floatOnly) {
+            depth = 32;
+            st = stFloat;
+        }
 
         if (!d->mismatch || d->vi[0].numFrames == 1) {
             d->vi[0].height = static_cast<int>(image.rows());
@@ -798,7 +806,7 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         if (d->alpha) {
             d->vi[1] = d->vi[0];
             if (d->vi[0].format)
-                d->vi[1].format = vsapi->registerFormat(cmGray, d->vi[0].format->sampleType, depth, 0, 0, core);
+                d->vi[1].format = vsapi->registerFormat(cmGray, st, depth, 0, 0, core);
         }
     } catch (Magick::Exception &e) {
         vsapi->setError(out, (std::string("Read: Failed to read image properties: ") + e.what()).c_str());
@@ -817,5 +825,5 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     configFunc(IMWRI_ID, IMWRI_NAMESPACE, IMWRI_PLUGIN_NAME, VAPOURSYNTH_API_VERSION, 1, plugin);
     registerFunc("Write", "clip:clip;imgformat:data;filename:data;firstnum:int:opt;quality:int:opt;dither:int:opt;compression_type:data:opt;alpha:clip:opt;", writeCreate, nullptr, plugin);
-    registerFunc("Read", "filename:data[];firstnum:int:opt;mismatch:int:opt;alpha:int:opt;", readCreate, nullptr, plugin);
+    registerFunc("Read", "filename:data[];firstnum:int:opt;mismatch:int:opt;alpha:int:opt;floatonly:int:opt;", readCreate, nullptr, plugin);
 }

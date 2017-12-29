@@ -38,18 +38,14 @@ ImageMagick Writer-Reader (IMWRI) is a plugin that can read and write many image
 
       alpha
          A grayscale clip containing the alpha channel for the image to write. Apart from being grayscale, its properties must be identical to the main *clip*.
+        
 
-.. function:: Read(string[] filename[, int firstnum=0, bint mismatch=False, bint alpha=False])
+.. function:: Read(string[] filename[, int firstnum=0, bint mismatch=False, bint alpha=False, bint floatonly = False])
    :module: imwri
 
-   Possible output formats when reading:
-      ImageMagick with Quantum Depth 16: 8-16 bit integer
-
-      ImageMagick with Quantum Depth 32: 8-32 bit integer
-
-      ImageMagick with Quantum Depth 16 and HDRI: 32 bit float
-
-      ImageMagick with Quantum Depth 32 and HDRI: 32 bit float
+   Possible output formats when reading: 8-16 bit integer and 32 bit float
+   
+   Note that by default 8-16 bit images are returned as integer and 32 bit images as float. When reading half precision float images you have to manually set *floatonly* to have the unmodified floating point range returned.
 
    Read is a simple function for reading single or series of images and returning them as a clip.
 
@@ -65,3 +61,6 @@ ImageMagick Writer-Reader (IMWRI) is a plugin that can read and write many image
 
       alpha
          Return the alpha channel from the read images as a separate grayscale clip. Note that an alpha channel clip is always returned when this parameter is set, even for image formats without support for it.
+
+      floatonly
+         Always return the read image in a float format. Due to the output format guessing this option can be useful when reading half precision float images.
