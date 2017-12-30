@@ -130,6 +130,17 @@ static bool isAbsolute(const std::string &path) {
 #endif
 }
 
+static bool fileExists(const std::string &filename) {
+#ifdef _WIN32
+    FILE * f = _wfopen(utf16_from_utf8(filename).c_str(), L"rb");
+#else
+    FILE * f = fopen(filename.c_str(), "rb");
+#endif
+    if (f)
+        fclose(f);
+    return !!f;
+}
+
 static void getWorkingDir(std::string &path) {
 #ifdef _WIN32
     DWORD size = GetCurrentDirectoryW(0, nullptr);
@@ -163,6 +174,7 @@ struct WriteData {
     int quality;
     MagickCore::CompressionType compressType;
     bool dither;
+    bool overwrite;
 
     WriteData() : videoNode(nullptr), alphaNode(nullptr), vi(nullptr), quality(0), compressType(MagickCore::UndefinedCompression), dither(true) {}
 };
@@ -257,7 +269,8 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
         if (!isAbsolute(filename))
             filename = d->workingDir + filename;
 
-
+        if (!d->overwrite && fileExists(filename))
+            return frame;
 
         if (d->alphaNode) {
             alphaFrame = vsapi->getFrameFilter(n, d->alphaNode, frameCtx);
@@ -466,6 +479,7 @@ static void VS_CC writeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     d->dither = !!vsapi->propGetInt(in, "dither", 0, &err);
     if (err)
         d->dither = true;
+    d->overwrite = !!vsapi->propGetInt(in, "overwrite", 0, &err);
 
     d->vi = vsapi->getVideoInfo(d->videoNode);
     if (d->alphaNode) {
@@ -504,7 +518,7 @@ struct ReadData {
     bool alpha;
     bool mismatch;
     bool fileListMode;
-    bool floatOnly;
+    bool floatOutput;
     int cachedFrameNum;
     bool cachedAlpha;
     const VSFrameRef *cachedFrame;
@@ -610,7 +624,7 @@ static const VSFrameRef *VS_CC readGetFrame(int n, int activationReason, void **
             if (depth == 32)
                 st = stFloat;
 
-            if (d->floatOnly) {
+            if (d->floatOutput) {
                 depth = 32;
                 st = stFloat;
             }
@@ -741,7 +755,7 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     d->alpha = !!vsapi->propGetInt(in, "alpha", 0, &err);
     d->mismatch = !!vsapi->propGetInt(in, "mismatch", 0, &err);
-    d->floatOnly = !!vsapi->propGetInt(in, "floatonly", 0, &err);
+    d->floatOutput = !!vsapi->propGetInt(in, "float_output", 0, &err);
 
     int numElem = vsapi->propNumElements(in, "filename");
     d->filenames.resize(numElem);
@@ -754,15 +768,7 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         d->fileListMode = false;
 
         for (int i = d->firstNum; i < INT_MAX; i++) {
-#ifdef _WIN32
-            std::string printedStr(specialPrintf(d->filenames[0], i));            
-            FILE * f = _wfopen(utf16_from_utf8(printedStr).c_str(), L"rb");
-#else
-            FILE * f = fopen(specialPrintf(d->filenames[0], i).c_str(), "rb");
-#endif
-            if (f) {
-                fclose(f);
-            } else {
+            if (!fileExists(specialPrintf(d->filenames[0], i))) {
                 d->vi[0].numFrames = i - d->firstNum;
                 break;
             }
@@ -782,7 +788,7 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         if (depth == 32)
             st = stFloat;
 
-        if (d->floatOnly) {
+        if (d->floatOutput) {
             depth = 32;
             st = stFloat;
         }
@@ -817,6 +823,6 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     configFunc(IMWRI_ID, IMWRI_NAMESPACE, IMWRI_PLUGIN_NAME, VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("Write", "clip:clip;imgformat:data;filename:data;firstnum:int:opt;quality:int:opt;dither:int:opt;compression_type:data:opt;alpha:clip:opt;", writeCreate, nullptr, plugin);
-    registerFunc("Read", "filename:data[];firstnum:int:opt;mismatch:int:opt;alpha:int:opt;floatonly:int:opt;", readCreate, nullptr, plugin);
+    registerFunc("Write", "clip:clip;imgformat:data;filename:data;firstnum:int:opt;quality:int:opt;dither:int:opt;compression_type:data:opt;overwrite:int:opt;alpha:clip:opt;", writeCreate, nullptr, plugin);
+    registerFunc("Read", "filename:data[];firstnum:int:opt;mismatch:int:opt;alpha:int:opt;float_output:int:opt;", readCreate, nullptr, plugin);
 }

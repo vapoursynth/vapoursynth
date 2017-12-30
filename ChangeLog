@@ -11,9 +11,10 @@ removed dependency on the now deprecated codecvt header
 fixed memory leak where modifyframe wouldn't release the function reference when done
 fixed a rare memory leak that could happen if the core was freed before the last frame 
 fixed a memory leak that would happen if a python videoframe object was instantiated
+added overwrite argument to imwri to control if already existing files are overwritten or not
 imwri will no longer write alpha to images unless an alpha clip is specified
 improved imwri's input and output format guessing, now integer and float image formats will most likely be returned in native precision
-imwri now requires hdri support since it's enabled by default in version 7, as a result of there only being one major configuration the namespace is now always imwri, the new floatonly option can force everything to be output as floating point
+imwri now requires hdri support since it's enabled by default in version 7, as a result of there only being one major configuration the namespace is now always imwri, the new float_output option can force everything to be output as floating point
 stackvertical now properly rejects compat formats instead of producing unexpected output
 the default initial cache size now also depends on the number of threads used
 fixed negative frame request error listing the parent node name instead of the correct name
