@@ -288,6 +288,7 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
         try {
             Magick::Image image(Magick::Geometry(width, height), Magick::Color(0, 0, 0, 0));
             image.magick(d->imgFormat);
+            image.modulusDepth(fi->bitsPerSample);
             if (d->compressType != MagickCore::UndefinedCompression)
                 image.compressType(d->compressType);
             image.quantizeDitherMethod(Magick::FloydSteinbergDitherMethod);
@@ -299,9 +300,8 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
             if (isGray)
                 image.colorSpace(Magick::GRAYColorspace);
 
-            image.depth(fi->bitsPerSample);
-
             if (fi->bytesPerSample == 4 && fi->sampleType == stFloat) {
+                image.attribute("quantum:format", "floating-point");
                 Magick::Pixels pixelCache(image);
                 const Quantum scaleFactor = QuantumRange;
 
@@ -624,7 +624,7 @@ static const VSFrameRef *VS_CC readGetFrame(int n, int activationReason, void **
             if (depth == 32)
                 st = stFloat;
 
-            if (d->floatOutput) {
+            if (d->floatOutput || image.attribute("quantum:format") == "floating-point") {
                 depth = 32;
                 st = stFloat;
             }
@@ -788,7 +788,7 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         if (depth == 32)
             st = stFloat;
 
-        if (d->floatOutput) {
+        if (d->floatOutput || image.attribute("quantum:format") == "floating-point") {
             depth = 32;
             st = stFloat;
         }
