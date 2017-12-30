@@ -303,12 +303,12 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
                 ssize_t rOff = pixelCache.offset(MagickCore::RedPixelChannel);
                 ssize_t gOff = pixelCache.offset(MagickCore::GreenPixelChannel);
                 ssize_t bOff = pixelCache.offset(MagickCore::BluePixelChannel);
-                ssize_t aOff = pixelCache.offset(MagickCore::AlphaPixelChannel);
                 size_t channels = image.channels();
 
                 if (alphaFrame) {
                     const float * VS_RESTRICT a = reinterpret_cast<const float *>(vsapi->getReadPtr(alphaFrame, 0));
                     int strideA = vsapi->getStride(alphaFrame, 0);
+                    ssize_t aOff = pixelCache.offset(MagickCore::AlphaPixelChannel);
             
                     for (int y = 0; y < height; y++) {
                         MagickCore::Quantum* pixels = pixelCache.get(0, y, width, 1);
@@ -337,7 +337,6 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
                             pixels[x * channels + rOff] = r[x] * scaleFactor;
                             pixels[x * channels + gOff] = g[x] * scaleFactor;
                             pixels[x * channels + bOff] = b[x] * scaleFactor;
-                            pixels[x * channels + aOff] = 1    * scaleFactor;
                         }
 
                         r += strideR / sizeof(float);
