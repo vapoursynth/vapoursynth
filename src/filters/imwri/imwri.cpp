@@ -38,9 +38,8 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
-#include <codecvt>
-#include <locale>
 #include <windows.h>
+#include "../../common/vsutf16.h"
 #else
 #include <unistd.h>
 #endif
@@ -134,14 +133,9 @@ static bool isAbsolute(const std::string &path) {
 static void getWorkingDir(std::string &path) {
 #ifdef _WIN32
     DWORD size = GetCurrentDirectoryW(0, nullptr);
-
     std::vector<wchar_t> buffer(size);
-
     GetCurrentDirectoryW(size, buffer.data());
-
-    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> utf16;
-
-    path = utf16.to_bytes(buffer.data()) + '\\';
+    path = utf16_to_utf8(buffer.data()) + '\\';
 #else
     char *buffer = getcwd(nullptr, 0);
 
@@ -259,6 +253,12 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
         int alphaWidth = 0;
         int alphaHeight = 0;
 
+        std::string filename = specialPrintf(d->filename, n + d->firstNum);
+        if (!isAbsolute(filename))
+            filename = d->workingDir + filename;
+
+
+
         if (d->alphaNode) {
             alphaFrame = vsapi->getFrameFilter(n, d->alphaNode, frameCtx);
             alphaWidth = vsapi->getFrameWidth(alphaFrame, 0);
@@ -353,10 +353,6 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
             } else if (fi->bytesPerSample == 1) {
                 writeImageHelper<uint8_t>(frame, alphaFrame, isGray, image, width, height, fi->bitsPerSample, vsapi);
             }
-
-            std::string filename = specialPrintf(d->filename, n + d->firstNum);
-            if (!isAbsolute(filename))
-                filename = d->workingDir + filename;
 
             image.write(filename);
 
@@ -759,10 +755,8 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
         for (int i = d->firstNum; i < INT_MAX; i++) {
 #ifdef _WIN32
-            std::string printedStr(specialPrintf(d->filenames[0], i));
-            std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
-            std::wstring wPath = conversion.from_bytes(printedStr);
-            FILE * f = _wfopen(wPath.c_str(), L"rb");
+            std::string printedStr(specialPrintf(d->filenames[0], i));            
+            FILE * f = _wfopen(utf16_from_utf8(printedStr).c_str(), L"rb");
 #else
             FILE * f = fopen(specialPrintf(d->filenames[0], i).c_str(), "rb");
 #endif
