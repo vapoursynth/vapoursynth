@@ -303,7 +303,7 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
 
             if (fi->bytesPerSample == 4 && fi->sampleType == stFloat) {
                 Magick::Pixels pixelCache(image);
-                const float scaleFactor = QuantumRange;
+                const Quantum scaleFactor = QuantumRange;
 
                 const float * VS_RESTRICT r = reinterpret_cast<const float *>(vsapi->getReadPtr(frame, 0));
                 const float * VS_RESTRICT g = reinterpret_cast<const float *>(vsapi->getReadPtr(frame, isGray ? 0 : 1));
@@ -620,7 +620,7 @@ static const VSFrameRef *VS_CC readGetFrame(int n, int activationReason, void **
             size_t channels = image.channels();
 
             VSSampleType st = stInteger;
-            int depth = image.depth();
+            int depth = static_cast<int>(image.depth());
             if (depth == 32)
                 st = stFloat;
 
@@ -650,7 +650,7 @@ static const VSFrameRef *VS_CC readGetFrame(int n, int activationReason, void **
             bool isGray = fi->colorFamily == cmGray;                
      
             if (fi->bytesPerSample == 4 && fi->sampleType == stFloat) {
-                const float scaleFactor = QuantumRange;
+                const Quantum scaleFactor = QuantumRange;
                 Magick::Pixels pixelCache(image);
 
                 float *r = reinterpret_cast<float *>(vsapi->getWritePtr(frame, 0));
