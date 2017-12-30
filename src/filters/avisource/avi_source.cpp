@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2016 Fredrik Mellbin
+* Copyright (c) 2012-2017 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -29,6 +29,7 @@
 #include "AVIReadHandler.h"
 #include "../../common/p2p_api.h"
 #include "../../common/fourcc.h"
+#include "../../common/vsutf16.h"
 #include <vd2/system/error.h>
 
 static int ImageSize(const VSVideoInfo *vi, DWORD fourcc, int bitcount = 0) {
@@ -512,13 +513,11 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
     AVIFileInit();
 
     try {
-        std::vector<wchar_t> wfilename;
-        wfilename.resize(MultiByteToWideChar(CP_UTF8, 0, filename, -1, nullptr, 0));
-        MultiByteToWideChar(CP_UTF8, 0, filename, -1, wfilename.data(), static_cast<int>(wfilename.size()));
+        std::wstring wfilename = utf16_from_utf8(filename);
 
         if (mode == MODE_NORMAL) {
             // if it looks like an AVI file, open in OpenDML mode; otherwise AVIFile mode
-            HANDLE h = CreateFile(wfilename.data(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+            HANDLE h = CreateFile(wfilename.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
             if (h == INVALID_HANDLE_VALUE) {
                 sprintf(buf, "AVISource autodetect: couldn't open file '%s'\nError code: %d", filename, (int)GetLastError());
                 throw std::runtime_error(buf);
@@ -534,14 +533,14 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
 
         if (mode == MODE_AVIFILE || mode == MODE_WAV) {    // AVIFile mode
             PAVIFILE paf;
-            if (FAILED(AVIFileOpen(&paf, wfilename.data(), OF_READ, 0))) {
+            if (FAILED(AVIFileOpen(&paf, wfilename.c_str(), OF_READ, 0))) {
                 sprintf(buf, "AVIFileSource: couldn't open file '%s'", filename);
                 throw std::runtime_error(buf);
             }
 
             pfile = CreateAVIReadHandler(paf);
         } else {              // OpenDML mode
-            pfile = CreateAVIReadHandler(wfilename.data());
+            pfile = CreateAVIReadHandler(wfilename.c_str());
         }
 
         if (mode != MODE_WAV) { // check for video stream
