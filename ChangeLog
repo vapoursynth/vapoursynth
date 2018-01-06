@@ -1,5 +1,6 @@
 r41:
 updated to zimg v2.7
+fixed boxblur needlessly touching planes that aren't processed
 fixed a bug that would make avisource crash when opening an avisynth script with errors in it
 added an altsearchpath argument to loadplugin, setting it to true alters the search path for dll dependencies to be equivalent to the normal loadlibrary path, experimental and may be removed at any time
 added convenient alpha output to vspipe and vsscript, set_output() in python now takes a second optional alpha clip which will be used for this

@@ -34,7 +34,6 @@
 struct BoxBlurData {
     VSNodeRef *node;
     int radius, passes;
-    bool process[3];
 };
 
 template<typename T>
@@ -238,37 +237,31 @@ static const VSFrameRef *VS_CC boxBlurGetframe(int n, int activationReason, void
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSFormat *fi = vsapi->getFrameFormat(src);
-        const int pl[] = { 0, 1, 2 };
-        const VSFrameRef *fr[] = { d->process[0] ? nullptr : src, d->process[1] ? nullptr : src, d->process[2] ? nullptr : src };
-        VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
+        VSFrameRef *dst = vsapi->newVideoFrame(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core);
         int bytesPerSample = fi->bytesPerSample;
         int radius = d->radius;
-        uint8_t *tmp = (radius > 1 && d->passes > 1) ? new uint8_t[bytesPerSample * vsapi->getFrameWidth(src, d->process[0] ? 0 : 1)] : nullptr;
+        uint8_t *tmp = (radius > 1 && d->passes > 1) ? new uint8_t[bytesPerSample * vsapi->getFrameWidth(src, 0)] : nullptr;
 
-        for (int plane = 0; plane < fi->numPlanes; plane++) {
-            if (d->process[plane]) {
-                const uint8_t *srcp = vsapi->getReadPtr(src, plane);
-                int stride = vsapi->getStride(src, plane);
-                uint8_t *dstp = vsapi->getWritePtr(dst, plane);
-                int h = vsapi->getFrameHeight(src, plane);
-                int w = vsapi->getFrameWidth(src, plane);
+        const uint8_t *srcp = vsapi->getReadPtr(src, 0);
+        int stride = vsapi->getStride(src, 0);
+        uint8_t *dstp = vsapi->getWritePtr(dst, 0);
+        int h = vsapi->getFrameHeight(src, 0);
+        int w = vsapi->getFrameWidth(src, 0);
 
-                if (radius == 1) {
-                    if (bytesPerSample == 1)
-                        processPlaneR1<uint8_t>(srcp, dstp, stride, w, h, d->passes);
-                    else if (bytesPerSample == 2)
-                        processPlaneR1<uint16_t>(srcp, dstp, stride, w, h, d->passes);
-                    else
-                        processPlaneR1F<float>(srcp, dstp, stride, w, h, d->passes);
-                } else {
-                    if (bytesPerSample == 1)
-                        processPlane<uint8_t>(srcp, dstp, stride, w, h, d->passes, radius, tmp);
-                    else if (bytesPerSample == 2)
-                        processPlane<uint16_t>(srcp, dstp, stride, w, h, d->passes, radius, tmp);
-                    else
-                        processPlaneF<float>(srcp, dstp, stride, w, h, d->passes, radius, tmp);
-                }
-            }
+        if (radius == 1) {
+            if (bytesPerSample == 1)
+                processPlaneR1<uint8_t>(srcp, dstp, stride, w, h, d->passes);
+            else if (bytesPerSample == 2)
+                processPlaneR1<uint16_t>(srcp, dstp, stride, w, h, d->passes);
+            else
+                processPlaneR1F<float>(srcp, dstp, stride, w, h, d->passes);
+        } else {
+            if (bytesPerSample == 1)
+                processPlane<uint8_t>(srcp, dstp, stride, w, h, d->passes, radius, tmp);
+            else if (bytesPerSample == 2)
+                processPlane<uint16_t>(srcp, dstp, stride, w, h, d->passes, radius, tmp);
+            else
+                processPlaneF<float>(srcp, dstp, stride, w, h, d->passes, radius, tmp);
         }
 
         delete[] tmp;
@@ -278,6 +271,38 @@ static const VSFrameRef *VS_CC boxBlurGetframe(int n, int activationReason, void
     }
 
     return nullptr;
+}
+
+static VSNodeRef *applyBoxBlurPlaneFiltering(VSPlugin *stdplugin, VSNodeRef *node, int hradius, int hpasses, int vradius, int vpasses, VSCore *core, const VSAPI *vsapi) {
+    bool hblur = (hradius > 0) && (hpasses > 0);
+    bool vblur = (vradius > 0) && (vpasses > 0);
+
+    if (hblur) {
+        VSMap *vtmp1 = vsapi->createMap();
+        VSMap *vtmp2 = vsapi->createMap();
+        vsapi->createFilter(vtmp1, vtmp2, "BoxBlur", templateNodeInit<BoxBlurData>, boxBlurGetframe, templateNodeFree<BoxBlurData>, fmParallel, 0, new BoxBlurData{ node, hradius, hpasses }, core);
+        node = vsapi->propGetNode(vtmp2, "clip", 0, nullptr);
+        vsapi->freeMap(vtmp1);
+        vsapi->freeMap(vtmp2);
+    }
+
+    if (vblur) {
+        VSMap *vtmp1 = vsapi->createMap();
+        vsapi->propSetNode(vtmp1, "clip", node, paAppend);
+        vsapi->freeNode(node);
+        VSMap *vtmp2 = vsapi->invoke(stdplugin, "Transpose", vtmp1);
+        vsapi->clearMap(vtmp1);
+        node = vsapi->propGetNode(vtmp2, "clip", 0, nullptr);
+        vsapi->clearMap(vtmp2);
+        vsapi->createFilter(vtmp1, vtmp2, "BoxBlur", templateNodeInit<BoxBlurData>, boxBlurGetframe, templateNodeFree<BoxBlurData>, fmParallel, 0, new BoxBlurData{ node, vradius, vpasses }, core);
+        vsapi->freeMap(vtmp1);
+        vtmp1 = vsapi->invoke(stdplugin, "Transpose", vtmp2);
+        vsapi->freeMap(vtmp2);
+        node = vsapi->propGetNode(vtmp1, "clip", 0, nullptr);
+        vsapi->freeMap(vtmp1);
+    }
+
+    return node;
 }
 
 static void VS_CC boxBlurCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -316,33 +341,47 @@ static void VS_CC boxBlurCreate(const VSMap *in, VSMap *out, void *userData, VSC
         if (!hblur && !vblur)
             throw std::string("nothing to be performed");
 
-
         VSPlugin *stdplugin = vsapi->getPluginById("com.vapoursynth.std", core);
 
-        if (hblur) {
-            VSMap *htmp = vsapi->createMap();
-            vsapi->createFilter(in, htmp, "BoxBlur", templateNodeInit<BoxBlurData>, boxBlurGetframe, templateNodeFree<BoxBlurData>, fmParallel, 0, new BoxBlurData{ node, hradius, hpasses, { process[0], process[1], process[2] } }, core);
-            node = vsapi->propGetNode(htmp, "clip", 0, nullptr);
-            vsapi->freeMap(htmp);
-        }
+        if (vi->format->numPlanes == 1) {
+            VSNodeRef *tmpnode = applyBoxBlurPlaneFiltering(stdplugin, node, hradius, hpasses, vradius, vpasses, core, vsapi);
+            node = nullptr;
+            vsapi->propSetNode(out, "clip", tmpnode, paAppend);
+            vsapi->freeNode(tmpnode);
+        } else {
+            VSMap *mergeargs = vsapi->createMap();
+            int64_t psrc[3] = { 0, process[1] ? 0 : 1, process[2] ? 0 : 2 };
+            vsapi->propSetIntArray(mergeargs, "planes", psrc, 3);
+            vsapi->propSetInt(mergeargs, "colorfamily", vi->format->colorFamily, paAppend);
 
-        if (vblur) {
-            VSMap *vtmp1 = vsapi->createMap();
-            vsapi->propSetNode(vtmp1, "clip", node, paAppend);
+            for (int plane = 0; plane < vi->format->numPlanes; plane++) {
+                if (process[plane]) {
+                    VSMap *vtmp1 = vsapi->createMap();
+                    vsapi->propSetNode(vtmp1, "clips", node, paAppend);
+                    vsapi->propSetInt(vtmp1, "planes", plane, paAppend);
+                    vsapi->propSetInt(vtmp1, "colorfamily", cmGray, paAppend);
+                    VSMap *vtmp2 = vsapi->invoke(stdplugin, "ShufflePlanes", vtmp1);
+                    vsapi->freeMap(vtmp1);
+                    VSNodeRef *tmpnode = vsapi->propGetNode(vtmp2, "clip", 0, nullptr);
+                    vsapi->freeMap(vtmp2);
+                    tmpnode = applyBoxBlurPlaneFiltering(stdplugin, tmpnode, hradius, hpasses, vradius, vpasses, core, vsapi);
+                    vsapi->propSetNode(mergeargs, "clips", tmpnode, paAppend);
+                    vsapi->freeNode(tmpnode);
+                } else {
+                    vsapi->propSetNode(mergeargs, "clips", node, paAppend);
+                }
+            }
+
             vsapi->freeNode(node);
-            VSMap *vtmp2 = vsapi->invoke(stdplugin, "Transpose", vtmp1);
-            vsapi->clearMap(vtmp1);
-            node = vsapi->propGetNode(vtmp2, "clip", 0, nullptr);
-            vsapi->clearMap(vtmp2);
-            vsapi->createFilter(in, vtmp1, "BoxBlur", templateNodeInit<BoxBlurData>, boxBlurGetframe, templateNodeFree<BoxBlurData>, fmParallel, 0, new BoxBlurData{ node, vradius, vpasses, { process[0], process[1], process[2] } }, core);
-            vtmp2 = vsapi->invoke(stdplugin, "Transpose", vtmp1);
-            vsapi->freeMap(vtmp1);
-            node = vsapi->propGetNode(vtmp2, "clip", 0, nullptr);
-            vsapi->freeMap(vtmp2);
-        }
+            node = nullptr;
 
-        vsapi->propSetNode(out, "clip", node, paAppend);
-        vsapi->freeNode(node);
+            VSMap *retmap = vsapi->invoke(stdplugin, "ShufflePlanes", mergeargs);
+            vsapi->freeMap(mergeargs);
+            VSNodeRef *tmpnode = vsapi->propGetNode(retmap, "clip", 0, nullptr);
+            vsapi->freeMap(retmap);
+            vsapi->propSetNode(out, "clip", tmpnode, paAppend);
+            vsapi->freeNode(tmpnode);
+        }
 
     } catch (std::string &e) {
         vsapi->freeNode(node);
