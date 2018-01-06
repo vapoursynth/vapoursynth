@@ -31,7 +31,7 @@ static std::string utf16_to_utf8(const std::wstring &wstr) {
     int required_size = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, nullptr, 0, nullptr, nullptr);
     std::string buffer;
     buffer.resize(required_size - 1);
-    WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), wstr.size(), &buffer[0], required_size, nullptr, nullptr);
+    WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), static_cast<int>(wstr.size()), &buffer[0], required_size, nullptr, nullptr);
     return buffer;
 }
 
@@ -39,7 +39,7 @@ static std::wstring utf16_from_utf8(const std::string &str) {
     int required_size = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, nullptr, 0);
     std::wstring wbuffer;
     wbuffer.resize(required_size - 1);
-    MultiByteToWideChar(CP_UTF8, 0, str.c_str(), str.size(), &wbuffer[0], required_size);
+    MultiByteToWideChar(CP_UTF8, 0, str.c_str(), static_cast<int>(str.size()), &wbuffer[0], required_size);
     return wbuffer;
 }
 
