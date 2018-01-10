@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2013-2017 Fredrik Mellbin
+* Copyright (c) 2013-2018 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -21,6 +21,7 @@
 #include "VapourSynth.h"
 #include "VSHelper.h"
 #include "VSScript.h"
+#include "../core/version.h"
 #include <string>
 #include <map>
 #include <vector>
@@ -428,7 +429,7 @@ static bool printVersion() {
 
 static void printHelp() {
     fprintf(stderr,
-        "VSPipe usage:\n"
+        "VSPipe R" XSTR(VAPOURSYNTH_CORE_VERSION) " usage:\n"
         "  vspipe [options] <script> <outfile>\n"
         "\n"
         "Available options:\n"
