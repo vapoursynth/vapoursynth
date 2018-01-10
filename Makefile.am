@@ -57,6 +57,7 @@ libvapoursynth_la_SOURCES = src/core/boxblurfilter.cpp \
 							src/core/simplefilters.c \
 							src/core/ter-116n.h \
 							src/core/textfilter.cpp \
+							src/core/transpose.c \
 							src/core/version.h \
 							src/core/vsapi.cpp \
 							src/core/vscore.cpp \
@@ -70,8 +71,7 @@ libvapoursynth_la_SOURCES = src/core/boxblurfilter.cpp \
 if X86ASM
 libvapoursynth_la_SOURCES += src/core/asm/x86/check.asm \
 							 src/core/asm/x86/cpu.asm \
-							 src/core/asm/x86/merge.asm \
-							 src/core/asm/x86/transpose.asm
+							 src/core/asm/x86/merge.asm
 endif # X86ASM
 
 pkginclude_HEADERS = include/VapourSynth.h \

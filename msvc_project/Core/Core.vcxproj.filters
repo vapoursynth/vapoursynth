@@ -75,6 +75,9 @@
     <ClCompile Include="..\..\src\core\boxblurfilter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\core\transpose.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\VapourSynth.h">
@@ -131,9 +134,6 @@
       <Filter>asm</Filter>
     </NASM>
     <NASM Include="..\..\src\core\asm\x86\merge.asm">
-      <Filter>asm</Filter>
-    </NASM>
-    <NASM Include="..\..\src\core\asm\x86\transpose.asm">
       <Filter>asm</Filter>
     </NASM>
     <NASM Include="..\..\include\asm\x86\x86inc.asm">
