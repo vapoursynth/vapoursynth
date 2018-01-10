@@ -69,6 +69,8 @@ const packing_traits traits_table[] = {
 	CASE2(p016, 1, 1, true, 2),
 	CASE2(p210, 1, 0, true, 2, 6),
 	CASE2(p216, 1, 0, true, 2),
+	CASE2(rgba32, 0, 0),
+	CASE2(rgba64, 0, 0),
 };
 #undef CASE2
 #undef CASE

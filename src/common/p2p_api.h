@@ -107,6 +107,14 @@ enum p2p_packing {
 	p2p_p216_be, /* NV21, big-endian components */
 	p2p_p216_le, /* NV12, little-endian components. Microsoft P216. */
 	p2p_p216,
+	/** [R8-G8-B8-A8] */
+	p2p_rgba32_be, /* RGBA */
+	p2p_rgba32_le, /* ABGR */
+	p2p_rgba32,
+	/** [R16-G16-B16-A16] */
+	p2p_rgba64_be, /* RGBA, big-endian components */
+	p2p_rgba64_le, /* ABGR, little-endian components */
+	p2p_rgba64,
 
 	p2p_packing_max,
 };
