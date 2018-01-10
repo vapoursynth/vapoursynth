@@ -1693,12 +1693,9 @@ static void VS_CC modifyFrameCreate(const VSMap *in, VSMap *out, void *userData,
 //////////////////////////////////////////
 // Transpose
 
-#ifdef VS_TARGET_CPU_X86
-extern void vs_transpose_word(const uint8_t *src, intptr_t srcstride, uint8_t *dst, intptr_t dststride);
-extern void vs_transpose_word_partial(const uint8_t *src, intptr_t srcstride, uint8_t *dst, intptr_t dststride, intptr_t dst_lines);
-extern void vs_transpose_byte(const uint8_t *src, int srcstride, uint8_t *dst, int dststride);
-extern void vs_transpose_byte_partial(const uint8_t *src, intptr_t srcstride, uint8_t *dst, intptr_t dststride, intptr_t dst_lines);
-#endif
+extern void vs_transpose_plane_byte(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, unsigned width, unsigned height);
+extern void vs_transpose_plane_word(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, unsigned width, unsigned height);
+extern void vs_transpose_plane_dword(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, unsigned width, unsigned height);
 
 typedef struct {
     VSNodeRef *node;
@@ -1724,11 +1721,6 @@ static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, vo
         int src_stride;
         uint8_t * VS_RESTRICT dstp;
         int dst_stride;
-#ifdef VS_TARGET_CPU_X86
-        int partial_lines;
-        int modwidth;
-        int modheight;
-#endif
 
         for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {
             width = vsapi->getFrameWidth(src, plane);
@@ -1737,74 +1729,18 @@ static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, vo
             src_stride = vsapi->getStride(src, plane);
             dstp = vsapi->getWritePtr(dst, plane);
             dst_stride = vsapi->getStride(dst, plane);
-            int x;
 
-            switch (d->vi.format->bytesPerSample) {
-            case 1:
-#ifdef VS_TARGET_CPU_X86
-                modwidth = width & ~7;
-                modheight = height & ~7;
-
-                for (int y = 0; y < modheight; y += 8) {
-                    for (x = 0; x < modwidth; x += 8)
-                        vs_transpose_byte(srcp + src_stride * y + x, src_stride, dstp + dst_stride * x + y, dst_stride);
-
-                    partial_lines = width - modwidth;
-
-                    if (partial_lines > 0)
-                        vs_transpose_byte_partial(srcp + src_stride * y + x, src_stride, dstp + dst_stride * x + y, dst_stride, partial_lines);
-                }
-
-                for (int y = modheight; y < height; y++)
-                    for (x = 0; x < width; x++)
-                        dstp[dst_stride * x + y] = srcp[src_stride * y + x];
-
-                break;
-#else
-                for (int y = 0; y < height; y++)
-                    for (x = 0; x < width; x++)
-                        dstp[dst_stride * x + y] = srcp[src_stride * y + x];
-                break;
-#endif
-            case 2:
-#ifdef VS_TARGET_CPU_X86
-                modwidth = width & ~3;
-                modheight = height & ~3;
-
-                for (int y = 0; y < modheight; y += 4) {
-                    for (x = 0; x < modwidth; x += 4)
-                        vs_transpose_word(srcp + src_stride * y + x * 2, src_stride, dstp + dst_stride * x + y * 2, dst_stride);
-
-                    partial_lines = width - modwidth;
-
-                    if (partial_lines > 0)
-                        vs_transpose_word_partial(srcp + src_stride * y + x * 2, src_stride, dstp + dst_stride * x + y * 2, dst_stride, partial_lines);
-                }
-
-                src_stride /= 2;
-                dst_stride /= 2;
-
-                for (int y = modheight; y < height; y++)
-                    for (x = 0; x < width; x++)
-                        ((uint16_t *)dstp)[dst_stride * x + y] = ((const uint16_t *)srcp)[src_stride * y + x];
-
-                break;
-#else
-                src_stride /= 2;
-                dst_stride /= 2;
-                for (int y = 0; y < height; y++)
-                    for (x = 0; x < width; x++)
-                        ((uint16_t *)dstp)[dst_stride * x + y] = ((const uint16_t *)srcp)[src_stride * y + x];
-                break;
-#endif
-            case 4:
-                src_stride /= 4;
-                dst_stride /= 4;
-                for (int y = 0; y < height; y++)
-                    for (x = 0; x < width; x++)
-                        ((uint32_t *)dstp)[dst_stride * x + y] = ((const uint32_t *)srcp)[src_stride * y + x];
-                break;
-            }
+			switch (d->vi.format->bytesPerSample) {
+			case 1:
+				vs_transpose_plane_byte(srcp, src_stride, dstp, dst_stride, width, height);
+				break;
+			case 2:
+				vs_transpose_plane_word(srcp, src_stride, dstp, dst_stride, width, height);
+				break;
+			case 4:
+				vs_transpose_plane_dword(srcp, src_stride, dstp, dst_stride, width, height);
+				break;
+			}
         }
 
         vsapi->freeFrame(src);
@@ -2387,7 +2323,7 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
             if (d->node2)
                 diff = fdiffacc / (double)((int64_t)width * height);
         }
-        
+
         vsapi->propSetFloat(dstProps, d->propAverage, avg, paReplace);
         if (d->node2)
             vsapi->propSetFloat(dstProps, d->propDiff, diff, paReplace);
@@ -2792,7 +2728,7 @@ static const VSFrameRef *VS_CC setFieldBasedGetFrame(int n, int activationReason
 static void VS_CC setFieldBasedCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     SetFieldBasedData d;
     SetFieldBasedData *data;
-    
+
     d.fieldbased = vsapi->propGetInt(in, "value", 0, NULL);
     if (d.fieldbased < 0 || d.fieldbased > 2)
         RETERROR("SetFieldBased: value must be 0, 1 or 2");
