@@ -1730,17 +1730,17 @@ static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, vo
             dstp = vsapi->getWritePtr(dst, plane);
             dst_stride = vsapi->getStride(dst, plane);
 
-			switch (d->vi.format->bytesPerSample) {
-			case 1:
-				vs_transpose_plane_byte(srcp, src_stride, dstp, dst_stride, width, height);
-				break;
-			case 2:
-				vs_transpose_plane_word(srcp, src_stride, dstp, dst_stride, width, height);
-				break;
-			case 4:
-				vs_transpose_plane_dword(srcp, src_stride, dstp, dst_stride, width, height);
-				break;
-			}
+            switch (d->vi.format->bytesPerSample) {
+            case 1:
+                vs_transpose_plane_byte(srcp, src_stride, dstp, dst_stride, width, height);
+                break;
+            case 2:
+                vs_transpose_plane_word(srcp, src_stride, dstp, dst_stride, width, height);
+                break;
+            case 4:
+                vs_transpose_plane_dword(srcp, src_stride, dstp, dst_stride, width, height);
+                break;
+            }
         }
 
         vsapi->freeFrame(src);

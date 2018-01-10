@@ -1,3 +1,6 @@
+r42:
+optimized transpose filter even more (that dude)
+
 r41:
 updated to zimg v2.7
 fixed boxblur needlessly touching planes that aren't processed
