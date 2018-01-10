@@ -85,7 +85,7 @@ setup(
     author = "Fredrik Mellbin",
     author_email = "fredrik.mellbin@gmail.com",
     license = "LGPL 2.1 or later",
-    version = "41",
+    version = "42",
     long_description = "A portable replacement for Avisynth",
     platforms = "All",
     ext_modules = [Extension("vapoursynth", [join("src", "cython", "vapoursynth.pyx")],

@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2017 Fredrik Mellbin
+* Copyright (c) 2012-2018 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -32,7 +32,7 @@
 
 #define XSTR(x) STR(x)
 #define STR(x) #x
-#define VAPOURSYNTH_CORE_VERSION 41
+#define VAPOURSYNTH_CORE_VERSION 42
 #if defined(VS_FRAME_GUARD) && !defined(NDEBUG)
 #define VS_OPTIONS_TEXT "Options: Frame Guard + Extra Assertions\n"
 #elif defined(VS_FRAME_GUARD)
@@ -43,7 +43,7 @@
 #define VS_OPTIONS_TEXT "Options: -\n"
 #endif
 #define VAPOURSYNTH_VERSION_STRING "VapourSynth Video Processing Library\n" \
-    "Copyright (c) 2012-2017 Fredrik Mellbin\n" \
+    "Copyright (c) 2012-2018 Fredrik Mellbin\n" \
     "Core R" XSTR(VAPOURSYNTH_CORE_VERSION) "\n" \
     "API R" XSTR(VAPOURSYNTH_API_MAJOR) "." XSTR(VAPOURSYNTH_API_MINOR) "\n" \
     VS_OPTIONS_TEXT
