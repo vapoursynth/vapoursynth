@@ -83,14 +83,13 @@ Denoising
 * `Cnr2 <https://github.com/dubhater/vapoursynth-cnr2>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=173659>`__ -- Chroma noise reducer
 * `DegrainMedian <https://github.com/dubhater/vapoursynth-degrainmedian>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=173758>`__ -- Port of the Avisynth filter 
 * `DFTTest <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-DFTTest>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171678>`__
-* `FFT3DFilter <https://github.com/VFR-maniac/VapourSynth-FFT3DFilter>`_ -- 3D frequency domain denoiser/sharpener
+* `FFT3DFilter <https://github.com/myrsloik/VapourSynth-FFT3DFilter>`_ -- 3D frequency domain denoiser/sharpener
 * `FluxSmooth <https://github.com/dubhater/vapoursynth-fluxsmooth>`_ -- Temporal/spatiotemporal denoiser
 * `Hqdn3d <https://github.com/Hinterwaeldlers/vapoursynth-hqdn3d>`_
 * `KNLMeansCL <https://github.com/Khanattila/KNLMeansCL>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171379>`__ -- OpenCL Non-local means denoising
 * `ReduceFlicker <https://github.com/VFR-maniac/VapourSynth-ReduceFlicker>`_
 * :ref:`RemoveGrain/Repair <rgvs>` -- A collection of 3x3 median and convolution denoising filters, in the source tree
 * `TempLinearApproximate <https://bitbucket.org/mystery_keeper/templinearapproximate-vapoursynth>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=169782>`__ -- A temporal smoother
-* `TemporalSoften <https://github.com/dubhater/vapoursynth-temporalsoften>`_ -- Bundled with the installer and based on the Avisynth filter with the same name
 * `TNLMeans <https://github.com/VFR-maniac/VapourSynth-TNLMeans>`_ -- Non-local means denoising
 * `VagueDenoiser <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-VagueDenoiser>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171723>`__ -- Wavelet based denoiser
 * `vcfreq <http://www.avisynth.nl/users/vcmohan/>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171413>`__ -- Frequency domain denoiser
