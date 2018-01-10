@@ -1502,7 +1502,7 @@ int wmain(int argc,const wchar_t*const* argv)
         error = -2;
         fprintf(fstatus,
             VER_DESCRIPTION "\n"
-            "Version " VER_VERSION "\n"
+            "Version R" XSTR(VAPOURSYNTH_CORE_VERSION) "\n"
             VER_COPYRIGHT "\n"
             "For help run: avfs -h\n");
     }
