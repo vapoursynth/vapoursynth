@@ -1,4 +1,6 @@
 r42:
+fixed regression introduced in r41 that would make setting a node using vsscript_setvariable silently fail
+resize no longer pointlessly copies frames when no processing is needed (that dude)
 optimized transpose filter even more (that dude)
 
 r41:

@@ -1977,6 +1977,10 @@ cdef public api const VSAPI *vpy_getVSApi() nogil:
 
 cdef public api int vpy_getVariable(VPYScriptExport *se, const char *name, VSMap *dst) nogil:
     with gil:
+        global _environment_id
+        global _environment_id_stack
+        _environment_id_stack.append(_environment_id)
+        _environment_id = se.id
         if vpy_getVSApi() == NULL:
             return 1
         evaldict = <dict>se.pyenvdict
@@ -1988,18 +1992,28 @@ cdef public api int vpy_getVariable(VPYScriptExport *se, const char *name, VSMap
             return 0
         except:
             return 1
+        finally:
+            _environment_id = _environment_id_stack.pop()    
 
 cdef public api int vpy_setVariable(VPYScriptExport *se, const VSMap *vars) nogil:
     with gil:
+        global _environment_id
+        global _environment_id_stack
+        _environment_id_stack.append(_environment_id)
+        _environment_id = se.id
         if vpy_getVSApi() == NULL:
             return 1
         evaldict = <dict>se.pyenvdict
-        
-        core = vsscript_get_core_internal(se.id)
-        new_vars = mapToDict(vars, False, False, core.core, vpy_getVSApi())
-        for key in new_vars:
-            evaldict[key] = new_vars[key]
-        return 0
+        try:     
+            core = vsscript_get_core_internal(se.id)
+            new_vars = mapToDict(vars, False, False, core.core, vpy_getVSApi())
+            for key in new_vars:
+                evaldict[key] = new_vars[key]
+            return 0
+        except:
+            return 1                
+        finally:
+            _environment_id = _environment_id_stack.pop()
 
 cdef public api int vpy_clearVariable(VPYScriptExport *se, const char *name) nogil:
     with gil:
