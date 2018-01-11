@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <float.h>
+#include <stddef.h>
 #ifdef VS_TARGET_CPU_X86
 #include <emmintrin.h>
 #endif
