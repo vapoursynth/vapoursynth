@@ -22,6 +22,7 @@
 #include "internalfilters.h"
 #include "filtershared.h"
 #include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
