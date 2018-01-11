@@ -808,6 +808,11 @@ class vszimg {
                 set_src_colorspace(&src_format);
 
             set_dst_colorspace(src_format, &dst_format);
+
+            // Need to also check VSFormat::id in case transformation to/from COMPAT is required.
+            if (src_format == dst_format && src_vsformat->id == dst_vsformat->id)
+                return vsapi->cloneFrameRef(src_frame);
+
             dst_frame = vsapi->newVideoFrame(dst_vsformat, dst_format.width, dst_format.height, src_frame, core);
 
             if (interlaced) {
