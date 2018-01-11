@@ -1,5 +1,6 @@
 #include "VSHelper.h"
 #include <stdint.h>
+#include <stddef.h>
 
 /* Add an offset in bytes to a typed pointer. */
 #define ADD_OFFSET(p, stride) ((p) + (stride) / (sizeof(*(p))))
