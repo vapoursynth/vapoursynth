@@ -97,6 +97,7 @@ Denoising
 Dot Crawl and Rainbows
 ----------------------
 * `Bifrost 2000 <https://github.com/dubhater/vapoursynth-bifrost>`_ -- A rainbow remover based on the Bifrost filter for Avisynth
+* `DotKill <https://github.com/myrsloik/DotKill>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=173029>`__ -- A spatial only dotcrawl remover
 * `SSIQ <https://github.com/dubhater/vapoursynth-ssiq>`_ -- Spatial derainbowing filter
 * `TComb <https://github.com/dubhater/vapoursynth-tcomb>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171124>`__ -- Port of the Avisynth filter
 
