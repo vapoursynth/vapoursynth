@@ -1,4 +1,6 @@
 r42:
+updated to zimg v2.7.1
+vapoursynth.dll is now simply symlinked into the python directory, makes it less confusing to replace the dll since there's only one real copy
 fixed regression introduced in r41 that would make setting a node using vsscript_setvariable silently fail
 resize no longer pointlessly copies frames when no processing is needed (that dude)
 optimized transpose filter even more (that dude)

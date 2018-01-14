@@ -58,8 +58,6 @@ Source: vapoursynth.pth; DestDir: {code:GetPythonPath64}\Lib\site-packages; Flag
 Source: ..\vapoursynth.cp36-win32.pyd; DestDir: {code:GetPythonPath32}\Lib\site-packages\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
 Source: ..\vapoursynth.cp36-win_amd64.pyd; DestDir: {code:GetPythonPath64}\Lib\site-packages\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 
-Source: ..\msvc_project\Release\vapoursynth.dll; DestDir: {code:GetPythonPath32}\Lib\site-packages\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: ..\msvc_project\x64\Release\vapoursynth.dll; DestDir: {code:GetPythonPath64}\Lib\site-packages\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 Source: ..\msvc_project\Release\vapoursynth.dll; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
 Source: ..\msvc_project\Release\vapoursynth.pdb; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
 Source: ..\msvc_project\x64\Release\vapoursynth.dll; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
@@ -180,13 +178,23 @@ Root: HKLM64; Subkey: SOFTWARE\Classes\vpyfile; ValueType: string; ValueName: ""
 Root: HKLM64; Subkey: SOFTWARE\Classes\vpyfile\DefaultIcon; ValueType: string; ValueName: ""; ValueData: "{app}\core64\vsvfw.dll,0"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
 Root: HKLM64; Subkey: SOFTWARE\Classes\AVIFile\Extensions\VPY; ValueType: string; ValueName: ""; ValueData: "{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
 
+[UninstallDelete]
+Type: files; Name: "{code:GetPythonPath32}\Lib\site-packages\vapoursynth\vapoursynth.dll"; Components: vs32
+Type: dirifempty; Name: "{code:GetPythonPath32}\Lib\site-packages\vapoursynth"; Components: vs32
+Type: files; Name: "{code:GetPythonPath64}\Lib\site-packages\vapoursynth\vapoursynth.dll"; Components: vs64
+Type: dirifempty; Name: "{code:GetPythonPath64}\Lib\site-packages\vapoursynth"; Components: vs64
+
 #include "scripts\products.iss"
 #include "scripts\products\stringversion.iss"
 #include "scripts\products\msiproduct.iss"
 #include "scripts\products\vcredist2013.iss"
 #include "scripts\products\vcredist2017.iss"
 
-[Code]
+[Code]function CreateSymbolicLink(
+  lpSymlinkFileName: string;
+  lpTargetFileName: string;
+  dwFlags: DWORD): Boolean;
+  external 'CreateSymbolicLinkW@kernel32.dll stdcall';
 
 type
   TPythonPath = record
@@ -401,6 +409,13 @@ begin
   begin
     if IsUpgrade() then
       UnInstallOldVersion();
+  end
+  else if CurStep=ssPostInstall then
+  begin
+    if IsComponentSelected('vs32') then
+      CreateSymbolicLink(Python32Path + '\Lib\site-packages\vapoursynth\vapoursynth.dll', ExpandConstant('{app}\core32\vapoursynth.dll'), 0);
+    if IsComponentSelected('vs64') then
+      CreateSymbolicLink(Python64Path + '\Lib\site-packages\vapoursynth\vapoursynth.dll', ExpandConstant('{app}\core64\vapoursynth.dll'), 0);
   end;
 end;
 
