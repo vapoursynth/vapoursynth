@@ -114,6 +114,7 @@ Others
 * :ref:`Miscellaneous filters <misc>` -- Scene change detection, frame averaging and other sometimes useful functions, in the source tree
 * `AddGrain <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-AddGrain>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171073>`__ -- Port of the Avisynth AddGrain filter
 * `AutoCrop <https://github.com/Infiziert90/vapoursynth-autocrop>`_
+* `AvsProxy <https://github.com/sekrit-twc/avsproxy>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=175141>`__ -- Execute 32 bit Avisynth scripts inside 64 bit VapourSynth
 * `AWarpSharp2 <https://github.com/dubhater/vapoursynth-awarpsharp2>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=172721>`__ -- Sharpens edges by warping them
 * `Basic audio support <https://github.com/dubhater/vapoursynth-damb>`_ `(Doom9) <http://forum.doom9.org/showthread.php?t=171555>`__ -- A plugin that adds basic audio support
 * `Continuity Fixer <https://github.com/MonoS/VS-ContinuityFixer>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171785>`__ -- Can help repair damaged borders of frames
