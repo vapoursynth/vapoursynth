@@ -16,10 +16,6 @@ class FilterTestSequence(unittest.TestCase):
         clip = self.BlankClip(format=vs.YUV420P16, color=[0, 0, 0], width=1156, height=752)
         self.Transpose(clip).get_frame(0)
 
-    def test_transpose32(self):
-        clip = self.BlankClip(format=vs.YUV420P32, color=[0, 0, 0], width=1156, height=752)
-        self.Transpose(clip).get_frame(0)
-
     def test_transposeS(self):
         clip = self.BlankClip(format=vs.YUV444PS, color=[0, 0, 0], width=1156, height=752)
         self.Transpose(clip).get_frame(0)
