@@ -225,7 +225,7 @@ void vs_transpose_plane_word(const void * VS_RESTRICT src, ptrdiff_t src_stride,
         }
         for (j = width_floor; j < width; ++j) {
             for (ii = i; ii < i + CACHELINE_SIZE_WORD; ++ii) {
-                *(ADD_OFFSET(dst_p, j * src_stride) + ii) = *(ADD_OFFSET(src_p, ii * src_stride) + j);
+                *(ADD_OFFSET(dst_p, j * dst_stride) + ii) = *(ADD_OFFSET(src_p, ii * src_stride) + j);
             }
         }
     }
@@ -265,7 +265,7 @@ void vs_transpose_plane_dword(const void * VS_RESTRICT src, ptrdiff_t src_stride
         }
         for (j = width_floor; j < width; ++j) {
             for (ii = i; ii < i + CACHELINE_SIZE_DWORD; ++ii) {
-                *(ADD_OFFSET(dst_p, j * src_stride) + ii) = *(ADD_OFFSET(src_p, ii * src_stride) + j);
+                *(ADD_OFFSET(dst_p, j * dst_stride) + ii) = *(ADD_OFFSET(src_p, ii * src_stride) + j);
             }
         }
     }
