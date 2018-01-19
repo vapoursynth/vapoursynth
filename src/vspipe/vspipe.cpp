@@ -84,6 +84,7 @@ static int outputIndex = 0;
 static int outputFrames = 0;
 static int requestedFrames = 0;
 static int completedFrames = 0;
+static int completedAlphaFrames = 0;
 static int totalFrames = -1;
 static int startFrame = 0;
 static bool y4m = false;
@@ -168,16 +169,22 @@ static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, 
         }
     }
 
+    // completed frames simply correspond to how many times the completion callback is called
+    if (rnode == node) {
+        completedFrames++;
+        if (!alphaNode)
+            completedAlphaFrames++;
+    } else {
+        completedAlphaFrames++;
+    }
+
     if (f) {
         if (rnode == node)
             reorderMap[n].first = f;
-        else 
+        else
             reorderMap[n].second = f;
 
         bool completed = isCompletedFrame(reorderMap[n]);
-
-        if (completed)
-            completedFrames++;
 
         if (completed && requestedFrames < totalFrames) {
             vsapi->getFrameAsync(requestedFrames, node, frameDoneCallback, nullptr);
@@ -259,7 +266,7 @@ static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, 
             fprintf(stderr, "Frame: %d/%d\r", completedFrames - startFrame, totalFrames - startFrame);
     }
 
-    if (totalFrames == completedFrames) {
+    if (totalFrames == completedFrames && totalFrames == completedAlphaFrames) {
         std::lock_guard<std::mutex> lock(mutex);
         condition.notify_one();
     }

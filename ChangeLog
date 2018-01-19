@@ -1,3 +1,9 @@
+r43:
+fixed a possible hang on error in vspipe, regression introduced with the alpha support in r41
+
+r42.1
+fixed a crash in the optimized transpose for certain resolutions, regression introduced in r42
+
 r42:
 updated to zimg v2.7.1
 vapoursynth.dll is now simply symlinked into the python directory, makes it less confusing to replace the dll since there's only one real copy
