@@ -32,6 +32,7 @@ import gc
 import sys
 import inspect
 from types import MappingProxyType
+from collections import namedtuple
 from collections.abc import Iterable, Mapping
 from fractions import Fraction
 
@@ -56,6 +57,8 @@ cdef const VSAPI *_vsapi = NULL
 
 # Create an empty list whose instance will represent a not passed value.
 _EMPTY = []
+
+AlphaOutputTuple = namedtuple("AlphaOutputTuple", "clip alpha")
 
 def _construct_parameter(signature):
     name,type,*opt = signature.split(":")
@@ -1144,7 +1147,8 @@ cdef class VideoNode(object):
 
     def set_output(self, int index = 0, VideoNode alpha = None):
         cdef const VSFormat *aformat = NULL
-        if (alpha is not None):
+        clip = self
+        if alpha is not None:
             if (self.vi.width != alpha.vi.width) or (self.vi.height != alpha.vi.height):
                 raise Error('Alpha clip dimensions must match the main video')
             if (self.num_frames != alpha.num_frames):
@@ -1154,8 +1158,10 @@ cdef class VideoNode(object):
                     raise Error('Alpha clip format must match the main video')
             elif (self.vi.format) or (alpha.vi.format):
                 raise Error('Format must be either known or unknown for both alpha and main clip')
+            
+            clip = AlphaOutputTuple(self, alpha)
 
-        _get_output_dict("set_output")[index] = (self, alpha)
+        _get_output_dict("set_output")[index] = clip
 
     def output(self, object fileobj not None, bint y4m = False, object progress_update = None, int prefetch = 0):
         if prefetch < 1:
