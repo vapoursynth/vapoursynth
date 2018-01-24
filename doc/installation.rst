@@ -22,6 +22,8 @@ and type this::
 After typing the final line you should see the version printed along with a
 few other lines describing the options used when instantiating the Core object.
 If this for some reason fails, there may be a bug in the installer or there are
+
+
 old copies of vapoursynth.pyd and vapoursynth.dll lying around.
 
 Windows Portable Instructions
@@ -54,6 +56,17 @@ Several distributions have packages:
    * `Ubuntu <https://launchpad.net/~djcj/+archive/ubuntu/vapoursynth>`_  -- PPA
    * `Gentoo <https://github.com/4re/vapoursynth-portage>`_  -- Portage overlay and instructions
    * `Arch Linux <https://www.archlinux.org/packages/?q=vapoursynth>`_  -- Packages
+
+Installation via PIP (PyPI)
+===========================
+
+You can install the Python wrapper using pip.
+
+Install `vapoursynth <https://pypi.org/project/VapourSynth/>`_ using Pip by using this command::
+
+    pip install VapourSynth
+
+Please note that you always need to have a working installation of VapourSynth beforehand. Note that on non-Windows systems, the installer will compile the module before installing.
 
 Linux and OS X Compilation Instructions
 =======================================
