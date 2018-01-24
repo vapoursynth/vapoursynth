@@ -58,7 +58,7 @@ cdef const VSAPI *_vsapi = NULL
 # Create an empty list whose instance will represent a not passed value.
 _EMPTY = []
 
-AlphaOutputNode = namedtuple("AlphaOutputNode", "clip alpha")
+AlphaOutputTuple = namedtuple("AlphaOutputTuple", "clip alpha")
 
 def _construct_parameter(signature):
     name,type,*opt = signature.split(":")
@@ -1159,7 +1159,7 @@ cdef class VideoNode(object):
             elif (self.vi.format) or (alpha.vi.format):
                 raise Error('Format must be either known or unknown for both alpha and main clip')
             
-            clip = AlphaOutputNode(self, alpha)
+            clip = AlphaOutputTuple(self, alpha)
 
         _get_output_dict("set_output")[index] = clip
 
