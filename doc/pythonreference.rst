@@ -188,7 +188,7 @@ Classes and Functions
 .. py:function:: get_output([index = 0])
 
    Get a previously set output node. Throws an error if the index hasn't been
-   set.
+   set. Will return an AlphaOutputNode when *alpha* was passed to *VideoNode.set_output*.
 
 .. py:function:: clear_output([index = 0])
 
@@ -362,6 +362,19 @@ Classes and Functions
       YUV4MPEG2 headers will be added when *y4m* is true.
       The current progress can be reported by passing a callback function of the form *func(current_frame, total_frames)* to *progress_update*.
       The *prefetch* argument is only for debugging purposes and should never need to be changed.
+      
+      
+.. py:class:: AlphaOutputNode
+
+      This class is returned by get_output. If a *alpha* was passed to set_output, *get_output* will return an object of this type.
+      
+      .. py:attribute:: clip
+      
+         A VideoNode-instance containing the color planes.
+         
+      .. py:attribute:: alpha
+      
+         A VideoNode-instance containing the alpha planes.
       
 .. py:class:: VideoFrame
 
