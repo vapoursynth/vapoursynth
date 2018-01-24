@@ -188,7 +188,7 @@ Classes and Functions
 .. py:function:: get_output([index = 0])
 
    Get a previously set output node. Throws an error if the index hasn't been
-   set. Will return an AlphaOutputNode when *alpha* was passed to *VideoNode.set_output*.
+   set. Will return an AlphaOutputTuple when *alpha* was passed to *VideoNode.set_output*.
 
 .. py:function:: clear_output([index = 0])
 
@@ -364,7 +364,7 @@ Classes and Functions
       The *prefetch* argument is only for debugging purposes and should never need to be changed.
       
       
-.. py:class:: AlphaOutputNode
+.. py:class:: AlphaOutputTuple
 
       This class is returned by get_output. If a *alpha* was passed to set_output, *get_output* will return an object of this type.
       
