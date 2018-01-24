@@ -22,8 +22,6 @@ and type this::
 After typing the final line you should see the version printed along with a
 few other lines describing the options used when instantiating the Core object.
 If this for some reason fails, there may be a bug in the installer or there are
-
-
 old copies of vapoursynth.pyd and vapoursynth.dll lying around.
 
 Windows Portable Instructions
