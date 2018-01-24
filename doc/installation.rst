@@ -55,6 +55,17 @@ Several distributions have packages:
    * `Gentoo <https://github.com/4re/vapoursynth-portage>`_  -- Portage overlay and instructions
    * `Arch Linux <https://www.archlinux.org/packages/?q=vapoursynth>`_  -- Packages
 
+Installation via PIP (PyPI)
+===========================
+
+You can install the Python wrapper using pip.
+
+Install `vapoursynth <https://pypi.org/project/VapourSynth/>`_ using Pip by using this command::
+
+    pip install VapourSynth
+
+Please note that you always need to have a working installation of VapourSynth beforehand. Note that on non-Windows systems, the installer will compile the module before installing.
+
 Linux and OS X Compilation Instructions
 =======================================
 
