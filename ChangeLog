@@ -1,4 +1,6 @@
 r43:
+updated to zimg v2.7.2
+a tuple is now only returned from get_output in python when alpha actually exist, this undoes the python syntax change in r41
 fixed a possible hang on error in vspipe, regression introduced with the alpha support in r41
 
 r42.1

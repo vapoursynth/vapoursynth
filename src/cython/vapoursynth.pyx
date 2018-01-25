@@ -1927,17 +1927,20 @@ cdef public api VSNodeRef *vpy_getOutput(VPYScriptExport *se, int index) nogil:
         node = None
         try:
             global _stored_outputs
-            node = _stored_outputs[se.id][index][0]
+            node = _stored_outputs[se.id][index]
         except:
             return NULL
 
+        if isinstance(node, AlphaOutputTuple):
+            node = node[0]
+            
         if isinstance(node, VideoNode):
             return (<VideoNode>node).funcs.cloneNodeRef((<VideoNode>node).node)
         else:
             return NULL
             
 cdef public api VSNodeRef *vpy_getOutput2(VPYScriptExport *se, int index, VSNodeRef **alpha) nogil:
-    if alpha:
+    if (alpha != NULL):
         alpha[0] = NULL
     with gil:
         evaldict = <dict>se.pyenvdict
@@ -1947,11 +1950,13 @@ cdef public api VSNodeRef *vpy_getOutput2(VPYScriptExport *se, int index, VSNode
             node = _stored_outputs[se.id][index]
         except:
             return NULL
-
-        if isinstance(node[0], VideoNode):
+   
+        if isinstance(node, AlphaOutputTuple):
             if (isinstance(node[1], VideoNode) and (alpha != NULL)):
                 alpha[0] = (<VideoNode>(node[1])).funcs.cloneNodeRef((<VideoNode>(node[1])).node)
             return (<VideoNode>(node[0])).funcs.cloneNodeRef((<VideoNode>(node[0])).node)
+        elif isinstance(node, VideoNode):
+            return (<VideoNode>node).funcs.cloneNodeRef((<VideoNode>node).node)
         else:
             return NULL
 
