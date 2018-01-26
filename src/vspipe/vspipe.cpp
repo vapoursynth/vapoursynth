@@ -377,6 +377,10 @@ static bool outputNode() {
     condition.wait(lock);
 
     if (outputError) {
+        for (auto &iter : reorderMap) {
+            vsapi->freeFrame(iter.second.first);
+            vsapi->freeFrame(iter.second.second);
+        }
         fprintf(stderr, "%s\n", errorMessage.c_str());
     }
 
