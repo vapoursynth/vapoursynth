@@ -5,6 +5,13 @@ VapourSynth automatically loads all the native plugins located in certain
 folders. Autoloading works just like manual loading, with the exception
 that any errors encountered while loading a plugin are silently ignored.
 
+.. note::
+
+   Avoid autoloading from folders that other applications might also
+   use, such as /usr/lib or /usr/local/lib in a Linux system. Several
+   users reported crashes when VapourSynth attempted to load some
+   random libraries (\*cough\*wxgtk\*cough\*).
+
 
 Windows
 #######
