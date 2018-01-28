@@ -25,6 +25,8 @@ static VSCore *(*__pyx_api_f_11vapoursynth_vpy_getCore)(struct VPYScriptExport *
 #define vpy_getCore __pyx_api_f_11vapoursynth_vpy_getCore
 static VSAPI const *(*__pyx_api_f_11vapoursynth_vpy_getVSApi)(void) = 0;
 #define vpy_getVSApi __pyx_api_f_11vapoursynth_vpy_getVSApi
+static VSAPI const *(*__pyx_api_f_11vapoursynth_vpy_getVSApi2)(int) = 0;
+#define vpy_getVSApi2 __pyx_api_f_11vapoursynth_vpy_getVSApi2
 static int (*__pyx_api_f_11vapoursynth_vpy_getVariable)(struct VPYScriptExport *, char const *, VSMap *) = 0;
 #define vpy_getVariable __pyx_api_f_11vapoursynth_vpy_getVariable
 static int (*__pyx_api_f_11vapoursynth_vpy_setVariable)(struct VPYScriptExport *, VSMap const *) = 0;
@@ -134,6 +136,7 @@ static int import_vapoursynth(void) {
   if (__Pyx_ImportFunction(module, "vpy_clearOutput", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy_clearOutput, "int (struct VPYScriptExport *, int)") < 0) goto bad;
   if (__Pyx_ImportFunction(module, "vpy_getCore", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy_getCore, "VSCore *(struct VPYScriptExport *)") < 0) goto bad;
   if (__Pyx_ImportFunction(module, "vpy_getVSApi", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy_getVSApi, "VSAPI const *(void)") < 0) goto bad;
+  if (__Pyx_ImportFunction(module, "vpy_getVSApi2", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy_getVSApi2, "VSAPI const *(int)") < 0) goto bad;
   if (__Pyx_ImportFunction(module, "vpy_getVariable", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy_getVariable, "int (struct VPYScriptExport *, char const *, VSMap *)") < 0) goto bad;
   if (__Pyx_ImportFunction(module, "vpy_setVariable", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy_setVariable, "int (struct VPYScriptExport *, VSMap const *)") < 0) goto bad;
   if (__Pyx_ImportFunction(module, "vpy_clearVariable", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy_clearVariable, "int (struct VPYScriptExport *, char const *)") < 0) goto bad;

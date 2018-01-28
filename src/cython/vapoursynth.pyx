@@ -1985,6 +1985,9 @@ cdef public api const VSAPI *vpy_getVSApi() nogil:
     if _vsapi == NULL:
         _vsapi = getVapourSynthAPI(VAPOURSYNTH_API_VERSION)
     return _vsapi
+    
+cdef public api const VSAPI *vpy_getVSApi2(int version) nogil:
+    return getVapourSynthAPI(version)
 
 cdef public api int vpy_getVariable(VPYScriptExport *se, const char *name, VSMap *dst) nogil:
     with gil:

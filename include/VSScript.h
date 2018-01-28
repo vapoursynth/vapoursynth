@@ -24,7 +24,7 @@
 #include "VapourSynth.h"
 
 #define VSSCRIPT_API_MAJOR 3
-#define VSSCRIPT_API_MINOR 1
+#define VSSCRIPT_API_MINOR 2
 #define VSSCRIPT_API_VERSION ((VSSCRIPT_API_MAJOR << 16) | (VSSCRIPT_API_MINOR))
 
 typedef struct VSScript VSScript;
@@ -69,7 +69,8 @@ VS_API(int) vsscript_clearOutput(VSScript *handle, int index);
 /* The core is valid as long as the environment exists */
 VS_API(VSCore *) vsscript_getCore(VSScript *handle);
 /* Convenience function for retrieving a vsapi pointer */
-VS_API(const VSAPI *) vsscript_getVSApi(void);
+VS_API(const VSAPI *) vsscript_getVSApi(void); /* deprecated as of api 3.2 since it's impossible to tell the api version supported */
+VS_API(const VSAPI *) vsscript_getVSApi2(int version); /* api 3.2, generally you should pass VAPOURSYNTH_API_VERSION */
 
 /* Variables names that are not set or not of a convertible type will return an error */
 VS_API(int) vsscript_getVariable(VSScript *handle, const char *name, VSMap *dst);

@@ -188,6 +188,10 @@ VS_API(const VSAPI *) vsscript_getVSApi(void) {
     return vpy_getVSApi();
 }
 
+VS_API(const VSAPI *) vsscript_getVSApi2(int version) {
+    return vpy_getVSApi2(version);
+}
+
 VS_API(int) vsscript_getVariable(VSScript *handle, const char *name, VSMap *dst) {
     return vpy_getVariable(handle, name, dst);
 }
