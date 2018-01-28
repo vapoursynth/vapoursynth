@@ -228,7 +228,8 @@ Resize
                     red 0.708 0.292
                     white D65 0.3127 0.3290
                     Rec. ITU-R BT.2020
-        st428
+        st428       Commonly known as xyz
+        xyz
         st431-2     DCI-P3 with traditional white point
         st432-1     DCI-P3
         jedec-p22   E.B.U. STANDARD FOR CHROMATICITY TOLERANCES FOR STUDIO MONITORS (3213-E)

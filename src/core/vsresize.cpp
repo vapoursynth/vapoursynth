@@ -147,6 +147,7 @@ const std::unordered_map<std::string, zimg_color_primaries_e> g_primaries_table{
     { "film",      ZIMG_PRIMARIES_FILM },
     { "2020",      ZIMG_PRIMARIES_2020 },
     { "st428",     ZIMG_PRIMARIES_ST428 },
+    { "xyz",       ZIMG_PRIMARIES_ST428 },
     { "st431-2",   ZIMG_PRIMARIES_ST431_2 },
     { "st432-1",   ZIMG_PRIMARIES_ST432_1 },
     { "jedec-p22", ZIMG_PRIMARIES_EBU3213_E }
