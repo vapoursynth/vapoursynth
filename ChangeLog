@@ -1,5 +1,7 @@
 r43:
 updated to zimg v2.7.2
+changed boxblur defaults to hradius and vradius=1, this makes more sense than having it throw an error with default arguments
+added xyz as an alias for st428 in resize
 add vsscript_getvsapi2 function which takes the required vapoursynth api version into account
 a tuple is now only returned from get_output in python when alpha actually exist, this undoes the python syntax change in r41
 fixed a possible hang on error in vspipe, regression introduced with the alpha support in r41
