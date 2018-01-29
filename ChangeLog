@@ -1,5 +1,6 @@
 r43:
 updated to zimg v2.7.2
+all vsscript functions are now internally guarded by a mutex to make them threadsafe
 changed boxblur defaults to hradius and vradius=1, this makes more sense than having it throw an error with default arguments
 added xyz as an alias for st428 in resize
 add vsscript_getvsapi2 function which takes the required vapoursynth api version into account

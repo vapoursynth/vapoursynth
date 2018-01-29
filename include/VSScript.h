@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2013-2017 Fredrik Mellbin
+* Copyright (c) 2013-2018 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -26,6 +26,8 @@
 #define VSSCRIPT_API_MAJOR 3
 #define VSSCRIPT_API_MINOR 2
 #define VSSCRIPT_API_VERSION ((VSSCRIPT_API_MAJOR << 16) | (VSSCRIPT_API_MINOR))
+
+/* As of api 3.2 all functions are threadsafe */
 
 typedef struct VSScript VSScript;
 
