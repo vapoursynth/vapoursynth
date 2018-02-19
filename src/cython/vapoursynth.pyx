@@ -471,6 +471,8 @@ cdef void dictToMap(dict ndict, VSMap *inm, VSCore *core, const VSAPI *funcs) ex
                 val = [val]     
 
         for v in val:
+            if hasattr(v, '_vapoursynth_'):
+                v = v._vapoursynth_
             if isinstance(v, VideoNode):
                 if funcs.propSetNode(inm, ckey, (<VideoNode>v).node, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
@@ -514,6 +516,9 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, cons
             val = [val]
 
         for v in val:
+            if hasattr(v, '_vapoursynth_'):
+                v = v._vapoursynth_
+                
             if atypes[key][:4] == 'clip' and isinstance(v, VideoNode):
                 if funcs.propSetNode(inm, ckey, (<VideoNode>v).node, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
