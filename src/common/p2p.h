@@ -26,6 +26,10 @@
 #include <climits>
 #include <type_traits>
 
+#ifdef _WIN32
+  #include <stdlib.h> // _byteswap_x
+#endif
+
 #ifdef P2P_USER_NAMESPACE
   #define P2P_NAMESPACE P2P_USER_NAMESPACE
 #else
@@ -34,12 +38,10 @@
 
 #ifdef _WIN32
   #define P2P_LITTLE_ENDIAN
-  #include <stdlib.h>
-#else
-  #include <sys/param.h>
-  #if __BYTE_ORDER == __BIG_ENDIAN
+#elif defined(__BYTE_ORDER__)
+  #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
     #define P2P_BIG_ENDIAN
-  #elif __BYTE_ORDER == __LITTLE_ENDIAN
+  #elif __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
     #define P2P_LITTLE_ENDIAN
   #endif
 #endif
