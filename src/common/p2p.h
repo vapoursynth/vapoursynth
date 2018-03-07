@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2016 Hoppsan G. Pig
+* Copyright (c) 2018 Hoppsan G. Pig
 *
 * This file is part of VapourSynth.
 *
@@ -26,6 +26,10 @@
 #include <climits>
 #include <type_traits>
 
+#ifdef _WIN32
+  #include <stdlib.h> // _byteswap_x
+#endif
+
 #ifdef P2P_USER_NAMESPACE
   #define P2P_NAMESPACE P2P_USER_NAMESPACE
 #else
@@ -34,12 +38,10 @@
 
 #ifdef _WIN32
   #define P2P_LITTLE_ENDIAN
-  #include <stdlib.h>
-#else
-  #include <sys/param.h>
-  #if __BYTE_ORDER == __BIG_ENDIAN
+#elif defined(__BYTE_ORDER__)
+  #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
     #define P2P_BIG_ENDIAN
-  #elif __BYTE_ORDER == __LITTLE_ENDIAN
+  #elif __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
     #define P2P_LITTLE_ENDIAN
   #endif
 #endif
@@ -387,6 +389,18 @@ using packed_rgba32 = endian_select<packed_rgba32_be, packed_rgba32_le>::type;
 using packed_rgba64_be = byte_packed_444_be<uint16_t, uint64_t, make_mask(C_R, C_G, C_B, C_A)>;
 using packed_rgba64_le = byte_packed_444_le<uint16_t, uint64_t, make_mask(C_R, C_G, C_B, C_A)>;
 using packed_rgba64 = endian_select<packed_rgba64_be, packed_rgba64_le>::type;
+
+using packed_abgr64_be = byte_packed_444_be<uint16_t, uint64_t, make_mask(C_A, C_B, C_G, C_R)>;
+using packed_abgr64_le = byte_packed_444_le<uint16_t, uint64_t, make_mask(C_A, C_B, C_G, C_R)>;
+using packed_abgr64 = endian_select<packed_abgr64_be, packed_abgr64_le>::type;
+
+using packed_bgr48_be = byte_packed_444_be<uint16_t, detail::uint48, make_mask(C__, C_B, C_G, C_R)>;
+using packed_bgr48_le = byte_packed_444_le<uint16_t, detail::uint48, make_mask(C__, C_B, C_G, C_R)>;
+using packed_bgr48 = endian_select<packed_bgr48_be, packed_bgr48_le>::type;
+
+using packed_bgra64_be = byte_packed_444_be<uint16_t, uint64_t, make_mask(C_B, C_G, C_R, C_A)>;
+using packed_bgra64_le = byte_packed_444_le<uint16_t, uint64_t, make_mask(C_B, C_G, C_R, C_A)>;
+using packed_bgra64 = endian_select<packed_bgra64_be, packed_bgra64_le>::type;
 
 // D3D A2R10G10B10.
 using packed_rgb30_be = pack_traits<

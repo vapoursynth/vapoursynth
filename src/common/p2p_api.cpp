@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2016 Hoppsan G. Pig
+* Copyright (c) 2018 Hoppsan G. Pig
 *
 * This file is part of VapourSynth.
 *
@@ -71,6 +71,9 @@ const packing_traits traits_table[] = {
 	CASE2(p216, 1, 0, true, 2),
 	CASE2(rgba32, 0, 0),
 	CASE2(rgba64, 0, 0),
+	CASE2(abgr64, 0, 0),
+	CASE2(bgr48, 0, 0),
+	CASE2(bgra64, 0, 0),
 };
 #undef CASE2
 #undef CASE
