@@ -1,6 +1,7 @@
 r43.1:
-updated to zimg v2.7.4 to fix c2q cpu crash
+updated to zimg v2.7.4 to fix crash that only happens on core2 quad cpus
 updated visual studio runtimes in installer
+updated pismo runtime
 minor documentation updates
 
 r43:
