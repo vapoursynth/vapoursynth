@@ -14,6 +14,7 @@ Applications
 Development
 ###########
 * `vsxx <https://github.com/sekrit-twc/vsxx>`_ -- VapourSynth C++ API wrapper
+* `vapoursynth-rs <https://crates.io/crates/vapoursynth>`_ -- VapourSynth Rust wrapper
 
 Scripts
 #######

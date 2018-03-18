@@ -1,5 +1,5 @@
 #define AppName = 'VapourSynth'
-#define Version = 'R43-RC2'
+#define Version = 'R43.1'
 
 [Setup]
 OutputDir=Compiled
@@ -459,14 +459,14 @@ begin
     begin
       SetForceX86(True);
       vcredist2013('12.0.21005');
-      vcredist2017('14.12.25810');
+      vcredist2017('14.13.26020');
       SetForceX86(False);
       Runtimes32Added := True;
     end;
     if IsComponentSelected('vsruntimes') and IsComponentSelected('vs64') and not Runtimes64Added then
     begin
       vcredist2013('12.0.21005');
-      vcredist2017('14.12.25810');
+      vcredist2017('14.13.26020');
       Runtimes64Added := True;
     end;
     Result := NextButtonClick2(CurPageID);

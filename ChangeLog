@@ -1,3 +1,8 @@
+r43.1:
+updated to zimg v2.7.4 to fix c2q cpu crash
+updated visual studio runtimes in installer
+minor documentation updates
+
 r43:
 updated to zimg v2.7.3
 all vsscript functions are now internally guarded by a mutex to make them threadsafe
