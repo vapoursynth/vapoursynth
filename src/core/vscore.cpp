@@ -238,18 +238,66 @@ void VSVariant::initStorage(VSVType t) {
 
 ///////////////
 
+/* static */ bool MemoryUse::largePageSupported() {
+    return false;
+}
+
+/* static */ size_t MemoryUse::largePageSize() {
+    return 2 * (1UL << 20);
+}
+
+void *MemoryUse::allocateLargePage(size_t bytes) const {
+    if (!largePageEnabled)
+        return nullptr;
+
+    size_t granularity = largePageSize();
+    size_t allocBytes = VSFrame::alignment + bytes;
+    allocBytes = allocBytes + (granularity - 1) & ~(granularity - 1);
+    assert(allocBytes % granularity == 0);
+
+    // Don't allocate a large page if it would conflict with the buffer recycling logic.
+    if (!isGoodFit(bytes, allocBytes - VSFrame::alignment))
+        return nullptr;
+
+    void *ptr = vs_aligned_malloc(allocBytes, VSFrame::alignment);
+    if (!ptr)
+        return nullptr;
+
+    BlockHeader *header = new (ptr) BlockHeader;
+    header->size = allocBytes - VSFrame::alignment;
+    header->large = true;
+    return ptr;
+}
+
+void MemoryUse::freeLargePage(void *ptr) const {
+    vs_aligned_free(ptr);
+}
+
 void *MemoryUse::allocateMemory(size_t bytes) const {
-    void *ptr = vs_aligned_malloc(VSFrame::alignment + bytes, VSFrame::alignment);
+    void *ptr = allocateLargePage(bytes);
+    if (ptr)
+        return ptr;
+
+    ptr = vs_aligned_malloc(VSFrame::alignment + bytes, VSFrame::alignment);
     if (!ptr)
         vsFatal("out of memory: %zu", bytes);
 
     BlockHeader *header = new (ptr) BlockHeader;
     header->size = bytes;
+    header->large = false;
     return ptr;
 }
 
 void MemoryUse::freeMemory(void *ptr) const {
-    vs_aligned_free(ptr);
+    const BlockHeader *header = static_cast<const BlockHeader *>(ptr);
+    if (header->large)
+        freeLargePage(ptr);
+    else
+        vs_aligned_free(ptr);
+}
+
+bool MemoryUse::isGoodFit(size_t requested, size_t actual) const {
+    return actual <= requested + requested / 8;
 }
 
 void MemoryUse::add(size_t bytes) {
@@ -266,7 +314,7 @@ uint8_t *MemoryUse::allocBuffer(size_t bytes) {
     std::lock_guard<std::mutex> lock(mutex);
     auto iter = buffers.lower_bound(bytes);
     if (iter != buffers.end()) {
-        if (iter->first <= (bytes + (bytes >> 3))) {
+        if (isGoodFit(bytes, iter->first)) {
             unusedBufferSize -= iter->first;
             uint8_t *buf = iter->second;
             buffers.erase(iter);
@@ -324,7 +372,7 @@ void MemoryUse::signalFree() {
         delete this;
 }
 
-MemoryUse::MemoryUse() : used(0), freeOnZero(false), unusedBufferSize(0) {
+MemoryUse::MemoryUse() : used(0), freeOnZero(false), largePageEnabled(largePageSupported()), unusedBufferSize(0) {
     assert(VSFrame::alignment >= sizeof(BlockHeader));
 
     // 1GB
