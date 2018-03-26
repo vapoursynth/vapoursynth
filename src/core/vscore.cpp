@@ -300,10 +300,6 @@ static bool isWindowsLargePageBroken() {
         }
 
         CloseHandle(token);
-        if (isWindowsLargePageBroken) {
-            vsWarning("Disable large pages because of Windows bug");
-            return false;
-        }
         return true;
 #else
         return false;
@@ -338,6 +334,8 @@ void *MemoryUse::allocateLargePage(size_t bytes) const {
 
     void *ptr = nullptr;
 #ifdef VS_TARGET_OS_WINDOWS
+    if (isWindowsLargePageBroken())
+        assert(!mutex.try_lock());
     ptr = VirtualAlloc(nullptr, allocBytes, MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES, PAGE_READWRITE);
 #else
     ptr = vs_aligned_malloc(allocBytes, VSFrame::alignment);
@@ -354,6 +352,12 @@ void *MemoryUse::allocateLargePage(size_t bytes) const {
 void MemoryUse::freeLargePage(void *ptr) const {
 #ifdef VS_TARGET_OS_WINDOWS
     VirtualFree(ptr, 0, MEM_RELEASE);
+    if (isWindowsLargePageBroken()) {
+        assert(!mutex.try_lock());
+        do {
+            Sleep(1);
+        } while (!IsBadReadPtr(ptr, 1));
+    }
 #else
     vs_aligned_free(ptr);
 #endif
@@ -474,6 +478,10 @@ MemoryUse::MemoryUse() : used(0), freeOnZero(false), largePageEnabled(largePageS
 }
 
 MemoryUse::~MemoryUse() {
+    std::unique_lock<std::mutex> lock(mutex, std::defer_lock);
+    if (largePageEnabled && isWindowsLargePageBroken())
+        lock.lock();
+
     for (auto &iter : buffers)
         freeMemory(iter.second);
 }
