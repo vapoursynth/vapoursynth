@@ -333,14 +333,31 @@ public:
 
 class MemoryUse {
 private:
+    struct BlockHeader {
+        size_t size; // Size of memory allocation, minus header and padding.
+        bool large : 1; // Memory is allocated with large pages.
+    };
+    static_assert(sizeof(BlockHeader) <= 16, "block header too large");
+
     std::atomic<size_t> used;
     size_t maxMemoryUse;
     bool freeOnZero;
+    bool largePageEnabled;
     std::multimap<size_t, uint8_t *> buffers;
     size_t unusedBufferSize;
     size_t maxUnusedBufferSize;
     std::minstd_rand generator;
     std::mutex mutex;
+
+    static bool largePageSupported();
+    static size_t largePageSize();
+
+    // May allocate more than the requested amount.
+    void *allocateLargePage(size_t bytes) const;
+    void freeLargePage(void *ptr) const;
+    void *allocateMemory(size_t bytes) const;
+    void freeMemory(void *ptr) const;
+    bool isGoodFit(size_t requested, size_t actual) const;
 public:
     void add(size_t bytes);
     void subtract(size_t bytes);
@@ -611,7 +628,7 @@ private:
     //number of filter instances plus one, freeing the core reduces it by one
     // the core will be freed once it reaches 0
     bool coreFreed;
-    std::atomic<int> numFilterInstances; 
+    std::atomic<int> numFilterInstances;
     std::atomic<int> numFunctionInstances;
 
     std::map<std::string, VSPlugin *> plugins;
