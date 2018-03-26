@@ -279,6 +279,9 @@ static bool isWindowsLargePageBroken() {
         return false;
 
     static const bool supported = []() -> bool {
+        if (getenv("VS_NO_LARGE_PAGES"))
+            return false;
+
 #ifdef VS_TARGET_OS_WINDOWS
         HANDLE token = INVALID_HANDLE_VALUE;
         TOKEN_PRIVILEGES priv = {};
