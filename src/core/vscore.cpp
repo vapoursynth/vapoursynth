@@ -238,6 +238,20 @@ void VSVariant::initStorage(VSVType t) {
 
 ///////////////
 
+void *MemoryUse::allocateMemory(size_t bytes) const {
+    void *ptr = vs_aligned_malloc(VSFrame::alignment + bytes, VSFrame::alignment);
+    if (!ptr)
+        vsFatal("out of memory: %zu", bytes);
+
+    BlockHeader *header = new (ptr) BlockHeader;
+    header->size = bytes;
+    return ptr;
+}
+
+void MemoryUse::freeMemory(void *ptr) const {
+    vs_aligned_free(ptr);
+}
+
 void MemoryUse::add(size_t bytes) {
     used.fetch_add(bytes);
 }
@@ -260,26 +274,26 @@ uint8_t *MemoryUse::allocBuffer(size_t bytes) {
         }
     }
 
-    uint8_t *buf = vs_aligned_malloc<uint8_t>(VSFrame::alignment + bytes, VSFrame::alignment);
-    memcpy(buf, &bytes, sizeof(bytes));
+    uint8_t *buf = static_cast<uint8_t *>(allocateMemory(bytes));
     return buf + VSFrame::alignment;
 }
 
 void MemoryUse::freeBuffer(uint8_t *buf) {
     assert(buf);
+
     std::lock_guard<std::mutex> lock(mutex);
     buf -= VSFrame::alignment;
-    size_t bytes;
-    memcpy(&bytes, buf, sizeof(bytes));
-    buffers.emplace(std::make_pair(bytes, buf));
-    unusedBufferSize += bytes;
+    const BlockHeader *header = reinterpret_cast<const BlockHeader *>(buf);
+    buffers.emplace(std::make_pair(header->size, buf));
+    unusedBufferSize += header->size;
+
     while (unusedBufferSize > maxUnusedBufferSize) {
         std::uniform_int_distribution<size_t> randSrc(0, buffers.size() - 1);
         auto iter = buffers.begin();
         std::advance(iter, randSrc(generator));
         assert(unusedBufferSize >= iter->first);
         unusedBufferSize -= iter->first;
-        vs_aligned_free(iter->second);
+        freeMemory(iter->second);
         buffers.erase(iter);
     }
 }
@@ -311,6 +325,8 @@ void MemoryUse::signalFree() {
 }
 
 MemoryUse::MemoryUse() : used(0), freeOnZero(false), unusedBufferSize(0) {
+    assert(VSFrame::alignment >= sizeof(BlockHeader));
+
     // 1GB
     setMaxMemoryUse(1024 * 1024 * 1024);
 
@@ -321,7 +337,7 @@ MemoryUse::MemoryUse() : used(0), freeOnZero(false), unusedBufferSize(0) {
 
 MemoryUse::~MemoryUse() {
     for (auto &iter : buffers)
-        vs_aligned_free(iter.second);
+        freeMemory(iter.second);
 }
 
 ///////////////
