@@ -328,7 +328,7 @@ void *MemoryUse::allocateLargePage(size_t bytes) const {
 
     size_t granularity = largePageSize();
     size_t allocBytes = VSFrame::alignment + bytes;
-    allocBytes = allocBytes + (granularity - 1) & ~(granularity - 1);
+    allocBytes = (allocBytes + (granularity - 1)) & ~(granularity - 1);
     assert(allocBytes % granularity == 0);
 
     // Don't allocate a large page if it would conflict with the buffer recycling logic.

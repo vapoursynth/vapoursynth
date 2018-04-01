@@ -1979,6 +1979,7 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
         float fmax = -FLT_MAX;
 
 #ifdef VS_TARGET_CPU_X86
+        (void)x;
         unsigned xiter;
         const uint8_t ascendMask[16] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
         unsigned miter = ((width * fi->bytesPerSample + sizeof(__m128i) - fi->bytesPerSample) / sizeof(__m128i)) - 1;

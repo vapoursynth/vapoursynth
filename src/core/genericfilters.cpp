@@ -1193,7 +1193,7 @@ static FORCE_INLINE PixelType generic_3x3I(
     } else if (op == GenericMedian) {
 
         // Extra extra lazy.
-        std::array<PixelType, 9> v{ a11, a21, a31, a12, a22, a32, a13, a23, a33 };
+        std::array<PixelType, 9> v{ { a11, a21, a31, a12, a22, a32, a13, a23, a33 } };
 
         std::nth_element(v.begin(), v.begin() + v.size() / 2, v.end());
 
@@ -1302,7 +1302,7 @@ static FORCE_INLINE PixelType generic_3x3F(
     } else if (op == GenericMedian) {
 
         // Extra extra lazy.
-        std::array<PixelType, 9> v{ a11, a21, a31, a12, a22, a32, a13, a23, a33 };
+        std::array<PixelType, 9> v{ { a11, a21, a31, a12, a22, a32, a13, a23, a33 } };
 
         std::nth_element(v.begin(), v.begin() + v.size() / 2, v.end());
 
