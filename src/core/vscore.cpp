@@ -238,13 +238,13 @@ void VSVariant::initStorage(VSVType t) {
 
 ///////////////
 
-#ifdef VS_TARGET_OS_WINDOWS
 static bool isWindowsLargePageBroken() {
     // A Windows bug exists where a VirtualAlloc call immediately after VirtualFree
     // yields a page that has not been zeroed. The returned page is asynchronously
     // zeroed a few milliseconds later, resulting in memory corruption. The same bug
     // allows VirtualFree to return before the page has been unmapped.
     static const bool broken = []() -> bool {
+#ifdef VS_TARGET_OS_WINDOWS
         size_t size = GetLargePageMinimum();
 
         for (int i = 0; i < 100; ++i) {
@@ -267,11 +267,11 @@ static bool isWindowsLargePageBroken() {
                 return true;
             }
         }
+#endif // VS_TARGET_OS_WINDOWS
         return false;
     }();
     return broken;
 }
-#endif // VS_TARGET_OS_WINDOWS
 
 /* static */ bool MemoryUse::largePageSupported() {
     // Disable large pages on 32-bit to avoid memory fragmentation.
