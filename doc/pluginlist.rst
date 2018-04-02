@@ -92,6 +92,7 @@ Denoising
 * :ref:`RemoveGrain/Repair <rgvs>` -- A collection of 3x3 median and convolution denoising filters, in the source tree
 * `TempLinearApproximate <https://bitbucket.org/mystery_keeper/templinearapproximate-vapoursynth>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=169782>`__ -- A temporal smoother
 * `TNLMeans <https://github.com/VFR-maniac/VapourSynth-TNLMeans>`_ -- Non-local means denoising
+* `TTempSmooth <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-TTempSmooth>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=175351>`__
 * `VagueDenoiser <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-VagueDenoiser>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171723>`__ -- Wavelet based denoiser
 * `vcfreq <http://www.avisynth.nl/users/vcmohan/>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171413>`__ -- Frequency domain denoiser
 
