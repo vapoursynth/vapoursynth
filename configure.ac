@@ -1,4 +1,4 @@
-AC_INIT([vapoursynth], [43], [https://github.com/vapoursynth/vapoursynth/issues], [vapoursynth], [http://www.vapoursynth.com/])
+AC_INIT([vapoursynth], [44], [https://github.com/vapoursynth/vapoursynth/issues], [vapoursynth], [http://www.vapoursynth.com/])
 
 : ${CFLAGS=""}
 : ${CXXFLAGS=""}

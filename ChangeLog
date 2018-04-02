@@ -1,7 +1,8 @@
-r43.1:
+r44:
 updated to zimg v2.7.4 to fix crash that only happens on core2 quad cpus
 updated visual studio runtimes in installer
 updated pismo runtime
+added large page support (sekrit-twc)
 minor documentation updates
 
 r43:
