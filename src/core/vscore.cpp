@@ -1153,18 +1153,13 @@ bool VSCore::loadAllPluginsInPath(const std::string &path, const std::string &fi
     if (name_max == -1)
         name_max = 255;
 
-    size_t len = offsetof(struct dirent, d_name) + name_max + 1;
-
     while (true) {
-        struct dirent *entry = (struct dirent *)malloc(len);
-        struct dirent *result;
-        readdir_r(dir, entry, &result);
+        struct dirent *result = readdir(dir);
         if (!result) {
-            free(entry);
             break;
         }
 
-        std::string name(entry->d_name);
+        std::string name(result->d_name);
         // If name ends with filter
         if (name.size() >= filter.size() && name.compare(name.size() - filter.size(), filter.size(), filter) == 0) {
             try {
@@ -1175,8 +1170,6 @@ bool VSCore::loadAllPluginsInPath(const std::string &path, const std::string &fi
                 // Ignore any errors
             }
         }
-
-        free(entry);
     }
 
     if (closedir(dir)) {
