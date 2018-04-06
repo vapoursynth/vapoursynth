@@ -1,4 +1,4 @@
-warningflags = -Wall -Wextra -Wno-unused-parameter -Wno-unused-function
+warningflags = -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wno-ignored-attributes
 commoncflags = -O3 -fvisibility=hidden $(warningflags) -I$(srcdir)/include $(DEBUGCFLAGS) $(MFLAGS) $(UNICODECFLAGS) $(STACKREALIGN)
 AM_CXXFLAGS = -std=c++11 $(commoncflags)
 AM_CFLAGS = -std=c99 $(commoncflags)
@@ -91,7 +91,7 @@ if PYTHONMODULE
 pyexec_LTLIBRARIES = vapoursynth.la
 
 vapoursynth_la_SOURCES = src/cython/vapoursynth.pyx
-vapoursynth_la_CFLAGS= $(AM_CFLAGS) -fvisibility=default
+vapoursynth_la_CFLAGS= $(AM_CFLAGS) -fvisibility=default -Wno-implicit-fallthrough
 vapoursynth_la_CPPFLAGS = $(PYTHON3_CFLAGS)
 vapoursynth_la_LIBADD = $(MAYBE_PYTHON3_LIBS) libvapoursynth.la
 vapoursynth_la_LDFLAGS = $(PYTHON_MODULE_UNDEFINED) -avoid-version -module
