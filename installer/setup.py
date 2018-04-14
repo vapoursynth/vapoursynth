@@ -84,7 +84,7 @@ setup(
             if p.endswith(".dll")
         ]),
 
-        ("Lib\\site-packages\\%s\\coreplugins"%plugin_subdir, [
+        ("Lib\\site-packages\\%s\\plugins"%plugin_subdir, [
             os.path.join(plugin_dir, 'plugins', p)
             for p in os.listdir(os.path.join(plugin_dir, 'plugins'))
             if p.endswith(".dll") or p.endswith(".keep")
