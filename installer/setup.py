@@ -69,8 +69,7 @@ setup(
             os.path.join(build_dir, p)
             for p in os.listdir(build_dir)
             if p.endswith("140.dll") or \
-               p.endswith(".vs") or \
-               (p.startswith("vs") and p.endswith(".dll"))
+               p.endswith(".vs")
         ]),
 
         ("Scripts", [
