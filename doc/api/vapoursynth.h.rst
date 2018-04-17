@@ -2089,7 +2089,7 @@ struct VSAPI
 
    .. _createFunc:
 
-   VSFuncRef_ \*createFunc(VSPublicFunction func, void \*userData, VSFreeFuncData free)
+   VSFuncRef_ \*createFunc(VSPublicFunction func, void \*userData, VSFreeFuncData free, VSCore \*core, const VSAPI \*vsapi)
 
       *func*
          typedef void (VS_CC \*VSPublicFunction)(const VSMap_ \*in, VSMap_ \*out, void \*userData, VSCore_ \*core, const VSAPI_ \*vsapi)
