@@ -279,9 +279,6 @@ static bool isWindowsLargePageBroken() {
         return false;
 
     static const bool supported = []() -> bool {
-        if (getenv("VS_NO_LARGE_PAGES"))
-            return false;
-
 #ifdef VS_TARGET_OS_WINDOWS
         HANDLE token = INVALID_HANDLE_VALUE;
         TOKEN_PRIVILEGES priv = {};
@@ -471,6 +468,11 @@ void MemoryUse::signalFree() {
 
 MemoryUse::MemoryUse() : used(0), freeOnZero(false), largePageEnabled(largePageSupported()), unusedBufferSize(0) {
     assert(VSFrame::alignment >= sizeof(BlockHeader));
+
+    // If the Windows VirtualAlloc bug is present, it is not safe to use large pages by default,
+    // because another application could trigger the bug.
+    if (isWindowsLargePageBroken() && !getenv("VS_FORCE_LARGE_PAGES"))
+        largePageEnabled = false;
 
     // 1GB
     setMaxMemoryUse(1024 * 1024 * 1024);
