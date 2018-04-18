@@ -429,7 +429,12 @@ void MemoryUse::freeBuffer(uint8_t *buf) {
     buffers.emplace(std::make_pair(header->size, buf));
     unusedBufferSize += header->size;
 
-    while (unusedBufferSize > maxUnusedBufferSize) {
+    size_t memoryUsed = used;
+    while (memoryUsed + unusedBufferSize > maxMemoryUse && !buffers.empty()) {
+        if (!memoryWarningIssued) {
+            vsWarning("Script exceeded memory limit. Consider raising cache size.");
+            memoryWarningIssued = true;
+        }
         std::uniform_int_distribution<size_t> randSrc(0, buffers.size() - 1);
         auto iter = buffers.begin();
         std::advance(iter, randSrc(generator));
@@ -449,10 +454,8 @@ size_t MemoryUse::getLimit() {
 }
 
 int64_t MemoryUse::setMaxMemoryUse(int64_t bytes) {
-    if (bytes > 0 && static_cast<uint64_t>(bytes) <= SIZE_MAX) {
+    if (bytes > 0 && static_cast<uint64_t>(bytes) <= SIZE_MAX)
         maxMemoryUse = static_cast<size_t>(bytes);
-        maxUnusedBufferSize = maxMemoryUse / 10;
-    }
     return maxMemoryUse;
 }
 
@@ -466,7 +469,7 @@ void MemoryUse::signalFree() {
         delete this;
 }
 
-MemoryUse::MemoryUse() : used(0), freeOnZero(false), largePageEnabled(largePageSupported()), unusedBufferSize(0) {
+MemoryUse::MemoryUse() : used(0), freeOnZero(false), largePageEnabled(largePageSupported()), memoryWarningIssued(false), unusedBufferSize(0) {
     assert(VSFrame::alignment >= sizeof(BlockHeader));
 
     // If the Windows VirtualAlloc bug is present, it is not safe to use large pages by default,
