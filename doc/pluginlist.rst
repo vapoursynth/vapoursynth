@@ -124,6 +124,7 @@ Others
 * `CTMF <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-CTMF>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171213>`__ -- Constant Time Median Filtering
 * `DCT Filter (renewed) <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-DCTFilter>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=175135>`__ -- Block based DCT coefficient adjustment, optimized version
 * `Deblock <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-Deblock/>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=170975>`__ -- h.264 style deblocking
+* `DeblockPP7 <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-DeblockPP7>`_ `(Doom9) <http://forum.doom9.org/showthread.php?t=175405>`__
 * `DeLogo <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-DeLogo>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171252>`__ -- Port of the Avisynth logo removal filter
 * `f3kdb <https://github.com/SAPikachu/flash3kyuu_deband>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=161411>`__ -- Debanding filter
 * `FieldHint <https://github.com/dubhater/vapoursynth-fieldhint>`_ -- Takes fields from arbitrary input frames to create the output frames
