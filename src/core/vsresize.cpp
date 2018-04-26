@@ -440,6 +440,15 @@ bool operator!=(const zimg_image_format &a, const zimg_image_format &b) {
     return !operator==(a, b);
 }
 
+bool is_shifted(const zimg_image_format &fmt) {
+    bool ret = false;
+    ret = ret || (!std::isnan(fmt.active_region.left) && fmt.active_region.left != 0);
+    ret = ret || (!std::isnan(fmt.active_region.top) && fmt.active_region.top != 0);
+    ret = ret || (!std::isnan(fmt.active_region.width) && fmt.active_region.width != fmt.width);
+    ret = ret || (!std::isnan(fmt.active_region.height) && fmt.active_region.height != fmt.height);
+    return ret;
+}
+
 
 class vszimg_callback_base {
 protected:
@@ -811,7 +820,7 @@ class vszimg {
             set_dst_colorspace(src_format, &dst_format);
 
             // Need to also check VSFormat::id in case transformation to/from COMPAT is required.
-            if (src_format == dst_format && src_vsformat->id == dst_vsformat->id)
+            if (src_format == dst_format && src_vsformat->id == dst_vsformat->id && !is_shifted(src_format))
                 return vsapi->cloneFrameRef(src_frame);
 
             dst_frame = vsapi->newVideoFrame(dst_vsformat, dst_format.width, dst_format.height, src_frame, core);
