@@ -60,7 +60,7 @@ typedef struct CPUFeatures {
     char dfp;
     char vsx;
 #else
-#error No VS_TARGET_CPU_* defined/handled!
+#warning "No VS_TARGET_CPU_* defined/handled!"
 #endif
 } CPUFeatures;
 

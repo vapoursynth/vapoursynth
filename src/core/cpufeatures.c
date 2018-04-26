@@ -94,9 +94,9 @@ void getCPUFeatures(CPUFeatures *cpuFeatures) {
     cpuFeatures->dfp = !!(hwcap & PPC_FEATURE_HAS_DFP);
     cpuFeatures->vsx = !!(hwcap & PPC_FEATURE_HAS_VSX);
 #else
-#error Do not know how to get CPU features on Linux.
+#warning "Do not know how to get CPU features on Linux."
 #endif
 }
 #else
-#error Do not know how to get CPU features.
+#warning "Do not know how to get CPU features."
 #endif
