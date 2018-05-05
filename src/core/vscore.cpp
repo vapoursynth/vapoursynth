@@ -254,7 +254,7 @@ static bool isWindowsLargePageBroken() {
 
             for (size_t n = 0; n < 64; ++n) {
                 if (static_cast<uint8_t *>(ptr)[n]) {
-                    vsWarning("Windows VirtualAlloc bug detected: stale data");
+                    vsWarning("Windows 10 VirtualAlloc bug detected: update to version 1803+");
                     return true;
                 }
             }
@@ -263,7 +263,7 @@ static bool isWindowsLargePageBroken() {
             if (VirtualFree(ptr, 0, MEM_RELEASE) != TRUE)
                 return true;
             if (!IsBadReadPtr(ptr, 1)) {
-                vsWarning("Windows VirtualAlloc bug detected: page still mapped");
+                vsWarning("Windows 10 VirtualAlloc bug detected: update to version 1803+");
                 return true;
             }
         }
@@ -334,8 +334,6 @@ void *MemoryUse::allocateLargePage(size_t bytes) const {
 
     void *ptr = nullptr;
 #ifdef VS_TARGET_OS_WINDOWS
-    if (isWindowsLargePageBroken())
-        assert(!mutex.try_lock());
     ptr = VirtualAlloc(nullptr, allocBytes, MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES, PAGE_READWRITE);
 #else
     ptr = vs_aligned_malloc(allocBytes, VSFrame::alignment);
@@ -352,12 +350,6 @@ void *MemoryUse::allocateLargePage(size_t bytes) const {
 void MemoryUse::freeLargePage(void *ptr) const {
 #ifdef VS_TARGET_OS_WINDOWS
     VirtualFree(ptr, 0, MEM_RELEASE);
-    if (isWindowsLargePageBroken()) {
-        assert(!mutex.try_lock());
-        do {
-            Sleep(1);
-        } while (!IsBadReadPtr(ptr, 1));
-    }
 #else
     vs_aligned_free(ptr);
 #endif
@@ -474,7 +466,7 @@ MemoryUse::MemoryUse() : used(0), freeOnZero(false), largePageEnabled(largePageS
 
     // If the Windows VirtualAlloc bug is present, it is not safe to use large pages by default,
     // because another application could trigger the bug.
-    if (isWindowsLargePageBroken() && !getenv("VS_FORCE_LARGE_PAGES"))
+    if (isWindowsLargePageBroken())
         largePageEnabled = false;
 
     // 1GB
@@ -486,10 +478,6 @@ MemoryUse::MemoryUse() : used(0), freeOnZero(false), largePageEnabled(largePageS
 }
 
 MemoryUse::~MemoryUse() {
-    std::unique_lock<std::mutex> lock(mutex, std::defer_lock);
-    if (largePageEnabled && isWindowsLargePageBroken())
-        lock.lock();
-
     for (auto &iter : buffers)
         freeMemory(iter.second);
 }
