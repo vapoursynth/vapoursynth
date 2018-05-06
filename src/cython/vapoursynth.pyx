@@ -1774,7 +1774,7 @@ cdef void __stdcall publicFunction(const VSMap *inm, VSMap *outm, void *userData
                 vsapi.setError(outm, emsg)
 
 
-cdef class VapourSynthEnvironment(object):
+cdef class Environment(object):
     cdef readonly int env_id
     cdef readonly int ensure_existing_core
 
@@ -1832,13 +1832,13 @@ cdef class VapourSynthEnvironment(object):
 
     def __repr__(self):
         if self.single:
-            return "<VapourSynthEnvironment (default)>"
+            return "<Environment (default)>"
 
-        return f"<VapourSynthEnvironment {self.env_id} ({('active' if self.active else 'alive') if self.alive else 'dead'})>"
+        return f"<Environment {self.env_id} ({('active' if self.active else 'alive') if self.alive else 'dead'})>"
 
 
-cdef VapourSynthEnvironment use_environment(int id, int ensure_existing_core=False):
-    cdef VapourSynthEnvironment instance = VapourSynthEnvironment.__new__(VapourSynthEnvironment)
+cdef Environment use_environment(int id, int ensure_existing_core=False):
+    cdef Environment instance = Environment.__new__(Environment)
     instance.env_id = id
     instance.ensure_existing_core = ensure_existing_core
     return instance
