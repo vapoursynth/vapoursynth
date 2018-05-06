@@ -242,6 +242,13 @@ static void VS_CC OCRCreate(const VSMap *in, VSMap *out, void *userData,
 
     if (!err) {
         d.language = szterm(opt, size);
+#ifdef _WIN32
+    } else {
+        VSPlugin *ocr_plugin = vsapi->getPluginById("biz.srsfckn.ocr", core);
+        const char *plugin_path = vsapi->getPluginPath(ocr_plugin);
+        char *last_slash = strrchr(plugin_path, '/');
+        d.datapath = szterm(plugin_path, last_slash - plugin_path + 1);
+#endif
     }
 
     data = malloc(sizeof(d));
