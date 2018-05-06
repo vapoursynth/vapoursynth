@@ -1830,6 +1830,14 @@ cdef class Environment(object):
         global _environment_id_stack, _environment_id
         _environment_id = _environment_id_stack.pop()
 
+    def __eq__(self, other):
+        if not isinstance(other, Environment):
+            return False
+        if self.single:
+            return False
+
+        return other.env_id == self.env_id
+
     def __repr__(self):
         if self.single:
             return "<Environment (default)>"
