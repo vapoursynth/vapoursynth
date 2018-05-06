@@ -1758,26 +1758,101 @@ cdef void __stdcall freeFunc(void *pobj) nogil:
         Py_DECREF(fobj)
         fobj = None
 
+
 cdef void __stdcall publicFunction(const VSMap *inm, VSMap *outm, void *userData, VSCore *core, const VSAPI *vsapi) nogil:
     with gil:
+        d = <FuncData>userData
+        with use_environment(d.id):
+            try:
+                m = mapToDict(inm, False, False, core, vsapi)
+                ret = d(**m)
+                if not isinstance(ret, dict):
+                    ret = {'val':ret}
+                dictToMap(ret, outm, core, vsapi)
+            except BaseException, e:
+                emsg = str(e).encode('utf-8')
+                vsapi.setError(outm, emsg)
+
+
+cdef class VapourSynthEnvironment(object):
+    cdef readonly int env_id
+    cdef readonly int ensure_existing_core
+
+    def __init__(self):
+        raise Error('Class cannot be instantiated directly')
+
+    @property
+    def alive(self):
+        if self.single:
+            return True
+
+        global _stored_outputs
+        return self.env_id in _stored_outputs
+
+    @property
+    def single(self):
+        return self.is_single()
+
+    @classmethod
+    def is_single(self):
+        global _using_vsscript
+        return not _using_vsscript
+
+    @property
+    def active(self):
+        if self.single:
+            return True
+
+        global _environment_id
+        return _environment_id == self.env_id
+
+    def __enter__(self):
+        global _using_vsscript
+        if self.ensure_existing_core and not self.alive:
+            raise RuntimeError("The environment has died.")
+
+        # If we are not using VSScript, do nothing.
+        if self.single:
+            return self
+        
         global _environment_id
         global _environment_id_stack
-    
-        d = <FuncData>userData
         _environment_id_stack.append(_environment_id)
-        _environment_id = d.id
-   
-        try:
-            m = mapToDict(inm, False, False, core, vsapi)
-            ret = d(**m)
-            if not isinstance(ret, dict):
-                ret = {'val':ret}
-            dictToMap(ret, outm, core, vsapi)
-        except BaseException, e:
-            emsg = str(e).encode('utf-8')
-            vsapi.setError(outm, emsg)
-        finally:
-            _environment_id = _environment_id_stack.pop()
+        _environment_id = self.env_id
+
+        return self
+
+    def __exit__(self, *_):
+        # If we are not using VSScript, do nothing.
+        if self.single:
+            return
+
+        global _environment_id_stack, _environment_id
+        _environment_id = _environment_id_stack.pop()
+
+    def __repr__(self):
+        if self.single:
+            return "<VapourSynthEnvironment (default)>"
+
+        return f"<VapourSynthEnvironment {self.env_id} ({('active' if self.active else 'alive') if self.alive else 'dead'})>"
+
+
+cdef VapourSynthEnvironment use_environment(int id, int ensure_existing_core=False):
+    cdef VapourSynthEnvironment instance = VapourSynthEnvironment.__new__(VapourSynthEnvironment)
+    instance.env_id = id
+    instance.ensure_existing_core = ensure_existing_core
+    return instance
+
+
+def vpy_current_environment():
+    global _using_vsscript, _environment_id
+    if _using_vsscript and _environment_id is None:
+        raise RuntimeError("We are not running inside an environment.")
+
+    get_core()  # Make sure a core is defined.
+    env = use_environment((-1 if not _using_vsscript else _environment_id), True)
+    return env
+
 
 # for whole script evaluation and export
 cdef public struct VPYScriptExport:
@@ -1787,81 +1862,71 @@ cdef public struct VPYScriptExport:
 
 cdef public api int vpy_createScript(VPYScriptExport *se) nogil:
     with gil:
-        global _environment_id
-        global _environment_id_stack
-        _environment_id_stack.append(_environment_id)
-        _environment_id = se.id
         try:
-            evaldict = {}
-            Py_INCREF(evaldict)
-            se.pyenvdict = <void *>evaldict
-            global _stored_outputs
-            _stored_outputs[se.id] = {}
-
-        except:
-            errstr = 'Unspecified Python exception' + '\n\n' + traceback.format_exc()
-            errstr = errstr.encode('utf-8')
-            Py_INCREF(errstr)
-            se.errstr = <void *>errstr
-            return 1
-        finally:
-            _environment_id = _environment_id_stack.pop()
-        return 0         
-    
-cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, const char *scriptFilename, int flags) nogil:
-    with gil:
-        global _environment_id
-        global _environment_id_stack
-        _environment_id_stack.append(_environment_id)
-        _environment_id = se.id
-        orig_path = None
-        try:
-            evaldict = {}
-            if se.pyenvdict:
-                evaldict = <dict>se.pyenvdict
-            else:
+            with use_environment(se.id):
+                evaldict = {}
                 Py_INCREF(evaldict)
                 se.pyenvdict = <void *>evaldict
                 global _stored_outputs
                 _stored_outputs[se.id] = {}
-
-            fn = scriptFilename.decode('utf-8')
-
-            # don't set a filename if NULL is passed
-            if fn != '<string>':
-                abspath = os.path.abspath(fn)
-                evaldict['__file__'] = abspath
-                if flags & 1:
-                    orig_path = os.getcwd()
-                    os.chdir(os.path.dirname(abspath))
-
-            evaldict['__name__'] = "__vapoursynth__"
-            
-            if se.errstr:
-                errstr = <bytes>se.errstr
-                se.errstr = NULL
-                Py_DECREF(errstr)
-                errstr = None
-
-            comp = compile(script.decode('utf-8-sig'), fn, 'exec')
-            exec(comp) in evaldict
-
-        except BaseException, e:
-            errstr = 'Python exception: ' + str(e) + '\n\n' + traceback.format_exc()
-            errstr = errstr.encode('utf-8')
-            Py_INCREF(errstr)
-            se.errstr = <void *>errstr
-            return 2
         except:
             errstr = 'Unspecified Python exception' + '\n\n' + traceback.format_exc()
             errstr = errstr.encode('utf-8')
             Py_INCREF(errstr)
             se.errstr = <void *>errstr
             return 1
-        finally:
-            _environment_id = _environment_id_stack.pop()
-            if orig_path is not None:
-                os.chdir(orig_path)
+        return 0         
+    
+cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, const char *scriptFilename, int flags) nogil:
+    with gil:
+        with use_environment(se.id):
+            orig_path = None
+            try:
+                evaldict = {}
+                if se.pyenvdict:
+                    evaldict = <dict>se.pyenvdict
+                else:
+                    Py_INCREF(evaldict)
+                    se.pyenvdict = <void *>evaldict
+                    global _stored_outputs
+                    _stored_outputs[se.id] = {}
+
+                fn = scriptFilename.decode('utf-8')
+
+                # don't set a filename if NULL is passed
+                if fn != '<string>':
+                    abspath = os.path.abspath(fn)
+                    evaldict['__file__'] = abspath
+                    if flags & 1:
+                        orig_path = os.getcwd()
+                        os.chdir(os.path.dirname(abspath))
+
+                evaldict['__name__'] = "__vapoursynth__"
+                
+                if se.errstr:
+                    errstr = <bytes>se.errstr
+                    se.errstr = NULL
+                    Py_DECREF(errstr)
+                    errstr = None
+
+                comp = compile(script.decode('utf-8-sig'), fn, 'exec')
+                exec(comp) in evaldict
+
+            except BaseException, e:
+                errstr = 'Python exception: ' + str(e) + '\n\n' + traceback.format_exc()
+                errstr = errstr.encode('utf-8')
+                Py_INCREF(errstr)
+                se.errstr = <void *>errstr
+                return 2
+            except:
+                errstr = 'Unspecified Python exception' + '\n\n' + traceback.format_exc()
+                errstr = errstr.encode('utf-8')
+                Py_INCREF(errstr)
+                se.errstr = <void *>errstr
+                return 1
+            finally:
+                if orig_path is not None:
+                    os.chdir(orig_path)
         return 0
 
 cdef public api int vpy_evaluateFile(VPYScriptExport *se, const char *scriptFilename, int flags) nogil:
@@ -1991,43 +2056,33 @@ cdef public api const VSAPI *vpy_getVSApi2(int version) nogil:
 
 cdef public api int vpy_getVariable(VPYScriptExport *se, const char *name, VSMap *dst) nogil:
     with gil:
-        global _environment_id
-        global _environment_id_stack
-        _environment_id_stack.append(_environment_id)
-        _environment_id = se.id
-        if vpy_getVSApi() == NULL:
-            return 1
-        evaldict = <dict>se.pyenvdict
-        try:
-            dname = name.decode('utf-8')
-            read_var = { dname:evaldict[dname]}
-            core = vsscript_get_core_internal(se.id)
-            dictToMap(read_var, dst, core.core, vpy_getVSApi())
-            return 0
-        except:
-            return 1
-        finally:
-            _environment_id = _environment_id_stack.pop()    
+        with use_environment(se.id):
+            if vpy_getVSApi() == NULL:
+                return 1
+            evaldict = <dict>se.pyenvdict
+            try:
+                dname = name.decode('utf-8')
+                read_var = { dname:evaldict[dname]}
+                core = vsscript_get_core_internal(se.id)
+                dictToMap(read_var, dst, core.core, vpy_getVSApi())
+                return 0
+            except:
+                return 1
 
 cdef public api int vpy_setVariable(VPYScriptExport *se, const VSMap *vars) nogil:
     with gil:
-        global _environment_id
-        global _environment_id_stack
-        _environment_id_stack.append(_environment_id)
-        _environment_id = se.id
-        if vpy_getVSApi() == NULL:
-            return 1
-        evaldict = <dict>se.pyenvdict
-        try:     
-            core = vsscript_get_core_internal(se.id)
-            new_vars = mapToDict(vars, False, False, core.core, vpy_getVSApi())
-            for key in new_vars:
-                evaldict[key] = new_vars[key]
-            return 0
-        except:
-            return 1                
-        finally:
-            _environment_id = _environment_id_stack.pop()
+        with use_environment(se.id):
+            if vpy_getVSApi() == NULL:
+                return 1
+            evaldict = <dict>se.pyenvdict
+            try:     
+                core = vsscript_get_core_internal(se.id)
+                new_vars = mapToDict(vars, False, False, core.core, vpy_getVSApi())
+                for key in new_vars:
+                    evaldict[key] = new_vars[key]
+                return 0
+            except:
+                return 1
 
 cdef public api int vpy_clearVariable(VPYScriptExport *se, const char *name) nogil:
     with gil:
