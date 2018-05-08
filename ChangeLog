@@ -1,4 +1,6 @@
 r44:
+fixed potential multithreading issues in vsscript (stuxcrystal)
+the resizer will now properly apply a shift even if no actual resizing/format conversion is being done
 updated to zimg v2.7.4 to fix crash that only happens on core2 quad cpus
 updated visual studio runtimes in installer
 updated pismo runtime
