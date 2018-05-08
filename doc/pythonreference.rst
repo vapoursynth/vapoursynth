@@ -519,6 +519,47 @@ Classes and Functions
    
       Refers to the *Plugin*-instance which registered this function.
    
+.. py:class:: Environment
+
+   This class represents an environment.
+
+   It is a context-manager allowing you to switch to this environment at will.
+   But it is faster than using the equivalent evaluate_script-function as it does not
+   impose additional exception handling.
+
+   .. code::
+
+        env = vpy_current_environment()
+        # sometime later
+        with env:
+          # Do stuff inside this env.
+
+   .. py:function:: is_single()
+
+      Returns True if the script is _not_ running inside a vsscript-Environment.
+      If it is running inside a vsscript-Environment, it returns False.
+
+   .. py:attribute:: env_id
+
+      Return -1 if the script is not running inside a vsscript-Environment.
+      Otherwise, it will return the current environment-id.
+
+   .. py:attribute:: single
+
+      See is_single()
+
+   .. py:attribute:: alive
+
+      Has the environment been destroyed by the underlying application?
+
+.. py:function:: vpy_current_environment()
+
+   Returns an Environment-object representing the environment the script is currently running in. It will raise an error if we are currently not inside any
+   script-environment while vsscript is being used.
+
+   This function is intended for Python-based editors using vsscript.
+
+
 .. py:class:: Func
 
    Func is a simple wrapper class for VapourSynth VSFunc objects.

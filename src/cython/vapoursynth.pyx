@@ -31,6 +31,7 @@ import traceback
 import gc
 import sys
 import inspect
+from threading import local as ThreadLocal
 from types import MappingProxyType
 from collections import namedtuple
 from collections.abc import Iterable, Mapping
@@ -45,14 +46,111 @@ except ImportError as e:
 
 
 _using_vsscript = False
-cdef list _environment_id_stack = []
-cdef object _environment_id = None
+cdef object _environment_state = ThreadLocal()
 cdef dict _stored_outputs = {}
 cdef dict _cores = {}
 cdef dict _stored_output = {}
 cdef Core _core = None
 cdef object _message_handler = None
 cdef const VSAPI *_vsapi = NULL
+
+
+cdef _env_current_id():
+    global _environment_state
+    current = getattr(_environment_state, 'current', None)
+    if _using_vsscript:
+        if current is not None and current not in _stored_outputs:
+            # Reset the current environment as the current environment
+            # has beeen freed.
+            current = _environment_state.current = None
+    return current
+
+cdef _env_current_stack():
+    global _environment_state
+    if not hasattr(_environment_state, 'stack'):
+        _environment_state.stack = []
+    return _environment_state.stack
+
+
+cdef class Environment(object):
+    cdef readonly int env_id
+
+    def __init__(self):
+        raise Error('Class cannot be instantiated directly')
+
+    @property
+    def alive(self):
+        if self.single:
+            return True
+
+        global _stored_outputs
+        return self.env_id in _stored_outputs
+
+    @property
+    def single(self):
+        return self.is_single()
+
+    @classmethod
+    def is_single(self):
+        global _using_vsscript
+        return not _using_vsscript
+
+    @property
+    def active(self):
+        if self.single:
+            return True
+
+        return _env_current_id() == self.env_id
+
+    def __enter__(self):
+        global _using_vsscript
+        if not self.alive:
+            raise RuntimeError("The environment has died.")
+
+        # If we are not using VSScript, do nothing.
+        if self.single:
+            return self
+        
+        _env_current_stack().append(_env_current_id())
+        _environment_state.current = self.env_id
+
+        return self
+
+    def __exit__(self, *_):
+        # If we are not using VSScript, do nothing.
+        if self.single:
+            return
+        _environment_state.current = _env_current_stack().pop()
+
+    def __eq__(self, other):
+        if not isinstance(other, Environment):
+            return False
+        if self.single:
+            return False
+
+        return other.env_id == self.env_id
+
+    def __repr__(self):
+        if self.single:
+            return "<Environment (default)>"
+
+        return f"<Environment {self.env_id} ({('active' if self.active else 'alive') if self.alive else 'dead'})>"
+
+
+cdef Environment use_environment(int id):
+    cdef Environment instance = Environment.__new__(Environment)
+    instance.env_id = id
+    return instance
+
+
+def vpy_current_environment():
+    global _using_vsscript
+    if _using_vsscript and _env_current_id() is None:
+        raise RuntimeError("We are not running inside an environment.")
+
+    get_core()  # Make sure a core is defined.
+    env = use_environment((0 if not _using_vsscript else _env_current_id()))
+    return env
 
 
 # Create an empty list whose instance will represent a not passed value.
@@ -154,12 +252,10 @@ def set_message_handler(handler_func):
 def _get_output_dict(funcname="this function"):
     global _using_vsscript
     if _using_vsscript:
-        global _stored_outputs
-        global _environment_id
-        if _environment_id is None:
+        eid = _env_current_id()
+        if eid is None:
             raise Error('Internal environment id not set. %s called from a filter callback?'%funcname)
-            
-        return _stored_outputs[_environment_id]
+        return _stored_outputs[eid]
     else:
         return _stored_output
     
@@ -234,10 +330,10 @@ cdef Func createFuncPython(object func, VSCore *core, const VSAPI *funcs):
     cdef Func instance = Func.__new__(Func)
     instance.funcs = funcs
     if _using_vsscript:
-        global _environment_id
-        if _environment_id is None:
-            raise Error('Internal environment id not set. Report this function wrapper creation error.')
-        fdata = createFuncData(func, core, _environment_id)
+        eid = _env_current_id()
+        if eid is None:
+            raise Error('Internal environment id not set. Did the environment die?')
+        fdata = createFuncData(func, core, eid)
     else:
         fdata = createFuncData(func, core, 0)
     Py_INCREF(fdata)
@@ -1514,13 +1610,10 @@ def get_core(threads = None, add_cache = None, accept_lowercase = None):
     ret_core = None
     if _using_vsscript:
         global _cores
-        global _environment_id
-        if _environment_id is None:
+        eid = _env_current_id()
+        if eid is None:
             raise Error('Internal environment id not set. Was get_core() called from a filter callback?')
-
-        if not _environment_id in _cores:
-            _cores[_environment_id] = createCore()
-        ret_core = _cores[_environment_id]
+        ret_core = vsscript_get_core_internal(eid)
     else:
         global _core
         if _core is None:
@@ -1758,26 +1851,21 @@ cdef void __stdcall freeFunc(void *pobj) nogil:
         Py_DECREF(fobj)
         fobj = None
 
+
 cdef void __stdcall publicFunction(const VSMap *inm, VSMap *outm, void *userData, VSCore *core, const VSAPI *vsapi) nogil:
     with gil:
-        global _environment_id
-        global _environment_id_stack
-    
         d = <FuncData>userData
-        _environment_id_stack.append(_environment_id)
-        _environment_id = d.id
-   
         try:
-            m = mapToDict(inm, False, False, core, vsapi)
-            ret = d(**m)
-            if not isinstance(ret, dict):
-                ret = {'val':ret}
-            dictToMap(ret, outm, core, vsapi)
+            with use_environment(d.id):
+                m = mapToDict(inm, False, False, core, vsapi)
+                ret = d(**m)
+                if not isinstance(ret, dict):
+                    ret = {'val':ret}
+                dictToMap(ret, outm, core, vsapi)
         except BaseException, e:
             emsg = str(e).encode('utf-8')
             vsapi.setError(outm, emsg)
-        finally:
-            _environment_id = _environment_id_stack.pop()
+
 
 # for whole script evaluation and export
 cdef public struct VPYScriptExport:
@@ -1787,33 +1875,22 @@ cdef public struct VPYScriptExport:
 
 cdef public api int vpy_createScript(VPYScriptExport *se) nogil:
     with gil:
-        global _environment_id
-        global _environment_id_stack
-        _environment_id_stack.append(_environment_id)
-        _environment_id = se.id
         try:
             evaldict = {}
             Py_INCREF(evaldict)
             se.pyenvdict = <void *>evaldict
             global _stored_outputs
             _stored_outputs[se.id] = {}
-
         except:
             errstr = 'Unspecified Python exception' + '\n\n' + traceback.format_exc()
             errstr = errstr.encode('utf-8')
             Py_INCREF(errstr)
             se.errstr = <void *>errstr
             return 1
-        finally:
-            _environment_id = _environment_id_stack.pop()
         return 0         
     
 cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, const char *scriptFilename, int flags) nogil:
     with gil:
-        global _environment_id
-        global _environment_id_stack
-        _environment_id_stack.append(_environment_id)
-        _environment_id = se.id
         orig_path = None
         try:
             evaldict = {}
@@ -1844,7 +1921,10 @@ cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, 
                 errstr = None
 
             comp = compile(script.decode('utf-8-sig'), fn, 'exec')
-            exec(comp) in evaldict
+
+            # Change the environment now.
+            with use_environment(se.id):
+                exec(comp) in evaldict
 
         except BaseException, e:
             errstr = 'Python exception: ' + str(e) + '\n\n' + traceback.format_exc()
@@ -1859,7 +1939,6 @@ cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, 
             se.errstr = <void *>errstr
             return 1
         finally:
-            _environment_id = _environment_id_stack.pop()
             if orig_path is not None:
                 os.chdir(orig_path)
         return 0
@@ -1991,43 +2070,33 @@ cdef public api const VSAPI *vpy_getVSApi2(int version) nogil:
 
 cdef public api int vpy_getVariable(VPYScriptExport *se, const char *name, VSMap *dst) nogil:
     with gil:
-        global _environment_id
-        global _environment_id_stack
-        _environment_id_stack.append(_environment_id)
-        _environment_id = se.id
-        if vpy_getVSApi() == NULL:
-            return 1
-        evaldict = <dict>se.pyenvdict
-        try:
-            dname = name.decode('utf-8')
-            read_var = { dname:evaldict[dname]}
-            core = vsscript_get_core_internal(se.id)
-            dictToMap(read_var, dst, core.core, vpy_getVSApi())
-            return 0
-        except:
-            return 1
-        finally:
-            _environment_id = _environment_id_stack.pop()    
+        with use_environment(se.id):
+            if vpy_getVSApi() == NULL:
+                return 1
+            evaldict = <dict>se.pyenvdict
+            try:
+                dname = name.decode('utf-8')
+                read_var = { dname:evaldict[dname]}
+                core = vsscript_get_core_internal(se.id)
+                dictToMap(read_var, dst, core.core, vpy_getVSApi())
+                return 0
+            except:
+                return 1
 
 cdef public api int vpy_setVariable(VPYScriptExport *se, const VSMap *vars) nogil:
     with gil:
-        global _environment_id
-        global _environment_id_stack
-        _environment_id_stack.append(_environment_id)
-        _environment_id = se.id
-        if vpy_getVSApi() == NULL:
-            return 1
-        evaldict = <dict>se.pyenvdict
-        try:     
-            core = vsscript_get_core_internal(se.id)
-            new_vars = mapToDict(vars, False, False, core.core, vpy_getVSApi())
-            for key in new_vars:
-                evaldict[key] = new_vars[key]
-            return 0
-        except:
-            return 1                
-        finally:
-            _environment_id = _environment_id_stack.pop()
+        with use_environment(se.id):
+            if vpy_getVSApi() == NULL:
+                return 1
+            evaldict = <dict>se.pyenvdict
+            try:     
+                core = vsscript_get_core_internal(se.id)
+                new_vars = mapToDict(vars, False, False, core.core, vpy_getVSApi())
+                for key in new_vars:
+                    evaldict[key] = new_vars[key]
+                return 0
+            except:
+                return 1
 
 cdef public api int vpy_clearVariable(VPYScriptExport *se, const char *name) nogil:
     with gil:
