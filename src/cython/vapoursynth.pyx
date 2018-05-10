@@ -354,13 +354,15 @@ cdef class RawCallbackData(object):
 
     cdef object wrap_cb
     cdef object future
+    cdef int env_id
 
-    def __init__(self, VideoNode node, object callback = None):
+    def __init__(self, VideoNode node, int env_id, object callback = None):
         self.node = node
         self.callback = callback
 
         self.future = None
         self.wrap_cb = None
+        self.env_id = env_id
 
     def for_future(self, object future, object wrap_call=None):
         if wrap_call is None:
@@ -375,14 +377,15 @@ cdef class RawCallbackData(object):
         else:
             func = self.future.set_result
 
-        self.wrap_cb(func, result)
+        with use_environment(self.env_id):
+            self.wrap_cb(func, result)
 
     def receive(self, n, result):
         self.callback(self.node, n, result)
 
 
 cdef createRawCallbackData(const VSAPI* funcs, VideoNode videonode, object cb, object wrap_call=None):
-    cbd = RawCallbackData(videonode, cb)
+    cbd = RawCallbackData(videonode, _env_current_id(), cb)
     if not callable(cb):
         cbd.for_future(cb, wrap_call)
     cbd.funcs = funcs
