@@ -63,6 +63,14 @@ cdef _env_current_id():
             # Reset the current environment as the current environment
             # has beeen freed.
             current = _environment_state.current = None
+    else:
+        # Default to zero as sometimes environment_id is assumed to be an int.
+        # In these cases we just pretend there is an VSScript-Environment and
+        # it's ID is zero.
+        #
+        # Please don't use this value to test, if we are running inside a
+        # VSScript environment or not, ok?
+        current = 0
     return current
 
 cdef _env_current_stack():
