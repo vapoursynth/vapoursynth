@@ -8785,22 +8785,7 @@ namespace detail {
 
 		/// Function argument
 		template<class T, size_t Size = sizeof(T)>
-		struct Arg
-		{
-			Addr addr_;
-#ifdef JITASM64
-			Arg(Frontend& f, const ArgInfo& arg_info) : addr_(Reg()) {
-				if (arg_info.reg_id != INVALID) {
-					f.DeclareRegArg(Reg(addr_.reg_), Reg(arg_info.reg_id), f.ptr[arg_info.addr]);
-				} else {
-					f.DeclareStackArg(Reg(addr_.reg_), f.ptr[arg_info.addr]);
-				}
-			}
-#else
-			Arg(Frontend& f, const ArgInfo& arg_info) : addr_(arg_info.addr) {}
-#endif
-			operator Addr () {return addr_;}
-		};
+        struct Arg;
 
 		// specialization for 1byte type
 		template<class T>
