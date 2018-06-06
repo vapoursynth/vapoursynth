@@ -88,6 +88,9 @@ static void VS_CC scDetectCreate(const VSMap *in, VSMap *out, void *userData, VS
             throw std::string("threshold must be between 0 and 1");
         shared816FFormatCheck(vi->format);
 
+        if (vi->numFrames == 1)
+            throw std::string("clip must have more than one frame");
+
         VSMap *invmap = vsapi->createMap();
         VSMap *invmap2 = nullptr;
         vsapi->propSetNode(invmap, "clip", d->node, paAppend);
