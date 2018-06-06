@@ -34,6 +34,7 @@ Plugins
 Source/Output
 -------------
 * :ref:`AviSource <avisource>` -- Loads AVI files using VFW, in the source tree
+* `ColorBars <https://github.com/ifb/vapoursynth-colorbars>`_ -- Color Bar Generator
 * `d2vsource <https://github.com/dwbuiten/d2vsource>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=166399>`__ -- Frame accurate mpeg2 source filter
 * `FFMS2 <https://github.com/FFMS/ffms2>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=174469>`__ -- FFmpeg based source filter
 * :ref:`ImageMagick Writer/Reader <imwri>` -- Image writer and reader, in the source tree
