@@ -9,7 +9,7 @@ Applications
 * `VirtualDub1 <https://sourceforge.net/projects/vdfiltermod/>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=172021>`__ -- VirtualDub with added support for high bitdepth colorspaces, useful for previewing
 * `vsmkv <https://github.com/fluxamp/vsmkv>`_ -- a FUSE-based virtual filesystem for exporting VapourSynth scripts as uncompressed videos in the Matroska (MKV) file format
 * `Wobbly <https://github.com/dubhater/Wobbly>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=172496>`__ -- IVTC assistant similar to YATTA
-* `Yuuno <https://yuuno.encode.moe/>`_ -- incorporates VapourSynth into Jupyter
+* `Yuuno <https://git.encode.moe/irrational-encoding-wizardry/yuuno>`_ -- incorporates VapourSynth into Jupyter
 
 Development
 ###########
