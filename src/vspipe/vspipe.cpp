@@ -513,6 +513,7 @@ int main(int argc, char **argv) {
             }
 
             completedFrames = startFrame;
+            completedAlphaFrames = startFrame;
             outputFrames = startFrame;
             requestedFrames = startFrame;
             lastFpsReportFrame = startFrame;
