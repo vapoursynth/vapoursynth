@@ -83,7 +83,7 @@ Denoising
 * `Bilateral <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-Bilateral>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171306>`__ -- Bilateral filtering
 * `BM3D <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-BM3D>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=172172>`__ -- Denoising filter using the BM3D algorithm
 * `Cnr2 <https://github.com/dubhater/vapoursynth-cnr2>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=173659>`__ -- Chroma noise reducer
-* `DegrainMedian <https://github.com/dubhater/vapoursynth-degrainmedian>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=173758>`__ -- Port of the Avisynth filter 
+* `DegrainMedian <https://github.com/dubhater/vapoursynth-degrainmedian>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=173758>`__ -- A 3x3x3 limited median filter
 * `DFTTest <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-DFTTest>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171678>`__
 * `FFT3DFilter <https://github.com/myrsloik/VapourSynth-FFT3DFilter>`_ -- 3D frequency domain denoiser/sharpener
 * `FluxSmooth <https://github.com/dubhater/vapoursynth-fluxsmooth>`_ -- Temporal/spatiotemporal denoiser
@@ -100,9 +100,11 @@ Denoising
 Dot Crawl and Rainbows
 ----------------------
 * `Bifrost 2000 <https://github.com/dubhater/vapoursynth-bifrost>`_ -- A rainbow remover based on the Bifrost filter for Avisynth
+* `DeCross <https://github.com/dubhater/vapoursynth-decross>` `(Doom9) <https://forum.doom9.org/showthread.php?t=175527>`__ -- A spatio-temporal derainbowing filter
 * `DotKill <https://github.com/myrsloik/DotKill>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=173029>`__ -- A spatial only dotcrawl remover
+* `SmoothUV <https://github.com/dubhater/vapoursynth-smoothuv>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=175520>`__ -- A spatial derainbowing filter
 * `SSIQ <https://github.com/dubhater/vapoursynth-ssiq>`_ -- Spatial derainbowing filter
-* `TComb <https://github.com/dubhater/vapoursynth-tcomb>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171124>`__ -- Port of the Avisynth filter
+* `TComb <https://github.com/dubhater/vapoursynth-tcomb>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171124>`__ -- A temporal rainbow and/or dotcrawl remover
 
 Metrics and Analysis
 --------------------
@@ -114,9 +116,9 @@ Metrics and Analysis
 Others
 ------
 * :ref:`Morpho <morpho>` -- Simple morphological filters, in the source tree
-* :ref:`Vinverse <vinverse>` -- In the source tree
+* :ref:`Vinverse <vinverse>` -- Removes residual combing, in the source tree
 * :ref:`Miscellaneous filters <misc>` -- Scene change detection, frame averaging and other sometimes useful functions, in the source tree
-* `AddGrain <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-AddGrain>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171073>`__ -- Port of the Avisynth AddGrain filter
+* `AddGrain <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-AddGrain>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171073>`__ -- Adds random noise
 * `AutoCrop <https://github.com/Infiziert90/vapoursynth-autocrop>`_
 * `AvsProxy <https://github.com/sekrit-twc/avsproxy>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=175141>`__ -- Execute 32 bit Avisynth scripts inside 64 bit VapourSynth
 * `AWarpSharp2 <https://github.com/dubhater/vapoursynth-awarpsharp2>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=172721>`__ -- Sharpens edges by warping them
@@ -133,8 +135,9 @@ Others
 * `Fix Telecined Fades <https://github.com/IFeelBloated/Fix-Telecined-Fades>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=174151>`__
 * `GradCurve <https://github.com/xekon/GradCurve>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=174096>`__ -- Port of virtualdub Gradation Curves plugin
 * `minsharp <https://github.com/IFeelBloated/minsrp>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=173328>`__ -- Simple 3x3 blur and sharpen
+* `MotionMask <https://github.com/dubhater/vapoursynth-motionmask>`_`(Doom9) <https://forum.doom9.org/showthread.php?t=175542>`__ -- Constructs a mask of moving pixels
 * `MSmoosh <https://github.com/dubhater/vapoursynth-msmoosh>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171159>`__ -- MSmooth and MSharpen ports
-* `MVTools <https://github.com/dubhater/vapoursynth-mvtools>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171207>`__ -- MVTools port
+* `MVTools <https://github.com/dubhater/vapoursynth-mvtools>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171207>`__ -- Motion-compensated temporal denoising, frame rate conversion, etc.
 * `MVTools single precision <https://github.com/IFeelBloated/vapoursynth-mvtools-sf>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=172525>`__ -- MVTools fork that works in single precision floating point
 * `RemapFrames <https://github.com/Irrational-Encoding-Wizardry/Vapoursynth-RemapFrames>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=174727>`__ -- Frame re-ordering based on files/strings
 * `Retinex <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-Retinex>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=174727>`__ -- Dynamic range compression
