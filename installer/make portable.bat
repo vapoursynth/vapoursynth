@@ -20,6 +20,7 @@ copy ..\msvc_project\x64\Release\Vinverse.dll buildp64\vapoursynth64\coreplugins
 copy ..\msvc_project\x64\Release\VIVTC.dll buildp64\vapoursynth64\coreplugins
 copy "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Redist\MSVC\14.14.26405\x64\Microsoft.VC141.CRT\*" buildp64
 copy x64\plugins\* buildp64\vapoursynth64\coreplugins
+copy pfm-191-vapoursynth-win.exe buildp64
 copy .\setup.py buildp64
 copy .\MANIFEST.in buildp64
 type nul >buildp64\portable.vs
@@ -48,6 +49,7 @@ copy ..\msvc_project\Release\Vinverse.dll buildp32\vapoursynth32\coreplugins
 copy ..\msvc_project\Release\VIVTC.dll buildp32\vapoursynth32\coreplugins
 copy "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Redist\MSVC\14.14.26405\x86\Microsoft.VC141.CRT\*" buildp32
 copy x86\plugins\* buildp32\vapoursynth32\coreplugins
+copy pfm-191-vapoursynth-win.exe buildp32
 copy .\setup.py buildp32
 copy .\MANIFEST.in buildp32
 type nul >buildp32\portable.vs
