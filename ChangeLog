@@ -1,11 +1,12 @@
 r44:
-fixed crash in SCDetect with one frame clips, now it simply returns an error since the operation is pointless
+fixed crop with compatbgr32 format where top and bottom crop would be switched
+fixed crash in scdetect with one frame clips, now it simply returns an error since the operation is pointless
 fixed potential multithreading issues in vsscript (stuxcrystal)
 the resizer will now properly apply a shift even if no actual resizing/format conversion is being done
 updated to zimg v2.7.4 to fix crash that only happens on core2 quad cpus
 updated visual studio runtimes in installer
 updated pismo runtime
-added large page support (sekrit-twc)
+added experimental large page support and changed cache logic (sekrit-twc)
 minor documentation updates
 
 r43:

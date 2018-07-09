@@ -191,8 +191,9 @@ static const VSFrameRef *VS_CC cropGetframe(int n, int activationReason, void **
         const VSFormat *fi = vsapi->getFrameFormat(src);
         int width = vsapi->getFrameWidth(src, 0);
         int height = vsapi->getFrameHeight(src, 0);
+        int y = (fi->id == pfCompatBGR32) ? (height - d->height - d->y) : d->y;
 
-        if (cropVerify(d->x, d->y, d->width, d->height, width, height, fi, msg, sizeof(msg))) {
+        if (cropVerify(d->x, y, d->width, d->height, width, height, fi, msg, sizeof(msg))) {
             vsapi->freeFrame(src);
             vsapi->setFilterError(msg, frameCtx);
             return NULL;
@@ -205,7 +206,7 @@ static const VSFrameRef *VS_CC cropGetframe(int n, int activationReason, void **
             int dststride = vsapi->getStride(dst, plane);
             const uint8_t *srcdata = vsapi->getReadPtr(src, plane);
             uint8_t *dstdata = vsapi->getWritePtr(dst, plane);
-            srcdata += srcstride * (d->y >> (plane ? fi->subSamplingH : 0));
+            srcdata += srcstride * (y >> (plane ? fi->subSamplingH : 0));
             srcdata += (d->x >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample;
             vs_bitblt(dstdata, dststride, srcdata, srcstride, (d->width >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample, vsapi->getFrameHeight(dst, plane));
         }
