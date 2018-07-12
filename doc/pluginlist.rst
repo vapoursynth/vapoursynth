@@ -89,6 +89,7 @@ Denoising
 * `FluxSmooth <https://github.com/dubhater/vapoursynth-fluxsmooth>`_ -- Temporal/spatiotemporal denoiser
 * `Hqdn3d <https://github.com/Hinterwaeldlers/vapoursynth-hqdn3d>`_
 * `KNLMeansCL <https://github.com/Khanattila/KNLMeansCL>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171379>`__ -- OpenCL Non-local means denoising
+* `MiniDeen <https://github.com/dubhater/vapoursynth-minideen>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=175587>`__ -- A spatial denoising filter, it replaces every pixel with the average of its neighbourhood
 * `ReduceFlicker <https://github.com/VFR-maniac/VapourSynth-ReduceFlicker>`_
 * :ref:`RemoveGrain/Repair <rgvs>` -- A collection of 3x3 median and convolution denoising filters, in the source tree
 * `TempLinearApproximate <https://bitbucket.org/mystery_keeper/templinearapproximate-vapoursynth>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=169782>`__ -- A temporal smoother
@@ -140,7 +141,7 @@ Others
 * `MVTools <https://github.com/dubhater/vapoursynth-mvtools>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171207>`__ -- Motion-compensated temporal denoising, frame rate conversion, etc.
 * `MVTools single precision <https://github.com/IFeelBloated/vapoursynth-mvtools-sf>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=172525>`__ -- MVTools fork that works in single precision floating point
 * `RemapFrames <https://github.com/Irrational-Encoding-Wizardry/Vapoursynth-RemapFrames>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=174727>`__ -- Frame re-ordering based on files/strings
-* `Retinex <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-Retinex>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=174727>`__ -- Dynamic range compression
+* `Retinex <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-Retinex>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171307>`__ -- Dynamic range compression
 * `TCanny <https://github.com/HomeOfVapourSynthEvolution/VapourSynth-TCanny>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=172158>`__ -- Canny edge detection
 * `TimeCube <https://github.com/sekrit-twc/timecube>`_ -- 3D LUT
 * `vcmod <http://www.avisynth.nl/users/vcmohan/>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171412>`__ -- Various filters such as histogram equalization, blur, and watershed segmentation
