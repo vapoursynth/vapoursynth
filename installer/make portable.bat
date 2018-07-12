@@ -5,7 +5,7 @@ for /F "tokens=2 delims='" %%a in ('findstr /C:"#define Version" vsinstaller.iss
 rem 64bit build
 mkdir buildp64\vapoursynth64\coreplugins
 mkdir buildp64\vapoursynth64\plugins
-copy ..\vapoursynth.cp36-win_amd64.pyd buildp64
+copy ..\vapoursynth.cp37-win_amd64.pyd buildp64
 copy ..\msvc_project\x64\Release\VapourSynth.dll buildp64
 copy ..\msvc_project\x64\Release\vsscript.dll buildp64
 copy ..\msvc_project\x64\Release\avfs.exe buildp64
@@ -34,7 +34,7 @@ rmdir /s /q buildp64
 rem 32bit build
 mkdir buildp32\vapoursynth32\coreplugins
 mkdir buildp32\vapoursynth32\plugins
-copy ..\vapoursynth.cp36-win32.pyd buildp32
+copy ..\vapoursynth.cp37-win32.pyd buildp32
 copy ..\msvc_project\Release\VapourSynth.dll buildp32
 copy ..\msvc_project\Release\vsscript.dll buildp32
 copy ..\msvc_project\Release\avfs.exe buildp32
