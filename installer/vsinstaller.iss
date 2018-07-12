@@ -55,8 +55,8 @@ Source: template.vpy; DestDir: {app}; Flags: ignoreversion uninsrestartdelete re
 Source: vapoursynth.pth; DestDir: {code:GetPythonPath32}\Lib\site-packages; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
 Source: vapoursynth.pth; DestDir: {code:GetPythonPath64}\Lib\site-packages; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 
-Source: ..\vapoursynth.cp36-win32.pyd; DestDir: {code:GetPythonPath32}\Lib\site-packages\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: ..\vapoursynth.cp36-win_amd64.pyd; DestDir: {code:GetPythonPath64}\Lib\site-packages\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+Source: ..\vapoursynth.cp37-win32.pyd; DestDir: {code:GetPythonPath32}\Lib\site-packages\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: ..\vapoursynth.cp37-win_amd64.pyd; DestDir: {code:GetPythonPath64}\Lib\site-packages\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 
 Source: ..\msvc_project\Release\vapoursynth.dll; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
 Source: ..\msvc_project\Release\vapoursynth.pdb; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
@@ -77,7 +77,8 @@ Source: ..\msvc_project\x64\Release\vsscript.dll; DestDir: {app}\core64; Flags: 
 Source: ..\msvc_project\Release\vsscript.dll; DestDir: {sys}; Flags: uninsrestartdelete restartreplace 32bit; Components: vs32
 Source: ..\msvc_project\x64\Release\vsscript.dll; DestDir: {sys}; Flags: uninsrestartdelete restartreplace 64bit; Components: vs64
 
-;docsSource: ..\doc\_build\html\*; DestDir: {app}\docs; Flags: ignoreversion uninsrestartdelete restartreplace recursesubdirs; Components: docs
+;docs
+Source: ..\doc\_build\html\*; DestDir: {app}\docs; Flags: ignoreversion uninsrestartdelete restartreplace recursesubdirs; Components: docs
 
 ;sdk
 Source: ..\include\VapourSynth.h; DestDir: {app}\sdk\include\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
@@ -190,7 +191,8 @@ Type: dirifempty; Name: "{code:GetPythonPath64}\Lib\site-packages\vapoursynth"; 
 #include "scripts\products\vcredist2013.iss"
 #include "scripts\products\vcredist2017.iss"
 
-[Code]function CreateSymbolicLink(
+[Code]
+function CreateSymbolicLink(
   lpSymlinkFileName: string;
   lpTargetFileName: string;
   dwFlags: DWORD): Boolean;
@@ -251,7 +253,7 @@ begin
         begin
           RegPathTemp := RegPath + '\' + Names[Nc] + '\' + Tags[Tc];
           Bitness := AssumeBitness;
-          if (not RegQueryStringValue(RegRoot, RegPathTemp, 'SysVersion', Temp)) or (Temp <> '3.6') then
+          if (not RegQueryStringValue(RegRoot, RegPathTemp, 'SysVersion', Temp)) or (Temp <> '3.7') then
             continue;
           if RegQueryStringValue(RegRoot, RegPathTemp, 'SysArchitecture', Temp) then
           begin

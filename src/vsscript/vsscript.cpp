@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2013-2017´8 Fredrik Mellbin
+* Copyright (c) 2013-2017ï¿½8 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -46,7 +46,7 @@ static PyGILState_STATE s;
 static void real_init(void) {
 #ifdef VS_TARGET_OS_WINDOWS
     // portable
-    const std::wstring pythonDllName = L"python36.dll";
+    const std::wstring pythonDllName = L"python37.dll";
     HMODULE module;
     GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCWSTR)&real_init, &module);
     std::vector<wchar_t> pathBuf(65536);
