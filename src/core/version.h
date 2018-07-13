@@ -26,6 +26,7 @@
     setup.py (version = "" near the bottom)
     configure.ac (number on first line in [])
     installer/vsinstaller.iss (Version and VersionInfoVersion lines)
+    installer/setup.py (CURRENT_RELEASE at the top)
     doc/conf.py (version = '' near the top)
 
 */
