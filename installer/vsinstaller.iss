@@ -55,8 +55,8 @@ Source: template.vpy; DestDir: {app}; Flags: ignoreversion uninsrestartdelete re
 Source: vapoursynth.pth; DestDir: {code:GetPythonPath32}\Lib\site-packages; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
 Source: vapoursynth.pth; DestDir: {code:GetPythonPath64}\Lib\site-packages; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 
-Source: ..\vapoursynth.cp36-win32.pyd; DestDir: {code:GetPythonPath32}\Lib\site-packages\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: ..\vapoursynth.cp36-win_amd64.pyd; DestDir: {code:GetPythonPath64}\Lib\site-packages\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+Source: ..\vapoursynth.cp37-win32.pyd; DestDir: {code:GetPythonPath32}\Lib\site-packages\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
+Source: ..\vapoursynth.cp37-win_amd64.pyd; DestDir: {code:GetPythonPath64}\Lib\site-packages\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 
 Source: ..\msvc_project\Release\vapoursynth.dll; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
 Source: ..\msvc_project\Release\vapoursynth.pdb; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
@@ -251,7 +251,7 @@ begin
         begin
           RegPathTemp := RegPath + '\' + Names[Nc] + '\' + Tags[Tc];
           Bitness := AssumeBitness;
-          if (not RegQueryStringValue(RegRoot, RegPathTemp, 'SysVersion', Temp)) or (Temp <> '3.6') then
+          if (not RegQueryStringValue(RegRoot, RegPathTemp, 'SysVersion', Temp)) or (Temp <> '3.7') then
             continue;
           if RegQueryStringValue(RegRoot, RegPathTemp, 'SysArchitecture', Temp) then
           begin
@@ -324,7 +324,7 @@ begin
   PythonList := nil;
   Result := GetPythonInstallations;
   if not Result then
-    MsgBox('No suitable Python 3.6 installations found. Installer will now exit.', mbCriticalError, MB_OK)
+    MsgBox('No suitable Python 3.7 installations found. Installer will now exit.', mbCriticalError, MB_OK)
 end;
 
 procedure InitializeWizard();
