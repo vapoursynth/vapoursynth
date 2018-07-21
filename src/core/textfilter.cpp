@@ -598,7 +598,7 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **
             if (fnerr || fderr) {
                 text += "Frame duration: Unknown\n";
             } else {
-                text += "Frame duration: " + std::to_string(fn) + "/" + std::to_string(fd) + " (" + std::to_string(static_cast<double>(fd) / fn) + ")\n";
+                text += "Frame duration: " + std::to_string(fn) + "/" + std::to_string(fd) + " (" + std::to_string(static_cast<double>(fn) / fd) + ")\n";
             }
 
             scrawl_text(text, d->alignment, dst, vsapi);
