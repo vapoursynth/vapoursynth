@@ -135,7 +135,7 @@ Others
 * `Fix Telecined Fades <https://github.com/IFeelBloated/Fix-Telecined-Fades>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=174151>`__
 * `GradCurve <https://github.com/xekon/GradCurve>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=174096>`__ -- Port of virtualdub Gradation Curves plugin
 * `minsharp <https://github.com/IFeelBloated/minsrp>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=173328>`__ -- Simple 3x3 blur and sharpen
-* `MotionMask <https://github.com/dubhater/vapoursynth-motionmask>`_`(Doom9) <https://forum.doom9.org/showthread.php?t=175542>`__ -- Constructs a mask of moving pixels
+* `MotionMask <https://github.com/dubhater/vapoursynth-motionmask>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=175542>`__ -- Constructs a mask of moving pixels
 * `MSmoosh <https://github.com/dubhater/vapoursynth-msmoosh>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171159>`__ -- MSmooth and MSharpen ports
 * `MVTools <https://github.com/dubhater/vapoursynth-mvtools>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=171207>`__ -- Motion-compensated temporal denoising, frame rate conversion, etc.
 * `MVTools single precision <https://github.com/IFeelBloated/vapoursynth-mvtools-sf>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=172525>`__ -- MVTools fork that works in single precision floating point
