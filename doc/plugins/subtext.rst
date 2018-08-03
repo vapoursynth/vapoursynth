@@ -43,8 +43,8 @@ Subtext is a subtitle renderer that uses libass and ffmpeg.
          Space between lines, in pixels.
 
       margins
-         Additional margins, in pixels. Negative values are allowed. The order
-         is top, bottom, left, right.
+         Additional margins, in pixels. Negative values are not
+         allowed. The order is top, bottom, left, right.
 
       sar
          Storage aspect ratio.
