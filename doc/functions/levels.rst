@@ -24,8 +24,11 @@ Levels
 	  effect on YUV formats.
 	  
    *clip*
-      Clip to process.
-
+      Clip to process. It must have integer sample type and bit depth
+      between 8 and 16, or float sample type and bit depth of 32. If
+      there are any frames with other formats, an error will be
+      returned.
+      
    *gamma*
       Controls the degree of non-linearity of the conversion. Values
       greater than 1.0 brighten the output, while values less than 1.0
