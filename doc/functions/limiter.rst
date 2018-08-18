@@ -7,7 +7,10 @@ Limiter
    Limits the pixel values to the range [*min*, *max*].
 
    *clip*
-      Clip to process.
+      Clip to process. It must have integer sample type and bit depth
+      between 8 and 16, or float sample type and bit depth of 32. If
+      there are any frames with other formats, an error will be
+      returned.
 
    *min*
       Lower bound. Defaults to the lowest allowed value for the input. Can be specified for each plane individually.
