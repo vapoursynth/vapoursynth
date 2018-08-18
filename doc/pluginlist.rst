@@ -20,6 +20,7 @@ Scripts
 #######
 * `FineSharp <https://gist.github.com/chikuzen/6103665>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=166524>`__ -- Script by Didée, ported by Chikuzen
 * `HAvsFunc <https://github.com/HomeOfVapourSynthEvolution/havsfunc>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=166582>`__ -- A collection of ported popular Avisynth scripts such as QTGMC
+* `hnwvsfunc <https://github.com/Helenerineium/hnwvsfunc>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=175614>`__ -- Helenerineium (Wolfberry)'s VapourSynth functions
 * `muvsfunc <https://github.com/WolframRhodium/muvsfunc>`_ -- Various scripts and ports by WolframRhodium
 * `mvsfunc <https://github.com/HomeOfVapourSynthEvolution/mvsfunc>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=172564>`__ -- Wrapper functions to make certain operations simpler
 * `Oyster <https://github.com/IFeelBloated/Oyster>`_ `(Doom9) <https://forum.doom9.org/showthread.php?t=173470>`__ -- Compression artifact removal
