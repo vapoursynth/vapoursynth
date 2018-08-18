@@ -8,7 +8,10 @@ Invert
    input pixel from the format's maximum allowed value.
 
    *clip*
-      Clip to process.
+      Clip to process. It must have integer sample type and bit depth
+      between 8 and 16, or float sample type and bit depth of 32. If
+      there are any frames with other formats, an error will be
+      returned.
 
    *planes*
       Specifies which planes will be processed. Any unprocessed planes
