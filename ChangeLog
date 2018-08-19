@@ -1,3 +1,10 @@
+r45:
+windows binaries now use python 3.7
+removed accept_lowecase setting from the python bindings
+fixed frame duration calculation in clipinfo (dubhater)
+fixed bug that prevented adding vertical margins in subtext (dubhater)
+documentation updates
+
 r44:
 fixed crop with compatbgr32 format where top and bottom crop would be switched
 fixed crash in scdetect with one frame clips, now it simply returns an error since the operation is pointless

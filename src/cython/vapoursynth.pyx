@@ -1477,7 +1477,6 @@ cdef class Core(object):
     cdef VSCore *core
     cdef const VSAPI *funcs
     cdef public bint add_cache
-    cdef public bint accept_lowercase
 
     cdef object __weakref__
 
@@ -1603,7 +1602,6 @@ cdef class Core(object):
         s += self.version() + '\n'
         s += '\tNumber of Threads: ' + str(self.num_threads) + '\n'
         s += '\tAdd Cache: ' + str(self.add_cache) + '\n'
-        s += '\tAccept Lowercase: ' + str(self.accept_lowercase) + '\n'
         return s
 
 cdef Core createCore():
@@ -1613,10 +1611,9 @@ cdef Core createCore():
         raise Error('Failed to obtain VapourSynth API pointer. System does not support SSE2 or is the Python module and loaded core library mismatched?')
     instance.core = instance.funcs.createCore(0)
     instance.add_cache = True
-    instance.accept_lowercase = False
     return instance
 
-def get_core(threads = None, add_cache = None, accept_lowercase = None):
+def get_core(threads = None, add_cache = None):
     global _using_vsscript
     ret_core = None
     if _using_vsscript:
@@ -1635,8 +1632,6 @@ def get_core(threads = None, add_cache = None, accept_lowercase = None):
             ret_core.num_threads = threads
         if add_cache is not None:
             ret_core.add_cache = add_cache
-        if accept_lowercase is not None:
-            ret_core.accept_lowercase = accept_lowercase
     return ret_core
     
 cdef Core vsscript_get_core_internal(int environment_id):
@@ -1691,13 +1686,8 @@ cdef class Plugin(object):
         for i in range(self.funcs.propNumKeys(m)):
             cname = self.funcs.propGetKey(m, i)
             orig_name = cname.decode('utf-8')
-            lc_name = orig_name.lower()
 
             if orig_name == name:
-                match = True
-                break
-
-            if (lc_name == name) and self.core.accept_lowercase:
                 match = True
                 break
 

@@ -165,7 +165,7 @@ Classes and Functions
    the Core will be instantiated with the default options. This is the preferred
    way to reference the core.
 
-.. py:function:: get_core([threads = 0, add_cache = True, accept_lowercase = False])
+.. py:function:: get_core([threads = 0, add_cache = True])
 
    Deprecated, use the *core* attribute instead.
 
@@ -220,10 +220,6 @@ Classes and Functions
    .. py:attribute:: add_cache
    
       For debugging purposes only. When set to *False* no caches will be automatically inserted between filters.
-      
-   .. py:attribute:: accept_lowercase
-   
-      When set to *True* function name lookups in the core are case insensitive. Don't distribute scripts that need it to be set.
       
    .. py:attribute:: max_cache_size
    

@@ -82,7 +82,7 @@ These are the requirements:
 
    * Python 3
 
-   * Cython installed in your Python 3 environment
+   * Cython 0.28 or later installed in your Python 3 environment
 
    * Sphinx for the documentation (optional)
 
