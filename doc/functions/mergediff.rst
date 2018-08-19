@@ -9,7 +9,7 @@ MergeDiff
 
    Unsharp masking of luma::
 
-      blur_clip = core.generic.Blur(clip, planes=0)
-      diff_clip = core.std.MakeDiff(clip, blur_clip, planes=0)
-      sharpened_clip = core.std.MergeDiff(clip, diff_clip, planes=0)
+      blur_clip = core.std.Convolution(clip, matrix=[1, 2, 1, 2, 4, 2, 1, 2, 1], planes=[0])
+      diff_clip = core.std.MakeDiff(clip, blur_clip, planes=[0])
+      sharpened_clip = core.std.MergeDiff(clip, diff_clip, planes=[0])
       
