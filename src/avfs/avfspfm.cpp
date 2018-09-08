@@ -1627,6 +1627,7 @@ int wmain(int argc,const wchar_t*const* argv)
         msp.volumeFlags = pfmVolumeFlagNoCreateTime;
         msp.volumeFlags = pfmVolumeFlagNoAccessTime;
         msp.volumeFlags = pfmVolumeFlagNoChangeTime;
+        fwprintf(fstatus, L"Mount point: %s\n", mount->GetMountPoint());
         fprintf(fstatus,"Press CTRL+C to exit.\n");
         error = volume->marshaller->ServeDispatch(&msp);
         if(error)

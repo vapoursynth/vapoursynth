@@ -1,4 +1,5 @@
 r45:
+avfs now prints the used mount point
 windows binaries now use python 3.7
 removed accept_lowecase setting from the python bindings
 fixed frame duration calculation in clipinfo (dubhater)
