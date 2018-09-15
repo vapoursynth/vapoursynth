@@ -38,6 +38,7 @@ Name: Full; Description: Full installation; Flags: iscustom
 [Components]
 Name: "vs64"; Description: "VapourSynth 64-bit"; Types: Full; Check: HasPython64; Flags: disablenouninstallwarning
 Name: "vs32"; Description: "VapourSynth 32-bit"; Types: Full; Check: HasPython32; Flags: disablenouninstallwarning
+Name: "vsrepo"; Description: "VSRepo Package Manager"; Types: Full; Flags: disablenouninstallwarning
 Name: "docs"; Description: "VapourSynth Documentation"; Types: Full; Flags: disablenouninstallwarning
 Name: "sdk"; Description: "VapourSynth SDK"; Flags: disablenouninstallwarning; Types: Full
 Name: "pismo"; Description: "Pismo PFM Runtime (required for AVFS)"; Types: Full; Flags: disablenouninstallwarning
@@ -45,9 +46,11 @@ Name: "vsruntimes"; Description: "Visual Studio Runtimes (2013 & 2017)"; Types: 
 
 [Tasks]
 Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to shell context menu"; GroupDescription: "New File Shortcuts:"; Components: vs32 vs64
+Name: vsrepoupdate; Description: "Update VSRepo package list"; GroupDescription: "VSRepo:"; Components: vsrepo
 
 [Run]
 Filename: "{app}\pismo\pfm-191-vapoursynth-win.exe"; Parameters: "install"; Flags: runhidden; Components: pismo
+Filename: {code:GetPythonExecutableAny}; Parameters: """{app}\vsrepo\vsrepo.py"" update"; Flags: runhidden; Components: vsrepo
 
 [Files]
 ;core binaries
@@ -76,6 +79,9 @@ Source: ..\msvc_project\Release\vsscript.dll; DestDir: {app}\core32; Flags: igno
 Source: ..\msvc_project\x64\Release\vsscript.dll; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 Source: ..\msvc_project\Release\vsscript.dll; DestDir: {sys}; Flags: uninsrestartdelete restartreplace 32bit; Components: vs32
 Source: ..\msvc_project\x64\Release\vsscript.dll; DestDir: {sys}; Flags: uninsrestartdelete restartreplace 64bit; Components: vs64
+
+;vsrepo
+Source: ..\vsrepo\vsrepo.py; DestDir: {app}\vsrepo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
 
 ;docsSource: ..\doc\_build\html\*; DestDir: {app}\docs; Flags: ignoreversion uninsrestartdelete restartreplace recursesubdirs; Components: docs
 
@@ -200,6 +206,7 @@ type
   TPythonPath = record
     DisplayName: string;
     InstallPath: string;
+    ExecutablePath: string;
     Bitness: Integer;
   end;
 
@@ -210,8 +217,10 @@ var
   PythonPage: TWizardPage;
   PythonList: TNewCheckListBox;
   Python32Path: string;
+  Python32Executable: string;
   Python64Path: string;
-  
+  Python64Executable: string;
+    
 function HasPython32: Boolean;
 var
   Counter: Integer;
@@ -238,7 +247,7 @@ var
   Nc, Tc: Integer;
   RegPathTemp: string;
   Temp: string;
-  DisplayName, InstallPath: string;
+  DisplayName, InstallPath, ExecutablePath: string;
   Bitness: Integer;
 begin
   if RegGetSubkeyNames(RegRoot, RegPath, Names) then
@@ -261,11 +270,14 @@ begin
               Bitness := 64;              
           end;
 
-          if RegQueryStringValue(RegRoot, RegPathTemp, 'DisplayName', DisplayName) and RegQueryStringValue(RegRoot, RegPathTemp + '\InstallPath', '', InstallPath) then
+          if RegQueryStringValue(RegRoot, RegPathTemp, 'DisplayName', DisplayName)
+            and RegQueryStringValue(RegRoot, RegPathTemp + '\InstallPath', '', InstallPath)
+            and RegQueryStringValue(RegRoot, RegPathTemp + '\InstallPath', 'ExecutablePath', ExecutablePath) then
           begin
              SetArrayLEngth(PythonInstallations, GetArrayLength(PythonInstallations) + 1);
              PythonInstallations[GetArrayLength(PythonInstallations) - 1].DisplayName := DisplayName;
              PythonInstallations[GetArrayLength(PythonInstallations) - 1].InstallPath := InstallPath;
+             PythonInstallations[GetArrayLength(PythonInstallations) - 1].ExecutablePath := ExecutablePath;
              PythonInstallations[GetArrayLength(PythonInstallations) - 1].Bitness := Bitness;
           end;
         end;
@@ -352,7 +364,13 @@ begin
   Result := Python64Path;
 end;
 
-// copied from the internets
+function GetPythonExecutableAny(Param: string): String;
+begin
+  if Python64Executable <> '' then
+    Result := Python64Executable
+  else
+    Result := Python32Executable;
+end;
 
 /////////////////////////////////////////////////////////////////////
 function GetUninstallString: String;
@@ -436,9 +454,15 @@ begin
         with PythonInstallations[Idx] do
         begin
           if Bitness = 64 then
-            Python64Path := InstallPath
+          begin
+            Python64Path := InstallPath;
+            Python64Executable := ExecutablePath;
+          end
           else if Bitness = 32 then
+          begin
             Python32Path := InstallPath;
+            Python32Executable := ExecutablePath;
+          end;
         end;
       end;
     end;
