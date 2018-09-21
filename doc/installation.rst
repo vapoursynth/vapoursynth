@@ -78,7 +78,7 @@ These are the requirements:
 
    * Nasm
 
-   * `zimg v2.7 branch <https://github.com/sekrit-twc/zimg/releases>`_
+   * `zimg v2.8 branch <https://github.com/sekrit-twc/zimg/releases>`_
 
    * Python 3
 
