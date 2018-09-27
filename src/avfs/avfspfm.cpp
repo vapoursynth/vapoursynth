@@ -58,6 +58,7 @@
 #include "include/pfmmarshaller.h"
 #include "avfspfm.h"
 #include "avfs.rc"
+#include "../common/vsutf16.h"
 #include <VSScript.h>
 
 #define CCALL __cdecl
@@ -263,13 +264,12 @@ FileNode::~FileNode(void)
 void Volume::Print(const wchar_t* data)
 {
     marshaller->Print(data);
-    char* data8 = ssconvalloc(data);
-    if(data8)
+    std::string data8 = utf16_to_utf8(data);
+    if(!data8.empty())
     {
-        FileWrite(logFile,maxLogDataSize,logFile->fileSize,data8,
-            sssize(data8),0);
+        FileWrite(logFile,maxLogDataSize,logFile->fileSize,data8.data(),
+            data8.size(),0);
     }
-    free(data8);
 }
 
 void Volume::Vprintf(const wchar_t* format,va_list args)

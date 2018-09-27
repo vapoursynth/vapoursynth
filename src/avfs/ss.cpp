@@ -9,15 +9,6 @@
 #include <wchar.h>
 #include "ss.h"
 
-void sscpy(wchar_t* dest,size_t maxDestChars,const wchar_t* source)
-{
-   if(dest && maxDestChars)
-   {
-      wcsncpy(dest,ssfix(source),maxDestChars);
-      dest[maxDestChars-1] = 0;
-   }
-}
-
 wchar_t* ssalloc(size_t count)
 {
     wchar_t* d = 0;
@@ -162,11 +153,4 @@ wchar_t* ssvformatalloc(const wchar_t* format,va_list args)
     }
     free(heapScratch);
     return val;
-}
-
-wchar_t* ssformatalloc(const wchar_t* format,...)
-{
-    va_list args;
-    va_start(args,format);
-    return ssvformatalloc(format,args);
 }

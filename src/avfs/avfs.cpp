@@ -102,7 +102,7 @@ class Avisynther final:
   int/*error*/ newEnv();
 
   // Exception protected IScriptEnvironment->Invoke()
-  AVSValue Invoke(const char* name, const AVSValue &args);
+  AVSValue Invoke(const char* name, const AVSValue &args, const char * const * arg_names = nullptr);
 
   // (Re)Open the Script File
   int/*error*/ Import(const wchar_t* szScriptName);
@@ -154,16 +154,20 @@ public:
 int/*error*/ Avisynther::Import(const wchar_t* wszScriptName)
 {
   int error = ERROR_OUTOFMEMORY;
-  char* szScriptName = ssconvalloc(wszScriptName);
-  if(szScriptName)
+  std::string szScriptName = utf16_to_utf8(wszScriptName);
+  if(!szScriptName.empty())
   {
     // Get a fresh IScriptEnvironment
     error = newEnv();
 
     if(!error)
     {
-      // Load the script
-      AVSValue var = Invoke("Import", szScriptName);
+      // Do we have utf8 filename support?
+      AVSValue invUtf8[2]{ szScriptName.c_str(), true };
+      const char *arg_names[] = { nullptr, "utf8" };
+      AVSValue var = Invoke("Import", AVSValue(&invUtf8, 2), arg_names);
+      if (!var.Defined())
+        var = Invoke("Import", szScriptName.c_str());
 
       if (var.Defined()) {
         if (var.IsClip()) {
@@ -196,7 +200,6 @@ int/*error*/ Avisynther::Import(const wchar_t* wszScriptName)
       }
 
     }
-    free(szScriptName);
   }
   return error;
 }
@@ -762,11 +765,11 @@ int/*error*/ Avisynther::newEnv() {
 ---------------------------------------------------------*/
 
 // Exception protected IScriptEnvironment->Invoke()
-AVSValue Avisynther::Invoke(const char* name, const AVSValue &args) {
+AVSValue Avisynther::Invoke(const char* name, const AVSValue &args, const char* const* arg_names) {
 
     if (env) {
         try {
-            return env->Invoke(name, args);
+            return env->Invoke(name, args, arg_names);
         } catch (IScriptEnvironment::NotFound) {
             setError("Invoke: Function NotFound.");
         } catch (AvisynthError err) {
