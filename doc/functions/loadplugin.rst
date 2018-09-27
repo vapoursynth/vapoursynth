@@ -13,7 +13,7 @@ LoadPlugin
    
    Plugins are normally loaded with a very specific search order for
    dependencies. Setting *altsearchpath* modifies this behavior to also
-   include 
+   include dlls in the PATH.
 
    Beware of Python's escape character, this will fail::
 
