@@ -165,7 +165,7 @@ int/*error*/ Avisynther::Import(const wchar_t* wszScriptName)
       // Do we have utf8 filename support?
       AVSValue invUtf8[2]{ szScriptName.c_str(), true };
       const char *arg_names[] = { nullptr, "utf8" };
-      AVSValue var = Invoke("Import", AVSValue(&invUtf8, 2), arg_names);
+      AVSValue var = Invoke("Import", AVSValue(invUtf8, 2), arg_names);
       if (!var.Defined())
         var = Invoke("Import", szScriptName.c_str());
 
@@ -770,7 +770,7 @@ AVSValue Avisynther::Invoke(const char* name, const AVSValue &args, const char* 
     if (env) {
         try {
             return env->Invoke(name, args, arg_names);
-        } catch (IScriptEnvironment::NotFound) {
+        } catch (IScriptEnvironment::NotFound &e) {
             setError("Invoke: Function NotFound.");
         } catch (AvisynthError err) {
             setError(err.msg, L"Invoke: AvisynthError.msg corrupted.");
