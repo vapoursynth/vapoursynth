@@ -7,7 +7,7 @@ mkdir buildp64\vapoursynth64\coreplugins
 mkdir buildp64\vapoursynth64\plugins
 copy ..\vsrepo\vsrepo.py buildp64
 copy ..\vsrepo\vspackages.json buildp64
-copy ..\vapoursynth.cp36-win_amd64.pyd buildp64
+copy ..\vapoursynth.cp37-win_amd64.pyd buildp64
 copy ..\msvc_project\x64\Release\VapourSynth.dll buildp64
 copy ..\msvc_project\x64\Release\vsscript.dll buildp64
 copy ..\msvc_project\x64\Release\avfs.exe buildp64
@@ -38,7 +38,7 @@ mkdir buildp32\vapoursynth32\coreplugins
 mkdir buildp32\vapoursynth32\plugins
 copy ..\vsrepo\vsrepo.py buildp32
 copy ..\vsrepo\vspackages.json buildp32
-copy ..\vapoursynth.cp36-win32.pyd buildp32
+copy ..\vapoursynth.cp37-win32.pyd buildp32
 copy ..\msvc_project\Release\VapourSynth.dll buildp32
 copy ..\msvc_project\Release\vsscript.dll buildp32
 copy ..\msvc_project\Release\avfs.exe buildp32
