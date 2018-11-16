@@ -483,14 +483,14 @@ begin
     begin
       SetForceX86(True);
       vcredist2013('12.0.21005');
-      vcredist2017('14.15.26706');
+      vcredist2017('14.16.27012');
       SetForceX86(False);
       Runtimes32Added := True;
     end;
     if IsComponentSelected('vsruntimes') and IsComponentSelected('vs64') and not Runtimes64Added then
     begin
       vcredist2013('12.0.21005');
-      vcredist2017('14.15.26706');
+      vcredist2017('14.16.27012');
       Runtimes64Added := True;
     end;
     Result := NextButtonClick2(CurPageID);
