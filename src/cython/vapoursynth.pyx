@@ -486,6 +486,7 @@ cdef void __stdcall frameDoneCallbackOutput(void *data, const VSFrameRef *f, int
 
         while d.output in d.reorder:
             frame_obj = <VideoFrame>d.reorder[d.output]
+            bytes_per_sample = frame_obj.format.bytes_per_sample
             try:
                 if d.y4m:
                     d.fileobj.write(b'FRAME\n')
@@ -495,8 +496,8 @@ cdef void __stdcall frameDoneCallbackOutput(void *data, const VSFrameRef *f, int
                     # This is a quick fix.
                     # Calling bytes(VideoPlane) should make the buffer continuous by
                     # copying the frame to a continous buffer
-                    # if the stride does not match the width.
-                    if frame_obj.get_stride(x) != plane.width:
+                    # if the stride does not match the width*bytes_per_sample.
+                    if frame_obj.get_stride(x) != plane.width*bytes_per_sample:
                         d.fileobj.write(bytes(plane))
                     else:
                         d.fileobj.write(plane)
