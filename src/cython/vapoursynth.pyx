@@ -493,10 +493,16 @@ cdef void __stdcall frameDoneCallbackOutput(void *data, const VSFrameRef *f, int
                     plane = VideoPlane.__new__(VideoPlane, frame_obj, x)
                     
                     # This is a quick fix.
-                    # Calling bytes(VideoPlane) should make the buffer continuous.
-                    d.fileobj.write(bytes(plane))
-            except:
-                d.error = 'File write call returned an error'
+                    # Calling bytes(VideoPlane) should make the buffer continuous by
+                    # copying the frame to a continous buffer
+                    # if the stride does not match the width.
+                    if frame_obj.get_stride(x) != plane.width:
+                        d.fileobj.write(bytes(plane))
+                    else:
+                        d.fileobj.write(plane)
+
+            except BaseException as e:
+                d.error = 'File write call returned an error: ' + str(e)
                 d.total = d.requested
 
             del d.reorder[d.output]
