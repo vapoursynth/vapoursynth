@@ -491,7 +491,10 @@ cdef void __stdcall frameDoneCallbackOutput(void *data, const VSFrameRef *f, int
                     d.fileobj.write(b'FRAME\n')
                 for x in range(frame_obj.format.num_planes):
                     plane = VideoPlane.__new__(VideoPlane, frame_obj, x)
-                    d.fileobj.write(plane)
+                    
+                    # This is a quick fix.
+                    # Calling bytes(VideoPlane) should make the buffer continuous.
+                    d.fileobj.write(bytes(plane))
             except:
                 d.error = 'File write call returned an error'
                 d.total = d.requested
