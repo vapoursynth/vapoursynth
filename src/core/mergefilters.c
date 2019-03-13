@@ -681,7 +681,22 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
     // do we need to resample the first mask plane and use it for all the planes?
     if ((d.first_plane && d.vi->format->numPlanes > 1) && (d.vi->format->subSamplingH > 0 || d.vi->format->subSamplingW > 0) && (d.process[1] || d.process[2])) {
         VSMap *min = vsapi->createMap();
-        vsapi->propSetNode(min, "clip", d.mask, paAppend);
+
+        if (maskvi->format->numPlanes > 1) {
+            // Don't resize the unused second and third planes.
+            vsapi->propSetNode(min, "clips", d.mask, paAppend);
+            vsapi->propSetInt(min, "planes", 0, paAppend);
+            vsapi->propSetInt(min, "colorfamily", cmGray, paAppend);
+            VSMap *mout = vsapi->invoke(vsapi->getPluginById("com.vapoursynth.std", core), "ShufflePlanes", min);
+            VSNodeRef *mask_first_plane = vsapi->propGetNode(mout, "clip", 0, 0);
+            vsapi->freeMap(mout);
+            vsapi->clearMap(min);
+            vsapi->propSetNode(min, "clip", mask_first_plane, paAppend);
+            vsapi->freeNode(mask_first_plane);
+        } else {
+            vsapi->propSetNode(min, "clip", d.mask, paAppend);
+        }
+
         vsapi->propSetInt(min, "width", d.vi->width >> d.vi->format->subSamplingW, paAppend);
         vsapi->propSetInt(min, "height", d.vi->height >> d.vi->format->subSamplingH, paAppend);
         VSMap *mout = vsapi->invoke(vsapi->getPluginById("com.vapoursynth.resize", core), "Bilinear", min);
