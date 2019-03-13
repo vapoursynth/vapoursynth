@@ -645,7 +645,7 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
     }
 
     if (maskvi->width != d.vi->width || maskvi->height != d.vi->height || maskvi->format->bitsPerSample != d.vi->format->bitsPerSample
-        || (maskvi->format != d.vi->format && maskvi->format->colorFamily != cmGray)) {
+        || (maskvi->format != d.vi->format && maskvi->format->colorFamily != cmGray && !d.first_plane)) {
         vsapi->freeNode(d.node1);
         vsapi->freeNode(d.node2);
         vsapi->freeNode(d.mask);
