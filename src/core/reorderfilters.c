@@ -462,6 +462,7 @@ static void VS_CC selectEveryCreate(const VSMap *in, VSMap *out, void *userData,
     }
 
     if (d.vi.numFrames == 0) {
+        vsapi->freeNode(d.node);
         free(d.offsets);
         RETERROR("SelectEvery: no frames to output, all offsets outside available frames");
     }
