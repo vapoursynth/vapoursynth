@@ -560,7 +560,7 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
                                     uint16_t s1 = ((const uint16_t *)srcp1)[x];
                                     uint16_t s2 = ((const uint16_t *)srcp2)[x];
                                     uint16_t m = ((const uint16_t *)maskp)[x];
-                                    ((uint16_t *)dstp)[x] = s1 + (((s2 - s1) * (((m >> 1) & 1) + m) + round) >> shift);
+                                    ((uint16_t *)dstp)[x] = s1 + (((int64_t)(s2 - s1) * (((m >> 1) & 1) + m) + round) >> shift);
                                 }
                                 srcp1 += stride;
                                 srcp2 += stride;
