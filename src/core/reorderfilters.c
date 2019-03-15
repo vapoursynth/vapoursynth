@@ -461,6 +461,11 @@ static void VS_CC selectEveryCreate(const VSMap *in, VSMap *out, void *userData,
                 d.vi.numFrames++;
     }
 
+    if (d.vi.numFrames == 0) {
+        free(d.offsets);
+        RETERROR("SelectEvery: no frames to output, all offsets outside available frames");
+    }
+
     muldivRational(&d.vi.fpsNum, &d.vi.fpsDen, d.num, d.cycle);
 
     data = malloc(sizeof(d));

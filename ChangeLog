@@ -1,3 +1,10 @@
+r46:
+fixed broken output when stride wasn't equal to width in the python output function (stuxcrystal)
+relaxed mask clip requirements in maskedmerge (dubhater)
+fixed overflow with int16 in maskedmerge (dubhater)
+fixed swapped fields in doubleweave (dubhater)
+fixed selectevery breaking and leaking when there are no frames to return
+
 r45:
 updated to zimg v2.8
 updated visual studio runtimes in installer
