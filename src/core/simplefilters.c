@@ -819,11 +819,11 @@ static const VSFrameRef *VS_CC doubleWeaveGetframe(int n, int activationReason, 
         } else if (d->tff != -1) {
             int par = (n & 1) ^ d->tff;
             if (par) {
-                srctop = src2;
-                srcbtn = src1;
-            } else {
                 srctop = src1;
                 srcbtn = src2;
+            } else {
+                srctop = src2;
+                srcbtn = src1;
             }
         } else {
             vsapi->setFilterError("DoubleWeave: field order could not be determined from frame properties", frameCtx);
