@@ -770,7 +770,7 @@ AVSValue Avisynther::Invoke(const char* name, const AVSValue &args, const char* 
     if (env) {
         try {
             return env->Invoke(name, args, arg_names);
-        } catch (IScriptEnvironment::NotFound &e) {
+        } catch (IScriptEnvironment::NotFound &) {
             setError("Invoke: Function NotFound.");
         } catch (AvisynthError err) {
             setError(err.msg, L"Invoke: AvisynthError.msg corrupted.");
