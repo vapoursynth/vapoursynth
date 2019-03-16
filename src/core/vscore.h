@@ -646,11 +646,6 @@ struct VSCore {
     friend class VSThreadPool;
     friend class CacheInstance;
 private:
-    typedef union {
-        VSFormat vf;
-        VSAudioFormat af;
-    } FormatUnion;
-
     //number of filter instances plus one, freeing the core reduces it by one
     // the core will be freed once it reaches 0
     bool coreFreed;
@@ -659,9 +654,12 @@ private:
 
     std::map<std::string, VSPlugin *> plugins;
     std::recursive_mutex pluginLock;
-    std::map<int, FormatUnion> formats;
-    std::mutex formatLock;
-    int formatIdOffset;
+    std::map<int, VSFormat> videoFormats;
+    std::mutex videoFormatLock;
+    int videoFormatIdOffset = 1000;
+    std::map<int, VSAudioFormat> audioFormats;
+    std::mutex audioFormatLock;
+    int audioFormatIdOffset = 1000;
     VSCoreInfo coreInfo;
     std::set<VSNode *> caches;
     std::mutex cacheLock;
@@ -684,8 +682,9 @@ public:
     PVideoFrame copyFrame(const PVideoFrame &srcf);
     void copyFrameProps(const PVideoFrame &src, PVideoFrame &dst);
 
-    const VSFormat *getFormatPreset(int id);
-    const VSFormat *registerFormat(VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name = nullptr, int id = pfNone);
+    const VSFormat *getVideoFormat(int id);
+    const VSAudioFormat *getAudioFormat(int id);
+    const VSFormat *queryVideoFormat(VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name = nullptr, int id = pfNone);
     const VSAudioFormat *queryAudioFormat(int sampleType, int bitsPerSample, int64_t channelLayout, const char *name = nullptr, int id = pfNone);
     bool isValidFormatPointer(const void *f);
 

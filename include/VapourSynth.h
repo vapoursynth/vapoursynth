@@ -103,9 +103,6 @@ typedef enum VSColorFamily {
     cmYCoCg  = 4000000,
     /* special for compatibility */
     cmCompat = 9000000,
-
-    /* audio formats */
-    cmAudio  = 11000000
 } VSColorFamily;
 
 typedef enum VSSampleType {
@@ -193,7 +190,6 @@ typedef struct VSFormat {
 typedef struct VSAudioFormat {
     char name[32];
     int id;
-    int typeFamily;
     int sampleType;
     int bitsPerSample;
     int bytesPerSample;

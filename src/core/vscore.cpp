@@ -1008,16 +1008,25 @@ void VSCore::copyFrameProps(const PVideoFrame &src, PVideoFrame &dst) {
     dst->setProperties(src->getProperties());
 }
 
-const VSFormat *VSCore::getFormatPreset(int id) {
-    std::lock_guard<std::mutex> lock(formatLock);
+const VSFormat *VSCore::getVideoFormat(int id) {
+    std::lock_guard<std::mutex> lock(videoFormatLock);
 
-    auto f = formats.find(id);
-    if (f != formats.end())
-        return &f->second.vf;
+    auto f = videoFormats.find(id);
+    if (f != videoFormats.end())
+        return &f->second;
     return nullptr;
 }
 
-const VSFormat *VSCore::registerFormat(VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name, int id) {
+const VSAudioFormat *VSCore::getAudioFormat(int id) {
+    std::lock_guard<std::mutex> lock(audioFormatLock);
+
+    auto f = audioFormats.find(id);
+    if (f != audioFormats.end())
+        return &f->second;
+    return nullptr;
+}
+
+const VSFormat *VSCore::queryVideoFormat(VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name, int id) {
     // this is to make exact format comparisons easy by simply allowing pointer comparison
 
     // block nonsense formats
@@ -1039,20 +1048,20 @@ const VSFormat *VSCore::registerFormat(VSColorFamily colorFamily, VSSampleType s
     if (colorFamily == cmCompat && !name)
         return nullptr;
 
-    std::lock_guard<std::mutex> lock(formatLock);
+    std::lock_guard<std::mutex> lock(videoFormatLock);
 
-    for (const auto &iter : formats) {
-        const VSFormat &f = iter.second.vf;
+    for (const auto &iter : videoFormats) {
+        const VSFormat &f = iter.second;
 
         if (f.colorFamily == colorFamily && f.sampleType == sampleType
                 && f.subSamplingW == subSamplingW && f.subSamplingH == subSamplingH && f.bitsPerSample == bitsPerSample)
             return &f;
     }
 
-    FormatUnion f{};
+    VSFormat f{};
 
     if (name) {
-        strcpy(f.vf.name, name);
+        strcpy(f.name, name);
     } else {
         const char *sampleTypeStr = "";
         if (sampleType == stFloat)
@@ -1062,10 +1071,10 @@ const VSFormat *VSCore::registerFormat(VSColorFamily colorFamily, VSSampleType s
 
         switch (colorFamily) {
         case cmGray:
-            snprintf(f.vf.name, sizeof(f.vf.name), "Gray%s%d", sampleTypeStr, bitsPerSample);
+            snprintf(f.name, sizeof(f.name), "Gray%s%d", sampleTypeStr, bitsPerSample);
             break;
         case cmRGB:
-            snprintf(f.vf.name, sizeof(f.vf.name), "RGB%s%d", sampleTypeStr, bitsPerSample * 3);
+            snprintf(f.name, sizeof(f.name), "RGB%s%d", sampleTypeStr, bitsPerSample * 3);
             break;
         case cmYUV:
             if (subSamplingW == 1 && subSamplingH == 1)
@@ -1081,36 +1090,36 @@ const VSFormat *VSCore::registerFormat(VSColorFamily colorFamily, VSSampleType s
             else if (subSamplingW == 0 && subSamplingH == 1)
                 yuvName = "440";
             if (yuvName)
-                snprintf(f.vf.name, sizeof(f.vf.name), "YUV%sP%s%d", yuvName, sampleTypeStr, bitsPerSample);
+                snprintf(f.name, sizeof(f.name), "YUV%sP%s%d", yuvName, sampleTypeStr, bitsPerSample);
             else
-                snprintf(f.vf.name, sizeof(f.vf.name), "YUVssw%dssh%dP%s%d", subSamplingW, subSamplingH, sampleTypeStr, bitsPerSample);
+                snprintf(f.name, sizeof(f.name), "YUVssw%dssh%dP%s%d", subSamplingW, subSamplingH, sampleTypeStr, bitsPerSample);
             break;
         case cmYCoCg:
-            snprintf(f.vf.name, sizeof(f.vf.name), "YCoCgssw%dssh%dP%s%d", subSamplingW, subSamplingH, sampleTypeStr, bitsPerSample);
+            snprintf(f.name, sizeof(f.name), "YCoCgssw%dssh%dP%s%d", subSamplingW, subSamplingH, sampleTypeStr, bitsPerSample);
             break;
         default:;
         }
     }
 
     if (id != pfNone)
-        f.vf.id = id;
+        f.id = id;
     else
-        f.vf.id = colorFamily + formatIdOffset++;
+        f.id = colorFamily + videoFormatIdOffset++;
 
-    f.vf.colorFamily = colorFamily;
-    f.vf.sampleType = sampleType;
-    f.vf.bitsPerSample = bitsPerSample;
-    f.vf.bytesPerSample = 1;
+    f.colorFamily = colorFamily;
+    f.sampleType = sampleType;
+    f.bitsPerSample = bitsPerSample;
+    f.bytesPerSample = 1;
 
-    while (f.vf.bytesPerSample * 8 < bitsPerSample)
-        f.vf.bytesPerSample *= 2;
+    while (f.bytesPerSample * 8 < bitsPerSample)
+        f.bytesPerSample *= 2;
 
-    f.vf.subSamplingW = subSamplingW;
-    f.vf.subSamplingH = subSamplingH;
-    f.vf.numPlanes = (colorFamily == cmGray || colorFamily == cmCompat) ? 1 : 3;
+    f.subSamplingW = subSamplingW;
+    f.subSamplingH = subSamplingH;
+    f.numPlanes = (colorFamily == cmGray || colorFamily == cmCompat) ? 1 : 3;
 
-    formats.insert(std::make_pair(f.vf.id, f));
-    return &formats[f.vf.id].vf;
+    videoFormats.insert(std::make_pair(f.id, f));
+    return &videoFormats[f.id];
 }
 
 const VSAudioFormat *VSCore::queryAudioFormat(int sampleType, int bitsPerSample, int64_t channelLayout, const char *name, int id) {
@@ -1125,54 +1134,64 @@ const VSAudioFormat *VSCore::queryAudioFormat(int sampleType, int bitsPerSample,
     if (bitsPerSample < 16 || bitsPerSample > 32)
         return nullptr;
 
-    std::lock_guard<std::mutex> lock(formatLock);
+    std::lock_guard<std::mutex> lock(audioFormatLock);
 
-    for (const auto &iter : formats) {
-        if (iter.second.af.typeFamily == cmAudio && iter.second.af.bitsPerSample == bitsPerSample && iter.second.af.channelLayout == channelLayout)
-            return &iter.second.af;
+    for (const auto &iter : audioFormats) {
+        if (iter.second.bitsPerSample == bitsPerSample && iter.second.channelLayout == channelLayout)
+            return &iter.second;
     }
 
-    FormatUnion f{};
+    VSAudioFormat f{};
 
     if (name)
-        strcpy(f.af.name, name);
+        strcpy(f.name, name);
     else
-        snprintf(f.af.name, sizeof(f.af.name), "Audio%d", bitsPerSample);
+        snprintf(f.name, sizeof(f.name), "Audio%d", bitsPerSample);
 
 
     if (id != pfNone)
-        f.af.id = id;
+        f.id = id;
     else
-        f.af.id = cmAudio + formatIdOffset++;
+        f.id = /* "cmAudio" */ 11000000 + audioFormatIdOffset++;
 
-    f.af.typeFamily = cmAudio;
-    f.af.sampleType = sampleType;
-    f.af.bitsPerSample = bitsPerSample;
-    f.af.bytesPerSample = 1;
+    f.sampleType = sampleType;
+    f.bitsPerSample = bitsPerSample;
+    f.bytesPerSample = 1;
 
-    while (f.af.bytesPerSample * 8 < bitsPerSample)
-        f.af.bytesPerSample *= 2;
+    while (f.bytesPerSample * 8 < bitsPerSample)
+        f.bytesPerSample *= 2;
 
     std::bitset<sizeof(channelLayout) * 8> bits{ static_cast<uint64_t>(channelLayout) };
-    f.af.numChannels = bits.count();
+    f.numChannels = bits.count();
 
     const size_t targetSize = 4 * 1000 * 1000;
 
-    f.af.samplesPerFrame = targetSize;
-    f.af.samplesPerFrame /= (f.af.numChannels * f.af.bytesPerSample);
-    int sampleMultiple = VSFrame::alignment / f.af.bytesPerSample;
-    f.af.samplesPerFrame = (f.af.samplesPerFrame + sampleMultiple - 1) & ~(sampleMultiple - 1);
+    f.samplesPerFrame = targetSize;
+    f.samplesPerFrame /= (f.numChannels * f.bytesPerSample);
+    int sampleMultiple = VSFrame::alignment / f.bytesPerSample;
+    f.samplesPerFrame = (f.samplesPerFrame + sampleMultiple - 1) & ~(sampleMultiple - 1);
 
-    formats.insert(std::make_pair(f.af.id, f));
-    return &formats[f.af.id].af;
+    audioFormats.insert(std::make_pair(f.id, f));
+    return &audioFormats[f.id];
 }
 
 bool VSCore::isValidFormatPointer(const void *f) {
-    std::lock_guard<std::mutex> lock(formatLock);
+    {
+        std::lock_guard<std::mutex> lock(videoFormatLock);
 
-    for (const auto &iter : formats) {
-        if (&iter.second.vf == f)
-            return true;
+        for (const auto &iter : videoFormats) {
+            if (&iter.second == f)
+                return true;
+        }
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(audioFormatLock);
+
+        for (const auto &iter : audioFormats) {
+            if (&iter.second == f)
+                return true;
+        }
     }
     return false;
 }
@@ -1212,52 +1231,52 @@ void VS_CC loadPluginInitialize(VSConfigPlugin configFunc, VSRegisterFunction re
 
 void VSCore::registerFormats() {
     // Register known formats with informational names
-    registerFormat(cmGray, stInteger,  8, 0, 0, "Gray8", pfGray8);
-    registerFormat(cmGray, stInteger, 16, 0, 0, "Gray16", pfGray16);
+    queryVideoFormat(cmGray, stInteger,  8, 0, 0, "Gray8", pfGray8);
+    queryVideoFormat(cmGray, stInteger, 16, 0, 0, "Gray16", pfGray16);
 
-    registerFormat(cmGray, stFloat,   16, 0, 0, "GrayH", pfGrayH);
-    registerFormat(cmGray, stFloat,   32, 0, 0, "GrayS", pfGrayS);
+    queryVideoFormat(cmGray, stFloat,   16, 0, 0, "GrayH", pfGrayH);
+    queryVideoFormat(cmGray, stFloat,   32, 0, 0, "GrayS", pfGrayS);
 
-    registerFormat(cmYUV,  stInteger, 8, 1, 1, "YUV420P8", pfYUV420P8);
-    registerFormat(cmYUV,  stInteger, 8, 1, 0, "YUV422P8", pfYUV422P8);
-    registerFormat(cmYUV,  stInteger, 8, 0, 0, "YUV444P8", pfYUV444P8);
-    registerFormat(cmYUV,  stInteger, 8, 2, 2, "YUV410P8", pfYUV410P8);
-    registerFormat(cmYUV,  stInteger, 8, 2, 0, "YUV411P8", pfYUV411P8);
-    registerFormat(cmYUV,  stInteger, 8, 0, 1, "YUV440P8", pfYUV440P8);
+    queryVideoFormat(cmYUV,  stInteger, 8, 1, 1, "YUV420P8", pfYUV420P8);
+    queryVideoFormat(cmYUV,  stInteger, 8, 1, 0, "YUV422P8", pfYUV422P8);
+    queryVideoFormat(cmYUV,  stInteger, 8, 0, 0, "YUV444P8", pfYUV444P8);
+    queryVideoFormat(cmYUV,  stInteger, 8, 2, 2, "YUV410P8", pfYUV410P8);
+    queryVideoFormat(cmYUV,  stInteger, 8, 2, 0, "YUV411P8", pfYUV411P8);
+    queryVideoFormat(cmYUV,  stInteger, 8, 0, 1, "YUV440P8", pfYUV440P8);
 
-    registerFormat(cmYUV,  stInteger, 9, 1, 1, "YUV420P9", pfYUV420P9);
-    registerFormat(cmYUV,  stInteger, 9, 1, 0, "YUV422P9", pfYUV422P9);
-    registerFormat(cmYUV,  stInteger, 9, 0, 0, "YUV444P9", pfYUV444P9);
+    queryVideoFormat(cmYUV,  stInteger, 9, 1, 1, "YUV420P9", pfYUV420P9);
+    queryVideoFormat(cmYUV,  stInteger, 9, 1, 0, "YUV422P9", pfYUV422P9);
+    queryVideoFormat(cmYUV,  stInteger, 9, 0, 0, "YUV444P9", pfYUV444P9);
 
-    registerFormat(cmYUV,  stInteger, 10, 1, 1, "YUV420P10", pfYUV420P10);
-    registerFormat(cmYUV,  stInteger, 10, 1, 0, "YUV422P10", pfYUV422P10);
-    registerFormat(cmYUV,  stInteger, 10, 0, 0, "YUV444P10", pfYUV444P10);
+    queryVideoFormat(cmYUV,  stInteger, 10, 1, 1, "YUV420P10", pfYUV420P10);
+    queryVideoFormat(cmYUV,  stInteger, 10, 1, 0, "YUV422P10", pfYUV422P10);
+    queryVideoFormat(cmYUV,  stInteger, 10, 0, 0, "YUV444P10", pfYUV444P10);
 
-    registerFormat(cmYUV,  stInteger, 12, 1, 1, "YUV420P12", pfYUV420P12);
-    registerFormat(cmYUV,  stInteger, 12, 1, 0, "YUV422P12", pfYUV422P12);
-    registerFormat(cmYUV,  stInteger, 12, 0, 0, "YUV444P12", pfYUV444P12);
+    queryVideoFormat(cmYUV,  stInteger, 12, 1, 1, "YUV420P12", pfYUV420P12);
+    queryVideoFormat(cmYUV,  stInteger, 12, 1, 0, "YUV422P12", pfYUV422P12);
+    queryVideoFormat(cmYUV,  stInteger, 12, 0, 0, "YUV444P12", pfYUV444P12);
 
-    registerFormat(cmYUV,  stInteger, 14, 1, 1, "YUV420P14", pfYUV420P14);
-    registerFormat(cmYUV,  stInteger, 14, 1, 0, "YUV422P14", pfYUV422P14);
-    registerFormat(cmYUV,  stInteger, 14, 0, 0, "YUV444P14", pfYUV444P14);
+    queryVideoFormat(cmYUV,  stInteger, 14, 1, 1, "YUV420P14", pfYUV420P14);
+    queryVideoFormat(cmYUV,  stInteger, 14, 1, 0, "YUV422P14", pfYUV422P14);
+    queryVideoFormat(cmYUV,  stInteger, 14, 0, 0, "YUV444P14", pfYUV444P14);
 
-    registerFormat(cmYUV,  stInteger, 16, 1, 1, "YUV420P16", pfYUV420P16);
-    registerFormat(cmYUV,  stInteger, 16, 1, 0, "YUV422P16", pfYUV422P16);
-    registerFormat(cmYUV,  stInteger, 16, 0, 0, "YUV444P16", pfYUV444P16);
+    queryVideoFormat(cmYUV,  stInteger, 16, 1, 1, "YUV420P16", pfYUV420P16);
+    queryVideoFormat(cmYUV,  stInteger, 16, 1, 0, "YUV422P16", pfYUV422P16);
+    queryVideoFormat(cmYUV,  stInteger, 16, 0, 0, "YUV444P16", pfYUV444P16);
 
-    registerFormat(cmYUV,  stFloat,   16, 0, 0, "YUV444PH", pfYUV444PH);
-    registerFormat(cmYUV,  stFloat,   32, 0, 0, "YUV444PS", pfYUV444PS);
+    queryVideoFormat(cmYUV,  stFloat,   16, 0, 0, "YUV444PH", pfYUV444PH);
+    queryVideoFormat(cmYUV,  stFloat,   32, 0, 0, "YUV444PS", pfYUV444PS);
 
-    registerFormat(cmRGB,  stInteger, 8, 0, 0, "RGB24", pfRGB24);
-    registerFormat(cmRGB,  stInteger, 9, 0, 0, "RGB27", pfRGB27);
-    registerFormat(cmRGB,  stInteger, 10, 0, 0, "RGB30", pfRGB30);
-    registerFormat(cmRGB,  stInteger, 16, 0, 0, "RGB48", pfRGB48);
+    queryVideoFormat(cmRGB,  stInteger, 8, 0, 0, "RGB24", pfRGB24);
+    queryVideoFormat(cmRGB,  stInteger, 9, 0, 0, "RGB27", pfRGB27);
+    queryVideoFormat(cmRGB,  stInteger, 10, 0, 0, "RGB30", pfRGB30);
+    queryVideoFormat(cmRGB,  stInteger, 16, 0, 0, "RGB48", pfRGB48);
 
-    registerFormat(cmRGB,  stFloat,   16, 0, 0, "RGBH", pfRGBH);
-    registerFormat(cmRGB,  stFloat,   32, 0, 0, "RGBS", pfRGBS);
+    queryVideoFormat(cmRGB,  stFloat,   16, 0, 0, "RGBH", pfRGBH);
+    queryVideoFormat(cmRGB,  stFloat,   32, 0, 0, "RGBS", pfRGBS);
 
-    registerFormat(cmCompat, stInteger, 32, 0, 0, "CompatBGR32", pfCompatBGR32);
-    registerFormat(cmCompat, stInteger, 16, 1, 0, "CompatYUY2", pfCompatYUY2);
+    queryVideoFormat(cmCompat, stInteger, 32, 0, 0, "CompatBGR32", pfCompatBGR32);
+    queryVideoFormat(cmCompat, stInteger, 16, 1, 0, "CompatYUY2", pfCompatYUY2);
 }
 
 
@@ -1369,7 +1388,7 @@ void VSCore::destroyFilterInstance(VSNode *node) {
     freeDepth--;
 }
 
-VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), numFunctionInstances(0), formatIdOffset(1000), memory(new MemoryUse()) {
+VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), numFunctionInstances(0), memory(new MemoryUse()) {
 #ifdef VS_TARGET_CPU_X86
     if (!vs_isMMXStateOk())
         vsFatal("Bad MMX state detected when creating new core");
@@ -1546,7 +1565,6 @@ VSCore::~VSCore() {
     for(const auto &iter : plugins)
         delete iter.second;
     plugins.clear();
-    formats.clear();
 }
 
 VSMap VSCore::getPlugins() {

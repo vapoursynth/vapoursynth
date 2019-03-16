@@ -37,12 +37,12 @@ void VS_CC vs_internal_registerFunction(const char *name, const char *args, VSPu
 
 static const VSFormat *VS_CC getFormatPreset(int id, VSCore *core) VS_NOEXCEPT {
     assert(core);
-    return core->getFormatPreset((VSPresetFormat)id);
+    return core->getVideoFormat((VSPresetFormat)id);
 }
 
 static const VSFormat *VS_CC registerFormat(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) VS_NOEXCEPT {
     assert(core);
-    return core->registerFormat((VSColorFamily)colorFamily, (VSSampleType)sampleType, bitsPerSample, subSamplingW, subSamplingH);
+    return core->queryVideoFormat((VSColorFamily)colorFamily, (VSSampleType)sampleType, bitsPerSample, subSamplingW, subSamplingH);
 }
 
 static const VSFrameRef *VS_CC cloneFrameRef(const VSFrameRef *frame) VS_NOEXCEPT {
