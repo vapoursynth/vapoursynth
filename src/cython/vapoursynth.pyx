@@ -1463,24 +1463,25 @@ cdef VideoNode createVideoNode(VSNodeRef *node, const VSAPI *funcs, Core core):
     instance.core = core
     instance.node = node
     instance.funcs = funcs
-    instance.vi = funcs.getVideoInfo(node)
+    if funcs.getNodeType(node) == VIDEO:
+        instance.vi = funcs.getVideoInfo(node)
 
-    if (instance.vi.format):
-        instance.format = createFormat(instance.vi.format)
-    else:
-        instance.format = None
+        if (instance.vi.format):
+            instance.format = createFormat(instance.vi.format)
+        else:
+            instance.format = None
 
-    instance.width = instance.vi.width
-    instance.height = instance.vi.height
-    instance.num_frames = instance.vi.numFrames
-    instance.fps_num = <int64_t>instance.vi.fpsNum
-    instance.fps_den = <int64_t>instance.vi.fpsDen
-    if instance.vi.fpsDen:
-        instance.fps = Fraction(
-            <int64_t> instance.vi.fpsNum, <int64_t> instance.vi.fpsDen)
-    else:
-        instance.fps = Fraction(0, 1)
-    instance.flags = instance.vi.flags
+        instance.width = instance.vi.width
+        instance.height = instance.vi.height
+        instance.num_frames = instance.vi.numFrames
+        instance.fps_num = <int64_t>instance.vi.fpsNum
+        instance.fps_den = <int64_t>instance.vi.fpsDen
+        if instance.vi.fpsDen:
+            instance.fps = Fraction(
+                <int64_t> instance.vi.fpsNum, <int64_t> instance.vi.fpsDen)
+        else:
+            instance.fps = Fraction(0, 1)
+        instance.flags = instance.vi.flags
     return instance
 
 cdef class Core(object):

@@ -42,6 +42,10 @@ cdef extern from "include/VapourSynth.h" nogil:
         pass
     ctypedef struct VSFrameContext:
         pass
+        
+    cpdef enum NodeType "VSNodeType":
+        VIDEO "ntVideo"
+        AUDIO "ntAudio"
 
     cpdef enum ColorFamily "VSColorFamily":
         GRAY "cmGray"
@@ -120,6 +124,17 @@ cdef extern from "include/VapourSynth.h" nogil:
         int subSamplingW
         int subSamplingH
         int numPlanes
+        
+    ctypedef struct VSAudioFormat:
+        char name[32]
+        int id
+        int typeFamily
+        int sampleType
+        int bytesPerSample
+        int bitsPerSample
+        int samplesPerFrame
+        int64_t channelLayout
+        int numChannels        
 
     enum VSNodeFlags:
         nfNoCache
@@ -152,6 +167,13 @@ cdef extern from "include/VapourSynth.h" nogil:
         int fpsNum
         int fpsDen
         int flags
+        
+    struct VSAudioInfo:
+        VSAudioFormat *format
+        int sampleRate
+        int64_t numSamples
+        int numFrames
+        int flags
 
     enum VSActivationReason:
         arInitial
@@ -169,6 +191,7 @@ cdef extern from "include/VapourSynth.h" nogil:
     ctypedef void (__stdcall *VSPublicFunction)(const VSMap *input, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi)
     ctypedef void (__stdcall *VSFilterInit)(VSMap *input, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi)
     ctypedef const VSFrameRef *(__stdcall *VSFilterGetFrame)(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi)
+    ctypedef const VSFrameRef *(__stdcall *VSAudioFilterGetFrame)(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi)
     ctypedef void (__stdcall *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI *vsapi)
     ctypedef void (__stdcall *VSFreeFuncData)(void *userData)
     ctypedef void (__stdcall *VSMessageHandler)(int msgType, const char *msg, void *userData)
@@ -259,4 +282,12 @@ cdef extern from "include/VapourSynth.h" nogil:
         
         void logMessage(int msgType, const char *msg) nogil
 
+        void createAudioFilter(const VSMap *input, VSMap *out, const char *name, const VSAudioInfo *ai, int numOutputs, VSAudioFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
+        VSFrameRef *newAudioFrame(const VSAudioFormat *format, int sampleRate, const VSFrameRef *propSrc, VSCore *core) nogil
+        const VSAudioFormat *queryAudioFormat(int sampleType, int bitsPerSample, int64_t channelLayout, VSCore *core) nogil
+        const VSAudioFormat *getAudioFormat(int id, VSCore *core) nogil
+        const VSAudioInfo *getAudioInfo(VSNodeRef *node) nogil
+        int getNodeType(VSNodeRef *node) nogil
+        
     const VSAPI *getVapourSynthAPI(int version) nogil
+

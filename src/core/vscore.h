@@ -389,11 +389,14 @@ public:
 
 class VSFrame {
 private:
-    const VSFormat *format;
-    VSPlaneData *data[3];
-    int width;
-    int height;
-    int stride[3];
+    VSNodeType contentType;
+    const VSFormat *format; /* used for VSAudioFormat with audio */
+    VSPlaneData *data[3]; /* only the first data pointer is ever used for audio and is subdivided using the internal offset in height */
+    int width; 
+    int height; /* stores samplerate for audio */
+    int stride[3]; /* stride[0] stores internal offset between audio channels */
+    int numPlanes;
+
     VSMap properties;
 public:
     static int alignment;
@@ -406,6 +409,7 @@ public:
 
     VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, VSCore *core);
     VSFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core);
+    VSFrame(const VSAudioFormat *f, int sampleRate, const VSFrame *propSrc, VSCore *core);
     VSFrame(const VSFrame &f);
     ~VSFrame();
 
@@ -422,10 +426,20 @@ public:
         return format;
     }
     int getWidth(int plane) const {
+        assert(contentType == ntVideo);
         return width >> (plane ? format->subSamplingW : 0);
     }
     int getHeight(int plane) const {
+        assert(contentType == ntVideo);
         return height >> (plane ? format->subSamplingH : 0);
+    }
+    const VSAudioFormat *getAudioFormat() const {
+        assert(contentType == ntAudio);
+        return reinterpret_cast<const VSAudioFormat *>(format);
+    }
+    int getSampleRate() const {
+        assert(contentType == ntAudio);
+        return height;
     }
     int getStride(int plane) const;
     const uint8_t *getReadPtr(int plane) const;
@@ -474,18 +488,19 @@ struct VSNode {
     friend class VSThreadPool;
     friend struct VSCore;
 private:
+    VSNodeType nodeType;
     void *instanceData;
     std::string name;
-    VSFilterInit init;
-    VSFilterGetFrame filterGetFrame;
-    VSFilterFree free;
+    VSFilterGetFrame filterGetFrame = nullptr;
+    VSAudioFilterGetFrame audioFilterGetFrame = nullptr;;
+    VSFilterFree free = nullptr;;
     VSFilterMode filterMode;
 
     int apiMajor;
     VSCore *core;
     int flags;
-    bool hasVi;
     std::vector<VSVideoInfo> vi;
+    std::vector<VSAudioInfo> ai;
 
     // for keeping track of when a filter is busy in the exclusive section and with which frame
     // used for fmSerial and fmParallel (mutex only)
@@ -500,8 +515,13 @@ private:
     PVideoFrame getFrameInternal(int n, int activationReason, VSFrameContext &frameCtx);
 public:
     VSNode(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core);
+    VSNode(const std::string &name, const VSAudioInfo *ai, int numOutputs, VSAudioFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core);
 
     ~VSNode();
+
+    VSNodeType getNodeType() const {
+        return nodeType;
+    }
 
     bool isRightCore(const VSCore *core2) const {
         return core == core2;
@@ -509,12 +529,13 @@ public:
 
     void getFrame(const PFrameContext &ct);
 
-    const VSVideoInfo &getVideoInfo(int index);
+    const VSVideoInfo &getVideoInfo(int index) const;
+    const VSAudioInfo &getAudioInfo(int index) const;
 
     void setVideoInfo(const VSVideoInfo *vi, int numOutputs);
 
     size_t getNumOutputs() const {
-        return vi.size();
+        return (nodeType == ntVideo) ? vi.size() : ai.size();
     }
 
     const std::string &getName() const {
@@ -625,6 +646,11 @@ struct VSCore {
     friend class VSThreadPool;
     friend class CacheInstance;
 private:
+    typedef union {
+        VSFormat vf;
+        VSAudioFormat af;
+    } FormatUnion;
+
     //number of filter instances plus one, freeing the core reduces it by one
     // the core will be freed once it reaches 0
     bool coreFreed;
@@ -633,7 +659,7 @@ private:
 
     std::map<std::string, VSPlugin *> plugins;
     std::recursive_mutex pluginLock;
-    std::map<int, VSFormat *> formats;
+    std::map<int, FormatUnion> formats;
     std::mutex formatLock;
     int formatIdOffset;
     VSCoreInfo coreInfo;
@@ -654,15 +680,18 @@ public:
 
     PVideoFrame newVideoFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc);
     PVideoFrame newVideoFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *planes, const VSFrame *propSrc);
+    PVideoFrame newAudioFrame(const VSAudioFormat *f, int sampleRate, const VSFrame *propSrc);
     PVideoFrame copyFrame(const PVideoFrame &srcf);
     void copyFrameProps(const PVideoFrame &src, PVideoFrame &dst);
 
     const VSFormat *getFormatPreset(int id);
     const VSFormat *registerFormat(VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name = nullptr, int id = pfNone);
-    bool isValidFormatPointer(const VSFormat *f);
+    const VSAudioFormat *queryAudioFormat(int sampleType, int bitsPerSample, int64_t channelLayout, const char *name = nullptr, int id = pfNone);
+    bool isValidFormatPointer(const void *f);
 
     void loadPlugin(const std::string &filename, const std::string &forcedNamespace = std::string(), const std::string &forcedId = std::string(), bool altSearchPath = false);
     void createFilter(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
+    void createAudioFilter(const VSMap *in, VSMap *out, const std::string &name, const VSAudioInfo *ai, int numOutputs, VSAudioFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
 
     VSMap getPlugins();
     VSPlugin *getPluginById(const std::string &identifier);

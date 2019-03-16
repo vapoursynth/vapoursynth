@@ -21,6 +21,25 @@
 #ifndef VAPOURSYNTH_H
 #define VAPOURSYNTH_H
 
+#define AV_CH_FRONT_LEFT             0x00000001
+#define AV_CH_FRONT_RIGHT            0x00000002
+#define AV_CH_FRONT_CENTER           0x00000004
+#define AV_CH_LOW_FREQUENCY          0x00000008
+#define AV_CH_BACK_LEFT              0x00000010
+#define AV_CH_BACK_RIGHT             0x00000020
+#define AV_CH_FRONT_LEFT_OF_CENTER   0x00000040
+#define AV_CH_FRONT_RIGHT_OF_CENTER  0x00000080
+#define AV_CH_BACK_CENTER            0x00000100
+#define AV_CH_SIDE_LEFT              0x00000200
+#define AV_CH_SIDE_RIGHT             0x00000400
+#define AV_CH_TOP_CENTER             0x00000800
+#define AV_CH_TOP_FRONT_LEFT         0x00001000
+#define AV_CH_TOP_FRONT_CENTER       0x00002000
+#define AV_CH_TOP_FRONT_RIGHT        0x00004000
+#define AV_CH_TOP_BACK_LEFT          0x00008000
+#define AV_CH_TOP_BACK_CENTER        0x00010000
+#define AV_CH_TOP_BACK_RIGHT         0x00020000
+
 #include <stdint.h>
 
 #define VAPOURSYNTH_API_MAJOR 3
@@ -71,6 +90,11 @@ typedef struct VSMap VSMap;
 typedef struct VSAPI VSAPI;
 typedef struct VSFrameContext VSFrameContext;
 
+typedef enum VSNodeType {
+    ntVideo = 1,
+    ntAudio = 2
+} VSNodeType;
+
 typedef enum VSColorFamily {
     /* all planar formats */
     cmGray   = 1000000,
@@ -78,7 +102,10 @@ typedef enum VSColorFamily {
     cmYUV    = 3000000,
     cmYCoCg  = 4000000,
     /* special for compatibility */
-    cmCompat = 9000000
+    cmCompat = 9000000,
+
+    /* audio formats */
+    cmAudio  = 11000000
 } VSColorFamily;
 
 typedef enum VSSampleType {
@@ -147,6 +174,8 @@ typedef enum VSFilterMode {
     fmSerial = 400 /* for source filters and compatibility with other filtering architectures */
 } VSFilterMode;
 
+
+// FIXME, rename to VSVideoFormat and typedef the old name??
 typedef struct VSFormat {
     char name[32];
     int id;
@@ -160,6 +189,18 @@ typedef struct VSFormat {
 
     int numPlanes; /* implicit from colorFamily */
 } VSFormat;
+
+typedef struct VSAudioFormat {
+    char name[32];
+    int id;
+    int typeFamily;
+    int sampleType;
+    int bitsPerSample;
+    int bytesPerSample;
+    int samplesPerFrame;
+    int64_t channelLayout;
+    int numChannels; /* implicit from channelLayout */
+} VSAudioFormat;
 
 typedef enum VSNodeFlags {
     nfNoCache    = 1,
@@ -208,6 +249,14 @@ typedef struct VSVideoInfo {
     int flags;
 } VSVideoInfo;
 
+typedef struct VSAudioInfo {
+    const VSAudioFormat *format;
+    int sampleRate;
+    int64_t numSamples;
+    int numFrames;
+    int flags;
+} VSAudioInfo;
+
 typedef enum VSActivationReason {
     arInitial = 0,
     arFrameReady = 1,
@@ -233,6 +282,7 @@ typedef void (VS_CC *VSInitPlugin)(VSConfigPlugin configFunc, VSRegisterFunction
 typedef void (VS_CC *VSFreeFuncData)(void *userData);
 typedef void (VS_CC *VSFilterInit)(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi);
 typedef const VSFrameRef *(VS_CC *VSFilterGetFrame)(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
+typedef const VSFrameRef *(VS_CC *VSAudioFilterGetFrame)(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *ctx, VSCore *core, const VSAPI *vsapi);
 typedef void (VS_CC *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI *vsapi);
 
 /* other */
@@ -335,6 +385,15 @@ struct VSAPI {
 
     /* api 3.4 */
     void (VS_CC *logMessage)(int msgType, const char *msg) VS_NOEXCEPT;
+
+    /* api 3.5 */
+
+    void (VS_CC *createAudioFilter)(const VSMap *in, VSMap *out, const char *name, const VSAudioInfo *ai, int numOutputs, VSAudioFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT;
+    VSFrameRef *(VS_CC *newAudioFrame)(const VSAudioFormat *format, int sampleRate, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT;
+    const VSAudioFormat *(VS_CC *queryAudioFormat)(int sampleType, int bitsPerSample, int64_t channelLayout, VSCore *core) VS_NOEXCEPT;
+    const VSAudioFormat *(VS_CC *getAudioFormat)(int id, VSCore *core) VS_NOEXCEPT;
+    const VSAudioInfo *(VS_CC *getAudioInfo)(VSNodeRef *node) VS_NOEXCEPT;
+    int (VS_CC *getNodeType)(VSNodeRef *node) VS_NOEXCEPT;
 };
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version) VS_NOEXCEPT;

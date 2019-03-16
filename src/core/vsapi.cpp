@@ -72,7 +72,7 @@ static uint8_t *VS_CC getWritePtr(VSFrameRef *frame, int plane) VS_NOEXCEPT {
 
 static void VS_CC getFrameAsync(int n, VSNodeRef *clip, VSFrameDoneCallback fdc, void *userData) VS_NOEXCEPT {
     assert(clip && fdc);
-    int numFrames = clip->clip->getVideoInfo(clip->index).numFrames;
+    int numFrames = (clip->clip->getNodeType() == ntVideo) ? clip->clip->getVideoInfo(clip->index).numFrames : clip->clip->getAudioInfo(clip->index).numFrames;
     if (n < 0 || (numFrames && n >= numFrames)) {
         PFrameContext ctx(std::make_shared<FrameContext>(n, clip->index, clip, fdc, userData));
         ctx->setError("Invalid frame number " + std::to_string(n) + " requested, clip only has " + std::to_string(numFrames) + " frames");
@@ -541,6 +541,36 @@ static void VS_CC logMessage(int msgType, const char *msg) VS_NOEXCEPT {
     vsLog(__FILE__, __LINE__, static_cast<VSMessageType>(msgType), "%s", msg);
 }
 
+static void VS_CC createAudioFilter(const VSMap *in, VSMap *out, const char *name, const VSAudioInfo *ai, int numOutputs, VSAudioFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT {
+    assert(in && out && name && ai && numOutputs > 0 && getFrame && core);
+    if (!name)
+        vsFatal("NULL name pointer passed to createAudioFilter()");
+    core->createAudioFilter(in, out, name, ai, numOutputs, getFrame, free, static_cast<VSFilterMode>(filterMode), flags, instanceData, VAPOURSYNTH_API_MAJOR);
+}
+
+VSFrameRef *VS_CC newAudioFrame(const VSAudioFormat *format, int sampleRate, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
+    assert(format && core);
+    return new VSFrameRef(core->newAudioFrame(format, sampleRate, propSrc ? propSrc->frame.get() : nullptr));
+}
+
+const VSAudioFormat *VS_CC queryAudioFormat(int sampleType, int bitsPerSample, int64_t channelLayout, VSCore *core) VS_NOEXCEPT {
+    return core->queryAudioFormat((VSSampleType)sampleType, bitsPerSample, channelLayout);
+}
+
+const VSAudioFormat *VS_CC getAudioFormat(int id, VSCore *core) VS_NOEXCEPT {
+    return reinterpret_cast<const VSAudioFormat *>(getFormatPreset(id, core));
+}
+
+const VSAudioInfo *VS_CC getAudioInfo(VSNodeRef *node) VS_NOEXCEPT {
+    assert(node);
+    return &node->clip->getAudioInfo(node->index);
+}
+
+int VS_CC getNodeType(VSNodeRef *node) VS_NOEXCEPT {
+    assert(node);
+    return node->clip->getNodeType();
+}
+
 const VSAPI vs_internal_vsapi = {
     &createCore,
     &freeCore,
@@ -628,7 +658,14 @@ const VSAPI vs_internal_vsapi = {
     &propSetIntArray,
     &propSetFloatArray,
 
-    &logMessage
+    &logMessage,
+
+    &createAudioFilter,
+    &newAudioFrame,
+    &queryAudioFormat,
+    &getAudioFormat,
+    &getAudioInfo,
+    &getNodeType
 };
 
 ///////////////////////////////

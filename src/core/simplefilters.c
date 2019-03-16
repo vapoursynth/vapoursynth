@@ -1342,6 +1342,89 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
 }
 
 //////////////////////////////////////////
+// BlankAudio
+
+typedef struct {
+    VSFrameRef *f;
+    VSAudioInfo ai;
+    int keep;
+} BlankAudioData;
+
+static const VSFrameRef *VS_CC blankAudioGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    BlankAudioData *d = (BlankAudioData *)instanceData;
+
+    if (activationReason == arInitial) {
+        VSFrameRef *frame = NULL;
+        if (!d->f) {
+            frame = vsapi->newAudioFrame(d->ai.format, d->ai.sampleRate, NULL, core);
+            for (int channel = 0; channel < d->ai.format->numChannels; channel++)
+                memset(vsapi->getWritePtr(frame, channel), 0, d->ai.format->samplesPerFrame * d->ai.format->bytesPerSample);
+        }
+
+        if (d->keep) {
+            if (frame)
+                d->f = frame;
+            return vsapi->cloneFrameRef(d->f);
+        } else {
+            return frame;
+        }
+    }
+
+    return 0;
+}
+
+static void VS_CC blankAudioFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+    BlankAudioData *d = (BlankAudioData *)instanceData;
+    vsapi->freeFrame(d->f);
+    free(d);
+}
+
+static void VS_CC blankAudioCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    BlankAudioData d = { 0 };
+    BlankAudioData *data;
+    int hasai = 0;
+    int err;
+
+    int64_t channels = vsapi->propGetInt(in, "channels", 0, &err);
+    if (err)
+        channels = AV_CH_FRONT_LEFT | AV_CH_FRONT_RIGHT;
+
+    int bits = int64ToIntS(vsapi->propGetInt(in, "bits", 0, &err));
+    if (err)
+        bits = 16;
+
+    int isfloat = !!vsapi->propGetInt(in, "isfloat", 0, &err);
+
+    d.keep = !!vsapi->propGetInt(in, "keep", 0, &err);
+
+    d.ai.sampleRate = int64ToIntS(vsapi->propGetInt(in, "samplerate", 0, &err));
+    if (err)
+        d.ai.sampleRate = 44100;
+
+    d.ai.numSamples = vsapi->propGetInt(in, "length", 0, &err);
+    if (err)
+        d.ai.numSamples = d.ai.sampleRate * 60 * 60;
+
+    if (d.ai.sampleRate <= 0)
+        RETERROR("BlankAudio: invalid sample rate");
+
+    if (d.ai.numSamples <= 0)
+        RETERROR("BlankAudio: invalid length");
+
+    d.ai.format = vsapi->queryAudioFormat(isfloat ? stFloat : stInteger, bits, AV_CH_FRONT_LEFT | AV_CH_FRONT_RIGHT, core);
+
+    if (!d.ai.format)
+        RETERROR("BlankAudio: invalid format");
+
+    d.ai.numFrames = (d.ai.numSamples + d.ai.format->samplesPerFrame - 1) / d.ai.format->samplesPerFrame;
+
+    data = malloc(sizeof(d));
+    *data = d;
+
+    vsapi->createAudioFilter(in, out, "BlankAudio", &d.ai, 1, blankAudioGetframe, blankAudioFree, d.keep ? fmUnordered : fmParallel, nfNoCache, data, core);
+}
+
+//////////////////////////////////////////
 // AssumeFPS
 
 typedef struct {
@@ -2762,6 +2845,7 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("StackVertical", "clips:clip[];", stackCreate, (void *)1, plugin);
     registerFunc("StackHorizontal", "clips:clip[];", stackCreate, 0, plugin);
     registerFunc("BlankClip", "clip:clip:opt;width:int:opt;height:int:opt;format:int:opt;length:int:opt;fpsnum:int:opt;fpsden:int:opt;color:float[]:opt;keep:int:opt;", blankClipCreate, 0, plugin);
+    registerFunc("BlankAudio", "channels:int:opt;bits:int:opt;isfloat:int:opt;samplerate:int:opt;length:int:opt;keep:int:opt;", blankAudioCreate, 0, plugin);
     registerFunc("AssumeFPS", "clip:clip;src:clip:opt;fpsnum:int:opt;fpsden:int:opt;", assumeFPSCreate, 0, plugin);
     registerFunc("FrameEval", "clip:clip;eval:func;prop_src:clip[]:opt;", frameEvalCreate, 0, plugin);
     registerFunc("ModifyFrame", "clip:clip;clips:clip[];selector:func;", modifyFrameCreate, 0, plugin);
