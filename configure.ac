@@ -458,6 +458,10 @@ PKG_CHECK_MODULES(
 #if !defined(MAGICKCORE_QUANTUM_DEPTH) || (MAGICKCORE_QUANTUM_DEPTH != 16 && MAGICKCORE_QUANTUM_DEPTH != 32)
 #error imwri plugin requires ImageMagick with quantum depth of 16 or 32.
 #endif
+
+#if !defined(MAGICKCORE_HDRI_ENABLE) || MAGICKCORE_HDRI_ENABLE == 0
+#error imwri plugin requires ImageMagick with HDRI enabled.
+#endif
                                                      ]]
                                                     )
                                      ],
