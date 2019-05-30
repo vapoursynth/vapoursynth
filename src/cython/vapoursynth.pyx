@@ -707,6 +707,11 @@ cdef class Format(object):
         vals.update(**kwargs)
         return core.register_format(**vals)
 
+    def __eq__(self, other):
+        if not isinstance(other, Format):
+            return False
+        return other.id == self.id
+
     def __int__(self):
         return self.id
 
