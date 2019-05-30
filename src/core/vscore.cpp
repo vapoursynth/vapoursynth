@@ -1309,7 +1309,8 @@ VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), numFuncti
     } else {
         // Autoload user specific plugins first so a user can always override
         std::vector<wchar_t> appDataBuffer(MAX_PATH + 1);
-        SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, SHGFP_TYPE_CURRENT, appDataBuffer.data());
+        if (SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, SHGFP_TYPE_CURRENT, appDataBuffer.data()) != S_OK)
+            SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, SHGFP_TYPE_DEFAULT, appDataBuffer.data());
 
         std::wstring appDataPath = std::wstring(appDataBuffer.data()) + L"\\VapourSynth\\plugins" + bits;
 
