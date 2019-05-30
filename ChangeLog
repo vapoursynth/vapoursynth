@@ -1,5 +1,6 @@
 r46:
 updated windows projects to use vs2019 and inno setup 6
+the portable install now includes all the sdk files
 added a fallback to how the appdata path is retrieved which works even if %USERPROFILE% isn't set
 fixed doubleweave sometimes using the opposite field order (dubhater)
 fixed broken output when stride wasn't equal to width in the python output function (stuxcrystal)
