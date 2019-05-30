@@ -49,7 +49,7 @@ Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to sh
 Name: vsrepoupdate; Description: "Update VSRepo package list"; GroupDescription: "VSRepo:"; Components: vsrepo
 
 [Run]
-Filename: "{app}\pismo\pfm-191-vapoursynth-win.exe"; Parameters: "install"; Flags: runhidden; Components: pismo
+Filename: "{app}\pismo\pfm-192-vapoursynth-win.exe"; Parameters: "install"; Flags: runhidden; Components: pismo
 Filename: {code:GetPythonExecutableAny}; Parameters: """{app}\vsrepo\vsrepo.py"" update"; Flags: runhidden; Components: vsrepo
 
 [Files]
@@ -117,7 +117,7 @@ Source: ..\msvc_project\x64\Release\Vinverse.dll; DestDir: {app}\core64\plugins;
 Source: ..\msvc_project\x64\Release\VIVTC.dll; DestDir: {app}\core64\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
 
 ;pismo installer
-Source: "pfm-191-vapoursynth-win.exe"; DestDir: {app}\pismo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: pismo
+Source: "pfm-192-vapoursynth-win.exe"; DestDir: {app}\pismo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: pismo
 
 ; Create the general autoload directory
 [Dirs]
