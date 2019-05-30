@@ -51,7 +51,7 @@ Linux Installation from Packages
 
 Several distributions have packages:
 
-   * `Ubuntu <https://launchpad.net/~djcj/+archive/ubuntu/vapoursynth>`_  -- PPA
+   * `Ubuntu <https://launchpad.net/~djcj/+ppa-packages>`_  -- PPA
    * `Gentoo <https://github.com/4re/vapoursynth-portage>`_  -- Portage overlay and instructions
    * `Arch Linux <https://www.archlinux.org/packages/?q=vapoursynth>`_  -- Packages
 
