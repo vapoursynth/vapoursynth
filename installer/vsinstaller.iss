@@ -42,7 +42,7 @@ Name: "vsrepo"; Description: "VSRepo Package Manager"; Types: Full; Flags: disab
 Name: "docs"; Description: "VapourSynth Documentation"; Types: Full; Flags: disablenouninstallwarning
 Name: "sdk"; Description: "VapourSynth SDK"; Flags: disablenouninstallwarning; Types: Full
 Name: "pismo"; Description: "Pismo PFM Runtime (required for AVFS)"; Types: Full; Flags: disablenouninstallwarning
-Name: "vsruntimes"; Description: "Visual Studio Runtimes (2013 & 2017)"; Types: Full; Flags: disablenouninstallwarning
+Name: "vsruntimes"; Description: "Visual Studio Runtimes (2013 & 2019)"; Types: Full; Flags: disablenouninstallwarning
 
 [Tasks]
 Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to shell context menu"; GroupDescription: "New File Shortcuts:"; Components: vs32 vs64
@@ -483,14 +483,14 @@ begin
     begin
       SetForceX86(True);
       vcredist2013('12.0.21005');
-      vcredist2017('14.16.27012');
+      vcredist2017('14.21.27702');
       SetForceX86(False);
       Runtimes32Added := True;
     end;
     if IsComponentSelected('vsruntimes') and IsComponentSelected('vs64') and not Runtimes64Added then
     begin
       vcredist2013('12.0.21005');
-      vcredist2017('14.16.27012');
+      vcredist2017('14.21.27702');
       Runtimes64Added := True;
     end;
     Result := NextButtonClick2(CurPageID);
