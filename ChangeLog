@@ -1,5 +1,5 @@
 r46:
-updated windows projects to use vs2019 and inno setup 6
+updated windows projects to use vs2019, inno setup 6 and latest zimg
 the windows installer now supports installs without administrator privileges
 the windows installer no longer puts a copy of vsscript.dll in the system directory and no longer writes the legacy registry entries, deprecated since r31
 the portable install now includes all the sdk files
