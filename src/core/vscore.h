@@ -552,6 +552,7 @@ private:
     unsigned maxThreads;
     std::atomic<bool> stopThreads;
     std::atomic<unsigned> ticks;
+    int getNumAvailableThreads();
     void wakeThread();
     void notifyCaches(bool needMemory);
     void startInternal(const PFrameContext &context);

@@ -20,9 +20,24 @@
 
 #include "vscore.h"
 #include <cassert>
+#include <bitset>
 #ifdef VS_TARGET_CPU_X86
 #include "x86utils.h"
 #endif
+
+int VSThreadPool::getNumAvailableThreads() {
+    int nthreads = std::thread::hardware_concurrency();
+#ifdef _WIN32
+    DWORD_PTR pAff = 0;
+    DWORD_PTR sAff = 0;
+    BOOL res = GetProcessAffinityMask(GetCurrentProcess(), &pAff, &sAff);
+    if (res && pAff != 0) {
+        std::bitset<sizeof(sAff) * 8> b(pAff);
+        nthreads = b.count();
+    }
+#endif
+    return nthreads;
+}
 
 bool VSThreadPool::taskCmp(const PFrameContext &a, const PFrameContext &b) {
     return (a->reqOrder < b->reqOrder) || (a->reqOrder == b->reqOrder && a->n < b->n);
@@ -312,7 +327,7 @@ void VSThreadPool::spawnThread() {
 }
 
 void VSThreadPool::setThreadCount(int threads) {
-    maxThreads = threads > 0 ? threads : std::thread::hardware_concurrency();
+    maxThreads = threads > 0 ? threads : getNumAvailableThreads();
     if (maxThreads == 0) {
         maxThreads = 1;
         vsWarning("Couldn't detect optimal number of threads. Thread count set to 1.");
