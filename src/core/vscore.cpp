@@ -73,9 +73,12 @@ static bool isValidIdentifier(const std::string &s) {
 #ifdef VS_TARGET_OS_WINDOWS
 static std::wstring readRegistryValue(const wchar_t *keyName, const wchar_t *valueName) {
     HKEY hKey;
-    LONG lRes = RegOpenKeyEx(HKEY_LOCAL_MACHINE, keyName, 0, KEY_READ, &hKey);
-    if (lRes != ERROR_SUCCESS)
-        return std::wstring();
+    LONG lRes = RegOpenKeyEx(HKEY_CURRENT_USER, keyName, 0, KEY_READ, &hKey);
+    if (lRes != ERROR_SUCCESS) {
+        lRes = RegOpenKeyEx(HKEY_LOCAL_MACHINE, keyName, 0, KEY_READ, &hKey);
+        if (lRes != ERROR_SUCCESS)
+            return std::wstring();
+    }
     WCHAR szBuffer[512];
     DWORD dwBufferSize = sizeof(szBuffer);
     ULONG nError;

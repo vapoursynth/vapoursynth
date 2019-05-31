@@ -70,8 +70,11 @@ static void real_init(void) {
 
         wchar_t value[1024];
         DWORD valueLength = 1000;
-        if (RegOpenKeyW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\VapourSynth", &hKey) != ERROR_SUCCESS)
-            return;
+        if (RegOpenKeyW(HKEY_CURRENT_USER, L"SOFTWARE\\VapourSynth", &hKey) != ERROR_SUCCESS) {
+            if (RegOpenKeyW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\VapourSynth", &hKey) != ERROR_SUCCESS)
+                return;
+        }
+            
         LSTATUS status = RegQueryValueExW(hKey, L"PythonPath", nullptr, &dwType, (LPBYTE)&value, &valueLength);
         RegCloseKey(hKey);
         if (status != ERROR_SUCCESS)
