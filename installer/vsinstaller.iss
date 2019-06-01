@@ -1,5 +1,5 @@
 #define AppName = 'VapourSynth'
-#define Version = 'R45'
+#define Version = 'R46'
 
 [Setup]
 OutputDir=Compiled
@@ -17,7 +17,7 @@ AppPublisher=Fredrik Mellbin
 AppPublisherURL=http://www.vapoursynth.com/
 AppSupportURL=http://www.vapoursynth.com/
 AppUpdatesURL=http://www.vapoursynth.com/
-VersionInfoVersion=1.45.0.0
+VersionInfoVersion=1.46.0.0
 DefaultDirName={autopf32}\VapourSynth
 DefaultGroupName=VapourSynth
 AllowCancelDuringInstall=no
