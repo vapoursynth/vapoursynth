@@ -24,6 +24,7 @@ AllowCancelDuringInstall=no
 AllowNoIcons=yes
 AllowUNCPath=no
 MinVersion=6.0
+UsePreviousPrivileges=no
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog
 WizardStyle=modern
@@ -299,7 +300,7 @@ var
 begin
   List.Items.Clear;
 
-  if IsComponentSelected('vs32') then
+  if WizardIsComponentSelected('vs32') then
   begin
     First := True;
     List.AddGroup('Python Environments (32-bit)', '', 0, nil);
@@ -312,7 +313,7 @@ begin
         end;
   end;
 
-  if IsComponentSelected('vs64') then
+  if WizardIsComponentSelected('vs64') then
   begin
     First := True;
     List.AddGroup('Python Environments (64-bit)', '', 0, nil);
@@ -391,8 +392,7 @@ var
 begin
   sUnInstPath := ExpandConstant('Software\Microsoft\Windows\CurrentVersion\Uninstall\{#emit SetupSetting("AppId")}_is1');
   sUnInstallString := '';
-  if not RegQueryStringValue(HKLM, sUnInstPath, 'UninstallString', sUnInstallString) then
-    RegQueryStringValue(HKCU, sUnInstPath, 'UninstallString', sUnInstallString);
+  RegQueryStringValue(HKA, sUnInstPath, 'UninstallString', sUnInstallString)
   Result := sUnInstallString;
 end;
 
@@ -441,10 +441,21 @@ begin
   end
   else if CurStep=ssPostInstall then
   begin
-    if IsComponentSelected('vs32') then
-      CreateSymbolicLink(Python32Path + '\Lib\site-packages\vapoursynth\vapoursynth.dll', ExpandConstant('{app}\core32\vapoursynth.dll'), 0);
-    if IsComponentSelected('vs64') then
-      CreateSymbolicLink(Python64Path + '\Lib\site-packages\vapoursynth\vapoursynth.dll', ExpandConstant('{app}\core64\vapoursynth.dll'), 0);
+    if WizardIsComponentSelected('vs32') then
+    begin
+      if IsAdminInstallMode then
+        CreateSymbolicLink(Python32Path + '\Lib\site-packages\vapoursynth\vapoursynth.dll', ExpandConstant('{app}\core32\vapoursynth.dll'), 0)
+      else
+        FileCopy(ExpandConstant('{app}\core32\vapoursynth.dll'), Python32Path + '\Lib\site-packages\vapoursynth\vapoursynth.dll', False);
+    end;
+
+    if WizardIsComponentSelected('vs64') then
+    begin
+      if IsAdminInstallMode then
+        CreateSymbolicLink(Python64Path + '\Lib\site-packages\vapoursynth\vapoursynth.dll', ExpandConstant('{app}\core64\vapoursynth.dll'), 0)
+      else
+        FileCopy(ExpandConstant('{app}\core64\vapoursynth.dll'), Python64Path + '\Lib\site-packages\vapoursynth\vapoursynth.dll', False);
+    end;
   end;
 end;
 
@@ -480,7 +491,7 @@ begin
   end
   else if CurPageID = wpSelectComponents then
   begin
-    if not IsComponentSelected('vs32 or vs64') then
+    if not WizardIsComponentSelected('vs32 or vs64') then
     begin
       Result := False;
       MsgBox('At least one version of the core library has to be installed.', mbCriticalError, MB_OK)
@@ -490,7 +501,7 @@ begin
   end
   else if CurPageID = wpReady then
   begin
-    if IsComponentSelected('vsruntimes') and IsComponentSelected('vs32') and not Runtimes32Added then
+    if WizardIsComponentSelected('vsruntimes') and WizardIsComponentSelected('vs32') and not Runtimes32Added then
     begin
       SetForceX86(True);
       vcredist2013('12.0.21005');
@@ -498,7 +509,7 @@ begin
       SetForceX86(False);
       Runtimes32Added := True;
     end;
-    if IsComponentSelected('vsruntimes') and IsComponentSelected('vs64') and not Runtimes64Added then
+    if WizardIsComponentSelected('vsruntimes') and WizardIsComponentSelected('vs64') and not Runtimes64Added then
     begin
       vcredist2013('12.0.21005');
       vcredist2017('14.21.27702');
