@@ -53,15 +53,15 @@ int _ColorRange
  
 int _Primaries
 
-   As specified in ISO/IEC 14496-10, Colour primaries table.
+   Color primaries as specified in ITU-T H.265 Table E.3.
    
 int _Matrix
 
-   As specified in ISO/IEC 14496-10, Matrix coefficients table.
+   Matrix coefficients as specified in ITU-T H.265 Table E.5.
    
 int _Transfer
 
-   As specified in ISO/IEC 14496-10, Transfer characteristics table.
+   Transfer characteristics as specified in ITU-T H.265 Table E.4.
    
 int _FieldBased
 
