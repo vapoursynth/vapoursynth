@@ -25,6 +25,14 @@
 #include "x86utils.h"
 #endif
 
+#if defined(HAVE_SCHED_GETAFFINITY)
+#include <sched.h>
+#elif defined(HAVE_CPUSET_GETAFFINITY)
+#include <sys/param.h>
+#include <sys/_cpuset.h>
+#include <sys/cpuset.h>
+#endif
+
 int VSThreadPool::getNumAvailableThreads() {
     int nthreads = std::thread::hardware_concurrency();
 #ifdef _WIN32
@@ -35,7 +43,18 @@ int VSThreadPool::getNumAvailableThreads() {
         std::bitset<sizeof(sAff) * 8> b(pAff);
         nthreads = b.count();
     }
+#elif defined(HAVE_SCHED_GETAFFINITY)
+    // Linux only.
+    cpu_set_t affinity;
+    if (sched_getaffinity(0, sizeof(cpu_set_t), &affinity) == 0)
+        nthreads = CPU_COUNT(&affinity);
+#elif defined(HAVE_CPUSET_GETAFFINITY)
+    // BSD only (FreeBSD only?)
+    cpuset_t affinity;
+    if (cpuset_getaffinity(CPU_LEVEL_WHICH, CPU_WHICH_PID, -1, sizeof(cpuset_t), &affinity) == 0)
+        nthreads = CPU_COUNT(&affinity);
 #endif
+
     return nthreads;
 }
 

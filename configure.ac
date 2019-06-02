@@ -210,6 +210,51 @@ zimg_get_version_info(&major, &minor, &micro);
                 LIBS="$saved_libs"
                ]
        )
+
+       AC_LANG_PUSH([C++])
+       AC_MSG_CHECKING([for sched_getaffinity])
+       AC_LINK_IFELSE(
+                         [AC_LANG_PROGRAM(
+                                         [[
+#define _GNU_SOURCE
+#include <sched.h>
+                                         ]],
+                                         [[
+cpu_set_t affinity;
+sched_getaffinity(0, sizeof(cpu_set_t), &affinity);
+int count = CPU_COUNT(&affinity);
+                                         ]]
+                         )],
+                         [
+                          AC_DEFINE([HAVE_SCHED_GETAFFINITY])
+                          AC_MSG_RESULT([yes])
+                         ],
+                         [AC_MSG_RESULT([no])]
+       )
+       AC_LANG_POP([C++])
+
+       AC_LANG_PUSH([C++])
+       AC_MSG_CHECKING([for cpuset_getaffinity])
+       AC_LINK_IFELSE(
+                         [AC_LANG_PROGRAM(
+                                         [[
+#include <sys/param.h>
+#include <sys/_cpuset.h>
+#include <sys/cpuset.h>
+                                         ]],
+                                         [[
+cpuset_t affinity;
+cpuset_getaffinity(CPU_LEVEL_WHICH, CPU_WHICH_PID, -1, sizeof(cpuset_t), &affinity);
+int count = CPU_COUNT(&affinity);
+                                         ]]
+                         )],
+                         [
+                          AC_DEFINE([HAVE_CPUSET_GETAFFINITY])
+                          AC_MSG_RESULT([yes])
+                         ],
+                         [AC_MSG_RESULT([no])]
+       )
+       AC_LANG_POP([C++])
       ]
 )
 AM_CONDITIONAL([VSCORE], [test "x$enable_core" != "xno"])
