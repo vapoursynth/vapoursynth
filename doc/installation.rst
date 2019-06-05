@@ -8,7 +8,8 @@ First download and install the prerequisites:
    * `Python 3.7 <http://www.python.org/>`_  -- 32 and/or 64 bit version
    
 Note that per user installs of VapourSynth only can use per user installs
-of Python.
+of Python and likewise all user installs of Python can only be used by
+VapourSynth when installed for all users.
 
 Installation
 ############

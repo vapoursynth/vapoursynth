@@ -4,6 +4,7 @@ the windows installer now supports installs without administrator privileges
 the windows installer no longer puts a copy of vsscript.dll in the system directory and no longer writes the legacy registry entries, deprecated since r31
 the portable install now includes all the sdk files
 added a fallback to how the appdata path is retrieved which works even if %USERPROFILE% isn't set
+the default number of threads used is now based on the process affinity on windows, linux and bsd
 added an option to vspipe to make it not modify the current working directory
 added a better equality check for the Format class in python
 fixed doubleweave sometimes using the opposite field order (dubhater)

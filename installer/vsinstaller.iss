@@ -283,12 +283,15 @@ end;
 
 function GetPythonInstallations: Boolean;
 begin
-  GetPythonInstallations2(HKCU, 'SOFTWARE\Python', 0);
   if IsAdminInstallMode then
   begin
     GetPythonInstallations2(HKLM32, 'SOFTWARE\Python', 32);
     if Is64BitInstallMode then
       GetPythonInstallations2(HKLM, 'SOFTWARE\Python', 64); 
+  end
+  else
+  begin
+    GetPythonInstallations2(HKCU, 'SOFTWARE\Python', 0);
   end;
   Result := (GetArrayLength(PythonInstallations) > 0);
 end;
@@ -334,7 +337,12 @@ begin
   PythonList := nil;
   Result := GetPythonInstallations;
   if not Result then
-    MsgBox('No suitable Python 3.7 installations found. Installer will now exit.', mbCriticalError, MB_OK)
+  begin
+    if IsAdminInstallMode then
+      MsgBox('No suitable global Python 3.7 installation found. Installer will now exit.', mbCriticalError, MB_OK)
+    else
+      MsgBox('No suitable per user Python 3.7 installation found. Installer will now exit.', mbCriticalError, MB_OK);
+  end;
 end;
 
 procedure WizardFormOnResize(Sender: TObject);
