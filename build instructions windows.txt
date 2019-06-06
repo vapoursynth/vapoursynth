@@ -7,9 +7,9 @@ Inno setup 6.x is needed to create the installer (default installation path assu
 
 Clone VapourSynth
 Clone VSRepo into the VapourSynth dir (https://github.com/vapoursynth/vsrepo)
-Clone zimg v2.8 branch into the VapourSynth dir (https://github.com/sekrit-twc/zimg)
+Clone zimg v2.9 branch into the VapourSynth dir (https://github.com/sekrit-twc/zimg)
 Clone avs+ pinterf mt branch into the VapourSynth dir (https://github.com/pinterf/AviSynthPlus/tree/MT)
-Compile 32 and 64 bit release using the VapourSynth solution
+Compile 32 and 64 bit releases using the VapourSynth solution
 Run cython_build.bat to compile the Python modules
 Run make_docs.bat to compile the documentation
 All the above steps are necessary to create the installer

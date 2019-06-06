@@ -45,7 +45,7 @@ Name: "vsrepo"; Description: "VSRepo Package Manager"; Types: Full; Flags: disab
 Name: "docs"; Description: "VapourSynth Documentation"; Types: Full; Flags: disablenouninstallwarning
 Name: "sdk"; Description: "VapourSynth SDK"; Flags: disablenouninstallwarning; Types: Full
 Name: "pismo"; Description: "Pismo PFM Runtime (required for AVFS)"; Types: Full; Check: IsAdminInstallMode; Flags: disablenouninstallwarning
-Name: "vsruntimes"; Description: "Visual Studio Runtimes (2013 & 2019)"; Types: Full; Check: IsAdminInstallMode; Flags: disablenouninstallwarning
+Name: "vsruntimes"; Description: "Visual Studio 2019 Runtimes"; Types: Full; Check: IsAdminInstallMode; Flags: disablenouninstallwarning
 
 [Tasks]
 Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to shell context menu"; GroupDescription: "New File Shortcuts:"; Components: vs32 vs64
@@ -188,7 +188,6 @@ Type: dirifempty; Name: "{code:GetPythonPath64}\Lib\site-packages\vapoursynth"; 
 #include "scripts\products.iss"
 #include "scripts\products\stringversion.iss"
 #include "scripts\products\msiproduct.iss"
-#include "scripts\products\vcredist2013.iss"
 #include "scripts\products\vcredist2017.iss"
 
 [Code]function CreateSymbolicLink(
@@ -512,14 +511,12 @@ begin
     if WizardIsComponentSelected('vsruntimes') and WizardIsComponentSelected('vs32') and not Runtimes32Added then
     begin
       SetForceX86(True);
-      vcredist2013('12.0.21005');
       vcredist2017('14.21.27702');
       SetForceX86(False);
       Runtimes32Added := True;
     end;
     if WizardIsComponentSelected('vsruntimes') and WizardIsComponentSelected('vs64') and not Runtimes64Added then
     begin
-      vcredist2013('12.0.21005');
       vcredist2017('14.21.27702');
       Runtimes64Added := True;
     end;

@@ -1,7 +1,8 @@
 r46:
-updated windows projects to use vs2019, inno setup 6 and latest zimg
+updated windows projects to use vs2019, inno setup 6 and zimg 2.9
 the windows installer now supports installs without administrator privileges
 the windows installer no longer puts a copy of vsscript.dll in the system directory and no longer writes the legacy registry entries, deprecated since r31
+the windows installer will no longer offer to install the visual studio 2013 runtime since it hasn't been required by vapoursynth for a very long time
 the portable install now includes all the sdk files
 added a fallback to how the appdata path is retrieved which works even if %USERPROFILE% isn't set
 the default number of threads used is now based on the process affinity on windows, linux and bsd
