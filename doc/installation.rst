@@ -11,6 +11,9 @@ Note that per user installs of VapourSynth only can use per user installs
 of Python and likewise all user installs of Python can only be used by
 VapourSynth when installed for all users.
 
+Also note that per user installs will not install the required visual studio
+2019 runtimes.
+
 Installation
 ############
 
