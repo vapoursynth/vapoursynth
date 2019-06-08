@@ -204,6 +204,8 @@ var
   Runtimes32Added: Boolean;
   Runtimes64Added: Boolean;
   PythonInstallations: array of TPythonPath;
+  GlobalPythonInstallations: array of TPythonPath;
+  UserPythonInstallations: array of TPythonPath;
   PythonPage: TWizardPage;
   PythonList: TNewCheckListBox;
   Python32Path: string;
@@ -231,7 +233,7 @@ begin
       Result := True;
 end;
 
-procedure GetPythonInstallations2(RegRoot: Integer; RegPath: string; AssumeBitness: Integer);
+procedure GetPythonInstallations2(var DestArray: array of TPythonPath; RegRoot: Integer; RegPath: string; AssumeBitness: Integer);
 var
   Names, Tags: TArrayOfString;
   Nc, Tc: Integer;
@@ -264,11 +266,11 @@ begin
             and RegQueryStringValue(RegRoot, RegPathTemp + '\InstallPath', '', InstallPath)
             and RegQueryStringValue(RegRoot, RegPathTemp + '\InstallPath', 'ExecutablePath', ExecutablePath) then
           begin
-             SetArrayLEngth(PythonInstallations, GetArrayLength(PythonInstallations) + 1);
-             PythonInstallations[GetArrayLength(PythonInstallations) - 1].DisplayName := DisplayName;
-             PythonInstallations[GetArrayLength(PythonInstallations) - 1].InstallPath := InstallPath;
-             PythonInstallations[GetArrayLength(PythonInstallations) - 1].ExecutablePath := ExecutablePath;
-             PythonInstallations[GetArrayLength(PythonInstallations) - 1].Bitness := Bitness;
+             SetArrayLength(DestArray, GetArrayLength(DestArray) + 1);
+             DestArray[GetArrayLength(DestArray) - 1].DisplayName := DisplayName;
+             DestArray[GetArrayLength(DestArray) - 1].InstallPath := InstallPath;
+             DestArray[GetArrayLength(DestArray) - 1].ExecutablePath := ExecutablePath;
+             DestArray[GetArrayLength(DestArray) - 1].Bitness := Bitness;
           end;
         end;
       end;
@@ -278,17 +280,10 @@ end;
 
 function GetPythonInstallations: Boolean;
 begin
-  if IsAdminInstallMode then
-  begin
-    GetPythonInstallations2(HKLM32, 'SOFTWARE\Python', 32);
-    if Is64BitInstallMode then
-      GetPythonInstallations2(HKLM, 'SOFTWARE\Python', 64); 
-  end
-  else
-  begin
-    GetPythonInstallations2(HKCU, 'SOFTWARE\Python', 0);
-  end;
-  Result := (GetArrayLength(PythonInstallations) > 0);
+  GetPythonInstallations2(UserPythonInstallations, HKCU, 'SOFTWARE\Python', 0);
+  GetPythonInstallations2(GlobalPythonInstallations, HKLM32, 'SOFTWARE\Python', 32);
+  if Is64BitInstallMode then
+    GetPythonInstallations2(GlobalPythonInstallations, HKLM, 'SOFTWARE\Python', 64); 
 end;
 
 procedure PopulatePythonInstallations(List: TNewCheckListBox);
@@ -326,18 +321,32 @@ begin
 end;
 
 function InitializeSetup: Boolean;
+var
+  HasOtherPython: Boolean;
 begin
   Runtimes32Added := False;
   Runtimes64Added := False;
   PythonList := nil;
-  Result := GetPythonInstallations;
-  if not Result then
+  GetPythonInstallations;
+  if IsAdminInstallMode then
   begin
-    if IsAdminInstallMode then
-      MsgBox('No suitable global Python 3.7 installation found. Installer will now exit.', mbCriticalError, MB_OK)
-    else
-      MsgBox('No suitable per user Python 3.7 installation found. Installer will now exit.', mbCriticalError, MB_OK);
+    PythonInstallations := GlobalPythonInstallations;
+    HasOtherPython := GetArrayLength(UserPythonInstallations) > 0;
+  end
+  else
+  begin
+    PythonInstallations := UserPythonInstallations;
+    HasOtherPython := GetArrayLength(GlobalPythonInstallations) > 0;
   end;
+
+  Result := GetArrayLength(PythonInstallations) > 0; 
+
+  if not Result and not HasOtherPython then
+      MsgBox('No suitable Python 3.7 installation found. The installer will now exit.', mbCriticalError, MB_OK)
+  else if not Result and IsAdminInstallMode then
+      MsgBox('Only Python 3.7 installed for "current user" found. Run the installer again in "current user" mode or install Python for the "all users".', mbCriticalError, MB_OK)
+  else if not Result and not IsAdminInstallMode then
+      MsgBox('Only Python 3.7 installed for "all users" found. Run the installer again in "all users" mode or install Python for the "current user".', mbCriticalError, MB_OK)    
 end;
 
 procedure WizardFormOnResize(Sender: TObject);
