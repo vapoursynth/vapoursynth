@@ -1,15 +1,33 @@
-#define AppName = 'VapourSynth'
-#define Version = 'R46'
+#define Version 'R46'
+
+#ifndef InstallerBits
+  #define InstallerBits '64'
+#endif
+#define InstallerBitsInt = Int(InstallerBits)
+
+#if InstallerBitsInt == 64
+  #define AppName 'VapourSynth (64-bits)'
+  #define AppId 'VapourSynth'
+  #define RegistryPath 'SOFTWARE\VapourSynth'
+  #define SourceBinaryPath '..\msvc_project\x64\Release'
+  #define WheelFilename 'VapourSynth-46-cp37-cp37m-win_amd64.whl'
+#else
+  #define AppName 'VapourSynth (32-bits)'
+  #define AppId 'VapourSynth-32'
+  #define RegistryPath 'SOFTWARE\VapourSynth-32'
+  #define SourceBinaryPath '..\msvc_project\Release'
+  #define WheelFilename 'VapourSynth-46-cp37-cp37m-win32.whl'
+#endif
 
 [Setup]
 OutputDir=Compiled
-OutputBaseFilename=VapourSynth-{#= Version}
+OutputBaseFilename=VapourSynth{#= InstallerBits}-{#= Version}
 Compression=lzma2/max
 InternalCompressLevel=max
 SolidCompression=yes
 LZMAUseSeparateProcess=yes
 VersionInfoDescription={#= AppName} {#= Version} Installer
-AppId={#= AppName}
+AppId={#= AppId}
 AppName={#= AppName} {#= Version}
 AppVersion={#= Version}
 AppVerName={#= AppName} {#= Version}
@@ -18,19 +36,23 @@ AppPublisherURL=http://www.vapoursynth.com/
 AppSupportURL=http://www.vapoursynth.com/
 AppUpdatesURL=http://www.vapoursynth.com/
 VersionInfoVersion=1.46.0.0
-DefaultDirName={autopf32}\VapourSynth
-DefaultGroupName=VapourSynth
+DefaultDirName={autopf}\{#= AppId}
+DefaultGroupName={#= AppName}
 AllowCancelDuringInstall=no
 AllowNoIcons=yes
 AllowUNCPath=no
 MinVersion=6.0
-UsePreviousPrivileges=no
+UsePreviousPrivileges=yes
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog
 WizardStyle=modern
 FlatComponentsList=yes
-ArchitecturesAllowed=x86 x64
+#if InstallerBitsInt == 64
+ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
+#else
+ArchitecturesAllowed=x86
+#endif
 
 [Languages]
 Name: "en"; MessagesFile: "compiler:Default.isl"
@@ -39,49 +61,36 @@ Name: "en"; MessagesFile: "compiler:Default.isl"
 Name: Full; Description: Full installation; Flags: iscustom
 
 [Components]
-Name: "vs64"; Description: "VapourSynth 64-bit"; Types: Full; Check: HasPython64; Flags: disablenouninstallwarning
-Name: "vs32"; Description: "VapourSynth 32-bit"; Types: Full; Check: HasPython32; Flags: disablenouninstallwarning
+Name: "vscore"; Description: "VapourSynth {#= InstallerBits}-bit {#= Version}"; Types: Full; Check: HasPython; Flags: fixed disablenouninstallwarning
 Name: "vsrepo"; Description: "VSRepo Package Manager"; Types: Full; Flags: disablenouninstallwarning
 Name: "docs"; Description: "VapourSynth Documentation"; Types: Full; Flags: disablenouninstallwarning
 Name: "sdk"; Description: "VapourSynth SDK"; Flags: disablenouninstallwarning; Types: Full
-Name: "pismo"; Description: "Pismo PFM Runtime (required for AVFS)"; Types: Full; Check: IsAdminInstallMode; Flags: disablenouninstallwarning
+Name: "pismo"; Description: "Pismo PFM Runtime (required for AVFS)"; Types: Full; Flags: disablenouninstallwarning
 Name: "vsruntimes"; Description: "Visual Studio 2019 Runtimes"; Types: Full; Check: IsAdminInstallMode; Flags: disablenouninstallwarning
 
 [Tasks]
-Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to shell context menu"; GroupDescription: "New File Shortcuts:"; Components: vs32 vs64
+Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to shell context menu"; GroupDescription: "New File Shortcuts:"; Components: vscore
 Name: vsrepoupdate; Description: "Update VSRepo package list"; GroupDescription: "VSRepo:"; Components: vsrepo
 
 [Run]
-Filename: "{app}\pismo\pfm-192-vapoursynth-win.exe"; Parameters: "install"; Flags: runhidden; Components: pismo
-Filename: {code:GetPythonExecutableAny}; Parameters: """{app}\vsrepo\vsrepo.py"" update"; Flags: runhidden runasoriginaluser; Components: vsrepo
+Filename: {code:GetPythonExecutable}; Parameters: "-m pip install ""{app}\python\{#= WheelFilename}"""; Flags: runhidden; Components: vscore
+Filename: "{app}\pismo\pfm-192-vapoursynth-win.exe"; Parameters: "install"; Check: IsAdminInstallMode; Flags: runhidden; Components: pismo
+Filename: {code:GetPythonExecutable}; Parameters: """{app}\vsrepo\vsrepo.py"" update"; Flags: runhidden runasoriginaluser; Components: vsrepo
+
+[UninstallRun]
+Filename: {code:GetPythonExecutable}; Parameters: "-m pip uninstall -y VapourSynth"; Flags: runhidden; Components: vscore
 
 [Files]
 ;core binaries
-Source: template.vpy; DestDir: {app}; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32 vs64
-Source: vapoursynth.pth; DestDir: {code:GetPythonPath32}\Lib\site-packages; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: vapoursynth.pth; DestDir: {code:GetPythonPath64}\Lib\site-packages; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+Source: template.vpy; DestDir: {app}; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
+Source: ..\dist\{#= WheelFilename}; DestDir: {app}\python; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 
-Source: ..\vapoursynth.cp37-win32.pyd; DestDir: {code:GetPythonPath32}\Lib\site-packages\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: ..\vapoursynth.cp37-win_amd64.pyd; DestDir: {code:GetPythonPath64}\Lib\site-packages\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
-
-Source: ..\msvc_project\Release\vapoursynth.dll; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: ..\msvc_project\Release\vapoursynth.dll; DestDir: {code:GetPythonPath32}\Lib\site-packages\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: ..\msvc_project\Release\vapoursynth.pdb; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: ..\msvc_project\x64\Release\vapoursynth.dll; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
-Source: ..\msvc_project\x64\Release\vapoursynth.dll; DestDir: {code:GetPythonPath64}\Lib\site-packages\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
-Source: ..\msvc_project\x64\Release\vapoursynth.pdb; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
-
-Source: ..\msvc_project\Release\avfs.exe; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: ..\msvc_project\x64\Release\avfs.exe; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
-
-Source: ..\msvc_project\Release\vspipe.exe; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: ..\msvc_project\x64\Release\vspipe.exe; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
-
-Source: ..\msvc_project\Release\vsvfw.dll; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: ..\msvc_project\x64\Release\vsvfw.dll; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
-
-Source: ..\msvc_project\Release\vsscript.dll; DestDir: {app}\core32; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: ..\msvc_project\x64\Release\vsscript.dll; DestDir: {app}\core64; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+Source: {#= SourceBinaryPath}\vapoursynth.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
+Source: {#= SourceBinaryPath}\vapoursynth.pdb; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
+Source: {#= SourceBinaryPath}\avfs.exe; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
+Source: {#= SourceBinaryPath}\vspipe.exe; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
+Source: {#= SourceBinaryPath}\vsvfw.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
+Source: {#= SourceBinaryPath}\vsscript.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 
 ;vsrepo
 Source: ..\vsrepo\vsrepo.py; DestDir: {app}\vsrepo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
@@ -101,89 +110,63 @@ Source: ..\sdk\invert_example.c; DestDir: {app}\sdk\examples; Flags: ignoreversi
 Source: ..\sdk\vsscript_example.c; DestDir: {app}\sdk\examples; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
 
 ;bundled plugins
-Source: x86\plugins\*; DestDir: {app}\core32\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: ..\msvc_project\Release\AvsCompat.dll; DestDir: {app}\core32\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: ..\msvc_project\Release\EEDI3.dll; DestDir: {app}\core32\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: ..\msvc_project\Release\MiscFilters.dll; DestDir: {app}\core32\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: ..\msvc_project\Release\Morpho.dll; DestDir: {app}\core32\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: ..\msvc_project\Release\RemoveGrainVS.dll; DestDir: {app}\core32\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: ..\msvc_project\Release\Vinverse.dll; DestDir: {app}\core32\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-Source: ..\msvc_project\Release\VIVTC.dll; DestDir: {app}\core32\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs32
-
-Source: x64\plugins\*; DestDir: {app}\core64\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
-Source: ..\msvc_project\x64\Release\AvsCompat.dll; DestDir: {app}\core64\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
-Source: ..\msvc_project\x64\Release\EEDI3.dll; DestDir: {app}\core64\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
-Source: ..\msvc_project\x64\Release\MiscFilters.dll; DestDir: {app}\core64\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
-Source: ..\msvc_project\x64\Release\Morpho.dll; DestDir: {app}\core64\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
-Source: ..\msvc_project\x64\Release\RemoveGrainVS.dll; DestDir: {app}\core64\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
-Source: ..\msvc_project\x64\Release\Vinverse.dll; DestDir: {app}\core64\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
-Source: ..\msvc_project\x64\Release\VIVTC.dll; DestDir: {app}\core64\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vs64
+Source: Plugins{#= InstallerBits}\*; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
+Source: {#= SourceBinaryPath}\AvsCompat.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
+Source: {#= SourceBinaryPath}\EEDI3.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
+Source: {#= SourceBinaryPath}\MiscFilters.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
+Source: {#= SourceBinaryPath}\Morpho.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
+Source: {#= SourceBinaryPath}\RemoveGrainVS.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components:vscore
+Source: {#= SourceBinaryPath}\Vinverse.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
+Source: {#= SourceBinaryPath}\VIVTC.dll; DestDir: {app}\core\plugins; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 
 ;pismo installer
 Source: "pfm-192-vapoursynth-win.exe"; DestDir: {app}\pismo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: pismo
 
 ; Create the general autoload directory
 [Dirs]
-Name: "{app}\plugins32"; Flags: uninsalwaysuninstall; Components: vs32
-Name: "{app}\plugins64"; Flags: uninsalwaysuninstall; Components: vs64
+Name: "{app}\plugins"; Flags: uninsalwaysuninstall; Components: vscore
 
 [Icons]
-Name: {group}\VapourSynth Website; Filename: http://www.vapoursynth.com/
+Name: {group}\VapourSynth Website; Filename: http://www.vapoursynth.com/; Components: vscore
 Name: {group}\Documentation (Local); Filename: {app}\docs\index.html; Components: docs
 Name: {group}\Documentation (Online); Filename: http://www.vapoursynth.com/doc/
-Name: {group}\Global Autoload Directory (32bit); Filename: {app}\plugins32; Components: vs32
-Name: {group}\Global Autoload Directory (64bit); Filename: {app}\plugins64; Components: vs64
+Name: {group}\Global Autoload Directory; Filename: {app}\plugins; Check: IsAdminInstallMode; Components: vscore
+Name: {group}\User Autoload Directory; Filename: %APPDATA%\VapourSynth\plugins{#= InstallerBits}; Components: vscore
 Name: {group}\VapourSynth SDK; Filename: {app}\sdk; Components: sdk
 
 [Registry]
-Root: HKA32; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "Version"; ValueData: {#= Version}; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
-Root: HKA64; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "Version"; ValueData: {#= Version}; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
+Root: HKA; Subkey: {#= RegistryPath}; ValueType: string; ValueName: "Version"; ValueData: {#= Version}; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+Root: HKA; Subkey: {#= RegistryPath}; ValueType: string; ValueName: "Path"; ValueData: "{app}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+Root: HKA; Subkey: {#= RegistryPath}; ValueType: string; ValueName: "CorePlugins"; ValueData: "{app}\core\plugins"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+Root: HKA; Subkey: {#= RegistryPath}; ValueType: string; ValueName: "Plugins"; ValueData: "{app}\plugins"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+Root: HKA; Subkey: {#= RegistryPath}; ValueType: string; ValueName: "VapourSynthDLL"; ValueData: "{app}\core\vapoursynth.dll"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+Root: HKA; Subkey: {#= RegistryPath}; ValueType: string; ValueName: "VSScriptDLL"; ValueData: "{app}\core\vsscript.dll"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+Root: HKA; Subkey: {#= RegistryPath}; ValueType: string; ValueName: "PythonPath"; ValueData: "{code:GetPythonPath}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
 
-Root: HKA32; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "Path"; ValueData: "{app}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
-Root: HKA64; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "Path"; ValueData: "{app}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
-
-Root: HKA32; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "CorePlugins"; ValueData: "{app}\core32\plugins"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
-Root: HKA64; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "CorePlugins"; ValueData: "{app}\core64\plugins"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
-
-Root: HKA32; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "Plugins"; ValueData: "{app}\plugins32"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
-Root: HKA64; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "Plugins"; ValueData: "{app}\plugins64"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
-
-Root: HKA32; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "VapourSynthDLL"; ValueData: "{app}\core32\vapoursynth.dll"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
-Root: HKA64; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "VapourSynthDLL"; ValueData: "{app}\core64\vapoursynth.dll"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
-
-Root: HKA32; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "VSScriptDLL"; ValueData: "{app}\core32\vsscript.dll"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
-Root: HKA32; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "PythonPath"; ValueData: "{code:GetPythonPath32}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
-Root: HKA64; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "VSScriptDLL"; ValueData: "{app}\core64\vsscript.dll"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
-Root: HKA64; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "PythonPath"; ValueData: "{code:GetPythonPath64}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
+; Write compatibility values, deprecated since R46 when the installers were split
+#if InstallerBitsInt == 32
+Root: HKLM; Subkey: 'SOFTWARE\VapourSynth'; ValueType: string; ValueName: "Version"; ValueData: {#= Version}; Check: IsAdminInstallMode; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+Root: HKLM; Subkey: 'SOFTWARE\VapourSynth'; ValueType: string; ValueName: "Path"; ValueData: "{app}"; Check: IsAdminInstallMode; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+Root: HKLM; Subkey: 'SOFTWARE\VapourSynth'; ValueType: string; ValueName: "CorePlugins"; ValueData: "{app}\core\plugins"; Check: IsAdminInstallMode; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+Root: HKLM; Subkey: 'SOFTWARE\VapourSynth'; ValueType: string; ValueName: "Plugins"; ValueData: "{app}\plugins"; Check: IsAdminInstallMode; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+Root: HKLM; Subkey: 'SOFTWARE\VapourSynth'; ValueType: string; ValueName: "VapourSynthDLL"; ValueData: "{app}\core\vapoursynth.dll"; Check: IsAdminInstallMode; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+Root: HKLM; Subkey: 'SOFTWARE\VapourSynth'; ValueType: string; ValueName: "VSScriptDLL"; ValueData: "{app}\core\vsscript.dll"; Check: IsAdminInstallMode; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+Root: HKLM; Subkey: 'SOFTWARE\VapourSynth'; ValueType: string; ValueName: "PythonPath"; ValueData: "{code:GetPythonPath}"; Check: IsAdminInstallMode; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+#endif
 
 ; new vpy file shortcut task
 Root: HKA; Subkey: SOFTWARE\Classes\.vpy\ShellNew; ValueType: string; ValueName: "FileName"; ValueData: "{app}\template.vpy"; Flags: uninsdeletevalue uninsdeletekeyifempty; Tasks: newvpyfile
 
-; 32bit vfw
-Root: HKA32; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}; ValueType: string; ValueName: ""; ValueData: "VapourSynth"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
-Root: HKA32; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32; ValueType: string; ValueName: ""; ValueData: "{app}\core32\vsvfw.dll"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
-Root: HKA32; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32; ValueType: string; ValueName: "ThreadingModel"; ValueData: "Apartment"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
-Root: HKA32; Subkey: SOFTWARE\Classes\Media Type\Extensions\.vpy; ValueType: string; ValueName: ""; ValueData: ""; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
-Root: HKA32; Subkey: SOFTWARE\Classes\Media Type\Extensions\.vpy; ValueType: string; ValueName: "Source Filter"; ValueData: "{{D3588AB0-0781-11CE-B03A-0020AF0BA770}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
-Root: HKA32; Subkey: SOFTWARE\Classes\.vpy; ValueType: string; ValueName: ""; ValueData: "vpyfile"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
-Root: HKA32; Subkey: SOFTWARE\Classes\vpyfile; ValueType: string; ValueName: ""; ValueData: "VapourSynth Python Script"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
-Root: HKA32; Subkey: SOFTWARE\Classes\vpyfile\DefaultIcon; ValueType: string; ValueName: ""; ValueData: "{app}\core32\vsvfw.dll,0"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
-Root: HKA32; Subkey: SOFTWARE\Classes\AVIFile\Extensions\VPY; ValueType: string; ValueName: ""; ValueData: "{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs32
-
-; 64bit vfw
-Root: HKA64; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}; ValueType: string; ValueName: ""; ValueData: "VapourSynth"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
-Root: HKA64; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32; ValueType: string; ValueName: ""; ValueData: "{app}\core64\vsvfw.dll"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
-Root: HKA64; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32; ValueType: string; ValueName: "ThreadingModel"; ValueData: "Apartment"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
-Root: HKA64; Subkey: SOFTWARE\Classes\Media Type\Extensions\.vpy; ValueType: string; ValueName: ""; ValueData: ""; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
-Root: HKA64; Subkey: SOFTWARE\Classes\Media Type\Extensions\.vpy; ValueType: string; ValueName: "Source Filter"; ValueData: "{{D3588AB0-0781-11CE-B03A-0020AF0BA770}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
-Root: HKA64; Subkey: SOFTWARE\Classes\.vpy; ValueType: string; ValueName: ""; ValueData: "vpyfile"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
-Root: HKA64; Subkey: SOFTWARE\Classes\vpyfile; ValueType: string; ValueName: ""; ValueData: "VapourSynth Python Script"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
-Root: HKA64; Subkey: SOFTWARE\Classes\vpyfile\DefaultIcon; ValueType: string; ValueName: ""; ValueData: "{app}\core64\vsvfw.dll,0"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
-Root: HKA64; Subkey: SOFTWARE\Classes\AVIFile\Extensions\VPY; ValueType: string; ValueName: ""; ValueData: "{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vs64
-
-[UninstallDelete]
-Type: dirifempty; Name: "{code:GetPythonPath32}\Lib\site-packages\vapoursynth"; Components: vs32
-Type: dirifempty; Name: "{code:GetPythonPath64}\Lib\site-packages\vapoursynth"; Components: vs64
+; vfw
+Root: HKA; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}; ValueType: string; ValueName: ""; ValueData: "VapourSynth"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+Root: HKA; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32; ValueType: string; ValueName: ""; ValueData: "{app}\core\vsvfw.dll"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+Root: HKA; Subkey: SOFTWARE\Classes\CLSID\{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}\InProcServer32; ValueType: string; ValueName: "ThreadingModel"; ValueData: "Apartment"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+Root: HKA; Subkey: SOFTWARE\Classes\Media Type\Extensions\.vpy; ValueType: string; ValueName: ""; ValueData: ""; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+Root: HKA; Subkey: SOFTWARE\Classes\Media Type\Extensions\.vpy; ValueType: string; ValueName: "Source Filter"; ValueData: "{{D3588AB0-0781-11CE-B03A-0020AF0BA770}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+Root: HKA; Subkey: SOFTWARE\Classes\.vpy; ValueType: string; ValueName: ""; ValueData: "vpyfile"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+Root: HKA; Subkey: SOFTWARE\Classes\vpyfile; ValueType: string; ValueName: ""; ValueData: "VapourSynth Python Script"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+Root: HKA; Subkey: SOFTWARE\Classes\vpyfile\DefaultIcon; ValueType: string; ValueName: ""; ValueData: "{app}\core\vsvfw.dll,0"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+Root: HKA; Subkey: SOFTWARE\Classes\AVIFile\Extensions\VPY; ValueType: string; ValueName: ""; ValueData: "{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
 
 #include "scripts\products.iss"
 #include "scripts\products\stringversion.iss"
@@ -201,35 +184,22 @@ type
   end;
 
 var
-  Runtimes32Added: Boolean;
-  Runtimes64Added: Boolean;
+  RuntimesAdded: Boolean;
   PythonInstallations: array of TPythonPath;
   GlobalPythonInstallations: array of TPythonPath;
   UserPythonInstallations: array of TPythonPath;
   PythonPage: TWizardPage;
   PythonList: TNewCheckListBox;
-  Python32Path: string;
-  Python32Executable: string;
-  Python64Path: string;
-  Python64Executable: string;
+  PythonPath: string;
+  PythonExecutable: string;
     
-function HasPython32: Boolean;
+function HasPython: Boolean;
 var
   Counter: Integer;
 begin
   Result := False;
   for Counter := 0 to GetArrayLength(PythonInstallations) - 1 do
-    if PythonInstallations[Counter].Bitness = 32 then
-      Result := True;
-end;
-
-function HasPython64: Boolean;
-var
-  Counter: Integer;
-begin
-  Result := False;
-  for Counter := 0 to GetArrayLength(PythonInstallations) - 1 do
-    if PythonInstallations[Counter].Bitness = 64 then
+    if PythonInstallations[Counter].Bitness = {#InstallerBitsInt} then
       Result := True;
 end;
 
@@ -262,15 +232,18 @@ begin
               Bitness := 64;              
           end;
 
-          if RegQueryStringValue(RegRoot, RegPathTemp, 'DisplayName', DisplayName)
-            and RegQueryStringValue(RegRoot, RegPathTemp + '\InstallPath', '', InstallPath)
-            and RegQueryStringValue(RegRoot, RegPathTemp + '\InstallPath', 'ExecutablePath', ExecutablePath) then
+          if Bitness = {#InstallerBitsInt} then
           begin
-             SetArrayLength(DestArray, GetArrayLength(DestArray) + 1);
-             DestArray[GetArrayLength(DestArray) - 1].DisplayName := DisplayName;
-             DestArray[GetArrayLength(DestArray) - 1].InstallPath := InstallPath;
-             DestArray[GetArrayLength(DestArray) - 1].ExecutablePath := ExecutablePath;
-             DestArray[GetArrayLength(DestArray) - 1].Bitness := Bitness;
+            if RegQueryStringValue(RegRoot, RegPathTemp, 'DisplayName', DisplayName)
+              and RegQueryStringValue(RegRoot, RegPathTemp + '\InstallPath', '', InstallPath)
+              and RegQueryStringValue(RegRoot, RegPathTemp + '\InstallPath', 'ExecutablePath', ExecutablePath) then
+            begin
+               SetArrayLength(DestArray, GetArrayLength(DestArray) + 1);
+               DestArray[GetArrayLength(DestArray) - 1].DisplayName := DisplayName;
+               DestArray[GetArrayLength(DestArray) - 1].InstallPath := InstallPath;
+               DestArray[GetArrayLength(DestArray) - 1].ExecutablePath := ExecutablePath;
+               DestArray[GetArrayLength(DestArray) - 1].Bitness := Bitness;
+            end;
           end;
         end;
       end;
@@ -278,12 +251,10 @@ begin
   end;  
 end;
 
-function GetPythonInstallations: Boolean;
+procedure GetPythonInstallations;
 begin
   GetPythonInstallations2(UserPythonInstallations, HKCU, 'SOFTWARE\Python', 0);
-  GetPythonInstallations2(GlobalPythonInstallations, HKLM32, 'SOFTWARE\Python', 32);
-  if Is64BitInstallMode then
-    GetPythonInstallations2(GlobalPythonInstallations, HKLM, 'SOFTWARE\Python', 64); 
+  GetPythonInstallations2(GlobalPythonInstallations, HKLM, 'SOFTWARE\Python', {#InstallerBitsInt}); 
 end;
 
 procedure PopulatePythonInstallations(List: TNewCheckListBox);
@@ -292,40 +263,22 @@ var
   First: Boolean;
 begin
   List.Items.Clear;
-
-  if WizardIsComponentSelected('vs32') then
-  begin
-    First := True;
-    List.AddGroup('Python Environments (32-bit)', '', 0, nil);
-    for Counter := 0 to GetArrayLength(PythonInstallations) - 1 do
-      if PythonInstallations[Counter].Bitness = 32 then
-        with PythonInstallations[Counter] do
-        begin
-          List.AddRadioButton(DisplayName, '(' + InstallPath + ')', 1, First, True, TObject(Counter));
-          First := False;
-        end;
-  end;
-
-  if WizardIsComponentSelected('vs64') then
-  begin
-    First := True;
-    List.AddGroup('Python Environments (64-bit)', '', 0, nil);
-    for Counter := 0 to GetArrayLength(PythonInstallations) - 1 do
-      if PythonInstallations[Counter].Bitness = 64 then
-        with PythonInstallations[Counter] do
-        begin
-          List.AddRadioButton(DisplayName, '(' + InstallPath + ')', 1, First, True, TObject(Counter));
-          First := False;
-        end;
-  end;        
+  First := True;
+  List.AddGroup('Python Environments ({#InstallerBits}-bit)', '', 0, nil);
+  for Counter := 0 to GetArrayLength(PythonInstallations) - 1 do
+    if PythonInstallations[Counter].Bitness = {#InstallerBitsInt} then
+      with PythonInstallations[Counter] do
+      begin
+        List.AddRadioButton(DisplayName, '(' + InstallPath + ')', 1, First, True, TObject(Counter));
+        First := False;
+      end;
 end;
 
 function InitializeSetup: Boolean;
 var
   HasOtherPython: Boolean;
 begin
-  Runtimes32Added := False;
-  Runtimes64Added := False;
+  RuntimesAdded := False;
   PythonList := nil;
   GetPythonInstallations;
   if IsAdminInstallMode then
@@ -378,22 +331,14 @@ begin
   WizardForm.OnResize := @WizardFormOnResize;
 end;
 
-function GetPythonPath32(Param: string): String;
+function GetPythonPath(Param: string): String;
 begin
-  Result := Python32Path;
+  Result := PythonPath;
 end;
 
-function GetPythonPath64(Param: String): String;
+function GetPythonExecutable(Param: string): String;
 begin
-  Result := Python64Path;
-end;
-
-function GetPythonExecutableAny(Param: string): String;
-begin
-  if Python64Executable <> '' then
-    Result := Python64Executable
-  else
-    Result := Python32Executable;
+    Result := PythonExecutable;
 end;
 
 /////////////////////////////////////////////////////////////////////
@@ -469,43 +414,22 @@ begin
         Idx := Integer(PythonList.ItemObject[Counter]);
         with PythonInstallations[Idx] do
         begin
-          if Bitness = 64 then
-          begin
-            Python64Path := InstallPath;
-            Python64Executable := ExecutablePath;
-          end
-          else if Bitness = 32 then
-          begin
-            Python32Path := InstallPath;
-            Python32Executable := ExecutablePath;
-          end;
+          PythonPath := InstallPath;
+          PythonExecutable := ExecutablePath;
         end;
       end;
     end;
   end
   else if CurPageID = wpSelectComponents then
-  begin
-    if not WizardIsComponentSelected('vs32 or vs64') then
-    begin
-      Result := False;
-      MsgBox('At least one version of the core library has to be installed.', mbCriticalError, MB_OK)
-    end;
-    
+  begin    
     PopulatePythonInstallations(PythonList); 
   end
   else if CurPageID = wpReady then
   begin
-    if WizardIsComponentSelected('vsruntimes') and WizardIsComponentSelected('vs32') and not Runtimes32Added then
-    begin
-      SetForceX86(True);
-      vcredist2017('14.21.27702');
-      SetForceX86(False);
-      Runtimes32Added := True;
-    end;
-    if WizardIsComponentSelected('vsruntimes') and WizardIsComponentSelected('vs64') and not Runtimes64Added then
+    if WizardIsComponentSelected('vsruntimes') and not RuntimesAdded then
     begin
       vcredist2017('14.21.27702');
-      Runtimes64Added := True;
+      RuntimesAdded := True;
     end;
     Result := NextButtonClick2(CurPageID);
   end;

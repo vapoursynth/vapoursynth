@@ -1280,8 +1280,10 @@ VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), numFuncti
     const std::wstring filter = L"*.dll";
 
 #ifdef _WIN64
+    #define VS_INSTALL_REGKEY L"Software\\VapourSynth"
     std::wstring bits(L"64");
 #else
+    #define VS_INSTALL_REGKEY L"Software\\VapourSynth-32"
     std::wstring bits(L"32");
 #endif
 
@@ -1321,13 +1323,13 @@ VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), numFuncti
         loadAllPluginsInPath(appDataPath, filter);
 
         // Autoload bundled plugins
-        std::wstring corePluginPath = readRegistryValue(L"Software\\VapourSynth", L"CorePlugins");
+        std::wstring corePluginPath = readRegistryValue(VS_INSTALL_REGKEY, L"CorePlugins");
         if (!loadAllPluginsInPath(corePluginPath, filter))
             vsCritical("Core plugin autoloading failed. Installation is broken?");
 
         // Autoload global plugins last, this is so the bundled plugins cannot be overridden easily
         // and accidentally block updated bundled versions
-        std::wstring globalPluginPath = readRegistryValue(L"Software\\VapourSynth", L"Plugins");
+        std::wstring globalPluginPath = readRegistryValue(VS_INSTALL_REGKEY, L"Plugins");
         loadAllPluginsInPath(globalPluginPath, filter);
     }
 

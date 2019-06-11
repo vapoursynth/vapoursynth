@@ -45,6 +45,12 @@ static PyGILState_STATE s;
 
 static void real_init(void) {
 #ifdef VS_TARGET_OS_WINDOWS
+#ifdef _WIN64
+    #define VS_INSTALL_REGKEY L"Software\\VapourSynth" 
+#else
+    #define VS_INSTALL_REGKEY L"Software\\VapourSynth-32"
+#endif
+
     // portable
     const std::wstring pythonDllName = L"python37.dll";
     HMODULE module;
@@ -70,8 +76,8 @@ static void real_init(void) {
 
         wchar_t value[1024];
         DWORD valueLength = 1000;
-        if (RegOpenKeyW(HKEY_CURRENT_USER, L"SOFTWARE\\VapourSynth", &hKey) != ERROR_SUCCESS) {
-            if (RegOpenKeyW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\VapourSynth", &hKey) != ERROR_SUCCESS)
+        if (RegOpenKeyW(HKEY_CURRENT_USER, VS_INSTALL_REGKEY, &hKey) != ERROR_SUCCESS) {
+            if (RegOpenKeyW(HKEY_LOCAL_MACHINE, VS_INSTALL_REGKEY, &hKey) != ERROR_SUCCESS)
                 return;
         }
             

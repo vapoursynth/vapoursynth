@@ -1,7 +1,7 @@
 Default install paths are assumed in all projects and scripts, be prepared to adjust many things if you changed them
 
 Needs Visual Studio 2019 and vsnasm (https://github.com/ShiftMediaProject/VSNASM)
-It also needs both 32 and 64 bit Python 3.7 series with recent setuptools, cython, sphinx and sphinx-intl installed
+It also needs both 32 and 64 bit Python 3.7 series with recent setuptools, wheel, cython, sphinx and sphinx-intl installed
 Inno setup 6.x is needed to create the installer (default installation path assumed)
 7-zip is needed to compress the portable version (default installation path assumed)
 
