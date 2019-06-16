@@ -1,6 +1,7 @@
 r46:
-updated windows projects to use vs2019, inno setup 6 and zimg 2.9
+updated windows projects to use vs2019, inno setup 6 and zimg 2.9.1
 the python module is now installed as a proper python package using pip
+the registry entries in windows have now been changed for the 32 bit version in order to better handle
 the windows installer now supports installs without administrator privileges and has been split into a 32 and 64 bit version
 the windows installer no longer puts a copy of vsscript.dll in the system directory and no longer writes the legacy registry entries, deprecated since r31
 the windows installer will no longer offer to install the visual studio 2013 runtime since it hasn't been required by vapoursynth for a very long time

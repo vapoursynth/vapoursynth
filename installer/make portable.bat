@@ -36,7 +36,7 @@ copy ..\sdk\invert_example.c buildp64\sdk\examples
 copy ..\sdk\vsscript_example.c buildp64\sdk\examples
 copy "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Redist\MSVC\14.21.27702\x64\Microsoft.VC142.CRT\*" buildp64
 copy x64\plugins\* buildp64\vapoursynth64\coreplugins
-copy pfm-191-vapoursynth-win.exe buildp64
+copy pfm-192-vapoursynth-win.exe buildp64
 copy .\setup.py buildp64
 copy .\MANIFEST.in buildp64
 type nul >buildp64\portable.vs
@@ -81,7 +81,7 @@ copy ..\sdk\invert_example.c buildp32\sdk\examples
 copy ..\sdk\vsscript_example.c buildp32\sdk\examples
 copy "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Redist\MSVC\14.21.27702\x86\Microsoft.VC142.CRT\*" buildp32
 copy x86\plugins\* buildp32\vapoursynth32\coreplugins
-copy pfm-191-vapoursynth-win.exe buildp32
+copy pfm-192-vapoursynth-win.exe buildp32
 copy .\setup.py buildp32
 copy .\MANIFEST.in buildp32
 type nul >buildp32\portable.vs
