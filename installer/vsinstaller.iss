@@ -1,4 +1,4 @@
-#define Version 'R46'
+#define Version 'R46-RC3'
 
 #ifndef InstallerBits
   #define InstallerBits '64'
@@ -50,8 +50,6 @@ FlatComponentsList=yes
 #if InstallerBitsInt == 64
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
-#else
-ArchitecturesAllowed=x86
 #endif
 
 [Languages]
@@ -295,11 +293,11 @@ begin
   Result := GetArrayLength(PythonInstallations) > 0; 
 
   if not Result and not HasOtherPython then
-      MsgBox('No suitable Python 3.7 installation found. The installer will now exit.', mbCriticalError, MB_OK)
+      MsgBox('No suitable Python 3.7 ({#InstallerBits}-bit) installation found. The installer will now exit.', mbCriticalError, MB_OK)
   else if not Result and IsAdminInstallMode then
-      MsgBox('Only Python 3.7 installed for "current user" found. Run the installer again in "current user" mode or install Python for the "all users".', mbCriticalError, MB_OK)
+      MsgBox('Python 3.7 ({#InstallerBits}-bit) is installed for "current user". Run the installer again in "current user" mode or install Python for the "all users".', mbCriticalError, MB_OK)
   else if not Result and not IsAdminInstallMode then
-      MsgBox('Only Python 3.7 installed for "all users" found. Run the installer again in "all users" mode or install Python for the "current user".', mbCriticalError, MB_OK)    
+      MsgBox('Python 3.7 ({#InstallerBits}-bit) is installed for "all users". Run the installer again in "all users" mode or install Python for the "current user".', mbCriticalError, MB_OK)    
 end;
 
 procedure WizardFormOnResize(Sender: TObject);
