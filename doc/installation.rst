@@ -120,16 +120,6 @@ to update them, simply run::
 
    brew update && brew upgrade
    pip3 install --upgrade cython
-   
-Required packages (Ubuntu)
-##########################
-
-In Ubuntu 16.10 the following command will install them, minus zimg,
-which needs to be compiled from source::
-
-   apt-get install build-essential nasm git libavcodec-dev libavformat-dev libavutil-dev libass-dev python3-pip python3-dev cython3 autoconf libtool libtesseract-dev
-   
-The packages may have different names in other distributions.
 
 Compilation
 ###########
