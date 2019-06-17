@@ -1,14 +1,14 @@
 Default install paths are assumed in all projects and scripts, be prepared to adjust many things if you changed them
 
 Needs Visual Studio 2019 and vsnasm (https://github.com/ShiftMediaProject/VSNASM)
-It also needs both 32 and 64 bit Python 3.7 series with recent setuptools, wheel, cython, sphinx and sphinx-intl installed
+It also needs both 32 and 64 bit Python 3.7 series with recent setuptools, wheel, cython, sphinx and sphinx-intl installed (the msvc project assumes that you installed python for all users.)
 Inno setup 6.x is needed to create the installer (default installation path assumed)
 7-zip is needed to compress the portable version (default installation path assumed)
 
 Clone VapourSynth
-Clone VSRepo into the VapourSynth dir (https://github.com/vapoursynth/vsrepo)
-Clone zimg v2.9 branch into the VapourSynth dir (https://github.com/sekrit-twc/zimg)
-Clone avs+ pinterf mt branch into the VapourSynth dir (https://github.com/pinterf/AviSynthPlus/tree/MT)
+Clone VSRepo into the VapourSynth dir (git clone https://github.com/vapoursynth/vsrepo)
+Clone zimg v2.9 branch into the VapourSynth dir (git clone https://github.com/sekrit-twc/zimg --branch v2.9)
+Clone avs+ pinterf mt branch into the VapourSynth dir (git clone https://github.com/pinterf/AviSynthPlus --branch MT)
 Compile 32 and 64 bit releases using the VapourSynth solution
 Run cython_build.bat to compile the Python modules
 Run make_docs.bat to compile the documentation
