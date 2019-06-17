@@ -1,6 +1,8 @@
 # vapoursynth
 *A video processing framework with simplicity in mind*
 
+**Looking for the documentation?**  
+Read the documentation here: [VapourSynth Documentation](vapoursynth.com/doc)
 
 ## Building
 On **Windows**, follow the build instructions provided in [`build instructions windows.md`](https://github.com/vapoursynth/vapoursynth/blob/master/build%20instructions%20windows.md)  
