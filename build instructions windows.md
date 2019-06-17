@@ -19,8 +19,8 @@ Default install paths are assumed in all projects and scripts, be prepared to ad
 
 ## 3. Preparing the Python Project
 
-* Run `py -3.7 -m pip install -r python-requirements.txt` for x64.
-* Run `py -3.7-32 -m pip install -r python-requirements.txt` for x86.
+* Run `py -3.7 -m pip install -r python-requirements.txt` for 64bit.
+* Run `py -3.7-32 -m pip install -r python-requirements.txt` for 32bit.
 * Run `cython_build.bat` to compile the Python modules
 * Run `make_docs.bat` to compile the documentation
 
