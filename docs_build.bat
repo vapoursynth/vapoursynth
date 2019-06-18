@@ -1,3 +1,4 @@
-cd doc
-make html
+pushd doc
+call make html
 pause
+popd
