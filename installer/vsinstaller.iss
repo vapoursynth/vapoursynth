@@ -1,4 +1,4 @@
-#define Version 'R46-RC3'
+#define Version 'R46-RC4'
 
 #ifndef InstallerBits
   #define InstallerBits '64'
@@ -143,13 +143,13 @@ Root: HKA; Subkey: {#= RegistryPath}; ValueType: string; ValueName: "PythonPath"
 
 ; Write compatibility values, deprecated since R46 when the installers were split
 #if InstallerBitsInt == 32
-Root: HKLM; Subkey: 'SOFTWARE\VapourSynth'; ValueType: string; ValueName: "Version"; ValueData: {#= Version}; Check: IsAdminInstallMode; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-Root: HKLM; Subkey: 'SOFTWARE\VapourSynth'; ValueType: string; ValueName: "Path"; ValueData: "{app}"; Check: IsAdminInstallMode; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-Root: HKLM; Subkey: 'SOFTWARE\VapourSynth'; ValueType: string; ValueName: "CorePlugins"; ValueData: "{app}\core\plugins"; Check: IsAdminInstallMode; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-Root: HKLM; Subkey: 'SOFTWARE\VapourSynth'; ValueType: string; ValueName: "Plugins"; ValueData: "{app}\plugins"; Check: IsAdminInstallMode; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-Root: HKLM; Subkey: 'SOFTWARE\VapourSynth'; ValueType: string; ValueName: "VapourSynthDLL"; ValueData: "{app}\core\vapoursynth.dll"; Check: IsAdminInstallMode; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-Root: HKLM; Subkey: 'SOFTWARE\VapourSynth'; ValueType: string; ValueName: "VSScriptDLL"; ValueData: "{app}\core\vsscript.dll"; Check: IsAdminInstallMode; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
-Root: HKLM; Subkey: 'SOFTWARE\VapourSynth'; ValueType: string; ValueName: "PythonPath"; ValueData: "{code:GetPythonPath}"; Check: IsAdminInstallMode; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+Root: HKLM; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "Version"; ValueData: {#= Version}; Check: IsAdminInstallMode; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+Root: HKLM; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "Path"; ValueData: "{app}"; Check: IsAdminInstallMode; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+Root: HKLM; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "CorePlugins"; ValueData: "{app}\core\plugins"; Check: IsAdminInstallMode; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+Root: HKLM; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "Plugins"; ValueData: "{app}\plugins"; Check: IsAdminInstallMode; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+Root: HKLM; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "VapourSynthDLL"; ValueData: "{app}\core\vapoursynth.dll"; Check: IsAdminInstallMode; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+Root: HKLM; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "VSScriptDLL"; ValueData: "{app}\core\vsscript.dll"; Check: IsAdminInstallMode; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+Root: HKLM; Subkey: SOFTWARE\VapourSynth; ValueType: string; ValueName: "PythonPath"; ValueData: "{code:GetPythonPath}"; Check: IsAdminInstallMode; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
 #endif
 
 ; new vpy file shortcut task
