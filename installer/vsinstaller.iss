@@ -1,4 +1,4 @@
-#define Version 'R46-RC4'
+#define Version 'R46'
 
 #ifndef InstallerBits
   #define InstallerBits '64'
