@@ -262,12 +262,11 @@ var
 begin
   List.Items.Clear;
   First := True;
-  List.AddGroup('Python Environments ({#InstallerBits}-bit)', '', 0, nil);
   for Counter := 0 to GetArrayLength(PythonInstallations) - 1 do
     if PythonInstallations[Counter].Bitness = {#InstallerBitsInt} then
       with PythonInstallations[Counter] do
       begin
-        List.AddRadioButton(DisplayName, '(' + InstallPath + ')', 1, First, True, TObject(Counter));
+        List.AddRadioButton(DisplayName, '(' + InstallPath + ')', 0, First, True, TObject(Counter));
         First := False;
       end;
 end;
