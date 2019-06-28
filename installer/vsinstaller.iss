@@ -295,9 +295,9 @@ begin
   if not Result and not HasOtherPython then
       MsgBox('No suitable Python 3.7 ({#InstallerBits}-bit) installation found. The installer will now exit.', mbCriticalError, MB_OK)
   else if not Result and IsAdminInstallMode then
-      MsgBox('Python 3.7 ({#InstallerBits}-bit) is installed for "current user". Run the installer again in "current user" mode or install Python for the "all users".', mbCriticalError, MB_OK)
+      MsgBox('Python 3.7 ({#InstallerBits}-bit) is installed for the current user only. Run the installer again and select "Install for me only" or install Python for all users.', mbCriticalError, MB_OK)
   else if not Result and not IsAdminInstallMode then
-      MsgBox('Python 3.7 ({#InstallerBits}-bit) is installed for "all users". Run the installer again in "all users" mode or install Python for the "current user".', mbCriticalError, MB_OK)    
+      MsgBox('Python 3.7 ({#InstallerBits}-bit) is installed for all users. Run the installer again and select "Install for all users" or install Python for the current user only.', mbCriticalError, MB_OK)    
 end;
 
 procedure WizardFormOnResize(Sender: TObject);
