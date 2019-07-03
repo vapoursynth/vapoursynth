@@ -234,7 +234,8 @@ begin
           begin
             if RegQueryStringValue(RegRoot, RegPathTemp, 'DisplayName', DisplayName)
               and RegQueryStringValue(RegRoot, RegPathTemp + '\InstallPath', '', InstallPath)
-              and RegQueryStringValue(RegRoot, RegPathTemp + '\InstallPath', 'ExecutablePath', ExecutablePath) then
+              and RegQueryStringValue(RegRoot, RegPathTemp + '\InstallPath', 'ExecutablePath', ExecutablePath)
+              and (DisplayName <> '') and (InstallPath <> '') and (ExecutablePath <> '') then
             begin
                SetArrayLength(DestArray, GetArrayLength(DestArray) + 1);
                DestArray[GetArrayLength(DestArray) - 1].DisplayName := DisplayName;
@@ -406,7 +407,7 @@ begin
   begin    
     for Counter := 0 to PythonList.Items.Count - 1 do
     begin
-      if (PythonList.Checked[Counter]) and (PythonList.ItemLevel[Counter] = 1) then
+      if PythonList.Checked[Counter] then
       begin
         Idx := Integer(PythonList.ItemObject[Counter]);
         with PythonInstallations[Idx] do
