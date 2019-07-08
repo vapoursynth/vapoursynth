@@ -280,7 +280,7 @@ static VSNodeRef *applyBoxBlurPlaneFiltering(VSPlugin *stdplugin, VSNodeRef *nod
     if (hblur) {
         VSMap *vtmp1 = vsapi->createMap();
         VSMap *vtmp2 = vsapi->createMap();
-        vsapi->createFilter(vtmp1, vtmp2, "BoxBlur", templateNodeInit<BoxBlurData>, boxBlurGetframe, templateNodeFree<BoxBlurData>, fmParallel, 0, new BoxBlurData{ node, hradius, hpasses }, core);
+        vsapi->createFilter(vtmp1, vtmp2, "BoxBlur", templateNodeInit<BoxBlurData>, boxBlurGetframe, templateNodeFree<BoxBlurData>, NULL, fmParallel, 0, new BoxBlurData{ node, hradius, hpasses }, core);
         node = vsapi->propGetNode(vtmp2, "clip", 0, nullptr);
         vsapi->freeMap(vtmp1);
         vsapi->freeMap(vtmp2);
@@ -294,7 +294,7 @@ static VSNodeRef *applyBoxBlurPlaneFiltering(VSPlugin *stdplugin, VSNodeRef *nod
         vsapi->clearMap(vtmp1);
         node = vsapi->propGetNode(vtmp2, "clip", 0, nullptr);
         vsapi->clearMap(vtmp2);
-        vsapi->createFilter(vtmp1, vtmp2, "BoxBlur", templateNodeInit<BoxBlurData>, boxBlurGetframe, templateNodeFree<BoxBlurData>, fmParallel, 0, new BoxBlurData{ node, vradius, vpasses }, core);
+        vsapi->createFilter(vtmp1, vtmp2, "BoxBlur", templateNodeInit<BoxBlurData>, boxBlurGetframe, templateNodeFree<BoxBlurData>, NULL, fmParallel, 0, new BoxBlurData{ node, vradius, vpasses }, core);
         vsapi->freeMap(vtmp1);
         vtmp1 = vsapi->invoke(stdplugin, "Transpose", vtmp2);
         vsapi->freeMap(vtmp2);

@@ -3260,7 +3260,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         return;
     }
 
-    vsapi->createFilter(in, out, "Expr", exprInit, exprGetFrame, exprFree, fmParallel, 0, d.release(), core);
+    vsapi->createFilter(in, out, "Expr", exprInit, exprGetFrame, exprFree, NULL, fmParallel, 0, d.release(), core);
 }
 
 } // namespace

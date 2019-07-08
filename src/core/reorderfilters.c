@@ -163,7 +163,7 @@ static void VS_CC trimCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "Trim", trimInit, trimGetframe, singleClipFree, fmParallel, nfNoCache, data, core);
+    vsapi->createFilter(in, out, "Trim", trimInit, trimGetframe, singleClipFree, NULL, fmParallel, nfNoCache, data, core);
 }
 
 //////////////////////////////////////////
@@ -286,7 +286,7 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
         data = malloc(sizeof(d));
         *data = d;
 
-        vsapi->createFilter(in, out, "Interleave", interleaveInit, interleaveGetframe, interleaveFree, fmParallel, nfNoCache, data, core);
+        vsapi->createFilter(in, out, "Interleave", interleaveInit, interleaveGetframe, interleaveFree, NULL, fmParallel, nfNoCache, data, core);
     }
 }
 
@@ -315,7 +315,7 @@ static void VS_CC reverseCreate(const VSMap *in, VSMap *out, void *userData, VSC
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "Reverse", singleClipInit, reverseGetframe, singleClipFree, fmParallel, nfNoCache, data, core);
+    vsapi->createFilter(in, out, "Reverse", singleClipInit, reverseGetframe, singleClipFree, NULL, fmParallel, nfNoCache, data, core);
 }
 
 //////////////////////////////////////////
@@ -377,7 +377,7 @@ static void VS_CC loopCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "Loop", loopInit, loopGetframe, singleClipFree, fmParallel, nfNoCache, data, core);
+    vsapi->createFilter(in, out, "Loop", loopInit, loopGetframe, singleClipFree, NULL, fmParallel, nfNoCache, data, core);
 }
 
 //////////////////////////////////////////
@@ -472,7 +472,7 @@ static void VS_CC selectEveryCreate(const VSMap *in, VSMap *out, void *userData,
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "SelectEvery", selectEveryInit, selectEveryGetframe, selectEveryFree, fmParallel, nfNoCache, data, core);
+    vsapi->createFilter(in, out, "SelectEvery", selectEveryInit, selectEveryGetframe, selectEveryFree, NULL, fmParallel, nfNoCache, data, core);
 }
 
 //////////////////////////////////////////
@@ -483,10 +483,14 @@ typedef struct {
     VSVideoInfo vi;
     int *numframes;
     int numclips;
+    uint64_t numAudioSample;
 } SpliceData;
 
 static void VS_CC spliceInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     SpliceData *d = (SpliceData *) * instanceData;
+
+    d->vi.numAudioSample = d->numAudioSample;
+
     vsapi->setVideoInfo(&d->vi, 1, node);
 }
 
@@ -494,6 +498,36 @@ typedef struct {
     int f;
     int idx;
 } SpliceCtx;
+
+static void VS_CC spliceGetAudio(VSCore *core, const VSAPI *vsapi, void *instanceData, void *lpBuffer, long lStart, long lSamples) {
+    SpliceData *d = (SpliceData *)instanceData;
+    unsigned int i = 0;
+    long readSamples = 0;
+
+    while (readSamples != lSamples && i < d->numclips) {
+        VSNodeRef *node = d->node[i];
+        VSVideoInfo *videoInfo = vsapi->getVideoInfo(node);
+        int samples = videoInfo->numAudioSample;
+
+        if (samples <= lStart) {
+            lStart = lStart - samples;
+            i++;
+            continue;
+        }
+
+        samples = samples - lStart;
+
+        if ((readSamples + samples) > lSamples) {
+            samples = lSamples - readSamples;
+        }
+
+        vsapi->getAudio(node, (char*)lpBuffer + (readSamples * 4), lStart, samples);
+        readSamples += samples;
+        lStart = 0;
+        i++;
+    }
+
+}
 
 static const VSFrameRef *VS_CC spliceGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     SpliceData *d = (SpliceData *) * instanceData;
@@ -579,11 +613,21 @@ static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         }
 
         d.numframes = malloc(sizeof(d.numframes[0]) * d.numclips);
+        d.numAudioSample = 0;
         d.vi.numFrames = 0;
 
         for (int i = 0; i < d.numclips; i++) {
-            d.numframes[i] = (vsapi->getVideoInfo(d.node[i]))->numFrames;
+            VSVideoInfo *videoInfo = vsapi->getVideoInfo(d.node[i]);
+
+            d.numframes[i] = videoInfo->numFrames;
             d.vi.numFrames += d.numframes[i];
+
+			if (videoInfo->hasAudio) {
+				d.numAudioSample += videoInfo->numAudioSample;
+				d.vi.hasAudio = 1;
+				d.vi.audio_samplerate = videoInfo->audio_samplerate;
+				d.vi.channels = videoInfo->channels;
+			}
 
             // did it overflow?
             if (d.vi.numFrames < d.numframes[i]) {
@@ -600,7 +644,7 @@ static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         data = malloc(sizeof(d));
         *data = d;
 
-        vsapi->createFilter(in, out, "Splice", spliceInit, spliceGetframe, spliceFree, fmParallel, nfNoCache, data, core);
+        vsapi->createFilter(in, out, "Splice", spliceInit, spliceGetframe, spliceFree, spliceGetAudio, fmParallel, nfNoCache, data, core);
     }
 }
 
@@ -681,7 +725,7 @@ static void VS_CC duplicateFramesCreate(const VSMap *in, VSMap *out, void *userD
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "DuplicateFrames", duplicateFramesInit, duplicateFramesGetFrame, duplicateFramesFree, fmParallel, nfNoCache, data, core);
+    vsapi->createFilter(in, out, "DuplicateFrames", duplicateFramesInit, duplicateFramesGetFrame, duplicateFramesFree, NULL, fmParallel, nfNoCache, data, core);
 }
 
 //////////////////////////////////////////
@@ -771,7 +815,7 @@ static void VS_CC deleteFramesCreate(const VSMap *in, VSMap *out, void *userData
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "DeleteFrames", deleteFramesInit, deleteFramesGetFrame, deleteFramesFree, fmParallel, nfNoCache, data, core);
+    vsapi->createFilter(in, out, "DeleteFrames", deleteFramesInit, deleteFramesGetFrame, deleteFramesFree, NULL, fmParallel, nfNoCache, data, core);
 }
 
 //////////////////////////////////////////
@@ -879,7 +923,7 @@ static void VS_CC freezeFramesCreate(const VSMap *in, VSMap *out, void *userData
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "FreezeFrames", freezeFramesInit, freezeFramesGetFrame, freezeFramesFree, fmParallel, nfNoCache, data, core);
+    vsapi->createFilter(in, out, "FreezeFrames", freezeFramesInit, freezeFramesGetFrame, freezeFramesFree, NULL, fmParallel, nfNoCache, data, core);
 }
 
 //////////////////////////////////////////

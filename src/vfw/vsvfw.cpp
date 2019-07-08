@@ -166,6 +166,7 @@ private:
 
     VapourSynthFile *parent;
     std::string sName;
+    bool m_isAudio;
 
     //////////// internal
 
@@ -509,7 +510,10 @@ STDMETHODIMP VapourSynthFile::Info(AVIFILEINFOW *pfi, LONG lSize) {
     afi.dwFlags = AVIFILEINFO_HASINDEX | AVIFILEINFO_ISINTERLEAVED;
     afi.dwCaps = AVIFILECAPS_CANREAD | AVIFILECAPS_ALLKEYFRAMES | AVIFILECAPS_NOCOMPRESSION;
 
-    afi.dwStreams = 1;
+    int nrStreams = 1;
+    if (vi->hasAudio == true)	nrStreams = 2;
+
+    afi.dwStreams = nrStreams;
     afi.dwSuggestedBufferSize = 0;
     afi.dwWidth = vi->width;
     afi.dwHeight = vi->height;
@@ -562,9 +566,7 @@ STDMETHODIMP VapourSynthFile::GetStream(PAVISTREAM *ppStream, DWORD fccType, LON
 
         *ppStream = (IAVIStream *)casr;
 
-    } else if (fccType == streamtypeAUDIO) {
-        return AVIERR_NODATA;
-
+    } else if (fccType == streamtypeAUDIO && vi->hasAudio) {
         if ((casr = new(std::nothrow)VapourSynthStream(this, true)) == 0)
             return AVIERR_MEMORY;
         *ppStream = (IAVIStream *)casr;
@@ -643,7 +645,7 @@ STDMETHODIMP VapourSynthStream::SetInfo(AVISTREAMINFOW *psi, LONG lSize) {
 ////////////////////////////////////////////////////////////////////////
 //////////// local
 
-VapourSynthStream::VapourSynthStream(VapourSynthFile *parentPtr, bool isAudio) : m_refs(0), sName("video") {
+VapourSynthStream::VapourSynthStream(VapourSynthFile *parentPtr, bool isAudio) : m_refs(0), sName("video"), m_isAudio(isAudio) {
     AddRef();
     parent = parentPtr;
     parent->AddRef();
@@ -665,24 +667,41 @@ STDMETHODIMP_(LONG) VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) {
     const VSVideoInfo* const vi = parent->vi;
 
     AVISTREAMINFOW asi = {};
-    asi.fccType = streamtypeVIDEO;
+    if (this->m_isAudio) {
+        asi.fccType = streamtypeAUDIO;
+    }
+    else {
+        asi.fccType = streamtypeVIDEO;
+    }
     asi.dwQuality = DWORD(-1);
 
     int image_size = BMPSize(vi, (vi->format->id == pfYUV422P10 && parent->enable_v210));
 
-    if (!GetFourCC(vi->format->id, (vi->format->id == pfYUV422P10 && parent->enable_v210), asi.fccHandler))
-        return E_FAIL;
+    if (!this->m_isAudio) {
+        if (!GetFourCC(vi->format->id, (vi->format->id == pfYUV422P10 && parent->enable_v210), asi.fccHandler))
+            return E_FAIL;
 
-    asi.dwScale = int64ToIntS(vi->fpsDen ? vi->fpsDen : 1);
-    asi.dwRate = int64ToIntS(vi->fpsNum ? vi->fpsNum : 30);
-    asi.dwLength = vi->numFrames;
-    asi.rcFrame.right = vi->width;
-    asi.rcFrame.bottom = vi->height;
-    asi.dwSampleSize = image_size;
-    asi.dwSuggestedBufferSize = image_size;
-    wcscpy(asi.szName, L"VapourSynth Video #1");
+        asi.dwScale = int64ToIntS(vi->fpsDen ? vi->fpsDen : 1);
+        asi.dwRate = int64ToIntS(vi->fpsNum ? vi->fpsNum : 30);
+        asi.dwLength = vi->numFrames;
+        asi.rcFrame.right = vi->width;
+        asi.rcFrame.bottom = vi->height;
+        asi.dwSampleSize = image_size;
+        asi.dwSuggestedBufferSize = image_size;
+        wcscpy(asi.szName, L"VapourSynth Video #1");
+    }
+    else {
+        wcscpy(asi.szName, L"VapourSynth Audio #1");
+        
+        int bytes_per_sample = sizeof(short) * vi->channels;
+        asi.fccHandler = 0;
+        asi.dwScale = bytes_per_sample;
+        asi.dwRate = vi->audio_samplerate * bytes_per_sample;
+        asi.dwSampleSize = bytes_per_sample;
+        asi.dwLength = vi->numFrames * vi->audio_samplerate * vi->fpsDen / vi->fpsNum;
+        asi.dwQuality = 0;
+    }
 
-    // Maybe should return AVIERR_BUFFERTOOSMALL for lSize < sizeof(asi)
     memset(psi, 0, lSize);
     memcpy(psi, &asi, std::min(static_cast<size_t>(lSize), sizeof(asi)));
     return S_OK;
@@ -834,8 +853,35 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
 //////////// IAVIStream
 
 STDMETHODIMP VapourSynthStream::Read(LONG lStart, LONG lSamples, LPVOID lpBuffer, LONG cbBuffer, LONG *plBytes, LONG *plSamples) {
+    HRESULT result;
+
     parent->Lock();
-    HRESULT result = Read2(lStart, lSamples, lpBuffer, cbBuffer, plBytes, plSamples);
+    if (this->m_isAudio) {
+        const VSAPI *vsapi = parent->vsapi;
+        const VSVideoInfo *videoInfo = vsapi->getVideoInfo(parent->node);
+
+        if (!lpBuffer)
+            result = S_OK;
+        else {
+            if (lSamples == AVISTREAMREAD_CONVENIENT)
+                lSamples = videoInfo->audio_samplerate;
+
+            int bytes = lSamples * sizeof(short) * videoInfo->channels;
+            if (lpBuffer && bytes > cbBuffer) {
+                lSamples = cbBuffer / sizeof(short) * videoInfo->channels;
+                bytes = lSamples * sizeof(short) * videoInfo->channels;
+            }
+            *plSamples = lSamples;
+            *plBytes = bytes;
+            vsapi->getAudio(parent->node, lpBuffer, lStart, lSamples);
+
+            result = S_OK;
+        }
+    }
+    else {
+        result = Read2(lStart, lSamples, lpBuffer, cbBuffer, plBytes, plSamples);
+    }
+
     parent->Unlock();
     return result;
 }
@@ -871,7 +917,12 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
         return E_POINTER;
 
     if (!lpFormat) {
-        *lpcbFormat = sizeof(BITMAPINFOHEADER);
+        if (this->m_isAudio) {
+            *lpcbFormat = sizeof(PCMWAVEFORMAT);
+        }
+        else {
+            *lpcbFormat = sizeof(BITMAPINFOHEADER);
+        }
         return S_OK;
     }
 
@@ -879,18 +930,31 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
 
     const VSVideoInfo* const vi = parent->vi;
 
-    BITMAPINFOHEADER bi = {};
-    bi.biSize = sizeof(bi);
-    bi.biWidth = vi->width;
-    bi.biHeight = vi->height;
-    bi.biPlanes = 1;
-    bi.biBitCount = BitsPerPixel(vi, (vi->format->id == pfYUV422P10 && parent->enable_v210));
-    if (!GetBiCompression(vi->format->id, (vi->format->id == pfYUV422P10 && parent->enable_v210), bi.biCompression))
-        return E_FAIL;
+    if (this->m_isAudio) {
+       PCMWAVEFORMAT pcm = {};
 
-    bi.biSizeImage = BMPSize(vi, (vi->format->id == pfYUV422P10 && parent->enable_v210));
-    *lpcbFormat = std::min<LONG>(*lpcbFormat, sizeof(bi));
-    memcpy(lpFormat, &bi, static_cast<size_t>(*lpcbFormat));
+       pcm.wBitsPerSample = 16;
+       pcm.wf.wFormatTag = WAVE_FORMAT_PCM;
+       pcm.wf.nChannels = vi->channels;
+       pcm.wf.nSamplesPerSec = vi->audio_samplerate;
+       pcm.wf.nBlockAlign = sizeof(short) * vi->channels;
+       pcm.wf.nAvgBytesPerSec = vi->audio_samplerate * pcm.wf.nBlockAlign;
+       memcpy(lpFormat, &pcm, static_cast<size_t>(*lpcbFormat));
+    }
+    else {
+        BITMAPINFOHEADER bi = {};
+        bi.biSize = sizeof(bi);
+        bi.biWidth = vi->width;
+        bi.biHeight = vi->height;
+        bi.biPlanes = 1;
+        bi.biBitCount = BitsPerPixel(vi, (vi->format->id == pfYUV422P10 && parent->enable_v210));
+        if (!GetBiCompression(vi->format->id, (vi->format->id == pfYUV422P10 && parent->enable_v210), bi.biCompression))
+            return E_FAIL;
+
+        bi.biSizeImage = BMPSize(vi, (vi->format->id == pfYUV422P10 && parent->enable_v210));
+        *lpcbFormat = std::min<LONG>(*lpcbFormat, sizeof(bi));
+        memcpy(lpFormat, &bi, static_cast<size_t>(*lpcbFormat));
+    }
 
     return S_OK;
 }

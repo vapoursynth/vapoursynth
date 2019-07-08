@@ -212,7 +212,7 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "PreMultiply", preMultiplyInit, preMultiplyGetFrame, preMultiplyFree, fmParallel, 0, data, core);
+    vsapi->createFilter(in, out, "PreMultiply", preMultiplyInit, preMultiplyGetFrame, preMultiplyFree, NULL, fmParallel, 0, data, core);
 }
 
 //////////////////////////////////////////
@@ -393,7 +393,7 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "Merge", mergeInit, mergeGetFrame, mergeFree, fmParallel, 0, data, core);
+    vsapi->createFilter(in, out, "Merge", mergeInit, mergeGetFrame, mergeFree, NULL, fmParallel, 0, data, core);
 }
 
 //////////////////////////////////////////
@@ -628,7 +628,7 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "MaskedMerge", maskedMergeInit, maskedMergeGetFrame, maskedMergeFree, fmParallel, 0, data, core);
+    vsapi->createFilter(in, out, "MaskedMerge", maskedMergeInit, maskedMergeGetFrame, maskedMergeFree, NULL, fmParallel, 0, data, core);
 }
 
 //////////////////////////////////////////
@@ -783,7 +783,7 @@ static void VS_CC makeDiffCreate(const VSMap *in, VSMap *out, void *userData, VS
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "MakeDiff", makeDiffInit, makeDiffGetFrame, makeDiffFree, fmParallel, 0, data, core);
+    vsapi->createFilter(in, out, "MakeDiff", makeDiffInit, makeDiffGetFrame, makeDiffFree, NULL, fmParallel, 0, data, core);
 }
 
 //////////////////////////////////////////
@@ -937,7 +937,7 @@ static void VS_CC mergeDiffCreate(const VSMap *in, VSMap *out, void *userData, V
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "MergeDiff", mergeDiffInit, mergeDiffGetFrame, mergeDiffFree, fmParallel, 0, data, core);
+    vsapi->createFilter(in, out, "MergeDiff", mergeDiffInit, mergeDiffGetFrame, mergeDiffFree, NULL, fmParallel, 0, data, core);
 }
 
 //////////////////////////////////////////

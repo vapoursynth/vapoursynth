@@ -702,7 +702,7 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     data = new TextData(d);
 
-    vsapi->createFilter(in, out, d.instanceName.c_str(), textInit, textGetFrame, textFree, fmParallel, 0, data, core);
+    vsapi->createFilter(in, out, d.instanceName.c_str(), textInit, textGetFrame, textFree, NULL, fmParallel, 0, data, core);
 }
 
 

@@ -116,6 +116,8 @@
     </ClCompile>
     <ClCompile Include="..\..\src\core\kernel\x86\generic_avx2.cpp">
       <Filter>Source Files\kernel\x86</Filter>
+    <ClCompile Include="..\..\src\core\audiofilter.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

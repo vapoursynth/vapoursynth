@@ -120,6 +120,18 @@ static const VSFrameRef *VS_CC getFrame(int n, VSNodeRef *clip, char *errorMsg, 
     return g.r;
 }
 
+static const void VS_CC getAudio(VSNodeRef *clip, void *lpBuffer, long lStart, long lSamples) VS_NOEXCEPT {
+    assert(clip);
+
+    VSNode *node = clip->clip.get();
+    bool isWorker = node->isWorkerThread();
+    if (isWorker)
+        node->releaseThread();
+    node->getAudio(lpBuffer, lStart, lSamples);
+    if (isWorker)
+        node->reserveThread();
+}
+
 static void VS_CC requestFrameFilter(int n, VSNodeRef *clip, VSFrameContext *frameCtx) VS_NOEXCEPT {
     assert(clip && frameCtx);
     int numFrames = clip->clip->getVideoInfo(clip->index).numFrames;
@@ -171,11 +183,11 @@ static void VS_CC copyFrameProps(const VSFrameRef *src, VSFrameRef *dst, VSCore 
     core->copyFrameProps(src->frame, dst->frame);
 }
 
-static void VS_CC createFilter(const VSMap *in, VSMap *out, const char *name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT {
-    assert(in && out && name && init && getFrame && core);
+static void VS_CC createFilter(const VSMap *in, VSMap *out, const char *name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterGetAudio getAudio, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT {
+    assert(in && out && name && init && (getFrame || getAudio) && core);
     if (!name)
         vsFatal("NULL name pointer passed to createFilter()");
-    core->createFilter(in, out, name, init, getFrame, free, static_cast<VSFilterMode>(filterMode), flags, instanceData, VAPOURSYNTH_API_MAJOR);
+    core->createFilter(in, out, name, init, getFrame, free, getAudio, static_cast<VSFilterMode>(filterMode), flags, instanceData, VAPOURSYNTH_API_MAJOR);
 }
 
 static void VS_CC setError(VSMap *map, const char *errorMessage) VS_NOEXCEPT {
@@ -586,6 +598,7 @@ const VSAPI vs_internal_vsapi = {
     &getFrame,
     &getFrameAsync,
     &getFrameFilter,
+    &getAudio,
     &requestFrameFilter,
     &queryCompletedFrame,
     &releaseFrameEarly,

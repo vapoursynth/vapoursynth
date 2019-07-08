@@ -934,7 +934,7 @@ public:
     static void create(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
         try {
             vszimg *x = new vszimg{ in, userData, core, vsapi };
-            vsapi->createFilter(in, out, "format", vszimg_init, vszimg_get_frame, vszimg_free, fmParallel, 0, x, core);
+            vsapi->createFilter(in, out, "format", vszimg_init, vszimg_get_frame, vszimg_free, NULL, fmParallel, 0, x, core);
         } catch (const vszimgxx::zerror &e) {
             std::string errmsg = std::string{ "Resize error " } + std::to_string(e.code) + ": " + e.msg;
             vsapi->setError(out, errmsg.c_str());

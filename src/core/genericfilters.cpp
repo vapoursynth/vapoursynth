@@ -590,7 +590,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
         return;
     }
 
-    vsapi->createFilter(in, out, d->filter_name, templateNodeInit<GenericData>, genericGetframe<op>, templateNodeFree<GenericData>, fmParallel, 0, d.get(), core);
+    vsapi->createFilter(in, out, d->filter_name, templateNodeInit<GenericData>, genericGetframe<op>, templateNodeFree<GenericData>, NULL, fmParallel, 0, d.get(), core);
     d.release();
 }
 
@@ -642,7 +642,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         return;
     }
 
-    vsapi->createFilter(in, out, d->name, templateNodeInit<InvertData>, singlePixelGetFrame<InvertData, InvertOp>, templateNodeFree<InvertData>, fmParallel, 0, d.get(), core);
+    vsapi->createFilter(in, out, d->name, templateNodeInit<InvertData>, singlePixelGetFrame<InvertData, InvertOp>, templateNodeFree<InvertData>, NULL, fmParallel, 0, d.get(), core);
     d.release();
 }
 
@@ -697,7 +697,7 @@ static void VS_CC limitCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         return;
     }
 
-    vsapi->createFilter(in, out, d->name, templateNodeInit<LimitData>, singlePixelGetFrame<LimitData, LimitOp>, templateNodeFree<LimitData>, fmParallel, 0, d.get(), core);
+    vsapi->createFilter(in, out, d->name, templateNodeInit<LimitData>, singlePixelGetFrame<LimitData, LimitOp>, templateNodeFree<LimitData>, NULL, fmParallel, 0, d.get(), core);
     d.release();
 }
 
@@ -758,7 +758,7 @@ static void VS_CC binarizeCreate(const VSMap *in, VSMap *out, void *userData, VS
         return;
     }
 
-    vsapi->createFilter(in, out, d->name, templateNodeInit<BinarizeData>, singlePixelGetFrame<BinarizeData, BinarizeOp>, templateNodeFree<BinarizeData>, fmParallel, 0, d.get(), core);
+    vsapi->createFilter(in, out, d->name, templateNodeInit<BinarizeData>, singlePixelGetFrame<BinarizeData, BinarizeOp>, templateNodeFree<BinarizeData>, NULL, fmParallel, 0, d.get(), core);
     d.release();
 }
 
@@ -924,11 +924,11 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     }
 
     if (d->vi->format->bytesPerSample == 1)
-        vsapi->createFilter(in, out, d->name, templateNodeInit<LevelsData>, levelsGetframe<uint8_t>, templateNodeFree<LevelsData>, fmParallel, 0, d.get(), core);
+        vsapi->createFilter(in, out, d->name, templateNodeInit<LevelsData>, levelsGetframe<uint8_t>, templateNodeFree<LevelsData>, NULL, fmParallel, 0, d.get(), core);
     else if (d->vi->format->bytesPerSample == 2)
-        vsapi->createFilter(in, out, d->name, templateNodeInit<LevelsData>, levelsGetframe<uint16_t>, templateNodeFree<LevelsData>, fmParallel, 0, d.get(), core);
+        vsapi->createFilter(in, out, d->name, templateNodeInit<LevelsData>, levelsGetframe<uint16_t>, templateNodeFree<LevelsData>, NULL, fmParallel, 0, d.get(), core);
     else
-        vsapi->createFilter(in, out, d->name, templateNodeInit<LevelsData>, levelsGetframeF<float>, templateNodeFree<LevelsData>, fmParallel, 0, d.get(), core);
+        vsapi->createFilter(in, out, d->name, templateNodeInit<LevelsData>, levelsGetframeF<float>, templateNodeFree<LevelsData>, NULL, fmParallel, 0, d.get(), core);
     d.release();
 }
 

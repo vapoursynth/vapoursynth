@@ -184,7 +184,7 @@ static void lutCreateHelper(const VSMap *in, VSMap *out, VSFuncRef *func, std::u
         }
     }
 
-    vsapi->createFilter(in, out, "Lut", lutInit, lutGetframe<T, U>, lutFree, fmParallel, 0, d.release(), core);
+    vsapi->createFilter(in, out, "Lut", lutInit, lutGetframe<T, U>, lutFree, NULL, fmParallel, 0, d.release(), core);
 }
 
 static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -439,7 +439,7 @@ static void lut2CreateHelper(const VSMap *in, VSMap *out, VSFuncRef *func, std::
         }
     }
 
-    vsapi->createFilter(in, out, "Lut2", lut2Init, lut2Getframe<T, U, V>, lut2Free, fmParallel, 0, d.release(), core);
+    vsapi->createFilter(in, out, "Lut2", lut2Init, lut2Getframe<T, U, V>, lut2Free, NULL, fmParallel, 0, d.release(), core);
 }
 
 static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
