@@ -1655,8 +1655,16 @@ cdef Core vsscript_get_core_internal(int environment_id):
         _cores[environment_id] = createCore()
     return _cores[environment_id]
     
-cdef class _CoreProxy(object):
+class CoreMeta(type):
+    def __new__(cls, name, bases, dct):
+        core = get_core()
+        for plugin in core.get_plugins().values():
+            name = plugin['namespace']
+            dct[name] = core.__getattr__(name)
 
+        return super(CoreMeta, cls).__new__(cls, name, bases, dct)
+
+class _CoreProxy(metaclass=CoreMeta):
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
     
