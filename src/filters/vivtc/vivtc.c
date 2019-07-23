@@ -1384,8 +1384,12 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
             if (cyclestart > 0)
                 vsapi->requestFrameFilter(cyclestart - 1, vdm->node, frameCtx);
 
-            for (int i = cyclestart; i < cycleend; i++)
+            for (int i = cyclestart; i < cycleend; i++) {
                 vsapi->requestFrameFilter(i, vdm->node, frameCtx);
+                
+                if (vdm->dryrun && vdm->clip2)
+                    vsapi->requestFrameFilter(i, vdm->clip2, frameCtx);
+            }
         }
 
         if (cycle->drop != Unknown) {
