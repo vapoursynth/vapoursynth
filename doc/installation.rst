@@ -83,7 +83,7 @@ These are the requirements:
 
    * GCC 4.8 or newer, or Clang
 
-   * Nasm
+   * Nasm 2.13 or newer
 
    * `zimg v2.9 branch <https://github.com/sekrit-twc/zimg/releases>`_
 
