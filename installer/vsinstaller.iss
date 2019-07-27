@@ -1,4 +1,4 @@
-#define Version 'R46'
+#define Version 'R47'
 
 #ifndef InstallerBits
   #define InstallerBits '64'
@@ -173,6 +173,8 @@ Root: HKA; Subkey: SOFTWARE\Classes\AVIFile\Extensions\VPY; ValueType: string; V
 
 [Code]
 
+const VSRuntimeVersion = '14.22.27821';
+
 type
   TPythonPath = record
     DisplayName: string;
@@ -275,6 +277,7 @@ end;
 function InitializeSetup: Boolean;
 var
   HasOtherPython: Boolean;
+  ErrCode: Integer;
 begin
   RuntimesAdded := False;
   PythonList := nil;
@@ -297,7 +300,11 @@ begin
   else if not Result and IsAdminInstallMode then
       MsgBox('Python 3.7 ({#InstallerBits}-bit) is installed for the current user only. Run the installer again and select "Install for me only" or install Python for all users.', mbCriticalError, MB_OK)
   else if not Result and not IsAdminInstallMode then
-      MsgBox('Python 3.7 ({#InstallerBits}-bit) is installed for all users. Run the installer again and select "Install for all users" or install Python for the current user only.', mbCriticalError, MB_OK)    
+      MsgBox('Python 3.7 ({#InstallerBits}-bit) is installed for all users. Run the installer again and select "Install for all users" or install Python for the current user only.', mbCriticalError, MB_OK);
+      
+  if not IsAdminInstallMode and not vcredist2017installed(VSRuntimeVersion) then
+      if MsgBox('No recent Visual Studio 2019 Runtime installed.If you proceed with the install it is very likely the installation won''t work.'#13#10#13#10'Go to the download website now?', mbError, MB_YESNO) = IDYES then
+          ShellExec('open', 'https://visualstudio.microsoft.com/downloads/?q=redistributable', '', '', SW_SHOW, ewNoWait, ErrCode);
 end;
 
 procedure WizardFormOnResize(Sender: TObject);
@@ -426,7 +433,7 @@ begin
   begin
     if WizardIsComponentSelected('vsruntimes') and not RuntimesAdded then
     begin
-      vcredist2017('14.21.27702');
+      vcredist2017(VSRuntimeVersion);
       RuntimesAdded := True;
     end;
     Result := NextButtonClick2(CurPageID);

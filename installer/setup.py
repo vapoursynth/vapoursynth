@@ -1,4 +1,4 @@
-CURRENT_RELEASE = "46"
+CURRENT_RELEASE = "47"
 
 # Always prefer setuptools over distutils
 from setuptools import setup, find_packages
