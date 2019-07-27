@@ -130,9 +130,6 @@
     <NASM Include="..\..\src\core\asm\x86\cpu.asm">
       <Filter>asm</Filter>
     </NASM>
-    <NASM Include="..\..\src\core\asm\x86\check.asm">
-      <Filter>asm</Filter>
-    </NASM>
     <NASM Include="..\..\src\core\asm\x86\merge.asm">
       <Filter>asm</Filter>
     </NASM>
