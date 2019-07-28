@@ -24,7 +24,7 @@
 
 #ifdef VS_TARGET_CPU_X86
 
-#ifdef VS_USE_CPUID_ASM
+#ifndef _MSC_VER
 
 extern void vs_cpu_cpuid(int index, int* eax, int* ebx, int* ecx, int* edx);
 extern void vs_cpu_xgetbv(int op, int* eax, int* edx);
