@@ -321,7 +321,7 @@ end;
 
 procedure InitializeWizard();
 begin
-  PythonPage := CreateCustomPage(wpSelectComponents, 'Select Python Installations', 'Select one or more Python installations to use');
+  PythonPage := CreateCustomPage(wpSelectComponents, 'Select Python Installation', 'Select one or more Python installations to use');
   PythonList := TNewCheckListBox.Create(PythonPage);
   
   with PythonList do

@@ -59,31 +59,3 @@ cglobal cpu_xgetbv, 3,7
     pop   r4
     mov [r4], edx
     RET
-
-%if ARCH_X86_64 == 0
-;-----------------------------------------------------------------------------
-; int ff_cpu_cpuid_test(void)
-; return 0 if unsupported
-;-----------------------------------------------------------------------------
-cglobal cpu_cpuid_test
-    pushfd
-    push    ebx
-    push    ebp
-    push    esi
-    push    edi
-    pushfd
-    pop     eax
-    mov     ebx, eax
-    xor     eax, 0x200000
-    push    eax
-    popfd
-    pushfd
-    pop     eax
-    xor     eax, ebx
-    pop     edi
-    pop     esi
-    pop     ebp
-    pop     ebx
-    popfd
-    ret
-%endif

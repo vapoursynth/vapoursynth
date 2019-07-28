@@ -69,8 +69,8 @@ libvapoursynth_la_SOURCES = src/core/boxblurfilter.cpp \
 							src/core/x86utils.h
 
 if X86ASM
-libvapoursynth_la_SOURCES += src/core/asm/x86/cpu.asm \
-							 src/core/asm/x86/merge.asm
+libvapoursynth_la_SOURCES += src/core/asm/x86/cpu.asm
+
 endif # X86ASM
 
 pkginclude_HEADERS = include/VapourSynth.h \

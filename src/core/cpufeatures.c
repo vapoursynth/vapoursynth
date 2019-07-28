@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2013 Fredrik Mellbin
+* Copyright (c) 2012-2019 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -23,9 +23,33 @@
 #include "cpufeatures.h"
 
 #ifdef VS_TARGET_CPU_X86
-extern void vs_cpu_cpuid(int index, int *eax, int *ebx, int *ecx, int *edx);
-extern void vs_cpu_xgetbv(int op, int *eax, int *edx);
-extern void vs_cpu_cpuid_test(void);
+
+#ifdef VS_USE_CPUID_ASM
+
+extern void vs_cpu_cpuid(int index, int* eax, int* ebx, int* ecx, int* edx);
+extern void vs_cpu_xgetbv(int op, int* eax, int* edx);
+
+#else
+
+#include <intrin.h>
+#include <immintrin.h>
+
+void vs_cpu_cpuid(int index, int* eax, int* ebx, int* ecx, int* edx) {
+    int regs[4];
+    __cpuid(regs, index);
+    *eax = regs[0];
+    *ebx = regs[1];
+    *ecx = regs[2];
+    *edx = regs[3];
+}
+
+void vs_cpu_xgetbv(int op, int* eax, int* edx) {
+    unsigned long long regs = _xgetbv(op);
+    *eax = (int)regs;
+    *edx = (int)(regs >> 32);
+}
+
+#endif
 
 void getCPUFeatures(CPUFeatures *cpuFeatures) {
     memset(cpuFeatures, 0, sizeof(CPUFeatures));
