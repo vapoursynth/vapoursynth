@@ -843,8 +843,8 @@ static char *prefix_string(const char *message, const char *prefix) {
 
     char *result = (char *)malloc(length);
 
-    strncpy(result, prefix, prefix_length);
-    strncpy(result + prefix_length, message, message_length);
+    memcpy(result, prefix, prefix_length);
+    memcpy(result + prefix_length, message, message_length);
 
     result[length - 1] = '\0';
 
