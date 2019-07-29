@@ -4,7 +4,7 @@ Default install paths are assumed in all projects and scripts, be prepared to ad
 
 ## Required languages and applications
 
-* Needs [Visual Studio 2019](https://visualstudio.microsoft.com/de/vs/) and [vsnasm](https://github.com/ShiftMediaProject/VSNASM)
+* Needs [Visual Studio 2019](https://visualstudio.microsoft.com/de/vs/)
 * It also needs both [32bit](https://www.python.org/ftp/python/3.7.3/python-3.7.3-webinstall.exe) and [64bit](https://www.python.org/ftp/python/3.7.3/python-3.7.3-amd64-webinstall.exe) Python 3.7 series (the msvc project assumes that you installed python for all users.)
 * [InnoSetup 6.x](http://www.jrsoftware.org/isdl.php) is needed to create the installer (default installation path assumed)
 * [7-zip](https://www.7-zip.org/) is needed to compress the portable version (default installation path assumed)

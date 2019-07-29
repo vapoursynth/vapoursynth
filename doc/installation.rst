@@ -83,8 +83,6 @@ These are the requirements:
 
    * GCC 4.8 or newer, or Clang
 
-   * Nasm 2.13 or newer
-
    * `zimg v2.9 branch <https://github.com/sekrit-twc/zimg/releases>`_
 
    * Python 3
@@ -112,7 +110,7 @@ First download and install the prerequisites:
 Installation of the required packages is very easy. Simply run these
 commands in a terminal and wait for them to complete::
 
-   brew install python3 nasm ffmpeg libass zimg imagemagick
+   brew install python3 ffmpeg libass zimg imagemagick
    pip3 install cython
    
 If you've already installed all the required packages and instead want
