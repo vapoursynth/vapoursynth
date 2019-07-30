@@ -445,10 +445,12 @@ size_t MemoryUse::memoryUse() {
 }
 
 size_t MemoryUse::getLimit() {
+    std::lock_guard<std::mutex> lock(mutex);
     return maxMemoryUse;
 }
 
 int64_t MemoryUse::setMaxMemoryUse(int64_t bytes) {
+    std::lock_guard<std::mutex> lock(mutex);
     if (bytes > 0 && static_cast<uint64_t>(bytes) <= SIZE_MAX)
         maxMemoryUse = static_cast<size_t>(bytes);
     return maxMemoryUse;

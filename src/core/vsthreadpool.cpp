@@ -304,7 +304,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
         }
 
 
-        if (!ranTask || owner->activeThreadCount() > owner->threadCount()) {
+        if (!ranTask || owner->activeThreads > owner->maxThreads) {
             --owner->activeThreads;
             if (stop) {
                 lock.unlock();
@@ -325,11 +325,8 @@ VSThreadPool::VSThreadPool(VSCore *core, int threads) : core(core), activeThread
     setThreadCount(threads);
 }
 
-int VSThreadPool::activeThreadCount() const {
-    return activeThreads;
-}
-
-int VSThreadPool::threadCount() const {
+int VSThreadPool::threadCount() {
+    std::lock_guard<std::mutex> l(lock);
     return maxThreads;
 }
 
@@ -339,12 +336,14 @@ void VSThreadPool::spawnThread() {
     ++activeThreads;
 }
 
-void VSThreadPool::setThreadCount(int threads) {
+int VSThreadPool::setThreadCount(int threads) {
+    std::lock_guard<std::mutex> l(lock);
     maxThreads = threads > 0 ? threads : getNumAvailableThreads();
     if (maxThreads == 0) {
         maxThreads = 1;
         vsWarning("Couldn't detect optimal number of threads. Thread count set to 1.");
     }
+    return maxThreads;
 }
 
 void VSThreadPool::wakeThread() {

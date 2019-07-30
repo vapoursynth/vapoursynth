@@ -564,9 +564,8 @@ public:
     ~VSThreadPool();
     void returnFrame(const PFrameContext &rCtx, const PVideoFrame &f);
     void returnFrame(const PFrameContext &rCtx, const std::string &errMsg);
-    int activeThreadCount() const;
-    int threadCount() const;
-    void setThreadCount(int threads);
+    int threadCount();
+    int setThreadCount(int threads);
     void start(const PFrameContext &context);
     void releaseThread();
     void reserveThread();

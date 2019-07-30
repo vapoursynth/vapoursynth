@@ -488,8 +488,7 @@ static void VS_CC setMessageHandler(VSMessageHandler handler, void *userData) VS
 
 static int VS_CC setThreadCount(int threads, VSCore *core) VS_NOEXCEPT {
     assert(core);
-    core->threadPool->setThreadCount(threads);
-    return core->threadPool->threadCount();
+    return core->threadPool->setThreadCount(threads);
 }
 
 static const char *VS_CC getPluginPath(const VSPlugin *plugin) VS_NOEXCEPT {
