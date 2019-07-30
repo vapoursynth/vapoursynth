@@ -549,6 +549,12 @@ int VS_CC removeMessageHandler(int id) VS_NOEXCEPT {
     return vsRemoveMessageHandler(id);
 }
 
+void VS_CC getCoreInfo2(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT {
+    assert(core && info);
+    core->getCoreInfo2(*info);
+}
+
+
 
 const VSAPI vs_internal_vsapi = {
     &createCore,
@@ -639,7 +645,8 @@ const VSAPI vs_internal_vsapi = {
 
     &logMessage,
     &addMessageHandler,
-    &removeMessageHandler
+    &removeMessageHandler,
+    &getCoreInfo2
 };
 
 ///////////////////////////////

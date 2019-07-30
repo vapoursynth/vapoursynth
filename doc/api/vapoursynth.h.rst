@@ -73,6 +73,8 @@ Structs_
           * freeCore_
 
           * getCoreInfo_
+          
+          * getCoreInfo2_
 
           * setMaxCacheSize_
 
@@ -913,10 +915,22 @@ struct VSAPI
    .. _getCoreInfo:
 
    const VSCoreInfo_ \*getCoreInfo(VSCore_ \*core)
+   
+      Deprecated as of API 3.6 (VapourSynth R47)
 
       Returns information about the VapourSynth core.
       
       VapourSynth retains ownership of the returned pointer.
+      
+----------
+
+   .. _getCoreInfo2:
+
+   void getCoreInfo(VSCore_ \*core, VSCoreInfo_ \*info)
+
+      Returns information about the VapourSynth core.
+      
+      This function is thread-safe.
 
 ----------
 
@@ -933,7 +947,7 @@ struct VSAPI
 
    void setMessageHandler(VSMessageHandler handler, void \*userData)
    
-      Deprecated as of API 3.6
+      Deprecated as of API 3.6 (VapourSynth R47)
 
       Installs a custom handler for the various error messages VapourSynth
       emits. The message handler is currently global, i.e. per process, not

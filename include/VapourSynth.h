@@ -243,7 +243,7 @@ typedef void (VS_CC *VSMessageHandlerFree)(void *userData);
 struct VSAPI {
     VSCore *(VS_CC *createCore)(int threads) VS_NOEXCEPT;
     void (VS_CC *freeCore)(VSCore *core) VS_NOEXCEPT;
-    const VSCoreInfo *(VS_CC *getCoreInfo)(VSCore *core) VS_NOEXCEPT;
+    const VSCoreInfo *(VS_CC *getCoreInfo)(VSCore *core) VS_NOEXCEPT; /* deprecated as of api 3.6, use getCoreInfo2 instead */
 
     const VSFrameRef *(VS_CC *cloneFrameRef)(const VSFrameRef *f) VS_NOEXCEPT;
     VSNodeRef *(VS_CC *cloneNodeRef)(VSNodeRef *node) VS_NOEXCEPT;
@@ -340,6 +340,7 @@ struct VSAPI {
     /* api 3.6 */
     int (VS_CC *addMessageHandler)(VSMessageHandler handler, VSMessageHandlerFree free, void *userData) VS_NOEXCEPT;
     int (VS_CC *removeMessageHandler)(int id) VS_NOEXCEPT;
+    void (VS_CC *getCoreInfo2)(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT;
 };
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version) VS_NOEXCEPT;

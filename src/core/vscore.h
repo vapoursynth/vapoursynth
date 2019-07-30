@@ -670,6 +670,7 @@ public:
     VSPlugin *getPluginByNs(const std::string &ns);
 
     const VSCoreInfo &getCoreInfo();
+    void getCoreInfo2(VSCoreInfo &info);
 
     void functionInstanceCreated();
     void functionInstanceDestroyed();

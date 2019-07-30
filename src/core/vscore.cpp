@@ -1041,6 +1041,15 @@ const VSCoreInfo &VSCore::getCoreInfo() {
     return coreInfo;
 }
 
+void VSCore::getCoreInfo2(VSCoreInfo &info) {
+    info.versionString = VAPOURSYNTH_VERSION_STRING;
+    info.core = VAPOURSYNTH_CORE_VERSION;
+    info.api = VAPOURSYNTH_API_VERSION;
+    info.numThreads = threadPool->threadCount();
+    info.maxFramebufferSize = memory->getLimit();
+    info.usedFramebufferSize = memory->memoryUse();
+}
+
 void VS_CC vs_internal_configPlugin(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readOnly, VSPlugin *plugin);
 void VS_CC vs_internal_registerFunction(const char *name, const char *args, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin);
 
