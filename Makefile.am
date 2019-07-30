@@ -29,6 +29,12 @@ lib_LTLIBRARIES =
 
 
 if VSCORE
+noinst_LTLIBRARIES = libexprfilter.la
+
+libexprfilter_la_SOURCES = src/core/exprfilter.cpp
+libexprfilter_la_CPPFLAGS = $(AM_CXXFLAGS) -fno-strict-aliasing
+
+
 lib_LTLIBRARIES += libvapoursynth.la
 
 libvapoursynth_la_SOURCES = src/core/boxblurfilter.cpp \
@@ -36,7 +42,6 @@ libvapoursynth_la_SOURCES = src/core/boxblurfilter.cpp \
 							src/core/cachefilter.h \
 							src/core/cpufeatures.c \
 							src/core/cpufeatures.h \
-							src/core/exprfilter.cpp \
 							src/core/filtershared.h \
 							src/core/genericfilters.cpp \
 							src/core/internalfilters.h \
@@ -68,7 +73,7 @@ pkgconfig_DATA += pc/vapoursynth.pc
 
 libvapoursynth_la_LDFLAGS = -no-undefined -avoid-version
 libvapoursynth_la_CPPFLAGS = $(ZIMG_CFLAGS) -DVS_PATH_PLUGINDIR='"$(PLUGINDIR)"'
-libvapoursynth_la_LIBADD = $(ZIMG_LIBS) $(DLOPENLIB)
+libvapoursynth_la_LIBADD = $(ZIMG_LIBS) $(DLOPENLIB) libexprfilter.la
 
 
 if PYTHONMODULE
