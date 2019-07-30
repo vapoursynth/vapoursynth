@@ -541,6 +541,15 @@ static void VS_CC logMessage(int msgType, const char *msg) VS_NOEXCEPT {
     vsLog(__FILE__, __LINE__, static_cast<VSMessageType>(msgType), "%s", msg);
 }
 
+int VS_CC addMessageHandler(VSMessageHandler handler, VSMessageHandlerFree free, void *userData) VS_NOEXCEPT {
+    return vsAddMessageHandler(handler, free, userData);
+}
+
+int VS_CC removeMessageHandler(int id) VS_NOEXCEPT {
+    return vsRemoveMessageHandler(id);
+}
+
+
 const VSAPI vs_internal_vsapi = {
     &createCore,
     &freeCore,
@@ -628,7 +637,9 @@ const VSAPI vs_internal_vsapi = {
     &propSetIntArray,
     &propSetFloatArray,
 
-    &logMessage
+    &logMessage,
+    &addMessageHandler,
+    &removeMessageHandler
 };
 
 ///////////////////////////////
