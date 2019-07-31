@@ -461,8 +461,9 @@ bool VapourSynthFile::DelayInit2() {
                 enable_v210 = false;
             vsapi->freeMap(options);
 
-            const VSCoreInfo *info = vsapi->getCoreInfo(vsscript_getCore(se));
-            num_threads = info->numThreads;
+            VSCoreInfo info;
+            vsapi->getCoreInfo2(vsscript_getCore(se), &info);
+            num_threads = info.numThreads;
 
             return true;
         } else {

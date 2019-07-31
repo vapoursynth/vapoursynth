@@ -289,8 +289,9 @@ static std::string floatBitsToLetter(int bits) {
 
 static bool outputNode() {
     if (requests < 1) {
-        const VSCoreInfo *info = vsapi->getCoreInfo(vsscript_getCore(se));
-        requests = info->numThreads;
+        VSCoreInfo info;
+        vsapi->getCoreInfo2(vsscript_getCore(se), &info);
+        requests = info.numThreads;
     }
 
     const VSVideoInfo *vi = vsapi->getVideoInfo(node);
@@ -432,8 +433,9 @@ static bool printVersion() {
         return false;
     }
 
-    const VSCoreInfo *info = vsapi->getCoreInfo(core);
-    printf("%s", info->versionString);
+    VSCoreInfo info;
+    vsapi->getCoreInfo2(core, &info);
+    printf("%s", info.versionString);
     vsapi->freeCore(core);
     vsscript_finalize();
     return true;

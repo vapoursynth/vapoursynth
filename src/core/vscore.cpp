@@ -1034,12 +1034,7 @@ bool VSCore::isValidFormatPointer(const VSFormat *f) {
 }
 
 const VSCoreInfo &VSCore::getCoreInfo() {
-    coreInfo.versionString = VAPOURSYNTH_VERSION_STRING;
-    coreInfo.core = VAPOURSYNTH_CORE_VERSION;
-    coreInfo.api = VAPOURSYNTH_API_VERSION;
-    coreInfo.numThreads = threadPool->threadCount();
-    coreInfo.maxFramebufferSize = memory->getLimit();
-    coreInfo.usedFramebufferSize = memory->memoryUse();
+    getCoreInfo2(coreInfo);
     return coreInfo;
 }
 

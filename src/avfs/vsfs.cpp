@@ -181,8 +181,9 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
                 enable_v210 = false;
             vsapi->freeMap(options);
 
-            const VSCoreInfo *info = vsapi->getCoreInfo(vsscript_getCore(se));
-            num_threads = info->numThreads;
+            VSCoreInfo info;
+            vsapi->getCoreInfo2(vsscript_getCore(se), &info);
+            num_threads = info.numThreads;
 
             packedFrame.clear();
             packedFrame.resize(BMPSize());
@@ -507,10 +508,11 @@ int/*error*/ VapourSynther::Init(
 
     if (!error) {
         // Initialize frame read-ahead logic.
-        const VSCoreInfo *info = vsapi->getCoreInfo(vsscript_getCore(se));
+        VSCoreInfo info;
+        vsapi->getCoreInfo2(vsscript_getCore(se), &info);
         prefetchFrames = GetVarAsInt("AVFS_ReadAheadFrameCount", -1);
         if (prefetchFrames < 0)
-            prefetchFrames = info->numThreads;
+            prefetchFrames = info.numThreads;
     }
 
     return error;

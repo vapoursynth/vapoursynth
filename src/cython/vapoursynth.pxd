@@ -172,6 +172,7 @@ cdef extern from "include/VapourSynth.h" nogil:
     ctypedef void (__stdcall *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI *vsapi)
     ctypedef void (__stdcall *VSFreeFuncData)(void *userData)
     ctypedef void (__stdcall *VSMessageHandler)(int msgType, const char *msg, void *userData)
+    ctypedef void (__stdcall *VSMessageHandlerFree)(void *userData)
 
     ctypedef struct VSAPI:
         VSCore *createCore(int threads) nogil
@@ -258,5 +259,9 @@ cdef extern from "include/VapourSynth.h" nogil:
         int propSetFloatArray(VSMap *map, const char *key, const double *d, int size) nogil
         
         void logMessage(int msgType, const char *msg) nogil
+        
+        int addMessageHandler(VSMessageHandler handler, VSMessageHandlerFree free, void *userData) nogil
+        int removeMessageHandler(int id) nogil
+        void getCoreInfo2(VSCore *core, VSCoreInfo *info) nogil
 
     const VSAPI *getVapourSynthAPI(int version) nogil
