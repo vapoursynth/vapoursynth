@@ -10,13 +10,13 @@
   #define AppId 'VapourSynth'
   #define RegistryPath 'SOFTWARE\VapourSynth'
   #define SourceBinaryPath '..\msvc_project\x64\Release'
-  #define WheelFilename 'VapourSynth-46-cp37-cp37m-win_amd64.whl'
+  #define WheelFilename 'VapourSynth-47-cp37-cp37m-win_amd64.whl'
 #else
   #define AppName 'VapourSynth (32-bits)'
   #define AppId 'VapourSynth-32'
   #define RegistryPath 'SOFTWARE\VapourSynth-32'
   #define SourceBinaryPath '..\msvc_project\Release'
-  #define WheelFilename 'VapourSynth-46-cp37-cp37m-win32.whl'
+  #define WheelFilename 'VapourSynth-47-cp37-cp37m-win32.whl'
 #endif
 
 [Setup]
@@ -35,7 +35,7 @@ AppPublisher=Fredrik Mellbin
 AppPublisherURL=http://www.vapoursynth.com/
 AppSupportURL=http://www.vapoursynth.com/
 AppUpdatesURL=http://www.vapoursynth.com/
-VersionInfoVersion=1.46.0.0
+VersionInfoVersion=1.47.0.0
 DefaultDirName={autopf}\{#= AppId}
 DefaultGroupName={#= AppName}
 AllowCancelDuringInstall=no
