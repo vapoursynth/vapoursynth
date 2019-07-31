@@ -44,8 +44,10 @@ void vsSetMessageHandler(VSMessageHandler handler, void *userData) {
         vsRemoveMessageHandler(globalMessageHandler);
         globalMessageHandler = -1;
     }
-    if (handler)
-        globalMessageHandler = vsAddMessageHandler(handler, nullptr, userData);
+    if (handler) {
+        messageHandlers.emplace(currentHandlerId, MessageHandler{ handler, nullptr, userData });
+        globalMessageHandler = currentHandlerId++;
+    }
 }
 
 int vsAddMessageHandler(VSMessageHandler handler, VSMessageHandlerFree free, void *userData) {
