@@ -1,6 +1,6 @@
 r47:
 fixed a crash in vdecimate when both dryrun and clip2 is set (no1d)
-updated zimg to fix a crash that would happen on certain invalid input combinations
+updated zimg to 2.9.2 to fix a crash that would happen on certain invalid input combinations
 removed dependency on nasm
 improved message handler api and core info api
 various installer improvements including a warning if the vs2019 runtimes aren't installed

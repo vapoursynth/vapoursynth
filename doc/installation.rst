@@ -5,8 +5,7 @@ Prerequisites
 #############
 
 First download and install the prerequisites:
-   * `Python 3.7 <http://www.python.org/>`_  -- 32 or 64 bit version depending
-   on which version of VapourSynth you want to install
+   * `Python 3.7 <http://www.python.org/>`_  -- 32 or 64 bit version depending on which version of VapourSynth you want to install
    
 Note that VapourSynth and Python have to be matched so both are either installed
 for all users or for only for the current user.
