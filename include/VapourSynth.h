@@ -345,6 +345,7 @@ struct VSAPI {
     void (VS_CC *getCoreInfo2)(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT;
     VSSuspensionContext* (VS_CC *suspendFrame)(VSCore* core, VSFrameContext* frameCtx) VS_NOEXCEPT;
     void (VS_CC* resumeFrame)(VSSuspensionContext* suspensionContext) VS_NOEXCEPT;
+    void (VS_CC* cancelSuspend)(VSSuspensionContext* suspensionContext, VSFrameContext* frameCtx) VS_NOEXCEPT;
 };
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version) VS_NOEXCEPT;

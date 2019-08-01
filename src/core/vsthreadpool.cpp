@@ -223,9 +223,15 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             bool frameProcessingDone = f || mainContext->hasError();
             if (mainContext->hasError() && f)
                 vsFatal("A frame was returned by %s but an error was also set, this is not allowed", clip->name.c_str());
-            if (suspending && f)
-                vsFatal("A frame was returned by %s but it was also set to suspended.", clip->name.c_str());
-                
+            if (suspending) {
+                if (frameProcessingDone)
+                    vsFatal("Frame processing on %s has been completed but the frame was suspended. This is not allowed.", clip->name.c_str());
+                if (!externalFrameCtx.reqList.empty())
+                    vsFatal("Frames on %s were requested and the frame was suspended at the same time. This is not allowed.", clip->name.c_str());
+                if (ar == arFrameReady)
+                    vsFatal("The frame has been suspended while other frame requests have been outstanding. This is not allowed.", clip->name.c_str());
+            }
+
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Unlock so the next job can run on the context
             if (filterMode == fmUnordered || filterMode == fmUnorderedLinear) {
@@ -247,7 +253,6 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Handle frames that were requested
             bool requestedFrames = !externalFrameCtx.reqList.empty() && !frameProcessingDone;
-			
 
             if (!isLinear)
                 lock.lock();

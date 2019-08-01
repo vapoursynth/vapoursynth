@@ -534,8 +534,8 @@ public:
 struct VSFrameContext {
     PFrameContext &ctx;
     std::vector<PFrameContext> reqList;
-    bool suspend = false;
-    VSFrameContext(PFrameContext &ctx) : ctx(ctx) {}
+    bool suspend;
+    VSFrameContext(PFrameContext &ctx) : ctx(ctx), suspend(false) {}
 };
 
 struct VSSuspensionContext {
