@@ -187,12 +187,13 @@
     <ClCompile Include="..\..\src\core\cpufeatures.c" />
     <ClCompile Include="..\..\src\core\exprfilter.cpp" />
     <ClCompile Include="..\..\src\core\genericfilters.cpp" />
+    <ClCompile Include="..\..\src\core\kernel\transpose.c" />
+    <ClCompile Include="..\..\src\core\kernel\x86\transpose_sse2.c" />
     <ClCompile Include="..\..\src\core\lutfilters.cpp" />
     <ClCompile Include="..\..\src\core\mergefilters.c" />
     <ClCompile Include="..\..\src\core\reorderfilters.c" />
     <ClCompile Include="..\..\src\core\simplefilters.c" />
     <ClCompile Include="..\..\src\core\textfilter.cpp" />
-    <ClCompile Include="..\..\src\core\transpose.c" />
     <ClCompile Include="..\..\src\core\vsapi.cpp" />
     <ClCompile Include="..\..\src\core\vscore.cpp" />
     <ClCompile Include="..\..\src\core\vslog.cpp" />
@@ -210,6 +211,7 @@
     <ClInclude Include="..\..\src\core\filtersharedcpp.h" />
     <ClInclude Include="..\..\src\core\internalfilters.h" />
     <ClInclude Include="..\..\src\core\jitasm.h" />
+    <ClInclude Include="..\..\src\core\kernel\transpose.h" />
     <ClInclude Include="..\..\src\core\ter-116n.h" />
     <ClInclude Include="..\..\src\core\version.h" />
     <ClInclude Include="..\..\src\core\vscore.h" />

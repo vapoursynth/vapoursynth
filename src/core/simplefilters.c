@@ -21,6 +21,7 @@
 #include "VSHelper.h"
 #include "internalfilters.h"
 #include "filtershared.h"
+#include "kernel/transpose.h"
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
@@ -1695,10 +1696,6 @@ static void VS_CC modifyFrameCreate(const VSMap *in, VSMap *out, void *userData,
 //////////////////////////////////////////
 // Transpose
 
-extern void vs_transpose_plane_byte(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, unsigned width, unsigned height);
-extern void vs_transpose_plane_word(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, unsigned width, unsigned height);
-extern void vs_transpose_plane_dword(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, unsigned width, unsigned height);
-
 typedef struct {
     VSNodeRef *node;
     VSVideoInfo vi;
@@ -1732,17 +1729,31 @@ static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, vo
             dstp = vsapi->getWritePtr(dst, plane);
             dst_stride = vsapi->getStride(dst, plane);
 
+#ifdef VS_TARGET_CPU_X86
             switch (d->vi.format->bytesPerSample) {
             case 1:
-                vs_transpose_plane_byte(srcp, src_stride, dstp, dst_stride, width, height);
+                vs_transpose_plane_byte_sse2(srcp, src_stride, dstp, dst_stride, width, height);
                 break;
             case 2:
-                vs_transpose_plane_word(srcp, src_stride, dstp, dst_stride, width, height);
+                vs_transpose_plane_word_sse2(srcp, src_stride, dstp, dst_stride, width, height);
                 break;
             case 4:
-                vs_transpose_plane_dword(srcp, src_stride, dstp, dst_stride, width, height);
+                vs_transpose_plane_dword_sse2(srcp, src_stride, dstp, dst_stride, width, height);
                 break;
             }
+#else
+			switch (d->vi.format->bytesPerSample) {
+			case 1:
+				vs_transpose_plane_byte_c(srcp, src_stride, dstp, dst_stride, width, height);
+				break;
+			case 2:
+				vs_transpose_plane_word_c(srcp, src_stride, dstp, dst_stride, width, height);
+				break;
+			case 4:
+				vs_transpose_plane_dword_c(srcp, src_stride, dstp, dst_stride, width, height);
+				break;
+			}
+#endif
         }
 
         vsapi->freeFrame(src);

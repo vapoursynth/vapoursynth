@@ -46,6 +46,9 @@ libvapoursynth_la_SOURCES = src/core/boxblurfilter.cpp \
 							src/core/genericfilters.cpp \
 							src/core/internalfilters.h \
 							src/core/jitasm.h \
+							src/core/kernel/transpose.c \
+							src/core/kernel/transpose.h \
+							src/core/kernel/x86/transpose_sse2.c \
 							src/core/lutfilters.cpp \
 							src/core/mergefilters.c \
 							src/core/reorderfilters.c \
@@ -54,7 +57,6 @@ libvapoursynth_la_SOURCES = src/core/boxblurfilter.cpp \
 							src/core/simplefilters.c \
 							src/core/ter-116n.h \
 							src/core/textfilter.cpp \
-							src/core/transpose.c \
 							src/core/version.h \
 							src/core/vsapi.cpp \
 							src/core/vscore.cpp \
