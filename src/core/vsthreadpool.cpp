@@ -184,6 +184,9 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 ar = arError;
                 skipCall = mainContext->setError(leafContext->getErrorMessage());
                 --mainContext->numFrameRequests;
+            } else if (mainContext->suspended) {
+                ar = arResume;
+                mainContext->suspended = false;
             } else if (hasLeafContext && leafContext->returnedFrame) {
                 if (--mainContext->numFrameRequests > 0)
                     ar = arFrameReady;
@@ -216,9 +219,12 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 #ifdef VS_FRAME_REQ_DEBUG
             vsWarning("Exiting: %s Frame: %d Index: %d AR: %d Req: %d", mainContext->clip->name.c_str(), mainContext->n, mainContext->index, (int)ar, (int)mainContext->reqOrder);
 #endif
+			bool suspending = externalFrameCtx.suspend;
             bool frameProcessingDone = f || mainContext->hasError();
             if (mainContext->hasError() && f)
                 vsFatal("A frame was returned by %s but an error was also set, this is not allowed", clip->name.c_str());
+            if (suspending && f)
+                vsFatal("A frame was returned by %s but it was also set to suspended.", clip->name.c_str());
                 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Unlock so the next job can run on the context
@@ -241,11 +247,14 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Handle frames that were requested
             bool requestedFrames = !externalFrameCtx.reqList.empty() && !frameProcessingDone;
+			
 
             if (!isLinear)
                 lock.lock();
 
-            if (requestedFrames) {
+            if (suspending) {
+                mainContext->suspended = true;
+            } else if (requestedFrames) {
                 for (auto &reqIter : externalFrameCtx.reqList)
                     owner->startInternal(reqIter);
                 externalFrameCtx.reqList.clear();
@@ -258,7 +267,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 // Propagate status to other linked contexts
 // CHANGES mainContextRef!!!
 
-            if (mainContext->hasError() && !hasExistingRequests && !requestedFrames) {
+            if (mainContext->hasError() && !suspending && !hasExistingRequests && !requestedFrames) {
                 PFrameContext n;
                 do {
                     n = mainContextRef->notificationChain;
@@ -295,7 +304,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                     if (mainContextRef->frameDone)
                         owner->returnFrame(mainContextRef, f);
                 } while ((mainContextRef = n));
-            } else if (hasExistingRequests || requestedFrames) {
+            } else if (hasExistingRequests || requestedFrames || suspending) {
                 // already scheduled, do nothing
             } else {
                 vsFatal("No frame returned at the end of processing by %s", clip->name.c_str());
@@ -425,7 +434,7 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
     }
 
     // add it immediately if the task is to return a completed frame or report an error since it never has an existing context
-    if (context->returnedFrame || context->hasError()) {
+    if (context->returnedFrame || context->hasError() || context->suspended) {
         tasks.push_back(context);
     } else {
         if (context->upstreamContext)

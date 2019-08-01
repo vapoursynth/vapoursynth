@@ -70,6 +70,7 @@ typedef struct VSFuncRef VSFuncRef;
 typedef struct VSMap VSMap;
 typedef struct VSAPI VSAPI;
 typedef struct VSFrameContext VSFrameContext;
+typedef struct VSSuspensionContext VSSuspensionContext;
 
 typedef enum VSColorFamily {
     /* all planar formats */
@@ -212,6 +213,7 @@ typedef enum VSActivationReason {
     arInitial = 0,
     arFrameReady = 1,
     arAllFramesReady = 2,
+    arResume = 3,
     arError = -1
 } VSActivationReason;
 
@@ -341,6 +343,8 @@ struct VSAPI {
     int (VS_CC *addMessageHandler)(VSMessageHandler handler, VSMessageHandlerFree free, void *userData) VS_NOEXCEPT;
     int (VS_CC *removeMessageHandler)(int id) VS_NOEXCEPT;
     void (VS_CC *getCoreInfo2)(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT;
+    VSSuspensionContext* (VS_CC *suspendFrame)(VSCore* core, VSFrameContext* frameCtx) VS_NOEXCEPT;
+    void (VS_CC* resumeFrame)(VSSuspensionContext* suspensionContext) VS_NOEXCEPT;
 };
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version) VS_NOEXCEPT;

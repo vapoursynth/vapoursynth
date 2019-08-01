@@ -451,6 +451,7 @@ private:
     std::string errorMessage;
     bool error;
     bool lockOnOutput;
+    bool suspended;
 public:
     VSNodeRef *node;
     std::map<NodeOutputKey, PVideoFrame> availableFrames;
@@ -473,6 +474,7 @@ public:
 struct VSNode {
     friend class VSThreadPool;
     friend struct VSCore;
+    friend struct VSSuspensionContext;
 private:
     void *instanceData;
     std::string name;
@@ -532,7 +534,15 @@ public:
 struct VSFrameContext {
     PFrameContext &ctx;
     std::vector<PFrameContext> reqList;
+    bool suspend = false;
     VSFrameContext(PFrameContext &ctx) : ctx(ctx) {}
+};
+
+struct VSSuspensionContext {
+    PFrameContext& ctx;
+    VSCore* core;
+
+    VSSuspensionContext(VSCore* core, PFrameContext& ctx) : ctx(ctx), core(core) {}
 };
 
 class VSThreadPool {

@@ -91,11 +91,11 @@ static std::wstring readRegistryValue(const wchar_t *keyName, const wchar_t *val
 #endif
 
 FrameContext::FrameContext(int n, int index, VSNode *clip, const PFrameContext &upstreamContext) :
-    reqOrder(upstreamContext->reqOrder), numFrameRequests(0), n(n), clip(clip), upstreamContext(upstreamContext), userData(nullptr), frameDone(nullptr), error(false), lockOnOutput(true), node(nullptr), lastCompletedN(-1), index(index), lastCompletedNode(nullptr), frameContext(nullptr) {
+    reqOrder(upstreamContext->reqOrder), numFrameRequests(0), n(n), clip(clip), upstreamContext(upstreamContext), userData(nullptr), frameDone(nullptr), error(false), lockOnOutput(true), node(nullptr), lastCompletedN(-1), index(index), lastCompletedNode(nullptr), frameContext(nullptr), suspended(false) {
 }
 
 FrameContext::FrameContext(int n, int index, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput) :
-    reqOrder(0), numFrameRequests(0), n(n), clip(node->clip.get()), userData(userData), frameDone(frameDone), error(false), lockOnOutput(lockOnOutput), node(node), lastCompletedN(-1), index(index), lastCompletedNode(nullptr), frameContext(nullptr) {
+    reqOrder(0), numFrameRequests(0), n(n), clip(node->clip.get()), userData(userData), frameDone(frameDone), error(false), lockOnOutput(lockOnOutput), node(node), lastCompletedN(-1), index(index), lastCompletedNode(nullptr), frameContext(nullptr), suspended(false) {
 }
 
 bool FrameContext::setError(const std::string &errorMsg) {

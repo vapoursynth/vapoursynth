@@ -553,6 +553,17 @@ static void VS_CC getCoreInfo2(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT {
     core->getCoreInfo2(*info);
 }
 
+static VSSuspensionContext* VS_CC suspendFrame(VSCore* core, VSFrameContext* frameCtx) VS_NOEXCEPT {
+    assert(core, frameCtx);
+    frameCtx->suspend = true;
+    return new VSSuspensionContext(core, frameCtx->ctx);
+}
+
+static void VS_CC resumeFrame(VSSuspensionContext* context) VS_NOEXCEPT {
+    assert(context);
+    context->core->threadPool->start(context->ctx);
+    delete context;
+}
 
 
 const VSAPI vs_internal_vsapi = {
@@ -645,7 +656,9 @@ const VSAPI vs_internal_vsapi = {
     &logMessage,
     &addMessageHandler,
     &removeMessageHandler,
-    &getCoreInfo2
+    &getCoreInfo2,
+    &suspendFrame,
+    &resumeFrame
 };
 
 ///////////////////////////////
