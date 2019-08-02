@@ -1754,7 +1754,8 @@ cdef class Plugin(object):
         return attrs
 
 cdef Plugin createPlugin(VSPlugin *plugin, str namespace, const VSAPI *funcs, Core core):
-    cdef Plugin instance = Plugin.__new__(Plugin)
+    t = type('Plugin', (Plugin,), {})
+    cdef Plugin instance = t.__new__(t)
     instance.core = core
     instance.plugin = plugin
     instance.funcs = funcs
@@ -1765,6 +1766,14 @@ cdef Plugin createPlugin(VSPlugin *plugin, str namespace, const VSAPI *funcs, Co
         if plugin_dict['namespace'] == namespace:
             instance.__doc__ = plugin_dict['name']
             break
+
+    cdef VSMap *m = funcs.getFunctions(plugin)
+    for i in range(instance.funcs.propNumKeys(m)):
+        cname = instance.funcs.propGetKey(m, i)
+        name = cname.decode('utf-8')
+        signature = instance.funcs.propGetData(m, cname, 0, NULL).decode('utf-8').split(';', 1)
+        setattr(type(instance), name, createFunction(name, signature[1], instance, instance.funcs))
+    funcs.freeMap(m)
 
     return instance
 
