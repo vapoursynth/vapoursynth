@@ -87,6 +87,12 @@
     <ClCompile Include="..\..\src\core\kernel\x86\transpose_sse2.c">
       <Filter>Source Files\kernel\x86</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\core\kernel\planestats.c">
+      <Filter>Source Files\kernel</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core\kernel\x86\planestats_sse2.c">
+      <Filter>Source Files\kernel\x86</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\VapourSynth.h">
@@ -135,6 +141,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\core\kernel\transpose.h">
+      <Filter>Header Files\kernel</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core\kernel\planestats.h">
       <Filter>Header Files\kernel</Filter>
     </ClInclude>
   </ItemGroup>

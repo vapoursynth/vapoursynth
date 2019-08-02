@@ -187,7 +187,9 @@
     <ClCompile Include="..\..\src\core\cpufeatures.c" />
     <ClCompile Include="..\..\src\core\exprfilter.cpp" />
     <ClCompile Include="..\..\src\core\genericfilters.cpp" />
+    <ClCompile Include="..\..\src\core\kernel\planestats.c" />
     <ClCompile Include="..\..\src\core\kernel\transpose.c" />
+    <ClCompile Include="..\..\src\core\kernel\x86\planestats_sse2.c" />
     <ClCompile Include="..\..\src\core\kernel\x86\transpose_sse2.c" />
     <ClCompile Include="..\..\src\core\lutfilters.cpp" />
     <ClCompile Include="..\..\src\core\mergefilters.c" />
@@ -211,6 +213,7 @@
     <ClInclude Include="..\..\src\core\filtersharedcpp.h" />
     <ClInclude Include="..\..\src\core\internalfilters.h" />
     <ClInclude Include="..\..\src\core\jitasm.h" />
+    <ClInclude Include="..\..\src\core\kernel\planestats.h" />
     <ClInclude Include="..\..\src\core\kernel\transpose.h" />
     <ClInclude Include="..\..\src\core\ter-116n.h" />
     <ClInclude Include="..\..\src\core\version.h" />

@@ -21,6 +21,7 @@
 #include "VSHelper.h"
 #include "internalfilters.h"
 #include "filtershared.h"
+#include "kernel/planestats.h"
 #include "kernel/transpose.h"
 #include <stdlib.h>
 #include <stddef.h>
@@ -1971,371 +1972,95 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
             vsapi->requestFrameFilter(n, d->node2, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
-        const VSFrameRef *src2 = NULL;
-        if (d->node2)
-            src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
+        const VSFrameRef *src2 = d->node2 ? vsapi->getFrameFilter(n, d->node2, frameCtx) : NULL;
         VSFrameRef *dst = vsapi->copyFrame(src1, core);
         const VSFormat *fi = vsapi->getFrameFormat(dst);
-        int x, y;
         int width = vsapi->getFrameWidth(src1, d->plane);
         int height = vsapi->getFrameHeight(src1, d->plane);
         const uint8_t *srcp = vsapi->getReadPtr(src1, d->plane);
         int src_stride = vsapi->getStride(src1, d->plane);
-        uint64_t acc = 0;
-        uint64_t diffacc = 0;
-        uint16_t imin = UINT16_MAX;
-        uint16_t imax = 0;
-        double facc = 0;
-        double fdiffacc = 0;
-        float fmin = FLT_MAX;
-        float fmax = -FLT_MAX;
+		union vs_plane_stats stats = { 0 };
 
 #ifdef VS_TARGET_CPU_X86
-        (void)x;
-        unsigned xiter;
-        const uint8_t ascendMask[16] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
-        unsigned miter = ((width * fi->bytesPerSample + sizeof(__m128i) - fi->bytesPerSample) / sizeof(__m128i)) - 1;
-        int tailelems = (((width * fi->bytesPerSample)) % sizeof(__m128i)) / fi->bytesPerSample;
-        if (tailelems == 0)
-            tailelems = sizeof(__m128i) / fi->bytesPerSample;
+		if (src2) {
+			const void *srcp2 = vsapi->getReadPtr(src2, d->plane);
+			ptrdiff_t src2_stride = vsapi->getStride(src2, d->plane);
 
-        const __m128i tailmask = _mm_cmplt_epi8(_mm_loadu_si128((const __m128i *)ascendMask), _mm_set1_epi8(tailelems * fi->bytesPerSample));
-        const __m128 ftailmask = _mm_castsi128_ps(tailmask);
-        const __m128i ones = _mm_cmpeq_epi8(tailmask, tailmask);
-
-        __m128i ms1, ms2, temp;
-        __m128i macc, mdiffacc, mmax, mmin;
-        const __m128i submask = _mm_set1_epi16(0x8000);
-        const __m128i uppermask = _mm_set1_epi16(0xFF00);
-        __m128 fms1, fms2;
-        __m128 fmacc, fmdiffacc, fmmax, fmmin;
-        const __m128 fabsmask = _mm_castsi128_ps(_mm_set1_epi32(0x7FFFFFFF));
-        const __m128 fltmin = _mm_set_ps1(-FLT_MAX);
-        const __m128 fltmax = _mm_set_ps1(FLT_MAX);
-
-        macc = _mm_setzero_si128();
-        mdiffacc = _mm_setzero_si128();
-        mmax = _mm_setzero_si128();
-        mmin = ones;
-        // offset max and min for 16 bit instructions
-        if (fi->bytesPerSample == 2) {
-            mmax = _mm_sub_epi16(mmax, submask);
-            mmin = _mm_sub_epi16(mmin, submask);
-        }
-
-        fmacc = _mm_setzero_ps();
-        fmdiffacc = _mm_setzero_ps();
-        fmmax = fltmin;
-        fmmin = fltmax;
-
-        if (src2) {
-            const uint8_t *srcp2 = vsapi->getReadPtr(src2, d->plane);
-
-            switch (fi->bytesPerSample) {
-            case 1:
-                for (y = 0; y < height; y++) {
-                    for (xiter = 0; xiter < miter; xiter++) {
-                        ms1 = _mm_load_si128((const __m128i *)(srcp + xiter * sizeof(__m128i)));
-                        ms2 = _mm_load_si128((const __m128i *)(srcp2 + xiter * sizeof(__m128i)));
-                        mmax = _mm_max_epu8(mmax, ms1);
-                        mmin = _mm_min_epu8(mmin, ms1);
-                        macc = _mm_add_epi64(macc, _mm_sad_epu8(ms1, _mm_setzero_si128()));
-                        mdiffacc = _mm_add_epi64(mdiffacc, _mm_sad_epu8(ms1, ms2));
-                    }
-                    ms1 = _mm_and_si128(_mm_load_si128((const __m128i *)(srcp + miter * sizeof(__m128i))), tailmask);
-                    ms2 = _mm_and_si128(_mm_load_si128((const __m128i *)(srcp2 + miter * sizeof(__m128i))), tailmask);
-                    mmax = _mm_max_epu8(mmax, ms1);
-                    mmin = _mm_min_epu8(mmin, _mm_xor_si128(_mm_and_si128(_mm_xor_si128(ms1, ones), tailmask), ones));
-                    macc = _mm_add_epi64(macc, _mm_sad_epu8(ms1, _mm_setzero_si128()));
-                    mdiffacc = _mm_add_epi64(mdiffacc, _mm_sad_epu8(ms1, ms2));
-
-                    srcp += src_stride;
-                    srcp2 += src_stride;
-                }
-                mmax = _mm_max_epu8(mmax, _mm_srli_si128(mmax, 8));
-                mmax = _mm_max_epu8(mmax, _mm_srli_si128(mmax, 4));
-                mmax = _mm_max_epu8(mmax, _mm_srli_si128(mmax, 2));
-                mmax = _mm_max_epu8(mmax, _mm_srli_si128(mmax, 1));
-                imax = (_mm_extract_epi16(mmax, 0) & 0xFF);
-                mmin = _mm_min_epu8(mmin, _mm_srli_si128(mmin, 8));
-                mmin = _mm_min_epu8(mmin, _mm_srli_si128(mmin, 4));
-                mmin = _mm_min_epu8(mmin, _mm_srli_si128(mmin, 2));
-                mmin = _mm_min_epu8(mmin, _mm_srli_si128(mmin, 1));
-                imin = (_mm_extract_epi16(mmin, 0) & 0xFF);
-                macc = _mm_add_epi64(macc, _mm_srli_si128(macc, 8));
-                mdiffacc = _mm_add_epi64(mdiffacc, _mm_srli_si128(mdiffacc, 8));
-                _mm_storel_epi64((__m128i *)&acc, macc);
-                _mm_storel_epi64((__m128i *)&diffacc, mdiffacc);
-                break;
-            case 2:
-                for (y = 0; y < height; y++) {
-                    for (xiter = 0; xiter < miter; xiter++) {
-                        ms1 = _mm_load_si128((const __m128i *)(srcp + xiter * sizeof(__m128i)));
-                        ms2 = _mm_load_si128((const __m128i *)(srcp2 + xiter * sizeof(__m128i)));
-                        temp = _mm_or_si128(_mm_subs_epu16(ms1, ms2), _mm_subs_epu16(ms2, ms1));
-                        mmax = _mm_max_epi16(mmax, _mm_sub_epi16(ms1, submask));
-                        mmin = _mm_min_epi16(mmin, _mm_sub_epi16(ms1, submask));
-                        macc = _mm_add_epi64(macc, _mm_sad_epu8(_mm_andnot_si128(uppermask, ms1), _mm_setzero_si128()));
-                        macc = _mm_add_epi64(macc, _mm_slli_si128(_mm_sad_epu8(_mm_and_si128(uppermask, ms1), _mm_setzero_si128()), 1));
-                        mdiffacc = _mm_add_epi64(mdiffacc, _mm_sad_epu8(_mm_andnot_si128(uppermask, temp), _mm_setzero_si128()));
-                        mdiffacc = _mm_add_epi64(mdiffacc, _mm_slli_si128(_mm_sad_epu8(_mm_and_si128(uppermask, temp), _mm_setzero_si128()), 1));
-                    }
-                    ms1 = _mm_and_si128(_mm_load_si128((const __m128i *)(srcp + miter * sizeof(__m128i))), tailmask);
-                    ms2 = _mm_and_si128(_mm_load_si128((const __m128i *)(srcp2 + miter * sizeof(__m128i))), tailmask);
-                    temp = _mm_or_si128(_mm_subs_epu16(ms1, ms2), _mm_subs_epu16(ms2, ms1));
-                    mmax = _mm_max_epi16(mmax, _mm_sub_epi16(ms1, submask));
-                    mmin = _mm_min_epi16(mmin, _mm_sub_epi16(_mm_xor_si128(_mm_and_si128(_mm_xor_si128(ms1, ones), tailmask), ones), submask));
-                    macc = _mm_add_epi64(macc, _mm_sad_epu8(_mm_andnot_si128(uppermask, ms1), _mm_setzero_si128()));
-                    macc = _mm_add_epi64(macc, _mm_slli_si128(_mm_sad_epu8(_mm_and_si128(uppermask, ms1), _mm_setzero_si128()), 1));
-                    mdiffacc = _mm_add_epi64(mdiffacc, _mm_sad_epu8(_mm_andnot_si128(uppermask, temp), _mm_setzero_si128()));
-                    mdiffacc = _mm_add_epi64(mdiffacc, _mm_slli_si128(_mm_sad_epu8(_mm_and_si128(uppermask, temp), _mm_setzero_si128()), 1));
-
-                    srcp += src_stride;
-                    srcp2 += src_stride;
-                }
-                mmax = _mm_max_epi16(mmax, _mm_srli_si128(mmax, 8));
-                mmax = _mm_max_epi16(mmax, _mm_srli_si128(mmax, 4));
-                mmax = _mm_max_epi16(mmax, _mm_srli_si128(mmax, 2));
-                mmax = _mm_add_epi16(mmax, submask);
-                imax = _mm_extract_epi16(mmax, 0);
-                mmin = _mm_min_epi16(mmin, _mm_srli_si128(mmin, 8));
-                mmin = _mm_min_epi16(mmin, _mm_srli_si128(mmin, 4));
-                mmin = _mm_min_epi16(mmin, _mm_srli_si128(mmin, 2));
-                mmin = _mm_add_epi16(mmin, submask);
-                imin = _mm_extract_epi16(mmin, 0);
-                macc = _mm_add_epi64(macc, _mm_srli_si128(macc, 8));
-                mdiffacc = _mm_add_epi64(mdiffacc, _mm_srli_si128(mdiffacc, 8));
-                _mm_storel_epi64((__m128i *)&acc, macc);
-                _mm_storel_epi64((__m128i *)&diffacc, mdiffacc);
-                break;
-            case 4:
-                for (y = 0; y < height; y++) {
-                    for (xiter = 0; xiter < miter; xiter++) {
-                        fms1 = _mm_load_ps((const float *)(srcp + xiter * sizeof(__m128)));
-                        fms2 = _mm_load_ps((const float *)(srcp2 + xiter * sizeof(__m128)));
-                        fmmax = _mm_max_ps(fmmax, fms1);
-                        fmmin = _mm_min_ps(fmmin, fms1);
-                        fmacc = _mm_add_ps(fmacc, fms1);
-                        fmdiffacc = _mm_add_ps(fmdiffacc, _mm_and_ps(_mm_sub_ps(fms2, fms1), fabsmask));
-                    }
-                    fms1 = _mm_and_ps(_mm_load_ps((const float *)(srcp + miter * sizeof(__m128))), ftailmask);
-                    fms2 = _mm_and_ps(_mm_load_ps((const float *)(srcp2 + miter * sizeof(__m128))), ftailmask);
-                    fmmax = _mm_max_ps(fmmax, _mm_or_ps(fms1, _mm_andnot_ps(ftailmask, fltmin)));
-                    fmmin = _mm_min_ps(fmmin, _mm_or_ps(fms1, _mm_andnot_ps(ftailmask, fltmax)));
-                    fmacc = _mm_add_ps(fmacc, fms1);
-                    fmdiffacc = _mm_add_ps(fmdiffacc, _mm_and_ps(_mm_sub_ps(fms2, fms1), fabsmask));
-
-                    srcp += src_stride;
-                    srcp2 += src_stride;
-                }
-                fmmax = _mm_max_ps(fmmax, _mm_shuffle_ps(fmmax, fmmax, _MM_SHUFFLE(3, 2, 3, 2)));
-                fmmax = _mm_max_ps(fmmax, _mm_shuffle_ps(fmmax, fmmax, _MM_SHUFFLE(1, 1, 1, 1)));
-                _mm_store_ss(&fmax, fmmax);
-                fmmin = _mm_min_ps(fmmin, _mm_shuffle_ps(fmmin, fmmin, _MM_SHUFFLE(3, 2, 3, 2)));
-                fmmin = _mm_min_ps(fmmin, _mm_shuffle_ps(fmmin, fmmin, _MM_SHUFFLE(1, 1, 1, 1)));
-                _mm_store_ss(&fmin, fmmin);
-                fmacc = _mm_add_ps(fmacc, _mm_shuffle_ps(fmacc, fmacc, _MM_SHUFFLE(3, 2, 3, 2)));
-                fmacc = _mm_add_ps(fmacc, _mm_shuffle_ps(fmacc, fmacc, _MM_SHUFFLE(1, 1, 1, 1)));
-                _mm_store_sd(&facc, _mm_cvtps_pd(fmacc));
-                fmdiffacc = _mm_add_ps(fmdiffacc, _mm_shuffle_ps(fmdiffacc, fmdiffacc, _MM_SHUFFLE(3, 2, 3, 2)));
-                fmdiffacc = _mm_add_ps(fmdiffacc, _mm_shuffle_ps(fmdiffacc, fmdiffacc, _MM_SHUFFLE(1, 1, 1, 1)));
-                _mm_store_sd(&fdiffacc, _mm_cvtps_pd(fmdiffacc));
-                break;
-            }
-        } else {
-            switch (fi->bytesPerSample) {
-            case 1:
-                for (y = 0; y < height; y++) {
-                    for (xiter = 0; xiter < miter; xiter++) {
-                        ms1 = _mm_load_si128((const __m128i *)(srcp + xiter * sizeof(__m128i)));
-                        mmax = _mm_max_epu8(mmax, ms1);
-                        mmin = _mm_min_epu8(mmin, ms1);
-                        macc = _mm_add_epi64(macc, _mm_sad_epu8(ms1, _mm_setzero_si128()));
-                    }
-                    ms1 = _mm_and_si128(_mm_load_si128((const __m128i *)(srcp + miter * sizeof(__m128i))), tailmask);
-                    mmax = _mm_max_epu8(mmax, ms1);
-                    mmin = _mm_min_epu8(mmin, _mm_xor_si128(_mm_and_si128(_mm_xor_si128(ms1, ones), tailmask), ones));
-                    macc = _mm_add_epi64(macc, _mm_sad_epu8(ms1, _mm_setzero_si128()));
-
-                    srcp += src_stride;
-                }
-                mmax = _mm_max_epu8(mmax, _mm_srli_si128(mmax, 8));
-                mmax = _mm_max_epu8(mmax, _mm_srli_si128(mmax, 4));
-                mmax = _mm_max_epu8(mmax, _mm_srli_si128(mmax, 2));
-                mmax = _mm_max_epu8(mmax, _mm_srli_si128(mmax, 1));
-                imax = (_mm_extract_epi16(mmax, 0) & 0xFF);
-                mmin = _mm_min_epu8(mmin, _mm_srli_si128(mmin, 8));
-                mmin = _mm_min_epu8(mmin, _mm_srli_si128(mmin, 4));
-                mmin = _mm_min_epu8(mmin, _mm_srli_si128(mmin, 2));
-                mmin = _mm_min_epu8(mmin, _mm_srli_si128(mmin, 1));
-                imin = (_mm_extract_epi16(mmin, 0) & 0xFF);
-                macc = _mm_add_epi64(macc, _mm_srli_si128(macc, 8));
-                _mm_storel_epi64((__m128i *)&acc, macc);
-                break;
-            case 2:
-                for (y = 0; y < height; y++) {
-                    for (xiter = 0; xiter < miter; xiter++) {
-                        ms1 = _mm_load_si128((const __m128i *)(srcp + xiter * sizeof(__m128i)));
-                        mmax = _mm_max_epi16(mmax, _mm_sub_epi16(ms1, submask));
-                        mmin = _mm_min_epi16(mmin, _mm_sub_epi16(ms1, submask));
-                        macc = _mm_add_epi64(macc, _mm_sad_epu8(_mm_andnot_si128(uppermask, ms1), _mm_setzero_si128()));
-                        macc = _mm_add_epi64(macc, _mm_slli_si128(_mm_sad_epu8(_mm_and_si128(uppermask, ms1), _mm_setzero_si128()), 1));
-                    }
-                    ms1 = _mm_and_si128(_mm_load_si128((const __m128i *)(srcp + miter * sizeof(__m128i))), tailmask);
-                    mmax = _mm_max_epi16(mmax, _mm_sub_epi16(ms1, submask));
-                    mmin = _mm_min_epi16(mmin, _mm_sub_epi16(_mm_xor_si128(_mm_and_si128(_mm_xor_si128(ms1, ones), tailmask), ones), submask));
-                    macc = _mm_add_epi64(macc, _mm_sad_epu8(_mm_andnot_si128(uppermask, ms1), _mm_setzero_si128()));
-                    macc = _mm_add_epi64(macc, _mm_slli_si128(_mm_sad_epu8(_mm_and_si128(uppermask, ms1), _mm_setzero_si128()), 1));
-
-                    srcp += src_stride;
-                }
-                mmax = _mm_max_epi16(mmax, _mm_srli_si128(mmax, 8));
-                mmax = _mm_max_epi16(mmax, _mm_srli_si128(mmax, 4));
-                mmax = _mm_max_epi16(mmax, _mm_srli_si128(mmax, 2));
-                mmax = _mm_add_epi16(mmax, submask);
-                imax = _mm_extract_epi16(mmax, 0);
-                mmin = _mm_min_epi16(mmin, _mm_srli_si128(mmin, 8));
-                mmin = _mm_min_epi16(mmin, _mm_srli_si128(mmin, 4));
-                mmin = _mm_min_epi16(mmin, _mm_srli_si128(mmin, 2));
-                mmin = _mm_add_epi16(mmin, submask);
-                imin = _mm_extract_epi16(mmin, 0);
-                macc = _mm_add_epi64(macc, _mm_srli_si128(macc, 8));
-                _mm_storel_epi64((__m128i *)&acc, macc);
-                break;
-            case 4:
-                for (y = 0; y < height; y++) {
-                    for (xiter = 0; xiter < miter; xiter++) {
-                        fms1 = _mm_load_ps((const float *)(srcp + xiter * sizeof(__m128)));
-                        fmmax = _mm_max_ps(fmmax, fms1);
-                        fmmin = _mm_min_ps(fmmin, fms1);
-                        fmacc = _mm_add_ps(fmacc, fms1);
-                    }
-                    fms1 = _mm_and_ps(_mm_load_ps((const float *)(srcp + miter * sizeof(__m128))), ftailmask);
-                    fmmax = _mm_max_ps(fmmax, _mm_or_ps(fms1, _mm_andnot_ps(ftailmask, fltmin)));
-                    fmmin = _mm_min_ps(fmmin, _mm_or_ps(fms1, _mm_andnot_ps(ftailmask, fltmax)));
-                    fmacc = _mm_add_ps(fmacc, fms1);
-
-                    srcp += src_stride;
-                }
-                fmmax = _mm_max_ps(fmmax, _mm_shuffle_ps(fmmax, fmmax, _MM_SHUFFLE(3, 2, 3, 2)));
-                fmmax = _mm_max_ps(fmmax, _mm_shuffle_ps(fmmax, fmmax, _MM_SHUFFLE(1, 1, 1, 1)));
-                _mm_store_ss(&fmax, fmmax);
-                fmmin = _mm_min_ps(fmmin, _mm_shuffle_ps(fmmin, fmmin, _MM_SHUFFLE(3, 2, 3, 2)));
-                fmmin = _mm_min_ps(fmmin, _mm_shuffle_ps(fmmin, fmmin, _MM_SHUFFLE(1, 1, 1, 1)));
-                _mm_store_ss(&fmin, fmmin);
-                fmacc = _mm_add_ps(fmacc, _mm_shuffle_ps(fmacc, fmacc, _MM_SHUFFLE(3, 2, 3, 2)));
-                fmacc = _mm_add_ps(fmacc, _mm_shuffle_ps(fmacc, fmacc, _MM_SHUFFLE(1, 1, 1, 1)));
-                _mm_store_sd(&facc, _mm_cvtps_pd(fmacc));
-                break;
-            }
-        }
+			switch (fi->bytesPerSample) {
+			case 1:
+				vs_plane_stats_2_byte_sse2(&stats, srcp, src_stride, srcp2, src2_stride, width, height);
+				break;
+			case 2:
+				vs_plane_stats_2_word_sse2(&stats, srcp, src_stride, srcp2, src2_stride, width, height);
+				break;
+			case 4:
+				vs_plane_stats_2_float_sse2(&stats, srcp, src_stride, srcp2, src2_stride, width, height);
+				break;
+			}
+		} else {
+			switch (fi->bytesPerSample) {
+			case 1:
+				vs_plane_stats_1_byte_sse2(&stats, srcp, src_stride, width, height);
+				break;
+			case 2:
+				vs_plane_stats_1_word_sse2(&stats, srcp, src_stride, width, height);
+				break;
+			case 4:
+				vs_plane_stats_1_float_sse2(&stats, srcp, src_stride, width, height);
+				break;
+			}
+		}
 #else
-        if (src2) {
-            const uint8_t *srcp2 = vsapi->getReadPtr(src2, d->plane);
+		if (src2) {
+			const void *srcp2 = vsapi->getReadPtr(src2, d->plane);
+			ptrdiff_t src2_stride = vsapi->getStride(src2, d->plane);
 
-            switch (fi->bytesPerSample) {
-            case 1:
-                for (y = 0; y < height; y++) {
-                    for (x = 0; x < width; x++) {
-                        uint8_t v = srcp[x];
-                        uint8_t t = srcp2[x];
-                        imin = VSMIN(imin, v);
-                        imax = VSMAX(imax, v);
-                        acc += v;
-                        diffacc += abs(v - t);
-                    }
-                    srcp += src_stride;
-                    srcp2 += src_stride;
-                }
-                break;
-            case 2:
-                for (y = 0; y < height; y++) {
-                    for (x = 0; x < width; x++) {
-                        uint16_t v = ((const uint16_t *)srcp)[x];
-                        uint16_t t = ((const uint16_t *)srcp2)[x];
-                        imin = VSMIN(imin, v);
-                        imax = VSMAX(imax, v);
-                        acc += v;
-                        diffacc += abs(v - t);
-                    }
-                    srcp += src_stride;
-                    srcp2 += src_stride;
-                }
-                break;
-            case 4:
-                for (y = 0; y < height; y++) {
-                    for (x = 0; x < width; x++) {
-                        float v = ((const float *)srcp)[x];
-                        float t = ((const float *)srcp2)[x];
-                        fmin = VSMIN(fmin, v);
-                        fmax = VSMAX(fmax, v);
-                        facc += v;
-                        fdiffacc += fabs(v - t);
-                    }
-                    srcp += src_stride;
-                    srcp2 += src_stride;
-                }
-                break;
-            }
-        } else {
-            switch (fi->bytesPerSample) {
-            case 1:
-                for (y = 0; y < height; y++) {
-                    for (x = 0; x < width; x++) {
-                        uint8_t v = srcp[x];
-                        imin = VSMIN(imin, v);
-                        imax = VSMAX(imax, v);
-                        acc += v;
-                    }
-                    srcp += src_stride;
-                }
-                break;
-            case 2:
-                for (y = 0; y < height; y++) {
-                    for (x = 0; x < width; x++) {
-                        uint16_t v = ((const uint16_t *)srcp)[x];
-                        imin = VSMIN(imin, v);
-                        imax = VSMAX(imax, v);
-                        acc += v;
-                    }
-                    srcp += src_stride;
-                }
-                break;
-            case 4:
-                for (y = 0; y < height; y++) {
-                    for (x = 0; x < width; x++) {
-                        float v = ((const float *)srcp)[x];
-                        fmin = VSMIN(fmin, v);
-                        fmax = VSMAX(fmax, v);
-                        facc += v;
-                    }
-                    srcp += src_stride;
-                }
-                break;
-            }
-        }
+			switch (fi->bytesPerSample) {
+			case 1:
+				vs_plane_stats_2_byte_c(&stats, srcp, src_stride, srcp2, src2_stride, width, height);
+				break;
+			case 2:
+				vs_plane_stats_2_word_c(&stats, srcp, src_stride, srcp2, src2_stride, width, height);
+				break;
+			case 4:
+				vs_plane_stats_2_float_c(&stats, srcp, src_stride, srcp2, src2_stride, width, height);
+				break;
+			}
+		} else {
+			switch (fi->bytesPerSample) {
+			case 1:
+				vs_plane_stats_1_byte_c(&stats, srcp, src_stride, width, height);
+				break;
+			case 2:
+				vs_plane_stats_1_word_c(&stats, srcp, src_stride, width, height);
+				break;
+			case 4:
+				vs_plane_stats_1_float_c(&stats, srcp, src_stride, width, height);
+				break;
+			}
+		}
 #endif
 
         VSMap *dstProps = vsapi->getFramePropsRW(dst);
 
         if (fi->sampleType == stInteger) {
-            vsapi->propSetInt(dstProps, d->propMin, imin, paReplace);
-            vsapi->propSetInt(dstProps, d->propMax, imax, paReplace);
+            vsapi->propSetInt(dstProps, d->propMin, stats.i.min, paReplace);
+            vsapi->propSetInt(dstProps, d->propMax, stats.i.max, paReplace);
         } else {
-            vsapi->propSetFloat(dstProps, d->propMin, fmin, paReplace);
-            vsapi->propSetFloat(dstProps, d->propMax, fmax, paReplace);
+            vsapi->propSetFloat(dstProps, d->propMin, stats.f.min, paReplace);
+            vsapi->propSetFloat(dstProps, d->propMax, stats.f.max, paReplace);
         }
 
         double avg = 0.0;
         double diff = 0.0;
         if (fi->sampleType == stInteger) {
-            avg = acc / (double)(width * height * (((int64_t)1 << fi->bitsPerSample) - 1));
+            avg = stats.i.acc / (double)(width * height * (((int64_t)1 << fi->bitsPerSample) - 1));
             if (d->node2)
-                diff = diffacc / (double)(width * height * (((int64_t)1 << fi->bitsPerSample) - 1));
+                diff = stats.i.diffacc / (double)(width * height * (((int64_t)1 << fi->bitsPerSample) - 1));
         } else {
-            avg = facc / (double)((int64_t)width * height);
+            avg = stats.f.acc / (double)((int64_t)width * height);
             if (d->node2)
-                diff = fdiffacc / (double)((int64_t)width * height);
+                diff = stats.f.diffacc / (double)((int64_t)width * height);
         }
 
         vsapi->propSetFloat(dstProps, d->propAverage, avg, paReplace);
