@@ -28,10 +28,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
-#include <float.h>
-#ifdef VS_TARGET_CPU_X86
-#include <emmintrin.h>
-#endif
 
 static inline uint32_t doubleToUInt32S(double v) {
     if (v < 0)
