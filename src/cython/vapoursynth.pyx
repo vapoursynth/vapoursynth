@@ -1783,12 +1783,6 @@ cdef class Function(object):
     cdef readonly str name
     cdef readonly str signature
     
-    @property
-    def __signature__(self):
-        if typing is None:
-            return None
-        return construct_signature(self.signature, injected=self.plugin.injected_arg)
-
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
 
@@ -1869,7 +1863,9 @@ cdef class Function(object):
         return retdict
 
 cdef Function createFunction(str name, str signature, Plugin plugin, const VSAPI *funcs):
-    cdef Function instance = Function.__new__(Function)
+    dct = {'__signature__': construct_signature(signature, injected=plugin.injected_arg)}
+    t = type('Function', (Function,), dct)
+    cdef Function instance = t.__new__(t)
     instance.name = name
     instance.signature = signature
     instance.plugin = plugin
