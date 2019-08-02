@@ -1655,16 +1655,7 @@ cdef Core vsscript_get_core_internal(int environment_id):
         _cores[environment_id] = createCore()
     return _cores[environment_id]
     
-class CoreMeta(type):
-    def __new__(cls, name, bases, dct):
-        core = get_core()
-        for plugin in core.get_plugins().values():
-            name = plugin['namespace']
-            dct[name] = core.__getattr__(name)
-
-        return super(CoreMeta, cls).__new__(cls, name, bases, dct)
-
-class _CoreProxy(metaclass=CoreMeta):
+class _CoreProxyVSScript(object):
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
     
@@ -1685,7 +1676,16 @@ class _CoreProxy(metaclass=CoreMeta):
     def __setattr__(self, name, value):
         setattr(self.core, name, value)
     
-core = _CoreProxy.__new__(_CoreProxy)
+def _make_standalone_proxy():
+    core = get_core()
+    dct = {"core": core}
+    for name in dir(core):
+        if name.startswith("__") and name.endswith("__"):
+            continue
+        dct[name] = getattr(core, name)
+    return type('_CoreProxyStandalone', (), dct)
+_CoreProxyStandalone = _make_standalone_proxy()
+core = _CoreProxyStandalone()    
     
 
 cdef class Plugin(object):
@@ -2150,4 +2150,5 @@ cdef public api int vpy_initVSScript() nogil:
             return 1
         global _using_vsscript
         _using_vsscript = True
+        core.__class__ = _CoreProxyVSScript
         return 0
