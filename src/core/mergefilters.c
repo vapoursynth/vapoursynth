@@ -283,8 +283,8 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
                                 __m128i tmp1lo = _mm_slli_epi16(_mm_sub_epi16(srcreg2lo, srcreg1lo), 1);
                                 __m128i tmp1hi = _mm_slli_epi16(_mm_sub_epi16(srcreg2hi, srcreg1hi), 1);
 
-                                __m128i tmp2lo = _mm_add_epi16(_mm_add_epi16(_mm_mulhi_epi16(tmp1lo, mergeweight), _mm_slli_epi16(_mm_mullo_epi16(tmp1lo, mergeweight), 15)), srcreg1lo);
-                                __m128i tmp2hi = _mm_add_epi16(_mm_add_epi16(_mm_mulhi_epi16(tmp1hi, mergeweight), _mm_slli_epi16(_mm_mullo_epi16(tmp1hi, mergeweight), 15)), srcreg1lo);
+                                __m128i tmp2lo = _mm_add_epi16(_mm_add_epi16(_mm_mulhi_epi16(tmp1lo, mergeweight), _mm_srli_epi16(_mm_mullo_epi16(tmp1lo, mergeweight), 15)), srcreg1lo);
+                                __m128i tmp2hi = _mm_add_epi16(_mm_add_epi16(_mm_mulhi_epi16(tmp1hi, mergeweight), _mm_srli_epi16(_mm_mullo_epi16(tmp1hi, mergeweight), 15)), srcreg1lo);
 
                                 __m128i tmpdst = _mm_packus_epi16(tmp2lo, tmp2hi);
                                 _mm_store_si128((__m128i *)(dstp + xiter), tmpdst);
