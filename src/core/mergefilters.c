@@ -18,11 +18,12 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-#include "internalfilters.h"
-#include "VSHelper.h"
-#include "filtershared.h"
 #include <stdlib.h>
 #include <emmintrin.h>
+#include "filtershared.h"
+#include "internalfilters.h"
+#include "kernel/merge.h"
+#include "VSHelper.h"
 
 static inline int CLAMP(int value, int lower, int upper) {
     if (value < lower)
@@ -256,8 +257,6 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
         VSFrameRef *dst = vsapi->newVideoFrame2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
         for (int plane = 0; plane < d->vi->format->numPlanes; plane++) {
             if (d->process[plane] == 0) {
-                unsigned weight = d->weight[plane];
-                float fweight = d->fweight[plane];
                 int h = vsapi->getFrameHeight(src1, plane);
                 int w = vsapi->getFrameWidth(src2, plane);
                 int stride = vsapi->getStride(src1, plane);
@@ -265,63 +264,40 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
                 const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
                 uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
 
-                if (d->vi->format->sampleType == stInteger) {
-                    const unsigned round = 1 << (MergeShift - 1);
-                    if (d->vi->format->bytesPerSample == 1) {
+				void (*func)(const void *, const void *, void *, union vs_merge_weight, unsigned);
+				union vs_merge_weight weight;
+
 #ifdef VS_TARGET_CPU_X86
-                        __m128i mergeweight = _mm_set1_epi16(weight);
-                        for (int y = 0; y < h; y++) {
-                            for (int xiter = 0; xiter < w; xiter += sizeof(__m128i)) {
-                                __m128i srcreg1 = _mm_load_si128((const __m128i *)(srcp1 + xiter));
-                                __m128i srcreg2 = _mm_load_si128((const __m128i *)(srcp2 + xiter));
-
-                                __m128i srcreg1lo = _mm_unpacklo_epi8(srcreg1, _mm_setzero_si128());
-                                __m128i srcreg2lo = _mm_unpacklo_epi8(srcreg2, _mm_setzero_si128());
-                                __m128i srcreg1hi = _mm_unpackhi_epi8(srcreg1, _mm_setzero_si128());
-                                __m128i srcreg2hi = _mm_unpackhi_epi8(srcreg2, _mm_setzero_si128());
-
-                                __m128i tmp1lo = _mm_slli_epi16(_mm_sub_epi16(srcreg2lo, srcreg1lo), 1);
-                                __m128i tmp1hi = _mm_slli_epi16(_mm_sub_epi16(srcreg2hi, srcreg1hi), 1);
-
-                                __m128i tmp2lo = _mm_add_epi16(_mm_add_epi16(_mm_mulhi_epi16(tmp1lo, mergeweight), _mm_srli_epi16(_mm_mullo_epi16(tmp1lo, mergeweight), 15)), srcreg1lo);
-                                __m128i tmp2hi = _mm_add_epi16(_mm_add_epi16(_mm_mulhi_epi16(tmp1hi, mergeweight), _mm_srli_epi16(_mm_mullo_epi16(tmp1hi, mergeweight), 15)), srcreg1lo);
-
-                                __m128i tmpdst = _mm_packus_epi16(tmp2lo, tmp2hi);
-                                _mm_store_si128((__m128i *)(dstp + xiter), tmpdst);
-                            }
-                            srcp1 += stride;
-                            srcp2 += stride;
-                            dstp += stride;
-                    }
+				if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
+					func = vs_merge_byte_sse2;
+				else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
+					func = vs_merge_word_sse2;
+				else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
+					func = vs_merge_float_sse2;
+				else
+					continue;
 #else
-                        for (int y = 0; y < h; y++) {
-                            for (int x = 0; x < w; x++)
-                                dstp[x] = srcp1[x] + (((srcp2[x] - srcp1[x]) * weight + round) >> MergeShift);
-                            srcp1 += stride;
-                            srcp2 += stride;
-                            dstp += stride;
-                        }
+				if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
+					func = vs_merge_byte_c;
+				else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
+					func = vs_merge_word_c;
+				else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
+					func = vs_merge_float_c;
+				else
+					continue;
 #endif
-                    } else if (d->vi->format->bytesPerSample == 2) {
-                        for (int y = 0; y < h; y++) {
-                            for (int x = 0; x < w; x++)
-                                ((uint16_t *)dstp)[x] = ((const uint16_t *)srcp1)[x] + (((((const uint16_t *)srcp2)[x] - ((const uint16_t *)srcp1)[x]) * weight + round) >> MergeShift);
-                            srcp1 += stride;
-                            srcp2 += stride;
-                            dstp += stride;
-                        }
-                    }
-                } else if (d->vi->format->sampleType == stFloat) {
-                    if (d->vi->format->bytesPerSample == 4) {
-                        for (int y = 0; y < h; y++) {
-                            for (int x = 0; x < w; x++)
-                                ((float *)dstp)[x] = (((const float *)srcp1)[x] + (((const float *)srcp2)[x] - ((const float *)srcp1)[x]) * fweight);
-                            srcp1 += stride;
-                            srcp2 += stride;
-                            dstp += stride;
-                        }
-                    }
-                }
+
+				if (d->vi->format->sampleType == stInteger)
+					weight.u = d->weight[plane];
+				else
+					weight.f = d->fweight[plane];
+
+				for (int y = 0; y < h; ++y) {
+					func(srcp1, srcp2, dstp, weight, w);
+					srcp1 += stride;
+					srcp2 += stride;
+					dstp += stride;
+				}
             }
         }
 
@@ -362,7 +338,7 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     for (i = 0; i < 3; i++) {
         if (d.fweight[i] < 0 || d.fweight[i] > 1)
             RETERROR("Merge: weights must be between 0 and 1");
-        d.weight[i] = (unsigned)(d.fweight[i] * (1 << MergeShift) + 0.5f);
+        d.weight[i] = VSMIN((unsigned)(d.fweight[i] * (1 << MergeShift) + 0.5f), (1U << MergeShift) - 1);
     }
 
     d.node1 = vsapi->propGetNode(in, "clipa", 0, 0);
@@ -822,7 +798,7 @@ static const VSFrameRef *VS_CC makeDiffGetFrame(int n, int activationReason, voi
                         const int maxvalue = (1 << d->vi->format->bitsPerSample) - 1;
                         for (int y = 0; y < h; y++) {
                             for (int x = 0; x < w; x++) {
-                                int temp = ((const uint16_t *)srcp1)[x] - ((const uint16_t *)srcp2)[x] + halfpoint;                           
+                                int temp = ((const uint16_t *)srcp1)[x] - ((const uint16_t *)srcp2)[x] + halfpoint;
                                 ((uint16_t *)dstp)[x] = CLAMP(temp, 0, maxvalue);
                             }
                             srcp1 += stride;
