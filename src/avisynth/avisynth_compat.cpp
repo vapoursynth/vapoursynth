@@ -1075,13 +1075,7 @@ static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSC
 #endif
     }
 
-#ifdef VS_TARGET_CPU_X86
-    if (!vs_isMMXStateOk())
-        vsapi->logMessage(mtFatal, ("Bad MMX state detected after loading " + std::string(rawPath)).c_str());
-#endif
 #ifdef VS_TARGET_OS_WINDOWS
-    if (!vs_isFPUStateOk())
-        vsapi->logMessage(mtWarning, ("Bad FPU state detected after loading " + std::string(rawPath)).c_str());
     if (!vs_isSSEStateOk())
         vsapi->logMessage(mtFatal, ("Bad SSE state detected after loading " + std::string(rawPath)).c_str());
 #endif

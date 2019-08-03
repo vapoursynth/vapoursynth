@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2016 Fredrik Mellbin
+* Copyright (c) 2012-2019 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -22,6 +22,7 @@
 #include "VSHelper.h"
 #include "filtershared.h"
 #include <stdlib.h>
+#include <emmintrin.h>
 
 static inline int CLAMP(int value, int lower, int upper) {
     if (value < lower)
@@ -224,10 +225,6 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
 //////////////////////////////////////////
 // Merge
 
-#ifdef VS_TARGET_CPU_X86
-extern void vs_merge_uint8_sse2(const uint8_t *srcp1, const uint8_t *srcp2, unsigned maskp, uint8_t *dstp, intptr_t stride, intptr_t height);
-#endif
-
 typedef struct {
     VSNodeRef *node1;
     VSNodeRef *node2;
@@ -272,7 +269,30 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
                     const unsigned round = 1 << (MergeShift - 1);
                     if (d->vi->format->bytesPerSample == 1) {
 #ifdef VS_TARGET_CPU_X86
-                        vs_merge_uint8_sse2(srcp1, srcp2, weight, dstp, stride, h);
+                        __m128i mergeweight = _mm_set1_epi16(weight);
+                        for (int y = 0; y < h; y++) {
+                            for (int xiter = 0; xiter < w; xiter += sizeof(__m128i)) {
+                                __m128i srcreg1 = _mm_load_si128((const __m128i *)(srcp1 + xiter));
+                                __m128i srcreg2 = _mm_load_si128((const __m128i *)(srcp2 + xiter));
+
+                                __m128i srcreg1lo = _mm_unpacklo_epi8(srcreg1, _mm_setzero_si128());
+                                __m128i srcreg2lo = _mm_unpacklo_epi8(srcreg2, _mm_setzero_si128());
+                                __m128i srcreg1hi = _mm_unpackhi_epi8(srcreg1, _mm_setzero_si128());
+                                __m128i srcreg2hi = _mm_unpackhi_epi8(srcreg2, _mm_setzero_si128());
+
+                                __m128i tmp1lo = _mm_slli_epi16(_mm_sub_epi16(srcreg2lo, srcreg1lo), 1);
+                                __m128i tmp1hi = _mm_slli_epi16(_mm_sub_epi16(srcreg2hi, srcreg1hi), 1);
+
+                                __m128i tmp2lo = _mm_add_epi16(_mm_add_epi16(_mm_mulhi_epi16(tmp1lo, mergeweight), _mm_srli_epi16(_mm_mullo_epi16(tmp1lo, mergeweight), 15)), srcreg1lo);
+                                __m128i tmp2hi = _mm_add_epi16(_mm_add_epi16(_mm_mulhi_epi16(tmp1hi, mergeweight), _mm_srli_epi16(_mm_mullo_epi16(tmp1hi, mergeweight), 15)), srcreg1lo);
+
+                                __m128i tmpdst = _mm_packus_epi16(tmp2lo, tmp2hi);
+                                _mm_store_si128((__m128i *)(dstp + xiter), tmpdst);
+                            }
+                            srcp1 += stride;
+                            srcp2 += stride;
+                            dstp += stride;
+                    }
 #else
                         for (int y = 0; y < h; y++) {
                             for (int x = 0; x < w; x++)
@@ -397,10 +417,6 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
 
 //////////////////////////////////////////
 // MaskedMerge
-
-#ifdef VS_TARGET_CPU_X86
-extern void vs_masked_merge_uint8_sse2(const uint8_t *srcp1, const uint8_t *srcp2, const uint8_t *maskp, uint8_t *dstp, intptr_t stride, intptr_t height);
-#endif
 
 typedef struct {
     const VSVideoInfo *vi;
@@ -541,7 +557,35 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
                     if (d->vi->format->sampleType == stInteger) {
                         if (d->vi->format->bytesPerSample == 1) {
 #ifdef VS_TARGET_CPU_X86
-                            vs_masked_merge_uint8_sse2(srcp1, srcp2, maskp, dstp, stride, h);
+                            for (int y = 0; y < h; y++) {
+                                for (int xiter = 0; xiter < w; xiter += sizeof(__m128i)) {
+                                    __m128i srcreg1 = _mm_load_si128((const __m128i *)(srcp1 + xiter));
+                                    __m128i srcreg2 = _mm_load_si128((const __m128i *)(srcp2 + xiter));
+                                    __m128i maskreg = _mm_load_si128((const __m128i *)(maskp + xiter));
+
+                                    __m128i srcreg1lo = _mm_unpacklo_epi8(srcreg1, _mm_setzero_si128());
+                                    __m128i srcreg2lo = _mm_unpacklo_epi8(srcreg2, _mm_setzero_si128());
+                                    __m128i maskreglo = _mm_unpacklo_epi8(maskreg, _mm_setzero_si128());
+                                    __m128i srcreg1hi = _mm_unpackhi_epi8(srcreg1, _mm_setzero_si128());
+                                    __m128i srcreg2hi = _mm_unpackhi_epi8(srcreg2, _mm_setzero_si128());
+                                    __m128i maskreghi = _mm_unpackhi_epi8(maskreg, _mm_setzero_si128());
+
+                                    __m128i tmp1lo = _mm_slli_epi16(_mm_sub_epi16(srcreg2lo, srcreg1lo), 4);
+                                    __m128i tmp1hi = _mm_slli_epi16(_mm_sub_epi16(srcreg2hi, srcreg1hi), 4);
+
+                                    __m128i masktmplo = _mm_slli_epi16(_mm_add_epi16(maskreglo, _mm_srli_epi16(_mm_cmpgt_epi16(maskreglo, _mm_set1_epi16(2)), 15)), 4);
+                                    __m128i masktmphi = _mm_slli_epi16(_mm_add_epi16(maskreghi, _mm_srli_epi16(_mm_cmpgt_epi16(maskreghi, _mm_set1_epi16(2)), 15)), 4);
+
+                                    __m128i tmp2lo = _mm_add_epi16(_mm_add_epi16(_mm_mulhi_epi16(tmp1lo, masktmplo), _mm_slli_epi16(_mm_mullo_epi16(tmp1lo, masktmplo), 15)), srcreg1lo);
+                                    __m128i tmp2hi = _mm_add_epi16(_mm_add_epi16(_mm_mulhi_epi16(tmp1hi, masktmphi), _mm_slli_epi16(_mm_mullo_epi16(tmp1hi, masktmphi), 15)), srcreg1hi);
+
+                                    __m128i tmpdst = _mm_packus_epi16(tmp2lo, tmp2hi);
+                                    _mm_store_si128((__m128i *)(dstp + xiter), tmpdst);
+                                }
+                                srcp1 += stride;
+                                srcp2 += stride;
+                                dstp += stride;
+                            }
 #else
                             for (int y = 0; y < h; y++) {
                                 for (int x = 0; x < w; x++)
@@ -714,10 +758,6 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
 //////////////////////////////////////////
 // MakeDiff
 
-#ifdef VS_TARGET_CPU_X86
-extern void vs_make_diff_uint8_sse2(const uint8_t *srcp1, const uint8_t *srcp2, uint8_t *dstp, intptr_t stride, intptr_t height);
-#endif
-
 typedef struct {
     VSNodeRef *node1;
     VSNodeRef *node2;
@@ -754,7 +794,18 @@ static const VSFrameRef *VS_CC makeDiffGetFrame(int n, int activationReason, voi
                 if (d->vi->format->sampleType == stInteger) {
                     if (d->vi->format->bytesPerSample == 1) {
 #ifdef VS_TARGET_CPU_X86
-                        vs_make_diff_uint8_sse2(srcp1, srcp2, dstp, stride, h);
+                        __m128i halfpoint = _mm_set1_epi8(0x80);
+                        for (int y = 0; y < h; y++) {
+                            for (int xiter = 0; xiter < w; xiter += sizeof(__m128i)) {
+                                __m128i srcreg1 = _mm_load_si128((const __m128i *)(srcp1 + xiter));
+                                __m128i srcreg2 = _mm_load_si128((const __m128i *)(srcp2 + xiter));
+                                __m128i tmpdst = _mm_add_epi8(_mm_subs_epi8(_mm_sub_epi8(srcreg1, halfpoint), _mm_sub_epi8(srcreg2, halfpoint)), halfpoint);
+                                _mm_store_si128((__m128i *)(dstp + xiter), tmpdst);
+                            }
+                            srcp1 += stride;
+                            srcp2 += stride;
+                            dstp += stride;
+                    }
 #else
                         for (int y = 0; y < h; y++) {
                             for (int x = 0; x < w; x++) {
@@ -870,10 +921,6 @@ static void VS_CC makeDiffCreate(const VSMap *in, VSMap *out, void *userData, VS
 //////////////////////////////////////////
 // MergeDiff
 
-#ifdef VS_TARGET_CPU_X86
-extern void vs_merge_diff_uint8_sse2(const uint8_t *srcp1, const uint8_t *srcp2, uint8_t *dstp, intptr_t stride, intptr_t height);
-#endif
-
 typedef struct {
     VSNodeRef *node1;
     VSNodeRef *node2;
@@ -910,7 +957,18 @@ static const VSFrameRef *VS_CC mergeDiffGetFrame(int n, int activationReason, vo
                 if (d->vi->format->sampleType == stInteger) {
                     if (d->vi->format->bytesPerSample == 1) {
 #ifdef VS_TARGET_CPU_X86
-                        vs_merge_diff_uint8_sse2(srcp1, srcp2, dstp, stride, h);
+                        __m128i halfpoint = _mm_set1_epi8(0x80);
+                        for (int y = 0; y < h; y++) {
+                            for (int xiter = 0; xiter < w; xiter += sizeof(__m128i)) {
+                                __m128i srcreg1 = _mm_load_si128((const __m128i *)(srcp1 + xiter));
+                                __m128i srcreg2 = _mm_load_si128((const __m128i *)(srcp2 + xiter));
+                                __m128i tmpdst = _mm_add_epi8(_mm_adds_epi8(_mm_sub_epi8(srcreg1, halfpoint), _mm_sub_epi8(srcreg2, halfpoint)), halfpoint);
+                                _mm_store_si128((__m128i *)(dstp + xiter), tmpdst);
+                            }
+                            srcp1 += stride;
+                            srcp2 += stride;
+                            dstp += stride;
+                        }
 #else
                         for (int y = 0; y < h; y++) {
                             for (int x = 0; x < w; x++) {

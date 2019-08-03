@@ -5,18 +5,10 @@ AM_CFLAGS = -std=c99 $(commoncflags)
 
 
 
-nasm_verbose = $(nasm_verbose_$(V))
-nasm_verbose_ = $(nasm_verbose_$(AM_DEFAULT_VERBOSITY))
-nasm_verbose_0 = @echo "  NASM    " $@;
-
-
 cython_verbose = $(cython_verbose_$(V))
 cython_verbose_ = $(cython_verbose_$(AM_DEFAULT_VERBOSITY))
 cython_verbose_0 = @echo "  CYTHON  " $@;
 
-
-.asm.lo:
-	$(nasm_verbose)$(LIBTOOL) $(AM_V_lt) --mode=compile --tag=CC $(AS) $(ASFLAGS) -o $@ $< -prefer-non-pic
 
 .pyx.c:
 	$(cython_verbose)$(CYTHON) -o $@ $<
@@ -37,6 +29,12 @@ lib_LTLIBRARIES =
 
 
 if VSCORE
+noinst_LTLIBRARIES = libexprfilter.la
+
+libexprfilter_la_SOURCES = src/core/exprfilter.cpp
+libexprfilter_la_CPPFLAGS = $(AM_CXXFLAGS) -fno-strict-aliasing
+
+
 lib_LTLIBRARIES += libvapoursynth.la
 
 libvapoursynth_la_SOURCES = src/core/boxblurfilter.cpp \
@@ -44,7 +42,6 @@ libvapoursynth_la_SOURCES = src/core/boxblurfilter.cpp \
 							src/core/cachefilter.h \
 							src/core/cpufeatures.c \
 							src/core/cpufeatures.h \
-							src/core/exprfilter.cpp \
 							src/core/filtershared.h \
 							src/core/genericfilters.cpp \
 							src/core/internalfilters.h \
@@ -68,23 +65,15 @@ libvapoursynth_la_SOURCES = src/core/boxblurfilter.cpp \
 							src/core/vsthreadpool.cpp \
 							src/core/x86utils.h
 
-if X86ASM
-libvapoursynth_la_SOURCES += src/core/asm/x86/check.asm \
-							 src/core/asm/x86/cpu.asm \
-							 src/core/asm/x86/merge.asm
-endif # X86ASM
-
 pkginclude_HEADERS = include/VapourSynth.h \
 					 include/VSHelper.h \
 					 include/VSScript.h
-
-noinst_HEADERS = include/asm/x86/x86inc.asm
 
 pkgconfig_DATA += pc/vapoursynth.pc
 
 libvapoursynth_la_LDFLAGS = -no-undefined -avoid-version
 libvapoursynth_la_CPPFLAGS = $(ZIMG_CFLAGS) -DVS_PATH_PLUGINDIR='"$(PLUGINDIR)"'
-libvapoursynth_la_LIBADD = $(ZIMG_LIBS) $(DLOPENLIB)
+libvapoursynth_la_LIBADD = $(ZIMG_LIBS) $(DLOPENLIB) libexprfilter.la
 
 
 if PYTHONMODULE

@@ -843,8 +843,8 @@ static char *prefix_string(const char *message, const char *prefix) {
 
     char *result = (char *)malloc(length);
 
-    strncpy(result, prefix, prefix_length);
-    strncpy(result + prefix_length, message, message_length);
+    memcpy(result, prefix, prefix_length);
+    memcpy(result + prefix_length, message, message_length);
 
     result[length - 1] = '\0';
 
@@ -1384,8 +1384,12 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
             if (cyclestart > 0)
                 vsapi->requestFrameFilter(cyclestart - 1, vdm->node, frameCtx);
 
-            for (int i = cyclestart; i < cycleend; i++)
+            for (int i = cyclestart; i < cycleend; i++) {
                 vsapi->requestFrameFilter(i, vdm->node, frameCtx);
+                
+                if (vdm->dryrun && vdm->clip2)
+                    vsapi->requestFrameFilter(i, vdm->clip2, frameCtx);
+            }
         }
 
         if (cycle->drop != Unknown) {

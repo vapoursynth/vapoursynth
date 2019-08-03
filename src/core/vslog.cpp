@@ -24,28 +24,54 @@
 #include <cstdio>
 #include <cstdarg>
 #include <mutex>
+#include <map>
 #include <vector>
 
-static VSMessageHandler messageHandler = nullptr;
-static void *messageUserData = nullptr;
+struct MessageHandler {
+    VSMessageHandler handler;
+    VSMessageHandlerFree free;
+    void *userData;
+};
+
+static std::map<int, MessageHandler> messageHandlers;
+static int currentHandlerId = 0;
+static int globalMessageHandler = -1;
 static std::mutex logMutex;
 
 void vsSetMessageHandler(VSMessageHandler handler, void *userData) {
     std::lock_guard<std::mutex> lock(logMutex);
-    if (handler) {
-        messageHandler = handler;
-        messageUserData = userData;
-    } else {
-        messageHandler = nullptr;
-        messageUserData = nullptr;
+    if (globalMessageHandler >= 0) {
+        vsRemoveMessageHandler(globalMessageHandler);
+        globalMessageHandler = -1;
     }
+    if (handler) {
+        messageHandlers.emplace(currentHandlerId, MessageHandler{ handler, nullptr, userData });
+        globalMessageHandler = currentHandlerId++;
+    }
+}
+
+int vsAddMessageHandler(VSMessageHandler handler, VSMessageHandlerFree free, void *userData) {
+    assert(handler);
+    std::lock_guard<std::mutex> lock(logMutex);
+    messageHandlers.emplace(currentHandlerId, MessageHandler{ handler, free, userData });
+    return currentHandlerId++;
+}
+
+int vsRemoveMessageHandler(int id) {
+    std::lock_guard<std::mutex> lock(logMutex);
+    if (messageHandlers.count(id)) {
+        messageHandlers[id].free(messageHandlers[id].userData);
+        messageHandlers.erase(id);
+        return 1;
+    }
+    return 0;
 }
 
 void vsLog(const char *file, long line, VSMessageType type, const char *msg, ...) {
     std::lock_guard<std::mutex> lock(logMutex);
-    if (messageHandler) {
-        va_list alist;
+    if (!messageHandlers.empty()) {
         try {
+            va_list alist;
             va_start(alist, msg);
             int size = vsnprintf(nullptr, 0, msg, alist);
             va_end(alist);
@@ -53,9 +79,11 @@ void vsLog(const char *file, long line, VSMessageType type, const char *msg, ...
             va_start(alist, msg);
             vsnprintf(buf.data(), buf.size(), msg, alist);
             va_end(alist);
-            messageHandler(type, buf.data(), messageUserData);
+            for (const auto &iter : messageHandlers)
+                iter.second.handler(type, buf.data(), iter.second.userData);
         } catch (std::bad_alloc &) {
             fprintf(stderr, "Bad alloc exception in log handler\n");
+            va_list alist;
             va_start(alist, msg);
             vfprintf(stderr, msg, alist);
             va_end(alist);

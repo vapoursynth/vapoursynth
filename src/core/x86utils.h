@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012 Fredrik Mellbin
+* Copyright (c) 2012-2019 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -18,6 +18,8 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-extern "C" int vs_isFPUStateOk();
-extern "C" int vs_isMMXStateOk();
-extern "C" int vs_isSSEStateOk();
+#include <xmmintrin.h>
+
+static bool vs_isSSEStateOk() {
+    return (_mm_getcsr() & 0x7f80) == 0x1f80;
+}

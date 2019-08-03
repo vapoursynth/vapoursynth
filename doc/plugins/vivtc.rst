@@ -119,6 +119,11 @@ It is a rewrite of some of tritical's TIVTC filters.
          0 and 5 in terms of risking jerkiness and creating duplicate frames vs.
          finding good matches in sections with bad edits, orphaned fields,
          blended fields, etc.
+         
+         Note that the combed condition here is not the same as the ``_Combed``
+         frame property. Instead it's a combination of relative and absolute
+         threshold comparisons and can still lead to the match being changed
+         even when the ``_Combed`` flag is not set on the original frame.
 
          0 = 2-way match (p/c)
          

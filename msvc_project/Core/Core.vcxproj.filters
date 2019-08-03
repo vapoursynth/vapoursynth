@@ -13,9 +13,6 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="asm">
-      <UniqueIdentifier>{b55b993c-a513-4720-b62d-07e2e4199ce9}</UniqueIdentifier>
-    </Filter>
     <Filter Include="sdk">
       <UniqueIdentifier>{7b8d16d8-0e90-4ae9-bc15-ed1a0abcc974}</UniqueIdentifier>
     </Filter>
@@ -125,19 +122,5 @@
     <ClInclude Include="..\..\src\common\vsutf16.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <NASM Include="..\..\src\core\asm\x86\cpu.asm">
-      <Filter>asm</Filter>
-    </NASM>
-    <NASM Include="..\..\src\core\asm\x86\check.asm">
-      <Filter>asm</Filter>
-    </NASM>
-    <NASM Include="..\..\src\core\asm\x86\merge.asm">
-      <Filter>asm</Filter>
-    </NASM>
-    <NASM Include="..\..\include\asm\x86\x86inc.asm">
-      <Filter>asm</Filter>
-    </NASM>
   </ItemGroup>
 </Project>

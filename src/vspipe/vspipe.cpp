@@ -92,6 +92,7 @@ static int64_t currentTimecodeNum = 0;
 static int64_t currentTimecodeDen = 1;
 static bool outputError = false;
 static bool showInfo = false;
+static bool preserveCwd = false;
 static bool showVersion = false;
 static bool printFrameNumber = false;
 static double fps = 0;
@@ -288,8 +289,9 @@ static std::string floatBitsToLetter(int bits) {
 
 static bool outputNode() {
     if (requests < 1) {
-        const VSCoreInfo *info = vsapi->getCoreInfo(vsscript_getCore(se));
-        requests = info->numThreads;
+        VSCoreInfo info;
+        vsapi->getCoreInfo2(vsscript_getCore(se), &info);
+        requests = info.numThreads;
     }
 
     std::unique_lock<std::mutex> lock(mutex);
@@ -360,8 +362,9 @@ static bool printVersion() {
         return false;
     }
 
-    const VSCoreInfo *info = vsapi->getCoreInfo(core);
-    printf("%s", info->versionString);
+    VSCoreInfo info;
+    vsapi->getCoreInfo2(core, &info);
+    printf("%s", info.versionString);
     vsapi->freeCore(core);
     vsscript_finalize();
     return true;
@@ -380,6 +383,7 @@ static void printHelp() {
         "  -r, --requests N      Set number of concurrent frame requests\n"
         "  -y, --y4m             Add YUV4MPEG headers to output\n"
         "  -t, --timecodes FILE  Write timecodes v2 file\n"
+        "  -c  --preserve-cwd    Don't temporarily change the working directory the script path\n"
         "  -p, --progress        Print progress to stderr\n"
         "  -i, --info            Show video info and exit\n"
         "  -v, --version         Show version info and exit\n"
@@ -425,6 +429,8 @@ int main(int argc, char **argv) {
             showInfo = true;
         } else if (argString == NSTRING("-h") || argString == NSTRING("--help")) {
             showHelp = true;
+        } else if (argString == NSTRING("-c") || argString == NSTRING("--preserve-cwd")) {
+            preserveCwd = true;
         } else if (argString == NSTRING("-s") || argString == NSTRING("--start")) {
             if (argc <= arg + 1) {
                 fprintf(stderr, "No start frame specified\n");
@@ -595,7 +601,7 @@ int main(int argc, char **argv) {
     }
 
     start = std::chrono::high_resolution_clock::now();
-    if (vsscript_evaluateFile(&se, nstringToUtf8(scriptFilename).c_str(), efSetWorkingDir)) {
+    if (vsscript_evaluateFile(&se, nstringToUtf8(scriptFilename).c_str(), preserveCwd ? 0 : efSetWorkingDir)) {
         fprintf(stderr, "Script evaluation failed:\n%s\n", vsscript_getError(se));
         vsscript_freeScript(se);
         vsscript_finalize();

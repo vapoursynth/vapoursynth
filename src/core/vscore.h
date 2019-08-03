@@ -573,6 +573,7 @@ private:
     unsigned maxThreads;
     std::atomic<bool> stopThreads;
     std::atomic<unsigned> ticks;
+    int getNumAvailableThreads();
     void wakeThread();
     void notifyCaches(bool needMemory);
     void startInternal(const PFrameContext &context);
@@ -584,9 +585,8 @@ public:
     ~VSThreadPool();
     void returnFrame(const PFrameContext &rCtx, const PVideoFrame &f);
     void returnFrame(const PFrameContext &rCtx, const std::string &errMsg);
-    int activeThreadCount() const;
-    int threadCount() const;
-    void setThreadCount(int threads);
+    int threadCount();
+    int setThreadCount(int threads);
     void start(const PFrameContext &context);
     void releaseThread();
     void reserveThread();
@@ -697,6 +697,7 @@ public:
     VSPlugin *getPluginByNs(const std::string &ns);
 
     const VSCoreInfo &getCoreInfo();
+    void getCoreInfo2(VSCoreInfo &info);
 
     void functionInstanceCreated();
     void functionInstanceDestroyed();

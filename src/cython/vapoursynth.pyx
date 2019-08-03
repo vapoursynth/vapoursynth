@@ -707,6 +707,11 @@ cdef class Format(object):
         vals.update(**kwargs)
         return core.register_format(**vals)
 
+    def __eq__(self, other):
+        if not isinstance(other, Format):
+            return False
+        return other.id == self.id
+
     def __int__(self):
         return self.id
 
@@ -1500,16 +1505,18 @@ cdef class Core(object):
             
     property num_threads:
         def __get__(self):
-            cdef const VSCoreInfo *info = self.funcs.getCoreInfo(self.core)
-            return info.numThreads
+            cdef VSCoreInfo v
+            self.funcs.getCoreInfo2(self.core, &v)
+            return v.numThreads
         
         def __set__(self, int value):
             self.funcs.setThreadCount(value, self.core)
             
     property max_cache_size:
         def __get__(self):
-            cdef const VSCoreInfo *info = self.funcs.getCoreInfo(self.core)
-            cdef int64_t current_size = <int64_t>info.maxFramebufferSize
+            cdef VSCoreInfo v
+            self.funcs.getCoreInfo2(self.core, &v)
+            cdef int64_t current_size = <int64_t>v.maxFramebufferSize
             current_size = current_size + 1024 * 1024 - 1
             current_size = current_size // <int64_t>(1024 * 1024)
             return current_size
@@ -1597,11 +1604,13 @@ cdef class Core(object):
             return createFormat(f)
 
     def version(self):
-        cdef const VSCoreInfo *v = self.funcs.getCoreInfo(self.core)
+        cdef VSCoreInfo v
+        self.funcs.getCoreInfo2(self.core, &v)
         return (<const char *>v.versionString).decode('utf-8')
         
     def version_number(self):
-        cdef const VSCoreInfo *v = self.funcs.getCoreInfo(self.core)
+        cdef VSCoreInfo v
+        self.funcs.getCoreInfo2(self.core, &v)
         return v.core
         
     def __dir__(self):

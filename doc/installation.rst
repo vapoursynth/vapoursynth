@@ -5,7 +5,13 @@ Prerequisites
 #############
 
 First download and install the prerequisites:
-   * `Python 3.7 <http://www.python.org/>`_  -- 32 and/or 64 bit version
+   * `Python 3.7 <http://www.python.org/>`_  -- 32 or 64 bit version depending on which version of VapourSynth you want to install
+   
+Note that VapourSynth and Python have to be matched so both are either installed
+for all users or for only for the current user.
+
+Also note that per user installs will not install the required visual studio
+2019 runtimes.
 
 Installation
 ############
@@ -51,7 +57,7 @@ Linux Installation from Packages
 
 Several distributions have packages:
 
-   * `Ubuntu <https://launchpad.net/~djcj/+archive/ubuntu/vapoursynth>`_  -- PPA
+   * `Ubuntu <https://launchpad.net/~djcj/+ppa-packages>`_  -- PPA
    * `Gentoo <https://github.com/4re/vapoursynth-portage>`_  -- Portage overlay and instructions
    * `Arch Linux <https://www.archlinux.org/packages/?q=vapoursynth>`_  -- Packages
 
@@ -76,9 +82,7 @@ These are the requirements:
 
    * GCC 4.8 or newer, or Clang
 
-   * Nasm
-
-   * `zimg v2.8 branch <https://github.com/sekrit-twc/zimg/releases>`_
+   * `zimg v2.9 branch <https://github.com/sekrit-twc/zimg/releases>`_
 
    * Python 3
 
@@ -105,7 +109,7 @@ First download and install the prerequisites:
 Installation of the required packages is very easy. Simply run these
 commands in a terminal and wait for them to complete::
 
-   brew install python3 nasm ffmpeg libass zimg imagemagick
+   brew install python3 ffmpeg libass zimg imagemagick
    pip3 install cython
    
 If you've already installed all the required packages and instead want
@@ -113,16 +117,6 @@ to update them, simply run::
 
    brew update && brew upgrade
    pip3 install --upgrade cython
-   
-Required packages (Ubuntu)
-##########################
-
-In Ubuntu 16.10 the following command will install them, minus zimg,
-which needs to be compiled from source::
-
-   apt-get install build-essential nasm git libavcodec-dev libavformat-dev libavutil-dev libass-dev python3-pip python3-dev cython3 autoconf libtool libtesseract-dev
-   
-The packages may have different names in other distributions.
 
 Compilation
 ###########

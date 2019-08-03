@@ -510,10 +510,6 @@ Classes and Functions
    .. py:attribute:: signature
 
       Raw function signature string. Identical to the string used to register the function.
-      
-   .. py:attribute:: plugin
-   
-      Refers to the *Plugin*-instance which registered this function.
    
 .. py:class:: Environment
 

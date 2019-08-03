@@ -518,13 +518,14 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **
 
             scrawl_text(text, d->alignment, dst, vsapi);
         } else if (d->filter == FILTER_COREINFO) {
-            const VSCoreInfo *ci = vsapi->getCoreInfo(core);
+            VSCoreInfo ci;
+            vsapi->getCoreInfo2(core, &ci);
 
             std::string text;
-            text.append(ci->versionString).append("\n");
-            text.append("Threads: ").append(std::to_string(ci->numThreads)).append("\n");
-            text.append("Maximum framebuffer cache size: ").append(std::to_string(ci->maxFramebufferSize)).append(" bytes\n");
-            text.append("Used framebuffer cache size: ").append(std::to_string(ci->usedFramebufferSize)).append(" bytes");
+            text.append(ci.versionString).append("\n");
+            text.append("Threads: ").append(std::to_string(ci.numThreads)).append("\n");
+            text.append("Maximum framebuffer cache size: ").append(std::to_string(ci.maxFramebufferSize)).append(" bytes\n");
+            text.append("Used framebuffer cache size: ").append(std::to_string(ci.usedFramebufferSize)).append(" bytes");
 
             scrawl_text(text, d->alignment, dst, vsapi);
         } else if (d->filter == FILTER_CLIPINFO) {

@@ -74,9 +74,12 @@ static bool isValidIdentifier(const std::string &s) {
 #ifdef VS_TARGET_OS_WINDOWS
 static std::wstring readRegistryValue(const wchar_t *keyName, const wchar_t *valueName) {
     HKEY hKey;
-    LONG lRes = RegOpenKeyEx(HKEY_LOCAL_MACHINE, keyName, 0, KEY_READ, &hKey);
-    if (lRes != ERROR_SUCCESS)
-        return std::wstring();
+    LONG lRes = RegOpenKeyEx(HKEY_CURRENT_USER, keyName, 0, KEY_READ, &hKey);
+    if (lRes != ERROR_SUCCESS) {
+        lRes = RegOpenKeyEx(HKEY_LOCAL_MACHINE, keyName, 0, KEY_READ, &hKey);
+        if (lRes != ERROR_SUCCESS)
+            return std::wstring();
+    }
     WCHAR szBuffer[512];
     DWORD dwBufferSize = sizeof(szBuffer);
     ULONG nError;
@@ -443,10 +446,12 @@ size_t MemoryUse::memoryUse() {
 }
 
 size_t MemoryUse::getLimit() {
+    std::lock_guard<std::mutex> lock(mutex);
     return maxMemoryUse;
 }
 
 int64_t MemoryUse::setMaxMemoryUse(int64_t bytes) {
+    std::lock_guard<std::mutex> lock(mutex);
     if (bytes > 0 && static_cast<uint64_t>(bytes) <= SIZE_MAX)
         maxMemoryUse = static_cast<size_t>(bytes);
     return maxMemoryUse;
@@ -923,13 +928,7 @@ PVideoFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext
         r = filterGetFrame(n, activationReason, &instanceData, &frameCtx.ctx->frameContext, &frameCtx, core, &vs_internal_vsapi);
     else // fixme, expand n to int64?
         r = audioFilterGetFrame(n, activationReason, instanceData, &frameCtx.ctx->frameContext, &frameCtx, core, &vs_internal_vsapi);
-#ifdef VS_TARGET_CPU_X86
-    if (!vs_isMMXStateOk())
-        vsFatal("Bad MMX state detected after return from %s", name.c_str());
-#endif
 #ifdef VS_TARGET_OS_WINDOWS
-    if (!vs_isFPUStateOk())
-        vsWarning("Bad FPU state detected after return from %s", name.c_str());
     if (!vs_isSSEStateOk())
         vsFatal("Bad SSE state detected after return from %s", name.c_str());
 #endif
@@ -1197,13 +1196,17 @@ bool VSCore::isValidFormatPointer(const void *f) {
 }
 
 const VSCoreInfo &VSCore::getCoreInfo() {
-    coreInfo.versionString = VAPOURSYNTH_VERSION_STRING;
-    coreInfo.core = VAPOURSYNTH_CORE_VERSION;
-    coreInfo.api = VAPOURSYNTH_API_VERSION;
-    coreInfo.numThreads = threadPool->threadCount();
-    coreInfo.maxFramebufferSize = memory->getLimit();
-    coreInfo.usedFramebufferSize = memory->memoryUse();
+    getCoreInfo2(coreInfo);
     return coreInfo;
+}
+
+void VSCore::getCoreInfo2(VSCoreInfo &info) {
+    info.versionString = VAPOURSYNTH_VERSION_STRING;
+    info.core = VAPOURSYNTH_CORE_VERSION;
+    info.api = VAPOURSYNTH_API_VERSION;
+    info.numThreads = threadPool->threadCount();
+    info.maxFramebufferSize = memory->getLimit();
+    info.usedFramebufferSize = memory->memoryUse();
 }
 
 void VS_CC vs_internal_configPlugin(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readOnly, VSPlugin *plugin);
@@ -1389,13 +1392,7 @@ void VSCore::destroyFilterInstance(VSNode *node) {
 }
 
 VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), numFunctionInstances(0), memory(new MemoryUse()) {
-#ifdef VS_TARGET_CPU_X86
-    if (!vs_isMMXStateOk())
-        vsFatal("Bad MMX state detected when creating new core");
-#endif
 #ifdef VS_TARGET_OS_WINDOWS
-    if (!vs_isFPUStateOk())
-        vsWarning("Bad FPU state detected when creating new core. Any other FPU state warnings after this one should be ignored.");
     if (!vs_isSSEStateOk())
         vsFatal("Bad SSE state detected when creating new core");
 #endif
@@ -1439,8 +1436,10 @@ VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), numFuncti
     const std::wstring filter = L"*.dll";
 
 #ifdef _WIN64
+    #define VS_INSTALL_REGKEY L"Software\\VapourSynth"
     std::wstring bits(L"64");
 #else
+    #define VS_INSTALL_REGKEY L"Software\\VapourSynth-32"
     std::wstring bits(L"32");
 #endif
 
@@ -1471,7 +1470,8 @@ VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), numFuncti
     } else {
         // Autoload user specific plugins first so a user can always override
         std::vector<wchar_t> appDataBuffer(MAX_PATH + 1);
-        SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, SHGFP_TYPE_CURRENT, appDataBuffer.data());
+        if (SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, SHGFP_TYPE_CURRENT, appDataBuffer.data()) != S_OK)
+            SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, SHGFP_TYPE_DEFAULT, appDataBuffer.data());
 
         std::wstring appDataPath = std::wstring(appDataBuffer.data()) + L"\\VapourSynth\\plugins" + bits;
 
@@ -1479,13 +1479,13 @@ VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), numFuncti
         loadAllPluginsInPath(appDataPath, filter);
 
         // Autoload bundled plugins
-        std::wstring corePluginPath = readRegistryValue(L"Software\\VapourSynth", L"CorePlugins");
+        std::wstring corePluginPath = readRegistryValue(VS_INSTALL_REGKEY, L"CorePlugins");
         if (!loadAllPluginsInPath(corePluginPath, filter))
             vsCritical("Core plugin autoloading failed. Installation is broken?");
 
         // Autoload global plugins last, this is so the bundled plugins cannot be overridden easily
         // and accidentally block updated bundled versions
-        std::wstring globalPluginPath = readRegistryValue(L"Software\\VapourSynth", L"Plugins");
+        std::wstring globalPluginPath = readRegistryValue(VS_INSTALL_REGKEY, L"Plugins");
         loadAllPluginsInPath(globalPluginPath, filter);
     }
 
@@ -1715,13 +1715,7 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
 #endif
     pluginInit(::vs_internal_configPlugin, ::vs_internal_registerFunction, this);
 
-#ifdef VS_TARGET_CPU_X86
-    if (!vs_isMMXStateOk())
-        vsFatal("Bad MMX state detected after loading %s", filename.c_str());
-#endif
 #ifdef VS_TARGET_OS_WINDOWS
-    if (!vs_isFPUStateOk())
-        vsWarning("Bad FPU state detected after loading %s", filename.c_str());
     if (!vs_isSSEStateOk())
         vsFatal("Bad SSE state detected after loading %s", filename.c_str());
 #endif

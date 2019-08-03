@@ -43,7 +43,7 @@
 #include <stdint.h>
 
 #define VAPOURSYNTH_API_MAJOR 3
-#define VAPOURSYNTH_API_MINOR 5
+#define VAPOURSYNTH_API_MINOR 6
 #define VAPOURSYNTH_API_VERSION ((VAPOURSYNTH_API_MAJOR << 16) | (VAPOURSYNTH_API_MINOR))
 
 /* Convenience for C++ users. */
@@ -102,7 +102,7 @@ typedef enum VSColorFamily {
     cmYUV    = 3000000,
     cmYCoCg  = 4000000,
     /* special for compatibility */
-    cmCompat = 9000000,
+    cmCompat = 9000000
 } VSColorFamily;
 
 typedef enum VSSampleType {
@@ -284,11 +284,12 @@ typedef void (VS_CC *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI
 /* other */
 typedef void (VS_CC *VSFrameDoneCallback)(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg);
 typedef void (VS_CC *VSMessageHandler)(int msgType, const char *msg, void *userData);
+typedef void (VS_CC *VSMessageHandlerFree)(void *userData);
 
 struct VSAPI {
     VSCore *(VS_CC *createCore)(int threads) VS_NOEXCEPT;
     void (VS_CC *freeCore)(VSCore *core) VS_NOEXCEPT;
-    const VSCoreInfo *(VS_CC *getCoreInfo)(VSCore *core) VS_NOEXCEPT;
+    const VSCoreInfo *(VS_CC *getCoreInfo)(VSCore *core) VS_NOEXCEPT; /* deprecated as of api 3.6, use getCoreInfo2 instead */
 
     const VSFrameRef *(VS_CC *cloneFrameRef)(const VSFrameRef *f) VS_NOEXCEPT;
     VSNodeRef *(VS_CC *cloneNodeRef)(VSNodeRef *node) VS_NOEXCEPT;
@@ -367,7 +368,7 @@ struct VSAPI {
     int64_t (VS_CC *setMaxCacheSize)(int64_t bytes, VSCore *core) VS_NOEXCEPT;
     int (VS_CC *getOutputIndex)(VSFrameContext *frameCtx) VS_NOEXCEPT;
     VSFrameRef *(VS_CC *newVideoFrame2)(const VSFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT;
-    void (VS_CC *setMessageHandler)(VSMessageHandler handler, void *userData) VS_NOEXCEPT;
+    void (VS_CC *setMessageHandler)(VSMessageHandler handler, void *userData) VS_NOEXCEPT; /* deprecated as of api 3.6, use addMessageHandler and removeMessageHandler instead */
     int (VS_CC *setThreadCount)(int threads, VSCore *core) VS_NOEXCEPT;
 
     const char *(VS_CC *getPluginPath)(const VSPlugin *plugin) VS_NOEXCEPT;
@@ -382,7 +383,12 @@ struct VSAPI {
     /* api 3.4 */
     void (VS_CC *logMessage)(int msgType, const char *msg) VS_NOEXCEPT;
 
-    /* api 3.5 */
+    /* api 3.6 */
+    int (VS_CC *addMessageHandler)(VSMessageHandler handler, VSMessageHandlerFree free, void *userData) VS_NOEXCEPT;
+    int (VS_CC *removeMessageHandler)(int id) VS_NOEXCEPT;
+    void (VS_CC *getCoreInfo2)(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT;
+
+    /* api experimental audio */
 
     void (VS_CC *createAudioFilter)(const VSMap *in, VSMap *out, const char *name, const VSAudioInfo *ai, int numOutputs, VSAudioFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT;
     VSFrameRef *(VS_CC *newAudioFrame)(const VSAudioFormat *format, int sampleRate, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT;
