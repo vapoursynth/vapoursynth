@@ -29,8 +29,8 @@ extern "C" {
 #endif
 
 union vs_merge_weight {
-	unsigned u;
-	float f;
+    unsigned u;
+    float f;
 };
 
 void vs_merge_byte_c(const void *src1, const void *src2, void *dst, union vs_merge_weight weight, unsigned n);

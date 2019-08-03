@@ -29,19 +29,19 @@ extern "C" {
 #endif
 
 union vs_plane_stats {
-	struct {
-		unsigned min;
-		unsigned max;
-		uint64_t acc;
-		uint64_t diffacc;
-	} i;
+    struct {
+        unsigned min;
+        unsigned max;
+        uint64_t acc;
+        uint64_t diffacc;
+    } i;
 
-	struct {
-		float min;
-		float max;
-		double acc;
-		double diffacc;
-	} f;
+    struct {
+        float min;
+        float max;
+        double acc;
+        double diffacc;
+    } f;
 };
 
 void vs_plane_stats_1_byte_c(union vs_plane_stats *stats, const void *src, ptrdiff_t stride, unsigned width, unsigned height);

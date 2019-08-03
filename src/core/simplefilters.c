@@ -1739,17 +1739,17 @@ static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, vo
                 break;
             }
 #else
-			switch (d->vi.format->bytesPerSample) {
-			case 1:
-				vs_transpose_plane_byte_c(srcp, src_stride, dstp, dst_stride, width, height);
-				break;
-			case 2:
-				vs_transpose_plane_word_c(srcp, src_stride, dstp, dst_stride, width, height);
-				break;
-			case 4:
-				vs_transpose_plane_dword_c(srcp, src_stride, dstp, dst_stride, width, height);
-				break;
-			}
+            switch (d->vi.format->bytesPerSample) {
+            case 1:
+                vs_transpose_plane_byte_c(srcp, src_stride, dstp, dst_stride, width, height);
+                break;
+            case 2:
+                vs_transpose_plane_word_c(srcp, src_stride, dstp, dst_stride, width, height);
+                break;
+            case 4:
+                vs_transpose_plane_dword_c(srcp, src_stride, dstp, dst_stride, width, height);
+                break;
+            }
 #endif
         }
 
@@ -1975,66 +1975,66 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
         int height = vsapi->getFrameHeight(src1, d->plane);
         const uint8_t *srcp = vsapi->getReadPtr(src1, d->plane);
         int src_stride = vsapi->getStride(src1, d->plane);
-		union vs_plane_stats stats = { 0 };
+        union vs_plane_stats stats = { 0 };
 
 #ifdef VS_TARGET_CPU_X86
-		if (src2) {
-			const void *srcp2 = vsapi->getReadPtr(src2, d->plane);
-			ptrdiff_t src2_stride = vsapi->getStride(src2, d->plane);
+        if (src2) {
+            const void *srcp2 = vsapi->getReadPtr(src2, d->plane);
+            ptrdiff_t src2_stride = vsapi->getStride(src2, d->plane);
 
-			switch (fi->bytesPerSample) {
-			case 1:
-				vs_plane_stats_2_byte_sse2(&stats, srcp, src_stride, srcp2, src2_stride, width, height);
-				break;
-			case 2:
-				vs_plane_stats_2_word_sse2(&stats, srcp, src_stride, srcp2, src2_stride, width, height);
-				break;
-			case 4:
-				vs_plane_stats_2_float_sse2(&stats, srcp, src_stride, srcp2, src2_stride, width, height);
-				break;
-			}
-		} else {
-			switch (fi->bytesPerSample) {
-			case 1:
-				vs_plane_stats_1_byte_sse2(&stats, srcp, src_stride, width, height);
-				break;
-			case 2:
-				vs_plane_stats_1_word_sse2(&stats, srcp, src_stride, width, height);
-				break;
-			case 4:
-				vs_plane_stats_1_float_sse2(&stats, srcp, src_stride, width, height);
-				break;
-			}
-		}
+            switch (fi->bytesPerSample) {
+            case 1:
+                vs_plane_stats_2_byte_sse2(&stats, srcp, src_stride, srcp2, src2_stride, width, height);
+                break;
+            case 2:
+                vs_plane_stats_2_word_sse2(&stats, srcp, src_stride, srcp2, src2_stride, width, height);
+                break;
+            case 4:
+                vs_plane_stats_2_float_sse2(&stats, srcp, src_stride, srcp2, src2_stride, width, height);
+                break;
+            }
+        } else {
+            switch (fi->bytesPerSample) {
+            case 1:
+                vs_plane_stats_1_byte_sse2(&stats, srcp, src_stride, width, height);
+                break;
+            case 2:
+                vs_plane_stats_1_word_sse2(&stats, srcp, src_stride, width, height);
+                break;
+            case 4:
+                vs_plane_stats_1_float_sse2(&stats, srcp, src_stride, width, height);
+                break;
+            }
+        }
 #else
-		if (src2) {
-			const void *srcp2 = vsapi->getReadPtr(src2, d->plane);
-			ptrdiff_t src2_stride = vsapi->getStride(src2, d->plane);
+        if (src2) {
+            const void *srcp2 = vsapi->getReadPtr(src2, d->plane);
+            ptrdiff_t src2_stride = vsapi->getStride(src2, d->plane);
 
-			switch (fi->bytesPerSample) {
-			case 1:
-				vs_plane_stats_2_byte_c(&stats, srcp, src_stride, srcp2, src2_stride, width, height);
-				break;
-			case 2:
-				vs_plane_stats_2_word_c(&stats, srcp, src_stride, srcp2, src2_stride, width, height);
-				break;
-			case 4:
-				vs_plane_stats_2_float_c(&stats, srcp, src_stride, srcp2, src2_stride, width, height);
-				break;
-			}
-		} else {
-			switch (fi->bytesPerSample) {
-			case 1:
-				vs_plane_stats_1_byte_c(&stats, srcp, src_stride, width, height);
-				break;
-			case 2:
-				vs_plane_stats_1_word_c(&stats, srcp, src_stride, width, height);
-				break;
-			case 4:
-				vs_plane_stats_1_float_c(&stats, srcp, src_stride, width, height);
-				break;
-			}
-		}
+            switch (fi->bytesPerSample) {
+            case 1:
+                vs_plane_stats_2_byte_c(&stats, srcp, src_stride, srcp2, src2_stride, width, height);
+                break;
+            case 2:
+                vs_plane_stats_2_word_c(&stats, srcp, src_stride, srcp2, src2_stride, width, height);
+                break;
+            case 4:
+                vs_plane_stats_2_float_c(&stats, srcp, src_stride, srcp2, src2_stride, width, height);
+                break;
+            }
+        } else {
+            switch (fi->bytesPerSample) {
+            case 1:
+                vs_plane_stats_1_byte_c(&stats, srcp, src_stride, width, height);
+                break;
+            case 2:
+                vs_plane_stats_1_word_c(&stats, srcp, src_stride, width, height);
+                break;
+            case 4:
+                vs_plane_stats_1_float_c(&stats, srcp, src_stride, width, height);
+                break;
+            }
+        }
 #endif
 
         VSMap *dstProps = vsapi->getFramePropsRW(dst);

@@ -263,40 +263,40 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
                 const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
                 uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
 
-				void (*func)(const void *, const void *, void *, union vs_merge_weight, unsigned);
-				union vs_merge_weight weight;
+                void (*func)(const void *, const void *, void *, union vs_merge_weight, unsigned);
+                union vs_merge_weight weight;
 
 #ifdef VS_TARGET_CPU_X86
-				if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
-					func = vs_merge_byte_sse2;
-				else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
-					func = vs_merge_word_sse2;
-				else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
-					func = vs_merge_float_sse2;
-				else
-					continue;
+                if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
+                    func = vs_merge_byte_sse2;
+                else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
+                    func = vs_merge_word_sse2;
+                else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
+                    func = vs_merge_float_sse2;
+                else
+                    continue;
 #else
-				if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
-					func = vs_merge_byte_c;
-				else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
-					func = vs_merge_word_c;
-				else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
-					func = vs_merge_float_c;
-				else
-					continue;
+                if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
+                    func = vs_merge_byte_c;
+                else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
+                    func = vs_merge_word_c;
+                else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
+                    func = vs_merge_float_c;
+                else
+                    continue;
 #endif
 
-				if (d->vi->format->sampleType == stInteger)
-					weight.u = d->weight[plane];
-				else
-					weight.f = d->fweight[plane];
+                if (d->vi->format->sampleType == stInteger)
+                    weight.u = d->weight[plane];
+                else
+                    weight.f = d->fweight[plane];
 
-				for (int y = 0; y < h; ++y) {
-					func(srcp1, srcp2, dstp, weight, w);
-					srcp1 += stride;
-					srcp2 += stride;
-					dstp += stride;
-				}
+                for (int y = 0; y < h; ++y) {
+                    func(srcp1, srcp2, dstp, weight, w);
+                    srcp1 += stride;
+                    srcp2 += stride;
+                    dstp += stride;
+                }
             }
         }
 
@@ -441,49 +441,49 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
                 const uint8_t *maskp = vsapi->getReadPtr((plane && mask23) ? mask23 : mask, d->first_plane ? 0 : plane);
                 uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
 
-				void (*func)(const void *, const void *, const void *, void *, unsigned, unsigned, unsigned);
-				int yuvhandling = (plane > 0) && (d->vi->format->colorFamily == cmYUV || d->vi->format->colorFamily == cmYCoCg);
+                void (*func)(const void *, const void *, const void *, void *, unsigned, unsigned, unsigned);
+                int yuvhandling = (plane > 0) && (d->vi->format->colorFamily == cmYUV || d->vi->format->colorFamily == cmYCoCg);
 
-				if (d->premultiplied && d->vi->format->sampleType == stInteger && offset1 != offset2) {
-					vsapi->freeFrame(src1);
-					vsapi->freeFrame(src2);
-					vsapi->freeFrame(mask);
-					vsapi->freeFrame(mask23);
-					vsapi->freeFrame(dst);
-					vsapi->setFilterError("MaskedMerge: Input frames must have the same range", frameCtx);
-					return 0;
-				}
+                if (d->premultiplied && d->vi->format->sampleType == stInteger && offset1 != offset2) {
+                    vsapi->freeFrame(src1);
+                    vsapi->freeFrame(src2);
+                    vsapi->freeFrame(mask);
+                    vsapi->freeFrame(mask23);
+                    vsapi->freeFrame(dst);
+                    vsapi->setFilterError("MaskedMerge: Input frames must have the same range", frameCtx);
+                    return 0;
+                }
 
 #ifdef VS_TARGET_CPU_X86
-				if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
-					func = d->premultiplied ? vs_mask_merge_premul_byte_sse2 : vs_mask_merge_byte_sse2;
-				else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
-					func = d->premultiplied ? vs_mask_merge_premul_word_sse2 : vs_mask_merge_word_sse2;
-				else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
-					func = d->premultiplied ? vs_mask_merge_premul_float_sse2 : vs_mask_merge_float_sse2;
-				else
-					continue;
+                if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
+                    func = d->premultiplied ? vs_mask_merge_premul_byte_sse2 : vs_mask_merge_byte_sse2;
+                else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
+                    func = d->premultiplied ? vs_mask_merge_premul_word_sse2 : vs_mask_merge_word_sse2;
+                else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
+                    func = d->premultiplied ? vs_mask_merge_premul_float_sse2 : vs_mask_merge_float_sse2;
+                else
+                    continue;
 #else
-				if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
-					func = d->premultiplied ? (yuvhandling ? vs_mask_merge_premul_byte_uv_c : vs_mask_merge_premul_byte_c) : vs_mask_merge_byte_c;
-				else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
-					func = d->premultiplied ? (yuvhandling ? vs_mask_merge_premul_word_uv_c : vs_mask_merge_premul_word_c) : vs_mask_merge_word_c;
-				else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
-					func = d->premultiplied ? vs_mask_merge_premul_float_c : vs_mask_merge_float_c;
-				else
-					continue;
+                if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
+                    func = d->premultiplied ? (yuvhandling ? vs_mask_merge_premul_byte_uv_c : vs_mask_merge_premul_byte_c) : vs_mask_merge_byte_c;
+                else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
+                    func = d->premultiplied ? (yuvhandling ? vs_mask_merge_premul_word_uv_c : vs_mask_merge_premul_word_c) : vs_mask_merge_word_c;
+                else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
+                    func = d->premultiplied ? vs_mask_merge_premul_float_c : vs_mask_merge_float_c;
+                else
+                    continue;
 #endif
-				int depth = d->vi->format->bitsPerSample;
+                int depth = d->vi->format->bitsPerSample;
 
-				for (int y = 0; y < h; y++) {
-					func(srcp1, srcp2, maskp, dstp, depth, yuvhandling ? (1U << (depth - 1)) : offset1, w);
-					srcp1 += stride;
-					srcp2 += stride;
-					maskp += stride;
-					dstp += stride;
-				}
-			}
-		}
+                for (int y = 0; y < h; y++) {
+                    func(srcp1, srcp2, maskp, dstp, depth, yuvhandling ? (1U << (depth - 1)) : offset1, w);
+                    srcp1 += stride;
+                    srcp2 += stride;
+                    maskp += stride;
+                    dstp += stride;
+                }
+            }
+        }
         vsapi->freeFrame(src1);
         vsapi->freeFrame(src2);
         vsapi->freeFrame(mask);
@@ -647,36 +647,36 @@ static const VSFrameRef *VS_CC makeDiffGetFrame(int n, int activationReason, voi
                 const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
                 uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
 
-				void (*func)(const void *, const void *, void *, unsigned, unsigned);
+                void (*func)(const void *, const void *, void *, unsigned, unsigned);
 
 #ifdef VS_TARGET_CPU_X86
-				if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
-					func = vs_makediff_byte_sse2;
-				else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
-					func = vs_makediff_word_sse2;
-				else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
-					func = vs_makediff_float_sse2;
-				else
-					continue;
+                if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
+                    func = vs_makediff_byte_sse2;
+                else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
+                    func = vs_makediff_word_sse2;
+                else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
+                    func = vs_makediff_float_sse2;
+                else
+                    continue;
 #else
-				if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
-					func = vs_makediff_byte_c;
-				else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
-					func = vs_makediff_word_c;
-				else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
-					func = vs_makediff_float_c;
-				else
-					continue;
+                if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
+                    func = vs_makediff_byte_c;
+                else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
+                    func = vs_makediff_word_c;
+                else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
+                    func = vs_makediff_float_c;
+                else
+                    continue;
 #endif
 
-				int depth = d->vi->format->bitsPerSample;
+                int depth = d->vi->format->bitsPerSample;
 
-				for (int y = 0; y < h; ++y) {
-					func(srcp1, srcp2, dstp, depth, w);
-					srcp1 += stride;
-					srcp2 += stride;
-					dstp += stride;
-				}
+                for (int y = 0; y < h; ++y) {
+                    func(srcp1, srcp2, dstp, depth, w);
+                    srcp1 += stride;
+                    srcp2 += stride;
+                    dstp += stride;
+                }
             }
         }
 
@@ -789,36 +789,36 @@ static const VSFrameRef *VS_CC mergeDiffGetFrame(int n, int activationReason, vo
                 const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
                 uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
 
-				void (*func)(const void *, const void *, void *, unsigned, unsigned);
+                void (*func)(const void *, const void *, void *, unsigned, unsigned);
 
 #ifdef VS_TARGET_CPU_X86
-				if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
-					func = vs_mergediff_byte_sse2;
-				else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
-					func = vs_mergediff_word_sse2;
-				else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
-					func = vs_mergediff_float_sse2;
-				else
-					continue;
+                if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
+                    func = vs_mergediff_byte_sse2;
+                else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
+                    func = vs_mergediff_word_sse2;
+                else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
+                    func = vs_mergediff_float_sse2;
+                else
+                    continue;
 #else
-				if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
-					func = vs_mergediff_byte_c;
-				else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
-					func = vs_mergediff_word_c;
-				else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
-					func = vs_mergediff_float_c;
-				else
-					continue;
+                if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
+                    func = vs_mergediff_byte_c;
+                else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
+                    func = vs_mergediff_word_c;
+                else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
+                    func = vs_mergediff_float_c;
+                else
+                    continue;
 #endif
 
-				int depth = d->vi->format->bitsPerSample;
+                int depth = d->vi->format->bitsPerSample;
 
-				for (int y = 0; y < h; ++y) {
-					func(srcp1, srcp2, dstp, depth, w);
-					srcp1 += stride;
-					srcp2 += stride;
-					dstp += stride;
-				}
+                for (int y = 0; y < h; ++y) {
+                    func(srcp1, srcp2, dstp, depth, w);
+                    srcp1 += stride;
+                    srcp2 += stride;
+                    dstp += stride;
+                }
             }
         }
 

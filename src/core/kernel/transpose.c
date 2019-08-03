@@ -29,30 +29,30 @@
 
 static void transpose_block_byte(const uint8_t * VS_RESTRICT src, ptrdiff_t src_stride, uint8_t * VS_RESTRICT dst, ptrdiff_t dst_stride)
 {
-	*dst = *src;
+    *dst = *src;
 }
 
 static void transpose_block_word(const uint16_t * VS_RESTRICT src, ptrdiff_t src_stride, uint16_t * VS_RESTRICT dst, ptrdiff_t dst_stride)
 {
-	*dst = *src;
+    *dst = *src;
 }
 
 static void transpose_block_dword(const uint32_t * VS_RESTRICT src, ptrdiff_t src_stride, uint32_t * VS_RESTRICT dst, ptrdiff_t dst_stride)
 {
-	*dst = *src;
+    *dst = *src;
 }
 
 void vs_transpose_plane_byte_c(const void * VS_RESTRICT src, ptrdiff_t src_stride, void * VS_RESTRICT dst, ptrdiff_t dst_stride, unsigned width, unsigned height)
 {
-	transpose_plane_byte(src, src_stride, dst, dst_stride, width, height);
+    transpose_plane_byte(src, src_stride, dst, dst_stride, width, height);
 }
 
 void vs_transpose_plane_word_c(const void * VS_RESTRICT src, ptrdiff_t src_stride, void * VS_RESTRICT dst, ptrdiff_t dst_stride, unsigned width, unsigned height)
 {
-	transpose_plane_word(src, src_stride, dst, dst_stride, width, height);
+    transpose_plane_word(src, src_stride, dst, dst_stride, width, height);
 }
 
 void vs_transpose_plane_dword_c(const void * VS_RESTRICT src, ptrdiff_t src_stride, void * VS_RESTRICT dst, ptrdiff_t dst_stride, unsigned width, unsigned height)
 {
-	transpose_plane_dword(src, src_stride, dst, dst_stride, width, height);
+    transpose_plane_dword(src, src_stride, dst, dst_stride, width, height);
 }
