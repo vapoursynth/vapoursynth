@@ -37,9 +37,33 @@ void vs_merge_byte_c(const void *src1, const void *src2, void *dst, union vs_mer
 void vs_merge_word_c(const void *src1, const void *src2, void *dst, union vs_merge_weight weight, unsigned n);
 void vs_merge_float_c(const void *src1, const void *src2, void *dst, union vs_merge_weight weight, unsigned n);
 
+void vs_mask_merge_byte_c(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n);
+void vs_mask_merge_word_c(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n);
+void vs_mask_merge_float_c(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n);
+
+void vs_mask_merge_premul_byte_c(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n);
+void vs_mask_merge_premul_word_c(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n);
+void vs_mask_merge_premul_float_c(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n);
+
 void vs_merge_byte_sse2(const void *src1, const void *src2, void *dst, union vs_merge_weight weight, unsigned n);
 void vs_merge_word_sse2(const void *src1, const void *src2, void *dst, union vs_merge_weight weight, unsigned n);
 void vs_merge_float_sse2(const void *src1, const void *src2, void *dst, union vs_merge_weight weight, unsigned n);
+
+void vs_mask_merge_byte_sse2(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n);
+void vs_mask_merge_word_sse2(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n);
+void vs_mask_merge_float_sse2(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n);
+
+void vs_mask_merge_premul_byte_sse2(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n);
+void vs_mask_merge_premul_word_sse2(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n);
+void vs_mask_merge_premul_float_sse2(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n);
+
+#ifdef VS_MERGE_IMPL
+// Magic divisors from: https://www.hackersdelight.org/magic.htm
+// Signed coefficients used for up to 15-bit, unsigned for 16-bit.
+// Only 16-bit data can occupy all 32 intermediate bits.
+static const uint32_t div_table[8] = { 0x80402011, 0x80200803, 0x80100201, 0x80080081, 0x80040021, 0x80020009, 0x80010003, 0x80008001 };
+static const uint8_t shift_table[8] = { 8, 9, 10, 11, 12, 13, 14, 15 };
+#endif
 
 #ifdef __cplusplus
 }
