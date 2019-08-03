@@ -20,6 +20,7 @@
 
 #define VS_MERGE_IMPL
 #include "merge.h"
+#include "VSHelper.h"
 
 #define MERGESHIFT 15
 #define ROUND (1U << (MERGESHIFT - 1))
@@ -201,5 +202,101 @@ void vs_mask_merge_premul_float_c(const void *src1, const void *src2, const void
 		float v1 = srcp1[i];
 		float v2 = srcp2[i];
 		dstp[i] = (1.0f - maskp[i]) * v1 + v2;
+	}
+}
+
+void vs_makediff_byte_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
+{
+	const uint8_t *srcp1 = src1;
+	const uint8_t *srcp2 = src2;
+	uint8_t *dstp = dst;
+	unsigned i;
+
+	(void)depth;
+
+	for (i = 0; i < n; i++) {
+		uint8_t v1 = srcp1[i];
+		uint8_t v2 = srcp2[i];
+		dstp[i] = VSMIN(VSMAX((int)v1 - (int)v2 + 128, 0), 255);
+	}
+}
+
+void vs_makediff_word_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
+{
+	const uint16_t *srcp1 = src1;
+	const uint16_t *srcp2 = src2;
+	uint16_t *dstp = dst;
+	unsigned i;
+
+	int32_t half = 1U << (depth - 1);
+	int32_t maxval = (1U << depth) - 1;
+
+	for (i = 0; i < n; i++) {
+		uint16_t v1 = srcp1[i];
+		uint16_t v2 = srcp2[i];
+		int32_t tmp = (int32_t)v1 - (int32_t)v2 + half;
+		dstp[i] = VSMIN(VSMAX(tmp, 0), maxval);
+	}
+}
+
+void vs_makediff_float_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
+{
+	const float *srcp1 = src1;
+	const float *srcp2 = src2;
+	float *dstp = dst;
+	unsigned i;
+
+	(void)depth;
+
+	for (i = 0; i < n; i++) {
+		dstp[i] = srcp1[i] - srcp2[i];
+	}
+}
+
+void vs_mergediff_byte_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
+{
+	const uint8_t *srcp1 = src1;
+	const uint8_t *srcp2 = src2;
+	uint8_t *dstp = dst;
+	unsigned i;
+
+	(void)depth;
+
+	for (i = 0; i < n; i++) {
+		uint8_t v1 = srcp1[i];
+		uint8_t v2 = srcp2[i];
+		dstp[i] = VSMIN(VSMAX((int)v1 + (int)v2 - 128, 0), 255);
+	}
+}
+
+void vs_mergediff_word_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
+{
+	const uint16_t *srcp1 = src1;
+	const uint16_t *srcp2 = src2;
+	uint16_t *dstp = dst;
+	unsigned i;
+
+	int32_t half = 1U << (depth - 1);
+	int32_t maxval = (1U << depth) - 1;
+
+	for (i = 0; i < n; i++) {
+		uint16_t v1 = srcp1[i];
+		uint16_t v2 = srcp2[i];
+		int32_t tmp = (int32_t)v1 + (int32_t)v2 - half;
+		dstp[i] = VSMIN(VSMAX(tmp, 0), maxval);
+	}
+}
+
+void vs_mergediff_float_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
+{
+	const float *srcp1 = src1;
+	const float *srcp2 = src2;
+	float *dstp = dst;
+	unsigned i;
+
+	(void)depth;
+
+	for (i = 0; i < n; i++) {
+		dstp[i] = srcp1[i] + srcp2[i];
 	}
 }

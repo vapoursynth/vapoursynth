@@ -322,3 +322,111 @@ void vs_mask_merge_premul_float_sse2(const void *src1, const void *src2, const v
 		_mm_store_ps(dstp + i, result);
 	}
 }
+
+void vs_makediff_byte_sse2(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
+{
+	const uint8_t *srcp1 = src1;
+	const uint8_t *srcp2 = src2;
+	uint8_t *dstp = dst;
+	unsigned i;
+
+	(void)depth;
+
+	for (i = 0; i < n; i += 16) {
+		__m128i v1 = _mm_load_si128((const __m128i *)(srcp1 + i));
+		__m128i v2 = _mm_load_si128((const __m128i *)(srcp2 + i));
+		__m128i diff = _mm_subs_epi8(_mm_add_epi8(v1, _mm_set1_epi8(INT8_MIN)), _mm_add_epi8(v2, _mm_set1_epi8(INT8_MIN)));
+		diff = _mm_sub_epi8(diff, _mm_set1_epi8(INT8_MIN));
+		_mm_store_si128((__m128i *)(dstp + i), diff);
+	}
+}
+
+void vs_makediff_word_sse2(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
+{
+	const uint16_t *srcp1 = src1;
+	const uint16_t *srcp2 = src2;
+	uint16_t *dstp = dst;
+	unsigned i;
+
+	int32_t maxval = (1 << (depth - 1)) - 1;
+	int32_t minval = -maxval - 1;
+
+	for (i = 0; i < n; i += 8) {
+		__m128i v1 = _mm_load_si128((const __m128i *)(srcp1 + i));
+		__m128i v2 = _mm_load_si128((const __m128i *)(srcp2 + i));
+		__m128i diff = _mm_subs_epi16(_mm_add_epi16(v1, _mm_set1_epi16(minval)), _mm_add_epi16(v2, _mm_set1_epi16(minval)));
+		diff = _mm_min_epi16(_mm_max_epi16(diff, _mm_set1_epi16(minval)), _mm_set1_epi16(maxval));
+		diff = _mm_sub_epi16(diff, _mm_set1_epi16(minval));
+		_mm_store_si128((__m128i *)(dstp + i), diff);
+	}
+}
+
+void vs_makediff_float_sse2(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
+{
+	const float *srcp1 = src1;
+	const float *srcp2 = src2;
+	float *dstp = dst;
+	unsigned i;
+
+	(void)depth;
+
+	for (i = 0; i < n; i += 4) {
+		__m128 v1 = _mm_load_ps(srcp1 + i);
+		__m128 v2 = _mm_load_ps(srcp2 + i);
+		_mm_store_ps(dstp + i, _mm_sub_ps(v1, v2));
+	}
+}
+
+void vs_mergediff_byte_sse2(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
+{
+	const uint8_t *srcp1 = src1;
+	const uint8_t *srcp2 = src2;
+	uint8_t *dstp = dst;
+	unsigned i;
+
+	(void)depth;
+
+	for (i = 0; i < n; i += 16) {
+		__m128i v1 = _mm_load_si128((const __m128i *)(srcp1 + i));
+		__m128i v2 = _mm_load_si128((const __m128i *)(srcp2 + i));
+		__m128i tmp = _mm_adds_epi8(_mm_add_epi8(v1, _mm_set1_epi8(INT8_MIN)), _mm_add_epi8(v2, _mm_set1_epi8(INT8_MIN)));
+		tmp = _mm_sub_epi8(tmp, _mm_set1_epi8(INT8_MIN));
+		_mm_store_si128((__m128i *)(dstp + i), tmp);
+	}
+}
+
+void vs_mergediff_word_sse2(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
+{
+	const uint16_t *srcp1 = src1;
+	const uint16_t *srcp2 = src2;
+	uint16_t *dstp = dst;
+	unsigned i;
+
+	int32_t maxval = (1 << (depth - 1)) - 1;
+	int32_t minval = -maxval - 1;
+
+	for (i = 0; i < n; i += 8) {
+		__m128i v1 = _mm_load_si128((const __m128i *)(srcp1 + i));
+		__m128i v2 = _mm_load_si128((const __m128i *)(srcp2 + i));
+		__m128i tmp = _mm_adds_epi16(_mm_add_epi16(v1, _mm_set1_epi16(minval)), _mm_add_epi16(v2, _mm_set1_epi16(minval)));
+		tmp = _mm_min_epi16(_mm_max_epi16(tmp, _mm_set1_epi16(minval)), _mm_set1_epi16(maxval));
+		tmp = _mm_sub_epi16(tmp, _mm_set1_epi16(minval));
+		_mm_store_si128((__m128i *)(dstp + i), tmp);
+	}
+}
+
+void vs_mergediff_float_sse2(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n)
+{
+	const float *srcp1 = src1;
+	const float *srcp2 = src2;
+	float *dstp = dst;
+	unsigned i;
+
+	(void)depth;
+
+	for (i = 0; i < n; i += 4) {
+		__m128 v1 = _mm_load_ps(srcp1 + i);
+		__m128 v2 = _mm_load_ps(srcp2 + i);
+		_mm_store_ps(dstp + i, _mm_add_ps(v1, v2));
+	}
+}

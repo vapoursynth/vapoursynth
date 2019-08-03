@@ -45,6 +45,14 @@ void vs_mask_merge_premul_byte_c(const void *src1, const void *src2, const void 
 void vs_mask_merge_premul_word_c(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n);
 void vs_mask_merge_premul_float_c(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n);
 
+void vs_makediff_byte_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n);
+void vs_makediff_word_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n);
+void vs_makediff_float_c(const void *src, const void *src2, void *dst, unsigned depth, unsigned n);
+
+void vs_mergediff_byte_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n);
+void vs_mergediff_word_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n);
+void vs_mergediff_float_c(const void *src, const void *src2, void *dst, unsigned depth, unsigned n);
+
 void vs_merge_byte_sse2(const void *src1, const void *src2, void *dst, union vs_merge_weight weight, unsigned n);
 void vs_merge_word_sse2(const void *src1, const void *src2, void *dst, union vs_merge_weight weight, unsigned n);
 void vs_merge_float_sse2(const void *src1, const void *src2, void *dst, union vs_merge_weight weight, unsigned n);
@@ -56,6 +64,14 @@ void vs_mask_merge_float_sse2(const void *src1, const void *src2, const void *ma
 void vs_mask_merge_premul_byte_sse2(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n);
 void vs_mask_merge_premul_word_sse2(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n);
 void vs_mask_merge_premul_float_sse2(const void *src1, const void *src2, const void *mask, void *dst, unsigned depth, unsigned offset, unsigned n);
+
+void vs_makediff_byte_sse2(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n);
+void vs_makediff_word_sse2(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n);
+void vs_makediff_float_sse2(const void *src, const void *src2, void *dst, unsigned depth, unsigned n);
+
+void vs_mergediff_byte_sse2(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n);
+void vs_mergediff_word_sse2(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n);
+void vs_mergediff_float_sse2(const void *src, const void *src2, void *dst, unsigned depth, unsigned n);
 
 #ifdef VS_MERGE_IMPL
 // Magic divisors from: https://www.hackersdelight.org/magic.htm
