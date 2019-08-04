@@ -219,7 +219,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 #ifdef VS_FRAME_REQ_DEBUG
             vsWarning("Exiting: %s Frame: %d Index: %d AR: %d Req: %d", mainContext->clip->name.c_str(), mainContext->n, mainContext->index, (int)ar, (int)mainContext->reqOrder);
 #endif
-			bool suspending = externalFrameCtx.suspend;
+            bool suspending = externalFrameCtx.suspend;
             bool frameProcessingDone = f || mainContext->hasError();
             if (mainContext->hasError() && f)
                 vsFatal("A frame was returned by %s but an error was also set, this is not allowed", clip->name.c_str());

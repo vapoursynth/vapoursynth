@@ -555,7 +555,7 @@ static void VS_CC getCoreInfo2(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT {
 
 static VSSuspensionContext* VS_CC suspendFrame(VSCore* core, VSFrameContext* frameCtx) VS_NOEXCEPT {
     assert(core, frameCtx);
-	if (frameCtx->suspend) return 0;
+    if (frameCtx->suspend) return 0;
 
     frameCtx->suspend = true;
     return new VSSuspensionContext(core, frameCtx->ctx);
@@ -568,10 +568,10 @@ static void VS_CC resumeFrame(VSSuspensionContext* context) VS_NOEXCEPT {
 }
 
 static void VS_CC cancelSuspend(VSSuspensionContext* context, VSFrameContext* frameCtx) VS_NOEXCEPT {
-	assert(context && frameCtx);
-	assert(context->ctx == frameCtx->ctx);
-	frameCtx->suspend = false;
-	delete context;
+    assert(context && frameCtx);
+    assert(context->ctx == frameCtx->ctx);
+    frameCtx->suspend = false;
+    delete context;
 }
 
 
