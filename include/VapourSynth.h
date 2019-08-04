@@ -24,7 +24,7 @@
 #include <stdint.h>
 
 #define VAPOURSYNTH_API_MAJOR 3
-#define VAPOURSYNTH_API_MINOR 6
+#define VAPOURSYNTH_API_MINOR 7
 #define VAPOURSYNTH_API_VERSION ((VAPOURSYNTH_API_MAJOR << 16) | (VAPOURSYNTH_API_MINOR))
 
 /* Convenience for C++ users. */
@@ -343,6 +343,8 @@ struct VSAPI {
     int (VS_CC *addMessageHandler)(VSMessageHandler handler, VSMessageHandlerFree free, void *userData) VS_NOEXCEPT;
     int (VS_CC *removeMessageHandler)(int id) VS_NOEXCEPT;
     void (VS_CC *getCoreInfo2)(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT;
+
+    /* api 3.7 */
     VSSuspensionContext* (VS_CC *suspendFrame)(VSCore* core, VSFrameContext* frameCtx) VS_NOEXCEPT;
     void (VS_CC* resumeFrame)(VSSuspensionContext* suspensionContext) VS_NOEXCEPT;
     void (VS_CC* cancelSuspend)(VSSuspensionContext* suspensionContext, VSFrameContext* frameCtx) VS_NOEXCEPT;
