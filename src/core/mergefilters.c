@@ -18,11 +18,11 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-#include "internalfilters.h"
-#include "VSHelper.h"
-#include "filtershared.h"
 #include <stdlib.h>
-#include <emmintrin.h>
+#include "filtershared.h"
+#include "internalfilters.h"
+#include "kernel/merge.h"
+#include "VSHelper.h"
 
 static inline int CLAMP(int value, int lower, int upper) {
     if (value < lower)
@@ -256,8 +256,6 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
         VSFrameRef *dst = vsapi->newVideoFrame2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
         for (int plane = 0; plane < d->vi->format->numPlanes; plane++) {
             if (d->process[plane] == 0) {
-                unsigned weight = d->weight[plane];
-                float fweight = d->fweight[plane];
                 int h = vsapi->getFrameHeight(src1, plane);
                 int w = vsapi->getFrameWidth(src2, plane);
                 int stride = vsapi->getStride(src1, plane);
@@ -265,62 +263,39 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
                 const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
                 uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
 
-                if (d->vi->format->sampleType == stInteger) {
-                    const unsigned round = 1 << (MergeShift - 1);
-                    if (d->vi->format->bytesPerSample == 1) {
+                void (*func)(const void *, const void *, void *, union vs_merge_weight, unsigned);
+                union vs_merge_weight weight;
+
 #ifdef VS_TARGET_CPU_X86
-                        __m128i mergeweight = _mm_set1_epi16(weight);
-                        for (int y = 0; y < h; y++) {
-                            for (int xiter = 0; xiter < w; xiter += sizeof(__m128i)) {
-                                __m128i srcreg1 = _mm_load_si128((const __m128i *)(srcp1 + xiter));
-                                __m128i srcreg2 = _mm_load_si128((const __m128i *)(srcp2 + xiter));
-
-                                __m128i srcreg1lo = _mm_unpacklo_epi8(srcreg1, _mm_setzero_si128());
-                                __m128i srcreg2lo = _mm_unpacklo_epi8(srcreg2, _mm_setzero_si128());
-                                __m128i srcreg1hi = _mm_unpackhi_epi8(srcreg1, _mm_setzero_si128());
-                                __m128i srcreg2hi = _mm_unpackhi_epi8(srcreg2, _mm_setzero_si128());
-
-                                __m128i tmp1lo = _mm_slli_epi16(_mm_sub_epi16(srcreg2lo, srcreg1lo), 1);
-                                __m128i tmp1hi = _mm_slli_epi16(_mm_sub_epi16(srcreg2hi, srcreg1hi), 1);
-
-                                __m128i tmp2lo = _mm_add_epi16(_mm_add_epi16(_mm_mulhi_epi16(tmp1lo, mergeweight), _mm_slli_epi16(_mm_mullo_epi16(tmp1lo, mergeweight), 15)), srcreg1lo);
-                                __m128i tmp2hi = _mm_add_epi16(_mm_add_epi16(_mm_mulhi_epi16(tmp1hi, mergeweight), _mm_slli_epi16(_mm_mullo_epi16(tmp1hi, mergeweight), 15)), srcreg1lo);
-
-                                __m128i tmpdst = _mm_packus_epi16(tmp2lo, tmp2hi);
-                                _mm_store_si128((__m128i *)(dstp + xiter), tmpdst);
-                            }
-                            srcp1 += stride;
-                            srcp2 += stride;
-                            dstp += stride;
-                    }
+                if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
+                    func = vs_merge_byte_sse2;
+                else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
+                    func = vs_merge_word_sse2;
+                else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
+                    func = vs_merge_float_sse2;
+                else
+                    continue;
 #else
-                        for (int y = 0; y < h; y++) {
-                            for (int x = 0; x < w; x++)
-                                dstp[x] = srcp1[x] + (((srcp2[x] - srcp1[x]) * weight + round) >> MergeShift);
-                            srcp1 += stride;
-                            srcp2 += stride;
-                            dstp += stride;
-                        }
+                if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
+                    func = vs_merge_byte_c;
+                else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
+                    func = vs_merge_word_c;
+                else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
+                    func = vs_merge_float_c;
+                else
+                    continue;
 #endif
-                    } else if (d->vi->format->bytesPerSample == 2) {
-                        for (int y = 0; y < h; y++) {
-                            for (int x = 0; x < w; x++)
-                                ((uint16_t *)dstp)[x] = ((const uint16_t *)srcp1)[x] + (((((const uint16_t *)srcp2)[x] - ((const uint16_t *)srcp1)[x]) * weight + round) >> MergeShift);
-                            srcp1 += stride;
-                            srcp2 += stride;
-                            dstp += stride;
-                        }
-                    }
-                } else if (d->vi->format->sampleType == stFloat) {
-                    if (d->vi->format->bytesPerSample == 4) {
-                        for (int y = 0; y < h; y++) {
-                            for (int x = 0; x < w; x++)
-                                ((float *)dstp)[x] = (((const float *)srcp1)[x] + (((const float *)srcp2)[x] - ((const float *)srcp1)[x]) * fweight);
-                            srcp1 += stride;
-                            srcp2 += stride;
-                            dstp += stride;
-                        }
-                    }
+
+                if (d->vi->format->sampleType == stInteger)
+                    weight.u = d->weight[plane];
+                else
+                    weight.f = d->fweight[plane];
+
+                for (int y = 0; y < h; ++y) {
+                    func(srcp1, srcp2, dstp, weight, w);
+                    srcp1 += stride;
+                    srcp2 += stride;
+                    dstp += stride;
                 }
             }
         }
@@ -362,7 +337,7 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     for (i = 0; i < 3; i++) {
         if (d.fweight[i] < 0 || d.fweight[i] > 1)
             RETERROR("Merge: weights must be between 0 and 1");
-        d.weight[i] = (unsigned)(d.fweight[i] * (1 << MergeShift) + 0.5f);
+        d.weight[i] = VSMIN((unsigned)(d.fweight[i] * (1 << MergeShift) + 0.5f), (1U << MergeShift) - 1);
     }
 
     d.node1 = vsapi->propGetNode(in, "clipa", 0, 0);
@@ -466,168 +441,49 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
                 const uint8_t *maskp = vsapi->getReadPtr((plane && mask23) ? mask23 : mask, d->first_plane ? 0 : plane);
                 uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
 
-                if (d->premultiplied) {
-                    if (d->vi->format->sampleType == stInteger) {
-                        if (offset1 != offset2) {
-                            vsapi->freeFrame(src1);
-                            vsapi->freeFrame(src2);
-                            vsapi->freeFrame(mask);
-                            vsapi->freeFrame(mask23);
-                            vsapi->freeFrame(dst);
-                            vsapi->setFilterError("MaskedMerge: Input frames must have the same range", frameCtx);
-                            return 0;
-                        }
+                void (*func)(const void *, const void *, const void *, void *, unsigned, unsigned, unsigned);
+                int yuvhandling = (plane > 0) && (d->vi->format->colorFamily == cmYUV || d->vi->format->colorFamily == cmYCoCg);
 
-                        int yuvhandling = (plane > 0) && (d->vi->format->colorFamily == cmYUV || d->vi->format->colorFamily == cmYCoCg);
+                if (d->premultiplied && d->vi->format->sampleType == stInteger && offset1 != offset2) {
+                    vsapi->freeFrame(src1);
+                    vsapi->freeFrame(src2);
+                    vsapi->freeFrame(mask);
+                    vsapi->freeFrame(mask23);
+                    vsapi->freeFrame(dst);
+                    vsapi->setFilterError("MaskedMerge: Input frames must have the same range", frameCtx);
+                    return 0;
+                }
 
-                        if (d->vi->format->bytesPerSample == 1) {
-                            if (yuvhandling) {
-                                for (int y = 0; y < h; y++) {
-                                    for (int x = 0; x < w; x++) {
-                                        uint8_t s1 = srcp1[x];
-                                        uint8_t s2 = srcp2[x];
-                                        uint8_t m = maskp[x];
-                                        dstp[x] = CLAMP(s2 + (((256 - (((m >> 1) & 1) + m)) * (s1 - 128)) >> 8), 0, 255);
-                                    }
-                                    srcp1 += stride;
-                                    srcp2 += stride;
-                                    maskp += stride;
-                                    dstp += stride;
-                                }
-                            } else {
-                                for (int y = 0; y < h; y++) {
-                                    for (int x = 0; x < w; x++) {
-                                        uint8_t s1 = VSMAX(srcp1[x] - offset1, 0);
-                                        uint8_t s2 = VSMAX(srcp2[x] - offset1, 0);
-                                        uint8_t m = maskp[x];
-                                        dstp[x] = VSMIN(s2 + (((256 - (((m >> 1) & 1) + m)) * s1 + 128) >> 8) + offset1, 255);
-                                    }
-                                    srcp1 += stride;
-                                    srcp2 += stride;
-                                    maskp += stride;
-                                    dstp += stride;
-                                }
-                            }
-                        } else if (d->vi->format->bytesPerSample == 2) {
-                            const unsigned shift = d->vi->format->bitsPerSample;
-                            const int maxplusone = 1 << shift;
-                            const int maxvalue = maxplusone - 1;
-                            const int round = 1 << (shift - 1);
-                            if (yuvhandling) {
-                                for (int y = 0; y < h; y++) {
-                                    for (int x = 0; x < w; x++) {
-                                        uint16_t s1 = ((const uint16_t *)srcp1)[x];
-                                        uint16_t s2 = ((const uint16_t *)srcp2)[x];
-                                        uint16_t m = VSMIN(((const uint16_t *)maskp)[x], maxvalue);
-                                        ((uint16_t *)dstp)[x] = CLAMP(s2 + (((maxplusone - (((m >> 1) & 1) + m)) * (s1 - round)) >> shift), 0, maxvalue);
-                                    }
-                                    srcp1 += stride;
-                                    srcp2 += stride;
-                                    maskp += stride;
-                                    dstp += stride;
-                                }
-                            } else {
-                                for (int y = 0; y < h; y++) {
-                                    for (int x = 0; x < w; x++) {
-                                        uint16_t s1 = VSMAX(((const uint16_t *)srcp1)[x] - offset1, 0);
-                                        uint16_t s2 = VSMAX(((const uint16_t *)srcp2)[x] - offset1, 0);
-                                        uint16_t m = VSMIN(((const uint16_t *)maskp)[x], maxvalue);
-                                        ((uint16_t *)dstp)[x] = VSMIN(s2 + (((maxplusone - (((m >> 1) & 1) + m)) * s1 + round) >> shift) + offset1, maxvalue);
-                                    }
-                                    srcp1 += stride;
-                                    srcp2 += stride;
-                                    maskp += stride;
-                                    dstp += stride;
-                                }
-                            }
-                        }
-                    } else if (d->vi->format->sampleType == stFloat) {
-                        if (d->vi->format->bytesPerSample == 4) {
-                            for (int y = 0; y < h; y++) {
-                                for (int x = 0; x < w; x++)
-                                    ((float *)dstp)[x] = ((const float *)srcp2)[x] + (((const float *)srcp1)[x] * (1.f - ((const float *)maskp)[x]));
-                                srcp1 += stride;
-                                srcp2 += stride;
-                                maskp += stride;
-                                dstp += stride;
-                            }
-                        }
-                    }
-                } else {
-                    if (d->vi->format->sampleType == stInteger) {
-                        if (d->vi->format->bytesPerSample == 1) {
 #ifdef VS_TARGET_CPU_X86
-                            for (int y = 0; y < h; y++) {
-                                for (int xiter = 0; xiter < w; xiter += sizeof(__m128i)) {
-                                    __m128i srcreg1 = _mm_load_si128((const __m128i *)(srcp1 + xiter));
-                                    __m128i srcreg2 = _mm_load_si128((const __m128i *)(srcp2 + xiter));
-                                    __m128i maskreg = _mm_load_si128((const __m128i *)(maskp + xiter));
-
-                                    __m128i srcreg1lo = _mm_unpacklo_epi8(srcreg1, _mm_setzero_si128());
-                                    __m128i srcreg2lo = _mm_unpacklo_epi8(srcreg2, _mm_setzero_si128());
-                                    __m128i maskreglo = _mm_unpacklo_epi8(maskreg, _mm_setzero_si128());
-                                    __m128i srcreg1hi = _mm_unpackhi_epi8(srcreg1, _mm_setzero_si128());
-                                    __m128i srcreg2hi = _mm_unpackhi_epi8(srcreg2, _mm_setzero_si128());
-                                    __m128i maskreghi = _mm_unpackhi_epi8(maskreg, _mm_setzero_si128());
-
-                                    __m128i tmp1lo = _mm_slli_epi16(_mm_sub_epi16(srcreg2lo, srcreg1lo), 4);
-                                    __m128i tmp1hi = _mm_slli_epi16(_mm_sub_epi16(srcreg2hi, srcreg1hi), 4);
-
-                                    __m128i masktmplo = _mm_slli_epi16(_mm_add_epi16(maskreglo, _mm_srli_epi16(_mm_cmpgt_epi16(maskreglo, _mm_set1_epi16(2)), 15)), 4);
-                                    __m128i masktmphi = _mm_slli_epi16(_mm_add_epi16(maskreghi, _mm_srli_epi16(_mm_cmpgt_epi16(maskreghi, _mm_set1_epi16(2)), 15)), 4);
-
-                                    __m128i tmp2lo = _mm_add_epi16(_mm_add_epi16(_mm_mulhi_epi16(tmp1lo, masktmplo), _mm_slli_epi16(_mm_mullo_epi16(tmp1lo, masktmplo), 15)), srcreg1lo);
-                                    __m128i tmp2hi = _mm_add_epi16(_mm_add_epi16(_mm_mulhi_epi16(tmp1hi, masktmphi), _mm_slli_epi16(_mm_mullo_epi16(tmp1hi, masktmphi), 15)), srcreg1hi);
-
-                                    __m128i tmpdst = _mm_packus_epi16(tmp2lo, tmp2hi);
-                                    _mm_store_si128((__m128i *)(dstp + xiter), tmpdst);
-                                }
-                                srcp1 += stride;
-                                srcp2 += stride;
-                                dstp += stride;
-                            }
+                if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
+                    func = d->premultiplied ? vs_mask_merge_premul_byte_sse2 : vs_mask_merge_byte_sse2;
+                else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
+                    func = d->premultiplied ? vs_mask_merge_premul_word_sse2 : vs_mask_merge_word_sse2;
+                else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
+                    func = d->premultiplied ? vs_mask_merge_premul_float_sse2 : vs_mask_merge_float_sse2;
+                else
+                    continue;
 #else
-                            for (int y = 0; y < h; y++) {
-                                for (int x = 0; x < w; x++)
-                                    dstp[x] = srcp1[x] + (((srcp2[x] - srcp1[x]) * (((maskp[x] >> 1) & 1) + maskp[x]) + 128) >> 8);
-                                srcp1 += stride;
-                                srcp2 += stride;
-                                maskp += stride;
-                                dstp += stride;
-                            }
+                if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
+                    func = d->premultiplied ? (yuvhandling ? vs_mask_merge_premul_byte_uv_c : vs_mask_merge_premul_byte_c) : vs_mask_merge_byte_c;
+                else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
+                    func = d->premultiplied ? (yuvhandling ? vs_mask_merge_premul_word_uv_c : vs_mask_merge_premul_word_c) : vs_mask_merge_word_c;
+                else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
+                    func = d->premultiplied ? vs_mask_merge_premul_float_c : vs_mask_merge_float_c;
+                else
+                    continue;
 #endif
-                        } else if (d->vi->format->bytesPerSample == 2) {
-                            const unsigned shift = d->vi->format->bitsPerSample;
-                            const int round = 1 << (shift - 1);
-                            for (int y = 0; y < h; y++) {
-                                for (int x = 0; x < w; x++) {
-                                    uint16_t s1 = ((const uint16_t *)srcp1)[x];
-                                    uint16_t s2 = ((const uint16_t *)srcp2)[x];
-                                    uint16_t m = ((const uint16_t *)maskp)[x];
-                                    ((uint16_t *)dstp)[x] = s1 + (((int64_t)(s2 - s1) * (((m >> 1) & 1) + m) + round) >> shift);
-                                }
-                                srcp1 += stride;
-                                srcp2 += stride;
-                                maskp += stride;
-                                dstp += stride;
-                            }
-                        }
-                    } else if (d->vi->format->sampleType == stFloat) {
-                        if (d->vi->format->bytesPerSample == 4) {
-                            for (int y = 0; y < h; y++) {
-                                for (int x = 0; x < w; x++)
-                                    ((float *)dstp)[x] = ((const float *)srcp1)[x] + ((((const float *)srcp2)[x] - ((const float *)srcp1)[x]) * ((const float *)maskp)[x]);
-                                srcp1 += stride;
-                                srcp2 += stride;
-                                maskp += stride;
-                                dstp += stride;
-                            }
-                        }
-                    }
+                int depth = d->vi->format->bitsPerSample;
+
+                for (int y = 0; y < h; y++) {
+                    func(srcp1, srcp2, maskp, dstp, depth, yuvhandling ? (1U << (depth - 1)) : offset1, w);
+                    srcp1 += stride;
+                    srcp2 += stride;
+                    maskp += stride;
+                    dstp += stride;
                 }
             }
         }
-
         vsapi->freeFrame(src1);
         vsapi->freeFrame(src2);
         vsapi->freeFrame(mask);
@@ -791,56 +647,35 @@ static const VSFrameRef *VS_CC makeDiffGetFrame(int n, int activationReason, voi
                 const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
                 uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
 
-                if (d->vi->format->sampleType == stInteger) {
-                    if (d->vi->format->bytesPerSample == 1) {
-#ifdef VS_TARGET_CPU_X86
-                        __m128i halfpoint = _mm_set1_epi8(0x80);
-                        for (int y = 0; y < h; y++) {
-                            for (int xiter = 0; xiter < w; xiter += sizeof(__m128i)) {
-                                __m128i srcreg1 = _mm_load_si128((const __m128i *)(srcp1 + xiter));
-                                __m128i srcreg2 = _mm_load_si128((const __m128i *)(srcp2 + xiter));
-                                __m128i tmpdst = _mm_add_epi8(_mm_subs_epi8(_mm_sub_epi8(srcreg1, halfpoint), _mm_sub_epi8(srcreg2, halfpoint)), halfpoint);
-                                _mm_store_si128((__m128i *)(dstp + xiter), tmpdst);
-                            }
-                            srcp1 += stride;
-                            srcp2 += stride;
-                            dstp += stride;
-                    }
-#else
-                        for (int y = 0; y < h; y++) {
-                            for (int x = 0; x < w; x++) {
-                                int temp = srcp1[x] - srcp2[x] + 128;
-                                dstp[x] = CLAMP(temp, 0, 255);
-                            }
-                            srcp1 += stride;
-                            srcp2 += stride;
-                            dstp += stride;
-                        }
-#endif
-                    } else if (d->vi->format->bytesPerSample == 2) {
-                        const unsigned halfpoint = 1 << (d->vi->format->bitsPerSample - 1);
-                        const int maxvalue = (1 << d->vi->format->bitsPerSample) - 1;
-                        for (int y = 0; y < h; y++) {
-                            for (int x = 0; x < w; x++) {
-                                int temp = ((const uint16_t *)srcp1)[x] - ((const uint16_t *)srcp2)[x] + halfpoint;                           
-                                ((uint16_t *)dstp)[x] = CLAMP(temp, 0, maxvalue);
-                            }
-                            srcp1 += stride;
-                            srcp2 += stride;
-                            dstp += stride;
-                        }
-                    }
-                } else if (d->vi->format->sampleType == stFloat) {
-                    if (d->vi->format->bytesPerSample == 4) {
+                void (*func)(const void *, const void *, void *, unsigned, unsigned);
 
-                            for (int y = 0; y < h; y++) {
-                                for (int x = 0; x < w; x++)
-                                    ((float *)dstp)[x] = ((const float *)srcp1)[x] - ((const float *)srcp2)[x];
-                                srcp1 += stride;
-                                srcp2 += stride;
-                                dstp += stride;
-                            }
-                    }
+#ifdef VS_TARGET_CPU_X86
+                if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
+                    func = vs_makediff_byte_sse2;
+                else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
+                    func = vs_makediff_word_sse2;
+                else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
+                    func = vs_makediff_float_sse2;
+                else
+                    continue;
+#else
+                if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
+                    func = vs_makediff_byte_c;
+                else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
+                    func = vs_makediff_word_c;
+                else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
+                    func = vs_makediff_float_c;
+                else
+                    continue;
+#endif
+
+                int depth = d->vi->format->bitsPerSample;
+
+                for (int y = 0; y < h; ++y) {
+                    func(srcp1, srcp2, dstp, depth, w);
+                    srcp1 += stride;
+                    srcp2 += stride;
+                    dstp += stride;
                 }
             }
         }
@@ -954,57 +789,35 @@ static const VSFrameRef *VS_CC mergeDiffGetFrame(int n, int activationReason, vo
                 const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
                 uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
 
-                if (d->vi->format->sampleType == stInteger) {
-                    if (d->vi->format->bytesPerSample == 1) {
+                void (*func)(const void *, const void *, void *, unsigned, unsigned);
+
 #ifdef VS_TARGET_CPU_X86
-                        __m128i halfpoint = _mm_set1_epi8(0x80);
-                        for (int y = 0; y < h; y++) {
-                            for (int xiter = 0; xiter < w; xiter += sizeof(__m128i)) {
-                                __m128i srcreg1 = _mm_load_si128((const __m128i *)(srcp1 + xiter));
-                                __m128i srcreg2 = _mm_load_si128((const __m128i *)(srcp2 + xiter));
-                                __m128i tmpdst = _mm_add_epi8(_mm_adds_epi8(_mm_sub_epi8(srcreg1, halfpoint), _mm_sub_epi8(srcreg2, halfpoint)), halfpoint);
-                                _mm_store_si128((__m128i *)(dstp + xiter), tmpdst);
-                            }
-                            srcp1 += stride;
-                            srcp2 += stride;
-                            dstp += stride;
-                        }
+                if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
+                    func = vs_mergediff_byte_sse2;
+                else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
+                    func = vs_mergediff_word_sse2;
+                else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
+                    func = vs_mergediff_float_sse2;
+                else
+                    continue;
 #else
-                        for (int y = 0; y < h; y++) {
-                            for (int x = 0; x < w; x++) {
-                                int temp = srcp1[x] + srcp2[x] - 128;
-                                dstp[x] = CLAMP(temp, 0, 255);
-                            }
-                            srcp1 += stride;
-                            srcp2 += stride;
-                            dstp += stride;
-                        }
+                if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
+                    func = vs_mergediff_byte_c;
+                else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
+                    func = vs_mergediff_word_c;
+                else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
+                    func = vs_mergediff_float_c;
+                else
+                    continue;
 #endif
-                    } else if (d->vi->format->bytesPerSample == 2) {
-                        const int halfpoint = 1 << (d->vi->format->bitsPerSample - 1);
-                        const int maxvalue = (1 << d->vi->format->bitsPerSample) - 1;
-                        for (int y = 0; y < h; y++) {
-                            for (int x = 0; x < w; x++) {
-                                int temp = ((const uint16_t *)srcp1)[x] + ((const uint16_t *)srcp2)[x] - halfpoint;
-                                ((uint16_t *)dstp)[x] = CLAMP(temp, 0, maxvalue);
-                            }
-                            srcp1 += stride;
-                            srcp2 += stride;
-                            dstp += stride;
-                        }
-                    }
-                } else if (d->vi->format->sampleType == stFloat) {
-                    if (d->vi->format->bytesPerSample == 4) {
-                        for (int y = 0; y < h; y++) {
-                            for (int x = 0; x < w; x++) {
-                                float temp = ((const float *)srcp1)[x] + ((const float *)srcp2)[x];
-                                ((float *)dstp)[x] = temp;
-                            }
-                            srcp1 += stride;
-                            srcp2 += stride;
-                            dstp += stride;
-                        }
-                    }
+
+                int depth = d->vi->format->bitsPerSample;
+
+                for (int y = 0; y < h; ++y) {
+                    func(srcp1, srcp2, dstp, depth, w);
+                    srcp1 += stride;
+                    srcp2 += stride;
+                    dstp += stride;
                 }
             }
         }
