@@ -143,6 +143,8 @@ VSVariant::VSVariant(const VSVariant &v) : vtype(v.vtype), internalSize(v.intern
             storage = new FrameList(*reinterpret_cast<FrameList *>(v.storage)); break;
         case VSVariant::vMethod:
             storage = new FuncList(*reinterpret_cast<FuncList *>(v.storage)); break;
+        case VSVariant::vGroup:
+            storage = new NodeGroupList(*reinterpret_cast<NodeGroupList *>(v.storage)); break;
         default:;
         }
     }
@@ -169,6 +171,8 @@ VSVariant::~VSVariant() {
             delete reinterpret_cast<FrameList *>(storage); break;
         case VSVariant::vMethod:
             delete reinterpret_cast<FuncList *>(storage); break;
+        case VSVariant::vGroup:
+            delete reinterpret_cast<NodeGroupList *>(storage); break;
         default:;
         }
     }
@@ -235,6 +239,8 @@ void VSVariant::initStorage(VSVType t) {
             storage = new FrameList(); break;
         case VSVariant::vMethod:
             storage = new FuncList(); break;
+        case VSVariant::vGroup:
+            storage = new NodeGroupList(); break;
         default:;
         }
     }
@@ -760,39 +766,42 @@ VSFunction::VSFunction(const std::string &argString, VSPublicFunction func, void
             vsFatal("Invalid argument specifier '%s'. It appears to be incomplete.", arg.c_str());
 
         bool arr = false;
-        enum FilterArgumentType type = faNone;
+        FilterArgument::FilterArgumentType type = FilterArgument::faNone;
+        FilterArgument::FilterArgumentSubType subType = FilterArgument::fasAll;
         const std::string &argName = argParts[0];
-        const std::string &typeName = argParts[1];
+        std::string typeName = argParts[1];
 
-        if (typeName == "int")
-            type = faInt;
-        else if (typeName == "float")
-            type = faFloat;
-        else if (typeName == "data")
-            type = faData;
-        else if (typeName == "clip")
-            type = faClip;
-        else if (typeName == "frame")
-            type = faFrame;
-        else if (typeName == "func")
-            type = faFunc;
-        else {
+        if (typeName.length() > 2 && typeName.substr(typeName.length() - 2) == "[]") {
+            typeName.resize(typeName.length() - 2);
             arr = true;
+        }
 
-            if (typeName == "int[]")
-                type = faInt;
-            else if (typeName == "float[]")
-                type = faFloat;
-            else if (typeName == "data[]")
-                type = faData;
-            else if (typeName == "clip[]")
-                type = faClip;
-            else if (typeName == "frame[]")
-                type = faFrame;
-            else if (typeName == "func[]")
-                type = faFunc;
-            else
-                vsFatal("Argument '%s' has invalid type '%s'.", argName.c_str(), typeName.c_str());
+        if (typeName == "int") {
+            type = FilterArgument::faInt;
+        } else if (typeName == "float") {
+            type = FilterArgument::faFloat;
+        } else if (typeName == "data") {
+            type = FilterArgument::faData;
+        } else if (typeName == "anode") {
+            type = FilterArgument::faNode;
+            subType = FilterArgument::fasAudio;
+        } else if (typeName == "vnode" || typeName == "clip") { // fixme, stricter compat checks needed
+            type = FilterArgument::faNode;
+            subType = FilterArgument::fasVideo;
+        } else if (typeName == "frame") {
+            type = FilterArgument::faFrame;
+        } else if (typeName == "func") {
+            type = FilterArgument::faFunc;
+        } else if (typeName == "group") {
+            type = FilterArgument::faGroup;
+        } else if (typeName == "agroup") {
+            type = FilterArgument::faGroup;
+            subType = FilterArgument::fasAudio;
+        } else if (typeName == "vgroup") {
+            type = FilterArgument::faGroup;
+            subType = FilterArgument::fasVideo;
+        } else {
+            vsFatal("Argument '%s' has invalid type '%s'.", argName.c_str(), typeName.c_str());
         }
 
         bool opt = false;
@@ -818,7 +827,7 @@ VSFunction::VSFunction(const std::string &argString, VSPublicFunction func, void
         if (empty && !arr)
             vsFatal("Argument '%s' is not an array. Only array arguments can have the empty flag set.", argName.c_str());
 
-        args.push_back(FilterArgument(argName, type, arr, empty, opt));
+        args.emplace_back(argName, type, subType, arr, empty, opt);
     }
 }
 
@@ -1814,7 +1823,10 @@ static bool hasForeignNodes(const VSMap &m, const VSCore *core) {
 }
 
 VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
-    const char lookup[] = { 'i', 'f', 's', 'c', 'v', 'm' };
+    const char lookup[] = { 'i', 'f', 's', 'c', 'v', 'm', 'g' };
+
+    // scan for node getting passed to group type
+
     VSMap v;
 
     try {
@@ -1835,8 +1847,27 @@ VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
                 if (c != 'u') {
                     remainingArgs.erase(fa.name);
 
-                    if (lookup[static_cast<int>(fa.type)] != c)
+                    char ltype = lookup[static_cast<int>(fa.type)];
+
+                    if (ltype != c)
                         throw VSException(funcName + ": argument " + fa.name + " is not of the correct type");
+
+                    if (ltype == 'v') {
+                        if (fa.subType != FilterArgument::fasAll) {
+                            int elems = vs_internal_vsapi.propNumElements(&args, fa.name.c_str());
+                            for (int i = 0; i < elems; i++) {
+                                VSNodeType nt = args.getStorage().at(fa.name).getValue<VSNode>(i).getNodeType();
+                                if (nt != ntAudio && fa.subType == FilterArgument::fasAudio)
+                                    throw VSException(funcName + ": argument " + fa.name + " only accepts audio nodes but a video node was supplied");
+                                else if (nt != ntVideo && fa.subType == FilterArgument::fasVideo)
+                                    throw VSException(funcName + ": argument " + fa.name + " only accepts video nodes but an audio node was supplied");
+                            }
+                        }
+                    }
+
+                    if (ltype == 'g') {
+                        // fixme, possibly do some checks?
+                    }
 
                     if (!fa.arr && args[fa.name.c_str()].size() > 1)
                         throw VSException(funcName + ": argument " + fa.name + " is not of array type but more than one value was supplied");

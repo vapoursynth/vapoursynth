@@ -61,6 +61,7 @@ class VSFrame;
 struct VSCore;
 class VSCache;
 struct VSNode;
+struct VSNodeGroup;
 class VSThreadPool;
 class FrameContext;
 class ExtFunction;
@@ -68,6 +69,7 @@ class ExtFunction;
 typedef std::shared_ptr<VSFrame> PVideoFrame;
 typedef std::weak_ptr<VSFrame> WVideoFrame;
 typedef std::shared_ptr<VSNode> PVideoNode;
+typedef std::shared_ptr<VSNodeGroup> PNodeGroup;
 typedef std::shared_ptr<ExtFunction> PExtFunction;
 typedef std::shared_ptr<FrameContext> PFrameContext;
 
@@ -75,9 +77,7 @@ extern const VSAPI vs_internal_vsapi;
 const VSAPI *getVSAPIInternal(int apiMajor);
 
 class VSException : public std::runtime_error {
-public:
-    VSException(const char *descr) : std::runtime_error(descr) {}
-    VSException(const std::string &descr) : std::runtime_error(descr) {}
+    using std::runtime_error::runtime_error;
 };
 
 class NodeOutputKey {
@@ -101,6 +101,7 @@ typedef std::vector<int64_t> IntList;
 typedef std::vector<double> FloatList;
 typedef std::vector<VSMapData> DataList;
 typedef std::vector<VSNodeRef> NodeList;
+typedef std::vector<VSNodeGroupRef> NodeGroupList;
 typedef std::vector<PVideoFrame> FrameList;
 typedef std::vector<PExtFunction> FuncList;
 
@@ -119,7 +120,7 @@ public:
 
 class VSVariant {
 public:
-    enum VSVType { vUnset, vInt, vFloat, vData, vNode, vFrame, vMethod };
+    enum VSVType { vUnset, vInt, vFloat, vData, vNode, vFrame, vMethod, vGroup };
     VSVariant(VSVType vtype = vUnset);
     VSVariant(const VSVariant &v);
     VSVariant(VSVariant &&v);
@@ -132,6 +133,7 @@ public:
     void append(double val);
     void append(const std::string &val);
     void append(const VSNodeRef &val);
+    void append(const VSNodeGroupRef &val);
     void append(const PVideoFrame &val);
     void append(const PExtFunction &val);
 
@@ -304,31 +306,49 @@ struct VSNodeRef {
     VSNodeRef(PVideoNode &&clip, int index) : clip(clip), index(index) {}
 };
 
+struct VSNodeGroupRef {
+    PNodeGroup group;
+    VSNodeGroupRef(const PNodeGroup &group) : group(group) {}
+    VSNodeGroupRef(PNodeGroup &&group) : group(group) {}
+};
+
+
 struct VSFuncRef {
     PExtFunction func;
     VSFuncRef(const PExtFunction &func) : func(func) {}
     VSFuncRef(PExtFunction &&func) : func(func) {}
 };
 
-enum FilterArgumentType {
-    faNone = -1,
-    faInt = 0,
-    faFloat,
-    faData,
-    faClip,
-    faFrame,
-    faFunc
-};
+
 
 class FilterArgument {
 public:
+    enum FilterArgumentType {
+        faNone = -1,
+        faInt = 0,
+        faFloat,
+        faData,
+        faNode,
+        faFrame,
+        faFunc,
+        faGroup
+    };
+
+    enum FilterArgumentSubType {
+        fasAll,
+        fasAudio,
+        fasVideo
+    };
+
     std::string name;
     FilterArgumentType type;
+    FilterArgumentSubType subType;
+    
     bool arr;
     bool empty;
     bool opt;
-    FilterArgument(const std::string &name, FilterArgumentType type, bool arr, bool empty, bool opt)
-        : name(name), type(type), arr(arr), empty(empty), opt(opt) {}
+    FilterArgument(const std::string &name, FilterArgumentType type, FilterArgumentSubType subType, bool arr, bool empty, bool opt)
+        : name(name), type(type), subType(subType), arr(arr), empty(empty), opt(opt) {}
 };
 
 class MemoryUse {
@@ -597,7 +617,7 @@ public:
 class VSFunction {
 public:
     std::vector<FilterArgument> args;
-    std::string argString;
+    std::string argString; //fixme, rewrite argstring for compatibility
     void *functionData;
     VSPublicFunction func;
     VSFunction(const std::string &argString, VSPublicFunction func, void *functionData);

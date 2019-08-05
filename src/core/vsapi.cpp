@@ -260,7 +260,7 @@ static int VS_CC propNumElements(const VSMap *map, const char *key) VS_NOEXCEPT 
 
 static char VS_CC propGetType(const VSMap *map, const char *key) VS_NOEXCEPT {
     assert(map && key);
-    const char a[] = { 'u', 'i', 'f', 's', 'c', 'v', 'm' };
+    const char a[] = { 'u', 'i', 'f', 's', 'c', 'v', 'm', 'g' };
     VSVariant *val = map->find(key);
     return val ? a[val->getType()] : 'u';
 }

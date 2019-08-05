@@ -82,9 +82,11 @@
 
 typedef struct VSFrameRef VSFrameRef;
 typedef struct VSNodeRef VSNodeRef;
+typedef struct VSNodeGroupRef VSNodeGroupRef;
 typedef struct VSCore VSCore;
 typedef struct VSPlugin VSPlugin;
 typedef struct VSNode VSNode;
+typedef struct VSNodeGroup VSNodeGroup;
 typedef struct VSFuncRef VSFuncRef;
 typedef struct VSMap VSMap;
 typedef struct VSAPI VSAPI;
@@ -211,7 +213,8 @@ typedef enum VSPropTypes {
     ptData = 's',
     ptNode = 'c',
     ptFrame = 'v',
-    ptFunction = 'm'
+    ptFunction = 'm',
+    ptGroup = 'g'
 } VSPropTypes;
 
 typedef enum VSGetPropErrors {
