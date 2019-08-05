@@ -668,10 +668,10 @@ struct SobelPrewitt {
     }
 
     static FORCE_INLINE __m128 processF(__m128 &t1, __m128 &t2, __m128 &t3, __m128 &m1, __m128 &m2, __m128 &m3, __m128 &b1, __m128 &b2, __m128 &b3, const FrameData &opts) {
-        t2 = _mm_add_ps(t2, t2);
-        b2 = _mm_add_ps(b2, b2);
-        m1 = _mm_add_ps(m1, m1);
-        m3 = _mm_add_ps(m3, m3);
+        t2 = _mm_mul_ps(t2, _mm_set1_ps(mul));
+        b2 = _mm_mul_ps(b2, _mm_set1_ps(mul));
+        m1 = _mm_mul_ps(m1, _mm_set1_ps(mul));
+        m3 = _mm_mul_ps(m3, _mm_set1_ps(mul));
 
         t2 = _mm_add_ps(t2, t1);
         b2 = _mm_add_ps(b2, b1);
