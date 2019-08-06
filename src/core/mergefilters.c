@@ -22,7 +22,9 @@
 #include "VSHelper.h"
 #include "filtershared.h"
 #include <stdlib.h>
+#ifdef VS_TARGET_CPU_X86
 #include <emmintrin.h>
+#endif
 
 static inline int CLAMP(int value, int lower, int upper) {
     if (value < lower)
