@@ -1825,7 +1825,7 @@ static bool hasForeignNodes(const VSMap &m, const VSCore *core) {
 VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
     const char lookup[] = { 'i', 'f', 's', 'c', 'v', 'm', 'g' };
 
-    // scan for node getting passed to group type
+    std::set<const FilterArgument *> groupHandling;
 
     VSMap v;
 
@@ -1849,10 +1849,13 @@ VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
 
                     char ltype = lookup[static_cast<int>(fa.type)];
 
+                    if (ltype == 'g' && fa.type == FilterArgument::faNode)
+                        groupHandling.insert(&fa);
+
                     if (ltype != c)
                         throw VSException(funcName + ": argument " + fa.name + " is not of the correct type");
 
-                    if (ltype == 'v') {
+                    if (ltype == 'c') {
                         if (fa.subType != FilterArgument::fasAll) {
                             int elems = vs_internal_vsapi.propNumElements(&args, fa.name.c_str());
                             for (int i = 0; i < elems; i++) {
@@ -1889,7 +1892,31 @@ VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
                 throw VSException(funcName + ": no argument(s) named " + s);
             }
 
-            f.func(&args, &v, f.functionData, core, getVSAPIInternal(apiMajor));
+            if (groupHandling.empty()) {
+                f.func(&args, &v, f.functionData, core, getVSAPIInternal(apiMajor));
+            } else {
+                // check so they're all the same format
+
+                auto first = *groupHandling.cbegin();
+                for (auto iter : groupHandling) {
+                    // compare groups for equality here and if not equal simply error out and explain the problem
+                }
+
+               
+                VSMap minput(args);
+                for (number of track in group) {
+                    for (auto iter : groupHandling) {
+                        // modify arguments and call function
+                        // add output to group
+                    }
+                }
+                    
+                    
+                // in sequence modify the group arguments and call function
+
+                // reassemble into a group and return
+                    
+            }
 
             if (!compat && hasCompatNodes(v))
                 vsFatal("%s: illegal filter node returning a compat format detected, DO NOT USE THE COMPAT FORMATS IN NEW FILTERS", funcName.c_str());
