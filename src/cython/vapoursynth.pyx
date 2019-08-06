@@ -1863,7 +1863,9 @@ cdef class Function(object):
         return retdict
 
 cdef Function createFunction(str name, str signature, Plugin plugin, const VSAPI *funcs):
-    dct = {'__signature__': construct_signature(signature, injected=plugin.injected_arg)}
+    dct = {'__signature__': None}
+    if typing is not None:
+        dct['__signature__'] = construct_signature(signature, injected=plugin.injected_arg)
     t = type('Function', (Function,), dct)
     cdef Function instance = t.__new__(t)
     instance.name = name
