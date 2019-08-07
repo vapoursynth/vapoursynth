@@ -1865,7 +1865,10 @@ cdef class Function(object):
 cdef Function createFunction(str name, str signature, Plugin plugin, const VSAPI *funcs):
     dct = {'__signature__': None}
     if typing is not None:
-        dct['__signature__'] = construct_signature(signature, injected=plugin.injected_arg)
+        try:
+            dct['__signature__'] = construct_signature(signature, injected=plugin.injected_arg)
+        except ValueError as e:
+            print("Constructing signature for {}.{}() failed: {}".format(plugin.namespace, name, str(e)))
     t = type('Function', (Function,), dct)
     cdef Function instance = t.__new__(t)
     instance.name = name
