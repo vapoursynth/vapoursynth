@@ -480,7 +480,13 @@ struct MehFlate {
     }
 
     static FORCE_INLINE __m128 processF(__m128 &t1, __m128 &t2, __m128 &t3, __m128 &m1, __m128 &m2, __m128 &m3, __m128 &b1, __m128 &b2, __m128 &b3, const FrameData &opts) {
-        ReduceAll(_mm_add_ps);
+        __m128 tmp0 = _mm_add_ps(t1, t2);
+        tmp0 = _mm_add_ps(tmp0, t3);
+        tmp0 = _mm_add_ps(tmp0, m1);
+        __m128 tmp1 = _mm_add_ps(m3, b1);
+        tmp1 = _mm_add_ps(tmp1, b2);
+        tmp1 = _mm_add_ps(tmp1, b3);
+        __m128 reduced = _mm_add_ps(tmp0, tmp1);
         reduced = _mm_mul_ps(reduced, _mm_set_ps1(1.f/8));
         return LimitOp::limitF(reduced, m2, opts.limitf);
     }
