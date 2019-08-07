@@ -36,6 +36,7 @@ from types import MappingProxyType
 from collections import namedtuple
 from collections.abc import Iterable, Mapping
 from fractions import Fraction
+from warnings import warn
 
 # Ensure that the import doesn't fail
 # if typing is not available on the python installation.
@@ -1868,7 +1869,7 @@ cdef Function createFunction(str name, str signature, Plugin plugin, const VSAPI
         try:
             dct['__signature__'] = construct_signature(signature, injected=plugin.injected_arg)
         except ValueError as e:
-            print("Constructing signature for {}.{}() failed: {}".format(plugin.namespace, name, str(e)))
+            warn('Constructing signature for {}.{}() failed: {}'.format(plugin.namespace, name, str(e)))
     t = type('Function', (Function,), dct)
     cdef Function instance = t.__new__(t)
     instance.name = name
