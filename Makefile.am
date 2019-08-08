@@ -46,12 +46,15 @@ libvapoursynth_la_SOURCES = src/core/boxblurfilter.cpp \
 							src/core/genericfilters.cpp \
 							src/core/internalfilters.h \
 							src/core/jitasm.h \
+							src/core/kernel/generic.cpp \
+							src/core/kernel/generic.h \
 							src/core/kernel/merge.c \
 							src/core/kernel/merge.h \
 							src/core/kernel/planestats.c \
 							src/core/kernel/planestats.h \
 							src/core/kernel/transpose.c \
 							src/core/kernel/transpose.h \
+							src/core/kernel/x86/generic_sse2.cpp \
 							src/core/kernel/x86/merge_sse2.c \
 							src/core/kernel/x86/planestats_sse2.c \
 							src/core/kernel/x86/transpose_sse2.c \
