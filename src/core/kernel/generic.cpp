@@ -34,7 +34,7 @@ T *line_ptr(T *ptr, unsigned i, ptrdiff_t stride)
 
 template <class T, bool Sobel>
 struct PrewittSobelOp {
-    typedef T T;
+    typedef T Ty;
 
     float scale;
 
@@ -62,7 +62,7 @@ struct PrewittSobelOp {
 
 template <class T, bool Max>
 struct MinMaxOp {
-    typedef T T;
+    typedef T Ty;
 
     typename std::conditional<std::is_integral<T>::value, int32_t, float>::type threshold;
     uint8_t stencil[8];
@@ -103,7 +103,7 @@ struct MinMaxOp {
 
 template <class T>
 struct MedianOp {
-    typedef T T;
+    typedef T Ty;
 
     explicit MedianOp(const vs_generic_params &) {}
 
@@ -148,7 +148,7 @@ struct MedianOp {
 
 template <class T, bool Inflate>
 struct DeflateInflateOp {
-    typedef T T;
+    typedef T Ty;
 
     typename std::conditional<std::is_integral<T>::value, int32_t, float>::type threshold;
 
@@ -175,7 +175,7 @@ struct DeflateInflateOp {
 
 template <class T>
 struct ConvolutionOp {
-    typedef T T;
+    typedef T Ty;
 
     std::array<typename std::conditional<std::is_integral<T>::value, int16_t, float>::type, 9> coeffs;
     float div;
@@ -217,7 +217,7 @@ struct ConvolutionOp {
 template <class Traits>
 void filter_plane_3x3(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const vs_generic_params &params, unsigned width, unsigned height)
 {
-    typedef typename Traits::T T;
+    typedef typename Traits::Ty T;
 
     Traits traits{ params };
     uint16_t maxval = params.maxval;
