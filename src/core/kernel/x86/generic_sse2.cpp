@@ -110,6 +110,7 @@ struct PrewittSobelByte : PrewittSobelTraits, ByteTraits {
     FORCE_INLINE __m128i op(OP_ARGS)
     {
         PROLOGUE();
+        (void)a11;
 
 #define UNPCKLO(x) (_mm_unpacklo_epi8(x, _mm_setzero_si128()))
 #define UNPCKHI(x) (_mm_unpackhi_epi8(x, _mm_setzero_si128()))
@@ -181,6 +182,7 @@ struct PrewittSobelWord : PrewittSobelTraits, WordTraits {
     FORCE_INLINE __m128i op(OP_ARGS)
     {
         PROLOGUE();
+        (void)a11;
 
 #define UNPCKLO(x) (_mm_unpacklo_epi16(x, _mm_setzero_si128()))
 #define UNPCKHI(x) (_mm_unpackhi_epi16(x, _mm_setzero_si128()))
@@ -245,6 +247,7 @@ struct PrewittSobelFloat : PrewittSobelTraits, FloatTraits {
     FORCE_INLINE __m128 op(OP_ARGS)
     {
         PROLOGUE();
+        (void)a11;
 
         __m128 gx = _mm_sub_ps(a22, a00);
         __m128 gy = gx;
@@ -336,7 +339,7 @@ static __m128 limit_diff_ps(__m128 val, __m128 orig, __m128 threshold)
 
 template <bool Max>
 struct MinMaxByte : MinMaxTraits<MinMaxByte<Max>, __m128i>, ByteTraits {
-    typedef MinMaxTraits<MinMaxByte<Max>, __m128i> MinMaxTraits;
+    typedef MinMaxTraits<MinMaxByte<Max>, __m128i> MinMaxTraitsT;
     __m128i threshold;
 
     static __m128i enabled_mask() { return Max ? _mm_set1_epi8(UINT8_MAX) : _mm_setzero_si128(); }
@@ -348,7 +351,7 @@ struct MinMaxByte : MinMaxTraits<MinMaxByte<Max>, __m128i>, ByteTraits {
     }
 
     explicit MinMaxByte(const vs_generic_params &params) :
-        MinMaxTraits(params),
+        MinMaxTraitsT(params),
         threshold(_mm_set1_epi8(static_cast<uint8_t>(std::min(params.threshold, static_cast<uint16_t>(UINT8_MAX)))))
     {}
 
@@ -356,14 +359,14 @@ struct MinMaxByte : MinMaxTraits<MinMaxByte<Max>, __m128i>, ByteTraits {
     {
         PROLOGUE();
 
-        __m128i val = MinMaxTraits::apply_stencil(a00, a01, a02, a10, a11, a12, a20, a21, a22);
+        __m128i val = MinMaxTraitsT::apply_stencil(a00, a01, a02, a10, a11, a12, a20, a21, a22);
         return limit_diff_epu8<Max>(val, a11, threshold);
     }
 };
 
 template <bool Max>
 struct MinMaxWord : MinMaxTraits<MinMaxWord<Max>, __m128i>, WordTraits {
-    typedef MinMaxTraits<MinMaxWord<Max>, __m128i> MinMaxTraits;
+    typedef MinMaxTraits<MinMaxWord<Max>, __m128i> MinMaxTraitsT;
     __m128i threshold;
 
     static __m128i enabled_mask() { return Max ? _mm_set1_epi16(UINT16_MAX) : _mm_setzero_si128(); }
@@ -378,7 +381,7 @@ struct MinMaxWord : MinMaxTraits<MinMaxWord<Max>, __m128i>, WordTraits {
     }
 
     explicit MinMaxWord(const vs_generic_params &params) :
-        MinMaxTraits(params),
+        MinMaxTraitsT(params),
         threshold(_mm_set1_epi16(params.threshold))
     {}
 
@@ -387,7 +390,7 @@ struct MinMaxWord : MinMaxTraits<MinMaxWord<Max>, __m128i>, WordTraits {
         PROLOGUE();
 
         __m128i a11_signed = _mm_add_epi16(a11, _mm_set1_epi16(INT16_MIN));
-        __m128i val = MinMaxTraits::apply_stencil(a00, a01, a02, a10, a11_signed, a12, a20, a21, a22);
+        __m128i val = MinMaxTraitsT::apply_stencil(a00, a01, a02, a10, a11_signed, a12, a20, a21, a22);
         val = limit_diff_epi16<Max>(val, a11, threshold);
         val = _mm_sub_epi16(val, _mm_set1_epi16(INT16_MIN));
         return val;
@@ -401,7 +404,7 @@ constexpr uint8_t STENCIL_PLUS = STENCIL_H | STENCIL_V;
 
 template <bool Max>
 struct MinMaxFloat : MinMaxTraits<MinMaxFloat<Max>, __m128>, FloatTraits {
-    typedef MinMaxTraits<MinMaxFloat<Max>, __m128> MinMaxTraits;
+    typedef MinMaxTraits<MinMaxFloat<Max>, __m128> MinMaxTraitsT;
     __m128 threshold;
 
     static __m128 enabled_mask() { return Max ? _mm_set_ps1(INFINITY) : _mm_set_ps1(-INFINITY); }
@@ -414,7 +417,7 @@ struct MinMaxFloat : MinMaxTraits<MinMaxFloat<Max>, __m128>, FloatTraits {
     }
 
     explicit MinMaxFloat(const vs_generic_params &params) :
-        MinMaxTraits(params),
+        MinMaxTraitsT(params),
         threshold(_mm_set_ps1(params.thresholdf))
     {}
 
@@ -422,7 +425,7 @@ struct MinMaxFloat : MinMaxTraits<MinMaxFloat<Max>, __m128>, FloatTraits {
     {
         PROLOGUE();
 
-        __m128 val = MinMaxTraits::apply_stencil(a00, a01, a02, a10, a11, a12, a20, a21, a22);
+        __m128 val = MinMaxTraitsT::apply_stencil(a00, a01, a02, a10, a11, a12, a20, a21, a22);
         return limit_diff_ps<Max>(val, a11, threshold);
     }
 };
@@ -448,7 +451,7 @@ struct MinMaxFixedTraits {
 
 template <uint8_t Stencil, bool Max>
 struct MinMaxFixedByte : MinMaxFixedTraits<Stencil, MinMaxFixedByte<Stencil, Max>, __m128i>, ByteTraits {
-    typedef MinMaxFixedTraits<Stencil, MinMaxFixedByte, __m128i> MinMaxFixedTraits;
+    typedef MinMaxFixedTraits<Stencil, MinMaxFixedByte, __m128i> MinMaxFixedTraitsT;
     __m128i threshold;
 
     static __m128i reduce(__m128i lhs, __m128i rhs)
@@ -464,14 +467,14 @@ struct MinMaxFixedByte : MinMaxFixedTraits<Stencil, MinMaxFixedByte<Stencil, Max
     {
         PROLOGUE();
 
-        __m128i val = MinMaxFixedTraits::apply_stencil(a00, a01, a02, a10, a11, a12, a20, a21, a22);
+        __m128i val = MinMaxFixedTraitsT::apply_stencil(a00, a01, a02, a10, a11, a12, a20, a21, a22);
         return limit_diff_epu8<Max>(val, a11, threshold);
     }
 };
 
 template <uint8_t Stencil, bool Max>
 struct MinMaxFixedWord : MinMaxFixedTraits<Stencil, MinMaxFixedWord<Stencil, Max>, __m128i>, WordTraits {
-    typedef MinMaxFixedTraits<Stencil, MinMaxFixedWord, __m128i> MinMaxFixedTraits;
+    typedef MinMaxFixedTraits<Stencil, MinMaxFixedWord, __m128i> MinMaxFixedTraitsT;
     __m128i threshold;
 
     static __m128i reduce(__m128i lhs, __m128i rhs)
@@ -489,7 +492,7 @@ struct MinMaxFixedWord : MinMaxFixedTraits<Stencil, MinMaxFixedWord<Stencil, Max
         PROLOGUE();
 
         __m128i a11_signed = _mm_add_epi16(a11, _mm_set1_epi16(INT16_MIN));
-        __m128i val = MinMaxFixedTraits::apply_stencil(a00, a01, a02, a10, a11_signed, a12, a20, a21, a22);
+        __m128i val = MinMaxFixedTraitsT::apply_stencil(a00, a01, a02, a10, a11_signed, a12, a20, a21, a22);
         val = limit_diff_epi16<Max>(val, a11, threshold);
         val = _mm_sub_epi16(val, _mm_set1_epi16(INT16_MIN));
         return val;
@@ -498,7 +501,7 @@ struct MinMaxFixedWord : MinMaxFixedTraits<Stencil, MinMaxFixedWord<Stencil, Max
 
 template <uint8_t Stencil, bool Max>
 struct MinMaxFixedFloat : MinMaxFixedTraits<Stencil, MinMaxFixedFloat<Stencil, Max>, __m128>, FloatTraits {
-    typedef MinMaxFixedTraits<Stencil, MinMaxFixedFloat<Stencil, Max>, __m128> MinMaxFixedTraits;
+    typedef MinMaxFixedTraits<Stencil, MinMaxFixedFloat<Stencil, Max>, __m128> MinMaxFixedTraitsT;
     __m128 threshold;
 
     FORCE_INLINE static __m128 reduce(__m128 lhs, __m128 rhs)
@@ -512,7 +515,7 @@ struct MinMaxFixedFloat : MinMaxFixedTraits<Stencil, MinMaxFixedFloat<Stencil, M
     {
         PROLOGUE();
 
-        __m128 val = MinMaxFixedTraits::apply_stencil(a00, a01, a02, a10, a11, a12, a20, a21, a22);
+        __m128 val = MinMaxFixedTraitsT::apply_stencil(a00, a01, a02, a10, a11, a12, a20, a21, a22);
         return limit_diff_ps<Max>(val, a11, threshold);
     }
 };
