@@ -1,0 +1,62 @@
+# Configuration: <https://www.appveyor.com/docs/build-configuration/>
+# Image software: <https://www.appveyor.com/docs/windows-images-software/>
+# Script reference: <https://www.appveyor.com/docs/appveyor-yml/>
+# Environment variables: <https://www.appveyor.com/docs/environment-variables/>
+
+# Platform
+image: Visual Studio 2019 # Windows Server 2016 + MSVC 2019 toolchain
+
+# Source
+branches:
+  only:
+    - master
+
+# Environment variables
+environment:
+  PYTHON32: C:\Python37
+  PYTHON64: C:\Python37-x64
+
+# Add dependencies
+install:
+  # VSRepo
+  - git clone https://github.com/vapoursynth/vsrepo
+  # zimg 2.9.x
+  - git clone https://github.com/sekrit-twc/zimg --branch v2.9
+  # Avisynth+ (MT)
+  - git clone https://github.com/pinterf/AviSynthPlus --branch MT
+  # Python3
+  - if "%PLATFORM%" == "Win32" (set "PATH=%PYTHON32%;%PYTHON32%\Scripts;%PATH%") else (set "PATH=%PYTHON64%;%PYTHON64%\Scripts;%PATH%")
+  - python --version
+  # Python environment
+  - python -m pip install -r python-requirements.txt
+  # 7zip
+  - 7z --help
+
+# Build
+configuration: Release
+platform:
+  - Win32
+  - x64
+build:
+  project: msvc_project/VapourSynth.sln
+  verbosity: minimal
+after_build:
+  # Python wrapper
+  - call cython_build.bat
+  # Documentation
+  - call docs_build.bat
+  # !!! No portable package or installer because their build scripts are trash !!!
+
+# Tests
+test_script:
+  # Put vapoursynth in python scope
+  - if "%PLATFORM%" == "Win32" (set "MSVC_RELEASE=msvc_project\Release") else (set "MSVC_RELEASE=msvc_project\x64\Release")
+  - set "PATH=%CD%\%MSVC_RELEASE%;%PATH%"
+  # Just call vapoursynth core in python
+  - python -c "from vapoursynth import core;print(core.version())"
+
+# Artifacts
+after_test: 7z a vs.zip doc\_build\html build\lib.*\*.pyd "%MSVC_RELEASE%\*.exe" "%MSVC_RELEASE%\*.dll" "%MSVC_RELEASE%\*.lib" -xr!z.lib
+artifacts:
+  - name: compile_output
+    path: vs.zip
