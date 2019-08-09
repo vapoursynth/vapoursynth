@@ -1,1 +1,0 @@
-Moved to "build instructions windows.md"
