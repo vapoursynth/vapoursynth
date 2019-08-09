@@ -1,5 +1,5 @@
-# See <https://docs.travis-ci.com/user/languages/cpp/> for configuration.
-# See <https://docs.travis-ci.com/user/job-lifecycle/> for lifecycle.
+# Configuration: <https://docs.travis-ci.com/user/languages/cpp/>
+# Lifecycle: <https://docs.travis-ci.com/user/job-lifecycle/>
 
 # Platform
 dist: xenial  # Ubuntu 16.04

@@ -1,13 +1,20 @@
-build/*
+# Sphinx output
 doc/_build/*
 
-*.pyc
-__pycache__
-
+# Cython
+build/*
 src/cython/vapoursynth.c
 src/cython/vapoursynth.h
 src/cython/vapoursynth_api.h
+dist/
+.eggs
+*.egg-info/
 
+# Python
+*.pyc
+__pycache__
+
+# C
 *.o
 *.la
 *.lo
@@ -16,6 +23,8 @@ src/cython/vapoursynth_api.h
 .libs
 .deps/
 .dirstamp
+
+# GNU build
 Makefile
 Makefile.in
 aclocal.m4
@@ -31,12 +40,13 @@ install-sh
 libtool
 ltmain.sh
 missing
-vspipe
+
+# pkg-config
 *.pc
 
-dist/
-.eggs
-*.egg-info/
+# Artifact
+vspipe
 
+# Imported projects
 zimg/
 AviSynthPlus

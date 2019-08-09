@@ -1,11 +1,11 @@
 # Preparing the Build Environment on Windows
 
-Default install paths are assumed in all projects and scripts, be prepared to adjust many things if you changed them
+Default install paths are assumed in some projects and scripts, be prepared to adjust many things if you changed them.
 
 ## Required languages and applications
 
 * Needs [Visual Studio 2019](https://visualstudio.microsoft.com/de/vs/)
-* It also needs both [32bit](https://www.python.org/ftp/python/3.7.4/python-3.7.4-webinstall.exe) and [64bit](https://www.python.org/ftp/python/3.7.4/python-3.7.4-amd64-webinstall.exe) Python 3.7 series (the msvc project assumes that you installed python for all users.)
+* It also needs both [32bit](https://www.python.org/ftp/python/3.7.4/python-3.7.4-webinstall.exe) and [64bit](https://www.python.org/ftp/python/3.7.4/python-3.7.4-amd64-webinstall.exe) Python 3.7 series
 * [InnoSetup 6.x](http://www.jrsoftware.org/isdl.php#stable) is needed to create the installer (default installation path assumed)
 * [7-zip](https://www.7-zip.org/) is needed to compress the portable version (default installation path assumed)
 
@@ -15,6 +15,7 @@ Default install paths are assumed in all projects and scripts, be prepared to ad
 * Clone VSRepo into the VapourSynth dir (`git clone https://github.com/vapoursynth/vsrepo`)
 * Clone zimg v2.9 branch into the VapourSynth dir (`git clone https://github.com/sekrit-twc/zimg --branch v2.9`)
 * Clone avs+ pinterf mt branch into the VapourSynth dir (`git clone https://github.com/pinterf/AviSynthPlus --branch MT`)
+* Set environment variables `PYTHON32` and `PYTHON64` for msvc project and cython build
 * Compile 32 and 64 bit releases using the VapourSynth solution
 
 ## 3. Preparing the Python Project
