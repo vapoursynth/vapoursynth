@@ -1,0 +1,38 @@
+# See <https://docs.travis-ci.com/user/languages/cpp/> for configuration.
+# See <https://docs.travis-ci.com/user/job-lifecycle/> for lifecycle.
+
+# Platform
+dist: xenial  # Ubuntu 16.04
+language: cpp # Already includes 'build-essential', 'autotools' and 'pkg-config'
+
+# Source
+branches:
+  only:
+    - master
+
+# Requirements
+compiler: gcc
+addons:
+  apt:
+    packages:
+      # Loader for Cython (system default is Py2)
+      - python3-pip
+install:
+  # Cython
+  - sudo pip3 install cython
+  # zimg
+  - wget -qO- https://github.com/sekrit-twc/zimg/archive/release-2.9.2.tar.gz | tar -zxf-
+  - pushd ./zimg-release-2.9.2
+  - ./autogen.sh && ./configure && sudo make install
+  - popd
+
+# Build & test
+script:
+  # Build vapoursynth
+  - ./autogen.sh && ./configure && sudo make install
+  # Register correctly on system
+  - sudo ldconfig /usr/local/lib
+  - PYTHON3_LOCAL_LIB_PATH=$(echo /usr/local/lib/python3.*)
+  - sudo ln -s $PYTHON3_LOCAL_LIB_PATH/site-packages/vapoursynth.so $PYTHON3_LOCAL_LIB_PATH/dist-packages/vapoursynth.so
+  # Test by python call
+  - python3 -c "from vapoursynth import core;print(core.version())"
