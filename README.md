@@ -14,7 +14,7 @@ For convenience use an [editor](http://www.vapoursynth.com/doc/pluginlist.html#a
 * An online version is [available on homepage](http://vapoursynth.com/doc/).
 
 ## Building
-* **Windows** instructions: [`build_instructions_windows.md`](https://github.com/Youka/vapoursynth/blob/master/instructions/build_instructions_windows.md).  
+* **Windows** instructions: [`build_instructions_windows.md`](https://github.com/vapoursynth/vapoursynth/blob/master/instructions/build_instructions_windows.md).  
 * **Linux** & **Mac OS** instructions: [Linux and OS X Compilation Instructions](http://vapoursynth.com/doc/installation.html#linux-and-os-x-compilation-instructions).
 
 ## Contact

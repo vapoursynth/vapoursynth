@@ -15,7 +15,7 @@ Default install paths are assumed in some projects and scripts, be prepared to a
 * Clone VSRepo into the VapourSynth dir (`git clone https://github.com/vapoursynth/vsrepo`)
 * Clone zimg v2.9 branch into the VapourSynth dir (`git clone https://github.com/sekrit-twc/zimg --branch v2.9`)
 * Clone avs+ pinterf mt branch into the VapourSynth dir (`git clone https://github.com/pinterf/AviSynthPlus --branch MT`)
-* Set environment variables `PYTHON32` and `PYTHON64` for msvc project and cython build
+* Set environment variables `PYTHON32` and `PYTHON64` for the msvc project and cython build
 * Compile 32 and 64 bit releases using the VapourSynth solution
 
 ## 3. Preparing the Python Project

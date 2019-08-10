@@ -50,10 +50,9 @@
     #define bit_AVX512VL	(1u << 31)
 #else
     #include <cpuid.h>
+    /* xgetbv mask (ecx) */
+    #define _XCR_XFEATURE_ENABLED_MASK 0x0
 #endif
-
-/* xgetbv mask (ecx) */
-#define _XCR_XFEATURE_ENABLED_MASK 0x0
 
 static void vs_cpu_cpuid(int index, int* eax, int* ebx, int* ecx, int* edx) {
     *eax = *ebx = *ecx = *edx = 0;
