@@ -175,14 +175,18 @@ void vs_mask_merge_premul_word_c(const void *src1, const void *src2, const void 
         uint16_t v1 = srcp1[i];
         uint16_t v2 = srcp2[i];
         uint16_t invmask = maxval - maskp[i];
+#ifdef _MSC_VER
 #pragma warning(push)
 #pragma warning(disable:4146)
+#endif
         uint32_t tmp = v1 - offset;
         int sign = (int32_t)tmp < 0;
         tmp = sign ? -tmp : tmp;
         tmp = (((uint64_t)tmp * invmask + maxval / 2) * div) >> (32 + shift);
         tmp = sign ? -tmp : tmp;
+#ifdef _MSC_VER
 #pragma warning(pop)
+#endif
         dstp[i] = tmp + v2;
     }
 }
