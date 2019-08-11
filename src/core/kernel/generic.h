@@ -94,6 +94,7 @@ void vs_generic_1d_conv_v_byte_c(const void *src, ptrdiff_t src_stride, void *ds
 void vs_generic_1d_conv_v_word_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
 void vs_generic_1d_conv_v_float_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
 
+#ifdef VS_TARGET_CPU_X86
 void vs_generic_3x3_prewitt_byte_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
 void vs_generic_3x3_prewitt_word_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
 void vs_generic_3x3_prewitt_float_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
@@ -137,6 +138,7 @@ void vs_generic_1d_conv_h_float_sse2(const void *src, ptrdiff_t src_stride, void
 void vs_generic_1d_conv_v_byte_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
 void vs_generic_1d_conv_v_word_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
 void vs_generic_1d_conv_v_float_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
+#endif
 
 #ifdef __cplusplus
 }
