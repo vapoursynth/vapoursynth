@@ -56,7 +56,7 @@ test_script:
   - python -c "from vapoursynth import core;print(core.version())"
 
 # Artifacts
-after_test: 7z a vs.zip doc\_build\html build\lib.*\*.pyd "%MSVC_RELEASE%\*.exe" "%MSVC_RELEASE%\*.dll" "%MSVC_RELEASE%\*.lib" -xr!z.lib
+after_test: 7z a vs.zip doc\_build\html build\lib.*\*.pyd dist\*.whl "%MSVC_RELEASE%\*.exe" "%MSVC_RELEASE%\*.dll" "%MSVC_RELEASE%\*.lib" -xr!z.lib
 artifacts:
   - name: compile_output
     path: vs.zip
