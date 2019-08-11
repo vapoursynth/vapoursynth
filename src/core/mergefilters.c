@@ -465,9 +465,9 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
                     continue;
 #else
                 if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
-                    func = d->premultiplied ? (yuvhandling ? vs_mask_merge_premul_byte_uv_c : vs_mask_merge_premul_byte_c) : vs_mask_merge_byte_c;
+                    func = d->premultiplied ? (yuvhandling ? vs_mask_merge_premul_byte_c : vs_mask_merge_premul_byte_c) : vs_mask_merge_byte_c;
                 else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
-                    func = d->premultiplied ? (yuvhandling ? vs_mask_merge_premul_word_uv_c : vs_mask_merge_premul_word_c) : vs_mask_merge_word_c;
+                    func = d->premultiplied ? (yuvhandling ? vs_mask_merge_premul_word_c : vs_mask_merge_premul_word_c) : vs_mask_merge_word_c;
                 else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
                     func = d->premultiplied ? vs_mask_merge_premul_float_c : vs_mask_merge_float_c;
                 else

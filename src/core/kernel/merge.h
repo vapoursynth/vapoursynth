@@ -53,6 +53,7 @@ void vs_mergediff_byte_c(const void *src1, const void *src2, void *dst, unsigned
 void vs_mergediff_word_c(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n);
 void vs_mergediff_float_c(const void *src, const void *src2, void *dst, unsigned depth, unsigned n);
 
+#ifdef VS_TARGET_CPU_X86
 void vs_merge_byte_sse2(const void *src1, const void *src2, void *dst, union vs_merge_weight weight, unsigned n);
 void vs_merge_word_sse2(const void *src1, const void *src2, void *dst, union vs_merge_weight weight, unsigned n);
 void vs_merge_float_sse2(const void *src1, const void *src2, void *dst, union vs_merge_weight weight, unsigned n);
@@ -72,6 +73,7 @@ void vs_makediff_float_sse2(const void *src, const void *src2, void *dst, unsign
 void vs_mergediff_byte_sse2(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n);
 void vs_mergediff_word_sse2(const void *src1, const void *src2, void *dst, unsigned depth, unsigned n);
 void vs_mergediff_float_sse2(const void *src, const void *src2, void *dst, unsigned depth, unsigned n);
+#endif
 
 #ifdef VS_MERGE_IMPL
 // Magic divisors from: https://www.hackersdelight.org/magic.htm

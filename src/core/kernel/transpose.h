@@ -33,9 +33,11 @@ void vs_transpose_plane_byte_c(const void * VS_RESTRICT src, ptrdiff_t src_strid
 void vs_transpose_plane_word_c(const void * VS_RESTRICT src, ptrdiff_t src_stride, void * VS_RESTRICT dst, ptrdiff_t dst_stride, unsigned width, unsigned height);
 void vs_transpose_plane_dword_c(const void * VS_RESTRICT src, ptrdiff_t src_stride, void * VS_RESTRICT dst, ptrdiff_t dst_stride, unsigned width, unsigned height);
 
+#ifdef VS_TARGET_CPU_X86
 void vs_transpose_plane_byte_sse2(const void * VS_RESTRICT src, ptrdiff_t src_stride, void * VS_RESTRICT dst, ptrdiff_t dst_stride, unsigned width, unsigned height);
 void vs_transpose_plane_word_sse2(const void * VS_RESTRICT src, ptrdiff_t src_stride, void * VS_RESTRICT dst, ptrdiff_t dst_stride, unsigned width, unsigned height);
 void vs_transpose_plane_dword_sse2(const void * VS_RESTRICT src, ptrdiff_t src_stride, void * VS_RESTRICT dst, ptrdiff_t dst_stride, unsigned width, unsigned height);
+#endif
 
 /* Implementation details. */
 #ifdef VS_TRANSPOSE_IMPL
