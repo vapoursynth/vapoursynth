@@ -76,8 +76,7 @@ struct GenericData {
     float thf;
 
     // Minimum, Maximum
-    int pattern;
-    bool enable[8];
+    uint8_t enable;
 
     // Convolution
     ConvolutionTypes convolution_type;
@@ -168,10 +167,7 @@ vs_generic_params make_generic_params(const GenericData *d, const VSFormat *fi, 
     params.scale = d->scale;
     params.threshold = d->th;
     params.thresholdf = d->thf;
-
-    for (int i = 0; i < 8; ++i) {
-        params.stencil |= (static_cast<uint8_t>(d->enable[i]) << i);
-    }
+    params.stencil = d->enable;
 
     for (int i = 0; i < d->matrix_elements; ++i) {
         params.matrix[i] = d->matrix[i];
@@ -367,8 +363,7 @@ static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void
 
 template <GenericOperations op>
 static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::unique_ptr<GenericData> d (new GenericData);
-    *d = {};
+    std::unique_ptr<GenericData> d(new GenericData{});
 
     d->filter_name = static_cast<const char *>(userData);
 
@@ -405,30 +400,14 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
         }
 
         if (op == GenericMinimum || op == GenericMaximum) {
-            d->pattern = 0;
             int enable_elements = vsapi->propNumElements(in, "coordinates");
             if (enable_elements == -1) {
-                for (int i = 0; i < 8; i++)
-                    d->enable[i] = true;
-                d->pattern = 1;
+                d->enable = 0xFF;
             } else if (enable_elements == 8) {
                 const int64_t *enable = vsapi->propGetIntArray(in, "coordinates", &err);
-                for (int i = 0; i < 8; i++)
-                    d->enable[i] = !!enable[i];
-
-                bool allenable[] = { true, true, true, true, true, true, true, true };
-                bool plusenable[] = { false, true, false, true, true, false, true, false };
-                bool venable[] = { false, true, false, false, false, false, true, false };
-                bool henable[] = { false, false, false, true, true, false, false, false };
-
-                if (!memcmp(allenable, d->enable, sizeof(d->enable)))
-                    d->pattern = 1;
-                else if (!memcmp(plusenable, d->enable, sizeof(d->enable)))
-                    d->pattern = 2;
-                else if (!memcmp(venable, d->enable, sizeof(d->enable)))
-                    d->pattern = 3;
-                else if (!memcmp(henable, d->enable, sizeof(d->enable)))
-                    d->pattern = 4;
+                for (int i = 0; i < 8; i++) {
+                    d->enable |= enable[i] ? (1U << i) : 0U;
+                }
             } else {
                 throw std::string("coordinates must contain exactly 8 numbers.");
             }
