@@ -187,6 +187,7 @@
     <ClCompile Include="..\..\src\core\cpufeatures.c" />
     <ClCompile Include="..\..\src\core\exprfilter.cpp" />
     <ClCompile Include="..\..\src\core\genericfilters.cpp" />
+    <ClCompile Include="..\..\src\core\kernel\cpulevel.cpp" />
     <ClCompile Include="..\..\src\core\kernel\generic.cpp" />
     <ClCompile Include="..\..\src\core\kernel\merge.c" />
     <ClCompile Include="..\..\src\core\kernel\planestats.c" />
@@ -217,6 +218,7 @@
     <ClInclude Include="..\..\src\core\filtersharedcpp.h" />
     <ClInclude Include="..\..\src\core\internalfilters.h" />
     <ClInclude Include="..\..\src\core\jitasm.h" />
+    <ClInclude Include="..\..\src\core\kernel\cpulevel.h" />
     <ClInclude Include="..\..\src\core\kernel\generic.h" />
     <ClInclude Include="..\..\src\core\kernel\merge.h" />
     <ClInclude Include="..\..\src\core\kernel\planestats.h" />
