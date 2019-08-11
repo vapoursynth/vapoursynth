@@ -605,7 +605,7 @@ public:
     std::string fullname;
     std::string fnamespace;
     std::string id;
-    VSPlugin(VSCore *core);
+    explicit VSPlugin(VSCore *core);
     VSPlugin(const std::string &relFilename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath, VSCore *core);
     ~VSPlugin();
     void lock() {
@@ -677,7 +677,7 @@ public:
     void filterInstanceDestroyed();
     void destroyFilterInstance(VSNode *node);
 
-    VSCore(int threads);
+    explicit VSCore(int threads);
     void freeCore();
 };
 
