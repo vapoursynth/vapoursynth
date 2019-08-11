@@ -20,25 +20,24 @@ Default install paths are assumed in some projects and scripts, be prepared to a
 
 ## 3. Preparing the Python Project
 
-* Run `py -3.7 -m pip install -r python-requirements.txt` for 64bit.
-* Run `py -3.7-32 -m pip install -r python-requirements.txt` for 32bit.
+* Run `py -3.7 -m pip install -r python-requirements.txt` for 64bit
+* Run `py -3.7-32 -m pip install -r python-requirements.txt` for 32bit
 * Run `cython_build.bat` to compile the Python modules
 * Run `docs_build.bat` to compile the documentation
 
 ## 4. Distribution
 
-All the above steps are necessary to create the installer
+All the above steps are necessary to create the installer.
 
-In order to build the installer you need to download
-and place isxdl.dll in "installer\scripts\isxdl".
+In order to build the installer you need to download and place isxdl.dll in "installer\scripts\isxdl".
 It can be downloaded from: [NET-Framework Installer for InnoSetup](http://www.codeproject.com/Articles/20868/NET-Framework-Installer-for-InnoSetup)
 
-There are also a few plugins that aren't included
-which are easier to simply retrieve from an existing
-VapourSynth installation/portable release.
+Building the portable release requires to set environment variables `MSVC_CRT32` and `MSVC_CRT64` (location of MSVC compiler runtime DLLs) and 7z to PATH.
+
+There are also a few plugins that aren't included which are easier to simply retrieve from an existing VapourSynth installation/portable release.
 
 Run `make_portable.bat` and `make_installers.bat` to package things.
 
 ## Additional notes
-Note that the Avisynth side of AVFS won't work properly in debug builds (memory allocation and exceptions across module boundaries trolololol)
+Note that the Avisynth side of AVFS won't work properly in debug builds (memory allocation and exceptions across module boundaries trolololol)  
 Likewise AviSource can only be compiled as a release build (or debug versions of functions that aren't present are referenced)

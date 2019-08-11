@@ -15,6 +15,8 @@ branches:
 environment:
   PYTHON32: C:\Python37
   PYTHON64: C:\Python37-x64
+  MSVC_CRT32: C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Redist\MSVC\14.22.27821\x86\Microsoft.VC142.CRT
+  MSVC_CRT64: C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Redist\MSVC\14.22.27821\x64\Microsoft.VC142.CRT
 
 # Add dependencies
 install:
@@ -45,7 +47,8 @@ after_build:
   - call cython_build.bat
   # Documentation
   - call docs_build.bat
-  # !!! No portable package or installer because their build scripts are trash !!!
+  # Package portable
+  - pushd installer && call make_portable.bat && popd
 
 # Tests
 test_script:
@@ -60,3 +63,5 @@ after_test: 7z a vs.zip doc\_build\html build\lib.*\*.pyd dist\*.whl "%MSVC_RELE
 artifacts:
   - name: compile_output
     path: vs.zip
+  - name: portable
+    path: installer\VapourSynth*.7z

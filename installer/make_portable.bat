@@ -1,93 +1,77 @@
-rem extract version string
-for /F "tokens=2 delims='" %%a in ('findstr /C:"#define Version" vsinstaller.iss') do set v=%%a
-@echo %v%
+:: Extract version string
+for /F "tokens=2 delims='" %%t in ('findstr /C:"#define Version " vsinstaller.iss') do set VERSION=%%t
+@echo Version: %VERSION%
 
-rem 64bit build
-mkdir buildp64\vapoursynth64\coreplugins
-mkdir buildp64\vapoursynth64\plugins
-mkdir buildp64\sdk\include
-mkdir buildp64\sdk\examples
-mkdir buildp64\sdk\lib32
-mkdir buildp64\sdk\lib64
-copy ..\vsrepo\vsrepo.py buildp64
-copy ..\vsrepo\vspackages.json buildp64
-copy ..\vapoursynth.cp37-win_amd64.pyd buildp64
-copy ..\msvc_project\x64\Release\VapourSynth.dll buildp64
-copy ..\msvc_project\x64\Release\vsscript.dll buildp64
-copy ..\msvc_project\x64\Release\avfs.exe buildp64
-copy ..\msvc_project\x64\Release\vsvfw.dll buildp64
-copy ..\msvc_project\x64\Release\vspipe.exe buildp64
-copy ..\msvc_project\x64\Release\AvsCompat.dll buildp64\vapoursynth64\coreplugins
-copy ..\msvc_project\x64\Release\EEDI3.dll buildp64\vapoursynth64\coreplugins
-copy ..\msvc_project\x64\Release\MiscFilters.dll buildp64\vapoursynth64\coreplugins
-copy ..\msvc_project\x64\Release\Morpho.dll buildp64\vapoursynth64\coreplugins
-copy ..\msvc_project\x64\Release\RemoveGrainVS.dll buildp64\vapoursynth64\coreplugins
-copy ..\msvc_project\x64\Release\Vinverse.dll buildp64\vapoursynth64\coreplugins
-copy ..\msvc_project\x64\Release\VIVTC.dll buildp64\vapoursynth64\coreplugins
-copy ..\include\VapourSynth.h buildp64\sdk\include
-copy ..\include\VSHelper.h buildp64\sdk\include
-copy ..\include\VSScript.h buildp64\sdk\include
-copy ..\msvc_project\Release\vapoursynth.lib buildp64\sdk\lib32
-copy ..\msvc_project\Release\vsscript.lib buildp64\sdk\lib32
-copy ..\msvc_project\x64\Release\vapoursynth.lib buildp64\sdk\lib64
-copy ..\msvc_project\x64\Release\vsscript.lib buildp64\sdk\lib64
-copy ..\sdk\filter_skeleton.c buildp64\sdk\examples
-copy ..\sdk\invert_example.c buildp64\sdk\examples
-copy ..\sdk\vsscript_example.c buildp64\sdk\examples
-copy "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Redist\MSVC\14.22.27821\x64\Microsoft.VC142.CRT\*" buildp64
-copy x64\plugins\* buildp64\vapoursynth64\coreplugins
-copy pfm-192-vapoursynth-win.exe buildp64
-copy .\setup.py buildp64
-copy .\MANIFEST.in buildp64
-type nul >buildp64\portable.vs
-type nul >buildp64\vapoursynth64\plugins\.keep
-del Compiled\vapoursynth64-portable-%v%.7z
-cd buildp64
-"C:\Program Files\7-Zip\7z.exe" a ..\Compiled\VapourSynth64-Portable-%v%.7z *
-cd ..
-rmdir /s /q buildp64
+:: Platform-specific execution
+if "%PLATFORM%" == "Win32" (
+    set MSVC_RELEASE=msvc_project\Release
+    set "MSVC_CRT=%MSVC_CRT32%"
+    set CYTHON_PLATFORM=win32
+    set ARCH_BITS=32
+    set BUILD_DIR=build%ARCH_BITS%
+    call :Build
+) else (
+    set MSVC_RELEASE=msvc_project\x64\Release
+    set "MSVC_CRT=%MSVC_CRT64%"
+    set CYTHON_PLATFORM=win_amd64
+    set ARCH_BITS=64
+    set BUILD_DIR=build%ARCH_BITS%
+    call :Build
+)
+:: End program here (don't continue with function definition)
+exit /b %ERRORLEVEL%
 
-rem 32bit build
-mkdir buildp32\vapoursynth32\coreplugins
-mkdir buildp32\vapoursynth32\plugins
-mkdir buildp32\sdk\include
-mkdir buildp32\sdk\examples
-mkdir buildp32\sdk\lib32
-mkdir buildp32\sdk\lib64
-copy ..\vsrepo\vsrepo.py buildp32
-copy ..\vsrepo\vspackages.json buildp32
-copy ..\vapoursynth.cp37-win32.pyd buildp32
-copy ..\msvc_project\Release\VapourSynth.dll buildp32
-copy ..\msvc_project\Release\vsscript.dll buildp32
-copy ..\msvc_project\Release\avfs.exe buildp32
-copy ..\msvc_project\Release\vsvfw.dll buildp32
-copy ..\msvc_project\Release\vspipe.exe buildp32
-copy ..\msvc_project\Release\AvsCompat.dll buildp32\vapoursynth32\coreplugins
-copy ..\msvc_project\Release\EEDI3.dll buildp32\vapoursynth32\coreplugins
-copy ..\msvc_project\Release\MiscFilters.dll buildp32\vapoursynth32\coreplugins
-copy ..\msvc_project\Release\Morpho.dll buildp32\vapoursynth32\coreplugins
-copy ..\msvc_project\Release\RemoveGrainVS.dll buildp32\vapoursynth32\coreplugins
-copy ..\msvc_project\Release\Vinverse.dll buildp32\vapoursynth32\coreplugins
-copy ..\msvc_project\Release\VIVTC.dll buildp32\vapoursynth32\coreplugins
-copy ..\include\VapourSynth.h buildp32\sdk\include
-copy ..\include\VSHelper.h buildp32\sdk\include
-copy ..\include\VSScript.h buildp32\sdk\include
-copy ..\msvc_project\Release\vapoursynth.lib buildp32\sdk\lib32
-copy ..\msvc_project\Release\vsscript.lib buildp32\sdk\lib32
-copy ..\msvc_project\x64\Release\vapoursynth.lib buildp32\sdk\lib64
-copy ..\msvc_project\x64\Release\vsscript.lib buildp32\sdk\lib64
-copy ..\sdk\filter_skeleton.c buildp32\sdk\examples
-copy ..\sdk\invert_example.c buildp32\sdk\examples
-copy ..\sdk\vsscript_example.c buildp32\sdk\examples
-copy "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Redist\MSVC\14.22.27821\x86\Microsoft.VC142.CRT\*" buildp32
-copy x86\plugins\* buildp32\vapoursynth32\coreplugins
-copy pfm-192-vapoursynth-win.exe buildp32
-copy .\setup.py buildp32
-copy .\MANIFEST.in buildp32
-type nul >buildp32\portable.vs
-type nul >buildp32\vapoursynth32\plugins\.keep
-del Compiled\vapoursynth32-portable-%v%.7z
-cd buildp32
-"C:\Program Files\7-Zip\7z.exe" a ..\Compiled\VapourSynth32-Portable-%v%.7z *
-cd ..
-rmdir /s /q buildp32
+:: Build function
+:Build
+::  Create build directories
+mkdir %BUILD_DIR%\vapoursynth%ARCH_BITS%\coreplugins
+mkdir %BUILD_DIR%\vapoursynth%ARCH_BITS%\plugins
+mkdir %BUILD_DIR%\sdk\include
+mkdir %BUILD_DIR%\sdk\examples
+mkdir %BUILD_DIR%\sdk\lib%ARCH_BITS%
+::  Copy repository configurations
+copy ..\vsrepo\vsrepo.py %BUILD_DIR%
+copy ..\vsrepo\vspackages.json %BUILD_DIR%
+::  Copy Cython output
+copy ..\vapoursynth.cp37-%CYTHON_PLATFORM%.pyd %BUILD_DIR%
+::  Copy plugins
+copy ..\%MSVC_RELEASE%\AvsCompat.dll %BUILD_DIR%\vapoursynth%ARCH_BITS%\coreplugins
+copy ..\%MSVC_RELEASE%\EEDI3.dll %BUILD_DIR%\vapoursynth%ARCH_BITS%\coreplugins
+copy ..\%MSVC_RELEASE%\MiscFilters.dll %BUILD_DIR%\vapoursynth%ARCH_BITS%\coreplugins
+copy ..\%MSVC_RELEASE%\Morpho.dll %BUILD_DIR%\vapoursynth%ARCH_BITS%\coreplugins
+copy ..\%MSVC_RELEASE%\RemoveGrainVS.dll %BUILD_DIR%\vapoursynth%ARCH_BITS%\coreplugins
+copy ..\%MSVC_RELEASE%\Vinverse.dll %BUILD_DIR%\vapoursynth%ARCH_BITS%\coreplugins
+copy ..\%MSVC_RELEASE%\VIVTC.dll %BUILD_DIR%\vapoursynth%ARCH_BITS%\coreplugins
+::  Copy C binaries
+copy ..\%MSVC_RELEASE%\VapourSynth.dll %BUILD_DIR%
+copy ..\%MSVC_RELEASE%\vsscript.dll %BUILD_DIR%
+copy ..\%MSVC_RELEASE%\vsvfw.dll %BUILD_DIR%
+copy ..\%MSVC_RELEASE%\avfs.exe %BUILD_DIR%
+copy ..\%MSVC_RELEASE%\vspipe.exe %BUILD_DIR%
+::  Copy C headers
+copy ..\include\VapourSynth.h %BUILD_DIR%\sdk\include
+copy ..\include\VSHelper.h %BUILD_DIR%\sdk\include
+copy ..\include\VSScript.h %BUILD_DIR%\sdk\include
+::  Copy C libraries
+copy ..\%MSVC_RELEASE%\vapoursynth.lib %BUILD_DIR%\sdk\lib%ARCH_BITS%
+copy ..\%MSVC_RELEASE%\vsscript.lib %BUILD_DIR%\sdk\lib%ARCH_BITS%
+::  Copy SDK examples
+copy ..\sdk\filter_skeleton.c %BUILD_DIR%\sdk\examples
+copy ..\sdk\invert_example.c %BUILD_DIR%\sdk\examples
+copy ..\sdk\vsscript_example.c %BUILD_DIR%\sdk\examples
+::  Copy MSVC runtime
+copy "%MSVC_CRT%\*" %BUILD_DIR%
+::  Copy setup files
+copy .\setup.py %BUILD_DIR%
+copy .\MANIFEST.in %BUILD_DIR%
+::  Create meta files (creation time & environment hint)
+type nul >%BUILD_DIR%\portable.vs
+type nul >%BUILD_DIR%\vapoursynth%ARCH_BITS%\plugins\.keep
+::  Package!
+del VapourSynth%ARCH_BITS%-Portable-%VERSION%.7z
+pushd %BUILD_DIR%
+7z a ..\VapourSynth%ARCH_BITS%-Portable-%VERSION%.7z *
+popd
+rmdir /s /q %BUILD_DIR%
+::  Return from function call
+exit /b 0

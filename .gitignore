@@ -44,8 +44,9 @@ missing
 # pkg-config
 *.pc
 
-# Artifact
+# Artifacts
 vspipe
+VapourSynth*.7z
 
 # Imported projects
 zimg/
