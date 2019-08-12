@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2015 Fredrik Mellbin
+* Copyright (c) 2012-2019 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -20,6 +20,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <iostream>
 #include <locale>
 #include <memory>
@@ -35,6 +36,7 @@
 #include "kernel/cpulevel.h"
 
 #ifdef VS_TARGET_CPU_X86
+#include <immintrin.h>
 #define NOMINMAX
 #include "jitasm.h"
 #ifndef VS_TARGET_OS_WINDOWS
@@ -73,7 +75,7 @@ Container& split(
     return result;
 }
 
-typedef enum {
+enum SOperation {
     opLoadSrc8, opLoadSrc16, opLoadSrcF32, opLoadSrcF16, opLoadConst,
     opStore8, opStore16, opStoreF32, opStoreF16,
     opDup, opSwap,
@@ -81,17 +83,15 @@ typedef enum {
     opGt, opLt, opEq, opLE, opGE, opTernary,
     opAnd, opOr, opXor, opNeg,
     opExp, opLog, opPow
-} SOperation;
+};
 
-typedef union {
+union ExprUnion {
     float fval;
     int32_t ival;
-} ExprUnion;
 
-struct FloatIntUnion {
-    ExprUnion u;
-    FloatIntUnion(int32_t i) { u.ival = i; }
-    FloatIntUnion(float f) { u.fval = f; }
+    ExprUnion() = default;
+    constexpr ExprUnion(int32_t i) : ival(i) {}
+    constexpr ExprUnion(float f) : fval(f) {}
 };
 
 struct ExprOp {
@@ -137,425 +137,797 @@ struct ExprData {
 };
 
 #ifdef VS_TARGET_CPU_X86
-
-#define OneArgOp(instr) \
-auto &t1 = stack.back(); \
-instr(t1.first, t1.first); \
-instr(t1.second, t1.second);
-
-#define TwoArgOp(instr) \
-auto t1 = stack.back(); \
-stack.pop_back(); \
-auto &t2 = stack.back(); \
-instr(t2.first, t1.first); \
-instr(t2.second, t1.second);
-
-#define CmpOp(instr) \
-auto t1 = stack.back(); \
-stack.pop_back(); \
-auto t2 = stack.back(); \
-stack.pop_back(); \
-instr(t1.first, t2.first); \
-instr(t1.second, t2.second); \
-andps(t1.first, CPTR(elfloat_one)); \
-andps(t1.second, CPTR(elfloat_one)); \
-stack.push_back(t1);
-
-#define LogicOp(instr) \
-auto t1 = stack.back(); \
-stack.pop_back(); \
-auto t2 = stack.back(); \
-stack.pop_back(); \
-cmpnleps(t1.first, zero); \
-cmpnleps(t1.second, zero); \
-cmpnleps(t2.first, zero); \
-cmpnleps(t2.second, zero); \
-instr(t1.first, t2.first); \
-instr(t1.second, t2.second); \
-andps(t1.first, CPTR(elfloat_one)); \
-andps(t1.second, CPTR(elfloat_one)); \
-stack.push_back(t1);
-
-enum {
-    elabsmask, elc7F, elmin_norm_pos, elinv_mant_mask,
-    elfloat_one, elfloat_half, elstore8, elstore16, elpackusdw_sub, elpackusdw_add,
-    elexp_hi, elexp_lo, elcephes_LOG2EF, elcephes_exp_C1, elcephes_exp_C2, elcephes_exp_p0, elcephes_exp_p1, elcephes_exp_p2, elcephes_exp_p3, elcephes_exp_p4, elcephes_exp_p5, elcephes_SQRTHF,
-    elcephes_log_p0, elcephes_log_p1, elcephes_log_p2, elcephes_log_p3, elcephes_log_p4, elcephes_log_p5, elcephes_log_p6, elcephes_log_p7, elcephes_log_p8, elcephes_log_q1 = elcephes_exp_C2, elcephes_log_q2 = elcephes_exp_C1
-};
-
-#define XCONST(x) { x, x, x, x }
-
-alignas(16) static const FloatIntUnion logexpconst[][4] = {
-    XCONST(0x7FFFFFFF), // absmask
-    XCONST(0x7F), // c7F
-    XCONST(0x00800000), // min_norm_pos
-    XCONST(~0x7f800000), // inv_mant_mask
-    XCONST(1.0f), // float_one
-    XCONST(0.5f), // float_half
-    XCONST(255.0f), // store8
-    XCONST(65535.0f), // store16
-    XCONST(0x8000), // packusdwsub
-    XCONST(-2147450880), // packusdwadd
-    XCONST(88.3762626647949f), // exp_hi
-    XCONST(-88.3762626647949f), // exp_lo
-    XCONST(1.44269504088896341f), // cephes_LOG2EF
-    XCONST(0.693359375f), // cephes_exp_C1
-    XCONST(-2.12194440e-4f), // cephes_exp_C2
-    XCONST(1.9875691500E-4f), // cephes_exp_p0
-    XCONST(1.3981999507E-3f), // cephes_exp_p1
-    XCONST(8.3334519073E-3f), // cephes_exp_p2
-    XCONST(4.1665795894E-2f), // cephes_exp_p3
-    XCONST(1.6666665459E-1f), // cephes_exp_p4
-    XCONST(5.0000001201E-1f), // cephes_exp_p5
-    XCONST(0.707106781186547524f), // cephes_SQRTHF
-    XCONST(7.0376836292E-2f), // cephes_log_p0
-    XCONST(-1.1514610310E-1f), // cephes_log_p1
-    XCONST(1.1676998740E-1f), // cephes_log_p2
-    XCONST(-1.2420140846E-1f), // cephes_log_p3
-    XCONST(+1.4249322787E-1f), // cephes_log_p4
-    XCONST(-1.6668057665E-1f), // cephes_log_p5
-    XCONST(+2.0000714765E-1f), // cephes_log_p6
-    XCONST(-2.4999993993E-1f), // cephes_log_p7
-    XCONST(+3.3333331174E-1f) // cephes_log_p8
-};
-
-
-#define CPTR(x) (xmmword_ptr[constptr + (x) * 16])
-
-#define EXP_PS(x) { \
-XmmReg fx, emm0, etmp, y, mask, z; \
-minps(x, CPTR(elexp_hi)); \
-maxps(x, CPTR(elexp_lo)); \
-movaps(fx, x); \
-mulps(fx, CPTR(elcephes_LOG2EF)); \
-addps(fx, CPTR(elfloat_half)); \
-cvttps2dq(emm0, fx); \
-cvtdq2ps(etmp, emm0); \
-movaps(mask, etmp); \
-cmpnleps(mask, fx); \
-andps(mask, CPTR(elfloat_one)); \
-movaps(fx, etmp); \
-subps(fx, mask); \
-movaps(etmp, fx); \
-mulps(etmp, CPTR(elcephes_exp_C1)); \
-movaps(z, fx); \
-mulps(z, CPTR(elcephes_exp_C2)); \
-subps(x, etmp); \
-subps(x, z); \
-movaps(z, x); \
-mulps(z, z); \
-movaps(y, CPTR(elcephes_exp_p0)); \
-mulps(y, x); \
-addps(y, CPTR(elcephes_exp_p1)); \
-mulps(y, x); \
-addps(y, CPTR(elcephes_exp_p2)); \
-mulps(y, x); \
-addps(y, CPTR(elcephes_exp_p3)); \
-mulps(y, x); \
-addps(y, CPTR(elcephes_exp_p4)); \
-mulps(y, x); \
-addps(y, CPTR(elcephes_exp_p5)); \
-mulps(y, z); \
-addps(y, x); \
-addps(y, CPTR(elfloat_one)); \
-cvttps2dq(emm0, fx); \
-paddd(emm0, CPTR(elc7F)); \
-pslld(emm0, 23); \
-mulps(y, emm0); \
-x = y; }
-
-#define LOG_PS(x) { \
-XmmReg emm0, invalid_mask, mask, y, etmp, z; \
-xorps(invalid_mask, invalid_mask); \
-cmpnleps(invalid_mask, x); \
-maxps(x, CPTR(elmin_norm_pos)); \
-movaps(emm0, x); \
-psrld(emm0, 23); \
-andps(x, CPTR(elinv_mant_mask)); \
-orps(x, CPTR(elfloat_half)); \
-psubd(emm0, CPTR(elc7F)); \
-cvtdq2ps(emm0, emm0); \
-addps(emm0, CPTR(elfloat_one)); \
-movaps(mask, x); \
-cmpltps(mask, CPTR(elcephes_SQRTHF)); \
-movaps(etmp, x); \
-andps(etmp, mask); \
-subps(x, CPTR(elfloat_one)); \
-andps(mask, CPTR(elfloat_one)); \
-subps(emm0, mask); \
-addps(x, etmp); \
-movaps(z, x); \
-mulps(z, z); \
-movaps(y, CPTR(elcephes_log_p0)); \
-mulps(y, x); \
-addps(y, CPTR(elcephes_log_p1)); \
-mulps(y, x); \
-addps(y, CPTR(elcephes_log_p2)); \
-mulps(y, x); \
-addps(y, CPTR(elcephes_log_p3)); \
-mulps(y, x); \
-addps(y, CPTR(elcephes_log_p4)); \
-mulps(y, x); \
-addps(y, CPTR(elcephes_log_p5)); \
-mulps(y, x); \
-addps(y, CPTR(elcephes_log_p6)); \
-mulps(y, x); \
-addps(y, CPTR(elcephes_log_p7)); \
-mulps(y, x); \
-addps(y, CPTR(elcephes_log_p8)); \
-mulps(y, x); \
-mulps(y, z); \
-movaps(etmp, emm0); \
-mulps(etmp, CPTR(elcephes_log_q1)); \
-addps(y, etmp); \
-mulps(z, CPTR(elfloat_half)); \
-subps(y, z); \
-mulps(emm0, CPTR(elcephes_log_q2)); \
-addps(x, y); \
-addps(x, emm0); \
-orps(x, invalid_mask); }
-
-struct ExprCompiler : private jitasm::function<void, ExprCompiler, uint8_t *, const intptr_t *, intptr_t> {
+class ExprCompiler : private jitasm::function<void, ExprCompiler, uint8_t *, const intptr_t *, intptr_t> {
     typedef jitasm::function<void, ExprCompiler, uint8_t *, const intptr_t *, intptr_t> jit;
     friend struct jit;
     friend struct jitasm::function_cdecl<void, ExprCompiler, uint8_t *, const intptr_t *, intptr_t>;
 
-    std::vector<ExprOp> ops;
+#define SPLAT(x) { (x), (x), (x), (x) }
+    static constexpr ExprUnion constData[31][4] alignas(16) = {
+        SPLAT(0x7FFFFFFF), // absmask
+        SPLAT(0x7F), // x7F
+        SPLAT(0x00800000), // min_norm_pos
+        SPLAT(~0x7F800000), // inv_mant_mask
+        SPLAT(1.0f), // float_one
+        SPLAT(0.5f), // float_half
+        SPLAT(255.0f), // float_255
+        SPLAT(65535.0f), // float_65535
+        SPLAT(static_cast<int32_t>(0x80008000)), // i16min_epi16
+        SPLAT(static_cast<int32_t>(0xFFFF8000)), // i16min_epi32
+        SPLAT(88.3762626647949f), // exp_hi
+        SPLAT(-88.3762626647949f), // exp_lo
+        SPLAT(1.44269504088896341f), // log2e
+        SPLAT(0.693359375f), // exp_c1
+        SPLAT(-2.12194440e-4f), // exp_c2
+        SPLAT(1.9875691500E-4f), // exp_p0
+        SPLAT(1.3981999507E-3f), // exp_p1
+        SPLAT(8.3334519073E-3f), // exp_p2
+        SPLAT(4.1665795894E-2f), // exp_p3
+        SPLAT(1.6666665459E-1f), // exp_p4
+        SPLAT(5.0000001201E-1f), // exp_p5
+        SPLAT(0.707106781186547524f), // sqrt_1_2
+        SPLAT(7.0376836292E-2f), // log_p0
+        SPLAT(-1.1514610310E-1f), // log_p1
+        SPLAT(1.1676998740E-1f), // log_p2
+        SPLAT(-1.2420140846E-1f), // log_p3
+        SPLAT(+1.4249322787E-1f), // log_p4
+        SPLAT(-1.6668057665E-1f), // log_p5
+        SPLAT(+2.0000714765E-1f), // log_p6
+        SPLAT(-2.4999993993E-1f), // log_p7
+        SPLAT(+3.3333331174E-1f) // log_p8
+    };
+
+    struct ConstantIndex {
+        static constexpr int absmask = 0;
+        static constexpr int x7F = 1;
+        static constexpr int min_norm_pos = 2;
+        static constexpr int inv_mant_mask = 3;
+        static constexpr int float_one = 4;
+        static constexpr int float_half = 5;
+        static constexpr int float_255 = 6;
+        static constexpr int float_65535 = 7;
+        static constexpr int i16min_epi16 = 8;
+        static constexpr int i16min_epi32 = 9;
+        static constexpr int exp_hi = 10;
+        static constexpr int exp_lo = 11;
+        static constexpr int log2e = 12;
+        static constexpr int exp_c1 = 13;
+        static constexpr int exp_c2 = 14;
+        static constexpr int exp_p0 = 15;
+        static constexpr int exp_p1 = 16;
+        static constexpr int exp_p2 = 17;
+        static constexpr int exp_p3 = 18;
+        static constexpr int exp_p4 = 19;
+        static constexpr int exp_p5 = 20;
+        static constexpr int sqrt_1_2 = 21;
+        static constexpr int log_p0 = 22;
+        static constexpr int log_p1 = 23;
+        static constexpr int log_p2 = 24;
+        static constexpr int log_p3 = 25;
+        static constexpr int log_p4 = 26;
+        static constexpr int log_p5 = 27;
+        static constexpr int log_p6 = 28;
+        static constexpr int log_p7 = 29;
+        static constexpr int log_p8 = 30;
+        static constexpr int log_q1 = exp_c2;
+        static constexpr int log_q2 = exp_c1;
+    };
+#undef SPLAT
+
+    // JitASM compiles everything from main(), so record the operations for later.
+    std::vector<std::function<void(Reg, XmmReg, Reg, std::vector<std::pair<XmmReg, XmmReg>> &)>> deferred;
+
+    CPUFeatures cpuFeatures;
     int numInputs;
+    int curLabel;
+
+#define EMIT() [this, arg](Reg regptrs, XmmReg zero, Reg constants, std::vector<std::pair<XmmReg, XmmReg>> &stack)
+#define VEX1(op, arg1, arg2) \
+do { \
+  if (cpuFeatures.avx) \
+    v##op(arg1, arg2); \
+  else \
+    op(arg1, arg2); \
+} while (0)
+#define VEX1IMM(op, arg1, arg2, imm) \
+do { \
+  if (cpuFeatures.avx) { \
+    v##op(arg1, arg2, imm); \
+  } else if (arg1 == arg2) { \
+    op(arg2, imm); \
+  } else { \
+    movdqa(arg1, arg2); \
+    op(arg1, imm); \
+  } \
+} while (0)
+#define VEX2(op, arg1, arg2, arg3) \
+do { \
+  if (cpuFeatures.avx) { \
+    v##op(arg1, arg2, arg3); \
+  } else if (arg1 == arg2) { \
+    op(arg2, arg3); \
+  } else if (arg1 != arg3) { \
+    movdqa(arg1, arg2); \
+    op(arg1, arg3); \
+  } else { \
+    XmmReg tmp; \
+    movdqa(tmp, arg2); \
+    op(tmp, arg3); \
+    movdqa(arg1, tmp); \
+  } \
+} while (0)
+#define VEX2IMM(op, arg1, arg2, arg3, imm) \
+do { \
+  if (cpuFeatures.avx) { \
+    v##op(arg1, arg2, arg3, imm); \
+  } else if (arg1 == arg2) { \
+    op(arg2, arg3, imm); \
+  } else if (arg1 != arg3) { \
+    movdqa(arg1, arg2); \
+    op(arg1, arg3, imm); \
+  } else { \
+    XmmReg tmp; \
+    movdqa(tmp, arg2); \
+    op(tmp, arg3, imm); \
+    movdqa(arg1, tmp); \
+  } \
+} while (0)
+
+    void load8(ExprUnion arg)
+    {
+        deferred.push_back(EMIT()
+        {
+            XmmReg r1, r2;
+            Reg a;
+            mov(a, ptr[regptrs + sizeof(void *) * (arg.ival + 1)]);
+            VEX1(movq, r1, mmword_ptr[a]);
+            VEX2(punpcklbw, r1, r1, zero);
+            VEX2(punpckhwd, r2, r1, zero);
+            VEX2(punpcklwd, r1, r1, zero);
+            VEX1(cvtdq2ps, r1, r1);
+            VEX1(cvtdq2ps, r2, r2);
+            stack.emplace_back(r1, r2);
+        });
+    }
+
+    void load16(ExprUnion arg)
+    {
+        deferred.push_back(EMIT()
+        {
+            XmmReg r1, r2;
+            Reg a;
+            mov(a, ptr[regptrs + sizeof(void *) * (arg.ival + 1)]);
+            VEX1(movdqa, r1, xmmword_ptr[a]);
+            VEX2(punpckhwd, r2, r1, zero);
+            VEX2(punpcklwd, r1, r1, zero);
+            VEX1(cvtdq2ps, r1, r1);
+            VEX1(cvtdq2ps, r2, r2);
+            stack.emplace_back(r1, r2);
+        });
+    }
+
+    void loadF16(ExprUnion arg)
+    {
+        deferred.push_back(EMIT()
+        {
+            XmmReg r1, r2;
+            Reg a;
+            mov(a, ptr[regptrs + sizeof(void *) * (arg.ival + 1)]);
+            vcvtph2ps(r1, qword_ptr[a]);
+            vcvtph2ps(r2, qword_ptr[a + 8]);
+            stack.emplace_back(r1, r2);
+        });
+    }
+
+    void loadF32(ExprUnion arg)
+    {
+        deferred.push_back(EMIT()
+        {
+            XmmReg r1, r2;
+            Reg a;
+            mov(a, ptr[regptrs + sizeof(void *) * (arg.ival + 1)]);
+            VEX1(movdqa, r1, xmmword_ptr[a]);
+            VEX1(movdqa, r2, xmmword_ptr[a + 16]);
+            stack.emplace_back(r1, r2);
+        });
+    }
+
+    void loadConst(ExprUnion arg)
+    {
+        deferred.push_back(EMIT()
+        {
+            XmmReg r1, r2;
+            Reg32 a;
+            mov(a, arg.ival);
+            VEX1(movd, r1, a);
+            VEX2IMM(shufps, r1, r1, r1, 0);
+            VEX1(movaps, r2, r1);
+            stack.emplace_back(r1, r2);
+        });
+    }
+
+    void store8(ExprUnion arg)
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = stack.back();
+            stack.pop_back();
+
+            XmmReg limit;
+            Reg a;
+            VEX1(movaps, limit, xmmword_ptr[constants + ConstantIndex::float_255 * 16]);
+            VEX2(minps, t1.first, t1.first, limit);
+            VEX2(minps, t1.second, t1.second, limit);
+            VEX1(cvtps2dq, t1.first, t1.first);
+            VEX1(cvtps2dq, t1.second, t1.second);
+            VEX2(packssdw, t1.first, t1.first, t1.second);
+            VEX2(packuswb, t1.first, t1.first, zero);
+            mov(a, ptr[regptrs]);
+            VEX1(movq, mmword_ptr[a], t1.first);
+        });
+    }
+
+    void store16(ExprUnion arg)
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = stack.back();
+            stack.pop_back();
+
+            XmmReg limit;
+            Reg a;
+            VEX1(movaps, limit, xmmword_ptr[constants + ConstantIndex::float_65535 * 16]);
+            VEX2IMM(shufps, limit, limit, limit, 0);
+            VEX2(minps, t1.first, t1.first, limit);
+            VEX2(minps, t1.second, t1.second, limit);
+            VEX1(cvtps2dq, t1.first, t1.first);
+            VEX1(cvtps2dq, t1.second, t1.second);
+
+            if (cpuFeatures.sse4_1) {
+                VEX2(packusdw, t1.first, t1.first, t1.second);
+            } else {
+                VEX1(movaps, limit, xmmword_ptr[constants + ConstantIndex::i16min_epi32 * 16]);
+                VEX2(paddd, t1.first, t1.first, limit);
+                VEX2(paddd, t1.second, t1.second, limit);
+                VEX2(packssdw, t1.first, t1.first, t1.second);
+                VEX2(psubw, t1.first, t1.first, xmmword_ptr[constants + ConstantIndex::i16min_epi16 * 16]);
+            }
+        });
+    }
+
+    void storeF16(ExprUnion arg)
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = stack.back();
+            stack.pop_back();
+
+            Reg a;
+            mov(a, ptr[regptrs]);
+            vcvtps2ph(qword_ptr[a], t1.first, 0);
+            vcvtps2ph(qword_ptr[a + 8], t1.second, 0);
+        });
+    }
+
+    void storeF32(ExprUnion arg)
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = stack.back();
+            stack.pop_back();
+
+            Reg a;
+            mov(a, ptr[regptrs]);
+            VEX1(movaps, xmmword_ptr[a], t1.first);
+            VEX1(movaps, xmmword_ptr[a + 16], t1.second);
+        });
+    }
+
+    void dup(ExprUnion arg)
+    {
+        deferred.push_back(EMIT()
+        {
+            auto p = stack.at(stack.size() - arg.ival);
+            XmmReg r1, r2;
+            VEX1(movaps, r1, p.first);
+            VEX1(movaps, r2, p.second);
+            stack.emplace_back(r1, r2);
+        });
+    }
+
+    void swap(ExprUnion arg)
+    {
+        deferred.push_back(EMIT()
+        {
+            std::swap(stack.back(), stack.at(stack.size() - arg.ival));
+        });
+    }
+
+#define BINARYOP(op) \
+do { \
+  auto t1 = stack.back(); \
+  stack.pop_back(); \
+  auto t2 = stack.back(); \
+  VEX2(op, t2.first, t2.first, t1.first); \
+  VEX2(op, t2.second, t2.second, t1.second); \
+} while (0)
+    void add(ExprUnion arg)
+    {
+        deferred.push_back(EMIT()
+        {
+            BINARYOP(addps);
+        });
+    }
+
+    void sub(ExprUnion arg)
+    {
+        deferred.push_back(EMIT()
+        {
+            BINARYOP(subps);
+        });
+    }
+
+    void mul(ExprUnion arg)
+    {
+        deferred.push_back(EMIT()
+        {
+            BINARYOP(mulps);
+        });
+    }
+
+    void div(ExprUnion arg)
+    {
+        deferred.push_back(EMIT()
+        {
+            BINARYOP(divps);
+        });
+    }
+
+    void max(ExprUnion arg)
+    {
+        deferred.push_back(EMIT()
+        {
+            BINARYOP(maxps);
+        });
+    }
+
+    void min(ExprUnion arg)
+    {
+        deferred.push_back(EMIT()
+        {
+            BINARYOP(minps);
+        });
+    }
+#undef BINARYOP
+
+    void sqrt(ExprUnion arg)
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = stack.back();
+            VEX2(maxps, t1.first, t1.first, zero);
+            VEX2(maxps, t1.second, t1.second, zero);
+            VEX1(sqrtps, t1.first, t1.first);
+            VEX1(sqrtps, t1.second, t1.second);
+        });
+    }
+
+    void abs(ExprUnion arg)
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = stack.back();
+            XmmReg r1;
+            VEX1(movaps, r1, xmmword_ptr[constants + ConstantIndex::absmask * 16]);
+            VEX2(andps, t1.first, t1.first, r1);
+            VEX2(andps, t1.second, t1.second, r1);
+        });
+    }
+
+    void neg(ExprUnion arg)
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = stack.back();
+            XmmReg r1;
+            VEX1(movaps, r1, xmmword_ptr[constants + ConstantIndex::float_one * 16]);
+            VEX2IMM(cmpps, t1.first, t1.first, zero, _CMP_LT_OS);
+            VEX2IMM(cmpps, t1.second, t1.second, zero, _CMP_LT_OS);
+            VEX2(andps, t1.first, t1.first, r1);
+            VEX2(andps, t1.second, t1.second, r1);
+        });
+    }
+
+#define LOGICOP(op) \
+do { \
+  auto t1 = stack.back(); \
+  stack.pop_back(); \
+  auto t2 = stack.back(); \
+  stack.pop_back(); \
+  \
+  XmmReg r1; \
+  VEX1(movaps, r1, xmmword_ptr[constants + ConstantIndex::float_one * 16]); \
+  VEX2IMM(cmpps, t1.first, t1.first, zero, _CMP_NLE_US); \
+  VEX2IMM(cmpps, t1.second, t1.second, zero, _CMP_NLE_US); \
+  VEX2IMM(cmpps, t2.first, t2.first, zero, _CMP_NLE_US); \
+  VEX2IMM(cmpps, t2.second, t2.second, zero, _CMP_NLE_US); \
+  VEX2(op, t1.first, t1.first, t2.first); \
+  VEX2(op, t1.second, t1.second, t2.second); \
+  VEX2(andps, t1.first, t1.first, r1); \
+  VEX2(andps, t1.second, t1.second, r1); \
+  stack.push_back(t1); \
+} while (0)
+
+    void and_(ExprUnion arg)
+    {
+        deferred.push_back(EMIT()
+        {
+            LOGICOP(andps);
+        });
+    }
+
+    void or_(ExprUnion arg)
+    {
+        deferred.push_back(EMIT()
+        {
+            LOGICOP(orps);
+        });
+    }
+
+    void xor_(ExprUnion arg)
+    {
+        deferred.push_back(EMIT()
+        {
+            LOGICOP(xorps);
+        });
+    }
+#undef LOGICOP
+
+#define COMPAREOP(imm) \
+do { \
+  auto t1 = stack.back(); \
+  stack.pop_back(); \
+  auto t2 = stack.back(); \
+  stack.pop_back(); \
+  \
+  XmmReg r1; \
+  VEX1(movaps, r1, xmmword_ptr[constants + ConstantIndex::float_one * 16]); \
+  VEX2IMM(cmpps, t2.first, t2.first, t1.first, imm); \
+  VEX2IMM(cmpps, t2.second, t2.second, t1.second, imm); \
+  VEX2(andps, t2.first, t2.first, r1); \
+  VEX2(andps, t2.second, t2.second, r1); \
+  stack.push_back(t2); \
+} while (0)
+
+    void cmpgt(ExprUnion arg)
+    {
+        deferred.push_back(EMIT()
+        {
+            COMPAREOP(_CMP_NLE_US);
+        });
+    }
+
+    void cmplt(ExprUnion arg)
+    {
+        deferred.push_back(EMIT()
+        {
+            COMPAREOP(_CMP_LT_OS);
+        });
+    }
+
+    void cmpeq(ExprUnion arg)
+    {
+        deferred.push_back(EMIT()
+        {
+            COMPAREOP(_CMP_EQ_OQ);
+        });
+    }
+
+    void cmple(ExprUnion arg)
+    {
+        deferred.push_back(EMIT()
+        {
+            COMPAREOP(_CMP_LE_OS);
+        });
+    }
+
+    void cmpge(ExprUnion arg)
+    {
+        deferred.push_back(EMIT()
+        {
+            COMPAREOP(_CMP_NLT_US);
+        });
+    }
+#undef COMPAREOP
+
+    void ternary(ExprUnion arg)
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = stack.back();
+            stack.pop_back();
+            auto t2 = stack.back();
+            stack.pop_back();
+            auto t3 = stack.back();
+            stack.pop_back();
+
+            VEX2IMM(cmpps, t3.first, t3.first, zero, _CMP_NLE_US);
+            VEX2IMM(cmpps, t3.second, t3.second, zero, _CMP_NLE_US);
+
+            if (cpuFeatures.sse4_1) {
+                VEX2IMM(blendvps, t1.first, t1.first, t2.first, t3.first);
+                VEX2IMM(blendvps, t1.second, t1.second, t2.second, t3.second);
+                stack.push_back(t1);
+            } else {
+                VEX2(andps, t2.first, t2.first, t3.first);
+                VEX2(andps, t2.second, t2.second, t3.second);
+                VEX2(andnps, t3.first, t3.first, t1.first);
+                VEX2(andnps, t3.second, t3.second, t1.second);
+                VEX2(orps, t2.first, t2.first, t3.first);
+                VEX2(orps, t2.second, t2.second, t3.second);
+                stack.push_back(t2);
+            }
+        });
+    }
+
+    void exp_(XmmReg x, XmmReg one, Reg constants)
+    {
+        XmmReg fx, emm0, etmp, y, mask, z;
+        VEX2(minps, x, x, xmmword_ptr[constants + ConstantIndex::exp_hi * 16]);
+        VEX2(maxps, x, x, xmmword_ptr[constants + ConstantIndex::exp_lo * 16]);
+        VEX2(mulps, fx, x, xmmword_ptr[constants + ConstantIndex::log2e * 16]);
+        VEX2(addps, fx, fx, xmmword_ptr[constants + ConstantIndex::float_half * 16]);
+        VEX1(cvttps2dq, emm0, fx);
+        VEX1(cvtdq2ps, etmp, emm0);
+        VEX2IMM(cmpps, mask, etmp, fx, _CMP_NLE_US);
+        VEX2(andps, mask, mask, one);
+        VEX2(subps, fx, etmp, mask);
+        VEX2(mulps, etmp, fx, xmmword_ptr[constants + ConstantIndex::exp_c1 * 16]);
+        VEX2(mulps, z, fx, xmmword_ptr[constants + ConstantIndex::exp_c2 * 16]);
+        VEX2(subps, x, x, etmp);
+        VEX2(subps, x, x, z);
+        VEX2(mulps, z, x, x);
+        VEX2(mulps, y, x, xmmword_ptr[constants + ConstantIndex::exp_p0 * 16]);
+        VEX2(addps, y, y, xmmword_ptr[constants + ConstantIndex::exp_p1 * 16]);
+        VEX2(mulps, y, y, x);
+        VEX2(addps, y, y, xmmword_ptr[constants + ConstantIndex::exp_p2 * 16]);
+        VEX2(mulps, y, y, x);
+        VEX2(addps, y, y, xmmword_ptr[constants + ConstantIndex::exp_p3 * 16]);
+        VEX2(mulps, y, y, x);
+        VEX2(addps, y, y, xmmword_ptr[constants + ConstantIndex::exp_p4 * 16]);
+        VEX2(mulps, y, y, x);
+        VEX2(addps, y, y, xmmword_ptr[constants + ConstantIndex::exp_p5 * 16]);
+        VEX2(mulps, y, y, z);
+        VEX2(addps, y, y, x);
+        VEX2(addps, y, y, one);
+        VEX1(cvttps2dq, emm0, fx);
+        VEX2(paddd, emm0, emm0, xmmword_ptr[constants + ConstantIndex::x7F * 16]);
+        VEX1IMM(pslld, emm0, emm0, 23);
+        VEX2(mulps, x, y, emm0);
+    }
+
+    void log_(XmmReg x, XmmReg zero, XmmReg one, Reg constants)
+    {
+        XmmReg emm0, invalid_mask, mask, y, etmp, z;
+        VEX2IMM(cmpps, invalid_mask, zero, x, _CMP_NLE_US);
+        VEX2(maxps, x, x, xmmword_ptr[constants + ConstantIndex::min_norm_pos * 16]);
+        VEX1IMM(psrld, emm0, x, 23);
+        VEX2(andps, x, x, xmmword_ptr[constants + ConstantIndex::inv_mant_mask * 16]);
+        VEX2(orps, x, x, xmmword_ptr[constants + ConstantIndex::float_half * 16]);
+        VEX2(psubd, emm0, emm0, xmmword_ptr[constants + ConstantIndex::x7F * 16]);
+        VEX1(cvtdq2ps, emm0, emm0);
+        VEX2(addps, emm0, emm0, one);
+        VEX2IMM(cmpps, mask, x, xmmword_ptr[constants + ConstantIndex::sqrt_1_2 * 16], _CMP_LT_OS);
+        VEX2(andps, etmp, x, mask);
+        VEX2(subps, x, x, one);
+        VEX2(andps, mask, mask, one);
+        VEX2(subps, emm0, emm0, mask);
+        VEX2(addps, x, x, etmp);
+        VEX2(mulps, z, x, x);
+        VEX2(mulps, y, x, xmmword_ptr[constants + ConstantIndex::log_p0 * 16]);
+        VEX2(addps, y, y, xmmword_ptr[constants + ConstantIndex::log_p1 * 16]);
+        VEX2(mulps, y, y, x);
+        VEX2(addps, y, y, xmmword_ptr[constants + ConstantIndex::log_p2 * 16]);
+        VEX2(mulps, y, y, x);
+        VEX2(addps, y, y, xmmword_ptr[constants + ConstantIndex::log_p3 * 16]);
+        VEX2(mulps, y, y, x);
+        VEX2(addps, y, y, xmmword_ptr[constants + ConstantIndex::log_p4 * 16]);
+        VEX2(mulps, y, y, x);
+        VEX2(addps, y, y, xmmword_ptr[constants + ConstantIndex::log_p5 * 16]);
+        VEX2(mulps, y, y, x);
+        VEX2(addps, y, y, xmmword_ptr[constants + ConstantIndex::log_p6 * 16]);
+        VEX2(mulps, y, y, x);
+        VEX2(addps, y, y, xmmword_ptr[constants + ConstantIndex::log_p7 * 16]);
+        VEX2(mulps, y, y, x);
+        VEX2(addps, y, y, xmmword_ptr[constants + ConstantIndex::log_p8 * 16]);
+        VEX2(mulps, y, y, x);
+        VEX2(mulps, y, y, z);
+        VEX2(mulps, etmp, emm0, xmmword_ptr[constants + ConstantIndex::log_q1 * 16]);
+        VEX2(addps, y, y, etmp);
+        VEX2(mulps, z, z, xmmword_ptr[constants + ConstantIndex::float_half * 16]);
+        VEX2(subps, y, y, z);
+        VEX2(mulps, emm0, emm0, xmmword_ptr[constants + ConstantIndex::log_q2 * 16]);
+        VEX2(addps, x, x, y);
+        VEX2(addps, x, x, emm0);
+        VEX2(orps, x, x, invalid_mask);
+    }
+
+    void exp(ExprUnion arg)
+    {
+        int l = curLabel++;
+
+        deferred.push_back([this, arg, l](Reg regptrs, XmmReg zero, Reg constants, std::vector<std::pair<XmmReg, XmmReg>> &stack)
+        {
+            char label[] = "label-0000";
+            sprintf(label, "label-%04d", l);
+
+            auto t1 = stack.back();
+            XmmReg r1, r2, one;
+            Reg a;
+            mov(a, 2);
+            VEX1(movaps, r1, t1.first);
+            VEX1(movaps, r2, t1.second);
+            VEX1(movaps, one, xmmword_ptr[constants + ConstantIndex::float_one * 16]);
+
+            L(label);
+
+            exp_(r1, one, constants);
+            VEX1(movaps, t1.first, t1.second);
+            VEX1(movaps, t1.second, r1);
+            VEX1(movaps, r1, r2);
+
+            jit::sub(a, 1);
+            jnz(label);
+        });
+    }
+
+    void log(ExprUnion arg)
+    {
+        int l = curLabel++;
+
+        deferred.push_back([this, arg, l](Reg regptrs, XmmReg zero, Reg constants, std::vector<std::pair<XmmReg, XmmReg>> &stack)
+        {
+            char label[] = "label-0000";
+            sprintf(label, "label-%04d", l);
+
+            auto t1 = stack.back();
+            XmmReg r1, r2, one;
+            Reg a;
+            mov(a, 2);
+            VEX1(movaps, r1, t1.first);
+            VEX1(movaps, r2, t1.second);
+            VEX1(movaps, one, xmmword_ptr[constants + ConstantIndex::float_one * 16]);
+
+            L(label);
+
+            log_(r1, zero, one, constants);
+            VEX1(movaps, t1.first, t1.second);
+            VEX1(movaps, t1.second, r1);
+            VEX1(movaps, r1, r2);
+
+            jit::sub(a, 1);
+            jnz(label);
+        });
+    }
+
+    void pow(ExprUnion arg)
+    {
+        int l = curLabel++;
+
+        deferred.push_back([this, arg, l](Reg regptrs, XmmReg zero, Reg constants, std::vector<std::pair<XmmReg, XmmReg>> &stack)
+        {
+            char label[] = "label-0000";
+            sprintf(label, "label-%04d", l);
+
+            auto t1 = stack.back();
+            stack.pop_back();
+            auto t2 = stack.back();
+
+            XmmReg r1, r2, r3, r4, one;
+            Reg a;
+            mov(a, 2);
+            VEX1(movaps, r1, t1.first);
+            VEX1(movaps, r2, t1.second);
+            VEX1(movaps, r3, t2.first);
+            VEX1(movaps, r4, t2.second);
+            VEX1(movaps, one, xmmword_ptr[constants + ConstantIndex::float_one * 16]);
+
+            L(label);
+
+            log_(r3, zero, one, constants);
+            VEX2(mulps, r3, r3, r1);
+            exp_(r3, one, constants);
+
+            VEX1(movaps, t2.first, t2.second);
+            VEX1(movaps, t2.second, r3);
+            VEX1(movaps, r1, r2);
+            VEX1(movaps, r3, r4);
+
+            jit::sub(a, 1);
+            jnz(label);
+        });
+    }
 
     void main(Reg regptrs, Reg regoffs, Reg niter)
     {
         XmmReg zero;
-        pxor(zero, zero);
-        Reg constptr;
-        mov(constptr, (uintptr_t)logexpconst);
+        VEX2(pxor, zero, zero, zero);
+        Reg constants;
+        mov(constants, (uintptr_t)constData);
 
         L("wloop");
 
         std::vector<std::pair<XmmReg, XmmReg>> stack;
-        for (const auto &iter : ops) {
-            if (iter.op == opLoadSrc8) {
-                XmmReg r1, r2;
-                Reg a;
-                mov(a, ptr[regptrs + sizeof(void *) * (iter.e.ival + 1)]);
-                movq(r1, mmword_ptr[a]);
-                punpcklbw(r1, zero);
-                movdqa(r2, r1);
-                punpcklwd(r1, zero);
-                punpckhwd(r2, zero);
-                cvtdq2ps(r1, r1);
-                cvtdq2ps(r2, r2);
-                stack.push_back(std::make_pair(r1, r2));
-            } else if (iter.op == opLoadSrc16) {
-                XmmReg r1, r2;
-                Reg a;
-                mov(a, ptr[regptrs + sizeof(void *) * (iter.e.ival + 1)]);
-                movdqa(r1, xmmword_ptr[a]);
-                movdqa(r2, r1);
-                punpcklwd(r1, zero);
-                punpckhwd(r2, zero);
-                cvtdq2ps(r1, r1);
-                cvtdq2ps(r2, r2);
-                stack.push_back(std::make_pair(r1, r2));
-            } else if (iter.op == opLoadSrcF32) {
-                XmmReg r1, r2;
-                Reg a;
-                mov(a, ptr[regptrs + sizeof(void *) * (iter.e.ival + 1)]);
-                movdqa(r1, xmmword_ptr[a]);
-                movdqa(r2, xmmword_ptr[a + 16]);
-                stack.push_back(std::make_pair(r1, r2));
-            } else if (iter.op == opLoadSrcF16) {
-                XmmReg r1, r2;
-                Reg a;
-                mov(a, ptr[regptrs + sizeof(void *) * (iter.e.ival + 1)]);
-                vcvtph2ps(r1, qword_ptr[a]);
-                vcvtph2ps(r2, qword_ptr[a + 8]);
-                stack.push_back(std::make_pair(r1, r2));
-            } else if (iter.op == opLoadConst) {
-                XmmReg r1, r2;
-                Reg a;
-                mov(a, iter.e.ival);
-                movd(r1, a);
-                shufps(r1, r1, 0);
-                movaps(r2, r1);
-                stack.push_back(std::make_pair(r1, r2));
-            } else if (iter.op == opDup) {
-                auto p = std::next(stack.rbegin(), iter.e.ival);
-                XmmReg r1, r2;
-                movaps(r1, p->first);
-                movaps(r2, p->second);
-                stack.push_back(std::make_pair(r1, r2));
-            } else if (iter.op == opSwap) {
-                std::swap(stack.back(), *std::next(stack.rbegin(), iter.e.ival));
-            } else if (iter.op == opAdd) {
-                TwoArgOp(addps)
-            } else if (iter.op == opSub) {
-                TwoArgOp(subps)
-            } else if (iter.op == opMul) {
-                TwoArgOp(mulps)
-            } else if (iter.op == opDiv) {
-                TwoArgOp(divps)
-            } else if (iter.op == opMax) {
-                TwoArgOp(maxps)
-            } else if (iter.op == opMin) {
-                TwoArgOp(minps)
-            } else if (iter.op == opSqrt) {
-                auto &t1 = stack.back();
-                maxps(t1.first, zero);
-                maxps(t1.second, zero);
-                sqrtps(t1.first, t1.first);
-                sqrtps(t1.second, t1.second);
-            } else if (iter.op == opStore8) {
-                auto t1 = stack.back();
-                stack.pop_back();
-                XmmReg r1, r2;
-                Reg a;
-                maxps(t1.first, zero);
-                maxps(t1.second, zero);
-                minps(t1.first, CPTR(elstore8));
-                minps(t1.second, CPTR(elstore8));
-                mov(a, ptr[regptrs]);
-                cvtps2dq(t1.first, t1.first);
-                cvtps2dq(t1.second, t1.second);
-                packssdw(t1.first, t1.second);
-                packuswb(t1.first, zero);
-                movq(mmword_ptr[a], t1.first);
-            } else if (iter.op == opStore16) {
-                auto t1 = stack.back();
-                stack.pop_back();
-                Reg a;
-                maxps(t1.first, zero);
-                maxps(t1.second, zero);
-                if (iter.e.fval > 60000.f) {
-                    minps(t1.first, CPTR(elstore16));
-                    minps(t1.second, CPTR(elstore16));
-                    mov(a, ptr[regptrs]);
-                    cvtps2dq(t1.first, t1.first);
-                    cvtps2dq(t1.second, t1.second);
-                    psubd(t1.first, CPTR(elpackusdw_sub));
-                    psubd(t1.second, CPTR(elpackusdw_sub));
-                    packssdw(t1.first, t1.second);
-                    paddw(t1.first, CPTR(elpackusdw_add));
-                } else {
-                    XmmReg limit;
-                    Reg b;
-                    mov(b, iter.e.ival);
-                    movd(limit, b);
-                    shufps(limit, limit, 0);
-                    minps(t1.first, limit);
-                    minps(t1.second, limit);
-                    mov(a, ptr[regptrs]);
-                    cvtps2dq(t1.first, t1.first);
-                    cvtps2dq(t1.second, t1.second);
-                    packssdw(t1.first, t1.second);
-                }
-                movdqa(xmmword_ptr[a], t1.first);
-            } else if (iter.op == opStoreF32) {
-                auto t1 = stack.back();
-                stack.pop_back();
-                Reg a;
-                mov(a, ptr[regptrs]);
-                movaps(xmmword_ptr[a], t1.first);
-                movaps(xmmword_ptr[a + 16], t1.second);
-            } else if (iter.op == opStoreF16) {
-                auto t1 = stack.back();
-                stack.pop_back();
-                Reg a;
-                mov(a, ptr[regptrs]);
-                vcvtps2ph(qword_ptr[a], t1.first, 0);
-                vcvtps2ph(qword_ptr[a + 8], t1.second, 0);
-            } else if (iter.op == opAbs) {
-                auto &t1 = stack.back();
-                andps(t1.first, CPTR(elabsmask));
-                andps(t1.second, CPTR(elabsmask));
-            } else if (iter.op == opNeg) {
-                auto &t1 = stack.back();
-                cmpleps(t1.first, zero);
-                cmpleps(t1.second, zero);
-                andps(t1.first, CPTR(elfloat_one));
-                andps(t1.second, CPTR(elfloat_one));
-            } else if (iter.op == opAnd) {
-                LogicOp(andps)
-            } else if (iter.op == opOr) {
-                LogicOp(orps)
-            } else if (iter.op == opXor) {
-                LogicOp(xorps)
-            } else if (iter.op == opGt) {
-                CmpOp(cmpltps)
-            } else if (iter.op == opLt) {
-                CmpOp(cmpnleps)
-            } else if (iter.op == opEq) {
-                CmpOp(cmpeqps)
-            } else if (iter.op == opLE) {
-                CmpOp(cmpnltps)
-            } else if (iter.op == opGE) {
-                CmpOp(cmpleps)
-            } else if (iter.op == opTernary) {
-                auto t1 = stack.back();
-                stack.pop_back();
-                auto t2 = stack.back();
-                stack.pop_back();
-                auto t3 = stack.back();
-                stack.pop_back();
-                XmmReg r1, r2;
-                xorps(r1, r1);
-                xorps(r2, r2);
-                cmpltps(r1, t3.first);
-                cmpltps(r2, t3.second);
-                andps(t2.first, r1);
-                andps(t2.second, r2);
-                andnps(r1, t1.first);
-                andnps(r2, t1.second);
-                orps(r1, t2.first);
-                orps(r2, t2.second);
-                stack.push_back(std::make_pair(r1, r2));
-            } else if (iter.op == opExp) {
-                auto &t1 = stack.back();
-                EXP_PS(t1.first)
-                EXP_PS(t1.second)
-            } else if (iter.op == opLog) {
-                auto &t1 = stack.back();
-                LOG_PS(t1.first)
-                LOG_PS(t1.second)
-            } else if (iter.op == opPow) {
-                auto t1 = stack.back();
-                stack.pop_back();
-                auto &t2 = stack.back();
-                LOG_PS(t2.first)
-                mulps(t2.first, t1.first);
-                EXP_PS(t2.first)
-                LOG_PS(t2.second)
-                mulps(t2.second, t1.second);
-                EXP_PS(t2.second)
-            }
+
+        for (const auto &f : deferred) {
+            f(regptrs, zero, constants, stack);
         }
 
-        if (sizeof(void *) == 8) {
-            int numIter = (numInputs + 1 + 1) / 2;
-
-            for (int i = 0; i < numIter; i++) {
-                XmmReg r1, r2;
-                movdqu(r1, xmmword_ptr[regptrs + 16 * i]);
-                movdqu(r2, xmmword_ptr[regoffs + 16 * i]);
-                paddq(r1, r2);
-                movdqu(xmmword_ptr[regptrs + 16 * i], r1);
-            }
-        } else {
-            int numIter = (numInputs + 1 + 3) / 4;
-            for (int i = 0; i < numIter; i++) {
-                XmmReg r1, r2;
-                movdqu(r1, xmmword_ptr[regptrs + 16 * i]);
-                movdqu(r2, xmmword_ptr[regoffs + 16 * i]);
-                paddd(r1, r2);
-                movdqu(xmmword_ptr[regptrs + 16 * i], r1);
-            }
+#if UINTPTR_MAX > UINT32_MAX
+        for (int i = 0; i < numInputs / 2 + 1; i++) {
+            XmmReg r1, r2;
+            VEX1(movdqu, r1, xmmword_ptr[regptrs + 16 * i]);
+            VEX1(movdqu, r2, xmmword_ptr[regoffs + 16 * i]);
+            VEX2(paddq, r1, r1, r2);
+            VEX1(movdqu, xmmword_ptr[regptrs + 16 * i], r1);
         }
+#else
+        for (int i = 0; i < numInputs / 4 + 1; i++) {
+            XmmReg r1, r2;
+            VEX1(movdqu, r1, xmmword_ptr[regptrs + 16 * i]);
+            VEX1(movdqu, r2, xmmword_ptr[regoffs + 16 * i]);
+            VEX2(paddd, r1, r1, r2);
+            VEX1(movdqu, xmmword_ptr[regptrs + 16 * i], r1);
+        }
+#endif
 
-        sub(niter, 1);
+        jit::sub(niter, 1);
         jnz("wloop");
     }
+
 public:
-    ExprCompiler(std::vector<ExprOp> &ops, int numInputs) : ops(ops), numInputs(numInputs) {}
+    explicit ExprCompiler(int numInputs) : numInputs(numInputs), curLabel()
+    {
+        getCPUFeatures(&cpuFeatures);
+    }
+
+    void add_op(ExprOp op)
+    {
+        switch (op.op) {
+        case opLoadSrc8: load8(op.e); break;
+        case opLoadSrc16: load16(op.e); break;
+        case opLoadSrcF16: loadF16(op.e); break;
+        case opLoadSrcF32: loadF32(op.e); break;
+        case opLoadConst: loadConst(op.e); break;
+        case opStore8: store8(op.e); break;
+        case opStore16: store16(op.e); break;
+        case opStoreF16: storeF16(op.e); break;
+        case opStoreF32: storeF32(op.e); break;
+        case opDup: dup(op.e); break;
+        case opSwap: swap(op.e); break;
+        case opAdd: add(op.e); break;
+        case opSub: sub(op.e); break;
+        case opMul: mul(op.e); break;
+        case opDiv: div(op.e); break;
+        case opMax: max(op.e); break;
+        case opMin: min(op.e); break;
+        case opSqrt: sqrt(op.e); break;
+        case opAbs: abs(op.e); break;
+        case opNeg: neg(op.e); break;
+        case opAnd: and_(op.e); break;
+        case opOr: or_(op.e); break;
+        case opXor: xor_(op.e); break;
+        case opGt: cmpgt(op.e); break;
+        case opLt: cmplt(op.e); break;
+        case opEq: cmpeq(op.e); break;
+        case opLE: cmple(op.e); break;
+        case opGE: cmpge(op.e); break;
+        case opTernary: ternary(op.e); break;
+        case opExp: exp(op.e); break;
+        case opLog: log(op.e); break;
+        case opPow: pow(op.e); break;
+        }
+    }
 
     ExprData::ProcessLineProc getCode() {
         if (jit::GetCode() && GetCodeSize()) {
@@ -569,6 +941,11 @@ public:
         }
         return nullptr;
     }
+#undef VEX2IMM
+#undef VEX2
+#undef VEX1IMM
+#undef VEX1
+#undef EMIT
 };
 #endif
 
@@ -758,6 +1135,11 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
             if (d->proc[plane]) {
                 ExprData::ProcessLineProc proc = d->proc[plane];
                 int niterations = (w + 7) / 8;
+
+                for (int i = 0; i < numInputs; i++) {
+                    if (d->node[i])
+                        ptroffsets[i + 1] = vsapi->getFrameFormat(src[i])->bytesPerSample * 8;
+                }
 
                 for (int y = 0; y < h; y++) {
                     uint8_t *rwptrs[MAX_EXPR_INPUTS + 1] = { dstp + dst_stride * y };
@@ -1324,12 +1706,16 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
             foldConstants(d->ops[i]);
         }
 
-#ifdef VS_TARGET_CPU_X86
         if (vs_get_cpulevel(core) > VS_CPU_LEVEL_NONE) {
             for (int i = 0; i < d->vi.format->numPlanes; i++) {
                 if (d->plane[i] == poProcess) {
-                    ExprCompiler ExprObj(d->ops[i], d->numInputs);
-                    d->proc[i] = ExprObj.getCode();
+#ifdef VS_TARGET_CPU_X86
+                    ExprCompiler compiler(d->numInputs);
+                    for (auto op : d->ops[i]) {
+                        compiler.add_op(op);
+                    }
+
+                    d->proc[i] = compiler.getCode();
                 }
             }
 #ifdef VS_TARGET_OS_WINDOWS
