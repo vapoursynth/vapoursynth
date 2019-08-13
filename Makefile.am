@@ -46,6 +46,8 @@ libvapoursynth_la_SOURCES = src/core/boxblurfilter.cpp \
 							src/core/genericfilters.cpp \
 							src/core/internalfilters.h \
 							src/core/jitasm.h \
+							src/core/kernel/cpulevel.cpp \
+							src/core/kernel/cpulevel.h \
 							src/core/kernel/generic.cpp \
 							src/core/kernel/generic.h \
 							src/core/kernel/merge.c \

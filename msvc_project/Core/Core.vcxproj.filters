@@ -105,6 +105,9 @@
     <ClCompile Include="..\..\src\core\kernel\x86\generic_sse2.cpp">
       <Filter>Source Files\kernel\x86</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\core\kernel\cpulevel.cpp">
+      <Filter>Source Files\kernel</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\VapourSynth.h">
@@ -162,6 +165,9 @@
       <Filter>Header Files\kernel</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\core\kernel\generic.h">
+      <Filter>Header Files\kernel</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core\kernel\cpulevel.h">
       <Filter>Header Files\kernel</Filter>
     </ClInclude>
   </ItemGroup>

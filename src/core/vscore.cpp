@@ -1229,7 +1229,13 @@ void VSCore::destroyFilterInstance(VSNode *node) {
     freeDepth--;
 }
 
-VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), numFunctionInstances(0), formatIdOffset(1000), memory(new MemoryUse()) {
+VSCore::VSCore(int threads) :
+    coreFreed(false),
+    numFilterInstances(1),
+    numFunctionInstances(0),
+    formatIdOffset(1000),
+    memory(new MemoryUse()),
+    cpuLevel(INT_MAX) {
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isSSEStateOk())
         vsFatal("Bad SSE state detected when creating new core");
@@ -1471,6 +1477,14 @@ void VSCore::createFilter(const VSMap *in, VSMap *out, const std::string &name, 
     } catch (VSException &e) {
         vs_internal_vsapi.setError(out, e.what());
     }
+}
+
+int VSCore::getCpuLevel() const {
+    return cpuLevel;
+}
+
+int VSCore::setCpuLevel(int cpu) {
+    return cpuLevel.exchange(cpu);
 }
 
 VSPlugin::VSPlugin(VSCore *core)
