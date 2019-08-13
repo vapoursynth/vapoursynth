@@ -48,61 +48,65 @@ namespace {
 
 #define MAX_EXPR_INPUTS 26
 
-struct split1 {
-    enum empties_t { empties_ok, no_empties };
+enum class ExprOpType {
+    // Terminals.
+    MEM_LOAD_U8, MEM_LOAD_U16, MEM_LOAD_F16, MEM_LOAD_F32, CONSTANT,
+    MEM_STORE_U8, MEM_STORE_U16, MEM_STORE_F16, MEM_STORE_F32,
+
+    // Arithmetic primitives.
+    ADD, SUB, MUL, DIV, SQRT, ABS, MAX, MIN, CMP,
+
+    // Logical operators.
+    AND, OR, XOR, NOT,
+
+    // Transcendental functions.
+    EXP, LOG, POW,
+
+    // Ternary operator
+    TERNARY,
+
+    // Meta-node holding true/false branches of ternary.
+    MUX,
+
+    // Stack helpers.
+    DUP, SWAP,
 };
 
-template <typename Container>
-Container& split(
-    Container& result,
-    const typename Container::value_type& s,
-    const typename Container::value_type& delimiters,
-    split1::empties_t empties = split1::empties_ok)
-{
-    result.clear();
-    size_t current;
-    size_t next = -1;
-    do {
-        if (empties == split1::no_empties) {
-            next = s.find_first_not_of(delimiters, next + 1);
-            if (next == Container::value_type::npos) break;
-            next -= 1;
-        }
-        current = next + 1;
-        next = s.find_first_of( delimiters, current );
-        result.push_back(s.substr(current, next - current));
-    } while (next != Container::value_type::npos);
-    return result;
-}
-
-enum SOperation {
-    opLoadSrc8, opLoadSrc16, opLoadSrcF32, opLoadSrcF16, opLoadConst,
-    opStore8, opStore16, opStoreF32, opStoreF16,
-    opDup, opSwap,
-    opAdd, opSub, opMul, opDiv, opMax, opMin, opSqrt, opAbs,
-    opGt, opLt, opEq, opLE, opGE, opTernary,
-    opAnd, opOr, opXor, opNeg,
-    opExp, opLog, opPow
+enum class ComparisonType {
+    EQ = 0,
+    LT = 1,
+    LE = 2,
+    NEQ = 4,
+    NLT = 5,
+    NLE = 6,
 };
+
+#ifdef VS_TARGET_CPU_X86
+static_assert(static_cast<int>(ComparisonType::EQ) == _CMP_EQ_OQ, "");
+static_assert(static_cast<int>(ComparisonType::LT) == _CMP_LT_OS, "");
+static_assert(static_cast<int>(ComparisonType::LE) == _CMP_LE_OS, "");
+static_assert(static_cast<int>(ComparisonType::NEQ) == _CMP_NEQ_UQ, "");
+static_assert(static_cast<int>(ComparisonType::NLT) == _CMP_NLT_US, "");
+static_assert(static_cast<int>(ComparisonType::NLE) == _CMP_NLE_US, "");
+#endif
 
 union ExprUnion {
-    float fval;
-    int32_t ival;
+    int32_t i;
+    uint32_t u;
+    float f;
 
-    ExprUnion() = default;
-    constexpr ExprUnion(int32_t i) : ival(i) {}
-    constexpr ExprUnion(float f) : fval(f) {}
+    constexpr ExprUnion() : u{} {}
+
+    constexpr ExprUnion(int32_t i) : i(i) {}
+    constexpr ExprUnion(uint32_t u) : u(u) {}
+    constexpr ExprUnion(float f) : f(f) {}
 };
 
 struct ExprOp {
-    ExprUnion e;
-    uint32_t op;
-    ExprOp(SOperation op, float val) : op(op) {
-        e.fval = val;
-    }
-    ExprOp(SOperation op, int32_t val = 0) : op(op) {
-        e.ival = val;
-    }
+    ExprOpType type;
+    ExprUnion imm;
+
+    ExprOp(ExprOpType type, ExprUnion param = {}) : type(type), imm(param) {}
 };
 
 enum PlaneOp {
@@ -279,7 +283,7 @@ do { \
         {
             XmmReg r1, r2;
             Reg a;
-            mov(a, ptr[regptrs + sizeof(void *) * (arg.ival + 1)]);
+            mov(a, ptr[regptrs + sizeof(void *) * (arg.i + 1)]);
             VEX1(movq, r1, mmword_ptr[a]);
             VEX2(punpcklbw, r1, r1, zero);
             VEX2(punpckhwd, r2, r1, zero);
@@ -296,7 +300,7 @@ do { \
         {
             XmmReg r1, r2;
             Reg a;
-            mov(a, ptr[regptrs + sizeof(void *) * (arg.ival + 1)]);
+            mov(a, ptr[regptrs + sizeof(void *) * (arg.i + 1)]);
             VEX1(movdqa, r1, xmmword_ptr[a]);
             VEX2(punpckhwd, r2, r1, zero);
             VEX2(punpcklwd, r1, r1, zero);
@@ -312,7 +316,7 @@ do { \
         {
             XmmReg r1, r2;
             Reg a;
-            mov(a, ptr[regptrs + sizeof(void *) * (arg.ival + 1)]);
+            mov(a, ptr[regptrs + sizeof(void *) * (arg.i + 1)]);
             vcvtph2ps(r1, qword_ptr[a]);
             vcvtph2ps(r2, qword_ptr[a + 8]);
             stack.emplace_back(r1, r2);
@@ -325,7 +329,7 @@ do { \
         {
             XmmReg r1, r2;
             Reg a;
-            mov(a, ptr[regptrs + sizeof(void *) * (arg.ival + 1)]);
+            mov(a, ptr[regptrs + sizeof(void *) * (arg.i + 1)]);
             VEX1(movdqa, r1, xmmword_ptr[a]);
             VEX1(movdqa, r2, xmmword_ptr[a + 16]);
             stack.emplace_back(r1, r2);
@@ -338,7 +342,7 @@ do { \
         {
             XmmReg r1, r2;
             Reg32 a;
-            mov(a, arg.ival);
+            mov(a, arg.i);
             VEX1(movd, r1, a);
             VEX2IMM(shufps, r1, r1, r1, 0);
             VEX1(movaps, r2, r1);
@@ -427,19 +431,11 @@ do { \
     {
         deferred.push_back(EMIT()
         {
-            auto p = stack.at(stack.size() - arg.ival);
+            auto p = stack.at(stack.size() - arg.i);
             XmmReg r1, r2;
             VEX1(movaps, r1, p.first);
             VEX1(movaps, r2, p.second);
             stack.emplace_back(r1, r2);
-        });
-    }
-
-    void swap(ExprUnion arg)
-    {
-        deferred.push_back(EMIT()
-        {
-            std::swap(stack.back(), stack.at(stack.size() - arg.ival));
         });
     }
 
@@ -524,7 +520,7 @@ do { \
         });
     }
 
-    void neg(ExprUnion arg)
+    void not_(ExprUnion arg)
     {
         deferred.push_back(EMIT()
         {
@@ -583,62 +579,24 @@ do { \
     }
 #undef LOGICOP
 
-#define COMPAREOP(imm) \
-do { \
-  auto t1 = stack.back(); \
-  stack.pop_back(); \
-  auto t2 = stack.back(); \
-  stack.pop_back(); \
-  \
-  XmmReg r1; \
-  VEX1(movaps, r1, xmmword_ptr[constants + ConstantIndex::float_one * 16]); \
-  VEX2IMM(cmpps, t2.first, t2.first, t1.first, imm); \
-  VEX2IMM(cmpps, t2.second, t2.second, t1.second, imm); \
-  VEX2(andps, t2.first, t2.first, r1); \
-  VEX2(andps, t2.second, t2.second, r1); \
-  stack.push_back(t2); \
-} while (0)
-
-    void cmpgt(ExprUnion arg)
+    void cmp(ExprUnion arg)
     {
         deferred.push_back(EMIT()
         {
-            COMPAREOP(_CMP_NLE_US);
-        });
-    }
+            auto t1 = stack.back();
+            stack.pop_back();
+            auto t2 = stack.back();
+            stack.pop_back();
 
-    void cmplt(ExprUnion arg)
-    {
-        deferred.push_back(EMIT()
-        {
-            COMPAREOP(_CMP_LT_OS);
+            XmmReg r1;
+            VEX1(movaps, r1, xmmword_ptr[constants + ConstantIndex::float_one * 16]);
+            VEX2IMM(cmpps, t2.first, t2.first, t1.first, arg.i);
+            VEX2IMM(cmpps, t2.second, t2.second, t1.second, arg.i);
+            VEX2(andps, t2.first, t2.first, r1);
+            VEX2(andps, t2.second, t2.second, r1);
+            stack.push_back(t2);
         });
     }
-
-    void cmpeq(ExprUnion arg)
-    {
-        deferred.push_back(EMIT()
-        {
-            COMPAREOP(_CMP_EQ_OQ);
-        });
-    }
-
-    void cmple(ExprUnion arg)
-    {
-        deferred.push_back(EMIT()
-        {
-            COMPAREOP(_CMP_LE_OS);
-        });
-    }
-
-    void cmpge(ExprUnion arg)
-    {
-        deferred.push_back(EMIT()
-        {
-            COMPAREOP(_CMP_NLT_US);
-        });
-    }
-#undef COMPAREOP
 
     void ternary(ExprUnion arg)
     {
@@ -893,39 +851,34 @@ public:
 
     void add_op(ExprOp op)
     {
-        switch (op.op) {
-        case opLoadSrc8: load8(op.e); break;
-        case opLoadSrc16: load16(op.e); break;
-        case opLoadSrcF16: loadF16(op.e); break;
-        case opLoadSrcF32: loadF32(op.e); break;
-        case opLoadConst: loadConst(op.e); break;
-        case opStore8: store8(op.e); break;
-        case opStore16: store16(op.e); break;
-        case opStoreF16: storeF16(op.e); break;
-        case opStoreF32: storeF32(op.e); break;
-        case opDup: dup(op.e); break;
-        case opSwap: swap(op.e); break;
-        case opAdd: add(op.e); break;
-        case opSub: sub(op.e); break;
-        case opMul: mul(op.e); break;
-        case opDiv: div(op.e); break;
-        case opMax: max(op.e); break;
-        case opMin: min(op.e); break;
-        case opSqrt: sqrt(op.e); break;
-        case opAbs: abs(op.e); break;
-        case opNeg: neg(op.e); break;
-        case opAnd: and_(op.e); break;
-        case opOr: or_(op.e); break;
-        case opXor: xor_(op.e); break;
-        case opGt: cmpgt(op.e); break;
-        case opLt: cmplt(op.e); break;
-        case opEq: cmpeq(op.e); break;
-        case opLE: cmple(op.e); break;
-        case opGE: cmpge(op.e); break;
-        case opTernary: ternary(op.e); break;
-        case opExp: exp(op.e); break;
-        case opLog: log(op.e); break;
-        case opPow: pow(op.e); break;
+        switch (op.type) {
+        case ExprOpType::MEM_LOAD_U8: load8(op.imm); break;
+        case ExprOpType::MEM_LOAD_U16: load16(op.imm); break;
+        case ExprOpType::MEM_LOAD_F16: loadF16(op.imm); break;
+        case ExprOpType::MEM_LOAD_F32: loadF32(op.imm); break;
+        case ExprOpType::CONSTANT: loadConst(op.imm); break;
+        case ExprOpType::MEM_STORE_U8: store8(op.imm); break;
+        case ExprOpType::MEM_STORE_U16: store16(op.imm); break;
+        case ExprOpType::MEM_STORE_F16: storeF16(op.imm); break;
+        case ExprOpType::MEM_STORE_F32: storeF32(op.imm); break;
+        case ExprOpType::DUP: dup(op.imm); break;
+        case ExprOpType::ADD: add(op.imm); break;
+        case ExprOpType::SUB: sub(op.imm); break;
+        case ExprOpType::MUL: mul(op.imm); break;
+        case ExprOpType::DIV: div(op.imm); break;
+        case ExprOpType::MAX: max(op.imm); break;
+        case ExprOpType::MIN: min(op.imm); break;
+        case ExprOpType::SQRT: sqrt(op.imm); break;
+        case ExprOpType::ABS: abs(op.imm); break;
+        case ExprOpType::NOT: not_(op.imm); break;
+        case ExprOpType::AND: and_(op.imm); break;
+        case ExprOpType::OR: or_(op.imm); break;
+        case ExprOpType::XOR: xor_(op.imm); break;
+        case ExprOpType::CMP: cmp(op.imm); break;
+        case ExprOpType::TERNARY: ternary(op.imm); break;
+        case ExprOpType::EXP: exp(op.imm); break;
+        case ExprOpType::LOG: log(op.imm); break;
+        case ExprOpType::POW: pow(op.imm); break;
         }
     }
 
@@ -965,127 +918,418 @@ public:
 
         while (true) {
             i++;
-            switch (vops[i].op) {
-            case opLoadSrc8:
+            switch (vops[i].type) {
+            case ExprOpType::MEM_LOAD_U8:
                 stack[si] = stacktop;
-                stacktop = srcp[vops[i].e.ival][x];
+                stacktop = srcp[vops[i].imm.i][x];
                 ++si;
                 break;
-            case opLoadSrc16:
+            case ExprOpType::MEM_LOAD_U16:
                 stack[si] = stacktop;
-                stacktop = reinterpret_cast<const uint16_t *>(srcp[vops[i].e.ival])[x];
+                stacktop = reinterpret_cast<const uint16_t *>(srcp[vops[i].imm.i])[x];
                 ++si;
                 break;
-            case opLoadSrcF32:
+            case ExprOpType::MEM_LOAD_F32:
                 stack[si] = stacktop;
-                stacktop = reinterpret_cast<const float *>(srcp[vops[i].e.ival])[x];
+                stacktop = reinterpret_cast<const float *>(srcp[vops[i].imm.i])[x];
                 ++si;
                 break;
-            case opLoadConst:
+            case ExprOpType::CONSTANT:
                 stack[si] = stacktop;
-                stacktop = vops[i].e.fval;
+                stacktop = vops[i].imm.f;
                 ++si;
                 break;
-            case opDup:
+            case ExprOpType::DUP:
                 stack[si] = stacktop;
-                stacktop = stack[si - vops[i].e.ival];
+                stacktop = stack[si - vops[i].imm.i];
                 ++si;
                 break;
-            case opSwap:
-                std::swap(stacktop, stack[si - vops[i].e.ival]);
+            case ExprOpType::SWAP:
+                std::swap(stacktop, stack[si - vops[i].imm.i]);
                 break;
-            case opAdd:
+            case ExprOpType::ADD:
                 --si;
                 stacktop += stack[si];
                 break;
-            case opSub:
+            case ExprOpType::SUB:
                 --si;
                 stacktop = stack[si] - stacktop;
                 break;
-            case opMul:
+            case ExprOpType::MUL:
                 --si;
                 stacktop *= stack[si];
                 break;
-            case opDiv:
+            case ExprOpType::DIV:
                 --si;
                 stacktop = stack[si] / stacktop;
                 break;
-            case opMax:
+            case ExprOpType::MAX:
                 --si;
                 stacktop = std::max(stacktop, stack[si]);
                 break;
-            case opMin:
+            case ExprOpType::MIN:
                 --si;
                 stacktop = std::min(stacktop, stack[si]);
                 break;
-            case opExp:
+            case ExprOpType::EXP:
                 stacktop = std::exp(stacktop);
                 break;
-            case opLog:
+            case ExprOpType::LOG:
                 stacktop = std::log(stacktop);
                 break;
-            case opPow:
+            case ExprOpType::POW:
                 --si;
                 stacktop = std::pow(stack[si], stacktop);
                 break;
-            case opSqrt:
+            case ExprOpType::SQRT:
                 stacktop = std::sqrt(stacktop);
                 break;
-            case opAbs:
-                stacktop = std::abs(stacktop);
+            case ExprOpType::ABS:
+                stacktop = std::fabs(stacktop);
                 break;
-            case opGt:
+            case ExprOpType::CMP:
                 --si;
-                stacktop = (stack[si] > stacktop) ? 1.0f : 0.0f;
+                switch (static_cast<ComparisonType>(vops[i].imm.i)) {
+                case ComparisonType::EQ: stacktop = stack[si] == stacktop ? 1.0f : 0.0f; break;
+                case ComparisonType::LT: stacktop = stack[si] < stacktop ? 1.0f : 0.0f; break;
+                case ComparisonType::LE: stacktop = stack[si] <= stacktop ? 1.0f : 0.0f; break;
+                case ComparisonType::NEQ: stacktop = stack[si] != stacktop ? 1.0f : 0.0f; break;
+                case ComparisonType::NLT: stacktop = stack[si] >= stacktop ? 1.0f : 0.0f; break;
+                case ComparisonType::NLE: stacktop = stack[si] > stacktop ? 1.0f : 0.0f; break;
+                }
                 break;
-            case opLt:
-                --si;
-                stacktop = (stack[si] < stacktop) ? 1.0f : 0.0f;
-                break;
-            case opEq:
-                --si;
-                stacktop = (stack[si] == stacktop) ? 1.0f : 0.0f;
-                break;
-            case opLE:
-                --si;
-                stacktop = (stack[si] <= stacktop) ? 1.0f : 0.0f;
-                break;
-            case opGE:
-                --si;
-                stacktop = (stack[si] >= stacktop) ? 1.0f : 0.0f;
-                break;
-            case opTernary:
+            case ExprOpType::TERNARY:
                 si -= 2;
                 stacktop = (stack[si] > 0) ? stack[si + 1] : stacktop;
                 break;
-            case opAnd:
+            case ExprOpType::AND:
                 --si;
                 stacktop = (stacktop > 0 && stack[si] > 0) ? 1.0f : 0.0f;
                 break;
-            case opOr:
+            case ExprOpType::OR:
                 --si;
                 stacktop = (stacktop > 0 || stack[si] > 0) ? 1.0f : 0.0f;
                 break;
-            case opXor:
+            case ExprOpType::XOR:
                 --si;
                 stacktop = ((stacktop > 0) != (stack[si] > 0)) ? 1.0f : 0.0f;
                 break;
-            case opNeg:
+            case ExprOpType::NOT:
                 stacktop = (stacktop > 0) ? 0.0f : 1.0f;
                 break;
-            case opStore8:
+            case ExprOpType::MEM_STORE_U8:
                 dstp[x] = static_cast<uint8_t>(std::lrint(std::max(0.0f, std::min(stacktop, 255.0f))));
                 return;
-            case opStore16:
+            case ExprOpType::MEM_STORE_U16:
                 reinterpret_cast<uint16_t *>(dstp)[x] = static_cast<uint16_t>(std::lrint(std::max(0.0f, std::min(stacktop, 65535.0f))));
                 return;
-            case opStoreF32:
+            case ExprOpType::MEM_STORE_F32:
                 reinterpret_cast<float *>(dstp)[x] = stacktop;
                 return;
             }
         }
     }
 };
+
+struct ExpressionTreeNode {
+    ExpressionTreeNode *parent;
+    ExpressionTreeNode *left;
+    ExpressionTreeNode *right;
+    ExprOp op;
+    int valueNum;
+
+    explicit ExpressionTreeNode(ExprOp op) : parent(), left(), right(), op(op), valueNum(-1) {}
+
+    void setLeft(ExpressionTreeNode *node)
+    {
+        if (left)
+            left->parent = nullptr;
+
+        left = node;
+
+        if (left)
+            left->parent = this;
+    }
+
+    void setRight(ExpressionTreeNode *node)
+    {
+        if (right)
+            right->parent = nullptr;
+
+        right = node;
+
+        if (right)
+            right->parent = this;
+    }
+
+    template <class T>
+    void postorder(T visitor)
+    {
+        if (left)
+            left->postorder(visitor);
+        if (right)
+            right->postorder(visitor);
+        visitor(*this);
+    }
+};
+
+class ExpressionTree {
+    std::vector<std::unique_ptr<ExpressionTreeNode>> nodes;
+    ExpressionTreeNode *root;
+public:
+    ExpressionTree() : root() {}
+
+    ExpressionTreeNode *getRoot() { return root; }
+    const ExpressionTreeNode *getRoot() const { return root; }
+
+    void setRoot(ExpressionTreeNode *node) { root = node; }
+
+    ExpressionTreeNode *makeNode(ExprOp data)
+    {
+        nodes.push_back(std::unique_ptr<ExpressionTreeNode>(new ExpressionTreeNode(data)));
+        return nodes.back().get();
+    }
+
+    ExpressionTreeNode *clone(const ExpressionTreeNode *node)
+    {
+        if (!node)
+            return nullptr;
+
+        ExpressionTreeNode *newnode = makeNode(node->op);
+        newnode->setLeft(clone(node->left));
+        newnode->setRight(clone(node->right));
+        return newnode;
+    }
+};
+
+std::unique_ptr<ExpressionTreeNode> makeTreeNode(ExprOp data)
+{
+    return std::unique_ptr<ExpressionTreeNode>(new ExpressionTreeNode(data));
+}
+
+std::vector<std::string> tokenize(const std::string &expr)
+{
+    std::vector<std::string> tokens;
+    auto it = expr.begin();
+    auto prev = expr.begin();
+
+    while (it != expr.end()) {
+        char c = *it;
+
+        if (std::isspace(c)) {
+            if (it != prev)
+                tokens.push_back(expr.substr(prev - expr.begin(), it - prev));
+            prev = it + 1;
+        }
+        ++it;
+    }
+    if (prev != expr.end())
+        tokens.push_back(expr.substr(prev - expr.begin(), expr.end() - prev));
+
+    return tokens;
+}
+
+ExprOp decodeToken(const std::string &token)
+{
+    static const std::unordered_map<std::string, ExprOp> simple{
+        { "+",    { ExprOpType::ADD } },
+        { "-",    { ExprOpType::SUB } },
+        { "*",    { ExprOpType::MUL } },
+        { "/",    { ExprOpType::DIV } } ,
+        { "sqrt", { ExprOpType::SQRT } },
+        { "abs",  { ExprOpType::ABS } },
+        { "max",  { ExprOpType::MAX } },
+        { "min",  { ExprOpType::MIN } },
+        { "<",    { ExprOpType::CMP, static_cast<int>(ComparisonType::LT) } },
+        { ">",    { ExprOpType::CMP, static_cast<int>(ComparisonType::NLE) } },
+        { "=",    { ExprOpType::CMP, static_cast<int>(ComparisonType::EQ) } },
+        { ">=",   { ExprOpType::CMP, static_cast<int>(ComparisonType::NLT) } },
+        { "<=",   { ExprOpType::CMP, static_cast<int>(ComparisonType::LE) } },
+        { "and",  { ExprOpType::AND } },
+        { "or",   { ExprOpType::OR } },
+        { "xor",  { ExprOpType::XOR } },
+        { "not",  { ExprOpType::NOT } },
+        { "?",    { ExprOpType::TERNARY } },
+        { "exp",  { ExprOpType::EXP } },
+        { "log",  { ExprOpType::LOG } },
+        { "pow",  { ExprOpType::POW } },
+        { "dup",  { ExprOpType::DUP, 0 } },
+        { "swap", { ExprOpType::SWAP, 1 } },
+    };
+
+    auto it = simple.find(token);
+    if (it != simple.end()) {
+        return it->second;
+    } else if (token.size() == 1 && token[0] >= 'a' && token[0] <= 'z') {
+        return{ ExprOpType::MEM_LOAD_U8, token[0] >= 'x' ? token[0] - 'x' : token[0] - 'a' + 3 };
+    } else if (token.substr(0, 3) == "dup" || token.substr(0, 4) == "swap") {
+        size_t count;
+        int idx = -1;
+
+        try {
+            idx = std::stoi(token.substr(token[0] == 'd' ? 3 : 4), &count);
+        } catch (...) {
+            // ...
+        }
+
+        if (idx < 0)
+            throw std::runtime_error("illegal token: " + token);
+        return{ token[0] == 'd' ? ExprOpType::DUP : ExprOpType::SWAP, idx };
+    } else {
+        float f;
+        std::string s;
+        std::istringstream numStream(token);
+        numStream.imbue(std::locale::classic());
+        if (!(numStream >> f))
+            throw std::runtime_error("failed to convert '" + token + "' to float");
+        if (numStream >> s)
+            throw std::runtime_error("failed to convert '" + token + "' to float, not the whole token could be converted");
+        return{ ExprOpType::CONSTANT, f };
+    }
+}
+
+ExpressionTree parseExpr(const std::string &expr, const VSVideoInfo * const *vi, int numInputs)
+{
+    constexpr unsigned char numOperands[] = {
+        0, // MEM_LOAD_U8
+        0, // MEM_LOAD_U16
+        0, // MEM_LOAD_F16
+        0, // MEM_LOAD_F32
+        0, // CONSTANT
+        0, // MEM_STORE_U8
+        0, // MEM_STORE_U16
+        0, // MEM_STORE_F16
+        0, // MEM_STORE_F32
+        2, // ADD
+        2, // SUB
+        2, // MUL
+        2, // DIV
+        1, // SQRT
+        1, // ABS
+        2, // MAX
+        2, // MIN
+        2, // CMP
+        2, // AND
+        2, // OR
+        2, // XOR
+        2, // NOT
+        1, // EXP
+        1, // LOG
+        2, // POW
+        3, // TERNARY
+        0, // MUX
+        0, // DUP
+        0, // SWAP
+    };
+    static_assert(sizeof(numOperands) == static_cast<unsigned>(ExprOpType::SWAP) + 1, "invalid table");
+
+    auto tokens = tokenize(expr);
+
+    ExpressionTree tree;
+    std::vector<ExpressionTreeNode *> stack;
+
+    for (const std::string &tok : tokens) {
+        ExprOp op = decodeToken(tok);
+
+        // Check validity.
+        if (op.type == ExprOpType::MEM_LOAD_U8 && op.imm.i >= numInputs)
+            throw std::runtime_error("reference to undefined clip: " + tok);
+        if ((op.type == ExprOpType::DUP || op.type == ExprOpType::SWAP) && op.imm.u >= stack.size())
+            throw std::runtime_error("insufficient values on stack: " + tok);
+        if (stack.size() < numOperands[static_cast<size_t>(op.type)])
+            throw std::runtime_error("insufficient values on stack: " + tok);
+
+        // Rename load operations with the correct data type.
+        if (op.type == ExprOpType::MEM_LOAD_U8) {
+            const VSFormat *format = vi[op.imm.i]->format;
+
+            if (format->sampleType == stInteger && format->bytesPerSample == 1)
+                op.type = ExprOpType::MEM_LOAD_U8;
+            else if (format->sampleType == stInteger && format->bytesPerSample == 2)
+                op.type = ExprOpType::MEM_LOAD_U16;
+            else if (format->sampleType == stFloat && format->bytesPerSample == 2)
+                op.type = ExprOpType::MEM_LOAD_F16;
+            else if (format->sampleType == stFloat && format->bytesPerSample == 4)
+                op.type = ExprOpType::MEM_LOAD_F32;
+        }
+
+        // Apply DUP and SWAP in the frontend.
+        if (op.type == ExprOpType::DUP) {
+            stack.push_back(tree.clone(stack[stack.size() - 1 - op.imm.u]));
+        } else if (op.type == ExprOpType::SWAP) {
+            std::swap(stack.back(), stack[stack.size() - 1 - op.imm.u]);
+        } else {
+            size_t operands = numOperands[static_cast<size_t>(op.type)];
+
+            if (operands == 0) {
+                stack.push_back(tree.makeNode(op));
+            } else if (operands == 1) {
+                ExpressionTreeNode *child = stack.back();
+                stack.pop_back();
+
+                ExpressionTreeNode *node = tree.makeNode(op);
+                node->setLeft(child);
+                stack.push_back(node);
+            } else if (operands == 2) {
+                ExpressionTreeNode *left = stack[stack.size() - 2];
+                ExpressionTreeNode *right = stack[stack.size() - 1];
+                stack.resize(stack.size() - 2);
+
+                ExpressionTreeNode *node = tree.makeNode(op);
+                node->setLeft(left);
+                node->setRight(right);
+                stack.push_back(node);
+            } else if (operands == 3) {
+                ExpressionTreeNode *arg1 = stack[stack.size() - 3];
+                ExpressionTreeNode *arg2 = stack[stack.size() - 2];
+                ExpressionTreeNode *arg3 = stack[stack.size() - 1];
+                stack.resize(stack.size() - 3);
+
+                ExpressionTreeNode *mux = tree.makeNode(ExprOpType::MUX);
+                mux->setLeft(arg2);
+                mux->setRight(arg3);
+
+                ExpressionTreeNode *node = tree.makeNode(op);
+                node->setLeft(arg1);
+                node->setRight(mux);
+                stack.push_back(node);
+            }
+        }
+    }
+
+    if (stack.empty())
+        throw std::runtime_error("empty expression: " + expr);
+    if (stack.size() > 1)
+        throw std::runtime_error("unconsumed values on stack: " + expr);
+
+    tree.setRoot(stack.back());
+    return tree;
+}
+
+std::vector<ExprOp> serializeTree(const ExpressionTreeNode *root, const VSFormat *format)
+{
+    std::vector<ExprOp> bytecode;
+
+    const_cast<ExpressionTreeNode *>(root)->postorder([&](const ExpressionTreeNode &node)
+    {
+        if (node.op.type == ExprOpType::MUX)
+            return;
+
+        bytecode.push_back(node.op);
+    });
+
+    // Add final store.
+    if (format->sampleType == stInteger && format->bytesPerSample == 1)
+        bytecode.push_back(ExprOpType::MEM_STORE_U8);
+    else if (format->sampleType == stInteger && format->bytesPerSample == 2)
+        bytecode.push_back(ExprOpType::MEM_STORE_U16);
+    else if (format->sampleType == stFloat && format->bytesPerSample == 2)
+        bytecode.push_back(ExprOpType::MEM_STORE_F16);
+    else if (format->sampleType == stFloat && format->bytesPerSample == 4)
+        bytecode.push_back(ExprOpType::MEM_STORE_F32);
+
+    return bytecode;
+}
 
 static void VS_CC exprInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     ExprData *d = static_cast<ExprData *>(*instanceData);
@@ -1180,442 +1424,6 @@ static void VS_CC exprFree(void *instanceData, VSCore *core, const VSAPI *vsapi)
     delete d;
 }
 
-static SOperation getLoadOp(const VSVideoInfo *vi) {
-    if (!vi)
-        return opLoadSrcF32;
-    if (vi->format->sampleType == stInteger) {
-        if (vi->format->bitsPerSample == 8)
-            return opLoadSrc8;
-        else
-            return opLoadSrc16;
-    } else {
-        if (vi->format->bitsPerSample == 16)
-            return opLoadSrcF16;
-        else
-            return opLoadSrcF32;
-    }
-}
-
-static SOperation getStoreOp(const VSVideoInfo *vi) {
-    if (!vi)
-        return opLoadSrcF32;
-    if (vi->format->sampleType == stInteger) {
-        if (vi->format->bitsPerSample == 8)
-            return opStore8;
-        return opStore16;
-    } else {
-        if (vi->format->bitsPerSample == 16)
-            return opStoreF16;
-        else
-            return opStoreF32;
-    }
-}
-
-#define LOAD_OP(op,v,req) do { if (stackSize < req) throw std::runtime_error("Not enough elements on stack to perform operation " + tokens[i]); ops.push_back(ExprOp(op, (v))); maxStackSize = std::max(++stackSize, maxStackSize); } while(0)
-#define GENERAL_OP(op, v, req, dec) do { if (stackSize < req) throw std::runtime_error("Not enough elements on stack to perform operation " + tokens[i]); ops.push_back(ExprOp(op, (v))); stackSize-=(dec); } while(0)
-#define ONE_ARG_OP(op) GENERAL_OP(op, 0, 1, 0)
-#define TWO_ARG_OP(op) GENERAL_OP(op, 0, 2, 1)
-#define THREE_ARG_OP(op) GENERAL_OP(op, 0, 3, 2)
-
-static size_t parseExpression(const std::string &expr, std::vector<ExprOp> &ops, const VSVideoInfo **vi, const VSVideoInfo *outputVi, int numInputs) {
-    std::vector<std::string> tokens;
-    split(tokens, expr, " ", split1::no_empties);
-
-    int maxStackSize = 0;
-    int stackSize = 0;
-
-    for (size_t i = 0; i < tokens.size(); i++) {
-        if (tokens[i] == "+")
-            TWO_ARG_OP(opAdd);
-        else if (tokens[i] == "-")
-            TWO_ARG_OP(opSub);
-        else if (tokens[i] == "*")
-            TWO_ARG_OP(opMul);
-        else if (tokens[i] == "/")
-            TWO_ARG_OP(opDiv);
-        else if (tokens[i] == "max")
-            TWO_ARG_OP(opMax);
-        else if (tokens[i] == "min")
-            TWO_ARG_OP(opMin);
-        else if (tokens[i] == "exp")
-            ONE_ARG_OP(opExp);
-        else if (tokens[i] == "log")
-            ONE_ARG_OP(opLog);
-        else if (tokens[i] == "pow")
-            TWO_ARG_OP(opPow);
-        else if (tokens[i] == "sqrt")
-            ONE_ARG_OP(opSqrt);
-        else if (tokens[i] == "abs")
-            ONE_ARG_OP(opAbs);
-        else if (tokens[i] == ">")
-            TWO_ARG_OP(opGt);
-        else if (tokens[i] == "<")
-            TWO_ARG_OP(opLt);
-        else if (tokens[i] == "=")
-            TWO_ARG_OP(opEq);
-        else if (tokens[i] == ">=")
-            TWO_ARG_OP(opGE);
-        else if (tokens[i] == "<=")
-            TWO_ARG_OP(opLE);
-        else if (tokens[i] == "?")
-            THREE_ARG_OP(opTernary);
-        else if (tokens[i] == "and")
-            TWO_ARG_OP(opAnd);
-        else if (tokens[i] == "or")
-            TWO_ARG_OP(opOr);
-        else if (tokens[i] == "xor")
-            TWO_ARG_OP(opXor);
-        else if (tokens[i] == "not")
-            ONE_ARG_OP(opNeg);
-        else if (tokens[i].substr(0, 3) == "dup")
-            if (tokens[i].size() == 3) {
-                LOAD_OP(opDup, 0, 1);
-            } else {
-                try {
-                    int tmp = std::stoi(tokens[i].substr(3));
-                    if (tmp < 0)
-                        throw std::runtime_error("Dup suffix can't be less than 0 '" + tokens[i] + "'");
-                    LOAD_OP(opDup, tmp, tmp + 1);
-                } catch (std::logic_error &) {
-                    throw std::runtime_error("Failed to convert dup suffix '" + tokens[i] + "' to valid index");
-                }
-            }
-        else if (tokens[i].substr(0, 4) == "swap")
-            if (tokens[i].size() == 4) {
-                GENERAL_OP(opSwap, 1, 2, 0);
-            } else {
-                try {
-                    int tmp = std::stoi(tokens[i].substr(4));
-                    if (tmp < 1)
-                        throw std::runtime_error("Swap suffix can't be less than 1 '" + tokens[i] + "'");
-                        GENERAL_OP(opSwap, tmp, tmp + 1, 0);
-                } catch (std::logic_error &) {
-                    throw std::runtime_error("Failed to convert swap suffix '" + tokens[i] + "' to valid index");
-                }
-            }
-        else if (tokens[i].length() == 1 && tokens[i][0] >= 'a' && tokens[i][0] <= 'z') {
-            char srcChar = tokens[i][0];
-            int loadIndex;
-            if (srcChar >= 'x')
-                loadIndex = srcChar - 'x';
-            else
-                loadIndex = srcChar - 'a' + 3;
-            if (loadIndex >= numInputs)
-                throw std::runtime_error("Too few input clips supplied to reference '" + tokens[i] + "'");
-            LOAD_OP(getLoadOp(vi[loadIndex]), loadIndex, 0);
-        } else {
-            float f;
-            std::string s;
-            std::istringstream numStream(tokens[i]);
-            numStream.imbue(std::locale::classic());
-            if (!(numStream >> f))
-                throw std::runtime_error("Failed to convert '" + tokens[i] + "' to float");
-            if (numStream >> s)
-                throw std::runtime_error("Failed to convert '" + tokens[i] + "' to float, not the whole token could be converted");
-            LOAD_OP(opLoadConst, f, 0);
-        }
-    }
-
-    if (tokens.size() > 0) {
-        if (stackSize != 1)
-            throw std::runtime_error("Stack unbalanced at end of expression. Need to have exactly one value on the stack to return.");
-        ops.push_back(ExprOp(getStoreOp(outputVi), static_cast<float>((static_cast<int64_t>(1) << outputVi->format->bitsPerSample) - 1)));
-    }
-
-    return maxStackSize;
-}
-
-static float calculateOneOperand(uint32_t op, float a) {
-    switch (op) {
-        case opSqrt:
-            return std::sqrt(a);
-        case opAbs:
-            return std::abs(a);
-        case opNeg:
-            return (a > 0) ? 0.0f : 1.0f;
-        case opExp:
-            return std::exp(a);
-        case opLog:
-            return std::log(a);
-    }
-
-    return 0.0f;
-}
-
-static float calculateTwoOperands(uint32_t op, float a, float b) {
-    switch (op) {
-        case opAdd:
-            return a + b;
-        case opSub:
-            return a - b;
-        case opMul:
-            return a * b;
-        case opDiv:
-            return a / b;
-        case opMax:
-            return std::max(a, b);
-        case opMin:
-            return std::min(a, b);
-        case opGt:
-            return (a > b) ? 1.0f : 0.0f;
-        case opLt:
-            return (a < b) ? 1.0f : 0.0f;
-        case opEq:
-            return (a == b) ? 1.0f : 0.0f;
-        case opLE:
-            return (a <= b) ? 1.0f : 0.0f;
-        case opGE:
-            return (a >= b) ? 1.0f : 0.0f;
-        case opAnd:
-            return (a > 0 && b > 0) ? 1.0f : 0.0f;
-        case opOr:
-            return (a > 0 || b > 0) ? 1.0f : 0.0f;
-        case opXor:
-            return ((a > 0) != (b > 0)) ? 1.0f : 0.0f;
-        case opPow:
-            return std::pow(a, b);
-    }
-
-    return 0.0f;
-}
-
-static int numOperands(uint32_t op) {
-    switch (op) {
-        case opLoadConst:
-        case opLoadSrc8:
-        case opLoadSrc16:
-        case opLoadSrcF32:
-        case opLoadSrcF16:
-        case opDup:
-            return 0;
-
-        case opSqrt:
-        case opAbs:
-        case opNeg:
-        case opExp:
-        case opLog:
-            return 1;
-
-        case opSwap:
-        case opAdd:
-        case opSub:
-        case opMul:
-        case opDiv:
-        case opMax:
-        case opMin:
-        case opGt:
-        case opLt:
-        case opEq:
-        case opLE:
-        case opGE:
-        case opAnd:
-        case opOr:
-        case opXor:
-        case opPow:
-            return 2;
-
-        case opTernary:
-            return 3;
-    }
-
-    return 0;
-}
-
-static bool isLoadOp(uint32_t op) {
-    switch (op) {
-        case opLoadConst:
-        case opLoadSrc8:
-        case opLoadSrc16:
-        case opLoadSrcF32:
-        case opLoadSrcF16:
-            return true;
-    }
-
-    return false;
-}
-
-static void findBranches(std::vector<ExprOp> &ops, size_t pos, size_t *start1, size_t *start2, size_t *start3) {
-    int operands = numOperands(ops[pos].op);
-
-    size_t temp1, temp2, temp3;
-
-    if (operands == 0) {
-        *start1 = pos;
-    } else if (operands == 1) {
-        if (isLoadOp(ops[pos - 1].op)) {
-            *start1 = pos - 1;
-        } else {
-            findBranches(ops, pos - 1, &temp1, &temp2, &temp3);
-            *start1 = temp1;
-        }
-    } else if (operands == 2) {
-        if (isLoadOp(ops[pos - 1].op)) {
-            *start2 = pos - 1;
-        } else {
-            findBranches(ops, pos - 1, &temp1, &temp2, &temp3);
-            *start2 = temp1;
-        }
-
-        if (isLoadOp(ops[*start2 - 1].op)) {
-            *start1 = *start2 - 1;
-        } else {
-            findBranches(ops, *start2 - 1, &temp1, &temp2, &temp3);
-            *start1 = temp1;
-        }
-    } else if (operands == 3) {
-        if (isLoadOp(ops[pos - 1].op)) {
-            *start3 = pos - 1;
-        } else {
-            findBranches(ops, pos - 1, &temp1, &temp2, &temp3);
-            *start3 = temp1;
-        }
-
-        if (isLoadOp(ops[*start3 - 1].op)) {
-            *start2 = *start3 - 1;
-        } else {
-            findBranches(ops, *start3 - 1, &temp1, &temp2, &temp3);
-            *start2 = temp1;
-        }
-
-        if (isLoadOp(ops[*start2 - 1].op)) {
-            *start1 = *start2 - 1;
-        } else {
-            findBranches(ops, *start2 - 1, &temp1, &temp2, &temp3);
-            *start1 = temp1;
-        }
-    }
-}
-
-/*
-#define PAIR(x) { x, #x }
-static std::unordered_map<uint32_t, std::string> op_strings = {
-        PAIR(opLoadSrc8),
-        PAIR(opLoadSrc16),
-        PAIR(opLoadSrcF32),
-        PAIR(opLoadSrcF16),
-        PAIR(opLoadConst),
-        PAIR(opStore8),
-        PAIR(opStore16),
-        PAIR(opStoreF32),
-        PAIR(opStoreF16),
-        PAIR(opDup),
-        PAIR(opSwap),
-        PAIR(opAdd),
-        PAIR(opSub),
-        PAIR(opMul),
-        PAIR(opDiv),
-        PAIR(opMax),
-        PAIR(opMin),
-        PAIR(opSqrt),
-        PAIR(opAbs),
-        PAIR(opGt),
-        PAIR(opLt),
-        PAIR(opEq),
-        PAIR(opLE),
-        PAIR(opGE),
-        PAIR(opTernary),
-        PAIR(opAnd),
-        PAIR(opOr),
-        PAIR(opXor),
-        PAIR(opNeg),
-        PAIR(opExp),
-        PAIR(opLog),
-        PAIR(opPow)
-    };
-#undef PAIR
-
-
-static void printExpression(const std::vector<ExprOp> &ops) {
-    fprintf(stderr, "Expression: '");
-
-    for (size_t i = 0; i < ops.size(); i++) {
-        fprintf(stderr, " %s", op_strings[ops[i].op].c_str());
-
-        if (ops[i].op == opLoadConst)
-            fprintf(stderr, "(%.3f)", ops[i].e.fval);
-        else if (isLoadOp(ops[i].op))
-            fprintf(stderr, "(%d)", ops[i].e.ival);
-    }
-
-    fprintf(stderr, "'\n");
-}
-*/
-
-static void foldConstants(std::vector<ExprOp> &ops) {
-    for (size_t i = 0; i < ops.size(); i++) {
-        switch (ops[i].op) {
-            case opDup:
-                if (ops[i - 1].op == opLoadConst && ops[i].e.ival == 0) {
-                    ops[i] = ops[i - 1];
-                }
-                break;
-
-            case opSqrt:
-            case opAbs:
-            case opNeg:
-            case opExp:
-            case opLog:
-                if (ops[i - 1].op == opLoadConst) {
-                    ops[i].e.fval = calculateOneOperand(ops[i].op, ops[i - 1].e.fval);
-                    ops[i].op = opLoadConst;
-                    ops.erase(ops.begin() + i - 1);
-                    i--;
-                }
-                break;
-
-            case opSwap:
-                if (ops[i - 2].op == opLoadConst && ops[i - 1].op == opLoadConst && ops[i].e.ival == 1) {
-                    const float temp = ops[i - 2].e.fval;
-                    ops[i - 2].e.fval = ops[i - 1].e.fval;
-                    ops[i - 1].e.fval = temp;
-                    ops.erase(ops.begin() + i);
-                    i--;
-                }
-                break;
-
-            case opAdd:
-            case opSub:
-            case opMul:
-            case opDiv:
-            case opMax:
-            case opMin:
-            case opGt:
-            case opLt:
-            case opEq:
-            case opLE:
-            case opGE:
-            case opAnd:
-            case opOr:
-            case opXor:
-            case opPow:
-                if (ops[i - 2].op == opLoadConst && ops[i - 1].op == opLoadConst) {
-                    ops[i].e.fval = calculateTwoOperands(ops[i].op, ops[i - 2].e.fval, ops[i - 1].e.fval);
-                    ops[i].op = opLoadConst;
-                    ops.erase(ops.begin() + i - 2, ops.begin() + i);
-                    i -= 2;
-                }
-                break;
-
-            case opTernary:
-                size_t start1, start2, start3;
-                findBranches(ops, i, &start1, &start2, &start3);
-                if (ops[start2 - 1].op == opLoadConst) {
-                    ops.erase(ops.begin() + i);
-                    if (ops[start1].e.fval > 0.0f) {
-                        ops.erase(ops.begin() + start3, ops.begin() + i);
-                        i = start3;
-                    } else {
-                        ops.erase(ops.begin() + start2, ops.begin() + start3);
-                        i -= start3 - start2;
-                    }
-                    ops.erase(ops.begin() + start1);
-                    i -= 2;
-                }
-                break;
-        }
-    }
-}
-
 static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<ExprData> d(new ExprData);
     int err;
@@ -1633,13 +1441,15 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         if (d->numInputs > 26)
             throw std::runtime_error("More than 26 input clips provided");
 
-        for (int i = 0; i < d->numInputs; i++)
+        for (int i = 0; i < d->numInputs; i++) {
             d->node[i] = vsapi->propGetNode(in, "clips", i, &err);
+        }
 
         const VSVideoInfo *vi[MAX_EXPR_INPUTS] = {};
-        for (int i = 0; i < d->numInputs; i++)
+        for (int i = 0; i < d->numInputs; i++) {
             if (d->node[i])
                 vi[i] = vsapi->getVideoInfo(d->node[i]);
+        }
 
         for (int i = 0; i < d->numInputs; i++) {
             if (!isConstantFormat(vi[i]))
@@ -1649,7 +1459,9 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
                 || vi[0]->format->subSamplingH != vi[i]->format->subSamplingH
                 || vi[0]->width != vi[i]->width
                 || vi[0]->height != vi[i]->height)
+            {
                 throw std::runtime_error("All inputs must have the same number of planes and the same dimensions, subsampling included");
+            }
 
             if (EXPR_F16C_TEST) {
                 if ((vi[i]->format->bitsPerSample > 16 && vi[i]->format->sampleType == stInteger)
@@ -1680,13 +1492,11 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
             throw std::runtime_error("More expressions given than there are planes");
 
         std::string expr[3];
-        for (int i = 0; i < nexpr; i++)
+        for (int i = 0; i < nexpr; i++) {
             expr[i] = vsapi->propGetData(in, "expr", i, nullptr);
-        if (nexpr == 1) {
-            expr[1] = expr[0];
-            expr[2] = expr[0];
-        } else if (nexpr == 2) {
-            expr[2] = expr[1];
+        }
+        for (int i = nexpr; i < 3; ++i) {
+            expr[i] = expr[nexpr - 1];
         }
 
         for (int i = 0; i < 3; i++) {
@@ -1698,30 +1508,30 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
                 else
                     d->plane[i] = poUndefined;
             }
-        }
 
-        d->maxStackSize = 0;
-        for (int i = 0; i < d->vi.format->numPlanes; i++) {
-            d->maxStackSize = std::max(parseExpression(expr[i], d->ops[i], vi, &d->vi, d->numInputs), d->maxStackSize);
-            foldConstants(d->ops[i]);
-        }
+            if (d->plane[i] != poProcess)
+                continue;
 
-        if (vs_get_cpulevel(core) > VS_CPU_LEVEL_NONE) {
-            for (int i = 0; i < d->vi.format->numPlanes; i++) {
-                if (d->plane[i] == poProcess) {
+            auto tree = parseExpr(expr[i], vi, d->numInputs);
+            d->ops[i] = serializeTree(tree.getRoot(), d->vi.format);
+
+            if (vs_get_cpulevel(core) > VS_CPU_LEVEL_NONE) {
+                for (int i = 0; i < d->vi.format->numPlanes; i++) {
+                    if (d->plane[i] == poProcess) {
 #ifdef VS_TARGET_CPU_X86
-                    ExprCompiler compiler(d->numInputs);
-                    for (auto op : d->ops[i]) {
-                        compiler.add_op(op);
-                    }
+                        ExprCompiler compiler(d->numInputs);
+                        for (auto op : d->ops[i]) {
+                            compiler.add_op(op);
+                        }
 
-                    d->proc[i] = compiler.getCode();
+                        d->proc[i] = compiler.getCode();
+#endif
+                    }
                 }
             }
-#ifdef VS_TARGET_OS_WINDOWS
-            FlushInstructionCache(GetCurrentProcess(), nullptr, 0);
-#endif
         }
+#ifdef VS_TARGET_OS_WINDOWS
+        FlushInstructionCache(GetCurrentProcess(), nullptr, 0);
 #endif
     } catch (std::runtime_error &e) {
         for (int i = 0; i < MAX_EXPR_INPUTS; i++)
