@@ -109,6 +109,16 @@ struct ExprOp {
     ExprOp(ExprOpType type, ExprUnion param = {}) : type(type), imm(param) {}
 };
 
+struct ExprInstruction {
+    ExprOp op;
+    int dst;
+    int src1;
+    int src2;
+    int src3;
+
+    ExprInstruction(ExprOp op) : op(op), dst(-1), src1(-1), src2(-1), src3(-1) {}
+};
+
 enum PlaneOp {
     poProcess, poCopy, poUndefined
 };
@@ -116,14 +126,13 @@ enum PlaneOp {
 struct ExprData {
     VSNodeRef *node[MAX_EXPR_INPUTS];
     VSVideoInfo vi;
-    std::vector<ExprOp> ops[3];
+    std::vector<ExprInstruction> bytecode[3];
     int plane[3];
-    size_t maxStackSize;
     int numInputs;
     typedef void (*ProcessLineProc)(void *rwptrs, intptr_t ptroff[MAX_EXPR_INPUTS + 1], intptr_t niter);
     ProcessLineProc proc[3];
 
-    ExprData() : node(), vi(), plane(), maxStackSize(), numInputs(), proc() {}
+    ExprData() : node(), vi(), plane(), numInputs(), proc() {}
 
     ~ExprData() {
 #ifdef VS_TARGET_CPU_X86
@@ -219,13 +228,13 @@ class ExprCompiler : private jitasm::function<void, ExprCompiler, uint8_t *, con
 #undef SPLAT
 
     // JitASM compiles everything from main(), so record the operations for later.
-    std::vector<std::function<void(Reg, XmmReg, Reg, std::vector<std::pair<XmmReg, XmmReg>> &)>> deferred;
+    std::vector<std::function<void(Reg, XmmReg, Reg, std::unordered_map<int, std::pair<XmmReg, XmmReg>> &)>> deferred;
 
     CPUFeatures cpuFeatures;
     int numInputs;
     int curLabel;
 
-#define EMIT() [this, arg](Reg regptrs, XmmReg zero, Reg constants, std::vector<std::pair<XmmReg, XmmReg>> &stack)
+#define EMIT() [this, insn](Reg regptrs, XmmReg zero, Reg constants, std::unordered_map<int, std::pair<XmmReg, XmmReg>> &bytecodeRegs)
 #define VEX1(op, arg1, arg2) \
 do { \
   if (cpuFeatures.avx) \
@@ -277,134 +286,126 @@ do { \
   } \
 } while (0)
 
-    void load8(ExprUnion arg)
+    void load8(const ExprInstruction &insn)
     {
         deferred.push_back(EMIT()
         {
-            XmmReg r1, r2;
+            auto t1 = bytecodeRegs[insn.dst];
             Reg a;
-            mov(a, ptr[regptrs + sizeof(void *) * (arg.i + 1)]);
-            VEX1(movq, r1, mmword_ptr[a]);
-            VEX2(punpcklbw, r1, r1, zero);
-            VEX2(punpckhwd, r2, r1, zero);
-            VEX2(punpcklwd, r1, r1, zero);
-            VEX1(cvtdq2ps, r1, r1);
-            VEX1(cvtdq2ps, r2, r2);
-            stack.emplace_back(r1, r2);
+            mov(a, ptr[regptrs + sizeof(void *) * (insn.op.imm.u + 1)]);
+            VEX1(movq, t1.first, mmword_ptr[a]);
+            VEX2(punpcklbw, t1.first, t1.first, zero);
+            VEX2(punpckhwd, t1.second, t1.first, zero);
+            VEX2(punpcklwd, t1.first, t1.first, zero);
+            VEX1(cvtdq2ps, t1.first, t1.first);
+            VEX1(cvtdq2ps, t1.second, t1.second);
         });
     }
 
-    void load16(ExprUnion arg)
+    void load16(const ExprInstruction &insn)
     {
         deferred.push_back(EMIT()
         {
-            XmmReg r1, r2;
+            auto t1 = bytecodeRegs[insn.dst];
             Reg a;
-            mov(a, ptr[regptrs + sizeof(void *) * (arg.i + 1)]);
-            VEX1(movdqa, r1, xmmword_ptr[a]);
-            VEX2(punpckhwd, r2, r1, zero);
-            VEX2(punpcklwd, r1, r1, zero);
-            VEX1(cvtdq2ps, r1, r1);
-            VEX1(cvtdq2ps, r2, r2);
-            stack.emplace_back(r1, r2);
+            mov(a, ptr[regptrs + sizeof(void *) * (insn.op.imm.u + 1)]);
+            VEX1(movdqa, t1.first, xmmword_ptr[a]);
+            VEX2(punpckhwd, t1.second, t1.first, zero);
+            VEX2(punpcklwd, t1.first, t1.first, zero);
+            VEX1(cvtdq2ps, t1.first, t1.first);
+            VEX1(cvtdq2ps, t1.second, t1.second);
         });
     }
 
-    void loadF16(ExprUnion arg)
+    void loadF16(const ExprInstruction &insn)
     {
         deferred.push_back(EMIT()
         {
-            XmmReg r1, r2;
+            auto t1 = bytecodeRegs[insn.dst];
             Reg a;
-            mov(a, ptr[regptrs + sizeof(void *) * (arg.i + 1)]);
-            vcvtph2ps(r1, qword_ptr[a]);
-            vcvtph2ps(r2, qword_ptr[a + 8]);
-            stack.emplace_back(r1, r2);
+            mov(a, ptr[regptrs + sizeof(void *) * (insn.op.imm.u + 1)]);
+            vcvtph2ps(t1.first, qword_ptr[a]);
+            vcvtph2ps(t1.second, qword_ptr[a + 8]);
         });
     }
 
-    void loadF32(ExprUnion arg)
+    void loadF32(const ExprInstruction &insn)
     {
         deferred.push_back(EMIT()
         {
-            XmmReg r1, r2;
+            auto t1 = bytecodeRegs[insn.dst];
             Reg a;
-            mov(a, ptr[regptrs + sizeof(void *) * (arg.i + 1)]);
-            VEX1(movdqa, r1, xmmword_ptr[a]);
-            VEX1(movdqa, r2, xmmword_ptr[a + 16]);
-            stack.emplace_back(r1, r2);
+            mov(a, ptr[regptrs + sizeof(void *) * (insn.op.imm.u + 1)]);
+            VEX1(movdqa, t1.first, xmmword_ptr[a]);
+            VEX1(movdqa, t1.second, xmmword_ptr[a + 16]);
         });
     }
 
-    void loadConst(ExprUnion arg)
+    void loadConst(const ExprInstruction &insn)
     {
         deferred.push_back(EMIT()
         {
-            XmmReg r1, r2;
+            auto t1 = bytecodeRegs[insn.dst];
             Reg32 a;
-            mov(a, arg.i);
-            VEX1(movd, r1, a);
-            VEX2IMM(shufps, r1, r1, r1, 0);
-            VEX1(movaps, r2, r1);
-            stack.emplace_back(r1, r2);
+            mov(a, insn.op.imm.u);
+            VEX1(movd, t1.first, a);
+            VEX2IMM(shufps, t1.first, t1.first, t1.first, 0);
+            VEX1(movaps, t1.second, t1.first);
         });
     }
 
-    void store8(ExprUnion arg)
+    void store8(const ExprInstruction &insn)
     {
         deferred.push_back(EMIT()
         {
-            auto t1 = stack.back();
-            stack.pop_back();
-
-            XmmReg limit;
+            auto t1 = bytecodeRegs[insn.src1];
+            XmmReg r1, r2, limit;
             Reg a;
             VEX1(movaps, limit, xmmword_ptr[constants + ConstantIndex::float_255 * 16]);
-            VEX2(minps, t1.first, t1.first, limit);
-            VEX2(minps, t1.second, t1.second, limit);
-            VEX1(cvtps2dq, t1.first, t1.first);
-            VEX1(cvtps2dq, t1.second, t1.second);
-            VEX2(packssdw, t1.first, t1.first, t1.second);
-            VEX2(packuswb, t1.first, t1.first, zero);
+            VEX2(minps, r1, t1.first, limit);
+            VEX2(minps, r2, t1.second, limit);
+            VEX1(cvtps2dq, r1, r1);
+            VEX1(cvtps2dq, r2, r2);
+            VEX2(packssdw, r1, r1, r2);
+            VEX2(packuswb, r1, r1, zero);
             mov(a, ptr[regptrs]);
-            VEX1(movq, mmword_ptr[a], t1.first);
+            VEX1(movq, mmword_ptr[a], r1);
         });
     }
 
-    void store16(ExprUnion arg)
+    void store16(const ExprInstruction &insn)
     {
         deferred.push_back(EMIT()
         {
-            auto t1 = stack.back();
-            stack.pop_back();
-
-            XmmReg limit;
+            auto t1 = bytecodeRegs[insn.src1];
+            XmmReg r1, r2, limit;
             Reg a;
             VEX1(movaps, limit, xmmword_ptr[constants + ConstantIndex::float_65535 * 16]);
             VEX2IMM(shufps, limit, limit, limit, 0);
-            VEX2(minps, t1.first, t1.first, limit);
-            VEX2(minps, t1.second, t1.second, limit);
-            VEX1(cvtps2dq, t1.first, t1.first);
-            VEX1(cvtps2dq, t1.second, t1.second);
+            VEX2(minps, r1, t1.first, limit);
+            VEX2(minps, r1, t1.second, limit);
+            VEX1(cvtps2dq, r1, r1);
+            VEX1(cvtps2dq, r2, r2);
 
             if (cpuFeatures.sse4_1) {
-                VEX2(packusdw, t1.first, t1.first, t1.second);
+                VEX2(packusdw, r1, r1, r2);
             } else {
                 VEX1(movaps, limit, xmmword_ptr[constants + ConstantIndex::i16min_epi32 * 16]);
-                VEX2(paddd, t1.first, t1.first, limit);
-                VEX2(paddd, t1.second, t1.second, limit);
-                VEX2(packssdw, t1.first, t1.first, t1.second);
-                VEX2(psubw, t1.first, t1.first, xmmword_ptr[constants + ConstantIndex::i16min_epi16 * 16]);
+                VEX2(paddd, r1, r1, limit);
+                VEX2(paddd, r2, r2, limit);
+                VEX2(packssdw, r1, r1, r2);
+                VEX2(psubw, r1, r1, xmmword_ptr[constants + ConstantIndex::i16min_epi16 * 16]);
             }
+            mov(a, ptr[regptrs]);
+            VEX1(movaps, xmmword_ptr[a], r1);
         });
     }
 
-    void storeF16(ExprUnion arg)
+    void storeF16(const ExprInstruction &insn)
     {
         deferred.push_back(EMIT()
         {
-            auto t1 = stack.back();
-            stack.pop_back();
+            auto t1 = bytecodeRegs[insn.src1];
 
             Reg a;
             mov(a, ptr[regptrs]);
@@ -413,12 +414,11 @@ do { \
         });
     }
 
-    void storeF32(ExprUnion arg)
+    void storeF32(const ExprInstruction &insn)
     {
         deferred.push_back(EMIT()
         {
-            auto t1 = stack.back();
-            stack.pop_back();
+            auto t1 = bytecodeRegs[insn.src1];
 
             Reg a;
             mov(a, ptr[regptrs]);
@@ -427,27 +427,15 @@ do { \
         });
     }
 
-    void dup(ExprUnion arg)
-    {
-        deferred.push_back(EMIT()
-        {
-            auto p = stack.at(stack.size() - arg.i);
-            XmmReg r1, r2;
-            VEX1(movaps, r1, p.first);
-            VEX1(movaps, r2, p.second);
-            stack.emplace_back(r1, r2);
-        });
-    }
-
 #define BINARYOP(op) \
 do { \
-  auto t1 = stack.back(); \
-  stack.pop_back(); \
-  auto t2 = stack.back(); \
-  VEX2(op, t2.first, t2.first, t1.first); \
-  VEX2(op, t2.second, t2.second, t1.second); \
+  auto t1 = bytecodeRegs[insn.src1]; \
+  auto t2 = bytecodeRegs[insn.src2]; \
+  auto t3 = bytecodeRegs[insn.dst]; \
+  VEX2(op, t3.first, t1.first, t2.first); \
+  VEX2(op, t3.second, t1.second, t2.second); \
 } while (0)
-    void add(ExprUnion arg)
+    void add(const ExprInstruction &insn)
     {
         deferred.push_back(EMIT()
         {
@@ -455,7 +443,7 @@ do { \
         });
     }
 
-    void sub(ExprUnion arg)
+    void sub(const ExprInstruction &insn)
     {
         deferred.push_back(EMIT()
         {
@@ -463,7 +451,7 @@ do { \
         });
     }
 
-    void mul(ExprUnion arg)
+    void mul(const ExprInstruction &insn)
     {
         deferred.push_back(EMIT()
         {
@@ -471,7 +459,7 @@ do { \
         });
     }
 
-    void div(ExprUnion arg)
+    void div(const ExprInstruction &insn)
     {
         deferred.push_back(EMIT()
         {
@@ -479,7 +467,7 @@ do { \
         });
     }
 
-    void max(ExprUnion arg)
+    void max(const ExprInstruction &insn)
     {
         deferred.push_back(EMIT()
         {
@@ -487,7 +475,7 @@ do { \
         });
     }
 
-    void min(ExprUnion arg)
+    void min(const ExprInstruction &insn)
     {
         deferred.push_back(EMIT()
         {
@@ -496,65 +484,65 @@ do { \
     }
 #undef BINARYOP
 
-    void sqrt(ExprUnion arg)
+    void sqrt(const ExprInstruction &insn)
     {
         deferred.push_back(EMIT()
         {
-            auto t1 = stack.back();
-            VEX2(maxps, t1.first, t1.first, zero);
-            VEX2(maxps, t1.second, t1.second, zero);
-            VEX1(sqrtps, t1.first, t1.first);
-            VEX1(sqrtps, t1.second, t1.second);
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.dst];
+            VEX2(maxps, t2.first, t1.first, zero);
+            VEX2(maxps, t2.second, t1.second, zero);
+            VEX1(sqrtps, t2.first, t2.first);
+            VEX1(sqrtps, t2.second, t2.second);
         });
     }
 
-    void abs(ExprUnion arg)
+    void abs(const ExprInstruction &insn)
     {
         deferred.push_back(EMIT()
         {
-            auto t1 = stack.back();
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.dst];
             XmmReg r1;
             VEX1(movaps, r1, xmmword_ptr[constants + ConstantIndex::absmask * 16]);
-            VEX2(andps, t1.first, t1.first, r1);
-            VEX2(andps, t1.second, t1.second, r1);
+            VEX2(andps, t2.first, t1.first, r1);
+            VEX2(andps, t2.second, t1.second, r1);
         });
     }
 
-    void not_(ExprUnion arg)
+    void not_(const ExprInstruction &insn)
     {
         deferred.push_back(EMIT()
         {
-            auto t1 = stack.back();
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.dst];
             XmmReg r1;
             VEX1(movaps, r1, xmmword_ptr[constants + ConstantIndex::float_one * 16]);
-            VEX2IMM(cmpps, t1.first, t1.first, zero, _CMP_LT_OS);
-            VEX2IMM(cmpps, t1.second, t1.second, zero, _CMP_LT_OS);
-            VEX2(andps, t1.first, t1.first, r1);
-            VEX2(andps, t1.second, t1.second, r1);
+            VEX2IMM(cmpps, t2.first, t1.first, zero, _CMP_LT_OS);
+            VEX2IMM(cmpps, t2.second, t1.second, zero, _CMP_LT_OS);
+            VEX2(andps, t2.first, t2.first, r1);
+            VEX2(andps, t2.second, t2.second, r1);
         });
     }
 
 #define LOGICOP(op) \
 do { \
-  auto t1 = stack.back(); \
-  stack.pop_back(); \
-  auto t2 = stack.back(); \
-  stack.pop_back(); \
-  \
-  XmmReg r1; \
+  auto t1 = bytecodeRegs[insn.src1]; \
+  auto t2 = bytecodeRegs[insn.src2]; \
+  auto t3 = bytecodeRegs[insn.dst]; \
+  XmmReg r1, tmp1, tmp2; \
   VEX1(movaps, r1, xmmword_ptr[constants + ConstantIndex::float_one * 16]); \
-  VEX2IMM(cmpps, t1.first, t1.first, zero, _CMP_NLE_US); \
-  VEX2IMM(cmpps, t1.second, t1.second, zero, _CMP_NLE_US); \
-  VEX2IMM(cmpps, t2.first, t2.first, zero, _CMP_NLE_US); \
-  VEX2IMM(cmpps, t2.second, t2.second, zero, _CMP_NLE_US); \
-  VEX2(op, t1.first, t1.first, t2.first); \
-  VEX2(op, t1.second, t1.second, t2.second); \
-  VEX2(andps, t1.first, t1.first, r1); \
-  VEX2(andps, t1.second, t1.second, r1); \
-  stack.push_back(t1); \
+  VEX2IMM(cmpps, tmp1, t1.first, zero, _CMP_NLE_US); \
+  VEX2IMM(cmpps, tmp2, t1.second, zero, _CMP_NLE_US); \
+  VEX2IMM(cmpps, t3.first, t2.first, zero, _CMP_NLE_US); \
+  VEX2IMM(cmpps, t3.second, t2.second, zero, _CMP_NLE_US); \
+  VEX2(op, t3.first, t3.first, tmp1); \
+  VEX2(op, t3.second, t3.second, tmp2); \
+  VEX2(andps, t3.first, t3.first, r1); \
+  VEX2(andps, t3.second, t3.second, r1); \
 } while (0)
 
-    void and_(ExprUnion arg)
+    void and_(const ExprInstruction &insn)
     {
         deferred.push_back(EMIT()
         {
@@ -562,7 +550,7 @@ do { \
         });
     }
 
-    void or_(ExprUnion arg)
+    void or_(const ExprInstruction &insn)
     {
         deferred.push_back(EMIT()
         {
@@ -570,7 +558,7 @@ do { \
         });
     }
 
-    void xor_(ExprUnion arg)
+    void xor_(const ExprInstruction &insn)
     {
         deferred.push_back(EMIT()
         {
@@ -579,51 +567,45 @@ do { \
     }
 #undef LOGICOP
 
-    void cmp(ExprUnion arg)
+    void cmp(const ExprInstruction &insn)
     {
         deferred.push_back(EMIT()
         {
-            auto t1 = stack.back();
-            stack.pop_back();
-            auto t2 = stack.back();
-            stack.pop_back();
-
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.src2];
+            auto t3 = bytecodeRegs[insn.dst];
             XmmReg r1;
             VEX1(movaps, r1, xmmword_ptr[constants + ConstantIndex::float_one * 16]);
-            VEX2IMM(cmpps, t2.first, t2.first, t1.first, arg.i);
-            VEX2IMM(cmpps, t2.second, t2.second, t1.second, arg.i);
-            VEX2(andps, t2.first, t2.first, r1);
-            VEX2(andps, t2.second, t2.second, r1);
-            stack.push_back(t2);
+            VEX2IMM(cmpps, t3.first, t2.first, t1.first, insn.op.imm.u);
+            VEX2IMM(cmpps, t3.second, t2.second, t1.second, insn.op.imm.u);
+            VEX2(andps, t3.first, t3.first, r1);
+            VEX2(andps, t3.second, t3.second, r1);
         });
     }
 
-    void ternary(ExprUnion arg)
+    void ternary(const ExprInstruction &insn)
     {
         deferred.push_back(EMIT()
         {
-            auto t1 = stack.back();
-            stack.pop_back();
-            auto t2 = stack.back();
-            stack.pop_back();
-            auto t3 = stack.back();
-            stack.pop_back();
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.src2];
+            auto t3 = bytecodeRegs[insn.src3];
+            auto t4 = bytecodeRegs[insn.dst];
 
-            VEX2IMM(cmpps, t3.first, t3.first, zero, _CMP_NLE_US);
-            VEX2IMM(cmpps, t3.second, t3.second, zero, _CMP_NLE_US);
+            XmmReg r1, r2;
+            VEX2IMM(cmpps, r1, t1.first, zero, _CMP_NLE_US);
+            VEX2IMM(cmpps, r2, t1.second, zero, _CMP_NLE_US);
 
             if (cpuFeatures.sse4_1) {
-                VEX2IMM(blendvps, t1.first, t1.first, t2.first, t3.first);
-                VEX2IMM(blendvps, t1.second, t1.second, t2.second, t3.second);
-                stack.push_back(t1);
+                VEX2IMM(blendvps, t4.first, t3.first, t2.first, r1);
+                VEX2IMM(blendvps, t4.second, t3.second, t2.second, r2);
             } else {
-                VEX2(andps, t2.first, t2.first, t3.first);
-                VEX2(andps, t2.second, t2.second, t3.second);
-                VEX2(andnps, t3.first, t3.first, t1.first);
-                VEX2(andnps, t3.second, t3.second, t1.second);
-                VEX2(orps, t2.first, t2.first, t3.first);
-                VEX2(orps, t2.second, t2.second, t3.second);
-                stack.push_back(t2);
+                VEX2(andps, t4.first, t2.first, r1);
+                VEX2(andps, t4.second, t2.second, r2);
+                VEX2(andnps, r1, r1, t3.first);
+                VEX2(andnps, r2, r2, t3.second);
+                VEX2(orps, t4.first, t4.first, r1);
+                VEX2(orps, t4.second, t4.second, r2);
             }
         });
     }
@@ -710,16 +692,17 @@ do { \
         VEX2(orps, x, x, invalid_mask);
     }
 
-    void exp(ExprUnion arg)
+    void exp(const ExprInstruction &insn)
     {
         int l = curLabel++;
 
-        deferred.push_back([this, arg, l](Reg regptrs, XmmReg zero, Reg constants, std::vector<std::pair<XmmReg, XmmReg>> &stack)
+        deferred.push_back([this, insn, l](Reg regptrs, XmmReg zero, Reg constants, std::unordered_map<int, std::pair<XmmReg, XmmReg>> &bytecodeRegs)
         {
             char label[] = "label-0000";
             sprintf(label, "label-%04d", l);
 
-            auto t1 = stack.back();
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.dst];
             XmmReg r1, r2, one;
             Reg a;
             mov(a, 2);
@@ -730,8 +713,8 @@ do { \
             L(label);
 
             exp_(r1, one, constants);
-            VEX1(movaps, t1.first, t1.second);
-            VEX1(movaps, t1.second, r1);
+            VEX1(movaps, t2.first, t2.second);
+            VEX1(movaps, t2.second, r1);
             VEX1(movaps, r1, r2);
 
             jit::sub(a, 1);
@@ -739,16 +722,17 @@ do { \
         });
     }
 
-    void log(ExprUnion arg)
+    void log(const ExprInstruction &insn)
     {
         int l = curLabel++;
 
-        deferred.push_back([this, arg, l](Reg regptrs, XmmReg zero, Reg constants, std::vector<std::pair<XmmReg, XmmReg>> &stack)
+        deferred.push_back([this, insn, l](Reg regptrs, XmmReg zero, Reg constants, std::unordered_map<int, std::pair<XmmReg, XmmReg>> &bytecodeRegs)
         {
             char label[] = "label-0000";
             sprintf(label, "label-%04d", l);
 
-            auto t1 = stack.back();
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.dst];
             XmmReg r1, r2, one;
             Reg a;
             mov(a, 2);
@@ -759,8 +743,8 @@ do { \
             L(label);
 
             log_(r1, zero, one, constants);
-            VEX1(movaps, t1.first, t1.second);
-            VEX1(movaps, t1.second, r1);
+            VEX1(movaps, t2.first, t2.second);
+            VEX1(movaps, t2.second, r1);
             VEX1(movaps, r1, r2);
 
             jit::sub(a, 1);
@@ -768,18 +752,18 @@ do { \
         });
     }
 
-    void pow(ExprUnion arg)
+    void pow(const ExprInstruction &insn)
     {
         int l = curLabel++;
 
-        deferred.push_back([this, arg, l](Reg regptrs, XmmReg zero, Reg constants, std::vector<std::pair<XmmReg, XmmReg>> &stack)
+        deferred.push_back([this, insn, l](Reg regptrs, XmmReg zero, Reg constants, std::unordered_map<int, std::pair<XmmReg, XmmReg>> &bytecodeRegs)
         {
             char label[] = "label-0000";
             sprintf(label, "label-%04d", l);
 
-            auto t1 = stack.back();
-            stack.pop_back();
-            auto t2 = stack.back();
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.src2];
+            auto t3 = bytecodeRegs[insn.dst];
 
             XmmReg r1, r2, r3, r4, one;
             Reg a;
@@ -796,8 +780,8 @@ do { \
             VEX2(mulps, r3, r3, r1);
             exp_(r3, one, constants);
 
-            VEX1(movaps, t2.first, t2.second);
-            VEX1(movaps, t2.second, r3);
+            VEX1(movaps, t3.first, t3.second);
+            VEX1(movaps, t3.second, r3);
             VEX1(movaps, r1, r2);
             VEX1(movaps, r3, r4);
 
@@ -808,6 +792,7 @@ do { \
 
     void main(Reg regptrs, Reg regoffs, Reg niter)
     {
+        std::unordered_map<int, std::pair<XmmReg, XmmReg>> bytecodeRegs;
         XmmReg zero;
         VEX2(pxor, zero, zero, zero);
         Reg constants;
@@ -815,10 +800,8 @@ do { \
 
         L("wloop");
 
-        std::vector<std::pair<XmmReg, XmmReg>> stack;
-
         for (const auto &f : deferred) {
-            f(regptrs, zero, constants, stack);
+            f(regptrs, zero, constants, bytecodeRegs);
         }
 
 #if UINTPTR_MAX > UINT32_MAX
@@ -849,36 +832,35 @@ public:
         getCPUFeatures(&cpuFeatures);
     }
 
-    void add_op(ExprOp op)
+    void addInstruction(const ExprInstruction &insn)
     {
-        switch (op.type) {
-        case ExprOpType::MEM_LOAD_U8: load8(op.imm); break;
-        case ExprOpType::MEM_LOAD_U16: load16(op.imm); break;
-        case ExprOpType::MEM_LOAD_F16: loadF16(op.imm); break;
-        case ExprOpType::MEM_LOAD_F32: loadF32(op.imm); break;
-        case ExprOpType::CONSTANT: loadConst(op.imm); break;
-        case ExprOpType::MEM_STORE_U8: store8(op.imm); break;
-        case ExprOpType::MEM_STORE_U16: store16(op.imm); break;
-        case ExprOpType::MEM_STORE_F16: storeF16(op.imm); break;
-        case ExprOpType::MEM_STORE_F32: storeF32(op.imm); break;
-        case ExprOpType::DUP: dup(op.imm); break;
-        case ExprOpType::ADD: add(op.imm); break;
-        case ExprOpType::SUB: sub(op.imm); break;
-        case ExprOpType::MUL: mul(op.imm); break;
-        case ExprOpType::DIV: div(op.imm); break;
-        case ExprOpType::MAX: max(op.imm); break;
-        case ExprOpType::MIN: min(op.imm); break;
-        case ExprOpType::SQRT: sqrt(op.imm); break;
-        case ExprOpType::ABS: abs(op.imm); break;
-        case ExprOpType::NOT: not_(op.imm); break;
-        case ExprOpType::AND: and_(op.imm); break;
-        case ExprOpType::OR: or_(op.imm); break;
-        case ExprOpType::XOR: xor_(op.imm); break;
-        case ExprOpType::CMP: cmp(op.imm); break;
-        case ExprOpType::TERNARY: ternary(op.imm); break;
-        case ExprOpType::EXP: exp(op.imm); break;
-        case ExprOpType::LOG: log(op.imm); break;
-        case ExprOpType::POW: pow(op.imm); break;
+        switch (insn.op.type) {
+        case ExprOpType::MEM_LOAD_U8: load8(insn); break;
+        case ExprOpType::MEM_LOAD_U16: load16(insn); break;
+        case ExprOpType::MEM_LOAD_F16: loadF16(insn); break;
+        case ExprOpType::MEM_LOAD_F32: loadF32(insn); break;
+        case ExprOpType::CONSTANT: loadConst(insn); break;
+        case ExprOpType::MEM_STORE_U8: store8(insn); break;
+        case ExprOpType::MEM_STORE_U16: store16(insn); break;
+        case ExprOpType::MEM_STORE_F16: storeF16(insn); break;
+        case ExprOpType::MEM_STORE_F32: storeF32(insn); break;
+        case ExprOpType::ADD: add(insn); break;
+        case ExprOpType::SUB: sub(insn); break;
+        case ExprOpType::MUL: mul(insn); break;
+        case ExprOpType::DIV: div(insn); break;
+        case ExprOpType::MAX: max(insn); break;
+        case ExprOpType::MIN: min(insn); break;
+        case ExprOpType::SQRT: sqrt(insn); break;
+        case ExprOpType::ABS: abs(insn); break;
+        case ExprOpType::NOT: not_(insn); break;
+        case ExprOpType::AND: and_(insn); break;
+        case ExprOpType::OR: or_(insn); break;
+        case ExprOpType::XOR: xor_(insn); break;
+        case ExprOpType::CMP: cmp(insn); break;
+        case ExprOpType::TERNARY: ternary(insn); break;
+        case ExprOpType::EXP: exp(insn); break;
+        case ExprOpType::LOG: log(insn); break;
+        case ExprOpType::POW: pow(insn); break;
         }
     }
 
@@ -903,128 +885,118 @@ public:
 #endif
 
 class ExprInterpreter {
-    const ExprOp *vops;
-    size_t numOps;
-    std::vector<float> stack;
+    const ExprInstruction *bytecode;
+    size_t numInsns;
+    std::vector<float> registers;
 public:
-    ExprInterpreter(const ExprOp *ops, size_t numOps, size_t stackSize) : vops(ops), numOps(numOps), stack(stackSize)
-    {}
+    ExprInterpreter(const ExprInstruction *bytecode, size_t numInsns) : bytecode(bytecode), numInsns(numInsns)
+    {
+        int maxreg = 0;
+        for (size_t i = 0; i < numInsns; ++i) {
+            maxreg = std::max(maxreg, bytecode[i].dst);
+        }
+        registers.resize(maxreg + 1);
+    }
 
     void eval(const uint8_t * const *srcp, uint8_t *dstp, int x)
     {
-        float stacktop;
-        int si = 0;
-        int i = -1;
+        for (size_t i = 0; i < numInsns; ++i) {
+            const ExprInstruction &insn = bytecode[i];
 
-        while (true) {
-            i++;
-            switch (vops[i].type) {
+            switch (insn.op.type) {
             case ExprOpType::MEM_LOAD_U8:
-                stack[si] = stacktop;
-                stacktop = srcp[vops[i].imm.i][x];
-                ++si;
+                registers[insn.dst] = srcp[insn.op.imm.u][x];
                 break;
             case ExprOpType::MEM_LOAD_U16:
-                stack[si] = stacktop;
-                stacktop = reinterpret_cast<const uint16_t *>(srcp[vops[i].imm.i])[x];
-                ++si;
+                registers[insn.dst] = reinterpret_cast<const uint16_t *>(srcp[insn.op.imm.u])[x];
+                break;
+            case ExprOpType::MEM_LOAD_F16:
+                registers[insn.dst] = 0;
                 break;
             case ExprOpType::MEM_LOAD_F32:
-                stack[si] = stacktop;
-                stacktop = reinterpret_cast<const float *>(srcp[vops[i].imm.i])[x];
-                ++si;
+                registers[insn.dst] = reinterpret_cast<const float *>(srcp[insn.op.imm.u])[x];
                 break;
             case ExprOpType::CONSTANT:
-                stack[si] = stacktop;
-                stacktop = vops[i].imm.f;
-                ++si;
-                break;
-            case ExprOpType::DUP:
-                stack[si] = stacktop;
-                stacktop = stack[si - vops[i].imm.i];
-                ++si;
-                break;
-            case ExprOpType::SWAP:
-                std::swap(stacktop, stack[si - vops[i].imm.i]);
+                registers[insn.dst] = insn.op.imm.f;
                 break;
             case ExprOpType::ADD:
-                --si;
-                stacktop += stack[si];
+                registers[insn.dst] = registers[insn.src1] + registers[insn.src2];
                 break;
             case ExprOpType::SUB:
-                --si;
-                stacktop = stack[si] - stacktop;
+                registers[insn.dst] = registers[insn.src1] - registers[insn.src2];
                 break;
             case ExprOpType::MUL:
-                --si;
-                stacktop *= stack[si];
+                registers[insn.dst] = registers[insn.src1] * registers[insn.src2];
                 break;
             case ExprOpType::DIV:
-                --si;
-                stacktop = stack[si] / stacktop;
+                registers[insn.dst] = registers[insn.src1] / registers[insn.src2];
                 break;
             case ExprOpType::MAX:
-                --si;
-                stacktop = std::max(stacktop, stack[si]);
+                registers[insn.dst] = std::max(registers[insn.src1], registers[insn.src2]);
                 break;
             case ExprOpType::MIN:
-                --si;
-                stacktop = std::min(stacktop, stack[si]);
+                registers[insn.dst] = std::min(registers[insn.src1], registers[insn.src2]);
                 break;
             case ExprOpType::EXP:
-                stacktop = std::exp(stacktop);
+                registers[insn.dst] = std::exp(registers[insn.src1]);
                 break;
             case ExprOpType::LOG:
-                stacktop = std::log(stacktop);
+                registers[insn.dst] = std::log(registers[insn.src1]);
                 break;
             case ExprOpType::POW:
-                --si;
-                stacktop = std::pow(stack[si], stacktop);
+                registers[insn.dst] = std::pow(registers[insn.src1], registers[insn.src2]);
                 break;
             case ExprOpType::SQRT:
-                stacktop = std::sqrt(stacktop);
+                registers[insn.dst] = std::sqrt(registers[insn.src1]);
                 break;
             case ExprOpType::ABS:
-                stacktop = std::fabs(stacktop);
+                registers[insn.dst] = std::fabs(registers[insn.src1]);
                 break;
             case ExprOpType::CMP:
-                --si;
-                switch (static_cast<ComparisonType>(vops[i].imm.i)) {
-                case ComparisonType::EQ: stacktop = stack[si] == stacktop ? 1.0f : 0.0f; break;
-                case ComparisonType::LT: stacktop = stack[si] < stacktop ? 1.0f : 0.0f; break;
-                case ComparisonType::LE: stacktop = stack[si] <= stacktop ? 1.0f : 0.0f; break;
-                case ComparisonType::NEQ: stacktop = stack[si] != stacktop ? 1.0f : 0.0f; break;
-                case ComparisonType::NLT: stacktop = stack[si] >= stacktop ? 1.0f : 0.0f; break;
-                case ComparisonType::NLE: stacktop = stack[si] > stacktop ? 1.0f : 0.0f; break;
+                switch (static_cast<ComparisonType>(insn.op.imm.u)) {
+                case ComparisonType::EQ:
+                    registers[insn.dst] = registers[insn.src1] == registers[insn.src2] ? 1.0f : 0.0f;
+                    break;
+                case ComparisonType::LT:
+                    registers[insn.dst] = registers[insn.src1] < registers[insn.src2] ? 1.0f : 0.0f;
+                    break;
+                case ComparisonType::LE:
+                    registers[insn.dst] = registers[insn.src1] <= registers[insn.src2] ? 1.0f : 0.0f;
+                    break;
+                case ComparisonType::NEQ:
+                    registers[insn.dst] = registers[insn.src1] != registers[insn.src2] ? 1.0f : 0.0f;
+                    break;
+                case ComparisonType::NLT:
+                    registers[insn.dst] = registers[insn.src1] >= registers[insn.src2] ? 1.0f : 0.0f;
+                    break;
+                case ComparisonType::NLE:
+                    registers[insn.dst] = registers[insn.src1] > registers[insn.src2] ? 1.0f : 0.0f;
+                    break;
                 }
                 break;
             case ExprOpType::TERNARY:
-                si -= 2;
-                stacktop = (stack[si] > 0) ? stack[si + 1] : stacktop;
+                registers[insn.dst] = registers[insn.src1] > 0.0f ? registers[insn.src2] : registers[insn.src3];
                 break;
             case ExprOpType::AND:
-                --si;
-                stacktop = (stacktop > 0 && stack[si] > 0) ? 1.0f : 0.0f;
+                registers[insn.dst] = (registers[insn.src1] > 0.0f && registers[insn.src2] > 0.0f) ? 1.0f : 0.0f;
                 break;
             case ExprOpType::OR:
-                --si;
-                stacktop = (stacktop > 0 || stack[si] > 0) ? 1.0f : 0.0f;
+                registers[insn.dst] = (registers[insn.src1] > 0.0f || registers[insn.src2] > 0.0f) ? 1.0f : 0.0f;
                 break;
             case ExprOpType::XOR:
-                --si;
-                stacktop = ((stacktop > 0) != (stack[si] > 0)) ? 1.0f : 0.0f;
+                registers[insn.dst] = (registers[insn.src1] > 0.0f != registers[insn.src2] > 0.0f) ? 1.0f : 0.0f;
                 break;
             case ExprOpType::NOT:
-                stacktop = (stacktop > 0) ? 0.0f : 1.0f;
+                registers[insn.dst] = registers[insn.src1] > 0.0f ? 0.0f : 1.0f;
                 break;
             case ExprOpType::MEM_STORE_U8:
-                dstp[x] = static_cast<uint8_t>(std::lrint(std::max(0.0f, std::min(stacktop, 255.0f))));
+                dstp[x] = static_cast<uint8_t>(std::lrint(std::max(0.0f, std::min(registers[insn.src1], 255.0f))));
                 return;
             case ExprOpType::MEM_STORE_U16:
-                reinterpret_cast<uint16_t *>(dstp)[x] = static_cast<uint16_t>(std::lrint(std::max(0.0f, std::min(stacktop, 65535.0f))));
+                reinterpret_cast<uint16_t *>(dstp)[x] = static_cast<uint16_t>(std::lrint(std::max(0.0f, std::min(registers[insn.src1], 65535.0f))));
                 return;
             case ExprOpType::MEM_STORE_F32:
-                reinterpret_cast<float *>(dstp)[x] = stacktop;
+                reinterpret_cast<float *>(dstp)[x] = registers[insn.src1];
                 return;
             }
         }
@@ -1306,29 +1278,57 @@ ExpressionTree parseExpr(const std::string &expr, const VSVideoInfo * const *vi,
     return tree;
 }
 
-std::vector<ExprOp> serializeTree(const ExpressionTreeNode *root, const VSFormat *format)
+std::vector<ExprInstruction> compile(ExpressionTree &tree, const VSFormat *format)
 {
-    std::vector<ExprOp> bytecode;
+    std::vector<ExprInstruction> code;
+    int valueNum = 0;
 
-    const_cast<ExpressionTreeNode *>(root)->postorder([&](const ExpressionTreeNode &node)
+    if (!tree.getRoot())
+        return code;
+
+    tree.getRoot()->postorder([&](ExpressionTreeNode &node)
     {
         if (node.op.type == ExprOpType::MUX)
             return;
 
-        bytecode.push_back(node.op);
+        ExprInstruction opcode(node.op);
+        opcode.dst = node.valueNum = valueNum++;
+
+        if (node.left) {
+            assert(node.left->valueNum >= 0);
+            opcode.src1 = node.left->valueNum;
+        }
+        if (node.right) {
+            if (node.op.type == ExprOpType::TERNARY) {
+                assert(node.right->left->valueNum >= 0);
+                assert(node.right->right->valueNum >= 0);
+                opcode.src2 = node.right->left->valueNum;
+                opcode.src3 = node.right->right->valueNum;
+            } else {
+                assert(node.right->valueNum >= 0);
+                opcode.src2 = node.right->valueNum;
+            }
+        }
+
+        code.push_back(opcode);
     });
 
-    // Add final store.
-    if (format->sampleType == stInteger && format->bytesPerSample == 1)
-        bytecode.push_back(ExprOpType::MEM_STORE_U8);
-    else if (format->sampleType == stInteger && format->bytesPerSample == 2)
-        bytecode.push_back(ExprOpType::MEM_STORE_U16);
-    else if (format->sampleType == stFloat && format->bytesPerSample == 2)
-        bytecode.push_back(ExprOpType::MEM_STORE_F16);
-    else if (format->sampleType == stFloat && format->bytesPerSample == 4)
-        bytecode.push_back(ExprOpType::MEM_STORE_F32);
 
-    return bytecode;
+    ExprInstruction store(ExprOpType::MEM_STORE_U8);
+
+    if (format->sampleType == stInteger && format->bytesPerSample == 1)
+        store.op.type = ExprOpType::MEM_STORE_U8;
+    else if (format->sampleType == stInteger && format->bytesPerSample == 2)
+        store.op.type = ExprOpType::MEM_STORE_U16;
+    else if (format->sampleType == stFloat && format->bytesPerSample == 2)
+        store.op.type = ExprOpType::MEM_STORE_F16;
+    else if (format->sampleType == stFloat && format->bytesPerSample == 4)
+        store.op.type = ExprOpType::MEM_STORE_F32;
+
+    store.src1 = code.back().dst;
+    code.push_back(store);
+
+    return code;
 }
 
 static void VS_CC exprInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -1393,7 +1393,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                     proc(rwptrs, ptroffsets, niterations);
                 }
             } else {
-                ExprInterpreter interpreter(d->ops[plane].data(), d->ops[plane].size(), d->maxStackSize);
+                ExprInterpreter interpreter(d->bytecode[plane].data(), d->bytecode[plane].size());
 
                 for (int y = 0; y < h; y++) {
                     for (int x = 0; x < w; x++) {
@@ -1513,15 +1513,15 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
                 continue;
 
             auto tree = parseExpr(expr[i], vi, d->numInputs);
-            d->ops[i] = serializeTree(tree.getRoot(), d->vi.format);
+            d->bytecode[i] = compile(tree, d->vi.format);
 
             if (vs_get_cpulevel(core) > VS_CPU_LEVEL_NONE) {
                 for (int i = 0; i < d->vi.format->numPlanes; i++) {
                     if (d->plane[i] == poProcess) {
 #ifdef VS_TARGET_CPU_X86
                         ExprCompiler compiler(d->numInputs);
-                        for (auto op : d->ops[i]) {
-                            compiler.add_op(op);
+                        for (auto op : d->bytecode[i]) {
+                            compiler.addInstruction(op);
                         }
 
                         d->proc[i] = compiler.getCode();
