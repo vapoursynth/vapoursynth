@@ -50,7 +50,7 @@ void vs_merge_byte_sse2(const void *src1, const void *src2, void *dst, union vs_
 
         // tmp2 = ((tmp1 * w) >> 16) + (((tmp1 * w) >> 15) & 1)
         __m128i tmp2lo = _mm_add_epi16(_mm_add_epi16(_mm_mulhi_epi16(tmp1lo, w), _mm_srli_epi16(_mm_mullo_epi16(tmp1lo, w), 15)), v1w_lo);
-        __m128i tmp2hi = _mm_add_epi16(_mm_add_epi16(_mm_mulhi_epi16(tmp1hi, w), _mm_srli_epi16(_mm_mullo_epi16(tmp1hi, w), 15)), v1w_lo);
+        __m128i tmp2hi = _mm_add_epi16(_mm_add_epi16(_mm_mulhi_epi16(tmp1hi, w), _mm_srli_epi16(_mm_mullo_epi16(tmp1hi, w), 15)), v1w_hi);
 
         // result = tmp2 >> 8
         __m128i result = _mm_packus_epi16(tmp2lo, tmp2hi);
