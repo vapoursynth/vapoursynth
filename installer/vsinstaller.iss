@@ -1,4 +1,4 @@
-#define Version 'R47'
+#define Version 'R47.2'
 
 #ifndef InstallerBits
   #define InstallerBits '64'
@@ -35,7 +35,7 @@ AppPublisher=Fredrik Mellbin
 AppPublisherURL=http://www.vapoursynth.com/
 AppSupportURL=http://www.vapoursynth.com/
 AppUpdatesURL=http://www.vapoursynth.com/
-VersionInfoVersion=1.47.0.0
+VersionInfoVersion=1.47.2.0
 DefaultDirName={autopf}\{#= AppId}
 DefaultGroupName={#= AppName}
 AllowCancelDuringInstall=no
