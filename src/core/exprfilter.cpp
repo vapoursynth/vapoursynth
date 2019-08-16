@@ -41,6 +41,7 @@
 #endif
 #endif
 
+namespace {
 
 #define MAX_EXPR_INPUTS 26
 
@@ -592,7 +593,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                         src_stride[i] = vsapi->getStride(src[i], plane);
                         ptroffsets[i + 1] = vsapi->getFrameFormat(src[i])->bytesPerSample * 8;
                     }
-                }               
+                }
 
                 uint8_t *dstp = vsapi->getWritePtr(dst, plane);
                 int dst_stride = vsapi->getStride(dst, plane);
@@ -620,7 +621,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                     if (d->node[i]) {
                         srcp[i] = vsapi->getReadPtr(src[i], plane);
                         src_stride[i] = vsapi->getStride(src[i], plane);
-                    } 
+                    }
                 }
 
                 uint8_t *dstp = vsapi->getWritePtr(dst, plane);
@@ -1337,6 +1338,9 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     vsapi->createFilter(in, out, "Expr", exprInit, exprGetFrame, exprFree, fmParallel, 0, d.release(), core);
 }
+
+} // namespace
+
 
 //////////////////////////////////////////
 // Init
