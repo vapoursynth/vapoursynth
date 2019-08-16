@@ -28,6 +28,7 @@
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include "VapourSynth.h"
 #include "VSHelper.h"
@@ -1079,6 +1080,21 @@ std::unique_ptr<ExpressionTreeNode> makeTreeNode(ExprOp data)
     return std::unique_ptr<ExpressionTreeNode>(new ExpressionTreeNode(data));
 }
 
+bool equalSubTree(const ExpressionTreeNode *lhs, const ExpressionTreeNode *rhs)
+{
+    if (lhs->valueNum >= 0 && rhs->valueNum >= 0)
+        return lhs->valueNum == rhs->valueNum;
+    if (lhs->op.type != rhs->op.type || lhs->op.imm.u != rhs->op.imm.u)
+        return false;
+    if (!!lhs->left != !!rhs->left || !!lhs->right != !!rhs->right)
+        return false;
+    if (lhs->left && !equalSubTree(lhs->left, rhs->left))
+        return false;
+    if (lhs->right && !equalSubTree(lhs->right, rhs->right))
+        return false;
+    return true;
+}
+
 std::vector<std::string> tokenize(const std::string &expr)
 {
     std::vector<std::string> tokens;
@@ -1278,21 +1294,52 @@ ExpressionTree parseExpr(const std::string &expr, const VSVideoInfo * const *vi,
     return tree;
 }
 
-std::vector<ExprInstruction> compile(ExpressionTree &tree, const VSFormat *format)
+void applyValueNumbering(ExpressionTree &tree)
 {
-    std::vector<ExprInstruction> code;
+    std::vector<ExpressionTreeNode *> numbered;
     int valueNum = 0;
 
-    if (!tree.getRoot())
-        return code;
+    tree.getRoot()->postorder([&](ExpressionTreeNode &node)
+    {
+        node.valueNum = -1;
+    });
 
     tree.getRoot()->postorder([&](ExpressionTreeNode &node)
     {
         if (node.op.type == ExprOpType::MUX)
             return;
 
+        for (ExpressionTreeNode *testnode : numbered) {
+            if (equalSubTree(&node, testnode)) {
+                node.valueNum = testnode->valueNum;
+                return;
+            }
+        }
+
+        node.valueNum = valueNum++;
+        numbered.push_back(&node);
+    });
+}
+
+std::vector<ExprInstruction> compile(ExpressionTree &tree, const VSFormat *format)
+{
+    std::vector<ExprInstruction> code;
+    std::unordered_set<int> found;
+
+    if (!tree.getRoot())
+        return code;
+
+    applyValueNumbering(tree);
+
+    tree.getRoot()->postorder([&](ExpressionTreeNode &node)
+    {
+        if (node.op.type == ExprOpType::MUX)
+            return;
+        if (found.find(node.valueNum) != found.end())
+            return;
+
         ExprInstruction opcode(node.op);
-        opcode.dst = node.valueNum = valueNum++;
+        opcode.dst = node.valueNum;
 
         if (node.left) {
             assert(node.left->valueNum >= 0);
@@ -1311,8 +1358,8 @@ std::vector<ExprInstruction> compile(ExpressionTree &tree, const VSFormat *forma
         }
 
         code.push_back(opcode);
+        found.insert(node.valueNum);
     });
-
 
     ExprInstruction store(ExprOpType::MEM_STORE_U8);
 
