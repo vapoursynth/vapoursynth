@@ -56,7 +56,7 @@ enum class ExprOpType {
     MEM_STORE_U8, MEM_STORE_U16, MEM_STORE_F16, MEM_STORE_F32,
 
     // Arithmetic primitives.
-    ADD, SUB, MUL, DIV, SQRT, ABS, MAX, MIN, CMP,
+    ADD, SUB, MUL, DIV, SQRT, ABS, NEG, MAX, MIN, CMP,
 
     // Logical operators.
     AND, OR, XOR, NOT,
@@ -161,8 +161,9 @@ class ExprCompiler : private jitasm::function<void, ExprCompiler, uint8_t *, con
     friend struct jitasm::function_cdecl<void, ExprCompiler, uint8_t *, const intptr_t *, intptr_t>;
 
 #define SPLAT(x) { (x), (x), (x), (x) }
-    static constexpr ExprUnion constData[31][4] alignas(16) = {
+    static constexpr ExprUnion constData[32][4] alignas(16) = {
         SPLAT(0x7FFFFFFF), // absmask
+        SPLAT(0x80000000), // negmask
         SPLAT(0x7F), // x7F
         SPLAT(0x00800000), // min_norm_pos
         SPLAT(~0x7F800000), // inv_mant_mask
@@ -197,36 +198,37 @@ class ExprCompiler : private jitasm::function<void, ExprCompiler, uint8_t *, con
 
     struct ConstantIndex {
         static constexpr int absmask = 0;
-        static constexpr int x7F = 1;
-        static constexpr int min_norm_pos = 2;
-        static constexpr int inv_mant_mask = 3;
-        static constexpr int float_one = 4;
-        static constexpr int float_half = 5;
-        static constexpr int float_255 = 6;
-        static constexpr int float_65535 = 7;
-        static constexpr int i16min_epi16 = 8;
-        static constexpr int i16min_epi32 = 9;
-        static constexpr int exp_hi = 10;
-        static constexpr int exp_lo = 11;
-        static constexpr int log2e = 12;
-        static constexpr int exp_c1 = 13;
-        static constexpr int exp_c2 = 14;
-        static constexpr int exp_p0 = 15;
-        static constexpr int exp_p1 = 16;
-        static constexpr int exp_p2 = 17;
-        static constexpr int exp_p3 = 18;
-        static constexpr int exp_p4 = 19;
-        static constexpr int exp_p5 = 20;
-        static constexpr int sqrt_1_2 = 21;
-        static constexpr int log_p0 = 22;
-        static constexpr int log_p1 = 23;
-        static constexpr int log_p2 = 24;
-        static constexpr int log_p3 = 25;
-        static constexpr int log_p4 = 26;
-        static constexpr int log_p5 = 27;
-        static constexpr int log_p6 = 28;
-        static constexpr int log_p7 = 29;
-        static constexpr int log_p8 = 30;
+        static constexpr int negmask = 1;
+        static constexpr int x7F = 2;
+        static constexpr int min_norm_pos = 3;
+        static constexpr int inv_mant_mask = 4;
+        static constexpr int float_one = 5;
+        static constexpr int float_half = 6;
+        static constexpr int float_255 = 7;
+        static constexpr int float_65535 = 8;
+        static constexpr int i16min_epi16 = 9;
+        static constexpr int i16min_epi32 = 10;
+        static constexpr int exp_hi = 11;
+        static constexpr int exp_lo = 12;
+        static constexpr int log2e = 13;
+        static constexpr int exp_c1 = 14;
+        static constexpr int exp_c2 = 15;
+        static constexpr int exp_p0 = 16;
+        static constexpr int exp_p1 = 17;
+        static constexpr int exp_p2 = 18;
+        static constexpr int exp_p3 = 19;
+        static constexpr int exp_p4 = 20;
+        static constexpr int exp_p5 = 21;
+        static constexpr int sqrt_1_2 = 22;
+        static constexpr int log_p0 = 23;
+        static constexpr int log_p1 = 24;
+        static constexpr int log_p2 = 25;
+        static constexpr int log_p3 = 26;
+        static constexpr int log_p4 = 27;
+        static constexpr int log_p5 = 28;
+        static constexpr int log_p6 = 29;
+        static constexpr int log_p7 = 30;
+        static constexpr int log_p8 = 31;
         static constexpr int log_q1 = exp_c2;
         static constexpr int log_q2 = exp_c1;
     };
@@ -512,6 +514,19 @@ do { \
             VEX1(movaps, r1, xmmword_ptr[constants + ConstantIndex::absmask * 16]);
             VEX2(andps, t2.first, t1.first, r1);
             VEX2(andps, t2.second, t1.second, r1);
+        });
+    }
+
+    void neg(const ExprInstruction &insn)
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.dst];
+            XmmReg r1;
+            VEX1(movaps, r1, xmmword_ptr[constants + ConstantIndex::negmask * 16]);
+            VEX2(xorps, t2.first, t1.first, r1);
+            VEX2(xorps, t2.second, t1.second, r1);
         });
     }
 
@@ -857,6 +872,7 @@ public:
         case ExprOpType::MIN: min(insn); break;
         case ExprOpType::SQRT: sqrt(insn); break;
         case ExprOpType::ABS: abs(insn); break;
+        case ExprOpType::NEG: neg(insn); break;
         case ExprOpType::NOT: not_(insn); break;
         case ExprOpType::AND: and_(insn); break;
         case ExprOpType::OR: or_(insn); break;
@@ -956,6 +972,9 @@ public:
                 break;
             case ExprOpType::ABS:
                 registers[insn.dst] = std::fabs(registers[insn.src1]);
+                break;
+            case ExprOpType::NEG:
+                registers[insn.dst] = -registers[insn.src1];
                 break;
             case ExprOpType::CMP:
                 switch (static_cast<ComparisonType>(insn.op.imm.u)) {
@@ -1210,6 +1229,7 @@ ExpressionTree parseExpr(const std::string &expr, const VSVideoInfo * const *vi,
         2, // DIV
         1, // SQRT
         1, // ABS
+        1, // NEG
         2, // MAX
         2, // MIN
         2, // CMP
@@ -1345,6 +1365,7 @@ float evalConstantExpr(const ExpressionTreeNode &node)
     case ExprOpType::DIV: return evalConstantExpr(*node.left) / evalConstantExpr(*node.right);
     case ExprOpType::SQRT: return std::sqrt(evalConstantExpr(*node.left));
     case ExprOpType::ABS: return std::fabs(evalConstantExpr(*node.left));
+    case ExprOpType::NEG: return -evalConstantExpr(*node.left);
     case ExprOpType::MAX: return std::max(evalConstantExpr(*node.left), evalConstantExpr(*node.right));
     case ExprOpType::MIN: return std::min(evalConstantExpr(*node.left), evalConstantExpr(*node.right));
     case ExprOpType::CMP:
@@ -2049,6 +2070,42 @@ bool applyStrengthReduction(ExpressionTree &tree)
         if (node.op == ExprOpType::MUX)
             return;
 
+        // 0 - x = -x
+        if (node.op == ExprOpType::SUB && isConstant(*node.left, 0.0f)) {
+            ExpressionTreeNode *tmp = node.right;
+            replaceNode(node, ExpressionTreeNode{ { ExprOpType::NEG } });
+            node.setLeft(tmp);
+            changed = true;
+        }
+
+        // x * -1 = -x    x / -1 = -x
+        if (isOpCode(node, { ExprOpType::MUL, ExprOpType::DIV }) && isConstant(*node.right, -1.0f)) {
+            ExpressionTreeNode *tmp = node.left;
+            replaceNode(node, ExpressionTreeNode{ { ExprOpType::NEG } });
+            node.setLeft(tmp);
+            changed = true;
+        }
+
+        // a + -b = a - b    a - -b = a + b
+        if (isOpCode(node, { ExprOpType::ADD, ExprOpType::SUB }) && node.right->op.type == ExprOpType::NEG) {
+            node.op = node.op == ExprOpType::ADD ? ExprOpType::SUB : ExprOpType::ADD;
+            replaceNode(*node.right, *node.right->left);
+            changed = true;
+        }
+
+        // -a + b = b - a
+        if (node.op == ExprOpType::ADD && node.left->op == ExprOpType::NEG) {
+            node.op = ExprOpType::SUB;
+            replaceNode(*node.left, *node.left->left);
+            std::swap(node.left, node.right);
+        }
+
+        // -(a - b) = b - a
+        if (node.op == ExprOpType::NEG && node.left->op == ExprOpType::SUB) {
+            replaceNode(node, *node.left);
+            std::swap(node.left, node.right);
+            changed = true;
+        }
 
         // x * 2 = x + x
         if (node.op == ExprOpType::MUL && isConstant(*node.right, 2.0f) && (!node.parent || node.parent->op != ExprOpType::ADD)) {
