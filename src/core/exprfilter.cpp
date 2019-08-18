@@ -1830,6 +1830,101 @@ bool applyAlgebraicOptimizations(ExpressionTree &tree)
     return changed;
 }
 
+bool applyComparisonOptimizations(ExpressionTree &tree)
+{
+    bool changed = false;
+
+    applyValueNumbering(tree);
+
+    tree.getRoot()->preorder([&](ExpressionTreeNode &node)
+    {
+        // Eliminate constant conditions.
+        if (node.op.type == ExprOpType::CMP && node.left->valueNum == node.right->valueNum) {
+            ComparisonType type = static_cast<ComparisonType>(node.op.imm.u);
+            if (type == ComparisonType::EQ || type == ComparisonType::LE || type == ComparisonType::NLT)
+                replaceNode(node, ExpressionTreeNode{ { ExprOpType::CONSTANT, 1.0f } });
+            else
+                replaceNode(node, ExpressionTreeNode{ { ExprOpType::CONSTANT, 0.0f } });
+
+            changed = true;
+            return changed;
+        }
+
+        // Eliminate identical branches.
+        if (node.op == ExprOpType::TERNARY && node.right->left->valueNum == node.right->right->valueNum) {
+            replaceNode(node, *node.right->left);
+            changed = true;
+            return changed;
+        }
+
+        // MIN/MAX detection.
+        if (node.op == ExprOpType::TERNARY && node.left->op.type == ExprOpType::CMP) {
+            ComparisonType type = static_cast<ComparisonType>(node.left->op.imm.u);
+            int cmpTerms[2] = { node.left->left->valueNum, node.left->right->valueNum };
+            int muxTerms[2] = { node.right->left->valueNum, node.right->right->valueNum };
+
+            bool isSameTerms = (cmpTerms[0] == muxTerms[0] && cmpTerms[1] == muxTerms[1]) || (cmpTerms[0] == muxTerms[1] && cmpTerms[1] == muxTerms[0]);
+            bool isLessOrGreater = type == ComparisonType::LT || type == ComparisonType::LE || type == ComparisonType::NLE || type == ComparisonType::NLT;
+
+            if (isSameTerms && isLessOrGreater) {
+                // a < b ? a : b --> min(a, b)     a > b ? b : a --> min(a, b)
+                // a > b ? a : b --> max(a, b)     a < b ? b : a --> max(a, b)
+                bool min = (type == ComparisonType::LT || type == ComparisonType::LE) ? cmpTerms[0] == muxTerms[0] : cmpTerms[0] != muxTerms[0];
+                ExpressionTreeNode *a = node.left->left;
+                ExpressionTreeNode *b = node.left->right;
+
+                replaceNode(node, ExpressionTreeNode{ min ? ExprOpType::MIN : ExprOpType::MAX });
+                node.setLeft(a);
+                node.setRight(b);
+
+                changed = true;
+                return changed;
+            }
+        }
+
+        // CMP to SUB conversion. It has lower priority than other comparison transformations.
+        if (node.op.type == ExprOpType::CMP && node.parent && node.parent->op == ExprOpType::TERNARY) {
+            ComparisonType type = static_cast<ComparisonType>(node.op.imm.u);
+
+            // a < b --> b - a
+            // a > b --> a - b
+            // a <= b --> !(b > a) --> !(a - b)
+            // a >= b --> !(a < b) --> !(b - a)
+            if (type == ComparisonType::LT || type == ComparisonType::LE || type == ComparisonType::NLT || type == ComparisonType::NLE) {
+                if (type == ComparisonType::LE || type == ComparisonType::NLT) {
+                    std::swap(node.parent->right->left, node.parent->right->right);
+                    type = type == ComparisonType::LE ? ComparisonType::NLE : ComparisonType::LT;
+                }
+
+                node.op = ExprOpType::SUB;
+                if (type == ComparisonType::LT)
+                    std::swap(node.left, node.right);
+
+                changed = true;
+                return changed;
+            }
+        }
+
+        if (node.op.type == ExprOpType::CMP && node.parent && isOpCode(*node.parent, { ExprOpType::AND, ExprOpType::OR, ExprOpType::XOR })) {
+            ComparisonType type = static_cast<ComparisonType>(node.op.imm.u);
+
+            // a < b --> b - a    a > b --> a - b
+            if (type == ComparisonType::LT || type == ComparisonType::NLE) {
+                if (type == ComparisonType::LT)
+                    std::swap(node.left, node.right);
+
+                node.op = ExprOpType::SUB;
+                changed = true;
+                return changed;
+            }
+        }
+
+        return false;
+    });
+
+    return changed;
+}
+
 bool applyLocalOptimizations(ExpressionTree &tree)
 {
     bool changed = false;
@@ -2058,7 +2153,7 @@ std::vector<ExprInstruction> compile(ExpressionTree &tree, const VSFormat *forma
     if (!tree.getRoot())
         return code;
 
-    while (applyLocalOptimizations(tree) || applyAlgebraicOptimizations(tree)) {
+    while (applyLocalOptimizations(tree) || applyAlgebraicOptimizations(tree) || applyComparisonOptimizations(tree)) {
         // ...
     }
 
