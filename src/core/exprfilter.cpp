@@ -23,6 +23,7 @@
 #include <functional>
 #include <iostream>
 #include <locale>
+#include <map>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
@@ -1039,6 +1040,18 @@ struct ExpressionTreeNode {
     }
 
     template <class T>
+    void preorder(T visitor)
+    {
+        if (visitor(*this))
+            return;
+
+        if (left)
+            left->preorder(visitor);
+        if (right)
+            right->preorder(visitor);
+    }
+
+    template <class T>
     void postorder(T visitor)
     {
         if (left)
@@ -1421,6 +1434,402 @@ ExpressionTreeNode *emitIntegerPow(ExpressionTree &tree, const ExpressionTreeNod
     return mulNode;
 }
 
+typedef std::unordered_map<int, const ExpressionTreeNode *> ValueIndex;
+
+class ExponentMap {
+    // e.g. 3 * v0^2 * v1^3
+    // map = { 0: 2, 1: 3 }, coeff = 3
+    std::map<int, float> map; // key = valueNum, value = exponent
+    float coeff;
+
+    bool expandOnePass(ValueIndex &index)
+    {
+        bool changed = false;
+
+        for (auto it = map.begin(); it != map.end();) {
+            const ExpressionTreeNode *value = index.at(it->first);
+            bool erase = false;
+
+            if (value->op == ExprOpType::POW && isConstant(*value->right)) {
+                index[value->left->valueNum] = value->left;
+
+                map[value->left->valueNum] += it->second * value->right->op.imm.f;
+                erase = true;
+            } else if (value->op == ExprOpType::MUL) {
+                index[value->left->valueNum] = value->left;
+                index[value->right->valueNum] = value->right;
+
+                map[value->left->valueNum] += it->second;
+                map[value->right->valueNum] += it->second;
+                erase = true;
+            } else if (value->op == ExprOpType::DIV) {
+                index[value->left->valueNum] = value->left;
+                index[value->right->valueNum] = value->right;
+
+                map[value->left->valueNum] += it->second;
+                map[value->right->valueNum] -= it->second;
+                erase = true;
+            }
+
+            if (erase) {
+                it = map.erase(it);
+                changed = true;
+                continue;
+            }
+
+            ++it;
+        }
+
+        return changed;
+    }
+
+    void combineConstants(const ValueIndex &index)
+    {
+        for (auto it = map.begin(); it != map.end();) {
+            const ExpressionTreeNode *node = index.at(it->first);
+            if (isConstant(*node)) {
+                coeff *= std::powf(node->op.imm.f, it->second);
+                it = map.erase(it);
+                continue;
+            }
+            ++it;
+        }
+    }
+public:
+    ExponentMap() : coeff(1.0f) {}
+
+    void addTerm(int valueNum, float exp) { map[valueNum] += exp; }
+
+    void addCoeff(float val) { coeff += val; }
+
+    void mulCoeff(float val) { coeff *= val; }
+
+    float getCoeff() const { return coeff; }
+
+    bool isScalar() const { return map.empty(); }
+
+    size_t numTerms() const { return map.size() + (coeff != 1.0f); }
+
+    bool isSameTerm(const ExponentMap &other) const
+    {
+        auto it1 = map.begin();
+        auto it2 = other.map.begin();
+
+        while (it1 != map.end() && it2 != other.map.end()) {
+            if (it1->first != it2->first || it1->second != it2->second)
+                return false;
+
+            ++it1;
+            ++it2;
+        }
+
+        return it1 == map.end() && it2 == other.map.end();
+    }
+
+    void expand(ValueIndex &index)
+    {
+        while (expandOnePass(index)) {
+            // ...
+        }
+
+        combineConstants(index);
+    }
+
+    ExpressionTreeNode *emit(ExpressionTree &tree, const ValueIndex &index) const
+    {
+        ExpressionTreeNode *node = nullptr;
+
+        for (auto &term : map) {
+            ExpressionTreeNode *powNode = tree.makeNode(ExprOpType::POW);
+            powNode->setLeft(tree.clone(index.at(term.first)));
+            powNode->setRight(tree.makeNode({ ExprOpType::CONSTANT, term.second }));
+
+            if (node) {
+                ExpressionTreeNode *mulNode = tree.makeNode(ExprOpType::MUL);
+                mulNode->setLeft(node);
+                mulNode->setRight(powNode);
+                node = mulNode;
+            } else {
+                node = powNode;
+            }
+        }
+
+        if (node) {
+            ExpressionTreeNode *mulNode = tree.makeNode(ExprOpType::MUL);
+            mulNode->setLeft(node);
+            mulNode->setRight(tree.makeNode({ ExprOpType::CONSTANT, coeff }));
+            node = mulNode;
+        } else {
+            node = tree.makeNode({ ExprOpType::CONSTANT, coeff });
+        }
+
+        return node;
+    }
+
+    bool canonicalOrder(const ExponentMap &other, const ValueIndex &index) const
+    {
+        // Convert map to flat array, as canonical order is different from value numbering.
+        std::vector<std::pair<int, float>> lhsFlat(map.begin(), map.end());
+        std::vector<std::pair<int, float>> rhsFlat(other.map.begin(), other.map.end());
+
+        auto pred = [&](const std::pair<int, float> &lhs, const std::pair<int, float> &rhs)
+        {
+            const auto memOpCodes = { ExprOpType::MEM_LOAD_U8, ExprOpType::MEM_LOAD_U16, ExprOpType::MEM_LOAD_F16, ExprOpType::MEM_LOAD_F32 };
+
+            // Order equivalent terms by exponent.
+            if (lhs.first == rhs.first)
+                return lhs.second < rhs.second;
+
+            const ExpressionTreeNode *lhsNode = index.at(lhs.first);
+            const ExpressionTreeNode *rhsNode = index.at(rhs.first);
+
+            // Ordering: complex values, memory, constants
+            int lhsCategory = isConstant(*lhsNode) ? 2 : isOpCode(*lhsNode, memOpCodes) ? 1 : 0;
+            int rhsCategory = isConstant(*rhsNode) ? 2 : isOpCode(*rhsNode, memOpCodes) ? 1 : 0;
+
+            if (lhsCategory != rhsCategory)
+                return lhsCategory < rhsCategory;
+
+            // Ordering criteria for each category:
+            //
+            // constants: order by value
+            // memory: order by variable name
+            // other: order by value number (unstable)
+            if (lhsCategory == 2)
+                return lhsNode->op.imm.f < rhsNode->op.imm.f;
+            else if (lhsCategory == 1)
+                return lhsNode->op.imm.u < rhsNode->op.imm.f;
+            else
+                return lhs.first < rhs.first;
+        };
+
+        std::sort(lhsFlat.begin(), lhsFlat.end(), pred);
+        std::sort(rhsFlat.begin(), rhsFlat.end(), pred);
+        return std::lexicographical_compare(lhsFlat.begin(), lhsFlat.end(), rhsFlat.begin(), rhsFlat.end(), pred);
+    }
+};
+
+class AdditiveSequence {
+    std::vector<ExponentMap> terms;
+    float scalarTerm;
+public:
+    AdditiveSequence() : scalarTerm() {}
+
+    void addTerm(int valueNum, int sign)
+    {
+        ExponentMap map;
+        map.addTerm(valueNum, 1.0f);
+        map.mulCoeff(static_cast<float>(sign));
+        terms.push_back(std::move(map));
+    }
+
+    size_t numTerms() const { return terms.size() + (scalarTerm != 0.0f); }
+
+    void expand(ValueIndex &index)
+    {
+        for (auto &term : terms) {
+            term.expand(index);
+        }
+
+        for (auto it = terms.begin(); it != terms.end();) {
+            if (it->isScalar()) {
+                scalarTerm += it->getCoeff();
+                it = terms.erase(it);
+                continue;
+            }
+
+            ++it;
+        }
+
+        for (auto it1 = terms.begin(); it1 != terms.end();) {
+            for (auto it2 = it1 + 1; it2 != terms.end(); ++it2) {
+                if (it1->isSameTerm(*it2)) {
+                    it1->addCoeff(it2->getCoeff());
+                    it2->mulCoeff(0.0f);
+                }
+            }
+
+            if (it1->getCoeff() == 0.0f) {
+                it1 = terms.erase(it1);
+                continue;
+            }
+
+            ++it1;
+        }
+    }
+
+    bool canonicalize(const ValueIndex &index)
+    {
+        auto pred = [&](const ExponentMap &lhs, const ExponentMap &rhs)
+        {
+            return lhs.canonicalOrder(rhs, index);
+        };
+
+        if (std::is_sorted(terms.begin(), terms.end(), pred))
+            return true;
+
+        std::sort(terms.begin(), terms.end(), pred);
+        return false;
+    }
+
+    ExpressionTreeNode *emit(ExpressionTree &tree, const ValueIndex &index) const
+    {
+        ExpressionTreeNode *head = nullptr;
+
+        for (const auto &term : terms) {
+            ExpressionTreeNode *node = term.emit(tree, index);
+
+            if (head) {
+                ExpressionTreeNode *addNode = tree.makeNode(term.getCoeff() < 0 ? ExprOpType::SUB : ExprOpType::ADD);
+                addNode->setLeft(head);
+                addNode->setRight(node);
+                head = addNode;
+            } else {
+                head = node;
+            }
+        }
+
+        if (head) {
+            ExpressionTreeNode *addNode = tree.makeNode(scalarTerm < 0 ? ExprOpType::SUB : ExprOpType::ADD);
+            addNode->setLeft(head);
+            addNode->setRight(tree.makeNode({ ExprOpType::CONSTANT, std::fabs(scalarTerm) }));
+            head = addNode;
+        } else {
+            head = tree.makeNode({ ExprOpType::CONSTANT, 0.0f });
+        }
+
+        return head;
+    }
+};
+
+bool analyzeAdditiveExpression(ExpressionTree &tree, ExpressionTreeNode &node)
+{
+    size_t origNumTerms = 0;
+    AdditiveSequence expr;
+    ValueIndex index;
+
+    node.preorder([&](ExpressionTreeNode &node)
+    {
+        if (isOpCode(node, { ExprOpType::ADD, ExprOpType::SUB }))
+            return false;
+
+        // Deduce net sign of term.
+        const ExpressionTreeNode *parent = node.parent;
+        const ExpressionTreeNode *cur = &node;
+        int polarity = 1;
+
+        while (parent && isOpCode(*parent, { ExprOpType::ADD, ExprOpType::SUB })) {
+            if (parent->op == ExprOpType::SUB && cur == parent->right)
+                polarity = -polarity;
+
+            cur = parent;
+            parent = parent->parent;
+        }
+
+        ++origNumTerms;
+        expr.addTerm(node.valueNum, polarity);
+        index[node.valueNum] = &node;
+        return true;
+    });
+
+    expr.expand(index);
+    bool canonical = expr.canonicalize(index);
+
+    if (expr.numTerms() < origNumTerms || !canonical) {
+        ExpressionTreeNode *seq = expr.emit(tree, index);
+        replaceNode(node, *seq);
+        return true;
+    }
+
+    return false;
+}
+
+bool analyzeMultiplicativeExpression(ExpressionTree &tree, ExpressionTreeNode &node)
+{
+    std::unordered_map<int, const ExpressionTreeNode *> index;
+
+    std::vector<int> origOrder;
+    ExponentMap expr;
+    size_t numDivs = 0;
+
+    node.preorder([&](ExpressionTreeNode &node)
+    {
+        if (node.op == ExprOpType::DIV)
+            ++numDivs;
+
+        if (isOpCode(node, { ExprOpType::MUL, ExprOpType::DIV }))
+            return false;
+
+        // Deduce net sign of term.
+        const ExpressionTreeNode *parent = node.parent;
+        const ExpressionTreeNode *cur = &node;
+        int polarity = 1;
+
+        while (parent && isOpCode(*parent, { ExprOpType::MUL, ExprOpType::DIV })) {
+            if (parent->op == ExprOpType::DIV && cur == parent->right)
+                polarity = -polarity;
+
+            cur = parent;
+            parent = parent->parent;
+        }
+
+        origOrder.push_back(node.valueNum);
+        expr.addTerm(node.valueNum, static_cast<float>(polarity));
+        index[node.valueNum] = &node;
+        return true;
+    });
+
+    expr.expand(index);
+
+    // Determine if original terms were in canonical order.
+    size_t origNumTerms = origOrder.size();
+    bool nonTerminalScalar = false;
+
+    for (auto it = origOrder.begin(); it != origOrder.end();) {
+        if (isConstant(*index.at(*it))) {
+            nonTerminalScalar = nonTerminalScalar || it + 1 != origOrder.end();
+            it = origOrder.erase(it);
+            continue;
+        }
+
+        ++it;
+    }
+
+    bool canonical = std::is_sorted(origOrder.begin(), origOrder.end()) && !nonTerminalScalar;
+
+    if (expr.numTerms() < origNumTerms || !canonical || numDivs) {
+        ExpressionTreeNode *seq = expr.emit(tree, index);
+        replaceNode(node, *seq);
+        return true;
+    }
+
+    return false;
+}
+
+bool applyAlgebraicOptimizations(ExpressionTree &tree)
+{
+    bool changed = false;
+
+    applyValueNumbering(tree);
+
+    tree.getRoot()->preorder([&](ExpressionTreeNode &node)
+    {
+        if (isOpCode(node, { ExprOpType::ADD, ExprOpType::SUB }) && (!node.parent || !isOpCode(*node.parent, { ExprOpType::ADD, ExprOpType::SUB }))) {
+            changed = changed || analyzeAdditiveExpression(tree, node);
+            return changed;
+        }
+
+        if (isOpCode(node, { ExprOpType::MUL, ExprOpType::DIV }) && (!node.parent || !isOpCode(*node.parent, { ExprOpType::MUL, ExprOpType::DIV }))) {
+            changed = changed || analyzeMultiplicativeExpression(tree, node);
+            return changed;
+        }
+
+        return false;
+    });
+
+    return changed;
+}
+
 bool applyLocalOptimizations(ExpressionTree &tree)
 {
     bool changed = false;
@@ -1458,6 +1867,13 @@ bool applyLocalOptimizations(ExpressionTree &tree)
         // x * 1 = x    x / 1 = x
         if (isOpCode(node, { ExprOpType::MUL, ExprOpType::DIV }) && isConstant(*node.right, 1.0f)) {
             replaceNode(node, *node.left);
+            changed = true;
+        }
+
+        // sqrt(x) = x ** 0.5
+        if (node.op == ExprOpType::SQRT) {
+            node.op = ExprOpType::POW;
+            node.setRight(tree.makeNode({ ExprOpType::CONSTANT, 0.5f }));
             changed = true;
         }
 
@@ -1642,7 +2058,7 @@ std::vector<ExprInstruction> compile(ExpressionTree &tree, const VSFormat *forma
     if (!tree.getRoot())
         return code;
 
-    while (applyLocalOptimizations(tree)) {
+    while (applyLocalOptimizations(tree) || applyAlgebraicOptimizations(tree)) {
         // ...
     }
 
