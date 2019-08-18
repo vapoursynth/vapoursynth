@@ -56,7 +56,7 @@ enum class ExprOpType {
     MEM_STORE_U8, MEM_STORE_U16, MEM_STORE_F16, MEM_STORE_F32,
 
     // Arithmetic primitives.
-    ADD, SUB, MUL, DIV, SQRT, ABS, NEG, MAX, MIN, CMP,
+    ADD, SUB, MUL, DIV, FMA, SQRT, ABS, NEG, MAX, MIN, CMP,
 
     // Logical operators.
     AND, OR, XOR, NOT,
@@ -72,6 +72,13 @@ enum class ExprOpType {
 
     // Stack helpers.
     DUP, SWAP,
+};
+
+enum class FMAType {
+    FMADD = 0,  // (b * c) + a
+    FMSUB = 1, // (b * c) - a
+    FNMADD = 2, // -(b * c) + a
+    FNMSUB = 3, // -(b * c) - a
 };
 
 enum class ComparisonType {
@@ -353,6 +360,13 @@ do { \
         deferred.push_back(EMIT()
         {
             auto t1 = bytecodeRegs[insn.dst];
+
+            if (insn.op.imm.f == 0.0f) {
+                VEX1(movaps, t1.first, zero);
+                VEX1(movaps, t1.second, zero);
+                return;
+            }
+
             Reg32 a;
             mov(a, insn.op.imm.u);
             VEX1(movd, t1.first, a);
@@ -471,6 +485,69 @@ do { \
         deferred.push_back(EMIT()
         {
             BINARYOP(divps);
+        });
+    }
+
+    void fma(const ExprInstruction &insn)
+    {
+        deferred.push_back(EMIT()
+        {
+            FMAType type = static_cast<FMAType>(insn.op.imm.u);
+
+            // t1 + t2 * t3
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.src2];
+            auto t3 = bytecodeRegs[insn.src3];
+            auto t4 = bytecodeRegs[insn.dst];
+
+            if (cpuFeatures.fma3) {
+#define FMA3(op) \
+do { \
+  if (insn.dst == insn.src1) { \
+    v##op##231ps(t1.first, t2.first, t3.first); \
+    v##op##231ps(t1.second, t2.second, t3.second); \
+  } else if (insn.dst == insn.src2) { \
+    v##op##132ps(t2.first, t1.first, t3.first); \
+    v##op##132ps(t2.second, t1.second, t3.second); \
+  } else if (insn.dst == insn.src3) { \
+    v##op##132ps(t3.first, t1.first, t2.first); \
+    v##op##132ps(t3.second, t1.second, t2.second); \
+  } else { \
+    vmovaps(t4.first, t1.first); \
+    vmovaps(t4.second, t1.second); \
+    v##op##231ps(t4.first, t2.first, t3.first); \
+    v##op##231ps(t4.second, t2.second, t3.second); \
+  } \
+} while (0)
+                switch (type) {
+                case FMAType::FMADD: FMA3(fmadd); break;
+                case FMAType::FMSUB: FMA3(fmsub); break;
+                case FMAType::FNMADD: FMA3(fnmadd); break;
+                case FMAType::FNMSUB: FMA3(fnmsub); break;
+                }
+#undef FMA3
+            } else {
+                XmmReg r1, r2;
+                VEX2(mulps, r1, t2.first, t3.first);
+                VEX2(mulps, r2, t2.second, t3.second);
+
+                if (type == FMAType::FMADD || type == FMAType::FNMSUB) {
+                    VEX2(addps, t4.first, r1, t1.first);
+                    VEX2(addps, t4.second, r2, t1.second);
+                } else if (type == FMAType::FMSUB) {
+                    VEX2(subps, t4.first, r1, t1.first);
+                    VEX2(subps, t4.second, r2, t1.second);
+                } else if (type == FMAType::FNMADD) {
+                    VEX2(subps, t4.first, t1.first, r1);
+                    VEX2(subps, t4.second, t1.second, r2);
+                }
+
+                if (type == FMAType::FNMSUB) {
+                    VEX1(movaps, r1, xmmword_ptr[constants + ConstantIndex::negmask * 16]);
+                    VEX2(xorps, t4.first, t4.first, r1);
+                    VEX2(xorps, t4.second, t4.second, r2);
+                }
+            }
         });
     }
 
@@ -868,6 +945,7 @@ public:
         case ExprOpType::SUB: sub(insn); break;
         case ExprOpType::MUL: mul(insn); break;
         case ExprOpType::DIV: div(insn); break;
+        case ExprOpType::FMA: fma(insn); break;
         case ExprOpType::MAX: max(insn); break;
         case ExprOpType::MIN: min(insn); break;
         case ExprOpType::SQRT: sqrt(insn); break;
@@ -951,6 +1029,22 @@ public:
                 break;
             case ExprOpType::DIV:
                 registers[insn.dst] = registers[insn.src1] / registers[insn.src2];
+                break;
+            case ExprOpType::FMA:
+                switch (static_cast<FMAType>(insn.op.imm.u)) {
+                case FMAType::FMADD:
+                    registers[insn.dst] = registers[insn.src2] * registers[insn.src3] + registers[insn.src1];
+                    break;
+                case FMAType::FMSUB:
+                    registers[insn.dst] = registers[insn.src2] * registers[insn.src3] - registers[insn.src1];
+                    break;
+                case FMAType::FNMADD:
+                    registers[insn.dst] = -registers[insn.src2] * registers[insn.src3] + registers[insn.src1];
+                    break;
+                case FMAType::FNMSUB:
+                    registers[insn.dst] = -registers[insn.src2] * registers[insn.src3] - registers[insn.src1];
+                    break;
+                };
                 break;
             case ExprOpType::MAX:
                 registers[insn.dst] = std::max(registers[insn.src1], registers[insn.src2]);
@@ -1227,6 +1321,7 @@ ExpressionTree parseExpr(const std::string &expr, const VSVideoInfo * const *vi,
         2, // SUB
         2, // MUL
         2, // DIV
+        3, // FMA
         1, // SQRT
         1, // ABS
         1, // NEG
@@ -1363,6 +1458,13 @@ float evalConstantExpr(const ExpressionTreeNode &node)
     case ExprOpType::SUB: return evalConstantExpr(*node.left) - evalConstantExpr(*node.right);
     case ExprOpType::MUL: return evalConstantExpr(*node.left) * evalConstantExpr(*node.right);
     case ExprOpType::DIV: return evalConstantExpr(*node.left) / evalConstantExpr(*node.right);
+        switch (static_cast<FMAType>(node.op.imm.u)) {
+        case FMAType::FMADD: return evalConstantExpr(*node.right->left) * evalConstantExpr(*node.right->right) + evalConstantExpr(*node.left);
+        case FMAType::FMSUB: return evalConstantExpr(*node.right->left) * evalConstantExpr(*node.right->right) - evalConstantExpr(*node.left);
+        case FMAType::FNMADD: return -evalConstantExpr(*node.right->left) * evalConstantExpr(*node.right->right) + evalConstantExpr(*node.left);
+        case FMAType::FNMSUB: return -evalConstantExpr(*node.right->left) * evalConstantExpr(*node.right->right) - evalConstantExpr(*node.left);
+        }
+        return NAN;
     case ExprOpType::SQRT: return std::sqrt(evalConstantExpr(*node.left));
     case ExprOpType::ABS: return std::fabs(evalConstantExpr(*node.left));
     case ExprOpType::NEG: return -evalConstantExpr(*node.left);
@@ -2202,6 +2304,83 @@ bool applyStrengthReduction(ExpressionTree &tree)
     return changed;
 }
 
+bool applyOpFusion(ExpressionTree &tree)
+{
+    std::unordered_map<int, size_t> refCount;
+    bool changed = false;
+
+    applyValueNumbering(tree);
+
+    tree.getRoot()->postorder([&](ExpressionTreeNode &node)
+    {
+        if (node.op == ExprOpType::MUX)
+            return;
+
+        refCount[node.valueNum]++;
+    });
+
+    tree.getRoot()->postorder([&](ExpressionTreeNode &node)
+    {
+        if (node.op == ExprOpType::MUX)
+            return;
+
+        auto canElide = [&](ExpressionTreeNode &candidate)
+        {
+            return refCount[node.valueNum] > 1 || refCount[candidate.valueNum] <= 1;
+        };
+
+        // a + (b * c)    (b * c) + a    a - (b * c)    (b * c) - a
+        if (node.op == ExprOpType::ADD && node.right->op == ExprOpType::MUL && canElide(*node.right)) {
+            node.right->op = ExprOpType::MUX;
+            node.op = { ExprOpType::FMA, static_cast<unsigned>(FMAType::FMADD) };
+            changed = true;
+        }
+        if (node.op == ExprOpType::ADD && node.left->op == ExprOpType::MUL && canElide(*node.left)) {
+            std::swap(node.left, node.right);
+            node.right->op = ExprOpType::MUX;
+            node.op = { ExprOpType::FMA, static_cast<unsigned>(FMAType::FMADD) };
+            changed = true;
+        }
+        if (node.op == ExprOpType::SUB && node.right->op == ExprOpType::MUL && canElide(*node.right)) {
+            node.right->op = ExprOpType::MUX;
+            node.op = { ExprOpType::FMA, static_cast<unsigned>(FMAType::FNMADD) };
+            changed = true;
+        }
+        if (node.op == ExprOpType::SUB && node.left->op == ExprOpType::MUL && canElide(*node.left)) {
+            std::swap(node.left, node.right);
+            node.right->op = ExprOpType::MUX;
+            node.op = { ExprOpType::FMA, static_cast<unsigned>(FMAType::FMSUB) };
+            changed = true;
+        }
+
+        // (a + b) * c = (a * c) + b * c
+        if (node.op == ExprOpType::MUL && isOpCode(*node.left, { ExprOpType::ADD, ExprOpType::SUB }) &&
+            isConstant(*node.right) && isConstant(*node.left->right) && canElide(*node.left))
+        {
+            std::swap(node.op, node.left->op);
+            swapNodeContents(*node.right, *node.left->right);
+            node.right->op.imm.f *= node.left->right->op.imm.f;
+            changed = true;
+        }
+
+        // Negative FMA.
+        if (node.op == ExprOpType::NEG && node.left->op == ExprOpType::FMA && canElide(*node.left)) {
+            replaceNode(node, *node.left);
+
+            switch (static_cast<FMAType>(node.op.imm.u)) {
+            case FMAType::FMADD: node.op.imm.u = static_cast<unsigned>(FMAType::FNMSUB); break;
+            case FMAType::FMSUB: node.op.imm.u = static_cast<unsigned>(FMAType::FNMADD); break;
+            case FMAType::FNMADD: node.op.imm.u = static_cast<unsigned>(FMAType::FMSUB); break;
+            case FMAType::FNMSUB: node.op.imm.u = static_cast<unsigned>(FMAType::FMADD); break;
+            }
+
+            changed = true;
+        }
+    });
+
+    return changed;
+}
+
 std::vector<ExprInstruction> compile(ExpressionTree &tree, const VSFormat *format)
 {
     std::vector<ExprInstruction> code;
@@ -2214,7 +2393,7 @@ std::vector<ExprInstruction> compile(ExpressionTree &tree, const VSFormat *forma
         // ...
     }
 
-    while (applyStrengthReduction(tree)) {
+    while (applyStrengthReduction(tree) || applyOpFusion(tree)) {
         // ...
     }
 
@@ -2235,7 +2414,7 @@ std::vector<ExprInstruction> compile(ExpressionTree &tree, const VSFormat *forma
             opcode.src1 = node.left->valueNum;
         }
         if (node.right) {
-            if (node.op.type == ExprOpType::TERNARY) {
+            if (node.right->op.type == ExprOpType::MUX) {
                 assert(node.right->left->valueNum >= 0);
                 assert(node.right->right->valueNum >= 0);
                 opcode.src2 = node.right->left->valueNum;
