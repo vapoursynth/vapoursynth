@@ -110,6 +110,9 @@ struct ExprOp {
     ExprOp(ExprOpType type, ExprUnion param = {}) : type(type), imm(param) {}
 };
 
+bool operator==(const ExprOp &lhs, const ExprOp &rhs) { return lhs.type == rhs.type && lhs.imm.u == rhs.imm.u; }
+bool operator!=(const ExprOp &lhs, const ExprOp &rhs) { return !(lhs == rhs); }
+
 struct ExprInstruction {
     ExprOp op;
     int dst;
@@ -1294,6 +1297,92 @@ ExpressionTree parseExpr(const std::string &expr, const VSVideoInfo * const *vi,
     return tree;
 }
 
+bool isConstantExpr(const ExpressionTreeNode &node)
+{
+    switch (node.op.type) {
+    case ExprOpType::MEM_LOAD_U8:
+    case ExprOpType::MEM_LOAD_U16:
+    case ExprOpType::MEM_LOAD_F16:
+    case ExprOpType::MEM_LOAD_F32:
+        return false;
+    case ExprOpType::CONSTANT:
+        return true;
+    default:
+        return (!node.left || isConstantExpr(*node.left)) && (!node.right || isConstantExpr(*node.right));
+    }
+}
+
+bool isConstant(const ExpressionTreeNode &node)
+{
+    return node.op.type == ExprOpType::CONSTANT;
+}
+
+bool isConstant(const ExpressionTreeNode &node, float val)
+{
+    return node.op.type == ExprOpType::CONSTANT && node.op.imm.f == val;
+}
+
+float evalConstantExpr(const ExpressionTreeNode &node)
+{
+    switch (node.op.type) {
+    case ExprOpType::CONSTANT: return node.op.imm.f;
+    case ExprOpType::ADD: return evalConstantExpr(*node.left) + evalConstantExpr(*node.right);
+    case ExprOpType::SUB: return evalConstantExpr(*node.left) - evalConstantExpr(*node.right);
+    case ExprOpType::MUL: return evalConstantExpr(*node.left) * evalConstantExpr(*node.right);
+    case ExprOpType::DIV: return evalConstantExpr(*node.left) / evalConstantExpr(*node.right);
+    case ExprOpType::SQRT: return std::sqrt(evalConstantExpr(*node.left));
+    case ExprOpType::ABS: return std::fabs(evalConstantExpr(*node.left));
+    case ExprOpType::MAX: return std::max(evalConstantExpr(*node.left), evalConstantExpr(*node.right));
+    case ExprOpType::MIN: return std::min(evalConstantExpr(*node.left), evalConstantExpr(*node.right));
+    case ExprOpType::CMP:
+        switch (static_cast<ComparisonType>(node.op.imm.u)) {
+        case ComparisonType::EQ: return evalConstantExpr(*node.left) == evalConstantExpr(*node.right) ? 1.0f : 0.0f;
+        case ComparisonType::LT: return evalConstantExpr(*node.left) < evalConstantExpr(*node.right) ? 1.0f : 0.0f;
+        case ComparisonType::LE: return evalConstantExpr(*node.left) <= evalConstantExpr(*node.right) ? 1.0f : 0.0f;
+        case ComparisonType::NEQ: return evalConstantExpr(*node.left) != evalConstantExpr(*node.right) ? 1.0f : 0.0f;
+        case ComparisonType::NLT: return evalConstantExpr(*node.left) >= evalConstantExpr(*node.right) ? 1.0f : 0.0f;
+        case ComparisonType::NLE: return evalConstantExpr(*node.left) > evalConstantExpr(*node.right) ? 1.0f : 0.0f;
+        }
+        return NAN;
+    case ExprOpType::AND: return evalConstantExpr(*node.left) > 0.0f && evalConstantExpr(*node.right) > 0.0f ? 1.0f : 0.0f;
+    case ExprOpType::OR: return evalConstantExpr(*node.left) > 0.0f || evalConstantExpr(*node.right) > 0.0f ? 1.0f : 0.0f;
+    case ExprOpType::XOR: return evalConstantExpr(*node.left) > 0.0f != evalConstantExpr(*node.right) > 0.0f ? 1.0f : 0.0f;
+    case ExprOpType::NOT: return evalConstantExpr(*node.left) > 0.0f ? 0.0f : 1.0f;
+    case ExprOpType::EXP: return std::exp(evalConstantExpr(*node.left));
+    case ExprOpType::LOG: return std::log(evalConstantExpr(*node.left));
+    case ExprOpType::POW: return std::pow(evalConstantExpr(*node.left), evalConstantExpr(*node.right));
+    case ExprOpType::TERNARY: return evalConstantExpr(*node.left) > 0.0f ? evalConstantExpr(*node.right->left) : evalConstantExpr(*node.right->right);
+    default: return NAN;
+    }
+}
+
+bool isOpCode(const ExpressionTreeNode &node, std::initializer_list<ExprOpType> types)
+{
+    for (ExprOpType type : types) {
+        if (node.op.type == type)
+            return true;
+    }
+    return false;
+}
+
+bool isInteger(float x)
+{
+    return std::floor(x) == x;
+}
+
+void replaceNode(ExpressionTreeNode &node, const ExpressionTreeNode &replacement)
+{
+    node.op = replacement.op;
+    node.setLeft(replacement.left);
+    node.setRight(replacement.right);
+}
+
+void swapNodeContents(ExpressionTreeNode &lhs, ExpressionTreeNode &rhs)
+{
+    std::swap(lhs, rhs);
+    std::swap(lhs.parent, rhs.parent);
+}
+
 void applyValueNumbering(ExpressionTree &tree)
 {
     std::vector<ExpressionTreeNode *> numbered;
@@ -1321,6 +1410,230 @@ void applyValueNumbering(ExpressionTree &tree)
     });
 }
 
+ExpressionTreeNode *emitIntegerPow(ExpressionTree &tree, const ExpressionTreeNode &node, int exponent)
+{
+    if (exponent == 1)
+        return tree.clone(&node);
+
+    ExpressionTreeNode *mulNode = tree.makeNode({ ExprOpType::MUL });
+    mulNode->setLeft(emitIntegerPow(tree, node, (exponent + 1) / 2));
+    mulNode->setRight(emitIntegerPow(tree, node, exponent - (exponent + 1) / 2));
+    return mulNode;
+}
+
+bool applyLocalOptimizations(ExpressionTree &tree)
+{
+    bool changed = false;
+
+    tree.getRoot()->postorder([&](ExpressionTreeNode &node)
+    {
+        if (node.op.type == ExprOpType::MUX)
+            return;
+
+        // Constant folding.
+        if (node.op.type != ExprOpType::CONSTANT && isConstantExpr(node)) {
+            float val = evalConstantExpr(node);
+            replaceNode(node, ExpressionTreeNode{ { ExprOpType::CONSTANT, val } });
+            changed = true;
+        }
+
+        // Move constants to right-hand side to simplify identities.
+        if (isOpCode(node, { ExprOpType::ADD, ExprOpType::MUL }) && isConstant(*node.left) && !isConstant(*node.right)) {
+            std::swap(node.left, node.right);
+            changed = true;
+        }
+
+        // x + 0 = x    x - 0 = x
+        if (isOpCode(node, { ExprOpType::ADD, ExprOpType::SUB }) && isConstant(*node.right, 0.0f)) {
+            replaceNode(node, *node.left);
+            changed = true;
+        }
+
+        // x * 0 = 0    0 / x = 0
+        if ((node.op == ExprOpType::MUL && isConstant(*node.right, 0.0f)) || (node.op == ExprOpType::DIV && isConstant(*node.left, 0.0f))) {
+            replaceNode(node, ExpressionTreeNode{ { ExprOpType::CONSTANT, 0.0f } });
+            changed = true;
+        }
+
+        // x * 1 = x    x / 1 = x
+        if (isOpCode(node, { ExprOpType::MUL, ExprOpType::DIV }) && isConstant(*node.right, 1.0f)) {
+            replaceNode(node, *node.left);
+            changed = true;
+        }
+
+        // log(exp(x)) = x    exp(log(x)) = x
+        if ((node.op == ExprOpType::LOG && node.left->op == ExprOpType::EXP) || (node.op == ExprOpType::EXP && node.left->op == ExprOpType::LOG)) {
+            replaceNode(node, *node.left->left);
+            changed = true;
+        }
+
+        // x ** 0 = 1
+        if (node.op == ExprOpType::POW && isConstant(*node.right, 0.0f)) {
+            replaceNode(node, ExpressionTreeNode{ { ExprOpType::CONSTANT, 1.0f } });
+            changed = true;
+        }
+
+        // x ** 1 = x
+        if (node.op == ExprOpType::POW && isConstant(*node.right, 1.0f)) {
+            replaceNode(node, *node.left);
+            changed = true;
+        }
+
+        // (a ** b) ** c = a ** (b * c)
+        if (node.op == ExprOpType::POW && node.left->op == ExprOpType::POW) {
+            ExpressionTreeNode *a = node.left->left;
+            ExpressionTreeNode *b = node.left->right;
+            ExpressionTreeNode *c = node.right;
+            replaceNode(*node.left, *a);
+            node.setRight(tree.makeNode(ExprOpType::MUL));
+            node.right->setLeft(b);
+            node.right->setRight(c);
+            changed = true;
+        }
+
+        // 0 ? x y = y    1 ? x y = x
+        if (node.op == ExprOpType::TERNARY && isConstant(*node.left)) {
+            ExpressionTreeNode *replacement = node.left->op.imm.f > 0.0f ? node.right->left : node.right->right;
+            replaceNode(node, *replacement);
+            changed = true;
+        }
+
+        // !a ? b : c --> a ? c : b
+        if (node.op == ExprOpType::TERNARY && node.left->op == ExprOpType::NOT) {
+            replaceNode(*node.left, *node.left->left);
+            std::swap(node.right->left, node.right->right);
+            changed = true;
+        }
+
+        // !!x --> x
+        if (node.op == ExprOpType::NOT && node.left->op.type == ExprOpType::NOT) {
+            replaceNode(node, *node.left->left);
+            changed = true;
+        }
+
+        // !(a < b) --> a >= b
+        if (node.op == ExprOpType::NOT && node.left->op.type == ExprOpType::CMP) {
+            switch (static_cast<ComparisonType>(node.left->op.imm.u)) {
+            case ComparisonType::EQ: node.left->op.imm.u = static_cast<unsigned>(ComparisonType::NEQ); break;
+            case ComparisonType::LT: node.left->op.imm.u = static_cast<unsigned>(ComparisonType::NLT); break;
+            case ComparisonType::LE: node.left->op.imm.u = static_cast<unsigned>(ComparisonType::NLE); break;
+            case ComparisonType::NEQ: node.left->op.imm.u = static_cast<unsigned>(ComparisonType::EQ); break;
+            case ComparisonType::NLT: node.left->op.imm.u = static_cast<unsigned>(ComparisonType::LT); break;
+            case ComparisonType::NLE: node.left->op.imm.u = static_cast<unsigned>(ComparisonType::LE); break;
+            }
+            replaceNode(node, *node.left);
+            changed = true;
+        }
+    });
+
+    return changed;
+}
+
+bool applyStrengthReduction(ExpressionTree &tree)
+{
+    bool changed = false;
+
+    tree.getRoot()->postorder([&](ExpressionTreeNode &node)
+    {
+        if (node.op == ExprOpType::MUX)
+            return;
+
+
+        // x * 2 = x + x
+        if (node.op == ExprOpType::MUL && isConstant(*node.right, 2.0f) && (!node.parent || node.parent->op != ExprOpType::ADD)) {
+            ExpressionTreeNode *replacement = tree.clone(node.left);
+            node.op = ExprOpType::ADD;
+            replaceNode(*node.right, *replacement);
+            changed = true;
+        }
+
+        // x / y = x * (1 / y)
+        if (node.op == ExprOpType::DIV && isConstant(*node.right)) {
+            node.op = ExprOpType::MUL;
+            node.right->op.imm.f = 1.0f / node.right->op.imm.f;
+            changed = true;
+        }
+
+        // (1 / x) * y = y / x
+        if (node.op == ExprOpType::MUL && node.left->op == ExprOpType::DIV && isConstant(*node.left->left, 1.0f)) {
+            node.op = ExprOpType::DIV;
+            replaceNode(*node.left, *node.left->right);
+            std::swap(node.left, node.right);
+            changed = true;
+        }
+
+        // x * (1 / y) = x / y
+        if (node.op == ExprOpType::MUL && node.right->op == ExprOpType::DIV && isConstant(*node.right->left, 1.0f)) {
+            node.op = ExprOpType::DIV;
+            replaceNode(*node.right, *node.right->right);
+            changed = true;
+        }
+
+        // (a / b) * c = (a * c) / b
+        if (node.op == ExprOpType::MUL && node.left->op == ExprOpType::DIV) {
+            node.op = ExprOpType::DIV;
+            node.left->op = ExprOpType::MUL;
+            swapNodeContents(*node.left->right, *node.right);
+            changed = true;
+        }
+
+        // a * (b / c) = (a * b) / c
+        if (node.op == ExprOpType::MUL && node.right->op == ExprOpType::DIV) {
+            node.op = ExprOpType::DIV;
+            node.right->op = ExprOpType::MUL;
+            std::swap(node.left, node.right); // (b * c) / a
+            swapNodeContents(*node.left->left, *node.left->right); // (c * b) / a
+            swapNodeContents(*node.left->left, *node.right); // (a * b) / c
+            changed = true;
+        }
+
+        // a / (b / c) = (a * c) / b
+        if (node.op == ExprOpType::DIV && node.right->op == ExprOpType::DIV) {
+            node.right->op = ExprOpType::MUL; // a / (b * c)
+            std::swap(node.left, node.right); // (b * c) / a
+            swapNodeContents(*node.left->left, *node.right); // (a * c) / b
+            changed = true;
+        }
+
+        // (a / b) / c = a / (b * c)
+        if (node.op == ExprOpType::DIV && node.left->op == ExprOpType::DIV) {
+            node.left->op = ExprOpType::MUL; // (a * b) / c
+            std::swap(node.left, node.right); // c / (a * b)
+            swapNodeContents(*node.left, *node.right->left); // a / (c * b)
+            swapNodeContents(*node.right->left, *node.right->right); // a / (b * c)
+            changed = true;
+        }
+
+        // x ** (n / 2) = sqrt(x ** n)
+        if (node.op == ExprOpType::POW && isConstant(*node.right) && !isInteger(node.right->op.imm.f) && isInteger(node.right->op.imm.f * 2.0f)) {
+            ExpressionTreeNode *dup = tree.clone(&node);
+            replaceNode(node, ExpressionTreeNode{ ExprOpType::SQRT });
+            node.setLeft(dup);
+            node.left->right->op.imm.f *= 2.0f;
+            changed = true;
+        }
+
+        // x ** -N = 1 / (x ** N)
+        if (node.op == ExprOpType::POW && isConstant(*node.right) && isInteger(node.right->op.imm.f) && node.right->op.imm.f < 0) {
+            ExpressionTreeNode *dup = tree.clone(&node);
+            replaceNode(node, ExpressionTreeNode{ ExprOpType::DIV });
+            node.setLeft(tree.makeNode({ ExprOpType::CONSTANT, 1.0f }));
+            node.setRight(dup);
+            node.right->right->op.imm.f = -node.right->right->op.imm.f;
+            changed = true;
+        }
+
+        // x ** N = x * x * x * ...
+        if (node.op == ExprOpType::POW && isConstant(*node.right) && isInteger(node.right->op.imm.f) && node.right->op.imm.f > 0) {
+            ExpressionTreeNode *replacement = emitIntegerPow(tree, *node.left, static_cast<int>(node.right->op.imm.f));
+            replaceNode(node, *replacement);
+            changed = true;
+        }
+    });
+
+    return changed;
+}
+
 std::vector<ExprInstruction> compile(ExpressionTree &tree, const VSFormat *format)
 {
     std::vector<ExprInstruction> code;
@@ -1328,6 +1641,14 @@ std::vector<ExprInstruction> compile(ExpressionTree &tree, const VSFormat *forma
 
     if (!tree.getRoot())
         return code;
+
+    while (applyLocalOptimizations(tree)) {
+        // ...
+    }
+
+    while (applyStrengthReduction(tree)) {
+        // ...
+    }
 
     applyValueNumbering(tree);
 
