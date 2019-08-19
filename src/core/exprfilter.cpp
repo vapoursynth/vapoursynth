@@ -25,6 +25,7 @@
 #include <locale>
 #include <map>
 #include <memory>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -2381,6 +2382,52 @@ bool applyOpFusion(ExpressionTree &tree)
     return changed;
 }
 
+void renameRegisters(std::vector<ExprInstruction> &code)
+{
+    std::unordered_map<int, int> table;
+    std::set<int> freeList;
+
+    for (size_t i = 0; i < code.size(); ++i) {
+        ExprInstruction &insn = code[i];
+        int origRegs[4] = { insn.dst, insn.src1, insn.src2, insn.src3 };
+        int renamed[4] = { insn.dst, insn.src1, insn.src2, insn.src3 };
+
+        for (int n = 1; n < 4; ++n) {
+            if (origRegs[n] < 0)
+                continue;
+
+            auto it = table.find(origRegs[n]);
+            if (it != table.end())
+                renamed[n] = it->second;
+
+            bool dead = true;
+
+            for (size_t j = i + 1; j < code.size(); ++j) {
+                const ExprInstruction &insn2 = code[j];
+                if (insn2.src1 == origRegs[n] || insn2.src2 == origRegs[n] || insn2.src3 == origRegs[n]) {
+                    dead = false;
+                    break;
+                }
+            }
+
+            if (dead)
+                freeList.insert(renamed[n]);
+        }
+
+        if (origRegs[0] >= 0 && !freeList.empty()) {
+            renamed[0] = *freeList.begin();
+            table[origRegs[0]] = renamed[0];
+            freeList.erase(freeList.begin());
+            freeList.insert(origRegs[0]);
+        }
+
+        insn.dst = renamed[0];
+        insn.src1 = renamed[1];
+        insn.src2 = renamed[2];
+        insn.src3 = renamed[3];
+    }
+}
+
 std::vector<ExprInstruction> compile(ExpressionTree &tree, const VSFormat *format)
 {
     std::vector<ExprInstruction> code;
@@ -2443,6 +2490,7 @@ std::vector<ExprInstruction> compile(ExpressionTree &tree, const VSFormat *forma
     store.src1 = code.back().dst;
     code.push_back(store);
 
+    renameRegisters(code);
     return code;
 }
 
