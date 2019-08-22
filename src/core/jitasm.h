@@ -5516,29 +5516,29 @@ struct Frontend
 	void vpmovmskb(const Reg64& dst, const YmmReg& src)							{AppendInstr(I_PMOVMSKB, 0xD7, E_VEX_256_66_0F_WIG, W(dst), R(src));}
 #endif
 	void vpmovsxbw(const YmmReg& dst, const XmmReg& src)						{AppendInstr(I_PMOVSXBW, 0x20, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
-	void vpmovsxbw(const YmmReg& dst, const Mem64& src)							{AppendInstr(I_PMOVSXBW, 0x20, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
+	void vpmovsxbw(const YmmReg& dst, const Mem128& src)						{AppendInstr(I_PMOVSXBW, 0x20, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
 	void vpmovsxbd(const YmmReg& dst, const XmmReg& src)						{AppendInstr(I_PMOVSXBD, 0x21, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
-	void vpmovsxbd(const YmmReg& dst, const Mem32& src)							{AppendInstr(I_PMOVSXBD, 0x21, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
+	void vpmovsxbd(const YmmReg& dst, const Mem64& src)							{AppendInstr(I_PMOVSXBD, 0x21, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
 	void vpmovsxbq(const YmmReg& dst, const XmmReg& src)						{AppendInstr(I_PMOVSXBQ, 0x22, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
-	void vpmovsxbq(const YmmReg& dst, const Mem16& src)							{AppendInstr(I_PMOVSXBQ, 0x22, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
+	void vpmovsxbq(const YmmReg& dst, const Mem32& src)							{AppendInstr(I_PMOVSXBQ, 0x22, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
 	void vpmovsxwd(const YmmReg& dst, const XmmReg& src)						{AppendInstr(I_PMOVSXWD, 0x23, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
-	void vpmovsxwd(const YmmReg& dst, const Mem64& src)							{AppendInstr(I_PMOVSXWD, 0x23, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
+	void vpmovsxwd(const YmmReg& dst, const Mem128& src)						{AppendInstr(I_PMOVSXWD, 0x23, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
 	void vpmovsxwq(const YmmReg& dst, const XmmReg& src)						{AppendInstr(I_PMOVSXWQ, 0x24, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
-	void vpmovsxwq(const YmmReg& dst, const Mem32& src)							{AppendInstr(I_PMOVSXWQ, 0x24, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
+	void vpmovsxwq(const YmmReg& dst, const Mem64& src)							{AppendInstr(I_PMOVSXWQ, 0x24, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
 	void vpmovsxdq(const YmmReg& dst, const XmmReg& src)						{AppendInstr(I_PMOVSXDQ, 0x25, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
-	void vpmovsxdq(const YmmReg& dst, const Mem64& src)							{AppendInstr(I_PMOVSXDQ, 0x25, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
+	void vpmovsxdq(const YmmReg& dst, const Mem128& src)						{AppendInstr(I_PMOVSXDQ, 0x25, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
 	void vpmovzxbw(const YmmReg& dst, const XmmReg& src)						{AppendInstr(I_PMOVZXBW, 0x30, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
-	void vpmovzxbw(const YmmReg& dst, const Mem64& src)							{AppendInstr(I_PMOVZXBW, 0x30, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
+	void vpmovzxbw(const YmmReg& dst, const Mem128& src)						{AppendInstr(I_PMOVZXBW, 0x30, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
 	void vpmovzxbd(const YmmReg& dst, const XmmReg& src)						{AppendInstr(I_PMOVZXBD, 0x31, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
-	void vpmovzxbd(const YmmReg& dst, const Mem32& src)							{AppendInstr(I_PMOVZXBD, 0x31, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
+	void vpmovzxbd(const YmmReg& dst, const Mem64& src)							{AppendInstr(I_PMOVZXBD, 0x31, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
 	void vpmovzxbq(const YmmReg& dst, const XmmReg& src)						{AppendInstr(I_PMOVZXBQ, 0x32, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
-	void vpmovzxbq(const YmmReg& dst, const Mem16& src)							{AppendInstr(I_PMOVZXBQ, 0x32, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
+	void vpmovzxbq(const YmmReg& dst, const Mem32& src)							{AppendInstr(I_PMOVZXBQ, 0x32, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
 	void vpmovzxwd(const YmmReg& dst, const XmmReg& src)						{AppendInstr(I_PMOVZXWD, 0x33, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
-	void vpmovzxwd(const YmmReg& dst, const Mem64& src)							{AppendInstr(I_PMOVZXWD, 0x33, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
+	void vpmovzxwd(const YmmReg& dst, const Mem128& src)						{AppendInstr(I_PMOVZXWD, 0x33, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
 	void vpmovzxwq(const YmmReg& dst, const XmmReg& src)						{AppendInstr(I_PMOVZXWQ, 0x34, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
-	void vpmovzxwq(const YmmReg& dst, const Mem32& src)							{AppendInstr(I_PMOVZXWQ, 0x34, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
+	void vpmovzxwq(const YmmReg& dst, const Mem64& src)							{AppendInstr(I_PMOVZXWQ, 0x34, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
 	void vpmovzxdq(const YmmReg& dst, const XmmReg& src)						{AppendInstr(I_PMOVZXDQ, 0x35, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
-	void vpmovzxdq(const YmmReg& dst, const Mem64& src)							{AppendInstr(I_PMOVZXDQ, 0x35, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
+	void vpmovzxdq(const YmmReg& dst, const Mem128& src)						{AppendInstr(I_PMOVZXDQ, 0x35, E_VEX_256_66_0F38_WIG, W(dst), R(src));}
 	void vpmulhuw(const YmmReg& dst, const YmmReg& src1, const YmmReg& src2)	{AppendInstr(I_PMULHUW,	0xE4, E_VEX_256_66_0F_WIG, W(dst), R(src2), R(src1));}
 	void vpmulhuw(const YmmReg& dst, const YmmReg& src1, const Mem256& src2)	{AppendInstr(I_PMULHUW,	0xE4, E_VEX_256_66_0F_WIG, W(dst), R(src2), R(src1));}
 	void vpmulhrsw(const YmmReg& dst, const YmmReg& src1, const YmmReg& src2)	{AppendInstr(I_PMULHRSW, 0x0B, E_VEX_256_66_0F38_WIG, W(dst), R(src2), R(src1));}
