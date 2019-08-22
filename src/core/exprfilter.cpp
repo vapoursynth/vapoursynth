@@ -2517,7 +2517,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
 
         const uint8_t *srcp[MAX_EXPR_INPUTS] = {};
         int src_stride[MAX_EXPR_INPUTS] = {};
-        intptr_t ptroffsets[MAX_EXPR_INPUTS + 1] = { d->vi.format->bytesPerSample * 8 };
+        alignas(32) intptr_t ptroffsets[((MAX_EXPR_INPUTS + 1) + 7) & ~7] = { d->vi.format->bytesPerSample * 8 };
 
         for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {
             if (d->plane[plane] != poProcess)
@@ -2546,7 +2546,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                 }
 
                 for (int y = 0; y < h; y++) {
-                    uint8_t *rwptrs[MAX_EXPR_INPUTS + 1] = { dstp + dst_stride * y };
+                    alignas(32) uint8_t *rwptrs[((MAX_EXPR_INPUTS + 1) + 7) & ~7] = { dstp + dst_stride * y };
                     for (int i = 0; i < numInputs; i++) {
                         rwptrs[i + 1] = const_cast<uint8_t *>(srcp[i] + src_stride[i] * y);
                     }
