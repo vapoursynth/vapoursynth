@@ -925,10 +925,7 @@ do { \
     }
 
 public:
-    explicit ExprCompiler(int numInputs) : numInputs(numInputs), curLabel()
-    {
-        getCPUFeatures(&cpuFeatures);
-    }
+    explicit ExprCompiler(int numInputs) : cpuFeatures(*getCPUFeatures()), numInputs(numInputs), curLabel() {}
 
     void addInstruction(const ExprInstruction &insn)
     {
