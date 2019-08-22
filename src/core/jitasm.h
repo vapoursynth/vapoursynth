@@ -476,11 +476,17 @@ struct MmxReg : Opd64 {
 struct XmmReg : Opd128 {
 	XmmReg() : Opd128(RegID::CreateSymbolicRegID(R_TYPE_SYMBOLIC_XMM)) {}
 	explicit XmmReg(PhysicalRegID id) : Opd128(RegID::CreatePhysicalRegID(R_TYPE_XMM, id)) {}
+	explicit XmmReg(RegID reg_id) : Opd128(reg_id) {} // VS2017 /permissive-
 };
 /// YMM register
 struct YmmReg : Opd256 {
 	YmmReg() : Opd256(RegID::CreateSymbolicRegID(R_TYPE_SYMBOLIC_YMM)) {}
 	explicit YmmReg(PhysicalRegID id) : Opd256(RegID::CreatePhysicalRegID(R_TYPE_YMM, id)) {}
+	XmmReg as128() const {
+		RegID id = reg_;
+		id.type = R_TYPE_SYMBOLIC_XMM;
+		return XmmReg(id);
+	}
 };
 
 struct FpuReg_st0 : FpuReg {FpuReg_st0() : FpuReg(ST0) {}};
