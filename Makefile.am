@@ -29,11 +29,14 @@ lib_LTLIBRARIES =
 
 
 if VSCORE
-noinst_LTLIBRARIES = libexprfilter.la
+noinst_LTLIBRARIES = libexprfilter.la libvapoursynth_avx2.la
 
 libexprfilter_la_SOURCES = src/core/exprfilter.cpp
 libexprfilter_la_CPPFLAGS = $(AM_CXXFLAGS) -fno-strict-aliasing
 
+libvapoursynth_avx2_la_SOURCES = src/core/kernel/x86/merge_avx2.c
+libvapoursynth_avx2_la_CFLAGS = $(AM_CFLAGS) $(AVX2FLAGS)
+libvapoursynth_avx2_la_CXXFLAGS = $(AM_CXXFLAGS) $(AVX2FLAGS)
 
 lib_LTLIBRARIES += libvapoursynth.la
 
@@ -86,7 +89,7 @@ pkgconfig_DATA += pc/vapoursynth.pc
 
 libvapoursynth_la_LDFLAGS = -no-undefined -avoid-version
 libvapoursynth_la_CPPFLAGS = $(ZIMG_CFLAGS) -DVS_PATH_PLUGINDIR='"$(PLUGINDIR)"'
-libvapoursynth_la_LIBADD = $(ZIMG_LIBS) $(DLOPENLIB) libexprfilter.la
+libvapoursynth_la_LIBADD = $(ZIMG_LIBS) $(DLOPENLIB) libexprfilter.la libvapoursynth_avx2.la
 
 
 if PYTHONMODULE

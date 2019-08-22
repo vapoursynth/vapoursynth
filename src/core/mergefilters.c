@@ -19,20 +19,12 @@
 */
 
 #include <stdlib.h>
+#include "cpufeatures.h"
 #include "filtershared.h"
 #include "internalfilters.h"
 #include "kernel/cpulevel.h"
 #include "kernel/merge.h"
 #include "VSHelper.h"
-
-static inline int CLAMP(int value, int lower, int upper) {
-    if (value < lower)
-        return lower;
-    else if (value > upper)
-        return upper;
-    else
-        return value;
-}
 
 //////////////////////////////////////////
 // PreMultiply
@@ -269,7 +261,15 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
                 union vs_merge_weight weight;
 
 #ifdef VS_TARGET_CPU_X86
-                if (d->cpulevel >= VS_CPU_LEVEL_SSE2) {
+                if (getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2) {
+                    if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
+                        func = vs_merge_byte_avx2;
+                    else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
+                        func = vs_merge_word_avx2;
+                    else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
+                        func = vs_merge_float_avx2;
+                }
+                if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
                     if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
                         func = vs_merge_byte_sse2;
                     else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
@@ -462,7 +462,15 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
                 }
 
 #ifdef VS_TARGET_CPU_X86
-                if (d->cpulevel >= VS_CPU_LEVEL_SSE2) {
+                if (getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2) {
+                    if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
+                        func = d->premultiplied ? vs_mask_merge_premul_byte_avx2 : vs_mask_merge_byte_avx2;
+                    else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
+                        func = d->premultiplied ? vs_mask_merge_premul_word_avx2 : vs_mask_merge_word_avx2;
+                    else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
+                        func = d->premultiplied ? vs_mask_merge_premul_float_avx2 : vs_mask_merge_float_avx2;
+                }
+                if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
                     if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
                         func = d->premultiplied ? vs_mask_merge_premul_byte_sse2 : vs_mask_merge_byte_sse2;
                     else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
@@ -631,6 +639,7 @@ typedef struct {
     VSNodeRef *node2;
     const VSVideoInfo *vi;
     int process[3];
+    int cpulevel;
 } MakeDiffData;
 
 static void VS_CC makeDiffInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -659,27 +668,37 @@ static const VSFrameRef *VS_CC makeDiffGetFrame(int n, int activationReason, voi
                 const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
                 uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
 
-                void (*func)(const void *, const void *, void *, unsigned, unsigned);
+                void (*func)(const void *, const void *, void *, unsigned, unsigned) = 0;
 
 #ifdef VS_TARGET_CPU_X86
-                if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
-                    func = vs_makediff_byte_sse2;
-                else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
-                    func = vs_makediff_word_sse2;
-                else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
-                    func = vs_makediff_float_sse2;
-                else
-                    continue;
-#else
-                if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
-                    func = vs_makediff_byte_c;
-                else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
-                    func = vs_makediff_word_c;
-                else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
-                    func = vs_makediff_float_c;
-                else
-                    continue;
+                if (getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2) {
+                    if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
+                        func = vs_makediff_byte_avx2;
+                    else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
+                        func = vs_makediff_word_avx2;
+                    else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
+                        func = vs_makediff_float_avx2;
+                }
+                if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
+                    if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
+                        func = vs_makediff_byte_sse2;
+                    else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
+                        func = vs_makediff_word_sse2;
+                    else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
+                        func = vs_makediff_float_sse2;
+                }
 #endif
+                if (!func) {
+                    if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
+                        func = vs_makediff_byte_c;
+                    else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
+                        func = vs_makediff_word_c;
+                    else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
+                        func = vs_makediff_float_c;
+                }
+
+                if (!func)
+                    continue;
 
                 int depth = d->vi->format->bitsPerSample;
 
@@ -759,6 +778,8 @@ static void VS_CC makeDiffCreate(const VSMap *in, VSMap *out, void *userData, VS
         d.process[o] = 1;
     }
 
+    d.cpulevel = vs_get_cpulevel(core);
+
     data = malloc(sizeof(d));
     *data = d;
 
@@ -773,6 +794,7 @@ typedef struct {
     VSNodeRef *node2;
     const VSVideoInfo *vi;
     int process[3];
+    int cpulevel;
 } MergeDiffData;
 
 static void VS_CC mergeDiffInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -801,27 +823,37 @@ static const VSFrameRef *VS_CC mergeDiffGetFrame(int n, int activationReason, vo
                 const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
                 uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
 
-                void (*func)(const void *, const void *, void *, unsigned, unsigned);
+                void (*func)(const void *, const void *, void *, unsigned, unsigned) = 0;
 
 #ifdef VS_TARGET_CPU_X86
-                if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
-                    func = vs_mergediff_byte_sse2;
-                else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
-                    func = vs_mergediff_word_sse2;
-                else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
-                    func = vs_mergediff_float_sse2;
-                else
-                    continue;
-#else
-                if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
-                    func = vs_mergediff_byte_c;
-                else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
-                    func = vs_mergediff_word_c;
-                else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
-                    func = vs_mergediff_float_c;
-                else
-                    continue;
+                if (getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2) {
+                    if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
+                        func = vs_mergediff_byte_avx2;
+                    else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
+                        func = vs_mergediff_word_avx2;
+                    else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
+                        func = vs_mergediff_float_avx2;
+                }
+                if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
+                    if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
+                        func = vs_mergediff_byte_sse2;
+                    else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
+                        func = vs_mergediff_word_sse2;
+                    else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
+                        func = vs_mergediff_float_sse2;
+                }
 #endif
+                if (!func) {
+                    if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 1)
+                        func = vs_mergediff_byte_c;
+                    else if (d->vi->format->sampleType == stInteger && d->vi->format->bytesPerSample == 2)
+                        func = vs_mergediff_word_c;
+                    else if (d->vi->format->sampleType == stFloat && d->vi->format->bytesPerSample == 4)
+                        func = vs_mergediff_float_c;
+                }
+
+                if (!func)
+                    continue;
 
                 int depth = d->vi->format->bitsPerSample;
 
@@ -899,6 +931,8 @@ static void VS_CC mergeDiffCreate(const VSMap *in, VSMap *out, void *userData, V
 
         d.process[o] = 1;
     }
+
+    d.cpulevel = vs_get_cpulevel(core);
 
     data = malloc(sizeof(d));
     *data = d;
