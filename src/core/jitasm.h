@@ -26,6 +26,13 @@
 // THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+//
+// Changes 2017 by pinterf
+// - AVX friendly prolog/epilog with vzeroupper
+// - Aligned stack slots for ymm spill variables
+// - VEX encoded aligned store and load for temporary xmm/ymm registers
+// - Fix: false codegen when rearranging multiple working registers in MoveGenerator by
+//   tracking real register usage for an xchg sequence
 
 #pragma once
 #ifndef JITASM_H
@@ -450,6 +457,7 @@ struct Reg32 : Opd32 {
 struct Reg64 : Opd64 {
 	Reg64() : Opd64(RegID::CreateSymbolicRegID(R_TYPE_SYMBOLIC_GP)) {}
 	explicit Reg64(PhysicalRegID id) : Opd64(RegID::CreatePhysicalRegID(R_TYPE_GP, id)) {}
+	explicit Reg64(RegID reg_id) : Opd64(reg_id) {} // VS2017 /permissive-
 };
 typedef Reg64 Reg;
 #else
@@ -1640,6 +1648,7 @@ struct Frontend
 	typedef std::vector<Instr> InstrList;
 	InstrList				instrs_;
 	bool					assembled_;
+	bool avx_epilog_; // PF AVS+: avoid AVX transition penalties
 	detail::CodeBuffer		codebuff_;
 	detail::SpinLock		codelock_;
 	detail::StackManager	stack_manager_;
@@ -1823,8 +1832,9 @@ struct Frontend
 	}
 
 	/// Get assembled code
-	void *GetCode()
+	void *GetCode(bool force_avx_epilog = false)
 	{
+		avx_epilog_ = force_avx_epilog; // PF AVS+: anti penalty
 		if (!assembled_) {
 			Assemble();
 		}
@@ -1948,6 +1958,7 @@ struct Frontend
 	void and_(const Mem32& dst, const Reg32& src)	{AppendInstr(I_AND, 0x21, 0, R(src), RW(dst));}
 	void and_(const Reg32& dst, const Mem32& src)	{AppendInstr(I_AND, 0x23, 0, RW(dst), R(src));}
 #ifdef JITASM64
+	// and with Imm32 is sign extended
 	void and_(const Reg64& dst, const Imm32& imm)	{AppendInstr(I_AND, detail::IsInt8(imm.GetImm()) ? 0x83 : 0x81, E_REXW_PREFIX | E_SPECIAL, Imm8(4), RW(dst), detail::ImmXor8(imm));}
 	void and_(const Mem64& dst, const Imm32& imm)	{AppendInstr(I_AND, detail::IsInt8(imm.GetImm()) ? 0x83 : 0x81, E_REXW_PREFIX, Imm8(4), RW(dst), detail::ImmXor8(imm));}
 	void and_(const Reg64& dst, const Reg64& src)	{AppendInstr(I_AND, 0x23, E_REXW_PREFIX, RW(dst), R(src));}
@@ -6072,7 +6083,7 @@ namespace compiler
 			// YMM
 			for (size_t i = 0; i < attributes_[2].size(); ++i) {
 				if (attributes_[2][i].spill && attributes_[2][i].size == O_SIZE_256 && attributes_[2][i].stack_slot.reg_.IsInvalid()) {
-					attributes_[2][i].stack_slot = stack_manager.Alloc(256 / 8, 16);
+					attributes_[2][i].stack_slot = stack_manager.Alloc(256 / 8, 32); // 32 bytes aligned! 16->32 171108
 				}
 			}
 
@@ -7324,7 +7335,10 @@ namespace compiler
 		void Move(PhysicalRegID dst_reg, PhysicalRegID src_reg, OpdSize size)
 		{
 			if (size == O_SIZE_128) {
-				f_->movaps(XmmReg(dst_reg), XmmReg(src_reg));
+				if (f_->avx_epilog_) // PF AVS+ anti AVX-SSE2 penalty
+					f_->vmovaps(XmmReg(dst_reg), XmmReg(src_reg));
+				else
+					f_->movaps(XmmReg(dst_reg), XmmReg(src_reg));
 			} else if (size == O_SIZE_256) {
 				f_->vmovaps(YmmReg(dst_reg), YmmReg(src_reg));
 			} else {
@@ -7335,9 +7349,15 @@ namespace compiler
 		void Swap(PhysicalRegID reg1, PhysicalRegID reg2, OpdSize size)
 		{
 			if (size == O_SIZE_128) {
-				f_->xorps(XmmReg(reg1), XmmReg(reg2));
-				f_->xorps(XmmReg(reg2), XmmReg(reg1));
-				f_->xorps(XmmReg(reg1), XmmReg(reg2));
+				if (f_->avx_epilog_) { // PF AVS+ anti AVX-SSE2 penalty
+					f_->vxorps(XmmReg(reg1), XmmReg(reg1), XmmReg(reg2));
+					f_->vxorps(XmmReg(reg2), XmmReg(reg2), XmmReg(reg1));
+					f_->vxorps(XmmReg(reg1), XmmReg(reg1), XmmReg(reg2));
+				} else {
+					f_->xorps(XmmReg(reg1), XmmReg(reg2));
+					f_->xorps(XmmReg(reg2), XmmReg(reg1));
+					f_->xorps(XmmReg(reg1), XmmReg(reg2));
+				}
 			} else if (size == O_SIZE_256) {
 				f_->vxorps(YmmReg(reg1), YmmReg(reg1), YmmReg(reg2));
 				f_->vxorps(YmmReg(reg2), YmmReg(reg1), YmmReg(reg2));
@@ -7351,7 +7371,10 @@ namespace compiler
 		{
 			const OpdSize size = var_manager_->GetVarSize(2, var);
 			if (size == O_SIZE_128) {
-				f_->movaps(XmmReg(dst_reg), f_->xmmword_ptr[var_manager_->GetSpillSlot(2, var)]);
+				if (f_->avx_epilog_) // PF AVS+ anti AVX-SSE2 penalty
+					f_->vmovaps(XmmReg(dst_reg), f_->xmmword_ptr[var_manager_->GetSpillSlot(2, var)]);
+				else
+					f_->movaps(XmmReg(dst_reg), f_->xmmword_ptr[var_manager_->GetSpillSlot(2, var)]);
 			} else if (size == O_SIZE_256) {
 				f_->vmovaps(YmmReg(dst_reg), f_->ymmword_ptr[var_manager_->GetSpillSlot(2, var)]);
 			} else {
@@ -7363,7 +7386,10 @@ namespace compiler
 		{
 			const OpdSize size = var_manager_->GetVarSize(2, var);
 			if (size == O_SIZE_128) {
-				f_->movaps(f_->xmmword_ptr[var_manager_->GetSpillSlot(2, var)], XmmReg(src_reg));
+				if (f_->avx_epilog_) // PF AVS+ anti AVX-SSE2 penalty
+					f_->vmovaps(f_->xmmword_ptr[var_manager_->GetSpillSlot(2, var)], XmmReg(src_reg));
+				else
+					f_->movaps(f_->xmmword_ptr[var_manager_->GetSpillSlot(2, var)], XmmReg(src_reg));
 			} else if (size == O_SIZE_256) {
 				f_->vmovaps(f_->ymmword_ptr[var_manager_->GetSpillSlot(2, var)], YmmReg(src_reg));
 			} else {
@@ -7488,10 +7514,41 @@ namespace compiler
 		MoveGenerator(int *moves, OpdSize *sizes, RegOp *reg_operator) : moves_(moves), sizes_(sizes), reg_operator_(reg_operator) {}
 		void operator()(const int *scc, size_t count) {
 			if (count > 1) {
+				std::vector<std::pair<int, int>> real_moves; // PF 20171210 track real register usage
 				for (size_t i = 0; i < count - 1; ++i) {
 					const int r = scc[i];
-					JITASM_ASSERT(r != moves_[r] && moves_[r] != -1);
-					reg_operator_->Swap(static_cast<PhysicalRegID>(moves_[r]), static_cast<PhysicalRegID>(r), sizes_[r]);
+					JITASM_ASSERT(r != moves_[r] && moves_[r] != -1); // sanity check: cannot move to itself, cannot move to undefined
+					/*
+					PF 20171210 track real register usage
+					Old: reg_operator_->Swap(static_cast<PhysicalRegID>(moves_[r]), static_cast<PhysicalRegID>(r), sizes_[r]);
+					results in wrong code for multiple xchg: does not take into account previous exchanges
+					xchg        edi, ecx
+					xchg        esi, edi
+					xchg        edx, esi
+					new code:
+					xchg        edi,ecx (-> edi = _ecx, ecx = _edi)
+					xchg        esi,ecx (-> esi = ecx (esi = _edi), ecx = _esi)
+					xchg        edx,ecx (-> edx = ecx (edx = _esi), ecx = _edx)
+					*/
+
+					// When swapping registers, all register exchanges which took role in swap should be renamed
+					int _this1 = moves_[r];
+					int _this2 = r;
+					for (size_t j = 0; j < real_moves.size(); j++) {
+					int _test_this1 = real_moves[j].first;
+					int _test_this2 = real_moves[j].second;
+					if (_this1 == _test_this1)
+						_this1 = _test_this2;
+					else if (_this1 == _test_this2)
+						_this1 = _test_this1;
+					if (_this2 == _test_this1)
+						_this2 = _test_this2;
+					else if (_this2 == _test_this2)
+						_this2 = _test_this1;
+					}
+					real_moves.push_back(std::make_pair(_this1, _this2));
+					reg_operator_->Swap(static_cast<PhysicalRegID>(_this1), static_cast<PhysicalRegID>(_this2), sizes_[_this2]);
+
 					JITASM_TRACE("Swap%d %d <-> %d\n", sizes_[r], moves_[r], r);
 				}
 			} else if (moves_[scc[0]] != scc[0] && moves_[scc[0]] != -1) {
@@ -7580,9 +7637,29 @@ namespace compiler
 		}
 
 #ifdef JITASM64
+		// rsp is 16 bytes aligned in Windows x64
+
 		// Stack base
 		if (stack_size > 0) {
-			if (num_of_preserved_gp_reg & 1) {
+			// do the same stack_size adjust in epilog
+			if (f.avx_epilog_) {
+				// general purpose registers are saved already, num_of_preserved_gp_reg*8 bytes
+				// number of general purpose registers:
+				// even -> rsp 16 byte aligned
+				// odd  -> rsp 8 byte aligned
+				f.mov(f.rbx, f.rsp);
+				// Now rbx becomes the pointer for saving spilled XMM6-15 (x64-compulsory) and
+				// temporary storage for the local variables (reg, xmm, ymm)
+				// Because we use vmovaps (aligned store/load) for ymm, 32 byte alignment needed for base
+				// like and rbx, -32; ffffffffffffffe0H (r64 with imm32: sign extended)
+				f.and_(f.rbx, -32); // align 32 bytes
+
+				// padding for keep alignment (16 bytes for rsp)
+				if (num_of_preserved_gp_reg & 1)
+					stack_size += 16+8; // 8 or 24. Worst case.
+				else
+					stack_size += 16; // 0 or 16 Worst case.
+			} else if (num_of_preserved_gp_reg & 1) {
 				// Copy with alignment
 				f.lea(f.rbx, f.ptr[f.rsp - 8]);
 				stack_size += 8;	// padding for keep alignment
@@ -7593,8 +7670,11 @@ namespace compiler
 #else
 		if (stack_size > 0) {
 			// Align stack pointer
-			f.and_(f.esp, 0xFFFFFFF0);
-
+			if (f.avx_epilog_)
+				f.and_(f.esp, 0xFFFFFFE0); // 32 byte alignment for aligned local ymm spill register storage
+			else
+				f.and_(f.esp, 0xFFFFFFF0); // 16 byte alignment
+			// in x86 we don't adjust stack_size here, esp is restored by ebp
 			// Stack base
 			f.mov(f.ebx, f.esp);
 		}
@@ -7610,7 +7690,10 @@ namespace compiler
 		uint32 xmm_reg_mask = preserved_reg[2];
 		for (size_t i = 0; xmm_reg_mask != 0; ++i) {
 			uint32 reg_id = detail::bit_scan_forward(xmm_reg_mask);
-			f.movaps(f.xmmword_ptr[preserved_reg_stack + 16 * i], XmmReg(static_cast<PhysicalRegID>(reg_id)));
+			if (f.avx_epilog_) // PF AVS+ anti AVX->SSE2 penalty
+				f.vmovaps(f.xmmword_ptr[preserved_reg_stack + 16 * i], XmmReg(static_cast<PhysicalRegID>(reg_id)));
+			else
+				f.movaps(f.xmmword_ptr[preserved_reg_stack + 16 * i], XmmReg(static_cast<PhysicalRegID>(reg_id)));
 			xmm_reg_mask &= ~(1 << reg_id);
 		}
 #endif
@@ -7636,13 +7719,23 @@ namespace compiler
 
 		// Insert restore instruction by inverse order
 		while (!regs.empty()) {
-			f.movaps(XmmReg(static_cast<PhysicalRegID>(regs.back())), f.xmmword_ptr[preserved_reg_stack + 16 * (regs.size() - 1)]);
+			// PF AVS+: generate vmovaps to avoid AVX->SSE2 penalty
+			if (f.avx_epilog_)
+				f.vmovaps(XmmReg(static_cast<PhysicalRegID>(regs.back())), f.xmmword_ptr[preserved_reg_stack + 16 * (regs.size() - 1)]);
+			else
+				f.movaps(XmmReg(static_cast<PhysicalRegID>(regs.back())), f.xmmword_ptr[preserved_reg_stack + 16 * (regs.size() - 1)]);
 			regs.pop_back();
 		}
 
 		// Move stack pointer
 		if (stack_size > 0) {
-			if (num_of_preserved_gp_reg & 1) {
+			// same calculation like in prolog
+			if (f.avx_epilog_) {
+				if (num_of_preserved_gp_reg & 1)
+					stack_size += 16 + 8; // 8 or 24. Worst case.
+				else
+					stack_size += 16; // 0 or 16 Worst case.
+			} else if (num_of_preserved_gp_reg & 1) {
 				stack_size += 8;	// padding for keep alignment
 			}
 			f.add(f.zsp, static_cast<uint32>(stack_size));
@@ -7663,7 +7756,9 @@ namespace compiler
 
 		// Restore frame pointer
 		f.pop(f.zbp);
-
+		// PF AVS+: avoid AVX->SSE2 penalty
+		if(f.avx_epilog_)
+			f.vzeroupper();
 		f.ret();
 	}
 
@@ -8785,7 +8880,22 @@ namespace detail {
 
 		/// Function argument
 		template<class T, size_t Size = sizeof(T)>
-        struct Arg;
+		struct Arg
+		{
+			Addr addr_;
+#ifdef JITASM64
+			Arg(Frontend& f, const ArgInfo& arg_info) : addr_(Reg()) {
+				if (arg_info.reg_id != INVALID) {
+					f.DeclareRegArg(Reg(addr_.reg_), Reg(arg_info.reg_id), f.ptr[arg_info.addr]);
+				} else {
+					f.DeclareStackArg(Reg(addr_.reg_), f.ptr[arg_info.addr]);
+				}
+			}
+#else
+			Arg(Frontend& f, const ArgInfo& arg_info) : addr_(arg_info.addr) {}
+#endif
+			operator Addr () {return addr_;}
+		};
 
 		// specialization for 1byte type
 		template<class T>
