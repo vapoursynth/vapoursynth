@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "VSHelper.h"
+#include "cpufeatures.h"
 #include "internalfilters.h"
 #include "filtershared.h"
 #include "kernel/cpulevel.h"
@@ -1983,7 +1984,14 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
             void (*func)(union vs_plane_stats *, const void *, ptrdiff_t, const void *, ptrdiff_t, unsigned, unsigned) = NULL;
 
 #ifdef VS_TARGET_CPU_X86
-            if (d->cpulevel >= VS_CPU_LEVEL_SSE2) {
+            if (getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2) {
+                switch (fi->bytesPerSample) {
+                case 1: func = vs_plane_stats_2_byte_avx2; break;
+                case 2: func = vs_plane_stats_2_word_avx2; break;
+                case 4: func = vs_plane_stats_2_float_avx2; break;
+                }
+            }
+            if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
                 switch (fi->bytesPerSample) {
                 case 1: func = vs_plane_stats_2_byte_sse2; break;
                 case 2: func = vs_plane_stats_2_word_sse2; break;
@@ -2005,7 +2013,14 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
             void (*func)(union vs_plane_stats *, const void *, ptrdiff_t, unsigned, unsigned) = NULL;
 
 #ifdef VS_TARGET_CPU_X86
-            if (d->cpulevel >= VS_CPU_LEVEL_SSE2) {
+            if (getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2) {
+                switch (fi->bytesPerSample) {
+                case 1: func = vs_plane_stats_1_byte_avx2; break;
+                case 2: func = vs_plane_stats_1_word_avx2; break;
+                case 4: func = vs_plane_stats_1_float_avx2; break;
+                }
+            }
+            if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
                 switch (fi->bytesPerSample) {
                 case 1: func = vs_plane_stats_1_byte_sse2; break;
                 case 2: func = vs_plane_stats_1_word_sse2; break;

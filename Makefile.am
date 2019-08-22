@@ -34,7 +34,8 @@ noinst_LTLIBRARIES = libexprfilter.la libvapoursynth_avx2.la
 libexprfilter_la_SOURCES = src/core/exprfilter.cpp
 libexprfilter_la_CPPFLAGS = $(AM_CXXFLAGS) -fno-strict-aliasing
 
-libvapoursynth_avx2_la_SOURCES = src/core/kernel/x86/merge_avx2.c
+libvapoursynth_avx2_la_SOURCES = src/core/kernel/x86/merge_avx2.c \
+							src/core/kernel/x86/planestats_avx2.c 
 libvapoursynth_avx2_la_CFLAGS = $(AM_CFLAGS) $(AVX2FLAGS)
 libvapoursynth_avx2_la_CXXFLAGS = $(AM_CXXFLAGS) $(AVX2FLAGS)
 
