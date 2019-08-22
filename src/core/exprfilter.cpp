@@ -2592,8 +2592,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     int err;
 
 #ifdef VS_TARGET_CPU_X86
-    CPUFeatures f;
-    getCPUFeatures(&f);
+    const CPUFeatures &f = *getCPUFeatures();
 #   define EXPR_F16C_TEST (f.f16c)
 #else
 #   define EXPR_F16C_TEST (false)

@@ -1726,9 +1726,7 @@ VSMap VSPlugin::getFunctions() {
 
 #ifdef VS_TARGET_CPU_X86
 static int alignmentHelper() {
-    CPUFeatures f;
-    getCPUFeatures(&f);
-    return f.avx512_f ? 64 : 32;
+    return getCPUFeatures()->avx512_f ? 64 : 32;
 }
 
 int VSFrame::alignment = alignmentHelper();

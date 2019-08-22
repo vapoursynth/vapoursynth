@@ -30,9 +30,6 @@
     <ClCompile Include="..\..\src\core\cachefilter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\core\cpufeatures.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\core\exprfilter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -107,6 +104,9 @@
     </ClCompile>
     <ClCompile Include="..\..\src\core\kernel\cpulevel.cpp">
       <Filter>Source Files\kernel</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core\cpufeatures.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

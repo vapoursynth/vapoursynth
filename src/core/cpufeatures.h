@@ -21,6 +21,10 @@
 #ifndef CPUFEATURES_H
 #define CPUFEATURES_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct CPUFeatures {
     // This is to determine if the cpu is up to the minimum requirements in terms of supported instructions
     // that the VapourSynth core uses.
@@ -64,12 +68,10 @@ typedef struct CPUFeatures {
 #endif
 } CPUFeatures;
 
-#ifdef __cplusplus
-#define CPU_FEATURES_EXTERN_C extern "C"
-#else
-#define CPU_FEATURES_EXTERN_C
-#endif
+const CPUFeatures *getCPUFeatures(void);
 
-CPU_FEATURES_EXTERN_C void getCPUFeatures(CPUFeatures *cpuFeatures);
+#ifdef __cplusplus
+}
+#endif
 
 #endif

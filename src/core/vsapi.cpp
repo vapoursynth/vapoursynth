@@ -667,9 +667,7 @@ const VSAPI *VS_CC getVapourSynthAPI(int version) VS_NOEXCEPT {
         apiMajor >>= 16;
     }
 
-    CPUFeatures f;
-    getCPUFeatures(&f);
-    if (!f.can_run_vs) {
+    if (!getCPUFeatures()->can_run_vs) {
         return nullptr;
     } else if (apiMajor == VAPOURSYNTH_API_MAJOR && apiMinor <= VAPOURSYNTH_API_MINOR) {
         return &vs_internal_vsapi;

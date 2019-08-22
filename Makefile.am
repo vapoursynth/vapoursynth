@@ -40,7 +40,7 @@ lib_LTLIBRARIES += libvapoursynth.la
 libvapoursynth_la_SOURCES = src/core/boxblurfilter.cpp \
 							src/core/cachefilter.cpp \
 							src/core/cachefilter.h \
-							src/core/cpufeatures.c \
+							src/core/cpufeatures.cpp \
 							src/core/cpufeatures.h \
 							src/core/filtershared.h \
 							src/core/genericfilters.cpp \
