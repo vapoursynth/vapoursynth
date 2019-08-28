@@ -104,7 +104,7 @@ struct FloatTraits {
     static __m128 shr_insert(__m128 x, float y, unsigned idx)
     {
         __m128i mask = _mm_set_epi32(3, 2, 1, 0);
-        mask = _mm_cmpeq_epi16(mask, _mm_set1_epi32(idx));
+        mask = _mm_cmpeq_epi32(mask, _mm_set1_epi32(idx));
         return _mm_castsi128_ps(mm_blendv_epi8(_mm_srli_si128(_mm_castps_si128(x), 4), _mm_castps_si128(_mm_set_ps1(y)), mask));
     }
 };
@@ -417,11 +417,6 @@ struct MinMaxWord : MinMaxTraits<MinMaxWord<Max>, __m128i>, WordTraits {
     }
 };
 
-constexpr uint8_t STENCIL_ALL = 0xFF;
-constexpr uint8_t STENCIL_H = 0x18;
-constexpr uint8_t STENCIL_V = 0x42;
-constexpr uint8_t STENCIL_PLUS = STENCIL_H | STENCIL_V;
-
 template <bool Max>
 struct MinMaxFloat : MinMaxTraits<MinMaxFloat<Max>, __m128>, FloatTraits {
     typedef MinMaxTraits<MinMaxFloat<Max>, __m128> MinMaxTraitsT;
@@ -449,6 +444,11 @@ struct MinMaxFloat : MinMaxTraits<MinMaxFloat<Max>, __m128>, FloatTraits {
         return limit_diff_ps<Max>(val, a11, threshold);
     }
 };
+
+constexpr uint8_t STENCIL_ALL = 0xFF;
+constexpr uint8_t STENCIL_H = 0x18;
+constexpr uint8_t STENCIL_V = 0x42;
+constexpr uint8_t STENCIL_PLUS = STENCIL_H | STENCIL_V;
 
 template <uint8_t Stencil, class Derived, class vec_type>
 struct MinMaxFixedTraits {
@@ -1261,50 +1261,4 @@ void vs_generic_3x3_conv_word_sse2(const void *src, ptrdiff_t src_stride, void *
 void vs_generic_3x3_conv_float_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
 {
     filter_plane_3x3<ConvolutionFloat>(src, src_stride, dst, dst_stride, *params, width, height);
-}
-
-// TODO
-void vs_generic_5x5_conv_byte_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
-{
-    vs_generic_5x5_conv_byte_c(src, src_stride, dst, dst_stride, params, width, height);
-}
-
-void vs_generic_5x5_conv_word_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
-{
-    vs_generic_5x5_conv_word_c(src, src_stride, dst, dst_stride, params, width, height);
-}
-
-void vs_generic_5x5_conv_float_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
-{
-    vs_generic_5x5_conv_float_c(src, src_stride, dst, dst_stride, params, width, height);
-}
-
-void vs_generic_1d_conv_h_byte_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
-{
-    vs_generic_1d_conv_h_byte_c(src, src_stride, dst, dst_stride, params, width, height);
-}
-
-void vs_generic_1d_conv_h_word_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
-{
-    vs_generic_1d_conv_h_word_c(src, src_stride, dst, dst_stride, params, width, height);
-}
-
-void vs_generic_1d_conv_h_float_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
-{
-    vs_generic_1d_conv_h_float_c(src, src_stride, dst, dst_stride, params, width, height);
-}
-
-void vs_generic_1d_conv_v_byte_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
-{
-    vs_generic_1d_conv_v_byte_c(src, src_stride, dst, dst_stride, params, width, height);
-}
-
-void vs_generic_1d_conv_v_word_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
-{
-    vs_generic_1d_conv_v_word_c(src, src_stride, dst, dst_stride, params, width, height);
-}
-
-void vs_generic_1d_conv_v_float_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height)
-{
-    vs_generic_1d_conv_v_float_c(src, src_stride, dst, dst_stride, params, width, height);
 }

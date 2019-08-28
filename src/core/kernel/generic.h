@@ -50,95 +50,121 @@ struct vs_generic_params {
 	uint8_t saturate;
 };
 
-void vs_generic_3x3_prewitt_byte_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_prewitt_word_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_prewitt_float_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
+#define DECL(kernel, pixel, isa) void vs_generic_##kernel##_##pixel##_##isa(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
+#define DECL_3x3(kernel, pixel, isa) DECL(3x3_##kernel, pixel, isa)
 
-void vs_generic_3x3_sobel_byte_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_sobel_word_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_sobel_float_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
+DECL_3x3(prewitt, byte, c)
+DECL_3x3(prewitt, word, c)
+DECL_3x3(prewitt, float, c)
 
-void vs_generic_3x3_min_byte_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_min_word_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_min_float_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
+DECL_3x3(sobel, byte, c)
+DECL_3x3(sobel, word, c)
+DECL_3x3(sobel, float, c)
 
-void vs_generic_3x3_max_byte_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_max_word_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_max_float_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
+DECL_3x3(min, byte, c)
+DECL_3x3(min, word, c)
+DECL_3x3(min, float, c)
 
-void vs_generic_3x3_median_byte_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_median_word_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_median_float_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
+DECL_3x3(max, byte, c)
+DECL_3x3(max, word, c)
+DECL_3x3(max, float, c)
 
-void vs_generic_3x3_deflate_byte_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_deflate_word_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_deflate_float_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
+DECL_3x3(median, byte, c)
+DECL_3x3(median, word, c)
+DECL_3x3(median, float, c)
 
-void vs_generic_3x3_inflate_byte_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_inflate_word_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_inflate_float_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
+DECL_3x3(deflate, byte, c)
+DECL_3x3(deflate, word, c)
+DECL_3x3(deflate, float, c)
 
-void vs_generic_3x3_conv_byte_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_conv_word_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_conv_float_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
+DECL_3x3(inflate, byte, c)
+DECL_3x3(inflate, word, c)
+DECL_3x3(inflate, float, c)
 
-void vs_generic_5x5_conv_byte_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_5x5_conv_word_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_5x5_conv_float_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
+DECL_3x3(conv, byte, c)
+DECL_3x3(conv, word, c)
+DECL_3x3(conv, float, c)
 
-void vs_generic_1d_conv_h_byte_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_1d_conv_h_word_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_1d_conv_h_float_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
+DECL(5x5_conv, byte, c)
+DECL(5x5_conv, word, c)
+DECL(5x5_conv, float, c)
 
-void vs_generic_1d_conv_v_byte_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_1d_conv_v_word_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_1d_conv_v_float_c(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
+DECL(1d_conv_h, byte, c)
+DECL(1d_conv_h, word, c)
+DECL(1d_conv_h, float, c)
+
+DECL(1d_conv_v, byte, c)
+DECL(1d_conv_v, word, c)
+DECL(1d_conv_v, float, c)
 
 #ifdef VS_TARGET_CPU_X86
-void vs_generic_3x3_prewitt_byte_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_prewitt_word_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_prewitt_float_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
+DECL_3x3(prewitt, byte, sse2)
+DECL_3x3(prewitt, word, sse2)
+DECL_3x3(prewitt, float, sse2)
 
-void vs_generic_3x3_sobel_byte_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_sobel_word_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_sobel_float_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
+DECL_3x3(sobel, byte, sse2)
+DECL_3x3(sobel, word, sse2)
+DECL_3x3(sobel, float, sse2)
 
-void vs_generic_3x3_min_byte_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_min_word_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_min_float_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
+DECL_3x3(min, byte, sse2)
+DECL_3x3(min, word, sse2)
+DECL_3x3(min, float, sse2)
 
-void vs_generic_3x3_max_byte_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_max_word_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_max_float_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
+DECL_3x3(max, byte, sse2)
+DECL_3x3(max, word, sse2)
+DECL_3x3(max, float, sse2)
 
-void vs_generic_3x3_median_byte_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_median_word_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_median_float_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
+DECL_3x3(median, byte, sse2)
+DECL_3x3(median, word, sse2)
+DECL_3x3(median, float, sse2)
 
-void vs_generic_3x3_deflate_byte_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_deflate_word_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_deflate_float_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
+DECL_3x3(deflate, byte, sse2)
+DECL_3x3(deflate, word, sse2)
+DECL_3x3(deflate, float, sse2)
 
-void vs_generic_3x3_inflate_byte_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_inflate_word_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_inflate_float_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
+DECL_3x3(inflate, byte, sse2)
+DECL_3x3(inflate, word, sse2)
+DECL_3x3(inflate, float, sse2)
 
-void vs_generic_3x3_conv_byte_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_conv_word_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_3x3_conv_float_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
+DECL_3x3(conv, byte, sse2)
+DECL_3x3(conv, word, sse2)
+DECL_3x3(conv, float, sse2)
 
-void vs_generic_5x5_conv_byte_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_5x5_conv_word_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_5x5_conv_float_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
+DECL_3x3(prewitt, byte, avx2)
+DECL_3x3(prewitt, word, avx2)
+DECL_3x3(prewitt, float, avx2)
 
-void vs_generic_1d_conv_h_byte_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_1d_conv_h_word_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_1d_conv_h_float_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
+DECL_3x3(sobel, byte, avx2)
+DECL_3x3(sobel, word, avx2)
+DECL_3x3(sobel, float, avx2)
 
-void vs_generic_1d_conv_v_byte_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_1d_conv_v_word_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
-void vs_generic_1d_conv_v_float_sse2(const void *src, ptrdiff_t src_stride, void *dst, ptrdiff_t dst_stride, const struct vs_generic_params *params, unsigned width, unsigned height);
+DECL_3x3(min, byte, avx2)
+DECL_3x3(min, word, avx2)
+DECL_3x3(min, float, avx2)
+
+DECL_3x3(max, byte, avx2)
+DECL_3x3(max, word, avx2)
+DECL_3x3(max, float, avx2)
+
+DECL_3x3(median, byte, avx2)
+DECL_3x3(median, word, avx2)
+DECL_3x3(median, float, avx2)
+
+DECL_3x3(deflate, byte, avx2)
+DECL_3x3(deflate, word, avx2)
+DECL_3x3(deflate, float, avx2)
+
+DECL_3x3(inflate, byte, avx2)
+DECL_3x3(inflate, word, avx2)
+DECL_3x3(inflate, float, avx2)
+
+DECL_3x3(conv, byte, avx2)
+DECL_3x3(conv, word, avx2)
+DECL_3x3(conv, float, avx2)
 #endif
+
+#undef DECL_3x3
+#undef DECL
 
 #ifdef __cplusplus
 }

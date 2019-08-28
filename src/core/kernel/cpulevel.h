@@ -31,6 +31,7 @@ enum {
     VS_CPU_LEVEL_NONE = 0,
 #ifdef VS_TARGET_CPU_X86
     VS_CPU_LEVEL_SSE2 = 1,
+    VS_CPU_LEVEL_AVX2 = 2,
 #endif
     VS_CPU_LEVEL_MAX = INT_MAX
 };

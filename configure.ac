@@ -105,6 +105,7 @@ AS_IF(
        )
 
        AC_SUBST([MFLAGS], ["-mfpmath=sse -msse2"])
+       AC_SUBST([AVX2FLAGS], ["-mavx2 -mfma -mtune=haswell"])
       ]
 )
 

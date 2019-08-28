@@ -30,6 +30,7 @@
 #include <vector>
 #include <VapourSynth.h>
 #include <VSHelper.h>
+#include "cpufeatures.h"
 #include "filtershared.h"
 #include "filtersharedcpp.h"
 #include "kernel/cpulevel.h"
@@ -187,6 +188,54 @@ vs_generic_params make_generic_params(const GenericData *d, const VSFormat *fi, 
 
 #ifdef VS_TARGET_CPU_X86
 template <GenericOperations op>
+static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX2(const VSFormat *fi, GenericData *d) {
+    if (fi->sampleType == stInteger && fi->bytesPerSample == 1) {
+        switch (op) {
+        case GenericPrewitt: return vs_generic_3x3_prewitt_byte_avx2;
+        case GenericSobel: return vs_generic_3x3_sobel_byte_avx2;
+        case GenericMinimum: return vs_generic_3x3_min_byte_avx2;
+        case GenericMaximum: return vs_generic_3x3_max_byte_avx2;
+        case GenericMedian: return vs_generic_3x3_median_byte_avx2;
+        case GenericDeflate: return vs_generic_3x3_deflate_byte_avx2;
+        case GenericInflate: return vs_generic_3x3_inflate_byte_avx2;
+        case GenericConvolution:
+            if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
+                return vs_generic_3x3_conv_byte_avx2;
+            break;
+        }
+    } else if (fi->sampleType == stInteger && fi->bytesPerSample == 2) {
+        switch (op) {
+        case GenericPrewitt: return vs_generic_3x3_prewitt_word_avx2;
+        case GenericSobel: return vs_generic_3x3_sobel_word_avx2;
+        case GenericMinimum: return vs_generic_3x3_min_word_avx2;
+        case GenericMaximum: return vs_generic_3x3_max_word_avx2;
+        case GenericMedian: return vs_generic_3x3_median_word_avx2;
+        case GenericDeflate: return vs_generic_3x3_deflate_word_avx2;
+        case GenericInflate: return vs_generic_3x3_inflate_word_avx2;
+        case GenericConvolution:
+            if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
+                return vs_generic_3x3_conv_word_avx2;
+            break;
+        }
+    } else if (fi->sampleType == stFloat && fi->bytesPerSample == 4) {
+        switch (op) {
+        case GenericPrewitt: return vs_generic_3x3_prewitt_float_avx2;
+        case GenericSobel: return vs_generic_3x3_sobel_float_avx2;
+        case GenericMinimum: return vs_generic_3x3_min_float_avx2;
+        case GenericMaximum: return vs_generic_3x3_max_float_avx2;
+        case GenericMedian: return vs_generic_3x3_median_float_avx2;
+        case GenericDeflate: return vs_generic_3x3_deflate_float_avx2;
+        case GenericInflate: return vs_generic_3x3_inflate_float_avx2;
+        case GenericConvolution:
+            if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
+                return vs_generic_3x3_conv_float_avx2;
+            break;
+        }
+    }
+    return nullptr;
+}
+
+template <GenericOperations op>
 static decltype(&vs_generic_3x3_conv_byte_c) genericSelectSSE2(const VSFormat *fi, GenericData *d) {
     if (fi->sampleType == stInteger && fi->bytesPerSample == 1) {
         switch (op) {
@@ -200,12 +249,6 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectSSE2(const VSFormat *f
         case GenericConvolution:
             if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
                 return vs_generic_3x3_conv_byte_sse2;
-            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
-                return vs_generic_5x5_conv_byte_sse2;
-            else if (d->convolution_type == ConvolutionHorizontal)
-                return vs_generic_1d_conv_h_byte_sse2;
-            else if (d->convolution_type == ConvolutionVertical)
-                return vs_generic_1d_conv_v_byte_sse2;
             break;
         }
     } else if (fi->sampleType == stInteger && fi->bytesPerSample == 2) {
@@ -220,12 +263,6 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectSSE2(const VSFormat *f
         case GenericConvolution:
             if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
                 return vs_generic_3x3_conv_word_sse2;
-            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
-                return vs_generic_5x5_conv_word_sse2;
-            else if (d->convolution_type == ConvolutionHorizontal)
-                return vs_generic_1d_conv_h_word_sse2;
-            else if (d->convolution_type == ConvolutionVertical)
-                return vs_generic_1d_conv_v_word_sse2;
             break;
         }
     } else if (fi->sampleType == stFloat && fi->bytesPerSample == 4) {
@@ -240,12 +277,6 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectSSE2(const VSFormat *f
         case GenericConvolution:
             if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 9)
                 return vs_generic_3x3_conv_float_sse2;
-            else if (d->convolution_type == ConvolutionSquare && d->matrix_elements == 25)
-                return vs_generic_5x5_conv_float_sse2;
-            else if (d->convolution_type == ConvolutionHorizontal)
-                return vs_generic_1d_conv_h_float_sse2;
-            else if (d->convolution_type == ConvolutionVertical)
-                return vs_generic_1d_conv_v_float_sse2;
             break;
         }
     }
@@ -352,7 +383,9 @@ static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void
         void (*func)(const void *, ptrdiff_t, void *, ptrdiff_t, const vs_generic_params *, unsigned, unsigned) = nullptr;
 
 #ifdef VS_TARGET_CPU_X86
-        if (d->cpulevel >= VS_CPU_LEVEL_SSE2)
+        if (getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2)
+            func = genericSelectAVX2<op>(fi, d);
+        if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2)
             func = genericSelectSSE2<op>(fi, d);
 #endif
         if (!func)

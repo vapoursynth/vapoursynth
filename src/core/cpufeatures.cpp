@@ -61,7 +61,7 @@ static unsigned long long vs_cpu_xgetbv(unsigned ecx) {
 #endif
 }
 
-void getCPUFeatures(CPUFeatures *cpuFeatures) {
+static void doGetCPUFeatures(CPUFeatures *cpuFeatures) {
     memset(cpuFeatures, 0, sizeof(CPUFeatures));
 
     int eax = 0;
@@ -82,7 +82,7 @@ void getCPUFeatures(CPUFeatures *cpuFeatures) {
     cpuFeatures->popcnt = !!(ecx & (1 << 23));
 
     if ((ecx & (1 << 27)) && (ecx & (1 << 28))) {
-        xedxeax = vs_cpu_xgetbv(0);       
+        xedxeax = vs_cpu_xgetbv(0);
         cpuFeatures->avx = ((xedxeax & 0x06) == 0x06);
         if (cpuFeatures->avx) {
             eax = 0;
@@ -105,7 +105,7 @@ void getCPUFeatures(CPUFeatures *cpuFeatures) {
 #elif defined(VS_TARGET_OS_LINUX)
 #include <sys/auxv.h>
 
-void getCPUFeatures(CPUFeatures *cpuFeatures) {
+static void doGetCPUFeatures(CPUFeatures *cpuFeatures) {
     memset(cpuFeatures, 0, sizeof(CPUFeatures));
 
     unsigned long long hwcap = getauxval(AT_HWCAP);
@@ -133,3 +133,14 @@ void getCPUFeatures(CPUFeatures *cpuFeatures) {
 #else
 #warning "Do not know how to get CPU features."
 #endif
+
+const CPUFeatures *getCPUFeatures(void) {
+    static CPUFeatures features = []()
+    {
+        CPUFeatures tmp;
+        doGetCPUFeatures(&tmp);
+        return tmp;
+    }();
+
+    return &features;
+}

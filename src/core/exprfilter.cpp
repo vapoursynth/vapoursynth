@@ -163,10 +163,77 @@ struct ExprData {
 };
 
 #ifdef VS_TARGET_CPU_X86
-class ExprCompiler : private jitasm::function<void, ExprCompiler, uint8_t *, const intptr_t *, intptr_t> {
-    typedef jitasm::function<void, ExprCompiler, uint8_t *, const intptr_t *, intptr_t> jit;
+class ExprCompiler {
+    virtual void load8(const ExprInstruction &insn) = 0;
+    virtual void load16(const ExprInstruction &insn) = 0;
+    virtual void loadF16(const ExprInstruction &insn) = 0;
+    virtual void loadF32(const ExprInstruction &insn) = 0;
+    virtual void loadConst(const ExprInstruction &insn) = 0;
+    virtual void store8(const ExprInstruction &insn) = 0;
+    virtual void store16(const ExprInstruction &insn) = 0;
+    virtual void storeF16(const ExprInstruction &insn) = 0;
+    virtual void storeF32(const ExprInstruction &insn) = 0;
+    virtual void add(const ExprInstruction &insn) = 0;
+    virtual void sub(const ExprInstruction &insn) = 0;
+    virtual void mul(const ExprInstruction &insn) = 0;
+    virtual void div(const ExprInstruction &insn) = 0;
+    virtual void fma(const ExprInstruction &insn) = 0;
+    virtual void max(const ExprInstruction &insn) = 0;
+    virtual void min(const ExprInstruction &insn) = 0;
+    virtual void sqrt(const ExprInstruction &insn) = 0;
+    virtual void abs(const ExprInstruction &insn) = 0;
+    virtual void neg(const ExprInstruction &insn) = 0;
+    virtual void not_(const ExprInstruction &insn) = 0;
+    virtual void and_(const ExprInstruction &insn) = 0;
+    virtual void or_(const ExprInstruction &insn) = 0;
+    virtual void xor_(const ExprInstruction &insn) = 0;
+    virtual void cmp(const ExprInstruction &insn) = 0;
+    virtual void ternary(const ExprInstruction &insn) = 0;
+    virtual void exp(const ExprInstruction &insn) = 0;
+    virtual void log(const ExprInstruction &insn) = 0;
+    virtual void pow(const ExprInstruction &insn) = 0;
+public:
+    void addInstruction(const ExprInstruction &insn)
+    {
+        switch (insn.op.type) {
+        case ExprOpType::MEM_LOAD_U8: load8(insn); break;
+        case ExprOpType::MEM_LOAD_U16: load16(insn); break;
+        case ExprOpType::MEM_LOAD_F16: loadF16(insn); break;
+        case ExprOpType::MEM_LOAD_F32: loadF32(insn); break;
+        case ExprOpType::CONSTANT: loadConst(insn); break;
+        case ExprOpType::MEM_STORE_U8: store8(insn); break;
+        case ExprOpType::MEM_STORE_U16: store16(insn); break;
+        case ExprOpType::MEM_STORE_F16: storeF16(insn); break;
+        case ExprOpType::MEM_STORE_F32: storeF32(insn); break;
+        case ExprOpType::ADD: add(insn); break;
+        case ExprOpType::SUB: sub(insn); break;
+        case ExprOpType::MUL: mul(insn); break;
+        case ExprOpType::DIV: div(insn); break;
+        case ExprOpType::FMA: fma(insn); break;
+        case ExprOpType::MAX: max(insn); break;
+        case ExprOpType::MIN: min(insn); break;
+        case ExprOpType::SQRT: sqrt(insn); break;
+        case ExprOpType::ABS: abs(insn); break;
+        case ExprOpType::NEG: neg(insn); break;
+        case ExprOpType::NOT: not_(insn); break;
+        case ExprOpType::AND: and_(insn); break;
+        case ExprOpType::OR: or_(insn); break;
+        case ExprOpType::XOR: xor_(insn); break;
+        case ExprOpType::CMP: cmp(insn); break;
+        case ExprOpType::TERNARY: ternary(insn); break;
+        case ExprOpType::EXP: exp(insn); break;
+        case ExprOpType::LOG: log(insn); break;
+        case ExprOpType::POW: pow(insn); break;
+        }
+    }
+
+    virtual ExprData::ProcessLineProc getCode() = 0;
+};
+
+class ExprCompiler128 : public ExprCompiler, private jitasm::function<void, ExprCompiler128, uint8_t *, const intptr_t *, intptr_t> {
+    typedef jitasm::function<void, ExprCompiler128, uint8_t *, const intptr_t *, intptr_t> jit;
     friend struct jit;
-    friend struct jitasm::function_cdecl<void, ExprCompiler, uint8_t *, const intptr_t *, intptr_t>;
+    friend struct jitasm::function_cdecl<void, ExprCompiler128, uint8_t *, const intptr_t *, intptr_t>;
 
 #define SPLAT(x) { (x), (x), (x), (x) }
     static constexpr ExprUnion constData[32][4] alignas(16) = {
@@ -301,7 +368,7 @@ do { \
   } \
 } while (0)
 
-    void load8(const ExprInstruction &insn)
+    void load8(const ExprInstruction &insn) override
     {
         deferred.push_back(EMIT()
         {
@@ -317,7 +384,7 @@ do { \
         });
     }
 
-    void load16(const ExprInstruction &insn)
+    void load16(const ExprInstruction &insn) override
     {
         deferred.push_back(EMIT()
         {
@@ -332,7 +399,7 @@ do { \
         });
     }
 
-    void loadF16(const ExprInstruction &insn)
+    void loadF16(const ExprInstruction &insn) override
     {
         deferred.push_back(EMIT()
         {
@@ -344,7 +411,7 @@ do { \
         });
     }
 
-    void loadF32(const ExprInstruction &insn)
+    void loadF32(const ExprInstruction &insn) override
     {
         deferred.push_back(EMIT()
         {
@@ -356,7 +423,7 @@ do { \
         });
     }
 
-    void loadConst(const ExprInstruction &insn)
+    void loadConst(const ExprInstruction &insn) override
     {
         deferred.push_back(EMIT()
         {
@@ -376,7 +443,7 @@ do { \
         });
     }
 
-    void store8(const ExprInstruction &insn)
+    void store8(const ExprInstruction &insn) override
     {
         deferred.push_back(EMIT()
         {
@@ -395,7 +462,7 @@ do { \
         });
     }
 
-    void store16(const ExprInstruction &insn)
+    void store16(const ExprInstruction &insn) override
     {
         deferred.push_back(EMIT()
         {
@@ -423,7 +490,7 @@ do { \
         });
     }
 
-    void storeF16(const ExprInstruction &insn)
+    void storeF16(const ExprInstruction &insn) override
     {
         deferred.push_back(EMIT()
         {
@@ -436,7 +503,7 @@ do { \
         });
     }
 
-    void storeF32(const ExprInstruction &insn)
+    void storeF32(const ExprInstruction &insn) override
     {
         deferred.push_back(EMIT()
         {
@@ -457,7 +524,7 @@ do { \
   VEX2(op, t3.first, t1.first, t2.first); \
   VEX2(op, t3.second, t1.second, t2.second); \
 } while (0)
-    void add(const ExprInstruction &insn)
+    void add(const ExprInstruction &insn) override
     {
         deferred.push_back(EMIT()
         {
@@ -465,7 +532,7 @@ do { \
         });
     }
 
-    void sub(const ExprInstruction &insn)
+    void sub(const ExprInstruction &insn) override
     {
         deferred.push_back(EMIT()
         {
@@ -473,7 +540,7 @@ do { \
         });
     }
 
-    void mul(const ExprInstruction &insn)
+    void mul(const ExprInstruction &insn) override
     {
         deferred.push_back(EMIT()
         {
@@ -481,7 +548,7 @@ do { \
         });
     }
 
-    void div(const ExprInstruction &insn)
+    void div(const ExprInstruction &insn) override
     {
         deferred.push_back(EMIT()
         {
@@ -489,7 +556,7 @@ do { \
         });
     }
 
-    void fma(const ExprInstruction &insn)
+    void fma(const ExprInstruction &insn) override
     {
         deferred.push_back(EMIT()
         {
@@ -552,7 +619,7 @@ do { \
         });
     }
 
-    void max(const ExprInstruction &insn)
+    void max(const ExprInstruction &insn) override
     {
         deferred.push_back(EMIT()
         {
@@ -560,7 +627,7 @@ do { \
         });
     }
 
-    void min(const ExprInstruction &insn)
+    void min(const ExprInstruction &insn) override
     {
         deferred.push_back(EMIT()
         {
@@ -569,7 +636,7 @@ do { \
     }
 #undef BINARYOP
 
-    void sqrt(const ExprInstruction &insn)
+    void sqrt(const ExprInstruction &insn) override
     {
         deferred.push_back(EMIT()
         {
@@ -582,7 +649,7 @@ do { \
         });
     }
 
-    void abs(const ExprInstruction &insn)
+    void abs(const ExprInstruction &insn) override
     {
         deferred.push_back(EMIT()
         {
@@ -595,7 +662,7 @@ do { \
         });
     }
 
-    void neg(const ExprInstruction &insn)
+    void neg(const ExprInstruction &insn) override
     {
         deferred.push_back(EMIT()
         {
@@ -608,7 +675,7 @@ do { \
         });
     }
 
-    void not_(const ExprInstruction &insn)
+    void not_(const ExprInstruction &insn) override
     {
         deferred.push_back(EMIT()
         {
@@ -640,7 +707,7 @@ do { \
   VEX2(andps, t3.second, t3.second, r1); \
 } while (0)
 
-    void and_(const ExprInstruction &insn)
+    void and_(const ExprInstruction &insn) override
     {
         deferred.push_back(EMIT()
         {
@@ -648,7 +715,7 @@ do { \
         });
     }
 
-    void or_(const ExprInstruction &insn)
+    void or_(const ExprInstruction &insn) override
     {
         deferred.push_back(EMIT()
         {
@@ -656,7 +723,7 @@ do { \
         });
     }
 
-    void xor_(const ExprInstruction &insn)
+    void xor_(const ExprInstruction &insn) override
     {
         deferred.push_back(EMIT()
         {
@@ -665,7 +732,7 @@ do { \
     }
 #undef LOGICOP
 
-    void cmp(const ExprInstruction &insn)
+    void cmp(const ExprInstruction &insn) override
     {
         deferred.push_back(EMIT()
         {
@@ -681,7 +748,7 @@ do { \
         });
     }
 
-    void ternary(const ExprInstruction &insn)
+    void ternary(const ExprInstruction &insn) override
     {
         deferred.push_back(EMIT()
         {
@@ -790,7 +857,7 @@ do { \
         VEX2(orps, x, x, invalid_mask);
     }
 
-    void exp(const ExprInstruction &insn)
+    void exp(const ExprInstruction &insn) override
     {
         int l = curLabel++;
 
@@ -820,7 +887,7 @@ do { \
         });
     }
 
-    void log(const ExprInstruction &insn)
+    void log(const ExprInstruction &insn) override
     {
         int l = curLabel++;
 
@@ -850,7 +917,7 @@ do { \
         });
     }
 
-    void pow(const ExprInstruction &insn)
+    void pow(const ExprInstruction &insn) override
     {
         int l = curLabel++;
 
@@ -925,46 +992,10 @@ do { \
     }
 
 public:
-    explicit ExprCompiler(int numInputs) : numInputs(numInputs), curLabel()
-    {
-        getCPUFeatures(&cpuFeatures);
-    }
+    explicit ExprCompiler128(int numInputs) : cpuFeatures(*getCPUFeatures()), numInputs(numInputs), curLabel() {}
 
-    void addInstruction(const ExprInstruction &insn)
+    ExprData::ProcessLineProc getCode() override
     {
-        switch (insn.op.type) {
-        case ExprOpType::MEM_LOAD_U8: load8(insn); break;
-        case ExprOpType::MEM_LOAD_U16: load16(insn); break;
-        case ExprOpType::MEM_LOAD_F16: loadF16(insn); break;
-        case ExprOpType::MEM_LOAD_F32: loadF32(insn); break;
-        case ExprOpType::CONSTANT: loadConst(insn); break;
-        case ExprOpType::MEM_STORE_U8: store8(insn); break;
-        case ExprOpType::MEM_STORE_U16: store16(insn); break;
-        case ExprOpType::MEM_STORE_F16: storeF16(insn); break;
-        case ExprOpType::MEM_STORE_F32: storeF32(insn); break;
-        case ExprOpType::ADD: add(insn); break;
-        case ExprOpType::SUB: sub(insn); break;
-        case ExprOpType::MUL: mul(insn); break;
-        case ExprOpType::DIV: div(insn); break;
-        case ExprOpType::FMA: fma(insn); break;
-        case ExprOpType::MAX: max(insn); break;
-        case ExprOpType::MIN: min(insn); break;
-        case ExprOpType::SQRT: sqrt(insn); break;
-        case ExprOpType::ABS: abs(insn); break;
-        case ExprOpType::NEG: neg(insn); break;
-        case ExprOpType::NOT: not_(insn); break;
-        case ExprOpType::AND: and_(insn); break;
-        case ExprOpType::OR: or_(insn); break;
-        case ExprOpType::XOR: xor_(insn); break;
-        case ExprOpType::CMP: cmp(insn); break;
-        case ExprOpType::TERNARY: ternary(insn); break;
-        case ExprOpType::EXP: exp(insn); break;
-        case ExprOpType::LOG: log(insn); break;
-        case ExprOpType::POW: pow(insn); break;
-        }
-    }
-
-    ExprData::ProcessLineProc getCode() {
         if (jit::GetCode() && GetCodeSize()) {
 #ifdef VS_TARGET_OS_WINDOWS
             void *ptr = VirtualAlloc(nullptr, GetCodeSize(), MEM_COMMIT, PAGE_EXECUTE_READWRITE);
@@ -982,6 +1013,584 @@ public:
 #undef VEX1
 #undef EMIT
 };
+
+class ExprCompiler256 : public ExprCompiler, private jitasm::function<void, ExprCompiler256, uint8_t *, const intptr_t *, intptr_t> {
+    typedef jitasm::function<void, ExprCompiler256, uint8_t *, const intptr_t *, intptr_t> jit;
+    friend struct jit;
+    friend struct jitasm::function_cdecl<void, ExprCompiler256, uint8_t *, const intptr_t *, intptr_t>;
+
+#define SPLAT(x) { (x), (x), (x), (x), (x), (x), (x), (x) }
+    static constexpr ExprUnion constData[32][8] alignas(32) = {
+        SPLAT(0x7FFFFFFF), // absmask
+        SPLAT(0x80000000), // negmask
+        SPLAT(0x7F), // x7F
+        SPLAT(0x00800000), // min_norm_pos
+        SPLAT(~0x7F800000), // inv_mant_mask
+        SPLAT(1.0f), // float_one
+        SPLAT(0.5f), // float_half
+        SPLAT(255.0f), // float_255
+        SPLAT(65535.0f), // float_65535
+        SPLAT(static_cast<int32_t>(0x80008000)), // i16min_epi16
+        SPLAT(static_cast<int32_t>(0xFFFF8000)), // i16min_epi32
+        SPLAT(88.3762626647949f), // exp_hi
+        SPLAT(-88.3762626647949f), // exp_lo
+        SPLAT(1.44269504088896341f), // log2e
+        SPLAT(0.693359375f), // exp_c1
+        SPLAT(-2.12194440e-4f), // exp_c2
+        SPLAT(1.9875691500E-4f), // exp_p0
+        SPLAT(1.3981999507E-3f), // exp_p1
+        SPLAT(8.3334519073E-3f), // exp_p2
+        SPLAT(4.1665795894E-2f), // exp_p3
+        SPLAT(1.6666665459E-1f), // exp_p4
+        SPLAT(5.0000001201E-1f), // exp_p5
+        SPLAT(0.707106781186547524f), // sqrt_1_2
+        SPLAT(7.0376836292E-2f), // log_p0
+        SPLAT(-1.1514610310E-1f), // log_p1
+        SPLAT(1.1676998740E-1f), // log_p2
+        SPLAT(-1.2420140846E-1f), // log_p3
+        SPLAT(+1.4249322787E-1f), // log_p4
+        SPLAT(-1.6668057665E-1f), // log_p5
+        SPLAT(+2.0000714765E-1f), // log_p6
+        SPLAT(-2.4999993993E-1f), // log_p7
+        SPLAT(+3.3333331174E-1f) // log_p8
+    };
+
+    struct ConstantIndex {
+        static constexpr int absmask = 0;
+        static constexpr int negmask = 1;
+        static constexpr int x7F = 2;
+        static constexpr int min_norm_pos = 3;
+        static constexpr int inv_mant_mask = 4;
+        static constexpr int float_one = 5;
+        static constexpr int float_half = 6;
+        static constexpr int float_255 = 7;
+        static constexpr int float_65535 = 8;
+        static constexpr int i16min_epi16 = 9;
+        static constexpr int i16min_epi32 = 10;
+        static constexpr int exp_hi = 11;
+        static constexpr int exp_lo = 12;
+        static constexpr int log2e = 13;
+        static constexpr int exp_c1 = 14;
+        static constexpr int exp_c2 = 15;
+        static constexpr int exp_p0 = 16;
+        static constexpr int exp_p1 = 17;
+        static constexpr int exp_p2 = 18;
+        static constexpr int exp_p3 = 19;
+        static constexpr int exp_p4 = 20;
+        static constexpr int exp_p5 = 21;
+        static constexpr int sqrt_1_2 = 22;
+        static constexpr int log_p0 = 23;
+        static constexpr int log_p1 = 24;
+        static constexpr int log_p2 = 25;
+        static constexpr int log_p3 = 26;
+        static constexpr int log_p4 = 27;
+        static constexpr int log_p5 = 28;
+        static constexpr int log_p6 = 29;
+        static constexpr int log_p7 = 30;
+        static constexpr int log_p8 = 31;
+        static constexpr int log_q1 = exp_c2;
+        static constexpr int log_q2 = exp_c1;
+    };
+#undef SPLAT
+
+    // JitASM compiles everything from main(), so record the operations for later.
+    std::vector<std::function<void(Reg, YmmReg, Reg, std::unordered_map<int, YmmReg> &)>> deferred;
+
+    CPUFeatures cpuFeatures;
+    int numInputs;
+    int curLabel;
+
+#define EMIT() [this, insn](Reg regptrs, YmmReg zero, Reg constants, std::unordered_map<int, YmmReg> &bytecodeRegs)
+
+    void load8(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.dst];
+            Reg a;
+            mov(a, ptr[regptrs + sizeof(void *) * (insn.op.imm.u + 1)]);
+            vpmovzxbd(t1, mmword_ptr[a]);
+            vcvtdq2ps(t1, t1);
+        });
+    }
+
+    void load16(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.dst];
+            Reg a;
+            mov(a, ptr[regptrs + sizeof(void *) * (insn.op.imm.u + 1)]);
+            vpmovzxwd(t1, xmmword_ptr[a]);
+            vcvtdq2ps(t1, t1);
+        });
+    }
+
+    void loadF16(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.dst];
+            Reg a;
+            mov(a, ptr[regptrs + sizeof(void *) * (insn.op.imm.u + 1)]);
+            vcvtph2ps(t1, xmmword_ptr[a]);
+        });
+    }
+
+    void loadF32(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.dst];
+            Reg a;
+            mov(a, ptr[regptrs + sizeof(void *) * (insn.op.imm.u + 1)]);
+            vmovaps(t1, ymmword_ptr[a]);
+        });
+    }
+
+    void loadConst(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.dst];
+
+            if (insn.op.imm.f == 0.0f) {
+                vmovaps(t1, zero);
+                return;
+            }
+
+            XmmReg r1;
+            Reg32 a;
+            mov(a, insn.op.imm.u);
+            vmovd(r1, a);
+            vbroadcastss(t1, r1);
+        });
+    }
+
+    void store8(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.src1];
+            YmmReg r1;
+            Reg a;
+            vminps(r1, t1, ymmword_ptr[constants + ConstantIndex::float_255 * 32]);
+            vcvtps2dq(r1, r1);
+            vpackssdw(r1, r1, r1);
+            vpermq(r1, r1, 0x08);
+            vpackuswb(r1, r1, zero);
+            mov(a, ptr[regptrs]);
+            vmovq(qword_ptr[a], r1.as128());
+        });
+    }
+
+    void store16(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.src1];
+            YmmReg r1, limit;
+            Reg a;
+            vminps(r1, t1, ymmword_ptr[constants + ConstantIndex::float_65535 * 32]);
+            vcvtps2dq(r1, r1);
+            vpackusdw(r1, r1, r1);
+            vpermq(r1, r1, 0x08);
+            mov(a, ptr[regptrs]);
+            vmovaps(xmmword_ptr[a], r1.as128());
+        });
+    }
+
+    void storeF16(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.src1];
+            Reg a;
+            mov(a, ptr[regptrs]);
+            vcvtps2ph(xmmword_ptr[a], t1, 0);
+        });
+    }
+
+    void storeF32(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.src1];
+            Reg a;
+            mov(a, ptr[regptrs]);
+            vmovaps(ymmword_ptr[a], t1);
+        });
+    }
+
+#define BINARYOP(op) \
+do { \
+  auto t1 = bytecodeRegs[insn.src1]; \
+  auto t2 = bytecodeRegs[insn.src2]; \
+  auto t3 = bytecodeRegs[insn.dst]; \
+  op(t3, t1, t2); \
+} while (0)
+    void add(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            BINARYOP(vaddps);
+        });
+    }
+
+    void sub(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            BINARYOP(vsubps);
+        });
+    }
+
+    void mul(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            BINARYOP(vmulps);
+        });
+    }
+
+    void div(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            BINARYOP(vdivps);
+        });
+    }
+
+    void fma(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            FMAType type = static_cast<FMAType>(insn.op.imm.u);
+
+            // t1 + t2 * t3
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.src2];
+            auto t3 = bytecodeRegs[insn.src3];
+            auto t4 = bytecodeRegs[insn.dst];
+
+#define FMA3(op) \
+do { \
+  if (insn.dst == insn.src1) { \
+    op##231ps(t1, t2, t3); \
+  } else if (insn.dst == insn.src2) { \
+    op##132ps(t2, t1, t3); \
+  } else if (insn.dst == insn.src3) { \
+    op##132ps(t3, t1, t2); \
+  } else { \
+    vmovaps(t4, t1); \
+    op##231ps(t4, t2, t3); \
+  } \
+} while (0)
+            switch (type) {
+            case FMAType::FMADD: FMA3(vfmadd); break;
+            case FMAType::FMSUB: FMA3(vfmsub); break;
+            case FMAType::FNMADD: FMA3(vfnmadd); break;
+            case FMAType::FNMSUB: FMA3(vfnmsub); break;
+            }
+#undef FMA3
+        });
+    }
+
+    void max(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            BINARYOP(vmaxps);
+        });
+    }
+
+    void min(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            BINARYOP(vminps);
+        });
+    }
+#undef BINARYOP
+
+    void sqrt(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.dst];
+            vmaxps(t2, t1, zero);
+            vsqrtps(t2, t2);
+        });
+    }
+
+    void abs(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.dst];
+            vandps(t2, t1, ymmword_ptr[constants + ConstantIndex::absmask * 32]);
+        });
+    }
+
+    void neg(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.dst];
+            vxorps(t2, t1, ymmword_ptr[constants + ConstantIndex::negmask * 32]);
+        });
+    }
+
+    void not_(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.dst];
+            YmmReg r1;
+            vcmpps(t2, t1, zero, _CMP_LT_OS);
+            vandps(t2, t2, ymmword_ptr[constants + ConstantIndex::float_one * 32]);
+        });
+    }
+
+#define LOGICOP(op) \
+do { \
+  auto t1 = bytecodeRegs[insn.src1]; \
+  auto t2 = bytecodeRegs[insn.src2]; \
+  auto t3 = bytecodeRegs[insn.dst]; \
+  YmmReg tmp; \
+  vcmpps(tmp, t1, zero, _CMP_NLE_US); \
+  vcmpps(t3, t2, zero, _CMP_NLE_US); \
+  op(t3, t3, tmp); \
+  vandps(t3, t3, ymmword_ptr[constants + ConstantIndex::float_one * 32]); \
+} while (0)
+
+    void and_(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            LOGICOP(vandps);
+        });
+    }
+
+    void or_(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            LOGICOP(vorps);
+        });
+    }
+
+    void xor_(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            LOGICOP(vxorps);
+        });
+    }
+#undef LOGICOP
+
+    void cmp(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.src2];
+            auto t3 = bytecodeRegs[insn.dst];
+            vcmpps(t3, t2, t1, insn.op.imm.u);
+            vandps(t3, t3, ymmword_ptr[constants + ConstantIndex::float_one * 32]);
+        });
+    }
+
+    void ternary(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.src2];
+            auto t3 = bytecodeRegs[insn.src3];
+            auto t4 = bytecodeRegs[insn.dst];
+            YmmReg r1;
+            vcmpps(r1, t1, zero, _CMP_NLE_US);
+            vblendvps(t4, t3, t2, r1);
+        });
+    }
+
+    void exp_(YmmReg x, YmmReg one, Reg constants)
+    {
+        YmmReg fx, emm0, etmp, y, mask, z;
+        vminps(x, x, ymmword_ptr[constants + ConstantIndex::exp_hi * 32]);
+        vmaxps(x, x, ymmword_ptr[constants + ConstantIndex::exp_lo * 32]);
+        vmulps(fx, x, ymmword_ptr[constants + ConstantIndex::log2e * 32]);
+        vaddps(fx, fx, ymmword_ptr[constants + ConstantIndex::float_half * 32]);
+        vcvttps2dq(emm0, fx);
+        vcvtdq2ps(etmp, emm0);
+        vcmpps(mask, etmp, fx, _CMP_NLE_US);
+        vandps(mask, mask, one);
+        vsubps(fx, etmp, mask);
+        vfnmadd231ps(x, fx, ymmword_ptr[constants + ConstantIndex::exp_c1 * 32]);
+        vfnmadd231ps(x, fx, ymmword_ptr[constants + ConstantIndex::exp_c2 * 32]);
+        vmulps(z, x, x);
+        vmovaps(y, ymmword_ptr[constants + ConstantIndex::exp_p0 * 32]);
+        vfmadd213ps(y, x, ymmword_ptr[constants + ConstantIndex::exp_p1 * 32]);
+        vfmadd213ps(y, x, ymmword_ptr[constants + ConstantIndex::exp_p2 * 32]);
+        vfmadd213ps(y, x, ymmword_ptr[constants + ConstantIndex::exp_p3 * 32]);
+        vfmadd213ps(y, x, ymmword_ptr[constants + ConstantIndex::exp_p4 * 32]);
+        vfmadd213ps(y, x, ymmword_ptr[constants + ConstantIndex::exp_p5 * 32]);
+        vfmadd213ps(y, z, x);
+        vaddps(y, y, one);
+        vcvttps2dq(emm0, fx);
+        vpaddd(emm0, emm0, ymmword_ptr[constants + ConstantIndex::x7F * 32]);
+        vpslld(emm0, emm0, 23);
+        vmulps(x, y, emm0);
+    }
+
+    void log_(YmmReg x, YmmReg zero, YmmReg one, Reg constants)
+    {
+        YmmReg emm0, invalid_mask, mask, y, etmp, z;
+        vcmpps(invalid_mask, zero, x, _CMP_NLE_US);
+        vmaxps(x, x, ymmword_ptr[constants + ConstantIndex::min_norm_pos * 32]);
+        vpsrld(emm0, x, 23);
+        vandps(x, x, ymmword_ptr[constants + ConstantIndex::inv_mant_mask * 32]);
+        vorps(x, x, ymmword_ptr[constants + ConstantIndex::float_half * 32]);
+        vpsubd(emm0, emm0, ymmword_ptr[constants + ConstantIndex::x7F * 32]);
+        vcvtdq2ps(emm0, emm0);
+        vaddps(emm0, emm0, one);
+        vcmpps(mask, x, ymmword_ptr[constants + ConstantIndex::sqrt_1_2 * 32], _CMP_LT_OS);
+        vandps(etmp, x, mask);
+        vsubps(x, x, one);
+        vandps(mask, mask, one);
+        vsubps(emm0, emm0, mask);
+        vaddps(x, x, etmp);
+        vmulps(z, x, x);
+        vmovaps(y, ymmword_ptr[constants + ConstantIndex::log_p0 * 32]);
+        vfmadd213ps(y, x, ymmword_ptr[constants + ConstantIndex::log_p1 * 32]);
+        vfmadd213ps(y, x, ymmword_ptr[constants + ConstantIndex::log_p2 * 32]);
+        vfmadd213ps(y, x, ymmword_ptr[constants + ConstantIndex::log_p3 * 32]);
+        vfmadd213ps(y, x, ymmword_ptr[constants + ConstantIndex::log_p4 * 32]);
+        vfmadd213ps(y, x, ymmword_ptr[constants + ConstantIndex::log_p5 * 32]);
+        vfmadd213ps(y, x, ymmword_ptr[constants + ConstantIndex::log_p6 * 32]);
+        vfmadd213ps(y, x, ymmword_ptr[constants + ConstantIndex::log_p7 * 32]);
+        vfmadd213ps(y, x, ymmword_ptr[constants + ConstantIndex::log_p8 * 32]);
+        vmulps(y, y, z);
+        vfmadd231ps(y, emm0, ymmword_ptr[constants + ConstantIndex::log_q1 * 32]);
+        vfnmadd231ps(y, z, ymmword_ptr[constants + ConstantIndex::float_half * 21]);
+        vaddps(x, x, y);
+        vfmadd231ps(x, emm0, ymmword_ptr[constants + ConstantIndex::log_q2 * 32]);
+        vorps(x, x, invalid_mask);
+    }
+
+    void exp(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.dst];
+            YmmReg one;
+            vmovaps(one, ymmword_ptr[constants + ConstantIndex::float_one * 32]);
+            vmovaps(t1, t2);
+            exp_(t1, one, constants);
+        });
+    }
+
+    void log(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.dst];
+            YmmReg one;
+            vmovaps(one, ymmword_ptr[constants + ConstantIndex::float_one * 32]);
+            vmovaps(t1, t2);
+            log_(t1, zero, one, constants);
+        });
+    }
+
+    void pow(const ExprInstruction &insn) override
+    {
+        deferred.push_back(EMIT()
+        {
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t2 = bytecodeRegs[insn.src2];
+            auto t3 = bytecodeRegs[insn.dst];
+
+            YmmReg r1, one;
+            Reg a;
+            mov(a, 2);
+            vmovaps(one, ymmword_ptr[constants + ConstantIndex::float_one * 32]);
+            vmovaps(r1, t1);
+            log_(r1, zero, one, constants);
+            vmulps(r1, r1, t2);
+            exp_(r1, one, constants);
+            vmovaps(t3, r1);
+        });
+    }
+
+    void main(Reg regptrs, Reg regoffs, Reg niter)
+    {
+        std::unordered_map<int, YmmReg> bytecodeRegs;
+        YmmReg zero;
+        vpxor(zero, zero, zero);
+        Reg constants;
+        mov(constants, (uintptr_t)constData);
+
+        L("wloop");
+
+        for (const auto &f : deferred) {
+            f(regptrs, zero, constants, bytecodeRegs);
+        }
+
+#if UINTPTR_MAX > UINT32_MAX
+        for (int i = 0; i < numInputs / 4 + 1; i++) {
+            YmmReg r1, r2;
+            vmovdqu(r1, ymmword_ptr[regptrs + 32 * i]);
+            vmovdqu(r2, ymmword_ptr[regoffs + 32 * i]);
+            vpaddq(r1, r1, r2);
+            vmovdqu(ymmword_ptr[regptrs + 32 * i], r1);
+        }
+#else
+        for (int i = 0; i < numInputs / 8 + 1; i++) {
+            YmmReg r1, r2;
+            vmovdqu(r1, ymmword_ptr[regptrs + 32 * i]);
+            vmovdqu(r2, ymmword_ptr[regoffs + 32 * i]);
+            vpaddq(r1, r1, r2);
+            vmovdqu(ymmword_ptr[regptrs + 32 * i], r1);
+        }
+#endif
+
+        jit::sub(niter, 1);
+        jnz("wloop");
+    }
+
+public:
+    explicit ExprCompiler256(int numInputs) : cpuFeatures(*getCPUFeatures()), numInputs(numInputs) {}
+
+    ExprData::ProcessLineProc getCode() override
+    {
+        if (jit::GetCode(true) && GetCodeSize()) {
+#ifdef VS_TARGET_OS_WINDOWS
+            void *ptr = VirtualAlloc(nullptr, GetCodeSize(), MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+#else
+            void *ptr = mmap(nullptr, ExprObj.GetCodeSize(), PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANON | MAP_PRIVATE, 0, 0);
+#endif
+            memcpy(ptr, jit::GetCode(true), GetCodeSize());
+            return reinterpret_cast<ExprData::ProcessLineProc>(ptr);
+        }
+        return nullptr;
+    }
+#undef EMIT
+};
+
+std::unique_ptr<ExprCompiler> make_compiler(int numInputs, int cpulevel)
+{
+    if (getCPUFeatures()->avx2 && cpulevel >= VS_CPU_LEVEL_AVX2)
+        return std::make_unique<ExprCompiler256>(numInputs);
+    else
+        return std::make_unique<ExprCompiler128>(numInputs);
+}
 #endif
 
 class ExprInterpreter {
@@ -2520,7 +3129,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
 
         const uint8_t *srcp[MAX_EXPR_INPUTS] = {};
         int src_stride[MAX_EXPR_INPUTS] = {};
-        intptr_t ptroffsets[MAX_EXPR_INPUTS + 1] = { d->vi.format->bytesPerSample * 8 };
+        alignas(32) intptr_t ptroffsets[((MAX_EXPR_INPUTS + 1) + 7) & ~7] = { d->vi.format->bytesPerSample * 8 };
 
         for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {
             if (d->plane[plane] != poProcess)
@@ -2549,7 +3158,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                 }
 
                 for (int y = 0; y < h; y++) {
-                    uint8_t *rwptrs[MAX_EXPR_INPUTS + 1] = { dstp + dst_stride * y };
+                    alignas(32) uint8_t *rwptrs[((MAX_EXPR_INPUTS + 1) + 7) & ~7] = { dstp + dst_stride * y };
                     for (int i = 0; i < numInputs; i++) {
                         rwptrs[i + 1] = const_cast<uint8_t *>(srcp[i] + src_stride[i] * y);
                     }
@@ -2592,8 +3201,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     int err;
 
 #ifdef VS_TARGET_CPU_X86
-    CPUFeatures f;
-    getCPUFeatures(&f);
+    const CPUFeatures &f = *getCPUFeatures();
 #   define EXPR_F16C_TEST (f.f16c)
 #else
 #   define EXPR_F16C_TEST (false)
@@ -2678,16 +3286,17 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
             auto tree = parseExpr(expr[i], vi, d->numInputs);
             d->bytecode[i] = compile(tree, d->vi.format);
 
-            if (vs_get_cpulevel(core) > VS_CPU_LEVEL_NONE) {
+            int cpulevel = vs_get_cpulevel(core);
+            if (cpulevel > VS_CPU_LEVEL_NONE) {
                 for (int i = 0; i < d->vi.format->numPlanes; i++) {
                     if (d->plane[i] == poProcess) {
 #ifdef VS_TARGET_CPU_X86
-                        ExprCompiler compiler(d->numInputs);
+                        std::unique_ptr<ExprCompiler> compiler = make_compiler(d->numInputs, cpulevel);
                         for (auto op : d->bytecode[i]) {
-                            compiler.addInstruction(op);
+                            compiler->addInstruction(op);
                         }
 
-                        d->proc[i] = compiler.getCode();
+                        d->proc[i] = compiler->getCode();
 #endif
                     }
                 }
