@@ -1475,9 +1475,10 @@ do { \
         vfmadd213ps(y, x, ymmword_ptr[constants + ConstantIndex::log_p6 * 32]);
         vfmadd213ps(y, x, ymmword_ptr[constants + ConstantIndex::log_p7 * 32]);
         vfmadd213ps(y, x, ymmword_ptr[constants + ConstantIndex::log_p8 * 32]);
+        vmulps(y, y, x);
         vmulps(y, y, z);
         vfmadd231ps(y, emm0, ymmword_ptr[constants + ConstantIndex::log_q1 * 32]);
-        vfnmadd231ps(y, z, ymmword_ptr[constants + ConstantIndex::float_half * 21]);
+        vfnmadd231ps(y, z, ymmword_ptr[constants + ConstantIndex::float_half * 32]);
         vaddps(x, x, y);
         vfmadd231ps(x, emm0, ymmword_ptr[constants + ConstantIndex::log_q2 * 32]);
         vorps(x, x, invalid_mask);
