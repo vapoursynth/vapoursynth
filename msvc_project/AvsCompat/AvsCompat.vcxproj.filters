@@ -41,7 +41,7 @@
     <ClCompile Include="..\..\src\avisynth\interface.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\core\cpufeatures.c">
+    <ClCompile Include="..\..\src\core\cpufeatures.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
