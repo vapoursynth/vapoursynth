@@ -1424,8 +1424,8 @@ do { \
         YmmReg fx, emm0, etmp, y, mask, z;
         vminps(x, x, ymmword_ptr[constants + ConstantIndex::exp_hi * 32]);
         vmaxps(x, x, ymmword_ptr[constants + ConstantIndex::exp_lo * 32]);
-        vmulps(fx, x, ymmword_ptr[constants + ConstantIndex::log2e * 32]);
-        vaddps(fx, fx, ymmword_ptr[constants + ConstantIndex::float_half * 32]);
+        vmovaps(fx, ymmword_ptr[constants + ConstantIndex::log2e * 32]);
+        vfmadd213ps(fx, x, ymmword_ptr[constants + ConstantIndex::float_half * 32]);
         vcvttps2dq(emm0, fx);
         vcvtdq2ps(etmp, emm0);
         vcmpps(mask, etmp, fx, _CMP_NLE_US);
