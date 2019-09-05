@@ -232,7 +232,7 @@ public:
 
 class ExprCompiler128 : public ExprCompiler, private jitasm::function<void, ExprCompiler128, uint8_t *, const intptr_t *, intptr_t> {
     typedef jitasm::function<void, ExprCompiler128, uint8_t *, const intptr_t *, intptr_t> jit;
-    friend struct jit;
+    friend struct jitasm::function<void, ExprCompiler128, uint8_t *, const intptr_t *, intptr_t>;
     friend struct jitasm::function_cdecl<void, ExprCompiler128, uint8_t *, const intptr_t *, intptr_t>;
 
 #define SPLAT(x) { (x), (x), (x), (x) }
@@ -1016,7 +1016,7 @@ public:
 
 class ExprCompiler256 : public ExprCompiler, private jitasm::function<void, ExprCompiler256, uint8_t *, const intptr_t *, intptr_t> {
     typedef jitasm::function<void, ExprCompiler256, uint8_t *, const intptr_t *, intptr_t> jit;
-    friend struct jit;
+    friend struct jitasm::function<void, ExprCompiler256, uint8_t *, const intptr_t *, intptr_t>;
     friend struct jitasm::function_cdecl<void, ExprCompiler256, uint8_t *, const intptr_t *, intptr_t>;
 
 #define SPLAT(x) { (x), (x), (x), (x), (x), (x), (x), (x) }
@@ -1588,9 +1588,9 @@ public:
 std::unique_ptr<ExprCompiler> make_compiler(int numInputs, int cpulevel)
 {
     if (getCPUFeatures()->avx2 && cpulevel >= VS_CPU_LEVEL_AVX2)
-        return std::make_unique<ExprCompiler256>(numInputs);
+        return std::unique_ptr<ExprCompiler>(new ExprCompiler256(numInputs));
     else
-        return std::make_unique<ExprCompiler128>(numInputs);
+        return std::unique_ptr<ExprCompiler>(new ExprCompiler128(numInputs));
 }
 #endif
 
@@ -2222,7 +2222,7 @@ class ExponentMap {
         for (auto it = map.begin(); it != map.end();) {
             const ExpressionTreeNode *node = index.at(it->first);
             if (isConstant(*node)) {
-                coeff *= std::powf(node->op.imm.f, it->second);
+                coeff *= std::pow(node->op.imm.f, it->second);
                 it = map.erase(it);
                 continue;
             }
