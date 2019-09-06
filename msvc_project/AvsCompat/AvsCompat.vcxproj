@@ -166,7 +166,7 @@
   <ItemGroup>
     <ClCompile Include="..\..\src\avisynth\avisynth_compat.cpp" />
     <ClCompile Include="..\..\src\avisynth\interface.cpp" />
-    <ClCompile Include="..\..\src\core\cpufeatures.c" />
+    <ClCompile Include="..\..\src\core\cpufeatures.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

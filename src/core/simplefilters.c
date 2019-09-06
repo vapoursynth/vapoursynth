@@ -18,16 +18,18 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
+#include <math.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "VSHelper.h"
+#include "cpufeatures.h"
 #include "internalfilters.h"
 #include "filtershared.h"
+#include "kernel/cpulevel.h"
 #include "kernel/planestats.h"
 #include "kernel/transpose.h"
-#include <stdlib.h>
-#include <stddef.h>
-#include <string.h>
-#include <stdio.h>
-#include <math.h>
 
 static inline uint32_t doubleToUInt32S(double v) {
     if (v < 0)
@@ -1779,6 +1781,7 @@ static void VS_CC modifyFrameCreate(const VSMap *in, VSMap *out, void *userData,
 typedef struct {
     VSNodeRef *node;
     VSVideoInfo vi;
+    int cpulevel;
 } TransposeData;
 
 static void VS_CC transposeInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -1801,6 +1804,25 @@ static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, vo
         uint8_t * VS_RESTRICT dstp;
         int dst_stride;
 
+        void (*func)(const void *, ptrdiff_t, void *, ptrdiff_t, unsigned, unsigned) = NULL;
+
+#ifdef VS_TARGET_CPU_X86
+        if (d->cpulevel >= VS_CPU_LEVEL_SSE2) {
+            switch (d->vi.format->bytesPerSample) {
+            case 1: func = vs_transpose_plane_byte_sse2; break;
+            case 2: func = vs_transpose_plane_word_sse2; break;
+            case 4: func = vs_transpose_plane_dword_sse2; break;
+            }
+        }
+#endif
+        if (!func) {
+            switch (d->vi.format->bytesPerSample) {
+            case 1: func = vs_transpose_plane_byte_c; break;
+            case 2: func = vs_transpose_plane_word_c; break;
+            case 4: func = vs_transpose_plane_dword_c; break;
+            }
+        }
+
         for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {
             width = vsapi->getFrameWidth(src, plane);
             height = vsapi->getFrameHeight(src, plane);
@@ -1809,31 +1831,8 @@ static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, vo
             dstp = vsapi->getWritePtr(dst, plane);
             dst_stride = vsapi->getStride(dst, plane);
 
-#ifdef VS_TARGET_CPU_X86
-            switch (d->vi.format->bytesPerSample) {
-            case 1:
-                vs_transpose_plane_byte_sse2(srcp, src_stride, dstp, dst_stride, width, height);
-                break;
-            case 2:
-                vs_transpose_plane_word_sse2(srcp, src_stride, dstp, dst_stride, width, height);
-                break;
-            case 4:
-                vs_transpose_plane_dword_sse2(srcp, src_stride, dstp, dst_stride, width, height);
-                break;
-            }
-#else
-            switch (d->vi.format->bytesPerSample) {
-            case 1:
-                vs_transpose_plane_byte_c(srcp, src_stride, dstp, dst_stride, width, height);
-                break;
-            case 2:
-                vs_transpose_plane_word_c(srcp, src_stride, dstp, dst_stride, width, height);
-                break;
-            case 4:
-                vs_transpose_plane_dword_c(srcp, src_stride, dstp, dst_stride, width, height);
-                break;
-            }
-#endif
+            if (func)
+                func(srcp, src_stride, dstp, dst_stride, width, height);
         }
 
         vsapi->freeFrame(src);
@@ -1867,6 +1866,7 @@ static void VS_CC transposeCreate(const VSMap *in, VSMap *out, void *userData, V
     }
 
     d.vi.format = vsapi->registerFormat(d.vi.format->colorFamily, d.vi.format->sampleType, d.vi.format->bitsPerSample, d.vi.format->subSamplingH, d.vi.format->subSamplingW, core);
+    d.cpulevel = vs_get_cpulevel(core);
 
     data = malloc(sizeof(d));
     *data = d;
@@ -2036,6 +2036,7 @@ typedef struct {
     char *propMax;
     char *propDiff;
     int plane;
+    int cpulevel;
 } PlaneStatsData;
 
 static void VS_CC planeStatsInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -2060,65 +2061,67 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
         int src_stride = vsapi->getStride(src1, d->plane);
         union vs_plane_stats stats = { 0 };
 
+        if (src2) {
+            const void *srcp2 = vsapi->getReadPtr(src2, d->plane);
+            ptrdiff_t src2_stride = vsapi->getStride(src2, d->plane);
+            void (*func)(union vs_plane_stats *, const void *, ptrdiff_t, const void *, ptrdiff_t, unsigned, unsigned) = NULL;
+
 #ifdef VS_TARGET_CPU_X86
-        if (src2) {
-            const void *srcp2 = vsapi->getReadPtr(src2, d->plane);
-            ptrdiff_t src2_stride = vsapi->getStride(src2, d->plane);
-
-            switch (fi->bytesPerSample) {
-            case 1:
-                vs_plane_stats_2_byte_sse2(&stats, srcp, src_stride, srcp2, src2_stride, width, height);
-                break;
-            case 2:
-                vs_plane_stats_2_word_sse2(&stats, srcp, src_stride, srcp2, src2_stride, width, height);
-                break;
-            case 4:
-                vs_plane_stats_2_float_sse2(&stats, srcp, src_stride, srcp2, src2_stride, width, height);
-                break;
+            if (getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2) {
+                switch (fi->bytesPerSample) {
+                case 1: func = vs_plane_stats_2_byte_avx2; break;
+                case 2: func = vs_plane_stats_2_word_avx2; break;
+                case 4: func = vs_plane_stats_2_float_avx2; break;
+                }
             }
-        } else {
-            switch (fi->bytesPerSample) {
-            case 1:
-                vs_plane_stats_1_byte_sse2(&stats, srcp, src_stride, width, height);
-                break;
-            case 2:
-                vs_plane_stats_1_word_sse2(&stats, srcp, src_stride, width, height);
-                break;
-            case 4:
-                vs_plane_stats_1_float_sse2(&stats, srcp, src_stride, width, height);
-                break;
+            if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
+                switch (fi->bytesPerSample) {
+                case 1: func = vs_plane_stats_2_byte_sse2; break;
+                case 2: func = vs_plane_stats_2_word_sse2; break;
+                case 4: func = vs_plane_stats_2_float_sse2; break;
+                }
             }
-        }
-#else
-        if (src2) {
-            const void *srcp2 = vsapi->getReadPtr(src2, d->plane);
-            ptrdiff_t src2_stride = vsapi->getStride(src2, d->plane);
-
-            switch (fi->bytesPerSample) {
-            case 1:
-                vs_plane_stats_2_byte_c(&stats, srcp, src_stride, srcp2, src2_stride, width, height);
-                break;
-            case 2:
-                vs_plane_stats_2_word_c(&stats, srcp, src_stride, srcp2, src2_stride, width, height);
-                break;
-            case 4:
-                vs_plane_stats_2_float_c(&stats, srcp, src_stride, srcp2, src2_stride, width, height);
-                break;
-            }
-        } else {
-            switch (fi->bytesPerSample) {
-            case 1:
-                vs_plane_stats_1_byte_c(&stats, srcp, src_stride, width, height);
-                break;
-            case 2:
-                vs_plane_stats_1_word_c(&stats, srcp, src_stride, width, height);
-                break;
-            case 4:
-                vs_plane_stats_1_float_c(&stats, srcp, src_stride, width, height);
-                break;
-            }
-        }
 #endif
+            if (!func) {
+                switch (fi->bytesPerSample) {
+                case 1: func = vs_plane_stats_2_byte_c; break;
+                case 2: func = vs_plane_stats_2_word_c; break;
+                case 4: func = vs_plane_stats_2_float_c; break;
+                }
+            }
+
+            if (func)
+                func(&stats, srcp, src_stride, srcp2, src2_stride, width, height);
+        } else {
+            void (*func)(union vs_plane_stats *, const void *, ptrdiff_t, unsigned, unsigned) = NULL;
+
+#ifdef VS_TARGET_CPU_X86
+            if (getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2) {
+                switch (fi->bytesPerSample) {
+                case 1: func = vs_plane_stats_1_byte_avx2; break;
+                case 2: func = vs_plane_stats_1_word_avx2; break;
+                case 4: func = vs_plane_stats_1_float_avx2; break;
+                }
+            }
+            if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
+                switch (fi->bytesPerSample) {
+                case 1: func = vs_plane_stats_1_byte_sse2; break;
+                case 2: func = vs_plane_stats_1_word_sse2; break;
+                case 4: func = vs_plane_stats_1_float_sse2; break;
+                }
+            }
+#endif
+            if (!func) {
+                switch (fi->bytesPerSample) {
+                case 1: func = vs_plane_stats_1_byte_c; break;
+                case 2: func = vs_plane_stats_1_word_c; break;
+                case 4: func = vs_plane_stats_1_float_c; break;
+                }
+            }
+
+            if (func)
+                func(&stats, srcp, src_stride, width, height);
+        }
 
         VSMap *dstProps = vsapi->getFramePropsRW(dst);
 
@@ -2209,6 +2212,7 @@ static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, 
     strcpy(d.propMax + l, "Max");
     strcpy(d.propAverage + l, "Average");
     strcpy(d.propDiff + l, "Diff");
+    d.cpulevel = vs_get_cpulevel(core);
 
     data = malloc(sizeof(d));
     *data = d;
@@ -2559,6 +2563,14 @@ static void VS_CC setFieldBasedCreate(const VSMap *in, VSMap *out, void *userDat
     vsapi->createFilter(in, out, "SetFieldBased", singleClipInit, setFieldBasedGetFrame, singleClipFree, fmParallel, nfNoCache, data, core);
 }
 
+static void VS_CC setMaxCpu(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    const char *str = vsapi->propGetData(in, "cpu", 0, NULL);
+    int level = vs_cpulevel_from_str(str);
+    level = vs_set_cpulevel(core, level);
+    str = vs_cpulevel_to_str(level);
+    vsapi->propSetData(out, "cpu", str, (int)strlen(str), paReplace);
+}
+
 //////////////////////////////////////////
 // Init
 
@@ -2588,4 +2600,5 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("PropToClip", "clip:clip;prop:data:opt;", propToClipCreate, 0, plugin);
     registerFunc("SetFrameProp", "clip:clip;prop:data;delete:int:opt;intval:int[]:opt;floatval:float[]:opt;data:data[]:opt;", setFramePropCreate, 0, plugin);
     registerFunc("SetFieldBased", "clip:clip;value:int;", setFieldBasedCreate, 0, plugin);
+    registerFunc("SetMaxCPU", "cpu:data;", setMaxCpu, 0, plugin);
 }

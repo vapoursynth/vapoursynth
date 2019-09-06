@@ -44,21 +44,37 @@ union vs_plane_stats {
     } f;
 };
 
-void vs_plane_stats_1_byte_c(union vs_plane_stats *stats, const void *src, ptrdiff_t stride, unsigned width, unsigned height);
-void vs_plane_stats_1_word_c(union vs_plane_stats *stats, const void *src, ptrdiff_t stride, unsigned width, unsigned height);
-void vs_plane_stats_1_float_c(union vs_plane_stats *stats, const void *src, ptrdiff_t stride, unsigned width, unsigned height);
+#define DECL_1(pixel, isa) void vs_plane_stats_1_##pixel##_##isa(union vs_plane_stats *stats, const void *src, ptrdiff_t stride, unsigned width, unsigned height);
+#define DECL_2(pixel, isa) void vs_plane_stats_2_##pixel##_##isa(union vs_plane_stats *stats, const void *src1, ptrdiff_t src1_stride, const void *src2, ptrdiff_t src2_stride, unsigned width, unsigned height);
 
-void vs_plane_stats_2_byte_c(union vs_plane_stats *stats, const void *src1, ptrdiff_t src1_stride, const void *src2, ptrdiff_t src2_stride, unsigned width, unsigned height);
-void vs_plane_stats_2_word_c(union vs_plane_stats *stats, const void *src1, ptrdiff_t src1_stride, const void *src2, ptrdiff_t src2_stride, unsigned width, unsigned height);
-void vs_plane_stats_2_float_c(union vs_plane_stats *stats, const void *src1, ptrdiff_t src1_stride, const void *src2, ptrdiff_t src2_stride, unsigned width, unsigned height);
+DECL_1(byte, c)
+DECL_1(word, c)
+DECL_1(float, c)
 
-void vs_plane_stats_1_byte_sse2(union vs_plane_stats *stats, const void *src, ptrdiff_t stride, unsigned width, unsigned height);
-void vs_plane_stats_1_word_sse2(union vs_plane_stats *stats, const void *src, ptrdiff_t stride, unsigned width, unsigned height);
-void vs_plane_stats_1_float_sse2(union vs_plane_stats *stats, const void *src, ptrdiff_t stride, unsigned width, unsigned height);
+DECL_2(byte, c)
+DECL_2(word, c)
+DECL_2(float, c)
 
-void vs_plane_stats_2_byte_sse2(union vs_plane_stats *stats, const void *src1, ptrdiff_t src1_stride, const void *src2, ptrdiff_t src2_stride, unsigned width, unsigned height);
-void vs_plane_stats_2_word_sse2(union vs_plane_stats *stats, const void *src1, ptrdiff_t src1_stride, const void *src2, ptrdiff_t src2_stride, unsigned width, unsigned height);
-void vs_plane_stats_2_float_sse2(union vs_plane_stats *stats, const void *src1, ptrdiff_t src1_stride, const void *src2, ptrdiff_t src2_stride, unsigned width, unsigned height);
+#ifdef VS_TARGET_CPU_X86
+DECL_1(byte, sse2)
+DECL_1(word, sse2)
+DECL_1(float, sse2)
+
+DECL_2(byte, sse2)
+DECL_2(word, sse2)
+DECL_2(float, sse2)
+
+DECL_1(byte, avx2)
+DECL_1(word, avx2)
+DECL_1(float, avx2)
+
+DECL_2(byte, avx2)
+DECL_2(word, avx2)
+DECL_2(float, avx2)
+#endif
+
+#undef DECL_2
+#undef DECL_1
 
 #ifdef __cplusplus
 }

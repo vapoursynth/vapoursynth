@@ -50,7 +50,7 @@ void vs_merge_byte_sse2(const void *src1, const void *src2, void *dst, union vs_
 
         // tmp2 = ((tmp1 * w) >> 16) + (((tmp1 * w) >> 15) & 1)
         __m128i tmp2lo = _mm_add_epi16(_mm_add_epi16(_mm_mulhi_epi16(tmp1lo, w), _mm_srli_epi16(_mm_mullo_epi16(tmp1lo, w), 15)), v1w_lo);
-        __m128i tmp2hi = _mm_add_epi16(_mm_add_epi16(_mm_mulhi_epi16(tmp1hi, w), _mm_srli_epi16(_mm_mullo_epi16(tmp1hi, w), 15)), v1w_lo);
+        __m128i tmp2hi = _mm_add_epi16(_mm_add_epi16(_mm_mulhi_epi16(tmp1hi, w), _mm_srli_epi16(_mm_mullo_epi16(tmp1hi, w), 15)), v1w_hi);
 
         // result = tmp2 >> 8
         __m128i result = _mm_packus_epi16(tmp2lo, tmp2hi);
@@ -267,7 +267,7 @@ void vs_mask_merge_premul_word_sse2(const void *src1, const void *src2, const vo
 
     uint16_t maxval = (1U << depth) - 1;
 
-    for (i = 0; i < n; ++i) {
+    for (i = 0; i < n; i += 8) {
         __m128i v1 = _mm_load_si128((const __m128i *)(srcp1 + i));
         __m128i v2 = _mm_load_si128((const __m128i *)(srcp2 + i));
         __m128i w2 = _mm_load_si128((const __m128i *)(maskp + i));
@@ -290,7 +290,7 @@ void vs_mask_merge_premul_word_sse2(const void *src1, const void *src2, const vo
         tmpd_hi = _mm_unpackhi_epi16(tmp_lo, tmp_hi);
         tmpd_hi = _mm_add_epi32(tmpd_hi, _mm_set1_epi32(UINT16_MAX / 2));
         tmpd_hi = divX_epu32(tmpd_hi, depth);
-        tmpd_hi = _mm_add_epi32(tmpd_lo, _mm_set1_epi32(INT16_MIN));
+        tmpd_hi = _mm_add_epi32(tmpd_hi, _mm_set1_epi32(INT16_MIN));
 
         tmp = _mm_packs_epi32(tmpd_lo, tmpd_hi);
         tmp = _mm_sub_epi16(tmp, _mm_set1_epi16(INT16_MIN));

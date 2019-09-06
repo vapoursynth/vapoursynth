@@ -1400,7 +1400,13 @@ void VSCore::destroyFilterInstance(VSNode *node) {
     freeDepth--;
 }
 
-VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), numFunctionInstances(0), memory(new MemoryUse()) {
+VSCore::VSCore(int threads) :
+    coreFreed(false),
+    numFilterInstances(1),
+    numFunctionInstances(0),
+    formatIdOffset(1000),
+    memory(new MemoryUse()),
+    cpuLevel(INT_MAX) {
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isSSEStateOk())
         vsFatal("Bad SSE state detected when creating new core");
@@ -1653,6 +1659,14 @@ void VSCore::createAudioFilter(const VSMap *in, VSMap *out, const std::string &n
     } catch (VSException &e) {
         vs_internal_vsapi.setError(out, e.what());
     }
+}
+
+int VSCore::getCpuLevel() const {
+    return cpuLevel;
+}
+
+int VSCore::setCpuLevel(int cpu) {
+    return cpuLevel.exchange(cpu);
 }
 
 VSPlugin::VSPlugin(VSCore *core)
@@ -1943,9 +1957,7 @@ VSMap VSPlugin::getFunctions() {
 
 #ifdef VS_TARGET_CPU_X86
 static int alignmentHelper() {
-    CPUFeatures f;
-    getCPUFeatures(&f);
-    return f.avx512_f ? 64 : 32;
+    return getCPUFeatures()->avx512_f ? 64 : 32;
 }
 
 int VSFrame::alignment = alignmentHelper();

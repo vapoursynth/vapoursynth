@@ -30,9 +30,6 @@
     <ClCompile Include="..\..\src\core\cachefilter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\core\cpufeatures.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\core\exprfilter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -99,6 +96,27 @@
     <ClCompile Include="..\..\src\core\kernel\x86\merge_sse2.c">
       <Filter>Source Files\kernel\x86</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\core\kernel\generic.cpp">
+      <Filter>Source Files\kernel</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core\kernel\x86\generic_sse2.cpp">
+      <Filter>Source Files\kernel\x86</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core\kernel\cpulevel.cpp">
+      <Filter>Source Files\kernel</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core\cpufeatures.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core\kernel\x86\merge_avx2.c">
+      <Filter>Source Files\kernel\x86</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core\kernel\x86\planestats_avx2.c">
+      <Filter>Source Files\kernel\x86</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core\kernel\x86\generic_avx2.cpp">
+      <Filter>Source Files\kernel\x86</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\VapourSynth.h">
@@ -153,6 +171,12 @@
       <Filter>Header Files\kernel</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\core\kernel\merge.h">
+      <Filter>Header Files\kernel</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core\kernel\generic.h">
+      <Filter>Header Files\kernel</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core\kernel\cpulevel.h">
       <Filter>Header Files\kernel</Filter>
     </ClInclude>
   </ItemGroup>

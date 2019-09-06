@@ -646,7 +646,7 @@ public:
     std::string fullname;
     std::string fnamespace;
     std::string id;
-    VSPlugin(VSCore *core);
+    explicit VSPlugin(VSCore *core);
     VSPlugin(const std::string &relFilename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath, VSCore *core);
     ~VSPlugin();
     void lock() {
@@ -669,8 +669,8 @@ private:
     //number of filter instances plus one, freeing the core reduces it by one
     // the core will be freed once it reaches 0
     bool coreFreed;
-    std::atomic<int> numFilterInstances;
-    std::atomic<int> numFunctionInstances;
+    std::atomic_int numFilterInstances;
+    std::atomic_int numFunctionInstances;
 
     std::map<std::string, VSPlugin *> plugins;
     std::recursive_mutex pluginLock;
@@ -683,6 +683,8 @@ private:
     VSCoreInfo coreInfo;
     std::set<VSNode *> caches;
     std::mutex cacheLock;
+
+    std::atomic_int cpuLevel;
 
     ~VSCore();
 
@@ -712,6 +714,9 @@ public:
     void createFilter(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
     void createAudioFilter(const VSMap *in, VSMap *out, const std::string &name, const VSAudioInfo *ai, int numOutputs, VSAudioFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
 
+    int getCpuLevel() const;
+    int setCpuLevel(int cpu);
+
     VSMap getPlugins();
     VSPlugin *getPluginById(const std::string &identifier);
     VSPlugin *getPluginByNs(const std::string &ns);
@@ -725,7 +730,7 @@ public:
     void filterInstanceDestroyed();
     void destroyFilterInstance(VSNode *node);
 
-    VSCore(int threads);
+    explicit VSCore(int threads);
     void freeCore();
 };
 

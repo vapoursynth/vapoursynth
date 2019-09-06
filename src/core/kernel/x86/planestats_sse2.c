@@ -60,17 +60,17 @@ static int hmin_epi16(__m128i x)
     return (int16_t)_mm_extract_epi16(x, 0);
 }
 
-static float hmin_ps(__m128 x)
-{
-    x = _mm_min_ps(x, _mm_shuffle_ps(x, x, _MM_SHUFFLE(1, 0, 3, 2)));
-    x = _mm_min_ps(x, _mm_shuffle_ps(x, x, _MM_SHUFFLE(2, 3, 0, 1)));
-    return _mm_cvtss_f32(x);
-}
-
 static float hmax_ps(__m128 x)
 {
     x = _mm_max_ps(x, _mm_shuffle_ps(x, x, _MM_SHUFFLE(1, 0, 3, 2)));
     x = _mm_max_ps(x, _mm_shuffle_ps(x, x, _MM_SHUFFLE(2, 3, 0, 1)));
+    return _mm_cvtss_f32(x);
+}
+
+static float hmin_ps(__m128 x)
+{
+    x = _mm_min_ps(x, _mm_shuffle_ps(x, x, _MM_SHUFFLE(1, 0, 3, 2)));
+    x = _mm_min_ps(x, _mm_shuffle_ps(x, x, _MM_SHUFFLE(2, 3, 0, 1)));
     return _mm_cvtss_f32(x);
 }
 

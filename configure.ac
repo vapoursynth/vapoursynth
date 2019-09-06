@@ -63,7 +63,8 @@ AS_CASE(
         [i?86],     [BITS="32" X86="true"],
         [x86_64],   [BITS="64" X86="true"],
         [powerpc*], [PPC="true"],
-        [arm*],     [ARM="true"] # Maybe doesn't work for all arm systems?
+        [arm*],     [ARM="true"], # Maybe doesn't work for all arm systems?
+        [aarch64*], [ARM="true"]
 )
 
 AS_CASE(
@@ -105,6 +106,7 @@ AS_IF(
        )
 
        AC_SUBST([MFLAGS], ["-mfpmath=sse -msse2"])
+       AC_SUBST([AVX2FLAGS], ["-mavx2 -mfma -mtune=haswell"])
       ]
 )
 

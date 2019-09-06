@@ -161,22 +161,21 @@ FakeAvisynth::~FakeAvisynth() {
 }
 
 int FakeAvisynth::GetCPUFlags() {
-    CPUFeatures cpuf;
-    getCPUFeatures(&cpuf);
+    const CPUFeatures *cpuf = getCPUFeatures();
     int flags = CPUF_FPU | CPUF_MMX | CPUF_INTEGER_SSE | CPUF_SSE | CPUF_SSE2; // minimum to run VS
-    if (cpuf.sse3)      flags |= CPUF_SSE3;
-    if (cpuf.ssse3)     flags |= CPUF_SSSE3;
-    if (cpuf.sse4_1)    flags |= CPUF_SSE4_1;
-    if (cpuf.sse4_2)    flags |= CPUF_SSE4_2;
-    if (cpuf.avx)       flags |= CPUF_AVX;
-    if (cpuf.avx2)      flags |= CPUF_AVX2;
-    if (cpuf.fma3)      flags |= CPUF_FMA3;
-    if (cpuf.f16c)      flags |= CPUF_F16C;
-    if (cpuf.avx512_f)  flags |= CPUF_AVX512F;
-    if (cpuf.avx512_bw) flags |= CPUF_AVX512BW;
-    if (cpuf.avx512_dq) flags |= CPUF_AVX512DQ;
-    if (cpuf.avx512_cd) flags |= CPUF_AVX512CD;
-    if (cpuf.avx512_vl) flags |= CPUF_AVX512VL;
+    if (cpuf->sse3)      flags |= CPUF_SSE3;
+    if (cpuf->ssse3)     flags |= CPUF_SSSE3;
+    if (cpuf->sse4_1)    flags |= CPUF_SSE4_1;
+    if (cpuf->sse4_2)    flags |= CPUF_SSE4_2;
+    if (cpuf->avx)       flags |= CPUF_AVX;
+    if (cpuf->avx2)      flags |= CPUF_AVX2;
+    if (cpuf->fma3)      flags |= CPUF_FMA3;
+    if (cpuf->f16c)      flags |= CPUF_F16C;
+    if (cpuf->avx512_f)  flags |= CPUF_AVX512F;
+    if (cpuf->avx512_bw) flags |= CPUF_AVX512BW;
+    if (cpuf->avx512_dq) flags |= CPUF_AVX512DQ;
+    if (cpuf->avx512_cd) flags |= CPUF_AVX512CD;
+    if (cpuf->avx512_vl) flags |= CPUF_AVX512VL;
     return flags;
 }
 

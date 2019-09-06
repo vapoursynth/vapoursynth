@@ -1,3 +1,9 @@
+r47.2
+fixed broken merge intrinsics 
+
+r47.1:
+fixed linux and non-x86 builds
+
 r47:
 fixed a crash in vdecimate when both dryrun and clip2 is set (no1d)
 updated zimg to 2.9.2 to fix a crash that would happen on certain invalid input combinations
