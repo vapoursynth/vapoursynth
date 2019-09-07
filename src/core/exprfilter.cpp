@@ -36,6 +36,7 @@
 #include "VSHelper.h"
 #include "cpufeatures.h"
 #include "internalfilters.h"
+#include "vslog.h"
 #include "kernel/cpulevel.h"
 
 #ifdef VS_TARGET_CPU_X86
@@ -224,6 +225,7 @@ public:
         case ExprOpType::EXP: exp(insn); break;
         case ExprOpType::LOG: log(insn); break;
         case ExprOpType::POW: pow(insn); break;
+        default: vsFatal("illegal opcode"); break;
         }
     }
 
@@ -1598,6 +1600,12 @@ class ExprInterpreter {
     const ExprInstruction *bytecode;
     size_t numInsns;
     std::vector<float> registers;
+
+    template <class T>
+    static T clamp_int(float x)
+    {
+        return static_cast<T>(std::lrint(std::min(std::max(x, static_cast<float>(std::numeric_limits<T>::min())), static_cast<float>(std::numeric_limits<T>::max()))));
+    }
 public:
     ExprInterpreter(const ExprInstruction *bytecode, size_t numInsns) : bytecode(bytecode), numInsns(numInsns)
     {
@@ -1610,124 +1618,67 @@ public:
 
     void eval(const uint8_t * const *srcp, uint8_t *dstp, int x)
     {
+        auto bool2float = [](bool x) { return x ? 1.0f : 0.0f; };
+        auto float2bool = [](float x) { return x > 0.0f; };
+
         for (size_t i = 0; i < numInsns; ++i) {
             const ExprInstruction &insn = bytecode[i];
 
+#define SRC1 registers[insn.src1]
+#define SRC2 registers[insn.src2]
+#define SRC3 registers[insn.src3]
+#define DST registers[insn.dst]
             switch (insn.op.type) {
-            case ExprOpType::MEM_LOAD_U8:
-                registers[insn.dst] = srcp[insn.op.imm.u][x];
-                break;
-            case ExprOpType::MEM_LOAD_U16:
-                registers[insn.dst] = reinterpret_cast<const uint16_t *>(srcp[insn.op.imm.u])[x];
-                break;
-            case ExprOpType::MEM_LOAD_F16:
-                registers[insn.dst] = 0;
-                break;
-            case ExprOpType::MEM_LOAD_F32:
-                registers[insn.dst] = reinterpret_cast<const float *>(srcp[insn.op.imm.u])[x];
-                break;
-            case ExprOpType::CONSTANT:
-                registers[insn.dst] = insn.op.imm.f;
-                break;
-            case ExprOpType::ADD:
-                registers[insn.dst] = registers[insn.src1] + registers[insn.src2];
-                break;
-            case ExprOpType::SUB:
-                registers[insn.dst] = registers[insn.src1] - registers[insn.src2];
-                break;
-            case ExprOpType::MUL:
-                registers[insn.dst] = registers[insn.src1] * registers[insn.src2];
-                break;
-            case ExprOpType::DIV:
-                registers[insn.dst] = registers[insn.src1] / registers[insn.src2];
-                break;
+            case ExprOpType::MEM_LOAD_U8: DST = reinterpret_cast<const uint8_t *>(srcp[insn.op.imm.u])[x]; break;
+            case ExprOpType::MEM_LOAD_U16: DST = reinterpret_cast<const uint16_t *>(srcp[insn.op.imm.u])[x]; break;
+            case ExprOpType::MEM_LOAD_F16: DST = 0; break;
+            case ExprOpType::MEM_LOAD_F32: DST = reinterpret_cast<const float *>(srcp[insn.op.imm.u])[x]; break;
+            case ExprOpType::CONSTANT: DST = insn.op.imm.f; break;
+            case ExprOpType::ADD: DST = SRC1 + SRC2; break;
+            case ExprOpType::SUB: DST = SRC1 - SRC2; break;
+            case ExprOpType::MUL: DST = SRC1 * SRC2; break;
+            case ExprOpType::DIV: DST = SRC1 / SRC2; break;
             case ExprOpType::FMA:
                 switch (static_cast<FMAType>(insn.op.imm.u)) {
-                case FMAType::FMADD:
-                    registers[insn.dst] = registers[insn.src2] * registers[insn.src3] + registers[insn.src1];
-                    break;
-                case FMAType::FMSUB:
-                    registers[insn.dst] = registers[insn.src2] * registers[insn.src3] - registers[insn.src1];
-                    break;
-                case FMAType::FNMADD:
-                    registers[insn.dst] = -registers[insn.src2] * registers[insn.src3] + registers[insn.src1];
-                    break;
-                case FMAType::FNMSUB:
-                    registers[insn.dst] = -registers[insn.src2] * registers[insn.src3] - registers[insn.src1];
-                    break;
+                case FMAType::FMADD: DST = SRC2 * SRC3 + SRC1; break;
+                case FMAType::FMSUB: DST = SRC2 * SRC3 - SRC1; break;
+                case FMAType::FNMADD: DST = -(SRC2 * SRC3) + SRC1; break;
+                case FMAType::FNMSUB: DST = -(SRC2 * SRC3) - SRC1; break;
                 };
                 break;
-            case ExprOpType::MAX:
-                registers[insn.dst] = std::max(registers[insn.src1], registers[insn.src2]);
-                break;
-            case ExprOpType::MIN:
-                registers[insn.dst] = std::min(registers[insn.src1], registers[insn.src2]);
-                break;
-            case ExprOpType::EXP:
-                registers[insn.dst] = std::exp(registers[insn.src1]);
-                break;
-            case ExprOpType::LOG:
-                registers[insn.dst] = std::log(registers[insn.src1]);
-                break;
-            case ExprOpType::POW:
-                registers[insn.dst] = std::pow(registers[insn.src1], registers[insn.src2]);
-                break;
-            case ExprOpType::SQRT:
-                registers[insn.dst] = std::sqrt(registers[insn.src1]);
-                break;
-            case ExprOpType::ABS:
-                registers[insn.dst] = std::fabs(registers[insn.src1]);
-                break;
-            case ExprOpType::NEG:
-                registers[insn.dst] = -registers[insn.src1];
-                break;
+            case ExprOpType::MAX: DST = std::max(SRC1, SRC2); break;
+            case ExprOpType::MIN: DST = std::min(SRC1, SRC2); break;
+            case ExprOpType::EXP: DST = std::exp(SRC1); break;
+            case ExprOpType::LOG: DST = std::log(SRC1); break;
+            case ExprOpType::POW: DST = std::pow(SRC1, SRC2); break;
+            case ExprOpType::SQRT: DST = std::sqrt(SRC1); break;
+            case ExprOpType::ABS: DST = std::fabs(SRC1); break;
+            case ExprOpType::NEG: DST = -SRC1; break;
             case ExprOpType::CMP:
                 switch (static_cast<ComparisonType>(insn.op.imm.u)) {
-                case ComparisonType::EQ:
-                    registers[insn.dst] = registers[insn.src1] == registers[insn.src2] ? 1.0f : 0.0f;
-                    break;
-                case ComparisonType::LT:
-                    registers[insn.dst] = registers[insn.src1] < registers[insn.src2] ? 1.0f : 0.0f;
-                    break;
-                case ComparisonType::LE:
-                    registers[insn.dst] = registers[insn.src1] <= registers[insn.src2] ? 1.0f : 0.0f;
-                    break;
-                case ComparisonType::NEQ:
-                    registers[insn.dst] = registers[insn.src1] != registers[insn.src2] ? 1.0f : 0.0f;
-                    break;
-                case ComparisonType::NLT:
-                    registers[insn.dst] = registers[insn.src1] >= registers[insn.src2] ? 1.0f : 0.0f;
-                    break;
-                case ComparisonType::NLE:
-                    registers[insn.dst] = registers[insn.src1] > registers[insn.src2] ? 1.0f : 0.0f;
-                    break;
+                case ComparisonType::EQ: DST = bool2float(SRC1 == SRC2); break;
+                case ComparisonType::LT: DST = bool2float(SRC1 < SRC2); break;
+                case ComparisonType::LE: DST = bool2float(SRC1 <= SRC2); break;
+                case ComparisonType::NEQ: DST = bool2float(SRC1 != SRC2); break;
+                case ComparisonType::NLT: DST = bool2float(SRC1 >= SRC2); break;
+                case ComparisonType::NLE: DST = bool2float(SRC1 > SRC2); break;
                 }
                 break;
-            case ExprOpType::TERNARY:
-                registers[insn.dst] = registers[insn.src1] > 0.0f ? registers[insn.src2] : registers[insn.src3];
-                break;
-            case ExprOpType::AND:
-                registers[insn.dst] = (registers[insn.src1] > 0.0f && registers[insn.src2] > 0.0f) ? 1.0f : 0.0f;
-                break;
-            case ExprOpType::OR:
-                registers[insn.dst] = (registers[insn.src1] > 0.0f || registers[insn.src2] > 0.0f) ? 1.0f : 0.0f;
-                break;
-            case ExprOpType::XOR:
-                registers[insn.dst] = (registers[insn.src1] > 0.0f != registers[insn.src2] > 0.0f) ? 1.0f : 0.0f;
-                break;
-            case ExprOpType::NOT:
-                registers[insn.dst] = registers[insn.src1] > 0.0f ? 0.0f : 1.0f;
-                break;
-            case ExprOpType::MEM_STORE_U8:
-                dstp[x] = static_cast<uint8_t>(std::lrint(std::max(0.0f, std::min(registers[insn.src1], 255.0f))));
-                return;
-            case ExprOpType::MEM_STORE_U16:
-                reinterpret_cast<uint16_t *>(dstp)[x] = static_cast<uint16_t>(std::lrint(std::max(0.0f, std::min(registers[insn.src1], 65535.0f))));
-                return;
-            case ExprOpType::MEM_STORE_F32:
-                reinterpret_cast<float *>(dstp)[x] = registers[insn.src1];
-                return;
+            case ExprOpType::TERNARY: DST = float2bool(SRC1) ? SRC2 : SRC3; break;
+            case ExprOpType::AND: DST = bool2float((float2bool(SRC1) && float2bool(SRC2))); break;
+            case ExprOpType::OR:  DST = bool2float((float2bool(SRC1) || float2bool(SRC2))); break;
+            case ExprOpType::XOR: DST = bool2float((float2bool(SRC1) != float2bool(SRC2))); break;
+            case ExprOpType::NOT: DST = bool2float(!float2bool(SRC1)); break;
+            case ExprOpType::MEM_STORE_U8:  reinterpret_cast<uint8_t *>(dstp)[x] = clamp_int<uint8_t>(SRC1); return;
+            case ExprOpType::MEM_STORE_U16: reinterpret_cast<uint16_t *>(dstp)[x] = clamp_int<uint16_t>(SRC1); return;
+            case ExprOpType::MEM_STORE_F16: reinterpret_cast<uint16_t *>(dstp)[x] = 0; return;
+            case ExprOpType::MEM_STORE_F32: reinterpret_cast<float *>(dstp)[x] = SRC1; return;
+            default: vsFatal("illegal opcode"); return;
             }
+#undef DST
+#undef SRC3
+#undef SRC2
+#undef SRC1
         }
     }
 };
@@ -2063,44 +2014,55 @@ bool isConstant(const ExpressionTreeNode &node, float val)
 
 float evalConstantExpr(const ExpressionTreeNode &node)
 {
+    auto bool2float = [](bool x) { return x ? 1.0f : 0.0f; };
+    auto float2bool = [](float x) { return x > 0.0f; };
+
+#define LEFT evalConstantExpr(*node.left)
+#define RIGHT evalConstantExpr(*node.right)
+#define RIGHTLEFT evalConstantExpr(*node.right->left)
+#define RIGHTRIGHT evalConstantExpr(*node.right->right)
     switch (node.op.type) {
     case ExprOpType::CONSTANT: return node.op.imm.f;
-    case ExprOpType::ADD: return evalConstantExpr(*node.left) + evalConstantExpr(*node.right);
-    case ExprOpType::SUB: return evalConstantExpr(*node.left) - evalConstantExpr(*node.right);
-    case ExprOpType::MUL: return evalConstantExpr(*node.left) * evalConstantExpr(*node.right);
-    case ExprOpType::DIV: return evalConstantExpr(*node.left) / evalConstantExpr(*node.right);
+    case ExprOpType::ADD: return LEFT + RIGHT;
+    case ExprOpType::SUB: return LEFT - RIGHT;
+    case ExprOpType::MUL: return LEFT * RIGHT;
+    case ExprOpType::DIV: return LEFT / RIGHT;
         switch (static_cast<FMAType>(node.op.imm.u)) {
-        case FMAType::FMADD: return evalConstantExpr(*node.right->left) * evalConstantExpr(*node.right->right) + evalConstantExpr(*node.left);
-        case FMAType::FMSUB: return evalConstantExpr(*node.right->left) * evalConstantExpr(*node.right->right) - evalConstantExpr(*node.left);
-        case FMAType::FNMADD: return -evalConstantExpr(*node.right->left) * evalConstantExpr(*node.right->right) + evalConstantExpr(*node.left);
-        case FMAType::FNMSUB: return -evalConstantExpr(*node.right->left) * evalConstantExpr(*node.right->right) - evalConstantExpr(*node.left);
+        case FMAType::FMADD: return RIGHTLEFT * RIGHTRIGHT + LEFT;
+        case FMAType::FMSUB: return RIGHTLEFT * RIGHTRIGHT - LEFT;
+        case FMAType::FNMADD: return -(RIGHTLEFT * RIGHTRIGHT) + LEFT;
+        case FMAType::FNMSUB: return -(RIGHTLEFT * RIGHTRIGHT) - LEFT;
         }
         return NAN;
-    case ExprOpType::SQRT: return std::sqrt(evalConstantExpr(*node.left));
-    case ExprOpType::ABS: return std::fabs(evalConstantExpr(*node.left));
-    case ExprOpType::NEG: return -evalConstantExpr(*node.left);
-    case ExprOpType::MAX: return std::max(evalConstantExpr(*node.left), evalConstantExpr(*node.right));
-    case ExprOpType::MIN: return std::min(evalConstantExpr(*node.left), evalConstantExpr(*node.right));
+    case ExprOpType::SQRT: return std::sqrt(LEFT);
+    case ExprOpType::ABS: return std::fabs(LEFT);
+    case ExprOpType::NEG: return -LEFT;
+    case ExprOpType::MAX: return std::max(LEFT, RIGHT);
+    case ExprOpType::MIN: return std::min(LEFT, RIGHT);
     case ExprOpType::CMP:
         switch (static_cast<ComparisonType>(node.op.imm.u)) {
-        case ComparisonType::EQ: return evalConstantExpr(*node.left) == evalConstantExpr(*node.right) ? 1.0f : 0.0f;
-        case ComparisonType::LT: return evalConstantExpr(*node.left) < evalConstantExpr(*node.right) ? 1.0f : 0.0f;
-        case ComparisonType::LE: return evalConstantExpr(*node.left) <= evalConstantExpr(*node.right) ? 1.0f : 0.0f;
-        case ComparisonType::NEQ: return evalConstantExpr(*node.left) != evalConstantExpr(*node.right) ? 1.0f : 0.0f;
-        case ComparisonType::NLT: return evalConstantExpr(*node.left) >= evalConstantExpr(*node.right) ? 1.0f : 0.0f;
-        case ComparisonType::NLE: return evalConstantExpr(*node.left) > evalConstantExpr(*node.right) ? 1.0f : 0.0f;
+        case ComparisonType::EQ: return bool2float(LEFT == RIGHT);
+        case ComparisonType::LT: return bool2float(LEFT < RIGHT);
+        case ComparisonType::LE: return bool2float(LEFT <= RIGHT);
+        case ComparisonType::NEQ: return bool2float(LEFT != RIGHT);
+        case ComparisonType::NLT: return bool2float(LEFT >= RIGHT);
+        case ComparisonType::NLE: return bool2float(LEFT > RIGHT);
         }
         return NAN;
-    case ExprOpType::AND: return evalConstantExpr(*node.left) > 0.0f && evalConstantExpr(*node.right) > 0.0f ? 1.0f : 0.0f;
-    case ExprOpType::OR: return evalConstantExpr(*node.left) > 0.0f || evalConstantExpr(*node.right) > 0.0f ? 1.0f : 0.0f;
-    case ExprOpType::XOR: return evalConstantExpr(*node.left) > 0.0f != evalConstantExpr(*node.right) > 0.0f ? 1.0f : 0.0f;
-    case ExprOpType::NOT: return evalConstantExpr(*node.left) > 0.0f ? 0.0f : 1.0f;
-    case ExprOpType::EXP: return std::exp(evalConstantExpr(*node.left));
-    case ExprOpType::LOG: return std::log(evalConstantExpr(*node.left));
-    case ExprOpType::POW: return std::pow(evalConstantExpr(*node.left), evalConstantExpr(*node.right));
-    case ExprOpType::TERNARY: return evalConstantExpr(*node.left) > 0.0f ? evalConstantExpr(*node.right->left) : evalConstantExpr(*node.right->right);
+    case ExprOpType::AND: return bool2float(float2bool(LEFT) && float2bool(RIGHT));
+    case ExprOpType::OR: return bool2float(float2bool(LEFT) || float2bool(RIGHT));
+    case ExprOpType::XOR: return bool2float(float2bool(LEFT) != float2bool(RIGHT));
+    case ExprOpType::NOT: return bool2float(!float2bool(LEFT));
+    case ExprOpType::EXP: return std::exp(LEFT);
+    case ExprOpType::LOG: return std::log(LEFT);
+    case ExprOpType::POW: return std::pow(LEFT, RIGHT);
+    case ExprOpType::TERNARY: return float2bool(LEFT) ? RIGHTLEFT : RIGHTRIGHT;
     default: return NAN;
     }
+#undef RIGHTRIGHT
+#undef RIGHTLEFT
+#undef RIGHT
+#undef LEFT
 }
 
 bool isOpCode(const ExpressionTreeNode &node, std::initializer_list<ExprOpType> types)
