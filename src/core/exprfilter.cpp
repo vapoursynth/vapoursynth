@@ -2579,29 +2579,7 @@ bool applyComparisonOptimizations(ExpressionTree &tree)
         }
 
         // CMP to SUB conversion. It has lower priority than other comparison transformations.
-        if (node.op.type == ExprOpType::CMP && node.parent && node.parent->op == ExprOpType::TERNARY) {
-            ComparisonType type = static_cast<ComparisonType>(node.op.imm.u);
-
-            // a < b --> b - a
-            // a > b --> a - b
-            // a <= b --> !(b > a) --> !(a - b)
-            // a >= b --> !(a < b) --> !(b - a)
-            if (type == ComparisonType::LT || type == ComparisonType::LE || type == ComparisonType::NLT || type == ComparisonType::NLE) {
-                if (type == ComparisonType::LE || type == ComparisonType::NLT) {
-                    std::swap(node.parent->right->left, node.parent->right->right);
-                    type = type == ComparisonType::LE ? ComparisonType::NLE : ComparisonType::LT;
-                }
-
-                node.op = ExprOpType::SUB;
-                if (type == ComparisonType::LT)
-                    std::swap(node.left, node.right);
-
-                changed = true;
-                return changed;
-            }
-        }
-
-        if (node.op.type == ExprOpType::CMP && node.parent && isOpCode(*node.parent, { ExprOpType::AND, ExprOpType::OR, ExprOpType::XOR })) {
+        if (node.op.type == ExprOpType::CMP && node.parent && isOpCode(*node.parent, { ExprOpType::AND, ExprOpType::OR, ExprOpType::XOR, ExprOpType::TERNARY })) {
             ComparisonType type = static_cast<ComparisonType>(node.op.imm.u);
 
             // a < b --> b - a    a > b --> a - b
@@ -2698,11 +2676,22 @@ bool applyLocalOptimizations(ExpressionTree &tree)
             changed = true;
         }
 
-        // 0 ? x y = y    1 ? x y = x
+        // 0 ? x : y = y    1 ? x : y = x
         if (node.op == ExprOpType::TERNARY && isConstant(*node.left)) {
             ExpressionTreeNode *replacement = node.left->op.imm.f > 0.0f ? node.right->left : node.right->right;
             replaceNode(node, *replacement);
             changed = true;
+        }
+
+        // a <= b ? x : y --> a > b ? y : x    a >= b ? x : y --> a < b ? y : x
+        if (node.op == ExprOpType::TERNARY && node.left->op.type == ExprOpType::CMP) {
+            ComparisonType type = static_cast<ComparisonType>(node.left->op.imm.u);
+
+            if (type == ComparisonType::LE || type == ComparisonType::NLT) {
+                node.left->op.imm.u = static_cast<unsigned>(type == ComparisonType::LE ? ComparisonType::NLE : ComparisonType::LT);
+                std::swap(node.right->left, node.right->right);
+                changed = true;
+            }
         }
 
         // !a ? b : c --> a ? c : b
