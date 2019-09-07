@@ -2712,12 +2712,6 @@ bool applyLocalOptimizations(ExpressionTree &tree)
             changed = true;
         }
 
-        // !!x --> x
-        if (node.op == ExprOpType::NOT && node.left->op.type == ExprOpType::NOT) {
-            replaceNode(node, *node.left->left);
-            changed = true;
-        }
-
         // !(a < b) --> a >= b
         if (node.op == ExprOpType::NOT && node.left->op.type == ExprOpType::CMP) {
             switch (static_cast<ComparisonType>(node.left->op.imm.u)) {
