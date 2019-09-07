@@ -1000,7 +1000,7 @@ public:
 #ifdef VS_TARGET_OS_WINDOWS
             void *ptr = VirtualAlloc(nullptr, GetCodeSize(), MEM_COMMIT, PAGE_EXECUTE_READWRITE);
 #else
-            void *ptr = mmap(nullptr, ExprObj.GetCodeSize(), PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANON | MAP_PRIVATE, 0, 0);
+            void *ptr = mmap(nullptr, GetCodeSize(), PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANON | MAP_PRIVATE, 0, 0);
 #endif
             memcpy(ptr, jit::GetCode(), GetCodeSize());
             return reinterpret_cast<ExprData::ProcessLineProc>(ptr);
@@ -1575,7 +1575,7 @@ public:
 #ifdef VS_TARGET_OS_WINDOWS
             void *ptr = VirtualAlloc(nullptr, GetCodeSize(), MEM_COMMIT, PAGE_EXECUTE_READWRITE);
 #else
-            void *ptr = mmap(nullptr, ExprObj.GetCodeSize(), PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANON | MAP_PRIVATE, 0, 0);
+            void *ptr = mmap(nullptr, GetCodeSize(), PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANON | MAP_PRIVATE, 0, 0);
 #endif
             memcpy(ptr, jit::GetCode(true), GetCodeSize());
             return reinterpret_cast<ExprData::ProcessLineProc>(ptr);
@@ -2308,7 +2308,7 @@ public:
 
         auto pred = [&](const std::pair<int, float> &lhs, const std::pair<int, float> &rhs)
         {
-            const auto memOpCodes = { ExprOpType::MEM_LOAD_U8, ExprOpType::MEM_LOAD_U16, ExprOpType::MEM_LOAD_F16, ExprOpType::MEM_LOAD_F32 };
+            const std::initializer_list<ExprOpType> memOpCodes = { ExprOpType::MEM_LOAD_U8, ExprOpType::MEM_LOAD_U16, ExprOpType::MEM_LOAD_F16, ExprOpType::MEM_LOAD_F32 };
 
             // Order equivalent terms by exponent.
             if (lhs.first == rhs.first)
