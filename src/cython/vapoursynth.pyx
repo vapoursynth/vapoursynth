@@ -1251,10 +1251,21 @@ cdef class VideoPlane:
         view.internal = NULL
 
 
-cdef class VideoNode(object):
+cdef class RawNode(object):
     cdef VSNodeRef *node
     cdef const VSAPI *funcs
     cdef Core core
+   
+    cdef object __weakref__
+
+    def __init__(self):
+        raise Error('Class cannot be instantiated directly')
+
+    def __dealloc__(self):
+        self.funcs.freeNode(self.node)
+
+
+cdef class VideoNode(RawNode):
     cdef const VSVideoInfo *vi
     cdef readonly Format format
     cdef readonly int width
@@ -1265,14 +1276,9 @@ cdef class VideoNode(object):
     cdef readonly object fps
     cdef readonly int flags
 
-    cdef object __weakref__
-
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
 
-    def __dealloc__(self):
-        self.funcs.freeNode(self.node)
-        
     def __getattr__(self, name):
         err = False
         try:
@@ -1548,24 +1554,16 @@ cdef VideoNode createVideoNode(VSNodeRef *node, const VSAPI *funcs, Core core):
     instance.flags = instance.vi.flags
     return instance
     
-cdef class AudioNode(object):
-    cdef VSNodeRef *node
-    cdef const VSAPI *funcs
-    cdef Core core
+cdef class AudioNode(RawNode):
     cdef const VSAudioInfo *ai
     cdef readonly AudioFormat format
     cdef readonly int sample_rate
     cdef readonly int64_t num_samples
     cdef readonly int num_frames
     cdef readonly int flags
-
-    cdef object __weakref__
-
+    
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
-
-    def __dealloc__(self):
-        self.funcs.freeNode(self.node)
         
     def __getattr__(self, name):
         err = False
@@ -2288,10 +2286,8 @@ cdef public api VSNodeRef *vpy_getOutput(VPYScriptExport *se, int index) nogil:
         if isinstance(node, AlphaOutputTuple):
             node = node[0]
             
-        if isinstance(node, VideoNode):
-            return (<VideoNode>node).funcs.cloneNodeRef((<VideoNode>node).node)
-        elif isinstance(node, AudioNode):
-            return (<AudioNode>node).funcs.cloneNodeRef((<AudioNode>node).node)
+        if isinstance(node, RawNode):
+            return (<RawNode>node).funcs.cloneNodeRef((<RawNode>node).node)
         else:
             return NULL
             
@@ -2311,10 +2307,8 @@ cdef public api VSNodeRef *vpy_getOutput2(VPYScriptExport *se, int index, VSNode
             if (isinstance(node[1], VideoNode) and (alpha != NULL)):
                 alpha[0] = (<VideoNode>(node[1])).funcs.cloneNodeRef((<VideoNode>(node[1])).node)
             return (<VideoNode>(node[0])).funcs.cloneNodeRef((<VideoNode>(node[0])).node)
-        elif isinstance(node, VideoNode):
-            return (<VideoNode>node).funcs.cloneNodeRef((<VideoNode>node).node)
-        elif isinstance(node, AudioNode):
-            return (<AudioNode>node).funcs.cloneNodeRef((<AudioNode>node).node)
+        elif isinstance(node, RawNode):
+            return (<RawNode>node).funcs.cloneNodeRef((<RawNode>node).node)
         else:
             return NULL
 
