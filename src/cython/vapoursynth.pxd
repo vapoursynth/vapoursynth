@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2016 Fredrik Mellbin
+# Copyright (c) 2012-2019 Fredrik Mellbin
 #
 # This file is part of VapourSynth.
 #
@@ -29,8 +29,6 @@ cdef extern from "include/VapourSynth.h" nogil:
     ctypedef struct VSFrameRef:
         pass
     ctypedef struct VSNodeRef:
-        pass
-    ctypedef struct VSNodeGroupRef:
         pass
     ctypedef struct VSFuncRef:
         pass
@@ -295,17 +293,6 @@ cdef extern from "include/VapourSynth.h" nogil:
         const VSAudioFormat *getAudioFormat(int id, VSCore *core) nogil
         const VSAudioInfo *getAudioInfo(VSNodeRef *node) nogil
         int getNodeType(VSNodeRef *node) nogil
-        
-        VSNodeGroupRef *propGetNodeGroup(const VSMap *map, const char *key, int index, int *error) nogil
-        int propSetNodeGroup(VSMap *map, const char *key, VSNodeGroupRef *group, int append) nogil
-        VSNodeRef *nodeGroupGetNode(const VSNodeGroupRef *group, int nodeType, int index) nogil
-        int nodeGroupGetSize(const VSNodeGroupRef *group, int nodeType) nogil
-        int nodeGroupSetNode(VSNodeGroupRef *group, VSNodeRef *node, int append) nogil
-
-        VSNodeGroupRef *createNodeGroup() nogil
-        void freeNodeGroup(VSNodeGroupRef *group) nogil
-        void clearNodeGroup(VSNodeGroupRef *group) nogil
-        
         
     const VSAPI *getVapourSynthAPI(int version) nogil
 

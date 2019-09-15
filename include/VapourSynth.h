@@ -82,11 +82,9 @@
 
 typedef struct VSFrameRef VSFrameRef;
 typedef struct VSNodeRef VSNodeRef;
-typedef struct VSNodeGroupRef VSNodeGroupRef;
 typedef struct VSCore VSCore;
 typedef struct VSPlugin VSPlugin;
 typedef struct VSNode VSNode;
-typedef struct VSNodeGroup VSNodeGroup;
 typedef struct VSFuncRef VSFuncRef;
 typedef struct VSMap VSMap;
 typedef struct VSAPI VSAPI;
@@ -214,7 +212,6 @@ typedef enum VSPropTypes {
     ptNode = 'c',
     ptFrame = 'v',
     ptFunction = 'm',
-    ptGroup = 'g'
 } VSPropTypes;
 
 typedef enum VSGetPropErrors {
@@ -398,17 +395,6 @@ struct VSAPI {
     const VSAudioFormat *(VS_CC *getAudioFormat)(int id, VSCore *core) VS_NOEXCEPT;
     const VSAudioInfo *(VS_CC *getAudioInfo)(VSNodeRef *node) VS_NOEXCEPT;
     int (VS_CC *getNodeType)(VSNodeRef *node) VS_NOEXCEPT;
-
-    /*  */
-    VSNodeGroupRef *(VS_CC *propGetNodeGroup)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
-    int (VS_CC *propSetNodeGroup)(VSMap *map, const char *key, VSNodeGroupRef *group, int append) VS_NOEXCEPT;
-    VSNodeRef *(VS_CC *nodeGroupGetNode)(const VSNodeGroupRef *group, int nodeType, int index) VS_NOEXCEPT;
-    int (VS_CC *nodeGroupGetSize)(const VSNodeGroupRef *group, int nodeType) VS_NOEXCEPT;
-    int (VS_CC *nodeGroupSetNode)(VSNodeGroupRef *group, VSNodeRef *node, int append) VS_NOEXCEPT;
-
-    VSNodeGroupRef *(VS_CC *createNodeGroup)(void) VS_NOEXCEPT;
-    void (VS_CC *freeNodeGroup)(VSNodeGroupRef *group) VS_NOEXCEPT;
-    void (VS_CC *clearNodeGroup)(VSNodeGroupRef *group) VS_NOEXCEPT;
 };
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version) VS_NOEXCEPT;

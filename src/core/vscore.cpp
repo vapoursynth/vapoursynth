@@ -143,8 +143,6 @@ VSVariant::VSVariant(const VSVariant &v) : vtype(v.vtype), internalSize(v.intern
             storage = new FrameList(*reinterpret_cast<FrameList *>(v.storage)); break;
         case VSVariant::vMethod:
             storage = new FuncList(*reinterpret_cast<FuncList *>(v.storage)); break;
-        case VSVariant::vGroup:
-            storage = new NodeGroupList(*reinterpret_cast<NodeGroupList *>(v.storage)); break;
         default:;
         }
     }
@@ -171,8 +169,6 @@ VSVariant::~VSVariant() {
             delete reinterpret_cast<FrameList *>(storage); break;
         case VSVariant::vMethod:
             delete reinterpret_cast<FuncList *>(storage); break;
-        case VSVariant::vGroup:
-            delete reinterpret_cast<NodeGroupList *>(storage); break;
         default:;
         }
     }
@@ -210,12 +206,6 @@ void VSVariant::append(const VSNodeRef &val) {
     internalSize++;
 }
 
-void VSVariant::append(const VSNodeGroupRef &val) {
-    initStorage(vNode);
-    reinterpret_cast<NodeGroupList *>(storage)->push_back(val);
-    internalSize++;
-}
-
 void VSVariant::append(const PVideoFrame &val) {
     initStorage(vFrame);
     reinterpret_cast<FrameList *>(storage)->push_back(val);
@@ -245,8 +235,6 @@ void VSVariant::initStorage(VSVType t) {
             storage = new FrameList(); break;
         case VSVariant::vMethod:
             storage = new FuncList(); break;
-        case VSVariant::vGroup:
-            storage = new NodeGroupList(); break;
         default:;
         }
     }
@@ -798,14 +786,6 @@ VSFunction::VSFunction(const std::string &argString, VSPublicFunction func, void
             type = FilterArgument::faFrame;
         } else if (typeName == "func") {
             type = FilterArgument::faFunc;
-        } else if (typeName == "group") {
-            type = FilterArgument::faGroup;
-        } else if (typeName == "agroup") {
-            type = FilterArgument::faGroup;
-            subType = FilterArgument::fasAudio;
-        } else if (typeName == "vgroup") {
-            type = FilterArgument::faGroup;
-            subType = FilterArgument::fasVideo;
         } else {
             vsFatal("Argument '%s' has invalid type '%s'.", argName.c_str(), typeName.c_str());
         }
@@ -1843,9 +1823,7 @@ static bool hasForeignNodes(const VSMap &m, const VSCore *core) {
 }
 
 VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
-    const char lookup[] = { 'i', 'f', 's', 'c', 'v', 'm', 'g' };
-
-    std::set<const FilterArgument *> groupHandling;
+    const char lookup[] = { 'i', 'f', 's', 'c', 'v', 'm' };
 
     VSMap v;
 
@@ -1869,9 +1847,6 @@ VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
 
                     char ltype = lookup[static_cast<int>(fa.type)];
 
-                    if (ltype == 'g' && fa.type == FilterArgument::faNode)
-                        groupHandling.insert(&fa);
-
                     if (ltype != c)
                         throw VSException(funcName + ": argument " + fa.name + " is not of the correct type");
 
@@ -1886,10 +1861,6 @@ VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
                                     throw VSException(funcName + ": argument " + fa.name + " only accepts video nodes but an audio node was supplied");
                             }
                         }
-                    }
-
-                    if (ltype == 'g') {
-                        // fixme, possibly do some checks?
                     }
 
                     if (!fa.arr && args[fa.name].size() > 1)
@@ -1912,32 +1883,8 @@ VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
                 throw VSException(funcName + ": no argument(s) named " + s);
             }
 
-            if (groupHandling.empty()) {
-                f.func(&args, &v, f.functionData, core, getVSAPIInternal(apiMajor));
-            } else {
-                if (groupHandling.size() > 1)
-                    throw VSException(funcName + ": automatic group to node mapping only implmeneted for a single argument at the moment (error #1)");
 
-                auto first = *groupHandling.cbegin();
-                if (args[first->name].size() != 1)
-                    throw VSException(funcName + ": automatic group to node mapping only implmeneted for a single argument at the moment (error #2)");
-
-                //for (auto iter : groupHandling) {
-                    // compare groups for equality here and if not equal simply error out and explain the problem
-                    // also compare items in a group array
-                //}
-
-                VSMap minput(args);
-                if (first->subType == FilterArgument::fasVideo) {
-                    for (auto &iter : args[first->name].getValue<VSNodeGroup>(0).videoNodes) {
-                        vs_internal_vsapi.propSetNode(&minput, first->name.c_str(), iter, paReplace);
-                        f.func(&minput, &v, f.functionData, core, getVSAPIInternal(apiMajor));
-                    }
-                }
-
-                // in sequence modify the group arguments and call function
-                // reassemble into a group and return  
-            }
+            f.func(&args, &v, f.functionData, core, getVSAPIInternal(apiMajor));
 
             if (!compat && hasCompatNodes(v))
                 vsFatal("%s: illegal filter node returning a compat format detected, DO NOT USE THE COMPAT FORMATS IN NEW FILTERS", funcName.c_str());
