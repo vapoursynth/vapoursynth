@@ -1551,6 +1551,8 @@ cdef class AudioNode(object):
     cdef Core core
     cdef const VSAudioInfo *ai
     cdef readonly AudioFormat format
+    cdef readonly int sample_rate
+    cdef readonly int64_t num_samples
     cdef readonly int num_frames
     cdef readonly int flags
 
@@ -1726,10 +1728,9 @@ cdef AudioNode createAudioNode(VSNodeRef *node, const VSAPI *funcs, Core core):
     instance.funcs = funcs
     instance.ai = funcs.getAudioInfo(node)
     instance.format = createAudioFormat(instance.ai.format)
-    
-#FIXME
+    instance.sample_rate = instance.ai.sampleRate
+    instance.num_samples = instance.ai.numSamples
     instance.num_frames = instance.ai.numFrames
-
     instance.flags = instance.ai.flags
     return instance
 

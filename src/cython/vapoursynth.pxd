@@ -293,6 +293,7 @@ cdef extern from "include/VapourSynth.h" nogil:
         const VSAudioFormat *getAudioFormat(int id, VSCore *core) nogil
         const VSAudioInfo *getAudioInfo(VSNodeRef *node) nogil
         int getNodeType(VSNodeRef *node) nogil
+        int getFrameType(const VSFrameRef *f) nogil
         
     const VSAPI *getVapourSynthAPI(int version) nogil
 

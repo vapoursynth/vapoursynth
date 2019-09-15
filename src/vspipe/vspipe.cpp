@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2013-2018 Fredrik Mellbin
+* Copyright (c) 2013-2019 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -131,27 +131,45 @@ static bool isCompletedFrame(const std::pair<const VSFrameRef *, const VSFrameRe
 
 static void outputFrame(const VSFrameRef *frame) {
     if (!outputError && outFile) {
-        const VSFormat *fi = vsapi->getFrameFormat(frame);
-        const int rgbRemap[] = { 1, 2, 0 };
-        for (int rp = 0; rp < fi->numPlanes; rp++) {
-            int p = (fi->colorFamily == cmRGB) ? rgbRemap[rp] : rp;
-            int stride = vsapi->getStride(frame, p);
-            const uint8_t *readPtr = vsapi->getReadPtr(frame, p);
-            int rowSize = vsapi->getFrameWidth(frame, p) * fi->bytesPerSample;
-            int height = vsapi->getFrameHeight(frame, p);
+        if (vsapi->getFrameType(frame) == ntVideo) {
+            const VSFormat *fi = vsapi->getFrameFormat(frame);
+            const int rgbRemap[] = { 1, 2, 0 };
+            for (int rp = 0; rp < fi->numPlanes; rp++) {
+                int p = (fi->colorFamily == cmRGB) ? rgbRemap[rp] : rp;
+                int stride = vsapi->getStride(frame, p);
+                const uint8_t *readPtr = vsapi->getReadPtr(frame, p);
+                int rowSize = vsapi->getFrameWidth(frame, p) * fi->bytesPerSample;
+                int height = vsapi->getFrameHeight(frame, p);
 
-            if (rowSize != stride) {
-                vs_bitblt(buffer.data(), rowSize, readPtr, stride, rowSize, height);
-                readPtr = buffer.data();
+                if (rowSize != stride) {
+                    vs_bitblt(buffer.data(), rowSize, readPtr, stride, rowSize, height);
+                    readPtr = buffer.data();
+                }
+
+                if (fwrite(readPtr, 1, rowSize * height, outFile) != static_cast<size_t>(rowSize * height)) {
+                    if (errorMessage.empty())
+                        errorMessage = "Error: fwrite() call failed when writing frame: " + std::to_string(outputFrames) + ", plane: " + std::to_string(p) +
+                        ", errno: " + std::to_string(errno);
+                    totalFrames = requestedFrames;
+                    outputError = true;
+                    break;
+                }
             }
+        } else if (vsapi->getFrameType(frame) == ntAudio) {
+            const VSAudioFormat *fi = vsapi->getAudioFrameFormat(frame);
 
-            if (fwrite(readPtr, 1, rowSize * height, outFile) != static_cast<size_t>(rowSize * height)) {
-                if (errorMessage.empty())
-                    errorMessage = "Error: fwrite() call failed when writing frame: " + std::to_string(outputFrames) + ", plane: " + std::to_string(p) +
-                    ", errno: " + std::to_string(errno);
-                totalFrames = requestedFrames;
-                outputError = true;
-                break;
+            for (int channel = 0; channel < fi->numChannels; channel++) {;
+                const uint8_t *readPtr = vsapi->getReadPtr(frame, channel);
+                int rowSize = fi->samplesPerFrame * fi->bytesPerSample;
+
+                if (fwrite(readPtr, 1, rowSize, outFile) != static_cast<size_t>(rowSize)) {
+                    if (errorMessage.empty())
+                        errorMessage = "Error: fwrite() call failed when writing frame: " + std::to_string(outputFrames) + ", channel: " + std::to_string(channel) +
+                        ", errno: " + std::to_string(errno);
+                    totalFrames = requestedFrames;
+                    outputError = true;
+                    break;
+                }
             }
         }
     }
@@ -293,6 +311,85 @@ static bool outputNode() {
         vsapi->getCoreInfo2(vsscript_getCore(se), &info);
         requests = info.numThreads;
     }
+
+    int nodeType = vsapi->getNodeType(node);
+
+    if (nodeType == ntVideo) {
+
+        const VSVideoInfo *vi = vsapi->getVideoInfo(node);
+
+        if (y4m && ((vi->format->colorFamily != cmGray && vi->format->colorFamily != cmYUV) || alphaNode)) {
+            errorMessage = "Error: Can only apply y4m headers to YUV and Gray format clips without alpha";
+            fprintf(stderr, "%s\n", errorMessage.c_str());
+            return true;
+        }
+
+        std::string y4mFormat;
+
+        if (y4m) {
+            if (vi->format->colorFamily == cmGray) {
+                y4mFormat = "mono";
+                if (vi->format->bitsPerSample > 8)
+                    y4mFormat = y4mFormat + std::to_string(vi->format->bitsPerSample);
+            } else if (vi->format->colorFamily == cmYUV) {
+                if (vi->format->subSamplingW == 1 && vi->format->subSamplingH == 1)
+                    y4mFormat = "420";
+                else if (vi->format->subSamplingW == 1 && vi->format->subSamplingH == 0)
+                    y4mFormat = "422";
+                else if (vi->format->subSamplingW == 0 && vi->format->subSamplingH == 0)
+                    y4mFormat = "444";
+                else if (vi->format->subSamplingW == 2 && vi->format->subSamplingH == 2)
+                    y4mFormat = "410";
+                else if (vi->format->subSamplingW == 2 && vi->format->subSamplingH == 0)
+                    y4mFormat = "411";
+                else if (vi->format->subSamplingW == 0 && vi->format->subSamplingH == 1)
+                    y4mFormat = "440";
+                else {
+                    fprintf(stderr, "No y4m identifier exists for current format\n");
+                    return true;
+                }
+
+                if (vi->format->bitsPerSample > 8 && vi->format->sampleType == stInteger)
+                    y4mFormat += "p" + std::to_string(vi->format->bitsPerSample);
+                else if (vi->format->sampleType == stFloat)
+                    y4mFormat += "p" + floatBitsToLetter(vi->format->bitsPerSample);
+            } else {
+                fprintf(stderr, "No y4m identifier exists for current format\n");
+                return true;
+            }
+        }
+        if (!y4mFormat.empty())
+            y4mFormat = " C" + y4mFormat;
+
+        std::string header = "YUV4MPEG2" + y4mFormat
+            + " W" + std::to_string(vi->width)
+            + " H" + std::to_string(vi->height)
+            + " F" + std::to_string(vi->fpsNum) + ":" + std::to_string(vi->fpsDen)
+            + " Ip A0:0"
+            + " XLENGTH=" + std::to_string(vi->numFrames) + "\n";
+
+        if (y4m && outFile) {
+            if (fwrite(header.c_str(), 1, header.size(), outFile) != header.size()) {
+                errorMessage = "Error: fwrite() call failed when writing initial header, errno: " + std::to_string(errno);
+                outputError = true;
+                return outputError;
+            }
+        }
+
+        if (timecodesFile && !outputError) {
+            if (fprintf(timecodesFile, "# timecode format v2\n") < 0) {
+                errorMessage = "Error: failed to write timecodes file header, errno: " + std::to_string(errno);
+                outputError = true;
+                return outputError;
+            }
+        }
+
+        size_t size = vi->width * vi->height * vi->format->bytesPerSample;
+        buffer.resize(size);
+
+    }
+
+    // FIXME, verify that buffer is never used for audio
 
     std::unique_lock<std::mutex> lock(mutex);
 
@@ -617,23 +714,93 @@ int main(int argc, char **argv) {
     }
 
     bool error = false;
-    const VSAudioInfo *ai = vsapi->getAudioInfo(node);
-    if (showInfo) {
 
-    } else {
-        if (totalFrames == -1)
-            totalFrames = ai->numFrames;
-        if ((ai->numFrames && ai->numFrames < totalFrames) || completedFrames >= totalFrames) {
-            fprintf(stderr, "Invalid range of frames to output specified:\nfirst: %d\nlast: %d\nclip length: %d\nframes to output: %d\n", completedFrames, totalFrames, ai->numFrames, totalFrames - completedFrames);
-            vsapi->freeNode(node);
-            vsapi->freeNode(alphaNode);
-            vsscript_freeScript(se);
-            vsscript_finalize();
-            return 1;
+    int nodeType = vsapi->getNodeType(node);
+
+    if (nodeType == ntVideo) {
+
+        const VSVideoInfo *vi = vsapi->getVideoInfo(node);
+
+        if (showInfo) {
+            if (outFile) {
+                if (vi->width && vi->height) {
+                    fprintf(outFile, "Width: %d\n", vi->width);
+                    fprintf(outFile, "Height: %d\n", vi->height);
+                } else {
+                    fprintf(outFile, "Width: Variable\n");
+                    fprintf(outFile, "Height: Variable\n");
+                }
+                fprintf(outFile, "Frames: %d\n", vi->numFrames);
+                if (vi->fpsNum && vi->fpsDen)
+                    fprintf(outFile, "FPS: %" PRId64 "/%" PRId64 " (%.3f fps)\n", vi->fpsNum, vi->fpsDen, vi->fpsNum / static_cast<double>(vi->fpsDen));
+                else
+                    fprintf(outFile, "FPS: Variable\n");
+
+                if (vi->format) {
+                    fprintf(outFile, "Format Name: %s\n", vi->format->name);
+                    fprintf(outFile, "Color Family: %s\n", colorFamilyToString(vi->format->colorFamily));
+                    fprintf(outFile, "Alpha: %s\n", alphaNode ? "Yes" : "No");
+                    fprintf(outFile, "Sample Type: %s\n", (vi->format->sampleType == stInteger) ? "Integer" : "Float");
+                    fprintf(outFile, "Bits: %d\n", vi->format->bitsPerSample);
+                    fprintf(outFile, "SubSampling W: %d\n", vi->format->subSamplingW);
+                    fprintf(outFile, "SubSampling H: %d\n", vi->format->subSamplingH);
+                } else {
+                    fprintf(outFile, "Format Name: Variable\n");
+                }
+            }
+        } else {
+            if (totalFrames == -1)
+                totalFrames = vi->numFrames;
+            if ((vi->numFrames && vi->numFrames < totalFrames) || completedFrames >= totalFrames) {
+                fprintf(stderr, "Invalid range of frames to output specified:\nfirst: %d\nlast: %d\nclip length: %d\nframes to output: %d\n", completedFrames, totalFrames, vi->numFrames, totalFrames - completedFrames);
+                vsapi->freeNode(node);
+                vsapi->freeNode(alphaNode);
+                vsscript_freeScript(se);
+                vsscript_finalize();
+                return 1;
+            }
+
+            if (!isConstantFormat(vi)) {
+                fprintf(stderr, "Cannot output clips with varying dimensions\n");
+                vsapi->freeNode(node);
+                vsapi->freeNode(alphaNode);
+                vsscript_freeScript(se);
+                vsscript_finalize();
+                return 1;
+            }
+
+            lastFpsReportTime = std::chrono::high_resolution_clock::now();;
+            error = outputNode();
         }
+    } else if (nodeType == ntAudio) {
 
-        lastFpsReportTime = std::chrono::high_resolution_clock::now();
-        error = outputNode();
+        const VSAudioInfo *ai = vsapi->getAudioInfo(node);
+
+        if (showInfo) {
+            if (outFile) {
+                fprintf(outFile, "Frames: %d\n", ai->numFrames);
+                fprintf(outFile, "Format Name: %s\n", ai->format->name);
+                fprintf(outFile, "Sample Type: %s\n", (ai->format->sampleType == stInteger) ? "Integer" : "Float");
+                fprintf(outFile, "Bits: %d\n", ai->format->bitsPerSample);
+
+                // FIXME, add missing info
+
+            }
+        } else {
+            if (totalFrames == -1)
+                totalFrames = ai->numFrames;
+            if ((ai->numFrames && ai->numFrames < totalFrames) || completedFrames >= totalFrames) {
+                fprintf(stderr, "Invalid range of frames to output specified:\nfirst: %d\nlast: %d\nclip length: %d\nframes to output: %d\n", completedFrames, totalFrames, ai->numFrames, totalFrames - completedFrames);
+                vsapi->freeNode(node);
+                vsapi->freeNode(alphaNode);
+                vsscript_freeScript(se);
+                vsscript_finalize();
+                return 1;
+            }
+
+            lastFpsReportTime = std::chrono::high_resolution_clock::now();
+            error = outputNode();
+        }
     }
 
     if (outFile)

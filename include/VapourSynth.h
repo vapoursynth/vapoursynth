@@ -395,6 +395,8 @@ struct VSAPI {
     const VSAudioFormat *(VS_CC *getAudioFormat)(int id, VSCore *core) VS_NOEXCEPT;
     const VSAudioInfo *(VS_CC *getAudioInfo)(VSNodeRef *node) VS_NOEXCEPT;
     int (VS_CC *getNodeType)(VSNodeRef *node) VS_NOEXCEPT;
+    int (VS_CC *getFrameType)(const VSFrameRef *f) VS_NOEXCEPT;
+    const VSAudioFormat *(VS_CC *getAudioFrameFormat)(const VSFrameRef *f) VS_NOEXCEPT;
 };
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version) VS_NOEXCEPT;

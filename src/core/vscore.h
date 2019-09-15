@@ -401,7 +401,7 @@ private:
     const VSFormat *format; /* used for VSAudioFormat with audio */
     VSPlaneData *data[3]; /* only the first data pointer is ever used for audio and is subdivided using the internal offset in height */
     int width; 
-    int height; /* stores samplerate for audio */
+    int height;
     int stride[3]; /* stride[0] stores internal offset between audio channels */
     int numPlanes;
 
@@ -421,6 +421,10 @@ public:
     VSFrame(const VSFrame &f);
     ~VSFrame();
 
+    VSNodeType getFrameType() const {
+        return contentType;
+    }
+
     VSMap &getProperties() {
         return properties;
     }
@@ -431,6 +435,7 @@ public:
         this->properties = properties;
     }
     const VSFormat *getFormat() const {
+        assert(contentType == ntVideo);
         return format;
     }
     int getWidth(int plane) const {
