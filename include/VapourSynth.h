@@ -392,13 +392,23 @@ struct VSAPI {
     void (VS_CC *getCoreInfo2)(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT;
 
     /* api experimental audio */
-
     void (VS_CC *createAudioFilter)(const VSMap *in, VSMap *out, const char *name, const VSAudioInfo *ai, int numOutputs, VSAudioFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT;
     VSFrameRef *(VS_CC *newAudioFrame)(const VSAudioFormat *format, int sampleRate, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT;
     const VSAudioFormat *(VS_CC *queryAudioFormat)(int sampleType, int bitsPerSample, int64_t channelLayout, VSCore *core) VS_NOEXCEPT;
     const VSAudioFormat *(VS_CC *getAudioFormat)(int id, VSCore *core) VS_NOEXCEPT;
     const VSAudioInfo *(VS_CC *getAudioInfo)(VSNodeRef *node) VS_NOEXCEPT;
     int (VS_CC *getNodeType)(VSNodeRef *node) VS_NOEXCEPT;
+
+    /*  */
+    VSNodeGroupRef *(VS_CC *propGetNodeGroup)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
+    int (VS_CC *propSetNodeGroup)(VSMap *map, const char *key, VSNodeGroupRef *group, int append) VS_NOEXCEPT;
+    VSNodeRef *(VS_CC *nodeGroupGetNode)(const VSNodeGroupRef *group, int nodeType, int index) VS_NOEXCEPT;
+    int (VS_CC *nodeGroupGetSize)(const VSNodeGroupRef *group, int nodeType) VS_NOEXCEPT;
+    int (VS_CC *nodeGroupSetNode)(VSNodeGroupRef *group, VSNodeRef *node, int append) VS_NOEXCEPT;
+
+    VSNodeGroupRef *(VS_CC *createNodeGroup)(void) VS_NOEXCEPT;
+    void (VS_CC *freeNodeGroup)(VSNodeGroupRef *group) VS_NOEXCEPT;
+    void (VS_CC *clearNodeGroup)(VSNodeGroupRef *group) VS_NOEXCEPT;
 };
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version) VS_NOEXCEPT;

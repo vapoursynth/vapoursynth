@@ -210,6 +210,12 @@ void VSVariant::append(const VSNodeRef &val) {
     internalSize++;
 }
 
+void VSVariant::append(const VSNodeGroupRef &val) {
+    initStorage(vNode);
+    reinterpret_cast<NodeGroupList *>(storage)->push_back(val);
+    internalSize++;
+}
+
 void VSVariant::append(const PVideoFrame &val) {
     initStorage(vFrame);
     reinterpret_cast<FrameList *>(storage)->push_back(val);
@@ -1404,7 +1410,7 @@ VSCore::VSCore(int threads) :
     coreFreed(false),
     numFilterInstances(1),
     numFunctionInstances(0),
-    formatIdOffset(1000),
+    videoFormatIdOffset(1000),
     memory(new MemoryUse()),
     cpuLevel(INT_MAX) {
 #ifdef VS_TARGET_OS_WINDOWS
@@ -1635,7 +1641,7 @@ void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNa
 
 void VSCore::createFilter(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
     try {
-        PVideoNode node(std::make_shared<VSNode>(in, out, name, init, getFrame, free, filterMode, flags, instanceData, apiMajor, this));
+        PNode node(std::make_shared<VSNode>(in, out, name, init, getFrame, free, filterMode, flags, instanceData, apiMajor, this));
         for (size_t i = 0; i < node->getNumOutputs(); i++) {
             // fixme, not that elegant but saves more variant poking code
             VSNodeRef *ref = new VSNodeRef(node, static_cast<int>(i));
@@ -1649,7 +1655,7 @@ void VSCore::createFilter(const VSMap *in, VSMap *out, const std::string &name, 
 
 void VSCore::createAudioFilter(const VSMap *in, VSMap *out, const std::string &name, const VSAudioInfo *ai, int numOutputs, VSAudioFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
     try {
-        PVideoNode node(std::make_shared<VSNode>(name, ai, numOutputs, getFrame, free, filterMode, flags, instanceData, apiMajor, this));
+        PNode node(std::make_shared<VSNode>(name, ai, numOutputs, getFrame, free, filterMode, flags, instanceData, apiMajor, this));
         for (size_t i = 0; i < node->getNumOutputs(); i++) {
             // fixme, not that elegant but saves more variant poking code
             VSNodeRef *ref = new VSNodeRef(node, static_cast<int>(i));
@@ -1886,10 +1892,10 @@ VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
                         // fixme, possibly do some checks?
                     }
 
-                    if (!fa.arr && args[fa.name.c_str()].size() > 1)
+                    if (!fa.arr && args[fa.name].size() > 1)
                         throw VSException(funcName + ": argument " + fa.name + " is not of array type but more than one value was supplied");
 
-                    if (!fa.empty && args[fa.name.c_str()].size() < 1)
+                    if (!fa.empty && args[fa.name].size() < 1)
                         throw VSException(funcName + ": argument " + fa.name + " does not accept empty arrays");
 
                 } else if (!fa.opt) {
@@ -1909,27 +1915,28 @@ VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
             if (groupHandling.empty()) {
                 f.func(&args, &v, f.functionData, core, getVSAPIInternal(apiMajor));
             } else {
-                // check so they're all the same format
+                if (groupHandling.size() > 1)
+                    throw VSException(funcName + ": automatic group to node mapping only implmeneted for a single argument at the moment (error #1)");
 
                 auto first = *groupHandling.cbegin();
-                for (auto iter : groupHandling) {
-                    // compare groups for equality here and if not equal simply error out and explain the problem
-                }
+                if (args[first->name].size() != 1)
+                    throw VSException(funcName + ": automatic group to node mapping only implmeneted for a single argument at the moment (error #2)");
 
-               
+                //for (auto iter : groupHandling) {
+                    // compare groups for equality here and if not equal simply error out and explain the problem
+                    // also compare items in a group array
+                //}
+
                 VSMap minput(args);
-                for (number of track in group) {
-                    for (auto iter : groupHandling) {
-                        // modify arguments and call function
-                        // add output to group
+                if (first->subType == FilterArgument::fasVideo) {
+                    for (auto &iter : args[first->name].getValue<VSNodeGroup>(0).videoNodes) {
+                        vs_internal_vsapi.propSetNode(&minput, first->name.c_str(), iter, paReplace);
+                        f.func(&minput, &v, f.functionData, core, getVSAPIInternal(apiMajor));
                     }
                 }
-                    
-                    
-                // in sequence modify the group arguments and call function
 
-                // reassemble into a group and return
-                    
+                // in sequence modify the group arguments and call function
+                // reassemble into a group and return  
             }
 
             if (!compat && hasCompatNodes(v))

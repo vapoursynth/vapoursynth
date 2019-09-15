@@ -562,27 +562,89 @@ static void VS_CC createAudioFilter(const VSMap *in, VSMap *out, const char *nam
     core->createAudioFilter(in, out, name, ai, numOutputs, getFrame, free, static_cast<VSFilterMode>(filterMode), flags, instanceData, VAPOURSYNTH_API_MAJOR);
 }
 
-VSFrameRef *VS_CC newAudioFrame(const VSAudioFormat *format, int sampleRate, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
+static VSFrameRef *VS_CC newAudioFrame(const VSAudioFormat *format, int sampleRate, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
     assert(format && core);
     return new VSFrameRef(core->newAudioFrame(format, sampleRate, propSrc ? propSrc->frame.get() : nullptr));
 }
 
-const VSAudioFormat *VS_CC queryAudioFormat(int sampleType, int bitsPerSample, int64_t channelLayout, VSCore *core) VS_NOEXCEPT {
+static const VSAudioFormat *VS_CC queryAudioFormat(int sampleType, int bitsPerSample, int64_t channelLayout, VSCore *core) VS_NOEXCEPT {
     return core->queryAudioFormat((VSSampleType)sampleType, bitsPerSample, channelLayout);
 }
 
-const VSAudioFormat *VS_CC getAudioFormat(int id, VSCore *core) VS_NOEXCEPT {
+static const VSAudioFormat *VS_CC getAudioFormat(int id, VSCore *core) VS_NOEXCEPT {
     return reinterpret_cast<const VSAudioFormat *>(getFormatPreset(id, core));
 }
 
-const VSAudioInfo *VS_CC getAudioInfo(VSNodeRef *node) VS_NOEXCEPT {
+static const VSAudioInfo *VS_CC getAudioInfo(VSNodeRef *node) VS_NOEXCEPT {
     assert(node);
     return &node->clip->getAudioInfo(node->index);
 }
 
-int VS_CC getNodeType(VSNodeRef *node) VS_NOEXCEPT {
+static int VS_CC getNodeType(VSNodeRef *node) VS_NOEXCEPT {
     assert(node);
     return node->clip->getNodeType();
+}
+
+static VSNodeGroupRef *VS_CC propGetNodeGroup(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
+    PROP_GET_SHARED(VSVariant::vGroup, new VSNodeGroupRef(l->getValue<VSNodeGroupRef>(index)))
+}
+
+static int VS_CC propSetNodeGroup(VSMap *map, const char *key, VSNodeGroupRef *group, int append) VS_NOEXCEPT {
+    PROP_SET_SHARED(VSVariant::vGroup, *group);
+}
+
+static VSNodeRef *VS_CC nodeGroupGetNode(const VSNodeGroupRef *group, int nodeType, int index) VS_NOEXCEPT {
+    assert(group && (nodeType == ntVideo || nodeType == ntAudio));
+    int numItems = 0;
+    if (nodeType == ntVideo) {
+        if (index < 0 || index >= static_cast<int>(group->group->videoNodes.size()))
+            return nullptr;
+        return cloneNodeRef(group->group->videoNodes[index]);
+    }
+    if (nodeType == ntAudio) {
+        if (index < 0 || index >= static_cast<int>(group->group->audioNodes.size()))
+            return nullptr;
+        return cloneNodeRef(group->group->audioNodes[index]);
+    }
+    return nullptr;
+}
+
+static int VS_CC nodeGroupGetSize(const VSNodeGroupRef *group, int nodeType) VS_NOEXCEPT {
+    assert(group && (nodeType == ntVideo || nodeType == ntAudio));
+    if (nodeType == ntVideo)
+        return static_cast<int>(group->group->videoNodes.size());
+    if (nodeType == ntAudio)
+        return static_cast<int>(group->group->audioNodes.size());
+    return 0;
+}
+
+static int VS_CC nodeGroupSetNode(VSNodeGroupRef *group, VSNodeRef *node, int append) VS_NOEXCEPT {
+    assert(group && node && (append == paReplace || append == paAppend || append == paTouch));
+    int nt = getNodeType(node);
+
+    if (append == paReplace || append == paTouch) {
+        if (nt == ntVideo)
+            group->group->videoNodes.clear();
+        else if (nt == ntAudio)
+            group->group->audioNodes.clear();
+    }
+
+    if (append == paReplace || append == paAppend)
+        group->group->addNode(node);
+
+    return 0; 
+}
+
+VSNodeGroupRef *VS_CC createNodeGroup(void) VS_NOEXCEPT {
+    return new VSNodeGroupRef(std::make_shared<VSNodeGroup>());
+}
+
+void VS_CC freeNodeGroup(VSNodeGroupRef *group) VS_NOEXCEPT {
+    delete group;
+}
+
+void VS_CC clearNodeGroup(VSNodeGroupRef *group) VS_NOEXCEPT {
+    group->group->clear();
 }
 
 const VSAPI vs_internal_vsapi = {
@@ -682,7 +744,13 @@ const VSAPI vs_internal_vsapi = {
     &queryAudioFormat,
     &getAudioFormat,
     &getAudioInfo,
-    &getNodeType
+    &getNodeType,
+
+    &propGetNodeGroup, 
+    &propSetNodeGroup, 
+    &nodeGroupGetNode,
+    &nodeGroupGetSize,
+    &nodeGroupSetNode,
 };
 
 ///////////////////////////////

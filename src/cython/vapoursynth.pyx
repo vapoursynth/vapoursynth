@@ -544,7 +544,7 @@ cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, VSCore *co
                 newval = funcs.propGetData(map, retkey, y, NULL)
             elif proptype =='c':
                 c = get_core()
-                newval = createVideoNode(funcs.propGetNode(map, retkey, y, NULL), funcs, c)
+                newval = createNode(funcs.propGetNode(map, retkey, y, NULL), funcs, c)
 
                 if add_cache and not (newval.flags & vapoursynth.nfNoCache):
                     newval = c.std.Cache(clip=newval)
@@ -739,6 +739,63 @@ cdef Format createFormat(const VSFormat *f):
     instance.subsampling_h = f.subSamplingH
     instance.num_planes = f.numPlanes
     return instance
+    
+cdef class AudioFormat(object):
+    cdef readonly int id
+    cdef readonly str name
+    cdef readonly object sample_type
+    cdef readonly int bits_per_sample
+    cdef readonly int bytes_per_sample
+    cdef readonly int samplesPerFrame
+    cdef readonly int64_t channelLayout
+    cdef readonly int num_channels
+
+    def __init__(self):
+        raise Error('Class cannot be instantiated directly')
+
+    def _as_dict(self):
+        return {
+            'sample_type': self.sample_type,
+            'bits_per_sample': self.bits_per_sample,
+            'samplesPerFrame': self.samplesPerFrame,
+            'channelLayout': self.channelLayout,
+            'num_channels': self.num_channels
+        }
+
+    def replace(self, **kwargs):
+        core = kwargs.pop("core", None) or get_core()
+        vals = self._as_dict()
+        vals.update(**kwargs)
+        return core.register_format(**vals)
+
+    def __eq__(self, other):
+        if not isinstance(other, AudioFormat):
+            return False
+        return other.id == self.id
+
+    def __int__(self):
+        return self.id
+
+    def __str__(self):
+        return ('Audio Format Descriptor\n'
+               f'\tId: {self.id:d}\n'
+               f'\tName: {self.name}\n'
+               f'\tSample Type: {self.sample_type.name.capitalize()}\n'
+               f'\tBits Per Sample: {self.bits_per_sample:d}\n'
+               f'\tBytes Per Sample: {self.bytes_per_sample:d}\n'
+               f'\tPlanes: {self.samplesPerFrame:d}\n') # FIXME
+
+cdef AudioFormat createAudioFormat(const VSAudioFormat *f):
+    cdef AudioFormat instance = AudioFormat.__new__(AudioFormat)
+    instance.id = f.id
+    instance.name = (<const char *>f.name).decode('utf-8')
+    instance.sample_type = SampleType(f.sampleType)
+    instance.bits_per_sample = f.bitsPerSample
+    instance.bytes_per_sample = f.bytesPerSample
+    instance.samplesPerFrame = f.samplesPerFrame
+    instance.channelLayout = f.channelLayout
+    instance.num_channels = f.numChannels
+    return instance
 
 cdef class VideoProps(object):
     cdef const VSFrameRef *constf
@@ -787,7 +844,7 @@ cdef class VideoProps(object):
                 ol.append(data[:self.funcs.propGetDataSize(m, b, i, NULL)])
         elif t == 'c':
             for i in range(numelem):
-                ol.append(createVideoNode(self.funcs.propGetNode(m, b, i, NULL), self.funcs, get_core()))
+                ol.append(createNode(self.funcs.propGetNode(m, b, i, NULL), self.funcs, get_core()))
         elif t == 'v':
             for i in range(numelem):
                 ol.append(createConstVideoFrame(self.funcs.propGetFrame(m, b, i, NULL), self.funcs, self.core))
@@ -1468,26 +1525,324 @@ cdef VideoNode createVideoNode(VSNodeRef *node, const VSAPI *funcs, Core core):
     instance.core = core
     instance.node = node
     instance.funcs = funcs
-    if funcs.getNodeType(node) == VIDEO:
-        instance.vi = funcs.getVideoInfo(node)
+    instance.vi = funcs.getVideoInfo(node)
 
-        if (instance.vi.format):
-            instance.format = createFormat(instance.vi.format)
-        else:
-            instance.format = None
+    if (instance.vi.format):
+        instance.format = createFormat(instance.vi.format)
+    else:
+        instance.format = None
 
-        instance.width = instance.vi.width
-        instance.height = instance.vi.height
-        instance.num_frames = instance.vi.numFrames
-        instance.fps_num = <int64_t>instance.vi.fpsNum
-        instance.fps_den = <int64_t>instance.vi.fpsDen
-        if instance.vi.fpsDen:
-            instance.fps = Fraction(
-                <int64_t> instance.vi.fpsNum, <int64_t> instance.vi.fpsDen)
-        else:
-            instance.fps = Fraction(0, 1)
-        instance.flags = instance.vi.flags
+    instance.width = instance.vi.width
+    instance.height = instance.vi.height
+    instance.num_frames = instance.vi.numFrames
+    instance.fps_num = <int64_t>instance.vi.fpsNum
+    instance.fps_den = <int64_t>instance.vi.fpsDen
+    if instance.vi.fpsDen:
+        instance.fps = Fraction(
+            <int64_t> instance.vi.fpsNum, <int64_t> instance.vi.fpsDen)
+    else:
+        instance.fps = Fraction(0, 1)
+    instance.flags = instance.vi.flags
     return instance
+    
+cdef class AudioNode(object):
+    cdef VSNodeRef *node
+    cdef const VSAPI *funcs
+    cdef Core core
+    cdef const VSAudioInfo *ai
+    cdef readonly AudioFormat format
+    cdef readonly int num_frames
+    cdef readonly int flags
+
+    cdef object __weakref__
+
+    def __init__(self):
+        raise Error('Class cannot be instantiated directly')
+
+    def __dealloc__(self):
+        self.funcs.freeNode(self.node)
+        
+    def __getattr__(self, name):
+        err = False
+        try:
+            obj = self.core.__getattr__(name)
+            if isinstance(obj, Plugin):
+                (<Plugin>obj).injected_arg = self
+            return obj
+        except AttributeError:
+            err = True
+        if err:
+            raise AttributeError('There is no attribute or namespace named ' + name)
+
+    cdef ensure_valid_frame_number(self, int n):
+        if n < 0:
+            raise ValueError('Requesting negative frame numbers not allowed')
+        if (self.num_frames > 0) and (n >= self.num_frames):
+            raise ValueError('Requesting frame number is beyond the last frame')
+
+    def get_frame(self, int n):
+        cdef char errorMsg[512]
+        cdef char *ep = errorMsg
+        cdef const VSFrameRef *f
+        self.ensure_valid_frame_number(n)
+
+        with nogil:
+            f = self.funcs.getFrame(n, self.node, errorMsg, 500)
+        if f == NULL:
+            if (errorMsg[0]):
+                raise Error(ep.decode('utf-8'))
+            else:
+                raise Error('Internal error - no error given')
+        else:
+            pass
+            # FIXME return createConstVideoFrame(f, self.funcs, self.core.core)
+
+    def get_frame_async_raw(self, int n, object cb, object future_wrapper=None):
+        self.ensure_valid_frame_number(n)
+
+        data = createRawCallbackData(self.funcs, self, cb, future_wrapper)
+        Py_INCREF(data)
+        with nogil:
+            self.funcs.getFrameAsync(n, self.node, frameDoneCallbackRaw, <void *>data)
+
+    def get_frame_async(self, int n):
+        from concurrent.futures import Future
+        fut = Future()
+        fut.set_running_or_notify_cancel()
+
+        try:
+            self.get_frame_async_raw(n, fut)
+        except Exception as e:
+            fut.set_exception(e)
+
+        return fut
+
+    def set_output(self, int index = 0):
+        _get_output_dict("set_output")[index] = self
+            
+    def __add__(x, y):
+        if not isinstance(x, AudioNode) or not isinstance(y, AudioNode):
+            return NotImplemented
+        return (<AudioNode>x).core.std.Splice(clips=[x, y])
+
+    def __mul__(a, b):
+        if isinstance(a, AudioNode):
+            node = a
+            val = b
+        else:
+            node = b
+            val = a
+
+        if not isinstance(val, int):
+            raise TypeError('Clips may only be repeated by integer factors')
+        if val <= 0:
+            raise ValueError('Loop count must be one or bigger')
+        return (<AudioNode>node).core.std.Loop(clip=node, times=val)
+
+    def __getitem__(self, val):
+        if isinstance(val, slice):
+            if val.step is not None and val.step == 0:
+                raise ValueError('Slice step cannot be zero')
+
+            indices = val.indices(self.num_frames)
+            
+            step = indices[2]
+
+            if step > 0:
+                start = indices[0]
+                stop = indices[1]
+            else:
+                start = indices[1]
+                stop = indices[0]
+
+            ret = self
+
+            if step > 0 and stop is not None:
+                stop -= 1
+            if step < 0 and start is not None:
+                start += 1
+
+            if start is not None and stop is not None:
+                ret = self.core.std.Trim(clip=ret, first=start, last=stop)
+            elif start is not None:
+                ret = self.core.std.Trim(clip=ret, first=start)
+            elif stop is not None:
+                ret = self.core.std.Trim(clip=ret, last=stop)
+
+            if step < 0:
+                ret = self.core.std.Reverse(clip=ret)
+
+            if abs(step) != 1:
+                ret = self.core.std.SelectEvery(clip=ret, cycle=abs(step), offsets=[0])
+
+            return ret
+        elif isinstance(val, int):
+            if val < 0:
+                n = self.num_frames + val
+            else:
+                n = val
+            if n < 0 or (self.num_frames > 0 and n >= self.num_frames):
+                raise IndexError('List index out of bounds')
+            return self.core.std.Trim(clip=self, first=n, length=1)
+        else:
+            raise TypeError("index must be int or slice")
+
+    def frames(self):
+        for frameno in range(len(self)):
+            yield self.get_frame(frameno)
+            
+    def __dir__(self):
+        plugins = [plugin["namespace"] for plugin in self.core.get_plugins().values()]
+        return super(VideoNode, self).__dir__() + plugins
+
+    def __len__(self):
+        return self.num_frames
+
+    def __str__(self):
+        cdef str s = 'AudioNode\n'
+
+        s += '\tFormat: ' + self.format.name + '\n'
+
+        s += '\tNum Frames: ' + str(self.num_frames) + '\n'
+
+        if self.flags:
+            s += '\tFlags:'
+            if (self.flags & vapoursynth.nfNoCache):
+                s += ' NoCache'
+            if (self.flags & vapoursynth.nfIsCache):
+                s += ' IsCache'
+            if (self.flags & vapoursynth.nfMakeLinear):
+                s += ' MakeLinear'
+            s += '\n'
+        else:
+            s += '\tFlags: None\n'
+
+        return s
+    
+cdef AudioNode createAudioNode(VSNodeRef *node, const VSAPI *funcs, Core core):
+    cdef AudioNode instance = AudioNode.__new__(AudioNode)
+    instance.core = core
+    instance.node = node
+    instance.funcs = funcs
+    instance.ai = funcs.getAudioInfo(node)
+    instance.format = createAudioFormat(instance.ai.format)
+    
+#FIXME
+    instance.num_frames = instance.ai.numFrames
+
+    instance.flags = instance.ai.flags
+    return instance
+
+cdef class NodeGroup(object):
+    cdef VSNodeGroupRef *group
+    cdef const VSAPI *funcs
+    cdef Core core
+
+    cdef object __weakref__
+
+    def __init__(self):
+        raise Error('Class cannot be instantiated directly')
+
+    def __dealloc__(self):
+        self.funcs.freeNodeGroup(self.group)
+    def __add__(x, y):
+        if not isinstance(x, NodeGroup) or not isinstance(y, NodeGroup):
+            return NotImplemented
+        return (<NodeGroup>x).core.std.Splice(clips=[x, y])
+
+    def __mul__(a, b):
+        if isinstance(a, NodeGroup):
+            node = a
+            val = b
+        else:
+            node = b
+            val = a
+
+        if not isinstance(val, int):
+            raise TypeError('Clips may only be repeated by integer factors')
+        if val <= 0:
+            raise ValueError('Loop count must be one or bigger')
+        return (<NodeGroup>node).core.std.Loop(clip=node, times=val)
+
+    def __getitem__(self, val):
+        if isinstance(val, slice):
+            if val.step is not None and val.step == 0:
+                raise ValueError('Slice step cannot be zero')
+
+            indices = val.indices(self.num_frames)
+            
+            step = indices[2]
+
+            if step > 0:
+                start = indices[0]
+                stop = indices[1]
+            else:
+                start = indices[1]
+                stop = indices[0]
+
+            ret = self
+
+            if step > 0 and stop is not None:
+                stop -= 1
+            if step < 0 and start is not None:
+                start += 1
+
+            if start is not None and stop is not None:
+                ret = self.core.std.Trim(clip=ret, first=start, last=stop)
+            elif start is not None:
+                ret = self.core.std.Trim(clip=ret, first=start)
+            elif stop is not None:
+                ret = self.core.std.Trim(clip=ret, last=stop)
+
+            if step < 0:
+                ret = self.core.std.Reverse(clip=ret)
+
+            if abs(step) != 1:
+                ret = self.core.std.SelectEvery(clip=ret, cycle=abs(step), offsets=[0])
+
+            return ret
+        elif isinstance(val, int):
+            if val < 0:
+                n = self.num_frames + val
+            else:
+                n = val
+            if n < 0 or (self.num_frames > 0 and n >= self.num_frames):
+                raise IndexError('List index out of bounds')
+            return self.core.std.Trim(clip=self, first=n, length=1)
+        else:
+            raise TypeError("index must be int or slice")
+
+    def frames(self):
+        for frameno in range(len(self)):
+            yield self.get_frame(frameno)
+            
+    def __dir__(self):
+        plugins = [plugin["namespace"] for plugin in self.core.get_plugins().values()]
+        return super(VideoNode, self).__dir__() + plugins
+
+    def __len__(self):
+        return self.num_frames
+
+    def __str__(self):
+        cdef str s = 'AudioNode\n'
+
+        s += '\tFormat: ' + self.format.name + '\n'
+
+        s += '\tNum Frames: ' + str(self.num_frames) + '\n'
+
+        if self.flags:
+            s += '\tFlags:'
+            if (self.flags & vapoursynth.nfNoCache):
+                s += ' NoCache'
+            if (self.flags & vapoursynth.nfIsCache):
+                s += ' IsCache'
+            if (self.flags & vapoursynth.nfMakeLinear):
+                s += ' MakeLinear'
+            s += '\n'
+        else:
+            s += '\tFlags: None\n'
+
+        return s
 
 cdef class Core(object):
     cdef VSCore *core
@@ -1623,6 +1978,12 @@ cdef class Core(object):
         s += '\tNumber of Threads: ' + str(self.num_threads) + '\n'
         s += '\tAdd Cache: ' + str(self.add_cache) + '\n'
         return s
+
+cdef object createNode(VSNodeRef *node, const VSAPI *funcs, Core core):
+    if funcs.getNodeType(node) == VIDEO:
+        createVideoNode(node, funcs, core)
+    else:
+        createAudioNode(node, funcs, core)
 
 cdef Core createCore():
     cdef Core instance = Core.__new__(Core)

@@ -68,7 +68,7 @@ class ExtFunction;
 
 typedef std::shared_ptr<VSFrame> PVideoFrame;
 typedef std::weak_ptr<VSFrame> WVideoFrame;
-typedef std::shared_ptr<VSNode> PVideoNode;
+typedef std::shared_ptr<VSNode> PNode;
 typedef std::shared_ptr<VSNodeGroup> PNodeGroup;
 typedef std::shared_ptr<ExtFunction> PExtFunction;
 typedef std::shared_ptr<FrameContext> PFrameContext;
@@ -300,10 +300,10 @@ struct VSFrameRef {
 };
 
 struct VSNodeRef {
-    PVideoNode clip;
+    PNode clip;
     int index;
-    VSNodeRef(const PVideoNode &clip, int index) : clip(clip), index(index) {}
-    VSNodeRef(PVideoNode &&clip, int index) : clip(clip), index(index) {}
+    VSNodeRef(const PNode &clip, int index) : clip(clip), index(index) {}
+    VSNodeRef(PNode &&clip, int index) : clip(clip), index(index) {}
 };
 
 struct VSNodeGroupRef {
@@ -568,6 +568,29 @@ public:
     bool isWorkerThread();
 
     void notifyCache(bool needMemory);
+};
+
+struct VSNodeGroup {
+    std::vector<VSNodeRef *> videoNodes;
+    std::vector<VSNodeRef *> audioNodes;
+
+    void addNode(VSNodeRef *node) {
+        if (node->clip->getNodeType() == ntVideo)
+            videoNodes.push_back(new VSNodeRef(node->clip, node->index));
+        else if (node->clip->getNodeType() == ntAudio)
+            audioNodes.push_back(new VSNodeRef(node->clip, node->index));
+    }
+
+    void clear() {
+        for (auto iter : videoNodes)
+            delete iter;
+        for (auto iter : audioNodes)
+            delete iter;
+    }
+
+    ~VSNodeGroup() {
+        clear();
+    }
 };
 
 struct VSFrameContext {
