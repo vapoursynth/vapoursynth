@@ -631,8 +631,11 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, cons
             val = [val]
 
         for v in val:
-            if atypes[key][:4] == 'clip' and isinstance(v, VideoNode):
+            if (atypes[key][:4] == 'clip' or atypes[key][:5] == 'vnode') and isinstance(v, VideoNode):
                 if funcs.propSetNode(inm, ckey, (<VideoNode>v).node, 1) != 0:
+                    raise Error('not all values are of the same type in ' + key)
+            if atypes[key][:5] == 'anode' and isinstance(v, AudioNode):
+                if funcs.propSetNode(inm, ckey, (<AudioNode>v).node, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif atypes[key][:5] == 'frame' and isinstance(v, VideoFrame):
                 if funcs.propSetFrame(inm, ckey, (<VideoFrame>v).constf, 1) != 0:
@@ -1871,9 +1874,9 @@ cdef class Core(object):
 
 cdef object createNode(VSNodeRef *node, const VSAPI *funcs, Core core):
     if funcs.getNodeType(node) == VIDEO:
-        createVideoNode(node, funcs, core)
+        return createVideoNode(node, funcs, core)
     else:
-        createAudioNode(node, funcs, core)
+        return createAudioNode(node, funcs, core)
 
 cdef Core createCore():
     cdef Core instance = Core.__new__(Core)
@@ -2287,6 +2290,8 @@ cdef public api VSNodeRef *vpy_getOutput(VPYScriptExport *se, int index) nogil:
             
         if isinstance(node, VideoNode):
             return (<VideoNode>node).funcs.cloneNodeRef((<VideoNode>node).node)
+        elif isinstance(node, AudioNode):
+            return (<AudioNode>node).funcs.cloneNodeRef((<AudioNode>node).node)
         else:
             return NULL
             
@@ -2308,6 +2313,8 @@ cdef public api VSNodeRef *vpy_getOutput2(VPYScriptExport *se, int index, VSNode
             return (<VideoNode>(node[0])).funcs.cloneNodeRef((<VideoNode>(node[0])).node)
         elif isinstance(node, VideoNode):
             return (<VideoNode>node).funcs.cloneNodeRef((<VideoNode>node).node)
+        elif isinstance(node, AudioNode):
+            return (<AudioNode>node).funcs.cloneNodeRef((<AudioNode>node).node)
         else:
             return NULL
 
