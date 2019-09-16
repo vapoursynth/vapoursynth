@@ -580,6 +580,10 @@ static const VSAudioInfo *VS_CC getAudioInfo(VSNodeRef *node) VS_NOEXCEPT {
     return &node->clip->getAudioInfo(node->index);
 }
 
+static const VSAudioFormat *VS_CC getFrameAudioFormat(const VSFrameRef *f) VS_NOEXCEPT {
+    return f->frame->getAudioFormat();
+}
+
 static int VS_CC getNodeType(VSNodeRef *node) VS_NOEXCEPT {
     assert(node);
     return node->clip->getNodeType();
@@ -588,10 +592,6 @@ static int VS_CC getNodeType(VSNodeRef *node) VS_NOEXCEPT {
 static int VS_CC getFrameType(const VSFrameRef *f) VS_NOEXCEPT {
     assert(f);
     return f->frame->getFrameType();
-}
-
-static const VSAudioFormat *VS_CC getAudioFrameFormat(const VSFrameRef *f) VS_NOEXCEPT {
-    return f->frame->getAudioFormat();
 }
 
 const VSAPI vs_internal_vsapi = {
@@ -691,9 +691,9 @@ const VSAPI vs_internal_vsapi = {
     &queryAudioFormat,
     &getAudioFormat,
     &getAudioInfo,
+    &getFrameAudioFormat,
     &getNodeType,
-    &getFrameType,
-    &getAudioFrameFormat
+    &getFrameType
 };
 
 ///////////////////////////////

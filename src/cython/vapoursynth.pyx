@@ -749,8 +749,8 @@ cdef class AudioFormat(object):
     cdef readonly object sample_type
     cdef readonly int bits_per_sample
     cdef readonly int bytes_per_sample
-    cdef readonly int samplesPerFrame
-    cdef readonly int64_t channelLayout
+    cdef readonly int samples_per_frame
+    cdef readonly int64_t channel_layout
     cdef readonly int num_channels
 
     def __init__(self):
@@ -795,12 +795,12 @@ cdef AudioFormat createAudioFormat(const VSAudioFormat *f):
     instance.sample_type = SampleType(f.sampleType)
     instance.bits_per_sample = f.bitsPerSample
     instance.bytes_per_sample = f.bytesPerSample
-    instance.samplesPerFrame = f.samplesPerFrame
-    instance.channelLayout = f.channelLayout
+    instance.samples_per_frame = f.samplesPerFrame
+    instance.channel_layout = f.channelLayout
     instance.num_channels = f.numChannels
     return instance
 
-cdef class VideoProps(object):
+cdef class FrameProps(object):
     cdef const VSFrameRef *constf
     cdef VSFrameRef *f
     cdef VSCore *core
@@ -1014,13 +1014,13 @@ cdef class VideoProps(object):
         return self.funcs.propNumKeys(m)
 
     def __dir__(self):
-        return super(VideoProps, self).__dir__() + list(self.keys())
+        return super(FrameProps, self).__dir__() + list(self.keys())
 
     def __repr__(self):
-        return "<vapoursynth.VideoProps %r>" % dict(self)
+        return "<vapoursynth.FrameProps %r>" % dict(self)
 
-cdef VideoProps createVideoProps(VideoFrame f):
-    cdef VideoProps instance = VideoProps.__new__(VideoProps)
+cdef FrameProps createFrameProps(RawFrame f):
+    cdef FrameProps instance = FrameProps.__new__(FrameProps)
 # since the vsapi only returns const refs when cloning a VSFrameRef it is safe to cast away the const here
     instance.constf = f.funcs.cloneFrameRef(f.constf)
     instance.f = NULL
@@ -1031,21 +1031,17 @@ cdef VideoProps createVideoProps(VideoFrame f):
         instance.f = <VSFrameRef *>instance.constf
     return instance
 
-# Make sure the VideoProps-Object quacks like a Mapping.
-Mapping.register(VideoProps)
+# Make sure the FrameProps-Object quacks like a Mapping.
+Mapping.register(FrameProps)
 
-
-cdef class VideoFrame(object):
+cdef class RawFrame(object):
     cdef const VSFrameRef *constf
     cdef VSFrameRef *f
     cdef VSCore *core
     cdef const VSAPI *funcs
-    cdef readonly Format format
-    cdef readonly int width
-    cdef readonly int height
     cdef readonly bint readonly
-    cdef readonly VideoProps props
-
+    cdef readonly FrameProps props
+    
     cdef object __weakref__
 
     def __init__(self):
@@ -1053,6 +1049,15 @@ cdef class VideoFrame(object):
 
     def __dealloc__(self):
         self.funcs.freeFrame(self.constf)
+
+
+cdef class VideoFrame(RawFrame):
+    cdef readonly Format format
+    cdef readonly int width
+    cdef readonly int height
+
+    def __init__(self):
+        raise Error('Class cannot be instantiated directly')
 
     def copy(self):
         return createVideoFrame(self.funcs.copyFrame(self.constf, self.core), self.funcs, self.core)
@@ -1149,7 +1154,7 @@ cdef VideoFrame createConstVideoFrame(const VSFrameRef *constf, const VSAPI *fun
     instance.format = createFormat(funcs.getFrameFormat(constf))
     instance.width = funcs.getFrameWidth(constf, 0)
     instance.height = funcs.getFrameHeight(constf, 0)
-    instance.props = createVideoProps(instance)
+    instance.props = createFrameProps(instance)
     return instance
 
 
@@ -1163,7 +1168,7 @@ cdef VideoFrame createVideoFrame(VSFrameRef *f, const VSAPI *funcs, VSCore *core
     instance.format = createFormat(funcs.getFrameFormat(f))
     instance.width = funcs.getFrameWidth(f, 0)
     instance.height = funcs.getFrameHeight(f, 0)
-    instance.props = createVideoProps(instance)
+    instance.props = createFrameProps(instance)
     return instance
 
 
@@ -1249,6 +1254,61 @@ cdef class VideoPlane:
         view.ndim = 2
         view.suboffsets = NULL
         view.internal = NULL
+
+
+cdef class AudioFrame(RawFrame):
+    cdef readonly AudioFormat format
+    cdef readonly int width
+    cdef readonly int height
+
+    def __init__(self):
+        raise Error('Class cannot be instantiated directly')
+
+    def copy(self):
+        return createAudioFrame(self.funcs.copyFrame(self.constf, self.core), self.funcs, self.core)
+
+    def get_read_ptr(self, int channel):
+        if channel < 0 or channel >= self.format.num_channels:
+            raise IndexError('Specified channel index out of range')
+        cdef const uint8_t *d = self.funcs.getReadPtr(self.constf, channel)
+        return ctypes.c_void_p(<uintptr_t>d)
+
+    def get_write_ptr(self, int channel):
+        if self.readonly:
+            raise Error('Cannot obtain write pointer to read only frame')
+        if channel < 0 or channel >= self.format.num_channels:
+            raise IndexError('Specified channel index out of range')
+        cdef uint8_t *d = self.funcs.getWritePtr(self.f, channel)
+        return ctypes.c_void_p(<uintptr_t>d)
+
+    def __str__(self):
+        cdef str s = 'AudioFrame\n'
+        s += '\tFormat: ' + self.format.name + '\n'
+        return s
+
+
+cdef AudioFrame createConstAudioFrame(const VSFrameRef *constf, const VSAPI *funcs, VSCore *core):
+    cdef AudioFrame instance = AudioFrame.__new__(AudioFrame)
+    instance.constf = constf
+    instance.f = NULL
+    instance.funcs = funcs
+    instance.core = core
+    instance.readonly = True
+    instance.format = createAudioFormat(funcs.getFrameAudioFormat(constf))
+    instance.props = createFrameProps(instance)
+    return instance
+
+
+cdef AudioFrame createAudioFrame(VSFrameRef *f, const VSAPI *funcs, VSCore *core):
+    cdef AudioFrame instance = AudioFrame.__new__(AudioFrame)
+    instance.constf = f
+    instance.f = f
+    instance.funcs = funcs
+    instance.core = core
+    instance.readonly = False
+    instance.format = createAudioFormat(funcs.getFrameAudioFormat(f))
+    instance.props = createFrameProps(instance)
+    return instance
 
 
 cdef class RawNode(object):

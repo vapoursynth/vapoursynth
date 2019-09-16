@@ -156,7 +156,7 @@ static void outputFrame(const VSFrameRef *frame) {
                 }
             }
         } else if (vsapi->getFrameType(frame) == ntAudio) {
-            const VSAudioFormat *fi = vsapi->getAudioFrameFormat(frame);
+            const VSAudioFormat *fi = vsapi->getFrameAudioFormat(frame);
 
             for (int channel = 0; channel < fi->numChannels; channel++) {;
                 const uint8_t *readPtr = vsapi->getReadPtr(frame, channel);
