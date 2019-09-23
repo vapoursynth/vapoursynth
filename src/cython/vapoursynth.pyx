@@ -1259,8 +1259,7 @@ cdef class VideoPlane:
 
 cdef class AudioFrame(RawFrame):
     cdef readonly AudioFormat format
-    cdef readonly int width
-    cdef readonly int height
+    cdef readonly int num_samples # FIXME, not set or implemented
 
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
@@ -1621,7 +1620,7 @@ cdef class AudioNode(RawNode):
     cdef readonly int sample_rate
     cdef readonly int64_t num_samples
     cdef readonly int num_frames
-    cdef readonly int flags
+    cdef readonly int flags # FIXME, check if properly set
     
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
@@ -1660,26 +1659,6 @@ cdef class AudioNode(RawNode):
         else:
             return createConstAudioFrame(f, self.funcs, self.core.core)
 
-    def get_frame_async_raw(self, int n, object cb, object future_wrapper=None):
-        self.ensure_valid_frame_number(n)
-
-        data = createRawCallbackData(self.funcs, self, cb, future_wrapper)
-        Py_INCREF(data)
-        with nogil:
-            self.funcs.getFrameAsync(n, self.node, frameDoneCallbackRaw, <void *>data)
-
-    def get_frame_async(self, int n):
-        from concurrent.futures import Future
-        fut = Future()
-        fut.set_running_or_notify_cancel()
-
-        try:
-            self.get_frame_async_raw(n, fut)
-        except Exception as e:
-            fut.set_exception(e)
-
-        return fut
-
     def set_output(self, int index = 0):
         _get_output_dict("set_output")[index] = self
             
@@ -1706,6 +1685,8 @@ cdef class AudioNode(RawNode):
         if isinstance(val, slice):
             if val.step is not None and val.step == 0:
                 raise ValueError('Slice step cannot be zero')
+            if val.step is not None and abs(val.step) <> 1:
+                raise ValueError('Slice step must be 1')
 
             indices = val.indices(self.num_frames)
             
@@ -1734,9 +1715,6 @@ cdef class AudioNode(RawNode):
 
             if step < 0:
                 ret = self.core.std.Reverse(clip=ret)
-
-            if abs(step) != 1:
-                ret = self.core.std.SelectEvery(clip=ret, cycle=abs(step), offsets=[0])
 
             return ret
         elif isinstance(val, int):
