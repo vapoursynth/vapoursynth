@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2017 Fredrik Mellbin
+* Copyright (c) 2012-2019 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -21,6 +21,7 @@
 #ifndef VAPOURSYNTH_H
 #define VAPOURSYNTH_H
 
+// FIXME, shamelessly borrowed and structured badly
 #define AV_CH_FRONT_LEFT             0x00000001
 #define AV_CH_FRONT_RIGHT            0x00000002
 #define AV_CH_FRONT_CENTER           0x00000004
@@ -43,7 +44,7 @@
 #include <stdint.h>
 
 #define VAPOURSYNTH_API_MAJOR 3
-#define VAPOURSYNTH_API_MINOR 6
+#define VAPOURSYNTH_API_MINOR 7
 #define VAPOURSYNTH_API_VERSION ((VAPOURSYNTH_API_MAJOR << 16) | (VAPOURSYNTH_API_MINOR))
 
 /* Convenience for C++ users. */
@@ -89,11 +90,6 @@ typedef struct VSFuncRef VSFuncRef;
 typedef struct VSMap VSMap;
 typedef struct VSAPI VSAPI;
 typedef struct VSFrameContext VSFrameContext;
-
-typedef enum VSNodeType {
-    ntVideo = 1,
-    ntAudio = 2
-} VSNodeType;
 
 typedef enum VSColorFamily {
     /* all planar formats */
@@ -171,6 +167,11 @@ typedef enum VSFilterMode {
     fmSerial = 400 /* for source filters and compatibility with other filtering architectures */
 } VSFilterMode;
 
+/* api 3.7 */
+typedef enum VSMediaType {
+    mtVideo = 1,
+    mtAudio = 2
+} VSSubType;
 
 // FIXME, rename to VSVideoFormat and typedef the old name??
 typedef struct VSFormat {
@@ -187,6 +188,7 @@ typedef struct VSFormat {
     int numPlanes; /* implicit from colorFamily */
 } VSFormat;
 
+/* api 3.7 */
 typedef struct VSAudioFormat {
     char name[32];
     int id;
@@ -209,9 +211,13 @@ typedef enum VSPropTypes {
     ptInt = 'i',
     ptFloat = 'f',
     ptData = 's',
-    ptNode = 'c',
-    ptFrame = 'v',
-    ptFunction = 'm',
+    ptNode = 'c', /* deprecated as of api 3.7, use ptVideoNode instead */
+    ptVideoNode = 'c', /* api 3.7 */
+    ptAudioNode = 'a', /* api 3.7 */
+    ptFrame = 'v', /* deprecated as of api 3.7, use ptVideoFrame instead */
+    ptVideoFrame = 'v', /* api 3.7 */
+    ptAudioFrame = 'w', /* api 3.7 */
+    ptFunction = 'm'
 } VSPropTypes;
 
 typedef enum VSGetPropErrors {
@@ -223,7 +229,7 @@ typedef enum VSGetPropErrors {
 typedef enum VSPropAppendMode {
     paReplace = 0,
     paAppend  = 1,
-    paTouch   = 2
+    paTouch   = 2 /* deprecated as of api 3.7, use propSetEmpty instead */
 } VSPropAppendMode;
 
 typedef struct VSCoreInfo {
@@ -245,6 +251,7 @@ typedef struct VSVideoInfo {
     int flags;
 } VSVideoInfo;
 
+/* api 3.7 */
 typedef struct VSAudioInfo {
     const VSAudioFormat *format;
     int sampleRate;
@@ -260,6 +267,7 @@ typedef enum VSActivationReason {
     arError = -1
 } VSActivationReason;
 
+/* api 3.6 */
 typedef enum VSMessageType {
     mtDebug = 0,
     mtWarning = 1,
@@ -283,8 +291,8 @@ typedef void (VS_CC *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI
 
 /* other */
 typedef void (VS_CC *VSFrameDoneCallback)(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg);
-typedef void (VS_CC *VSMessageHandler)(int msgType, const char *msg, void *userData);
-typedef void (VS_CC *VSMessageHandlerFree)(void *userData);
+typedef void (VS_CC *VSMessageHandler)(int msgType, const char *msg, void *userData); /* api 3.6 */
+typedef void (VS_CC *VSMessageHandlerFree)(void *userData); /* api 3.6 */
 
 struct VSAPI {
     VSCore *(VS_CC *createCore)(int threads) VS_NOEXCEPT;
@@ -388,7 +396,8 @@ struct VSAPI {
     int (VS_CC *removeMessageHandler)(int id) VS_NOEXCEPT;
     void (VS_CC *getCoreInfo2)(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT;
 
-    /* api experimental audio */
+    /* api 3.7 */
+    int (VS_CC *propSetEmpty)(VSMap *map, const char *key, int type) VS_NOEXCEPT;
     void (VS_CC *createAudioFilter)(const VSMap *in, VSMap *out, const char *name, const VSAudioInfo *ai, int numOutputs, VSAudioFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT;
     VSFrameRef *(VS_CC *newAudioFrame)(const VSAudioFormat *format, int sampleRate, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT;
     const VSAudioFormat *(VS_CC *queryAudioFormat)(int sampleType, int bitsPerSample, int64_t channelLayout, VSCore *core) VS_NOEXCEPT;

@@ -1411,7 +1411,7 @@ static void VS_CC blankAudioCreate(const VSMap *in, VSMap *out, void *userData, 
     if (d.ai.numSamples <= 0)
         RETERROR("BlankAudio: invalid length");
 
-    d.ai.format = vsapi->queryAudioFormat(isfloat ? stFloat : stInteger, bits, AV_CH_FRONT_LEFT | AV_CH_FRONT_RIGHT, core);
+    d.ai.format = vsapi->queryAudioFormat(isfloat ? stFloat : stInteger, bits, channels, core);
 
     if (!d.ai.format)
         RETERROR("BlankAudio: invalid format");

@@ -542,7 +542,7 @@ cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, VSCore *co
                 newval = funcs.propGetFloat(map, retkey, y, NULL)
             elif proptype == 's':
                 newval = funcs.propGetData(map, retkey, y, NULL)
-            elif proptype =='c':
+            elif proptype == 'c' or proptype == 'a':
                 c = get_core()
                 newval = createNode(funcs.propGetNode(map, retkey, y, NULL), funcs, c)
 
@@ -551,9 +551,9 @@ cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, VSCore *co
 
                     if isinstance(newval, dict):
                         newval = newval['dict']
-            elif proptype =='v':
-                newval = createConstVideoFrame(funcs.propGetFrame(map, retkey, y, NULL), funcs, core)
-            elif proptype =='m':
+            elif proptype == 'v' or proptype =='w':
+                newval = createConstFrame(funcs.propGetFrame(map, retkey, y, NULL), funcs, core)
+            elif proptype == 'm':
                 newval = createFuncRef(funcs.propGetFunc(map, retkey, y, NULL), funcs)
 
             if y == 0:
@@ -579,7 +579,7 @@ cdef void dictToMap(dict ndict, VSMap *inm, VSCore *core, const VSAPI *funcs) ex
         ckey = key.encode('utf-8')
         val = ndict[key]
 
-        if isinstance(val, (str, bytes, bytearray, VideoNode)):
+        if isinstance(val, (str, bytes, bytearray, RawNode)):
             val = [val]
         else:
             try:
@@ -588,11 +588,11 @@ cdef void dictToMap(dict ndict, VSMap *inm, VSCore *core, const VSAPI *funcs) ex
                 val = [val]     
 
         for v in val:
-            if isinstance(v, VideoNode):
-                if funcs.propSetNode(inm, ckey, (<VideoNode>v).node, 1) != 0:
+            if isinstance(v, RawNode):
+                if funcs.propSetNode(inm, ckey, (<RawNode>v).node, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
-            elif isinstance(v, VideoFrame):
-                if funcs.propSetFrame(inm, ckey, (<VideoFrame>v).constf, 1) != 0:
+            elif isinstance(v, RawFrame):
+                if funcs.propSetFrame(inm, ckey, (<RawFrame>v).constf, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif isinstance(v, Func):
                 if funcs.propSetFunc(inm, ckey, (<Func>v).ref, 1) != 0:
@@ -631,14 +631,11 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, cons
             val = [val]
 
         for v in val:
-            if (atypes[key][:4] == 'clip' or atypes[key][:5] == 'vnode') and isinstance(v, VideoNode):
-                if funcs.propSetNode(inm, ckey, (<VideoNode>v).node, 1) != 0:
+            if ((atypes[key][:4] == 'clip' or atypes[key][:5] == 'vnode') and isinstance(v, VideoNode)) or (atypes[key][:5] == 'anode' and isinstance(v, AudioNode)):
+                if funcs.propSetNode(inm, ckey, (<RawNode>v).node, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
-            if atypes[key][:5] == 'anode' and isinstance(v, AudioNode):
-                if funcs.propSetNode(inm, ckey, (<AudioNode>v).node, 1) != 0:
-                    raise Error('not all values are of the same type in ' + key)
-            elif atypes[key][:5] == 'frame' and isinstance(v, VideoFrame):
-                if funcs.propSetFrame(inm, ckey, (<VideoFrame>v).constf, 1) != 0:
+            elif ((atypes[key][:5] == 'frame' or atypes[key][:6] == 'vframe') and isinstance(v, VideoFrame)) or (atypes[key][:6] == 'aframe' and isinstance(v, AudioFrame)):
+                if funcs.propSetFrame(inm, ckey, (<RawFrame>v).constf, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif atypes[key][:4] == 'func' and isinstance(v, Func):
                 if funcs.propSetFunc(inm, ckey, (<Func>v).ref, 1) != 0:
@@ -666,18 +663,22 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, cons
                 raise Error('argument ' + key + ' was passed an unsupported type (expected ' + atypes[key] + ' compatible type but got ' + type(v).__name__ + ')')
         if len(val) == 0:
         # set an empty key if it's an empty array
-            if atypes[key][:4] == 'clip':
-                funcs.propSetNode(inm, ckey, NULL, 2)
-            elif atypes[key][:5] == 'frame':
-                funcs.propSetFrame(inm, ckey, NULL, 2)
+            if atypes[key][:4] == 'clip' or atypes[key][:5] == 'vnode':
+                funcs.propSetEmpty(inm, ckey, 'c')
+            elif atypes[key][:5] == 'anode':
+                funcs.propSetEmpty(inm, ckey, 'a')     
+            elif atypes[key][:5] == 'frame' or atypes[key][:6] == 'vframe':
+                funcs.propSetEmpty(inm, ckey, 'v')
+            elif atypes[key][:6] == 'aframe':
+                funcs.propSetEmpty(inm, ckey, 'w')   
             elif atypes[key][:4] == 'func':
-                funcs.propSetFunc(inm, ckey, NULL, 2)
+                funcs.propSetEmpty(inm, ckey, 'm')
             elif atypes[key][:3] == 'int':
-                funcs.propSetInt(inm, ckey, 0, 2)
+                funcs.propSetEmpty(inm, ckey, 'i')
             elif atypes[key][:5] == 'float':
-                funcs.propSetFloat(inm, ckey, 0, 2)
+                funcs.propSetEmpty(inm, ckey, 'f')
             elif atypes[key][:4] == 'data':
-                funcs.propSetData(inm, ckey, NULL, 0, 2)
+                funcs.propSetEmpty(inm, ckey, 's')
             else:
                 raise Error('argument ' + key + ' has an unknown type: ' + atypes[key])
 
@@ -845,12 +846,12 @@ cdef class FrameProps(object):
             for i in range(numelem):
                 data = self.funcs.propGetData(m, b, i, NULL)
                 ol.append(data[:self.funcs.propGetDataSize(m, b, i, NULL)])
-        elif t == 'c':
+        elif t == 'c' or t == 'a':
             for i in range(numelem):
                 ol.append(createNode(self.funcs.propGetNode(m, b, i, NULL), self.funcs, get_core()))
-        elif t == 'v':
+        elif t == 'v' or t == 'w':
             for i in range(numelem):
-                ol.append(createConstVideoFrame(self.funcs.propGetFrame(m, b, i, NULL), self.funcs, self.core))
+                ol.append(createConstFrame(self.funcs.propGetFrame(m, b, i, NULL), self.funcs, self.core))
         elif t == 'm':
             for i in range(numelem):
                 ol.append(createFuncRef(self.funcs.propGetFunc(m, b, i, NULL), self.funcs))
@@ -1657,8 +1658,7 @@ cdef class AudioNode(RawNode):
             else:
                 raise Error('Internal error - no error given')
         else:
-            pass
-            # FIXME return createConstVideoFrame(f, self.funcs, self.core.core)
+            return createConstAudioFrame(f, self.funcs, self.core.core)
 
     def get_frame_async_raw(self, int n, object cb, object future_wrapper=None):
         self.ensure_valid_frame_number(n)
@@ -1935,6 +1935,12 @@ cdef object createNode(VSNodeRef *node, const VSAPI *funcs, Core core):
         return createVideoNode(node, funcs, core)
     else:
         return createAudioNode(node, funcs, core)
+
+cdef object createConstFrame(VSFrameRef *f, const VSAPI *funcs, VSCore *core):
+    if funcs.getFrameType(f) == VIDEO:
+        return createConstVideoFrame(f, funcs, core)
+    else:
+        return createConstAudioFrame(f, funcs, core)
 
 cdef Core createCore():
     cdef Core instance = Core.__new__(Core)

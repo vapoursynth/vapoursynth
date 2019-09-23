@@ -41,7 +41,7 @@ int VSThreadPool::getNumAvailableThreads() {
     BOOL res = GetProcessAffinityMask(GetCurrentProcess(), &pAff, &sAff);
     if (res && pAff != 0) {
         std::bitset<sizeof(sAff) * 8> b(pAff);
-        nthreads = b.count();
+        nthreads = static_cast<int>(b.count());
     }
 #elif defined(HAVE_SCHED_GETAFFINITY)
     // Linux only.

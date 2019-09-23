@@ -43,9 +43,9 @@ cdef extern from "include/VapourSynth.h" nogil:
     ctypedef struct VSFrameContext:
         pass
         
-    cpdef enum NodeType "VSNodeType":
-        VIDEO "ntVideo"
-        AUDIO "ntAudio"
+    cpdef enum NodeType "VSMediaType":
+        VIDEO "mtVideo"
+        AUDIO "mtAudio"
 
     cpdef enum ColorFamily "VSColorFamily":
         GRAY "cmGray"
@@ -287,6 +287,7 @@ cdef extern from "include/VapourSynth.h" nogil:
         int removeMessageHandler(int id) nogil
         void getCoreInfo2(VSCore *core, VSCoreInfo *info) nogil
 
+        int propSetEmpty(VSMap *map, const char *key, int type) nogil
         void createAudioFilter(const VSMap *input, VSMap *out, const char *name, const VSAudioInfo *ai, int numOutputs, VSAudioFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
         VSFrameRef *newAudioFrame(const VSAudioFormat *format, int sampleRate, const VSFrameRef *propSrc, VSCore *core) nogil
         const VSAudioFormat *queryAudioFormat(int sampleType, int bitsPerSample, int64_t channelLayout, VSCore *core) nogil
@@ -297,4 +298,3 @@ cdef extern from "include/VapourSynth.h" nogil:
         int getFrameType(const VSFrameRef *f) nogil
         
     const VSAPI *getVapourSynthAPI(int version) nogil
-

@@ -117,14 +117,13 @@ public:
 
 class VSVariant {
 public:
-    enum VSVType { vUnset, vInt, vFloat, vData, vNode, vFrame, vMethod };
-    VSVariant(VSVType vtype = vUnset);
+    VSVariant(VSPropTypes vtype = ptUnset);
     VSVariant(const VSVariant &v);
-    VSVariant(VSVariant &&v);
+    VSVariant(VSVariant &&v) noexcept;
     ~VSVariant();
 
     size_t size() const;
-    VSVType getType() const;
+    VSPropTypes getType() const;
 
     void append(int64_t val);
     void append(double val);
@@ -154,11 +153,11 @@ public:
     }
 
 private:
-    VSVType vtype;
+    VSPropTypes vtype;
     size_t internalSize;
     void *storage;
 
-    void initStorage(VSVType t);
+    void initStorage(VSPropTypes t);
 };
 
 class VSMapStorage {
@@ -272,7 +271,7 @@ public:
 
     void setError(const std::string &errMsg) {
         clear();
-        VSVariant v(VSVariant::vData);
+        VSVariant v(ptData);
         v.append(errMsg);
         insert("_Error", std::move(v));
         data->error = true;
@@ -312,31 +311,14 @@ struct VSFuncRef {
 
 class FilterArgument {
 public:
-    enum FilterArgumentType {
-        faNone = -1,
-        faInt = 0,
-        faFloat,
-        faData,
-        faNode,
-        faFrame,
-        faFunc
-    };
-
-    enum FilterArgumentSubType {
-        fasAll,
-        fasAudio,
-        fasVideo
-    };
-
     std::string name;
-    FilterArgumentType type;
-    FilterArgumentSubType subType;
+    VSPropTypes type;
     
     bool arr;
     bool empty;
     bool opt;
-    FilterArgument(const std::string &name, FilterArgumentType type, FilterArgumentSubType subType, bool arr, bool empty, bool opt)
-        : name(name), type(type), subType(subType), arr(arr), empty(empty), opt(opt) {}
+    FilterArgument(const std::string &name, VSPropTypes type, bool arr, bool empty, bool opt)
+        : name(name), type(type), arr(arr), empty(empty), opt(opt) {}
 };
 
 class MemoryUse {
@@ -397,7 +379,7 @@ public:
 
 class VSFrame {
 private:
-    VSNodeType contentType;
+    VSMediaType contentType;
     const VSFormat *format; /* used for VSAudioFormat with audio */
     VSPlaneData *data[3]; /* only the first data pointer is ever used for audio and is subdivided using the internal offset in height */
     int width; 
@@ -421,7 +403,7 @@ public:
     VSFrame(const VSFrame &f);
     ~VSFrame();
 
-    VSNodeType getFrameType() const {
+    VSMediaType getFrameType() const {
         return contentType;
     }
 
@@ -435,23 +417,23 @@ public:
         this->properties = properties;
     }
     const VSFormat *getFormat() const {
-        assert(contentType == ntVideo);
+        assert(contentType == mtVideo);
         return format;
     }
     int getWidth(int plane) const {
-        assert(contentType == ntVideo);
+        assert(contentType == mtVideo);
         return width >> (plane ? format->subSamplingW : 0);
     }
     int getHeight(int plane) const {
-        assert(contentType == ntVideo);
+        assert(contentType == mtVideo);
         return height >> (plane ? format->subSamplingH : 0);
     }
     const VSAudioFormat *getAudioFormat() const {
-        assert(contentType == ntAudio);
+        assert(contentType == mtAudio);
         return reinterpret_cast<const VSAudioFormat *>(format);
     }
     int getSampleRate() const {
-        assert(contentType == ntAudio);
+        assert(contentType == mtAudio);
         return height;
     }
     int getStride(int plane) const;
@@ -501,7 +483,7 @@ struct VSNode {
     friend class VSThreadPool;
     friend struct VSCore;
 private:
-    VSNodeType nodeType;
+    VSMediaType nodeType;
     void *instanceData;
     std::string name;
     VSFilterGetFrame filterGetFrame = nullptr;
@@ -532,7 +514,7 @@ public:
 
     ~VSNode();
 
-    VSNodeType getNodeType() const {
+    VSMediaType getNodeType() const {
         return nodeType;
     }
 
@@ -548,7 +530,7 @@ public:
     void setVideoInfo(const VSVideoInfo *vi, int numOutputs);
 
     size_t getNumOutputs() const {
-        return (nodeType == ntVideo) ? vi.size() : ai.size();
+        return (nodeType == mtVideo) ? vi.size() : ai.size();
     }
 
     const std::string &getName() const {

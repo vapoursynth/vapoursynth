@@ -72,7 +72,7 @@ static uint8_t *VS_CC getWritePtr(VSFrameRef *frame, int plane) VS_NOEXCEPT {
 
 static void VS_CC getFrameAsync(int n, VSNodeRef *clip, VSFrameDoneCallback fdc, void *userData) VS_NOEXCEPT {
     assert(clip && fdc);
-    int numFrames = (clip->clip->getNodeType() == ntVideo) ? clip->clip->getVideoInfo(clip->index).numFrames : clip->clip->getAudioInfo(clip->index).numFrames;
+    int numFrames = (clip->clip->getNodeType() == mtVideo) ? clip->clip->getVideoInfo(clip->index).numFrames : clip->clip->getAudioInfo(clip->index).numFrames;
     if (n < 0 || (numFrames && n >= numFrames)) {
         PFrameContext ctx(std::make_shared<FrameContext>(n, clip->index, clip, fdc, userData));
         ctx->setError("Invalid frame number " + std::to_string(n) + " requested, clip only has " + std::to_string(numFrames) + " frames");
@@ -249,7 +249,7 @@ static const char *VS_CC propGetKey(const VSMap *map, int index) VS_NOEXCEPT {
 
 static int propNumElementsInternal(const VSMap *map, const std::string &key) VS_NOEXCEPT {
     VSVariant *val = map->find(key);
-    return val ? val->size() : -1;
+    return val ? static_cast<int>(val->size()) : -1;
 }
 
 
@@ -289,28 +289,52 @@ static char VS_CC propGetType(const VSMap *map, const char *key) VS_NOEXCEPT {
     *error = err; \
     return 0;
 
+#define PROP_GET_SHARED2(vt1, vt2, retexpr) \
+    assert(map && key); \
+    if (map->hasError()) \
+        vsFatal("Attempted to read key '%s' from a map with error set: %s", key, map->getErrorMessage().c_str()); \
+    int err = 0; \
+    VSVariant *l = map->find(key); \
+    if (l && (l->getType() == (vt1) || l->getType() == (vt2))) { \
+        if (index >= 0 && static_cast<size_t>(index) < l->size()) { \
+            if (error) \
+                *error = 0; \
+            return (retexpr); \
+        } else { \
+            err |= peIndex; \
+        } \
+    } else if (l) { \
+        err |= peType; \
+    } else { \
+        err = peUnset; \
+    } \
+    if (!error) \
+        vsFatal("Property read unsuccessful but no error output: %s", key); \
+    *error = err; \
+    return 0;
+
 static int64_t VS_CC propGetInt(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    PROP_GET_SHARED(VSVariant::vInt, l->getValue<int64_t>(index))
+    PROP_GET_SHARED(ptInt, l->getValue<int64_t>(index))
 }
 
 static double VS_CC propGetFloat(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    PROP_GET_SHARED(VSVariant::vFloat, l->getValue<double>(index))
+    PROP_GET_SHARED(ptFloat, l->getValue<double>(index))
 }
 
 static const char *VS_CC propGetData(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    PROP_GET_SHARED(VSVariant::vData, l->getValue<VSMapData>(index)->c_str())
+    PROP_GET_SHARED(ptData, l->getValue<VSMapData>(index)->c_str())
 }
 
 static int VS_CC propGetDataSize(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    PROP_GET_SHARED(VSVariant::vData, static_cast<int>(l->getValue<VSMapData>(index)->size()))
+    PROP_GET_SHARED(ptData, static_cast<int>(l->getValue<VSMapData>(index)->size()))
 }
 
 static VSNodeRef *VS_CC propGetNode(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    PROP_GET_SHARED(VSVariant::vNode, new VSNodeRef(l->getValue<VSNodeRef>(index)))
+    PROP_GET_SHARED2(ptVideoNode, ptAudioNode, new VSNodeRef(l->getValue<VSNodeRef>(index)))
 }
 
 static const VSFrameRef *VS_CC propGetFrame(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    PROP_GET_SHARED(VSVariant::vFrame, new VSFrameRef(l->getValue<PVideoFrame>(index)))
+    PROP_GET_SHARED2(ptVideoFrame, ptAudioFrame, new VSFrameRef(l->getValue<PVideoFrame>(index)))
 }
 
 static int VS_CC propDeleteKey(VSMap *map, const char *key) VS_NOEXCEPT {
@@ -362,23 +386,25 @@ static bool isValidVSMapKey(const std::string &s) {
 
 
 static int VS_CC propSetInt(VSMap *map, const char *key, int64_t i, int append) VS_NOEXCEPT {
-    PROP_SET_SHARED(VSVariant::vInt, i)
+    PROP_SET_SHARED(ptInt, i)
 }
 
 static int VS_CC propSetFloat(VSMap *map, const char *key, double d, int append) VS_NOEXCEPT {
-    PROP_SET_SHARED(VSVariant::vFloat, d)
+    PROP_SET_SHARED(ptFloat, d)
 }
 
 static int VS_CC propSetData(VSMap *map, const char *key, const char *d, int length, int append) VS_NOEXCEPT {
-    PROP_SET_SHARED(VSVariant::vData, length >= 0 ? std::string(d, length) : std::string(d))
+    PROP_SET_SHARED(ptData, length >= 0 ? std::string(d, length) : std::string(d))
 }
 
-static int VS_CC propSetNode(VSMap *map, const char *key, VSNodeRef *clip, int append) VS_NOEXCEPT {
-    PROP_SET_SHARED(VSVariant::vNode, *clip)
+static int VS_CC propSetNode(VSMap *map, const char *key, VSNodeRef *node, int append) VS_NOEXCEPT {
+    VSPropTypes nodeType = (node == nullptr || node->clip->getNodeType() == mtVideo) ? ptVideoNode : ptAudioNode;
+    PROP_SET_SHARED(nodeType, *node)
 }
 
-static int VS_CC propSetFrame(VSMap *map, const char *key, const VSFrameRef *frame, int append) VS_NOEXCEPT {
-    PROP_SET_SHARED(VSVariant::vFrame, frame->frame)
+static int VS_CC propSetFrame(VSMap *map, const char *key, const VSFrameRef *frame, int append) VS_NOEXCEPT {   
+    VSPropTypes frameType = (frame == nullptr || frame->frame->getFrameType() == mtVideo) ? ptVideoFrame : ptAudioFrame;
+    PROP_SET_SHARED(frameType, frame->frame)
 }
 
 static VSMap *VS_CC invoke(VSPlugin *plugin, const char *name, const VSMap *args) VS_NOEXCEPT {
@@ -434,12 +460,12 @@ static const VSCoreInfo *VS_CC getCoreInfo(VSCore *core) VS_NOEXCEPT {
 }
 
 static VSFuncRef *VS_CC propGetFunc(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    PROP_GET_SHARED(VSVariant::vMethod, new VSFuncRef(l->getValue<PExtFunction>(index)))
+    PROP_GET_SHARED(ptFunction, new VSFuncRef(l->getValue<PExtFunction>(index)))
 }
 
 static int VS_CC propSetFunc(VSMap *map, const char *key, VSFuncRef *func, int append) VS_NOEXCEPT {
     assert(func);
-    PROP_SET_SHARED(VSVariant::vMethod, func->func)
+    PROP_SET_SHARED(ptFunction, func->func)
 }
 
 static void VS_CC callFunc(VSFuncRef *func, const VSMap *in, VSMap *out, VSCore *core, const VSAPI *vsapi) VS_NOEXCEPT {
@@ -502,12 +528,12 @@ static const char *VS_CC getPluginPath(const VSPlugin *plugin) VS_NOEXCEPT {
 
 static const int64_t *VS_CC propGetIntArray(const VSMap *map, const char *key, int *error) VS_NOEXCEPT {
     int index = 0;
-    PROP_GET_SHARED(VSVariant::vInt, l->getArray<int64_t>())
+    PROP_GET_SHARED(ptInt, l->getArray<int64_t>())
 }
 
 static const double *VS_CC propGetFloatArray(const VSMap *map, const char *key, int *error) VS_NOEXCEPT {
     int index = 0;
-    PROP_GET_SHARED(VSVariant::vFloat, l->getArray<double>())
+    PROP_GET_SHARED(ptFloat, l->getArray<double>())
 }
 
 static int VS_CC propSetIntArray(VSMap *map, const char *key, const int64_t *i, int size) VS_NOEXCEPT {
@@ -517,7 +543,7 @@ static int VS_CC propSetIntArray(VSMap *map, const char *key, const int64_t *i, 
     std::string skey = key;
     if (!isValidVSMapKey(skey))
         return 1;
-    VSVariant l(VSVariant::vInt);
+    VSVariant l(ptInt);
     l.setArray(i, size);
     map->insert(skey, std::move(l));
     return 0;
@@ -530,7 +556,7 @@ static int VS_CC propSetFloatArray(VSMap *map, const char *key, const double *d,
     std::string skey = key;
     if (!isValidVSMapKey(skey))
         return 1;
-    VSVariant l(VSVariant::vFloat);
+    VSVariant l(ptFloat);
     l.setArray(d, size);
     map->insert(skey, std::move(l));
     return 0;
@@ -553,7 +579,15 @@ static void VS_CC getCoreInfo2(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT {
     core->getCoreInfo2(*info);
 }
 
-
+static int VS_CC propSetEmpty(VSMap *map, const char *key, int type) VS_NOEXCEPT {
+    assert(map && key);
+    std::string skey = key;
+    if (!isValidVSMapKey(skey) || map->find(skey))
+        return -1;
+    VSVariant l(static_cast<VSPropTypes>(type));
+    map->insert(skey, std::move(l));
+    return 0;
+}
 
 static void VS_CC createAudioFilter(const VSMap *in, VSMap *out, const char *name, const VSAudioInfo *ai, int numOutputs, VSAudioFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT {
     assert(in && out && name && ai && numOutputs > 0 && getFrame && core);
@@ -686,6 +720,7 @@ const VSAPI vs_internal_vsapi = {
     &removeMessageHandler,
     &getCoreInfo2,
 
+    &propSetEmpty,
     &createAudioFilter,
     &newAudioFrame,
     &queryAudioFormat,

@@ -131,7 +131,7 @@ static bool isCompletedFrame(const std::pair<const VSFrameRef *, const VSFrameRe
 
 static void outputFrame(const VSFrameRef *frame) {
     if (!outputError && outFile) {
-        if (vsapi->getFrameType(frame) == ntVideo) {
+        if (vsapi->getFrameType(frame) == mtVideo) {
             const VSFormat *fi = vsapi->getFrameFormat(frame);
             const int rgbRemap[] = { 1, 2, 0 };
             for (int rp = 0; rp < fi->numPlanes; rp++) {
@@ -155,7 +155,7 @@ static void outputFrame(const VSFrameRef *frame) {
                     break;
                 }
             }
-        } else if (vsapi->getFrameType(frame) == ntAudio) {
+        } else if (vsapi->getFrameType(frame) == mtAudio) {
             const VSAudioFormat *fi = vsapi->getFrameAudioFormat(frame);
 
             for (int channel = 0; channel < fi->numChannels; channel++) {;
@@ -314,7 +314,7 @@ static bool outputNode() {
 
     int nodeType = vsapi->getNodeType(node);
 
-    if (nodeType == ntVideo) {
+    if (nodeType == mtVideo) {
 
         const VSVideoInfo *vi = vsapi->getVideoInfo(node);
 
@@ -717,7 +717,7 @@ int main(int argc, char **argv) {
 
     int nodeType = vsapi->getNodeType(node);
 
-    if (nodeType == ntVideo) {
+    if (nodeType == mtVideo) {
 
         const VSVideoInfo *vi = vsapi->getVideoInfo(node);
 
@@ -772,7 +772,7 @@ int main(int argc, char **argv) {
             lastFpsReportTime = std::chrono::high_resolution_clock::now();;
             error = outputNode();
         }
-    } else if (nodeType == ntAudio) {
+    } else if (nodeType == mtAudio) {
 
         const VSAudioInfo *ai = vsapi->getAudioInfo(node);
 
