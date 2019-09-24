@@ -486,9 +486,8 @@ private:
     VSMediaType nodeType;
     void *instanceData;
     std::string name;
-    VSFilterGetFrame filterGetFrame = nullptr;
-    VSAudioFilterGetFrame audioFilterGetFrame = nullptr;;
-    VSFilterFree free = nullptr;;
+    VSFilterGetFrame filterGetFrame;
+    VSFilterFree free = nullptr;
     VSFilterMode filterMode;
 
     int apiMajor;
@@ -510,7 +509,8 @@ private:
     PVideoFrame getFrameInternal(int n, int activationReason, VSFrameContext &frameCtx);
 public:
     VSNode(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core);
-    VSNode(const std::string &name, const VSAudioInfo *ai, int numOutputs, VSAudioFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core);
+    VSNode(const std::string &name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core);
+    VSNode(const std::string &name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core);
 
     ~VSNode();
 
@@ -687,7 +687,8 @@ public:
 
     void loadPlugin(const std::string &filename, const std::string &forcedNamespace = std::string(), const std::string &forcedId = std::string(), bool altSearchPath = false);
     void createFilter(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
-    void createAudioFilter(const VSMap *in, VSMap *out, const std::string &name, const VSAudioInfo *ai, int numOutputs, VSAudioFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
+    void createVideoFilter(const VSMap *in, VSMap *out, const std::string &name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
+    void createAudioFilter(const VSMap *in, VSMap *out, const std::string &name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
 
     int getCpuLevel() const;
     int setCpuLevel(int cpu);

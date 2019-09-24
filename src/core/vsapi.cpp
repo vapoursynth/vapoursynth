@@ -589,7 +589,14 @@ static int VS_CC propSetEmpty(VSMap *map, const char *key, int type) VS_NOEXCEPT
     return 0;
 }
 
-static void VS_CC createAudioFilter(const VSMap *in, VSMap *out, const char *name, const VSAudioInfo *ai, int numOutputs, VSAudioFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT {
+static void VS_CC createVideoFilter(const VSMap *in, VSMap *out, const char *name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT {
+    assert(in && out && name && vi && numOutputs > 0 && getFrame && core);
+    if (!name)
+        vsFatal("NULL name pointer passed to createVideoFilter()");
+    core->createVideoFilter(in, out, name, vi, numOutputs, getFrame, free, static_cast<VSFilterMode>(filterMode), flags, instanceData, VAPOURSYNTH_API_MAJOR);
+}
+
+static void VS_CC createAudioFilter(const VSMap *in, VSMap *out, const char *name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT {
     assert(in && out && name && ai && numOutputs > 0 && getFrame && core);
     if (!name)
         vsFatal("NULL name pointer passed to createAudioFilter()");
@@ -721,6 +728,7 @@ const VSAPI vs_internal_vsapi = {
     &getCoreInfo2,
 
     &propSetEmpty,
+    &createVideoFilter,
     &createAudioFilter,
     &newAudioFrame,
     &queryAudioFormat,

@@ -85,7 +85,7 @@ typedef struct VSFrameRef VSFrameRef;
 typedef struct VSNodeRef VSNodeRef;
 typedef struct VSCore VSCore;
 typedef struct VSPlugin VSPlugin;
-typedef struct VSNode VSNode;
+typedef struct VSNode VSNode; /* deprecated as of api 3.7 */
 typedef struct VSFuncRef VSFuncRef;
 typedef struct VSMap VSMap;
 typedef struct VSAPI VSAPI;
@@ -284,9 +284,8 @@ typedef void (VS_CC *VSRegisterFunction)(const char *name, const char *args, VSP
 typedef void (VS_CC *VSConfigPlugin)(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readonly, VSPlugin *plugin);
 typedef void (VS_CC *VSInitPlugin)(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
 typedef void (VS_CC *VSFreeFuncData)(void *userData);
-typedef void (VS_CC *VSFilterInit)(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi);
+typedef void (VS_CC *VSFilterInit)(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi); /* deprecated as of api 3.7 */
 typedef const VSFrameRef *(VS_CC *VSFilterGetFrame)(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
-typedef const VSFrameRef *(VS_CC *VSAudioFilterGetFrame)(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *ctx, VSCore *core, const VSAPI *vsapi);
 typedef void (VS_CC *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI *vsapi);
 
 /* other */
@@ -316,7 +315,7 @@ struct VSAPI {
     VSPlugin *(VS_CC *getPluginByNs)(const char *ns, VSCore *core) VS_NOEXCEPT;
     VSMap *(VS_CC *getPlugins)(VSCore *core) VS_NOEXCEPT;
     VSMap *(VS_CC *getFunctions)(VSPlugin *plugin) VS_NOEXCEPT;
-    void (VS_CC *createFilter)(const VSMap *in, VSMap *out, const char *name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT;
+    void (VS_CC *createFilter)(const VSMap *in, VSMap *out, const char *name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT; /* deprecated as of api 3.7, use createVideoFilter instead */
     void (VS_CC *setError)(VSMap *map, const char *errorMessage) VS_NOEXCEPT; /* use to signal errors outside filter getframe functions */
     const char *(VS_CC *getError)(const VSMap *map) VS_NOEXCEPT; /* use to query errors, returns 0 if no error */
     void (VS_CC *setFilterError)(const char *errorMessage, VSFrameContext *frameCtx) VS_NOEXCEPT; /* use to signal errors in the filter getframe function */
@@ -398,7 +397,8 @@ struct VSAPI {
 
     /* api 3.7 */
     int (VS_CC *propSetEmpty)(VSMap *map, const char *key, int type) VS_NOEXCEPT;
-    void (VS_CC *createAudioFilter)(const VSMap *in, VSMap *out, const char *name, const VSAudioInfo *ai, int numOutputs, VSAudioFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT;
+    void (VS_CC *createVideoFilter)(const VSMap *in, VSMap *out, const char *name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT;
+    void (VS_CC *createAudioFilter)(const VSMap *in, VSMap *out, const char *name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT;
     VSFrameRef *(VS_CC *newAudioFrame)(const VSAudioFormat *format, int sampleRate, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT;
     const VSAudioFormat *(VS_CC *queryAudioFormat)(int sampleType, int bitsPerSample, int64_t channelLayout, VSCore *core) VS_NOEXCEPT;
     const VSAudioFormat *(VS_CC *getAudioFormat)(int id, VSCore *core) VS_NOEXCEPT;

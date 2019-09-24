@@ -855,8 +855,33 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, VSFilterIni
     }
 }
 
-VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, int numOutputs, VSAudioFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
-    nodeType(mtAudio), instanceData(instanceData), name(name), audioFilterGetFrame(getFrame), free(free), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
+VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
+    nodeType(mtAudio), instanceData(instanceData), name(name), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
+
+    if (flags & ~(nfNoCache | nfIsCache | nfMakeLinear))
+        throw VSException("Filter " + name + " specified unknown flags");
+
+    if ((flags & nfIsCache) && !(flags & nfNoCache))
+        throw VSException("Filter " + name + " specified an illegal combination of flags (nfNoCache must always be set with nfIsCache)");
+
+    if (numOutputs < 1)
+        vsFatal("Filter %s needs to have at least one output (%d were given).", name.c_str(), numOutputs);
+
+    core->filterInstanceCreated();
+
+    for (int i = 0; i < numOutputs; i++) {
+        if (vi[i].format && !core->isValidFormatPointer(vi[i].format))
+            vsFatal("The VSFormat pointer passed by %s was not obtained from registerFormat() or getFormatPreset().", name.c_str());
+        if (vi[i].numFrames <= 0)
+            vsFatal("Filter %s has no video frames in the output.", name.c_str());
+
+        this->vi.push_back(vi[i]);
+        this->vi[i].flags = flags;
+    }
+}
+
+VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
+    nodeType(mtAudio), instanceData(instanceData), name(name), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
 
     if (flags & ~(nfNoCache | nfIsCache | nfMakeLinear))
         throw VSException("Filter " + name + " specified unknown flags");
@@ -922,22 +947,17 @@ void VSNode::setVideoInfo(const VSVideoInfo *vi, int numOutputs) {
 }
 
 PVideoFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext &frameCtx) {
-    const VSFrameRef *r = nullptr;
-    assert(filterGetFrame || audioFilterGetFrame);
-    if (filterGetFrame)
-        r = filterGetFrame(n, activationReason, &instanceData, &frameCtx.ctx->frameContext, &frameCtx, core, &vs_internal_vsapi);
-    else // fixme, expand n to int64?
-        r = audioFilterGetFrame(n, activationReason, instanceData, &frameCtx.ctx->frameContext, &frameCtx, core, &vs_internal_vsapi);
+    const VSFrameRef *r = filterGetFrame(n, activationReason, &instanceData, &frameCtx.ctx->frameContext, &frameCtx, core, &vs_internal_vsapi);
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isSSEStateOk())
         vsFatal("Bad SSE state detected after return from %s", name.c_str());
 #endif
 
     if (r) {
-        PVideoFrame p(std::move(r->frame));
+        PVideoFrame p(r->frame);
         delete r;
 
-        if (filterGetFrame) {
+        if (p->getFrameType() == mtVideo) {
             const VSFormat *fi = p->getFormat();
             const VSVideoInfo &lvi = vi[frameCtx.ctx->index];
 
@@ -956,6 +976,8 @@ PVideoFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext
             else if (p->getSampleRate() != lai.sampleRate)
                 vsFatal("Filter %s declared the sample rate %d, but it returned a frame with the sample rate %d.", name.c_str(), lai.sampleRate, p->getSampleRate());
         }
+
+
 
 #ifdef VS_FRAME_GUARD
         if (!p->verifyGuardPattern())
@@ -1638,7 +1660,21 @@ void VSCore::createFilter(const VSMap *in, VSMap *out, const std::string &name, 
     }
 }
 
-void VSCore::createAudioFilter(const VSMap *in, VSMap *out, const std::string &name, const VSAudioInfo *ai, int numOutputs, VSAudioFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
+void VSCore::createVideoFilter(const VSMap *in, VSMap *out, const std::string &name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
+    try {
+        PNode node(std::make_shared<VSNode>(name, vi, numOutputs, getFrame, free, filterMode, flags, instanceData, apiMajor, this));
+        for (size_t i = 0; i < node->getNumOutputs(); i++) {
+            // fixme, not that elegant but saves more variant poking code
+            VSNodeRef *ref = new VSNodeRef(node, static_cast<int>(i));
+            vs_internal_vsapi.propSetNode(out, "clip", ref, paAppend);
+            delete ref;
+        }
+    } catch (VSException &e) {
+        vs_internal_vsapi.setError(out, e.what());
+    }
+}
+
+void VSCore::createAudioFilter(const VSMap *in, VSMap *out, const std::string &name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
     try {
         PNode node(std::make_shared<VSNode>(name, ai, numOutputs, getFrame, free, filterMode, flags, instanceData, apiMajor, this));
         for (size_t i = 0; i < node->getNumOutputs(); i++) {
