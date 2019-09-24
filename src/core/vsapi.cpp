@@ -209,7 +209,7 @@ static void VS_CC setVideoInfo(const VSVideoInfo *vi, int numOutputs, VSNode *c)
 
 static const VSFormat *VS_CC getFrameFormat(const VSFrameRef *f) VS_NOEXCEPT {
     assert(f);
-    return f->frame->getFormat();
+    return f->frame->getVideoFormat();
 }
 
 static int VS_CC getFrameWidth(const VSFrameRef *f, int plane) VS_NOEXCEPT {
@@ -603,9 +603,9 @@ static void VS_CC createAudioFilter(const VSMap *in, VSMap *out, const char *nam
     core->createAudioFilter(in, out, name, ai, numOutputs, getFrame, free, static_cast<VSFilterMode>(filterMode), flags, instanceData, VAPOURSYNTH_API_MAJOR);
 }
 
-static VSFrameRef *VS_CC newAudioFrame(const VSAudioFormat *format, int sampleRate, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
+static VSFrameRef *VS_CC newAudioFrame(const VSAudioFormat *format, int sampleRate, int numSamples, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
     assert(format && core);
-    return new VSFrameRef(core->newAudioFrame(format, sampleRate, propSrc ? propSrc->frame.get() : nullptr));
+    return new VSFrameRef(core->newAudioFrame(format, sampleRate, numSamples, propSrc ? propSrc->frame.get() : nullptr));
 }
 
 static const VSAudioFormat *VS_CC queryAudioFormat(int sampleType, int bitsPerSample, int64_t channelLayout, VSCore *core) VS_NOEXCEPT {

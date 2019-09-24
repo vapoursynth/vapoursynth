@@ -626,7 +626,7 @@ VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame * const
     }
 }
 
-VSFrame::VSFrame(const VSAudioFormat *f, int sampleRate, const VSFrame *propSrc, VSCore *core) : contentType(mtAudio), format(reinterpret_cast<const VSFormat *>(f)), data(), height(sampleRate) {
+VSFrame::VSFrame(const VSAudioFormat *f, int sampleRate, int numSamples, const VSFrame *propSrc, VSCore *core) : contentType(mtAudio), format(reinterpret_cast<const VSFormat *>(f)), data(), height(sampleRate) {
     if (!f)
         vsFatal("Error in frame creation: null format");
 
@@ -634,6 +634,7 @@ VSFrame::VSFrame(const VSAudioFormat *f, int sampleRate, const VSFrame *propSrc,
         vsFatal("Error in frame creation: bad sample rate (%d)", sampleRate);
 
     numPlanes = f->numChannels;
+    width = numSamples;
 
     if (propSrc)
         properties = propSrc->properties;
@@ -958,7 +959,7 @@ PVideoFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext
         delete r;
 
         if (p->getFrameType() == mtVideo) {
-            const VSFormat *fi = p->getFormat();
+            const VSFormat *fi = p->getVideoFormat();
             const VSVideoInfo &lvi = vi[frameCtx.ctx->index];
 
             if (!lvi.format && fi->colorFamily == cmCompat)
@@ -975,6 +976,7 @@ PVideoFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext
                 vsFatal("Filter %s declared the format %s (id %d), but it returned a frame with the format %s (id %d).", name.c_str(), lai.format->name, lai.format->id, fi->name, fi->id);
             else if (p->getSampleRate() != lai.sampleRate)
                 vsFatal("Filter %s declared the sample rate %d, but it returned a frame with the sample rate %d.", name.c_str(), lai.sampleRate, p->getSampleRate());
+            // FIXME, check so frame sample length is correct
         }
 
 
@@ -1017,8 +1019,8 @@ PVideoFrame VSCore::newVideoFrame(const VSFormat *f, int width, int height, cons
     return std::make_shared<VSFrame>(f, width, height, planeSrc, planes, propSrc, this);
 }
 
-PVideoFrame VSCore::newAudioFrame(const VSAudioFormat *f, int sampleRate, const VSFrame *propSrc) {
-    return std::make_shared<VSFrame>(f, sampleRate, propSrc, this);
+PVideoFrame VSCore::newAudioFrame(const VSAudioFormat *f, int sampleRate, int numSamples, const VSFrame *propSrc) {
+    return std::make_shared<VSFrame>(f, sampleRate, numSamples, propSrc, this);
 }
 
 PVideoFrame VSCore::copyFrame(const PVideoFrame &srcf) {

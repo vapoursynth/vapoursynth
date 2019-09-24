@@ -382,7 +382,7 @@ private:
     VSMediaType contentType;
     const VSFormat *format; /* used for VSAudioFormat with audio */
     VSPlaneData *data[3]; /* only the first data pointer is ever used for audio and is subdivided using the internal offset in height */
-    int width; 
+    int width; /* stores number of samples for audio */
     int height;
     int stride[3]; /* stride[0] stores internal offset between audio channels */
     int numPlanes;
@@ -399,7 +399,7 @@ public:
 
     VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, VSCore *core);
     VSFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core);
-    VSFrame(const VSAudioFormat *f, int sampleRate, const VSFrame *propSrc, VSCore *core);
+    VSFrame(const VSAudioFormat *f, int sampleRate, int numSamples, const VSFrame *propSrc, VSCore *core);
     VSFrame(const VSFrame &f);
     ~VSFrame();
 
@@ -416,7 +416,7 @@ public:
     void setProperties(const VSMap &properties) {
         this->properties = properties;
     }
-    const VSFormat *getFormat() const {
+    const VSFormat *getVideoFormat() const {
         assert(contentType == mtVideo);
         return format;
     }
@@ -675,7 +675,7 @@ public:
 
     PVideoFrame newVideoFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc);
     PVideoFrame newVideoFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *planes, const VSFrame *propSrc);
-    PVideoFrame newAudioFrame(const VSAudioFormat *f, int sampleRate, const VSFrame *propSrc);
+    PVideoFrame newAudioFrame(const VSAudioFormat *f, int sampleRate, int numSamples, const VSFrame *propSrc);
     PVideoFrame copyFrame(const PVideoFrame &srcf);
     void copyFrameProps(const PVideoFrame &src, PVideoFrame &dst);
 

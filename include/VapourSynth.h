@@ -171,7 +171,7 @@ typedef enum VSFilterMode {
 typedef enum VSMediaType {
     mtVideo = 1,
     mtAudio = 2
-} VSSubType;
+} VSMediaType;
 
 // FIXME, rename to VSVideoFormat and typedef the old name??
 typedef struct VSFormat {
@@ -399,7 +399,7 @@ struct VSAPI {
     int (VS_CC *propSetEmpty)(VSMap *map, const char *key, int type) VS_NOEXCEPT;
     void (VS_CC *createVideoFilter)(const VSMap *in, VSMap *out, const char *name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT;
     void (VS_CC *createAudioFilter)(const VSMap *in, VSMap *out, const char *name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT;
-    VSFrameRef *(VS_CC *newAudioFrame)(const VSAudioFormat *format, int sampleRate, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT;
+    VSFrameRef *(VS_CC *newAudioFrame)(const VSAudioFormat *format, int sampleRate, int numSamples, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT;
     const VSAudioFormat *(VS_CC *queryAudioFormat)(int sampleType, int bitsPerSample, int64_t channelLayout, VSCore *core) VS_NOEXCEPT;
     const VSAudioFormat *(VS_CC *getAudioFormat)(int id, VSCore *core) VS_NOEXCEPT;
     const VSAudioInfo *(VS_CC *getAudioInfo)(VSNodeRef *node) VS_NOEXCEPT;

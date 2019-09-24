@@ -1356,7 +1356,7 @@ static const VSFrameRef *VS_CC blankAudioGetframe(int n, int activationReason, v
     if (activationReason == arInitial) {
         VSFrameRef *frame = NULL;
         if (!d->f) {
-            frame = vsapi->newAudioFrame(d->ai.format, d->ai.sampleRate, NULL, core);
+            frame = vsapi->newAudioFrame(d->ai.format, d->ai.sampleRate, (n == d->ai.numFrames - 1) ? (d->ai.numSamples % d->ai.format->samplesPerFrame) : d->ai.format->samplesPerFrame, NULL, core);
             for (int channel = 0; channel < d->ai.format->numChannels; channel++)
                 memset(vsapi->getWritePtr(frame, channel), 0, d->ai.format->samplesPerFrame * d->ai.format->bytesPerSample);
         }
