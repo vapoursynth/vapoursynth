@@ -10,7 +10,6 @@ mkdir buildp64\sdk\examples
 mkdir buildp64\sdk\lib32
 mkdir buildp64\sdk\lib64
 copy ..\vsrepo\vsrepo.py buildp64
-copy ..\vsrepo\vspackages.json buildp64
 copy ..\vapoursynth.cp37-win_amd64.pyd buildp64
 copy ..\msvc_project\x64\Release\VapourSynth.dll buildp64
 copy ..\msvc_project\x64\Release\vsscript.dll buildp64
@@ -24,6 +23,7 @@ copy ..\msvc_project\x64\Release\Morpho.dll buildp64\vapoursynth64\coreplugins
 copy ..\msvc_project\x64\Release\RemoveGrainVS.dll buildp64\vapoursynth64\coreplugins
 copy ..\msvc_project\x64\Release\Vinverse.dll buildp64\vapoursynth64\coreplugins
 copy ..\msvc_project\x64\Release\VIVTC.dll buildp64\vapoursynth64\coreplugins
+copy plugins64\* buildp64\vapoursynth64\coreplugins
 copy ..\include\VapourSynth.h buildp64\sdk\include
 copy ..\include\VSHelper.h buildp64\sdk\include
 copy ..\include\VSScript.h buildp64\sdk\include
@@ -34,7 +34,7 @@ copy ..\msvc_project\x64\Release\vsscript.lib buildp64\sdk\lib64
 copy ..\sdk\filter_skeleton.c buildp64\sdk\examples
 copy ..\sdk\invert_example.c buildp64\sdk\examples
 copy ..\sdk\vsscript_example.c buildp64\sdk\examples
-copy "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Redist\MSVC\14.22.27821\x64\Microsoft.VC142.CRT\*" buildp64
+copy "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Redist\MSVC\14.23.27820\x64\Microsoft.VC142.CRT\*" buildp64
 copy x64\plugins\* buildp64\vapoursynth64\coreplugins
 copy pfm-192-vapoursynth-win.exe buildp64
 copy .\setup.py buildp64
@@ -55,7 +55,6 @@ mkdir buildp32\sdk\examples
 mkdir buildp32\sdk\lib32
 mkdir buildp32\sdk\lib64
 copy ..\vsrepo\vsrepo.py buildp32
-copy ..\vsrepo\vspackages.json buildp32
 copy ..\vapoursynth.cp37-win32.pyd buildp32
 copy ..\msvc_project\Release\VapourSynth.dll buildp32
 copy ..\msvc_project\Release\vsscript.dll buildp32
@@ -69,6 +68,7 @@ copy ..\msvc_project\Release\Morpho.dll buildp32\vapoursynth32\coreplugins
 copy ..\msvc_project\Release\RemoveGrainVS.dll buildp32\vapoursynth32\coreplugins
 copy ..\msvc_project\Release\Vinverse.dll buildp32\vapoursynth32\coreplugins
 copy ..\msvc_project\Release\VIVTC.dll buildp32\vapoursynth32\coreplugins
+copy plugins32\* buildp32\vapoursynth32\coreplugins
 copy ..\include\VapourSynth.h buildp32\sdk\include
 copy ..\include\VSHelper.h buildp32\sdk\include
 copy ..\include\VSScript.h buildp32\sdk\include
@@ -79,7 +79,7 @@ copy ..\msvc_project\x64\Release\vsscript.lib buildp32\sdk\lib64
 copy ..\sdk\filter_skeleton.c buildp32\sdk\examples
 copy ..\sdk\invert_example.c buildp32\sdk\examples
 copy ..\sdk\vsscript_example.c buildp32\sdk\examples
-copy "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Redist\MSVC\14.22.27821\x86\Microsoft.VC142.CRT\*" buildp32
+copy "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Redist\MSVC\14.23.27820\x86\Microsoft.VC142.CRT\*" buildp32
 copy x86\plugins\* buildp32\vapoursynth32\coreplugins
 copy pfm-192-vapoursynth-win.exe buildp32
 copy .\setup.py buildp32
@@ -91,3 +91,5 @@ cd buildp32
 "C:\Program Files\7-Zip\7z.exe" a ..\Compiled\VapourSynth32-Portable-%v%.7z *
 cd ..
 rmdir /s /q buildp32
+
+pause
