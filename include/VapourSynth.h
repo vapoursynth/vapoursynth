@@ -50,7 +50,7 @@
 /* Convenience for C++ users. */
 #ifdef __cplusplus
 #    define VS_EXTERN_C extern "C"
-#    if __cplusplus >= 201103L || (defined(_MSC_VER) && _MSC_VER >= 1900)
+#    if __cplusplus >= 201103L || (defined(_MSVC_LANG) && _MSVC_LANG >= 201103L)
 #        define VS_NOEXCEPT noexcept
 #    else
 #        define VS_NOEXCEPT
