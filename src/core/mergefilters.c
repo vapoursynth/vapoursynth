@@ -494,7 +494,7 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
                 int depth = d->vi->format->bitsPerSample;
 
                 for (int y = 0; y < h; y++) {
-                    func(srcp1, srcp2, maskp, dstp, depth, yuvhandling ? (1U << (depth - 1)) : offset1, w);
+                    func(srcp1, srcp2, maskp, dstp, depth, yuvhandling ? (1 << (depth - 1)) : offset1, w);
                     srcp1 += stride;
                     srcp2 += stride;
                     maskp += stride;

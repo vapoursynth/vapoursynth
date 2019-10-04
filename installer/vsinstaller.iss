@@ -1,4 +1,5 @@
 #define Version '48'
+#define VersionExtra ''
 
 #ifndef InstallerBits
   #define InstallerBits '64'
@@ -21,16 +22,16 @@
 
 [Setup]
 OutputDir=Compiled
-OutputBaseFilename=VapourSynth{#= InstallerBits}-R{#= Version}
+OutputBaseFilename=VapourSynth{#= InstallerBits}-R{#= Version}{#= VersionExtra}
 Compression=lzma2/max
 InternalCompressLevel=max
 SolidCompression=yes
 LZMAUseSeparateProcess=yes
-VersionInfoDescription={#= AppName} R{#= Version} Installer
+VersionInfoDescription={#= AppName} R{#= Version}{#= VersionExtra} Installer
 AppId={#= AppId}
-AppName={#= AppName} R{#= Version}
-AppVersion={#= Version}
-AppVerName={#= AppName} R{#= Version}
+AppName={#= AppName} R{#= Version}{#= VersionExtra}
+AppVersion=R{#= Version}{#= VersionExtra}
+AppVerName={#= AppName} R{#= Version}{#= VersionExtra}
 AppPublisher=Fredrik Mellbin
 AppPublisherURL=http://www.vapoursynth.com/
 AppSupportURL=http://www.vapoursynth.com/
@@ -59,7 +60,7 @@ Name: "en"; MessagesFile: "compiler:Default.isl"
 Name: Full; Description: Full installation; Flags: iscustom
 
 [Components]
-Name: "vscore"; Description: "VapourSynth {#= InstallerBits}-bit R{#= Version}"; Types: Full; Check: HasPython; Flags: fixed disablenouninstallwarning
+Name: "vscore"; Description: "VapourSynth {#= InstallerBits}-bit R{#= Version}{#= VersionExtra}"; Types: Full; Check: HasPython; Flags: fixed disablenouninstallwarning
 Name: "vsrepo"; Description: "VSRepo Package Manager"; Types: Full; Flags: disablenouninstallwarning
 Name: "docs"; Description: "VapourSynth Documentation"; Types: Full; Flags: disablenouninstallwarning
 Name: "sdk"; Description: "VapourSynth SDK"; Flags: disablenouninstallwarning; Types: Full

@@ -1016,6 +1016,8 @@ public:
 #undef EMIT
 };
 
+constexpr ExprUnion ExprCompiler128::constData[32][4] alignas(16);
+
 class ExprCompiler256 : public ExprCompiler, private jitasm::function<void, ExprCompiler256, uint8_t *, const intptr_t *, intptr_t> {
     typedef jitasm::function<void, ExprCompiler256, uint8_t *, const intptr_t *, intptr_t> jit;
     friend struct jitasm::function<void, ExprCompiler256, uint8_t *, const intptr_t *, intptr_t>;
@@ -1586,6 +1588,8 @@ public:
     }
 #undef EMIT
 };
+
+constexpr ExprUnion ExprCompiler256::constData[32][8] alignas(32);
 
 std::unique_ptr<ExprCompiler> make_compiler(int numInputs, int cpulevel)
 {

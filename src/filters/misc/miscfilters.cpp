@@ -129,7 +129,7 @@ static void VS_CC scDetectCreate(const VSMap *in, VSMap *out, void *userData, VS
 typedef struct {
     std::vector<int> weights;
     std::vector<float> fweights;
-    std::vector<VSNodeRef *>(nodes);
+    std::vector<VSNodeRef *> nodes;
     VSVideoInfo vi;
     unsigned scale;
     float fscale;
