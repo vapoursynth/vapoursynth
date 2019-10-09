@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <cmath>
 #include <cfloat>
+#include <cstddef>
 #include <memory>
 #include <vector>
 #include <VapourSynth.h>
