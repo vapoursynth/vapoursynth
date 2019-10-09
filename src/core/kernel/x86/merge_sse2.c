@@ -188,9 +188,9 @@ void vs_mask_merge_word_sse2(const void *src1, const void *src2, const void *mas
         __m128i tmp;
 
         tmp1d_lo = _mm_add_epi32(tmp1d_lo, tmp2d_lo);
-        tmp1d_lo = _mm_add_epi32(tmp1d_lo, _mm_set1_epi32(UINT16_MAX / 2));
+        tmp1d_lo = _mm_add_epi32(tmp1d_lo, _mm_set1_epi32(maxval / 2));
         tmp1d_hi = _mm_add_epi32(tmp1d_hi, tmp2d_hi);
-        tmp1d_hi = _mm_add_epi32(tmp1d_hi, _mm_set1_epi32(UINT16_MAX / 2));
+        tmp1d_hi = _mm_add_epi32(tmp1d_hi, _mm_set1_epi32(maxval / 2));
 
         tmp1d_lo = divX_epu32(tmp1d_lo, depth);
         tmp1d_lo = _mm_add_epi32(tmp1d_lo, _mm_set1_epi32(INT16_MIN));
