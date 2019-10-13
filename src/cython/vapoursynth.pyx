@@ -545,9 +545,12 @@ cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, VSCore *co
             elif proptype == 'c' or proptype == 'a':
                 c = get_core()
                 newval = createNode(funcs.propGetNode(map, retkey, y, NULL), funcs, c)
-
+                
                 if add_cache and not (newval.flags & vapoursynth.nfNoCache):
+                  if isinstance(newval, VideoNode):
                     newval = c.std.Cache(clip=newval)
+                  elif isinstance(newval, AudioNode):
+                    newval = c.std.AudioCache(clip=newval)
 
                     if isinstance(newval, dict):
                         newval = newval['dict']
@@ -1665,7 +1668,7 @@ cdef class AudioNode(RawNode):
     def __add__(x, y):
         if not isinstance(x, AudioNode) or not isinstance(y, AudioNode):
             return NotImplemented
-        return (<AudioNode>x).core.std.Splice(clips=[x, y])
+        return (<AudioNode>x).core.std.AudioSplice(clips=[x, y])
 
     def __mul__(a, b):
         if isinstance(a, AudioNode):
@@ -1679,7 +1682,7 @@ cdef class AudioNode(RawNode):
             raise TypeError('Clips may only be repeated by integer factors')
         if val <= 0:
             raise ValueError('Loop count must be one or bigger')
-        return (<AudioNode>node).core.std.Loop(clip=node, times=val)
+        return (<AudioNode>node).core.std.AudioLoop(clip=node, times=val)
 
     def __getitem__(self, val):
         if isinstance(val, slice):
@@ -1707,14 +1710,14 @@ cdef class AudioNode(RawNode):
                 start += 1
 
             if start is not None and stop is not None:
-                ret = self.core.std.Trim(clip=ret, first=start, last=stop)
+                ret = self.core.std.AudioTrim(clip=ret, first=start, last=stop)
             elif start is not None:
-                ret = self.core.std.Trim(clip=ret, first=start)
+                ret = self.core.std.AudioTrim(clip=ret, first=start)
             elif stop is not None:
-                ret = self.core.std.Trim(clip=ret, last=stop)
+                ret = self.core.std.AudioTrim(clip=ret, last=stop)
 
             if step < 0:
-                ret = self.core.std.Reverse(clip=ret)
+                ret = self.core.std.AudioReverse(clip=ret)
 
             return ret
         elif isinstance(val, int):
@@ -1724,7 +1727,7 @@ cdef class AudioNode(RawNode):
                 n = val
             if n < 0 or (self.num_frames > 0 and n >= self.num_frames):
                 raise IndexError('List index out of bounds')
-            return self.core.std.Trim(clip=self, first=n, length=1)
+            return self.core.std.AudioTrim(clip=self, first=n, length=1)
         else:
             raise TypeError("index must be int or slice")
 
@@ -1734,7 +1737,7 @@ cdef class AudioNode(RawNode):
             
     def __dir__(self):
         plugins = [plugin["namespace"] for plugin in self.core.get_plugins().values()]
-        return super(VideoNode, self).__dir__() + plugins
+        return super(AudioNode, self).__dir__() + plugins
 
     def __len__(self):
         return self.num_frames

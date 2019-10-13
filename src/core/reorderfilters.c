@@ -84,18 +84,8 @@ static int compareInts(const void* a, const void* b) {
 
 typedef struct {
     VSNodeRef *node;
-    VSVideoInfo vi;
     int first;
-    int last;
-    int length;
-    int trimlen;
 } TrimData;
-
-static void VS_CC trimInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    TrimData *d = (TrimData *) * instanceData;
-    d->vi.numFrames = d->trimlen;
-    vsapi->setVideoInfo(&d->vi, 1, node);
-}
 
 static const VSFrameRef *VS_CC trimGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     TrimData *d = (TrimData *) * instanceData;
@@ -113,24 +103,22 @@ static void VS_CC trimCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     TrimData d;
     TrimData *data;
     int err;
-    d.first = 0;
-    d.last = -1;
-    d.length = -1;
+    int trimlen;
 
     d.first = int64ToIntS(vsapi->propGetInt(in, "first", 0, &err));
     int firstset = !err;
-    d.last = int64ToIntS(vsapi->propGetInt(in, "last", 0, &err));
+    int last = int64ToIntS(vsapi->propGetInt(in, "last", 0, &err));
     int lastset = !err;
-    d.length = int64ToIntS(vsapi->propGetInt(in, "length", 0, &err));
+    int length = int64ToIntS(vsapi->propGetInt(in, "length", 0, &err));
     int lengthset = !err;
 
     if (lastset && lengthset)
         RETERROR("Trim: both last frame and length specified");
 
-    if (lastset && d.last < d.first)
+    if (lastset && last < d.first)
         RETERROR("Trim: invalid last frame specified (last is less than first)");
 
-    if (lengthset && d.length < 1)
+    if (lengthset && length < 1)
         RETERROR("Trim: invalid length specified (less than 1)");
 
     if (d.first < 0)
@@ -138,32 +126,133 @@ static void VS_CC trimCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
 
-    d.vi = *vsapi->getVideoInfo(d.node);
+    VSVideoInfo vi = *vsapi->getVideoInfo(d.node);
 
-    if ((lastset && d.last >= d.vi.numFrames) || (lengthset && (d.first + d.length) > d.vi.numFrames) || (d.vi.numFrames <= d.first)) {
+    if ((lastset && last >= vi.numFrames) || (lengthset && (d.first + length) > vi.numFrames) || (vi.numFrames <= d.first)) {
         vsapi->freeNode(d.node);
         RETERROR("Trim: last frame beyond clip end");
     }
 
     if (lastset) {
-        d.trimlen = d.last - d.first + 1;
+        trimlen = last - d.first + 1;
     } else if (lengthset) {
-        d.trimlen = d.length;
+        trimlen = length;
     } else {
-        d.trimlen = d.vi.numFrames - d.first;
+        trimlen = vi.numFrames - d.first;
     }
 
     // obvious nop() so just pass through the input clip
-    if ((!firstset && !lastset && !lengthset) || (d.trimlen && d.trimlen == d.vi.numFrames)) {
+    if ((!firstset && !lastset && !lengthset) || (trimlen && trimlen == vi.numFrames)) {
         vsapi->propSetNode(out, "clip", d.node, paReplace);
         vsapi->freeNode(d.node);
         return;
     }
 
+    vi.numFrames = trimlen;
+
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "Trim", trimInit, trimGetframe, singleClipFree, fmParallel, nfNoCache, data, core);
+    vsapi->createVideoFilter(in, out, "Trim", &vi, 1, trimGetframe, singleClipFree, fmParallel, nfNoCache, data, core);
+}
+
+//////////////////////////////////////////
+// AudioTrim
+
+typedef struct {
+    VSNodeRef *node;
+    VSAudioInfo ai;
+    int64_t first;
+} AudioTrimData;
+
+static const VSFrameRef *VS_CC audioTrimGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    AudioTrimData *d = (AudioTrimData *) * instanceData;
+
+    int64_t startSample = (int64_t)n * d->ai.format->samplesPerFrame - d->first;
+    int startFrame = (startSample / d->ai.format->samplesPerFrame);
+    int64_t length = d->ai.numSamples - startSample;
+    if (length > d->ai.format->samplesPerFrame)
+        length = d->ai.format->samplesPerFrame;
+
+    if (startSample % d->ai.format->samplesPerFrame == 0 && n != d->ai.numFrames - 1) { // pass through audio frames when possible
+        if (activationReason == arInitial) {
+            vsapi->requestFrameFilter(startFrame, d->node, frameCtx);
+        } else if (activationReason == arAllFramesReady) {
+            return vsapi->getFrameFilter(startFrame, d->node, frameCtx);
+        }
+    } else {
+        if (activationReason == arInitial) {
+            vsapi->requestFrameFilter(startFrame, d->node, frameCtx);
+            vsapi->requestFrameFilter(startFrame + 1, d->node, frameCtx);
+        } else if (activationReason == arAllFramesReady) {
+            const VSFrameRef *src1 = vsapi->getFrameFilter(startFrame, d->node, frameCtx);
+            const VSFrameRef *src2 = vsapi->getFrameFilter(startFrame + 1, d->node, frameCtx);
+            VSFrameRef *dst = vsapi->newAudioFrame(d->ai.format, d->ai.sampleRate, length, src1, core);
+            
+
+
+            return dst;
+        }
+    }
+
+    return 0;
+}
+
+static void VS_CC audioTrimCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    AudioTrimData d;
+    AudioTrimData *data;
+    int err;
+    int64_t trimlen;
+
+    d.first = int64ToIntS(vsapi->propGetInt(in, "first", 0, &err));
+    int firstset = !err;
+    int64_t last = int64ToIntS(vsapi->propGetInt(in, "last", 0, &err));
+    int lastset = !err;
+    int64_t length = int64ToIntS(vsapi->propGetInt(in, "length", 0, &err));
+    int lengthset = !err;
+
+    if (lastset && lengthset)
+        RETERROR("AudioTrim: both last sample and length specified");
+
+    if (lastset && last < d.first)
+        RETERROR("AudioTrim: invalid last sample specified (last is less than first)");
+
+    if (lengthset && length < 1)
+        RETERROR("AudioTrim: invalid length specified (less than 1)");
+
+    if (d.first < 0)
+        RETERROR("Trim: invalid first frame specified (less than 0)");
+
+    d.node = vsapi->propGetNode(in, "clip", 0, 0);
+
+    d.ai = *vsapi->getAudioInfo(d.node);
+
+    if ((lastset && last >= d.ai.numSamples) || (lengthset && (d.first + length) > d.ai.numSamples) || (d.ai.numSamples <= d.first)) {
+        vsapi->freeNode(d.node);
+        RETERROR("AudioTrim: last sample beyond clip end");
+    }
+
+    if (lastset) {
+        trimlen = last - d.first + 1;
+    } else if (lengthset) {
+        trimlen = length;
+    } else {
+        trimlen = d.ai.numSamples - d.first;
+    }
+
+    // obvious nop() so just pass through the input clip
+    if ((!firstset && !lastset && !lengthset) || (trimlen && trimlen == d.ai.numSamples)) {
+        vsapi->propSetNode(out, "clip", d.node, paReplace);
+        vsapi->freeNode(d.node);
+        return;
+    }
+
+    d.ai.numSamples = trimlen;
+
+    data = malloc(sizeof(d));
+    *data = d;
+
+    vsapi->createAudioFilter(in, out, "AudioTrim", &d.ai, 1, audioTrimGetframe, singleClipFree, fmParallel, nfNoCache, data, core);
 }
 
 //////////////////////////////////////////
@@ -887,7 +976,8 @@ static void VS_CC freezeFramesCreate(const VSMap *in, VSMap *out, void *userData
 
 void VS_CC reorderInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     //configFunc("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("Trim", "clip:clip;first:int:opt;last:int:opt;length:int:opt;", trimCreate, 0, plugin);;
+    registerFunc("Trim", "clip:clip;first:int:opt;last:int:opt;length:int:opt;", trimCreate, 0, plugin);
+    registerFunc("AudioTrim", "clip:clip;first:int:opt;last:int:opt;length:int:opt;", audioTrimCreate, 0, plugin);
     registerFunc("Reverse", "clip:clip;", reverseCreate, 0, plugin);
     registerFunc("Loop", "clip:clip;times:int:opt;", loopCreate, 0, plugin);
     registerFunc("Interleave", "clips:clip[];extend:int:opt;mismatch:int:opt;", interleaveCreate, 0, plugin);

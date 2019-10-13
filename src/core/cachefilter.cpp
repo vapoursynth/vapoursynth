@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2016 Fredrik Mellbin
+* Copyright (c) 2012-2019 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -218,15 +218,19 @@ static void VS_CC cacheFree(void *instanceData, VSCore *core, const VSAPI *vsapi
 static std::atomic<unsigned> cacheId(1);
 
 static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    VSNodeRef *video = vsapi->propGetNode(in, "clip", 0, nullptr);
+    VSNodeRef *node = vsapi->propGetNode(in, "clip", 0, nullptr);
     int err;
     bool fixed = !!vsapi->propGetInt(in, "fixed", 0, &err);
-    CacheInstance *c = new CacheInstance(video, core, fixed);
+    CacheInstance *c = new CacheInstance(node, core, fixed);
     VSCoreInfo ci;
     vsapi->getCoreInfo2(core, &ci);
     c->numThreads = ci.numThreads;
 
-    c->makeLinear = !!(vsapi->getVideoInfo(video)->flags & nfMakeLinear);
+    if (userData)
+        c->makeLinear = !!(vsapi->getAudioInfo(node)->flags & nfMakeLinear);
+    else
+        c->makeLinear = !!(vsapi->getVideoInfo(node)->flags & nfMakeLinear);
+
     if (vsapi->propGetInt(in, "make_linear", 0, &err))
         c->makeLinear = true;
 
@@ -239,11 +243,17 @@ static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData,
     else
         c->cache.setMaxFrames(20 + c->numThreads);
 
-    vsapi->createFilter(in, out, ("Cache" + std::to_string(cacheId++)).c_str(), cacheInit, cacheGetframe, cacheFree, c->makeLinear ? fmUnorderedLinear : fmUnordered, nfNoCache | nfIsCache, c, core);
+
+
+    if (userData)
+        vsapi->createAudioFilter(in, out, ("AudioCache" + std::to_string(cacheId++)).c_str(), vsapi->getAudioInfo(node), 1, cacheGetframe, cacheFree, c->makeLinear ? fmUnorderedLinear : fmUnordered, nfNoCache | nfIsCache, c, core);
+    else
+        vsapi->createVideoFilter(in, out, ("Cache" + std::to_string(cacheId++)).c_str(), vsapi->getVideoInfo(node), 1, cacheGetframe, cacheFree, c->makeLinear ? fmUnorderedLinear : fmUnordered, nfNoCache | nfIsCache, c, core);
 
     c->addCache();
 }
 
 void VS_CC cacheInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
-    registerFunc("Cache", "clip:clip;size:int:opt;fixed:int:opt;make_linear:int:opt;", createCacheFilter, nullptr, plugin);
+    registerFunc("Cache", "clip:vnode;size:int:opt;fixed:int:opt;make_linear:int:opt;", createCacheFilter, nullptr, plugin);
+    registerFunc("AudioCache", "clip:anode;size:int:opt;fixed:int:opt;make_linear:int:opt;", createCacheFilter, (void *)1, plugin);
 }
