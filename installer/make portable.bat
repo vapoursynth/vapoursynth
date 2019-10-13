@@ -1,6 +1,7 @@
 rem extract version string
-for /F "tokens=2 delims='" %%a in ('findstr /C:"#define Version" vsinstaller.iss') do set v=%%a
-@echo %v%
+for /F "tokens=2 delims='" %%a in ('findstr /C:"#define Version " vsinstaller.iss') do set v=%%a
+for /F "tokens=2 delims='" %%a in ('findstr /C:"#define VersionExtra " vsinstaller.iss') do set w=%%a
+@echo %v%%w%
 
 rem 64bit build
 mkdir buildp64\vapoursynth64\coreplugins
@@ -41,9 +42,9 @@ copy .\setup.py buildp64
 copy .\MANIFEST.in buildp64
 type nul >buildp64\portable.vs
 type nul >buildp64\vapoursynth64\plugins\.keep
-del Compiled\vapoursynth64-portable-%v%.7z
+del Compiled\vapoursynth64-portable-R%v%%w%.7z
 cd buildp64
-"C:\Program Files\7-Zip\7z.exe" a ..\Compiled\VapourSynth64-Portable-%v%.7z *
+"C:\Program Files\7-Zip\7z.exe" a ..\Compiled\VapourSynth64-Portable-R%v%%w%.7z *
 cd ..
 rmdir /s /q buildp64
 
@@ -86,9 +87,9 @@ copy .\setup.py buildp32
 copy .\MANIFEST.in buildp32
 type nul >buildp32\portable.vs
 type nul >buildp32\vapoursynth32\plugins\.keep
-del Compiled\vapoursynth32-portable-%v%.7z
+del Compiled\vapoursynth32-portable-R%v%%w%.7z
 cd buildp32
-"C:\Program Files\7-Zip\7z.exe" a ..\Compiled\VapourSynth32-Portable-%v%.7z *
+"C:\Program Files\7-Zip\7z.exe" a ..\Compiled\VapourSynth32-Portable-R%v%%w%.7z *
 cd ..
 rmdir /s /q buildp32
 
