@@ -238,7 +238,7 @@ class ExprCompiler128 : public ExprCompiler, private jitasm::function<void, Expr
     friend struct jitasm::function_cdecl<void, ExprCompiler128, uint8_t *, const intptr_t *, intptr_t>;
 
 #define SPLAT(x) { (x), (x), (x), (x) }
-    static constexpr ExprUnion constData[32][4] alignas(16) = {
+    static constexpr ExprUnion constData alignas(16)[32][4] = {
         SPLAT(0x7FFFFFFF), // absmask
         SPLAT(0x80000000), // negmask
         SPLAT(0x7F), // x7F
@@ -1016,7 +1016,7 @@ public:
 #undef EMIT
 };
 
-constexpr ExprUnion ExprCompiler128::constData[32][4] alignas(16);
+constexpr ExprUnion ExprCompiler128::constData alignas(16)[32][4];
 
 class ExprCompiler256 : public ExprCompiler, private jitasm::function<void, ExprCompiler256, uint8_t *, const intptr_t *, intptr_t> {
     typedef jitasm::function<void, ExprCompiler256, uint8_t *, const intptr_t *, intptr_t> jit;
@@ -1024,7 +1024,7 @@ class ExprCompiler256 : public ExprCompiler, private jitasm::function<void, Expr
     friend struct jitasm::function_cdecl<void, ExprCompiler256, uint8_t *, const intptr_t *, intptr_t>;
 
 #define SPLAT(x) { (x), (x), (x), (x), (x), (x), (x), (x) }
-    static constexpr ExprUnion constData[32][8] alignas(32) = {
+    static constexpr ExprUnion constData alignas(32)[32][8] = {
         SPLAT(0x7FFFFFFF), // absmask
         SPLAT(0x80000000), // negmask
         SPLAT(0x7F), // x7F
@@ -1589,7 +1589,7 @@ public:
 #undef EMIT
 };
 
-constexpr ExprUnion ExprCompiler256::constData[32][8] alignas(32);
+constexpr ExprUnion ExprCompiler256::constData alignas(32)[32][8];
 
 std::unique_ptr<ExprCompiler> make_compiler(int numInputs, int cpulevel)
 {

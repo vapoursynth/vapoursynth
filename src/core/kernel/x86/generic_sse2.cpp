@@ -777,7 +777,7 @@ struct ConvolutionTraits {
 struct ConvolutionIntTraits : ConvolutionTraits {
     __m128i c00_01, c02_10, c11_12, c20_21, c22_xx;
 
-    static uint32_t interleave(int16_t a, int16_t b) { return (static_cast<uint32_t>(b) << 16) | a; }
+    static uint32_t interleave(int16_t a, int16_t b) { return (static_cast<uint32_t>(b) << 16) | static_cast<uint16_t>(a); }
 
     explicit ConvolutionIntTraits(const vs_generic_params &params) :
         ConvolutionTraits(params),
