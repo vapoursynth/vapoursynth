@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2018 Fredrik Mellbin
+* Copyright (c) 2012-2019 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -33,7 +33,7 @@
 
 #define XSTR(x) STR(x)
 #define STR(x) #x
-#define VAPOURSYNTH_CORE_VERSION 47
+#define VAPOURSYNTH_CORE_VERSION 48
 #if defined(VS_FRAME_GUARD) && !defined(NDEBUG)
 #define VS_OPTIONS_TEXT "Options: Frame Guard + Extra Assertions\n"
 #elif defined(VS_FRAME_GUARD)

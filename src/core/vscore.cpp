@@ -1421,8 +1421,8 @@ VSCore::VSCore(int threads) :
     numFilterInstances(1),
     numFunctionInstances(0),
     videoFormatIdOffset(1000),
-    memory(new MemoryUse()),
-    cpuLevel(INT_MAX) {
+    cpuLevel(INT_MAX),
+    memory(new MemoryUse()) {
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isSSEStateOk())
         vsFatal("Bad SSE state detected when creating new core");

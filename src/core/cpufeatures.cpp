@@ -45,7 +45,7 @@ static void vs_cpu_cpuid(int index, int* eax, int* ebx, int* ecx, int* edx) {
 #elif defined(__GNUC__)
     __cpuid_count(index, 0, *eax, *ebx, *ecx, *edx);
 #else
-#error Unknown compiler, can't get cpuid
+#error "Unknown compiler, can't get cpuid"
 #endif
 }
 

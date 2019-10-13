@@ -208,8 +208,10 @@ struct ConvolutionOp {
         bias{ params.bias },
         saturate{ params.saturate }
     {
+        typedef typename std::conditional<std::is_integral<T>::value, int16_t, float>::type coeff_type;
+
         for (unsigned i = 0; i < 9; ++i) {
-            coeffs[i] = std::is_integral<T>::value ? static_cast<T>(params.matrix[i]) : static_cast<T>(params.matrixf[i]);
+            coeffs[i] = std::is_integral<T>::value ? static_cast<coeff_type>(params.matrix[i]) : static_cast<coeff_type>(params.matrixf[i]);
         }
     }
 

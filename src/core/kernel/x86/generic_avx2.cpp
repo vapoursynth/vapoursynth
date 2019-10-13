@@ -785,14 +785,14 @@ struct ConvolutionTraits {
     explicit ConvolutionTraits(const vs_generic_params &params) :
         div(_mm256_set1_ps(params.div)),
         bias(_mm256_set1_ps(params.bias)),
-        saturate_mask(params.saturate ? _mm256_setzero_ps() : _mm256_castsi256_ps(_mm256_set1_epi32(0x80000000)))
+        saturate_mask(params.saturate ? _mm256_setzero_ps() : _mm256_castsi256_ps(_mm256_set1_epi32(0x7FFFFFFF)))
     {}
 };
 
 struct ConvolutionIntTraits : ConvolutionTraits {
     __m256i c00_01, c02_10, c11_12, c20_21, c22_xx;
 
-    static uint32_t interleave(int16_t a, int16_t b) { return (static_cast<uint32_t>(b) << 16) | a; }
+    static uint32_t interleave(int16_t a, int16_t b) { return (static_cast<uint32_t>(b) << 16) | static_cast<uint16_t>(a); }
 
     explicit ConvolutionIntTraits(const vs_generic_params &params) :
         ConvolutionTraits(params),
@@ -867,10 +867,10 @@ struct ConvolutionByte : ConvolutionIntTraits, ByteTraits {
         tmpf_lohi = _mm256_add_ps(_mm256_mul_ps(tmpf_lohi, div), bias);
         tmpf_hilo = _mm256_add_ps(_mm256_mul_ps(tmpf_hilo, div), bias);
         tmpf_hihi = _mm256_add_ps(_mm256_mul_ps(tmpf_hihi, div), bias);
-        tmpf_lolo = _mm256_xor_ps(tmpf_lolo, saturate_mask);
-        tmpf_lohi = _mm256_xor_ps(tmpf_lohi, saturate_mask);
-        tmpf_hilo = _mm256_xor_ps(tmpf_hilo, saturate_mask);
-        tmpf_hihi = _mm256_xor_ps(tmpf_hihi, saturate_mask);
+        tmpf_lolo = _mm256_and_ps(tmpf_lolo, saturate_mask);
+        tmpf_lohi = _mm256_and_ps(tmpf_lohi, saturate_mask);
+        tmpf_hilo = _mm256_and_ps(tmpf_hilo, saturate_mask);
+        tmpf_hihi = _mm256_and_ps(tmpf_hihi, saturate_mask);
 
         accum_lolo = _mm256_cvtps_epi32(tmpf_lolo);
         accum_lohi = _mm256_cvtps_epi32(tmpf_lohi);
@@ -934,8 +934,8 @@ struct ConvolutionWord : ConvolutionIntTraits, WordTraits {
         __m256 tmpf_hi = _mm256_cvtepi32_ps(accum_hi);
         tmpf_lo = _mm256_add_ps(_mm256_mul_ps(tmpf_lo, div), bias);
         tmpf_hi = _mm256_add_ps(_mm256_mul_ps(tmpf_hi, div), bias);
-        tmpf_lo = _mm256_xor_ps(tmpf_lo, saturate_mask);
-        tmpf_hi = _mm256_xor_ps(tmpf_hi, saturate_mask);
+        tmpf_lo = _mm256_and_ps(tmpf_lo, saturate_mask);
+        tmpf_hi = _mm256_and_ps(tmpf_hi, saturate_mask);
 
         accum_lo = _mm256_cvtps_epi32(tmpf_lo);
         accum_hi = _mm256_cvtps_epi32(tmpf_hi);
@@ -981,7 +981,7 @@ struct ConvolutionFloat : ConvolutionTraits, FloatTraits {
         accum1 = _mm256_add_ps(accum1, bias);
 
         __m256 tmp = _mm256_add_ps(accum0, accum1);
-        tmp = _mm256_xor_ps(tmp, saturate_mask);
+        tmp = _mm256_and_ps(tmp, saturate_mask);
         return tmp;
     }
 };

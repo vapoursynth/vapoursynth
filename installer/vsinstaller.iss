@@ -1,4 +1,5 @@
-#define Version 'R47'
+#define Version '48'
+#define VersionExtra ''
 
 #ifndef InstallerBits
   #define InstallerBits '64'
@@ -10,32 +11,32 @@
   #define AppId 'VapourSynth'
   #define RegistryPath 'SOFTWARE\VapourSynth'
   #define SourceBinaryPath '..\msvc_project\x64\Release'
-  #define WheelFilename 'VapourSynth-47-cp37-cp37m-win_amd64.whl'
+  #define WheelFilename(Version) 'VapourSynth-' + Version + '-cp37-cp37m-win_amd64.whl'
 #else
   #define AppName 'VapourSynth (32-bits)'
   #define AppId 'VapourSynth-32'
   #define RegistryPath 'SOFTWARE\VapourSynth-32'
   #define SourceBinaryPath '..\msvc_project\Release'
-  #define WheelFilename 'VapourSynth-47-cp37-cp37m-win32.whl'
+  #define WheelFilename(Version) 'VapourSynth-' + Version + '-cp37-cp37m-win32.whl'
 #endif
 
 [Setup]
 OutputDir=Compiled
-OutputBaseFilename=VapourSynth{#= InstallerBits}-{#= Version}
+OutputBaseFilename=VapourSynth{#= InstallerBits}-R{#= Version}{#= VersionExtra}
 Compression=lzma2/max
 InternalCompressLevel=max
 SolidCompression=yes
 LZMAUseSeparateProcess=yes
-VersionInfoDescription={#= AppName} {#= Version} Installer
+VersionInfoDescription={#= AppName} R{#= Version}{#= VersionExtra} Installer
 AppId={#= AppId}
-AppName={#= AppName} {#= Version}
-AppVersion={#= Version}
-AppVerName={#= AppName} {#= Version}
+AppName={#= AppName} R{#= Version}{#= VersionExtra}
+AppVersion=R{#= Version}{#= VersionExtra}
+AppVerName={#= AppName} R{#= Version}{#= VersionExtra}
 AppPublisher=Fredrik Mellbin
 AppPublisherURL=http://www.vapoursynth.com/
 AppSupportURL=http://www.vapoursynth.com/
 AppUpdatesURL=http://www.vapoursynth.com/
-VersionInfoVersion=1.47.0.0
+VersionInfoVersion=1.{#= Version}.0.0
 DefaultDirName={autopf}\{#= AppId}
 DefaultGroupName={#= AppName}
 AllowCancelDuringInstall=no
@@ -59,7 +60,7 @@ Name: "en"; MessagesFile: "compiler:Default.isl"
 Name: Full; Description: Full installation; Flags: iscustom
 
 [Components]
-Name: "vscore"; Description: "VapourSynth {#= InstallerBits}-bit {#= Version}"; Types: Full; Check: HasPython; Flags: fixed disablenouninstallwarning
+Name: "vscore"; Description: "VapourSynth {#= InstallerBits}-bit R{#= Version}{#= VersionExtra}"; Types: Full; Check: HasPython; Flags: fixed disablenouninstallwarning
 Name: "vsrepo"; Description: "VSRepo Package Manager"; Types: Full; Flags: disablenouninstallwarning
 Name: "docs"; Description: "VapourSynth Documentation"; Types: Full; Flags: disablenouninstallwarning
 Name: "sdk"; Description: "VapourSynth SDK"; Flags: disablenouninstallwarning; Types: Full
@@ -71,7 +72,7 @@ Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to sh
 Name: vsrepoupdate; Description: "Update VSRepo package list"; GroupDescription: "VSRepo:"; Components: vsrepo
 
 [Run]
-Filename: {code:GetPythonExecutable}; Parameters: "-m pip install ""{app}\python\{#= WheelFilename}"""; Flags: runhidden; Components: vscore
+Filename: {code:GetPythonExecutable}; Parameters: "-m pip install ""{app}\python\{#= WheelFilename(Version)}"""; Flags: runhidden; Components: vscore
 Filename: "{app}\pismo\pfm-192-vapoursynth-win.exe"; Parameters: "install"; Check: IsAdminInstallMode; Flags: runhidden; Components: pismo
 Filename: {code:GetPythonExecutable}; Parameters: """{app}\vsrepo\vsrepo.py"" update"; Flags: runhidden runasoriginaluser; Components: vsrepo
 
@@ -81,7 +82,7 @@ Filename: {code:GetPythonExecutable}; Parameters: "-m pip uninstall -y VapourSyn
 [Files]
 ;core binaries
 Source: template.vpy; DestDir: {app}; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
-Source: ..\dist\{#= WheelFilename}; DestDir: {app}\python; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
+Source: ..\dist\{#= WheelFilename(Version)}; DestDir: {app}\python; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 
 Source: {#= SourceBinaryPath}\vapoursynth.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 Source: {#= SourceBinaryPath}\vapoursynth.pdb; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
@@ -173,7 +174,7 @@ Root: HKA; Subkey: SOFTWARE\Classes\AVIFile\Extensions\VPY; ValueType: string; V
 
 [Code]
 
-const VSRuntimeVersion = '14.22.27821';
+const VSRuntimeVersion = '14.23.27820';
 
 type
   TPythonPath = record
