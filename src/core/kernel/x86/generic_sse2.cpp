@@ -770,7 +770,7 @@ struct ConvolutionTraits {
     explicit ConvolutionTraits(const vs_generic_params &params) :
         div(_mm_set_ps1(params.div)),
         bias(_mm_set_ps1(params.bias)),
-        saturate_mask(params.saturate ? _mm_setzero_ps() : _mm_castsi128_ps(_mm_set1_epi32(0x80000000)))
+        saturate_mask(params.saturate ? _mm_setzero_ps() : _mm_castsi128_ps(_mm_set1_epi32(0x7FFFFFFF)))
     {}
 };
 
@@ -852,10 +852,10 @@ struct ConvolutionByte : ConvolutionIntTraits, ByteTraits {
         tmpf_lohi = _mm_add_ps(_mm_mul_ps(tmpf_lohi, div), bias);
         tmpf_hilo = _mm_add_ps(_mm_mul_ps(tmpf_hilo, div), bias);
         tmpf_hihi = _mm_add_ps(_mm_mul_ps(tmpf_hihi, div), bias);
-        tmpf_lolo = _mm_xor_ps(tmpf_lolo, saturate_mask);
-        tmpf_lohi = _mm_xor_ps(tmpf_lohi, saturate_mask);
-        tmpf_hilo = _mm_xor_ps(tmpf_hilo, saturate_mask);
-        tmpf_hihi = _mm_xor_ps(tmpf_hihi, saturate_mask);
+        tmpf_lolo = _mm_and_ps(tmpf_lolo, saturate_mask);
+        tmpf_lohi = _mm_and_ps(tmpf_lohi, saturate_mask);
+        tmpf_hilo = _mm_and_ps(tmpf_hilo, saturate_mask);
+        tmpf_hihi = _mm_and_ps(tmpf_hihi, saturate_mask);
 
         accum_lolo = _mm_cvtps_epi32(tmpf_lolo);
         accum_lohi = _mm_cvtps_epi32(tmpf_lohi);
@@ -919,8 +919,8 @@ struct ConvolutionWord : ConvolutionIntTraits, WordTraits {
         __m128 tmpf_hi = _mm_cvtepi32_ps(accum_hi);
         tmpf_lo = _mm_add_ps(_mm_mul_ps(tmpf_lo, div), bias);
         tmpf_hi = _mm_add_ps(_mm_mul_ps(tmpf_hi, div), bias);
-        tmpf_lo = _mm_xor_ps(tmpf_lo, saturate_mask);
-        tmpf_hi = _mm_xor_ps(tmpf_hi, saturate_mask);
+        tmpf_lo = _mm_and_ps(tmpf_lo, saturate_mask);
+        tmpf_hi = _mm_and_ps(tmpf_hi, saturate_mask);
 
         accum_lo = _mm_cvtps_epi32(tmpf_lo);
         accum_hi = _mm_cvtps_epi32(tmpf_hi);
@@ -966,7 +966,7 @@ struct ConvolutionFloat : ConvolutionTraits, FloatTraits {
         accum1 = _mm_add_ps(accum1, bias);
 
         __m128 tmp = _mm_add_ps(accum0, accum1);
-        tmp = _mm_xor_ps(tmp, saturate_mask);
+        tmp = _mm_and_ps(tmp, saturate_mask);
         return tmp;
     }
 };
