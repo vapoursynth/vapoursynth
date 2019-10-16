@@ -32,9 +32,16 @@ In order to build the installer you need to download
 and place isxdl.dll in "installer\scripts\isxdl".
 It can be downloaded from: [NET-Framework Installer for InnoSetup](http://www.codeproject.com/Articles/20868/NET-Framework-Installer-for-InnoSetup)
 
+You also need 7z.exe and 7z.dll from
+the 32 bit version of [7-zip](https://www.7-zip.org/)
+Both need to be placed in the "installer" dir.
+
 There are also a few plugins that aren't included
 which are easier to simply retrieve from an existing
-VapourSynth installation/portable release.
+VapourSynth installation/portable release. Currently
+these are `avisource.dll`, `libhistogram.dll` and 
+`libsubtext.dll`. Likewise `pfm-192-vapoursynth-win.exe`
+is only available from installations/portable releases.
 
 Run `make_portable.bat` and `make_installers.bat` to package things.
 
