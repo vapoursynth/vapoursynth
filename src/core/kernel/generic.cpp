@@ -39,7 +39,7 @@ float limit(float x, uint16_t) { return x; }
 template <class T>
 T xrint(float x)
 {
-    return static_cast<T>(std::lrint(std::min(x, static_cast<float>(std::numeric_limits<T>::max()))));
+    return static_cast<T>(std::lrint(std::min(std::max(x, static_cast<float>(std::numeric_limits<T>::min())), static_cast<float>(std::numeric_limits<T>::max()))));
 }
 
 template <>

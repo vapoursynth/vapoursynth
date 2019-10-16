@@ -785,7 +785,7 @@ struct ConvolutionTraits {
     explicit ConvolutionTraits(const vs_generic_params &params) :
         div(_mm256_set1_ps(params.div)),
         bias(_mm256_set1_ps(params.bias)),
-        saturate_mask(params.saturate ? _mm256_setzero_ps() : _mm256_castsi256_ps(_mm256_set1_epi32(0x7FFFFFFF)))
+        saturate_mask(_mm256_castsi256_ps(_mm256_set1_epi32(params.saturate ? 0xFFFFFFFF : 0x7FFFFFFF)))
     {}
 };
 
