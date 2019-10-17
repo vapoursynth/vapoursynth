@@ -24,9 +24,7 @@
 OutputDir=Compiled
 OutputBaseFilename=VapourSynth{#= InstallerBits}-R{#= Version}{#= VersionExtra}
 Compression=lzma2/max
-InternalCompressLevel=max
 SolidCompression=yes
-LZMAUseSeparateProcess=yes
 VersionInfoDescription={#= AppName} R{#= Version}{#= VersionExtra} Installer
 AppId={#= AppId}
 AppName={#= AppName} R{#= Version}{#= VersionExtra}
@@ -93,6 +91,8 @@ Source: {#= SourceBinaryPath}\vsscript.dll; DestDir: {app}\core; Flags: ignoreve
 
 ;vsrepo
 Source: ..\vsrepo\vsrepo.py; DestDir: {app}\vsrepo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
+Source: 7z.exe; DestDir: {app}\vsrepo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
+Source: 7z.dll; DestDir: {app}\vsrepo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
 
 ;docsSource: ..\doc\_build\html\*; DestDir: {app}\docs; Flags: ignoreversion uninsrestartdelete restartreplace recursesubdirs; Components: docs
 

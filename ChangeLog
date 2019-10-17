@@ -2,6 +2,8 @@ r48:
 it's now possible to select which optimized code path is used for internal filters (sekrit-twc)
 avx2 optimization in many filters, previously the internal ones were mostly sse2 (sekrit-twc)
 expr filter can now better optimize expressions (sekrit-twc)
+the 7zip executable is now bundled with vsrepo
+the portable version now includes the documentation as well
 the portable version now includes all the plugins bundled with the normal installer again
 
 r47.2
