@@ -548,29 +548,25 @@ static void readImageHelper(VSFrameRef *frame, VSFrameRef *alphaFrame, bool isGr
     ssize_t rOff = pixelCache.offset(MagickCore::RedPixelChannel);
     ssize_t gOff = pixelCache.offset(MagickCore::GreenPixelChannel);
     ssize_t bOff = pixelCache.offset(MagickCore::BluePixelChannel);
+    ssize_t aOff = pixelCache.offset(MagickCore::AlphaPixelChannel);
 
-    if (alphaFrame) {
+    if (alphaFrame && aOff >= 0) {
         T *a = reinterpret_cast<T *>(vsapi->getWritePtr(alphaFrame, 0));
-        int strideA = vsapi->getStride(alphaFrame, 0);
-        ssize_t aOff = pixelCache.offset(MagickCore::AlphaPixelChannel);
+        int strideA = vsapi->getStride(alphaFrame, 0);       
 
-        if (aOff >= 0) {
-            for (int y = 0; y < height; y++) {
-                const Magick::Quantum *pixels = pixelCache.getConst(0, y, width, 1);
-                for (int x = 0; x < width; x++) {
-                    r[x] = (unsigned)(pixels[x * channels + rOff] * outScale + .5f);
-                    g[x] = (unsigned)(pixels[x * channels + gOff] * outScale + .5f);
-                    b[x] = (unsigned)(pixels[x * channels + bOff] * outScale + .5f);
-                    a[x] = (unsigned)(pixels[x * channels + aOff] * outScale + .5f);
-                }
-
-                r += strideR / sizeof(T);
-                g += strideG / sizeof(T);
-                b += strideB / sizeof(T);
-                a += strideA / sizeof(T);
+        for (int y = 0; y < height; y++) {
+            const Magick::Quantum *pixels = pixelCache.getConst(0, y, width, 1);
+            for (int x = 0; x < width; x++) {
+                r[x] = (unsigned)(pixels[x * channels + rOff] * outScale + .5f);
+                g[x] = (unsigned)(pixels[x * channels + gOff] * outScale + .5f);
+                b[x] = (unsigned)(pixels[x * channels + bOff] * outScale + .5f);
+                a[x] = (unsigned)(pixels[x * channels + aOff] * outScale + .5f);
             }
-        } else {
-            memset(a, 0, strideA  * height);
+
+            r += strideR / sizeof(T);
+            g += strideG / sizeof(T);
+            b += strideB / sizeof(T);
+            a += strideA / sizeof(T);
         }
     } else {
         for (int y = 0; y < height; y++) {
@@ -584,6 +580,12 @@ static void readImageHelper(VSFrameRef *frame, VSFrameRef *alphaFrame, bool isGr
             r += strideR / sizeof(T);
             g += strideG / sizeof(T);
             b += strideB / sizeof(T);
+        }
+
+        if (alphaFrame) {
+            T *a = reinterpret_cast<T *>(vsapi->getWritePtr(alphaFrame, 0));
+            int strideA = vsapi->getStride(alphaFrame, 0);    
+            memset(a, 0, strideA  * height);
         }
     }
 }
