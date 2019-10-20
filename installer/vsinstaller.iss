@@ -140,6 +140,8 @@ Root: HKA; Subkey: {#= RegistryPath}; ValueType: string; ValueName: "CorePlugins
 Root: HKA; Subkey: {#= RegistryPath}; ValueType: string; ValueName: "Plugins"; ValueData: "{app}\plugins"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
 Root: HKA; Subkey: {#= RegistryPath}; ValueType: string; ValueName: "VapourSynthDLL"; ValueData: "{app}\core\vapoursynth.dll"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
 Root: HKA; Subkey: {#= RegistryPath}; ValueType: string; ValueName: "VSScriptDLL"; ValueData: "{app}\core\vsscript.dll"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+Root: HKA; Subkey: {#= RegistryPath}; ValueType: string; ValueName: "VSPipeEXE"; ValueData: "{app}\core\vspipe.exe"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+Root: HKA; Subkey: {#= RegistryPath}; ValueType: string; ValueName: "VSRepoPY"; ValueData: "{app}\vsrepo\vsrepo.py"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vsrepo
 Root: HKA; Subkey: {#= RegistryPath}; ValueType: string; ValueName: "PythonPath"; ValueData: "{code:GetPythonPath}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
 
 ; Write compatibility values, deprecated since R46 when the installers were split
