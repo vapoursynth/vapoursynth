@@ -1,8 +1,11 @@
+Installation Instructions
+=========================
+
 Windows Installation Instructions
-=================================
+#################################
 
 Prerequisites
-#############
+*************
 
 First download and install the prerequisites:
    * `Python 3.7 <http://www.python.org/>`_  -- 32 or 64 bit version depending on which version of VapourSynth you want to install
@@ -14,7 +17,7 @@ Also note that per user installs will not install the required visual studio
 2019 runtimes.
 
 Installation
-############
+************
 
 Simply run the `VapourSynth installer <https://github.com/vapoursynth/vapoursynth/releases>`_.
 It should automatically detect everything.
@@ -31,7 +34,7 @@ If this for some reason fails, there may be a bug in the installer or there are
 old copies of vapoursynth.pyd and vapoursynth.dll lying around.
 
 Windows Portable Instructions
-=============================
+#############################
 
 First download and decompress the prerequisites:
    * `Python 3.7 <http://www.python.org/>`_  -- 32 or 64 bit embeddable version
@@ -42,7 +45,7 @@ into the Python dir and overwrite all existing files. Done.
 You can also use the VapourSynth Editor by decompressing it into the same directory.
 
 OS X Installation from Packages 
-===============================
+###############################
 
 First download and install the prerequisites:
    * Xcode -- Available from the AppStore
@@ -53,7 +56,7 @@ Simply run these commands in a terminal and wait for them to complete::
    brew install vapoursynth
 
 Linux Installation from Packages 
-================================
+################################
 
 Several distributions have packages:
 
@@ -62,7 +65,7 @@ Several distributions have packages:
    * `Arch Linux <https://www.archlinux.org/packages/?q=vapoursynth>`_  -- Packages
 
 Installation via PIP (PyPI)
-===========================
+###########################
 
 You can install the Python wrapper using pip.
 
@@ -73,7 +76,7 @@ Install `vapoursynth <https://pypi.org/project/VapourSynth/>`_ using Pip by usin
 Please note that you always need to have a working installation of VapourSynth beforehand. Note that on non-Windows systems, the installer will compile the module before installing.
 
 Linux and OS X Compilation Instructions
-=======================================
+#######################################
 
 These are the requirements:
    * Autoconf, Automake, and Libtool, probably recent versions
@@ -100,7 +103,7 @@ Note: **any version of Python 3 will do.** A specific version is only
 required when using the official Windows binaries.
 
 Required packages (OS X)
-########################
+************************
 
 First download and install the prerequisites:
    * Xcode -- Available from the AppStore
@@ -119,7 +122,7 @@ to update them, simply run::
    pip3 install --upgrade cython
 
 Compilation
-###########
+***********
 
 If you haven't checked out the source code before, use git to do so::
 
