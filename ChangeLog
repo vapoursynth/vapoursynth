@@ -5,6 +5,7 @@ expr filter can now better optimize expressions (sekrit-twc)
 the 7zip executable is now bundled with vsrepo
 the portable version now includes the documentation as well
 the portable version now includes all the plugins bundled with the normal installer again
+added an option to add vspipe, avfs and vsrepo to path in the installer
 added registry for the path to vspipe and vsrepo
 fixed corrupt output from imwri when requesting alpha output but the read image doesn't have an alpha channel
 

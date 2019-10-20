@@ -46,6 +46,7 @@ PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog
 WizardStyle=modern
 FlatComponentsList=yes
+ChangesEnvironment=yes
 #if InstallerBitsInt == 64
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
@@ -66,8 +67,10 @@ Name: "pismo"; Description: "Pismo PFM Runtime (required for AVFS)"; Types: Full
 Name: "vsruntimes"; Description: "Visual Studio 2019 Runtime"; Types: Full; Check: IsAdminInstallMode; Flags: disablenouninstallwarning
 
 [Tasks]
-Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to shell context menu"; GroupDescription: "New File Shortcuts:"; Components: vscore
+Name: newvpyfile; Description: "Add 'New VapourSynth Python Script' option to shell context menu"; GroupDescription: "VapourSynth:"; Components: vscore
+Name: vscorepath; Description: "Add VSPipe and AVFS to PATH"; GroupDescription: "VapourSynth:"; Components: vscore
 Name: vsrepoupdate; Description: "Update VSRepo package list"; GroupDescription: "VSRepo:"; Components: vsrepo
+Name: vsrepopath; Description: "Add VSRepo to PATH"; GroupDescription: "VSRepo:"; Components: vsrepo
 
 [Run]
 Filename: {code:GetPythonExecutable}; Parameters: "-m pip install ""{app}\python\{#= WheelFilename(Version)}"""; Flags: runhidden; Components: vscore
@@ -168,6 +171,12 @@ Root: HKA; Subkey: SOFTWARE\Classes\.vpy; ValueType: string; ValueName: ""; Valu
 Root: HKA; Subkey: SOFTWARE\Classes\vpyfile; ValueType: string; ValueName: ""; ValueData: "VapourSynth Python Script"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
 Root: HKA; Subkey: SOFTWARE\Classes\vpyfile\DefaultIcon; ValueType: string; ValueName: ""; ValueData: "{app}\core\vsvfw.dll,0"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
 Root: HKA; Subkey: SOFTWARE\Classes\AVIFile\Extensions\VPY; ValueType: string; ValueName: ""; ValueData: "{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
+
+; PATH
+Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\core"; Check: IsAdminInstallMode; Components: vscore
+Root: HKCR; Subkey: "Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\core"; Check: not IsAdminInstallMode; Components: vscore
+Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\vsrepo"; Check: IsAdminInstallMode; Components: vsrepo
+Root: HKCR; Subkey: "Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\vsrepo"; Check: IsAdminInstallMode; Components: vsrepo
 
 #include "scripts\products.iss"
 #include "scripts\products\stringversion.iss"
@@ -277,6 +286,52 @@ begin
       end;
 end;
 
+/////////////////////////////////////////////////////////////////////
+
+procedure RemovePath(Path: string);
+var
+  Paths: string;
+  P: Integer;
+  RegPath: string;
+begin
+  if IsAdminInstallMode then
+    RegPath := 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment'
+  else
+    RegPath := 'Environment';
+  
+  if not RegQueryStringValue(HKA, RegPath, 'Path', Paths) then
+  begin
+    Log('PATH not found');
+  end
+    else
+  begin
+    Log(Format('PATH is [%s]', [Paths]));
+
+    P := Pos(';' + Uppercase(Path) + ';', ';' + Uppercase(Paths) + ';');
+    if P = 0 then
+    begin
+      Log(Format('Path [%s] not found in PATH', [Path]));
+    end
+      else
+    begin
+      if P > 1 then P := P - 1;
+      Delete(Paths, P, Length(Path) + 1);
+      Log(Format('Path [%s] removed from PATH => [%s]', [Path, Paths]));
+
+      if RegWriteStringValue(HKA, RegPath, 'Path', Paths) then
+      begin
+        Log('PATH written');
+      end
+        else
+      begin
+        Log('Error writing PATH');
+      end;
+    end;
+  end;
+end;
+
+/////////////////////////////////////////////////////////////////////
+
 function InitializeSetup: Boolean;
 var
   HasOtherPython: Boolean;
@@ -324,7 +379,7 @@ end;
 
 procedure InitializeWizard();
 begin
-  PythonPage := CreateCustomPage(wpSelectComponents, 'Select Python Installation', 'Select one or more Python installations to use');
+  PythonPage := CreateCustomPage(wpSelectComponents, 'Select Python Installation', 'Select which Python installation to use');
   PythonList := TNewCheckListBox.Create(PythonPage);
   
   with PythonList do
@@ -440,5 +495,16 @@ begin
       RuntimesAdded := True;
     end;
     Result := NextButtonClick2(CurPageID);
+  end;
+end;
+
+/////////////////////////////////////////////////////////////////////
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    RemovePath(ExpandConstant('{app}\core'));
+    RemovePath(ExpandConstant('{app}\vsrepo'));
   end;
 end;
