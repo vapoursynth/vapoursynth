@@ -38,10 +38,19 @@ static int currentHandlerId = 0;
 static int globalMessageHandler = -1;
 static std::mutex logMutex;
 
+static int vsRemoveMessageHandlerInternal(int id) {
+    if (messageHandlers.count(id)) {
+        messageHandlers[id].free(messageHandlers[id].userData);
+        messageHandlers.erase(id);
+        return 1;
+    }
+    return 0;
+}
+
 void vsSetMessageHandler(VSMessageHandler handler, void *userData) {
     std::lock_guard<std::mutex> lock(logMutex);
     if (globalMessageHandler >= 0) {
-        vsRemoveMessageHandler(globalMessageHandler);
+        vsRemoveMessageHandlerInternal(globalMessageHandler);
         globalMessageHandler = -1;
     }
     if (handler) {
@@ -59,12 +68,7 @@ int vsAddMessageHandler(VSMessageHandler handler, VSMessageHandlerFree free, voi
 
 int vsRemoveMessageHandler(int id) {
     std::lock_guard<std::mutex> lock(logMutex);
-    if (messageHandlers.count(id)) {
-        messageHandlers[id].free(messageHandlers[id].userData);
-        messageHandlers.erase(id);
-        return 1;
-    }
-    return 0;
+    return vsRemoveMessageHandlerInternal(id);
 }
 
 void vsLog(const char *file, long line, VSMessageType type, const char *msg, ...) {
