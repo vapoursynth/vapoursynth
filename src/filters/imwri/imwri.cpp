@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2014-2017 Fredrik Mellbin
+* Copyright (c) 2014-2019 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -494,7 +494,7 @@ static void VS_CC writeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         
     }
 
-    if (specialPrintf(d->filename, 0) == d->filename) {
+    if (!d->overwrite && specialPrintf(d->filename, 0) == d->filename) {
         // No valid digit substitution in the filename so error out to warn the user
         vsapi->freeNode(d->videoNode);
         vsapi->freeNode(d->alphaNode);
