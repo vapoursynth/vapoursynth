@@ -1561,7 +1561,7 @@ do { \
             YmmReg r1, r2;
             vmovdqu(r1, ymmword_ptr[regptrs + 32 * i]);
             vmovdqu(r2, ymmword_ptr[regoffs + 32 * i]);
-            vpaddq(r1, r1, r2);
+            vpaddd(r1, r1, r2);
             vmovdqu(ymmword_ptr[regptrs + 32 * i], r1);
         }
 #endif
