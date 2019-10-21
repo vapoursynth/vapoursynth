@@ -474,7 +474,7 @@ do { \
             VEX1(movaps, limit, xmmword_ptr[constants + ConstantIndex::float_65535 * 16]);
             VEX2IMM(shufps, limit, limit, limit, 0);
             VEX2(minps, r1, t1.first, limit);
-            VEX2(minps, r1, t1.second, limit);
+            VEX2(minps, r2, t1.second, limit);
             VEX1(cvtps2dq, r1, r1);
             VEX1(cvtps2dq, r2, r2);
 
