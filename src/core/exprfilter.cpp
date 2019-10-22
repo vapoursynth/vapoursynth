@@ -2380,7 +2380,7 @@ public:
             ExpressionTreeNode *node = term.emit(tree, index);
 
             if (head) {
-                ExpressionTreeNode *addNode = tree.makeNode(term.getCoeff() < 0 ? ExprOpType::SUB : ExprOpType::ADD);
+                ExpressionTreeNode *addNode = tree.makeNode(ExprOpType::ADD);
                 addNode->setLeft(head);
                 addNode->setRight(node);
                 head = addNode;
