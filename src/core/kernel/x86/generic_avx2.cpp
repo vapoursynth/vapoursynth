@@ -113,7 +113,7 @@ struct FloatTraits {
 
     static __m256 shl_insert_lo(__m256 x, float y)
     {
-        return _mm256_or_ps(_mm256_castsi256_ps(mm256_slli_ex_si256<4>(_mm256_castps_si256(x))), _mm256_set1_ps(y));
+        return _mm256_or_ps(_mm256_castsi256_ps(mm256_slli_ex_si256<4>(_mm256_castps_si256(x))), _mm256_castps128_ps256(_mm_load_ss(&y)));
     }
 
     static __m256 shr_insert(__m256 x, float y, unsigned idx)
