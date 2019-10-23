@@ -173,10 +173,10 @@ Root: HKA; Subkey: SOFTWARE\Classes\vpyfile\DefaultIcon; ValueType: string; Valu
 Root: HKA; Subkey: SOFTWARE\Classes\AVIFile\Extensions\VPY; ValueType: string; ValueName: ""; ValueData: "{{58F74CA0-BD0E-4664-A49B-8D10E6F0C131}"; Flags: uninsdeletevalue uninsdeletekeyifempty; Components: vscore
 
 ; PATH
-Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\core"; Check: IsAdminInstallMode; Components: vscore
-Root: HKCR; Subkey: "Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\core"; Check: not IsAdminInstallMode; Components: vscore
-Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\vsrepo"; Check: IsAdminInstallMode; Components: vsrepo
-Root: HKCR; Subkey: "Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\vsrepo"; Check: IsAdminInstallMode; Components: vsrepo
+Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\core"; Check: IsAdminInstallMode; Tasks: vscorepath
+Root: HKCR; Subkey: "Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\core"; Check: not IsAdminInstallMode; Tasks: vscorepath
+Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\vsrepo"; Check: IsAdminInstallMode; Tasks: vsrepopath
+Root: HKCR; Subkey: "Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\vsrepo"; Check: IsAdminInstallMode; Tasks: vsrepopath
 
 #include "scripts\products.iss"
 #include "scripts\products\stringversion.iss"
