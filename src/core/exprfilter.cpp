@@ -685,8 +685,8 @@ do { \
             auto t2 = bytecodeRegs[insn.dst];
             XmmReg r1;
             VEX1(movaps, r1, xmmword_ptr[constants + ConstantIndex::float_one * 16]);
-            VEX2IMM(cmpps, t2.first, t1.first, zero, _CMP_LT_OS);
-            VEX2IMM(cmpps, t2.second, t1.second, zero, _CMP_LT_OS);
+            VEX2IMM(cmpps, t2.first, t1.first, zero, _CMP_LE_OS);
+            VEX2IMM(cmpps, t2.second, t1.second, zero, _CMP_LE_OS);
             VEX2(andps, t2.first, t2.first, r1);
             VEX2(andps, t2.second, t2.second, r1);
         });
@@ -743,8 +743,8 @@ do { \
             auto t3 = bytecodeRegs[insn.dst];
             XmmReg r1;
             VEX1(movaps, r1, xmmword_ptr[constants + ConstantIndex::float_one * 16]);
-            VEX2IMM(cmpps, t3.first, t2.first, t1.first, insn.op.imm.u);
-            VEX2IMM(cmpps, t3.second, t2.second, t1.second, insn.op.imm.u);
+            VEX2IMM(cmpps, t3.first, t1.first, t2.first, insn.op.imm.u);
+            VEX2IMM(cmpps, t3.second, t1.second, t2.second, insn.op.imm.u);
             VEX2(andps, t3.first, t3.first, r1);
             VEX2(andps, t3.second, t3.second, r1);
         });
@@ -943,12 +943,12 @@ do { \
 
             L(label);
 
-            log_(r3, zero, one, constants);
-            VEX2(mulps, r3, r3, r1);
-            exp_(r3, one, constants);
+            log_(r1, zero, one, constants);
+            VEX2(mulps, r1, r1, r3);
+            exp_(r1, one, constants);
 
             VEX1(movaps, t3.first, t3.second);
-            VEX1(movaps, t3.second, r3);
+            VEX1(movaps, t3.second, r1);
             VEX1(movaps, r1, r2);
             VEX1(movaps, r3, r4);
 
@@ -1355,7 +1355,7 @@ do { \
             auto t1 = bytecodeRegs[insn.src1];
             auto t2 = bytecodeRegs[insn.dst];
             YmmReg r1;
-            vcmpps(t2, t1, zero, _CMP_LT_OS);
+            vcmpps(t2, t1, zero, _CMP_LE_OS);
             vandps(t2, t2, ymmword_ptr[constants + ConstantIndex::float_one * 32]);
         });
     }
@@ -1404,7 +1404,7 @@ do { \
             auto t1 = bytecodeRegs[insn.src1];
             auto t2 = bytecodeRegs[insn.src2];
             auto t3 = bytecodeRegs[insn.dst];
-            vcmpps(t3, t2, t1, insn.op.imm.u);
+            vcmpps(t3, t1, t2, insn.op.imm.u);
             vandps(t3, t3, ymmword_ptr[constants + ConstantIndex::float_one * 32]);
         });
     }
@@ -1897,7 +1897,7 @@ ExpressionTree parseExpr(const std::string &expr, const VSVideoInfo * const *vi,
         2, // AND
         2, // OR
         2, // XOR
-        2, // NOT
+        1, // NOT
         1, // EXP
         1, // LOG
         2, // POW
