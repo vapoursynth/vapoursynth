@@ -1846,16 +1846,17 @@ ExprOp decodeToken(const std::string &token)
     } else if (token.size() == 1 && token[0] >= 'a' && token[0] <= 'z') {
         return{ ExprOpType::MEM_LOAD_U8, token[0] >= 'x' ? token[0] - 'x' : token[0] - 'a' + 3 };
     } else if (token.substr(0, 3) == "dup" || token.substr(0, 4) == "swap") {
-        size_t count;
+        size_t prefix = token[0] == 'd' ? 3 : 4;
+        size_t count = 0;
         int idx = -1;
 
         try {
-            idx = std::stoi(token.substr(token[0] == 'd' ? 3 : 4), &count);
+            idx = std::stoi(token.substr(prefix), &count);
         } catch (...) {
             // ...
         }
 
-        if (idx < 0)
+        if (idx < 0 || prefix + count != token.size())
             throw std::runtime_error("illegal token: " + token);
         return{ token[0] == 'd' ? ExprOpType::DUP : ExprOpType::SWAP, idx };
     } else {
