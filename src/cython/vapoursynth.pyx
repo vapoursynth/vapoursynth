@@ -1867,10 +1867,16 @@ cdef Function createFunction(str name, str signature, Plugin plugin, const VSAPI
     dct = {'__signature__': None}
     if typing is not None:
         try:
-            dct['__signature__'] = construct_signature(signature, injected=plugin.injected_arg)
+            sign = construct_signature(signature, injected=plugin.injected_arg)
+            annotations = dict(sign.parameters)
+            annotations['return'] = sign.return_annotation
+
+            dct['__signature__'] = sign
+            dct['__annotations__'] = annotations
         except ValueError as e:
             warn('Constructing signature for {}.{}() failed: {}'.format(plugin.namespace, name, str(e)))
     t = type('Function', (Function,), dct)
+
     cdef Function instance = t.__new__(t)
     instance.name = name
     instance.signature = signature
