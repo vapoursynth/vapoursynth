@@ -80,6 +80,11 @@ static inline int isSameFormat(const VSVideoInfo *v1, const VSVideoInfo *v2) {
     return v1->height == v2->height && v1->width == v2->width && v1->format == v2->format;
 }
 
+/* convenience function to check for if two clips have the same format (unknown/changeable will be considered the same too) */
+static inline int isSameAudioFormat(const VSAudioInfo *a1, const VSAudioInfo *a2) {
+    return a1->sampleRate == a2->sampleRate && a1->format == a2->format;
+}
+
 /* multiplies and divides a rational number, such as a frame duration, in place and reduces the result */
 static inline void muldivRational(int64_t *num, int64_t *den, int64_t mul, int64_t div) {
     /* do nothing if the rational number is invalid */

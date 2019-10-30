@@ -1623,7 +1623,7 @@ cdef class AudioNode(RawNode):
     cdef readonly int sample_rate
     cdef readonly int64_t num_samples
     cdef readonly int num_frames
-    cdef readonly int flags # FIXME, check if properly set
+    cdef readonly int flags
     
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
@@ -1669,20 +1669,6 @@ cdef class AudioNode(RawNode):
         if not isinstance(x, AudioNode) or not isinstance(y, AudioNode):
             return NotImplemented
         return (<AudioNode>x).core.std.AudioSplice(clips=[x, y])
-
-    def __mul__(a, b):
-        if isinstance(a, AudioNode):
-            node = a
-            val = b
-        else:
-            node = b
-            val = a
-
-        if not isinstance(val, int):
-            raise TypeError('Clips may only be repeated by integer factors')
-        if val <= 0:
-            raise ValueError('Loop count must be one or bigger')
-        return (<AudioNode>node).core.std.AudioLoop(clip=node, times=val)
 
     def __getitem__(self, val):
         if isinstance(val, slice):
@@ -1740,15 +1726,16 @@ cdef class AudioNode(RawNode):
         return super(AudioNode, self).__dir__() + plugins
 
     def __len__(self):
-        return self.num_frames
+        return self.num_samples
 
     def __str__(self):
         cdef str s = 'AudioNode\n'
 
         s += '\tFormat: ' + self.format.name + '\n'
-
+        s += '\tSample Rate: ' + str(self.sample_rate) + '\n'
+        s += '\tNum Samples: ' + str(self.num_samples) + '\n'
         s += '\tNum Frames: ' + str(self.num_frames) + '\n'
-
+        
         if self.flags:
             s += '\tFlags:'
             if (self.flags & vapoursynth.nfNoCache):
