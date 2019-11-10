@@ -125,8 +125,63 @@ static inline void addRational(int64_t *num, int64_t *den, int64_t addnum, int64
     }
 }
 
+static std::string channelMaskToName(uint64_t mask) {
+    std::string s;
+    auto checkConstant = [&s, mask](uint64_t c, const char *name) {
+        if (mask & c) {
+            if (!s.empty())
+                s += ", ";
+            s += name;
+        }
+    };
+
+    checkConstant(AV_CH_FRONT_LEFT, "front left");
+    checkConstant(AV_CH_FRONT_RIGHT, "front right");
+    checkConstant(AV_CH_FRONT_CENTER, "center");
+    checkConstant(AV_CH_LOW_FREQUENCY, "LFE");
+    checkConstant(AV_CH_BACK_LEFT, "back left");
+    checkConstant(AV_CH_BACK_RIGHT, "back right");
+    checkConstant(AV_CH_FRONT_LEFT_OF_CENTER, "front left of center");
+    checkConstant(AV_CH_FRONT_RIGHT_OF_CENTER, "front right of center");
+    checkConstant(AV_CH_BACK_CENTER, "back center");
+    checkConstant(AV_CH_SIDE_LEFT, "side left");
+    checkConstant(AV_CH_SIDE_RIGHT, "side right");
+    checkConstant(AV_CH_TOP_CENTER, "top center");
+    checkConstant(AV_CH_TOP_FRONT_LEFT, "top front left");
+    checkConstant(AV_CH_TOP_FRONT_CENTER, "top front center");
+    checkConstant(AV_CH_TOP_FRONT_RIGHT, "top front right");
+    checkConstant(AV_CH_TOP_BACK_LEFT, "top back left");
+    checkConstant(AV_CH_TOP_BACK_CENTER, "top back center");
+    checkConstant(AV_CH_TOP_BACK_RIGHT, "top back right");
+
+    return s;
+}
+
 static bool isCompletedFrame(const std::pair<const VSFrameRef *, const VSFrameRef *> &f) {
     return (f.first && (!alphaNode || f.second));
+}
+
+template<typename T>
+static void interleaveSamples(const VSFrameRef *frame, uint8_t *dstBuf) {
+    const VSAudioFormat *fi = vsapi->getFrameAudioFormat(frame);
+    T *dstBuffer = reinterpret_cast<T *>(dstBuf);
+
+    size_t numChannels = fi->numChannels;
+    size_t numSamplesPerFrame = fi->samplesPerFrame;
+
+    std::vector<const T *> srcPtrs;
+    srcPtrs.reserve(numChannels);
+    for (int channel = 0; channel < numChannels; channel++)
+        srcPtrs.push_back(reinterpret_cast<const T *>(vsapi->getReadPtr(frame, channel)));
+    const T **srcPtrsBuffer = srcPtrs.data();
+
+    for (int sample = 0; sample < numSamplesPerFrame; sample++) {
+        for (int channel = 0; channel < numChannels; channel++) {
+            *dstBuf = *srcPtrs[channel];
+            ++srcPtrs[channel];
+            ++dstBuf;
+        }
+    }
 }
 
 static void outputFrame(const VSFrameRef *frame) {
@@ -158,18 +213,20 @@ static void outputFrame(const VSFrameRef *frame) {
         } else if (vsapi->getFrameType(frame) == mtAudio) {
             const VSAudioFormat *fi = vsapi->getFrameAudioFormat(frame);
 
-            for (int channel = 0; channel < fi->numChannels; channel++) {;
-                const uint8_t *readPtr = vsapi->getReadPtr(frame, channel);
-                int rowSize = fi->samplesPerFrame * fi->bytesPerSample;
+            std::vector<const uint8_t *> srcPtrs;
+            srcPtrs.reserve(fi->numChannels);
+            size_t bytesPerSample = fi->bytesPerSample;
 
-                if (fwrite(readPtr, 1, rowSize, outFile) != static_cast<size_t>(rowSize)) {
-                    if (errorMessage.empty())
-                        errorMessage = "Error: fwrite() call failed when writing frame: " + std::to_string(outputFrames) + ", channel: " + std::to_string(channel) +
-                        ", errno: " + std::to_string(errno);
-                    totalFrames = requestedFrames;
-                    outputError = true;
-                    break;
-                }
+            if (bytesPerSample == 2)
+                interleaveSamples<int16_t>(frame, buffer.data());
+            else if (bytesPerSample == 4)
+                interleaveSamples<int32_t>(frame, buffer.data());
+
+            if (fwrite(buffer.data(), 1, buffer.size(), outFile) != buffer.size()) {
+                if (errorMessage.empty())
+                    errorMessage = "Error: fwrite() call failed when writing frame: " + std::to_string(outputFrames) + ", errno: " + std::to_string(errno);
+                totalFrames = requestedFrames;
+                outputError = true;
             }
         }
     }
@@ -387,9 +444,11 @@ static bool outputNode() {
         size_t size = vi->width * vi->height * vi->format->bytesPerSample;
         buffer.resize(size);
 
+    } else if (nodeType == mtAudio) {
+        const VSAudioInfo *ai = vsapi->getAudioInfo(node);
+        size_t size = ai->format->numChannels * ai->format->samplesPerFrame * ai->format->bytesPerSample;
+        buffer.resize(size);
     }
-
-    // FIXME, verify that buffer is never used for audio
 
     std::unique_lock<std::mutex> lock(mutex);
 
@@ -778,13 +837,13 @@ int main(int argc, char **argv) {
 
         if (showInfo) {
             if (outFile) {
-                fprintf(outFile, "Frames: %d\n", ai->numFrames);
+                fprintf(outFile, "Samples: %" PRId64 "\n", ai->numSamples);
+                fprintf(outFile, "Sample Rate: %d\n", ai->sampleRate);
                 fprintf(outFile, "Format Name: %s\n", ai->format->name);
                 fprintf(outFile, "Sample Type: %s\n", (ai->format->sampleType == stInteger) ? "Integer" : "Float");
                 fprintf(outFile, "Bits: %d\n", ai->format->bitsPerSample);
-
-                // FIXME, add missing info
-
+                fprintf(outFile, "Channels: %d\n", ai->format->numChannels);
+                fprintf(outFile, "Layout: %s\n", channelMaskToName(ai->format->channelLayout).c_str());
             }
         } else {
             if (totalFrames == -1)
