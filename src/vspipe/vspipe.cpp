@@ -739,7 +739,7 @@ int main(int argc, char **argv) {
             return 1;
         }
 
-        lastFpsReportTime = std::chrono::high_resolution_clock::now();;
+        lastFpsReportTime = std::chrono::high_resolution_clock::now();
         error = outputNode();
     }
 

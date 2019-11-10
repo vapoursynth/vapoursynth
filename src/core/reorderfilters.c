@@ -887,7 +887,7 @@ static void VS_CC freezeFramesCreate(const VSMap *in, VSMap *out, void *userData
 
 void VS_CC reorderInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     //configFunc("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("Trim", "clip:clip;first:int:opt;last:int:opt;length:int:opt;", trimCreate, 0, plugin);;
+    registerFunc("Trim", "clip:clip;first:int:opt;last:int:opt;length:int:opt;", trimCreate, 0, plugin);
     registerFunc("Reverse", "clip:clip;", reverseCreate, 0, plugin);
     registerFunc("Loop", "clip:clip;times:int:opt;", loopCreate, 0, plugin);
     registerFunc("Interleave", "clips:clip[];extend:int:opt;mismatch:int:opt;", interleaveCreate, 0, plugin);
