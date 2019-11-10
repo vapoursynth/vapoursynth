@@ -22,7 +22,7 @@ Default install paths are assumed in all projects and scripts, be prepared to ad
 * Run `py -3.7 -m pip install -r python-requirements.txt` for 64bit.
 * Run `py -3.7-32 -m pip install -r python-requirements.txt` for 32bit.
 * Run `cython_build.bat` to compile the Python modules
-* Run `make_docs.bat` to compile the documentation
+* Run `docs_build.bat` to compile the documentation
 
 ## 4. Distribution
 
