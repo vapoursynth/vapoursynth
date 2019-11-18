@@ -189,7 +189,7 @@ def _construct_parameter(signature):
     elif type == "float":
         type = float
     elif type == "data":
-        type = typing.Union[str, bytes, bytearray]
+        type = typing.AnyStr
     else:
         raise ValueError("Couldn't determine type")
 
