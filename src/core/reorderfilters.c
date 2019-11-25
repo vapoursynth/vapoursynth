@@ -181,15 +181,24 @@ static const VSFrameRef *VS_CC audioTrimGetframe(int n, int activationReason, vo
             return vsapi->getFrameFilter(startFrame, d->node, frameCtx);
         }
     } else {
+        int numSrc1Samples = d->ai.format->samplesPerFrame - (startSample % d->ai.format->samplesPerFrame);
         if (activationReason == arInitial) {
             vsapi->requestFrameFilter(startFrame, d->node, frameCtx);
-            vsapi->requestFrameFilter(startFrame + 1, d->node, frameCtx);
+            if (numSrc1Samples < length)
+                vsapi->requestFrameFilter(startFrame + 1, d->node, frameCtx);
         } else if (activationReason == arAllFramesReady) {
             const VSFrameRef *src1 = vsapi->getFrameFilter(startFrame, d->node, frameCtx);
-            const VSFrameRef *src2 = vsapi->getFrameFilter(startFrame + 1, d->node, frameCtx);
             VSFrameRef *dst = vsapi->newAudioFrame(d->ai.format, d->ai.sampleRate, length, src1, core);
-            
+            for (int channel = 0; channel < d->ai.format->numChannels; channel++)             
+                memcpy(vsapi->getWritePtr(dst, channel), vsapi->getReadPtr(src1, channel) + (d->ai.format->samplesPerFrame - numSrc1Samples) * d->ai.format->bytesPerSample, numSrc1Samples * d->ai.format->bytesPerSample);
+            vsapi->freeFrame(src1);
 
+            if (length > numSrc1Samples) {
+                const VSFrameRef *src2 = vsapi->getFrameFilter(startFrame + 1, d->node, frameCtx);
+                for (int channel = 0; channel < d->ai.format->numChannels; channel++)             
+                    memcpy(vsapi->getWritePtr(dst, channel) + numSrc1Samples * d->ai.format->bytesPerSample, vsapi->getReadPtr(src2, channel), (length - numSrc1Samples) * d->ai.format->bytesPerSample);
+                vsapi->freeFrame(src2);
+            }
 
             return dst;
         }
@@ -569,15 +578,9 @@ static void VS_CC selectEveryCreate(const VSMap *in, VSMap *out, void *userData,
 
 typedef struct {
     VSNodeRef **node;
-    VSVideoInfo vi;
     int *numframes;
     int numclips;
 } SpliceData;
-
-static void VS_CC spliceInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    SpliceData *d = (SpliceData *) * instanceData;
-    vsapi->setVideoInfo(&d->vi, 1, node);
-}
 
 typedef struct {
     int f;
@@ -631,6 +634,7 @@ static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     SpliceData d;
     SpliceData *data;
     int err;
+    VSVideoInfo vi;
 
     d.numclips = vsapi->propNumElements(in, "clips");
     int mismatch = !!vsapi->propGetInt(in, "mismatch", 0, &err);
@@ -650,8 +654,8 @@ static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCo
                 compat = 1;
         }
 
-        int mismatchCause = findCommonVi(d.node, d.numclips, &d.vi, 1, vsapi);
-        if (mismatchCause && (!mismatch || compat) && !isSameFormat(&d.vi, vsapi->getVideoInfo(d.node[0]))) {
+        int mismatchCause = findCommonVi(d.node, d.numclips, &vi, 1, vsapi);
+        if (mismatchCause && (!mismatch || compat) && !isSameFormat(&vi, vsapi->getVideoInfo(d.node[0]))) {
             for (int i = 0; i < d.numclips; i++)
                 vsapi->freeNode(d.node[i]);
 
@@ -668,14 +672,14 @@ static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         }
 
         d.numframes = malloc(sizeof(d.numframes[0]) * d.numclips);
-        d.vi.numFrames = 0;
+        vi.numFrames = 0;
 
         for (int i = 0; i < d.numclips; i++) {
             d.numframes[i] = (vsapi->getVideoInfo(d.node[i]))->numFrames;
-            d.vi.numFrames += d.numframes[i];
+            vi.numFrames += d.numframes[i];
 
             // did it overflow?
-            if (d.vi.numFrames < d.numframes[i]) {
+            if (vi.numFrames < d.numframes[i]) {
                 for (int j = 0; j < d.numclips; i++)
                     vsapi->freeNode(d.node[j]);
 
@@ -689,9 +693,256 @@ static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         data = malloc(sizeof(d));
         *data = d;
 
-        vsapi->createFilter(in, out, "Splice", spliceInit, spliceGetframe, spliceFree, fmParallel, nfNoCache, data, core);
+        vsapi->createVideoFilter(in, out, "Splice", &vi, 1, spliceGetframe, spliceFree, fmParallel, nfNoCache, data, core);
     }
 }
+
+//////////////////////////////////////////
+// AudioSplice2
+
+typedef struct {
+    VSAudioInfo ai;
+    VSNodeRef *node1;
+    VSNodeRef *node2;
+    int numFrames1;
+    int64_t numSamples1;
+    int64_t numSamples2;
+} AudioSplice2Data;
+
+static const VSFrameRef *VS_CC audioSplice2Getframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    AudioSplice2Data *d = (AudioSplice2Data *) * instanceData;
+
+    int lastFrameIsPartial = ((d->ai.numSamples % d->ai.format->samplesPerFrame) != 0);
+
+    if (activationReason == arInitial) {
+        if (lastFrameIsPartial) {
+            if (n < d->numFrames1 - 1) {
+                vsapi->requestFrameFilter(n, d->node1, frameCtx);
+            } else if (n == d->numFrames1 - 1) {
+                vsapi->requestFrameFilter(n, d->node1, frameCtx);
+                vsapi->requestFrameFilter(0, d->node2, frameCtx);
+            } else {
+                vsapi->requestFrameFilter(n - d->numFrames1, d->node2, frameCtx);
+                vsapi->requestFrameFilter(n - d->numFrames1 + 1, d->node2, frameCtx);
+            }
+        } else {
+            if (n < d->numFrames1)
+                vsapi->requestFrameFilter(n, d->node1, frameCtx);
+            else
+                vsapi->requestFrameFilter(n - d->numFrames1, d->node2, frameCtx);
+        }
+    } else if (activationReason == arAllFramesReady) {
+        if (lastFrameIsPartial) {
+            if (n < d->numFrames1 - 1) {
+                return vsapi->getFrameFilter(n, d->node1, frameCtx);
+            } else {
+                const VSFrameRef *f1 = NULL;
+                const VSFrameRef *f2 = NULL;
+
+                if (n == d->numFrames1 - 1) {
+                    f1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
+                    f2 = vsapi->getFrameFilter(0, d->node2, frameCtx);
+                } else {
+                    f1 = vsapi->getFrameFilter(n - d->numFrames1, d->node2, frameCtx);
+                    f2 = vsapi->getFrameFilter(n - d->numFrames1 + 1, d->node2, frameCtx);
+                }
+
+                int samplesOut = (((n + 1) * d->ai.format->samplesPerFrame) > d->ai.numSamples) ? (d->ai.numSamples % d->ai.format->samplesPerFrame) : (d->ai.format->samplesPerFrame);                    
+
+                VSFrameRef *f = vsapi->newAudioFrame(d->ai.format, d->ai.sampleRate, samplesOut, f1, core);
+
+                size_t f1copy = vsapi->getFrameWidth(f1, 0) * d->ai.format->bytesPerSample;
+                for (int channel = 0; channel < d->ai.format->numChannels; channel++)
+                    memcpy(vsapi->getWritePtr(f, channel), vsapi->getReadPtr(f1, channel), f1copy);
+
+                size_t f2copy = (samplesOut - vsapi->getFrameWidth(f1, 0)) * d->ai.format->bytesPerSample;
+                for (int channel = 0; channel < d->ai.format->numChannels; channel++)
+                    memcpy(vsapi->getWritePtr(f, channel) + f1copy, vsapi->getReadPtr(f2, channel), f2copy);
+
+                vsapi->freeFrame(f1);
+                vsapi->freeFrame(f2);
+
+                return f;
+            }
+        } else {
+            if (n < d->numFrames1)
+                return vsapi->getFrameFilter(n, d->node1, frameCtx);
+            else
+                return vsapi->getFrameFilter(n - d->numFrames1, d->node2, frameCtx);
+        }
+    }
+
+    return 0;
+}
+
+static void VS_CC audioSplice2Free(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+    AudioSplice2Data *d = (AudioSplice2Data *)instanceData;
+    vsapi->freeNode(d->node1);
+    vsapi->freeNode(d->node2);
+    free(d);
+}
+
+static void VS_CC audioSplice2Create(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    AudioSplice2Data d;
+    AudioSplice2Data *data;
+
+    d.node1 = vsapi->propGetNode(in, "clip1", 0, 0);
+    d.node2 = vsapi->propGetNode(in, "clip2", 0, 0);
+    const VSAudioInfo *ai1 = vsapi->getAudioInfo(d.node1);
+    const VSAudioInfo *ai2 = vsapi->getAudioInfo(d.node2);
+
+    d.numFrames1 = ai1->numFrames;
+
+    d.numSamples1 = ai1->numSamples;
+    d.numSamples2 = ai2->numSamples;
+
+    if (!isSameAudioFormat(ai1, ai2)) {
+        vsapi->freeNode(d.node1);
+        vsapi->freeNode(d.node2);
+        RETERROR("AudioSplice2: format mismatch");
+    }
+
+    d.ai = *vsapi->getAudioInfo(ai1);
+    d.ai.numSamples += d.numSamples2;
+
+    if (d.ai.numSamples < d.numSamples1 || d.ai.numSamples < d.numSamples2) {
+        vsapi->freeNode(d.node1);
+        vsapi->freeNode(d.node2);
+        RETERROR("AudioSplice2: the resulting clip is too long");
+    }
+
+    data = malloc(sizeof(d));
+    *data = d;
+
+    vsapi->createAudioFilter(in, out, "AudioSplice2", &d.ai, 1, audioSplice2Getframe, audioSplice2Free, fmParallel, nfNoCache, data, core);
+}
+
+
+//////////////////////////////////////////
+// AudioSplice2Wrapper
+
+static void VS_CC audioSplice2Wrapper(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    int numnodes = vsapi->propNumElements(in, "clips");
+
+    if (numnodes == 1) { // passthrough for the special case with only one clip
+        VSNodeRef *cref = vsapi->propGetNode(in, "clips", 0, 0);
+        vsapi->propSetNode(out, "clip", cref, paReplace);
+        vsapi->freeNode(cref);
+    }
+
+    VSNodeRef *tmp = vsapi->propGetNode(in, "clips", 0, 0);
+    VSMap *map = vsapi->createMap();
+    VSPlugin *plugin = vsapi->getPluginById("com.vapoursynth.std", core);
+
+    for (int i = 1; i < numnodes; i++) {
+        vsapi->propSetNode(map, "clip1", tmp, paReplace);
+        vsapi->freeNode(tmp);
+        VSNodeRef *cref = vsapi->propGetNode(in, "clips", 0, 0);
+        vsapi->propSetNode(map, "clip2", cref, paReplace);
+        vsapi->freeNode(cref);
+        VSMap *result = vsapi->invoke(plugin, "AudioSplice2", map);
+        if (vsapi->getError(result)) {
+            vsapi->setError(out, vsapi->getError(result));
+            vsapi->freeMap(map);    
+            vsapi->freeMap(result);
+            return;
+        }
+
+        tmp = vsapi->propGetNode(result, "clip", 0, 0);
+        vsapi->freeMap(result);
+    }
+
+    vsapi->freeMap(map); 
+    vsapi->propSetNode(out, "clip", tmp, paReplace);
+    vsapi->freeNode(tmp);
+}
+
+//////////////////////////////////////////
+// AudioSplice
+
+/*
+typedef struct {
+    VSAudioInfo ai;
+    VSNodeRef **node;
+    int64_t *numsamples;
+    int numnodes;
+} AudioSpliceData;
+
+static const VSFrameRef *VS_CC audioSpliceGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    AudioSpliceData *d = (AudioSpliceData *) * instanceData;
+
+    if (activationReason == arInitial) {
+
+
+    } else if (activationReason == arAllFramesReady) {
+
+        return f;
+    }
+
+    return 0;
+}
+
+static void VS_CC audioSpliceFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+    AudioSpliceData *d = (AudioSpliceData *)instanceData;
+    for (int i = 0; i < d->numnodes; i++)
+        vsapi->freeNode(d->node[i]);
+
+    free(d->node);
+    free(d->numsamples);
+    free(d);
+}
+
+static void VS_CC audioSpliceCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    AudioSpliceData d;
+    AudioSpliceData *data;
+
+    d.numnodes = vsapi->propNumElements(in, "clips");
+
+    if (d.numnodes == 1) { // passthrough for the special case with only one clip
+        VSNodeRef *cref = vsapi->propGetNode(in, "clips", 0, 0);
+        vsapi->propSetNode(out, "clip", cref, paReplace);
+        vsapi->freeNode(cref);
+    } else {
+        d.node = malloc(sizeof(d.node[0]) * d.numnodes);
+
+        for (int i = 0; i < d.numnodes; i++)
+            d.node[i] = vsapi->propGetNode(in, "clips", i, 0);
+
+        d.ai = *vsapi->getAudioInfo(d.node[0]);
+
+        for (int i = 0; i < d.numnodes; i++) {
+            if (!isSameAudioFormat(&d.ai, vsapi->getAudioInfo(d.node[i]))) {
+                for (int i = 0; i < d.numnodes; i++)
+                    vsapi->freeNode(d.node[i]);
+                free(d.node);
+                RETERROR("AudioSplice: format mismatch");
+            }
+        }
+        d.numsamples = malloc(sizeof(d.numsamples[0]) * d.numnodes);
+        d.ai.numSamples = 0;
+
+        for (int i = 0; i < d.numnodes; i++) {
+            d.numsamples[i] = (vsapi->getAudioInfo(d.node[i]))->numSamples;
+            d.ai.numSamples += d.numsamples[i];
+
+            if (d.ai.numSamples < d.numsamples[i]) {
+                for (int j = 0; j < d.numnodes; i++)
+                    vsapi->freeNode(d.node[j]);
+
+                free(d.node);
+                free(d.numsamples);
+
+                RETERROR("AudioSplice: the resulting clip is too long");
+            }
+        }
+
+        data = malloc(sizeof(d));
+        *data = d;
+
+        vsapi->createAudioFilter(in, out, "AudioSplice", &d.ai, 1, audioSpliceGetframe, audioSpliceFree, fmParallel, nfNoCache, data, core);
+    }
+}
+*/
 
 //////////////////////////////////////////
 // DuplicateFrames
@@ -983,6 +1234,8 @@ void VS_CC reorderInitialize(VSConfigPlugin configFunc, VSRegisterFunction regis
     registerFunc("Interleave", "clips:clip[];extend:int:opt;mismatch:int:opt;", interleaveCreate, 0, plugin);
     registerFunc("SelectEvery", "clip:clip;cycle:int;offsets:int[];", selectEveryCreate, 0, plugin);
     registerFunc("Splice", "clips:clip[];mismatch:int:opt;", spliceCreate, 0, plugin);
+    registerFunc("AudioSplice", "clips:clip[];", audioSplice2Wrapper, 0, plugin);
+    registerFunc("AudioSplice2", "clip1:clip;clip2:clip;", audioSplice2Create, 0, plugin);
     registerFunc("DuplicateFrames", "clip:clip;frames:int[];", duplicateFramesCreate, 0, plugin);
     registerFunc("DeleteFrames", "clip:clip;frames:int[];", deleteFramesCreate, 0, plugin);
     registerFunc("FreezeFrames", "clip:clip;first:int[];last:int[];replacement:int[];", freezeFramesCreate, 0, plugin);
