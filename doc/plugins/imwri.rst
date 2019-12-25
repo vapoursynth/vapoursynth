@@ -37,7 +37,7 @@ ImageMagick Writer-Reader (IMWRI) is a plugin that can read and write many image
          Undefined, None, BZip, DXT1, DXT3, DXT5, Fax, Group4, JPEG, JPEG2000, LosslessJPEG, LZW, RLE, Zip, ZipS, Piz, Pxr24, B44, B44A, LZMA, JBIG1, JBIG2
          
       overwrite
-         Overwrite already existing files
+         Overwrite already existing files. This option also disables the requirement that output filenames contain a number.
 
       alpha
          A grayscale clip containing the alpha channel for the image to write. Apart from being grayscale, its properties must be identical to the main *clip*.

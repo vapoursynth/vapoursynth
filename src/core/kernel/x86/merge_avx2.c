@@ -237,13 +237,13 @@ void vs_mask_merge_premul_byte_avx2(const void *src1, const void *src2, const vo
         tmp = _mm256_sub_epi16(v1, _mm256_set1_epi16(offset));
         sign = _mm256_cmpgt_epi16(_mm256_setzero_si256(), tmp);
         neg = _mm256_sub_epi16(_mm256_setzero_si256(), tmp);
-        tmp = _mm256_blendv_epi8(sign, tmp, neg);
+        tmp = _mm256_blendv_epi8(tmp, neg, sign);
 
         tmp = _mm256_add_epi16(_mm256_mullo_epi16(tmp, w1), _mm256_set1_epi16(UINT8_MAX / 2));
         tmp = div255_epu16(tmp);
 
         neg = _mm256_sub_epi16(_mm256_setzero_si256(), tmp);
-        tmp = _mm256_blendv_epi8(sign, tmp, neg);
+        tmp = _mm256_blendv_epi8(tmp, neg, sign);
 
         tmp = _mm256_add_epi16(tmp, v2);
         tmp = _mm256_packus_epi16(tmp, tmp);
@@ -273,18 +273,18 @@ void vs_mask_merge_premul_word_avx2(const void *src1, const void *src2, const vo
         tmp = _mm256_sub_epi16(v1, _mm256_set1_epi16(offset));
         sign = _mm256_cmpgt_epi16(_mm256_set1_epi16(offset + INT16_MIN), _mm256_add_epi16(v1, _mm256_set1_epi16(INT16_MIN)));
         neg = _mm256_sub_epi16(_mm256_setzero_si256(), tmp);
-        tmp = _mm256_blendv_epi8(sign, tmp, neg);
+        tmp = _mm256_blendv_epi8(tmp, neg, sign);
 
         tmp_lo = _mm256_mullo_epi16(w1, tmp);
         tmp_hi = _mm256_mulhi_epu16(w1, tmp);
 
         tmpd_lo = _mm256_unpacklo_epi16(tmp_lo, tmp_hi);
-        tmpd_lo = _mm256_add_epi32(tmpd_lo, _mm256_set1_epi32(UINT16_MAX / 2));
+        tmpd_lo = _mm256_add_epi32(tmpd_lo, _mm256_set1_epi32(maxval / 2));
         tmpd_lo = divX_epu32(tmpd_lo, depth);
         tmpd_lo = _mm256_add_epi32(tmpd_lo, _mm256_set1_epi32(INT16_MIN));
 
         tmpd_hi = _mm256_unpackhi_epi16(tmp_lo, tmp_hi);
-        tmpd_hi = _mm256_add_epi32(tmpd_hi, _mm256_set1_epi32(UINT16_MAX / 2));
+        tmpd_hi = _mm256_add_epi32(tmpd_hi, _mm256_set1_epi32(maxval / 2));
         tmpd_hi = divX_epu32(tmpd_hi, depth);
         tmpd_hi = _mm256_add_epi32(tmpd_hi, _mm256_set1_epi32(INT16_MIN));
 
@@ -292,7 +292,7 @@ void vs_mask_merge_premul_word_avx2(const void *src1, const void *src2, const vo
         tmp = _mm256_sub_epi16(tmp, _mm256_set1_epi16(INT16_MIN));
 
         neg = _mm256_sub_epi16(_mm256_setzero_si256(), tmp);
-        tmp = _mm256_blendv_epi8(sign, tmp, neg);
+        tmp = _mm256_blendv_epi8(tmp, neg, sign);
 
         tmp = _mm256_add_epi16(tmp, v2);
         _mm256_store_si256((__m256i *)(dstp + i), tmp);

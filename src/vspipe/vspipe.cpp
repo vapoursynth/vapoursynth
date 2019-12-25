@@ -860,6 +860,9 @@ int main(int argc, char **argv) {
             lastFpsReportTime = std::chrono::high_resolution_clock::now();
             error = outputNode();
         }
+
+        lastFpsReportTime = std::chrono::high_resolution_clock::now();
+        error = outputNode();
     }
 
     if (outFile)

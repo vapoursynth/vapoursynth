@@ -40,4 +40,3 @@ For x264::
 For FFmpeg::
 
    vspipe --y4m script.vpy - | ffmpeg -i pipe: encoded.mkv
-

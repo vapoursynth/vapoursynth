@@ -304,7 +304,7 @@ void AvfsWavMediaInit(
   uint64_t sampleCount = uint64_t(avs->GetVideoInfo().num_audio_samples);
   uint64_t position = 0;
   uint64_t endPosition;
-  unsigned fileNumber = 0;;
+  unsigned fileNumber = 0;
   static const size_t maxFileNameChars = 300;
   wchar_t fileName[maxFileNameChars];
 

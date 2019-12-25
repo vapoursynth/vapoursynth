@@ -283,12 +283,12 @@ void vs_mask_merge_premul_word_sse2(const void *src1, const void *src2, const vo
         tmp_hi = _mm_mulhi_epu16(w1, tmp);
 
         tmpd_lo = _mm_unpacklo_epi16(tmp_lo, tmp_hi);
-        tmpd_lo = _mm_add_epi32(tmpd_lo, _mm_set1_epi32(UINT16_MAX / 2));
+        tmpd_lo = _mm_add_epi32(tmpd_lo, _mm_set1_epi32(maxval / 2));
         tmpd_lo = divX_epu32(tmpd_lo, depth);
         tmpd_lo = _mm_add_epi32(tmpd_lo, _mm_set1_epi32(INT16_MIN));
 
         tmpd_hi = _mm_unpackhi_epi16(tmp_lo, tmp_hi);
-        tmpd_hi = _mm_add_epi32(tmpd_hi, _mm_set1_epi32(UINT16_MAX / 2));
+        tmpd_hi = _mm_add_epi32(tmpd_hi, _mm_set1_epi32(maxval / 2));
         tmpd_hi = divX_epu32(tmpd_hi, depth);
         tmpd_hi = _mm_add_epi32(tmpd_hi, _mm_set1_epi32(INT16_MIN));
 

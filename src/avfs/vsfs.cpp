@@ -137,7 +137,7 @@ std::string get_file_contents(const std::wstring &filename) {
         in.close();
         return(contents);
     }
-    return "";;
+    return "";
 }
 
 // (Re)Open the Script File
