@@ -169,7 +169,7 @@ static const VSFrameRef *VS_CC audioTrimGetframe(int n, int activationReason, vo
     AudioTrimData *d = (AudioTrimData *) * instanceData;
 
     int64_t startSample = (int64_t)n * d->ai.format->samplesPerFrame - d->first;
-    int startFrame = (startSample / d->ai.format->samplesPerFrame);
+    int64_t startFrame = (startSample / d->ai.format->samplesPerFrame);
     int64_t length = d->ai.numSamples - startSample;
     if (length > d->ai.format->samplesPerFrame)
         length = d->ai.format->samplesPerFrame;
@@ -208,7 +208,7 @@ static const VSFrameRef *VS_CC audioTrimGetframe(int n, int activationReason, vo
 }
 
 static void VS_CC audioTrimCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    AudioTrimData d;
+    AudioTrimData d = { 0 };
     AudioTrimData *data;
     int err;
     int64_t trimlen;
@@ -802,7 +802,7 @@ static void VS_CC audioSplice2Create(const VSMap *in, VSMap *out, void *userData
         RETERROR("AudioSplice2: format mismatch");
     }
 
-    d.ai = *vsapi->getAudioInfo(ai1);
+    d.ai = *ai1;
     d.ai.numSamples += d.numSamples2;
 
     if (d.ai.numSamples < d.numSamples1 || d.ai.numSamples < d.numSamples2) {

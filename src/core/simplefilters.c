@@ -1165,7 +1165,7 @@ typedef struct {
 } BlankClipData;
 
 static void VS_CC blankClipInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    BlankClipData *d = (BlankClipData *) * instanceData;
+    BlankClipData *d = (BlankClipData *) *instanceData;
     vsapi->setVideoInfo(&d->vi, 1, node);
 }
 
@@ -1350,8 +1350,8 @@ typedef struct {
     int keep;
 } BlankAudioData;
 
-static const VSFrameRef *VS_CC blankAudioGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    BlankAudioData *d = (BlankAudioData *)instanceData;
+static const VSFrameRef *VS_CC blankAudioGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    BlankAudioData *d = (BlankAudioData *) *instanceData;
 
     if (activationReason == arInitial) {
         VSFrameRef *frame = NULL;
@@ -1436,7 +1436,7 @@ static const VSFrameRef *VS_CC testAudioGetframe(int n, int activationReason, vo
     if (activationReason == arInitial) {
         VSFrameRef *frame = vsapi->newAudioFrame(d->ai.format, d->ai.sampleRate, (n == d->ai.numFrames - 1) ? (d->ai.numSamples % d->ai.format->samplesPerFrame) : d->ai.format->samplesPerFrame, NULL, core);
         for (int channel = 0; channel < d->ai.format->numChannels; channel++) {
-            uint16_t *w = vsapi->getWritePtr(frame, channel);
+            uint16_t *w = (uint16_t *)vsapi->getWritePtr(frame, channel);
             int64_t startSample = n * d->ai.format->samplesPerFrame;
             int64_t endSample = startSample + ((n == d->ai.numFrames - 1) ? (d->ai.numSamples % d->ai.format->samplesPerFrame) : d->ai.format->samplesPerFrame);
             for (int i = 0; i < endSample; i++)

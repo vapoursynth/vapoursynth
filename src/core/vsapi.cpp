@@ -260,9 +260,8 @@ static int VS_CC propNumElements(const VSMap *map, const char *key) VS_NOEXCEPT 
 
 static char VS_CC propGetType(const VSMap *map, const char *key) VS_NOEXCEPT {
     assert(map && key);
-    const char a[] = { 'u', 'i', 'f', 's', 'c', 'v', 'm', 'g' };
     VSVariant *val = map->find(key);
-    return val ? a[val->getType()] : 'u';
+    return val ? val->getType() : 'u';
 }
 
 #define PROP_GET_SHARED(vt, retexpr) \
@@ -635,6 +634,11 @@ static int VS_CC getFrameType(const VSFrameRef *f) VS_NOEXCEPT {
     return f->frame->getFrameType();
 }
 
+static int VS_CC getFrameLength(const VSFrameRef *f) VS_NOEXCEPT {
+    assert(f);
+    return f->frame->getFrameLength();
+}
+
 const VSAPI vs_internal_vsapi = {
     &createCore,
     &freeCore,
@@ -736,7 +740,8 @@ const VSAPI vs_internal_vsapi = {
     &getAudioInfo,
     &getFrameAudioFormat,
     &getNodeType,
-    &getFrameType
+    &getFrameType,
+    &getFrameLength
 };
 
 ///////////////////////////////

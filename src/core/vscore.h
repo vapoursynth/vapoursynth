@@ -436,6 +436,10 @@ public:
         assert(contentType == mtAudio);
         return height;
     }
+    int getFrameLength() const {
+        assert(contentType == mtAudio);
+        return width;
+    }
     int getStride(int plane) const;
     const uint8_t *getReadPtr(int plane) const;
     uint8_t *getWritePtr(int plane);
