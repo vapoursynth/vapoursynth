@@ -168,9 +168,9 @@ typedef struct {
 static const VSFrameRef *VS_CC audioTrimGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     AudioTrimData *d = (AudioTrimData *) *instanceData;
 
-    int64_t startSample = (int64_t)n * d->ai.format->samplesPerFrame - d->first;
+    int64_t startSample = (int64_t)n * d->ai.format->samplesPerFrame + d->first;
     int64_t startFrame = (startSample / d->ai.format->samplesPerFrame);
-    int64_t length = d->ai.numSamples - startSample;
+    int64_t length = d->ai.numSamples;
     if (length > d->ai.format->samplesPerFrame)
         length = d->ai.format->samplesPerFrame;
 
@@ -257,6 +257,7 @@ static void VS_CC audioTrimCreate(const VSMap *in, VSMap *out, void *userData, V
     }
 
     d.ai.numSamples = trimlen;
+    d.ai.numFrames = (d.ai.numSamples + d.ai.format->samplesPerFrame - 1) / d.ai.format->samplesPerFrame;
 
     data = malloc(sizeof(d));
     *data = d;
@@ -747,15 +748,15 @@ static const VSFrameRef *VS_CC audioSplice2Getframe(int n, int activationReason,
                     f2 = vsapi->getFrameFilter(n - d->numFrames1 + 1, d->node2, frameCtx);
                 }
 
-                int samplesOut = (((n + 1) * d->ai.format->samplesPerFrame) > d->ai.numSamples) ? (d->ai.numSamples % d->ai.format->samplesPerFrame) : (d->ai.format->samplesPerFrame);                    
+                int samplesOut = VSMIN(d->ai.format->samplesPerFrame, d->ai.numSamples - n * d->ai.format->samplesPerFrame);
 
                 VSFrameRef *f = vsapi->newAudioFrame(d->ai.format, d->ai.sampleRate, samplesOut, f1, core);
 
-                size_t f1copy = vsapi->getFrameWidth(f1, 0) * d->ai.format->bytesPerSample;
+                size_t f1copy = vsapi->getFrameLength(f1) * d->ai.format->bytesPerSample;
                 for (int channel = 0; channel < d->ai.format->numChannels; channel++)
                     memcpy(vsapi->getWritePtr(f, channel), vsapi->getReadPtr(f1, channel), f1copy);
 
-                size_t f2copy = (samplesOut - vsapi->getFrameWidth(f1, 0)) * d->ai.format->bytesPerSample;
+                size_t f2copy = (samplesOut - vsapi->getFrameLength(f1)) * d->ai.format->bytesPerSample;
                 for (int channel = 0; channel < d->ai.format->numChannels; channel++)
                     memcpy(vsapi->getWritePtr(f, channel) + f1copy, vsapi->getReadPtr(f2, channel), f2copy);
 
@@ -804,6 +805,7 @@ static void VS_CC audioSplice2Create(const VSMap *in, VSMap *out, void *userData
 
     d.ai = *ai1;
     d.ai.numSamples += d.numSamples2;
+    d.ai.numFrames = (d.ai.numSamples + d.ai.format->samplesPerFrame - 1) / d.ai.format->samplesPerFrame;
 
     if (d.ai.numSamples < d.numSamples1 || d.ai.numSamples < d.numSamples2) {
         vsapi->freeNode(d.node1);
@@ -837,7 +839,7 @@ static void VS_CC audioSplice2Wrapper(const VSMap *in, VSMap *out, void *userDat
     for (int i = 1; i < numnodes; i++) {
         vsapi->propSetNode(map, "clip1", tmp, paReplace);
         vsapi->freeNode(tmp);
-        VSNodeRef *cref = vsapi->propGetNode(in, "clips", 0, 0);
+        VSNodeRef *cref = vsapi->propGetNode(in, "clips", i, 0);
         vsapi->propSetNode(map, "clip2", cref, paReplace);
         vsapi->freeNode(cref);
         VSMap *result = vsapi->invoke(plugin, "AudioSplice2", map);
@@ -1228,14 +1230,14 @@ static void VS_CC freezeFramesCreate(const VSMap *in, VSMap *out, void *userData
 void VS_CC reorderInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     //configFunc("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 1, plugin);
     registerFunc("Trim", "clip:clip;first:int:opt;last:int:opt;length:int:opt;", trimCreate, 0, plugin);
-    registerFunc("AudioTrim", "clip:clip;first:int:opt;last:int:opt;length:int:opt;", audioTrimCreate, 0, plugin);
+    registerFunc("AudioTrim", "clip:anode;first:int:opt;last:int:opt;length:int:opt;", audioTrimCreate, 0, plugin);
     registerFunc("Reverse", "clip:clip;", reverseCreate, 0, plugin);
     registerFunc("Loop", "clip:clip;times:int:opt;", loopCreate, 0, plugin);
     registerFunc("Interleave", "clips:clip[];extend:int:opt;mismatch:int:opt;", interleaveCreate, 0, plugin);
     registerFunc("SelectEvery", "clip:clip;cycle:int;offsets:int[];", selectEveryCreate, 0, plugin);
     registerFunc("Splice", "clips:clip[];mismatch:int:opt;", spliceCreate, 0, plugin);
-    registerFunc("AudioSplice", "clips:clip[];", audioSplice2Wrapper, 0, plugin);
-    registerFunc("AudioSplice2", "clip1:clip;clip2:clip;", audioSplice2Create, 0, plugin);
+    registerFunc("AudioSplice", "clips:anode[];", audioSplice2Wrapper, 0, plugin);
+    registerFunc("AudioSplice2", "clip1:anode;clip2:anode;", audioSplice2Create, 0, plugin);
     registerFunc("DuplicateFrames", "clip:clip;frames:int[];", duplicateFramesCreate, 0, plugin);
     registerFunc("DeleteFrames", "clip:clip;frames:int[];", deleteFramesCreate, 0, plugin);
     registerFunc("FreezeFrames", "clip:clip;first:int[];last:int[];replacement:int[];", freezeFramesCreate, 0, plugin);

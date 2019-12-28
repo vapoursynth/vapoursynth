@@ -1677,7 +1677,7 @@ cdef class AudioNode(RawNode):
             if val.step is not None and abs(val.step) <> 1:
                 raise ValueError('Slice step must be 1')
 
-            indices = val.indices(self.num_frames)
+            indices = val.indices(self.num_samples)
             
             step = indices[2]
 
@@ -1708,10 +1708,10 @@ cdef class AudioNode(RawNode):
             return ret
         elif isinstance(val, int):
             if val < 0:
-                n = self.num_frames + val
+                n = self.num_samples + val
             else:
                 n = val
-            if n < 0 or (self.num_frames > 0 and n >= self.num_frames):
+            if n < 0 or (self.num_samples > 0 and n >= self.num_samples):
                 raise IndexError('List index out of bounds')
             return self.core.std.AudioTrim(clip=self, first=n, length=1)
         else:

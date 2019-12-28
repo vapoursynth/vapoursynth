@@ -162,12 +162,12 @@ static bool isCompletedFrame(const std::pair<const VSFrameRef *, const VSFrameRe
 }
 
 template<typename T>
-static void interleaveSamples(const VSFrameRef *frame, uint8_t *dstBuf) {
+static size_t interleaveSamples(const VSFrameRef *frame, uint8_t *dstBuf) {
     const VSAudioFormat *fi = vsapi->getFrameAudioFormat(frame);
     T *dstBuffer = reinterpret_cast<T *>(dstBuf);
 
     size_t numChannels = fi->numChannels;
-    size_t numSamplesPerFrame = fi->samplesPerFrame;
+    size_t numSamples = vsapi->getFrameLength(frame);
 
     std::vector<const T *> srcPtrs;
     srcPtrs.reserve(numChannels);
@@ -175,13 +175,15 @@ static void interleaveSamples(const VSFrameRef *frame, uint8_t *dstBuf) {
         srcPtrs.push_back(reinterpret_cast<const T *>(vsapi->getReadPtr(frame, channel)));
     const T **srcPtrsBuffer = srcPtrs.data();
 
-    for (int sample = 0; sample < numSamplesPerFrame; sample++) {
+    for (int sample = 0; sample < numSamples; sample++) {
         for (int channel = 0; channel < numChannels; channel++) {
             *dstBuffer = *srcPtrs[channel];
             ++srcPtrs[channel];
             ++dstBuffer;
         }
     }
+
+    return numSamples * numChannels * sizeof(T);
 }
 
 static void outputFrame(const VSFrameRef *frame) {
@@ -216,13 +218,14 @@ static void outputFrame(const VSFrameRef *frame) {
             std::vector<const uint8_t *> srcPtrs;
             srcPtrs.reserve(fi->numChannels);
             size_t bytesPerSample = fi->bytesPerSample;
+            size_t toOutput = 0;
 
             if (bytesPerSample == 2)
-                interleaveSamples<int16_t>(frame, buffer.data());
+                toOutput = interleaveSamples<int16_t>(frame, buffer.data());
             else if (bytesPerSample == 4)
-                interleaveSamples<int32_t>(frame, buffer.data());
+                toOutput = interleaveSamples<int32_t>(frame, buffer.data());
 
-            if (fwrite(buffer.data(), 1, buffer.size(), outFile) != buffer.size()) {
+            if (fwrite(buffer.data(), 1, toOutput, outFile) != toOutput) {
                 if (errorMessage.empty())
                     errorMessage = "Error: fwrite() call failed when writing frame: " + std::to_string(outputFrames) + ", errno: " + std::to_string(errno);
                 totalFrames = requestedFrames;

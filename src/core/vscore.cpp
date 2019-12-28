@@ -902,6 +902,8 @@ VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, int numOutputs, V
             vsFatal("Filter %s has no audio samples in the output.", name.c_str());
         if (ai[i].sampleRate <= 0)
             vsFatal("Filter %s has an invalid sample rate.", name.c_str());
+        if (ai[i].numFrames != (ai[i].numSamples + ai[i].format->samplesPerFrame - 1) / ai[i].format->samplesPerFrame) // FIXME, automatically fill out?
+            vsFatal("Filter %s has a frame length that doesn't match the number of samples.", name.c_str());
 
         this->ai.push_back(ai[i]);
         this->ai[i].flags = flags;
