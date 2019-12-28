@@ -1355,10 +1355,11 @@ static const VSFrameRef *VS_CC blankAudioGetframe(int n, int activationReason, v
 
     if (activationReason == arInitial) {
         VSFrameRef *frame = NULL;
-        if (!d->f) {
-            frame = vsapi->newAudioFrame(d->ai.format, d->ai.sampleRate, (n == d->ai.numFrames - 1) ? (d->ai.numSamples % d->ai.format->samplesPerFrame) : d->ai.format->samplesPerFrame, NULL, core);
+        if (!d->f) { 
+            int64_t samples = VSMIN(d->ai.format->samplesPerFrame, d->ai.numSamples - n * d->ai.format->samplesPerFrame);
+            frame = vsapi->newAudioFrame(d->ai.format, d->ai.sampleRate, samples, NULL, core);
             for (int channel = 0; channel < d->ai.format->numChannels; channel++)
-                memset(vsapi->getWritePtr(frame, channel), 0, d->ai.format->samplesPerFrame * d->ai.format->bytesPerSample);
+                memset(vsapi->getWritePtr(frame, channel), 0, samples * d->ai.format->bytesPerSample);
         }
 
         if (d->keep) {
@@ -1430,16 +1431,16 @@ typedef struct {
     VSAudioInfo ai;
 } TestAudioData;
 
-static const VSFrameRef *VS_CC testAudioGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    TestAudioData *d = (TestAudioData *)instanceData;
+static const VSFrameRef *VS_CC testAudioGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    TestAudioData *d = (TestAudioData *) *instanceData;
 
     if (activationReason == arInitial) {
-        VSFrameRef *frame = vsapi->newAudioFrame(d->ai.format, d->ai.sampleRate, (n == d->ai.numFrames - 1) ? (d->ai.numSamples % d->ai.format->samplesPerFrame) : d->ai.format->samplesPerFrame, NULL, core);
+        int64_t samples = VSMIN(d->ai.format->samplesPerFrame, d->ai.numSamples - n * d->ai.format->samplesPerFrame);
+        int64_t startSample = n * d->ai.format->samplesPerFrame;
+        VSFrameRef *frame = vsapi->newAudioFrame(d->ai.format, d->ai.sampleRate, samples, NULL, core);
         for (int channel = 0; channel < d->ai.format->numChannels; channel++) {
-            uint16_t *w = (uint16_t *)vsapi->getWritePtr(frame, channel);
-            int64_t startSample = n * d->ai.format->samplesPerFrame;
-            int64_t endSample = startSample + ((n == d->ai.numFrames - 1) ? (d->ai.numSamples % d->ai.format->samplesPerFrame) : d->ai.format->samplesPerFrame);
-            for (int i = 0; i < endSample; i++)
+            uint16_t *w = (uint16_t *)vsapi->getWritePtr(frame, channel);          
+            for (int i = 0; i < samples; i++)
                 w[i] = (startSample + i) % 0xFFFF;
         }
         return frame;

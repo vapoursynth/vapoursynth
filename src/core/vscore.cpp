@@ -977,10 +977,8 @@ PVideoFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext
             else if (p->getSampleRate() != lai.sampleRate)
                 vsFatal("Filter %s declared the sample rate %d, but it returned a frame with the sample rate %d.", name.c_str(), lai.sampleRate, p->getSampleRate());
             else if (n == lai.numFrames - 1 && ((lai.numSamples % lai.format->samplesPerFrame) ? (lai.numSamples % lai.format->samplesPerFrame) : lai.format->samplesPerFrame) != p->getFrameLength())
-                vsFatal("Filter %s returned final audio frame with %d samples but %d expected from declared length.", name.c_str(), p->getWidth(0), ((lai.numSamples % lai.format->samplesPerFrame) ? (lai.numSamples % lai.format->samplesPerFrame) : lai.format->samplesPerFrame));
+                vsFatal("Filter %s returned final audio frame with %d samples but %d expected from declared length.", name.c_str(), p->getFrameLength(), ((lai.numSamples % lai.format->samplesPerFrame) ? (lai.numSamples % lai.format->samplesPerFrame) : lai.format->samplesPerFrame));
         }
-
-
 
 #ifdef VS_FRAME_GUARD
         if (!p->verifyGuardPattern())

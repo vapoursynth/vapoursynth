@@ -166,7 +166,7 @@ typedef struct {
 } AudioTrimData;
 
 static const VSFrameRef *VS_CC audioTrimGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    AudioTrimData *d = (AudioTrimData *) * instanceData;
+    AudioTrimData *d = (AudioTrimData *) *instanceData;
 
     int64_t startSample = (int64_t)n * d->ai.format->samplesPerFrame - d->first;
     int64_t startFrame = (startSample / d->ai.format->samplesPerFrame);
@@ -710,7 +710,7 @@ typedef struct {
 } AudioSplice2Data;
 
 static const VSFrameRef *VS_CC audioSplice2Getframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    AudioSplice2Data *d = (AudioSplice2Data *) * instanceData;
+    AudioSplice2Data *d = (AudioSplice2Data *) *instanceData;
 
     int lastFrameIsPartial = ((d->ai.numSamples % d->ai.format->samplesPerFrame) != 0);
 

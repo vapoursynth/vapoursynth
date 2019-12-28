@@ -177,9 +177,9 @@ static void interleaveSamples(const VSFrameRef *frame, uint8_t *dstBuf) {
 
     for (int sample = 0; sample < numSamplesPerFrame; sample++) {
         for (int channel = 0; channel < numChannels; channel++) {
-            *dstBuf = *srcPtrs[channel];
+            *dstBuffer = *srcPtrs[channel];
             ++srcPtrs[channel];
-            ++dstBuf;
+            ++dstBuffer;
         }
     }
 }
