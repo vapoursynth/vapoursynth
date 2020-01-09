@@ -39,9 +39,9 @@
 
 struct VideoInfoAdapter {
 private:
-    const VSVideoInfo *vsvi;
-    const VSAudioInfo *vsai;
-    const VideoInfo *avsvi;
+    const VSVideoInfo *vsvi = nullptr;
+    const VSAudioInfo *vsai = nullptr;
+    const VideoInfo *avsvi = nullptr;
 public:
     int num_frames;
     uint32_t fps_numerator;
@@ -51,16 +51,16 @@ public:
     int64_t num_audio_samples;
     int pixel_format;
     int output_format;
-    int subsampling_w;
-    int subsampling_h;
+    int subsampling_w = 0;
+    int subsampling_h = 0;
 
     Avisynther_ *avssynther;
     VapourSynther_ *vssynther;
 
-    VideoInfoAdapter(const VSVideoInfo *vi, const VSAudioInfo *ai, VapourSynther_ *vssynther, int outputFormat) : vsvi(vi), avsvi(nullptr), output_format(outputFormat), vssynther(vssynther), avssynther(nullptr), subsampling_w(0), subsampling_h(0) {
-        num_frames = vi->numFrames;
-        fps_numerator = static_cast<uint32_t>(vi->fpsNum);
-        fps_denominator = static_cast<uint32_t>(vi->fpsDen);
+    VideoInfoAdapter(const VSVideoInfo *vi, const VSAudioInfo *ai, VapourSynther_ *vssynther, int outputFormat) : vsvi(vi), vsai(ai), avsvi(nullptr), output_format(outputFormat), vssynther(vssynther), avssynther(nullptr), subsampling_w(0), subsampling_h(0) {
+        num_frames = vi ? vi->numFrames : 0;
+        fps_numerator = static_cast<uint32_t>(vi ? vi->fpsNum : 0);
+        fps_denominator = static_cast<uint32_t>(vi ? vi->fpsDen : 0);
         width = vi->width;
         height = vi->height;
         num_audio_samples = ai ? ai->numSamples : 0;

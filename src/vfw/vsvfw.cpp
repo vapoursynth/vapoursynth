@@ -545,6 +545,8 @@ STDMETHODIMP VapourSynthFile::Info(AVIFILEINFOW *pfi, LONG lSize) {
     afi.dwCaps = AVIFILECAPS_CANREAD | AVIFILECAPS_ALLKEYFRAMES | AVIFILECAPS_NOCOMPRESSION;
 
     afi.dwStreams = 1;
+    if (audioNode)
+        afi.dwStreams++;
     afi.dwSuggestedBufferSize = 0;
     afi.dwWidth = vi->width;
     afi.dwHeight = vi->height;
@@ -555,9 +557,6 @@ STDMETHODIMP VapourSynthFile::Info(AVIFILEINFOW *pfi, LONG lSize) {
     afi.dwLength = vi->numFrames;
 
     wcscpy(afi.szFileType, L"VapourSynth");
-
-    if (audioNode)
-        afi.dwStreams++;
 
     // Maybe should return AVIERR_BUFFERTOOSMALL for lSize < sizeof(afi)
     memset(pfi, 0, lSize);
@@ -587,8 +586,14 @@ STDMETHODIMP VapourSynthFile::GetStream(PAVISTREAM *ppStream, DWORD fccType, LON
     *ppStream = nullptr;
 
     if (!fccType) {
-        if (lParam == 0)
+        if (lParam == 0 && videoNode) {
             fccType = streamtypeVIDEO;
+        } else {
+            if ((lParam == 1 && videoNode) || (lParam == 0 && audioNode)) {
+                lParam = 0;
+                fccType = streamtypeAUDIO;
+            }
+        }
     }
 
     if (lParam > 0)
@@ -606,8 +611,9 @@ STDMETHODIMP VapourSynthFile::GetStream(PAVISTREAM *ppStream, DWORD fccType, LON
         if ((casr = new(std::nothrow)VapourSynthStream(this, true)) == 0)
             return AVIERR_MEMORY;
         *ppStream = (IAVIStream *)casr;
-    } else
+    } else {
         return AVIERR_NODATA;
+    }
 
     return S_OK;
 }
@@ -681,7 +687,7 @@ STDMETHODIMP VapourSynthStream::SetInfo(AVISTREAMINFOW *psi, LONG lSize) {
 ////////////////////////////////////////////////////////////////////////
 //////////// local
 
-VapourSynthStream::VapourSynthStream(VapourSynthFile *parentPtr, bool isAudio) : m_refs(0), sName("video"), fAudio(isAudio) {
+VapourSynthStream::VapourSynthStream(VapourSynthFile *parentPtr, bool isAudio) : m_refs(0), sName(isAudio ? "audio" : "video"), fAudio(isAudio) {
     AddRef();
     parent = parentPtr;
     parent->AddRef();
@@ -905,7 +911,7 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
         if (lSamples == AVISTREAMREAD_CONVENIENT)
             lSamples = (long)((vi ? (ai->sampleRate * vi->fpsDen / vi->fpsNum) : 0));
 
-        if (__int64(lStart)+lSamples > ai->numSamples) {
+        if (static_cast<int64_t>(lStart)+lSamples > ai->numSamples) {
             lSamples = (long)(ai->numSamples - lStart);
             if (lSamples < 0)
                 lSamples = 0;

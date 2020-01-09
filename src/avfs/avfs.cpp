@@ -51,7 +51,7 @@ typedef IScriptEnvironment* (__stdcall *ICreateScriptEnvironment)(int version);
 class Avisynther final:
    public Avisynther_
 {
-  int references;
+  int references = 1;
 
   // Function pointer
   ICreateScriptEnvironment CreateScriptEnvironment;
@@ -268,9 +268,9 @@ void Avisynther::reportFormat(AvfsLog_* log)
     else if (vi.SampleType()==SAMPLE_INT32) s_type = "Integer 32 bit";
     else if (vi.SampleType()==SAMPLE_FLOAT) s_type = "Float 32 bit";
     log->Printf(L"  Sample Type: %hs\n", s_type);
-  }
-  else
+  } else {
     log->Print(L"No audio stream.\n");
+  }
 
 }
 
@@ -787,7 +787,6 @@ AVSValue Avisynther::Invoke(const char* name, const AVSValue &args, const char* 
 
 // Constructor
 Avisynther::Avisynther(void) :
-    references(1),
     CreateScriptEnvironment(nullptr),
     hlib(0),
     env(0),

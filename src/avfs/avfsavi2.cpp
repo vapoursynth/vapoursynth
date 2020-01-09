@@ -1418,7 +1418,7 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
             if (partSize > remainingSize) {
               partSize = remainingSize;
             }
-            success = success && avssynther->GetAudio(log, sampleScratch,
+            success = success && avs->GetAudio(log, sampleScratch,
               offset/sampleSize, 1);
             memcpy(buffer, sampleScratch+extraOffset, partSize);
             buffer += partSize;
@@ -1433,7 +1433,7 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
             if (partSize > remainingSize) {
               partSize = remainingSize-remainingSize%sampleSize;
             }
-            success = success && avssynther->GetAudio(log, buffer, startSample+
+            success = success && avs->GetAudio(log, buffer, startSample+
               offset/sampleSize, int(partSize/sampleSize));
             buffer += partSize;
             remainingSize -= partSize;
@@ -1443,7 +1443,7 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
           // Deal with ragged tail.
           if (offset < audDataSize && remainingSize) {
             ASSERT(remainingSize < sampleSize);
-            success = success && avssynther->GetAudio(log, sampleScratch,
+            success = success && avs->GetAudio(log, sampleScratch,
               startSample+offset/sampleSize, 1);
             memcpy(buffer, sampleScratch, remainingSize);
             buffer += remainingSize;

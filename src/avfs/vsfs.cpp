@@ -46,7 +46,7 @@
 
 class VapourSynther final :
     public VapourSynther_ {
-    int references = 0;
+    int references = 1;
 
     int num_threads = 1;
     const VSAPI *vsapi;
@@ -234,10 +234,30 @@ void VapourSynther::reportFormat(AvfsLog_* log) {
 
         log->Printf(L"  Frames per second: %7.4f (%u/%u)\n", (double)vi->fpsNum / vi->fpsDen,
             vi->fpsNum, vi->fpsDen);
-    } else
+    } else {
         log->Print(L"No video stream.\n");
+    }
 
-    log->Print(L"No audio stream.\n");
+    if (ai) {
+        log->Print(L"Audio stream :-\n");
+
+        int msLen = (int)(1000.0 * ai->numSamples / ai->sampleRate);
+        log->Printf(L"  Audio length: %I64u samples. %02d:%02d:%02d.%03d\n", ai->numSamples,
+            (msLen/(60*60*1000)), (msLen/(60*1000))%60, (msLen/1000)%60, msLen%1000);
+        log->Printf(L"  Samples Per Second: %5d\n", ai->sampleRate);
+        log->Printf(L"  Audio Channels: %-8d\n", ai->format->numChannels);
+
+        const char* s_type = "";
+        if (ai->format->sampleType == stFloat && ai->format->bitsPerSample == 32)
+            s_type = "Float 32 bit";
+        else if (ai->format->sampleType == stInteger && ai->format->bitsPerSample == 16)
+            s_type = "Integer 16 bit";
+        else if (ai->format->sampleType == stInteger && ai->format->bitsPerSample == 32)
+            s_type = "Integer 32 bit";
+        log->Printf(L"  Sample Type: %hs\n", s_type);
+    } else {
+        log->Print(L"No audio stream.\n");
+    }
 }
 
 /*---------------------------------------------------------
@@ -272,6 +292,9 @@ bool VapourSynther::GetAudio(AvfsLog_ *log, void *buf, __int64 start, unsigned c
             offset = (start - firstFrameSample) * af->bytesPerSample;
             copyLength -= (start - firstFrameSample);
         }
+
+        if (copyLength > count)
+            copyLength = count;
 
         for (int c = 0; c < ai->format->numChannels; c++)
             tmp[c] = vsapi->getReadPtr(f, c) + offset;
