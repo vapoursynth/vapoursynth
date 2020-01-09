@@ -146,7 +146,7 @@ public:
 
     STDMETHODIMP Create(LPARAM lParam1, LPARAM lParam2);
     STDMETHODIMP Delete(LONG lStart, LONG lSamples);
-    STDMETHODIMP_(LONG) Info(AVISTREAMINFOW *psi, LONG lSize);
+    STDMETHODIMP Info(AVISTREAMINFOW *psi, LONG lSize);
     STDMETHODIMP_(LONG) FindSample(LONG lPos, LONG lFlags);
     STDMETHODIMP Read(LONG lStart, LONG lSamples, LPVOID lpBuffer, LONG cbBuffer, LONG *plBytes, LONG *plSamples);
     STDMETHODIMP ReadData(DWORD fcc, LPVOID lp, LONG *lpcb);
@@ -564,21 +564,8 @@ STDMETHODIMP VapourSynthFile::Info(AVIFILEINFOW *pfi, LONG lSize) {
     return S_OK;
 }
 
-static inline char BePrintable(int ch) {
-    ch &= 0xff;
-    return isprint(ch) ? ch : '.';
-}
-
-
 STDMETHODIMP VapourSynthFile::GetStream(PAVISTREAM *ppStream, DWORD fccType, LONG lParam) {
     VapourSynthStream *casr;
-    char fcc[5];
-
-    fcc[0] = BePrintable(fccType);
-    fcc[1] = BePrintable(fccType >> 8);
-    fcc[2] = BePrintable(fccType >> 16);
-    fcc[3] = BePrintable(fccType >> 24);
-    fcc[4] = 0;
 
     if (!DelayInit())
         return E_FAIL;
@@ -701,23 +688,22 @@ VapourSynthStream::~VapourSynthStream() {
 ////////////////////////////////////////////////////////////////////////
 //////////// IAVIStream
 
-STDMETHODIMP_(LONG) VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) {
+STDMETHODIMP VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) {
     if (!psi)
         return E_POINTER;
 
     AVISTREAMINFOW asi = {};
-    asi.fccType = streamtypeVIDEO;
     asi.dwQuality = DWORD(-1);
 
     if (fAudio) {
         const VSAudioInfo* const ai = parent->ai;
-        asi.fccHandler = 0;
+        asi.fccType = streamtypeAUDIO;
         int bytes_per_sample = ai->format->bytesPerSample;
         asi.dwScale = bytes_per_sample;
         asi.dwRate = ai->sampleRate * bytes_per_sample;
         asi.dwLength = (unsigned long)ai->numSamples;
         asi.dwSampleSize = bytes_per_sample;
-        wcscpy(asi.szName, L"VapourSynth audio #1");
+        wcscpy(asi.szName, L"VapourSynth Audio #1");
     } else {
         const VSVideoInfo* const vi = parent->vi;
         int image_size = BMPSize(vi, (vi->format->id == pfYUV422P10 && parent->enable_v210));
@@ -725,6 +711,7 @@ STDMETHODIMP_(LONG) VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) {
         if (!GetFourCC(vi->format->id, (vi->format->id == pfYUV422P10 && parent->enable_v210), asi.fccHandler))
             return E_FAIL;
 
+        asi.fccType = streamtypeVIDEO;
         asi.dwScale = int64ToIntS(vi->fpsDen ? vi->fpsDen : 1);
         asi.dwRate = int64ToIntS(vi->fpsNum ? vi->fpsNum : 30);
         asi.dwLength = vi->numFrames;
