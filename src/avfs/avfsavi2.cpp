@@ -399,26 +399,26 @@ static const unsigned avfsAvi2Max4GbDataLstSize = avi2Max4GbSegSize-
   offsetof(AvfsAvi2Seg0, dataLst.data)-offsetof(AvfsAvi2OldIndx, ents);
 
 struct AvfsAvi2File final: AvfsMediaFile_ {
-  int references;
-  Synther_* avs;
-  Avisynther_* avssynther;
-  VapourSynther_* vssynther;
+  int references = 1;
+  Synther_* avs = nullptr;
+  Avisynther_* avssynther = nullptr;
+  VapourSynther_* vssynther = nullptr;
 
   VideoInfoAdapter vi;
 
-  uint32_t frameVidFcc;
-  unsigned frameAudHdrSize;
-  unsigned frameVidDataSize;
-  unsigned frameVidAlignSize;
-  unsigned vidFrameCount;
-  unsigned audFrameCount;
-  unsigned fileFrameCount;
-  unsigned durFrameCount;
-  unsigned sampleSize;
-  unsigned firstAudFramePackCount;
-  uint64_t fileSampleCount;
-  unsigned fileSegCount;
-  uint64_t fileSize;
+  uint32_t frameVidFcc = 0;
+  unsigned frameAudHdrSize = 0;
+  unsigned frameVidDataSize = 0;
+  unsigned frameVidAlignSize = 0;
+  unsigned vidFrameCount = 0;
+  unsigned audFrameCount = 0;
+  unsigned fileFrameCount = 0;
+  unsigned durFrameCount = 0;
+  unsigned sampleSize = 0;
+  unsigned firstAudFramePackCount = 0;
+  uint64_t fileSampleCount = 0;
+  unsigned fileSegCount = 0;
+  uint64_t fileSize = 0;
 
   enum { indxPrePadSize  = 0x20000 };
   enum { indxPostPadSize = 0x20000 };
@@ -446,8 +446,8 @@ struct AvfsAvi2File final: AvfsMediaFile_ {
       uint8_t buf[1];
     } hdr;
   };
-  Seg** segs;
-  uint8_t* sampleScratch;
+  Seg** segs = nullptr;
+  uint8_t* sampleScratch = nullptr;
 
   AvfsAvi2File(Avisynther_* avs);
   AvfsAvi2File(VapourSynther_* vs);
@@ -488,52 +488,18 @@ AvfsAvi2File::AvfsAvi2File(Avisynther_* inAvs)
  :
   vi(inAvs->GetVideoInfo())
 {
-  references = 1;
   avs = inAvs;
   avssynther = inAvs;
-  vssynther = nullptr;
   avs->AddRef();
-  frameVidFcc = 0;
-  frameAudHdrSize = 0;
-  frameVidDataSize = 0;
-  frameVidAlignSize = 0;
-  vidFrameCount = 0;
-  audFrameCount = 0;
-  fileFrameCount = 0;
-  durFrameCount = 0;
-  sampleSize = 0;
-  firstAudFramePackCount = 0;
-  fileSampleCount = 0;
-  fileSegCount = 0;
-  fileSize = 0;
-  segs = 0;
-  sampleScratch = 0;
 }
 
 AvfsAvi2File::AvfsAvi2File(VapourSynther_* inVs)
   :
    vi(inVs->GetVideoInfo())
 {
-    references = 1;
     avs = inVs;
-    avssynther = nullptr;
     vssynther = inVs;
     avs->AddRef();
-    frameVidFcc = 0;
-    frameAudHdrSize = 0;
-    frameVidDataSize = 0;
-    frameVidAlignSize = 0;
-    vidFrameCount = 0;
-    audFrameCount = 0;
-    fileFrameCount = 0;
-    durFrameCount = 0;
-    sampleSize = 0;
-    firstAudFramePackCount = 0;
-    fileSampleCount = 0;
-    fileSegCount = 0;
-    fileSize = 0;
-    segs = 0;
-    sampleScratch = 0;
 }
 
 AvfsAvi2File::~AvfsAvi2File(void)
@@ -670,19 +636,8 @@ bool/*success*/ AvfsAvi2File::Init(
   durFrameCount  = vidFrameCount;
   fileFrameCount = vidFrameCount;
 
-  if (vi.HasAudio()) {
-    switch(vi.sample_type) {
-    case SAMPLE_INT8:
-    case SAMPLE_INT16:
-    case SAMPLE_INT24:
-    case SAMPLE_INT32:
-      sampleType = WAVE_FORMAT_PCM;
-      break;
-    case SAMPLE_FLOAT:
-      sampleType = WAVE_FORMAT_IEEE_FLOAT;
-      break;
-    }
-  }
+  if (vi.HasAudio())
+      sampleType = vi.AudioIsFloat() ? WAVE_FORMAT_IEEE_FLOAT : WAVE_FORMAT_PCM;
 
   sampleSize = unsigned(vi.BytesPerAudioSample());
   fileSampleCount = unsigned(vi.num_audio_samples);

@@ -70,7 +70,7 @@ struct Avisynther_ : public Synther_
 
 void AvfsWavMediaInit(
     AvfsLog_* log,
-    Avisynther_* avisynther,
+    Synther_* avisynther,
     AvfsVolume_* volume);
 
 void AvfsAviMediaInit(

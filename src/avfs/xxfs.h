@@ -42,6 +42,7 @@ struct Synther_ {
     virtual void AddRef(void) = 0;
     virtual void Release(void) = 0;
 
+    virtual bool GetAudio(AvfsLog_* log, void* buf, __int64 start, unsigned count) = 0;
     virtual VideoInfoAdapter GetVideoInfo() = 0;
 
     virtual const char* GetVarAsString(const char* varName, const char* defVal) = 0;

@@ -61,11 +61,6 @@ struct VapourSynther_ : public Synther_ {
     virtual const VSAPI *GetVSApi() = 0;
 };
 
-void VsfsWavMediaInit(
-    AvfsLog_* log,
-    VapourSynther_* avisynther,
-    AvfsVolume_* volume);
-
 void VsfsAviMediaInit(
     AvfsLog_* log,
     VapourSynther_* avs,

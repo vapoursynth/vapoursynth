@@ -101,8 +101,8 @@ static const uuid_t wave64HdrDataUuidVal = { 0x61746164u,0xACF3u,0x11D3u,{0x8Cu,
 struct AvfsWavFile final:
    AvfsMediaFile_
 {
-  int references;
-  Avisynther_* avs;
+  int references = 1;
+  Synther_* avs = nullptr;
   uint64_t startSample;
   uint64_t sampleCount;
   union {
@@ -114,7 +114,7 @@ struct AvfsWavFile final:
   uint64_t dataSize;
 
   AvfsWavFile(
-    Avisynther_* avs,
+    Synther_* avs,
     uint16_t sampleType,
     uint16_t sampleBlockSize,
     uint64_t sampleCount,
@@ -132,7 +132,7 @@ struct AvfsWavFile final:
 };
 
 AvfsWavFile::AvfsWavFile(
-  Avisynther_* inAvs,
+  Synther_ *inAvs,
   uint16_t sampleType,
   uint16_t inSampleBlockSize,
   uint64_t totalSampleCount,
@@ -163,11 +163,11 @@ AvfsWavFile::AvfsWavFile(
   if(sizeof(hdr.wave)+dataSize > maxWaveFileSize) {
     wave64 = true;
   }
-  memset(&hdr,0,sizeof(hdr));
 
   // Initialize file header.
   if (wave64) {
     // Use wave64 header for files larger than 2GB.
+    hdr.wave64 = {};
     hdrSize = sizeof(hdr.wave64);
     hdr.wave64.riffUuid = wave64HdrRiffUuidVal;
     hdr.wave64.riffSize = hdrSize+dataSize;
@@ -182,9 +182,9 @@ AvfsWavFile::AvfsWavFile(
     hdr.wave64.wBitsPerSample = sampleBitCount;
     hdr.wave64.dataUuid = wave64HdrDataUuidVal;
     hdr.wave64.dataSize = dataSize;
-  }
-  else {
+  } else {
     // Use normal wave header for files less than 2GB.
+    hdr.wave = {};
     hdrSize = sizeof(hdr.wave);
     hdr.wave.riffTag = waveHdrRiffTagVal;
     hdr.wave.riffSize = unsigned(hdrSize-offsetofend(waveHdr,riffSize)+dataSize);
@@ -294,7 +294,7 @@ bool/*success*/ AvfsWavFile::ReadMedia(
 
 void AvfsWavMediaInit(
   AvfsLog_* log,
-  Avisynther_* avs,
+  Synther_* avs,
   AvfsVolume_* volume)
 {
   ASSERT(log && avs && volume);
@@ -308,18 +308,7 @@ void AvfsWavMediaInit(
   static const size_t maxFileNameChars = 300;
   wchar_t fileName[maxFileNameChars];
 
-  switch(avs->GetVideoInfo().SampleType())
-  {
-  case SAMPLE_INT8:
-  case SAMPLE_INT16:
-  case SAMPLE_INT24:
-  case SAMPLE_INT32:
-    sampleType = WAVE_FORMAT_PCM;
-    break;
-  case SAMPLE_FLOAT:
-    sampleType = WAVE_FORMAT_IEEE_FLOAT;
-    break;
-  }
+  sampleType = avs->GetVideoInfo().AudioIsFloat() ? WAVE_FORMAT_IEEE_FLOAT : WAVE_FORMAT_PCM;
 
   if (!avs->GetVideoInfo().HasAudio()) {
     log->Printf(L"AvfsWavMediaInit: Clip has no audio.\r\n");
@@ -327,7 +316,7 @@ void AvfsWavMediaInit(
   else if (sampleBlockSize > waveMaxSampleBlockSize || sampleType == 0) {
     log->Printf(
       L"AvfsWavMediaInit: Unsupported BytesPerAudioSample(%u)"
-      L"or SampleType(%i).\n",sampleBlockSize,avs->GetVideoInfo().SampleType());
+      L"or SampleType(%i).\n",sampleBlockSize,avs->GetVideoInfo().BytesPerChannelSample());
   }
   else
   {
@@ -370,13 +359,4 @@ void AvfsWavMediaInit(
       fileNumber ++;
     }
   }
-}
-
-void VsfsWavMediaInit(
-    AvfsLog_* log,
-    VapourSynther_* avs,
-    AvfsVolume_* volume) {
-    ASSERT(log && avs && volume);
-
-    log->Printf(L"AvfsWavMediaInit: Clip has no audio.\r\n");
 }

@@ -332,9 +332,8 @@ int/*err*/ FileCreatePipe(HANDLE* read,HANDLE* write)
 int/*err*/ FileGetTime2(const wchar_t* fileName,int64_t* outWriteTime)
 {
     int err = 0;
-    WIN32_FILE_ATTRIBUTE_DATA info;
+    WIN32_FILE_ATTRIBUTE_DATA info = {};
 
-    memset(&info,0,sizeof(info));
     if(!GetFileAttributesExW(fileName,GetFileExInfoStandard,&info))
     {
         err = GetLastError();

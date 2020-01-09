@@ -40,6 +40,7 @@
 struct VideoInfoAdapter {
 private:
     const VSVideoInfo *vsvi;
+    const VSAudioInfo *vsai;
     const VideoInfo *avsvi;
 public:
     int num_frames;
@@ -48,7 +49,6 @@ public:
     int width;
     int height;
     int64_t num_audio_samples;
-    int sample_type;
     int pixel_format;
     int output_format;
     int subsampling_w;
@@ -57,14 +57,13 @@ public:
     Avisynther_ *avssynther;
     VapourSynther_ *vssynther;
 
-    VideoInfoAdapter(const VSVideoInfo *vi, VapourSynther_ *vssynther, int outputFormat) : vsvi(vi), avsvi(nullptr), output_format(outputFormat), vssynther(vssynther), avssynther(nullptr), subsampling_w(0), subsampling_h(0) {
+    VideoInfoAdapter(const VSVideoInfo *vi, const VSAudioInfo *ai, VapourSynther_ *vssynther, int outputFormat) : vsvi(vi), avsvi(nullptr), output_format(outputFormat), vssynther(vssynther), avssynther(nullptr), subsampling_w(0), subsampling_h(0) {
         num_frames = vi->numFrames;
         fps_numerator = static_cast<uint32_t>(vi->fpsNum);
         fps_denominator = static_cast<uint32_t>(vi->fpsDen);
         width = vi->width;
         height = vi->height;
-        num_audio_samples = 0;
-        sample_type = 0;
+        num_audio_samples = ai ? ai->numSamples : 0;
         pixel_format = vi->format->id;
 
         if (vi->format->numPlanes > 1) {
@@ -80,7 +79,6 @@ public:
         width = vi->width;
         height = vi->height;
         num_audio_samples = vi->num_audio_samples;
-        sample_type = vi->SampleType();
         if (vi->IsColorSpace(VideoInfo::CS_BGR32))
             pixel_format = pfCompatBGR32;
         else if (vi->IsColorSpace(VideoInfo::CS_YUY2))
@@ -121,35 +119,49 @@ public:
     };
 
     bool HasAudio() const {
-        return vsvi ? false : avsvi->HasAudio();
+        return vsai || (avsvi && avsvi->HasAudio());
     }
 
     bool HasVideo() const {
-        return vsvi ? true : avsvi->HasVideo();
+        return vsvi || (avsvi && avsvi->HasVideo());
     }
 
     int AudioChannels() const {
-        return vsvi ? 0 : avsvi->AudioChannels();
+        if (vsai)
+            return vsai->format->numChannels;
+        else
+            return avsvi ? avsvi->AudioChannels() : 0;
     }
 
     int SamplesPerSecond() const {
-        return vsvi ? 0 : avsvi->SamplesPerSecond();
+        if (vsai)
+            return vsai->sampleRate;
+        else
+            return avsvi ? avsvi->SamplesPerSecond() : 0;
     }
 
     int BytesPerChannelSample() const {
-        return vsvi ? 0 : avsvi->BytesPerChannelSample();
+        if (vsai)
+            return vsai->format->bytesPerSample;
+        else
+            return avsvi ? avsvi->BytesPerChannelSample() : 0;
     }
 
     int64_t AudioSamplesFromFrames(int frames) const {
+        // FIXME, Missing
         return vsvi ? 0 : avsvi->AudioSamplesFromFrames(frames);
     }
 
     int FramesFromAudioSamples(int64_t samples) const {
+        // FIXME, Missing
         return vsvi ? 0 : avsvi->FramesFromAudioSamples(samples);
     }
 
     int BytesPerAudioSample() const {
-        return vsvi ? 0 : avsvi->BytesPerAudioSample();
+        if (vsai)
+            return vsai->format->bytesPerSample * vsai->format->numChannels;
+        else
+            return avsvi ? avsvi->BytesPerAudioSample() : 0;
     }
 
     int BMPSize() const {
@@ -160,8 +172,12 @@ public:
         return vsvi ? vssynther->BitsPerPixel() : avssynther->BitsPerPixel();
     }
 
-    int SampleType() const {
-        return sample_type;
+    bool AudioIsFloat() const {
+        if (avsvi && avsvi->sample_type == SAMPLE_FLOAT)
+            return true;
+        if (vsai && vsai->format->sampleType == stFloat)
+            return true;
+        return false;
     }
 };
 

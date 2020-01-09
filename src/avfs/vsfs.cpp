@@ -46,35 +46,39 @@
 
 class VapourSynther final :
     public VapourSynther_ {
-    int references;
+    int references = 0;
 
-    int num_threads;
+    int num_threads = 1;
     const VSAPI *vsapi;
-    VSScript *se;
-    bool enable_v210;
-    VSNodeRef *node;
+    VSScript *se = nullptr;
+    bool enable_v210 = false;
+    VSNodeRef *videoNode = nullptr;
+    VSNodeRef *audioNode = nullptr;
 
     std::wstring errText;
 
-    const VSVideoInfo *vi;
+    const VSVideoInfo *vi = nullptr;
+    const VSAudioInfo *ai = nullptr;
 
     std::string lastStringValue;
 
     std::vector<uint8_t> packedFrame;
 
     // Frame read ahead.
-    int prefetchFrames;
-    std::atomic<int> pendingRequests;
+    int prefetchFrames = 0;
+    std::atomic<int> pendingRequests = 0;
 
     // Cache last accessed frame, to reduce interference with read-ahead.
-    int lastPosition;
-    const VSFrameRef *lastFrame;
+    int lastPosition = -1;
+    const VSFrameRef *lastFrame = nullptr;
 
     // Exception protected take a copy of the current error message
     void setError(const char *text, const wchar_t *alt = 0);
 
     // Retrieve the current error message
     const wchar_t* getError();
+
+    void free();
 
     // Exception protected refresh the environment
     int/*error*/ newEnv();
@@ -92,6 +96,8 @@ public:
     int BMPSize();
     uint8_t *GetPackedFrame();
     const VSAPI *GetVSApi();
+
+    bool GetAudio(AvfsLog_ *log, void *buf, __int64 start, unsigned count);
 
     // Exception protected GetFrame()
     const VSFrameRef *GetFrame(AvfsLog_* log, int n, bool *success = 0);
@@ -151,10 +157,13 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
 
         if (!vsscript_evaluateScript(&se, script.c_str(), scriptName.c_str(), efSetWorkingDir)) {
 
-            node = vsscript_getOutput(se, 0);
-            if (!node)
-                goto vpyerror;
-            vi = vsapi->getVideoInfo(node);
+            videoNode = vsscript_getOutput(se, 0);
+            if (!videoNode || vsapi->getNodeType(videoNode) != mtVideo) {
+                setError("Output index 0 is not set or not a video node");
+                return ERROR_ACCESS_DENIED;
+            }
+
+            vi = vsapi->getVideoInfo(videoNode);
 
             if (vi->width == 0 || vi->height == 0 || vi->format == nullptr || vi->numFrames == 0) {
                 setError("Cannot open clips with varying dimensions or format in AVFS");
@@ -168,6 +177,15 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
                 setError(error_msg.c_str());
                 return ERROR_ACCESS_DENIED;
             }
+
+            audioNode = vsscript_getOutput(se, 1);
+            if (audioNode && vsapi->getNodeType(audioNode) != mtAudio) {
+                setError("Output index index 1 is not an audio node");
+                return ERROR_ACCESS_DENIED;
+            }
+
+            if (audioNode)
+                ai = vsapi->getAudioInfo(audioNode);
 
             // set the special options hidden in global variables
             int error;
@@ -245,6 +263,52 @@ void VapourSynther::reportFormat(AvfsLog_* log) {
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
 
+template<typename T>
+static void PackChannels(const uint8_t * const * const Src, uint8_t *Dst, size_t Length, size_t Channels) {
+    const T * const * const S = reinterpret_cast<const T * const * const>(Src);
+    T *D = reinterpret_cast<T *>(Dst);
+    for (size_t i = 0; i < Length; i++) {
+        for (size_t c = 0; c < Channels; c++)
+            D[c] = S[c][i];
+        D += Channels;
+    }
+}
+
+bool VapourSynther::GetAudio(AvfsLog_ *log, void *buf, __int64 start, unsigned count) {
+    const VSAudioFormat *af = ai->format;
+
+    int startFrame = start / af->samplesPerFrame;
+    int endFrame = (start + count) / af->samplesPerFrame;
+    
+    std::vector<const uint8_t *> tmp;
+    tmp.resize(ai->format->numChannels);
+
+    for (int i = startFrame; i <= endFrame; i++) {
+        const VSFrameRef *f = vsapi->getFrame(i, audioNode, nullptr, 0);
+        int64_t firstFrameSample = i * af->samplesPerFrame;
+        size_t offset = 0;
+        size_t copyLength = af->samplesPerFrame;
+        if (firstFrameSample < start) {
+            offset = (start - firstFrameSample) * af->bytesPerSample;
+            copyLength -= (start - firstFrameSample);
+        }
+
+        for (int c = 0; c < ai->format->numChannels; c++)
+            tmp[c] = vsapi->getReadPtr(f, c) + offset;
+
+        if (af->bytesPerSample == 2) {
+            PackChannels<uint16_t>(tmp.data(), reinterpret_cast<uint8_t *>(buf), copyLength, af->numChannels);
+        } else if (af->bytesPerSample == 4) {
+            PackChannels<uint32_t>(tmp.data(), reinterpret_cast<uint8_t *>(buf), copyLength, af->numChannels);
+        }
+
+        vsapi->freeFrame(f);
+    }
+
+    // FIXME, maybe do error handling
+    return true;
+}
+
 // Exception protected PVideoFrame->GetFrame()
 const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
 
@@ -262,9 +326,9 @@ const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) 
         vsapi->freeFrame(lastFrame);
         lastFrame = nullptr;
 
-        if (node) {
+        if (videoNode) {
             char errMsg[512];
-            f = vsapi->getFrame(n, node, errMsg, sizeof(errMsg));
+            f = vsapi->getFrame(n, videoNode, errMsg, sizeof(errMsg));
             success = !!f;
             if (success) {
                 if (NeedsPacking(vi->format->id)) {
@@ -359,7 +423,7 @@ const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) 
     if (success && doPrefetch) {
         for (int i = n + 1; i < std::min(n + prefetchFrames, vi->numFrames); i++) {
             ++pendingRequests;
-            vsapi->getFrameAsync(i, node, VapourSynther::frameDoneCallback, static_cast<void *>(this));
+            vsapi->getFrameAsync(i, videoNode, VapourSynther::frameDoneCallback, static_cast<void *>(this));
         }
     }
 
@@ -371,9 +435,7 @@ const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) 
 
 // Readonly reference to VideoInfo
 VideoInfoAdapter VapourSynther::GetVideoInfo() {
-
-    return { vi, this, enable_v210 };
-
+    return { vi, ai, this, enable_v210 };
 }
 
 /*---------------------------------------------------------
@@ -444,15 +506,31 @@ const wchar_t* VapourSynther::getError() {
 
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
-// Exception protected refresh the IScriptEnvironment
-int/*error*/ VapourSynther::newEnv() {
+
+void VapourSynther::free() {
+    if (ai) {
+        vsapi->freeNode(audioNode);
+        audioNode = nullptr;
+    }
     if (vi) {
-        vsapi->freeNode(node);
-        node = nullptr;
+        vsapi->freeFrame(lastFrame);
+        lastFrame = nullptr;
+        vsapi->freeNode(videoNode);
+        videoNode = nullptr;
+    }
+    if (vi || ai) {
         vsscript_freeScript(se);
+        ai = nullptr;
+        vi = nullptr;
         se = nullptr;
     }
+}
 
+/*---------------------------------------------------------
+---------------------------------------------------------*/
+// Exception protected refresh the IScriptEnvironment
+int/*error*/ VapourSynther::newEnv() {
+    free();
     return 0;
 }
 
@@ -460,15 +538,7 @@ int/*error*/ VapourSynther::newEnv() {
 ---------------------------------------------------------*/
 
 // Constructor
-VapourSynther::VapourSynther(void) :
-    references(1),
-    se(nullptr),
-    node(nullptr),
-    prefetchFrames(0),
-    pendingRequests(0),
-    lastPosition(-1),
-    lastFrame(nullptr),
-    vi(nullptr) {
+VapourSynther::VapourSynther(void) {
     vsapi = vsscript_getVSApi();
 }
 
@@ -478,17 +548,7 @@ VapourSynther::VapourSynther(void) :
 // Destructor
 VapourSynther::~VapourSynther(void) {
     ASSERT(!references);
-
-    vsapi->freeFrame(lastFrame);
-    lastFrame = nullptr;
-
-    vsapi->freeNode(node);
-    node = nullptr;
-
-    if (se) {
-        vsscript_freeScript(se);
-        se = nullptr;
-    }
+    free();
 }
 
 /*---------------------------------------------------------
@@ -576,7 +636,7 @@ void VsfsProcessScript(
         avs = 0;
     }
     if (avs) {
-        VsfsWavMediaInit(log, avs, volume);
+        AvfsWavMediaInit(log, avs, volume);
         VsfsAviMediaInit(log, avs, volume);
         avs->Release();
     }

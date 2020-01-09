@@ -1107,7 +1107,7 @@ void CCALL Volume::List(PfmMarshallerListOp* op,void* unused)
         }
         while(file && added)
         {
-            memset(&attribs,0,sizeof(attribs));
+            attribs = {};
             attribs.fileType = pfmFileTypeFile;
             if(file->fileType == fileTypeFolder)
             {
