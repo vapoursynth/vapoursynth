@@ -148,13 +148,21 @@ public:
     }
 
     int64_t AudioSamplesFromFrames(int frames) const {
-        // FIXME, Missing
-        return vsvi ? 0 : avsvi->AudioSamplesFromFrames(frames);
+        if (vsvi && vsai && vsvi->fpsNum > 0)
+            return static_cast<int64_t>(frames) *vsai->sampleRate *vsvi->fpsDen / vsvi->fpsNum;
+        else if (avsvi)
+            return avsvi->AudioSamplesFromFrames(frames);
+        else
+            return 0;
     }
 
     int FramesFromAudioSamples(int64_t samples) const {
-        // FIXME, Missing
-        return vsvi ? 0 : avsvi->FramesFromAudioSamples(samples);
+        if (vsvi && vsai && vsvi->fpsDen > 0)
+            return static_cast<int>((samples * vsvi->fpsNum) / static_cast<int64_t>(fps_denominator * vsai->sampleRate));
+        else if (avsvi)
+            return avsvi->FramesFromAudioSamples(samples);
+        else
+            return 0;
     }
 
     int BytesPerAudioSample() const {

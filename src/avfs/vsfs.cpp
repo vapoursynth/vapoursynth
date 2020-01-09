@@ -234,26 +234,6 @@ void VapourSynther::reportFormat(AvfsLog_* log) {
 
         log->Printf(L"  Frames per second: %7.4f (%u/%u)\n", (double)vi->fpsNum / vi->fpsDen,
             vi->fpsNum, vi->fpsDen);
-
-        // fixme, inspect first frame to derive this?
-        /*
-        log->Printf(L"  FieldBased (Separated) Video: %hs\n", vi.IsFieldBased() ? "Yes" : "No");
-
-        try {
-            log->Printf(L"  Parity: %hs field first.\n", (clip->GetParity(0) ? "Top" : "Bottom"));
-        } catch (...) {}
-
-        const char* s_parity;
-        if (vi.IsTFF() && vi.IsBFF())
-            s_parity = "Invalid";
-        else if (vi.IsTFF())
-            s_parity = "Assumed Top Field First";
-        else if (vi.IsBFF())
-            s_parity = "Assumed Bottom Field First";
-        else
-            s_parity = "Unspecified";
-        log->Printf(L"  Field order: %hs\n", s_parity);
-        */
     } else
         log->Print(L"No video stream.\n");
 

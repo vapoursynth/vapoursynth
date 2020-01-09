@@ -57,14 +57,16 @@ struct IAvisynthClipInfo : IUnknown {
 class VapourSynthFile final : public IAVIFile, public IPersistFile, public IClassFactory, public IAvisynthClipInfo {
     friend class VapourSynthStream;
 private:
-    int num_threads;
-    const VSAPI *vsapi;
-    VSScript *se;
-    bool enable_v210;
-    VSNodeRef *node;
+    int num_threads = 1;
+    const VSAPI *vsapi = nullptr;
+    VSScript *se = nullptr;
+    bool enable_v210 = false;
+    VSNodeRef *videoNode = nullptr;
+    VSNodeRef *audioNode = nullptr;
     std::atomic<long> m_refs;
     std::string szScriptName;
-    const VSVideoInfo* vi;
+    const VSVideoInfo *vi = nullptr;
+    const VSAudioInfo* ai = nullptr;
     std::string error_msg;
     std::atomic<long> pending_requests;
 
@@ -166,6 +168,7 @@ private:
 
     VapourSynthFile *parent;
     std::string sName;
+    bool audio = false;
 
     //////////// internal
 
@@ -382,7 +385,7 @@ STDMETHODIMP VapourSynthFile::DeleteStream(DWORD fccType, LONG lParam) {
 ///////////////////////////////////////////////////
 /////// local
 
-VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : num_threads(1), vsapi(nullptr), se(nullptr), enable_v210(false), node(nullptr), m_refs(0), vi(nullptr), pending_requests(0) {
+VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : m_refs(0), pending_requests(0) {
     vsapi = vsscript_getVSApi();
     AddRef();
 }
@@ -392,7 +395,9 @@ VapourSynthFile::~VapourSynthFile() {
     if (vi) {
         while (pending_requests > 0) { std::this_thread::sleep_for(std::chrono::milliseconds(1)); };
         vi = nullptr;
-        vsapi->freeNode(node);
+        ai = nullptr;
+        vsapi->freeNode(videoNode);
+        vsapi->freeNode(audioNode);
         vsscript_freeScript(se);
     }
     Unlock();
@@ -431,13 +436,22 @@ final.set_output()\n";
 bool VapourSynthFile::DelayInit2() {
     if (!szScriptName.empty() && !vi) {
         if (!vsscript_evaluateFile(&se, szScriptName.c_str(), efSetWorkingDir)) {
-            node = vsscript_getOutput(se, 0);
-            if (!node) {
+            error_msg.clear();
+
+            ////////// video
+
+            videoNode = vsscript_getOutput(se, 0);
+            if (!videoNode) {
                 error_msg = "Couldn't get output clip, no output set?";
                 goto vpyerror;
             }
-            vi = vsapi->getVideoInfo(node);
-            error_msg.clear();
+
+            if (vsapi->getNodeType(videoNode) != mtVideo) {
+                error_msg = "Output index 0 is not video";
+                goto vpyerror;
+            }
+
+            vi = vsapi->getVideoInfo(videoNode);
 
             if (vi->width == 0 || vi->height == 0 || vi->format == nullptr || vi->numFrames == 0) {
                 error_msg = "Cannot open clips with varying dimensions or format in vfw";
@@ -457,9 +471,20 @@ bool VapourSynthFile::DelayInit2() {
             VSMap *options = vsapi->createMap();
             vsscript_getVariable(se, "enable_v210", options);
             enable_v210 = !!vsapi->propGetInt(options, "enable_v210", 0, &error);
-            if (error)
-                enable_v210 = false;
             vsapi->freeMap(options);
+
+            ////////// audio
+
+            audioNode = vsscript_getOutput(se, 1);
+
+            if (audioNode) {
+                if (vsapi->getNodeType(audioNode) != mtAudio) {
+                    error_msg = "Output index 1 is not audio";
+                    goto vpyerror;
+                }
+
+                ai = vsapi->getAudioInfo(audioNode);
+            }
 
             VSCoreInfo info;
             vsapi->getCoreInfo2(vsscript_getCore(se), &info);
@@ -468,16 +493,19 @@ bool VapourSynthFile::DelayInit2() {
             return true;
         } else {
             error_msg = vsscript_getError(se);
-            vpyerror:
+        vpyerror:
+            vsapi->freeNode(videoNode);
+            vsapi->freeNode(audioNode);
             vi = nullptr;
+            ai = nullptr;
             vsscript_freeScript(se);
             se = nullptr;
             std::string error_script = ErrorScript1;
             error_script += error_msg;
             error_script += ErrorScript2;
             vsscript_evaluateScript(&se, error_script.c_str(), "vfw_error.message", 0);
-            node = vsscript_getOutput(se, 0);
-            vi = vsapi->getVideoInfo(node);
+            videoNode = vsscript_getOutput(se, 0);
+            vi = vsapi->getVideoInfo(videoNode);
             return true;
         }
     } else {
@@ -520,6 +548,9 @@ STDMETHODIMP VapourSynthFile::Info(AVIFILEINFOW *pfi, LONG lSize) {
     afi.dwLength = vi->numFrames;
 
     wcscpy(afi.szFileType, L"VapourSynth");
+
+    if (audioNode)
+        afi.dwStreams++;
 
     // Maybe should return AVIERR_BUFFERTOOSMALL for lSize < sizeof(afi)
     memset(pfi, 0, lSize);
@@ -643,7 +674,7 @@ STDMETHODIMP VapourSynthStream::SetInfo(AVISTREAMINFOW *psi, LONG lSize) {
 ////////////////////////////////////////////////////////////////////////
 //////////// local
 
-VapourSynthStream::VapourSynthStream(VapourSynthFile *parentPtr, bool isAudio) : m_refs(0), sName("video") {
+VapourSynthStream::VapourSynthStream(VapourSynthFile *parentPtr, bool isAudio) : m_refs(0), sName("video"), audio(isAudio) {
     AddRef();
     parent = parentPtr;
     parent->AddRef();
@@ -711,7 +742,7 @@ void VS_CC VapourSynthFile::frameDoneCallback(void *userData, const VSFrameRef *
 bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
     const VSAPI *vsapi = parent->vsapi;
     std::vector<char> errMsg(32 * 1024);
-    const VSFrameRef *f = vsapi->getFrame(n, parent->node, errMsg.data(), static_cast<int>(errMsg.size()));
+    const VSFrameRef *f = vsapi->getFrame(n, parent->videoNode, errMsg.data(), static_cast<int>(errMsg.size()));
     VSScript *errSe = nullptr;
     if (!f) {
         std::string matrix;
@@ -823,7 +854,7 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
     if (!errSe) {
         for (int i = n + 1; i < std::min<int>(n + parent->num_threads, parent->vi->numFrames); i++) {
             ++parent->pending_requests;
-            vsapi->getFrameAsync(i, parent->node, VapourSynthFile::frameDoneCallback, static_cast<void *>(parent));
+            vsapi->getFrameAsync(i, parent->videoNode, VapourSynthFile::frameDoneCallback, static_cast<void *>(parent));
         }
     }
 
