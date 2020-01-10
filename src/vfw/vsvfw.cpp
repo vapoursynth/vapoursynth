@@ -893,18 +893,15 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
     if (fAudio) {
         const VSAudioInfo *ai = parent->ai;
         if (lSamples == AVISTREAMREAD_CONVENIENT)
-            lSamples = (long)((vi ? (ai->sampleRate * vi->fpsDen / vi->fpsNum) : 0));
+            lSamples = ai->sampleRate;
 
-        if (static_cast<int64_t>(lStart)+lSamples > ai->numSamples) {
-            lSamples = (long)(ai->numSamples - lStart);
-            if (lSamples < 0)
-                lSamples = 0;
-        }
+        if (static_cast<int64_t>(lStart) + lSamples > ai->numSamples)
+            lSamples = std::max<long>(static_cast<long>(ai->numSamples - lStart), 0);
 
-        long bytes = vi ? static_cast<long>((lSamples * vi->fpsNum) / static_cast<int64_t>(vi->fpsDen * ai->sampleRate)) : 0;
+        long bytes = lSamples * ai->format->bytesPerSample * ai->format->numChannels;
         if (lpBuffer && bytes > cbBuffer) {
-            lSamples = (long)(cbBuffer / (ai->format->bytesPerSample * ai->format->numChannels));
-            bytes = vi ? static_cast<long>((lSamples * vi->fpsNum) / static_cast<int64_t>(vi->fpsDen * ai->sampleRate)) : 0;
+            lSamples = static_cast<long>(cbBuffer / (ai->format->bytesPerSample * ai->format->numChannels));
+            bytes = lSamples * ai->format->bytesPerSample * ai->format->numChannels;
         }
         if (plBytes)
             *plBytes = bytes;
@@ -933,6 +930,8 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
                 offset = (lStart - firstFrameSample) * af->bytesPerSample;
                 copyLength -= (lStart - firstFrameSample);
             }
+            if (lSamples < copyLength)
+                copyLength = lSamples;
 
             for (int c = 0; c < ai->format->numChannels; c++)
                 tmp[c] = vsapi->getReadPtr(f, c) + offset;
@@ -945,9 +944,6 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
 
             vsapi->freeFrame(f);
         }
-
-        // FIXME, maybe do error handling
-        return true;
 
         return S_OK;
     } else {
