@@ -914,7 +914,7 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
         const VSAudioFormat *af = ai->format;
 
         int startFrame = lStart / af->samplesPerFrame;
-        int endFrame = (lStart + lSamples) / af->samplesPerFrame;
+        int endFrame = (lStart + lSamples - 1) / af->samplesPerFrame;
 
         std::vector<const uint8_t *> tmp;
         tmp.resize(ai->format->numChannels);

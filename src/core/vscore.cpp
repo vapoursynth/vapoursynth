@@ -1168,13 +1168,14 @@ const VSAudioFormat *VSCore::queryAudioFormat(int sampleType, int bitsPerSample,
             return &iter.second;
     }
 
-    VSAudioFormat f{};
+    VSAudioFormat f = {};
 
     if (name)
         strcpy(f.name, name);
-    else if (sampleType)
+    else if (sampleType == stFloat)
+        snprintf(f.name, sizeof(f.name), "Audio%dF", bitsPerSample);
+    else
         snprintf(f.name, sizeof(f.name), "Audio%d", bitsPerSample);
-
 
     if (id != pfNone)
         f.id = id;
@@ -1191,10 +1192,8 @@ const VSAudioFormat *VSCore::queryAudioFormat(int sampleType, int bitsPerSample,
     std::bitset<sizeof(channelLayout) * 8> bits{ static_cast<uint64_t>(channelLayout) };
     f.numChannels = static_cast<int>(bits.count());
 
-    const size_t targetSize = 4 * 1000 * 1000;
-
+    const size_t targetSize = 96000;
     f.samplesPerFrame = targetSize;
-    f.samplesPerFrame /= (f.numChannels * f.bytesPerSample);
     int sampleMultiple = VSFrame::alignment / f.bytesPerSample;
     f.samplesPerFrame = (f.samplesPerFrame + sampleMultiple - 1) & ~(sampleMultiple - 1);
 
