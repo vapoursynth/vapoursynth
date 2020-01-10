@@ -999,24 +999,7 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
             wfxt.Format.nAvgBytesPerSec = wfxt.Format.nSamplesPerSec * wfxt.Format.nBlockAlign;
             wfxt.Format.cbSize = sizeof(wfxt) - sizeof(wfxt.Format);
             wfxt.Samples.wValidBitsPerSample = wfxt.Format.wBitsPerSample;
-
-            const int SpeakerMasks[9] = { 0,
-                0x00004, // 1   -- -- Cf
-                0x00003, // 2   Lf Rf
-                0x00007, // 3   Lf Rf Cf
-                0x00033, // 4   Lf Rf -- -- Lr Rr
-                0x00037, // 5   Lf Rf Cf -- Lr Rr
-                0x0003F, // 5.1 Lf Rf Cf Sw Lr Rr
-                0x0013F, // 6.1 Lf Rf Cf Sw Lr Rr -- -- Cr
-                0x0063F, // 7.1 Lf Rf Cf Sw Lr Rr -- -- -- Ls Rs
-            };
-            wfxt.dwChannelMask = (unsigned)ai->format->numChannels <= 8 ? SpeakerMasks[ai->format->numChannels]
-                : (unsigned)ai->format->numChannels <= 18 ? DWORD(-1) >> (32 - ai->format->numChannels)
-                : SPEAKER_ALL;
-
-            // FIXME, should be configurable through environment variable? OPT_dwChannelMask
-            wfxt.dwChannelMask = wfxt.dwChannelMask;
-
+            wfxt.dwChannelMask = (DWORD)ai->format->channelLayout;
             wfxt.SubFormat = (ai->format->sampleType == stFloat) ? KSDATAFORMAT_SUBTYPE_IEEE_FLOAT : KSDATAFORMAT_SUBTYPE_PCM;
             *lpcbFormat = std::min<LONG>(*lpcbFormat, sizeof(wfxt));
             memcpy(lpFormat, &wfxt, size_t(*lpcbFormat));
