@@ -1149,13 +1149,16 @@ const VSFormat *VSCore::queryVideoFormat(VSColorFamily colorFamily, VSSampleType
 const VSAudioFormat *VSCore::queryAudioFormat(int sampleType, int bitsPerSample, int64_t channelLayout, const char *name, int id) {
     // this is to make exact format comparisons easy by simply allowing pointer comparison
 
-    if (sampleType < 0 || sampleType > 1)
+    if (sampleType != stInteger && sampleType != stFloat)
         return nullptr;
 
     if (sampleType == stFloat && bitsPerSample != 32)
         return nullptr;
 
     if (bitsPerSample < 16 || bitsPerSample > 32)
+        return nullptr;
+
+    if (!channelLayout)
         return nullptr;
 
     std::lock_guard<std::mutex> lock(audioFormatLock);
@@ -1169,7 +1172,7 @@ const VSAudioFormat *VSCore::queryAudioFormat(int sampleType, int bitsPerSample,
 
     if (name)
         strcpy(f.name, name);
-    else
+    else if (sampleType)
         snprintf(f.name, sizeof(f.name), "Audio%d", bitsPerSample);
 
 
