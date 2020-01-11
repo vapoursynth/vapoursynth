@@ -604,7 +604,7 @@ static void VS_CC createAudioFilter(const VSMap *in, VSMap *out, const char *nam
 }
 
 static VSFrameRef *VS_CC newAudioFrame(const VSAudioFormat *format, int sampleRate, int numSamples, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
-    assert(format && core);
+    assert(format && core && numSamples > 0 && sampleRate > 0);
     return new VSFrameRef(core->newAudioFrame(format, sampleRate, numSamples, propSrc ? propSrc->frame.get() : nullptr));
 }
 

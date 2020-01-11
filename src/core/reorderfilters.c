@@ -170,9 +170,7 @@ static const VSFrameRef *VS_CC audioTrimGetframe(int n, int activationReason, vo
 
     int64_t startSample = (int64_t)n * d->ai.format->samplesPerFrame + d->first;
     int64_t startFrame = (startSample / d->ai.format->samplesPerFrame);
-    int64_t length = d->ai.numSamples;
-    if (length > d->ai.format->samplesPerFrame)
-        length = d->ai.format->samplesPerFrame;
+    int64_t length = VSMIN(d->ai.numSamples - n * d->ai.format->samplesPerFrame, d->ai.format->samplesPerFrame);
 
     if (startSample % d->ai.format->samplesPerFrame == 0 && n != d->ai.numFrames - 1) { // pass through audio frames when possible
         if (activationReason == arInitial) {
@@ -713,7 +711,7 @@ typedef struct {
 static const VSFrameRef *VS_CC audioSplice2Getframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     AudioSplice2Data *d = (AudioSplice2Data *) *instanceData;
 
-    int lastFrameIsPartial = ((d->ai.numSamples % d->ai.format->samplesPerFrame) != 0);
+    int lastFrameIsPartial = !!(d->ai.numSamples % d->ai.format->samplesPerFrame);
 
     if (activationReason == arInitial) {
         if (lastFrameIsPartial) {
@@ -752,13 +750,17 @@ static const VSFrameRef *VS_CC audioSplice2Getframe(int n, int activationReason,
 
                 VSFrameRef *f = vsapi->newAudioFrame(d->ai.format, d->ai.sampleRate, samplesOut, f1, core);
 
-                size_t f1copy = vsapi->getFrameLength(f1) * d->ai.format->bytesPerSample;
+                int f1copy = VSMIN(samplesOut, vsapi->getFrameLength(f1)) * d->ai.format->bytesPerSample;
                 for (int channel = 0; channel < d->ai.format->numChannels; channel++)
                     memcpy(vsapi->getWritePtr(f, channel), vsapi->getReadPtr(f1, channel), f1copy);
+                
+                samplesOut -= VSMIN(samplesOut, vsapi->getFrameLength(f1));
 
-                size_t f2copy = (samplesOut - vsapi->getFrameLength(f1)) * d->ai.format->bytesPerSample;
-                for (int channel = 0; channel < d->ai.format->numChannels; channel++)
-                    memcpy(vsapi->getWritePtr(f, channel) + f1copy, vsapi->getReadPtr(f2, channel), f2copy);
+                if (samplesOut > 0) {
+                    int f2copy = samplesOut * d->ai.format->bytesPerSample;
+                    for (int channel = 0; channel < d->ai.format->numChannels; channel++)
+                        memcpy(vsapi->getWritePtr(f, channel) + f1copy, vsapi->getReadPtr(f2, channel), f2copy);
+                }
 
                 vsapi->freeFrame(f1);
                 vsapi->freeFrame(f2);

@@ -633,6 +633,9 @@ VSFrame::VSFrame(const VSAudioFormat *f, int sampleRate, int numSamples, const V
     if (sampleRate <= 0)
         vsFatal("Error in frame creation: bad sample rate (%d)", sampleRate);
 
+    if (numSamples <= 0)
+        vsFatal("Error in frame creation: bad number of samples (%d)", numSamples);
+
     numPlanes = f->numChannels;
     width = numSamples;
 
@@ -715,7 +718,7 @@ uint8_t *VSFrame::getWritePtr(int plane) {
 
 #ifdef VS_FRAME_GUARD
 bool VSFrame::verifyGuardPattern() {
-    for (int p = 0; p < (contentType == video) ? numPlanes : 1; p++) {
+    for (int p = 0; p < ((contentType == mtVideo) ? numPlanes : 1); p++) {
         for (size_t i = 0; i < guardSpace / sizeof(VS_FRAME_GUARD_PATTERN); i++) {
             uint32_t p1 = reinterpret_cast<uint32_t *>(data[p]->data)[i];
             uint32_t p2 = reinterpret_cast<uint32_t *>(data[p]->data + data[p]->size - guardSpace)[i];
