@@ -489,12 +489,12 @@ static bool outputNode() {
             header.waveUuid = wave64HdrWaveUuidVal;
             header.fmtUuid = wave64HdrFmtUuidVal;
             header.fmtSize = offsetof(Wave64Hdr, dataUuid) - offsetof(Wave64Hdr, fmtUuid);
-            header.wFormatTag = (ai->format->sampleType == stFloat) ? 3 : WAVE_FORMAT_PCM;;
+            header.wFormatTag = (ai->format->sampleType == stFloat) ? 3 : 1;
             header.nChannels = ai->format->numChannels;
             header.nSamplesPerSec = ai->sampleRate;
             header.nBlockAlign = ai->format->numChannels * ai->format->bytesPerSample;
             header.nAvgBytesPerSec = ai->format->numChannels * ai->format->bytesPerSample * ai->sampleRate;
-            header.wBitsPerSample = ai->format->numChannels * ai->format->bytesPerSample * 8;
+            header.wBitsPerSample = ai->format->bytesPerSample * 8;
             header.dataUuid = wave64HdrDataUuidVal;
             header.dataSize = dataSize;
 
