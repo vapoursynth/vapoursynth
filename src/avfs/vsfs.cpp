@@ -305,6 +305,8 @@ bool VapourSynther::GetAudio(AvfsLog_ *log, void *buf, __int64 start, unsigned c
             PackChannels<uint32_t>(tmp.data(), reinterpret_cast<uint8_t *>(buf), copyLength, af->numChannels);
         }
 
+        count -= copyLength;
+
         vsapi->freeFrame(f);
     }
 
