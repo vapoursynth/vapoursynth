@@ -994,7 +994,7 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
             wfxt.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
             wfxt.Format.nChannels = (WORD)ai->format->numChannels;
             wfxt.Format.nSamplesPerSec = ai->sampleRate;
-            wfxt.Format.wBitsPerSample = WORD(ai->format->bitsPerSample * ai->format->numChannels);
+            wfxt.Format.wBitsPerSample = WORD(ai->format->bitsPerSample);
             wfxt.Format.nBlockAlign = (WORD)(ai->format->bytesPerSample * ai->format->numChannels);
             wfxt.Format.nAvgBytesPerSec = wfxt.Format.nSamplesPerSec * wfxt.Format.nBlockAlign;
             wfxt.Format.cbSize = sizeof(wfxt) - sizeof(wfxt.Format);
@@ -1008,7 +1008,7 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
             wfx.wFormatTag = (ai->format->sampleType == stFloat) ? WAVE_FORMAT_IEEE_FLOAT : WAVE_FORMAT_PCM;
             wfx.nChannels = (WORD)ai->format->numChannels;
             wfx.nSamplesPerSec = ai->sampleRate;
-            wfx.wBitsPerSample = WORD(ai->format->bitsPerSample * ai->format->numChannels);
+            wfx.wBitsPerSample = WORD(ai->format->bitsPerSample);
             wfx.nBlockAlign = (WORD)(ai->format->bytesPerSample * ai->format->numChannels);
             wfx.nAvgBytesPerSec = wfx.nSamplesPerSec * wfx.nBlockAlign;
             *lpcbFormat = std::min<LONG>(*lpcbFormat, sizeof(wfx));
