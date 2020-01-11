@@ -277,6 +277,8 @@ static void PackChannels(const uint8_t * const * const Src, uint8_t *Dst, size_t
 bool VapourSynther::GetAudio(AvfsLog_ *log, void *buf, __int64 start, unsigned count) {
     const VSAudioFormat *af = ai->format;
 
+    uint8_t *dst = reinterpret_cast<uint8_t *>(buf);
+
     int startFrame = start / af->samplesPerFrame;
     int endFrame = (start + count - 1) / af->samplesPerFrame;
     
@@ -287,7 +289,7 @@ bool VapourSynther::GetAudio(AvfsLog_ *log, void *buf, __int64 start, unsigned c
         const VSFrameRef *f = vsapi->getFrame(i, audioNode, nullptr, 0);
         int64_t firstFrameSample = i * af->samplesPerFrame;
         size_t offset = 0;
-        size_t copyLength = af->samplesPerFrame;
+        int copyLength = af->samplesPerFrame;
         if (firstFrameSample < start) {
             offset = (start - firstFrameSample) * af->bytesPerSample;
             copyLength -= (start - firstFrameSample);
@@ -299,12 +301,15 @@ bool VapourSynther::GetAudio(AvfsLog_ *log, void *buf, __int64 start, unsigned c
         for (int c = 0; c < ai->format->numChannels; c++)
             tmp[c] = vsapi->getReadPtr(f, c) + offset;
 
+        assert(copyLength > 0);
+
         if (af->bytesPerSample == 2) {
-            PackChannels<uint16_t>(tmp.data(), reinterpret_cast<uint8_t *>(buf), copyLength, af->numChannels);
+            PackChannels<uint16_t>(tmp.data(), dst, copyLength, af->numChannels);
         } else if (af->bytesPerSample == 4) {
-            PackChannels<uint32_t>(tmp.data(), reinterpret_cast<uint8_t *>(buf), copyLength, af->numChannels);
+            PackChannels<uint32_t>(tmp.data(), dst, copyLength, af->numChannels);
         }
 
+        dst += copyLength * af->bytesPerSample * af->numChannels;
         count -= copyLength;
 
         vsapi->freeFrame(f);

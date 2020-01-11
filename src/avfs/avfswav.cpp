@@ -145,21 +145,21 @@ AvfsWavFile::AvfsWavFile(
   avs->AddRef();
   sampleBlockSize = inSampleBlockSize;
   startSample = inStartSample;
-  sampleCount = totalSampleCount-startSample;
+  sampleCount = totalSampleCount - startSample;
   uint16_t channelCount = uint16_t(avs->GetVideoInfo().AudioChannels());
   uint16_t sampleSize = uint16_t(avs->GetVideoInfo().BytesPerChannelSample());
   unsigned samplesPerSec = avs->GetVideoInfo().SamplesPerSecond();
-  uint16_t sampleBitCount = uint16_t(sampleSize*8);
-  unsigned bytesPerSec = samplesPerSec*sampleBlockSize;
-  uint64_t maxSampleCount = (maxFileSize-sizeof(hdr.wave))/sampleBlockSize;
+  uint16_t sampleBitCount = uint16_t(sampleSize * 8);
+  unsigned bytesPerSec = samplesPerSec * sampleBlockSize;
+  uint64_t maxSampleCount = (maxFileSize-sizeof(hdr.wave)) / sampleBlockSize;
   bool wave64 = forceWave64;
   if (maxFileSize > maxWaveFileSize || wave64) {
-     maxSampleCount = (maxFileSize-sizeof(hdr.wave64))/sampleBlockSize;
+     maxSampleCount = (maxFileSize - sizeof(hdr.wave64)) / sampleBlockSize;
   }
   if (sampleCount > maxSampleCount) {
      sampleCount = maxSampleCount;
   }
-  dataSize = sampleCount*sampleBlockSize;
+  dataSize = sampleCount * sampleBlockSize;
   if(sizeof(hdr.wave)+dataSize > maxWaveFileSize) {
     wave64 = true;
   }
