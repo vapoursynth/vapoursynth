@@ -310,6 +310,8 @@ bool VapourSynther::GetAudio(AvfsLog_ *log, void *buf, __int64 start, unsigned c
         vsapi->freeFrame(f);
     }
 
+    assert(count == 0);
+
     // FIXME, maybe do error handling
     return true;
 }

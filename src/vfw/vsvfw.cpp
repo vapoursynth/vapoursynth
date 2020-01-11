@@ -395,9 +395,11 @@ VapourSynthFile::~VapourSynthFile() {
     if (vi) {
         while (pending_requests > 0) { std::this_thread::sleep_for(std::chrono::milliseconds(1)); };
         vsapi->freeNode(videoNode);
+        videoNode = nullptr;
     }
     if (ai) {
         vsapi->freeNode(audioNode);
+        audioNode = nullptr;
     }
     if (vi || ai) {
         vi = nullptr;
