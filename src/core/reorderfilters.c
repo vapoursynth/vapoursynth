@@ -708,71 +708,88 @@ typedef struct {
     int64_t numSamples2;
 } AudioSplice2Data;
 
+static const VSFrameRef *VS_CC audioSplice2PassthroughGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    AudioSplice2Data *d = (AudioSplice2Data *) *instanceData;
+    if (activationReason == arInitial) {
+            if (n < d->numFrames1)
+                vsapi->requestFrameFilter(n, d->node1, frameCtx);
+            else
+                vsapi->requestFrameFilter(n - d->numFrames1, d->node2, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        if (n < d->numFrames1)
+            return vsapi->getFrameFilter(n, d->node1, frameCtx);
+        else
+            return vsapi->getFrameFilter(n - d->numFrames1, d->node2, frameCtx);
+    }
+
+    return 0;
+}
+
 static const VSFrameRef *VS_CC audioSplice2Getframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     AudioSplice2Data *d = (AudioSplice2Data *) *instanceData;
 
-    int lastFrameIsPartial = !!(d->ai.numSamples % d->ai.format->samplesPerFrame);
-
     if (activationReason == arInitial) {
-        if (lastFrameIsPartial) {
-            if (n < d->numFrames1 - 1) {
-                vsapi->requestFrameFilter(n, d->node1, frameCtx);
-            } else if (n == d->numFrames1 - 1) {
-                vsapi->requestFrameFilter(n, d->node1, frameCtx);
-                vsapi->requestFrameFilter(0, d->node2, frameCtx);
-            } else {
-                vsapi->requestFrameFilter(n - d->numFrames1, d->node2, frameCtx);
-                vsapi->requestFrameFilter(n - d->numFrames1 + 1, d->node2, frameCtx);
-            }
+        if (n < d->numFrames1 - 1) {
+            vsapi->requestFrameFilter(n, d->node1, frameCtx);
+        } else if (n == d->numFrames1 - 1) {
+            vsapi->requestFrameFilter(n, d->node1, frameCtx);
+            vsapi->requestFrameFilter(0, d->node2, frameCtx);
         } else {
-            if (n < d->numFrames1)
-                vsapi->requestFrameFilter(n, d->node1, frameCtx);
-            else
-                vsapi->requestFrameFilter(n - d->numFrames1, d->node2, frameCtx);
+            vsapi->requestFrameFilter(n - d->numFrames1, d->node2, frameCtx);
+            vsapi->requestFrameFilter(n - d->numFrames1 + 1, d->node2, frameCtx);
         }
     } else if (activationReason == arAllFramesReady) {
-        if (lastFrameIsPartial) {
-            if (n < d->numFrames1 - 1) {
-                return vsapi->getFrameFilter(n, d->node1, frameCtx);
-            } else {
-                const VSFrameRef *f1 = NULL;
-                const VSFrameRef *f2 = NULL;
+        const VSFrameRef *f1 = NULL;
+        const VSFrameRef *f2 = NULL;
 
-                if (n == d->numFrames1 - 1) {
-                    f1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
-                    f2 = vsapi->getFrameFilter(0, d->node2, frameCtx);
-                } else {
-                    f1 = vsapi->getFrameFilter(n - d->numFrames1, d->node2, frameCtx);
-                    f2 = vsapi->getFrameFilter(n - d->numFrames1 + 1, d->node2, frameCtx);
-                }
+        if (n < d->numFrames1 - 1) {
+            return vsapi->getFrameFilter(n, d->node1, frameCtx);
+        } else if (n == d->numFrames1 - 1) {
+            f1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
+            f2 = vsapi->getFrameFilter(0, d->node2, frameCtx);
+        } else {
+            f1 = vsapi->getFrameFilter(n - d->numFrames1, d->node2, frameCtx);
+            f2 = vsapi->getFrameFilter(n - d->numFrames1 + 1, d->node2, frameCtx);
+        }
 
-                int samplesOut = VSMIN(d->ai.format->samplesPerFrame, d->ai.numSamples - n * d->ai.format->samplesPerFrame);
+        int samplesOut = VSMIN(d->ai.format->samplesPerFrame, d->ai.numSamples - n * d->ai.format->samplesPerFrame);
 
-                VSFrameRef *f = vsapi->newAudioFrame(d->ai.format, d->ai.sampleRate, samplesOut, f1, core);
+        VSFrameRef *f = vsapi->newAudioFrame(d->ai.format, d->ai.sampleRate, samplesOut, f1, core);
 
-                int f1copy = VSMIN(samplesOut, vsapi->getFrameLength(f1)) * d->ai.format->bytesPerSample;
-                for (int channel = 0; channel < d->ai.format->numChannels; channel++)
-                    memcpy(vsapi->getWritePtr(f, channel), vsapi->getReadPtr(f1, channel), f1copy);
-                
-                samplesOut -= VSMIN(samplesOut, vsapi->getFrameLength(f1));
+        //////////////
 
-                if (samplesOut > 0) {
-                    int f2copy = samplesOut * d->ai.format->bytesPerSample;
-                    for (int channel = 0; channel < d->ai.format->numChannels; channel++)
-                        memcpy(vsapi->getWritePtr(f, channel) + f1copy, vsapi->getReadPtr(f2, channel), f2copy);
-                }
+        if (n == d->numFrames1 - 1) {
+            // handle the seam between clip 1 and 2 
+            int f1copy = VSMIN(samplesOut, vsapi->getFrameLength(f1));
+            int f2copy = samplesOut - f1copy;
+            f1copy *= d->ai.format->bytesPerSample;
+            f2copy *= d->ai.format->bytesPerSample;
 
-                vsapi->freeFrame(f1);
-                vsapi->freeFrame(f2);
-
-                return f;
+            for (int channel = 0; channel < d->ai.format->numChannels; channel++) {
+                memcpy(vsapi->getWritePtr(f, channel), vsapi->getReadPtr(f1, channel), f1copy);
+                memcpy(vsapi->getWritePtr(f, channel) + f1copy, vsapi->getReadPtr(f2, channel), f2copy);
             }
         } else {
-            if (n < d->numFrames1)
-                return vsapi->getFrameFilter(n, d->node1, frameCtx);
-            else
-                return vsapi->getFrameFilter(n - d->numFrames1, d->node2, frameCtx);
+            int f1offset = d->ai.format->samplesPerFrame - ((d->numSamples1 - 1) % d->ai.format->samplesPerFrame) - 1;
+            int f1copy = VSMIN(samplesOut, vsapi->getFrameLength(f1) - f1offset);
+            int f2copy = samplesOut - f1copy;
+            assert(f1copy > 0 && (f2copy > 0 || (f2copy >= 0 && n == d->ai.numFrames - 1)));
+            f1copy *= d->ai.format->bytesPerSample;
+            f2copy *= d->ai.format->bytesPerSample;
+            f1offset *= d->ai.format->bytesPerSample;
+
+            for (int channel = 0; channel < d->ai.format->numChannels; channel++) {
+                memcpy(vsapi->getWritePtr(f, channel), vsapi->getReadPtr(f1, channel) + f1offset, f1copy);
+                memcpy(vsapi->getWritePtr(f, channel) + f1copy, vsapi->getReadPtr(f2, channel), f2copy);
+            }
         }
+
+        ////////////////////
+
+        vsapi->freeFrame(f1);
+        vsapi->freeFrame(f2);
+
+        return f;
     }
 
     return 0;
@@ -818,7 +835,7 @@ static void VS_CC audioSplice2Create(const VSMap *in, VSMap *out, void *userData
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createAudioFilter(in, out, "AudioSplice2", &d.ai, 1, audioSplice2Getframe, audioSplice2Free, fmParallel, nfNoCache, data, core);
+    vsapi->createAudioFilter(in, out, "AudioSplice2", &d.ai, 1, (d.numSamples1 % d.ai.format->samplesPerFrame) ? audioSplice2Getframe : audioSplice2PassthroughGetframe, audioSplice2Free, fmParallel, nfNoCache, data, core);
 }
 
 
