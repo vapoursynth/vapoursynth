@@ -593,7 +593,7 @@ STDMETHODIMP VapourSynthFile::GetStream(PAVISTREAM *ppStream, DWORD fccType, LON
             return AVIERR_MEMORY;
         *ppStream = (IAVIStream *)casr;
 
-    } else if (fccType == streamtypeAUDIO) {
+    } else if (fccType == streamtypeAUDIO && ai) {
         if ((casr = new(std::nothrow)VapourSynthStream(this, true)) == 0)
             return AVIERR_MEMORY;
         *ppStream = (IAVIStream *)casr;
