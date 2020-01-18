@@ -160,12 +160,6 @@ void VSCache::adjustSize(bool needMemory) {
     }
 }
 
-static void VS_CC cacheInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    CacheInstance *c = (CacheInstance *)*instanceData;
-    c->node = node;
-    vsapi->setVideoInfo(vsapi->getVideoInfo(c->clip), 1, node);
-}
-
 // controls how many frames beyond the number of threads is a good margin to catch bigger temporal radius filters that are out of order, just a guess
 static const int extraFrames = 7;
 
@@ -242,8 +236,6 @@ static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData,
         c->cache.setMaxFrames(std::max((c->numThreads + extraFrames) * 2, 20 + c->numThreads));
     else
         c->cache.setMaxFrames(20 + c->numThreads);
-
-
 
     if (userData)
         vsapi->createAudioFilter(in, out, ("AudioCache" + std::to_string(cacheId++)).c_str(), vsapi->getAudioInfo(node), 1, cacheGetframe, cacheFree, c->makeLinear ? fmUnorderedLinear : fmUnordered, nfNoCache | nfIsCache, c, core);
