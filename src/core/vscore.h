@@ -203,7 +203,7 @@ public:
         data->addRef();
     }
 
-    VSMap(VSMap &&map) : data(map.data) {
+    VSMap(VSMap &&map) noexcept : data(map.data) {
         map.data = new VSMapStorage();
     }
 

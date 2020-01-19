@@ -237,12 +237,12 @@ static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData,
     else
         c->cache.setMaxFrames(20 + c->numThreads);
 
+    c->addCache();
+
     if (userData)
         vsapi->createAudioFilter(in, out, ("AudioCache" + std::to_string(cacheId++)).c_str(), vsapi->getAudioInfo(node), 1, cacheGetframe, cacheFree, c->makeLinear ? fmUnorderedLinear : fmUnordered, nfNoCache | nfIsCache, c, core);
     else
         vsapi->createVideoFilter(in, out, ("Cache" + std::to_string(cacheId++)).c_str(), vsapi->getVideoInfo(node), 1, cacheGetframe, cacheFree, c->makeLinear ? fmUnorderedLinear : fmUnordered, nfNoCache | nfIsCache, c, core);
-
-    c->addCache();
 }
 
 void VS_CC cacheInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {

@@ -1011,7 +1011,7 @@ bool VSNode::isWorkerThread() {
 
 void VSNode::notifyCache(bool needMemory) {
     std::lock_guard<std::mutex> lock(serialMutex);
-    CacheInstance *cache = (CacheInstance *)instanceData;
+    CacheInstance *cache = reinterpret_cast<CacheInstance *>(instanceData);
     cache->cache.adjustSize(needMemory);
 }
 

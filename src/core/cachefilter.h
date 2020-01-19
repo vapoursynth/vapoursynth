@@ -29,12 +29,12 @@ class VSCache {
 private:
     struct Node {
         inline Node() : key(-1) {}
-        inline Node(int key, const PVideoFrame &frame) : key(key), frame(frame), weakFrame(frame), prevNode(0), nextNode(0) {}
+        inline Node(int key, const PVideoFrame &frame) : key(key), frame(frame), weakFrame(frame) {}
         int key;
         PVideoFrame frame;
         WVideoFrame weakFrame;
-        Node *prevNode;
-        Node *nextNode;
+        Node *prevNode = nullptr;
+        Node *nextNode = nullptr;
     };
 
     Node *first;
