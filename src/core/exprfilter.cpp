@@ -2209,7 +2209,7 @@ public:
 
     bool isScalar() const { return map.empty(); }
 
-    size_t numTerms() const { return map.size() + (coeff != 1.0f); }
+    size_t numTerms() const { return map.size() + 1; }
 
     bool isSameTerm(const ExponentMap &other) const
     {
@@ -2324,7 +2324,7 @@ public:
         terms.push_back(std::move(map));
     }
 
-    size_t numTerms() const { return terms.size() + (scalarTerm != 0.0f); }
+    size_t numTerms() const { return terms.size() + 1; }
 
     void expand(ValueIndex &index)
     {
@@ -2626,21 +2626,9 @@ bool applyLocalOptimizations(ExpressionTree &tree)
             changed = true;
         }
 
-        // x + 0 = x    x - 0 = x
-        if (isOpCode(node, { ExprOpType::ADD, ExprOpType::SUB }) && isConstant(*node.right, 0.0f)) {
-            replaceNode(node, *node.left);
-            changed = true;
-        }
-
         // x * 0 = 0    0 / x = 0
         if ((node.op == ExprOpType::MUL && isConstant(*node.right, 0.0f)) || (node.op == ExprOpType::DIV && isConstant(*node.left, 0.0f))) {
             replaceNode(node, ExpressionTreeNode{ { ExprOpType::CONSTANT, 0.0f } });
-            changed = true;
-        }
-
-        // x * 1 = x    x / 1 = x
-        if (isOpCode(node, { ExprOpType::MUL, ExprOpType::DIV }) && isConstant(*node.right, 1.0f)) {
-            replaceNode(node, *node.left);
             changed = true;
         }
 
@@ -2660,12 +2648,6 @@ bool applyLocalOptimizations(ExpressionTree &tree)
         // x ** 0 = 1
         if (node.op == ExprOpType::POW && isConstant(*node.right, 0.0f)) {
             replaceNode(node, ExpressionTreeNode{ { ExprOpType::CONSTANT, 1.0f } });
-            changed = true;
-        }
-
-        // x ** 1 = x
-        if (node.op == ExprOpType::POW && isConstant(*node.right, 1.0f)) {
-            replaceNode(node, *node.left);
             changed = true;
         }
 
@@ -2723,6 +2705,36 @@ bool applyLocalOptimizations(ExpressionTree &tree)
 
     return changed;
 }
+
+bool applyAlgebraicCleanup(ExpressionTree &tree)
+{
+    bool changed = false;
+
+    // Prune extra terms introduced by the algebraic analysis. These need to run in a later pass to prevent cycles.
+    tree.getRoot()->postorder([&](ExpressionTreeNode &node)
+    {
+        // x + 0 = x    x - 0 = x
+        if (isOpCode(node, { ExprOpType::ADD, ExprOpType::SUB }) && isConstant(*node.right, 0.0f)) {
+            replaceNode(node, *node.left);
+            changed = true;
+        }
+
+        // x * 1 = x    x / 1 = x
+        if (isOpCode(node, { ExprOpType::MUL, ExprOpType::DIV }) && isConstant(*node.right, 1.0f)) {
+            replaceNode(node, *node.left);
+            changed = true;
+        }
+
+        // x ** 1 = x
+        if (node.op == ExprOpType::POW && isConstant(*node.right, 1.0f)) {
+            replaceNode(node, *node.left);
+            changed = true;
+        }
+    });
+
+    return changed;
+}
+
 
 bool applyStrengthReduction(ExpressionTree &tree)
 {
@@ -3000,7 +3012,7 @@ std::vector<ExprInstruction> compile(ExpressionTree &tree, const VSFormat *forma
         // ...
     }
 
-    while (applyStrengthReduction(tree) || applyOpFusion(tree)) {
+    while (applyAlgebraicCleanup(tree) || applyStrengthReduction(tree) || applyOpFusion(tree)) {
         // ...
     }
 
