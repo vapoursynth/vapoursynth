@@ -547,10 +547,10 @@ cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, VSCore *co
                 newval = createNode(funcs.propGetNode(map, retkey, y, NULL), funcs, c)
                 
                 if add_cache and not (newval.flags & vapoursynth.nfNoCache):
-                  if isinstance(newval, VideoNode):
-                    newval = c.std.Cache(clip=newval)
-                  elif isinstance(newval, AudioNode):
-                    newval = c.std.AudioCache(clip=newval)
+                    if isinstance(newval, VideoNode):
+                        newval = c.std.Cache(clip=newval)
+                    elif isinstance(newval, AudioNode):
+                        newval = c.std.AudioCache(clip=newval)
 
                     if isinstance(newval, dict):
                         newval = newval['dict']
