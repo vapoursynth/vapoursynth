@@ -255,7 +255,6 @@ static void VS_CC audioTrimCreate(const VSMap *in, VSMap *out, void *userData, V
     }
 
     d.ai.numSamples = trimlen;
-    d.ai.numFrames = (d.ai.numSamples + d.ai.format->samplesPerFrame - 1) / d.ai.format->samplesPerFrame;
 
     data = malloc(sizeof(d));
     *data = d;

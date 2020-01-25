@@ -860,7 +860,7 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, VSFilterIni
 }
 
 VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
-    nodeType(mtAudio), instanceData(instanceData), name(name), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
+    nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
 
     if (flags & ~(nfNoCache | nfIsCache | nfMakeLinear))
         throw VSException("Filter " + name + " specified unknown flags");
@@ -880,7 +880,7 @@ VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, int numOutputs, V
             vsFatal("Filter %s has no video frames in the output.", name.c_str());
 
         this->vi.push_back(vi[i]);
-        this->vi[i].flags = flags;
+        this->vi.back().flags = flags;
     }
 }
 
@@ -905,11 +905,11 @@ VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, int numOutputs, V
             vsFatal("Filter %s has no audio samples in the output.", name.c_str());
         if (ai[i].sampleRate <= 0)
             vsFatal("Filter %s has an invalid sample rate.", name.c_str());
-        if (ai[i].numFrames != (ai[i].numSamples + ai[i].format->samplesPerFrame - 1) / ai[i].format->samplesPerFrame) // FIXME, automatically fill out?
-            vsFatal("Filter %s has a frame length that doesn't match the number of samples.", name.c_str());
 
         this->ai.push_back(ai[i]);
-        this->ai[i].flags = flags;
+        auto &last = this->ai.back();
+        last.numFrames = (last.numSamples + last.format->samplesPerFrame - 1) / last.format->samplesPerFrame;
+        last.flags = flags;
     }
 }
 
@@ -948,7 +948,7 @@ void VSNode::setVideoInfo(const VSVideoInfo *vi, int numOutputs) {
             vsFatal(("setVideoInfo: The frame rate specified by " + name + " must be a reduced fraction. (Instead, it is " + std::to_string(vi[i].fpsNum) + "/" + std::to_string(vi[i].fpsDen) + ".)").c_str());
 
         this->vi.push_back(vi[i]);
-        this->vi[i].flags = flags;
+        this->vi.back().flags = flags;
     }
 }
 
