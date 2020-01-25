@@ -408,7 +408,7 @@ struct VSAPI {
     const VSAudioFormat *(VS_CC *queryAudioFormat)(int sampleType, int bitsPerSample, int64_t channelLayout, VSCore *core) VS_NOEXCEPT;
     const VSAudioFormat *(VS_CC *getAudioFormat)(int id, VSCore *core) VS_NOEXCEPT;
     const VSAudioInfo *(VS_CC *getAudioInfo)(VSNodeRef *node) VS_NOEXCEPT;
-    const VSAudioFormat *(VS_CC *getFrameAudioFormat)(const VSFrameRef *f) VS_NOEXCEPT;
+    const VSAudioFormat *(VS_CC *getAudioFrameFormat)(const VSFrameRef *f) VS_NOEXCEPT;
     int (VS_CC *getNodeType)(VSNodeRef *node) VS_NOEXCEPT;
     int (VS_CC *getFrameType)(const VSFrameRef *f) VS_NOEXCEPT;
     int (VS_CC *getFrameLength)(const VSFrameRef *f) VS_NOEXCEPT;

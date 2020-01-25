@@ -190,7 +190,7 @@ static bool isCompletedFrame(const std::pair<const VSFrameRef *, const VSFrameRe
 
 template<typename T>
 static size_t interleaveSamples(const VSFrameRef *frame, uint8_t *dstBuf) {
-    const VSAudioFormat *fi = vsapi->getFrameAudioFormat(frame);
+    const VSAudioFormat *fi = vsapi->getAudioFrameFormat(frame);
     T *dstBuffer = reinterpret_cast<T *>(dstBuf);
 
     size_t numChannels = fi->numChannels;
@@ -240,7 +240,7 @@ static void outputFrame(const VSFrameRef *frame) {
                 }
             }
         } else if (vsapi->getFrameType(frame) == mtAudio) {
-            const VSAudioFormat *fi = vsapi->getFrameAudioFormat(frame);
+            const VSAudioFormat *fi = vsapi->getAudioFrameFormat(frame);
 
             std::vector<const uint8_t *> srcPtrs;
             srcPtrs.reserve(fi->numChannels);
