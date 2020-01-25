@@ -900,7 +900,7 @@ VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, int numOutputs, V
 
     for (int i = 0; i < numOutputs; i++) {
         if (ai[i].format && !core->isValidFormatPointer(ai[i].format))
-            vsFatal("The VSFormat pointer passed by %s was not obtained from registerFormat() or getFormatPreset().", name.c_str());
+            vsFatal("The VSFormat pointer passed by %s was not obtained from queryAudioFormat() or getAudioFormat().", name.c_str());
         if (ai[i].numSamples <= 0)
             vsFatal("Filter %s has no audio samples in the output.", name.c_str());
         if (ai[i].sampleRate <= 0)
@@ -908,7 +908,10 @@ VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, int numOutputs, V
 
         this->ai.push_back(ai[i]);
         auto &last = this->ai.back();
-        last.numFrames = (last.numSamples + last.format->samplesPerFrame - 1) / last.format->samplesPerFrame;
+        int64_t maxSamples =  std::numeric_limits<int>::max() * static_cast<int64_t>(last.format->samplesPerFrame);
+        if (last.numSamples > maxSamples)
+            throw VSException("Filter " + name + " specified " + std::to_string(last.numSamples) + " output samples but " + std::to_string(maxSamples) + " samples is the upper limit of the current format");
+        last.numFrames = static_cast<int>((last.numSamples + last.format->samplesPerFrame - 1) / last.format->samplesPerFrame);
         last.flags = flags;
     }
 }

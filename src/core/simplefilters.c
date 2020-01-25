@@ -1356,7 +1356,7 @@ static const VSFrameRef *VS_CC blankAudioGetframe(int n, int activationReason, v
     if (activationReason == arInitial) {
         VSFrameRef *frame = NULL;
         if (!d->f) { 
-            int64_t samples = VSMIN(d->ai.format->samplesPerFrame, d->ai.numSamples - n * d->ai.format->samplesPerFrame);
+            int samples = VSMIN(d->ai.format->samplesPerFrame, d->ai.numSamples - n * (int64_t)d->ai.format->samplesPerFrame);
             frame = vsapi->newAudioFrame(d->ai.format, d->ai.sampleRate, samples, NULL, core);
             for (int channel = 0; channel < d->ai.format->numChannels; channel++)
                 memset(vsapi->getWritePtr(frame, channel), 0, samples * d->ai.format->bytesPerSample);
@@ -1403,7 +1403,7 @@ static void VS_CC blankAudioCreate(const VSMap *in, VSMap *out, void *userData, 
 
     d.ai.numSamples = vsapi->propGetInt(in, "length", 0, &err);
     if (err)
-        d.ai.numSamples = d.ai.sampleRate * 60 * 60;
+        d.ai.numSamples = (int64_t)d.ai.sampleRate * 60 * 60;
 
     if (d.ai.sampleRate <= 0)
         RETERROR("BlankAudio: invalid sample rate");
@@ -1415,8 +1415,6 @@ static void VS_CC blankAudioCreate(const VSMap *in, VSMap *out, void *userData, 
 
     if (!d.ai.format)
         RETERROR("BlankAudio: invalid format");
-
-    d.ai.numFrames = (d.ai.numSamples + d.ai.format->samplesPerFrame - 1) / d.ai.format->samplesPerFrame;
 
     data = malloc(sizeof(d));
     *data = d;
@@ -1435,8 +1433,8 @@ static const VSFrameRef *VS_CC testAudioGetframe(int n, int activationReason, vo
     TestAudioData *d = (TestAudioData *) *instanceData;
 
     if (activationReason == arInitial) {
-        int64_t samples = VSMIN(d->ai.format->samplesPerFrame, d->ai.numSamples - n * d->ai.format->samplesPerFrame);
-        int64_t startSample = n * d->ai.format->samplesPerFrame;
+        int samples = VSMIN(d->ai.format->samplesPerFrame, d->ai.numSamples - n * (int64_t)d->ai.format->samplesPerFrame);
+        int64_t startSample = n * (int64_t)d->ai.format->samplesPerFrame;
         VSFrameRef *frame = vsapi->newAudioFrame(d->ai.format, d->ai.sampleRate, samples, NULL, core);
         for (int channel = 0; channel < d->ai.format->numChannels; channel++) {
             uint16_t *w = (uint16_t *)vsapi->getWritePtr(frame, channel);          
@@ -1478,7 +1476,7 @@ static void VS_CC testAudioCreate(const VSMap *in, VSMap *out, void *userData, V
 
     d.ai.numSamples = vsapi->propGetInt(in, "length", 0, &err);
     if (err)
-        d.ai.numSamples = d.ai.sampleRate * 60 * 60;
+        d.ai.numSamples = (int64_t)d.ai.sampleRate * 60 * 60;
 
     if (d.ai.sampleRate <= 0)
         RETERROR("TestAudio: invalid sample rate");
@@ -1490,8 +1488,6 @@ static void VS_CC testAudioCreate(const VSMap *in, VSMap *out, void *userData, V
 
     if (!d.ai.format)
         RETERROR("TestAudio: invalid format");
-
-    d.ai.numFrames = (d.ai.numSamples + d.ai.format->samplesPerFrame - 1) / d.ai.format->samplesPerFrame;
 
     data = malloc(sizeof(d));
     *data = d;

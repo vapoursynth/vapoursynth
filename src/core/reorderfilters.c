@@ -168,9 +168,9 @@ typedef struct {
 static const VSFrameRef *VS_CC audioTrimGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     AudioTrimData *d = (AudioTrimData *) *instanceData;
 
-    int64_t startSample = (int64_t)n * d->ai.format->samplesPerFrame + d->first;
-    int64_t startFrame = (startSample / d->ai.format->samplesPerFrame);
-    int64_t length = VSMIN(d->ai.numSamples - n * d->ai.format->samplesPerFrame, d->ai.format->samplesPerFrame);
+    int64_t startSample = n * (int64_t)d->ai.format->samplesPerFrame + d->first;
+    int startFrame = (int)(startSample / d->ai.format->samplesPerFrame);
+    int length = VSMIN(d->ai.numSamples - n * (int64_t)d->ai.format->samplesPerFrame, d->ai.format->samplesPerFrame);
 
     if (startSample % d->ai.format->samplesPerFrame == 0 && n != d->ai.numFrames - 1) { // pass through audio frames when possible
         if (activationReason == arInitial) {
@@ -499,7 +499,7 @@ static const VSFrameRef *VS_CC selectEveryGetframe(int n, int activationReason, 
         *frameData = (void *)(intptr_t)((n / d->num) * d->cycle + d->offsets[n % d->num]);
         vsapi->requestFrameFilter((intptr_t)*frameData, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter((intptr_t) * frameData, d->node, frameCtx);
+        const VSFrameRef *src = vsapi->getFrameFilter((intptr_t)(*frameData), d->node, frameCtx);
         VSFrameRef *dst = vsapi->copyFrame(src, core);
 
         VSMap *dst_props = vsapi->getFramePropsRW(dst);
@@ -751,7 +751,7 @@ static const VSFrameRef *VS_CC audioSplice2Getframe(int n, int activationReason,
             f2 = vsapi->getFrameFilter(n - d->numFrames1 + 1, d->node2, frameCtx);
         }
 
-        int samplesOut = VSMIN(d->ai.format->samplesPerFrame, d->ai.numSamples - n * d->ai.format->samplesPerFrame);
+        int samplesOut = VSMIN(d->ai.format->samplesPerFrame, d->ai.numSamples - n * (int64_t)d->ai.format->samplesPerFrame);
 
         VSFrameRef *f = vsapi->newAudioFrame(d->ai.format, d->ai.sampleRate, samplesOut, f1, core);
 

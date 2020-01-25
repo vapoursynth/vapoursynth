@@ -85,7 +85,7 @@ static void VS_CC getFrameAsync(int n, VSNodeRef *clip, VSFrameDoneCallback fdc,
 struct GetFrameWaiter {
     std::mutex b;
     std::condition_variable a;
-    const VSFrameRef *r;
+    const VSFrameRef *r = nullptr;
     char *errorMsg;
     int bufSize;
     GetFrameWaiter(char *errorMsg, int bufSize) : errorMsg(errorMsg), bufSize(bufSize) {}
@@ -402,7 +402,7 @@ static int VS_CC propSetNode(VSMap *map, const char *key, VSNodeRef *node, int a
     PROP_SET_SHARED(nodeType, *node)
 }
 
-static int VS_CC propSetFrame(VSMap *map, const char *key, const VSFrameRef *frame, int append) VS_NOEXCEPT {   
+static int VS_CC propSetFrame(VSMap *map, const char *key, const VSFrameRef *frame, int append) VS_NOEXCEPT {
     VSPropTypes frameType = (frame == nullptr || frame->frame->getFrameType() == mtVideo) ? ptVideoFrame : ptAudioFrame;
     PROP_SET_SHARED(frameType, frame->frame)
 }
