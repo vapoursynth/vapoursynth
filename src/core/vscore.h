@@ -380,7 +380,7 @@ public:
 class VSFrame {
 private:
     VSMediaType contentType;
-    const VSFormat *format; /* used for VSAudioFormat with audio */
+    const VSVideoFormat *format; /* used for VSAudioFormat with audio */
     VSPlaneData *data[3]; /* only the first data pointer is ever used for audio and is subdivided using the internal offset in height */
     int width; /* stores number of samples for audio */
     int height;
@@ -397,8 +397,8 @@ public:
     static const int guardSpace = 0;
 #endif
 
-    VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, VSCore *core);
-    VSFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core);
+    VSFrame(const VSVideoFormat *f, int width, int height, const VSFrame *propSrc, VSCore *core);
+    VSFrame(const VSVideoFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core);
     VSFrame(const VSAudioFormat *f, int sampleRate, int numSamples, const VSFrame *propSrc, VSCore *core);
     VSFrame(const VSFrame &f);
     ~VSFrame();
@@ -416,7 +416,7 @@ public:
     void setProperties(const VSMap &properties) {
         this->properties = properties;
     }
-    const VSFormat *getVideoFormat() const {
+    const VSVideoFormat *getVideoFormat() const {
         assert(contentType == mtVideo);
         return format;
     }
@@ -653,7 +653,7 @@ private:
 
     std::map<std::string, VSPlugin *> plugins;
     std::recursive_mutex pluginLock;
-    std::map<int, VSFormat> videoFormats;
+    std::map<int, VSVideoFormat> videoFormats;
     std::mutex videoFormatLock;
     int videoFormatIdOffset = 1000;
     std::map<int, VSAudioFormat> audioFormats;
@@ -677,15 +677,15 @@ public:
     VSThreadPool *threadPool;
     MemoryUse *memory;
 
-    PVideoFrame newVideoFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc);
-    PVideoFrame newVideoFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *planes, const VSFrame *propSrc);
+    PVideoFrame newVideoFrame(const VSVideoFormat *f, int width, int height, const VSFrame *propSrc);
+    PVideoFrame newVideoFrame(const VSVideoFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *planes, const VSFrame *propSrc);
     PVideoFrame newAudioFrame(const VSAudioFormat *f, int sampleRate, int numSamples, const VSFrame *propSrc);
     PVideoFrame copyFrame(const PVideoFrame &srcf);
     void copyFrameProps(const PVideoFrame &src, PVideoFrame &dst);
 
-    const VSFormat *getVideoFormat(int id);
+    const VSVideoFormat *getVideoFormat(int id);
     const VSAudioFormat *getAudioFormat(int id);
-    const VSFormat *queryVideoFormat(VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name = nullptr, int id = pfNone);
+    const VSVideoFormat *queryVideoFormat(VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name = nullptr, int id = pfNone);
     const VSAudioFormat *queryAudioFormat(int sampleType, int bitsPerSample, int64_t channelLayout, const char *name = nullptr, int id = pfNone);
     bool isValidFormatPointer(const void *f);
 

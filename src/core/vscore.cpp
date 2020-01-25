@@ -554,7 +554,7 @@ void VSPlaneData::release() {
 
 ///////////////
 
-VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, VSCore *core) : contentType(mtVideo), format(f), data(), width(width), height(height) {
+VSFrame::VSFrame(const VSVideoFormat *f, int width, int height, const VSFrame *propSrc, VSCore *core) : contentType(mtVideo), format(f), data(), width(width), height(height) {
     if (!f)
         vsFatal("Error in frame creation: null format");
 
@@ -585,7 +585,7 @@ VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSr
     }
 }
 
-VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core) : contentType(mtVideo), format(f), data(), width(width), height(height) {
+VSFrame::VSFrame(const VSVideoFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core) : contentType(mtVideo), format(f), data(), width(width), height(height) {
     if (!f)
         vsFatal("Error in frame creation: null format");
 
@@ -626,7 +626,7 @@ VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame * const
     }
 }
 
-VSFrame::VSFrame(const VSAudioFormat *f, int sampleRate, int numSamples, const VSFrame *propSrc, VSCore *core) : contentType(mtAudio), format(reinterpret_cast<const VSFormat *>(f)), data(), height(sampleRate) {
+VSFrame::VSFrame(const VSAudioFormat *f, int sampleRate, int numSamples, const VSFrame *propSrc, VSCore *core) : contentType(mtAudio), format(reinterpret_cast<const VSVideoFormat *>(f)), data(), height(sampleRate) {
     if (!f)
         vsFatal("Error in frame creation: null format");
 
@@ -873,7 +873,7 @@ VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, int numOutputs, V
 
     for (int i = 0; i < numOutputs; i++) {
         if (vi[i].format && !core->isValidFormatPointer(vi[i].format))
-            vsFatal("The VSFormat pointer passed by %s was not obtained from registerFormat() or getFormatPreset().", name.c_str());
+            vsFatal("The VSVideoFormat pointer passed by %s was not obtained from registerFormat() or getFormatPreset().", name.c_str());
         if (vi[i].numFrames <= 0)
             vsFatal("Filter %s has no video frames in the output.", name.c_str());
 
@@ -898,7 +898,7 @@ VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, int numOutputs, V
 
     for (int i = 0; i < numOutputs; i++) {
         if (ai[i].format && !core->isValidFormatPointer(ai[i].format))
-            vsFatal("The VSFormat pointer passed by %s was not obtained from queryAudioFormat() or getAudioFormat().", name.c_str());
+            vsFatal("The VSVideoFormat pointer passed by %s was not obtained from queryAudioFormat() or getAudioFormat().", name.c_str());
         if (ai[i].numSamples <= 0)
             vsFatal("Filter %s has no audio samples in the output.", name.c_str());
         if (ai[i].sampleRate <= 0)
@@ -941,7 +941,7 @@ void VSNode::setVideoInfo(const VSVideoInfo *vi, int numOutputs) {
         if ((!!vi[i].height) ^ (!!vi[i].width))
             vsFatal("setVideoInfo: Variable dimension clips must have both width and height set to 0. Dimensions given by filter %s: %dx%d.", name.c_str(), vi[i].width, vi[i].height);
         if (vi[i].format && !core->isValidFormatPointer(vi[i].format))
-            vsFatal("setVideoInfo: The VSFormat pointer passed by %s was not obtained from registerFormat() or getFormatPreset().", name.c_str());
+            vsFatal("setVideoInfo: The VSVideoFormat pointer passed by %s was not obtained from registerFormat() or getFormatPreset().", name.c_str());
         int64_t num = vi[i].fpsNum;
         int64_t den = vi[i].fpsDen;
         vs_normalizeRational(&num, &den);
@@ -965,7 +965,7 @@ PVideoFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext
         delete r;
 
         if (p->getFrameType() == mtVideo) {
-            const VSFormat *fi = p->getVideoFormat();
+            const VSVideoFormat *fi = p->getVideoFormat();
             const VSVideoInfo &lvi = vi[frameCtx.ctx->index];
 
             if (!lvi.format && fi->colorFamily == cmCompat)
@@ -1016,11 +1016,11 @@ void VSNode::notifyCache(bool needMemory) {
     cache->cache.adjustSize(needMemory);
 }
 
-PVideoFrame VSCore::newVideoFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc) {
+PVideoFrame VSCore::newVideoFrame(const VSVideoFormat *f, int width, int height, const VSFrame *propSrc) {
     return std::make_shared<VSFrame>(f, width, height, propSrc, this);
 }
 
-PVideoFrame VSCore::newVideoFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *planes, const VSFrame *propSrc) {
+PVideoFrame VSCore::newVideoFrame(const VSVideoFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *planes, const VSFrame *propSrc) {
     return std::make_shared<VSFrame>(f, width, height, planeSrc, planes, propSrc, this);
 }
 
@@ -1036,7 +1036,7 @@ void VSCore::copyFrameProps(const PVideoFrame &src, PVideoFrame &dst) {
     dst->setProperties(src->getProperties());
 }
 
-const VSFormat *VSCore::getVideoFormat(int id) {
+const VSVideoFormat *VSCore::getVideoFormat(int id) {
     std::lock_guard<std::mutex> lock(videoFormatLock);
 
     auto f = videoFormats.find(id);
@@ -1054,7 +1054,7 @@ const VSAudioFormat *VSCore::getAudioFormat(int id) {
     return nullptr;
 }
 
-const VSFormat *VSCore::queryVideoFormat(VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name, int id) {
+const VSVideoFormat *VSCore::queryVideoFormat(VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name, int id) {
     // this is to make exact format comparisons easy by simply allowing pointer comparison
 
     // block nonsense formats
@@ -1079,14 +1079,14 @@ const VSFormat *VSCore::queryVideoFormat(VSColorFamily colorFamily, VSSampleType
     std::lock_guard<std::mutex> lock(videoFormatLock);
 
     for (const auto &iter : videoFormats) {
-        const VSFormat &f = iter.second;
+        const VSVideoFormat &f = iter.second;
 
         if (f.colorFamily == colorFamily && f.sampleType == sampleType
                 && f.subSamplingW == subSamplingW && f.subSamplingH == subSamplingH && f.bitsPerSample == bitsPerSample)
             return &f;
     }
 
-    VSFormat f{};
+    VSVideoFormat f{};
 
     if (name) {
         strcpy(f.name, name);

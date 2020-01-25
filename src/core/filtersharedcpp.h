@@ -50,7 +50,7 @@ static inline void getPlanesArg(const VSMap *in, bool *process, const VSAPI *vsa
     }
 }
 
-static inline void getPlanePixelRangeArgs(const VSFormat *fi, const VSMap *in, const char *propName, uint16_t *ival, float *fval, RangeArgumentHandling mode, const VSAPI *vsapi) {
+static inline void getPlanePixelRangeArgs(const VSVideoFormat *fi, const VSMap *in, const char *propName, uint16_t *ival, float *fval, RangeArgumentHandling mode, const VSAPI *vsapi) {
     if (vsapi->propNumElements(in, propName) > fi->numPlanes)
         throw std::string(propName).append(" has more values specified than there are planes");
     bool prevValid = false;
@@ -86,7 +86,7 @@ static inline void getPlanePixelRangeArgs(const VSFormat *fi, const VSMap *in, c
     }
 }
 
-static void shared816FFormatCheck(const VSFormat *fi, bool allowVariable = false) {
+static void shared816FFormatCheck(const VSVideoFormat *fi, bool allowVariable = false) {
     if (!fi && !allowVariable)
         throw std::string("Cannot process variable format.");
 
@@ -100,7 +100,7 @@ static void shared816FFormatCheck(const VSFormat *fi, bool allowVariable = false
 }
 
 template<typename T>
-static void getPlaneArgs(const VSFormat *fi, const VSMap *in, const char *propName, T *val, T def, const VSAPI *vsapi) {
+static void getPlaneArgs(const VSVideoFormat *fi, const VSMap *in, const char *propName, T *val, T def, const VSAPI *vsapi) {
     if (vsapi->propNumElements(in, propName) > fi->numPlanes)
         throw std::string(propName).append(" has more values specified than there are planes");
     bool prevValid = false;

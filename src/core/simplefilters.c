@@ -150,7 +150,7 @@ static void VS_CC cropInit(VSMap *in, VSMap *out, void **instanceData, VSNode *n
     vsapi->setVideoInfo(&vi, 1, node);
 }
 
-static int cropVerify(int x, int y, int width, int height, int srcwidth, int srcheight, const VSFormat *fi, char *msg, size_t len) {
+static int cropVerify(int x, int y, int width, int height, int srcwidth, int srcheight, const VSVideoFormat *fi, char *msg, size_t len) {
     msg[0] = 0;
 
     if (y < 0 || x < 0)
@@ -188,7 +188,7 @@ static const VSFrameRef *VS_CC cropGetframe(int n, int activationReason, void **
     } else if (activationReason == arAllFramesReady) {
         char msg[150];
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        const VSFormat *fi = vsapi->getFrameFormat(src);
+        const VSVideoFormat *fi = vsapi->getFrameFormat(src);
         int width = vsapi->getFrameWidth(src, 0);
         int height = vsapi->getFrameHeight(src, 0);
         int y = (fi->id == pfCompatBGR32) ? (height - d->height - d->y) : d->y;
@@ -307,7 +307,7 @@ static void VS_CC addBordersInit(VSMap *in, VSMap *out, void **instanceData, VSN
     vsapi->setVideoInfo(&vi, 1, node);
 }
 
-static int addBordersVerify(int left, int right, int top, int bottom, const VSFormat *fi, char *msg, size_t len) {
+static int addBordersVerify(int left, int right, int top, int bottom, const VSVideoFormat *fi, char *msg, size_t len) {
     msg[0] = 0;
 
     if (fi) {
@@ -335,7 +335,7 @@ static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, v
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        const VSFormat *fi = vsapi->getFrameFormat(src);
+        const VSVideoFormat *fi = vsapi->getFrameFormat(src);
         VSFrameRef *dst;
 
         if (addBordersVerify(d->left, d->right, d->top, d->bottom, fi, msg, sizeof(msg))) {
@@ -529,7 +529,7 @@ static const VSFrameRef *VS_CC shufflePlanesGetframe(int n, int activationReason
         } else {
             VSFrameRef *dst;
             const VSFrameRef *src = vsapi->getFrameFilter(n, d->node[0], frameCtx);
-            const VSFormat *fi = vsapi->getFrameFormat(src);
+            const VSVideoFormat *fi = vsapi->getFrameFormat(src);
 
             if (d->plane[0] >= fi->numPlanes) {
                 vsapi->freeFrame(src);
@@ -704,7 +704,7 @@ static const VSFrameRef *VS_CC separateFieldsGetframe(int n, int activationReaso
         }
 
         VSFrameRef *dst = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, src, core);
-        const VSFormat *fi = vsapi->getFrameFormat(dst);
+        const VSVideoFormat *fi = vsapi->getFrameFormat(dst);
 
         for (int plane = 0; plane < fi->numPlanes; plane++) {
             const uint8_t *srcp = vsapi->getReadPtr(src, plane);
@@ -833,7 +833,7 @@ static const VSFrameRef *VS_CC doubleWeaveGetframe(int n, int activationReason, 
         }
 
         VSFrameRef *dst = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, src1, core);
-        const VSFormat *fi = vsapi->getFrameFormat(dst);
+        const VSVideoFormat *fi = vsapi->getFrameFormat(dst);
         VSMap *dstprops = vsapi->getFramePropsRW(dst);
         vsapi->propDeleteKey(dstprops, "_Field");
         vsapi->propSetInt(dstprops, "_FieldBased", 1 + (srctop == src1), paReplace);
@@ -898,7 +898,7 @@ static const VSFrameRef *VS_CC flipVerticalGetframe(int n, int activationReason,
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        const VSFormat *fi = vsapi->getFrameFormat(src);
+        const VSVideoFormat *fi = vsapi->getFrameFormat(src);
         VSFrameRef *dst = vsapi->newVideoFrame(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core);
 
         for (int plane = 0; plane < fi->numPlanes; plane++) {
@@ -945,7 +945,7 @@ static const VSFrameRef *VS_CC flipHorizontalGetframe(int n, int activationReaso
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        const VSFormat *fi = vsapi->getFrameFormat(src);
+        const VSVideoFormat *fi = vsapi->getFrameFormat(src);
         VSFrameRef *dst = vsapi->newVideoFrame(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core);
 
         for (int plane = 0; plane < fi->numPlanes; plane++) {
@@ -2125,7 +2125,7 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
         const VSFrameRef *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
         const VSFrameRef *src2 = d->node2 ? vsapi->getFrameFilter(n, d->node2, frameCtx) : NULL;
         VSFrameRef *dst = vsapi->copyFrame(src1, core);
-        const VSFormat *fi = vsapi->getFrameFormat(dst);
+        const VSVideoFormat *fi = vsapi->getFrameFormat(dst);
         int width = vsapi->getFrameWidth(src1, d->plane);
         int height = vsapi->getFrameHeight(src1, d->plane);
         const uint8_t *srcp = vsapi->getReadPtr(src1, d->plane);

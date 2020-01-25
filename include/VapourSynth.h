@@ -247,7 +247,7 @@ typedef struct VSCoreInfo {
 } VSCoreInfo;
 
 typedef struct VSVideoInfo {
-    const VSFormat *format;
+    const VSVideoFormat *format;
     int64_t fpsNum;
     int64_t fpsDen;
     int width;
@@ -311,7 +311,7 @@ struct VSAPI {
     void (VS_CC *freeNode)(VSNodeRef *node) VS_NOEXCEPT;
     void (VS_CC *freeFunc)(VSFuncRef *f) VS_NOEXCEPT;
 
-    VSFrameRef *(VS_CC *newVideoFrame)(const VSFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT;
+    VSFrameRef *(VS_CC *newVideoFrame)(const VSVideoFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT;
     VSFrameRef *(VS_CC *copyFrame)(const VSFrameRef *f, VSCore *core) VS_NOEXCEPT;
     void (VS_CC *copyFrameProps)(const VSFrameRef *src, VSFrameRef *dst, VSCore *core) VS_NOEXCEPT;
 
@@ -326,8 +326,8 @@ struct VSAPI {
     void (VS_CC *setFilterError)(const char *errorMessage, VSFrameContext *frameCtx) VS_NOEXCEPT; /* use to signal errors in the filter getframe function */
     VSMap *(VS_CC *invoke)(VSPlugin *plugin, const char *name, const VSMap *args) VS_NOEXCEPT;
 
-    const VSFormat *(VS_CC *getFormatPreset)(int id, VSCore *core) VS_NOEXCEPT;
-    const VSFormat *(VS_CC *registerFormat)(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) VS_NOEXCEPT;
+    const VSVideoFormat *(VS_CC *getFormatPreset)(int id, VSCore *core) VS_NOEXCEPT;
+    const VSVideoFormat *(VS_CC *registerFormat)(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) VS_NOEXCEPT;
 
     const VSFrameRef *(VS_CC *getFrame)(int n, VSNodeRef *node, char *errorMsg, int bufSize) VS_NOEXCEPT; /* do never use inside a filter's getframe function, for external applications using the core as a library or for requesting frames in a filter constructor */
     void (VS_CC *getFrameAsync)(int n, VSNodeRef *node, VSFrameDoneCallback callback, void *userData) VS_NOEXCEPT; /* do never use inside a filter's getframe function, for external applications using the core as a library or for requesting frames in a filter constructor */
@@ -350,7 +350,7 @@ struct VSAPI {
 
     const VSVideoInfo *(VS_CC *getVideoInfo)(VSNodeRef *node) VS_NOEXCEPT;
     void (VS_CC *setVideoInfo)(const VSVideoInfo *vi, int numOutputs, VSNode *node) VS_NOEXCEPT;
-    const VSFormat *(VS_CC *getFrameFormat)(const VSFrameRef *f) VS_NOEXCEPT;
+    const VSVideoFormat *(VS_CC *getFrameFormat)(const VSFrameRef *f) VS_NOEXCEPT;
     int (VS_CC *getFrameWidth)(const VSFrameRef *f, int plane) VS_NOEXCEPT;
     int (VS_CC *getFrameHeight)(const VSFrameRef *f, int plane) VS_NOEXCEPT;
     const VSMap *(VS_CC *getFramePropsRO)(const VSFrameRef *f) VS_NOEXCEPT;
@@ -379,7 +379,7 @@ struct VSAPI {
 
     int64_t (VS_CC *setMaxCacheSize)(int64_t bytes, VSCore *core) VS_NOEXCEPT;
     int (VS_CC *getOutputIndex)(VSFrameContext *frameCtx) VS_NOEXCEPT;
-    VSFrameRef *(VS_CC *newVideoFrame2)(const VSFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT;
+    VSFrameRef *(VS_CC *newVideoFrame2)(const VSVideoFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT;
     void (VS_CC *setMessageHandler)(VSMessageHandler handler, void *userData) VS_NOEXCEPT; /* deprecated as of api 3.6, use addMessageHandler and removeMessageHandler instead */
     int (VS_CC *setThreadCount)(int threads, VSCore *core) VS_NOEXCEPT;
 

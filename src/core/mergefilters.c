@@ -173,7 +173,7 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
         RETERROR("PreMultiply: compat formats are not supported");
     }
 
-    const VSFormat *alphaformat = vsapi->registerFormat(cmGray, d.vi->format->sampleType, d.vi->format->bitsPerSample, 0, 0, core);
+    const VSVideoFormat *alphaformat = vsapi->registerFormat(cmGray, d.vi->format->sampleType, d.vi->format->bitsPerSample, 0, 0, core);
     const VSVideoInfo *alphavi = vsapi->getVideoInfo(d.node2);
 
     if (alphavi->format != alphaformat) {

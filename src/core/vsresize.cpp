@@ -220,7 +220,7 @@ void propGetIfValid(const VSMap *map, const char *key, U *out, Pred pred, const 
 }
 
 
-void translate_pixel_type(const VSFormat *format, zimg_pixel_type_e *out) {
+void translate_pixel_type(const VSVideoFormat *format, zimg_pixel_type_e *out) {
     if (format->sampleType == stInteger && format->bytesPerSample == 1)
         *out = ZIMG_PIXEL_BYTE;
     else if (format->sampleType == stInteger && format->bytesPerSample == 2)
@@ -256,7 +256,7 @@ void translate_color_family(VSColorFamily cf, zimg_color_family_e *out, zimg_mat
     }
 }
 
-void translate_vsformat(const VSFormat *vsformat, zimg_image_format *format) {
+void translate_vsformat(const VSVideoFormat *vsformat, zimg_image_format *format) {
     if (vsformat->id == pfCompatBGR32) {
         format->color_family = ZIMG_COLOR_RGB;
         format->matrix_coefficients = ZIMG_MATRIX_RGB;
@@ -382,7 +382,7 @@ void import_frame_get_ptr(VSFrameRef *frame, zimg_image_buffer *buf, unsigned p,
 
 template <class T, class U>
 void import_frame_as_buffer(T *frame, U *buf, unsigned mask, const VSAPI *vsapi) {
-    const VSFormat *format = vsapi->getFrameFormat(frame);
+    const VSVideoFormat *format = vsapi->getFrameFormat(frame);
     for (unsigned p = 0; p < static_cast<unsigned>(format->numPlanes); ++p) {
         import_frame_get_ptr(frame, buf, p, vsapi);
         buf->plane[p].stride = vsapi->getStride(frame, p);
@@ -467,11 +467,11 @@ protected:
 
     vszimg_callback_base &operator=(const vszimg_callback_base &) = delete;
 
-    void allocate(const VSFormat *vsformat, unsigned width, unsigned height, unsigned lines, const VSAPI *vsapi, VSCore *core) {
+    void allocate(const VSVideoFormat *vsformat, unsigned width, unsigned height, unsigned lines, const VSAPI *vsapi, VSCore *core) {
         unsigned mask = zimg_select_buffer_mask(lines);
         lines = mask == ZIMG_BUFFER_MAX ? height : mask + 1;
 
-        const VSFormat* buffer_format = vsapi->registerFormat(cmYUV, stInteger, 8, vsformat->subSamplingW, vsformat->subSamplingH, core);
+        const VSVideoFormat* buffer_format = vsapi->registerFormat(cmYUV, stInteger, 8, vsformat->subSamplingW, vsformat->subSamplingH, core);
         m_tmp_alloc = vsapi->newVideoFrame(buffer_format, width, lines, nullptr, core);
         m_vsapi = vsapi;
 
@@ -491,7 +491,7 @@ class unpack_callback : private vszimg_callback_base {
         return 0;
     }
 public:
-    unpack_callback(const vszimgxx::FilterGraph &graph, const VSFrameRef *frame, const zimg_image_format &format, const VSFormat *vsformat, bool interlaced, VSCore *core, const VSAPI *vsapi) :
+    unpack_callback(const vszimgxx::FilterGraph &graph, const VSFrameRef *frame, const zimg_image_format &format, const VSVideoFormat *vsformat, bool interlaced, VSCore *core, const VSAPI *vsapi) :
         m_vs_buffer(),
         m_p2p_func()
     {
@@ -531,7 +531,7 @@ class pack_callback : private vszimg_callback_base {
         return 0;
     }
 public:
-    pack_callback(const vszimgxx::FilterGraph &graph, VSFrameRef *frame, const zimg_image_format &format, const VSFormat *vsformat, bool interlaced, VSCore *core, const VSAPI *vsapi) :
+    pack_callback(const vszimgxx::FilterGraph &graph, VSFrameRef *frame, const zimg_image_format &format, const VSVideoFormat *vsformat, bool interlaced, VSCore *core, const VSAPI *vsapi) :
         m_vs_buffer(),
         m_p2p_func()
     {
@@ -664,7 +664,7 @@ class vszimg {
         try {
             m_node = vsapi->propGetNode(in, "clip", 0, nullptr);
             const VSVideoInfo &node_vi = *vsapi->getVideoInfo(m_node);
-            const VSFormat *node_fmt = node_vi.format;
+            const VSVideoFormat *node_fmt = node_vi.format;
 
             m_vi = node_vi;
 
@@ -795,8 +795,8 @@ class vszimg {
 
         try {
             const VSMap *src_props = vsapi->getFramePropsRO(src_frame);
-            const VSFormat *src_vsformat = vsapi->getFrameFormat(src_frame);
-            const VSFormat *dst_vsformat = m_vi.format ? m_vi.format : src_vsformat;
+            const VSVideoFormat *src_vsformat = vsapi->getFrameFormat(src_frame);
+            const VSVideoFormat *dst_vsformat = m_vi.format ? m_vi.format : src_vsformat;
 
             src_format.width = vsapi->getFrameWidth(src_frame, 0);
             src_format.height = vsapi->getFrameHeight(src_frame, 0);
@@ -819,7 +819,7 @@ class vszimg {
 
             set_dst_colorspace(src_format, &dst_format);
 
-            // Need to also check VSFormat::id in case transformation to/from COMPAT is required.
+            // Need to also check VSVideoFormat::id in case transformation to/from COMPAT is required.
             if (src_format == dst_format && src_vsformat->id == dst_vsformat->id && !is_shifted(src_format))
                 return vsapi->cloneFrameRef(src_frame);
 

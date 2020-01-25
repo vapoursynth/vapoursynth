@@ -157,7 +157,7 @@ stringlist split_text(const std::string& txt, int width, int height) {
 
 
 void scrawl_text(std::string txt, int alignment, VSFrameRef *frame, const VSAPI *vsapi) {
-    const VSFormat *frame_format = vsapi->getFrameFormat(frame);
+    const VSVideoFormat *frame_format = vsapi->getFrameFormat(frame);
     int width = vsapi->getFrameWidth(frame, 0);
     int height = vsapi->getFrameHeight(frame, 0);
 
@@ -487,7 +487,7 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);       
 
-        const VSFormat *frame_format = vsapi->getFrameFormat(src);
+        const VSVideoFormat *frame_format = vsapi->getFrameFormat(src);
         if ((frame_format->sampleType == stInteger && frame_format->bitsPerSample > 16) ||
             (frame_format->sampleType == stFloat && frame_format->bitsPerSample != 32)) {
                 vsapi->freeFrame(src);

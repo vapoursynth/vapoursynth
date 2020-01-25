@@ -41,7 +41,7 @@ static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void 
         // The reason we query this on a per frame basis is because we want our filter
         // to accept clips with varying dimensions. If we reject such content using d->vi
         // would be better.
-        const VSFormat *fi = d->vi->format;
+        const VSVideoFormat *fi = d->vi->format;
         int height = vsapi->getFrameHeight(src, 0);
         int width = vsapi->getFrameWidth(src, 0);
 

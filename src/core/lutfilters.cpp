@@ -58,7 +58,7 @@ static const VSFrameRef *VS_CC lutGetframe(int n, int activationReason, void **i
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        const VSFormat *fi = d->vi_out.format;
+        const VSVideoFormat *fi = d->vi_out.format;
         const int pl[] = {0, 1, 2};
         const VSFrameRef *fr[] = {d->process[0] ? 0 : src, d->process[1] ? 0 : src, d->process[2] ? 0 : src};
         VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
@@ -302,7 +302,7 @@ static const VSFrameRef *VS_CC lut2Getframe(int n, int activationReason, void **
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *srcx = vsapi->getFrameFilter(n, d->node[0], frameCtx);
         const VSFrameRef *srcy = vsapi->getFrameFilter(n, d->node[1], frameCtx);
-        const VSFormat *fi = d->vi_out.format;
+        const VSVideoFormat *fi = d->vi_out.format;
         const int pl[] = {0, 1, 2};
         const VSFrameRef *fr[] = {d->process[0] ? 0 : srcx, d->process[1] ? 0 : srcx, d->process[2] ? 0 : srcx};
         VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(srcx, 0), vsapi->getFrameHeight(srcx, 0), fr, pl, srcx, core);

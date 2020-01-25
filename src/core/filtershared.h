@@ -64,7 +64,7 @@ static inline int planeHeight(const VSVideoInfo *vi, int plane) {
 }
 
 // get the triplet representing black for any colorspace (works for union with float too since it's always 0)
-static inline void setBlack(uint32_t color[3], const VSFormat *format) {
+static inline void setBlack(uint32_t color[3], const VSVideoFormat *format) {
     for (int i = 0; i < 3; i++)
         color[i] = 0;
     if (format->sampleType == stInteger && (format->colorFamily == cmYUV || format->colorFamily == cmYCoCg))

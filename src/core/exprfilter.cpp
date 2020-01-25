@@ -1927,7 +1927,7 @@ ExpressionTree parseExpr(const std::string &expr, const VSVideoInfo * const *vi,
 
         // Rename load operations with the correct data type.
         if (op.type == ExprOpType::MEM_LOAD_U8) {
-            const VSFormat *format = vi[op.imm.i]->format;
+            const VSVideoFormat *format = vi[op.imm.i]->format;
 
             if (format->sampleType == stInteger && format->bytesPerSample == 1)
                 op.type = ExprOpType::MEM_LOAD_U8;
@@ -2988,7 +2988,7 @@ void renameRegisters(std::vector<ExprInstruction> &code)
     }
 }
 
-std::vector<ExprInstruction> compile(ExpressionTree &tree, const VSFormat *format)
+std::vector<ExprInstruction> compile(ExpressionTree &tree, const VSVideoFormat *format)
 {
     std::vector<ExprInstruction> code;
     std::unordered_set<int> found;
@@ -3071,7 +3071,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
         for (int i = 0; i < numInputs; i++)
             src[i] = vsapi->getFrameFilter(n, d->node[i], frameCtx);
 
-        const VSFormat *fi = d->vi.format;
+        const VSVideoFormat *fi = d->vi.format;
         int height = vsapi->getFrameHeight(src[0], 0);
         int width = vsapi->getFrameWidth(src[0], 0);
         int planes[3] = { 0, 1, 2 };
@@ -3199,7 +3199,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         d->vi = *vi[0];
         int format = int64ToIntS(vsapi->propGetInt(in, "format", 0, &err));
         if (!err) {
-            const VSFormat *f = vsapi->getFormatPreset(format, core);
+            const VSVideoFormat *f = vsapi->getFormatPreset(format, core);
             if (f) {
                 if (d->vi.format->colorFamily == cmCompat)
                     throw std::runtime_error("No compat formats allowed");

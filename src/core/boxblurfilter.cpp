@@ -236,7 +236,7 @@ static const VSFrameRef *VS_CC boxBlurGetframe(int n, int activationReason, void
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        const VSFormat *fi = vsapi->getFrameFormat(src);
+        const VSVideoFormat *fi = vsapi->getFrameFormat(src);
         VSFrameRef *dst = vsapi->newVideoFrame(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core);
         int bytesPerSample = fi->bytesPerSample;
         int radius = d->radius;

@@ -101,7 +101,7 @@ static const VSFrameRef *VS_CC singlePixelGetFrame(int n, int activationReason, 
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        const VSFormat *fi = vsapi->getFrameFormat(src);
+        const VSVideoFormat *fi = vsapi->getFrameFormat(src);
 
         try {
             shared816FFormatCheck(fi);
@@ -163,7 +163,7 @@ static void templateInit(T& d, const char *name, bool allowVariableFormat, const
     getPlanesArg(in, d->process, vsapi);
 }
 
-vs_generic_params make_generic_params(const GenericData *d, const VSFormat *fi, int plane)
+vs_generic_params make_generic_params(const GenericData *d, const VSVideoFormat *fi, int plane)
 {
     vs_generic_params params{};
 
@@ -188,7 +188,7 @@ vs_generic_params make_generic_params(const GenericData *d, const VSFormat *fi, 
 
 #ifdef VS_TARGET_CPU_X86
 template <GenericOperations op>
-static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX2(const VSFormat *fi, GenericData *d) {
+static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX2(const VSVideoFormat *fi, GenericData *d) {
     if (fi->sampleType == stInteger && fi->bytesPerSample == 1) {
         switch (op) {
         case GenericPrewitt: return vs_generic_3x3_prewitt_byte_avx2;
@@ -236,7 +236,7 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectAVX2(const VSFormat *f
 }
 
 template <GenericOperations op>
-static decltype(&vs_generic_3x3_conv_byte_c) genericSelectSSE2(const VSFormat *fi, GenericData *d) {
+static decltype(&vs_generic_3x3_conv_byte_c) genericSelectSSE2(const VSVideoFormat *fi, GenericData *d) {
     if (fi->sampleType == stInteger && fi->bytesPerSample == 1) {
         switch (op) {
         case GenericPrewitt: return vs_generic_3x3_prewitt_byte_sse2;
@@ -285,7 +285,7 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectSSE2(const VSFormat *f
 #endif
 
 template <GenericOperations op>
-static decltype(&vs_generic_3x3_conv_byte_c) genericSelectC(const VSFormat *fi, GenericData *d) {
+static decltype(&vs_generic_3x3_conv_byte_c) genericSelectC(const VSVideoFormat *fi, GenericData *d) {
     if (fi->sampleType == stInteger && fi->bytesPerSample == 1) {
         switch (op) {
         case GenericPrewitt: return vs_generic_3x3_prewitt_byte_c;
@@ -358,7 +358,7 @@ static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        const VSFormat *fi = vsapi->getFrameFormat(src);
+        const VSVideoFormat *fi = vsapi->getFrameFormat(src);
 
         try {
             shared816FFormatCheck(fi);
@@ -608,7 +608,7 @@ struct InvertOp {
     uint16_t max;
     bool uv;
 
-    InvertOp(InvertData *d, const VSFormat *fi, int plane) {
+    InvertOp(InvertData *d, const VSVideoFormat *fi, int plane) {
         uv = ((fi->colorFamily == cmYUV) || (fi->colorFamily == cmYCoCg)) && (plane > 0);
         max = (1LL << fi->bitsPerSample) - 1;
     }
@@ -661,7 +661,7 @@ struct LimitOp {
     uint16_t max, min;
     float maxf, minf;
 
-    LimitOp(LimitData *d, const VSFormat *fi, int plane) {
+    LimitOp(LimitData *d, const VSVideoFormat *fi, int plane) {
         max = d->max[plane];
         min = d->min[plane];
         maxf = d->maxf[plane];
@@ -716,7 +716,7 @@ struct BinarizeOp {
     uint16_t v0, v1, thr;
     float v0f, v1f, thrf;
 
-    BinarizeOp(BinarizeData *d, const VSFormat *fi, int plane) {
+    BinarizeOp(BinarizeData *d, const VSVideoFormat *fi, int plane) {
         v0 = d->v0[plane];
         v1 = d->v1[plane];
         v0f = d->v0f[plane];
@@ -782,7 +782,7 @@ static const VSFrameRef *VS_CC levelsGetframe(int n, int activationReason, void 
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        const VSFormat *fi = vsapi->getFrameFormat(src);
+        const VSVideoFormat *fi = vsapi->getFrameFormat(src);
         const int pl[] = { 0, 1, 2 };
         const VSFrameRef *fr[] = { d->process[0] ? 0 : src, d->process[1] ? 0 : src, d->process[2] ? 0 : src };
         VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
@@ -824,7 +824,7 @@ static const VSFrameRef *VS_CC levelsGetframeF(int n, int activationReason, void
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        const VSFormat *fi = vsapi->getFrameFormat(src);
+        const VSVideoFormat *fi = vsapi->getFrameFormat(src);
         const int pl[] = { 0, 1, 2 };
         const VSFrameRef *fr[] = { d->process[0] ? 0 : src, d->process[1] ? 0 : src, d->process[2] ? 0 : src };
         VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);

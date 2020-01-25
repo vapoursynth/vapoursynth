@@ -167,7 +167,7 @@ static inline void vs_bitblt(void *dstp, int dst_stride, const void *srcp, int s
 
 /* check if the frame dimensions are valid for a given format */
 /* returns non-zero for valid width and height */
-static inline int areValidDimensions(const VSFormat *fi, int width, int height) {
+static inline int areValidDimensions(const VSVideoFormat *fi, int width, int height) {
     return !(width % (1 << fi->subSamplingW) || height % (1 << fi->subSamplingH));
 }
 

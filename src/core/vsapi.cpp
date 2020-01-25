@@ -35,12 +35,12 @@ void VS_CC vs_internal_registerFunction(const char *name, const char *args, VSPu
     plugin->registerFunction(name, args, argsFunc, functionData);
 }
 
-static const VSFormat *VS_CC getFormatPreset(int id, VSCore *core) VS_NOEXCEPT {
+static const VSVideoFormat *VS_CC getFormatPreset(int id, VSCore *core) VS_NOEXCEPT {
     assert(core);
     return core->getVideoFormat((VSPresetFormat)id);
 }
 
-static const VSFormat *VS_CC registerFormat(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) VS_NOEXCEPT {
+static const VSVideoFormat *VS_CC registerFormat(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) VS_NOEXCEPT {
     assert(core);
     return core->queryVideoFormat((VSColorFamily)colorFamily, (VSSampleType)sampleType, bitsPerSample, subSamplingW, subSamplingH);
 }
@@ -149,12 +149,12 @@ static void VS_CC freeNode(VSNodeRef *clip) VS_NOEXCEPT {
     delete clip;
 }
 
-static VSFrameRef *VS_CC newVideoFrame(const VSFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
+static VSFrameRef *VS_CC newVideoFrame(const VSVideoFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
     assert(format && core);
     return new VSFrameRef(core->newVideoFrame(format, width, height, propSrc ? propSrc->frame.get() : nullptr));
 }
 
-static VSFrameRef *VS_CC newVideoFrame2(const VSFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
+static VSFrameRef *VS_CC newVideoFrame2(const VSVideoFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
     assert(format && core);
     VSFrame *fp[3];
     for (int i = 0; i < format->numPlanes; i++)
@@ -208,7 +208,7 @@ static void VS_CC setVideoInfo(const VSVideoInfo *vi, int numOutputs, VSNode *c)
     c->setVideoInfo(vi, numOutputs);
 }
 
-static const VSFormat *VS_CC getFrameFormat(const VSFrameRef *f) VS_NOEXCEPT {
+static const VSVideoFormat *VS_CC getFrameFormat(const VSFrameRef *f) VS_NOEXCEPT {
     assert(f);
     return f->frame->getVideoFormat();
 }
