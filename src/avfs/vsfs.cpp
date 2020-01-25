@@ -279,8 +279,8 @@ bool VapourSynther::GetAudio(AvfsLog_ *log, void *buf, __int64 start, unsigned c
 
     uint8_t *dst = reinterpret_cast<uint8_t *>(buf);
 
-    int startFrame = start / af->samplesPerFrame;
-    int endFrame = (start + count - 1) / af->samplesPerFrame;
+    int startFrame = static_cast<int>(start / af->samplesPerFrame);
+    int endFrame = static_cast<int>((start + count - 1) / af->samplesPerFrame);
     
     std::vector<const uint8_t *> tmp;
     tmp.resize(ai->format->numChannels);

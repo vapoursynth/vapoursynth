@@ -54,43 +54,43 @@ class Avisynther final:
   int references = 1;
 
   // Function pointer
-  ICreateScriptEnvironment CreateScriptEnvironment;
+  ICreateScriptEnvironment CreateScriptEnvironment = nullptr;
 
   // Avisynth.dll
-  HMODULE hlib;
+  HMODULE hlib = nullptr;
 
-  IScriptEnvironment* env;
+  IScriptEnvironment* env = nullptr;
 
-  bool enable_v210;
+  bool enable_v210 = false;
 
-  PClip *clip;
+  PClip *clip = nullptr;
 
   std::wstring errText;
 
-  VideoInfo vi;
+  VideoInfo vi = {};
 
   std::string lastStringValue;
 
   std::vector<uint8_t> packedFrame;
 
   // Frame read ahead.
-  HANDLE fraThread;
+  HANDLE fraThread = nullptr;
   CRITICAL_SECTION fraMutex;
   HANDLE fraResumeEvent;
   HANDLE fraSuspendedEvent;
-  int fraPosition;
-  int fraEndPosition;
-  int fraSuspendCount;
+  int fraPosition = 0;
+  int fraEndPosition = 0;
+  int fraSuspendCount = 0;
   enum { fraDefaultFrameCount = 0 };
   enum { fraMaxFrameCount = 100 };
-  int fraFrameCount;
+  int fraFrameCount = 0;
   enum { fraMaxResumeDelay = 1000 };
   enum { fraDefaultResumeDelay = 10 };
-  int fraResumeDelay;
+  int fraResumeDelay = 0;
 
   // Cache last accessed frame, to reduce interference with read-ahead.
-  int lastPosition;
-  PVideoFrame *lastFrame;
+  int lastPosition = -1;
+  PVideoFrame *lastFrame = nullptr;
 
   // Exception protected take a copy of the current error message
   void setError(const char *text, const wchar_t *alt = 0);
@@ -786,21 +786,7 @@ AVSValue Avisynther::Invoke(const char* name, const AVSValue &args, const char* 
 ---------------------------------------------------------*/
 
 // Constructor
-Avisynther::Avisynther(void) :
-    CreateScriptEnvironment(nullptr),
-    hlib(0),
-    env(0),
-    clip(nullptr),
-    fraThread(0),
-    fraSuspendCount(0),
-    fraPosition(0),
-    fraEndPosition(0),
-    fraFrameCount(0),
-    fraResumeDelay(0),
-    lastPosition(-1),
-    lastFrame(nullptr) {
-    vi = {};
-
+Avisynther::Avisynther(void) {
     InitializeCriticalSection(&fraMutex);
     fraResumeEvent = CreateEvent(0, 1, 0, 0);
     fraSuspendedEvent = CreateEvent(0, 1, 0, 0);
