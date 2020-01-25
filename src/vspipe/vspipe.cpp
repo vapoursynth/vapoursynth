@@ -162,24 +162,24 @@ static std::string channelMaskToName(uint64_t mask) {
         }
     };
 
-    checkConstant(AV_CH_FRONT_LEFT, "front left");
-    checkConstant(AV_CH_FRONT_RIGHT, "front right");
-    checkConstant(AV_CH_FRONT_CENTER, "center");
-    checkConstant(AV_CH_LOW_FREQUENCY, "LFE");
-    checkConstant(AV_CH_BACK_LEFT, "back left");
-    checkConstant(AV_CH_BACK_RIGHT, "back right");
-    checkConstant(AV_CH_FRONT_LEFT_OF_CENTER, "front left of center");
-    checkConstant(AV_CH_FRONT_RIGHT_OF_CENTER, "front right of center");
-    checkConstant(AV_CH_BACK_CENTER, "back center");
-    checkConstant(AV_CH_SIDE_LEFT, "side left");
-    checkConstant(AV_CH_SIDE_RIGHT, "side right");
-    checkConstant(AV_CH_TOP_CENTER, "top center");
-    checkConstant(AV_CH_TOP_FRONT_LEFT, "top front left");
-    checkConstant(AV_CH_TOP_FRONT_CENTER, "top front center");
-    checkConstant(AV_CH_TOP_FRONT_RIGHT, "top front right");
-    checkConstant(AV_CH_TOP_BACK_LEFT, "top back left");
-    checkConstant(AV_CH_TOP_BACK_CENTER, "top back center");
-    checkConstant(AV_CH_TOP_BACK_RIGHT, "top back right");
+    checkConstant(vsacFrontLeft, "front left");
+    checkConstant(vsacFrontRight, "front right");
+    checkConstant(vsacFrontCenter, "center");
+    checkConstant(vsacLowFrequency, "LFE");
+    checkConstant(vsacBackLeft, "back left");
+    checkConstant(vsacBackRight, "back right");
+    checkConstant(vsacFrontLeftOFCenter, "front left of center");
+    checkConstant(vsacFrontRightOFCenter, "front right of center");
+    checkConstant(vsacBackCenter, "back center");
+    checkConstant(vsacSideLeft, "side left");
+    checkConstant(vsacSideRight, "side right");
+    checkConstant(vsacTopCenter, "top center");
+    checkConstant(vsacTopFrontLeft, "top front left");
+    checkConstant(vsacTopFrontCenter, "top front center");
+    checkConstant(vsacTopFrontRight, "top front right");
+    checkConstant(vsacTopBackLeft, "top back left");
+    checkConstant(vsacTopBackCenter, "top back center");
+    checkConstant(vsacTopBackRight, "top back right");
 
     return s;
 }

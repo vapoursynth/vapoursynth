@@ -1387,7 +1387,7 @@ static void VS_CC blankAudioCreate(const VSMap *in, VSMap *out, void *userData, 
 
     int64_t channels = vsapi->propGetInt(in, "channels", 0, &err);
     if (err)
-        channels = AV_CH_FRONT_LEFT | AV_CH_FRONT_RIGHT;
+        channels = vsacFrontLeft | vsacFrontRight;
 
     int bits = int64ToIntS(vsapi->propGetInt(in, "bits", 0, &err));
     if (err)
@@ -1459,7 +1459,7 @@ static void VS_CC testAudioCreate(const VSMap *in, VSMap *out, void *userData, V
 
     int64_t channels = vsapi->propGetInt(in, "channels", 0, &err);
     if (err)
-        channels = AV_CH_FRONT_LEFT | AV_CH_FRONT_RIGHT;
+        channels = vsacFrontLeft | vsacFrontRight;
 
     int bits = int64ToIntS(vsapi->propGetInt(in, "bits", 0, &err));
     if (err)

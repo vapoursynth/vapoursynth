@@ -844,8 +844,6 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, VSFilterIni
         throw VSException(vs_internal_vsapi.getError(out));
     }
 
-    // fixme, simply pass a pointer to the videoinfo vector or something on init, no need to expose a real pointer
-
     if (vi.empty()) {
         core->filterInstanceDestroyed();
         throw VSException("Filter " + name + " didn't set vi");

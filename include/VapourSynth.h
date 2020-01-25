@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2019 Fredrik Mellbin
+* Copyright (c) 2012-2020 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -20,26 +20,6 @@
 
 #ifndef VAPOURSYNTH_H
 #define VAPOURSYNTH_H
-
-// FIXME, shamelessly borrowed and structured badly
-#define AV_CH_FRONT_LEFT             0x00000001
-#define AV_CH_FRONT_RIGHT            0x00000002
-#define AV_CH_FRONT_CENTER           0x00000004
-#define AV_CH_LOW_FREQUENCY          0x00000008
-#define AV_CH_BACK_LEFT              0x00000010
-#define AV_CH_BACK_RIGHT             0x00000020
-#define AV_CH_FRONT_LEFT_OF_CENTER   0x00000040
-#define AV_CH_FRONT_RIGHT_OF_CENTER  0x00000080
-#define AV_CH_BACK_CENTER            0x00000100
-#define AV_CH_SIDE_LEFT              0x00000200
-#define AV_CH_SIDE_RIGHT             0x00000400
-#define AV_CH_TOP_CENTER             0x00000800
-#define AV_CH_TOP_FRONT_LEFT         0x00001000
-#define AV_CH_TOP_FRONT_CENTER       0x00002000
-#define AV_CH_TOP_FRONT_RIGHT        0x00004000
-#define AV_CH_TOP_BACK_LEFT          0x00008000
-#define AV_CH_TOP_BACK_CENTER        0x00010000
-#define AV_CH_TOP_BACK_RIGHT         0x00020000
 
 #include <stdint.h>
 
@@ -173,8 +153,8 @@ typedef enum VSMediaType {
     mtAudio = 2
 } VSMediaType;
 
-// FIXME, rename to VSVideoFormat and typedef the old name??
-typedef struct VSFormat {
+/* api 3.7 */
+typedef struct VSVideoFormat {
     char name[32];
     int id;
     int colorFamily; /* see VSColorFamily */
@@ -186,7 +166,32 @@ typedef struct VSFormat {
     int subSamplingH;
 
     int numPlanes; /* implicit from colorFamily */
-} VSFormat;
+} VSVideoFormat;
+
+typedef VSVideoFormat VSFormat;
+
+
+/* api 3.7 */
+typedef enum VSAudioChannels {
+    vsacFrontLeft           = 0x00000001,
+    vsacFrontRight          = 0x00000002,
+    vsacFrontCenter         = 0x00000004,
+    vsacLowFrequency        = 0x00000008,
+    vsacBackLeft            = 0x00000010,
+    vsacBackRight           = 0x00000020,
+    vsacFrontLeftOFCenter   = 0x00000040,
+    vsacFrontRightOFCenter  = 0x00000080,
+    vsacBackCenter          = 0x00000100,
+    vsacSideLeft            = 0x00000200,
+    vsacSideRight           = 0x00000400,
+    vsacTopCenter           = 0x00000800,
+    vsacTopFrontLeft        = 0x00001000,
+    vsacTopFrontCenter      = 0x00002000,
+    vsacTopFrontRight       = 0x00004000,
+    vsacTopBackLeft         = 0x00008000,
+    vsacTopBackCenter       = 0x00010000,
+    vsacTopBackRight        = 0x00020000
+} VSAudioChannels;
 
 /* api 3.7 */
 typedef struct VSAudioFormat {
@@ -256,7 +261,7 @@ typedef struct VSAudioInfo {
     const VSAudioFormat *format;
     int sampleRate;
     int64_t numSamples;
-    int numFrames;
+    int numFrames; /* implicit from numSamples */
     int flags;
 } VSAudioInfo;
 
