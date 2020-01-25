@@ -29,16 +29,10 @@ lib_LTLIBRARIES =
 
 
 if VSCORE
-noinst_LTLIBRARIES = libexprfilter.la libvapoursynth_avx2.la
+noinst_LTLIBRARIES = libexprfilter.la
 
 libexprfilter_la_SOURCES = src/core/exprfilter.cpp
 libexprfilter_la_CPPFLAGS = $(AM_CXXFLAGS) -fno-strict-aliasing
-
-libvapoursynth_avx2_la_SOURCES = src/core/kernel/x86/generic_avx2.cpp \
-				 			src/core/kernel/x86/merge_avx2.c \
-							src/core/kernel/x86/planestats_avx2.c 
-libvapoursynth_avx2_la_CFLAGS = $(AM_CFLAGS) $(AVX2FLAGS)
-libvapoursynth_avx2_la_CXXFLAGS = $(AM_CXXFLAGS) $(AVX2FLAGS)
 
 lib_LTLIBRARIES += libvapoursynth.la
 
@@ -61,10 +55,6 @@ libvapoursynth_la_SOURCES = src/core/boxblurfilter.cpp \
 							src/core/kernel/planestats.h \
 							src/core/kernel/transpose.c \
 							src/core/kernel/transpose.h \
-							src/core/kernel/x86/generic_sse2.cpp \
-							src/core/kernel/x86/merge_sse2.c \
-							src/core/kernel/x86/planestats_sse2.c \
-							src/core/kernel/x86/transpose_sse2.c \
 							src/core/lutfilters.cpp \
 							src/core/mergefilters.c \
 							src/core/reorderfilters.c \
@@ -91,8 +81,26 @@ pkgconfig_DATA += pc/vapoursynth.pc
 
 libvapoursynth_la_LDFLAGS = -no-undefined -avoid-version
 libvapoursynth_la_CPPFLAGS = $(ZIMG_CFLAGS) -DVS_PATH_PLUGINDIR='"$(PLUGINDIR)"'
-libvapoursynth_la_LIBADD = $(ZIMG_LIBS) $(DLOPENLIB) libexprfilter.la libvapoursynth_avx2.la
+libvapoursynth_la_LIBADD = $(ZIMG_LIBS) $(DLOPENLIB) libexprfilter.la
 
+
+if X86ASM
+noinst_LTLIBRARIES += libvapoursynth_avx2.la
+
+libvapoursynth_avx2_la_SOURCES = src/core/kernel/x86/generic_avx2.cpp \
+								 src/core/kernel/x86/merge_avx2.c \
+								 src/core/kernel/x86/planestats_avx2.c 
+libvapoursynth_avx2_la_CFLAGS = $(AM_CFLAGS) $(AVX2FLAGS)
+libvapoursynth_avx2_la_CXXFLAGS = $(AM_CXXFLAGS) $(AVX2FLAGS)
+
+libvapoursynth_la_SOURCES += src/core/jitasm.h \
+							 src/core/kernel/x86/generic_sse2.cpp \
+							 src/core/kernel/x86/merge_sse2.c \
+							 src/core/kernel/x86/planestats_sse2.c \
+							 src/core/kernel/x86/transpose_sse2.c
+
+libvapoursynth_la_LIBADD += libvapoursynth_avx2.la
+#endif # X86ASM
 
 if PYTHONMODULE
 pyexec_LTLIBRARIES = vapoursynth.la
