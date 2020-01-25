@@ -234,7 +234,13 @@ AS_IF(
       [
        AM_PATH_PYTHON([3])
 
-       PKG_CHECK_MODULES([PYTHON3], [python-$PYTHON_VERSION])
+       PKG_CHECK_MODULES([PYTHON3],
+                         [python-$PYTHON_VERSION-embed],
+                         [],
+                         [
+                          PKG_CHECK_MODULES([PYTHON3],
+                                            [python-$PYTHON_VERSION])
+                         ])
 
        AC_CONFIG_FILES([pc/vapoursynth-script.pc])
       ]
@@ -292,7 +298,15 @@ AS_IF(
 
               AS_IF(
                     [test -z "$PYTHON3_LIBS"],
-                    [PKG_CHECK_MODULES([PYTHON3], [python-$PYTHON_VERSION])]
+                    [
+                     PKG_CHECK_MODULES([PYTHON3],
+                                       [python-$PYTHON_VERSION-embed],
+                                       [],
+                                       [
+                                        PKG_CHECK_MODULES([PYTHON3],
+                                                          [python-$PYTHON_VERSION])
+                                       ])
+                    ]
               )
 
               AS_CASE(
