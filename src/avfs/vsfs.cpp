@@ -287,7 +287,7 @@ bool VapourSynther::GetAudio(AvfsLog_ *log, void *buf, __int64 start, unsigned c
 
     for (int i = startFrame; i <= endFrame; i++) {
         const VSFrameRef *f = vsapi->getFrame(i, audioNode, nullptr, 0);
-        int64_t firstFrameSample = i * af->samplesPerFrame;
+        int64_t firstFrameSample = i * static_cast<int64_t>(af->samplesPerFrame);
         size_t offset = 0;
         int copyLength = af->samplesPerFrame;
         if (firstFrameSample < start) {

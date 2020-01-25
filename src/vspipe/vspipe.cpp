@@ -480,7 +480,7 @@ static bool outputNode() {
         buffer.resize(size);
 
         if (y4m) {        
-            uint64_t dataSize = ai->format->numChannels * ai->format->bytesPerSample * ai->numSamples;
+            uint64_t dataSize = ai->format->numChannels * static_cast<int64_t>(ai->format->bytesPerSample) * ai->numSamples;
 
             Wave64Hdr header = {};
             size_t hdrSize = sizeof(header);

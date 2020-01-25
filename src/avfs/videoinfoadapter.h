@@ -158,7 +158,7 @@ public:
 
     int FramesFromAudioSamples(int64_t samples) const {
         if (vsvi && vsai && vsvi->fpsDen > 0)
-            return static_cast<int>((samples * vsvi->fpsNum) / static_cast<int64_t>(fps_denominator * vsai->sampleRate));
+            return static_cast<int>((samples * vsvi->fpsNum) / (static_cast<int64_t>(fps_denominator) * vsai->sampleRate));
         else if (avsvi)
             return avsvi->FramesFromAudioSamples(samples);
         else
