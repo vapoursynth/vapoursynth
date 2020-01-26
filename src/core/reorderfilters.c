@@ -176,7 +176,14 @@ static const VSFrameRef *VS_CC audioTrimGetframe(int n, int activationReason, vo
         if (activationReason == arInitial) {
             vsapi->requestFrameFilter(startFrame, d->node, frameCtx);
         } else if (activationReason == arAllFramesReady) {
-            return vsapi->getFrameFilter(startFrame, d->node, frameCtx);
+            VSFrameRef *src = vsapi->getFrameFilter(startFrame, d->node, frameCtx);
+            if (length == vsapi->getFrameLength(src))
+                return src;
+            VSFrameRef *dst = vsapi->newAudioFrame(d->ai.format, d->ai.sampleRate, length, src, core);
+            for (int channel = 0; channel < d->ai.format->numChannels; channel++)             
+                memcpy(vsapi->getWritePtr(dst, channel), vsapi->getReadPtr(src, channel), length * d->ai.format->bytesPerSample);
+            vsapi->freeFrame(src);
+            return dst;
         }
     } else {
         int numSrc1Samples = d->ai.format->samplesPerFrame - (startSample % d->ai.format->samplesPerFrame);
