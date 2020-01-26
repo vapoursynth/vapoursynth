@@ -1297,7 +1297,7 @@ cdef AudioFrame createConstAudioFrame(const VSFrameRef *constf, const VSAPI *fun
     instance.funcs = funcs
     instance.core = core
     instance.readonly = True
-    instance.format = createAudioFormat(funcs.getFrameAudioFormat(constf))
+    instance.format = createAudioFormat(funcs.getAudioFrameFormat(constf))
     instance.props = createFrameProps(instance)
     return instance
 
@@ -1309,7 +1309,7 @@ cdef AudioFrame createAudioFrame(VSFrameRef *f, const VSAPI *funcs, VSCore *core
     instance.funcs = funcs
     instance.core = core
     instance.readonly = False
-    instance.format = createAudioFormat(funcs.getFrameAudioFormat(f))
+    instance.format = createAudioFormat(funcs.getAudioFrameFormat(f))
     instance.props = createFrameProps(instance)
     return instance
 
