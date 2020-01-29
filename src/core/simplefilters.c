@@ -1601,6 +1601,64 @@ static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, V
 }
 
 //////////////////////////////////////////
+// AssumeSampleRate
+
+typedef struct {
+    VSNodeRef *node;
+} AssumeSampleRateData;
+
+static const VSFrameRef *VS_CC assumeSampleRateGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    AssumeSampleRateData *d = (AssumeSampleRateData *) * instanceData;
+
+    if (activationReason == arInitial) {
+        vsapi->requestFrameFilter(n, d->node, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        return vsapi->getFrameFilter(n, d->node, frameCtx);
+    }
+
+    return 0;
+}
+
+static void VS_CC assumeSampleRateCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    AssumeSampleRateData d;
+    AssumeSampleRateData *data;
+    int hassamplerate = 0;
+    int hassrc = 0;
+    int err;
+
+    d.node = vsapi->propGetNode(in, "clip", 0, 0);
+    VSAudioInfo ai = *vsapi->getAudioInfo(d.node);
+
+    ai.sampleRate = int64ToIntS(vsapi->propGetInt(in, "samplerate", 0, &err));
+    if (!err)
+        hassamplerate = 1;
+
+    VSNodeRef *src = vsapi->propGetNode(in, "src", 0, &err);
+
+    if (!err) {
+        const VSVideoInfo *vi = vsapi->getVideoInfo(src);
+        ai.sampleRate = vsapi->getAudioInfo(d.node)->sampleRate;
+        vsapi->freeNode(src);
+        hassrc = 1;
+    }
+
+    if (hassamplerate == hassrc) {
+        vsapi->freeNode(d.node);
+        RETERROR("AssumeSampleRate: need to specify source clip or samplerate");
+    }
+
+    if (ai.sampleRate < 1) {
+        vsapi->freeNode(d.node);
+        RETERROR("AssumeSampleRate: invalid samplerate specified");
+    }
+
+    data = malloc(sizeof(d));
+    *data = d;
+
+    vsapi->createAudioFilter(in, out, "AssumeFPS", &ai, 1, assumeSampleRateGetframe, singleClipFree, fmParallel, nfNoCache, data, core);
+}
+
+//////////////////////////////////////////
 // FrameEval
 
 typedef struct {
@@ -2689,6 +2747,7 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("BlankAudio", "channels:int:opt;bits:int:opt;isfloat:int:opt;samplerate:int:opt;length:int:opt;keep:int:opt;", blankAudioCreate, 0, plugin);
     registerFunc("TestAudio", "channels:int:opt;bits:int:opt;isfloat:int:opt;samplerate:int:opt;length:int:opt;", testAudioCreate, 0, plugin);
     registerFunc("AssumeFPS", "clip:clip;src:clip:opt;fpsnum:int:opt;fpsden:int:opt;", assumeFPSCreate, 0, plugin);
+    registerFunc("AssumeSampleRate", "clip:anode;src:anode:opt;samplerate:int:opt;", assumeSampleRateCreate, 0, plugin);
     registerFunc("FrameEval", "clip:clip;eval:func;prop_src:clip[]:opt;", frameEvalCreate, 0, plugin);
     registerFunc("ModifyFrame", "clip:clip;clips:clip[];selector:func;", modifyFrameCreate, 0, plugin);
     registerFunc("Transpose", "clip:clip;", transposeCreate, 0, plugin);
