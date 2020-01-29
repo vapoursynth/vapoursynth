@@ -174,9 +174,9 @@ Root: HKA; Subkey: SOFTWARE\Classes\AVIFile\Extensions\VPY; ValueType: string; V
 
 ; PATH
 Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\core"; Check: IsAdminInstallMode; Tasks: vscorepath
-Root: HKCR; Subkey: "Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\core"; Check: not IsAdminInstallMode; Tasks: vscorepath
+Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\core"; Check: not IsAdminInstallMode; Tasks: vscorepath
 Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\vsrepo"; Check: IsAdminInstallMode; Tasks: vsrepopath
-Root: HKCR; Subkey: "Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\vsrepo"; Check: not IsAdminInstallMode; Tasks: vsrepopath
+Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\vsrepo"; Check: not IsAdminInstallMode; Tasks: vsrepopath
 
 #include "scripts\products.iss"
 #include "scripts\products\stringversion.iss"
