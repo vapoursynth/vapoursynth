@@ -216,7 +216,7 @@ static const VSFrameRef *VS_CC cropGetframe(int n, int activationReason, void **
         if (d->y & 1) {
             VSMap *props = vsapi->getFramePropsRW(dst);
             int error;
-            int fb = vsapi->propGetInt(props, "_FieldBased", 0, &error);
+            int64_t fb = vsapi->propGetInt(props, "_FieldBased", 0, &error);
             if (fb == 1 || fb == 2)
                 vsapi->propSetInt(props, "_FieldBased", (fb == 1) ? 2 : 1, paReplace);
         }
@@ -423,7 +423,7 @@ static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, v
         if (d->top & 1) {
             VSMap *props = vsapi->getFramePropsRW(dst);
             int error;
-            int fb = vsapi->propGetInt(props, "_FieldBased", 0, &error);
+            int64_t fb = vsapi->propGetInt(props, "_FieldBased", 0, &error);
             if (fb == 1 || fb == 2)
                 vsapi->propSetInt(props, "_FieldBased", (fb == 1) ? 2 : 1, paReplace);
         }
@@ -693,6 +693,7 @@ typedef struct {
     VSNodeRef *node;
     VSVideoInfo vi;
     int tff;
+    int modifyDuration;
 } SeparateFieldsData;
 
 static void VS_CC separateFieldsInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -743,13 +744,15 @@ static const VSFrameRef *VS_CC separateFieldsGetframe(int n, int activationReaso
         vsapi->propSetInt(dst_props, "_Field", ((n & 1) ^ effectiveTFF), paReplace);
         vsapi->propDeleteKey(dst_props, "_FieldBased");
 
-        int errNum, errDen;
-        int64_t durationNum = vsapi->propGetInt(dst_props, "_DurationNum", 0, &errNum);
-        int64_t durationDen = vsapi->propGetInt(dst_props, "_DurationDen", 0, &errDen);
-        if (!errNum && !errDen) {
-            muldivRational(&durationNum, &durationDen, 1, 2); // Divide duration by 2
-            vsapi->propSetInt(dst_props, "_DurationNum", durationNum, paReplace);
-            vsapi->propSetInt(dst_props, "_DurationDen", durationDen, paReplace);
+        if (d->modifyDuration) {
+            int errNum, errDen;
+            int64_t durationNum = vsapi->propGetInt(dst_props, "_DurationNum", 0, &errNum);
+            int64_t durationDen = vsapi->propGetInt(dst_props, "_DurationDen", 0, &errDen);
+            if (!errNum && !errDen) {
+                muldivRational(&durationNum, &durationDen, 1, 2); // Divide duration by 2
+                vsapi->propSetInt(dst_props, "_DurationNum", durationNum, paReplace);
+                vsapi->propSetInt(dst_props, "_DurationDen", durationDen, paReplace);
+            }
         }
 
         return dst;
@@ -766,6 +769,9 @@ static void VS_CC separateFieldsCreate(const VSMap *in, VSMap *out, void *userDa
     d.tff = !!vsapi->propGetInt(in, "tff", 0, &err);
     if (err)
         d.tff = -1;
+    d.modifyDuration = !!vsapi->propGetInt(in, "modify_duration", 0, &err);
+    if (err)
+        d.modifyDuration = 1;
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = *vsapi->getVideoInfo(d.node);
 
@@ -785,7 +791,9 @@ static void VS_CC separateFieldsCreate(const VSMap *in, VSMap *out, void *userDa
     }
     d.vi.numFrames *= 2;
     d.vi.height /= 2;
-    muldivRational(&d.vi.fpsNum, &d.vi.fpsDen, 2, 1);
+
+    if (d.modifyDuration)
+        muldivRational(&d.vi.fpsNum, &d.vi.fpsDen, 2, 1);
 
     data = malloc(sizeof(d));
     *data = d;
@@ -2516,7 +2524,7 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("Crop", "clip:clip;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;", cropRelCreate, 0, plugin);
     registerFunc("AddBorders", "clip:clip;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;color:float[]:opt;", addBordersCreate, 0, plugin);
     registerFunc("ShufflePlanes", "clips:clip[];planes:int[];colorfamily:int;", shufflePlanesCreate, 0, plugin);
-    registerFunc("SeparateFields", "clip:clip;tff:int:opt;", separateFieldsCreate, 0, plugin);
+    registerFunc("SeparateFields", "clip:clip;tff:int:opt;modify_duration:int:opt;", separateFieldsCreate, 0, plugin);
     registerFunc("DoubleWeave", "clip:clip;tff:int:opt;", doubleWeaveCreate, 0, plugin);
     registerFunc("FlipVertical", "clip:clip;", flipVerticalCreate, 0, plugin);
     registerFunc("FlipHorizontal", "clip:clip;", flipHorizontalCreate, 0, plugin);
