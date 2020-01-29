@@ -1,7 +1,7 @@
 SelectEvery
 ===========
 
-.. function:: SelectEvery(clip clip, int cycle, int[] offsets)
+.. function:: SelectEvery(clip clip, int cycle, int[] offsets[, bint modify_duration=True])
    :module: std
 
    Returns a clip with only some of the frames in every *cycle* selected. The
@@ -27,6 +27,5 @@ SelectEvery
 
    In Python, std.SelectEvery can also be invoked by :ref:`slicing a clip <pythonreference>`.
 
-   The clip's frame rate is multiplied by the number of offsets and
-   divided by *cycle*. The frame durations are multiplied by *cycle* and
-   divided by the number of offsets.
+   If *modify_duration* is set the clip's frame rate is multiplied by the number
+   of offsets and divided by *cycle*. The frame durations are adjusted in the same manner.

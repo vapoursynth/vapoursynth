@@ -100,7 +100,7 @@ libvapoursynth_la_SOURCES += src/core/jitasm.h \
 							 src/core/kernel/x86/transpose_sse2.c
 
 libvapoursynth_la_LIBADD += libvapoursynth_avx2.la
-#endif # X86ASM
+endif # X86ASM
 
 if PYTHONMODULE
 pyexec_LTLIBRARIES = vapoursynth.la

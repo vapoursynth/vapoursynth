@@ -1,5 +1,7 @@
-#define Version '48'
+#define Version '49'
 #define VersionExtra ''
+#define PythonVersion '3.8'
+#define PythonCompactVersion '38'
 
 #ifndef InstallerBits
   #define InstallerBits '64'
@@ -11,13 +13,13 @@
   #define AppId 'VapourSynth'
   #define RegistryPath 'SOFTWARE\VapourSynth'
   #define SourceBinaryPath '..\msvc_project\x64\Release'
-  #define WheelFilename(Version) 'VapourSynth-' + Version + '-cp37-cp37m-win_amd64.whl'
+  #define WheelFilename(Version) 'VapourSynth-' + Version + '-cp' + PythonCompactVersion + '-cp' + PythonCompactVersion + '-win_amd64.whl'
 #else
   #define AppName 'VapourSynth (32-bits)'
   #define AppId 'VapourSynth-32'
   #define RegistryPath 'SOFTWARE\VapourSynth-32'
   #define SourceBinaryPath '..\msvc_project\Release'
-  #define WheelFilename(Version) 'VapourSynth-' + Version + '-cp37-cp37m-win32.whl'
+  #define WheelFilename(Version) 'VapourSynth-' + Version + '-cp' + PythonCompactVersion + '-cp' + PythonCompactVersion + '-win32.whl'
 #endif
 
 [Setup]
@@ -174,9 +176,9 @@ Root: HKA; Subkey: SOFTWARE\Classes\AVIFile\Extensions\VPY; ValueType: string; V
 
 ; PATH
 Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\core"; Check: IsAdminInstallMode; Tasks: vscorepath
-Root: HKCR; Subkey: "Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\core"; Check: not IsAdminInstallMode; Tasks: vscorepath
+Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\core"; Check: not IsAdminInstallMode; Tasks: vscorepath
 Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\vsrepo"; Check: IsAdminInstallMode; Tasks: vsrepopath
-Root: HKCR; Subkey: "Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\vsrepo"; Check: IsAdminInstallMode; Tasks: vsrepopath
+Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}\vsrepo"; Check: not IsAdminInstallMode; Tasks: vsrepopath
 
 #include "scripts\products.iss"
 #include "scripts\products\stringversion.iss"
@@ -185,7 +187,7 @@ Root: HKCR; Subkey: "Environment"; ValueType: expandsz; ValueName: "PATH"; Value
 
 [Code]
 
-const VSRuntimeVersion = '14.23.27820';
+const VSRuntimeVersion = '14.24.28127';
 
 type
   TPythonPath = record
@@ -234,7 +236,7 @@ begin
         begin
           RegPathTemp := RegPath + '\' + Names[Nc] + '\' + Tags[Tc];
           Bitness := AssumeBitness;
-          if (not RegQueryStringValue(RegRoot, RegPathTemp, 'SysVersion', Temp)) or (Temp <> '3.7') then
+          if (not RegQueryStringValue(RegRoot, RegPathTemp, 'SysVersion', Temp)) or (Temp <> '{#PythonVersion}') then
             continue;
           if RegQueryStringValue(RegRoot, RegPathTemp, 'SysArchitecture', Temp) then
           begin
@@ -354,11 +356,11 @@ begin
   Result := GetArrayLength(PythonInstallations) > 0; 
 
   if not Result and not HasOtherPython then
-      MsgBox('No suitable Python 3.7 ({#InstallerBits}-bit) installation found. The installer will now exit.', mbCriticalError, MB_OK)
+      MsgBox('No suitable Python {#PythonVersion} ({#InstallerBits}-bit) installation found. The installer will now exit.', mbCriticalError, MB_OK)
   else if not Result and IsAdminInstallMode then
-      MsgBox('Python 3.7 ({#InstallerBits}-bit) is installed for the current user only. Run the installer again and select "Install for me only" or install Python for all users.', mbCriticalError, MB_OK)
+      MsgBox('Python {#PythonVersion} ({#InstallerBits}-bit) is installed for the current user only. Run the installer again and select "Install for me only" or install Python for all users.', mbCriticalError, MB_OK)
   else if not Result and not IsAdminInstallMode then
-      MsgBox('Python 3.7 ({#InstallerBits}-bit) is installed for all users. Run the installer again and select "Install for all users" or install Python for the current user only.', mbCriticalError, MB_OK);
+      MsgBox('Python {#PythonVersion} ({#InstallerBits}-bit) is installed for all users. Run the installer again and select "Install for all users" or install Python for the current user only.', mbCriticalError, MB_OK);
       
   if not IsAdminInstallMode and not vcredist2017installed(VSRuntimeVersion) then
       if MsgBox('No recent Visual Studio 2019 Runtime installed.If you proceed with the install it is very likely the installation won''t work.'#13#10#13#10'Go to the download website now?', mbError, MB_YESNO) = IDYES then

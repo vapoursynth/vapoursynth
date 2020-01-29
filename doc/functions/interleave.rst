@@ -1,7 +1,7 @@
 Interleave
 ==========
 
-.. function::   Interleave(clip[] clips[, bint extend=0, bint mismatch=0])
+.. function::   Interleave(clip[] clips[, bint extend=0, bint mismatch=0, bint modify_duration=True])
    :module: std
 
    Returns a clip with the frames from all *clips* interleaved. For example,
@@ -14,6 +14,6 @@ Interleave
    Interleaving clips with different formats or dimensions is considered an
    error unless *mismatch* is true.
 
-   The output clip's frame rate is the first input clip's frame rate
-   multiplied by the number of input clips. The frame durations are divided
-   by the number of input clips.
+   If *modify_duration* is set then the output clip's frame rate is the first
+   input clip's frame rate multiplied by the number of input clips. The frame durations are divided
+   by the number of input clips. Otherwise the first input clip's frame rate is used.

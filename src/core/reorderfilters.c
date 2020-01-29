@@ -276,6 +276,7 @@ typedef struct {
     VSNodeRef **node;
     VSVideoInfo vi;
     int numclips;
+    int modifyDuration;
 } InterleaveData;
 
 static void VS_CC interleaveInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -290,21 +291,23 @@ static const VSFrameRef *VS_CC interleaveGetframe(int n, int activationReason, v
         vsapi->requestFrameFilter(n / d->numclips, d->node[n % d->numclips], frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n / d->numclips, d->node[n % d->numclips], frameCtx);
-        VSFrameRef *dst = vsapi->copyFrame(src, core);
-        vsapi->freeFrame(src);
+        if (d->modifyDuration) {
+            VSFrameRef *dst = vsapi->copyFrame(src, core);
+            vsapi->freeFrame(src);
 
-        VSMap *dst_props = vsapi->getFramePropsRW(dst);
-
-        int errNum, errDen;
-        int64_t durationNum = vsapi->propGetInt(dst_props, "_DurationNum", 0, &errNum);
-        int64_t durationDen = vsapi->propGetInt(dst_props, "_DurationDen", 0, &errDen);
-        if (!errNum && !errDen) {
-            muldivRational(&durationNum, &durationDen, 1, d->numclips);
-            vsapi->propSetInt(dst_props, "_DurationNum", durationNum, paReplace);
-            vsapi->propSetInt(dst_props, "_DurationDen", durationDen, paReplace);
+            VSMap *dst_props = vsapi->getFramePropsRW(dst);
+            int errNum, errDen;
+            int64_t durationNum = vsapi->propGetInt(dst_props, "_DurationNum", 0, &errNum);
+            int64_t durationDen = vsapi->propGetInt(dst_props, "_DurationDen", 0, &errDen);
+            if (!errNum && !errDen) {
+                muldivRational(&durationNum, &durationDen, 1, d->numclips);
+                vsapi->propSetInt(dst_props, "_DurationNum", durationNum, paReplace);
+                vsapi->propSetInt(dst_props, "_DurationDen", durationDen, paReplace);
+            }
+            return dst;
+        } else {
+            return src;
         }
-
-        return dst;
     }
 
     return 0;
@@ -326,6 +329,9 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
 
     int mismatch = !!vsapi->propGetInt(in, "mismatch", 0, &err);
     int extend = !!vsapi->propGetInt(in, "extend", 0, &err);
+    d.modifyDuration = !!vsapi->propGetInt(in, "modify_duration", 0, &err);
+    if (err)
+        d.modifyDuration = 1;
     d.numclips = vsapi->propNumElements(in, "clips");
 
     if (d.numclips == 1) { // passthrough for the special case with only one clip
@@ -384,7 +390,8 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
             RETERROR("Interleave: resulting clip is too long");
         }
 
-        muldivRational(&d.vi.fpsNum, &d.vi.fpsDen, d.numclips, 1);
+        if (d.modifyDuration)
+            muldivRational(&d.vi.fpsNum, &d.vi.fpsDen, d.numclips, 1);
 
         data = malloc(sizeof(d));
         *data = d;
@@ -492,6 +499,7 @@ typedef struct {
     int cycle;
     int *offsets;
     int num;
+    int modifyDuration;
 } SelectEveryData;
 
 static void VS_CC selectEveryInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -507,20 +515,22 @@ static const VSFrameRef *VS_CC selectEveryGetframe(int n, int activationReason, 
         vsapi->requestFrameFilter((intptr_t)*frameData, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter((intptr_t)(*frameData), d->node, frameCtx);
-        VSFrameRef *dst = vsapi->copyFrame(src, core);
-
-        VSMap *dst_props = vsapi->getFramePropsRW(dst);
-
-        int errNum, errDen;
-        int64_t durationNum = vsapi->propGetInt(dst_props, "_DurationNum", 0, &errNum);
-        int64_t durationDen = vsapi->propGetInt(dst_props, "_DurationDen", 0, &errDen);
-        if (!errNum && !errDen) {
-            muldivRational(&durationNum, &durationDen, d->cycle, d->num);
-            vsapi->propSetInt(dst_props, "_DurationNum", durationNum, paReplace);
-            vsapi->propSetInt(dst_props, "_DurationDen", durationDen, paReplace);
+        if (d->modifyDuration) {
+            VSFrameRef *dst = vsapi->copyFrame(src, core);
+            VSMap *dst_props = vsapi->getFramePropsRW(dst);
+            int errNum, errDen;
+            int64_t durationNum = vsapi->propGetInt(dst_props, "_DurationNum", 0, &errNum);
+            int64_t durationDen = vsapi->propGetInt(dst_props, "_DurationDen", 0, &errDen);
+            if (!errNum && !errDen) {
+                muldivRational(&durationNum, &durationDen, d->cycle, d->num);
+                vsapi->propSetInt(dst_props, "_DurationNum", durationNum, paReplace);
+                vsapi->propSetInt(dst_props, "_DurationDen", durationDen, paReplace);
+            }
+            vsapi->freeFrame(src);
+            return dst;
+        } else {
+            return src;
         }
-        vsapi->freeFrame(src);
-        return dst;
     }
 
     return 0;
@@ -536,12 +546,18 @@ static void VS_CC selectEveryFree(void *instanceData, VSCore *core, const VSAPI 
 static void VS_CC selectEveryCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     SelectEveryData d;
     SelectEveryData *data;
+    int err;
+
     d.cycle = int64ToIntS(vsapi->propGetInt(in, "cycle", 0, 0));
 
     if (d.cycle <= 1)
         RETERROR("SelectEvery: invalid cycle size (must be greater than 1)");
 
     d.num = vsapi->propNumElements(in, "offsets");
+    d.modifyDuration = !!vsapi->propGetInt(in, "modify_duration", 0, &err);
+    if (err)
+        d.modifyDuration = 1;
+
     d.offsets = malloc(sizeof(d.offsets[0]) * d.num);
 
     for (int i = 0; i < d.num; i++) {
@@ -570,7 +586,8 @@ static void VS_CC selectEveryCreate(const VSMap *in, VSMap *out, void *userData,
         RETERROR("SelectEvery: no frames to output, all offsets outside available frames");
     }
 
-    muldivRational(&d.vi.fpsNum, &d.vi.fpsDen, d.num, d.cycle);
+    if (d.modifyDuration)
+        muldivRational(&d.vi.fpsNum, &d.vi.fpsDen, d.num, d.cycle);
 
     data = malloc(sizeof(d));
     *data = d;
@@ -1258,8 +1275,8 @@ void VS_CC reorderInitialize(VSConfigPlugin configFunc, VSRegisterFunction regis
     registerFunc("AudioTrim", "clip:anode;first:int:opt;last:int:opt;length:int:opt;", audioTrimCreate, 0, plugin);
     registerFunc("Reverse", "clip:clip;", reverseCreate, 0, plugin);
     registerFunc("Loop", "clip:clip;times:int:opt;", loopCreate, 0, plugin);
-    registerFunc("Interleave", "clips:clip[];extend:int:opt;mismatch:int:opt;", interleaveCreate, 0, plugin);
-    registerFunc("SelectEvery", "clip:clip;cycle:int;offsets:int[];", selectEveryCreate, 0, plugin);
+    registerFunc("Interleave", "clips:clip[];extend:int:opt;mismatch:int:opt;modify_duration_int:opt;", interleaveCreate, 0, plugin);
+    registerFunc("SelectEvery", "clip:clip;cycle:int;offsets:int[];modify_duration_int:opt;", selectEveryCreate, 0, plugin);
     registerFunc("Splice", "clips:clip[];mismatch:int:opt;", spliceCreate, 0, plugin);
     registerFunc("AudioSplice", "clips:anode[];", audioSplice2Wrapper, 0, plugin);
     registerFunc("AudioSplice2", "clip1:anode;clip2:anode;", audioSplice2Create, 0, plugin);

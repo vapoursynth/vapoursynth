@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2013-2018 Fredrik Mellbin
+* Copyright (c) 2013-2020 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -52,7 +52,7 @@ static void real_init(void) {
 #endif
 
     // portable
-    const std::wstring pythonDllName = L"python37.dll";
+    const std::wstring pythonDllName = L"python38.dll";
     HMODULE module;
     GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCWSTR)&real_init, &module);
     std::vector<wchar_t> pathBuf(65536);
