@@ -1,7 +1,7 @@
 #define Version '48'
 #define VersionExtra ''
-#define PythonVersion '3.7'
-#define PythonCompactVersion '37'
+#define PythonVersion '3.8'
+#define PythonCompactVersion '38'
 
 #ifndef InstallerBits
   #define InstallerBits '64'
@@ -13,13 +13,13 @@
   #define AppId 'VapourSynth'
   #define RegistryPath 'SOFTWARE\VapourSynth'
   #define SourceBinaryPath '..\msvc_project\x64\Release'
-  #define WheelFilename(Version) 'VapourSynth-' + Version + '-cp' + PythonCompactVersion + '-cp' + PythonCompactVersion + 'm-win_amd64.whl'
+  #define WheelFilename(Version) 'VapourSynth-' + Version + '-cp' + PythonCompactVersion + '-cp' + PythonCompactVersion + '-win_amd64.whl'
 #else
   #define AppName 'VapourSynth (32-bits)'
   #define AppId 'VapourSynth-32'
   #define RegistryPath 'SOFTWARE\VapourSynth-32'
   #define SourceBinaryPath '..\msvc_project\Release'
-  #define WheelFilename(Version) 'VapourSynth-' + Version + '-cp' + PythonCompactVersion + '-cp' + PythonCompactVersion + 'm-win32.whl'
+  #define WheelFilename(Version) 'VapourSynth-' + Version + '-cp' + PythonCompactVersion + '-cp' + PythonCompactVersion + '-win32.whl'
 #endif
 
 [Setup]

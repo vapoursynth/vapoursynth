@@ -14,7 +14,7 @@ mkdir buildp64\doc
 copy ..\vsrepo\vsrepo.py buildp64
 copy 7z.exe buildp64
 copy 7z.dll buildp64
-copy ..\vapoursynth.cp37-win_amd64.pyd buildp64
+copy ..\vapoursynth.cp38-win_amd64.pyd buildp64
 copy ..\msvc_project\x64\Release\VapourSynth.dll buildp64
 copy ..\msvc_project\x64\Release\vsscript.dll buildp64
 copy ..\msvc_project\x64\Release\avfs.exe buildp64
@@ -38,7 +38,7 @@ copy ..\msvc_project\x64\Release\vsscript.lib buildp64\sdk\lib64
 copy ..\sdk\filter_skeleton.c buildp64\sdk\examples
 copy ..\sdk\invert_example.c buildp64\sdk\examples
 copy ..\sdk\vsscript_example.c buildp64\sdk\examples
-copy "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Redist\MSVC\14.23.27820\x64\Microsoft.VC142.CRT\*" buildp64
+copy "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Redist\MSVC\14.24.28127\x64\Microsoft.VC142.CRT\*" buildp64
 copy pfm-192-vapoursynth-win.exe buildp64
 copy .\setup.py buildp64
 copy .\MANIFEST.in buildp64
@@ -62,7 +62,7 @@ mkdir buildp32\doc
 copy ..\vsrepo\vsrepo.py buildp32
 copy 7z.exe buildp32
 copy 7z.dll buildp32
-copy ..\vapoursynth.cp37-win32.pyd buildp32
+copy ..\vapoursynth.cp38-win32.pyd buildp32
 copy ..\msvc_project\Release\VapourSynth.dll buildp32
 copy ..\msvc_project\Release\vsscript.dll buildp32
 copy ..\msvc_project\Release\avfs.exe buildp32
@@ -86,7 +86,7 @@ copy ..\msvc_project\x64\Release\vsscript.lib buildp32\sdk\lib64
 copy ..\sdk\filter_skeleton.c buildp32\sdk\examples
 copy ..\sdk\invert_example.c buildp32\sdk\examples
 copy ..\sdk\vsscript_example.c buildp32\sdk\examples
-copy "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Redist\MSVC\14.23.27820\x86\Microsoft.VC142.CRT\*" buildp32
+copy "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Redist\MSVC\14.24.28127\x86\Microsoft.VC142.CRT\*" buildp32
 copy pfm-192-vapoursynth-win.exe buildp32
 copy .\setup.py buildp32
 copy .\MANIFEST.in buildp32
