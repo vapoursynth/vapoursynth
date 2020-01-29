@@ -212,6 +212,15 @@ static const VSFrameRef *VS_CC cropGetframe(int n, int activationReason, void **
         }
 
         vsapi->freeFrame(src);
+
+        if (d->y & 1) {
+            VSMap *props = vsapi->getFramePropsRW(dst);
+            int error;
+            int fb = vsapi->propGetInt(props, "_FieldBased", 0, &error);
+            if (fb == 1 || fb == 2)
+                vsapi->propSetInt(props, "_FieldBased", (fb == 1) ? 2 : 1, paReplace);
+        }
+
         return dst;
     }
 
@@ -410,6 +419,15 @@ static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, v
         }
 
         vsapi->freeFrame(src);
+
+        if (d->top & 1) {
+            VSMap *props = vsapi->getFramePropsRW(dst);
+            int error;
+            int fb = vsapi->propGetInt(props, "_FieldBased", 0, &error);
+            if (fb == 1 || fb == 2)
+                vsapi->propSetInt(props, "_FieldBased", (fb == 1) ? 2 : 1, paReplace);
+        }
+
         return dst;
     }
 

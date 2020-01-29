@@ -1,6 +1,7 @@
 r49:
 updated to python 3.8 on windows
 updated visual studio 2019 runtime version
+addborders and crop now update the _fieldbased attribute properly when an odd number of lines are cut from the top
 fixed add to path not working for single user installs
 fixed compilation on non-x86 systems
 fixed an infinite loop in the expr filter optimizer that was introduced in r48 (sekrit-twc)
