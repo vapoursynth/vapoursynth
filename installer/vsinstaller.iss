@@ -1,4 +1,4 @@
-#define Version '48'
+#define Version '49'
 #define VersionExtra ''
 #define PythonVersion '3.8'
 #define PythonCompactVersion '38'
