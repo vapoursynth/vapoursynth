@@ -166,6 +166,7 @@ const std::unordered_map<std::string, zimg_resample_filter_e> g_resample_filter_
     { "bicubic",  ZIMG_RESIZE_BICUBIC },
     { "spline16", ZIMG_RESIZE_SPLINE16 },
     { "spline36", ZIMG_RESIZE_SPLINE36 },
+    { "spline64", ZIMG_RESIZE_SPLINE64 },
     { "lanczos",  ZIMG_RESIZE_LANCZOS }
 };
 
@@ -1010,4 +1011,5 @@ void VS_CC resizeInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("Lanczos", FORMAT_DEFINITION, vszimg_create, (void *)ZIMG_RESIZE_LANCZOS, plugin);
     registerFunc("Spline16", FORMAT_DEFINITION, vszimg_create, (void *)ZIMG_RESIZE_SPLINE16, plugin);
     registerFunc("Spline36", FORMAT_DEFINITION, vszimg_create, (void *)ZIMG_RESIZE_SPLINE36, plugin);
+    registerFunc("Spline64", FORMAT_DEFINITION, vszimg_create, (void *)ZIMG_RESIZE_SPLINE64, plugin);
 }
