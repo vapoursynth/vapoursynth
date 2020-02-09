@@ -219,7 +219,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             bool frameProcessingDone = f || mainContext->hasError();
             if (mainContext->hasError() && f)
                 vsFatal("A frame was returned by %s but an error was also set, this is not allowed", clip->name.c_str());
-                
+
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Unlock so the next job can run on the context
             if (filterMode == fmUnordered || filterMode == fmUnorderedLinear) {

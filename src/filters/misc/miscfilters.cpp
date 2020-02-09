@@ -24,6 +24,7 @@
 #include <cfloat>
 #include <cstddef>
 #include <memory>
+#include <stdexcept>
 #include <vector>
 #include <VapourSynth.h>
 #include <VSHelper.h>
@@ -33,6 +34,10 @@
 #ifdef VS_TARGET_CPU_X86
 #include <emmintrin.h>
 #endif
+
+namespace {
+std::string operator""_s(const char *str, size_t len) { return{ str, len }; }
+} // namespace
 
 ///////////////////////////////////////
 // SCDetect
@@ -90,11 +95,11 @@ static void VS_CC scDetectCreate(const VSMap *in, VSMap *out, void *userData, VS
 
     try {
         if (d->threshold < 0.0 || d->threshold > 1.0)
-            throw std::string("threshold must be between 0 and 1");
+            throw std::runtime_error("threshold must be between 0 and 1");
         shared816FFormatCheck(vi->format);
 
         if (vi->numFrames == 1)
-            throw std::string("clip must have more than one frame");
+            throw std::runtime_error("clip must have more than one frame");
 
         VSMap *invmap = vsapi->createMap();
         VSMap *invmap2 = nullptr;
@@ -115,9 +120,9 @@ static void VS_CC scDetectCreate(const VSMap *in, VSMap *out, void *userData, VS
         vsapi->freeMap(invmap2);
         d->diffnode = vsapi->propGetNode(invmap, "clip", 0, nullptr);
         vsapi->freeMap(invmap);
-    } catch (const std::string &e) {
+    } catch (const std::runtime_error &e) {
         vsapi->freeNode(d->node);
-        vsapi->setError(out, ("SCDetect: " + e).c_str());
+        vsapi->setError(out, ("SCDetect: "_s + e.what()).c_str());
         return;
     }
 
@@ -498,16 +503,16 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
     try {
         if (numNodes == 1) {
             if ((numWeights % 2) != 1)
-                throw std::string("Number of weights must be odd when only one clip supplied");
+                throw std::runtime_error("Number of weights must be odd when only one clip supplied");
         } else if (numWeights != numNodes) {
-            throw std::string("Number of weights must match number of clips supplied");
+            throw std::runtime_error("Number of weights must match number of clips supplied");
         } else if (numWeights > 31 || numNodes > 31) {
-            throw std::string("Must use between 1 and 31 weights and input clips");
+            throw std::runtime_error("Must use between 1 and 31 weights and input clips");
         }
 
         d->useSceneChange = !!vsapi->propGetInt(in, "scenechange", 0, &err);
         if (numNodes != 1 && d->useSceneChange)
-            throw std::string("Scenechange can only be used in single clip mode");
+            throw std::runtime_error("Scenechange can only be used in single clip mode");
 
         for (int i = 0; i < numNodes; i++)
             d->nodes.push_back(vsapi->propGetNode(in, "clips", i, 0));
@@ -519,14 +524,14 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
             const VSVideoInfo *vi = vsapi->getVideoInfo(iter);
             d->vi.numFrames = std::max(d->vi.numFrames, vi->numFrames);
             if (!isSameFormat(&d->vi, vi))
-                throw std::string("All clips must have the same format");
+                throw std::runtime_error("All clips must have the same format");
         }
 
         for (int i = 0; i < numWeights; i++) {
             d->fweights.push_back(static_cast<float>(vsapi->propGetFloat(in, "weights", i, 0)));
             d->weights.push_back(std::lround(vsapi->propGetFloat(in, "weights", i, 0)));
             if (d->vi.format->sampleType == stInteger && std::abs(d->weights[i]) > 1023)
-                throw std::string("coefficients may only be between -1023 and 1023");
+                throw std::runtime_error("coefficients may only be between -1023 and 1023");
         }
 
         float scale = vsapi->propGetFloat(in, "scale", 0, &err);
@@ -550,20 +555,20 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
             if (d->vi.format->sampleType == stInteger) {
                 d->scale = floatToIntS(scale);
                 if (d->scale < 1)
-                    throw std::string("scale must be a positive number");
+                    throw std::runtime_error("scale must be a positive number");
             } else {
                 d->fscale = scale;
                 if (d->fscale < FLT_EPSILON)
-                    throw std::string("scale must be a positive number");
+                    throw std::runtime_error("scale must be a positive number");
             }
         }
 
         getPlanesArg(in, d->process, vsapi);
 
-    } catch (const std::string &e) {
+    } catch (const std::runtime_error &e) {
         for (auto iter : d->nodes)
             vsapi->freeNode(iter);
-        vsapi->setError(out, ("AverageFrames: " + e).c_str());
+        vsapi->setError(out, ("AverageFrames: "_s + e.what()).c_str());
         return;
     }
 
@@ -695,10 +700,10 @@ static void VS_CC hysteresisCreate(const VSMap *in, VSMap *out, void *userData, 
 
         if (!isConstantFormat(vi) || (vi->format->sampleType == stInteger && vi->format->bitsPerSample > 16) ||
             (vi->format->sampleType == stFloat && vi->format->bitsPerSample != 32))
-            throw std::string("only constant format 8-16 bits integer and 32 bits float input supported");
+            throw std::runtime_error("only constant format 8-16 bits integer and 32 bits float input supported");
 
         if (!isSameFormat(vi, vsapi->getVideoInfo(d->node2)))
-            throw std::string("both clips must have the same dimensions and the same format");
+            throw std::runtime_error("both clips must have the same dimensions and the same format");
 
         getPlanesArg(in, d->process, vsapi);
 
@@ -718,10 +723,10 @@ static void VS_CC hysteresisCreate(const VSMap *in, VSMap *out, void *userData, 
 
         d->labelSize = vi->width * vi->height;
 
-    } catch (const std::string &e) {
+    } catch (const std::runtime_error &e) {
         vsapi->freeNode(d->node1);
         vsapi->freeNode(d->node2);
-        vsapi->setError(out, ("Hysteresis: " + e).c_str());
+        vsapi->setError(out, ("Hysteresis: "_s + e.what()).c_str());
         return;
     }
 

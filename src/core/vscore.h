@@ -76,8 +76,7 @@ const VSAPI *getVSAPIInternal(int apiMajor);
 
 class VSException : public std::runtime_error {
 public:
-    VSException(const char *descr) : std::runtime_error(descr) {}
-    VSException(const std::string &descr) : std::runtime_error(descr) {}
+    using std::runtime_error::runtime_error;
 };
 
 class NodeOutputKey {

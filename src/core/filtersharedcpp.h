@@ -23,6 +23,7 @@
 
 #include "VapourSynth.h"
 #include "VSHelper.h"
+#include <stdexcept>
 #include <string>
 
 enum RangeArgumentHandling {
@@ -41,10 +42,10 @@ static inline void getPlanesArg(const VSMap *in, bool *process, const VSAPI *vsa
         int o = int64ToIntS(vsapi->propGetInt(in, "planes", i, nullptr));
 
         if (o < 0 || o >= 3)
-            throw std::string("plane index out of range");
+            throw std::runtime_error("plane index out of range");
 
         if (process[o])
-            throw std::string("plane specified twice");
+            throw std::runtime_error("plane specified twice");
 
         process[o] = true;
     }
@@ -52,7 +53,7 @@ static inline void getPlanesArg(const VSMap *in, bool *process, const VSAPI *vsa
 
 static inline void getPlanePixelRangeArgs(const VSFormat *fi, const VSMap *in, const char *propName, uint16_t *ival, float *fval, RangeArgumentHandling mode, const VSAPI *vsapi) {
     if (vsapi->propNumElements(in, propName) > fi->numPlanes)
-        throw std::string(propName).append(" has more values specified than there are planes");
+        throw std::runtime_error(std::string(propName) + " has more values specified than there are planes");
     bool prevValid = false;
     for (int plane = 0; plane < 3; plane++) {
         int err;
@@ -76,7 +77,7 @@ static inline void getPlanePixelRangeArgs(const VSFormat *fi, const VSMap *in, c
             if (fi->sampleType == stInteger) {
                 int64_t temp2 = static_cast<int64_t>(temp + .5);
                 if ((temp2 < 0) || (temp2 >(1 << fi->bitsPerSample) - 1))
-                    throw std::string(propName).append(" out of range");
+                    throw std::runtime_error(std::string(propName) + " out of range");
                 ival[plane] = static_cast<uint16_t>(temp2);
             } else {
                 fval[plane] = static_cast<float>(temp);
@@ -88,21 +89,21 @@ static inline void getPlanePixelRangeArgs(const VSFormat *fi, const VSMap *in, c
 
 static void shared816FFormatCheck(const VSFormat *fi, bool allowVariable = false) {
     if (!fi && !allowVariable)
-        throw std::string("Cannot process variable format.");
+        throw std::runtime_error("Cannot process variable format.");
 
     if (fi) {
         if (fi->colorFamily == cmCompat)
-            throw std::string("Cannot process compat formats.");
+            throw std::runtime_error("Cannot process compat formats.");
 
         if ((fi->sampleType == stInteger && fi->bitsPerSample > 16) || (fi->sampleType == stFloat && fi->bitsPerSample != 32))
-            throw std::string("Only clips with 8..16 bits integer per sample or float supported.");
+            throw std::runtime_error("Only clips with 8..16 bits integer per sample or float supported.");
     }
 }
 
 template<typename T>
 static void getPlaneArgs(const VSFormat *fi, const VSMap *in, const char *propName, T *val, T def, const VSAPI *vsapi) {
     if (vsapi->propNumElements(in, propName) > fi->numPlanes)
-        throw std::string(propName).append(" has more values specified than there are planes");
+        throw std::runtime_error(std::string(propName) + " has more values specified than there are planes");
     bool prevValid = false;
     for (int plane = 0; plane < 3; plane++) {
         int err;
