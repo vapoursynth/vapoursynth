@@ -3269,11 +3269,10 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         FlushInstructionCache(GetCurrentProcess(), nullptr, 0);
 #endif
     } catch (std::runtime_error &e) {
-        for (int i = 0; i < MAX_EXPR_INPUTS; i++)
+        for (int i = 0; i < MAX_EXPR_INPUTS; i++) {
             vsapi->freeNode(d->node[i]);
-        std::string s = "Expr: ";
-        s += e.what();
-        vsapi->setError(out, s.c_str());
+        }
+        vsapi->setError(out, (std::string{ "Expr: " } + e.what()).c_str());
         return;
     }
 

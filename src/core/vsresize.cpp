@@ -69,6 +69,8 @@ void sp_atomic_store(std::shared_ptr<T> *p, std::shared_ptr<T> r)
 
 namespace {
 
+std::string operator""_s(const char *str, size_t len) { return{ str, len }; }
+
 const std::unordered_map<std::string, zimg_cpu_type_e> g_cpu_type_table{
     { "none",      ZIMG_CPU_NONE },
     { "auto",      ZIMG_CPU_AUTO },
@@ -174,7 +176,7 @@ const std::unordered_map<std::string, zimg_resample_filter_e> g_resample_filter_
 template <class T, class U>
 T range_check_integer(U x, const char *key) {
     if (x < std::numeric_limits<T>::min() || x > std::numeric_limits<T>::max())
-        throw std::range_error{ std::string{ "value for key \"" } +key + "\" out of range" };
+        throw std::range_error{ "value for key \""_s + key + "\" out of range" };
     return static_cast<T>(x);
 }
 
@@ -231,7 +233,7 @@ void translate_pixel_type(const VSFormat *format, zimg_pixel_type_e *out) {
     else if (format->sampleType == stFloat && format->bytesPerSample == 4)
         *out = ZIMG_PIXEL_FLOAT;
     else
-        throw std::runtime_error{ std::string{ "no matching pixel type for format: " } +format->name };
+        throw std::runtime_error{ "no matching pixel type for format: "_s + format->name };
 }
 
 void translate_color_family(VSColorFamily cf, zimg_color_family_e *out, zimg_matrix_coefficients_e *out_matrix) {
@@ -294,7 +296,7 @@ bool import_frame_props(const VSMap *props, zimg_image_format *format, const VSA
         else if (x == 1)
             format->pixel_range = ZIMG_RANGE_LIMITED;
         else
-            throw std::runtime_error{ std::string{ "bad _ColorRange value: " } + std::to_string(x) };
+            throw std::runtime_error{ "bad _ColorRange value: " + std::to_string(x) };
     }
 
     // Ignore UNSPECIFIED values from properties, since the user can specify them.
@@ -311,12 +313,12 @@ bool import_frame_props(const VSMap *props, zimg_image_format *format, const VSA
         else if (x == 1)
             format->field_parity = ZIMG_FIELD_TOP;
         else
-            throw std::runtime_error{ std::string{ "bad _Field value: " } + std::to_string(x) };
+            throw std::runtime_error{ "bad _Field value: " + std::to_string(x) };
     } else if (vsapi->propNumElements(props, "_FieldBased") > 0) {
         int64_t x = vsapi->propGetInt(props, "_FieldBased", 0, nullptr);
 
         if (x != 0 && x != 1 && x != 2)
-            throw std::runtime_error{ std::string{ "bad _FieldBased value: " } + std::to_string(x) };
+            throw std::runtime_error{ "bad _FieldBased value: " + std::to_string(x) };
 
         is_interlaced = x == 1 || x == 2;
     }
@@ -628,7 +630,7 @@ class vszimg {
             if (it != enum_table.end())
                 *out = it->second;
             else
-                throw std::runtime_error{ std::string{ "bad value: " } + key };
+                throw std::runtime_error{ "bad value: "_s + key };
         }
     }
 
@@ -922,10 +924,10 @@ public:
                 ret = real_get_frame(src_frame, core, vsapi);
             }
         } catch (const vszimgxx::zerror &e) {
-            std::string errmsg = std::string{ "Resize error " } +std::to_string(e.code) + ": " + e.msg;
+            std::string errmsg = "Resize error " + std::to_string(e.code) + ": " + e.msg;
             vsapi->setFilterError(errmsg.c_str(), frameCtx);
         } catch (const std::exception &e) {
-            vsapi->setFilterError((std::string{ "Resize error: " } +e.what()).c_str(), frameCtx);
+            vsapi->setFilterError(("Resize error: "_s + e.what()).c_str(), frameCtx);
         }
 
         vsapi->freeFrame(src_frame);
@@ -937,10 +939,10 @@ public:
             vszimg *x = new vszimg{ in, userData, core, vsapi };
             vsapi->createFilter(in, out, "format", vszimg_init, vszimg_get_frame, vszimg_free, fmParallel, 0, x, core);
         } catch (const vszimgxx::zerror &e) {
-            std::string errmsg = std::string{ "Resize error " } + std::to_string(e.code) + ": " + e.msg;
+            std::string errmsg = "Resize error " + std::to_string(e.code) + ": " + e.msg;
             vsapi->setError(out, errmsg.c_str());
         } catch (const std::exception &e) {
-            vsapi->setError(out, (std::string("Resize error: ") + e.what()).c_str());
+            vsapi->setError(out, ("Resize error: "_s + e.what()).c_str());
         }
     }
 };
