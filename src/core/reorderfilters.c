@@ -1275,8 +1275,8 @@ void VS_CC reorderInitialize(VSConfigPlugin configFunc, VSRegisterFunction regis
     registerFunc("AudioTrim", "clip:anode;first:int:opt;last:int:opt;length:int:opt;", audioTrimCreate, 0, plugin);
     registerFunc("Reverse", "clip:clip;", reverseCreate, 0, plugin);
     registerFunc("Loop", "clip:clip;times:int:opt;", loopCreate, 0, plugin);
-    registerFunc("Interleave", "clips:clip[];extend:int:opt;mismatch:int:opt;modify_duration_int:opt;", interleaveCreate, 0, plugin);
-    registerFunc("SelectEvery", "clip:clip;cycle:int;offsets:int[];modify_duration_int:opt;", selectEveryCreate, 0, plugin);
+    registerFunc("Interleave", "clips:clip[];extend:int:opt;mismatch:int:opt;modify_duration:int:opt;", interleaveCreate, 0, plugin);
+    registerFunc("SelectEvery", "clip:clip;cycle:int;offsets:int[];modify_duration:int:opt;", selectEveryCreate, 0, plugin);
     registerFunc("Splice", "clips:clip[];mismatch:int:opt;", spliceCreate, 0, plugin);
     registerFunc("AudioSplice", "clips:anode[];", audioSplice2Wrapper, 0, plugin);
     registerFunc("AudioSplice2", "clip1:anode;clip2:anode;", audioSplice2Create, 0, plugin);

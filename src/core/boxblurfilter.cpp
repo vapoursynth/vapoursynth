@@ -25,8 +25,13 @@
 
 #include <memory>
 #include <algorithm>
+#include <stdexcept>
 #include <string>
 #include <vector>
+
+namespace {
+std::string operator""_s(const char *str, size_t len) { return{ str, len }; }
+} // namespace
 
 //////////////////////////////////////////
 // BoxBlur
@@ -334,16 +339,16 @@ static void VS_CC boxBlurCreate(const VSMap *in, VSMap *out, void *userData, VSC
         bool vblur = (vradius > 0) && (vpasses > 0);
 
         if (hpasses < 0 || vpasses < 0)
-            throw std::string("number of passes can't be negative");
+            throw std::runtime_error("number of passes can't be negative");
 
         if (hradius < 0 || vradius < 0)
-            throw std::string("radius can't be negative");
+            throw std::runtime_error("radius can't be negative");
 
         if (hradius > 30000 || vradius > 30000)
-            throw std::string("radius must be less than 30000");
+            throw std::runtime_error("radius must be less than 30000");
 
         if (!hblur && !vblur)
-            throw std::string("nothing to be performed");
+            throw std::runtime_error("nothing to be performed");
 
         VSPlugin *stdplugin = vsapi->getPluginById("com.vapoursynth.std", core);
 
@@ -387,9 +392,9 @@ static void VS_CC boxBlurCreate(const VSMap *in, VSMap *out, void *userData, VSC
             vsapi->freeNode(tmpnode);
         }
 
-    } catch (std::string &e) {
+    } catch (const std::exception &e) {
         vsapi->freeNode(node);
-        RETERROR(("BoxBlur: " + e).c_str());
+        RETERROR(("BoxBlur: "_s + e.what()).c_str());
     }
 }
 

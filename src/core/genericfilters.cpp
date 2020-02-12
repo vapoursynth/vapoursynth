@@ -42,6 +42,10 @@
 #define FORCE_INLINE inline __attribute__((always_inline))
 #endif
 
+namespace {
+std::string operator""_s(const char *str, size_t len) { return{ str, len }; }
+} // namespace
+
 enum GenericOperations {
     GenericPrewitt,
     GenericSobel,
@@ -105,8 +109,8 @@ static const VSFrameRef *VS_CC singlePixelGetFrame(int n, int activationReason, 
 
         try {
             shared816FFormatCheck(fi);
-        } catch (std::string &error) {
-            vsapi->setFilterError(std::string(d->name).append(": ").append(error).c_str(), frameCtx);
+        } catch (const std::runtime_error &error) {
+            vsapi->setFilterError((d->name + ": "_s + error.what()).c_str(), frameCtx);
             vsapi->freeFrame(src);
             return nullptr;
         }
@@ -363,10 +367,10 @@ static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void
         try {
             shared816FFormatCheck(fi);
             if (vsapi->getFrameWidth(src, fi->numPlanes - 1) < 4 || vsapi->getFrameHeight(src, fi->numPlanes - 1) < 4)
-                throw std::string("Cannot process frames with subsampled planes smaller than 4x4.");
+                throw std::runtime_error("Cannot process frames with subsampled planes smaller than 4x4.");
 
-        } catch (std::string &error) {
-            vsapi->setFilterError(std::string(d->filter_name).append(": ").append(error).c_str(), frameCtx);
+        } catch (const std::runtime_error &error) {
+            vsapi->setFilterError((d->filter_name + ": "_s + error.what()).c_str(), frameCtx);
             vsapi->freeFrame(src);
             return 0;
         }
@@ -426,7 +430,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
         if (d->vi->height && d->vi->width)
             if (planeWidth(d->vi, d->vi->format->numPlanes - 1) < 4 || planeHeight(d->vi, d->vi->format->numPlanes - 1) < 4)
-                throw std::string("Cannot process frames with subsampled planes smaller than 4x4.");
+                throw std::runtime_error("Cannot process frames with subsampled planes smaller than 4x4.");
 
         getPlanesArg(in, d->process, vsapi);
 
@@ -441,11 +445,11 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
                 if (d->vi->format->sampleType == stInteger) {
                     int64_t ith = floatToInt64S(d->thf);
                     if (ith < 0 || ith > ((1 << d->vi->format->bitsPerSample) - 1))
-                        throw std::string("threshold bigger than sample value.");
+                        throw std::runtime_error("threshold bigger than sample value.");
                     d->th = static_cast<uint16_t>(ith);
                 } else {
                     if (d->thf < 0)
-                        throw std::string("threshold must be a positive value.");
+                        throw std::runtime_error("threshold must be a positive value.");
                 }
             }
         }
@@ -460,7 +464,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
                     d->enable |= enable[i] ? (1U << i) : 0U;
                 }
             } else {
-                throw std::string("coordinates must contain exactly 8 numbers.");
+                throw std::runtime_error("coordinates must contain exactly 8 numbers.");
             }
         }
 
@@ -471,7 +475,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
                 d->scale = 1.0f;
 
             if (d->scale < 0)
-                throw std::string("scale must not be negative.");
+                throw std::runtime_error("scale must not be negative.");
         }
 
         if (op == GenericConvolution) {
@@ -488,7 +492,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
                 d->convolution_type = ConvolutionSquare;
 
                 if (d->matrix_elements != 9 && d->matrix_elements != 25)
-                    throw std::string("When mode starts with 's', matrix must contain exactly 9 or exactly 25 numbers.");
+                    throw std::runtime_error("When mode starts with 's', matrix must contain exactly 9 or exactly 25 numbers.");
             } else if (mode[0] == 'h' || mode[0] == 'v') {
                 if (mode[0] == 'h')
                     d->convolution_type = ConvolutionHorizontal;
@@ -496,12 +500,12 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
                     d->convolution_type = ConvolutionVertical;
 
                 if (d->matrix_elements < 3 || d->matrix_elements > 25)
-                    throw std::string("When mode starts with 'h' or 'v', matrix must contain between 3 and 25 numbers.");
+                    throw std::runtime_error("When mode starts with 'h' or 'v', matrix must contain between 3 and 25 numbers.");
 
                 if (d->matrix_elements % 2 == 0)
-                    throw std::string("matrix must contain an odd number of numbers.");
+                    throw std::runtime_error("matrix must contain an odd number of numbers.");
             } else {
-                throw std::string("mode must start with 's', 'h', or 'v'.");
+                throw std::runtime_error("mode must start with 's', 'h', or 'v'.");
             }
 
             float matrix_sumf = 0;
@@ -512,7 +516,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
                     d->matrix[i] = lround(matrix[i]);
                     d->matrixf[i] = d->matrix[i];
                     if (d->vi->format->sampleType == stInteger && std::abs(d->matrix[i]) > 1023)
-                        throw std::string("coefficients may only be between -1023 and 1023");
+                        throw std::runtime_error("coefficients may only be between -1023 and 1023");
                 } else {
                     d->matrix[i] = lround(matrix[i]);
                     d->matrixf[i] = static_cast<float>(matrix[i]);
@@ -579,14 +583,14 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
         }
 
         if (op == GenericConvolution && d->convolution_type == ConvolutionHorizontal && d->matrix_elements / 2 >= planeWidth(d->vi, d->vi->format->numPlanes - 1))
-            throw std::string("Width must be bigger than convolution radius.");
+            throw std::runtime_error("Width must be bigger than convolution radius.");
         if (op == GenericConvolution && d->convolution_type == ConvolutionVertical && d->matrix_elements / 2 >= planeHeight(d->vi, d->vi->format->numPlanes - 1))
-            throw std::string("Height must be bigger than convolution radius.");
+            throw std::runtime_error("Height must be bigger than convolution radius.");
 
         d->cpulevel = vs_get_cpulevel(core);
-    } catch (std::string &error) {
+    } catch (const std::runtime_error &error) {
         vsapi->freeNode(d->node);
-        vsapi->setError(out, std::string(d->filter_name).append(": ").append(error).c_str());
+        vsapi->setError(out, (d->filter_name + ": "_s + error.what()).c_str());
         return;
     }
 
@@ -636,9 +640,9 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 
     try {
         templateInit(d, "Invert", true, in, out, vsapi);
-    } catch (std::string &error) {
+    } catch (const std::runtime_error &error) {
         vsapi->freeNode(d->node);
-        vsapi->setError(out, std::string(d->name).append(": ").append(error).c_str());
+        vsapi->setError(out, (d->name + ": "_s + error.what()).c_str());
         return;
     }
 
@@ -690,10 +694,10 @@ static void VS_CC limitCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         getPlanePixelRangeArgs(d->vi->format, in, "max", d->max, d->maxf, RangeUpper, vsapi);
         for (int i = 0; i < 3; i++)
             if (((d->vi->format->sampleType == stInteger) && (d->min[i] > d->max[i])) || ((d->vi->format->sampleType == stFloat) && (d->minf[i] > d->maxf[i])))
-                throw std::string("min bigger than max");
-    } catch (std::string &error) {
+                throw std::runtime_error("min bigger than max");
+    } catch (const std::runtime_error &error) {
         vsapi->freeNode(d->node);
-        vsapi->setError(out, std::string(d->name).append(": ").append(error).c_str());
+        vsapi->setError(out, (d->name + ": "_s + error.what()).c_str());
         return;
     }
 
@@ -752,9 +756,9 @@ static void VS_CC binarizeCreate(const VSMap *in, VSMap *out, void *userData, VS
         getPlanePixelRangeArgs(d->vi->format, in, "v0", d->v0, d->v0f, RangeLower, vsapi);
         getPlanePixelRangeArgs(d->vi->format, in, "v1", d->v1, d->v1f, RangeUpper, vsapi);
         getPlanePixelRangeArgs(d->vi->format, in, "threshold", d->thr, d->thrf, RangeMiddle, vsapi);
-    } catch (std::string &error) {
+    } catch (const std::runtime_error &error) {
         vsapi->freeNode(d->node);
-        vsapi->setError(out, std::string(d->name).append(": ").append(error).c_str());
+        vsapi->setError(out, (d->name + ": "_s + error.what()).c_str());
         return;
     }
 
@@ -878,9 +882,9 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 
     try {
         templateInit(d, "Levels", false, in, out, vsapi);
-    } catch (std::string &error) {
+    } catch (const std::runtime_error &error) {
         vsapi->freeNode(d->node);
-        vsapi->setError(out, std::string(d->name).append(": ").append(error).c_str());
+        vsapi->setError(out, (d->name + ": "_s + error.what()).c_str());
         return;
     }
 

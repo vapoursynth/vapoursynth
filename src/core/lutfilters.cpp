@@ -34,6 +34,8 @@
 //////////////////////////////////////////
 // Lut
 
+namespace {
+
 typedef struct LutData {
     VSNodeRef *node;
     const VSVideoInfo *vi;
@@ -44,6 +46,8 @@ typedef struct LutData {
     LutData(const VSAPI *vsapi) : node(nullptr), vi(), lut(nullptr), process(), freeNode(vsapi->freeNode) {}
     ~LutData() { free(lut); freeNode(node); };
 } LutData;
+
+} // namespace
 
 static void VS_CC lutInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     LutData *d = reinterpret_cast<LutData *>(*instanceData);
@@ -101,7 +105,7 @@ static void VS_CC lutFree(void *instanceData, VSCore *core, const VSAPI *vsapi) 
 }
 
 template<typename T>
-bool funcToLut(int nin, int nout, void *vlut, VSFuncRef *func, const VSAPI *vsapi, std::string &errstr) {
+static bool funcToLut(int nin, int nout, void *vlut, VSFuncRef *func, const VSAPI *vsapi, std::string &errstr) {
     VSMap *in = vsapi->createMap();
     VSMap *out = vsapi->createMap();
 
@@ -170,7 +174,7 @@ static void lutCreateHelper(const VSMap *in, VSMap *out, VSFuncRef *func, std::u
 
             for (int i = 0; i < inrange; i++) {
                 int64_t v = arr[i];
-                if (v < 0 || v >= maxval) 
+                if (v < 0 || v >= maxval)
                     RETERROR(("Lut: lut value " + std::to_string(v) + " out of valid range [0," + std::to_string(maxval) + "]").c_str());
                 lut[i] = static_cast<U>(v);
             }
@@ -349,7 +353,7 @@ static void VS_CC lut2Free(void *instanceData, VSCore *core, const VSAPI *vsapi)
 }
 
 template<typename T>
-bool funcToLut2(int nxin, int nyin, int nout, void *vlut, VSFuncRef *func, const VSAPI *vsapi, std::string &errstr) {
+static bool funcToLut2(int nxin, int nyin, int nout, void *vlut, VSFuncRef *func, const VSAPI *vsapi, std::string &errstr) {
     VSMap *in = vsapi->createMap();
     VSMap *out = vsapi->createMap();
 
@@ -393,7 +397,7 @@ bool funcToLut2(int nxin, int nyin, int nout, void *vlut, VSFuncRef *func, const
                 }
 
                 lut[j + i * nxin] = static_cast<T>(v);
-            }                
+            }
         }
     }
 

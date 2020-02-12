@@ -760,7 +760,7 @@ Container& split(
 
 VSFunction::VSFunction(const std::string &argString, VSPublicFunction func, void *functionData)
     : argString(argString), functionData(functionData), func(func) {
-    std::list<std::string> argList;
+    std::vector<std::string> argList;
     split(argList, argString, std::string(";"), split1::no_empties);
     for(const std::string &arg : argList) {
         std::vector<std::string> argParts;
@@ -1756,7 +1756,7 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
     if (!libHandle) {
         const char *dlError = dlerror();
         if (dlError)
-            throw VSException("Failed to load " + relFilename + ". Error given: " + std::string(dlError));
+            throw VSException("Failed to load " + relFilename + ". Error given: " + dlError);
         else
             throw VSException("Failed to load " + relFilename);
     }
