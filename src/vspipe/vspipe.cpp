@@ -152,10 +152,10 @@ static inline void addRational(int64_t *num, int64_t *den, int64_t addnum, int64
     }
 }
 
-static std::string channelMaskToName(uint64_t mask) {
+static std::string channelMaskToName(uint64_t v) {
     std::string s;
-    auto checkConstant = [&s, mask](uint64_t c, const char *name) {
-        if (mask & c) {
+    auto checkConstant = [&s, v](uint64_t c, const char *name) {
+        if ((1 << v) & c) {
             if (!s.empty())
                 s += ", ";
             s += name;

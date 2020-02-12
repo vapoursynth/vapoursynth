@@ -173,24 +173,24 @@ typedef VSVideoFormat VSFormat;
 
 /* api 3.7 */
 typedef enum VSAudioChannels {
-    vsacFrontLeft           = 0x00000001,
-    vsacFrontRight          = 0x00000002,
-    vsacFrontCenter         = 0x00000004,
-    vsacLowFrequency        = 0x00000008,
-    vsacBackLeft            = 0x00000010,
-    vsacBackRight           = 0x00000020,
-    vsacFrontLeftOFCenter   = 0x00000040,
-    vsacFrontRightOFCenter  = 0x00000080,
-    vsacBackCenter          = 0x00000100,
-    vsacSideLeft            = 0x00000200,
-    vsacSideRight           = 0x00000400,
-    vsacTopCenter           = 0x00000800,
-    vsacTopFrontLeft        = 0x00001000,
-    vsacTopFrontCenter      = 0x00002000,
-    vsacTopFrontRight       = 0x00004000,
-    vsacTopBackLeft         = 0x00008000,
-    vsacTopBackCenter       = 0x00010000,
-    vsacTopBackRight        = 0x00020000
+    vsacFrontLeft           = 0,
+    vsacFrontRight          = 1,
+    vsacFrontCenter         = 2,
+    vsacLowFrequency        = 3,
+    vsacBackLeft            = 4,
+    vsacBackRight           = 5,
+    vsacFrontLeftOFCenter   = 6,
+    vsacFrontRightOFCenter  = 7,
+    vsacBackCenter          = 8,
+    vsacSideLeft            = 9,
+    vsacSideRight           = 10,
+    vsacTopCenter           = 11,
+    vsacTopFrontLeft        = 12,
+    vsacTopFrontCenter      = 13,
+    vsacTopFrontRight       = 14,
+    vsacTopBackLeft         = 15,
+    vsacTopBackCenter       = 16,
+    vsacTopBackRight        = 17
 } VSAudioChannels;
 
 /* api 3.7 */
