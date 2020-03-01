@@ -7,6 +7,7 @@ Resize
                 Lanczos(clip clip[, ...])
                 Spline16(clip clip[, ...])
                 Spline36(clip clip[, ...])
+                Spline64(clip clip[, ...])
    :module: resize
    
    In VapourSynth the resizers have several functions. In addition to scaling,
