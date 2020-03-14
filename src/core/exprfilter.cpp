@@ -767,10 +767,10 @@ do { \
                 VEX2IMM(blendvps, t4.first, t3.first, t2.first, r1);
                 VEX2IMM(blendvps, t4.second, t3.second, t2.second, r2);
             } else {
-                VEX2(andps, t4.first, t2.first, r1);
-                VEX2(andps, t4.second, t2.second, r2);
-                VEX2(andnps, r1, r1, t3.first);
-                VEX2(andnps, r2, r2, t3.second);
+                VEX2(andps, t4.first, t3.first, r1);
+                VEX2(andps, t4.second, t3.second, r2);
+                VEX2(andnps, r1, r1, t2.first);
+                VEX2(andnps, r2, r2, t2.second);
                 VEX2(orps, t4.first, t4.first, r1);
                 VEX2(orps, t4.second, t4.second, r2);
             }
