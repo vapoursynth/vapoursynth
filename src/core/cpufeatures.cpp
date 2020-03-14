@@ -102,36 +102,11 @@ static void doGetCPUFeatures(CPUFeatures *cpuFeatures) {
         }
     }
 }
-#elif defined(VS_TARGET_OS_LINUX)
-#include <sys/auxv.h>
-
+#else
 static void doGetCPUFeatures(CPUFeatures *cpuFeatures) {
     memset(cpuFeatures, 0, sizeof(CPUFeatures));
-
-    unsigned long long hwcap = getauxval(AT_HWCAP);
-
     cpuFeatures->can_run_vs = 1;
-
-#ifdef VS_TARGET_CPU_ARM
-    cpuFeatures->half_fp = !!(hwcap & HWCAP_ARM_HALF);
-    cpuFeatures->edsp = !!(hwcap & HWCAP_ARM_EDSP);
-    cpuFeatures->iwmmxt = !!(hwcap & HWCAP_ARM_IWMMXT);
-    cpuFeatures->neon = !!(hwcap & HWCAP_ARM_NEON);
-    cpuFeatures->fast_mult = !!(hwcap & HWCAP_ARM_FAST_MULT);
-    cpuFeatures->idiv_a = !!(hwcap & HWCAP_ARM_IDIVA);
-#elif defined(VS_TARGET_CPU_POWERPC)
-    cpuFeatures->altivec = !!(hwcap & PPC_FEATURE_HAS_ALTIVEC);
-    cpuFeatures->spe = !!(hwcap & PPC_FEATURE_HAS_SPE);
-    cpuFeatures->efp_single = !!(hwcap & PPC_FEATURE_HAS_EFP_SINGLE);
-    cpuFeatures->efp_double = !!(hwcap & PPC_FEATURE_HAS_EFP_DOUBLE);
-    cpuFeatures->dfp = !!(hwcap & PPC_FEATURE_HAS_DFP);
-    cpuFeatures->vsx = !!(hwcap & PPC_FEATURE_HAS_VSX);
-#else
-#warning "Do not know how to get CPU features on Linux."
-#endif
 }
-#else
-#warning "Do not know how to get CPU features."
 #endif
 
 const CPUFeatures *getCPUFeatures(void) {

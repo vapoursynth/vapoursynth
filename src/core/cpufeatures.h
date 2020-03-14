@@ -47,24 +47,6 @@ typedef struct CPUFeatures {
     char avx512_bw;
     char avx512_dq;
     char avx512_vl;
-#elif defined(VS_TARGET_CPU_ARM)
-    // On ARM, VFP-D16+ (16 double registers or more) is required.
-    char half_fp;
-    char edsp;
-    char iwmmxt;
-    char neon;
-    char fast_mult;
-    char idiv_a;
-#elif defined(VS_TARGET_CPU_POWERPC)
-    // On PowerPC, FPU and MMU are required.
-    char altivec;
-    char spe;
-    char efp_single;
-    char efp_double;
-    char dfp;
-    char vsx;
-#else
-#warning "No VS_TARGET_CPU_* defined/handled!"
 #endif
 } CPUFeatures;
 
