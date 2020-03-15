@@ -1007,7 +1007,7 @@ typedef struct {
 
 typedef struct CycleInfo {
     int num;                    // The number of the cycle's first frame divided by the cycle length.
-    int8_t drop;                  // Index of the frame to drop from the cycle.
+    signed char drop;                  // Index of the frame to drop from the cycle.
     VDInfo *metrics;            // Metrics for the input frames in the cycle.
     FrameDuration *durations;   // Durations of the output frames in the cycle. Allocated only if !dryrun.
 } CycleInfo;
@@ -1037,12 +1037,12 @@ typedef struct {
     int64_t *bdiffs;
     const char *ovrfile;
     int dryrun;
-    int8_t *drop;
+    signed char *drop;
     CycleCache cache;
 } VDecimateData;
 
 
-static const int8_t DropUnknown = -1;
+static const signed char DropUnknown = -1;
 #define MaxCycleLength 25
 
 #define STR(x) STR_(x)
@@ -1193,7 +1193,7 @@ static int64_t calcMetric(const VSFrameRef *f1, const VSFrameRef *f2, int64_t *t
     return maxdiff;
 }
 
-static int vdecimateLoadOVR(const char *ovrfile, int8_t *drop, int cycle, int numFrames, char *err, size_t errlen) {
+static int vdecimateLoadOVR(const char *ovrfile, signed char *drop, int cycle, int numFrames, char *err, size_t errlen) {
     int line = 0;
     char buf[80];
     char* pos;
@@ -1223,8 +1223,8 @@ static int vdecimateLoadOVR(const char *ovrfile, int8_t *drop, int cycle, int nu
         int frame_start = -1;
         int frame_end = -1;
 
-        int8_t drop_char = 0;
-        int8_t drop_pattern[MaxCycleLength + 1] = { 0 };
+        signed char drop_char = 0;
+        signed char drop_pattern[MaxCycleLength + 1] = { 0 };
         ptrdiff_t drop_pos = -1;
 
         line++;
@@ -1233,11 +1233,11 @@ static int vdecimateLoadOVR(const char *ovrfile, int8_t *drop, int cycle, int nu
         if (pos[0] == '#' || pos[0] == 0) {
             continue;
         } else if (sscanf(pos, " %u, %u %" STR(MaxCycleLength) "s", &frame_start, &frame_end, drop_pattern) == 3) {
-            int8_t *tmp = strchr(drop_pattern, '-');
+            signed char *tmp = (signed char *)strchr((const char *)drop_pattern, '-');
             if (tmp) {
                 drop_pos = tmp - drop_pattern;
             }
-        } else if (sscanf(pos, " %u %c", &frame, &drop_char) == 2) {
+        } else if (sscanf(pos, " %u %c", &frame, (char *)&drop_char) == 2) {
             ;
         } else {
             snprintf(err, errlen, "VDecimate: sscanf failed to parse override at line %d", line);
@@ -1251,12 +1251,12 @@ static int vdecimateLoadOVR(const char *ovrfile, int8_t *drop, int cycle, int nu
         } else if (frame_start >= 0 && frame_start < numFrames &&
                    frame_end >= 0 && frame_end < numFrames &&
                    frame_start < frame_end &&
-                   strlen(drop_pattern) == (size_t)cycle &&
+                   strlen((const char *)drop_pattern) == (size_t)cycle &&
                    drop_pos > -1) {
             ptrdiff_t i;
             for (i = frame_start + drop_pos; i <= frame_end; i += cycle) {
                 if (drop[i / cycle] < 0)
-                    drop[i / cycle] = (int8_t)(i % cycle);
+                    drop[i / cycle] = (signed char)(i % cycle);
             }
         } else {
             snprintf(err, errlen, "VDecimate: Bad override at line %d in ovr", line);
@@ -1292,11 +1292,11 @@ static inline int findOutputFrame(int requestedFrame, int cycleStart, int outCyc
     }
 }
 
-static inline int8_t findDropFrame(VDInfo *metrics, int cycleLength, int64_t scthresh, int64_t dupthresh) {
+static inline signed char findDropFrame(VDInfo *metrics, int cycleLength, int64_t scthresh, int64_t dupthresh) {
     int scpos = DropUnknown;
     int duppos = DropUnknown;
     int lowest = 0;
-    int8_t drop;
+    signed char drop;
 
     // make a decision
     // precalculate the position of the lowest dup metric frame
@@ -1581,7 +1581,7 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
     vdm.bdiffs = (int64_t *)malloc(vdm.bdiffsize * sizeof(int64_t));
 
     if (vdm.ovrfile) {
-        vdm.drop = (int8_t *)malloc(vdm.vi.numFrames / vdm.inCycle + 1);
+        vdm.drop = (signed char *)malloc(vdm.vi.numFrames / vdm.inCycle + 1);
         memset(vdm.drop, DropUnknown, vdm.vi.numFrames / vdm.inCycle + 1);
 
         char err2[80];
