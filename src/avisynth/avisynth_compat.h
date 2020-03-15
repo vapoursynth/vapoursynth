@@ -24,7 +24,6 @@
 #include "avisynth.h"
 #include "VapourSynth.h"
 #include "VSHelper.h"
-#include <list>
 #include <map>
 #include <set>
 #include <vector>
@@ -40,7 +39,7 @@ class FakeAvisynth : public IScriptEnvironment2 {
     friend class ::VideoFrame;
 private:
     VSCore *core;
-    std::list<std::string> savedStrings;
+    std::set<std::string> savedStrings;
     const VSAPI *vsapi;
     std::map<VideoFrame *, const VSFrameRef *> ownedFrames;
     int interfaceVersion;

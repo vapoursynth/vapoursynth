@@ -2,6 +2,7 @@ r49:
 updated to python 3.8 on windows
 updated visual studio 2019 runtime version
 updated zimg and added support for spline64 resize method
+fixed a regression introduced in r48 in that could sometimes cause corrupt output from expr on cpus without sse4.1 (sekrit-twc)
 fixed a savestring bug in avscompat (sekrit-twc)
 interleave, selectevery and separate fields now have a modify_duration argument to determine if they modify frame durations and fps
 addborders and crop now update the _fieldbased attribute properly when an odd number of lines are cut from the top

@@ -185,14 +185,10 @@ int FakeAvisynth::GetCPUFlags() {
 }
 
 char *FakeAvisynth::SaveString(const char *s, int length) {
-    if (length >= 0)
-        savedStrings.push_back(std::string(s, length));
-    else
-        savedStrings.push_back(std::string(s));
-
+    auto strIter = (length >= 0) ? savedStrings.emplace(s, length) : savedStrings.emplace(s);
     // UGLY
     // Cast away the const because nobody would actually try to write to a saved string (except possibly an avisynth plugin developer)
-    return const_cast<char *>(savedStrings.back().c_str());
+    return const_cast<char *>(strIter.first->c_str());
 }
 
 char *FakeAvisynth::Sprintf(const char *fmt, ...) {
