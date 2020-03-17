@@ -423,11 +423,11 @@ bool operator==(const zimg_image_format &a, const zimg_image_format &b) {
     ret = ret && a.subsample_h == b.subsample_h;
     ret = ret && a.color_family == b.color_family;
 
-    if (a.color_family != ZIMG_COLOR_GREY) {
+    if (a.color_family != ZIMG_COLOR_GREY)
         ret = ret && a.matrix_coefficients == b.matrix_coefficients;
-        ret = ret && a.transfer_characteristics == b.transfer_characteristics;
-        ret = ret && a.color_primaries == b.color_primaries;
-    }
+
+    ret = ret && a.transfer_characteristics == b.transfer_characteristics;
+    ret = ret && a.color_primaries == b.color_primaries;
 
     ret = ret && a.depth == b.depth;
     ret = ret && a.pixel_range == b.pixel_range;
