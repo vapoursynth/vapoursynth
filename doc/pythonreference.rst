@@ -578,19 +578,19 @@ Classes and Functions
    
    .. py:method:: get_current_environment()
 
-      This method is called by the wrapper to detect which core is currently running in the current context.
+      This method is called by the module to detect which environment is currently running in the current context.
 
       :returns: An :class:`EnvironmentData`-object representing the currently active environment in the current context.
 
    .. py:method:: push_environment(env)
 
-      This method is called by the wrapper to change the currently active core. It should behave like a stack.
+      This method is called by the module to change the currently active environment. It should behave like a stack.
 
       :param id: The :class:`EnvironmentData` to enable in the current context.
 
    .. py:method:: pop_environment()
 
-      This method is called by the wrapper to remove the currently selected core from the current context.
+      This method is called by the module to remove the currently selected core from the current context.
 
       :returns: The :class:`EnvironmentData`-object that has just been popped or None if no ID was active.
 
