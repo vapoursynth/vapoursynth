@@ -571,7 +571,7 @@ Classes and Functions
 
       :param special_api: This is a :class:`EnvironmentPolicyAPI`-object that exposes additional API
 
-   .. py:method: on_policy_cleared()
+   .. py:method:: on_policy_cleared()
 
       This method is called once the python-process exits or when unregister_policy is called by the environment-policy. This allows the policy to free the resources
       used by the policy.
