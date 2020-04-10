@@ -565,7 +565,8 @@ Classes and Functions
    Once the method :method:`on_policy_registered` has been called, the policy is responsible for creating and managing environments.
 
    Special considerations have been made to ensure the functions of class cannot be abused. You cannot retrieve the current running policy youself.
-   The additional API-calls are only valid if the policy has been registered. Once the policy is unregistered, all additional API-calls will fail with a RuntimeError.
+   The additional API exposed by "on_policy_registered" is only valid if the policy has been registered.
+   Once the policy is unregistered, all calls to the additional API will fail with a RuntimeError.
 
    .. py:method:: on_policy_registered(special_api)
 
