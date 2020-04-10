@@ -47,6 +47,15 @@ except ImportError as e:
     typing = None
 
 
+@final
+cdef class EnvironmentData(object):
+    cdef object core
+    cdef dict outputs
+
+    def __init__(self):
+        raise RuntimeError("Cannot directly instantiate this class.")
+
+
 class EnvironmentPolicy(object):
 
     def on_policy_registered(self, special_api):
@@ -55,66 +64,45 @@ class EnvironmentPolicy(object):
     def on_policy_cleared(self):
         pass
 
-    def get_current_environment_id(self):
+    def get_current_environment(self):
         raise NotImplementedError
 
-    def push_environment_id(self, id):
+    def push_environment(self, environment):
         raise NotImplementedError
 
-    def pop_environment_id(self):
+    def pop_environment(self):
         raise NotImplementedError
 
-    def is_alive(self, id):
-        raise NotImplementedError
-
-    def set_core(self, id, core_obj):
-        raise NotImplementedError
-
-    def get_core(self, id):
-        raise NotImplementedError
-
-    def get_output_dict(self, id):
+    def is_active(self, environment):
         raise NotImplementedError
 
 
 @final
 cdef class StandaloneEnvironmentPolicy:
-    cdef dict _outputs
-    cdef Core _core
+    cdef EnvironmentData _environment
 
     cdef object __weakref__
 
     def __init__(self):
         raise RuntimeError("Cannot directly instantiate this class.")
 
-    def on_policy_registered(self, _):
-        self._outputs = {}
-        self._core = None
+    def on_policy_registered(self, api):
+        self._environment = api.create_environment()
 
     def on_policy_cleared(self):
-        self._core = None
-        self._outputs = {}
+        self._environment = None
 
-    def get_current_environment_id(self):
-        return 0
+    def get_current_environment(self):
+        return self._environment
 
-    def push_environment_id(self, id):
+    def push_environment(self, env):
         pass
 
-    def pop_environment_id(self):
-        return 0
+    def pop_environment(self):
+        return self._environment
 
-    def set_core(self, id, core_obj):
-        self._core = core_obj
-
-    def get_core(self, id):
-        return self._core
-
-    def is_alive(self, id):
-        return True
-
-    def get_output_dict(self, id):
-        return self._outputs
+    def is_alive(self, environment):
+        return environment is self._environment
 
 # This flag is kept for backwards compatibility
 # I suggest deleting it sometime after R51
@@ -141,9 +129,20 @@ cdef class EnvironmentPolicyAPI:
         if _policy is not self._target_policy():
             raise ValueError("The currently activated policy does not match the bound policy. Was the environment unregistered?")
 
-    def use_environment(self, id):
+    def wrap_environment(self, environment_data):
         self.ensure_policy_matches()
-        return use_environment(id)
+        if not isinstance(environment_data, EnvironmentData):
+            raise ValueError("environment_data must be an EnvironmentData instance.")
+        return use_environment(<EnvironmentData>environment_data)
+
+    def create_environment(self):
+        self.ensure_policy_matches()
+
+        cdef EnvironmentData env = EnvironmentData.__new__(EnvironmentData)
+        env.core = None
+        env.outputs = {}
+        
+        return env
 
     def unregister_policy(self):
         self.ensure_policy_matches()
@@ -200,8 +199,8 @@ cdef clear_policy():
     _using_vsscript = False
     return old_policy
 
-cdef _env_current_id():
-    return get_policy().get_current_environment_id()
+cdef EnvironmentData _env_current():
+    return get_policy().get_current_environment()
 
 
 # Make sure the policy is cleared at exit.
@@ -209,14 +208,14 @@ atexit.register(lambda: clear_policy())
 
 
 cdef class Environment(object):
-    cdef readonly int env_id
+    cdef readonly EnvironmentData env
 
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
 
     @property
     def alive(self):
-        return get_policy().is_alive(self.env_id)
+        return get_policy().is_alive(self.env)
 
     @property
     def single(self):
@@ -228,16 +227,20 @@ cdef class Environment(object):
 
     @property
     def active(self):
-        return _env_current_id() == self.env_id
+        return get_policy().get_current_environment() is self.env
 
     def __enter__(self):
         if not self.alive:
             raise RuntimeError("The environment has died.")
-        get_policy().push_environment_id(self.env_id)
+        get_policy().push_environment(self.env)
         return self
 
     def __exit__(self, *_):
-        get_policy().pop_environment_id()
+        env = get_policy().pop_environment()
+
+        # We exited with a different environment. This is not good. Automatically revert this change.
+        if env is not self.env:
+            get_policy().push_environment(env)
 
     def __eq__(self, other):
         return other.env_id == self.env_id
@@ -246,23 +249,23 @@ cdef class Environment(object):
         if self.single:
             return "<Environment (default)>"
 
-        return f"<Environment {self.env_id} ({('active' if self.active else 'alive') if self.alive else 'dead'})>"
+        return f"<Environment {id(self.env)} ({('active' if self.active else 'alive') if self.alive else 'dead'})>"
 
 
-cdef Environment use_environment(int id):
+cdef Environment use_environment(EnvironmentData env):
     if id is None: raise ValueError("id may not be None.")
     cdef Environment instance = Environment.__new__(Environment)
-    instance.env_id = id
+    instance.env = env
     return instance
 
 
 def vpy_current_environment():
-    env_id = get_policy().get_current_environment_id()
-    if env_id is None:
+    env = get_policy().get_current_environment()
+    if env is None:
         raise RuntimeError("We are not running inside an environment.")
 
-    get_core()  # Make sure a core is defined.
-    return use_environment(env_id)
+    vsscript_get_core_internal(env) # Make sure a core is defined
+    return use_environment(env)
 
 
 # Create an empty list whose instance will represent a not passed value.
@@ -362,10 +365,10 @@ def set_message_handler(handler_func):
         funcs.setMessageHandler(message_handler_wrapper, NULL)
     
 cdef _get_output_dict(funcname="this function"):
-    eid = _env_current_id()
-    if eid is None:
+    cdef EnvironmentData env = _env_current()
+    if env is None:
         raise Error('Internal environment id not set. %s called from a filter callback?'%funcname)
-    return get_policy().get_output_dict(eid)
+    return env.outputs
     
 def clear_output(int index = 0):
     cdef dict outputs = _get_output_dict("clear_output")
@@ -388,7 +391,7 @@ def get_output(int index = 0):
 cdef class FuncData(object):
     cdef object func
     cdef VSCore *core
-    cdef int id
+    cdef EnvironmentData env
     
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
@@ -396,11 +399,11 @@ cdef class FuncData(object):
     def __call__(self, **kwargs):
         return self.func(**kwargs)
 
-cdef FuncData createFuncData(object func, VSCore *core, int id):
+cdef FuncData createFuncData(object func, VSCore *core, EnvironmentData env):
     cdef FuncData instance = FuncData.__new__(FuncData)
     instance.func = func
     instance.core = core
-    instance.id = id
+    instance.env = env
     return instance
     
 cdef class Func(object):
@@ -438,10 +441,10 @@ cdef Func createFuncPython(object func, VSCore *core, const VSAPI *funcs):
     cdef Func instance = Func.__new__(Func)
     instance.funcs = funcs
 
-    eid = _env_current_id()
-    if eid is None:
+    cdef EnvironmentData env = _env_current()
+    if env is None:
         raise Error('Internal environment id not set. Did the environment die?')
-    fdata = createFuncData(func, core, eid)
+    fdata = createFuncData(func, core, env)
 
     Py_INCREF(fdata)
     instance.ref = instance.funcs.createFunc(publicFunction, <void *>fdata, freeFunc, core, funcs)
@@ -461,15 +464,15 @@ cdef class RawCallbackData(object):
 
     cdef object wrap_cb
     cdef object future
-    cdef int env_id
+    cdef EnvironmentData env
 
-    def __init__(self, VideoNode node, int env_id, object callback = None):
+    def __init__(self, VideoNode node, EnvironmentData env, object callback = None):
         self.node = node
         self.callback = callback
 
         self.future = None
         self.wrap_cb = None
-        self.env_id = env_id
+        self.env = env
 
     def for_future(self, object future, object wrap_call=None):
         if wrap_call is None:
@@ -484,7 +487,7 @@ cdef class RawCallbackData(object):
         else:
             func = self.future.set_result
 
-        with use_environment(self.env_id):
+        with use_environment(self.env):
             self.wrap_cb(func, result)
 
     def receive(self, n, result):
@@ -492,7 +495,7 @@ cdef class RawCallbackData(object):
 
 
 cdef createRawCallbackData(const VSAPI* funcs, VideoNode videonode, object cb, object wrap_call=None):
-    cbd = RawCallbackData(videonode, _env_current_id(), cb)
+    cbd = RawCallbackData(videonode, _env_current(), cb)
     if not callable(cb):
         cbd.for_future(cb, wrap_call)
     cbd.funcs = funcs
@@ -1733,11 +1736,11 @@ cdef Core createCore():
 
 def get_core(threads = None, add_cache = None):
     ret_core = None
-    eid = _env_current_id()
-    if eid is None:
+    env = _env_current()
+    if env is None:
         raise Error('Internal environment id not set. Was get_core() called from a filter callback?')
 
-    ret_core = vsscript_get_core_internal(eid)
+    ret_core = vsscript_get_core_internal(env)
     if ret_core is not None:
         if threads is not None:
             ret_core.num_threads = threads
@@ -1745,15 +1748,10 @@ def get_core(threads = None, add_cache = None):
             ret_core.add_cache = add_cache
     return ret_core
     
-cdef Core vsscript_get_core_internal(int environment_id):
-    policy = get_policy()
-    core = policy.get_core(environment_id)
-
-    if core is None:
-        core = createCore()
-        policy.set_core(environment_id, core)
-
-    return core
+cdef Core vsscript_get_core_internal(EnvironmentData env):
+    if env.core is None:
+        env.core = createCore()
+    return env.core
     
 cdef class _CoreProxy(object):
 
@@ -1972,7 +1970,7 @@ cdef void __stdcall publicFunction(const VSMap *inm, VSMap *outm, void *userData
     with gil:
         d = <FuncData>userData
         try:
-            with use_environment(d.id):
+            with use_environment(d.env):
                 m = mapToDict(inm, False, False, core, vsapi)
                 ret = d(**m)
                 if not isinstance(ret, dict):
@@ -1985,67 +1983,75 @@ cdef void __stdcall publicFunction(const VSMap *inm, VSMap *outm, void *userData
 
 @final
 cdef class VSScriptEnvironmentPolicy:
-    cdef dict _cores
-    cdef dict _outputs
+    cdef dict _env_map
+    cdef dict _known_environments
+
     cdef object _stack
     cdef object _lock
+    cdef EnvironmentPolicyAPI _api
 
     cdef object __weakref__
 
     def __init__(self):
         raise RuntimeError("Cannot instantiate this class directly.")
 
-    def on_policy_registered(self, _):
-        self._cores = {}
-        self._outputs = {}
+    def on_policy_registered(self, policy_api):
+        self._env_map = {}
+        self._known_environments = {}
         self._stack = ThreadLocal()
         self._lock = Lock()
+        self._api = policy_api
 
     def on_policy_cleared(self):
         with self._lock:
-            self._cores.clear()
-            self._outputs.clear()
+            self._known_environments = None
+            self._env_map = None
             self._stack = None
             self._lock = None
 
-    def get_current_environment_id(self):
+    cdef EnvironmentData get_environment(self, id):
+        return self._env_map.get(id, None)
+
+    def get_current_environment(self):
         stack = self._stack.__dict__.setdefault("stack", [])
         if not stack:
             return None
         return stack[-1]
 
-    def push_environment_id(self, id):
+    def push_environment(self, env):
         stack = self._stack.__dict__.setdefault("stack", [])
-        stack.append(id)
+        stack.append(env)
 
-    def pop_environment_id(self):
+    def pop_environment(self):
         stack = self._stack.__dict__.setdefault("stack", [])
         if stack:
             return stack.pop()
         else:
             return None
 
-    def is_alive(self, id):
-        return id in self._cores
+    cdef EnvironmentData _make_environment(self, int script_id):
+        env = self._api.create_environment()
+        self._env_map[script_id] = env
+        self._known_environments[id(env)] = env
+        return env
 
-    def set_core(self, id, core_obj):
-        with self._lock:
-            if not self.is_alive:
-                return
-            self._cores[id] = core_obj
-
-    def get_core(self, id):
-        with self._lock:
-            return self._cores.get(id, None)
-
-    def get_output_dict(self, id):
-        return self._outputs.get(id, None)
+    cdef _free_environment(self, int script_id):
+        env = self._env_map.pop(script_id, None)
+        if env is not None:
+            self._known_environments.pop(id(env))
+        
+    def is_alive(self, env):
+        return id(env) in self._known_environments
 
 
 cdef VSScriptEnvironmentPolicy _get_vsscript_policy():
     if not isinstance(_policy, VSScriptEnvironmentPolicy):
         raise RuntimeError("This is not a VSScript-Policy.")
     return <VSScriptEnvironmentPolicy>_policy
+
+
+cdef object _vsscript_use_environment(int id):
+    return use_environment(_get_vsscript_policy().get_environment(id))
 
 
 # for whole script evaluation and export
@@ -2061,8 +2067,9 @@ cdef public api int vpy_createScript(VPYScriptExport *se) nogil:
             evaldict = {}
             Py_INCREF(evaldict)
             se.pyenvdict = <void *>evaldict
-            _get_vsscript_policy()._cores[se.id] = None
-            _get_vsscript_policy()._outputs[se.id] = {}
+
+            _get_vsscript_policy()._make_environment(<int>se.id)
+
         except:
             errstr = 'Unspecified Python exception' + '\n\n' + traceback.format_exc()
             errstr = errstr.encode('utf-8')
@@ -2081,7 +2088,8 @@ cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, 
             else:
                 Py_INCREF(evaldict)
                 se.pyenvdict = <void *>evaldict
-                _get_vsscript_policy().get_output_dict(se.id).clear()
+
+                _get_vsscript_policy().get_environment(se.id).outputs.clear()
 
             fn = scriptFilename.decode('utf-8')
 
@@ -2104,7 +2112,7 @@ cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, 
             comp = compile(script.decode('utf-8-sig'), fn, 'exec')
 
             # Change the environment now.
-            with use_environment(se.id):
+            with _vsscript_use_environment(se.id):
                 exec(comp) in evaldict
 
         except BaseException, e:
@@ -2130,8 +2138,7 @@ cdef public api int vpy_evaluateFile(VPYScriptExport *se, const char *scriptFile
             evaldict = {}
             Py_INCREF(evaldict)
             se.pyenvdict = <void *>evaldict
-            _get_vsscript_policy().get_output_dict(se.id).clear()
-
+            _get_vsscript_policy().get_environment(se.id).outputs.clear()
         try:
             with open(scriptFilename.decode('utf-8'), 'rb') as f:
                 script = f.read(1024*1024*16)
@@ -2166,8 +2173,7 @@ cdef public api void vpy_freeScript(VPYScriptExport *se) nogil:
             errstr = None
 
         try:
-            _get_vsscript_policy()._cores.pop(se.id, None)
-            _get_vsscript_policy()._outputs.pop(se.id, None)
+            _get_vsscript_policy()._free_environment(se.id)
         except:
             pass
 
@@ -2185,7 +2191,7 @@ cdef public api VSNodeRef *vpy_getOutput(VPYScriptExport *se, int index) nogil:
         evaldict = <dict>se.pyenvdict
         node = None
         try:
-            node = _get_vsscript_policy().get_output_dict(se.id)[index]
+            node = _get_vsscript_policy().get_environment(se.id).outputs[index]
         except:
             return NULL
 
@@ -2204,7 +2210,7 @@ cdef public api VSNodeRef *vpy_getOutput2(VPYScriptExport *se, int index, VSNode
         evaldict = <dict>se.pyenvdict
         node = None
         try:
-            node = _get_vsscript_policy().get_output_dict(se.id)[index]
+            node = _get_vsscript_policy().get_environment(se.id).outputs[index]
         except:
             return NULL
    
@@ -2220,7 +2226,7 @@ cdef public api VSNodeRef *vpy_getOutput2(VPYScriptExport *se, int index, VSNode
 cdef public api int vpy_clearOutput(VPYScriptExport *se, int index) nogil:
     with gil:
         try:
-            del _get_vsscript_policy().get_output_dict[se.id]
+            del _get_vsscript_policy().get_environment(se.id).outputs[index]
         except:
             return 1
         return 0
@@ -2228,7 +2234,7 @@ cdef public api int vpy_clearOutput(VPYScriptExport *se, int index) nogil:
 cdef public api VSCore *vpy_getCore(VPYScriptExport *se) nogil:
     with gil:
         try:
-            core = vsscript_get_core_internal(se.id)
+            core = vsscript_get_core_internal(_get_vsscript_policy().get_environment(se.id))
             if core is not None:
                 return (<Core>core).core
             else:
@@ -2247,7 +2253,7 @@ cdef public api const VSAPI *vpy_getVSApi2(int version) nogil:
 
 cdef public api int vpy_getVariable(VPYScriptExport *se, const char *name, VSMap *dst) nogil:
     with gil:
-        with use_environment(se.id):
+        with _vsscript_use_environment(se.id):
             if vpy_getVSApi() == NULL:
                 return 1
             evaldict = <dict>se.pyenvdict
@@ -2262,12 +2268,12 @@ cdef public api int vpy_getVariable(VPYScriptExport *se, const char *name, VSMap
 
 cdef public api int vpy_setVariable(VPYScriptExport *se, const VSMap *vars) nogil:
     with gil:
-        with use_environment(se.id):
+        with _vsscript_use_environment(se.id):
             if vpy_getVSApi() == NULL:
                 return 1
             evaldict = <dict>se.pyenvdict
             try:     
-                core = vsscript_get_core_internal(se.id)
+                core = vsscript_get_core_internal(_get_vsscript_policy().get_environment(se.id))
                 new_vars = mapToDict(vars, False, False, core.core, vpy_getVSApi())
                 for key in new_vars:
                     evaldict[key] = new_vars[key]
@@ -2291,8 +2297,8 @@ cdef public api void vpy_clearEnvironment(VPYScriptExport *se) nogil:
             evaldict[key] = None
         evaldict.clear()
         try:
-            _get_vsscript_policy()._outputs.pop(se.id)
-            _get_vsscript_policy()._cores.pop(se.id)
+             _get_vsscript_policy().get_environment(se.id).outputs.clear()
+             _get_vsscript_policy().get_environment(se.id).core = None
         except:
             pass
         gc.collect()
