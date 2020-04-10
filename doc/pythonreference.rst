@@ -594,11 +594,11 @@ Classes and Functions
 
       :returns: The environment ID that has just been popped or None if no ID was active.
 
-   .. py:method: is_alive(id)
+   .. py:method:: is_alive(id)
 
       Is the environment with the given ID alive?
 
-   .. py:method: get_core(id)
+   .. py:method:: get_core(id)
 
       :param id: The environment-id to retrieve the core from.
       :returns: the :class:`Core`-object that is associated with the given ID. Return None if there is no core associated with the ID.
@@ -607,22 +607,22 @@ Classes and Functions
 
          VapourSynth creates :class:`Core`-objects lazily! The fact that this method returns None does not indicate that the environment is not alive.
 
-   .. py:method: set_core(id, core_obj)
+   .. py:method:: set_core(id, core_obj)
 
       Sets the core-object for the given ID. Do nothing if the environment is not alive.
 
       :param id: The environment-id to associate the core with.
       :param core_obj: The :class:`Core`-instance that shall be associated with the given environment-id.
 
-   .. py:method: get_output_dict(id)
+   .. py:method:: get_output_dict(id)
 
       :returns: the dictionary containing the stored outputs of the given environment. The contents of the dictionary might be changed by the caller.
 
-.. py:class: EnvironmentPolicyAPI
+.. py:class:: EnvironmentPolicyAPI
 
    An instance of this class exposes an additional API. The methods are bound to a specific :class:`EnvironmentPolicy`-instance and will only work if the policy is currenty registered.
 
-   .. py:method: use_environment(id)
+   .. py:method:: use_environment(id)
 
       Creates a new :class:`Environment`-object bound to the passed environment-id.
 
@@ -630,11 +630,11 @@ Classes and Functions
 
          This function does not check if the id corresponds to a live environment as the caller is expected to know which environments are active.
 
-   .. py:method: unregister_policy()
+   .. py:method:: unregister_policy()
 
       Unregisters the policy it is bound to and allows another policy to be registered.
 
-.. py:function: register_policy(policy)
+.. py:function:: register_policy(policy)
 
    This class is intended for use by custom Script-Runners and Editors. It installs your custom :class:`EnvironmentPolicy`. This function only works if no other policy has been
    installed.
@@ -654,7 +654,7 @@ Classes and Functions
       * Using :function:`vpy_current_environment`
       * Accessing any attribute of :attribute:`core`
 
-.. py:function: has_policy()
+.. py:function:: has_policy()
 
    This class is intended for subclassing by custom Script-Runners and Editors. This function checks if a :class:`EnvironmentPolicy` has been installed.
 
