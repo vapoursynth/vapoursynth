@@ -31,6 +31,8 @@ import traceback
 import gc
 import sys
 import inspect
+import weakref
+import atexit
 from threading import local as ThreadLocal, Lock
 from types import MappingProxyType
 from collections import namedtuple
@@ -46,7 +48,11 @@ except ImportError as e:
 
 
 class EnvironmentPolicy(object):
-    def on_policy_registered(self, make_environment_object):
+
+    def on_policy_registered(self, special_api):
+        pass
+
+    def on_policy_cleared(self):
         pass
 
     def get_current_environment_id(self):
@@ -76,12 +82,18 @@ cdef class StandaloneEnvironmentPolicy:
     cdef dict _outputs
     cdef Core _core
 
+    cdef object __weakref__
+
     def __init__(self):
         raise RuntimeError("Cannot directly instantiate this class.")
 
     def on_policy_registered(self, _):
         self._outputs = {}
         self._core = None
+
+    def on_policy_cleared(self):
+        self._core = None
+        self._outputs = {}
 
     def get_current_environment_id(self):
         return 0
@@ -116,14 +128,47 @@ cdef object _message_handler = None
 cdef const VSAPI *_vsapi = NULL
 
 
+@final
+cdef class EnvironmentPolicyAPI:
+    # This must be a weak-ref to prevent a cyclic dependency that happens if the API
+    # is stored within an EnvironmentPolicy-instance.
+    cdef object _target_policy
+
+    def __init__(self):
+        raise RuntimeError("Cannot directly instantiate this class.")
+
+    cdef ensure_policy_matches(self):
+        if _policy is not self._target_policy():
+            raise ValueError("The currently activated policy does not match the bound policy. Was the environment unregistered?")
+
+    def use_environment(self, id):
+        self.ensure_policy_matches()
+        return use_environment(id)
+
+    def unregister_policy(self):
+        self.ensure_policy_matches()
+        clear_policy()
+
+    def __repr__(self):
+        target = self._target_policy()
+        if target is None:
+            return f"<EnvironmentPolicyAPI bound to <garbage collected> (unregistered)"
+        elif _policy is not target:
+            return f"<EnvironmentPolicyAPI bound to {target!r} (unregistered)>"
+        else:
+            return f"<EnvironmentPolicyAPI bound to {target!r}>"
+
+
 def register_policy(policy):
     global _policy, _using_vsscript
     if _policy is not None:
         raise RuntimeError("There is already a policy registered.")
     _policy = policy
-    _policy.on_policy_registered({
-        "use_environment": lambda id: use_environment(id)
-    })
+
+    # Expose Additional API-calls to the newly registered Environment-policy.
+    cdef EnvironmentPolicyAPI _api = EnvironmentPolicyAPI.__new__(EnvironmentPolicyAPI)
+    _api._target_policy = weakref.ref(_policy)
+    _policy.on_policy_registered(_api)
 
     if not isinstance(policy, StandaloneEnvironmentPolicy):
         # Older script had to use this flag to determine if it ran in
@@ -133,7 +178,9 @@ def register_policy(policy):
         # policy.
         _using_vsscript = True
 
-def get_policy():
+
+## DO NOT EXPOSE THIS FUNCTION TO PYTHON-LAND!
+cdef get_policy():
     global _policy
     if _policy is None:
         standalone_policy = StandaloneEnvironmentPolicy.__new__(StandaloneEnvironmentPolicy)
@@ -144,9 +191,21 @@ def get_policy():
 def has_policy():
     return _policy is not None
 
+cdef clear_policy():
+    global _policy, _using_vsscript
+    old_policy = _policy
+    _policy = None
+    if old_policy is not None:
+        old_policy.on_policy_cleared()
+    _using_vsscript = False
+    return old_policy
 
 cdef _env_current_id():
     return get_policy().get_current_environment_id()
+
+
+# Make sure the policy is cleared at exit.
+atexit.register(lambda: clear_policy())
 
 
 cdef class Environment(object):
@@ -1931,6 +1990,8 @@ cdef class VSScriptEnvironmentPolicy:
     cdef object _stack
     cdef object _lock
 
+    cdef object __weakref__
+
     def __init__(self):
         raise RuntimeError("Cannot instantiate this class directly.")
 
@@ -1939,6 +2000,13 @@ cdef class VSScriptEnvironmentPolicy:
         self._outputs = {}
         self._stack = ThreadLocal()
         self._lock = Lock()
+
+    def on_policy_cleared(self):
+        with self._lock:
+            self._cores.clear()
+            self._outputs.clear()
+            self._stack = None
+            self._lock = None
 
     def get_current_environment_id(self):
         stack = self._stack.__dict__.setdefault("stack", [])

@@ -551,6 +551,117 @@ Classes and Functions
 
    This function is intended for Python-based editors using vsscript.
 
+.. py:class:: EnvironmentPolicy
+
+   This class is intended for subclassing by custom Script-Runners and Editors. The instance controls which environment is in which context. Each environment must be associated
+   with a unique ID (integer) that identifies which environment is in use.
+
+   To use this class, first create a subclass and then use :function:`register_policy` to get VapourSynth to use your policy. This must happen before vapoursynth is first
+   used. VapourSynth will automatically register an internal policy if it needs one. The subclass must be weak-referenciable!
+
+   Special considerations have been made to ensure the functions of class cannot be abused. You cannot retrieve the current running policy youself.
+   The additional API-calls are only valid if the policy has been registered. Once the policy is unregistered, all additional API-calls will fail with a RuntimeError.
+   
+   Normal users don't need this class. Most methods implemented here have corresponding APIs in other parts of this wrapper.
+
+   .. py:method:: on_policy_registered(special_api)
+
+      This method is called when the policy has successfully been registered. It proivdes additional internal methods that are hidden as they are useless and or harmful
+      unless you implement your own policy.
+
+      :param special_api: This is a :class:`EnvironmentPolicyAPI`-object that exposes additional API
+
+   .. py:method: on_policy_cleared()
+
+      This method is called once the python-process exits or when unregister_policy is called by the environment-policy. This allows the policy to free the resources
+      used by the policy.
+   
+   .. py:method:: get_current_environment_id()
+
+      This method is called by the wrapper to detect which core is currently running in the current context.
+
+      :returns: An integer with the currently enabled environment-id or None if no environment is enabled right now.
+
+   .. py:method:: push_environment_id(id)
+
+      This method is called by the wrapper to change the currently active core. It should behave like a stack.
+
+      :param id: The environment ID to enable in the current context.
+
+   .. py:method:: pop_environment_id()
+
+      This method is called by the wrapper to remove the currently selected core from the current context.
+
+      :returns: The environment ID that has just been popped or None if no ID was active.
+
+   .. py:method: is_alive(id)
+
+      Is the environment with the given ID alive?
+
+   .. py:method: get_core(id)
+
+      :param id: The environment-id to retrieve the core from.
+      :returns: the :class:`Core`-object that is associated with the given ID. Return None if there is no core associated with the ID.
+
+      .. note::
+
+         VapourSynth creates :class:`Core`-objects lazily! The fact that this method returns None does not indicate that the environment is not alive.
+
+   .. py:method: set_core(id, core_obj)
+
+      Sets the core-object for the given ID. Do nothing if the environment is not alive.
+
+      :param id: The environment-id to associate the core with.
+      :param core_obj: The :class:`Core`-instance that shall be associated with the given environment-id.
+
+   .. py:method: get_output_dict(id)
+
+      :returns: the dictionary containing the stored outputs of the given environment. The contents of the dictionary might be changed by the caller.
+
+.. py:class: EnvironmentPolicyAPI
+
+   An instance of this class exposes an additional API. The methods are bound to a specific :class:`EnvironmentPolicy`-instance and will only work if the policy is currenty registered.
+
+   .. py:method: use_environment(id)
+
+      Creates a new :class:`Environment`-object bound to the passed environment-id.
+
+      .. warning::
+
+         This function does not check if the id corresponds to a live environment as the caller is expected to know which environments are active.
+
+   .. py:method: unregister_policy()
+
+      Unregisters the policy it is bound to and allows another policy to be registered.
+
+.. py:function: register_policy(policy)
+
+   This class is intended for use by custom Script-Runners and Editors. It installs your custom :class:`EnvironmentPolicy`. This function only works if no other policy has been
+   installed.
+
+   If no policy is installed, the first environment-sensitive call will automatically register an internal policy.
+   
+   .. note::
+
+      This must be done before VapourSynth is used in any way. Here is a non-exhaustive list that automatically register a policy:
+
+      * Using "vsscript_init" in "VSScript.h"
+      * Using :function:`get_core`
+      * Using :function:`get_outputs`
+      * Using :function:`get_output`
+      * Using :function:`clear_output`
+      * Using :function:`clear_outputs`
+      * Using :function:`vpy_current_environment`
+      * Accessing any attribute of :attribute:`core`
+
+.. py:function: has_policy()
+
+   This class is intended for subclassing by custom Script-Runners and Editors. This function checks if a :class:`EnvironmentPolicy` has been installed.
+
+.. py:attribute: _using_vsscript
+
+   INTERNAL ATTRIBUTE. Deprecated (will be removed soon). This was the only way to find out if VSScript.h was calling this script.
+   It now stores true if a custom policy is installed or VSScript.h is used. Use :function:`has_policy` instead.
 
 .. py:class:: Func
 
