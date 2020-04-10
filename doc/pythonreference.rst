@@ -596,7 +596,7 @@ Classes and Functions
 
    .. py:method:: is_alive(environment)
 
-      Is the current environment policy still active and managed by the policy.
+      Is the current environment still active and managed by the policy.
 
 .. py:class:: EnvironmentPolicyAPI
 
