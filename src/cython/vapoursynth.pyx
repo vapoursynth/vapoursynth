@@ -121,7 +121,9 @@ def register_policy(policy):
     if _policy is not None:
         raise RuntimeError("There is already a policy registered.")
     _policy = policy
-    _policy.on_policy_registered(lambda id: use_environment(id))
+    _policy.on_policy_registered({
+        "use_environment": lambda id: use_environment(id)
+    })
 
     if not isinstance(policy, StandaloneEnvironmentPolicy):
         # Older script had to use this flag to determine if it ran in
