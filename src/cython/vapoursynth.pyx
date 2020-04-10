@@ -52,6 +52,8 @@ cdef class EnvironmentData(object):
     cdef object core
     cdef dict outputs
 
+    cdef object __weakref__
+
     def __init__(self):
         raise RuntimeError("Cannot directly instantiate this class.")
 

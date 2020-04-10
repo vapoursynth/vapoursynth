@@ -553,16 +553,19 @@ Classes and Functions
 
 .. py:class:: EnvironmentPolicy
 
-   This class is intended for subclassing by custom Script-Runners and Editors. The instance controls which environment is in which context. Each environment must be associated
-   with a unique ID (integer) that identifies which environment is in use. The exact meaning of "context" is defined by the concrete EnvironmentPolicy.
+   This class is intended for subclassing by custom Script-Runners and Editors.
+   Normal users don't need this class. Most methods implemented here have corresponding APIs in other parts of this module.
+   
+   An instance of this class controls which environment is in which context.
+   The exact meaning of "context" is defined by the concrete EnvironmentPolicy. A environment is represented by a :class:`EnvironemtnData`-object.
 
    To use this class, first create a subclass and then use :function:`register_policy` to get VapourSynth to use your policy. This must happen before vapoursynth is first
    used. VapourSynth will automatically register an internal policy if it needs one. The subclass must be weak-referenciable!
+   
+   Once the method :method:`on_policy_registered` has been called, the policy is responsible for creating and managing environments.
 
    Special considerations have been made to ensure the functions of class cannot be abused. You cannot retrieve the current running policy youself.
    The additional API-calls are only valid if the policy has been registered. Once the policy is unregistered, all additional API-calls will fail with a RuntimeError.
-   
-   Normal users don't need this class. Most methods implemented here have corresponding APIs in other parts of this module.
 
    .. py:method:: on_policy_registered(special_api)
 
@@ -590,7 +593,7 @@ Classes and Functions
 
    .. py:method:: pop_environment()
 
-      This method is called by the module to remove the currently selected core from the current context.
+      This method is called by the module to remove the currently selected environment from the current context.
 
       :returns: The :class:`EnvironmentData`-object that has just been popped or None if no ID was active.
 
