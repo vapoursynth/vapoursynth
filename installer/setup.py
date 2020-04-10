@@ -63,7 +63,7 @@ setup(
 
     packages=[],
     install_requires=["vapoursynth==" + CURRENT_RELEASE],
-    # setup_requires=["vapoursynth==" + CURRENT_RELEASE],
+    setup_requires=["vapoursynth==" + CURRENT_RELEASE],
     data_files = [
         ("Lib\\site-packages", [
             os.path.join(build_dir, p)
