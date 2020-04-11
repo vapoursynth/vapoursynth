@@ -701,7 +701,7 @@ Classes and Functions
 
    Added: R50
 
-.. py:attribute: _using_vsscript
+.. py:attribute:: _using_vsscript
 
    INTERNAL ATTRIBUTE. Deprecated (will be removed soon). This was the only way to find out if VSScript.h was calling this script.
    It now stores true if a custom policy is installed or VSScript.h is used. Use :function:`has_policy` instead.
