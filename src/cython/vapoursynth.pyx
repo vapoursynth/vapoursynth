@@ -253,7 +253,7 @@ cdef class Environment(object):
             return -1
         return id(self.env)
 
-    cdef EnvironmentData get_env():
+    cdef EnvironmentData get_env(self):
         return self.env()
 
     @property
@@ -262,6 +262,12 @@ cdef class Environment(object):
         if env is None:
             return None
         return get_policy().get_current_environment() is env
+
+    def copy(self):
+        cdef Environment env = Environment.__new__(Environment)
+        env.env = self.env
+        env.use_stack = False
+        return env
 
     def use(self):
         env = self.get_env()
