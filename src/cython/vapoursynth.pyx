@@ -266,7 +266,7 @@ cdef class Environment(object):
     cdef _get_stack(self):
         if not self.use_stack:
             raise RuntimeError("You cannot directly use the environment as a context-manager. Use Environment.use instead.")
-        _tl_env_stack.stack = getattr(_tl_env_stack, "stack", )
+        _tl_env_stack.stack = getattr(_tl_env_stack, "stack", [])
         return _tl_env_stack.stack
 
     def __enter__(self):
@@ -1453,8 +1453,6 @@ cdef class VideoNode(object):
             
             clip = AlphaOutputTuple(self, alpha)
 
-        if self.core is not :
-            raise EnvironmentError("Trying to attach a clip to the wrong output node.")
         _get_output_dict("set_output")[index] = clip
 
     def output(self, object fileobj not None, bint y4m = False, object progress_update = None, int prefetch = 0):
