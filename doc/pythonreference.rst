@@ -534,6 +534,8 @@ Classes and Functions
 
       This context-manager maintains a thread-local environment-stack that is used to restore the previous environment.
       This can cause issues if the frame is suspended inside the block.
+
+      A similar problem also existed in previous VapourSynth versions!
       
       .. code::
 
