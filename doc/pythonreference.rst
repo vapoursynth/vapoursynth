@@ -523,8 +523,23 @@ Classes and Functions
 
         env = vpy_current_environment()
         # sometime later
-        with env:
+        with env.use():
           # Do stuff inside this env.
+
+   .. warning::
+
+      Environment-objects obtained using the :function:`vpy_current_environment` can directly be used as
+      as a context manager. This can cuase undefined behaviour when used in combination with generators and/or
+      coroutines.
+
+      This context-manager maintains a thread-local environment-stack that is used to restore the previous environment.
+      This can cause issues if the frame is suspended inside the block.
+      
+      .. code::
+
+         env = vpy_current_environment()
+         with env:
+              yield
 
    .. py:function:: is_single()
 
@@ -544,12 +559,46 @@ Classes and Functions
 
       Has the environment been destroyed by the underlying application?
 
+   .. py:method:: copy
+
+      Creates a copy of the environment-object. It will not copy the environment itself.
+
+      Added: R50
+
+   .. py:method:: use
+
+      Returns a context-manager that enables the given environment in the block enclosed in the with-statement and restores the environment to the one
+      defined before.
+
+      The following code is safe in all cases.
+
+      .. code::
+      
+         env = vpy_current_environment()
+         with env.use():
+             with env.use():
+                 pass
+
+      Added: R50
+
 .. py:function:: vpy_current_environment()
+
+   Deprecated. Use :function:`get_current_environment` instead.
 
    Returns an Environment-object representing the environment the script is currently running in. It will raise an error if we are currently not inside any
    script-environment while vsscript is being used.
 
    This function is intended for Python-based editors using vsscript.
+   This function has been deprecated as this function has undefined behaviour when used together with generators or coroutines.
+
+.. py:function:: get_current_environment()
+
+   Returns an Environment-object representing the environment the script is currently running in. It will raise an error if we are currently not inside any
+   script-environment while vsscript is being used.
+
+   This function is intended for Python-based editors using vsscript.
+
+   Added: R50
 
 .. py:class:: EnvironmentPolicy
 
@@ -567,6 +616,8 @@ Classes and Functions
    Special considerations have been made to ensure the functions of class cannot be abused. You cannot retrieve the current running policy youself.
    The additional API exposed by "on_policy_registered" is only valid if the policy has been registered.
    Once the policy is unregistered, all calls to the additional API will fail with a RuntimeError.
+
+   Added: R50
 
    .. py:method:: on_policy_registered(special_api)
 
@@ -586,17 +637,12 @@ Classes and Functions
 
       :returns: An :class:`EnvironmentData`-object representing the currently active environment in the current context.
 
-   .. py:method:: push_environment(env)
+   .. py:method:: set_environment(environment)
 
-      This method is called by the module to change the currently active environment. It should behave like a stack.
+      This method is called by the module to change the currently active environment.
 
-      :param id: The :class:`EnvironmentData` to enable in the current context.
-
-   .. py:method:: pop_environment()
-
-      This method is called by the module to remove the currently selected environment from the current context.
-
-      :returns: The :class:`EnvironmentData`-object that has just been popped or None if no ID was active.
+      :param environment: The :class:`EnvironmentData` to enable in the current context.
+      :returns: The environment that was enabled previously.
 
    .. py:method:: is_alive(environment)
 
@@ -606,6 +652,8 @@ Classes and Functions
 
    This class is intended to be used by custom Script-Runners and Editors. An instance of this class exposes an additional API.
    The methods are bound to a specific :class:`EnvironmentPolicy`-instance and will only work if the policy is currenty registered.
+
+   Added: R50
 
    .. py:method:: wrap_environment(environment)
 
@@ -630,6 +678,8 @@ Classes and Functions
    installed.
 
    If no policy is installed, the first environment-sensitive call will automatically register an internal policy.
+
+   Added: R50
    
    .. note::
 
@@ -642,11 +692,14 @@ Classes and Functions
       * Using :function:`clear_output`
       * Using :function:`clear_outputs`
       * Using :function:`vpy_current_environment`
+      * Using :function:`get_current_environment`
       * Accessing any attribute of :attribute:`core`
 
 .. py:function:: has_policy()
 
    This class is intended for subclassing by custom Script-Runners and Editors. This function checks if a :class:`EnvironmentPolicy` has been installed.
+
+   Added: R50
 
 .. py:attribute: _using_vsscript
 
@@ -662,6 +715,8 @@ Classes and Functions
 
    This object is weak-referenciable meaning you can get a callback if the environment-data object is actually being freed (i.e. no other object holds an instance
    to the environment data.)
+
+   Added: R50
 
 .. py:class:: Func
 
