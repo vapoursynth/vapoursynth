@@ -521,7 +521,7 @@ Classes and Functions
 
    .. code::
 
-        env = vpy_current_environment()
+        env = get_current_environment()
         # sometime later
         with env.use():
           # Do stuff inside this env.
