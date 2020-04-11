@@ -561,13 +561,7 @@ Classes and Functions
 
       Has the environment been destroyed by the underlying application?
 
-   .. py:method:: copy
-
-      Creates a copy of the environment-object. It will not copy the environment itself.
-
-      Added: R50
-
-   .. py:method:: use
+   .. py:method:: use()
 
       Returns a context-manager that enables the given environment in the block enclosed in the with-statement and restores the environment to the one
       defined before the with-block has been encountered.

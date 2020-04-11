@@ -226,7 +226,7 @@ cdef class _FastManager(object):
 
 cdef object _tl_env_stack = ThreadLocal()
 cdef class Environment(object):
-    cdef readonly EnvironmentData env
+    cdef readonly object env
     cdef bint use_stack
 
     def __init__(self):
@@ -234,7 +234,10 @@ cdef class Environment(object):
 
     @property
     def alive(self):
-        return get_policy().is_alive(self.env)
+        env = self.get_env()
+        if env is None:
+            return False
+        return get_policy().is_alive(env)
 
     @property
     def single(self):
@@ -250,16 +253,23 @@ cdef class Environment(object):
             return -1
         return id(self.env)
 
+    cdef EnvironmentData get_env():
+        return self.env()
+
     @property
     def active(self):
-        return get_policy().get_current_environment() is self.env
-
-    def copy(self):
-        return use_environment(self.env, direct=False)
+        env = self.get_env()
+        if env is None:
+            return None
+        return get_policy().get_current_environment() is env
 
     def use(self):
+        env = self.get_env()
+        if env is None:
+            raise RuntimeError("The environment is dead.")
+
         cdef _FastManager ctx = _FastManager.__new__(_FastManager)
-        ctx.target = self.env
+        ctx.target = env
         ctx.previous = None
         return ctx
 
@@ -273,8 +283,9 @@ cdef class Environment(object):
         if not self.alive:
             raise RuntimeError("The environment has died.")
 
+        env = self.get_env()
         stack = self._get_stack()
-        stack.append(get_policy().set_environment(self.env))
+        stack.append(get_policy().set_environment(env))
         if len(stack) > 1:
             import warnings
             warnings.warn("Using the environment as a context-manager is not reentrant. Expect undefined behaviour. Use Environment.use instead.", RuntimeWarning)
@@ -292,7 +303,7 @@ cdef class Environment(object):
         old = get_policy().set_environment(env)
 
         # We exited with a different environment. This is not good. Automatically revert this change.
-        if old is not self.env:
+        if old is not self.get_env():
             import warnings
             warnings.warn("The exited environment did not match the managed environment. Was the frame suspended during the with-statement?", RuntimeWarning)
 
@@ -310,7 +321,7 @@ cdef Environment use_environment(EnvironmentData env, bint direct = False):
     if id is None: raise ValueError("id may not be None.")
 
     cdef Environment instance = Environment.__new__(Environment)
-    instance.env = env
+    instance.env = weakref.ref(env)
     instance.use_stack = direct
 
     return instance
