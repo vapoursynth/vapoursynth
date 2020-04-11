@@ -570,9 +570,7 @@ Classes and Functions
    .. py:method:: use
 
       Returns a context-manager that enables the given environment in the block enclosed in the with-statement and restores the environment to the one
-      defined before.
-
-      The following code is safe in all cases.
+      defined before the with-block has been encountered.
 
       .. code::
       
