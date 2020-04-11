@@ -711,7 +711,7 @@ Classes and Functions
 
    Internal class that stores the context sensitive data that VapourSynth needs. It is an opaque object whose attributes you cannot access directly.
 
-   A normal user has now way of getting an instance of this object. You can only encounter EnvironmentData-objects if you work with EnvironmentPolicies.
+   A normal user has no way of getting an instance of this object. You can only encounter EnvironmentData-objects if you work with EnvironmentPolicies.
 
    This object is weak-referenciable meaning you can get a callback if the environment-data object is actually being freed (i.e. no other object holds an instance
    to the environment data.)
