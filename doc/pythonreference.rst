@@ -528,7 +528,7 @@ Classes and Functions
 
    .. warning::
 
-      Environment-objects obtained using the :function:`vpy_current_environment` can directly be used as
+      Environment-objects obtained using the :func:`vpy_current_environment` can directly be used as
       as a context manager. This can cuase undefined behaviour when used in combination with generators and/or
       coroutines.
 
@@ -583,7 +583,7 @@ Classes and Functions
 
 .. py:function:: vpy_current_environment()
 
-   Deprecated. Use :function:`get_current_environment` instead.
+   Deprecated. Use :func:`get_current_environment` instead.
 
    Returns an Environment-object representing the environment the script is currently running in. It will raise an error if we are currently not inside any
    script-environment while vsscript is being used.
@@ -608,10 +608,10 @@ Classes and Functions
    An instance of this class controls which environment is in which context.
    The exact meaning of "context" is defined by the concrete EnvironmentPolicy. A environment is represented by a :class:`EnvironemtnData`-object.
 
-   To use this class, first create a subclass and then use :function:`register_policy` to get VapourSynth to use your policy. This must happen before vapoursynth is first
+   To use this class, first create a subclass and then use :func:`register_policy` to get VapourSynth to use your policy. This must happen before vapoursynth is first
    used. VapourSynth will automatically register an internal policy if it needs one. The subclass must be weak-referenciable!
    
-   Once the method :method:`on_policy_registered` has been called, the policy is responsible for creating and managing environments.
+   Once the method :meth:`on_policy_registered` has been called, the policy is responsible for creating and managing environments.
 
    Special considerations have been made to ensure the functions of class cannot be abused. You cannot retrieve the current running policy youself.
    The additional API exposed by "on_policy_registered" is only valid if the policy has been registered.
@@ -674,7 +674,7 @@ Classes and Functions
 
 .. py:function:: register_policy(policy)
 
-   This class is intended for use by custom Script-Runners and Editors. It installs your custom :class:`EnvironmentPolicy`. This function only works if no other policy has been
+   This function is intended for use by custom Script-Runners and Editors. It installs your custom :class:`EnvironmentPolicy`. This function only works if no other policy has been
    installed.
 
    If no policy is installed, the first environment-sensitive call will automatically register an internal policy.
@@ -686,25 +686,25 @@ Classes and Functions
       This must be done before VapourSynth is used in any way. Here is a non-exhaustive list that automatically register a policy:
 
       * Using "vsscript_init" in "VSScript.h"
-      * Using :function:`get_core`
-      * Using :function:`get_outputs`
-      * Using :function:`get_output`
-      * Using :function:`clear_output`
-      * Using :function:`clear_outputs`
-      * Using :function:`vpy_current_environment`
-      * Using :function:`get_current_environment`
-      * Accessing any attribute of :attribute:`core`
+      * Using :func:`get_core`
+      * Using :func:`get_outputs`
+      * Using :func:`get_output`
+      * Using :func:`clear_output`
+      * Using :func:`clear_outputs`
+      * Using :func:`vpy_current_environment`
+      * Using :func:`get_current_environment`
+      * Accessing any attribute of :attr:`core`
 
 .. py:function:: has_policy()
 
-   This class is intended for subclassing by custom Script-Runners and Editors. This function checks if a :class:`EnvironmentPolicy` has been installed.
+   This function is intended for subclassing by custom Script-Runners and Editors. This function checks if a :class:`EnvironmentPolicy` has been installed.
 
    Added: R50
 
 .. py:attribute:: _using_vsscript
 
    INTERNAL ATTRIBUTE. Deprecated (will be removed soon). This was the only way to find out if VSScript.h was calling this script.
-   It now stores true if a custom policy is installed or VSScript.h is used. Use :function:`has_policy` instead.
+   It now stores true if a custom policy is installed or VSScript.h is used. Use :func:`has_policy` instead.
 
 
 .. py:class:: EnvironmentData
