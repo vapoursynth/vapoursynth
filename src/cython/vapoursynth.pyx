@@ -2336,7 +2336,7 @@ cdef public api int vpy_getVariable(VPYScriptExport *se, const char *name, VSMap
             try:
                 dname = name.decode('utf-8')
                 read_var = { dname:evaldict[dname]}
-                core = vsscript_get_core_internal(se.id)
+                core = vsscript_get_core_internal(_get_vsscript_policy().get_environment(se.id))
                 dictToMap(read_var, dst, core.core, vpy_getVSApi())
                 return 0
             except:
