@@ -607,7 +607,7 @@ Classes and Functions
    This class is intended for subclassing by custom Script-Runners and Editors.
    Normal users don't need this class. Most methods implemented here have corresponding APIs in other parts of this module.
    
-   An instance of this class controls which environment is activated in a the current context.
+   An instance of this class controls which environment is activated in the current context.
    The exact meaning of "context" is defined by the concrete EnvironmentPolicy. A environment is represented by a :class:`EnvironmentData`-object.
 
    To use this class, first create a subclass and then use :func:`register_policy` to get VapourSynth to use your policy. This must happen before vapoursynth is first
