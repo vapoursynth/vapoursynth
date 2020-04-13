@@ -518,7 +518,7 @@ Classes and Functions
    Some editors allow multiple vapoursynth-scripts to run in the same process, each of them comes with a different Core-instance and
    their own set of outputs. Each core-instance with their associated outputs represent their own environment.
 
-   At any given time, only one environment can be active at any given time (in the same context). This class allows introspection about
+   At any given time, only one environment can be active (in the same context). This class allows introspection about
    environments and allows to switch to them at will.
 
    .. code::
