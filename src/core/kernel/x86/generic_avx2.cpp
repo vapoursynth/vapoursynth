@@ -352,12 +352,10 @@ static __m256i limit_diff_epu8(__m256i val, __m256i orig, __m256i threshold)
 }
 
 template <bool Max>
-static __m256i limit_diff_epi16(__m256i val, __m256i orig, __m256i threshold)
+static __m256i limit_diff_epu16(__m256i val, __m256i orig, __m256i threshold)
 {
-    // val in signed domain. orig and threshold in unsigned domain.
     __m256i limit = Max ? _mm256_adds_epu16(orig, threshold) : _mm256_subs_epu16(orig, threshold);
-    limit = _mm256_add_epi16(limit, _mm256_set1_epi16(INT16_MIN));
-    val = Max ? _mm256_min_epi16(val, limit) : _mm256_max_epi16(val, limit);
+    val = Max ? _mm256_min_epu16(val, limit) : _mm256_max_epu16(val, limit);
     return val;
 }
 
@@ -406,10 +404,7 @@ struct MinMaxWord : MinMaxTraits<MinMaxWord<Max>, __m256i>, WordTraits {
 
     FORCE_INLINE static __m256i reduce(__m256i lhs, __m256i rhs, __m256i mask)
     {
-        // lhs is in signed domain. rhs is in unsigned domain (for masking).
-        rhs = Max ? _mm256_and_si256(mask, rhs) : _mm256_or_si256(mask, rhs);
-        rhs = _mm256_add_epi16(rhs, _mm256_set1_epi16(INT16_MIN));
-        return Max ? _mm256_max_epi16(lhs, rhs) : _mm256_min_epi16(lhs, rhs);
+        return Max ? _mm256_max_epu16(lhs, _mm256_and_si256(mask, rhs)) : _mm256_min_epu16(lhs, _mm256_or_si256(mask, rhs));
     }
 
     explicit MinMaxWord(const vs_generic_params &params) :
@@ -421,11 +416,8 @@ struct MinMaxWord : MinMaxTraits<MinMaxWord<Max>, __m256i>, WordTraits {
     {
         PROLOGUE();
 
-        __m256i a11_signed = _mm256_add_epi16(a11, _mm256_set1_epi16(INT16_MIN));
-        __m256i val = MinMaxTraitsT::apply_stencil(a00, a01, a02, a10, a11_signed, a12, a20, a21, a22);
-        val = limit_diff_epi16<Max>(val, a11, threshold);
-        val = _mm256_sub_epi16(val, _mm256_set1_epi16(INT16_MIN));
-        return val;
+        __m256i val = MinMaxTraitsT::apply_stencil(a00, a01, a02, a10, a11, a12, a20, a21, a22);
+        return limit_diff_epu16<Max>(val, a11, threshold);
     }
 };
 
@@ -511,8 +503,7 @@ struct MinMaxFixedWord : MinMaxFixedTraits<Stencil, MinMaxFixedWord<Stencil, Max
 
     static __m256i reduce(__m256i lhs, __m256i rhs)
     {
-        // lhs in signed domain. rhs in unsigned domain.
-        return Max ? _mm256_max_epi16(lhs, _mm256_add_epi16(rhs, _mm256_set1_epi16(INT16_MIN))) : _mm256_min_epi16(lhs, _mm256_add_epi16(rhs, _mm256_set1_epi16(INT16_MIN)));
+        return Max ? _mm256_max_epu16(lhs, rhs) : _mm256_min_epu16(lhs, rhs);
     }
 
     explicit MinMaxFixedWord(const vs_generic_params &params) :
@@ -523,11 +514,8 @@ struct MinMaxFixedWord : MinMaxFixedTraits<Stencil, MinMaxFixedWord<Stencil, Max
     {
         PROLOGUE();
 
-        __m256i a11_signed = _mm256_add_epi16(a11, _mm256_set1_epi16(INT16_MIN));
-        __m256i val = MinMaxFixedTraitsT::apply_stencil(a00, a01, a02, a10, a11_signed, a12, a20, a21, a22);
-        val = limit_diff_epi16<Max>(val, a11, threshold);
-        val = _mm256_sub_epi16(val, _mm256_set1_epi16(INT16_MIN));
-        return val;
+        __m256i val = MinMaxFixedTraitsT::apply_stencil(a00, a01, a02, a10, a11, a12, a20, a21, a22);
+        return limit_diff_epu16<Max>(val, a11, threshold);
     }
 };
 
@@ -603,33 +591,18 @@ struct MedianByte : MedianTraits<MedianByte, __m256i>, ByteTraits {
 };
 
 struct MedianWord : MedianTraits<MedianWord, __m256i>, WordTraits {
-    static __m256i min(__m256i lhs, __m256i rhs) { return _mm256_min_epi16(lhs, rhs); }
-    static __m256i max(__m256i lhs, __m256i rhs) { return _mm256_max_epi16(lhs, rhs); }
+    static __m256i min(__m256i lhs, __m256i rhs) { return _mm256_min_epu16(lhs, rhs); }
+    static __m256i max(__m256i lhs, __m256i rhs) { return _mm256_max_epu16(lhs, rhs); }
 
     static FORCE_INLINE void compare_exchange(__m256i &lhs, __m256i &rhs)
     {
         __m256i a = lhs;
         __m256i b = rhs;
-        lhs = _mm256_min_epi16(a, b);
-        rhs = _mm256_max_epi16(a, b);
+        lhs = _mm256_min_epu16(a, b);
+        rhs = _mm256_max_epu16(a, b);
     }
 
     explicit MedianWord(const vs_generic_params &) {}
-
-    FORCE_INLINE vec_type op(OP_ARGS)
-    {
-        PROLOGUE();
-
-#define SIGNED16(x) (_mm256_add_epi16((x), _mm256_set1_epi16(INT16_MIN)))
-        a00 = SIGNED16(a00); a01 = SIGNED16(a01); a02 = SIGNED16(a02);
-        a10 = SIGNED16(a10); a11 = SIGNED16(a11); a12 = SIGNED16(a12);
-        a20 = SIGNED16(a20); a21 = SIGNED16(a21); a22 = SIGNED16(a22);
-#undef SIGNED16
-
-        __m256i val = MedianTraits<MedianWord, __m256i>::op(a00, a01, a02, a10, a11, a12, a20, a21, a22);
-        val = _mm256_sub_epi16(val, _mm256_set1_epi16(INT16_MIN));
-        return val;
-    }
 };
 
 struct MedianFloat : MedianTraits<MedianFloat, __m256>, FloatTraits {
@@ -728,17 +701,12 @@ struct DeflateInflateWord : WordTraits {
 
         accum_lo = _mm256_srli_epi32(accum_lo, 3);
         accum_hi = _mm256_srli_epi32(accum_hi, 3);
-        accum_lo = _mm256_add_epi32(accum_lo, _mm256_set1_epi32(INT16_MIN));
-        accum_hi = _mm256_add_epi32(accum_hi, _mm256_set1_epi32(INT16_MIN));
 
-        __m256i tmp = _mm256_packs_epi32(accum_lo, accum_hi);
-        __m256i a11_signed = _mm256_add_epi16(a11, _mm256_set1_epi16(INT16_MIN));
-        tmp = Inflate ? _mm256_max_epi16(tmp, a11_signed) : _mm256_min_epi16(tmp, a11_signed);
+        __m256i tmp = _mm256_packus_epi32(accum_lo, accum_hi);
+        tmp = Inflate ? _mm256_max_epu16(tmp, a11) : _mm256_min_epu16(tmp, a11);
 
         __m256i limit = Inflate ? _mm256_adds_epu16(a11, threshold) : _mm256_subs_epu16(a11, threshold);
-        limit = _mm256_add_epi16(limit, _mm256_set1_epi16(INT16_MIN));
-        tmp = Inflate ? _mm256_min_epi16(tmp, limit) : _mm256_max_epi16(tmp, limit);
-        tmp = _mm256_sub_epi16(tmp, _mm256_set1_epi16(INT16_MIN));
+        tmp = Inflate ? _mm256_min_epu16(tmp, limit) : _mm256_max_epu16(tmp, limit);
 
         return tmp;
 #undef UNPCKHI
@@ -888,7 +856,7 @@ struct ConvolutionWord : ConvolutionIntTraits, WordTraits {
 
     explicit ConvolutionWord(const vs_generic_params &params) :
         ConvolutionIntTraits(params),
-        maxval(_mm256_set1_epi16(static_cast<int16_t>(static_cast<int32_t>(params.maxval) + INT16_MIN)))
+        maxval(_mm256_set1_epi16(params.maxval))
     {
         int32_t x = 0;
 
@@ -936,13 +904,9 @@ struct ConvolutionWord : ConvolutionIntTraits, WordTraits {
 
         accum_lo = _mm256_cvtps_epi32(tmpf_lo);
         accum_hi = _mm256_cvtps_epi32(tmpf_hi);
-        accum_lo = _mm256_add_epi32(accum_lo, _mm256_set1_epi32(INT16_MIN));
-        accum_hi = _mm256_add_epi32(accum_hi, _mm256_set1_epi32(INT16_MIN));
 
-        __m256i tmp = _mm256_packs_epi32(accum_lo, accum_hi);
-        tmp = _mm256_min_epi16(tmp, maxval);
-        tmp = _mm256_sub_epi16(tmp, _mm256_set1_epi16(INT16_MIN));
-        return tmp;
+        __m256i tmp = _mm256_packus_epi32(accum_lo, accum_hi);
+        return _mm256_min_epu16(tmp, maxval);
     }
 };
 
