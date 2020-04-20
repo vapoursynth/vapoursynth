@@ -187,7 +187,7 @@ struct PrewittSobelByte : PrewittSobelTraits, ByteTraits {
 
 template <bool Sobel>
 struct PrewittSobelWord : PrewittSobelTraits, WordTraits {
-    __m128 maxval;
+    __m128i maxval;
 
     static uint32_t interleave(uint16_t a, uint16_t b)
     {
@@ -196,7 +196,7 @@ struct PrewittSobelWord : PrewittSobelTraits, WordTraits {
 
     explicit PrewittSobelWord(const vs_generic_params &params) :
         PrewittSobelTraits(params),
-        maxval(_mm_set_ps1(params.maxval))
+        maxval(_mm_set1_epi16(params.maxval + INT16_MIN))
     {}
 
     FORCE_INLINE __m128i op(OP_ARGS)
@@ -253,6 +253,7 @@ struct PrewittSobelWord : PrewittSobelTraits, WordTraits {
         tmpi_hi = _mm_add_epi32(tmpi_hi, _mm_set1_epi32(INT16_MIN));
 
         __m128i tmp = _mm_packs_epi32(tmpi_lo, tmpi_hi);
+        tmp = _mm_min_epi16(tmp, maxval);
         tmp = _mm_sub_epi16(tmp, _mm_set1_epi16(INT16_MIN));
         return tmp;
 #undef UNPCKHI
