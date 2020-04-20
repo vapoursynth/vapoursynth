@@ -46,22 +46,22 @@ static unsigned hmin_epu8(__m256i x)
     return _mm_cvtsi128_si32(tmp) & 0xFF;
 }
 
-static int hmax_epu16(__m256i x)
+static unsigned hmax_epu16(__m256i x)
 {
     __m128i tmp = _mm_max_epu16(_mm256_castsi256_si128(x), _mm256_extractf128_si256(x, 1));
     tmp = _mm_max_epu16(tmp, _mm_srli_si128(tmp, 8));
     tmp = _mm_max_epu16(tmp, _mm_srli_si128(tmp, 4));
     tmp = _mm_max_epu16(tmp, _mm_srli_si128(tmp, 2));
-    return (int16_t)_mm_extract_epi16(tmp, 0);
+    return (uint16_t)_mm_extract_epi16(tmp, 0);
 }
 
-static int hmin_epu16(__m256i x)
+static unsigned hmin_epu16(__m256i x)
 {
     __m128i tmp = _mm_min_epu16(_mm256_castsi256_si128(x), _mm256_extractf128_si256(x, 1));
     tmp = _mm_min_epu16(tmp, _mm_srli_si128(tmp, 8));
     tmp = _mm_min_epu16(tmp, _mm_srli_si128(tmp, 4));
     tmp = _mm_min_epu16(tmp, _mm_srli_si128(tmp, 2));
-    return (int16_t)_mm_extract_epi16(tmp, 0);
+    return (uint16_t)_mm_extract_epi16(tmp, 0);
 }
 
 static float hmax_ps(__m256 x)
