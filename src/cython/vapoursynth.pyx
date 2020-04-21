@@ -1,4 +1,4 @@
-#  Copyright (c) 2012-2017 Fredrik Mellbin
+#  Copyright (c) 2012-2020 Fredrik Mellbin
 #
 #  This file is part of VapourSynth.
 #
@@ -311,7 +311,8 @@ cdef class Func(object):
         raise Error('Class cannot be instantiated directly')
         
     def __dealloc__(self):
-        self.funcs.freeFunc(self.ref)
+        if self.funcs:
+            self.funcs.freeFunc(self.ref)
         
     def __call__(self, **kwargs):
         cdef VSMap *outm
@@ -437,7 +438,8 @@ cdef class FramePtr(object):
         raise Error('Class cannot be instantiated directly')
 
     def __dealloc__(self):
-        self.funcs.freeFrame(self.f)
+        if self.funcs:
+            self.funcs.freeFrame(self.f)
 
 cdef FramePtr createFramePtr(const VSFrameRef *f, const VSAPI *funcs):
     cdef FramePtr instance = FramePtr.__new__(FramePtr)    
@@ -751,7 +753,8 @@ cdef class VideoProps(object):
         raise Error('Class cannot be instantiated directly')
 
     def __dealloc__(self):
-        self.funcs.freeFrame(self.constf)
+        if self.funcs:
+            self.funcs.freeFrame(self.constf)
 
     def __contains__(self, str name):
         cdef const VSMap *m = self.funcs.getFramePropsRO(self.constf)
@@ -992,7 +995,8 @@ cdef class VideoFrame(object):
         raise Error('Class cannot be instantiated directly')
 
     def __dealloc__(self):
-        self.funcs.freeFrame(self.constf)
+        if self.funcs:
+            self.funcs.freeFrame(self.constf)
 
     def copy(self):
         return createVideoFrame(self.funcs.copyFrame(self.constf, self.core), self.funcs, self.core)
@@ -1211,7 +1215,8 @@ cdef class VideoNode(object):
         raise Error('Class cannot be instantiated directly')
 
     def __dealloc__(self):
-        self.funcs.freeNode(self.node)
+        if self.funcs:
+            self.funcs.freeNode(self.node)
         
     def __getattr__(self, name):
         err = False

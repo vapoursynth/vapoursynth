@@ -1,3 +1,8 @@
+r50:
+fixed regression introduced in r48 where sobel and prewitt wouldn't clamp 9-15 bit output to valid range
+fixed crash due to null pointer dereference when instantiation many vapoursynth classes directly in python
+fixed regression in r49 where the python dll could only be located when in the PATH on windows
+
 r49:
 updated to python 3.8 on windows
 updated visual studio 2019 runtime version
