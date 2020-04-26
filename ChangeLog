@@ -1,5 +1,7 @@
 r50:
-fixed regression introduced in r48 where sobel and prewitt wouldn't clamp 9-15 bit output to valid range
+updated zimg to latest v2.9 so grayscale colorspace are supported
+fixed crash in textfilter line wrapping introduced in r49 (sekrit-twc)
+fixed regression introduced in r48 where sobel and prewitt wouldn't clamp 9-15 bit output to valid range (sekrit-twc)
 fixed crash due to null pointer dereference when instantiation many vapoursynth classes directly in python
 fixed regression in r49 where the python dll could only be located when in the PATH on windows
 
