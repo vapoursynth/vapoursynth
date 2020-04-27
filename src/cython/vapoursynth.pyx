@@ -44,6 +44,7 @@ try:
 except ImportError as e:
     typing = None
 
+__version__ = namedtuple("VapourSynthVersion", "release api_major api_minor")(50, VAPOURSYNTH_API_MAJOR, VAPOURSYNTH_API_MINOR)
 
 _using_vsscript = False
 cdef object _environment_state = ThreadLocal()
