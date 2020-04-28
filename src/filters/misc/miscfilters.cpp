@@ -164,8 +164,7 @@ static void averageFramesI(const std::vector<const VSFrameRef *> &srcs, VSFrameR
                 acc += srcpp[i][w] * weights[i];
 
             unsigned acc2 = std::max(0, acc);
-            acc2 += scale - 1;
-            acc2 /= scale;
+            acc2 = (acc + scale / 2) / scale;
             acc2 = std::min(acc2, maxVal);
             dstp[w] = static_cast<T>(acc2);
         }
