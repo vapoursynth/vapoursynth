@@ -20,6 +20,10 @@
 
 from libc.stdint cimport uint8_t, uint32_t, int64_t, uintptr_t
 
+cdef extern from "src/core/version.h" nogil:
+    enum:
+        VAPOURSYNTH_CORE_VERSION
+
 cdef extern from "include/VapourSynth.h" nogil:
     enum:
         VAPOURSYNTH_API_MAJOR
