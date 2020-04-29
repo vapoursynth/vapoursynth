@@ -330,6 +330,7 @@ Classes and Functions
       :param cb: A callback in the form `cb(node, n, result)`
 
    .. py:method:: get_frame_async_raw(n, cb: Future[, wrapper: callable = None])
+      :noindex:
 
       Second form of this method. It will take a Future-like object (including asyncio.Future or similar)
       and set its result or exception according to the result of the function.
