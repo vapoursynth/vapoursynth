@@ -44,7 +44,7 @@ try:
 except ImportError as e:
     typing = None
 
-__version__ = namedtuple("VapourSynthVersion", "release")(VAPOURSYNTH_CORE_VERSION)
+__version__ = namedtuple("VapourSynthVersion", "release_major release_minor")(50, 0)
 __api_version__ = namedtuple("VapourSynthAPIVersion", "api_major api_minor")(VAPOURSYNTH_API_MAJOR, VAPOURSYNTH_API_MINOR)
 
 _using_vsscript = False

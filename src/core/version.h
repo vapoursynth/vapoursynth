@@ -23,6 +23,7 @@
 /*
 
     Note that the version is stored in several places, in addition to version.h it's also in:
+    src/cython/vapoursynth.pyx (__version__)
     setup.py (version = "" near the bottom)
     configure.ac (number on first line in [])
     installer/vsinstaller.iss (Version define at top)
