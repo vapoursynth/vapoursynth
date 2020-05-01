@@ -505,7 +505,9 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
                 throw std::runtime_error("Number of weights must be odd when only one clip supplied");
         } else if (numWeights != numNodes) {
             throw std::runtime_error("Number of weights must match number of clips supplied");
-        } else if (numWeights > 31 || numNodes > 31) {
+        } 
+
+        if (numWeights > 31 || numNodes > 31) {
             throw std::runtime_error("Must use between 1 and 31 weights and input clips");
         }
 

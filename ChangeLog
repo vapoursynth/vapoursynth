@@ -2,6 +2,7 @@ r50:
 updated zimg to latest v2.9 so grayscale colorspace are supported
 added __version__ and __api_version__ to python module to make detecting version mismatches easier
 improved rounding in averageframes (sekrit-twc)
+fixed averageframes not properly rejecting more than 31 weights or nodes
 fixed crash in textfilter line wrapping introduced in r49 (sekrit-twc)
 fixed regression introduced in r48 where expr, sobel and prewitt wouldn't clamp 9-15 bit output to valid range (sekrit-twc)
 fixed crash due to null pointer dereference when instantiation many vapoursynth classes directly in python
