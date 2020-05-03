@@ -97,6 +97,9 @@ Another way to deal with such arguments is to place them in a dictionary::
 
    args = { "lambda": 1 }
    clip = core.plugin.Filter(clip, **args)
+   
+VapourSynth will also support the PEP8 convention of using a single trailing
+underscore to prevent collisions with python keywords.
 
 Windows File Paths (Strings With Backslashes)
 #############################################
