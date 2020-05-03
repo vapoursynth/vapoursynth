@@ -187,11 +187,8 @@ void vs_mask_merge_word_avx2(const void *src1, const void *src2, const void *mas
         tmp1d_hi = _mm256_add_epi32(tmp1d_hi, _mm256_set1_epi32(maxval / 2));
 
         tmp1d_lo = divX_epu32(tmp1d_lo, depth);
-        tmp1d_lo = _mm256_add_epi32(tmp1d_lo, _mm256_set1_epi32(INT16_MIN));
         tmp1d_hi = divX_epu32(tmp1d_hi, depth);
-        tmp1d_hi = _mm256_add_epi32(tmp1d_hi, _mm256_set1_epi32(INT16_MIN));
-        tmp = _mm256_packs_epi32(tmp1d_lo, tmp1d_hi);
-        tmp = _mm256_sub_epi16(tmp, _mm256_set1_epi16(INT16_MIN));
+        tmp = _mm256_packus_epi32(tmp1d_lo, tmp1d_hi);
         _mm256_store_si256((__m256i *)(dstp + i), tmp);
     }
 }
@@ -281,16 +278,12 @@ void vs_mask_merge_premul_word_avx2(const void *src1, const void *src2, const vo
         tmpd_lo = _mm256_unpacklo_epi16(tmp_lo, tmp_hi);
         tmpd_lo = _mm256_add_epi32(tmpd_lo, _mm256_set1_epi32(maxval / 2));
         tmpd_lo = divX_epu32(tmpd_lo, depth);
-        tmpd_lo = _mm256_add_epi32(tmpd_lo, _mm256_set1_epi32(INT16_MIN));
 
         tmpd_hi = _mm256_unpackhi_epi16(tmp_lo, tmp_hi);
         tmpd_hi = _mm256_add_epi32(tmpd_hi, _mm256_set1_epi32(maxval / 2));
         tmpd_hi = divX_epu32(tmpd_hi, depth);
-        tmpd_hi = _mm256_add_epi32(tmpd_hi, _mm256_set1_epi32(INT16_MIN));
 
-        tmp = _mm256_packs_epi32(tmpd_lo, tmpd_hi);
-        tmp = _mm256_sub_epi16(tmp, _mm256_set1_epi16(INT16_MIN));
-
+        tmp = _mm256_packus_epi32(tmpd_lo, tmpd_hi);
         neg = _mm256_sub_epi16(_mm256_setzero_si256(), tmp);
         tmp = _mm256_blendv_epi8(tmp, neg, sign);
 

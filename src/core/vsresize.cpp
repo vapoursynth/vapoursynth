@@ -423,11 +423,11 @@ bool operator==(const zimg_image_format &a, const zimg_image_format &b) {
     ret = ret && a.subsample_h == b.subsample_h;
     ret = ret && a.color_family == b.color_family;
 
-    if (a.color_family != ZIMG_COLOR_GREY) {
+    if (a.color_family != ZIMG_COLOR_GREY)
         ret = ret && a.matrix_coefficients == b.matrix_coefficients;
-        ret = ret && a.transfer_characteristics == b.transfer_characteristics;
-        ret = ret && a.color_primaries == b.color_primaries;
-    }
+
+    ret = ret && a.transfer_characteristics == b.transfer_characteristics;
+    ret = ret && a.color_primaries == b.color_primaries;
 
     ret = ret && a.depth == b.depth;
     ret = ret && a.pixel_range == b.pixel_range;
@@ -616,7 +616,7 @@ class vszimg {
     VSNodeRef *m_node;
     VSVideoInfo m_vi;
     bool m_prefer_props;
-    double src_left, src_top, src_width, src_height;
+    double m_src_left, m_src_top, m_src_width, m_src_height;
     vszimgxx::zfilter_graph_builder_params m_params;
 
     frame_params m_frame_params;
@@ -662,7 +662,11 @@ class vszimg {
     vszimg(const VSMap *in, void *userData, VSCore *core, const VSAPI *vsapi) :
         m_node{ nullptr },
         m_vi(),
-        m_prefer_props(false)
+        m_prefer_props(false),
+        m_src_left(),
+        m_src_top(),
+        m_src_width(),
+        m_src_height()
     {
         try {
             m_node = vsapi->propGetNode(in, "clip", 0, nullptr);
@@ -710,10 +714,10 @@ class vszimg {
             lookup_enum_str_opt(in, "cpu_type", g_cpu_type_table, &m_params.cpu_type, vsapi);
             m_prefer_props = !!propGetScalarDef<int>(in, "prefer_props", 0, vsapi);
 
-            src_left = propGetScalarDef<double>(in, "src_left", NAN, vsapi);
-            src_top = propGetScalarDef<double>(in, "src_top", NAN, vsapi);
-            src_width = propGetScalarDef<double>(in, "src_width", NAN, vsapi);
-            src_height = propGetScalarDef<double>(in, "src_height", NAN, vsapi);
+            m_src_left = propGetScalarDef<double>(in, "src_left", NAN, vsapi);
+            m_src_top = propGetScalarDef<double>(in, "src_top", NAN, vsapi);
+            m_src_width = propGetScalarDef<double>(in, "src_width", NAN, vsapi);
+            m_src_height = propGetScalarDef<double>(in, "src_height", NAN, vsapi);
             m_params.nominal_peak_luminance = propGetScalarDef<double>(in, "nominal_luminance", NAN, vsapi);
 
             // Basic compatibility check.
@@ -806,10 +810,10 @@ class vszimg {
             dst_format.width = m_vi.width ? static_cast<unsigned>(m_vi.width) : src_format.width;
             dst_format.height = m_vi.height ? static_cast<unsigned>(m_vi.height) : src_format.height;
 
-            src_format.active_region.left = src_left;
-            src_format.active_region.top = src_top;
-            src_format.active_region.width = src_width;
-            src_format.active_region.height = src_height;
+            src_format.active_region.left = m_src_left;
+            src_format.active_region.top = m_src_top;
+            src_format.active_region.width = m_src_width;
+            src_format.active_region.height = m_src_height;
 
             translate_vsformat(src_vsformat, &src_format);
             translate_vsformat(dst_vsformat, &dst_format);

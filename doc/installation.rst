@@ -60,9 +60,9 @@ Linux Installation from Packages
 
 Several distributions have packages:
 
-   * `Ubuntu <https://launchpad.net/~djcj/+ppa-packages>`_  -- PPA
+   * `Debian <https://www.deb-multimedia.org/>`_  -- deb-multimedia
    * `Gentoo <https://github.com/4re/vapoursynth-portage>`_  -- Portage overlay and instructions
-   * `Arch Linux <https://www.archlinux.org/packages/?q=vapoursynth>`_  -- Packages
+   * `Arch Linux <https://www.archlinux.org/packages/?q=vapoursynth>`_  -- Official packages
 
 Installation via PIP (PyPI)
 ###########################

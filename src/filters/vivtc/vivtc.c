@@ -74,8 +74,8 @@ static void copyField(VSFrameRef *dst, const VSFrameRef *src, int field, const V
 }
 
 // the secret is that tbuffer is an interlaced, offset subset of all the lines
-static void buildABSDiffMask(const unsigned char *prvp, const unsigned char *nxtp,
-    int src_pitch, int tpitch, unsigned char *tbuffer, int width, int height,
+static void buildABSDiffMask(const uint8_t *prvp, const uint8_t *nxtp,
+    int src_pitch, int tpitch, uint8_t *tbuffer, int width, int height,
     const VSAPI *vsapi) {
 
     int y, x;
@@ -98,11 +98,11 @@ static int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
     int plane;
     int x, y, u, v;
     for (plane=0; plane < (chroma ? 3 : 1); plane++) {
-        const unsigned char *srcp = vsapi->getReadPtr(src, plane);
+        const uint8_t *srcp = vsapi->getReadPtr(src, plane);
         const int src_pitch = vsapi->getStride(src, plane);
         const int Width = vsapi->getFrameWidth(src, plane);
         const int Height = vsapi->getFrameHeight(src, plane);
-        unsigned char *cmkp = vsapi->getWritePtr(cmask, plane);
+        uint8_t *cmkp = vsapi->getWritePtr(cmask, plane);
         const int cmk_pitch = vsapi->getStride(cmask, plane);
         if (cthresh < 0) {
             memset(cmkp,255,Height*cmk_pitch);
@@ -163,16 +163,16 @@ static int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
     if (chroma) {
         const VSFormat *src_fmt = vsapi->getFrameFormat(src);
 
-        unsigned char *cmkp = vsapi->getWritePtr(cmask, 0);
-        unsigned char *cmkpU = vsapi->getWritePtr(cmask, 1);
-        unsigned char *cmkpV = vsapi->getWritePtr(cmask, 2);
+        uint8_t *cmkp = vsapi->getWritePtr(cmask, 0);
+        uint8_t *cmkpU = vsapi->getWritePtr(cmask, 1);
+        uint8_t *cmkpV = vsapi->getWritePtr(cmask, 2);
         const int Width = vsapi->getFrameWidth(cmask, 2);
         const int Height = vsapi->getFrameHeight(cmask, 2);
         int cmk_pitch = vsapi->getStride(cmask, 0);
         const int cmk_pitchUV = vsapi->getStride(cmask, 2);
-        unsigned char *cmkpp = cmkp - cmk_pitch;
-        unsigned char *cmkpn = cmkp + cmk_pitch;
-        unsigned char *cmkpnn = cmkpn + cmk_pitch;
+        uint8_t *cmkpp = cmkp - cmk_pitch;
+        uint8_t *cmkpn = cmkp + cmk_pitch;
+        uint8_t *cmkpnn = cmkpn + cmk_pitch;
 
         cmk_pitch <<= src_fmt->subSamplingH;
 
@@ -224,9 +224,9 @@ static int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
     int xhalf = blockx/2;
     int yhalf = blocky/2;
     const int cmk_pitch = vsapi->getStride(cmask, 0);
-    const unsigned char *cmkp = vsapi->getReadPtr(cmask, 0) + cmk_pitch;
-    const unsigned char *cmkpp = cmkp - cmk_pitch;
-    const unsigned char *cmkpn = cmkp + cmk_pitch;
+    const uint8_t *cmkp = vsapi->getReadPtr(cmask, 0) + cmk_pitch;
+    const uint8_t *cmkpp = cmkp - cmk_pitch;
+    const uint8_t *cmkpn = cmkp + cmk_pitch;
     const int Width = vsapi->getFrameWidth(cmask, 0);
     const int Height = vsapi->getFrameHeight(cmask, 0);
     const int xblocks = ((Width+xhalf)/blockx) + 1;
@@ -260,9 +260,9 @@ static int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
         const int temp2 = ((y+yhalf)/blocky)*xblocks4;
 
         for (x=0; x<Widtha; x+=xhalf) {
-            const unsigned char *cmkppT = cmkpp;
-            const unsigned char *cmkpT = cmkp;
-            const unsigned char *cmkpnT = cmkpn;
+            const uint8_t *cmkppT = cmkpp;
+            const uint8_t *cmkpT = cmkp;
+            const uint8_t *cmkpnT = cmkpn;
             int sum = 0;
             for (u=0; u<yhalf; ++u) {
                 for (v=0; v<xhalf; ++v) {
@@ -284,9 +284,9 @@ static int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
         }
 
         for (x=Widtha; x<Width; ++x) {
-            const unsigned char *cmkppT = cmkpp;
-            const unsigned char *cmkpT = cmkp;
-            const unsigned char *cmkpnT = cmkpn;
+            const uint8_t *cmkppT = cmkpp;
+            const uint8_t *cmkpT = cmkp;
+            const uint8_t *cmkpnT = cmkpn;
             int sum = 0;
             for (u=0; u<yhalf; ++u) {
                 if (cmkppT[x] == 0xFF && cmkpT[x] == 0xFF &&
@@ -338,11 +338,11 @@ static int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
 
 
 // build a map over which pixels differ a lot/a little
-static void buildDiffMap(const unsigned char *prvp, const unsigned char *nxtp,
-    unsigned char *dstp,int src_pitch, int dst_pitch, int Height,
-    int Width, int tpitch, unsigned char *tbuffer, const VSAPI *vsapi)
+static void buildDiffMap(const uint8_t *prvp, const uint8_t *nxtp,
+                         uint8_t *dstp,int src_pitch, int dst_pitch, int Height,
+    int Width, int tpitch, uint8_t *tbuffer, const VSAPI *vsapi)
 {
-    const unsigned char *dp = tbuffer+tpitch;
+    const uint8_t *dp = tbuffer+tpitch;
     int x, y, u, diff, count;
 
     buildABSDiffMask(prvp-src_pitch, nxtp-src_pitch, src_pitch,
@@ -401,10 +401,10 @@ static int compareFieldsSlow(const VSFrameRef *prv, const VSFrameRef *src, const
     int match2, int mchroma, int field, int y0, int y1, uint8_t *tbuffer, int tpitchy, int tpitchuv, const VSAPI *vsapi)
 {
     int plane, ret;
-    const unsigned char *prvp = 0, *srcp = 0, *nxtp = 0;
-    const unsigned char *curpf = 0, *curf = 0, *curnf = 0;
-    const unsigned char *prvpf = 0, *prvnf = 0, *nxtpf = 0, *nxtnf = 0;
-    unsigned char *mapp;
+    const uint8_t *prvp = 0, *srcp = 0, *nxtp = 0;
+    const uint8_t *curpf = 0, *curf = 0, *curnf = 0;
+    const uint8_t *prvpf = 0, *prvnf = 0, *nxtpf = 0, *nxtnf = 0;
+    uint8_t *mapp;
     int src_stride, Width, Height;
     int curf_pitch, stopx, map_pitch;
     int x, y, temp1, temp2, startx, y0a, y1a, tp;
@@ -970,12 +970,12 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
     if (vfm.micmatch == 1) {
         VSMap *ret = invokePlaneDifference(vfm.node, core, vsapi);
         vsapi->freeNode(vfm.node);
-        char *error = (char *)vsapi->getError(ret);
+        const char *error = vsapi->getError(ret);
         if (error) {
             vsapi->freeMap(ret);
-            error = prefix_string(error, "VFM: ");
-            vsapi->setError(out, error);
-            free(error);
+            char *error2 = prefix_string(error, "VFM: ");
+            vsapi->setError(out, error2);
+            free(error2);
             vsapi->freeNode(vfm.clip2);
             return;
         }
@@ -1007,7 +1007,7 @@ typedef struct {
 
 typedef struct CycleInfo {
     int num;                    // The number of the cycle's first frame divided by the cycle length.
-    char drop;                  // Index of the frame to drop from the cycle.
+    signed char drop;                  // Index of the frame to drop from the cycle.
     VDInfo *metrics;            // Metrics for the input frames in the cycle.
     FrameDuration *durations;   // Durations of the output frames in the cycle. Allocated only if !dryrun.
 } CycleInfo;
@@ -1037,12 +1037,12 @@ typedef struct {
     int64_t *bdiffs;
     const char *ovrfile;
     int dryrun;
-    char *drop;
+    signed char *drop;
     CycleCache cache;
 } VDecimateData;
 
 
-#define Unknown -1
+static const signed char DropUnknown = -1;
 #define MaxCycleLength 25
 
 #define STR(x) STR_(x)
@@ -1058,11 +1058,11 @@ static void initCache(CycleCache *cache, VDecimateData *vdm) {
     for (int i = 0; i < cache->size; i++) {
         CycleInfo *cycle = &cache->cycles[i];
 
-        cycle->num = cycle->drop = Unknown;
+        cycle->num = cycle->drop = DropUnknown;
 
         cycle->metrics = (VDInfo *)malloc(vdm->inCycle * sizeof(VDInfo));
         for (int j = 0; j < vdm->inCycle; j++)
-            cycle->metrics[j].maxbdiff = cycle->metrics[j].totdiff = Unknown;
+            cycle->metrics[j].maxbdiff = cycle->metrics[j].totdiff = DropUnknown;
 
         if (!vdm->dryrun) {
             cycle->durations = (FrameDuration *)malloc(vdm->outCycle * sizeof(FrameDuration));
@@ -1118,10 +1118,10 @@ CycleInfo *getCycleFromCache(int cycleNum, CycleCache *cache, VDecimateData *vdm
     if (cycle->num != cycleNum) {
         cycle->num = cycleNum;
 
-        cycle->drop = Unknown;
+        cycle->drop = DropUnknown;
 
         for (int i = 0; i < vdm->inCycle; i++)
-            cycle->metrics[i].maxbdiff = cycle->metrics[i].totdiff = Unknown;
+            cycle->metrics[i].maxbdiff = cycle->metrics[i].totdiff = DropUnknown;
         if (cycle->durations)
             memset(cycle->durations, 0, vdm->outCycle * sizeof(FrameDuration));
     }
@@ -1193,7 +1193,7 @@ static int64_t calcMetric(const VSFrameRef *f1, const VSFrameRef *f2, int64_t *t
     return maxdiff;
 }
 
-static int vdecimateLoadOVR(const char *ovrfile, char *drop, int cycle, int numFrames, char *err, size_t errlen) {
+static int vdecimateLoadOVR(const char *ovrfile, signed char *drop, int cycle, int numFrames, char *err, size_t errlen) {
     int line = 0;
     char buf[80];
     char* pos;
@@ -1223,8 +1223,8 @@ static int vdecimateLoadOVR(const char *ovrfile, char *drop, int cycle, int numF
         int frame_start = -1;
         int frame_end = -1;
 
-        char drop_char = 0;
-        char drop_pattern[MaxCycleLength + 1] = { 0 };
+        signed char drop_char = 0;
+        signed char drop_pattern[MaxCycleLength + 1] = { 0 };
         ptrdiff_t drop_pos = -1;
 
         line++;
@@ -1233,11 +1233,11 @@ static int vdecimateLoadOVR(const char *ovrfile, char *drop, int cycle, int numF
         if (pos[0] == '#' || pos[0] == 0) {
             continue;
         } else if (sscanf(pos, " %u, %u %" STR(MaxCycleLength) "s", &frame_start, &frame_end, drop_pattern) == 3) {
-            char *tmp = strchr(drop_pattern, '-');
+            signed char *tmp = (signed char *)strchr((const char *)drop_pattern, '-');
             if (tmp) {
                 drop_pos = tmp - drop_pattern;
             }
-        } else if (sscanf(pos, " %u %c", &frame, &drop_char) == 2) {
+        } else if (sscanf(pos, " %u %c", &frame, (char *)&drop_char) == 2) {
             ;
         } else {
             snprintf(err, errlen, "VDecimate: sscanf failed to parse override at line %d", line);
@@ -1251,12 +1251,12 @@ static int vdecimateLoadOVR(const char *ovrfile, char *drop, int cycle, int numF
         } else if (frame_start >= 0 && frame_start < numFrames &&
                    frame_end >= 0 && frame_end < numFrames &&
                    frame_start < frame_end &&
-                   strlen(drop_pattern) == (size_t)cycle &&
+                   strlen((const char *)drop_pattern) == (size_t)cycle &&
                    drop_pos > -1) {
             ptrdiff_t i;
             for (i = frame_start + drop_pos; i <= frame_end; i += cycle) {
                 if (drop[i / cycle] < 0)
-                    drop[i / cycle] = (char)(i % cycle);
+                    drop[i / cycle] = (signed char)(i % cycle);
             }
         } else {
             snprintf(err, errlen, "VDecimate: Bad override at line %d in ovr", line);
@@ -1292,11 +1292,11 @@ static inline int findOutputFrame(int requestedFrame, int cycleStart, int outCyc
     }
 }
 
-static inline char findDropFrame(VDInfo *metrics, int cycleLength, int64_t scthresh, int64_t dupthresh) {
-    int scpos = Unknown;
-    int duppos = Unknown;
+static inline signed char findDropFrame(VDInfo *metrics, int cycleLength, int64_t scthresh, int64_t dupthresh) {
+    int scpos = DropUnknown;
+    int duppos = DropUnknown;
     int lowest = 0;
-    char drop;
+    signed char drop;
 
     // make a decision
     // precalculate the position of the lowest dup metric frame
@@ -1313,7 +1313,7 @@ static inline char findDropFrame(VDInfo *metrics, int cycleLength, int64_t scthr
         duppos = lowest;
 
     // no dups so drop the frame right after the sc to keep things smooth
-    if (scpos != Unknown && duppos == Unknown) {
+    if (scpos != DropUnknown && duppos == DropUnknown) {
         drop = scpos;
     } else {
         drop = lowest;
@@ -1377,10 +1377,10 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
 
         CycleInfo *cycle = getCycleFromCache(cyclestart / vdm->inCycle, &vdm->cache, vdm);
 
-        if (vdm->drop && vdm->drop[cyclestart / vdm->inCycle] != Unknown)
+        if (vdm->drop && vdm->drop[cyclestart / vdm->inCycle] != DropUnknown)
             cycle->drop = vdm->drop[cyclestart / vdm->inCycle];
 
-        if (cycle->drop == Unknown || (vdm->dryrun && cycle->metrics[0].totdiff == Unknown)) {
+        if (cycle->drop == DropUnknown || (vdm->dryrun && cycle->metrics[0].totdiff == DropUnknown)) {
             if (cyclestart > 0)
                 vsapi->requestFrameFilter(cyclestart - 1, vdm->node, frameCtx);
 
@@ -1392,7 +1392,7 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
             }
         }
 
-        if (cycle->drop != Unknown) {
+        if (cycle->drop != DropUnknown) {
             int outputFrame = findOutputFrame(n, cyclestart, vdm->outCycle, cycle->drop, vdm->dryrun);
 
             vsapi->requestFrameFilter(outputFrame, vdm->clip2 ? vdm->clip2 : vdm->node, frameCtx);
@@ -1412,10 +1412,10 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
 
         CycleInfo *cycle = getCycleFromCache(cyclestart / vdm->inCycle, &vdm->cache, vdm);
 
-        if (vdm->drop && vdm->drop[cyclestart / vdm->inCycle] != Unknown)
+        if (vdm->drop && vdm->drop[cyclestart / vdm->inCycle] != DropUnknown)
             cycle->drop = vdm->drop[cyclestart / vdm->inCycle];
 
-        if (cycle->drop == Unknown || (vdm->dryrun && cycle->metrics[0].totdiff == Unknown)) {
+        if (cycle->drop == DropUnknown || (vdm->dryrun && cycle->metrics[0].totdiff == DropUnknown)) {
             // Calculate metrics
             for (int i = cyclestart; i < cycleend; i++) {
                 const VSFrameRef *prv = vsapi->getFrameFilter(VSMAX(i - 1, 0), vdm->node, frameCtx);
@@ -1432,7 +1432,7 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
                 cycle->metrics[0].totdiff = vdm->scthresh + 1;
             }
 
-            if (cycle->drop == Unknown) {
+            if (cycle->drop == DropUnknown) {
                 cycle->drop = findDropFrame(cycle->metrics, cycleend - cyclestart, vdm->scthresh, vdm->dupthresh);
                 if (vdm->drop)
                     vdm->drop[cyclestart / vdm->inCycle] = cycle->drop;
@@ -1581,17 +1581,17 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
     vdm.bdiffs = (int64_t *)malloc(vdm.bdiffsize * sizeof(int64_t));
 
     if (vdm.ovrfile) {
-        vdm.drop = (char *)malloc(vdm.vi.numFrames / vdm.inCycle + 1);
-        memset(vdm.drop, Unknown, vdm.vi.numFrames / vdm.inCycle + 1);
+        vdm.drop = (signed char *)malloc(vdm.vi.numFrames / vdm.inCycle + 1);
+        memset(vdm.drop, DropUnknown, vdm.vi.numFrames / vdm.inCycle + 1);
 
-        char err[80];
+        char err2[80];
 
-        if (vdecimateLoadOVR(vdm.ovrfile, vdm.drop, vdm.inCycle, vdm.vi.numFrames, err, sizeof(err))) {
+        if (vdecimateLoadOVR(vdm.ovrfile, vdm.drop, vdm.inCycle, vdm.vi.numFrames, err2, sizeof(err2))) {
             free(vdm.drop);
             free(vdm.bdiffs);
             vsapi->freeNode(vdm.node);
             vsapi->freeNode(vdm.clip2);
-            vsapi->setError(out, err);
+            vsapi->setError(out, err2);
             return;
         }
     }

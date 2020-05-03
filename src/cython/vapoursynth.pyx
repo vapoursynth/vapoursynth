@@ -1,4 +1,4 @@
-#  Copyright (c) 2012-2019 Fredrik Mellbin
+#  Copyright (c) 2012-2020 Fredrik Mellbin
 #
 #  This file is part of VapourSynth.
 #
@@ -44,6 +44,8 @@ try:
 except ImportError as e:
     typing = None
 
+__version__ = namedtuple("VapourSynthVersion", "release_major release_minor")(50, 0)
+__api_version__ = namedtuple("VapourSynthAPIVersion", "api_major api_minor")(VAPOURSYNTH_API_MAJOR, VAPOURSYNTH_API_MINOR)
 
 _using_vsscript = False
 cdef object _environment_state = ThreadLocal()
@@ -311,7 +313,8 @@ cdef class Func(object):
         raise Error('Class cannot be instantiated directly')
         
     def __dealloc__(self):
-        self.funcs.freeFunc(self.ref)
+        if self.funcs:
+            self.funcs.freeFunc(self.ref)
         
     def __call__(self, **kwargs):
         cdef VSMap *outm
@@ -437,7 +440,8 @@ cdef class FramePtr(object):
         raise Error('Class cannot be instantiated directly')
 
     def __dealloc__(self):
-        self.funcs.freeFrame(self.f)
+        if self.funcs:
+            self.funcs.freeFrame(self.f)
 
 cdef FramePtr createFramePtr(const VSFrameRef *f, const VSAPI *funcs):
     cdef FramePtr instance = FramePtr.__new__(FramePtr)    
@@ -814,7 +818,8 @@ cdef class FrameProps(object):
         raise Error('Class cannot be instantiated directly')
 
     def __dealloc__(self):
-        self.funcs.freeFrame(self.constf)
+        if self.funcs:
+            self.funcs.freeFrame(self.constf)
 
     def __contains__(self, str name):
         cdef const VSMap *m = self.funcs.getFramePropsRO(self.constf)
@@ -1051,7 +1056,8 @@ cdef class RawFrame(object):
         raise Error('Class cannot be instantiated directly')
 
     def __dealloc__(self):
-        self.funcs.freeFrame(self.constf)
+        if self.funcs:
+            self.funcs.freeFrame(self.constf)
 
 
 cdef class VideoFrame(RawFrame):
@@ -1341,6 +1347,10 @@ cdef class VideoNode(RawNode):
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
 
+    def __dealloc__(self):
+        if self.funcs:
+            self.funcs.freeNode(self.node)
+        
     def __getattr__(self, name):
         err = False
         try:
@@ -2079,6 +2089,9 @@ cdef class Function(object):
         for key in kwargs:
             if key[0] == '_':
                 nkey = key[1:]
+            # PEP8 tells us single_trailing_underscore_ for collisions with Python-keywords.
+            elif key[-1] == "_":
+                nkey = key[:-1]
             else:
                 nkey = key
             ndict[nkey] = kwargs[key]

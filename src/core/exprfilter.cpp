@@ -78,7 +78,7 @@ enum class ExprOpType {
 
 enum class FMAType {
     FMADD = 0,  // (b * c) + a
-    FMSUB = 1, // (b * c) - a
+    FMSUB = 1,  // (b * c) - a
     FNMADD = 2, // -(b * c) + a
     FNMSUB = 3, // -(b * c) - a
 };
@@ -238,7 +238,7 @@ class ExprCompiler128 : public ExprCompiler, private jitasm::function<void, Expr
     friend struct jitasm::function_cdecl<void, ExprCompiler128, uint8_t *, const intptr_t *, intptr_t>;
 
 #define SPLAT(x) { (x), (x), (x), (x) }
-    static constexpr ExprUnion constData alignas(16)[32][4] = {
+    static constexpr ExprUnion constData alignas(16)[39][4] = {
         SPLAT(0x7FFFFFFF), // absmask
         SPLAT(0x80000000), // negmask
         SPLAT(0x7F), // x7F
@@ -247,6 +247,13 @@ class ExprCompiler128 : public ExprCompiler, private jitasm::function<void, Expr
         SPLAT(1.0f), // float_one
         SPLAT(0.5f), // float_half
         SPLAT(255.0f), // float_255
+        SPLAT(511.0f), // float_511
+        SPLAT(1023.0f), // float_1023
+        SPLAT(2047.0f), // float_2047
+        SPLAT(4095.0f), // float_4095
+        SPLAT(8191.0f), // float_8191
+        SPLAT(16383.0f), // float_16383
+        SPLAT(32767.0f), // float_32767
         SPLAT(65535.0f), // float_65535
         SPLAT(static_cast<int32_t>(0x80008000)), // i16min_epi16
         SPLAT(static_cast<int32_t>(0xFFFF8000)), // i16min_epi32
@@ -282,30 +289,37 @@ class ExprCompiler128 : public ExprCompiler, private jitasm::function<void, Expr
         static constexpr int float_one = 5;
         static constexpr int float_half = 6;
         static constexpr int float_255 = 7;
-        static constexpr int float_65535 = 8;
-        static constexpr int i16min_epi16 = 9;
-        static constexpr int i16min_epi32 = 10;
-        static constexpr int exp_hi = 11;
-        static constexpr int exp_lo = 12;
-        static constexpr int log2e = 13;
-        static constexpr int exp_c1 = 14;
-        static constexpr int exp_c2 = 15;
-        static constexpr int exp_p0 = 16;
-        static constexpr int exp_p1 = 17;
-        static constexpr int exp_p2 = 18;
-        static constexpr int exp_p3 = 19;
-        static constexpr int exp_p4 = 20;
-        static constexpr int exp_p5 = 21;
-        static constexpr int sqrt_1_2 = 22;
-        static constexpr int log_p0 = 23;
-        static constexpr int log_p1 = 24;
-        static constexpr int log_p2 = 25;
-        static constexpr int log_p3 = 26;
-        static constexpr int log_p4 = 27;
-        static constexpr int log_p5 = 28;
-        static constexpr int log_p6 = 29;
-        static constexpr int log_p7 = 30;
-        static constexpr int log_p8 = 31;
+        static constexpr int float_511 = 8;
+        static constexpr int float_1023 = 9;
+        static constexpr int float_2047 = 10;
+        static constexpr int float_4095 = 11;
+        static constexpr int float_8191 = 12;
+        static constexpr int float_16383 = 13;
+        static constexpr int float_32767 = 14;
+        static constexpr int float_65535 = 15;
+        static constexpr int i16min_epi16 = 16;
+        static constexpr int i16min_epi32 = 17;
+        static constexpr int exp_hi = 18;
+        static constexpr int exp_lo = 19;
+        static constexpr int log2e = 20;
+        static constexpr int exp_c1 = 21;
+        static constexpr int exp_c2 = 22;
+        static constexpr int exp_p0 = 23;
+        static constexpr int exp_p1 = 24;
+        static constexpr int exp_p2 = 25;
+        static constexpr int exp_p3 = 26;
+        static constexpr int exp_p4 = 27;
+        static constexpr int exp_p5 = 28;
+        static constexpr int sqrt_1_2 = 29;
+        static constexpr int log_p0 = 30;
+        static constexpr int log_p1 = 31;
+        static constexpr int log_p2 = 32;
+        static constexpr int log_p3 = 33;
+        static constexpr int log_p4 = 34;
+        static constexpr int log_p5 = 35;
+        static constexpr int log_p6 = 36;
+        static constexpr int log_p7 = 37;
+        static constexpr int log_p8 = 38;
         static constexpr int log_q1 = exp_c2;
         static constexpr int log_q2 = exp_c1;
     };
@@ -468,10 +482,11 @@ do { \
     {
         deferred.push_back(EMIT()
         {
+            int depth = insn.op.imm.u;
             auto t1 = bytecodeRegs[insn.src1];
             XmmReg r1, r2, limit;
             Reg a;
-            VEX1(movaps, limit, xmmword_ptr[constants + ConstantIndex::float_65535 * 16]);
+            VEX1(movaps, limit, xmmword_ptr[constants + (ConstantIndex::float_255 + depth - 8) * 16]);
             VEX2IMM(shufps, limit, limit, limit, 0);
             VEX2(minps, r1, t1.first, limit);
             VEX2(minps, r2, t1.second, limit);
@@ -481,11 +496,14 @@ do { \
             if (cpuFeatures.sse4_1) {
                 VEX2(packusdw, r1, r1, r2);
             } else {
-                VEX1(movaps, limit, xmmword_ptr[constants + ConstantIndex::i16min_epi32 * 16]);
-                VEX2(paddd, r1, r1, limit);
-                VEX2(paddd, r2, r2, limit);
+                if (depth >= 16) {
+                    VEX1(movaps, limit, xmmword_ptr[constants + ConstantIndex::i16min_epi32 * 16]);
+                    VEX2(paddd, r1, r1, limit);
+                    VEX2(paddd, r2, r2, limit);
+                }
                 VEX2(packssdw, r1, r1, r2);
-                VEX2(psubw, r1, r1, xmmword_ptr[constants + ConstantIndex::i16min_epi16 * 16]);
+                if (depth >= 16)
+                    VEX2(psubw, r1, r1, xmmword_ptr[constants + ConstantIndex::i16min_epi16 * 16]);
             }
             mov(a, ptr[regptrs]);
             VEX1(movaps, xmmword_ptr[a], r1);
@@ -767,10 +785,10 @@ do { \
                 VEX2IMM(blendvps, t4.first, t3.first, t2.first, r1);
                 VEX2IMM(blendvps, t4.second, t3.second, t2.second, r2);
             } else {
-                VEX2(andps, t4.first, t2.first, r1);
-                VEX2(andps, t4.second, t2.second, r2);
-                VEX2(andnps, r1, r1, t3.first);
-                VEX2(andnps, r2, r2, t3.second);
+                VEX2(andps, t4.first, t3.first, r1);
+                VEX2(andps, t4.second, t3.second, r2);
+                VEX2(andnps, r1, r1, t2.first);
+                VEX2(andnps, r2, r2, t2.second);
                 VEX2(orps, t4.first, t4.first, r1);
                 VEX2(orps, t4.second, t4.second, r2);
             }
@@ -1016,7 +1034,7 @@ public:
 #undef EMIT
 };
 
-constexpr ExprUnion ExprCompiler128::constData alignas(16)[32][4];
+constexpr ExprUnion ExprCompiler128::constData alignas(16)[39][4];
 
 class ExprCompiler256 : public ExprCompiler, private jitasm::function<void, ExprCompiler256, uint8_t *, const intptr_t *, intptr_t> {
     typedef jitasm::function<void, ExprCompiler256, uint8_t *, const intptr_t *, intptr_t> jit;
@@ -1024,7 +1042,7 @@ class ExprCompiler256 : public ExprCompiler, private jitasm::function<void, Expr
     friend struct jitasm::function_cdecl<void, ExprCompiler256, uint8_t *, const intptr_t *, intptr_t>;
 
 #define SPLAT(x) { (x), (x), (x), (x), (x), (x), (x), (x) }
-    static constexpr ExprUnion constData alignas(32)[32][8] = {
+    static constexpr ExprUnion constData alignas(32)[39][8] = {
         SPLAT(0x7FFFFFFF), // absmask
         SPLAT(0x80000000), // negmask
         SPLAT(0x7F), // x7F
@@ -1033,6 +1051,13 @@ class ExprCompiler256 : public ExprCompiler, private jitasm::function<void, Expr
         SPLAT(1.0f), // float_one
         SPLAT(0.5f), // float_half
         SPLAT(255.0f), // float_255
+        SPLAT(511.0f), // float_511
+        SPLAT(1023.0f), // float_1023
+        SPLAT(2047.0f), // float_2047
+        SPLAT(4095.0f), // float_4095
+        SPLAT(8191.0f), // float_8191
+        SPLAT(16383.0f), // float_16383
+        SPLAT(32767.0f), // float_32767
         SPLAT(65535.0f), // float_65535
         SPLAT(static_cast<int32_t>(0x80008000)), // i16min_epi16
         SPLAT(static_cast<int32_t>(0xFFFF8000)), // i16min_epi32
@@ -1068,30 +1093,37 @@ class ExprCompiler256 : public ExprCompiler, private jitasm::function<void, Expr
         static constexpr int float_one = 5;
         static constexpr int float_half = 6;
         static constexpr int float_255 = 7;
-        static constexpr int float_65535 = 8;
-        static constexpr int i16min_epi16 = 9;
-        static constexpr int i16min_epi32 = 10;
-        static constexpr int exp_hi = 11;
-        static constexpr int exp_lo = 12;
-        static constexpr int log2e = 13;
-        static constexpr int exp_c1 = 14;
-        static constexpr int exp_c2 = 15;
-        static constexpr int exp_p0 = 16;
-        static constexpr int exp_p1 = 17;
-        static constexpr int exp_p2 = 18;
-        static constexpr int exp_p3 = 19;
-        static constexpr int exp_p4 = 20;
-        static constexpr int exp_p5 = 21;
-        static constexpr int sqrt_1_2 = 22;
-        static constexpr int log_p0 = 23;
-        static constexpr int log_p1 = 24;
-        static constexpr int log_p2 = 25;
-        static constexpr int log_p3 = 26;
-        static constexpr int log_p4 = 27;
-        static constexpr int log_p5 = 28;
-        static constexpr int log_p6 = 29;
-        static constexpr int log_p7 = 30;
-        static constexpr int log_p8 = 31;
+        static constexpr int float_511 = 8;
+        static constexpr int float_1023 = 9;
+        static constexpr int float_2047 = 10;
+        static constexpr int float_4095 = 11;
+        static constexpr int float_8191 = 12;
+        static constexpr int float_16383 = 13;
+        static constexpr int float_32767 = 14;
+        static constexpr int float_65535 = 15;
+        static constexpr int i16min_epi16 = 16;
+        static constexpr int i16min_epi32 = 17;
+        static constexpr int exp_hi = 18;
+        static constexpr int exp_lo = 19;
+        static constexpr int log2e = 20;
+        static constexpr int exp_c1 = 21;
+        static constexpr int exp_c2 = 22;
+        static constexpr int exp_p0 = 23;
+        static constexpr int exp_p1 = 24;
+        static constexpr int exp_p2 = 25;
+        static constexpr int exp_p3 = 26;
+        static constexpr int exp_p4 = 27;
+        static constexpr int exp_p5 = 28;
+        static constexpr int sqrt_1_2 = 29;
+        static constexpr int log_p0 = 30;
+        static constexpr int log_p1 = 31;
+        static constexpr int log_p2 = 32;
+        static constexpr int log_p3 = 33;
+        static constexpr int log_p4 = 34;
+        static constexpr int log_p5 = 35;
+        static constexpr int log_p6 = 36;
+        static constexpr int log_p7 = 37;
+        static constexpr int log_p8 = 38;
         static constexpr int log_q1 = exp_c2;
         static constexpr int log_q2 = exp_c1;
     };
@@ -1192,10 +1224,11 @@ class ExprCompiler256 : public ExprCompiler, private jitasm::function<void, Expr
     {
         deferred.push_back(EMIT()
         {
+            int depth = insn.op.imm.u;
             auto t1 = bytecodeRegs[insn.src1];
             YmmReg r1, limit;
             Reg a;
-            vminps(r1, t1, ymmword_ptr[constants + ConstantIndex::float_65535 * 32]);
+            vminps(r1, t1, ymmword_ptr[constants + (ConstantIndex::float_255 + depth - 8) * 32]);
             vcvtps2dq(r1, r1);
             vpackusdw(r1, r1, r1);
             vpermq(r1, r1, 0x08);
@@ -1589,7 +1622,7 @@ public:
 #undef EMIT
 };
 
-constexpr ExprUnion ExprCompiler256::constData alignas(32)[32][8];
+constexpr ExprUnion ExprCompiler256::constData alignas(32)[39][8];
 
 std::unique_ptr<ExprCompiler> make_compiler(int numInputs, int cpulevel)
 {
@@ -1606,10 +1639,14 @@ class ExprInterpreter {
     std::vector<float> registers;
 
     template <class T>
-    static T clamp_int(float x)
+    static T clamp_int(float x, int depth = std::numeric_limits<T>::digits)
     {
-        return static_cast<T>(std::lrint(std::min(std::max(x, static_cast<float>(std::numeric_limits<T>::min())), static_cast<float>(std::numeric_limits<T>::max()))));
+        float maxval = static_cast<float>((1U << depth) - 1);
+        return static_cast<T>(std::lrint(std::min(std::max(x, static_cast<float>(std::numeric_limits<T>::min())), maxval)));
     }
+
+    static float bool2float(bool x) { return x ? 1.0f : 0.0f; }
+    static bool float2bool(float x) { return x > 0.0f; }
 public:
     ExprInterpreter(const ExprInstruction *bytecode, size_t numInsns) : bytecode(bytecode), numInsns(numInsns)
     {
@@ -1622,9 +1659,6 @@ public:
 
     void eval(const uint8_t * const *srcp, uint8_t *dstp, int x)
     {
-        auto bool2float = [](bool x) { return x ? 1.0f : 0.0f; };
-        auto float2bool = [](float x) { return x > 0.0f; };
-
         for (size_t i = 0; i < numInsns; ++i) {
             const ExprInstruction &insn = bytecode[i];
 
@@ -1674,7 +1708,7 @@ public:
             case ExprOpType::XOR: DST = bool2float((float2bool(SRC1) != float2bool(SRC2))); break;
             case ExprOpType::NOT: DST = bool2float(!float2bool(SRC1)); break;
             case ExprOpType::MEM_STORE_U8:  reinterpret_cast<uint8_t *>(dstp)[x] = clamp_int<uint8_t>(SRC1); return;
-            case ExprOpType::MEM_STORE_U16: reinterpret_cast<uint16_t *>(dstp)[x] = clamp_int<uint16_t>(SRC1); return;
+            case ExprOpType::MEM_STORE_U16: reinterpret_cast<uint16_t *>(dstp)[x] = clamp_int<uint16_t>(SRC1, insn.op.imm.u); return;
             case ExprOpType::MEM_STORE_F16: reinterpret_cast<uint16_t *>(dstp)[x] = 0; return;
             case ExprOpType::MEM_STORE_F32: reinterpret_cast<float *>(dstp)[x] = SRC1; return;
             default: vsFatal("illegal opcode"); return;
@@ -3058,6 +3092,9 @@ std::vector<ExprInstruction> compile(ExpressionTree &tree, const VSVideoFormat *
         store.op.type = ExprOpType::MEM_STORE_F16;
     else if (format->sampleType == stFloat && format->bytesPerSample == 4)
         store.op.type = ExprOpType::MEM_STORE_F32;
+
+    if (store.op.type == ExprOpType::MEM_STORE_U16)
+        store.op.imm.u = format->bitsPerSample;
 
     store.src1 = code.back().dst;
     code.push_back(store);

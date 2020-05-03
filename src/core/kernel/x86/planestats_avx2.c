@@ -46,22 +46,22 @@ static unsigned hmin_epu8(__m256i x)
     return _mm_cvtsi128_si32(tmp) & 0xFF;
 }
 
-static int hmax_epi16(__m256i x)
+static unsigned hmax_epu16(__m256i x)
 {
-    __m128i tmp = _mm_max_epi16(_mm256_castsi256_si128(x), _mm256_extractf128_si256(x, 1));
-    tmp = _mm_max_epi16(tmp, _mm_srli_si128(tmp, 8));
-    tmp = _mm_max_epi16(tmp, _mm_srli_si128(tmp, 4));
-    tmp = _mm_max_epi16(tmp, _mm_srli_si128(tmp, 2));
-    return (int16_t)_mm_extract_epi16(tmp, 0);
+    __m128i tmp = _mm_max_epu16(_mm256_castsi256_si128(x), _mm256_extractf128_si256(x, 1));
+    tmp = _mm_max_epu16(tmp, _mm_srli_si128(tmp, 8));
+    tmp = _mm_max_epu16(tmp, _mm_srli_si128(tmp, 4));
+    tmp = _mm_max_epu16(tmp, _mm_srli_si128(tmp, 2));
+    return (uint16_t)_mm_extract_epi16(tmp, 0);
 }
 
-static int hmin_epi16(__m256i x)
+static unsigned hmin_epu16(__m256i x)
 {
-    __m128i tmp = _mm_min_epi16(_mm256_castsi256_si128(x), _mm256_extractf128_si256(x, 1));
-    tmp = _mm_min_epi16(tmp, _mm_srli_si128(tmp, 8));
-    tmp = _mm_min_epi16(tmp, _mm_srli_si128(tmp, 4));
-    tmp = _mm_min_epi16(tmp, _mm_srli_si128(tmp, 2));
-    return (int16_t)_mm_extract_epi16(tmp, 0);
+    __m128i tmp = _mm_min_epu16(_mm256_castsi256_si128(x), _mm256_extractf128_si256(x, 1));
+    tmp = _mm_min_epu16(tmp, _mm_srli_si128(tmp, 8));
+    tmp = _mm_min_epu16(tmp, _mm_srli_si128(tmp, 4));
+    tmp = _mm_min_epu16(tmp, _mm_srli_si128(tmp, 2));
+    return (uint16_t)_mm_extract_epi16(tmp, 0);
 }
 
 static float hmax_ps(__m256 x)
@@ -133,8 +133,8 @@ void vs_plane_stats_1_word_avx2(union vs_plane_stats *stats, const void *src, pt
     unsigned tail = width & ~15;
     unsigned x, y;
 
-    __m256i mmin = _mm256_set1_epi16(INT16_MAX);
-    __m256i mmax = _mm256_set1_epi16(INT16_MIN);
+    __m256i mmin = _mm256_set1_epi16(UINT16_MAX);
+    __m256i mmax = _mm256_setzero_si256();
     __m256i macc_lo = _mm256_setzero_si256();
     __m256i macc_hi = _mm256_setzero_si256();
     __m256i mask = _mm256_cmpgt_epi16(_mm256_set1_epi16(width % 16), _mm256_loadu_si256((const __m256i *)ascend16));
@@ -145,17 +145,16 @@ void vs_plane_stats_1_word_avx2(union vs_plane_stats *stats, const void *src, pt
     for (y = 0; y < height; y++) {
         for (x = 0; x < tail; x += 16) {
             __m256i v = _mm256_load_si256((const __m256i *)((const uint16_t *)srcp + x));
-            __m256i v_signed = _mm256_add_epi16(v, _mm256_set1_epi16(INT16_MIN));
-            mmin = _mm256_min_epi16(mmin, v_signed);
-            mmax = _mm256_max_epi16(mmax, v_signed);
+            mmin = _mm256_min_epu16(mmin, v);
+            mmax = _mm256_max_epu16(mmax, v);
 
             macc_lo = _mm256_add_epi64(macc_lo, _mm256_sad_epu8(_mm256_and_si256(low8mask, v), _mm256_setzero_si256()));
             macc_hi = _mm256_add_epi64(macc_hi, _mm256_sad_epu8(_mm256_andnot_si256(low8mask, v), _mm256_setzero_si256()));
         }
         if (width != tail) {
             __m256i v = _mm256_and_si256(_mm256_load_si256((const __m256i *)((const uint16_t *)srcp + tail)), mask);
-            mmin = _mm256_min_epi16(mmin, _mm256_add_epi16(_mm256_or_si256(v, onesmask), _mm256_set1_epi16(INT16_MIN)));
-            mmax = _mm256_max_epi16(mmax, _mm256_add_epi16(v, _mm256_set1_epi16(INT16_MIN)));
+            mmin = _mm256_min_epu16(mmin, _mm256_or_si256(v, onesmask));
+            mmax = _mm256_max_epu16(mmax, v);
 
             macc_lo = _mm256_add_epi64(macc_lo, _mm256_sad_epu8(_mm256_and_si256(low8mask, v), _mm256_setzero_si256()));
             macc_hi = _mm256_add_epi64(macc_hi, _mm256_sad_epu8(_mm256_andnot_si256(low8mask, v), _mm256_setzero_si256()));
@@ -163,8 +162,8 @@ void vs_plane_stats_1_word_avx2(union vs_plane_stats *stats, const void *src, pt
         srcp += stride;
     }
 
-    stats->i.min = hmin_epi16(mmin) - INT16_MIN;
-    stats->i.max = hmax_epi16(mmax) - INT16_MIN;
+    stats->i.min = hmin_epu16(mmin);
+    stats->i.max = hmax_epu16(mmax);
 
     tmp = _mm256_add_epi64(_mm256_unpacklo_epi64(macc_lo, macc_hi), _mm256_unpackhi_epi64(macc_lo, macc_hi));
     tmp = _mm256_add_epi64(tmp, _mm256_slli_epi64(_mm256_unpackhi_epi64(tmp, tmp), 8));
@@ -255,8 +254,8 @@ void vs_plane_stats_2_word_avx2(union vs_plane_stats *stats, const void *src1, p
     unsigned tail = width & ~15;
     unsigned x, y;
 
-    __m256i mmin = _mm256_set1_epi16(INT16_MAX);
-    __m256i mmax = _mm256_set1_epi16(INT16_MIN);
+    __m256i mmin = _mm256_set1_epi16(UINT16_MAX);
+    __m256i mmax = _mm256_setzero_si256();
     __m256i macc_lo = _mm256_setzero_si256();
     __m256i macc_hi = _mm256_setzero_si256();
     __m256i mdiffacc_lo = _mm256_setzero_si256();
@@ -270,11 +269,10 @@ void vs_plane_stats_2_word_avx2(union vs_plane_stats *stats, const void *src1, p
         for (x = 0; x < tail; x += 16) {
             __m256i v1 = _mm256_load_si256((const __m256i *)((const uint16_t *)srcp1 + x));
             __m256i v2 = _mm256_load_si256((const __m256i *)((const uint16_t *)srcp2 + x));
-            __m256i v1_signed = _mm256_add_epi16(v1, _mm256_set1_epi16(INT16_MIN));
             __m256i udiff = _mm256_or_si256(_mm256_subs_epu16(v1, v2), _mm256_subs_epu16(v2, v1));
 
-            mmin = _mm256_min_epi16(mmin, v1_signed);
-            mmax = _mm256_max_epi16(mmax, v1_signed);
+            mmin = _mm256_min_epu16(mmin, v1);
+            mmax = _mm256_max_epu16(mmax, v1);
 
             macc_lo = _mm256_add_epi64(macc_lo, _mm256_sad_epu8(_mm256_and_si256(low8mask, v1), _mm256_setzero_si256()));
             macc_hi = _mm256_add_epi64(macc_hi, _mm256_sad_epu8(_mm256_andnot_si256(low8mask, v1), _mm256_setzero_si256()));
@@ -287,8 +285,8 @@ void vs_plane_stats_2_word_avx2(union vs_plane_stats *stats, const void *src1, p
             __m256i v2 = _mm256_and_si256(_mm256_load_si256((const __m256i *)((const uint16_t *)srcp2 + tail)), mask);
             __m256i udiff = _mm256_or_si256(_mm256_subs_epu16(v1, v2), _mm256_subs_epu16(v2, v1));
 
-            mmin = _mm256_min_epi16(mmin, _mm256_add_epi16(_mm256_or_si256(v1, onesmask), _mm256_set1_epi16(INT16_MIN)));
-            mmax = _mm256_max_epi16(mmax, _mm256_add_epi16(v1, _mm256_set1_epi16(INT16_MIN)));
+            mmin = _mm256_min_epu16(mmin, _mm256_or_si256(v1, onesmask));
+            mmax = _mm256_max_epu16(mmax, v1);
 
             macc_lo = _mm256_add_epi64(macc_lo, _mm256_sad_epu8(_mm256_and_si256(low8mask, v1), _mm256_setzero_si256()));
             macc_hi = _mm256_add_epi64(macc_hi, _mm256_sad_epu8(_mm256_andnot_si256(low8mask, v1), _mm256_setzero_si256()));
@@ -300,8 +298,8 @@ void vs_plane_stats_2_word_avx2(union vs_plane_stats *stats, const void *src1, p
         srcp2 += src2_stride;
     }
 
-    stats->i.min = hmin_epi16(mmin) - INT16_MIN;
-    stats->i.max = hmax_epi16(mmax) - INT16_MIN;
+    stats->i.min = hmin_epu16(mmin);
+    stats->i.max = hmax_epu16(mmax);
 
     tmp = _mm256_add_epi64(_mm256_unpacklo_epi64(macc_lo, macc_hi), _mm256_unpackhi_epi64(macc_lo, macc_hi));
     tmp = _mm256_add_epi64(tmp, _mm256_slli_epi64(_mm256_unpackhi_epi64(tmp, tmp), 8));

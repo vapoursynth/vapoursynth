@@ -1,7 +1,21 @@
+r50:
+updated zimg to latest v2.9 so grayscale colorspace are supported
+added __version__ and __api_version__ to python module to make detecting version mismatches easier
+improved rounding in averageframes (sekrit-twc)
+fixed averageframes not properly rejecting more than 31 weights or nodes
+fixed crash in textfilter line wrapping introduced in r49 (sekrit-twc)
+fixed regression introduced in r48 where expr, sobel and prewitt wouldn't clamp 9-15 bit output to valid range (sekrit-twc)
+fixed crash due to null pointer dereference when instantiation many vapoursynth classes directly in python
+fixed regression in r49 where the python dll could only be located when in the PATH on windows
+
 r49:
 updated to python 3.8 on windows
 updated visual studio 2019 runtime version
 updated zimg and added support for spline64 resize method
+fixed transfer characteristics not being applied to gray format clips (sekrit-twc)
+fixed vdecimate bugs when compiled on systems where char is unsigned by default
+fixed a regression introduced in r48 in that could sometimes cause corrupt output from expr on cpus without sse4.1 (sekrit-twc)
+fixed a savestring bug in avscompat (sekrit-twc)
 interleave, selectevery and separate fields now have a modify_duration argument to determine if they modify frame durations and fps
 addborders and crop now update the _fieldbased attribute properly when an odd number of lines are cut from the top
 fixed add to path not working for single user installs

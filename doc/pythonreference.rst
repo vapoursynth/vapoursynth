@@ -97,6 +97,9 @@ Another way to deal with such arguments is to place them in a dictionary::
 
    args = { "lambda": 1 }
    clip = core.plugin.Filter(clip, **args)
+   
+VapourSynth will also support the PEP8 convention of using a single trailing
+underscore to prevent collisions with python keywords.
 
 Windows File Paths (Strings With Backslashes)
 #############################################
@@ -330,6 +333,7 @@ Classes and Functions
       :param cb: A callback in the form `cb(node, n, result)`
 
    .. py:method:: get_frame_async_raw(n, cb: Future[, wrapper: callable = None])
+      :noindex:
 
       Second form of this method. It will take a Future-like object (including asyncio.Future or similar)
       and set its result or exception according to the result of the function.
