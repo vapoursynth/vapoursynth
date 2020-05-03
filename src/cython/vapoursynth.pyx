@@ -1800,6 +1800,9 @@ cdef class Function(object):
         for key in kwargs:
             if key[0] == '_':
                 nkey = key[1:]
+            # PEP8 tells us single_trailing_underscore_ for collisions with Python-keywords.
+            elif key[-1] == "_":
+                nkey = key[:-1]
             else:
                 nkey = key
             ndict[nkey] = kwargs[key]
