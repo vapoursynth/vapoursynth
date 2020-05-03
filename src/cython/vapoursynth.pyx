@@ -685,7 +685,7 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, cons
             else:
                 raise Error('argument ' + key + ' has an unknown type: ' + atypes[key])
 
-cdef class Format(object):
+cdef class VideoFormat(object):
     cdef readonly int id
     cdef readonly str name
     cdef readonly object color_family
@@ -715,7 +715,7 @@ cdef class Format(object):
         return core.register_format(**vals)
 
     def __eq__(self, other):
-        if not isinstance(other, Format):
+        if not isinstance(other, VideoFormat):
             return False
         return other.id == self.id
 
@@ -723,7 +723,7 @@ cdef class Format(object):
         return self.id
 
     def __str__(self):
-        return ('Format Descriptor\n'
+        return ('Video Format Descriptor\n'
                f'\tId: {self.id:d}\n'
                f'\tName: {self.name}\n'
                f'\tColor Family: {self.color_family.name}\n'
@@ -734,8 +734,8 @@ cdef class Format(object):
                f'\tSubsampling W: {self.subsampling_w:d}\n'
                f'\tSubsampling H: {self.subsampling_h:d}\n')
 
-cdef Format createFormat(const VSFormat *f):
-    cdef Format instance = Format.__new__(Format)
+cdef VideoFormat createVideoFormat(const VSVideoFormat *f):
+    cdef VideoFormat instance = VideoFormat.__new__(VideoFormat)
     instance.id = f.id
     instance.name = (<const char *>f.name).decode('utf-8')
     instance.color_family = ColorFamily(f.colorFamily)
@@ -764,9 +764,8 @@ cdef class AudioFormat(object):
         return {
             'sample_type': self.sample_type,
             'bits_per_sample': self.bits_per_sample,
-            'samplesPerFrame': self.samplesPerFrame,
-            'channelLayout': self.channelLayout,
-            'num_channels': self.num_channels
+            'samples_per_frame': self.samplesPerFrame,
+            'channel_layout': self.channelLayout
         }
 
     def replace(self, **kwargs):
@@ -1056,7 +1055,7 @@ cdef class RawFrame(object):
 
 
 cdef class VideoFrame(RawFrame):
-    cdef readonly Format format
+    cdef readonly VideoFormat format
     cdef readonly int width
     cdef readonly int height
 
@@ -1155,7 +1154,7 @@ cdef VideoFrame createConstVideoFrame(const VSFrameRef *constf, const VSAPI *fun
     instance.funcs = funcs
     instance.core = core
     instance.readonly = True
-    instance.format = createFormat(funcs.getFrameFormat(constf))
+    instance.format = createVideoFormat(funcs.getFrameFormat(constf))
     instance.width = funcs.getFrameWidth(constf, 0)
     instance.height = funcs.getFrameHeight(constf, 0)
     instance.props = createFrameProps(instance)
@@ -1169,7 +1168,7 @@ cdef VideoFrame createVideoFrame(VSFrameRef *f, const VSAPI *funcs, VSCore *core
     instance.funcs = funcs
     instance.core = core
     instance.readonly = False
-    instance.format = createFormat(funcs.getFrameFormat(f))
+    instance.format = createVideoFormat(funcs.getFrameFormat(f))
     instance.width = funcs.getFrameWidth(f, 0)
     instance.height = funcs.getFrameHeight(f, 0)
     instance.props = createFrameProps(instance)
@@ -1330,7 +1329,7 @@ cdef class RawNode(object):
 
 cdef class VideoNode(RawNode):
     cdef const VSVideoInfo *vi
-    cdef readonly Format format
+    cdef readonly VideoFormat format
     cdef readonly int width
     cdef readonly int height
     cdef readonly int num_frames
@@ -1397,7 +1396,7 @@ cdef class VideoNode(RawNode):
         return fut
 
     def set_output(self, int index = 0, VideoNode alpha = None):
-        cdef const VSFormat *aformat = NULL
+        cdef const VSVideoFormat *aformat = NULL
         clip = self
         if alpha is not None:
             if (self.vi.width != alpha.vi.width) or (self.vi.height != alpha.vi.height):
@@ -1600,7 +1599,7 @@ cdef VideoNode createVideoNode(VSNodeRef *node, const VSAPI *funcs, Core core):
     instance.vi = funcs.getVideoInfo(node)
 
     if (instance.vi.format):
-        instance.format = createFormat(instance.vi.format)
+        instance.format = createVideoFormat(instance.vi.format)
     else:
         instance.format = None
 
@@ -1864,18 +1863,18 @@ cdef class Core(object):
         return sout
 
     def register_format(self, int color_family, int sample_type, int bits_per_sample, int subsampling_w, int subsampling_h):
-        cdef const VSFormat *fmt = self.funcs.registerFormat(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h, self.core)
+        cdef const VSVideoFormat *fmt = self.funcs.registerFormat(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h, self.core)
         if fmt == NULL:
             raise Error('Invalid format specified')
-        return createFormat(fmt)
+        return createVideoFormat(fmt)
 
     def get_format(self, int id):
-        cdef const VSFormat *f = self.funcs.getFormatPreset(id, self.core)
+        cdef const VSVideoFormat *f = self.funcs.getFormatPreset(id, self.core)
 
         if f == NULL:
             raise Error('Format not registered')
         else:
-            return createFormat(f)
+            return createVideoFormat(f)
 
     def version(self):
         cdef VSCoreInfo v

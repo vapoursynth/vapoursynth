@@ -43,7 +43,7 @@ cdef extern from "include/VapourSynth.h" nogil:
     ctypedef struct VSFrameContext:
         pass
         
-    cpdef enum NodeType "VSMediaType":
+    cpdef enum MediaType "VSMediaType":
         VIDEO "mtVideo"
         AUDIO "mtAudio"
 
@@ -114,7 +114,7 @@ cdef extern from "include/VapourSynth.h" nogil:
         fmUnordered
         fmSerial
 
-    ctypedef struct VSFormat:
+    ctypedef struct VSVideoFormat:
         char name[32]
         int id
         int colorFamily
@@ -124,6 +124,26 @@ cdef extern from "include/VapourSynth.h" nogil:
         int subSamplingW
         int subSamplingH
         int numPlanes
+        
+    cpdef enum AudioChannels "VSAudioChannels":
+        FrontLeft "vsacFrontLeft"
+        FrontRight "vsacFrontRight"
+        FrontCenter "vsacFrontCenter"
+        LowFrequency "vsacLowFrequency"
+        BackLeft "vsacBackLeft"
+        BackRight "vsacBackRight"
+        FrontLeftOFCenter "vsacFrontLeftOFCenter"
+        FrontRightOFCenter "vsacFrontRightOFCenter"
+        BackCenter "vsacBackCenter"
+        SideLeft "vsacSideLeft"
+        SideRight "vsacSideRight"
+        TopCenter "vsacTopCenter"
+        TopFrontLeft "vsacTopFrontLeft"
+        TopFrontCenter "vsacTopFrontCenter"
+        TopFrontRight "vsacTopFrontRight"
+        TopBackLeft "vsacTopBackLeft"
+        TopBackCenter "vsacTopBackCenter"
+        TopBackRight "vsacTopBackRight"
         
     ctypedef struct VSAudioFormat:
         char name[32]
@@ -160,7 +180,7 @@ cdef extern from "include/VapourSynth.h" nogil:
         int64_t usedFramebufferSize
 
     struct VSVideoInfo:
-        VSFormat *format
+        VSVideoFormat *format
         int width
         int height
         int numFrames
@@ -207,8 +227,8 @@ cdef extern from "include/VapourSynth.h" nogil:
         char *getError(const VSMap *map) nogil
         void setFilterError(const char *errorMessage, VSFrameContext *frameCtx) nogil
 
-        VSFormat *getFormatPreset(int id, VSCore *core) nogil
-        VSFormat *registerFormat(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) nogil
+        VSVideoFormat *getFormatPreset(int id, VSCore *core) nogil
+        VSVideoFormat *registerFormat(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) nogil
 
         void getFrameAsync(int n, VSNodeRef *node, VSFrameDoneCallback callback, void *userData) nogil
         const VSFrameRef *getFrame(int n, VSNodeRef *node, char *errorMsg, int bufSize) nogil
@@ -218,7 +238,7 @@ cdef extern from "include/VapourSynth.h" nogil:
         VSNodeRef *cloneNodeRef(VSNodeRef *node) nogil
         void freeFrame(const VSFrameRef *f) nogil
         void freeNode(VSNodeRef *node) nogil
-        VSFrameRef *newVideoFrame(const VSFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core) nogil
+        VSFrameRef *newVideoFrame(const VSVideoFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core) nogil
         VSFrameRef *copyFrame(const VSFrameRef *f, VSCore *core) nogil
         void copyFrameProps(const VSFrameRef *src, VSFrameRef *dst, VSCore *core) nogil
 
@@ -228,7 +248,7 @@ cdef extern from "include/VapourSynth.h" nogil:
 
         const VSVideoInfo *getVideoInfo(VSNodeRef *node) nogil
         void setVideoInfo(const VSVideoInfo *vi, VSNode *node) nogil
-        const VSFormat *getFrameFormat(const VSFrameRef *f) nogil
+        const VSVideoFormat *getFrameFormat(const VSFrameRef *f) nogil
         int getFrameWidth(const VSFrameRef *f, int plane) nogil
         int getFrameHeight(const VSFrameRef *f, int plane) nogil
         const VSMap *getFramePropsRO(const VSFrameRef *f) nogil
