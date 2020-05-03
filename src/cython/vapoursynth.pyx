@@ -44,6 +44,14 @@ try:
 except ImportError as e:
     typing = None
 
+__all__ = [
+  "core", "get_core",
+  "get_output", "get_outputs", "clear_output", "clear_outputs",
+  
+  "VideoFrame", "VideoNode",
+  "Format"
+]
+    
 __version__ = namedtuple("VapourSynthVersion", "release_major release_minor")(50, 0)
 __api_version__ = namedtuple("VapourSynthAPIVersion", "api_major api_minor")(VAPOURSYNTH_API_MAJOR, VAPOURSYNTH_API_MINOR)
 
