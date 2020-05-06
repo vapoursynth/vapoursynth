@@ -58,6 +58,7 @@ __all__ = [
     'YUV422P8', 'YUV422P9', 'YUV440P8', 'YUV444P10',
     'YUV444P12', 'YUV444P14', 'YUV444P16', 'YUV444P8',
     'YUV444P9', 'YUV444PH', 'YUV444PS', 
+  'NONE',
   'FLOAT', 'INTEGER',
   
   'get_output', 'get_outputs',
