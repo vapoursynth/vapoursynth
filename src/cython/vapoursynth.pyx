@@ -36,6 +36,7 @@ from types import MappingProxyType
 from collections import namedtuple
 from collections.abc import Iterable, Mapping
 from fractions import Fraction
+from warnings import warn
 
 # Ensure that the import doesn't fail
 # if typing is not available on the python installation.
@@ -190,7 +191,7 @@ def _construct_parameter(signature):
     elif type == "float":
         type = float
     elif type == "data":
-        type = typing.Union[str, bytes, bytearray]
+        type = typing.AnyStr
     else:
         raise ValueError("Couldn't determine type")
 
@@ -1666,8 +1667,7 @@ cdef Core vsscript_get_core_internal(int environment_id):
         _cores[environment_id] = createCore()
     return _cores[environment_id]
     
-cdef class _CoreProxy(object):
-
+class _CoreProxyVSScript(object):
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
     
@@ -1688,7 +1688,16 @@ cdef class _CoreProxy(object):
     def __setattr__(self, name, value):
         setattr(self.core, name, value)
     
-core = _CoreProxy.__new__(_CoreProxy)
+def _make_standalone_proxy():
+    core = get_core()
+    dct = {"core": core}
+    for name in dir(core):
+        if name.startswith("__") and name.endswith("__"):
+            continue
+        dct[name] = getattr(core, name)
+    return type('_CoreProxyStandalone', (), dct)
+_CoreProxyStandalone = _make_standalone_proxy()
+core = _CoreProxyStandalone()    
     
 
 cdef class Plugin(object):
@@ -1757,7 +1766,8 @@ cdef class Plugin(object):
         return attrs
 
 cdef Plugin createPlugin(VSPlugin *plugin, str namespace, const VSAPI *funcs, Core core):
-    cdef Plugin instance = Plugin.__new__(Plugin)
+    t = type('Plugin', (Plugin,), {})
+    cdef Plugin instance = t.__new__(t)
     instance.core = core
     instance.plugin = plugin
     instance.funcs = funcs
@@ -1769,6 +1779,14 @@ cdef Plugin createPlugin(VSPlugin *plugin, str namespace, const VSAPI *funcs, Co
             instance.__doc__ = plugin_dict['name']
             break
 
+    cdef VSMap *m = funcs.getFunctions(plugin)
+    for i in range(instance.funcs.propNumKeys(m)):
+        cname = instance.funcs.propGetKey(m, i)
+        name = cname.decode('utf-8')
+        signature = instance.funcs.propGetData(m, cname, 0, NULL).decode('utf-8').split(';', 1)
+        setattr(type(instance), name, createFunction(name, signature[1], instance, instance.funcs))
+    funcs.freeMap(m)
+
     return instance
 
 cdef class Function(object):
@@ -1777,12 +1795,6 @@ cdef class Function(object):
     cdef readonly str name
     cdef readonly str signature
     
-    @property
-    def __signature__(self):
-        if typing is None:
-            return None
-        return construct_signature(self.signature, injected=self.plugin.injected_arg)
-
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
 
@@ -1866,7 +1878,20 @@ cdef class Function(object):
         return retdict
 
 cdef Function createFunction(str name, str signature, Plugin plugin, const VSAPI *funcs):
-    cdef Function instance = Function.__new__(Function)
+    dct = {'__signature__': None}
+    if typing is not None:
+        try:
+            sign = construct_signature(signature, injected=plugin.injected_arg)
+            annotations = dict(sign.parameters)
+            annotations['return'] = sign.return_annotation
+
+            dct['__signature__'] = sign
+            dct['__annotations__'] = annotations
+        except ValueError as e:
+            warn('Constructing signature for {}.{}() failed: {}'.format(plugin.namespace, name, str(e)))
+    t = type('Function', (Function,), dct)
+
+    cdef Function instance = t.__new__(t)
     instance.name = name
     instance.signature = signature
     instance.plugin = plugin
@@ -2156,4 +2181,5 @@ cdef public api int vpy_initVSScript() nogil:
             return 1
         global _using_vsscript
         _using_vsscript = True
+        core.__class__ = _CoreProxyVSScript
         return 0
