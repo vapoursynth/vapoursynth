@@ -158,7 +158,7 @@ def vpy_current_environment():
     if _using_vsscript and _env_current_id() is None:
         raise RuntimeError("We are not running inside an environment.")
 
-    get_core()  # Make sure a core is defined.
+    _get_core()  # Make sure a core is defined.
     env = use_environment((0 if not _using_vsscript else _env_current_id()))
     return env
 
@@ -547,7 +547,7 @@ cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, VSCore *co
             elif proptype == 's':
                 newval = funcs.propGetData(map, retkey, y, NULL)
             elif proptype =='c':
-                c = get_core()
+                c = _get_core()
                 newval = createVideoNode(funcs.propGetNode(map, retkey, y, NULL), funcs, c)
 
                 if add_cache and not (newval.flags & vapoursynth.nfNoCache):
@@ -706,7 +706,7 @@ cdef class Format(object):
         }
 
     def replace(self, **kwargs):
-        core = kwargs.pop("core", None) or get_core()
+        core = kwargs.pop("core", None) or _get_core()
         vals = self._as_dict()
         vals.update(**kwargs)
         return core.register_format(**vals)
@@ -792,7 +792,7 @@ cdef class VideoProps(object):
                 ol.append(data[:self.funcs.propGetDataSize(m, b, i, NULL)])
         elif t == 'c':
             for i in range(numelem):
-                ol.append(createVideoNode(self.funcs.propGetNode(m, b, i, NULL), self.funcs, get_core()))
+                ol.append(createVideoNode(self.funcs.propGetNode(m, b, i, NULL), self.funcs, _get_core()))
         elif t == 'v':
             for i in range(numelem):
                 ol.append(createConstVideoFrame(self.funcs.propGetFrame(m, b, i, NULL), self.funcs, self.core))
@@ -1639,7 +1639,7 @@ cdef Core createCore():
     instance.add_cache = True
     return instance
 
-def get_core(threads = None, add_cache = None):
+def _get_core():
     global _using_vsscript
     ret_core = None
     if _using_vsscript:
@@ -1653,6 +1653,13 @@ def get_core(threads = None, add_cache = None):
         if _core is None:
             _core = createCore()
         ret_core = _core
+    return ret_core
+  
+def get_core(threads = None, add_cache = None):
+    import warnings
+    warnings.warn("get_core() is deprecated. Use \"vapoursynth.core\" instead.", DeprecationWarning)
+    
+    ret_core = _get_core()
     if ret_core is not None:
         if threads is not None:
             ret_core.num_threads = threads
@@ -1673,7 +1680,7 @@ cdef class _CoreProxy(object):
     
     @property
     def core(self):
-        return get_core()
+        return _get_core()
         
     def __dir__(self):
         d = dir(self.core)
