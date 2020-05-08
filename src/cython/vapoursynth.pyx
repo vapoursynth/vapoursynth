@@ -1,4 +1,4 @@
-#  Copyright (c) 2012-2017 Fredrik Mellbin
+#  Copyright (c) 2012-2020 Fredrik Mellbin
 #
 #  This file is part of VapourSynth.
 #
@@ -47,6 +47,8 @@ try:
 except ImportError as e:
     typing = None
 
+__version__ = namedtuple("VapourSynthVersion", "release_major release_minor")(50, 0)
+__api_version__ = namedtuple("VapourSynthAPIVersion", "api_major api_minor")(VAPOURSYNTH_API_MAJOR, VAPOURSYNTH_API_MINOR)
 
 @final
 cdef class EnvironmentData(object):
@@ -352,7 +354,6 @@ def get_current_environment():
     vsscript_get_core_internal(env) # Make sure a core is defined
     return use_environment(env, direct=False)
 
-
 # Create an empty list whose instance will represent a not passed value.
 _EMPTY = []
 
@@ -499,7 +500,8 @@ cdef class Func(object):
         raise Error('Class cannot be instantiated directly')
         
     def __dealloc__(self):
-        self.funcs.freeFunc(self.ref)
+        if self.funcs:
+            self.funcs.freeFunc(self.ref)
         
     def __call__(self, **kwargs):
         cdef VSMap *outm
@@ -624,7 +626,8 @@ cdef class FramePtr(object):
         raise Error('Class cannot be instantiated directly')
 
     def __dealloc__(self):
-        self.funcs.freeFrame(self.f)
+        if self.funcs:
+            self.funcs.freeFrame(self.f)
 
 cdef FramePtr createFramePtr(const VSFrameRef *f, const VSAPI *funcs):
     cdef FramePtr instance = FramePtr.__new__(FramePtr)    
@@ -730,7 +733,7 @@ cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, VSCore *co
             elif proptype == 's':
                 newval = funcs.propGetData(map, retkey, y, NULL)
             elif proptype =='c':
-                c = get_core()
+                c = _get_core()
                 newval = createVideoNode(funcs.propGetNode(map, retkey, y, NULL), funcs, c)
 
                 if add_cache and not (newval.flags & vapoursynth.nfNoCache):
@@ -889,7 +892,7 @@ cdef class Format(object):
         }
 
     def replace(self, **kwargs):
-        core = kwargs.pop("core", None) or get_core()
+        core = kwargs.pop("core", None) or _get_core()
         vals = self._as_dict()
         vals.update(**kwargs)
         return core.register_format(**vals)
@@ -938,7 +941,8 @@ cdef class VideoProps(object):
         raise Error('Class cannot be instantiated directly')
 
     def __dealloc__(self):
-        self.funcs.freeFrame(self.constf)
+        if self.funcs:
+            self.funcs.freeFrame(self.constf)
 
     def __contains__(self, str name):
         cdef const VSMap *m = self.funcs.getFramePropsRO(self.constf)
@@ -974,7 +978,7 @@ cdef class VideoProps(object):
                 ol.append(data[:self.funcs.propGetDataSize(m, b, i, NULL)])
         elif t == 'c':
             for i in range(numelem):
-                ol.append(createVideoNode(self.funcs.propGetNode(m, b, i, NULL), self.funcs, get_core()))
+                ol.append(createVideoNode(self.funcs.propGetNode(m, b, i, NULL), self.funcs, _get_core()))
         elif t == 'v':
             for i in range(numelem):
                 ol.append(createConstVideoFrame(self.funcs.propGetFrame(m, b, i, NULL), self.funcs, self.core))
@@ -1179,7 +1183,8 @@ cdef class VideoFrame(object):
         raise Error('Class cannot be instantiated directly')
 
     def __dealloc__(self):
-        self.funcs.freeFrame(self.constf)
+        if self.funcs:
+            self.funcs.freeFrame(self.constf)
 
     def copy(self):
         return createVideoFrame(self.funcs.copyFrame(self.constf, self.core), self.funcs, self.core)
@@ -1398,7 +1403,8 @@ cdef class VideoNode(object):
         raise Error('Class cannot be instantiated directly')
 
     def __dealloc__(self):
-        self.funcs.freeNode(self.node)
+        if self.funcs:
+            self.funcs.freeNode(self.node)
         
     def __getattr__(self, name):
         err = False
@@ -1819,13 +1825,18 @@ cdef Core createCore():
     instance.add_cache = True
     return instance
 
-def get_core(threads = None, add_cache = None):
-    ret_core = None
+def _get_core(threads = None, add_cache = None):
     env = _env_current()
     if env is None:
         raise Error('Internal environment id not set. Was get_core() called from a filter callback?')
 
-    ret_core = vsscript_get_core_internal(env)
+    return vsscript_get_core_internal(env)
+    
+def get_core(threads = None, add_cache = None):
+    import warnings
+    warnings.warn("get_core() is deprecated. Use \"vapoursynth.core\" instead.", DeprecationWarning)
+    
+    ret_core = _get_core()
     if ret_core is not None:
         if threads is not None:
             ret_core.num_threads = threads
@@ -1845,7 +1856,7 @@ cdef class _CoreProxy(object):
     
     @property
     def core(self):
-        return get_core()
+        return _get_core()
         
     def __dir__(self):
         d = dir(self.core)
@@ -1972,6 +1983,9 @@ cdef class Function(object):
         for key in kwargs:
             if key[0] == '_':
                 nkey = key[1:]
+            # PEP8 tells us single_trailing_underscore_ for collisions with Python-keywords.
+            elif key[-1] == "_":
+                nkey = key[:-1]
             else:
                 nkey = key
             ndict[nkey] = kwargs[key]

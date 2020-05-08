@@ -164,8 +164,7 @@ static void averageFramesI(const std::vector<const VSFrameRef *> &srcs, VSFrameR
                 acc += srcpp[i][w] * weights[i];
 
             unsigned acc2 = std::max(0, acc);
-            acc2 += scale - 1;
-            acc2 /= scale;
+            acc2 = (acc + scale / 2) / scale;
             acc2 = std::min(acc2, maxVal);
             dstp[w] = static_cast<T>(acc2);
         }
@@ -506,7 +505,9 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
                 throw std::runtime_error("Number of weights must be odd when only one clip supplied");
         } else if (numWeights != numNodes) {
             throw std::runtime_error("Number of weights must match number of clips supplied");
-        } else if (numWeights > 31 || numNodes > 31) {
+        } 
+
+        if (numWeights > 31 || numNodes > 31) {
             throw std::runtime_error("Must use between 1 and 31 weights and input clips");
         }
 

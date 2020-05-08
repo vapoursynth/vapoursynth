@@ -23,6 +23,7 @@
 /*
 
     Note that the version is stored in several places, in addition to version.h it's also in:
+    src/cython/vapoursynth.pyx (__version__)
     setup.py (version = "" near the bottom)
     configure.ac (number on first line in [])
     installer/vsinstaller.iss (Version define at top)
@@ -33,7 +34,7 @@
 
 #define XSTR(x) STR(x)
 #define STR(x) #x
-#define VAPOURSYNTH_CORE_VERSION 49
+#define VAPOURSYNTH_CORE_VERSION 50
 #if defined(VS_FRAME_GUARD) && !defined(NDEBUG)
 #define VS_OPTIONS_TEXT "Options: Frame Guard + Extra Assertions\n"
 #elif defined(VS_FRAME_GUARD)
