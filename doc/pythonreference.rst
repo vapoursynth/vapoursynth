@@ -519,16 +519,35 @@ Classes and Functions
 
    This class represents an environment.
 
-   It is a context-manager allowing you to switch to this environment at will.
-   But it is faster than using the equivalent evaluate_script-function as it does not
-   impose additional exception handling.
+   Some editors allow multiple vapoursynth-scripts to run in the same process, each of them comes with a different Core-instance and
+   their own set of outputs. Each core-instance with their associated outputs represent their own environment.
+
+   At any given time, only one environment can be active (in the same context). This class allows introspection about
+   environments and allows to switch to them at will.
 
    .. code::
 
-        env = vpy_current_environment()
+        env = get_current_environment()
         # sometime later
-        with env:
+        with env.use():
           # Do stuff inside this env.
+
+   .. warning::
+
+      Environment-objects obtained using the :func:`vpy_current_environment` can directly be used as
+      as a context manager. This can cuase undefined behaviour when used in combination with generators and/or
+      coroutines.
+
+      This context-manager maintains a thread-local environment-stack that is used to restore the previous environment.
+      This can cause issues if the frame is suspended inside the block.
+
+      A similar problem also existed in previous VapourSynth versions!
+      
+      .. code::
+
+         env = vpy_current_environment()
+         with env:
+              yield
 
    .. py:function:: is_single()
 
@@ -548,13 +567,162 @@ Classes and Functions
 
       Has the environment been destroyed by the underlying application?
 
+   .. py:method:: copy
+
+      Creates a copy of the environment-object.
+
+      Added: R50
+
+   .. py:method:: use
+
+      Returns a context-manager that enables the given environment in the block enclosed in the with-statement and restores the environment to the one
+      defined before the with-block has been encountered.
+
+      .. code::
+      
+         env = vpy_current_environment()
+         with env.use():
+             with env.use():
+                 pass
+
+      Added: R50
+
 .. py:function:: vpy_current_environment()
+
+   Deprecated. Use :func:`get_current_environment` instead.
+
+   Returns an Environment-object representing the environment the script is currently running in. It will raise an error if we are currently not inside any
+   script-environment while vsscript is being used.
+
+   This function is intended for Python-based editors using vsscript.
+   This function has been deprecated as this function has undefined behaviour when used together with generators or coroutines.
+
+.. py:function:: get_current_environment()
 
    Returns an Environment-object representing the environment the script is currently running in. It will raise an error if we are currently not inside any
    script-environment while vsscript is being used.
 
    This function is intended for Python-based editors using vsscript.
 
+   Added: R50
+
+.. py:class:: EnvironmentPolicy
+
+   This class is intended for subclassing by custom Script-Runners and Editors.
+   Normal users don't need this class. Most methods implemented here have corresponding APIs in other parts of this module.
+   
+   An instance of this class controls which environment is activated in the current context.
+   The exact meaning of "context" is defined by the concrete EnvironmentPolicy. A environment is represented by a :class:`EnvironmentData`-object.
+
+   To use this class, first create a subclass and then use :func:`register_policy` to get VapourSynth to use your policy. This must happen before vapoursynth is first
+   used. VapourSynth will automatically register an internal policy if it needs one. The subclass must be weak-referenciable!
+   
+   Once the method :meth:`on_policy_registered` has been called, the policy is responsible for creating and managing environments.
+
+   Special considerations have been made to ensure the functions of class cannot be abused. You cannot retrieve the current running policy youself.
+   The additional API exposed by "on_policy_registered" is only valid if the policy has been registered.
+   Once the policy is unregistered, all calls to the additional API will fail with a RuntimeError.
+
+   Added: R50
+
+   .. py:method:: on_policy_registered(special_api)
+
+      This method is called when the policy has successfully been registered. It proivdes additional internal methods that are hidden as they are useless and or harmful
+      unless you implement your own policy.
+
+      :param special_api: This is a :class:`EnvironmentPolicyAPI`-object that exposes additional API
+
+   .. py:method:: on_policy_cleared()
+
+      This method is called once the python-process exits or when unregister_policy is called by the environment-policy. This allows the policy to free the resources
+      used by the policy.
+   
+   .. py:method:: get_current_environment()
+
+      This method is called by the module to detect which environment is currently running in the current context.
+
+      :returns: An :class:`EnvironmentData`-object representing the currently active environment in the current context.
+
+   .. py:method:: set_environment(environment)
+
+      This method is called by the module to change the currently active environment.
+
+      :param environment: The :class:`EnvironmentData` to enable in the current context.
+      :returns: The environment that was enabled previously.
+
+   .. py:method:: is_alive(environment)
+
+      Is the current environment still active and managed by the policy.
+
+.. py:class:: EnvironmentPolicyAPI
+
+   This class is intended to be used by custom Script-Runners and Editors. An instance of this class exposes an additional API.
+   The methods are bound to a specific :class:`EnvironmentPolicy`-instance and will only work if the policy is currenty registered.
+
+   Added: R50
+
+   .. py:method:: wrap_environment(environment)
+
+      Creates a new :class:`Environment`-object bound to the passed environment-id.
+
+      .. warning::
+
+         This function does not check if the id corresponds to a live environment as the caller is expected to know which environments are active.
+
+   .. py:method:: create_environment()
+   
+      Returns a :class:`Environment` that is used by the wrapper for context sensitive data used by VapourSynth.
+      For example it holds the currently active core object as well as the currently registered outputs.
+
+   .. py:method:: unregister_policy()
+
+      Unregisters the policy it is bound to and allows another policy to be registered.
+
+.. py:function:: register_policy(policy)
+
+   This function is intended for use by custom Script-Runners and Editors. It installs your custom :class:`EnvironmentPolicy`. This function only works if no other policy has been
+   installed.
+
+   If no policy is installed, the first environment-sensitive call will automatically register an internal policy.
+
+   Added: R50
+   
+   .. note::
+
+      This must be done before VapourSynth is used in any way. Here is a non-exhaustive list that automatically register a policy:
+
+      * Using "vsscript_init" in "VSScript.h"
+      * Using :func:`get_core`
+      * Using :func:`get_outputs`
+      * Using :func:`get_output`
+      * Using :func:`clear_output`
+      * Using :func:`clear_outputs`
+      * Using :func:`vpy_current_environment`
+      * Using :func:`get_current_environment`
+      * Accessing any attribute of :attr:`core`
+
+.. py:function:: has_policy()
+
+   This function is intended for subclassing by custom Script-Runners and Editors. This function checks if a :class:`EnvironmentPolicy` has been installed.
+
+   Added: R50
+
+.. py:attribute:: _using_vsscript
+
+   INTERNAL ATTRIBUTE. Deprecated (will be removed soon). This was the only way to find out if VSScript.h was calling this script.
+   It now stores true if a custom policy is installed or VSScript.h is used. Use :func:`has_policy` instead.
+
+
+.. py:class:: EnvironmentData
+
+   Internal class that stores the context sensitive data that VapourSynth needs. It is an opaque object whose attributes you cannot access directly.
+
+   A normal user has no way of getting an instance of this object. You can only encounter EnvironmentData-objects if you work with EnvironmentPolicies.
+
+   This object is weak-referenciable meaning you can get a callback if the environment-data object is actually being freed (i.e. no other object holds an instance
+   to the environment data.)
+
+   Added: R50
 
 .. py:class:: Func
 
