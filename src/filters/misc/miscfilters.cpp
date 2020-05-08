@@ -132,6 +132,7 @@ static void VS_CC scDetectCreate(const VSMap *in, VSMap *out, void *userData, VS
 ///////////////////////////////////////
 // AverageFrames
 
+namespace {
 typedef struct {
     std::vector<int> weights;
     std::vector<float> fweights;
@@ -142,97 +143,124 @@ typedef struct {
     bool useSceneChange;
     bool process[3];
 } AverageFrameData;
+} // namespace
 
-template<typename T>
-static void averageFramesI(const std::vector<const VSFrameRef *> &srcs, VSFrameRef *dst, const int * const VS_RESTRICT weights, unsigned scale, unsigned bits, int plane, const VSAPI *vsapi) {
+template <typename T>
+static void averageFramesI(const AverageFrameData *d, const VSFrameRef * const *srcs, VSFrameRef *dst, int plane, const VSAPI *vsapi) {
     int stride = vsapi->getStride(dst, plane) / sizeof(T);
     int width = vsapi->getFrameWidth(dst, plane);
     int height = vsapi->getFrameHeight(dst, plane);
+
+    const T *srcpp[32];
+    const size_t numSrcs = d->weights.size();
+
+    std::transform(srcs, srcs + numSrcs, srcpp, [=](const VSFrameRef *f) {
+        return reinterpret_cast<const T *>(vsapi->getReadPtr(f, plane));
+    });
+
     T * VS_RESTRICT dstp = reinterpret_cast<T *>(vsapi->getWritePtr(dst, plane));
-    std::vector<const T *> srcpv(srcs.size());
-    for (size_t i = 0; i < srcpv.size(); i++)
-        srcpv[i] = reinterpret_cast<const T *>(vsapi->getReadPtr(srcs[i], plane));
 
-    const size_t numSrcs = srcpv.size();
-    const T **srcpp = srcpv.data();
-    unsigned maxVal = (1 << bits) - 1;
+    unsigned maxVal = (1U << d->vi.format->bitsPerSample) - 1;
+    unsigned bias = 0;
 
-    for (int h = 0; h < height; h++) {
-        for (int w = 0; w < width; w++) {
+    if ((plane == 1 || plane == 2) && (d->vi.format->colorFamily == cmYUV || d->vi.format->colorFamily == cmYCoCg))
+        bias = 1U << (d->vi.format->bitsPerSample - 1);
+
+    int scale = d->scale;
+    int round = scale / 2;
+
+    for (int h = 0; h < height; ++h) {
+        for (int w = 0; w < width; ++w) {
             int acc = 0;
-            for (size_t i = 0; i < numSrcs; i++)
-                acc += srcpp[i][w] * weights[i];
 
-            unsigned acc2 = std::max(0, acc);
-            acc2 = (acc + scale / 2) / scale;
-            acc2 = std::min(acc2, maxVal);
-            dstp[w] = static_cast<T>(acc2);
+            for (size_t i = 0; i < numSrcs; ++i) {
+                T val = srcpp[i][w] - bias;
+                acc += static_cast<int>(val) * d->weights[i];
+            }
+
+            acc = (acc + round) / scale;
+            acc = std::min(std::max(acc, 0), static_cast<int>(maxVal));
+            dstp[w] = static_cast<T>(acc);
         }
-        for (size_t i = 0; i < numSrcs; i++)
-            srcpp[i] += stride;
+
+        std::transform(srcpp, srcpp + numSrcs, srcpp, [=](const T *ptr) { return ptr + stride; });
         dstp += stride;
     }
 }
 
-static void averageFramesF(const std::vector<const VSFrameRef *> &srcs, VSFrameRef *dst, const float * const VS_RESTRICT weights, float scale, int plane, const VSAPI *vsapi) {
+static void averageFramesF(const AverageFrameData *d, const VSFrameRef * const *srcs, VSFrameRef *dst, int plane, const VSAPI *vsapi) {
     int stride = vsapi->getStride(dst, plane) / sizeof(float);
     int width = vsapi->getFrameWidth(dst, plane);
     int height = vsapi->getFrameHeight(dst, plane);
+
+    const float *srcpp[32];
+    const size_t numSrcs = d->weights.size();
+
+    std::transform(srcs, srcs + numSrcs, srcpp, [=](const VSFrameRef *f) {
+        return reinterpret_cast<const float *>(vsapi->getReadPtr(f, plane));
+    });
+
     float * VS_RESTRICT dstp = reinterpret_cast<float *>(vsapi->getWritePtr(dst, plane));
-    std::vector<const float *> srcpv(srcs.size());
-    for (size_t i = 0; i < srcpv.size(); i++)
-        srcpv[i] = reinterpret_cast<const float *>(vsapi->getReadPtr(srcs[i], plane));
+    float scale = 1.0f / d->fscale;
 
-    const size_t numSrcs = srcpv.size();
-    const float **srcpp = srcpv.data();
-
-    for (int h = 0; h < height; h++) {
-        for (int w = 0; w < width; w++) {
+    for (int h = 0; h < height; ++h) {
+        for (int w = 0; w < width; ++w) {
             float acc = 0;
-            for (size_t i = 0; i < numSrcs; i++)
-                acc += srcpp[i][w] * weights[i];
+            for (size_t i = 0; i < numSrcs; ++i)
+                acc += srcpp[i][w] * d->fweights[i];
             dstp[w] = acc * scale;
         }
-        for (size_t i = 0; i < numSrcs; i++)
-            srcpp[i] += stride;
+
+        std::transform(srcpp, srcpp + numSrcs, srcpp, [=](const float *ptr) { return ptr + stride; });
         dstp += stride;
     }
 }
 
 #ifdef VS_TARGET_CPU_X86
-static void averageFramesByteSSE2(const std::vector<const VSFrameRef *> &srcs, VSFrameRef *dst, const int * const VS_RESTRICT weights, unsigned scale, unsigned bits, int plane, const VSAPI *vsapi) {
-    ptrdiff_t stride = vsapi->getStride(dst, plane);
-    unsigned width = vsapi->getFrameWidth(dst, plane);
-    unsigned height = vsapi->getFrameHeight(dst, plane);
+static void averageFramesByteSSE2(const AverageFrameData *d, const VSFrameRef * const *srcs, VSFrameRef *dst, int plane, const VSAPI *vsapi) {
+    int stride = vsapi->getStride(dst, plane);
+    int width = vsapi->getFrameWidth(dst, plane);
+    int height = vsapi->getFrameHeight(dst, plane);
+
+    const uint8_t *srcpp[32];
+    const size_t numSrcs = d->weights.size();
+
+    std::transform(srcs, srcs + numSrcs, srcpp, [=](const VSFrameRef *f) { return vsapi->getReadPtr(f, plane); });
+
     uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
-    const uint8_t *srcpv[32];
-    size_t numSrcs = std::min(srcs.size(), static_cast<size_t>(31));
-    __m128i weights_epi16[16];
+
+    __m128i weights[16];
 
     for (size_t i = 0; i < numSrcs; i += 2) {
-        srcpv[i + 0] = vsapi->getReadPtr(srcs[i], plane);
-        srcpv[i + 1] = vsapi->getReadPtr(srcs[std::min(i + 1, numSrcs - 1)], plane);
-
-        uint16_t weights_lo = static_cast<int16_t>(weights[i]);
-        uint16_t weights_hi = i + 1 < numSrcs ? static_cast<int16_t>(weights[i + 1]) : static_cast<int16_t>(0);
-        weights_epi16[i / 2] = _mm_set1_epi32((static_cast<uint32_t>(weights_hi) << 16) | weights_lo);
+        uint16_t weight_lo = static_cast<int16_t>(d->weights[i]);
+        uint16_t weight_hi = static_cast<int16_t>(d->weights[i + 1]);
+        weights[i / 2] = _mm_set1_epi32((static_cast<uint32_t>(weight_hi) << 16) | weight_lo);
     }
 
-    for (size_t h = 0; h < height; ++h) {
-        for (size_t w = 0; w < width; w += 16) {
+    __m128i bias = _mm_setzero_si128();
+    __m128 scale = _mm_set_ps1(1.0f / d->scale);
+
+    if ((plane == 1 || plane == 2) && (d->vi.format->colorFamily == cmYUV || d->vi.format->colorFamily == cmYCoCg))
+        bias = _mm_set1_epi8(128);
+
+    for (int h = 0; h < height; ++h) {
+        for (int w = 0; w < width; w += 16) {
             __m128i accum_lolo = _mm_setzero_si128();
             __m128i accum_lohi = _mm_setzero_si128();
             __m128i accum_hilo = _mm_setzero_si128();
             __m128i accum_hihi = _mm_setzero_si128();
 
             for (size_t i = 0; i < numSrcs; i += 2) {
-                __m128i coeffs = weights_epi16[i / 2];
-                __m128i v1 = _mm_load_si128((const __m128i *)(srcpv[i + 0] + w));
-                __m128i v2 = _mm_load_si128((const __m128i *)(srcpv[i + 1] + w));
-                __m128i v1_lo = _mm_unpacklo_epi8(v1, _mm_setzero_si128());
-                __m128i v1_hi = _mm_unpackhi_epi8(v1, _mm_setzero_si128());
-                __m128i v2_lo = _mm_unpacklo_epi8(v2, _mm_setzero_si128());
-                __m128i v2_hi = _mm_unpackhi_epi8(v2, _mm_setzero_si128());
+                __m128i coeffs = weights[i / 2];
+                __m128i v1 = _mm_sub_epi8(_mm_load_si128((const __m128i *)(srcpp[i + 0] + w)), bias);
+                __m128i v2 = _mm_sub_epi8(_mm_load_si128((const __m128i *)(srcpp[i + 1] + w)), bias);
+                __m128i v1_sign = _mm_cmplt_epi8(v1, _mm_setzero_si128());
+                __m128i v2_sign = _mm_cmplt_epi8(v2, _mm_setzero_si128());
+
+                __m128i v1_lo = _mm_unpacklo_epi8(v1, v1_sign);
+                __m128i v1_hi = _mm_unpackhi_epi8(v1, v1_sign);
+                __m128i v2_lo = _mm_unpacklo_epi8(v2, v2_sign);
+                __m128i v2_hi = _mm_unpackhi_epi8(v2, v2_sign);
 
                 accum_lolo = _mm_add_epi32(accum_lolo, _mm_madd_epi16(coeffs, _mm_unpacklo_epi16(v1_lo, v2_lo)));
                 accum_lohi = _mm_add_epi32(accum_lohi, _mm_madd_epi16(coeffs, _mm_unpackhi_epi16(v1_lo, v2_lo)));
@@ -244,10 +272,10 @@ static void averageFramesByteSSE2(const std::vector<const VSFrameRef *> &srcs, V
             __m128 accumf_lohi = _mm_cvtepi32_ps(accum_lohi);
             __m128 accumf_hilo = _mm_cvtepi32_ps(accum_hilo);
             __m128 accumf_hihi = _mm_cvtepi32_ps(accum_hihi);
-            accumf_lolo = _mm_mul_ps(accumf_lolo, _mm_set_ps1(1.0f / scale));
-            accumf_lohi = _mm_mul_ps(accumf_lohi, _mm_set_ps1(1.0f / scale));
-            accumf_hilo = _mm_mul_ps(accumf_hilo, _mm_set_ps1(1.0f / scale));
-            accumf_hihi = _mm_mul_ps(accumf_hihi, _mm_set_ps1(1.0f / scale));
+            accumf_lolo = _mm_mul_ps(accumf_lolo, scale);
+            accumf_lohi = _mm_mul_ps(accumf_lohi, scale);
+            accumf_hilo = _mm_mul_ps(accumf_hilo, scale);
+            accumf_hihi = _mm_mul_ps(accumf_hihi, scale);
 
             accum_lolo = _mm_cvtps_epi32(accumf_lolo);
             accum_lohi = _mm_cvtps_epi32(accumf_lohi);
@@ -256,106 +284,160 @@ static void averageFramesByteSSE2(const std::vector<const VSFrameRef *> &srcs, V
 
             accum_lolo = _mm_packs_epi32(accum_lolo, accum_lohi);
             accum_hilo = _mm_packs_epi32(accum_hilo, accum_hihi);
-            accum_lolo = _mm_packus_epi16(accum_lolo, accum_hilo);
+            accum_lolo = _mm_packs_epi16(accum_lolo, accum_hilo);
+
+            accum_lolo = _mm_add_epi8(accum_lolo, bias);
             _mm_store_si128((__m128i *)(dstp + w), accum_lolo);
         }
-        for (size_t i = 0; i < numSrcs; ++i) {
-            srcpv[i] += stride;
-        }
+
+        std::transform(srcpp, srcpp + numSrcs, srcpp, [=](const uint8_t *ptr) { return ptr + stride; });
         dstp += stride;
     }
 }
 
-static void averageFramesWordSSE2(const std::vector<const VSFrameRef *> &srcs, VSFrameRef *dst, const int * const VS_RESTRICT weights, unsigned scale, unsigned bits, int plane, const VSAPI *vsapi) {
-    ptrdiff_t stride = vsapi->getStride(dst, plane);
-    unsigned width = vsapi->getFrameWidth(dst, plane);
-    unsigned height = vsapi->getFrameHeight(dst, plane);
+static void averageFramesWordSSE2(const AverageFrameData *d, const VSFrameRef * const *srcs, VSFrameRef *dst, int plane, const VSAPI *vsapi) {
+    int stride = vsapi->getStride(dst, plane) / sizeof(uint16_t);
+    int width = vsapi->getFrameWidth(dst, plane);
+    int height = vsapi->getFrameHeight(dst, plane);
+
+    const uint16_t *srcpp[32];
+    const size_t numSrcs = d->weights.size();
+
+    std::transform(srcs, srcs + numSrcs, srcpp, [=](const VSFrameRef *f) {
+        return reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(f, plane));
+    });
+
     uint16_t * VS_RESTRICT dstp = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(dst, plane));
-    const uint16_t *srcpv[32];
-    size_t numSrcs = std::min(srcs.size(), static_cast<size_t>(31));
-    unsigned maxval = (1U << bits) - 1;
-    __m128i weights_epi16[16];
-    __m128i bias = _mm_setzero_si128();
+
+    __m128i weights[16];
+    __m128 scale = _mm_set_ps1(1.0f / d->scale);
 
     for (size_t i = 0; i < numSrcs; i += 2) {
-        srcpv[i + 0] = reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(srcs[i], plane));
-        srcpv[i + 1] = reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(srcs[std::min(i + 1, numSrcs - 1)], plane));
-
-        uint16_t weights_lo = static_cast<int16_t>(weights[i]);
-        uint16_t weights_hi = i + 1 < numSrcs ? static_cast<int16_t>(weights[i + 1]) : static_cast<int16_t>(0);
-        weights_epi16[i / 2] = _mm_set1_epi32((static_cast<uint32_t>(weights_hi) << 16) | weights_lo);
-
-        bias = _mm_add_epi32(bias, _mm_madd_epi16(weights_epi16[i / 2], _mm_set1_epi16(INT16_MIN)));
+        uint16_t weight_lo = static_cast<int16_t>(d->weights[i]);
+        uint16_t weight_hi = static_cast<int16_t>(d->weights[i + 1]);
+        weights[i / 2] = _mm_set1_epi32((static_cast<uint32_t>(weight_hi) << 16) | weight_lo);
     }
 
-    for (size_t h = 0; h < height; ++h) {
-        for (size_t w = 0; w < width; w += 8) {
-            __m128i accum_lo = _mm_setzero_si128();
-            __m128i accum_hi = _mm_setzero_si128();
+    if ((plane == 1 || plane == 2) && (d->vi.format->colorFamily == cmYUV || d->vi.format->colorFamily == cmYCoCg)) {
+        __m128i bias = _mm_set1_epi16(1U << (d->vi.format->bitsPerSample - 1));
+        __m128i maxVal = _mm_sub_epi16(_mm_set1_epi16((1U << d->vi.format->bitsPerSample) - 1), bias);
+        __m128i minVal = _mm_sub_epi16(_mm_setzero_si128(), bias);
 
-            for (size_t i = 0; i < numSrcs; i += 2) {
-                __m128i coeffs = weights_epi16[i / 2];
-                __m128i v1 = _mm_add_epi16(_mm_load_si128((const __m128i *)(srcpv[i + 0] + w)), _mm_set1_epi16(INT16_MIN));
-                __m128i v2 = _mm_add_epi16(_mm_load_si128((const __m128i *)(srcpv[i + 1] + w)), _mm_set1_epi16(INT16_MIN));
-                __m128i lo = _mm_unpacklo_epi16(v1, v2);
-                __m128i hi = _mm_unpackhi_epi16(v1, v2);
+        for (int h = 0; h < height; ++h) {
+            for (int w = 0; w < width; w += 8) {
+                __m128i accum_lo = _mm_setzero_si128();
+                __m128i accum_hi = _mm_setzero_si128();
 
-                accum_lo = _mm_add_epi32(accum_lo, _mm_madd_epi16(coeffs, lo));
-                accum_hi = _mm_add_epi32(accum_hi, _mm_madd_epi16(coeffs, hi));
+                for (size_t i = 0; i < numSrcs; i += 2) {
+                    __m128i coeffs = weights[i / 2];
+                    __m128i v1 = _mm_sub_epi16(_mm_load_si128((const __m128i *)(srcpp[i + 0] + w)), bias);
+                    __m128i v2 = _mm_sub_epi16(_mm_load_si128((const __m128i *)(srcpp[i + 1] + w)), bias);
+
+                    accum_lo = _mm_add_epi32(accum_lo, _mm_madd_epi16(coeffs, _mm_unpacklo_epi16(v1, v2)));
+                    accum_hi = _mm_add_epi32(accum_hi, _mm_madd_epi16(coeffs, _mm_unpackhi_epi16(v1, v2)));
+                }
+
+                __m128 accumf_lo = _mm_cvtepi32_ps(accum_lo);
+                __m128 accumf_hi = _mm_cvtepi32_ps(accum_hi);
+
+                accumf_lo = _mm_mul_ps(accumf_lo, scale);
+                accumf_hi = _mm_mul_ps(accumf_hi, scale);
+
+                accum_lo = _mm_cvtps_epi32(accumf_lo);
+                accum_hi = _mm_cvtps_epi32(accumf_hi);
+
+                accum_lo = _mm_packs_epi32(accum_lo, accum_hi);
+                accum_lo = _mm_max_epi16(accum_lo, minVal);
+                accum_lo = _mm_min_epi16(accum_lo, maxVal);
+                accum_lo = _mm_add_epi16(accum_lo, bias);
+                _mm_store_si128((__m128i *)(dstp + w), accum_lo);
             }
-            accum_lo = _mm_sub_epi32(accum_lo, bias);
-            accum_hi = _mm_sub_epi32(accum_hi, bias);
 
-            __m128 accumf_lo = _mm_cvtepi32_ps(accum_lo);
-            __m128 accumf_hi = _mm_cvtepi32_ps(accum_hi);
-            accumf_lo = _mm_mul_ps(accumf_lo, _mm_set_ps1(1.0f / scale));
-            accumf_hi = _mm_mul_ps(accumf_hi, _mm_set_ps1(1.0f / scale));
-
-            accum_lo = _mm_cvtps_epi32(accumf_lo);
-            accum_hi = _mm_cvtps_epi32(accumf_hi);
-            accum_lo = _mm_add_epi32(accum_lo, _mm_set1_epi32(INT16_MIN));
-            accum_hi = _mm_add_epi32(accum_hi, _mm_set1_epi32(INT16_MIN));
-
-            __m128i tmp = _mm_packs_epi32(accum_lo, accum_hi);
-            tmp = _mm_min_epi16(tmp, _mm_set1_epi16(static_cast<int16_t>(static_cast<int32_t>(maxval) + INT16_MIN)));
-            tmp = _mm_sub_epi16(tmp, _mm_set1_epi16(INT16_MIN));
-            _mm_store_si128((__m128i *)(dstp + w), tmp);
+            std::transform(srcpp, srcpp + numSrcs, srcpp, [=](const uint16_t *ptr) { return ptr + stride; });
+            dstp += stride;
         }
-        for (size_t i = 0; i < numSrcs; ++i) {
-            srcpv[i] = reinterpret_cast<const uint16_t *>(reinterpret_cast<const uint8_t *>(srcpv[i]) + stride);
+    } else {
+        __m128i accumbias = _mm_setzero_si128();
+        __m128i maxVal = _mm_add_epi16(_mm_set1_epi16((1U << d->vi.format->bitsPerSample) - 1), _mm_set1_epi16(INT16_MIN));
+
+        for (size_t i = 0; i < numSrcs / 2; ++i) {
+            accumbias = _mm_add_epi32(accumbias, _mm_madd_epi16(_mm_set1_epi16(INT16_MIN), weights[i]));
         }
-        dstp = reinterpret_cast<uint16_t *>(reinterpret_cast<uint8_t *>(dstp) + stride);
+
+        for (int h = 0; h < height; ++h) {
+            for (int w = 0; w < width; w += 8) {
+                __m128i accum_lo = _mm_setzero_si128();
+                __m128i accum_hi = _mm_setzero_si128();
+
+                for (size_t i = 0; i < numSrcs; i += 2) {
+                    __m128i coeffs = weights[i / 2];
+                    __m128i v1 = _mm_add_epi16(_mm_load_si128((const __m128i *)(srcpp[i + 0] + w)), _mm_set1_epi16(INT16_MIN));
+                    __m128i v2 = _mm_add_epi16(_mm_load_si128((const __m128i *)(srcpp[i + 1] + w)), _mm_set1_epi16(INT16_MIN));
+
+                    accum_lo = _mm_add_epi32(accum_lo, _mm_madd_epi16(coeffs, _mm_unpacklo_epi16(v1, v2)));
+                    accum_hi = _mm_add_epi32(accum_hi, _mm_madd_epi16(coeffs, _mm_unpackhi_epi16(v1, v2)));
+                }
+                accum_lo = _mm_sub_epi32(accum_lo, accumbias);
+                accum_hi = _mm_sub_epi32(accum_hi, accumbias);
+
+                __m128 accumf_lo = _mm_cvtepi32_ps(accum_lo);
+                __m128 accumf_hi = _mm_cvtepi32_ps(accum_hi);
+
+                accumf_lo = _mm_mul_ps(accumf_lo, scale);
+                accumf_hi = _mm_mul_ps(accumf_hi, scale);
+
+                accum_lo = _mm_cvtps_epi32(accumf_lo);
+                accum_hi = _mm_cvtps_epi32(accumf_hi);
+
+                accum_lo = _mm_add_epi32(accum_lo, _mm_set1_epi32(INT16_MIN));
+                accum_hi = _mm_add_epi32(accum_hi, _mm_set1_epi32(INT16_MIN));
+                accum_lo = _mm_packs_epi32(accum_lo, accum_hi);
+
+                accum_lo = _mm_min_epi16(accum_lo, maxVal);
+                accum_lo = _mm_sub_epi16(accum_lo, _mm_set1_epi16(INT16_MIN));
+                _mm_store_si128((__m128i *)(dstp + w), accum_lo);
+            }
+
+            std::transform(srcpp, srcpp + numSrcs, srcpp, [=](const uint16_t *ptr) { return ptr + stride; });
+            dstp += stride;
+        }
     }
 }
 
-static void averageFramesFloatSSE2(const std::vector<const VSFrameRef *> &srcs, VSFrameRef *dst, const float * const VS_RESTRICT weights, float scale, int plane, const VSAPI *vsapi) {
-    ptrdiff_t stride = vsapi->getStride(dst, plane);
-    unsigned width = vsapi->getFrameWidth(dst, plane);
-    unsigned height = vsapi->getFrameHeight(dst, plane);
+static void averageFramesFloatSSE2(const AverageFrameData *d, const VSFrameRef * const *srcs, VSFrameRef *dst, int plane, const VSAPI *vsapi) {
+    int stride = vsapi->getStride(dst, plane) / sizeof(float);
+    int width = vsapi->getFrameWidth(dst, plane);
+    int height = vsapi->getFrameHeight(dst, plane);
+
+    const float *srcpp[32];
+    const size_t numSrcs = d->weights.size();
+
+    std::transform(srcs, srcs + numSrcs, srcpp, [=](const VSFrameRef *f) {
+        return reinterpret_cast<const float *>(vsapi->getReadPtr(f, plane));
+    });
+
     float * VS_RESTRICT dstp = reinterpret_cast<float *>(vsapi->getWritePtr(dst, plane));
-    const float *srcpv[31];
-    size_t numSrcs = std::min(srcs.size(), static_cast<size_t>(31));
-    __m128 weights_ps[31];
 
-    for (size_t i = 0; i < numSrcs; ++i) {
-        srcpv[i] = reinterpret_cast<const float *>(vsapi->getReadPtr(srcs[i], plane));
-        weights_ps[i] = _mm_set_ps1(weights[i]);
-    }
+    __m128 weights[32];
+    __m128 scale = _mm_set_ps1(1.0f / d->fscale);
 
-    for (size_t h = 0; h < height; ++h) {
-        for (size_t w = 0; w < width; w += 4) {
-            __m128 accum = _mm_setzero_ps();
+    for (int i = 0; i < numSrcs; ++i)
+        weights[i] = _mm_set_ps1(d->fweights[i]);
 
+    for (int h = 0; h < height; ++h) {
+        for (int w = 0; w < width; w += 4) {
+            __m128 acc = _mm_setzero_ps();
             for (size_t i = 0; i < numSrcs; ++i) {
-                accum = _mm_add_ps(accum, _mm_mul_ps(weights_ps[i], _mm_load_ps(srcpv[i] + w)));
+                __m128 x = _mm_load_ps(srcpp[i] + w);
+                x = _mm_mul_ps(weights[i], x);
+                acc = _mm_add_ps(acc, x);
             }
-            accum = _mm_mul_ps(accum, _mm_set_ps1(scale));
-            _mm_store_ps(dstp + w, accum);
+            acc = _mm_mul_ps(acc, scale);
+            _mm_store_ps(dstp + w, acc);
         }
-        for (size_t i = 0; i < numSrcs; ++i) {
-            srcpv[i] = reinterpret_cast<const float *>(reinterpret_cast<const uint8_t *>(srcpv[i]) + stride);
-        }
-        dstp = reinterpret_cast<float *>(reinterpret_cast<uint8_t *>(dstp) + stride);
+
+        std::transform(srcpp, srcpp + numSrcs, srcpp, [=](const float *ptr) { return ptr + stride; });
+        dstp += stride;
     }
 }
 #endif
@@ -461,18 +543,18 @@ static const VSFrameRef *VS_CC averageFramesGetFrame(int n, int activationReason
             if (d->process[plane]) {
 #ifdef VS_TARGET_CPU_X86
                 if (fi->bytesPerSample == 1)
-                    averageFramesByteSSE2(frames, dst, weights.data(), d->scale, 8, plane, vsapi);
+                    averageFramesByteSSE2(d, frames.data(), dst, plane, vsapi);
                 else if (fi->bytesPerSample == 2)
-                    averageFramesWordSSE2(frames, dst, weights.data(), d->scale, fi->bitsPerSample, plane, vsapi);
+                    averageFramesWordSSE2(d, frames.data(), dst, plane, vsapi);
                 else
-                    averageFramesFloatSSE2(frames, dst, fweights.data(), 1 / d->fscale, plane, vsapi);
+                    averageFramesFloatSSE2(d, frames.data(), dst, plane, vsapi);
 #else
                 if (fi->bytesPerSample == 1)
-                    averageFramesI<uint8_t>(frames, dst, weights.data(), d->scale, 8, plane, vsapi);
+                    averageFramesI<uint8_t>(d, frames.data(), dst, plane, vsapi);
                 else if (fi->bytesPerSample == 2)
-                    averageFramesI<uint16_t>(frames, dst, weights.data(), d->scale, fi->bitsPerSample, plane, vsapi);
+                    averageFramesI<uint16_t>(d, frames.data(), dst, plane, vsapi);
                 else
-                    averageFramesF(frames, dst, fweights.data(), 1 / d->fscale, plane, vsapi);
+                    averageFramesF(d, frames.data(), dst, plane, vsapi);
 #endif
             }
         }
