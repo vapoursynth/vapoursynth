@@ -1,5 +1,6 @@
 r50:
 updated zimg to latest v2.9 so grayscale colorspace are supported
+fixed several minor issues related to path handling in vsrepo
 added __version__ and __api_version__ to python module to make detecting version mismatches easier
 improved rounding in averageframes (sekrit-twc)
 fixed averageframes not properly rejecting more than 31 weights or nodes
