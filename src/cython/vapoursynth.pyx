@@ -868,19 +868,46 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, cons
             else:
                 raise Error('argument ' + key + ' has an unknown type: ' + atypes[key])
 
+
 cdef class Format(object):
-    cdef readonly int id
-    cdef readonly str name
+
+    def __init__(self):
+        raise Error("Class cannot be instantiated directly.")
+
+
+cdef class RegisteredFormat(Format):
     cdef readonly object color_family
     cdef readonly object sample_type
     cdef readonly int bits_per_sample
-    cdef readonly int bytes_per_sample
     cdef readonly int subsampling_w
     cdef readonly int subsampling_h
-    cdef readonly int num_planes
 
     def __init__(self):
-        raise Error('Class cannot be instantiated directly')
+        raise Error("Class cannot be instantiated directly.")
+
+    cdef const VSFormat *_get_format_struct(self):
+        cdef Core core = _get_core()
+
+        cdef const VSFormat *f = core._register_format(self.color_family, self.sample_type, self.bits_per_sample, self.subsampling_w, self.subsampling_h)
+        if f == NULL:
+            raise Error("Invalid format specified")
+        return f
+
+    @property
+    def id(self):
+        return self._get_format_struct().id
+
+    @property
+    def name(self):
+        return (<const char *>self._get_format_struct().name).decode("utf-8")
+
+    @property
+    def bytes_per_sample(self):
+        return self._get_format_struct().bytesPerSample
+
+    @property
+    def num_planes(self):
+        return self._get_format_struct().numPlanes
 
     def _as_dict(self):
         return {
@@ -892,10 +919,9 @@ cdef class Format(object):
         }
 
     def replace(self, **kwargs):
-        core = kwargs.pop("core", None) or _get_core()
         vals = self._as_dict()
         vals.update(**kwargs)
-        return core.register_format(**vals)
+        return _get_core().register_format(**vals)
 
     def __eq__(self, other):
         if not isinstance(other, Format):
@@ -917,18 +943,179 @@ cdef class Format(object):
                f'\tSubsampling W: {self.subsampling_w:d}\n'
                f'\tSubsampling H: {self.subsampling_h:d}\n')
 
+    def __repr__(self):
+        return (
+            f"<Format "
+            f"family={self.color_family.name} "
+            f"sample_type={self.sample_type.name.capitalize()} "
+            f"bits_per_sample={self.bits_per_sample} "
+            f"subsampling_w={self.subsampling_w} "
+            f"subsampling_h={self.subsampling_h}>"
+        )
+
+
 cdef Format createFormat(const VSFormat *f):
-    cdef Format instance = Format.__new__(Format)
-    instance.id = f.id
-    instance.name = (<const char *>f.name).decode('utf-8')
+    cdef RegisteredFormat instance = RegisteredFormat.__new__(RegisteredFormat)
     instance.color_family = ColorFamily(f.colorFamily)
     instance.sample_type = SampleType(f.sampleType)
     instance.bits_per_sample = f.bitsPerSample
-    instance.bytes_per_sample = f.bytesPerSample
     instance.subsampling_w = f.subSamplingW
     instance.subsampling_h = f.subSamplingH
-    instance.num_planes = f.numPlanes
     return instance
+
+
+cdef PresetFormat createPresetFormat(_PresetFormat pfInternal, str name):
+    cdef PresetFormat instance = PresetFormat.__new__(PresetFormat)
+    instance.id = pfInternal
+    instance.name = name
+
+    PresetFormat.__members__[name] = instance
+
+    return instance
+
+
+cdef class PresetFormat(Format):
+    __members__ = {}
+    cdef readonly int id
+    cdef readonly str name
+
+    def __init__(self):
+        raise Error("Class cannot be instantiated directly.")
+
+    def __getattr__(self, attr):
+        val = getattr(self.format, attr, getattr(self.id, attr, _EMPTY))
+        if val is _EMPTY:
+            raise AttributeError(attr)
+        return val
+
+    def __dir__(self):
+        format = self.format
+        if format is None:
+            formatDir = set()
+        else:
+            formatDir = set(self.format.__dir__())
+            
+        return list(set(super().__dir__()) | set(formatDir) | set(self.id.__dir__()))
+
+    @property
+    def value(self):
+        return self.id
+
+    @property
+    def format(self):
+        if self.id == _NONE:
+            return None
+
+        return _get_core().get_format(self.id)
+
+    def __int__(self):
+        return self.id
+
+    def __eq__(self, other):
+        return self.id == int(other)
+
+    def __str__(self):
+        return f"<PresetFormat '{self.name}': {self.id}>"
+    def __repr__(self):
+        return f"<PresetFormat '{self.name}': {self.id}>"
+
+    __members__["NONE"] = NONE = createPresetFormat(_NONE, "NONE")
+
+    __members__["GRAY8"] = GRAY8 = createPresetFormat(_GRAY8, "GRAY8")
+    __members__["GRAY16"] = GRAY16 = createPresetFormat(_GRAY16, "GRAY16")
+
+    __members__["GRAYH"] = GRAYH = createPresetFormat(_GRAYH, "GRAYH")
+    __members__["GRAYS"] = GRAYS = createPresetFormat(_GRAYS, "GRAYS")
+
+    __members__["YUV420P8"] = YUV420P8 = createPresetFormat(_YUV420P8, "YUV420P8")
+    __members__["YUV422P8"] = YUV422P8 = createPresetFormat(_YUV422P8, "YUV422P8")
+    __members__["YUV444P8"] = YUV444P8 = createPresetFormat(_YUV444P8, "YUV444P8")
+    __members__["YUV410P8"] = YUV410P8 = createPresetFormat(_YUV410P8, "YUV410P8")
+    __members__["YUV411P8"] = YUV411P8 = createPresetFormat(_YUV411P8, "YUV411P8")
+    __members__["YUV440P8"] = YUV440P8 = createPresetFormat(_YUV440P8, "YUV440P8")
+
+    __members__["YUV420P9"] = YUV420P9 = createPresetFormat(_YUV420P9, "YUV420P9")
+    __members__["YUV422P9"] = YUV422P9 = createPresetFormat(_YUV422P9, "YUV422P9")
+    __members__["YUV444P9"] = YUV444P9 = createPresetFormat(_YUV444P9, "YUV444P9")
+
+    __members__["YUV420P10"] = YUV420P10 = createPresetFormat(_YUV420P10, "YUV420P10")
+    __members__["YUV422P10"] = YUV422P10 = createPresetFormat(_YUV422P10, "YUV422P10")
+    __members__["YUV444P10"] = YUV444P10 = createPresetFormat(_YUV444P10, "YUV444P10")
+
+    __members__["YUV420P12"] = YUV420P12 = createPresetFormat(_YUV420P12, "YUV420P12")
+    __members__["YUV422P12"] = YUV422P12 = createPresetFormat(_YUV422P12, "YUV422P12")
+    __members__["YUV444P12"] = YUV444P12 = createPresetFormat(_YUV444P12, "YUV444P12")
+
+    __members__["YUV420P14"] = YUV420P14 = createPresetFormat(_YUV420P14, "YUV420P14")
+    __members__["YUV422P14"] = YUV422P14 = createPresetFormat(_YUV422P14, "YUV422P14")
+    __members__["YUV444P14"] = YUV444P14 = createPresetFormat(_YUV444P14, "YUV444P14")
+
+    __members__["YUV420P16"] = YUV420P16 = createPresetFormat(_YUV420P16, "YUV420P16")
+    __members__["YUV422P16"] = YUV422P16 = createPresetFormat(_YUV422P16, "YUV422P16")
+    __members__["YUV444P16"] = YUV444P16 = createPresetFormat(_YUV444P16, "YUV444P16")
+
+    __members__["YUV444PH"] = YUV444PH = createPresetFormat(_YUV444PH, "YUV444PH")
+    __members__["YUV444PS"] = YUV444PS = createPresetFormat(_YUV444PS, "YUV444PS")
+
+    __members__["RGB24"] = RGB24 = createPresetFormat(_RGB24, "RGB24")
+    __members__["RGB27"] = RGB27 = createPresetFormat(_RGB27, "RGB27")
+    __members__["RGB30"] = RGB30 = createPresetFormat(_RGB30, "RGB30")
+    __members__["RGB48"] = RGB48 = createPresetFormat(_RGB48, "RGB48")
+
+    __members__["RGBH"] = RGBH = createPresetFormat(_RGBH, "RGBH")
+    __members__["RGBS"] = RGBS = createPresetFormat(_RGBS, "RGBS")
+
+    __members__["COMPATBGR32"] = COMPATBGR32 = createPresetFormat(_COMPATBGR32, "COMPATBGR32")
+    __members__["COMPATYUY2"] = COMPATYUY2 = createPresetFormat(_COMPATYUY2, "COMPATYUY2")
+
+NONE = PresetFormat.NONE
+
+GRAY8 = PresetFormat.GRAY8
+GRAY16 = PresetFormat.GRAY16
+
+GRAYH = PresetFormat.GRAYH
+GRAYS = PresetFormat.GRAYS
+
+YUV420P8 = PresetFormat.YUV420P8
+YUV422P8 = PresetFormat.YUV422P8
+YUV444P8 = PresetFormat.YUV444P8
+YUV410P8 = PresetFormat.YUV410P8
+YUV411P8 = PresetFormat.YUV411P8
+YUV440P8 = PresetFormat.YUV440P8
+
+YUV420P9 = PresetFormat.YUV420P9
+YUV422P9 = PresetFormat.YUV422P9
+YUV444P9 = PresetFormat.YUV444P9
+
+YUV420P10 = PresetFormat.YUV420P10
+YUV422P10 = PresetFormat.YUV422P10
+YUV444P10 = PresetFormat.YUV444P10
+
+YUV420P12 = PresetFormat.YUV420P12
+YUV422P12 = PresetFormat.YUV422P12
+YUV444P12 = PresetFormat.YUV444P12
+
+YUV420P14 = PresetFormat.YUV420P14
+YUV422P14 = PresetFormat.YUV422P14
+YUV444P14 = PresetFormat.YUV444P14
+
+YUV420P16 = PresetFormat.YUV420P16
+YUV422P16 = PresetFormat.YUV422P16
+YUV444P16 = PresetFormat.YUV444P16
+
+YUV444PH = PresetFormat.YUV444PH
+YUV444PS = PresetFormat.YUV444PS
+
+RGB24 = PresetFormat.RGB24
+RGB27 = PresetFormat.RGB27
+RGB30 = PresetFormat.RGB30
+RGB48 = PresetFormat.RGB48
+
+RGBH = PresetFormat.RGBH
+RGBS = PresetFormat.RGBS
+
+COMPATBGR32 = PresetFormat.COMPATBGR32
+COMPATYUY2 = PresetFormat.COMPATYUY2
 
 cdef class VideoProps(object):
     cdef const VSFrameRef *constf
@@ -1781,11 +1968,14 @@ cdef class Core(object):
                 sout += line.replace('; )', ')')
         return sout
 
-    def register_format(self, int color_family, int sample_type, int bits_per_sample, int subsampling_w, int subsampling_h):
-        cdef const VSFormat *fmt = self.funcs.registerFormat(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h, self.core)
-        if fmt == NULL:
-            raise Error('Invalid format specified')
-        return createFormat(fmt)
+    cdef const VSFormat *_register_format(self, int color_family, int sample_type, int bits_per_sample, int subsampling_w, int subsampling_h):
+        return self.funcs.registerFormat(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h, self.core)
+
+    def register_format(self, int color_family, int sample_type, int bits_per_sample, int subsampling_w=0, int subsampling_h=0):
+        cdef const VSFormat *f = self._register_format(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h)
+        if f == NULL:
+            raise Error("Invalid format specified.")
+        return createFormat(f)
 
     def get_format(self, int id):
         cdef const VSFormat *f = self.funcs.getFormatPreset(id, self.core)
@@ -1825,7 +2015,7 @@ cdef Core createCore():
     instance.add_cache = True
     return instance
 
-def _get_core(threads = None, add_cache = None):
+cdef Core _get_core():
     env = _env_current()
     if env is None:
         raise Error('Internal environment id not set. Was get_core() called from a filter callback?')

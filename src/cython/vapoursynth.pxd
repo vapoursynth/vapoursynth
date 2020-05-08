@@ -54,55 +54,55 @@ cdef extern from "include/VapourSynth.h" nogil:
         INTEGER "stInteger"
         FLOAT "stFloat"
 
-    cpdef enum PresetFormat "VSPresetFormat":
-        NONE "pfNone"
+    cdef enum _PresetFormat "VSPresetFormat":
+        _NONE "pfNone"
 
-        GRAY8 "pfGray8"
-        GRAY16 "pfGray16"
+        _GRAY8 "pfGray8"
+        _GRAY16 "pfGray16"
 
-        GRAYH "pfGrayH"
-        GRAYS "pfGrayS"
+        _GRAYH "pfGrayH"
+        _GRAYS "pfGrayS"
 
-        YUV420P8 "pfYUV420P8"
-        YUV422P8 "pfYUV422P8"
-        YUV444P8 "pfYUV444P8"
-        YUV410P8 "pfYUV410P8"
-        YUV411P8 "pfYUV411P8"
-        YUV440P8 "pfYUV440P8"
+        _YUV420P8 "pfYUV420P8"
+        _YUV422P8 "pfYUV422P8"
+        _YUV444P8 "pfYUV444P8"
+        _YUV410P8 "pfYUV410P8"
+        _YUV411P8 "pfYUV411P8"
+        _YUV440P8 "pfYUV440P8"
 
-        YUV420P9 "pfYUV420P9"
-        YUV422P9 "pfYUV422P9"
-        YUV444P9 "pfYUV444P9"
+        _YUV420P9 "pfYUV420P9"
+        _YUV422P9 "pfYUV422P9"
+        _YUV444P9 "pfYUV444P9"
 
-        YUV420P10 "pfYUV420P10"
-        YUV422P10 "pfYUV422P10"
-        YUV444P10 "pfYUV444P10"
+        _YUV420P10 "pfYUV420P10"
+        _YUV422P10 "pfYUV422P10"
+        _YUV444P10 "pfYUV444P10"
         
-        YUV420P12 "pfYUV420P12"
-        YUV422P12 "pfYUV422P12"
-        YUV444P12 "pfYUV444P12"
+        _YUV420P12 "pfYUV420P12"
+        _YUV422P12 "pfYUV422P12"
+        _YUV444P12 "pfYUV444P12"
         
-        YUV420P14 "pfYUV420P14"
-        YUV422P14 "pfYUV422P14"
-        YUV444P14 "pfYUV444P14"
+        _YUV420P14 "pfYUV420P14"
+        _YUV422P14 "pfYUV422P14"
+        _YUV444P14 "pfYUV444P14"
         
-        YUV420P16 "pfYUV420P16"
-        YUV422P16 "pfYUV422P16"
-        YUV444P16 "pfYUV444P16"
+        _YUV420P16 "pfYUV420P16"
+        _YUV422P16 "pfYUV422P16"
+        _YUV444P16 "pfYUV444P16"
 
-        YUV444PH "pfYUV444PH"
-        YUV444PS "pfYUV444PS"
+        _YUV444PH "pfYUV444PH"
+        _YUV444PS "pfYUV444PS"
 
-        RGB24 "pfRGB24"
-        RGB27 "pfRGB27"
-        RGB30 "pfRGB30"
-        RGB48 "pfRGB48"
+        _RGB24 "pfRGB24"
+        _RGB27 "pfRGB27"
+        _RGB30 "pfRGB30"
+        _RGB48 "pfRGB48"
 
-        RGBH "pfRGBH"
-        RGBS "pfRGBS"
+        _RGBH "pfRGBH"
+        _RGBS "pfRGBS"
 
-        COMPATBGR32 "pfCompatBGR32"
-        COMPATYUY2 "pfCompatYUY2"
+        _COMPATBGR32 "pfCompatBGR32"
+        _COMPATYUY2 "pfCompatYUY2"
 
     enum VSFilterMode:
         fmParallel
