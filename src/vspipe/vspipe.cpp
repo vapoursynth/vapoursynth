@@ -115,6 +115,7 @@ static int completedAlphaFrames = 0;
 static int totalFrames = -1;
 static int startFrame = 0;
 static bool y4m = false;
+static bool w64 = false;
 static int64_t currentTimecodeNum = 0;
 static int64_t currentTimecodeDen = 1;
 static bool outputError = false;
@@ -155,7 +156,7 @@ static inline void addRational(int64_t *num, int64_t *den, int64_t addnum, int64
 static std::string channelMaskToName(uint64_t v) {
     std::string s;
     auto checkConstant = [&s, v](uint64_t c, const char *name) {
-        if ((1 << v) & c) {
+        if ((static_cast<int64_t>(1) << v) & c) {
             if (!s.empty())
                 s += ", ";
             s += name;
@@ -444,22 +445,23 @@ static bool outputNode() {
                 fprintf(stderr, "No y4m identifier exists for current format\n");
                 return true;
             }
-        }
-        if (!y4mFormat.empty())
-            y4mFormat = " C" + y4mFormat;
 
-        std::string header = "YUV4MPEG2" + y4mFormat
-            + " W" + std::to_string(vi->width)
-            + " H" + std::to_string(vi->height)
-            + " F" + std::to_string(vi->fpsNum) + ":" + std::to_string(vi->fpsDen)
-            + " Ip A0:0"
-            + " XLENGTH=" + std::to_string(vi->numFrames) + "\n";
+            if (!y4mFormat.empty())
+                y4mFormat = " C" + y4mFormat;
 
-        if (y4m && outFile) {
-            if (fwrite(header.c_str(), 1, header.size(), outFile) != header.size()) {
-                errorMessage = "Error: fwrite() call failed when writing initial header, errno: " + std::to_string(errno);
-                outputError = true;
-                return outputError;
+            std::string header = "YUV4MPEG2" + y4mFormat
+                + " W" + std::to_string(vi->width)
+                + " H" + std::to_string(vi->height)
+                + " F" + std::to_string(vi->fpsNum) + ":" + std::to_string(vi->fpsDen)
+                + " Ip A0:0"
+                + " XLENGTH=" + std::to_string(vi->numFrames) + "\n";
+
+            if (outFile) {
+                if (fwrite(header.c_str(), 1, header.size(), outFile) != header.size()) {
+                    errorMessage = "Error: fwrite() call failed when writing initial header, errno: " + std::to_string(errno);
+                    outputError = true;
+                    return outputError;
+                }
             }
         }
 
@@ -479,8 +481,8 @@ static bool outputNode() {
         size_t size = ai->format->numChannels * ai->format->samplesPerFrame * ai->format->bytesPerSample;
         buffer.resize(size);
 
-        if (y4m) {        
-            uint64_t dataSize = ai->format->numChannels * static_cast<int64_t>(ai->format->bytesPerSample) * ai->numSamples;
+        if (w64) {        
+            uint64_t dataSize = ai->format->numChannels * static_cast<uint64_t>(ai->format->bytesPerSample) * ai->numSamples;
 
             Wave64Hdr header = {};
             size_t hdrSize = sizeof(header);
@@ -496,9 +498,9 @@ static bool outputNode() {
             header.nAvgBytesPerSec = ai->format->numChannels * ai->format->bytesPerSample * ai->sampleRate;
             header.wBitsPerSample = ai->format->bytesPerSample * 8;
             header.dataUuid = wave64HdrDataUuidVal;
-            header.dataSize = dataSize;
+            header.dataSize = dataSize + sizeof(header.dataUuid) + sizeof(header.dataSize);
 
-            if (y4m && outFile) {
+            if (outFile) {
                 if (fwrite(&header, 1, sizeof(header), outFile) != sizeof(header)) {
                     errorMessage = "Error: fwrite() call failed when writing initial header, errno: " + std::to_string(errno);
                     outputError = true;
@@ -595,7 +597,8 @@ static void printHelp() {
         "  -e, --end N           Set output frame range (last frame)\n"
         "  -o, --outputindex N   Select output index\n"
         "  -r, --requests N      Set number of concurrent frame requests\n"
-        "  -y, --y4m             Add YUV4MPEG headers to output\n"
+        "  -y, --y4m             Add YUV4MPEG headers to video output\n"
+        "  -w, --w64             Add WAVE64 headers to audio output\n"
         "  -t, --timecodes FILE  Write timecodes v2 file\n"
         "  -c  --preserve-cwd    Don't temporarily change the working directory the script path\n"
         "  -p, --progress        Print progress to stderr\n"
@@ -637,6 +640,8 @@ int main(int argc, char **argv) {
             showVersion = true;
         } else if (argString == NSTRING("-y") || argString == NSTRING("--y4m")) {
             y4m = true;
+        } else if (argString == NSTRING("-w") || argString == NSTRING("--w64")) {
+            w64 = true;
         } else if (argString == NSTRING("-p") || argString == NSTRING("--progress")) {
             printFrameNumber = true;
         } else if (argString == NSTRING("-i") || argString == NSTRING("--info")) {
