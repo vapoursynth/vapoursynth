@@ -181,7 +181,7 @@ AvfsWavFile::AvfsWavFile(
     hdr.wave64.nAvgBytesPerSec = bytesPerSec;
     hdr.wave64.wBitsPerSample = sampleBitCount;
     hdr.wave64.dataUuid = wave64HdrDataUuidVal;
-    hdr.wave64.dataSize = dataSize;
+    hdr.wave64.dataSize = dataSize + sizeof(hdr.wave64.dataUuid) + sizeof(hdr.wave64.dataSize);;
   }
   else {
     // Use normal wave header for files less than 2GB.
