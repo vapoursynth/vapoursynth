@@ -1330,7 +1330,8 @@ cdef class RawNode(object):
         raise Error('Class cannot be instantiated directly')
 
     def __dealloc__(self):
-        self.funcs.freeNode(self.node)
+        if self.funcs:
+            self.funcs.freeNode(self.node)
 
 
 cdef class VideoNode(RawNode):
@@ -1346,10 +1347,6 @@ cdef class VideoNode(RawNode):
 
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
-
-    def __dealloc__(self):
-        if self.funcs:
-            self.funcs.freeNode(self.node)
         
     def __getattr__(self, name):
         err = False
