@@ -47,6 +47,29 @@ try:
 except ImportError as e:
     typing = None
 
+__all__ = [
+  'COMPAT',
+    'COMPATBGR32', 'COMPATYUY2',
+  'GRAY',
+    'GRAY16', 'GRAY8', 'GRAYH', 'GRAYS', 
+  'RGB',
+    'RGB24', 'RGB27', 'RGB30', 'RGB48', 'RGBH', 'RGBS',
+  'YCOCG', 'YUV',
+    'YUV410P8', 'YUV411P8', 'YUV420P10', 'YUV420P12',
+    'YUV420P14', 'YUV420P16', 'YUV420P8', 'YUV420P9',
+    'YUV422P10', 'YUV422P12', 'YUV422P14', 'YUV422P16',
+    'YUV422P8', 'YUV422P9', 'YUV440P8', 'YUV444P10',
+    'YUV444P12', 'YUV444P14', 'YUV444P16', 'YUV444P8',
+    'YUV444P9', 'YUV444PH', 'YUV444PS', 
+  'NONE',
+  'FLOAT', 'INTEGER',
+  
+  'get_output', 'get_outputs',
+  'clear_output', 'clear_outputs',
+  
+  'core', 
+]
+    
 __version__ = namedtuple("VapourSynthVersion", "release_major release_minor")(50, 0)
 __api_version__ = namedtuple("VapourSynthAPIVersion", "api_major api_minor")(VAPOURSYNTH_API_MAJOR, VAPOURSYNTH_API_MINOR)
 
