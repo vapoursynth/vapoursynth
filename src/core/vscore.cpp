@@ -1195,6 +1195,7 @@ const VSAudioFormat *VSCore::queryAudioFormat(int sampleType, int bitsPerSample,
 
     std::bitset<sizeof(channelLayout) * 8> bits{ static_cast<uint64_t>(channelLayout) };
     f.numChannels = static_cast<int>(bits.count());
+    f.channelLayout = channelLayout;
 
     const size_t targetSize = 96000;
     f.samplesPerFrame = targetSize;
@@ -1452,6 +1453,7 @@ VSCore::VSCore(int threads) :
     boxBlurInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
     mergeInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
     reorderInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
+    audioInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
     stdlibInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
     p->enableCompat();
     p->lock();
