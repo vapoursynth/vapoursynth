@@ -1,7 +1,7 @@
 ShufflePlanes
 =============
 
-.. function::   ShufflePlanes(clip[] clips, int[] planes, int colorfamily)
+.. function::   ShufflePlanes(vnode[] clips, int[] planes, int colorfamily)
    :module: std
 
    ShufflePlanes can extract and combine planes from different clips in the most

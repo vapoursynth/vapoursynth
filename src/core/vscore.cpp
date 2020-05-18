@@ -1671,7 +1671,7 @@ void VSCore::createFilter(const VSMap *in, VSMap *out, const std::string &name, 
     }
 }
 
-void VSCore::createVideoFilter(const VSMap *in, VSMap *out, const std::string &name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
+void VSCore::createVideoFilter(VSMap *out, const std::string &name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
     try {
         PNode node(std::make_shared<VSNode>(name, vi, numOutputs, getFrame, free, filterMode, flags, instanceData, apiMajor, this));
         for (size_t i = 0; i < node->getNumOutputs(); i++) {
@@ -1685,7 +1685,7 @@ void VSCore::createVideoFilter(const VSMap *in, VSMap *out, const std::string &n
     }
 }
 
-void VSCore::createAudioFilter(const VSMap *in, VSMap *out, const std::string &name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
+void VSCore::createAudioFilter(VSMap *out, const std::string &name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
     try {
         PNode node(std::make_shared<VSNode>(name, ai, numOutputs, getFrame, free, filterMode, flags, instanceData, apiMajor, this));
         for (size_t i = 0; i < node->getNumOutputs(); i++) {

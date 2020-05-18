@@ -240,9 +240,9 @@ static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData,
     c->addCache();
 
     if (userData)
-        vsapi->createAudioFilter(in, out, ("AudioCache" + std::to_string(cacheId++)).c_str(), vsapi->getAudioInfo(node), 1, cacheGetframe, cacheFree, c->makeLinear ? fmUnorderedLinear : fmUnordered, nfNoCache | nfIsCache, c, core);
+        vsapi->createAudioFilter(out, ("AudioCache" + std::to_string(cacheId++)).c_str(), vsapi->getAudioInfo(node), 1, cacheGetframe, cacheFree, c->makeLinear ? fmUnorderedLinear : fmUnordered, nfNoCache | nfIsCache, c, core);
     else
-        vsapi->createVideoFilter(in, out, ("Cache" + std::to_string(cacheId++)).c_str(), vsapi->getVideoInfo(node), 1, cacheGetframe, cacheFree, c->makeLinear ? fmUnorderedLinear : fmUnordered, nfNoCache | nfIsCache, c, core);
+        vsapi->createVideoFilter(out, ("Cache" + std::to_string(cacheId++)).c_str(), vsapi->getVideoInfo(node), 1, cacheGetframe, cacheFree, c->makeLinear ? fmUnorderedLinear : fmUnordered, nfNoCache | nfIsCache, c, core);
 }
 
 void VS_CC cacheInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
