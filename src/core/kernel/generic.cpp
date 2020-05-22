@@ -75,7 +75,7 @@ struct PrewittSobelOp {
             gy = static_cast<Signed>(a02) + a12 + a22 - a00 - a10 - a20;
         }
 
-        float tmp = std::sqrt(static_cast<float>(gx * gx + gy * gy)) * scale;
+        float tmp = std::sqrt(static_cast<float>(gx) * gx + static_cast<float>(gy) * gy) * scale;
         return xrint<T>(tmp);
     }
 };
