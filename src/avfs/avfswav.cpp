@@ -310,13 +310,13 @@ void AvfsWavMediaInit(
 
   switch(avs->GetVideoInfo().SampleType())
   {
-  case SAMPLE_INT8:
-  case SAMPLE_INT16:
-  case SAMPLE_INT24:
-  case SAMPLE_INT32:
+  case avs::SAMPLE_INT8:
+  case avs::SAMPLE_INT16:
+  case avs::SAMPLE_INT24:
+  case avs::SAMPLE_INT32:
     sampleType = WAVE_FORMAT_PCM;
     break;
-  case SAMPLE_FLOAT:
+  case avs::SAMPLE_FLOAT:
     sampleType = WAVE_FORMAT_IEEE_FLOAT;
     break;
   }

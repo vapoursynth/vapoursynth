@@ -14,7 +14,7 @@ Default install paths are assumed in all projects and scripts, be prepared to ad
 * Clone VapourSynth
 * Clone VSRepo into the VapourSynth dir (`git clone https://github.com/vapoursynth/vsrepo`)
 * Clone zimg v2.9 branch into the VapourSynth dir (`git clone https://github.com/sekrit-twc/zimg --branch v2.9`)
-* Clone avs+ pinterf mt branch into the VapourSynth dir (`git clone https://github.com/pinterf/AviSynthPlus --branch MT`)
+* Clone avs+ into the VapourSynth dir (`git clone https://github.com/AviSynth/AviSynthPlus.git`)
 * Compile 32 and 64 bit releases using the VapourSynth solution
 
 ## 3. Preparing the Python Project
