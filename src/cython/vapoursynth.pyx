@@ -2096,6 +2096,8 @@ cdef void __stdcall publicFunction(const VSMap *inm, VSMap *outm, void *userData
                 m = mapToDict(inm, False, False, core, vsapi)
                 ret = d(**m)
                 if not isinstance(ret, dict):
+                    if ret is None:
+                        ret = 0
                     ret = {'val':ret}
                 dictToMap(ret, outm, core, vsapi)
         except BaseException, e:
