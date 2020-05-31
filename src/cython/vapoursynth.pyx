@@ -410,7 +410,7 @@ def _construct_parameter(signature):
 
     # Make the type a sequence.
     if array:
-        type = typing.Sequence[type]
+        type = typing.Union[type, typing.Sequence[type]]
 
     # Mark an optional type
     if opt:
