@@ -406,7 +406,7 @@ def _construct_parameter(signature):
     elif type == "data":
         type = typing.Union[str, bytes, bytearray]
     else:
-        raise ValueError("Couldn't determine type")
+        type = typing.Any
 
     # Make the type a sequence.
     if array:
