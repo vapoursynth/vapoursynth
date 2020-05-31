@@ -18,3 +18,8 @@ Libraries
 * `VapourSynth.nim <https://forum.doom9.org/showthread.php?p=1905351#post1905351>`_ -- Bindings for the Nim programming language 
 * `vsxx <https://github.com/sekrit-twc/vsxx>`_ -- VapourSynth C++ API wrapper
 * `vapoursynth-rs <https://crates.io/crates/vapoursynth>`_ -- VapourSynth Rust wrapper
+
+Tools
+#####
+
+* GitHub Action `install-vapoursynth <https://github.com/marketplace/actions/install-vapoursynth>`_ -- Installs vapoursynth in your GitHub Action.
