@@ -1090,15 +1090,16 @@ cdef class VideoProps(object):
     def keys(self):
         cdef const VSMap *m = self.funcs.getFramePropsRO(self.constf)
         cdef int numkeys = self.funcs.propNumKeys(m)
+        result = set()
         for i in range(numkeys):
-            yield self.funcs.propGetKey(m, i).decode('utf-8')
+            set.add(self.funcs.propGetKey(m, i).decode('utf-8'))
+        return result
 
     def values(self):
-        for key in self.keys():
-            yield self[key]
+        return {self[key] for key in self.keys()}
 
     def items(self):
-        yield from zip(self.keys(), self.values())
+        return {(key, self[key]) for key in self.keys()}
 
     def get(self, key, default=None):
         if key in self:
