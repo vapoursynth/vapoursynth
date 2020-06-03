@@ -34,9 +34,10 @@ jobs:
     - name: configure
       run: |
         ./autogen.sh
-        LIBRARY_PATH=$LIBRARY_PATH:$(command -v python | xargs dirname)/../lib PKG_CONFIG_PATH=$(command -v python | xargs dirname)/../lib/pkgconfig ./configure --prefix=/usr/
+        LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(command -v python | xargs dirname)/../lib LIBRARY_PATH=$LIBRARY_PATH:$(command -v python | xargs dirname)/../lib PKG_CONFIG_PATH=$(command -v python | xargs dirname)/../lib/pkgconfig ./configure --prefix=/usr/
     - name: make
-      run: make
+      run: |
+        LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(command -v python | xargs dirname)/../lib LIBRARY_PATH=$LIBRARY_PATH:$(command -v python | xargs dirname)/../lib make
     - name: make check
       run: make check
     - name: make distcheck
