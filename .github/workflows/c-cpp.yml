@@ -20,7 +20,7 @@ jobs:
         ./autogen.sh
         ./configure --prefix=/usr/
         make
-        sudo ./make install
+        sudo make install
         popd
         rm -rf ./zimg
 
