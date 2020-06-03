@@ -32,7 +32,7 @@ jobs:
       run: pip install cython
     - name: Set neccessary environment variables
       run: |
-        $PYTHON_BASE_DIR=$(command -v python | xargs dirname)/..
+        PYTHON_BASE_DIR=$(command -v python | xargs dirname)/..
         echo "::set-env=\"name=LD_LIBRARY_PATH::$LD_LIBRARY_PATH:$PYTHON_BASE_DIR/lib\""
         echo "::set-env=\"name=LIBRARY_PATH::$LIBRARY_PATH:$PYTHON_BASE_DIR/lib\""
         echo "::set-env=\"name=PKG_CONFIG_PATH::$PYTHON_BASE_DIR/lib/pkgconfig\""
