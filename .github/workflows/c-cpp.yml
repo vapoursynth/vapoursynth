@@ -40,9 +40,6 @@ jobs:
         LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(command -v python | xargs dirname)/../lib LIBRARY_PATH=$LIBRARY_PATH:$(command -v python | xargs dirname)/../lib make
     - name: make check
       run: make check
-    - name: make distcheck
-      run: |
-        LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(command -v python | xargs dirname)/../lib LIBRARY_PATH=$LIBRARY_PATH:$(command -v python | xargs dirname)/../lib PKG_CONFIG_PATH=$(command -v python | xargs dirname)/../lib/pkgconfig make distcheck
     - name: sudo make install
       run: sudo make install
     - run: python -m unittest discover -s ./test/
