@@ -1,4 +1,4 @@
-name: C/C++ CI
+name: Compile and Test on Linux
 
 on:
   push:
@@ -29,15 +29,18 @@ jobs:
       with:
         # Version range or exact version of a Python version to use, using SemVer's version range syntax.
         python-version: 3.8
-    - run: pip install cython
+    - name: Install build dependencies
+      run: pip install cython
     - name: configure
       run: |
         ./autogen.sh
-        ./configure
+        ./configure --prefix=/usr/
     - name: make
       run: make
     - name: make check
       run: make check
     - name: make distcheck
       run: make distcheck
+    - name: sudo make install
+      run: sudo make install
     - run: python -m unittest discover -s ./test/
