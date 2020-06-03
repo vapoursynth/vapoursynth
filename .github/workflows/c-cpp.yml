@@ -34,7 +34,7 @@ jobs:
     - name: configure
       run: |
         ./autogen.sh
-        ./configure --prefix=/usr/
+        PKG_CONFIG_PATH=$(python -c 'import sys, os;print(os.path.dirname(sys.executable) + "/../lib/pkgconfig")') ./configure --prefix=/usr/
     - name: make
       run: make
     - name: make check
