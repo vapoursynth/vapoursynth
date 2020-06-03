@@ -347,6 +347,7 @@ static bool isValidVSMapKey(const std::string &s) {
     if (!isValidVSMapKey(skey)) \
         return 1; \
     if (append != paReplace && map->contains(skey)) { \
+        map->detach(); \
         VSVariant &l = map->at(skey); \
         if (l.getType() != (vv)) \
             return 1; \
@@ -488,8 +489,7 @@ static void VS_CC setMessageHandler(VSMessageHandler handler, void *userData) VS
 
 static int VS_CC setThreadCount(int threads, VSCore *core) VS_NOEXCEPT {
     assert(core);
-    core->threadPool->setThreadCount(threads);
-    return core->threadPool->threadCount();
+    return core->threadPool->setThreadCount(threads);
 }
 
 static const char *VS_CC getPluginPath(const VSPlugin *plugin) VS_NOEXCEPT {
@@ -540,6 +540,21 @@ static int VS_CC propSetFloatArray(VSMap *map, const char *key, const double *d,
 static void VS_CC logMessage(int msgType, const char *msg) VS_NOEXCEPT {
     vsLog(__FILE__, __LINE__, static_cast<VSMessageType>(msgType), "%s", msg);
 }
+
+static int VS_CC addMessageHandler(VSMessageHandler handler, VSMessageHandlerFree free, void *userData) VS_NOEXCEPT {
+    return vsAddMessageHandler(handler, free, userData);
+}
+
+static int VS_CC removeMessageHandler(int id) VS_NOEXCEPT {
+    return vsRemoveMessageHandler(id);
+}
+
+static void VS_CC getCoreInfo2(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT {
+    assert(core && info);
+    core->getCoreInfo2(*info);
+}
+
+
 
 const VSAPI vs_internal_vsapi = {
     &createCore,
@@ -628,7 +643,10 @@ const VSAPI vs_internal_vsapi = {
     &propSetIntArray,
     &propSetFloatArray,
 
-    &logMessage
+    &logMessage,
+    &addMessageHandler,
+    &removeMessageHandler,
+    &getCoreInfo2
 };
 
 ///////////////////////////////
@@ -650,9 +668,7 @@ const VSAPI *VS_CC getVapourSynthAPI(int version) VS_NOEXCEPT {
         apiMajor >>= 16;
     }
 
-    CPUFeatures f;
-    getCPUFeatures(&f);
-    if (!f.can_run_vs) {
+    if (!getCPUFeatures()->can_run_vs) {
         return nullptr;
     } else if (apiMajor == VAPOURSYNTH_API_MAJOR && apiMinor <= VAPOURSYNTH_API_MINOR) {
         return &vs_internal_vsapi;

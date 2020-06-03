@@ -21,8 +21,8 @@
 #include <cstdint>
 #include <cstdlib>
 
-#include <list>
 #include <string>
+#include <vector>
 
 #include <VapourSynth.h>
 #include <VSHelper.h>
@@ -31,9 +31,13 @@
 #include "ter-116n.h"
 #include "internalfilters.h"
 
-typedef std::list<std::string> stringlist;
+namespace {
+std::string operator""_s(const char *str, size_t len) { return{ str, len }; }
 
-void scrawl_character_int(unsigned char c, uint8_t *image, int stride, int dest_x, int dest_y, int bitsPerSample) {
+typedef std::vector<std::string> stringlist;
+} // namespace
+
+static void scrawl_character_int(unsigned char c, uint8_t *image, int stride, int dest_x, int dest_y, int bitsPerSample) {
     int black = 16 << (bitsPerSample - 8);
     int white = 235 << (bitsPerSample - 8);
     int x, y;
@@ -65,7 +69,7 @@ void scrawl_character_int(unsigned char c, uint8_t *image, int stride, int dest_
 }
 
 
-void scrawl_character_float(unsigned char c, uint8_t *image, int stride, int dest_x, int dest_y) {
+static void scrawl_character_float(unsigned char c, uint8_t *image, int stride, int dest_x, int dest_y) {
     float white = 1.0f;
     float black = 0.0f;
     int x, y;
@@ -83,7 +87,7 @@ void scrawl_character_float(unsigned char c, uint8_t *image, int stride, int des
     }
 }
 
-void sanitise_text(std::string& txt) {
+static void sanitise_text(std::string& txt) {
     for (size_t i = 0; i < txt.length(); i++) {
         if (txt[i] == '\r') {
             if (txt[i+1] == '\n') {
@@ -122,7 +126,7 @@ void sanitise_text(std::string& txt) {
 }
 
 
-stringlist split_text(const std::string& txt, int width, int height) {
+static stringlist split_text(const std::string& txt, int width, int height) {
     stringlist lines;
 
     // First split by \n
@@ -141,7 +145,7 @@ stringlist split_text(const std::string& txt, int width, int height) {
     size_t horizontal_capacity = width / character_width;
     for (stringlist::iterator iter = lines.begin(); iter != lines.end(); iter++) {
         if (iter->size() > horizontal_capacity) {
-            lines.insert(std::next(iter), iter->substr(horizontal_capacity));
+            iter = std::prev(lines.insert(std::next(iter), iter->substr(horizontal_capacity)));
             iter->erase(horizontal_capacity);
         }
     }
@@ -156,7 +160,7 @@ stringlist split_text(const std::string& txt, int width, int height) {
 }
 
 
-void scrawl_text(std::string txt, int alignment, VSFrameRef *frame, const VSAPI *vsapi) {
+static void scrawl_text(std::string txt, int alignment, VSFrameRef *frame, const VSAPI *vsapi) {
     const VSFormat *frame_format = vsapi->getFrameFormat(frame);
     int width = vsapi->getFrameWidth(frame, 0);
     int height = vsapi->getFrameHeight(frame, 0);
@@ -272,6 +276,8 @@ enum Filters {
 };
 
 
+namespace {
+
 typedef struct {
     VSNodeRef *node;
     const VSVideoInfo *vi;
@@ -282,6 +288,8 @@ typedef struct {
     stringlist props;
     std::string instanceName;
 } TextData;
+
+} // namespace
 
 
 static void VS_CC textInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -406,6 +414,12 @@ static std::string matrixToString(int matrix) {
         s = "BT.2020 CL";
     else if (matrix == 11)
         s = "SMPTE 2085";
+    else if (matrix == 12)
+        s = "Cromaticity dervived cl";
+    else if (matrix == 13)
+        s = "Cromaticity dervived ncl";
+    else if (matrix == 14)
+        s = "ICtCp";
     return s;
 }
 
@@ -479,7 +493,7 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);       
+        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
 
         const VSFormat *frame_format = vsapi->getFrameFormat(src);
         if ((frame_format->sampleType == stInteger && frame_format->bitsPerSample > 16) ||
@@ -512,13 +526,14 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **
 
             scrawl_text(text, d->alignment, dst, vsapi);
         } else if (d->filter == FILTER_COREINFO) {
-            const VSCoreInfo *ci = vsapi->getCoreInfo(core);
+            VSCoreInfo ci;
+            vsapi->getCoreInfo2(core, &ci);
 
             std::string text;
-            text.append(ci->versionString).append("\n");
-            text.append("Threads: ").append(std::to_string(ci->numThreads)).append("\n");
-            text.append("Maximum framebuffer cache size: ").append(std::to_string(ci->maxFramebufferSize)).append(" bytes\n");
-            text.append("Used framebuffer cache size: ").append(std::to_string(ci->usedFramebufferSize)).append(" bytes");
+            text.append(ci.versionString).append("\n");
+            text.append("Threads: ").append(std::to_string(ci.numThreads)).append("\n");
+            text.append("Maximum framebuffer cache size: ").append(std::to_string(ci.maxFramebufferSize)).append(" bytes\n");
+            text.append("Used framebuffer cache size: ").append(std::to_string(ci.usedFramebufferSize)).append(" bytes");
 
             scrawl_text(text, d->alignment, dst, vsapi);
         } else if (d->filter == FILTER_CLIPINFO) {
@@ -543,10 +558,10 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **
 
             text += "Length: " + std::to_string(d->vi->numFrames) + " frames\n";
 
-            text += "Format name: " + std::string(frame_format->name) + (d->vi->format ? "\n" : " (may vary)\n");
+            text += "Format name: "_s + frame_format->name + (d->vi->format ? "\n" : " (may vary)\n");
 
             text += "Color family: " + colorFamilyToString(frame_format->colorFamily) + "\n";
-            text += "Sample type: " + std::string(frame_format->sampleType == stInteger ? "Integer" : "Float") + "\n";
+            text += "Sample type: "_s + (frame_format->sampleType == stInteger ? "Integer" : "Float") + "\n";
             text += "Bits per sample: " + std::to_string(frame_format->bitsPerSample) + "\n";
             text += "Subsampling Height/Width: " + std::to_string(1 << frame_format->subSamplingH) + "x/" + std::to_string(1 << frame_format->subSamplingW) + "x\n";
 
@@ -578,7 +593,7 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **
             text += "Range: " + rangeToString(range) + "\n";
             text += "Chroma Location: " + chromaLocationToString(location) + "\n";
             text += "Field handling: " + fieldBasedToString(field) + "\n";
-            text += "Picture type: " + std::string(picttype ? picttype : "Unknown") + "\n";
+            text += "Picture type: "_s + (picttype ? picttype : "Unknown") + "\n";
 
             if (d->vi->fpsNum && d->vi->fpsDen) {
                 text += "Fps: " + std::to_string(d->vi->fpsNum) + "/" + std::to_string(d->vi->fpsDen) + " (" + std::to_string(static_cast<double>(d->vi->fpsNum) / d->vi->fpsDen) + ")\n";
@@ -592,7 +607,7 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **
             if (fnerr || fderr) {
                 text += "Frame duration: Unknown\n";
             } else {
-                text += "Frame duration: " + std::to_string(fn) + "/" + std::to_string(fd) + " (" + std::to_string(static_cast<double>(fd) / fn) + ")\n";
+                text += "Frame duration: " + std::to_string(fn) + "/" + std::to_string(fd) + " (" + std::to_string(static_cast<double>(fn) / fd) + ")\n";
             }
 
             scrawl_text(text, d->alignment, dst, vsapi);

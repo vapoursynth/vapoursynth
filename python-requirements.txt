@@ -1,0 +1,5 @@
+setuptools
+wheel
+cython
+sphinx
+sphinx-intl

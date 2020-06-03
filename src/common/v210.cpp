@@ -41,7 +41,7 @@ void unpack_v210(const void *src, void * const dst[4], unsigned left, unsigned r
 	dst_p[C_U] += left / 2;
 	dst_p[C_V] += left / 2;
 
-	for (unsigned i = left; i < right; i += 6) {
+	for (unsigned i = left; i < right - right % 6; i += 6) {
 		uint32_t w0 = detail::endian_swap<Endian>(*src_p++);
 		uint32_t w1 = detail::endian_swap<Endian>(*src_p++);
 		uint32_t w2 = detail::endian_swap<Endian>(*src_p++);
@@ -62,6 +62,34 @@ void unpack_v210(const void *src, void * const dst[4], unsigned left, unsigned r
 		*dst_p[C_V]++ = static_cast<uint16_t>((w3 >> 10) & lsb_10b);
 		*dst_p[C_Y]++ = static_cast<uint16_t>((w3 >> 20) & lsb_10b);
 	}
+	if (right % 6) {
+		// No check needed as v210 is 128-byte aligned.
+		uint32_t w0 = detail::endian_swap<Endian>(*src_p++);
+		uint32_t w1 = detail::endian_swap<Endian>(*src_p++);
+		uint32_t w2 = detail::endian_swap<Endian>(*src_p++);
+		uint32_t w3 = detail::endian_swap<Endian>(*src_p++);
+
+		{
+			*dst_p[C_U]++ = static_cast<uint16_t>((w0 >> 0) & lsb_10b);
+			*dst_p[C_Y]++ = static_cast<uint16_t>((w0 >> 10) & lsb_10b);
+			*dst_p[C_V]++ = static_cast<uint16_t>((w0 >> 20) & lsb_10b);
+			*dst_p[C_Y]++ = static_cast<uint16_t>((w1 >> 0) & lsb_10b);
+		}
+
+		if (right % 6 > 2) {
+			*dst_p[C_U]++ = static_cast<uint16_t>((w1 >> 10) & lsb_10b);
+			*dst_p[C_Y]++ = static_cast<uint16_t>((w1 >> 20) & lsb_10b);
+			*dst_p[C_V]++ = static_cast<uint16_t>((w2 >> 0) & lsb_10b);
+			*dst_p[C_Y]++ = static_cast<uint16_t>((w2 >> 10) & lsb_10b);
+		}
+
+		if (right % 6 > 4) {
+			*dst_p[C_U]++ = static_cast<uint16_t>((w2 >> 20) & lsb_10b);
+			*dst_p[C_Y]++ = static_cast<uint16_t>((w3 >> 0) & lsb_10b);
+			*dst_p[C_V]++ = static_cast<uint16_t>((w3 >> 10) & lsb_10b);
+			*dst_p[C_Y]++ = static_cast<uint16_t>((w3 >> 20) & lsb_10b);
+		}
+	}
 }
 
 template <class Endian>
@@ -81,7 +109,7 @@ void pack_v210(const void * const src[4], void *dst, unsigned left, unsigned rig
 	src_p[C_V] += left / 2;
 	dst_p += left * 4 / 6;
 
-	for (unsigned i = left; i < right; i += 6) {
+	for (unsigned i = left; i < right - right % 6; i += 6) {
 		uint32_t w0 = 0;
 		uint32_t w1 = 0;
 		uint32_t w2 = 0;
@@ -102,6 +130,39 @@ void pack_v210(const void * const src[4], void *dst, unsigned left, unsigned rig
 		w3 |= static_cast<uint32_t>(*src_p[C_V]++ & lsb_10b) << 10;
 		w3 |= static_cast<uint32_t>(*src_p[C_Y]++ & lsb_10b) << 20;
 
+		*dst_p++ = detail::endian_swap<Endian>(w0);
+		*dst_p++ = detail::endian_swap<Endian>(w1);
+		*dst_p++ = detail::endian_swap<Endian>(w2);
+		*dst_p++ = detail::endian_swap<Endian>(w3);
+	}
+	if (right % 6) {
+		uint32_t w0 = 0;
+		uint32_t w1 = 0;
+		uint32_t w2 = 0;
+		uint32_t w3 = 0;
+
+		{
+			w0 |= static_cast<uint32_t>(*src_p[C_U]++ & lsb_10b) << 0;
+			w0 |= static_cast<uint32_t>(*src_p[C_Y]++ & lsb_10b) << 10;
+			w0 |= static_cast<uint32_t>(*src_p[C_V]++ & lsb_10b) << 20;
+			w1 |= static_cast<uint32_t>(*src_p[C_Y]++ & lsb_10b) << 0;
+		}
+
+		if (right % 6 > 2) {
+			w1 |= static_cast<uint32_t>(*src_p[C_U]++ & lsb_10b) << 10;
+			w1 |= static_cast<uint32_t>(*src_p[C_Y]++ & lsb_10b) << 20;
+			w2 |= static_cast<uint32_t>(*src_p[C_V]++ & lsb_10b) << 0;
+			w2 |= static_cast<uint32_t>(*src_p[C_Y]++ & lsb_10b) << 10;
+		}
+
+		if (right % 6 > 4) {
+			w2 |= static_cast<uint32_t>(*src_p[C_U]++ & lsb_10b) << 20;
+			w3 |= static_cast<uint32_t>(*src_p[C_Y]++ & lsb_10b) << 0;
+			w3 |= static_cast<uint32_t>(*src_p[C_V]++ & lsb_10b) << 10;
+			w3 |= static_cast<uint32_t>(*src_p[C_Y]++ & lsb_10b) << 20;
+		}
+
+		// No check needed as v210 is 128-byte aligned.
 		*dst_p++ = detail::endian_swap<Endian>(w0);
 		*dst_p++ = detail::endian_swap<Endian>(w1);
 		*dst_p++ = detail::endian_swap<Endian>(w2);

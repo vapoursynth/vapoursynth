@@ -22,39 +22,37 @@
     <ProjectGuid>{4965ED05-2B79-427D-A8AB-38CD9B23EBF7}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>AvsCompat</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.15063.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
-  <ImportGroup Label="ExtensionSettings">
-    <Import Project="$(VCTargetsPath)\BuildCustomizations\nasm.props" />
-  </ImportGroup>
+  <ImportGroup Label="ExtensionSettings" />
   <ImportGroup Label="Shared">
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -72,19 +70,19 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>../../include;$(IncludePath)</IncludePath>
+    <IncludePath>../../include;../../src/avisynth;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>../../include;$(IncludePath)</IncludePath>
+    <IncludePath>../../include;../../src/avisynth;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>../../include;$(IncludePath)</IncludePath>
+    <IncludePath>../../include;../../src/avisynth;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>../../include;$(IncludePath)</IncludePath>
+    <IncludePath>../../include;../../src/avisynth;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -92,8 +90,9 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>VS_TARGET_CPU_X86;VS_TARGET_OS_WINDOWS;AVISYNTH_CORE;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_WINDOWS;_USRDLL;AVSCOMPAT_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>VS_TARGET_CPU_X86;VS_TARGET_OS_WINDOWS;AVISYNTH_CORE;BUILDING_AVSCORE;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_WINDOWS;_USRDLL;AVSCOMPAT_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -106,8 +105,9 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>VS_TARGET_CPU_X86;VS_TARGET_OS_WINDOWS;AVISYNTH_CORE;_CRT_SECURE_NO_WARNINGS;_DEBUG;_WINDOWS;_USRDLL;AVSCOMPAT_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>VS_TARGET_CPU_X86;VS_TARGET_OS_WINDOWS;AVISYNTH_CORE;BUILDING_AVSCORE;_CRT_SECURE_NO_WARNINGS;_DEBUG;_WINDOWS;_USRDLL;AVSCOMPAT_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -122,10 +122,11 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>VS_TARGET_CPU_X86;VS_TARGET_OS_WINDOWS;AVISYNTH_CORE;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_WINDOWS;_USRDLL;AVSCOMPAT_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>VS_TARGET_CPU_X86;VS_TARGET_OS_WINDOWS;AVISYNTH_CORE;BUILDING_AVSCORE;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_WINDOWS;_USRDLL;AVSCOMPAT_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <SDLCheck>false</SDLCheck>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
       <BufferSecurityCheck>false</BufferSecurityCheck>
+      <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -142,9 +143,10 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>VS_TARGET_CPU_X86;VS_TARGET_OS_WINDOWS;AVISYNTH_CORE;_CRT_SECURE_NO_WARNINGS;NDEBUG;_WINDOWS;_USRDLL;AVSCOMPAT_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>VS_TARGET_CPU_X86;VS_TARGET_OS_WINDOWS;AVISYNTH_CORE;BUILDING_AVSCORE;_CRT_SECURE_NO_WARNINGS;NDEBUG;_WINDOWS;_USRDLL;AVSCOMPAT_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <SDLCheck>false</SDLCheck>
       <BufferSecurityCheck>false</BufferSecurityCheck>
+      <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -158,51 +160,14 @@
     <ClInclude Include="..\..\include\VSHelper.h" />
     <ClInclude Include="..\..\src\avisynth\avisynth.h" />
     <ClInclude Include="..\..\src\avisynth\avisynth_compat.h" />
+    <ClInclude Include="..\..\src\common\vsutf16.h" />
     <ClInclude Include="..\..\src\core\cpufeatures.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\avisynth\avisynth_compat.cpp" />
     <ClCompile Include="..\..\src\avisynth\interface.cpp" />
-    <ClCompile Include="..\..\src\core\cpufeatures.c" />
-  </ItemGroup>
-  <ItemGroup>
-    <NASM Include="..\..\src\core\asm\x86\check.asm">
-      <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">../../include;%(IncludePaths)</IncludePaths>
-      <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../include;%(IncludePaths)</IncludePaths>
-      <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">../../include;%(IncludePaths)</IncludePaths>
-      <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../include;%(IncludePaths)</IncludePaths>
-      <Defines Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</Defines>
-      <Defines Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ARCH_X86_64=1;private_prefix=vs</Defines>
-      <Defines Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</Defines>
-      <Defines Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ARCH_X86_64=1;private_prefix=vs</Defines>
-      <Debug Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</Debug>
-      <Debug Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</Debug>
-      <FileType>Document</FileType>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ARCH_X86_64=1;private_prefix=vs</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ARCH_X86_64=1;private_prefix=vs</PreprocessorDefinitions>
-    </NASM>
-    <NASM Include="..\..\src\core\asm\x86\cpu.asm">
-      <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">../../include;%(IncludePaths)</IncludePaths>
-      <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../include;%(IncludePaths)</IncludePaths>
-      <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">../../include;%(IncludePaths)</IncludePaths>
-      <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../include;%(IncludePaths)</IncludePaths>
-      <Defines Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</Defines>
-      <Defines Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ARCH_X86_64=1;private_prefix=vs</Defines>
-      <Defines Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</Defines>
-      <Defines Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ARCH_X86_64=1;private_prefix=vs</Defines>
-      <Debug Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</Debug>
-      <Debug Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</Debug>
-      <FileType>Document</FileType>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ARCH_X86_64=1;private_prefix=vs</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ARCH_X86_64=1;private_prefix=vs</PreprocessorDefinitions>
-    </NASM>
+    <ClCompile Include="..\..\src\core\cpufeatures.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <ImportGroup Label="ExtensionTargets">
-    <Import Project="$(VCTargetsPath)\BuildCustomizations\nasm.targets" />
-  </ImportGroup>
+  <ImportGroup Label="ExtensionTargets" />
 </Project>

@@ -23,7 +23,7 @@ ModifyFrame
 
       def set_frame_number(n, f):
          fout = f.copy()
-         fout.props.FrameNumber = n
+         fout.props['FrameNumber'] = n
          return fout
       ...
       ModifyFrame(clip=clip, clips=clip, selector=set_frame_number)
@@ -32,7 +32,7 @@ ModifyFrame
 
       def remove_property(n, f):
          fout = f.copy()
-         del fout.props.FrameNumber
+         del fout.props['FrameNumber']
          return fout
       ...
       ModifyFrame(clip=clip, clips=clip, selector=remove_property)
@@ -42,8 +42,8 @@ ModifyFrame
 
       def transfer_property(n, f):
          fout = f[1].copy()
-         fout.props.FrameNumber = f[0].props.FrameNumber
-         fout.props._Combed = f[0].props._Combed
+         fout.props['FrameNumber'] = f[0].props['FrameNumber']
+         fout.props['_Combed'] = f[0].props['_Combed']
          return fout
       ...
       ModifyFrame(clip=clip1, clips=[clip1, clip2], selector=transfer_property)

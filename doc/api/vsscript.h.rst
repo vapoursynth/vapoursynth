@@ -16,6 +16,8 @@ Enums_
 
 
 Functions_
+   vsscript_getApiVersion_
+   
    vsscript_init_
 
    vsscript_finalize_
@@ -37,6 +39,8 @@ Functions_
    vsscript_getCore_
 
    vsscript_getVSApi_
+   
+   vsscript_getVSApi2_
 
    vsscript_getVariable_
 
@@ -91,6 +95,14 @@ VSEvalFlags
 Functions
 #########
 
+vsscript_getApiVersion
+----------------------
+
+.. c:function:: int vsscript_getApiVersion()
+
+    Returns the api version provided by vsscript.
+
+    
 vsscript_init
 -------------
 
@@ -234,9 +246,19 @@ vsscript_getVSApi
 
 .. c:function:: const VSAPI * vsscript_getVSApi()
 
-    Retrieves the VSAPI struct.
+    Deprecated in favor of vsscript_getVSApi2_\ (). Retrieves the VSAPI struct.
 
     This could return NULL if the scripting interface library (the Python module) expects an API version that the core VapourSynth library doesn't provide (for example, if either library was replaced with an older/newer copy).
+
+
+vsscript_getVSApi2
+------------------
+
+.. c:function:: const VSAPI * vsscript_getVSApi2(int version)
+
+    Retrieves the VSAPI struct.
+
+    This could return NULL if the VapourSynth library doesn't provide the requested version.
 
 
 vsscript_getVariable

@@ -20,22 +20,50 @@
 
 #include "vscore.h"
 #include <cassert>
+#include <bitset>
 #ifdef VS_TARGET_CPU_X86
 #include "x86utils.h"
 #endif
+
+#if defined(HAVE_SCHED_GETAFFINITY)
+#include <sched.h>
+#elif defined(HAVE_CPUSET_GETAFFINITY)
+#include <sys/param.h>
+#include <sys/_cpuset.h>
+#include <sys/cpuset.h>
+#endif
+
+int VSThreadPool::getNumAvailableThreads() {
+    int nthreads = std::thread::hardware_concurrency();
+#ifdef _WIN32
+    DWORD_PTR pAff = 0;
+    DWORD_PTR sAff = 0;
+    BOOL res = GetProcessAffinityMask(GetCurrentProcess(), &pAff, &sAff);
+    if (res && pAff != 0) {
+        std::bitset<sizeof(sAff) * 8> b(pAff);
+        nthreads = b.count();
+    }
+#elif defined(HAVE_SCHED_GETAFFINITY)
+    // Linux only.
+    cpu_set_t affinity;
+    if (sched_getaffinity(0, sizeof(cpu_set_t), &affinity) == 0)
+        nthreads = CPU_COUNT(&affinity);
+#elif defined(HAVE_CPUSET_GETAFFINITY)
+    // BSD only (FreeBSD only?)
+    cpuset_t affinity;
+    if (cpuset_getaffinity(CPU_LEVEL_WHICH, CPU_WHICH_PID, -1, sizeof(cpuset_t), &affinity) == 0)
+        nthreads = CPU_COUNT(&affinity);
+#endif
+
+    return nthreads;
+}
 
 bool VSThreadPool::taskCmp(const PFrameContext &a, const PFrameContext &b) {
     return (a->reqOrder < b->reqOrder) || (a->reqOrder == b->reqOrder && a->n < b->n);
 }
 
 void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
-#ifdef VS_TARGET_CPU_X86
-    if (!vs_isMMXStateOk())
-        vsFatal("Bad MMX state detected after creating new thread");
-#endif
 #ifdef VS_TARGET_OS_WINDOWS
-    if (!vs_isFPUStateOk())
-        vsWarning("Bad FPU state detected after creating new thread");
     if (!vs_isSSEStateOk())
         vsFatal("Bad SSE state detected after creating new thread");
 #endif
@@ -191,7 +219,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             bool frameProcessingDone = f || mainContext->hasError();
             if (mainContext->hasError() && f)
                 vsFatal("A frame was returned by %s but an error was also set, this is not allowed", clip->name.c_str());
-                
+
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Unlock so the next job can run on the context
             if (filterMode == fmUnordered || filterMode == fmUnorderedLinear) {
@@ -276,7 +304,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
         }
 
 
-        if (!ranTask || owner->activeThreadCount() > owner->threadCount()) {
+        if (!ranTask || owner->activeThreads > owner->maxThreads) {
             --owner->activeThreads;
             if (stop) {
                 lock.unlock();
@@ -297,11 +325,8 @@ VSThreadPool::VSThreadPool(VSCore *core, int threads) : core(core), activeThread
     setThreadCount(threads);
 }
 
-int VSThreadPool::activeThreadCount() const {
-    return activeThreads;
-}
-
-int VSThreadPool::threadCount() const {
+int VSThreadPool::threadCount() {
+    std::lock_guard<std::mutex> l(lock);
     return maxThreads;
 }
 
@@ -311,12 +336,14 @@ void VSThreadPool::spawnThread() {
     ++activeThreads;
 }
 
-void VSThreadPool::setThreadCount(int threads) {
-    maxThreads = threads > 0 ? threads : std::thread::hardware_concurrency();
+int VSThreadPool::setThreadCount(int threads) {
+    std::lock_guard<std::mutex> l(lock);
+    maxThreads = threads > 0 ? threads : getNumAvailableThreads();
     if (maxThreads == 0) {
         maxThreads = 1;
         vsWarning("Couldn't detect optimal number of threads. Thread count set to 1.");
     }
+    return maxThreads;
 }
 
 void VSThreadPool::wakeThread() {
@@ -383,7 +410,7 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
     //unfortunately this would probably be quite slow for deep scripts so just hope the cache catches it
 
     if (context->n < 0)
-        vsFatal("Negative frame request by: %s", context->clip->getName().c_str());
+        vsFatal("Negative frame request by: %s", context->upstreamContext->clip->getName().c_str());
 
     // check to see if it's time to reevaluate cache sizes
     if (core->memory->isOverLimit()) {

@@ -181,7 +181,7 @@ AvfsWavFile::AvfsWavFile(
     hdr.wave64.nAvgBytesPerSec = bytesPerSec;
     hdr.wave64.wBitsPerSample = sampleBitCount;
     hdr.wave64.dataUuid = wave64HdrDataUuidVal;
-    hdr.wave64.dataSize = dataSize;
+    hdr.wave64.dataSize = dataSize + sizeof(hdr.wave64.dataUuid) + sizeof(hdr.wave64.dataSize);;
   }
   else {
     // Use normal wave header for files less than 2GB.
@@ -304,19 +304,19 @@ void AvfsWavMediaInit(
   uint64_t sampleCount = uint64_t(avs->GetVideoInfo().num_audio_samples);
   uint64_t position = 0;
   uint64_t endPosition;
-  unsigned fileNumber = 0;;
+  unsigned fileNumber = 0;
   static const size_t maxFileNameChars = 300;
   wchar_t fileName[maxFileNameChars];
 
   switch(avs->GetVideoInfo().SampleType())
   {
-  case SAMPLE_INT8:
-  case SAMPLE_INT16:
-  case SAMPLE_INT24:
-  case SAMPLE_INT32:
+  case avs::SAMPLE_INT8:
+  case avs::SAMPLE_INT16:
+  case avs::SAMPLE_INT24:
+  case avs::SAMPLE_INT32:
     sampleType = WAVE_FORMAT_PCM;
     break;
-  case SAMPLE_FLOAT:
+  case avs::SAMPLE_FLOAT:
     sampleType = WAVE_FORMAT_IEEE_FLOAT;
     break;
   }

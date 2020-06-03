@@ -35,22 +35,39 @@ RGVS
       used.
 
    **Mode 5**
-      TODO
+      Line-sensitive clipping giving the minimal change.
+      
+      Specifically, it clips the center pixel with four pairs 
+      of opposing pixels respectively, and the pair that results 
+      in the smallest change to the center pixel is used.
 
    **Mode 6**
-      TODO
+      Line-sensitive clipping, intermediate.
+      
+      It considers the range of the clipping operation
+      (the difference between the two opposing pixels)
+      as well as the change applied to the center pixel.
+      
+      The change applied to the center pixel is prioritized 
+      (ratio 2:1) in this mode.
 
    **Mode 7**
-      TODO
+      Same as mode 6, except the ratio is 1:1 in this mode.
 
    **Mode 8**
-      TODO
-
+      Same as mode 6, except the difference between the two opposing
+      pixels is prioritized in this mode, again with a 2:1 ratio.
+      
    **Mode 9**
-      TODO
+      Line-sensitive clipping on a line where the neighbours pixels are the closest.
+      
+      Only the difference between the two opposing pixels is considered in this mode,
+      and the pair with the smallest difference is used for cliping the center pixel.
+      
+      This can be useful to fix interrupted lines, as long as the length of the gap never exceeds one pixel.
 
    **Mode 10**
-      TODO
+      Replaces the center pixel with the closest neighbour. "Very poor denoise sharpener"
 
    **Mode 11**
       Deprecated. Use Convolution(matrix=[1, 2, 1, 2, 4, 2, 1, 2, 1]) instead.
@@ -68,22 +85,22 @@ RGVS
       In this implementation, mode 12 is identical to mode 11.
 
    **Mode 13**
-      TODO
+      Bob mode, interpolates top field from the line where the neighbours pixels are the closest.
 
    **Mode 14**
-      TODO
+      Bob mode, interpolates bottom field from the line where the neighbours pixels are the closest.
 
    **Mode 15**
-      TODO
+      Bob mode, interpolates top field. Same as mode 13 but with a more complicated interpolation formula.
 
    **Mode 16**
-      TODO
+      Bob mode, interpolates bottom field. Same as mode 14 but with a more complicated interpolation formula.
 
    **Mode 17**
-      TODO
+      Clips the pixel with the minimum and maximum of respectively the maximum and minimum of each pair of opposite neighbour pixels.
 
    **Mode 18**
-      TODO
+      Line-sensitive clipping using opposite neighbours whose greatest distance from the current pixel is minimal.
 
    **Mode 19**
       Deprecated. Use Convolution(matrix=[1, 1, 1, 1, 0, 1, 1, 1, 1]) instead.
@@ -99,16 +116,16 @@ RGVS
       In other words, all 9 pixels are summed up and the sum is divided by 9.
 
    **Mode 21**
-      TODO
+      The center pixel is clipped to the smallest and the biggest average of the four surrounding pairs. 
 
    **Mode 22**
-      TODO
+      Same as mode 21 but simpler and faster. (rounding handled differently)
 
    **Mode 23**
-      TODO
+      Small edge and halo removal, but reputed useless.
 
    **Mode 24**
-      TODO
+      Same as mode 23 but considerably more conservative and slightly slower. Preferred.
 
    The top and bottom rows and the leftmost and rightmost columns are not
    processed. They are simply copied from the source.
@@ -117,25 +134,55 @@ RGVS
 .. function:: Repair(clip clip, clip repairclip, int[] mode)
    :module: rgvs
 
-   TODO
+   Modes 0-24 are implemented. Different modes can be
+   specified for each plane. If there are fewer modes than planes, the last
+   mode specified will be used for the remaining planes.
+
+   **Mode 0**
+      The input plane is simply passed through.
+
+   **Mode 1-4**
+      Clips the source pixel with the Nth minimum and maximum found on the 3×3-pixel square from the reference clip.
+
+   **Mode 5**
+      Line-sensitive clipping giving the minimal change.
+
+   **Mode 6-8**
+      Line-sensitive clipping, intermediate.
+
+   **Mode 9**
+      Line-sensitive clipping on a line where the neighbor pixels are the closest.
+
+   **Mode 10**
+      Replaces the target pixel with the closest pixel from the 3×3-pixel reference square. 
+
+   **Mode 11-14**
+      Same as modes 1–4 but uses min(Nth_min, c) and max(Nth_max, c) for the clipping, 
+      where c is the value of the center pixel of the reference clip.
+
+   **Mode 15-16**
+      Clips the source pixels using a clipping pair from the RemoveGrain modes 5 and 6.
+
+   **Mode 17-18**
+      Clips the source pixels using a clipping pair from the RemoveGrain modes 17 and 18.
 
 
 .. function:: Clense(clip clip, clip previous, clip next, int[] planes)
    :module: rgvs
 
-   TODO
+   Clense is a Temporal median of three frames. (previous, current and next)
 
 
 .. function:: ForwardClense(clip clip, int[] planes)
    :module: rgvs
 
-   TODO
+   Modified version of Clense that works on current and next frames. 
 
 
 .. function:: BackwardClense(clip clip, int[] planes)
    :module: rgvs
 
-   TODO
+   Modified version of Clense that works on current and previous frames.
 
 
 .. function:: VerticalCleaner(clip clip, int[] mode)

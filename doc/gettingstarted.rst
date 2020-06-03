@@ -12,7 +12,7 @@ most video scripts are created.
 Example Script
 ##############
 
-Here's a sample script to be inspired by, it assumes that ffms2 is installed and :doc:`auto-loaded <autoloading>`::
+Here's a sample script to be inspired by, it assumes that ffms2 is installed and :doc:`auto-loaded <plugins>`::
 
    from vapoursynth import core
    video = core.ffms2.Source(source='Rule6.mkv')
@@ -24,6 +24,8 @@ What it does is to get an instance of the core and load a video file using FFMS2
 
 Remember that most VapourSynth objects have a quite nice string representation
 in Python, so if you want to know more about an instance just call print().
+
+It it also possible to directly open the script in VapourSynth Editor or VirtualDub FilterMod for previewing.
 
 Output with VSPipe
 ##################
@@ -38,4 +40,3 @@ For x264::
 For FFmpeg::
 
    vspipe --y4m script.vpy - | ffmpeg -i pipe: encoded.mkv
-

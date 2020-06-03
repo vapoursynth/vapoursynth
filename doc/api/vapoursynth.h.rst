@@ -73,10 +73,16 @@ Structs_
           * freeCore_
 
           * getCoreInfo_
+          
+          * getCoreInfo2_
 
           * setMaxCacheSize_
 
           * setMessageHandler_
+          
+          * addMessageHandler_
+          
+          * removeMessageHandler_
 
           * logMessage_
 
@@ -909,10 +915,22 @@ struct VSAPI
    .. _getCoreInfo:
 
    const VSCoreInfo_ \*getCoreInfo(VSCore_ \*core)
+   
+      Deprecated as of API 3.6 (VapourSynth R47)
 
       Returns information about the VapourSynth core.
       
       VapourSynth retains ownership of the returned pointer.
+      
+----------
+
+   .. _getCoreInfo2:
+
+   void getCoreInfo(VSCore_ \*core, VSCoreInfo_ \*info)
+
+      Returns information about the VapourSynth core.
+      
+      This function is thread-safe.
 
 ----------
 
@@ -928,6 +946,8 @@ struct VSAPI
    .. _setMessageHandler:
 
    void setMessageHandler(VSMessageHandler handler, void \*userData)
+   
+      Deprecated as of API 3.6 (VapourSynth R47)
 
       Installs a custom handler for the various error messages VapourSynth
       emits. The message handler is currently global, i.e. per process, not
@@ -955,6 +975,62 @@ struct VSAPI
 
       *userData*
          Pointer that gets passed to the message handler.
+         
+----------
+
+   .. _addMessageHandler:
+
+   int addMessageHandler(VSMessageHandler handler, VSMessageHandlerFree free, void \*userData)
+
+      Installs a custom handler for the various error messages VapourSynth
+      emits. The message handler is currently global, i.e. per process, not
+      per VSCore_ instance. Returns a unique id for the handler.
+
+      If no error handler is installed the messages are sent to the
+      standard error stream.
+
+      This function is thread-safe.
+
+      *handler*
+         typedef void (VS_CC \*VSMessageHandler)(int msgType, const char \*msg, void \*userdata)
+
+         Custom message handler. If this is NULL, the default message
+         handler will be restored.
+
+         *msgType*
+            The type of message. One of VSMessageType_.
+
+            If *msgType* is mtFatal, VapourSynth will call abort() after the
+            message handler returns.
+
+         *msg*
+            The message.
+            
+      *free*
+         typedef void (VS_CC \*VSMessageHandlerFree)(void \*userData)
+         
+         Called when a handler is removed.
+
+      *userData*
+         Pointer that gets passed to the message handler.
+         
+      This function was introduced in API R3.6 (VapourSynth R47).
+         
+----------
+
+   .. _removeMessageHandler:
+
+   int removeMessageHandler(int id)
+
+      Removes a custom handler. Return non-zero on success and zero if
+      the handler id is invalid.
+
+      This function is thread-safe.
+
+      *id*
+         Message handler id obtained from addMessageHandler_\ ().
+         
+      This function was introduced in API R3.6 (VapourSynth R47).
 
 ----------
 
@@ -2089,7 +2165,7 @@ struct VSAPI
 
    .. _createFunc:
 
-   VSFuncRef_ \*createFunc(VSPublicFunction func, void \*userData, VSFreeFuncData free)
+   VSFuncRef_ \*createFunc(VSPublicFunction func, void \*userData, VSFreeFuncData free, VSCore \*core, const VSAPI \*vsapi)
 
       *func*
          typedef void (VS_CC \*VSPublicFunction)(const VSMap_ \*in, VSMap_ \*out, void \*userData, VSCore_ \*core, const VSAPI_ \*vsapi)

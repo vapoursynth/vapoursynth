@@ -8,10 +8,10 @@ Contents:
 
    installation
    gettingstarted
-   pythonreference
-   autoloading
+   plugins
+   pythonreference  
    avfs
-   pluginlist
+   applications
    avisynthcomp
    includedplugins
    functions

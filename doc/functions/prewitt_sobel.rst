@@ -1,12 +1,12 @@
 Prewitt/Sobel
 ===================
 
-.. function:: Prewitt(clip clip[, float min=0.0, float max, int[] planes=[0, 1, 2], float scale=1])
+.. function:: Prewitt(clip clip[, int[] planes=[0, 1, 2], float scale=1])
    :module: std
 
    Creates an edge mask using the Prewitt operator.
 
-.. function:: Sobel(clip clip[, float min=0.0, float max, int[] planes=[0, 1, 2], float scale=1])
+.. function:: Sobel(clip clip[, int[] planes=[0, 1, 2], float scale=1])
    :module: std
 
    Creates an edge mask using the Sobel operator.
@@ -17,24 +17,10 @@ Prewitt/Sobel
       there are any frames with other formats, an error will be
       returned.
 
-   *min*
-      If an output pixel has a value less than or equal to this, it will
-      be set to 0.
-
-   *max*
-      If an output pixel has a value greater than or equal to this, it
-      will be set to the maximum value allowed by the frame's bit depth
-      or 1 if it's float.
-      
-      By default max will be 1 for float and the maximum value for integer.
-      
-      Output pixels are compared with *max* first, then with *min*.
-
    *planes*
       Specifies which planes will be processed. Any unprocessed planes
       will be simply copied.
 
    *scale*
       Multiply all pixels by scale before outputting. This can be used to
-      increase or decrease the intensity of edges in the output. The test
-      against *min* and *max* is applied after this operation.
+      increase or decrease the intensity of edges in the output.

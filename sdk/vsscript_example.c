@@ -4,6 +4,8 @@
 * This file may be freely modified/copied/distributed.
 *
 * For an example of how to use getFrameAsync() see src/vspipe/vspipe.cpp
+* It's basically the same as this example but with a callback when the
+* processing is done.
 */
 
 #include "VSScript.h"

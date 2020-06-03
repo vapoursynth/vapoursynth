@@ -13,9 +13,6 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="asm">
-      <UniqueIdentifier>{f2941021-a025-4ffd-bba3-4c383bd62156}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\VapourSynth.h">
@@ -33,6 +30,9 @@
     <ClInclude Include="..\..\src\core\cpufeatures.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\common\vsutf16.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\avisynth\avisynth_compat.cpp">
@@ -41,16 +41,8 @@
     <ClCompile Include="..\..\src\avisynth\interface.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\core\cpufeatures.c">
+    <ClCompile Include="..\..\src\core\cpufeatures.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <YASM Include="..\..\src\core\asm\x86\check.asm">
-      <Filter>asm</Filter>
-    </YASM>
-    <YASM Include="..\..\src\core\asm\x86\cpu.asm">
-      <Filter>asm</Filter>
-    </YASM>
   </ItemGroup>
 </Project>

@@ -1,14 +1,23 @@
+Installation Instructions
+=========================
+
 Windows Installation Instructions
-=================================
+#################################
 
 Prerequisites
-#############
+*************
 
 First download and install the prerequisites:
-   * `Python 3.6 <http://www.python.org/>`_  -- 32 and/or 64 bit version
+   * `Python 3.8.x <http://www.python.org/>`_  -- 32 or 64 bit version depending on which version of VapourSynth you want to install
+   
+Note that VapourSynth and Python have to be matched so both are either installed
+for all users or for only for the current user.
+
+Also note that per user installs will not install the required visual studio
+2019 runtimes.
 
 Installation
-############
+************
 
 Simply run the `VapourSynth installer <https://github.com/vapoursynth/vapoursynth/releases>`_.
 It should automatically detect everything.
@@ -25,10 +34,10 @@ If this for some reason fails, there may be a bug in the installer or there are
 old copies of vapoursynth.pyd and vapoursynth.dll lying around.
 
 Windows Portable Instructions
-=============================
+#############################
 
 First download and decompress the prerequisites:
-   * `Python 3.6 <http://www.python.org/>`_  -- 32 or 64 bit embeddable version
+   * `Python 3.8.x <http://www.python.org/>`_  -- 32 or 64 bit embeddable version
    
 Simply decompress the `portable VapourSynth archive <https://github.com/vapoursynth/vapoursynth/releases>`_
 into the Python dir and overwrite all existing files. Done.
@@ -36,7 +45,7 @@ into the Python dir and overwrite all existing files. Done.
 You can also use the VapourSynth Editor by decompressing it into the same directory.
 
 OS X Installation from Packages 
-===============================
+###############################
 
 First download and install the prerequisites:
    * Xcode -- Available from the AppStore
@@ -47,16 +56,27 @@ Simply run these commands in a terminal and wait for them to complete::
    brew install vapoursynth
 
 Linux Installation from Packages 
-================================
+################################
 
 Several distributions have packages:
 
-   * `Ubuntu <https://launchpad.net/~djcj/+archive/ubuntu/vapoursynth>`_  -- PPA
+   * `Debian <https://www.deb-multimedia.org/>`_  -- deb-multimedia
    * `Gentoo <https://github.com/4re/vapoursynth-portage>`_  -- Portage overlay and instructions
-   * `Arch Linux <https://www.archlinux.org/packages/?q=vapoursynth>`_  -- Packages
+   * `Arch Linux <https://www.archlinux.org/packages/?q=vapoursynth>`_  -- Official packages
+
+Installation via PIP (PyPI)
+###########################
+
+You can install the Python wrapper using pip.
+
+Install `vapoursynth <https://pypi.org/project/VapourSynth/>`_ using Pip by using this command::
+
+    pip install VapourSynth
+
+Please note that you always need to have a working installation of VapourSynth beforehand. Note that on non-Windows systems, the installer will compile the module before installing.
 
 Linux and OS X Compilation Instructions
-=======================================
+#######################################
 
 These are the requirements:
    * Autoconf, Automake, and Libtool, probably recent versions
@@ -65,13 +85,11 @@ These are the requirements:
 
    * GCC 4.8 or newer, or Clang
 
-   * Nasm
-
-   * `zimg v2.6 branch <https://github.com/sekrit-twc/zimg/releases>`_
+   * `zimg v2.9 branch <https://github.com/sekrit-twc/zimg/releases>`_
 
    * Python 3
 
-   * Cython installed in your Python 3 environment
+   * Cython 0.28 or later installed in your Python 3 environment
 
    * Sphinx for the documentation (optional)
 
@@ -85,7 +103,7 @@ Note: **any version of Python 3 will do.** A specific version is only
 required when using the official Windows binaries.
 
 Required packages (OS X)
-########################
+************************
 
 First download and install the prerequisites:
    * Xcode -- Available from the AppStore
@@ -94,7 +112,7 @@ First download and install the prerequisites:
 Installation of the required packages is very easy. Simply run these
 commands in a terminal and wait for them to complete::
 
-   brew install python3 nasm ffmpeg libass zimg imagemagick
+   brew install python3 ffmpeg libass zimg imagemagick
    pip3 install cython
    
 If you've already installed all the required packages and instead want
@@ -102,19 +120,9 @@ to update them, simply run::
 
    brew update && brew upgrade
    pip3 install --upgrade cython
-   
-Required packages (Ubuntu)
-##########################
-
-In Ubuntu 16.10 the following command will install them, minus zimg,
-which needs to be compiled from source::
-
-   apt-get install build-essential nasm git libavcodec-dev libavformat-dev libavutil-dev libass-dev python3-pip python3-dev cython3 autoconf libtool libtesseract-dev
-   
-The packages may have different names in other distributions.
 
 Compilation
-###########
+***********
 
 If you haven't checked out the source code before, use git to do so::
 

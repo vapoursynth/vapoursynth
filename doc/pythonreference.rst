@@ -97,6 +97,9 @@ Another way to deal with such arguments is to place them in a dictionary::
 
    args = { "lambda": 1 }
    clip = core.plugin.Filter(clip, **args)
+   
+VapourSynth will also support the PEP8 convention of using a single trailing
+underscore to prevent collisions with python keywords.
 
 Windows File Paths (Strings With Backslashes)
 #############################################
@@ -129,7 +132,7 @@ Output
 
 The normal way of specifying the clip(s) to output is to call
 *clip.set_output()*. All standard VapourSynth components only use output
-index 0, but other tools may use something different.
+index 0, except for vspipe where it's configurable but defaults to 0.
 There are also other variables that can be set to control how a format is
 output. For example, setting *enable_v210=True* changes the packing of the
 YUV422P10 format to one that is common in professional software (like Adobe
@@ -160,13 +163,14 @@ all frames in a clip, use this code::
 Classes and Functions
 #####################
 .. py:attribute:: core
+
    Gets the singleton Core object. If it is the first time the function is called,
    the Core will be instantiated with the default options. This is the preferred
    way to reference the core.
 
-.. py:function:: get_core([threads = 0, add_cache = True, accept_lowercase = False])
+.. py:function:: get_core([threads = 0, add_cache = True])
 
-   Deprecated, use the core attribute instead.
+   Deprecated, use the *core* attribute instead.
 
    Get the singleton Core object. If it is the first time the function is called,
    the Core will be instantiated with the given options. If the Core has already
@@ -187,7 +191,7 @@ Classes and Functions
 .. py:function:: get_output([index = 0])
 
    Get a previously set output node. Throws an error if the index hasn't been
-   set.
+   set. Will return an AlphaOutputTuple when *alpha* was passed to *VideoNode.set_output*.
 
 .. py:function:: clear_output([index = 0])
 
@@ -220,18 +224,14 @@ Classes and Functions
    
       For debugging purposes only. When set to *False* no caches will be automatically inserted between filters.
       
-   .. py:attribute:: accept_lowercase
-   
-      When set to *True* function name lookups in the core are case insensitive. Don't distribute scripts that need it to be set.
-      
    .. py:attribute:: max_cache_size
    
       Set the upper framebuffer cache size after which memory is aggressively
       freed. The value is in megabytes.
 
    .. py:method:: set_max_cache_size(mb)
-
-      An alias for setting *max_cache_size*. Kept for compatibility with older scripts.
+   
+      Deprecated, use *max_cache_size* instead.
 
    .. py:method:: get_plugins()
 
@@ -333,6 +333,7 @@ Classes and Functions
       :param cb: A callback in the form `cb(node, n, result)`
 
    .. py:method:: get_frame_async_raw(n, cb: Future[, wrapper: callable = None])
+      :noindex:
 
       Second form of this method. It will take a Future-like object (including asyncio.Future or similar)
       and set its result or exception according to the result of the function.
@@ -347,11 +348,13 @@ Classes and Functions
       :param wrapper: A wrapper-callback which is responsible for moving the result across thread boundaries. If not
                       given, the result of the future will be set in a random thread.
 
-   .. py:method:: set_output(index = 0)
+   .. py:method:: set_output(index = 0, alpha = None)
 
       Set the clip to be accessible for output. This is the standard way to
       specify which clip(s) to output. All VapourSynth tools (vsvfw, vsfs,
-      vspipe) use the clip in *index* 0.
+      vspipe) use the clip in *index* 0. It's possible to specify an additional
+      containing the *alpha* to output at the same time. Currently only vspipe
+      takes *alpha* into consideration when outputting.
 
    .. py:method:: output(fileobj[, y4m = False, prefetch = 0, progress_update = None])
  
@@ -359,6 +362,19 @@ Classes and Functions
       YUV4MPEG2 headers will be added when *y4m* is true.
       The current progress can be reported by passing a callback function of the form *func(current_frame, total_frames)* to *progress_update*.
       The *prefetch* argument is only for debugging purposes and should never need to be changed.
+      
+      
+.. py:class:: AlphaOutputTuple
+
+      This class is returned by get_output. If a *alpha* was passed to set_output, *get_output* will return an object of this type.
+      
+      .. py:attribute:: clip
+      
+         A VideoNode-instance containing the color planes.
+         
+      .. py:attribute:: alpha
+      
+         A VideoNode-instance containing the alpha planes.
       
 .. py:class:: VideoFrame
 
@@ -498,11 +514,216 @@ Classes and Functions
    .. py:attribute:: signature
 
       Raw function signature string. Identical to the string used to register the function.
+   
+.. py:class:: Environment
+
+   This class represents an environment.
+
+   Some editors allow multiple vapoursynth-scripts to run in the same process, each of them comes with a different Core-instance and
+   their own set of outputs. Each core-instance with their associated outputs represent their own environment.
+
+   At any given time, only one environment can be active (in the same context). This class allows introspection about
+   environments and allows to switch to them at will.
+
+   .. code::
+
+        env = get_current_environment()
+        # sometime later
+        with env.use():
+          # Do stuff inside this env.
+
+   .. warning::
+
+      Environment-objects obtained using the :func:`vpy_current_environment` can directly be used as
+      as a context manager. This can cuase undefined behaviour when used in combination with generators and/or
+      coroutines.
+
+      This context-manager maintains a thread-local environment-stack that is used to restore the previous environment.
+      This can cause issues if the frame is suspended inside the block.
+
+      A similar problem also existed in previous VapourSynth versions!
       
-   .. py:attribute:: plugin
+      .. code::
+
+         env = vpy_current_environment()
+         with env:
+              yield
+
+   .. py:function:: is_single()
+
+      Returns True if the script is _not_ running inside a vsscript-Environment.
+      If it is running inside a vsscript-Environment, it returns False.
+
+   .. py:attribute:: env_id
+
+      Return -1 if the script is not running inside a vsscript-Environment.
+      Otherwise, it will return the current environment-id.
+
+   .. py:attribute:: single
+
+      See is_single()
+
+   .. py:attribute:: alive
+
+      Has the environment been destroyed by the underlying application?
+
+   .. py:method:: copy
+
+      Creates a copy of the environment-object.
+
+      Added: R50
+
+   .. py:method:: use
+
+      Returns a context-manager that enables the given environment in the block enclosed in the with-statement and restores the environment to the one
+      defined before the with-block has been encountered.
+
+      .. code::
+      
+         env = vpy_current_environment()
+         with env.use():
+             with env.use():
+                 pass
+
+      Added: R50
+
+.. py:function:: vpy_current_environment()
+
+   Deprecated. Use :func:`get_current_environment` instead.
+
+   Returns an Environment-object representing the environment the script is currently running in. It will raise an error if we are currently not inside any
+   script-environment while vsscript is being used.
+
+   This function is intended for Python-based editors using vsscript.
+   This function has been deprecated as this function has undefined behaviour when used together with generators or coroutines.
+
+.. py:function:: get_current_environment()
+
+   Returns an Environment-object representing the environment the script is currently running in. It will raise an error if we are currently not inside any
+   script-environment while vsscript is being used.
+
+   This function is intended for Python-based editors using vsscript.
+
+   Added: R50
+
+.. py:class:: EnvironmentPolicy
+
+   This class is intended for subclassing by custom Script-Runners and Editors.
+   Normal users don't need this class. Most methods implemented here have corresponding APIs in other parts of this module.
    
-      Refers to the *Plugin*-instance which registered this function.
+   An instance of this class controls which environment is activated in the current context.
+   The exact meaning of "context" is defined by the concrete EnvironmentPolicy. A environment is represented by a :class:`EnvironmentData`-object.
+
+   To use this class, first create a subclass and then use :func:`register_policy` to get VapourSynth to use your policy. This must happen before vapoursynth is first
+   used. VapourSynth will automatically register an internal policy if it needs one. The subclass must be weak-referenciable!
    
+   Once the method :meth:`on_policy_registered` has been called, the policy is responsible for creating and managing environments.
+
+   Special considerations have been made to ensure the functions of class cannot be abused. You cannot retrieve the current running policy youself.
+   The additional API exposed by "on_policy_registered" is only valid if the policy has been registered.
+   Once the policy is unregistered, all calls to the additional API will fail with a RuntimeError.
+
+   Added: R50
+
+   .. py:method:: on_policy_registered(special_api)
+
+      This method is called when the policy has successfully been registered. It proivdes additional internal methods that are hidden as they are useless and or harmful
+      unless you implement your own policy.
+
+      :param special_api: This is a :class:`EnvironmentPolicyAPI`-object that exposes additional API
+
+   .. py:method:: on_policy_cleared()
+
+      This method is called once the python-process exits or when unregister_policy is called by the environment-policy. This allows the policy to free the resources
+      used by the policy.
+   
+   .. py:method:: get_current_environment()
+
+      This method is called by the module to detect which environment is currently running in the current context.
+
+      :returns: An :class:`EnvironmentData`-object representing the currently active environment in the current context.
+
+   .. py:method:: set_environment(environment)
+
+      This method is called by the module to change the currently active environment.
+
+      :param environment: The :class:`EnvironmentData` to enable in the current context.
+      :returns: The environment that was enabled previously.
+
+   .. py:method:: is_alive(environment)
+
+      Is the current environment still active and managed by the policy.
+
+.. py:class:: EnvironmentPolicyAPI
+
+   This class is intended to be used by custom Script-Runners and Editors. An instance of this class exposes an additional API.
+   The methods are bound to a specific :class:`EnvironmentPolicy`-instance and will only work if the policy is currenty registered.
+
+   Added: R50
+
+   .. py:method:: wrap_environment(environment)
+
+      Creates a new :class:`Environment`-object bound to the passed environment-id.
+
+      .. warning::
+
+         This function does not check if the id corresponds to a live environment as the caller is expected to know which environments are active.
+
+   .. py:method:: create_environment()
+   
+      Returns a :class:`Environment` that is used by the wrapper for context sensitive data used by VapourSynth.
+      For example it holds the currently active core object as well as the currently registered outputs.
+
+   .. py:method:: unregister_policy()
+
+      Unregisters the policy it is bound to and allows another policy to be registered.
+
+.. py:function:: register_policy(policy)
+
+   This function is intended for use by custom Script-Runners and Editors. It installs your custom :class:`EnvironmentPolicy`. This function only works if no other policy has been
+   installed.
+
+   If no policy is installed, the first environment-sensitive call will automatically register an internal policy.
+
+   Added: R50
+   
+   .. note::
+
+      This must be done before VapourSynth is used in any way. Here is a non-exhaustive list that automatically register a policy:
+
+      * Using "vsscript_init" in "VSScript.h"
+      * Using :func:`get_core`
+      * Using :func:`get_outputs`
+      * Using :func:`get_output`
+      * Using :func:`clear_output`
+      * Using :func:`clear_outputs`
+      * Using :func:`vpy_current_environment`
+      * Using :func:`get_current_environment`
+      * Accessing any attribute of :attr:`core`
+
+.. py:function:: has_policy()
+
+   This function is intended for subclassing by custom Script-Runners and Editors. This function checks if a :class:`EnvironmentPolicy` has been installed.
+
+   Added: R50
+
+.. py:attribute:: _using_vsscript
+
+   INTERNAL ATTRIBUTE. Deprecated (will be removed soon). This was the only way to find out if VSScript.h was calling this script.
+   It now stores true if a custom policy is installed or VSScript.h is used. Use :func:`has_policy` instead.
+
+
+.. py:class:: EnvironmentData
+
+   Internal class that stores the context sensitive data that VapourSynth needs. It is an opaque object whose attributes you cannot access directly.
+
+   A normal user has no way of getting an instance of this object. You can only encounter EnvironmentData-objects if you work with EnvironmentPolicies.
+
+   This object is weak-referenciable meaning you can get a callback if the environment-data object is actually being freed (i.e. no other object holds an instance
+   to the environment data.)
+
+   Added: R50
+
 .. py:class:: Func
 
    Func is a simple wrapper class for VapourSynth VSFunc objects.

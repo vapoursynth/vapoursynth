@@ -47,9 +47,9 @@ FrameEval
 
       def GrayWorld1Adjust(n, f, clip, core):
          small_number = 0.000000001
-         red   = f[0].props.PlaneStatsAverage
-         green = f[1].props.PlaneStatsAverage
-         blue  = f[2].props.PlaneStatsAverage
+         red   = f[0].props['PlaneStatsAverage']
+         green = f[1].props['PlaneStatsAverage']
+         blue  = f[2].props['PlaneStatsAverage']
          max_rgb = max(red, green, blue)
          red_corr   = max_rgb/max(red, small_number)
          green_corr = max_rgb/max(green, small_number)

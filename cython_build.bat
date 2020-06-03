@@ -1,5 +1,8 @@
 rmdir /s /q build
 del vapoursynth.*.pyd
-"C:\Program Files (x86)\Python36-32\python.exe" setup.py build_ext --inplace
-"C:\Program Files\Python36\python.exe" setup.py build_ext --inplace
+del /q dist\*.whl
+py.exe -3.8-32 setup.py build_ext --inplace
+py.exe -3.8-32 setup.py bdist_wheel
+py.exe -3.8 setup.py build_ext --inplace
+py.exe -3.8 setup.py bdist_wheel
 pause

@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2016 Fredrik Mellbin
+* Copyright (c) 2012-2017 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -29,6 +29,8 @@
 #include "AVIReadHandler.h"
 #include "../../common/p2p_api.h"
 #include "../../common/fourcc.h"
+#include "../../common/vsutf16.h"
+#include <vd2/system/error.h>
 
 static int ImageSize(const VSVideoInfo *vi, DWORD fourcc, int bitcount = 0) {
     int image_size;
@@ -84,6 +86,10 @@ static void unpackframe(const VSVideoInfo *vi, VSFrameRef *dst, VSFrameRef *dst_
     for (int plane = 0; plane < fi->numPlanes; plane++) {
         p.dst[plane] = vsapi->getWritePtr(dst, plane);
         p.dst_stride[plane] = vsapi->getStride(dst, plane);
+    }
+    if (dst_alpha) {
+        p.dst[3] = vsapi->getWritePtr(dst_alpha, 0);
+        p.dst_stride[3] = vsapi->getStride(dst_alpha, 0);
     }
 
     switch (fourcc) {
@@ -176,6 +182,7 @@ class AVISource {
     bool bInvertFrames;
     char buf[1024];
     BYTE* decbuf;
+    bool output_alpha;
 
     const VSFrameRef *last_frame;
     const VSFrameRef *last_alpha_frame;
@@ -198,9 +205,8 @@ public:
     };
 
     AVISource(const char filename[], const char pixel_type[],
-        const char fourCC[], int mode, VSCore *core, const VSAPI *vsapi);  // mode: 0=detect, 1=avifile, 2=opendml
-    ~AVISource();
-    void CleanUp();
+        const char fourCC[], bool output_alpha, int mode, VSCore *core, const VSAPI *vsapi);  // mode: 0=detect, 1=avifile, 2=opendml
+    void CleanUp(const VSAPI *vsapi);
     const VSFrameRef *GetFrame(int n, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
 
     static void VS_CC create_AVISource(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -214,8 +220,9 @@ public:
             const char* fourCC = vsapi->propGetData(in, "fourcc", 0, &err);
             if (!fourCC)
                 fourCC = "";
+            bool output_alpha = !!vsapi->propGetInt(in, "alpha", 0, &err);
 
-            AVISource *avs = new AVISource(path, pixel_type, fourCC, static_cast<int>(mode), core, vsapi);
+            AVISource *avs = new AVISource(path, pixel_type, fourCC, output_alpha, static_cast<int>(mode), core, vsapi);
             vsapi->createFilter(in, out, "AVISource", filterInit, filterGetFrame, filterFree, fmUnordered, nfMakeLinear, static_cast<void *>(avs), core);
 
         } catch (std::runtime_error &e) {
@@ -243,6 +250,7 @@ public:
 
     static void VS_CC filterFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
         AVISource *d = static_cast<AVISource *>(instanceData);
+        d->CleanUp(vsapi);
         delete d;
     }
 };
@@ -437,7 +445,7 @@ void AVISource::LocateVideoCodec(const char fourCC[], VSCore *core, const VSAPI 
         vi[0].format = vsapi->getFormatPreset(pfYUV420P8, core);
     } else if (pbiSrc->biCompression == BI_RGB && pbiSrc->biBitCount == 32) {
         vi[0].format = vsapi->getFormatPreset(pfRGB24, core);
-        numOutputs = 2;
+        numOutputs = output_alpha ? 2 : 1;
         vi[1] = vi[0];
         vi[1].format = vsapi->getFormatPreset(pfGray8, core);
         if (pbiSrc->biHeight > 0)
@@ -496,21 +504,20 @@ void AVISource::LocateVideoCodec(const char fourCC[], VSCore *core, const VSAPI 
 }
 
 
-AVISource::AVISource(const char filename[], const char pixel_type[], const char fourCC[], int mode, VSCore *core, const VSAPI *vsapi)
-    : numOutputs(1), last_frame_no(-1), last_frame(nullptr), last_alpha_frame(nullptr), srcbuffer(nullptr), srcbuffer_size(0), ex(false), pbiSrc(nullptr),
+AVISource::AVISource(const char filename[], const char pixel_type[], const char fourCC[], bool output_alpha, int mode, VSCore *core, const VSAPI *vsapi)
+    : output_alpha(output_alpha), numOutputs(1), last_frame_no(-1), last_frame(nullptr), last_alpha_frame(nullptr), srcbuffer(nullptr), srcbuffer_size(0), ex(false), pbiSrc(nullptr),
     pvideo(nullptr), pfile(nullptr), bIsType1(false), hic(0), bInvertFrames(false), decbuf(nullptr)  {
-    memset(vi, 0, sizeof(vi));
+    vi[0] = {};
+    vi[1] = {};
 
     AVIFileInit();
-    try {
 
-        std::vector<wchar_t> wfilename;
-        wfilename.resize(MultiByteToWideChar(CP_UTF8, 0, filename, -1, nullptr, 0));
-        MultiByteToWideChar(CP_UTF8, 0, filename, -1, wfilename.data(), static_cast<int>(wfilename.size()));
+    try {
+        std::wstring wfilename = utf16_from_utf8(filename);
 
         if (mode == MODE_NORMAL) {
             // if it looks like an AVI file, open in OpenDML mode; otherwise AVIFile mode
-            HANDLE h = CreateFile(wfilename.data(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+            HANDLE h = CreateFile(wfilename.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
             if (h == INVALID_HANDLE_VALUE) {
                 sprintf(buf, "AVISource autodetect: couldn't open file '%s'\nError code: %d", filename, (int)GetLastError());
                 throw std::runtime_error(buf);
@@ -526,14 +533,14 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
 
         if (mode == MODE_AVIFILE || mode == MODE_WAV) {    // AVIFile mode
             PAVIFILE paf;
-            if (FAILED(AVIFileOpen(&paf, wfilename.data(), OF_READ, 0))) {
+            if (FAILED(AVIFileOpen(&paf, wfilename.c_str(), OF_READ, 0))) {
                 sprintf(buf, "AVIFileSource: couldn't open file '%s'", filename);
                 throw std::runtime_error(buf);
             }
 
             pfile = CreateAVIReadHandler(paf);
         } else {              // OpenDML mode
-            pfile = CreateAVIReadHandler(wfilename.data());
+            pfile = CreateAVIReadHandler(wfilename.c_str());
         }
 
         if (mode != MODE_WAV) { // check for video stream
@@ -570,7 +577,7 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
                         throw std::runtime_error("AVISource: requested format must be one of YV24, YV16, YV12, YV411, YUY2, Y8, RGB24, RGB32, RGB48, RGB64, P010, P016, P210, P216, Y416, v210");
 
                     // try to decompress to YV12, YV411, YV16, YV24, YUY2, Y8, RGB32, and RGB24 in turn
-                    memset(&biDst, 0, sizeof(BITMAPINFOHEADER));
+                    biDst = {};
                     biDst.biSize = sizeof(BITMAPINFOHEADER);
                     biDst.biWidth = vi[0].width;
                     biDst.biHeight = vi[0].height;
@@ -606,7 +613,7 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
                     if (fRGB32 && bOpen) {
                         bOpen = DecompressQuery(vsapi->getFormatPreset(pfRGB24, core), forcedType, 32, fccrgb);
                         if (!bOpen) {
-                            numOutputs = 2;
+                            numOutputs = output_alpha ? 2 : 1;
                             vi[1] = vi[0];
                             vi[1].format = vsapi->getFormatPreset(pfGray8, core);
                         }
@@ -637,6 +644,8 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
                         throw std::runtime_error("AviSource: Could not open video stream in any supported format.");
 
                     DecompressBegin(pbiSrc, &biDst);
+                    if ((biDst.biCompression == BI_RGB) && (biDst.biHeight > 0))
+                        bInvertFrames = true;
                 }
             } else {
                 throw std::runtime_error("AviSource: Could not locate video stream.");
@@ -673,33 +682,30 @@ AVISource::AVISource(const char filename[], const char pixel_type[], const char 
             last_frame=frame;
             last_alpha_frame = alpha_frame;
         }
-    }
-    catch (std::runtime_error) {
-        AVISource::CleanUp();
+    } catch (std::runtime_error &) {
+        AVISource::CleanUp(vsapi);
         throw;
+    } catch (MyError &e) {
+        AVISource::CleanUp(vsapi);
+        throw std::runtime_error(e.c_str());
     }
 }
 
-AVISource::~AVISource() {
-    AVISource::CleanUp();
-}
-
-void AVISource::CleanUp() {
+void AVISource::CleanUp(const VSAPI *vsapi) {
     if (hic) {
         !ex ? ICDecompressEnd(hic) : ICDecompressExEnd(hic);
         ICClose(hic);
     }
-    if (pvideo) delete pvideo;
+    delete pvideo;
     if (pfile)
         pfile->Release();
     AVIFileExit();
-    if (pbiSrc)
-        free(pbiSrc);
-    if (srcbuffer)
-        delete[] srcbuffer;
+    free(pbiSrc);
+    delete[] srcbuffer;
     vs_aligned_free(decbuf);
-    // fixme
-    //vsapi->freeFrame(last_frame);
+
+    vsapi->freeFrame(last_frame);
+    vsapi->freeFrame(last_alpha_frame);
 }
 
 const VSFrameRef *AVISource::GetFrame(int n, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -765,7 +771,7 @@ const VSFrameRef *AVISource::GetFrame(int n, VSFrameContext *frameCtx, VSCore *c
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     configFunc("com.vapoursynth.avisource", "avisource", "VapourSynth AVISource Port", VAPOURSYNTH_API_VERSION, 1, plugin);
-    const char *args = "path:data[];pixel_type:data:opt;fourcc:data:opt;";
+    const char *args = "path:data[];pixel_type:data:opt;fourcc:data:opt;alpha:int:opt;";
     registerFunc("AVISource", args, AVISource::create_AVISource, reinterpret_cast<void *>(AVISource::MODE_NORMAL), plugin);
     registerFunc("AVIFileSource", args, AVISource::create_AVISource, reinterpret_cast<void *>(AVISource::MODE_AVIFILE), plugin);
     registerFunc("OpenDMLSource", args, AVISource::create_AVISource, reinterpret_cast<void *>(AVISource::MODE_OPENDML), plugin);

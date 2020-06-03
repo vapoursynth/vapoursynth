@@ -222,20 +222,22 @@ static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData,
     int err;
     bool fixed = !!vsapi->propGetInt(in, "fixed", 0, &err);
     CacheInstance *c = new CacheInstance(video, core, fixed);
+    VSCoreInfo ci;
+    vsapi->getCoreInfo2(core, &ci);
+    c->numThreads = ci.numThreads;
 
     c->makeLinear = !!(vsapi->getVideoInfo(video)->flags & nfMakeLinear);
     if (vsapi->propGetInt(in, "make_linear", 0, &err))
         c->makeLinear = true;
 
-    if (c->makeLinear) {
-        c->numThreads = vsapi->getCoreInfo(core)->numThreads;
-        c->cache.setMaxFrames(std::max((c->numThreads + extraFrames) * 2, c->cache.getMaxFrames()));
-    }
-
     int size = int64ToIntS(vsapi->propGetInt(in, "size", 0, &err));
 
     if (!err && size > 0)
         c->cache.setMaxFrames(size);
+    else if (c->makeLinear)
+        c->cache.setMaxFrames(std::max((c->numThreads + extraFrames) * 2, 20 + c->numThreads));
+    else
+        c->cache.setMaxFrames(20 + c->numThreads);
 
     vsapi->createFilter(in, out, ("Cache" + std::to_string(cacheId++)).c_str(), cacheInit, cacheGetframe, cacheFree, c->makeLinear ? fmUnorderedLinear : fmUnordered, nfNoCache | nfIsCache, c, core);
 

@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2015 Fredrik Mellbin
+* Copyright (c) 2012-2017 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -76,8 +76,7 @@ const VSAPI *getVSAPIInternal(int apiMajor);
 
 class VSException : public std::runtime_error {
 public:
-    VSException(const char *descr) : std::runtime_error(descr) {}
-    VSException(const std::string &descr) : std::runtime_error(descr) {}
+    using std::runtime_error::runtime_error;
 };
 
 class NodeOutputKey {
@@ -191,14 +190,6 @@ public:
 struct VSMap {
 private:
     VSMapStorage *data;
-
-    void detach() {
-        if (!data->unique()) {
-            VSMapStorage *old = data;
-            data = new VSMapStorage(*data);
-            old->release();
-        }
-    }
 public:
     VSMap() : data(new VSMapStorage()) {}
 
@@ -219,6 +210,14 @@ public:
         data = map.data;
         data->addRef();
         return *this;
+    }
+
+    void detach() {
+        if (!data->unique()) {
+            VSMapStorage *old = data;
+            data = new VSMapStorage(*data);
+            old->release();
+        }
     }
 
     bool contains(const std::string &key) const {
@@ -333,13 +332,31 @@ public:
 
 class MemoryUse {
 private:
+    struct BlockHeader {
+        size_t size; // Size of memory allocation, minus header and padding.
+        bool large : 1; // Memory is allocated with large pages.
+    };
+    static_assert(sizeof(BlockHeader) <= 16, "block header too large");
+
     std::atomic<size_t> used;
     size_t maxMemoryUse;
     bool freeOnZero;
+    bool largePageEnabled;
+    bool memoryWarningIssued;
     std::multimap<size_t, uint8_t *> buffers;
     size_t unusedBufferSize;
     std::minstd_rand generator;
     std::mutex mutex;
+
+    static bool largePageSupported();
+    static size_t largePageSize();
+
+    // May allocate more than the requested amount.
+    void *allocateLargePage(size_t bytes) const;
+    void freeLargePage(void *ptr) const;
+    void *allocateMemory(size_t bytes) const;
+    void freeMemory(void *ptr) const;
+    bool isGoodFit(size_t requested, size_t actual) const;
 public:
     void add(size_t bytes);
     void subtract(size_t bytes);
@@ -534,6 +551,7 @@ private:
     unsigned maxThreads;
     std::atomic<bool> stopThreads;
     std::atomic<unsigned> ticks;
+    int getNumAvailableThreads();
     void wakeThread();
     void notifyCaches(bool needMemory);
     void startInternal(const PFrameContext &context);
@@ -545,9 +563,8 @@ public:
     ~VSThreadPool();
     void returnFrame(const PFrameContext &rCtx, const PVideoFrame &f);
     void returnFrame(const PFrameContext &rCtx, const std::string &errMsg);
-    int activeThreadCount() const;
-    int threadCount() const;
-    void setThreadCount(int threads);
+    int threadCount();
+    int setThreadCount(int threads);
     void start(const PFrameContext &context);
     void releaseThread();
     void reserveThread();
@@ -587,8 +604,8 @@ public:
     std::string fullname;
     std::string fnamespace;
     std::string id;
-    VSPlugin(VSCore *core);
-    VSPlugin(const std::string &relFilename, const std::string &forcedNamespace, const std::string &forcedId, VSCore *core);
+    explicit VSPlugin(VSCore *core);
+    VSPlugin(const std::string &relFilename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath, VSCore *core);
     ~VSPlugin();
     void lock() {
         readOnly = true;
@@ -610,8 +627,8 @@ private:
     //number of filter instances plus one, freeing the core reduces it by one
     // the core will be freed once it reaches 0
     bool coreFreed;
-    std::atomic<int> numFilterInstances; 
-    std::atomic<int> numFunctionInstances;
+    std::atomic_int numFilterInstances;
+    std::atomic_int numFunctionInstances;
 
     std::map<std::string, VSPlugin *> plugins;
     std::recursive_mutex pluginLock;
@@ -621,6 +638,8 @@ private:
     VSCoreInfo coreInfo;
     std::set<VSNode *> caches;
     std::mutex cacheLock;
+
+    std::atomic_int cpuLevel;
 
     ~VSCore();
 
@@ -643,14 +662,18 @@ public:
     const VSFormat *registerFormat(VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name = nullptr, int id = pfNone);
     bool isValidFormatPointer(const VSFormat *f);
 
-    void loadPlugin(const std::string &filename, const std::string &forcedNamespace = std::string(), const std::string &forcedId = std::string());
+    void loadPlugin(const std::string &filename, const std::string &forcedNamespace = std::string(), const std::string &forcedId = std::string(), bool altSearchPath = false);
     void createFilter(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
+
+    int getCpuLevel() const;
+    int setCpuLevel(int cpu);
 
     VSMap getPlugins();
     VSPlugin *getPluginById(const std::string &identifier);
     VSPlugin *getPluginByNs(const std::string &ns);
 
     const VSCoreInfo &getCoreInfo();
+    void getCoreInfo2(VSCoreInfo &info);
 
     void functionInstanceCreated();
     void functionInstanceDestroyed();
@@ -658,7 +681,7 @@ public:
     void filterInstanceDestroyed();
     void destroyFilterInstance(VSNode *node);
 
-    VSCore(int threads);
+    explicit VSCore(int threads);
     void freeCore();
 };
 

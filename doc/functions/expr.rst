@@ -4,7 +4,7 @@ Expr
 .. function:: Expr(clip[] clips, string[] expr[, int format])
    :module: std
 
-   Expr evaluates an expression per pixel for up to 3 input *clips*.
+   Expr evaluates an expression per pixel for up to 26 input *clips*.
    The expression, *expr*, is written using reverse polish notation and can be
    specified for each plane individually.
    The expression given for the previous plane is used if the *expr* array

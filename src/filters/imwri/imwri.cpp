@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2014-2017 Fredrik Mellbin
+* Copyright (c) 2014-2019 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -38,22 +38,19 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
-#include <codecvt>
-#include <locale>
 #include <windows.h>
+#include "../../common/vsutf16.h"
 #else
 #include <unistd.h>
 #endif
 
 // Handle both with and without hdri
 #if MAGICKCORE_HDRI_ENABLE
-#define IMWRI_NAMESPACE "imwrif"
-#define IMWRI_PLUGIN_NAME "VapourSynth ImageMagick HDRI Writer/Reader"
-#define IMWRI_ID "com.vapoursynth.imwrif"
-#else
 #define IMWRI_NAMESPACE "imwri"
-#define IMWRI_PLUGIN_NAME "VapourSynth ImageMagick Writer/Reader"
+#define IMWRI_PLUGIN_NAME "VapourSynth ImageMagick 7 HDRI Writer/Reader"
 #define IMWRI_ID "com.vapoursynth.imwri"
+#else
+#error ImageMagick must be compiled with HDRI enabled
 #endif
 
 // Because proper namespace handling is too hard for ImageMagick shitvelopers
@@ -133,17 +130,23 @@ static bool isAbsolute(const std::string &path) {
 #endif
 }
 
+static bool fileExists(const std::string &filename) {
+#ifdef _WIN32
+    FILE * f = _wfopen(utf16_from_utf8(filename).c_str(), L"rb");
+#else
+    FILE * f = fopen(filename.c_str(), "rb");
+#endif
+    if (f)
+        fclose(f);
+    return !!f;
+}
+
 static void getWorkingDir(std::string &path) {
 #ifdef _WIN32
     DWORD size = GetCurrentDirectoryW(0, nullptr);
-
     std::vector<wchar_t> buffer(size);
-
     GetCurrentDirectoryW(size, buffer.data());
-
-    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> utf16;
-
-    path = utf16.to_bytes(buffer.data()) + '\\';
+    path = utf16_to_utf8(buffer.data()) + '\\';
 #else
     char *buffer = getcwd(nullptr, 0);
 
@@ -171,6 +174,7 @@ struct WriteData {
     int quality;
     MagickCore::CompressionType compressType;
     bool dither;
+    bool overwrite;
 
     WriteData() : videoNode(nullptr), alphaNode(nullptr), vi(nullptr), quality(0), compressType(MagickCore::UndefinedCompression), dither(true) {}
 };
@@ -203,10 +207,10 @@ static void writeImageHelper(const VSFrameRef *frame, const VSFrameRef *alphaFra
     ssize_t rOff = pixelCache.offset(MagickCore::RedPixelChannel);
     ssize_t gOff = pixelCache.offset(MagickCore::GreenPixelChannel);
     ssize_t bOff = pixelCache.offset(MagickCore::BluePixelChannel);
-    ssize_t aOff = pixelCache.offset(MagickCore::AlphaPixelChannel);
     size_t channels = image.channels();
 
     if (alphaFrame) {
+        ssize_t aOff = pixelCache.offset(MagickCore::AlphaPixelChannel);
         int strideA = vsapi->getStride(alphaFrame, 0);
         const T * VS_RESTRICT a = reinterpret_cast<const T *>(vsapi->getReadPtr(alphaFrame, 0));
 
@@ -233,7 +237,6 @@ static void writeImageHelper(const VSFrameRef *frame, const VSFrameRef *alphaFra
                 pixels[x * channels + rOff] = r[x] * scaleFactor + (r[x] >> shiftFactor);
                 pixels[x * channels + gOff] = g[x] * scaleFactor + (g[x] >> shiftFactor);
                 pixels[x * channels + bOff] = b[x] * scaleFactor + (b[x] >> shiftFactor);
-                pixels[x * channels + aOff] = QuantumRange;
             }
 
             r += strideR / sizeof(T);
@@ -262,6 +265,13 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
         int alphaWidth = 0;
         int alphaHeight = 0;
 
+        std::string filename = specialPrintf(d->filename, n + d->firstNum);
+        if (!isAbsolute(filename))
+            filename = d->workingDir + filename;
+
+        if (!d->overwrite && fileExists(filename))
+            return frame;
+
         if (d->alphaNode) {
             alphaFrame = vsapi->getFrameFilter(n, d->alphaNode, frameCtx);
             alphaWidth = vsapi->getFrameWidth(alphaFrame, 0);
@@ -278,24 +288,22 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
         try {
             Magick::Image image(Magick::Geometry(width, height), Magick::Color(0, 0, 0, 0));
             image.magick(d->imgFormat);
+            image.modulusDepth(fi->bitsPerSample);
             if (d->compressType != MagickCore::UndefinedCompression)
                 image.compressType(d->compressType);
             image.quantizeDitherMethod(Magick::FloydSteinbergDitherMethod);
             image.quantizeDither(d->dither);
             image.quality(d->quality);
-            if (alphaFrame)
-                image.alphaChannel(Magick::ActivateAlphaChannel);
+            image.alphaChannel(alphaFrame ? Magick::ActivateAlphaChannel : Magick::RemoveAlphaChannel);
 
             bool isGray = fi->colorFamily == cmGray;
             if (isGray)
                 image.colorSpace(Magick::GRAYColorspace);
 
-            if (fi->bitsPerSample < static_cast<int>(image.depth()))
-                image.depth(fi->bitsPerSample);
-
             if (fi->bytesPerSample == 4 && fi->sampleType == stFloat) {
+                image.attribute("quantum:format", "floating-point");
                 Magick::Pixels pixelCache(image);
-                const float scaleFactor = QuantumRange;
+                const Quantum scaleFactor = QuantumRange;
 
                 const float * VS_RESTRICT r = reinterpret_cast<const float *>(vsapi->getReadPtr(frame, 0));
                 const float * VS_RESTRICT g = reinterpret_cast<const float *>(vsapi->getReadPtr(frame, isGray ? 0 : 1));
@@ -308,12 +316,12 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
                 ssize_t rOff = pixelCache.offset(MagickCore::RedPixelChannel);
                 ssize_t gOff = pixelCache.offset(MagickCore::GreenPixelChannel);
                 ssize_t bOff = pixelCache.offset(MagickCore::BluePixelChannel);
-                ssize_t aOff = pixelCache.offset(MagickCore::AlphaPixelChannel);
                 size_t channels = image.channels();
 
                 if (alphaFrame) {
                     const float * VS_RESTRICT a = reinterpret_cast<const float *>(vsapi->getReadPtr(alphaFrame, 0));
                     int strideA = vsapi->getStride(alphaFrame, 0);
+                    ssize_t aOff = pixelCache.offset(MagickCore::AlphaPixelChannel);
             
                     for (int y = 0; y < height; y++) {
                         MagickCore::Quantum* pixels = pixelCache.get(0, y, width, 1);
@@ -342,7 +350,6 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
                             pixels[x * channels + rOff] = r[x] * scaleFactor;
                             pixels[x * channels + gOff] = g[x] * scaleFactor;
                             pixels[x * channels + bOff] = b[x] * scaleFactor;
-                            pixels[x * channels + aOff] = 1    * scaleFactor;
                         }
 
                         r += strideR / sizeof(float);
@@ -359,10 +366,6 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
             } else if (fi->bytesPerSample == 1) {
                 writeImageHelper<uint8_t>(frame, alphaFrame, isGray, image, width, height, fi->bitsPerSample, vsapi);
             }
-
-            std::string filename = specialPrintf(d->filename, n + d->firstNum);
-            if (!isAbsolute(filename))
-                filename = d->workingDir + filename;
 
             image.write(filename);
 
@@ -385,8 +388,6 @@ static void VS_CC writeFree(void *instanceData, VSCore *core, const VSAPI *vsapi
     vsapi->freeNode(d->alphaNode);
     delete d;
 }
-
-#define STR(x) #x
 
 static void VS_CC writeCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<WriteData> d(new WriteData());
@@ -465,19 +466,10 @@ static void VS_CC writeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     d->videoNode = vsapi->propGetNode(in, "clip", 0, nullptr);
     d->vi = vsapi->getVideoInfo(d->videoNode);
     if (!d->vi->format || (d->vi->format->colorFamily != cmRGB && d->vi->format->colorFamily != cmGray)
-#if MAGICKCORE_HDRI_ENABLE
         || (d->vi->format->sampleType == stFloat && d->vi->format->bitsPerSample != 32))
-#else
-        || (d->vi->format->sampleType == stInteger && d->vi->format->bitsPerSample > MAGICKCORE_QUANTUM_DEPTH)
-        || (d->vi->format->sampleType == stFloat))
-#endif
     {
         vsapi->freeNode(d->videoNode);
-#if MAGICKCORE_HDRI_ENABLE
         vsapi->setError(out, "Write: Only constant format 8-32 bit integer or float RGB and Grayscale input supported");
-#else
-        vsapi->setError(out, "Write: Only constant format 8-" STR(MAGICKCORE_QUANTUM_DEPTH) " bit integer RGB and Grayscale input supported");
-#endif
         return;
     }
 
@@ -487,6 +479,7 @@ static void VS_CC writeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     d->dither = !!vsapi->propGetInt(in, "dither", 0, &err);
     if (err)
         d->dither = true;
+    d->overwrite = !!vsapi->propGetInt(in, "overwrite", 0, &err);
 
     d->vi = vsapi->getVideoInfo(d->videoNode);
     if (d->alphaNode) {
@@ -501,7 +494,7 @@ static void VS_CC writeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         
     }
 
-    if (specialPrintf(d->filename, 0) == d->filename) {
+    if (!d->overwrite && specialPrintf(d->filename, 0) == d->filename) {
         // No valid digit substitution in the filename so error out to warn the user
         vsapi->freeNode(d->videoNode);
         vsapi->freeNode(d->alphaNode);
@@ -525,6 +518,7 @@ struct ReadData {
     bool alpha;
     bool mismatch;
     bool fileListMode;
+    bool floatOutput;
     int cachedFrameNum;
     bool cachedAlpha;
     const VSFrameRef *cachedFrame;
@@ -539,7 +533,7 @@ static void VS_CC readInit(VSMap *in, VSMap *out, void **instanceData, VSNode *n
 
 template<typename T>
 static void readImageHelper(VSFrameRef *frame, VSFrameRef *alphaFrame, bool isGray, Magick::Image &image, int width, int height, int bitsPerSample, const VSAPI *vsapi) {
-    unsigned shiftR = MAGICKCORE_QUANTUM_DEPTH - bitsPerSample;
+    float outScale = ((1 << bitsPerSample) - 1) / static_cast<float>((1 << MAGICKCORE_QUANTUM_DEPTH) - 1);
     size_t channels = image.channels();
     Magick::Pixels pixelCache(image);
 
@@ -556,42 +550,42 @@ static void readImageHelper(VSFrameRef *frame, VSFrameRef *alphaFrame, bool isGr
     ssize_t bOff = pixelCache.offset(MagickCore::BluePixelChannel);
     ssize_t aOff = pixelCache.offset(MagickCore::AlphaPixelChannel);
 
-    if (alphaFrame) {
+    if (alphaFrame && aOff >= 0) {
         T *a = reinterpret_cast<T *>(vsapi->getWritePtr(alphaFrame, 0));
-        int strideA = vsapi->getStride(alphaFrame, 0);;            
-
-        if (aOff >= 0) {
-            for (int y = 0; y < height; y++) {
-                const Magick::Quantum *pixels = pixelCache.getConst(0, y, width, 1);
-                for (int x = 0; x < width; x++) {
-                    r[x] = (unsigned)pixels[x * channels + rOff] >> shiftR;
-                    g[x] = (unsigned)pixels[x * channels + gOff] >> shiftR;
-                    b[x] = (unsigned)pixels[x * channels + bOff] >> shiftR;
-                    a[x] = (unsigned)pixels[x * channels + aOff] >> shiftR;
-                }
-
-                r += strideR / sizeof(T);
-                g += strideG / sizeof(T);
-                b += strideB / sizeof(T);
-                a += strideA / sizeof(T);
-            }
-        } else {
-            memset(a, 0, strideA  * height);
-        }
-    } else {
-
+        int strideA = vsapi->getStride(alphaFrame, 0);       
 
         for (int y = 0; y < height; y++) {
             const Magick::Quantum *pixels = pixelCache.getConst(0, y, width, 1);
             for (int x = 0; x < width; x++) {
-                r[x] = (unsigned)pixels[x * channels + rOff] >> shiftR;
-                g[x] = (unsigned)pixels[x * channels + gOff] >> shiftR;
-                b[x] = (unsigned)pixels[x * channels + bOff] >> shiftR;
+                r[x] = (unsigned)(pixels[x * channels + rOff] * outScale + .5f);
+                g[x] = (unsigned)(pixels[x * channels + gOff] * outScale + .5f);
+                b[x] = (unsigned)(pixels[x * channels + bOff] * outScale + .5f);
+                a[x] = (unsigned)(pixels[x * channels + aOff] * outScale + .5f);
             }
 
             r += strideR / sizeof(T);
             g += strideG / sizeof(T);
             b += strideB / sizeof(T);
+            a += strideA / sizeof(T);
+        }
+    } else {
+        for (int y = 0; y < height; y++) {
+            const Magick::Quantum *pixels = pixelCache.getConst(0, y, width, 1);
+            for (int x = 0; x < width; x++) {
+                r[x] = (unsigned)(pixels[x * channels + rOff] * outScale + .5f);
+                g[x] = (unsigned)(pixels[x * channels + gOff] * outScale + .5f);
+                b[x] = (unsigned)(pixels[x * channels + bOff] * outScale + .5f);
+            }
+
+            r += strideR / sizeof(T);
+            g += strideG / sizeof(T);
+            b += strideB / sizeof(T);
+        }
+
+        if (alphaFrame) {
+            T *a = reinterpret_cast<T *>(vsapi->getWritePtr(alphaFrame, 0));
+            int strideA = vsapi->getStride(alphaFrame, 0);    
+            memset(a, 0, strideA  * height);
         }
     }
 }
@@ -627,13 +621,15 @@ static const VSFrameRef *VS_CC readGetFrame(int n, int activationReason, void **
             int height = static_cast<int>(image.rows());
             size_t channels = image.channels();
 
-#if MAGICKCORE_HDRI_ENABLE
-            VSSampleType st = stFloat;
-            int depth = 32;
-#else
             VSSampleType st = stInteger;
-            int depth = std::min(std::max(static_cast<int>(image.depth()), 8), MAGICKCORE_QUANTUM_DEPTH);
-#endif
+            int depth = static_cast<int>(image.depth());
+            if (depth == 32)
+                st = stFloat;
+
+            if (d->floatOutput || image.attribute("quantum:format") == "floating-point") {
+                depth = 32;
+                st = stFloat;
+            }
 
             if (d->vi[0].format && (cf != d->vi[0].format->colorFamily || depth != d->vi[0].format->bitsPerSample)) {
                 std::string err = "Read: Format mismatch for frame " + std::to_string(n) + ", is ";
@@ -656,7 +652,7 @@ static const VSFrameRef *VS_CC readGetFrame(int n, int activationReason, void **
             bool isGray = fi->colorFamily == cmGray;                
      
             if (fi->bytesPerSample == 4 && fi->sampleType == stFloat) {
-                const float scaleFactor = QuantumRange;
+                const Quantum scaleFactor = QuantumRange;
                 Magick::Pixels pixelCache(image);
 
                 float *r = reinterpret_cast<float *>(vsapi->getWritePtr(frame, 0));
@@ -761,6 +757,7 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     d->alpha = !!vsapi->propGetInt(in, "alpha", 0, &err);
     d->mismatch = !!vsapi->propGetInt(in, "mismatch", 0, &err);
+    d->floatOutput = !!vsapi->propGetInt(in, "float_output", 0, &err);
 
     int numElem = vsapi->propNumElements(in, "filename");
     d->filenames.resize(numElem);
@@ -773,17 +770,7 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         d->fileListMode = false;
 
         for (int i = d->firstNum; i < INT_MAX; i++) {
-#ifdef _WIN32
-            std::string printedStr(specialPrintf(d->filenames[0], i));
-            std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
-            std::wstring wPath = conversion.from_bytes(printedStr);
-            FILE * f = _wfopen(wPath.c_str(), L"rb");
-#else
-            FILE * f = fopen(specialPrintf(d->filenames[0], i).c_str(), "rb");
-#endif
-            if (f) {
-                fclose(f);
-            } else {
+            if (!fileExists(specialPrintf(d->filenames[0], i))) {
                 d->vi[0].numFrames = i - d->firstNum;
                 break;
             }
@@ -797,13 +784,16 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     try {
         Magick::Image image(d->fileListMode ? d->filenames[0] : specialPrintf(d->filenames[0], d->firstNum));
-#if MAGICKCORE_HDRI_ENABLE
-        VSSampleType st = stFloat;
-        int depth = 32;
-#else
+
         VSSampleType st = stInteger;
-        int depth = std::min(std::max(static_cast<int>(image.depth()), 8), MAGICKCORE_QUANTUM_DEPTH);
-#endif
+        int depth = image.depth();
+        if (depth == 32)
+            st = stFloat;
+
+        if (d->floatOutput || image.attribute("quantum:format") == "floating-point") {
+            depth = 32;
+            st = stFloat;
+        }
 
         if (!d->mismatch || d->vi[0].numFrames == 1) {
             d->vi[0].height = static_cast<int>(image.rows());
@@ -817,7 +807,7 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         if (d->alpha) {
             d->vi[1] = d->vi[0];
             if (d->vi[0].format)
-                d->vi[1].format = vsapi->registerFormat(cmGray, d->vi[0].format->sampleType, depth, 0, 0, core);
+                d->vi[1].format = vsapi->registerFormat(cmGray, st, depth, 0, 0, core);
         }
     } catch (Magick::Exception &e) {
         vsapi->setError(out, (std::string("Read: Failed to read image properties: ") + e.what()).c_str());
@@ -835,6 +825,6 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     configFunc(IMWRI_ID, IMWRI_NAMESPACE, IMWRI_PLUGIN_NAME, VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("Write", "clip:clip;imgformat:data;filename:data;firstnum:int:opt;quality:int:opt;dither:int:opt;compression_type:data:opt;alpha:clip:opt;", writeCreate, nullptr, plugin);
-    registerFunc("Read", "filename:data[];firstnum:int:opt;mismatch:int:opt;alpha:int:opt;", readCreate, nullptr, plugin);
+    registerFunc("Write", "clip:clip;imgformat:data;filename:data;firstnum:int:opt;quality:int:opt;dither:int:opt;compression_type:data:opt;overwrite:int:opt;alpha:clip:opt;", writeCreate, nullptr, plugin);
+    registerFunc("Read", "filename:data[];firstnum:int:opt;mismatch:int:opt;alpha:int:opt;float_output:int:opt;", readCreate, nullptr, plugin);
 }

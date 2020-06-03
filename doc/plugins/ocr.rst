@@ -5,7 +5,10 @@ OCR
 
 A filter that performs optical character recognition on video frames.
 
-.. function:: Recognize(clip clip[, string datapath="", string language="", string[] options])
+`Tesseract 3.04.00 language data files <https://github.com/tesseract-ocr/tessdata/tree/3.04.00>`_
+are required. See the *datapath* parameter.
+
+.. function:: Recognize(clip clip[, string datapath, string language="", string[] options])
    :module: ocr
 
    This function runs Tesseract on each video frame and adds the following
@@ -25,8 +28,12 @@ A filter that performs optical character recognition on video frames.
          Clip to be processed. Must be grayscale with 8 bits per sample.
 
       datapath
-         Path containing Tesseract’s data files. Must have a trailing slash.
-         Uses Tesseract’s default data path if unset.
+         Path to a folder containing a “tessdata” folder, in which Tesseract’s
+         data files must be found. Must have a trailing slash.
+
+         In Windows, this parameter’s default value is the folder where the
+         Ocr plugin DLL resides. In other operating systems, this parameter’s
+         default value is empty, and Tesseract’s default data path will be used.
 
       language
          An ISO 639-3 language string. Uses Tesseract’s default language

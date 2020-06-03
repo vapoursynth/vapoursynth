@@ -22,39 +22,37 @@
     <ProjectGuid>{8C2696F2-47FC-425A-989E-9C02AE4E76D2}</ProjectGuid>
     <RootNamespace>Core</RootNamespace>
     <ProjectName>VapourSynth</ProjectName>
-    <WindowsTargetPlatformVersion>10.0.15063.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
-  <ImportGroup Label="ExtensionSettings">
-    <Import Project="$(VCTargetsPath)\BuildCustomizations\nasm.props" />
-  </ImportGroup>
+  <ImportGroup Label="ExtensionSettings" />
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
@@ -90,6 +88,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>VS_CORE_EXPORTS;VS_TARGET_OS_WINDOWS;VS_TARGET_CPU_X86;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -106,6 +105,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>VS_CORE_EXPORTS;VS_TARGET_OS_WINDOWS;VS_TARGET_CPU_X86;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -121,11 +121,11 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <SDLCheck>true</SDLCheck>
+      <SDLCheck>false</SDLCheck>
       <PreprocessorDefinitions>VS_CORE_EXPORTS;VS_TARGET_OS_WINDOWS;VS_TARGET_CPU_X86;_CRT_SECURE_NO_WARNINGS;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
       <BufferSecurityCheck>false</BufferSecurityCheck>
+      <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -146,10 +146,10 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <SDLCheck>true</SDLCheck>
+      <SDLCheck>false</SDLCheck>
       <PreprocessorDefinitions>VS_CORE_EXPORTS;VS_TARGET_OS_WINDOWS;VS_TARGET_CPU_X86;_CRT_SECURE_NO_WARNINGS;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <BufferSecurityCheck>false</BufferSecurityCheck>
+      <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -184,9 +184,36 @@
     </ClCompile>
     <ClCompile Include="..\..\src\core\boxblurfilter.cpp" />
     <ClCompile Include="..\..\src\core\cachefilter.cpp" />
-    <ClCompile Include="..\..\src\core\cpufeatures.c" />
+    <ClCompile Include="..\..\src\core\cpufeatures.cpp" />
     <ClCompile Include="..\..\src\core\exprfilter.cpp" />
     <ClCompile Include="..\..\src\core\genericfilters.cpp" />
+    <ClCompile Include="..\..\src\core\kernel\cpulevel.cpp" />
+    <ClCompile Include="..\..\src\core\kernel\generic.cpp" />
+    <ClCompile Include="..\..\src\core\kernel\merge.c" />
+    <ClCompile Include="..\..\src\core\kernel\planestats.c" />
+    <ClCompile Include="..\..\src\core\kernel\transpose.c" />
+    <ClCompile Include="..\..\src\core\kernel\x86\generic_avx2.cpp">
+      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|x64'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core\kernel\x86\generic_sse2.cpp" />
+    <ClCompile Include="..\..\src\core\kernel\x86\merge_avx2.c">
+      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|x64'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core\kernel\x86\merge_sse2.c" />
+    <ClCompile Include="..\..\src\core\kernel\x86\planestats_avx2.c">
+      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|x64'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core\kernel\x86\planestats_sse2.c" />
+    <ClCompile Include="..\..\src\core\kernel\x86\transpose_sse2.c" />
     <ClCompile Include="..\..\src\core\lutfilters.cpp" />
     <ClCompile Include="..\..\src\core\mergefilters.c" />
     <ClCompile Include="..\..\src\core\reorderfilters.c" />
@@ -199,92 +226,21 @@
     <ClCompile Include="..\..\src\core\vsthreadpool.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <NASM Include="..\..\include\asm\x86\x86inc.asm">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
-      <FileType>Document</FileType>
-    </NASM>
-    <NASM Include="..\..\src\core\asm\x86\check.asm">
-      <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">../../include;%(IncludePaths)</IncludePaths>
-      <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../include;%(IncludePaths)</IncludePaths>
-      <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">../../include;%(IncludePaths)</IncludePaths>
-      <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../include;%(IncludePaths)</IncludePaths>
-      <Defines Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</Defines>
-      <Defines Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ARCH_X86_64=1;private_prefix=vs</Defines>
-      <Defines Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</Defines>
-      <Defines Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ARCH_X86_64=1;private_prefix=vs</Defines>
-      <Debug Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</Debug>
-      <Debug Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</Debug>
-      <FileType>Document</FileType>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ARCH_X86_64=1;private_prefix=vs</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ARCH_X86_64=1;private_prefix=vs</PreprocessorDefinitions>
-    </NASM>
-    <NASM Include="..\..\src\core\asm\x86\cpu.asm">
-      <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">../../include;%(IncludePaths)</IncludePaths>
-      <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../include;%(IncludePaths)</IncludePaths>
-      <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">../../include;%(IncludePaths)</IncludePaths>
-      <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../include;%(IncludePaths)</IncludePaths>
-      <Defines Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</Defines>
-      <Defines Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ARCH_X86_64=1;private_prefix=vs</Defines>
-      <Defines Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</Defines>
-      <Defines Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ARCH_X86_64=1;private_prefix=vs</Defines>
-      <Debug Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</Debug>
-      <Debug Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</Debug>
-      <FileType>Document</FileType>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ARCH_X86_64=1;private_prefix=vs</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ARCH_X86_64=1;private_prefix=vs</PreprocessorDefinitions>
-    </NASM>
-    <NASM Include="..\..\src\core\asm\x86\merge.asm">
-      <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">../../include;%(IncludePaths)</IncludePaths>
-      <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../include;%(IncludePaths)</IncludePaths>
-      <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">../../include;%(IncludePaths)</IncludePaths>
-      <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../include;%(IncludePaths)</IncludePaths>
-      <Defines Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</Defines>
-      <Defines Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ARCH_X86_64=1;private_prefix=vs</Defines>
-      <Defines Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</Defines>
-      <Defines Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ARCH_X86_64=1;private_prefix=vs</Defines>
-      <Debug Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</Debug>
-      <Debug Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</Debug>
-      <FileType>Document</FileType>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ARCH_X86_64=1;private_prefix=vs</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ARCH_X86_64=1;private_prefix=vs</PreprocessorDefinitions>
-    </NASM>
-    <NASM Include="..\..\src\core\asm\x86\transpose.asm">
-      <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">../../include;%(IncludePaths)</IncludePaths>
-      <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../include;%(IncludePaths)</IncludePaths>
-      <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">../../include;%(IncludePaths)</IncludePaths>
-      <IncludePaths Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../include;%(IncludePaths)</IncludePaths>
-      <Defines Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</Defines>
-      <Defines Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ARCH_X86_64=1;private_prefix=vs</Defines>
-      <Defines Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</Defines>
-      <Defines Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ARCH_X86_64=1;private_prefix=vs</Defines>
-      <Debug Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</Debug>
-      <Debug Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</Debug>
-      <FileType>Document</FileType>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">ARCH_X86_64=0;private_prefix=vs;PREFIX</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ARCH_X86_64=1;private_prefix=vs</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ARCH_X86_64=1;private_prefix=vs</PreprocessorDefinitions>
-    </NASM>
-  </ItemGroup>
-  <ItemGroup>
     <ClInclude Include="..\..\include\VapourSynth.h" />
     <ClInclude Include="..\..\include\VSHelper.h" />
     <ClInclude Include="..\..\include\VSScript.h" />
+    <ClInclude Include="..\..\src\common\vsutf16.h" />
     <ClInclude Include="..\..\src\core\cachefilter.h" />
     <ClInclude Include="..\..\src\core\cpufeatures.h" />
     <ClInclude Include="..\..\src\core\filtershared.h" />
     <ClInclude Include="..\..\src\core\filtersharedcpp.h" />
     <ClInclude Include="..\..\src\core\internalfilters.h" />
     <ClInclude Include="..\..\src\core\jitasm.h" />
+    <ClInclude Include="..\..\src\core\kernel\cpulevel.h" />
+    <ClInclude Include="..\..\src\core\kernel\generic.h" />
+    <ClInclude Include="..\..\src\core\kernel\merge.h" />
+    <ClInclude Include="..\..\src\core\kernel\planestats.h" />
+    <ClInclude Include="..\..\src\core\kernel\transpose.h" />
     <ClInclude Include="..\..\src\core\ter-116n.h" />
     <ClInclude Include="..\..\src\core\version.h" />
     <ClInclude Include="..\..\src\core\vscore.h" />
@@ -292,7 +248,5 @@
     <ClInclude Include="..\..\src\core\x86utils.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <ImportGroup Label="ExtensionTargets">
-    <Import Project="$(VCTargetsPath)\BuildCustomizations\nasm.targets" />
-  </ImportGroup>
+  <ImportGroup Label="ExtensionTargets" />
 </Project>

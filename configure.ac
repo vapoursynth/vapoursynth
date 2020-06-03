@@ -1,4 +1,4 @@
-AC_INIT([vapoursynth], [39], [https://github.com/vapoursynth/vapoursynth/issues], [vapoursynth], [http://www.vapoursynth.com/])
+AC_INIT([vapoursynth], [50], [https://github.com/vapoursynth/vapoursynth/issues], [vapoursynth], [http://www.vapoursynth.com/])
 
 : ${CFLAGS=""}
 : ${CXXFLAGS=""}
@@ -51,10 +51,6 @@ AC_SUBST([PLUGINDIR])
 
 
 
-AC_ARG_WITH([nasm], AS_HELP_STRING([--with-nasm], [Override the automatic detection of the nasm executable. (default=check)]), [], [with_nasm=check])
-
-
-
 AC_CANONICAL_HOST
 
 
@@ -64,33 +60,28 @@ ARM="false"
 
 AS_CASE(
         [$host_cpu],
-        [i?86],     [BITS="32" ASFLAGS="$ASFLAGS -DARCH_X86_64=0" X86="true"],
-        [x86_64],   [BITS="64" ASFLAGS="$ASFLAGS -DARCH_X86_64=1 -DPIC" X86="true"],
+        [i?86],     [BITS="32" X86="true"],
+        [x86_64],   [BITS="64" X86="true"],
         [powerpc*], [PPC="true"],
-        [arm*],     [ARM="true"] # Maybe doesn't work for all arm systems?
+        [arm*],     [ARM="true"], # Maybe doesn't work for all arm systems?
+        [aarch64*], [ARM="true"]
 )
 
 AS_CASE(
         [$host_os],
         [darwin*],
         [
-         ASFLAGS="$ASFLAGS -f macho$BITS -DPREFIX"
          AC_DEFINE([VS_TARGET_OS_DARWIN])
-         DEBUG_FORMAT="-gdwarf"
         ],
         [*linux*|gnu*|dragonfly*|*bsd*], # The BSDs are close enough, right?
         [
-         ASFLAGS="$ASFLAGS -f elf$BITS"
          AC_DEFINE([VS_TARGET_OS_LINUX])
-         DEBUG_FORMAT="-gdwarf"
         ],
         [cygwin*|mingw*],
         [
-         ASFLAGS="$ASFLAGS -f win$BITS"
          AS_IF(
                [test "x$BITS" = "x32"],
                [
-                ASFLAGS="$ASFLAGS -DPREFIX"
                 AC_SUBST([PLUGINLDFLAGS], ["-Wl,--kill-at"])
                 AC_SUBST([STACKREALIGN], ["-mstackrealign"])
                ]
@@ -105,7 +96,7 @@ AS_CASE(
 AS_IF(
       [test "x$X86" = "xtrue"],
       [
-       AC_ARG_ENABLE([x86-asm], AS_HELP_STRING([--enable-x86-asm], [Enable assembler code for x86 CPUs. Requires nasm if building the core. (default=yes)]))
+       AC_ARG_ENABLE([x86-asm], AS_HELP_STRING([--enable-x86-asm], [Enable assembler code for x86 CPUs. (default=yes)]))
 
        AS_IF(
              [test "x$enable_x86_asm" != "xno"],
@@ -114,14 +105,8 @@ AS_IF(
              ]
        )
 
-       ASFLAGS="$ASFLAGS -I$srcdir/include/ -w -Worphan-labels -Wunrecognized-char -Dprivate_prefix=vs"
-
-       AS_IF(
-             [test "x$enable_debug" = "xyes"],
-             [ASFLAGS="$ASFLAGS $DEBUG_FORMAT"]
-       )
-
        AC_SUBST([MFLAGS], ["-mfpmath=sse -msse2"])
+       AC_SUBST([AVX2FLAGS], ["-mavx2 -mfma -mtune=haswell"])
       ]
 )
 
@@ -134,8 +119,6 @@ AS_IF(
       [test "x$ARM" = "xtrue"],
       [AC_DEFINE([VS_TARGET_CPU_ARM])]
 )
-
-AC_SUBST([ASFLAGS])
 
 
 
@@ -178,23 +161,6 @@ zimg_get_version_info(&major, &minor, &micro);
 
        AC_CONFIG_FILES([pc/vapoursynth.pc])
 
-       AS_IF(
-             [test "x$X86" = "xtrue" -a "x$enable_x86_asm" != "xno"],
-             [
-              AS_IF(
-                    [test "x$with_nasm" = "xcheck"],
-                    [AC_CHECK_PROGS([NASM], [nasm])],
-                    [NASM="$with_nasm"]
-              )
-       
-              AS_IF(
-                    [test "x$NASM" = "x"],
-                    [AC_MSG_ERROR([nasm required but not found.])],
-                    [AS="$NASM"]
-              )
-             ]
-       )
-
        dnl Annoying shit...
        AS_CASE(
                [$host_os],
@@ -210,6 +176,51 @@ zimg_get_version_info(&major, &minor, &micro);
                 LIBS="$saved_libs"
                ]
        )
+
+       AC_LANG_PUSH([C++])
+       AC_MSG_CHECKING([for sched_getaffinity])
+       AC_LINK_IFELSE(
+                         [AC_LANG_PROGRAM(
+                                         [[
+#define _GNU_SOURCE
+#include <sched.h>
+                                         ]],
+                                         [[
+cpu_set_t affinity;
+sched_getaffinity(0, sizeof(cpu_set_t), &affinity);
+int count = CPU_COUNT(&affinity);
+                                         ]]
+                         )],
+                         [
+                          AC_DEFINE([HAVE_SCHED_GETAFFINITY])
+                          AC_MSG_RESULT([yes])
+                         ],
+                         [AC_MSG_RESULT([no])]
+       )
+       AC_LANG_POP([C++])
+
+       AC_LANG_PUSH([C++])
+       AC_MSG_CHECKING([for cpuset_getaffinity])
+       AC_LINK_IFELSE(
+                         [AC_LANG_PROGRAM(
+                                         [[
+#include <sys/param.h>
+#include <sys/_cpuset.h>
+#include <sys/cpuset.h>
+                                         ]],
+                                         [[
+cpuset_t affinity;
+cpuset_getaffinity(CPU_LEVEL_WHICH, CPU_WHICH_PID, -1, sizeof(cpuset_t), &affinity);
+int count = CPU_COUNT(&affinity);
+                                         ]]
+                         )],
+                         [
+                          AC_DEFINE([HAVE_CPUSET_GETAFFINITY])
+                          AC_MSG_RESULT([yes])
+                         ],
+                         [AC_MSG_RESULT([no])]
+       )
+       AC_LANG_POP([C++])
       ]
 )
 AM_CONDITIONAL([VSCORE], [test "x$enable_core" != "xno"])
@@ -223,7 +234,13 @@ AS_IF(
       [
        AM_PATH_PYTHON([3])
 
-       PKG_CHECK_MODULES([PYTHON3], [python-$PYTHON_VERSION])
+       PKG_CHECK_MODULES([PYTHON3],
+                         [python-$PYTHON_VERSION-embed],
+                         [],
+                         [
+                          PKG_CHECK_MODULES([PYTHON3],
+                                            [python-$PYTHON_VERSION])
+                         ])
 
        AC_CONFIG_FILES([pc/vapoursynth-script.pc])
       ]
@@ -281,7 +298,15 @@ AS_IF(
 
               AS_IF(
                     [test -z "$PYTHON3_LIBS"],
-                    [PKG_CHECK_MODULES([PYTHON3], [python-$PYTHON_VERSION])]
+                    [
+                     PKG_CHECK_MODULES([PYTHON3],
+                                       [python-$PYTHON_VERSION-embed],
+                                       [],
+                                       [
+                                        PKG_CHECK_MODULES([PYTHON3],
+                                                          [python-$PYTHON_VERSION])
+                                       ])
+                    ]
               )
 
               AS_CASE(
@@ -457,6 +482,10 @@ PKG_CHECK_MODULES(
                                                      [[
 #if !defined(MAGICKCORE_QUANTUM_DEPTH) || (MAGICKCORE_QUANTUM_DEPTH != 16 && MAGICKCORE_QUANTUM_DEPTH != 32)
 #error imwri plugin requires ImageMagick with quantum depth of 16 or 32.
+#endif
+
+#if !defined(MAGICKCORE_HDRI_ENABLE) || MAGICKCORE_HDRI_ENABLE == 0
+#error imwri plugin requires ImageMagick with HDRI enabled.
 #endif
                                                      ]]
                                                     )

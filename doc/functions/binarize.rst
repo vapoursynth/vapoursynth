@@ -8,8 +8,10 @@ Binarize
    *threshold*, or *v1*, otherwise.
 
    *clip*
-      Clip to process. It must have constant format, integer sample type,
-      and bit depth between 8 and 16.
+      Clip to process. It must have integer sample type and bit depth
+      between 8 and 16, or float sample type and bit depth of 32. If
+      there are any frames with other formats, an error will be
+      returned.
 
    *threshold*
       Defaults to the middle point of range allowed by the format.

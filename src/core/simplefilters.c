@@ -18,17 +18,18 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-#include "VSHelper.h"
-#include "internalfilters.h"
-#include "filtershared.h"
+#include <math.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include <math.h>
-#include <float.h>
-#ifdef VS_TARGET_CPU_X86
-#include <emmintrin.h>
-#endif
+#include "VSHelper.h"
+#include "cpufeatures.h"
+#include "internalfilters.h"
+#include "filtershared.h"
+#include "kernel/cpulevel.h"
+#include "kernel/planestats.h"
+#include "kernel/transpose.h"
 
 static inline uint32_t doubleToUInt32S(double v) {
     if (v < 0)
@@ -190,8 +191,9 @@ static const VSFrameRef *VS_CC cropGetframe(int n, int activationReason, void **
         const VSFormat *fi = vsapi->getFrameFormat(src);
         int width = vsapi->getFrameWidth(src, 0);
         int height = vsapi->getFrameHeight(src, 0);
+        int y = (fi->id == pfCompatBGR32) ? (height - d->height - d->y) : d->y;
 
-        if (cropVerify(d->x, d->y, d->width, d->height, width, height, fi, msg, sizeof(msg))) {
+        if (cropVerify(d->x, y, d->width, d->height, width, height, fi, msg, sizeof(msg))) {
             vsapi->freeFrame(src);
             vsapi->setFilterError(msg, frameCtx);
             return NULL;
@@ -204,12 +206,21 @@ static const VSFrameRef *VS_CC cropGetframe(int n, int activationReason, void **
             int dststride = vsapi->getStride(dst, plane);
             const uint8_t *srcdata = vsapi->getReadPtr(src, plane);
             uint8_t *dstdata = vsapi->getWritePtr(dst, plane);
-            srcdata += srcstride * (d->y >> (plane ? fi->subSamplingH : 0));
+            srcdata += srcstride * (y >> (plane ? fi->subSamplingH : 0));
             srcdata += (d->x >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample;
             vs_bitblt(dstdata, dststride, srcdata, srcstride, (d->width >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample, vsapi->getFrameHeight(dst, plane));
         }
 
         vsapi->freeFrame(src);
+
+        if (d->y & 1) {
+            VSMap *props = vsapi->getFramePropsRW(dst);
+            int error;
+            int64_t fb = vsapi->propGetInt(props, "_FieldBased", 0, &error);
+            if (fb == 1 || fb == 2)
+                vsapi->propSetInt(props, "_FieldBased", (fb == 1) ? 2 : 1, paReplace);
+        }
+
         return dst;
     }
 
@@ -408,6 +419,15 @@ static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, v
         }
 
         vsapi->freeFrame(src);
+
+        if (d->top & 1) {
+            VSMap *props = vsapi->getFramePropsRW(dst);
+            int error;
+            int64_t fb = vsapi->propGetInt(props, "_FieldBased", 0, &error);
+            if (fb == 1 || fb == 2)
+                vsapi->propSetInt(props, "_FieldBased", (fb == 1) ? 2 : 1, paReplace);
+        }
+
         return dst;
     }
 
@@ -673,6 +693,7 @@ typedef struct {
     VSNodeRef *node;
     VSVideoInfo vi;
     int tff;
+    int modifyDuration;
 } SeparateFieldsData;
 
 static void VS_CC separateFieldsInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -723,13 +744,15 @@ static const VSFrameRef *VS_CC separateFieldsGetframe(int n, int activationReaso
         vsapi->propSetInt(dst_props, "_Field", ((n & 1) ^ effectiveTFF), paReplace);
         vsapi->propDeleteKey(dst_props, "_FieldBased");
 
-        int errNum, errDen;
-        int64_t durationNum = vsapi->propGetInt(dst_props, "_DurationNum", 0, &errNum);
-        int64_t durationDen = vsapi->propGetInt(dst_props, "_DurationDen", 0, &errDen);
-        if (!errNum && !errDen) {
-            muldivRational(&durationNum, &durationDen, 1, 2); // Divide duration by 2
-            vsapi->propSetInt(dst_props, "_DurationNum", durationNum, paReplace);
-            vsapi->propSetInt(dst_props, "_DurationDen", durationDen, paReplace);
+        if (d->modifyDuration) {
+            int errNum, errDen;
+            int64_t durationNum = vsapi->propGetInt(dst_props, "_DurationNum", 0, &errNum);
+            int64_t durationDen = vsapi->propGetInt(dst_props, "_DurationDen", 0, &errDen);
+            if (!errNum && !errDen) {
+                muldivRational(&durationNum, &durationDen, 1, 2); // Divide duration by 2
+                vsapi->propSetInt(dst_props, "_DurationNum", durationNum, paReplace);
+                vsapi->propSetInt(dst_props, "_DurationDen", durationDen, paReplace);
+            }
         }
 
         return dst;
@@ -746,6 +769,9 @@ static void VS_CC separateFieldsCreate(const VSMap *in, VSMap *out, void *userDa
     d.tff = !!vsapi->propGetInt(in, "tff", 0, &err);
     if (err)
         d.tff = -1;
+    d.modifyDuration = !!vsapi->propGetInt(in, "modify_duration", 0, &err);
+    if (err)
+        d.modifyDuration = 1;
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = *vsapi->getVideoInfo(d.node);
 
@@ -765,7 +791,9 @@ static void VS_CC separateFieldsCreate(const VSMap *in, VSMap *out, void *userDa
     }
     d.vi.numFrames *= 2;
     d.vi.height /= 2;
-    muldivRational(&d.vi.fpsNum, &d.vi.fpsDen, 2, 1);
+
+    if (d.modifyDuration)
+        muldivRational(&d.vi.fpsNum, &d.vi.fpsDen, 2, 1);
 
     data = malloc(sizeof(d));
     *data = d;
@@ -817,11 +845,11 @@ static const VSFrameRef *VS_CC doubleWeaveGetframe(int n, int activationReason, 
         } else if (d->tff != -1) {
             int par = (n & 1) ^ d->tff;
             if (par) {
-                srctop = src2;
-                srcbtn = src1;
-            } else {
                 srctop = src1;
                 srcbtn = src2;
+            } else {
+                srctop = src2;
+                srcbtn = src1;
             }
         } else {
             vsapi->setFilterError("DoubleWeave: field order could not be determined from frame properties", frameCtx);
@@ -1113,6 +1141,13 @@ static void VS_CC stackCreate(const VSMap *in, VSMap *out, void *userData, VSCor
             d.node[i] = vsapi->propGetNode(in, "clips", i, 0);
 
         d.vi = *vsapi->getVideoInfo(d.node[0]);
+        if (isConstantFormat(&d.vi) && isCompatFormat(&d.vi) && d.vertical) {
+            for (int j = 0; j < d.numclips; j++)
+                vsapi->freeNode(d.node[j]);
+            free(d.node);
+
+            RETERROR("StackVertical: compat formats aren't supported");
+        }
 
         for (int i = 1; i < d.numclips; i++) {
             const VSVideoInfo *vi = vsapi->getVideoInfo(d.node[i]);
@@ -1123,8 +1158,8 @@ static void VS_CC stackCreate(const VSMap *in, VSMap *out, void *userData, VSCor
             if (!isConstantFormat(vi) || vi->format != d.vi.format || (d.vertical && vi->width != d.vi.width) || (!d.vertical && vi->height != d.vi.height)) {
                 for (int j = 0; j < d.numclips; j++)
                     vsapi->freeNode(d.node[j]);
-
                 free(d.node);
+
                 if (d.vertical) {
                     RETERROR("StackVertical: clip format and width must match");
                 } else {
@@ -1212,22 +1247,16 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     BlankClipData d = {0};
     BlankClipData *data;
     int hasvi = 0;
-    int format = 0;
     int64_t temp;
     int err;
-    int compat = 0;
 
     VSNodeRef *node = vsapi->propGetNode(in, "clip", 0, &err);
 
     if (!err) {
         d.vi = *vsapi->getVideoInfo(node);
-        compat = isCompatFormat(&d.vi);
         vsapi->freeNode(node);
         hasvi = 1;
     }
-
-    if (compat)
-        RETERROR("BlankClip: compat formats not supported");
 
     temp = vsapi->propGetInt(in, "width", 0, &err);
 
@@ -1274,7 +1303,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
 
     vs_normalizeRational(&d.vi.fpsNum, &d.vi.fpsDen);
 
-    format = int64ToIntS(vsapi->propGetInt(in, "format", 0, &err));
+    int format = int64ToIntS(vsapi->propGetInt(in, "format", 0, &err));
 
     if (err) {
         if (!hasvi)
@@ -1285,6 +1314,9 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
 
     if (!d.vi.format)
         RETERROR("BlankClip: invalid format");
+
+    if (isCompatFormat(&d.vi))
+        RETERROR("BlankClip: compat formats not supported");
 
     temp = vsapi->propGetInt(in, "length", 0, &err);
 
@@ -1325,16 +1357,6 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
         }
     } else if (ncolors > 0) {
         RETERROR("BlankClip: invalid number of color values specified");
-    }
-
-    if (d.vi.format->id == pfCompatBGR32 || d.vi.format->id == pfCompatYUY2) {
-        for (int i = 0; i < numcomponents; i++)
-            if (d.color[i] > 255)
-                RETERROR("BlankClip: color value out of range");
-        if (d.vi.format->id == pfCompatBGR32)
-            d.color[0] = (0 << 24) | (d.color[0] << 16) | (d.color[1] << 8) | (d.color[2] << 0);
-        else
-            d.color[0] = (d.color[2] << 24) | (d.color[0] << 16) | (d.color[1] << 8) | (d.color[0] << 0);
     }
 
     d.keep = !!vsapi->propGetInt(in, "keep", 0, &err);
@@ -1667,9 +1689,10 @@ static void VS_CC modifyFrameFree(void *instanceData, VSCore *core, const VSAPI 
     ModifyFrameData *d = (ModifyFrameData *)instanceData;
     for (int i = 0; i < d->numnode; i++)
         vsapi->freeNode(d->node[i]);
+    free(d->node);
+    vsapi->freeFunc(d->func);
     vsapi->freeMap(d->in);
     vsapi->freeMap(d->out);
-    free(d->node);
     free(d);
 }
 
@@ -1698,16 +1721,10 @@ static void VS_CC modifyFrameCreate(const VSMap *in, VSMap *out, void *userData,
 //////////////////////////////////////////
 // Transpose
 
-#ifdef VS_TARGET_CPU_X86
-extern void vs_transpose_word(const uint8_t *src, intptr_t srcstride, uint8_t *dst, intptr_t dststride);
-extern void vs_transpose_word_partial(const uint8_t *src, intptr_t srcstride, uint8_t *dst, intptr_t dststride, intptr_t dst_lines);
-extern void vs_transpose_byte(const uint8_t *src, int srcstride, uint8_t *dst, int dststride);
-extern void vs_transpose_byte_partial(const uint8_t *src, intptr_t srcstride, uint8_t *dst, intptr_t dststride, intptr_t dst_lines);
-#endif
-
 typedef struct {
     VSNodeRef *node;
     VSVideoInfo vi;
+    int cpulevel;
 } TransposeData;
 
 static void VS_CC transposeInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -1729,11 +1746,25 @@ static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, vo
         int src_stride;
         uint8_t * VS_RESTRICT dstp;
         int dst_stride;
+
+        void (*func)(const void *, ptrdiff_t, void *, ptrdiff_t, unsigned, unsigned) = NULL;
+
 #ifdef VS_TARGET_CPU_X86
-        int partial_lines;
-        int modwidth;
-        int modheight;
+        if (d->cpulevel >= VS_CPU_LEVEL_SSE2) {
+            switch (d->vi.format->bytesPerSample) {
+            case 1: func = vs_transpose_plane_byte_sse2; break;
+            case 2: func = vs_transpose_plane_word_sse2; break;
+            case 4: func = vs_transpose_plane_dword_sse2; break;
+            }
+        }
 #endif
+        if (!func) {
+            switch (d->vi.format->bytesPerSample) {
+            case 1: func = vs_transpose_plane_byte_c; break;
+            case 2: func = vs_transpose_plane_word_c; break;
+            case 4: func = vs_transpose_plane_dword_c; break;
+            }
+        }
 
         for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {
             width = vsapi->getFrameWidth(src, plane);
@@ -1742,74 +1773,9 @@ static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, vo
             src_stride = vsapi->getStride(src, plane);
             dstp = vsapi->getWritePtr(dst, plane);
             dst_stride = vsapi->getStride(dst, plane);
-            int x;
 
-            switch (d->vi.format->bytesPerSample) {
-            case 1:
-#ifdef VS_TARGET_CPU_X86
-                modwidth = width & ~7;
-                modheight = height & ~7;
-
-                for (int y = 0; y < modheight; y += 8) {
-                    for (x = 0; x < modwidth; x += 8)
-                        vs_transpose_byte(srcp + src_stride * y + x, src_stride, dstp + dst_stride * x + y, dst_stride);
-
-                    partial_lines = width - modwidth;
-
-                    if (partial_lines > 0)
-                        vs_transpose_byte_partial(srcp + src_stride * y + x, src_stride, dstp + dst_stride * x + y, dst_stride, partial_lines);
-                }
-
-                for (int y = modheight; y < height; y++)
-                    for (x = 0; x < width; x++)
-                        dstp[dst_stride * x + y] = srcp[src_stride * y + x];
-
-                break;
-#else
-                for (int y = 0; y < height; y++)
-                    for (x = 0; x < width; x++)
-                        dstp[dst_stride * x + y] = srcp[src_stride * y + x];
-                break;
-#endif
-            case 2:
-#ifdef VS_TARGET_CPU_X86
-                modwidth = width & ~3;
-                modheight = height & ~3;
-
-                for (int y = 0; y < modheight; y += 4) {
-                    for (x = 0; x < modwidth; x += 4)
-                        vs_transpose_word(srcp + src_stride * y + x * 2, src_stride, dstp + dst_stride * x + y * 2, dst_stride);
-
-                    partial_lines = width - modwidth;
-
-                    if (partial_lines > 0)
-                        vs_transpose_word_partial(srcp + src_stride * y + x * 2, src_stride, dstp + dst_stride * x + y * 2, dst_stride, partial_lines);
-                }
-
-                src_stride /= 2;
-                dst_stride /= 2;
-
-                for (int y = modheight; y < height; y++)
-                    for (x = 0; x < width; x++)
-                        ((uint16_t *)dstp)[dst_stride * x + y] = ((const uint16_t *)srcp)[src_stride * y + x];
-
-                break;
-#else
-                src_stride /= 2;
-                dst_stride /= 2;
-                for (int y = 0; y < height; y++)
-                    for (x = 0; x < width; x++)
-                        ((uint16_t *)dstp)[dst_stride * x + y] = ((const uint16_t *)srcp)[src_stride * y + x];
-                break;
-#endif
-            case 4:
-                src_stride /= 4;
-                dst_stride /= 4;
-                for (int y = 0; y < height; y++)
-                    for (x = 0; x < width; x++)
-                        ((uint32_t *)dstp)[dst_stride * x + y] = ((const uint32_t *)srcp)[src_stride * y + x];
-                break;
-            }
+            if (func)
+                func(srcp, src_stride, dstp, dst_stride, width, height);
         }
 
         vsapi->freeFrame(src);
@@ -1843,6 +1809,7 @@ static void VS_CC transposeCreate(const VSMap *in, VSMap *out, void *userData, V
     }
 
     d.vi.format = vsapi->registerFormat(d.vi.format->colorFamily, d.vi.format->sampleType, d.vi.format->bitsPerSample, d.vi.format->subSamplingH, d.vi.format->subSamplingW, core);
+    d.cpulevel = vs_get_cpulevel(core);
 
     data = malloc(sizeof(d));
     *data = d;
@@ -2012,6 +1979,7 @@ typedef struct {
     char *propMax;
     char *propDiff;
     int plane;
+    int cpulevel;
 } PlaneStatsData;
 
 static void VS_CC planeStatsInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -2027,372 +1995,99 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
             vsapi->requestFrameFilter(n, d->node2, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
-        const VSFrameRef *src2 = NULL;
-        if (d->node2)
-            src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
+        const VSFrameRef *src2 = d->node2 ? vsapi->getFrameFilter(n, d->node2, frameCtx) : NULL;
         VSFrameRef *dst = vsapi->copyFrame(src1, core);
         const VSFormat *fi = vsapi->getFrameFormat(dst);
-        int x, y;
         int width = vsapi->getFrameWidth(src1, d->plane);
         int height = vsapi->getFrameHeight(src1, d->plane);
         const uint8_t *srcp = vsapi->getReadPtr(src1, d->plane);
         int src_stride = vsapi->getStride(src1, d->plane);
-        uint64_t acc = 0;
-        uint64_t diffacc = 0;
-        uint16_t imin = UINT16_MAX;
-        uint16_t imax = 0;
-        double facc = 0;
-        double fdiffacc = 0;
-        float fmin = FLT_MAX;
-        float fmax = -FLT_MAX;
+        union vs_plane_stats stats = { 0 };
+
+        if (src2) {
+            const void *srcp2 = vsapi->getReadPtr(src2, d->plane);
+            ptrdiff_t src2_stride = vsapi->getStride(src2, d->plane);
+            void (*func)(union vs_plane_stats *, const void *, ptrdiff_t, const void *, ptrdiff_t, unsigned, unsigned) = NULL;
 
 #ifdef VS_TARGET_CPU_X86
-        unsigned xiter;
-        const uint8_t ascendMask[16] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
-        unsigned miter = ((width * fi->bytesPerSample + sizeof(__m128i) - fi->bytesPerSample) / sizeof(__m128i)) - 1;
-        int tailelems = (((width * fi->bytesPerSample)) % sizeof(__m128i)) / fi->bytesPerSample;
-        if (tailelems == 0)
-            tailelems = sizeof(__m128i) / fi->bytesPerSample;
-
-        const __m128i tailmask = _mm_cmplt_epi8(_mm_loadu_si128((const __m128i *)ascendMask), _mm_set1_epi8(tailelems * fi->bytesPerSample));
-        const __m128 ftailmask = _mm_castsi128_ps(tailmask);
-        const __m128i ones = _mm_cmpeq_epi8(tailmask, tailmask);
-
-        __m128i ms1, ms2, temp;
-        __m128i macc, mdiffacc, mmax, mmin;
-        const __m128i submask = _mm_set1_epi16(0x8000);
-        const __m128i uppermask = _mm_set1_epi16(0xFF00);
-        __m128 fms1, fms2;
-        __m128 fmacc, fmdiffacc, fmmax, fmmin;
-        const __m128 fabsmask = _mm_castsi128_ps(_mm_set1_epi32(0x7FFFFFFF));
-        const __m128 fltmin = _mm_set_ps1(-FLT_MAX);
-        const __m128 fltmax = _mm_set_ps1(FLT_MAX);
-
-        macc = _mm_setzero_si128();
-        mdiffacc = _mm_setzero_si128();
-        mmax = _mm_setzero_si128();
-        mmin = ones;
-        // offset max and min for 16 bit instructions
-        if (fi->bytesPerSample == 2) {
-            mmax = _mm_sub_epi16(mmax, submask);
-            mmin = _mm_sub_epi16(mmin, submask);
-        }
-
-        fmacc = _mm_setzero_ps();
-        fmdiffacc = _mm_setzero_ps();
-        fmmax = fltmin;
-        fmmin = fltmax;
-
-        if (src2) {
-            const uint8_t *srcp2 = vsapi->getReadPtr(src2, d->plane);
-
-            switch (fi->bytesPerSample) {
-            case 1:
-                for (y = 0; y < height; y++) {
-                    for (xiter = 0; xiter < miter; xiter++) {
-                        ms1 = _mm_load_si128((const __m128i *)(srcp + xiter * sizeof(__m128i)));
-                        ms2 = _mm_load_si128((const __m128i *)(srcp2 + xiter * sizeof(__m128i)));
-                        mmax = _mm_max_epu8(mmax, ms1);
-                        mmin = _mm_min_epu8(mmin, ms1);
-                        macc = _mm_add_epi64(macc, _mm_sad_epu8(ms1, _mm_setzero_si128()));
-                        mdiffacc = _mm_add_epi64(mdiffacc, _mm_sad_epu8(ms1, ms2));
-                    }
-                    ms1 = _mm_and_si128(_mm_load_si128((const __m128i *)(srcp + miter * sizeof(__m128i))), tailmask);
-                    ms2 = _mm_and_si128(_mm_load_si128((const __m128i *)(srcp2 + miter * sizeof(__m128i))), tailmask);
-                    mmax = _mm_max_epu8(mmax, ms1);
-                    mmin = _mm_min_epu8(mmin, _mm_xor_si128(_mm_and_si128(_mm_xor_si128(ms1, ones), tailmask), ones));
-                    macc = _mm_add_epi64(macc, _mm_sad_epu8(ms1, _mm_setzero_si128()));
-                    mdiffacc = _mm_add_epi64(mdiffacc, _mm_sad_epu8(ms1, ms2));
-
-                    srcp += src_stride;
-                    srcp2 += src_stride;
+            if (getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2) {
+                switch (fi->bytesPerSample) {
+                case 1: func = vs_plane_stats_2_byte_avx2; break;
+                case 2: func = vs_plane_stats_2_word_avx2; break;
+                case 4: func = vs_plane_stats_2_float_avx2; break;
                 }
-                mmax = _mm_max_epu8(mmax, _mm_srli_si128(mmax, 8));
-                mmax = _mm_max_epu8(mmax, _mm_srli_si128(mmax, 4));
-                mmax = _mm_max_epu8(mmax, _mm_srli_si128(mmax, 2));
-                mmax = _mm_max_epu8(mmax, _mm_srli_si128(mmax, 1));
-                imax = (_mm_extract_epi16(mmax, 0) & 0xFF);
-                mmin = _mm_min_epu8(mmin, _mm_srli_si128(mmin, 8));
-                mmin = _mm_min_epu8(mmin, _mm_srli_si128(mmin, 4));
-                mmin = _mm_min_epu8(mmin, _mm_srli_si128(mmin, 2));
-                mmin = _mm_min_epu8(mmin, _mm_srli_si128(mmin, 1));
-                imin = (_mm_extract_epi16(mmin, 0) & 0xFF);
-                macc = _mm_add_epi64(macc, _mm_srli_si128(macc, 8));
-                mdiffacc = _mm_add_epi64(mdiffacc, _mm_srli_si128(mdiffacc, 8));
-                _mm_storel_epi64((__m128i *)&acc, macc);
-                _mm_storel_epi64((__m128i *)&diffacc, mdiffacc);
-                break;
-            case 2:
-                for (y = 0; y < height; y++) {
-                    for (xiter = 0; xiter < miter; xiter++) {
-                        ms1 = _mm_load_si128((const __m128i *)(srcp + xiter * sizeof(__m128i)));
-                        ms2 = _mm_load_si128((const __m128i *)(srcp2 + xiter * sizeof(__m128i)));
-                        temp = _mm_or_si128(_mm_subs_epu16(ms1, ms2), _mm_subs_epu16(ms2, ms1));
-                        mmax = _mm_max_epi16(mmax, _mm_sub_epi16(ms1, submask));
-                        mmin = _mm_min_epi16(mmin, _mm_sub_epi16(ms1, submask));
-                        macc = _mm_add_epi64(macc, _mm_sad_epu8(_mm_andnot_si128(uppermask, ms1), _mm_setzero_si128()));
-                        macc = _mm_add_epi64(macc, _mm_slli_si128(_mm_sad_epu8(_mm_and_si128(uppermask, ms1), _mm_setzero_si128()), 1));
-                        mdiffacc = _mm_add_epi64(mdiffacc, _mm_sad_epu8(_mm_andnot_si128(uppermask, temp), _mm_setzero_si128()));
-                        mdiffacc = _mm_add_epi64(mdiffacc, _mm_slli_si128(_mm_sad_epu8(_mm_and_si128(uppermask, temp), _mm_setzero_si128()), 1));
-                    }
-                    ms1 = _mm_and_si128(_mm_load_si128((const __m128i *)(srcp + miter * sizeof(__m128i))), tailmask);
-                    ms2 = _mm_and_si128(_mm_load_si128((const __m128i *)(srcp2 + miter * sizeof(__m128i))), tailmask);
-                    temp = _mm_or_si128(_mm_subs_epu16(ms1, ms2), _mm_subs_epu16(ms2, ms1));
-                    mmax = _mm_max_epi16(mmax, _mm_sub_epi16(ms1, submask));
-                    mmin = _mm_min_epi16(mmin, _mm_sub_epi16(_mm_xor_si128(_mm_and_si128(_mm_xor_si128(ms1, ones), tailmask), ones), submask));
-                    macc = _mm_add_epi64(macc, _mm_sad_epu8(_mm_andnot_si128(uppermask, ms1), _mm_setzero_si128()));
-                    macc = _mm_add_epi64(macc, _mm_slli_si128(_mm_sad_epu8(_mm_and_si128(uppermask, ms1), _mm_setzero_si128()), 1));
-                    mdiffacc = _mm_add_epi64(mdiffacc, _mm_sad_epu8(_mm_andnot_si128(uppermask, temp), _mm_setzero_si128()));
-                    mdiffacc = _mm_add_epi64(mdiffacc, _mm_slli_si128(_mm_sad_epu8(_mm_and_si128(uppermask, temp), _mm_setzero_si128()), 1));
-
-                    srcp += src_stride;
-                    srcp2 += src_stride;
-                }
-                mmax = _mm_max_epi16(mmax, _mm_srli_si128(mmax, 8));
-                mmax = _mm_max_epi16(mmax, _mm_srli_si128(mmax, 4));
-                mmax = _mm_max_epi16(mmax, _mm_srli_si128(mmax, 2));
-                mmax = _mm_add_epi16(mmax, submask);
-                imax = _mm_extract_epi16(mmax, 0);
-                mmin = _mm_min_epi16(mmin, _mm_srli_si128(mmin, 8));
-                mmin = _mm_min_epi16(mmin, _mm_srli_si128(mmin, 4));
-                mmin = _mm_min_epi16(mmin, _mm_srli_si128(mmin, 2));
-                mmin = _mm_add_epi16(mmin, submask);
-                imin = _mm_extract_epi16(mmin, 0);
-                macc = _mm_add_epi64(macc, _mm_srli_si128(macc, 8));
-                mdiffacc = _mm_add_epi64(mdiffacc, _mm_srli_si128(mdiffacc, 8));
-                _mm_storel_epi64((__m128i *)&acc, macc);
-                _mm_storel_epi64((__m128i *)&diffacc, mdiffacc);
-                break;
-            case 4:
-                for (y = 0; y < height; y++) {
-                    for (xiter = 0; xiter < miter; xiter++) {
-                        fms1 = _mm_load_ps((const float *)(srcp + xiter * sizeof(__m128)));
-                        fms2 = _mm_load_ps((const float *)(srcp2 + xiter * sizeof(__m128)));
-                        fmmax = _mm_max_ps(fmmax, fms1);
-                        fmmin = _mm_min_ps(fmmin, fms1);
-                        fmacc = _mm_add_ps(fmacc, fms1);
-                        fmdiffacc = _mm_add_ps(fmdiffacc, _mm_and_ps(_mm_sub_ps(fms2, fms1), fabsmask));
-                    }
-                    fms1 = _mm_and_ps(_mm_load_ps((const float *)(srcp + miter * sizeof(__m128))), ftailmask);
-                    fms2 = _mm_and_ps(_mm_load_ps((const float *)(srcp2 + miter * sizeof(__m128))), ftailmask);
-                    fmmax = _mm_max_ps(fmmax, _mm_or_ps(fms1, _mm_andnot_ps(ftailmask, fltmin)));
-                    fmmin = _mm_min_ps(fmmin, _mm_or_ps(fms1, _mm_andnot_ps(ftailmask, fltmax)));
-                    fmacc = _mm_add_ps(fmacc, fms1);
-                    fmdiffacc = _mm_add_ps(fmdiffacc, _mm_and_ps(_mm_sub_ps(fms2, fms1), fabsmask));
-
-                    srcp += src_stride;
-                    srcp2 += src_stride;
-                }
-                fmmax = _mm_max_ps(fmmax, _mm_shuffle_ps(fmmax, fmmax, _MM_SHUFFLE(3, 2, 3, 2)));
-                fmmax = _mm_max_ps(fmmax, _mm_shuffle_ps(fmmax, fmmax, _MM_SHUFFLE(1, 1, 1, 1)));
-                _mm_store_ss(&fmax, fmmax);
-                fmmin = _mm_min_ps(fmmin, _mm_shuffle_ps(fmmin, fmmin, _MM_SHUFFLE(3, 2, 3, 2)));
-                fmmin = _mm_min_ps(fmmin, _mm_shuffle_ps(fmmin, fmmin, _MM_SHUFFLE(1, 1, 1, 1)));
-                _mm_store_ss(&fmin, fmmin);
-                fmacc = _mm_add_ps(fmacc, _mm_shuffle_ps(fmacc, fmacc, _MM_SHUFFLE(3, 2, 3, 2)));
-                fmacc = _mm_add_ps(fmacc, _mm_shuffle_ps(fmacc, fmacc, _MM_SHUFFLE(1, 1, 1, 1)));
-                _mm_store_sd(&facc, _mm_cvtps_pd(fmacc));
-                fmdiffacc = _mm_add_ps(fmdiffacc, _mm_shuffle_ps(fmdiffacc, fmdiffacc, _MM_SHUFFLE(3, 2, 3, 2)));
-                fmdiffacc = _mm_add_ps(fmdiffacc, _mm_shuffle_ps(fmdiffacc, fmdiffacc, _MM_SHUFFLE(1, 1, 1, 1)));
-                _mm_store_sd(&fdiffacc, _mm_cvtps_pd(fmdiffacc));
-                break;
             }
-        } else {
-            switch (fi->bytesPerSample) {
-            case 1:
-                for (y = 0; y < height; y++) {
-                    for (xiter = 0; xiter < miter; xiter++) {
-                        ms1 = _mm_load_si128((const __m128i *)(srcp + xiter * sizeof(__m128i)));
-                        mmax = _mm_max_epu8(mmax, ms1);
-                        mmin = _mm_min_epu8(mmin, ms1);
-                        macc = _mm_add_epi64(macc, _mm_sad_epu8(ms1, _mm_setzero_si128()));
-                    }
-                    ms1 = _mm_and_si128(_mm_load_si128((const __m128i *)(srcp + miter * sizeof(__m128i))), tailmask);
-                    mmax = _mm_max_epu8(mmax, ms1);
-                    mmin = _mm_min_epu8(mmin, _mm_xor_si128(_mm_and_si128(_mm_xor_si128(ms1, ones), tailmask), ones));
-                    macc = _mm_add_epi64(macc, _mm_sad_epu8(ms1, _mm_setzero_si128()));
-
-                    srcp += src_stride;
+            if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
+                switch (fi->bytesPerSample) {
+                case 1: func = vs_plane_stats_2_byte_sse2; break;
+                case 2: func = vs_plane_stats_2_word_sse2; break;
+                case 4: func = vs_plane_stats_2_float_sse2; break;
                 }
-                mmax = _mm_max_epu8(mmax, _mm_srli_si128(mmax, 8));
-                mmax = _mm_max_epu8(mmax, _mm_srli_si128(mmax, 4));
-                mmax = _mm_max_epu8(mmax, _mm_srli_si128(mmax, 2));
-                mmax = _mm_max_epu8(mmax, _mm_srli_si128(mmax, 1));
-                imax = (_mm_extract_epi16(mmax, 0) & 0xFF);
-                mmin = _mm_min_epu8(mmin, _mm_srli_si128(mmin, 8));
-                mmin = _mm_min_epu8(mmin, _mm_srli_si128(mmin, 4));
-                mmin = _mm_min_epu8(mmin, _mm_srli_si128(mmin, 2));
-                mmin = _mm_min_epu8(mmin, _mm_srli_si128(mmin, 1));
-                imin = (_mm_extract_epi16(mmin, 0) & 0xFF);
-                macc = _mm_add_epi64(macc, _mm_srli_si128(macc, 8));
-                _mm_storel_epi64((__m128i *)&acc, macc);
-                break;
-            case 2:
-                for (y = 0; y < height; y++) {
-                    for (xiter = 0; xiter < miter; xiter++) {
-                        ms1 = _mm_load_si128((const __m128i *)(srcp + xiter * sizeof(__m128i)));
-                        mmax = _mm_max_epi16(mmax, _mm_sub_epi16(ms1, submask));
-                        mmin = _mm_min_epi16(mmin, _mm_sub_epi16(ms1, submask));
-                        macc = _mm_add_epi64(macc, _mm_sad_epu8(_mm_andnot_si128(uppermask, ms1), _mm_setzero_si128()));
-                        macc = _mm_add_epi64(macc, _mm_slli_si128(_mm_sad_epu8(_mm_and_si128(uppermask, ms1), _mm_setzero_si128()), 1));
-                    }
-                    ms1 = _mm_and_si128(_mm_load_si128((const __m128i *)(srcp + miter * sizeof(__m128i))), tailmask);
-                    mmax = _mm_max_epi16(mmax, _mm_sub_epi16(ms1, submask));
-                    mmin = _mm_min_epi16(mmin, _mm_sub_epi16(_mm_xor_si128(_mm_and_si128(_mm_xor_si128(ms1, ones), tailmask), ones), submask));
-                    macc = _mm_add_epi64(macc, _mm_sad_epu8(_mm_andnot_si128(uppermask, ms1), _mm_setzero_si128()));
-                    macc = _mm_add_epi64(macc, _mm_slli_si128(_mm_sad_epu8(_mm_and_si128(uppermask, ms1), _mm_setzero_si128()), 1));
-
-                    srcp += src_stride;
-                }
-                mmax = _mm_max_epi16(mmax, _mm_srli_si128(mmax, 8));
-                mmax = _mm_max_epi16(mmax, _mm_srli_si128(mmax, 4));
-                mmax = _mm_max_epi16(mmax, _mm_srli_si128(mmax, 2));
-                mmax = _mm_add_epi16(mmax, submask);
-                imax = _mm_extract_epi16(mmax, 0);
-                mmin = _mm_min_epi16(mmin, _mm_srli_si128(mmin, 8));
-                mmin = _mm_min_epi16(mmin, _mm_srli_si128(mmin, 4));
-                mmin = _mm_min_epi16(mmin, _mm_srli_si128(mmin, 2));
-                mmin = _mm_add_epi16(mmin, submask);
-                imin = _mm_extract_epi16(mmin, 0);
-                macc = _mm_add_epi64(macc, _mm_srli_si128(macc, 8));
-                _mm_storel_epi64((__m128i *)&acc, macc);
-                break;
-            case 4:
-                for (y = 0; y < height; y++) {
-                    for (xiter = 0; xiter < miter; xiter++) {
-                        fms1 = _mm_load_ps((const float *)(srcp + xiter * sizeof(__m128)));
-                        fmmax = _mm_max_ps(fmmax, fms1);
-                        fmmin = _mm_min_ps(fmmin, fms1);
-                        fmacc = _mm_add_ps(fmacc, fms1);
-                    }
-                    fms1 = _mm_and_ps(_mm_load_ps((const float *)(srcp + miter * sizeof(__m128))), ftailmask);
-                    fmmax = _mm_max_ps(fmmax, _mm_or_ps(fms1, _mm_andnot_ps(ftailmask, fltmin)));
-                    fmmin = _mm_min_ps(fmmin, _mm_or_ps(fms1, _mm_andnot_ps(ftailmask, fltmax)));
-                    fmacc = _mm_add_ps(fmacc, fms1);
-
-                    srcp += src_stride;
-                }
-                fmmax = _mm_max_ps(fmmax, _mm_shuffle_ps(fmmax, fmmax, _MM_SHUFFLE(3, 2, 3, 2)));
-                fmmax = _mm_max_ps(fmmax, _mm_shuffle_ps(fmmax, fmmax, _MM_SHUFFLE(1, 1, 1, 1)));
-                _mm_store_ss(&fmax, fmmax);
-                fmmin = _mm_min_ps(fmmin, _mm_shuffle_ps(fmmin, fmmin, _MM_SHUFFLE(3, 2, 3, 2)));
-                fmmin = _mm_min_ps(fmmin, _mm_shuffle_ps(fmmin, fmmin, _MM_SHUFFLE(1, 1, 1, 1)));
-                _mm_store_ss(&fmin, fmmin);
-                fmacc = _mm_add_ps(fmacc, _mm_shuffle_ps(fmacc, fmacc, _MM_SHUFFLE(3, 2, 3, 2)));
-                fmacc = _mm_add_ps(fmacc, _mm_shuffle_ps(fmacc, fmacc, _MM_SHUFFLE(1, 1, 1, 1)));
-                _mm_store_sd(&facc, _mm_cvtps_pd(fmacc));
-                break;
             }
-        }
-#else
-        if (src2) {
-            const uint8_t *srcp2 = vsapi->getReadPtr(src2, d->plane);
-
-            switch (fi->bytesPerSample) {
-            case 1:
-                for (y = 0; y < height; y++) {
-                    for (x = 0; x < width; x++) {
-                        uint8_t v = srcp[x];
-                        uint8_t t = srcp2[x];
-                        imin = VSMIN(imin, v);
-                        imax = VSMAX(imax, v);
-                        acc += v;
-                        diffacc += abs(v - t);
-                    }
-                    srcp += src_stride;
-                    srcp2 += src_stride;
-                }
-                break;
-            case 2:
-                for (y = 0; y < height; y++) {
-                    for (x = 0; x < width; x++) {
-                        uint16_t v = ((const uint16_t *)srcp)[x];
-                        uint16_t t = ((const uint16_t *)srcp2)[x];
-                        imin = VSMIN(imin, v);
-                        imax = VSMAX(imax, v);
-                        acc += v;
-                        diffacc += abs(v - t);
-                    }
-                    srcp += src_stride;
-                    srcp2 += src_stride;
-                }
-                break;
-            case 4:
-                for (y = 0; y < height; y++) {
-                    for (x = 0; x < width; x++) {
-                        float v = ((const float *)srcp)[x];
-                        float t = ((const float *)srcp2)[x];
-                        fmin = VSMIN(fmin, v);
-                        fmax = VSMAX(fmax, v);
-                        facc += v;
-                        fdiffacc += fabs(v - t);
-                    }
-                    srcp += src_stride;
-                    srcp2 += src_stride;
-                }
-                break;
-            }
-        } else {
-            switch (fi->bytesPerSample) {
-            case 1:
-                for (y = 0; y < height; y++) {
-                    for (x = 0; x < width; x++) {
-                        uint8_t v = srcp[x];
-                        imin = VSMIN(imin, v);
-                        imax = VSMAX(imax, v);
-                        acc += v;
-                    }
-                    srcp += src_stride;
-                }
-                break;
-            case 2:
-                for (y = 0; y < height; y++) {
-                    for (x = 0; x < width; x++) {
-                        uint16_t v = ((const uint16_t *)srcp)[x];
-                        imin = VSMIN(imin, v);
-                        imax = VSMAX(imax, v);
-                        acc += v;
-                    }
-                    srcp += src_stride;
-                }
-                break;
-            case 4:
-                for (y = 0; y < height; y++) {
-                    for (x = 0; x < width; x++) {
-                        float v = ((const float *)srcp)[x];
-                        fmin = VSMIN(fmin, v);
-                        fmax = VSMAX(fmax, v);
-                        facc += v;
-                    }
-                    srcp += src_stride;
-                }
-                break;
-            }
-        }
 #endif
+            if (!func) {
+                switch (fi->bytesPerSample) {
+                case 1: func = vs_plane_stats_2_byte_c; break;
+                case 2: func = vs_plane_stats_2_word_c; break;
+                case 4: func = vs_plane_stats_2_float_c; break;
+                }
+            }
+
+            if (func)
+                func(&stats, srcp, src_stride, srcp2, src2_stride, width, height);
+        } else {
+            void (*func)(union vs_plane_stats *, const void *, ptrdiff_t, unsigned, unsigned) = NULL;
+
+#ifdef VS_TARGET_CPU_X86
+            if (getCPUFeatures()->avx2 && d->cpulevel >= VS_CPU_LEVEL_AVX2) {
+                switch (fi->bytesPerSample) {
+                case 1: func = vs_plane_stats_1_byte_avx2; break;
+                case 2: func = vs_plane_stats_1_word_avx2; break;
+                case 4: func = vs_plane_stats_1_float_avx2; break;
+                }
+            }
+            if (!func && d->cpulevel >= VS_CPU_LEVEL_SSE2) {
+                switch (fi->bytesPerSample) {
+                case 1: func = vs_plane_stats_1_byte_sse2; break;
+                case 2: func = vs_plane_stats_1_word_sse2; break;
+                case 4: func = vs_plane_stats_1_float_sse2; break;
+                }
+            }
+#endif
+            if (!func) {
+                switch (fi->bytesPerSample) {
+                case 1: func = vs_plane_stats_1_byte_c; break;
+                case 2: func = vs_plane_stats_1_word_c; break;
+                case 4: func = vs_plane_stats_1_float_c; break;
+                }
+            }
+
+            if (func)
+                func(&stats, srcp, src_stride, width, height);
+        }
 
         VSMap *dstProps = vsapi->getFramePropsRW(dst);
 
         if (fi->sampleType == stInteger) {
-            vsapi->propSetInt(dstProps, d->propMin, imin, paReplace);
-            vsapi->propSetInt(dstProps, d->propMax, imax, paReplace);
+            vsapi->propSetInt(dstProps, d->propMin, stats.i.min, paReplace);
+            vsapi->propSetInt(dstProps, d->propMax, stats.i.max, paReplace);
         } else {
-            vsapi->propSetFloat(dstProps, d->propMin, fmin, paReplace);
-            vsapi->propSetFloat(dstProps, d->propMax, fmax, paReplace);
+            vsapi->propSetFloat(dstProps, d->propMin, stats.f.min, paReplace);
+            vsapi->propSetFloat(dstProps, d->propMax, stats.f.max, paReplace);
         }
 
         double avg = 0.0;
         double diff = 0.0;
         if (fi->sampleType == stInteger) {
-            avg = acc / (double)(width * height * (((int64_t)1 << fi->bitsPerSample) - 1));
+            avg = stats.i.acc / (double)(width * height * (((int64_t)1 << fi->bitsPerSample) - 1));
             if (d->node2)
-                diff = diffacc / (double)(width * height * (((int64_t)1 << fi->bitsPerSample) - 1));
+                diff = stats.i.diffacc / (double)(width * height * (((int64_t)1 << fi->bitsPerSample) - 1));
         } else {
-            avg = facc / (double)((int64_t)width * height);
+            avg = stats.f.acc / (double)((int64_t)width * height);
             if (d->node2)
-                diff = fdiffacc / (double)((int64_t)width * height);
+                diff = stats.f.diffacc / (double)((int64_t)width * height);
         }
-        
+
         vsapi->propSetFloat(dstProps, d->propAverage, avg, paReplace);
         if (d->node2)
             vsapi->propSetFloat(dstProps, d->propDiff, diff, paReplace);
@@ -2460,6 +2155,7 @@ static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, 
     strcpy(d.propMax + l, "Max");
     strcpy(d.propAverage + l, "Average");
     strcpy(d.propDiff + l, "Diff");
+    d.cpulevel = vs_get_cpulevel(core);
 
     data = malloc(sizeof(d));
     *data = d;
@@ -2797,7 +2493,7 @@ static const VSFrameRef *VS_CC setFieldBasedGetFrame(int n, int activationReason
 static void VS_CC setFieldBasedCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     SetFieldBasedData d;
     SetFieldBasedData *data;
-    
+
     d.fieldbased = vsapi->propGetInt(in, "value", 0, NULL);
     if (d.fieldbased < 0 || d.fieldbased > 2)
         RETERROR("SetFieldBased: value must be 0, 1 or 2");
@@ -2810,6 +2506,14 @@ static void VS_CC setFieldBasedCreate(const VSMap *in, VSMap *out, void *userDat
     vsapi->createFilter(in, out, "SetFieldBased", singleClipInit, setFieldBasedGetFrame, singleClipFree, fmParallel, nfNoCache, data, core);
 }
 
+static void VS_CC setMaxCpu(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    const char *str = vsapi->propGetData(in, "cpu", 0, NULL);
+    int level = vs_cpulevel_from_str(str);
+    level = vs_set_cpulevel(core, level);
+    str = vs_cpulevel_to_str(level);
+    vsapi->propSetData(out, "cpu", str, (int)strlen(str), paReplace);
+}
+
 //////////////////////////////////////////
 // Init
 
@@ -2817,9 +2521,10 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     //configFunc("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 1, plugin);
     registerFunc("CropAbs", "clip:clip;width:int;height:int;left:int:opt;top:int:opt;x:int:opt;y:int:opt;", cropAbsCreate, 0, plugin);
     registerFunc("CropRel", "clip:clip;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;", cropRelCreate, 0, plugin);
+    registerFunc("Crop", "clip:clip;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;", cropRelCreate, 0, plugin);
     registerFunc("AddBorders", "clip:clip;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;color:float[]:opt;", addBordersCreate, 0, plugin);
     registerFunc("ShufflePlanes", "clips:clip[];planes:int[];colorfamily:int;", shufflePlanesCreate, 0, plugin);
-    registerFunc("SeparateFields", "clip:clip;tff:int:opt;", separateFieldsCreate, 0, plugin);
+    registerFunc("SeparateFields", "clip:clip;tff:int:opt;modify_duration:int:opt;", separateFieldsCreate, 0, plugin);
     registerFunc("DoubleWeave", "clip:clip;tff:int:opt;", doubleWeaveCreate, 0, plugin);
     registerFunc("FlipVertical", "clip:clip;", flipVerticalCreate, 0, plugin);
     registerFunc("FlipHorizontal", "clip:clip;", flipHorizontalCreate, 0, plugin);
@@ -2837,4 +2542,5 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("PropToClip", "clip:clip;prop:data:opt;", propToClipCreate, 0, plugin);
     registerFunc("SetFrameProp", "clip:clip;prop:data;delete:int:opt;intval:int[]:opt;floatval:float[]:opt;data:data[]:opt;", setFramePropCreate, 0, plugin);
     registerFunc("SetFieldBased", "clip:clip;value:int;", setFieldBasedCreate, 0, plugin);
+    registerFunc("SetMaxCPU", "cpu:data;", setMaxCpu, 0, plugin);
 }

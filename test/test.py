@@ -24,7 +24,7 @@ class CoreTestSequence(unittest.TestCase):
         e = -1
         for e, frame in enumerate(clip.frames()):
             self.assertIsInstance(frame, vs.VideoFrame)
-        self.assertEquals(e, 199)
+        self.assertEqual(e, 199)
 
 ### Filter-Call-Tests
 
@@ -222,6 +222,17 @@ class CoreTestSequence(unittest.TestCase):
         clip2 = self.core.std.BlankClip(format=vs.RGB24)
         with self.assertRaises(vs.Error):
             self.core.std.ShufflePlanes([clip1, clip2, clip1], planes=[0, 1, 2], colorfamily=vs.RGB)               
+
+#clamp tests
+    def test_levels_clamp(self):
+        for i in range(1024):
+            levels_clip = self.core.std.BlankClip(format=vs.YUV420P10, color=[i, 0, 0]).std.Levels(min_in=504, max_in=520, gamma=1, min_out=0, max_out=1023, planes=0).std.PEMVerifier()
+            levels_clip.get_frame(0)
+
+    def test_convolution_clamp(self):
+        for i in range(1024):
+            levels_clip = self.core.std.BlankClip(format=vs.YUV420P10, color=[i, 0, 0]).std.Convolution([1, 1, 1, 1, 1, 1, 1, 1, 1], divisor=.1, planes=0).std.PEMVerifier()
+            levels_clip.get_frame(0)
 
 if __name__ == '__main__':
     unittest.main()

@@ -26,4 +26,4 @@ Merge
 
       Merge(clipa=A, clipb=B)
 
-   The frame properties are copied from the first clip.
+   The frame properties are copied from *clipa*.

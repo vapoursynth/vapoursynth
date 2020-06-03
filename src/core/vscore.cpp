@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2016 Fredrik Mellbin
+* Copyright (c) 2012-2017 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -38,7 +38,7 @@
 #ifdef VS_TARGET_OS_WINDOWS
 #include <shlobj.h>
 #include <locale>
-#include <codecvt>
+#include "../common/vsutf16.h"
 #endif
 
 // Internal filter headers
@@ -73,9 +73,12 @@ static bool isValidIdentifier(const std::string &s) {
 #ifdef VS_TARGET_OS_WINDOWS
 static std::wstring readRegistryValue(const wchar_t *keyName, const wchar_t *valueName) {
     HKEY hKey;
-    LONG lRes = RegOpenKeyEx(HKEY_LOCAL_MACHINE, keyName, 0, KEY_READ, &hKey);
-    if (lRes != ERROR_SUCCESS)
-        return std::wstring();
+    LONG lRes = RegOpenKeyEx(HKEY_CURRENT_USER, keyName, 0, KEY_READ, &hKey);
+    if (lRes != ERROR_SUCCESS) {
+        lRes = RegOpenKeyEx(HKEY_LOCAL_MACHINE, keyName, 0, KEY_READ, &hKey);
+        if (lRes != ERROR_SUCCESS)
+            return std::wstring();
+    }
     WCHAR szBuffer[512];
     DWORD dwBufferSize = sizeof(szBuffer);
     ULONG nError;
@@ -238,19 +241,165 @@ void VSVariant::initStorage(VSVType t) {
 
 ///////////////
 
+static bool isWindowsLargePageBroken() {
+    // A Windows bug exists where a VirtualAlloc call immediately after VirtualFree
+    // yields a page that has not been zeroed. The returned page is asynchronously
+    // zeroed a few milliseconds later, resulting in memory corruption. The same bug
+    // allows VirtualFree to return before the page has been unmapped.
+    static const bool broken = []() -> bool {
+#ifdef VS_TARGET_OS_WINDOWS
+        size_t size = GetLargePageMinimum();
+
+        for (int i = 0; i < 100; ++i) {
+            void *ptr = VirtualAlloc(nullptr, size, MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES, PAGE_READWRITE);
+            if (!ptr)
+                return true;
+
+            for (size_t n = 0; n < 64; ++n) {
+                if (static_cast<uint8_t *>(ptr)[n]) {
+                    vsWarning("Windows 10 VirtualAlloc bug detected: update to version 1803+");
+                    return true;
+                }
+            }
+            memset(ptr, 0xFF, 64);
+
+            if (VirtualFree(ptr, 0, MEM_RELEASE) != TRUE)
+                return true;
+            if (!IsBadReadPtr(ptr, 1)) {
+                vsWarning("Windows 10 VirtualAlloc bug detected: update to version 1803+");
+                return true;
+            }
+        }
+#endif // VS_TARGET_OS_WINDOWS
+        return false;
+    }();
+    return broken;
+}
+
+/* static */ bool MemoryUse::largePageSupported() {
+    // Disable large pages on 32-bit to avoid memory fragmentation.
+    if (sizeof(void *) < 8)
+        return false;
+
+    static const bool supported = []() -> bool {
+#ifdef VS_TARGET_OS_WINDOWS
+        HANDLE token = INVALID_HANDLE_VALUE;
+        TOKEN_PRIVILEGES priv = {};
+
+        if (!(OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &token)))
+            return false;
+
+        if (!(LookupPrivilegeValue(nullptr, SE_LOCK_MEMORY_NAME, &priv.Privileges[0].Luid))) {
+            CloseHandle(token);
+            return false;
+        }
+
+        priv.PrivilegeCount = 1;
+        priv.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+
+        if (!(AdjustTokenPrivileges(token, FALSE, &priv, 0, nullptr, 0))) {
+            CloseHandle(token);
+            return false;
+        }
+
+        CloseHandle(token);
+        return true;
+#else
+        return false;
+#endif // VS_TARGET_OS_WINDOWS
+    }();
+    return supported;
+}
+
+/* static */ size_t MemoryUse::largePageSize() {
+    static const size_t size = []() -> size_t {
+#ifdef VS_TARGET_OS_WINDOWS
+        return GetLargePageMinimum();
+#else
+        return 2 * (1UL << 20);
+#endif
+    }();
+    return size;
+}
+
+void *MemoryUse::allocateLargePage(size_t bytes) const {
+    if (!largePageEnabled)
+        return nullptr;
+
+    size_t granularity = largePageSize();
+    size_t allocBytes = VSFrame::alignment + bytes;
+    allocBytes = (allocBytes + (granularity - 1)) & ~(granularity - 1);
+    assert(allocBytes % granularity == 0);
+
+    // Don't allocate a large page if it would conflict with the buffer recycling logic.
+    if (!isGoodFit(bytes, allocBytes - VSFrame::alignment))
+        return nullptr;
+
+    void *ptr = nullptr;
+#ifdef VS_TARGET_OS_WINDOWS
+    ptr = VirtualAlloc(nullptr, allocBytes, MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES, PAGE_READWRITE);
+#else
+    ptr = vs_aligned_malloc(allocBytes, VSFrame::alignment);
+#endif
+    if (!ptr)
+        return nullptr;
+
+    BlockHeader *header = new (ptr) BlockHeader;
+    header->size = allocBytes - VSFrame::alignment;
+    header->large = true;
+    return ptr;
+}
+
+void MemoryUse::freeLargePage(void *ptr) const {
+#ifdef VS_TARGET_OS_WINDOWS
+    VirtualFree(ptr, 0, MEM_RELEASE);
+#else
+    vs_aligned_free(ptr);
+#endif
+}
+
+void *MemoryUse::allocateMemory(size_t bytes) const {
+    void *ptr = allocateLargePage(bytes);
+    if (ptr)
+        return ptr;
+
+    ptr = vs_aligned_malloc(VSFrame::alignment + bytes, VSFrame::alignment);
+    if (!ptr)
+        vsFatal("out of memory: %zu", bytes);
+
+    BlockHeader *header = new (ptr) BlockHeader;
+    header->size = bytes;
+    header->large = false;
+    return ptr;
+}
+
+void MemoryUse::freeMemory(void *ptr) const {
+    const BlockHeader *header = static_cast<const BlockHeader *>(ptr);
+    if (header->large)
+        freeLargePage(ptr);
+    else
+        vs_aligned_free(ptr);
+}
+
+bool MemoryUse::isGoodFit(size_t requested, size_t actual) const {
+    return actual <= requested + requested / 8;
+}
+
 void MemoryUse::add(size_t bytes) {
     used.fetch_add(bytes);
 }
 
 void MemoryUse::subtract(size_t bytes) {
     used.fetch_sub(bytes);
+    if (freeOnZero && !used)
+        delete this;
 }
 
 uint8_t *MemoryUse::allocBuffer(size_t bytes) {
     std::lock_guard<std::mutex> lock(mutex);
     auto iter = buffers.lower_bound(bytes);
     if (iter != buffers.end()) {
-        if (iter->first <= (bytes + (bytes >> 3))) {
+        if (isGoodFit(bytes, iter->first)) {
             unusedBufferSize -= iter->first;
             uint8_t *buf = iter->second;
             buffers.erase(iter);
@@ -258,26 +407,35 @@ uint8_t *MemoryUse::allocBuffer(size_t bytes) {
         }
     }
 
-    uint8_t *buf = vs_aligned_malloc<uint8_t>(VSFrame::alignment + bytes, VSFrame::alignment);
-    memcpy(buf, &bytes, sizeof(bytes));
+    uint8_t *buf = static_cast<uint8_t *>(allocateMemory(bytes));
     return buf + VSFrame::alignment;
 }
 
 void MemoryUse::freeBuffer(uint8_t *buf) {
     assert(buf);
+
     std::lock_guard<std::mutex> lock(mutex);
     buf -= VSFrame::alignment;
-    size_t bytes;
-    memcpy(&bytes, buf, sizeof(bytes));
-    buffers.emplace(std::make_pair(bytes, buf));
-    unusedBufferSize += bytes;
-    while (unusedBufferSize > 1024 * 1024 * 100) {
+
+    const BlockHeader *header = reinterpret_cast<const BlockHeader *>(buf);
+    if (!header->size)
+        vsFatal("Memory corruption detected. Windows bug?");
+
+    buffers.emplace(std::make_pair(header->size, buf));
+    unusedBufferSize += header->size;
+
+    size_t memoryUsed = used;
+    while (memoryUsed + unusedBufferSize > maxMemoryUse && !buffers.empty()) {
+        if (!memoryWarningIssued) {
+            vsWarning("Script exceeded memory limit. Consider raising cache size.");
+            memoryWarningIssued = true;
+        }
         std::uniform_int_distribution<size_t> randSrc(0, buffers.size() - 1);
         auto iter = buffers.begin();
         std::advance(iter, randSrc(generator));
         assert(unusedBufferSize >= iter->first);
         unusedBufferSize -= iter->first;
-        vs_aligned_free(iter->second);
+        freeMemory(iter->second);
         buffers.erase(iter);
     }
 }
@@ -287,10 +445,12 @@ size_t MemoryUse::memoryUse() {
 }
 
 size_t MemoryUse::getLimit() {
+    std::lock_guard<std::mutex> lock(mutex);
     return maxMemoryUse;
 }
 
 int64_t MemoryUse::setMaxMemoryUse(int64_t bytes) {
+    std::lock_guard<std::mutex> lock(mutex);
     if (bytes > 0 && static_cast<uint64_t>(bytes) <= SIZE_MAX)
         maxMemoryUse = static_cast<size_t>(bytes);
     return maxMemoryUse;
@@ -306,18 +466,28 @@ void MemoryUse::signalFree() {
         delete this;
 }
 
-MemoryUse::MemoryUse() : used(0), freeOnZero(false), unusedBufferSize(0) {
+MemoryUse::MemoryUse() : used(0), freeOnZero(false), largePageEnabled(largePageSupported()), memoryWarningIssued(false), unusedBufferSize(0) {
+    assert(VSFrame::alignment >= sizeof(BlockHeader));
+
+    // If the Windows VirtualAlloc bug is present, it is not safe to use large pages by default,
+    // because another application could trigger the bug.
+    //if (isWindowsLargePageBroken())
+    //    largePageEnabled = false;
+
+    // Always disable large pages at the moment
+    largePageEnabled = false;
+
     // 1GB
-    maxMemoryUse = 1024 * 1024 * 1024;
+    setMaxMemoryUse(1024 * 1024 * 1024);
 
     // set 4GB as default on systems with (probably) 64bit address space
     if (sizeof(void *) >= 8)
-        maxMemoryUse *= 4;
+        setMaxMemoryUse(static_cast<int64_t>(4) * 1024 * 1024 * 1024);
 }
 
 MemoryUse::~MemoryUse() {
     for (auto &iter : buffers)
-        vs_aligned_free(iter.second);
+        freeMemory(iter.second);
 }
 
 ///////////////
@@ -543,7 +713,7 @@ Container& split(
 
 VSFunction::VSFunction(const std::string &argString, VSPublicFunction func, void *functionData)
     : argString(argString), functionData(functionData), func(func) {
-    std::list<std::string> argList;
+    std::vector<std::string> argList;
     split(argList, argString, std::string(";"), split1::no_empties);
     for(const std::string &arg : argList) {
         std::vector<std::string> argParts;
@@ -683,13 +853,7 @@ void VSNode::setVideoInfo(const VSVideoInfo *vi, int numOutputs) {
 PVideoFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext &frameCtx) {
     const VSFrameRef *r = filterGetFrame(n, activationReason, &instanceData, &frameCtx.ctx->frameContext, &frameCtx, core, &vs_internal_vsapi);
 
-#ifdef VS_TARGET_CPU_X86
-    if (!vs_isMMXStateOk())
-        vsFatal("Bad MMX state detected after return from %s", name.c_str());
-#endif
 #ifdef VS_TARGET_OS_WINDOWS
-    if (!vs_isFPUStateOk())
-        vsWarning("Bad FPU state detected after return from %s", name.c_str());
     if (!vs_isSSEStateOk())
         vsFatal("Bad SSE state detected after return from %s", name.c_str());
 #endif
@@ -870,13 +1034,17 @@ bool VSCore::isValidFormatPointer(const VSFormat *f) {
 }
 
 const VSCoreInfo &VSCore::getCoreInfo() {
-    coreInfo.versionString = VAPOURSYNTH_VERSION_STRING;
-    coreInfo.core = VAPOURSYNTH_CORE_VERSION;
-    coreInfo.api = VAPOURSYNTH_API_VERSION;
-    coreInfo.numThreads = threadPool->threadCount();
-    coreInfo.maxFramebufferSize = memory->getLimit();
-    coreInfo.usedFramebufferSize = memory->memoryUse();
+    getCoreInfo2(coreInfo);
     return coreInfo;
+}
+
+void VSCore::getCoreInfo2(VSCoreInfo &info) {
+    info.versionString = VAPOURSYNTH_VERSION_STRING;
+    info.core = VAPOURSYNTH_CORE_VERSION;
+    info.api = VAPOURSYNTH_API_VERSION;
+    info.numThreads = threadPool->threadCount();
+    info.maxFramebufferSize = memory->getLimit();
+    info.usedFramebufferSize = memory->memoryUse();
 }
 
 void VS_CC vs_internal_configPlugin(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readOnly, VSPlugin *plugin);
@@ -891,14 +1059,15 @@ static void VS_CC loadPlugin(const VSMap *in, VSMap *out, void *userData, VSCore
         const char *forceid = vsapi->propGetData(in, "forceid", 0, &err);
         if (!forceid)
             forceid = "";
-        core->loadPlugin(vsapi->propGetData(in, "path", 0, nullptr), forcens, forceid);
+        bool altSearchPath = !!vsapi->propGetInt(in, "altsearchpath", 0, &err);
+        core->loadPlugin(vsapi->propGetData(in, "path", 0, nullptr), forcens, forceid, altSearchPath);
     } catch (VSException &e) {
         vsapi->setError(out, e.what());
     }
 }
 
 void VS_CC loadPluginInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
-    registerFunc("LoadPlugin", "path:data;forcens:data:opt;forceid:data:opt;", &loadPlugin, nullptr, plugin);
+    registerFunc("LoadPlugin", "path:data;altsearchpath:int:opt;forcens:data:opt;forceid:data:opt;", &loadPlugin, nullptr, plugin);
 }
 
 void VSCore::registerFormats() {
@@ -961,7 +1130,6 @@ bool VSCore::loadAllPluginsInPath(const std::string &path, const std::string &fi
         return false;
 
 #ifdef VS_TARGET_OS_WINDOWS
-    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
     std::wstring wPath = path + L"\\" + filter;
     WIN32_FIND_DATA findData;
     HANDLE findHandle = FindFirstFile(wPath.c_str(), &findData);
@@ -969,7 +1137,7 @@ bool VSCore::loadAllPluginsInPath(const std::string &path, const std::string &fi
         return false;
     do {
         try {
-            loadPlugin(conversion.to_bytes(path + L"\\" + findData.cFileName));
+            loadPlugin(utf16_to_utf8(path + L"\\" + findData.cFileName));
         } catch (VSException &) {
             // Ignore any errors
         }
@@ -984,18 +1152,13 @@ bool VSCore::loadAllPluginsInPath(const std::string &path, const std::string &fi
     if (name_max == -1)
         name_max = 255;
 
-    size_t len = offsetof(struct dirent, d_name) + name_max + 1;
-
     while (true) {
-        struct dirent *entry = (struct dirent *)malloc(len);
-        struct dirent *result;
-        readdir_r(dir, entry, &result);
+        struct dirent *result = readdir(dir);
         if (!result) {
-            free(entry);
             break;
         }
 
-        std::string name(entry->d_name);
+        std::string name(result->d_name);
         // If name ends with filter
         if (name.size() >= filter.size() && name.compare(name.size() - filter.size(), filter.size(), filter) == 0) {
             try {
@@ -1006,8 +1169,6 @@ bool VSCore::loadAllPluginsInPath(const std::string &path, const std::string &fi
                 // Ignore any errors
             }
         }
-
-        free(entry);
     }
 
     if (closedir(dir)) {
@@ -1068,14 +1229,14 @@ void VSCore::destroyFilterInstance(VSNode *node) {
     freeDepth--;
 }
 
-VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), numFunctionInstances(0), formatIdOffset(1000), memory(new MemoryUse()) {
-#ifdef VS_TARGET_CPU_X86
-    if (!vs_isMMXStateOk())
-        vsFatal("Bad MMX state detected when creating new core");
-#endif
+VSCore::VSCore(int threads) :
+    coreFreed(false),
+    numFilterInstances(1),
+    numFunctionInstances(0),
+    formatIdOffset(1000),
+    cpuLevel(INT_MAX),
+    memory(new MemoryUse()) {
 #ifdef VS_TARGET_OS_WINDOWS
-    if (!vs_isFPUStateOk())
-        vsWarning("Bad FPU state detected when creating new core. Any other FPU state warnings after this one should be ignored.");
     if (!vs_isSSEStateOk())
         vsFatal("Bad SSE state detected when creating new core");
 #endif
@@ -1119,8 +1280,10 @@ VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), numFuncti
     const std::wstring filter = L"*.dll";
 
 #ifdef _WIN64
+    #define VS_INSTALL_REGKEY L"Software\\VapourSynth"
     std::wstring bits(L"64");
 #else
+    #define VS_INSTALL_REGKEY L"Software\\VapourSynth-32"
     std::wstring bits(L"32");
 #endif
 
@@ -1151,7 +1314,8 @@ VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), numFuncti
     } else {
         // Autoload user specific plugins first so a user can always override
         std::vector<wchar_t> appDataBuffer(MAX_PATH + 1);
-        SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, SHGFP_TYPE_CURRENT, appDataBuffer.data());
+        if (SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, SHGFP_TYPE_CURRENT, appDataBuffer.data()) != S_OK)
+            SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, SHGFP_TYPE_DEFAULT, appDataBuffer.data());
 
         std::wstring appDataPath = std::wstring(appDataBuffer.data()) + L"\\VapourSynth\\plugins" + bits;
 
@@ -1159,13 +1323,13 @@ VSCore::VSCore(int threads) : coreFreed(false), numFilterInstances(1), numFuncti
         loadAllPluginsInPath(appDataPath, filter);
 
         // Autoload bundled plugins
-        std::wstring corePluginPath = readRegistryValue(L"Software\\VapourSynth", L"CorePlugins");
+        std::wstring corePluginPath = readRegistryValue(VS_INSTALL_REGKEY, L"CorePlugins");
         if (!loadAllPluginsInPath(corePluginPath, filter))
             vsCritical("Core plugin autoloading failed. Installation is broken?");
 
         // Autoload global plugins last, this is so the bundled plugins cannot be overridden easily
         // and accidentally block updated bundled versions
-        std::wstring globalPluginPath = readRegistryValue(L"Software\\VapourSynth", L"Plugins");
+        std::wstring globalPluginPath = readRegistryValue(VS_INSTALL_REGKEY, L"Plugins");
         loadAllPluginsInPath(globalPluginPath, filter);
     }
 
@@ -1230,11 +1394,11 @@ void VSCore::freeCore() {
     coreFreed = true;
     threadPool->waitForDone();
     if (numFilterInstances > 1)
-        vsWarning("Core freed but %d filter instances still exist", numFilterInstances.load() - 1);
+        vsWarning("Core freed but %d filter instance(s) still exist", numFilterInstances.load() - 1);
     if (memory->memoryUse() > 0)
         vsWarning("Core freed but %llu bytes still allocated in framebuffers", static_cast<unsigned long long>(memory->memoryUse()));
     if (numFunctionInstances > 0)
-        vsWarning("Core freed but %d function instances still exist", numFunctionInstances.load());
+        vsWarning("Core freed but %d function instance(s) still exist", numFunctionInstances.load());
     // Release the extra filter instance that always keeps the core alive
     filterInstanceDestroyed();
 }
@@ -1278,18 +1442,25 @@ VSPlugin *VSCore::getPluginByNs(const std::string &ns) {
     return nullptr;
 }
 
-void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNamespace, const std::string &forcedId) {
-    VSPlugin *p = new VSPlugin(filename, forcedNamespace, forcedId, this);
+void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath) {
+    VSPlugin *p = new VSPlugin(filename, forcedNamespace, forcedId, altSearchPath, this);
 
     std::lock_guard<std::recursive_mutex> lock(pluginLock);
-    if (getPluginById(p->id)) {
+
+    VSPlugin *already_loaded_plugin = getPluginById(p->id);
+    if (already_loaded_plugin) {
         std::string error = "Plugin " + filename + " already loaded (" + p->id + ")";
+        if (already_loaded_plugin->filename.size())
+            error += " from " + already_loaded_plugin->filename;
         delete p;
         throw VSException(error);
     }
 
-    if (getPluginByNs(p->fnamespace)) {
-        std::string error = "Plugin load failed, namespace " + p->fnamespace + " already populated (" + filename + ")";
+    already_loaded_plugin = getPluginByNs(p->fnamespace);
+    if (already_loaded_plugin) {
+        std::string error = "Plugin load of " + filename + " failed, namespace " + p->fnamespace + " already populated";
+        if (already_loaded_plugin->filename.size())
+            error += " by " + already_loaded_plugin->filename;
         delete p;
         throw VSException(error);
     }
@@ -1315,15 +1486,22 @@ void VSCore::createFilter(const VSMap *in, VSMap *out, const std::string &name, 
     }
 }
 
+int VSCore::getCpuLevel() const {
+    return cpuLevel;
+}
+
+int VSCore::setCpuLevel(int cpu) {
+    return cpuLevel.exchange(cpu);
+}
+
 VSPlugin::VSPlugin(VSCore *core)
     : apiMajor(0), apiMinor(0), hasConfig(false), readOnly(false), compat(false), libHandle(0), core(core) {
 }
 
-VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedNamespace, const std::string &forcedId, VSCore *core)
+VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath, VSCore *core)
     : apiMajor(0), apiMinor(0), hasConfig(false), readOnly(false), compat(false), libHandle(0), core(core), fnamespace(forcedNamespace), id(forcedId) {
 #ifdef VS_TARGET_OS_WINDOWS
-    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
-    std::wstring wPath = conversion.from_bytes(relFilename);
+    std::wstring wPath = utf16_from_utf8(relFilename);
     std::vector<wchar_t> fullPathBuffer(32767 + 1); // add 1 since msdn sucks at mentioning whether or not it includes the final null
     if (wPath.substr(0, 4) != L"\\\\?\\")
         wPath = L"\\\\?\\" + wPath;
@@ -1331,20 +1509,18 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
     wPath = fullPathBuffer.data();
     if (wPath.substr(0, 4) == L"\\\\?\\")
         wPath = wPath.substr(4);
-    filename = conversion.to_bytes(wPath);
+    filename = utf16_to_utf8(wPath);
     for (auto &iter : filename)
         if (iter == '\\')
             iter = '/';
 
-    libHandle = LoadLibraryEx(wPath.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
+    libHandle = LoadLibraryEx(wPath.c_str(), nullptr, altSearchPath ? 0 : (LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR));
 
     if (!libHandle) {
         DWORD lastError = GetLastError();
 
-        if (lastError == 87)
-            throw VSException("LoadLibraryEx failed with code 87: update windows and try again");
         if (lastError == 126)
-            throw VSException("Failed to load " + relFilename + ". GetLastError() returned " + std::to_string(lastError) + ". A DLL dependency is probably missing.");
+            throw VSException("Failed to load " + relFilename + ". GetLastError() returned " + std::to_string(lastError) + ". The file you tried to load or one of its dependencies is probably missing.");
         throw VSException("Failed to load " + relFilename + ". GetLastError() returned " + std::to_string(lastError) + ".");
     }
 
@@ -1369,7 +1545,7 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
     if (!libHandle) {
         const char *dlError = dlerror();
         if (dlError)
-            throw VSException("Failed to load " + relFilename + ". Error given: " + std::string(dlError));
+            throw VSException("Failed to load " + relFilename + ". Error given: " + dlError);
         else
             throw VSException("Failed to load " + relFilename);
     }
@@ -1385,13 +1561,7 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
 #endif
     pluginInit(::vs_internal_configPlugin, ::vs_internal_registerFunction, this);
 
-#ifdef VS_TARGET_CPU_X86
-    if (!vs_isMMXStateOk())
-        vsFatal("Bad MMX state detected after loading %s", filename.c_str());
-#endif
 #ifdef VS_TARGET_OS_WINDOWS
-    if (!vs_isFPUStateOk())
-        vsWarning("Bad FPU state detected after loading %s", filename.c_str());
     if (!vs_isSSEStateOk())
         vsFatal("Bad SSE state detected after loading %s", filename.c_str());
 #endif
@@ -1448,15 +1618,14 @@ void VSPlugin::registerFunction(const std::string &name, const std::string &args
     if (!isValidIdentifier(name))
         vsFatal("Plugin %s tried to register '%s', an illegal identifier.", filename.c_str(), name.c_str());
 
-    if (funcs.count(name))
-        vsFatal("Plugin %s tried to register '%s' more than once.", filename.c_str(), name.c_str());
+    std::lock_guard<std::mutex> lock(registerFunctionLock);
 
-    if (!readOnly) {
-        std::lock_guard<std::mutex> lock(registerFunctionLock);
-        funcs.insert(std::make_pair(name, VSFunction(args, argsFunc, functionData)));
-    } else {
-        funcs.insert(std::make_pair(name, VSFunction(args, argsFunc, functionData)));
+    if (funcs.count(name)) {
+        vsWarning("Plugin %s tried to register '%s' more than once. Second registration ignored.", filename.c_str(), name.c_str());
+        return;
     }
+
+    funcs.insert(std::make_pair(name, VSFunction(args, argsFunc, functionData)));
 }
 
 static bool hasCompatNodes(const VSMap &m) {
@@ -1562,9 +1731,7 @@ VSMap VSPlugin::getFunctions() {
 
 #ifdef VS_TARGET_CPU_X86
 static int alignmentHelper() {
-    CPUFeatures f;
-    getCPUFeatures(&f);
-    return f.avx512_f ? 64 : 32;
+    return getCPUFeatures()->avx512_f ? 64 : 32;
 }
 
 int VSFrame::alignment = alignmentHelper();

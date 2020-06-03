@@ -1,22 +1,14 @@
-warningflags = -Wall -Wextra -Wno-unused-parameter -Wno-unused-function
+warningflags = -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wno-ignored-attributes
 commoncflags = -O3 -fvisibility=hidden $(warningflags) -I$(srcdir)/include $(DEBUGCFLAGS) $(MFLAGS) $(UNICODECFLAGS) $(STACKREALIGN)
 AM_CXXFLAGS = -std=c++11 $(commoncflags)
 AM_CFLAGS = -std=c99 $(commoncflags)
 
 
 
-nasm_verbose = $(nasm_verbose_$(V))
-nasm_verbose_ = $(nasm_verbose_$(AM_DEFAULT_VERBOSITY))
-nasm_verbose_0 = @echo "  NASM    " $@;
-
-
 cython_verbose = $(cython_verbose_$(V))
 cython_verbose_ = $(cython_verbose_$(AM_DEFAULT_VERBOSITY))
 cython_verbose_0 = @echo "  CYTHON  " $@;
 
-
-.asm.lo:
-	$(nasm_verbose)$(LIBTOOL) $(AM_V_lt) --mode=compile --tag=CC $(AS) $(ASFLAGS) -o $@ $< -prefer-non-pic
 
 .pyx.c:
 	$(cython_verbose)$(CYTHON) -o $@ $<
@@ -37,18 +29,32 @@ lib_LTLIBRARIES =
 
 
 if VSCORE
+noinst_LTLIBRARIES = libexprfilter.la
+
+libexprfilter_la_SOURCES = src/core/exprfilter.cpp
+libexprfilter_la_CPPFLAGS = $(AM_CXXFLAGS) -fno-strict-aliasing
+
 lib_LTLIBRARIES += libvapoursynth.la
 
 libvapoursynth_la_SOURCES = src/core/boxblurfilter.cpp \
 							src/core/cachefilter.cpp \
 							src/core/cachefilter.h \
-							src/core/cpufeatures.c \
+							src/core/cpufeatures.cpp \
 							src/core/cpufeatures.h \
-							src/core/exprfilter.cpp \
 							src/core/filtershared.h \
 							src/core/genericfilters.cpp \
 							src/core/internalfilters.h \
 							src/core/jitasm.h \
+							src/core/kernel/cpulevel.cpp \
+							src/core/kernel/cpulevel.h \
+							src/core/kernel/generic.cpp \
+							src/core/kernel/generic.h \
+							src/core/kernel/merge.c \
+							src/core/kernel/merge.h \
+							src/core/kernel/planestats.c \
+							src/core/kernel/planestats.h \
+							src/core/kernel/transpose.c \
+							src/core/kernel/transpose.h \
 							src/core/lutfilters.cpp \
 							src/core/mergefilters.c \
 							src/core/reorderfilters.c \
@@ -67,31 +73,40 @@ libvapoursynth_la_SOURCES = src/core/boxblurfilter.cpp \
 							src/core/vsthreadpool.cpp \
 							src/core/x86utils.h
 
-if X86ASM
-libvapoursynth_la_SOURCES += src/core/asm/x86/check.asm \
-							 src/core/asm/x86/cpu.asm \
-							 src/core/asm/x86/merge.asm \
-							 src/core/asm/x86/transpose.asm
-endif # X86ASM
-
 pkginclude_HEADERS = include/VapourSynth.h \
 					 include/VSHelper.h \
 					 include/VSScript.h
-
-noinst_HEADERS = include/asm/x86/x86inc.asm
 
 pkgconfig_DATA += pc/vapoursynth.pc
 
 libvapoursynth_la_LDFLAGS = -no-undefined -avoid-version
 libvapoursynth_la_CPPFLAGS = $(ZIMG_CFLAGS) -DVS_PATH_PLUGINDIR='"$(PLUGINDIR)"'
-libvapoursynth_la_LIBADD = $(ZIMG_LIBS) $(DLOPENLIB)
+libvapoursynth_la_LIBADD = $(ZIMG_LIBS) $(DLOPENLIB) libexprfilter.la
 
+
+if X86ASM
+noinst_LTLIBRARIES += libvapoursynth_avx2.la
+
+libvapoursynth_avx2_la_SOURCES = src/core/kernel/x86/generic_avx2.cpp \
+								 src/core/kernel/x86/merge_avx2.c \
+								 src/core/kernel/x86/planestats_avx2.c 
+libvapoursynth_avx2_la_CFLAGS = $(AM_CFLAGS) $(AVX2FLAGS)
+libvapoursynth_avx2_la_CXXFLAGS = $(AM_CXXFLAGS) $(AVX2FLAGS)
+
+libvapoursynth_la_SOURCES += src/core/jitasm.h \
+							 src/core/kernel/x86/generic_sse2.cpp \
+							 src/core/kernel/x86/merge_sse2.c \
+							 src/core/kernel/x86/planestats_sse2.c \
+							 src/core/kernel/x86/transpose_sse2.c
+
+libvapoursynth_la_LIBADD += libvapoursynth_avx2.la
+endif # X86ASM
 
 if PYTHONMODULE
 pyexec_LTLIBRARIES = vapoursynth.la
 
 vapoursynth_la_SOURCES = src/cython/vapoursynth.pyx
-vapoursynth_la_CFLAGS= $(AM_CFLAGS) -fvisibility=default
+vapoursynth_la_CFLAGS= $(AM_CFLAGS) -fvisibility=default -Wno-implicit-fallthrough
 vapoursynth_la_CPPFLAGS = $(PYTHON3_CFLAGS)
 vapoursynth_la_LIBADD = $(MAYBE_PYTHON3_LIBS) libvapoursynth.la
 vapoursynth_la_LDFLAGS = $(PYTHON_MODULE_UNDEFINED) -avoid-version -module

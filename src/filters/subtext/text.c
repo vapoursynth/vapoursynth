@@ -402,7 +402,7 @@ static void VS_CC assRenderCreate(const VSMap *in, VSMap *out, void *userData,
     ass_set_frame_size(d.ass_renderer, d.vi[0].width, d.vi[0].height);
     ass_set_margins(d.ass_renderer,
                     d.margins[0], d.margins[1], d.margins[2], d.margins[3]);
-    ass_set_use_margins(d.ass_renderer, 1);
+    ass_set_use_margins(d.ass_renderer, 0);
 
     if(d.linespacing)
         ass_set_line_spacing(d.ass_renderer, d.linespacing);

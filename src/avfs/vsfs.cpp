@@ -137,13 +137,12 @@ std::string get_file_contents(const std::wstring &filename) {
         in.close();
         return(contents);
     }
-    return "";;
+    return "";
 }
 
 // (Re)Open the Script File
 int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
-    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
-    std::string scriptName = conversion.to_bytes(wszScriptName);
+    std::string scriptName = utf16_to_utf8(wszScriptName);
 
     if (!scriptName.empty()) {
         std::string script = get_file_contents(wszScriptName);
@@ -182,8 +181,9 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
                 enable_v210 = false;
             vsapi->freeMap(options);
 
-            const VSCoreInfo *info = vsapi->getCoreInfo(vsscript_getCore(se));
-            num_threads = info->numThreads;
+            VSCoreInfo info;
+            vsapi->getCoreInfo2(vsscript_getCore(se), &info);
+            num_threads = info.numThreads;
 
             packedFrame.clear();
             packedFrame.resize(BMPSize());
@@ -250,13 +250,14 @@ const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) 
 
     const VSFrameRef *f = nullptr;
     bool success = false;
-    bool doPrefetch = true;
+    bool doPrefetch = false;
 
     if (n == lastPosition) {
         f = vsapi->cloneFrameRef(lastFrame);
         success = true;
-        doPrefetch = false;
     } else {
+        int ndiff = n - lastPosition;
+        doPrefetch = (ndiff == 1 && lastPosition >= 0); // only prefetch if seeking forward one or a few frames at a time
         lastPosition = -1;
         vsapi->freeFrame(lastFrame);
         lastFrame = nullptr;
@@ -423,11 +424,10 @@ int VapourSynther::GetVarAsInt(const char* varName, int defVal) {
 
 // Take a copy of the current error message
 void VapourSynther::setError(const char *_text, const wchar_t *alt) {
-    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> conversion;
     errText.clear();
 
     if (_text)
-        errText = conversion.from_bytes(_text);
+        errText = utf16_from_utf8(_text);
     else if (alt)
         errText = alt;
     else
@@ -508,10 +508,11 @@ int/*error*/ VapourSynther::Init(
 
     if (!error) {
         // Initialize frame read-ahead logic.
-        const VSCoreInfo *info = vsapi->getCoreInfo(vsscript_getCore(se));
+        VSCoreInfo info;
+        vsapi->getCoreInfo2(vsscript_getCore(se), &info);
         prefetchFrames = GetVarAsInt("AVFS_ReadAheadFrameCount", -1);
         if (prefetchFrames < 0)
-            prefetchFrames = info->numThreads;
+            prefetchFrames = info.numThreads;
     }
 
     return error;

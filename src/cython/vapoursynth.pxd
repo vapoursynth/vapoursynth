@@ -166,13 +166,13 @@ cdef extern from "include/VapourSynth.h" nogil:
         mtFatal
 
     ctypedef void (__stdcall *VSFrameDoneCallback)(void *userData, const VSFrameRef *f, int n, VSNodeRef *node, const char *errorMsg)
-    ctypedef void (__stdcall *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI *vsapi)
     ctypedef void (__stdcall *VSPublicFunction)(const VSMap *input, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi)
     ctypedef void (__stdcall *VSFilterInit)(VSMap *input, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi)
     ctypedef const VSFrameRef *(__stdcall *VSFilterGetFrame)(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi)
     ctypedef void (__stdcall *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI *vsapi)
     ctypedef void (__stdcall *VSFreeFuncData)(void *userData)
     ctypedef void (__stdcall *VSMessageHandler)(int msgType, const char *msg, void *userData)
+    ctypedef void (__stdcall *VSMessageHandlerFree)(void *userData)
 
     ctypedef struct VSAPI:
         VSCore *createCore(int threads) nogil
@@ -257,5 +257,11 @@ cdef extern from "include/VapourSynth.h" nogil:
         const double *propGetFloatArray(const VSMap *map, const char *key, int *error) nogil
         int propSetIntArray(VSMap *map, const char *key, const int64_t *i, int size) nogil
         int propSetFloatArray(VSMap *map, const char *key, const double *d, int size) nogil
+        
+        void logMessage(int msgType, const char *msg) nogil
+        
+        int addMessageHandler(VSMessageHandler handler, VSMessageHandlerFree free, void *userData) nogil
+        int removeMessageHandler(int id) nogil
+        void getCoreInfo2(VSCore *core, VSCoreInfo *info) nogil
 
     const VSAPI *getVapourSynthAPI(int version) nogil
