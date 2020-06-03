@@ -1092,7 +1092,7 @@ cdef class VideoProps(object):
         cdef int numkeys = self.funcs.propNumKeys(m)
         result = set()
         for i in range(numkeys):
-            set.add(self.funcs.propGetKey(m, i).decode('utf-8'))
+            result.add(self.funcs.propGetKey(m, i).decode('utf-8'))
         return result
 
     def values(self):
