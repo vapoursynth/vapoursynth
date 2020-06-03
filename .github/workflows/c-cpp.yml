@@ -34,7 +34,7 @@ jobs:
     - name: configure
       run: |
         ./autogen.sh
-        PKG_CONFIG_PATH=$(python -c 'import sys, os;print(os.path.dirname(sys.executable) + "/../lib/pkgconfig")') ./configure --prefix=/usr/
+        LIBRARY_PATH=$LIBRARY_PATH:$(command -v python | xargs dirname)/../lib PKG_CONFIG_PATH=$(command -v python | xargs dirname)/../lib/pkgconfig ./configure --prefix=/usr/
     - name: make
       run: make
     - name: make check
