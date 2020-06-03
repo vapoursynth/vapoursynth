@@ -32,17 +32,14 @@ jobs:
       run: pip install cython
     - name: Set neccessary environment variables
       run: |
-        PYTHON_BASE_DIR=$(command -v python | xargs dirname)/..
-        echo "::set-env=\"name=LD_LIBRARY_PATH::$LD_LIBRARY_PATH:$PYTHON_BASE_DIR/lib\""
-        echo "::set-env=\"name=LIBRARY_PATH::$LIBRARY_PATH:$PYTHON_BASE_DIR/lib\""
-        echo "::set-env=\"name=PKG_CONFIG_PATH::$PYTHON_BASE_DIR/lib/pkgconfig\""
+        echo "::set-env=\"name=PYTHON_BASE_PATH::$(command -v python | xargs dirname)/..\""
     - name: configure
       run: |
         ./autogen.sh
-        ./configure --prefix=/usr/
+        LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PYTHON_BASE_PATH/lib LIBRARY_PATH=$LIBRARY_PATH:$PYTHON_BASE_PATH/lib PKG_CONFIG_PATH=$PYTHON_BASE_PATH/lib/pkgconfig ./configure --prefix=/usr/
     - name: make
       run: |
-        make
+        LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PYTHON_BASE_PATH/lib LIBRARY_PATH=$LIBRARY_PATH:$PYTHON_BASE_PATH/lib PKG_CONFIG_PATH=$PYTHON_BASE_PATH/lib/pkgconfig make
     - name: make check
       run: make check
     - name: sudo make install
