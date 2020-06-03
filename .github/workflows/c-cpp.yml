@@ -1,0 +1,43 @@
+name: C/C++ CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build-linux:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install zimg
+      run: |
+        git clone https://github.com/sekrit-twc/zimg --branch v2.9 --depth 1 ./zimg
+        pushd ./zimg
+        ./autogen.sh
+        ./configure --prefix=/usr/
+        ./make
+        sudo ./make install
+        popd
+        rm -rf ./zimg
+
+    - name: Setup Python
+      uses: actions/setup-python@v2
+      with:
+        # Version range or exact version of a Python version to use, using SemVer's version range syntax.
+        python-version: 3.8
+    - run: pip install cython
+    - name: configure
+      run: |
+        ./autogen.sh
+        ./configure
+    - name: make
+      run: make
+    - name: make check
+      run: make check
+    - name: make distcheck
+      run: make distcheck
+    - run: python -m unittest discover -s ./test/
