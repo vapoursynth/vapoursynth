@@ -32,7 +32,7 @@ jobs:
       run: pip install cython
     - name: Set neccessary environment variables
       run: |
-        echo "::set-env=\"name=PYTHON_BASE_PATH::$(command -v python | xargs dirname)/..\""
+        echo "::set-env \"name=PYTHON_BASE_PATH::$(command -v python | xargs dirname)/..\""
     - name: configure
       run: |
         ./autogen.sh
