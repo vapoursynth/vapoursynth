@@ -47,6 +47,29 @@ try:
 except ImportError as e:
     typing = None
 
+__all__ = [
+  'COMPAT',
+    'COMPATBGR32', 'COMPATYUY2',
+  'GRAY',
+    'GRAY16', 'GRAY8', 'GRAYH', 'GRAYS', 
+  'RGB',
+    'RGB24', 'RGB27', 'RGB30', 'RGB48', 'RGBH', 'RGBS',
+  'YCOCG', 'YUV',
+    'YUV410P8', 'YUV411P8', 'YUV420P10', 'YUV420P12',
+    'YUV420P14', 'YUV420P16', 'YUV420P8', 'YUV420P9',
+    'YUV422P10', 'YUV422P12', 'YUV422P14', 'YUV422P16',
+    'YUV422P8', 'YUV422P9', 'YUV440P8', 'YUV444P10',
+    'YUV444P12', 'YUV444P14', 'YUV444P16', 'YUV444P8',
+    'YUV444P9', 'YUV444PH', 'YUV444PS', 
+  'NONE',
+  'FLOAT', 'INTEGER',
+  
+  'get_output', 'get_outputs',
+  'clear_output', 'clear_outputs',
+  
+  'core', 
+]
+    
 __version__ = namedtuple("VapourSynthVersion", "release_major release_minor")(50, 0)
 __api_version__ = namedtuple("VapourSynthAPIVersion", "api_major api_minor")(VAPOURSYNTH_API_MAJOR, VAPOURSYNTH_API_MINOR)
 
@@ -383,11 +406,11 @@ def _construct_parameter(signature):
     elif type == "data":
         type = typing.Union[str, bytes, bytearray]
     else:
-        raise ValueError("Couldn't determine type")
+        type = typing.Any
 
     # Make the type a sequence.
     if array:
-        type = typing.Sequence[type]
+        type = typing.Union[type, typing.Sequence[type]]
 
     # Mark an optional type
     if opt:
@@ -1254,15 +1277,16 @@ cdef class VideoProps(object):
     def keys(self):
         cdef const VSMap *m = self.funcs.getFramePropsRO(self.constf)
         cdef int numkeys = self.funcs.propNumKeys(m)
+        result = set()
         for i in range(numkeys):
-            yield self.funcs.propGetKey(m, i).decode('utf-8')
+            result.add(self.funcs.propGetKey(m, i).decode('utf-8'))
+        return result
 
     def values(self):
-        for key in self.keys():
-            yield self[key]
+        return {self[key] for key in self.keys()}
 
     def items(self):
-        yield from zip(self.keys(), self.values())
+        return {(key, self[key]) for key in self.keys()}
 
     def get(self, key, default=None):
         if key in self:
@@ -2263,6 +2287,8 @@ cdef void __stdcall publicFunction(const VSMap *inm, VSMap *outm, void *userData
                 m = mapToDict(inm, False, False, core, vsapi)
                 ret = d(**m)
                 if not isinstance(ret, dict):
+                    if ret is None:
+                        ret = 0
                     ret = {'val':ret}
                 dictToMap(ret, outm, core, vsapi)
         except BaseException, e:

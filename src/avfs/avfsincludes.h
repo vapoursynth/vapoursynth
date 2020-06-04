@@ -18,7 +18,9 @@
 #include <fstream>
 #include <vector>
 #include "ss.h"
+namespace avs {
 #include <avisynth.h>
+}
 #include "avfspfm.h"
 #include "xxfs.h"
 #include "avfs.h"

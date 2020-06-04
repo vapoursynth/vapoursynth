@@ -41,12 +41,14 @@
 #define NOMINMAX
 #include <windows.h>
 
-const AVS_Linkage *AVS_linkage = nullptr;
+namespace avs {
+    const AVS_Linkage *AVS_linkage = nullptr;
+}
 
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
 
-typedef IScriptEnvironment* (__stdcall *ICreateScriptEnvironment)(int version);
+typedef avs::IScriptEnvironment* (__stdcall *ICreateScriptEnvironment)(int version);
 
 class Avisynther final:
    public Avisynther_
@@ -59,15 +61,15 @@ class Avisynther final:
   // Avisynth.dll
   HMODULE hlib;
 
-  IScriptEnvironment* env;
+  avs::IScriptEnvironment* env;
 
   bool enable_v210;
 
-  PClip *clip;
+  avs::PClip *clip;
 
   std::wstring errText;
 
-  VideoInfo vi;
+  avs::VideoInfo vi;
 
   std::string lastStringValue;
 
@@ -90,7 +92,7 @@ class Avisynther final:
 
   // Cache last accessed frame, to reduce interference with read-ahead.
   int lastPosition;
-  PVideoFrame *lastFrame;
+  avs::PVideoFrame *lastFrame;
 
   // Exception protected take a copy of the current error message
   void setError(const char *text, const wchar_t *alt = 0);
@@ -102,7 +104,7 @@ class Avisynther final:
   int/*error*/ newEnv();
 
   // Exception protected IScriptEnvironment->Invoke()
-  AVSValue Invoke(const char* name, const AVSValue &args, const char * const * arg_names = nullptr);
+  avs::AVSValue Invoke(const char* name, const avs::AVSValue &args, const char * const * arg_names = nullptr);
 
   // (Re)Open the Script File
   int/*error*/ Import(const wchar_t* szScriptName);
@@ -124,7 +126,7 @@ public:
   bool/*success*/ GetAudio(AvfsLog_* log, void* buf, __int64 start, unsigned count);
 
   // Exception protected PVideoFrame->GetFrame()
-  PVideoFrame GetFrame(AvfsLog_* log, int n, bool *success=0);
+  avs::PVideoFrame GetFrame(AvfsLog_* log, int n, bool *success=0);
 
   // Readonly reference to VideoInfo
   VideoInfoAdapter GetVideoInfo();
@@ -163,9 +165,9 @@ int/*error*/ Avisynther::Import(const wchar_t* wszScriptName)
     if(!error)
     {
       // Do we have utf8 filename support?
-      AVSValue invUtf8[2]{ szScriptName.c_str(), true };
+        avs::AVSValue invUtf8[2]{ szScriptName.c_str(), true };
       const char *arg_names[] = { nullptr, "utf8" };
-      AVSValue var = Invoke("Import", AVSValue(invUtf8, 2), arg_names);
+      avs::AVSValue var = Invoke("Import", avs::AVSValue(invUtf8, 2), arg_names);
       if (!var.Defined())
         var = Invoke("Import", szScriptName.c_str());
 
@@ -180,7 +182,7 @@ int/*error*/ Avisynther::Import(const wchar_t* wszScriptName)
             vi = (*clip)->GetVideoInfo();
           }
 
-          enable_v210 = GetVarAsBool("enable_v210", false) && (vi.IsColorSpace(VideoInfo::CS_YUV422P10) || vi.IsColorSpace(VideoInfo::CS_YUVA422P10));
+          enable_v210 = GetVarAsBool("enable_v210", false) && (vi.IsColorSpace(avs::VideoInfo::CS_YUV422P10) || vi.IsColorSpace(avs::VideoInfo::CS_YUVA422P10));
 
           if (!HasSupportedFourCC(VideoInfoAdapter(&vi, this, enable_v210).pixel_format)) {
               setError("AVFS module doesn't support output of the current format");
@@ -262,11 +264,11 @@ void Avisynther::reportFormat(AvfsLog_* log)
     log->Printf(L"  Audio Channels: %-8d\n", vi.AudioChannels());
 
     const char* s_type = "";
-    if      (vi.SampleType()==SAMPLE_INT8)  s_type = "Integer 8 bit";
-    else if (vi.SampleType()==SAMPLE_INT16) s_type = "Integer 16 bit";
-    else if (vi.SampleType()==SAMPLE_INT24) s_type = "Integer 24 bit";
-    else if (vi.SampleType()==SAMPLE_INT32) s_type = "Integer 32 bit";
-    else if (vi.SampleType()==SAMPLE_FLOAT) s_type = "Float 32 bit";
+    if      (vi.SampleType()==avs::SAMPLE_INT8)  s_type = "Integer 8 bit";
+    else if (vi.SampleType()==avs::SAMPLE_INT16) s_type = "Integer 16 bit";
+    else if (vi.SampleType()==avs::SAMPLE_INT24) s_type = "Integer 24 bit";
+    else if (vi.SampleType()==avs::SAMPLE_INT32) s_type = "Integer 32 bit";
+    else if (vi.SampleType()==avs::SAMPLE_FLOAT) s_type = "Float 32 bit";
     log->Printf(L"  Sample Type: %hs\n", s_type);
   }
   else
@@ -308,7 +310,7 @@ void Avisynther::FraThreadMain()
       // to hold the reference, but the MRU caching in avisynth
       // is enough for reasonable read ahead depths.
       try {
-        PVideoFrame frame = (*clip)->GetFrame(position, env);
+          avs::PVideoFrame frame = (*clip)->GetFrame(position, env);
       }
       catch (...) { }
 
@@ -368,7 +370,7 @@ bool/*success*/ Avisynther::GetAudio(AvfsLog_* log, void* buf, __int64 start, un
         (*clip)->GetAudio(buf, start, (__int64)count, env);
         success = true;
       }
-      catch(AvisynthError err) {
+      catch(avs::AvisynthError &err) {
         setError(err.msg, L"GetAudio: AvisynthError.msg corrupted.");
       }
       catch (...) {
@@ -388,36 +390,36 @@ bool/*success*/ Avisynther::GetAudio(AvfsLog_* log, void* buf, __int64 start, un
 /*---------------------------------------------------------
 ---------------------------------------------------------*/
 
-static int NumPlanes(const VideoInfo &vi) {
+static int NumPlanes(const avs::VideoInfo &vi) {
     if (vi.IsPlanar() && (vi.IsYUV() || vi.IsRGB()))
         return 3;
     else
         return 1;
 }
 
-static const BYTE *GetReadPtr(PVideoFrame &f, const VideoInfo &vi, int plane) {
+static const BYTE *GetReadPtr(avs::PVideoFrame &f, const avs::VideoInfo &vi, int plane) {
     if (!vi.IsPlanar())
         return f->GetReadPtr();
     else if (vi.IsYUV() || vi.IsY() || vi.IsY8())
-        return f->GetReadPtr(plane == 0 ? PLANAR_Y : (plane == 1 ? PLANAR_U : PLANAR_V));
+        return f->GetReadPtr(plane == 0 ? avs::PLANAR_Y : (plane == 1 ? avs::PLANAR_U : avs::PLANAR_V));
     else if (vi.IsRGB())
-        return f->GetReadPtr(plane == 0 ? PLANAR_R : (plane == 1 ? PLANAR_G : PLANAR_B));
+        return f->GetReadPtr(plane == 0 ? avs::PLANAR_R : (plane == 1 ? avs::PLANAR_G : avs::PLANAR_B));
     else
         return nullptr;
 }
 
-static int GetStride(PVideoFrame &f, const VideoInfo &vi, int plane) {
+static int GetStride(avs::PVideoFrame &f, const avs::VideoInfo &vi, int plane) {
     if (!vi.IsPlanar())
         return f->GetPitch();
     else if (vi.IsYUV() || vi.IsY() || vi.IsY8())
-        return f->GetPitch(plane == 0 ? PLANAR_Y : (plane == 1 ? PLANAR_U : PLANAR_V));
+        return f->GetPitch(plane == 0 ? avs::PLANAR_Y : (plane == 1 ? avs::PLANAR_U : avs::PLANAR_V));
     else if (vi.IsRGB())
-        return f->GetPitch(plane == 0 ? PLANAR_R : (plane == 1 ? PLANAR_G : PLANAR_B));
+        return f->GetPitch(plane == 0 ? avs::PLANAR_R : (plane == 1 ? avs::PLANAR_G : avs::PLANAR_B));
     else
         return 0;
 }
 
-static int BytesPerSample(const VideoInfo &vi) {
+static int BytesPerSample(const avs::VideoInfo &vi) {
     if (vi.IsRGB32())
         return 4;
     else if (vi.IsYUY2())
@@ -426,32 +428,32 @@ static int BytesPerSample(const VideoInfo &vi) {
         return std::max(1, vi.ComponentSize());
 }
 
-static int GetSubSamplingH(const VideoInfo &vi, int plane) {
+static int GetSubSamplingH(const avs::VideoInfo &vi, int plane) {
     if (vi.IsYUV() && vi.IsPlanar() && plane > 0)
-        return vi.GetPlaneHeightSubsampling(plane == 1 ? PLANAR_U : PLANAR_V);
+        return vi.GetPlaneHeightSubsampling(plane == 1 ? avs::PLANAR_U : avs::PLANAR_V);
     else
         return 0;
 }
 
-static int GetSubSamplingW(const VideoInfo &vi, int plane) {
+static int GetSubSamplingW(const avs::VideoInfo &vi, int plane) {
     if (vi.IsYUV() && vi.IsPlanar() && plane > 0)
-        return vi.GetPlaneWidthSubsampling(plane == 1 ? PLANAR_U : PLANAR_V);
+        return vi.GetPlaneWidthSubsampling(plane == 1 ? avs::PLANAR_U : avs::PLANAR_V);
     else
         return 0;
 }
 
-static int GetFrameHeight(const VideoInfo &vi, int plane) {
+static int GetFrameHeight(const avs::VideoInfo &vi, int plane) {
     return vi.height >> GetSubSamplingH(vi, plane);
 }
 
-static int GetFrameWidth(const VideoInfo &vi, int plane) {
+static int GetFrameWidth(const avs::VideoInfo &vi, int plane) {
     return vi.width >> GetSubSamplingW(vi, plane);
 }
 
 // Exception protected PVideoFrame->GetFrame()
-PVideoFrame Avisynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
+avs::PVideoFrame Avisynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
 
-  PVideoFrame f;
+  avs::PVideoFrame f;
   bool success = false;
 
   if (n == lastPosition) {
@@ -546,7 +548,7 @@ PVideoFrame Avisynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
 
           }
         }
-        catch(AvisynthError err) {
+        catch(avs::AvisynthError &err) {
           setError(err.msg, L"GetFrame: AvisynthError.msg corrupted.");
         }
         catch (...) {
@@ -646,7 +648,7 @@ const char* Avisynther::GetVarAsString(
 
     const char *string = defVal;
     try {
-        AVSValue value = env->GetVar(varName);
+        avs::AVSValue value = env->GetVar(varName);
         if (value.IsString()) {
             string = value.AsString(defVal);
         }
@@ -667,7 +669,7 @@ bool Avisynther::GetVarAsBool(const char* varName, bool defVal) {
 
     bool result = defVal;
     try {
-        AVSValue value = env->GetVar(varName);
+        avs::AVSValue value = env->GetVar(varName);
         if (value.IsBool()) {
             result = value.AsBool(defVal);
         }
@@ -686,7 +688,7 @@ int Avisynther::GetVarAsInt(const char* varName, int defVal) {
 
     int result = defVal;
     try {
-        AVSValue value = env->GetVar(varName);
+        avs::AVSValue value = env->GetVar(varName);
         result = value.AsInt(defVal);
     } catch (...) {
     }
@@ -744,14 +746,14 @@ int/*error*/ Avisynther::newEnv() {
 
     // Make a new IScriptEnvironment
     try {
-        env = CreateScriptEnvironment(AVISYNTH_INTERFACE_VERSION);
+        env = CreateScriptEnvironment(avs::AVISYNTH_INTERFACE_VERSION);
         if (env) {
-            AVS_linkage = env->GetAVSLinkage();
-            clip = new PClip;
-            lastFrame = new PVideoFrame;
+            avs::AVS_linkage = env->GetAVSLinkage();
+            clip = new avs::PClip;
+            lastFrame = new avs::PVideoFrame;
             error = 0;
         }
-    } catch (AvisynthError err) {
+    } catch (avs::AvisynthError &err) {
         setError(err.msg, L"CreateScriptEnvironment: AvisynthError.msg corrupted.");
     } catch (...) {
         setError("CreateScriptEnvironment: Unknown exception.");
@@ -765,20 +767,20 @@ int/*error*/ Avisynther::newEnv() {
 ---------------------------------------------------------*/
 
 // Exception protected IScriptEnvironment->Invoke()
-AVSValue Avisynther::Invoke(const char* name, const AVSValue &args, const char* const* arg_names) {
+avs::AVSValue Avisynther::Invoke(const char* name, const avs::AVSValue &args, const char* const* arg_names) {
 
     if (env) {
         try {
             return env->Invoke(name, args, arg_names);
-        } catch (IScriptEnvironment::NotFound &) {
+        } catch (avs::IScriptEnvironment::NotFound &) {
             setError("Invoke: Function NotFound.");
-        } catch (AvisynthError err) {
+        } catch (avs::AvisynthError err) {
             setError(err.msg, L"Invoke: AvisynthError.msg corrupted.");
         } catch (...) {
             setError("Invoke: Unknown exception.");
         }
     }
-    return AVSValue();
+    return avs::AVSValue();
 
 }
 
@@ -837,7 +839,7 @@ Avisynther::~Avisynther(void) {
     }
 
     if (hlib) {
-        AVS_linkage = nullptr;
+        avs::AVS_linkage = nullptr;
         ASSERT(FreeLibrary(hlib));
         hlib = nullptr;
         CreateScriptEnvironment = nullptr;

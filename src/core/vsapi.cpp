@@ -347,6 +347,7 @@ static bool isValidVSMapKey(const std::string &s) {
     if (!isValidVSMapKey(skey)) \
         return 1; \
     if (append != paReplace && map->contains(skey)) { \
+        map->detach(); \
         VSVariant &l = map->at(skey); \
         if (l.getType() != (vv)) \
             return 1; \
