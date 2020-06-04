@@ -401,7 +401,7 @@ def _construct_parameter(signature):
     elif type == "func":
         type = typing.Union[vapoursynth.Func, typing.Callable]
     elif type == "int":
-        type = int
+        type = typing.Union[int, Format]
     elif type == "float":
         type = float
     elif type == "data":
@@ -903,6 +903,9 @@ class Format(metaclass=abc.ABCMeta):
         format.bits_per_sample = bits_per_sample
         format.subsampling_w = subsampling_w
         format.subsampling_h = subsampling_h
+
+        if format._get_format_struct() == NULL:
+            raise ValueError("Incorrect format specified.")
 
         return format
     @classmethod
