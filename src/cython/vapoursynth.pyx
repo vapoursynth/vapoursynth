@@ -2010,7 +2010,7 @@ cdef class Core(object):
         return self.funcs.registerFormat(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h, self.core)
 
     def register_format(self, int color_family, int sample_type, int bits_per_sample, int subsampling_w=0, int subsampling_h=0):
-        return (color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h)
+        return Format(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h)
 
     def get_format(self, int id):
         cdef const VSFormat *f = self.funcs.getFormatPreset(id, self.core)
