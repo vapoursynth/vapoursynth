@@ -25,6 +25,7 @@ from cpython.buffer cimport (PyBUF_WRITABLE, PyBUF_FORMAT, PyBUF_STRIDES,
                              PyBUF_F_CONTIGUOUS)
 from cpython.ref cimport Py_INCREF, Py_DECREF
 import os
+import abc
 import ctypes
 import threading
 import traceback
@@ -892,21 +893,33 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, cons
                 raise Error('argument ' + key + ' has an unknown type: ' + atypes[key])
 
 
-cdef class Format(object):
+class Format(metaclass=abc.ABCMeta):
 
-    def __init__(self):
-        raise Error("Class cannot be instantiated directly.")
+    def __new__(cls, color_family, sample_type, bits_per_sample, subsampling_w=0, subsampling_h=0):
+        cdef RegisteredFormat format = RegisteredFormat.__new__(RegisteredFormat)
+
+        format.color_family = ColorFamily(color_family)
+        format.sample_type = SampleType(sample_type)
+        format.bits_per_sample = bits_per_sample
+        format.subsampling_w = subsampling_w
+        format.subsampling_h = subsampling_h
+
+        return format
+    @classmethod
+    def __subclasshook__(cls, other_cls):
+        if cls is Format:
+            if other_cls in {Format, RegisteredFormat, PresetFormat}:
+                return True
+        return NotImplemented
 
 
-cdef class RegisteredFormat(Format):
+cdef class RegisteredFormat:
     cdef readonly object color_family
     cdef readonly object sample_type
     cdef readonly int bits_per_sample
     cdef readonly int subsampling_w
     cdef readonly int subsampling_h
 
-    def __init__(self):
-        raise Error("Class cannot be instantiated directly.")
 
     cdef const VSFormat *_get_format_struct(self):
         cdef Core core = _get_core()
@@ -977,7 +990,7 @@ cdef class RegisteredFormat(Format):
         )
 
 
-cdef Format createFormat(const VSFormat *f):
+cdef RegisteredFormat createFormat(const VSFormat *f):
     cdef RegisteredFormat instance = RegisteredFormat.__new__(RegisteredFormat)
     instance.color_family = ColorFamily(f.colorFamily)
     instance.sample_type = SampleType(f.sampleType)
@@ -997,7 +1010,7 @@ cdef PresetFormat createPresetFormat(_PresetFormat pfInternal, str name):
     return instance
 
 
-cdef class PresetFormat(Format):
+cdef class PresetFormat:
     __members__ = {}
     cdef readonly int id
     cdef readonly str name
@@ -1139,6 +1152,7 @@ RGBS = PresetFormat.RGBS
 
 COMPATBGR32 = PresetFormat.COMPATBGR32
 COMPATYUY2 = PresetFormat.COMPATYUY2
+
 
 cdef class VideoProps(object):
     cdef const VSFrameRef *constf
@@ -1382,7 +1396,7 @@ cdef class VideoFrame(object):
     cdef VSFrameRef *f
     cdef VSCore *core
     cdef const VSAPI *funcs
-    cdef readonly Format format
+    cdef readonly RegisteredFormat format
     cdef readonly int width
     cdef readonly int height
     cdef readonly bint readonly
@@ -1599,7 +1613,7 @@ cdef class VideoNode(object):
     cdef const VSAPI *funcs
     cdef Core core
     cdef const VSVideoInfo *vi
-    cdef readonly Format format
+    cdef readonly RegisteredFormat format
     cdef readonly int width
     cdef readonly int height
     cdef readonly int num_frames
@@ -1996,10 +2010,7 @@ cdef class Core(object):
         return self.funcs.registerFormat(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h, self.core)
 
     def register_format(self, int color_family, int sample_type, int bits_per_sample, int subsampling_w=0, int subsampling_h=0):
-        cdef const VSFormat *f = self._register_format(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h)
-        if f == NULL:
-            raise Error("Invalid format specified.")
-        return createFormat(f)
+        return (color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h)
 
     def get_format(self, int id):
         cdef const VSFormat *f = self.funcs.getFormatPreset(id, self.core)
