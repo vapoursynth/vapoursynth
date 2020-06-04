@@ -904,8 +904,7 @@ class Format(metaclass=abc.ABCMeta):
         format.subsampling_w = subsampling_w
         format.subsampling_h = subsampling_h
 
-        if format._get_format_struct() == NULL:
-            raise ValueError("Incorrect format specified.")
+        format._get_format_struct()
 
         return format
     @classmethod
@@ -924,7 +923,7 @@ cdef class RegisteredFormat:
     cdef readonly int subsampling_h
 
 
-    cdef const VSFormat *_get_format_struct(self):
+    cdef const VSFormat *_get_format_struct(self) except *:
         cdef Core core = _get_core()
 
         cdef const VSFormat *f = core._register_format(self.color_family, self.sample_type, self.bits_per_sample, self.subsampling_w, self.subsampling_h)
