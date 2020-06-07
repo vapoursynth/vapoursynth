@@ -1638,14 +1638,21 @@ void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNa
     VSPlugin *p = new VSPlugin(filename, forcedNamespace, forcedId, altSearchPath, this);
 
     std::lock_guard<std::recursive_mutex> lock(pluginLock);
-    if (getPluginById(p->id)) {
+
+    VSPlugin *already_loaded_plugin = getPluginById(p->id);
+    if (already_loaded_plugin) {
         std::string error = "Plugin " + filename + " already loaded (" + p->id + ")";
+        if (already_loaded_plugin->filename.size())
+            error += " from " + already_loaded_plugin->filename;
         delete p;
         throw VSException(error);
     }
 
-    if (getPluginByNs(p->fnamespace)) {
-        std::string error = "Plugin load failed, namespace " + p->fnamespace + " already populated (" + filename + ")";
+    already_loaded_plugin = getPluginByNs(p->fnamespace);
+    if (already_loaded_plugin) {
+        std::string error = "Plugin load of " + filename + " failed, namespace " + p->fnamespace + " already populated";
+        if (already_loaded_plugin->filename.size())
+            error += " by " + already_loaded_plugin->filename;
         delete p;
         throw VSException(error);
     }

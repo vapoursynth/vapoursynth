@@ -46,7 +46,7 @@ struct Avisynther_ : public Synther_
     virtual bool/*success*/ GetAudio(AvfsLog_* log, void* buf, __int64 start, unsigned count) = 0;
 
     // Exception protected PVideoFrame->GetFrame()
-    virtual PVideoFrame GetFrame(AvfsLog_* log, int n, bool *success = 0) = 0;
+    virtual avs::PVideoFrame GetFrame(AvfsLog_* log, int n, bool *success = 0) = 0;
 
     // Readonly reference to VideoInfo
     virtual VideoInfoAdapter GetVideoInfo() = 0;

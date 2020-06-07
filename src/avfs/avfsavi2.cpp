@@ -1159,7 +1159,7 @@ static void copyPlaneAvs(
   uint8_t*     &buffer,
   size_t       &offset,
   size_t       &rqsize,
-  PVideoFrame  &frame,
+  avs::PVideoFrame  &frame,
   int          plane,
   unsigned     alignMask/*align-1*/)
 {
@@ -1256,7 +1256,7 @@ bool/*success*/ AvfsAvi2File::GetFrameData(
       }
       vsapi->freeFrame(frame);
   } else {
-      PVideoFrame frame = avssynther->GetFrame(log, n, &success);
+      avs::PVideoFrame frame = avssynther->GetFrame(log, n, &success);
       if (success) {
           int pixel_format = avssynther->GetVideoInfo().pixel_format;
           if (NeedsPacking(pixel_format)) {
@@ -1266,9 +1266,9 @@ bool/*success*/ AvfsAvi2File::GetFrameData(
               // RGB32 and YUY2 has no code path. But PLANAR_Y works just as well for these
               // They won't be explicitly aligned but it doesn't matter since they're always mod4
               // Poking extra planes will read nothing so it's harmless
-              copyPlaneAvs(buffer, offset, size, frame, PLANAR_Y, (pixel_format == pfGray8 || pixel_format == pfGray16) ? 3 : 0);
-              copyPlaneAvs(buffer, offset, size, frame, PLANAR_V, 0);
-              copyPlaneAvs(buffer, offset, size, frame, PLANAR_U, 0);
+              copyPlaneAvs(buffer, offset, size, frame, avs::PLANAR_Y, (pixel_format == pfGray8 || pixel_format == pfGray16) ? 3 : 0);
+              copyPlaneAvs(buffer, offset, size, frame, avs::PLANAR_V, 0);
+              copyPlaneAvs(buffer, offset, size, frame, avs::PLANAR_U, 0);
               ASSERT(size == 0);
           }
       }

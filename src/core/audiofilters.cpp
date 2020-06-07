@@ -389,6 +389,9 @@ static const VSFrameRef *VS_CC audioMixGetFrame(int n, int activationReason, voi
             }
         }
 
+        for (auto iter : srcFrames)
+            vsapi->freeFrame(iter);
+
         return dst;
     }
 

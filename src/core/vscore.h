@@ -188,14 +188,6 @@ public:
 struct VSMap {
 private:
     VSMapStorage *data;
-
-    void detach() {
-        if (!data->unique()) {
-            VSMapStorage *old = data;
-            data = new VSMapStorage(*data);
-            old->release();
-        }
-    }
 public:
     VSMap() : data(new VSMapStorage()) {}
 
@@ -216,6 +208,14 @@ public:
         data = map.data;
         data->addRef();
         return *this;
+    }
+
+    void detach() {
+        if (!data->unique()) {
+            VSMapStorage *old = data;
+            data = new VSMapStorage(*data);
+            old->release();
+        }
     }
 
     bool contains(const std::string &key) const {
