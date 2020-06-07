@@ -4,7 +4,8 @@ import vapoursynth as vs
 class CoreTestSequence(unittest.TestCase):
 
     def setUp(self):
-        self.core = vs.get_core(threads=1)
+        self.core = vs.core
+        self.core.num_threads = 1
             
     def test_expr_op1(self):
         clip = self.core.std.BlankClip(format=vs.GRAY8, color=58)

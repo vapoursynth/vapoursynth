@@ -9,7 +9,7 @@ from concurrent.futures import Future
 class FilterTestSequence(unittest.TestCase):
 
     def setUp(self):
-        self.core = vs.get_core()
+        self.core = vs.core
         self.filter = self.core.std.BlankClip(length=20)
         self.slow_filter = self.filter.std.FrameEval(self.slow_filter_fe)
         self.fail_filter = self.filter.std.FrameEval(self.fail_filter_fe)

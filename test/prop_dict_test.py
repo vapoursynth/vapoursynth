@@ -4,7 +4,7 @@ import vapoursynth as vs
 
 class PropDictTest(unittest.TestCase):
     def setUp(self):
-        self.core = vs.get_core()
+        self.core = vs.core
         self.frame = self.core.std.BlankClip().get_frame(0)
         self.props = self.frame.props
 
