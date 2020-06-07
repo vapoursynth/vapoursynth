@@ -272,8 +272,8 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
         else if (d->vi->format->bytesPerSample == 2 && floatout)
             lutCreateHelper<uint16_t, float>(in, out, func, d, core, vsapi);
 
-    } catch (std::string &e) {
-        RETERROR(("Lut2 " + e).c_str());
+    } catch (std::runtime_error &e) {
+        RETERROR(("Lut " + std::string(e.what())).c_str());
     }
 }
 
@@ -550,8 +550,8 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
             }
         }
 
-    } catch (std::string &e) {
-        RETERROR(("Lut2: " + e).c_str());
+    } catch (std::runtime_error &e) {
+        RETERROR(("Lut2 " + std::string(e.what())).c_str());
     }
 }
 
