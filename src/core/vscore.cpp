@@ -1168,7 +1168,7 @@ const VSAudioFormat *VSCore::queryAudioFormat(int sampleType, int bitsPerSample,
     std::lock_guard<std::mutex> lock(audioFormatLock);
 
     for (const auto &iter : audioFormats) {
-        if (iter.second.bitsPerSample == bitsPerSample && iter.second.channelLayout == channelLayout)
+        if (iter.second.sampleType == sampleType && iter.second.bitsPerSample == bitsPerSample && iter.second.channelLayout == channelLayout)
             return &iter.second;
     }
 
@@ -1197,9 +1197,9 @@ const VSAudioFormat *VSCore::queryAudioFormat(int sampleType, int bitsPerSample,
     f.numChannels = static_cast<int>(bits.count());
     f.channelLayout = channelLayout;
 
-    const size_t targetSize = 96000;
+    const size_t targetSize = 24000;
     f.samplesPerFrame = targetSize;
-    int sampleMultiple = VSFrame::alignment / f.bytesPerSample;
+    int sampleMultiple = VSFrame::alignment / 2 /* smallest sample type */;
     f.samplesPerFrame = (f.samplesPerFrame + sampleMultiple - 1) & ~(sampleMultiple - 1);
 
     audioFormats.insert(std::make_pair(f.id, f));
