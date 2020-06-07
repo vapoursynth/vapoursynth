@@ -4,7 +4,7 @@ import vapoursynth as vs
 class FilterTestSequence(unittest.TestCase):
 
     def setUp(self):
-        self.core = vs.get_core()
+        self.core = vs.core
         self.Transpose = self.core.std.Transpose
         self.BlankClip = self.core.std.BlankClip
 		
