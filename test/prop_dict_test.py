@@ -5,6 +5,7 @@ import vapoursynth as vs
 class PropDictTest(unittest.TestCase):
     def setUp(self):
         self.core = vs.core
+        self.core.num_threads = 1
         self.frame = self.core.std.BlankClip().get_frame(0)
         self.props = self.frame.props
 
@@ -42,7 +43,7 @@ class PropDictTest(unittest.TestCase):
 
     def test_iterators(self):
         self.assertEqual(list(self.props.keys()), list(self.props))
-        self.assertEqual(list(self.props.keys()), ['_DurationDen', '_DurationNum'])
+        self.assertEqual(self.props.keys(), set(['_DurationDen', '_DurationNum']))
         self.assertEqual(list(self.props.values()), [24, 1])
         self.assertEqual(list(self.props.items()),  [('_DurationDen', 24), ('_DurationNum', 1)])
         self.assertEqual(dict(self.props), dict(self.props_rw))
