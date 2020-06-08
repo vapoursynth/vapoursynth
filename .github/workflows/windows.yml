@@ -63,7 +63,7 @@ jobs:
       run: |
         msbuild msvc_project/VapourSynth.sln /t:Build /p:Configuration=Release /p:Platform=${{ matrix.platform }}
         pushd installer
-        & "make portable.bat"
+        & ".\make portable.bat"
         popd
         pip install . --no-deps
         if ("${{ matrix.arch }}" -eq "x64") {
