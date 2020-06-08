@@ -77,3 +77,6 @@ jobs:
         pip install . --no-deps
         popd
         popd
+    - name: Run Tests
+      run: |
+        python -m unittest discover -s test/
