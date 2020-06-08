@@ -48,9 +48,16 @@ jobs:
         git clone https://github.com/sekrit-twc/zimg --branch v2.9 --depth 1
         git clone https://github.com/AviSynth/AviSynthPlus.git --depth 1
         
+    - name: Patch Python Include Paths
+      run: |
+        $py_include_path = ((Split-Path -Path (Get-Command python.exe).Path) + "\libs" )
+        $py_binary_path = ((Split-Path -Path (Get-Command python.exe).Path) + "\include" )
+        (Get-Content -Path "msvs_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\Program Files %28x86%29\Python38-32\libs",$py_binary_path | Set-Content "msvs_project\VSScript\VSScript.vcxproj"
+        (Get-Content -Path "msvs_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\Program Files %28x86%29\Python38-32\include",$py_include_path | Set-Content "msvs_project\VSScript\VSScript.vcxproj"
+        (Get-Content -Path "msvs_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\Program Files\Python38\libs",$py_binary_path | Set-Content "msvs_project\VSScript\VSScript.vcxproj"
+        (Get-Content -Path "msvs_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\Program Files\Python38\include",$py_include_path | Set-Content "msvs_project\VSScript\VSScript.vcxproj"
+        
     - name: Compile
       run: |
-        $env:INCLUDE=((Split-Path -Path (Get-Command python.exe).Path) + "\include" )
-        $env:LIB=((Split-Path -Path (Get-Command python.exe).Path) + "\libs" )
         msbuild msvc_project/VapourSynth.sln /t:Build /p:Configuration=Release /p:Platform=${{ matrix.platform }}
         
