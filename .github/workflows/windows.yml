@@ -66,7 +66,7 @@ jobs:
         & "make portable.bat"
         popd
         pip install . --no-deps
-        if ("${{ matrix.arch }}" == "x64") {
+        if ("${{ matrix.arch }}" -eq "x64") {
           pushd installer/buildp64
           pip install . --no-deps
           popd
