@@ -69,13 +69,13 @@ jobs:
         if ("${{ matrix.arch }}" -eq "x64") {
           mkdir installer/buildp64
           pushd installer/buildp64
-          7z.exe e ..\..\Compiled\VapourSynth64-Portable-*.7z
+          7z.exe e ..\Compiled\VapourSynth64-Portable-*.7z
           pip install . --no-deps
           popd
         } else {
           mkdir installer/buildp32
           pushd installer/buildp32
-          7z.exe e ..\..\Compiled\VapourSynth32-Portable-*.7z
+          7z.exe e ..\Compiled\VapourSynth32-Portable-*.7z
           pip install . --no-deps
           popd
         }
