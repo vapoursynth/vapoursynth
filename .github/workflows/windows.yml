@@ -16,6 +16,10 @@ jobs:
   build:
     # The type of runner that the job will run on
     runs-on: windows-latest
+    
+    strategy:
+      matrix:
+        arch: [x86, x64]
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -31,7 +35,7 @@ jobs:
         # Version range or exact version of a Python version to use, using SemVer's version range syntax.
         python-version: 3.8
         # The target architecture (x86, x64) of the Python interpreter.
-        architecture: x64
+        architecture: ${{ matrix.arch }}
   
     - name: Clone Dependencies
       run: |
@@ -41,5 +45,6 @@ jobs:
         
     - name: Compile
       run: |
-        msbuild msvc_project/VapourSynth.sln
+        $env:ILink_LibraryPath=((Split-Path -Path (Get-Command python.exe).Path) + "\include" )
+        msbuild msvc_project/VapourSynth.sln /t:Build /p:Configuration=Release /p:Platform=${{ matrix.arch }}
         
