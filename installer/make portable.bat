@@ -45,11 +45,13 @@ copy .\MANIFEST.in buildp64
 xcopy /E ..\doc\_build\html\* buildp64\doc
 type nul >buildp64\portable.vs
 type nul >buildp64\vapoursynth64\plugins\.keep
-del Compiled\vapoursynth64-portable-R%v%%w%.7z
-cd buildp64
-"C:\Program Files\7-Zip\7z.exe" a ..\Compiled\VapourSynth64-Portable-R%v%%w%.7z *
-cd ..
-rmdir /s /q buildp64
+if "%SKIP_COMPRESS%" EQU "" (
+  del Compiled\vapoursynth64-portable-R%v%%w%.7z
+  cd buildp64
+  "C:\Program Files\7-Zip\7z.exe" a ..\Compiled\VapourSynth64-Portable-R%v%%w%.7z *
+  cd ..
+  rmdir /s /q buildp64
+)
 
 rem 32bit build
 mkdir buildp32\vapoursynth32\coreplugins
@@ -93,10 +95,14 @@ copy .\MANIFEST.in buildp32
 xcopy /E ..\doc\_build\html\* buildp32\doc
 type nul >buildp32\portable.vs
 type nul >buildp32\vapoursynth32\plugins\.keep
-del Compiled\vapoursynth32-portable-R%v%%w%.7z
-cd buildp32
-"C:\Program Files\7-Zip\7z.exe" a ..\Compiled\VapourSynth32-Portable-R%v%%w%.7z *
-cd ..
-rmdir /s /q buildp32
+if "%SKIP_COMPRESS%" EQU "" (
+  del Compiled\vapoursynth32-portable-R%v%%w%.7z
+  cd buildp32
+  "C:\Program Files\7-Zip\7z.exe" a ..\Compiled\VapourSynth32-Portable-R%v%%w%.7z *
+  cd ..
+  rmdir /s /q buildp32
+)
 
-pause
+if "%SKIP_WAIT%" EQU "" (
+  pause
+)
