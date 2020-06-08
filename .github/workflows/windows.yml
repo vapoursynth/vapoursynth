@@ -61,23 +61,19 @@ jobs:
         pip install cython
     - name: Compile
       run: |
-        msbuild msvc_project/VapourSynth.sln /t:Build /p:Configuration=Release /p:Platform=${{ matrix.platform }}
-        pushd installer
-        & ".\make portable.bat"
-        popd
+        msbuild msvc_project/VapourSynth.sln /t:Build /p:Configuration=Release /p:Platform=${{ matrix.platform }}        
         pip install . --no-deps
+        
+        pushd installer
+        $env:SKIP_COMPRESS="yes"
+        $env:SKIP_WAIT="yes"
+        & ".\make portable.bat"
+        
         if ("${{ matrix.arch }}" -eq "x64") {
-          mkdir installer/buildp64
-          pushd installer/buildp64
-          7z.exe e ..\Compiled\VapourSynth64-Portable-*.7z
-          dir .\vapoursynth64
-          pip install . --no-deps
-          popd
+          pushd buildp64
         } else {
-          mkdir installer/buildp32
-          pushd installer/buildp32
-          7z.exe e ..\Compiled\VapourSynth32-Portable-*.7z
-          dir .\vapoursynth32
-          pip install . --no-deps
-          popd
+          pushd buildp32
         }
+        pip install . --no-deps
+        popd
+        popd
