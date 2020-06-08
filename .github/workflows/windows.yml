@@ -50,12 +50,15 @@ jobs:
         
     - name: Patch Python Include Paths
       run: |
-        $py_include_path = ((Split-Path -Path (Get-Command python.exe).Path) + "\libs" )
-        $py_binary_path = ((Split-Path -Path (Get-Command python.exe).Path) + "\include" )
+        $py_include_path = ((Split-Path -Path (Get-Command python.exe).Path) + "\include" )
+        $py_binary_path = ((Split-Path -Path (Get-Command python.exe).Path) + "\libs" )
         (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files %28x86%29\\Python38-32\\libs",$py_binary_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
         (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files %28x86%29\\Python38-32\\include",$py_include_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
         (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files\\Python38\\libs",$py_binary_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
         (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files\\Python38\\include",$py_include_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
+        Get-Content -Path msvc_project\VSScript\VSScript.vcxproj | Write-Output
+        Write-Output $py_include_path
+        Write-Output $py_binary_path
         
     - name: Compile
       run: |
