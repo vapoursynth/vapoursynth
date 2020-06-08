@@ -50,6 +50,7 @@ jobs:
         
     - name: Compile
       run: |
-        $env:ILink_LibraryPath=((Split-Path -Path (Get-Command python.exe).Path) + "\include" )
+        $env:INCLUDE=((Split-Path -Path (Get-Command python.exe).Path) + "\include" )
+        $env:LIB=((Split-Path -Path (Get-Command python.exe).Path) + "\libs" )
         msbuild msvc_project/VapourSynth.sln /t:Build /p:Configuration=Release /p:Platform=${{ matrix.platform }}
         
