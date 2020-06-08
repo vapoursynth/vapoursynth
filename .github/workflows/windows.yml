@@ -20,6 +20,11 @@ jobs:
     strategy:
       matrix:
         arch: [x86, x64]
+        include:
+          - arch: x86
+            platform: Win32
+          - arch: x64
+            platform: x64
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -46,5 +51,5 @@ jobs:
     - name: Compile
       run: |
         $env:ILink_LibraryPath=((Split-Path -Path (Get-Command python.exe).Path) + "\include" )
-        msbuild msvc_project/VapourSynth.sln /t:Build /p:Configuration=Release /p:Platform=${{ matrix.arch }}
+        msbuild msvc_project/VapourSynth.sln /t:Build /p:Configuration=Release /p:Platform=${{ matrix.platform }}
         
