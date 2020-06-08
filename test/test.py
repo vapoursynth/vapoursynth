@@ -10,7 +10,8 @@ def int_lut(x):
 class CoreTestSequence(unittest.TestCase):
 
     def setUp(self):
-        self.core = vs.get_core(threads=10)
+        self.core = vs.core
+        self.core.num_threads = 10
 
     # core argument tests
     def test_num_threads(self):

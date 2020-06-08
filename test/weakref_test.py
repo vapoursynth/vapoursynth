@@ -6,7 +6,7 @@ import vapoursynth as vs
 class FilterTestSequence(unittest.TestCase):
 
     def setUp(self):
-        self.core = vs.get_core()
+        self.core = vs.core
 
     def test_weakref_core(self):
         ref = weakref.ref(self.core)
