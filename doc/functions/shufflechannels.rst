@@ -28,12 +28,12 @@ ShuffleChannels
 
    Extract the left channel (assuming it exists)::
 
-      ShuffleChannels(clips=clip, channels_in=vs.FrontLeft, channels_out=(1 << vs.FrontLeft))
+      ShuffleChannels(clips=clip, channels_in=vs.FRONT_LEFT, channels_out=(1 << vs.FRONT_LEFT))
 
    Swap left and right audio channels in a stereo clip::
 
-      ShuffleChannels(clips=clip, channels_in=[vs.FrontRight, vs.FrontLeft], channels_out=(1 << vs.FrontLeft | 1 << vs.FrontRight))
+      ShuffleChannels(clips=clip, channels_in=[vs.FRONT_RIGHT, vs.FRONT_LEFT], channels_out=(1 << vs.FRONT_LEFT | 1 << vs.FRONT_RIGHT))
 
    Merge 2 mono audio clips into a single stereo clip::
 
-      ShuffleChannels(clips=[clipa, clipb], channels_in=[vs.FrontLeft, vs.FrontLeft], channels_out=(1 << vs.FrontLeft | 1 << vs.FrontRight))
+      ShuffleChannels(clips=[clipa, clipb], channels_in=[vs.FRONT_LEFT, vs.FRONT_LEFT], channels_out=(1 << vs.FRONT_LEFT | 1 << vs.FRONT_RIGHT))

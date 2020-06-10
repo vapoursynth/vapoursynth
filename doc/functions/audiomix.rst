@@ -25,12 +25,12 @@ AudioMix
 
    Downmix stereo audio to mono::
 
-      AudioMix(clips=clip, matrix=[0.5, 0.5], channels_out=(1 << vs.FrontLeft))
+      AudioMix(clips=clip, matrix=[0.5, 0.5], channels_out=(1 << vs.FRONT_LEFT))
 
    Downmix 5.1 audio::
 
-      AudioMix(clips=clip, matrix=[1, 0, 0.7071, 0, 0.7071, 0, 0, 1, 0.7071, 0, 0, 0.7071], channels_out=(1 << vs.FrontLeft | 1 << vs.FrontRight))
+      AudioMix(clips=clip, matrix=[1, 0, 0.7071, 0, 0.7071, 0, 0, 1, 0.7071, 0, 0, 0.7071], channels_out=(1 << vs.FRONT_LEFT | 1 << vs.FRONT_RIGHT))
       
    Copy stereo audio to 5.1 and zero the other channels::
 
-      AudioMix(clips=c, matrix=[1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0], channels_out=(1 << vs.FrontLeft) | (1 << vs.FrontRight) | (1 << vs.FrontCenter) | (1 << vs.LowFrequency) | (1 << vs.BackLeft) | (1 << vs.BackRight))
+      AudioMix(clips=c, matrix=[1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0], channels_out=(1 << vs.FRONT_LEFT) | (1 << vs.FRONT_RIGHT) | (1 << vs.FRONT_CENTER) | (1 << vs.LOW_FREQUENCY) | (1 << vs.BACK_LEFT) | (1 << vs.BACK_RIGHT))
