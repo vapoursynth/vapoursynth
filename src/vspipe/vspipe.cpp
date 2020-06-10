@@ -163,24 +163,24 @@ static std::string channelMaskToName(uint64_t v) {
         }
     };
 
-    checkConstant(vsacFrontLeft, "front left");
-    checkConstant(vsacFrontRight, "front right");
-    checkConstant(vsacFrontCenter, "center");
+    checkConstant(vsacFrontLeft, "Front Left");
+    checkConstant(vsacFrontRight, "Front Right");
+    checkConstant(vsacFrontCenter, "Center");
     checkConstant(vsacLowFrequency, "LFE");
-    checkConstant(vsacBackLeft, "back left");
-    checkConstant(vsacBackRight, "back right");
-    checkConstant(vsacFrontLeftOFCenter, "front left of center");
-    checkConstant(vsacFrontRightOFCenter, "front right of center");
-    checkConstant(vsacBackCenter, "back center");
-    checkConstant(vsacSideLeft, "side left");
-    checkConstant(vsacSideRight, "side right");
-    checkConstant(vsacTopCenter, "top center");
-    checkConstant(vsacTopFrontLeft, "top front left");
-    checkConstant(vsacTopFrontCenter, "top front center");
-    checkConstant(vsacTopFrontRight, "top front right");
-    checkConstant(vsacTopBackLeft, "top back left");
-    checkConstant(vsacTopBackCenter, "top back center");
-    checkConstant(vsacTopBackRight, "top back right");
+    checkConstant(vsacBackLeft, "Back Left");
+    checkConstant(vsacBackRight, "Back Right");
+    checkConstant(vsacFrontLeftOFCenter, "Front Left of Center");
+    checkConstant(vsacFrontRightOFCenter, "Front Right of Center");
+    checkConstant(vsacBackCenter, "Back Center");
+    checkConstant(vsacSideLeft, "Side Left");
+    checkConstant(vsacSideRight, "Side Right");
+    checkConstant(vsacTopCenter, "Top Center");
+    checkConstant(vsacTopFrontLeft, "Top Front Left");
+    checkConstant(vsacTopFrontCenter, "Top Front Center");
+    checkConstant(vsacTopFrontRight, "Top Front Right");
+    checkConstant(vsacTopBackLeft, "Top Back Left");
+    checkConstant(vsacTopBackCenter, "Top Back Center");
+    checkConstant(vsacTopBackRight, "Top Back Right");
 
     return s;
 }
