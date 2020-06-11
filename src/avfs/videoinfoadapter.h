@@ -172,6 +172,13 @@ public:
             return avsvi ? avsvi->BytesPerAudioSample() : 0;
     }
 
+    int BitsPerChannelSample() const {
+        if (vsai)
+            return vsai->format->bitsPerSample;
+        else
+            return avsvi ? (avsvi->BytesPerChannelSample() * 8) : 0;
+    }
+
     int BMPSize() const {
         return vsvi ? vssynther->BMPSize() : avssynther->BMPSize();
     }

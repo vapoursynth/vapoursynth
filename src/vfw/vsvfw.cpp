@@ -890,10 +890,12 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
         if (static_cast<int64_t>(lStart) + lSamples > ai->numSamples)
             lSamples = std::max<long>(static_cast<long>(ai->numSamples - lStart), 0);
 
-        long bytes = lSamples * ai->format->bytesPerSample * ai->format->numChannels;
+        size_t bytesPerOutputSample = (ai->format->bitsPerSample + 7) / 8;
+
+        long bytes = lSamples * bytesPerOutputSample * ai->format->numChannels;
         if (lpBuffer && bytes > cbBuffer) {
-            lSamples = static_cast<long>(cbBuffer / (ai->format->bytesPerSample * ai->format->numChannels));
-            bytes = lSamples * ai->format->bytesPerSample * ai->format->numChannels;
+            lSamples = static_cast<long>(cbBuffer / (bytesPerOutputSample * ai->format->numChannels));
+            bytes = lSamples * bytesPerOutputSample * ai->format->numChannels;
         }
         if (plBytes)
             *plBytes = bytes;
@@ -902,17 +904,16 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
         if (!lpBuffer || !lSamples)
             return S_OK;
 
-
         const VSAudioFormat *af = ai->format;
 
         int startFrame = lStart / af->samplesPerFrame;
         int endFrame = (lStart + lSamples - 1) / af->samplesPerFrame;
-        size_t bytesPerOutputSample = (af->bitsPerSample + 7) / 8;
 
         std::vector<const uint8_t *> tmp;
         tmp.resize(ai->format->numChannels);
 
         const VSAPI *vsapi = parent->vsapi;
+        size_t dstPos = 0;
 
         for (int i = startFrame; i <= endFrame; i++) {
             const VSFrameRef *f = vsapi->getFrame(i, parent->audioNode, nullptr, 0);
@@ -920,7 +921,7 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
             size_t offset = 0;
             size_t copyLength = af->samplesPerFrame;
             if (firstFrameSample < lStart) {
-                offset = (lStart - firstFrameSample) * af->bytesPerSample;
+                offset = (lStart - firstFrameSample) * bytesPerOutputSample;
                 copyLength -= (lStart - firstFrameSample);
             }
             if (lSamples < copyLength)
@@ -930,11 +931,13 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
                 tmp[c] = vsapi->getReadPtr(f, c) + offset;
 
             if (bytesPerOutputSample == 2)
-                PackChannels<int16_t>(tmp.data(), reinterpret_cast<uint8_t *>(lpBuffer), copyLength, af->numChannels);
+                PackChannels<int16_t>(tmp.data(), reinterpret_cast<uint8_t *>(lpBuffer) + dstPos, copyLength, af->numChannels);
             else if (bytesPerOutputSample == 3)
-                PackChannels32to24(tmp.data(), reinterpret_cast<uint8_t *>(lpBuffer), copyLength, af->numChannels);
+                PackChannels32to24(tmp.data(), reinterpret_cast<uint8_t *>(lpBuffer) + dstPos, copyLength, af->numChannels);
             else if (bytesPerOutputSample == 4)
-                PackChannels<int32_t>(tmp.data(), reinterpret_cast<uint8_t *>(lpBuffer), copyLength, af->numChannels);
+                PackChannels<int32_t>(tmp.data(), reinterpret_cast<uint8_t *>(lpBuffer) + dstPos, copyLength, af->numChannels);
+
+            dstPos += copyLength * af->numChannels * bytesPerOutputSample;
 
             vsapi->freeFrame(f);
         }

@@ -282,7 +282,7 @@ bool VapourSynther::GetAudio(AvfsLog_ *log, void *buf, __int64 start, unsigned c
         size_t offset = 0;
         int copyLength = af->samplesPerFrame;
         if (firstFrameSample < start) {
-            offset = (start - firstFrameSample) * af->bytesPerSample;
+            offset = (start - firstFrameSample) * bytesPerOutputSample;
             copyLength -= (start - firstFrameSample);
         }
 
@@ -301,7 +301,7 @@ bool VapourSynther::GetAudio(AvfsLog_ *log, void *buf, __int64 start, unsigned c
         else if (bytesPerOutputSample == 4)
             PackChannels<int32_t>(tmp.data(), dst, copyLength, af->numChannels);
 
-        dst += copyLength * af->bytesPerSample * af->numChannels;
+        dst += copyLength * bytesPerOutputSample * af->numChannels;
         count -= copyLength;
 
         vsapi->freeFrame(f);
