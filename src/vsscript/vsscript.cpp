@@ -80,7 +80,7 @@ static void real_init(void) {
             if (RegOpenKeyW(HKEY_LOCAL_MACHINE, VS_INSTALL_REGKEY, &hKey) != ERROR_SUCCESS)
                 return;
         }
-            
+
         LSTATUS status = RegQueryValueExW(hKey, L"PythonPath", nullptr, &dwType, (LPBYTE)&value, &valueLength);
         RegCloseKey(hKey);
         if (status != ERROR_SUCCESS)
@@ -126,8 +126,7 @@ VS_API(int) vsscript_finalize(void) {
     return count;
 }
 
-VS_API(int) vsscript_createScript(VSScript **handle) {
-    std::lock_guard<std::mutex> lock(vsscriptlock);
+static int vsscript_createScriptInternal(VSScript **handle) {
     *handle = new(std::nothrow)VSScript();
     if (*handle) {
         (*handle)->pyenvdict = nullptr;
@@ -139,17 +138,18 @@ VS_API(int) vsscript_createScript(VSScript **handle) {
     }
 }
 
+
+VS_API(int) vsscript_createScript(VSScript **handle) {
+    std::lock_guard<std::mutex> lock(vsscriptlock);
+    return vsscript_createScriptInternal(handle);
+}
+
+
+
 VS_API(int) vsscript_evaluateScript(VSScript **handle, const char *script, const char *scriptFilename, int flags) {
     std::lock_guard<std::mutex> lock(vsscriptlock);
     if (*handle == nullptr) {
-        *handle = new(std::nothrow)VSScript();
-        if (*handle) {
-            (*handle)->pyenvdict = nullptr;
-            (*handle)->errstr = nullptr;
-            (*handle)->id = ++scriptId;
-        } else {
-            return 1;
-        }
+        if (vsscript_createScriptInternal(handle)) return 1;
     }
     return vpy_evaluateScript(*handle, script, scriptFilename ? scriptFilename : "<string>", flags);
 }
@@ -157,14 +157,7 @@ VS_API(int) vsscript_evaluateScript(VSScript **handle, const char *script, const
 VS_API(int) vsscript_evaluateFile(VSScript **handle, const char *scriptFilename, int flags) {
     std::lock_guard<std::mutex> lock(vsscriptlock);
     if (*handle == nullptr) {
-        *handle = new(std::nothrow)VSScript();
-        if (*handle) {
-            (*handle)->pyenvdict = nullptr;
-            (*handle)->errstr = nullptr;
-            (*handle)->id = ++scriptId;
-        } else {
-            return 1;
-        }
+        if (vsscript_createScriptInternal(handle)) return 1;
     }
     return vpy_evaluateFile(*handle, scriptFilename, flags);
 }
