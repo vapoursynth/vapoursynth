@@ -31,6 +31,8 @@
 #include <chrono>
 #include <locale>
 #include <sstream>
+#include "../common/wave.h"
+#include "../common/p2p_api.h"
 #ifdef VS_TARGET_OS_WINDOWS
 #include <io.h>
 #include <fcntl.h>
@@ -71,31 +73,6 @@ std::string nstringToUtf8(const nstring &s) {
     return s;
 }
 #endif
-
-/////////////////////////////////////////////
-// Wave64
-
-struct Wave64Hdr {
-    uuid_t riffUuid;
-    uint64_t riffSize;
-    uuid_t waveUuid;
-    uuid_t fmtUuid;
-    uint64_t fmtSize;
-    uint16_t wFormatTag;
-    uint16_t nChannels;
-    uint32_t nSamplesPerSec;
-    uint32_t nAvgBytesPerSec;
-    uint16_t nBlockAlign;
-    uint16_t wBitsPerSample;
-    uuid_t dataUuid;
-    uint64_t dataSize;
-};
-
-static_assert(sizeof(Wave64Hdr) == 104, "");
-static const uuid_t wave64HdrRiffUuidVal = { 0x66666972u,0x912Eu,0x11CFu,{0xA5u,0xD6u,0x28u,0xDBu,0x04u,0xC1u,0x00u,0x00u} };
-static const uuid_t wave64HdrWaveUuidVal = { 0x65766177u,0xACF3u,0x11D3u,{0x8Cu,0xD1u,0x00u,0xC0u,0x4Fu,0x8Eu,0xDBu,0x8Au} };
-static const uuid_t wave64HdrFmtUuidVal  = { 0x20746D66u,0xACF3u,0x11D3u,{0x8Cu,0xD1u,0x00u,0xC0u,0x4Fu,0x8Eu,0xDBu,0x8Au} };
-static const uuid_t wave64HdrDataUuidVal = { 0x61746164u,0xACF3u,0x11D3u,{0x8Cu,0xD1u,0x00u,0xC0u,0x4Fu,0x8Eu,0xDBu,0x8Au} };
 
 /////////////////////////////////////////////
 
@@ -484,13 +461,13 @@ static bool outputNode() {
         if (w64) {        
             uint64_t dataSize = ai->format->numChannels * static_cast<uint64_t>(ai->format->bytesPerSample) * ai->numSamples;
 
-            Wave64Hdr header = {};
+            Wave64Header header = {};
             size_t hdrSize = sizeof(header);
             header.riffUuid = wave64HdrRiffUuidVal;
             header.riffSize = hdrSize + dataSize;
             header.waveUuid = wave64HdrWaveUuidVal;
             header.fmtUuid = wave64HdrFmtUuidVal;
-            header.fmtSize = offsetof(Wave64Hdr, dataUuid) - offsetof(Wave64Hdr, fmtUuid);
+            header.fmtSize = offsetof(Wave64Header, dataUuid) - offsetof(Wave64Header, fmtUuid);
             header.wFormatTag = (ai->format->sampleType == stFloat) ? 3 : 1;
             header.nChannels = ai->format->numChannels;
             header.nSamplesPerSec = ai->sampleRate;

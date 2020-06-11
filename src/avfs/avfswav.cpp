@@ -37,67 +37,6 @@
 
 #include "avfsincludes.h"
 
-#if !defined(UUID_T_DEFINED) && !defined(uuid_t)
-struct uuid_t {
-  uint32_t data1;
-  uint16_t data2;
-  uint16_t data3;
-  uint8_t data4[8];
-};
-#endif
-
-static const unsigned waveMaxSampleBlockSize = 128;
-static const uint64_t maxWaveFileSize       = 0xFFFFFFFE;
-static const uint64_t maxCompatWaveFileSize = 0x7FFFFFFE;
-
-struct waveHdr {
-  uint32_t riffTag;
-  uint32_t riffSize; // = sizeof(waveHdr)-offsetofend(riffSize)+dataSize
-  uint32_t waveTag;
-  uint32_t fmtTag;
-  uint32_t fmtSize; // = offsetof(dataTag)-offsetofend(fmtSize)
-  uint16_t wFormatTag;         // sample type
-  uint16_t nChannels;          // number of channels (i.e. mono, stereo...)
-  uint32_t nSamplesPerSec;     // sample rate
-  uint32_t nAvgBytesPerSec;    // for buffer estimation
-  uint16_t nBlockAlign;        // block size of data
-  uint16_t wBitsPerSample;     // number of bits per sample of mono data
-  // uint16_t cbSize;
-  // uint8_t fmtExtra[cbSize];
-  uint32_t dataTag;
-  uint32_t dataSize;
-  // uint8_t data[dataSize];
-};                             /* Data Samples */
-static_assert(sizeof(waveHdr) == 44, "");
-static const uint32_t waveHdrRiffTagVal = MAKETAGUINT32('R','I','F','F');
-static const uint32_t waveHdrWaveTagVal = MAKETAGUINT32('W','A','V','E');
-static const uint32_t waveHdrFmtTagVal  = MAKETAGUINT32('f','m','t',' ');
-static const uint32_t waveHdrDataTagVal = MAKETAGUINT32('d','a','t','a');
-
-struct wave64Hdr {
-  uuid_t riffUuid;
-  uint64_t riffSize; // = sizeof(wave64Hdr)+dataSize
-  uuid_t waveUuid;
-  uuid_t fmtUuid;
-  uint64_t fmtSize; // = offsetof(dataUuid)-offsetof(fmtUuid)
-  uint16_t wFormatTag;         // sample type
-  uint16_t nChannels;          // number of channels (i.e. mono, stereo...)
-  uint32_t nSamplesPerSec;     // sample rate
-  uint32_t nAvgBytesPerSec;    // for buffer estimation
-  uint16_t nBlockAlign;        // block size of data
-  uint16_t wBitsPerSample;     // number of bits per sample of mono data
-  // uint16_t cbSize;
-  // uint8_t fmtExtra[cbSize];
-  uuid_t dataUuid;
-  uint64_t dataSize;
-  // uint8_t data[dataSize];
-};
-static_assert(sizeof(wave64Hdr) == 104, "");
-static const uuid_t wave64HdrRiffUuidVal = { 0x66666972u,0x912Eu,0x11CFu,{0xA5u,0xD6u,0x28u,0xDBu,0x04u,0xC1u,0x00u,0x00u} };
-static const uuid_t wave64HdrWaveUuidVal = { 0x65766177u,0xACF3u,0x11D3u,{0x8Cu,0xD1u,0x00u,0xC0u,0x4Fu,0x8Eu,0xDBu,0x8Au} };
-static const uuid_t wave64HdrFmtUuidVal  = { 0x20746D66u,0xACF3u,0x11D3u,{0x8Cu,0xD1u,0x00u,0xC0u,0x4Fu,0x8Eu,0xDBu,0x8Au} };
-static const uuid_t wave64HdrDataUuidVal = { 0x61746164u,0xACF3u,0x11D3u,{0x8Cu,0xD1u,0x00u,0xC0u,0x4Fu,0x8Eu,0xDBu,0x8Au} };
-
 struct AvfsWavFile final:
    AvfsMediaFile_
 {
@@ -106,8 +45,8 @@ struct AvfsWavFile final:
   uint64_t startSample;
   uint64_t sampleCount;
   union {
-    waveHdr wave;
-    wave64Hdr wave64;
+    WaveHeader wave;
+    Wave64Header wave64;
   } hdr;
   uint16_t sampleBlockSize;
   size_t hdrSize;
@@ -173,7 +112,7 @@ AvfsWavFile::AvfsWavFile(
     hdr.wave64.riffSize = hdrSize+dataSize;
     hdr.wave64.waveUuid = wave64HdrWaveUuidVal;
     hdr.wave64.fmtUuid = wave64HdrFmtUuidVal;
-    hdr.wave64.fmtSize = offsetof(wave64Hdr,dataUuid)-offsetof(wave64Hdr,fmtUuid);
+    hdr.wave64.fmtSize = offsetof(Wave64Header,dataUuid)-offsetof(Wave64Header,fmtUuid);
     hdr.wave64.wFormatTag = sampleType;
     hdr.wave64.nChannels = channelCount;
     hdr.wave64.nSamplesPerSec = samplesPerSec;
@@ -187,10 +126,10 @@ AvfsWavFile::AvfsWavFile(
     hdr.wave = {};
     hdrSize = sizeof(hdr.wave);
     hdr.wave.riffTag = waveHdrRiffTagVal;
-    hdr.wave.riffSize = unsigned(hdrSize-offsetofend(waveHdr,riffSize)+dataSize);
+    hdr.wave.riffSize = unsigned(hdrSize-offsetofend(WaveHeader,riffSize)+dataSize);
     hdr.wave.waveTag = waveHdrWaveTagVal;
     hdr.wave.fmtTag = waveHdrFmtTagVal;
-    hdr.wave.fmtSize = offsetof(waveHdr,dataTag)-offsetofend(waveHdr,fmtSize);
+    hdr.wave.fmtSize = offsetof(WaveHeader,dataTag)-offsetofend(WaveHeader,fmtSize);
     hdr.wave.wFormatTag = sampleType;
     hdr.wave.nChannels = channelCount;
     hdr.wave.nSamplesPerSec = samplesPerSec;
