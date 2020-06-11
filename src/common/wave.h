@@ -21,6 +21,8 @@
 #ifndef WAVE_H
 #define WAVE_H
 
+#include <cstdint>
+#include <cstddef>
 
 #if !defined(UUID_T_DEFINED) && !defined(uuid_t)
 struct uuid_t {
@@ -47,20 +49,9 @@ struct WaveHeader {
     uint32_t nAvgBytesPerSec;
     uint16_t nBlockAlign;
     uint16_t wBitsPerSample;
-    // uint16_t cbSize;
-    // uint8_t fmtExtra[cbSize];
     uint32_t dataTag;
     uint32_t dataSize;
-    // uint8_t data[dataSize];
 };
-
-#define MAKE_RIFF_TAG(c0,c1,c2,c3) static_cast<uint32_t>((c0)|((c1)<<8)|((c2)<<16)|((c3)<<24))
-
-static_assert(sizeof(WaveHeader) == 44, "");
-static const uint32_t waveHdrRiffTagVal = MAKE_RIFF_TAG('R', 'I', 'F', 'F');
-static const uint32_t waveHdrWaveTagVal = MAKE_RIFF_TAG('W', 'A', 'V', 'E');
-static const uint32_t waveHdrFmtTagVal = MAKE_RIFF_TAG('f', 'm', 't', ' ');
-static const uint32_t waveHdrDataTagVal = MAKE_RIFF_TAG('d', 'a', 't', 'a');
 
 struct Wave64Header {
     uuid_t riffUuid;
@@ -78,10 +69,19 @@ struct Wave64Header {
     uint64_t dataSize;
 };
 
-static_assert(sizeof(Wave64Header) == 104, "");
-static const uuid_t wave64HdrRiffUuidVal = { 0x66666972u,0x912Eu,0x11CFu,{0xA5u,0xD6u,0x28u,0xDBu,0x04u,0xC1u,0x00u,0x00u} };
-static const uuid_t wave64HdrWaveUuidVal = { 0x65766177u,0xACF3u,0x11D3u,{0x8Cu,0xD1u,0x00u,0xC0u,0x4Fu,0x8Eu,0xDBu,0x8Au} };
-static const uuid_t wave64HdrFmtUuidVal = { 0x20746D66u,0xACF3u,0x11D3u,{0x8Cu,0xD1u,0x00u,0xC0u,0x4Fu,0x8Eu,0xDBu,0x8Au} };
-static const uuid_t wave64HdrDataUuidVal = { 0x61746164u,0xACF3u,0x11D3u,{0x8Cu,0xD1u,0x00u,0xC0u,0x4Fu,0x8Eu,0xDBu,0x8Au} };
+template<typename T>
+static void PackChannels(const uint8_t *const *const Src, uint8_t *Dst, size_t Length, size_t Channels) {
+    const T *const *const S = reinterpret_cast<const T *const *const>(Src);
+    T *D = reinterpret_cast<T *>(Dst);
+    for (size_t i = 0; i < Length; i++) {
+        for (size_t c = 0; c < Channels; c++)
+            D[c] = S[c][i];
+        D += Channels;
+    }
+}
+
+void PackChannels32to24(const uint8_t *const *const Src, uint8_t *Dst, size_t Length, size_t Channels);
+Wave64Header CreateWave64Header(bool IsFloat, int BitsPerSample, int SampleRate, int NumChannels, int64_t NumSamples);
+WaveHeader CreateWaveHeader(bool IsFloat, int BitsPerSample, int SampleRate, int NumChannels, int64_t NumSamples);
 
 #endif // WAVE_H

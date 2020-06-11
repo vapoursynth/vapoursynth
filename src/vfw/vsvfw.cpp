@@ -38,6 +38,7 @@
 #include "VSHelper.h"
 #include "../common/p2p_api.h"
 #include "../common/fourcc.h"
+#include "../common/wave.h"
 #include "../common/vsutf16.h"
 
 static std::atomic<long> refCount(0);
@@ -696,12 +697,12 @@ STDMETHODIMP VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) {
 
     if (fAudio) {
         const VSAudioInfo* const ai = parent->ai;
+        size_t bytesPerOutputSample = (ai->format->bitsPerSample + 7) / 8;
         asi.fccType = streamtypeAUDIO;
-        int bytes_per_sample = ai->format->bytesPerSample;
-        asi.dwScale = bytes_per_sample;
-        asi.dwRate = ai->sampleRate * bytes_per_sample;
-        asi.dwLength = (unsigned long)ai->numSamples;
-        asi.dwSampleSize = bytes_per_sample;
+        asi.dwScale = static_cast<DWORD>(bytesPerOutputSample);
+        asi.dwRate = static_cast<DWORD>(ai->sampleRate * bytesPerOutputSample);
+        asi.dwLength = static_cast<DWORD>(ai->numSamples); // fixme, set it to max length or error out when unrepresentable?
+        asi.dwSampleSize = static_cast<DWORD>(bytesPerOutputSample);
         wcscpy(asi.szName, L"VapourSynth Audio #1");
     } else {
         const VSVideoInfo* const vi = parent->vi;
@@ -879,17 +880,6 @@ STDMETHODIMP VapourSynthStream::Read(LONG lStart, LONG lSamples, LPVOID lpBuffer
     return result;
 }
 
-template<typename T>
-static void PackChannels(const uint8_t * const * const Src, uint8_t *Dst, size_t Length, size_t Channels) {
-    const T * const * const S = reinterpret_cast<const T * const * const>(Src);
-    T *D = reinterpret_cast<T *>(Dst);
-    for (size_t i = 0; i < Length; i++) {
-        for (size_t c = 0; c < Channels; c++)
-            D[c] = S[c][i];
-        D += Channels;
-    }
-}
-
 HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LONG cbBuffer, LONG *plBytes, LONG *plSamples) {
     const VSVideoInfo *vi = parent->vi;
     if (fAudio) {
@@ -917,6 +907,7 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
 
         int startFrame = lStart / af->samplesPerFrame;
         int endFrame = (lStart + lSamples - 1) / af->samplesPerFrame;
+        size_t bytesPerOutputSample = (af->bitsPerSample + 7) / 8;
 
         std::vector<const uint8_t *> tmp;
         tmp.resize(ai->format->numChannels);
@@ -938,11 +929,12 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
             for (int c = 0; c < ai->format->numChannels; c++)
                 tmp[c] = vsapi->getReadPtr(f, c) + offset;
 
-            if (af->bytesPerSample == 2) {
-                PackChannels<uint16_t>(tmp.data(), reinterpret_cast<uint8_t *>(lpBuffer), copyLength, af->numChannels);
-            } else if (af->bytesPerSample == 4) {
-                PackChannels<uint32_t>(tmp.data(), reinterpret_cast<uint8_t *>(lpBuffer), copyLength, af->numChannels);
-            }
+            if (bytesPerOutputSample == 2)
+                PackChannels<int16_t>(tmp.data(), reinterpret_cast<uint8_t *>(lpBuffer), copyLength, af->numChannels);
+            else if (bytesPerOutputSample == 3)
+                PackChannels32to24(tmp.data(), reinterpret_cast<uint8_t *>(lpBuffer), copyLength, af->numChannels);
+            else if (bytesPerOutputSample == 4)
+                PackChannels<int32_t>(tmp.data(), reinterpret_cast<uint8_t *>(lpBuffer), copyLength, af->numChannels);
 
             vsapi->freeFrame(f);
         }
@@ -990,6 +982,8 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
 
     if (fAudio) {
         const VSAudioInfo *const ai = parent->ai;
+        size_t bytesPerOutputSample = (ai->format->bitsPerSample + 7) / 8;
+
         if (UseWaveExtensible) {  // Use WAVE_FORMAT_EXTENSIBLE audio output format 
             WAVEFORMATEXTENSIBLE wfxt = {};
 
@@ -997,7 +991,7 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
             wfxt.Format.nChannels = (WORD)ai->format->numChannels;
             wfxt.Format.nSamplesPerSec = ai->sampleRate;
             wfxt.Format.wBitsPerSample = WORD(ai->format->bitsPerSample);
-            wfxt.Format.nBlockAlign = (WORD)(ai->format->bytesPerSample * ai->format->numChannels);
+            wfxt.Format.nBlockAlign = (WORD)(bytesPerOutputSample * ai->format->numChannels);
             wfxt.Format.nAvgBytesPerSec = wfxt.Format.nSamplesPerSec * wfxt.Format.nBlockAlign;
             wfxt.Format.cbSize = sizeof(wfxt) - sizeof(wfxt.Format);
             wfxt.Samples.wValidBitsPerSample = wfxt.Format.wBitsPerSample;
@@ -1011,7 +1005,7 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
             wfx.nChannels = (WORD)ai->format->numChannels;
             wfx.nSamplesPerSec = ai->sampleRate;
             wfx.wBitsPerSample = WORD(ai->format->bitsPerSample);
-            wfx.nBlockAlign = (WORD)(ai->format->bytesPerSample * ai->format->numChannels);
+            wfx.nBlockAlign = (WORD)(bytesPerOutputSample * ai->format->numChannels);
             wfx.nAvgBytesPerSec = wfx.nSamplesPerSec * wfx.nBlockAlign;
             *lpcbFormat = std::min<LONG>(*lpcbFormat, sizeof(wfx));
             memcpy(lpFormat, &wfx, size_t(*lpcbFormat));

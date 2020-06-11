@@ -155,6 +155,7 @@
   <ItemGroup>
     <ClCompile Include="..\..\src\common\p2p_api.cpp" />
     <ClCompile Include="..\..\src\common\v210.cpp" />
+    <ClCompile Include="..\..\src\common\wave.cpp" />
     <ClCompile Include="..\..\src\vfw\vsvfw.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -165,6 +166,7 @@
     <ClInclude Include="..\..\src\common\p2p.h" />
     <ClInclude Include="..\..\src\common\p2p_api.h" />
     <ClInclude Include="..\..\src\common\vsutf16.h" />
+    <ClInclude Include="..\..\src\common\wave.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -54,7 +54,7 @@ struct AvfsWavFile final:
 
   AvfsWavFile(
     Synther_* avs,
-    uint16_t sampleType,
+    bool isFloat,
     uint16_t sampleBlockSize,
     uint64_t sampleCount,
     uint64_t startSample,
@@ -72,7 +72,7 @@ struct AvfsWavFile final:
 
 AvfsWavFile::AvfsWavFile(
   Synther_ *inAvs,
-  uint16_t sampleType,
+  bool isFloat,
   uint16_t inSampleBlockSize,
   uint64_t totalSampleCount,
   uint64_t inStartSample,
@@ -82,14 +82,15 @@ AvfsWavFile::AvfsWavFile(
   references = 1;
   avs = inAvs;
   avs->AddRef();
-  sampleBlockSize = inSampleBlockSize;
   startSample = inStartSample;
-  sampleCount = totalSampleCount - startSample;
-  uint16_t channelCount = uint16_t(avs->GetVideoInfo().AudioChannels());
+  sampleCount = totalSampleCount - inStartSample;
+  sampleBlockSize = inSampleBlockSize;
+
+  const VideoInfoAdapter &vi = avs->GetVideoInfo();
+
   uint16_t sampleSize = uint16_t(avs->GetVideoInfo().BytesPerChannelSample());
-  unsigned samplesPerSec = avs->GetVideoInfo().SamplesPerSecond();
   uint16_t sampleBitCount = uint16_t(sampleSize * 8);
-  unsigned bytesPerSec = samplesPerSec * sampleBlockSize;
+
   uint64_t maxSampleCount = (maxFileSize-sizeof(hdr.wave)) / sampleBlockSize;
   bool wave64 = forceWave64;
   if (maxFileSize > maxWaveFileSize || wave64) {
@@ -99,45 +100,18 @@ AvfsWavFile::AvfsWavFile(
      sampleCount = maxSampleCount;
   }
   dataSize = sampleCount * sampleBlockSize;
-  if(sizeof(hdr.wave)+dataSize > maxWaveFileSize) {
+  if (sizeof(hdr.wave) + dataSize > maxWaveFileSize)
     wave64 = true;
-  }
 
   // Initialize file header.
+  // fixme, so inelegant it hurts, clean up how everything is passed to this class NOW
   if (wave64) {
-    // Use wave64 header for files larger than 2GB.
-    hdr.wave64 = {};
+    hdr.wave64 = CreateWave64Header(isFloat, sampleBitCount, vi.SamplesPerSecond(), vi.AudioChannels(), sampleCount);
     hdrSize = sizeof(hdr.wave64);
-    hdr.wave64.riffUuid = wave64HdrRiffUuidVal;
-    hdr.wave64.riffSize = hdrSize+dataSize;
-    hdr.wave64.waveUuid = wave64HdrWaveUuidVal;
-    hdr.wave64.fmtUuid = wave64HdrFmtUuidVal;
-    hdr.wave64.fmtSize = offsetof(Wave64Header,dataUuid)-offsetof(Wave64Header,fmtUuid);
-    hdr.wave64.wFormatTag = sampleType;
-    hdr.wave64.nChannels = channelCount;
-    hdr.wave64.nSamplesPerSec = samplesPerSec;
-    hdr.wave64.nBlockAlign = sampleBlockSize;
-    hdr.wave64.nAvgBytesPerSec = bytesPerSec;
-    hdr.wave64.wBitsPerSample = sampleBitCount;
-    hdr.wave64.dataUuid = wave64HdrDataUuidVal;
-    hdr.wave64.dataSize = dataSize + sizeof(hdr.wave64.dataUuid) + sizeof(hdr.wave64.dataSize);
   } else {
     // Use normal wave header for files less than 2GB.
-    hdr.wave = {};
+    hdr.wave = CreateWaveHeader(isFloat, sampleBitCount, vi.SamplesPerSecond(), vi.AudioChannels(), sampleCount);
     hdrSize = sizeof(hdr.wave);
-    hdr.wave.riffTag = waveHdrRiffTagVal;
-    hdr.wave.riffSize = unsigned(hdrSize-offsetofend(WaveHeader,riffSize)+dataSize);
-    hdr.wave.waveTag = waveHdrWaveTagVal;
-    hdr.wave.fmtTag = waveHdrFmtTagVal;
-    hdr.wave.fmtSize = offsetof(WaveHeader,dataTag)-offsetofend(WaveHeader,fmtSize);
-    hdr.wave.wFormatTag = sampleType;
-    hdr.wave.nChannels = channelCount;
-    hdr.wave.nSamplesPerSec = samplesPerSec;
-    hdr.wave.nBlockAlign = sampleBlockSize;
-    hdr.wave.nAvgBytesPerSec = bytesPerSec;
-    hdr.wave.wBitsPerSample = sampleBitCount;
-    hdr.wave.dataTag = waveHdrDataTagVal;
-    hdr.wave.dataSize = unsigned(dataSize);
   }
 }
 
@@ -238,7 +212,6 @@ void AvfsWavMediaInit(
 {
   ASSERT(log && avs && volume);
   AvfsWavFile* file;
-  uint16_t sampleType = 0;
   uint16_t sampleBlockSize = uint16_t(avs->GetVideoInfo().BytesPerAudioSample());
   uint64_t sampleCount = uint64_t(avs->GetVideoInfo().num_audio_samples);
   uint64_t position = 0;
@@ -247,20 +220,15 @@ void AvfsWavMediaInit(
   static const size_t maxFileNameChars = 300;
   wchar_t fileName[maxFileNameChars];
 
-  sampleType = avs->GetVideoInfo().AudioIsFloat() ? WAVE_FORMAT_IEEE_FLOAT : WAVE_FORMAT_PCM;
-
   if (!avs->GetVideoInfo().HasAudio()) {
     log->Printf(L"AvfsWavMediaInit: Clip has no audio.\r\n");
-  }
-  else if (sampleBlockSize > waveMaxSampleBlockSize || sampleType == 0) {
+  } else if (sampleBlockSize > waveMaxSampleBlockSize) {
     log->Printf(
       L"AvfsWavMediaInit: Unsupported BytesPerAudioSample(%u)"
       L"or SampleType(%i).\n",sampleBlockSize,avs->GetVideoInfo().BytesPerChannelSample());
-  }
-  else
-  {
+  } else {
     // Create single wave file containing up to 4GB of audio data.
-    file = new(std::nothrow) AvfsWavFile(avs,sampleType,sampleBlockSize,
+    file = new(std::nothrow) AvfsWavFile(avs, avs->GetVideoInfo().AudioIsFloat(),sampleBlockSize,
       sampleCount,0,maxWaveFileSize,false/*forceWave64*/);
     if (file) {
       // Do not create the wave file if all data did not fit.
@@ -272,7 +240,7 @@ void AvfsWavMediaInit(
     }
 
     // Create single wave64 file containing all audio data.
-    file = new(std::nothrow) AvfsWavFile(avs,sampleType,sampleBlockSize,
+    file = new(std::nothrow) AvfsWavFile(avs, avs->GetVideoInfo().AudioIsFloat(),sampleBlockSize,
       sampleCount,0,UINT64_MAX,true/*forceWave64*/);
     if (file) {
       ssformat(fileName,maxFileNameChars,L"%s.w64",volume->GetMediaName());
@@ -282,7 +250,7 @@ void AvfsWavMediaInit(
 
     // Create sequence of max compatible wave files containing all audio data.
     while (position < sampleCount) {
-      file = new(std::nothrow) AvfsWavFile(avs,sampleType,sampleBlockSize,
+      file = new(std::nothrow) AvfsWavFile(avs, avs->GetVideoInfo().AudioIsFloat(),sampleBlockSize,
         sampleCount,position,maxCompatWaveFileSize,false/*forceWave64*/);
       if(!file) {
         position = UINT64_MAX;

@@ -637,7 +637,7 @@ bool/*success*/ AvfsAvi2File::Init(
   fileFrameCount = vidFrameCount;
 
   if (vi.HasAudio())
-      sampleType = vi.AudioIsFloat() ? WAVE_FORMAT_IEEE_FLOAT : WAVE_FORMAT_PCM;
+      sampleType = vi.AudioIsFloat() ? 3 : 1; // the magic constants for integer and float pcm
 
   sampleSize = unsigned(vi.BytesPerAudioSample());
   fileSampleCount = unsigned(vi.num_audio_samples);

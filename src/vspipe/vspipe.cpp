@@ -32,7 +32,6 @@
 #include <locale>
 #include <sstream>
 #include "../common/wave.h"
-#include "../common/p2p_api.h"
 #ifdef VS_TARGET_OS_WINDOWS
 #include <io.h>
 #include <fcntl.h>
@@ -221,15 +220,22 @@ static void outputFrame(const VSFrameRef *frame) {
         } else if (vsapi->getFrameType(frame) == mtAudio) {
             const VSAudioFormat *fi = vsapi->getAudioFrameFormat(frame);
 
-            std::vector<const uint8_t *> srcPtrs;
-            srcPtrs.reserve(fi->numChannels);
-            size_t bytesPerSample = fi->bytesPerSample;
-            size_t toOutput = 0;
+            size_t numChannels = fi->numChannels;
+            size_t numSamples = vsapi->getFrameLength(frame);
+            size_t bytesPerOutputSample = (fi->bitsPerSample + 7) / 8;
+            size_t toOutput = bytesPerOutputSample * numSamples * numChannels;
 
-            if (bytesPerSample == 2)
-                toOutput = interleaveSamples<int16_t>(frame, buffer.data());
-            else if (bytesPerSample == 4)
-                toOutput = interleaveSamples<int32_t>(frame, buffer.data());
+            std::vector<const uint8_t *> srcPtrs;
+            srcPtrs.reserve(numChannels);
+            for (int channel = 0; channel < numChannels; channel++)
+                srcPtrs.push_back(vsapi->getReadPtr(frame, channel));
+            
+            if (bytesPerOutputSample == 2)
+                PackChannels<int16_t>(srcPtrs.data(), buffer.data(), numSamples, numChannels);
+            else if (bytesPerOutputSample == 3)
+                PackChannels32to24(srcPtrs.data(), buffer.data(), numSamples, numChannels);
+            else if (bytesPerOutputSample == 4)
+                PackChannels<int32_t>(srcPtrs.data(), buffer.data(), numSamples, numChannels);
 
             if (fwrite(buffer.data(), 1, toOutput, outFile) != toOutput) {
                 if (errorMessage.empty())
@@ -242,7 +248,6 @@ static void outputFrame(const VSFrameRef *frame) {
 }
 
 static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *rnode, const char *errorMsg) {
-
     if (printFrameNumber) {
         std::chrono::time_point<std::chrono::high_resolution_clock> currentTime(std::chrono::high_resolution_clock::now());
         std::chrono::duration<double> elapsedSeconds = currentTime - lastFpsReportTime;
@@ -459,25 +464,17 @@ static bool outputNode() {
         size_t size = ai->format->numChannels * ai->format->samplesPerFrame * ai->format->bytesPerSample;
         buffer.resize(size);
 
-        if (w64) {        
-            uint64_t dataSize = ai->format->numChannels * static_cast<uint64_t>(ai->format->bytesPerSample) * ai->numSamples;
-
-            Wave64Header header = {};
-            size_t hdrSize = sizeof(header);
-            header.riffUuid = wave64HdrRiffUuidVal;
-            header.riffSize = hdrSize + dataSize;
-            header.waveUuid = wave64HdrWaveUuidVal;
-            header.fmtUuid = wave64HdrFmtUuidVal;
-            header.fmtSize = offsetof(Wave64Header, dataUuid) - offsetof(Wave64Header, fmtUuid);
-            header.wFormatTag = (ai->format->sampleType == stFloat) ? 3 : 1;
-            header.nChannels = ai->format->numChannels;
-            header.nSamplesPerSec = ai->sampleRate;
-            header.nBlockAlign = ai->format->numChannels * ai->format->bytesPerSample;
-            header.nAvgBytesPerSec = ai->format->numChannels * ai->format->bytesPerSample * ai->sampleRate;
-            header.wBitsPerSample = ai->format->bytesPerSample * 8;
-            header.dataUuid = wave64HdrDataUuidVal;
-            header.dataSize = dataSize + sizeof(header.dataUuid) + sizeof(header.dataSize);
-
+        if (w64) {
+            Wave64Header header = CreateWave64Header(ai->format->sampleType == stFloat, ai->format->bitsPerSample, ai->sampleRate, ai->format->numChannels, ai->numSamples);
+            if (outFile) {
+                if (fwrite(&header, 1, sizeof(header), outFile) != sizeof(header)) {
+                    errorMessage = "Error: fwrite() call failed when writing initial header, errno: " + std::to_string(errno);
+                    outputError = true;
+                    return outputError;
+                }
+            }
+        } else if (wav) {
+            WaveHeader header = CreateWaveHeader(ai->format->sampleType == stFloat, ai->format->bitsPerSample, ai->sampleRate, ai->format->numChannels, ai->numSamples);
             if (outFile) {
                 if (fwrite(&header, 1, sizeof(header), outFile) != sizeof(header)) {
                     errorMessage = "Error: fwrite() call failed when writing initial header, errno: " + std::to_string(errno);
