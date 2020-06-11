@@ -1,0 +1,82 @@
+# This is a basic workflow to help you get started with Actions
+
+name: Compile and Test on Windows
+
+# Controls when the action will run. Triggers the workflow on push or pull request
+# events but only for the master branch
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    # The type of runner that the job will run on
+    runs-on: windows-latest
+    
+    strategy:
+      matrix:
+        arch: [x86, x64]
+        include:
+          - arch: x86
+            platform: Win32
+          - arch: x64
+            platform: x64
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+    # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+    - uses: actions/checkout@v2
+
+    - name: Add msbuild to PATH
+      uses: microsoft/setup-msbuild@v1.0.0
+
+    - name: Setup Python
+      uses: actions/setup-python@v2
+      with:
+        # Version range or exact version of a Python version to use, using SemVer's version range syntax.
+        python-version: 3.8
+        # The target architecture (x86, x64) of the Python interpreter.
+        architecture: ${{ matrix.arch }}
+  
+    - name: Clone Dependencies
+      run: |
+        git clone https://github.com/vapoursynth/vsrepo --depth 1
+        git clone https://github.com/sekrit-twc/zimg --branch v2.9 --depth 1
+        git clone https://github.com/AviSynth/AviSynthPlus.git --depth 1
+        
+    - name: Patch Python Include Paths
+      run: |
+        $py_include_path = ((Split-Path -Path (Get-Command python.exe).Path) + "\include" )
+        $py_binary_path = ((Split-Path -Path (Get-Command python.exe).Path) + "\libs" )
+        (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files %28x86%29\\Python38-32\\libs",$py_binary_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
+        (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files %28x86%29\\Python38-32\\include",$py_include_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
+        (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files\\Python38\\libs",$py_binary_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
+        (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files\\Python38\\include",$py_include_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
+    - name: Install Compile Time Dependencies
+      run: |
+        pip install cython
+    - name: Compile
+      run: |
+        msbuild msvc_project/VapourSynth.sln /t:Build /p:Configuration=Release /p:Platform=${{ matrix.platform }}        
+        pip install . --no-deps
+        
+        pushd installer
+        $env:SKIP_COMPRESS="yes"
+        $env:SKIP_WAIT="yes"
+        & ".\make portable.bat"
+        
+        if ("${{ matrix.arch }}" -eq "x64") {
+          pushd buildp64
+        } else {
+          pushd buildp32
+        }
+        pip install . --no-deps
+        popd
+        popd
+    - name: Run Tests
+      run: |
+        python -m unittest discover -s test/

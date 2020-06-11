@@ -1,0 +1,52 @@
+name: Compile and Test on Linux
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build-linux:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install zimg
+      run: |
+        git clone https://github.com/sekrit-twc/zimg --branch v2.9 --depth 1 ./zimg
+        pushd ./zimg
+        ./autogen.sh
+        ./configure --prefix=/usr/
+        make
+        sudo make install
+        popd
+        rm -rf ./zimg
+    - name: Setup Python
+      uses: actions/setup-python@v2
+      with:
+        # Version range or exact version of a Python version to use, using SemVer's version range syntax.
+        python-version: 3.8
+    - name: Install build dependencies
+      run: pip install cython
+    - name: Set neccessary environment variables
+      run: |
+        PYTHON_BASE_PATH=$(command -v python | xargs dirname)/..
+        echo "::set-env name=LD_LIBRARY_PATH::$LD_LIBRARY_PATH:$PYTHON_BASE_PATH/lib"
+        echo "::set-env name=LIBRARY_PATH::$LIBRARY_PATH:$PYTHON_BASE_PATH/lib"
+        echo "::set-env name=PKG_CONFIG_PATH::$PYTHON_BASE_PATH/lib/pkgconfig"
+    - name: configure
+      run: |
+        ./autogen.sh
+        ./configure --prefix=/usr/
+    - name: make
+      run: |
+        make
+    - name: make check
+      run: make check
+    - name: sudo make install
+      run: |
+        sudo make install
+        pip install .
+    - run: python -m unittest discover -s ./test/

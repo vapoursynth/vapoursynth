@@ -1,4 +1,4 @@
-include COPYING.LGPLv2.1
+include COPYING.LESSER
 
 recursive-include test *
 recursive-include src/cython *.pyx *.pxd
