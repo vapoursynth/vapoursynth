@@ -93,6 +93,7 @@ static int totalFrames = -1;
 static int startFrame = 0;
 static bool y4m = false;
 static bool w64 = false;
+static bool wav = false;
 static int64_t currentTimecodeNum = 0;
 static int64_t currentTimecodeDen = 1;
 static bool outputError = false;
@@ -576,6 +577,7 @@ static void printHelp() {
         "  -r, --requests N      Set number of concurrent frame requests\n"
         "  -y, --y4m             Add YUV4MPEG headers to video output\n"
         "  -w, --w64             Add WAVE64 headers to audio output\n"
+        "      --wav             Add WAVE headers to audio output\n"
         "  -t, --timecodes FILE  Write timecodes v2 file\n"
         "  -c  --preserve-cwd    Don't temporarily change the working directory the script path\n"
         "  -p, --progress        Print progress to stderr\n"
@@ -619,6 +621,8 @@ int main(int argc, char **argv) {
             y4m = true;
         } else if (argString == NSTRING("-w") || argString == NSTRING("--w64")) {
             w64 = true;
+        } else if (argString == NSTRING("--wav")) {
+            wav = true;
         } else if (argString == NSTRING("-p") || argString == NSTRING("--progress")) {
             printFrameNumber = true;
         } else if (argString == NSTRING("-i") || argString == NSTRING("--info")) {
@@ -724,7 +728,10 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (showVersion && argc > 2) {
+    if (wav && w64) {
+        fprintf(stderr, "Cannot combine wave64 and wave headers\n");
+        return 1;
+    } else if (showVersion && argc > 2) {
         fprintf(stderr, "Cannot combine version information with other options\n");
         return 1;
     } else if (showVersion) {
