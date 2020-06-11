@@ -142,14 +142,7 @@ VS_API(int) vsscript_createScript(VSScript **handle) {
 VS_API(int) vsscript_evaluateScript(VSScript **handle, const char *script, const char *scriptFilename, int flags) {
     std::lock_guard<std::mutex> lock(vsscriptlock);
     if (*handle == nullptr) {
-        *handle = new(std::nothrow)VSScript();
-        if (*handle) {
-            (*handle)->pyenvdict = nullptr;
-            (*handle)->errstr = nullptr;
-            (*handle)->id = ++scriptId;
-        } else {
-            return 1;
-        }
+        if (vsscript_createScript(handle)) return 1;
     }
     return vpy_evaluateScript(*handle, script, scriptFilename ? scriptFilename : "<string>", flags);
 }
@@ -157,14 +150,7 @@ VS_API(int) vsscript_evaluateScript(VSScript **handle, const char *script, const
 VS_API(int) vsscript_evaluateFile(VSScript **handle, const char *scriptFilename, int flags) {
     std::lock_guard<std::mutex> lock(vsscriptlock);
     if (*handle == nullptr) {
-        *handle = new(std::nothrow)VSScript();
-        if (*handle) {
-            (*handle)->pyenvdict = nullptr;
-            (*handle)->errstr = nullptr;
-            (*handle)->id = ++scriptId;
-        } else {
-            return 1;
-        }
+        if (vsscript_createScript(handle)) return 1;
     }
     return vpy_evaluateFile(*handle, scriptFilename, flags);
 }
