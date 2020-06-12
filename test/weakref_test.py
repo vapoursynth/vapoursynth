@@ -8,9 +8,13 @@ class FilterTestSequence(unittest.TestCase):
     def setUp(self):
         self.core = vs.core
 
+    def test_weakref_coreproxy(self):
+        with self.assertRaises(TypeError):
+            ref = weakref.ref(self.core)
+
     def test_weakref_core(self):
-        ref = weakref.ref(self.core)
-        self.assertTrue(ref() is self.core)
+        ref = weakref.ref(self.core.core)
+        self.assertTrue(ref() is self.core.core)
 
     def test_weakref_node(self):
         video = self.core.std.BlankClip()
