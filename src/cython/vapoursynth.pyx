@@ -1122,7 +1122,7 @@ cdef class VideoProps(object):
     def popitem(self):
         if len(self) <= 0:
             raise KeyError
-        key = next(self.keys())
+        key = next(iter(self.keys()))
         return (key, self.pop(key))
 
     def setdefault(self, key, default=0):
