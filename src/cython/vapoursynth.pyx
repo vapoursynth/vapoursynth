@@ -1185,7 +1185,7 @@ cdef class FrameProps(object):
     def popitem(self):
         if len(self) <= 0:
             raise KeyError
-        key = next(self.keys())
+        key = next(iter(self.keys()))
         return (key, self.pop(key))
 
     def setdefault(self, key, default=0):
@@ -2436,6 +2436,9 @@ cdef class VSScriptEnvironmentPolicy:
         self._env_map[script_id] = env
         self._known_environments[id(env)] = env
         return env
+      
+    cdef has_environment(self, int script_id):
+        return id in self._env_map
 
     cdef _free_environment(self, int script_id):
         env = self._env_map.pop(script_id, None)
@@ -2454,6 +2457,13 @@ cdef VSScriptEnvironmentPolicy _get_vsscript_policy():
 
 cdef object _vsscript_use_environment(int id):
     return use_environment(_get_vsscript_policy().get_environment(id))
+
+
+cdef object _vsscript_use_or_create_environment(int id):
+    cdef VSScriptEnvironmentPolicy policy = _get_vsscript_policy()
+    if not policy.has_environment(id):
+        policy._make_environment(id)
+    return use_environment(policy.get_environment(id))
 
 
 # for whole script evaluation and export
@@ -2514,7 +2524,7 @@ cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, 
             comp = compile(script.decode('utf-8-sig'), fn, 'exec')
 
             # Change the environment now.
-            with _vsscript_use_environment(se.id).use():
+            with _vsscript_use_or_create_environment(se.id).use():
                 exec(comp) in evaldict
 
         except BaseException, e:
