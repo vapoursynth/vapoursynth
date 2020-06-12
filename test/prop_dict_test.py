@@ -45,7 +45,7 @@ class PropDictTest(unittest.TestCase):
         self.assertEqual(list(self.props.keys()), list(self.props))
         self.assertEqual(self.props.keys(), set(['_DurationDen', '_DurationNum']))
         self.assertEqual(list(self.props.values()), [24, 1])
-        self.assertEqual(list(self.props.items()),  [('_DurationDen', 24), ('_DurationNum', 1)])
+        self.assertEqual(self.props.items(),  {('_DurationDen', 24), ('_DurationNum', 1)})
         self.assertEqual(dict(self.props), dict(self.props_rw))
         self.assertEqual(dict(self.props), {'_DurationDen': 24, '_DurationNum': 1})
 
