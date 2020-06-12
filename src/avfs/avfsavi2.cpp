@@ -639,7 +639,8 @@ bool/*success*/ AvfsAvi2File::Init(
   if (vi.HasAudio())
       sampleType = vi.AudioIsFloat() ? 3 : 1; // the magic constants for integer and float pcm
 
-  sampleSize = unsigned(vi.BytesPerAudioSample());
+  size_t bytesPerOutputSample = (vi.BitsPerChannelSample() + 7) / 8;
+  sampleSize = bytesPerOutputSample * vi.AudioChannels();
   fileSampleCount = unsigned(vi.num_audio_samples);
 
   if (!sampleType || !sampleSize || !fileSampleCount) {
@@ -946,7 +947,7 @@ bool/*success*/ AvfsAvi2File::Init(
         seg->hdr.seg0.hdrLst.audLst.audFrmt.nSamplesPerSec    = vi.SamplesPerSecond();
         seg->hdr.seg0.hdrLst.audLst.audFrmt.nAvgBytesPerSec   = vi.SamplesPerSecond()*sampleSize;
         seg->hdr.seg0.hdrLst.audLst.audFrmt.nBlockAlign       = uint16_t(sampleSize);
-        seg->hdr.seg0.hdrLst.audLst.audFrmt.wBitsPerSample    = uint16_t(vi.BytesPerChannelSample()*8);
+        seg->hdr.seg0.hdrLst.audLst.audFrmt.wBitsPerSample    = uint16_t(bytesPerOutputSample * 8);
 
 //                                               -- AVISUPERINDEX
         seg->hdr.seg0.hdrLst.audLst.indx.hdr.tag.fcc          = avi2IndxFcc;             // 'indx'
