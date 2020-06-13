@@ -997,13 +997,21 @@ cdef class AudioFormat(object):
         return self.id
 
     def __str__(self):
+        channels = []
+        for v in AudioChannels:
+            if ((1 << v) & self.channel_layout):
+                channels.append(str(v).split('.')[1])
+            
+        channels = ', '.join(channels)
+            
         return ('Audio Format Descriptor\n'
                f'\tId: {self.id:d}\n'
                f'\tName: {self.name}\n'
                f'\tSample Type: {self.sample_type.name.capitalize()}\n'
                f'\tBits Per Sample: {self.bits_per_sample:d}\n'
                f'\tBytes Per Sample: {self.bytes_per_sample:d}\n'
-               f'\tPlanes: {self.samplesPerFrame:d}\n') # FIXME
+               f'\tSamples Per Frame: {self.samples_per_frame:d}\n'
+               f'\tChannels: {channels:s}\n')
 
 cdef AudioFormat createAudioFormat(const VSAudioFormat *f):
     cdef AudioFormat instance = AudioFormat.__new__(AudioFormat)
@@ -1478,10 +1486,12 @@ cdef class VideoPlane:
 
 cdef class AudioFrame(RawFrame):
     cdef readonly AudioFormat format
-    cdef readonly int num_samples # FIXME, not set or implemented
 
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
+        
+    def __len__(self):
+        return self.funcs.getFrameLength(self.constf)
 
     def copy(self):
         return createAudioFrame(self.funcs.copyFrame(self.constf, self.core), self.funcs, self.core)
@@ -1951,7 +1961,7 @@ cdef class AudioNode(RawNode):
         s += '\tFormat: ' + self.format.name + '\n'
         s += '\tSample Rate: ' + str(self.sample_rate) + '\n'
         s += '\tNum Samples: ' + str(self.num_samples) + '\n'
-        s += '\tNum Frames: ' + str(self.num_frames) + '\n'
+        s += '\tNum Frames: ' + str(self.num_frames) + '\n'        
         
         if self.flags:
             s += '\tFlags:'
