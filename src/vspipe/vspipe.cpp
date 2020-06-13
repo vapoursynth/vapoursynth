@@ -474,7 +474,14 @@ static bool outputNode() {
                 }
             }
         } else if (wav) {
-            WaveHeader header = CreateWaveHeader(ai->format->sampleType == stFloat, ai->format->bitsPerSample, ai->sampleRate, ai->format->numChannels, ai->numSamples);
+            bool valid;
+            WaveHeader header = CreateWaveHeader(ai->format->sampleType == stFloat, ai->format->bitsPerSample, ai->sampleRate, ai->format->numChannels, ai->numSamples, valid);
+            if (!valid) {
+                errorMessage = "Error: cannot create valid wav header, file over 4GB?";
+                outputError = true;
+                return outputError;
+            }
+
             if (outFile) {
                 if (fwrite(&header, 1, sizeof(header), outFile) != sizeof(header)) {
                     errorMessage = "Error: fwrite() call failed when writing initial header, errno: " + std::to_string(errno);

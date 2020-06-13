@@ -105,7 +105,8 @@ AvfsWavFile::AvfsWavFile(
     hdrSize = sizeof(hdr.wave64);
   } else {
     // Use normal wave header for files less than 2GB.
-    hdr.wave = CreateWaveHeader(isFloat, vi.BitsPerChannelSample(), vi.SamplesPerSecond(), vi.AudioChannels(), sampleCount);
+    bool valid;
+    hdr.wave = CreateWaveHeader(isFloat, vi.BitsPerChannelSample(), vi.SamplesPerSecond(), vi.AudioChannels(), sampleCount, valid);
     hdrSize = sizeof(hdr.wave);
   }
 }
