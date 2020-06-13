@@ -492,6 +492,11 @@ bool VapourSynthFile::DelayInit2() {
                 }
 
                 ai = vsapi->getAudioInfo(audioNode);
+
+                if (ai->numSamples > std::numeric_limits<DWORD>::max()) {
+                    error_msg = "Audio has more samples than can be represented in VFW structures";
+                    goto vpyerror;
+                }
             }
 
             VSCoreInfo info;
@@ -701,7 +706,7 @@ STDMETHODIMP VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) {
         asi.fccType = streamtypeAUDIO;
         asi.dwScale = static_cast<DWORD>(bytesPerOutputSample);
         asi.dwRate = static_cast<DWORD>(ai->sampleRate * bytesPerOutputSample);
-        asi.dwLength = static_cast<DWORD>(ai->numSamples); // fixme, set it to max length or error out when unrepresentable?
+        asi.dwLength = static_cast<DWORD>(ai->numSamples);
         asi.dwSampleSize = static_cast<DWORD>(bytesPerOutputSample);
         wcscpy(asi.szName, L"VapourSynth Audio #1");
     } else {
