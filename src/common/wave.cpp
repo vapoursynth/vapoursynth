@@ -46,6 +46,8 @@ Wave64Header CreateWave64Header(bool IsFloat, int BitsPerSample, int SampleRate,
     return header;
 }
 
+// Fixme, flag when the number of samples can't fit and a truncated header is produced
+// Don't care about shit applications that interpret the data size fields as signed
 WaveHeader CreateWaveHeader(bool IsFloat, int BitsPerSample, int SampleRate, int NumChannels, int64_t NumSamples) {
     size_t bytesPerOutputSample = (BitsPerSample + 7) / 8;
     uint64_t dataSize = NumChannels * static_cast<uint64_t>(bytesPerOutputSample) * NumSamples;

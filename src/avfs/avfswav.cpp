@@ -147,12 +147,10 @@ bool/*success*/ AvfsWavFile::ReadMedia(
   size_t remainingSize = inRequestedSize;
   uint8_t* buffer = static_cast<uint8_t*>(inBuffer);
   uint8_t temp[waveMaxSampleBlockSize];
-  size_t extraOffset;
-  size_t partSize;
 
   // Copy any header data
   if (remainingSize && offset < hdrSize) {
-    partSize = remainingSize;
+    size_t partSize = remainingSize;
     if (offset+partSize > hdrSize) {
       partSize = hdrSize-size_t(offset);
     }
@@ -166,9 +164,9 @@ bool/*success*/ AvfsWavFile::ReadMedia(
   // Copy any data samples
 
   // deal with ragged front
-  extraOffset = size_t(offset%sampleBlockSize);
+  size_t extraOffset = size_t(offset%sampleBlockSize);
   if (remainingSize && extraOffset) {
-    partSize = remainingSize;
+    size_t partSize = remainingSize;
     if (extraOffset+partSize > sampleBlockSize) {
       partSize = sampleBlockSize-extraOffset;
     }
@@ -182,7 +180,7 @@ bool/*success*/ AvfsWavFile::ReadMedia(
   // do sample aligned bulk of transfer
   if (remainingSize > sampleBlockSize) {
     ASSERT(offset%sampleBlockSize == 0);
-    partSize = remainingSize-remainingSize%sampleBlockSize;
+    size_t partSize = remainingSize-remainingSize%sampleBlockSize;
     success = success && avs->GetAudio(log, buffer, offset/sampleBlockSize,
       int(partSize/sampleBlockSize));
     buffer += partSize;

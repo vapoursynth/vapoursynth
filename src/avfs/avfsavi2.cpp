@@ -1295,14 +1295,7 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
   unsigned segi = 0;
   size_t offset = 0;
   unsigned b;
-  unsigned extraOffset;
-  size_t partSize;
-  unsigned segFrame;
   unsigned check;
-  uint64_t startSample;
-  unsigned sampleCount;
-  unsigned audDataSize;
-  unsigned audAlignSize;
   RiffTag riffTag;
   Seg* seg;
 
@@ -1334,7 +1327,7 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
     }
     else {
       if (remainingSize) {
-        partSize = seg->hdrSize-offset;
+          size_t partSize = seg->hdrSize-offset;
         if (partSize > remainingSize) {
           partSize = remainingSize;
         }
@@ -1351,7 +1344,7 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
     // Copy any needed frame data, one at a time.
 
     // Binary search for frame containing start of needed data.
-    segFrame = 0;
+    unsigned segFrame = 0;
     check = 0;
     if (offset >= seg->dataSize) {
       offset -= seg->dataSize;
@@ -1378,12 +1371,13 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
       if(segFrame < seg->audFrameCount) {
         // Last audio frame may get extra samples if in interleave
         // disabled.
-        startSample = LocateFrameSamples(seg->startFrame+segFrame,
+        unsigned sampleCount;
+        uint64_t startSample = LocateFrameSamples(seg->startFrame+segFrame,
           (segFrame+1 == seg->audFrameCount) ? seg->lastAudFramePackCount+1 : 1,
           &sampleCount);
         ASSERT(sampleCount);
-        audDataSize = sampleCount*sampleSize;
-        audAlignSize = RiffAlignUp(audDataSize)-audDataSize;
+        unsigned audDataSize = sampleCount*sampleSize;
+        unsigned audAlignSize = RiffAlignUp(audDataSize)-audDataSize;
 
         // Copy any needed portion of frame audio header.
         check += sizeof(riffTag);
@@ -1394,7 +1388,7 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
           if (remainingSize) {
             riffTag.fcc = avfsAvi2AudFcc;         // '01wb'
             riffTag.cb  = audDataSize;
-            partSize = sizeof(riffTag)-offset;
+            size_t partSize = sizeof(riffTag)-offset;
             if (partSize > remainingSize) {
               partSize = remainingSize;
             }
@@ -1413,9 +1407,9 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
         }
         else {
           // Deal with ragged front.
-          extraOffset = offset%sampleSize;
+          unsigned extraOffset = offset%sampleSize;
           if (remainingSize && extraOffset) {
-            partSize = sampleSize-extraOffset;
+            size_t partSize = sampleSize-extraOffset;
             if (partSize > remainingSize) {
               partSize = remainingSize;
             }
@@ -1430,7 +1424,7 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
           // Do sample aligned bulk of transfer.
           if (offset < audDataSize && remainingSize >= sampleSize) {
             ASSERT(offset%sampleSize == 0);
-            partSize = audDataSize-offset;
+            size_t partSize = audDataSize-offset;
             if (partSize > remainingSize) {
               partSize = remainingSize-remainingSize%sampleSize;
             }
@@ -1460,7 +1454,7 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
         }
         else {
           if (remainingSize) {
-            partSize = audAlignSize-offset;
+            size_t partSize = audAlignSize-offset;
             if (partSize > remainingSize) {
               partSize = remainingSize;
             }
@@ -1482,7 +1476,7 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
           if (remainingSize) {
             riffTag.fcc = frameVidFcc;
             riffTag.cb  = frameVidDataSize;
-            partSize = sizeof(riffTag)-offset;
+            size_t partSize = sizeof(riffTag)-offset;
             if (partSize > remainingSize) {
               partSize = remainingSize;
             }
@@ -1501,7 +1495,7 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
         }
         else {
           if (remainingSize) {
-            partSize = frameVidDataSize-offset;
+            size_t partSize = frameVidDataSize-offset;
             if (partSize > remainingSize) {
               partSize = remainingSize;
             }
@@ -1520,7 +1514,7 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
         }
         else {
           if (remainingSize) {
-            partSize = frameVidAlignSize-offset;
+            size_t partSize = frameVidAlignSize-offset;
             if (partSize > remainingSize) {
               partSize = remainingSize;
             }
@@ -1557,7 +1551,7 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
         if (remainingSize) {
           riffTag.fcc = riffJunkFcc;
           riffTag.cb  = indxPrePadSize-sizeof(riffTag);
-          partSize = sizeof(riffTag)-offset;
+          size_t partSize = sizeof(riffTag)-offset;
           if (partSize > remainingSize) {
             partSize = remainingSize;
           }
@@ -1569,7 +1563,7 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
         offset = 0;
       }
       if (remainingSize) {
-        partSize = indxPrePadSize-sizeof(riffTag)-offset;
+        size_t partSize = indxPrePadSize-sizeof(riffTag)-offset;
         if (partSize > remainingSize) {
           partSize = remainingSize;
         }
@@ -1586,7 +1580,7 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
     }
     else {
       if (remainingSize) {
-        partSize = seg->vidIndxSize-offset;
+        size_t partSize = seg->vidIndxSize-offset;
         if (partSize > remainingSize) {
           partSize = remainingSize;
         }
@@ -1604,7 +1598,7 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
     }
     else {
       if (remainingSize) {
-        partSize = seg->audIndxSize-offset;
+        size_t partSize = seg->audIndxSize-offset;
         if (partSize > remainingSize) {
           partSize = remainingSize;
         }
@@ -1622,7 +1616,7 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
     }
     else {
       if (remainingSize) {
-        partSize = seg->oldIndxSize-offset;
+        size_t partSize = seg->oldIndxSize-offset;
         if (partSize > remainingSize) {
           partSize = remainingSize;
         }
@@ -1647,7 +1641,7 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
         if (remainingSize) {
           riffTag.fcc = riffJunkFcc;
           riffTag.cb  = indxPostPadSize-sizeof(riffTag);
-          partSize = sizeof(riffTag)-offset;
+          size_t partSize = sizeof(riffTag)-offset;
           if (partSize > remainingSize) {
             partSize = remainingSize;
           }
@@ -1659,7 +1653,7 @@ bool/*success*/ AvfsAvi2File::ReadMedia(
         offset = 0;
       }
       if (remainingSize) {
-        partSize = indxPostPadSize-sizeof(riffTag)-offset;
+        size_t partSize = indxPostPadSize-sizeof(riffTag)-offset;
         if (partSize > remainingSize) {
           partSize = remainingSize;
         }

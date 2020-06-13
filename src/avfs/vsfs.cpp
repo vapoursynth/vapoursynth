@@ -272,9 +272,9 @@ bool VapourSynther::GetAudio(AvfsLog_ *log, void *buf, __int64 start, unsigned c
     int endFrame = static_cast<int>((start + count - 1) / af->samplesPerFrame);
     
     std::vector<const uint8_t *> tmp;
-    tmp.resize(ai->format->numChannels);
+    tmp.resize(af->numChannels);
 
-    size_t bytesPerOutputSample = (ai->format->bitsPerSample + 7) / 8;
+    size_t bytesPerOutputSample = (af->bitsPerSample + 7) / 8;
 
     for (int i = startFrame; i <= endFrame; i++) {
         const VSFrameRef *f = vsapi->getFrame(i, audioNode, nullptr, 0);
@@ -282,7 +282,7 @@ bool VapourSynther::GetAudio(AvfsLog_ *log, void *buf, __int64 start, unsigned c
         size_t offset = 0;
         int copyLength = af->samplesPerFrame;
         if (firstFrameSample < start) {
-            offset = (start - firstFrameSample) * bytesPerOutputSample;
+            offset = (start - firstFrameSample) * af->bytesPerSample;
             copyLength -= (start - firstFrameSample);
         }
 
