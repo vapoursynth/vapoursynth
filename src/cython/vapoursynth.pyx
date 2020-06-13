@@ -977,8 +977,9 @@ cdef class AudioFormat(object):
         return {
             'sample_type': self.sample_type,
             'bits_per_sample': self.bits_per_sample,
-            'samples_per_frame': self.samplesPerFrame,
-            'channel_layout': self.channelLayout
+            'samples_per_frame': self.samples_per_frame,
+            'channel_layout': self.channel_layout,
+            'num_channels': self.num_channels
         }
 
     def replace(self, **kwargs):
