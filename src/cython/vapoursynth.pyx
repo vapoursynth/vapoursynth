@@ -1003,7 +1003,7 @@ cdef class AudioFormat(object):
                f'\tSample Type: {self.sample_type.name.capitalize()}\n'
                f'\tBits Per Sample: {self.bits_per_sample:d}\n'
                f'\tBytes Per Sample: {self.bytes_per_sample:d}\n'
-               f'\tPlanes: {self.samplesPerFrame:d}\n') # FIXME
+               f'\tSamples Per Frame: {self.samples_per_frame:d}\n')
 
 cdef AudioFormat createAudioFormat(const VSAudioFormat *f):
     cdef AudioFormat instance = AudioFormat.__new__(AudioFormat)
