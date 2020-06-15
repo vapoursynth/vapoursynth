@@ -376,120 +376,123 @@ static std::string floatBitsToLetter(int bits) {
     }
 }
 
+static bool initializeVideoOutput() {
+    if (wav || w64) {
+        fprintf(stderr, "Error: can't apply wave headers to video\n");
+        return false;
+    }
+
+    const VSVideoInfo *vi = vsapi->getVideoInfo(node);
+
+    if (y4m && ((vi->format->colorFamily != cmGray && vi->format->colorFamily != cmYUV) || alphaNode)) {
+        fprintf(stderr, "Error: can only apply y4m headers to YUV and Gray format clips without alpha\n");
+        return false;
+    }
+
+    std::string y4mFormat;
+
+    if (y4m) {
+        if (vi->format->colorFamily == cmGray) {
+            y4mFormat = "mono";
+            if (vi->format->bitsPerSample > 8)
+                y4mFormat = y4mFormat + std::to_string(vi->format->bitsPerSample);
+        } else if (vi->format->colorFamily == cmYUV) {
+            if (vi->format->subSamplingW == 1 && vi->format->subSamplingH == 1)
+                y4mFormat = "420";
+            else if (vi->format->subSamplingW == 1 && vi->format->subSamplingH == 0)
+                y4mFormat = "422";
+            else if (vi->format->subSamplingW == 0 && vi->format->subSamplingH == 0)
+                y4mFormat = "444";
+            else if (vi->format->subSamplingW == 2 && vi->format->subSamplingH == 2)
+                y4mFormat = "410";
+            else if (vi->format->subSamplingW == 2 && vi->format->subSamplingH == 0)
+                y4mFormat = "411";
+            else if (vi->format->subSamplingW == 0 && vi->format->subSamplingH == 1)
+                y4mFormat = "440";
+            else {
+                fprintf(stderr, "Error: no y4m identifier exists for current format\n");
+                return false;
+            }
+
+            if (vi->format->bitsPerSample > 8 && vi->format->sampleType == stInteger)
+                y4mFormat += "p" + std::to_string(vi->format->bitsPerSample);
+            else if (vi->format->sampleType == stFloat)
+                y4mFormat += "p" + floatBitsToLetter(vi->format->bitsPerSample);
+        } else {
+            fprintf(stderr, "Error: no y4m identifier exists for current format\n");
+            return false;
+        }
+
+        if (!y4mFormat.empty())
+            y4mFormat = " C" + y4mFormat;
+
+        std::string header = "YUV4MPEG2" + y4mFormat
+            + " W" + std::to_string(vi->width)
+            + " H" + std::to_string(vi->height)
+            + " F" + std::to_string(vi->fpsNum) + ":" + std::to_string(vi->fpsDen)
+            + " Ip A0:0"
+            + " XLENGTH=" + std::to_string(vi->numFrames) + "\n";
+
+        if (outFile) {
+            if (fwrite(header.c_str(), 1, header.size(), outFile) != header.size()) {
+                fprintf(stderr, "Error: fwrite() call failed when writing initial header, errno: %d\n", errno);
+                return false;
+            }
+        }
+    }
+
+    if (timecodesFile && !outputError) {
+        if (fprintf(timecodesFile, "# timecode format v2\n") < 0) {
+            fprintf(stderr, "Error: failed to write timecodes file header, errno: %d\n", errno);
+            return false;
+        }
+    }
+
+    buffer.resize(vi->width * vi->height * vi->format->bytesPerSample);
+    return true;
+}
+
+static bool initializeAudioOutput() {
+    if (y4m) {
+        fprintf(stderr, "Error: can't apply y4m headers to audio\n");
+        return false;
+    }
+
+    const VSAudioInfo *ai = vsapi->getAudioInfo(node);
+
+    if (w64) {
+        Wave64Header header = CreateWave64Header(ai->format->sampleType == stFloat, ai->format->bitsPerSample, ai->sampleRate, ai->format->numChannels, ai->numSamples);
+        if (outFile) {
+            if (fwrite(&header, 1, sizeof(header), outFile) != sizeof(header)) {
+                fprintf(stderr, "Error: fwrite() call failed when writing initial header, errno: %d\n", errno);
+                return false;
+            }
+        }
+    } else if (wav) {
+        bool valid;
+        WaveHeader header = CreateWaveHeader(ai->format->sampleType == stFloat, ai->format->bitsPerSample, ai->sampleRate, ai->format->numChannels, ai->numSamples, valid);
+        if (!valid) {
+            fprintf(stderr, "Error: cannot create valid wav header, filesize over 4GB?\n");
+            return false;
+        }
+
+        if (outFile) {
+            if (fwrite(&header, 1, sizeof(header), outFile) != sizeof(header)) {
+                fprintf(stderr, "Error: fwrite() call failed when writing initial header, errno: %d\n", errno);
+                return false;
+            }
+        }
+    }
+
+    buffer.resize(ai->format->numChannels * ai->format->samplesPerFrame * ai->format->bytesPerSample);
+    return true;
+}
+
 static bool outputNode() {
     if (requests < 1) {
         VSCoreInfo info;
         vsapi->getCoreInfo2(vsscript_getCore(se), &info);
         requests = info.numThreads;
-    }
-
-    int nodeType = vsapi->getNodeType(node);
-
-    if (nodeType == mtVideo) {
-
-        const VSVideoInfo *vi = vsapi->getVideoInfo(node);
-
-        if (y4m && ((vi->format->colorFamily != cmGray && vi->format->colorFamily != cmYUV) || alphaNode)) {
-            errorMessage = "Error: Can only apply y4m headers to YUV and Gray format clips without alpha";
-            fprintf(stderr, "%s\n", errorMessage.c_str());
-            return true;
-        }
-
-        std::string y4mFormat;
-
-        if (y4m) {
-            if (vi->format->colorFamily == cmGray) {
-                y4mFormat = "mono";
-                if (vi->format->bitsPerSample > 8)
-                    y4mFormat = y4mFormat + std::to_string(vi->format->bitsPerSample);
-            } else if (vi->format->colorFamily == cmYUV) {
-                if (vi->format->subSamplingW == 1 && vi->format->subSamplingH == 1)
-                    y4mFormat = "420";
-                else if (vi->format->subSamplingW == 1 && vi->format->subSamplingH == 0)
-                    y4mFormat = "422";
-                else if (vi->format->subSamplingW == 0 && vi->format->subSamplingH == 0)
-                    y4mFormat = "444";
-                else if (vi->format->subSamplingW == 2 && vi->format->subSamplingH == 2)
-                    y4mFormat = "410";
-                else if (vi->format->subSamplingW == 2 && vi->format->subSamplingH == 0)
-                    y4mFormat = "411";
-                else if (vi->format->subSamplingW == 0 && vi->format->subSamplingH == 1)
-                    y4mFormat = "440";
-                else {
-                    fprintf(stderr, "No y4m identifier exists for current format\n");
-                    return true;
-                }
-
-                if (vi->format->bitsPerSample > 8 && vi->format->sampleType == stInteger)
-                    y4mFormat += "p" + std::to_string(vi->format->bitsPerSample);
-                else if (vi->format->sampleType == stFloat)
-                    y4mFormat += "p" + floatBitsToLetter(vi->format->bitsPerSample);
-            } else {
-                fprintf(stderr, "No y4m identifier exists for current format\n");
-                return true;
-            }
-
-            if (!y4mFormat.empty())
-                y4mFormat = " C" + y4mFormat;
-
-            std::string header = "YUV4MPEG2" + y4mFormat
-                + " W" + std::to_string(vi->width)
-                + " H" + std::to_string(vi->height)
-                + " F" + std::to_string(vi->fpsNum) + ":" + std::to_string(vi->fpsDen)
-                + " Ip A0:0"
-                + " XLENGTH=" + std::to_string(vi->numFrames) + "\n";
-
-            if (outFile) {
-                if (fwrite(header.c_str(), 1, header.size(), outFile) != header.size()) {
-                    errorMessage = "Error: fwrite() call failed when writing initial header, errno: " + std::to_string(errno);
-                    outputError = true;
-                    return outputError;
-                }
-            }
-        }
-
-        if (timecodesFile && !outputError) {
-            if (fprintf(timecodesFile, "# timecode format v2\n") < 0) {
-                errorMessage = "Error: failed to write timecodes file header, errno: " + std::to_string(errno);
-                outputError = true;
-                return outputError;
-            }
-        }
-
-        size_t size = vi->width * vi->height * vi->format->bytesPerSample;
-        buffer.resize(size);
-
-    } else if (nodeType == mtAudio) {
-        const VSAudioInfo *ai = vsapi->getAudioInfo(node);
-        size_t size = ai->format->numChannels * ai->format->samplesPerFrame * ai->format->bytesPerSample;
-        buffer.resize(size);
-
-        if (w64) {
-            Wave64Header header = CreateWave64Header(ai->format->sampleType == stFloat, ai->format->bitsPerSample, ai->sampleRate, ai->format->numChannels, ai->numSamples);
-            if (outFile) {
-                if (fwrite(&header, 1, sizeof(header), outFile) != sizeof(header)) {
-                    errorMessage = "Error: fwrite() call failed when writing initial header, errno: " + std::to_string(errno);
-                    outputError = true;
-                    return outputError;
-                }
-            }
-        } else if (wav) {
-            bool valid;
-            WaveHeader header = CreateWaveHeader(ai->format->sampleType == stFloat, ai->format->bitsPerSample, ai->sampleRate, ai->format->numChannels, ai->numSamples, valid);
-            if (!valid) {
-                errorMessage = "Error: cannot create valid wav header, file over 4GB?";
-                outputError = true;
-                return outputError;
-            }
-
-            if (outFile) {
-                if (fwrite(&header, 1, sizeof(header), outFile) != sizeof(header)) {
-                    errorMessage = "Error: fwrite() call failed when writing initial header, errno: " + std::to_string(errno);
-                    outputError = true;
-                    return outputError;
-                }
-            }
-        }
     }
 
     std::unique_lock<std::mutex> lock(mutex);
@@ -823,7 +826,7 @@ int main(int argc, char **argv) {
        return 1;
     }
 
-    bool error = false;
+    bool success = true;
 
     int nodeType = vsapi->getNodeType(node);
 
@@ -879,8 +882,11 @@ int main(int argc, char **argv) {
                 return 1;
             }
 
-            lastFpsReportTime = std::chrono::high_resolution_clock::now();;
-            error = outputNode();
+            success = initializeVideoOutput();
+            if (success) {
+                lastFpsReportTime = std::chrono::high_resolution_clock::now();
+                success = !outputNode();
+            }
         }
     } else if (nodeType == mtAudio) {
 
@@ -908,8 +914,11 @@ int main(int argc, char **argv) {
                 return 1;
             }
 
-            lastFpsReportTime = std::chrono::high_resolution_clock::now();
-            error = outputNode();
+            success = initializeAudioOutput();
+            if (success) {
+                lastFpsReportTime = std::chrono::high_resolution_clock::now();
+                success = !outputNode();
+            }
         }
     }
 
@@ -928,5 +937,5 @@ int main(int argc, char **argv) {
     vsscript_freeScript(se);
     vsscript_finalize();
 
-    return error ? 1 : 0;
+    return success ? 0 : 1;
 }
