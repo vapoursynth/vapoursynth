@@ -68,6 +68,10 @@ struct Wave64Header {
     uint32_t nAvgBytesPerSec;
     uint16_t nBlockAlign;
     uint16_t wBitsPerSample;
+    uint16_t cbSize;
+    uint16_t wValidBitsPerSample;
+    uint32_t dwChannelMask;
+    uuid_t  SubFormat;
     uuid_t dataUuid;
     uint64_t dataSize;
 };
