@@ -1,27 +1,25 @@
 #include "wave.h"
 #include "p2p.h"
+#include <cstring>
+#include <cassert>
 
-// FIXME, definitely only works right on little endian
-
-#define MAKE_RIFF_TAG(c0,c1,c2,c3) static_cast<uint32_t>((c0)|((c1)<<8)|((c2)<<16)|((c3)<<24))
-
-static const uint16_t waveFormatExtensible = 0xFFFE;
-static const uuid_t ksDataformatSubtypePCM = { 0x00000001u,0x0000u,0x0010u,{0x80u,0x00u,0x00u,0xAAu,0x00u,0x38u,0x9Bu,0x71u} };
-static const uuid_t ksDataformatSubtypeIEEEFloat = { 0x00000003u,0x0000u,0x0010u,{0x80u,0x00u,0x00u,0xAAu,0x00u,0x38u,0x9Bu,0x71u} };
+static const uint8_t waveFormatExtensible[2] = { 0xFE, 0xFF };
+static const uint8_t ksDataformatSubtypePCM[16] = { 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71 };
+static const uint8_t ksDataformatSubtypeIEEEFloat[16] = { 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71 };
 
 static_assert(sizeof(WaveHeader) == 68, "");
 static_assert(offsetof(WaveHeader, dataTag) - offsetof(WaveHeader, wValidBitsPerSample) == 22, "");
-static const uint32_t waveHdrRiffTagVal = MAKE_RIFF_TAG('R', 'I', 'F', 'F');
-static const uint32_t waveHdrWaveTagVal = MAKE_RIFF_TAG('W', 'A', 'V', 'E');
-static const uint32_t waveHdrFmtTagVal = MAKE_RIFF_TAG('f', 'm', 't', ' ');
-static const uint32_t waveHdrDataTagVal = MAKE_RIFF_TAG('d', 'a', 't', 'a');
+static const uint8_t waveHdrRiffTagVal[4] = { 'R', 'I', 'F', 'F' };
+static const uint8_t waveHdrWaveTagVal[4] = { 'W', 'A', 'V', 'E' };
+static const uint8_t waveHdrFmtTagVal[4] = { 'f', 'm', 't', ' ' };
+static const uint8_t waveHdrDataTagVal[4] = { 'd', 'a', 't', 'a' };
 
 static_assert(sizeof(Wave64Header) == 128, "");
 static_assert(offsetof(Wave64Header, dataUuid) - offsetof(Wave64Header, wValidBitsPerSample) == 22, "");
-static const uuid_t wave64HdrRiffUuidVal = { 0x66666972u,0x912Eu,0x11CFu,{0xA5u,0xD6u,0x28u,0xDBu,0x04u,0xC1u,0x00u,0x00u} };
-static const uuid_t wave64HdrWaveUuidVal = { 0x65766177u,0xACF3u,0x11D3u,{0x8Cu,0xD1u,0x00u,0xC0u,0x4Fu,0x8Eu,0xDBu,0x8Au} };
-static const uuid_t wave64HdrFmtUuidVal = { 0x20746D66u,0xACF3u,0x11D3u,{0x8Cu,0xD1u,0x00u,0xC0u,0x4Fu,0x8Eu,0xDBu,0x8Au} };
-static const uuid_t wave64HdrDataUuidVal = { 0x61746164u,0xACF3u,0x11D3u,{0x8Cu,0xD1u,0x00u,0xC0u,0x4Fu,0x8Eu,0xDBu,0x8Au} };
+static const uint8_t wave64HdrRiffUuidVal[16] = { 0x72, 0x69, 0x66, 0x66, 0x2E, 0x91, 0xCF, 0x11, 0xA5, 0xD6, 0x28, 0xDB, 0x04, 0xC1, 0x00, 0x00 };
+static const uint8_t wave64HdrWaveUuidVal[16] = { 0x77, 0x61, 0x76, 0x65, 0xF3, 0xAC, 0xD3, 0x11, 0x8C, 0xD1, 0x00, 0xC0, 0x4F, 0x8E, 0xDB, 0x8A };
+static const uint8_t wave64HdrFmtUuidVal[16] = { 0x66, 0x6D, 0x74, 0x20, 0xF3, 0xAC, 0xD3, 0x11, 0x8C, 0xD1, 0x00, 0xC0, 0x4F, 0x8E, 0xDB, 0x8A };
+static const uint8_t wave64HdrDataUuidVal[16] = { 0x64, 0x61, 0x74, 0x61, 0xF3, 0xAC, 0xD3, 0x11, 0x8C, 0xD1, 0x00, 0xC0, 0x4F, 0x8E, 0xDB, 0x8A };
 
 void PackChannels32to24(const uint8_t *const *const Src, uint8_t *Dst, size_t Length, size_t Channels) {
     const int32_t *const *const S = reinterpret_cast<const int32_t *const *const>(Src);
@@ -38,12 +36,12 @@ Wave64Header CreateWave64Header(bool IsFloat, int BitsPerSample, int SampleRate,
     uint64_t dataSize = NumChannels * static_cast<uint64_t>(bytesPerOutputSample) * NumSamples;
 
     Wave64Header header = {};
-    header.riffUuid = wave64HdrRiffUuidVal;
+    memcpy(&header.riffUuid, wave64HdrRiffUuidVal, sizeof(wave64HdrRiffUuidVal));
     header.riffSize = sizeof(header) + dataSize;
-    header.waveUuid = wave64HdrWaveUuidVal;
-    header.fmtUuid = wave64HdrFmtUuidVal;
+    memcpy(&header.waveUuid, wave64HdrWaveUuidVal, sizeof(wave64HdrWaveUuidVal));
+    memcpy(&header.fmtUuid, wave64HdrFmtUuidVal, sizeof(wave64HdrFmtUuidVal));
     header.fmtSize = offsetof(Wave64Header, dataUuid) - offsetof(Wave64Header, fmtUuid);
-    header.wFormatTag = waveFormatExtensible;
+    memcpy(&header.wFormatTag, waveFormatExtensible, sizeof(waveFormatExtensible));
     header.nChannels = NumChannels;
     header.nSamplesPerSec = SampleRate;
     header.nBlockAlign = static_cast<uint16_t>(NumChannels * bytesPerOutputSample);
@@ -52,8 +50,8 @@ Wave64Header CreateWave64Header(bool IsFloat, int BitsPerSample, int SampleRate,
     header.cbSize = offsetof(Wave64Header, dataUuid) - offsetof(Wave64Header, wValidBitsPerSample);
     header.wValidBitsPerSample = BitsPerSample;
     header.dwChannelMask = static_cast<uint32_t>(channelMask);
-    header.SubFormat = IsFloat ? ksDataformatSubtypeIEEEFloat : ksDataformatSubtypePCM;
-    header.dataUuid = wave64HdrDataUuidVal;
+    memcpy(&header.SubFormat, IsFloat ? ksDataformatSubtypeIEEEFloat : ksDataformatSubtypePCM, sizeof(ksDataformatSubtypePCM));
+    memcpy(&header.dataUuid, wave64HdrDataUuidVal, sizeof(wave64HdrDataUuidVal));
     header.dataSize = dataSize + sizeof(header.dataUuid) + sizeof(header.dataSize);
     return header;
 }
@@ -63,12 +61,12 @@ WaveHeader CreateWaveHeader(bool IsFloat, int BitsPerSample, int SampleRate, int
     uint64_t dataSize = NumChannels * static_cast<uint64_t>(bytesPerOutputSample) * NumSamples;
 
     WaveHeader header = {};
-    header.riffTag = waveHdrRiffTagVal;
+    memcpy(&header.riffTag, waveHdrRiffTagVal, sizeof(waveHdrRiffTagVal));
     header.riffSize = static_cast<uint32_t>(sizeof(header) - sizeof(header.riffTag) - sizeof(header.riffSize) + dataSize);
-    header.waveTag = waveHdrWaveTagVal;
-    header.fmtTag = waveHdrFmtTagVal;
+    memcpy(&header.waveTag, waveHdrWaveTagVal, sizeof(waveHdrWaveTagVal));
+    memcpy(&header.fmtTag, waveHdrFmtTagVal, sizeof(waveHdrFmtTagVal));
     header.fmtSize = offsetof(WaveHeader, dataTag) - offsetof(WaveHeader, wFormatTag);
-    header.wFormatTag = waveFormatExtensible;
+    memcpy(&header.wFormatTag, waveFormatExtensible, sizeof(waveFormatExtensible));
     header.nChannels = NumChannels;
     header.nSamplesPerSec = SampleRate;
     header.nBlockAlign = static_cast<uint16_t>(NumChannels * bytesPerOutputSample);
@@ -77,8 +75,8 @@ WaveHeader CreateWaveHeader(bool IsFloat, int BitsPerSample, int SampleRate, int
     header.cbSize = offsetof(WaveHeader, dataTag) - offsetof(WaveHeader, wValidBitsPerSample);
     header.wValidBitsPerSample = BitsPerSample;
     header.dwChannelMask = static_cast<uint32_t>(channelMask);
-    header.SubFormat = IsFloat ? ksDataformatSubtypeIEEEFloat : ksDataformatSubtypePCM;
-    header.dataTag = waveHdrDataTagVal;
+    memcpy(&header.SubFormat, IsFloat ? ksDataformatSubtypeIEEEFloat : ksDataformatSubtypePCM, sizeof(ksDataformatSubtypePCM));
+    memcpy(&header.dataTag, waveHdrDataTagVal, sizeof(waveHdrDataTagVal));
     header.dataSize = unsigned(dataSize);
     valid = (sizeof(header) + dataSize <= maxWaveFileSize);
     return header;
