@@ -1,13 +1,20 @@
 #include "wave.h"
 #include "p2p.h"
 
+// FIXME, definitely only works right on little endian
+
 #define MAKE_RIFF_TAG(c0,c1,c2,c3) static_cast<uint32_t>((c0)|((c1)<<8)|((c2)<<16)|((c3)<<24))
 
-static_assert(sizeof(WaveHeader) == 44, "");
+static_assert(sizeof(WaveHeader) == 68, "");
+static_assert(offsetof(WaveHeader, dataTag) - offsetof(WaveHeader, wValidBitsPerSample) == 22, "");
 static const uint32_t waveHdrRiffTagVal = MAKE_RIFF_TAG('R', 'I', 'F', 'F');
 static const uint32_t waveHdrWaveTagVal = MAKE_RIFF_TAG('W', 'A', 'V', 'E');
 static const uint32_t waveHdrFmtTagVal = MAKE_RIFF_TAG('f', 'm', 't', ' ');
 static const uint32_t waveHdrDataTagVal = MAKE_RIFF_TAG('d', 'a', 't', 'a');
+
+static const uint16_t waveFormatExtensible = 0xFFFE;
+static const uuid_t ksDataformatSubtypePCM = { 0x00000001u,0x0000u,0x0010u,{0x80u,0x00u,0x00u,0xAAu,0x00u,0x38u,0x9Bu,0x71u} };
+static const uuid_t ksDataformatSubtypeIEEEFloat = { 0x00000003u,0x0000u,0x0010u,{0x80u,0x00u,0x00u,0xAAu,0x00u,0x38u,0x9Bu,0x71u} };
 
 static_assert(sizeof(Wave64Header) == 104, "");
 static const uuid_t wave64HdrRiffUuidVal = { 0x66666972u,0x912Eu,0x11CFu,{0xA5u,0xD6u,0x28u,0xDBu,0x04u,0xC1u,0x00u,0x00u} };
@@ -25,7 +32,7 @@ void PackChannels32to24(const uint8_t *const *const Src, uint8_t *Dst, size_t Le
     }
 }
 
-Wave64Header CreateWave64Header(bool IsFloat, int BitsPerSample, int SampleRate, int NumChannels, int64_t NumSamples) {
+Wave64Header CreateWave64Header(bool IsFloat, int BitsPerSample, int SampleRate, int NumChannels, uint64_t channelMask, int64_t NumSamples) {
     size_t bytesPerOutputSample = (BitsPerSample + 7) / 8;
     uint64_t dataSize = NumChannels * static_cast<uint64_t>(bytesPerOutputSample) * NumSamples;
 
@@ -46,7 +53,7 @@ Wave64Header CreateWave64Header(bool IsFloat, int BitsPerSample, int SampleRate,
     return header;
 }
 
-WaveHeader CreateWaveHeader(bool IsFloat, int BitsPerSample, int SampleRate, int NumChannels, int64_t NumSamples, bool &valid) {
+WaveHeader CreateWaveHeader(bool IsFloat, int BitsPerSample, int SampleRate, int NumChannels, uint64_t channelMask, int64_t NumSamples, bool &valid) {
     size_t bytesPerOutputSample = (BitsPerSample + 7) / 8;
     uint64_t dataSize = NumChannels * static_cast<uint64_t>(bytesPerOutputSample) * NumSamples;
 
@@ -56,12 +63,16 @@ WaveHeader CreateWaveHeader(bool IsFloat, int BitsPerSample, int SampleRate, int
     header.waveTag = waveHdrWaveTagVal;
     header.fmtTag = waveHdrFmtTagVal;
     header.fmtSize = offsetof(WaveHeader, dataTag) - offsetof(WaveHeader, wFormatTag);
-    header.wFormatTag = IsFloat ? 3 : 1;
+    header.wFormatTag = waveFormatExtensible;
     header.nChannels = NumChannels;
     header.nSamplesPerSec = SampleRate;
     header.nBlockAlign = static_cast<uint16_t>(NumChannels * bytesPerOutputSample);
     header.nAvgBytesPerSec = static_cast<uint32_t>(NumChannels * bytesPerOutputSample * SampleRate);
     header.wBitsPerSample = static_cast<uint16_t>(bytesPerOutputSample * 8);
+    header.cbSize = offsetof(WaveHeader, dataTag) - offsetof(WaveHeader, wValidBitsPerSample);
+    header.wValidBitsPerSample = BitsPerSample;
+    header.dwChannelMask = static_cast<uint32_t>(channelMask);
+    header.SubFormat = IsFloat ? ksDataformatSubtypeIEEEFloat : ksDataformatSubtypePCM;
     header.dataTag = waveHdrDataTagVal;
     header.dataSize = unsigned(dataSize);
     valid = (sizeof(header) + dataSize <= maxWaveFileSize);

@@ -127,10 +127,23 @@ public:
     }
 
     int AudioChannels() const {
-        if (vsai)
+        if (vsai) {
             return vsai->format->numChannels;
-        else
-            return avsvi ? avsvi->AudioChannels() : 0;
+        } else {
+            return (avsvi && avsvi->AudioChannels() <= 8) ? avsvi->AudioChannels() : 0;
+        }
+    }
+
+    uint64_t ChannelLayout() const {
+        if (vsai) {
+            return vsai->format->channelLayout;
+        } else {
+            if (avsvi && avsvi->AudioChannels() <= 8) {
+                const uint64_t guessedLayout[9] = { 0x0000, 0x0004, 0x0003, 0x0007, 0x0033, 0x0037, 0x003F, 0x013F, 0x063F };
+                return guessedLayout[avsvi->AudioChannels()];
+            }
+            return 0;
+        }
     }
 
     int SamplesPerSecond() const {

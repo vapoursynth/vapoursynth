@@ -201,7 +201,7 @@ typedef struct VSAudioFormat {
     int bitsPerSample;
     int bytesPerSample;
     int samplesPerFrame;
-    int64_t channelLayout;
+    uint64_t channelLayout;
     int numChannels; /* implicit from channelLayout */
 } VSAudioFormat;
 

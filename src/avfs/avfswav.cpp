@@ -37,6 +37,8 @@
 
 #include "avfsincludes.h"
 
+#define WAV_MAX_SAMPLE_BLOCK_SIZE 256
+
 struct AvfsWavFile final:
    AvfsMediaFile_
 {
@@ -101,12 +103,12 @@ AvfsWavFile::AvfsWavFile(
 
   // Initialize file header.
   if (wave64) {
-    hdr.wave64 = CreateWave64Header(isFloat, vi.BitsPerChannelSample(), vi.SamplesPerSecond(), vi.AudioChannels(), sampleCount);
+    hdr.wave64 = CreateWave64Header(isFloat, vi.BitsPerChannelSample(), vi.SamplesPerSecond(), vi.AudioChannels(), vi.ChannelLayout(), sampleCount);
     hdrSize = sizeof(hdr.wave64);
   } else {
     // Use normal wave header for files less than 2GB.
     bool valid;
-    hdr.wave = CreateWaveHeader(isFloat, vi.BitsPerChannelSample(), vi.SamplesPerSecond(), vi.AudioChannels(), sampleCount, valid);
+    hdr.wave = CreateWaveHeader(isFloat, vi.BitsPerChannelSample(), vi.SamplesPerSecond(), vi.AudioChannels(), vi.ChannelLayout(), sampleCount, valid);
     hdrSize = sizeof(hdr.wave);
   }
 }
@@ -147,7 +149,7 @@ bool/*success*/ AvfsWavFile::ReadMedia(
   uint64_t offset = inFileOffset;
   size_t remainingSize = inRequestedSize;
   uint8_t* buffer = static_cast<uint8_t*>(inBuffer);
-  uint8_t temp[waveMaxSampleBlockSize];
+  uint8_t temp[WAV_MAX_SAMPLE_BLOCK_SIZE];
 
   // Copy any header data
   if (remainingSize && offset < hdrSize) {
@@ -218,7 +220,7 @@ void AvfsWavMediaInit(
 
   if (!vi.HasAudio()) {
     log->Printf(L"AvfsWavMediaInit: Clip has no audio.\r\n");
-  } else if (sampleBlockSize > waveMaxSampleBlockSize) {
+  } else if (sampleBlockSize > WAV_MAX_SAMPLE_BLOCK_SIZE) {
     log->Printf(
       L"AvfsWavMediaInit: Unsupported BitsPerChannelSample(%i)"
       L"or SampleType(%i).\n",sampleBlockSize, vi.BitsPerChannelSample());

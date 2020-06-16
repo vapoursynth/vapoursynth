@@ -18,7 +18,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 #
 
-from libc.stdint cimport uint8_t, uint32_t, int64_t, uintptr_t
+from libc.stdint cimport uint8_t, uint32_t, int64_t, uint64_t, uintptr_t
 
 cdef extern from "include/VapourSynth.h" nogil:
     enum:
@@ -153,7 +153,7 @@ cdef extern from "include/VapourSynth.h" nogil:
         int bytesPerSample
         int bitsPerSample
         int samplesPerFrame
-        int64_t channelLayout
+        uint64_t channelLayout
         int numChannels        
 
     enum VSNodeFlags:
