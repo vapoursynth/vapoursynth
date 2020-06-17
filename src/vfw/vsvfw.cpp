@@ -979,7 +979,7 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
     if (!lpcbFormat)
         return E_POINTER;
 
-    const bool UseWaveExtensible = false; // FIXME, should be configurable through environment variable? OPT_UseWaveExtensible
+    const bool UseWaveExtensible = true;
 
     if (!lpFormat) {
         *lpcbFormat = fAudio ? ( UseWaveExtensible ? sizeof(WAVEFORMATEXTENSIBLE) : sizeof(WAVEFORMATEX) ) : sizeof(BITMAPINFOHEADER);
@@ -994,26 +994,25 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
 
         if (UseWaveExtensible) {  // Use WAVE_FORMAT_EXTENSIBLE audio output format 
             WAVEFORMATEXTENSIBLE wfxt = {};
-
             wfxt.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
-            wfxt.Format.nChannels = (WORD)ai->format->numChannels;
+            wfxt.Format.nChannels = static_cast<WORD>(ai->format->numChannels);
             wfxt.Format.nSamplesPerSec = ai->sampleRate;
-            wfxt.Format.wBitsPerSample = WORD(ai->format->bitsPerSample);
-            wfxt.Format.nBlockAlign = (WORD)(bytesPerOutputSample * ai->format->numChannels);
+            wfxt.Format.wBitsPerSample = static_cast<WORD>(bytesPerOutputSample * 8);
+            wfxt.Format.nBlockAlign = static_cast<WORD>(bytesPerOutputSample * ai->format->numChannels);
             wfxt.Format.nAvgBytesPerSec = wfxt.Format.nSamplesPerSec * wfxt.Format.nBlockAlign;
             wfxt.Format.cbSize = sizeof(wfxt) - sizeof(wfxt.Format);
-            wfxt.Samples.wValidBitsPerSample = wfxt.Format.wBitsPerSample;
-            wfxt.dwChannelMask = (DWORD)ai->format->channelLayout;
+            wfxt.Samples.wValidBitsPerSample = ai->format->bitsPerSample;
+            wfxt.dwChannelMask = static_cast<DWORD>(ai->format->channelLayout);
             wfxt.SubFormat = (ai->format->sampleType == stFloat) ? KSDATAFORMAT_SUBTYPE_IEEE_FLOAT : KSDATAFORMAT_SUBTYPE_PCM;
             *lpcbFormat = std::min<LONG>(*lpcbFormat, sizeof(wfxt));
             memcpy(lpFormat, &wfxt, size_t(*lpcbFormat));
         } else {
             WAVEFORMATEX wfx = {};
             wfx.wFormatTag = (ai->format->sampleType == stFloat) ? WAVE_FORMAT_IEEE_FLOAT : WAVE_FORMAT_PCM;
-            wfx.nChannels = (WORD)ai->format->numChannels;
+            wfx.nChannels = static_cast<WORD>(ai->format->numChannels);
             wfx.nSamplesPerSec = ai->sampleRate;
-            wfx.wBitsPerSample = WORD(ai->format->bitsPerSample);
-            wfx.nBlockAlign = (WORD)(bytesPerOutputSample * ai->format->numChannels);
+            wfx.wBitsPerSample = static_cast<WORD>(bytesPerOutputSample * 8);
+            wfx.nBlockAlign = static_cast<WORD>(bytesPerOutputSample * ai->format->numChannels);
             wfx.nAvgBytesPerSec = wfx.nSamplesPerSec * wfx.nBlockAlign;
             *lpcbFormat = std::min<LONG>(*lpcbFormat, sizeof(wfx));
             memcpy(lpFormat, &wfx, size_t(*lpcbFormat));

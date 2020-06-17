@@ -36,12 +36,7 @@ struct uuid_t {
 static const uint64_t maxWaveFileSize = 0xFFFFFFFE;
 static const uint64_t maxCompatWaveFileSize = 0x7FFFFFFE;
 
-struct WaveHeader {
-    uint32_t riffTag;
-    uint32_t riffSize;
-    uint32_t waveTag;
-    uint32_t fmtTag;
-    uint32_t fmtSize;
+struct WaveFormatExtensible {
     uint16_t wFormatTag;
     uint16_t nChannels;
     uint32_t nSamplesPerSec;
@@ -52,6 +47,15 @@ struct WaveHeader {
     uint16_t wValidBitsPerSample;
     uint32_t dwChannelMask;
     uuid_t  SubFormat;
+};
+
+struct WaveHeader {
+    uint32_t riffTag;
+    uint32_t riffSize;
+    uint32_t waveTag;
+    uint32_t fmtTag;
+    uint32_t fmtSize;
+    WaveFormatExtensible wfx;
     uint32_t dataTag;
     uint32_t dataSize;
 };
@@ -62,16 +66,7 @@ struct Wave64Header {
     uuid_t waveUuid;
     uuid_t fmtUuid;
     uint64_t fmtSize;
-    uint16_t wFormatTag;
-    uint16_t nChannels;
-    uint32_t nSamplesPerSec;
-    uint32_t nAvgBytesPerSec;
-    uint16_t nBlockAlign;
-    uint16_t wBitsPerSample;
-    uint16_t cbSize;
-    uint16_t wValidBitsPerSample;
-    uint32_t dwChannelMask;
-    uuid_t  SubFormat;
+    WaveFormatExtensible wfx;
     uuid_t dataUuid;
     uint64_t dataSize;
 };
@@ -88,7 +83,8 @@ static void PackChannels(const uint8_t *const *const Src, uint8_t *Dst, size_t L
 }
 
 void PackChannels32to24(const uint8_t *const *const Src, uint8_t *Dst, size_t Length, size_t Channels);
-Wave64Header CreateWave64Header(bool IsFloat, int BitsPerSample, int SampleRate, int NumChannels, uint64_t channelMask, int64_t NumSamples);
-WaveHeader CreateWaveHeader(bool IsFloat, int BitsPerSample, int SampleRate, int NumChannels, uint64_t channelMask, int64_t NumSamples, bool &valid);
+WaveFormatExtensible CreateWaveFormatExtensible(bool IsFloat, int BitsPerSample, int SampleRate, int NumChannels, uint64_t ChannelMask, int64_t NumSamples);
+Wave64Header CreateWave64Header(bool IsFloat, int BitsPerSample, int SampleRate, int NumChannels, uint64_t ChannelMask, int64_t NumSamples);
+WaveHeader CreateWaveHeader(bool IsFloat, int BitsPerSample, int SampleRate, int NumChannels, uint64_t ChannelMask, int64_t NumSamples, bool &valid);
 
 #endif // WAVE_H

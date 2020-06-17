@@ -195,12 +195,7 @@ static const uint32_t avi2AudFrmtFcc = MAKETAGUINT32('s','t','r','f');
 
 struct Avi2AudFrmt {
   RiffTag tag;
-  uint16_t wFormatTag;
-  uint16_t nChannels;
-  uint32_t nSamplesPerSec;
-  uint32_t nAvgBytesPerSec;
-  uint16_t nBlockAlign;
-  uint16_t wBitsPerSample;
+  WaveFormatExtensible wfx;
 };
 
 static const uint32_t avi2AudHdrLstFcc     = MAKETAGUINT32('s','t','r','l');
@@ -637,11 +632,11 @@ bool/*success*/ AvfsAvi2File::Init(
   fileFrameCount = vidFrameCount;
 
   if (vi.HasAudio())
-      sampleType = vi.AudioIsFloat() ? 3 : 1; // the magic constants for integer and float pcm
+      sampleType = vi.AudioIsFloat() ? 2 : 1;
 
   size_t bytesPerOutputSample = (vi.BitsPerChannelSample() + 7) / 8;
   sampleSize = bytesPerOutputSample * vi.AudioChannels();
-  fileSampleCount = unsigned(vi.num_audio_samples);
+  fileSampleCount = unsigned(vi.num_audio_samples); // FIXME, how does avi handle more than 2^32-1 samples? there should probably be some erroring out in this case
 
   if (!sampleType || !sampleSize || !fileSampleCount) {
     sampleType = 0;
@@ -941,13 +936,8 @@ bool/*success*/ AvfsAvi2File::Init(
         seg->hdr.seg0.hdrLst.audLst.audFrmt.tag.fcc           = avi2AudFrmtFcc;          // 'strf'
         seg->hdr.seg0.hdrLst.audLst.audFrmt.tag.cb            = sizeof(seg->hdr.seg0.hdrLst.audLst.audFrmt)-sizeof(RiffTag);
 
-//                                               -- PCMWAVEFORMAT
-        seg->hdr.seg0.hdrLst.audLst.audFrmt.wFormatTag        = sampleType;
-        seg->hdr.seg0.hdrLst.audLst.audFrmt.nChannels         = uint16_t(vi.AudioChannels());
-        seg->hdr.seg0.hdrLst.audLst.audFrmt.nSamplesPerSec    = vi.SamplesPerSecond();
-        seg->hdr.seg0.hdrLst.audLst.audFrmt.nAvgBytesPerSec   = vi.SamplesPerSecond()*sampleSize;
-        seg->hdr.seg0.hdrLst.audLst.audFrmt.nBlockAlign       = uint16_t(sampleSize);
-        seg->hdr.seg0.hdrLst.audLst.audFrmt.wBitsPerSample    = uint16_t(bytesPerOutputSample * 8);
+//                                               -- WAVEFORMATEXTENSIBLE
+        seg->hdr.seg0.hdrLst.audLst.audFrmt.wfx = CreateWaveFormatExtensible(sampleType == 2, vi.BitsPerChannelSample(), vi.SamplesPerSecond(), vi.AudioChannels(), vi.ChannelLayout(), vi.num_audio_samples);
 
 //                                               -- AVISUPERINDEX
         seg->hdr.seg0.hdrLst.audLst.indx.hdr.tag.fcc          = avi2IndxFcc;             // 'indx'
