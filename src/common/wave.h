@@ -83,8 +83,8 @@ static void PackChannels(const uint8_t *const *const Src, uint8_t *Dst, size_t L
 }
 
 void PackChannels32to24(const uint8_t *const *const Src, uint8_t *Dst, size_t Length, size_t Channels);
-WaveFormatExtensible CreateWaveFormatExtensible(bool IsFloat, int BitsPerSample, int SampleRate, int NumChannels, uint64_t ChannelMask, int64_t NumSamples);
-Wave64Header CreateWave64Header(bool IsFloat, int BitsPerSample, int SampleRate, int NumChannels, uint64_t ChannelMask, int64_t NumSamples);
-WaveHeader CreateWaveHeader(bool IsFloat, int BitsPerSample, int SampleRate, int NumChannels, uint64_t ChannelMask, int64_t NumSamples, bool &valid);
+bool CreateWaveFormatExtensible(WaveFormatExtensible &header, bool IsFloat, int BitsPerSample, int SampleRate, uint64_t ChannelMask);
+bool CreateWave64Header(Wave64Header &header, bool IsFloat, int BitsPerSample, int SampleRate, uint64_t ChannelMask, int64_t NumSamples);
+bool CreateWaveHeader(WaveHeader &header, bool IsFloat, int BitsPerSample, int SampleRate, uint64_t ChannelMask, int64_t NumSamples);
 
 #endif // WAVE_H

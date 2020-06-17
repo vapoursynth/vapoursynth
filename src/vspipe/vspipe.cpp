@@ -461,7 +461,11 @@ static bool initializeAudioOutput() {
     const VSAudioInfo *ai = vsapi->getAudioInfo(node);
 
     if (w64) {
-        Wave64Header header = CreateWave64Header(ai->format->sampleType == stFloat, ai->format->bitsPerSample, ai->sampleRate, ai->format->numChannels, ai->format->channelLayout, ai->numSamples);
+        Wave64Header header;
+        if (!CreateWave64Header(header, ai->format->sampleType == stFloat, ai->format->bitsPerSample, ai->sampleRate, ai->format->channelLayout, ai->numSamples)) {
+            fprintf(stderr, "Error: cannot create valid w64 header\n");
+            return false;
+        }
         if (outFile) {
             if (fwrite(&header, 1, sizeof(header), outFile) != sizeof(header)) {
                 fprintf(stderr, "Error: fwrite() call failed when writing initial header, errno: %d\n", errno);
@@ -469,10 +473,9 @@ static bool initializeAudioOutput() {
             }
         }
     } else if (wav) {
-        bool valid;
-        WaveHeader header = CreateWaveHeader(ai->format->sampleType == stFloat, ai->format->bitsPerSample, ai->sampleRate, ai->format->numChannels, ai->format->channelLayout, ai->numSamples, valid);
-        if (!valid) {
-            fprintf(stderr, "Error: cannot create valid wav header, filesize over 4GB?\n");
+        WaveHeader header;
+        if (!CreateWaveHeader(header, ai->format->sampleType == stFloat, ai->format->bitsPerSample, ai->sampleRate, ai->format->channelLayout, ai->numSamples)) {
+            fprintf(stderr, "Error: cannot create valid wav header\n");
             return false;
         }
 

@@ -1,6 +1,7 @@
 #include "wave.h"
 #include "p2p.h"
 #include <cstring>
+#include <bitset>
 
 static_assert(sizeof(WaveFormatExtensible) - offsetof(WaveFormatExtensible, wValidBitsPerSample) == 22, "");
 static const uint8_t waveFormatExtensible[2] = { 0xFE, 0xFF };
@@ -29,12 +30,16 @@ void PackChannels32to24(const uint8_t *const *const Src, uint8_t *Dst, size_t Le
     }
 }
 
-WaveFormatExtensible CreateWaveFormatExtensible(bool IsFloat, int BitsPerSample, int SampleRate, int NumChannels, uint64_t ChannelMask, int64_t NumSamples) {
+bool CreateWaveFormatExtensible(WaveFormatExtensible &header, bool IsFloat, int BitsPerSample, int SampleRate, uint64_t ChannelMask) {
+    header = {};
+    if (ChannelMask != static_cast<uint32_t>(ChannelMask))
+        return false;
+    std::bitset<64> tmp(ChannelMask);
+    size_t NumChannels = tmp.count();
     size_t bytesPerOutputSample = (BitsPerSample + 7) / 8;
 
-    WaveFormatExtensible header = {};
     memcpy(&header.wFormatTag, waveFormatExtensible, sizeof(waveFormatExtensible));
-    header.nChannels = NumChannels;
+    header.nChannels = static_cast<uint16_t>(NumChannels);
     header.nSamplesPerSec = SampleRate;
     header.nBlockAlign = static_cast<uint16_t>(NumChannels * bytesPerOutputSample);
     header.nAvgBytesPerSec = static_cast<uint32_t>(NumChannels * bytesPerOutputSample * SampleRate);
@@ -43,38 +48,48 @@ WaveFormatExtensible CreateWaveFormatExtensible(bool IsFloat, int BitsPerSample,
     header.wValidBitsPerSample = BitsPerSample;
     header.dwChannelMask = static_cast<uint32_t>(ChannelMask);
     memcpy(&header.SubFormat, IsFloat ? ksDataformatSubtypeIEEEFloat : ksDataformatSubtypePCM, sizeof(ksDataformatSubtypePCM));
-    return header;
+    return true;
 }
 
-Wave64Header CreateWave64Header(bool IsFloat, int BitsPerSample, int SampleRate, int NumChannels, uint64_t ChannelMask, int64_t NumSamples) {
+bool CreateWave64Header(Wave64Header &header, bool IsFloat, int BitsPerSample, int SampleRate, uint64_t ChannelMask, int64_t NumSamples) {
+    header = {};
+    std::bitset<64> tmp(ChannelMask);
+    size_t NumChannels = tmp.count();
     size_t bytesPerOutputSample = (BitsPerSample + 7) / 8;
     uint64_t dataSize = NumChannels * static_cast<uint64_t>(bytesPerOutputSample) * NumSamples;
 
-    Wave64Header header = {};
+    if (!CreateWaveFormatExtensible(header.wfx, IsFloat, BitsPerSample, SampleRate, ChannelMask))
+        return false;
+
     memcpy(&header.riffUuid, wave64HdrRiffUuidVal, sizeof(wave64HdrRiffUuidVal));
     header.riffSize = sizeof(header) + dataSize;
     memcpy(&header.waveUuid, wave64HdrWaveUuidVal, sizeof(wave64HdrWaveUuidVal));
     memcpy(&header.fmtUuid, wave64HdrFmtUuidVal, sizeof(wave64HdrFmtUuidVal));
     header.fmtSize = sizeof(WaveFormatExtensible) + sizeof(header.fmtUuid);
-    header.wfx = CreateWaveFormatExtensible(IsFloat, BitsPerSample, SampleRate, NumChannels, ChannelMask, NumSamples);
     memcpy(&header.dataUuid, wave64HdrDataUuidVal, sizeof(wave64HdrDataUuidVal));
     header.dataSize = dataSize + sizeof(header.dataUuid) + sizeof(header.dataSize);
-    return header;
+    return true;
 }
 
-WaveHeader CreateWaveHeader(bool IsFloat, int BitsPerSample, int SampleRate, int NumChannels, uint64_t ChannelMask, int64_t NumSamples, bool &valid) {
+bool CreateWaveHeader(WaveHeader &header, bool IsFloat, int BitsPerSample, int SampleRate, uint64_t ChannelMask, int64_t NumSamples) {
+    header = {};
+    std::bitset<64> tmp(ChannelMask);
+    size_t NumChannels = tmp.count();
     size_t bytesPerOutputSample = (BitsPerSample + 7) / 8;
     uint64_t dataSize = NumChannels * static_cast<uint64_t>(bytesPerOutputSample) * NumSamples;
 
-    WaveHeader header = {};
+    if (sizeof(header) + dataSize > maxWaveFileSize)
+        return false;
+
+    if (!CreateWaveFormatExtensible(header.wfx, IsFloat, BitsPerSample, SampleRate, ChannelMask))
+        return false;
+
     memcpy(&header.riffTag, waveHdrRiffTagVal, sizeof(waveHdrRiffTagVal));
     header.riffSize = static_cast<uint32_t>(sizeof(header) - sizeof(header.riffTag) - sizeof(header.riffSize) + dataSize);
     memcpy(&header.waveTag, waveHdrWaveTagVal, sizeof(waveHdrWaveTagVal));
     memcpy(&header.fmtTag, waveHdrFmtTagVal, sizeof(waveHdrFmtTagVal));
     header.fmtSize = sizeof(WaveFormatExtensible);
-    header.wfx = CreateWaveFormatExtensible(IsFloat, BitsPerSample, SampleRate, NumChannels, ChannelMask, NumSamples);
     memcpy(&header.dataTag, waveHdrDataTagVal, sizeof(waveHdrDataTagVal));
     header.dataSize = unsigned(dataSize);
-    valid = (sizeof(header) + dataSize <= maxWaveFileSize);
-    return header;
+    return true;
 }

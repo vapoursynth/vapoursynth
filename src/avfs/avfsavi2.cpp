@@ -937,7 +937,7 @@ bool/*success*/ AvfsAvi2File::Init(
         seg->hdr.seg0.hdrLst.audLst.audFrmt.tag.cb            = sizeof(seg->hdr.seg0.hdrLst.audLst.audFrmt)-sizeof(RiffTag);
 
 //                                               -- WAVEFORMATEXTENSIBLE
-        seg->hdr.seg0.hdrLst.audLst.audFrmt.wfx = CreateWaveFormatExtensible(sampleType == 2, vi.BitsPerChannelSample(), vi.SamplesPerSecond(), vi.AudioChannels(), vi.ChannelLayout(), vi.num_audio_samples);
+        CreateWaveFormatExtensible(seg->hdr.seg0.hdrLst.audLst.audFrmt.wfx, sampleType == 2, vi.BitsPerChannelSample(), vi.SamplesPerSecond(), vi.ChannelLayout()); // fixme, no error check
 
 //                                               -- AVISUPERINDEX
         seg->hdr.seg0.hdrLst.audLst.indx.hdr.tag.fcc          = avi2IndxFcc;             // 'indx'

@@ -102,13 +102,13 @@ AvfsWavFile::AvfsWavFile(
     wave64 = true;
 
   // Initialize file header.
-  if (wave64) {
-    hdr.wave64 = CreateWave64Header(isFloat, vi.BitsPerChannelSample(), vi.SamplesPerSecond(), vi.AudioChannels(), vi.ChannelLayout(), sampleCount);
+  if (wave64) {  // fixme, prevent files from being created when invalid, this isn't checked at all
+    CreateWave64Header(hdr.wave64, isFloat, vi.BitsPerChannelSample(), vi.SamplesPerSecond(), vi.ChannelLayout(), sampleCount);
     hdrSize = sizeof(hdr.wave64);
   } else {
     // Use normal wave header for files less than 2GB.
     bool valid;
-    hdr.wave = CreateWaveHeader(isFloat, vi.BitsPerChannelSample(), vi.SamplesPerSecond(), vi.AudioChannels(), vi.ChannelLayout(), sampleCount, valid);
+    CreateWaveHeader(hdr.wave, isFloat, vi.BitsPerChannelSample(), vi.SamplesPerSecond(), vi.ChannelLayout(), sampleCount);
     hdrSize = sizeof(hdr.wave);
   }
 }
