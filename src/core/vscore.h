@@ -686,7 +686,7 @@ public:
     const VSVideoFormat *getVideoFormat(int id);
     const VSAudioFormat *getAudioFormat(int id);
     const VSVideoFormat *queryVideoFormat(VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name = nullptr, int id = pfNone);
-    const VSAudioFormat *queryAudioFormat(int sampleType, int bitsPerSample, int64_t channelLayout, const char *name = nullptr, int id = pfNone);
+    const VSAudioFormat *queryAudioFormat(int sampleType, int bitsPerSample, uint64_t channelLayout, const char *name = nullptr, int id = pfNone);
     bool isValidFormatPointer(const void *f);
 
     void loadPlugin(const std::string &filename, const std::string &forcedNamespace = std::string(), const std::string &forcedId = std::string(), bool altSearchPath = false);

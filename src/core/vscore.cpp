@@ -1150,7 +1150,7 @@ const VSVideoFormat *VSCore::queryVideoFormat(VSColorFamily colorFamily, VSSampl
     return &videoFormats[f.id];
 }
 
-const VSAudioFormat *VSCore::queryAudioFormat(int sampleType, int bitsPerSample, int64_t channelLayout, const char *name, int id) {
+const VSAudioFormat *VSCore::queryAudioFormat(int sampleType, int bitsPerSample, uint64_t channelLayout, const char *name, int id) {
     // this is to make exact format comparisons easy by simply allowing pointer comparison
 
     if (sampleType != stInteger && sampleType != stFloat)

@@ -2131,7 +2131,7 @@ cdef object createNode(VSNodeRef *node, const VSAPI *funcs, Core core):
     else:
         return createAudioNode(node, funcs, core)
 
-cdef object createConstFrame(VSFrameRef *f, const VSAPI *funcs, VSCore *core):
+cdef object createConstFrame(const VSFrameRef *f, const VSAPI *funcs, VSCore *core):
     if funcs.getFrameType(f) == VIDEO:
         return createConstVideoFrame(f, funcs, core)
     else:

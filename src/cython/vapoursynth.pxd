@@ -310,7 +310,7 @@ cdef extern from "include/VapourSynth.h" nogil:
         int propSetEmpty(VSMap *map, const char *key, int type) nogil
         void createAudioFilter(const VSMap *input, VSMap *out, const char *name, const VSAudioInfo *ai, int numOutputs, VSAudioFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
         VSFrameRef *newAudioFrame(const VSAudioFormat *format, int sampleRate, const VSFrameRef *propSrc, VSCore *core) nogil
-        const VSAudioFormat *queryAudioFormat(int sampleType, int bitsPerSample, int64_t channelLayout, VSCore *core) nogil
+        const VSAudioFormat *queryAudioFormat(int sampleType, int bitsPerSample, uint64_t channelLayout, VSCore *core) nogil
         const VSAudioFormat *getAudioFormat(int id, VSCore *core) nogil
         const VSAudioInfo *getAudioInfo(VSNodeRef *node) nogil
         const VSAudioFormat *getAudioFrameFormat(const VSFrameRef *f) nogil
