@@ -36,7 +36,8 @@ libexprfilter_la_CPPFLAGS = $(AM_CXXFLAGS) -fno-strict-aliasing
 
 lib_LTLIBRARIES += libvapoursynth.la
 
-libvapoursynth_la_SOURCES = src/core/boxblurfilter.cpp \
+libvapoursynth_la_SOURCES = src/core/audiofilters.cpp \
+							src/core/boxblurfilter.cpp \
 							src/core/cachefilter.cpp \
 							src/core/cachefilter.h \
 							src/core/cpufeatures.cpp \
@@ -134,7 +135,9 @@ libvapoursynth_script_la_LIBADD = $(PYTHON3_LIBS)
 if VSPIPE
 bin_PROGRAMS = vspipe
 
-vspipe_SOURCES = src/vspipe/vspipe.cpp
+vspipe_SOURCES = src/vspipe/vspipe.cpp \
+				 src/common/wave.cpp
+
 vspipe_LDADD = libvapoursynth-script.la
 vspipe_LDFLAGS = $(UNICODELDFLAGS)
 endif # VSPIPE
