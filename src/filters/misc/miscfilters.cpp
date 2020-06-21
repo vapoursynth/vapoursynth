@@ -226,16 +226,20 @@ static void averageFramesByteSSE2(const AverageFrameData *d, const VSFrameRef * 
     const size_t numSrcs = d->weights.size();
 
     std::transform(srcs, srcs + numSrcs, srcpp, [=](const VSFrameRef *f) { return vsapi->getReadPtr(f, plane); });
+    if (numSrcs % 2)
+        srcpp[numSrcs] = srcpp[numSrcs - 1];
 
     uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
 
     __m128i weights[16];
 
-    for (size_t i = 0; i < numSrcs; i += 2) {
+    for (size_t i = 0; i < (numSrcs & ~1); i += 2) {
         uint16_t weight_lo = static_cast<int16_t>(d->weights[i]);
         uint16_t weight_hi = static_cast<int16_t>(d->weights[i + 1]);
         weights[i / 2] = _mm_set1_epi32((static_cast<uint32_t>(weight_hi) << 16) | weight_lo);
     }
+    if (numSrcs % 2)
+        weights[numSrcs / 2 - 1] = _mm_set1_epi32(static_cast<uint16_t>(d->weights[numSrcs - 1]));
 
     __m128i bias = _mm_setzero_si128();
     __m128 scale = _mm_set_ps1(1.0f / d->scale);
@@ -306,6 +310,8 @@ static void averageFramesWordSSE2(const AverageFrameData *d, const VSFrameRef * 
     std::transform(srcs, srcs + numSrcs, srcpp, [=](const VSFrameRef *f) {
         return reinterpret_cast<const uint16_t *>(vsapi->getReadPtr(f, plane));
     });
+    if (numSrcs % 2)
+        srcpp[numSrcs] = srcpp[numSrcs - 1];
 
     uint16_t * VS_RESTRICT dstp = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(dst, plane));
 
@@ -317,6 +323,8 @@ static void averageFramesWordSSE2(const AverageFrameData *d, const VSFrameRef * 
         uint16_t weight_hi = static_cast<int16_t>(d->weights[i + 1]);
         weights[i / 2] = _mm_set1_epi32((static_cast<uint32_t>(weight_hi) << 16) | weight_lo);
     }
+    if (numSrcs % 2)
+        weights[numSrcs / 2 - 1] = _mm_set1_epi32(static_cast<uint16_t>(d->weights[numSrcs - 1]));
 
     if ((plane == 1 || plane == 2) && (d->vi.format->colorFamily == cmYUV || d->vi.format->colorFamily == cmYCoCg)) {
         __m128i bias = _mm_set1_epi16(1U << (d->vi.format->bitsPerSample - 1));
@@ -587,7 +595,7 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
                 throw std::runtime_error("Number of weights must be odd when only one clip supplied");
         } else if (numWeights != numNodes) {
             throw std::runtime_error("Number of weights must match number of clips supplied");
-        } 
+        }
 
         if (numWeights > 31 || numNodes > 31) {
             throw std::runtime_error("Must use between 1 and 31 weights and input clips");
