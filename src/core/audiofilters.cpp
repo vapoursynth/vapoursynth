@@ -59,7 +59,7 @@ static const VSFrameRef *VS_CC audioTrimGetframe(int n, int activationReason, vo
 
     int64_t startSample = n * (int64_t)d->ai.format->samplesPerFrame + d->first;
     int startFrame = (int)(startSample / d->ai.format->samplesPerFrame);
-    int length = std::min<int>(d->ai.numSamples - n * static_cast<int64_t>(d->ai.format->samplesPerFrame), d->ai.format->samplesPerFrame);
+    int length = std::min<int64_t>(d->ai.numSamples - n * static_cast<int64_t>(d->ai.format->samplesPerFrame), d->ai.format->samplesPerFrame);
 
     if (startSample % d->ai.format->samplesPerFrame == 0 && n != d->ai.numFrames - 1) { // pass through audio frames when possible
         if (activationReason == arInitial) {
@@ -212,7 +212,7 @@ static const VSFrameRef *VS_CC audioSplice2Getframe(int n, int activationReason,
             f2 = vsapi->getFrameFilter(n - d->numFrames1 + 1, d->node2, frameCtx);
         }
 
-        int samplesOut = std::min<int>(d->ai.format->samplesPerFrame, d->ai.numSamples - n * static_cast<int64_t>(d->ai.format->samplesPerFrame));
+        int samplesOut = std::min<int64_t>(d->ai.format->samplesPerFrame, d->ai.numSamples - n * static_cast<int64_t>(d->ai.format->samplesPerFrame));
 
         VSFrameRef *f = vsapi->newAudioFrame(d->ai.format, d->ai.sampleRate, samplesOut, f1, core);
 
@@ -328,6 +328,169 @@ static void VS_CC audioSplice2Wrapper(const VSMap *in, VSMap *out, void *userDat
 }
 
 //////////////////////////////////////////
+// AudioLoop
+
+struct AudioLoopData {
+    VSNodeRef *node;
+    VSAudioInfo ai;
+    int srcFrames;
+    int64_t srcSamples;
+};
+
+static const VSFrameRef *VS_CC audioLoopGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    AudioLoopData *d = reinterpret_cast<AudioLoopData *>(*instanceData);
+
+    int64_t reqStart = n * d->ai.format->samplesPerFrame;
+    reqStart = reqStart % d->srcSamples;
+    int reqStartFrame = reqStart / d->ai.format->samplesPerFrame;
+    int reqFrame = reqStartFrame;
+    int64_t reqStartOffset = reqStart % d->ai.format->samplesPerFrame;
+    int64_t remainingSamples = std::min<int64_t>(d->ai.format->samplesPerFrame, d->ai.numSamples - n * static_cast<int64_t>(d->ai.format->samplesPerFrame));
+
+    if (activationReason == arInitial) {
+        do {
+            int64_t reqSamples = std::min<int64_t>(d->ai.format->samplesPerFrame - reqStartOffset, d->srcSamples - reqStart);
+            reqStartOffset = 0;
+            vsapi->requestFrameFilter(reqFrame++, d->node, frameCtx);
+            remainingSamples -= reqSamples;
+            reqStart += reqSamples;
+            if (reqFrame > d->srcFrames - 1) {
+                reqFrame = 0;
+                reqStart = 0;
+            }
+        } while (remainingSamples > 0 && reqFrame != reqStartFrame);
+    } else if (activationReason == arAllFramesReady) {
+        VSFrameRef *dst = nullptr;
+        size_t dstOffset = 0;
+
+        do {       
+            const VSFrameRef *src = vsapi->getFrameFilter(reqFrame++, d->node, frameCtx);
+            int length = vsapi->getFrameLength(src) - reqStartOffset;
+            reqStartOffset = 0;
+            if (!dst)
+                dst = vsapi->newAudioFrame(d->ai.format, d->ai.sampleRate, remainingSamples, src, core);
+
+            for (int p = 0; p < d->ai.format->numChannels; p++)
+                memcpy(vsapi->getWritePtr(dst, p) + dstOffset, vsapi->getReadPtr(src, p) + reqStartOffset * d->ai.format->bytesPerSample, std::min<int>(length, remainingSamples) * d->ai.format->bytesPerSample);
+
+            dstOffset += length * d->ai.format->bytesPerSample;
+            remainingSamples -= length;
+            if (reqFrame > d->srcFrames - 1)
+                reqFrame = 0;
+            vsapi->freeFrame(src);
+        } while (remainingSamples > 0);
+
+        return dst;
+    }
+
+    return nullptr;
+}
+
+static void VS_CC audioLoopCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    int error;
+    std::unique_ptr<AudioLoopData> d(new AudioLoopData());
+    int64_t times = vsapi->propGetInt(in, "times", 0, &error);
+    if (times < 0) {
+        vsapi->setError(out, "AudioLoop: cannot repeat clip a negative number of times"); 
+        return;
+    }
+
+    d->node = vsapi->propGetNode(in, "clip", 0, nullptr);
+    d->ai = *vsapi->getAudioInfo(d->node);
+    d->srcSamples = d->ai.numSamples;
+    d->srcFrames = d->ai.numFrames;
+
+    // early termination for the trivial case
+    if (times == 1) {
+        vsapi->propSetNode(out, "clip", d->node, paReplace);
+        vsapi->freeNode(d->node);
+        return;
+    }
+
+    if (times > 0) {
+        if (d->ai.numSamples > (std::numeric_limits<int>::max() * static_cast<int64_t>(d->ai.format->samplesPerFrame)) / times) {
+            vsapi->setError(out, "AudioLoop: resulting clip is too long");
+            return;
+        }
+        d->ai.numSamples *= times;
+    } else {
+        d->ai.numSamples = std::numeric_limits<int>::max() * static_cast<int64_t>(d->ai.format->samplesPerFrame);
+    }
+
+    vsapi->createAudioFilter(out, "AudioLoop", &d->ai, 1, audioLoopGetFrame, templateNodeFree<AudioLoopData>, fmParallel, 0, d.get(), core);
+    d.release();
+}
+
+//////////////////////////////////////////
+// AudioReverse
+
+struct AudioReverseData {
+    VSNodeRef *node;
+    const VSAudioInfo *ai;
+};
+
+template<typename T>
+static const VSFrameRef *VS_CC audioReverseGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    AudioReverseData *d = reinterpret_cast<AudioReverseData *>(*instanceData);
+    int n1 = d->ai->numFrames - 1 - n;
+    int n2 = std::max(d->ai->numFrames - 2 - n, 0);
+
+    if (activationReason == arInitial) {
+        vsapi->requestFrameFilter(n1, d->node, frameCtx);
+        if (d->ai->numSamples % d->ai->format->samplesPerFrame != 0)
+            vsapi->requestFrameFilter(n2, d->node, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        int dstLength = std::min<int64_t>(d->ai->format->samplesPerFrame, d->ai->numSamples - n * static_cast<int64_t>(d->ai->format->samplesPerFrame));
+        const VSFrameRef *src1 = vsapi->getFrameFilter(n1, d->node, frameCtx);
+        size_t l1 = vsapi->getFrameLength(src1);
+        size_t s1offset = l1 - (d->ai->numSamples % d->ai->format->samplesPerFrame);
+        if (s1offset == d->ai->format->samplesPerFrame)
+            s1offset = 0;
+        size_t s1samples = vsapi->getFrameLength(src1) - s1offset;
+
+        VSFrameRef *dst = vsapi->newAudioFrame(d->ai->format, d->ai->sampleRate, dstLength, src1, core);
+
+        for (int p = 0; p < d->ai->format->numChannels; p++) {
+            const T *src1Ptr = reinterpret_cast<const T *>(vsapi->getReadPtr(src1, p));
+            T *dstPtr = reinterpret_cast<T *>(vsapi->getWritePtr(dst, p));
+            for (size_t i = 0; i < s1samples; i++)
+                dstPtr[i] = src1Ptr[l1 - i - 1 - s1offset];
+        }
+
+        size_t remaining = dstLength - s1samples;
+        vsapi->freeFrame(src1);
+
+        if (remaining > 0) {
+            const VSFrameRef *src2 = vsapi->getFrameFilter(n2, d->node, frameCtx);
+            size_t l2 = vsapi->getFrameLength(src2);
+            for (int p = 0; p < d->ai->format->numChannels; p++) {
+                const T *src2Ptr = reinterpret_cast<const T *>(vsapi->getReadPtr(src2, p));
+                T *dstPtr = reinterpret_cast<T *>(vsapi->getWritePtr(dst, p)) + s1samples;
+                for (size_t i = 0; i < remaining; i++)
+                    dstPtr[i] = src2Ptr[l2 - i - 1];
+            }
+            vsapi->freeFrame(src2);
+        }
+
+        return dst;
+    }
+
+    return nullptr;
+}
+
+static void VS_CC audioReverseCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    std::unique_ptr<AudioReverseData> d(new AudioReverseData());
+    d->node = vsapi->propGetNode(in, "clip", 0, nullptr);
+    d->ai = vsapi->getAudioInfo(d->node);
+
+    if (d->ai->format->bytesPerSample == 2)
+        vsapi->createAudioFilter(out, "AudioReverse", d->ai, 1, audioReverseGetFrame<int16_t>, templateNodeFree<AudioReverseData>, fmParallel, 0, d.get(), core);
+    else
+        vsapi->createAudioFilter(out, "AudioReverse", d->ai, 1, audioReverseGetFrame<int32_t>, templateNodeFree<AudioReverseData>, fmParallel, 0, d.get(), core);
+    d.release();
+}
+
+//////////////////////////////////////////
 // AudioMix
 
 struct AudioMixDataNode {
@@ -384,7 +547,7 @@ static const VSFrameRef *VS_CC audioMixGetFrame(int n, int activationReason, voi
                         dstPtrs[dstIdx][i] = static_cast<int32_t>(tmp);
                     }
                 } else {
-                    dstPtrs[dstIdx][i] = tmp;
+                    dstPtrs[dstIdx][i] = static_cast<T>(tmp);
                 }
             }
         }
@@ -515,8 +678,8 @@ static const VSFrameRef *VS_CC shuffleChannelsGetFrame(int n, int activationReas
             vsapi->requestFrameFilter(n, iter, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         VSFrameRef *dst = nullptr;
-        int dstLength = std::min<int>(d->ai.numSamples - n * static_cast<int64_t>(d->ai.format->samplesPerFrame), d->ai.format->samplesPerFrame);
-        for (size_t idx = 0; idx < d->sourceNodes.size(); idx++) {
+        int dstLength = std::min<int64_t>(d->ai.numSamples - n * static_cast<int64_t>(d->ai.format->samplesPerFrame), d->ai.format->samplesPerFrame);
+        for (int idx = 0; idx < d->sourceNodes.size(); idx++) {
             const VSFrameRef *src = vsapi->getFrameFilter(n, d->sourceNodes[idx].node, frameCtx);;
             int srcLength = (n < d->sourceNodes[idx].numFrames) ? vsapi->getFrameLength(src) : 0;
             int copyLength = std::min(dstLength, srcLength);
@@ -807,7 +970,7 @@ static const VSFrameRef *VS_CC testAudioGetframe(int n, int activationReason, vo
     TestAudioData *d = reinterpret_cast<TestAudioData *>(*instanceData);
 
     if (activationReason == arInitial) {
-        int samples = std::min<int>(d->ai.format->samplesPerFrame, d->ai.numSamples - n * static_cast<int64_t>(d->ai.format->samplesPerFrame));
+        int samples = std::min<int64_t>(d->ai.format->samplesPerFrame, d->ai.numSamples - n * static_cast<int64_t>(d->ai.format->samplesPerFrame));
         int64_t startSample = n * (int64_t)d->ai.format->samplesPerFrame;
         VSFrameRef *frame = vsapi->newAudioFrame(d->ai.format, d->ai.sampleRate, samples, NULL, core);
         for (int channel = 0; channel < d->ai.format->numChannels; channel++) {
@@ -874,6 +1037,8 @@ void VS_CC audioInitialize(VSConfigPlugin configFunc, VSRegisterFunction registe
     //configFunc("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 1, plugin);
     registerFunc("AudioTrim", "clip:anode;first:int:opt;last:int:opt;length:int:opt;", audioTrimCreate, 0, plugin);
     registerFunc("AudioSplice", "clips:anode[];", audioSplice2Wrapper, 0, plugin);
+    registerFunc("AudioLoop", "clip:anode;times:int:opt;", audioLoopCreate, 0, plugin);
+    registerFunc("AudioReverse", "clip:anode;", audioReverseCreate, 0, plugin);
     registerFunc("AudioMix", "clips:anode[];matrix:float[];channels_out:int;", audioMixCreate, 0, plugin);
     registerFunc("ShuffleChannels", "clip:anode[];channels_in:int[];channels_out:int;", shuffleChannelsCreate, 0, plugin);
     registerFunc("SplitChannels", "clip:anode;", splitChannelsCreate, 0, plugin);

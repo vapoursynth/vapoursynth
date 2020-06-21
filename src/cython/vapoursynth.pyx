@@ -1897,6 +1897,20 @@ cdef class AudioNode(RawNode):
             return NotImplemented
         return (<AudioNode>x).core.std.AudioSplice(clips=[x, y])
 
+    def __mul__(a, b):
+        if isinstance(a, AudioNode):
+            node = a
+            val = b
+        else:
+            node = b
+            val = a
+
+        if not isinstance(val, int):
+            raise TypeError('Clips may only be repeated by integer factors')
+        if val <= 0:
+            raise ValueError('Loop count must be one or bigger')
+        return (<AudioNode>node).core.std.AudioLoop(clip=node, times=val)
+
     def __getitem__(self, val):
         if isinstance(val, slice):
             if val.step is not None and val.step == 0:
