@@ -36,9 +36,9 @@
 
 /////////////
 // TODO:
-// channels_out should probably be a list in order to not be exceptionally confusing in shufflechannels and audiomix
-// make channels_in for shufflechannels also accept negative numbers as a first, second and so on defined track to make certain uses easier
+// channels_out should probably be a list in order to not be exceptionally confusing in audiomix
 // improve memory access pattern in audiomix, processing input and output in blocks of a few thousand samples should lead to much better cache locality
+// remove the std::set usage since it's shit code
 
 
 //////////////////////////////////////////
