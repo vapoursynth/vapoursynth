@@ -620,8 +620,13 @@ static void VS_CC audioMixCreate(const VSMap *in, VSMap *out, void *userData, VS
 
 struct ShuffleChannelsDataNode {
     VSNodeRef *node;
-    int numFrames;
     int idx;
+    int dstIdx;
+    int numFrames;
+
+    inline bool operator<(const ShuffleChannelsDataNode &other) const {
+        return dstIdx < other.dstIdx;
+    }
 };
 
 struct ShuffleChannelsData {
@@ -670,52 +675,67 @@ static void VS_CC shuffleChannelsCreate(const VSMap *in, VSMap *out, void *userD
     std::unique_ptr<ShuffleChannelsData> d(new ShuffleChannelsData());
     int numSrcNodes = vsapi->propNumElements(in, "clip");
     int numSrcChannels = vsapi->propNumElements(in, "channels_in");
-    int64_t channels_out = vsapi->propGetInt(in, "channels_out", 0, nullptr);
+    int numDstChannels = vsapi->propNumElements(in, "channels_out");
+
+    if (numSrcChannels != numDstChannels) {
+        vsapi->setError(out, "ShuffleChannels: must have the same number of input and output channels");
+        return;
+    }
 
     if (numSrcNodes > numSrcChannels) {
         vsapi->setError(out, "ShuffleChannels: cannot have more input nodes than selected input channels");
         return;
     }
 
-    std::bitset<64> tmp(channels_out);
-    if (tmp.count() != numSrcChannels) {
-        vsapi->setError(out, "ShuffleChannels: number of input channels doesn't match number of outputs");
-        return;
-    }
+    uint64_t channelLayout = 0;
 
     for (int i = 0; i < numSrcChannels; i++) {
         int channel = int64ToIntS(vsapi->propGetInt(in, "channels_in", i, nullptr));
+        int dstChannel = int64ToIntS(vsapi->propGetInt(in, "channels_out", i, nullptr));
+        channelLayout |= (static_cast<uint64_t>(1) << dstChannel);
         VSNodeRef *node = vsapi->propGetNode(in, "clip", std::min(numSrcNodes - 1, i), nullptr);
-        d->sourceNodes.push_back({ node, channel });
+        d->sourceNodes.push_back({ node, channel, dstChannel });
     }
+
+    std::sort(d->sourceNodes.begin(), d->sourceNodes.end());
 
     const char *err = nullptr;
 
     d->ai = *vsapi->getAudioInfo(d->sourceNodes[0].node);
     for (size_t i = 0; i < d->sourceNodes.size(); i++) {
         const VSAudioInfo *ai = vsapi->getAudioInfo(d->sourceNodes[i].node);
-        if (!(ai->format->channelLayout & (static_cast<int64_t>(1) << d->sourceNodes[i].idx))) {
-            err = "ShuffleChannels: specified channel is not present in input";
-            break;
-        }
         if (ai->sampleRate != d->ai.sampleRate || ai->format->bitsPerSample != d->ai.format->bitsPerSample || ai->format->sampleType != d->ai.format->sampleType) {
             err = "ShuffleChannels: all inputs must have the same samplerate, bits per sample and sample type";
             break;
         }
         // recalculate channel number to a simple index (add as a vsapi function?)
-        int idx = 0;
-        for (int j = 0; j < d->sourceNodes[i].idx; j++)
-            if (ai->format->channelLayout & (static_cast<int64_t>(1) << j))
-                idx++;
-        d->ai.numSamples = std::max(d->ai.numSamples, ai->numSamples);
+        if (d->sourceNodes[i].idx < 0) {
+            d->sourceNodes[i].idx = (-d->sourceNodes[i].idx) - 1;
+            if (ai->format->numChannels <= d->sourceNodes[i].idx) {
+                err = "ShuffleChannels: specified channel is not present in input";
+                break;
+            }
+        } else {
+            if ((d->sourceNodes[i].idx > 0) && !(ai->format->channelLayout & (static_cast<int64_t>(1) << d->sourceNodes[i].idx))) {
+                err = "ShuffleChannels: specified channel is not present in input";
+                break;
+            }
+            int idx = 0;
+            for (int j = 0; j < d->sourceNodes[i].idx; j++)
+                if (ai->format->channelLayout & (static_cast<int64_t>(1) << j))
+                    idx++;
+            d->sourceNodes[i].idx = idx;
+        }
         d->sourceNodes[i].numFrames = ai->numFrames;
-        d->sourceNodes[i].idx = idx;
+        d->ai.numSamples = std::max(d->ai.numSamples, ai->numSamples);
     }
 
-    d->ai.format = vsapi->queryAudioFormat(d->ai.format->sampleType, d->ai.format->bitsPerSample, channels_out, core);
-    if (!d->ai.format) {
+    d->ai.format = vsapi->queryAudioFormat(d->ai.format->sampleType, d->ai.format->bitsPerSample, channelLayout, core);
+
+    if (!d->ai.format)
         err = "ShuffleChannels: invalid output channnel configuration";
-    }
+    else if (d->ai.format->numChannels != numDstChannels)
+        err = "ShuffleChannels: output channel specified twice";
 
     if (err) {
         vsapi->setError(out, err);
@@ -1003,7 +1023,7 @@ void VS_CC audioInitialize(VSConfigPlugin configFunc, VSRegisterFunction registe
     registerFunc("AudioLoop", "clip:anode;times:int:opt;", audioLoopCreate, 0, plugin);
     registerFunc("AudioReverse", "clip:anode;", audioReverseCreate, 0, plugin);
     registerFunc("AudioMix", "clips:anode[];matrix:float[];channels_out:int;", audioMixCreate, 0, plugin);
-    registerFunc("ShuffleChannels", "clip:anode[];channels_in:int[];channels_out:int;", shuffleChannelsCreate, 0, plugin);
+    registerFunc("ShuffleChannels", "clip:anode[];channels_in:int[];channels_out:int[];", shuffleChannelsCreate, 0, plugin);
     registerFunc("SplitChannels", "clip:anode;", splitChannelsCreate, 0, plugin);
     registerFunc("AssumeSampleRate", "clip:anode;src:anode:opt;samplerate:int:opt;", assumeSampleRateCreate, 0, plugin);
     registerFunc("BlankAudio", "channels:int:opt;bits:int:opt;isfloat:int:opt;samplerate:int:opt;length:int:opt;keep:int:opt;", blankAudioCreate, 0, plugin);
