@@ -38,11 +38,7 @@
 // TODO:
 // channels_out should probably be a list in order to not be exceptionally confusing in shufflechannels and audiomix
 // make channels_in for shufflechannels also accept negative numbers as a first, second and so on defined track to make certain uses easier
-// improve audiosplice implementation to combine all clips at once instead of simply combining two at a time
 // improve memory access pattern in audiomix, processing input and output in blocks of a few thousand samples should lead to much better cache locality
-// implement audioloop filter
-// implement audioreverse
-// implement wavsource filter
 
 
 //////////////////////////////////////////
@@ -777,11 +773,14 @@ static void VS_CC splitChannelsCreate(const VSMap *in, VSMap *out, void *userDat
     std::unique_ptr<SplitChannelsData> d(new SplitChannelsData());
     d->node = vsapi->propGetNode(in, "clip", 0, nullptr);
     VSAudioInfo ai = *vsapi->getAudioInfo(d->node);
+    uint64_t channelLayout = ai.format->channelLayout;
     d->numChannels = ai.format->numChannels;
     d->ai.reserve(d->numChannels);
+    size_t index = 0;
     for (int i = 0; i < d->numChannels; i++) {
-        // fixme, preserve actual channel here?
-        ai.format = vsapi->queryAudioFormat(ai.format->sampleType, ai.format->bitsPerSample, (1 << vsacFrontLeft), core);
+        while (!(channelLayout & (static_cast<uint64_t>(1) << index)))
+            index++;
+        ai.format = vsapi->queryAudioFormat(ai.format->sampleType, ai.format->bitsPerSample, (static_cast<uint64_t>(1) << index++), core);
         d->ai.push_back(ai);
     }
 
