@@ -936,11 +936,11 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
                 tmp[c] = vsapi->getReadPtr(f, c) + offset;
 
             if (bytesPerOutputSample == 2)
-                PackChannels<int16_t>(tmp.data(), reinterpret_cast<uint8_t *>(lpBuffer) + dstPos, copyLength, af->numChannels);
+                PackChannels16to16le(tmp.data(), reinterpret_cast<uint8_t *>(lpBuffer) + dstPos, copyLength, af->numChannels);
             else if (bytesPerOutputSample == 3)
-                PackChannels32to24(tmp.data(), reinterpret_cast<uint8_t *>(lpBuffer) + dstPos, copyLength, af->numChannels);
+                PackChannels32to24le(tmp.data(), reinterpret_cast<uint8_t *>(lpBuffer) + dstPos, copyLength, af->numChannels);
             else if (bytesPerOutputSample == 4)
-                PackChannels<int32_t>(tmp.data(), reinterpret_cast<uint8_t *>(lpBuffer) + dstPos, copyLength, af->numChannels);
+                PackChannels32to32le(tmp.data(), reinterpret_cast<uint8_t *>(lpBuffer) + dstPos, copyLength, af->numChannels);
 
             dstPos += copyLength * af->numChannels * bytesPerOutputSample;
 

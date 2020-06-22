@@ -231,11 +231,11 @@ static void outputFrame(const VSFrameRef *frame) {
                 srcPtrs.push_back(vsapi->getReadPtr(frame, channel));
             
             if (bytesPerOutputSample == 2)
-                PackChannels<int16_t>(srcPtrs.data(), buffer.data(), numSamples, numChannels);
+                PackChannels16to16le(srcPtrs.data(), buffer.data(), numSamples, numChannels);
             else if (bytesPerOutputSample == 3)
-                PackChannels32to24(srcPtrs.data(), buffer.data(), numSamples, numChannels);
+                PackChannels32to24le(srcPtrs.data(), buffer.data(), numSamples, numChannels);
             else if (bytesPerOutputSample == 4)
-                PackChannels<int32_t>(srcPtrs.data(), buffer.data(), numSamples, numChannels);
+                PackChannels32to32le(srcPtrs.data(), buffer.data(), numSamples, numChannels);
 
             if (fwrite(buffer.data(), 1, toOutput, outFile) != toOutput) {
                 if (errorMessage.empty())

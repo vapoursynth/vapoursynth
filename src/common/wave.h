@@ -71,18 +71,10 @@ struct Wave64Header {
     uint64_t dataSize;
 };
 
-template<typename T>
-static void PackChannels(const uint8_t *const *const Src, uint8_t *Dst, size_t Length, size_t Channels) {
-    const T *const *const S = reinterpret_cast<const T *const *const>(Src);
-    T *D = reinterpret_cast<T *>(Dst);
-    for (size_t i = 0; i < Length; i++) {
-        for (size_t c = 0; c < Channels; c++)
-            D[c] = S[c][i];
-        D += Channels;
-    }
-}
+void PackChannels16to16le(const uint8_t *const *const Src, uint8_t *Dst, size_t Length, size_t Channels);
+void PackChannels32to32le(const uint8_t *const *const Src, uint8_t *Dst, size_t Length, size_t Channels);
+void PackChannels32to24le(const uint8_t *const *const Src, uint8_t *Dst, size_t Length, size_t Channels);
 
-void PackChannels32to24(const uint8_t *const *const Src, uint8_t *Dst, size_t Length, size_t Channels);
 bool CreateWaveFormatExtensible(WaveFormatExtensible &header, bool IsFloat, int BitsPerSample, int SampleRate, uint64_t ChannelMask);
 bool CreateWave64Header(Wave64Header &header, bool IsFloat, int BitsPerSample, int SampleRate, uint64_t ChannelMask, int64_t NumSamples);
 bool CreateWaveHeader(WaveHeader &header, bool IsFloat, int BitsPerSample, int SampleRate, uint64_t ChannelMask, int64_t NumSamples);

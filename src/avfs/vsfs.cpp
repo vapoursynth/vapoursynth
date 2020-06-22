@@ -295,11 +295,11 @@ bool VapourSynther::GetAudio(AvfsLog_ *log, void *buf, __int64 start, unsigned c
         assert(copyLength > 0);
 
         if (bytesPerOutputSample == 2)
-            PackChannels<int16_t>(tmp.data(), dst, copyLength, af->numChannels);
+            PackChannels16to16le(tmp.data(), dst, copyLength, af->numChannels);
         else if (bytesPerOutputSample == 3)
-            PackChannels32to24(tmp.data(), dst, copyLength, af->numChannels);
+            PackChannels32to24le(tmp.data(), dst, copyLength, af->numChannels);
         else if (bytesPerOutputSample == 4)
-            PackChannels<int32_t>(tmp.data(), dst, copyLength, af->numChannels);
+            PackChannels32to32le(tmp.data(), dst, copyLength, af->numChannels);
 
         dst += copyLength * bytesPerOutputSample * af->numChannels;
         count -= copyLength;

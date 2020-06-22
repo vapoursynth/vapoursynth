@@ -1,7 +1,61 @@
 #include "wave.h"
-#include "p2p.h"
 #include <cstring>
 #include <bitset>
+
+#ifdef _WIN32
+#define WAVE_LITTLE_ENDIAN
+#elif defined(__BYTE_ORDER__)
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#define WAVE_BIG_ENDIAN
+#elif __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#define WAVE_LITTLE_ENDIAN
+#endif
+#endif
+
+#ifdef WAVE_LITTLE_ENDIAN
+#define WAVE_SWAP16(x) (x)
+#define WAVE_SWAP32(x) (x)
+#endif // WAVE_LITTLE_ENDIAN
+
+#ifdef WAVE_BIG_ENDIAN
+#define WAVE_SWAP16(x) __builtin_bswap16(x)
+#define WAVE_SWAP32(x) __builtin_bswap32(x)
+#endif // WAVE_BIG_ENDIAN
+
+void PackChannels16to16le(const uint8_t *const *const Src, uint8_t *Dst, size_t Length, size_t Channels) {
+    const uint16_t *const *const S = reinterpret_cast<const uint16_t *const *const>(Src);
+    uint16_t *D = reinterpret_cast<uint16_t *>(Dst);
+    for (size_t i = 0; i < Length; i++) {
+        for (size_t c = 0; c < Channels; c++)
+            D[c] = WAVE_SWAP16(S[c][i]);
+        D += Channels;
+    }
+}
+
+void PackChannels32to32le(const uint8_t *const *const Src, uint8_t *Dst, size_t Length, size_t Channels) {
+    const uint32_t *const *const S = reinterpret_cast<const uint32_t *const *const>(Src);
+    uint32_t *D = reinterpret_cast<uint32_t *>(Dst);
+    for (size_t i = 0; i < Length; i++) {
+        for (size_t c = 0; c < Channels; c++)
+            D[c] = WAVE_SWAP32(S[c][i]);
+        D += Channels;
+    }
+}
+
+void PackChannels32to24le(const uint8_t *const *const Src, uint8_t *Dst, size_t Length, size_t Channels) {
+    for (size_t i = 0; i < Length; i++) {
+        for (size_t c = 0; c < Channels; c++) {
+#ifdef WAVE_LITTLE_ENDIAN
+            memcpy(Dst + c * 3, Src[c] + i * 4 + 1, 3);
+#else
+            Dst[c * 3 + 0] = Src[c] + i * 4 + 2;
+            Dst[c * 3 + 1] = Src[c] + i * 4 + 1;
+            Dst[c * 3 + 2] = Src[c] + i * 4 + 0;
+#endif
+        }
+        Dst += Channels * 3;
+    }
+}
 
 static_assert(sizeof(WaveFormatExtensible) - offsetof(WaveFormatExtensible, wValidBitsPerSample) == 22, "");
 static const uint8_t waveFormatExtensible[2] = { 0xFE, 0xFF };
@@ -20,15 +74,7 @@ static const uint8_t wave64HdrWaveUuidVal[16] = { 0x77, 0x61, 0x76, 0x65, 0xF3, 
 static const uint8_t wave64HdrFmtUuidVal[16] = { 0x66, 0x6D, 0x74, 0x20, 0xF3, 0xAC, 0xD3, 0x11, 0x8C, 0xD1, 0x00, 0xC0, 0x4F, 0x8E, 0xDB, 0x8A };
 static const uint8_t wave64HdrDataUuidVal[16] = { 0x64, 0x61, 0x74, 0x61, 0xF3, 0xAC, 0xD3, 0x11, 0x8C, 0xD1, 0x00, 0xC0, 0x4F, 0x8E, 0xDB, 0x8A };
 
-void PackChannels32to24(const uint8_t *const *const Src, uint8_t *Dst, size_t Length, size_t Channels) {
-    const int32_t *const *const S = reinterpret_cast<const int32_t *const *const>(Src);
-    p2p::detail::uint24 *D = reinterpret_cast<p2p::detail::uint24 *>(Dst);
-    for (size_t i = 0; i < Length; i++) {
-        for (size_t c = 0; c < Channels; c++)
-            D[c] = p2p::detail::uint24(S[c][i] >> 8);
-        D += Channels;
-    }
-}
+
 
 bool CreateWaveFormatExtensible(WaveFormatExtensible &header, bool IsFloat, int BitsPerSample, int SampleRate, uint64_t ChannelMask) {
     header = {};
