@@ -36,7 +36,7 @@
 #include "kernel/cpulevel.h"
 #include "kernel/generic.h"
 
-#ifdef VS_TARGET_OS_WINDOWS
+#ifdef _MSC_VER
 #define FORCE_INLINE inline __forceinline
 #else
 #define FORCE_INLINE inline __attribute__((always_inline))
