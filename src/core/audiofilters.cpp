@@ -32,14 +32,6 @@
 #include <algorithm>
 #include <vector>
 #include <set>
-#include <bitset>
-
-/////////////
-// TODO:
-// channels_out should probably be a list in order to not be exceptionally confusing in audiomix
-// improve memory access pattern in audiomix, processing input and output in blocks of a few thousand samples should lead to much better cache locality
-// remove the std::set usage since it's shit code
-
 
 //////////////////////////////////////////
 // AudioTrim
@@ -455,14 +447,15 @@ static void VS_CC audioReverseCreate(const VSMap *in, VSMap *out, void *userData
 
 struct AudioMixDataNode {
     VSNodeRef *node;
-    int numFrames;
     int idx;
-    std::vector<float> weights;
+    int numFrames;
+    std::vector<double> weights;
 };
 
 struct AudioMixData {
     std::vector<VSNodeRef *> reqNodes; // a list of all distinct nodes in sourceNodes to reduce function calls
     std::vector<AudioMixDataNode> sourceNodes;
+    std::vector<int> outputIdx;
     VSAudioInfo ai;
 };
 
@@ -489,9 +482,9 @@ static const VSFrameRef *VS_CC audioMixGetFrame(int n, int activationReason, voi
         VSFrameRef *dst = vsapi->newAudioFrame(d->ai.format, d->ai.sampleRate, srcLength, srcFrames[0], core);
 
         std::vector<T *> dstPtrs;
-        dstPtrs.reserve(d->sourceNodes.size());
+        dstPtrs.resize(numOutChannels);
         for (int idx = 0; idx < numOutChannels; idx++)
-            dstPtrs.push_back(reinterpret_cast<T *>(vsapi->getWritePtr(dst, idx)));
+            dstPtrs[idx] = reinterpret_cast<T *>(vsapi->getWritePtr(dst, d->outputIdx[idx]));
 
         for (int i = 0; i < srcLength; i++) {
             for (size_t dstIdx = 0; dstIdx < numOutChannels; dstIdx++) {
@@ -503,7 +496,6 @@ static const VSFrameRef *VS_CC audioMixGetFrame(int n, int activationReason, voi
                     if (sizeof(T) == 2) {
                         dstPtrs[dstIdx][i] = static_cast<int16_t>(tmp);
                     } else if (sizeof(T) == 4) {
-                        tmp = std::min<float>(tmp, (static_cast<int64_t>(1) << (d->ai.format->bitsPerSample - 1)) - 1);
                         dstPtrs[dstIdx][i] = static_cast<int32_t>(tmp);
                     }
                 } else {
@@ -532,10 +524,24 @@ static void VS_CC audioMixCreate(const VSMap *in, VSMap *out, void *userData, VS
     std::unique_ptr<AudioMixData> d(new AudioMixData());
     int numSrcNodes = vsapi->propNumElements(in, "clips");
     int numMatrixWeights = vsapi->propNumElements(in, "matrix");
-    int64_t channels_out = vsapi->propGetInt(in, "channels_out", 0, nullptr);
+    int numDstChannels = vsapi->propNumElements(in, "channels_out");
+    uint64_t channelLayout = 0;
 
-    std::bitset<64> tmp(channels_out);
-    int numOutChannels = tmp.count();
+    for (int i = 0; i < numDstChannels; i++) {
+        int channel = int64ToIntS(vsapi->propGetInt(in, "channels_out", i, nullptr));
+        channelLayout |= static_cast<uint64_t>(1) << channel;
+    }
+
+    for (int i = 0; i < numDstChannels; i++) {
+        int channel = int64ToIntS(vsapi->propGetInt(in, "channels_out", i, nullptr));
+        int pos = 0;
+        for (unsigned j = 0; j < channel; j++) {
+            if ((static_cast<uint64_t>(1) << j) & channelLayout)
+                pos++;
+        }
+        d->outputIdx.push_back(pos);
+    }
+    
     int numSrcChannels = 0;
 
     for (int i = 0; i < numSrcNodes; i++) {
@@ -554,7 +560,7 @@ static void VS_CC audioMixCreate(const VSMap *in, VSMap *out, void *userData, VS
         return;
     }
 
-    if (numOutChannels * numSrcChannels != numMatrixWeights) {
+    if (numDstChannels * numSrcChannels != numMatrixWeights) {
         vsapi->setError(out, "AudioMix: the number of matrix weights must equal (input channels * output channels)");
         for (const auto iter : d->sourceNodes)
             vsapi->freeNode(iter.node);
@@ -566,30 +572,22 @@ static void VS_CC audioMixCreate(const VSMap *in, VSMap *out, void *userData, VS
     d->ai = *vsapi->getAudioInfo(d->sourceNodes[0].node);
     for (size_t i = 0; i < d->sourceNodes.size(); i++) {
         const VSAudioInfo *ai = vsapi->getAudioInfo(d->sourceNodes[i].node);
-        if (!(ai->format->channelLayout & (static_cast<int64_t>(1) << d->sourceNodes[i].idx))) {
-            err = "AudioMix: specified channel is not present in input";
-            break;
-        }
         if (ai->numSamples != d->ai.numSamples || ai->sampleRate != d->ai.sampleRate || ai->format->bitsPerSample != d->ai.format->bitsPerSample || ai->format->sampleType != d->ai.format->sampleType) {
             err = "AudioMix: all inputs must have the same length, samplerate, bits per sample and sample type";
             break;
         }
-        // recalculate channel number to a simple index (add as a vsapi function?)
-        int idx = 0;
-        for (int j = 0; j < d->sourceNodes[i].idx; j++)
-            if (ai->format->channelLayout & (static_cast<int64_t>(1) << j))
-                idx++;
+
         d->ai.numSamples = std::max(d->ai.numSamples, ai->numSamples);
-        for (int j = 0; j < numOutChannels; j++)
+        for (int j = 0; j < numDstChannels; j++)
             d->sourceNodes[i].weights.push_back(vsapi->propGetFloat(in, "matrix", j * numSrcChannels + i, nullptr));
         d->sourceNodes[i].numFrames = ai->numFrames;
-        d->sourceNodes[i].idx = idx;
     }
 
-    d->ai.format = vsapi->queryAudioFormat(d->ai.format->sampleType, d->ai.format->bitsPerSample, channels_out, core);
-    if (!d->ai.format) {
+    d->ai.format = vsapi->queryAudioFormat(d->ai.format->sampleType, d->ai.format->bitsPerSample, channelLayout, core);
+    if (!d->ai.format)
         err = "AudioMix: invalid output channnel configuration";
-    }
+    else if (d->ai.format->numChannels != numDstChannels)
+        err = "ShuffleChannels: output channel specified twice";
 
     if (err) {
         vsapi->setError(out, err);
@@ -599,10 +597,8 @@ static void VS_CC audioMixCreate(const VSMap *in, VSMap *out, void *userData, VS
     }
 
     std::set<VSNodeRef *> nodeSet;
-
     for (const auto &iter : d->sourceNodes)
         nodeSet.insert(iter.node);
-
     for (const auto &iter : nodeSet)
         d->reqNodes.push_back(iter);
 
@@ -716,13 +712,13 @@ static void VS_CC shuffleChannelsCreate(const VSMap *in, VSMap *out, void *userD
                 break;
             }
         } else {
-            if ((d->sourceNodes[i].idx > 0) && !(ai->format->channelLayout & (static_cast<int64_t>(1) << d->sourceNodes[i].idx))) {
+            if ((d->sourceNodes[i].idx > 0) && !(ai->format->channelLayout & (static_cast<uint64_t>(1) << d->sourceNodes[i].idx))) {
                 err = "ShuffleChannels: specified channel is not present in input";
                 break;
             }
             int idx = 0;
             for (int j = 0; j < d->sourceNodes[i].idx; j++)
-                if (ai->format->channelLayout & (static_cast<int64_t>(1) << j))
+                if (ai->format->channelLayout & (static_cast<uint64_t>(1) << j))
                     idx++;
             d->sourceNodes[i].idx = idx;
         }
@@ -745,10 +741,8 @@ static void VS_CC shuffleChannelsCreate(const VSMap *in, VSMap *out, void *userD
     }
 
     std::set<VSNodeRef *> nodeSet;
-
     for (const auto &iter : d->sourceNodes)
         nodeSet.insert(iter.node);
-
     for (const auto &iter : nodeSet)
         d->reqNodes.push_back(iter);
 
@@ -1022,7 +1016,7 @@ void VS_CC audioInitialize(VSConfigPlugin configFunc, VSRegisterFunction registe
     registerFunc("AudioSplice", "clips:anode[];", audioSpliceCreate, 0, plugin);
     registerFunc("AudioLoop", "clip:anode;times:int:opt;", audioLoopCreate, 0, plugin);
     registerFunc("AudioReverse", "clip:anode;", audioReverseCreate, 0, plugin);
-    registerFunc("AudioMix", "clips:anode[];matrix:float[];channels_out:int;", audioMixCreate, 0, plugin);
+    registerFunc("AudioMix", "clips:anode[];matrix:float[];channels_out:int[];", audioMixCreate, 0, plugin);
     registerFunc("ShuffleChannels", "clip:anode[];channels_in:int[];channels_out:int[];", shuffleChannelsCreate, 0, plugin);
     registerFunc("SplitChannels", "clip:anode;", splitChannelsCreate, 0, plugin);
     registerFunc("AssumeSampleRate", "clip:anode;src:anode:opt;samplerate:int:opt;", assumeSampleRateCreate, 0, plugin);
