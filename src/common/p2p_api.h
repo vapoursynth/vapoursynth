@@ -93,7 +93,7 @@ enum p2p_packing {
 	p2p_nv12,
 	/** [U10-!6-V10-!6] */
 	p2p_p010_be, /* NV21, big-endian components, lower 6 bits zero */
-	p2p_p010_le, /* NV12, big-endian components, lower 6 bits zero. Microsoft P010. */
+	p2p_p010_le, /* NV12, little-endian components, lower 6 bits zero. Microsoft P010. */
 	p2p_p010,
 	/** [U16-V16] */
 	p2p_p016_be, /* NV21, big-endian components */
