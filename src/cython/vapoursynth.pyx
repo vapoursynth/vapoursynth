@@ -2152,7 +2152,7 @@ cdef class VSScriptEnvironmentPolicy:
         return env
       
     cdef has_environment(self, int script_id):
-        return id in self._env_map
+        return script_id in self._env_map
 
     cdef _free_environment(self, int script_id):
         env = self._env_map.pop(script_id, None)
