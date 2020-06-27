@@ -197,13 +197,13 @@ static const VSFrameRef *VS_CC audioSpliceGetframe(int n, int activationReason, 
                 do {
                     const VSFrameRef *src = vsapi->getFrameFilter(reqFrame++, d->nodes[i], frameCtx);
                     int length = vsapi->getFrameLength(src) - reqStartOffset;
-                    reqStartOffset = 0;
                     if (!dst)
                         dst = vsapi->newAudioFrame(d->ai.format, d->ai.sampleRate, remainingSamples, src, core);
 
                     for (int p = 0; p < d->ai.format->numChannels; p++)
                         memcpy(vsapi->getWritePtr(dst, p) + dstOffset, vsapi->getReadPtr(src, p) + reqStartOffset * d->ai.format->bytesPerSample, std::min<int>(length, remainingSamples) * d->ai.format->bytesPerSample);
 
+                    reqStartOffset = 0;
                     dstOffset += length * d->ai.format->bytesPerSample;
                     remainingSamples -= length;
                     if (reqFrame > d->numFrames[i] - 1) {
