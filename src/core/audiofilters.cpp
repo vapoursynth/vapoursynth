@@ -168,13 +168,14 @@ static const VSFrameRef *VS_CC audioSpliceGetframe(int n, int activationReason, 
                 int64_t currentStartSample = sampleStart - ((i > 0) ? d->cumSamples[i - 1] : 0);
                 int64_t reqStartOffset = currentStartSample % d->ai.format->samplesPerFrame;
                 int reqFrame = static_cast<int>(currentStartSample / d->ai.format->samplesPerFrame);
-                int64_t reqStart = reqFrame * static_cast<int64_t>(d->ai.format->samplesPerFrame);
                 do {
+                    int64_t reqStart = reqFrame * static_cast<int64_t>(d->ai.format->samplesPerFrame);
                     int64_t reqSamples = std::min<int64_t>(d->ai.format->samplesPerFrame - reqStartOffset, d->numSamples[i] - reqStart);
                     reqStartOffset = 0;
-                    vsapi->requestFrameFilter(reqFrame++, d->nodes[i], frameCtx);
+                    vsapi->requestFrameFilter(reqFrame, d->nodes[i], frameCtx);
                     remainingSamples -= reqSamples;
                     reqStart += reqSamples;
+                    reqFrame++;
                     if (reqFrame > d->numFrames[i] - 1) {
                         reqFrame = 0;
                         reqStart = 0;
