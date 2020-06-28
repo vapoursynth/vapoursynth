@@ -445,6 +445,64 @@ static void VS_CC audioReverseCreate(const VSMap *in, VSMap *out, void *userData
 }
 
 //////////////////////////////////////////
+// AudioGain
+
+struct AudioGainData {
+    VSNodeRef *node;
+    std::vector<double> gain;
+    const VSAudioInfo *ai;
+};
+
+template<typename T>
+static const VSFrameRef *VS_CC audioGainGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    AudioGainData *d = reinterpret_cast<AudioGainData *>(*instanceData);
+
+    if (activationReason == arInitial) {
+        vsapi->requestFrameFilter(n, d->node, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        int length = vsapi->getFrameLength(src);
+        VSFrameRef *dst = vsapi->newAudioFrame(d->ai->format, d->ai->sampleRate, length, src, core);
+
+        for (int p = 0; p < d->ai->format->numChannels; p++) {
+            double gain = d->gain[(d->gain.size() > 1) ? p : 0];
+            const T *srcPtr = reinterpret_cast<const T *>(vsapi->getReadPtr(src, p));
+            T *dstPtr = reinterpret_cast<T *>(vsapi->getWritePtr(dst, p));
+            for (size_t i = 0; i < length; i++)
+                dstPtr[i] = static_cast<T>(srcPtr[i] * gain);
+        }
+
+        vsapi->freeFrame(src);
+        return dst;
+    }
+
+    return nullptr;
+}
+
+static void VS_CC audioGainCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    std::unique_ptr<AudioGainData> d(new AudioGainData());
+    int numGainValues = vsapi->propNumElements(in, "gain");
+    for (int i = 0; i < numGainValues; i++)
+        d->gain.push_back(vsapi->propGetFloat(in, "gain", i, nullptr));
+
+    d->node = vsapi->propGetNode(in, "clip", 0, nullptr);
+    d->ai = vsapi->getAudioInfo(d->node);
+
+    if (numGainValues != 1 && numGainValues != d->ai->format->numChannels) {
+        vsapi->freeNode(d->node);
+        RETERROR("AudioGain: must provide one gain value per channel or a single value used for all channels");
+    }
+
+    if (d->ai->format->bytesPerSample == 4 && d->ai->format->sampleType == stFloat)
+        vsapi->createAudioFilter(out, "AudioGain", d->ai, 1, audioGainGetFrame<float>, templateNodeFree<AudioGainData>, fmParallel, 0, d.get(), core);
+    else if (d->ai->format->bytesPerSample == 2)
+        vsapi->createAudioFilter(out, "AudioGain", d->ai, 1, audioGainGetFrame<int16_t>, templateNodeFree<AudioGainData>, fmParallel, 0, d.get(), core);
+    else
+        vsapi->createAudioFilter(out, "AudioGain", d->ai, 1, audioGainGetFrame<int32_t>, templateNodeFree<AudioGainData>, fmParallel, 0, d.get(), core);
+    d.release();
+}
+
+//////////////////////////////////////////
 // AudioMix
 
 struct AudioMixDataNode {
@@ -1018,6 +1076,7 @@ void VS_CC audioInitialize(VSConfigPlugin configFunc, VSRegisterFunction registe
     registerFunc("AudioSplice", "clips:anode[];", audioSpliceCreate, 0, plugin);
     registerFunc("AudioLoop", "clip:anode;times:int:opt;", audioLoopCreate, 0, plugin);
     registerFunc("AudioReverse", "clip:anode;", audioReverseCreate, 0, plugin);
+    registerFunc("AudioGain", "clip:anode;gain:float[]:opt;", audioGainCreate, 0, plugin);
     registerFunc("AudioMix", "clips:anode[];matrix:float[];channels_out:int[];", audioMixCreate, 0, plugin);
     registerFunc("ShuffleChannels", "clip:anode[];channels_in:int[];channels_out:int[];", shuffleChannelsCreate, 0, plugin);
     registerFunc("SplitChannels", "clip:anode;", splitChannelsCreate, 0, plugin);
