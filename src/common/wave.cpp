@@ -111,7 +111,7 @@ bool CreateWave64Header(Wave64Header &header, bool IsFloat, int BitsPerSample, i
     header.riffSize = sizeof(header) + dataSize;
     memcpy(&header.waveUuid, wave64HdrWaveUuidVal, sizeof(wave64HdrWaveUuidVal));
     memcpy(&header.fmtUuid, wave64HdrFmtUuidVal, sizeof(wave64HdrFmtUuidVal));
-    header.fmtSize = sizeof(WaveFormatExtensible) + sizeof(header.fmtUuid);
+    header.fmtSize = sizeof(WaveFormatExtensible) + sizeof(header.fmtUuid) + sizeof(header.fmtSize);
     memcpy(&header.dataUuid, wave64HdrDataUuidVal, sizeof(wave64HdrDataUuidVal));
     header.dataSize = dataSize + sizeof(header.dataUuid) + sizeof(header.dataSize);
     return true;
