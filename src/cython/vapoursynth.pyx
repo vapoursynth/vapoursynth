@@ -20,7 +20,7 @@
 cimport vapoursynth
 cimport cython.parallel
 from cython cimport view, final
-from libc.stdint cimport intptr_t, uint16_t, uint32_t
+from libc.stdint cimport intptr_t, int16_t, uint16_t, int32_t, uint32_t
 from cpython.buffer cimport (PyBUF_WRITABLE, PyBUF_FORMAT, PyBUF_STRIDES,
                              PyBUF_F_CONTIGUOUS)
 from cpython.ref cimport Py_INCREF, Py_DECREF
@@ -1502,6 +1502,22 @@ cdef class AudioFrame(RawFrame):
         cdef const uint8_t *d = self.funcs.getReadPtr(self.constf, channel)
         return ctypes.c_void_p(<uintptr_t>d)
 
+    def get_read_array(self, int channel):
+        if channel < 0 or channel >= self.format.num_channels:
+            raise IndexError('Specified channel index out of range')
+        cdef const uint8_t *d = self.funcs.getReadPtr(self.constf, channel)
+        array = None
+        if self.format.sample_type == INTEGER:
+            if self.format.bytes_per_sample == 2:
+                array = <int16_t[:len(self)]> (<int16_t*>d)
+            elif self.format.bytes_per_sample == 4:
+                array = <int32_t[:len(self)]> (<int32_t*>d)
+        elif self.format.sample_type == FLOAT:
+            array = <float[:len(self)]> (<float*>d)
+        if array is not None:
+            return array[:len(self)]
+        return None
+
     def get_write_ptr(self, int channel):
         if self.readonly:
             raise Error('Cannot obtain write pointer to read only frame')
@@ -1509,6 +1525,29 @@ cdef class AudioFrame(RawFrame):
             raise IndexError('Specified channel index out of range')
         cdef uint8_t *d = self.funcs.getWritePtr(self.f, channel)
         return ctypes.c_void_p(<uintptr_t>d)
+
+    def get_write_array(self, int channel):
+        if self.readonly:
+            raise Error('Cannot obtain write pointer to read only frame')
+        if channel < 0 or channel >= self.format.num_channels:
+            raise IndexError('Specified channel index out of range')
+        cdef uint8_t *d = self.funcs.getWritePtr(self.f, channel)
+        array = None
+        if self.format.sample_type == INTEGER:
+            if self.format.bytes_per_sample == 2:
+                array = <int16_t[:len(self)]> (<int16_t*>d)
+            elif self.format.bytes_per_sample == 4:
+                array = <int32_t[:len(self)]> (<int32_t*>d)
+        elif self.format.sample_type == FLOAT:
+            array = <float[:len(self)]> (<float*>d)
+        if array is not None:
+            return array[:len(self)]
+        return None
+
+    def channels(self):
+        cdef int x
+        for x in range(self.format.num_channels):
+            yield AudioChannel.__new__(AudioChannel, self, x)
 
     def __str__(self):
         cdef str s = 'AudioFrame\n'
@@ -1539,6 +1578,67 @@ cdef AudioFrame createAudioFrame(VSFrameRef *f, const VSAPI *funcs, VSCore *core
     instance.props = createFrameProps(instance)
     return instance
 
+cdef class AudioChannel:
+    cdef AudioFrame frame
+    cdef int channel
+    cdef Py_ssize_t shape[1]
+    cdef Py_ssize_t strides[1]
+    cdef char* format
+
+    def __cinit__(self, AudioFrame frame, int channel):
+        cdef Py_ssize_t itemsize
+
+        if not (0 <= channel < frame.format.num_channels):
+            raise IndexError("specified channel index out of range")
+
+        self.shape[0] = <Py_ssize_t> len(frame)
+
+        self.strides[0] = itemsize = <Py_ssize_t> frame.format.bytes_per_sample
+
+        if frame.format.sample_type == INTEGER:
+            if itemsize == 2:
+                self.format = b'H'
+            elif itemsize == 4:
+                self.format = b'I'
+        elif frame.format.sample_type == FLOAT:
+            self.format = b'f'
+
+        self.frame = frame
+        self.channel = channel
+        
+    def __len__(self):
+        return len(self.frame)
+
+    def __getbuffer__(self, Py_buffer* view, int flags):
+        if (flags & PyBUF_F_CONTIGUOUS) == PyBUF_F_CONTIGUOUS:
+            raise BufferError("C-contiguous buffer only.")
+
+        if self.frame.readonly:
+            if flags & PyBUF_WRITABLE:
+                raise BufferError("Object is not writable.")
+            view.buf = (<void*> self.frame.funcs.getReadPtr(self.frame.constf, self.channel))
+        else:
+            view.buf = (<void*> self.frame.funcs.getWritePtr(self.frame.f, self.channel))
+
+        if flags & PyBUF_STRIDES:
+            view.shape = self.shape
+            view.strides = self.strides
+        else:
+            view.shape = NULL
+            view.strides = NULL
+
+        if flags & PyBUF_FORMAT:
+            view.format = self.format
+        else:
+            view.format = NULL
+
+        view.obj = self
+        view.len = self.shape[0]
+        view.readonly = self.frame.readonly
+        view.itemsize = self.strides[0]
+        view.ndim = 1
+        view.suboffsets = NULL
+        view.internal = NULL
 
 cdef class RawNode(object):
     cdef VSNodeRef *node
