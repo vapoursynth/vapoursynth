@@ -339,7 +339,10 @@ void export_frame_props(const zimg_image_format &format, VSMap *props, const VSA
             vsapi->propDeleteKey(props, key);
     };
 
-    set_int_if_positive("_ChromaLocation", format.chroma_location);
+    if (format.color_family == ZIMG_COLOR_YUV && (format.subsample_w || format.subsample_h))
+        vsapi->propSetInt(props, "_ChromaLocation", format.chroma_location, paReplace);
+    else
+        vsapi->propDeleteKey(props, "_ChromaLocation");
 
     if (format.pixel_range == ZIMG_RANGE_FULL)
         vsapi->propSetInt(props, "_ColorRange", 0, paReplace);
@@ -784,7 +787,13 @@ class vszimg {
         // Avoid propagating source pixel range and chroma location if color family changes.
         if (dst_format->color_family == src_format.color_family) {
             dst_format->pixel_range = src_format.pixel_range;
-            dst_format->chroma_location = src_format.chroma_location;
+
+            if (dst_format->color_family == ZIMG_COLOR_YUV &&
+                (dst_format->subsample_w || dst_format->subsample_h) &&
+                (src_format.subsample_w || src_format.subsample_h))
+            {
+                dst_format->chroma_location = src_format.chroma_location;
+            }
         }
 
         dst_format->field_parity = src_format.field_parity;

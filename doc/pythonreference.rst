@@ -362,8 +362,11 @@ Classes and Functions
       YUV4MPEG2 headers will be added when *y4m* is true.
       The current progress can be reported by passing a callback function of the form *func(current_frame, total_frames)* to *progress_update*.
       The *prefetch* argument is only for debugging purposes and should never need to be changed.
-      
-      
+
+   .. py:method:: frames()
+
+      Returns a generator iterator of all VideoFrames in the clip.
+
 .. py:class:: AlphaOutputTuple
 
       This class is returned by get_output. If a *alpha* was passed to set_output, *get_output* will return an object of this type.
