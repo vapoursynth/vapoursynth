@@ -416,10 +416,7 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
     if (core->memory->isOverLimit()) {
         ticks = 0;
         notifyCaches(true);
-    }
-
-    // a normal tick for caches to adjust their sizes based on recent history
-    if (!context->upstreamContext && ++ticks == 500) {
+    } else if (!context->upstreamContext && ++ticks == 500) { // a normal tick for caches to adjust their sizes based on recent history
         ticks = 0;
         notifyCaches(false);
     }

@@ -668,7 +668,7 @@ cdef void __stdcall frameDoneCallbackRaw(void *data, const VSFrameRef *f, int n,
             result = Error(result)
 
         else:
-            result = createConstVideoFrame(f, d.funcs, d.node.core.core)
+            result = createConstFrame(f, d.funcs, d.node.core.core)
 
         try:
             d.receive(n, result)

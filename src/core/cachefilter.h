@@ -209,16 +209,17 @@ public:
     VSCache cache;
     VSNodeRef *clip;
     VSCore *core;
-    VSNode *node;
-    int lastN;
-    int numThreads;
-    bool makeLinear;
+    VSNode *node = nullptr;
+    int lastN = -1;
+    int numThreads = 0;
+    bool makeLinear = false;
 
-    CacheInstance(VSNodeRef *clip, VSCore *core, bool fixedSize) : cache(20, 20, fixedSize), clip(clip), core(core), node(clip->clip.get()), lastN(-1), numThreads(0), makeLinear(false) {}
+    CacheInstance(VSNodeRef *clip, VSCore *core, bool fixedSize) : cache(20, 20, fixedSize), clip(clip), core(core) {}
 
-    void addCache() {
+    void addCache(VSNodeRef *clip) {
         std::lock_guard<std::mutex> lock(core->cacheLock);
-        assert(node);
+        assert(clip);
+        node = clip->clip.get();
         core->caches.insert(node);
     }
 
