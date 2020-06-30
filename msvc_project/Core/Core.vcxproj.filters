@@ -182,5 +182,8 @@
     <ClInclude Include="..\..\src\core\kernel\cpulevel.h">
       <Filter>Header Files\kernel</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\core\intrusive_ptr.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

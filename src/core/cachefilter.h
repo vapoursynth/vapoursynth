@@ -29,10 +29,9 @@ class VSCache {
 private:
     struct Node {
         inline Node() : key(-1) {}
-        inline Node(int key, const PVideoFrame &frame) : key(key), frame(frame), weakFrame(frame) {}
+        inline Node(int key, const PVSFrameRef &frame) : key(key), frame(frame) {}
         int key;
-        PVideoFrame frame;
-        WVideoFrame weakFrame;
+        PVSFrameRef frame;
         Node *prevNode = nullptr;
         Node *nextNode = nullptr;
     };
@@ -78,26 +77,19 @@ private:
         hash.erase(n.key);
     }
 
-    inline PVideoFrame relink(const int key) {
+    inline PVSFrameRef relink(const int key) {
         auto i = hash.find(key);
 
         if (i == hash.end()) {
             farMiss++;
-            return PVideoFrame();
+            return nullptr;
         }
 
         Node &n = i->second;
 
         if (!n.frame) {
             nearMiss++;
-            try {
-                n.frame = PVideoFrame(n.weakFrame);
-            } catch (std::bad_weak_ptr &) {
-                return PVideoFrame();
-            }
-
-            currentSize++;
-            historySize--;
+            return nullptr;
         }
 
         hits++;
@@ -185,16 +177,13 @@ public:
         farMiss = 0;
     }
 
-    bool insert(const int key, const PVideoFrame &object);
-    PVideoFrame object(const int key);
+    bool insert(const int key, const PVSFrameRef &object);
+    PVSFrameRef object(const int key);
     inline bool contains(const int key) const {
         return hash.count(key) > 0;
     }
-    PVideoFrame operator[](const int key);
 
     bool remove(const int key);
-
-
 
     CacheAction recommendSize();
 

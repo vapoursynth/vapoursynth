@@ -92,11 +92,11 @@ static std::wstring readRegistryValue(const wchar_t *keyName, const wchar_t *val
 #endif
 
 FrameContext::FrameContext(int n, int index, VSNode *clip, const PFrameContext &upstreamContext) :
-    reqOrder(upstreamContext->reqOrder), numFrameRequests(0), n(n), clip(clip), upstreamContext(upstreamContext), userData(nullptr), frameDone(nullptr), error(false), lockOnOutput(true), node(nullptr), lastCompletedN(-1), index(index), lastCompletedNode(nullptr), frameContext(nullptr) {
+    refcount(1), reqOrder(upstreamContext->reqOrder), numFrameRequests(0), n(n), clip(clip), upstreamContext(upstreamContext), userData(nullptr), frameDone(nullptr), error(false), lockOnOutput(true), node(nullptr), lastCompletedN(-1), index(index), lastCompletedNode(nullptr), frameContext(nullptr) {
 }
 
 FrameContext::FrameContext(int n, int index, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput) :
-    reqOrder(0), numFrameRequests(0), n(n), clip(node->clip.get()), userData(userData), frameDone(frameDone), error(false), lockOnOutput(lockOnOutput), node(node), lastCompletedN(-1), index(index), lastCompletedNode(nullptr), frameContext(nullptr) {
+    refcount(1), reqOrder(0), numFrameRequests(0), n(n), clip(node->clip.get()), userData(userData), frameDone(frameDone), error(false), lockOnOutput(lockOnOutput), node(node), lastCompletedN(-1), index(index), lastCompletedNode(nullptr), frameContext(nullptr) {
 }
 
 bool FrameContext::setError(const std::string &errorMsg) {
@@ -109,17 +109,17 @@ bool FrameContext::setError(const std::string &errorMsg) {
 
 ///////////////
 
-ExtFunction::ExtFunction(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core, const VSAPI *vsapi) : func(func), userData(userData), free(free), core(core), vsapi(vsapi) {
+VSFuncRef::VSFuncRef(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core, const VSAPI *vsapi) : refcount(1), func(func), userData(userData), free(free), core(core), vsapi(vsapi) {
     core->functionInstanceCreated();
 }
 
-ExtFunction::~ExtFunction() {
+VSFuncRef::~VSFuncRef() {
     if (free)
         free(userData);
     core->functionInstanceDestroyed();
 }
 
-void ExtFunction::call(const VSMap *in, VSMap *out) {
+void VSFuncRef::call(const VSMap *in, VSMap *out) {
     func(in, out, userData, core, vsapi);
 }
 
@@ -198,27 +198,27 @@ void VSVariant::append(double val) {
     internalSize++;
 }
 
-void VSVariant::append(const std::string &val) {
+void VSVariant::append(const std::string &val, int type) {
     initStorage(ptData);
-    reinterpret_cast<DataList *>(storage)->push_back(std::make_shared<std::string>(val));
+    reinterpret_cast<DataList *>(storage)->push_back(new VSMapData(val, type));
     internalSize++;
 }
 
-void VSVariant::append(const VSNodeRef &val) {  
-    initStorage(val.clip->getNodeType()  == mtVideo ? ptVideoNode : ptAudioNode);
-    reinterpret_cast<NodeList *>(storage)->push_back(val);
+void VSVariant::append(VSNodeRef *val) {  
+    initStorage(val->clip->getNodeType()  == mtVideo ? ptVideoNode : ptAudioNode);
+    reinterpret_cast<NodeList *>(storage)->push_back(PVSNodeRef(val, true));
     internalSize++;
 }
 
-void VSVariant::append(const PVideoFrame &val) {
+void VSVariant::append(const VSFrameRef *val) {
     initStorage(val->getFrameType() == mtVideo ? ptVideoFrame : ptAudioFrame);
-    reinterpret_cast<FrameList *>(storage)->push_back(val);
+    reinterpret_cast<FrameList *>(storage)->push_back(PVSFrameRef(const_cast<VSFrameRef *>(val), true));
     internalSize++;
 }
 
-void VSVariant::append(const PExtFunction &val) {
+void VSVariant::append(VSFuncRef *val) {
     initStorage(ptFunction);
-    reinterpret_cast<FuncList *>(storage)->push_back(val);
+    reinterpret_cast<FuncList *>(storage)->push_back(PVSFuncRef(val, true));
     internalSize++;
 }
 
@@ -334,12 +334,12 @@ void *MemoryUse::allocateLargePage(size_t bytes) const {
         return nullptr;
 
     size_t granularity = largePageSize();
-    size_t allocBytes = VSFrame::alignment + bytes;
+    size_t allocBytes = VSFrameRef::alignment + bytes;
     allocBytes = (allocBytes + (granularity - 1)) & ~(granularity - 1);
     assert(allocBytes % granularity == 0);
 
     // Don't allocate a large page if it would conflict with the buffer recycling logic.
-    if (!isGoodFit(bytes, allocBytes - VSFrame::alignment))
+    if (!isGoodFit(bytes, allocBytes - VSFrameRef::alignment))
         return nullptr;
 
     void *ptr = nullptr;
@@ -352,7 +352,7 @@ void *MemoryUse::allocateLargePage(size_t bytes) const {
         return nullptr;
 
     BlockHeader *header = new (ptr) BlockHeader;
-    header->size = allocBytes - VSFrame::alignment;
+    header->size = allocBytes - VSFrameRef::alignment;
     header->large = true;
     return ptr;
 }
@@ -370,7 +370,7 @@ void *MemoryUse::allocateMemory(size_t bytes) const {
     if (ptr)
         return ptr;
 
-    ptr = vs_aligned_malloc(VSFrame::alignment + bytes, VSFrame::alignment);
+    ptr = vs_aligned_malloc(VSFrameRef::alignment + bytes, VSFrameRef::alignment);
     if (!ptr)
         vsFatal("out of memory: %zu", bytes);
 
@@ -410,19 +410,19 @@ uint8_t *MemoryUse::allocBuffer(size_t bytes) {
             unusedBufferSize -= iter->first;
             uint8_t *buf = iter->second;
             buffers.erase(iter);
-            return buf + VSFrame::alignment;
+            return buf + VSFrameRef::alignment;
         }
     }
 
     uint8_t *buf = static_cast<uint8_t *>(allocateMemory(bytes));
-    return buf + VSFrame::alignment;
+    return buf + VSFrameRef::alignment;
 }
 
 void MemoryUse::freeBuffer(uint8_t *buf) {
     assert(buf);
 
     std::lock_guard<std::mutex> lock(mutex);
-    buf -= VSFrame::alignment;
+    buf -= VSFrameRef::alignment;
 
     const BlockHeader *header = reinterpret_cast<const BlockHeader *>(buf);
     if (!header->size)
@@ -474,7 +474,7 @@ void MemoryUse::signalFree() {
 }
 
 MemoryUse::MemoryUse() : used(0), freeOnZero(false), largePageEnabled(largePageSupported()), memoryWarningIssued(false), unusedBufferSize(0) {
-    assert(VSFrame::alignment >= sizeof(BlockHeader));
+    assert(VSFrameRef::alignment >= sizeof(BlockHeader));
 
     // If the Windows VirtualAlloc bug is present, it is not safe to use large pages by default,
     // because another application could trigger the bug.
@@ -499,9 +499,9 @@ MemoryUse::~MemoryUse() {
 
 ///////////////
 
-VSPlaneData::VSPlaneData(size_t dataSize, MemoryUse &mem) : refCount(1), mem(mem), size(dataSize + 2 * VSFrame::guardSpace) {
+VSPlaneData::VSPlaneData(size_t dataSize, MemoryUse &mem) : refCount(1), mem(mem), size(dataSize + 2 * VSFrameRef::guardSpace) {
 #ifdef VS_FRAME_POOL
-    data = mem.allocBuffer(size + 2 * VSFrame::guardSpace);
+    data = mem.allocBuffer(size + 2 * VSFrameRef::guardSpace);
 #else
     data = vs_aligned_malloc<uint8_t>(size + 2 * VSFrame::guardSpace, VSFrame::alignment);
 #endif
@@ -554,7 +554,7 @@ void VSPlaneData::release() {
 
 ///////////////
 
-VSFrame::VSFrame(const VSVideoFormat *f, int width, int height, const VSFrame *propSrc, VSCore *core) : contentType(mtVideo), format(f), data(), width(width), height(height) {
+VSFrameRef::VSFrameRef(const VSVideoFormat *f, int width, int height, const VSFrameRef *propSrc, VSCore *core) : refcount(1), contentType(mtVideo), format(f), data(), width(width), height(height) {
     if (!f)
         vsFatal("Error in frame creation: null format");
 
@@ -585,7 +585,7 @@ VSFrame::VSFrame(const VSVideoFormat *f, int width, int height, const VSFrame *p
     }
 }
 
-VSFrame::VSFrame(const VSVideoFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core) : contentType(mtVideo), format(f), data(), width(width), height(height) {
+VSFrameRef::VSFrameRef(const VSVideoFormat *f, int width, int height, const VSFrameRef * const *planeSrc, const int *plane, const VSFrameRef *propSrc, VSCore *core) : refcount(1), contentType(mtVideo), format(f), data(), width(width), height(height) {
     if (!f)
         vsFatal("Error in frame creation: null format");
 
@@ -626,7 +626,7 @@ VSFrame::VSFrame(const VSVideoFormat *f, int width, int height, const VSFrame * 
     }
 }
 
-VSFrame::VSFrame(const VSAudioFormat *f, int sampleRate, int numSamples, const VSFrame *propSrc, VSCore *core) : contentType(mtAudio), format(reinterpret_cast<const VSVideoFormat *>(f)), data(), height(sampleRate) {
+VSFrameRef::VSFrameRef(const VSAudioFormat *f, int sampleRate, int numSamples, const VSFrameRef *propSrc, VSCore *core) : refcount(1), contentType(mtAudio), format(reinterpret_cast<const VSVideoFormat *>(f)), data(), height(sampleRate) {
     if (!f)
         vsFatal("Error in frame creation: null format");
 
@@ -647,7 +647,7 @@ VSFrame::VSFrame(const VSAudioFormat *f, int sampleRate, int numSamples, const V
     data[0] = new VSPlaneData(stride[0] * f->numChannels, *core->memory);
 }
 
-VSFrame::VSFrame(const VSFrame &f) {
+VSFrameRef::VSFrameRef(const VSFrameRef &f) : refcount(1) {
     contentType = f.contentType;
     data[0] = f.data[0];
     data[1] = f.data[1];
@@ -667,7 +667,7 @@ VSFrame::VSFrame(const VSFrame &f) {
     properties = f.properties;
 }
 
-VSFrame::~VSFrame() {
+VSFrameRef::~VSFrameRef() {
     data[0]->release();
     if (data[1]) {
         data[1]->release();
@@ -675,14 +675,14 @@ VSFrame::~VSFrame() {
     }
 }
 
-int VSFrame::getStride(int plane) const {
+int VSFrameRef::getStride(int plane) const {
     assert(contentType == mtVideo);
     if (plane < 0 || plane >= numPlanes)
         vsFatal("Requested stride of nonexistent plane %d", plane);
     return stride[plane];
 }
 
-const uint8_t *VSFrame::getReadPtr(int plane) const {
+const uint8_t *VSFrameRef::getReadPtr(int plane) const {
     if (plane < 0 || plane >= numPlanes)
         vsFatal("Requested read pointer for nonexistent plane %d", plane);
 
@@ -692,7 +692,7 @@ const uint8_t *VSFrame::getReadPtr(int plane) const {
         return data[0]->data + guardSpace + plane * stride[0];
 }
 
-uint8_t *VSFrame::getWritePtr(int plane) {
+uint8_t *VSFrameRef::getWritePtr(int plane) {
     if (plane < 0 || plane >= numPlanes)
         vsFatal("Requested write pointer for nonexistent plane %d", plane);
 
@@ -827,7 +827,7 @@ VSFunction::VSFunction(const std::string &argString, VSPublicFunction func, void
 }
 
 VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
-    nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
+    refcount(0), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
 
     if (flags & ~(nfNoCache | nfIsCache | nfMakeLinear))
         throw VSException("Filter " + name  + " specified unknown flags");
@@ -858,7 +858,7 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, VSFilterIni
 }
 
 VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
-    nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
+    refcount(numOutputs), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
 
     if (flags & ~(nfNoCache | nfIsCache | nfMakeLinear))
         throw VSException("Filter " + name + " specified unknown flags");
@@ -883,7 +883,7 @@ VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, int numOutputs, V
 }
 
 VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
-    nodeType(mtAudio), instanceData(instanceData), name(name), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
+    refcount(numOutputs), nodeType(mtAudio), instanceData(instanceData), name(name), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
 
     if (flags & ~(nfNoCache | nfIsCache | nfMakeLinear))
         throw VSException("Filter " + name + " specified unknown flags");
@@ -951,9 +951,10 @@ void VSNode::setVideoInfo(const VSVideoInfo *vi, int numOutputs) {
         this->vi.push_back(vi[i]);
         this->vi.back().flags = flags;
     }
+    refcount = numOutputs;
 }
 
-PVideoFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext &frameCtx) {
+PVSFrameRef VSNode::getFrameInternal(int n, int activationReason, VSFrameContext &frameCtx) {
     const VSFrameRef *r = filterGetFrame(n, activationReason, &instanceData, &frameCtx.ctx->frameContext, &frameCtx, core, &vs_internal_vsapi);
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isSSEStateOk())
@@ -961,41 +962,37 @@ PVideoFrame VSNode::getFrameInternal(int n, int activationReason, VSFrameContext
 #endif
 
     if (r) {
-        PVideoFrame p(r->frame);
-        delete r;
-
-        if (p->getFrameType() == mtVideo) {
-            const VSVideoFormat *fi = p->getVideoFormat();
+        if (r->getFrameType() == mtVideo) {
+            const VSVideoFormat *fi = r->getVideoFormat();
             const VSVideoInfo &lvi = vi[frameCtx.ctx->index];
 
             if (!lvi.format && fi->colorFamily == cmCompat)
                 vsFatal("Illegal compat frame returned by %s.", name.c_str());
             else if (lvi.format && lvi.format != fi)
                 vsFatal("Filter %s declared the format %s (id %d), but it returned a frame with the format %s (id %d).", name.c_str(), lvi.format->name, lvi.format->id, fi->name, fi->id);
-            else if ((lvi.width || lvi.height) && (p->getWidth(0) != lvi.width || p->getHeight(0) != lvi.height))
-                vsFatal("Filter %s declared the size %dx%d, but it returned a frame with the size %dx%d.", name.c_str(), lvi.width, lvi.height, p->getWidth(0), p->getHeight(0));
+            else if ((lvi.width || lvi.height) && (r->getWidth(0) != lvi.width || r->getHeight(0) != lvi.height))
+                vsFatal("Filter %s declared the size %dx%d, but it returned a frame with the size %dx%d.", name.c_str(), lvi.width, lvi.height, r->getWidth(0), r->getHeight(0));
         } else {
-            const VSAudioFormat *fi = p->getAudioFormat();
+            const VSAudioFormat *fi = r->getAudioFormat();
             const VSAudioInfo &lai = ai[frameCtx.ctx->index];
 
             if (lai.format != fi)
                 vsFatal("Filter %s declared the format %s (id %d), but it returned a frame with the format %s (id %d).", name.c_str(), lai.format->name, lai.format->id, fi->name, fi->id);
-            else if (p->getSampleRate() != lai.sampleRate)
-                vsFatal("Filter %s declared the sample rate %d, but it returned a frame with the sample rate %d.", name.c_str(), lai.sampleRate, p->getSampleRate());
-            else if (n == lai.numFrames - 1 && ((lai.numSamples % lai.format->samplesPerFrame) ? (lai.numSamples % lai.format->samplesPerFrame) : lai.format->samplesPerFrame) != p->getFrameLength())
-                vsFatal("Filter %s returned final audio frame with %d samples but %d expected from declared length.", name.c_str(), p->getFrameLength(), ((lai.numSamples % lai.format->samplesPerFrame) ? (lai.numSamples % lai.format->samplesPerFrame) : lai.format->samplesPerFrame));
+            else if (r->getSampleRate() != lai.sampleRate)
+                vsFatal("Filter %s declared the sample rate %d, but it returned a frame with the sample rate %d.", name.c_str(), lai.sampleRate, r->getSampleRate());
+            else if (n == lai.numFrames - 1 && ((lai.numSamples % lai.format->samplesPerFrame) ? (lai.numSamples % lai.format->samplesPerFrame) : lai.format->samplesPerFrame) != r->getFrameLength())
+                vsFatal("Filter %s returned final audio frame with %d samples but %d expected from declared length.", name.c_str(), r->getFrameLength(), ((lai.numSamples % lai.format->samplesPerFrame) ? (lai.numSamples % lai.format->samplesPerFrame) : lai.format->samplesPerFrame));
         }
 
 #ifdef VS_FRAME_GUARD
-        if (!p->verifyGuardPattern())
+        if (!r->verifyGuardPattern())
             vsFatal("Guard memory corrupted in frame %d returned from %s", n, name.c_str());
 #endif
 
-        return p;
+        return const_cast<VSFrameRef *>(r);
     }
 
-    PVideoFrame p;
-    return p;
+    return nullptr;
 }
 
 void VSNode::reserveThread() {
@@ -1016,24 +1013,24 @@ void VSNode::notifyCache(bool needMemory) {
     cache->cache.adjustSize(needMemory);
 }
 
-PVideoFrame VSCore::newVideoFrame(const VSVideoFormat *f, int width, int height, const VSFrame *propSrc) {
-    return std::make_shared<VSFrame>(f, width, height, propSrc, this);
+VSFrameRef *VSCore::newVideoFrame(const VSVideoFormat *f, int width, int height, const VSFrameRef *propSrc) {
+    return new VSFrameRef(f, width, height, propSrc, this);
 }
 
-PVideoFrame VSCore::newVideoFrame(const VSVideoFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *planes, const VSFrame *propSrc) {
-    return std::make_shared<VSFrame>(f, width, height, planeSrc, planes, propSrc, this);
+VSFrameRef *VSCore::newVideoFrame(const VSVideoFormat *f, int width, int height, const VSFrameRef * const *planeSrc, const int *planes, const VSFrameRef *propSrc) {
+    return new VSFrameRef(f, width, height, planeSrc, planes, propSrc, this);
 }
 
-PVideoFrame VSCore::newAudioFrame(const VSAudioFormat *f, int sampleRate, int numSamples, const VSFrame *propSrc) {
-    return std::make_shared<VSFrame>(f, sampleRate, numSamples, propSrc, this);
+VSFrameRef *VSCore::newAudioFrame(const VSAudioFormat *f, int sampleRate, int numSamples, const VSFrameRef *propSrc) {
+    return new VSFrameRef(f, sampleRate, numSamples, propSrc, this);
 }
 
-PVideoFrame VSCore::copyFrame(const PVideoFrame &srcf) {
-    return std::make_shared<VSFrame>(*srcf.get());
+VSFrameRef *VSCore::copyFrame(const VSFrameRef &srcf) {
+    return new VSFrameRef(srcf);
 }
 
-void VSCore::copyFrameProps(const PVideoFrame &src, PVideoFrame &dst) {
-    dst->setProperties(src->getProperties());
+void VSCore::copyFrameProps(const VSFrameRef &src, VSFrameRef &dst) {
+    dst.setProperties(src.getConstProperties());
 }
 
 const VSVideoFormat *VSCore::getVideoFormat(int id) {
@@ -1199,7 +1196,7 @@ const VSAudioFormat *VSCore::queryAudioFormat(int sampleType, int bitsPerSample,
 
     const size_t targetSize = 24000;
     f.samplesPerFrame = targetSize;
-    int sampleMultiple = VSFrame::alignment / 2 /* smallest sample type */;
+    int sampleMultiple = VSFrameRef::alignment / 2 /* smallest sample type */;
     f.samplesPerFrame = (f.samplesPerFrame + sampleMultiple - 1) & ~(sampleMultiple - 1);
 
     audioFormats.insert(std::make_pair(f.id, f));
@@ -1666,12 +1663,12 @@ void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNa
 
 void VSCore::createFilter(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
     try {
-        PNode node(std::make_shared<VSNode>(in, out, name, init, getFrame, free, filterMode, flags, instanceData, apiMajor, this));
+        VSNode *node = new VSNode(in, out, name, init, getFrame, free, filterMode, flags, instanceData, apiMajor, this);
         for (size_t i = 0; i < node->getNumOutputs(); i++) {
             // fixme, not that elegant but saves more variant poking code
             VSNodeRef *ref = new VSNodeRef(node, static_cast<int>(i));
             vs_internal_vsapi.propSetNode(out, "clip", ref, paAppend);
-            delete ref;
+            ref->release();
         }
     } catch (VSException &e) {
         vs_internal_vsapi.setError(out, e.what());
@@ -1680,12 +1677,12 @@ void VSCore::createFilter(const VSMap *in, VSMap *out, const std::string &name, 
 
 void VSCore::createVideoFilter(VSMap *out, const std::string &name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
     try {
-        PNode node(std::make_shared<VSNode>(name, vi, numOutputs, getFrame, free, filterMode, flags, instanceData, apiMajor, this));
+        VSNode *node = new VSNode(name, vi, numOutputs, getFrame, free, filterMode, flags, instanceData, apiMajor, this);
         for (size_t i = 0; i < node->getNumOutputs(); i++) {
             // fixme, not that elegant but saves more variant poking code
             VSNodeRef *ref = new VSNodeRef(node, static_cast<int>(i));
             vs_internal_vsapi.propSetNode(out, "clip", ref, paAppend);
-            delete ref;
+            ref->release();
         }
     } catch (VSException &e) {
         vs_internal_vsapi.setError(out, e.what());
@@ -1694,12 +1691,12 @@ void VSCore::createVideoFilter(VSMap *out, const std::string &name, const VSVide
 
 void VSCore::createAudioFilter(VSMap *out, const std::string &name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
     try {
-        PNode node(std::make_shared<VSNode>(name, ai, numOutputs, getFrame, free, filterMode, flags, instanceData, apiMajor, this));
+        VSNode *node = new VSNode(name, ai, numOutputs, getFrame, free, filterMode, flags, instanceData, apiMajor, this);
         for (size_t i = 0; i < node->getNumOutputs(); i++) {
             // fixme, not that elegant but saves more variant poking code
             VSNodeRef *ref = new VSNodeRef(node, static_cast<int>(i));
             vs_internal_vsapi.propSetNode(out, "clip", ref, paAppend);
-            delete ref;
+            ref->release();
         }
     } catch (VSException &e) {
         vs_internal_vsapi.setError(out, e.what());
@@ -1852,9 +1849,8 @@ static bool hasCompatNodes(const VSMap &m) {
     for (const auto &vsv : m.getStorage()) {
         if (vsv.second.getType() == ptVideoNode) {
             for (size_t i = 0; i < vsv.second.size(); i++) {
-                for (size_t j = 0; j < vsv.second.getValue<VSNodeRef>(i).clip->getNumOutputs(); j++) {
-                    const VSNodeRef &ref = vsv.second.getValue<VSNodeRef>(i);
-                    const VSVideoInfo &vi = ref.clip->getVideoInfo(static_cast<int>(j));
+                for (size_t j = 0; j < vsv.second.getValue<PVSNodeRef>(i)->clip->getNumOutputs(); j++) {
+                    const VSVideoInfo &vi = vsv.second.getValue<PVSNodeRef>(i)->clip->getVideoInfo(static_cast<int>(j));
                     if (vi.format && vi.format->colorFamily == cmCompat)
                         return true;
                 }
@@ -1868,9 +1864,8 @@ static bool hasForeignNodes(const VSMap &m, const VSCore *core) {
     for (const auto &vsv : m.getStorage()) {
         if (vsv.second.getType() == ptVideoNode || vsv.second.getType() == ptAudioNode) {
             for (size_t i = 0; i < vsv.second.size(); i++) {
-                for (size_t j = 0; j < vsv.second.getValue<VSNodeRef>(i).clip->getNumOutputs(); j++) {
-                    const VSNodeRef &ref = vsv.second.getValue<VSNodeRef>(i);
-                    if (!ref.clip->isRightCore(core))
+                for (size_t j = 0; j < vsv.second.getValue<PVSNodeRef>(i)->clip->getNumOutputs(); j++) {
+                    if (!vsv.second.getValue<PVSNodeRef>(i)->clip->isRightCore(core))
                         return true;
                 }
             }
@@ -1954,7 +1949,7 @@ static int alignmentHelper() {
     return getCPUFeatures()->avx512_f ? 64 : 32;
 }
 
-int VSFrame::alignment = alignmentHelper();
+int VSFrameRef::alignment = alignmentHelper();
 #else
-int VSFrame::alignment = 32;
+int VSFrameRef::alignment = 32;
 #endif

@@ -47,7 +47,8 @@ static const VSVideoFormat *VS_CC registerFormat(int colorFamily, int sampleType
 
 static const VSFrameRef *VS_CC cloneFrameRef(const VSFrameRef *frame) VS_NOEXCEPT {
     assert(frame);
-    return new VSFrameRef(frame->frame);
+    const_cast<VSFrameRef *>(frame)->add_ref();
+    return frame;
 }
 
 static VSNodeRef *VS_CC cloneNodeRef(VSNodeRef *node) VS_NOEXCEPT {
@@ -57,28 +58,28 @@ static VSNodeRef *VS_CC cloneNodeRef(VSNodeRef *node) VS_NOEXCEPT {
 
 static int VS_CC getStride(const VSFrameRef *frame, int plane) VS_NOEXCEPT {
     assert(frame);
-    return frame->frame->getStride(plane);
+    return frame->getStride(plane);
 }
 
 static const uint8_t *VS_CC getReadPtr(const VSFrameRef *frame, int plane) VS_NOEXCEPT {
     assert(frame);
-    return frame->frame->getReadPtr(plane);
+    return frame->getReadPtr(plane);
 }
 
 static uint8_t *VS_CC getWritePtr(VSFrameRef *frame, int plane) VS_NOEXCEPT {
     assert(frame);
-    return frame->frame->getWritePtr(plane);
+    return frame->getWritePtr(plane);
 }
 
 static void VS_CC getFrameAsync(int n, VSNodeRef *clip, VSFrameDoneCallback fdc, void *userData) VS_NOEXCEPT {
     assert(clip && fdc);
     int numFrames = (clip->clip->getNodeType() == mtVideo) ? clip->clip->getVideoInfo(clip->index).numFrames : clip->clip->getAudioInfo(clip->index).numFrames;
     if (n < 0 || (numFrames && n >= numFrames)) {
-        PFrameContext ctx(std::make_shared<FrameContext>(n, clip->index, clip, fdc, userData));
+        FrameContext *ctx = new FrameContext(n, clip->index, clip, fdc, userData);
         ctx->setError("Invalid frame number " + std::to_string(n) + " requested, clip only has " + std::to_string(numFrames) + " frames");
         clip->clip->getFrame(ctx);
     } else {
-        clip->clip->getFrame(std::make_shared<FrameContext>(n, clip->index, clip, fdc, userData));
+        clip->clip->getFrame(new FrameContext(n, clip->index, clip, fdc, userData));
     }
 }
 
@@ -113,7 +114,7 @@ static const VSFrameRef *VS_CC getFrame(int n, VSNodeRef *clip, char *errorMsg, 
     bool isWorker = node->isWorkerThread();
     if (isWorker)
         node->releaseThread();
-    node->getFrame(std::make_shared<FrameContext>(n, clip->index, clip, &frameWaiterCallback, &g, false));
+    node->getFrame(new FrameContext(n, clip->index, clip, &frameWaiterCallback, &g, false));
     g.a.wait(l);
     if (isWorker)
         node->reserveThread();
@@ -126,7 +127,7 @@ static void VS_CC requestFrameFilter(int n, VSNodeRef *clip, VSFrameContext *fra
     int numFrames = (clip->clip->getNodeType() == mtVideo) ? clip->clip->getVideoInfo(clip->index).numFrames : clip->clip->getAudioInfo(clip->index).numFrames;
     if (numFrames && n >= numFrames)
         n = numFrames - 1;
-    frameCtx->reqList.push_back(std::make_shared<FrameContext>(n, clip->index, clip->clip.get(), frameCtx->ctx));
+    frameCtx->reqList.push_back(new FrameContext(n, clip->index, clip->clip.get(), frameCtx->ctx));
 }
 
 static const VSFrameRef *VS_CC getFrameFilter(int n, VSNodeRef *clip, VSFrameContext *frameCtx) VS_NOEXCEPT {
@@ -136,40 +137,41 @@ static const VSFrameRef *VS_CC getFrameFilter(int n, VSNodeRef *clip, VSFrameCon
     if (numFrames && n >= numFrames)
         n = numFrames - 1;
     auto ref = frameCtx->ctx->availableFrames.find(NodeOutputKey(clip->clip.get(), n, clip->index));
-    if (ref != frameCtx->ctx->availableFrames.end())
-        return new VSFrameRef(ref->second);
+    if (ref != frameCtx->ctx->availableFrames.end()) {
+        ref->second->add_ref();
+        return ref->second.get();
+    }
     return nullptr;
 }
 
 static void VS_CC freeFrame(const VSFrameRef *frame) VS_NOEXCEPT {
-    delete frame;
+    if (frame)
+        const_cast<VSFrameRef *>(frame)->release();
 }
 
 static void VS_CC freeNode(VSNodeRef *clip) VS_NOEXCEPT {
-    delete clip;
+    if (clip)
+        clip->release();
 }
 
 static VSFrameRef *VS_CC newVideoFrame(const VSVideoFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
     assert(format && core);
-    return new VSFrameRef(core->newVideoFrame(format, width, height, propSrc ? propSrc->frame.get() : nullptr));
+    return core->newVideoFrame(format, width, height, propSrc);
 }
 
 static VSFrameRef *VS_CC newVideoFrame2(const VSVideoFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
     assert(format && core);
-    VSFrame *fp[3];
-    for (int i = 0; i < format->numPlanes; i++)
-        fp[i] = planeSrc[i] ? planeSrc[i]->frame.get() : nullptr;
-    return new VSFrameRef(core->newVideoFrame(format, width, height, fp, planes, propSrc ? propSrc->frame.get() : nullptr));
+    return core->newVideoFrame(format, width, height, planeSrc, planes, propSrc);
 }
 
 static VSFrameRef *VS_CC copyFrame(const VSFrameRef *frame, VSCore *core) VS_NOEXCEPT {
     assert(frame && core);
-    return new VSFrameRef(core->copyFrame(frame->frame));
+    return core->copyFrame(*frame);
 }
 
 static void VS_CC copyFrameProps(const VSFrameRef *src, VSFrameRef *dst, VSCore *core) VS_NOEXCEPT {
     assert(src && dst && core);
-    core->copyFrameProps(src->frame, dst->frame);
+    core->copyFrameProps(*src, *dst);
 }
 
 static void VS_CC createFilter(const VSMap *in, VSMap *out, const char *name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT {
@@ -210,29 +212,29 @@ static void VS_CC setVideoInfo(const VSVideoInfo *vi, int numOutputs, VSNode *c)
 
 static const VSVideoFormat *VS_CC getFrameFormat(const VSFrameRef *f) VS_NOEXCEPT {
     assert(f);
-    return f->frame->getVideoFormat();
+    return f->getVideoFormat();
 }
 
 static int VS_CC getFrameWidth(const VSFrameRef *f, int plane) VS_NOEXCEPT {
     assert(f);
     assert(plane >= 0);
-    return f->frame->getWidth(plane);
+    return f->getWidth(plane);
 }
 
 static int VS_CC getFrameHeight(const VSFrameRef *f, int plane) VS_NOEXCEPT {
     assert(f);
     assert(plane >= 0);
-    return f->frame->getHeight(plane);
+    return f->getHeight(plane);
 }
 
 static const VSMap *VS_CC getFramePropsRO(const VSFrameRef *frame) VS_NOEXCEPT {
     assert(frame);
-    return &frame->frame->getConstProperties();
+    return &frame->getConstProperties();
 }
 
 static VSMap *VS_CC getFramePropsRW(VSFrameRef *frame) VS_NOEXCEPT {
     assert(frame);
-    return &frame->frame->getProperties();
+    return &frame->getProperties();
 }
 
 static int VS_CC propNumKeys(const VSMap *map) VS_NOEXCEPT {
@@ -322,19 +324,19 @@ static double VS_CC propGetFloat(const VSMap *map, const char *key, int index, i
 }
 
 static const char *VS_CC propGetData(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    PROP_GET_SHARED(ptData, l->getValue<VSMapData>(index)->c_str())
+    PROP_GET_SHARED(ptData, l->getValue<PVSMapData>(index)->data.c_str())
 }
 
 static int VS_CC propGetDataSize(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    PROP_GET_SHARED(ptData, static_cast<int>(l->getValue<VSMapData>(index)->size()))
+    PROP_GET_SHARED(ptData, static_cast<int>(l->getValue<PVSMapData>(index)->data.size()))
 }
 
 static VSNodeRef *VS_CC propGetNode(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    PROP_GET_SHARED2(ptVideoNode, ptAudioNode, new VSNodeRef(l->getValue<VSNodeRef>(index)))
+    PROP_GET_SHARED2(ptVideoNode, ptAudioNode, (l->getValue<PVSNodeRef>(index)->add_ref(), l->getValue<PVSNodeRef>(index).get()))
 }
 
 static const VSFrameRef *VS_CC propGetFrame(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    PROP_GET_SHARED2(ptVideoFrame, ptAudioFrame, new VSFrameRef(l->getValue<PVideoFrame>(index)))
+    PROP_GET_SHARED2(ptVideoFrame, ptAudioFrame, (l->getValue<PVSFrameRef>(index)->add_ref(), l->getValue<PVSFrameRef>(index).get()))
 }
 
 static int VS_CC propDeleteKey(VSMap *map, const char *key) VS_NOEXCEPT {
@@ -400,12 +402,12 @@ static int VS_CC propSetData(VSMap *map, const char *key, const char *d, int len
 
 static int VS_CC propSetNode(VSMap *map, const char *key, VSNodeRef *node, int append) VS_NOEXCEPT {
     VSPropTypes nodeType = (node == nullptr || node->clip->getNodeType() == mtVideo) ? ptVideoNode : ptAudioNode;
-    PROP_SET_SHARED(nodeType, *node)
+    PROP_SET_SHARED(nodeType, node)
 }
 
 static int VS_CC propSetFrame(VSMap *map, const char *key, const VSFrameRef *frame, int append) VS_NOEXCEPT {
-    VSPropTypes frameType = (frame == nullptr || frame->frame->getFrameType() == mtVideo) ? ptVideoFrame : ptAudioFrame;
-    PROP_SET_SHARED(frameType, frame->frame)
+    VSPropTypes frameType = (frame == nullptr || frame->getFrameType() == mtVideo) ? ptVideoFrame : ptAudioFrame;
+    PROP_SET_SHARED(frameType, frame)
 }
 
 static VSMap *VS_CC invoke(VSPlugin *plugin, const char *name, const VSMap *args) VS_NOEXCEPT {
@@ -461,26 +463,27 @@ static const VSCoreInfo *VS_CC getCoreInfo(VSCore *core) VS_NOEXCEPT {
 }
 
 static VSFuncRef *VS_CC propGetFunc(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    PROP_GET_SHARED(ptFunction, new VSFuncRef(l->getValue<PExtFunction>(index)))
+    PROP_GET_SHARED(ptFunction, (l->getValue<PVSFuncRef>(index)->add_ref(), l->getValue<PVSFuncRef>(index).get()))
 }
 
 static int VS_CC propSetFunc(VSMap *map, const char *key, VSFuncRef *func, int append) VS_NOEXCEPT {
     assert(func);
-    PROP_SET_SHARED(ptFunction, func->func)
+    PROP_SET_SHARED(ptFunction, func)
 }
 
 static void VS_CC callFunc(VSFuncRef *func, const VSMap *in, VSMap *out, VSCore *core, const VSAPI *vsapi) VS_NOEXCEPT {
     assert(func && in && out);
-    func->func->call(in, out);
+    func->call(in, out);
 }
 
 static VSFuncRef *VS_CC createFunc(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core, const VSAPI *vsapi) VS_NOEXCEPT {
     assert(func && core && vsapi);
-    return new VSFuncRef(std::make_shared<ExtFunction>(func, userData, free, core, vsapi));
+    return new VSFuncRef(func, userData, free, core, vsapi);
 }
 
 static void VS_CC freeFunc(VSFuncRef *f) VS_NOEXCEPT {
-    delete f;
+    if (f)
+        f->release();
 }
 
 static void VS_CC queryCompletedFrame(VSNodeRef **node, int *n, VSFrameContext *frameCtx) VS_NOEXCEPT {
@@ -494,9 +497,10 @@ static void VS_CC releaseFrameEarly(VSNodeRef *node, int n, VSFrameContext *fram
     frameCtx->ctx->availableFrames.erase(NodeOutputKey(node->clip.get(), n, node->index));
 }
 
-static VSFuncRef *VS_CC cloneFuncRef(VSFuncRef *f) VS_NOEXCEPT {
-    assert(f);
-    return new VSFuncRef(f->func);
+static VSFuncRef *VS_CC cloneFuncRef(VSFuncRef *func) VS_NOEXCEPT {
+    assert(func);
+    func->add_ref();
+    return func;
 }
 
 static int64_t VS_CC setMaxCacheSize(int64_t bytes, VSCore *core) VS_NOEXCEPT {
@@ -606,7 +610,7 @@ static void VS_CC createAudioFilter(VSMap *out, const char *name, const VSAudioI
 
 static VSFrameRef *VS_CC newAudioFrame(const VSAudioFormat *format, int sampleRate, int numSamples, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
     assert(format && core && numSamples > 0 && sampleRate > 0);
-    return new VSFrameRef(core->newAudioFrame(format, sampleRate, numSamples, propSrc ? propSrc->frame.get() : nullptr));
+    return core->newAudioFrame(format, sampleRate, numSamples, propSrc);
 }
 
 static const VSAudioFormat *VS_CC queryAudioFormat(int sampleType, int bitsPerSample, int64_t channelLayout, VSCore *core) VS_NOEXCEPT {
@@ -623,7 +627,7 @@ static const VSAudioInfo *VS_CC getAudioInfo(VSNodeRef *node) VS_NOEXCEPT {
 }
 
 static const VSAudioFormat *VS_CC getAudioFrameFormat(const VSFrameRef *f) VS_NOEXCEPT {
-    return f->frame->getAudioFormat();
+    return f->getAudioFormat();
 }
 
 static int VS_CC getNodeType(VSNodeRef *node) VS_NOEXCEPT {
@@ -633,12 +637,12 @@ static int VS_CC getNodeType(VSNodeRef *node) VS_NOEXCEPT {
 
 static int VS_CC getFrameType(const VSFrameRef *f) VS_NOEXCEPT {
     assert(f);
-    return f->frame->getFrameType();
+    return f->getFrameType();
 }
 
 static int VS_CC getFrameLength(const VSFrameRef *f) VS_NOEXCEPT {
     assert(f);
-    return f->frame->getFrameLength();
+    return f->getFrameLength();
 }
 
 const VSAPI vs_internal_vsapi = {

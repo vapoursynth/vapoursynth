@@ -23,6 +23,7 @@
 
 #include "VapourSynth.h"
 #include "vslog.h"
+#include "intrusive_ptr.h"
 #include <cstdlib>
 #include <stdexcept>
 #include <string>
@@ -57,19 +58,22 @@ static const uint32_t VS_FRAME_GUARD_PATTERN = 0xDEADBEEF;
 // Internal only filter mode for use by caches to make requests more linear
 const int fmUnorderedLinear = fmUnordered + 13;
 
-class VSFrame;
+struct VSFrameRef;
 struct VSCore;
 class VSCache;
 struct VSNode;
+struct VSNodeRef;
 class VSThreadPool;
 class FrameContext;
-class ExtFunction;
+struct VSFuncRef;
+class VSMapData;
 
-typedef std::shared_ptr<VSFrame> PVideoFrame;
-typedef std::weak_ptr<VSFrame> WVideoFrame;
-typedef std::shared_ptr<VSNode> PNode;
-typedef std::shared_ptr<ExtFunction> PExtFunction;
-typedef std::shared_ptr<FrameContext> PFrameContext;
+typedef vs_intrusive_ptr<VSFrameRef> PVSFrameRef;
+typedef vs_intrusive_ptr<VSNode> PVSNode;
+typedef vs_intrusive_ptr<VSNodeRef> PVSNodeRef;
+typedef vs_intrusive_ptr<VSFuncRef> PVSFuncRef;
+typedef vs_intrusive_ptr<FrameContext> PFrameContext;
+typedef vs_intrusive_ptr<VSMapData> PVSMapData;
 
 extern const VSAPI vs_internal_vsapi;
 const VSAPI *getVSAPIInternal(int apiMajor);
@@ -93,25 +97,54 @@ public:
     }
 };
 
-// variant types
-typedef std::shared_ptr<std::string> VSMapData;
+class VSMapData {
+private:
+    std::atomic<long> refcount;
+public:
+    int dataType;
+    std::string data;
+
+    VSMapData(const std::string &data, int dataType) noexcept : refcount(1), data(data), dataType(dataType) {
+
+    }
+
+    void add_ref() noexcept {
+        ++refcount;
+    }
+
+    void release() noexcept {
+        if (--refcount == 0)
+            delete this;
+    }
+};
+
 typedef std::vector<int64_t> IntList;
 typedef std::vector<double> FloatList;
-typedef std::vector<VSMapData> DataList;
-typedef std::vector<VSNodeRef> NodeList;
-typedef std::vector<PVideoFrame> FrameList;
-typedef std::vector<PExtFunction> FuncList;
+typedef std::vector<PVSMapData> DataList;
+typedef std::vector<PVSNodeRef> NodeList;
+typedef std::vector<PVSFrameRef> FrameList;
+typedef std::vector<PVSFuncRef> FuncList;
 
-class ExtFunction {
+struct VSFuncRef {
 private:
+    std::atomic<long> refcount;
     VSPublicFunction func;
     void *userData;
     VSFreeFuncData free;
     VSCore *core;
     const VSAPI *vsapi;
+    ~VSFuncRef();
 public:
-    ExtFunction(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core, const VSAPI *vsapi);
-    ~ExtFunction();
+    void add_ref() noexcept {
+        ++refcount;
+    }
+
+    void release() noexcept {
+        if (--refcount == 0)
+            delete this;
+    }
+
+    VSFuncRef(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core, const VSAPI *vsapi);
     void call(const VSMap *in, VSMap *out);
 };
 
@@ -127,10 +160,10 @@ public:
 
     void append(int64_t val);
     void append(double val);
-    void append(const std::string &val);
-    void append(const VSNodeRef &val);
-    void append(const PVideoFrame &val);
-    void append(const PExtFunction &val);
+    void append(const std::string &val, int type = 0);
+    void append(VSNodeRef *val);
+    void append(const VSFrameRef *val);
+    void append(VSFuncRef *val);
 
     template<typename T>
     const T &getValue(size_t index) const {
@@ -162,7 +195,7 @@ private:
 
 class VSMapStorage {
 private:
-    std::atomic<int> refCount;
+    std::atomic<long> refCount;
 public:
     std::map<std::string, VSVariant> data;
     bool error;
@@ -171,15 +204,15 @@ public:
 
     VSMapStorage(const VSMapStorage &s) : refCount(1), data(s.data), error(s.error) {}
 
-    bool unique() {
+    bool unique() noexcept {
         return (refCount == 1);
     };
 
-    void addRef() {
+    void addRef() noexcept {
         ++refCount;
     }
 
-    void release() {
+    void release() noexcept {
         if (!--refCount)
             delete this;
     }
@@ -272,7 +305,7 @@ public:
     void setError(const std::string &errMsg) {
         clear();
         VSVariant v(ptData);
-        v.append(errMsg);
+        v.append(errMsg, 1);
         insert("_Error", std::move(v));
         data->error = true;
     }
@@ -282,32 +315,28 @@ public:
     }
 
     const std::string &getErrorMessage() const {
-        return *((*this)["_Error"].getValue<VSMapData>(0).get());
+        return (*this)["_Error"].getValue<PVSMapData>(0)->data;
     }
 };
 
-
-
-struct VSFrameRef {
-    PVideoFrame frame;
-    VSFrameRef(const PVideoFrame &frame) : frame(frame) {}
-    VSFrameRef(PVideoFrame &&frame) : frame(frame) {}
-};
-
 struct VSNodeRef {
-    PNode clip;
+private:
+    std::atomic<long> refcount;
+public:
+    PVSNode clip; // fixme, should be simple pointer that's released on zero vsnoderef refs
     int index;
-    VSNodeRef(const PNode &clip, int index) : clip(clip), index(index) {}
-    VSNodeRef(PNode &&clip, int index) : clip(clip), index(index) {}
+    VSNodeRef(const PVSNode &clip, int index) noexcept : refcount(1), clip(clip), index(index) {}
+    ~VSNodeRef() {};
+
+    void add_ref() noexcept {
+        ++refcount;
+    }
+
+    void release() noexcept {
+        if (--refcount == 0)
+            delete this;
+    }
 };
-
-struct VSFuncRef {
-    PExtFunction func;
-    VSFuncRef(const PExtFunction &func) : func(func) {}
-    VSFuncRef(PExtFunction &&func) : func(func) {}
-};
-
-
 
 class FilterArgument {
 public:
@@ -377,8 +406,9 @@ public:
     void release();
 };
 
-class VSFrame {
+struct VSFrameRef {
 private:
+    std::atomic<long> refcount;
     VSMediaType contentType;
     const VSVideoFormat *format; /* used for VSAudioFormat with audio */
     VSPlaneData *data[3]; /* only the first data pointer is ever used for audio and is subdivided using the internal offset in height */
@@ -397,11 +427,20 @@ public:
     static const int guardSpace = 0;
 #endif
 
-    VSFrame(const VSVideoFormat *f, int width, int height, const VSFrame *propSrc, VSCore *core);
-    VSFrame(const VSVideoFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core);
-    VSFrame(const VSAudioFormat *f, int sampleRate, int numSamples, const VSFrame *propSrc, VSCore *core);
-    VSFrame(const VSFrame &f);
-    ~VSFrame();
+    VSFrameRef(const VSVideoFormat *f, int width, int height, const VSFrameRef *propSrc, VSCore *core);
+    VSFrameRef(const VSVideoFormat *f, int width, int height, const VSFrameRef * const *planeSrc, const int *plane, const VSFrameRef *propSrc, VSCore *core);
+    VSFrameRef(const VSAudioFormat *f, int sampleRate, int numSamples, const VSFrameRef *propSrc, VSCore *core);
+    VSFrameRef(const VSFrameRef &f);
+    ~VSFrameRef();
+
+    void add_ref() noexcept {
+        ++refcount;
+    }
+
+    void release() noexcept {
+        if (--refcount == 0)
+            delete this;
+    }
 
     VSMediaType getFrameType() const {
         return contentType;
@@ -452,11 +491,12 @@ public:
 class FrameContext {
     friend class VSThreadPool;
 private:
+    std::atomic<long> refcount;
     uintptr_t reqOrder;
     unsigned numFrameRequests;
     int n;
     VSNode *clip;
-    PVideoFrame returnedFrame;
+    PVSFrameRef returnedFrame;
     PFrameContext upstreamContext;
     PFrameContext notificationChain;
     void *userData;
@@ -466,19 +506,31 @@ private:
     bool lockOnOutput;
 public:
     VSNodeRef *node;
-    std::map<NodeOutputKey, PVideoFrame> availableFrames;
+    std::map<NodeOutputKey, PVSFrameRef> availableFrames;
     int lastCompletedN;
     int index;
     VSNodeRef *lastCompletedNode;
 
     void *frameContext;
-    bool setError(const std::string &errorMsg);
+
+    void add_ref() noexcept {
+        ++refcount;
+    }
+
+    void release() noexcept {
+        if (--refcount == 0)
+            delete this;
+    }
+
     inline bool hasError() const {
         return error;
     }
+
     const std::string &getErrorMessage() {
         return errorMessage;
     }
+
+    bool setError(const std::string &errorMsg);
     FrameContext(int n, int index, VSNode *clip, const PFrameContext &upstreamContext);
     FrameContext(int n, int index, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput = true);
 };
@@ -487,6 +539,7 @@ struct VSNode {
     friend class VSThreadPool;
     friend struct VSCore;
 private:
+    std::atomic<long> refcount;
     VSMediaType nodeType;
     void *instanceData;
     std::string name;
@@ -510,13 +563,21 @@ private:
     std::mutex concurrentFramesMutex;
     std::set<int> concurrentFrames;
 
-    PVideoFrame getFrameInternal(int n, int activationReason, VSFrameContext &frameCtx);
+    PVSFrameRef getFrameInternal(int n, int activationReason, VSFrameContext &frameCtx);
 public:
     VSNode(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core);
     VSNode(const std::string &name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core);
     VSNode(const std::string &name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core);
-
     ~VSNode();
+
+    void add_ref() noexcept {
+        ++refcount;
+    }
+
+    void release() noexcept {
+        if (--refcount == 0)
+            delete this;
+    }
 
     VSMediaType getNodeType() const {
         return nodeType;
@@ -582,7 +643,7 @@ private:
 public:
     VSThreadPool(VSCore *core, int threads);
     ~VSThreadPool();
-    void returnFrame(const PFrameContext &rCtx, const PVideoFrame &f);
+    void returnFrame(const PFrameContext &rCtx, const PVSFrameRef &f);
     void returnFrame(const PFrameContext &rCtx, const std::string &errMsg);
     int threadCount();
     int setThreadCount(int threads);
@@ -677,11 +738,11 @@ public:
     VSThreadPool *threadPool;
     MemoryUse *memory;
 
-    PVideoFrame newVideoFrame(const VSVideoFormat *f, int width, int height, const VSFrame *propSrc);
-    PVideoFrame newVideoFrame(const VSVideoFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *planes, const VSFrame *propSrc);
-    PVideoFrame newAudioFrame(const VSAudioFormat *f, int sampleRate, int numSamples, const VSFrame *propSrc);
-    PVideoFrame copyFrame(const PVideoFrame &srcf);
-    void copyFrameProps(const PVideoFrame &src, PVideoFrame &dst);
+    VSFrameRef *newVideoFrame(const VSVideoFormat *f, int width, int height, const VSFrameRef *propSrc);
+    VSFrameRef *newVideoFrame(const VSVideoFormat *f, int width, int height, const VSFrameRef * const *planeSrc, const int *planes, const VSFrameRef *propSrc);
+    VSFrameRef *newAudioFrame(const VSAudioFormat *f, int sampleRate, int numSamples, const VSFrameRef *propSrc);
+    VSFrameRef *copyFrame(const VSFrameRef &srcf);
+    void copyFrameProps(const VSFrameRef &src, VSFrameRef &dst);
 
     const VSVideoFormat *getVideoFormat(int id);
     const VSAudioFormat *getAudioFormat(int id);

@@ -209,7 +209,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 #ifdef VS_FRAME_REQ_DEBUG
             vsWarning("Entering: %s Frame: %d Index: %d AR: %d Req: %d", mainContext->clip->name.c_str(), mainContext->n, mainContext->index, (int)ar, (int)mainContext->reqOrder);
 #endif
-            PVideoFrame f;
+            PVSFrameRef f;
             if (!skipCall)
                 f = clip->getFrameInternal(mainContext->n, ar, externalFrameCtx);
             ranTask = true;
@@ -376,16 +376,16 @@ void VSThreadPool::start(const PFrameContext &context) {
     startInternal(context);
 }
 
-void VSThreadPool::returnFrame(const PFrameContext &rCtx, const PVideoFrame &f) {
+void VSThreadPool::returnFrame(const PFrameContext &rCtx, const PVSFrameRef &f) {
     assert(rCtx->frameDone);
     bool outputLock = rCtx->lockOnOutput;
     // we need to unlock here so the callback may request more frames without causing a deadlock
     // AND so that slow callbacks will only block operations in this thread, not all the others
     lock.unlock();
-    VSFrameRef *ref = new VSFrameRef(f);
+    f->add_ref();
     if (outputLock)
         callbackLock.lock();
-    rCtx->frameDone(rCtx->userData, ref, rCtx->n, rCtx->node, nullptr);
+    rCtx->frameDone(rCtx->userData, f.get(), rCtx->n, rCtx->node, nullptr);
     if (outputLock)
         callbackLock.unlock();
     lock.lock();

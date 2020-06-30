@@ -58,13 +58,8 @@ inline VSCache::VSCache(int maxSize, int maxHistorySize, bool fixedSize)
     clear();
 }
 
-inline PVideoFrame VSCache::object(const int key) {
+inline PVSFrameRef VSCache::object(const int key) {
     return this->relink(key);
-}
-
-
-inline PVideoFrame VSCache::operator[](const int key) {
-    return object(key);
 }
 
 inline bool VSCache::remove(const int key) {
@@ -79,7 +74,7 @@ inline bool VSCache::remove(const int key) {
 }
 
 
-bool VSCache::insert(const int akey, const PVideoFrame &aobject) {
+bool VSCache::insert(const int akey, const PVSFrameRef &aobject) {
     assert(aobject);
     assert(akey >= 0);
     remove(akey);
@@ -169,10 +164,12 @@ static const VSFrameRef *VS_CC cacheGetframe(int n, int activationReason, void *
     intptr_t *fd = (intptr_t *)frameData;
 
     if (activationReason == arInitial) {
-        PVideoFrame f(c->cache[n]);
+        PVSFrameRef f = c->cache.object(n);
 
-        if (f)
-            return new VSFrameRef(f);
+        if (f) {
+            f->add_ref();
+            return f.get();
+        }
 
         if (c->makeLinear && n != c->lastN + 1 && n > c->lastN && n < c->lastN + c->numThreads + extraFrames) {
             for (int i = c->lastN + 1; i <= n; i++)
@@ -189,13 +186,12 @@ static const VSFrameRef *VS_CC cacheGetframe(int n, int activationReason, void *
         if (*fd >= -1) {
             for (intptr_t i = *fd + 1; i < n; i++) {
                 const VSFrameRef *r = vsapi->getFrameFilter((int)i, c->clip, frameCtx);
-                c->cache.insert((int)i, r->frame);
-                vsapi->freeFrame(r);
+                c->cache.insert((int)i, const_cast<VSFrameRef *>(r));
             }
         }
 
         const VSFrameRef *r = vsapi->getFrameFilter(n, c->clip, frameCtx);
-        c->cache.insert(n, r->frame);
+        c->cache.insert(n, PVSFrameRef(const_cast<VSFrameRef *>(r), true));
         return r;
     }
 
