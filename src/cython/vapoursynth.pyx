@@ -2059,7 +2059,7 @@ cdef class AudioNode(RawNode):
             raise TypeError("index must be int or slice")
 
     def frames(self):
-        for frameno in range(len(self)):
+        for frameno in range(self.num_frames):
             yield self.get_frame(frameno)
             
     def __dir__(self):
