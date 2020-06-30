@@ -30,6 +30,7 @@
 #include <cstring>
 #include <cassert>
 #include <vector>
+#include <deque>
 #include <list>
 #include <set>
 #include <map>
@@ -610,10 +611,23 @@ public:
     void notifyCache(bool needMemory);
 };
 
+#define NUM_FRAMECONTEXT_FAST_REQS 5
+
 struct VSFrameContext {
     PFrameContext &ctx;
-    std::vector<PFrameContext> reqList;
-    VSFrameContext(PFrameContext &ctx) : ctx(ctx) {}
+    PFrameContext reqList[NUM_FRAMECONTEXT_FAST_REQS];
+    std::deque<PFrameContext> reqList2;
+    size_t numReqs = 0;
+
+    VSFrameContext(PFrameContext &ctx) noexcept : ctx(ctx) {}
+
+    void requestFrame(FrameContext *ctx) noexcept {
+        if (numReqs < NUM_FRAMECONTEXT_FAST_REQS)
+            reqList[numReqs] = ctx;
+        else
+            reqList2.emplace_back(ctx);
+        numReqs++;
+    }
 };
 
 class VSThreadPool {

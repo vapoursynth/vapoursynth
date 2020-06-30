@@ -762,6 +762,8 @@ VSFunction::VSFunction(const std::string &argString, VSPublicFunction func, void
     : argString(argString), functionData(functionData), func(func) {
     std::vector<std::string> argList;
     split(argList, argString, std::string(";"), split1::no_empties);
+
+    args.reserve(argList.size());
     for(const std::string &arg : argList) {
         std::vector<std::string> argParts;
         split(argParts, arg, std::string(":"), split1::no_empties);
@@ -871,6 +873,7 @@ VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, int numOutputs, V
 
     core->filterInstanceCreated();
 
+    this->vi.reserve(numOutputs);
     for (int i = 0; i < numOutputs; i++) {
         if (vi[i].format && !core->isValidFormatPointer(vi[i].format))
             vsFatal("The VSVideoFormat pointer passed by %s was not obtained from registerFormat() or getFormatPreset().", name.c_str());
@@ -896,6 +899,7 @@ VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, int numOutputs, V
 
     core->filterInstanceCreated();
 
+    this->ai.reserve(numOutputs);
     for (int i = 0; i < numOutputs; i++) {
         if (ai[i].format && !core->isValidFormatPointer(ai[i].format))
             vsFatal("The VSVideoFormat pointer passed by %s was not obtained from queryAudioFormat() or getAudioFormat().", name.c_str());

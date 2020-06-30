@@ -125,9 +125,9 @@ static void VS_CC requestFrameFilter(int n, VSNodeRef *clip, VSFrameContext *fra
     assert(clip && frameCtx);
     // FIXME, mirror frame count into node to make lookup faster?
     int numFrames = (clip->clip->getNodeType() == mtVideo) ? clip->clip->getVideoInfo(clip->index).numFrames : clip->clip->getAudioInfo(clip->index).numFrames;
-    if (numFrames && n >= numFrames)
+    if (n >= numFrames)
         n = numFrames - 1;
-    frameCtx->reqList.push_back(new FrameContext(n, clip->index, clip->clip.get(), frameCtx->ctx));
+    frameCtx->requestFrame(new FrameContext(n, clip->index, clip->clip.get(), frameCtx->ctx));
 }
 
 static const VSFrameRef *VS_CC getFrameFilter(int n, VSNodeRef *clip, VSFrameContext *frameCtx) VS_NOEXCEPT {

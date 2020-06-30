@@ -240,15 +240,22 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Handle frames that were requested
-            bool requestedFrames = !externalFrameCtx.reqList.empty() && !frameProcessingDone;
+            bool requestedFrames = externalFrameCtx.numReqs > 0 && !frameProcessingDone;
 
             if (!isLinear)
                 lock.lock();
 
             if (requestedFrames) {
-                for (auto &reqIter : externalFrameCtx.reqList)
-                    owner->startInternal(reqIter);
-                externalFrameCtx.reqList.clear();
+                size_t reqEnd = std::min<size_t>(externalFrameCtx.numReqs, NUM_FRAMECONTEXT_FAST_REQS);
+                for (size_t i = 0; i < reqEnd; i++) {
+                    owner->startInternal(externalFrameCtx.reqList[i]);
+                    externalFrameCtx.reqList[i] = {};
+                }
+                if (externalFrameCtx.numReqs > NUM_FRAMECONTEXT_FAST_REQS) {
+                    for (auto &reqIter : externalFrameCtx.reqList2)
+                        owner->startInternal(reqIter);
+                    externalFrameCtx.reqList2.clear();
+                }
             }
 
             if (frameProcessingDone)
