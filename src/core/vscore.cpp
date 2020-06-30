@@ -499,7 +499,7 @@ MemoryUse::~MemoryUse() {
 
 ///////////////
 
-VSPlaneData::VSPlaneData(size_t dataSize, MemoryUse &mem) : refCount(1), mem(mem), size(dataSize + 2 * VSFrameRef::guardSpace) {
+VSPlaneData::VSPlaneData(size_t dataSize, MemoryUse &mem) : refcount(1), mem(mem), size(dataSize + 2 * VSFrameRef::guardSpace) {
 #ifdef VS_FRAME_POOL
     data = mem.allocBuffer(size + 2 * VSFrameRef::guardSpace);
 #else
@@ -517,7 +517,7 @@ VSPlaneData::VSPlaneData(size_t dataSize, MemoryUse &mem) : refCount(1), mem(mem
 #endif
 }
 
-VSPlaneData::VSPlaneData(const VSPlaneData &d) : refCount(1), mem(d.mem), size(d.size) {
+VSPlaneData::VSPlaneData(const VSPlaneData &d) : refcount(1), mem(d.mem), size(d.size) {
 #ifdef VS_FRAME_POOL
     data = mem.allocBuffer(size);
 #else
@@ -539,16 +539,16 @@ VSPlaneData::~VSPlaneData() {
     mem.subtract(size);
 }
 
-bool VSPlaneData::unique() {
-    return (refCount == 1);
+bool VSPlaneData::unique() noexcept {
+    return (refcount == 1);
 }
 
-void VSPlaneData::addRef() {
-    ++refCount;
+void VSPlaneData::add_ref() noexcept {
+    ++refcount;
 }
 
-void VSPlaneData::release() {
-    if (!--refCount)
+void VSPlaneData::release() noexcept {
+    if (!--refcount)
         delete this;
 }
 
@@ -615,7 +615,7 @@ VSFrameRef::VSFrameRef(const VSVideoFormat *f, int width, int height, const VSFr
             if (planeSrc[i]->getHeight(plane[i]) != getHeight(i) || planeSrc[i]->getWidth(plane[i]) != getWidth(i))
                 vsFatal("Error in frame creation: dimensions of plane %d do not match. Source: %dx%d; destination: %dx%d", plane[i], planeSrc[i]->getWidth(plane[i]), planeSrc[i]->getHeight(plane[i]), getWidth(i), getHeight(i));
             data[i] = planeSrc[i]->data[plane[i]];
-            data[i]->addRef();
+            data[i]->add_ref();
         } else {
             if (i == 0) {
                 data[i] = new VSPlaneData(stride[i] * height, *core->memory);
@@ -652,10 +652,10 @@ VSFrameRef::VSFrameRef(const VSFrameRef &f) : refcount(1) {
     data[0] = f.data[0];
     data[1] = f.data[1];
     data[2] = f.data[2];
-    data[0]->addRef();
+    data[0]->add_ref();
     if (data[1]) {
-        data[1]->addRef();
-        data[2]->addRef();
+        data[1]->add_ref();
+        data[2]->add_ref();
     }
     format = f.format;
     numPlanes = f.numPlanes;

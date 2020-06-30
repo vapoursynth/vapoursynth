@@ -196,25 +196,25 @@ private:
 
 class VSMapStorage {
 private:
-    std::atomic<long> refCount;
+    std::atomic<long> refcount;
 public:
     std::map<std::string, VSVariant> data;
     bool error;
 
-    VSMapStorage() : refCount(1), error(false) {}
+    VSMapStorage() : refcount(1), error(false) {}
 
-    VSMapStorage(const VSMapStorage &s) : refCount(1), data(s.data), error(s.error) {}
+    VSMapStorage(const VSMapStorage &s) : refcount(1), data(s.data), error(s.error) {}
 
     bool unique() noexcept {
-        return (refCount == 1);
+        return (refcount == 1);
     };
 
-    void addRef() noexcept {
-        ++refCount;
+    void add_ref() noexcept {
+        ++refcount;
     }
 
     void release() noexcept {
-        if (!--refCount)
+        if (!--refcount)
             delete this;
     }
 };
@@ -226,7 +226,7 @@ public:
     VSMap() : data(new VSMapStorage()) {}
 
     VSMap(const VSMap &map) : data(map.data) {
-        data->addRef();
+        data->add_ref();
     }
 
     VSMap(VSMap &&map) noexcept : data(map.data) {
@@ -240,7 +240,7 @@ public:
     VSMap &operator=(const VSMap &map) {
         data->release();
         data = map.data;
-        data->addRef();
+        data->add_ref();
         return *this;
     }
 
@@ -394,7 +394,7 @@ public:
 
 class VSPlaneData {
 private:
-    std::atomic<int> refCount;
+    std::atomic<long> refcount;
     MemoryUse &mem;
 public:
     uint8_t *data;
@@ -402,9 +402,9 @@ public:
     VSPlaneData(size_t dataSize, MemoryUse &mem);
     VSPlaneData(const VSPlaneData &d);
     ~VSPlaneData();
-    bool unique();
-    void addRef();
-    void release();
+    bool unique() noexcept;
+    void add_ref() noexcept;
+    void release() noexcept;
 };
 
 struct VSFrameRef {
@@ -723,8 +723,8 @@ private:
     //number of filter instances plus one, freeing the core reduces it by one
     // the core will be freed once it reaches 0
     bool coreFreed;
-    std::atomic_int numFilterInstances;
-    std::atomic_int numFunctionInstances;
+    std::atomic<long> numFilterInstances;
+    std::atomic<long> numFunctionInstances;
 
     std::map<std::string, VSPlugin *> plugins;
     std::recursive_mutex pluginLock;
@@ -738,7 +738,7 @@ private:
     std::set<VSNode *> caches;
     std::mutex cacheLock;
 
-    std::atomic_int cpuLevel;
+    std::atomic<int> cpuLevel;
 
     ~VSCore();
 
