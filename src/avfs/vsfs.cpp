@@ -245,14 +245,14 @@ void VapourSynther::reportFormat(AvfsLog_* log) {
         log->Printf(L"  Audio length: %I64u samples. %02d:%02d:%02d.%03d\n", ai->numSamples,
             (msLen/(60*60*1000)), (msLen/(60*1000))%60, (msLen/1000)%60, msLen%1000);
         log->Printf(L"  Samples Per Second: %5d\n", ai->sampleRate);
-        log->Printf(L"  Audio Channels: %-8d\n", ai->format->numChannels);
+        log->Printf(L"  Audio Channels: %-8d\n", ai->format.numChannels);
 
         const char* s_type = "";
-        if (ai->format->sampleType == stFloat && ai->format->bitsPerSample == 32)
+        if (ai->format.sampleType == stFloat && ai->format.bitsPerSample == 32)
             s_type = "Float 32 bit";
-        else if (ai->format->sampleType == stInteger && ai->format->bitsPerSample == 16)
+        else if (ai->format.sampleType == stInteger && ai->format.bitsPerSample == 16)
             s_type = "Integer 16 bit";
-        else if (ai->format->sampleType == stInteger && ai->format->bitsPerSample == 32)
+        else if (ai->format.sampleType == stInteger && ai->format.bitsPerSample == 32)
             s_type = "Integer 32 bit";
         log->Printf(L"  Sample Type: %hs\n", s_type);
     } else {
@@ -264,44 +264,44 @@ void VapourSynther::reportFormat(AvfsLog_* log) {
 ---------------------------------------------------------*/
 
 bool VapourSynther::GetAudio(AvfsLog_ *log, void *buf, __int64 start, unsigned count) {
-    const VSAudioFormat *af = ai->format;
+    const VSAudioFormat &af = ai->format;
 
     uint8_t *dst = reinterpret_cast<uint8_t *>(buf);
 
-    int startFrame = static_cast<int>(start / af->samplesPerFrame);
-    int endFrame = static_cast<int>((start + count - 1) / af->samplesPerFrame);
+    int startFrame = static_cast<int>(start / VS_AUDIO_FRAME_SAMPLES);
+    int endFrame = static_cast<int>((start + count - 1) / VS_AUDIO_FRAME_SAMPLES);
     
     std::vector<const uint8_t *> tmp;
-    tmp.resize(af->numChannels);
+    tmp.resize(af.numChannels);
 
-    size_t bytesPerOutputSample = (af->bitsPerSample + 7) / 8;
+    size_t bytesPerOutputSample = (af.bitsPerSample + 7) / 8;
 
     for (int i = startFrame; i <= endFrame; i++) {
         const VSFrameRef *f = vsapi->getFrame(i, audioNode, nullptr, 0);
-        int64_t firstFrameSample = i * static_cast<int64_t>(af->samplesPerFrame);
+        int64_t firstFrameSample = i * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES);
         size_t offset = 0;
-        int copyLength = af->samplesPerFrame;
+        int copyLength = VS_AUDIO_FRAME_SAMPLES;
         if (firstFrameSample < start) {
-            offset = (start - firstFrameSample) * af->bytesPerSample;
+            offset = (start - firstFrameSample) * af.bytesPerSample;
             copyLength -= (start - firstFrameSample);
         }
 
         if (copyLength > count)
             copyLength = count;
 
-        for (int c = 0; c < ai->format->numChannels; c++)
+        for (int c = 0; c < af.numChannels; c++)
             tmp[c] = vsapi->getReadPtr(f, c) + offset;
 
         assert(copyLength > 0);
 
         if (bytesPerOutputSample == 2)
-            PackChannels16to16le(tmp.data(), dst, copyLength, af->numChannels);
+            PackChannels16to16le(tmp.data(), dst, copyLength, af.numChannels);
         else if (bytesPerOutputSample == 3)
-            PackChannels32to24le(tmp.data(), dst, copyLength, af->numChannels);
+            PackChannels32to24le(tmp.data(), dst, copyLength, af.numChannels);
         else if (bytesPerOutputSample == 4)
-            PackChannels32to32le(tmp.data(), dst, copyLength, af->numChannels);
+            PackChannels32to32le(tmp.data(), dst, copyLength, af.numChannels);
 
-        dst += copyLength * bytesPerOutputSample * af->numChannels;
+        dst += copyLength * bytesPerOutputSample * af.numChannels;
         count -= copyLength;
 
         vsapi->freeFrame(f);

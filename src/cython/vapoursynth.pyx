@@ -959,71 +959,6 @@ cdef VideoFormat createVideoFormat(const VSVideoFormat *f):
     instance.subsampling_h = f.subSamplingH
     instance.num_planes = f.numPlanes
     return instance
-    
-cdef class AudioFormat(object):
-    cdef readonly int id
-    cdef readonly str name
-    cdef readonly object sample_type
-    cdef readonly int bits_per_sample
-    cdef readonly int bytes_per_sample
-    cdef readonly int samples_per_frame
-    cdef readonly int64_t channel_layout
-    cdef readonly int num_channels
-
-    def __init__(self):
-        raise Error('Class cannot be instantiated directly')
-
-    def _as_dict(self):
-        return {
-            'sample_type': self.sample_type,
-            'bits_per_sample': self.bits_per_sample,
-            'samples_per_frame': self.samples_per_frame,
-            'channel_layout': self.channel_layout,
-            'num_channels': self.num_channels
-        }
-
-    def replace(self, **kwargs):
-        core = kwargs.pop("core", None) or get_core()
-        vals = self._as_dict()
-        vals.update(**kwargs)
-        return core.register_format(**vals)
-
-    def __eq__(self, other):
-        if not isinstance(other, AudioFormat):
-            return False
-        return other.id == self.id
-
-    def __int__(self):
-        return self.id
-
-    def __str__(self):
-        channels = []
-        for v in AudioChannels:
-            if ((1 << v) & self.channel_layout):
-                channels.append(str(v).split('.')[1])
-            
-        channels = ', '.join(channels)
-            
-        return ('Audio Format Descriptor\n'
-               f'\tId: {self.id:d}\n'
-               f'\tName: {self.name}\n'
-               f'\tSample Type: {self.sample_type.name.capitalize()}\n'
-               f'\tBits Per Sample: {self.bits_per_sample:d}\n'
-               f'\tBytes Per Sample: {self.bytes_per_sample:d}\n'
-               f'\tSamples Per Frame: {self.samples_per_frame:d}\n'
-               f'\tChannels: {channels:s}\n')
-
-cdef AudioFormat createAudioFormat(const VSAudioFormat *f):
-    cdef AudioFormat instance = AudioFormat.__new__(AudioFormat)
-    instance.id = f.id
-    instance.name = (<const char *>f.name).decode('utf-8')
-    instance.sample_type = SampleType(f.sampleType)
-    instance.bits_per_sample = f.bitsPerSample
-    instance.bytes_per_sample = f.bytesPerSample
-    instance.samples_per_frame = f.samplesPerFrame
-    instance.channel_layout = f.channelLayout
-    instance.num_channels = f.numChannels
-    return instance
 
 cdef class FrameProps(object):
     cdef const VSFrameRef *constf
@@ -1485,7 +1420,11 @@ cdef class VideoPlane:
 
 
 cdef class AudioFrame(RawFrame):
-    cdef readonly AudioFormat format
+    cdef readonly object sample_type
+    cdef readonly int bits_per_sample
+    cdef readonly int bytes_per_sample
+    cdef readonly int64_t channel_layout
+    cdef readonly int num_channels
 
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
@@ -1497,22 +1436,22 @@ cdef class AudioFrame(RawFrame):
         return createAudioFrame(self.funcs.copyFrame(self.constf, self.core), self.funcs, self.core)
 
     def get_read_ptr(self, int channel):
-        if channel < 0 or channel >= self.format.num_channels:
+        if channel < 0 or channel >= self.num_channels:
             raise IndexError('Specified channel index out of range')
         cdef const uint8_t *d = self.funcs.getReadPtr(self.constf, channel)
         return ctypes.c_void_p(<uintptr_t>d)
 
     def get_read_array(self, int channel):
-        if channel < 0 or channel >= self.format.num_channels:
+        if channel < 0 or channel >= self.num_channels:
             raise IndexError('Specified channel index out of range')
         cdef const uint8_t *d = self.funcs.getReadPtr(self.constf, channel)
         array = None
-        if self.format.sample_type == INTEGER:
-            if self.format.bytes_per_sample == 2:
+        if self.sample_type == INTEGER:
+            if self.bytes_per_sample == 2:
                 array = <int16_t[:len(self)]> (<int16_t*>d)
-            elif self.format.bytes_per_sample == 4:
+            elif self.bytes_per_sample == 4:
                 array = <int32_t[:len(self)]> (<int32_t*>d)
-        elif self.format.sample_type == FLOAT:
+        elif self.sample_type == FLOAT:
             array = <float[:len(self)]> (<float*>d)
         if array is not None:
             return array[:len(self)]
@@ -1521,7 +1460,7 @@ cdef class AudioFrame(RawFrame):
     def get_write_ptr(self, int channel):
         if self.readonly:
             raise Error('Cannot obtain write pointer to read only frame')
-        if channel < 0 or channel >= self.format.num_channels:
+        if channel < 0 or channel >= self.num_channels:
             raise IndexError('Specified channel index out of range')
         cdef uint8_t *d = self.funcs.getWritePtr(self.f, channel)
         return ctypes.c_void_p(<uintptr_t>d)
@@ -1529,16 +1468,16 @@ cdef class AudioFrame(RawFrame):
     def get_write_array(self, int channel):
         if self.readonly:
             raise Error('Cannot obtain write pointer to read only frame')
-        if channel < 0 or channel >= self.format.num_channels:
+        if channel < 0 or channel >= self.num_channels:
             raise IndexError('Specified channel index out of range')
         cdef uint8_t *d = self.funcs.getWritePtr(self.f, channel)
         array = None
-        if self.format.sample_type == INTEGER:
-            if self.format.bytes_per_sample == 2:
+        if self.sample_type == INTEGER:
+            if self.bytes_per_sample == 2:
                 array = <int16_t[:len(self)]> (<int16_t*>d)
-            elif self.format.bytes_per_sample == 4:
+            elif self.bytes_per_sample == 4:
                 array = <int32_t[:len(self)]> (<int32_t*>d)
-        elif self.format.sample_type == FLOAT:
+        elif self.sample_type == FLOAT:
             array = <float[:len(self)]> (<float*>d)
         if array is not None:
             return array[:len(self)]
@@ -1546,13 +1485,11 @@ cdef class AudioFrame(RawFrame):
 
     def channels(self):
         cdef int x
-        for x in range(self.format.num_channels):
+        for x in range(self.num_channels):
             yield AudioChannel.__new__(AudioChannel, self, x)
 
     def __str__(self):
-        cdef str s = 'AudioFrame\n'
-        s += '\tFormat: ' + self.format.name + '\n'
-        return s
+        return 'AudioFrame\n'
 
 
 cdef AudioFrame createConstAudioFrame(const VSFrameRef *constf, const VSAPI *funcs, VSCore *core):
@@ -1562,7 +1499,12 @@ cdef AudioFrame createConstAudioFrame(const VSFrameRef *constf, const VSAPI *fun
     instance.funcs = funcs
     instance.core = core
     instance.readonly = True
-    instance.format = createAudioFormat(funcs.getAudioFrameFormat(constf))
+    cdef VSAudioFormat *format = funcs.getAudioFrameFormat(constf)
+    instance.sample_type = SampleType(format.sampleType);
+    instance.bits_per_sample = format.bitsPerSample
+    instance.bytes_per_sample = format.bytesPerSample
+    instance.channel_layout = format.channelLayout
+    instance.num_channels = format.numChannels
     instance.props = createFrameProps(instance)
     return instance
 
@@ -1574,9 +1516,15 @@ cdef AudioFrame createAudioFrame(VSFrameRef *f, const VSAPI *funcs, VSCore *core
     instance.funcs = funcs
     instance.core = core
     instance.readonly = False
-    instance.format = createAudioFormat(funcs.getAudioFrameFormat(f))
+    cdef VSAudioFormat *format = funcs.getAudioFrameFormat(f)
+    instance.sample_type = SampleType(format.sampleType);
+    instance.bits_per_sample = format.bitsPerSample
+    instance.bytes_per_sample = format.bytesPerSample
+    instance.channel_layout = format.channelLayout
+    instance.num_channels = format.numChannels
     instance.props = createFrameProps(instance)
     return instance
+
 
 cdef class AudioChannel:
     cdef AudioFrame frame
@@ -1588,19 +1536,19 @@ cdef class AudioChannel:
     def __cinit__(self, AudioFrame frame, int channel):
         cdef Py_ssize_t itemsize
 
-        if not (0 <= channel < frame.format.num_channels):
+        if not (0 <= channel < frame.num_channels):
             raise IndexError("specified channel index out of range")
 
         self.shape[0] = <Py_ssize_t> len(frame)
 
-        self.strides[0] = itemsize = <Py_ssize_t> frame.format.bytes_per_sample
+        self.strides[0] = itemsize = <Py_ssize_t> frame.bytes_per_sample
 
-        if frame.format.sample_type == INTEGER:
+        if frame.sample_type == INTEGER:
             if itemsize == 2:
                 self.format = b'H'
             elif itemsize == 4:
                 self.format = b'I'
-        elif frame.format.sample_type == FLOAT:
+        elif frame.sample_type == FLOAT:
             self.format = b'f'
 
         self.frame = frame
@@ -1640,6 +1588,7 @@ cdef class AudioChannel:
         view.suboffsets = NULL
         view.internal = NULL
 
+
 cdef class RawNode(object):
     cdef VSNodeRef *node
     cdef const VSAPI *funcs
@@ -1669,17 +1618,17 @@ cdef class VideoNode(RawNode):
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
         
-    def __getattr__(self, name):
-        err = False
-        try:
-            obj = self.core.__getattr__(name)
-            if isinstance(obj, Plugin):
-                (<Plugin>obj).injected_arg = self
-            return obj
-        except AttributeError:
-            err = True
-        if err:
-            raise AttributeError('There is no attribute or namespace named ' + name)
+#    def __getattr__(self, name):
+#        err = False
+#        try:
+#            obj = self.core.__getattr__(name)
+#            if isinstance(obj, Plugin):
+#                (<Plugin>obj).injected_arg = self
+#            return obj
+#        except AttributeError:
+#            err = True
+#        if err:
+#            raise AttributeError('There is no attribute or namespace named ' + name)
 
     cdef ensure_valid_frame_number(self, int n):
         if n < 0:
@@ -1946,11 +1895,15 @@ cdef VideoNode createVideoNode(VSNodeRef *node, const VSAPI *funcs, Core core):
     
 cdef class AudioNode(RawNode):
     cdef const VSAudioInfo *ai
-    cdef readonly AudioFormat format
+    cdef readonly object sample_type
+    cdef readonly int bits_per_sample
+    cdef readonly int bytes_per_sample
+    cdef readonly uint64_t channel_layout
+    cdef readonly int num_channels
     cdef readonly int sample_rate
     cdef readonly int64_t num_samples
     cdef readonly int num_frames
-    cdef readonly int flags
+    cdef readonly uint32_t flags
     
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
@@ -2070,26 +2023,31 @@ cdef class AudioNode(RawNode):
         return self.num_samples
 
     def __str__(self):
-        cdef str s = 'AudioNode\n'
-
-        s += '\tFormat: ' + self.format.name + '\n'
-        s += '\tSample Rate: ' + str(self.sample_rate) + '\n'
-        s += '\tNum Samples: ' + str(self.num_samples) + '\n'
-        s += '\tNum Frames: ' + str(self.num_frames) + '\n'        
+        channels = []
+        for v in AudioChannels:
+            if ((1 << v) & self.channel_layout):
+                channels.append(AudioChannels(v).name)        
+        channels = ', '.join(channels)
         
-        if self.flags:
-            s += '\tFlags:'
-            if (self.flags & vapoursynth.nfNoCache):
-                s += ' NoCache'
-            if (self.flags & vapoursynth.nfIsCache):
-                s += ' IsCache'
-            if (self.flags & vapoursynth.nfMakeLinear):
-                s += ' MakeLinear'
-            s += '\n'
+        flags = []
+        if (self.flags & vapoursynth.nfNoCache):
+            flags.append('NoCache')
+        if (self.flags & vapoursynth.nfIsCache):
+            flags.append('IsCache')
+        if (self.flags & vapoursynth.nfMakeLinear):
+            flags.append('MakeLinear')
+        if len(flags) > 0:
+            flags = ', '.join(flags)
         else:
-            s += '\tFlags: None\n'
-
-        return s
+            flags = 'None'
+                
+        return ('Audio Node\n'
+               f'\tSample Type: {self.sample_type_str.name}\n'
+               f'\tBits Per Sample: {self.bits_per_sample:d}\n'
+               f'\tChannels: {channels:s}\n'
+               f'\tSample Rate: {self.sample_rate:d}\n'
+               f'\tNum Samples: {self.num_samples:d}\n'
+               f'\tFlags: {flags:s}\n')
     
 cdef AudioNode createAudioNode(VSNodeRef *node, const VSAPI *funcs, Core core):
     cdef AudioNode instance = AudioNode.__new__(AudioNode)
@@ -2097,11 +2055,15 @@ cdef AudioNode createAudioNode(VSNodeRef *node, const VSAPI *funcs, Core core):
     instance.node = node
     instance.funcs = funcs
     instance.ai = funcs.getAudioInfo(node)
-    instance.format = createAudioFormat(instance.ai.format)
     instance.sample_rate = instance.ai.sampleRate
     instance.num_samples = instance.ai.numSamples
     instance.num_frames = instance.ai.numFrames
-    instance.flags = instance.ai.flags
+    instance.sample_type = SampleType(instance.ai.format.sampleType);
+    instance.bits_per_sample = instance.ai.format.bitsPerSample
+    instance.bytes_per_sample = instance.ai.format.bytesPerSample
+    instance.channel_layout = instance.ai.format.channelLayout
+    instance.num_channels = instance.ai.format.numChannels
+    instance.flags = funcs.getNodeFlags(node)
     return instance
 
 cdef class Core(object):

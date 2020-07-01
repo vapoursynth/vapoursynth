@@ -146,15 +146,11 @@ cdef extern from "include/VapourSynth.h" nogil:
         TOP_BACK_RIGHT "vsacTopBackRight"
         
     ctypedef struct VSAudioFormat:
-        char name[32]
-        int id
-        int typeFamily
         int sampleType
-        int bytesPerSample
         int bitsPerSample
-        int samplesPerFrame
+        int bytesPerSample
+        int numChannels
         uint64_t channelLayout
-        int numChannels        
 
     enum VSNodeFlags:
         nfNoCache
@@ -189,11 +185,10 @@ cdef extern from "include/VapourSynth.h" nogil:
         int flags
         
     struct VSAudioInfo:
-        VSAudioFormat *format
+        VSAudioFormat format
         int sampleRate
         int64_t numSamples
         int numFrames
-        int flags
 
     enum VSActivationReason:
         arInitial
@@ -310,11 +305,11 @@ cdef extern from "include/VapourSynth.h" nogil:
         int propSetEmpty(VSMap *map, const char *key, int type) nogil
         void createAudioFilter(const VSMap *input, VSMap *out, const char *name, const VSAudioInfo *ai, int numOutputs, VSAudioFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
         VSFrameRef *newAudioFrame(const VSAudioFormat *format, int sampleRate, const VSFrameRef *propSrc, VSCore *core) nogil
-        const VSAudioFormat *queryAudioFormat(int sampleType, int bitsPerSample, uint64_t channelLayout, VSCore *core) nogil
-        const VSAudioFormat *getAudioFormat(int id, VSCore *core) nogil
+        int queryAudioFormat(VSAudioFormat *format, int sampleType, int bitsPerSample, uint64_t channelLayout, VSCore *core) nogil
         const VSAudioInfo *getAudioInfo(VSNodeRef *node) nogil
         const VSAudioFormat *getAudioFrameFormat(const VSFrameRef *f) nogil
         int getNodeType(VSNodeRef *node) nogil
+        uint32_t getNodeFlags(VSNodeRef *node) nogil
         int getFrameType(const VSFrameRef *f) nogil
         int getFrameLength(const VSFrameRef *f) nogil
         

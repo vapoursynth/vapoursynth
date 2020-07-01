@@ -462,7 +462,7 @@ static bool initializeAudioOutput() {
 
     if (w64) {
         Wave64Header header;
-        if (!CreateWave64Header(header, ai->format->sampleType == stFloat, ai->format->bitsPerSample, ai->sampleRate, ai->format->channelLayout, ai->numSamples)) {
+        if (!CreateWave64Header(header, ai->format.sampleType == stFloat, ai->format.bitsPerSample, ai->sampleRate, ai->format.channelLayout, ai->numSamples)) {
             fprintf(stderr, "Error: cannot create valid w64 header\n");
             return false;
         }
@@ -474,7 +474,7 @@ static bool initializeAudioOutput() {
         }
     } else if (wav) {
         WaveHeader header;
-        if (!CreateWaveHeader(header, ai->format->sampleType == stFloat, ai->format->bitsPerSample, ai->sampleRate, ai->format->channelLayout, ai->numSamples)) {
+        if (!CreateWaveHeader(header, ai->format.sampleType == stFloat, ai->format.bitsPerSample, ai->sampleRate, ai->format.channelLayout, ai->numSamples)) {
             fprintf(stderr, "Error: cannot create valid wav header\n");
             return false;
         }
@@ -487,7 +487,7 @@ static bool initializeAudioOutput() {
         }
     }
 
-    buffer.resize(ai->format->numChannels * ai->format->samplesPerFrame * ai->format->bytesPerSample);
+    buffer.resize(ai->format.numChannels * VS_AUDIO_FRAME_SAMPLES * ai->format.bytesPerSample);
     return true;
 }
 
@@ -897,13 +897,15 @@ int main(int argc, char **argv) {
 
         if (showInfo) {
             if (outFile) {
+                char nameBuffer[32];
+                vsapi->getAudioFormatName(&ai->format, nameBuffer);
                 fprintf(outFile, "Samples: %" PRId64 "\n", ai->numSamples);
                 fprintf(outFile, "Sample Rate: %d\n", ai->sampleRate);
-                fprintf(outFile, "Format Name: %s\n", ai->format->name);
-                fprintf(outFile, "Sample Type: %s\n", (ai->format->sampleType == stInteger) ? "Integer" : "Float");
-                fprintf(outFile, "Bits: %d\n", ai->format->bitsPerSample);
-                fprintf(outFile, "Channels: %d\n", ai->format->numChannels);
-                fprintf(outFile, "Layout: %s\n", channelMaskToName(ai->format->channelLayout).c_str());
+                fprintf(outFile, "Format Name: %s\n", &nameBuffer);
+                fprintf(outFile, "Sample Type: %s\n", (ai->format.sampleType == stInteger) ? "Integer" : "Float");
+                fprintf(outFile, "Bits: %d\n", ai->format.bitsPerSample);
+                fprintf(outFile, "Channels: %d\n", ai->format.numChannels);
+                fprintf(outFile, "Layout: %s\n", channelMaskToName(ai->format.channelLayout).c_str());
             }
         } else {
             if (totalFrames == -1)

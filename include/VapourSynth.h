@@ -71,6 +71,8 @@ typedef struct VSMap VSMap;
 typedef struct VSAPI VSAPI;
 typedef struct VSFrameContext VSFrameContext;
 
+#define VS_AUDIO_FRAME_SAMPLES 3000
+
 typedef enum VSColorFamily {
     /* all planar formats */
     cmGray   = 1000000,
@@ -195,14 +197,11 @@ typedef enum VSAudioChannels {
 
 /* api 3.7 */
 typedef struct VSAudioFormat {
-    char name[32];
-    int id;
     int sampleType;
     int bitsPerSample;
-    int bytesPerSample;
-    int samplesPerFrame;
-    uint64_t channelLayout;
+    int bytesPerSample; /* implicit from bitsPerSample */
     int numChannels; /* implicit from channelLayout */
+    uint64_t channelLayout;
 } VSAudioFormat;
 
 typedef enum VSNodeFlags {
@@ -258,11 +257,10 @@ typedef struct VSVideoInfo {
 
 /* api 3.7 */
 typedef struct VSAudioInfo {
-    const VSAudioFormat *format;
+    VSAudioFormat format;
     int sampleRate;
     int64_t numSamples;
-    int numFrames; /* implicit from numSamples */
-    int flags;
+    int numFrames; /* implicit from numSamples */ // FIXME, where and how does this get set? does the user set it?
 } VSAudioInfo;
 
 typedef enum VSActivationReason {
@@ -404,14 +402,17 @@ struct VSAPI {
     int (VS_CC *propSetEmpty)(VSMap *map, const char *key, int type) VS_NOEXCEPT;
     void (VS_CC *createVideoFilter)(VSMap *out, const char *name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT;
     void (VS_CC *createAudioFilter)(VSMap *out, const char *name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT;
-    VSFrameRef *(VS_CC *newAudioFrame)(const VSAudioFormat *format, int sampleRate, int numSamples, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT;
-    const VSAudioFormat *(VS_CC *queryAudioFormat)(int sampleType, int bitsPerSample, int64_t channelLayout, VSCore *core) VS_NOEXCEPT;
-    const VSAudioFormat *(VS_CC *getAudioFormat)(int id, VSCore *core) VS_NOEXCEPT;
+    VSFrameRef *(VS_CC *newAudioFrame)(const VSAudioFormat *format, int numSamples, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT;
+    int (VS_CC *queryAudioFormat)(VSAudioFormat *format, int sampleType, int bitsPerSample, uint64_t channelLayout, VSCore *core) VS_NOEXCEPT;
+    void (VS_CC *getAudioFormatName)(const VSAudioFormat *format, char *buffer) VS_NOEXCEPT; /* up to 32 characters including terminating null may be written to the buffer */
     const VSAudioInfo *(VS_CC *getAudioInfo)(VSNodeRef *node) VS_NOEXCEPT;
     const VSAudioFormat *(VS_CC *getAudioFrameFormat)(const VSFrameRef *f) VS_NOEXCEPT;
     int (VS_CC *getNodeType)(VSNodeRef *node) VS_NOEXCEPT;
+    uint32_t (VS_CC *getNodeFlags)(VSNodeRef *node) VS_NOEXCEPT;
     int (VS_CC *getFrameType)(const VSFrameRef *f) VS_NOEXCEPT;
     int (VS_CC *getFrameLength)(const VSFrameRef *f) VS_NOEXCEPT;
+
+
 };
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version) VS_NOEXCEPT;

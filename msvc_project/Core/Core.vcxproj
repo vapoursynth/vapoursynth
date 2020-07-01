@@ -236,6 +236,7 @@
     <ClInclude Include="..\..\src\core\filtershared.h" />
     <ClInclude Include="..\..\src\core\filtersharedcpp.h" />
     <ClInclude Include="..\..\src\core\internalfilters.h" />
+    <ClInclude Include="..\..\src\core\intrusive_ptr.h" />
     <ClInclude Include="..\..\src\core\jitasm.h" />
     <ClInclude Include="..\..\src\core\kernel\cpulevel.h" />
     <ClInclude Include="..\..\src\core\kernel\generic.h" />

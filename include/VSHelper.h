@@ -82,7 +82,7 @@ static inline int isSameFormat(const VSVideoInfo *v1, const VSVideoInfo *v2) {
 
 /* convenience function to check for if two clips have the same format (unknown/changeable will be considered the same too) */
 static inline int isSameAudioFormat(const VSAudioInfo *a1, const VSAudioInfo *a2) {
-    return a1->sampleRate == a2->sampleRate && a1->format == a2->format;
+    return a1->sampleRate == a2->sampleRate && a1->format.bitsPerSample == a2->format.bitsPerSample && a1->format.sampleType == a2->format.sampleType && a1->format.channelLayout == a2->format.channelLayout;
 }
 
 /* multiplies and divides a rational number, such as a frame duration, in place and reduces the result */

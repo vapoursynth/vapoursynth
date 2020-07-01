@@ -416,7 +416,7 @@ private:
     int width; /* stores number of samples for audio */
     int height;
     int stride[3]; /* stride[0] stores internal offset between audio channels */
-    int numPlanes;
+    int numPlanes; /* stores number of channels for audio */
 
     VSMap properties;
 public:
@@ -430,7 +430,7 @@ public:
 
     VSFrameRef(const VSVideoFormat *f, int width, int height, const VSFrameRef *propSrc, VSCore *core);
     VSFrameRef(const VSVideoFormat *f, int width, int height, const VSFrameRef * const *planeSrc, const int *plane, const VSFrameRef *propSrc, VSCore *core);
-    VSFrameRef(const VSAudioFormat *f, int sampleRate, int numSamples, const VSFrameRef *propSrc, VSCore *core);
+    VSFrameRef(const VSAudioFormat *f, int numSamples, const VSFrameRef *propSrc, VSCore *core);
     VSFrameRef(const VSFrameRef &f);
     ~VSFrameRef();
 
@@ -550,7 +550,7 @@ private:
 
     int apiMajor;
     VSCore *core;
-    int flags;
+    uint32_t flags;
     std::vector<VSVideoInfo> vi;
     std::vector<VSAudioInfo> ai;
 
@@ -582,6 +582,10 @@ public:
 
     VSMediaType getNodeType() const {
         return nodeType;
+    }
+
+    uint32_t getNodeFlags() const {
+        return flags;
     }
 
     bool isRightCore(const VSCore *core2) const {
@@ -731,9 +735,6 @@ private:
     std::map<int, VSVideoFormat> videoFormats;
     std::mutex videoFormatLock;
     int videoFormatIdOffset = 1000;
-    std::map<int, VSAudioFormat> audioFormats;
-    std::mutex audioFormatLock;
-    int audioFormatIdOffset = 1000;
     VSCoreInfo coreInfo;
     std::set<VSNode *> caches;
     std::mutex cacheLock;
@@ -754,15 +755,15 @@ public:
 
     VSFrameRef *newVideoFrame(const VSVideoFormat *f, int width, int height, const VSFrameRef *propSrc);
     VSFrameRef *newVideoFrame(const VSVideoFormat *f, int width, int height, const VSFrameRef * const *planeSrc, const int *planes, const VSFrameRef *propSrc);
-    VSFrameRef *newAudioFrame(const VSAudioFormat *f, int sampleRate, int numSamples, const VSFrameRef *propSrc);
+    VSFrameRef *newAudioFrame(const VSAudioFormat *f, int numSamples, const VSFrameRef *propSrc);
     VSFrameRef *copyFrame(const VSFrameRef &srcf);
     void copyFrameProps(const VSFrameRef &src, VSFrameRef &dst);
 
     const VSVideoFormat *getVideoFormat(int id);
-    const VSAudioFormat *getAudioFormat(int id);
     const VSVideoFormat *queryVideoFormat(VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name = nullptr, int id = pfNone);
-    const VSAudioFormat *queryAudioFormat(int sampleType, int bitsPerSample, uint64_t channelLayout, const char *name = nullptr, int id = pfNone);
+    bool queryAudioFormat(VSAudioFormat &f, int sampleType, int bitsPerSample, uint64_t channelLayout);
     bool isValidFormatPointer(const void *f);
+    bool isValidAudioInfo(const VSAudioInfo &ai) const;
 
     void loadPlugin(const std::string &filename, const std::string &forcedNamespace = std::string(), const std::string &forcedId = std::string(), bool altSearchPath = false);
     void createFilter(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
@@ -778,6 +779,8 @@ public:
 
     const VSCoreInfo &getCoreInfo();
     void getCoreInfo2(VSCoreInfo &info);
+
+    static void getAudioFormatName(const VSAudioFormat &format, char *buffer) noexcept;
 
     void functionInstanceCreated();
     void functionInstanceDestroyed();

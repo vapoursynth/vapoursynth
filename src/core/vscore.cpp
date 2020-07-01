@@ -626,12 +626,9 @@ VSFrameRef::VSFrameRef(const VSVideoFormat *f, int width, int height, const VSFr
     }
 }
 
-VSFrameRef::VSFrameRef(const VSAudioFormat *f, int sampleRate, int numSamples, const VSFrameRef *propSrc, VSCore *core) : refcount(1), contentType(mtAudio), format(reinterpret_cast<const VSVideoFormat *>(f)), data(), height(sampleRate) {
+VSFrameRef::VSFrameRef(const VSAudioFormat *f, int numSamples, const VSFrameRef *propSrc, VSCore *core) : refcount(1), contentType(mtAudio), format(reinterpret_cast<const VSVideoFormat *>(f)), data() {
     if (!f)
         vsFatal("Error in frame creation: null format");
-
-    if (sampleRate <= 0)
-        vsFatal("Error in frame creation: bad sample rate (%d)", sampleRate);
 
     if (numSamples <= 0)
         vsFatal("Error in frame creation: bad number of samples (%d)", numSamples);
@@ -642,7 +639,7 @@ VSFrameRef::VSFrameRef(const VSAudioFormat *f, int sampleRate, int numSamples, c
     if (propSrc)
         properties = propSrc->properties;
 
-    stride[0] = f->bytesPerSample * f->samplesPerFrame;
+    stride[0] = f->bytesPerSample * VS_AUDIO_FRAME_SAMPLES;
 
     data[0] = new VSPlaneData(stride[0] * f->numChannels, *core->memory);
 }
@@ -901,20 +898,15 @@ VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, int numOutputs, V
 
     this->ai.reserve(numOutputs);
     for (int i = 0; i < numOutputs; i++) {
-        if (ai[i].format && !core->isValidFormatPointer(ai[i].format))
-            vsFatal("The VSVideoFormat pointer passed by %s was not obtained from queryAudioFormat() or getAudioFormat().", name.c_str());
-        if (ai[i].numSamples <= 0)
-            vsFatal("Filter %s has no audio samples in the output.", name.c_str());
-        if (ai[i].sampleRate <= 0)
-            vsFatal("Filter %s has an invalid sample rate.", name.c_str());
+        if (!core->isValidAudioInfo(ai[i]))
+            vsFatal("The VSAudioInfo structure passed by %s is invalid.", name.c_str());
 
         this->ai.push_back(ai[i]);
         auto &last = this->ai.back();
-        int64_t maxSamples =  std::numeric_limits<int>::max() * static_cast<int64_t>(last.format->samplesPerFrame);
+        int64_t maxSamples =  std::numeric_limits<int>::max() * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES);
         if (last.numSamples > maxSamples)
             throw VSException("Filter " + name + " specified " + std::to_string(last.numSamples) + " output samples but " + std::to_string(maxSamples) + " samples is the upper limit of the current format");
-        last.numFrames = static_cast<int>((last.numSamples + last.format->samplesPerFrame - 1) / last.format->samplesPerFrame);
-        last.flags = flags;
+        last.numFrames = static_cast<int>((last.numSamples + VS_AUDIO_FRAME_SAMPLES - 1) / VS_AUDIO_FRAME_SAMPLES);
     }
 }
 
@@ -980,12 +972,15 @@ PVSFrameRef VSNode::getFrameInternal(int n, int activationReason, VSFrameContext
             const VSAudioFormat *fi = r->getAudioFormat();
             const VSAudioInfo &lai = ai[frameCtx.ctx->index];
 
-            if (lai.format != fi)
-                vsFatal("Filter %s declared the format %s (id %d), but it returned a frame with the format %s (id %d).", name.c_str(), lai.format->name, lai.format->id, fi->name, fi->id);
-            else if (r->getSampleRate() != lai.sampleRate)
-                vsFatal("Filter %s declared the sample rate %d, but it returned a frame with the sample rate %d.", name.c_str(), lai.sampleRate, r->getSampleRate());
-            else if (n == lai.numFrames - 1 && ((lai.numSamples % lai.format->samplesPerFrame) ? (lai.numSamples % lai.format->samplesPerFrame) : lai.format->samplesPerFrame) != r->getFrameLength())
-                vsFatal("Filter %s returned final audio frame with %d samples but %d expected from declared length.", name.c_str(), r->getFrameLength(), ((lai.numSamples % lai.format->samplesPerFrame) ? (lai.numSamples % lai.format->samplesPerFrame) : lai.format->samplesPerFrame));
+            if (lai.format.bitsPerSample != fi->bitsPerSample || lai.format.sampleType != fi->sampleType || lai.format.channelLayout != fi->channelLayout) {
+                char nameBuffer1[32];
+                char nameBuffer2[32];
+                VSCore::getAudioFormatName(*fi, nameBuffer1);
+                VSCore::getAudioFormatName(lai.format, nameBuffer2);
+                vsFatal("Filter %s declared the format %s, but it returned a frame with the format %s.", name.c_str(), &nameBuffer2, &nameBuffer1);
+            } else if (n == lai.numFrames - 1 && ((lai.numSamples % VS_AUDIO_FRAME_SAMPLES) ? (lai.numSamples % VS_AUDIO_FRAME_SAMPLES) : VS_AUDIO_FRAME_SAMPLES) != r->getFrameLength()) {
+                vsFatal("Filter %s returned final audio frame with %d samples but %d expected from declared length.", name.c_str(), r->getFrameLength(), ((lai.numSamples % VS_AUDIO_FRAME_SAMPLES) ? (lai.numSamples % VS_AUDIO_FRAME_SAMPLES) : VS_AUDIO_FRAME_SAMPLES));
+            }
         }
 
 #ifdef VS_FRAME_GUARD
@@ -1025,8 +1020,8 @@ VSFrameRef *VSCore::newVideoFrame(const VSVideoFormat *f, int width, int height,
     return new VSFrameRef(f, width, height, planeSrc, planes, propSrc, this);
 }
 
-VSFrameRef *VSCore::newAudioFrame(const VSAudioFormat *f, int sampleRate, int numSamples, const VSFrameRef *propSrc) {
-    return new VSFrameRef(f, sampleRate, numSamples, propSrc, this);
+VSFrameRef *VSCore::newAudioFrame(const VSAudioFormat *f, int numSamples, const VSFrameRef *propSrc) {
+    return new VSFrameRef(f, numSamples, propSrc, this);
 }
 
 VSFrameRef *VSCore::copyFrame(const VSFrameRef &srcf) {
@@ -1042,15 +1037,6 @@ const VSVideoFormat *VSCore::getVideoFormat(int id) {
 
     auto f = videoFormats.find(id);
     if (f != videoFormats.end())
-        return &f->second;
-    return nullptr;
-}
-
-const VSAudioFormat *VSCore::getAudioFormat(int id) {
-    std::lock_guard<std::mutex> lock(audioFormatLock);
-
-    auto f = audioFormats.find(id);
-    if (f != audioFormats.end())
         return &f->second;
     return nullptr;
 }
@@ -1151,60 +1137,35 @@ const VSVideoFormat *VSCore::queryVideoFormat(VSColorFamily colorFamily, VSSampl
     return &videoFormats[f.id];
 }
 
-const VSAudioFormat *VSCore::queryAudioFormat(int sampleType, int bitsPerSample, uint64_t channelLayout, const char *name, int id) {
+bool VSCore::queryAudioFormat(VSAudioFormat &f, int sampleType, int bitsPerSample, uint64_t channelLayout) {
     // this is to make exact format comparisons easy by simply allowing pointer comparison
 
     if (sampleType != stInteger && sampleType != stFloat)
-        return nullptr;
+        return false;
 
     if (sampleType == stFloat && bitsPerSample != 32)
-        return nullptr;
+        return false;
 
     if (bitsPerSample < 16 || bitsPerSample > 32)
-        return nullptr;
+        return false;
 
     if (!channelLayout)
-        return nullptr;
+        return false;
 
-    std::lock_guard<std::mutex> lock(audioFormatLock);
-
-    for (const auto &iter : audioFormats) {
-        if (iter.second.sampleType == sampleType && iter.second.bitsPerSample == bitsPerSample && iter.second.channelLayout == channelLayout)
-            return &iter.second;
-    }
-
-    VSAudioFormat f = {};
-
-    if (name)
-        strcpy(f.name, name);
-    else if (sampleType == stFloat)
-        snprintf(f.name, sizeof(f.name), "Audio%dF", bitsPerSample);
-    else
-        snprintf(f.name, sizeof(f.name), "Audio%d", bitsPerSample);
-
-    if (id != pfNone)
-        f.id = id;
-    else
-        f.id = /* "cmAudio" */ 11000000 + audioFormatIdOffset++;
+    f = {};
 
     f.sampleType = sampleType;
     f.bitsPerSample = bitsPerSample;
     f.bytesPerSample = 1;
 
     while (f.bytesPerSample * 8 < bitsPerSample)
-        f.bytesPerSample *= 2;
+        f.bytesPerSample <<= 1;
 
     std::bitset<sizeof(channelLayout) * 8> bits{ static_cast<uint64_t>(channelLayout) };
     f.numChannels = static_cast<int>(bits.count());
     f.channelLayout = channelLayout;
 
-    const size_t targetSize = 24000;
-    f.samplesPerFrame = targetSize;
-    int sampleMultiple = VSFrameRef::alignment / 2 /* smallest sample type */;
-    f.samplesPerFrame = (f.samplesPerFrame + sampleMultiple - 1) & ~(sampleMultiple - 1);
-
-    audioFormats.insert(std::make_pair(f.id, f));
-    return &audioFormats[f.id];
+    return true;
 }
 
 bool VSCore::isValidFormatPointer(const void *f) {
@@ -1216,16 +1177,13 @@ bool VSCore::isValidFormatPointer(const void *f) {
                 return true;
         }
     }
-
-    {
-        std::lock_guard<std::mutex> lock(audioFormatLock);
-
-        for (const auto &iter : audioFormats) {
-            if (&iter.second == f)
-                return true;
-        }
-    }
     return false;
+}
+
+bool VSCore::isValidAudioInfo(const VSAudioInfo &ai) const {
+    // fixme, implement a proper check including numsamples and samplerate
+
+    return true;
 }
 
 const VSCoreInfo &VSCore::getCoreInfo() {
@@ -1240,6 +1198,13 @@ void VSCore::getCoreInfo2(VSCoreInfo &info) {
     info.numThreads = threadPool->threadCount();
     info.maxFramebufferSize = memory->getLimit();
     info.usedFramebufferSize = memory->memoryUse();
+}
+
+void VSCore::getAudioFormatName(const VSAudioFormat &format, char *buffer) noexcept {
+    if (format.sampleType == stFloat)
+        snprintf(buffer, 32, "Audio%dF (%d CH)", format.bitsPerSample, format.numChannels);
+    else
+        snprintf(buffer, 32, "Audio%d (%d CH)", format.bitsPerSample, format.numChannels);
 }
 
 void VS_CC vs_internal_configPlugin(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readOnly, VSPlugin *plugin);

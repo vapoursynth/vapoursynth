@@ -215,11 +215,7 @@ static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData,
     VSCoreInfo ci;
     vsapi->getCoreInfo2(core, &ci);
     c->numThreads = ci.numThreads;
-
-    if (userData)
-        c->makeLinear = !!(vsapi->getAudioInfo(node)->flags & nfMakeLinear);
-    else
-        c->makeLinear = !!(vsapi->getVideoInfo(node)->flags & nfMakeLinear);
+    c->makeLinear = !!(vsapi->getNodeFlags(node) & nfMakeLinear);
 
     if (vsapi->propGetInt(in, "make_linear", 0, &err))
         c->makeLinear = true;

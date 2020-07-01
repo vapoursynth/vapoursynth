@@ -702,7 +702,7 @@ STDMETHODIMP VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) {
 
     if (fAudio) {
         const VSAudioInfo* const ai = parent->ai;
-        size_t bytesPerOutputSample = (ai->format->bitsPerSample + 7) / 8;
+        size_t bytesPerOutputSample = (ai->format.bitsPerSample + 7) / 8;
         asi.fccType = streamtypeAUDIO;
         asi.dwScale = static_cast<DWORD>(bytesPerOutputSample);
         asi.dwRate = static_cast<DWORD>(ai->sampleRate * bytesPerOutputSample);
@@ -895,12 +895,12 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
         if (static_cast<int64_t>(lStart) + lSamples > ai->numSamples)
             lSamples = std::max<long>(static_cast<long>(ai->numSamples - lStart), 0);
 
-        size_t bytesPerOutputSample = (ai->format->bitsPerSample + 7) / 8;
+        size_t bytesPerOutputSample = (ai->format.bitsPerSample + 7) / 8;
 
-        long bytes = lSamples * bytesPerOutputSample * ai->format->numChannels;
+        long bytes = lSamples * bytesPerOutputSample * ai->format.numChannels;
         if (lpBuffer && bytes > cbBuffer) {
-            lSamples = static_cast<long>(cbBuffer / (bytesPerOutputSample * ai->format->numChannels));
-            bytes = lSamples * bytesPerOutputSample * ai->format->numChannels;
+            lSamples = static_cast<long>(cbBuffer / (bytesPerOutputSample * ai->format.numChannels));
+            bytes = lSamples * bytesPerOutputSample * ai->format.numChannels;
         }
         if (plBytes)
             *plBytes = bytes;
@@ -909,22 +909,22 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
         if (!lpBuffer || !lSamples)
             return S_OK;
 
-        const VSAudioFormat *af = ai->format;
+        const VSAudioFormat &af = ai->format;
 
-        int startFrame = lStart / af->samplesPerFrame;
-        int endFrame = (lStart + lSamples - 1) / af->samplesPerFrame;
+        int startFrame = lStart / VS_AUDIO_FRAME_SAMPLES;
+        int endFrame = (lStart + lSamples - 1) / VS_AUDIO_FRAME_SAMPLES;
 
         std::vector<const uint8_t *> tmp;
-        tmp.resize(ai->format->numChannels);
+        tmp.resize(ai->format.numChannels);
 
         const VSAPI *vsapi = parent->vsapi;
         size_t dstPos = 0;
 
         for (int i = startFrame; i <= endFrame; i++) {
             const VSFrameRef *f = vsapi->getFrame(i, parent->audioNode, nullptr, 0);
-            int64_t firstFrameSample = i * static_cast<int64_t>(af->samplesPerFrame);
+            int64_t firstFrameSample = i * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES);
             size_t offset = 0;
-            size_t copyLength = af->samplesPerFrame;
+            size_t copyLength = VS_AUDIO_FRAME_SAMPLES;
             if (firstFrameSample < lStart) {
                 offset = (lStart - firstFrameSample) * bytesPerOutputSample;
                 copyLength -= (lStart - firstFrameSample);
@@ -932,17 +932,17 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
             if (lSamples < copyLength)
                 copyLength = lSamples;
 
-            for (int c = 0; c < ai->format->numChannels; c++)
+            for (int c = 0; c < ai->format.numChannels; c++)
                 tmp[c] = vsapi->getReadPtr(f, c) + offset;
 
             if (bytesPerOutputSample == 2)
-                PackChannels16to16le(tmp.data(), reinterpret_cast<uint8_t *>(lpBuffer) + dstPos, copyLength, af->numChannels);
+                PackChannels16to16le(tmp.data(), reinterpret_cast<uint8_t *>(lpBuffer) + dstPos, copyLength, af.numChannels);
             else if (bytesPerOutputSample == 3)
-                PackChannels32to24le(tmp.data(), reinterpret_cast<uint8_t *>(lpBuffer) + dstPos, copyLength, af->numChannels);
+                PackChannels32to24le(tmp.data(), reinterpret_cast<uint8_t *>(lpBuffer) + dstPos, copyLength, af.numChannels);
             else if (bytesPerOutputSample == 4)
-                PackChannels32to32le(tmp.data(), reinterpret_cast<uint8_t *>(lpBuffer) + dstPos, copyLength, af->numChannels);
+                PackChannels32to32le(tmp.data(), reinterpret_cast<uint8_t *>(lpBuffer) + dstPos, copyLength, af.numChannels);
 
-            dstPos += copyLength * af->numChannels * bytesPerOutputSample;
+            dstPos += copyLength * af.numChannels * bytesPerOutputSample;
 
             vsapi->freeFrame(f);
         }
@@ -979,10 +979,8 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
     if (!lpcbFormat)
         return E_POINTER;
 
-    const bool UseWaveExtensible = true;
-
     if (!lpFormat) {
-        *lpcbFormat = fAudio ? ( UseWaveExtensible ? sizeof(WAVEFORMATEXTENSIBLE) : sizeof(WAVEFORMATEX) ) : sizeof(BITMAPINFOHEADER);
+        *lpcbFormat = fAudio ? sizeof(WaveFormatExtensible)  : sizeof(BITMAPINFOHEADER);
         return S_OK;
     }
 
@@ -990,33 +988,11 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
 
     if (fAudio) {
         const VSAudioInfo *const ai = parent->ai;
-        size_t bytesPerOutputSample = (ai->format->bitsPerSample + 7) / 8;
-
-        if (UseWaveExtensible) {  // Use WAVE_FORMAT_EXTENSIBLE audio output format 
-            WAVEFORMATEXTENSIBLE wfxt = {};
-            wfxt.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
-            wfxt.Format.nChannels = static_cast<WORD>(ai->format->numChannels);
-            wfxt.Format.nSamplesPerSec = ai->sampleRate;
-            wfxt.Format.wBitsPerSample = static_cast<WORD>(bytesPerOutputSample * 8);
-            wfxt.Format.nBlockAlign = static_cast<WORD>(bytesPerOutputSample * ai->format->numChannels);
-            wfxt.Format.nAvgBytesPerSec = wfxt.Format.nSamplesPerSec * wfxt.Format.nBlockAlign;
-            wfxt.Format.cbSize = sizeof(wfxt) - sizeof(wfxt.Format);
-            wfxt.Samples.wValidBitsPerSample = ai->format->bitsPerSample;
-            wfxt.dwChannelMask = static_cast<DWORD>(ai->format->channelLayout);
-            wfxt.SubFormat = (ai->format->sampleType == stFloat) ? KSDATAFORMAT_SUBTYPE_IEEE_FLOAT : KSDATAFORMAT_SUBTYPE_PCM;
-            *lpcbFormat = std::min<LONG>(*lpcbFormat, sizeof(wfxt));
-            memcpy(lpFormat, &wfxt, size_t(*lpcbFormat));
-        } else {
-            WAVEFORMATEX wfx = {};
-            wfx.wFormatTag = (ai->format->sampleType == stFloat) ? WAVE_FORMAT_IEEE_FLOAT : WAVE_FORMAT_PCM;
-            wfx.nChannels = static_cast<WORD>(ai->format->numChannels);
-            wfx.nSamplesPerSec = ai->sampleRate;
-            wfx.wBitsPerSample = static_cast<WORD>(bytesPerOutputSample * 8);
-            wfx.nBlockAlign = static_cast<WORD>(bytesPerOutputSample * ai->format->numChannels);
-            wfx.nAvgBytesPerSec = wfx.nSamplesPerSec * wfx.nBlockAlign;
-            *lpcbFormat = std::min<LONG>(*lpcbFormat, sizeof(wfx));
-            memcpy(lpFormat, &wfx, size_t(*lpcbFormat));
-        }
+        WaveFormatExtensible wfxt;
+        // fixme, check for errors
+        CreateWaveFormatExtensible(wfxt, ai->format.sampleType == stFloat, ai->format.bitsPerSample, ai->sampleRate, ai->format.channelLayout);
+        *lpcbFormat = std::min<LONG>(*lpcbFormat, sizeof(wfxt));
+        memcpy(lpFormat, &wfxt, size_t(*lpcbFormat));
     } else {
         const VSVideoInfo *const vi = parent->vi;
         BITMAPINFOHEADER bi = {};

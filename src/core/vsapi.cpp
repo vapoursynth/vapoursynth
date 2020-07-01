@@ -608,17 +608,19 @@ static void VS_CC createAudioFilter(VSMap *out, const char *name, const VSAudioI
     core->createAudioFilter(out, name, ai, numOutputs, getFrame, free, static_cast<VSFilterMode>(filterMode), flags, instanceData, VAPOURSYNTH_API_MAJOR);
 }
 
-static VSFrameRef *VS_CC newAudioFrame(const VSAudioFormat *format, int sampleRate, int numSamples, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
-    assert(format && core && numSamples > 0 && sampleRate > 0);
-    return core->newAudioFrame(format, sampleRate, numSamples, propSrc);
+static VSFrameRef *VS_CC newAudioFrame(const VSAudioFormat *format, int numSamples, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
+    assert(format && core && numSamples > 0);
+    return core->newAudioFrame(format, numSamples, propSrc);
 }
 
-static const VSAudioFormat *VS_CC queryAudioFormat(int sampleType, int bitsPerSample, int64_t channelLayout, VSCore *core) VS_NOEXCEPT {
-    return core->queryAudioFormat(static_cast<VSSampleType>(sampleType), bitsPerSample, channelLayout);
+static int VS_CC queryAudioFormat(VSAudioFormat *format, int sampleType, int bitsPerSample, uint64_t channelLayout, VSCore *core) VS_NOEXCEPT {
+    assert(format);
+    return core->queryAudioFormat(*format, sampleType, bitsPerSample, channelLayout);
 }
 
-static const VSAudioFormat *VS_CC getAudioFormat(int id, VSCore *core) VS_NOEXCEPT {
-    return reinterpret_cast<const VSAudioFormat *>(getFormatPreset(id, core));
+static void VS_CC getAudioFormatName(const VSAudioFormat *format, char *buffer) VS_NOEXCEPT {
+    assert(format);
+    VSCore::getAudioFormatName(*format, buffer);
 }
 
 static const VSAudioInfo *VS_CC getAudioInfo(VSNodeRef *node) VS_NOEXCEPT {
@@ -633,6 +635,12 @@ static const VSAudioFormat *VS_CC getAudioFrameFormat(const VSFrameRef *f) VS_NO
 static int VS_CC getNodeType(VSNodeRef *node) VS_NOEXCEPT {
     assert(node);
     return node->clip->getNodeType();
+}
+
+
+static uint32_t VS_CC getNodeFlags(VSNodeRef *node) VS_NOEXCEPT {
+    assert(node);
+    return node->clip->getNodeFlags();
 }
 
 static int VS_CC getFrameType(const VSFrameRef *f) VS_NOEXCEPT {
@@ -742,10 +750,11 @@ const VSAPI vs_internal_vsapi = {
     &createAudioFilter,
     &newAudioFrame,
     &queryAudioFormat,
-    &getAudioFormat,
+    &getAudioFormatName,
     &getAudioInfo,
     &getAudioFrameFormat,
     &getNodeType,
+    &getNodeFlags,
     &getFrameType,
     &getFrameLength
 };
