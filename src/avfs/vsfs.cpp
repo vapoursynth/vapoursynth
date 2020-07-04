@@ -50,6 +50,7 @@ class VapourSynther final :
 
     int num_threads = 1;
     const VSAPI *vsapi;
+    const VSSCRIPTAPI *vssapi;
     VSScript *se = nullptr;
     bool enable_v210 = false;
     VSNodeRef *videoNode = nullptr;
@@ -155,9 +156,9 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
         if (script.empty())
             goto vpyerror;
 
-        if (!vsscript_evaluateScript(&se, script.c_str(), scriptName.c_str(), efSetWorkingDir)) {
+        if (!vssapi->evaluateScript(&se, script.c_str(), scriptName.c_str(), efSetWorkingDir)) {
 
-            videoNode = vsscript_getOutput(se, 0);
+            videoNode = vssapi->getOutput(se, 0, nullptr);
             if (!videoNode || vsapi->getNodeType(videoNode) != mtVideo) {
                 setError("Output index 0 is not set or not a video node");
                 return ERROR_ACCESS_DENIED;
@@ -180,7 +181,7 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
                 return ERROR_ACCESS_DENIED;
             }
 
-            audioNode = vsscript_getOutput(se, 1);
+            audioNode = vssapi->getOutput(se, 1, nullptr);
             if (audioNode && vsapi->getNodeType(audioNode) != mtAudio) {
                 setError("Output index index 1 is not an audio node");
                 return ERROR_ACCESS_DENIED;
@@ -193,7 +194,7 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
             int error;
             int64_t val;
             VSMap *options = vsapi->createMap();
-            vsscript_getVariable(se, "enable_v210", options);
+            vssapi->getVariable(se, "enable_v210", options);
             val = vsapi->propGetInt(options, "enable_v210", 0, &error);
             if (!error)
                 enable_v210 = !!val && IsSameVideoFormat(vi->format, cfYUV, stInteger, 10, 1, 0);
@@ -202,7 +203,7 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
             vsapi->freeMap(options);
 
             VSCoreInfo info;
-            vsapi->getCoreInfo(vsscript_getCore(se), &info);
+            vsapi->getCoreInfo(vssapi->getCore(se), &info);
             num_threads = info.numThreads;
 
             packedFrame.clear();
@@ -211,7 +212,7 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
             return 0;
         } else {
         	vpyerror:
-            setError(vsscript_getError(se));
+            setError(vssapi->getError(se));
             return ERROR_ACCESS_DENIED;
         }
     }
@@ -459,7 +460,7 @@ const char* VapourSynther::GetVarAsString(
     const char* varName, const char* defVal) {
 
     VSMap *map = vsapi->createMap();
-    vsscript_getVariable(se, varName, map);
+    vssapi->getVariable(se, varName, map);
     int err = 0;
     const char *result = vsapi->propGetData(map, varName, 0, &err);
     if (err)
@@ -483,7 +484,7 @@ bool VapourSynther::GetVarAsBool(const char* varName, bool defVal) {
 
 int VapourSynther::GetVarAsInt(const char* varName, int defVal) {
     VSMap *map = vsapi->createMap();
-    vsscript_getVariable(se, varName, map);
+    vssapi->getVariable(se, varName, map);
     int err = 0;
     int result = int64ToIntS(vsapi->propGetInt(map, varName, 0, &err));
     if (err)
@@ -531,7 +532,7 @@ void VapourSynther::free() {
         videoNode = nullptr;
     }
     if (vi || ai) {
-        vsscript_freeScript(se);
+        vssapi->freeScript(se);
         ai = nullptr;
         vi = nullptr;
         se = nullptr;
@@ -551,7 +552,8 @@ int/*error*/ VapourSynther::newEnv() {
 
 // Constructor
 VapourSynther::VapourSynther(void) {
-    vsapi = vsscript_getVSApi2(VAPOURSYNTH_API_VERSION);
+    vssapi = getVSScriptAPI(VSSCRIPT_API_VERSION);
+    vsapi = vssapi->getVSApi(VAPOURSYNTH_API_VERSION);
 }
 
 /*---------------------------------------------------------
@@ -581,7 +583,7 @@ int/*error*/ VapourSynther::Init(
     if (!error) {
         // Initialize frame read-ahead logic.
         VSCoreInfo info;
-        vsapi->getCoreInfo(vsscript_getCore(se), &info);
+        vsapi->getCoreInfo(vssapi->getCore(se), &info);
         prefetchFrames = GetVarAsInt("AVFS_ReadAheadFrameCount", -1);
         if (prefetchFrames < 0)
             prefetchFrames = info.numThreads;

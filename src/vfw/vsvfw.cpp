@@ -60,6 +60,7 @@ class VapourSynthFile final : public IAVIFile, public IPersistFile, public IClas
 private:
     int num_threads = 1;
     const VSAPI *vsapi = nullptr;
+    const VSSCRIPTAPI *vssapi = nullptr;
     VSScript *se = nullptr;
     bool enable_v210 = false;
     VSNodeRef *videoNode = nullptr;
@@ -177,17 +178,6 @@ private:
 
     HRESULT Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LONG cbBuffer, LONG *plBytes, LONG *plSamples);
 };
-
-
-BOOL APIENTRY DllMain(HANDLE hModule, ULONG ulReason, LPVOID lpReserved) {
-    if (ulReason == DLL_PROCESS_ATTACH) {
-        // fixme, move this where threading can't be an issue
-        vsscript_init();
-    } else if (ulReason == DLL_PROCESS_DETACH) {
-        vsscript_finalize();
-    }
-    return TRUE;
-}
 
 STDAPI DllGetClassObject(const CLSID& rclsid, const IID& riid, void **ppv) {
 
@@ -387,7 +377,10 @@ STDMETHODIMP VapourSynthFile::DeleteStream(DWORD fccType, LONG lParam) {
 /////// local
 
 VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : m_refs(0), pending_requests(0) {
-    vsapi = vsscript_getVSApi2(VAPOURSYNTH_API_VERSION);
+    vssapi = getVSScriptAPI(VSSCRIPT_API_VERSION);
+    vsapi = vssapi->getVSApi(VAPOURSYNTH_API_VERSION);
+    int inited = vssapi->init();
+    assert(inited);
     AddRef();
 }
 
@@ -405,10 +398,11 @@ VapourSynthFile::~VapourSynthFile() {
     if (vi || ai) {
         vi = nullptr;
         ai = nullptr;
-        vsscript_freeScript(se);
+        vssapi->freeScript(se);
         se = nullptr;
     }
     Unlock();
+    vssapi->finalize();
 }
 
 STDMETHODIMP VapourSynthFile::Open(LPCSTR szFile, UINT mode, LPCOLESTR lpszFileName) {
@@ -443,12 +437,12 @@ final.set_output()\n";
 
 bool VapourSynthFile::DelayInit2() {
     if (!szScriptName.empty() && !vi) {
-        if (!vsscript_evaluateFile(&se, szScriptName.c_str(), efSetWorkingDir)) {
+        if (!vssapi->evaluateFile(&se, szScriptName.c_str(), efSetWorkingDir)) {
             error_msg.clear();
 
             ////////// video
 
-            videoNode = vsscript_getOutput(se, 0);
+            videoNode = vssapi->getOutput(se, 0, nullptr);
             if (!videoNode) {
                 error_msg = "Couldn't get output clip, no output set?";
                 goto vpyerror;
@@ -478,13 +472,13 @@ bool VapourSynthFile::DelayInit2() {
             // set the special options hidden in global variables
             int error;
             VSMap *options = vsapi->createMap();
-            vsscript_getVariable(se, "enable_v210", options);
+            vssapi->getVariable(se, "enable_v210", options);
             enable_v210 = !!vsapi->propGetInt(options, "enable_v210", 0, &error);
             vsapi->freeMap(options);
 
             ////////// audio
 
-            audioNode = vsscript_getOutput(se, 1);
+            audioNode = vssapi->getOutput(se, 1, nullptr);
 
             if (audioNode) {
                 if (vsapi->getNodeType(audioNode) != mtAudio) {
@@ -501,12 +495,12 @@ bool VapourSynthFile::DelayInit2() {
             }
 
             VSCoreInfo info;
-            vsapi->getCoreInfo(vsscript_getCore(se), &info);
+            vsapi->getCoreInfo(vssapi->getCore(se), &info);
             num_threads = info.numThreads;
 
             return true;
         } else {
-            error_msg = vsscript_getError(se);
+            error_msg = vssapi->getError(se);
         vpyerror:
             vsapi->freeNode(videoNode);
             vsapi->freeNode(audioNode);
@@ -514,13 +508,13 @@ bool VapourSynthFile::DelayInit2() {
             audioNode = nullptr;
             vi = nullptr;
             ai = nullptr;
-            vsscript_freeScript(se);
+            vssapi->freeScript(se);
             se = nullptr;
             std::string error_script = ErrorScript1;
             error_script += error_msg;
             error_script += ErrorScript2;
-            vsscript_evaluateScript(&se, error_script.c_str(), "vfw_error.message", 0);
-            videoNode = vsscript_getOutput(se, 0);
+            vssapi->evaluateScript(&se, error_script.c_str(), "vfw_error.message", 0);
+            videoNode = vssapi->getOutput(se, 0, nullptr);
             vi = vsapi->getVideoInfo(videoNode);
             return true;
         }
@@ -756,6 +750,7 @@ void VS_CC VapourSynthFile::frameDoneCallback(void *userData, const VSFrameRef *
 
 bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
     const VSAPI *vsapi = parent->vsapi;
+    const VSSCRIPTAPI *vssapi = parent->vssapi;
     std::vector<char> errMsg(32 * 1024);
     const VSFrameRef *f = vsapi->getFrame(n, parent->videoNode, errMsg.data(), static_cast<int>(errMsg.size()));
     VSScript *errSe = nullptr;
@@ -778,13 +773,13 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
         frameErrorScript += "err_script_clip = core.resize.Bilinear(err_script_clip, format=err_script_formatid" + matrix + ")\n";
         frameErrorScript += "err_script_clip.set_output()\n";
 
-        vsscript_evaluateScript(&errSe, frameErrorScript.c_str(), "vfw_error.message", 0);
-        VSNodeRef *node = vsscript_getOutput(errSe, 0);
+        vssapi->evaluateScript(&errSe, frameErrorScript.c_str(), "vfw_error.message", 0);
+        VSNodeRef *node = vssapi->getOutput(errSe, 0, nullptr);
         f = vsapi->getFrame(0, node, nullptr, 0);
         vsapi->freeNode(node);
 
         if (!f) {
-            vsscript_freeScript(errSe);
+            vssapi->freeScript(errSe);
             return false;
         }
     }
@@ -869,7 +864,7 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
     }
 
     vsapi->freeFrame(f);
-    vsscript_freeScript(errSe);
+    vssapi->freeScript(errSe);
 
     if (!errSe) {
         for (int i = n + 1; i < std::min<int>(n + parent->num_threads, parent->vi->numFrames); i++) {
@@ -903,7 +898,7 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
 
         size_t bytesPerOutputSample = (ai->format.bitsPerSample + 7) / 8;
 
-        long bytes = lSamples * bytesPerOutputSample * ai->format.numChannels;
+        LONG bytes = lSamples * bytesPerOutputSample * ai->format.numChannels;
         if (lpBuffer && bytes > cbBuffer) {
             lSamples = static_cast<long>(cbBuffer / (bytesPerOutputSample * ai->format.numChannels));
             bytes = lSamples * bytesPerOutputSample * ai->format.numChannels;

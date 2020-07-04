@@ -176,12 +176,20 @@ VS_API(const char *) vsscript_getError(VSScript *handle) VS_NOEXCEPT {
 }
 
 // V3 API compatibility
+// FIXME, check for audio nodes and return null
 VS_API(VSNodeRef *) vsscript_getOutput(VSScript *handle, int index) VS_NOEXCEPT {
     std::lock_guard<std::mutex> lock(vsscriptlock);
     return vpy_getOutput(handle, index);
 }
 
+// V3 API compatibility
+// FIXME, check for audio nodes and return null
 VS_API(VSNodeRef *) vsscript_getOutput2(VSScript *handle, int index, VSNodeRef **alpha) VS_NOEXCEPT {
+    std::lock_guard<std::mutex> lock(vsscriptlock);
+    return vpy_getOutput2(handle, index, alpha);
+}
+
+static VSNodeRef *VS_CC vsscript_getOutput4(VSScript *handle, int index, VSNodeRef **alpha) VS_NOEXCEPT {
     std::lock_guard<std::mutex> lock(vsscriptlock);
     return vpy_getOutput2(handle, index, alpha);
 }
@@ -199,7 +207,7 @@ VS_API(VSCore *) vsscript_getCore(VSScript *handle) VS_NOEXCEPT {
 // V3 API compatibility
 VS_API(const VSAPI *) vsscript_getVSApi(void) VS_NOEXCEPT {
     std::lock_guard<std::mutex> lock(vsscriptlock);
-    return vpy_getVSApi();
+    return vpy_getVSApi2(3);
 }
 
 VS_API(const VSAPI *) vsscript_getVSApi2(int version) VS_NOEXCEPT {
@@ -208,6 +216,7 @@ VS_API(const VSAPI *) vsscript_getVSApi2(int version) VS_NOEXCEPT {
     return vpy_getVSApi2(version);
 }
 
+// FIXME, needs check to prevent audio types from escaping to V3
 VS_API(int) vsscript_getVariable(VSScript *handle, const char *name, VSMap *dst) VS_NOEXCEPT {
     std::lock_guard<std::mutex> lock(vsscriptlock);
     return vpy_getVariable(handle, name, dst);
@@ -238,7 +247,7 @@ static VSSCRIPTAPI vsscript_api = {
     &vsscript_createScript,
     &vsscript_freeScript,
     &vsscript_getError,
-    &vsscript_getOutput2,
+    &vsscript_getOutput4,
     &vsscript_clearOutput,
     &vsscript_getCore,
     &vsscript_getVariable,
