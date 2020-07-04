@@ -211,6 +211,10 @@ typedef enum VSMessageType {
     mtFatal = 3
 } VSMessageType;
 
+typedef enum VSCoreFlags {
+    cfDisableAutoLoading = 1
+} VSCoreFlags;
+
 /* core entry point */
 typedef const VSAPI *(VS_CC *VSGetVapourSynthAPI)(int version);
 
@@ -229,7 +233,7 @@ typedef void (VS_CC *VSMessageHandler)(int msgType, const char *msg, void *userD
 typedef void (VS_CC *VSMessageHandlerFree)(void *userData);
 
 struct VSAPI {
-    VSCore *(VS_CC *createCore)(int threads) VS_NOEXCEPT;
+    VSCore *(VS_CC *createCore)(int threads, int flags) VS_NOEXCEPT;
     void (VS_CC *freeCore)(VSCore *core) VS_NOEXCEPT;
 
     const VSFrameRef *(VS_CC *cloneFrameRef)(const VSFrameRef *f) VS_NOEXCEPT;
@@ -333,7 +337,7 @@ struct VSAPI {
     const VSAudioInfo *(VS_CC *getAudioInfo)(VSNodeRef *node) VS_NOEXCEPT;
     const VSAudioFormat *(VS_CC *getAudioFrameFormat)(const VSFrameRef *f) VS_NOEXCEPT;
     int (VS_CC *getNodeType)(VSNodeRef *node) VS_NOEXCEPT;
-    uint32_t (VS_CC *getNodeFlags)(VSNodeRef *node) VS_NOEXCEPT;
+    int (VS_CC *getNodeFlags)(VSNodeRef *node) VS_NOEXCEPT;
     int (VS_CC *getFrameType)(const VSFrameRef *f) VS_NOEXCEPT;
     int (VS_CC *getFrameLength)(const VSFrameRef *f) VS_NOEXCEPT;
     int (VS_CC *getApiVersion)(void) VS_NOEXCEPT;

@@ -30,10 +30,13 @@
 typedef struct VSScript VSScript;
 typedef struct VSSCRIPTAPI VSSCRIPTAPI;
 
+// FIXME, deprecate this somehow
 typedef enum VSEvalFlags {
     efSetWorkingDir = 1,
 } VSEvalFlags;
 
+// FIXME, improve documentation since it's very confusing
+// FIXME, clarify the function of environment handles and possibly limit them to only one script evaluation each
 struct VSSCRIPTAPI {
     int (VS_CC *getApiVersion)(void) VS_NOEXCEPT;
 

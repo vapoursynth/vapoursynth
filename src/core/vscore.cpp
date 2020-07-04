@@ -1670,7 +1670,7 @@ void VSCore::destroyFilterInstance(VSNode *node) {
     freeDepth--;
 }
 
-VSCore::VSCore(int threads) :
+VSCore::VSCore(int threads, int flags) :
     coreFreed(false),
     numFilterInstances(1),
     numFunctionInstances(0),
@@ -1682,6 +1682,7 @@ VSCore::VSCore(int threads) :
         vsFatal("Bad SSE state detected when creating new core");
 #endif
 
+    bool disableAutoLoading = !!(flags & cfDisableAutoLoading);
     threadPool = new VSThreadPool(this, threads);
 
     registerFormats();
@@ -1749,10 +1750,12 @@ VSCore::VSCore(int threads) :
         if (!loadAllPluginsInPath(corePluginPath, filter))
             vsCritical("Core plugin autoloading failed. Installation is broken?");
 
-        // Autoload global plugins last, this is so the bundled plugins cannot be overridden easily
-        // and accidentally block updated bundled versions
-        std::wstring globalPluginPath = dllPath + L"vapoursynth" + bits + L"\\plugins";
-        loadAllPluginsInPath(globalPluginPath, filter);
+        if (!disableAutoLoading) {
+            // Autoload global plugins last, this is so the bundled plugins cannot be overridden easily
+            // and accidentally block updated bundled versions
+            std::wstring globalPluginPath = dllPath + L"vapoursynth" + bits + L"\\plugins";
+            loadAllPluginsInPath(globalPluginPath, filter);
+        }
     } else {
         // Autoload user specific plugins first so a user can always override
         std::vector<wchar_t> appDataBuffer(MAX_PATH + 1);
@@ -1761,18 +1764,20 @@ VSCore::VSCore(int threads) :
 
         std::wstring appDataPath = std::wstring(appDataBuffer.data()) + L"\\VapourSynth\\plugins" + bits;
 
-        // Autoload per user plugins
-        loadAllPluginsInPath(appDataPath, filter);
-
         // Autoload bundled plugins
         std::wstring corePluginPath = readRegistryValue(VS_INSTALL_REGKEY, L"CorePlugins");
         if (!loadAllPluginsInPath(corePluginPath, filter))
-            vsCritical("Core plugin autoloading failed. Installation is broken?");
+            vsCritical("Core plugin autoloading failed. Installation is broken!");
 
-        // Autoload global plugins last, this is so the bundled plugins cannot be overridden easily
-        // and accidentally block updated bundled versions
-        std::wstring globalPluginPath = readRegistryValue(VS_INSTALL_REGKEY, L"Plugins");
-        loadAllPluginsInPath(globalPluginPath, filter);
+        if (!disableAutoLoading) {
+            // Autoload per user plugins
+            loadAllPluginsInPath(appDataPath, filter);
+
+            // Autoload global plugins last, this is so the bundled plugins cannot be overridden easily
+            // and accidentally block user installed ones
+            std::wstring globalPluginPath = readRegistryValue(VS_INSTALL_REGKEY, L"Plugins");
+            loadAllPluginsInPath(globalPluginPath, filter);
+        }
     }
 
 #else

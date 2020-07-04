@@ -555,7 +555,7 @@ static bool printVersion() {
         return false;
     }
 
-    VSCore *core = vsapi->createCore(1);
+    VSCore *core = vsapi->createCore(1, 0);
     if (!core) {
         fprintf(stderr, "Failed to create core\n");
         return false;

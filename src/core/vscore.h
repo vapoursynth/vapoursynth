@@ -557,7 +557,7 @@ private:
 
     int apiMajor;
     VSCore *core;
-    uint32_t flags;
+    int flags;
     std::vector<VSVideoInfo> vi;
     std::vector<vs3::VSVideoInfo> v3vi;
     std::vector<VSAudioInfo> ai;
@@ -592,7 +592,7 @@ public:
         return nodeType;
     }
 
-    uint32_t getNodeFlags() const {
+    int getNodeFlags() const {
         return flags;
     }
 
@@ -817,7 +817,7 @@ public:
     void filterInstanceDestroyed();
     void destroyFilterInstance(VSNode *node);
 
-    explicit VSCore(int threads);
+    explicit VSCore(int threads, int flags);
     void freeCore();
 };
 

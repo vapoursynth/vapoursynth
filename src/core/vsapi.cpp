@@ -500,8 +500,12 @@ static void VS_CC clearMap(VSMap *map) VS_NOEXCEPT {
     map->clear();
 }
 
-static VSCore *VS_CC createCore(int threads) VS_NOEXCEPT {
-    return new VSCore(threads);
+static VSCore *VS_CC createCore(int threads, int flags) VS_NOEXCEPT {
+    return new VSCore(threads, flags);
+}
+
+static VSCore *VS_CC createCore3(int threads) VS_NOEXCEPT {
+    return new VSCore(threads, 0);
 }
 
 static void VS_CC freeCore(VSCore *core) VS_NOEXCEPT {
@@ -749,7 +753,7 @@ static int VS_CC getNodeType(VSNodeRef *node) VS_NOEXCEPT {
 }
 
 
-static uint32_t VS_CC getNodeFlags(VSNodeRef *node) VS_NOEXCEPT {
+static int VS_CC getNodeFlags(VSNodeRef *node) VS_NOEXCEPT {
     assert(node);
     return node->clip->getNodeFlags();
 }
@@ -874,7 +878,7 @@ const VSAPI vs_internal_vsapi = {
 };
 
 const vs3::VSAPI3 vs_internal_vsapi3 = {
-    &createCore,
+    &createCore3,
     &freeCore,
     &getCoreInfo,
 
