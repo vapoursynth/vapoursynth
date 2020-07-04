@@ -549,22 +549,15 @@ static bool nstringToInt(const nstring &ns, int &result) {
 }
 
 static bool printVersion() {
-    if (!vssapi->init()) {
-        fprintf(stderr, "Failed to initialize VapourSynth environment\n");
-        return false;
-    }
-
     vsapi = vssapi->getVSApi(VAPOURSYNTH_API_VERSION);
     if (!vsapi) {
         fprintf(stderr, "Failed to get VapourSynth API pointer\n");
-        vssapi->finalize();
         return false;
     }
 
     VSCore *core = vsapi->createCore(1);
     if (!core) {
         fprintf(stderr, "Failed to create core\n");
-        vssapi->finalize();
         return false;
     }
 
@@ -572,7 +565,6 @@ static bool printVersion() {
     vsapi->getCoreInfo(core, &info);
     printf("%s", info.versionString);
     vsapi->freeCore(core);
-    vssapi->finalize();
     return true;
 }
 
@@ -623,7 +615,7 @@ int main(int argc, char **argv) {
 #endif
     vssapi = getVSScriptAPI(VSSCRIPT_API_VERSION);
     if (!vssapi) {
-        fprintf(stderr, "Failed to get VSScript API pointer\n");
+        fprintf(stderr, "Failed to initialize VSScript\n");
         return 1;
     }
 
@@ -793,15 +785,9 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (!vssapi->init()) {
-        fprintf(stderr, "Failed to initialize VapourSynth environment\n");
-        return 1;
-    }
-
     vsapi = vssapi->getVSApi(VAPOURSYNTH_API_VERSION);
     if (!vsapi) {
         fprintf(stderr, "Failed to get VapourSynth API pointer\n");
-        vssapi->finalize();
         return 1;
     }
     
@@ -809,7 +795,6 @@ int main(int argc, char **argv) {
     if (vssapi->createScript(&se)) {
         fprintf(stderr, "Script environment initialization failed:\n%s\n", vssapi->getError(se));
         vssapi->freeScript(se);
-        vssapi->finalize();
         return 1;
     }
 
@@ -825,7 +810,6 @@ int main(int argc, char **argv) {
     if (vssapi->evaluateFile(&se, nstringToUtf8(scriptFilename).c_str(), preserveCwd ? 0 : efSetWorkingDir)) {
         fprintf(stderr, "Script evaluation failed:\n%s\n", vssapi->getError(se));
         vssapi->freeScript(se);
-        vssapi->finalize();
         return 1;
     }
 
@@ -833,7 +817,6 @@ int main(int argc, char **argv) {
     if (!node) {
        fprintf(stderr, "Failed to retrieve output node. Invalid index specified?\n");
        vssapi->freeScript(se);
-       vssapi->finalize();
        return 1;
     }
 
@@ -882,7 +865,6 @@ int main(int argc, char **argv) {
                 vsapi->freeNode(node);
                 vsapi->freeNode(alphaNode);
                 vssapi->freeScript(se);
-                vssapi->finalize();
                 return 1;
             }
 
@@ -891,7 +873,6 @@ int main(int argc, char **argv) {
                 vsapi->freeNode(node);
                 vsapi->freeNode(alphaNode);
                 vssapi->freeScript(se);
-                vssapi->finalize();
                 return 1;
             }
 
@@ -925,7 +906,6 @@ int main(int argc, char **argv) {
                 vsapi->freeNode(node);
                 vsapi->freeNode(alphaNode);
                 vssapi->freeScript(se);
-                vssapi->finalize();
                 return 1;
             }
 
@@ -950,7 +930,6 @@ int main(int argc, char **argv) {
     vsapi->freeNode(node);
     vsapi->freeNode(alphaNode);
     vssapi->freeScript(se);
-    vssapi->finalize();
 
     return success ? 0 : 1;
 }

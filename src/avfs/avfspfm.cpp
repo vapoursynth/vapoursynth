@@ -768,7 +768,7 @@ void Volume::ProcessScript(void)
         scriptFile = file;
         size_t len = sslen(scriptFile->name);
         static HMODULE lib = LoadLibrary(L"VSScript.dll");
-        if (!sscmpi(ssrchr(scriptFile->name, '.'), L".vpy") && lib && getVSScriptAPI(VSSCRIPT_API_VERSION) && getVSScriptAPI(VSSCRIPT_API_VERSION)->init())
+        if (!sscmpi(ssrchr(scriptFile->name, '.'), L".vpy") && lib && getVSScriptAPI(VSSCRIPT_API_VERSION))
             VsfsProcessScript(this, this);
         else
             AvfsProcessScript(this, this);

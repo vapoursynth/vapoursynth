@@ -40,12 +40,6 @@ struct VSSCRIPTAPI {
     /* Convenience function for retrieving a VSAPI pointer */
     const VSAPI *(VS_CC *getVSApi)(int version) VS_NOEXCEPT;
 
-    /* Initialize the available scripting runtimes, returns zero on failure */
-    int (VS_CC *init)(void) VS_NOEXCEPT;
-
-    /* Free all scripting runtimes */
-    int (VS_CC *finalize)(void) VS_NOEXCEPT;
-
     /*
     * Pass a pointer to a null handle to create a new one
     * The values returned by the query functions are only valid during the lifetime of the VSScript

@@ -110,6 +110,7 @@ VS_API(int) vsscript_getApiVersion(void) VS_NOEXCEPT {
     return VSSCRIPT_API_VERSION;
 }
 
+// V3 API compatibility
 VS_API(int) vsscript_init() VS_NOEXCEPT {
     std::lock_guard<std::mutex> lock(vsscriptlock);
     std::call_once(flag, real_init);
@@ -119,6 +120,7 @@ VS_API(int) vsscript_init() VS_NOEXCEPT {
         return initializationCount;
 }
 
+// V3 API compatibility
 VS_API(int) vsscript_finalize(void) VS_NOEXCEPT {
     std::lock_guard<std::mutex> lock(vsscriptlock);
     int count = --initializationCount;
@@ -175,9 +177,10 @@ VS_API(const char *) vsscript_getError(VSScript *handle) VS_NOEXCEPT {
         return "Invalid handle (NULL)";
 }
 
-// V3 API compatibility
-VS_API(VSNodeRef *) vsscript_getOutput(VSScript *handle, int index) VS_NOEXCEPT {
-    return vsscript_getOutput2(handle, index, nullptr);
+VS_API(const VSAPI *) vsscript_getVSApi2(int version) VS_NOEXCEPT {
+    // it's possible no lock is needed here but do it just to be sure
+    std::lock_guard<std::mutex> lock(vsscriptlock);
+    return vpy_getVSApi2(version);
 }
 
 // V3 API compatibility
@@ -194,6 +197,11 @@ VS_API(VSNodeRef *) vsscript_getOutput2(VSScript *handle, int index, VSNodeRef *
         return nullptr;
     }
     return node;
+}
+
+// V3 API compatibility
+VS_API(VSNodeRef *) vsscript_getOutput(VSScript *handle, int index) VS_NOEXCEPT {
+    return vsscript_getOutput2(handle, index, nullptr);
 }
 
 static VSNodeRef *VS_CC vsscript_getOutputAPI4(VSScript *handle, int index, VSNodeRef **alpha) VS_NOEXCEPT {
@@ -215,12 +223,6 @@ VS_API(VSCore *) vsscript_getCore(VSScript *handle) VS_NOEXCEPT {
 VS_API(const VSAPI *) vsscript_getVSApi(void) VS_NOEXCEPT {
     std::lock_guard<std::mutex> lock(vsscriptlock);
     return vpy_getVSApi2(3 << 16);
-}
-
-VS_API(const VSAPI *) vsscript_getVSApi2(int version) VS_NOEXCEPT {
-    // it's possible no lock is needed here but do it just to be sure
-    std::lock_guard<std::mutex> lock(vsscriptlock);
-    return vpy_getVSApi2(version);
 }
 
 // FIXME, needs check to prevent audio types from escaping to V3
@@ -247,8 +249,6 @@ VS_API(void) vsscript_clearEnvironment(VSScript *handle) VS_NOEXCEPT {
 static VSSCRIPTAPI vsscript_api = {
     &vsscript_getApiVersion,
     &vsscript_getVSApi2,
-    &vsscript_init,
-    &vsscript_finalize,
     &vsscript_evaluateScript,
     &vsscript_evaluateFile,
     &vsscript_createScript,
@@ -267,7 +267,10 @@ const VSSCRIPTAPI *VS_CC getVSScriptAPI(int version) VS_NOEXCEPT {
     int apiMajor = (version >> 16);
     int apiMinor = (apiMajor & 0xFFFF);
 
-    if (apiMajor == VSSCRIPT_API_MAJOR && apiMinor <= VSSCRIPT_API_MINOR)
-        return &vsscript_api;
+    if (apiMajor == VSSCRIPT_API_MAJOR && apiMinor <= VSSCRIPT_API_MINOR) {
+        std::call_once(flag, real_init);
+        if (initialized)
+            return &vsscript_api;
+    }
     return nullptr;
 }

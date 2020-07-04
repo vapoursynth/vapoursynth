@@ -378,9 +378,8 @@ STDMETHODIMP VapourSynthFile::DeleteStream(DWORD fccType, LONG lParam) {
 
 VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : m_refs(0), pending_requests(0) {
     vssapi = getVSScriptAPI(VSSCRIPT_API_VERSION);
+    assert(vssapi);
     vsapi = vssapi->getVSApi(VAPOURSYNTH_API_VERSION);
-    int inited = vssapi->init();
-    assert(inited);
     AddRef();
 }
 
@@ -402,7 +401,6 @@ VapourSynthFile::~VapourSynthFile() {
         se = nullptr;
     }
     Unlock();
-    vssapi->finalize();
 }
 
 STDMETHODIMP VapourSynthFile::Open(LPCSTR szFile, UINT mode, LPCOLESTR lpszFileName) {
