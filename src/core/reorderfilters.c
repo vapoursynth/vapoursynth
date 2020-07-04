@@ -48,7 +48,7 @@ static int findCommonVi(VSNodeRef **nodes, int num, VSVideoInfo *outvi, int igno
         }
 
         if (!isSameVideoFormat(&outvi->format, &vi->format)) {
-            outvi->format = { 0 };
+            memset(&outvi->format, 0, sizeof(outvi->format));
             mismatch = DifferentFormats;
         }
 
@@ -231,7 +231,7 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
                 compat = 1;
         }
 
-        int mismatchCause = findCommonVi(d.node, d.numclips, &d.vi, 1, core, vsapi);
+        int mismatchCause = findCommonVi(d.node, d.numclips, &d.vi, 1, vsapi);
         if (mismatchCause && (!mismatch || compat)) {
             for (int i = 0; i < d.numclips; i++)
                 vsapi->freeNode(d.node[i]);
@@ -546,7 +546,7 @@ static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCo
                 compat = 1;
         }
 
-        int mismatchCause = findCommonVi(d.node, d.numclips, &vi, 1, core, vsapi);
+        int mismatchCause = findCommonVi(d.node, d.numclips, &vi, 1, vsapi);
         if (mismatchCause && (!mismatch || compat) && !isSameVideoInfo(&vi, vsapi->getVideoInfo(d.node[0]))) {
             for (int i = 0; i < d.numclips; i++)
                 vsapi->freeNode(d.node[i]);

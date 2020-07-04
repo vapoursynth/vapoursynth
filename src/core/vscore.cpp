@@ -2132,7 +2132,7 @@ VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
             for (const FilterArgument &fa : f.args) {
                 char c = vs_internal_vsapi.propGetType(&args, fa.name.c_str());
 
-                if (c != 'u') {
+                if (c != ptUnset) {
                     remainingArgs.erase(fa.name);
 
                     if (fa.type != c)

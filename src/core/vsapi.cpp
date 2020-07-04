@@ -296,10 +296,32 @@ static int VS_CC propNumElements(const VSMap *map, const char *key) VS_NOEXCEPT 
     return propNumElementsInternal(map, key);
 }
 
-static char VS_CC propGetType(const VSMap *map, const char *key) VS_NOEXCEPT {
+static int VS_CC propGetType(const VSMap *map, const char *key) VS_NOEXCEPT {
     assert(map && key);
     VSVariant *val = map->find(key);
-    return val ? val->getType() : 'u';
+    return val ? val->getType() : ptUnset;
+}
+
+static char VS_CC propGetType3(const VSMap *map, const char *key) VS_NOEXCEPT {
+    assert(map && key);
+    VSVariant *val = map->find(key);
+    VSPropTypes pt = val ? val->getType() : ptUnset;
+    switch (pt) {
+        case ptInt:
+            return vs3::ptInt;
+        case ptFloat:
+            return vs3::ptFloat;
+        case ptData:
+            return vs3::ptData;
+        case ptVideoNode:
+            return vs3::ptNode;
+        case ptVideoFrame:
+            return vs3::ptFrame;
+        case ptFunction:
+            return vs3::ptFunction;
+        default:
+            return vs3::ptUnset;
+    }
 }
 
 #define PROP_GET_SHARED(vt, retexpr) \
@@ -402,7 +424,7 @@ static bool isValidVSMapKey(const std::string &s) {
 
 #define PROP_SET_SHARED(vv, appendexpr) \
     assert(map && key); \
-    if (append != paReplace && append != paAppend && append != paTouch) \
+    if (append != paReplace && append != paAppend && append != vs3::paTouch) \
         vsFatal("Invalid prop append mode given when setting key '%s'", key); \
     std::string skey = key; \
     if (!isValidVSMapKey(skey)) \
@@ -416,7 +438,7 @@ static bool isValidVSMapKey(const std::string &s) {
             l.append(appendexpr); \
     } else { \
         VSVariant l((vv)); \
-        if (append != paTouch) \
+        if (append != vs3::paTouch) \
             l.append(appendexpr); \
         map->insert(skey, std::move(l)); \
     } \
@@ -888,7 +910,7 @@ const vs3::VSAPI3 vs_internal_vsapi3 = {
     &propNumKeys,
     &propGetKey,
     &propNumElements,
-    &propGetType,
+    &propGetType3,
     &propGetInt,
     &propGetFloat,
     &propGetData,

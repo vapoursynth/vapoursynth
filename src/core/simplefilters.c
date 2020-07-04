@@ -1066,7 +1066,7 @@ static const VSFrameRef *VS_CC stackGetframe(int n, int activationReason, void *
 
                 if (d->vertical) {
                     const uint8_t *srcp = vsapi->getReadPtr(src, plane);
-                    int size = dst_stride * vsapi->getFrameHeight(src, plane);
+                    size_t size = dst_stride * vsapi->getFrameHeight(src, plane);
                     memcpy(dstp, srcp, size);
                     dstp += size;
                 } else {

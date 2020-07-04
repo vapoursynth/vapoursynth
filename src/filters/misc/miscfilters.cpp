@@ -26,8 +26,8 @@
 #include <memory>
 #include <stdexcept>
 #include <vector>
-#include <VapourSynth.h>
-#include <VSHelper.h>
+#include <VapourSynth4.h>
+#include <VSHelper4.h>
 #include "../src/core/filtersharedcpp.h"
 #include "../src/core/filtershared.h"
 
@@ -126,7 +126,7 @@ static void VS_CC scDetectCreate(const VSMap *in, VSMap *out, void *userData, VS
         return;
     }
 
-    vsapi->createFilter(in, out, "SCDetect", templateNodeInit<SCDetectData>, scDetectGetFrame, scDetectFree, fmParallel, 0, d.release(), core);
+    vsapi->createVideoFilter(out, "SCDetect", vi, 1, scDetectGetFrame, scDetectFree, fmParallel, 0, d.release(), core);
 }
 
 ///////////////////////////////////////
@@ -147,7 +147,7 @@ typedef struct {
 
 template <typename T>
 static void averageFramesI(const AverageFrameData *d, const VSFrameRef * const *srcs, VSFrameRef *dst, int plane, const VSAPI *vsapi) {
-    int stride = vsapi->getStride(dst, plane) / sizeof(T);
+    ptrdiff_t stride = vsapi->getStride(dst, plane) / sizeof(T);
     int width = vsapi->getFrameWidth(dst, plane);
     int height = vsapi->getFrameHeight(dst, plane);
 
@@ -160,11 +160,11 @@ static void averageFramesI(const AverageFrameData *d, const VSFrameRef * const *
 
     T * VS_RESTRICT dstp = reinterpret_cast<T *>(vsapi->getWritePtr(dst, plane));
 
-    unsigned maxVal = (1U << d->vi.format->bitsPerSample) - 1;
+    unsigned maxVal = (1U << d->vi.format.bitsPerSample) - 1;
     unsigned bias = 0;
 
-    if ((plane == 1 || plane == 2) && (d->vi.format->colorFamily == cmYUV || d->vi.format->colorFamily == cmYCoCg))
-        bias = 1U << (d->vi.format->bitsPerSample - 1);
+    if ((plane == 1 || plane == 2) && (d->vi.format.colorFamily == cfYUV || d->vi.format.colorFamily == cfYCoCg))
+        bias = 1U << (d->vi.format.bitsPerSample - 1);
 
     int scale = d->scale;
     int round = scale / 2;
@@ -189,7 +189,7 @@ static void averageFramesI(const AverageFrameData *d, const VSFrameRef * const *
 }
 
 static void averageFramesF(const AverageFrameData *d, const VSFrameRef * const *srcs, VSFrameRef *dst, int plane, const VSAPI *vsapi) {
-    int stride = vsapi->getStride(dst, plane) / sizeof(float);
+    ptrdiff_t stride = vsapi->getStride(dst, plane) / sizeof(float);
     int width = vsapi->getFrameWidth(dst, plane);
     int height = vsapi->getFrameHeight(dst, plane);
 
@@ -218,7 +218,7 @@ static void averageFramesF(const AverageFrameData *d, const VSFrameRef * const *
 
 #ifdef VS_TARGET_CPU_X86
 static void averageFramesByteSSE2(const AverageFrameData *d, const VSFrameRef * const *srcs, VSFrameRef *dst, int plane, const VSAPI *vsapi) {
-    int stride = vsapi->getStride(dst, plane);
+    ptrdiff_t stride = vsapi->getStride(dst, plane);
     int width = vsapi->getFrameWidth(dst, plane);
     int height = vsapi->getFrameHeight(dst, plane);
 
@@ -244,7 +244,7 @@ static void averageFramesByteSSE2(const AverageFrameData *d, const VSFrameRef * 
     __m128i bias = _mm_setzero_si128();
     __m128 scale = _mm_set_ps1(1.0f / d->scale);
 
-    if ((plane == 1 || plane == 2) && (d->vi.format->colorFamily == cmYUV || d->vi.format->colorFamily == cmYCoCg))
+    if ((plane == 1 || plane == 2) && (d->vi.format.colorFamily == cfYUV || d->vi.format.colorFamily == cfYCoCg))
         bias = _mm_set1_epi8(128);
 
     for (int h = 0; h < height; ++h) {
@@ -300,7 +300,7 @@ static void averageFramesByteSSE2(const AverageFrameData *d, const VSFrameRef * 
 }
 
 static void averageFramesWordSSE2(const AverageFrameData *d, const VSFrameRef * const *srcs, VSFrameRef *dst, int plane, const VSAPI *vsapi) {
-    int stride = vsapi->getStride(dst, plane) / sizeof(uint16_t);
+    ptrdiff_t stride = vsapi->getStride(dst, plane) / sizeof(uint16_t);
     int width = vsapi->getFrameWidth(dst, plane);
     int height = vsapi->getFrameHeight(dst, plane);
 
@@ -326,9 +326,9 @@ static void averageFramesWordSSE2(const AverageFrameData *d, const VSFrameRef * 
     if (numSrcs % 2)
         weights[numSrcs / 2 - 1] = _mm_set1_epi32(static_cast<uint16_t>(d->weights[numSrcs - 1]));
 
-    if ((plane == 1 || plane == 2) && (d->vi.format->colorFamily == cmYUV || d->vi.format->colorFamily == cmYCoCg)) {
-        __m128i bias = _mm_set1_epi16(1U << (d->vi.format->bitsPerSample - 1));
-        __m128i maxVal = _mm_sub_epi16(_mm_set1_epi16((1U << d->vi.format->bitsPerSample) - 1), bias);
+    if ((plane == 1 || plane == 2) && (d->vi.format.colorFamily == cfYUV || d->vi.format.colorFamily == cfYCoCg)) {
+        __m128i bias = _mm_set1_epi16(1U << (d->vi.format.bitsPerSample - 1));
+        __m128i maxVal = _mm_sub_epi16(_mm_set1_epi16((1U << d->vi.format.bitsPerSample) - 1), bias);
         __m128i minVal = _mm_sub_epi16(_mm_setzero_si128(), bias);
 
         for (int h = 0; h < height; ++h) {
@@ -366,7 +366,7 @@ static void averageFramesWordSSE2(const AverageFrameData *d, const VSFrameRef * 
         }
     } else {
         __m128i accumbias = _mm_setzero_si128();
-        __m128i maxVal = _mm_add_epi16(_mm_set1_epi16((1U << d->vi.format->bitsPerSample) - 1), _mm_set1_epi16(INT16_MIN));
+        __m128i maxVal = _mm_add_epi16(_mm_set1_epi16((1U << d->vi.format.bitsPerSample) - 1), _mm_set1_epi16(INT16_MIN));
 
         for (size_t i = 0; i < numSrcs / 2; ++i) {
             accumbias = _mm_add_epi32(accumbias, _mm_madd_epi16(_mm_set1_epi16(INT16_MIN), weights[i]));
@@ -413,7 +413,7 @@ static void averageFramesWordSSE2(const AverageFrameData *d, const VSFrameRef * 
 }
 
 static void averageFramesFloatSSE2(const AverageFrameData *d, const VSFrameRef * const *srcs, VSFrameRef *dst, int plane, const VSAPI *vsapi) {
-    int stride = vsapi->getStride(dst, plane) / sizeof(float);
+    ptrdiff_t stride = vsapi->getStride(dst, plane) / sizeof(float);
     int width = vsapi->getFrameWidth(dst, plane);
     int height = vsapi->getFrameHeight(dst, plane);
 
@@ -480,7 +480,7 @@ static const VSFrameRef *VS_CC averageFramesGetFrame(int n, int activationReason
         }
 
         const VSFrameRef *center = (singleClipMode ? frames[frames.size() / 2] : frames[0]);
-        const VSFormat *fi = vsapi->getFrameFormat(center);
+        const VSVideoFormat *fi = vsapi->getVideoFrameFormat(center);
 
         const int pl[] = { 0, 1, 2 };
         const VSFrameRef *fr[] = {
@@ -614,14 +614,14 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
         for (auto iter : d->nodes) {
             const VSVideoInfo *vi = vsapi->getVideoInfo(iter);
             d->vi.numFrames = std::max(d->vi.numFrames, vi->numFrames);
-            if (!isSameFormat(&d->vi, vi))
+            if (!isSameVideoInfo(&d->vi, vi))
                 throw std::runtime_error("All clips must have the same format");
         }
 
         for (int i = 0; i < numWeights; i++) {
             d->fweights.push_back(static_cast<float>(vsapi->propGetFloat(in, "weights", i, 0)));
             d->weights.push_back(std::lround(vsapi->propGetFloat(in, "weights", i, 0)));
-            if (d->vi.format->sampleType == stInteger && std::abs(d->weights[i]) > 1023)
+            if (d->vi.format.sampleType == stInteger && std::abs(d->weights[i]) > 1023)
                 throw std::runtime_error("coefficients may only be between -1023 and 1023");
         }
 
@@ -643,7 +643,7 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
             else
                 d->fscale = scalef;
         } else {
-            if (d->vi.format->sampleType == stInteger) {
+            if (d->vi.format.sampleType == stInteger) {
                 d->scale = floatToIntS(scale);
                 if (d->scale < 1)
                     throw std::runtime_error("scale must be a positive number");
@@ -663,7 +663,8 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
         return;
     }
 
-    vsapi->createFilter(in, out, "AverageFrames", templateNodeCustomViInit<AverageFrameData>, averageFramesGetFrame, averageFramesFree, fmParallel, 0, d.release(), core);
+    vsapi->createVideoFilter(out, "AverageFrames", &d->vi, 1, averageFramesGetFrame, averageFramesFree, fmParallel, 0, d.get(), core);
+    d.release();
 }
 
 ///////////////////////////////////////
@@ -678,7 +679,7 @@ struct HysteresisData {
 };
 
 template<typename T>
-static void process_frame_hysteresis(const VSFrameRef * src1, const VSFrameRef * src2, VSFrameRef * dst, const VSFormat *fi, const HysteresisData * d, const VSAPI * vsapi) VS_NOEXCEPT {
+static void process_frame_hysteresis(const VSFrameRef * src1, const VSFrameRef * src2, VSFrameRef * dst, const VSVideoFormat *fi, const HysteresisData * d, const VSAPI * vsapi) VS_NOEXCEPT {
     uint8_t * VS_RESTRICT label = nullptr;
 
     for (int plane = 0; plane < fi->numPlanes; plane++) {
@@ -737,11 +738,6 @@ static void process_frame_hysteresis(const VSFrameRef * src1, const VSFrameRef *
     delete[] label;
 }
 
-static void VS_CC hysteresisInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    HysteresisData * d = static_cast<HysteresisData *>(*instanceData);
-    vsapi->setVideoInfo(vsapi->getVideoInfo(d->node1), 1, node);
-}
-
 static const VSFrameRef *VS_CC hysteresisGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     HysteresisData * d = static_cast<HysteresisData *>(*instanceData);
 
@@ -753,7 +749,7 @@ static const VSFrameRef *VS_CC hysteresisGetFrame(int n, int activationReason, v
         const VSFrameRef * src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
         const VSFrameRef * fr[]{ d->process[0] ? nullptr : src1, d->process[1] ? nullptr : src1, d->process[2] ? nullptr : src1 };
         const int pl[]{ 0, 1, 2 };
-        const VSFormat *fi = vsapi->getFrameFormat(src1);
+        const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src1);
         VSFrameRef * dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src1, 0), vsapi->getFrameHeight(src1, 0), fr, pl, src1, core);
 
         if (fi->bytesPerSample == 1)
@@ -789,20 +785,20 @@ static void VS_CC hysteresisCreate(const VSMap *in, VSMap *out, void *userData, 
 
     try {
 
-        if (!isConstantFormat(vi) || (vi->format->sampleType == stInteger && vi->format->bitsPerSample > 16) ||
-            (vi->format->sampleType == stFloat && vi->format->bitsPerSample != 32))
+        if (!isConstantVideoFormat(vi) || (vi->format.sampleType == stInteger && vi->format.bitsPerSample > 16) ||
+            (vi->format.sampleType == stFloat && vi->format.bitsPerSample != 32))
             throw std::runtime_error("only constant format 8-16 bits integer and 32 bits float input supported");
 
-        if (!isSameFormat(vi, vsapi->getVideoInfo(d->node2)))
+        if (!isSameVideoInfo(vi, vsapi->getVideoInfo(d->node2)))
             throw std::runtime_error("both clips must have the same dimensions and the same format");
 
         getPlanesArg(in, d->process, vsapi);
 
-        if (vi->format->sampleType == stInteger) {
-            d->peak = (1 << vi->format->bitsPerSample) - 1;
+        if (vi->format.sampleType == stInteger) {
+            d->peak = (1 << vi->format.bitsPerSample) - 1;
         } else {
-            for (int plane = 0; plane < vi->format->numPlanes; plane++) {
-                if (plane == 0 || vi->format->colorFamily == cmRGB) {
+            for (int plane = 0; plane < vi->format.numPlanes; plane++) {
+                if (plane == 0 || vi->format.colorFamily == cfRGB) {
                     d->lower[plane] = 0.f;
                     d->upper[plane] = 1.f;
                 } else {
@@ -821,7 +817,7 @@ static void VS_CC hysteresisCreate(const VSMap *in, VSMap *out, void *userData, 
         return;
     }
 
-    vsapi->createFilter(in, out, "Hysteresis", hysteresisInit, hysteresisGetFrame, hysteresisFree, fmParallel, 0, d.release(), core);
+    vsapi->createVideoFilter(out, "Hysteresis", vi, 1, hysteresisGetFrame, hysteresisFree, fmParallel, 0, d.release(), core);
 }
 
 ///////////////////////////////////////

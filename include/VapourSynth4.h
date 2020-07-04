@@ -88,9 +88,10 @@ typedef enum VSSampleType {
     stFloat = 1
 } VSSampleType;
 
+// FIXME, change to serial numbers as well
 typedef enum VSFilterMode {
-    fmParallel = 1, /* completely parallel execution */
-    fmParallelRequests = 2, /* for filters that are serial in nature but can request one or more frames they need in advance */
+    fmParallel = 100, /* completely parallel execution */
+    fmParallelRequests = 200, /* for filters that are serial in nature but can request one or more frames they need in advance */
     fmUnordered = 300, /* for filters that modify their internal state every request */
     fmSerial = 400 /* for source filters and compatibility with other filtering architectures */
 } VSFilterMode;
@@ -152,21 +153,6 @@ typedef enum VSNodeFlags {
 } VSNodeFlags;
 
 typedef enum VSPropTypes {
-    ptUnset = 'u',
-    ptInt = 'i',
-    ptFloat = 'f',
-    ptData = 's',
-    ptNode = 'c', /* deprecated as of api 3.7, use ptVideoNode instead */
-    ptVideoNode = 'c', /* api 3.7 */
-    ptAudioNode = 'a', /* api 3.7 */
-    ptFrame = 'v', /* deprecated as of api 3.7, use ptVideoFrame instead */
-    ptVideoFrame = 'v', /* api 3.7 */
-    ptAudioFrame = 'w', /* api 3.7 */
-    ptFunction = 'm'
-} VSPropTypes;
-
-/*
-typedef enum VSPropTypes {
     ptUnset = 0,
     ptInt = 1,
     ptFloat = 2,
@@ -177,7 +163,6 @@ typedef enum VSPropTypes {
     ptVideoFrame = 7,
     ptAudioFrame = 8,
 } VSPropTypes;
-*/ //change to this! fixme
 
 typedef enum VSGetPropErrors {
     peUnset = 1,
@@ -187,8 +172,7 @@ typedef enum VSGetPropErrors {
 
 typedef enum VSPropAppendMode {
     paReplace = 0,
-    paAppend  = 1,
-    paTouch   = 2 /* deprecated as of api 3.7, use propSetEmpty instead */
+    paAppend  = 1
 } VSPropAppendMode;
 
 typedef struct VSCoreInfo {
@@ -209,7 +193,6 @@ typedef struct VSVideoInfo {
     int numFrames;
 } VSVideoInfo;
 
-/* api 3.7 */
 typedef struct VSAudioInfo {
     VSAudioFormat format;
     int sampleRate;
@@ -304,7 +287,7 @@ struct VSAPI {
     int (VS_CC *propNumKeys)(const VSMap *map) VS_NOEXCEPT;
     const char *(VS_CC *propGetKey)(const VSMap *map, int index) VS_NOEXCEPT;
     int (VS_CC *propNumElements)(const VSMap *map, const char *key) VS_NOEXCEPT;
-    char (VS_CC *propGetType)(const VSMap *map, const char *key) VS_NOEXCEPT;
+    int (VS_CC *propGetType)(const VSMap *map, const char *key) VS_NOEXCEPT;
 
     int64_t(VS_CC *propGetInt)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
     double(VS_CC *propGetFloat)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
@@ -329,22 +312,18 @@ struct VSAPI {
 
     const char *(VS_CC *getPluginPath)(const VSPlugin *plugin) VS_NOEXCEPT;
 
-    /* api 3.1 */
     const int64_t *(VS_CC *propGetIntArray)(const VSMap *map, const char *key, int *error) VS_NOEXCEPT;
     const double *(VS_CC *propGetFloatArray)(const VSMap *map, const char *key, int *error) VS_NOEXCEPT;
 
     int (VS_CC *propSetIntArray)(VSMap *map, const char *key, const int64_t *i, int size) VS_NOEXCEPT;
     int (VS_CC *propSetFloatArray)(VSMap *map, const char *key, const double *d, int size) VS_NOEXCEPT;
 
-    /* api 3.4 */
     void (VS_CC *logMessage)(int msgType, const char *msg) VS_NOEXCEPT;
 
-    /* api 3.6 */
     int (VS_CC *addMessageHandler)(VSMessageHandler handler, VSMessageHandlerFree free, void *userData) VS_NOEXCEPT;
     int (VS_CC *removeMessageHandler)(int id) VS_NOEXCEPT;
     void (VS_CC *getCoreInfo2)(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT;
 
-    /* api 3.7 */
     int (VS_CC *propSetEmpty)(VSMap *map, const char *key, int type) VS_NOEXCEPT;
     void (VS_CC *createVideoFilter)(VSMap *out, const char *name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT;
     void (VS_CC *createAudioFilter)(VSMap *out, const char *name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT;
