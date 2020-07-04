@@ -76,6 +76,7 @@ std::string nstringToUtf8(const nstring &s) {
 /////////////////////////////////////////////
 
 static const VSAPI *vsapi = nullptr;
+static const VSSCRIPTAPI *vssapi = nullptr;
 static VSScript *se = nullptr;
 static VSNodeRef *node = nullptr;
 static VSNodeRef *alphaNode = nullptr;
@@ -494,7 +495,7 @@ static bool initializeAudioOutput() {
 static bool outputNode() {
     if (requests < 1) {
         VSCoreInfo info;
-        vsapi->getCoreInfo(vsscript_getCore(se), &info);
+        vsapi->getCoreInfo(vssapi->getCore(se), &info);
         requests = info.numThreads;
     }
 
@@ -548,22 +549,22 @@ static bool nstringToInt(const nstring &ns, int &result) {
 }
 
 static bool printVersion() {
-    if (!vsscript_init()) {
+    if (!vssapi->init()) {
         fprintf(stderr, "Failed to initialize VapourSynth environment\n");
         return false;
     }
 
-    vsapi = vsscript_getVSApi2(VAPOURSYNTH_API_VERSION);
+    vsapi = vssapi->getVSApi(VAPOURSYNTH_API_VERSION);
     if (!vsapi) {
         fprintf(stderr, "Failed to get VapourSynth API pointer\n");
-        vsscript_finalize();
+        vssapi->finalize();
         return false;
     }
 
     VSCore *core = vsapi->createCore(1);
     if (!core) {
         fprintf(stderr, "Failed to create core\n");
-        vsscript_finalize();
+        vssapi->finalize();
         return false;
     }
 
@@ -571,7 +572,7 @@ static bool printVersion() {
     vsapi->getCoreInfo(core, &info);
     printf("%s", info.versionString);
     vsapi->freeCore(core);
-    vsscript_finalize();
+    vssapi->finalize();
     return true;
 }
 
@@ -620,6 +621,12 @@ int wmain(int argc, wchar_t **argv) {
 #else
 int main(int argc, char **argv) {
 #endif
+    vssapi = getVSScriptAPI(VSSCRIPT_API_VERSION);
+    if (!vssapi) {
+        fprintf(stderr, "Failed to get VSScript API pointer\n");
+        return 1;
+    }
+
     nstring outputFilename, scriptFilename, timecodesFilename;
     bool showHelp = false;
     std::map<std::string, std::string> scriptArgs;
@@ -786,23 +793,23 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (!vsscript_init()) {
+    if (!vssapi->init()) {
         fprintf(stderr, "Failed to initialize VapourSynth environment\n");
         return 1;
     }
 
-    vsapi = vsscript_getVSApi2(VAPOURSYNTH_API_VERSION);
+    vsapi = vssapi->getVSApi(VAPOURSYNTH_API_VERSION);
     if (!vsapi) {
         fprintf(stderr, "Failed to get VapourSynth API pointer\n");
-        vsscript_finalize();
+        vssapi->finalize();
         return 1;
     }
     
     // Should always succeed
-    if (vsscript_createScript(&se)) {
-        fprintf(stderr, "Script environment initialization failed:\n%s\n", vsscript_getError(se));
-        vsscript_freeScript(se);
-        vsscript_finalize();
+    if (vssapi->createScript(&se)) {
+        fprintf(stderr, "Script environment initialization failed:\n%s\n", vssapi->getError(se));
+        vssapi->freeScript(se);
+        vssapi->finalize();
         return 1;
     }
 
@@ -810,23 +817,23 @@ int main(int argc, char **argv) {
         VSMap *foldedArgs = vsapi->createMap();
         for (const auto &iter : scriptArgs)
             vsapi->propSetData(foldedArgs, iter.first.c_str(), iter.second.c_str(), static_cast<int>(iter.second.size()), paAppend);
-        vsscript_setVariable(se, foldedArgs);
+        vssapi->setVariable(se, foldedArgs);
         vsapi->freeMap(foldedArgs);
     }
 
     start = std::chrono::high_resolution_clock::now();
-    if (vsscript_evaluateFile(&se, nstringToUtf8(scriptFilename).c_str(), preserveCwd ? 0 : efSetWorkingDir)) {
-        fprintf(stderr, "Script evaluation failed:\n%s\n", vsscript_getError(se));
-        vsscript_freeScript(se);
-        vsscript_finalize();
+    if (vssapi->evaluateFile(&se, nstringToUtf8(scriptFilename).c_str(), preserveCwd ? 0 : efSetWorkingDir)) {
+        fprintf(stderr, "Script evaluation failed:\n%s\n", vssapi->getError(se));
+        vssapi->freeScript(se);
+        vssapi->finalize();
         return 1;
     }
 
-    node = vsscript_getOutput2(se, outputIndex, &alphaNode);
+    node = vssapi->getOutput(se, outputIndex, &alphaNode);
     if (!node) {
        fprintf(stderr, "Failed to retrieve output node. Invalid index specified?\n");
-       vsscript_freeScript(se);
-       vsscript_finalize();
+       vssapi->freeScript(se);
+       vssapi->finalize();
        return 1;
     }
 
@@ -874,8 +881,8 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "Invalid range of frames to output specified:\nfirst: %d\nlast: %d\nclip length: %d\nframes to output: %d\n", completedFrames, totalFrames, vi->numFrames, totalFrames - completedFrames);
                 vsapi->freeNode(node);
                 vsapi->freeNode(alphaNode);
-                vsscript_freeScript(se);
-                vsscript_finalize();
+                vssapi->freeScript(se);
+                vssapi->finalize();
                 return 1;
             }
 
@@ -883,8 +890,8 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "Cannot output clips with varying dimensions\n");
                 vsapi->freeNode(node);
                 vsapi->freeNode(alphaNode);
-                vsscript_freeScript(se);
-                vsscript_finalize();
+                vssapi->freeScript(se);
+                vssapi->finalize();
                 return 1;
             }
 
@@ -917,8 +924,8 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "Invalid range of frames to output specified:\nfirst: %d\nlast: %d\nclip length: %d\nframes to output: %d\n", completedFrames, totalFrames, ai->numFrames, totalFrames - completedFrames);
                 vsapi->freeNode(node);
                 vsapi->freeNode(alphaNode);
-                vsscript_freeScript(se);
-                vsscript_finalize();
+                vssapi->freeScript(se);
+                vssapi->finalize();
                 return 1;
             }
 
@@ -942,8 +949,8 @@ int main(int argc, char **argv) {
     }
     vsapi->freeNode(node);
     vsapi->freeNode(alphaNode);
-    vsscript_freeScript(se);
-    vsscript_finalize();
+    vssapi->freeScript(se);
+    vssapi->finalize();
 
     return success ? 0 : 1;
 }
