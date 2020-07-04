@@ -21,7 +21,8 @@
 #ifndef VSCORE_H
 #define VSCORE_H
 
-#include "VapourSynth.h"
+#include "VapourSynth4.h"
+#include "VapourSynth3.h"
 #include "vslog.h"
 #include "intrusive_ptr.h"
 #include <cstdlib>
@@ -77,6 +78,7 @@ typedef vs_intrusive_ptr<FrameContext> PFrameContext;
 typedef vs_intrusive_ptr<VSMapData> PVSMapData;
 
 extern const VSAPI vs_internal_vsapi;
+extern const vs3::VSAPI3 vs_internal_vsapi3;
 const VSAPI *getVSAPIInternal(int apiMajor);
 
 class VSException : public std::runtime_error {
@@ -411,14 +413,18 @@ struct VSFrameRef {
 private:
     std::atomic<long> refcount;
     VSMediaType contentType;
-    const VSVideoFormat *format; /* used for VSAudioFormat with audio */
-    VSPlaneData *data[3]; /* only the first data pointer is ever used for audio and is subdivided using the internal offset in height */
+    union {
+        VSVideoFormat vf;
+        VSAudioFormat af;
+    } format;
+    std::atomic<const vs3::VSVideoFormat *> v3format; /* API 3 compatibility */
+    VSPlaneData *data[3] = {}; /* only the first data pointer is ever used for audio and is subdivided using the internal offset in height */
     int width; /* stores number of samples for audio */
     int height;
-    int stride[3]; /* stride[0] stores internal offset between audio channels */
-    int numPlanes; /* stores number of channels for audio */
-
+    ptrdiff_t stride[3] = {}; /* stride[0] stores internal offset between audio channels */
+    int numPlanes;
     VSMap properties;
+    VSCore *core;
 public:
     static int alignment;
 
@@ -428,9 +434,9 @@ public:
     static const int guardSpace = 0;
 #endif
 
-    VSFrameRef(const VSVideoFormat *f, int width, int height, const VSFrameRef *propSrc, VSCore *core);
-    VSFrameRef(const VSVideoFormat *f, int width, int height, const VSFrameRef * const *planeSrc, const int *plane, const VSFrameRef *propSrc, VSCore *core);
-    VSFrameRef(const VSAudioFormat *f, int numSamples, const VSFrameRef *propSrc, VSCore *core);
+    VSFrameRef(const VSVideoFormat &f, int width, int height, const VSFrameRef *propSrc, VSCore *core);
+    VSFrameRef(const VSVideoFormat &f, int width, int height, const VSFrameRef * const *planeSrc, const int *plane, const VSFrameRef *propSrc, VSCore *core);
+    VSFrameRef(const VSAudioFormat &f, int numSamples, const VSFrameRef *propSrc, VSCore *core);
     VSFrameRef(const VSFrameRef &f);
     ~VSFrameRef();
 
@@ -458,19 +464,20 @@ public:
     }
     const VSVideoFormat *getVideoFormat() const {
         assert(contentType == mtVideo);
-        return format;
+        return &format.vf;
     }
+    const vs3::VSVideoFormat *getVideoFormatV3() const noexcept;
     int getWidth(int plane) const {
         assert(contentType == mtVideo);
-        return width >> (plane ? format->subSamplingW : 0);
+        return width >> (plane ? format.vf.subSamplingW : 0);
     }
     int getHeight(int plane) const {
         assert(contentType == mtVideo);
-        return height >> (plane ? format->subSamplingH : 0);
+        return height >> (plane ? format.vf.subSamplingH : 0);
     }
     const VSAudioFormat *getAudioFormat() const {
         assert(contentType == mtAudio);
-        return reinterpret_cast<const VSAudioFormat *>(format);
+        return &format.af;
     }
     int getSampleRate() const {
         assert(contentType == mtAudio);
@@ -480,7 +487,7 @@ public:
         assert(contentType == mtAudio);
         return width;
     }
-    int getStride(int plane) const;
+    ptrdiff_t getStride(int plane) const;
     const uint8_t *getReadPtr(int plane) const;
     uint8_t *getWritePtr(int plane);
 
@@ -552,6 +559,7 @@ private:
     VSCore *core;
     uint32_t flags;
     std::vector<VSVideoInfo> vi;
+    std::vector<vs3::VSVideoInfo> v3vi;
     std::vector<VSAudioInfo> ai;
 
     // for keeping track of when a filter is busy in the exclusive section and with which frame
@@ -566,7 +574,7 @@ private:
 
     PVSFrameRef getFrameInternal(int n, int activationReason, VSFrameContext &frameCtx);
 public:
-    VSNode(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core);
+    VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core); // V3 compatibility
     VSNode(const std::string &name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core);
     VSNode(const std::string &name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core);
     ~VSNode();
@@ -595,9 +603,10 @@ public:
     void getFrame(const PFrameContext &ct);
 
     const VSVideoInfo &getVideoInfo(int index) const;
+    const vs3::VSVideoInfo &getVideoInfo3(int index) const;
     const VSAudioInfo &getAudioInfo(int index) const;
 
-    void setVideoInfo(const VSVideoInfo *vi, int numOutputs);
+    void setVideoInfo3(const vs3::VSVideoInfo *vi, int numOutputs);
 
     size_t getNumOutputs() const {
         return (nodeType == mtVideo) ? vi.size() : ai.size();
@@ -675,7 +684,9 @@ public:
 class VSFunction {
 public:
     std::vector<FilterArgument> args;
-    std::string argString; //fixme, rewrite argstring for compatibility
+    std::string argString;
+    bool isV3Compatible() const;
+    std::string getV3ArgString() const;
     void *functionData;
     VSPublicFunction func;
     VSFunction(const std::string &argString, VSPublicFunction func, void *functionData);
@@ -716,7 +727,8 @@ public:
     void configPlugin(const std::string &identifier, const std::string &defaultNamespace, const std::string &fullname, int apiVersion, bool readOnly);
     void registerFunction(const std::string &name, const std::string &args, VSPublicFunction argsFunc, void *functionData);
     VSMap invoke(const std::string &funcName, const VSMap &args);
-    VSMap getFunctions();
+    void getFunctions(VSMap *out) const;
+    void getFunctions3(VSMap *out) const;
 };
 
 struct VSCore {
@@ -732,7 +744,7 @@ private:
 
     std::map<std::string, VSPlugin *> plugins;
     std::recursive_mutex pluginLock;
-    std::map<int, VSVideoFormat> videoFormats;
+    std::map<int, vs3::VSVideoFormat> videoFormats;
     std::mutex videoFormatLock;
     int videoFormatIdOffset = 1000;
     VSCoreInfo coreInfo;
@@ -753,20 +765,36 @@ public:
     VSThreadPool *threadPool;
     MemoryUse *memory;
 
-    VSFrameRef *newVideoFrame(const VSVideoFormat *f, int width, int height, const VSFrameRef *propSrc);
-    VSFrameRef *newVideoFrame(const VSVideoFormat *f, int width, int height, const VSFrameRef * const *planeSrc, const int *planes, const VSFrameRef *propSrc);
-    VSFrameRef *newAudioFrame(const VSAudioFormat *f, int numSamples, const VSFrameRef *propSrc);
+    VSFrameRef *newVideoFrame(const VSVideoFormat &f, int width, int height, const VSFrameRef *propSrc);
+    VSFrameRef *newVideoFrame(const VSVideoFormat &f, int width, int height, const VSFrameRef * const *planeSrc, const int *planes, const VSFrameRef *propSrc);
+    VSFrameRef *newAudioFrame(const VSAudioFormat &f, int numSamples, const VSFrameRef *propSrc);
     VSFrameRef *copyFrame(const VSFrameRef &srcf);
     void copyFrameProps(const VSFrameRef &src, VSFrameRef &dst);
 
-    const VSVideoFormat *getVideoFormat(int id);
-    const VSVideoFormat *queryVideoFormat(VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name = nullptr, int id = pfNone);
-    bool queryAudioFormat(VSAudioFormat &f, int sampleType, int bitsPerSample, uint64_t channelLayout);
+    const vs3::VSVideoFormat *getVideoFormat3(int id);
+    static bool queryVideoFormat(VSVideoFormat &f, VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH) noexcept;
+    bool queryVideoFormatByID(VSVideoFormat &f, uint32_t id) noexcept;
+    uint32_t queryVideoFormatID(VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH) const noexcept;
+    const vs3::VSVideoFormat *queryVideoFormat3(vs3::VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name = nullptr, int id = 0) noexcept;
+    static bool queryAudioFormat(VSAudioFormat &f, VSSampleType sampleType, int bitsPerSample, uint64_t channelLayout) noexcept;
     bool isValidFormatPointer(const void *f);
-    bool isValidAudioInfo(const VSAudioInfo &ai) const;
+    static bool isValidVideoFormat(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH) noexcept;
+    static bool isValidAudioFormat(int sampleType, int bitsPerSample, uint64_t channelLayout) noexcept;
+    static bool isValidVideoInfo(const VSVideoInfo &vi) noexcept;
+    static bool isValidAudioInfo(const VSAudioInfo &ai) noexcept;
+
+
+    /////////////////////////////////////
+    // V3 compat helper functions
+    static VSColorFamily ColorFamilyFromV3(int colorFamily) noexcept;
+    static vs3::VSColorFamily ColorFamilyToV3(int colorFamily) noexcept;
+    const vs3::VSVideoFormat *VideoFormatToV3(const VSVideoFormat &format) noexcept;
+    bool VideoFormatFromV3(VSVideoFormat &out, const vs3::VSVideoFormat *format) noexcept;
+    vs3::VSVideoInfo VideoInfoToV3(const VSVideoInfo &vi) noexcept;
+    VSVideoInfo VideoInfoFromV3(const vs3::VSVideoInfo &vi) noexcept;
 
     void loadPlugin(const std::string &filename, const std::string &forcedNamespace = std::string(), const std::string &forcedId = std::string(), bool altSearchPath = false);
-    void createFilter(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
+    void createFilter(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
     void createVideoFilter(VSMap *out, const std::string &name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
     void createAudioFilter(VSMap *out, const std::string &name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
 
@@ -781,6 +809,7 @@ public:
     void getCoreInfo2(VSCoreInfo &info);
 
     static void getAudioFormatName(const VSAudioFormat &format, char *buffer) noexcept;
+    static void getVideoFormatName(const VSVideoFormat &format, char *buffer) noexcept;
 
     void functionInstanceCreated();
     void functionInstanceDestroyed();

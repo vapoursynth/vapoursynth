@@ -20,7 +20,7 @@
 #ifdef _WIN32
 #include <malloc.h>
 #endif
-#include "VapourSynth.h"
+#include "VapourSynth4.h"
 
 /* Visual Studio doesn't recognize inline in c mode */
 #if defined(_MSC_VER) && !defined(__cplusplus)
@@ -71,17 +71,22 @@ static inline void vs_aligned_free(void *ptr) {
 #endif /* __cplusplus */
 
 /* convenience function for checking if the format never changes between frames */
-static inline int isConstantFormat(const VSVideoInfo *vi) {
-    return vi->height > 0 && vi->width > 0 && vi->format;
+static inline int isConstantVideoFormat(const VSVideoInfo *vi) {
+    return vi->height > 0 && vi->width > 0 && vi->format.colorFamily != cfUndefined;
 }
 
 /* convenience function to check for if two clips have the same format (unknown/changeable will be considered the same too) */
-static inline int isSameFormat(const VSVideoInfo *v1, const VSVideoInfo *v2) {
-    return v1->height == v2->height && v1->width == v2->width && v1->format == v2->format;
+static inline int isSameVideoFormat(const VSVideoFormat *v1, const VSVideoFormat *v2) {
+    return v1->colorFamily == v2->colorFamily && v1->sampleType == v2->sampleType && v1->bitsPerSample == v2->bitsPerSample && v1->subSamplingW == v2->subSamplingW && v1->subSamplingH == v2->subSamplingH;
 }
 
 /* convenience function to check for if two clips have the same format (unknown/changeable will be considered the same too) */
-static inline int isSameAudioFormat(const VSAudioInfo *a1, const VSAudioInfo *a2) {
+static inline int isSameVideoInfo(const VSVideoInfo *v1, const VSVideoInfo *v2) {
+    return v1->height == v2->height && v1->width == v2->width && v1->format.colorFamily == v2->format.colorFamily && v1->format.sampleType == v2->format.sampleType && v1->format.bitsPerSample == v2->format.bitsPerSample && v1->format.subSamplingW == v2->format.subSamplingW && v1->format.subSamplingH == v2->format.subSamplingH;
+}
+
+/* convenience function to check for if two clips have the same format (unknown/changeable will be considered the same too) */
+static inline int isSameAudioInfo(const VSAudioInfo *a1, const VSAudioInfo *a2) {
     return a1->sampleRate == a2->sampleRate && a1->format.bitsPerSample == a2->format.bitsPerSample && a1->format.sampleType == a2->format.sampleType && a1->format.channelLayout == a2->format.channelLayout;
 }
 
@@ -148,9 +153,9 @@ static inline int int64ToIntS(int64_t i) {
     else return (int)i;
 }
 
-static inline void vs_bitblt(void *dstp, int dst_stride, const void *srcp, int src_stride, size_t row_size, size_t height) {
+static inline void vs_bitblt(void *dstp, ptrdiff_t dst_stride, const void *srcp, ptrdiff_t src_stride, size_t row_size, size_t height) {
     if (height) {
-        if (src_stride == dst_stride && src_stride == (int)row_size) {
+        if (src_stride == dst_stride && src_stride == (ptrdiff_t)row_size) {
             memcpy(dstp, srcp, row_size * height);
         } else {
             const uint8_t *srcp8 = (const uint8_t *)srcp;

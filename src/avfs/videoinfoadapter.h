@@ -43,16 +43,15 @@ private:
     const VSAudioInfo *vsai = nullptr;
     const avs::VideoInfo *avsvi = nullptr;
 public:
+    VSVideoFormat vf = {};
     int num_frames;
     uint32_t fps_numerator;
     uint32_t fps_denominator;
     int width;
     int height;
     int64_t num_audio_samples;
-    int pixel_format;
     int output_format;
-    int subsampling_w = 0;
-    int subsampling_h = 0;
+
 
     Avisynther_ *avssynther = nullptr;
     VapourSynther_ *vssynther = nullptr;
@@ -64,57 +63,32 @@ public:
         width = vi->width;
         height = vi->height;
         num_audio_samples = ai ? ai->numSamples : 0;
-        pixel_format = vi->format->id;
-
-        if (vi->format->numPlanes > 1) {
-            subsampling_w = vi->format->subSamplingW;
-            subsampling_h = vi->format->subSamplingH;
-        }
+        vf = vi->format;
     };
 
-    VideoInfoAdapter(const avs::VideoInfo *vi, Avisynther_ *avssynther, int outputFormat) : avsvi(vi), pixel_format(-1), output_format(outputFormat), avssynther(avssynther) {
+    VideoInfoAdapter(const avs::VideoInfo *vi, Avisynther_ *avssynther, int outputFormat) : avsvi(vi), output_format(outputFormat), avssynther(avssynther) {
         num_frames = vi->num_frames;
         fps_numerator = vi->fps_numerator;
         fps_denominator = vi->fps_denominator;
         width = vi->width;
         height = vi->height;
         num_audio_samples = vi->num_audio_samples;
-        if (vi->IsColorSpace(avs::VideoInfo::CS_BGR32))
-            pixel_format = pfCompatBGR32;
-        else if (vi->IsColorSpace(avs::VideoInfo::CS_YUY2))
-            pixel_format = pfCompatYUY2;
-        else if (vi->IsColorSpace(avs::VideoInfo::CS_Y8))
-            pixel_format = pfGray8;
-        else if (vi->IsColorSpace(avs::VideoInfo::CS_YUV9))
-            pixel_format = pfYUV410P8;        
-        else if (vi->IsColorSpace(avs::VideoInfo::CS_YV411))
-            pixel_format = pfYUV411P8;
-        else if (vi->IsColorSpace(avs::VideoInfo::CS_YV12) || vi->IsColorSpace(avs::VideoInfo::CS_I420) || vi->IsColorSpace(avs::VideoInfo::CS_YUVA420))
-            pixel_format = pfYUV420P8;
-        else if (vi->IsColorSpace(avs::VideoInfo::CS_YV16) || vi->IsColorSpace(avs::VideoInfo::CS_YUVA422))
-            pixel_format = pfYUV422P8;
-        else if (vi->IsColorSpace(avs::VideoInfo::CS_YV24) || vi->IsColorSpace(avs::VideoInfo::CS_YUVA444))
-            pixel_format = pfYUV444P8;
-        else if (vi->IsColorSpace(avs::VideoInfo::CS_YUV420P10) || vi->IsColorSpace(avs::VideoInfo::CS_YUVA420P10))
-            pixel_format = pfYUV420P10;
-        else if (vi->IsColorSpace(avs::VideoInfo::CS_YUV422P10) || vi->IsColorSpace(avs::VideoInfo::CS_YUVA422P10))
-            pixel_format = pfYUV422P10;
-        else if (vi->IsColorSpace(avs::VideoInfo::CS_YUV420P16) || vi->IsColorSpace(avs::VideoInfo::CS_YUVA420P16))
-            pixel_format = pfYUV420P16;
-        else if (vi->IsColorSpace(avs::VideoInfo::CS_YUV422P16) || vi->IsColorSpace(avs::VideoInfo::CS_YUVA422P16))
-            pixel_format = pfYUV422P16;
-        else if (vi->IsColorSpace(avs::VideoInfo::CS_YUV444P10) || vi->IsColorSpace(avs::VideoInfo::CS_YUVA444P10))
-            pixel_format = pfYUV444P10;
-        else if (vi->IsColorSpace(avs::VideoInfo::CS_YUV444P16) || vi->IsColorSpace(avs::VideoInfo::CS_YUVA444P16))
-            pixel_format = pfYUV444P16;
-        else if (vi->IsColorSpace(avs::VideoInfo::CS_RGBP10) || vi->IsColorSpace(avs::VideoInfo::CS_RGBAP10))
-            pixel_format = pfRGB30;
-        else if (vi->IsColorSpace(avs::VideoInfo::CS_RGBP16) || vi->IsColorSpace(avs::VideoInfo::CS_RGBAP16))
-            pixel_format = pfRGB48;
+
+        int subsampling_w = 0;
+        int subsampling_h = 0;
 
         if (vi->IsYUV() && vi->IsPlanar()) {
             subsampling_w = vi->GetPlaneWidthSubsampling(avs::PLANAR_U);
             subsampling_h = vi->GetPlaneHeightSubsampling(avs::PLANAR_U);
+        }
+
+        bool hasSubSampling = vi->IsYUV();
+        vf.colorFamily = vi->IsYUV() ? cfYUV : (vi->IsRGB() ? cfRGB : (vi->IsY() ? cfGray : cfUndefined));
+        if (vf.colorFamily != cfUndefined) {
+            vf.sampleType = vi->BitsPerComponent() == 32 ? stFloat : stInteger;
+            vf.bitsPerSample = vi->BitsPerComponent();
+            vf.subSamplingW = hasSubSampling ? vi->GetPlaneWidthSubsampling(avs::PLANAR_U) : 0;
+            vf.subSamplingH = hasSubSampling ? vi->GetPlaneHeightSubsampling(avs::PLANAR_U) : 0;
         }
     };
 

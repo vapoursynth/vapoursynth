@@ -59,7 +59,7 @@
 #include "avfspfm.h"
 #include "avfs.rc"
 #include "../common/vsutf16.h"
-#include <VSScript.h>
+#include <VSScript4.h>
 
 #define CCALL __cdecl
 

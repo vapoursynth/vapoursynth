@@ -23,7 +23,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include "VSHelper.h"
+#include "VSHelper4.h"
 
 #ifdef __cplusplus
 extern "C" {

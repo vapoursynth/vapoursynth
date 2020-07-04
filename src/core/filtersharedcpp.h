@@ -21,8 +21,8 @@
 #ifndef FILTERSHAREDCPP_H
 #define FILTERSHAREDCPP_H
 
-#include "VapourSynth.h"
-#include "VSHelper.h"
+#include "VapourSynth4.h"
+#include "VSHelper4.h"
 #include <stdexcept>
 #include <string>
 
@@ -51,13 +51,13 @@ static inline void getPlanesArg(const VSMap *in, bool *process, const VSAPI *vsa
     }
 }
 
-static inline void getPlanePixelRangeArgs(const VSVideoFormat *fi, const VSMap *in, const char *propName, uint16_t *ival, float *fval, RangeArgumentHandling mode, const VSAPI *vsapi) {
-    if (vsapi->propNumElements(in, propName) > fi->numPlanes)
+static inline void getPlanePixelRangeArgs(const VSVideoFormat &fi, const VSMap *in, const char *propName, uint16_t *ival, float *fval, RangeArgumentHandling mode, const VSAPI *vsapi) {
+    if (vsapi->propNumElements(in, propName) > fi.numPlanes)
         throw std::runtime_error(std::string(propName) + " has more values specified than there are planes");
     bool prevValid = false;
     for (int plane = 0; plane < 3; plane++) {
         int err;
-        bool uv = (plane > 0 && (fi->colorFamily == cmYUV || fi->colorFamily == cmYCoCg));
+        bool uv = (plane > 0 && (fi.colorFamily == cfYUV || fi.colorFamily == cfYCoCg));
         double temp = vsapi->propGetFloat(in, propName, plane, &err);
         if (err) {
             if (prevValid) {
@@ -67,16 +67,16 @@ static inline void getPlanePixelRangeArgs(const VSVideoFormat *fi, const VSMap *
                 ival[plane] = 0;
                 fval[plane] = uv ? -.5f : 0;
             } else if (mode == RangeUpper) { // top of pixel range
-                ival[plane] = (1 << fi->bitsPerSample) - 1;
+                ival[plane] = (1 << fi.bitsPerSample) - 1;
                 fval[plane] = uv ? .5f : 1.f;
             } else if (mode == RangeMiddle) { // middle of pixel range
-                ival[plane] = (1 << fi->bitsPerSample) / 2;
+                ival[plane] = (1 << fi.bitsPerSample) / 2;
                 fval[plane] = uv ? 0.f : .5f;
             }
         } else {
-            if (fi->sampleType == stInteger) {
+            if (fi.sampleType == stInteger) {
                 int64_t temp2 = static_cast<int64_t>(temp + .5);
-                if ((temp2 < 0) || (temp2 >(1 << fi->bitsPerSample) - 1))
+                if ((temp2 < 0) || (temp2 >(1 << fi.bitsPerSample) - 1))
                     throw std::runtime_error(std::string(propName) + " out of range");
                 ival[plane] = static_cast<uint16_t>(temp2);
             } else {
@@ -87,15 +87,15 @@ static inline void getPlanePixelRangeArgs(const VSVideoFormat *fi, const VSMap *
     }
 }
 
-static void shared816FFormatCheck(const VSVideoFormat *fi, bool allowVariable = false) {
-    if (!fi && !allowVariable)
+static void shared816FFormatCheck(const VSVideoFormat &fi, bool allowVariable = false) {
+    if (fi.colorFamily == cfUndefined && !allowVariable)
         throw std::runtime_error("Cannot process variable format.");
 
-    if (fi) {
-        if (fi->colorFamily == cmCompat)
+    if (fi.colorFamily != cfUndefined) {
+        if (fi.colorFamily == cfCompatBGR32 || fi.colorFamily == cfCompatYUY2)
             throw std::runtime_error("Cannot process compat formats.");
 
-        if ((fi->sampleType == stInteger && fi->bitsPerSample > 16) || (fi->sampleType == stFloat && fi->bitsPerSample != 32))
+        if ((fi.sampleType == stInteger && fi.bitsPerSample > 16) || (fi.sampleType == stFloat && fi.bitsPerSample != 32))
             throw std::runtime_error("Only clips with 8..16 bits integer per sample or float supported.");
     }
 }
@@ -115,18 +115,6 @@ static void getPlaneArgs(const VSVideoFormat *fi, const VSMap *in, const char *p
             prevValid = true;
         }
     }
-}
-
-template<typename T>
-static void VS_CC templateNodeInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    T *d = reinterpret_cast<T *>(*instanceData);
-    vsapi->setVideoInfo(vsapi->getVideoInfo(d->node), 1, node);
-}
-
-template<typename T>
-static void VS_CC templateNodeCustomViInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    T *d = reinterpret_cast<T *>(* instanceData);
-    vsapi->setVideoInfo(&d->vi, 1, node);
 }
 
 template<typename T>

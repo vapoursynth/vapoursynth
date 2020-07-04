@@ -227,9 +227,9 @@
     <ClCompile Include="..\..\src\core\vsthreadpool.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\VapourSynth.h" />
+    <ClInclude Include="..\..\include\VapourSynth4.h" />
     <ClInclude Include="..\..\include\VSHelper.h" />
-    <ClInclude Include="..\..\include\VSScript.h" />
+    <ClInclude Include="..\..\include\VSHelper4.h" />
     <ClInclude Include="..\..\src\common\vsutf16.h" />
     <ClInclude Include="..\..\src\core\cachefilter.h" />
     <ClInclude Include="..\..\src\core\cpufeatures.h" />
@@ -244,6 +244,7 @@
     <ClInclude Include="..\..\src\core\kernel\planestats.h" />
     <ClInclude Include="..\..\src\core\kernel\transpose.h" />
     <ClInclude Include="..\..\src\core\ter-116n.h" />
+    <ClInclude Include="..\..\src\core\VapourSynth3.h" />
     <ClInclude Include="..\..\src\core\version.h" />
     <ClInclude Include="..\..\src\core\vscore.h" />
     <ClInclude Include="..\..\src\core\vslog.h" />

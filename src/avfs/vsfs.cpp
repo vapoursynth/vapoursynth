@@ -165,14 +165,16 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
 
             vi = vsapi->getVideoInfo(videoNode);
 
-            if (vi->width == 0 || vi->height == 0 || vi->format == nullptr || vi->numFrames == 0) {
+            if (!isConstantVideoFormat(vi)) {
                 setError("Cannot open clips with varying dimensions or format in AVFS");
                 return ERROR_ACCESS_DENIED;
             }
 
-            if (!HasSupportedFourCC(vi->format->id)) {
+            if (!HasSupportedFourCC(vi->format)) {
                 std::string error_msg = "AVFS module doesn't support ";
-                error_msg += vi->format->name;
+                char nameBuffer[32];
+                vsapi->getVideoFormatName(&vi->format, nameBuffer);
+                error_msg += nameBuffer;
                 error_msg += " output";
                 setError(error_msg.c_str());
                 return ERROR_ACCESS_DENIED;
@@ -194,7 +196,7 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
             vsscript_getVariable(se, "enable_v210", options);
             val = vsapi->propGetInt(options, "enable_v210", 0, &error);
             if (!error)
-                enable_v210 = !!val && (vi->format->id == pfYUV422P10);
+                enable_v210 = !!val && IsSameVideoFormat(vi->format, cfYUV, stInteger, 10, 1, 0);
             else
                 enable_v210 = false;
             vsapi->freeMap(options);
@@ -226,9 +228,11 @@ void VapourSynther::reportFormat(AvfsLog_* log) {
         int msLen = (int)(1000.0 * vi->numFrames * vi->fpsDen / vi->fpsNum);
         log->Printf(L"  Duration: %8d frames, %02d:%02d:%02d.%03d\n", vi->numFrames,
             (msLen / (60 * 60 * 1000)), (msLen / (60 * 1000)) % 60, (msLen / 1000) % 60, msLen % 1000);
-        const char* c_space = vi->format->name;
 
-        log->Printf(L"  ColorSpace: %hs\n", c_space);
+        char nameBuffer[32];
+        vsapi->getVideoFormatName(&vi->format, nameBuffer);
+
+        log->Printf(L"  Format: %hs\n", &nameBuffer);
 
         log->Printf(L"  Width:%4d pixels, Height:%4d pixels.\n", vi->width, vi->height);
 
@@ -240,6 +244,8 @@ void VapourSynther::reportFormat(AvfsLog_* log) {
 
     if (ai) {
         log->Print(L"Audio stream :-\n");
+
+        // fixme, use the audio format name print function and be done with it
 
         int msLen = (int)(1000.0 * ai->numSamples / ai->sampleRate);
         log->Printf(L"  Audio length: %I64u samples. %02d:%02d:%02d.%03d\n", ai->numSamples,
@@ -335,65 +341,67 @@ const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) 
             f = vsapi->getFrame(n, videoNode, errMsg, sizeof(errMsg));
             success = !!f;
             if (success) {
-                if (NeedsPacking(vi->format->id)) {
-                    const VSFormat *fi = vsapi->getFrameFormat(f);
+                if (NeedsPacking(vi->format)) {
+                    const VSVideoFormat &fi = *vsapi->getVideoFrameFormat(f);
 
                     p2p_buffer_param p = {};
                     p.width = vsapi->getFrameWidth(f, 0);
                     p.height = vsapi->getFrameHeight(f, 0);
                     p.dst[0] = packedFrame.data();
                     // Used by most
-                    p.dst_stride[0] = p.width * 4 * fi->bytesPerSample;
+                    p.dst_stride[0] = p.width * 4 * fi.bytesPerSample;
 
-                    for (int plane = 0; plane < fi->numPlanes; plane++) {
+                    for (int plane = 0; plane < fi.numPlanes; plane++) {
                         p.src[plane] = vsapi->getReadPtr(f, plane);
                         p.src_stride[plane] = vsapi->getStride(f, plane);
                     }
 
-                    if (fi->id == pfRGB24) {
+                    if (IsSameVideoFormat(fi, cfRGB, stInteger, 8)) {
                         p.packing = p2p_argb32_le;
                         for (int plane = 0; plane < 3; plane++) {
                             p.src[plane] = vsapi->getReadPtr(f, plane) + vsapi->getStride(f, plane) * (vsapi->getFrameHeight(f, plane) - 1);
                             p.src_stride[plane] = -vsapi->getStride(f, plane);
                         }
                         p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-                    } else if (fi->id == pfRGB30) {
+                    } else if (IsSameVideoFormat(fi, cfRGB, stInteger, 10)) {
                         p.packing = p2p_rgb30_be;
                         p.dst_stride[0] = ((p.width + 63) / 64) * 256;
                         p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-                    } else if (fi->id == pfRGB48) {
+                    } else if (IsSameVideoFormat(fi, cfRGB, stInteger, 16)) {
                         p.packing = p2p_argb64_be;
                         p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-                    } else if (fi->id == pfYUV444P10) {
+                    } else if (IsSameVideoFormat(fi, cfYUV, stInteger, 10, 0, 0)) {
                         p.packing = p2p_y410_le;
-                        p.dst_stride[0] = p.width * 2 * fi->bytesPerSample;
+                        p.dst_stride[0] = p.width * 2 * fi.bytesPerSample;
                         p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-                    } else if (fi->id == pfYUV444P16) {
+                    } else if (IsSameVideoFormat(fi, cfYUV, stInteger, 16, 0, 0)) {
                         p.packing = p2p_y416_le;
                         p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-                    } else if (fi->id == pfYUV422P10 && enable_v210) {
+                    } else if (IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 0) && enable_v210) {
                         p.packing = p2p_v210_le;
                         p.dst_stride[0] = ((16 * ((p.width + 5) / 6) + 127) & ~127);
                         p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-                    } else if ((fi->id == pfYUV420P16) || (fi->id == pfYUV422P16) || (fi->id == pfYUV420P10) || (fi->id == pfYUV422P10)) {
-                        switch (fi->id) {
-                        case pfYUV420P10: p.packing = p2p_p010_le; break;
-                        case pfYUV422P10: p.packing = p2p_p210_le; break;
-                        case pfYUV420P16: p.packing = p2p_p016_le; break;
-                        case pfYUV422P16: p.packing = p2p_p216_le; break;
-                        }
-                        p.dst_stride[0] = p.width * fi->bytesPerSample;
-                        p.dst_stride[1] = p.width * fi->bytesPerSample;
+                    } else if (IsSameVideoFormat(fi, cfYUV, stInteger, 16, 1, 1) || IsSameVideoFormat(fi, cfYUV, stInteger, 16, 1, 0) || IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 1) || IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 0)) {
+                        if (IsSameVideoFormat(fi, cfYUV, stInteger, 16, 1, 1))
+                            p.packing = p2p_p016_le;
+                        else if (IsSameVideoFormat(fi, cfYUV, stInteger, 16, 1, 0))
+                            p.packing = p2p_p216_le;
+                        else if (IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 1))
+                            p.packing = p2p_p010_le;
+                        else if (IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 0))
+                            p.packing = p2p_p210_le;
+                        p.dst_stride[0] = p.width * fi.bytesPerSample;
+                        p.dst_stride[1] = p.width * fi.bytesPerSample;
                         p.dst[1] = (uint8_t *)packedFrame.data() + p.dst_stride[0] * p.height;
                         p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
                     } else {
-                        const int stride = vsapi->getStride(f, 0);
+                        const ptrdiff_t stride = vsapi->getStride(f, 0);
                         const int height = vsapi->getFrameHeight(f, 0);
-                        int row_size = vsapi->getFrameWidth(f, 0) * fi->bytesPerSample;
-                        if (fi->numPlanes == 1) {
+                        int row_size = vsapi->getFrameWidth(f, 0) * fi.bytesPerSample;
+                        if (fi.numPlanes == 1) {
                             vs_bitblt(packedFrame.data(), (row_size + 3) & ~3, vsapi->getReadPtr(f, 0), stride, row_size, height);
-                        } else if (fi->numPlanes == 3) {
-                            int row_size23 = vsapi->getFrameWidth(f, 1) * fi->bytesPerSample;
+                        } else if (fi.numPlanes == 3) {
+                            int row_size23 = vsapi->getFrameWidth(f, 1) * fi.bytesPerSample;
 
                             vs_bitblt(packedFrame.data(), row_size, vsapi->getReadPtr(f, 0), stride, row_size, height);
 
@@ -543,7 +551,7 @@ int/*error*/ VapourSynther::newEnv() {
 
 // Constructor
 VapourSynther::VapourSynther(void) {
-    vsapi = vsscript_getVSApi();
+    vsapi = vsscript_getVSApi2(VAPOURSYNTH_API_VERSION);
 }
 
 /*---------------------------------------------------------
@@ -605,7 +613,7 @@ void VapourSynther::Release(void) {
 ---------------------------------------------------------*/
 
 int VapourSynther::BitsPerPixel() {
-    return ::BitsPerPixel(vi, enable_v210);
+    return ::BitsPerPixel(vi->format, enable_v210);
 }
 
 /*---------------------------------------------------------

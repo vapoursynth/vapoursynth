@@ -22,8 +22,8 @@
 #define AVISYNTH_COMPAT_H
 
 #include "avisynth.h"
-#include "VapourSynth.h"
-#include "VSHelper.h"
+#include "VapourSynth4.h"
+#include "VSHelper4.h"
 #include <map>
 #include <set>
 #include <vector>

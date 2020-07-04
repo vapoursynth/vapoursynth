@@ -21,7 +21,7 @@
 #ifndef VSLOG_H
 #define VSLOG_H
 
-#include "VapourSynth.h"
+#include "VapourSynth4.h"
 
 #ifdef __cplusplus
 extern "C" {

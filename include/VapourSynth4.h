@@ -18,13 +18,13 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-#ifndef VAPOURSYNTH_H
-#define VAPOURSYNTH_H
+#ifndef VAPOURSYNTH4_H
+#define VAPOURSYNTH4_H
 
 #include <stdint.h>
 
-#define VAPOURSYNTH_API_MAJOR 3
-#define VAPOURSYNTH_API_MINOR 7
+#define VAPOURSYNTH_API_MAJOR 4
+#define VAPOURSYNTH_API_MINOR 9000
 #define VAPOURSYNTH_API_VERSION ((VAPOURSYNTH_API_MAJOR << 16) | (VAPOURSYNTH_API_MINOR))
 
 /* Convenience for C++ users. */
@@ -65,7 +65,6 @@ typedef struct VSFrameRef VSFrameRef;
 typedef struct VSNodeRef VSNodeRef;
 typedef struct VSCore VSCore;
 typedef struct VSPlugin VSPlugin;
-typedef struct VSNode VSNode; /* deprecated as of api 3.7 */
 typedef struct VSFuncRef VSFuncRef;
 typedef struct VSMap VSMap;
 typedef struct VSAPI VSAPI;
@@ -74,13 +73,14 @@ typedef struct VSFrameContext VSFrameContext;
 #define VS_AUDIO_FRAME_SAMPLES 3000
 
 typedef enum VSColorFamily {
-    /* all planar formats */
-    cmGray   = 1000000,
-    cmRGB    = 2000000,
-    cmYUV    = 3000000,
-    cmYCoCg  = 4000000,
-    /* special for compatibility */
-    cmCompat = 9000000
+    cfUndefined = 0,
+    cfGray      = 1,
+    cfRGB       = 2,
+    cfYUV       = 3,
+    cfYCoCg     = 4, // ?? keep this? mostly harmless and unused
+    /* special for compatibility, can't be used in normal filters */
+    cfCompatYUY2 = 14,
+    cfCompatBGR32 = 15
 } VSColorFamily;
 
 typedef enum VSSampleType {
@@ -88,63 +88,9 @@ typedef enum VSSampleType {
     stFloat = 1
 } VSSampleType;
 
-/* The +10 is so people won't be using the constants interchangably "by accident" */
-typedef enum VSPresetFormat {
-    pfNone = 0,
-
-    pfGray8 = cmGray + 10,
-    pfGray16,
-
-    pfGrayH,
-    pfGrayS,
-
-    pfYUV420P8 = cmYUV + 10,
-    pfYUV422P8,
-    pfYUV444P8,
-    pfYUV410P8,
-    pfYUV411P8,
-    pfYUV440P8,
-
-    pfYUV420P9,
-    pfYUV422P9,
-    pfYUV444P9,
-
-    pfYUV420P10,
-    pfYUV422P10,
-    pfYUV444P10,
-
-    pfYUV420P16,
-    pfYUV422P16,
-    pfYUV444P16,
-
-    pfYUV444PH,
-    pfYUV444PS,
-
-    pfYUV420P12,
-    pfYUV422P12,
-    pfYUV444P12,
-
-    pfYUV420P14,
-    pfYUV422P14,
-    pfYUV444P14,
-
-    pfRGB24 = cmRGB + 10,
-    pfRGB27,
-    pfRGB30,
-    pfRGB48,
-
-    pfRGBH,
-    pfRGBS,
-
-    /* special for compatibility, if you implement these in any filter I'll personally kill you */
-    /* I'll also change their ids around to break your stuff regularly */
-    pfCompatBGR32 = cmCompat + 10,
-    pfCompatYUY2
-} VSPresetFormat;
-
 typedef enum VSFilterMode {
-    fmParallel = 100, /* completely parallel execution */
-    fmParallelRequests = 200, /* for filters that are serial in nature but can request one or more frames they need in advance */
+    fmParallel = 1, /* completely parallel execution */
+    fmParallelRequests = 2, /* for filters that are serial in nature but can request one or more frames they need in advance */
     fmUnordered = 300, /* for filters that modify their internal state every request */
     fmSerial = 400 /* for source filters and compatibility with other filtering architectures */
 } VSFilterMode;
@@ -157,8 +103,6 @@ typedef enum VSMediaType {
 
 /* api 3.7 */
 typedef struct VSVideoFormat {
-    char name[32];
-    int id;
     int colorFamily; /* see VSColorFamily */
     int sampleType; /* see VSSampleType */
     int bitsPerSample; /* number of significant bits */
@@ -169,9 +113,6 @@ typedef struct VSVideoFormat {
 
     int numPlanes; /* implicit from colorFamily */
 } VSVideoFormat;
-
-typedef VSVideoFormat VSFormat;
-
 
 /* api 3.7 */
 typedef enum VSAudioChannels {
@@ -207,7 +148,7 @@ typedef struct VSAudioFormat {
 typedef enum VSNodeFlags {
     nfNoCache    = 1,
     nfIsCache    = 2,
-    nfMakeLinear = 4 /* api 3.3 */
+    nfMakeLinear = 4
 } VSNodeFlags;
 
 typedef enum VSPropTypes {
@@ -223,6 +164,20 @@ typedef enum VSPropTypes {
     ptAudioFrame = 'w', /* api 3.7 */
     ptFunction = 'm'
 } VSPropTypes;
+
+/*
+typedef enum VSPropTypes {
+    ptUnset = 0,
+    ptInt = 1,
+    ptFloat = 2,
+    ptData = 3,
+    ptFunction = 4,
+    ptVideoNode = 5,
+    ptAudioNode = 6,
+    ptVideoFrame = 7,
+    ptAudioFrame = 8,
+} VSPropTypes;
+*/ //change to this! fixme
 
 typedef enum VSGetPropErrors {
     peUnset = 1,
@@ -246,13 +201,12 @@ typedef struct VSCoreInfo {
 } VSCoreInfo;
 
 typedef struct VSVideoInfo {
-    const VSVideoFormat *format;
+    VSVideoFormat format;
     int64_t fpsNum;
     int64_t fpsDen;
     int width;
     int height;
-    int numFrames; /* api 3.2 - no longer allowed to be 0 */
-    int flags;
+    int numFrames;
 } VSVideoInfo;
 
 /* api 3.7 */
@@ -287,7 +241,6 @@ typedef void (VS_CC *VSRegisterFunction)(const char *name, const char *args, VSP
 typedef void (VS_CC *VSConfigPlugin)(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readonly, VSPlugin *plugin);
 typedef void (VS_CC *VSInitPlugin)(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
 typedef void (VS_CC *VSFreeFuncData)(void *userData);
-typedef void (VS_CC *VSFilterInit)(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi); /* deprecated as of api 3.7 */
 typedef const VSFrameRef *(VS_CC *VSFilterGetFrame)(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
 typedef void (VS_CC *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI *vsapi);
 
@@ -299,7 +252,6 @@ typedef void (VS_CC *VSMessageHandlerFree)(void *userData); /* api 3.6 */
 struct VSAPI {
     VSCore *(VS_CC *createCore)(int threads) VS_NOEXCEPT;
     void (VS_CC *freeCore)(VSCore *core) VS_NOEXCEPT;
-    const VSCoreInfo *(VS_CC *getCoreInfo)(VSCore *core) VS_NOEXCEPT; /* deprecated as of api 3.6, use getCoreInfo2 instead */
 
     const VSFrameRef *(VS_CC *cloneFrameRef)(const VSFrameRef *f) VS_NOEXCEPT;
     VSNodeRef *(VS_CC *cloneNodeRef)(VSNodeRef *node) VS_NOEXCEPT;
@@ -317,15 +269,11 @@ struct VSAPI {
     VSPlugin *(VS_CC *getPluginById)(const char *identifier, VSCore *core) VS_NOEXCEPT;
     VSPlugin *(VS_CC *getPluginByNs)(const char *ns, VSCore *core) VS_NOEXCEPT;
     VSMap *(VS_CC *getPlugins)(VSCore *core) VS_NOEXCEPT;
-    VSMap *(VS_CC *getFunctions)(VSPlugin *plugin) VS_NOEXCEPT;
-    void (VS_CC *createFilter)(const VSMap *in, VSMap *out, const char *name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT; /* deprecated as of api 3.7, use createVideoFilter instead */
+    VSMap *(VS_CC *getFunctions)(VSPlugin *plugin) VS_NOEXCEPT; //// FIXME, replace with a function to get the number of functions and a VSPluginFunction struct/opaque object, 
     void (VS_CC *setError)(VSMap *map, const char *errorMessage) VS_NOEXCEPT; /* use to signal errors outside filter getframe functions */
     const char *(VS_CC *getError)(const VSMap *map) VS_NOEXCEPT; /* use to query errors, returns 0 if no error */
     void (VS_CC *setFilterError)(const char *errorMessage, VSFrameContext *frameCtx) VS_NOEXCEPT; /* use to signal errors in the filter getframe function */
     VSMap *(VS_CC *invoke)(VSPlugin *plugin, const char *name, const VSMap *args) VS_NOEXCEPT;
-
-    const VSVideoFormat *(VS_CC *getFormatPreset)(int id, VSCore *core) VS_NOEXCEPT;
-    const VSVideoFormat *(VS_CC *registerFormat)(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) VS_NOEXCEPT;
 
     const VSFrameRef *(VS_CC *getFrame)(int n, VSNodeRef *node, char *errorMsg, int bufSize) VS_NOEXCEPT; /* do never use inside a filter's getframe function, for external applications using the core as a library or for requesting frames in a filter constructor */
     void (VS_CC *getFrameAsync)(int n, VSNodeRef *node, VSFrameDoneCallback callback, void *userData) VS_NOEXCEPT; /* do never use inside a filter's getframe function, for external applications using the core as a library or for requesting frames in a filter constructor */
@@ -334,12 +282,12 @@ struct VSAPI {
     void (VS_CC *queryCompletedFrame)(VSNodeRef **node, int *n, VSFrameContext *frameCtx) VS_NOEXCEPT; /* only use inside a filter's getframe function */
     void (VS_CC *releaseFrameEarly)(VSNodeRef *node, int n, VSFrameContext *frameCtx) VS_NOEXCEPT; /* only use inside a filter's getframe function */
 
-    int (VS_CC *getStride)(const VSFrameRef *f, int plane) VS_NOEXCEPT;
+    ptrdiff_t (VS_CC *getStride)(const VSFrameRef *f, int plane) VS_NOEXCEPT;
     const uint8_t *(VS_CC *getReadPtr)(const VSFrameRef *f, int plane) VS_NOEXCEPT;
     uint8_t *(VS_CC *getWritePtr)(VSFrameRef *f, int plane) VS_NOEXCEPT;
 
-    VSFuncRef *(VS_CC *createFunc)(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core, const VSAPI *vsapi) VS_NOEXCEPT;
-    void (VS_CC *callFunc)(VSFuncRef *func, const VSMap *in, VSMap *out, VSCore *core, const VSAPI *vsapi) VS_NOEXCEPT; /* core and vsapi arguments are completely ignored, they only remain to preserve ABI */
+    VSFuncRef *(VS_CC *createFunc)(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core) VS_NOEXCEPT;
+    void (VS_CC *callFunc)(VSFuncRef *func, const VSMap *in, VSMap *out) VS_NOEXCEPT;
 
     /* property access functions */
     VSMap *(VS_CC *createMap)(void) VS_NOEXCEPT;
@@ -347,8 +295,7 @@ struct VSAPI {
     void (VS_CC *clearMap)(VSMap *map) VS_NOEXCEPT;
 
     const VSVideoInfo *(VS_CC *getVideoInfo)(VSNodeRef *node) VS_NOEXCEPT;
-    void (VS_CC *setVideoInfo)(const VSVideoInfo *vi, int numOutputs, VSNode *node) VS_NOEXCEPT;
-    const VSVideoFormat *(VS_CC *getFrameFormat)(const VSFrameRef *f) VS_NOEXCEPT;
+    const VSVideoFormat *(VS_CC *getVideoFrameFormat)(const VSFrameRef *f) VS_NOEXCEPT;
     int (VS_CC *getFrameWidth)(const VSFrameRef *f, int plane) VS_NOEXCEPT;
     int (VS_CC *getFrameHeight)(const VSFrameRef *f, int plane) VS_NOEXCEPT;
     const VSMap *(VS_CC *getFramePropsRO)(const VSFrameRef *f) VS_NOEXCEPT;
@@ -378,7 +325,6 @@ struct VSAPI {
     int64_t (VS_CC *setMaxCacheSize)(int64_t bytes, VSCore *core) VS_NOEXCEPT;
     int (VS_CC *getOutputIndex)(VSFrameContext *frameCtx) VS_NOEXCEPT;
     VSFrameRef *(VS_CC *newVideoFrame2)(const VSVideoFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT;
-    void (VS_CC *setMessageHandler)(VSMessageHandler handler, void *userData) VS_NOEXCEPT; /* deprecated as of api 3.6, use addMessageHandler and removeMessageHandler instead */
     int (VS_CC *setThreadCount)(int threads, VSCore *core) VS_NOEXCEPT;
 
     const char *(VS_CC *getPluginPath)(const VSPlugin *plugin) VS_NOEXCEPT;
@@ -404,17 +350,19 @@ struct VSAPI {
     void (VS_CC *createAudioFilter)(VSMap *out, const char *name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT;
     VSFrameRef *(VS_CC *newAudioFrame)(const VSAudioFormat *format, int numSamples, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT;
     int (VS_CC *queryAudioFormat)(VSAudioFormat *format, int sampleType, int bitsPerSample, uint64_t channelLayout, VSCore *core) VS_NOEXCEPT;
+    int (VS_CC *queryVideoFormat)(VSVideoFormat *format, int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) VS_NOEXCEPT;
+    uint32_t (VS_CC *queryVideoFormatID)(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) VS_NOEXCEPT;
+    int (VS_CC *queryVideoFormatByID)(VSVideoFormat *format, uint32_t id, VSCore *core) VS_NOEXCEPT;
     void (VS_CC *getAudioFormatName)(const VSAudioFormat *format, char *buffer) VS_NOEXCEPT; /* up to 32 characters including terminating null may be written to the buffer */
+    void (VS_CC *getVideoFormatName)(const VSVideoFormat *format, char *buffer) VS_NOEXCEPT; /* up to 32 characters including terminating null may be written to the buffer */
     const VSAudioInfo *(VS_CC *getAudioInfo)(VSNodeRef *node) VS_NOEXCEPT;
     const VSAudioFormat *(VS_CC *getAudioFrameFormat)(const VSFrameRef *f) VS_NOEXCEPT;
     int (VS_CC *getNodeType)(VSNodeRef *node) VS_NOEXCEPT;
     uint32_t (VS_CC *getNodeFlags)(VSNodeRef *node) VS_NOEXCEPT;
     int (VS_CC *getFrameType)(const VSFrameRef *f) VS_NOEXCEPT;
     int (VS_CC *getFrameLength)(const VSFrameRef *f) VS_NOEXCEPT;
-
-
 };
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version) VS_NOEXCEPT;
 
-#endif /* VAPOURSYNTH_H */
+#endif /* VAPOURSYNTH4_H */

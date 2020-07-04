@@ -160,9 +160,9 @@
     <ClCompile Include="..\..\src\vspipe\vspipe.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\VapourSynth.h" />
-    <ClInclude Include="..\..\include\VSHelper.h" />
-    <ClInclude Include="..\..\include\VSScript.h" />
+    <ClInclude Include="..\..\include\VapourSynth4.h" />
+    <ClInclude Include="..\..\include\VSHelper4.h" />
+    <ClInclude Include="..\..\include\VSScript4.h" />
     <ClInclude Include="..\..\src\common\vsutf16.h" />
     <ClInclude Include="..\..\src\common\wave.h" />
   </ItemGroup>

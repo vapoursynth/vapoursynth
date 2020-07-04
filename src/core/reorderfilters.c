@@ -19,7 +19,7 @@
 */
 
 #include "internalfilters.h"
-#include "VSHelper.h"
+#include "VSHelper4.h"
 #include "filtershared.h"
 #include <stdlib.h>
 
@@ -47,8 +47,8 @@ static int findCommonVi(VSNodeRef **nodes, int num, VSVideoInfo *outvi, int igno
             mismatch = DifferentDimensions;
         }
 
-        if (outvi->format != vi->format) {
-            outvi->format = 0;
+        if (!isSameVideoFormat(&outvi->format, &vi->format)) {
+            outvi->format = { 0 };
             mismatch = DifferentFormats;
         }
 
@@ -166,11 +166,6 @@ typedef struct {
     int modifyDuration;
 } InterleaveData;
 
-static void VS_CC interleaveInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    InterleaveData *d = (InterleaveData *) * instanceData;
-    vsapi->setVideoInfo(&d->vi, 1, node);
-}
-
 static const VSFrameRef *VS_CC interleaveGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     InterleaveData *d = (InterleaveData *) * instanceData;
 
@@ -232,11 +227,11 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
         for (int i = 0; i < d.numclips; i++) {
             d.node[i] = vsapi->propGetNode(in, "clips", i, 0);
 
-            if (isCompatFormat(vsapi->getVideoInfo(d.node[i])))
+            if (isCompatFormat(&vsapi->getVideoInfo(d.node[i])->format))
                 compat = 1;
         }
 
-        int mismatchCause = findCommonVi(d.node, d.numclips, &d.vi, 1, vsapi);
+        int mismatchCause = findCommonVi(d.node, d.numclips, &d.vi, 1, core, vsapi);
         if (mismatchCause && (!mismatch || compat)) {
             for (int i = 0; i < d.numclips; i++)
                 vsapi->freeNode(d.node[i]);
@@ -283,7 +278,7 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
         data = malloc(sizeof(d));
         *data = d;
 
-        vsapi->createFilter(in, out, "Interleave", interleaveInit, interleaveGetframe, interleaveFree, fmParallel, nfNoCache, data, core);
+        vsapi->createVideoFilter(out, "Interleave", &data->vi, 1, interleaveGetframe, interleaveFree, fmParallel, nfNoCache, data, core);
     }
 }
 
@@ -312,7 +307,7 @@ static void VS_CC reverseCreate(const VSMap *in, VSMap *out, void *userData, VSC
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "Reverse", singleClipInit, reverseGetframe, singleClipFree, fmParallel, nfNoCache, data, core);
+    vsapi->createVideoFilter(out, "Reverse", data->vi, 1, reverseGetframe, singleClipFree, fmParallel, nfNoCache, data, core);
 }
 
 //////////////////////////////////////////
@@ -320,14 +315,8 @@ static void VS_CC reverseCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
 typedef struct {
     VSNodeRef *node;
-    VSVideoInfo vi;
     int numFramesIn;
 } LoopData;
-
-static void VS_CC loopInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    LoopData *d = (LoopData *) * instanceData;
-    vsapi->setVideoInfo(&d->vi, 1, node);
-}
 
 static const VSFrameRef *VS_CC loopGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     LoopData *d = (LoopData *) * instanceData;
@@ -350,8 +339,8 @@ static void VS_CC loopCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         RETERROR("Loop: cannot repeat clip a negative number of times");
 
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
-    d.vi = *vsapi->getVideoInfo(d.node);
-    d.numFramesIn = d.vi.numFrames;
+    VSVideoInfo vi = *vsapi->getVideoInfo(d.node);
+    d.numFramesIn = vi.numFrames;
 
     // early termination for the trivial case
     if (times == 1) {
@@ -361,20 +350,20 @@ static void VS_CC loopCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     }
 
     if (times > 0) {
-        if (d.vi.numFrames > INT_MAX / times) {
+        if (vi.numFrames > INT_MAX / times) {
             vsapi->freeNode(d.node);
             RETERROR("Loop: resulting clip is too long");
         }
 
-        d.vi.numFrames *= times;
+        vi.numFrames *= times;
     } else { // loop for maximum duration
-        d.vi.numFrames = INT_MAX;
+        vi.numFrames = INT_MAX;
     }
 
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "Loop", loopInit, loopGetframe, singleClipFree, fmParallel, nfNoCache, data, core);
+    vsapi->createVideoFilter(out, "Loop", &vi, 1, loopGetframe, singleClipFree, fmParallel, nfNoCache, data, core);
 }
 
 //////////////////////////////////////////
@@ -382,17 +371,11 @@ static void VS_CC loopCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
 typedef struct {
     VSNodeRef *node;
-    VSVideoInfo vi;
     int cycle;
     int *offsets;
     int num;
     int modifyDuration;
 } SelectEveryData;
-
-static void VS_CC selectEveryInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    SelectEveryData *d = (SelectEveryData *) * instanceData;
-    vsapi->setVideoInfo(&d->vi, 1, node);
-}
 
 static const VSFrameRef *VS_CC selectEveryGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     SelectEveryData *d = (SelectEveryData *) * instanceData;
@@ -458,28 +441,28 @@ static void VS_CC selectEveryCreate(const VSMap *in, VSMap *out, void *userData,
 
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
 
-    d.vi = *vsapi->getVideoInfo(d.node);
-    int inputnframes = d.vi.numFrames;
+    VSVideoInfo vi = *vsapi->getVideoInfo(d.node);
+    int inputnframes = vi.numFrames;
     if (inputnframes) {
-        d.vi.numFrames = (inputnframes / d.cycle) * d.num;
+        vi.numFrames = (inputnframes / d.cycle) * d.num;
         for (int i = 0; i < d.num; i++)
             if (d.offsets[i] < inputnframes % d.cycle)
-                d.vi.numFrames++;
+                vi.numFrames++;
     }
 
-    if (d.vi.numFrames == 0) {
+    if (vi.numFrames == 0) {
         vsapi->freeNode(d.node);
         free(d.offsets);
         RETERROR("SelectEvery: no frames to output, all offsets outside available frames");
     }
 
     if (d.modifyDuration)
-        muldivRational(&d.vi.fpsNum, &d.vi.fpsDen, d.num, d.cycle);
+        muldivRational(&vi.fpsNum, &vi.fpsDen, d.num, d.cycle);
 
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "SelectEvery", selectEveryInit, selectEveryGetframe, selectEveryFree, fmParallel, nfNoCache, data, core);
+    vsapi->createVideoFilter(out, "SelectEvery", &vi, 1, selectEveryGetframe, selectEveryFree, fmParallel, nfNoCache, data, core);
 }
 
 //////////////////////////////////////////
@@ -559,12 +542,12 @@ static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         for (int i = 0; i < d.numclips; i++) {
             d.node[i] = vsapi->propGetNode(in, "clips", i, 0);
 
-            if (isCompatFormat(vsapi->getVideoInfo(d.node[i])))
+            if (isCompatFormat(&vsapi->getVideoInfo(d.node[i])->format))
                 compat = 1;
         }
 
-        int mismatchCause = findCommonVi(d.node, d.numclips, &vi, 1, vsapi);
-        if (mismatchCause && (!mismatch || compat) && !isSameFormat(&vi, vsapi->getVideoInfo(d.node[0]))) {
+        int mismatchCause = findCommonVi(d.node, d.numclips, &vi, 1, core, vsapi);
+        if (mismatchCause && (!mismatch || compat) && !isSameVideoInfo(&vi, vsapi->getVideoInfo(d.node[0]))) {
             for (int i = 0; i < d.numclips; i++)
                 vsapi->freeNode(d.node[i]);
 
@@ -612,15 +595,9 @@ static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 typedef struct {
     VSNodeRef *node;
     VSVideoInfo vi;
-
     int *dups;
     int num_dups;
 } DuplicateFramesData;
-
-static void VS_CC duplicateFramesInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    DuplicateFramesData *d = (DuplicateFramesData *) * instanceData;
-    vsapi->setVideoInfo(&d->vi, 1, node);
-}
 
 static const VSFrameRef *VS_CC duplicateFramesGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     DuplicateFramesData *d = (DuplicateFramesData *) * instanceData;
@@ -683,7 +660,7 @@ static void VS_CC duplicateFramesCreate(const VSMap *in, VSMap *out, void *userD
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "DuplicateFrames", duplicateFramesInit, duplicateFramesGetFrame, duplicateFramesFree, fmParallel, nfNoCache, data, core);
+    vsapi->createVideoFilter(out, "DuplicateFrames", &data->vi, 1, duplicateFramesGetFrame, duplicateFramesFree, fmParallel, nfNoCache, data, core);
 }
 
 //////////////////////////////////////////
@@ -692,15 +669,9 @@ static void VS_CC duplicateFramesCreate(const VSMap *in, VSMap *out, void *userD
 typedef struct {
     VSNodeRef *node;
     VSVideoInfo vi;
-
     int *delete;
     int num_delete;
 } DeleteFramesData;
-
-static void VS_CC deleteFramesInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    DeleteFramesData *d = (DeleteFramesData *) * instanceData;
-    vsapi->setVideoInfo(&d->vi, 1, node);
-}
 
 static const VSFrameRef *VS_CC deleteFramesGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     DeleteFramesData *d = (DeleteFramesData *) * instanceData;
@@ -773,7 +744,7 @@ static void VS_CC deleteFramesCreate(const VSMap *in, VSMap *out, void *userData
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "DeleteFrames", deleteFramesInit, deleteFramesGetFrame, deleteFramesFree, fmParallel, nfNoCache, data, core);
+    vsapi->createVideoFilter(out, "DeleteFrames", &data->vi, 1, deleteFramesGetFrame, deleteFramesFree, fmParallel, nfNoCache, data, core);
 }
 
 //////////////////////////////////////////
@@ -788,15 +759,9 @@ struct Freeze {
 typedef struct {
     VSNodeRef *node;
     const VSVideoInfo *vi;
-
     struct Freeze *freeze;
     int num_freeze;
 } FreezeFramesData;
-
-static void VS_CC freezeFramesInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    FreezeFramesData *d = (FreezeFramesData *) * instanceData;
-    vsapi->setVideoInfo(d->vi, 1, node);
-}
 
 static const VSFrameRef *VS_CC freezeFramesGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     FreezeFramesData *d = (FreezeFramesData *) * instanceData;
@@ -821,7 +786,6 @@ static const VSFrameRef *VS_CC freezeFramesGetFrame(int n, int activationReason,
 
 static void VS_CC freezeFramesFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     FreezeFramesData *d = (FreezeFramesData *)instanceData;
-
     vsapi->freeNode(d->node);
     free(d->freeze);
     free(d);
@@ -881,7 +845,7 @@ static void VS_CC freezeFramesCreate(const VSMap *in, VSMap *out, void *userData
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "FreezeFrames", freezeFramesInit, freezeFramesGetFrame, freezeFramesFree, fmParallel, nfNoCache, data, core);
+    vsapi->createVideoFilter(out, "FreezeFrames", data->vi, 1, freezeFramesGetFrame, freezeFramesFree, fmParallel, nfNoCache, data, core);
 }
 
 //////////////////////////////////////////

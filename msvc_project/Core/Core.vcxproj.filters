@@ -122,12 +122,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\VapourSynth.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\VSScript.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\core\cachefilter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -183,6 +177,15 @@
       <Filter>Header Files\kernel</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\core\intrusive_ptr.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core\VapourSynth3.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\VapourSynth4.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\VSHelper4.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

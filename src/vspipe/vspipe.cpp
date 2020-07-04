@@ -18,9 +18,9 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-#include "VapourSynth.h"
-#include "VSHelper.h"
-#include "VSScript.h"
+#include "VapourSynth4.h"
+#include "VSHelper4.h"
+#include "VSScript4.h"
 #include "../core/version.h"
 #include <string>
 #include <map>
@@ -194,11 +194,11 @@ static size_t interleaveSamples(const VSFrameRef *frame, uint8_t *dstBuf) {
 static void outputFrame(const VSFrameRef *frame) {
     if (!outputError && outFile) {
         if (vsapi->getFrameType(frame) == mtVideo) {
-            const VSFormat *fi = vsapi->getFrameFormat(frame);
+            const VSVideoFormat *fi = vsapi->getVideoFrameFormat(frame);
             const int rgbRemap[] = { 1, 2, 0 };
             for (int rp = 0; rp < fi->numPlanes; rp++) {
-                int p = (fi->colorFamily == cmRGB) ? rgbRemap[rp] : rp;
-                int stride = vsapi->getStride(frame, p);
+                int p = (fi->colorFamily == cfRGB) ? rgbRemap[rp] : rp;
+                ptrdiff_t stride = vsapi->getStride(frame, p);
                 const uint8_t *readPtr = vsapi->getReadPtr(frame, p);
                 int rowSize = vsapi->getFrameWidth(frame, p) * fi->bytesPerSample;
                 int height = vsapi->getFrameHeight(frame, p);
@@ -384,7 +384,7 @@ static bool initializeVideoOutput() {
 
     const VSVideoInfo *vi = vsapi->getVideoInfo(node);
 
-    if (y4m && ((vi->format->colorFamily != cmGray && vi->format->colorFamily != cmYUV) || alphaNode)) {
+    if (y4m && ((vi->format.colorFamily != cfGray && vi->format.colorFamily != cfYUV) || alphaNode)) {
         fprintf(stderr, "Error: can only apply y4m headers to YUV and Gray format clips without alpha\n");
         return false;
     }
@@ -392,32 +392,32 @@ static bool initializeVideoOutput() {
     std::string y4mFormat;
 
     if (y4m) {
-        if (vi->format->colorFamily == cmGray) {
+        if (vi->format.colorFamily == cfGray) {
             y4mFormat = "mono";
-            if (vi->format->bitsPerSample > 8)
-                y4mFormat = y4mFormat + std::to_string(vi->format->bitsPerSample);
-        } else if (vi->format->colorFamily == cmYUV) {
-            if (vi->format->subSamplingW == 1 && vi->format->subSamplingH == 1)
+            if (vi->format.bitsPerSample > 8)
+                y4mFormat = y4mFormat + std::to_string(vi->format.bitsPerSample);
+        } else if (vi->format.colorFamily == cfYUV) {
+            if (vi->format.subSamplingW == 1 && vi->format.subSamplingH == 1)
                 y4mFormat = "420";
-            else if (vi->format->subSamplingW == 1 && vi->format->subSamplingH == 0)
+            else if (vi->format.subSamplingW == 1 && vi->format.subSamplingH == 0)
                 y4mFormat = "422";
-            else if (vi->format->subSamplingW == 0 && vi->format->subSamplingH == 0)
+            else if (vi->format.subSamplingW == 0 && vi->format.subSamplingH == 0)
                 y4mFormat = "444";
-            else if (vi->format->subSamplingW == 2 && vi->format->subSamplingH == 2)
+            else if (vi->format.subSamplingW == 2 && vi->format.subSamplingH == 2)
                 y4mFormat = "410";
-            else if (vi->format->subSamplingW == 2 && vi->format->subSamplingH == 0)
+            else if (vi->format.subSamplingW == 2 && vi->format.subSamplingH == 0)
                 y4mFormat = "411";
-            else if (vi->format->subSamplingW == 0 && vi->format->subSamplingH == 1)
+            else if (vi->format.subSamplingW == 0 && vi->format.subSamplingH == 1)
                 y4mFormat = "440";
             else {
                 fprintf(stderr, "Error: no y4m identifier exists for current format\n");
                 return false;
             }
 
-            if (vi->format->bitsPerSample > 8 && vi->format->sampleType == stInteger)
-                y4mFormat += "p" + std::to_string(vi->format->bitsPerSample);
-            else if (vi->format->sampleType == stFloat)
-                y4mFormat += "p" + floatBitsToLetter(vi->format->bitsPerSample);
+            if (vi->format.bitsPerSample > 8 && vi->format.sampleType == stInteger)
+                y4mFormat += "p" + std::to_string(vi->format.bitsPerSample);
+            else if (vi->format.sampleType == stFloat)
+                y4mFormat += "p" + floatBitsToLetter(vi->format.bitsPerSample);
         } else {
             fprintf(stderr, "Error: no y4m identifier exists for current format\n");
             return false;
@@ -448,7 +448,7 @@ static bool initializeVideoOutput() {
         }
     }
 
-    buffer.resize(vi->width * vi->height * vi->format->bytesPerSample);
+    buffer.resize(vi->width * vi->height * vi->format.bytesPerSample);
     return true;
 }
 
@@ -524,11 +524,12 @@ static bool outputNode() {
 
 static const char *colorFamilyToString(int colorFamily) {
     switch (colorFamily) {
-    case cmGray: return "Gray";
-    case cmRGB: return "RGB";
-    case cmYUV: return "YUV";
-    case cmYCoCg: return "YCoCg";
-    case cmCompat: return "Compat";
+    case cfGray: return "Gray";
+    case cfRGB: return "RGB";
+    case cfYUV: return "YUV";
+    case cfYCoCg: return "YCoCg";
+    case cfCompatBGR32: return "CompatBGR32";
+    case cfCompatYUY2: return "CompatYUY2";
     }
     return "";
 }
@@ -552,7 +553,7 @@ static bool printVersion() {
         return false;
     }
 
-    vsapi = vsscript_getVSApi();
+    vsapi = vsscript_getVSApi2(VAPOURSYNTH_API_VERSION);
     if (!vsapi) {
         fprintf(stderr, "Failed to get VapourSynth API pointer\n");
         vsscript_finalize();
@@ -790,7 +791,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    vsapi = vsscript_getVSApi();
+    vsapi = vsscript_getVSApi2(VAPOURSYNTH_API_VERSION);
     if (!vsapi) {
         fprintf(stderr, "Failed to get VapourSynth API pointer\n");
         vsscript_finalize();
@@ -851,15 +852,17 @@ int main(int argc, char **argv) {
                     fprintf(outFile, "FPS: %" PRId64 "/%" PRId64 " (%.3f fps)\n", vi->fpsNum, vi->fpsDen, vi->fpsNum / static_cast<double>(vi->fpsDen));
                 else
                     fprintf(outFile, "FPS: Variable\n");
-
-                if (vi->format) {
-                    fprintf(outFile, "Format Name: %s\n", vi->format->name);
-                    fprintf(outFile, "Color Family: %s\n", colorFamilyToString(vi->format->colorFamily));
+                
+                if (vi->format.colorFamily != cfUndefined) {
+                    char nameBuffer[32];
+                    vsapi->getVideoFormatName(&vi->format, nameBuffer);
+                    fprintf(outFile, "Format Name: %s\n", &nameBuffer);
+                    fprintf(outFile, "Color Family: %s\n", colorFamilyToString(vi->format.colorFamily));
                     fprintf(outFile, "Alpha: %s\n", alphaNode ? "Yes" : "No");
-                    fprintf(outFile, "Sample Type: %s\n", (vi->format->sampleType == stInteger) ? "Integer" : "Float");
-                    fprintf(outFile, "Bits: %d\n", vi->format->bitsPerSample);
-                    fprintf(outFile, "SubSampling W: %d\n", vi->format->subSamplingW);
-                    fprintf(outFile, "SubSampling H: %d\n", vi->format->subSamplingH);
+                    fprintf(outFile, "Sample Type: %s\n", (vi->format.sampleType == stInteger) ? "Integer" : "Float");
+                    fprintf(outFile, "Bits: %d\n", vi->format.bitsPerSample);
+                    fprintf(outFile, "SubSampling W: %d\n", vi->format.subSamplingW);
+                    fprintf(outFile, "SubSampling H: %d\n", vi->format.subSamplingH);
                 } else {
                     fprintf(outFile, "Format Name: Variable\n");
                 }
@@ -876,7 +879,7 @@ int main(int argc, char **argv) {
                 return 1;
             }
 
-            if (!isConstantFormat(vi)) {
+            if (!isConstantVideoFormat(vi)) {
                 fprintf(stderr, "Cannot output clips with varying dimensions\n");
                 vsapi->freeNode(node);
                 vsapi->freeNode(alphaNode);

@@ -21,7 +21,7 @@
 #ifndef INTERNALFILTERS_H
 #define INTERNALFILTERS_H
 
-#include "VapourSynth.h"
+#include "VapourSynth4.h"
 
 #ifdef __cplusplus
 extern "C" {

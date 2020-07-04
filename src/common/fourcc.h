@@ -21,57 +21,61 @@
 #ifndef FOURCC_H
 #define FOURCC_H
 
-#include "VapourSynth.h"
+#include "VapourSynth4.h"
 
 #define VS_FCC(ch4) ((((unsigned long)(ch4) & 0xFF) << 24) |     \
                   (((unsigned long)(ch4) & 0xFF00) << 8) |    \
                   (((unsigned long)(ch4) & 0xFF0000) >> 8) |  \
                   (((unsigned long)(ch4) & 0xFF000000) >> 24))
 
-static inline bool GetFourCC(int formatid, int output_alt, unsigned long &fourcc) {
+static inline bool IsSameVideoFormat(const VSVideoFormat &f, unsigned colorFamily, unsigned sampleType, unsigned bitsPerSample, unsigned subSamplingW = 0, unsigned subSamplingH = 0) noexcept {
+    return f.colorFamily == colorFamily && f.sampleType == sampleType && f.bitsPerSample == bitsPerSample && f.subSamplingW == subSamplingW && f.subSamplingH == subSamplingH;
+}
+
+static inline bool GetFourCC(const VSVideoFormat &fi, int output_alt, unsigned long &fourcc) {
     bool success = true;
     fourcc = VS_FCC('UNKN');
-    if (formatid == pfCompatBGR32 || formatid == pfRGB24)
+    if (IsSameVideoFormat(fi, cfCompatBGR32, stInteger, 32) || IsSameVideoFormat(fi, cfRGB, stInteger, 8))
         fourcc = VS_FCC('DIB ');
-    else if (formatid == pfRGB30)
+    else if (IsSameVideoFormat(fi, cfRGB, stInteger, 10))
         fourcc = VS_FCC('r210');
-    else if (formatid == pfRGB48)
+    else if (IsSameVideoFormat(fi, cfRGB, stInteger, 16))
         fourcc = VS_FCC('b64a');
-    else if (formatid == pfCompatYUY2)
+    else if (IsSameVideoFormat(fi, cfCompatYUY2, stInteger, 16, 1, 0))
         fourcc = VS_FCC('YUY2');
-    else if (formatid == pfYUV420P8)
+    else if (IsSameVideoFormat(fi, cfYUV, stInteger, 8, 1, 1))
         fourcc = VS_FCC('YV12');
-    else if (formatid == pfGray8)
+    else if (IsSameVideoFormat(fi, cfGray, stInteger, 8))
         fourcc = VS_FCC('Y800');
-    else if (formatid == pfYUV444P8)
+    else if (IsSameVideoFormat(fi, cfYUV, stInteger, 8, 0, 0))
         fourcc = VS_FCC('YV24');
-    else if (formatid == pfYUV422P8)
+    else if (IsSameVideoFormat(fi, cfYUV, stInteger, 8, 1, 0))
         fourcc = VS_FCC('YV16');
-    else if (formatid == pfYUV411P8)
+    else if (IsSameVideoFormat(fi, cfYUV, stInteger, 8, 2, 0))
         fourcc = VS_FCC('Y41B');
-    else if (formatid == pfYUV410P8)
+    else if (IsSameVideoFormat(fi, cfYUV, stInteger, 8, 2, 2))
         fourcc = VS_FCC('YVU9');
-    else if (formatid == pfYUV420P10)
+    else if (IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 1))
         fourcc = VS_FCC('P010');
-    else if (formatid == pfYUV420P16)
+    else if (IsSameVideoFormat(fi, cfYUV, stInteger, 16, 1, 1))
         fourcc = VS_FCC('P016');
-    else if (formatid == pfYUV422P10 && output_alt == 1)
+    else if (IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 0) && output_alt == 1)
         fourcc = VS_FCC('v210');
-    else if (formatid == pfYUV422P10)
+    else if (IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 0))
         fourcc = VS_FCC('P210');
-    else if (formatid == pfYUV422P16)
+    else if (IsSameVideoFormat(fi, cfYUV, stInteger, 16, 1, 0))
         fourcc = VS_FCC('P216');
-    else if (formatid == pfYUV444P10)
+    else if (IsSameVideoFormat(fi, cfYUV, stInteger, 10, 0, 0))
         fourcc = VS_FCC('Y410');
-    else if (formatid == pfYUV444P16)
+    else if (IsSameVideoFormat(fi, cfYUV, stInteger, 16, 0, 0))
         fourcc = VS_FCC('Y416');
     else
         success = false;
     return success;
 }
 
-static inline bool GetBiCompression(int formatid, int output_alt, unsigned long &compression) {
-    bool success = GetFourCC(formatid, output_alt, compression) && (compression != VS_FCC('UNKN'));
+static inline bool GetBiCompression(const VSVideoFormat &format, int output_alt, unsigned long &compression) {
+    bool success = GetFourCC(format, output_alt, compression) && (compression != VS_FCC('UNKN'));
     if (success) {
         if (compression == VS_FCC('DIB '))
             compression = 0; // same as BI_RGB but not going to include all headers just for one constant
@@ -88,68 +92,53 @@ static inline int BMPSize(const VSVideoInfo *vi, int output_alt) {
         return 0;
     int image_size;
 
-    if (vi->format->id == pfYUV422P10 && output_alt == 1) {
+    if (IsSameVideoFormat(vi->format, cfYUV, stInteger, 10, 1, 0) && output_alt == 1) {
         image_size = ((16 * ((vi->width + 5) / 6) + 127) & ~127);
         image_size *= vi->height;
-    } else if (vi->format->id == pfRGB24 || vi->format->id == pfRGB48 || vi->format->id == pfYUV444P16) {
-        image_size = BMPSizeHelper(vi->height, vi->width * vi->format->bytesPerSample * 4);
-    } else if (vi->format->id == pfRGB30) {
+    } else if (IsSameVideoFormat(vi->format, cfRGB, stInteger, 8) || IsSameVideoFormat(vi->format, cfRGB, stInteger, 16) || IsSameVideoFormat(vi->format, cfYUV, stInteger, 16, 0, 0)) {
+        image_size = BMPSizeHelper(vi->height, vi->width * vi->format.bytesPerSample * 4);
+    } else if (IsSameVideoFormat(vi->format, cfRGB, stInteger, 10)) {
         image_size = ((vi->width + 63) / 64) * 256 * vi->height;
-    } else if (vi->format->id == pfYUV444P10) {
-        image_size = BMPSizeHelper(vi->height, vi->width * vi->format->bytesPerSample * 2);
-    } else if (vi->format->numPlanes == 1) {
-        image_size = BMPSizeHelper(vi->height, vi->width * vi->format->bytesPerSample);
+    } else if (IsSameVideoFormat(vi->format, cfYUV, stInteger, 10, 0, 0)) {
+        image_size = BMPSizeHelper(vi->height, vi->width * vi->format.bytesPerSample * 2);
+    } else if (vi->format.numPlanes == 1) {
+        image_size = BMPSizeHelper(vi->height, vi->width * vi->format.bytesPerSample);
     } else {
-        image_size = (vi->width * vi->format->bytesPerSample) >> vi->format->subSamplingW;
+        image_size = (vi->width * vi->format.bytesPerSample) >> vi->format.subSamplingW;
         if (image_size) {
             image_size *= vi->height;
-            image_size >>= vi->format->subSamplingH;
+            image_size >>= vi->format.subSamplingH;
             image_size *= 2;
         }
-        image_size += vi->width * vi->format->bytesPerSample * vi->height;
+        image_size += vi->width * vi->format.bytesPerSample * vi->height;
     }
     return image_size;
 }
 
-static inline int BitsPerPixel(const VSVideoInfo *vi, int output_alt) {
-    if (!vi)
+static inline int BitsPerPixel(const VSVideoFormat &format, int output_alt) {
+    if (format.colorFamily == cfUndefined)
         return 0;
-    int bits = vi->format->bytesPerSample * 8;
-    if (vi->format->id == pfRGB24 || vi->format->id == pfRGB48 || vi->format->id == pfYUV444P16)
+    int bits = format.bytesPerSample * 8;
+    if ((IsSameVideoFormat(format, cfRGB, stInteger, 8) || IsSameVideoFormat(format, cfRGB, stInteger, 16) || IsSameVideoFormat(format, cfYUV, stInteger, 16, 0, 0)))
         bits *= 4;
-    else if (vi->format->id == pfRGB30)
+    else if (IsSameVideoFormat(format, cfRGB, stInteger, 10))
         bits = 30;
-    else if (vi->format->id == pfYUV444P10)
+    else if (IsSameVideoFormat(format, cfYUV, stInteger, 10, 0, 0))
         bits *= 2;
-    else if (vi->format->numPlanes == 3)
-        bits += (bits * 2) >> (vi->format->subSamplingH + vi->format->subSamplingW);
-    if (vi->format->id == pfYUV422P10 && output_alt == 1)
+    else if (format.numPlanes == 3)
+        bits += (bits * 2) >> (format.subSamplingH + format.subSamplingW);
+    if (IsSameVideoFormat(format, cfYUV, stInteger, 10, 1, 0) && output_alt == 1)
         bits = 20;
     return bits;
 }
 
-static bool HasSupportedFourCC(int id) {
-    return (id == pfCompatBGR32
-        || id == pfRGB24
-        || id == pfRGB30
-        || id == pfRGB48
-        || id == pfCompatYUY2
-        || id == pfYUV420P8
-        || id == pfGray8
-        || id == pfYUV444P8
-        || id == pfYUV422P8
-        || id == pfYUV411P8
-        || id == pfYUV410P8
-        || id == pfYUV420P10
-        || id == pfYUV420P16
-        || id == pfYUV422P10
-        || id == pfYUV422P16
-        || id == pfYUV444P10
-        || id == pfYUV444P16);
+static bool HasSupportedFourCC(const VSVideoFormat &fi) {
+    unsigned long dummy;
+    return GetFourCC(fi, 0, dummy);
 }
 
-static bool NeedsPacking(int id) {
-    return (id == pfRGB24 || id == pfRGB30 || id == pfRGB48 || id == pfYUV420P10 || id == pfYUV420P16 || id == pfYUV422P10 || id == pfYUV422P16 || id == pfYUV444P10 || id == pfYUV444P16);
+static bool NeedsPacking(const VSVideoFormat &fi) {
+    return (IsSameVideoFormat(fi, cfRGB, stInteger, 8) || IsSameVideoFormat(fi, cfRGB, stInteger, 10) || IsSameVideoFormat(fi, cfRGB, stInteger, 16) || IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 1) || IsSameVideoFormat(fi, cfYUV, stInteger, 16, 1, 1) || IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 0) || IsSameVideoFormat(fi, cfYUV, stInteger, 16, 1, 0) || IsSameVideoFormat(fi, cfYUV, stInteger, 10, 0, 0) || IsSameVideoFormat(fi, cfYUV, stInteger, 16, 0, 0));
 }
 
 #endif

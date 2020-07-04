@@ -600,8 +600,8 @@ bool/*success*/ AvfsAvi2File::Init(
   bool vidSuccess = true;
 
   if (vi.HasVideo()) {
-      vidSuccess = vidSuccess && GetFourCC(vi.pixel_format, vi.output_format, vidType);
-      vidSuccess = vidSuccess && GetBiCompression(vi.pixel_format, vi.output_format, vidCompress);
+      vidSuccess = vidSuccess && GetFourCC(vi.vf, vi.output_format, vidType);
+      vidSuccess = vidSuccess && GetBiCompression(vi.vf, vi.output_format, vidCompress);
   }
 
   if (!vidType || !vidFrameCount || !frameVidDataSize || !vidSuccess) {
@@ -1191,14 +1191,14 @@ static void copyPlaneVS(
     unsigned     alignMask,/*align-1*/
     const VSAPI *vsapi) {
     if (rqsize) {
-        const VSFormat *fi = vsapi->getFrameFormat(frame);
-        if (plane == 2 && fi->id != pfYUV411P8)
+        const VSVideoFormat &fi = *vsapi->getVideoFrameFormat(frame);
+        if (plane == 2 && IsSameVideoFormat(fi, cfYUV, stInteger, 8, 2, 0))
             plane = 1;
-        else if (plane == 1 && fi->id != pfYUV411P8)
+        else if (plane == 1 && IsSameVideoFormat(fi, cfYUV, stInteger, 8, 2, 0))
             plane = 2;
-        const unsigned rowsize = (vsapi->getFrameWidth(frame, plane) * fi->bytesPerSample + alignMask) & ~alignMask;
+        const unsigned rowsize = (vsapi->getFrameWidth(frame, plane) * fi.bytesPerSample + alignMask) & ~alignMask;
         const unsigned plsize = vsapi->getFrameHeight(frame, plane) * rowsize;
-        const unsigned pitch = vsapi->getStride(frame, plane);
+        const ptrdiff_t pitch = vsapi->getStride(frame, plane);
 
         if (offset < plsize) {
             size_t size = std::min(plsize - offset, rqsize);
@@ -1236,10 +1236,10 @@ bool/*success*/ AvfsAvi2File::GetFrameData(
       const VSAPI *vsapi = vssynther->GetVSApi();
       const VSFrameRef *frame = vssynther->GetFrame(log, n, &success);
       if (success) {
-          if (NeedsPacking(vssynther->GetVideoInfo().pixel_format)) {
+          if (NeedsPacking(vssynther->GetVideoInfo().vf)) {
               memcpy(buffer, vssynther->GetPackedFrame() + offset, size);
           } else {
-              copyPlaneVS(buffer, offset, size, frame, 0, (vsapi->getFrameFormat(frame)->numPlanes == 1) ? 3 : 0, vsapi);
+              copyPlaneVS(buffer, offset, size, frame, 0, (vsapi->getVideoFrameFormat(frame)->numPlanes == 1) ? 3 : 0, vsapi);
               copyPlaneVS(buffer, offset, size, frame, 1, 0, vsapi);
               copyPlaneVS(buffer, offset, size, frame, 2, 0, vsapi);
               ASSERT(size == 0);
@@ -1249,15 +1249,15 @@ bool/*success*/ AvfsAvi2File::GetFrameData(
   } else {
       avs::PVideoFrame frame = avssynther->GetFrame(log, n, &success);
       if (success) {
-          int pixel_format = avssynther->GetVideoInfo().pixel_format;
-          if (NeedsPacking(pixel_format)) {
+          VideoInfoAdapter via = avssynther->GetVideoInfo();
+          if (NeedsPacking(via.vf)) {
               memcpy(buffer, avssynther->GetPackedFrame() + offset, size);
           } else {
               // This logic is dodgy because of these reasons:
               // RGB32 and YUY2 has no code path. But PLANAR_Y works just as well for these
               // They won't be explicitly aligned but it doesn't matter since they're always mod4
               // Poking extra planes will read nothing so it's harmless
-              copyPlaneAvs(buffer, offset, size, frame, avs::PLANAR_Y, (pixel_format == pfGray8 || pixel_format == pfGray16) ? 3 : 0);
+              copyPlaneAvs(buffer, offset, size, frame, avs::PLANAR_Y, (IsSameVideoFormat(via.vf, cfGray, stInteger, 8) || IsSameVideoFormat(via.vf, cfGray, stInteger, 16)) ? 3 : 0);
               copyPlaneAvs(buffer, offset, size, frame, avs::PLANAR_V, 0);
               copyPlaneAvs(buffer, offset, size, frame, avs::PLANAR_U, 0);
               ASSERT(size == 0);

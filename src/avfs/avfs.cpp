@@ -184,7 +184,7 @@ int/*error*/ Avisynther::Import(const wchar_t* wszScriptName)
 
           enable_v210 = GetVarAsBool("enable_v210", false) && (vi.IsColorSpace(avs::VideoInfo::CS_YUV422P10) || vi.IsColorSpace(avs::VideoInfo::CS_YUVA422P10));
 
-          if (!HasSupportedFourCC(VideoInfoAdapter(&vi, this, enable_v210).pixel_format)) {
+          if (!HasSupportedFourCC(VideoInfoAdapter(&vi, this, enable_v210).vf)) {
               setError("AVFS module doesn't support output of the current format");
               error = ERROR_ACCESS_DENIED;
           }
@@ -472,9 +472,10 @@ avs::PVideoFrame Avisynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
         try {
           f = (*clip)->GetFrame(n, env);
           success = true;
-          int id = GetVideoInfo().pixel_format;
-          
-          if (NeedsPacking(id)) {
+          VideoInfoAdapter via = GetVideoInfo();
+          const VSVideoFormat &fi = via.vf;
+
+          if (NeedsPacking(fi)) {
               p2p_buffer_param p = {};
               p.width = vi.width;
               p.height = vi.height;
@@ -487,38 +488,40 @@ avs::PVideoFrame Avisynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
                   p.src_stride[plane] = GetStride(f, vi, plane);
               }
 
-              if (id == pfRGB24) {
+              if (IsSameVideoFormat(fi, cfRGB, stInteger, 8)) {
                   p.packing = p2p_argb32_le;
                   for (int plane = 0; plane < 3; plane++) {
                       p.src[plane] = GetReadPtr(f, vi, plane) + GetStride(f, vi, plane) * (GetFrameHeight(vi, plane) - 1);
                       p.src_stride[plane] = -GetStride(f, vi, plane);
                   }
                   p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-              } else if (id == pfRGB30) {
+              } else if (IsSameVideoFormat(fi, cfRGB, stInteger, 10)) {
                   p.packing = p2p_rgb30_be;
                   p.dst_stride[0] = ((p.width + 63) / 64) * 256;
                   p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-              } else if (id == pfRGB48) {
+              } else if (IsSameVideoFormat(fi, cfRGB, stInteger, 16)) {
                   p.packing = p2p_argb64_be;
                   p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-              } else if (id == pfYUV444P10) {
+              } else if (IsSameVideoFormat(fi, cfYUV, stInteger, 10, 0, 0)) {
                   p.packing = p2p_y410_le;
                   p.dst_stride[0] = p.width * 2 * BytesPerSample(vi);
                   p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-              } else if (id == pfYUV444P16) {
+              } else if (IsSameVideoFormat(fi, cfYUV, stInteger, 16, 0, 0)) {
                   p.packing = p2p_y416_le;
                   p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-              } else if (id == pfYUV422P10 && enable_v210) {
+              } else if (IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 0) && enable_v210) {
                   p.packing = p2p_v210_le;
                   p.dst_stride[0] = ((16 * ((p.width + 5) / 6) + 127) & ~127);
                   p2p_pack_frame(&p, P2P_ALPHA_SET_ONE);
-              } else if ((id == pfYUV420P16) || (id == pfYUV422P16) || (id == pfYUV420P10) || (id == pfYUV422P10)) {
-                  switch (id) {
-                  case pfYUV420P10: p.packing = p2p_p010_le; break;
-                  case pfYUV422P10: p.packing = p2p_p210_le; break;
-                  case pfYUV420P16: p.packing = p2p_p016_le; break;
-                  case pfYUV422P16: p.packing = p2p_p216_le; break;
-                  }
+              } else if (IsSameVideoFormat(fi, cfYUV, stInteger, 16, 1, 1) || IsSameVideoFormat(fi, cfYUV, stInteger, 16, 1, 0) || IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 1) || IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 0)) {
+                  if (IsSameVideoFormat(fi, cfYUV, stInteger, 16, 1, 1))
+                      p.packing = p2p_p016_le;
+                  else if (IsSameVideoFormat(fi, cfYUV, stInteger, 16, 1, 0))
+                      p.packing = p2p_p216_le;
+                  else if (IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 1))
+                      p.packing = p2p_p010_le;
+                  else if (IsSameVideoFormat(fi, cfYUV, stInteger, 10, 1, 0))
+                      p.packing = p2p_p210_le;
                   p.dst_stride[0] = p.width * BytesPerSample(vi);
                   p.dst_stride[1] = p.width * BytesPerSample(vi);
                   p.dst[1] = (uint8_t *)packedFrame.data() + p.dst_stride[0] * p.height;
@@ -594,47 +597,18 @@ int Avisynther::BMPSize() {
     if (!vi.HasVideo())
         return 0;
     VideoInfoAdapter via = GetVideoInfo();
-    int image_size;
-
-    if (via.pixel_format == pfYUV422P10 && enable_v210) {
-        image_size = ((16 * ((vi.width + 5) / 6) + 127) & ~127);
-        image_size *= vi.height;
-    } else if (via.pixel_format == pfRGB24 || via.pixel_format == pfRGB48 || via.pixel_format == pfYUV444P16) {
-        image_size = BMPSizeHelper(vi.height, vi.width * BytesPerSample(vi) * 4);
-    } else if (via.pixel_format == pfRGB30) {
-        image_size = ((vi.width + 63) / 64) * 256 * vi.height;
-    } else if (via.pixel_format == pfYUV444P10) {
-        image_size = BMPSizeHelper(vi.height, vi.width * BytesPerSample(vi) * 2);
-    } else if (NumPlanes(vi) == 1) {
-        image_size = BMPSizeHelper(vi.height, vi.width * BytesPerSample(vi));
-    } else {
-        image_size = (vi.width * BytesPerSample(vi)) >> GetSubSamplingW(vi, 1);
-        if (image_size) {
-            image_size *= vi.height;
-            image_size >>= GetSubSamplingH(vi, 1);
-            image_size *= 2;
-        }
-        image_size += vi.width * BytesPerSample(vi) * vi.height;
-    }
-    return image_size;
+    VSVideoInfo vi = {};
+    vi.format = via.vf;
+    vi.width = via.width;
+    vi.height = via.height;
+    return ::BMPSize(&vi, enable_v210);
 }
 
 int Avisynther::BitsPerPixel() {
     if (!vi.HasVideo())
         return 0;
     VideoInfoAdapter via = GetVideoInfo();
-    int bits = BytesPerSample(vi) * 8;
-    if (via.pixel_format == pfRGB24 || via.pixel_format == pfRGB48 || via.pixel_format == pfYUV444P16)
-        bits *= 4;
-    else if (via.pixel_format == pfRGB30)
-        bits = 30;
-    else if (via.pixel_format == pfYUV444P10)
-        bits *= 2;
-    else if (NumPlanes(vi) == 3)
-        bits += (bits * 2) >> (GetSubSamplingH(vi, 1) + GetSubSamplingW(vi, 1));
-    if (via.pixel_format == pfYUV422P10 && enable_v210)
-        bits = 20;
-    return bits;
+    return ::BitsPerPixel(via.vf, 0);
 }
 
 /*---------------------------------------------------------

@@ -18,13 +18,13 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-#ifndef VSSCRIPT_H
-#define VSSCRIPT_H
+#ifndef VSSCRIPT4_H
+#define VSSCRIPT4_H
 
-#include "VapourSynth.h"
+#include "VapourSynth4.h"
 
-#define VSSCRIPT_API_MAJOR 3
-#define VSSCRIPT_API_MINOR 2
+#define VSSCRIPT_API_MAJOR 4
+#define VSSCRIPT_API_MINOR 0
 #define VSSCRIPT_API_VERSION ((VSSCRIPT_API_MAJOR << 16) | (VSSCRIPT_API_MINOR))
 
 /* As of api 3.2 all functions are threadsafe */
@@ -81,4 +81,4 @@ VS_API(int) vsscript_clearVariable(VSScript *handle, const char *name);
 /* Tries to clear everything set in an environment, normally it is better to simply free an environment completely and create a new one */
 VS_API(void) vsscript_clearEnvironment(VSScript *handle);
 
-#endif /* VSSCRIPT_H */
+#endif /* VSSCRIPT4_H */

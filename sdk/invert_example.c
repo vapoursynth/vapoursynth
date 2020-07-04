@@ -6,22 +6,14 @@
 // read from the bottom and up.
 
 #include <stdlib.h>
-#include "VapourSynth.h"
-#include "VSHelper.h"
+#include "VapourSynth4.h"
+#include "VSHelper4.h"
 
 typedef struct {
     VSNodeRef *node;
     const VSVideoInfo *vi;
     int enabled;
 } InvertData;
-
-// This function is called immediately after vsapi->createFilter(). This is the only place where the video
-// properties may be set. In this case we simply use the same as the input clip. You may pass an array
-// of VSVideoInfo if the filter has more than one output, like rgb+alpha as two separate clips.
-static void VS_CC invertInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    InvertData *d = (InvertData *) * instanceData;
-    vsapi->setVideoInfo(d->vi, 1, node);
-}
 
 // This is the main function that gets called when a frame should be produced. It will, in most cases, get
 // called several times to produce one frame. This state is being kept track of by the value of
@@ -40,8 +32,8 @@ static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void 
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         // The reason we query this on a per frame basis is because we want our filter
         // to accept clips with varying dimensions. If we reject such content using d->vi
-        // would be better.
-        const VSVideoFormat *fi = d->vi->format;
+        // would be easier.
+        const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
         int height = vsapi->getFrameHeight(src, 0);
         int width = vsapi->getFrameWidth(src, 0);
 
@@ -104,7 +96,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 
     // In this first version we only want to handle 8bit integer formats. Note that
     // vi->format can be 0 if the input clip can change format midstream.
-    if (!isConstantFormat(d.vi) || d.vi->format->sampleType != stInteger || d.vi->format->bitsPerSample != 8) {
+    if (!isConstantVideoFormat(d.vi) || d.vi->format.sampleType != stInteger || d.vi->format.bitsPerSample != 8) {
         vsapi->setError(out, "Invert: only constant format 8bit integer input supported");
         vsapi->freeNode(d.node);
         return;
@@ -146,7 +138,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     // prefetch (such as a cache filter).
     // If your filter is really fast (such as a filter that only resorts frames) you should set the
     // nfNoCache flag to make the caching work smoother.
-    vsapi->createFilter(in, out, "Invert", invertInit, invertGetFrame, invertFree, fmParallel, 0, data, core);
+    vsapi->createVideoFilter(out, "Invert", data->vi, 1, invertGetFrame, invertFree, fmParallel, 0, data, core);
 }
 
 //////////////////////////////////////////

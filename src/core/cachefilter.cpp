@@ -19,7 +19,7 @@
 */
 
 #include "cachefilter.h"
-#include "VSHelper.h"
+#include "VSHelper4.h"
 #include <string>
 #include <algorithm>
 

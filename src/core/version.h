@@ -18,7 +18,8 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-#include "VapourSynth.h"
+#include "VapourSynth4.h"
+#include "VapourSynth3.h"
 
 /*
 
@@ -48,4 +49,5 @@
     "Copyright (c) 2012-2020 Fredrik Mellbin\n" \
     "Core R" XSTR(VAPOURSYNTH_CORE_VERSION) "\n" \
     "API R" XSTR(VAPOURSYNTH_API_MAJOR) "." XSTR(VAPOURSYNTH_API_MINOR) "\n" \
+    "API R" XSTR(VAPOURSYNTH3_API_MAJOR) "." XSTR(VAPOURSYNTH3_API_MINOR) "\n" \
     VS_OPTIONS_TEXT

@@ -32,10 +32,11 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include "VapourSynth.h"
-#include "VSHelper.h"
+#include "VapourSynth4.h"
+#include "VSHelper4.h"
 #include "cpufeatures.h"
 #include "internalfilters.h"
+#include "filtershared.h"
 #include "vslog.h"
 #include "kernel/cpulevel.h"
 
@@ -1961,15 +1962,15 @@ ExpressionTree parseExpr(const std::string &expr, const VSVideoInfo * const *vi,
 
         // Rename load operations with the correct data type.
         if (op.type == ExprOpType::MEM_LOAD_U8) {
-            const VSVideoFormat *format = vi[op.imm.i]->format;
+            const VSVideoFormat &format = vi[op.imm.i]->format;
 
-            if (format->sampleType == stInteger && format->bytesPerSample == 1)
+            if (format.sampleType == stInteger && format.bytesPerSample == 1)
                 op.type = ExprOpType::MEM_LOAD_U8;
-            else if (format->sampleType == stInteger && format->bytesPerSample == 2)
+            else if (format.sampleType == stInteger && format.bytesPerSample == 2)
                 op.type = ExprOpType::MEM_LOAD_U16;
-            else if (format->sampleType == stFloat && format->bytesPerSample == 2)
+            else if (format.sampleType == stFloat && format.bytesPerSample == 2)
                 op.type = ExprOpType::MEM_LOAD_F16;
-            else if (format->sampleType == stFloat && format->bytesPerSample == 4)
+            else if (format.sampleType == stFloat && format.bytesPerSample == 4)
                 op.type = ExprOpType::MEM_LOAD_F32;
         }
 
@@ -3063,7 +3064,7 @@ void renameRegisters(std::vector<ExprInstruction> &code)
     }
 }
 
-std::vector<ExprInstruction> compile(ExpressionTree &tree, const VSVideoFormat *format)
+std::vector<ExprInstruction> compile(ExpressionTree &tree, const VSVideoFormat &format)
 {
     std::vector<ExprInstruction> code;
     std::unordered_set<int> found;
@@ -3113,28 +3114,23 @@ std::vector<ExprInstruction> compile(ExpressionTree &tree, const VSVideoFormat *
 
     ExprInstruction store(ExprOpType::MEM_STORE_U8);
 
-    if (format->sampleType == stInteger && format->bytesPerSample == 1)
+    if (format.sampleType == stInteger && format.bytesPerSample == 1)
         store.op.type = ExprOpType::MEM_STORE_U8;
-    else if (format->sampleType == stInteger && format->bytesPerSample == 2)
+    else if (format.sampleType == stInteger && format.bytesPerSample == 2)
         store.op.type = ExprOpType::MEM_STORE_U16;
-    else if (format->sampleType == stFloat && format->bytesPerSample == 2)
+    else if (format.sampleType == stFloat && format.bytesPerSample == 2)
         store.op.type = ExprOpType::MEM_STORE_F16;
-    else if (format->sampleType == stFloat && format->bytesPerSample == 4)
+    else if (format.sampleType == stFloat && format.bytesPerSample == 4)
         store.op.type = ExprOpType::MEM_STORE_F32;
 
     if (store.op.type == ExprOpType::MEM_STORE_U16)
-        store.op.imm.u = format->bitsPerSample;
+        store.op.imm.u = format.bitsPerSample;
 
     store.src1 = code.back().dst;
     code.push_back(store);
 
     renameRegisters(code);
     return code;
-}
-
-static void VS_CC exprInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    ExprData *d = static_cast<ExprData *>(*instanceData);
-    vsapi->setVideoInfo(&d->vi, 1, node);
 }
 
 static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -3149,18 +3145,17 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
         for (int i = 0; i < numInputs; i++)
             src[i] = vsapi->getFrameFilter(n, d->node[i], frameCtx);
 
-        const VSVideoFormat *fi = d->vi.format;
         int height = vsapi->getFrameHeight(src[0], 0);
         int width = vsapi->getFrameWidth(src[0], 0);
         int planes[3] = { 0, 1, 2 };
         const VSFrameRef *srcf[3] = { d->plane[0] != poCopy ? nullptr : src[0], d->plane[1] != poCopy ? nullptr : src[0], d->plane[2] != poCopy ? nullptr : src[0] };
-        VSFrameRef *dst = vsapi->newVideoFrame2(fi, width, height, srcf, planes, src[0], core);
+        VSFrameRef *dst = vsapi->newVideoFrame2(&d->vi.format, width, height, srcf, planes, src[0], core);
 
         const uint8_t *srcp[MAX_EXPR_INPUTS] = {};
-        int src_stride[MAX_EXPR_INPUTS] = {};
-        alignas(32) intptr_t ptroffsets[((MAX_EXPR_INPUTS + 1) + 7) & ~7] = { d->vi.format->bytesPerSample * 8 };
+        ptrdiff_t src_stride[MAX_EXPR_INPUTS] = {};
+        alignas(32) intptr_t ptroffsets[((MAX_EXPR_INPUTS + 1) + 7) & ~7] = { d->vi.format.bytesPerSample * 8 };
 
-        for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {
+        for (int plane = 0; plane < d->vi.format.numPlanes; plane++) {
             if (d->plane[plane] != poProcess)
                 continue;
 
@@ -3168,12 +3163,12 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                 if (d->node[i]) {
                     srcp[i] = vsapi->getReadPtr(src[i], plane);
                     src_stride[i] = vsapi->getStride(src[i], plane);
-                    ptroffsets[i + 1] = vsapi->getFrameFormat(src[i])->bytesPerSample * 8;
+                    ptroffsets[i + 1] = vsapi->getVideoFrameFormat(src[i])->bytesPerSample * 8;
                 }
             }
 
             uint8_t *dstp = vsapi->getWritePtr(dst, plane);
-            int dst_stride = vsapi->getStride(dst, plane);
+            ptrdiff_t dst_stride = vsapi->getStride(dst, plane);
             int h = vsapi->getFrameHeight(dst, plane);
             int w = vsapi->getFrameWidth(dst, plane);
 
@@ -3183,7 +3178,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
 
                 for (int i = 0; i < numInputs; i++) {
                     if (d->node[i])
-                        ptroffsets[i + 1] = vsapi->getFrameFormat(src[i])->bytesPerSample * 8;
+                        ptroffsets[i + 1] = vsapi->getVideoFrameFormat(src[i])->bytesPerSample * 8;
                 }
 
                 for (int y = 0; y < h; y++) {
@@ -3252,11 +3247,11 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         }
 
         for (int i = 0; i < d->numInputs; i++) {
-            if (!isConstantFormat(vi[i]))
+            if (!isConstantVideoFormat(vi[i]))
                 throw std::runtime_error("Only clips with constant format and dimensions allowed");
-            if (vi[0]->format->numPlanes != vi[i]->format->numPlanes
-                || vi[0]->format->subSamplingW != vi[i]->format->subSamplingW
-                || vi[0]->format->subSamplingH != vi[i]->format->subSamplingH
+            if (vi[0]->format.numPlanes != vi[i]->format.numPlanes
+                || vi[0]->format.subSamplingW != vi[i]->format.subSamplingW
+                || vi[0]->format.subSamplingH != vi[i]->format.subSamplingH
                 || vi[0]->width != vi[i]->width
                 || vi[0]->height != vi[i]->height)
             {
@@ -3264,12 +3259,12 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
             }
 
             if (EXPR_F16C_TEST) {
-                if ((vi[i]->format->bitsPerSample > 16 && vi[i]->format->sampleType == stInteger)
-                    || (vi[i]->format->bitsPerSample != 16 && vi[i]->format->bitsPerSample != 32 && vi[i]->format->sampleType == stFloat))
+                if ((vi[i]->format.bitsPerSample > 16 && vi[i]->format.sampleType == stInteger)
+                    || (vi[i]->format.bitsPerSample != 16 && vi[i]->format.bitsPerSample != 32 && vi[i]->format.sampleType == stFloat))
                     throw std::runtime_error("Input clips must be 8-16 bit integer or 16/32 bit float format");
             } else {
-                if ((vi[i]->format->bitsPerSample > 16 && vi[i]->format->sampleType == stInteger)
-                    || (vi[i]->format->bitsPerSample != 32 && vi[i]->format->sampleType == stFloat))
+                if ((vi[i]->format.bitsPerSample > 16 && vi[i]->format.sampleType == stInteger)
+                    || (vi[i]->format.bitsPerSample != 32 && vi[i]->format.sampleType == stFloat))
                     throw std::runtime_error("Input clips must be 8-16 bit integer or 32 bit float format");
             }
         }
@@ -3277,18 +3272,19 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         d->vi = *vi[0];
         int format = int64ToIntS(vsapi->propGetInt(in, "format", 0, &err));
         if (!err) {
-            const VSVideoFormat *f = vsapi->getFormatPreset(format, core);
-            if (f) {
-                if (d->vi.format->colorFamily == cmCompat)
+            VSVideoFormat f;
+            vsapi->queryVideoFormatByID(&f, format, core);
+            if (vsapi->queryVideoFormatByID(&f, format, core) && f.colorFamily !=cfUndefined) {
+                if (isCompatFormat(&d->vi.format))
                     throw std::runtime_error("No compat formats allowed");
-                if (d->vi.format->numPlanes != f->numPlanes)
+                if (d->vi.format.numPlanes != f.numPlanes)
                     throw std::runtime_error("The number of planes in the inputs and output must match");
-                d->vi.format = vsapi->registerFormat(d->vi.format->colorFamily, f->sampleType, f->bitsPerSample, d->vi.format->subSamplingW, d->vi.format->subSamplingH, core);
+                vsapi->queryVideoFormat(&d->vi.format, d->vi.format.colorFamily, f.sampleType, f.bitsPerSample, d->vi.format.subSamplingW, d->vi.format.subSamplingH, core);
             }
         }
 
         int nexpr = vsapi->propNumElements(in, "expr");
-        if (nexpr > d->vi.format->numPlanes)
+        if (nexpr > d->vi.format.numPlanes)
             throw std::runtime_error("More expressions given than there are planes");
 
         std::string expr[3];
@@ -3303,7 +3299,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
             if (!expr[i].empty()) {
                 d->plane[i] = poProcess;
             } else {
-                if (d->vi.format->bitsPerSample == vi[0]->format->bitsPerSample && d->vi.format->sampleType == vi[0]->format->sampleType)
+                if (d->vi.format.bitsPerSample == vi[0]->format.bitsPerSample && d->vi.format.sampleType == vi[0]->format.sampleType)
                     d->plane[i] = poCopy;
                 else
                     d->plane[i] = poUndefined;
@@ -3317,7 +3313,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
             int cpulevel = vs_get_cpulevel(core);
             if (cpulevel > VS_CPU_LEVEL_NONE) {
-                for (int i = 0; i < d->vi.format->numPlanes; i++) {
+                for (int i = 0; i < d->vi.format.numPlanes; i++) {
                     if (d->plane[i] == poProcess) {
 #ifdef VS_TARGET_CPU_X86
                         std::unique_ptr<ExprCompiler> compiler = make_compiler(d->numInputs, cpulevel);
@@ -3342,7 +3338,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         return;
     }
 
-    vsapi->createFilter(in, out, "Expr", exprInit, exprGetFrame, exprFree, fmParallel, 0, d.release(), core);
+    vsapi->createVideoFilter(out, "Expr", &d->vi, 1, exprGetFrame, exprFree, fmParallel, 0, d.release(), core);
 }
 
 } // namespace

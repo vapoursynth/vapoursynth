@@ -28,8 +28,8 @@
 #include <array>
 #include <memory>
 #include <vector>
-#include <VapourSynth.h>
-#include <VSHelper.h>
+#include "VapourSynth4.h"
+#include "VSHelper4.h"
 #include "cpufeatures.h"
 #include "filtershared.h"
 #include "filtersharedcpp.h"
@@ -105,10 +105,10 @@ static const VSFrameRef *VS_CC singlePixelGetFrame(int n, int activationReason, 
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        const VSVideoFormat *fi = vsapi->getFrameFormat(src);
+        const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
 
         try {
-            shared816FFormatCheck(fi);
+            shared816FFormatCheck(*fi);
         } catch (const std::runtime_error &error) {
             vsapi->setFilterError((d->name + ": "_s + error.what()).c_str(), frameCtx);
             vsapi->freeFrame(src);
@@ -362,10 +362,10 @@ static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        const VSVideoFormat *fi = vsapi->getFrameFormat(src);
+        const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
 
         try {
-            shared816FFormatCheck(fi);
+            shared816FFormatCheck(*fi);
             if (vsapi->getFrameWidth(src, fi->numPlanes - 1) < 4 || vsapi->getFrameHeight(src, fi->numPlanes - 1) < 4)
                 throw std::runtime_error("Cannot process frames with subsampled planes smaller than 4x4.");
 
@@ -401,8 +401,8 @@ static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void
                 const uint8_t *srcp = vsapi->getReadPtr(src, plane);
                 int width = vsapi->getFrameWidth(src, plane);
                 int height = vsapi->getFrameHeight(src, plane);
-                int src_stride = vsapi->getStride(src, plane);
-                int dst_stride = vsapi->getStride(dst, plane);
+                ptrdiff_t src_stride = vsapi->getStride(src, plane);
+                ptrdiff_t dst_stride = vsapi->getStride(dst, plane);
 
                 vs_generic_params params = make_generic_params(d, fi, plane);
                 func(srcp, src_stride, dstp, dst_stride, &params, width, height);
@@ -429,7 +429,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
         shared816FFormatCheck(d->vi->format);
 
         if (d->vi->height && d->vi->width)
-            if (planeWidth(d->vi, d->vi->format->numPlanes - 1) < 4 || planeHeight(d->vi, d->vi->format->numPlanes - 1) < 4)
+            if (planeWidth(d->vi, d->vi->format.numPlanes - 1) < 4 || planeHeight(d->vi, d->vi->format.numPlanes - 1) < 4)
                 throw std::runtime_error("Cannot process frames with subsampled planes smaller than 4x4.");
 
         getPlanesArg(in, d->process, vsapi);
@@ -439,12 +439,12 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
         if (op == GenericMinimum || op == GenericMaximum || op == GenericDeflate || op == GenericInflate) {
             d->thf = static_cast<float>(vsapi->propGetFloat(in, "threshold", 0, &err));
             if (err) {
-                d->th = ((1 << d->vi->format->bitsPerSample) - 1);
+                d->th = ((1 << d->vi->format.bitsPerSample) - 1);
                 d->thf = std::numeric_limits<float>::max();
             } else {
-                if (d->vi->format->sampleType == stInteger) {
+                if (d->vi->format.sampleType == stInteger) {
                     int64_t ith = floatToInt64S(d->thf);
-                    if (ith < 0 || ith > ((1 << d->vi->format->bitsPerSample) - 1))
+                    if (ith < 0 || ith > ((1 << d->vi->format.bitsPerSample) - 1))
                         throw std::runtime_error("threshold bigger than sample value.");
                     d->th = static_cast<uint16_t>(ith);
                 } else {
@@ -512,10 +512,10 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
             d->matrix_sum = 0;
             const double *matrix = vsapi->propGetFloatArray(in, "matrix", nullptr);
             for (int i = 0; i < d->matrix_elements; i++) {
-                if (d->vi->format->sampleType == stInteger) {
+                if (d->vi->format.sampleType == stInteger) {
                     d->matrix[i] = lround(matrix[i]);
                     d->matrixf[i] = d->matrix[i];
-                    if (d->vi->format->sampleType == stInteger && std::abs(d->matrix[i]) > 1023)
+                    if (d->vi->format.sampleType == stInteger && std::abs(d->matrix[i]) > 1023)
                         throw std::runtime_error("coefficients may only be between -1023 and 1023");
                 } else {
                     d->matrix[i] = lround(matrix[i]);
@@ -582,9 +582,9 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
             }
         }
 
-        if (op == GenericConvolution && d->convolution_type == ConvolutionHorizontal && d->matrix_elements / 2 >= planeWidth(d->vi, d->vi->format->numPlanes - 1))
+        if (op == GenericConvolution && d->convolution_type == ConvolutionHorizontal && d->matrix_elements / 2 >= planeWidth(d->vi, d->vi->format.numPlanes - 1))
             throw std::runtime_error("Width must be bigger than convolution radius.");
-        if (op == GenericConvolution && d->convolution_type == ConvolutionVertical && d->matrix_elements / 2 >= planeHeight(d->vi, d->vi->format->numPlanes - 1))
+        if (op == GenericConvolution && d->convolution_type == ConvolutionVertical && d->matrix_elements / 2 >= planeHeight(d->vi, d->vi->format.numPlanes - 1))
             throw std::runtime_error("Height must be bigger than convolution radius.");
 
         d->cpulevel = vs_get_cpulevel(core);
@@ -594,7 +594,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
         return;
     }
 
-    vsapi->createFilter(in, out, d->filter_name, templateNodeInit<GenericData>, genericGetframe<op>, templateNodeFree<GenericData>, fmParallel, 0, d.get(), core);
+    vsapi->createVideoFilter(out, d->filter_name, d->vi, 1, genericGetframe<op>, templateNodeFree<GenericData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
@@ -613,7 +613,7 @@ struct InvertOp {
     bool uv;
 
     InvertOp(InvertData *d, const VSVideoFormat *fi, int plane) {
-        uv = ((fi->colorFamily == cmYUV) || (fi->colorFamily == cmYCoCg)) && (plane > 0);
+        uv = ((fi->colorFamily == cfYUV) || (fi->colorFamily == cfYCoCg)) && (plane > 0);
         max = (1LL << fi->bitsPerSample) - 1;
     }
 
@@ -646,7 +646,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         return;
     }
 
-    vsapi->createFilter(in, out, d->name, templateNodeInit<InvertData>, singlePixelGetFrame<InvertData, InvertOp>, templateNodeFree<InvertData>, fmParallel, 0, d.get(), core);
+    vsapi->createVideoFilter(out, d->name, d->vi, 1, singlePixelGetFrame<InvertData, InvertOp>, templateNodeFree<InvertData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
@@ -693,7 +693,7 @@ static void VS_CC limitCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         getPlanePixelRangeArgs(d->vi->format, in, "min", d->min, d->minf, RangeLower, vsapi);
         getPlanePixelRangeArgs(d->vi->format, in, "max", d->max, d->maxf, RangeUpper, vsapi);
         for (int i = 0; i < 3; i++)
-            if (((d->vi->format->sampleType == stInteger) && (d->min[i] > d->max[i])) || ((d->vi->format->sampleType == stFloat) && (d->minf[i] > d->maxf[i])))
+            if (((d->vi->format.sampleType == stInteger) && (d->min[i] > d->max[i])) || ((d->vi->format.sampleType == stFloat) && (d->minf[i] > d->maxf[i])))
                 throw std::runtime_error("min bigger than max");
     } catch (const std::runtime_error &error) {
         vsapi->freeNode(d->node);
@@ -701,7 +701,7 @@ static void VS_CC limitCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         return;
     }
 
-    vsapi->createFilter(in, out, d->name, templateNodeInit<LimitData>, singlePixelGetFrame<LimitData, LimitOp>, templateNodeFree<LimitData>, fmParallel, 0, d.get(), core);
+    vsapi->createVideoFilter(out, d->name, d->vi, 1, singlePixelGetFrame<LimitData, LimitOp>, templateNodeFree<LimitData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
@@ -762,7 +762,7 @@ static void VS_CC binarizeCreate(const VSMap *in, VSMap *out, void *userData, VS
         return;
     }
 
-    vsapi->createFilter(in, out, d->name, templateNodeInit<BinarizeData>, singlePixelGetFrame<BinarizeData, BinarizeOp>, templateNodeFree<BinarizeData>, fmParallel, 0, d.get(), core);
+    vsapi->createVideoFilter(out, d->name, d->vi, 1, singlePixelGetFrame<BinarizeData, BinarizeOp>, templateNodeFree<BinarizeData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
@@ -786,7 +786,7 @@ static const VSFrameRef *VS_CC levelsGetframe(int n, int activationReason, void 
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        const VSVideoFormat *fi = vsapi->getFrameFormat(src);
+        const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
         const int pl[] = { 0, 1, 2 };
         const VSFrameRef *fr[] = { d->process[0] ? 0 : src, d->process[1] ? 0 : src, d->process[2] ? 0 : src };
         VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
@@ -794,9 +794,9 @@ static const VSFrameRef *VS_CC levelsGetframe(int n, int activationReason, void 
         for (int plane = 0; plane < fi->numPlanes; plane++) {
             if (d->process[plane]) {
                 const T * VS_RESTRICT srcp = reinterpret_cast<const T *>(vsapi->getReadPtr(src, plane));
-                int src_stride = vsapi->getStride(src, plane);
+                ptrdiff_t src_stride = vsapi->getStride(src, plane);
                 T * VS_RESTRICT dstp = reinterpret_cast<T *>(vsapi->getWritePtr(dst, plane));
-                int dst_stride = vsapi->getStride(dst, plane);
+                ptrdiff_t dst_stride = vsapi->getStride(dst, plane);
                 int h = vsapi->getFrameHeight(src, plane);
                 int w = vsapi->getFrameWidth(src, plane);
 
@@ -828,7 +828,7 @@ static const VSFrameRef *VS_CC levelsGetframeF(int n, int activationReason, void
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        const VSVideoFormat *fi = vsapi->getFrameFormat(src);
+        const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
         const int pl[] = { 0, 1, 2 };
         const VSFrameRef *fr[] = { d->process[0] ? 0 : src, d->process[1] ? 0 : src, d->process[2] ? 0 : src };
         VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
@@ -836,9 +836,9 @@ static const VSFrameRef *VS_CC levelsGetframeF(int n, int activationReason, void
         for (int plane = 0; plane < fi->numPlanes; plane++) {
             if (d->process[plane]) {
                 const T * VS_RESTRICT srcp = reinterpret_cast<const T *>(vsapi->getReadPtr(src, plane));
-                int src_stride = vsapi->getStride(src, plane);
+                ptrdiff_t src_stride = vsapi->getStride(src, plane);
                 T * VS_RESTRICT dstp = reinterpret_cast<T *>(vsapi->getWritePtr(dst, plane));
-                int dst_stride = vsapi->getStride(dst, plane);
+                ptrdiff_t dst_stride = vsapi->getStride(dst, plane);
                 int h = vsapi->getFrameHeight(src, plane);
                 int w = vsapi->getFrameWidth(src, plane);
 
@@ -890,8 +890,8 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 
     int err;
     float maxvalf = 1.0f;
-    if (d->vi->format->sampleType == stInteger)
-        maxvalf = (1 << d->vi->format->bitsPerSample) - 1;
+    if (d->vi->format.sampleType == stInteger)
+        maxvalf = (1 << d->vi->format.bitsPerSample) - 1;
 
     d->min_in = static_cast<float>(vsapi->propGetFloat(in, "min_in", 0, &err));
     d->min_out = static_cast<float>(vsapi->propGetFloat(in, "min_out", 0, &err));
@@ -908,16 +908,16 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         d->gamma = 1.f / d->gamma;
 
     // Implement with simple lut for integer
-    if (d->vi->format->sampleType == stInteger) {
-        int maxval = (1 << d->vi->format->bitsPerSample) - 1;
-        d->lut.resize(d->vi->format->bytesPerSample * (1 << d->vi->format->bitsPerSample));
+    if (d->vi->format.sampleType == stInteger) {
+        int maxval = (1 << d->vi->format.bitsPerSample) - 1;
+        d->lut.resize(d->vi->format.bytesPerSample * (1 << d->vi->format.bitsPerSample));
 
         d->min_in = std::round(d->min_in);
         d->min_out = std::round(d->min_out);
         d->max_in = std::round(d->max_in);
         d->max_out = std::round(d->max_out);
 
-        if (d->vi->format->bytesPerSample == 1) {
+        if (d->vi->format.bytesPerSample == 1) {
             for (int v = 0; v <= 255; v++)
                 d->lut[v] = static_cast<uint8_t>(std::max(std::min(std::pow(std::max(std::min<float>(v, d->max_in) - d->min_in, 0.f) / (d->max_in - d->min_in), d->gamma) * (d->max_out - d->min_out) + d->min_out, 255.f), 0.f) + 0.5f);
         } else {
@@ -927,12 +927,12 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         }
     }
 
-    if (d->vi->format->bytesPerSample == 1)
-        vsapi->createFilter(in, out, d->name, templateNodeInit<LevelsData>, levelsGetframe<uint8_t>, templateNodeFree<LevelsData>, fmParallel, 0, d.get(), core);
-    else if (d->vi->format->bytesPerSample == 2)
-        vsapi->createFilter(in, out, d->name, templateNodeInit<LevelsData>, levelsGetframe<uint16_t>, templateNodeFree<LevelsData>, fmParallel, 0, d.get(), core);
+    if (d->vi->format.bytesPerSample == 1)
+        vsapi->createVideoFilter(out, d->name, d->vi, 1, levelsGetframe<uint8_t>, templateNodeFree<LevelsData>, fmParallel, 0, d.get(), core);
+    else if (d->vi->format.bytesPerSample == 2)
+        vsapi->createVideoFilter(out, d->name, d->vi, 1, levelsGetframe<uint16_t>, templateNodeFree<LevelsData>, fmParallel, 0, d.get(), core);
     else
-        vsapi->createFilter(in, out, d->name, templateNodeInit<LevelsData>, levelsGetframeF<float>, templateNodeFree<LevelsData>, fmParallel, 0, d.get(), core);
+        vsapi->createVideoFilter(out, d->name, d->vi, 1, levelsGetframeF<float>, templateNodeFree<LevelsData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 

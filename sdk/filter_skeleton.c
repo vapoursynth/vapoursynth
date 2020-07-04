@@ -4,8 +4,8 @@
 // With no changes it simply passes
 // frames through.
 
-#include "VapourSynth.h"
-#include "VSHelper.h"
+#include "VapourSynth4.h"
+#include "VSHelper4.h"
 
 typedef struct {
     VSNodeRef *node;

@@ -19,7 +19,7 @@
 */
 
 #include "internalfilters.h"
-#include "VSHelper.h"
+#include "VSHelper4.h"
 #include "filtershared.h"
 #include "filtersharedcpp.h"
 
@@ -247,7 +247,7 @@ static void VS_CC audioSpliceCreate(const VSMap *in, VSMap *out, void *userData,
     d->ai = *vsapi->getAudioInfo(d->nodes[0]);
 
     for (int i = 1; i < numNodes; i++) {
-        if (!isSameAudioFormat(&d->ai, vsapi->getAudioInfo(d->nodes[i]))) {
+        if (!isSameAudioInfo(&d->ai, vsapi->getAudioInfo(d->nodes[i]))) {
             for (auto iter : d->nodes)
                 vsapi->freeNode(iter);
             RETERROR("AudioSplice: format mismatch");
@@ -595,7 +595,7 @@ static void VS_CC audioMixCreate(const VSMap *in, VSMap *out, void *userData, VS
     for (int i = 0; i < numDstChannels; i++) {
         int channel = int64ToIntS(vsapi->propGetInt(in, "channels_out", i, nullptr));
         int pos = 0;
-        for (unsigned j = 0; j < channel; j++) {
+        for (int j = 0; j < channel; j++) {
             if ((static_cast<uint64_t>(1) << j) & channelLayout)
                 pos++;
         }

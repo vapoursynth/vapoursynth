@@ -1,7 +1,7 @@
 #include "assertive.h"
-#include <VSScript.h>
-#include <VapourSynth.h>
-#include <VSHelper.h>
+#include <VSScript4.h>
+#include <VapourSynth4.h>
+#include <VSHelper4.h>
 #include <climits>
 #include <cstdint>
 #include <cstdarg>

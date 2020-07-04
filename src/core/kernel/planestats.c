@@ -20,7 +20,7 @@
 
 #include <limits.h>
 #include "planestats.h"
-#include "VSHelper.h"
+#include "VSHelper4.h"
 
 void vs_plane_stats_1_byte_c(union vs_plane_stats *stats, const void *src, ptrdiff_t stride, unsigned width, unsigned height)
 {

@@ -24,8 +24,8 @@
 #include <string>
 #include <vector>
 
-#include <VapourSynth.h>
-#include <VSHelper.h>
+#include "VapourSynth4.h"
+#include "VSHelper4.h"
 
 #include "filtershared.h"
 #include "ter-116n.h"
@@ -37,7 +37,7 @@ std::string operator""_s(const char *str, size_t len) { return{ str, len }; }
 typedef std::vector<std::string> stringlist;
 } // namespace
 
-static void scrawl_character_int(unsigned char c, uint8_t *image, int stride, int dest_x, int dest_y, int bitsPerSample) {
+static void scrawl_character_int(unsigned char c, uint8_t *image, ptrdiff_t stride, int dest_x, int dest_y, int bitsPerSample) {
     int black = 16 << (bitsPerSample - 8);
     int white = 235 << (bitsPerSample - 8);
     int x, y;
@@ -69,7 +69,7 @@ static void scrawl_character_int(unsigned char c, uint8_t *image, int stride, in
 }
 
 
-static void scrawl_character_float(unsigned char c, uint8_t *image, int stride, int dest_x, int dest_y) {
+static void scrawl_character_float(unsigned char c, uint8_t *image, ptrdiff_t stride, int dest_x, int dest_y) {
     float white = 1.0f;
     float black = 0.0f;
     int x, y;
@@ -161,7 +161,7 @@ static stringlist split_text(const std::string& txt, int width, int height) {
 
 
 static void scrawl_text(std::string txt, int alignment, VSFrameRef *frame, const VSAPI *vsapi) {
-    const VSVideoFormat *frame_format = vsapi->getFrameFormat(frame);
+    const VSVideoFormat *frame_format = vsapi->getVideoFrameFormat(frame);
     int width = vsapi->getFrameWidth(frame, 0);
     int height = vsapi->getFrameHeight(frame, 0);
 
@@ -216,10 +216,10 @@ static void scrawl_text(std::string txt, int alignment, VSFrameRef *frame, const
             int dest_x = start_x + static_cast<int>(i)*character_width;
             int dest_y = start_y;
 
-            if (frame_format->colorFamily == cmRGB) {
+            if (frame_format->colorFamily == cfRGB) {
                 for (int plane = 0; plane < frame_format->numPlanes; plane++) {
                     uint8_t *image = vsapi->getWritePtr(frame, plane);
-                    int stride = vsapi->getStride(frame, plane);
+                    ptrdiff_t stride = vsapi->getStride(frame, plane);
 
                     if (frame_format->sampleType == stInteger) {
                         scrawl_character_int(iter[i], image, stride, dest_x, dest_y, frame_format->bitsPerSample);
@@ -230,7 +230,7 @@ static void scrawl_text(std::string txt, int alignment, VSFrameRef *frame, const
             } else {
                 for (int plane = 0; plane < frame_format->numPlanes; plane++) {
                     uint8_t *image = vsapi->getWritePtr(frame, plane);
-                    int stride = vsapi->getStride(frame, plane);
+                    ptrdiff_t stride = vsapi->getStride(frame, plane);
 
                     if (plane == 0) {
                         if (frame_format->sampleType == stInteger) {
@@ -291,13 +291,6 @@ typedef struct {
 
 } // namespace
 
-
-static void VS_CC textInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    TextData *d = static_cast<TextData *>(*instanceData);
-    vsapi->setVideoInfo(d->vi, 1, node);
-}
-
-
 static void append_prop(std::string &text, const std::string &key, const VSMap *map, const VSAPI *vsapi) {
     char type = vsapi->propGetType(map, key.c_str());
     int numElements = vsapi->propNumElements(map, key.c_str());
@@ -323,11 +316,11 @@ static void append_prop(std::string &text, const std::string &key, const VSMap *
                 text += value;
             }
         }
-    } else if (type == ptFrame) {
+    } else if (type == ptVideoFrame || type == ptAudioFrame) {
         text += std::to_string(numElements) + " frame";
         if (numElements != 1)
             text += 's';
-    } else if (type == ptNode) {
+    } else if (type == ptVideoNode || type == ptAudioNode) {
         text += std::to_string(numElements) + " node";
         if (numElements != 1)
             text += 's';
@@ -355,16 +348,18 @@ static std::string fieldBasedToString(int field) {
 
 static std::string colorFamilyToString(int cf) {
     std::string family = "Unknown";
-    if (cf == cmGray)
+    if (cf == cfGray)
         family = "Gray";
-    else if (cf == cmRGB)
+    else if (cf == cfRGB)
         family = "RGB";
-    else if (cf == cmYUV)
+    else if (cf == cfYUV)
         family = "YUV";
-    else if (cf == cmYCoCg)
+    else if (cf == cfYCoCg)
         family = "YCoCg";
-    else if (cf == cmCompat)
-        family = "Compat";
+    else if (cf == cfCompatBGR32)
+        family = "CompatBG32";
+    else if (cf == cfCompatYUY2)
+        family = "CompatYUY2";
     return family;
 }
 
@@ -495,7 +490,7 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
 
-        const VSVideoFormat *frame_format = vsapi->getFrameFormat(src);
+        const VSVideoFormat *frame_format = vsapi->getVideoFrameFormat(src);
         if ((frame_format->sampleType == stInteger && frame_format->bitsPerSample > 16) ||
             (frame_format->sampleType == stFloat && frame_format->bitsPerSample != 32)) {
                 vsapi->freeFrame(src);
@@ -558,7 +553,10 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **
 
             text += "Length: " + std::to_string(d->vi->numFrames) + " frames\n";
 
-            text += "Format name: "_s + frame_format->name + (d->vi->format ? "\n" : " (may vary)\n");
+            char nameBuffer[32];
+            vsapi->getVideoFormatName(&d->vi->format, nameBuffer);
+
+            text += "Format name: "_s + std::string(nameBuffer) + (d->vi->format.colorFamily == cfUndefined ? "\n" : " (may vary)\n");
 
             text += "Color family: " + colorFamilyToString(frame_format->colorFamily) + "\n";
             text += "Sample type: "_s + (frame_format->sampleType == stInteger ? "Integer" : "Float") + "\n";
@@ -655,14 +653,14 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     }
     d.vi = vsapi->getVideoInfo(d.node);
 
-    if (isCompatFormat(d.vi)) {
+    if (isCompatFormat(&d.vi->format)) {
         vsapi->setError(out, "Text: Compat formats not supported");
         vsapi->freeNode(d.node);
         return;
     }
 
-    if (d.vi->format && ((d.vi->format->sampleType == stInteger && d.vi->format->bitsPerSample > 16) ||
-        (d.vi->format->sampleType == stFloat && d.vi->format->bitsPerSample != 32))) {
+    if (d.vi->format.colorFamily != cfUndefined && ((d.vi->format.sampleType == stInteger && d.vi->format.bitsPerSample > 16) ||
+        (d.vi->format.sampleType == stFloat && d.vi->format.bitsPerSample != 32))) {
             vsapi->setError(out, "Text: Only 8-16 bit integer and 32 bit float formats supported");
             vsapi->freeNode(d.node);
             return;
@@ -710,7 +708,7 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     data = new TextData(d);
 
-    vsapi->createFilter(in, out, d.instanceName.c_str(), textInit, textGetFrame, textFree, fmParallel, 0, data, core);
+    vsapi->createVideoFilter(out, data->instanceName.c_str(), data->vi, 1, textGetFrame, textFree, fmParallel, 0, data, core);
 }
 
 

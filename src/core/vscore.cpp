@@ -19,7 +19,7 @@
 */
 
 #include "vscore.h"
-#include "VSHelper.h"
+#include "VSHelper4.h"
 #include "version.h"
 #include "cpufeatures.h"
 #ifndef VS_TARGET_OS_WINDOWS
@@ -554,22 +554,20 @@ void VSPlaneData::release() noexcept {
 
 ///////////////
 
-VSFrameRef::VSFrameRef(const VSVideoFormat *f, int width, int height, const VSFrameRef *propSrc, VSCore *core) : refcount(1), contentType(mtVideo), format(f), data(), width(width), height(height) {
-    if (!f)
-        vsFatal("Error in frame creation: null format");
-
+VSFrameRef::VSFrameRef(const VSVideoFormat &f, int width, int height, const VSFrameRef *propSrc, VSCore *core) : refcount(1), contentType(mtVideo), width(width), height(height), core(core) {
     if (width <= 0 || height <= 0)
         vsFatal("Error in frame creation: dimensions are negative (%dx%d)", width, height);
 
-    numPlanes = f->numPlanes;
+    format.vf = f;
+    numPlanes = format.vf.numPlanes;
 
     if (propSrc)
         properties = propSrc->properties;
 
-    stride[0] = (width * (f->bytesPerSample) + (alignment - 1)) & ~(alignment - 1);
+    stride[0] = (width * (f.bytesPerSample) + (alignment - 1)) & ~(alignment - 1);
 
     if (numPlanes == 3) {
-        int plane23 = ((width >> f->subSamplingW) * (f->bytesPerSample) + (alignment - 1)) & ~(alignment - 1);
+        int plane23 = ((width >> format.vf.subSamplingW) * (format.vf.bytesPerSample) + (alignment - 1)) & ~(alignment - 1);
         stride[1] = plane23;
         stride[2] = plane23;
     } else {
@@ -579,28 +577,26 @@ VSFrameRef::VSFrameRef(const VSVideoFormat *f, int width, int height, const VSFr
 
     data[0] = new VSPlaneData(stride[0] * height, *core->memory);
     if (numPlanes == 3) {
-        int size23 = stride[1] * (height >> f->subSamplingH);
+        size_t size23 = stride[1] * (height >> format.vf.subSamplingH);
         data[1] = new VSPlaneData(size23, *core->memory);
         data[2] = new VSPlaneData(size23, *core->memory);
     }
 }
 
-VSFrameRef::VSFrameRef(const VSVideoFormat *f, int width, int height, const VSFrameRef * const *planeSrc, const int *plane, const VSFrameRef *propSrc, VSCore *core) : refcount(1), contentType(mtVideo), format(f), data(), width(width), height(height) {
-    if (!f)
-        vsFatal("Error in frame creation: null format");
-
+VSFrameRef::VSFrameRef(const VSVideoFormat &f, int width, int height, const VSFrameRef * const *planeSrc, const int *plane, const VSFrameRef *propSrc, VSCore *core) : refcount(1), contentType(mtVideo), width(width), height(height), core(core) {
     if (width <= 0 || height <= 0)
         vsFatal("Error in frame creation: dimensions are negative (%dx%d)", width, height);
 
-    numPlanes = f->numPlanes;
+    format.vf = f;
+    numPlanes = format.vf.numPlanes;
 
     if (propSrc)
         properties = propSrc->properties;
 
-    stride[0] = (width * (f->bytesPerSample) + (alignment - 1)) & ~(alignment - 1);
+    stride[0] = (width * (format.vf.bytesPerSample) + (alignment - 1)) & ~(alignment - 1);
 
     if (numPlanes == 3) {
-        int plane23 = ((width >> f->subSamplingW) * (f->bytesPerSample) + (alignment - 1)) & ~(alignment - 1);
+        int plane23 = ((width >> format.vf.subSamplingW) * (format.vf.bytesPerSample) + (alignment - 1)) & ~(alignment - 1);
         stride[1] = plane23;
         stride[2] = plane23;
     } else {
@@ -610,7 +606,7 @@ VSFrameRef::VSFrameRef(const VSVideoFormat *f, int width, int height, const VSFr
 
     for (int i = 0; i < numPlanes; i++) {
         if (planeSrc[i]) {
-            if (plane[i] < 0 || plane[i] >= planeSrc[i]->format->numPlanes)
+            if (plane[i] < 0 || plane[i] >= planeSrc[i]->format.vf.numPlanes)
                 vsFatal("Error in frame creation: plane %d does not exist in the source frame", plane[i]);
             if (planeSrc[i]->getHeight(plane[i]) != getHeight(i) || planeSrc[i]->getWidth(plane[i]) != getWidth(i))
                 vsFatal("Error in frame creation: dimensions of plane %d do not match. Source: %dx%d; destination: %dx%d", plane[i], planeSrc[i]->getWidth(plane[i]), planeSrc[i]->getHeight(plane[i]), getWidth(i), getHeight(i));
@@ -620,28 +616,28 @@ VSFrameRef::VSFrameRef(const VSVideoFormat *f, int width, int height, const VSFr
             if (i == 0) {
                 data[i] = new VSPlaneData(stride[i] * height, *core->memory);
             } else {
-                data[i] = new VSPlaneData(stride[i] * (height >> f->subSamplingH), *core->memory);
+                data[i] = new VSPlaneData(stride[i] * (height >> format.vf.subSamplingH), *core->memory);
             }
         }
     }
 }
 
-VSFrameRef::VSFrameRef(const VSAudioFormat *f, int numSamples, const VSFrameRef *propSrc, VSCore *core) : refcount(1), contentType(mtAudio), format(reinterpret_cast<const VSVideoFormat *>(f)), data() {
-    if (!f)
-        vsFatal("Error in frame creation: null format");
-
+VSFrameRef::VSFrameRef(const VSAudioFormat &f, int numSamples, const VSFrameRef *propSrc, VSCore *core) : refcount(1), contentType(mtAudio), core(core) {
     if (numSamples <= 0)
         vsFatal("Error in frame creation: bad number of samples (%d)", numSamples);
 
-    numPlanes = f->numChannels;
+    
+    format.af = f;
+    numPlanes = format.af.numChannels;
+
     width = numSamples;
 
     if (propSrc)
         properties = propSrc->properties;
 
-    stride[0] = f->bytesPerSample * VS_AUDIO_FRAME_SAMPLES;
+    stride[0] = format.af.bytesPerSample * VS_AUDIO_FRAME_SAMPLES;
 
-    data[0] = new VSPlaneData(stride[0] * f->numChannels, *core->memory);
+    data[0] = new VSPlaneData(stride[0] * format.af.numChannels, *core->memory);
 }
 
 VSFrameRef::VSFrameRef(const VSFrameRef &f) : refcount(1) {
@@ -662,6 +658,7 @@ VSFrameRef::VSFrameRef(const VSFrameRef &f) : refcount(1) {
     stride[1] = f.stride[1];
     stride[2] = f.stride[2];
     properties = f.properties;
+    core = f.core;
 }
 
 VSFrameRef::~VSFrameRef() {
@@ -672,15 +669,24 @@ VSFrameRef::~VSFrameRef() {
     }
 }
 
-int VSFrameRef::getStride(int plane) const {
+const vs3::VSVideoFormat *VSFrameRef::getVideoFormatV3() const noexcept {
     assert(contentType == mtVideo);
-    if (plane < 0 || plane >= numPlanes)
+    if (!v3format) {
+        // FIXME, figure out how to cache the value
+        return core->VideoFormatToV3(format.vf);
+    }
+    return v3format;
+}
+
+ptrdiff_t VSFrameRef::getStride(int plane) const {
+    assert(contentType == mtVideo);
+    if (plane >= numPlanes)
         vsFatal("Requested stride of nonexistent plane %d", plane);
     return stride[plane];
 }
 
 const uint8_t *VSFrameRef::getReadPtr(int plane) const {
-    if (plane < 0 || plane >= numPlanes)
+    if (plane >= numPlanes)
         vsFatal("Requested read pointer for nonexistent plane %d", plane);
 
     if (contentType == mtVideo)
@@ -690,7 +696,7 @@ const uint8_t *VSFrameRef::getReadPtr(int plane) const {
 }
 
 uint8_t *VSFrameRef::getWritePtr(int plane) {
-    if (plane < 0 || plane >= numPlanes)
+    if (plane >= numPlanes)
         vsFatal("Requested write pointer for nonexistent plane %d", plane);
 
     // copy the plane data if this isn't the only reference
@@ -825,7 +831,47 @@ VSFunction::VSFunction(const std::string &argString, VSPublicFunction func, void
     }
 }
 
-VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
+bool VSFunction::isV3Compatible() const {
+    for (const auto &iter : args)
+        if (iter.type == ptAudioNode || iter.type == ptAudioFrame)
+            return false;
+    return true;
+}
+
+std::string VSFunction::getV3ArgString() const {
+    std::string tmp;
+    for (const auto &iter : args) {
+        if (iter.type == ptAudioNode || iter.type == ptAudioFrame)
+            vsFatal("Tried to get V3 argument string for incompatible function");
+
+        tmp += iter.name + ":";
+
+        switch (iter.type) {
+            case ptInt:
+                tmp += "int"; break;
+            case ptFloat:
+                tmp += "float"; break;
+            case ptData:
+                tmp += "data"; break;
+            case ptVideoNode:
+                tmp += "clip"; break;
+            case ptVideoFrame:
+                tmp += "frame"; break;
+            case ptFunction:
+                tmp += "func"; break;
+        }
+        if (iter.arr)
+            tmp += "[]";
+        if (iter.opt)
+            tmp += ":opt";
+        if (iter.empty)
+            tmp += ":empty";
+        tmp += ";";
+    }
+    return tmp;
+}
+
+VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
     refcount(0), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
 
     if (flags & ~(nfNoCache | nfIsCache | nfMakeLinear))
@@ -836,7 +882,7 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, VSFilterIni
 
     core->filterInstanceCreated();
     VSMap inval(*in);
-    init(&inval, out, &this->instanceData, this, core, getVSAPIInternal(apiMajor));
+    init(&inval, out, &this->instanceData, reinterpret_cast<vs3::VSNode *>(this), core, reinterpret_cast<const vs3::VSAPI3 *>(getVSAPIInternal(3)));
 
     if (out->hasError()) {
         core->filterInstanceDestroyed();
@@ -871,14 +917,14 @@ VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, int numOutputs, V
     core->filterInstanceCreated();
 
     this->vi.reserve(numOutputs);
+    this->v3vi.reserve(numOutputs);
     for (int i = 0; i < numOutputs; i++) {
-        if (vi[i].format && !core->isValidFormatPointer(vi[i].format))
-            vsFatal("The VSVideoFormat pointer passed by %s was not obtained from registerFormat() or getFormatPreset().", name.c_str());
-        if (vi[i].numFrames <= 0)
-            vsFatal("Filter %s has no video frames in the output.", name.c_str());
+        if (!core->isValidVideoInfo(vi[i]))
+            vsFatal("The VSVideoInfo structure passed by %s is invalid.", name.c_str());
 
         this->vi.push_back(vi[i]);
-        this->vi.back().flags = flags;
+        this->v3vi.push_back(core->VideoInfoToV3(vi[i]));
+        this->v3vi.back().flags = flags;
     }
 }
 
@@ -924,13 +970,19 @@ const VSVideoInfo &VSNode::getVideoInfo(int index) const {
     return vi[index];
 }
 
+const vs3::VSVideoInfo &VSNode::getVideoInfo3(int index) const {
+    if (index < 0 || index >= static_cast<int>(v3vi.size()))
+        vsFatal("getVideoInfo: Out of bounds videoinfo index %d. Valid range: [0,%d].", index, static_cast<int>(v3vi.size() - 1));
+    return v3vi[index];
+}
+
 const VSAudioInfo &VSNode::getAudioInfo(int index) const {
     if (index < 0 || index >= static_cast<int>(ai.size()))
         vsFatal("getAudioInfo: Out of bounds audioinfo index %d. Valid range: [0,%d].", index, static_cast<int>(ai.size() - 1));
     return ai[index];
 }
 
-void VSNode::setVideoInfo(const VSVideoInfo *vi, int numOutputs) {
+void VSNode::setVideoInfo3(const vs3::VSVideoInfo *vi, int numOutputs) {
     if (numOutputs < 1)
         vsFatal("setVideoInfo: Video filter %s needs to have at least one output (%d were given).", name.c_str(), numOutputs);
     for (int i = 0; i < numOutputs; i++) {
@@ -944,14 +996,15 @@ void VSNode::setVideoInfo(const VSVideoInfo *vi, int numOutputs) {
         if (num != vi[i].fpsNum || den != vi[i].fpsDen)
             vsFatal(("setVideoInfo: The frame rate specified by " + name + " must be a reduced fraction. (Instead, it is " + std::to_string(vi[i].fpsNum) + "/" + std::to_string(vi[i].fpsDen) + ".)").c_str());
 
-        this->vi.push_back(vi[i]);
-        this->vi.back().flags = flags;
+        this->vi.push_back(core->VideoInfoFromV3(vi[i]));
+        this->v3vi.push_back(vi[i]);
+        this->v3vi.back().flags = flags;
     }
     refcount = numOutputs;
 }
 
 PVSFrameRef VSNode::getFrameInternal(int n, int activationReason, VSFrameContext &frameCtx) {
-    const VSFrameRef *r = filterGetFrame(n, activationReason, &instanceData, &frameCtx.ctx->frameContext, &frameCtx, core, &vs_internal_vsapi);
+    const VSFrameRef *r = filterGetFrame(n, activationReason, &instanceData, &frameCtx.ctx->frameContext, &frameCtx, core, getVSAPIInternal(apiMajor));
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isSSEStateOk())
         vsFatal("Bad SSE state detected after return from %s", name.c_str());
@@ -959,13 +1012,14 @@ PVSFrameRef VSNode::getFrameInternal(int n, int activationReason, VSFrameContext
 
     if (r) {
         if (r->getFrameType() == mtVideo) {
-            const VSVideoFormat *fi = r->getVideoFormat();
             const VSVideoInfo &lvi = vi[frameCtx.ctx->index];
+            const VSVideoFormat *fi = r->getVideoFormat();
 
-            if (!lvi.format && fi->colorFamily == cmCompat)
+            // FIXME, need shared helper function for compat check
+            if (lvi.format.colorFamily == cfUndefined && (fi->colorFamily == cfCompatBGR32 || fi->colorFamily == cfCompatYUY2))
                 vsFatal("Illegal compat frame returned by %s.", name.c_str());
-            else if (lvi.format && lvi.format != fi)
-                vsFatal("Filter %s declared the format %s (id %d), but it returned a frame with the format %s (id %d).", name.c_str(), lvi.format->name, lvi.format->id, fi->name, fi->id);
+            else if (lvi.format.colorFamily != cfUndefined && !isSameVideoFormat(&lvi.format, fi))
+                vsFatal("Filter %s returned a frame that's not of the declared format.", name.c_str());
             else if ((lvi.width || lvi.height) && (r->getWidth(0) != lvi.width || r->getHeight(0) != lvi.height))
                 vsFatal("Filter %s declared the size %dx%d, but it returned a frame with the size %dx%d.", name.c_str(), lvi.width, lvi.height, r->getWidth(0), r->getHeight(0));
         } else {
@@ -1012,15 +1066,15 @@ void VSNode::notifyCache(bool needMemory) {
     cache->cache.adjustSize(needMemory);
 }
 
-VSFrameRef *VSCore::newVideoFrame(const VSVideoFormat *f, int width, int height, const VSFrameRef *propSrc) {
+VSFrameRef *VSCore::newVideoFrame(const VSVideoFormat &f, int width, int height, const VSFrameRef *propSrc) {
     return new VSFrameRef(f, width, height, propSrc, this);
 }
 
-VSFrameRef *VSCore::newVideoFrame(const VSVideoFormat *f, int width, int height, const VSFrameRef * const *planeSrc, const int *planes, const VSFrameRef *propSrc) {
+VSFrameRef *VSCore::newVideoFrame(const VSVideoFormat &f, int width, int height, const VSFrameRef * const *planeSrc, const int *planes, const VSFrameRef *propSrc) {
     return new VSFrameRef(f, width, height, planeSrc, planes, propSrc, this);
 }
 
-VSFrameRef *VSCore::newAudioFrame(const VSAudioFormat *f, int numSamples, const VSFrameRef *propSrc) {
+VSFrameRef *VSCore::newAudioFrame(const VSAudioFormat &f, int numSamples, const VSFrameRef *propSrc) {
     return new VSFrameRef(f, numSamples, propSrc, this);
 }
 
@@ -1032,7 +1086,7 @@ void VSCore::copyFrameProps(const VSFrameRef &src, VSFrameRef &dst) {
     dst.setProperties(src.getConstProperties());
 }
 
-const VSVideoFormat *VSCore::getVideoFormat(int id) {
+const vs3::VSVideoFormat *VSCore::getVideoFormat3(int id) {
     std::lock_guard<std::mutex> lock(videoFormatLock);
 
     auto f = videoFormats.find(id);
@@ -1041,7 +1095,45 @@ const VSVideoFormat *VSCore::getVideoFormat(int id) {
     return nullptr;
 }
 
-const VSVideoFormat *VSCore::queryVideoFormat(VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name, int id) {
+bool VSCore::queryVideoFormat(VSVideoFormat &f, VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH) noexcept {
+    f = {};
+    if (colorFamily == cfUndefined)
+        return true;
+
+    if (!isValidVideoFormat(colorFamily, sampleType, bitsPerSample, subSamplingW, subSamplingH))
+        return false;
+
+    f.colorFamily = colorFamily;
+    f.sampleType = sampleType;
+    f.bitsPerSample = bitsPerSample;
+    f.bytesPerSample = 1;
+
+    while (f.bytesPerSample * 8 < bitsPerSample)
+        f.bytesPerSample <<= 1;
+
+    f.subSamplingW = subSamplingW;
+    f.subSamplingH = subSamplingH;
+    f.numPlanes = (colorFamily == cfGray || colorFamily == cfCompatBGR32 || colorFamily == cfCompatYUY2) ? 1 : 3;
+
+    return true;
+}
+
+bool VSCore::queryVideoFormatByID(VSVideoFormat &f, uint32_t id) noexcept {
+    // is a V3 id?
+    if ((id & 0xFF000000) == 0 && (id & 0x00FFFFFF)) {   
+        return VideoFormatFromV3(f, getVideoFormat3(id));
+    } else {
+        return queryVideoFormat(f, static_cast<VSColorFamily>((id >> 28) & 0xF), static_cast<VSSampleType>((id >> 24) & 0xF), (id >> 16) & 0xFF, (id >> 8) & 0xFF, (id >> 0) & 0xFF);
+    }
+}
+
+uint32_t VSCore::queryVideoFormatID(VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH) const noexcept {
+    if (!isValidVideoFormat(colorFamily, sampleType, bitsPerSample, subSamplingW, subSamplingH))
+        return 0;
+    return ((colorFamily & 0xF) << 28) | ((sampleType & 0xF) << 24) | ((bitsPerSample & 0xFF) << 16) | ((subSamplingW & 0xFF) << 8) | ((subSamplingH & 0xFF) << 0);
+}
+
+const vs3::VSVideoFormat *VSCore::queryVideoFormat3(vs3::VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name, int id) noexcept {
     // this is to make exact format comparisons easy by simply allowing pointer comparison
 
     // block nonsense formats
@@ -1051,7 +1143,7 @@ const VSVideoFormat *VSCore::queryVideoFormat(VSColorFamily colorFamily, VSSampl
     if (sampleType < 0 || sampleType > 1)
         return nullptr;
 
-    if (colorFamily == cmRGB && (subSamplingH != 0 || subSamplingW != 0))
+    if (colorFamily == vs3::cmRGB && (subSamplingH != 0 || subSamplingW != 0))
         return nullptr;
 
     if (sampleType == stFloat && (bitsPerSample != 16 && bitsPerSample != 32))
@@ -1060,20 +1152,20 @@ const VSVideoFormat *VSCore::queryVideoFormat(VSColorFamily colorFamily, VSSampl
     if (bitsPerSample < 8 || bitsPerSample > 32)
         return nullptr;
 
-    if (colorFamily == cmCompat && !name)
+    if (colorFamily == vs3::cmCompat && !name)
         return nullptr;
 
     std::lock_guard<std::mutex> lock(videoFormatLock);
 
     for (const auto &iter : videoFormats) {
-        const VSVideoFormat &f = iter.second;
+        const vs3::VSVideoFormat &f = iter.second;
 
         if (f.colorFamily == colorFamily && f.sampleType == sampleType
                 && f.subSamplingW == subSamplingW && f.subSamplingH == subSamplingH && f.bitsPerSample == bitsPerSample)
             return &f;
     }
 
-    VSVideoFormat f{};
+    vs3::VSVideoFormat f{};
 
     if (name) {
         strcpy(f.name, name);
@@ -1085,13 +1177,13 @@ const VSVideoFormat *VSCore::queryVideoFormat(VSColorFamily colorFamily, VSSampl
         const char *yuvName = nullptr;
 
         switch (colorFamily) {
-        case cmGray:
+        case cfGray:
             snprintf(f.name, sizeof(f.name), "Gray%s%d", sampleTypeStr, bitsPerSample);
             break;
-        case cmRGB:
+        case cfRGB:
             snprintf(f.name, sizeof(f.name), "RGB%s%d", sampleTypeStr, bitsPerSample * 3);
             break;
-        case cmYUV:
+        case cfYUV:
             if (subSamplingW == 1 && subSamplingH == 1)
                 yuvName = "420";
             else if (subSamplingW == 1 && subSamplingH == 0)
@@ -1109,14 +1201,14 @@ const VSVideoFormat *VSCore::queryVideoFormat(VSColorFamily colorFamily, VSSampl
             else
                 snprintf(f.name, sizeof(f.name), "YUVssw%dssh%dP%s%d", subSamplingW, subSamplingH, sampleTypeStr, bitsPerSample);
             break;
-        case cmYCoCg:
+        case cfYCoCg:
             snprintf(f.name, sizeof(f.name), "YCoCgssw%dssh%dP%s%d", subSamplingW, subSamplingH, sampleTypeStr, bitsPerSample);
             break;
         default:;
         }
     }
 
-    if (id != pfNone)
+    if (id != 0)
         f.id = id;
     else
         f.id = colorFamily + videoFormatIdOffset++;
@@ -1131,25 +1223,14 @@ const VSVideoFormat *VSCore::queryVideoFormat(VSColorFamily colorFamily, VSSampl
 
     f.subSamplingW = subSamplingW;
     f.subSamplingH = subSamplingH;
-    f.numPlanes = (colorFamily == cmGray || colorFamily == cmCompat) ? 1 : 3;
+    f.numPlanes = (colorFamily == vs3::cmGray || colorFamily == vs3::cmCompat) ? 1 : 3;
 
     videoFormats.insert(std::make_pair(f.id, f));
     return &videoFormats[f.id];
 }
 
-bool VSCore::queryAudioFormat(VSAudioFormat &f, int sampleType, int bitsPerSample, uint64_t channelLayout) {
-    // this is to make exact format comparisons easy by simply allowing pointer comparison
-
-    if (sampleType != stInteger && sampleType != stFloat)
-        return false;
-
-    if (sampleType == stFloat && bitsPerSample != 32)
-        return false;
-
-    if (bitsPerSample < 16 || bitsPerSample > 32)
-        return false;
-
-    if (!channelLayout)
+bool VSCore::queryAudioFormat(VSAudioFormat &f, VSSampleType sampleType, int bitsPerSample, uint64_t channelLayout) noexcept {
+    if (!isValidAudioFormat(sampleType, bitsPerSample, channelLayout))
         return false;
 
     f = {};
@@ -1180,11 +1261,152 @@ bool VSCore::isValidFormatPointer(const void *f) {
     return false;
 }
 
-bool VSCore::isValidAudioInfo(const VSAudioInfo &ai) const {
-    // fixme, implement a proper check including numsamples and samplerate
+bool VSCore::isValidVideoFormat(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH) noexcept {
+    // FIXME, also verify implicit fields somewhere?
+    if (colorFamily != cfUndefined && colorFamily != cfGray && colorFamily != cfYUV && colorFamily != cfYCoCg && colorFamily != cfRGB && colorFamily != cfCompatBGR32 && colorFamily != cfCompatYUY2)
+        return false;
+
+    if (colorFamily == cfUndefined && (subSamplingH != 0 || subSamplingW != 0 || bitsPerSample != 0 || sampleType != stInteger))
+        return true;
+
+    if (sampleType != stInteger && sampleType != stFloat)
+        return false;
+
+    if (sampleType == stFloat && (bitsPerSample != 16 && bitsPerSample != 32))
+        return false;
+
+    if (subSamplingH < 0 || subSamplingW < 0 || subSamplingH > 4 || subSamplingW > 4)
+        return false;
+
+    if ((colorFamily == cfRGB || colorFamily == cfGray) && (subSamplingH != 0 || subSamplingW != 0))
+        return false;
+
+    if (bitsPerSample < 8 || bitsPerSample > 32)
+        return false;
+
+    if (colorFamily == cfCompatBGR32 && (subSamplingH != 0 || subSamplingW != 0 || bitsPerSample != 32 || sampleType != stInteger))
+        return false;
+
+    if (colorFamily == cfCompatYUY2 && (subSamplingH != 0 || subSamplingW != 1 || bitsPerSample != 16 || sampleType != stInteger))
+        return false;
 
     return true;
 }
+
+bool VSCore::isValidAudioFormat(int sampleType, int bitsPerSample, uint64_t channelLayout) noexcept {
+    // FIXME, also verify implicit fields somewhere?
+    if (sampleType != stInteger && sampleType != stFloat)
+        return false;
+
+    if (bitsPerSample < 16 || bitsPerSample > 32)
+        return false;
+
+    if (sampleType == stFloat && bitsPerSample != 32)
+        return false;
+
+    if (channelLayout == 0)
+        return false;
+
+    return true;
+}
+
+bool VSCore::isValidVideoInfo(const VSVideoInfo &vi) noexcept {
+    if (!isValidVideoFormat(vi.format.colorFamily, vi.format.sampleType, vi.format.bitsPerSample, vi.format.subSamplingW, vi.format.subSamplingH))
+        return false;
+
+    // fixme, check implicit fields
+    if (vi.fpsDen < 0 || vi.fpsNum < 0 || vi.height < 0 || vi.width < 0 || vi.numFrames < 1)
+        return false;
+
+    return true;
+}
+
+bool VSCore::isValidAudioInfo(const VSAudioInfo &ai) noexcept {
+    if (!isValidAudioFormat(ai.format.sampleType, ai.format.bitsPerSample, ai.format.channelLayout))
+        return false;
+
+    // fixme, check implicit fields
+    if (ai.numSamples < 1 || ai.sampleRate < 1)
+        return false;
+
+    return true;
+}
+
+/////////////////////////////////////////////////
+// V3 compatibility helpers
+
+VSColorFamily VSCore::ColorFamilyFromV3(int colorFamily) noexcept {
+    switch (colorFamily) {
+        case vs3::cmGray:
+            return cfGray;
+        case vs3::cmYUV:
+        case vs3::cmYCoCg:
+            return cfYUV;
+        case vs3::cmRGB:
+            return cfRGB;
+        default:
+            assert(false);
+            return cfGray;
+    }
+}
+
+vs3::VSColorFamily VSCore::ColorFamilyToV3(int colorFamily) noexcept {
+    switch (colorFamily) {
+        case cfGray:
+            return vs3::cmGray;
+        case cfYUV:
+            return vs3::cmYUV;
+        case cfRGB:
+            return vs3::cmRGB;
+        default:
+            assert(false);
+            return vs3::cmGray;
+    }
+}
+
+const vs3::VSVideoFormat *VSCore::VideoFormatToV3(const VSVideoFormat &format) noexcept {
+    if (format.colorFamily == cfCompatBGR32)
+        return getVideoFormat3(vs3::pfCompatBGR32);
+    else if (format.colorFamily == cfCompatYUY2)
+        return getVideoFormat3(vs3::pfCompatYUY2);
+    else
+        return queryVideoFormat3(ColorFamilyToV3(format.colorFamily), static_cast<VSSampleType>(format.sampleType), format.bitsPerSample, format.subSamplingW, format.subSamplingH);
+}
+
+bool VSCore::VideoFormatFromV3(VSVideoFormat &out, const vs3::VSVideoFormat *format) noexcept {
+    if (!format)
+        return queryVideoFormat(out, cfUndefined, stInteger, 0, 0, 0);
+    else if (format->id == vs3::pfCompatBGR32)
+        return queryVideoFormat(out, cfCompatBGR32, stInteger, 32, 0, 0);
+    else if (format->id == vs3::pfCompatYUY2)
+        return queryVideoFormat(out, cfCompatYUY2, stInteger, 16, 1, 0);
+    else
+        return queryVideoFormat(out, ColorFamilyFromV3(format->colorFamily), static_cast<VSSampleType>(format->sampleType), format->bitsPerSample, format->subSamplingW, format->subSamplingH);
+}
+
+vs3::VSVideoInfo VSCore::VideoInfoToV3(const VSVideoInfo &vi) noexcept {
+    vs3::VSVideoInfo v3 = {};
+    v3.format = VideoFormatToV3(vi.format);
+    v3.fpsDen = vi.fpsDen;
+    v3.fpsNum = vi.fpsNum;
+    v3.numFrames = vi.numFrames;
+    v3.width = vi.width;
+    v3.height = vi.height;
+    return v3;
+}
+
+VSVideoInfo VSCore::VideoInfoFromV3(const vs3::VSVideoInfo &vi) noexcept {
+    VSVideoInfo v = {};
+    VideoFormatFromV3(v.format, vi.format);
+    v.fpsDen = vi.fpsDen;
+    v.fpsNum = vi.fpsNum;
+    v.numFrames = vi.numFrames;
+    v.width = vi.width;
+    v.height = vi.height;
+    return v;
+}
+
+/////////////////////////////////////////////////
 
 const VSCoreInfo &VSCore::getCoreInfo() {
     getCoreInfo2(coreInfo);
@@ -1205,6 +1427,53 @@ void VSCore::getAudioFormatName(const VSAudioFormat &format, char *buffer) noexc
         snprintf(buffer, 32, "Audio%dF (%d CH)", format.bitsPerSample, format.numChannels);
     else
         snprintf(buffer, 32, "Audio%d (%d CH)", format.bitsPerSample, format.numChannels);
+}
+
+void VSCore::getVideoFormatName(const VSVideoFormat &format, char *buffer) noexcept {
+    const char *sampleTypeStr = "";
+    if (format.sampleType == stFloat)
+        sampleTypeStr = (format.bitsPerSample == 32) ? "S" : "H";
+
+    const char *yuvName = nullptr;
+
+    switch (format.colorFamily) {
+        case cfGray:
+            snprintf(buffer, 32, "Gray%s%d", sampleTypeStr, format.bitsPerSample);
+            break;
+        case cfRGB:
+            snprintf(buffer, 32, "RGB%s%d", sampleTypeStr, format.bitsPerSample * 3);
+            break;
+        case cfYUV:
+            if (format.subSamplingW == 1 && format.subSamplingH == 1)
+                yuvName = "420";
+            else if (format.subSamplingW == 1 && format.subSamplingH == 0)
+                yuvName = "422";
+            else if (format.subSamplingW == 0 && format.subSamplingH == 0)
+                yuvName = "444";
+            else if (format.subSamplingW == 2 && format.subSamplingH == 2)
+                yuvName = "410";
+            else if (format.subSamplingW == 2 && format.subSamplingH == 0)
+                yuvName = "411";
+            else if (format.subSamplingW == 0 && format.subSamplingH == 1)
+                yuvName = "440";
+            if (yuvName)
+                snprintf(buffer, 32, "YUV%sP%s%d", yuvName, sampleTypeStr, format.bitsPerSample);
+            else
+                snprintf(buffer, 32, "YUVssw%dssh%dP%s%d", format.subSamplingW, format.subSamplingH, sampleTypeStr, format.bitsPerSample);
+            break;
+        case cfYCoCg:
+            snprintf(buffer, 32, "YCoCgssw%dssh%dP%s%d", format.subSamplingW, format.subSamplingH, sampleTypeStr, format.bitsPerSample);
+            break;
+        case cfCompatBGR32:
+            snprintf(buffer, 32, "CompatBGR32");
+            break;
+        case cfCompatYUY2:
+            snprintf(buffer, 32, "CompatYUY2");
+            break;
+        default:
+            snprintf(buffer, 32, "%s", "Undefined");
+            break;
+    }
 }
 
 void VS_CC vs_internal_configPlugin(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readOnly, VSPlugin *plugin);
@@ -1232,52 +1501,52 @@ void VS_CC loadPluginInitialize(VSConfigPlugin configFunc, VSRegisterFunction re
 
 void VSCore::registerFormats() {
     // Register known formats with informational names
-    queryVideoFormat(cmGray, stInteger,  8, 0, 0, "Gray8", pfGray8);
-    queryVideoFormat(cmGray, stInteger, 16, 0, 0, "Gray16", pfGray16);
+    queryVideoFormat3(vs3::cmGray, stInteger,  8, 0, 0, "Gray8", vs3::pfGray8);
+    queryVideoFormat3(vs3::cmGray, stInteger, 16, 0, 0, "Gray16", vs3::pfGray16);
 
-    queryVideoFormat(cmGray, stFloat,   16, 0, 0, "GrayH", pfGrayH);
-    queryVideoFormat(cmGray, stFloat,   32, 0, 0, "GrayS", pfGrayS);
+    queryVideoFormat3(vs3::cmGray, stFloat,   16, 0, 0, "GrayH", vs3::pfGrayH);
+    queryVideoFormat3(vs3::cmGray, stFloat,   32, 0, 0, "GrayS", vs3::pfGrayS);
 
-    queryVideoFormat(cmYUV,  stInteger, 8, 1, 1, "YUV420P8", pfYUV420P8);
-    queryVideoFormat(cmYUV,  stInteger, 8, 1, 0, "YUV422P8", pfYUV422P8);
-    queryVideoFormat(cmYUV,  stInteger, 8, 0, 0, "YUV444P8", pfYUV444P8);
-    queryVideoFormat(cmYUV,  stInteger, 8, 2, 2, "YUV410P8", pfYUV410P8);
-    queryVideoFormat(cmYUV,  stInteger, 8, 2, 0, "YUV411P8", pfYUV411P8);
-    queryVideoFormat(cmYUV,  stInteger, 8, 0, 1, "YUV440P8", pfYUV440P8);
+    queryVideoFormat3(vs3::cmYUV,  stInteger, 8, 1, 1, "YUV420P8", vs3::pfYUV420P8);
+    queryVideoFormat3(vs3::cmYUV,  stInteger, 8, 1, 0, "YUV422P8", vs3::pfYUV422P8);
+    queryVideoFormat3(vs3::cmYUV,  stInteger, 8, 0, 0, "YUV444P8", vs3::pfYUV444P8);
+    queryVideoFormat3(vs3::cmYUV,  stInteger, 8, 2, 2, "YUV410P8", vs3::pfYUV410P8);
+    queryVideoFormat3(vs3::cmYUV,  stInteger, 8, 2, 0, "YUV411P8", vs3::pfYUV411P8);
+    queryVideoFormat3(vs3::cmYUV,  stInteger, 8, 0, 1, "YUV440P8", vs3::pfYUV440P8);
 
-    queryVideoFormat(cmYUV,  stInteger, 9, 1, 1, "YUV420P9", pfYUV420P9);
-    queryVideoFormat(cmYUV,  stInteger, 9, 1, 0, "YUV422P9", pfYUV422P9);
-    queryVideoFormat(cmYUV,  stInteger, 9, 0, 0, "YUV444P9", pfYUV444P9);
+    queryVideoFormat3(vs3::cmYUV,  stInteger, 9, 1, 1, "YUV420P9", vs3::pfYUV420P9);
+    queryVideoFormat3(vs3::cmYUV,  stInteger, 9, 1, 0, "YUV422P9", vs3::pfYUV422P9);
+    queryVideoFormat3(vs3::cmYUV,  stInteger, 9, 0, 0, "YUV444P9", vs3::pfYUV444P9);
 
-    queryVideoFormat(cmYUV,  stInteger, 10, 1, 1, "YUV420P10", pfYUV420P10);
-    queryVideoFormat(cmYUV,  stInteger, 10, 1, 0, "YUV422P10", pfYUV422P10);
-    queryVideoFormat(cmYUV,  stInteger, 10, 0, 0, "YUV444P10", pfYUV444P10);
+    queryVideoFormat3(vs3::cmYUV,  stInteger, 10, 1, 1, "YUV420P10", vs3::pfYUV420P10);
+    queryVideoFormat3(vs3::cmYUV,  stInteger, 10, 1, 0, "YUV422P10", vs3::pfYUV422P10);
+    queryVideoFormat3(vs3::cmYUV,  stInteger, 10, 0, 0, "YUV444P10", vs3::pfYUV444P10);
 
-    queryVideoFormat(cmYUV,  stInteger, 12, 1, 1, "YUV420P12", pfYUV420P12);
-    queryVideoFormat(cmYUV,  stInteger, 12, 1, 0, "YUV422P12", pfYUV422P12);
-    queryVideoFormat(cmYUV,  stInteger, 12, 0, 0, "YUV444P12", pfYUV444P12);
+    queryVideoFormat3(vs3::cmYUV,  stInteger, 12, 1, 1, "YUV420P12", vs3::pfYUV420P12);
+    queryVideoFormat3(vs3::cmYUV,  stInteger, 12, 1, 0, "YUV422P12", vs3::pfYUV422P12);
+    queryVideoFormat3(vs3::cmYUV,  stInteger, 12, 0, 0, "YUV444P12", vs3::pfYUV444P12);
 
-    queryVideoFormat(cmYUV,  stInteger, 14, 1, 1, "YUV420P14", pfYUV420P14);
-    queryVideoFormat(cmYUV,  stInteger, 14, 1, 0, "YUV422P14", pfYUV422P14);
-    queryVideoFormat(cmYUV,  stInteger, 14, 0, 0, "YUV444P14", pfYUV444P14);
+    queryVideoFormat3(vs3::cmYUV,  stInteger, 14, 1, 1, "YUV420P14", vs3::pfYUV420P14);
+    queryVideoFormat3(vs3::cmYUV,  stInteger, 14, 1, 0, "YUV422P14", vs3::pfYUV422P14);
+    queryVideoFormat3(vs3::cmYUV,  stInteger, 14, 0, 0, "YUV444P14", vs3::pfYUV444P14);
 
-    queryVideoFormat(cmYUV,  stInteger, 16, 1, 1, "YUV420P16", pfYUV420P16);
-    queryVideoFormat(cmYUV,  stInteger, 16, 1, 0, "YUV422P16", pfYUV422P16);
-    queryVideoFormat(cmYUV,  stInteger, 16, 0, 0, "YUV444P16", pfYUV444P16);
+    queryVideoFormat3(vs3::cmYUV,  stInteger, 16, 1, 1, "YUV420P16", vs3::pfYUV420P16);
+    queryVideoFormat3(vs3::cmYUV,  stInteger, 16, 1, 0, "YUV422P16", vs3::pfYUV422P16);
+    queryVideoFormat3(vs3::cmYUV,  stInteger, 16, 0, 0, "YUV444P16", vs3::pfYUV444P16);
 
-    queryVideoFormat(cmYUV,  stFloat,   16, 0, 0, "YUV444PH", pfYUV444PH);
-    queryVideoFormat(cmYUV,  stFloat,   32, 0, 0, "YUV444PS", pfYUV444PS);
+    queryVideoFormat3(vs3::cmYUV,  stFloat,   16, 0, 0, "YUV444PH", vs3::pfYUV444PH);
+    queryVideoFormat3(vs3::cmYUV,  stFloat,   32, 0, 0, "YUV444PS", vs3::pfYUV444PS);
 
-    queryVideoFormat(cmRGB,  stInteger, 8, 0, 0, "RGB24", pfRGB24);
-    queryVideoFormat(cmRGB,  stInteger, 9, 0, 0, "RGB27", pfRGB27);
-    queryVideoFormat(cmRGB,  stInteger, 10, 0, 0, "RGB30", pfRGB30);
-    queryVideoFormat(cmRGB,  stInteger, 16, 0, 0, "RGB48", pfRGB48);
+    queryVideoFormat3(vs3::cmRGB,  stInteger, 8, 0, 0, "RGB24", vs3::pfRGB24);
+    queryVideoFormat3(vs3::cmRGB,  stInteger, 9, 0, 0, "RGB27", vs3::pfRGB27);
+    queryVideoFormat3(vs3::cmRGB,  stInteger, 10, 0, 0, "RGB30", vs3::pfRGB30);
+    queryVideoFormat3(vs3::cmRGB,  stInteger, 16, 0, 0, "RGB48", vs3::pfRGB48);
 
-    queryVideoFormat(cmRGB,  stFloat,   16, 0, 0, "RGBH", pfRGBH);
-    queryVideoFormat(cmRGB,  stFloat,   32, 0, 0, "RGBS", pfRGBS);
+    queryVideoFormat3(vs3::cmRGB,  stFloat,   16, 0, 0, "RGBH", vs3::pfRGBH);
+    queryVideoFormat3(vs3::cmRGB,  stFloat,   32, 0, 0, "RGBS", vs3::pfRGBS);
 
-    queryVideoFormat(cmCompat, stInteger, 32, 0, 0, "CompatBGR32", pfCompatBGR32);
-    queryVideoFormat(cmCompat, stInteger, 16, 1, 0, "CompatYUY2", pfCompatYUY2);
+    queryVideoFormat3(vs3::cmCompat, stInteger, 32, 0, 0, "CompatBGR32", vs3::pfCompatBGR32);
+    queryVideoFormat3(vs3::cmCompat, stInteger, 16, 1, 0, "CompatYUY2", vs3::pfCompatYUY2);
 }
 
 
@@ -1380,7 +1649,7 @@ void VSCore::destroyFilterInstance(VSNode *node) {
         while (nodeFreeList) {
             VSCoreShittyList *current = nodeFreeList;
             nodeFreeList = current->next;
-            current->free(current->instanceData, this, &vs_internal_vsapi);
+            current->free(current->instanceData, this, getVSAPIInternal(node->apiMajor));
             delete current;
             filterInstanceDestroyed();
         }
@@ -1630,7 +1899,7 @@ void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNa
         p->enableCompat();
 }
 
-void VSCore::createFilter(const VSMap *in, VSMap *out, const std::string &name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
+void VSCore::createFilter(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
     try {
         VSNode *node = new VSNode(in, out, name, init, getFrame, free, filterMode, flags, instanceData, apiMajor, this);
         for (size_t i = 0; i < node->getNumOutputs(); i++) {
@@ -1755,7 +2024,9 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
     if (readOnlySet)
         readOnly = true;
 
-    if (apiMajor != VAPOURSYNTH_API_MAJOR || apiMinor > VAPOURSYNTH_API_MINOR) {
+    bool supported = (apiMajor == VAPOURSYNTH_API_MAJOR && apiMinor <= VAPOURSYNTH_API_MINOR) || (apiMajor == VAPOURSYNTH3_API_MAJOR && apiMinor <= VAPOURSYNTH3_API_MINOR);
+
+    if (!supported) {
 #ifdef VS_TARGET_OS_WINDOWS
         FreeLibrary(libHandle);
 #else
@@ -1820,7 +2091,7 @@ static bool hasCompatNodes(const VSMap &m) {
             for (size_t i = 0; i < vsv.second.size(); i++) {
                 for (size_t j = 0; j < vsv.second.getValue<PVSNodeRef>(i)->clip->getNumOutputs(); j++) {
                     const VSVideoInfo &vi = vsv.second.getValue<PVSNodeRef>(i)->clip->getVideoInfo(static_cast<int>(j));
-                    if (vi.format && vi.format->colorFamily == cmCompat)
+                    if (vi.format.colorFamily == cfCompatBGR32 || vi.format.colorFamily == cfCompatYUY2)
                         return true;
                 }
             }
@@ -1890,6 +2161,7 @@ VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
 
             f.func(&args, &v, f.functionData, core, getVSAPIInternal(apiMajor));
 
+            // FIXME, add check for audio types if it's v3 invoke
             if (!compat && hasCompatNodes(v))
                 vsFatal("%s: illegal filter node returning a compat format detected, DO NOT USE THE COMPAT FORMATS IN NEW FILTERS", funcName.c_str());
 
@@ -1904,13 +2176,20 @@ VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
     return v;
 }
 
-VSMap VSPlugin::getFunctions() {
-    VSMap m;
+void VSPlugin::getFunctions(VSMap *out) const {
     for (const auto & f : funcs) {
         std::string b = f.first + ";" + f.second.argString;
-        vs_internal_vsapi.propSetData(&m, f.first.c_str(), b.c_str(), static_cast<int>(b.size()), paReplace);
+        vs_internal_vsapi.propSetData(out, f.first.c_str(), b.c_str(), static_cast<int>(b.size()), paReplace);
     }
-    return m;
+}
+
+void VSPlugin::getFunctions3(VSMap *out) const {
+    for (const auto &f : funcs) {
+        if (f.second.isV3Compatible()) {
+            std::string b = f.first + ";" + f.second.getV3ArgString();
+            vs_internal_vsapi.propSetData(out, f.first.c_str(), b.c_str(), static_cast<int>(b.size()), paReplace);
+        }
+    }
 }
 
 #ifdef VS_TARGET_CPU_X86

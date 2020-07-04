@@ -21,7 +21,7 @@
 #include <emmintrin.h>
 #define VS_MERGE_IMPL
 #include "../merge.h"
-#include "VSHelper.h"
+#include "VSHelper4.h"
 
 #define MERGESHIFT 15
 #define ROUND (1U << (MERGESHIFT - 1))

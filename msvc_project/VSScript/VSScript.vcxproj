@@ -158,8 +158,8 @@
     <ClCompile Include="..\..\src\vsscript\vsscript.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\VapourSynth.h" />
-    <ClInclude Include="..\..\include\VSScript.h" />
+    <ClInclude Include="..\..\include\VapourSynth4.h" />
+    <ClInclude Include="..\..\include\VSScript4.h" />
     <ClInclude Include="..\..\src\common\vsutf16.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

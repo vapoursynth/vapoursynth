@@ -18,8 +18,8 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-#include "VapourSynth.h"
-#include "VSScript.h"
+#include "VapourSynth4.h"
+#include "VSScript4.h"
 #include "cython/vapoursynth_api.h"
 #include <mutex>
 #include <atomic>
