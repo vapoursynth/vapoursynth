@@ -501,7 +501,7 @@ bool VapourSynthFile::DelayInit2() {
             }
 
             VSCoreInfo info;
-            vsapi->getCoreInfo2(vsscript_getCore(se), &info);
+            vsapi->getCoreInfo(vsscript_getCore(se), &info);
             num_threads = info.numThreads;
 
             return true;

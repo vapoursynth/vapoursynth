@@ -213,7 +213,7 @@ static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData,
     bool fixed = !!vsapi->propGetInt(in, "fixed", 0, &err);
     CacheInstance *c = new CacheInstance(node, core, fixed);
     VSCoreInfo ci;
-    vsapi->getCoreInfo2(core, &ci);
+    vsapi->getCoreInfo(core, &ci);
     c->numThreads = ci.numThreads;
     c->makeLinear = !!(vsapi->getNodeFlags(node) & nfMakeLinear);
 

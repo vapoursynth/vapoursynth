@@ -494,7 +494,7 @@ static bool initializeAudioOutput() {
 static bool outputNode() {
     if (requests < 1) {
         VSCoreInfo info;
-        vsapi->getCoreInfo2(vsscript_getCore(se), &info);
+        vsapi->getCoreInfo(vsscript_getCore(se), &info);
         requests = info.numThreads;
     }
 
@@ -568,7 +568,7 @@ static bool printVersion() {
     }
 
     VSCoreInfo info;
-    vsapi->getCoreInfo2(core, &info);
+    vsapi->getCoreInfo(core, &info);
     printf("%s", info.versionString);
     vsapi->freeCore(core);
     vsscript_finalize();

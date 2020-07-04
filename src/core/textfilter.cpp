@@ -522,7 +522,7 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **
             scrawl_text(text, d->alignment, dst, vsapi);
         } else if (d->filter == FILTER_COREINFO) {
             VSCoreInfo ci;
-            vsapi->getCoreInfo2(core, &ci);
+            vsapi->getCoreInfo(core, &ci);
 
             std::string text;
             text.append(ci.versionString).append("\n");

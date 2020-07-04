@@ -203,7 +203,23 @@ static void VS_CC createFilter3(const VSMap *in, VSMap *out, const char *name, v
     assert(in && out && name && init && getFrame && core);
     if (!name)
         vsFatal("NULL name pointer passed to createFilter()");
-    core->createFilter(in, out, name, init, getFrame, free, static_cast<VSFilterMode>(filterMode), flags, instanceData, VAPOURSYNTH3_API_MAJOR);
+
+    VSFilterMode fm;
+    switch (filterMode) {
+        case vs3::fmParallel:
+            fm = fmParallel;
+            break;
+        case vs3::fmParallelRequests:
+            fm = fmParallelRequests;
+            break;
+        case vs3::fmUnordered:
+            fm = fmUnordered;
+            break;
+        case vs3::fmSerial:
+            fm = fmSerial;
+            break;
+    }
+    core->createFilter(in, out, name, init, getFrame, free, fm, flags, instanceData, VAPOURSYNTH3_API_MAJOR);
 }
 
 static void VS_CC setError(VSMap *map, const char *errorMessage) VS_NOEXCEPT {

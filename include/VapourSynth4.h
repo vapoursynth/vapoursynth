@@ -88,21 +88,18 @@ typedef enum VSSampleType {
     stFloat = 1
 } VSSampleType;
 
-// FIXME, change to serial numbers as well
 typedef enum VSFilterMode {
-    fmParallel = 100, /* completely parallel execution */
-    fmParallelRequests = 200, /* for filters that are serial in nature but can request one or more frames they need in advance */
-    fmUnordered = 300, /* for filters that modify their internal state every request */
-    fmSerial = 400 /* for source filters and compatibility with other filtering architectures */
+    fmParallel = 0, /* completely parallel execution */
+    fmParallelRequests = 1, /* for filters that are serial in nature but can request one or more frames they need in advance */
+    fmUnordered = 2, /* for filters that modify their internal state every request */
+    fmSerial = 3 /* for source filters and compatibility with other filtering architectures */
 } VSFilterMode;
 
-/* api 3.7 */
 typedef enum VSMediaType {
     mtVideo = 1,
     mtAudio = 2
 } VSMediaType;
 
-/* api 3.7 */
 typedef struct VSVideoFormat {
     int colorFamily; /* see VSColorFamily */
     int sampleType; /* see VSSampleType */
@@ -115,7 +112,7 @@ typedef struct VSVideoFormat {
     int numPlanes; /* implicit from colorFamily */
 } VSVideoFormat;
 
-/* api 3.7 */
+// FIXME, add remaining channel constants
 typedef enum VSAudioChannels {
     vsacFrontLeft           = 0,
     vsacFrontRight          = 1,
@@ -137,7 +134,6 @@ typedef enum VSAudioChannels {
     vsacTopBackRight        = 17
 } VSAudioChannels;
 
-/* api 3.7 */
 typedef struct VSAudioFormat {
     int sampleType;
     int bitsPerSample;
@@ -146,6 +142,7 @@ typedef struct VSAudioFormat {
     uint64_t channelLayout;
 } VSAudioFormat;
 
+// FIXME, investigate nfMakeLinear and its usefulness or convert it into a filter mode
 typedef enum VSNodeFlags {
     nfNoCache    = 1,
     nfIsCache    = 2,
@@ -207,7 +204,6 @@ typedef enum VSActivationReason {
     arError = -1
 } VSActivationReason;
 
-/* api 3.6 */
 typedef enum VSMessageType {
     mtDebug = 0,
     mtWarning = 1,
@@ -229,8 +225,8 @@ typedef void (VS_CC *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI
 
 /* other */
 typedef void (VS_CC *VSFrameDoneCallback)(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg);
-typedef void (VS_CC *VSMessageHandler)(int msgType, const char *msg, void *userData); /* api 3.6 */
-typedef void (VS_CC *VSMessageHandlerFree)(void *userData); /* api 3.6 */
+typedef void (VS_CC *VSMessageHandler)(int msgType, const char *msg, void *userData);
+typedef void (VS_CC *VSMessageHandlerFree)(void *userData);
 
 struct VSAPI {
     VSCore *(VS_CC *createCore)(int threads) VS_NOEXCEPT;
@@ -322,7 +318,7 @@ struct VSAPI {
 
     int (VS_CC *addMessageHandler)(VSMessageHandler handler, VSMessageHandlerFree free, void *userData) VS_NOEXCEPT;
     int (VS_CC *removeMessageHandler)(int id) VS_NOEXCEPT;
-    void (VS_CC *getCoreInfo2)(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT;
+    void (VS_CC *getCoreInfo)(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT;
 
     int (VS_CC *propSetEmpty)(VSMap *map, const char *key, int type) VS_NOEXCEPT;
     void (VS_CC *createVideoFilter)(VSMap *out, const char *name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT;
