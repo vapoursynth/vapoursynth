@@ -1507,8 +1507,25 @@ static void VS_CC loadPlugin(const VSMap *in, VSMap *out, void *userData, VSCore
     }
 }
 
+static void VS_CC loadAllPlugins(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    try {
+#ifdef VS_TARGET_OS_WINDOWS    
+        core->loadAllPluginsInPath(utf16_from_utf8(vsapi->propGetData(in, "path", 0, nullptr)), L".dll");
+#else
+    #ifdef VS_TARGET_OS_DARWIN
+        core->loadAllPluginsInPath(vsapi->propGetData(in, "path", 0, nullptr), ".dylib");
+    #else
+        core->loadAllPluginsInPath(vsapi->propGetData(in, "path", 0, nullptr), ".so");
+    #endif
+#endif
+    } catch (VSException &e) {
+        vsapi->setError(out, e.what());
+    }
+}
+
 void VS_CC loadPluginInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     registerFunc("LoadPlugin", "path:data;altsearchpath:int:opt;forcens:data:opt;forceid:data:opt;", &loadPlugin, nullptr, plugin);
+    registerFunc("LoadAllPlugins", "path:data;", &loadAllPlugins, nullptr, plugin);
 }
 
 void VSCore::registerFormats() {
@@ -1818,7 +1835,7 @@ VSCore::VSCore(int threads, int flags) :
         tmp = vs_internal_vsapi.propGetData(settings, "AutoloadSystemPluginDir", 0, &err);
         bool autoloadSystemPluginDir = tmp ? std::string(tmp) == "true" : true;
 
-        if (autoloadUserPluginDir && !userPluginDir.empty()) {
+        if (!disableAutoLoading && autoloadUserPluginDir && !userPluginDir.empty()) {
             if (!loadAllPluginsInPath(userPluginDir, filter)) {
                 vsWarning("Autoloading the user plugin dir '%s' failed. Directory doesn't exist?", userPluginDir.c_str());
             }

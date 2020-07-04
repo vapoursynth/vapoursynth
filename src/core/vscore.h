@@ -756,11 +756,6 @@ private:
     ~VSCore();
 
     void registerFormats();
-#ifdef VS_TARGET_OS_WINDOWS
-    bool loadAllPluginsInPath(const std::wstring &path, const std::wstring &filter);
-#else
-    bool loadAllPluginsInPath(const std::string &path, const std::string &filter);
-#endif
 public:
     VSThreadPool *threadPool;
     MemoryUse *memory;
@@ -794,6 +789,13 @@ public:
     VSVideoInfo VideoInfoFromV3(const vs3::VSVideoInfo &vi) noexcept;
 
     void loadPlugin(const std::string &filename, const std::string &forcedNamespace = std::string(), const std::string &forcedId = std::string(), bool altSearchPath = false);
+
+#ifdef VS_TARGET_OS_WINDOWS
+    bool loadAllPluginsInPath(const std::wstring &path, const std::wstring &filter);
+#else
+    bool loadAllPluginsInPath(const std::string &path, const std::string &filter);
+#endif
+
     void createFilter(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
     void createVideoFilter(VSMap *out, const std::string &name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
     void createAudioFilter(VSMap *out, const std::string &name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
