@@ -109,7 +109,15 @@ bool FrameContext::setError(const std::string &errorMsg) {
 
 ///////////////
 
-VSFuncRef::VSFuncRef(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core, const VSAPI *vsapi) : refcount(1), func(func), userData(userData), free(free), core(core), vsapi(vsapi) {
+static bool hasV3IncompatibleValues(const VSMap &m) {
+    for (const auto &vsv : m.getStorage()) {
+        if (vsv.second.getType() == ptAudioNode || vsv.second.getType() == ptAudioFrame)
+            return true;
+    }
+    return false;
+}
+
+VSFuncRef::VSFuncRef(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core, int apiMajor) : refcount(1), func(func), userData(userData), free(free), core(core), apiMajor(apiMajor) {
     core->functionInstanceCreated();
 }
 
@@ -120,7 +128,12 @@ VSFuncRef::~VSFuncRef() {
 }
 
 void VSFuncRef::call(const VSMap *in, VSMap *out) {
-    func(in, out, userData, core, vsapi);
+    if (apiMajor == VAPOURSYNTH3_API_MAJOR && hasV3IncompatibleValues(*in)) {
+        vs_internal_vsapi.setError(out, "Function was passed values that are unknown to its API version");
+        return;
+    }
+        
+    func(in, out, userData, core, getVSAPIInternal(apiMajor));
 }
 
 ///////////////
@@ -1015,7 +1028,6 @@ PVSFrameRef VSNode::getFrameInternal(int n, int activationReason, VSFrameContext
             const VSVideoInfo &lvi = vi[frameCtx.ctx->index];
             const VSVideoFormat *fi = r->getVideoFormat();
 
-            // FIXME, need shared helper function for compat check
             if (lvi.format.colorFamily == cfUndefined && (fi->colorFamily == cfCompatBGR32 || fi->colorFamily == cfCompatYUY2))
                 vsFatal("Illegal compat frame returned by %s.", name.c_str());
             else if (lvi.format.colorFamily != cfUndefined && !isSameVideoFormat(&lvi.format, fi))
@@ -2161,9 +2173,11 @@ VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
 
             f.func(&args, &v, f.functionData, core, getVSAPIInternal(apiMajor));
 
-            // FIXME, add check for audio types if it's v3 invoke
             if (!compat && hasCompatNodes(v))
                 vsFatal("%s: illegal filter node returning a compat format detected, DO NOT USE THE COMPAT FORMATS IN NEW FILTERS", funcName.c_str());
+
+            if (apiMajor == VAPOURSYNTH3_API_MAJOR && hasV3IncompatibleValues(args))
+                vsFatal("%s: illegal filter node returning not yet supported type", funcName.c_str());
 
             return v;
         }

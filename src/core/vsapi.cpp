@@ -37,7 +37,6 @@ void VS_CC vs_internal_registerFunction(const char *name, const char *args, VSPu
 
 void VS_CC vs_internal_registerFunction3(const char *name, const char *args, vs3::VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) VS_NOEXCEPT {
     assert(name && args && argsFunc && plugin);
-    // FIXME, probably needs to pass on the V3 api number here
     plugin->registerFunction(name, args, reinterpret_cast<VSPublicFunction>(argsFunc), functionData);
 }
 
@@ -565,12 +564,12 @@ static void VS_CC callFunc3(VSFuncRef *func, const VSMap *in, VSMap *out, VSCore
 
 static VSFuncRef *VS_CC createFunc(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core) VS_NOEXCEPT {
     assert(func && core);
-    return new VSFuncRef(func, userData, free, core, &vs_internal_vsapi);
+    return new VSFuncRef(func, userData, free, core, VAPOURSYNTH_API_MAJOR);
 }
 
 static VSFuncRef *VS_CC createFunc3(vs3::VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core, const vs3::VSAPI3 *vsapi) VS_NOEXCEPT {
     assert(func && core && vsapi);
-    return new VSFuncRef(reinterpret_cast<VSPublicFunction>(func), userData, free, core, reinterpret_cast<const VSAPI *>(&vs_internal_vsapi3));
+    return new VSFuncRef(reinterpret_cast<VSPublicFunction>(func), userData, free, core, VAPOURSYNTH3_API_MAJOR);
 }
 
 static void VS_CC freeFunc(VSFuncRef *f) VS_NOEXCEPT {

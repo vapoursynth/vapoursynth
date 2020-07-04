@@ -135,7 +135,7 @@ private:
     void *userData;
     VSFreeFuncData free;
     VSCore *core;
-    const VSAPI *vsapi;
+    int apiMajor;
     ~VSFuncRef();
 public:
     void add_ref() noexcept {
@@ -147,7 +147,7 @@ public:
             delete this;
     }
 
-    VSFuncRef(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core, const VSAPI *vsapi);
+    VSFuncRef(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core, int apiMajor);
     void call(const VSMap *in, VSMap *out);
 };
 
