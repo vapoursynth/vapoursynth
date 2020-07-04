@@ -1005,7 +1005,7 @@ void VSNode::setVideoInfo3(const vs3::VSVideoInfo *vi, int numOutputs) {
             vsFatal("setVideoInfo: The VSVideoFormat pointer passed by %s was not obtained from registerFormat() or getFormatPreset().", name.c_str());
         int64_t num = vi[i].fpsNum;
         int64_t den = vi[i].fpsDen;
-        vs_normalizeRational(&num, &den);
+        vs_reduceRational(&num, &den);
         if (num != vi[i].fpsNum || den != vi[i].fpsDen)
             vsFatal(("setVideoInfo: The frame rate specified by " + name + " must be a reduced fraction. (Instead, it is " + std::to_string(vi[i].fpsNum) + "/" + std::to_string(vi[i].fpsDen) + ".)").c_str());
 

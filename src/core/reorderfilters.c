@@ -182,7 +182,7 @@ static const VSFrameRef *VS_CC interleaveGetframe(int n, int activationReason, v
             int64_t durationNum = vsapi->propGetInt(dst_props, "_DurationNum", 0, &errNum);
             int64_t durationDen = vsapi->propGetInt(dst_props, "_DurationDen", 0, &errDen);
             if (!errNum && !errDen) {
-                muldivRational(&durationNum, &durationDen, 1, d->numclips);
+                vs_muldivRational(&durationNum, &durationDen, 1, d->numclips);
                 vsapi->propSetInt(dst_props, "_DurationNum", durationNum, paReplace);
                 vsapi->propSetInt(dst_props, "_DurationDen", durationDen, paReplace);
             }
@@ -273,7 +273,7 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
         }
 
         if (d.modifyDuration)
-            muldivRational(&d.vi.fpsNum, &d.vi.fpsDen, d.numclips, 1);
+            vs_muldivRational(&d.vi.fpsNum, &d.vi.fpsDen, d.numclips, 1);
 
         data = malloc(sizeof(d));
         *data = d;
@@ -392,7 +392,7 @@ static const VSFrameRef *VS_CC selectEveryGetframe(int n, int activationReason, 
             int64_t durationNum = vsapi->propGetInt(dst_props, "_DurationNum", 0, &errNum);
             int64_t durationDen = vsapi->propGetInt(dst_props, "_DurationDen", 0, &errDen);
             if (!errNum && !errDen) {
-                muldivRational(&durationNum, &durationDen, d->cycle, d->num);
+                vs_muldivRational(&durationNum, &durationDen, d->cycle, d->num);
                 vsapi->propSetInt(dst_props, "_DurationNum", durationNum, paReplace);
                 vsapi->propSetInt(dst_props, "_DurationDen", durationDen, paReplace);
             }
@@ -457,7 +457,7 @@ static void VS_CC selectEveryCreate(const VSMap *in, VSMap *out, void *userData,
     }
 
     if (d.modifyDuration)
-        muldivRational(&vi.fpsNum, &vi.fpsDen, d.num, d.cycle);
+        vs_muldivRational(&vi.fpsNum, &vi.fpsDen, d.num, d.cycle);
 
     data = malloc(sizeof(d));
     *data = d;

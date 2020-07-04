@@ -91,7 +91,7 @@ static inline int isSameAudioInfo(const VSAudioInfo *a1, const VSAudioInfo *a2) 
 }
 
 /* multiplies and divides a rational number, such as a frame duration, in place and reduces the result */
-static inline void muldivRational(int64_t *num, int64_t *den, int64_t mul, int64_t div) {
+static inline void vs_muldivRational(int64_t *num, int64_t *den, int64_t mul, int64_t div) {
     /* do nothing if the rational number is invalid */
     if (!*den)
         return;
@@ -116,8 +116,8 @@ static inline void muldivRational(int64_t *num, int64_t *den, int64_t mul, int64
 }
 
 /* reduces a rational number */
-static inline void vs_normalizeRational(int64_t *num, int64_t *den) {
-    muldivRational(num, den, 1, 1);
+static inline void vs_reduceRational(int64_t *num, int64_t *den) {
+    vs_muldivRational(num, den, 1, 1);
 }
 
 /* add two rational numbers and reduces the result */
@@ -140,7 +140,7 @@ static inline void vs_addRational(int64_t *num, int64_t *den, int64_t addnum, in
 
         *num += addnum;
 
-        vs_normalizeRational(num, den);
+        vs_reduceRational(num, den);
     }
 }
 
@@ -172,7 +172,7 @@ static inline void vs_bitblt(void *dstp, ptrdiff_t dst_stride, const void *srcp,
 
 /* check if the frame dimensions are valid for a given format */
 /* returns non-zero for valid width and height */
-static inline int areValidDimensions(const VSVideoFormat *fi, int width, int height) {
+static inline int vs_areValidDimensions(const VSVideoFormat *fi, int width, int height) {
     return !(width % (1 << fi->subSamplingW) || height % (1 << fi->subSamplingH));
 }
 

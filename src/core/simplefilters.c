@@ -735,7 +735,7 @@ static const VSFrameRef *VS_CC separateFieldsGetframe(int n, int activationReaso
             int64_t durationNum = vsapi->propGetInt(dst_props, "_DurationNum", 0, &errNum);
             int64_t durationDen = vsapi->propGetInt(dst_props, "_DurationDen", 0, &errDen);
             if (!errNum && !errDen) {
-                muldivRational(&durationNum, &durationDen, 1, 2); // Divide duration by 2
+                vs_muldivRational(&durationNum, &durationDen, 1, 2); // Divide duration by 2
                 vsapi->propSetInt(dst_props, "_DurationNum", durationNum, paReplace);
                 vsapi->propSetInt(dst_props, "_DurationDen", durationDen, paReplace);
             }
@@ -779,7 +779,7 @@ static void VS_CC separateFieldsCreate(const VSMap *in, VSMap *out, void *userDa
     d.vi.height /= 2;
 
     if (d.modifyDuration)
-        muldivRational(&d.vi.fpsNum, &d.vi.fpsDen, 2, 1);
+        vs_muldivRational(&d.vi.fpsNum, &d.vi.fpsDen, 2, 1);
 
     data = malloc(sizeof(d));
     *data = d;
@@ -1271,7 +1271,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
         d.vi.fpsDen = 0;
     }
 
-    vs_normalizeRational(&d.vi.fpsNum, &d.vi.fpsDen);
+    vs_reduceRational(&d.vi.fpsNum, &d.vi.fpsDen);
 
     int format = int64ToIntS(vsapi->propGetInt(in, "format", 0, &err));
 
@@ -1404,7 +1404,7 @@ static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, V
         RETERROR("AssumeFPS: invalid framerate specified");
     }
 
-    vs_normalizeRational(&d.vi.fpsNum, &d.vi.fpsDen);
+    vs_reduceRational(&d.vi.fpsNum, &d.vi.fpsDen);
 
     data = malloc(sizeof(d));
     *data = d;

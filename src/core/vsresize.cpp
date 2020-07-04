@@ -372,8 +372,8 @@ void propagate_sar(const VSMap *src_props, VSMap *dst_props, const zimg_image_fo
         vsapi->propDeleteKey(dst_props, "_SARNum");
         vsapi->propDeleteKey(dst_props, "_SARDen");
     } else {
-        muldivRational(&sar_num, &sar_den, src_format.width, dst_format.width);
-        muldivRational(&sar_num, &sar_den, dst_format.height, src_format.height);
+        vs_muldivRational(&sar_num, &sar_den, src_format.width, dst_format.width);
+        vs_muldivRational(&sar_num, &sar_den, dst_format.height, src_format.height);
 
         vsapi->propSetInt(dst_props, "_SARNum", sar_num, paReplace);
         vsapi->propSetInt(dst_props, "_SARDen", sar_den, paReplace);

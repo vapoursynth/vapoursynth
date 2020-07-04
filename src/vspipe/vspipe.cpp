@@ -114,23 +114,6 @@ static std::chrono::time_point<std::chrono::high_resolution_clock> start;
 static std::chrono::time_point<std::chrono::high_resolution_clock> lastFpsReportTime;
 static int lastFpsReportFrame = 0;
 
-static inline void addRational(int64_t *num, int64_t *den, int64_t addnum, int64_t addden) {
-    if (*den == addden) {
-        *num += addnum;
-    } else {
-        int64_t temp = addden;
-        addnum *= *den;
-        addden *= *den;
-        *num *= temp;
-        *den *= temp;
-
-        *num += addnum;
-
-        // Simplify
-        vs_normalizeRational(num, den);
-    }
-}
-
 static std::string channelMaskToName(uint64_t v) {
     std::string s;
     auto checkConstant = [&s, v](uint64_t c, const char *name) {
@@ -330,7 +313,7 @@ static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, 
                             totalFrames = requestedFrames;
                             outputError = true;
                         } else {
-                            addRational(&currentTimecodeNum, &currentTimecodeDen, duration_num, duration_den);
+                            vs_addRational(&currentTimecodeNum, &currentTimecodeDen, duration_num, duration_den);
                         }
                     }
                 }

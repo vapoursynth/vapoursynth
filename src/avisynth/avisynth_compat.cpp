@@ -607,7 +607,7 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
         vi.numFrames = viAvs.num_frames;
         vi.fpsNum = viAvs.fps_numerator;
         vi.fpsDen = viAvs.fps_denominator;
-        vs_normalizeRational(&vi.fpsNum, &vi.fpsDen);
+        vs_reduceRational(&vi.fpsNum, &vi.fpsDen);
 
         if (!AVSPixelTypeToVSFormat(vi.format, viAvs, core, vsapi))
             vsapi->setError(out, "Avisynth Compat: bad format!");
