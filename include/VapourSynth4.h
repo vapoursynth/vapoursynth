@@ -336,6 +336,7 @@ struct VSAPI {
     uint32_t (VS_CC *getNodeFlags)(VSNodeRef *node) VS_NOEXCEPT;
     int (VS_CC *getFrameType)(const VSFrameRef *f) VS_NOEXCEPT;
     int (VS_CC *getFrameLength)(const VSFrameRef *f) VS_NOEXCEPT;
+    int (VS_CC *getApiVersion)(void) VS_NOEXCEPT;
 };
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version) VS_NOEXCEPT;

@@ -764,6 +764,10 @@ static int VS_CC getFrameLength(const VSFrameRef *f) VS_NOEXCEPT {
     return f->getFrameLength();
 }
 
+static int VS_CC getApiVersion(void) VS_NOEXCEPT{
+    return VAPOURSYNTH_API_VERSION;
+}
+
 const VSAPI vs_internal_vsapi = {
     &createCore,
     &freeCore,
@@ -865,7 +869,8 @@ const VSAPI vs_internal_vsapi = {
     &getNodeType,
     &getNodeFlags,
     &getFrameType,
-    &getFrameLength
+    &getFrameLength,
+    &getApiVersion
 };
 
 const vs3::VSAPI3 vs_internal_vsapi3 = {
