@@ -265,7 +265,7 @@ static VSSCRIPTAPI vsscript_api = {
 
 const VSSCRIPTAPI *VS_CC getVSScriptAPI(int version) VS_NOEXCEPT {
     int apiMajor = (version >> 16);
-    int apiMinor = (apiMajor & 0xFFFF);
+    int apiMinor = (version & 0xFFFF);
 
     if (apiMajor == VSSCRIPT_API_MAJOR && apiMinor <= VSSCRIPT_API_MINOR) {
         std::call_once(flag, real_init);
