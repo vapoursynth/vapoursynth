@@ -156,7 +156,7 @@ static void VS_CC preMultiplyFree(void *instanceData, VSCore *core, const VSAPI 
 }
 
 static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::unique_ptr<PreMultiplyData> d(new PreMultiplyData);
+    std::unique_ptr<PreMultiplyData> d(new PreMultiplyData());
 
     d->node1 = vsapi->propGetNode(in, "clip", 0, 0);
     d->node2 = vsapi->propGetNode(in, "alpha", 0, 0);
@@ -471,7 +471,7 @@ static void VS_CC maskedMergeFree(void *instanceData, VSCore *core, const VSAPI 
 }
 
 static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::unique_ptr<MaskedMergeData> d(new MaskedMergeData);
+    std::unique_ptr<MaskedMergeData> d(new MaskedMergeData());
 
     int err;
     d->mask23 = nullptr;

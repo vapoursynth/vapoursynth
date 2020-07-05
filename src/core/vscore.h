@@ -525,7 +525,7 @@ public:
             delete this;
     }
 
-    inline bool hasError() const {
+    bool hasError() const {
         return error;
     }
 

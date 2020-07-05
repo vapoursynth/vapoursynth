@@ -1142,7 +1142,7 @@ static void VS_CC blankClipFree(void *instanceData, VSCore *core, const VSAPI *v
 }
 
 static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::unique_ptr<BlankClipData> d(new BlankClipData);
+    std::unique_ptr<BlankClipData> d(new BlankClipData());
     bool hasvi = false;
     int64_t temp;
     int err;
@@ -1469,7 +1469,7 @@ static void VS_CC frameEvalFree(void *instanceData, VSCore *core, const VSAPI *v
 }
 
 static void VS_CC frameEvalCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::unique_ptr<FrameEvalData> d(new FrameEvalData);
+    std::unique_ptr<FrameEvalData> d(new FrameEvalData());
     VSNodeRef *node = vsapi->propGetNode(in, "clip", 0, 0);
     d->vi = *vsapi->getVideoInfo(node);
     vsapi->freeNode(node);
@@ -1562,7 +1562,7 @@ static void VS_CC modifyFrameFree(void *instanceData, VSCore *core, const VSAPI 
 }
 
 static void VS_CC modifyFrameCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::unique_ptr<ModifyFrameData> d(new ModifyFrameData);
+    std::unique_ptr<ModifyFrameData> d(new ModifyFrameData());
     VSNodeRef *formatnode = vsapi->propGetNode(in, "clip", 0, 0);
     d->vi = vsapi->getVideoInfo(formatnode);
     vsapi->freeNode(formatnode);

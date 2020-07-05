@@ -41,7 +41,7 @@ private:
 public:
     VSNodeRef *node = nullptr;
 
-    explicit SingleNodeData(const VSAPI *vsapi) noexcept : T({}), vsapi(vsapi) {
+    explicit SingleNodeData(const VSAPI *vsapi) noexcept : T(), vsapi(vsapi) {
     }
 
     ~SingleNodeData() {
@@ -57,7 +57,7 @@ public:
     VSNodeRef *node1 = nullptr;
     VSNodeRef *node2 = nullptr;
 
-    explicit DualNodeData(const VSAPI *vsapi) noexcept : vsapi(vsapi) {
+    explicit DualNodeData(const VSAPI *vsapi) noexcept : T(), vsapi(vsapi) {
     }
 
     ~DualNodeData() {
@@ -73,7 +73,7 @@ private:
 public:
     std::vector<VSNodeRef *> node;
 
-    explicit VariableNodeData(const VSAPI *vsapi) noexcept : vsapi(vsapi) {
+    explicit VariableNodeData(const VSAPI *vsapi) noexcept : T(), vsapi(vsapi) {
     }
 
     ~VariableNodeData() {
