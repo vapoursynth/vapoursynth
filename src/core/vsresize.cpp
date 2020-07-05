@@ -568,7 +568,7 @@ public:
 };
 
 void VS_CC vszimg_free(void *instanceData, VSCore *core, const VSAPI *vsapi);
-const VSFrameRef * VS_CC vszimg_get_frame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
+const VSFrameRef * VS_CC vszimg_get_frame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
 
 class vszimg {
     template <class T>
@@ -950,7 +950,7 @@ public:
     static void create(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
         try {
             vszimg *x = new vszimg{ in, userData, core, vsapi };
-            vsapi->createVideoFilter(out, "format", &x->m_vi, 1, vszimg_get_frame, vszimg_free, fmParallel, 0, x, core);
+            vsapi->createVideoFilter(out, "format", &x->m_vi, 1, &vszimg_get_frame, vszimg_free, fmParallel, 0, x, core);
         } catch (const vszimgxx::zerror &e) {
             std::string errmsg = "Resize error " + std::to_string(e.code) + ": " + e.msg;
             vsapi->setError(out, errmsg.c_str());
@@ -970,8 +970,8 @@ void VS_CC vszimg_free(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     delete x;
 }
 
-const VSFrameRef * VS_CC vszimg_get_frame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    return static_cast<vszimg *>(*instanceData)->get_frame(n, activationReason, frameData, frameCtx, core, vsapi);
+const VSFrameRef * VS_CC vszimg_get_frame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    return static_cast<vszimg *>(instanceData)->get_frame(n, activationReason, frameData, frameCtx, core, vsapi);
 }
 
 } // namespace

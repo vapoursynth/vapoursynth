@@ -158,8 +158,8 @@ void VSCache::adjustSize(bool needMemory) {
 // controls how many frames beyond the number of threads is a good margin to catch bigger temporal radius filters that are out of order, just a guess
 static const int extraFrames = 7;
 
-static const VSFrameRef *VS_CC cacheGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    CacheInstance *c = static_cast<CacheInstance *>(*instanceData);
+static const VSFrameRef *VS_CC cacheGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    CacheInstance *c = static_cast<CacheInstance *>(instanceData);
 
     intptr_t *fd = (intptr_t *)frameData;
 

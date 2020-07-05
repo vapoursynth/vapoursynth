@@ -78,17 +78,6 @@ static inline void setBlack(uint32_t color[3], const VSVideoFormat *format) {
         color[1] = color[2] = 128;
 }
 
-typedef struct {
-    VSNodeRef *node;
-    const VSVideoInfo *vi;
-} SingleClipData;
-
-static void VS_CC singleClipFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    SingleClipData *d = (SingleClipData *)instanceData;
-    vsapi->freeNode(d->node);
-    free(instanceData);
-}
-
 static inline int64_t floatToInt64S(float f) {
     if (f > INT64_MAX)
         return INT64_MAX;

@@ -48,8 +48,8 @@ typedef struct {
     double threshold;
 } SCDetectData;
 
-static const VSFrameRef *VS_CC scDetectGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    SCDetectData *d = static_cast<SCDetectData *>(*instanceData);
+static const VSFrameRef *VS_CC scDetectGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    SCDetectData *d = static_cast<SCDetectData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
@@ -450,8 +450,8 @@ static void averageFramesFloatSSE2(const AverageFrameData *d, const VSFrameRef *
 }
 #endif
 
-static const VSFrameRef *VS_CC averageFramesGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    AverageFrameData *d = static_cast<AverageFrameData *>(*instanceData);
+static const VSFrameRef *VS_CC averageFramesGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    AverageFrameData *d = static_cast<AverageFrameData *>(instanceData);
     bool singleClipMode = (d->nodes.size() == 1);
     bool clamp = (n > INT_MAX - 1 - (int)(d->weights.size() / 2));
     int lastframe = clamp ? INT_MAX - 1 : n + (int)(d->weights.size() / 2);
@@ -738,8 +738,8 @@ static void process_frame_hysteresis(const VSFrameRef * src1, const VSFrameRef *
     delete[] label;
 }
 
-static const VSFrameRef *VS_CC hysteresisGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    HysteresisData * d = static_cast<HysteresisData *>(*instanceData);
+static const VSFrameRef *VS_CC hysteresisGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    HysteresisData * d = static_cast<HysteresisData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node1, frameCtx);

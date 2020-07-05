@@ -50,8 +50,8 @@ typedef struct LutData {
 } // namespace
 
 template<typename T, typename U>
-static const VSFrameRef *VS_CC lutGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    LutData *d = reinterpret_cast<LutData *>(*instanceData);
+static const VSFrameRef *VS_CC lutGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    LutData *d = reinterpret_cast<LutData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
@@ -288,8 +288,8 @@ struct Lut2Data {
 };
 
 template<typename T, typename U, typename V>
-static const VSFrameRef *VS_CC lut2Getframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    Lut2Data *d = reinterpret_cast<Lut2Data *>(*instanceData);
+static const VSFrameRef *VS_CC lut2Getframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    Lut2Data *d = reinterpret_cast<Lut2Data *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node[0], frameCtx);

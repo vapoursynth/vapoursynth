@@ -234,8 +234,8 @@ static void processPlaneR1F(const uint8_t *src, uint8_t *dst, ptrdiff_t stride, 
     }
 }
 
-static const VSFrameRef *VS_CC boxBlurGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    BoxBlurData *d = reinterpret_cast<BoxBlurData *>(*instanceData);
+static const VSFrameRef *VS_CC boxBlurGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    BoxBlurData *d = reinterpret_cast<BoxBlurData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
@@ -278,13 +278,19 @@ static const VSFrameRef *VS_CC boxBlurGetframe(int n, int activationReason, void
     return nullptr;
 }
 
+static void VS_CC boxBlurFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+    BoxBlurData *d = reinterpret_cast<BoxBlurData *>(instanceData);
+    vsapi->freeNode(d->node);
+    delete d;
+}
+
 static VSNodeRef *applyBoxBlurPlaneFiltering(VSPlugin *stdplugin, VSNodeRef *node, int hradius, int hpasses, int vradius, int vpasses, VSCore *core, const VSAPI *vsapi) {
     bool hblur = (hradius > 0) && (hpasses > 0);
     bool vblur = (vradius > 0) && (vpasses > 0);
 
     if (hblur) {
         VSMap *vtmp2 = vsapi->createMap();
-        vsapi->createVideoFilter(vtmp2, "BoxBlur", vsapi->getVideoInfo(node), 1, boxBlurGetframe, templateNodeFree<BoxBlurData>, fmParallel, 0, new BoxBlurData{ node, hradius, hpasses }, core);
+        vsapi->createVideoFilter(vtmp2, "BoxBlur", vsapi->getVideoInfo(node), 1, boxBlurGetframe, boxBlurFree, fmParallel, 0, new BoxBlurData{ node, hradius, hpasses }, core);
         node = vsapi->propGetNode(vtmp2, "clip", 0, nullptr);
         vsapi->freeMap(vtmp2);
     }
@@ -297,7 +303,7 @@ static VSNodeRef *applyBoxBlurPlaneFiltering(VSPlugin *stdplugin, VSNodeRef *nod
         vsapi->clearMap(vtmp1);
         node = vsapi->propGetNode(vtmp2, "clip", 0, nullptr);
         vsapi->clearMap(vtmp2);
-        vsapi->createVideoFilter(vtmp2, "BoxBlur", vsapi->getVideoInfo(node), 1, boxBlurGetframe, templateNodeFree<BoxBlurData>, fmParallel, 0, new BoxBlurData{ node, vradius, vpasses }, core);
+        vsapi->createVideoFilter(vtmp2, "BoxBlur", vsapi->getVideoInfo(node), 1, boxBlurGetframe, boxBlurFree, fmParallel, 0, new BoxBlurData{ node, vradius, vpasses }, core);
         vsapi->freeMap(vtmp1);
         vtmp1 = vsapi->invoke(stdplugin, "Transpose", vtmp2);
         vsapi->freeMap(vtmp2);

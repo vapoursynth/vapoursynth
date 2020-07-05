@@ -3133,8 +3133,8 @@ std::vector<ExprInstruction> compile(ExpressionTree &tree, const VSVideoFormat &
     return code;
 }
 
-static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    ExprData *d = static_cast<ExprData *>(*instanceData);
+static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    ExprData *d = static_cast<ExprData *>(instanceData);
     int numInputs = d->numInputs;
 
     if (activationReason == arInitial) {

@@ -481,8 +481,8 @@ static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, co
     return PrefetchInfo(1, 1, 0, -1);
 }
 
-static const VSFrameRef *VS_CC avisynthFilterGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    WrappedClip *clip = (WrappedClip *) * instanceData;
+static const VSFrameRef *VS_CC avisynthFilterGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    WrappedClip *clip = reinterpret_cast<WrappedClip *>(instanceData);
     PVideoFrame frame;
     n = std::min(n, clip->clip->GetVideoInfo().num_frames - 1);
 

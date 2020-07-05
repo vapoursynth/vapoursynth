@@ -25,6 +25,109 @@
 #include "VSHelper4.h"
 #include <stdexcept>
 #include <string>
+#include <vector>
+
+typedef struct NoExtraData {
+} NoExtraData;
+
+typedef struct {
+    const VSVideoInfo *vi;
+} VIPointerData;
+
+template<typename T>
+struct SingleNodeData : public T {
+private:
+    const VSAPI *vsapi;
+public:
+    VSNodeRef *node = nullptr;
+
+    explicit SingleNodeData(const VSAPI *vsapi) noexcept : T({}), vsapi(vsapi) {
+    }
+
+    ~SingleNodeData() {
+        vsapi->freeNode(node);
+    }
+};
+
+template<typename T>
+struct DualNodeData : public T {
+private:
+    const VSAPI *vsapi;
+public:
+    VSNodeRef *node1 = nullptr;
+    VSNodeRef *node2 = nullptr;
+
+    explicit DualNodeData(const VSAPI *vsapi) noexcept : vsapi(vsapi) {
+    }
+
+    ~DualNodeData() {
+        vsapi->freeNode(node1);
+        vsapi->freeNode(node2);
+    }
+};
+
+template<typename T>
+struct VariableNodeData : public T {
+private:
+    const VSAPI *vsapi;
+public:
+    std::vector<VSNodeRef *> node;
+
+    explicit VariableNodeData(const VSAPI *vsapi) noexcept : vsapi(vsapi) {
+    }
+
+    ~VariableNodeData() {
+        for (auto iter : node)
+            vsapi->freeNode(iter);
+    }
+};
+
+template<typename T>
+static void VS_CC filterFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+    delete reinterpret_cast<T *>(instanceData);
+}
+
+static inline bool getProcessPlanesArg(const VSMap *in, VSMap *out, const char *filterName, bool process[3], const VSAPI *vsapi) {
+    int m = vsapi->propNumElements(in, "planes");
+
+    for (int i = 0; i < 3; i++)
+        process[i] = (m <= 0);
+
+    for (int i = 0; i < m; i++) {
+        int64_t o = vsapi->propGetInt(in, "planes", i, nullptr);
+
+        if (o < 0 || o >= 3) {
+            vsapi->setError(out, (filterName + std::string(": plane index out of range")).c_str());
+            return false;
+        }
+ 
+        if (process[o]) {
+            vsapi->setError(out, (filterName + std::string(": plane specified twice")).c_str());
+            return false;
+        }
+
+        process[o] = true;
+    }
+
+    return true;
+}
+
+static bool is8to16orFloatFormatCheck(const VSVideoFormat &fi, bool allowVariable = false, bool allowCompat = false) {
+    if (fi.colorFamily == cfUndefined && !allowVariable)
+        return false;
+
+    if ((fi.colorFamily == cfCompatBGR32 || fi.colorFamily == cfCompatYUY2) && !allowCompat)
+        return false;
+
+    if ((fi.sampleType == stInteger && fi.bitsPerSample > 16) || (fi.sampleType == stFloat && fi.bitsPerSample != 32))
+        return false;
+
+    return true;
+}
+
+
+
+///////////////////////////// NEW FUNCTIONS ABOVE
 
 enum RangeArgumentHandling {
     RangeLower,
@@ -115,13 +218,6 @@ static void getPlaneArgs(const VSVideoFormat *fi, const VSMap *in, const char *p
             prevValid = true;
         }
     }
-}
-
-template<typename T>
-static void VS_CC templateNodeFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    T *d = reinterpret_cast<T *>(instanceData);
-    vsapi->freeNode(d->node);
-    delete d;
 }
 
 template<typename T>

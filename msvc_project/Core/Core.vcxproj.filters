@@ -33,15 +33,6 @@
     <ClCompile Include="..\..\src\core\exprfilter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\core\mergefilters.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core\reorderfilters.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core\simplefilters.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\core\textfilter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -118,6 +109,15 @@
       <Filter>Source Files\kernel\x86</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core\audiofilters.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core\mergefilters.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core\reorderfilters.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core\simplefilters.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

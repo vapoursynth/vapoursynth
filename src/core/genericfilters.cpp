@@ -67,8 +67,7 @@ enum ConvolutionTypes {
     ConvolutionVertical
 };
 
-struct GenericData {
-    VSNodeRef *node;
+struct GenericDataExtra {
     const VSVideoInfo *vi;
     bool process[3];
 
@@ -97,9 +96,11 @@ struct GenericData {
     int cpulevel;
 };
 
+typedef SingleNodeData<GenericDataExtra> GenericData;
+
 template<typename T, typename OP>
-static const VSFrameRef *VS_CC singlePixelGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    T *d = reinterpret_cast<T *>(* instanceData);
+static const VSFrameRef *VS_CC singlePixelGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    T *d = reinterpret_cast<T *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
@@ -156,8 +157,6 @@ static const VSFrameRef *VS_CC singlePixelGetFrame(int n, int activationReason, 
 
 template<typename T>
 static void templateInit(T& d, const char *name, bool allowVariableFormat, const VSMap *in, VSMap *out, const VSAPI *vsapi) {
-    *d = {};
-
     d->name = name;
     d->node = vsapi->propGetNode(in, "clip", 0, 0);
     d->vi = vsapi->getVideoInfo(d->node);
@@ -355,8 +354,8 @@ static decltype(&vs_generic_3x3_conv_byte_c) genericSelectC(const VSVideoFormat 
 }
 
 template <GenericOperations op>
-static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    GenericData *d = static_cast<GenericData *>(*instanceData);
+static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    GenericData *d = static_cast<GenericData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
@@ -418,7 +417,7 @@ static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void
 
 template <GenericOperations op>
 static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::unique_ptr<GenericData> d(new GenericData{});
+    std::unique_ptr<GenericData> d(new GenericData(vsapi));
 
     d->filter_name = static_cast<const char *>(userData);
 
@@ -594,19 +593,20 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
         return;
     }
 
-    vsapi->createVideoFilter(out, d->filter_name, d->vi, 1, genericGetframe<op>, templateNodeFree<GenericData>, fmParallel, 0, d.get(), core);
+    vsapi->createVideoFilter(out, d->filter_name, d->vi, 1, genericGetframe<op>, filterFree<GenericData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
 ///////////////////////////////
 
 
-struct InvertData {
-    VSNodeRef *node;
+struct InvertDataExtra {
     const VSVideoInfo *vi;
     const char *name;
     bool process[3];
 };
+
+typedef SingleNodeData<InvertDataExtra> InvertData;
 
 struct InvertOp {
     uint16_t max;
@@ -636,7 +636,7 @@ struct InvertOp {
 };
 
 static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::unique_ptr<InvertData> d(new InvertData);
+    std::unique_ptr<InvertData> d(new InvertData(vsapi));
 
     try {
         templateInit(d, "Invert", true, in, out, vsapi);
@@ -646,20 +646,21 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         return;
     }
 
-    vsapi->createVideoFilter(out, d->name, d->vi, 1, singlePixelGetFrame<InvertData, InvertOp>, templateNodeFree<InvertData>, fmParallel, 0, d.get(), core);
+    vsapi->createVideoFilter(out, d->name, d->vi, 1, singlePixelGetFrame<InvertData, InvertOp>, filterFree<InvertData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
 /////////////////
 
-struct LimitData {
-    VSNodeRef *node;
+struct LimitDataExtra {
     const VSVideoInfo *vi;
     const char *name;
     bool process[3];
     uint16_t max[3], min[3];
     float maxf[3], minf[3];
 };
+
+typedef SingleNodeData<LimitDataExtra> LimitData;
 
 struct LimitOp {
     uint16_t max, min;
@@ -686,7 +687,7 @@ struct LimitOp {
 };
 
 static void VS_CC limitCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::unique_ptr<LimitData> d(new LimitData);
+    std::unique_ptr<LimitData> d(new LimitData(vsapi));
 
     try {
         templateInit(d, "Limiter", false, in, out, vsapi);
@@ -701,20 +702,21 @@ static void VS_CC limitCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         return;
     }
 
-    vsapi->createVideoFilter(out, d->name, d->vi, 1, singlePixelGetFrame<LimitData, LimitOp>, templateNodeFree<LimitData>, fmParallel, 0, d.get(), core);
+    vsapi->createVideoFilter(out, d->name, d->vi, 1, singlePixelGetFrame<LimitData, LimitOp>, filterFree<LimitData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
 /////////////////
 
-struct BinarizeData {
-    VSNodeRef *node;
+struct BinarizeDataExtra {
     const VSVideoInfo *vi;
     const char *name;
     bool process[3];
     uint16_t v0[3], v1[3], thr[3];
     float v0f[3], v1f[3], thrf[3];
 };
+
+typedef SingleNodeData<BinarizeDataExtra> BinarizeData;
 
 struct BinarizeOp {
     uint16_t v0, v1, thr;
@@ -749,7 +751,7 @@ struct BinarizeOp {
 };
 
 static void VS_CC binarizeCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::unique_ptr<BinarizeData> d(new BinarizeData);
+    std::unique_ptr<BinarizeData> d(new BinarizeData(vsapi));
 
     try {
         templateInit(d, "Binarize", false, in, out, vsapi);
@@ -762,13 +764,13 @@ static void VS_CC binarizeCreate(const VSMap *in, VSMap *out, void *userData, VS
         return;
     }
 
-    vsapi->createVideoFilter(out, d->name, d->vi, 1, singlePixelGetFrame<BinarizeData, BinarizeOp>, templateNodeFree<BinarizeData>, fmParallel, 0, d.get(), core);
+    vsapi->createVideoFilter(out, d->name, d->vi, 1, singlePixelGetFrame<BinarizeData, BinarizeOp>, filterFree<BinarizeData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
 /////////////////
 
-struct LevelsData {
+struct LevelsDataExtra {
     VSNodeRef *node;
     const VSVideoInfo *vi;
     const char *name;
@@ -778,9 +780,11 @@ struct LevelsData {
     std::vector<uint8_t> lut;
 };
 
+typedef SingleNodeData<LevelsDataExtra> LevelsData;
+
 template<typename T>
-static const VSFrameRef *VS_CC levelsGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    LevelsData *d = reinterpret_cast<LevelsData *>(*instanceData);
+static const VSFrameRef *VS_CC levelsGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    LevelsData *d = reinterpret_cast<LevelsData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
@@ -821,8 +825,8 @@ static const VSFrameRef *VS_CC levelsGetframe(int n, int activationReason, void 
 }
 
 template<typename T>
-static const VSFrameRef *VS_CC levelsGetframeF(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    LevelsData *d = reinterpret_cast<LevelsData *>(*instanceData);
+static const VSFrameRef *VS_CC levelsGetframeF(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    LevelsData *d = reinterpret_cast<LevelsData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
@@ -878,7 +882,7 @@ static const VSFrameRef *VS_CC levelsGetframeF(int n, int activationReason, void
 }
 
 static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::unique_ptr<LevelsData> d(new LevelsData);
+    std::unique_ptr<LevelsData> d(new LevelsData(vsapi));
 
     try {
         templateInit(d, "Levels", false, in, out, vsapi);
@@ -928,11 +932,11 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     }
 
     if (d->vi->format.bytesPerSample == 1)
-        vsapi->createVideoFilter(out, d->name, d->vi, 1, levelsGetframe<uint8_t>, templateNodeFree<LevelsData>, fmParallel, 0, d.get(), core);
+        vsapi->createVideoFilter(out, d->name, d->vi, 1, levelsGetframe<uint8_t>, filterFree<LevelsData>, fmParallel, 0, d.get(), core);
     else if (d->vi->format.bytesPerSample == 2)
-        vsapi->createVideoFilter(out, d->name, d->vi, 1, levelsGetframe<uint16_t>, templateNodeFree<LevelsData>, fmParallel, 0, d.get(), core);
+        vsapi->createVideoFilter(out, d->name, d->vi, 1, levelsGetframe<uint16_t>, filterFree<LevelsData>, fmParallel, 0, d.get(), core);
     else
-        vsapi->createVideoFilter(out, d->name, d->vi, 1, levelsGetframeF<float>, templateNodeFree<LevelsData>, fmParallel, 0, d.get(), core);
+        vsapi->createVideoFilter(out, d->name, d->vi, 1, levelsGetframeF<float>, filterFree<LevelsData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 

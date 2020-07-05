@@ -37,13 +37,14 @@
 // AudioTrim
 
 typedef struct {
-    VSNodeRef *node;
     VSAudioInfo ai;
     int64_t first;
-} AudioTrimData;
+} AudioTrimDataExtra;
 
-static const VSFrameRef *VS_CC audioTrimGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    AudioTrimData *d = reinterpret_cast<AudioTrimData *>(*instanceData);
+typedef SingleNodeData<AudioTrimDataExtra> AudioTrimData;
+
+static const VSFrameRef *VS_CC audioTrimGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    AudioTrimData *d = reinterpret_cast<AudioTrimData *>(instanceData);
 
     int64_t startSample = n * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES) + d->first;
     int startFrame = (int)(startSample / VS_AUDIO_FRAME_SAMPLES);
@@ -86,11 +87,11 @@ static const VSFrameRef *VS_CC audioTrimGetframe(int n, int activationReason, vo
         }
     }
 
-    return 0;
+    return nullptr;
 }
 
 static void VS_CC audioTrimCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::unique_ptr<AudioTrimData> d(new AudioTrimData());
+    std::unique_ptr<AudioTrimData> d(new AudioTrimData(vsapi));
 
     int err;
     int64_t trimlen;
@@ -140,7 +141,7 @@ static void VS_CC audioTrimCreate(const VSMap *in, VSMap *out, void *userData, V
 
     d->ai.numSamples = trimlen;
 
-    vsapi->createAudioFilter(out, "AudioTrim", &d->ai, 1, audioTrimGetframe, templateNodeFree<AudioTrimData>, fmParallel, nfNoCache, d.get(), core);
+    vsapi->createAudioFilter(out, "AudioTrim", &d->ai, 1, audioTrimGetframe, filterFree<AudioTrimData>, fmParallel, nfNoCache, d.get(), core);
     d.release();
 }
 
@@ -149,15 +150,16 @@ static void VS_CC audioTrimCreate(const VSMap *in, VSMap *out, void *userData, V
 
 typedef struct {
     VSAudioInfo ai;
-    std::vector<VSNodeRef *> nodes;
     std::vector<int64_t> numSamples;
     std::vector<int64_t> cumSamples;
     std::vector<int> numFrames;
-} AudioSpliceData;
+} AudioSpliceDataExtra;
 
+typedef VariableNodeData<AudioSpliceDataExtra> AudioSpliceData;
 
-static const VSFrameRef *VS_CC audioSpliceGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    AudioSpliceData *d = reinterpret_cast<AudioSpliceData *>(*instanceData);
+// FIXME, cache start node and sample in framedata when possible
+static const VSFrameRef *VS_CC audioSpliceGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    AudioSpliceData *d = reinterpret_cast<AudioSpliceData *>(instanceData);
 
     int64_t sampleStart = n * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES);
     int64_t remainingSamples = std::min<int64_t>(VS_AUDIO_FRAME_SAMPLES, d->ai.numSamples - sampleStart);
@@ -172,7 +174,7 @@ static const VSFrameRef *VS_CC audioSpliceGetframe(int n, int activationReason, 
                     int64_t reqStart = reqFrame * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES);
                     int64_t reqSamples = std::min<int64_t>(VS_AUDIO_FRAME_SAMPLES - reqStartOffset, d->numSamples[i] - reqStart);
                     reqStartOffset = 0;
-                    vsapi->requestFrameFilter(reqFrame, d->nodes[i], frameCtx);
+                    vsapi->requestFrameFilter(reqFrame, d->node[i], frameCtx);
                     remainingSamples -= reqSamples;
                     reqStart += reqSamples;
                     reqFrame++;
@@ -196,7 +198,7 @@ static const VSFrameRef *VS_CC audioSpliceGetframe(int n, int activationReason, 
                 int64_t reqStartOffset = currentStartSample % VS_AUDIO_FRAME_SAMPLES;
                 int reqFrame = static_cast<int>(currentStartSample / VS_AUDIO_FRAME_SAMPLES);
                 do {
-                    const VSFrameRef *src = vsapi->getFrameFilter(reqFrame++, d->nodes[i], frameCtx);
+                    const VSFrameRef *src = vsapi->getFrameFilter(reqFrame++, d->node[i], frameCtx);
                     int length = vsapi->getFrameLength(src) - reqStartOffset;
                     if (!dst)
                         dst = vsapi->newAudioFrame(&d->ai.format, remainingSamples, src, core);
@@ -220,14 +222,7 @@ static const VSFrameRef *VS_CC audioSpliceGetframe(int n, int activationReason, 
         return dst;
     }
 
-    return 0;
-}
-
-static void VS_CC audioSpliceFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    AudioSpliceData *d = reinterpret_cast<AudioSpliceData *>(instanceData);
-    for (auto iter : d->nodes)
-        vsapi->freeNode(iter);
-    delete d;
+    return nullptr;
 }
 
 static void VS_CC audioSpliceCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -238,34 +233,30 @@ static void VS_CC audioSpliceCreate(const VSMap *in, VSMap *out, void *userData,
         vsapi->freeNode(node);
     }
   
-    std::unique_ptr<AudioSpliceData> d(new AudioSpliceData);
+    std::unique_ptr<AudioSpliceData> d(new AudioSpliceData(vsapi));
 
-    d->nodes.reserve(numNodes);
+    d->node.reserve(numNodes);
     for (int i = 0; i < numNodes; i++)
-        d->nodes.push_back(vsapi->propGetNode(in, "clips", i, nullptr));
+        d->node.push_back(vsapi->propGetNode(in, "clips", i, nullptr));
 
-    d->ai = *vsapi->getAudioInfo(d->nodes[0]);
+    d->ai = *vsapi->getAudioInfo(d->node[0]);
 
     for (int i = 1; i < numNodes; i++) {
-        if (!isSameAudioInfo(&d->ai, vsapi->getAudioInfo(d->nodes[i]))) {
-            for (auto iter : d->nodes)
-                vsapi->freeNode(iter);
+        if (!isSameAudioInfo(&d->ai, vsapi->getAudioInfo(d->node[i])))
             RETERROR("AudioSplice: format mismatch");
-        }
     }
 
     d->ai.numSamples = 0;
     for (int i = 0; i < numNodes; i++) {
-        const VSAudioInfo *ai = vsapi->getAudioInfo(d->nodes[i]);
+        const VSAudioInfo *ai = vsapi->getAudioInfo(d->node[i]);
         d->numSamples.push_back(ai->numSamples);
         d->numFrames.push_back(ai->numFrames);
         d->ai.numSamples += ai->numSamples;
     }
 
     d->cumSamples.push_back(d->numSamples[0]);
-    for (int i = 1; i < numNodes; i++) {
+    for (int i = 1; i < numNodes; i++) 
         d->cumSamples.push_back(d->cumSamples.back() + d->numSamples[i]);
-    }
 
     // fixme, check for too long clip
     /*
@@ -276,22 +267,23 @@ static void VS_CC audioSpliceCreate(const VSMap *in, VSMap *out, void *userData,
     }
     */
 
-    vsapi->createAudioFilter(out, "AudioSplice", &d->ai, 1, audioSpliceGetframe, audioSpliceFree, fmParallel, nfNoCache, d.get(), core);
+    vsapi->createAudioFilter(out, "AudioSplice", &d->ai, 1, audioSpliceGetframe, filterFree<AudioSpliceData>, fmParallel, nfNoCache, d.get(), core);
     d.release();
 }
 
 //////////////////////////////////////////
 // AudioLoop
 
-struct AudioLoopData {
-    VSNodeRef *node;
+struct AudioLoopDataExtra {
     VSAudioInfo ai;
-    int srcFrames;
     int64_t srcSamples;
+    int srcFrames;
 };
 
-static const VSFrameRef *VS_CC audioLoopGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    AudioLoopData *d = reinterpret_cast<AudioLoopData *>(*instanceData);
+typedef SingleNodeData<AudioLoopDataExtra> AudioLoopData;
+
+static const VSFrameRef *VS_CC audioLoopGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    AudioLoopData *d = reinterpret_cast<AudioLoopData *>(instanceData);
 
     int64_t reqStart = n * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES);
     reqStart = reqStart % d->srcSamples;
@@ -342,12 +334,10 @@ static const VSFrameRef *VS_CC audioLoopGetFrame(int n, int activationReason, vo
 
 static void VS_CC audioLoopCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     int error;
-    std::unique_ptr<AudioLoopData> d(new AudioLoopData());
+    std::unique_ptr<AudioLoopData> d(new AudioLoopData(vsapi));
     int64_t times = vsapi->propGetInt(in, "times", 0, &error);
-    if (times < 0) {
-        vsapi->setError(out, "AudioLoop: cannot repeat clip a negative number of times"); 
-        return;
-    }
+    if (times < 0)
+        RETERROR("AudioLoop: cannot repeat clip a negative number of times");
 
     d->node = vsapi->propGetNode(in, "clip", 0, nullptr);
     d->ai = *vsapi->getAudioInfo(d->node);
@@ -357,35 +347,33 @@ static void VS_CC audioLoopCreate(const VSMap *in, VSMap *out, void *userData, V
     // early termination for the trivial case
     if (times == 1) {
         vsapi->propSetNode(out, "clip", d->node, paReplace);
-        vsapi->freeNode(d->node);
         return;
     }
 
     if (times > 0) {
-        if (d->ai.numSamples > (std::numeric_limits<int>::max() * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES)) / times) {
-            vsapi->setError(out, "AudioLoop: resulting clip is too long");
-            return;
-        }
+        if (d->ai.numSamples > (std::numeric_limits<int>::max() * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES)) / times)
+            RETERROR("AudioLoop: resulting clip is too long");
         d->ai.numSamples *= times;
     } else {
         d->ai.numSamples = std::numeric_limits<int>::max() * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES);
     }
 
-    vsapi->createAudioFilter(out, "AudioLoop", &d->ai, 1, audioLoopGetFrame, templateNodeFree<AudioLoopData>, fmParallel, 0, d.get(), core);
+    vsapi->createAudioFilter(out, "AudioLoop", &d->ai, 1, audioLoopGetFrame, filterFree<AudioLoopData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
 //////////////////////////////////////////
 // AudioReverse
 
-struct AudioReverseData {
-    VSNodeRef *node;
+struct AudioReverseDataExtra {
     const VSAudioInfo *ai;
 };
 
+typedef SingleNodeData<AudioReverseDataExtra> AudioReverseData;
+
 template<typename T>
-static const VSFrameRef *VS_CC audioReverseGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    AudioReverseData *d = reinterpret_cast<AudioReverseData *>(*instanceData);
+static const VSFrameRef *VS_CC audioReverseGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    AudioReverseData *d = reinterpret_cast<AudioReverseData *>(instanceData);
     int n1 = d->ai->numFrames - 1 - n;
     int n2 = std::max(d->ai->numFrames - 2 - n, 0);
 
@@ -433,29 +421,30 @@ static const VSFrameRef *VS_CC audioReverseGetFrame(int n, int activationReason,
 }
 
 static void VS_CC audioReverseCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::unique_ptr<AudioReverseData> d(new AudioReverseData());
+    std::unique_ptr<AudioReverseData> d(new AudioReverseData(vsapi));
     d->node = vsapi->propGetNode(in, "clip", 0, nullptr);
     d->ai = vsapi->getAudioInfo(d->node);
 
     if (d->ai->format.bytesPerSample == 2)
-        vsapi->createAudioFilter(out, "AudioReverse", d->ai, 1, audioReverseGetFrame<int16_t>, templateNodeFree<AudioReverseData>, fmParallel, 0, d.get(), core);
+        vsapi->createAudioFilter(out, "AudioReverse", d->ai, 1, audioReverseGetFrame<int16_t>, filterFree<AudioReverseData>, fmParallel, 0, d.get(), core);
     else
-        vsapi->createAudioFilter(out, "AudioReverse", d->ai, 1, audioReverseGetFrame<int32_t>, templateNodeFree<AudioReverseData>, fmParallel, 0, d.get(), core);
+        vsapi->createAudioFilter(out, "AudioReverse", d->ai, 1, audioReverseGetFrame<int32_t>, filterFree<AudioReverseData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
 //////////////////////////////////////////
 // AudioGain
 
-struct AudioGainData {
-    VSNodeRef *node;
+struct AudioGainDataExtra {
     std::vector<double> gain;
     const VSAudioInfo *ai;
 };
 
+typedef SingleNodeData<AudioGainDataExtra> AudioGainData;
+
 template<typename T>
-static const VSFrameRef *VS_CC audioGainGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    AudioGainData *d = reinterpret_cast<AudioGainData *>(*instanceData);
+static const VSFrameRef *VS_CC audioGainGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    AudioGainData *d = reinterpret_cast<AudioGainData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
@@ -480,7 +469,7 @@ static const VSFrameRef *VS_CC audioGainGetFrame(int n, int activationReason, vo
 }
 
 static void VS_CC audioGainCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::unique_ptr<AudioGainData> d(new AudioGainData());
+    std::unique_ptr<AudioGainData> d(new AudioGainData(vsapi));
     int numGainValues = vsapi->propNumElements(in, "gain");
     for (int i = 0; i < numGainValues; i++)
         d->gain.push_back(vsapi->propGetFloat(in, "gain", i, nullptr));
@@ -488,17 +477,15 @@ static void VS_CC audioGainCreate(const VSMap *in, VSMap *out, void *userData, V
     d->node = vsapi->propGetNode(in, "clip", 0, nullptr);
     d->ai = vsapi->getAudioInfo(d->node);
 
-    if (numGainValues != 1 && numGainValues != d->ai->format.numChannels) {
-        vsapi->freeNode(d->node);
+    if (numGainValues != 1 && numGainValues != d->ai->format.numChannels)
         RETERROR("AudioGain: must provide one gain value per channel or a single value used for all channels");
-    }
 
     if (d->ai->format.bytesPerSample == 4 && d->ai->format.sampleType == stFloat)
-        vsapi->createAudioFilter(out, "AudioGain", d->ai, 1, audioGainGetFrame<float>, templateNodeFree<AudioGainData>, fmParallel, 0, d.get(), core);
+        vsapi->createAudioFilter(out, "AudioGain", d->ai, 1, audioGainGetFrame<float>, filterFree<AudioGainData>, fmParallel, 0, d.get(), core);
     else if (d->ai->format.bytesPerSample == 2)
-        vsapi->createAudioFilter(out, "AudioGain", d->ai, 1, audioGainGetFrame<int16_t>, templateNodeFree<AudioGainData>, fmParallel, 0, d.get(), core);
+        vsapi->createAudioFilter(out, "AudioGain", d->ai, 1, audioGainGetFrame<int16_t>, filterFree<AudioGainData>, fmParallel, 0, d.get(), core);
     else
-        vsapi->createAudioFilter(out, "AudioGain", d->ai, 1, audioGainGetFrame<int32_t>, templateNodeFree<AudioGainData>, fmParallel, 0, d.get(), core);
+        vsapi->createAudioFilter(out, "AudioGain", d->ai, 1, audioGainGetFrame<int32_t>, filterFree<AudioGainData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
@@ -512,6 +499,7 @@ struct AudioMixDataNode {
     std::vector<double> weights;
 };
 
+// FIXME, doesn't fit the pattern without restructuring
 struct AudioMixData {
     std::vector<VSNodeRef *> reqNodes; // a list of all distinct nodes in sourceNodes to reduce function calls
     std::vector<AudioMixDataNode> sourceNodes;
@@ -520,8 +508,8 @@ struct AudioMixData {
 };
 
 template<typename T>
-static const VSFrameRef *VS_CC audioMixGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    AudioMixData *d = reinterpret_cast<AudioMixData *>(*instanceData);
+static const VSFrameRef *VS_CC audioMixGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    AudioMixData *d = reinterpret_cast<AudioMixData *>(instanceData);
 
     if (activationReason == arInitial) {
         for (const auto &iter : d->reqNodes)
@@ -673,6 +661,7 @@ static void VS_CC audioMixCreate(const VSMap *in, VSMap *out, void *userData, VS
 //////////////////////////////////////////
 // ShuffleChannels
 
+// FIXME, doesn't fit the pattern without restructuring
 struct ShuffleChannelsDataNode {
     VSNodeRef *node;
     int idx;
@@ -690,8 +679,8 @@ struct ShuffleChannelsData {
     VSAudioInfo ai;
 };
 
-static const VSFrameRef *VS_CC shuffleChannelsGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    ShuffleChannelsData *d = reinterpret_cast<ShuffleChannelsData *>(*instanceData);
+static const VSFrameRef *VS_CC shuffleChannelsGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    ShuffleChannelsData *d = reinterpret_cast<ShuffleChannelsData *>(instanceData);
 
     if (activationReason == arInitial) {
         for (const auto &iter : d->reqNodes)
@@ -732,15 +721,11 @@ static void VS_CC shuffleChannelsCreate(const VSMap *in, VSMap *out, void *userD
     int numSrcChannels = vsapi->propNumElements(in, "channels_in");
     int numDstChannels = vsapi->propNumElements(in, "channels_out");
 
-    if (numSrcChannels != numDstChannels) {
-        vsapi->setError(out, "ShuffleChannels: must have the same number of input and output channels");
-        return;
-    }
+    if (numSrcChannels != numDstChannels) 
+        RETERROR("ShuffleChannels: must have the same number of input and output channels");
 
-    if (numSrcNodes > numSrcChannels) {
-        vsapi->setError(out, "ShuffleChannels: cannot have more input nodes than selected input channels");
-        return;
-    }
+    if (numSrcNodes > numSrcChannels)
+        RETERROR("ShuffleChannels: cannot have more input nodes than selected input channels");
 
     uint64_t channelLayout = 0;
 
@@ -785,8 +770,6 @@ static void VS_CC shuffleChannelsCreate(const VSMap *in, VSMap *out, void *userD
         d->ai.numSamples = std::max(d->ai.numSamples, ai->numSamples);
     }
 
-    
-
     if (!vsapi->queryAudioFormat(&d->ai.format, d->ai.format.sampleType, d->ai.format.bitsPerSample, channelLayout, core))
         err = "ShuffleChannels: invalid output channnel configuration";
     else if (d->ai.format.numChannels != numDstChannels)
@@ -812,14 +795,15 @@ static void VS_CC shuffleChannelsCreate(const VSMap *in, VSMap *out, void *userD
 //////////////////////////////////////////
 // SplitChannels
 
-struct SplitChannelsData {
+struct SplitChannelsDataExtra {
     std::vector<VSAudioInfo> ai;
-    VSNodeRef *node;
     int numChannels;
 };
 
-static const VSFrameRef *VS_CC splitChannelsGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    SplitChannelsData *d = reinterpret_cast<SplitChannelsData *>(*instanceData);
+typedef SingleNodeData<SplitChannelsDataExtra> SplitChannelsData;
+
+static const VSFrameRef *VS_CC splitChannelsGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    SplitChannelsData *d = reinterpret_cast<SplitChannelsData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
@@ -836,14 +820,8 @@ static const VSFrameRef *VS_CC splitChannelsGetFrame(int n, int activationReason
     return nullptr;
 }
 
-static void VS_CC splitChannelsFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    SplitChannelsData *d = reinterpret_cast<SplitChannelsData *>(instanceData);
-    vsapi->freeNode(d->node);
-    delete d;
-}
-
 static void VS_CC splitChannelsCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::unique_ptr<SplitChannelsData> d(new SplitChannelsData());
+    std::unique_ptr<SplitChannelsData> d(new SplitChannelsData(vsapi));
     d->node = vsapi->propGetNode(in, "clip", 0, nullptr);
     VSAudioInfo ai = *vsapi->getAudioInfo(d->node);
     uint64_t channelLayout = ai.format.channelLayout;
@@ -857,19 +835,17 @@ static void VS_CC splitChannelsCreate(const VSMap *in, VSMap *out, void *userDat
         d->ai.push_back(ai);
     }
 
-    vsapi->createAudioFilter(out, "SplitChannels", d->ai.data(), d->numChannels, splitChannelsGetFrame, splitChannelsFree, fmParallel, 0, d.get(), core);
+    vsapi->createAudioFilter(out, "SplitChannels", d->ai.data(), d->numChannels, splitChannelsGetFrame, filterFree<SplitChannelsData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
 //////////////////////////////////////////
 // AssumeSampleRate
 
-typedef struct {
-    VSNodeRef *node;
-} AssumeSampleRateData;
+typedef SingleNodeData<NoExtraData> AssumeSampleRateData;
 
-static const VSFrameRef *VS_CC assumeSampleRateGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    AssumeSampleRateData *d = reinterpret_cast<AssumeSampleRateData *>(*instanceData);
+static const VSFrameRef *VS_CC assumeSampleRateGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    AssumeSampleRateData *d = reinterpret_cast<AssumeSampleRateData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
@@ -877,11 +853,11 @@ static const VSFrameRef *VS_CC assumeSampleRateGetframe(int n, int activationRea
         return vsapi->getFrameFilter(n, d->node, frameCtx);
     }
 
-    return 0;
+    return nullptr;
 }
 
 static void VS_CC assumeSampleRateCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::unique_ptr<AssumeSampleRateData> d(new AssumeSampleRateData());
+    std::unique_ptr<AssumeSampleRateData> d(new AssumeSampleRateData(vsapi));
     bool hassamplerate = false;
     bool hassrc = false;
     int err;
@@ -902,17 +878,13 @@ static void VS_CC assumeSampleRateCreate(const VSMap *in, VSMap *out, void *user
         hassrc = true;
     }
 
-    if (hassamplerate == hassrc) {
-        vsapi->freeNode(d->node);
+    if ((hassamplerate && hassrc) || (!hassamplerate && !hassrc))
         RETERROR("AssumeSampleRate: need to specify source clip or samplerate");
-    }
 
-    if (ai.sampleRate < 1) {
-        vsapi->freeNode(d->node);
+    if (ai.sampleRate < 1)
         RETERROR("AssumeSampleRate: invalid samplerate specified");
-    }
 
-    vsapi->createAudioFilter(out, "AssumeSampleRate", &ai, 1, assumeSampleRateGetframe, templateNodeFree<AssumeSampleRateData>, fmParallel, nfNoCache, d.get(), core);
+    vsapi->createAudioFilter(out, "AssumeSampleRate", &ai, 1, assumeSampleRateGetframe, filterFree<AssumeSampleRateData>, fmParallel, nfNoCache, d.get(), core);
     d.release();
 }
 
@@ -925,8 +897,8 @@ typedef struct {
     bool keep;
 } BlankAudioData;
 
-static const VSFrameRef *VS_CC blankAudioGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    BlankAudioData *d = reinterpret_cast<BlankAudioData *>(*instanceData);
+static const VSFrameRef *VS_CC blankAudioGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    BlankAudioData *d = reinterpret_cast<BlankAudioData *>(instanceData);
 
     if (activationReason == arInitial) {
         VSFrameRef *frame = nullptr;
@@ -946,7 +918,7 @@ static const VSFrameRef *VS_CC blankAudioGetframe(int n, int activationReason, v
         }
     }
 
-    return 0;
+    return nullptr;
 }
 
 static void VS_CC blankAudioFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
@@ -1000,8 +972,8 @@ typedef struct {
     VSAudioInfo ai;
 } TestAudioData;
 
-static const VSFrameRef *VS_CC testAudioGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    TestAudioData *d = reinterpret_cast<TestAudioData *>(*instanceData);
+static const VSFrameRef *VS_CC testAudioGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    TestAudioData *d = reinterpret_cast<TestAudioData *>(instanceData);
 
     if (activationReason == arInitial) {
         int64_t startSample = n * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES);
@@ -1015,12 +987,7 @@ static const VSFrameRef *VS_CC testAudioGetframe(int n, int activationReason, vo
         return frame;
     }
 
-    return 0;
-}
-
-static void VS_CC testAudioFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    TestAudioData *d = reinterpret_cast<TestAudioData *>(instanceData);
-    delete d;
+    return nullptr;
 }
 
 static void VS_CC testAudioCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -1058,7 +1025,7 @@ static void VS_CC testAudioCreate(const VSMap *in, VSMap *out, void *userData, V
     if (!vsapi->queryAudioFormat(&d->ai.format, isfloat ? stFloat : stInteger, bits, channels, core))
         RETERROR("TestAudio: invalid format");
 
-    vsapi->createAudioFilter(out, "TestAudio", &d->ai, 1, testAudioGetframe, testAudioFree, fmParallel, nfNoCache, d.get(), core);
+    vsapi->createAudioFilter(out, "TestAudio", &d->ai, 1, testAudioGetframe, filterFree<TestAudioData>, fmParallel, nfNoCache, d.get(), core);
     d.release();
 }
 

@@ -198,7 +198,7 @@ static void VS_CC copyFrameProps(const VSFrameRef *src, VSFrameRef *dst, VSCore 
     core->copyFrameProps(*src, *dst);
 }
 
-static void VS_CC createFilter3(const VSMap *in, VSMap *out, const char *name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT {
+static void VS_CC createFilter3(const VSMap *in, VSMap *out, const char *name, vs3::VSFilterInit init, vs3::VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT {
     assert(in && out && name && init && getFrame && core);
     if (!name)
         vsFatal("NULL name pointer passed to createFilter()");
@@ -218,7 +218,7 @@ static void VS_CC createFilter3(const VSMap *in, VSMap *out, const char *name, v
             fm = fmSerial;
             break;
     }
-    core->createFilter(in, out, name, init, getFrame, free, fm, flags, instanceData, VAPOURSYNTH3_API_MAJOR);
+    core->createFilter(in, out, name, init, reinterpret_cast<VSFilterGetFrame>(getFrame), free, fm, flags, instanceData, VAPOURSYNTH3_API_MAJOR);
 }
 
 static void VS_CC setError(VSMap *map, const char *errorMessage) VS_NOEXCEPT {
