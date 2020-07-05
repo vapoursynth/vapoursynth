@@ -92,11 +92,11 @@ static std::wstring readRegistryValue(const wchar_t *keyName, const wchar_t *val
 #endif
 
 FrameContext::FrameContext(int n, int index, VSNode *clip, const PFrameContext &upstreamContext) :
-    refcount(1), reqOrder(upstreamContext->reqOrder), numFrameRequests(0), n(n), clip(clip), upstreamContext(upstreamContext), userData(nullptr), frameDone(nullptr), error(false), lockOnOutput(true), node(nullptr), lastCompletedN(-1), index(index), lastCompletedNode(nullptr), frameContext(nullptr) {
+    refcount(1), reqOrder(upstreamContext->reqOrder), numFrameRequests(0), n(n), clip(clip), upstreamContext(upstreamContext), userData(nullptr), frameDone(nullptr), error(false), lockOnOutput(true), node(nullptr), lastCompletedN(-1), index(index), lastCompletedNode(nullptr) {
 }
 
 FrameContext::FrameContext(int n, int index, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput) :
-    refcount(1), reqOrder(0), numFrameRequests(0), n(n), clip(node->clip.get()), userData(userData), frameDone(frameDone), error(false), lockOnOutput(lockOnOutput), node(node), lastCompletedN(-1), index(index), lastCompletedNode(nullptr), frameContext(nullptr) {
+    refcount(1), reqOrder(0), numFrameRequests(0), n(n), clip(node->clip), userData(userData), frameDone(frameDone), error(false), lockOnOutput(lockOnOutput), node(node), lastCompletedN(-1), index(index), lastCompletedNode(nullptr) {
 }
 
 bool FrameContext::setError(const std::string &errorMsg) {
@@ -684,10 +684,8 @@ VSFrameRef::~VSFrameRef() {
 
 const vs3::VSVideoFormat *VSFrameRef::getVideoFormatV3() const noexcept {
     assert(contentType == mtVideo);
-    if (!v3format) {
-        // FIXME, figure out how to cache the value
-        return core->VideoFormatToV3(format.vf);
-    }
+    if (!v3format)
+        v3format = core->VideoFormatToV3(format.vf);
     return v3format;
 }
 
@@ -884,6 +882,17 @@ std::string VSFunction::getV3ArgString() const {
     return tmp;
 }
 
+void VSNodeRef::add_ref() noexcept {
+    ++refcount;
+}
+
+void VSNodeRef::release() noexcept {
+    if (--refcount == 0) {
+        clip->release();
+        delete this;
+    }
+}
+
 VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
     refcount(0), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
 
@@ -1017,7 +1026,7 @@ void VSNode::setVideoInfo3(const vs3::VSVideoInfo *vi, int numOutputs) {
 }
 
 PVSFrameRef VSNode::getFrameInternal(int n, int activationReason, VSFrameContext &frameCtx) {  
-    const VSFrameRef *r = (apiMajor == VAPOURSYNTH_API_MAJOR) ? filterGetFrame(n, activationReason, instanceData, &frameCtx.ctx->frameContext, &frameCtx, core, &vs_internal_vsapi) : reinterpret_cast<vs3::VSFilterGetFrame>(filterGetFrame)(n, activationReason, &instanceData, &frameCtx.ctx->frameContext, &frameCtx, core, &vs_internal_vsapi3);
+    const VSFrameRef *r = (apiMajor == VAPOURSYNTH_API_MAJOR) ? filterGetFrame(n, activationReason, instanceData, frameCtx.ctx->frameContext, &frameCtx, core, &vs_internal_vsapi) : reinterpret_cast<vs3::VSFilterGetFrame>(filterGetFrame)(n, activationReason, &instanceData, frameCtx.ctx->frameContext, &frameCtx, core, &vs_internal_vsapi3);
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isSSEStateOk())
         vsFatal("Bad SSE state detected after return from %s", name.c_str());

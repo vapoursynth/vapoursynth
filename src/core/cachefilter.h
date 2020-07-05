@@ -208,7 +208,7 @@ public:
     void addCache(VSNodeRef *clip) {
         std::lock_guard<std::mutex> lock(core->cacheLock);
         assert(clip);
-        node = clip->clip.get();
+        node = clip->clip;
         core->caches.insert(node);
     }
 

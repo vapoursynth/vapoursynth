@@ -120,7 +120,7 @@ static const VSFrameRef *VS_CC getFrame(int n, VSNodeRef *clip, char *errorMsg, 
     assert(clip);
     GetFrameWaiter g(errorMsg, bufSize);
     std::unique_lock<std::mutex> l(g.b);
-    VSNode *node = clip->clip.get();
+    VSNode *node = clip->clip;
     bool isWorker = node->isWorkerThread();
     if (isWorker)
         node->releaseThread();
@@ -137,7 +137,7 @@ static void VS_CC requestFrameFilter(int n, VSNodeRef *clip, VSFrameContext *fra
     int numFrames = (clip->clip->getNodeType() == mtVideo) ? clip->clip->getVideoInfo(clip->index).numFrames : clip->clip->getAudioInfo(clip->index).numFrames;
     if (n >= numFrames)
         n = numFrames - 1;
-    frameCtx->requestFrame(new FrameContext(n, clip->index, clip->clip.get(), frameCtx->ctx));
+    frameCtx->requestFrame(new FrameContext(n, clip->index, clip->clip, frameCtx->ctx));
 }
 
 static const VSFrameRef *VS_CC getFrameFilter(int n, VSNodeRef *clip, VSFrameContext *frameCtx) VS_NOEXCEPT {
@@ -146,7 +146,7 @@ static const VSFrameRef *VS_CC getFrameFilter(int n, VSNodeRef *clip, VSFrameCon
     int numFrames = (clip->clip->getNodeType() == mtVideo) ? clip->clip->getVideoInfo(clip->index).numFrames : clip->clip->getAudioInfo(clip->index).numFrames;
     if (numFrames && n >= numFrames)
         n = numFrames - 1;
-    auto ref = frameCtx->ctx->availableFrames.find(NodeOutputKey(clip->clip.get(), n, clip->index));
+    auto ref = frameCtx->ctx->availableFrames.find(NodeOutputKey(clip->clip, n, clip->index));
     if (ref != frameCtx->ctx->availableFrames.end()) {
         ref->second->add_ref();
         return ref->second.get();
@@ -589,7 +589,7 @@ static void VS_CC queryCompletedFrame(VSNodeRef **node, int *n, VSFrameContext *
 
 static void VS_CC releaseFrameEarly(VSNodeRef *node, int n, VSFrameContext *frameCtx) VS_NOEXCEPT {
     assert(node && frameCtx);
-    frameCtx->ctx->availableFrames.erase(NodeOutputKey(node->clip.get(), n, node->index));
+    frameCtx->ctx->availableFrames.erase(NodeOutputKey(node->clip, n, node->index));
 }
 
 static VSFuncRef *VS_CC cloneFuncRef(VSFuncRef *func) VS_NOEXCEPT {

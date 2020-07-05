@@ -80,14 +80,19 @@ static inline int isSameVideoFormat(const VSVideoFormat *v1, const VSVideoFormat
     return v1->colorFamily == v2->colorFamily && v1->sampleType == v2->sampleType && v1->bitsPerSample == v2->bitsPerSample && v1->subSamplingW == v2->subSamplingW && v1->subSamplingH == v2->subSamplingH;
 }
 
-/* convenience function to check for if two clips have the same format (unknown/changeable will be considered the same too) */
+/* convenience function to check for if two clips have the same format while also including width and height (unknown/changeable will be considered the same too) */
 static inline int isSameVideoInfo(const VSVideoInfo *v1, const VSVideoInfo *v2) {
-    return v1->height == v2->height && v1->width == v2->width && v1->format.colorFamily == v2->format.colorFamily && v1->format.sampleType == v2->format.sampleType && v1->format.bitsPerSample == v2->format.bitsPerSample && v1->format.subSamplingW == v2->format.subSamplingW && v1->format.subSamplingH == v2->format.subSamplingH;
+    return v1->height == v2->height && v1->width == v2->width && isSameVideoFormat(&v1->format, &v2->format);
 }
 
-/* convenience function to check for if two clips have the same format (unknown/changeable will be considered the same too) */
+/* convenience function to check for if two clips have the same format while also including samplerate (unknown/changeable will be considered the same too) */
+static inline int isSameAudioFormat(const VSAudioFormat *a1, const VSAudioFormat *a2) {
+    return a1->bitsPerSample == a2->bitsPerSample && a1->sampleType == a2->sampleType && a1->channelLayout == a2->channelLayout;
+}
+
+/* convenience function to check for if two clips have the same format while also including samplerate (unknown/changeable will be considered the same too) */
 static inline int isSameAudioInfo(const VSAudioInfo *a1, const VSAudioInfo *a2) {
-    return a1->sampleRate == a2->sampleRate && a1->format.bitsPerSample == a2->format.bitsPerSample && a1->format.sampleType == a2->format.sampleType && a1->format.channelLayout == a2->format.channelLayout;
+    return a1->sampleRate == a2->sampleRate && isSameAudioFormat(&a1->format, &a2->format);
 }
 
 /* multiplies and divides a rational number, such as a frame duration, in place and reduces the result */

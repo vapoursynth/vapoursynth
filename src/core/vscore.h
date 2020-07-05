@@ -326,19 +326,13 @@ struct VSNodeRef {
 private:
     std::atomic<long> refcount;
 public:
-    PVSNode clip; // fixme, should be simple pointer that's released on zero vsnoderef refs
+    VSNode *clip;
     int index;
-    VSNodeRef(const PVSNode &clip, int index) noexcept : refcount(1), clip(clip), index(index) {}
+    VSNodeRef(VSNode *clip, int index) noexcept : refcount(1), clip(clip), index(index) {}
     ~VSNodeRef() {};
 
-    void add_ref() noexcept {
-        ++refcount;
-    }
-
-    void release() noexcept {
-        if (--refcount == 0)
-            delete this;
-    }
+    void add_ref() noexcept;
+    void release() noexcept;
 };
 
 class FilterArgument {
@@ -417,7 +411,7 @@ private:
         VSVideoFormat vf;
         VSAudioFormat af;
     } format;
-    std::atomic<const vs3::VSVideoFormat *> v3format; /* API 3 compatibility */
+    mutable std::atomic<const vs3::VSVideoFormat *> v3format; /* API 3 compatibility */
     VSPlaneData *data[3] = {}; /* only the first data pointer is ever used for audio and is subdivided using the internal offset in height */
     int width; /* stores number of samples for audio */
     int height;
@@ -467,6 +461,7 @@ public:
         return &format.vf;
     }
     const vs3::VSVideoFormat *getVideoFormatV3() const noexcept;
+
     int getWidth(int plane) const {
         assert(contentType == mtVideo);
         return width >> (plane ? format.vf.subSamplingW : 0);
@@ -519,7 +514,7 @@ public:
     int index;
     VSNodeRef *lastCompletedNode;
 
-    void *frameContext;
+    void *frameContext[4];
 
     void add_ref() noexcept {
         ++refcount;
