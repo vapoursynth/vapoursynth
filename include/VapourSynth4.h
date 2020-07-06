@@ -114,33 +114,31 @@ typedef struct VSVideoFormat {
 
 // FIXME, add remaining channel constants
 typedef enum VSAudioChannels {
-    vsacFrontLeft           = 0,
-    vsacFrontRight          = 1,
-    vsacFrontCenter         = 2,
-    vsacLowFrequency        = 3,
-    vsacBackLeft            = 4,
-    vsacBackRight           = 5,
-    vsacFrontLeftOFCenter   = 6,
-    vsacFrontRightOFCenter  = 7,
-    vsacBackCenter          = 8,
-    vsacSideLeft            = 9,
-    vsacSideRight           = 10,
-    vsacTopCenter           = 11,
-    vsacTopFrontLeft        = 12,
-    vsacTopFrontCenter      = 13,
-    vsacTopFrontRight       = 14,
-    vsacTopBackLeft         = 15,
-    vsacTopBackCenter       = 16,
-    vsacTopBackRight        = 17,
-
-
-    vsacStereoLeft          = 29,
-    vsacStereoRight         = 30,
-    vsacWideLeft            = 31,
-    vsacWideRight           = 32,
-    vsacSurroundDirectLeft  = 33,
-    vsacSurroundDirectRight = 34,
-    vsacLowFrequency2       = 35
+    acFrontLeft           = 0,
+    acFrontRight          = 1,
+    acFrontCenter         = 2,
+    acLowFrequency        = 3,
+    acBackLeft            = 4,
+    acBackRight           = 5,
+    acFrontLeftOFCenter   = 6,
+    acFrontRightOFCenter  = 7,
+    acBackCenter          = 8,
+    acSideLeft            = 9,
+    acSideRight           = 10,
+    acTopCenter           = 11,
+    acTopFrontLeft        = 12,
+    acTopFrontCenter      = 13,
+    acTopFrontRight       = 14,
+    acTopBackLeft         = 15,
+    acTopBackCenter       = 16,
+    acTopBackRight        = 17,
+    acStereoLeft          = 29,
+    acStereoRight         = 30,
+    acWideLeft            = 31,
+    acWideRight           = 32,
+    acSurroundDirectLeft  = 33,
+    acSurroundDirectRight = 34,
+    acLowFrequency2       = 35
 } VSAudioChannels;
 
 typedef struct VSAudioFormat {
@@ -328,7 +326,6 @@ struct VSAPI {
     int (VS_CC *propSetFloatArray)(VSMap *map, const char *key, const double *d, int size) VS_NOEXCEPT;
 
     void (VS_CC *logMessage)(int msgType, const char *msg) VS_NOEXCEPT;
-
     int (VS_CC *addMessageHandler)(VSMessageHandler handler, VSMessageHandlerFree free, void *userData) VS_NOEXCEPT;
     int (VS_CC *removeMessageHandler)(int id) VS_NOEXCEPT;
     void (VS_CC *getCoreInfo)(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT;
@@ -341,10 +338,12 @@ struct VSAPI {
     int (VS_CC *queryVideoFormat)(VSVideoFormat *format, int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) VS_NOEXCEPT;
     uint32_t (VS_CC *queryVideoFormatID)(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) VS_NOEXCEPT;
     int (VS_CC *queryVideoFormatByID)(VSVideoFormat *format, uint32_t id, VSCore *core) VS_NOEXCEPT;
+    // fixme, return success or failure in get*FormatName?
     void (VS_CC *getAudioFormatName)(const VSAudioFormat *format, char *buffer) VS_NOEXCEPT; /* up to 32 characters including terminating null may be written to the buffer */
     void (VS_CC *getVideoFormatName)(const VSVideoFormat *format, char *buffer) VS_NOEXCEPT; /* up to 32 characters including terminating null may be written to the buffer */
     const VSAudioInfo *(VS_CC *getAudioInfo)(VSNodeRef *node) VS_NOEXCEPT;
     const VSAudioFormat *(VS_CC *getAudioFrameFormat)(const VSFrameRef *f) VS_NOEXCEPT;
+
     int (VS_CC *getNodeType)(VSNodeRef *node) VS_NOEXCEPT;
     int (VS_CC *getNodeFlags)(VSNodeRef *node) VS_NOEXCEPT;
     int (VS_CC *getFrameType)(const VSFrameRef *f) VS_NOEXCEPT;

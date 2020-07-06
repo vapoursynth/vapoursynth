@@ -135,6 +135,7 @@ cdef object _policy = None
 
 
 cdef object _message_handler = None
+cdef int _message_handler_id = -1
 cdef const VSAPI *_vsapi = NULL
 
 
@@ -454,6 +455,7 @@ class Error(Exception):
     def __repr__(self):
         return repr(self.value)
 
+#fixme, should probably handle multiple message handlers
 cdef void __stdcall message_handler_wrapper(int msgType, const char *msg, void *userData) nogil:
     with gil:
         global _message_handler
@@ -462,16 +464,18 @@ cdef void __stdcall message_handler_wrapper(int msgType, const char *msg, void *
 def set_message_handler(handler_func):
     cdef const VSAPI *funcs
     global _message_handler
+    global _message_handler_id
     funcs = getVapourSynthAPI(VAPOURSYNTH_API_VERSION)
     if funcs == NULL:
         raise Error('Failed to obtain VapourSynth API pointer. Is the Python module and loaded core library mismatched?')
     if handler_func is None:
-        _message_handler = None
-        funcs.setMessageHandler(NULL, NULL)
+        if _message_handler_id >= 0:
+            funcs.removeMessageHandler(_message_handler_id)
+            _message_handler = None
+            _message_handler_id = -1
     else:
-        handler_func(vapoursynth.mtDebug, 'New message handler installed from python')
         _message_handler = handler_func
-        funcs.setMessageHandler(message_handler_wrapper, NULL)
+        _message_handler_id = funcs.addMessageHandler(message_handler_wrapper, NULL, NULL)
     
 cdef _get_output_dict(funcname="this function"):
     cdef EnvironmentData env = _env_current()
@@ -536,7 +540,7 @@ cdef class Func(object):
         inm = self.funcs.createMap()
         try:
             dictToMap(kwargs, inm, NULL, vsapi)
-            self.funcs.callFunc(self.ref, inm, outm, NULL, NULL)
+            self.funcs.callFunc(self.ref, inm, outm)
             error = self.funcs.getError(outm)
             if error:
                 raise Error(error.decode('utf-8'))
@@ -557,7 +561,7 @@ cdef Func createFuncPython(object func, VSCore *core, const VSAPI *funcs):
     fdata = createFuncData(func, core, env)
 
     Py_INCREF(fdata)
-    instance.ref = instance.funcs.createFunc(publicFunction, <void *>fdata, freeFunc, core, funcs)
+    instance.ref = instance.funcs.createFunc(publicFunction, <void *>fdata, freeFunc, core)
     return instance
         
 cdef Func createFuncRef(VSFuncRef *ref, const VSAPI *funcs):
@@ -899,7 +903,7 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, cons
                 raise Error('argument ' + key + ' has an unknown type: ' + atypes[key])
 
 cdef class VideoFormat(object):
-    cdef readonly int id
+    cdef readonly uint32_t id
     cdef readonly str name
     cdef readonly object color_family
     cdef readonly object sample_type
@@ -947,10 +951,11 @@ cdef class VideoFormat(object):
                f'\tSubsampling W: {self.subsampling_w:d}\n'
                f'\tSubsampling H: {self.subsampling_h:d}\n')
 
-cdef VideoFormat createVideoFormat(const VSVideoFormat *f):
+cdef VideoFormat createVideoFormat(const VSVideoFormat *f, const VSAPI *funcs, VSCore *core):
     cdef VideoFormat instance = VideoFormat.__new__(VideoFormat)
-    instance.id = f.id
-    instance.name = (<const char *>f.name).decode('utf-8')
+    cdef char nameBuffer[32]
+    funcs.getVideoFormatName(f, nameBuffer)
+    instance.name = nameBuffer.decode('utf-8')
     instance.color_family = ColorFamily(f.colorFamily)
     instance.sample_type = SampleType(f.sampleType)
     instance.bits_per_sample = f.bitsPerSample
@@ -958,6 +963,7 @@ cdef VideoFormat createVideoFormat(const VSVideoFormat *f):
     instance.subsampling_w = f.subSamplingW
     instance.subsampling_h = f.subSamplingH
     instance.num_planes = f.numPlanes
+    instance.id = funcs.queryVideoFormatID(instance.color_family, instance.sample_type, instance.bits_per_sample, instance.subsampling_w, instance.subsampling_h, core)
     return instance
 
 cdef class FrameProps(object):
@@ -1314,7 +1320,7 @@ cdef VideoFrame createConstVideoFrame(const VSFrameRef *constf, const VSAPI *fun
     instance.funcs = funcs
     instance.core = core
     instance.readonly = True
-    instance.format = createVideoFormat(funcs.getFrameFormat(constf))
+    instance.format = createVideoFormat(funcs.getVideoFrameFormat(constf), funcs, core)
     instance.width = funcs.getFrameWidth(constf, 0)
     instance.height = funcs.getFrameHeight(constf, 0)
     instance.props = createFrameProps(instance)
@@ -1328,7 +1334,7 @@ cdef VideoFrame createVideoFrame(VSFrameRef *f, const VSAPI *funcs, VSCore *core
     instance.funcs = funcs
     instance.core = core
     instance.readonly = False
-    instance.format = createVideoFormat(funcs.getFrameFormat(f))
+    instance.format = createVideoFormat(funcs.getVideoFrameFormat(f), funcs, core)
     instance.width = funcs.getFrameWidth(f, 0)
     instance.height = funcs.getFrameHeight(f, 0)
     instance.props = createFrameProps(instance)
@@ -1680,10 +1686,10 @@ cdef class VideoNode(RawNode):
                 raise Error('Alpha clip dimensions must match the main video')
             if (self.num_frames != alpha.num_frames):
                 raise Error('Alpha clip length must match the main video')
-            if (self.vi.format) and (alpha.vi.format):
-                if (alpha.vi.format != self.funcs.registerFormat(GRAY, self.vi.format.sampleType, self.vi.format.bitsPerSample, 0, 0, self.core.core)):
+            if (self.vi.format.colorFamily != UNDEFINED) and (alpha.vi.format.colorFamily != UNDEFINED):
+                if (alpha.vi.format.colorFamily != GRAY) or (alpha.vi.format.sampleType != self.vi.format.sampleType) or (alpha.vi.format.bitsPerSample != self.vi.format.bitsPerSample):
                     raise Error('Alpha clip format must match the main video')
-            elif (self.vi.format) or (alpha.vi.format):
+            elif (self.vi.format.colorFamily != UNDEFINED) or (alpha.vi.format.colorFamily != UNDEFINED):
                 raise Error('Format must be either known or unknown for both alpha and main clip')
             
             clip = AlphaOutputTuple(self, alpha)
@@ -1854,18 +1860,6 @@ cdef class VideoNode(RawNode):
 
         s += <str>f"\tFPS: {self.fps or 'dynamic'}\n"
 
-        if self.flags:
-            s += '\tFlags:'
-            if (self.flags & vapoursynth.nfNoCache):
-                s += ' NoCache'
-            if (self.flags & vapoursynth.nfIsCache):
-                s += ' IsCache'
-            if (self.flags & vapoursynth.nfMakeLinear):
-                s += ' MakeLinear'
-            s += '\n'
-        else:
-            s += '\tFlags: None\n'
-
         return s
 
 cdef VideoNode createVideoNode(VSNodeRef *node, const VSAPI *funcs, Core core):
@@ -1875,8 +1869,8 @@ cdef VideoNode createVideoNode(VSNodeRef *node, const VSAPI *funcs, Core core):
     instance.funcs = funcs
     instance.vi = funcs.getVideoInfo(node)
 
-    if (instance.vi.format):
-        instance.format = createVideoFormat(instance.vi.format)
+    if (instance.vi.format.colorFamily != UNDEFINED):
+        instance.format = createVideoFormat(&instance.vi.format, funcs, core.core)
     else:
         instance.format = None
 
@@ -1890,7 +1884,7 @@ cdef VideoNode createVideoNode(VSNodeRef *node, const VSAPI *funcs, Core core):
             <int64_t> instance.vi.fpsNum, <int64_t> instance.vi.fpsDen)
     else:
         instance.fps = Fraction(0, 1)
-    instance.flags = instance.vi.flags
+
     return instance
     
 cdef class AudioNode(RawNode):
@@ -1903,7 +1897,6 @@ cdef class AudioNode(RawNode):
     cdef readonly int sample_rate
     cdef readonly int64_t num_samples
     cdef readonly int num_frames
-    cdef readonly uint32_t flags
     
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
@@ -2028,26 +2021,13 @@ cdef class AudioNode(RawNode):
             if ((1 << v) & self.channel_layout):
                 channels.append(AudioChannels(v).name)        
         channels = ', '.join(channels)
-        
-        flags = []
-        if (self.flags & vapoursynth.nfNoCache):
-            flags.append('NoCache')
-        if (self.flags & vapoursynth.nfIsCache):
-            flags.append('IsCache')
-        if (self.flags & vapoursynth.nfMakeLinear):
-            flags.append('MakeLinear')
-        if len(flags) > 0:
-            flags = ', '.join(flags)
-        else:
-            flags = 'None'
                 
         return ('Audio Node\n'
                f'\tSample Type: {self.sample_type_str.name}\n'
                f'\tBits Per Sample: {self.bits_per_sample:d}\n'
                f'\tChannels: {channels:s}\n'
                f'\tSample Rate: {self.sample_rate:d}\n'
-               f'\tNum Samples: {self.num_samples:d}\n'
-               f'\tFlags: {flags:s}\n')
+               f'\tNum Samples: {self.num_samples:d}\n')
     
 cdef AudioNode createAudioNode(VSNodeRef *node, const VSAPI *funcs, Core core):
     cdef AudioNode instance = AudioNode.__new__(AudioNode)
@@ -2063,7 +2043,6 @@ cdef AudioNode createAudioNode(VSNodeRef *node, const VSAPI *funcs, Core core):
     instance.bytes_per_sample = instance.ai.format.bytesPerSample
     instance.channel_layout = instance.ai.format.channelLayout
     instance.num_channels = instance.ai.format.numChannels
-    instance.flags = funcs.getNodeFlags(node)
     return instance
 
 cdef class Core(object):
@@ -2083,7 +2062,7 @@ cdef class Core(object):
     property num_threads:
         def __get__(self):
             cdef VSCoreInfo v
-            self.funcs.getCoreInfo2(self.core, &v)
+            self.funcs.getCoreInfo(self.core, &v)
             return v.numThreads
         
         def __set__(self, int value):
@@ -2092,7 +2071,7 @@ cdef class Core(object):
     property max_cache_size:
         def __get__(self):
             cdef VSCoreInfo v
-            self.funcs.getCoreInfo2(self.core, &v)
+            self.funcs.getCoreInfo(self.core, &v)
             cdef int64_t current_size = <int64_t>v.maxFramebufferSize
             current_size = current_size + 1024 * 1024 - 1
             current_size = current_size // <int64_t>(1024 * 1024)
@@ -2167,27 +2146,28 @@ cdef class Core(object):
         return sout
 
     def register_format(self, int color_family, int sample_type, int bits_per_sample, int subsampling_w, int subsampling_h):
-        cdef const VSVideoFormat *fmt = self.funcs.registerFormat(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h, self.core)
-        if fmt == NULL:
+        #fixme, underlying function is renamed and works differently
+        cdef VSVideoFormat fmt
+        if not self.funcs.queryVideoFormat(&fmt, color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h, self.core):
             raise Error('Invalid format specified')
-        return createVideoFormat(fmt)
+        return createVideoFormat(&fmt, self.funcs, self.core)
 
-    def get_format(self, int id):
-        cdef const VSVideoFormat *f = self.funcs.getFormatPreset(id, self.core)
-
-        if f == NULL:
-            raise Error('Format not registered')
+    def get_format(self, uint32_t id):
+        #fixme, underlying function is renamed and works differently
+        cdef VSVideoFormat fmt
+        if not self.funcs.queryVideoFormatByID(&fmt, id, self.core):
+            raise Error('Invalid format id specified')
         else:
-            return createVideoFormat(f)
+            return createVideoFormat(&fmt, self.funcs, self.core)
 
     def version(self):
         cdef VSCoreInfo v
-        self.funcs.getCoreInfo2(self.core, &v)
+        self.funcs.getCoreInfo(self.core, &v)
         return (<const char *>v.versionString).decode('utf-8')
         
     def version_number(self):
         cdef VSCoreInfo v
-        self.funcs.getCoreInfo2(self.core, &v)
+        self.funcs.getCoreInfo(self.core, &v)
         return v.core
         
     def __dir__(self):
@@ -2218,7 +2198,7 @@ cdef Core createCore():
     instance.funcs = getVapourSynthAPI(VAPOURSYNTH_API_VERSION)
     if instance.funcs == NULL:
         raise Error('Failed to obtain VapourSynth API pointer. System does not support SSE2 or is the Python module and loaded core library mismatched?')
-    instance.core = instance.funcs.createCore(0)
+    instance.core = instance.funcs.createCore(0, 0)
     instance.add_cache = True
     return instance
 

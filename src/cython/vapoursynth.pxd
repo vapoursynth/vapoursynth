@@ -19,6 +19,7 @@
 #
 
 from libc.stdint cimport uint8_t, uint32_t, int64_t, uint64_t, uintptr_t
+from libc.stddef cimport ptrdiff_t
 
 cdef extern from "include/VapourSynth4.h" nogil:
     enum:
@@ -36,8 +37,6 @@ cdef extern from "include/VapourSynth4.h" nogil:
         pass
     ctypedef struct VSPlugin:
         pass
-    ctypedef struct VSNode:
-        pass
     ctypedef struct VSMap:
         pass
     ctypedef struct VSFrameContext:
@@ -48,11 +47,13 @@ cdef extern from "include/VapourSynth4.h" nogil:
         AUDIO "mtAudio"
 
     cpdef enum ColorFamily "VSColorFamily":
-        GRAY "cmGray"
-        RGB "cmRGB"
-        YUV "cmYUV"
-        YCOCG "cmYCoCg"
-        COMPAT "cmCompat"
+        UNDEFINED "cfUndefined"
+        GRAY "cfGray"
+        RGB "cfRGB"
+        YUV "cfYUV"
+        YCOCG "cfYCoCg"
+        cfCOMPATBGR32 "cfCompatBGR32"
+        cfCOMPATYUY2 "cfCompatYUY2"
 
     cpdef enum SampleType "VSSampleType":
         INTEGER "stInteger"
@@ -115,8 +116,6 @@ cdef extern from "include/VapourSynth4.h" nogil:
         fmSerial
 
     ctypedef struct VSVideoFormat:
-        char name[32]
-        int id
         int colorFamily
         int sampleType
         int bytesPerSample
@@ -126,31 +125,31 @@ cdef extern from "include/VapourSynth4.h" nogil:
         int numPlanes
         
     cpdef enum AudioChannels "VSAudioChannels":
-        FRONT_LEFT "vsacFrontLeft"
-        FRONT_RIGHT "vsacFrontRight"
-        FRONT_CENTER "vsacFrontCenter"
-        LOW_FREQUENCY "vsacLowFrequency"
-        BACK_LEFT "vsacBackLeft"
-        BACK_RIGHT "vsacBackRight"
-        FRONT_LEFT_OF_CENTER "vsacFrontLeftOFCenter"
-        FRONT_RIGHT_OF_CENTER "vsacFrontRightOFCenter"
-        BACK_CENTER "vsacBackCenter"
-        SIDE_LEFT "vsacSideLeft"
-        SIDE_RIGHT "vsacSideRight"
-        TOP_CENTER "vsacTopCenter"
-        TOP_FRONT_LEFT "vsacTopFrontLeft"
-        TOP_FRONT_CENTER "vsacTopFrontCenter"
-        TOP_FRONT_RIGHT "vsacTopFrontRight"
-        TOP_BACK_LEFT "vsacTopBackLeft"
-        TOP_BACK_CENTER "vsacTopBackCenter"
-        TOP_BACK_RIGHT "vsacTopBackRight"     
-        STEREO_LEFT "vsacStereoLeft"
-        STEREO_RIGHT "vsacStereoRight"
-        WIDE_LEFT "vsacWideLeft"   
-        WIDE_RIGHT "vsacWideRight"
-        SURROUND_DIRECT_LEFT "vsacSurroundDirectLeft"   
-        SURROUND_DIRECT_RIGHT "vsacSurroundDirectRight"
-        LOW_FREQUENCY2 "vsacLowFrequency2"
+        FRONT_LEFT "acFrontLeft"
+        FRONT_RIGHT "acFrontRight"
+        FRONT_CENTER "acFrontCenter"
+        LOW_FREQUENCY "acLowFrequency"
+        BACK_LEFT "acBackLeft"
+        BACK_RIGHT "acBackRight"
+        FRONT_LEFT_OF_CENTER "acFrontLeftOFCenter"
+        FRONT_RIGHT_OF_CENTER "acFrontRightOFCenter"
+        BACK_CENTER "acBackCenter"
+        SIDE_LEFT "acSideLeft"
+        SIDE_RIGHT "acSideRight"
+        TOP_CENTER "acTopCenter"
+        TOP_FRONT_LEFT "acTopFrontLeft"
+        TOP_FRONT_CENTER "acTopFrontCenter"
+        TOP_FRONT_RIGHT "acTopFrontRight"
+        TOP_BACK_LEFT "acTopBackLeft"
+        TOP_BACK_CENTER "acTopBackCenter"
+        TOP_BACK_RIGHT "acTopBackRight"     
+        STEREO_LEFT "acStereoLeft"
+        STEREO_RIGHT "acStereoRight"
+        WIDE_LEFT "acWideLeft"   
+        WIDE_RIGHT "acWideRight"
+        SURROUND_DIRECT_LEFT "acSurroundDirectLeft"   
+        SURROUND_DIRECT_RIGHT "acSurroundDirectRight"
+        LOW_FREQUENCY2 "acLowFrequency2"
         
     ctypedef struct VSAudioFormat:
         int sampleType
@@ -164,6 +163,17 @@ cdef extern from "include/VapourSynth4.h" nogil:
         nfIsCache
         nfMakeLinear
 
+    enum VSPropTypes:
+        ptUnset
+        ptInt
+        ptFloat
+        ptData
+        ptFunction
+        ptVideoNode
+        ptAudioNode
+        ptVideoFrame
+        ptAudioFrame
+
     enum VSGetPropErrors:
         peUnset
         peType
@@ -172,7 +182,6 @@ cdef extern from "include/VapourSynth4.h" nogil:
     enum VSPropAppendMode:
         paReplace
         paAppend
-        paTouch
 
     struct VSCoreInfo:
         char *versionString
@@ -183,13 +192,12 @@ cdef extern from "include/VapourSynth4.h" nogil:
         int64_t usedFramebufferSize
 
     struct VSVideoInfo:
-        VSVideoFormat *format
+        VSVideoFormat format
+        int64_t fpsNum
+        int64_t fpsDen
         int width
         int height
         int numFrames
-        int fpsNum
-        int fpsDen
-        int flags
         
     struct VSAudioInfo:
         VSAudioFormat format
@@ -208,61 +216,81 @@ cdef extern from "include/VapourSynth4.h" nogil:
         mtWarning
         mtCritical
         mtFatal
+        
+    enum VSCoreFlags:
+        cfDisableAutoLoading
 
-    ctypedef void (__stdcall *VSFrameDoneCallback)(void *userData, const VSFrameRef *f, int n, VSNodeRef *node, const char *errorMsg)
-    ctypedef void (__stdcall *VSPublicFunction)(const VSMap *input, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi)
-    ctypedef void (__stdcall *VSFilterInit)(VSMap *input, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi)
-    ctypedef const VSFrameRef *(__stdcall *VSFilterGetFrame)(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi)
-    ctypedef const VSFrameRef *(__stdcall *VSAudioFilterGetFrame)(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi)
-    ctypedef void (__stdcall *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI *vsapi)
+
+    ctypedef const VSAPI *(__stdcall *VSGetVapourSynthAPI)(int version)
+
+    ctypedef void (__stdcall *VSPublicFunction)(const VSMap *input, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) 
+    ctypedef void (__stdcall *VSRegisterFunction)(const char *name, const char *args, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin)  
+    ctypedef void (__stdcall *VSConfigPlugin)(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readonly, VSPlugin *plugin)  
+    ctypedef void (__stdcall *VSInitPlugin)(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin)  
     ctypedef void (__stdcall *VSFreeFuncData)(void *userData)
+    ctypedef const VSFrameRef *(__stdcall *VSFilterGetFrame)(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi)
+    ctypedef void (__stdcall *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI *vsapi)
+   
+    ctypedef void (__stdcall *VSFrameDoneCallback)(void *userData, const VSFrameRef *f, int n, VSNodeRef *node, const char *errorMsg)
     ctypedef void (__stdcall *VSMessageHandler)(int msgType, const char *msg, void *userData)
     ctypedef void (__stdcall *VSMessageHandlerFree)(void *userData)
 
+
     ctypedef struct VSAPI:
-        VSCore *createCore(int threads) nogil
+        VSCore *createCore(int threads, int flags) nogil
         void freeCore(VSCore *core) nogil
-        void registerFunction(const char *name, const char *args, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) nogil
-        void createFilter(VSMap *input, VSMap *out, const char *name, VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
-        VSMap *invoke(VSPlugin *plugin, const char *name, const VSMap *args) nogil
-        void setError(VSMap *map, const char *errorMessage) nogil
-        char *getError(const VSMap *map) nogil
-        void setFilterError(const char *errorMessage, VSFrameContext *frameCtx) nogil
-
-        VSVideoFormat *getFormatPreset(int id, VSCore *core) nogil
-        VSVideoFormat *registerFormat(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) nogil
-
-        void getFrameAsync(int n, VSNodeRef *node, VSFrameDoneCallback callback, void *userData) nogil
-        const VSFrameRef *getFrame(int n, VSNodeRef *node, char *errorMsg, int bufSize) nogil
-        void requestFrameFilter(int n, VSNodeRef *node, VSFrameContext *frameCtx) nogil
-        const VSFrameRef *getFrameFilter(int n, VSNodeRef *node, VSFrameContext *frameCtx) nogil
+        
         const VSFrameRef *cloneFrameRef(VSFrameRef *f) nogil
         VSNodeRef *cloneNodeRef(VSNodeRef *node) nogil
+        VSFuncRef *cloneFuncRef(VSFuncRef *f) nogil
+        
         void freeFrame(const VSFrameRef *f) nogil
         void freeNode(VSNodeRef *node) nogil
+        void freeFunc(VSFuncRef *f) nogil
+        
         VSFrameRef *newVideoFrame(const VSVideoFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core) nogil
         VSFrameRef *copyFrame(const VSFrameRef *f, VSCore *core) nogil
         void copyFrameProps(const VSFrameRef *src, VSFrameRef *dst, VSCore *core) nogil
+    
+        void registerFunction(const char *name, const char *args, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) nogil
+        VSPlugin *getPluginById(const char *identifier, VSCore *core) nogil
+        VSPlugin *getPluginByNs(const char *ns, VSCore *core) nogil
+        VSMap *getPlugins(VSCore *core) nogil
+        VSMap *getFunctions(VSPlugin *plugin) nogil
+        void setError(VSMap *map, const char *errorMessage) nogil
+        char *getError(const VSMap *map) nogil
+        void setFilterError(const char *errorMessage, VSFrameContext *frameCtx) nogil
+        VSMap *invoke(VSPlugin *plugin, const char *name, const VSMap *args) nogil
 
-        int getStride(const VSFrameRef *f, int plane) nogil
+        const VSFrameRef *getFrame(int n, VSNodeRef *node, char *errorMsg, int bufSize) nogil
+        void getFrameAsync(int n, VSNodeRef *node, VSFrameDoneCallback callback, void *userData) nogil
+        const VSFrameRef *getFrameFilter(int n, VSNodeRef *node, VSFrameContext *frameCtx) nogil
+        void requestFrameFilter(int n, VSNodeRef *node, VSFrameContext *frameCtx) nogil
+        void queryCompletedFrame(VSNodeRef **node, int *n, VSFrameContext *frameCtx) nogil
+        void releaseFrameEarly(VSNodeRef *node, int n, VSFrameContext *frameCtx) nogil
+
+        ptrdiff_t getStride(const VSFrameRef *f, int plane) nogil
         const uint8_t *getReadPtr(const VSFrameRef *f, int plane) nogil
         uint8_t *getWritePtr(VSFrameRef *f, int plane) nogil
 
-        const VSVideoInfo *getVideoInfo(VSNodeRef *node) nogil
-        void setVideoInfo(const VSVideoInfo *vi, VSNode *node) nogil
-        const VSVideoFormat *getFrameFormat(const VSFrameRef *f) nogil
-        int getFrameWidth(const VSFrameRef *f, int plane) nogil
-        int getFrameHeight(const VSFrameRef *f, int plane) nogil
-        const VSMap *getFramePropsRO(const VSFrameRef *f) nogil
-        VSMap *getFramePropsRW(VSFrameRef *f) nogil
-        int propNumKeys(const VSMap *map) nogil
-        const char *propGetKey(const VSMap *map, int index) nogil
-        int propNumElements(const VSMap *map, const char *key) nogil
-        char propGetType(const VSMap *map, const char *key) nogil
+        VSFuncRef *createFunc(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core) nogil
+        void callFunc(VSFuncRef *func, const VSMap *inm, VSMap *outm) nogil
 
         VSMap *createMap() nogil
         void freeMap(VSMap *map) nogil
         void clearMap(VSMap *map) nogil
+        
+        const VSVideoInfo *getVideoInfo(VSNodeRef *node) nogil
+        const VSVideoFormat *getVideoFrameFormat(const VSFrameRef *f) nogil
+        int getFrameWidth(const VSFrameRef *f, int plane) nogil
+        int getFrameHeight(const VSFrameRef *f, int plane) nogil
+        const VSMap *getFramePropsRO(const VSFrameRef *f) nogil
+        VSMap *getFramePropsRW(VSFrameRef *f) nogil
+        
+        int propNumKeys(const VSMap *map) nogil
+        const char *propGetKey(const VSMap *map, int index) nogil
+        int propNumElements(const VSMap *map, const char *key) nogil
+        int propGetType(const VSMap *map, const char *key) nogil
 
         int64_t propGetInt(const VSMap *map, const char *key, int index, int *error) nogil
         double propGetFloat(const VSMap *map, const char *key, int index, int *error) nogil
@@ -270,6 +298,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         int propGetDataSize(const VSMap *map, const char *key, int index, int *error) nogil
         VSNodeRef *propGetNode(const VSMap *map, const char *key, int index, int *error) nogil
         const VSFrameRef *propGetFrame(const VSMap *map, const char *key, int index, int *error) nogil
+        VSFuncRef *propGetFunc(const VSMap *map, const char *key, int index, int *error) nogil
 
         bint propDeleteKey(VSMap *map, const char *key) nogil
         bint propSetInt(VSMap *map, const char *key, int64_t i, int append) nogil
@@ -277,47 +306,43 @@ cdef extern from "include/VapourSynth4.h" nogil:
         bint propSetData(VSMap *map, const char *key, const char *data, int size, int append) nogil
         bint propSetNode(VSMap *map, const char *key, VSNodeRef *node, int append) nogil
         bint propSetFrame(VSMap *map, const char *key, const VSFrameRef *f, int append) nogil
-
-        VSPlugin *getPluginById(const char *identifier, VSCore *core) nogil
-        VSPlugin *getPluginByNs(const char *ns, VSCore *core) nogil
-        VSMap *getPlugins(VSCore *core) nogil
-        VSMap *getFunctions(VSPlugin *plugin) nogil
-
-        const VSCoreInfo *getCoreInfo(VSCore *core) nogil
-        VSFuncRef *propGetFunc(const VSMap *map, const char *key, int index, int *error) nogil
         bint propSetFunc(VSMap *map, const char *key, VSFuncRef *func, int append) nogil
-        void callFunc(VSFuncRef *func, const VSMap *inm, VSMap *outm, VSCore *core, const VSAPI *vsapi) nogil
-        VSFuncRef *createFunc(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core, const VSAPI *vsapi) nogil
-        void freeFunc(VSFuncRef *f) nogil
 
         int64_t setMaxCacheSize(int64_t bytes, VSCore *core) nogil
-
-        void setMessageHandler(VSMessageHandler handler, void *userData) nogil
-
+        int getOutputIndex(VSFrameContext *frameCtx) nogil
+        VSFrameRef *newVideoFrame2(const VSVideoFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core) nogil
         int setThreadCount(int threads, VSCore *core) nogil
 
         const char *getPluginPath(const VSPlugin *plugin) nogil
 
         const int64_t *propGetIntArray(const VSMap *map, const char *key, int *error) nogil
         const double *propGetFloatArray(const VSMap *map, const char *key, int *error) nogil
+
         int propSetIntArray(VSMap *map, const char *key, const int64_t *i, int size) nogil
         int propSetFloatArray(VSMap *map, const char *key, const double *d, int size) nogil
         
         void logMessage(int msgType, const char *msg) nogil
-        
         int addMessageHandler(VSMessageHandler handler, VSMessageHandlerFree free, void *userData) nogil
         int removeMessageHandler(int id) nogil
-        void getCoreInfo2(VSCore *core, VSCoreInfo *info) nogil
+        void getCoreInfo(VSCore *core, VSCoreInfo *info) nogil
 
         int propSetEmpty(VSMap *map, const char *key, int type) nogil
-        void createAudioFilter(const VSMap *input, VSMap *out, const char *name, const VSAudioInfo *ai, int numOutputs, VSAudioFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
+        void createVideoFilter(const VSMap *input, VSMap *out, const char *name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
+        void createAudioFilter(const VSMap *input, VSMap *out, const char *name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) nogil
         VSFrameRef *newAudioFrame(const VSAudioFormat *format, int sampleRate, const VSFrameRef *propSrc, VSCore *core) nogil
         int queryAudioFormat(VSAudioFormat *format, int sampleType, int bitsPerSample, uint64_t channelLayout, VSCore *core) nogil
+        int queryVideoFormat(VSVideoFormat *format, int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) nogil
+        uint32_t queryVideoFormatID(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) nogil
+        int queryVideoFormatByID(VSVideoFormat *format, uint32_t id, VSCore *core) nogil
+        void getAudioFormatName(const VSAudioFormat *format, char *buffer) nogil
+        void getVideoFormatName(const VSVideoFormat *format, char *buffer) nogil
         const VSAudioInfo *getAudioInfo(VSNodeRef *node) nogil
         const VSAudioFormat *getAudioFrameFormat(const VSFrameRef *f) nogil
+     
         int getNodeType(VSNodeRef *node) nogil
-        uint32_t getNodeFlags(VSNodeRef *node) nogil
+        int getNodeFlags(VSNodeRef *node) nogil
         int getFrameType(const VSFrameRef *f) nogil
         int getFrameLength(const VSFrameRef *f) nogil
+        int getApiVersion() nogil
         
     const VSAPI *getVapourSynthAPI(int version) nogil
