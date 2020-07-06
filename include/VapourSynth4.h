@@ -131,7 +131,16 @@ typedef enum VSAudioChannels {
     vsacTopFrontRight       = 14,
     vsacTopBackLeft         = 15,
     vsacTopBackCenter       = 16,
-    vsacTopBackRight        = 17
+    vsacTopBackRight        = 17,
+
+
+    vsacStereoLeft          = 29,
+    vsacStereoRight         = 30,
+    vsacWideLeft            = 31,
+    vsacWideRight           = 32,
+    vsacSurroundDirectLeft  = 33,
+    vsacSurroundDirectRight = 34,
+    vsacLowFrequency2       = 35
 } VSAudioChannels;
 
 typedef struct VSAudioFormat {

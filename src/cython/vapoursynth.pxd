@@ -20,7 +20,7 @@
 
 from libc.stdint cimport uint8_t, uint32_t, int64_t, uint64_t, uintptr_t
 
-cdef extern from "include/VapourSynth.h" nogil:
+cdef extern from "include/VapourSynth4.h" nogil:
     enum:
         VAPOURSYNTH_API_MAJOR
         VAPOURSYNTH_API_MINOR
@@ -143,7 +143,14 @@ cdef extern from "include/VapourSynth.h" nogil:
         TOP_FRONT_RIGHT "vsacTopFrontRight"
         TOP_BACK_LEFT "vsacTopBackLeft"
         TOP_BACK_CENTER "vsacTopBackCenter"
-        TOP_BACK_RIGHT "vsacTopBackRight"
+        TOP_BACK_RIGHT "vsacTopBackRight"     
+        STEREO_LEFT "vsacStereoLeft"
+        STEREO_RIGHT "vsacStereoRight"
+        WIDE_LEFT "vsacWideLeft"   
+        WIDE_RIGHT "vsacWideRight"
+        SURROUND_DIRECT_LEFT "vsacSurroundDirectLeft"   
+        SURROUND_DIRECT_RIGHT "vsacSurroundDirectRight"
+        LOW_FREQUENCY2 "vsacLowFrequency2"
         
     ctypedef struct VSAudioFormat:
         int sampleType
