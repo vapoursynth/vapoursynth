@@ -68,16 +68,13 @@ cdef extern from "include/VapourSynth4.h" nogil:
         GRAYH "pfGrayH"
         GRAYS "pfGrayS"
 
-        YUV420P8 "pfYUV420P8"
-        YUV422P8 "pfYUV422P8"
-        YUV444P8 "pfYUV444P8"
         YUV410P8 "pfYUV410P8"
         YUV411P8 "pfYUV411P8"
         YUV440P8 "pfYUV440P8"
 
-        YUV420P9 "pfYUV420P9"
-        YUV422P9 "pfYUV422P9"
-        YUV444P9 "pfYUV444P9"
+        YUV420P8 "pfYUV420P8"
+        YUV422P8 "pfYUV422P8"
+        YUV444P8 "pfYUV444P8"
 
         YUV420P10 "pfYUV420P10"
         YUV422P10 "pfYUV422P10"
@@ -99,8 +96,9 @@ cdef extern from "include/VapourSynth4.h" nogil:
         YUV444PS "pfYUV444PS"
 
         RGB24 "pfRGB24"
-        RGB27 "pfRGB27"
         RGB30 "pfRGB30"
+        RGB36 "pfRGB36"
+        RGB42 "pfRGB42"
         RGB48 "pfRGB48"
 
         RGBH "pfRGBH"

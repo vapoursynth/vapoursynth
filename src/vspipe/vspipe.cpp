@@ -124,24 +124,31 @@ static std::string channelMaskToName(uint64_t v) {
         }
     };
 
-    checkConstant(vsacFrontLeft, "Front Left");
-    checkConstant(vsacFrontRight, "Front Right");
-    checkConstant(vsacFrontCenter, "Center");
-    checkConstant(vsacLowFrequency, "LFE");
-    checkConstant(vsacBackLeft, "Back Left");
-    checkConstant(vsacBackRight, "Back Right");
-    checkConstant(vsacFrontLeftOFCenter, "Front Left of Center");
-    checkConstant(vsacFrontRightOFCenter, "Front Right of Center");
-    checkConstant(vsacBackCenter, "Back Center");
-    checkConstant(vsacSideLeft, "Side Left");
-    checkConstant(vsacSideRight, "Side Right");
-    checkConstant(vsacTopCenter, "Top Center");
-    checkConstant(vsacTopFrontLeft, "Top Front Left");
-    checkConstant(vsacTopFrontCenter, "Top Front Center");
-    checkConstant(vsacTopFrontRight, "Top Front Right");
-    checkConstant(vsacTopBackLeft, "Top Back Left");
-    checkConstant(vsacTopBackCenter, "Top Back Center");
-    checkConstant(vsacTopBackRight, "Top Back Right");
+    checkConstant(acFrontLeft, "Front Left");
+    checkConstant(acFrontRight, "Front Right");
+    checkConstant(acFrontCenter, "Center");
+    checkConstant(acLowFrequency, "LFE");
+    checkConstant(acBackLeft, "Back Left");
+    checkConstant(acBackRight, "Back Right");
+    checkConstant(acFrontLeftOFCenter, "Front Left of Center");
+    checkConstant(acFrontRightOFCenter, "Front Right of Center");
+    checkConstant(acBackCenter, "Back Center");
+    checkConstant(acSideLeft, "Side Left");
+    checkConstant(acSideRight, "Side Right");
+    checkConstant(acTopCenter, "Top Center");
+    checkConstant(acTopFrontLeft, "Top Front Left");
+    checkConstant(acTopFrontCenter, "Top Front Center");
+    checkConstant(acTopFrontRight, "Top Front Right");
+    checkConstant(acTopBackLeft, "Top Back Left");
+    checkConstant(acTopBackCenter, "Top Back Center");
+    checkConstant(acTopBackRight, "Top Back Right");
+    checkConstant(acStereoLeft, "Stereo Left");
+    checkConstant(acStereoRight, "Stereo Right");
+    checkConstant(acWideLeft, "Wide Left");
+    checkConstant(acWideRight, "Wide Right");
+    checkConstant(acSurroundDirectLeft, "Surround Direct Left");
+    checkConstant(acSurroundDirectRight, "Surround Direct Right");
+    checkConstant(acLowFrequency2, "LFE2");
 
     return s;
 }
