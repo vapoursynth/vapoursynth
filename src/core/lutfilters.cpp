@@ -36,16 +36,15 @@
 
 namespace {
 
-typedef struct LutData {
-    VSNodeRef *node;
-    const VSVideoInfo *vi;
+typedef struct LutDataExtra {
     VSVideoInfo vi_out;
+    const VSVideoInfo *vi;
     void *lut;
     bool process[3];
-    void (VS_CC *freeNode)(VSNodeRef *);
-    LutData(const VSAPI *vsapi) : node(nullptr), vi(), lut(nullptr), process(), freeNode(vsapi->freeNode) {}
-    ~LutData() { free(lut); freeNode(node); };
-} LutData;
+    ~LutDataExtra() { free(lut); };
+} LutDataExtra;
+
+typedef SingleNodeData<LutDataExtra> LutData;
 
 } // namespace
 
@@ -91,12 +90,6 @@ static const VSFrameRef *VS_CC lutGetframe(int n, int activationReason, void *in
     }
 
     return nullptr;
-}
-
-static void VS_CC lutFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    LutData *d = reinterpret_cast<LutData *>(instanceData);
-    d->freeNode = vsapi->freeNode;
-    delete d;
 }
 
 template<typename T>
@@ -183,7 +176,7 @@ static void lutCreateHelper(const VSMap *in, VSMap *out, VSFuncRef *func, std::u
         }
     }
 
-    vsapi->createVideoFilter(out, "Lut", &d->vi_out, 1, lutGetframe<T, U>, lutFree, fmParallel, 0, d.get(), core);
+    vsapi->createVideoFilter(out, "Lut", &d->vi_out, 1, lutGetframe<T, U>, filterFree<LutData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
@@ -276,33 +269,33 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
 //////////////////////////////////////////
 // Lut2
 
-struct Lut2Data {
-    VSNodeRef *node[2];
-    const VSVideoInfo *vi[2];
+struct Lut2DataExtra {
     VSVideoInfo vi_out;
+    const VSVideoInfo *vi[2];
     void *lut;
     bool process[3];
-    void (VS_CC *freeNode)(VSNodeRef *);
-    Lut2Data(const VSAPI *vsapi) : node(), vi(), vi_out(), lut(nullptr), process(), freeNode(vsapi->freeNode) {}
-    ~Lut2Data() { free(lut); freeNode(node[0]); freeNode(node[1]); };
+    ~Lut2DataExtra() { free(lut); };
 };
+
+typedef DualNodeData<Lut2DataExtra> Lut2Data;
 
 template<typename T, typename U, typename V>
 static const VSFrameRef *VS_CC lut2Getframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     Lut2Data *d = reinterpret_cast<Lut2Data *>(instanceData);
 
     if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n, d->node[0], frameCtx);
-        vsapi->requestFrameFilter(n, d->node[1], frameCtx);
+        vsapi->requestFrameFilter(n, d->node1, frameCtx);
+        vsapi->requestFrameFilter(n, d->node2, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *srcx = vsapi->getFrameFilter(n, d->node[0], frameCtx);
-        const VSFrameRef *srcy = vsapi->getFrameFilter(n, d->node[1], frameCtx);
+        const VSFrameRef *srcx = vsapi->getFrameFilter(n, d->node1, frameCtx);
+        const VSFrameRef *srcy = vsapi->getFrameFilter(n, d->node2, frameCtx);
         const VSVideoFormat &fi = d->vi_out.format;
         const int pl[] = {0, 1, 2};
         const VSFrameRef *fr[] = {d->process[0] ? 0 : srcx, d->process[1] ? 0 : srcx, d->process[2] ? 0 : srcx};
         VSFrameRef *dst = vsapi->newVideoFrame2(&fi, vsapi->getFrameWidth(srcx, 0), vsapi->getFrameHeight(srcx, 0), fr, pl, srcx, core);
 
-        T maxvalx = static_cast<T>((static_cast<int64_t>(1) << vsapi->getVideoFrameFormat(srcx)->bitsPerSample) - 1);
+        int shift = vsapi->getVideoFrameFormat(srcx)->bitsPerSample;
+        T maxvalx = static_cast<T>((static_cast<int64_t>(1) << shift) - 1);
         U maxvaly = static_cast<U>((static_cast<int64_t>(1) << vsapi->getVideoFrameFormat(srcy)->bitsPerSample) - 1);
 
         for (int plane = 0; plane < fi.numPlanes; plane++) {
@@ -316,7 +309,6 @@ static const VSFrameRef *VS_CC lut2Getframe(int n, int activationReason, void *i
                 const V * VS_RESTRICT lut = reinterpret_cast<const V *>(d->lut);
                 ptrdiff_t dst_stride = vsapi->getStride(dst, plane);
                 int h = vsapi->getFrameHeight(srcx, plane);
-                int shift = d->vi[0]->format.bitsPerSample;
                 int w = vsapi->getFrameWidth(srcx, plane);
 
                 for (int hl = 0; hl < h; hl++) {
@@ -335,12 +327,6 @@ static const VSFrameRef *VS_CC lut2Getframe(int n, int activationReason, void *i
     }
 
     return nullptr;
-}
-
-static void VS_CC lut2Free(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    Lut2Data *d = reinterpret_cast<Lut2Data *>(instanceData);
-    d->freeNode = vsapi->freeNode;
-    delete d;
 }
 
 template<typename T>
@@ -434,7 +420,7 @@ static void lut2CreateHelper(const VSMap *in, VSMap *out, VSFuncRef *func, std::
         }
     }
 
-    vsapi->createVideoFilter(out, "Lut2", &d->vi_out, 1, lut2Getframe<T, U, V>, lut2Free, fmParallel, 0, d.get(), core);
+    vsapi->createVideoFilter(out, "Lut2", &d->vi_out, 1, lut2Getframe<T, U, V>, filterFree<Lut2Data>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
@@ -442,10 +428,10 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
     std::unique_ptr<Lut2Data> d(new Lut2Data(vsapi));
 
     try {
-        d->node[0] = vsapi->propGetNode(in, "clipa", 0, 0);
-        d->node[1] = vsapi->propGetNode(in, "clipb", 0, 0);
-        d->vi[0] = vsapi->getVideoInfo(d->node[0]);
-        d->vi[1] = vsapi->getVideoInfo(d->node[1]);
+        d->node1 = vsapi->propGetNode(in, "clipa", 0, 0);
+        d->node2 = vsapi->propGetNode(in, "clipb", 0, 0);
+        d->vi[0] = vsapi->getVideoInfo(d->node1);
+        d->vi[1] = vsapi->getVideoInfo(d->node2);
 
         if (!isConstantVideoFormat(d->vi[0]) || !isConstantVideoFormat(d->vi[1]))
             RETERROR("Lut2: only clips with constant format and dimensions supported");
