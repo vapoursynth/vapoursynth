@@ -2076,6 +2076,7 @@ typedef struct {
     std::vector<int64_t> ints;
     std::vector<double> floats;
     std::vector<std::string> strings;
+    std::vector<int> dataType;
 } SetFramePropDataExtra;
 
 typedef SingleNodeData<SetFramePropDataExtra> SetFramePropData;
@@ -2096,13 +2097,12 @@ static const VSFrameRef *VS_CC setFramePropGetFrame(int n, int activationReason,
             vsapi->propDeleteKey(props, d->prop.c_str());
         else {
             if (!d->ints.empty())
-                vsapi->propSetIntArray(props, d->prop.c_str(), d->ints.data(), d->ints.size());
+                vsapi->propSetIntArray(props, d->prop.c_str(), d->ints.data(), static_cast<int>(d->ints.size()));
             else if (!d->floats.empty())
-                vsapi->propSetFloatArray(props, d->prop.c_str(), d->floats.data(), d->floats.size());
+                vsapi->propSetFloatArray(props, d->prop.c_str(), d->floats.data(), static_cast<int>(d->floats.size()));
             else if (!d->strings.empty()) {
-                vsapi->propSetData(props, d->prop.c_str(), d->strings[0].c_str(), d->strings[0].length(), paReplace);
                 for (size_t i = 0; i < d->strings.size(); i++)
-                    vsapi->propSetData(props, d->prop.c_str(), d->strings[i].c_str(), d->strings[i].length(), i > 0 ? paAppend : paReplace);
+                    vsapi->propSetData(props, d->prop.c_str(), d->strings[i].c_str(), static_cast<int>(d->strings[i].length()), d->dataType[i], i > 0 ? paAppend : paReplace);
             }
         }
 
@@ -2152,8 +2152,11 @@ static void VS_CC setFramePropCreate(const VSMap *in, VSMap *out, void *userData
 
     if (num_strings > -1) {
         d->strings.resize(num_strings);
-        for (int i = 0; i < num_strings; i++)
+        d->dataType.resize(num_strings);
+        for (int i = 0; i < num_strings; i++) {
             d->strings[i] = std::string(vsapi->propGetData(in, "data", i, nullptr), vsapi->propGetDataSize(in, "data", i, nullptr));
+            d->dataType[i] = vsapi->propGetDataType(in, "data", i, nullptr);
+        }
     }
 
     vsapi->createVideoFilter(out, "SetFrameProp", vsapi->getVideoInfo(d->node), 1, setFramePropGetFrame, filterFree<SetFramePropData>, fmParallel, nfNoCache, d.get(), core);
@@ -2206,7 +2209,7 @@ static void VS_CC setMaxCpu(const VSMap *in, VSMap *out, void *userData, VSCore 
     int level = vs_cpulevel_from_str(str);
     level = vs_set_cpulevel(core, level);
     str = vs_cpulevel_to_str(level);
-    vsapi->propSetData(out, "cpu", str, -1, paReplace);
+    vsapi->propSetData(out, "cpu", str, -1, dtUtf8, paReplace);
 }
 
 //////////////////////////////////////////

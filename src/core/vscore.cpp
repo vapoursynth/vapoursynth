@@ -1890,7 +1890,7 @@ VSMap VSCore::getPlugins() {
     int num = 0;
     for (const auto &iter : plugins) {
         std::string b = iter.second->fnamespace + ";" + iter.second->id + ";" + iter.second->fullname;
-        vs_internal_vsapi.propSetData(&m, ("Plugin" + std::to_string(++num)).c_str(), b.c_str(), static_cast<int>(b.size()), paReplace);
+        vs_internal_vsapi.propSetData(&m, ("Plugin" + std::to_string(++num)).c_str(), b.c_str(), static_cast<int>(b.size()), dtUtf8, paReplace);
     }
     return m;
 }
@@ -2224,7 +2224,7 @@ VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
 void VSPlugin::getFunctions(VSMap *out) const {
     for (const auto & f : funcs) {
         std::string b = f.first + ";" + f.second.argString;
-        vs_internal_vsapi.propSetData(out, f.first.c_str(), b.c_str(), static_cast<int>(b.size()), paReplace);
+        vs_internal_vsapi.propSetData(out, f.first.c_str(), b.c_str(), static_cast<int>(b.size()), dtUtf8, paReplace);
     }
 }
 
@@ -2232,7 +2232,7 @@ void VSPlugin::getFunctions3(VSMap *out) const {
     for (const auto &f : funcs) {
         if (f.second.isV3Compatible()) {
             std::string b = f.first + ";" + f.second.getV3ArgString();
-            vs_internal_vsapi.propSetData(out, f.first.c_str(), b.c_str(), static_cast<int>(b.size()), paReplace);
+            vs_internal_vsapi.propSetData(out, f.first.c_str(), b.c_str(), static_cast<int>(b.size()), dtUtf8, paReplace);
         }
     }
 }

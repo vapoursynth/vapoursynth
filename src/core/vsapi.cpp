@@ -403,6 +403,10 @@ static int VS_CC propGetDataSize(const VSMap *map, const char *key, int index, i
     PROP_GET_SHARED(ptData, static_cast<int>(l->getValue<PVSMapData>(index)->data.size()))
 }
 
+static int VS_CC propGetDataType(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
+    return dtUnknown;
+}
+
 static VSNodeRef *VS_CC propGetNode(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
     PROP_GET_SHARED2(ptVideoNode, ptAudioNode, (l->getValue<PVSNodeRef>(index)->add_ref(), l->getValue<PVSNodeRef>(index).get()))
 }
@@ -468,8 +472,12 @@ static int VS_CC propSetFloat(VSMap *map, const char *key, double d, int append)
     PROP_SET_SHARED(ptFloat, d)
 }
 
-static int VS_CC propSetData(VSMap *map, const char *key, const char *d, int length, int append) VS_NOEXCEPT {
+static int VS_CC propSetData(VSMap *map, const char *key, const char *d, int length, int type, int append) VS_NOEXCEPT {
     PROP_SET_SHARED(ptData, length >= 0 ? std::string(d, length) : std::string(d))
+}
+
+static int VS_CC propSetData3(VSMap *map, const char *key, const char *d, int length, int append) VS_NOEXCEPT {
+    return propSetData(map, key, d, length, dtUnknown, append);
 }
 
 static int VS_CC propSetNode(VSMap *map, const char *key, VSNodeRef *node, int append) VS_NOEXCEPT {
@@ -829,6 +837,7 @@ const VSAPI vs_internal_vsapi = {
     &propGetFloat,
     &propGetData,
     &propGetDataSize,
+    &propGetDataType,
     &propGetNode,
     &propGetFrame,
     &propGetFunc,
@@ -945,7 +954,7 @@ const vs3::VSAPI3 vs_internal_vsapi3 = {
     &propDeleteKey,
     &propSetInt,
     &propSetFloat,
-    &propSetData,
+    &propSetData3,
     &propSetNode,
     &propSetFrame,
     &propSetFunc,

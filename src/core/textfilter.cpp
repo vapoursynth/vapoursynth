@@ -309,8 +309,11 @@ static void append_prop(std::string &text, const std::string &key, const VSMap *
         for (idx = 0; idx < numElements; idx++) {
             const char *value = vsapi->propGetData(map, key.c_str(), idx, nullptr);
             int size = vsapi->propGetDataSize(map, key.c_str(), idx, nullptr);
+            int type = vsapi->propGetDataType(map, key.c_str(), idx, nullptr);
             text += " ";
-            if (size > 100) {
+            if (type == dtBinary) {
+                text += "<binary data " + std::to_string(size) + " bytes>";
+            } else if (size > 100) {
                 text += "<property too long>";
             } else {
                 text += value;

@@ -276,6 +276,12 @@ typedef enum VSCoreFlags {
     cfDisableAutoLoading = 1
 } VSCoreFlags;
 
+typedef enum VSDataType {
+    dtUnknown = 0,
+    dtBinary = 1,
+    dtUtf8 = 2
+} VSDataType;
+
 /* core entry point */
 typedef const VSAPI *(VS_CC *VSGetVapourSynthAPI)(int version);
 
@@ -354,6 +360,7 @@ struct VSAPI {
     double(VS_CC *propGetFloat)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
     const char *(VS_CC *propGetData)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
     int (VS_CC *propGetDataSize)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
+    int (VS_CC *propGetDataType)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
     VSNodeRef *(VS_CC *propGetNode)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
     const VSFrameRef *(VS_CC *propGetFrame)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
     VSFuncRef *(VS_CC *propGetFunc)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
@@ -361,7 +368,7 @@ struct VSAPI {
     int (VS_CC *propDeleteKey)(VSMap *map, const char *key) VS_NOEXCEPT;
     int (VS_CC *propSetInt)(VSMap *map, const char *key, int64_t i, int append) VS_NOEXCEPT;
     int (VS_CC *propSetFloat)(VSMap *map, const char *key, double d, int append) VS_NOEXCEPT;
-    int (VS_CC *propSetData)(VSMap *map, const char *key, const char *data, int size, int append) VS_NOEXCEPT;
+    int (VS_CC *propSetData)(VSMap *map, const char *key, const char *data, int size, int type, int append) VS_NOEXCEPT;
     int (VS_CC *propSetNode)(VSMap *map, const char *key, VSNodeRef *node, int append) VS_NOEXCEPT;
     int (VS_CC *propSetFrame)(VSMap *map, const char *key, const VSFrameRef *f, int append) VS_NOEXCEPT;
     int (VS_CC *propSetFunc)(VSMap *map, const char *key, VSFuncRef *func, int append) VS_NOEXCEPT;

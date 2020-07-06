@@ -630,7 +630,7 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
     } else if (ret.IsFloat()) {
         vsapi->propSetFloat(out, "val", ret.AsFloat(), paReplace);
     } else if (ret.IsString()) {
-        vsapi->propSetData(out, "val", ret.AsString(), -1, paReplace);
+        vsapi->propSetData(out, "val", ret.AsString(), -1, dtUtf8, paReplace);
     }
 }
 

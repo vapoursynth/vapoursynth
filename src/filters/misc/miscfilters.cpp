@@ -111,7 +111,7 @@ static void VS_CC scDetectCreate(const VSMap *in, VSMap *out, void *userData, VS
         vsapi->clearMap(invmap);
         vsapi->propSetNode(invmap, "clipa", d->node, paAppend);
         vsapi->propSetNode(invmap, "clipb", tempnode, paAppend);
-        vsapi->propSetData(invmap, "prop", "SCPlaneStats", -1, paAppend);
+        vsapi->propSetData(invmap, "prop", "SCPlaneStats", -1, dtUtf8, paAppend);
         vsapi->propSetInt(invmap, "plane", 0, paAppend);
         vsapi->freeNode(tempnode);
         invmap2 = vsapi->invoke(vsapi->getPluginById("com.vapoursynth.std", core), "PlaneStats", invmap);

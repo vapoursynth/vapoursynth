@@ -218,6 +218,11 @@ cdef extern from "include/VapourSynth4.h" nogil:
     enum VSCoreFlags:
         cfDisableAutoLoading
 
+    enum VSDataType:
+        dtUnknown
+        dtBinary
+        dtUtf8
+
 
     ctypedef const VSAPI *(__stdcall *VSGetVapourSynthAPI)(int version)
 
@@ -294,6 +299,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         double propGetFloat(const VSMap *map, const char *key, int index, int *error) nogil
         const char *propGetData(const VSMap *map, const char *key, int index, int *error) nogil
         int propGetDataSize(const VSMap *map, const char *key, int index, int *error) nogil
+        int propGetDataType(const VSMap *map, const char *key, int index, int *error) nogil
         VSNodeRef *propGetNode(const VSMap *map, const char *key, int index, int *error) nogil
         const VSFrameRef *propGetFrame(const VSMap *map, const char *key, int index, int *error) nogil
         VSFuncRef *propGetFunc(const VSMap *map, const char *key, int index, int *error) nogil
@@ -301,7 +307,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         bint propDeleteKey(VSMap *map, const char *key) nogil
         bint propSetInt(VSMap *map, const char *key, int64_t i, int append) nogil
         bint propSetFloat(VSMap *map, const char *key, double d, int append) nogil
-        bint propSetData(VSMap *map, const char *key, const char *data, int size, int append) nogil
+        bint propSetData(VSMap *map, const char *key, const char *data, int size, int type, int append) nogil
         bint propSetNode(VSMap *map, const char *key, VSNodeRef *node, int append) nogil
         bint propSetFrame(VSMap *map, const char *key, const VSFrameRef *f, int append) nogil
         bint propSetFunc(VSMap *map, const char *key, VSFuncRef *func, int append) nogil
