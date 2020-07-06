@@ -715,24 +715,24 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 void VS_CC textInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     configFunc("com.vapoursynth.text", "text", "VapourSynth Text", VAPOURSYNTH_API_VERSION, 1, plugin);
     registerFunc("Text",
-        "clip:clip;"
+        "clip:vnode;"
         "text:data;"
         "alignment:int:opt;",
         textCreate, reinterpret_cast<void *>(FILTER_TEXT), plugin);
     registerFunc("ClipInfo",
-        "clip:clip;"
+        "clip:vnode;"
         "alignment:int:opt;",
         textCreate, reinterpret_cast<void *>(FILTER_CLIPINFO), plugin);
     registerFunc("CoreInfo",
-        "clip:clip:opt;"
+        "clip:vnode:opt;"
         "alignment:int:opt;",
         textCreate, reinterpret_cast<void *>(FILTER_COREINFO), plugin);
     registerFunc("FrameNum",
-        "clip:clip;"
+        "clip:vnode;"
         "alignment:int:opt;",
         textCreate, reinterpret_cast<void *>(FILTER_FRAMENUM), plugin);
     registerFunc("FrameProps",
-        "clip:clip;"
+        "clip:vnode;"
         "props:data[]:opt;"
         "alignment:int:opt;",
         textCreate, reinterpret_cast<void *>(FILTER_FRAMEPROPS), plugin);

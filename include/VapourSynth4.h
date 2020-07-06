@@ -167,7 +167,6 @@ typedef struct VSVideoFormat {
     int numPlanes; /* implicit from colorFamily */
 } VSVideoFormat;
 
-// FIXME, add remaining channel constants
 typedef enum VSAudioChannels {
     acFrontLeft           = 0,
     acFrontRight          = 1,

@@ -157,7 +157,6 @@ typedef struct {
 
 typedef VariableNodeData<AudioSpliceDataExtra> AudioSpliceData;
 
-// FIXME, cache start node and sample in framedata when possible
 static const VSFrameRef *VS_CC audioSpliceGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     AudioSpliceData *d = reinterpret_cast<AudioSpliceData *>(instanceData);
 
@@ -499,7 +498,6 @@ struct AudioMixDataNode {
     std::vector<double> weights;
 };
 
-// FIXME, doesn't fit the pattern without restructuring
 struct AudioMixData {
     std::vector<VSNodeRef *> reqNodes; // a list of all distinct nodes in sourceNodes to reduce function calls
     std::vector<AudioMixDataNode> sourceNodes;
@@ -602,17 +600,15 @@ static void VS_CC audioMixCreate(const VSMap *in, VSMap *out, void *userData, VS
     }
 
     if (numSrcNodes > numSrcChannels) {
-        vsapi->setError(out, "AudioMix: cannot have more input nodes than selected input channels");
         for (const auto iter : d->sourceNodes)
             vsapi->freeNode(iter.node);
-        return;
+        RETERROR("AudioMix: cannot have more input nodes than selected input channels");
     }
 
     if (numDstChannels * numSrcChannels != numMatrixWeights) {
-        vsapi->setError(out, "AudioMix: the number of matrix weights must equal (input channels * output channels)");
         for (const auto iter : d->sourceNodes)
             vsapi->freeNode(iter.node);
-        return;
+        RETERROR("AudioMix: the number of matrix weights must equal (input channels * output channels)");
     }
 
     const char *err = nullptr;
@@ -661,7 +657,6 @@ static void VS_CC audioMixCreate(const VSMap *in, VSMap *out, void *userData, VS
 //////////////////////////////////////////
 // ShuffleChannels
 
-// FIXME, doesn't fit the pattern without restructuring
 struct ShuffleChannelsDataNode {
     VSNodeRef *node;
     int idx;

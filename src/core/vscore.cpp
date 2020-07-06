@@ -772,7 +772,7 @@ Container& split(
     return result;
 }
 
-VSFunction::VSFunction(const std::string &argString, VSPublicFunction func, void *functionData)
+VSFunction::VSFunction(const std::string &argString, VSPublicFunction func, void *functionData, int apiMajor)
     : argString(argString), functionData(functionData), func(func) {
     std::vector<std::string> argList;
     split(argList, argString, std::string(";"), split1::no_empties);
@@ -801,11 +801,11 @@ VSFunction::VSFunction(const std::string &argString, VSPublicFunction func, void
             type = ptFloat;
         } else if (typeName == "data") {
             type = ptData;
-        } else if (typeName == "vnode" || typeName == "clip") { // fixme, stricter compat checks needed
+        } else if (typeName == "vnode" || (apiMajor == VAPOURSYNTH3_API_MAJOR && typeName == "clip")) {
             type = ptVideoNode;
         } else if (typeName == "anode") {
             type = ptAudioNode;
-        } else if (typeName == "vframe" || typeName == "frame") { // fixme, stricter compat checks needed
+        } else if (typeName == "vframe" || (apiMajor == VAPOURSYNTH3_API_MAJOR && typeName == "frame")) {
             type = ptVideoFrame;
         } else if (typeName == "aframe") {
             type = ptAudioFrame;
@@ -2125,7 +2125,7 @@ void VSPlugin::registerFunction(const std::string &name, const std::string &args
         return;
     }
 
-    funcs.insert(std::make_pair(name, VSFunction(args, argsFunc, functionData)));
+    funcs.insert(std::make_pair(name, VSFunction(args, argsFunc, functionData, apiMajor)));
 }
 
 static bool hasCompatNodes(const VSMap &m) {

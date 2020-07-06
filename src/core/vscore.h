@@ -684,7 +684,7 @@ public:
     std::string getV3ArgString() const;
     void *functionData;
     VSPublicFunction func;
-    VSFunction(const std::string &argString, VSPublicFunction func, void *functionData);
+    VSFunction(const std::string &argString, VSPublicFunction func, void *functionData, int apiMajor);
     VSFunction() : functionData(nullptr), func(nullptr) {}
 };
 

@@ -37,7 +37,6 @@ enum MismatchCauses {
     DifferentLengths
 };
 
-// FIXME, is this function something that should be shared? also add a helper fucntion for error text output to reduce duplication
 static int findCommonVi(VSNodeRef **nodes, int num, VSVideoInfo *outvi, int ignorelength, const VSAPI *vsapi) {
     int mismatch = 0;
     const VSVideoInfo *vi;
@@ -422,12 +421,6 @@ typedef struct {
 
 typedef VariableNodeData<SpliceDataExtra> SpliceData;
 
-// FIXME, use api scratch space
-typedef struct {
-    int f;
-    int idx;
-} SpliceCtx;
-
 static const VSFrameRef *VS_CC spliceGetframe(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     SpliceData *d = reinterpret_cast<SpliceData *>(instanceData);
 
@@ -435,7 +428,6 @@ static const VSFrameRef *VS_CC spliceGetframe(int n, int activationReason, void 
         int frame = 0;
         int idx = 0;
         int cumframe = 0;
-        SpliceCtx *s = new SpliceCtx;
 
         for (int i = 0; i < d->numclips; i++) {
             if ((n >= cumframe && n < cumframe + d->numframes[i]) || i == d->numclips - 1) {
@@ -447,14 +439,11 @@ static const VSFrameRef *VS_CC spliceGetframe(int n, int activationReason, void 
             cumframe += d->numframes[i];
         }
 
-        *frameData = s;
-        s->f = frame;
-        s->idx = idx;
+        frameData[0] = d->node[idx];
+        frameData[1] = reinterpret_cast<void *>(frame);
         vsapi->requestFrameFilter(frame, d->node[idx], frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        SpliceCtx *s = reinterpret_cast<SpliceCtx *>(*frameData);
-        const VSFrameRef *f = vsapi->getFrameFilter(s->f, d->node[s->idx], frameCtx);
-        delete s;
+        const VSFrameRef *f = vsapi->getFrameFilter(reinterpret_cast<intptr_t>(frameData[1]), reinterpret_cast<VSNodeRef *>(frameData[0]), frameCtx);
         return f;
     }
 
@@ -712,13 +701,13 @@ static void VS_CC freezeFramesCreate(const VSMap *in, VSMap *out, void *userData
 
 void VS_CC reorderInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     //configFunc("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("Trim", "clip:clip;first:int:opt;last:int:opt;length:int:opt;", trimCreate, 0, plugin);
-    registerFunc("Reverse", "clip:clip;", reverseCreate, 0, plugin);
-    registerFunc("Loop", "clip:clip;times:int:opt;", loopCreate, 0, plugin);
-    registerFunc("Interleave", "clips:clip[];extend:int:opt;mismatch:int:opt;modify_duration:int:opt;", interleaveCreate, 0, plugin);
-    registerFunc("SelectEvery", "clip:clip;cycle:int;offsets:int[];modify_duration:int:opt;", selectEveryCreate, 0, plugin);
-    registerFunc("Splice", "clips:clip[];mismatch:int:opt;", spliceCreate, 0, plugin);
-    registerFunc("DuplicateFrames", "clip:clip;frames:int[];", duplicateFramesCreate, 0, plugin);
-    registerFunc("DeleteFrames", "clip:clip;frames:int[];", deleteFramesCreate, 0, plugin);
-    registerFunc("FreezeFrames", "clip:clip;first:int[];last:int[];replacement:int[];", freezeFramesCreate, 0, plugin);
+    registerFunc("Trim", "clip:vnode;first:int:opt;last:int:opt;length:int:opt;", trimCreate, 0, plugin);
+    registerFunc("Reverse", "clip:vnode;", reverseCreate, 0, plugin);
+    registerFunc("Loop", "clip:vnode;times:int:opt;", loopCreate, 0, plugin);
+    registerFunc("Interleave", "clips:vnode[];extend:int:opt;mismatch:int:opt;modify_duration:int:opt;", interleaveCreate, 0, plugin);
+    registerFunc("SelectEvery", "clip:vnode;cycle:int;offsets:int[];modify_duration:int:opt;", selectEveryCreate, 0, plugin);
+    registerFunc("Splice", "clips:vnode[];mismatch:int:opt;", spliceCreate, 0, plugin);
+    registerFunc("DuplicateFrames", "clip:vnode;frames:int[];", duplicateFramesCreate, 0, plugin);
+    registerFunc("DeleteFrames", "clip:vnode;frames:int[];", deleteFramesCreate, 0, plugin);
+    registerFunc("FreezeFrames", "clip:vnode;first:int[];last:int[];replacement:int[];", freezeFramesCreate, 0, plugin);
 }

@@ -552,6 +552,6 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
 
 void VS_CC lutInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     //configFunc("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("Lut", "clip:clip;planes:int[]:opt;lut:int[]:opt;lutf:float[]:opt;function:func:opt;bits:int:opt;floatout:int:opt;", lutCreate, 0, plugin);
-    registerFunc("Lut2", "clipa:clip;clipb:clip;planes:int[]:opt;lut:int[]:opt;lutf:float[]:opt;function:func:opt;bits:int:opt;floatout:int:opt;", lut2Create, 0, plugin);
+    registerFunc("Lut", "clip:vnode;planes:int[]:opt;lut:int[]:opt;lutf:float[]:opt;function:func:opt;bits:int:opt;floatout:int:opt;", lutCreate, 0, plugin);
+    registerFunc("Lut2", "clipa:vnode;clipb:vnode;planes:int[]:opt;lut:int[]:opt;lutf:float[]:opt;function:func:opt;bits:int:opt;floatout:int:opt;", lut2Create, 0, plugin);
 }

@@ -983,7 +983,7 @@ void VS_CC resizeInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
 #define DATA_OPT(x) #x ":data:opt;"
 #define ENUM_OPT(x) INT_OPT(x) DATA_OPT(x ## _s)
     static const char FORMAT_DEFINITION[] =
-        "clip:clip;"
+        "clip:vnode;"
         INT_OPT(width)
         INT_OPT(height)
         INT_OPT(format)

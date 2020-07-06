@@ -946,38 +946,38 @@ void VS_CC genericInitialize(VSConfigPlugin configFunc, VSRegisterFunction regis
     //configFunc("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 1, plugin);
 
     registerFunc("Minimum",
-            "clip:clip;"
+            "clip:vnode;"
             "planes:int[]:opt;"
             "threshold:float:opt;"
             "coordinates:int[]:opt;"
             , genericCreate<GenericMinimum>, const_cast<char *>("Minimum"), plugin);
 
     registerFunc("Maximum",
-            "clip:clip;"
+            "clip:vnode;"
             "planes:int[]:opt;"
             "threshold:float:opt;"
             "coordinates:int[]:opt;"
             , genericCreate<GenericMaximum>, const_cast<char *>("Maximum"), plugin);
 
     registerFunc("Median",
-            "clip:clip;"
+            "clip:vnode;"
             "planes:int[]:opt;"
             , genericCreate<GenericMedian>, const_cast<char *>("Median"), plugin);
 
     registerFunc("Deflate",
-            "clip:clip;"
+            "clip:vnode;"
             "planes:int[]:opt;"
             "threshold:float:opt;"
             , genericCreate<GenericDeflate>, const_cast<char *>("Deflate"), plugin);
 
     registerFunc("Inflate",
-            "clip:clip;"
+            "clip:vnode;"
             "planes:int[]:opt;"
             "threshold:float:opt;"
             , genericCreate<GenericInflate>, const_cast<char *>("Inflate"), plugin);
 
     registerFunc("Convolution",
-            "clip:clip;"
+            "clip:vnode;"
             "matrix:float[];"
             "bias:float:opt;"
             "divisor:float:opt;"
@@ -987,31 +987,31 @@ void VS_CC genericInitialize(VSConfigPlugin configFunc, VSRegisterFunction regis
             , genericCreate<GenericConvolution>, const_cast<char *>("Convolution"), plugin);
 
     registerFunc("Prewitt",
-            "clip:clip;"
+            "clip:vnode;"
             "planes:int[]:opt;"
             "scale:float:opt;"
             , genericCreate<GenericPrewitt>, const_cast<char *>("Prewitt"), plugin);
 
     registerFunc("Sobel",
-            "clip:clip;"
+            "clip:vnode;"
             "planes:int[]:opt;"
             "scale:float:opt;"
             , genericCreate<GenericSobel>, const_cast<char *>("Sobel"), plugin);
 
     registerFunc("Invert",
-        "clip:clip;"
+        "clip:vnode;"
         "planes:int[]:opt;"
         , invertCreate, nullptr, plugin);
 
     registerFunc("Limiter",
-        "clip:clip;"
+        "clip:vnode;"
         "min:float[]:opt;"
         "max:float[]:opt;"
         "planes:int[]:opt;"
         , limitCreate, nullptr, plugin);
 
     registerFunc("Binarize",
-        "clip:clip;"
+        "clip:vnode;"
         "threshold:float[]:opt;"
         "v0:float[]:opt;"
         "v1:float[]:opt;"
@@ -1019,7 +1019,7 @@ void VS_CC genericInitialize(VSConfigPlugin configFunc, VSRegisterFunction regis
         , binarizeCreate, nullptr, plugin);
 
     registerFunc("Levels",
-        "clip:clip;"
+        "clip:vnode;"
         "min_in:float[]:opt;"
         "max_in:float[]:opt;"
         "gamma:float[]:opt;"
