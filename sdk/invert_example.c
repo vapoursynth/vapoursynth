@@ -22,8 +22,8 @@ typedef struct {
 // upstream filters.
 // Once all frames are ready, the filter will be called with arAllFramesReady. It is now time to
 // do the actual processing.
-static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    InvertData *d = (InvertData *) * instanceData;
+static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    InvertData *d = (InvertData *)instanceData;
 
     if (activationReason == arInitial) {
         // Request the source frame on the first call
@@ -74,7 +74,7 @@ static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void 
         return dst;
     }
 
-    return 0;
+    return NULL;
 }
 
 // Free all allocated data on filter destruction
@@ -121,7 +121,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 
     // I usually keep the filter data struct on the stack and don't allocate it
     // until all the input validation is done.
-    data = malloc(sizeof(d));
+    data = (InvertData *)malloc(sizeof(d));
     *data = d;
 
     // Creates a new filter and returns a reference to it. Always pass on the in and out

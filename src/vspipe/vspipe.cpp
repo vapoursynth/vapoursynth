@@ -791,7 +791,7 @@ int main(int argc, char **argv) {
     {
         VSMap *foldedArgs = vsapi->createMap();
         for (const auto &iter : scriptArgs)
-            vsapi->propSetData(foldedArgs, iter.first.c_str(), iter.second.c_str(), static_cast<int>(iter.second.size()), paAppend);
+            vsapi->propSetData(foldedArgs, iter.first.c_str(), iter.second.c_str(), static_cast<int>(iter.second.size()), dtUtf8, paAppend);
         vssapi->setVariable(se, foldedArgs);
         vsapi->freeMap(foldedArgs);
     }

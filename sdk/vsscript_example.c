@@ -17,6 +17,7 @@
 
 int main(int argc, char **argv) {
     const VSAPI *vsapi = NULL;
+    const VSSCRIPTAPI *vssapi = NULL;
     VSScript *se = NULL;
     FILE *outFile = NULL;
 
@@ -33,43 +34,42 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    // Initialize VSScript, vsscript_finalize() needs to be called the same number of times as vsscript_init()
-    if (!vsscript_init()) {
+
+    // Initialize VSScript and get the api pointer
+    vssapi = getVSScriptAPI(VSSCRIPT_API_VERSION);
+    if (!vssapi) {
         // VapourSynth probably isn't properly installed at all
-        fprintf(stderr, "Failed to initialize VapourSynth environment\n");
+        fprintf(stderr, "Failed to initialize VSScript library\n");
         return 1;
     }
 
     // Get a pointer to the normal api struct, exists so you don't have to link with the VapourSynth core library
-    // Failure only happens on very rare API version mismatches
-    vsapi = vsscript_getVSApi2(VAPOURSYNTH_API_VERSION);
+    // Failure only happens on very rare API version mismatches and usually doesn't need to be checked
+    vsapi = vssapi->getVSApi(VAPOURSYNTH_API_VERSION);
     assert(vsapi);
 
     // This line does the actual script evaluation. If se = NULL it will create a new environment
-    if (vsscript_evaluateFile(&se, argv[1], 0)) {
-        fprintf(stderr, "Script evaluation failed:\n%s", vsscript_getError(se));
-        vsscript_freeScript(se);
-        vsscript_finalize();
+    if (vssapi->evaluateFile(&se, argv[1], 0)) {
+        fprintf(stderr, "Script evaluation failed:\n%s", vssapi->getError(se));
+        vssapi->freeScript(se);
         return 1;
     }
 
     // Get the clip set as output. It is valid until the out index is re-set/cleared/the script is freed
-    VSNodeRef *node = vsscript_getOutput(se, 0);
+    VSNodeRef *node = vssapi->getOutput(se, 0, nullptr);
     if (!node) {
        fprintf(stderr, "Failed to retrieve output node\n");
-       vsscript_freeScript(se);
-       vsscript_finalize();
+       vssapi->freeScript(se);
        return 1;
     }
 
     // Reject hard to handle formats
     const VSVideoInfo *vi = vsapi->getVideoInfo(node);
 
-    if (!isConstantVideoFormat(vi) || !vi->numFrames) {
-        fprintf(stderr, "Cannot output clips with varying dimensions or unknown length\n");
+    if (!isConstantVideoFormat(vi)) {
+        fprintf(stderr, "Cannot output clips with varying dimensions or format\n");
         vsapi->freeNode(node);
-        vsscript_freeScript(se);
-        vsscript_finalize();
+        vssapi->freeScript(se);
         return 1;
     }
 
@@ -105,8 +105,7 @@ int main(int argc, char **argv) {
     fclose(outFile);
 
     vsapi->freeNode(node);
-    vsscript_freeScript(se);
-    vsscript_finalize();
+    vssapi->freeScript(se);
 
     if (error) {
         fprintf(stderr, "%s", errMsg);

@@ -12,13 +12,9 @@ typedef struct {
     const VSVideoInfo *vi;
 } FilterData;
 
-static void VS_CC filterInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    FilterData *d = (FilterData *) * instanceData;
-    vsapi->setVideoInfo(d->vi, 1, node);
-}
 
-static const VSFrameRef *VS_CC filterGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    FilterData *d = (FilterData *) * instanceData;
+static const VSFrameRef *VS_CC filterGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    FilterData *d = (FilterData *)instanceData;
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
@@ -30,7 +26,7 @@ static const VSFrameRef *VS_CC filterGetFrame(int n, int activationReason, void 
         return frame;
     }
 
-    return 0;
+    return NULL;
 }
 
 static void VS_CC filterFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
@@ -46,10 +42,10 @@ static void VS_CC filterCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node);
 
-    data = malloc(sizeof(d));
+    data = (FilterData *)malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "Filter", filterInit, filterGetFrame, filterFree, fmParallel, 0, data, core);
+    vsapi->createVideoFilter(out, "Filter", data->vi, 1, filterGetFrame, filterFree, fmParallel, 0, data, core);
 }
 
 //////////////////////////////////////////
