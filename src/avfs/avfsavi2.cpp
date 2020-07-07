@@ -634,7 +634,7 @@ bool/*success*/ AvfsAvi2File::Init(
   if (vi.HasAudio())
       sampleType = vi.AudioIsFloat() ? 2 : 1;
 
-  size_t bytesPerOutputSample = (vi.BitsPerChannelSample() + 7) / 8;
+  int bytesPerOutputSample = (vi.BitsPerChannelSample() + 7) / 8;
   sampleSize = bytesPerOutputSample * vi.AudioChannels();
   fileSampleCount = unsigned(vi.num_audio_samples); // FIXME, how does avi handle more than 2^32-1 samples? there should probably be some erroring out in this case
 

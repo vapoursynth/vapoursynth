@@ -217,6 +217,8 @@ static void VS_CC createFilter3(const VSMap *in, VSMap *out, const char *name, v
         case vs3::fmSerial:
             fm = fmSerial;
             break;
+        default:
+            vsFatal("Invalid filter mode");
     }
     core->createFilter(in, out, name, init, reinterpret_cast<VSFilterGetFrame>(getFrame), free, fm, flags, instanceData, VAPOURSYNTH3_API_MAJOR);
 }
