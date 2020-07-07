@@ -496,9 +496,9 @@ static const VSFrameRef *VS_CC averageFramesGetFrame(int n, int activationReason
 
         if (d->useSceneChange) {
             int fromFrame = 0;
-            int toFrame = weights.size();
+            int toFrame = static_cast<int>(weights.size());
 
-            for (int i = weights.size() / 2; i > 0; i--) {
+            for (int i = static_cast<int>(weights.size()) / 2; i > 0; i--) {
                 const VSMap *props = vsapi->getFramePropsRO(frames[i]);
                 int err;
                 if (vsapi->propGetInt(props, "_SceneChangePrev", 0, &err)) {
@@ -507,7 +507,7 @@ static const VSFrameRef *VS_CC averageFramesGetFrame(int n, int activationReason
                 }
             }
 
-            for (int i = weights.size() / 2; i < static_cast<int>(weights.size()) - 1; i++) {
+            for (int i = static_cast<int>(weights.size()) / 2; i < static_cast<int>(weights.size()) - 1; i++) {
                 const VSMap *props = vsapi->getFramePropsRO(frames[i]);
                 int err;
                 if (vsapi->propGetInt(props, "_SceneChangeNext", 0, &err)) {
@@ -625,7 +625,7 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
                 throw std::runtime_error("coefficients may only be between -1023 and 1023");
         }
 
-        float scale = vsapi->propGetFloat(in, "scale", 0, &err);
+        float scale = static_cast<float>(vsapi->propGetFloat(in, "scale", 0, &err));
         if (err) {
             float scalef = 0;
             int scalei = 0;
@@ -688,7 +688,7 @@ static void process_frame_hysteresis(const VSFrameRef * src1, const VSFrameRef *
                 label = new uint8_t[d->labelSize]();
             const int width = vsapi->getFrameWidth(src1, plane);
             const int height = vsapi->getFrameHeight(src1, plane);
-            const int stride = vsapi->getStride(src1, plane) / sizeof(T);
+            const ptrdiff_t stride = vsapi->getStride(src1, plane) / sizeof(T);
             const T * srcp1 = reinterpret_cast<const T *>(vsapi->getReadPtr(src1, plane));
             const T * srcp2 = reinterpret_cast<const T *>(vsapi->getReadPtr(src2, plane));
             T * VS_RESTRICT dstp = reinterpret_cast<T *>(vsapi->getWritePtr(dst, plane));

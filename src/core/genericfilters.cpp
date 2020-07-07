@@ -469,7 +469,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
 
         if (op == GenericPrewitt || op == GenericSobel) {
-            d->scale = vsapi->propGetFloat(in, "scale", 0, &err);
+            d->scale = static_cast<float>(vsapi->propGetFloat(in, "scale", 0, &err));
             if (err)
                 d->scale = 1.0f;
 
@@ -895,7 +895,7 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     int err;
     float maxvalf = 1.0f;
     if (d->vi->format.sampleType == stInteger)
-        maxvalf = (1 << d->vi->format.bitsPerSample) - 1;
+        maxvalf = static_cast<float>((1 << d->vi->format.bitsPerSample) - 1);
 
     d->min_in = static_cast<float>(vsapi->propGetFloat(in, "min_in", 0, &err));
     d->min_out = static_cast<float>(vsapi->propGetFloat(in, "min_out", 0, &err));

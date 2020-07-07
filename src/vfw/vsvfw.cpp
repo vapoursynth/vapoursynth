@@ -896,10 +896,10 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
 
         size_t bytesPerOutputSample = (ai->format.bitsPerSample + 7) / 8;
 
-        LONG bytes = lSamples * bytesPerOutputSample * ai->format.numChannels;
+        LONG bytes = static_cast<LONG>(lSamples * bytesPerOutputSample * ai->format.numChannels);
         if (lpBuffer && bytes > cbBuffer) {
-            lSamples = static_cast<long>(cbBuffer / (bytesPerOutputSample * ai->format.numChannels));
-            bytes = lSamples * bytesPerOutputSample * ai->format.numChannels;
+            lSamples = static_cast<LONG>(cbBuffer / (bytesPerOutputSample * ai->format.numChannels));
+            bytes = static_cast<LONG>(lSamples * bytesPerOutputSample * ai->format.numChannels);
         }
         if (plBytes)
             *plBytes = bytes;
