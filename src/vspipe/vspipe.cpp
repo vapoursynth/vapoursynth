@@ -518,7 +518,6 @@ static const char *colorFamilyToString(int colorFamily) {
     case cfGray: return "Gray";
     case cfRGB: return "RGB";
     case cfYUV: return "YUV";
-    case cfYCoCg: return "YCoCg";
     case cfCompatBGR32: return "CompatBGR32";
     case cfCompatYUY2: return "CompatYUY2";
     }

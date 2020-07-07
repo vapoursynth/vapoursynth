@@ -613,7 +613,7 @@ struct InvertOp {
     bool uv;
 
     InvertOp(InvertData *d, const VSVideoFormat *fi, int plane) {
-        uv = ((fi->colorFamily == cfYUV) || (fi->colorFamily == cfYCoCg)) && (plane > 0);
+        uv = (fi->colorFamily == cfYUV) && (plane > 0);
         max = (1LL << fi->bitsPerSample) - 1;
     }
 

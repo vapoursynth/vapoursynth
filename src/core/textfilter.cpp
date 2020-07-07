@@ -357,8 +357,6 @@ static std::string colorFamilyToString(int cf) {
         family = "RGB";
     else if (cf == cfYUV)
         family = "YUV";
-    else if (cf == cfYCoCg)
-        family = "YCoCg";
     else if (cf == cfCompatBGR32)
         family = "CompatBG32";
     else if (cf == cfCompatYUY2)

@@ -77,7 +77,6 @@ typedef enum VSColorFamily {
     cfGray      = 1,
     cfRGB       = 2,
     cfYUV       = 3,
-    cfYCoCg     = 4, // ?? keep this? mostly harmless and unused
     /* special for compatibility, can't be used in normal filters */
     cfCompatYUY2 = 14,
     cfCompatBGR32 = 15

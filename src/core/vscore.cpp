@@ -1206,13 +1206,13 @@ const vs3::VSVideoFormat *VSCore::queryVideoFormat3(vs3::VSColorFamily colorFami
         const char *yuvName = nullptr;
 
         switch (colorFamily) {
-        case cfGray:
+        case vs3::cmGray:
             snprintf(f.name, sizeof(f.name), "Gray%s%d", sampleTypeStr, bitsPerSample);
             break;
-        case cfRGB:
+        case vs3::cmRGB:
             snprintf(f.name, sizeof(f.name), "RGB%s%d", sampleTypeStr, bitsPerSample * 3);
             break;
-        case cfYUV:
+        case vs3::cmYUV:
             if (subSamplingW == 1 && subSamplingH == 1)
                 yuvName = "420";
             else if (subSamplingW == 1 && subSamplingH == 0)
@@ -1230,7 +1230,7 @@ const vs3::VSVideoFormat *VSCore::queryVideoFormat3(vs3::VSColorFamily colorFami
             else
                 snprintf(f.name, sizeof(f.name), "YUVssw%dssh%dP%s%d", subSamplingW, subSamplingH, sampleTypeStr, bitsPerSample);
             break;
-        case cfYCoCg:
+        case vs3::cmYCoCg:
             snprintf(f.name, sizeof(f.name), "YCoCgssw%dssh%dP%s%d", subSamplingW, subSamplingH, sampleTypeStr, bitsPerSample);
             break;
         default:;
@@ -1292,7 +1292,7 @@ bool VSCore::isValidFormatPointer(const void *f) {
 
 bool VSCore::isValidVideoFormat(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH) noexcept {
     // FIXME, also verify implicit fields somewhere?
-    if (colorFamily != cfUndefined && colorFamily != cfGray && colorFamily != cfYUV && colorFamily != cfYCoCg && colorFamily != cfRGB && colorFamily != cfCompatBGR32 && colorFamily != cfCompatYUY2)
+    if (colorFamily != cfUndefined && colorFamily != cfGray && colorFamily != cfYUV && colorFamily != cfRGB && colorFamily != cfCompatBGR32 && colorFamily != cfCompatYUY2)
         return false;
 
     if (colorFamily == cfUndefined && (subSamplingH != 0 || subSamplingW != 0 || bitsPerSample != 0 || sampleType != stInteger))
@@ -1489,9 +1489,6 @@ void VSCore::getVideoFormatName(const VSVideoFormat &format, char *buffer) noexc
                 snprintf(buffer, 32, "YUV%sP%s%d", yuvName, sampleTypeStr, format.bitsPerSample);
             else
                 snprintf(buffer, 32, "YUVssw%dssh%dP%s%d", format.subSamplingW, format.subSamplingH, sampleTypeStr, format.bitsPerSample);
-            break;
-        case cfYCoCg:
-            snprintf(buffer, 32, "YCoCgssw%dssh%dP%s%d", format.subSamplingW, format.subSamplingH, sampleTypeStr, format.bitsPerSample);
             break;
         case cfCompatBGR32:
             snprintf(buffer, 32, "CompatBGR32");

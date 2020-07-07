@@ -552,7 +552,7 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
 
     // FIXME, translate from old colorfamily constants too!
 
-    if (d->format != cfRGB && d->format != cfYUV && d->format != cfYCoCg && d->format != cfGray)
+    if (d->format != cfRGB && d->format != cfYUV && d->format != cfGray)
         RETERROR("ShufflePlanes: invalid output colorfamily");
 
     int outplanes = (d->format == cfGray ? 1 : 3);
@@ -1758,7 +1758,7 @@ static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData,
     if (numlower < 0) {
         for (int i = 0; i < vi->format.numPlanes; i++) {
             d->lower[i] = 0;
-            d->lowerf[i] = ((vi->format.colorFamily == cfYUV || vi->format.colorFamily == cfYCoCg) && i) ? -0.5f : 0.0f;
+            d->lowerf[i] = (vi->format.colorFamily == cfYUV && i) ? -0.5f : 0.0f;
         }
     } else if (numlower == vi->format.numPlanes) {
         for (int i = 0; i < vi->format.numPlanes; i++) {
@@ -1774,7 +1774,7 @@ static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData,
     if (numupper < 0) {
         for (int i = 0; i < vi->format.numPlanes; i++) {
             d->upper[i] = (1 << vi->format.bitsPerSample) - 1;
-            d->upperf[i] = ((vi->format.colorFamily == cfYUV || vi->format.colorFamily == cfYCoCg) && i) ? 0.5f : 1.0f;
+            d->upperf[i] = (vi->format.colorFamily == cfYUV && i) ? 0.5f : 1.0f;
         }
     } else if (numupper == vi->format.numPlanes) {
         for (int i = 0; i < vi->format.numPlanes; i++) {

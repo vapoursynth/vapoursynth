@@ -72,7 +72,7 @@ static inline int planeHeight(const VSVideoInfo *vi, int plane) {
 static inline void setBlack(uint32_t color[3], const VSVideoFormat *format) {
     for (int i = 0; i < 3; i++)
         color[i] = 0;
-    if (format->sampleType == stInteger && (format->colorFamily == cfYUV || format->colorFamily == cfYCoCg))
+    if (format->sampleType == stInteger && format->colorFamily == cfYUV)
         color[1] = color[2] = (1 << (format->bitsPerSample - 1));
     else if (format->colorFamily == cfCompatYUY2)
         color[1] = color[2] = 128;

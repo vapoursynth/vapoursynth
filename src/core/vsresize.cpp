@@ -253,10 +253,6 @@ void translate_color_family(VSColorFamily cf, zimg_color_family_e *out, zimg_mat
         *out = ZIMG_COLOR_YUV;
         *out_matrix = ZIMG_MATRIX_UNSPECIFIED;
         break;
-    case cfYCoCg:
-        *out = ZIMG_COLOR_YUV;
-        *out_matrix = ZIMG_MATRIX_YCGCO;
-        break;
     default:
         throw std::runtime_error{ "unsupported color family" };
     }

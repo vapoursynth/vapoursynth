@@ -160,7 +160,7 @@ static inline void getPlanePixelRangeArgs(const VSVideoFormat &fi, const VSMap *
     bool prevValid = false;
     for (int plane = 0; plane < 3; plane++) {
         int err;
-        bool uv = (plane > 0 && (fi.colorFamily == cfYUV || fi.colorFamily == cfYCoCg));
+        bool uv = (plane > 0 && fi.colorFamily == cfYUV);
         double temp = vsapi->propGetFloat(in, propName, plane, &err);
         if (err) {
             if (prevValid) {

@@ -51,7 +51,6 @@ cdef extern from "include/VapourSynth4.h" nogil:
         GRAY "cfGray"
         RGB "cfRGB"
         YUV "cfYUV"
-        YCOCG "cfYCoCg"
         cfCOMPATBGR32 "cfCompatBGR32"
         cfCOMPATYUY2 "cfCompatYUY2"
 

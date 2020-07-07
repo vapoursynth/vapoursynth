@@ -39,7 +39,7 @@ static int getLimitedRangeOffset(const VSFrameRef *f, const VSVideoInfo *vi, con
     int err;
     int limited = !!vsapi->propGetInt(vsapi->getFramePropsRO(f), "_ColorRange", 0, &err);
     if (err)
-        limited = (vi->format.colorFamily == cfGray || vi->format.colorFamily == cfYUV || vi->format.colorFamily == cfYCoCg);
+        limited = (vi->format.colorFamily == cfGray || vi->format.colorFamily == cfYUV);
     return (limited ? (16 << (vi->format.bitsPerSample - 8)) : 0);
 }
 
@@ -65,7 +65,7 @@ static const VSFrameRef *VS_CC preMultiplyGetFrame(int n, int activationReason, 
             const uint8_t *srcp1 = vsapi->getReadPtr(src1, plane);
             const uint8_t *srcp2 = vsapi->getReadPtr(plane > 0 ? src2_23 : src2, 0);
             uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
-            bool yuvhandling = (plane > 0) && (d->vi->format.colorFamily == cfYUV || d->vi->format.colorFamily == cfYCoCg);
+            bool yuvhandling = (plane > 0) && (d->vi->format.colorFamily == cfYUV);
             int offset = getLimitedRangeOffset(src1, d->vi, vsapi);
 
             if (d->vi->format.sampleType == stInteger) {
@@ -375,7 +375,7 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
                 uint8_t * VS_RESTRICT dstp = vsapi->getWritePtr(dst, plane);
 
                 void (*func)(const void *, const void *, const void *, void *, unsigned, unsigned, unsigned) = 0;
-                int yuvhandling = (plane > 0) && (d->vi->format.colorFamily == cfYUV || d->vi->format.colorFamily == cfYCoCg);
+                int yuvhandling = (plane > 0) && (d->vi->format.colorFamily == cfYUV);
 
                 if (d->premultiplied && d->vi->format.sampleType == stInteger && offset1 != offset2) {
                     vsapi->freeFrame(src1);

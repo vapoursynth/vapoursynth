@@ -163,7 +163,7 @@ static void averageFramesI(const AverageFrameData *d, const VSFrameRef * const *
     unsigned maxVal = (1U << d->vi.format.bitsPerSample) - 1;
     unsigned bias = 0;
 
-    if ((plane == 1 || plane == 2) && (d->vi.format.colorFamily == cfYUV || d->vi.format.colorFamily == cfYCoCg))
+    if ((plane == 1 || plane == 2) && d->vi.format.colorFamily == cfYUV)
         bias = 1U << (d->vi.format.bitsPerSample - 1);
 
     int scale = d->scale;
@@ -326,7 +326,7 @@ static void averageFramesWordSSE2(const AverageFrameData *d, const VSFrameRef * 
     if (numSrcs % 2)
         weights[numSrcs / 2 - 1] = _mm_set1_epi32(static_cast<uint16_t>(d->weights[numSrcs - 1]));
 
-    if ((plane == 1 || plane == 2) && (d->vi.format.colorFamily == cfYUV || d->vi.format.colorFamily == cfYCoCg)) {
+    if ((plane == 1 || plane == 2) && d->vi.format.colorFamily == cfYUV) {
         __m128i bias = _mm_set1_epi16(1U << (d->vi.format.bitsPerSample - 1));
         __m128i maxVal = _mm_sub_epi16(_mm_set1_epi16((1U << d->vi.format.bitsPerSample) - 1), bias);
         __m128i minVal = _mm_sub_epi16(_mm_setzero_si128(), bias);
