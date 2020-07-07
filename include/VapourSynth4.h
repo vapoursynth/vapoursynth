@@ -204,10 +204,12 @@ typedef struct VSAudioFormat {
 } VSAudioFormat;
 
 // FIXME, investigate nfMakeLinear and its usefulness or convert it into a filter mode
+// maybe don't export the internal only flags at all such as nfFrameReady in getNodeFlags
 typedef enum VSNodeFlags {
     nfNoCache    = 1,
     nfIsCache    = 2,
-    nfMakeLinear = 4
+    nfMakeLinear = 4,
+    nfFrameReady = 8
 } VSNodeFlags;
 
 typedef enum VSPropTypes {

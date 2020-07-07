@@ -550,6 +550,7 @@ private:
     VSFilterFree free = nullptr;
     VSFilterMode filterMode;
 
+    bool frameReadyNotify = false;
     int apiMajor;
     VSCore *core;
     int flags;

@@ -160,6 +160,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         nfNoCache
         nfIsCache
         nfMakeLinear
+        nfFrameReady
 
     enum VSPropTypes:
         ptUnset
