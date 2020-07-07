@@ -209,7 +209,7 @@ typedef enum VSNodeFlags {
     nfNoCache    = 1,
     nfIsCache    = 2,
     nfMakeLinear = 4,
-    nfFrameReady = 8
+    nfFrameReady = 8 // FIXME, not actually implemented
 } VSNodeFlags;
 
 typedef enum VSPropTypes {
