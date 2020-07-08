@@ -391,11 +391,12 @@ static char VS_CC propGetType3(const VSMap *map, const char *key) VS_NOEXCEPT {
     return 0;
 
 static int64_t VS_CC propGetInt(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    PROP_GET_SHARED(ptInt, int64ToIntS(l->getValue<int64_t>(index)))
+    PROP_GET_SHARED(ptInt, l->getValue<int64_t>(index))
+
 }
 
 static int VS_CC propGetSaturatedInt(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    PROP_GET_SHARED(ptInt, l->getValue<int64_t>(index))
+    return int64ToIntS(propGetInt(map, key, index, error));
 }
 
 static double VS_CC propGetFloat(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
@@ -403,7 +404,7 @@ static double VS_CC propGetFloat(const VSMap *map, const char *key, int index, i
 }
 
 static float VS_CC propGetSaturatedFloat(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    PROP_GET_SHARED(ptFloat, doubleToFloatS(l->getValue<double>(index)))
+    return doubleToFloatS(propGetFloat(map, key, index, error));
 }
 
 static const char *VS_CC propGetData(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
