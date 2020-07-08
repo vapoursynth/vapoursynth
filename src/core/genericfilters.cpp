@@ -942,89 +942,99 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 
 //////////////////////////
 
-void VS_CC genericInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
-    //configFunc("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 1, plugin);
-
-    registerFunc("Minimum",
+void VS_CC genericInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
+    vspapi->registerFunction("Minimum",
             "clip:vnode;"
             "planes:int[]:opt;"
             "threshold:float:opt;"
-            "coordinates:int[]:opt;"
-            , genericCreate<GenericMinimum>, const_cast<char *>("Minimum"), plugin);
+            "coordinates:int[]:opt;",
+            "clip:vnode;",
+            genericCreate<GenericMinimum>, const_cast<char *>("Minimum"), plugin);
 
-    registerFunc("Maximum",
+    vspapi->registerFunction("Maximum",
             "clip:vnode;"
             "planes:int[]:opt;"
             "threshold:float:opt;"
-            "coordinates:int[]:opt;"
-            , genericCreate<GenericMaximum>, const_cast<char *>("Maximum"), plugin);
+            "coordinates:int[]:opt;",
+            "clip:vnode;",
+            genericCreate<GenericMaximum>, const_cast<char *>("Maximum"), plugin);
 
-    registerFunc("Median",
+    vspapi->registerFunction("Median",
+            "clip:vnode;"
+            "planes:int[]:opt;",
+            "clip:vnode;",
+            genericCreate<GenericMedian>, const_cast<char *>("Median"), plugin);
+
+    vspapi->registerFunction("Deflate",
             "clip:vnode;"
             "planes:int[]:opt;"
-            , genericCreate<GenericMedian>, const_cast<char *>("Median"), plugin);
+            "threshold:float:opt;",
+            "clip:vnode;",
+            genericCreate<GenericDeflate>, const_cast<char *>("Deflate"), plugin);
 
-    registerFunc("Deflate",
+    vspapi->registerFunction("Inflate",
             "clip:vnode;"
             "planes:int[]:opt;"
-            "threshold:float:opt;"
-            , genericCreate<GenericDeflate>, const_cast<char *>("Deflate"), plugin);
+            "threshold:float:opt;",
+            "clip:vnode;",
+            genericCreate<GenericInflate>, const_cast<char *>("Inflate"), plugin);
 
-    registerFunc("Inflate",
-            "clip:vnode;"
-            "planes:int[]:opt;"
-            "threshold:float:opt;"
-            , genericCreate<GenericInflate>, const_cast<char *>("Inflate"), plugin);
-
-    registerFunc("Convolution",
+    vspapi->registerFunction("Convolution",
             "clip:vnode;"
             "matrix:float[];"
             "bias:float:opt;"
             "divisor:float:opt;"
             "planes:int[]:opt;"
             "saturate:int:opt;"
-            "mode:data:opt;"
-            , genericCreate<GenericConvolution>, const_cast<char *>("Convolution"), plugin);
+            "mode:data:opt;",
+            "clip:vnode;",
+            genericCreate<GenericConvolution>, const_cast<char *>("Convolution"), plugin);
 
-    registerFunc("Prewitt",
+    vspapi->registerFunction("Prewitt",
             "clip:vnode;"
             "planes:int[]:opt;"
-            "scale:float:opt;"
-            , genericCreate<GenericPrewitt>, const_cast<char *>("Prewitt"), plugin);
+            "scale:float:opt;",
+            "clip:vnode;",
+            genericCreate<GenericPrewitt>, const_cast<char *>("Prewitt"), plugin);
 
-    registerFunc("Sobel",
+    vspapi->registerFunction("Sobel",
             "clip:vnode;"
             "planes:int[]:opt;"
-            "scale:float:opt;"
-            , genericCreate<GenericSobel>, const_cast<char *>("Sobel"), plugin);
+            "scale:float:opt;",
+            "clip:vnode;",
+            genericCreate<GenericSobel>, const_cast<char *>("Sobel"), plugin);
 
-    registerFunc("Invert",
+    vspapi->registerFunction("Invert",
         "clip:vnode;"
-        "planes:int[]:opt;"
-        , invertCreate, nullptr, plugin);
+        "planes:int[]:opt;",
+        "clip:vnode;",
+        invertCreate, nullptr, plugin);
 
-    registerFunc("Limiter",
+    vspapi->registerFunction("Limiter",
         "clip:vnode;"
         "min:float[]:opt;"
         "max:float[]:opt;"
-        "planes:int[]:opt;"
-        , limitCreate, nullptr, plugin);
+        "planes:int[]:opt;",
+        "clip:vnode;",
+        limitCreate, nullptr, plugin);
 
-    registerFunc("Binarize",
+    vspapi->registerFunction("Binarize",
         "clip:vnode;"
         "threshold:float[]:opt;"
         "v0:float[]:opt;"
         "v1:float[]:opt;"
-        "planes:int[]:opt;"
-        , binarizeCreate, nullptr, plugin);
+        "planes:int[]:opt;",
+        "clip:vnode;",
+        binarizeCreate, nullptr, plugin);
 
-    registerFunc("Levels",
+    vspapi->registerFunction("Levels",
         "clip:vnode;"
         "min_in:float[]:opt;"
         "max_in:float[]:opt;"
         "gamma:float[]:opt;"
         "min_out:float[]:opt;"
         "max_out:float[]:opt;"
-        "planes:int[]:opt;"
-        , levelsCreate, nullptr, plugin);
+        "planes:int[]:opt;",
+        "clip:vnode;",
+        levelsCreate, nullptr, plugin);
 }

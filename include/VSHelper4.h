@@ -17,6 +17,7 @@
 #include <string.h>
 #include <assert.h>
 #include <math.h>
+#include <float.h>
 #ifdef _WIN32
 #include <malloc.h>
 #endif
@@ -156,6 +157,18 @@ static inline int int64ToIntS(int64_t i) {
     else if (i < INT_MIN)
         return INT_MIN;
     else return (int)i;
+}
+
+/* converts a double to float with saturation, useful to silence warnings when reading float properties among other things */
+static inline float doubleToFloatS(double d) {
+    if (!isfinite(d))
+        return (float)d;
+    else if (d > FLT_MAX)
+        return FLT_MAX;
+    else if (d < -FLT_MAX)
+        return -FLT_MAX;
+    else
+        return (float)d;
 }
 
 static inline void vs_bitblt(void *dstp, ptrdiff_t dst_stride, const void *srcp, ptrdiff_t src_stride, size_t row_size, size_t height) {

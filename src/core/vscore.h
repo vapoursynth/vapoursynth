@@ -77,6 +77,7 @@ typedef vs_intrusive_ptr<VSFuncRef> PVSFuncRef;
 typedef vs_intrusive_ptr<FrameContext> PFrameContext;
 typedef vs_intrusive_ptr<VSMapData> PVSMapData;
 
+extern const VSPLUGINAPI vs_internal_vspapi;
 extern const VSAPI vs_internal_vsapi;
 extern const vs3::VSAPI3 vs_internal_vsapi3;
 const VSAPI *getVSAPIInternal(int apiMajor);
@@ -692,12 +693,13 @@ public:
 
 struct VSPlugin {
 private:
-    int apiMajor;
-    int apiMinor;
-    bool hasConfig;
-    bool readOnly;
-    bool readOnlySet;
-    bool compat;
+    int apiMajor = 0;
+    int apiMinor = 0;
+    int pluginVersion = 0;
+    bool hasConfig = false;
+    bool readOnly = false;
+    bool readOnlySet = false;
+    bool compat = false;
 #ifdef VS_TARGET_OS_WINDOWS
     HMODULE libHandle;
 #else
@@ -714,14 +716,11 @@ public:
     explicit VSPlugin(VSCore *core);
     VSPlugin(const std::string &relFilename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath, VSCore *core);
     ~VSPlugin();
-    void lock() {
-        readOnly = true;
-    };
-    void enableCompat() {
-        compat = true;
-    }
-    void configPlugin(const std::string &identifier, const std::string &defaultNamespace, const std::string &fullname, int apiVersion, bool readOnly);
-    void registerFunction(const std::string &name, const std::string &args, VSPublicFunction argsFunc, void *functionData);
+    void lock();
+    void enableCompat();
+    int getPluginVersion() const;
+    bool configPlugin(const std::string &identifier, const std::string &pluginsNamespace, const std::string &fullname, int pluginVersion, int apiVersion, int flags);
+    bool registerFunction(const std::string &name, const std::string &args, const std::string &returnType, VSPublicFunction argsFunc, void *functionData);
     VSMap invoke(const std::string &funcName, const VSMap &args);
     void getFunctions(VSMap *out) const;
     void getFunctions3(VSMap *out) const;

@@ -37,6 +37,7 @@
 #include "VapourSynth4.h"
 #include "VSHelper4.h"
 #include "internalfilters.h"
+#include "version.h"
 
 #define P2P_USER_NAMESPACE vsp2p
 #include "../common/p2p.h"
@@ -973,7 +974,7 @@ const VSFrameRef * VS_CC vszimg_get_frame(int n, int activationReason, void *ins
 } // namespace
 
 
-void VS_CC resizeInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
+void VS_CC resizeInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
 #define INT_OPT(x) #x ":int:opt;"
 #define FLOAT_OPT(x) #x ":float:opt;"
 #define DATA_OPT(x) #x ":data:opt;"
@@ -1011,12 +1012,14 @@ void VS_CC resizeInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
 #undef DATA_OPT
 #undef ENUM_OPT
 
-    configFunc("com.vapoursynth.resize", "resize", "VapourSynth Resize", VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("Bilinear", FORMAT_DEFINITION, vszimg_create, (void *)ZIMG_RESIZE_BILINEAR, plugin);
-    registerFunc("Bicubic", FORMAT_DEFINITION, vszimg_create, (void *)ZIMG_RESIZE_BICUBIC, plugin);
-    registerFunc("Point", FORMAT_DEFINITION, vszimg_create, (void *)ZIMG_RESIZE_POINT, plugin);
-    registerFunc("Lanczos", FORMAT_DEFINITION, vszimg_create, (void *)ZIMG_RESIZE_LANCZOS, plugin);
-    registerFunc("Spline16", FORMAT_DEFINITION, vszimg_create, (void *)ZIMG_RESIZE_SPLINE16, plugin);
-    registerFunc("Spline36", FORMAT_DEFINITION, vszimg_create, (void *)ZIMG_RESIZE_SPLINE36, plugin);
-    registerFunc("Spline64", FORMAT_DEFINITION, vszimg_create, (void *)ZIMG_RESIZE_SPLINE64, plugin);
+    static const char RETURN_FORMAT_DEFINITION[] = "clip:vnode;";
+
+    vspapi->configPlugin("com.vapoursynth.resize", "resize", "VapourSynth Resize", VAPOURSYNTH_INTERNAL_PLUGIN_VERSION, VAPOURSYNTH_API_VERSION, 1, plugin);
+    vspapi->registerFunction("Bilinear", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, vszimg_create, (void *)ZIMG_RESIZE_BILINEAR, plugin);
+    vspapi->registerFunction("Bicubic", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, vszimg_create, (void *)ZIMG_RESIZE_BICUBIC, plugin);
+    vspapi->registerFunction("Point", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, vszimg_create, (void *)ZIMG_RESIZE_POINT, plugin);
+    vspapi->registerFunction("Lanczos", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, vszimg_create, (void *)ZIMG_RESIZE_LANCZOS, plugin);
+    vspapi->registerFunction("Spline16", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, vszimg_create, (void *)ZIMG_RESIZE_SPLINE16, plugin);
+    vspapi->registerFunction("Spline36", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, vszimg_create, (void *)ZIMG_RESIZE_SPLINE36, plugin);
+    vspapi->registerFunction("Spline64", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, vszimg_create, (void *)ZIMG_RESIZE_SPLINE64, plugin);
 }

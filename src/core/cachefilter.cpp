@@ -239,7 +239,7 @@ static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData,
     vsapi->freeNode(self);
 }
 
-void VS_CC cacheInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
-    registerFunc("Cache", "clip:vnode;size:int:opt;fixed:int:opt;make_linear:int:opt;", createCacheFilter, nullptr, plugin);
-    registerFunc("AudioCache", "clip:anode;size:int:opt;fixed:int:opt;make_linear:int:opt;", createCacheFilter, (void *)1, plugin);
+void VS_CC cacheInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
+    vspapi->registerFunction("Cache", "clip:vnode;size:int:opt;fixed:int:opt;make_linear:int:opt;", "clip:vnode;", createCacheFilter, nullptr, plugin);
+    vspapi->registerFunction("AudioCache", "clip:anode;size:int:opt;fixed:int:opt;make_linear:int:opt;", "clip:anode;", createCacheFilter, (void *)1, plugin);
 }

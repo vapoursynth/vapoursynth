@@ -3347,7 +3347,6 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 //////////////////////////////////////////
 // Init
 
-void VS_CC exprInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
-    //configFunc("com.vapoursynth.expr", "expr", "VapourSynth Expr Filter", VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("Expr", "clips:vnode[];expr:data[];format:int:opt;", exprCreate, nullptr, plugin);
+void VS_CC exprInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
+    vspapi->registerFunction("Expr", "clips:vnode[];expr:data[];format:int:opt;", "clip:vnode;", exprCreate, nullptr, plugin);
 }

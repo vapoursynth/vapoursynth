@@ -700,15 +700,14 @@ static void VS_CC freezeFramesCreate(const VSMap *in, VSMap *out, void *userData
 //////////////////////////////////////////
 // Init
 
-void VS_CC reorderInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
-    //configFunc("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("Trim", "clip:vnode;first:int:opt;last:int:opt;length:int:opt;", trimCreate, 0, plugin);
-    registerFunc("Reverse", "clip:vnode;", reverseCreate, 0, plugin);
-    registerFunc("Loop", "clip:vnode;times:int:opt;", loopCreate, 0, plugin);
-    registerFunc("Interleave", "clips:vnode[];extend:int:opt;mismatch:int:opt;modify_duration:int:opt;", interleaveCreate, 0, plugin);
-    registerFunc("SelectEvery", "clip:vnode;cycle:int;offsets:int[];modify_duration:int:opt;", selectEveryCreate, 0, plugin);
-    registerFunc("Splice", "clips:vnode[];mismatch:int:opt;", spliceCreate, 0, plugin);
-    registerFunc("DuplicateFrames", "clip:vnode;frames:int[];", duplicateFramesCreate, 0, plugin);
-    registerFunc("DeleteFrames", "clip:vnode;frames:int[];", deleteFramesCreate, 0, plugin);
-    registerFunc("FreezeFrames", "clip:vnode;first:int[];last:int[];replacement:int[];", freezeFramesCreate, 0, plugin);
+void VS_CC reorderInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
+    vspapi->registerFunction("Trim", "clip:vnode;first:int:opt;last:int:opt;length:int:opt;", "clip:vnode;", trimCreate, 0, plugin);
+    vspapi->registerFunction("Reverse", "clip:vnode;", "clip:vnode;", reverseCreate, 0, plugin);
+    vspapi->registerFunction("Loop", "clip:vnode;times:int:opt;", "clip:vnode;", loopCreate, 0, plugin);
+    vspapi->registerFunction("Interleave", "clips:vnode[];extend:int:opt;mismatch:int:opt;modify_duration:int:opt;", "clip:vnode;", interleaveCreate, 0, plugin);
+    vspapi->registerFunction("SelectEvery", "clip:vnode;cycle:int;offsets:int[];modify_duration:int:opt;", "clip:vnode;", selectEveryCreate, 0, plugin);
+    vspapi->registerFunction("Splice", "clips:vnode[];mismatch:int:opt;", "clip:vnode;", spliceCreate, 0, plugin);
+    vspapi->registerFunction("DuplicateFrames", "clip:vnode;frames:int[];", "clip:vnode;", duplicateFramesCreate, 0, plugin);
+    vspapi->registerFunction("DeleteFrames", "clip:vnode;frames:int[];", "clip:vnode;", deleteFramesCreate, 0, plugin);
+    vspapi->registerFunction("FreezeFrames", "clip:vnode;first:int[];last:int[];replacement:int[];", "clip:vnode;", freezeFramesCreate, 0, plugin);
 }

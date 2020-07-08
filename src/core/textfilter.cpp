@@ -26,6 +26,7 @@
 
 #include "VapourSynth4.h"
 #include "VSHelper4.h"
+#include "version.h"
 
 #include "filtershared.h"
 #include "ter-116n.h"
@@ -713,28 +714,33 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 }
 
 
-void VS_CC textInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
-    configFunc("com.vapoursynth.text", "text", "VapourSynth Text", VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("Text",
+void VS_CC textInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
+    vspapi->configPlugin("com.vapoursynth.text", "text", "VapourSynth Text", VAPOURSYNTH_INTERNAL_PLUGIN_VERSION, VAPOURSYNTH_API_VERSION, 1, plugin);
+    vspapi->registerFunction("Text",
         "clip:vnode;"
         "text:data;"
         "alignment:int:opt;",
+        "clip:vnode;",
         textCreate, reinterpret_cast<void *>(FILTER_TEXT), plugin);
-    registerFunc("ClipInfo",
+    vspapi->registerFunction("ClipInfo",
         "clip:vnode;"
         "alignment:int:opt;",
+        "clip:vnode;",
         textCreate, reinterpret_cast<void *>(FILTER_CLIPINFO), plugin);
-    registerFunc("CoreInfo",
+    vspapi->registerFunction("CoreInfo",
         "clip:vnode:opt;"
         "alignment:int:opt;",
+        "clip:vnode;",
         textCreate, reinterpret_cast<void *>(FILTER_COREINFO), plugin);
-    registerFunc("FrameNum",
+    vspapi->registerFunction("FrameNum",
         "clip:vnode;"
         "alignment:int:opt;",
+        "clip:vnode;",
         textCreate, reinterpret_cast<void *>(FILTER_FRAMENUM), plugin);
-    registerFunc("FrameProps",
+    vspapi->registerFunction("FrameProps",
         "clip:vnode;"
         "props:data[]:opt;"
         "alignment:int:opt;",
+        "clip:vnode;",
         textCreate, reinterpret_cast<void *>(FILTER_FRAMEPROPS), plugin);
 }

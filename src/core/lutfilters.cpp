@@ -536,8 +536,7 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
 //////////////////////////////////////////
 // Init
 
-void VS_CC lutInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
-    //configFunc("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("Lut", "clip:vnode;planes:int[]:opt;lut:int[]:opt;lutf:float[]:opt;function:func:opt;bits:int:opt;floatout:int:opt;", lutCreate, 0, plugin);
-    registerFunc("Lut2", "clipa:vnode;clipb:vnode;planes:int[]:opt;lut:int[]:opt;lutf:float[]:opt;function:func:opt;bits:int:opt;floatout:int:opt;", lut2Create, 0, plugin);
+void VS_CC lutInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
+    vspapi->registerFunction("Lut", "clip:vnode;planes:int[]:opt;lut:int[]:opt;lutf:float[]:opt;function:func:opt;bits:int:opt;floatout:int:opt;", "clip:vnode;", lutCreate, 0, plugin);
+    vspapi->registerFunction("Lut2", "clipa:vnode;clipb:vnode;planes:int[]:opt;lut:int[]:opt;lutf:float[]:opt;function:func:opt;bits:int:opt;floatout:int:opt;", "clip:vnode;", lut2Create, 0, plugin);
 }

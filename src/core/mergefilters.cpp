@@ -717,11 +717,10 @@ static void VS_CC mergeDiffCreate(const VSMap *in, VSMap *out, void *userData, V
 //////////////////////////////////////////
 // Init
 
-void VS_CC mergeInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
-    //configFunc("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("PreMultiply", "clip:vnode;alpha:vnode;", preMultiplyCreate, 0, plugin);
-    registerFunc("Merge", "clipa:vnode;clipb:vnode;weight:float[]:opt;", mergeCreate, 0, plugin);
-    registerFunc("MaskedMerge", "clipa:vnode;clipb:vnode;mask:vnode;planes:int[]:opt;first_plane:int:opt;premultiplied:int:opt;", maskedMergeCreate, 0, plugin);
-    registerFunc("MakeDiff", "clipa:vnode;clipb:vnode;planes:int[]:opt;", makeDiffCreate, 0, plugin);
-    registerFunc("MergeDiff", "clipa:vnode;clipb:vnode;planes:int[]:opt;", mergeDiffCreate, 0, plugin);
+void VS_CC mergeInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
+    vspapi->registerFunction("PreMultiply", "clip:vnode;alpha:vnode;", "clip:vnode;", preMultiplyCreate, 0, plugin);
+    vspapi->registerFunction("Merge", "clipa:vnode;clipb:vnode;weight:float[]:opt;", "clip:vnode;", mergeCreate, 0, plugin);
+    vspapi->registerFunction("MaskedMerge", "clipa:vnode;clipb:vnode;mask:vnode;planes:int[]:opt;first_plane:int:opt;premultiplied:int:opt;", "clip:vnode;", maskedMergeCreate, 0, plugin);
+    vspapi->registerFunction("MakeDiff", "clipa:vnode;clipb:vnode;planes:int[]:opt;", "clip:vnode;", makeDiffCreate, 0, plugin);
+    vspapi->registerFunction("MergeDiff", "clipa:vnode;clipb:vnode;planes:int[]:opt;", "clip:vnode;", mergeDiffCreate, 0, plugin);
 }

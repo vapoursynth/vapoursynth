@@ -218,6 +218,6 @@ public:
     }
 };
 
-void VS_CC cacheInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
+void VS_CC cacheInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
 
 #endif // CACHEFILTER_H

@@ -1502,8 +1502,6 @@ void VSCore::getVideoFormatName(const VSVideoFormat &format, char *buffer) noexc
     }
 }
 
-void VS_CC vs_internal_configPlugin(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readOnly, VSPlugin *plugin);
-void VS_CC vs_internal_registerFunction(const char *name, const char *args, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin);
 
 static void VS_CC loadPlugin(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     try {
@@ -1537,9 +1535,9 @@ static void VS_CC loadAllPlugins(const VSMap *in, VSMap *out, void *userData, VS
     }
 }
 
-void VS_CC loadPluginInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
-    registerFunc("LoadPlugin", "path:data;altsearchpath:int:opt;forcens:data:opt;forceid:data:opt;", &loadPlugin, nullptr, plugin);
-    registerFunc("LoadAllPlugins", "path:data;", &loadAllPlugins, nullptr, plugin);
+void VS_CC loadPluginInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
+    vspapi->registerFunction("LoadPlugin", "path:data;altsearchpath:int:opt;forcens:data:opt;forceid:data:opt;", "", &loadPlugin, nullptr, plugin);
+    vspapi->registerFunction("LoadAllPlugins", "path:data;", "", &loadAllPlugins, nullptr, plugin);
 }
 
 void VSCore::registerFormats() {
@@ -1723,29 +1721,29 @@ VSCore::VSCore(int threads, int flags) :
 
     // Initialize internal plugins
     p = new VSPlugin(this);
-    ::vs_internal_configPlugin("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 0, p);
-    loadPluginInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
-    cacheInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
-    exprInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
-    genericInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
-    lutInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
-    boxBlurInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
-    mergeInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
-    reorderInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
-    audioInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
-    stdlibInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
+    vs_internal_vspapi.configPlugin("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_INTERNAL_PLUGIN_VERSION, VAPOURSYNTH_API_VERSION, 0, p);
+    loadPluginInitialize(p, &vs_internal_vspapi);
+    cacheInitialize(p, &vs_internal_vspapi);
+    exprInitialize(p, &vs_internal_vspapi);
+    genericInitialize(p, &vs_internal_vspapi);
+    lutInitialize(p, &vs_internal_vspapi);
+    boxBlurInitialize(p, &vs_internal_vspapi);
+    mergeInitialize(p, &vs_internal_vspapi);
+    reorderInitialize(p, &vs_internal_vspapi);
+    audioInitialize(p, &vs_internal_vspapi);
+    stdlibInitialize(p, &vs_internal_vspapi);
     p->enableCompat();
     p->lock();
 
     plugins.insert(std::make_pair(p->id, p));
     p = new VSPlugin(this);
-    resizeInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
+    resizeInitialize(p, &vs_internal_vspapi);
     plugins.insert(std::make_pair(p->id, p));
     p->enableCompat();
 
     plugins.insert(std::make_pair(p->id, p));
     p = new VSPlugin(this);
-    textInitialize(::vs_internal_configPlugin, ::vs_internal_registerFunction, p);
+    textInitialize(p, &vs_internal_vspapi);
     plugins.insert(std::make_pair(p->id, p));
     p->enableCompat();
 
@@ -1762,7 +1760,7 @@ VSCore::VSCore(int threads, int flags) :
 #endif
 
     HMODULE module;
-    GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCWSTR)&vs_internal_configPlugin, &module);
+    GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCWSTR)&vs_internal_vsapi, &module);
     std::vector<wchar_t> pathBuf(65536);
     GetModuleFileName(module, pathBuf.data(), (DWORD)pathBuf.size());
     std::wstring dllPath = pathBuf.data();
@@ -1998,11 +1996,16 @@ int VSCore::setCpuLevel(int cpu) {
 }
 
 VSPlugin::VSPlugin(VSCore *core)
-    : apiMajor(0), apiMinor(0), hasConfig(false), readOnly(false), compat(false), libHandle(0), core(core) {
+    : libHandle(0), core(core) {
+}
+
+static void VS_CC configPlugin3(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readOnly, VSPlugin *plugin) VS_NOEXCEPT {
+    assert(identifier && defaultNamespace && name && plugin);
+    plugin->configPlugin(identifier, defaultNamespace, name, -1, apiVersion, readOnly ? pcReadOnly : 0);
 }
 
 VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath, VSCore *core)
-    : apiMajor(0), apiMinor(0), hasConfig(false), readOnly(false), compat(false), libHandle(0), core(core), fnamespace(forcedNamespace), id(forcedId) {
+    : core(core), fnamespace(forcedNamespace), id(forcedId) {
 #ifdef VS_TARGET_OS_WINDOWS
     std::wstring wPath = utf16_from_utf8(relFilename);
     std::vector<wchar_t> fullPathBuffer(32767 + 1); // add 1 since msdn sucks at mentioning whether or not it includes the final null
@@ -2019,7 +2022,7 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
 
     libHandle = LoadLibraryEx(wPath.c_str(), nullptr, altSearchPath ? 0 : (LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR));
 
-    if (!libHandle) {
+    if (libHandle == INVALID_HANDLE_VALUE) {
         DWORD lastError = GetLastError();
 
         if (lastError == 126)
@@ -2027,12 +2030,19 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
         throw VSException("Failed to load " + relFilename + ". GetLastError() returned " + std::to_string(lastError) + ".");
     }
 
-    VSInitPlugin pluginInit = (VSInitPlugin)GetProcAddress(libHandle, "VapourSynthPluginInit");
+    VSInitPlugin pluginInit = reinterpret_cast<VSInitPlugin>(GetProcAddress(libHandle, "VapourSynthPluginInit2"));
 
     if (!pluginInit)
-        pluginInit = (VSInitPlugin)GetProcAddress(libHandle, "_VapourSynthPluginInit@12");
+        pluginInit = reinterpret_cast<VSInitPlugin>(GetProcAddress(libHandle, "_VapourSynthPluginInit2@8"));
 
-    if (!pluginInit) {
+    vs3::VSInitPlugin pluginInit3 = nullptr;
+    if (!pluginInit)
+        pluginInit3 = reinterpret_cast<vs3::VSInitPlugin>(GetProcAddress(libHandle, "VapourSynthPluginInit"));
+
+    if (!pluginInit3)
+        pluginInit3 = reinterpret_cast<vs3::VSInitPlugin>(GetProcAddress(libHandle, "_VapourSynthPluginInit@12"));
+
+    if (!pluginInit && !pluginInit3) {
         FreeLibrary(libHandle);
         throw VSException("No entry point found in " + relFilename);
     }
@@ -2053,16 +2063,22 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
             throw VSException("Failed to load " + relFilename);
     }
 
-    VSInitPlugin pluginInit = (VSInitPlugin)dlsym(libHandle, "VapourSynthPluginInit");
+    VSInitPlugin pluginInit = reinterpret_cast<VSInitPlugin>(dlsym(libHandle, "VapourSynthPluginInit2"));
+    vs3::VSInitPlugin pluginInit3 = nullptr;
+    if (!pluginInit3)
+        pluginInit3 = reinterpret_cast<vs3::VSInitPlugin>(dlsym(libHandle, "VapourSynthPluginInit"));
 
-    if (!pluginInit) {
+    if (!pluginInit && !pluginInit3) {
         dlclose(libHandle);
         throw VSException("No entry point found in " + relFilename);
     }
 
 
 #endif
-    pluginInit(::vs_internal_configPlugin, ::vs_internal_registerFunction, this);
+    if (pluginInit)
+        pluginInit(this, &vs_internal_vspapi);
+    else
+        pluginInit3(configPlugin3, vs_internal_vsapi3.registerFunction, this);
 
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isSSEStateOk())
@@ -2086,7 +2102,7 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
 
 VSPlugin::~VSPlugin() {
 #ifdef VS_TARGET_OS_WINDOWS
-    if (libHandle)
+    if (libHandle != INVALID_HANDLE_VALUE)
         FreeLibrary(libHandle);
 #else
     if (libHandle)
@@ -2094,16 +2110,32 @@ VSPlugin::~VSPlugin() {
 #endif
 }
 
-void VSPlugin::configPlugin(const std::string &identifier, const std::string &defaultNamespace, const std::string &fullname, int apiVersion, bool readOnly) {
+void VSPlugin::lock() {
+    readOnly = true;
+};
+
+void VSPlugin::enableCompat() {
+    compat = true;
+}
+
+int VSPlugin::getPluginVersion() const {
+    return pluginVersion;
+}
+
+bool VSPlugin::configPlugin(const std::string &identifier, const std::string &pluginNamespace, const std::string &fullname, int pluginVersion, int apiVersion, int flags) {
     if (hasConfig)
         vsFatal("Attempted to configure plugin %s twice", identifier.c_str());
+
+    if (flags & ~pcReadOnly)
+        vsFatal("Invalig flag field passed to %s", identifier.c_str());
 
     if (id.empty())
         id = identifier;
 
     if (fnamespace.empty())
-        fnamespace = defaultNamespace;
+        fnamespace = pluginNamespace;
 
+    this->pluginVersion = pluginVersion;
     this->fullname = fullname;
 
     apiMajor = apiVersion;
@@ -2112,25 +2144,33 @@ void VSPlugin::configPlugin(const std::string &identifier, const std::string &de
         apiMajor >>= 16;
     }
 
-    readOnlySet = readOnly;
+    readOnlySet = !!(flags & pcReadOnly);
     hasConfig = true;
+    return true;
 }
 
-void VSPlugin::registerFunction(const std::string &name, const std::string &args, VSPublicFunction argsFunc, void *functionData) {
-    if (readOnly)
-        vsFatal("Plugin %s tried to modify read only namespace.", filename.c_str());
+bool VSPlugin::registerFunction(const std::string &name, const std::string &args, const std::string &returnType, VSPublicFunction argsFunc, void *functionData) {
+    if (readOnly) {
+        vsWarning("Plugin %s tried to modify read only namespace.", filename.c_str());
+        return false;
+    }
 
-    if (!isValidIdentifier(name))
-        vsFatal("Plugin %s tried to register '%s', an illegal identifier.", filename.c_str(), name.c_str());
+    if (!isValidIdentifier(name)) {
+        vsWarning("Plugin %s tried to register '%s', an illegal identifier.", filename.c_str(), name.c_str());
+        return false;
+    }
 
     std::lock_guard<std::mutex> lock(registerFunctionLock);
 
     if (funcs.count(name)) {
         vsWarning("Plugin %s tried to register '%s' more than once. Second registration ignored.", filename.c_str(), name.c_str());
-        return;
+        return false;
     }
 
+    // fixme, check vsfucntion creation success and catch exceptions
     funcs.insert(std::make_pair(name, VSFunction(args, argsFunc, functionData, apiMajor)));
+
+    return true;
 }
 
 static bool hasCompatNodes(const VSMap &m) {

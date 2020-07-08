@@ -30,6 +30,7 @@
 #include <VSHelper4.h>
 #include "../src/core/filtersharedcpp.h"
 #include "../src/core/filtershared.h"
+#include "../src/core/version.h"
 
 #ifdef VS_TARGET_CPU_X86
 #include <emmintrin.h>
@@ -244,7 +245,7 @@ static void averageFramesByteSSE2(const AverageFrameData *d, const VSFrameRef * 
     __m128i bias = _mm_setzero_si128();
     __m128 scale = _mm_set_ps1(1.0f / d->scale);
 
-    if ((plane == 1 || plane == 2) && (d->vi.format.colorFamily == cfYUV || d->vi.format.colorFamily == cfYCoCg))
+    if ((plane == 1 || plane == 2) && d->vi.format.colorFamily == cfYUV)
         bias = _mm_set1_epi8(128);
 
     for (int h = 0; h < height; ++h) {
@@ -823,9 +824,9 @@ static void VS_CC hysteresisCreate(const VSMap *in, VSMap *out, void *userData, 
 ///////////////////////////////////////
 // Init
 
-VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
-    configFunc("com.vapoursynth.misc", "misc", "Miscellaneous filters", VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("SCDetect", "clip:clip;threshold:float:opt;", scDetectCreate, 0, plugin);
-    registerFunc("AverageFrames", "clips:clip[];weights:float[];scale:float:opt;scenechange:int:opt;planes:int[]:opt;", averageFramesCreate, 0, plugin);
-    registerFunc("Hysteresis", "clipa:clip;clipb:clip;planes:int[]:opt;", hysteresisCreate, nullptr, plugin);
+VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
+    vspapi->configPlugin("com.vapoursynth.misc", "misc", "Miscellaneous filters", VAPOURSYNTH_INTERNAL_PLUGIN_VERSION, VAPOURSYNTH_API_VERSION, 1, plugin);
+    vspapi->registerFunction("SCDetect", "clip:clip;threshold:float:opt;", "clip:vnode;", scDetectCreate, 0, plugin);
+    vspapi->registerFunction("AverageFrames", "clips:clip[];weights:float[];scale:float:opt;scenechange:int:opt;planes:int[]:opt;", "clip:vnode;", averageFramesCreate, 0, plugin);
+    vspapi->registerFunction("Hysteresis", "clipa:clip;clipb:clip;planes:int[]:opt;", "clip:vnode;", hysteresisCreate, nullptr, plugin);
 }

@@ -2215,30 +2215,29 @@ static void VS_CC setMaxCpu(const VSMap *in, VSMap *out, void *userData, VSCore 
 //////////////////////////////////////////
 // Init
 
-void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
-    //configFunc("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("CropAbs", "clip:vnode;width:int;height:int;left:int:opt;top:int:opt;x:int:opt;y:int:opt;", cropAbsCreate, 0, plugin);
-    registerFunc("CropRel", "clip:vnode;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;", cropRelCreate, 0, plugin);
-    registerFunc("Crop", "clip:vnode;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;", cropRelCreate, 0, plugin);
-    registerFunc("AddBorders", "clip:vnode;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;color:float[]:opt;", addBordersCreate, 0, plugin);
-    registerFunc("ShufflePlanes", "clips:vnode[];planes:int[];colorfamily:int;", shufflePlanesCreate, 0, plugin);
-    registerFunc("SeparateFields", "clip:vnode;tff:int:opt;modify_duration:int:opt;", separateFieldsCreate, 0, plugin);
-    registerFunc("DoubleWeave", "clip:vnode;tff:int:opt;", doubleWeaveCreate, 0, plugin);
-    registerFunc("FlipVertical", "clip:vnode;", flipVerticalCreate, 0, plugin);
-    registerFunc("FlipHorizontal", "clip:vnode;", flipHorizontalCreate, 0, plugin);
-    registerFunc("Turn180", "clip:vnode;", flipHorizontalCreate, (void *)1, plugin);
-    registerFunc("StackVertical", "clips:vnode[];", stackCreate, (void *)1, plugin);
-    registerFunc("StackHorizontal", "clips:vnode[];", stackCreate, 0, plugin);
-    registerFunc("BlankClip", "clip:vnode:opt;width:int:opt;height:int:opt;format:int:opt;length:int:opt;fpsnum:int:opt;fpsden:int:opt;color:float[]:opt;keep:int:opt;", blankClipCreate, 0, plugin);
-    registerFunc("AssumeFPS", "clip:vnode;src:vnode:opt;fpsnum:int:opt;fpsden:int:opt;", assumeFPSCreate, 0, plugin);
-    registerFunc("FrameEval", "clip:vnode;eval:func;prop_src:vnode[]:opt;", frameEvalCreate, 0, plugin);
-    registerFunc("ModifyFrame", "clip:vnode;clips:vnode[];selector:func;", modifyFrameCreate, 0, plugin);
-    registerFunc("Transpose", "clip:vnode;", transposeCreate, 0, plugin);
-    registerFunc("PEMVerifier", "clip:vnode;upper:float[]:opt;lower:float[]:opt;", pemVerifierCreate, 0, plugin);
-    registerFunc("PlaneStats", "clipa:vnode;clipb:vnode:opt;plane:int:opt;prop:data:opt;", planeStatsCreate, 0, plugin);
-    registerFunc("ClipToProp", "clip:vnode;mclip:vnode;prop:data:opt;", clipToPropCreate, 0, plugin);
-    registerFunc("PropToClip", "clip:vnode;prop:data:opt;", propToClipCreate, 0, plugin);
-    registerFunc("SetFrameProp", "clip:vnode;prop:data;delete:int:opt;intval:int[]:opt;floatval:float[]:opt;data:data[]:opt;", setFramePropCreate, 0, plugin);
-    registerFunc("SetFieldBased", "clip:vnode;value:int;", setFieldBasedCreate, 0, plugin);
-    registerFunc("SetMaxCPU", "cpu:data;", setMaxCpu, 0, plugin);
+void VS_CC stdlibInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
+    vspapi->registerFunction("CropAbs", "clip:vnode;width:int;height:int;left:int:opt;top:int:opt;x:int:opt;y:int:opt;", "clip:vnode;", cropAbsCreate, 0, plugin);
+    vspapi->registerFunction("CropRel", "clip:vnode;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;", "clip:vnode;", cropRelCreate, 0, plugin);
+    vspapi->registerFunction("Crop", "clip:vnode;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;", "clip:vnode;", cropRelCreate, 0, plugin);
+    vspapi->registerFunction("AddBorders", "clip:vnode;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;color:float[]:opt;", "clip:vnode;", addBordersCreate, 0, plugin);
+    vspapi->registerFunction("ShufflePlanes", "clips:vnode[];planes:int[];colorfamily:int;", "clip:vnode;", shufflePlanesCreate, 0, plugin);
+    vspapi->registerFunction("SeparateFields", "clip:vnode;tff:int:opt;modify_duration:int:opt;", "clip:vnode;", separateFieldsCreate, 0, plugin);
+    vspapi->registerFunction("DoubleWeave", "clip:vnode;tff:int:opt;", "clip:vnode;", doubleWeaveCreate, 0, plugin);
+    vspapi->registerFunction("FlipVertical", "clip:vnode;", "clip:vnode;", flipVerticalCreate, 0, plugin);
+    vspapi->registerFunction("FlipHorizontal", "clip:vnode;", "clip:vnode;", flipHorizontalCreate, 0, plugin);
+    vspapi->registerFunction("Turn180", "clip:vnode;", "clip:vnode;", flipHorizontalCreate, (void *)1, plugin);
+    vspapi->registerFunction("StackVertical", "clips:vnode[];", "clip:vnode;", stackCreate, (void *)1, plugin);
+    vspapi->registerFunction("StackHorizontal", "clips:vnode[];", "clip:vnode;", stackCreate, 0, plugin);
+    vspapi->registerFunction("BlankClip", "clip:vnode:opt;width:int:opt;height:int:opt;format:int:opt;length:int:opt;fpsnum:int:opt;fpsden:int:opt;color:float[]:opt;keep:int:opt;", "clip:vnode;", blankClipCreate, 0, plugin);
+    vspapi->registerFunction("AssumeFPS", "clip:vnode;src:vnode:opt;fpsnum:int:opt;fpsden:int:opt;", "clip:vnode;", assumeFPSCreate, 0, plugin);
+    vspapi->registerFunction("FrameEval", "clip:vnode;eval:func;prop_src:vnode[]:opt;", "clip:vnode;", frameEvalCreate, 0, plugin);
+    vspapi->registerFunction("ModifyFrame", "clip:vnode;clips:vnode[];selector:func;", "clip:vnode;", modifyFrameCreate, 0, plugin);
+    vspapi->registerFunction("Transpose", "clip:vnode;", "clip:vnode;", transposeCreate, 0, plugin);
+    vspapi->registerFunction("PEMVerifier", "clip:vnode;upper:float[]:opt;lower:float[]:opt;", "clip:vnode;", pemVerifierCreate, 0, plugin);
+    vspapi->registerFunction("PlaneStats", "clipa:vnode;clipb:vnode:opt;plane:int:opt;prop:data:opt;", "clip:vnode;", planeStatsCreate, 0, plugin);
+    vspapi->registerFunction("ClipToProp", "clip:vnode;mclip:vnode;prop:data:opt;", "clip:vnode;", clipToPropCreate, 0, plugin);
+    vspapi->registerFunction("PropToClip", "clip:vnode;prop:data:opt;", "clip:vnode;", propToClipCreate, 0, plugin);
+    vspapi->registerFunction("SetFrameProp", "clip:vnode;prop:data;delete:int:opt;intval:int[]:opt;floatval:float[]:opt;data:data[]:opt;", "clip:vnode;", setFramePropCreate, 0, plugin);
+    vspapi->registerFunction("SetFieldBased", "clip:vnode;value:int;", "clip:vnode;", setFieldBasedCreate, 0, plugin);
+    vspapi->registerFunction("SetMaxCPU", "cpu:data;", "cpu:data;", setMaxCpu, 0, plugin);
 }

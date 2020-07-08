@@ -23,9 +23,10 @@
 
 #include <stdint.h>
 
+#define VS_MAKE_VERSION(major, minor) (((major) << 16) | (minor))
 #define VAPOURSYNTH_API_MAJOR 4
 #define VAPOURSYNTH_API_MINOR 9000
-#define VAPOURSYNTH_API_VERSION ((VAPOURSYNTH_API_MAJOR << 16) | (VAPOURSYNTH_API_MINOR))
+#define VAPOURSYNTH_API_VERSION VS_MAKE_VERSION(VAPOURSYNTH_API_MAJOR, VAPOURSYNTH_API_MINOR)
 
 /* Convenience for C++ users. */
 #ifdef __cplusplus
@@ -67,6 +68,7 @@ typedef struct VSCore VSCore;
 typedef struct VSPlugin VSPlugin;
 typedef struct VSFuncRef VSFuncRef;
 typedef struct VSMap VSMap;
+typedef struct VSPLUGINAPI VSPLUGINAPI;
 typedef struct VSAPI VSAPI;
 typedef struct VSFrameContext VSFrameContext;
 
@@ -277,6 +279,10 @@ typedef enum VSCoreFlags {
     cfDisableAutoLoading = 1
 } VSCoreFlags;
 
+typedef enum VSPluginConfigFlags {
+    pcReadOnly = 1
+} VSPluginConfigFlags;
+
 typedef enum VSDataType {
     dtUnknown = 0,
     dtBinary = 1,
@@ -288,9 +294,8 @@ typedef const VSAPI *(VS_CC *VSGetVapourSynthAPI)(int version);
 
 /* plugin function and filter typedefs */
 typedef void (VS_CC *VSPublicFunction)(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
-typedef void (VS_CC *VSRegisterFunction)(const char *name, const char *args, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin);
-typedef void (VS_CC *VSConfigPlugin)(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readonly, VSPlugin *plugin);
-typedef void (VS_CC *VSInitPlugin)(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
+typedef void (VS_CC *VSInitPlugin)(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
+
 typedef void (VS_CC *VSFreeFuncData)(void *userData);
 typedef const VSFrameRef *(VS_CC *VSFilterGetFrame)(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
 typedef void (VS_CC *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI *vsapi);
@@ -299,6 +304,12 @@ typedef void (VS_CC *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI
 typedef void (VS_CC *VSFrameDoneCallback)(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg);
 typedef void (VS_CC *VSMessageHandler)(int msgType, const char *msg, void *userData);
 typedef void (VS_CC *VSMessageHandlerFree)(void *userData);
+
+struct VSPLUGINAPI { // FIXME, how to extend and avoid adding further entry points?
+    int (VS_CC *getApiVersion)(void) VS_NOEXCEPT;
+    int (VS_CC *configPlugin)(const char *identifier, const char *pluginNamespace, const char *name, int pluginVersion, int apiVersion, int flags, VSPlugin *plugin) VS_NOEXCEPT; /* use the VS_MAKE_VERSION macro for pluginVersion */
+    int (VS_CC *registerFunction)(const char *name, const char *args, const char *returnType, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) VS_NOEXCEPT;
+};
 
 struct VSAPI {
     VSCore *(VS_CC *createCore)(int threads, int flags) VS_NOEXCEPT;
@@ -316,7 +327,7 @@ struct VSAPI {
     VSFrameRef *(VS_CC *copyFrame)(const VSFrameRef *f, VSCore *core) VS_NOEXCEPT;
     void (VS_CC *copyFrameProps)(const VSFrameRef *src, VSFrameRef *dst, VSCore *core) VS_NOEXCEPT;
 
-    void (VS_CC *registerFunction)(const char *name, const char *args, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) VS_NOEXCEPT;
+    int (VS_CC *registerFunction)(const char *name, const char *args, const char *returnType, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) VS_NOEXCEPT;
     VSPlugin *(VS_CC *getPluginById)(const char *identifier, VSCore *core) VS_NOEXCEPT;
     VSPlugin *(VS_CC *getPluginByNs)(const char *ns, VSCore *core) VS_NOEXCEPT;
     VSMap *(VS_CC *getPlugins)(VSCore *core) VS_NOEXCEPT;
@@ -357,8 +368,10 @@ struct VSAPI {
     int (VS_CC *propNumElements)(const VSMap *map, const char *key) VS_NOEXCEPT;
     int (VS_CC *propGetType)(const VSMap *map, const char *key) VS_NOEXCEPT;
 
-    int64_t(VS_CC *propGetInt)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
-    double(VS_CC *propGetFloat)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
+    int64_t (VS_CC *propGetInt)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
+    int (VS_CC *propGetSaturatedInt)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
+    double (VS_CC *propGetFloat)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
+    float (VS_CC *propGetSaturatedFloat)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
     const char *(VS_CC *propGetData)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
     int (VS_CC *propGetDataSize)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
     int (VS_CC *propGetDataType)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
@@ -380,6 +393,7 @@ struct VSAPI {
     int (VS_CC *setThreadCount)(int threads, VSCore *core) VS_NOEXCEPT;
 
     const char *(VS_CC *getPluginPath)(const VSPlugin *plugin) VS_NOEXCEPT;
+    int (VS_CC *getPluginVersion)(const VSPlugin *plugin) VS_NOEXCEPT;
 
     const int64_t *(VS_CC *propGetIntArray)(const VSMap *map, const char *key, int *error) VS_NOEXCEPT;
     const double *(VS_CC *propGetFloatArray)(const VSMap *map, const char *key, int *error) VS_NOEXCEPT;

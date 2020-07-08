@@ -21,23 +21,24 @@
 #include "vscore.h"
 #include "cpufeatures.h"
 #include "vslog.h"
+#include "VSHelper4.h"
 #include <cassert>
 #include <cstring>
 #include <string>
 
-void VS_CC vs_internal_configPlugin(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readOnly, VSPlugin *plugin) VS_NOEXCEPT {
+static int VS_CC configPlugin(const char *identifier, const char *defaultNamespace, const char *name, int pluginVersion, int apiVersion, int flags, VSPlugin *plugin) VS_NOEXCEPT {
     assert(identifier && defaultNamespace && name && plugin);
-    plugin->configPlugin(identifier, defaultNamespace, name, apiVersion, !!readOnly);
+    return plugin->configPlugin(identifier, defaultNamespace, name, pluginVersion, apiVersion, flags);
 }
 
-void VS_CC vs_internal_registerFunction(const char *name, const char *args, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) VS_NOEXCEPT {
-    assert(name && args && argsFunc && plugin);
-    plugin->registerFunction(name, args, argsFunc, functionData);
+static int VS_CC registerFunction(const char *name, const char *args, const char *returnType, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) VS_NOEXCEPT {
+    assert(name && args && returnType && argsFunc && plugin);
+    return plugin->registerFunction(name, args, returnType, argsFunc, functionData);
 }
 
-void VS_CC vs_internal_registerFunction3(const char *name, const char *args, vs3::VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) VS_NOEXCEPT {
+static void VS_CC registerFunction3(const char *name, const char *args, vs3::VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) VS_NOEXCEPT {
     assert(name && args && argsFunc && plugin);
-    plugin->registerFunction(name, args, reinterpret_cast<VSPublicFunction>(argsFunc), functionData);
+    plugin->registerFunction(name, args, "any", reinterpret_cast<VSPublicFunction>(argsFunc), functionData); // fixme, how to handle any return type or argument list?
 }
 
 static const vs3::VSVideoFormat *VS_CC getFormatPreset3(int id, VSCore *core) VS_NOEXCEPT {
@@ -390,11 +391,19 @@ static char VS_CC propGetType3(const VSMap *map, const char *key) VS_NOEXCEPT {
     return 0;
 
 static int64_t VS_CC propGetInt(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
+    PROP_GET_SHARED(ptInt, int64ToIntS(l->getValue<int64_t>(index)))
+}
+
+static int VS_CC propGetSaturatedInt(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
     PROP_GET_SHARED(ptInt, l->getValue<int64_t>(index))
 }
 
 static double VS_CC propGetFloat(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
     PROP_GET_SHARED(ptFloat, l->getValue<double>(index))
+}
+
+static float VS_CC propGetSaturatedFloat(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
+    PROP_GET_SHARED(ptFloat, doubleToFloatS(l->getValue<double>(index)))
 }
 
 static const char *VS_CC propGetData(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
@@ -636,6 +645,12 @@ static const char *VS_CC getPluginPath(const VSPlugin *plugin) VS_NOEXCEPT {
         return nullptr;
 }
 
+static int VS_CC getPluginVersion(const VSPlugin *plugin) VS_NOEXCEPT {
+    if (!plugin)
+        vsFatal("NULL passed to getPluginVersion");
+    return plugin->getPluginVersion();
+}
+
 static const int64_t *VS_CC propGetIntArray(const VSMap *map, const char *key, int *error) VS_NOEXCEPT {
     int index = 0;
     PROP_GET_SHARED(ptInt, l->getArray<int64_t>())
@@ -782,6 +797,12 @@ static int VS_CC getApiVersion(void) VS_NOEXCEPT{
     return VAPOURSYNTH_API_VERSION;
 }
 
+const VSPLUGINAPI vs_internal_vspapi {
+    &getApiVersion,
+    &configPlugin,
+    &registerFunction
+};
+
 const VSAPI vs_internal_vsapi = {
     &createCore,
     &freeCore,
@@ -797,7 +818,7 @@ const VSAPI vs_internal_vsapi = {
     &newVideoFrame,
     &copyFrame,
     &copyFrameProps,
-    &vs_internal_registerFunction,
+    &registerFunction,
     &getPluginById,
     &getPluginByNs,
     &getPlugins,
@@ -836,7 +857,9 @@ const VSAPI vs_internal_vsapi = {
     &propNumElements,
     &propGetType,
     &propGetInt,
+    &propGetSaturatedInt,
     &propGetFloat,
+    &propGetSaturatedFloat,
     &propGetData,
     &propGetDataSize,
     &propGetDataType,
@@ -858,6 +881,7 @@ const VSAPI vs_internal_vsapi = {
     &setThreadCount,
 
     &getPluginPath,
+    &getPluginVersion,
 
     &propGetIntArray,
     &propGetFloatArray,
@@ -904,7 +928,7 @@ const vs3::VSAPI3 vs_internal_vsapi3 = {
     &newVideoFrame3,
     &copyFrame,
     &copyFrameProps,
-    &vs_internal_registerFunction3,
+    &registerFunction3,
     &getPluginById,
     &getPluginByNs,
     &getPlugins,

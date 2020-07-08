@@ -20,6 +20,7 @@
 
 #include "../core/x86utils.h"
 #include "../core/cpufeatures.h"
+#include "../core/version.h"
 #include "avisynth_compat.h"
 #include <algorithm>
 #include <cstdarg>
@@ -695,7 +696,8 @@ void FakeAvisynth::AddFunction(const char *name, const char *params, ApplyFunc a
     }
 
     registeredFunctions.insert(fname);
-    vsapi->registerFunction(fname.c_str(), newArgs.c_str(), fakeAvisynthFunctionWrapper, new WrappedFunction(fname, apply, parsedArgs, user_data, interfaceVersion), vsapi->getPluginById("com.vapoursynth.avisynth", core));
+    // Simply assume a single video node is returned
+    vsapi->registerFunction(fname.c_str(), newArgs.c_str(), "clip:vnode;", fakeAvisynthFunctionWrapper, new WrappedFunction(fname, apply, parsedArgs, user_data, interfaceVersion), vsapi->getPluginById("com.vapoursynth.avisynth", core));
 }
 
 bool FakeAvisynth::FunctionExists(const char *name) {
@@ -1079,9 +1081,9 @@ WrappedFunction::WrappedFunction(const std::string &name, FakeAvisynth::ApplyFun
     name(name), apply(apply), parsedArgs(parsedArgs), avsUserData(avsUserData), interfaceVersion(interfaceVersion) {
 }
 
-VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
-    configFunc("com.vapoursynth.avisynth", "avs", "VapourSynth Avisynth Compatibility", VAPOURSYNTH_API_VERSION, 0, plugin);
-    registerFunc("LoadPlugin", "path:data;", &avsLoadPlugin, plugin, plugin);
+VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
+    vspapi->configPlugin("com.vapoursynth.avisynth", "avs", "VapourSynth Avisynth Compatibility", VAPOURSYNTH_INTERNAL_PLUGIN_VERSION, VAPOURSYNTH_API_VERSION, 0, plugin);
+    vspapi->registerFunction("LoadPlugin", "path:data;", "", &avsLoadPlugin, plugin, plugin);
 }
 
 }
