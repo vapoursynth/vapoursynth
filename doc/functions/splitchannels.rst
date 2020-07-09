@@ -1,5 +1,5 @@
-Trim/AudioTrim
-==============
+SplitChannels
+=============
 
 .. function::   SplitChannels(anode clip)
    :module: std

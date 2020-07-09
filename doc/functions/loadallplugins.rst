@@ -1,5 +1,5 @@
-LoadPAllPlugins
-===============
+LoadAllPlugins
+==============
 
 .. function::   LoadAllPlugins(string path)
    :module: std
