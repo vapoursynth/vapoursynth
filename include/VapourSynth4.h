@@ -213,7 +213,7 @@ typedef enum VSNodeFlags {
     nfFrameReady = 8 // FIXME, not actually implemented
 } VSNodeFlags;
 
-typedef enum VSPropTypes {
+typedef enum VSPropType {
     ptUnset = 0,
     ptInt = 1,
     ptFloat = 2,
@@ -223,13 +223,14 @@ typedef enum VSPropTypes {
     ptAudioNode = 6,
     ptVideoFrame = 7,
     ptAudioFrame = 8,
-} VSPropTypes;
+} VSPropType;
 
-typedef enum VSGetPropErrors {
+typedef enum VSGetPropError {
     peUnset = 1,
     peType  = 2,
-    peIndex = 4
-} VSGetPropErrors;
+    peIndex = 4,
+    peError = 8
+} VSGetPropError;
 
 typedef enum VSPropAppendMode {
     paReplace = 0,
@@ -301,7 +302,7 @@ typedef const VSFrameRef *(VS_CC *VSFilterGetFrame)(int n, int activationReason,
 typedef void (VS_CC *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI *vsapi);
 
 /* other */
-typedef void (VS_CC *VSFrameDoneCallback)(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg);
+typedef void (VS_CC *VSFrameDoneCallback)(void *userData, const VSFrameRef *f, int n, VSNodeRef *node, const char *errorMsg);
 typedef void (VS_CC *VSMessageHandler)(int msgType, const char *msg, void *userData);
 typedef void (VS_CC *VSMessageHandlerFree)(void *userData);
 

@@ -75,7 +75,6 @@ typedef vs_intrusive_ptr<VSNode> PVSNode;
 typedef vs_intrusive_ptr<VSNodeRef> PVSNodeRef;
 typedef vs_intrusive_ptr<VSFuncRef> PVSFuncRef;
 typedef vs_intrusive_ptr<FrameContext> PFrameContext;
-typedef vs_intrusive_ptr<VSMapData> PVSMapData;
 
 extern const VSPLUGINAPI vs_internal_vspapi;
 extern const VSAPI vs_internal_vsapi;
@@ -101,15 +100,26 @@ public:
     }
 };
 
-class VSMapData {
-private:
+
+
+class VSArrayBase {
+protected:
     std::atomic<long> refcount;
+    VSPropType ftype;
+    size_t fsize = 0;
+    explicit VSArrayBase(VSPropType type) : refcount(1), ftype(type) {}
+    virtual ~VSArrayBase() {}
 public:
-    int dataType;
-    std::string data;
+    VSPropType type() const {
+        return ftype;
+    }
 
-    VSMapData(const std::string &data, int dataType) noexcept : refcount(1), data(data), dataType(dataType) {
+    size_t size() const {
+        return fsize;
+    }
 
+    bool unique() const noexcept {
+        return (refcount == 1);
     }
 
     void add_ref() noexcept {
@@ -117,17 +127,89 @@ public:
     }
 
     void release() noexcept {
+        assert(refcount > 0);
         if (--refcount == 0)
             delete this;
     }
+
+    virtual VSArrayBase *copy() const noexcept = 0;
 };
 
-typedef std::vector<int64_t> IntList;
-typedef std::vector<double> FloatList;
-typedef std::vector<PVSMapData> DataList;
-typedef std::vector<PVSNodeRef> NodeList;
-typedef std::vector<PVSFrameRef> FrameList;
-typedef std::vector<PVSFuncRef> FuncList;
+template<typename T, VSPropType propType>
+class VSArray final : public VSArrayBase {
+private:
+    T singleData;
+    std::vector<T> data;
+public:
+    explicit VSArray() noexcept : VSArrayBase(propType) {}
+
+    explicit VSArray(const VSArray &other) noexcept : VSArrayBase(other.ftype) {
+        fsize = other.fsize;
+        if (other.fsize == 1)
+            singleData = other.singleData;
+        else if (other.fsize > 1)
+            data = other.data;
+    }
+
+    explicit VSArray(const T *val, size_t count) noexcept : VSArrayBase(propType) { // only enable for POD types
+        if (fsize == 1) {
+            singleData = *val;
+        } else {
+            data.resize(count);
+            memcpy(data.data(), val, sizeof(T) * count);
+        }
+    }
+
+    virtual VSArrayBase *copy() const noexcept {
+        return new VSArray(*this);
+    }
+
+    const T *getDataPointer() const noexcept { // only enable for POD types
+        if (fsize == 1)
+            return &singleData;
+        else
+            return data.data();
+    }
+
+    void push_back(const T &val) noexcept {
+        if (fsize == 0) {
+            singleData = val;
+        } else if (fsize == 1) {
+            data.reserve(8);
+            data.push_back(std::move(singleData));
+            data.push_back(val);
+        } else {
+            if (data.capacity() == data.size())
+                data.reserve(data.capacity() * 2);
+            data.push_back(val);
+        }
+        fsize++;
+    }
+
+    const T &at(size_t pos) const noexcept {
+        assert(pos < fsize);
+        if (fsize == 1)
+            return singleData;
+        else
+            return data.at(pos);
+    }
+};
+
+class VSMapData {
+public:
+    VSDataType typeHint;
+    std::string data;
+};
+
+
+typedef VSArray<int64_t, ptInt> VSIntArray;
+typedef VSArray<double, ptFloat> VSFloatArray;
+typedef VSArray<VSMapData, ptData> VSDataArray;
+typedef VSArray<PVSNodeRef, ptVideoNode> VSVideoNodeArray;
+typedef VSArray<PVSNodeRef, ptAudioNode> VSAudioNodeArray;
+typedef VSArray<PVSFrameRef, ptVideoFrame> VSVideoFrameArray;
+typedef VSArray<PVSFrameRef, ptAudioFrame> VSAudioFrameArray;
+typedef VSArray<PVSFuncRef, ptFunction> VSFunctionArray;
 
 struct VSFuncRef {
 private:
@@ -152,61 +234,19 @@ public:
     void call(const VSMap *in, VSMap *out);
 };
 
-class VSVariant {
-public:
-    VSVariant(VSPropTypes vtype = ptUnset);
-    VSVariant(const VSVariant &v);
-    VSVariant(VSVariant &&v) noexcept;
-    ~VSVariant();
-
-    size_t size() const;
-    VSPropTypes getType() const;
-
-    void append(int64_t val);
-    void append(double val);
-    void append(const std::string &val, int type = 0);
-    void append(VSNodeRef *val);
-    void append(const VSFrameRef *val);
-    void append(VSFuncRef *val);
-
-    template<typename T>
-    const T &getValue(size_t index) const {
-        return reinterpret_cast<std::vector<T>*>(storage)->at(index);
-    }
-
-    template<typename T>
-    const T *getArray() const {
-        return reinterpret_cast<std::vector<T>*>(storage)->data();
-    }
-
-    template<typename T>
-    void setArray(const T *val, size_t size) {
-        assert(val && !storage);
-        std::vector<T> *vect = new std::vector<T>(size);
-        if (size)
-            memcpy(vect->data(), val, size * sizeof(T));
-        internalSize = size;
-        storage = vect;
-    }
-
-private:
-    VSPropTypes vtype;
-    size_t internalSize;
-    void *storage;
-
-    void initStorage(VSPropTypes t);
-};
-
 class VSMapStorage {
 private:
     std::atomic<long> refcount;
 public:
-    std::map<std::string, VSVariant> data;
+    std::map<std::string, VSArrayBase *> data;
     bool error;
 
-    VSMapStorage() : refcount(1), error(false) {}
+    explicit VSMapStorage() : refcount(1), error(false) {}
 
-    VSMapStorage(const VSMapStorage &s) : refcount(1), data(s.data), error(s.error) {}
+    explicit VSMapStorage(const VSMapStorage &s) : refcount(1), data(s.data), error(s.error) {
+        for (const auto &iter : data)
+            iter.second->add_ref();
+    }
 
     bool unique() noexcept {
         return (refcount == 1);
@@ -217,8 +257,12 @@ public:
     }
 
     void release() noexcept {
-        if (!--refcount)
+        assert(refcount > 0);
+        if (--refcount == 0) {
+            for (auto &iter : data)
+                iter.second->release();
             delete this;
+        }
     }
 };
 
@@ -226,25 +270,17 @@ struct VSMap {
 private:
     VSMapStorage *data;
 public:
-    VSMap() : data(new VSMapStorage()) {}
-
-    VSMap(const VSMap &map) : data(map.data) {
-        data->add_ref();
-    }
-
-    VSMap(VSMap &&map) noexcept : data(map.data) {
-        map.data = new VSMapStorage();
+    VSMap(const VSMap *map = nullptr) {
+        if (map) {
+            data = map->data;
+            data->add_ref();
+        } else {
+            data = new VSMapStorage();
+        }
     }
 
     ~VSMap() {
         data->release();
-    }
-
-    VSMap &operator=(const VSMap &map) {
-        data->release();
-        data = map.data;
-        data->add_ref();
-        return *this;
     }
 
     void detach() {
@@ -255,34 +291,42 @@ public:
         }
     }
 
-    bool contains(const std::string &key) const {
-        return !!data->data.count(key);
-    }
-
-    VSVariant &at(const std::string &key) const {
-        return data->data.at(key);
-    }
-
-    VSVariant &operator[](const std::string &key) const {
-        // implicit creation is unwanted so make sure it doesn't happen by wrapping at() instead
-        return data->data.at(key);
-    }
-
-    VSVariant *find(const std::string &key) const {
+    VSArrayBase *find(const std::string &key) const {
         auto it = data->data.find(key);
-        return it == data->data.end() ? nullptr : &it->second;
+        return (it == data->data.end()) ? nullptr : it->second;
+    }
+
+    VSArrayBase *detach(const std::string &key) {
+        detach();
+        auto it = data->data.find(key);
+        if (it != data->data.end()) {
+            if (!it->second->unique())
+                it->second = it->second->copy();
+            return it->second;
+        }
+        return nullptr;
     }
 
     bool erase(const std::string &key) {
-        detach();
-        return data->data.erase(key) > 0;
+        auto it = data->data.find(key);
+        if (it != data->data.end()) {
+            detach();
+            it->second->release();
+            data->data.erase(it);
+            return true;
+        }
+        return false;
     }
 
-    bool insert(const std::string &key, VSVariant &&v) {
+    void insert(const std::string &key, VSArrayBase *val) {
         detach();
-        data->data.erase(key);
-        data->data.insert(std::make_pair(key, v));
-        return true;
+        auto it = data->data.find(key);
+        if (it != data->data.end()) {
+            it->second->release();
+            it->second = val;
+        } else {
+            data->data.insert(std::make_pair(key, val));
+        }
     }
 
     size_t size() const {
@@ -294,7 +338,7 @@ public:
         data = new VSMapStorage();
     }
 
-    const char *key(int n) const {
+    const char *key(size_t n) const {
         if (n >= static_cast<int>(size()))
             return nullptr;
         auto iter = data->data.cbegin();
@@ -302,15 +346,11 @@ public:
         return iter->first.c_str();
     }
 
-    const std::map<std::string, VSVariant> &getStorage() const {
-        return data->data;
-    }
-
     void setError(const std::string &errMsg) {
         clear();
-        VSVariant v(ptData);
-        v.append(errMsg, 1);
-        insert("_Error", std::move(v));
+        VSDataArray *arr = new VSDataArray();
+        arr->push_back({ dtUtf8, errMsg });
+        data->data.insert(std::make_pair("_Error", arr));
         data->error = true;
     }
 
@@ -318,9 +358,16 @@ public:
         return data->error;
     }
 
-    const std::string &getErrorMessage() const {
-        return (*this)["_Error"].getValue<PVSMapData>(0)->data;
+    const char *getErrorMessage() const {
+        if (data->error) {
+            return reinterpret_cast<VSDataArray *>(data->data.at("_Error"))->at(0).data.c_str();
+        } else {
+            return nullptr;
+        }
     }
+
+    bool isV3Compatible() const;
+    bool hasCompatNodes() const;
 };
 
 struct VSNodeRef {
@@ -339,12 +386,12 @@ public:
 class FilterArgument {
 public:
     std::string name;
-    VSPropTypes type;
+    VSPropType type;
     
     bool arr;
     bool empty;
     bool opt;
-    FilterArgument(const std::string &name, VSPropTypes type, bool arr, bool empty, bool opt)
+    FilterArgument(const std::string &name, VSPropType type, bool arr, bool empty, bool opt)
         : name(name), type(type), arr(arr), empty(empty), opt(opt) {}
 };
 
@@ -721,7 +768,7 @@ public:
     int getPluginVersion() const;
     bool configPlugin(const std::string &identifier, const std::string &pluginsNamespace, const std::string &fullname, int pluginVersion, int apiVersion, int flags);
     bool registerFunction(const std::string &name, const std::string &args, const std::string &returnType, VSPublicFunction argsFunc, void *functionData);
-    VSMap invoke(const std::string &funcName, const VSMap &args);
+    VSMap *invoke(const std::string &funcName, const VSMap &args);
     void getFunctions(VSMap *out) const;
     void getFunctions3(VSMap *out) const;
 };
@@ -798,7 +845,7 @@ public:
     int getCpuLevel() const;
     int setCpuLevel(int cpu);
 
-    VSMap getPlugins();
+    VSMap *getPlugins();
     VSPlugin *getPluginById(const std::string &identifier);
     VSPlugin *getPluginByNs(const std::string &ns);
 

@@ -109,12 +109,12 @@ bool FrameContext::setError(const std::string &errorMsg) {
 
 ///////////////
 
-static bool hasV3IncompatibleValues(const VSMap &m) {
-    for (const auto &vsv : m.getStorage()) {
-        if (vsv.second.getType() == ptAudioNode || vsv.second.getType() == ptAudioFrame)
-            return true;
+bool VSMap::isV3Compatible() const {
+    for (const auto &iter : data->data) {
+        if (iter.second->type() == ptAudioNode || iter.second->type() == ptAudioFrame)
+            return false;
     }
-    return false;
+    return true;
 }
 
 VSFuncRef::VSFuncRef(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core, int apiMajor) : refcount(1), func(func), userData(userData), free(free), core(core), apiMajor(apiMajor) {
@@ -128,7 +128,7 @@ VSFuncRef::~VSFuncRef() {
 }
 
 void VSFuncRef::call(const VSMap *in, VSMap *out) {
-    if (apiMajor == VAPOURSYNTH3_API_MAJOR && hasV3IncompatibleValues(*in)) {
+    if (apiMajor == VAPOURSYNTH3_API_MAJOR && !in->isV3Compatible()) {
         vs_internal_vsapi.setError(out, "Function was passed values that are unknown to its API version");
         return;
     }
@@ -138,126 +138,7 @@ void VSFuncRef::call(const VSMap *in, VSMap *out) {
 
 ///////////////
 
-VSVariant::VSVariant(VSPropTypes vtype) : vtype(vtype), internalSize(0), storage(nullptr) {
-}
 
-VSVariant::VSVariant(const VSVariant &v) : vtype(v.vtype), internalSize(v.internalSize), storage(nullptr) {
-    if (internalSize) {
-        switch (vtype) {
-        case ptInt:
-            storage = new IntList(*reinterpret_cast<IntList *>(v.storage)); break;
-        case ptFloat:
-            storage = new FloatList(*reinterpret_cast<FloatList *>(v.storage)); break;
-        case ptData:
-            storage = new DataList(*reinterpret_cast<DataList *>(v.storage)); break;
-        case ptVideoNode:
-        case ptAudioNode:
-            storage = new NodeList(*reinterpret_cast<NodeList *>(v.storage)); break;
-        case ptVideoFrame:
-        case ptAudioFrame:
-            storage = new FrameList(*reinterpret_cast<FrameList *>(v.storage)); break;
-        case ptFunction:
-            storage = new FuncList(*reinterpret_cast<FuncList *>(v.storage)); break;
-        default:;
-        }
-    }
-}
-
-VSVariant::VSVariant(VSVariant &&v) noexcept : vtype(v.vtype), internalSize(v.internalSize), storage(v.storage) {
-    v.vtype = ptUnset;
-    v.storage = nullptr;
-    v.internalSize = 0;
-}
-
-VSVariant::~VSVariant() {
-    if (storage) {
-        switch (vtype) {
-        case ptInt:
-            delete reinterpret_cast<IntList *>(storage); break;
-        case ptFloat:
-            delete reinterpret_cast<FloatList *>(storage); break;
-        case ptData:
-            delete reinterpret_cast<DataList *>(storage); break;
-        case ptVideoNode:
-        case ptAudioNode:
-            delete reinterpret_cast<NodeList *>(storage); break;
-        case ptVideoFrame:
-        case ptAudioFrame:
-            delete reinterpret_cast<FrameList *>(storage); break;
-        case ptFunction:
-            delete reinterpret_cast<FuncList *>(storage); break;
-        default:;
-        }
-    }
-}
-
-size_t VSVariant::size() const {
-    return internalSize;
-}
-
-VSPropTypes VSVariant::getType() const {
-    return vtype;
-}
-
-void VSVariant::append(int64_t val) {
-    initStorage(ptInt);
-    reinterpret_cast<IntList *>(storage)->push_back(val);
-    internalSize++;
-}
-
-void VSVariant::append(double val) {
-    initStorage(ptFloat);
-    reinterpret_cast<FloatList *>(storage)->push_back(val);
-    internalSize++;
-}
-
-void VSVariant::append(const std::string &val, int type) {
-    initStorage(ptData);
-    reinterpret_cast<DataList *>(storage)->push_back(new VSMapData(val, type));
-    internalSize++;
-}
-
-void VSVariant::append(VSNodeRef *val) {  
-    initStorage(val->clip->getNodeType()  == mtVideo ? ptVideoNode : ptAudioNode);
-    reinterpret_cast<NodeList *>(storage)->push_back(PVSNodeRef(val, true));
-    internalSize++;
-}
-
-void VSVariant::append(const VSFrameRef *val) {
-    initStorage(val->getFrameType() == mtVideo ? ptVideoFrame : ptAudioFrame);
-    reinterpret_cast<FrameList *>(storage)->push_back(PVSFrameRef(const_cast<VSFrameRef *>(val), true));
-    internalSize++;
-}
-
-void VSVariant::append(VSFuncRef *val) {
-    initStorage(ptFunction);
-    reinterpret_cast<FuncList *>(storage)->push_back(PVSFuncRef(val, true));
-    internalSize++;
-}
-
-void VSVariant::initStorage(VSPropTypes t) {
-    assert(vtype == ptUnset || vtype == t);
-    vtype = t;
-    if (!storage) {
-        switch (t) {
-        case ptInt:
-            storage = new IntList(); break;
-        case ptFloat:
-            storage = new FloatList(); break;
-        case ptData:
-            storage = new DataList(); break;
-        case ptVideoNode:
-        case ptAudioNode:
-            storage = new NodeList(); break;
-        case ptVideoFrame:
-        case ptAudioFrame:
-            storage = new FrameList(); break;
-        case ptFunction:
-            storage = new FuncList(); break;
-        default:;
-        }
-    }
-}
 
 ///////////////
 
@@ -567,15 +448,12 @@ void VSPlaneData::release() noexcept {
 
 ///////////////
 
-VSFrameRef::VSFrameRef(const VSVideoFormat &f, int width, int height, const VSFrameRef *propSrc, VSCore *core) : refcount(1), contentType(mtVideo), width(width), height(height), core(core) {
+VSFrameRef::VSFrameRef(const VSVideoFormat &f, int width, int height, const VSFrameRef *propSrc, VSCore *core) : refcount(1), contentType(mtVideo), width(width), height(height), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
     if (width <= 0 || height <= 0)
         vsFatal("Error in frame creation: dimensions are negative (%dx%d)", width, height);
 
     format.vf = f;
     numPlanes = format.vf.numPlanes;
-
-    if (propSrc)
-        properties = propSrc->properties;
 
     stride[0] = (width * (f.bytesPerSample) + (alignment - 1)) & ~(alignment - 1);
 
@@ -596,15 +474,12 @@ VSFrameRef::VSFrameRef(const VSVideoFormat &f, int width, int height, const VSFr
     }
 }
 
-VSFrameRef::VSFrameRef(const VSVideoFormat &f, int width, int height, const VSFrameRef * const *planeSrc, const int *plane, const VSFrameRef *propSrc, VSCore *core) : refcount(1), contentType(mtVideo), width(width), height(height), core(core) {
+VSFrameRef::VSFrameRef(const VSVideoFormat &f, int width, int height, const VSFrameRef * const *planeSrc, const int *plane, const VSFrameRef *propSrc, VSCore *core) : refcount(1), contentType(mtVideo), width(width), height(height), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
     if (width <= 0 || height <= 0)
         vsFatal("Error in frame creation: dimensions are negative (%dx%d)", width, height);
 
     format.vf = f;
     numPlanes = format.vf.numPlanes;
-
-    if (propSrc)
-        properties = propSrc->properties;
 
     stride[0] = (width * (format.vf.bytesPerSample) + (alignment - 1)) & ~(alignment - 1);
 
@@ -635,7 +510,7 @@ VSFrameRef::VSFrameRef(const VSVideoFormat &f, int width, int height, const VSFr
     }
 }
 
-VSFrameRef::VSFrameRef(const VSAudioFormat &f, int numSamples, const VSFrameRef *propSrc, VSCore *core) : refcount(1), contentType(mtAudio), core(core) {
+VSFrameRef::VSFrameRef(const VSAudioFormat &f, int numSamples, const VSFrameRef *propSrc, VSCore *core) : refcount(1), contentType(mtAudio), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
     if (numSamples <= 0)
         vsFatal("Error in frame creation: bad number of samples (%d)", numSamples);
 
@@ -644,9 +519,6 @@ VSFrameRef::VSFrameRef(const VSAudioFormat &f, int numSamples, const VSFrameRef 
     numPlanes = format.af.numChannels;
 
     width = numSamples;
-
-    if (propSrc)
-        properties = propSrc->properties;
 
     stride[0] = format.af.bytesPerSample * VS_AUDIO_FRAME_SAMPLES;
 
@@ -786,7 +658,7 @@ VSFunction::VSFunction(const std::string &argString, VSPublicFunction func, void
             vsFatal("Invalid argument specifier '%s'. It appears to be incomplete.", arg.c_str());
 
         bool arr = false;
-        VSPropTypes type = ptUnset;
+        VSPropType type = ptUnset;
         const std::string &argName = argParts[0];
         std::string typeName = argParts[1];
 
@@ -883,10 +755,12 @@ std::string VSFunction::getV3ArgString() const {
 }
 
 void VSNodeRef::add_ref() noexcept {
+    assert(refcount > 0);
     ++refcount;
 }
 
 void VSNodeRef::release() noexcept {
+    assert(refcount > 0);
     if (--refcount == 0) {
         clip->release();
         delete this;
@@ -1887,13 +1761,13 @@ VSCore::~VSCore() {
     plugins.clear();
 }
 
-VSMap VSCore::getPlugins() {
-    VSMap m;
+VSMap *VSCore::getPlugins() {
+    VSMap *m = new VSMap;
     std::lock_guard<std::recursive_mutex> lock(pluginLock);
     int num = 0;
     for (const auto &iter : plugins) {
         std::string b = iter.second->fnamespace + ";" + iter.second->id + ";" + iter.second->fullname;
-        vs_internal_vsapi.propSetData(&m, ("Plugin" + std::to_string(++num)).c_str(), b.c_str(), static_cast<int>(b.size()), dtUtf8, paReplace);
+        vs_internal_vsapi.propSetData(m, ("Plugin" + std::to_string(++num)).c_str(), b.c_str(), static_cast<int>(b.size()), dtUtf8, paReplace);
     }
     return m;
 }
@@ -2173,12 +2047,13 @@ bool VSPlugin::registerFunction(const std::string &name, const std::string &args
     return true;
 }
 
-static bool hasCompatNodes(const VSMap &m) {
-    for (const auto &vsv : m.getStorage()) {
-        if (vsv.second.getType() == ptVideoNode) {
-            for (size_t i = 0; i < vsv.second.size(); i++) {
-                for (size_t j = 0; j < vsv.second.getValue<PVSNodeRef>(i)->clip->getNumOutputs(); j++) {
-                    const VSVideoInfo &vi = vsv.second.getValue<PVSNodeRef>(i)->clip->getVideoInfo(static_cast<int>(j));
+bool VSMap::hasCompatNodes() const {
+    for (const auto &iter : data->data) {
+        if (iter.second->type() == ptVideoNode) {
+            VSVideoNodeArray *arr = reinterpret_cast<VSVideoNodeArray *>(iter.second);
+            for (size_t i = 0; i < arr->size(); i++) {
+                for (size_t j = 0; j < arr->at(i)->clip->getNumOutputs(); j++) {
+                    const VSVideoInfo &vi = arr->at(i)->clip->getVideoInfo(static_cast<int>(j));
                     if (vi.format.colorFamily == cfCompatBGR32 || vi.format.colorFamily == cfCompatYUY2)
                         return true;
                 }
@@ -2188,34 +2063,18 @@ static bool hasCompatNodes(const VSMap &m) {
     return false;
 }
 
-static bool hasForeignNodes(const VSMap &m, const VSCore *core) {
-    for (const auto &vsv : m.getStorage()) {
-        if (vsv.second.getType() == ptVideoNode || vsv.second.getType() == ptAudioNode) {
-            for (size_t i = 0; i < vsv.second.size(); i++) {
-                for (size_t j = 0; j < vsv.second.getValue<PVSNodeRef>(i)->clip->getNumOutputs(); j++) {
-                    if (!vsv.second.getValue<PVSNodeRef>(i)->clip->isRightCore(core))
-                        return true;
-                }
-            }
-        }
-    }
-    return false;
-}
-
-VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
-    VSMap v;
+VSMap *VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
+    std::unique_ptr<VSMap> v(new VSMap);
 
     try {
         if (funcs.count(funcName)) {
             const VSFunction &f = funcs[funcName];
-            if (!compat && hasCompatNodes(args))
+            if (!compat && args.hasCompatNodes())
                 throw VSException(funcName + ": only special filters may accept compat input");
-            if (hasForeignNodes(args, core))
-                throw VSException(funcName + ": nodes foreign to this core passed as input, improper api usage detected");
 
             std::set<std::string> remainingArgs;
-            for (const auto &key : args.getStorage())
-                remainingArgs.insert(key.first);
+            for (size_t i = 0; i < args.size(); i++)
+                remainingArgs.insert(args.key(i));
 
             for (const FilterArgument &fa : f.args) {
                 char c = vs_internal_vsapi.propGetType(&args, fa.name.c_str());
@@ -2226,10 +2085,12 @@ VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
                     if (fa.type != c)
                         throw VSException(funcName + ": argument " + fa.name + " is not of the correct type");
 
-                    if (!fa.arr && args[fa.name].size() > 1)
+                    VSArrayBase *arr = args.find(fa.name);
+
+                    if (!fa.arr && arr->size() > 1)
                         throw VSException(funcName + ": argument " + fa.name + " is not of array type but more than one value was supplied");
 
-                    if (!fa.empty && args[fa.name].size() < 1)
+                    if (!fa.empty && arr->size() < 1)
                         throw VSException(funcName + ": argument " + fa.name + " does not accept empty arrays");
 
                 } else if (!fa.opt) {
@@ -2247,23 +2108,23 @@ VSMap VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
             }
 
 
-            f.func(&args, &v, f.functionData, core, getVSAPIInternal(apiMajor));
+            f.func(&args, v.get(), f.functionData, core, getVSAPIInternal(apiMajor));
 
-            if (!compat && hasCompatNodes(v))
+            if (!compat && v->hasCompatNodes())
                 vsFatal("%s: illegal filter node returning a compat format detected, DO NOT USE THE COMPAT FORMATS IN NEW FILTERS", funcName.c_str());
 
-            if (apiMajor == VAPOURSYNTH3_API_MAJOR && hasV3IncompatibleValues(args))
+            if (apiMajor == VAPOURSYNTH3_API_MAJOR && !args.isV3Compatible())
                 vsFatal("%s: illegal filter node returning not yet supported type", funcName.c_str());
 
-            return v;
+            return v.release();
         }
     } catch (VSException &e) {
-        vs_internal_vsapi.setError(&v, e.what());
-        return v;
+        vs_internal_vsapi.setError(v.get(), e.what());
+        return v.release();
     }
 
-    vs_internal_vsapi.setError(&v, ("Function '" + funcName + "' not found in " + id).c_str());
-    return v;
+    vs_internal_vsapi.setError(v.get(), ("Function '" + funcName + "' not found in " + id).c_str());
+    return v.release();
 }
 
 void VSPlugin::getFunctions(VSMap *out) const {

@@ -59,7 +59,8 @@ static const VSFrameRef *VS_CC cloneFrameRef(const VSFrameRef *frame) VS_NOEXCEP
 
 static VSNodeRef *VS_CC cloneNodeRef(VSNodeRef *node) VS_NOEXCEPT {
     assert(node);
-    return new VSNodeRef(node->clip, node->index);
+    node->add_ref();
+    return node;
 }
 
 static ptrdiff_t VS_CC getStride(const VSFrameRef *frame, int plane) VS_NOEXCEPT {
@@ -231,10 +232,7 @@ static void VS_CC setError(VSMap *map, const char *errorMessage) VS_NOEXCEPT {
 
 static const char *VS_CC getError(const VSMap *map) VS_NOEXCEPT {
     assert(map);
-    if (map->hasError())
-        return map->getErrorMessage().c_str();
-    else
-        return nullptr;
+    return map->getErrorMessage();
 }
 
 static void VS_CC setFilterError(const char *errorMessage, VSFrameContext *context) VS_NOEXCEPT {
@@ -303,27 +301,22 @@ static const char *VS_CC propGetKey(const VSMap *map, int index) VS_NOEXCEPT {
     return map->key(index);
 }
 
-static int propNumElementsInternal(const VSMap *map, const std::string &key) VS_NOEXCEPT {
-    VSVariant *val = map->find(key);
-    return val ? static_cast<int>(val->size()) : -1;
-}
-
-
 static int VS_CC propNumElements(const VSMap *map, const char *key) VS_NOEXCEPT {
     assert(map && key);
-    return propNumElementsInternal(map, key);
+    VSArrayBase *val = map->find(key);
+    return val ? static_cast<int>(val->size()) : -1;
 }
 
 static int VS_CC propGetType(const VSMap *map, const char *key) VS_NOEXCEPT {
     assert(map && key);
-    VSVariant *val = map->find(key);
-    return val ? val->getType() : ptUnset;
+    VSArrayBase *val = map->find(key);
+    return val ? val->type() : ptUnset;
 }
 
 static char VS_CC propGetType3(const VSMap *map, const char *key) VS_NOEXCEPT {
     assert(map && key);
-    VSVariant *val = map->find(key);
-    VSPropTypes pt = val ? val->getType() : ptUnset;
+    VSArrayBase *val = map->find(key);
+    VSPropType pt = val ? val->type() : ptUnset;
     switch (pt) {
         case ptInt:
             return vs3::ptInt;
@@ -342,57 +335,56 @@ static char VS_CC propGetType3(const VSMap *map, const char *key) VS_NOEXCEPT {
     }
 }
 
-#define PROP_GET_SHARED(vt, retexpr) \
-    assert(map && key); \
-    if (map->hasError()) \
-        vsFatal("Attempted to read key '%s' from a map with error set: %s", key, map->getErrorMessage().c_str()); \
-    int err = 0; \
-    VSVariant *l = map->find(key); \
-    if (l && l->getType() == (vt)) { \
-        if (index >= 0 && static_cast<size_t>(index) < l->size()) { \
-            if (error) \
-                *error = 0; \
-            return (retexpr); \
-        } else { \
-            err |= peIndex; \
-        } \
-    } else if (l) { \
-        err |= peType; \
-    } else { \
-        err = peUnset; \
-    } \
-    if (!error) \
-        vsFatal("Property read unsuccessful but no error output: %s", key); \
-    *error = err; \
-    return 0;
+static VSArrayBase *propGetShared(const VSMap *map, const char *key, int index, int *error, VSPropType propType) {
+    assert(map && key && index >= 0);
 
-#define PROP_GET_SHARED2(vt1, vt2, retexpr) \
-    assert(map && key); \
-    if (map->hasError()) \
-        vsFatal("Attempted to read key '%s' from a map with error set: %s", key, map->getErrorMessage().c_str()); \
-    int err = 0; \
-    VSVariant *l = map->find(key); \
-    if (l && (l->getType() == (vt1) || l->getType() == (vt2))) { \
-        if (index >= 0 && static_cast<size_t>(index) < l->size()) { \
-            if (error) \
-                *error = 0; \
-            return (retexpr); \
-        } else { \
-            err |= peIndex; \
-        } \
-    } else if (l) { \
-        err |= peType; \
-    } else { \
-        err = peUnset; \
-    } \
-    if (!error) \
-        vsFatal("Property read unsuccessful but no error output: %s", key); \
-    *error = err; \
-    return 0;
+    if (error)
+        *error = 0;
+
+    if (map->hasError()) {
+        vsWarning("Attempted to read key '%s' from a map with error set: %s", key, map->getErrorMessage());
+        if (error)
+            *error = peError;
+        else
+            vsFatal("Property read unsuccessful but no error output: %s", key);
+        return nullptr;
+    }
+
+    VSArrayBase *arr = map->find(key);
+
+    if (!arr) {
+        if (error)
+            *error = peUnset;
+        else
+            vsFatal("Property read unsuccessful but no error output: %s", key);
+        return nullptr;
+    }
+
+    if (index < 0 || index > arr->size()) {
+        if (error)
+            *error = peIndex;
+        else
+            vsFatal("Property read unsuccessful but no error output: %s", key);
+        return nullptr;
+    }
+
+    if (arr->type() != propType) {
+        if (error)
+            *error = peType;
+        else
+            vsFatal("Property read unsuccessful but no error output: %s", key);
+        return nullptr;
+    }
+
+    return arr;
+}
 
 static int64_t VS_CC propGetInt(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    PROP_GET_SHARED(ptInt, l->getValue<int64_t>(index))
-
+    VSArrayBase *arr = propGetShared(map, key, index, error, ptInt);
+    if (arr)
+        return reinterpret_cast<const VSIntArray *>(arr)->at(index);
+    else
+        return 0;
 }
 
 static int VS_CC propGetSaturatedInt(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
@@ -400,7 +392,11 @@ static int VS_CC propGetSaturatedInt(const VSMap *map, const char *key, int inde
 }
 
 static double VS_CC propGetFloat(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    PROP_GET_SHARED(ptFloat, l->getValue<double>(index))
+    VSArrayBase *arr = propGetShared(map, key, index, error, ptFloat);
+    if (arr)
+        return reinterpret_cast<const VSFloatArray *>(arr)->at(index);
+    else
+        return 0;
 }
 
 static float VS_CC propGetSaturatedFloat(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
@@ -408,23 +404,63 @@ static float VS_CC propGetSaturatedFloat(const VSMap *map, const char *key, int 
 }
 
 static const char *VS_CC propGetData(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    PROP_GET_SHARED(ptData, l->getValue<PVSMapData>(index)->data.c_str())
+    VSArrayBase *arr = propGetShared(map, key, index, error, ptData);
+    if (arr)
+        return reinterpret_cast<const VSDataArray *>(arr)->at(index).data.c_str();
+    else
+        return nullptr;
 }
 
 static int VS_CC propGetDataSize(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    PROP_GET_SHARED(ptData, static_cast<int>(l->getValue<PVSMapData>(index)->data.size()))
+    VSArrayBase *arr = propGetShared(map, key, index, error, ptData);
+    if (arr)
+        return static_cast<int>(reinterpret_cast<const VSDataArray *>(arr)->at(index).data.size());
+    else
+        return -1;
 }
 
 static int VS_CC propGetDataType(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    return dtUnknown; // FIXME
+    VSArrayBase *arr = propGetShared(map, key, index, error, ptData);
+    if (arr)
+        return reinterpret_cast<const VSDataArray *>(arr)->at(index).typeHint;
+    else
+        return dtUnknown;
 }
 
 static VSNodeRef *VS_CC propGetNode(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    PROP_GET_SHARED2(ptVideoNode, ptAudioNode, (l->getValue<PVSNodeRef>(index)->add_ref(), l->getValue<PVSNodeRef>(index).get()))
+    VSArrayBase *arr = propGetShared(map, key, index, error, ptVideoNode);
+    if (arr) {
+        VSNodeRef *ref = reinterpret_cast<VSVideoNodeArray *>(arr)->at(index).get();
+        ref->add_ref();
+        return ref;
+    } else {
+        arr = propGetShared(map, key, index, error, ptAudioNode);
+        if (arr) {
+            VSNodeRef *ref = reinterpret_cast<VSAudioNodeArray *>(arr)->at(index).get();
+            ref->add_ref();
+            return ref;
+        } else {
+            return nullptr;
+        }
+    }
 }
 
 static const VSFrameRef *VS_CC propGetFrame(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    PROP_GET_SHARED2(ptVideoFrame, ptAudioFrame, (l->getValue<PVSFrameRef>(index)->add_ref(), l->getValue<PVSFrameRef>(index).get()))
+    VSArrayBase *arr = propGetShared(map, key, index, error, ptData);
+    if (arr) {
+        VSFrameRef *ref = reinterpret_cast<VSVideoFrameArray *>(arr)->at(index).get();
+        ref->add_ref();
+        return ref;
+    } else {
+        arr = propGetShared(map, key, index, error, ptData);
+        if (arr) {
+            VSFrameRef *ref = reinterpret_cast<VSAudioFrameArray *>(arr)->at(index).get();
+            ref->add_ref();
+            return ref;
+        } else {
+            return nullptr;
+        }
+    }
 }
 
 static int VS_CC propDeleteKey(VSMap *map, const char *key) VS_NOEXCEPT {
@@ -440,52 +476,64 @@ static inline bool isAlphaNumUnderscore(char c) {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
 }
 
-static bool isValidVSMapKey(const std::string &s) {
-    size_t len = s.length();
-    if (!len)
+static bool isValidVSMapKey(const char *s) {
+    if (!s)
         return false;
-
-    if (!isAlphaUnderscore(s[0]))
+    if (!isAlphaUnderscore(*s))
         return false;
-    for (size_t i = 1; i < len; i++)
-        if (!isAlphaNumUnderscore(s[i]))
+    s++;
+    while (*s) {
+        if (!isAlphaNumUnderscore(*s))
             return false;
+        s++;
+    }
     return true;
 }
 
-#define PROP_SET_SHARED(vv, appendexpr) \
-    assert(map && key); \
-    if (append != paReplace && append != paAppend && append != vs3::paTouch) \
-        vsFatal("Invalid prop append mode given when setting key '%s'", key); \
-    std::string skey = key; \
-    if (!isValidVSMapKey(skey)) \
-        return 1; \
-    if (append != paReplace && map->contains(skey)) { \
-        map->detach(); \
-        VSVariant &l = map->at(skey); \
-        if (l.getType() != (vv)) \
-            return 1; \
-        else if (append == paAppend) \
-            l.append(appendexpr); \
-    } else { \
-        VSVariant l((vv)); \
-        if (append != vs3::paTouch) \
-            l.append(appendexpr); \
-        map->insert(skey, std::move(l)); \
-    } \
-    return 0;
+template<typename T, VSPropType propType>
+bool propSetShared(VSMap *map, const char *key, const T &val, int append) {
+    assert(map && key);
+    if (append != paReplace && append != paAppend && append != vs3::paTouch)
+        vsFatal("Invalid prop append mode given when setting key '%s'", key);
+    std::string skey = key;
+    if (!isValidVSMapKey(key))
+        return false;
 
+    if (append == paReplace) {
+        VSArray<T, propType> *v = new VSArray<T, propType>();
+        v->push_back(val);
+        map->insert(key, v);
+        return true;
+    } else {
+        VSArrayBase *arr = map->find(skey);
+        if (arr && arr->type() == propType) {
+            if (append != vs3::paTouch) {
+                arr = map->detach(skey);
+                reinterpret_cast<VSArray<T, propType> *>(arr)->push_back(val);
+            }
+            return true;
+        } else if (arr) {
+            return false;
+        } else {
+            VSArray<T, propType> *v = new VSArray<T, propType>();
+            if (append != vs3::paTouch)
+                v->push_back(val);
+            map->insert(key, v);
+            return true;
+        }
+    }
+}
 
 static int VS_CC propSetInt(VSMap *map, const char *key, int64_t i, int append) VS_NOEXCEPT {
-    PROP_SET_SHARED(ptInt, i)
+    return !propSetShared<int64_t, ptInt>(map, key, i, append);
 }
 
 static int VS_CC propSetFloat(VSMap *map, const char *key, double d, int append) VS_NOEXCEPT {
-    PROP_SET_SHARED(ptFloat, d)
+    return !propSetShared<double, ptFloat>(map, key, d, append);
 }
 
 static int VS_CC propSetData(VSMap *map, const char *key, const char *d, int length, int type, int append) VS_NOEXCEPT {
-    PROP_SET_SHARED(ptData, length >= 0 ? std::string(d, length) : std::string(d)); 
+    return !propSetShared<VSMapData, ptData>(map, key, { static_cast<VSDataType>(type), std::string(d, length) }, append);
 }
 
 static int VS_CC propSetData3(VSMap *map, const char *key, const char *d, int length, int append) VS_NOEXCEPT {
@@ -493,13 +541,17 @@ static int VS_CC propSetData3(VSMap *map, const char *key, const char *d, int le
 }
 
 static int VS_CC propSetNode(VSMap *map, const char *key, VSNodeRef *node, int append) VS_NOEXCEPT {
-    VSPropTypes nodeType = (node == nullptr || node->clip->getNodeType() == mtVideo) ? ptVideoNode : ptAudioNode;
-    PROP_SET_SHARED(nodeType, node)
+    if (node == nullptr || node->clip->getNodeType() == mtVideo)
+        return !propSetShared<PVSNodeRef, ptVideoNode>(map, key, { node, true }, append);
+    else
+        return !propSetShared<PVSNodeRef, ptAudioNode>(map, key, { node, true }, append);
 }
 
 static int VS_CC propSetFrame(VSMap *map, const char *key, const VSFrameRef *frame, int append) VS_NOEXCEPT {
-    VSPropTypes frameType = (frame == nullptr || frame->getFrameType() == mtVideo) ? ptVideoFrame : ptAudioFrame;
-    PROP_SET_SHARED(frameType, frame)
+    if (frame == nullptr || frame->getFrameType() == mtVideo)
+        return !propSetShared<PVSFrameRef, ptVideoFrame>(map, key, { const_cast<VSFrameRef *>(frame), true }, append);
+    else
+        return !propSetShared<PVSFrameRef, ptAudioFrame>(map, key, { const_cast<VSFrameRef *>(frame), true }, append);
 }
 
 static VSMap *VS_CC invoke(VSPlugin *plugin, const char *name, const VSMap *args) VS_NOEXCEPT {
@@ -545,7 +597,7 @@ static VSPlugin *VS_CC getPluginByNs(const char *ns, VSCore *core) VS_NOEXCEPT {
 
 static VSMap *VS_CC getPlugins(VSCore *core) VS_NOEXCEPT {
     assert(core);
-    return new VSMap(core->getPlugins());
+    return core->getPlugins();
 }
 
 static VSMap *VS_CC getFunctions(VSPlugin *plugin) VS_NOEXCEPT {
@@ -568,12 +620,18 @@ static const VSCoreInfo *VS_CC getCoreInfo(VSCore *core) VS_NOEXCEPT {
 }
 
 static VSFuncRef *VS_CC propGetFunc(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    PROP_GET_SHARED(ptFunction, (l->getValue<PVSFuncRef>(index)->add_ref(), l->getValue<PVSFuncRef>(index).get()))
+    const VSArrayBase *arr = propGetShared(map, key, index, error, ptData);
+    if (arr) {
+        VSFuncRef *ref = reinterpret_cast<const VSFunctionArray *>(arr)->at(index).get();
+        ref->add_ref();
+        return ref;
+    } else {
+        return nullptr;
+    }
 }
 
 static int VS_CC propSetFunc(VSMap *map, const char *key, VSFuncRef *func, int append) VS_NOEXCEPT {
-    assert(func);
-    PROP_SET_SHARED(ptFunction, func)
+    return !propSetShared<PVSFuncRef, ptFunction>(map, key, { func, true }, append);
 }
 
 static void VS_CC callFunc(VSFuncRef *func, const VSMap *in, VSMap *out) VS_NOEXCEPT {
@@ -653,25 +711,30 @@ static int VS_CC getPluginVersion(const VSPlugin *plugin) VS_NOEXCEPT {
 }
 
 static const int64_t *VS_CC propGetIntArray(const VSMap *map, const char *key, int *error) VS_NOEXCEPT {
-    int index = 0;
-    PROP_GET_SHARED(ptInt, l->getArray<int64_t>())
+    const VSArrayBase *arr = propGetShared(map, key, 0, error, ptInt);
+    if (arr) {
+        return reinterpret_cast<const VSIntArray *>(arr)->getDataPointer();
+    } else {
+        return nullptr;
+    }
 }
 
 static const double *VS_CC propGetFloatArray(const VSMap *map, const char *key, int *error) VS_NOEXCEPT {
-    int index = 0;
-    PROP_GET_SHARED(ptFloat, l->getArray<double>())
+    const VSArrayBase *arr = propGetShared(map, key, 0, error, ptFloat);
+    if (arr) {
+        return reinterpret_cast<const VSFloatArray *>(arr)->getDataPointer();
+    } else {
+        return nullptr;
+    }
 }
 
 static int VS_CC propSetIntArray(VSMap *map, const char *key, const int64_t *i, int size) VS_NOEXCEPT {
     assert(map && key && size >= 0);
     if (size < 0)
         return 1;
-    std::string skey = key;
-    if (!isValidVSMapKey(skey))
+    if (!isValidVSMapKey(key))
         return 1;
-    VSVariant l(ptInt);
-    l.setArray(i, size);
-    map->insert(skey, std::move(l));
+    map->insert(key, new VSIntArray(i, size));
     return 0;
 }
 
@@ -679,12 +742,9 @@ static int VS_CC propSetFloatArray(VSMap *map, const char *key, const double *d,
     assert(map && key && size >= 0);
     if (size < 0)
         return 1;
-    std::string skey = key;
-    if (!isValidVSMapKey(skey))
+    if (!isValidVSMapKey(key))
         return 1;
-    VSVariant l(ptFloat);
-    l.setArray(d, size);
-    map->insert(skey, std::move(l));
+    map->insert(key, new VSFloatArray(d, size));
     return 0;
 }
 
@@ -708,10 +768,37 @@ static void VS_CC getCoreInfo2(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT {
 static int VS_CC propSetEmpty(VSMap *map, const char *key, int type) VS_NOEXCEPT {
     assert(map && key);
     std::string skey = key;
-    if (!isValidVSMapKey(skey) || map->find(skey))
+    if (!isValidVSMapKey(key) || map->find(skey))
         return -1;
-    VSVariant l(static_cast<VSPropTypes>(type));
-    map->insert(skey, std::move(l));
+
+    switch (type) {
+        case ptInt:
+            map->insert(skey, new VSIntArray);
+            break;
+        case ptFloat:
+            map->insert(skey, new VSFloatArray);
+            break;
+        case ptData:
+            map->insert(skey, new VSDataArray);
+            break;
+        case ptVideoNode:
+            map->insert(skey, new VSVideoNodeArray);
+            break;
+        case ptAudioNode:
+            map->insert(skey, new VSAudioNodeArray);
+            break;
+        case ptVideoFrame:
+            map->insert(skey, new VSVideoFrameArray);
+            break;
+        case ptAudioFrame:
+            map->insert(skey, new VSAudioFrameArray);
+            break;
+        case ptFunction:
+            map->insert(skey, new VSFunctionArray);
+            break;
+        default:
+            return -1;
+    }
     return 0;
 }
 
