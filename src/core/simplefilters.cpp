@@ -1654,10 +1654,8 @@ static void VS_CC transposeCreate(const VSMap *in, VSMap *out, void *userData, V
     d->vi.width = d->vi.height;
     d->vi.height = temp;
 
-    if (!isConstantVideoFormat(&d->vi) || d->vi.format.colorFamily == cfCompatYUY2) {
-        vsapi->freeNode(d->node);
+    if (!isConstantVideoFormat(&d->vi) || d->vi.format.colorFamily == cfCompatYUY2)
         RETERROR("Transpose: clip must have constant format and dimensions and must not be CompatYUY2");
-    }
 
     vsapi->queryVideoFormat(&d->vi.format, d->vi.format.colorFamily, d->vi.format.sampleType, d->vi.format.bitsPerSample, d->vi.format.subSamplingH, d->vi.format.subSamplingW, core);
     d->cpulevel = vs_get_cpulevel(core);

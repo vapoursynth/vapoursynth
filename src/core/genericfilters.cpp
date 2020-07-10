@@ -588,7 +588,6 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
         d->cpulevel = vs_get_cpulevel(core);
     } catch (const std::runtime_error &error) {
-        vsapi->freeNode(d->node);
         vsapi->setError(out, (d->filter_name + ": "_s + error.what()).c_str());
         return;
     }
@@ -641,7 +640,6 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     try {
         templateInit(d, "Invert", true, in, out, vsapi);
     } catch (const std::runtime_error &error) {
-        vsapi->freeNode(d->node);
         vsapi->setError(out, (d->name + ": "_s + error.what()).c_str());
         return;
     }
@@ -697,7 +695,6 @@ static void VS_CC limitCreate(const VSMap *in, VSMap *out, void *userData, VSCor
             if (((d->vi->format.sampleType == stInteger) && (d->min[i] > d->max[i])) || ((d->vi->format.sampleType == stFloat) && (d->minf[i] > d->maxf[i])))
                 throw std::runtime_error("min bigger than max");
     } catch (const std::runtime_error &error) {
-        vsapi->freeNode(d->node);
         vsapi->setError(out, (d->name + ": "_s + error.what()).c_str());
         return;
     }
@@ -759,7 +756,6 @@ static void VS_CC binarizeCreate(const VSMap *in, VSMap *out, void *userData, VS
         getPlanePixelRangeArgs(d->vi->format, in, "v1", d->v1, d->v1f, RangeUpper, vsapi);
         getPlanePixelRangeArgs(d->vi->format, in, "threshold", d->thr, d->thrf, RangeMiddle, vsapi);
     } catch (const std::runtime_error &error) {
-        vsapi->freeNode(d->node);
         vsapi->setError(out, (d->name + ": "_s + error.what()).c_str());
         return;
     }
@@ -887,7 +883,6 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     try {
         templateInit(d, "Levels", false, in, out, vsapi);
     } catch (const std::runtime_error &error) {
-        vsapi->freeNode(d->node);
         vsapi->setError(out, (d->name + ": "_s + error.what()).c_str());
         return;
     }

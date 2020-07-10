@@ -122,10 +122,8 @@ static void VS_CC trimCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     VSVideoInfo vi = *vsapi->getVideoInfo(d->node);
 
-    if ((lastset && last >= vi.numFrames) || (lengthset && (d->first + length) > vi.numFrames) || (vi.numFrames <= d->first)) {
-        vsapi->freeNode(d->node);
+    if ((lastset && last >= vi.numFrames) || (lengthset && (d->first + length) > vi.numFrames) || (vi.numFrames <= d->first))
         RETERROR("Trim: last frame beyond clip end");
-    }
 
     if (lastset) {
         trimlen = last - d->first + 1;
@@ -138,7 +136,6 @@ static void VS_CC trimCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     // obvious nop() so just pass through the input clip
     if ((!firstset && !lastset && !lengthset) || (trimlen && trimlen == vi.numFrames)) {
         vsapi->propSetNode(out, "clip", d->node, paReplace);
-        vsapi->freeNode(d->node);
         return;
     }
 
@@ -311,7 +308,6 @@ static void VS_CC loopCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     // early termination for the trivial case
     if (times == 1) {
         vsapi->propSetNode(out, "clip", d->node, paReplace);
-        vsapi->freeNode(d->node);
         return;
     }
 

@@ -119,10 +119,8 @@ static void VS_CC audioTrimCreate(const VSMap *in, VSMap *out, void *userData, V
 
     d->ai = *vsapi->getAudioInfo(d->node);
 
-    if ((lastset && last >= d->ai.numSamples) || (lengthset && (d->first + length) > d->ai.numSamples) || (d->ai.numSamples <= d->first)) {
-        vsapi->freeNode(d->node);
+    if ((lastset && last >= d->ai.numSamples) || (lengthset && (d->first + length) > d->ai.numSamples) || (d->ai.numSamples <= d->first))
         RETERROR("AudioTrim: last sample beyond clip end");
-    }
 
     if (lastset) {
         trimlen = last - d->first + 1;
@@ -135,7 +133,6 @@ static void VS_CC audioTrimCreate(const VSMap *in, VSMap *out, void *userData, V
     // obvious nop() so just pass through the input clip
     if ((!firstset && !lastset && !lengthset) || (trimlen && trimlen == d->ai.numSamples)) {
         vsapi->propSetNode(out, "clip", d->node, paReplace);
-        vsapi->freeNode(d->node);
         return;
     }
 
@@ -260,8 +257,6 @@ static void VS_CC audioSpliceCreate(const VSMap *in, VSMap *out, void *userData,
     // fixme, check for too long clip
     /*
     if (d->ai.numSamples < d->numSamples1 || d->ai.numSamples < d->numSamples2) {
-        vsapi->freeNode(d->node1);
-        vsapi->freeNode(d->node2);
         RETERROR("AudioSplice: the resulting clip is too long");
     }
     */
