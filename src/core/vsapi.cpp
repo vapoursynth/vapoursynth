@@ -349,14 +349,16 @@ static bool isValidVSMapKey(const std::string &s) {
     if (append != paReplace && map->contains(skey)) { \
         map->detach(); \
         VSVariant &l = map->at(skey); \
-        if (l.getType() != (vv)) \
+        if (l.getType() != (vv)) { \
             return 1; \
-        else if (append == paAppend) \
+        } else if (append == paAppend) { \
             l.append(appendexpr); \
+        } \
     } else { \
         VSVariant l((vv)); \
         if (append != paTouch) \
             l.append(appendexpr); \
+        map->detach(); \
         map->insert(skey, std::move(l)); \
     } \
     return 0;
