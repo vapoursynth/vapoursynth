@@ -283,6 +283,13 @@ public:
         data->release();
     }
 
+    VSMap &operator=(const VSMap &map) {
+        data->release();
+        data = map.data;
+        data->add_ref();
+        return *this;
+    }
+
     void detach() {
         if (!data->unique()) {
             VSMapStorage *old = data;
