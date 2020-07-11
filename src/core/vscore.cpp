@@ -2088,7 +2088,7 @@ bool VSPlugin::registerFunction(const std::string &name, const std::string &args
 bool VSMap::hasCompatNodes() const {
     for (const auto &iter : data->data) {
         if (iter.second->type() == ptVideoNode) {
-            VSVideoNodeArray *arr = reinterpret_cast<VSVideoNodeArray *>(iter.second);
+            VSVideoNodeArray *arr = reinterpret_cast<VSVideoNodeArray *>(iter.second.get());
             for (size_t i = 0; i < arr->size(); i++) {
                 for (size_t j = 0; j < arr->at(i)->clip->getNumOutputs(); j++) {
                     const VSVideoInfo &vi = arr->at(i)->clip->getVideoInfo(static_cast<int>(j));

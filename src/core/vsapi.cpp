@@ -556,7 +556,7 @@ static int VS_CC propSetFrame(VSMap *map, const char *key, const VSFrameRef *fra
 
 static VSMap *VS_CC invoke(VSPlugin *plugin, const char *name, const VSMap *args) VS_NOEXCEPT {
     assert(plugin && name && args);
-    return new VSMap(plugin->invoke(name, *args));
+    return plugin->invoke(name, *args);
 }
 
 static VSMap *VS_CC createMap() VS_NOEXCEPT {

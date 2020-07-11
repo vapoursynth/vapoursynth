@@ -101,6 +101,29 @@ public:
 };
 
 
+struct VSFuncRef {
+private:
+    std::atomic<long> refcount;
+    VSPublicFunction func;
+    void *userData;
+    VSFreeFuncData free;
+    VSCore *core;
+    int apiMajor;
+    ~VSFuncRef();
+public:
+    void add_ref() noexcept {
+        ++refcount;
+    }
+
+    void release() noexcept {
+        assert(refcount > 0);
+        if (--refcount == 0)
+            delete this;
+    }
+
+    VSFuncRef(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core, int apiMajor);
+    void call(const VSMap *in, VSMap *out);
+};
 
 class VSArrayBase {
 protected:
@@ -135,6 +158,8 @@ public:
     virtual VSArrayBase *copy() const noexcept = 0;
 };
 
+typedef vs_intrusive_ptr<VSArrayBase> PVSArrayBase;
+
 template<typename T, VSPropType propType>
 class VSArray final : public VSArrayBase {
 private:
@@ -145,9 +170,9 @@ public:
 
     explicit VSArray(const VSArray &other) noexcept : VSArrayBase(other.ftype) {
         fsize = other.fsize;
-        if (other.fsize == 1)
+        if (fsize == 1)
             singleData = other.singleData;
-        else if (other.fsize > 1)
+        else if (fsize > 1)
             data = other.data;
     }
 
@@ -211,41 +236,16 @@ typedef VSArray<PVSFrameRef, ptVideoFrame> VSVideoFrameArray;
 typedef VSArray<PVSFrameRef, ptAudioFrame> VSAudioFrameArray;
 typedef VSArray<PVSFuncRef, ptFunction> VSFunctionArray;
 
-struct VSFuncRef {
-private:
-    std::atomic<long> refcount;
-    VSPublicFunction func;
-    void *userData;
-    VSFreeFuncData free;
-    VSCore *core;
-    int apiMajor;
-    ~VSFuncRef();
-public:
-    void add_ref() noexcept {
-        ++refcount;
-    }
-
-    void release() noexcept {
-        if (--refcount == 0)
-            delete this;
-    }
-
-    VSFuncRef(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core, int apiMajor);
-    void call(const VSMap *in, VSMap *out);
-};
-
 class VSMapStorage {
 private:
     std::atomic<long> refcount;
 public:
-    std::map<std::string, VSArrayBase *> data;
+    std::map<std::string, PVSArrayBase> data;
     bool error;
 
     explicit VSMapStorage() : refcount(1), error(false) {}
 
     explicit VSMapStorage(const VSMapStorage &s) : refcount(1), data(s.data), error(s.error) {
-        for (const auto &iter : data)
-            iter.second->add_ref();
     }
 
     bool unique() noexcept {
@@ -258,49 +258,36 @@ public:
 
     void release() noexcept {
         assert(refcount > 0);
-        if (--refcount == 0) {
-            for (auto &iter : data)
-                iter.second->release();
+        if (--refcount == 0)
             delete this;
-        }
     }
 };
 
+typedef vs_intrusive_ptr<VSMapStorage> PVSMapStorage;
+
 struct VSMap {
 private:
-    VSMapStorage *data;
+    PVSMapStorage data;
 public:
-    VSMap(const VSMap *map = nullptr) {
-        if (map) {
-            data = map->data;
-            data->add_ref();
-        } else {
-            data = new VSMapStorage();
-        }
-    }
-
-    ~VSMap() {
-        data->release();
+    VSMap(const VSMap *map = nullptr) : data(map ? map->data : new VSMapStorage()) {
     }
 
     VSMap &operator=(const VSMap &map) {
-        data->release();
         data = map.data;
-        data->add_ref();
         return *this;
     }
 
-    void detach() {
+    bool detach() {
         if (!data->unique()) {
-            VSMapStorage *old = data;
             data = new VSMapStorage(*data);
-            old->release();
+            return true;
         }
+        return false;
     }
 
     VSArrayBase *find(const std::string &key) const {
         auto it = data->data.find(key);
-        return (it == data->data.end()) ? nullptr : it->second;
+        return (it == data->data.end()) ? nullptr : it->second.get();
     }
 
     VSArrayBase *detach(const std::string &key) {
@@ -309,7 +296,7 @@ public:
         if (it != data->data.end()) {
             if (!it->second->unique())
                 it->second = it->second->copy();
-            return it->second;
+            return it->second.get();
         }
         return nullptr;
     }
@@ -317,8 +304,8 @@ public:
     bool erase(const std::string &key) {
         auto it = data->data.find(key);
         if (it != data->data.end()) {
-            detach();
-            it->second->release();
+            if (detach())
+                it = data->data.find(key);
             data->data.erase(it);
             return true;
         }
@@ -329,7 +316,6 @@ public:
         detach();
         auto it = data->data.find(key);
         if (it != data->data.end()) {
-            it->second->release();
             it->second = val;
         } else {
             data->data.insert(std::make_pair(key, val));
@@ -341,8 +327,10 @@ public:
     }
 
     void clear() {
-        data->release();
-        data = new VSMapStorage();
+        if (data->unique())
+            data->data.clear();
+        else
+            data = new VSMapStorage();
     }
 
     const char *key(size_t n) const {
@@ -367,7 +355,7 @@ public:
 
     const char *getErrorMessage() const {
         if (data->error) {
-            return reinterpret_cast<VSDataArray *>(data->data.at("_Error"))->at(0).data.c_str();
+            return reinterpret_cast<VSDataArray *>(data->data.at("_Error").get())->at(0).data.c_str();
         } else {
             return nullptr;
         }
