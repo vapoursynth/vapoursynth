@@ -2077,7 +2077,8 @@ bool VSPlugin::registerFunction(const std::string &name, const std::string &args
 
     try {
         funcs.emplace(std::make_pair(name, VSPluginFunction(name, args, returnType, argsFunc, functionData, apiMajor)));
-    } catch (std::runtime_error &) {
+    } catch (std::runtime_error &e) {
+        vsCritical("Function '%s' failed to register with error: %s", name.c_str(), e.what());
         return false;
     }
 
