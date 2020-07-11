@@ -1181,7 +1181,6 @@ bool VSCore::isValidFormatPointer(const void *f) {
 }
 
 bool VSCore::isValidVideoFormat(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH) noexcept {
-    // FIXME, also verify implicit fields somewhere?
     if (colorFamily != cfUndefined && colorFamily != cfGray && colorFamily != cfYUV && colorFamily != cfRGB && colorFamily != cfCompatBGR32 && colorFamily != cfCompatYUY2)
         return false;
 
@@ -1213,7 +1212,6 @@ bool VSCore::isValidVideoFormat(int colorFamily, int sampleType, int bitsPerSamp
 }
 
 bool VSCore::isValidAudioFormat(int sampleType, int bitsPerSample, uint64_t channelLayout) noexcept {
-    // FIXME, also verify implicit fields somewhere?
     if (sampleType != stInteger && sampleType != stFloat)
         return false;
 
@@ -1341,14 +1339,20 @@ void VSCore::getCoreInfo2(VSCoreInfo &info) {
     info.usedFramebufferSize = memory->memoryUse();
 }
 
-void VSCore::getAudioFormatName(const VSAudioFormat &format, char *buffer) noexcept {
+bool VSCore::getAudioFormatName(const VSAudioFormat &format, char *buffer) noexcept {
+    if (!isValidAudioFormat(format.sampleType, format.bitsPerSample, format.channelLayout))
+        return false;
     if (format.sampleType == stFloat)
         snprintf(buffer, 32, "Audio%dF (%d CH)", format.bitsPerSample, format.numChannels);
     else
         snprintf(buffer, 32, "Audio%d (%d CH)", format.bitsPerSample, format.numChannels);
+    return true;
 }
 
-void VSCore::getVideoFormatName(const VSVideoFormat &format, char *buffer) noexcept {
+bool VSCore::getVideoFormatName(const VSVideoFormat &format, char *buffer) noexcept {
+    if (!isValidVideoFormat(format.colorFamily, format.sampleType, format.bitsPerSample, format.subSamplingW, format.subSamplingH))
+        return false;
+
     const char *sampleTypeStr = "";
     if (format.sampleType == stFloat)
         sampleTypeStr = (format.bitsPerSample == 32) ? "S" : "H";
@@ -1386,10 +1390,11 @@ void VSCore::getVideoFormatName(const VSVideoFormat &format, char *buffer) noexc
         case cfCompatYUY2:
             snprintf(buffer, 32, "CompatYUY2");
             break;
-        default:
-            snprintf(buffer, 32, "%s", "Undefined");
+        case cfUndefined:
+            snprintf(buffer, 32, "Undefined");
             break;
     }
+    return true;
 }
 
 

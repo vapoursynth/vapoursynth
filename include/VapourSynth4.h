@@ -307,7 +307,7 @@ typedef void (VS_CC *VSFrameDoneCallback)(void *userData, const VSFrameRef *f, i
 typedef void (VS_CC *VSMessageHandler)(int msgType, const char *msg, void *userData);
 typedef void (VS_CC *VSMessageHandlerFree)(void *userData);
 
-struct VSPLUGINAPI { // FIXME, how to extend and avoid adding further entry points?
+struct VSPLUGINAPI {
     int (VS_CC *getApiVersion)(void) VS_NOEXCEPT;
     int (VS_CC *configPlugin)(const char *identifier, const char *pluginNamespace, const char *name, int pluginVersion, int apiVersion, int flags, VSPlugin *plugin) VS_NOEXCEPT; /* use the VS_MAKE_VERSION macro for pluginVersion */
     int (VS_CC *registerFunction)(const char *name, const char *args, const char *returnType, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) VS_NOEXCEPT;
@@ -422,9 +422,8 @@ struct VSAPI {
     int (VS_CC *queryVideoFormat)(VSVideoFormat *format, int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) VS_NOEXCEPT;
     uint32_t (VS_CC *queryVideoFormatID)(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) VS_NOEXCEPT;
     int (VS_CC *queryVideoFormatByID)(VSVideoFormat *format, uint32_t id, VSCore *core) VS_NOEXCEPT;
-    // fixme, return success or failure in get*FormatName?
-    void (VS_CC *getAudioFormatName)(const VSAudioFormat *format, char *buffer) VS_NOEXCEPT; /* up to 32 characters including terminating null may be written to the buffer */
-    void (VS_CC *getVideoFormatName)(const VSVideoFormat *format, char *buffer) VS_NOEXCEPT; /* up to 32 characters including terminating null may be written to the buffer */
+    int (VS_CC *getAudioFormatName)(const VSAudioFormat *format, char *buffer) VS_NOEXCEPT; /* up to 32 characters including terminating null may be written to the buffer */
+    int (VS_CC *getVideoFormatName)(const VSVideoFormat *format, char *buffer) VS_NOEXCEPT; /* up to 32 characters including terminating null may be written to the buffer */
     const VSAudioInfo *(VS_CC *getAudioInfo)(VSNodeRef *node) VS_NOEXCEPT;
     const VSAudioFormat *(VS_CC *getAudioFrameFormat)(const VSFrameRef *f) VS_NOEXCEPT;
 

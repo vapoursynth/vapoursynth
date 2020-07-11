@@ -38,7 +38,7 @@ static int VS_CC registerFunction(const char *name, const char *args, const char
 
 static void VS_CC registerFunction3(const char *name, const char *args, vs3::VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) VS_NOEXCEPT {
     assert(name && args && argsFunc && plugin);
-    plugin->registerFunction(name, args, "any", reinterpret_cast<VSPublicFunction>(argsFunc), functionData); // fixme, how to handle any return type or argument list?
+    plugin->registerFunction(name, args, "", reinterpret_cast<VSPublicFunction>(argsFunc), functionData); // fixme, how to handle any return type or argument list?
 }
 
 static const vs3::VSVideoFormat *VS_CC getFormatPreset3(int id, VSCore *core) VS_NOEXCEPT {
@@ -864,14 +864,14 @@ static int VS_CC queryVideoFormatByID(VSVideoFormat *format, uint32_t id, VSCore
     return core->queryVideoFormatByID(*format, id);
 }
 
-static void VS_CC getAudioFormatName(const VSAudioFormat *format, char *buffer) VS_NOEXCEPT {
+static int VS_CC getAudioFormatName(const VSAudioFormat *format, char *buffer) VS_NOEXCEPT {
     assert(format && buffer);
-    VSCore::getAudioFormatName(*format, buffer);
+    return VSCore::getAudioFormatName(*format, buffer);
 }
 
-static void VS_CC getVideoFormatName(const VSVideoFormat *format, char *buffer) VS_NOEXCEPT {
+static int VS_CC getVideoFormatName(const VSVideoFormat *format, char *buffer) VS_NOEXCEPT {
     assert(format && buffer);
-    VSCore::getVideoFormatName(*format, buffer);
+    return VSCore::getVideoFormatName(*format, buffer);
 }
 
 static const VSAudioInfo *VS_CC getAudioInfo(VSNodeRef *node) VS_NOEXCEPT {

@@ -859,8 +859,8 @@ public:
     const VSCoreInfo &getCoreInfo();
     void getCoreInfo2(VSCoreInfo &info);
 
-    static void getAudioFormatName(const VSAudioFormat &format, char *buffer) noexcept;
-    static void getVideoFormatName(const VSVideoFormat &format, char *buffer) noexcept;
+    static bool getAudioFormatName(const VSAudioFormat &format, char *buffer) noexcept;
+    static bool getVideoFormatName(const VSVideoFormat &format, char *buffer) noexcept;
 
     void functionInstanceCreated();
     void functionInstanceDestroyed();

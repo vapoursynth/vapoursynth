@@ -1372,12 +1372,12 @@ static const VSFrameRef *VS_CC frameEvalGetFrameWithProps(int n, int activationR
             return nullptr;
         }
 
-        *frameData = node;
+        frameData[0] = node;
 
         vsapi->requestFrameFilter(n, node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *frame;
-        VSNodeRef *node = reinterpret_cast<VSNodeRef *>(*frameData);
+        VSNodeRef *node = reinterpret_cast<VSNodeRef *>(frameData[0]);
         frame = vsapi->getFrameFilter(n, node, frameCtx);
         vsapi->freeNode(node);
 
@@ -1398,7 +1398,7 @@ static const VSFrameRef *VS_CC frameEvalGetFrameWithProps(int n, int activationR
         }
         return frame;
     } else if (activationReason == arError) {
-        vsapi->freeNode(reinterpret_cast<VSNodeRef *>(*frameData));
+        vsapi->freeNode(reinterpret_cast<VSNodeRef *>(frameData[0]));
     }
 
     return nullptr;
@@ -1427,11 +1427,11 @@ static const VSFrameRef *VS_CC frameEvalGetFrameNoProps(int n, int activationRea
             return nullptr;
         }
 
-        *frameData = node;
+        frameData[0] = node;
 
         vsapi->requestFrameFilter(n, node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        VSNodeRef *node = reinterpret_cast<VSNodeRef *>(*frameData);
+        VSNodeRef *node = reinterpret_cast<VSNodeRef *>(frameData[0]);
         const VSFrameRef *frame = vsapi->getFrameFilter(n, node, frameCtx);
         vsapi->freeNode(node);
 
@@ -1452,7 +1452,7 @@ static const VSFrameRef *VS_CC frameEvalGetFrameNoProps(int n, int activationRea
         }
         return frame;
     } else if (activationReason == arError) {
-        vsapi->freeNode(reinterpret_cast<VSNodeRef *>(*frameData));
+        vsapi->freeNode(reinterpret_cast<VSNodeRef *>(frameData[0]));
     }
 
     return nullptr;
