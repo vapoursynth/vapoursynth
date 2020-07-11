@@ -436,9 +436,10 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
             ++context->upstreamContext->numFrameRequests;
 
         NodeOutputKey p(context->clip, context->n, context->index);
-
-        if (allContexts.count(p)) {
-            PFrameContext &ctx = allContexts[p];
+        
+        auto it = allContexts.find(p);
+        if (it != allContexts.end()) {
+            PFrameContext &ctx = it->second;
             assert(context->clip == ctx->clip && context->n == ctx->n && context->index == ctx->index);
 
             if (ctx->returnedFrame) {
@@ -453,7 +454,7 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
             }
         } else {
             // create a new context and append it to the tasks
-            allContexts[p] = context;
+            allContexts.insert(std::make_pair(p, context));
             tasks.push_back(context);
         }
     }
