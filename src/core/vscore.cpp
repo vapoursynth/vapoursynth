@@ -138,10 +138,6 @@ void VSFuncRef::call(const VSMap *in, VSMap *out) {
 
 ///////////////
 
-
-
-///////////////
-
 static bool isWindowsLargePageBroken() {
     // A Windows bug exists where a VirtualAlloc call immediately after VirtualFree
     // yields a page that has not been zeroed. The returned page is asynchronously
@@ -644,23 +640,25 @@ Container& split(
     return result;
 }
 
-VSFunction::VSFunction(const std::string &argString, VSPublicFunction func, void *functionData, int apiMajor)
-    : argString(argString), functionData(functionData), func(func) {
+void VSPluginFunction::parseArgString(const std::string argString, std::vector<FilterArgument> &argsOut, int apiMajor) {
     std::vector<std::string> argList;
     split(argList, argString, std::string(";"), split1::no_empties);
 
-    args.reserve(argList.size());
-    for(const std::string &arg : argList) {
+    argsOut.reserve(argList.size());
+    for (const std::string &arg : argList) {
         std::vector<std::string> argParts;
         split(argParts, arg, std::string(":"), split1::no_empties);
 
         if (argParts.size() < 2)
-            vsFatal("Invalid argument specifier '%s'. It appears to be incomplete.", arg.c_str());
+            throw std::runtime_error("Invalid argument specifier '" + arg + "'. It appears to be incomplete.");
 
         bool arr = false;
+        bool opt = false;
+        bool empty = false;
+
         VSPropType type = ptUnset;
         const std::string &argName = argParts[0];
-        std::string typeName = argParts[1];
+        std::string &typeName = argParts[1];
 
         if (typeName.length() > 2 && typeName.substr(typeName.length() - 2) == "[]") {
             typeName.resize(typeName.length() - 2);
@@ -673,55 +671,61 @@ VSFunction::VSFunction(const std::string &argString, VSPublicFunction func, void
             type = ptFloat;
         } else if (typeName == "data") {
             type = ptData;
-        } else if (typeName == "vnode" || (apiMajor == VAPOURSYNTH3_API_MAJOR && typeName == "clip")) {
+        } else if ((typeName == "vnode" && apiMajor > VAPOURSYNTH3_API_MAJOR) || (apiMajor == VAPOURSYNTH3_API_MAJOR && typeName == "clip")) {
             type = ptVideoNode;
-        } else if (typeName == "anode") {
+        } else if (typeName == "anode" && apiMajor > VAPOURSYNTH3_API_MAJOR) {
             type = ptAudioNode;
-        } else if (typeName == "vframe" || (apiMajor == VAPOURSYNTH3_API_MAJOR && typeName == "frame")) {
+        } else if ((typeName == "vframe" && apiMajor > VAPOURSYNTH3_API_MAJOR) || (apiMajor == VAPOURSYNTH3_API_MAJOR && typeName == "frame")) {
             type = ptVideoFrame;
-        } else if (typeName == "aframe") {
+        } else if (typeName == "aframe" && apiMajor > VAPOURSYNTH3_API_MAJOR) {
             type = ptAudioFrame;
         } else if (typeName == "func") {
             type = ptFunction;
         } else {
-            vsFatal("Argument '%s' has invalid type '%s'.", argName.c_str(), typeName.c_str());
+            throw std::runtime_error("Argument '" + argName + "' has invalid type '" + typeName + "'.");
         }
-
-        bool opt = false;
-        bool empty = false;
 
         for (size_t i = 2; i < argParts.size(); i++) {
             if (argParts[i] == "opt") {
                 if (opt)
-                    vsFatal("Argument '%s' has duplicate argument specifier '%s'", argName.c_str(), argParts[i].c_str());
+                    throw std::runtime_error("Argument '" + argName + "' has duplicate argument specifier '" + argParts[i] + "'");
                 opt = true;
             } else if (argParts[i] == "empty") {
                 if (empty)
-                    vsFatal("Argument '%s' has duplicate argument specifier '%s'", argName.c_str(), argParts[i].c_str());
+                    throw std::runtime_error("Argument '" + argName + "' has duplicate argument specifier '" + argParts[i] + "'");
                 empty = true;
-            }  else {
-                vsFatal("Argument '%s' has unknown argument modifier '%s'", argName.c_str(), argParts[i].c_str());
+            } else {
+                throw std::runtime_error("Argument '" + argName + "' has unknown argument modifier '" + argParts[i] + "'");
             }
         }
 
         if (!isValidIdentifier(argName))
-            vsFatal("Argument name '%s' contains illegal characters.", argName.c_str());
+            throw std::runtime_error("Argument name '" + argName + "' contains illegal characters.");
 
         if (empty && !arr)
-            vsFatal("Argument '%s' is not an array. Only array arguments can have the empty flag set.", argName.c_str());
+            throw std::runtime_error("Argument '" + argName + "' is not an array. Only array arguments can have the empty flag set.");
 
-        args.emplace_back(argName, type, arr, empty, opt);
+        argsOut.emplace_back(argName, type, arr, empty, opt);
     }
 }
 
-bool VSFunction::isV3Compatible() const {
+VSPluginFunction::VSPluginFunction(const std::string &name, const std::string &argString, const std::string &returnType, VSPublicFunction func, void *functionData, int apiMajor)
+    : name(name), argString(argString), returnType(returnType), func(func), functionData(functionData) {
+    parseArgString(argString, args, apiMajor);
+    parseArgString(returnType, retArgs, apiMajor);
+}
+
+bool VSPluginFunction::isV3Compatible() const {
     for (const auto &iter : args)
+        if (iter.type == ptAudioNode || iter.type == ptAudioFrame)
+            return false;
+    for (const auto &iter : retArgs)
         if (iter.type == ptAudioNode || iter.type == ptAudioFrame)
             return false;
     return true;
 }
 
-std::string VSFunction::getV3ArgString() const {
+std::string VSPluginFunction::getV3ArgString() const {
     std::string tmp;
     for (const auto &iter : args) {
         if (iter.type == ptAudioNode || iter.type == ptAudioFrame)
@@ -752,6 +756,18 @@ std::string VSFunction::getV3ArgString() const {
         tmp += ";";
     }
     return tmp;
+}
+
+const std::string &VSPluginFunction::getName() const {
+    return name;
+}
+
+const std::string &VSPluginFunction::getArguments() const {
+    return argString;
+}
+
+const std::string &VSPluginFunction::getReturnType() const {
+    return returnType;
 }
 
 void VSNodeRef::add_ref() noexcept {
@@ -1761,7 +1777,7 @@ VSCore::~VSCore() {
     plugins.clear();
 }
 
-VSMap *VSCore::getPlugins() {
+VSMap *VSCore::getPlugins3() {
     VSMap *m = new VSMap;
     std::lock_guard<std::recursive_mutex> lock(pluginLock);
     int num = 0;
@@ -1788,6 +1804,24 @@ VSPlugin *VSCore::getPluginByNs(const std::string &ns) {
     }
     return nullptr;
 }
+
+VSPlugin *VSCore::getNextPlugin(VSPlugin *plugin) {
+    std::lock_guard<std::recursive_mutex> lock(pluginLock);
+    if (plugin == nullptr) {
+        return (plugins.begin() != plugins.end()) ? plugins.begin()->second : nullptr;
+    } else {
+        auto it = plugins.begin();
+        while (it != plugins.end()) {
+            if (it->second == plugin) {
+                ++it;
+                return (it != plugins.end()) ? it->second : nullptr;
+            }
+            ++it;
+        }
+        return nullptr;
+    }
+}
+
 
 void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath) {
     VSPlugin *p = new VSPlugin(filename, forcedNamespace, forcedId, altSearchPath, this);
@@ -2025,24 +2059,27 @@ bool VSPlugin::configPlugin(const std::string &identifier, const std::string &pl
 
 bool VSPlugin::registerFunction(const std::string &name, const std::string &args, const std::string &returnType, VSPublicFunction argsFunc, void *functionData) {
     if (readOnly) {
-        vsWarning("Plugin %s tried to modify read only namespace.", filename.c_str());
+        vsCritical("Plugin %s tried to modify read only namespace.", filename.c_str());
         return false;
     }
 
     if (!isValidIdentifier(name)) {
-        vsWarning("Plugin %s tried to register '%s', an illegal identifier.", filename.c_str(), name.c_str());
+        vsCritical("Plugin %s tried to register '%s', an illegal identifier.", filename.c_str(), name.c_str());
         return false;
     }
 
-    std::lock_guard<std::mutex> lock(registerFunctionLock);
+    std::lock_guard<std::mutex> lock(functionLock);
 
     if (funcs.count(name)) {
         vsWarning("Plugin %s tried to register '%s' more than once. Second registration ignored.", filename.c_str(), name.c_str());
         return false;
     }
 
-    // fixme, check vsfucntion creation success and catch exceptions
-    funcs.insert(std::make_pair(name, VSFunction(args, argsFunc, functionData, apiMajor)));
+    try {
+        funcs.emplace(std::make_pair(name, VSPluginFunction(name, args, returnType, argsFunc, functionData, apiMajor)));
+    } catch (std::runtime_error &) {
+        return false;
+    }
 
     return true;
 }
@@ -2068,7 +2105,7 @@ VSMap *VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
 
     try {
         if (funcs.count(funcName)) {
-            const VSFunction &f = funcs[funcName];
+            const VSPluginFunction &f = funcs.at(funcName);
             if (!compat && args.hasCompatNodes())
                 throw VSException(funcName + ": only special filters may accept compat input");
 
@@ -2127,11 +2164,32 @@ VSMap *VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
     return v.release();
 }
 
-void VSPlugin::getFunctions(VSMap *out) const {
-    for (const auto & f : funcs) {
-        std::string b = f.first + ";" + f.second.argString;
-        vs_internal_vsapi.propSetData(out, f.first.c_str(), b.c_str(), static_cast<int>(b.size()), dtUtf8, paReplace);
+VSPluginFunction *VSPlugin::getNextFunction(VSPluginFunction *func) {
+    std::lock_guard<std::mutex> lock(functionLock);
+    if (func == nullptr) {
+        return (funcs.begin() != funcs.end()) ? &funcs.begin()->second : nullptr;
+    } else {
+        auto it = funcs.begin();
+        while (it != funcs.end()) {
+            if (&it->second == func) {
+                ++it;
+                return (it != funcs.end()) ? &it->second : nullptr;
+            }
+            ++it;
+        }
+        return nullptr;
     }
+}
+
+VSPluginFunction *VSPlugin::getFunctionByName(const std::string name) {
+    std::lock_guard<std::mutex> lock(functionLock);
+    auto it = funcs.begin();
+    while (it != funcs.end()) {
+        if (it->second.getName() == name)
+            return &it->second;
+        ++it;
+    }
+    return nullptr;
 }
 
 void VSPlugin::getFunctions3(VSMap *out) const {

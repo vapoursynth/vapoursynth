@@ -732,16 +732,26 @@ public:
     void waitForDone();
 };
 
-class VSFunction {
+struct VSPluginFunction {
+private:
+    std::string name;
+    std::string argString;
+    std::string returnType;
+    static void parseArgString(const std::string argString, std::vector<FilterArgument> &argsOut, int apiMajor);
 public:
     std::vector<FilterArgument> args;
-    std::string argString;
+    std::vector<FilterArgument> retArgs;
+
     bool isV3Compatible() const;
     std::string getV3ArgString() const;
+
     void *functionData;
     VSPublicFunction func;
-    VSFunction(const std::string &argString, VSPublicFunction func, void *functionData, int apiMajor);
-    VSFunction() : functionData(nullptr), func(nullptr) {}
+    VSPluginFunction(const std::string &name, const std::string &argString, const std::string &returnType, VSPublicFunction func, void *functionData, int apiMajor);
+
+    const std::string &getName() const;
+    const std::string &getArguments() const;
+    const std::string &getReturnType() const;
 };
 
 
@@ -759,8 +769,8 @@ private:
 #else
     void *libHandle;
 #endif
-    std::map<std::string, VSFunction> funcs;
-    std::mutex registerFunctionLock;
+    std::map<std::string, VSPluginFunction> funcs;
+    std::mutex functionLock;
     VSCore *core;
 public:
     std::string filename;
@@ -776,7 +786,8 @@ public:
     bool configPlugin(const std::string &identifier, const std::string &pluginsNamespace, const std::string &fullname, int pluginVersion, int apiVersion, int flags);
     bool registerFunction(const std::string &name, const std::string &args, const std::string &returnType, VSPublicFunction argsFunc, void *functionData);
     VSMap *invoke(const std::string &funcName, const VSMap &args);
-    void getFunctions(VSMap *out) const;
+    VSPluginFunction *getNextFunction(VSPluginFunction *func);
+    VSPluginFunction *getFunctionByName(const std::string name);
     void getFunctions3(VSMap *out) const;
 };
 
@@ -852,9 +863,10 @@ public:
     int getCpuLevel() const;
     int setCpuLevel(int cpu);
 
-    VSMap *getPlugins();
+    VSMap *getPlugins3();
     VSPlugin *getPluginById(const std::string &identifier);
     VSPlugin *getPluginByNs(const std::string &ns);
+    VSPlugin *getNextPlugin(VSPlugin *plugin);
 
     const VSCoreInfo &getCoreInfo();
     void getCoreInfo2(VSCoreInfo &info);

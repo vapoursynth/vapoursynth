@@ -66,6 +66,7 @@ typedef struct VSFrameRef VSFrameRef;
 typedef struct VSNodeRef VSNodeRef;
 typedef struct VSCore VSCore;
 typedef struct VSPlugin VSPlugin;
+typedef struct VSPluginFunction VSPluginFunction;
 typedef struct VSFuncRef VSFuncRef;
 typedef struct VSMap VSMap;
 typedef struct VSPLUGINAPI VSPLUGINAPI;
@@ -331,12 +332,18 @@ struct VSAPI {
     int (VS_CC *registerFunction)(const char *name, const char *args, const char *returnType, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) VS_NOEXCEPT;
     VSPlugin *(VS_CC *getPluginById)(const char *identifier, VSCore *core) VS_NOEXCEPT;
     VSPlugin *(VS_CC *getPluginByNs)(const char *ns, VSCore *core) VS_NOEXCEPT;
-    VSMap *(VS_CC *getPlugins)(VSCore *core) VS_NOEXCEPT;
-    VSMap *(VS_CC *getFunctions)(VSPlugin *plugin) VS_NOEXCEPT; //// FIXME, replace with a function to get the number of functions and a VSPluginFunction struct/opaque object, 
+    VSPlugin *(VS_CC *getNextPlugin)(VSPlugin *plugin, VSCore *core) VS_NOEXCEPT;
+    VSPluginFunction *(VS_CC *getNextPluginFunction)(VSPluginFunction *func, VSPlugin *plugin) VS_NOEXCEPT;
+    VSPluginFunction *(VS_CC *getPluginFunctionByName)(const char *name, VSPlugin *plugin) VS_NOEXCEPT;
+    const char *(VS_CC *getPluginFunctionName)(VSPluginFunction *func) VS_NOEXCEPT;
+    const char *(VS_CC *getPluginFunctionArguments)(VSPluginFunction *func) VS_NOEXCEPT;
+    const char *(VS_CC *getPluginFunctionReturnType)(VSPluginFunction *func) VS_NOEXCEPT;
+
     void (VS_CC *setError)(VSMap *map, const char *errorMessage) VS_NOEXCEPT; /* use to signal errors outside filter getframe functions */
     const char *(VS_CC *getError)(const VSMap *map) VS_NOEXCEPT; /* use to query errors, returns 0 if no error */
     void (VS_CC *setFilterError)(const char *errorMessage, VSFrameContext *frameCtx) VS_NOEXCEPT; /* use to signal errors in the filter getframe function */
     VSMap *(VS_CC *invoke)(VSPlugin *plugin, const char *name, const VSMap *args) VS_NOEXCEPT;
+    //VSMap *(VS_CC *invoke2)(VSPluginFunction *func, const VSMap *args) VS_NOEXCEPT; // FIXME, should a version that takes a plugin function exist?
 
     const VSFrameRef *(VS_CC *getFrame)(int n, VSNodeRef *node, char *errorMsg, int bufSize) VS_NOEXCEPT; /* do never use inside a filter's getframe function, for external applications using the core as a library or for requesting frames in a filter constructor */
     void (VS_CC *getFrameAsync)(int n, VSNodeRef *node, VSFrameDoneCallback callback, void *userData) VS_NOEXCEPT; /* do never use inside a filter's getframe function, for external applications using the core as a library or for requesting frames in a filter constructor */

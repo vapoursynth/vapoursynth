@@ -595,16 +595,39 @@ static VSPlugin *VS_CC getPluginByNs(const char *ns, VSCore *core) VS_NOEXCEPT {
     return core->getPluginByNs(ns);
 }
 
-static VSMap *VS_CC getPlugins(VSCore *core) VS_NOEXCEPT {
+static VSPlugin *VS_CC getNextPlugin(VSPlugin *plugin, VSCore *core) VS_NOEXCEPT {
     assert(core);
-    return core->getPlugins();
+    return core->getNextPlugin(plugin);
 }
 
-static VSMap *VS_CC getFunctions(VSPlugin *plugin) VS_NOEXCEPT {
+static VSPluginFunction *VS_CC getNextPluginFunction(VSPluginFunction *func, VSPlugin *plugin) VS_NOEXCEPT {
     assert(plugin);
-    VSMap *m = new VSMap();
-    plugin->getFunctions(m);
-    return m;
+    return plugin->getNextFunction(func);
+}
+
+static VSPluginFunction *VS_CC getPluginFunctionByName(const char *name, VSPlugin *plugin) VS_NOEXCEPT {
+    assert(name && plugin);
+    return plugin->getFunctionByName(name);
+}
+
+static const char *VS_CC getPluginFunctionName(VSPluginFunction *func) VS_NOEXCEPT {
+    assert(func);
+    return func->getName().c_str();
+}
+
+static const char *VS_CC getPluginFunctionArguments(VSPluginFunction *func) VS_NOEXCEPT {
+    assert(func);
+    return func->getArguments().c_str();
+}
+
+static const char *VS_CC getPluginFunctionReturnType(VSPluginFunction *func) VS_NOEXCEPT {
+    assert(func);
+    return func->getReturnType().c_str();
+}
+
+static VSMap *VS_CC getPlugins3(VSCore *core) VS_NOEXCEPT {
+    assert(core);
+    return core->getPlugins3();
 }
 
 static VSMap *VS_CC getFunctions3(VSPlugin *plugin) VS_NOEXCEPT {
@@ -909,8 +932,12 @@ const VSAPI vs_internal_vsapi = {
     &registerFunction,
     &getPluginById,
     &getPluginByNs,
-    &getPlugins,
-    &getFunctions,
+    &getNextPlugin,
+    &getNextPluginFunction,
+    &getPluginFunctionByName,
+    &getPluginFunctionName,
+    &getPluginFunctionArguments,
+    &getPluginFunctionReturnType,
     &setError,
     &getError,
     &setFilterError,
@@ -1019,7 +1046,7 @@ const vs3::VSAPI3 vs_internal_vsapi3 = {
     &registerFunction3,
     &getPluginById,
     &getPluginByNs,
-    &getPlugins,
+    &getPlugins3,
     &getFunctions3,
     &createFilter3,
     &setError,
