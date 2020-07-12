@@ -108,10 +108,8 @@ static const VSFrameRef *VS_CC singlePixelGetFrame(int n, int activationReason, 
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
 
-        try {
-            shared816FFormatCheck(*fi);
-        } catch (const std::runtime_error &error) {
-            vsapi->setFilterError((d->name + ": "_s + error.what()).c_str(), frameCtx);
+        if (!is8to16orFloatFormatCheck(*fi)) {
+            vsapi->setFilterError((d->name + ": frame must be constant format and of integer 8-16 bit type or 32 bit float"_s).c_str(), frameCtx);
             vsapi->freeFrame(src);
             return nullptr;
         }
