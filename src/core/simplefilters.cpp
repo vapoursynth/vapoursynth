@@ -1208,7 +1208,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
         vsapi->queryVideoFormatByID(&d->vi.format, format, core);
     }
 
-    if (isUndefinedFormat(&d->vi.format))
+    if (d->vi.format.colorFamily == cfUndefined)
         RETERROR("BlankClip: invalid format");
 
     if (isCompatFormat(&d->vi.format))
