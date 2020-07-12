@@ -190,6 +190,7 @@ static inline void getPlanePixelRangeArgs(const VSVideoFormat &fi, const VSMap *
     }
 }
 
+// FIXME, all uses should be replaced by is8to16orFloatFormatCheck
 static void shared816FFormatCheck(const VSVideoFormat &fi, bool allowVariable = false) {
     if (fi.colorFamily == cfUndefined && !allowVariable)
         throw std::runtime_error("Cannot process variable format.");
@@ -201,30 +202,6 @@ static void shared816FFormatCheck(const VSVideoFormat &fi, bool allowVariable = 
         if ((fi.sampleType == stInteger && fi.bitsPerSample > 16) || (fi.sampleType == stFloat && fi.bitsPerSample != 32))
             throw std::runtime_error("Only clips with 8..16 bits integer per sample or float supported.");
     }
-}
-
-template<typename T>
-static void getPlaneArgs(const VSVideoFormat *fi, const VSMap *in, const char *propName, T *val, T def, const VSAPI *vsapi) {
-    if (vsapi->propNumElements(in, propName) > fi->numPlanes)
-        throw std::runtime_error(std::string(propName) + " has more values specified than there are planes");
-    bool prevValid = false;
-    for (int plane = 0; plane < 3; plane++) {
-        int err;
-        T temp = vsapi->propGetFloat(in, propName, plane, &err);
-        if (err) {
-            val[plane] = prevValid ? val[plane - 1] : def;
-        } else {
-            val[plane] = temp;
-            prevValid = true;
-        }
-    }
-}
-
-template<typename T>
-static void fillTestPlane(uint8_t *dst, int stride, int height) {
-    T *dstp = reinterpret_cast<T *>(dst);
-    for (int i = 0; i < (stride / sizeof(T)) * height; i++)
-        *dstp++ = i;
 }
 
 #endif
