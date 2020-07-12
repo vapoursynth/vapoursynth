@@ -21,7 +21,6 @@
 #include "internalfilters.h"
 #include "VSHelper4.h"
 #include "filtershared.h"
-#include "filtersharedcpp.h"
 
 #include <cstdlib>
 #include <cstdio>

@@ -21,7 +21,6 @@
 #include "internalfilters.h"
 #include "VSHelper4.h"
 #include "filtershared.h"
-#include "filtersharedcpp.h"
 
 #include <memory>
 #include <algorithm>
@@ -321,7 +320,7 @@ static void VS_CC boxBlurCreate(const VSMap *in, VSMap *out, void *userData, VSC
         int err;
         const VSVideoInfo *vi = vsapi->getVideoInfo(node);
 
-        if (!is8to16orFloatFormatCheck(vi->format))
+        if (!is8to16orFloatFormat(vi->format))
             throw std::runtime_error("clip must be constant format and of integer 8-16 bit type or 32 bit float");
 
         bool process[3];

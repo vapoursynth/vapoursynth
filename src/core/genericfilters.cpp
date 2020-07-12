@@ -32,7 +32,6 @@
 #include "VSHelper4.h"
 #include "cpufeatures.h"
 #include "filtershared.h"
-#include "filtersharedcpp.h"
 #include "kernel/cpulevel.h"
 #include "kernel/generic.h"
 
@@ -45,6 +44,48 @@
 namespace {
 std::string operator""_s(const char *str, size_t len) { return{ str, len }; }
 } // namespace
+
+enum RangeArgumentHandling {
+    RangeLower,
+    RangeUpper,
+    RangeMiddle
+};
+
+static inline void getPlanePixelRangeArgs(const VSVideoFormat &fi, const VSMap *in, const char *propName, uint16_t *ival, float *fval, RangeArgumentHandling mode, const VSAPI *vsapi) {
+    if (vsapi->propNumElements(in, propName) > fi.numPlanes)
+        throw std::runtime_error(std::string(propName) + " has more values specified than there are planes");
+    bool prevValid = false;
+    for (int plane = 0; plane < 3; plane++) {
+        int err;
+        bool uv = (plane > 0 && fi.colorFamily == cfYUV);
+        double temp = vsapi->propGetFloat(in, propName, plane, &err);
+        if (err) {
+            if (prevValid) {
+                ival[plane] = ival[plane - 1];
+                fval[plane] = fval[plane - 1];
+            } else if (mode == RangeLower) { // bottom of pixel range
+                ival[plane] = 0;
+                fval[plane] = uv ? -.5f : 0;
+            } else if (mode == RangeUpper) { // top of pixel range
+                ival[plane] = (1 << fi.bitsPerSample) - 1;
+                fval[plane] = uv ? .5f : 1.f;
+            } else if (mode == RangeMiddle) { // middle of pixel range
+                ival[plane] = (1 << fi.bitsPerSample) / 2;
+                fval[plane] = uv ? 0.f : .5f;
+            }
+        } else {
+            if (fi.sampleType == stInteger) {
+                int64_t temp2 = static_cast<int64_t>(temp + .5);
+                if ((temp2 < 0) || (temp2 > (1 << fi.bitsPerSample) - 1))
+                    throw std::runtime_error(std::string(propName) + " out of range");
+                ival[plane] = static_cast<uint16_t>(temp2);
+            } else {
+                fval[plane] = static_cast<float>(temp);
+            }
+            prevValid = true;
+        }
+    }
+}
 
 enum GenericOperations {
     GenericPrewitt,
@@ -108,7 +149,7 @@ static const VSFrameRef *VS_CC singlePixelGetFrame(int n, int activationReason, 
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
 
-        if (!is8to16orFloatFormatCheck(*fi)) {
+        if (!is8to16orFloatFormat(*fi)) {
             vsapi->setFilterError((d->name + ": frame must be constant format and of integer 8-16 bit type or 32 bit float"_s).c_str(), frameCtx);
             vsapi->freeFrame(src);
             return nullptr;
@@ -159,7 +200,8 @@ static void templateInit(T& d, const char *name, bool allowVariableFormat, const
     d->node = vsapi->propGetNode(in, "clip", 0, 0);
     d->vi = vsapi->getVideoInfo(d->node);
 
-    shared816FFormatCheck(d->vi->format, allowVariableFormat);
+    if (!is8to16orFloatFormat(d->vi->format, allowVariableFormat))
+        throw std::runtime_error("Clip must be constant format and of integer 8-16 bit type or 32 bit float.");
 
     getPlanesArg(in, d->process, vsapi);
 }
@@ -362,7 +404,8 @@ static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
 
         try {
-            shared816FFormatCheck(*fi);
+            if (!is8to16orFloatFormat(*fi))
+                throw std::runtime_error("Frame must be constant format and of integer 8-16 bit type or 32 bit float.");
             if (vsapi->getFrameWidth(src, fi->numPlanes - 1) < 4 || vsapi->getFrameHeight(src, fi->numPlanes - 1) < 4)
                 throw std::runtime_error("Cannot process frames with subsampled planes smaller than 4x4.");
 
@@ -423,7 +466,8 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
     d->vi = vsapi->getVideoInfo(d->node);
 
     try {
-        shared816FFormatCheck(d->vi->format);
+        if (!is8to16orFloatFormat(d->vi->format))
+            throw std::runtime_error("Clip must be constant format and of integer 8-16 bit type or 32 bit float.");
 
         if (d->vi->height && d->vi->width)
             if (planeWidth(d->vi, d->vi->format.numPlanes - 1) < 4 || planeHeight(d->vi, d->vi->format.numPlanes - 1) < 4)

@@ -29,7 +29,6 @@
 #include "version.h"
 
 #include "filtershared.h"
-#include "filtersharedcpp.h"
 #include "ter-116n.h"
 #include "internalfilters.h"
 

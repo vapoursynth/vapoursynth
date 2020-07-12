@@ -29,7 +29,6 @@
 #include "cpufeatures.h"
 #include "internalfilters.h"
 #include "filtershared.h"
-#include "filtersharedcpp.h"
 #include "kernel/cpulevel.h"
 #include "kernel/planestats.h"
 #include "kernel/transpose.h"
@@ -1750,7 +1749,7 @@ static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData,
     d->node = vsapi->propGetNode(in, "clip", 0, 0);
     const VSVideoInfo *vi = vsapi->getVideoInfo(d->node);
 
-    if (!is8to16orFloatFormatCheck(vi->format))
+    if (!is8to16orFloatFormat(vi->format))
         RETERROR("PEMVerifier: clip must be constant format and of integer 8-16 bit type or 32 bit float");
 
     if (numlower < 0) {
@@ -1925,7 +1924,7 @@ static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, 
     d->node1 = vsapi->propGetNode(in, "clipa", 0, 0);
     const VSVideoInfo *vi = vsapi->getVideoInfo(d->node1);
 
-    if (!is8to16orFloatFormatCheck(vi->format))
+    if (!is8to16orFloatFormat(vi->format))
         RETERROR("PlaneStats: clip must be constant format and of integer 8-16 bit type or 32 bit float");
 
     d->plane = int64ToIntS(vsapi->propGetInt(in, "plane", 0, &err));
