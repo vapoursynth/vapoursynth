@@ -29,6 +29,7 @@
 #include "version.h"
 
 #include "filtershared.h"
+#include "filtersharedcpp.h"
 #include "ter-116n.h"
 #include "internalfilters.h"
 
@@ -248,15 +249,15 @@ static void scrawl_text(std::string txt, int alignment, VSFrameRef *frame, const
 
                         if (frame_format->bitsPerSample == 8) {
                             for (y = 0; y < sub_h; y++) {
-                                memset(image + (y+sub_dest_y)*stride + sub_dest_x, 128, sub_w);
+                                vs_memset<uint8_t>(image + (y+sub_dest_y)*stride + sub_dest_x, 128, sub_w);
                             }
                         } else if (frame_format->bitsPerSample <= 16) {
                             for (y = 0; y < sub_h; y++) {
-                                vs_memset16(reinterpret_cast<uint16_t *>(image) + (y+sub_dest_y)*stride/2 + sub_dest_x, 128 << (frame_format->bitsPerSample - 8), sub_w);
+                                vs_memset<uint16_t>(reinterpret_cast<uint16_t *>(image) + (y+sub_dest_y)*stride/2 + sub_dest_x, 128 << (frame_format->bitsPerSample - 8), sub_w);
                             }
                         } else {
                             for (y = 0; y < sub_h; y++) {
-                                vs_memset_float(reinterpret_cast<float *>(image) + (y+sub_dest_y)*stride/4 + sub_dest_x, 0.0f, sub_w);
+                                vs_memset<float>(reinterpret_cast<float *>(image) + (y+sub_dest_y)*stride/4 + sub_dest_x, 0.0f, sub_w);
                             }
                         }
                     } // if plane

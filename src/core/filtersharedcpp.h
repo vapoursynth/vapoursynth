@@ -26,6 +26,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <algorithm>
 
 typedef struct NoExtraData {
 } NoExtraData;
@@ -125,7 +126,11 @@ static bool is8to16orFloatFormatCheck(const VSVideoFormat &fi, bool allowVariabl
     return true;
 }
 
-
+template<typename T>
+static inline void vs_memset(void *ptr, T value, size_t num) {
+    T *dstPtr = reinterpret_cast<T *>(ptr);
+    std::fill(dstPtr, dstPtr + num, value);
+}
 
 ///////////////////////////// NEW FUNCTIONS ABOVE
 

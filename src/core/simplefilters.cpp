@@ -352,13 +352,13 @@ static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, v
 
             switch (fi->bytesPerSample) {
             case 1:
-                vs_memset8(dstdata, color, padt * dststride);
+                vs_memset<uint8_t>(dstdata, color, padt * dststride);
                 break;
             case 2:
-                vs_memset16(dstdata, color, padt * dststride / 2);
+                vs_memset<uint16_t>(dstdata, color, padt * dststride / 2);
                 break;
             case 4:
-                vs_memset32(dstdata, color, padt * dststride / 4);
+                vs_memset<uint32_t>(dstdata, color, padt * dststride / 4);
                 break;
             }
             dstdata += padt * dststride;
@@ -366,19 +366,19 @@ static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, v
             for (int hloop = 0; hloop < srcheight; hloop++) {
                 switch (fi->bytesPerSample) {
                 case 1:
-                    vs_memset8(dstdata, color, padl);
+                    vs_memset<uint8_t>(dstdata, color, padl);
                     memcpy(dstdata + padl, srcdata, rowsize);
-                    vs_memset8(dstdata + padl + rowsize, color, padr);
+                    vs_memset<uint8_t>(dstdata + padl + rowsize, color, padr);
                     break;
                 case 2:
-                    vs_memset16(dstdata, color, padl / 2);
+                    vs_memset<uint16_t>(dstdata, color, padl / 2);
                     memcpy(dstdata + padl, srcdata, rowsize);
-                    vs_memset16(dstdata + padl + rowsize, color, padr / 2);
+                    vs_memset<uint16_t>(dstdata + padl + rowsize, color, padr / 2);
                     break;
                 case 4:
-                    vs_memset32(dstdata, color, padl / 4);
+                    vs_memset<uint32_t>(dstdata, color, padl / 4);
                     memcpy(dstdata + padl, srcdata, rowsize);
-                    vs_memset32(dstdata + padl + rowsize, color, padr / 4);
+                    vs_memset<uint32_t>(dstdata + padl + rowsize, color, padr / 4);
                     break;
                 }
 
@@ -388,13 +388,13 @@ static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, v
 
             switch (fi->bytesPerSample) {
             case 1:
-                vs_memset8(dstdata, color, padb * dststride);
+                vs_memset<uint8_t>(dstdata, color, padb * dststride);
                 break;
             case 2:
-                vs_memset16(dstdata, color, padb * dststride / 2);
+                vs_memset<uint16_t>(dstdata, color, padb * dststride / 2);
                 break;
             case 4:
-                vs_memset32(dstdata, color, padb * dststride / 4);
+                vs_memset<uint32_t>(dstdata, color, padb * dststride / 4);
                 break;
             }
         }
@@ -1105,13 +1105,13 @@ static const VSFrameRef *VS_CC blankClipGetframe(int n, int activationReason, vo
             for (int plane = 0; plane < d->vi.format.numPlanes; plane++) {
                 switch (bytesPerSample) {
                 case 1:
-                    vs_memset8(vsapi->getWritePtr(frame, plane), d->color[plane], vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane));
+                    vs_memset<uint8_t>(vsapi->getWritePtr(frame, plane), d->color[plane], vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane));
                     break;
                 case 2:
-                    vs_memset16(vsapi->getWritePtr(frame, plane), d->color[plane], (vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane)) / 2);
+                    vs_memset<uint16_t>(vsapi->getWritePtr(frame, plane), d->color[plane], (vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane)) / 2);
                     break;
                 case 4:
-                    vs_memset32(vsapi->getWritePtr(frame, plane), d->color[plane], (vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane)) / 4);
+                    vs_memset<uint32_t>(vsapi->getWritePtr(frame, plane), d->color[plane], (vsapi->getStride(frame, plane) * vsapi->getFrameHeight(frame, plane)) / 4);
                     break;
                 }
             }

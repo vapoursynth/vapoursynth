@@ -23,39 +23,19 @@
 
 #include "VapourSynth4.h"
 #include "VSHelper4.h"
-#include <string.h>
+#include <cstring>
+
+// FIXME, merge everything of value into filtersharedcpp.h and remove this header
 
 #define RETERROR(x) do { vsapi->setError(out, (x)); return; } while (0)
 
-static inline void vs_memset8(void *ptr, int value, size_t num) {
-    memset(ptr, value, num);
-}
-
-static inline void vs_memset16(void *ptr, int value, size_t num) {
-    uint16_t *tptr = (uint16_t *)ptr;
-    while (num-- > 0)
-        *tptr++ = (uint16_t)value;
-}
-
-static inline void vs_memset32(void *ptr, int value, size_t num) {
-    int32_t *tptr = (int32_t *)ptr;
-    while (num-- > 0)
-        *tptr++ = (int32_t)value;
-}
-
-static inline void vs_memset_float(void *ptr, float value, size_t num) {
-    float *tptr = (float *)ptr;
-    while (num-- > 0)
-        *tptr++ = value;
-}
-
 // to detect compat formats
-static inline int isCompatFormat(const VSVideoFormat *format) {
+static inline bool isCompatFormat(const VSVideoFormat *format) {
     return format->colorFamily == cfCompatBGR32 || format->colorFamily == cfCompatYUY2;
 }
 
-// to detect compat formats
-static inline int isUndefinedFormat(const VSVideoFormat *format) {
+// to detect undefined format
+static inline bool isUndefinedFormat(const VSVideoFormat *format) {
     return format->colorFamily == cfUndefined;
 }
 
