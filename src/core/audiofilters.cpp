@@ -555,7 +555,7 @@ static const VSFrameRef *VS_CC audioMixGetFrame(int n, int activationReason, voi
 
 static void VS_CC audioMixFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     AudioMixData *d = reinterpret_cast<AudioMixData *>(instanceData);
-    for (const auto iter : d->sourceNodes)
+    for (const auto &iter : d->sourceNodes)
         vsapi->freeNode(iter.node);
     delete d;
 }
@@ -594,13 +594,13 @@ static void VS_CC audioMixCreate(const VSMap *in, VSMap *out, void *userData, VS
     }
 
     if (numSrcNodes > numSrcChannels) {
-        for (const auto iter : d->sourceNodes)
+        for (const auto &iter : d->sourceNodes)
             vsapi->freeNode(iter.node);
         RETERROR("AudioMix: cannot have more input nodes than selected input channels");
     }
 
     if (numDstChannels * numSrcChannels != numMatrixWeights) {
-        for (const auto iter : d->sourceNodes)
+        for (const auto &iter : d->sourceNodes)
             vsapi->freeNode(iter.node);
         RETERROR("AudioMix: the number of matrix weights must equal (input channels * output channels)");
     }
