@@ -1820,7 +1820,7 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
         int height = vsapi->getFrameHeight(src1, d->plane);
         const uint8_t *srcp = vsapi->getReadPtr(src1, d->plane);
         ptrdiff_t src_stride = vsapi->getStride(src1, d->plane);
-        union vs_plane_stats stats = { 0 };
+        union vs_plane_stats stats = {};
 
         if (src2) {
             const void *srcp2 = vsapi->getReadPtr(src2, d->plane);
