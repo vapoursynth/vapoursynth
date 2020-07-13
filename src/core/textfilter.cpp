@@ -313,19 +313,27 @@ static void append_prop(std::string &text, const std::string &key, const VSMap *
             int type = vsapi->propGetDataType(map, key.c_str(), idx, nullptr);
             text += " ";
             if (type == dtBinary) {
-                text += "<binary data " + std::to_string(size) + " bytes>";
+                text += "<binary data (" + std::to_string(size) + " bytes)>";
             } else if (size > 100) {
-                text += "<property too long>";
+                text += "<property too long (" + std::to_string(size) + " bytes)>";
             } else {
                 text += value;
             }
         }
-    } else if (type == ptVideoFrame || type == ptAudioFrame) {
-        text += std::to_string(numElements) + " frame";
+    } else if (type == ptVideoFrame) {
+        text += std::to_string(numElements) + " video frame";
         if (numElements != 1)
             text += 's';
-    } else if (type == ptVideoNode || type == ptAudioNode) {
-        text += std::to_string(numElements) + " node";
+    } else if (type == ptAudioFrame) {
+        text += std::to_string(numElements) + " audio frame";
+        if (numElements != 1)
+            text += 's';
+    } else if (type == ptVideoNode) {
+        text += std::to_string(numElements) + " video node";
+        if (numElements != 1)
+            text += 's';
+    } else if (type == ptAudioNode) {
+        text += std::to_string(numElements) + " audio node";
         if (numElements != 1)
             text += 's';
     } else if (type == ptFunction) {

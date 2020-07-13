@@ -28,7 +28,6 @@
 #include <vector>
 #include <VapourSynth4.h>
 #include <VSHelper4.h>
-#include "../src/core/filtersharedcpp.h"
 #include "../src/core/filtershared.h"
 #include "../src/core/version.h"
 
@@ -97,8 +96,8 @@ static void VS_CC scDetectCreate(const VSMap *in, VSMap *out, void *userData, VS
     try {
         if (d->threshold < 0.0 || d->threshold > 1.0)
             throw std::runtime_error("threshold must be between 0 and 1");
-        shared816FFormatCheck(vi->format);
-
+        if (!is8to16orFloatFormat(vi->format))
+            throw std::runtime_error("clip must be constant format and of integer 8-16 bit type or 32 bit float");
         if (vi->numFrames == 1)
             throw std::runtime_error("clip must have more than one frame");
 
@@ -610,7 +609,8 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
             d->nodes.push_back(vsapi->propGetNode(in, "clips", i, 0));
 
         d->vi = *vsapi->getVideoInfo(d->nodes[0]);
-        shared816FFormatCheck(d->vi.format);
+        if (!is8to16orFloatFormat(d->vi.format))
+            throw std::runtime_error("clips must be constant format and of integer 8-16 bit type or 32 bit float");
 
         for (auto iter : d->nodes) {
             const VSVideoInfo *vi = vsapi->getVideoInfo(iter);
@@ -785,9 +785,8 @@ static void VS_CC hysteresisCreate(const VSMap *in, VSMap *out, void *userData, 
     const VSVideoInfo *vi = vsapi->getVideoInfo(d->node1);
 
     try {
-
-        if (!isConstantVideoFormat(vi) || (vi->format.sampleType == stInteger && vi->format.bitsPerSample > 16) ||
-            (vi->format.sampleType == stFloat && vi->format.bitsPerSample != 32))
+        
+        if (!isConstantVideoFormat(vi) || !is8to16orFloatFormat(vi->format))
             throw std::runtime_error("only constant format 8-16 bits integer and 32 bits float input supported");
 
         if (!isSameVideoInfo(vi, vsapi->getVideoInfo(d->node2)))
