@@ -183,7 +183,6 @@ static const VSFrameRef *VS_CC audioSpliceGetframe(int n, int activationReason, 
             }
         }
     } else if (activationReason == arAllFramesReady) {
-        int samplesOut = std::min<int64_t>(VS_AUDIO_FRAME_SAMPLES, d->ai.numSamples - n * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES));
         VSFrameRef *dst = nullptr;
         size_t dstOffset = 0;
 
@@ -861,7 +860,6 @@ static void VS_CC assumeSampleRateCreate(const VSMap *in, VSMap *out, void *user
     VSNodeRef *src = vsapi->propGetNode(in, "src", 0, &err);
 
     if (!err) {
-        const VSVideoInfo *vi = vsapi->getVideoInfo(src);
         ai.sampleRate = vsapi->getAudioInfo(d->node)->sampleRate;
         vsapi->freeNode(src);
         hassrc = true;

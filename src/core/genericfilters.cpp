@@ -456,6 +456,15 @@ static const VSFrameRef *VS_CC genericGetframe(int n, int activationReason, void
     return nullptr;
 }
 
+static inline int64_t floatToInt64S(float f) {
+    if (f > static_cast<float>(std::numeric_limits<int64_t>::max()))
+        return std::numeric_limits<int64_t>::max();
+    else if (f < static_cast<float>(std::numeric_limits<int64_t>::min()))
+        return std::numeric_limits<int64_t>::min();
+    else
+        return static_cast<int64_t>(llround(f));
+}
+
 template <GenericOperations op>
 static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<GenericData> d(new GenericData(vsapi));

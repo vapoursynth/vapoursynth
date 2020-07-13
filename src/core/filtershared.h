@@ -55,22 +55,13 @@ static inline void setBlack(uint32_t color[3], const VSVideoFormat *format) {
         color[1] = color[2] = 128;
 }
 
-static inline int64_t floatToInt64S(float f) {
-    if (f > INT64_MAX)
-        return INT64_MAX;
-    else if (f < INT64_MIN)
-        return INT64_MIN;
-    else
-        return (int64_t)llround(f);
-}
-
 static inline int floatToIntS(float f) {
-    if (f > INT_MAX)
-        return INT_MAX;
-    else if (f < INT_MIN)
-        return INT_MIN;
+    if (f > static_cast<float>(std::numeric_limits<int>::max()))
+        return std::numeric_limits<int>::max();
+    else if (f < static_cast<float>(std::numeric_limits<int>::min()))
+        return std::numeric_limits<int>::min();
     else
-        return (int)lround(f);
+        return static_cast<int>(lround(f));
 }
 
 // Convenience structs for *NodeData templates
