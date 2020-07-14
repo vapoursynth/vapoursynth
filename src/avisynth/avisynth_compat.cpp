@@ -291,12 +291,12 @@ PVideoFrame VSClip::GetFrame(int n, IScriptEnvironment *env) {
         (BYTE *)firstPlanePtr,
         false,
         0,
-        vsapi->getStride(ref, 0),
+        static_cast<int>(vsapi->getStride(ref, 0)),
         vsapi->getFrameWidth(ref, 0) * vsapi->getVideoFrameFormat(ref)->bytesPerSample,
         vsapi->getFrameHeight(ref, 0),
         isMultiplePlanes ? vsapi->getReadPtr(ref, 1) - firstPlanePtr : 0,
         isMultiplePlanes ? vsapi->getReadPtr(ref, 2) - firstPlanePtr : 0,
-        isMultiplePlanes ? vsapi->getStride(ref, 1) : 0,
+        isMultiplePlanes ? static_cast<int>(vsapi->getStride(ref, 1)) : 0,
         vsapi->getFrameWidth(ref, 1) * vsapi->getVideoFrameFormat(ref)->bytesPerSample,
         vsapi->getFrameHeight(ref, 1));
     PVideoFrame pvf(vfb);
@@ -773,12 +773,12 @@ PVideoFrame FakeAvisynth::NewVideoFrame(const VideoInfo &vi, int align) {
         (BYTE *)firstPlanePtr,
         true,
         0,
-        vsapi->getStride(ref, 0),
+        static_cast<int>(vsapi->getStride(ref, 0)),
         vi.width * vsapi->getVideoFrameFormat(ref)->bytesPerSample,
         vi.height,
         isMultiplePlanes ? vsapi->getWritePtr(ref, 1) - firstPlanePtr : 0,
         isMultiplePlanes ? vsapi->getWritePtr(ref, 2) - firstPlanePtr : 0,
-        isMultiplePlanes ? vsapi->getStride(ref, 1) : 0,
+        isMultiplePlanes ? static_cast<int>(vsapi->getStride(ref, 1)) : 0,
         vsapi->getFrameWidth(ref, 1) * vsapi->getVideoFrameFormat(ref)->bytesPerSample,
         vsapi->getFrameHeight(ref, 1));
 
@@ -799,12 +799,12 @@ bool FakeAvisynth::MakeWritable(PVideoFrame *pvf) {
         (BYTE *)firstPlanePtr,
         true,
         0,
-        vsapi->getStride(ref, 0),
+        static_cast<int>(vsapi->getStride(ref, 0)),
         (*pvf)->row_size,
         (*pvf)->height,
         vsapi->getWritePtr(ref, 1) - firstPlanePtr,
         vsapi->getWritePtr(ref, 2) - firstPlanePtr,
-        vsapi->getStride(ref, 1),
+        static_cast<int>(vsapi->getStride(ref, 1)),
         (*pvf)->row_sizeUV,
         (*pvf)->heightUV);
     *pvf = PVideoFrame(newVfb);
