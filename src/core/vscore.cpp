@@ -1630,16 +1630,16 @@ VSCore::VSCore(int threads, int flags) :
     p->enableCompat();
     p->lock();
 
-    plugins.insert(std::make_pair(p->id, p));
+    plugins.insert(std::make_pair(p->getID(), p));
     p = new VSPlugin(this);
     resizeInitialize(p, &vs_internal_vspapi);
-    plugins.insert(std::make_pair(p->id, p));
+    plugins.insert(std::make_pair(p->getID(), p));
     p->enableCompat();
 
-    plugins.insert(std::make_pair(p->id, p));
+    plugins.insert(std::make_pair(p->getID(), p));
     p = new VSPlugin(this);
     textInitialize(p, &vs_internal_vspapi);
-    plugins.insert(std::make_pair(p->id, p));
+    plugins.insert(std::make_pair(p->getID(), p));
     p->enableCompat();
 
 #ifdef VS_TARGET_OS_WINDOWS
@@ -1787,13 +1787,13 @@ VSMap *VSCore::getPlugins3() {
     std::lock_guard<std::recursive_mutex> lock(pluginLock);
     int num = 0;
     for (const auto &iter : plugins) {
-        std::string b = iter.second->fnamespace + ";" + iter.second->id + ";" + iter.second->fullname;
+        std::string b = iter.second->getNamespace() + ";" + iter.second->getID() + ";" + iter.second->getName();
         vs_internal_vsapi.propSetData(m, ("Plugin" + std::to_string(++num)).c_str(), b.c_str(), static_cast<int>(b.size()), dtUtf8, paReplace);
     }
     return m;
 }
 
-VSPlugin *VSCore::getPluginById(const std::string &identifier) {
+VSPlugin *VSCore::getPluginByID(const std::string &identifier) {
     std::lock_guard<std::recursive_mutex> lock(pluginLock);
     auto p = plugins.find(identifier);
     if (p != plugins.end())
@@ -1801,10 +1801,10 @@ VSPlugin *VSCore::getPluginById(const std::string &identifier) {
     return nullptr;
 }
 
-VSPlugin *VSCore::getPluginByNs(const std::string &ns) {
+VSPlugin *VSCore::getPluginByNamespace(const std::string &ns) {
     std::lock_guard<std::recursive_mutex> lock(pluginLock);
     for (const auto &iter : plugins) {
-        if (iter.second->fnamespace == ns)
+        if (iter.second->getNamespace() == ns)
             return iter.second;
     }
     return nullptr;
@@ -1815,46 +1815,40 @@ VSPlugin *VSCore::getNextPlugin(VSPlugin *plugin) {
     if (plugin == nullptr) {
         return (plugins.begin() != plugins.end()) ? plugins.begin()->second : nullptr;
     } else {
-        auto it = plugins.begin();
-        while (it != plugins.end()) {
-            if (it->second == plugin) {
-                ++it;
-                return (it != plugins.end()) ? it->second : nullptr;
-            }
+        auto it = plugins.find(plugin->getID());
+        if (it != plugins.end())
             ++it;
-        }
-        return nullptr;
+        return (it != plugins.end()) ? it->second : nullptr;
     }
 }
-
 
 void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath) {
     VSPlugin *p = new VSPlugin(filename, forcedNamespace, forcedId, altSearchPath, this);
 
     std::lock_guard<std::recursive_mutex> lock(pluginLock);
 
-    VSPlugin *already_loaded_plugin = getPluginById(p->id);
+    VSPlugin *already_loaded_plugin = getPluginByID(p->getID());
     if (already_loaded_plugin) {
-        std::string error = "Plugin " + filename + " already loaded (" + p->id + ")";
-        if (already_loaded_plugin->filename.size())
-            error += " from " + already_loaded_plugin->filename;
+        std::string error = "Plugin " + filename + " already loaded (" + p->getID() + ")";
+        if (already_loaded_plugin->getFilename().size())
+            error += " from " + already_loaded_plugin->getFilename();
         delete p;
         throw VSException(error);
     }
 
-    already_loaded_plugin = getPluginByNs(p->fnamespace);
+    already_loaded_plugin = getPluginByNamespace(p->getNamespace());
     if (already_loaded_plugin) {
-        std::string error = "Plugin load of " + filename + " failed, namespace " + p->fnamespace + " already populated";
-        if (already_loaded_plugin->filename.size())
-            error += " by " + already_loaded_plugin->filename;
+        std::string error = "Plugin load of " + filename + " failed, namespace " + p->getNamespace() + " already populated";
+        if (already_loaded_plugin->getFilename().size())
+            error += " by " + already_loaded_plugin->getFilename();
         delete p;
         throw VSException(error);
     }
 
-    plugins.insert(std::make_pair(p->id, p));
+    plugins.insert(std::make_pair(p->getID(), p));
 
     // allow avisynth plugins to accept legacy avisynth formats
-    if (p->fnamespace == "avs" && p->id == "com.vapoursynth.avisynth")
+    if (p->getNamespace() == "avs" && p->getID() == "com.vapoursynth.avisynth")
         p->enableCompat();
 }
 
@@ -2023,18 +2017,6 @@ VSPlugin::~VSPlugin() {
 #endif
 }
 
-void VSPlugin::lock() {
-    readOnly = true;
-};
-
-void VSPlugin::enableCompat() {
-    compat = true;
-}
-
-int VSPlugin::getPluginVersion() const {
-    return pluginVersion;
-}
-
 bool VSPlugin::configPlugin(const std::string &identifier, const std::string &pluginNamespace, const std::string &fullname, int pluginVersion, int apiVersion, int flags) {
     if (hasConfig)
         vsFatal("Attempted to configure plugin %s twice", identifier.c_str());
@@ -2175,26 +2157,18 @@ VSPluginFunction *VSPlugin::getNextFunction(VSPluginFunction *func) {
     if (func == nullptr) {
         return (funcs.begin() != funcs.end()) ? &funcs.begin()->second : nullptr;
     } else {
-        auto it = funcs.begin();
-        while (it != funcs.end()) {
-            if (&it->second == func) {
-                ++it;
-                return (it != funcs.end()) ? &it->second : nullptr;
-            }
+        auto it = funcs.find(func->getName());
+        if (it != funcs.end())
             ++it;
-        }
-        return nullptr;
+        return (it != funcs.end()) ? &it->second : nullptr;
     }
 }
 
 VSPluginFunction *VSPlugin::getFunctionByName(const std::string name) {
     std::lock_guard<std::mutex> lock(functionLock);
-    auto it = funcs.begin();
-    while (it != funcs.end()) {
-        if (it->second.getName() == name)
-            return &it->second;
-        ++it;
-    }
+    auto it = funcs.find(name);
+    if (it != funcs.end())
+        return &it->second;
     return nullptr;
 }
 

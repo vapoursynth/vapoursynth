@@ -647,7 +647,7 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     if (err) {
         // Can only happen for CoreInfo.
         VSMap *args = vsapi->createMap();
-        VSPlugin *stdPlugin = vsapi->getPluginById("com.vapoursynth.std", core);
+        VSPlugin *stdPlugin = vsapi->getPluginByID("com.vapoursynth.std", core);
         VSMap *ret = vsapi->invoke(stdPlugin, "BlankClip", args);
         vsapi->freeMap(args);
         const char *error = vsapi->getError(ret);

@@ -752,6 +752,10 @@ private:
     bool readOnly = false;
     bool readOnlySet = false;
     bool compat = false;
+    std::string filename;
+    std::string fullname;
+    std::string fnamespace;
+    std::string id;
 #ifdef VS_TARGET_OS_WINDOWS
     HMODULE libHandle;
 #else
@@ -761,21 +765,21 @@ private:
     std::mutex functionLock;
     VSCore *core;
 public:
-    std::string filename;
-    std::string fullname;
-    std::string fnamespace;
-    std::string id;
     explicit VSPlugin(VSCore *core);
     VSPlugin(const std::string &relFilename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath, VSCore *core);
     ~VSPlugin();
-    void lock();
-    void enableCompat();
-    int getPluginVersion() const;
+    void lock() { readOnly = true; }
+    void enableCompat() { compat = true; }
     bool configPlugin(const std::string &identifier, const std::string &pluginsNamespace, const std::string &fullname, int pluginVersion, int apiVersion, int flags);
     bool registerFunction(const std::string &name, const std::string &args, const std::string &returnType, VSPublicFunction argsFunc, void *functionData);
     VSMap *invoke(const std::string &funcName, const VSMap &args);
     VSPluginFunction *getNextFunction(VSPluginFunction *func);
     VSPluginFunction *getFunctionByName(const std::string name);
+    const std::string &getName() const { return fullname; }
+    const std::string &getID() const { return id; }
+    const std::string &getNamespace() const { return fnamespace; }
+    const std::string &getFilename() const { return filename; }
+    int getPluginVersion() const { return pluginVersion; }
     void getFunctions3(VSMap *out) const;
 };
 
@@ -852,8 +856,8 @@ public:
     int setCpuLevel(int cpu);
 
     VSMap *getPlugins3();
-    VSPlugin *getPluginById(const std::string &identifier);
-    VSPlugin *getPluginByNs(const std::string &ns);
+    VSPlugin *getPluginByID(const std::string &identifier);
+    VSPlugin *getPluginByNamespace(const std::string &ns);
     VSPlugin *getNextPlugin(VSPlugin *plugin);
 
     const VSCoreInfo &getCoreInfo();

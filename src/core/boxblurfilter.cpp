@@ -354,7 +354,7 @@ static void VS_CC boxBlurCreate(const VSMap *in, VSMap *out, void *userData, VSC
         if (!hblur && !vblur)
             throw std::runtime_error("nothing to be performed");
 
-        VSPlugin *stdplugin = vsapi->getPluginById("com.vapoursynth.std", core);
+        VSPlugin *stdplugin = vsapi->getPluginByID("com.vapoursynth.std", core);
 
         if (vi->format.numPlanes == 1) {
             VSNodeRef *tmpnode = applyBoxBlurPlaneFiltering(stdplugin, node, hradius, hpasses, vradius, vpasses, core, vsapi);

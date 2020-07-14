@@ -585,19 +585,34 @@ static void VS_CC freeCore(VSCore *core) VS_NOEXCEPT {
         core->freeCore();
 }
 
-static VSPlugin *VS_CC getPluginById(const char *identifier, VSCore *core) VS_NOEXCEPT {
+static VSPlugin *VS_CC getPluginByID(const char *identifier, VSCore *core) VS_NOEXCEPT {
     assert(identifier && core);
-    return core->getPluginById(identifier);
+    return core->getPluginByID(identifier);
 }
 
-static VSPlugin *VS_CC getPluginByNs(const char *ns, VSCore *core) VS_NOEXCEPT {
+static VSPlugin *VS_CC getPluginByNamespace(const char *ns, VSCore *core) VS_NOEXCEPT {
     assert(ns && core);
-    return core->getPluginByNs(ns);
+    return core->getPluginByNamespace(ns);
 }
 
 static VSPlugin *VS_CC getNextPlugin(VSPlugin *plugin, VSCore *core) VS_NOEXCEPT {
     assert(core);
     return core->getNextPlugin(plugin);
+}
+
+const char *VS_CC getPluginName(VSPlugin *plugin) VS_NOEXCEPT {
+    assert(plugin);
+    return plugin->getName().c_str();
+}
+
+const char *VS_CC getPluginID(VSPlugin *plugin) VS_NOEXCEPT {
+    assert(plugin);
+    return plugin->getID().c_str();
+}
+
+const char *VS_CC getPluginNamespace(VSPlugin *plugin) VS_NOEXCEPT {
+    assert(plugin);
+    return plugin->getNamespace().c_str();
 }
 
 static VSPluginFunction *VS_CC getNextPluginFunction(VSPluginFunction *func, VSPlugin *plugin) VS_NOEXCEPT {
@@ -721,8 +736,8 @@ static int VS_CC setThreadCount(int threads, VSCore *core) VS_NOEXCEPT {
 static const char *VS_CC getPluginPath(const VSPlugin *plugin) VS_NOEXCEPT {
     if (!plugin)
         vsFatal("NULL passed to getPluginPath");
-    if (!plugin->filename.empty())
-        return plugin->filename.c_str();
+    if (!plugin->getFilename().empty())
+        return plugin->getFilename().c_str();
     else
         return nullptr;
 }
@@ -930,9 +945,12 @@ const VSAPI vs_internal_vsapi = {
     &copyFrame,
     &copyFrameProps,
     &registerFunction,
-    &getPluginById,
-    &getPluginByNs,
+    &getPluginByID,
+    &getPluginByNamespace,
     &getNextPlugin,
+    &getPluginName,
+    &getPluginID,
+    &getPluginNamespace,
     &getNextPluginFunction,
     &getPluginFunctionByName,
     &getPluginFunctionName,
@@ -1044,8 +1062,8 @@ const vs3::VSAPI3 vs_internal_vsapi3 = {
     &copyFrame,
     &copyFrameProps,
     &registerFunction3,
-    &getPluginById,
-    &getPluginByNs,
+    &getPluginByID,
+    &getPluginByNamespace,
     &getPlugins3,
     &getFunctions3,
     &createFilter3,
