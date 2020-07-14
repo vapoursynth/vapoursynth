@@ -67,7 +67,7 @@ class VapourSynther final :
 
     // Frame read ahead.
     int prefetchFrames = 0;
-    std::atomic<int> pendingRequests = 0;
+    std::atomic<int> pendingRequests;
 
     // Cache last accessed frame, to reduce interference with read-ahead.
     int lastPosition = -1;
@@ -551,7 +551,7 @@ int/*error*/ VapourSynther::newEnv() {
 ---------------------------------------------------------*/
 
 // Constructor
-VapourSynther::VapourSynther(void) {
+VapourSynther::VapourSynther(void) : pendingRequests(0) {
     vssapi = getVSScriptAPI(VSSCRIPT_API_VERSION);
     vsapi = vssapi->getVSApi(VAPOURSYNTH_API_VERSION);
 }

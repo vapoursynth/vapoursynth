@@ -89,9 +89,9 @@ public:
 
     //////////// IUnknown
 
-    STDMETHODIMP QueryInterface(const IID& iid, void **ppv);
-    STDMETHODIMP_(ULONG) AddRef();
-    STDMETHODIMP_(ULONG) Release();
+    STDMETHODIMP QueryInterface(const IID& iid, void **ppv) noexcept;
+    STDMETHODIMP_(ULONG) AddRef() noexcept;
+    STDMETHODIMP_(ULONG) Release() noexcept;
 
     //////////// IClassFactory
 
@@ -110,18 +110,18 @@ public:
 
     //////////// IAVIFile
 
-    STDMETHODIMP CreateStream(PAVISTREAM *ppStream, AVISTREAMINFOW *psi);       // 5
-    STDMETHODIMP EndRecord();                                                   // 8
-    STDMETHODIMP GetStream(PAVISTREAM *ppStream, DWORD fccType, LONG lParam);   // 4
-    STDMETHODIMP Info(AVIFILEINFOW *psi, LONG lSize);                           // 3
+    STDMETHODIMP CreateStream(PAVISTREAM *ppStream, AVISTREAMINFOW *psi) noexcept;
+    STDMETHODIMP EndRecord() noexcept;      
+    STDMETHODIMP GetStream(PAVISTREAM *ppStream, DWORD fccType, LONG lParam) noexcept; 
+    STDMETHODIMP Info(AVIFILEINFOW *psi, LONG lSize) noexcept; 
 
-    STDMETHODIMP Open(LPCSTR szFile, UINT mode, LPCOLESTR lpszFileName);        // ???
-    STDMETHODIMP Save(LPCSTR szFile, AVICOMPRESSOPTIONS FAR *lpOptions,         // ???
+    STDMETHODIMP Open(LPCSTR szFile, UINT mode, LPCOLESTR lpszFileName);    
+    STDMETHODIMP Save(LPCSTR szFile, AVICOMPRESSOPTIONS FAR *lpOptions,  
         AVISAVECALLBACK lpfnCallback);
 
-    STDMETHODIMP ReadData(DWORD fcc, LPVOID lp, LONG *lpcb);                    // 7
-    STDMETHODIMP WriteData(DWORD fcc, LPVOID lpBuffer, LONG cbBuffer);          // 6
-    STDMETHODIMP DeleteStream(DWORD fccType, LONG lParam);                      // 9
+    STDMETHODIMP ReadData(DWORD fcc, LPVOID lp, LONG *lpcb) noexcept;
+    STDMETHODIMP WriteData(DWORD fcc, LPVOID lpBuffer, LONG cbBuffer) noexcept;
+    STDMETHODIMP DeleteStream(DWORD fccType, LONG lParam) noexcept;
 
     //////////// IAvisynthClipInfo
 
@@ -137,33 +137,33 @@ public:
 
     //////////// IUnknown
 
-    STDMETHODIMP QueryInterface(const IID& iid, void **ppv);
-    STDMETHODIMP_(ULONG) AddRef();
-    STDMETHODIMP_(ULONG) Release();
+    STDMETHODIMP QueryInterface(const IID& iid, void **ppv) noexcept;
+    STDMETHODIMP_(ULONG) AddRef() noexcept;
+    STDMETHODIMP_(ULONG) Release() noexcept;
 
     VapourSynthStream(VapourSynthFile *parentPtr, bool isAudio);
     ~VapourSynthStream();
 
     //////////// IAVIStream
 
-    STDMETHODIMP Create(LPARAM lParam1, LPARAM lParam2);
-    STDMETHODIMP Delete(LONG lStart, LONG lSamples);
-    STDMETHODIMP Info(AVISTREAMINFOW *psi, LONG lSize);
-    STDMETHODIMP_(LONG) FindSample(LONG lPos, LONG lFlags);
-    STDMETHODIMP Read(LONG lStart, LONG lSamples, LPVOID lpBuffer, LONG cbBuffer, LONG *plBytes, LONG *plSamples);
-    STDMETHODIMP ReadData(DWORD fcc, LPVOID lp, LONG *lpcb);
-    STDMETHODIMP ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpcbFormat);
-    STDMETHODIMP SetFormat(LONG lPos, LPVOID lpFormat, LONG cbFormat);
+    STDMETHODIMP Create(LPARAM lParam1, LPARAM lParam2) noexcept;
+    STDMETHODIMP Delete(LONG lStart, LONG lSamples) noexcept;
+    STDMETHODIMP Info(AVISTREAMINFOW *psi, LONG lSize) noexcept;
+    STDMETHODIMP_(LONG) FindSample(LONG lPos, LONG lFlags) noexcept;
+    STDMETHODIMP Read(LONG lStart, LONG lSamples, LPVOID lpBuffer, LONG cbBuffer, LONG *plBytes, LONG *plSamples) noexcept;
+    STDMETHODIMP ReadData(DWORD fcc, LPVOID lp, LONG *lpcb) noexcept;
+    STDMETHODIMP ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpcbFormat) noexcept;
+    STDMETHODIMP SetFormat(LONG lPos, LPVOID lpFormat, LONG cbFormat) noexcept;
     STDMETHODIMP Write(LONG lStart, LONG lSamples, LPVOID lpBuffer,
         LONG cbBuffer, DWORD dwFlags, LONG FAR *plSampWritten,
-        LONG FAR *plBytesWritten);
-    STDMETHODIMP WriteData(DWORD fcc, LPVOID lpBuffer, LONG cbBuffer);
-    STDMETHODIMP SetInfo(AVISTREAMINFOW *psi, LONG lSize);
+        LONG FAR *plBytesWritten) noexcept;
+    STDMETHODIMP WriteData(DWORD fcc, LPVOID lpBuffer, LONG cbBuffer) noexcept;
+    STDMETHODIMP SetInfo(AVISTREAMINFOW *psi, LONG lSize) noexcept;
 
     //////////// IAVIStreaming
 
-    STDMETHODIMP Begin(LONG lStart, LONG lEnd, LONG lRate);
-    STDMETHODIMP End();
+    STDMETHODIMP Begin(LONG lStart, LONG lEnd, LONG lRate) noexcept;
+    STDMETHODIMP End() noexcept;
 
 private:
     std::atomic<long> m_refs;
@@ -258,7 +258,7 @@ HRESULT VapourSynthFile::Create(const CLSID& rclsid, const IID& riid, void **ppv
 ///////////////////////////////////////////////////
 //////////// IUnknown
 
-STDMETHODIMP VapourSynthFile::QueryInterface(const IID& iid, void **ppv) {
+STDMETHODIMP VapourSynthFile::QueryInterface(const IID& iid, void **ppv) noexcept {
     if (!ppv)
         return E_POINTER;
 
@@ -284,13 +284,13 @@ STDMETHODIMP VapourSynthFile::QueryInterface(const IID& iid, void **ppv) {
     return S_OK;
 }
 
-STDMETHODIMP_(ULONG) VapourSynthFile::AddRef() {
+STDMETHODIMP_(ULONG) VapourSynthFile::AddRef() noexcept {
     const int refs = ++m_refs;
     ++refCount;
     return refs;
 }
 
-STDMETHODIMP_(ULONG) VapourSynthFile::Release() {
+STDMETHODIMP_(ULONG) VapourSynthFile::Release() noexcept {
     const int refs = --m_refs;
     --refCount;
     if (!refs)
@@ -306,7 +306,7 @@ STDMETHODIMP_(ULONG) VapourSynthFile::Release() {
 //////////// IUnknown
 
 
-STDMETHODIMP VapourSynthStream::QueryInterface(const IID& iid, void **ppv) {
+STDMETHODIMP VapourSynthStream::QueryInterface(const IID& iid, void **ppv) noexcept {
     if (!ppv)
         return E_POINTER;
 
@@ -326,13 +326,13 @@ STDMETHODIMP VapourSynthStream::QueryInterface(const IID& iid, void **ppv) {
     return S_OK;
 }
 
-STDMETHODIMP_(ULONG) VapourSynthStream::AddRef() {
+STDMETHODIMP_(ULONG) VapourSynthStream::AddRef() noexcept {
     const int refs = ++m_refs;
     ++refCount;
     return refs;
 }
 
-STDMETHODIMP_(ULONG) VapourSynthStream::Release() {
+STDMETHODIMP_(ULONG) VapourSynthStream::Release() noexcept {
     const int refs = --m_refs;
     --refCount;
     if (!refs) delete this;
@@ -346,12 +346,12 @@ STDMETHODIMP_(ULONG) VapourSynthStream::Release() {
 ////////////////////////////////////////////////////////////////////////
 //////////// IAVIFile
 
-STDMETHODIMP VapourSynthFile::CreateStream(PAVISTREAM *ppStream, AVISTREAMINFOW *psi) {
+STDMETHODIMP VapourSynthFile::CreateStream(PAVISTREAM *ppStream, AVISTREAMINFOW *psi) noexcept {
     *ppStream = nullptr;
     return S_OK;
 }
 
-STDMETHODIMP VapourSynthFile::EndRecord() {
+STDMETHODIMP VapourSynthFile::EndRecord() noexcept {
     return AVIERR_READONLY;
 }
 
@@ -360,15 +360,15 @@ STDMETHODIMP VapourSynthFile::Save(LPCSTR szFile, AVICOMPRESSOPTIONS FAR *lpOpti
     return AVIERR_READONLY;
 }
 
-STDMETHODIMP VapourSynthFile::ReadData(DWORD fcc, LPVOID lp, LONG *lpcb) {
+STDMETHODIMP VapourSynthFile::ReadData(DWORD fcc, LPVOID lp, LONG *lpcb) noexcept {
     return AVIERR_NODATA;
 }
 
-STDMETHODIMP VapourSynthFile::WriteData(DWORD fcc, LPVOID lpBuffer, LONG cbBuffer) {
+STDMETHODIMP VapourSynthFile::WriteData(DWORD fcc, LPVOID lpBuffer, LONG cbBuffer) noexcept {
     return AVIERR_READONLY;
 }
 
-STDMETHODIMP VapourSynthFile::DeleteStream(DWORD fccType, LONG lParam) {
+STDMETHODIMP VapourSynthFile::DeleteStream(DWORD fccType, LONG lParam) noexcept {
     return AVIERR_READONLY;
 }
 
@@ -532,7 +532,7 @@ void VapourSynthFile::Unlock() {
 ///////////////////////////////////////////////////
 //////////// IAVIFile
 
-STDMETHODIMP VapourSynthFile::Info(AVIFILEINFOW *pfi, LONG lSize) {
+STDMETHODIMP VapourSynthFile::Info(AVIFILEINFOW *pfi, LONG lSize) noexcept {
     if (!pfi)
         return E_POINTER;
 
@@ -565,7 +565,7 @@ STDMETHODIMP VapourSynthFile::Info(AVIFILEINFOW *pfi, LONG lSize) {
     return S_OK;
 }
 
-STDMETHODIMP VapourSynthFile::GetStream(PAVISTREAM *ppStream, DWORD fccType, LONG lParam) {
+STDMETHODIMP VapourSynthFile::GetStream(PAVISTREAM *ppStream, DWORD fccType, LONG lParam) noexcept {
     VapourSynthStream *casr;
 
     if (!DelayInit())
@@ -635,37 +635,37 @@ bool __stdcall VapourSynthFile::IsFieldBased() {
 ////////////////////////////////////////////////////////////////////////
 //////////// IAVIStreaming
 
-STDMETHODIMP VapourSynthStream::Begin(LONG lStart, LONG lEnd, LONG lRate) {
+STDMETHODIMP VapourSynthStream::Begin(LONG lStart, LONG lEnd, LONG lRate) noexcept {
     return S_OK;
 }
 
-STDMETHODIMP VapourSynthStream::End() {
+STDMETHODIMP VapourSynthStream::End() noexcept {
     return S_OK;
 }
 
 //////////// IAVIStream
 
-STDMETHODIMP VapourSynthStream::Create(LPARAM lParam1, LPARAM lParam2) {
+STDMETHODIMP VapourSynthStream::Create(LPARAM lParam1, LPARAM lParam2) noexcept {
     return AVIERR_READONLY;
 }
 
-STDMETHODIMP VapourSynthStream::Delete(LONG lStart, LONG lSamples) {
+STDMETHODIMP VapourSynthStream::Delete(LONG lStart, LONG lSamples) noexcept {
     return AVIERR_READONLY;
 }
 
-STDMETHODIMP VapourSynthStream::ReadData(DWORD fcc, LPVOID lp, LONG *lpcb) {
+STDMETHODIMP VapourSynthStream::ReadData(DWORD fcc, LPVOID lp, LONG *lpcb) noexcept {
     return AVIERR_NODATA;
 }
 
-STDMETHODIMP VapourSynthStream::SetFormat(LONG lPos, LPVOID lpFormat, LONG cbFormat) {
+STDMETHODIMP VapourSynthStream::SetFormat(LONG lPos, LPVOID lpFormat, LONG cbFormat) noexcept {
     return AVIERR_READONLY;
 }
 
-STDMETHODIMP VapourSynthStream::WriteData(DWORD fcc, LPVOID lpBuffer, LONG cbBuffer) {
+STDMETHODIMP VapourSynthStream::WriteData(DWORD fcc, LPVOID lpBuffer, LONG cbBuffer) noexcept {
     return AVIERR_READONLY;
 }
 
-STDMETHODIMP VapourSynthStream::SetInfo(AVISTREAMINFOW *psi, LONG lSize) {
+STDMETHODIMP VapourSynthStream::SetInfo(AVISTREAMINFOW *psi, LONG lSize) noexcept {
     return AVIERR_READONLY;
 }
 
@@ -686,7 +686,7 @@ VapourSynthStream::~VapourSynthStream() {
 ////////////////////////////////////////////////////////////////////////
 //////////// IAVIStream
 
-STDMETHODIMP VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) {
+STDMETHODIMP VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) noexcept {
     if (!psi)
         return E_POINTER;
 
@@ -726,7 +726,7 @@ STDMETHODIMP VapourSynthStream::Info(AVISTREAMINFOW *psi, LONG lSize) {
     return S_OK;
 }
 
-STDMETHODIMP_(LONG) VapourSynthStream::FindSample(LONG lPos, LONG lFlags) {
+STDMETHODIMP_(LONG) VapourSynthStream::FindSample(LONG lPos, LONG lFlags) noexcept {
     if (lFlags & FIND_FORMAT)
         return -1;
 
@@ -877,7 +877,7 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
 ////////////////////////////////////////////////////////////////////////
 //////////// IAVIStream
 
-STDMETHODIMP VapourSynthStream::Read(LONG lStart, LONG lSamples, LPVOID lpBuffer, LONG cbBuffer, LONG *plBytes, LONG *plSamples) {
+STDMETHODIMP VapourSynthStream::Read(LONG lStart, LONG lSamples, LPVOID lpBuffer, LONG cbBuffer, LONG *plBytes, LONG *plSamples) noexcept {
     parent->Lock();
     HRESULT result = Read2(lStart, lSamples, lpBuffer, cbBuffer, plBytes, plSamples);
     parent->Unlock();
@@ -974,7 +974,7 @@ HRESULT VapourSynthStream::Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LO
     }
 }
 
-STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpcbFormat) {
+STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpcbFormat) noexcept {
     if (!lpcbFormat)
         return E_POINTER;
 
@@ -1013,7 +1013,7 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
 
 STDMETHODIMP VapourSynthStream::Write(LONG lStart, LONG lSamples, LPVOID lpBuffer,
     LONG cbBuffer, DWORD dwFlags, LONG FAR *plSampWritten,
-    LONG FAR *plBytesWritten) {
+    LONG FAR *plBytesWritten) noexcept {
     return AVIERR_READONLY;
 }
 

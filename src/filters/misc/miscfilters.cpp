@@ -101,11 +101,12 @@ static void VS_CC scDetectCreate(const VSMap *in, VSMap *out, void *userData, VS
         if (vi->numFrames == 1)
             throw std::runtime_error("clip must have more than one frame");
 
+        VSPlugin *stdplugin = vsapi->getPluginByID("com.vapoursynth.std", core);
         VSMap *invmap = vsapi->createMap();
         VSMap *invmap2 = nullptr;
         vsapi->propSetNode(invmap, "clip", d->node, paAppend);
         vsapi->propSetInt(invmap, "first", 1, paAppend);
-        invmap2 = vsapi->invoke(vsapi->getPluginById("com.vapoursynth.std", core), "Trim", invmap);
+        invmap2 = vsapi->invoke(stdplugin, "Trim", invmap);
         VSNodeRef *tempnode = vsapi->propGetNode(invmap2, "clip", 0, nullptr);
         vsapi->freeMap(invmap2);
         vsapi->clearMap(invmap);
@@ -114,9 +115,9 @@ static void VS_CC scDetectCreate(const VSMap *in, VSMap *out, void *userData, VS
         vsapi->propSetData(invmap, "prop", "SCPlaneStats", -1, dtUtf8, paAppend);
         vsapi->propSetInt(invmap, "plane", 0, paAppend);
         vsapi->freeNode(tempnode);
-        invmap2 = vsapi->invoke(vsapi->getPluginById("com.vapoursynth.std", core), "PlaneStats", invmap);
+        invmap2 = vsapi->invoke(stdplugin, "PlaneStats", invmap);
         vsapi->freeMap(invmap);
-        invmap = vsapi->invoke(vsapi->getPluginById("com.vapoursynth.std", core), "Cache", invmap2);
+        invmap = vsapi->invoke(stdplugin, "Cache", invmap2);
         vsapi->freeMap(invmap2);
         d->diffnode = vsapi->propGetNode(invmap, "clip", 0, nullptr);
         vsapi->freeMap(invmap);

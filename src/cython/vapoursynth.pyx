@@ -47,6 +47,7 @@ try:
 except ImportError as e:
     typing = None
 
+# fixme, update with new constants
 __all__ = [
   'COMPAT',
     'COMPATBGR32', 'COMPATYUY2',
@@ -56,11 +57,11 @@ __all__ = [
     'RGB24', 'RGB27', 'RGB30', 'RGB48', 'RGBH', 'RGBS',
   'YCOCG', 'YUV',
     'YUV410P8', 'YUV411P8', 'YUV420P10', 'YUV420P12',
-    'YUV420P14', 'YUV420P16', 'YUV420P8', 'YUV420P9',
+    'YUV420P14', 'YUV420P16', 'YUV420P8',
     'YUV422P10', 'YUV422P12', 'YUV422P14', 'YUV422P16',
-    'YUV422P8', 'YUV422P9', 'YUV440P8', 'YUV444P10',
+    'YUV422P8', 'YUV440P8', 'YUV444P10',
     'YUV444P12', 'YUV444P14', 'YUV444P16', 'YUV444P8',
-    'YUV444P9', 'YUV444PH', 'YUV444PS', 
+    'YUV444PH', 'YUV444PS', 
   'NONE',
   'FLOAT', 'INTEGER',
   

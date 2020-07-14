@@ -836,7 +836,7 @@ int main(int argc, char **argv) {
                 if (vi->format.colorFamily != cfUndefined) {
                     char nameBuffer[32];
                     vsapi->getVideoFormatName(&vi->format, nameBuffer);
-                    fprintf(outFile, "Format Name: %s\n", &nameBuffer);
+                    fprintf(outFile, "Format Name: %s\n", nameBuffer);
                     fprintf(outFile, "Color Family: %s\n", colorFamilyToString(vi->format.colorFamily));
                     fprintf(outFile, "Alpha: %s\n", alphaNode ? "Yes" : "No");
                     fprintf(outFile, "Sample Type: %s\n", (vi->format.sampleType == stInteger) ? "Integer" : "Float");
@@ -882,7 +882,7 @@ int main(int argc, char **argv) {
                 vsapi->getAudioFormatName(&ai->format, nameBuffer);
                 fprintf(outFile, "Samples: %" PRId64 "\n", ai->numSamples);
                 fprintf(outFile, "Sample Rate: %d\n", ai->sampleRate);
-                fprintf(outFile, "Format Name: %s\n", &nameBuffer);
+                fprintf(outFile, "Format Name: %s\n", nameBuffer);
                 fprintf(outFile, "Sample Type: %s\n", (ai->format.sampleType == stInteger) ? "Integer" : "Float");
                 fprintf(outFile, "Bits: %d\n", ai->format.bitsPerSample);
                 fprintf(outFile, "Channels: %d\n", ai->format.numChannels);
