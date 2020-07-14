@@ -426,7 +426,7 @@ def _construct_parameter(signature):
         default=opt, annotation=type
     )
 
-def construct_signature(signature, injected=None):
+def construct_signature(signature, return_signature, injected=None):
     if typing is None:
         raise RuntimeError("At least Python 3.5 is required to use type-hinting")
     
@@ -831,10 +831,10 @@ cdef void dictToMap(dict ndict, VSMap *inm, VSCore *core, const VSAPI *funcs) ex
             elif isinstance(v, str):
                 s = str(v).encode('utf-8')
 
-                if funcs.propSetData(inm, ckey, s, -1, 1) != 0:
+                if funcs.propSetData(inm, ckey, s, -1, dtUtf8, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif isinstance(v, (bytes, bytearray)):
-                if funcs.propSetData(inm, ckey, v, <int>len(v), 1) != 0:
+                if funcs.propSetData(inm, ckey, v, <int>len(v), dtBinary, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             else:
                 raise Error('argument ' + key + ' was passed an unsupported type (' + type(v).__name__ + ')')
@@ -877,7 +877,7 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, cons
                     s = v.encode('utf-8')
                 else:
                     s = v
-                if funcs.propSetData(inm, ckey, s, <int>len(s), 1) != 0:
+                if funcs.propSetData(inm, ckey, s, <int>len(s), dtUtf8 if isinstance(v, str) else dtBinary, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             else:
                 raise Error('argument ' + key + ' was passed an unsupported type (expected ' + atypes[key] + ' compatible type but got ' + type(v).__name__ + ')')
@@ -1065,10 +1065,10 @@ cdef class FrameProps(object):
                         raise Error('Not all values are of the same type')
                 elif isinstance(v, str):
                     s = str(v).encode('utf-8')
-                    if funcs.propSetData(m, b, s, -1, 1) != 0:
+                    if funcs.propSetData(m, b, s, -1, dtUtf8, 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif isinstance(v, (bytes, bytearray)):
-                    if funcs.propSetData(m, b, v, <int>len(v), 1) != 0:
+                    if funcs.propSetData(m, b, v, <int>len(v), dtBinary, 1) != 0:
                         raise Error('Not all values are of the same type')
                 else:
                     raise Error('Setter was passed an unsupported type (' + type(v).__name__ + ')')
@@ -1835,7 +1835,9 @@ cdef class VideoNode(RawNode):
             yield self.get_frame(frameno)
             
     def __dir__(self):
-        plugins = [plugin["namespace"] for plugin in self.core.get_plugins().values()]
+        plugins = []
+        for plugin in self.core.plugins():
+            plugins.append(plugin.namespace)
         return super(VideoNode, self).__dir__() + plugins
 
     def __len__(self):
@@ -2009,7 +2011,9 @@ cdef class AudioNode(RawNode):
             yield self.get_frame(frameno)
             
     def __dir__(self):
-        plugins = [plugin["namespace"] for plugin in self.core.get_plugins().values()]
+        plugins = []
+        for plugin in self.core.plugins():
+            plugins.append(plugin.namespace)
         return super(AudioNode, self).__dir__() + plugins
 
     def __len__(self):
@@ -2088,52 +2092,45 @@ cdef class Core(object):
         cdef VSPlugin *plugin
         tname = name.encode('utf-8')
         cdef const char *cname = tname
-        plugin = self.funcs.getPluginByNs(cname, self.core)
+        plugin = self.funcs.getPluginByNamespace(cname, self.core)
 
         if plugin:
-            return createPlugin(plugin, name, self.funcs, self)
+            return createPlugin(plugin, self.funcs, self)
         else:
             raise AttributeError('No attribute with the name ' + name + ' exists. Did you mistype a plugin namespace?')
 
     def set_max_cache_size(self, int mb):
         self.max_cache_size = mb
         return self.max_cache_size
+        
+    def plugins(self):
+        cdef VSPlugin *plugin = self.funcs.getNextPlugin(NULL, self.core)
+        while plugin:
+            yield createPlugin(plugin, self.funcs, self)
+            plugin = self.funcs.getNextPlugin(plugin, self.core)      
 
     def get_plugins(self):
-        cdef VSMap *m = self.funcs.getPlugins(self.core)
-        cdef VSMap *n
-        cdef bytes b
+        import warnings
+        warnings.warn("get_plugins() is deprecated. Use \"plugins()\" instead.", DeprecationWarning)
+        
         cdef dict sout = {}
-
-        for i in range(self.funcs.propNumKeys(m)):
-            a = self.funcs.propGetData(m, self.funcs.propGetKey(m, i), 0, NULL)
-            a = a.decode('utf-8')
-            a = a.split(';', 2)
-
-            plugin_dict = {}
-            plugin_dict['namespace'] = a[0]
-            plugin_dict['identifier'] = a[1]
-            plugin_dict['name'] = a[2]
+        
+        for plugin in self.plugins():
+            plugin_dict = { 'namespace': plugin.namespace, 'identifier': plugin.identifier, 'name': plugin.name }
 
             function_dict = {}
-
-            b = a[1].encode('utf-8')
-            n = self.funcs.getFunctions(self.funcs.getPluginById(b, self.core))
-
-            for j in range(self.funcs.propNumKeys(n)):
-                c = self.funcs.propGetData(n, self.funcs.propGetKey(n, j), 0, NULL)
-                c = c.decode('utf-8')
-                c = c.split(';', 1)
-                function_dict[c[0]] = c[1]
+            for func in plugin.functions():
+                function_dict[func.name] = func.signature
 
             plugin_dict['functions'] = function_dict
             sout[plugin_dict['identifier']] = plugin_dict
-            self.funcs.freeMap(n)
 
-        self.funcs.freeMap(m)
         return sout
 
     def list_functions(self):
+        import warnings
+        warnings.warn("list_functions() is deprecated. Use \"plugins()\" instead.", DeprecationWarning)
+        
         sout = ""
         plugins = self.get_plugins()
         for plugin in sorted(plugins.keys()):
@@ -2171,7 +2168,9 @@ cdef class Core(object):
         return v.core
         
     def __dir__(self):
-        plugins = [plugin["namespace"] for plugin in self.get_plugins().values()]
+        plugins = []
+        for plugin in self.plugins():
+            plugins.append(plugin.namespace)
         return super(Core, self).__dir__() + plugins
 
     def __str__(self):
@@ -2256,53 +2255,43 @@ cdef class Plugin(object):
     cdef VSPlugin *plugin
     cdef const VSAPI *funcs
     cdef object injected_arg
+    cdef readonly str identifier
     cdef readonly str namespace
-    cdef readonly str __doc__
+    cdef readonly str name
 
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
         
-
     def __getattr__(self, name):
         tname = name.encode('utf-8')
         cdef const char *cname = tname
-        cdef VSMap *m = self.funcs.getFunctions(self.plugin)
-        match = False
+        cdef VSPluginFunction *func = self.funcs.getPluginFunctionByName(cname, self.plugin)
 
-        for i in range(self.funcs.propNumKeys(m)):
-            cname = self.funcs.propGetKey(m, i)
-            orig_name = cname.decode('utf-8')
-
-            if orig_name == name:
-                match = True
-                break
-
-        if match:
-            signature = self.funcs.propGetData(m, cname, 0, NULL).decode('utf-8')
-            signature = signature.split(';', 1)
-            self.funcs.freeMap(m)
-            return createFunction(orig_name, signature[1], self, self.funcs)
+        if func:
+            return createFunction(func, self, self.funcs)
         else:
-            self.funcs.freeMap(m)
             raise AttributeError('There is no function named ' + name)
 
+    def functions(self):
+        cdef VSPluginFunction *func = self.funcs.getNextPluginFunction(NULL, self.plugin)
+        while func:
+            yield createFunction(func, self, self.funcs)
+            plugin = self.funcs.getNextPluginFunction(NULL, self.plugin)
+
     def get_functions(self):
-        cdef VSMap *n
-        cdef bytes b
+        import warnings
+        warnings.warn("get_functions() is deprecated. Use \"functions()\" instead.", DeprecationWarning)
+        
         cdef dict sout = {}
-
-        n = self.funcs.getFunctions(self.plugin)
-
-        for j in range(self.funcs.propNumKeys(n)):
-            c = self.funcs.propGetData(n, self.funcs.propGetKey(n, j), 0, NULL)
-            c = c.decode('utf-8')
-            c = c.split(';', 1)
-            sout[c[0]] = c[1];
-
-        self.funcs.freeMap(n)
+        for func in self.functions():
+            sout[func.name] = func.signature
+        
         return sout
 
     def list_functions(self):
+        import warnings
+        warnings.warn("list_functions() is deprecated. Use \"functions()\" instead.", DeprecationWarning)
+        
         sout = ""
         functions = self.get_functions()
         for key in sorted(functions.keys()):
@@ -2311,37 +2300,35 @@ cdef class Plugin(object):
 
     def __dir__(self):
         attrs = []
-        functions = self.get_functions()
-        for key in functions:
-            attrs.append(key)
+        for func in self.functions():
+            attrs.append(func.name)
         return attrs
 
-cdef Plugin createPlugin(VSPlugin *plugin, str namespace, const VSAPI *funcs, Core core):
+cdef Plugin createPlugin(VSPlugin *plugin, const VSAPI *funcs, Core core):
     cdef Plugin instance = Plugin.__new__(Plugin)
     instance.core = core
     instance.plugin = plugin
     instance.funcs = funcs
     instance.injected_arg = None
-    instance.namespace = namespace
-
-    for plugin_dict in core.get_plugins().values():
-        if plugin_dict['namespace'] == namespace:
-            instance.__doc__ = plugin_dict['name']
-            break
-
+    instance.identifier = funcs.getPluginID(plugin).decode('utf-8')
+    instance.namespace = funcs.getPluginNamespace(plugin).decode('utf-8')
+    instance.name = funcs.getPluginName(plugin).decode('utf-8')
     return instance
 
 cdef class Function(object):
     cdef const VSAPI *funcs
+    cdef const VSPluginFunction *func
     cdef readonly Plugin plugin
     cdef readonly str name
     cdef readonly str signature
+    cdef readonly str return_signature
     
     @property
     def __signature__(self):
+    # FIXME, does nothing with the return signature
         if typing is None:
             return None
-        return construct_signature(self.signature, injected=self.plugin.injected_arg)
+        return construct_signature(self.signature, self.return_signature, injected=self.plugin.injected_arg)
 
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
@@ -2425,12 +2412,14 @@ cdef class Function(object):
         self.funcs.freeMap(outm)
         return retdict
 
-cdef Function createFunction(str name, str signature, Plugin plugin, const VSAPI *funcs):
+cdef Function createFunction(VSPluginFunction *func, Plugin plugin, const VSAPI *funcs):
     cdef Function instance = Function.__new__(Function)
-    instance.name = name
-    instance.signature = signature
+    instance.name = funcs.getPluginFunctionName(func).decode('utf-8')
+    instance.signature = funcs.getPluginFunctionArguments(func).decode('utf-8')
+    instance.return_signature = funcs.getPluginFunctionReturnType(func).decode('utf-8')
     instance.plugin = plugin
     instance.funcs = funcs
+    instance.func = func
     return instance
 
 # for python functions being executed by vs

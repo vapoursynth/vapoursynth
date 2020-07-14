@@ -69,9 +69,9 @@ typedef struct VSPlugin VSPlugin;
 typedef struct VSPluginFunction VSPluginFunction;
 typedef struct VSFuncRef VSFuncRef;
 typedef struct VSMap VSMap;
+typedef struct VSFrameContext VSFrameContext;
 typedef struct VSPLUGINAPI VSPLUGINAPI;
 typedef struct VSAPI VSAPI;
-typedef struct VSFrameContext VSFrameContext;
 
 #define VS_AUDIO_FRAME_SAMPLES 3000
 

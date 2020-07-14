@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2019 Fredrik Mellbin
+# Copyright (c) 2012-2020 Fredrik Mellbin
 #
 # This file is part of VapourSynth.
 #
@@ -31,11 +31,14 @@ cdef extern from "include/VapourSynth4.h" nogil:
         pass
     ctypedef struct VSNodeRef:
         pass
-    ctypedef struct VSFuncRef:
-        pass
+
     ctypedef struct VSCore:
         pass
     ctypedef struct VSPlugin:
+        pass
+    ctypedef struct VSPluginFunction:
+        pass
+    ctypedef struct VSFuncRef:
         pass
     ctypedef struct VSMap:
         pass
@@ -161,7 +164,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         nfMakeLinear
         nfFrameReady
 
-    enum VSPropTypes:
+    enum VSPropType:
         ptUnset
         ptInt
         ptFloat
@@ -172,7 +175,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         ptVideoFrame
         ptAudioFrame
 
-    enum VSGetPropErrors:
+    enum VSGetPropError:
         peUnset
         peType
         peIndex
@@ -218,6 +221,9 @@ cdef extern from "include/VapourSynth4.h" nogil:
     enum VSCoreFlags:
         cfDisableAutoLoading
 
+    enum VSPluginConfigFlags:
+        pcReadOnly
+        
     enum VSDataType:
         dtUnknown
         dtBinary
@@ -227,9 +233,8 @@ cdef extern from "include/VapourSynth4.h" nogil:
     ctypedef const VSAPI *(__stdcall *VSGetVapourSynthAPI)(int version)
 
     ctypedef void (__stdcall *VSPublicFunction)(const VSMap *input, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) 
-    ctypedef void (__stdcall *VSRegisterFunction)(const char *name, const char *args, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin)  
-    ctypedef void (__stdcall *VSConfigPlugin)(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readonly, VSPlugin *plugin)  
-    ctypedef void (__stdcall *VSInitPlugin)(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin)  
+    ctypedef void (__stdcall *VSInitPlugin)(VSPlugin *plugin, const VSPLUGINAPI *vspapi)  
+
     ctypedef void (__stdcall *VSFreeFuncData)(void *userData)
     ctypedef const VSFrameRef *(__stdcall *VSFilterGetFrame)(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi)
     ctypedef void (__stdcall *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI *vsapi)
@@ -238,7 +243,11 @@ cdef extern from "include/VapourSynth4.h" nogil:
     ctypedef void (__stdcall *VSMessageHandler)(int msgType, const char *msg, void *userData)
     ctypedef void (__stdcall *VSMessageHandlerFree)(void *userData)
 
-
+    ctypedef struct VSPLUGINAPI:
+        int getApiVersion() nogil
+        int configPlugin(const char *identifier, const char *pluginNamespace, const char *name, int pluginVersion, int apiVersion, int flags, VSPlugin *plugin) nogil
+        int registerFunction(const char *name, const char *args, const char *returnType, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) nogil
+        
     ctypedef struct VSAPI:
         VSCore *createCore(int threads, int flags) nogil
         void freeCore(VSCore *core) nogil
@@ -255,11 +264,20 @@ cdef extern from "include/VapourSynth4.h" nogil:
         VSFrameRef *copyFrame(const VSFrameRef *f, VSCore *core) nogil
         void copyFrameProps(const VSFrameRef *src, VSFrameRef *dst, VSCore *core) nogil
     
-        void registerFunction(const char *name, const char *args, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) nogil
-        VSPlugin *getPluginById(const char *identifier, VSCore *core) nogil
-        VSPlugin *getPluginByNs(const char *ns, VSCore *core) nogil
-        VSMap *getPlugins(VSCore *core) nogil
-        VSMap *getFunctions(VSPlugin *plugin) nogil
+        int registerFunction(const char *name, const char *args, const char *returnType, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) nogil
+        VSPlugin *getPluginByID(const char *identifier, VSCore *core) nogil
+        VSPlugin *getPluginByNamespace(const char *ns, VSCore *core) nogil
+
+        VSPlugin *getNextPlugin(VSPlugin *plugin, VSCore *core) nogil
+        const char *getPluginName(VSPlugin *plugin) nogil
+        const char *getPluginID(VSPlugin *plugin) nogil
+        const char *getPluginNamespace(VSPlugin *plugin) nogil
+        VSPluginFunction *getNextPluginFunction(VSPluginFunction *func, VSPlugin *plugin) nogil
+        VSPluginFunction *getPluginFunctionByName(const char *name, VSPlugin *plugin) nogil
+        const char *getPluginFunctionName(VSPluginFunction *func) nogil
+        const char *getPluginFunctionArguments(VSPluginFunction *func) nogil
+        const char *getPluginFunctionReturnType(VSPluginFunction *func) nogil
+
         void setError(VSMap *map, const char *errorMessage) nogil
         char *getError(const VSMap *map) nogil
         void setFilterError(const char *errorMessage, VSFrameContext *frameCtx) nogil
@@ -338,8 +356,8 @@ cdef extern from "include/VapourSynth4.h" nogil:
         int queryVideoFormat(VSVideoFormat *format, int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) nogil
         uint32_t queryVideoFormatID(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) nogil
         int queryVideoFormatByID(VSVideoFormat *format, uint32_t id, VSCore *core) nogil
-        void getAudioFormatName(const VSAudioFormat *format, char *buffer) nogil
-        void getVideoFormatName(const VSVideoFormat *format, char *buffer) nogil
+        int getAudioFormatName(const VSAudioFormat *format, char *buffer) nogil
+        int getVideoFormatName(const VSVideoFormat *format, char *buffer) nogil
         const VSAudioInfo *getAudioInfo(VSNodeRef *node) nogil
         const VSAudioFormat *getAudioFrameFormat(const VSFrameRef *f) nogil
      

@@ -1014,7 +1014,7 @@ void VS_CC resizeInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
 
     static const char RETURN_FORMAT_DEFINITION[] = "clip:vnode;";
 
-    vspapi->configPlugin("com.vapoursynth.resize", "resize", "VapourSynth Resize", VAPOURSYNTH_INTERNAL_PLUGIN_VERSION, VAPOURSYNTH_API_VERSION, 1, plugin);
+    vspapi->configPlugin("com.vapoursynth.resize", "resize", "VapourSynth Resize", VAPOURSYNTH_INTERNAL_PLUGIN_VERSION, VAPOURSYNTH_API_VERSION, pcReadOnly, plugin);
     vspapi->registerFunction("Bilinear", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, vszimg_create, (void *)ZIMG_RESIZE_BILINEAR, plugin);
     vspapi->registerFunction("Bicubic", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, vszimg_create, (void *)ZIMG_RESIZE_BICUBIC, plugin);
     vspapi->registerFunction("Point", FORMAT_DEFINITION, RETURN_FORMAT_DEFINITION, vszimg_create, (void *)ZIMG_RESIZE_POINT, plugin);
