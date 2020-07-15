@@ -754,13 +754,15 @@ cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, VSCore *co
         proptype = funcs.propGetType(map, retkey)
 
         for y in range(funcs.propNumElements(map, retkey)):
-            if proptype == 'i':
+            if proptype == ptInt:
                 newval = funcs.propGetInt(map, retkey, y, NULL)
-            elif proptype == 'f':
+            elif proptype == ptFloat:
                 newval = funcs.propGetFloat(map, retkey, y, NULL)
-            elif proptype == 's':
+            elif proptype == ptData:
                 newval = funcs.propGetData(map, retkey, y, NULL)
-            elif proptype == 'c' or proptype == 'a':
+                if funcs.propGetDataType(map, retkey, y, NULL) == dtUtf8:
+                    newval = newval.decode('utf-8')
+            elif proptype == ptVideoNode or proptype == ptAudioNode:
                 c = _get_core()
                 newval = createNode(funcs.propGetNode(map, retkey, y, NULL), funcs, c)
                 
@@ -772,9 +774,9 @@ cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, VSCore *co
 
                     if isinstance(newval, dict):
                         newval = newval['dict']
-            elif proptype == 'v' or proptype =='w':
+            elif proptype == ptVideoFrame or proptype == ptAudioFrame:
                 newval = createConstFrame(funcs.propGetFrame(map, retkey, y, NULL), funcs, core)
-            elif proptype == 'm':
+            elif proptype == ptFunction:
                 newval = createFuncRef(funcs.propGetFunc(map, retkey, y, NULL), funcs)
 
             if y == 0:
@@ -884,22 +886,22 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, cons
                 raise Error('argument ' + key + ' was passed an unsupported type (expected ' + atypes[key] + ' compatible type but got ' + type(v).__name__ + ')')
         if len(val) == 0:
         # set an empty key if it's an empty array
-            if atypes[key][:4] == 'clip' or atypes[key][:5] == 'vnode':
-                funcs.propSetEmpty(inm, ckey, 'c')
+            if atypes[key][:5] == 'vnode':
+                funcs.propSetEmpty(inm, ckey, ptVideoNode)
             elif atypes[key][:5] == 'anode':
-                funcs.propSetEmpty(inm, ckey, 'a')     
-            elif atypes[key][:5] == 'frame' or atypes[key][:6] == 'vframe':
-                funcs.propSetEmpty(inm, ckey, 'v')
+                funcs.propSetEmpty(inm, ckey, ptAudioNode)     
+            elif atypes[key][:6] == 'vframe':
+                funcs.propSetEmpty(inm, ckey, ptVideoFrame)
             elif atypes[key][:6] == 'aframe':
-                funcs.propSetEmpty(inm, ckey, 'w')   
+                funcs.propSetEmpty(inm, ckey, ptAudioFrame)   
             elif atypes[key][:4] == 'func':
-                funcs.propSetEmpty(inm, ckey, 'm')
+                funcs.propSetEmpty(inm, ckey, ptFunction)
             elif atypes[key][:3] == 'int':
-                funcs.propSetEmpty(inm, ckey, 'i')
+                funcs.propSetEmpty(inm, ckey, ptInt)
             elif atypes[key][:5] == 'float':
-                funcs.propSetEmpty(inm, ckey, 'f')
+                funcs.propSetEmpty(inm, ckey, ptFloat)
             elif atypes[key][:4] == 'data':
-                funcs.propSetEmpty(inm, ckey, 's')
+                funcs.propSetEmpty(inm, ckey, ptData)
             else:
                 raise Error('argument ' + key + ' has an unknown type: ' + atypes[key])
 
@@ -998,28 +1000,28 @@ cdef class FrameProps(object):
 
         if numelem < 0:
             raise KeyError('No key named ' + name + ' exists')
-        cdef char t = self.funcs.propGetType(m, b)
-        if t == 'i':
+        cdef int t = self.funcs.propGetType(m, b)
+        if t == ptInt:
             if numelem > 0:
                 intArray = self.funcs.propGetIntArray(m, b, NULL)
                 for i in range(numelem):
                     ol.append(intArray[i])
-        elif t == 'f':
+        elif t == ptFloat:
             if numelem > 0:
                 floatArray = self.funcs.propGetFloatArray(m, b, NULL)
                 for i in range(numelem):
                     ol.append(floatArray[i])
-        elif t == 's':
+        elif t == ptData:
             for i in range(numelem):
                 data = self.funcs.propGetData(m, b, i, NULL)
                 ol.append(data[:self.funcs.propGetDataSize(m, b, i, NULL)])
-        elif t == 'c' or t == 'a':
+        elif t == ptVideoNode or t == ptAudioNode:
             for i in range(numelem):
                 ol.append(createNode(self.funcs.propGetNode(m, b, i, NULL), self.funcs, _get_core()))
-        elif t == 'v' or t == 'w':
+        elif t == ptVideoFrame or t == ptAudioFrame:
             for i in range(numelem):
                 ol.append(createConstFrame(self.funcs.propGetFrame(m, b, i, NULL), self.funcs, self.core))
-        elif t == 'm':
+        elif t == ptFunction:
             for i in range(numelem):
                 ol.append(createFuncRef(self.funcs.propGetFunc(m, b, i, NULL), self.funcs))
 
@@ -1887,6 +1889,7 @@ cdef VideoNode createVideoNode(VSNodeRef *node, const VSAPI *funcs, Core core):
             <int64_t> instance.vi.fpsNum, <int64_t> instance.vi.fpsDen)
     else:
         instance.fps = Fraction(0, 1)
+    instance.flags = funcs.getNodeFlags(node)
 
     return instance
     
@@ -1900,6 +1903,7 @@ cdef class AudioNode(RawNode):
     cdef readonly int sample_rate
     cdef readonly int64_t num_samples
     cdef readonly int num_frames
+    cdef readonly int flags
     
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
@@ -2048,6 +2052,7 @@ cdef AudioNode createAudioNode(VSNodeRef *node, const VSAPI *funcs, Core core):
     instance.bytes_per_sample = instance.ai.format.bytesPerSample
     instance.channel_layout = instance.ai.format.channelLayout
     instance.num_channels = instance.ai.format.numChannels
+    instance.flags = funcs.getNodeFlags(node)
     return instance
 
 cdef class Core(object):

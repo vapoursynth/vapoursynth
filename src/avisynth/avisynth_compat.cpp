@@ -825,7 +825,7 @@ void FakeAvisynth::BitBlt(BYTE* dstp, int dst_pitch, const BYTE* srcp, int src_p
 }
 
 void FakeAvisynth::AtExit(ShutdownFunc function, void *user_data) {
-    // intentionally ignored to prevent issues when multiple cores load the sample plugin in the same process
+    // intentionally ignored to prevent issues when multiple cores load the same plugin in the same process
 }
 
 void FakeAvisynth::CheckVersion(int version) {
