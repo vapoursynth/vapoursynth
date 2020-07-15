@@ -1,7 +1,7 @@
 import vapoursynth as vs
 core = vs.core
 
-colorfamilies = (vs.GRAY, vs.YUV, vs.RGB, vs.YCOCG)
+colorfamilies = (vs.GRAY, vs.YUV, vs.RGB)
 intbitdepths = (8, 9, 10, 11, 12, 13, 14, 15, 16)
 floatbitdepths = (16, 32)
 yuvss = (0, 1, 2)
@@ -10,7 +10,7 @@ formatids = []
 
 for cfs in colorfamilies:
     for bps in intbitdepths:
-        if cfs in (vs.YUV, vs.YCOCG):
+        if cfs == vs.YUV:
             for wss in yuvss:
                 for hss in yuvss:
                     formatids.append(core.register_format(cfs, vs.INTEGER, bps, wss, hss).id)
@@ -19,7 +19,7 @@ for cfs in colorfamilies:
 
 for cfs in colorfamilies:
     for bps in floatbitdepths:
-        if cfs in (vs.YUV, vs.YCOCG):
+        if cfs == vs.YUV:
             for wss in yuvss:
                 for hss in yuvss:
                     formatids.append(core.register_format(cfs, vs.FLOAT, bps, wss, hss).id)

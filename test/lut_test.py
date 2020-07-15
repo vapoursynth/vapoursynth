@@ -66,29 +66,5 @@ class FilterTestSequence(unittest.TestCase):
         ret = self.Lut2(clipa=clipx, clipb=clipy, planes=[0, 1, 2], function=lambda x, y: x, bits=10)
         self.checkDifference(clipx, ret)
 
-    def testLUT2_9Bit_10Bit(self):
-        # Check 9-bit, 10-bit source.
-        clipx = self.BlankClip(format=vs.YUV420P9, color=[384, 10, 500])
-        clipy = self.BlankClip(format=vs.YUV420P10, color=[15, 600, 900])
-
-        ret = self.Lut2(clipa=clipx, clipb=clipy, planes=[0, 1, 2], function=lambda x, y: self.mask(x, 9), bits=9)
-        self.checkDifference(clipx, ret)
-
-        ret = self.Lut2(clipa=clipx, clipb=clipy, planes=[0, 1, 2], function=lambda x, y: self.mask(x, 8), bits=8)
-        comp = self.BlankClip(format=vs.YUV420P8, color=[128, 10, 244])
-        self.checkDifference(comp, ret)
-
-        # Check 10-bit, 9-bit source.
-        clipx = self.BlankClip(format=vs.YUV420P10, color=[384, 10, 500])
-        clipy = self.BlankClip(format=vs.YUV420P9, color=[15, 384, 511])
-
-        ret = self.Lut2(clipa=clipx, clipb=clipy, planes=[0, 1, 2], function=lambda x, y: self.mask(x, 9), bits=9)
-        comp = self.BlankClip(format=vs.YUV420P9, color=[384, 10, 500])
-        self.checkDifference(comp, ret)
-
-        ret = self.Lut2(clipa=clipx, clipb=clipy, planes=[0, 1, 2], function=lambda x, y: self.mask(x, 8), bits=8)
-        comp = self.BlankClip(format=vs.YUV420P8, color=[128, 10, 244])
-        self.checkDifference(comp, ret)
-
 if __name__ == '__main__':
     unittest.main()
