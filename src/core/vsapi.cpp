@@ -360,7 +360,7 @@ static VSArrayBase *propGetShared(const VSMap *map, const char *key, int index, 
         return nullptr;
     }
 
-    if (index < 0 || index > arr->size()) {
+    if (index < 0 || index >= arr->size()) {
         if (error)
             *error = peIndex;
         else
