@@ -1,4 +1,4 @@
-name: Compile and Test on macOS
+name: macOS
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [ master ]
 
 jobs:
-  build:
+  build-clang:
     runs-on: macos-latest
 
     env:
@@ -64,5 +64,5 @@ jobs:
         sudo make install -j2
         pip install .
 
-    - name: Run unittest
+    - name: Run test
       run: python -m unittest discover -s ./test/
