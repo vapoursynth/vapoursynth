@@ -923,6 +923,26 @@ static int VS_CC getApiVersion(void) VS_NOEXCEPT{
     return VAPOURSYNTH_API_VERSION;
 }
 
+static const char *VS_CC getNodeCreationFunctionName(VSNodeRef *node) VS_NOEXCEPT {
+    assert(node);
+    return node->clip->getCreationFunctionName().c_str();
+}
+
+static const VSMap *VS_CC getNodeCreationFunctionArguments(VSNodeRef *node) VS_NOEXCEPT {
+    assert(node);
+    return node->clip->getCreationFunctionArguments();
+}
+
+static const char *VS_CC getNodeName(VSNodeRef *node) VS_NOEXCEPT {
+    assert(node);
+    return node->clip->getName().c_str();
+}
+
+static int VS_CC getNodeIndex(VSNodeRef *node) VS_NOEXCEPT {
+    assert(node);
+    return node->index;
+}
+
 const VSPLUGINAPI vs_internal_vspapi {
     &getApiVersion,
     &configPlugin,
@@ -1042,7 +1062,12 @@ const VSAPI vs_internal_vsapi = {
     &getNodeFlags,
     &getFrameType,
     &getFrameLength,
-    &getApiVersion
+    &getApiVersion,
+
+    &getNodeCreationFunctionName,
+    &getNodeCreationFunctionArguments,
+    &getNodeName,
+    &getNodeIndex
 };
 
 const vs3::VSAPI3 vs_internal_vsapi3 = {

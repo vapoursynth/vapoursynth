@@ -278,7 +278,8 @@ typedef enum VSMessageType {
 } VSMessageType;
 
 typedef enum VSCoreFlags {
-    cfDisableAutoLoading = 1
+    cfDisableAutoLoading = 1,
+    cfEnableGraphInspection = 2
 } VSCoreFlags;
 
 typedef enum VSPluginConfigFlags {
@@ -307,6 +308,7 @@ typedef void (VS_CC *VSFrameDoneCallback)(void *userData, const VSFrameRef *f, i
 typedef void (VS_CC *VSMessageHandler)(int msgType, const char *msg, void *userData);
 typedef void (VS_CC *VSMessageHandlerFree)(void *userData);
 
+// FIXME, document return values and such in comments
 struct VSPLUGINAPI {
     int (VS_CC *getApiVersion)(void) VS_NOEXCEPT;
     int (VS_CC *configPlugin)(const char *identifier, const char *pluginNamespace, const char *name, int pluginVersion, int apiVersion, int flags, VSPlugin *plugin) VS_NOEXCEPT; /* use the VS_MAKE_VERSION macro for pluginVersion */
@@ -435,6 +437,12 @@ struct VSAPI {
     int (VS_CC *getFrameType)(const VSFrameRef *f) VS_NOEXCEPT;
     int (VS_CC *getFrameLength)(const VSFrameRef *f) VS_NOEXCEPT;
     int (VS_CC *getApiVersion)(void) VS_NOEXCEPT;
+
+    /* the functions mostly exist to retrieve internal details for debug purposes and graph visualization */
+    const char *(VS_CC *getNodeCreationFunctionName)(VSNodeRef *node) VS_NOEXCEPT; /* returns the name of the function that created the filter, only valid if the core was created with the cfEnableGraphInspection flag */
+    const VSMap *(VS_CC *getNodeCreationFunctionArguments)(VSNodeRef *node) VS_NOEXCEPT; /* returns a copy of the arguments passed to the function that created the filter, only valid if the core was created with the cfEnableGraphInspection flag */
+    const char *(VS_CC *getNodeName)(VSNodeRef *node) VS_NOEXCEPT;
+    int (VS_CC *getNodeIndex)(VSNodeRef *node) VS_NOEXCEPT;
 };
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version) VS_NOEXCEPT;

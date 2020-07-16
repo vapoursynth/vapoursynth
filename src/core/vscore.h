@@ -57,6 +57,10 @@
 static const uint32_t VS_FRAME_GUARD_PATTERN = 0xDEADBEEF;
 #endif
 
+#ifdef VS_TARGET_OS_DARWIN
+#define thread_local __thread
+#endif
+
 // Internal only filter mode for use by caches to make requests more linear
 const int fmUnorderedLinear = fmUnordered + 13;
 
@@ -177,7 +181,8 @@ public:
     }
 
     explicit VSArray(const T *val, size_t count) noexcept : VSArrayBase(propType) { // only enable for POD types
-        if (fsize == 1) {
+        fsize = count;
+        if (count == 1) {
             singleData = *val;
         } else {
             data.resize(count);
@@ -596,6 +601,8 @@ private:
     bool frameReadyNotify = false;
     int apiMajor;
     VSCore *core;
+    VSMap *savedInArgs = nullptr;
+    std::string creationFunctionName;
     int flags;
     std::vector<VSVideoInfo> vi;
     std::vector<vs3::VSVideoInfo> v3vi;
@@ -653,6 +660,14 @@ public:
 
     const std::string &getName() const {
         return name;
+    }
+
+    const std::string &getCreationFunctionName() const {
+        return creationFunctionName;
+    }
+
+    const VSMap *getCreationFunctionArguments() const {
+        return savedInArgs;
     }
 
     // to get around encapsulation a bit, more elegant than making everything friends in this case
@@ -809,8 +824,16 @@ private:
 
     void registerFormats();
 public:
+    struct VSCoreShittyArgumentList {
+        const VSMap *data;
+        const char *funcName;
+        VSCoreShittyArgumentList *next;
+    };
+
     VSThreadPool *threadPool;
     MemoryUse *memory;
+    bool enableGraphInspection; // fixme
+    static thread_local VSCoreShittyArgumentList *creationFunctionArgs;// fixme
 
     VSFrameRef *newVideoFrame(const VSVideoFormat &f, int width, int height, const VSFrameRef *propSrc);
     VSFrameRef *newVideoFrame(const VSVideoFormat &f, int width, int height, const VSFrameRef * const *planeSrc, const int *planes, const VSFrameRef *propSrc);

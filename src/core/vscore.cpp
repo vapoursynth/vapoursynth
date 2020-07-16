@@ -46,10 +46,6 @@
 #include "internalfilters.h"
 #include "cachefilter.h"
 
-#ifdef VS_TARGET_OS_DARWIN
-#define thread_local __thread
-#endif
-
 static inline bool isAlpha(char c) {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
 }
@@ -814,6 +810,17 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilt
             throw VSException("Filter " + name + " returned zero or negative frame count");
         }
     }
+
+    if (core->enableGraphInspection) {
+        assert(core->creationFunctionArgs);
+        if (core->creationFunctionArgs) {
+            savedInArgs = new VSMap(core->creationFunctionArgs->data);
+            creationFunctionName = core->creationFunctionArgs->funcName;
+        } else {
+            savedInArgs = new VSMap();
+            creationFunctionName = "Undefined";
+        }
+    }
 }
 
 VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
@@ -842,6 +849,17 @@ VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, int numOutputs, V
         this->vi.push_back(vi[i]);
         this->v3vi.push_back(core->VideoInfoToV3(vi[i]));
         this->v3vi.back().flags = flags;
+    }
+
+    if (core->enableGraphInspection) {
+        assert(core->creationFunctionArgs);
+        if (core->creationFunctionArgs) {
+            savedInArgs = new VSMap(core->creationFunctionArgs->data);
+            creationFunctionName = core->creationFunctionArgs->funcName;
+        } else {
+            savedInArgs = new VSMap();
+            creationFunctionName = "Undefined";
+        }
     }
 }
 
@@ -874,9 +892,20 @@ VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, int numOutputs, V
             throw VSException("Filter " + name + " specified " + std::to_string(last.numSamples) + " output samples but " + std::to_string(maxSamples) + " samples is the upper limit of the current format");
         last.numFrames = static_cast<int>((last.numSamples + VS_AUDIO_FRAME_SAMPLES - 1) / VS_AUDIO_FRAME_SAMPLES);
     }
+
+    if (core->enableGraphInspection) {
+        if (core->creationFunctionArgs) {
+            savedInArgs = new VSMap(core->creationFunctionArgs->data);
+            creationFunctionName = core->creationFunctionArgs->funcName;
+        } else {
+            savedInArgs = new VSMap();
+            creationFunctionName = "Undefined";
+        }
+    }
 }
 
 VSNode::~VSNode() {
+    delete savedInArgs;
     core->destroyFilterInstance(this);
 }
 
@@ -1563,27 +1592,26 @@ void VSCore::filterInstanceDestroyed() {
     }
 }
 
-struct VSCoreShittyList {
+struct VSCoreShittyFreeList {
     VSFilterFree free;
     void *instanceData;
-    VSCoreShittyList *next;
-    // add stuff like vsapi here if multiple versions end up floating around for compatibility
+    VSCoreShittyFreeList *next;
 };
 
 void VSCore::destroyFilterInstance(VSNode *node) {
     static thread_local int freeDepth = 0;
-    static thread_local VSCoreShittyList *nodeFreeList = nullptr;
+    static thread_local VSCoreShittyFreeList *nodeFreeList = nullptr;
     freeDepth++;
 
     if (node->free) {
-        nodeFreeList = new VSCoreShittyList({ node->free, node->instanceData, nodeFreeList });
+        nodeFreeList = new VSCoreShittyFreeList({ node->free, node->instanceData, nodeFreeList });
     } else {
         filterInstanceDestroyed();
     }
 
     if (freeDepth == 1) {
         while (nodeFreeList) {
-            VSCoreShittyList *current = nodeFreeList;
+            VSCoreShittyFreeList *current = nodeFreeList;
             nodeFreeList = current->next;
             current->free(current->instanceData, this, getVSAPIInternal(node->apiMajor));
             delete current;
@@ -1596,6 +1624,7 @@ void VSCore::destroyFilterInstance(VSNode *node) {
 
 VSCore::VSCore(int threads, int flags) :
     coreFreed(false),
+    enableGraphInspection(flags & cfEnableGraphInspection),
     numFilterInstances(1),
     numFunctionInstances(0),
     videoFormatIdOffset(1000),
@@ -2102,12 +2131,12 @@ VSMap *VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
                 remainingArgs.insert(args.key(i));
 
             for (const FilterArgument &fa : f.args) {
-                char c = vs_internal_vsapi.propGetType(&args, fa.name.c_str());
+                int propType = vs_internal_vsapi.propGetType(&args, fa.name.c_str());
 
-                if (c != ptUnset) {
+                if (propType != ptUnset) {
                     remainingArgs.erase(fa.name);
 
-                    if (fa.type != c)
+                    if (fa.type != propType)
                         throw VSException(funcName + ": argument " + fa.name + " is not of the correct type");
 
                     VSArrayBase *arr = args.find(fa.name);
@@ -2132,8 +2161,18 @@ VSMap *VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
                 throw VSException(funcName + ": no argument(s) named " + s);
             }
 
-
+            if (core->enableGraphInspection) {
+                VSCore::VSCoreShittyArgumentList *old = core->creationFunctionArgs;
+                core->creationFunctionArgs = new VSCore::VSCoreShittyArgumentList{ &args, funcName.c_str(), old };
+            }
             f.func(&args, v.get(), f.functionData, core, getVSAPIInternal(apiMajor));
+            if (core->enableGraphInspection) {
+                if (core->creationFunctionArgs) {
+                    VSCore::VSCoreShittyArgumentList *old = core->creationFunctionArgs;
+                    core->creationFunctionArgs = old->next;
+                    delete old;
+                }
+            }
 
             if (!compat && v->hasCompatNodes())
                 vsFatal("%s: illegal filter node returning a compat format detected, DO NOT USE THE COMPAT FORMATS IN NEW FILTERS", funcName.c_str());
@@ -2190,3 +2229,5 @@ int VSFrameRef::alignment = alignmentHelper();
 #else
 int VSFrameRef::alignment = 32;
 #endif
+
+thread_local VSCore::VSCoreShittyArgumentList *VSCore::creationFunctionArgs = nullptr;
