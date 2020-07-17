@@ -23,8 +23,6 @@
 #include <map>
 #include <algorithm>
 
-static const int maxPrintLength = 3;
-
 static std::string mangleNode(VSNodeRef *node, const VSAPI *vsapi) {
     return "n" + std::to_string(reinterpret_cast<uintptr_t>(node)) + "_" + std::to_string(vsapi->getNodeIndex(node));
 }
@@ -48,10 +46,7 @@ static int getMinRealLevel(VSNodeRef *node, const VSAPI *vsapi) {
     return level;
 }
 
-static void printNodeGraphHelper(std::set<std::string> &lines, std::map<std::string, std::set<std::string>> &nodes, VSNodeRef *node, const VSAPI *vsapi) {
-    int maxLevel = getMaxLevel(node, vsapi);
-    int minRealLevel = getMinRealLevel(node, vsapi);
-    const VSMap *args = vsapi->getNodeCreationFunctionArguments(node, minRealLevel);
+static std::string printVSMap(const VSMap *args, int maxPrintLength, const VSAPI *vsapi) {
     int numKeys = vsapi->propNumKeys(args);
     std::string setArgsStr;
     for (int i = 0; i < numKeys; i++) {
@@ -77,20 +72,46 @@ static void printNodeGraphHelper(std::set<std::string> &lines, std::map<std::str
                 break;
             case ptData:
                 for (int j = 0; j < std::min(maxPrintLength, numElems); j++)
-                    setArgsStr += std::string(j ? ", " : "") + (vsapi->propGetDataType(args, key, j, nullptr) == dtUtf8 ? vsapi->propGetData(args, key, j, nullptr) : "<binary data " + std::to_string(vsapi->propGetDataSize(args, key, j, nullptr)) + " bytes");
+                    setArgsStr += std::string(j ? ", " : "") + (vsapi->propGetDataType(args, key, j, nullptr) == dtUtf8 ? vsapi->propGetData(args, key, j, nullptr) : ("[binary data " + std::to_string(vsapi->propGetDataSize(args, key, j, nullptr)) + " bytes]"));
+                if (numElems > maxPrintLength)
+                    setArgsStr += ", <" + std::to_string(numElems - maxPrintLength) + ">";
+                break;
+            case ptVideoNode:
+                for (int j = 0; j < std::min(maxPrintLength, numElems); j++) {
+                    VSNodeRef *ref = vsapi->propGetNode(args, key, j, nullptr);
+                    const VSVideoInfo *vi = vsapi->getVideoInfo(ref);
+                    char formatName[32];
+                    vsapi->getVideoFormatName(&vi->format, formatName);
+                    setArgsStr += (j ? ", [" : " [") + std::string(formatName) + ":" + std::to_string(vi->width) + "x" + std::to_string(vi->height) + "]";
+                    vsapi->freeNode(ref);
+                }
+                if (numElems > maxPrintLength)
+                    setArgsStr += ", <" + std::to_string(numElems - maxPrintLength) + ">";
+                break;
+            case ptAudioNode:
+                for (int j = 0; j < std::min(maxPrintLength, numElems); j++) {
+                    VSNodeRef *ref = vsapi->propGetNode(args, key, j, nullptr);
+                    const VSAudioInfo *ai = vsapi->getAudioInfo(ref);
+                    char formatName[32];
+                    vsapi->getAudioFormatName(&ai->format, formatName);
+                    setArgsStr += (j ? ", [" : " [") + std::string(formatName) + ":" + std::to_string(ai->sampleRate) + ":" + std::to_string(ai->format.channelLayout) + "]";
+                    vsapi->freeNode(ref);
+                }
                 if (numElems > maxPrintLength)
                     setArgsStr += ", <" + std::to_string(numElems - maxPrintLength) + ">";
                 break;
             default:
-                // FIXME, print format and dimensions for video
-                // FIXME, print format and channelmask for audio
                 setArgsStr += "<" + std::to_string(numElems) + ">";
         }
     }
+    return setArgsStr;
+}
 
-
-    args = vsapi->getNodeCreationFunctionArguments(node, 0);
-    numKeys = vsapi->propNumKeys(args);
+static void printNodeGraphHelper(std::set<std::string> &lines, std::map<std::string, std::set<std::string>> &nodes, VSNodeRef *node, const VSAPI *vsapi) {
+    int maxLevel = getMaxLevel(node, vsapi);
+    int minRealLevel = getMinRealLevel(node, vsapi);
+    const VSMap *args = vsapi->getNodeCreationFunctionArguments(node, minRealLevel);
+    std::string setArgsStr = printVSMap(vsapi->getNodeCreationFunctionArguments(node, 0), 5, vsapi);
 
     std::string thisNode = mangleNode(node, vsapi);
     std::string thisFrame = mangleFrame(node, 0, vsapi);
@@ -106,6 +127,7 @@ static void printNodeGraphHelper(std::set<std::string> &lines, std::map<std::str
     nodes[baseFrame].insert(thisNode + " [label=\"" + std::string(vsapi->getNodeName(node)) + "#" + std::to_string(vsapi->getNodeIndex(node)) + "\", shape=oval]");
     lines.insert(thisFrame + " -> " + thisNode);
 
+    int numKeys = vsapi->propNumKeys(args);
     for (int i = 0; i < numKeys; i++) {
         const char *key = vsapi->propGetKey(args, i);
         int numElems = vsapi->propNumElements(args, key);
