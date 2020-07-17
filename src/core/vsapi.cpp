@@ -652,9 +652,9 @@ static VSMap *VS_CC getFunctions3(VSPlugin *plugin) VS_NOEXCEPT {
     return m;
 }
 
-static const VSCoreInfo *VS_CC getCoreInfo(VSCore *core) VS_NOEXCEPT {
+static const VSCoreInfo *VS_CC getCoreInfo3(VSCore *core) VS_NOEXCEPT {
     assert(core);
-    return &core->getCoreInfo();
+    return &core->getCoreInfo3();
 }
 
 static VSFuncRef *VS_CC propGetFunc(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
@@ -959,18 +959,26 @@ const VSPLUGINAPI vs_internal_vspapi {
 const VSAPI vs_internal_vsapi = {
     &createCore,
     &freeCore,
+    &setMaxCacheSize,
+    &setThreadCount,
 
-    &cloneFrameRef,
     &cloneNodeRef,
+    &cloneFrameRef,
     &cloneFuncRef,
 
-    &freeFrame,
     &freeNode,
+    &freeFrame,
     &freeFunc,
 
     &newVideoFrame,
+    &newVideoFrame2,
     &copyFrame,
     &copyFrameProps,
+
+    &getStride,
+    &getReadPtr,
+    &getWritePtr,
+
     &registerFunction,
     &getPluginByID,
     &getPluginByNamespace,
@@ -993,10 +1001,7 @@ const VSAPI vs_internal_vsapi = {
     &requestFrameFilter,
     &queryCompletedFrame,
     &releaseFrameEarly,
-
-    &getStride,
-    &getReadPtr,
-    &getWritePtr,
+    &getOutputIndex,
 
     &createFunc,
     &callFunc,
@@ -1014,46 +1019,45 @@ const VSAPI vs_internal_vsapi = {
 
     &propNumKeys,
     &propGetKey,
+    &propDeleteKey,
     &propNumElements,
     &propGetType,
+    &propSetEmpty,
+
     &propGetInt,
     &propGetSaturatedInt,
+    &propGetIntArray,
+    &propSetInt,
+    &propSetIntArray,
+
     &propGetFloat,
     &propGetSaturatedFloat,
+    &propGetFloatArray,
+    &propSetFloat,
+    &propSetFloatArray,
+
     &propGetData,
     &propGetDataSize,
     &propGetDataType,
-    &propGetNode,
-    &propGetFrame,
-    &propGetFunc,
-    &propDeleteKey,
-    &propSetInt,
-    &propSetFloat,
     &propSetData,
+
+    &propGetNode,
     &propSetNode,
+
+    &propGetFrame,
     &propSetFrame,
+
+    &propGetFunc,
     &propSetFunc,
-
-    &setMaxCacheSize,
-    &getOutputIndex,
-    &newVideoFrame2,
-
-    &setThreadCount,
 
     &getPluginPath,
     &getPluginVersion,
-
-    &propGetIntArray,
-    &propGetFloatArray,
-    &propSetIntArray,
-    &propSetFloatArray,
 
     &logMessage,
     &addMessageHandler,
     &removeMessageHandler,
     &getCoreInfo2,
 
-    &propSetEmpty,
     &createVideoFilter,
     &createAudioFilter,
     &newAudioFrame,
@@ -1081,7 +1085,7 @@ const VSAPI vs_internal_vsapi = {
 const vs3::VSAPI3 vs_internal_vsapi3 = {
     &createCore3,
     &freeCore,
-    &getCoreInfo,
+    &getCoreInfo3,
 
     &cloneFrameRef,
     &cloneNodeRef,

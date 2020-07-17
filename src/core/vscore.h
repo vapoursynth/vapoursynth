@@ -885,7 +885,7 @@ public:
     VSPlugin *getPluginByNamespace(const std::string &ns);
     VSPlugin *getNextPlugin(VSPlugin *plugin);
 
-    const VSCoreInfo &getCoreInfo();
+    const VSCoreInfo &getCoreInfo3();
     void getCoreInfo2(VSCoreInfo &info);
 
     static bool getAudioFormatName(const VSAudioFormat &format, char *buffer) noexcept;

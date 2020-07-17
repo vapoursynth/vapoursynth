@@ -1371,7 +1371,7 @@ VSVideoInfo VSCore::VideoInfoFromV3(const vs3::VSVideoInfo &vi) noexcept {
 
 /////////////////////////////////////////////////
 
-const VSCoreInfo &VSCore::getCoreInfo() {
+const VSCoreInfo &VSCore::getCoreInfo3() {
     getCoreInfo2(coreInfo);
     return coreInfo;
 }

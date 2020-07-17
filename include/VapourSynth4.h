@@ -214,6 +214,7 @@ typedef enum VSNodeFlags {
     nfFrameReady = 8 // FIXME, not actually implemented
 } VSNodeFlags;
 
+//FIXME, rename to VSPropertyType
 typedef enum VSPropType {
     ptUnset = 0,
     ptInt = 1,
@@ -226,6 +227,7 @@ typedef enum VSPropType {
     ptAudioFrame = 8,
 } VSPropType;
 
+//FIXME, rename to VSGetPropertyError
 typedef enum VSGetPropError {
     peUnset = 1,
     peType  = 2,
@@ -233,6 +235,7 @@ typedef enum VSGetPropError {
     peError = 8
 } VSGetPropError;
 
+//FIXME, rename to VSPropertyAppendMode
 typedef enum VSPropAppendMode {
     paReplace = 0,
     paAppend  = 1
@@ -315,51 +318,56 @@ struct VSPLUGINAPI {
     int (VS_CC *registerFunction)(const char *name, const char *args, const char *returnType, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) VS_NOEXCEPT;
 };
 
+// FIXME, rearrange functions so they're grouped in a way that makes more sense
 struct VSAPI {
-    VSCore *(VS_CC *createCore)(int threads, int flags) VS_NOEXCEPT;
+    VSCore *(VS_CC *createCore)(int threads, int flags) VS_NOEXCEPT; /* setting threads to 0 means automatic detection, flags uses the VSCoreFlags enum */
     void (VS_CC *freeCore)(VSCore *core) VS_NOEXCEPT;
+    int64_t(VS_CC *setMaxCacheSize)(int64_t bytes, VSCore *core) VS_NOEXCEPT;
+    int (VS_CC *setThreadCount)(int threads, VSCore *core) VS_NOEXCEPT; /* setting threads to 0 means automatic detection */
 
-    const VSFrameRef *(VS_CC *cloneFrameRef)(const VSFrameRef *f) VS_NOEXCEPT;
     VSNodeRef *(VS_CC *cloneNodeRef)(VSNodeRef *node) VS_NOEXCEPT;
+    const VSFrameRef *(VS_CC *cloneFrameRef)(const VSFrameRef *f) VS_NOEXCEPT;
     VSFuncRef *(VS_CC *cloneFuncRef)(VSFuncRef *f) VS_NOEXCEPT;
 
-    void (VS_CC *freeFrame)(const VSFrameRef *f) VS_NOEXCEPT;
     void (VS_CC *freeNode)(VSNodeRef *node) VS_NOEXCEPT;
+    void (VS_CC *freeFrame)(const VSFrameRef *f) VS_NOEXCEPT;
     void (VS_CC *freeFunc)(VSFuncRef *f) VS_NOEXCEPT;
 
     VSFrameRef *(VS_CC *newVideoFrame)(const VSVideoFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT;
+    VSFrameRef *(VS_CC *newVideoFrame2)(const VSVideoFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT; /* like newVideoFrame but allows the specified planes to be effectively copied from the source frames */ // FIXME combine with newvideoframe?, FIXME, rename?
     VSFrameRef *(VS_CC *copyFrame)(const VSFrameRef *f, VSCore *core) VS_NOEXCEPT;
     void (VS_CC *copyFrameProps)(const VSFrameRef *src, VSFrameRef *dst, VSCore *core) VS_NOEXCEPT;
 
-    int (VS_CC *registerFunction)(const char *name, const char *args, const char *returnType, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) VS_NOEXCEPT;
+    ptrdiff_t(VS_CC *getStride)(const VSFrameRef *f, int plane) VS_NOEXCEPT;
+    const uint8_t *(VS_CC *getReadPtr)(const VSFrameRef *f, int plane) VS_NOEXCEPT;
+    uint8_t *(VS_CC *getWritePtr)(VSFrameRef *f, int plane) VS_NOEXCEPT; /* calling this function invalidates previously gotten read pointers to the same frame */
+
+    int (VS_CC *registerFunction)(const char *name, const char *args, const char *returnType, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) VS_NOEXCEPT; /* non-zero return value on success  */
     VSPlugin *(VS_CC *getPluginByID)(const char *identifier, VSCore *core) VS_NOEXCEPT;
     VSPlugin *(VS_CC *getPluginByNamespace)(const char *ns, VSCore *core) VS_NOEXCEPT;
-    VSPlugin *(VS_CC *getNextPlugin)(VSPlugin *plugin, VSCore *core) VS_NOEXCEPT;
+    VSPlugin *(VS_CC *getNextPlugin)(VSPlugin *plugin, VSCore *core) VS_NOEXCEPT; /* pass NULL to get the first plugin  */
     const char *(VS_CC *getPluginName)(VSPlugin *plugin) VS_NOEXCEPT;
     const char *(VS_CC *getPluginID)(VSPlugin *plugin) VS_NOEXCEPT;
     const char *(VS_CC *getPluginNamespace)(VSPlugin *plugin) VS_NOEXCEPT;
-    VSPluginFunction *(VS_CC *getNextPluginFunction)(VSPluginFunction *func, VSPlugin *plugin) VS_NOEXCEPT;
+    VSPluginFunction *(VS_CC *getNextPluginFunction)(VSPluginFunction *func, VSPlugin *plugin) VS_NOEXCEPT; /* pass NULL to get the first plugin function  */
     VSPluginFunction *(VS_CC *getPluginFunctionByName)(const char *name, VSPlugin *plugin) VS_NOEXCEPT;
     const char *(VS_CC *getPluginFunctionName)(VSPluginFunction *func) VS_NOEXCEPT;
-    const char *(VS_CC *getPluginFunctionArguments)(VSPluginFunction *func) VS_NOEXCEPT;
-    const char *(VS_CC *getPluginFunctionReturnType)(VSPluginFunction *func) VS_NOEXCEPT;
+    const char *(VS_CC *getPluginFunctionArguments)(VSPluginFunction *func) VS_NOEXCEPT; /* returns an argument format string */
+    const char *(VS_CC *getPluginFunctionReturnType)(VSPluginFunction *func) VS_NOEXCEPT; /* returns an argument format string */
 
-    void (VS_CC *setError)(VSMap *map, const char *errorMessage) VS_NOEXCEPT; /* use to signal errors outside filter getframe functions */
-    const char *(VS_CC *getError)(const VSMap *map) VS_NOEXCEPT; /* use to query errors, returns 0 if no error */
-    void (VS_CC *setFilterError)(const char *errorMessage, VSFrameContext *frameCtx) VS_NOEXCEPT; /* use to signal errors in the filter getframe function */
-    VSMap *(VS_CC *invoke)(VSPlugin *plugin, const char *name, const VSMap *args) VS_NOEXCEPT;
+    void (VS_CC *setError)(VSMap *map, const char *errorMessage) VS_NOEXCEPT; /* used to signal errors outside filter getframe function */
+    const char *(VS_CC *getError)(const VSMap *map) VS_NOEXCEPT; /* used to query errors, returns 0 if no error */
+    void (VS_CC *setFilterError)(const char *errorMessage, VSFrameContext *frameCtx) VS_NOEXCEPT; /* used to signal errors in the filter getframe function */
+    VSMap *(VS_CC *invoke)(VSPlugin *plugin, const char *name, const VSMap *args) VS_NOEXCEPT; /* user must free the returned VSMap */
     //VSMap *(VS_CC *invoke2)(VSPluginFunction *func, const VSMap *args) VS_NOEXCEPT; // FIXME, should a version that takes a plugin function exist?
 
-    const VSFrameRef *(VS_CC *getFrame)(int n, VSNodeRef *node, char *errorMsg, int bufSize) VS_NOEXCEPT; /* do never use inside a filter's getframe function, for external applications using the core as a library or for requesting frames in a filter constructor */
-    void (VS_CC *getFrameAsync)(int n, VSNodeRef *node, VSFrameDoneCallback callback, void *userData) VS_NOEXCEPT; /* do never use inside a filter's getframe function, for external applications using the core as a library or for requesting frames in a filter constructor */
+    const VSFrameRef *(VS_CC *getFrame)(int n, VSNodeRef *node, char *errorMsg, int bufSize) VS_NOEXCEPT; /* only for external applications using the core as a library or for requesting frames in a filter constructor, do not use inside a filter's getframe function */
+    void (VS_CC *getFrameAsync)(int n, VSNodeRef *node, VSFrameDoneCallback callback, void *userData) VS_NOEXCEPT; /* only for external applications using the core as a library or for requesting frames in a filter constructor, do not use inside a filter's getframe function */
     const VSFrameRef *(VS_CC *getFrameFilter)(int n, VSNodeRef *node, VSFrameContext *frameCtx) VS_NOEXCEPT; /* only use inside a filter's getframe function */
     void (VS_CC *requestFrameFilter)(int n, VSNodeRef *node, VSFrameContext *frameCtx) VS_NOEXCEPT; /* only use inside a filter's getframe function */
     void (VS_CC *queryCompletedFrame)(VSNodeRef **node, int *n, VSFrameContext *frameCtx) VS_NOEXCEPT; /* only use inside a filter's getframe function */
-    void (VS_CC *releaseFrameEarly)(VSNodeRef *node, int n, VSFrameContext *frameCtx) VS_NOEXCEPT; /* only use inside a filter's getframe function */
-
-    ptrdiff_t (VS_CC *getStride)(const VSFrameRef *f, int plane) VS_NOEXCEPT;
-    const uint8_t *(VS_CC *getReadPtr)(const VSFrameRef *f, int plane) VS_NOEXCEPT;
-    uint8_t *(VS_CC *getWritePtr)(VSFrameRef *f, int plane) VS_NOEXCEPT;
+    void (VS_CC *releaseFrameEarly)(VSNodeRef *node, int n, VSFrameContext *frameCtx) VS_NOEXCEPT; /* only use inside a filter's getframe function, unless this function is called a requested frame is kept in memory until the end of processing */
+    int (VS_CC *getOutputIndex)(VSFrameContext *frameCtx) VS_NOEXCEPT; /* used to determine which output index is being requested for filters that output multiple nodes */
 
     VSFuncRef *(VS_CC *createFunc)(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core) VS_NOEXCEPT;
     void (VS_CC *callFunc)(VSFuncRef *func, const VSMap *in, VSMap *out) VS_NOEXCEPT;
@@ -373,53 +381,52 @@ struct VSAPI {
     const VSVideoFormat *(VS_CC *getVideoFrameFormat)(const VSFrameRef *f) VS_NOEXCEPT;
     int (VS_CC *getFrameWidth)(const VSFrameRef *f, int plane) VS_NOEXCEPT;
     int (VS_CC *getFrameHeight)(const VSFrameRef *f, int plane) VS_NOEXCEPT;
-    const VSMap *(VS_CC *getFramePropsRO)(const VSFrameRef *f) VS_NOEXCEPT;
-    VSMap *(VS_CC *getFramePropsRW)(VSFrameRef *f) VS_NOEXCEPT;
+    const VSMap *(VS_CC *getFramePropsRO)(const VSFrameRef *f) VS_NOEXCEPT; // FIXME, rename to getFramePropertiesReadOnly
+    VSMap *(VS_CC *getFramePropsRW)(VSFrameRef *f) VS_NOEXCEPT; // FIXME, rename to getFrameProperties
 
+    // FIXME, rename prop* to map*
     int (VS_CC *propNumKeys)(const VSMap *map) VS_NOEXCEPT;
     const char *(VS_CC *propGetKey)(const VSMap *map, int index) VS_NOEXCEPT;
-    int (VS_CC *propNumElements)(const VSMap *map, const char *key) VS_NOEXCEPT;
-    int (VS_CC *propGetType)(const VSMap *map, const char *key) VS_NOEXCEPT;
+    int (VS_CC *propDeleteKey)(VSMap *map, const char *key) VS_NOEXCEPT;
+    int (VS_CC *propNumElements)(const VSMap *map, const char *key) VS_NOEXCEPT; /* returns -1 if a key doesn't exist */
+    int (VS_CC *propGetType)(const VSMap *map, const char *key) VS_NOEXCEPT; /* return VSPropType */
+    int (VS_CC *propSetEmpty)(VSMap *map, const char *key, int type) VS_NOEXCEPT;
 
     int64_t (VS_CC *propGetInt)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
     int (VS_CC *propGetSaturatedInt)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
+    const int64_t *(VS_CC *propGetIntArray)(const VSMap *map, const char *key, int *error) VS_NOEXCEPT;
+    int (VS_CC *propSetInt)(VSMap *map, const char *key, int64_t i, int append) VS_NOEXCEPT;
+    int (VS_CC *propSetIntArray)(VSMap *map, const char *key, const int64_t *i, int size) VS_NOEXCEPT;
+
     double (VS_CC *propGetFloat)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
     float (VS_CC *propGetSaturatedFloat)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
-    const char *(VS_CC *propGetData)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
-    int (VS_CC *propGetDataSize)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
-    int (VS_CC *propGetDataType)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
-    VSNodeRef *(VS_CC *propGetNode)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
-    const VSFrameRef *(VS_CC *propGetFrame)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
-    VSFuncRef *(VS_CC *propGetFunc)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
-
-    int (VS_CC *propDeleteKey)(VSMap *map, const char *key) VS_NOEXCEPT;
-    int (VS_CC *propSetInt)(VSMap *map, const char *key, int64_t i, int append) VS_NOEXCEPT;
-    int (VS_CC *propSetFloat)(VSMap *map, const char *key, double d, int append) VS_NOEXCEPT;
-    int (VS_CC *propSetData)(VSMap *map, const char *key, const char *data, int size, int type, int append) VS_NOEXCEPT;
-    int (VS_CC *propSetNode)(VSMap *map, const char *key, VSNodeRef *node, int append) VS_NOEXCEPT;
-    int (VS_CC *propSetFrame)(VSMap *map, const char *key, const VSFrameRef *f, int append) VS_NOEXCEPT;
-    int (VS_CC *propSetFunc)(VSMap *map, const char *key, VSFuncRef *func, int append) VS_NOEXCEPT;
-
-    int64_t (VS_CC *setMaxCacheSize)(int64_t bytes, VSCore *core) VS_NOEXCEPT;
-    int (VS_CC *getOutputIndex)(VSFrameContext *frameCtx) VS_NOEXCEPT;
-    VSFrameRef *(VS_CC *newVideoFrame2)(const VSVideoFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT; // FIXME combine with newvideoframe?
-    int (VS_CC *setThreadCount)(int threads, VSCore *core) VS_NOEXCEPT;
-
-    const char *(VS_CC *getPluginPath)(const VSPlugin *plugin) VS_NOEXCEPT;
-    int (VS_CC *getPluginVersion)(const VSPlugin *plugin) VS_NOEXCEPT;
-
-    const int64_t *(VS_CC *propGetIntArray)(const VSMap *map, const char *key, int *error) VS_NOEXCEPT;
     const double *(VS_CC *propGetFloatArray)(const VSMap *map, const char *key, int *error) VS_NOEXCEPT;
-
-    int (VS_CC *propSetIntArray)(VSMap *map, const char *key, const int64_t *i, int size) VS_NOEXCEPT;
+    int (VS_CC *propSetFloat)(VSMap *map, const char *key, double d, int append) VS_NOEXCEPT;
     int (VS_CC *propSetFloatArray)(VSMap *map, const char *key, const double *d, int size) VS_NOEXCEPT;
 
+    const char *(VS_CC *propGetData)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
+    int (VS_CC *propGetDataSize)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
+    int (VS_CC *propGetDataType)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT; /* returns VSDataType */
+    int (VS_CC *propSetData)(VSMap *map, const char *key, const char *data, int size, int type, int append) VS_NOEXCEPT;
+
+    VSNodeRef *(VS_CC *propGetNode)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
+    int (VS_CC *propSetNode)(VSMap *map, const char *key, VSNodeRef *node, int append) VS_NOEXCEPT;
+
+    const VSFrameRef *(VS_CC *propGetFrame)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
+    int (VS_CC *propSetFrame)(VSMap *map, const char *key, const VSFrameRef *f, int append) VS_NOEXCEPT;
+
+    VSFuncRef *(VS_CC *propGetFunc)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
+    int (VS_CC *propSetFunc)(VSMap *map, const char *key, VSFuncRef *func, int append) VS_NOEXCEPT;
+
+    const char *(VS_CC *getPluginPath)(const VSPlugin *plugin) VS_NOEXCEPT; /* the full path to the loaded library file containing the plugin entry point */
+    int (VS_CC *getPluginVersion)(const VSPlugin *plugin) VS_NOEXCEPT;
+
+    // FIXME, message handler should be set per core?
     void (VS_CC *logMessage)(int msgType, const char *msg) VS_NOEXCEPT;
     int (VS_CC *addMessageHandler)(VSMessageHandler handler, VSMessageHandlerFree free, void *userData) VS_NOEXCEPT;
     int (VS_CC *removeMessageHandler)(int id) VS_NOEXCEPT;
     void (VS_CC *getCoreInfo)(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT;
 
-    int (VS_CC *propSetEmpty)(VSMap *map, const char *key, int type) VS_NOEXCEPT;
     void (VS_CC *createVideoFilter)(VSMap *out, const char *name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT;
     void (VS_CC *createAudioFilter)(VSMap *out, const char *name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT;
     VSFrameRef *(VS_CC *newAudioFrame)(const VSAudioFormat *format, int numSamples, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT;
@@ -427,23 +434,24 @@ struct VSAPI {
     int (VS_CC *queryVideoFormat)(VSVideoFormat *format, int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) VS_NOEXCEPT;
     uint32_t (VS_CC *queryVideoFormatID)(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) VS_NOEXCEPT;
     int (VS_CC *queryVideoFormatByID)(VSVideoFormat *format, uint32_t id, VSCore *core) VS_NOEXCEPT;
-    int (VS_CC *getAudioFormatName)(const VSAudioFormat *format, char *buffer) VS_NOEXCEPT; /* up to 32 characters including terminating null may be written to the buffer */
-    int (VS_CC *getVideoFormatName)(const VSVideoFormat *format, char *buffer) VS_NOEXCEPT; /* up to 32 characters including terminating null may be written to the buffer */
+    int (VS_CC *getAudioFormatName)(const VSAudioFormat *format, char *buffer) VS_NOEXCEPT; /* up to 32 characters including terminating null may be written to the buffer, non-zero return value on success */
+    int (VS_CC *getVideoFormatName)(const VSVideoFormat *format, char *buffer) VS_NOEXCEPT; /* up to 32 characters including terminating null may be written to the buffer, non-zero return value on success */
     const VSAudioInfo *(VS_CC *getAudioInfo)(VSNodeRef *node) VS_NOEXCEPT;
     const VSAudioFormat *(VS_CC *getAudioFrameFormat)(const VSFrameRef *f) VS_NOEXCEPT;
 
-    int (VS_CC *getNodeType)(VSNodeRef *node) VS_NOEXCEPT;
-    int (VS_CC *getNodeFlags)(VSNodeRef *node) VS_NOEXCEPT;
-    int (VS_CC *getFrameType)(const VSFrameRef *f) VS_NOEXCEPT;
-    int (VS_CC *getFrameLength)(const VSFrameRef *f) VS_NOEXCEPT;
+    int (VS_CC *getNodeType)(VSNodeRef *node) VS_NOEXCEPT; /* returns VSMediaType */
+    int (VS_CC *getNodeFlags)(VSNodeRef *node) VS_NOEXCEPT; /* returns VSNodeFlags */
+    int (VS_CC *getFrameType)(const VSFrameRef *f) VS_NOEXCEPT; /* returns VSMediaType */
+    int (VS_CC *getFrameLength)(const VSFrameRef *f) VS_NOEXCEPT; /* returns the number of samples for audio frames */
     int (VS_CC *getApiVersion)(void) VS_NOEXCEPT;
 
+    // FIXME, split off into its own api struct?
     /* these functions only exist to retrieve internal details for debug purposes and graph visualization and will only only work properly when used on a core created with the flag cfEnableGraphInspection, NOT PART OF THE STABLE API */
     const char *(VS_CC *getNodeCreationFunctionName)(VSNodeRef *node, int level) VS_NOEXCEPT; /* returns the name of the function that created the filter */
     const VSMap *(VS_CC *getNodeCreationFunctionArguments)(VSNodeRef *node, int level) VS_NOEXCEPT; /* returns a copy of the arguments passed to the function that created the filter */
     const char *(VS_CC *getNodeName)(VSNodeRef *node) VS_NOEXCEPT;
     int (VS_CC *getNodeIndex)(VSNodeRef *node) VS_NOEXCEPT;
-    void (VS_CC *setInternalFilterRelation)(const VSMap *nodeMap, VSNodeRef **dependencies, int numDeps) VS_NOEXCEPT; /* manually overrides the automatically deduced information, only needed in filters that call invoke on the input to create*Filter or chains multiple create*Filter calls */
+    void (VS_CC *setInternalFilterRelation)(const VSMap *nodeMap, VSNodeRef **dependencies, int numDeps) VS_NOEXCEPT; /* manually overrides the automatically deduced information, only needed in filters that call invoke on the input to create*Filter or chains multiple create*Filter calls, simply ignored when used without cfEnableGraphInspection */
 };
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version) VS_NOEXCEPT;
