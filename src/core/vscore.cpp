@@ -1898,11 +1898,10 @@ void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNa
         p->enableCompat();
 }
 
-void VSCore::createFilter(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
+void VSCore::createFilter3(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
     try {
         VSNode *node = new VSNode(in, out, name, init, getFrame, free, filterMode, flags, instanceData, apiMajor, this);
         for (size_t i = 0; i < node->getNumOutputs(); i++) {
-            // fixme, not that elegant but saves more variant poking code
             VSNodeRef *ref = new VSNodeRef(node, static_cast<int>(i));
             vs_internal_vsapi.propSetNode(out, "clip", ref, paAppend);
             ref->release();
@@ -1916,7 +1915,6 @@ void VSCore::createVideoFilter(VSMap *out, const std::string &name, const VSVide
     try {
         VSNode *node = new VSNode(name, vi, numOutputs, getFrame, free, filterMode, flags, instanceData, apiMajor, this);
         for (size_t i = 0; i < node->getNumOutputs(); i++) {
-            // fixme, not that elegant but saves more variant poking code
             VSNodeRef *ref = new VSNodeRef(node, static_cast<int>(i));
             vs_internal_vsapi.propSetNode(out, "clip", ref, paAppend);
             ref->release();
@@ -1930,7 +1928,6 @@ void VSCore::createAudioFilter(VSMap *out, const std::string &name, const VSAudi
     try {
         VSNode *node = new VSNode(name, ai, numOutputs, getFrame, free, filterMode, flags, instanceData, apiMajor, this);
         for (size_t i = 0; i < node->getNumOutputs(); i++) {
-            // fixme, not that elegant but saves more variant poking code
             VSNodeRef *ref = new VSNodeRef(node, static_cast<int>(i));
             vs_internal_vsapi.propSetNode(out, "clip", ref, paAppend);
             ref->release();

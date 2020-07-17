@@ -181,7 +181,7 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
 
     vsapi->createVideoFilter(out, "PreMultiply", d->vi, 1, preMultiplyGetFrame, filterFree<PreMultiplyData>, fmParallel, 0, d.get(), core);
     if (setHint)
-        vsapi->setInternalFilterRelation(out, d->node.data(), d->node.size());
+        vsapi->setInternalFilterRelation(out, d->node.data(), static_cast<int>(d->node.size()));
     d.release();
 }
 
@@ -502,7 +502,7 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
     d->cpulevel = vs_get_cpulevel(core);
 
     vsapi->createVideoFilter(out, "MaskedMerge", d->vi, 1, maskedMergeGetFrame, filterFree<MaskedMergeData>, fmParallel, 0, d.get(), core);
-    vsapi->setInternalFilterRelation(out, d->node.data(), d->node.size());
+    vsapi->setInternalFilterRelation(out, d->node.data(), static_cast<int>(d->node.size()));
     d.release();
 }
 

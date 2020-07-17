@@ -222,7 +222,7 @@ static void VS_CC createFilter3(const VSMap *in, VSMap *out, const char *name, v
         default:
             vsFatal("Invalid filter mode");
     }
-    core->createFilter(in, out, name, init, reinterpret_cast<VSFilterGetFrame>(getFrame), free, fm, flags, instanceData, VAPOURSYNTH3_API_MAJOR);
+    core->createFilter3(in, out, name, init, reinterpret_cast<VSFilterGetFrame>(getFrame), free, fm, flags, instanceData, VAPOURSYNTH3_API_MAJOR);
 }
 
 static void VS_CC setError(VSMap *map, const char *errorMessage) VS_NOEXCEPT {

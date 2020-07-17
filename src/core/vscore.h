@@ -831,8 +831,11 @@ private:
 public:
     VSThreadPool *threadPool;
     MemoryUse *memory;
-    bool enableGraphInspection; // fixme
-    static thread_local PVSFunctionFrame functionFrame;// fixme
+
+    // Used only for graph inspection
+    bool enableGraphInspection; 
+    static thread_local PVSFunctionFrame functionFrame;
+    //
 
     VSFrameRef *newVideoFrame(const VSVideoFormat &f, int width, int height, const VSFrameRef *propSrc);
     VSFrameRef *newVideoFrame(const VSVideoFormat &f, int width, int height, const VSFrameRef * const *planeSrc, const int *planes, const VSFrameRef *propSrc);
@@ -870,7 +873,7 @@ public:
     bool loadAllPluginsInPath(const std::string &path, const std::string &filter);
 #endif
 
-    void createFilter(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
+    void createFilter3(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
     void createVideoFilter(VSMap *out, const std::string &name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
     void createAudioFilter(VSMap *out, const std::string &name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor);
 

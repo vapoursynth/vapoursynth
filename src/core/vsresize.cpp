@@ -947,8 +947,31 @@ public:
     static void create(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
         try {
             vszimg *x = new vszimg{ in, userData, core, vsapi };
-            // FIXME, set resize type here
-            vsapi->createVideoFilter(out, "format", &x->m_vi, 1, &vszimg_get_frame, vszimg_free, fmParallel, 0, x, core);
+            const char *resizeType = "UnknownResize";
+            switch (reinterpret_cast<uintptr_t>(userData)) {
+                case ZIMG_RESIZE_POINT:
+                    resizeType = "Point";
+                    break;
+                case ZIMG_RESIZE_BILINEAR:
+                    resizeType = "Bilinear";
+                    break;
+                case ZIMG_RESIZE_BICUBIC:
+                    resizeType = "Bicubic";
+                    break;
+                case ZIMG_RESIZE_SPLINE16:
+                    resizeType = "Spline16";
+                    break;
+                case ZIMG_RESIZE_SPLINE36:
+                    resizeType = "Spline36";
+                    break;
+                case ZIMG_RESIZE_SPLINE64:
+                    resizeType = "Spline64";
+                    break;
+                case ZIMG_RESIZE_LANCZOS:
+                    resizeType = "Lanczos";
+                    break;
+            }
+            vsapi->createVideoFilter(out, resizeType, &x->m_vi, 1, &vszimg_get_frame, vszimg_free, fmParallel, 0, x, core);
         } catch (const vszimgxx::zerror &e) {
             std::string errmsg = "Resize error " + std::to_string(e.code) + ": " + e.msg;
             vsapi->setError(out, errmsg.c_str());
