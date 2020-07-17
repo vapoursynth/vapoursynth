@@ -947,6 +947,7 @@ public:
     static void create(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
         try {
             vszimg *x = new vszimg{ in, userData, core, vsapi };
+            // FIXME, set resize type here
             vsapi->createVideoFilter(out, "format", &x->m_vi, 1, &vszimg_get_frame, vszimg_free, fmParallel, 0, x, core);
         } catch (const vszimgxx::zerror &e) {
             std::string errmsg = "Resize error " + std::to_string(e.code) + ": " + e.msg;

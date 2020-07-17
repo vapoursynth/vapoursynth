@@ -157,6 +157,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\common\wave.cpp" />
+    <ClCompile Include="..\..\src\vspipe\printgraph.cpp" />
     <ClCompile Include="..\..\src\vspipe\vspipe.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -165,6 +166,7 @@
     <ClInclude Include="..\..\include\VSScript4.h" />
     <ClInclude Include="..\..\src\common\vsutf16.h" />
     <ClInclude Include="..\..\src\common\wave.h" />
+    <ClInclude Include="..\..\src\vspipe\printgraph.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

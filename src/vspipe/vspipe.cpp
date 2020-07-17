@@ -22,6 +22,7 @@
 #include "VSHelper4.h"
 #include "VSScript4.h"
 #include "../core/version.h"
+#include "printgraph.h"
 #include <string>
 #include <map>
 #include <vector>
@@ -98,6 +99,7 @@ static int64_t currentTimecodeNum = 0;
 static int64_t currentTimecodeDen = 1;
 static bool outputError = false;
 static bool showInfo = false;
+static bool showGraph = false;
 static bool preserveCwd = false;
 static bool showVersion = false;
 static bool printFrameNumber = false;
@@ -574,7 +576,8 @@ static void printHelp() {
         "  -t, --timecodes FILE  Write timecodes v2 file\n"
         "  -c  --preserve-cwd    Don't temporarily change the working directory the script path\n"
         "  -p, --progress        Print progress to stderr\n"
-        "  -i, --info            Show video info and exit\n"
+        "  -i, --info            Show output node info and exit\n"
+        "  -g, --graph           Print output node filter graph in dot format and exit\n"
         "  -v, --version         Show version info and exit\n"
         "\n"
         "Examples:\n"
@@ -627,6 +630,8 @@ int main(int argc, char **argv) {
             printFrameNumber = true;
         } else if (argString == NSTRING("-i") || argString == NSTRING("--info")) {
             showInfo = true;
+        } else if (argString == NSTRING("-g") || argString == NSTRING("--graph")) {
+            showGraph = true;
         } else if (argString == NSTRING("-h") || argString == NSTRING("--help")) {
             showHelp = true;
         } else if (argString == NSTRING("-c") || argString == NSTRING("--preserve-cwd")) {
@@ -812,97 +817,102 @@ int main(int argc, char **argv) {
 
     bool success = true;
 
-    int nodeType = vsapi->getNodeType(node);
+    if (showGraph) {
+        fprintf(outFile, "%s\n", printNodeGraph(node, vsapi).c_str());
+    } else {
 
-    if (nodeType == mtVideo) {
+        int nodeType = vsapi->getNodeType(node);
 
-        const VSVideoInfo *vi = vsapi->getVideoInfo(node);
+        if (nodeType == mtVideo) {
 
-        if (showInfo) {
-            if (outFile) {
-                if (vi->width && vi->height) {
-                    fprintf(outFile, "Width: %d\n", vi->width);
-                    fprintf(outFile, "Height: %d\n", vi->height);
-                } else {
-                    fprintf(outFile, "Width: Variable\n");
-                    fprintf(outFile, "Height: Variable\n");
+            const VSVideoInfo *vi = vsapi->getVideoInfo(node);
+
+            if (showInfo) {
+                if (outFile) {
+                    if (vi->width && vi->height) {
+                        fprintf(outFile, "Width: %d\n", vi->width);
+                        fprintf(outFile, "Height: %d\n", vi->height);
+                    } else {
+                        fprintf(outFile, "Width: Variable\n");
+                        fprintf(outFile, "Height: Variable\n");
+                    }
+                    fprintf(outFile, "Frames: %d\n", vi->numFrames);
+                    if (vi->fpsNum && vi->fpsDen)
+                        fprintf(outFile, "FPS: %" PRId64 "/%" PRId64 " (%.3f fps)\n", vi->fpsNum, vi->fpsDen, vi->fpsNum / static_cast<double>(vi->fpsDen));
+                    else
+                        fprintf(outFile, "FPS: Variable\n");
+
+                    if (vi->format.colorFamily != cfUndefined) {
+                        char nameBuffer[32];
+                        vsapi->getVideoFormatName(&vi->format, nameBuffer);
+                        fprintf(outFile, "Format Name: %s\n", nameBuffer);
+                        fprintf(outFile, "Color Family: %s\n", colorFamilyToString(vi->format.colorFamily));
+                        fprintf(outFile, "Alpha: %s\n", alphaNode ? "Yes" : "No");
+                        fprintf(outFile, "Sample Type: %s\n", (vi->format.sampleType == stInteger) ? "Integer" : "Float");
+                        fprintf(outFile, "Bits: %d\n", vi->format.bitsPerSample);
+                        fprintf(outFile, "SubSampling W: %d\n", vi->format.subSamplingW);
+                        fprintf(outFile, "SubSampling H: %d\n", vi->format.subSamplingH);
+                    } else {
+                        fprintf(outFile, "Format Name: Variable\n");
+                    }
                 }
-                fprintf(outFile, "Frames: %d\n", vi->numFrames);
-                if (vi->fpsNum && vi->fpsDen)
-                    fprintf(outFile, "FPS: %" PRId64 "/%" PRId64 " (%.3f fps)\n", vi->fpsNum, vi->fpsDen, vi->fpsNum / static_cast<double>(vi->fpsDen));
-                else
-                    fprintf(outFile, "FPS: Variable\n");
-                
-                if (vi->format.colorFamily != cfUndefined) {
+            } else {
+                if (totalFrames == -1)
+                    totalFrames = vi->numFrames;
+                if ((vi->numFrames && vi->numFrames < totalFrames) || completedFrames >= totalFrames) {
+                    fprintf(stderr, "Invalid range of frames to output specified:\nfirst: %d\nlast: %d\nclip length: %d\nframes to output: %d\n", completedFrames, totalFrames, vi->numFrames, totalFrames - completedFrames);
+                    vsapi->freeNode(node);
+                    vsapi->freeNode(alphaNode);
+                    vssapi->freeScript(se);
+                    return 1;
+                }
+
+                if (!isConstantVideoFormat(vi)) {
+                    fprintf(stderr, "Cannot output clips with varying dimensions\n");
+                    vsapi->freeNode(node);
+                    vsapi->freeNode(alphaNode);
+                    vssapi->freeScript(se);
+                    return 1;
+                }
+
+                success = initializeVideoOutput();
+                if (success) {
+                    lastFpsReportTime = std::chrono::high_resolution_clock::now();
+                    success = !outputNode();
+                }
+            }
+        } else if (nodeType == mtAudio) {
+
+            const VSAudioInfo *ai = vsapi->getAudioInfo(node);
+
+            if (showInfo) {
+                if (outFile) {
                     char nameBuffer[32];
-                    vsapi->getVideoFormatName(&vi->format, nameBuffer);
+                    vsapi->getAudioFormatName(&ai->format, nameBuffer);
+                    fprintf(outFile, "Samples: %" PRId64 "\n", ai->numSamples);
+                    fprintf(outFile, "Sample Rate: %d\n", ai->sampleRate);
                     fprintf(outFile, "Format Name: %s\n", nameBuffer);
-                    fprintf(outFile, "Color Family: %s\n", colorFamilyToString(vi->format.colorFamily));
-                    fprintf(outFile, "Alpha: %s\n", alphaNode ? "Yes" : "No");
-                    fprintf(outFile, "Sample Type: %s\n", (vi->format.sampleType == stInteger) ? "Integer" : "Float");
-                    fprintf(outFile, "Bits: %d\n", vi->format.bitsPerSample);
-                    fprintf(outFile, "SubSampling W: %d\n", vi->format.subSamplingW);
-                    fprintf(outFile, "SubSampling H: %d\n", vi->format.subSamplingH);
-                } else {
-                    fprintf(outFile, "Format Name: Variable\n");
+                    fprintf(outFile, "Sample Type: %s\n", (ai->format.sampleType == stInteger) ? "Integer" : "Float");
+                    fprintf(outFile, "Bits: %d\n", ai->format.bitsPerSample);
+                    fprintf(outFile, "Channels: %d\n", ai->format.numChannels);
+                    fprintf(outFile, "Layout: %s\n", channelMaskToName(ai->format.channelLayout).c_str());
                 }
-            }
-        } else {
-            if (totalFrames == -1)
-                totalFrames = vi->numFrames;
-            if ((vi->numFrames && vi->numFrames < totalFrames) || completedFrames >= totalFrames) {
-                fprintf(stderr, "Invalid range of frames to output specified:\nfirst: %d\nlast: %d\nclip length: %d\nframes to output: %d\n", completedFrames, totalFrames, vi->numFrames, totalFrames - completedFrames);
-                vsapi->freeNode(node);
-                vsapi->freeNode(alphaNode);
-                vssapi->freeScript(se);
-                return 1;
-            }
+            } else {
+                if (totalFrames == -1)
+                    totalFrames = ai->numFrames;
+                if ((ai->numFrames && ai->numFrames < totalFrames) || completedFrames >= totalFrames) {
+                    fprintf(stderr, "Invalid range of frames to output specified:\nfirst: %d\nlast: %d\nclip length: %d\nframes to output: %d\n", completedFrames, totalFrames, ai->numFrames, totalFrames - completedFrames);
+                    vsapi->freeNode(node);
+                    vsapi->freeNode(alphaNode);
+                    vssapi->freeScript(se);
+                    return 1;
+                }
 
-            if (!isConstantVideoFormat(vi)) {
-                fprintf(stderr, "Cannot output clips with varying dimensions\n");
-                vsapi->freeNode(node);
-                vsapi->freeNode(alphaNode);
-                vssapi->freeScript(se);
-                return 1;
-            }
-
-            success = initializeVideoOutput();
-            if (success) {
-                lastFpsReportTime = std::chrono::high_resolution_clock::now();
-                success = !outputNode();
-            }
-        }
-    } else if (nodeType == mtAudio) {
-
-        const VSAudioInfo *ai = vsapi->getAudioInfo(node);
-
-        if (showInfo) {
-            if (outFile) {
-                char nameBuffer[32];
-                vsapi->getAudioFormatName(&ai->format, nameBuffer);
-                fprintf(outFile, "Samples: %" PRId64 "\n", ai->numSamples);
-                fprintf(outFile, "Sample Rate: %d\n", ai->sampleRate);
-                fprintf(outFile, "Format Name: %s\n", nameBuffer);
-                fprintf(outFile, "Sample Type: %s\n", (ai->format.sampleType == stInteger) ? "Integer" : "Float");
-                fprintf(outFile, "Bits: %d\n", ai->format.bitsPerSample);
-                fprintf(outFile, "Channels: %d\n", ai->format.numChannels);
-                fprintf(outFile, "Layout: %s\n", channelMaskToName(ai->format.channelLayout).c_str());
-            }
-        } else {
-            if (totalFrames == -1)
-                totalFrames = ai->numFrames;
-            if ((ai->numFrames && ai->numFrames < totalFrames) || completedFrames >= totalFrames) {
-                fprintf(stderr, "Invalid range of frames to output specified:\nfirst: %d\nlast: %d\nclip length: %d\nframes to output: %d\n", completedFrames, totalFrames, ai->numFrames, totalFrames - completedFrames);
-                vsapi->freeNode(node);
-                vsapi->freeNode(alphaNode);
-                vssapi->freeScript(se);
-                return 1;
-            }
-
-            success = initializeAudioOutput();
-            if (success) {
-                lastFpsReportTime = std::chrono::high_resolution_clock::now();
-                success = !outputNode();
+                success = initializeAudioOutput();
+                if (success) {
+                    lastFpsReportTime = std::chrono::high_resolution_clock::now();
+                    success = !outputNode();
+                }
             }
         }
     }

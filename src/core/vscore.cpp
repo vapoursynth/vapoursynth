@@ -931,6 +931,44 @@ void VSNode::setVideoInfo3(const vs3::VSVideoInfo *vi, int numOutputs) {
     refcount = numOutputs;
 }
 
+const char *VSNode::getCreationFunctionName(int level) const {
+    if (core->enableGraphInspection) {
+        VSFunctionFrame *frame = functionFrame.get();
+        for (int i = 0; i < level; i++) {
+            if (frame)
+                frame = frame->next.get();
+        }
+
+        if (frame)
+            return frame->name.c_str();
+    }
+    return nullptr;
+}
+
+const VSMap *VSNode::getCreationFunctionArguments(int level) const {
+    if (core->enableGraphInspection) {
+        VSFunctionFrame *frame = functionFrame.get();
+        for (int i = 0; i < level; i++) {
+            if (frame)
+                frame = frame->next.get();
+        }
+
+        if (frame)
+            return frame->args;
+    }
+    return nullptr;
+}
+
+void VSNode::setFilterRelation(VSNodeRef **dependencies, int numDeps) {
+    if (core->enableGraphInspection) {
+        VSMap *tmp = new VSMap();
+        for (int i = 0; i < numDeps; i++)
+            vs_internal_vsapi.propSetNode(tmp, "clip", dependencies[i], paAppend);
+
+        functionFrame = std::make_shared<VSFunctionFrame>("", tmp, functionFrame);
+    }
+}
+
 PVSFrameRef VSNode::getFrameInternal(int n, int activationReason, VSFrameContext &frameCtx) {  
     const VSFrameRef *r = (apiMajor == VAPOURSYNTH_API_MAJOR) ? filterGetFrame(n, activationReason, instanceData, frameCtx.ctx->frameContext, &frameCtx, core, &vs_internal_vsapi) : reinterpret_cast<vs3::VSFilterGetFrame>(filterGetFrame)(n, activationReason, &instanceData, frameCtx.ctx->frameContext, &frameCtx, core, &vs_internal_vsapi3);
 #ifdef VS_TARGET_OS_WINDOWS

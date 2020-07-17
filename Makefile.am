@@ -136,6 +136,7 @@ if VSPIPE
 bin_PROGRAMS = vspipe
 
 vspipe_SOURCES = src/vspipe/vspipe.cpp \
+                 src/vspipe/printgraph.cpp \
 				 src/common/wave.cpp
 
 vspipe_LDADD = libvapoursynth-script.la

@@ -1,0 +1,149 @@
+/*
+* Copyright (c) 2020 Fredrik Mellbin
+*
+* This file is part of VapourSynth.
+*
+* VapourSynth is free software; you can redistribute it and/or
+* modify it under the terms of the GNU Lesser General Public
+* License as published by the Free Software Foundation; either
+* version 2.1 of the License, or (at your option) any later version.
+*
+* VapourSynth is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+* Lesser General Public License for more details.
+*
+* You should have received a copy of the GNU Lesser General Public
+* License along with VapourSynth; if not, write to the Free Software
+* Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+*/
+
+#include "printgraph.h"
+#include <set>
+#include <map>
+#include <algorithm>
+
+static const int maxPrintLength = 3;
+
+static std::string mangleNode(VSNodeRef *node, const VSAPI *vsapi) {
+    return "n" + std::to_string(reinterpret_cast<uintptr_t>(node)) + "_" + std::to_string(vsapi->getNodeIndex(node));
+}
+
+static std::string mangleFrame(VSNodeRef *node, int level, const VSAPI *vsapi) {
+    return "s" + std::to_string(reinterpret_cast<uintptr_t>(vsapi->getNodeCreationFunctionArguments(node, level)));
+}
+
+static int getMaxLevel(VSNodeRef *node, const VSAPI *vsapi) {
+    for (int i = 0; i < INT_MAX; i++) {
+        if (!vsapi->getNodeCreationFunctionArguments(node, i))
+            return i - 1;
+    }
+    return 0;
+}
+
+static int getMinRealLevel(VSNodeRef *node, const VSAPI *vsapi) {
+    int level = 0;
+    while (vsapi->getNodeCreationFunctionArguments(node, level) && vsapi->getNodeCreationFunctionName(node, level) && !strcmp(vsapi->getNodeCreationFunctionName(node, level), ""))
+        level++;
+    return level;
+}
+
+static void printNodeGraphHelper(std::set<std::string> &lines, std::map<std::string, std::set<std::string>> &nodes, VSNodeRef *node, const VSAPI *vsapi) {
+    int maxLevel = getMaxLevel(node, vsapi);
+    int minRealLevel = getMinRealLevel(node, vsapi);
+    const VSMap *args = vsapi->getNodeCreationFunctionArguments(node, minRealLevel);
+    int numKeys = vsapi->propNumKeys(args);
+    std::string setArgsStr;
+    for (int i = 0; i < numKeys; i++) {
+        const char *key = vsapi->propGetKey(args, i);
+        int numElems = vsapi->propNumElements(args, key);
+
+        setArgsStr += "\\n";
+        setArgsStr += key;
+        setArgsStr += "=";
+
+        switch (vsapi->propGetType(args, key)) {
+            case ptInt:
+                for (int j = 0; j < std::min(maxPrintLength, numElems); j++)
+                    setArgsStr += (j ? ", " : "") + std::to_string(vsapi->propGetInt(args, key, j, nullptr));
+                if (numElems > maxPrintLength)
+                    setArgsStr += ", <" + std::to_string(numElems - maxPrintLength) + ">";
+                break;
+            case ptFloat:
+                for (int j = 0; j < std::min(maxPrintLength, numElems); j++)
+                    setArgsStr += (j ? ", " : "") + std::to_string(vsapi->propGetFloat(args, key, j, nullptr));
+                if (numElems > maxPrintLength)
+                    setArgsStr += ", <" + std::to_string(numElems - maxPrintLength) + ">";
+                break;
+            case ptData:
+                for (int j = 0; j < std::min(maxPrintLength, numElems); j++)
+                    setArgsStr += std::string(j ? ", " : "") + (vsapi->propGetDataType(args, key, j, nullptr) == dtUtf8 ? vsapi->propGetData(args, key, j, nullptr) : "<binary data " + std::to_string(vsapi->propGetDataSize(args, key, j, nullptr)) + " bytes");
+                if (numElems > maxPrintLength)
+                    setArgsStr += ", <" + std::to_string(numElems - maxPrintLength) + ">";
+                break;
+            default:
+                // FIXME, print format and dimensions for video
+                // FIXME, print format and channelmask for audio
+                setArgsStr += "<" + std::to_string(numElems) + ">";
+        }
+    }
+
+
+    args = vsapi->getNodeCreationFunctionArguments(node, 0);
+    numKeys = vsapi->propNumKeys(args);
+
+    std::string thisNode = mangleNode(node, vsapi);
+    std::string thisFrame = mangleFrame(node, 0, vsapi);
+    std::string baseFrame = mangleFrame(node, maxLevel, vsapi);
+
+    if (minRealLevel != 0) {
+        nodes[baseFrame].insert("label=\"" + std::string(vsapi->getNodeCreationFunctionName(node, minRealLevel)) + setArgsStr + "\"");
+        nodes[baseFrame].insert(thisFrame + " [label=\"" + std::string(vsapi->getNodeCreationFunctionName(node, minRealLevel)) + "\", shape=octagon]");
+    } else {
+        nodes[baseFrame].insert(thisFrame + " [label=\"" + std::string(vsapi->getNodeCreationFunctionName(node, minRealLevel)) + setArgsStr + "\", shape=box]");
+    }
+
+    nodes[baseFrame].insert(thisNode + " [label=\"" + std::string(vsapi->getNodeName(node)) + "#" + std::to_string(vsapi->getNodeIndex(node)) + "\", shape=oval]");
+    lines.insert(thisFrame + " -> " + thisNode);
+
+    for (int i = 0; i < numKeys; i++) {
+        const char *key = vsapi->propGetKey(args, i);
+        int numElems = vsapi->propNumElements(args, key);
+        switch (vsapi->propGetType(args, key)) {
+            case ptVideoNode:
+            case ptAudioNode:
+                for (int j = 0; j < numElems; j++) {
+                    VSNodeRef *ref = vsapi->propGetNode(args, key, j, nullptr);
+                    lines.insert(mangleNode(ref, vsapi) +  " -> " + thisFrame);
+                    printNodeGraphHelper(lines, nodes, ref, vsapi);
+                    vsapi->freeNode(ref);
+                }
+                break;
+            default:
+                break;
+        }
+    }
+}
+
+std::string printNodeGraph(VSNodeRef *node, const VSAPI *vsapi) {
+    std::map<std::string, std::set<std::string>> nodes;
+    std::set<std::string> lines;
+    std::string s = "digraph {\n";
+    printNodeGraphHelper(lines, nodes, node, vsapi);
+    for (const auto &iter : nodes) {
+        if (iter.second.size() > 1) {
+            s += "  subgraph cluster_" +iter.first  + " {\n";
+            for (const auto &iter2 : iter.second)
+                s += "    " + iter2 + "\n";
+            s += "  }\n";
+        } else if (iter.second.size() <= 2) {
+            for (const auto &iter2 : iter.second)
+                s += "  " + iter2 + "\n";
+        }
+    }
+
+    for (const auto &iter : lines)
+        s += "  " + iter + "\n";
+    s += "}";
+    return s;
+}

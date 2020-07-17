@@ -671,39 +671,9 @@ public:
         return name;
     }
 
-    const char *getCreationFunctionName(int level) const {
-        VSFunctionFrame *frame = functionFrame.get();
-        for (int i = 0; i < level; i++) {
-            if (frame)
-                frame = frame->next.get();
-        }
-
-        if (frame)
-            return frame->name.c_str();
-        else
-            return nullptr;
-    }
-
-    const VSMap *getCreationFunctionArguments(int level) const {
-        VSFunctionFrame *frame = functionFrame.get();
-        for (int i = 0; i < level; i++) {
-            if (frame)
-                frame = frame->next.get();
-        }
-
-        if (frame)
-            return frame->args;
-        else
-            return nullptr;
-    }
-
-    void setFilterRelation(VSNodeRef **dependencies, int numDeps) {
-        VSMap *tmp = new VSMap();
-        for (int i = 0; i < numDeps; i++)
-            vs_internal_vsapi.propSetNode(tmp, "clip", dependencies[i], paAppend);
-
-        functionFrame = std::make_shared<VSFunctionFrame>("", tmp, functionFrame);
-    }
+    const char *getCreationFunctionName(int level) const;
+    const VSMap *getCreationFunctionArguments(int level) const;
+    void setFilterRelation(VSNodeRef **dependencies, int numDeps);
 
     // to get around encapsulation a bit, more elegant than making everything friends in this case
     void reserveThread();

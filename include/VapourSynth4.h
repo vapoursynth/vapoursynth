@@ -438,12 +438,12 @@ struct VSAPI {
     int (VS_CC *getFrameLength)(const VSFrameRef *f) VS_NOEXCEPT;
     int (VS_CC *getApiVersion)(void) VS_NOEXCEPT;
 
-    /* the functions mostly exist to retrieve internal details for debug purposes and graph visualization */
-    const char *(VS_CC *getNodeCreationFunctionName)(VSNodeRef *node, int level) VS_NOEXCEPT; /* returns the name of the function that created the filter, only valid if the core was created with the cfEnableGraphInspection flag */
-    const VSMap *(VS_CC *getNodeCreationFunctionArguments)(VSNodeRef *node, int level) VS_NOEXCEPT; /* returns a copy of the arguments passed to the function that created the filter, only valid if the core was created with the cfEnableGraphInspection flag */
+    /* these functions only exist to retrieve internal details for debug purposes and graph visualization and will only only work properly when used on a core created with the flag cfEnableGraphInspection, NOT PART OF THE STABLE API */
+    const char *(VS_CC *getNodeCreationFunctionName)(VSNodeRef *node, int level) VS_NOEXCEPT; /* returns the name of the function that created the filter */
+    const VSMap *(VS_CC *getNodeCreationFunctionArguments)(VSNodeRef *node, int level) VS_NOEXCEPT; /* returns a copy of the arguments passed to the function that created the filter */
     const char *(VS_CC *getNodeName)(VSNodeRef *node) VS_NOEXCEPT;
     int (VS_CC *getNodeIndex)(VSNodeRef *node) VS_NOEXCEPT;
-    void (VS_CC *setInternalFilterRelation)(const VSMap *nodeMap, VSNodeRef **dependencies, int numDeps) VS_NOEXCEPT; /* manually overrides the automatically deduced information, only needed in filters that call invoke and pass the output to createFilter */
+    void (VS_CC *setInternalFilterRelation)(const VSMap *nodeMap, VSNodeRef **dependencies, int numDeps) VS_NOEXCEPT; /* manually overrides the automatically deduced information, only needed in filters that call invoke on the input to create*Filter or chains multiple create*Filter calls */
 };
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version) VS_NOEXCEPT;
