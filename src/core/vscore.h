@@ -702,7 +702,7 @@ public:
         for (int i = 0; i < numDeps; i++)
             vs_internal_vsapi.propSetNode(tmp, "clip", dependencies[i], paAppend);
 
-        functionFrame = std::make_shared<VSFunctionFrame>("Internal hint function", tmp, functionFrame);
+        functionFrame = std::make_shared<VSFunctionFrame>("", tmp, functionFrame);
     }
 
     // to get around encapsulation a bit, more elegant than making everything friends in this case

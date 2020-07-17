@@ -290,6 +290,7 @@ static VSNodeRef *applyBoxBlurPlaneFiltering(VSPlugin *stdplugin, VSNodeRef *nod
     if (hblur) {
         VSMap *vtmp2 = vsapi->createMap();
         vsapi->createVideoFilter(vtmp2, "BoxBlur", vsapi->getVideoInfo(node), 1, boxBlurGetframe, boxBlurFree, fmParallel, 0, new BoxBlurData{ node, hradius, hpasses }, core);
+        vsapi->setInternalFilterRelation(vtmp2, &node, 1);
         node = vsapi->propGetNode(vtmp2, "clip", 0, nullptr);
         vsapi->freeMap(vtmp2);
     }

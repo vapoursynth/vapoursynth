@@ -642,6 +642,7 @@ static void VS_CC textFree(void *instanceData, VSCore *core, const VSAPI *vsapi)
 static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<TextData> d(new TextData);
     int err;
+    bool setHint = false;
 
     d->node = vsapi->propGetNode(in, "clip", 0, &err);
     if (err) {
@@ -660,6 +661,7 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         }
         d->node = vsapi->propGetNode(ret, "clip", 0, nullptr);
         vsapi->freeMap(ret);
+        setHint = true;
     }
     d->vi = vsapi->getVideoInfo(d->node);
 
@@ -717,7 +719,8 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     }
 
     vsapi->createVideoFilter(out, d->instanceName.c_str(), d->vi, 1, textGetFrame, textFree, fmParallel, 0, d.get(), core);
-    vsapi->setInternalFilterRelation(out, &d->node, 1);
+    if (setHint)
+        vsapi->setInternalFilterRelation(out, &d->node, 1);
     d.release();
 }
 

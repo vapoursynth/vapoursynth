@@ -162,6 +162,8 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
     if (!is8to16orFloatFormat(d->vi->format))
         RETERROR("PreMultiply: only 8-16 bit integer and 32 bit float input supported");
 
+    bool setHint = false;
+
     // do we need to resample the first mask plane and use it for all the planes?
     if ((d->vi->format.numPlanes > 1) && (d->vi->format.subSamplingH > 0 || d->vi->format.subSamplingW > 0)) {
         VSMap *min = vsapi->createMap();
@@ -172,12 +174,14 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
         d->node[2] = vsapi->propGetNode(mout, "clip", 0, 0);
         vsapi->freeMap(mout);
         vsapi->freeMap(min);
+        setHint = true;
     } else if (d->vi->format.numPlanes > 1) {
         d->node[2] = vsapi->cloneNodeRef(d->node[1]);
     }
 
     vsapi->createVideoFilter(out, "PreMultiply", d->vi, 1, preMultiplyGetFrame, filterFree<PreMultiplyData>, fmParallel, 0, d.get(), core);
-    vsapi->setInternalFilterRelation(out, d->node.data(), d->node.size());
+    if (setHint)
+        vsapi->setInternalFilterRelation(out, d->node.data(), d->node.size());
     d.release();
 }
 
@@ -498,6 +502,7 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
     d->cpulevel = vs_get_cpulevel(core);
 
     vsapi->createVideoFilter(out, "MaskedMerge", d->vi, 1, maskedMergeGetFrame, filterFree<MaskedMergeData>, fmParallel, 0, d.get(), core);
+    vsapi->setInternalFilterRelation(out, d->node.data(), d->node.size());
     d.release();
 }
 
