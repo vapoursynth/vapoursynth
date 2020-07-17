@@ -110,8 +110,8 @@ static std::string printVSMap(const VSMap *args, int maxPrintLength, const VSAPI
 static void printNodeGraphHelper(std::set<std::string> &lines, std::map<std::string, std::set<std::string>> &nodes, VSNodeRef *node, const VSAPI *vsapi) {
     int maxLevel = getMaxLevel(node, vsapi);
     int minRealLevel = getMinRealLevel(node, vsapi);
-    const VSMap *args = vsapi->getNodeCreationFunctionArguments(node, minRealLevel);
-    std::string setArgsStr = printVSMap(vsapi->getNodeCreationFunctionArguments(node, 0), 5, vsapi);
+
+    std::string setArgsStr = printVSMap(vsapi->getNodeCreationFunctionArguments(node, minRealLevel), 5, vsapi);
 
     std::string thisNode = mangleNode(node, vsapi);
     std::string thisFrame = mangleFrame(node, 0, vsapi);
@@ -127,6 +127,7 @@ static void printNodeGraphHelper(std::set<std::string> &lines, std::map<std::str
     nodes[baseFrame].insert(thisNode + " [label=\"" + std::string(vsapi->getNodeName(node)) + "#" + std::to_string(vsapi->getNodeIndex(node)) + "\", shape=oval]");
     lines.insert(thisFrame + " -> " + thisNode);
 
+    const VSMap *args = vsapi->getNodeCreationFunctionArguments(node, 0);
     int numKeys = vsapi->propNumKeys(args);
     for (int i = 0; i < numKeys; i++) {
         const char *key = vsapi->propGetKey(args, i);
