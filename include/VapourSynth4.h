@@ -439,10 +439,11 @@ struct VSAPI {
     int (VS_CC *getApiVersion)(void) VS_NOEXCEPT;
 
     /* the functions mostly exist to retrieve internal details for debug purposes and graph visualization */
-    const char *(VS_CC *getNodeCreationFunctionName)(VSNodeRef *node) VS_NOEXCEPT; /* returns the name of the function that created the filter, only valid if the core was created with the cfEnableGraphInspection flag */
-    const VSMap *(VS_CC *getNodeCreationFunctionArguments)(VSNodeRef *node) VS_NOEXCEPT; /* returns a copy of the arguments passed to the function that created the filter, only valid if the core was created with the cfEnableGraphInspection flag */
+    const char *(VS_CC *getNodeCreationFunctionName)(VSNodeRef *node, int level) VS_NOEXCEPT; /* returns the name of the function that created the filter, only valid if the core was created with the cfEnableGraphInspection flag */
+    const VSMap *(VS_CC *getNodeCreationFunctionArguments)(VSNodeRef *node, int level) VS_NOEXCEPT; /* returns a copy of the arguments passed to the function that created the filter, only valid if the core was created with the cfEnableGraphInspection flag */
     const char *(VS_CC *getNodeName)(VSNodeRef *node) VS_NOEXCEPT;
     int (VS_CC *getNodeIndex)(VSNodeRef *node) VS_NOEXCEPT;
+    void (VS_CC *setInternalFilterRelation)(const VSMap *nodeMap, VSNodeRef **dependencies, int numDeps) VS_NOEXCEPT; /* manually overrides the automatically deduced information, only needed in filters that call invoke and pass the output to createFilter */
 };
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version) VS_NOEXCEPT;

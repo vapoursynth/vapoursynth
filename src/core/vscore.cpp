@@ -812,14 +812,7 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilt
     }
 
     if (core->enableGraphInspection) {
-        assert(core->creationFunctionArgs);
-        if (core->creationFunctionArgs) {
-            savedInArgs = new VSMap(core->creationFunctionArgs->data);
-            creationFunctionName = core->creationFunctionArgs->funcName;
-        } else {
-            savedInArgs = new VSMap();
-            creationFunctionName = "Undefined";
-        }
+        functionFrame = core->functionFrame;
     }
 }
 
@@ -852,14 +845,7 @@ VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, int numOutputs, V
     }
 
     if (core->enableGraphInspection) {
-        assert(core->creationFunctionArgs);
-        if (core->creationFunctionArgs) {
-            savedInArgs = new VSMap(core->creationFunctionArgs->data);
-            creationFunctionName = core->creationFunctionArgs->funcName;
-        } else {
-            savedInArgs = new VSMap();
-            creationFunctionName = "Undefined";
-        }
+        functionFrame = core->functionFrame;
     }
 }
 
@@ -894,18 +880,11 @@ VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, int numOutputs, V
     }
 
     if (core->enableGraphInspection) {
-        if (core->creationFunctionArgs) {
-            savedInArgs = new VSMap(core->creationFunctionArgs->data);
-            creationFunctionName = core->creationFunctionArgs->funcName;
-        } else {
-            savedInArgs = new VSMap();
-            creationFunctionName = "Undefined";
-        }
+        functionFrame = core->functionFrame;
     }
 }
 
 VSNode::~VSNode() {
-    delete savedInArgs;
     core->destroyFilterInstance(this);
 }
 
@@ -2162,16 +2141,12 @@ VSMap *VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
             }
 
             if (core->enableGraphInspection) {
-                VSCore::VSCoreShittyArgumentList *old = core->creationFunctionArgs;
-                core->creationFunctionArgs = new VSCore::VSCoreShittyArgumentList{ &args, funcName.c_str(), old };
+                core->functionFrame = std::make_shared<VSFunctionFrame>(funcName, new VSMap(args), core->functionFrame);
             }
             f.func(&args, v.get(), f.functionData, core, getVSAPIInternal(apiMajor));
             if (core->enableGraphInspection) {
-                if (core->creationFunctionArgs) {
-                    VSCore::VSCoreShittyArgumentList *old = core->creationFunctionArgs;
-                    core->creationFunctionArgs = old->next;
-                    delete old;
-                }
+                assert(core->functionFrame);
+                core->functionFrame = core->functionFrame->next;
             }
 
             if (!compat && v->hasCompatNodes())
@@ -2230,4 +2205,4 @@ int VSFrameRef::alignment = alignmentHelper();
 int VSFrameRef::alignment = 32;
 #endif
 
-thread_local VSCore::VSCoreShittyArgumentList *VSCore::creationFunctionArgs = nullptr;
+thread_local PVSFunctionFrame VSCore::functionFrame;

@@ -57,9 +57,6 @@
 static const uint32_t VS_FRAME_GUARD_PATTERN = 0xDEADBEEF;
 #endif
 
-#ifdef VS_TARGET_OS_DARWIN
-#define thread_local __thread
-#endif
 
 // Internal only filter mode for use by caches to make requests more linear
 const int fmUnorderedLinear = fmUnordered + 13;
@@ -586,6 +583,19 @@ public:
     FrameContext(int n, int index, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput = true);
 };
 
+struct VSFunctionFrame;
+typedef std::shared_ptr<VSFunctionFrame> PVSFunctionFrame;
+
+struct VSFunctionFrame {
+    std::string name;
+    const VSMap *args;
+    VSFunctionFrame(const std::string &name, const VSMap *args, PVSFunctionFrame next) : name(name), args(args), next(next) {};
+    ~VSFunctionFrame() { delete args; }
+    PVSFunctionFrame next;
+};
+
+
+
 struct VSNode {
     friend class VSThreadPool;
     friend struct VSCore;
@@ -601,8 +611,7 @@ private:
     bool frameReadyNotify = false;
     int apiMajor;
     VSCore *core;
-    VSMap *savedInArgs = nullptr;
-    std::string creationFunctionName;
+    PVSFunctionFrame functionFrame;
     int flags;
     std::vector<VSVideoInfo> vi;
     std::vector<vs3::VSVideoInfo> v3vi;
@@ -662,12 +671,38 @@ public:
         return name;
     }
 
-    const std::string &getCreationFunctionName() const {
-        return creationFunctionName;
+    const char *getCreationFunctionName(int level) const {
+        VSFunctionFrame *frame = functionFrame.get();
+        for (int i = 0; i < level; i++) {
+            if (frame)
+                frame = frame->next.get();
+        }
+
+        if (frame)
+            return frame->name.c_str();
+        else
+            return nullptr;
     }
 
-    const VSMap *getCreationFunctionArguments() const {
-        return savedInArgs;
+    const VSMap *getCreationFunctionArguments(int level) const {
+        VSFunctionFrame *frame = functionFrame.get();
+        for (int i = 0; i < level; i++) {
+            if (frame)
+                frame = frame->next.get();
+        }
+
+        if (frame)
+            return frame->args;
+        else
+            return nullptr;
+    }
+
+    void setFilterRelation(VSNodeRef **dependencies, int numDeps) {
+        VSMap *tmp = new VSMap();
+        for (int i = 0; i < numDeps; i++)
+            vs_internal_vsapi.propSetNode(tmp, "clip", dependencies[i], paAppend);
+
+        functionFrame = std::make_shared<VSFunctionFrame>("Internal hint function", tmp, functionFrame);
     }
 
     // to get around encapsulation a bit, more elegant than making everything friends in this case
@@ -824,16 +859,10 @@ private:
 
     void registerFormats();
 public:
-    struct VSCoreShittyArgumentList {
-        const VSMap *data;
-        const char *funcName;
-        VSCoreShittyArgumentList *next;
-    };
-
     VSThreadPool *threadPool;
     MemoryUse *memory;
     bool enableGraphInspection; // fixme
-    static thread_local VSCoreShittyArgumentList *creationFunctionArgs;// fixme
+    static thread_local PVSFunctionFrame functionFrame;// fixme
 
     VSFrameRef *newVideoFrame(const VSVideoFormat &f, int width, int height, const VSFrameRef *propSrc);
     VSFrameRef *newVideoFrame(const VSVideoFormat &f, int width, int height, const VSFrameRef * const *planeSrc, const int *planes, const VSFrameRef *propSrc);

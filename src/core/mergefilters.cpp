@@ -177,6 +177,7 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
     }
 
     vsapi->createVideoFilter(out, "PreMultiply", d->vi, 1, preMultiplyGetFrame, filterFree<PreMultiplyData>, fmParallel, 0, d.get(), core);
+    vsapi->setInternalFilterRelation(out, d->node.data(), d->node.size());
     d.release();
 }
 

@@ -923,14 +923,14 @@ static int VS_CC getApiVersion(void) VS_NOEXCEPT{
     return VAPOURSYNTH_API_VERSION;
 }
 
-static const char *VS_CC getNodeCreationFunctionName(VSNodeRef *node) VS_NOEXCEPT {
+static const char *VS_CC getNodeCreationFunctionName(VSNodeRef *node, int level) VS_NOEXCEPT {
     assert(node);
-    return node->clip->getCreationFunctionName().c_str();
+    return node->clip->getCreationFunctionName(level);
 }
 
-static const VSMap *VS_CC getNodeCreationFunctionArguments(VSNodeRef *node) VS_NOEXCEPT {
+static const VSMap *VS_CC getNodeCreationFunctionArguments(VSNodeRef *node, int level) VS_NOEXCEPT {
     assert(node);
-    return node->clip->getCreationFunctionArguments();
+    return node->clip->getCreationFunctionArguments(level);
 }
 
 static const char *VS_CC getNodeName(VSNodeRef *node) VS_NOEXCEPT {
@@ -941,6 +941,13 @@ static const char *VS_CC getNodeName(VSNodeRef *node) VS_NOEXCEPT {
 static int VS_CC getNodeIndex(VSNodeRef *node) VS_NOEXCEPT {
     assert(node);
     return node->index;
+}
+
+static void VS_CC setInternalFilterRelation(const VSMap *nodeMap, VSNodeRef **dependencies, int numDeps) VS_NOEXCEPT {
+    assert(nodeMap && dependencies && dependencies > 0);
+    VSNodeRef *ref = propGetNode(nodeMap, "clip", 0, nullptr);
+    ref->clip->setFilterRelation(dependencies, numDeps);
+    freeNode(ref);
 }
 
 const VSPLUGINAPI vs_internal_vspapi {
@@ -1067,7 +1074,8 @@ const VSAPI vs_internal_vsapi = {
     &getNodeCreationFunctionName,
     &getNodeCreationFunctionArguments,
     &getNodeName,
-    &getNodeIndex
+    &getNodeIndex,
+    &setInternalFilterRelation
 };
 
 const vs3::VSAPI3 vs_internal_vsapi3 = {

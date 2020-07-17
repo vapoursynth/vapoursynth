@@ -23,6 +23,7 @@
 
 #include <string>
 #include <vector>
+#include <memory>
 
 #include "VapourSynth4.h"
 #include "VSHelper4.h"
@@ -639,11 +640,10 @@ static void VS_CC textFree(void *instanceData, VSCore *core, const VSAPI *vsapi)
 
 
 static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    TextData d;
-    TextData *data;
+    std::unique_ptr<TextData> d(new TextData);
     int err;
 
-    d.node = vsapi->propGetNode(in, "clip", 0, &err);
+    d->node = vsapi->propGetNode(in, "clip", 0, &err);
     if (err) {
         // Can only happen for CoreInfo.
         VSMap *args = vsapi->createMap();
@@ -658,67 +658,67 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
             vsapi->freeMap(ret);
             return;
         }
-        d.node = vsapi->propGetNode(ret, "clip", 0, nullptr);
+        d->node = vsapi->propGetNode(ret, "clip", 0, nullptr);
         vsapi->freeMap(ret);
     }
-    d.vi = vsapi->getVideoInfo(d.node);
+    d->vi = vsapi->getVideoInfo(d->node);
 
-    if (isCompatFormat(&d.vi->format)) {
+    if (isCompatFormat(&d->vi->format)) {
         vsapi->setError(out, "Text: Compat formats not supported");
-        vsapi->freeNode(d.node);
+        vsapi->freeNode(d->node);
         return;
     }
 
-    if (d.vi->format.colorFamily != cfUndefined && ((d.vi->format.sampleType == stInteger && d.vi->format.bitsPerSample > 16) ||
-        (d.vi->format.sampleType == stFloat && d.vi->format.bitsPerSample != 32))) {
+    if (d->vi->format.colorFamily != cfUndefined && ((d->vi->format.sampleType == stInteger && d->vi->format.bitsPerSample > 16) ||
+        (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample != 32))) {
             vsapi->setError(out, "Text: Only 8-16 bit integer and 32 bit float formats supported");
-            vsapi->freeNode(d.node);
+            vsapi->freeNode(d->node);
             return;
     }
 
-    d.alignment = int64ToIntS(vsapi->propGetInt(in, "alignment", 0, &err));
+    d->alignment = int64ToIntS(vsapi->propGetInt(in, "alignment", 0, &err));
     if (err) {
-        d.alignment = 7; // top left
+        d->alignment = 7; // top left
     }
 
-    if (d.alignment < 1 || d.alignment > 9) {
+    if (d->alignment < 1 || d->alignment > 9) {
         vsapi->setError(out, "Text: alignment must be between 1 and 9 (think numpad)");
-        vsapi->freeNode(d.node);
+        vsapi->freeNode(d->node);
         return;
     }
 
-    d.filter = reinterpret_cast<intptr_t>(userData);
+    d->filter = reinterpret_cast<intptr_t>(userData);
 
-    switch (d.filter) {
+    switch (d->filter) {
     case FILTER_TEXT:
-        d.text = vsapi->propGetData(in, "text", 0, nullptr);
-        d.instanceName = "Text";
+        d->text = vsapi->propGetData(in, "text", 0, nullptr);
+        d->instanceName = "Text";
         break;
     case FILTER_CLIPINFO:
-        d.instanceName = "ClipInfo";
+        d->instanceName = "ClipInfo";
         break;
     case FILTER_COREINFO:
         {
-            d.instanceName = "CoreInfo";
+            d->instanceName = "CoreInfo";
             break;
         }
     case FILTER_FRAMENUM:
-        d.instanceName = "FrameNum";
+        d->instanceName = "FrameNum";
         break;
     case FILTER_FRAMEPROPS:
         int numProps = vsapi->propNumElements(in, "props");
 
         for (int i = 0; i < numProps; i++) {
-            d.props.push_back(vsapi->propGetData(in, "props", i, nullptr));
+            d->props.push_back(vsapi->propGetData(in, "props", i, nullptr));
         }
 
-        d.instanceName = "FrameProps";
+        d->instanceName = "FrameProps";
         break;
     }
 
-    data = new TextData(d);
-
-    vsapi->createVideoFilter(out, data->instanceName.c_str(), data->vi, 1, textGetFrame, textFree, fmParallel, 0, data, core);
+    vsapi->createVideoFilter(out, d->instanceName.c_str(), d->vi, 1, textGetFrame, textFree, fmParallel, 0, d.get(), core);
+    vsapi->setInternalFilterRelation(out, &d->node, 1);
+    d.release();
 }
 
 
