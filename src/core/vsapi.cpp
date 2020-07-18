@@ -961,6 +961,8 @@ const VSAPI vs_internal_vsapi = {
     &freeCore,
     &setMaxCacheSize,
     &setThreadCount,
+    &getCoreInfo2,
+    &getApiVersion,
 
     &cloneNodeRef,
     &cloneFrameRef,
@@ -969,15 +971,6 @@ const VSAPI vs_internal_vsapi = {
     &freeNode,
     &freeFrame,
     &freeFunc,
-
-    &newVideoFrame,
-    &newVideoFrame2,
-    &copyFrame,
-    &copyFrameProps,
-
-    &getStride,
-    &getReadPtr,
-    &getWritePtr,
 
     &registerFunction,
     &getPluginByID,
@@ -991,10 +984,11 @@ const VSAPI vs_internal_vsapi = {
     &getPluginFunctionName,
     &getPluginFunctionArguments,
     &getPluginFunctionReturnType,
-    &setError,
-    &getError,
-    &setFilterError,
+    &getPluginPath,
+    &getPluginVersion,
+
     &invoke,
+
     &getFrame,
     &getFrameAsync,
     &getFrameFilter,
@@ -1002,6 +996,7 @@ const VSAPI vs_internal_vsapi = {
     &queryCompletedFrame,
     &releaseFrameEarly,
     &getOutputIndex,
+    &setFilterError,
 
     &createFunc,
     &callFunc,
@@ -1010,12 +1005,8 @@ const VSAPI vs_internal_vsapi = {
     &freeMap,
     &clearMap,
 
-    &getVideoInfo,
-    &getVideoFrameFormat,
-    &getFrameWidth,
-    &getFrameHeight,
-    &getFramePropsRO,
-    &getFramePropsRW,
+    &setError,
+    &getError,
 
     &propNumKeys,
     &propGetKey,
@@ -1050,30 +1041,43 @@ const VSAPI vs_internal_vsapi = {
     &propGetFunc,
     &propSetFunc,
 
-    &getPluginPath,
-    &getPluginVersion,
-
     &logMessage,
     &addMessageHandler,
     &removeMessageHandler,
-    &getCoreInfo2,
 
     &createVideoFilter,
     &createAudioFilter,
+    &getVideoInfo,
+    &getAudioInfo,
+
+    &newVideoFrame,
+    &newVideoFrame2,
     &newAudioFrame,
-    &queryAudioFormat,
+    &copyFrame,
+    &copyFrameProps,
+    &getFramePropsRO,
+    &getFramePropsRW,
+
+    &getStride,
+    &getReadPtr,
+    &getWritePtr,
+
+    &getVideoFrameFormat,
+    &getAudioFrameFormat,
+    &getFrameType,
+    &getFrameWidth,
+    &getFrameHeight,
+    &getFrameLength,
+
+    &getVideoFormatName,
+    &getAudioFormatName,
     &queryVideoFormat,
+    &queryAudioFormat,
     &queryVideoFormatID,
     &queryVideoFormatByID,
-    &getAudioFormatName,
-    &getVideoFormatName,
-    &getAudioInfo,
-    &getAudioFrameFormat,
+
     &getNodeType,
     &getNodeFlags,
-    &getFrameType,
-    &getFrameLength,
-    &getApiVersion,
 
     &getNodeCreationFunctionName,
     &getNodeCreationFunctionArguments,
