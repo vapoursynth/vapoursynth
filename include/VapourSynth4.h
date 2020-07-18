@@ -327,15 +327,7 @@ struct VSAPI {
     void (VS_CC *getCoreInfo)(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT;
     int (VS_CC *getApiVersion)(void) VS_NOEXCEPT;
 
-    VSNodeRef *(VS_CC *cloneNodeRef)(VSNodeRef *node) VS_NOEXCEPT;
-    const VSFrameRef *(VS_CC *cloneFrameRef)(const VSFrameRef *f) VS_NOEXCEPT;
-    VSFuncRef *(VS_CC *cloneFuncRef)(VSFuncRef *f) VS_NOEXCEPT;
-
-    void (VS_CC *freeNode)(VSNodeRef *node) VS_NOEXCEPT;
-    void (VS_CC *freeFrame)(const VSFrameRef *f) VS_NOEXCEPT;
-    void (VS_CC *freeFunc)(VSFuncRef *f) VS_NOEXCEPT;
-
-    /* Plugin and function related */
+    /* Plugin and plugin function related */
     int (VS_CC *registerFunction)(const char *name, const char *args, const char *returnType, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) VS_NOEXCEPT; /* non-zero return value on success  */
     VSPlugin *(VS_CC *getPluginByID)(const char *identifier, VSCore *core) VS_NOEXCEPT;
     VSPlugin *(VS_CC *getPluginByNamespace)(const char *ns, VSCore *core) VS_NOEXCEPT;
@@ -350,8 +342,6 @@ struct VSAPI {
     const char *(VS_CC *getPluginFunctionReturnType)(VSPluginFunction *func) VS_NOEXCEPT; /* returns an argument format string */
     const char *(VS_CC *getPluginPath)(const VSPlugin *plugin) VS_NOEXCEPT; /* the full path to the loaded library file containing the plugin entry point */
     int (VS_CC *getPluginVersion)(const VSPlugin *plugin) VS_NOEXCEPT;
-
-    /* random mess */
     VSMap *(VS_CC *invoke)(VSPlugin *plugin, const char *name, const VSMap *args) VS_NOEXCEPT; /* user must free the returned VSMap */
     //VSMap *(VS_CC *invoke2)(VSPluginFunction *func, const VSMap *args) VS_NOEXCEPT; // FIXME, should a version that takes a plugin function exist?
 
@@ -365,11 +355,13 @@ struct VSAPI {
     int (VS_CC *getOutputIndex)(VSFrameContext *frameCtx) VS_NOEXCEPT; /* used to determine which output index is being requested for filters that output multiple nodes */
     void (VS_CC *setFilterError)(const char *errorMessage, VSFrameContext *frameCtx) VS_NOEXCEPT; /* used to signal errors in the filter getframe function */
 
-    /* random mess */
-    VSFuncRef *(VS_CC *createFunc)(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core) VS_NOEXCEPT;
+    /* External functions */
+    VSFuncRef *(VS_CC *createFunc)(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core) VS_NOEXCEPT; // FIXME, add a version with argument and return type hints and unify with plugin functions?
+    void (VS_CC *freeFunc)(VSFuncRef *f) VS_NOEXCEPT;
+    VSFuncRef *(VS_CC *cloneFuncRef)(VSFuncRef *f) VS_NOEXCEPT;
     void (VS_CC *callFunc)(VSFuncRef *func, const VSMap *in, VSMap *out) VS_NOEXCEPT;
 
-    /* VSMap access functions */
+    /* Map access functions */
     VSMap *(VS_CC *createMap)(void) VS_NOEXCEPT;
     void (VS_CC *freeMap)(VSMap *map) VS_NOEXCEPT;
     void (VS_CC *clearMap)(VSMap *map) VS_NOEXCEPT;
@@ -411,21 +403,27 @@ struct VSAPI {
     VSFuncRef *(VS_CC *propGetFunc)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
     int (VS_CC *propSetFunc)(VSMap *map, const char *key, VSFuncRef *func, int append) VS_NOEXCEPT;
 
-    /* message handler */ // FIXME, message handler should be set per core?
+    /* Message handler */ // FIXME, message handler should be set per core?
     void (VS_CC *logMessage)(int msgType, const char *msg) VS_NOEXCEPT;
     int (VS_CC *addMessageHandler)(VSMessageHandler handler, VSMessageHandlerFree free, void *userData) VS_NOEXCEPT;
     int (VS_CC *removeMessageHandler)(int id) VS_NOEXCEPT;
 
-    /* audio and video filter related */
+    /* Audio and video filter related including nodes */
     void (VS_CC *createVideoFilter)(VSMap *out, const char *name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT; /* output nodes are appended to the clip key in the out map */
     void (VS_CC *createAudioFilter)(VSMap *out, const char *name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT; /* output nodes are appended to the clip key in the out map */
+    void (VS_CC *freeNode)(VSNodeRef *node) VS_NOEXCEPT;
+    VSNodeRef *(VS_CC *cloneNodeRef)(VSNodeRef *node) VS_NOEXCEPT;
+    int (VS_CC *getNodeType)(VSNodeRef *node) VS_NOEXCEPT; /* returns VSMediaType */
+    int (VS_CC *getNodeFlags)(VSNodeRef *node) VS_NOEXCEPT; /* returns VSNodeFlags */
     const VSVideoInfo *(VS_CC *getVideoInfo)(VSNodeRef *node) VS_NOEXCEPT;
     const VSAudioInfo *(VS_CC *getAudioInfo)(VSNodeRef *node) VS_NOEXCEPT;
 
-    /* frame related functions */
+    /* Frame related functions */
     VSFrameRef *(VS_CC *newVideoFrame)(const VSVideoFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT;
     VSFrameRef *(VS_CC *newVideoFrame2)(const VSVideoFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT; /* like newVideoFrame but allows the specified planes to be effectively copied from the source frames */ // FIXME combine with newvideoframe?, FIXME, rename?
     VSFrameRef *(VS_CC *newAudioFrame)(const VSAudioFormat *format, int numSamples, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT;
+    void (VS_CC *freeFrame)(const VSFrameRef *f) VS_NOEXCEPT;
+    const VSFrameRef *(VS_CC *cloneFrameRef)(const VSFrameRef *f) VS_NOEXCEPT;
     VSFrameRef *(VS_CC *copyFrame)(const VSFrameRef *f, VSCore *core) VS_NOEXCEPT;
     void (VS_CC *copyFrameProps)(const VSFrameRef *src, VSFrameRef *dst, VSCore *core) VS_NOEXCEPT;
     const VSMap *(VS_CC *getFramePropsRO)(const VSFrameRef *f) VS_NOEXCEPT; // FIXME, rename to getFramePropertiesReadOnly
@@ -442,7 +440,7 @@ struct VSAPI {
     int (VS_CC *getFrameHeight)(const VSFrameRef *f, int plane) VS_NOEXCEPT;
     int (VS_CC *getFrameLength)(const VSFrameRef *f) VS_NOEXCEPT; /* returns the number of samples for audio frames */
 
-    /* general format functions  */
+    /* General format functions  */
     int (VS_CC *getVideoFormatName)(const VSVideoFormat *format, char *buffer) VS_NOEXCEPT; /* up to 32 characters including terminating null may be written to the buffer, non-zero return value on success */
     int (VS_CC *getAudioFormatName)(const VSAudioFormat *format, char *buffer) VS_NOEXCEPT; /* up to 32 characters including terminating null may be written to the buffer, non-zero return value on success */
     int (VS_CC *queryVideoFormat)(VSVideoFormat *format, int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) VS_NOEXCEPT;
@@ -450,12 +448,7 @@ struct VSAPI {
     uint32_t (VS_CC *queryVideoFormatID)(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) VS_NOEXCEPT;
     int (VS_CC *queryVideoFormatByID)(VSVideoFormat *format, uint32_t id, VSCore *core) VS_NOEXCEPT;
 
-    /* mess */
-    int (VS_CC *getNodeType)(VSNodeRef *node) VS_NOEXCEPT; /* returns VSMediaType */
-    int (VS_CC *getNodeFlags)(VSNodeRef *node) VS_NOEXCEPT; /* returns VSNodeFlags */
-
-
-    // FIXME, split off into its own api struct?
+    // FIXME, split off into its own api struct or hide behind an ifdef?
     /* these functions only exist to retrieve internal details for debug purposes and graph visualization and will only only work properly when used on a core created with the flag cfEnableGraphInspection, NOT PART OF THE STABLE API */
     const char *(VS_CC *getNodeCreationFunctionName)(VSNodeRef *node, int level) VS_NOEXCEPT; /* returns the name of the function that created the filter */
     const VSMap *(VS_CC *getNodeCreationFunctionArguments)(VSNodeRef *node, int level) VS_NOEXCEPT; /* returns a copy of the arguments passed to the function that created the filter */

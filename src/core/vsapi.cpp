@@ -964,14 +964,6 @@ const VSAPI vs_internal_vsapi = {
     &getCoreInfo2,
     &getApiVersion,
 
-    &cloneNodeRef,
-    &cloneFrameRef,
-    &cloneFuncRef,
-
-    &freeNode,
-    &freeFrame,
-    &freeFunc,
-
     &registerFunction,
     &getPluginByID,
     &getPluginByNamespace,
@@ -986,7 +978,6 @@ const VSAPI vs_internal_vsapi = {
     &getPluginFunctionReturnType,
     &getPluginPath,
     &getPluginVersion,
-
     &invoke,
 
     &getFrame,
@@ -999,6 +990,8 @@ const VSAPI vs_internal_vsapi = {
     &setFilterError,
 
     &createFunc,
+    &freeFunc,
+    &cloneFuncRef,
     &callFunc,
 
     &createMap,
@@ -1047,12 +1040,18 @@ const VSAPI vs_internal_vsapi = {
 
     &createVideoFilter,
     &createAudioFilter,
+    &freeNode,
+    &cloneNodeRef,
+    &getNodeType,
+    &getNodeFlags,
     &getVideoInfo,
     &getAudioInfo,
 
     &newVideoFrame,
     &newVideoFrame2,
     &newAudioFrame,
+    &freeFrame,
+    &cloneFrameRef,
     &copyFrame,
     &copyFrameProps,
     &getFramePropsRO,
@@ -1075,9 +1074,6 @@ const VSAPI vs_internal_vsapi = {
     &queryAudioFormat,
     &queryVideoFormatID,
     &queryVideoFormatByID,
-
-    &getNodeType,
-    &getNodeFlags,
 
     &getNodeCreationFunctionName,
     &getNodeCreationFunctionArguments,
