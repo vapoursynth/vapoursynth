@@ -318,7 +318,7 @@ struct VSPLUGINAPI {
 // FIXME, rearrange functions so they're grouped in a way that makes more sense
 struct VSAPI {
     /* Core and information */
-    VSCore *(VS_CC *createCore)(int threads, int flags) VS_NOEXCEPT; /* setting threads to 0 means automatic detection, flags uses the VSCoreFlags enum */ // FIXME, remove threads argument since it's pointless
+    VSCore *(VS_CC *createCore)(int flags) VS_NOEXCEPT; /* flags uses the VSCoreFlags enum */
     void (VS_CC *freeCore)(VSCore *core) VS_NOEXCEPT; /* only call this function after all node, frame and function references belonging to the core have been freed */
     int64_t (VS_CC *setMaxCacheSize)(int64_t bytes, VSCore *core) VS_NOEXCEPT; /* the total cache size at which vapoursynth more aggressively tries to reclaim memory, it is not a hard limit */
     int (VS_CC *setThreadCount)(int threads, VSCore *core) VS_NOEXCEPT; /* setting threads to 0 means automatic detection */

@@ -1372,11 +1372,11 @@ VSVideoInfo VSCore::VideoInfoFromV3(const vs3::VSVideoInfo &vi) noexcept {
 /////////////////////////////////////////////////
 
 const VSCoreInfo &VSCore::getCoreInfo3() {
-    getCoreInfo2(coreInfo);
+    getCoreInfo(coreInfo);
     return coreInfo;
 }
 
-void VSCore::getCoreInfo2(VSCoreInfo &info) {
+void VSCore::getCoreInfo(VSCoreInfo &info) {
     info.versionString = VAPOURSYNTH_VERSION_STRING;
     info.core = VAPOURSYNTH_CORE_VERSION;
     info.api = VAPOURSYNTH_API_VERSION;
@@ -1639,7 +1639,7 @@ void VSCore::destroyFilterInstance(VSNode *node) {
     freeDepth--;
 }
 
-VSCore::VSCore(int threads, int flags) :
+VSCore::VSCore(int flags) :
     coreFreed(false),
     enableGraphInspection(flags & cfEnableGraphInspection),
     numFilterInstances(1),
@@ -1653,7 +1653,7 @@ VSCore::VSCore(int threads, int flags) :
 #endif
 
     bool disableAutoLoading = !!(flags & cfDisableAutoLoading);
-    threadPool = new VSThreadPool(this, threads);
+    threadPool = new VSThreadPool(this);
 
     registerFormats();
 

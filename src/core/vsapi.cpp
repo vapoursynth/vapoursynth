@@ -572,12 +572,15 @@ static void VS_CC clearMap(VSMap *map) VS_NOEXCEPT {
     map->clear();
 }
 
-static VSCore *VS_CC createCore(int threads, int flags) VS_NOEXCEPT {
-    return new VSCore(threads, flags);
+static VSCore *VS_CC createCore(int flags) VS_NOEXCEPT {
+    return new VSCore(flags);
 }
 
 static VSCore *VS_CC createCore3(int threads) VS_NOEXCEPT {
-    return new VSCore(threads, 0);
+    VSCore *core = new VSCore(0);
+    if (core)
+        core->threadPool->setThreadCount(threads);
+    return core;
 }
 
 static void VS_CC freeCore(VSCore *core) VS_NOEXCEPT {
@@ -800,7 +803,7 @@ static int VS_CC removeMessageHandler(int id) VS_NOEXCEPT {
 
 static void VS_CC getCoreInfo2(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT {
     assert(core && info);
-    core->getCoreInfo2(*info);
+    core->getCoreInfo(*info);
 }
 
 static int VS_CC propSetEmpty(VSMap *map, const char *key, int type) VS_NOEXCEPT {

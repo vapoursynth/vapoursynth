@@ -727,7 +727,7 @@ private:
     static void runTasks(VSThreadPool *owner, std::atomic<bool> &stop);
     static bool taskCmp(const PFrameContext &a, const PFrameContext &b);
 public:
-    VSThreadPool(VSCore *core, int threads);
+    VSThreadPool(VSCore *core);
     ~VSThreadPool();
     void returnFrame(const PFrameContext &rCtx, const PVSFrameRef &f);
     void returnFrame(const PFrameContext &rCtx, const std::string &errMsg);
@@ -886,7 +886,7 @@ public:
     VSPlugin *getNextPlugin(VSPlugin *plugin);
 
     const VSCoreInfo &getCoreInfo3();
-    void getCoreInfo2(VSCoreInfo &info);
+    void getCoreInfo(VSCoreInfo &info);
 
     static bool getAudioFormatName(const VSAudioFormat &format, char *buffer) noexcept;
     static bool getVideoFormatName(const VSVideoFormat &format, char *buffer) noexcept;
@@ -897,7 +897,7 @@ public:
     void filterInstanceDestroyed();
     void destroyFilterInstance(VSNode *node);
 
-    explicit VSCore(int threads, int flags);
+    explicit VSCore(int flags);
     void freeCore();
 };
 

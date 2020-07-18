@@ -328,8 +328,8 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
     }
 }
 
-VSThreadPool::VSThreadPool(VSCore *core, int threads) : core(core), activeThreads(0), idleThreads(0), reqCounter(0), stopThreads(false), ticks(0) {
-    setThreadCount(threads);
+VSThreadPool::VSThreadPool(VSCore *core) : core(core), activeThreads(0), idleThreads(0), reqCounter(0), stopThreads(false), ticks(0) {
+    setThreadCount(0);
 }
 
 int VSThreadPool::threadCount() {
