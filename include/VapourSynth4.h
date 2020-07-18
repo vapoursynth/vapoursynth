@@ -214,7 +214,6 @@ typedef enum VSNodeFlags {
     nfFrameReady = 8 // FIXME, not actually implemented
 } VSNodeFlags;
 
-//FIXME, rename to VSPropertyType
 typedef enum VSPropType {
     ptUnset = 0,
     ptInt = 1,
@@ -224,10 +223,9 @@ typedef enum VSPropType {
     ptVideoNode = 5,
     ptAudioNode = 6,
     ptVideoFrame = 7,
-    ptAudioFrame = 8,
+    ptAudioFrame = 8
 } VSPropType;
 
-//FIXME, rename to VSGetPropertyError
 typedef enum VSGetPropError {
     peUnset = 1,
     peType  = 2,
@@ -235,7 +233,6 @@ typedef enum VSGetPropError {
     peError = 8
 } VSGetPropError;
 
-//FIXME, rename to VSPropertyAppendMode
 typedef enum VSPropAppendMode {
     paReplace = 0,
     paAppend  = 1
@@ -263,7 +260,7 @@ typedef struct VSAudioInfo {
     VSAudioFormat format;
     int sampleRate;
     int64_t numSamples;
-    int numFrames; /* implicit from numSamples */ // FIXME, where and how does this get set? does the user set it?
+    int numFrames; /* the total number of audio frames needed to hold numSamples, implicit from numSamples when calling createAudioFilter */
 } VSAudioInfo;
 
 typedef enum VSActivationReason {
@@ -273,6 +270,7 @@ typedef enum VSActivationReason {
     arError = -1
 } VSActivationReason;
 
+// FIXME, no mtInformation?
 typedef enum VSMessageType {
     mtDebug = 0,
     mtWarning = 1,
@@ -290,15 +288,15 @@ typedef enum VSPluginConfigFlags {
 } VSPluginConfigFlags;
 
 typedef enum VSDataType {
-    dtUnknown = 0,
-    dtBinary = 1,
-    dtUtf8 = 2
+    dtUnknown = -1,
+    dtBinary = 0,
+    dtUtf8 = 1
 } VSDataType;
 
-/* core entry point */
+/* Core entry point */
 typedef const VSAPI *(VS_CC *VSGetVapourSynthAPI)(int version);
 
-/* plugin function and filter related */
+/* Plugin, function and filter related */
 typedef void (VS_CC *VSPublicFunction)(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
 typedef void (VS_CC *VSInitPlugin)(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
 typedef void (VS_CC *VSFreeFuncData)(void *userData);
@@ -321,8 +319,8 @@ struct VSPLUGINAPI {
 struct VSAPI {
     /* Core and information */
     VSCore *(VS_CC *createCore)(int threads, int flags) VS_NOEXCEPT; /* setting threads to 0 means automatic detection, flags uses the VSCoreFlags enum */ // FIXME, remove threads argument since it's pointless
-    void (VS_CC *freeCore)(VSCore *core) VS_NOEXCEPT;
-    int64_t(VS_CC *setMaxCacheSize)(int64_t bytes, VSCore *core) VS_NOEXCEPT;
+    void (VS_CC *freeCore)(VSCore *core) VS_NOEXCEPT; /* only call this function after all node, frame and function references belonging to the core have been freed */
+    int64_t (VS_CC *setMaxCacheSize)(int64_t bytes, VSCore *core) VS_NOEXCEPT; /* the total cache size at which vapoursynth more aggressively tries to reclaim memory, it is not a hard limit */
     int (VS_CC *setThreadCount)(int threads, VSCore *core) VS_NOEXCEPT; /* setting threads to 0 means automatic detection */
     void (VS_CC *getCoreInfo)(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT;
     int (VS_CC *getApiVersion)(void) VS_NOEXCEPT;
@@ -361,15 +359,15 @@ struct VSAPI {
     VSFuncRef *(VS_CC *cloneFuncRef)(VSFuncRef *f) VS_NOEXCEPT;
     void (VS_CC *callFunc)(VSFuncRef *func, const VSMap *in, VSMap *out) VS_NOEXCEPT;
 
-    /* Map access functions */
+    /* Map and property access functions */
     VSMap *(VS_CC *createMap)(void) VS_NOEXCEPT;
     void (VS_CC *freeMap)(VSMap *map) VS_NOEXCEPT;
     void (VS_CC *clearMap)(VSMap *map) VS_NOEXCEPT;
 
-    void (VS_CC *setError)(VSMap *map, const char *errorMessage) VS_NOEXCEPT; /* used to signal errors outside filter getframe function */ // FIXME, rename to mapSetError
-    const char *(VS_CC *getError)(const VSMap *map) VS_NOEXCEPT; /* used to query errors, returns 0 if no error */ // FIXME, rename to mapGetError
+    void (VS_CC *setError)(VSMap *map, const char *errorMessage) VS_NOEXCEPT; /* used to signal errors outside filter getframe function */ // FIXME, rename to setMapError?
+    const char *(VS_CC *getError)(const VSMap *map) VS_NOEXCEPT; /* used to query errors, returns 0 if no error */ // FIXME, rename to getMapError?
 
-    // FIXME, rename prop* to map*
+    // FIXME, rename prop* to map*?
     int (VS_CC *propNumKeys)(const VSMap *map) VS_NOEXCEPT;
     const char *(VS_CC *propGetKey)(const VSMap *map, int index) VS_NOEXCEPT;
     int (VS_CC *propDeleteKey)(VSMap *map, const char *key) VS_NOEXCEPT;
@@ -448,13 +446,15 @@ struct VSAPI {
     uint32_t (VS_CC *queryVideoFormatID)(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) VS_NOEXCEPT;
     int (VS_CC *queryVideoFormatByID)(VSVideoFormat *format, uint32_t id, VSCore *core) VS_NOEXCEPT;
 
-    // FIXME, split off into its own api struct or hide behind an ifdef?
+// FIXME, require a define to expose this?
+//#ifdef VAPOURSYNTH_DEBUG_API
     /* these functions only exist to retrieve internal details for debug purposes and graph visualization and will only only work properly when used on a core created with the flag cfEnableGraphInspection, NOT PART OF THE STABLE API */
     const char *(VS_CC *getNodeCreationFunctionName)(VSNodeRef *node, int level) VS_NOEXCEPT; /* returns the name of the function that created the filter */
     const VSMap *(VS_CC *getNodeCreationFunctionArguments)(VSNodeRef *node, int level) VS_NOEXCEPT; /* returns a copy of the arguments passed to the function that created the filter */
     const char *(VS_CC *getNodeName)(VSNodeRef *node) VS_NOEXCEPT;
     int (VS_CC *getNodeIndex)(VSNodeRef *node) VS_NOEXCEPT;
     void (VS_CC *setInternalFilterRelation)(const VSMap *nodeMap, VSNodeRef **dependencies, int numDeps) VS_NOEXCEPT; /* manually overrides the automatically deduced information, only needed in filters that call invoke on the input to create*Filter or chains multiple create*Filter calls, simply ignored when used without cfEnableGraphInspection */
+//#endif
 };
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version) VS_NOEXCEPT;
