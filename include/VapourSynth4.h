@@ -270,12 +270,12 @@ typedef enum VSActivationReason {
     arError = -1
 } VSActivationReason;
 
-// FIXME, no mtInformation?
 typedef enum VSMessageType {
     mtDebug = 0,
-    mtWarning = 1,
-    mtCritical = 2,
-    mtFatal = 3
+    mtInformation = 1, 
+    mtWarning = 2,
+    mtCritical = 3,
+    mtFatal = 4
 } VSMessageType;
 
 typedef enum VSCoreFlags {
@@ -296,6 +296,7 @@ typedef enum VSDataType {
 /* Core entry point */
 typedef const VSAPI *(VS_CC *VSGetVapourSynthAPI)(int version);
 
+// FIXME, clamp negative frame requests to zero?
 /* Plugin, function and filter related */
 typedef void (VS_CC *VSPublicFunction)(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
 typedef void (VS_CC *VSInitPlugin)(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
@@ -303,7 +304,7 @@ typedef void (VS_CC *VSFreeFuncData)(void *userData);
 typedef const VSFrameRef *(VS_CC *VSFilterGetFrame)(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
 typedef void (VS_CC *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI *vsapi);
 
-/* other */
+/* Other */
 typedef void (VS_CC *VSFrameDoneCallback)(void *userData, const VSFrameRef *f, int n, VSNodeRef *node, const char *errorMsg);
 typedef void (VS_CC *VSMessageHandler)(int msgType, const char *msg, void *userData);
 typedef void (VS_CC *VSMessageHandlerFree)(void *userData);
@@ -402,9 +403,9 @@ struct VSAPI {
     int (VS_CC *propSetFunc)(VSMap *map, const char *key, VSFuncRef *func, int append) VS_NOEXCEPT;
 
     /* Message handler */ // FIXME, message handler should be set per core?
-    void (VS_CC *logMessage)(int msgType, const char *msg) VS_NOEXCEPT;
-    int (VS_CC *addMessageHandler)(VSMessageHandler handler, VSMessageHandlerFree free, void *userData) VS_NOEXCEPT;
-    int (VS_CC *removeMessageHandler)(int id) VS_NOEXCEPT;
+    void (VS_CC *logMessage)(int msgType, const char *msg, VSCore *core) VS_NOEXCEPT;
+    void *(VS_CC *addMessageHandler)(VSMessageHandler handler, VSMessageHandlerFree free, void *userData, VSCore *core) VS_NOEXCEPT;
+    int (VS_CC *removeMessageHandler)(void *handle, VSCore *core) VS_NOEXCEPT;
 
     /* Audio and video filter related including nodes */
     void (VS_CC *createVideoFilter)(VSMap *out, const char *name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT; /* output nodes are appended to the clip key in the out map */

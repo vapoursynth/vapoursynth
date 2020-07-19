@@ -202,8 +202,6 @@ static void VS_CC copyFrameProps(const VSFrameRef *src, VSFrameRef *dst, VSCore 
 
 static void VS_CC createFilter3(const VSMap *in, VSMap *out, const char *name, vs3::VSFilterInit init, vs3::VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT {
     assert(in && out && name && init && getFrame && core);
-    if (!name)
-        vsFatal("NULL name pointer passed to createFilter()");
 
     VSFilterMode fm;
     switch (filterMode) {
@@ -220,7 +218,7 @@ static void VS_CC createFilter3(const VSMap *in, VSMap *out, const char *name, v
             fm = fmSerial;
             break;
         default:
-            vsFatal("Invalid filter mode");
+            core->logMessage(mtFatal, "Invalid filter mode");
     }
     core->createFilter3(in, out, name, init, reinterpret_cast<VSFilterGetFrame>(getFrame), free, fm, flags, instanceData, VAPOURSYNTH3_API_MAJOR);
 }
@@ -295,10 +293,7 @@ static int VS_CC propNumKeys(const VSMap *map) VS_NOEXCEPT {
 
 static const char *VS_CC propGetKey(const VSMap *map, int index) VS_NOEXCEPT {
     assert(map);
-    if (index < 0 || static_cast<size_t>(index) >= map->size())
-        vsFatal(("propGetKey: Out of bounds index " + std::to_string(index) + " passed. Valid range: [0," + std::to_string(map->size() - 1) + "]").c_str());
-
-    return map->key(index);
+    return map->key(static_cast<size_t>(index));
 }
 
 static int VS_CC propNumElements(const VSMap *map, const char *key) VS_NOEXCEPT {
@@ -335,18 +330,17 @@ static char VS_CC propGetType3(const VSMap *map, const char *key) VS_NOEXCEPT {
     }
 }
 
-static VSArrayBase *propGetShared(const VSMap *map, const char *key, int index, int *error, VSPropType propType) {
+static VSArrayBase *propGetShared(const VSMap *map, const char *key, int index, int *error, VSPropType propType) noexcept {
     assert(map && key && index >= 0);
 
     if (error)
         *error = 0;
 
     if (map->hasError()) {
-        vsWarning("Attempted to read key '%s' from a map with error set: %s", key, map->getErrorMessage());
         if (error)
             *error = peError;
         else
-            vsFatal("Property read unsuccessful but no error output: %s", key);
+            VS_FATAL_ERROR(("Property read unsuccessful on map with error set but no error output: " + std::string(key)).c_str());
         return nullptr;
     }
 
@@ -356,7 +350,7 @@ static VSArrayBase *propGetShared(const VSMap *map, const char *key, int index, 
         if (error)
             *error = peUnset;
         else
-            vsFatal("Property read unsuccessful but no error output: %s", key);
+            VS_FATAL_ERROR(("Property read unsuccessful due to missing key but no error output: " + std::string(key)).c_str());
         return nullptr;
     }
 
@@ -364,7 +358,7 @@ static VSArrayBase *propGetShared(const VSMap *map, const char *key, int index, 
         if (error)
             *error = peIndex;
         else
-            vsFatal("Property read unsuccessful but no error output: %s", key);
+            VS_FATAL_ERROR(("Property read unsuccessful due to out of bounds index but no error output: " + std::string(key)).c_str());
         return nullptr;
     }
 
@@ -372,7 +366,7 @@ static VSArrayBase *propGetShared(const VSMap *map, const char *key, int index, 
         if (error)
             *error = peType;
         else
-            vsFatal("Property read unsuccessful but no error output: %s", key);
+            VS_FATAL_ERROR(("Property read unsuccessful due to wrong type but no error output: " + std::string(key)).c_str());
         return nullptr;
     }
 
@@ -494,33 +488,33 @@ template<typename T, VSPropType propType>
 bool propSetShared(VSMap *map, const char *key, const T &val, int append) {
     assert(map && key);
     if (append != paReplace && append != paAppend && append != vs3::paTouch)
-        vsFatal("Invalid prop append mode given when setting key '%s'", key);
-    std::string skey = key;
+        VS_FATAL_ERROR(("Invalid prop append mode given when setting key '" + std::string(key) + "'").c_str());
+
     if (!isValidVSMapKey(key))
         return false;
+    std::string skey = key;
 
     if (append == paReplace) {
         VSArray<T, propType> *v = new VSArray<T, propType>();
         v->push_back(val);
         map->insert(key, v);
         return true;
-    } else {
+    } else if (append == paAppend) {
         VSArrayBase *arr = map->find(skey);
         if (arr && arr->type() == propType) {
-            if (append != vs3::paTouch) {
-                arr = map->detach(skey);
-                reinterpret_cast<VSArray<T, propType> *>(arr)->push_back(val);
-            }
+            arr = map->detach(skey);
+            reinterpret_cast<VSArray<T, propType> *>(arr)->push_back(val);
             return true;
         } else if (arr) {
             return false;
         } else {
             VSArray<T, propType> *v = new VSArray<T, propType>();
-            if (append != vs3::paTouch)
-                v->push_back(val);
+            v->push_back(val);
             map->insert(key, v);
             return true;
         }
+    } else /* if (append == vs3::paTouch) */ {
+        return !propSetEmpty(map, key, propType);
     }
 }
 
@@ -728,7 +722,7 @@ static int VS_CC getOutputIndex(VSFrameContext *frameCtx) VS_NOEXCEPT {
 }
 
 static void VS_CC setMessageHandler(VSMessageHandler handler, void *userData) VS_NOEXCEPT {
-    vsSetMessageHandler(handler, userData);
+    vsSetMessageHandler3(handler, userData);
 }
 
 static int VS_CC setThreadCount(int threads, VSCore *core) VS_NOEXCEPT {
@@ -737,8 +731,9 @@ static int VS_CC setThreadCount(int threads, VSCore *core) VS_NOEXCEPT {
 }
 
 static const char *VS_CC getPluginPath(const VSPlugin *plugin) VS_NOEXCEPT {
+    assert(plugin);
     if (!plugin)
-        vsFatal("NULL passed to getPluginPath");
+        return nullptr;
     if (!plugin->getFilename().empty())
         return plugin->getFilename().c_str();
     else
@@ -746,8 +741,9 @@ static const char *VS_CC getPluginPath(const VSPlugin *plugin) VS_NOEXCEPT {
 }
 
 static int VS_CC getPluginVersion(const VSPlugin *plugin) VS_NOEXCEPT {
+    assert(plugin);
     if (!plugin)
-        vsFatal("NULL passed to getPluginVersion");
+        return -1;
     return plugin->getPluginVersion();
 }
 
@@ -789,16 +785,31 @@ static int VS_CC propSetFloatArray(VSMap *map, const char *key, const double *d,
     return 0;
 }
 
-static void VS_CC logMessage(int msgType, const char *msg) VS_NOEXCEPT {
-    vsLog(__FILE__, __LINE__, static_cast<VSMessageType>(msgType), "%s", msg);
+static void VS_CC logMessage(int msgType, const char *msg, VSCore *core) VS_NOEXCEPT {
+    assert(msg && core);
+    core->logMessage(static_cast<VSMessageType>(msgType), msg);
 }
 
-static int VS_CC addMessageHandler(VSMessageHandler handler, VSMessageHandlerFree free, void *userData) VS_NOEXCEPT {
-    return vsAddMessageHandler(handler, free, userData);
+static void *VS_CC addMessageHandler(VSMessageHandler handler, VSMessageHandlerFree free, void *userData, VSCore *core) VS_NOEXCEPT {
+    assert(handler && core);
+    return core->addMessageHandler(handler, free, userData);
 }
 
-static int VS_CC removeMessageHandler(int id) VS_NOEXCEPT {
-    return vsRemoveMessageHandler(id);
+static int VS_CC removeMessageHandler(void *handle, VSCore *core) VS_NOEXCEPT {
+    assert(handle && core);
+    return core->removeMessageHandler(reinterpret_cast<VSMessageHandlerRecord *>(handle));
+}
+
+static void VS_CC logMessage3(int msgType, const char *msg) VS_NOEXCEPT {
+    vsLog3(static_cast<vs3::VSMessageType>(msgType), "%s", msg);
+}
+
+static int VS_CC addMessageHandler3(VSMessageHandler handler, VSMessageHandlerFree free, void *userData) VS_NOEXCEPT {
+    return vsAddMessageHandler3(handler, free, userData);
+}
+
+static int VS_CC removeMessageHandler3(int id) VS_NOEXCEPT {
+    return vsRemoveMessageHandler3(id);
 }
 
 static void VS_CC getCoreInfo2(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT {
@@ -808,52 +819,51 @@ static void VS_CC getCoreInfo2(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT {
 
 static int VS_CC propSetEmpty(VSMap *map, const char *key, int type) VS_NOEXCEPT {
     assert(map && key);
+    if (!isValidVSMapKey(key))
+        return 1;
+
     std::string skey = key;
-    if (!isValidVSMapKey(key) || map->find(skey))
-        return -1;
+    if (map->find(skey))
+        return 1;
 
     switch (type) {
         case ptInt:
-            map->insert(skey, new VSIntArray);
+            map->insert(key, new VSIntArray);
             break;
         case ptFloat:
-            map->insert(skey, new VSFloatArray);
+            map->insert(key, new VSFloatArray);
             break;
         case ptData:
-            map->insert(skey, new VSDataArray);
+            map->insert(key, new VSDataArray);
             break;
         case ptVideoNode:
-            map->insert(skey, new VSVideoNodeArray);
+            map->insert(key, new VSVideoNodeArray);
             break;
         case ptAudioNode:
-            map->insert(skey, new VSAudioNodeArray);
+            map->insert(key, new VSAudioNodeArray);
             break;
         case ptVideoFrame:
-            map->insert(skey, new VSVideoFrameArray);
+            map->insert(key, new VSVideoFrameArray);
             break;
         case ptAudioFrame:
-            map->insert(skey, new VSAudioFrameArray);
+            map->insert(key, new VSAudioFrameArray);
             break;
         case ptFunction:
-            map->insert(skey, new VSFunctionArray);
+            map->insert(key, new VSFunctionArray);
             break;
         default:
-            return -1;
+            return 1;
     }
     return 0;
 }
 
 static void VS_CC createVideoFilter(VSMap *out, const char *name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT {
     assert(out && name && vi && numOutputs > 0 && getFrame && core);
-    if (!name)
-        vsFatal("NULL name pointer passed to createVideoFilter()");
     core->createVideoFilter(out, name, vi, numOutputs, getFrame, free, static_cast<VSFilterMode>(filterMode), flags, instanceData, VAPOURSYNTH_API_MAJOR);
 }
 
 static void VS_CC createAudioFilter(VSMap *out, const char *name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT {
     assert(out && name && ai && numOutputs > 0 && getFrame && core);
-    if (!name)
-        vsFatal("NULL name pointer passed to createAudioFilter()");
     core->createAudioFilter(out, name, ai, numOutputs, getFrame, free, static_cast<VSFilterMode>(filterMode), flags, instanceData, VAPOURSYNTH_API_MAJOR);
 }
 
@@ -1172,9 +1182,9 @@ const vs3::VSAPI3 vs_internal_vsapi3 = {
     &propSetIntArray,
     &propSetFloatArray,
 
-    &logMessage,
-    &addMessageHandler,
-    &removeMessageHandler,
+    &logMessage3,
+    &addMessageHandler3,
+    &removeMessageHandler3,
     &getCoreInfo2
 };
 
@@ -1186,7 +1196,7 @@ const VSAPI *getVSAPIInternal(int apiMajor) {
     }  else if (apiMajor == VAPOURSYNTH3_API_MAJOR) {
             return reinterpret_cast<const VSAPI *>(&vs_internal_vsapi3);
     } else {
-        vsFatal("Internally requested API version %d not supported", apiMajor);
+        assert(false);
         return nullptr;
     }
 }

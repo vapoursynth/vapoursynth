@@ -160,8 +160,6 @@ namespace vs3 {
 
     /* other */
     typedef void (VS_CC *VSFrameDoneCallback)(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg);
-    typedef void (VS_CC *VSMessageHandler)(int msgType, const char *msg, void *userData);
-    typedef void (VS_CC *VSMessageHandlerFree)(void *userData);
 
     struct VSAPI3 {
         VSCore *(VS_CC *createCore)(int threads) VS_NOEXCEPT;

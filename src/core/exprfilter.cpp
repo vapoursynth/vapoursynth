@@ -37,7 +37,6 @@
 #include "cpufeatures.h"
 #include "internalfilters.h"
 #include "filtershared.h"
-#include "vslog.h"
 #include "kernel/cpulevel.h"
 
 #ifdef VS_TARGET_CPU_X86
@@ -226,7 +225,7 @@ public:
         case ExprOpType::EXP: exp(insn); break;
         case ExprOpType::LOG: log(insn); break;
         case ExprOpType::POW: pow(insn); break;
-        default: vsFatal("illegal opcode"); break;
+        default: fprintf(stderr, "%s", "illegal opcode\n"); std::terminate(); break;
         }
     }
 
@@ -1712,7 +1711,7 @@ public:
             case ExprOpType::MEM_STORE_U16: reinterpret_cast<uint16_t *>(dstp)[x] = clamp_int<uint16_t>(SRC1, insn.op.imm.u); return;
             case ExprOpType::MEM_STORE_F16: reinterpret_cast<uint16_t *>(dstp)[x] = 0; return;
             case ExprOpType::MEM_STORE_F32: reinterpret_cast<float *>(dstp)[x] = SRC1; return;
-            default: vsFatal("illegal opcode"); return;
+            default: fprintf(stderr, "%s", "illegal opcode\n"); std::terminate(); return;
             }
 #undef DST
 #undef SRC3

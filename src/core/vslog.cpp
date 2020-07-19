@@ -18,6 +18,8 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
+// This file only exists for V3 compatibility
+
 #include "vslog.h"
 #include <cassert>
 #include <cstdlib>
@@ -47,7 +49,7 @@ static int vsRemoveMessageHandlerInternal(int id) {
     return 0;
 }
 
-void vsSetMessageHandler(VSMessageHandler handler, void *userData) {
+void vsSetMessageHandler3(VSMessageHandler handler, void *userData) {
     std::lock_guard<std::mutex> lock(logMutex);
     if (globalMessageHandler >= 0) {
         vsRemoveMessageHandlerInternal(globalMessageHandler);
@@ -59,19 +61,19 @@ void vsSetMessageHandler(VSMessageHandler handler, void *userData) {
     }
 }
 
-int vsAddMessageHandler(VSMessageHandler handler, VSMessageHandlerFree free, void *userData) {
+int vsAddMessageHandler3(VSMessageHandler handler, VSMessageHandlerFree free, void *userData) {
     assert(handler);
     std::lock_guard<std::mutex> lock(logMutex);
     messageHandlers.emplace(currentHandlerId, MessageHandler{ handler, free, userData });
     return currentHandlerId++;
 }
 
-int vsRemoveMessageHandler(int id) {
+int vsRemoveMessageHandler3(int id) {
     std::lock_guard<std::mutex> lock(logMutex);
     return vsRemoveMessageHandlerInternal(id);
 }
 
-void vsLog(const char *file, long line, VSMessageType type, const char *msg, ...) {
+void vsLog3(vs3::VSMessageType type, const char *msg, ...) {
     std::lock_guard<std::mutex> lock(logMutex);
     if (!messageHandlers.empty()) {
         try {
@@ -93,16 +95,5 @@ void vsLog(const char *file, long line, VSMessageType type, const char *msg, ...
             va_end(alist);
             fprintf(stderr, "\n");
         }
-    } else {
-        va_list alist;
-        va_start(alist, msg);
-        vfprintf(stderr, msg, alist);
-        va_end(alist);
-        fprintf(stderr, "\n");
-    }
-
-    if (type == mtFatal) {
-        assert(false);
-        abort();
     }
 }

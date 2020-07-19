@@ -57,9 +57,11 @@
 static const uint32_t VS_FRAME_GUARD_PATTERN = 0xDEADBEEF;
 #endif
 
+#define VS_FATAL_ERROR(msg) do { fprintf(stderr, "%s\n", (msg)); std::terminate(); } while (false);
+
 
 // Internal only filter mode for use by caches to make requests more linear
-const int fmUnorderedLinear = fmUnordered + 13;
+const int fmUnorderedLinear = fmSerial + 1;
 
 struct VSFrameRef;
 struct VSCore;
@@ -336,7 +338,7 @@ public:
     }
 
     const char *key(size_t n) const {
-        if (n >= static_cast<int>(size()))
+        if (n >= size())
             return nullptr;
         auto iter = data->data.cbegin();
         std::advance(iter, n);
@@ -363,8 +365,8 @@ public:
         }
     }
 
-    bool isV3Compatible() const;
-    bool hasCompatNodes() const;
+    bool isV3Compatible() const noexcept;
+    bool hasCompatNodes() const noexcept;
 };
 
 struct VSNodeRef {
@@ -473,10 +475,10 @@ public:
     static const int guardSpace = 0;
 #endif
 
-    VSFrameRef(const VSVideoFormat &f, int width, int height, const VSFrameRef *propSrc, VSCore *core);
-    VSFrameRef(const VSVideoFormat &f, int width, int height, const VSFrameRef * const *planeSrc, const int *plane, const VSFrameRef *propSrc, VSCore *core);
-    VSFrameRef(const VSAudioFormat &f, int numSamples, const VSFrameRef *propSrc, VSCore *core);
-    VSFrameRef(const VSFrameRef &f);
+    VSFrameRef(const VSVideoFormat &f, int width, int height, const VSFrameRef *propSrc, VSCore *core) noexcept;
+    VSFrameRef(const VSVideoFormat &f, int width, int height, const VSFrameRef * const *planeSrc, const int *plane, const VSFrameRef *propSrc, VSCore *core) noexcept;
+    VSFrameRef(const VSAudioFormat &f, int numSamples, const VSFrameRef *propSrc, VSCore *core) noexcept;
+    VSFrameRef(const VSFrameRef &f) noexcept;
     ~VSFrameRef();
 
     void add_ref() noexcept {
@@ -803,6 +805,12 @@ public:
     void getFunctions3(VSMap *out) const;
 };
 
+struct VSMessageHandlerRecord {
+    VSMessageHandler handler;
+    VSMessageHandlerFree free;
+    void *userData;
+};
+
 struct VSCore {
     friend class VSFrame;
     friend class VSThreadPool;
@@ -828,6 +836,9 @@ private:
     ~VSCore();
 
     void registerFormats();
+
+    std::mutex logMutex;
+    std::set<VSMessageHandlerRecord *> messageHandlers;
 public:
     VSThreadPool *threadPool;
     MemoryUse *memory;
@@ -855,6 +866,9 @@ public:
     static bool isValidVideoInfo(const VSVideoInfo &vi) noexcept;
     static bool isValidAudioInfo(const VSAudioInfo &ai) noexcept;
 
+    VSMessageHandlerRecord *addMessageHandler(VSMessageHandler handler, VSMessageHandlerFree free, void *userData);
+    bool removeMessageHandler(VSMessageHandlerRecord *rec);
+    void logMessage(VSMessageType type, const char *msg);
 
     /////////////////////////////////////
     // V3 compat helper functions

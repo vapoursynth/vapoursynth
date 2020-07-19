@@ -105,7 +105,7 @@ bool FrameContext::setError(const std::string &errorMsg) {
 
 ///////////////
 
-bool VSMap::isV3Compatible() const {
+bool VSMap::isV3Compatible() const noexcept {
     for (const auto &iter : data->data) {
         if (iter.second->type() == ptAudioNode || iter.second->type() == ptAudioFrame)
             return false;
@@ -150,7 +150,7 @@ static bool isWindowsLargePageBroken() {
 
             for (size_t n = 0; n < 64; ++n) {
                 if (static_cast<uint8_t *>(ptr)[n]) {
-                    vsWarning("Windows 10 VirtualAlloc bug detected: update to version 1803+");
+                    fprintf(stderr, "%s", "Windows 10 VirtualAlloc bug detected: update to version 1803+\n");
                     return true;
                 }
             }
@@ -159,7 +159,7 @@ static bool isWindowsLargePageBroken() {
             if (VirtualFree(ptr, 0, MEM_RELEASE) != TRUE)
                 return true;
             if (!IsBadReadPtr(ptr, 1)) {
-                vsWarning("Windows 10 VirtualAlloc bug detected: update to version 1803+");
+                fprintf(stderr, "%s", "Windows 10 VirtualAlloc bug detected: update to version 1803+\n");
                 return true;
             }
         }
@@ -258,7 +258,7 @@ void *MemoryUse::allocateMemory(size_t bytes) const {
 
     ptr = vs_aligned_malloc(VSFrameRef::alignment + bytes, VSFrameRef::alignment);
     if (!ptr)
-        vsFatal("out of memory: %zu", bytes);
+        VS_FATAL_ERROR("out of memory");
 
     BlockHeader *header = new (ptr) BlockHeader;
     header->size = bytes;
@@ -312,7 +312,7 @@ void MemoryUse::freeBuffer(uint8_t *buf) {
 
     const BlockHeader *header = reinterpret_cast<const BlockHeader *>(buf);
     if (!header->size)
-        vsFatal("Memory corruption detected. Windows bug?");
+        VS_FATAL_ERROR("Memory corruption detected. Windows bug?");
 
     buffers.emplace(std::make_pair(header->size, buf));
     unusedBufferSize += header->size;
@@ -320,7 +320,7 @@ void MemoryUse::freeBuffer(uint8_t *buf) {
     size_t memoryUsed = used;
     while (memoryUsed + unusedBufferSize > maxMemoryUse && !buffers.empty()) {
         if (!memoryWarningIssued) {
-            vsWarning("Script exceeded memory limit. Consider raising cache size.");
+            //vsWarning("Script exceeded memory limit. Consider raising cache size.");
             memoryWarningIssued = true;
         }
         std::uniform_int_distribution<size_t> randSrc(0, buffers.size() - 1);
@@ -393,7 +393,8 @@ VSPlaneData::VSPlaneData(size_t dataSize, MemoryUse &mem) : refcount(1), mem(mem
 #endif
     assert(data);
     if (!data)
-        vsFatal("Failed to allocate memory for planes. Out of memory.");
+        VS_FATAL_ERROR("Failed to allocate memory for plane. Out of memory.");
+
     mem.add(size);
 #ifdef VS_FRAME_GUARD
     for (size_t i = 0; i < VSFrame::guardSpace / sizeof(VS_FRAME_GUARD_PATTERN); i++) {
@@ -411,7 +412,8 @@ VSPlaneData::VSPlaneData(const VSPlaneData &d) : refcount(1), mem(d.mem), size(d
 #endif
     assert(data);
     if (!data)
-        vsFatal("Failed to allocate memory for plane in copy constructor. Out of memory.");
+        VS_FATAL_ERROR("Failed to allocate memory for plane in copy constructor. Out of memory.");
+
     mem.add(size);
     memcpy(data, d.data, size);
 }
@@ -440,9 +442,9 @@ void VSPlaneData::release() noexcept {
 
 ///////////////
 
-VSFrameRef::VSFrameRef(const VSVideoFormat &f, int width, int height, const VSFrameRef *propSrc, VSCore *core) : refcount(1), contentType(mtVideo), width(width), height(height), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
+VSFrameRef::VSFrameRef(const VSVideoFormat &f, int width, int height, const VSFrameRef *propSrc, VSCore *core) noexcept : refcount(1), contentType(mtVideo), width(width), height(height), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
     if (width <= 0 || height <= 0)
-        vsFatal("Error in frame creation: dimensions are negative (%dx%d)", width, height);
+        core->logMessage(mtFatal, ("Error in frame creation: dimensions are negative (" + std::to_string(width) + "x" + std::to_string(height) + ")").c_str());
 
     format.vf = f;
     numPlanes = format.vf.numPlanes;
@@ -466,9 +468,9 @@ VSFrameRef::VSFrameRef(const VSVideoFormat &f, int width, int height, const VSFr
     }
 }
 
-VSFrameRef::VSFrameRef(const VSVideoFormat &f, int width, int height, const VSFrameRef * const *planeSrc, const int *plane, const VSFrameRef *propSrc, VSCore *core) : refcount(1), contentType(mtVideo), width(width), height(height), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
+VSFrameRef::VSFrameRef(const VSVideoFormat &f, int width, int height, const VSFrameRef * const *planeSrc, const int *plane, const VSFrameRef *propSrc, VSCore *core) noexcept : refcount(1), contentType(mtVideo), width(width), height(height), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
     if (width <= 0 || height <= 0)
-        vsFatal("Error in frame creation: dimensions are negative (%dx%d)", width, height);
+        core->logMessage(mtFatal, ("Error in frame creation: dimensions are negative " + std::to_string(width) + "x" + std::to_string(height)).c_str());
 
     format.vf = f;
     numPlanes = format.vf.numPlanes;
@@ -487,9 +489,9 @@ VSFrameRef::VSFrameRef(const VSVideoFormat &f, int width, int height, const VSFr
     for (int i = 0; i < numPlanes; i++) {
         if (planeSrc[i]) {
             if (plane[i] < 0 || plane[i] >= planeSrc[i]->format.vf.numPlanes)
-                vsFatal("Error in frame creation: plane %d does not exist in the source frame", plane[i]);
+                core->logMessage(mtFatal, ("Error in frame creation: plane " + std::to_string(plane[i]) + " does not exist in the source frame").c_str());
             if (planeSrc[i]->getHeight(plane[i]) != getHeight(i) || planeSrc[i]->getWidth(plane[i]) != getWidth(i))
-                vsFatal("Error in frame creation: dimensions of plane %d do not match. Source: %dx%d; destination: %dx%d", plane[i], planeSrc[i]->getWidth(plane[i]), planeSrc[i]->getHeight(plane[i]), getWidth(i), getHeight(i));
+                core->logMessage(mtFatal, ("Error in frame creation: dimensions of plane " + std::to_string(plane[i]) + " do not match. Source: " + std::to_string(planeSrc[i]->getWidth(plane[i])) + "x" + std::to_string(planeSrc[i]->getHeight(plane[i])) + "; destination: " + std::to_string(getWidth(i)) + "x" + std::to_string(getHeight(i))).c_str());
             data[i] = planeSrc[i]->data[plane[i]];
             data[i]->add_ref();
         } else {
@@ -502,10 +504,9 @@ VSFrameRef::VSFrameRef(const VSVideoFormat &f, int width, int height, const VSFr
     }
 }
 
-VSFrameRef::VSFrameRef(const VSAudioFormat &f, int numSamples, const VSFrameRef *propSrc, VSCore *core) : refcount(1), contentType(mtAudio), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
+VSFrameRef::VSFrameRef(const VSAudioFormat &f, int numSamples, const VSFrameRef *propSrc, VSCore *core) noexcept : refcount(1), contentType(mtAudio), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
     if (numSamples <= 0)
-        vsFatal("Error in frame creation: bad number of samples (%d)", numSamples);
-
+        core->logMessage(mtFatal, ("Error in frame creation: bad number of samples (" + std::to_string(numSamples) + ")").c_str());
     
     format.af = f;
     numPlanes = format.af.numChannels;
@@ -517,7 +518,7 @@ VSFrameRef::VSFrameRef(const VSAudioFormat &f, int numSamples, const VSFrameRef 
     data[0] = new VSPlaneData(stride[0] * format.af.numChannels, *core->memory);
 }
 
-VSFrameRef::VSFrameRef(const VSFrameRef &f) : refcount(1) {
+VSFrameRef::VSFrameRef(const VSFrameRef &f) noexcept : refcount(1) {
     contentType = f.contentType;
     data[0] = f.data[0];
     data[1] = f.data[1];
@@ -555,14 +556,14 @@ const vs3::VSVideoFormat *VSFrameRef::getVideoFormatV3() const noexcept {
 
 ptrdiff_t VSFrameRef::getStride(int plane) const {
     assert(contentType == mtVideo);
-    if (plane >= numPlanes)
-        vsFatal("Requested stride of nonexistent plane %d", plane);
+    if (plane < 0 || plane >= numPlanes) // FIXME, return 0 instead of a fatal error?
+        core->logMessage(mtFatal, ("Requested stride of nonexistent plane " + std::to_string(plane)).c_str());
     return stride[plane];
 }
 
 const uint8_t *VSFrameRef::getReadPtr(int plane) const {
-    if (plane >= numPlanes)
-        vsFatal("Requested read pointer for nonexistent plane %d", plane);
+    if (plane < 0 || plane >= numPlanes) // FIXME, return 0 instead of a fatal error?
+        core->logMessage(mtFatal, ("Requested read pointer for nonexistent plane " + std::to_string(plane)).c_str());
 
     if (contentType == mtVideo)
         return data[plane]->data + guardSpace;
@@ -571,8 +572,8 @@ const uint8_t *VSFrameRef::getReadPtr(int plane) const {
 }
 
 uint8_t *VSFrameRef::getWritePtr(int plane) {
-    if (plane >= numPlanes)
-        vsFatal("Requested write pointer for nonexistent plane %d", plane);
+    if (plane < 0 || plane >= numPlanes) // FIXME, return 0 instead of a fatal error?
+        core->logMessage(mtFatal, ("Requested write pointer for nonexistent plane " + std::to_string(plane)).c_str());
 
     // copy the plane data if this isn't the only reference
     if (contentType == mtVideo) {
@@ -724,8 +725,7 @@ bool VSPluginFunction::isV3Compatible() const {
 std::string VSPluginFunction::getV3ArgString() const {
     std::string tmp;
     for (const auto &iter : args) {
-        if (iter.type == ptAudioNode || iter.type == ptAudioFrame)
-            vsFatal("Tried to get V3 argument string for incompatible function");
+        assert(iter.type != ptAudioNode && iter.type != ptAudioFrame);
 
         tmp += iter.name + ":";
 
@@ -801,7 +801,7 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilt
 
     if (vi.empty()) {
         core->filterInstanceDestroyed();
-        throw VSException("Filter " + name + " didn't set vi");
+        throw VSException("Filter " + name + " didn't set videoinfo");
     }
 
     for (const auto &iter : vi) {
@@ -829,20 +829,22 @@ VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, int numOutputs, V
         frameReadyNotify = true;
 
     if (numOutputs < 1)
-        vsFatal("Filter %s needs to have at least one output (%d were given).", name.c_str(), numOutputs);
+        throw VSException("Filter " + name + " needs to have at least one output");
 
-    core->filterInstanceCreated();
+
 
     this->vi.reserve(numOutputs);
     this->v3vi.reserve(numOutputs);
     for (int i = 0; i < numOutputs; i++) {
         if (!core->isValidVideoInfo(vi[i]))
-            vsFatal("The VSVideoInfo structure passed by %s is invalid.", name.c_str());
+            throw VSException("The VSVideoInfo structure passed by " + name + " is invalid.");
 
         this->vi.push_back(vi[i]);
         this->v3vi.push_back(core->VideoInfoToV3(vi[i]));
         this->v3vi.back().flags = flags;
     }
+
+    core->filterInstanceCreated();
 
     if (core->enableGraphInspection) {
         functionFrame = core->functionFrame;
@@ -862,14 +864,14 @@ VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, int numOutputs, V
         frameReadyNotify = true;
 
     if (numOutputs < 1)
-        vsFatal("Filter %s needs to have at least one output (%d were given).", name.c_str(), numOutputs);
+        throw VSException("Filter " + name + " needs to have at least one output");
 
     core->filterInstanceCreated();
 
     this->ai.reserve(numOutputs);
     for (int i = 0; i < numOutputs; i++) {
         if (!core->isValidAudioInfo(ai[i]))
-            vsFatal("The VSAudioInfo structure passed by %s is invalid.", name.c_str());
+            throw VSException("The VSAudioInfo structure passed by " + name + " is invalid.");
 
         this->ai.push_back(ai[i]);
         auto &last = this->ai.back();
@@ -893,36 +895,33 @@ void VSNode::getFrame(const PFrameContext &ct) {
 }
 
 const VSVideoInfo &VSNode::getVideoInfo(int index) const {
-    if (index < 0 || index >= static_cast<int>(vi.size()))
-        vsFatal("getVideoInfo: Out of bounds videoinfo index %d. Valid range: [0,%d].", index, static_cast<int>(vi.size() - 1));
+    assert(index >= 0 && index < static_cast<int>(vi.size()));
     return vi[index];
 }
 
 const vs3::VSVideoInfo &VSNode::getVideoInfo3(int index) const {
-    if (index < 0 || index >= static_cast<int>(v3vi.size()))
-        vsFatal("getVideoInfo: Out of bounds videoinfo index %d. Valid range: [0,%d].", index, static_cast<int>(v3vi.size() - 1));
+    assert(index >= 0 && index < static_cast<int>(v3vi.size()));
     return v3vi[index];
 }
 
 const VSAudioInfo &VSNode::getAudioInfo(int index) const {
-    if (index < 0 || index >= static_cast<int>(ai.size()))
-        vsFatal("getAudioInfo: Out of bounds audioinfo index %d. Valid range: [0,%d].", index, static_cast<int>(ai.size() - 1));
+    assert(index >= 0 && index < static_cast<int>(ai.size()));
     return ai[index];
 }
 
 void VSNode::setVideoInfo3(const vs3::VSVideoInfo *vi, int numOutputs) {
     if (numOutputs < 1)
-        vsFatal("setVideoInfo: Video filter %s needs to have at least one output (%d were given).", name.c_str(), numOutputs);
+        core->logMessage(mtFatal, ("setVideoInfo: Video filter " + name + " needs to have at least one output").c_str());
     for (int i = 0; i < numOutputs; i++) {
         if ((!!vi[i].height) ^ (!!vi[i].width))
-            vsFatal("setVideoInfo: Variable dimension clips must have both width and height set to 0. Dimensions given by filter %s: %dx%d.", name.c_str(), vi[i].width, vi[i].height);
+            core->logMessage(mtFatal, "setVideoInfo: Variable dimension clips must have both width and height set to 0");
         if (vi[i].format && !core->isValidFormatPointer(vi[i].format))
-            vsFatal("setVideoInfo: The VSVideoFormat pointer passed by %s was not obtained from registerFormat() or getFormatPreset().", name.c_str());
+            core->logMessage(mtFatal, ("setVideoInfo: The VSVideoFormat pointer passed by " + name + " was not obtained from registerFormat() or getFormatPreset()").c_str());
         int64_t num = vi[i].fpsNum;
         int64_t den = vi[i].fpsDen;
         vs_reduceRational(&num, &den);
         if (num != vi[i].fpsNum || den != vi[i].fpsDen)
-            vsFatal(("setVideoInfo: The frame rate specified by " + name + " must be a reduced fraction. (Instead, it is " + std::to_string(vi[i].fpsNum) + "/" + std::to_string(vi[i].fpsDen) + ".)").c_str());
+            core->logMessage(mtFatal, ("setVideoInfo: The frame rate specified by " + name + " must be a reduced fraction. Instead, it is " + std::to_string(vi[i].fpsNum) + "/" + std::to_string(vi[i].fpsDen) + ")").c_str());
 
         this->vi.push_back(core->VideoInfoFromV3(vi[i]));
         this->v3vi.push_back(vi[i]);
@@ -973,7 +972,7 @@ PVSFrameRef VSNode::getFrameInternal(int n, int activationReason, VSFrameContext
     const VSFrameRef *r = (apiMajor == VAPOURSYNTH_API_MAJOR) ? filterGetFrame(n, activationReason, instanceData, frameCtx.ctx->frameContext, &frameCtx, core, &vs_internal_vsapi) : reinterpret_cast<vs3::VSFilterGetFrame>(filterGetFrame)(n, activationReason, &instanceData, frameCtx.ctx->frameContext, &frameCtx, core, &vs_internal_vsapi3);
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isSSEStateOk())
-        vsFatal("Bad SSE state detected after return from %s", name.c_str());
+        core->logMessage(mtFatal, ("Bad SSE state detected after return from "+ name).c_str());
 #endif
 
     if (r) {
@@ -982,23 +981,21 @@ PVSFrameRef VSNode::getFrameInternal(int n, int activationReason, VSFrameContext
             const VSVideoFormat *fi = r->getVideoFormat();
 
             if (lvi.format.colorFamily == cfUndefined && (fi->colorFamily == cfCompatBGR32 || fi->colorFamily == cfCompatYUY2))
-                vsFatal("Illegal compat frame returned by %s.", name.c_str());
+                core->logMessage(mtFatal, ("Illegal compat frame returned by " + name).c_str());
             else if (lvi.format.colorFamily != cfUndefined && !isSameVideoFormat(&lvi.format, fi))
-                vsFatal("Filter %s returned a frame that's not of the declared format.", name.c_str());
+                core->logMessage(mtFatal, ("Filter " + name + " returned a frame that's not of the declared format").c_str());
             else if ((lvi.width || lvi.height) && (r->getWidth(0) != lvi.width || r->getHeight(0) != lvi.height))
-                vsFatal("Filter %s declared the size %dx%d, but it returned a frame with the size %dx%d.", name.c_str(), lvi.width, lvi.height, r->getWidth(0), r->getHeight(0));
+                core->logMessage(mtFatal, ("Filter " + name + " declared the size " + std::to_string(lvi.width) + "x" + std::to_string(lvi.height) + ", but it returned a frame with the size " + std::to_string(r->getWidth(0)) + "x" + std::to_string(r->getHeight(0))).c_str());
         } else {
             const VSAudioFormat *fi = r->getAudioFormat();
             const VSAudioInfo &lai = ai[frameCtx.ctx->index];
 
+            int expectedSamples = (n < lai.numFrames - 1) ? VS_AUDIO_FRAME_SAMPLES : (((lai.numSamples % VS_AUDIO_FRAME_SAMPLES) ? (lai.numSamples % VS_AUDIO_FRAME_SAMPLES) : VS_AUDIO_FRAME_SAMPLES));
+
             if (lai.format.bitsPerSample != fi->bitsPerSample || lai.format.sampleType != fi->sampleType || lai.format.channelLayout != fi->channelLayout) {
-                char nameBuffer1[32];
-                char nameBuffer2[32];
-                VSCore::getAudioFormatName(*fi, nameBuffer1);
-                VSCore::getAudioFormatName(lai.format, nameBuffer2);
-                vsFatal("Filter %s declared the format %s, but it returned a frame with the format %s.", name.c_str(), &nameBuffer2, &nameBuffer1);
-            } else if (n == lai.numFrames - 1 && ((lai.numSamples % VS_AUDIO_FRAME_SAMPLES) ? (lai.numSamples % VS_AUDIO_FRAME_SAMPLES) : VS_AUDIO_FRAME_SAMPLES) != r->getFrameLength()) {
-                vsFatal("Filter %s returned final audio frame with %d samples but %d expected from declared length.", name.c_str(), r->getFrameLength(), ((lai.numSamples % VS_AUDIO_FRAME_SAMPLES) ? (lai.numSamples % VS_AUDIO_FRAME_SAMPLES) : VS_AUDIO_FRAME_SAMPLES));
+                core->logMessage(mtFatal, ("Filter " + name + " returned a frame that's not of the declared format").c_str());
+            } else if (expectedSamples != r->getFrameLength()) {
+                core->logMessage(mtFatal, ("Filter " + name + " returned audio frame with " + std::to_string(r->getFrameLength()) + " samples but " + std::to_string(expectedSamples) + " expected from declared length").c_str());
             }
         }
 
@@ -1226,6 +1223,53 @@ bool VSCore::isValidFormatPointer(const void *f) {
     return false;
 }
 
+VSMessageHandlerRecord *VSCore::addMessageHandler(VSMessageHandler handler, VSMessageHandlerFree free, void *userData) {
+    std::lock_guard<std::mutex> lock(logMutex);
+    return *(messageHandlers.insert(new VSMessageHandlerRecord{ handler, free, userData }).first);
+}
+
+bool VSCore::removeMessageHandler(VSMessageHandlerRecord *rec) {
+    std::lock_guard<std::mutex> lock(logMutex);
+    auto f = messageHandlers.find(rec);
+    if (f != messageHandlers.end()) {
+        delete rec;
+        messageHandlers.erase(f);
+        return true;
+    } else {
+        return false;
+    }
+}
+
+void VSCore::logMessage(VSMessageType type, const char *msg) {
+    std::lock_guard<std::mutex> lock(logMutex);
+    for (auto iter : messageHandlers) {
+        iter->handler(type, msg, iter->userData);
+    }
+
+    switch (type) {
+        case mtDebug:
+            vsLog3(vs3::mtDebug, "%s", msg);
+            break;
+        case mtInformation:
+        case mtWarning:
+            vsLog3(vs3::mtWarning, "%s", msg);
+            break;
+        case mtCritical:
+            vsLog3(vs3::mtCritical, "%s", msg);
+            break;
+        case mtFatal:
+            vsLog3(vs3::mtFatal, "%s", msg);
+            break;
+    }
+
+    if (type == mtFatal) {
+        fprintf(stderr, "VapourSynth encountered a fatal error: %s\n", msg);
+        assert(false);
+        std::terminate();
+    }
+}
+
+
 bool VSCore::isValidVideoFormat(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH) noexcept {
     if (colorFamily != cfUndefined && colorFamily != cfGray && colorFamily != cfYUV && colorFamily != cfRGB && colorFamily != cfCompatBGR32 && colorFamily != cfCompatYUY2)
         return false;
@@ -1277,8 +1321,16 @@ bool VSCore::isValidVideoInfo(const VSVideoInfo &vi) noexcept {
     if (!isValidVideoFormat(vi.format.colorFamily, vi.format.sampleType, vi.format.bitsPerSample, vi.format.subSamplingW, vi.format.subSamplingH))
         return false;
 
-    // fixme, check implicit fields
     if (vi.fpsDen < 0 || vi.fpsNum < 0 || vi.height < 0 || vi.width < 0 || vi.numFrames < 1)
+        return false;
+
+    int64_t num = vi.fpsNum;
+    int64_t den = vi.fpsDen;
+    vs_reduceRational(&num, &den);
+    if (num != vi.fpsNum || den != vi.fpsDen)
+        return false;
+
+    if ((!!vi.height) ^ (!!vi.width))
         return false;
 
     return true;
@@ -1649,7 +1701,7 @@ VSCore::VSCore(int flags) :
     memory(new MemoryUse()) {
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isSSEStateOk())
-        vsFatal("Bad SSE state detected when creating new core");
+        logMessage(mtFatal, "Bad SSE state detected when creating new core");
 #endif
 
     bool disableAutoLoading = !!(flags & cfDisableAutoLoading);
@@ -1718,7 +1770,7 @@ VSCore::VSCore(int flags) :
         // Autoload bundled plugins
         std::wstring corePluginPath = dllPath + L"vapoursynth" + bits + L"\\coreplugins";
         if (!loadAllPluginsInPath(corePluginPath, filter))
-            vsCritical("Core plugin autoloading failed. Installation is broken?");
+            logMessage(mtCritical, "Core plugin autoloading failed. Installation is broken?");
 
         if (!disableAutoLoading) {
             // Autoload global plugins last, this is so the bundled plugins cannot be overridden easily
@@ -1737,7 +1789,7 @@ VSCore::VSCore(int flags) :
         // Autoload bundled plugins
         std::wstring corePluginPath = readRegistryValue(VS_INSTALL_REGKEY, L"CorePlugins");
         if (!loadAllPluginsInPath(corePluginPath, filter))
-            vsCritical("Core plugin autoloading failed. Installation is broken!");
+            logMessage(mtCritical, "Core plugin autoloading failed. Installation is broken!");
 
         if (!disableAutoLoading) {
             // Autoload per user plugins
@@ -1807,15 +1859,15 @@ VSCore::VSCore(int flags) :
 
 void VSCore::freeCore() {
     if (coreFreed)
-        vsFatal("Double free of core");
+        logMessage(mtFatal, "Double free of core");
     coreFreed = true;
     threadPool->waitForDone();
     if (numFilterInstances > 1)
-        vsWarning("Core freed but %d filter instance(s) still exist", numFilterInstances.load() - 1);
+        logMessage(mtWarning, ("Core freed but " + std::to_string(numFilterInstances.load() - 1) + " filter instance(s) still exist").c_str());
     if (memory->memoryUse() > 0)
-        vsWarning("Core freed but %llu bytes still allocated in framebuffers", static_cast<unsigned long long>(memory->memoryUse()));
+        logMessage(mtWarning, ("Core freed but " + std::to_string(memory->memoryUse()) + " bytes still allocated in framebuffers").c_str());
     if (numFunctionInstances > 0)
-        vsWarning("Core freed but %d function instance(s) still exist", numFunctionInstances.load());
+        logMessage(mtWarning, ("Core freed but " + std::to_string(numFunctionInstances.load()) + " function instance(s) still exist").c_str());
     // Release the extra filter instance that always keeps the core alive
     filterInstanceDestroyed();
 }
@@ -1825,6 +1877,8 @@ VSCore::~VSCore() {
     delete threadPool;
     for(const auto &iter : plugins)
         delete iter.second;
+    while (!messageHandlers.empty())
+        removeMessageHandler(*messageHandlers.begin());
     plugins.clear();
 }
 
@@ -2032,7 +2086,7 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
 
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isSSEStateOk())
-        vsFatal("Bad SSE state detected after loading %s", filename.c_str());
+        core->logMessage(mtFatal, ("Bad SSE state detected after loading " + filename).c_str());
 #endif
 
     if (readOnlySet)
@@ -2062,10 +2116,10 @@ VSPlugin::~VSPlugin() {
 
 bool VSPlugin::configPlugin(const std::string &identifier, const std::string &pluginNamespace, const std::string &fullname, int pluginVersion, int apiVersion, int flags) {
     if (hasConfig)
-        vsFatal("Attempted to configure plugin %s twice", identifier.c_str());
+        core->logMessage(mtFatal,("Attempted to configure plugin " + identifier + " twice").c_str());
 
     if (flags & ~pcReadOnly)
-        vsFatal("Invalig flag field passed to %s", identifier.c_str());
+        core->logMessage(mtFatal, ("Invalid flags passed to configPlugin() by " + identifier).c_str());
 
     if (id.empty())
         id = identifier;
@@ -2089,33 +2143,33 @@ bool VSPlugin::configPlugin(const std::string &identifier, const std::string &pl
 
 bool VSPlugin::registerFunction(const std::string &name, const std::string &args, const std::string &returnType, VSPublicFunction argsFunc, void *functionData) {
     if (readOnly) {
-        vsCritical("Plugin %s tried to modify read only namespace.", filename.c_str());
+        core->logMessage(mtCritical, ("API MISUSE! Tried to register function " + name + " but plugin " + id + " is read only").c_str());
         return false;
     }
 
     if (!isValidIdentifier(name)) {
-        vsCritical("Plugin %s tried to register '%s', an illegal identifier.", filename.c_str(), name.c_str());
+        core->logMessage(mtCritical, ("API MISUSE! Plugin " + id + " tried to register '" + name + "' which is an illegal identifier").c_str());
         return false;
     }
 
     std::lock_guard<std::mutex> lock(functionLock);
 
     if (funcs.count(name)) {
-        vsWarning("Plugin %s tried to register '%s' more than once. Second registration ignored.", filename.c_str(), name.c_str());
+        core->logMessage(mtCritical, ("API MISUSE! Tried to register function '" + name + "' more than once for plugin " + id).c_str());
         return false;
     }
 
     try {
         funcs.emplace(std::make_pair(name, VSPluginFunction(name, args, returnType, argsFunc, functionData, apiMajor)));
     } catch (std::runtime_error &e) {
-        vsCritical("Function '%s' failed to register with error: %s", name.c_str(), e.what());
+        core->logMessage(mtCritical, ("API MISUSE! Function '" + name + "' failed to register with error: " + e.what()).c_str());
         return false;
     }
 
     return true;
 }
 
-bool VSMap::hasCompatNodes() const {
+bool VSMap::hasCompatNodes() const noexcept {
     for (const auto &iter : data->data) {
         if (iter.second->type() == ptVideoNode) {
             VSVideoNodeArray *arr = reinterpret_cast<VSVideoNodeArray *>(iter.second.get());
@@ -2185,10 +2239,10 @@ VSMap *VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
             }
 
             if (!compat && v->hasCompatNodes())
-                vsFatal("%s: illegal filter node returning a compat format detected, DO NOT USE THE COMPAT FORMATS IN NEW FILTERS", funcName.c_str());
+                core->logMessage(mtFatal, (funcName + ": filter node returned compat format but only internal filters may do so").c_str());
 
             if (apiMajor == VAPOURSYNTH3_API_MAJOR && !args.isV3Compatible())
-                vsFatal("%s: illegal filter node returning not yet supported type", funcName.c_str());
+                core->logMessage(mtFatal, (funcName + ": filter node returned not yet supported type").c_str());
 
             return v.release();
         }

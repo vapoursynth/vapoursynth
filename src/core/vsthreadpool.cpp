@@ -65,7 +65,7 @@ bool VSThreadPool::taskCmp(const PFrameContext &a, const PFrameContext &b) {
 void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isSSEStateOk())
-        vsFatal("Bad SSE state detected after creating new thread");
+        owner->core->logMessage(mtFatal, "Bad SSE state detected after creating new thread");
 #endif
 
     std::unique_lock<std::mutex> lock(owner->lock);
@@ -218,7 +218,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 #endif
             bool frameProcessingDone = f || mainContext->hasError();
             if (mainContext->hasError() && f)
-                vsFatal("A frame was returned by %s but an error was also set, this is not allowed", clip->name.c_str());
+                owner->core->logMessage(mtFatal, ("A frame was returned by " + clip->name + " but an error was also set, this is not allowed").c_str());
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Unlock so the next job can run on the context
@@ -285,7 +285,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 } while ((mainContextRef = n));
             } else if (f) {
                 if (hasExistingRequests || requestedFrames)
-                    vsFatal("A frame was returned at the end of processing by %s but there are still outstanding requests", clip->name.c_str());
+                    owner->core->logMessage(mtFatal, ("A frame was returned at the end of processing by " + clip->name + " but there are still outstanding requests").c_str());
                 PFrameContext n;
 
                 do {
@@ -305,7 +305,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             } else if (hasExistingRequests || requestedFrames) {
                 // already scheduled, do nothing
             } else {
-                vsFatal("No frame returned at the end of processing by %s", clip->name.c_str());
+                owner->core->logMessage(mtFatal, ("No frame returned at the end of processing by " + clip->name).c_str());
             }
             break;
         }
@@ -348,7 +348,7 @@ int VSThreadPool::setThreadCount(int threads) {
     maxThreads = threads > 0 ? threads : getNumAvailableThreads();
     if (maxThreads == 0) {
         maxThreads = 1;
-        vsWarning("Couldn't detect optimal number of threads. Thread count set to 1.");
+        core->logMessage(mtWarning, "Couldn't detect optimal number of threads. Thread count set to 1.");
     }
     return maxThreads;
 }
@@ -417,7 +417,7 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
     //unfortunately this would probably be quite slow for deep scripts so just hope the cache catches it
 
     if (context->n < 0)
-        vsFatal("Negative frame request by: %s", context->upstreamContext->clip->getName().c_str());
+        core->logMessage(mtFatal, ("Negative frame request by: " + context->upstreamContext->clip->getName()).c_str());
 
     // check to see if it's time to reevaluate cache sizes
     if (core->memory->isOverLimit()) {

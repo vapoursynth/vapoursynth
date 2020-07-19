@@ -135,7 +135,7 @@ const VSFrameRef *FakeAvisynth::avsToVSFrame(VideoFrame *frame) {
     if (it != ownedFrames.end()) {
         ref = vsapi->cloneFrameRef(it->second);
     } else {
-        vsapi->logMessage(mtFatal, "unreachable condition");
+        vsapi->logMessage(mtFatal, "unreachable condition", core);
         assert(false);
     }
 
@@ -236,7 +236,7 @@ std::string FakeAvisynth::charToFilterArgumentString(char c) {
     case 'c':
         return "clip";
     default:
-        vsapi->logMessage(mtFatal, "Avisynth Compat: invalid argument type character, I quit");
+        vsapi->logMessage(mtFatal, "Avisynth Compat: invalid argument type character, I quit", core);
         return "";
     }
 }
@@ -250,7 +250,7 @@ VSClip::VSClip(VSNodeRef *clip, FakeAvisynth *fakeEnv, const VSAPI *vsapi)
 
     vi.pixel_type = VSFormatToAVSPixelType(srcVi->format);
     if (!vi.pixel_type)
-        vsapi->logMessage(mtFatal, "Bad colorspace");
+        vsapi->logMessage(mtFatal, "Bad colorspace", fakeEnv->core);
 
     vi.image_type = VideoInfo::IT_BFF;
     vi.fps_numerator = int64ToIntS(srcVi->fpsNum);
@@ -274,13 +274,13 @@ PVideoFrame VSClip::GetFrame(int n, IScriptEnvironment *env) {
         if (numSlowWarnings < 200) {
             numSlowWarnings++;
             std::string s = "Avisynth Compat: requested frame "_s + std::to_string(n) + " not prefetched, using slow method";
-            vsapi->logMessage(mtWarning, s.c_str());
+            vsapi->logMessage(mtWarning, s.c_str(), fakeEnv->core);
         }
         ref = vsapi->getFrame(n, clip, buf.data(), static_cast<int>(buf.size()));
     }
 
     if (!ref)
-        vsapi->logMessage(mtFatal, ("Avisynth Compat: error while getting input frame synchronously: "_s + buf.data()).c_str());
+        vsapi->logMessage(mtFatal, ("Avisynth Compat: error while getting input frame synchronously: "_s + buf.data()).c_str(), fakeEnv->core);
 
     bool isMultiplePlanes = (vi.pixel_type & VideoInfo::CS_PLANAR) && !(vi.pixel_type & VideoInfo::CS_INTERLEAVED);
 
@@ -320,8 +320,8 @@ static void prefetchHelper(int n, VSNodeRef *node, const PrefetchInfo &p, VSFram
     }
 }
 
-#define WARNING(fname, warning) if (name == #fname) vsapi->logMessage(mtWarning, "Avisynth Compat: "_s + #fname + " - " + #warning).c_str());
-#define BROKEN(fname) if (name == #fname) vsapi->logMessage(mtWarning, ("Avisynth Compat: Invoking known broken function "_s + name).c_str());
+#define WARNING(fname, warning) if (name == #fname) vsapi->logMessage(mtWarning, "Avisynth Compat: "_s + #fname + " - " + #warning).c_str(), core);
+#define BROKEN(fname) if (name == #fname) vsapi->logMessage(mtWarning, ("Avisynth Compat: Invoking known broken function "_s + name).c_str(), core);
 #define OTHER(fname) if (name == #fname) return PrefetchInfo(1, 1, 0, 0);
 #define SOURCE(fname) if (name == #fname) return PrefetchInfo(1, 1, 0, 0);
 #define PREFETCHR0(fname) if (name == #fname) return PrefetchInfo(1, 1, 0, 0);
@@ -330,7 +330,7 @@ static void prefetchHelper(int n, VSNodeRef *node, const PrefetchInfo &p, VSFram
 #define PREFETCHR3(fname) if (name == #fname) return PrefetchInfo(1, 1, -3, 3);
 #define PREFETCH(fname, div, mul, from, to) if (name == #fname) return PrefetchInfo(div, mul, from, to);
 
-static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, const VSAPI *vsapi) {
+static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, VSCore *core, const VSAPI *vsapi) {
     int err;
     int temp;
     // FFMS2
@@ -499,13 +499,13 @@ static const VSFrameRef *VS_CC avisynthFilterGetFrame(int n, int activationReaso
             frame = clip->clip->GetFrame(n, clip->fakeEnv);
 
             if (!frame)
-                vsapi->logMessage(mtFatal, "Avisynth Error: no frame returned");
+                vsapi->logMessage(mtFatal, "Avisynth Error: no frame returned", core);
         } catch (const AvisynthError &e) {
-            vsapi->logMessage(mtFatal, ("Avisynth Error: avisynth errors in GetFrame() are unrecoverable, crashing... "_s + e.msg).c_str());
+            vsapi->logMessage(mtFatal, ("Avisynth Error: avisynth errors in GetFrame() are unrecoverable, crashing... "_s + e.msg).c_str(), core);
         } catch (const IScriptEnvironment::NotFound &) {
-            vsapi->logMessage(mtFatal, "Avisynth Error: escaped IScriptEnvironment::NotFound exceptions are non-recoverable, crashing... ");
+            vsapi->logMessage(mtFatal, "Avisynth Error: escaped IScriptEnvironment::NotFound exceptions are non-recoverable, crashing...", core);
         } catch (...) {
-            vsapi->logMessage(mtFatal, "Avisynth Error: avisynth errors are unrecoverable, crashing...");
+            vsapi->logMessage(mtFatal, "Avisynth Error: avisynth errors are unrecoverable, crashing...", core);
         }
 
         clip->fakeEnv->uglyCtx = nullptr;
@@ -589,13 +589,13 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
         vsapi->setError(out, e.msg);
         return;
     } catch (const IScriptEnvironment::NotFound &) {
-        vsapi->logMessage(mtFatal, "Avisynth Error: escaped IScriptEnvironment::NotFound exceptions are non-recoverable, crashing... ");
+        vsapi->logMessage(mtFatal, "Avisynth Error: escaped IScriptEnvironment::NotFound exceptions are non-recoverable, crashing... ", core);
     }
 
     fakeEnv->initializing = false;
 
     if (ret.IsClip()) {
-        PrefetchInfo prefetchInfo = getPrefetchInfo(wf->name, in, vsapi);
+        PrefetchInfo prefetchInfo = getPrefetchInfo(wf->name, in, core, vsapi);
         WrappedClip *filterData = new WrappedClip(wf->name, ret.AsClip(), preFetchClips, prefetchInfo, fakeEnv);
 
         if (!filterData->preFetchClips.empty())
@@ -645,18 +645,18 @@ void FakeAvisynth::AddFunction(const char *name, const char *params, ApplyFunc a
     std::string fname(name);
 
     if (fname == "RemoveGrain" || fname == "Repair" || fname == "ColorMatrix" || fname == "IsCombed") {
-        vsapi->logMessage(mtWarning, ("Avisynth Compat: rejected adding Avisynth function " + fname + "because it is too broken").c_str());
+        vsapi->logMessage(mtWarning, ("Avisynth Compat: rejected adding Avisynth function " + fname + "because it is too broken").c_str(), core);
         return;
     }
 
     if (fname == "FFMS2" || fname == "FFCopyrightInfringement") {
-        vsapi->logMessage(mtWarning, ("Avisynth Compat: rejected adding Avisynth function " + fname + "because it calls invoke").c_str());
+        vsapi->logMessage(mtWarning, ("Avisynth Compat: rejected adding Avisynth function " + fname + "because it calls invoke").c_str(), core);
         return;
     }
 
     while (paramPos < paramLength) {
         if (params[paramPos] == '*' || params[paramPos] == '+' || params[paramPos] == '.') {
-            vsapi->logMessage(mtWarning, ("Avisynth Compat: varargs not implemented so I'm just gonna skip importing " + fname).c_str());
+            vsapi->logMessage(mtWarning, ("Avisynth Compat: varargs not implemented so I'm just gonna skip importing " + fname).c_str(), core);
             return;
         }
 
@@ -701,7 +701,7 @@ void FakeAvisynth::AddFunction(const char *name, const char *params, ApplyFunc a
 }
 
 bool FakeAvisynth::FunctionExists(const char *name) {
-    vsapi->logMessage(mtWarning, "FunctionExists not implemented");
+    vsapi->logMessage(mtWarning, "FunctionExists not implemented", core);
     return false;
 }
 
@@ -711,16 +711,16 @@ AVSValue FakeAvisynth::Invoke(const char *name, const AVSValue args, const char*
     }
 
     if (!_stricmp(name, "Crop")) {
-        vsapi->logMessage(mtWarning, "Invoke not fully implemented, tried to call Crop() but I will do nothing");
+        vsapi->logMessage(mtWarning, "Invoke not fully implemented, tried to call Crop() but I will do nothing", core);
         return args[0];
     }
 
     if (!_stricmp(name, "AudioDub")) {
-        vsapi->logMessage(mtWarning, "Invoke not fully implemented, tried to call AudioDub() but I will do nothing");
+        vsapi->logMessage(mtWarning, "Invoke not fully implemented, tried to call AudioDub() but I will do nothing", core);
         return args[0];
     }
 
-    vsapi->logMessage(mtWarning, ("Invoke not fully implemented, tried to call: "_s + name + " but I will pretend it doesn't exist").c_str());
+    vsapi->logMessage(mtWarning, ("Invoke not fully implemented, tried to call: "_s + name + " but I will pretend it doesn't exist").c_str(), core);
     throw IScriptEnvironment::NotFound();
     return AVSValue();
 }
@@ -738,11 +738,11 @@ bool FakeAvisynth::SetGlobalVar(const char *name, const AVSValue &val) {
 }
 
 void FakeAvisynth::PushContext(int level) {
-    vsapi->logMessage(mtFatal, "PushContext not implemented");
+    vsapi->logMessage(mtFatal, "PushContext not implemented", core);
 }
 
 void FakeAvisynth::PopContext() {
-    vsapi->logMessage(mtFatal, "PopContext not implemented");
+    vsapi->logMessage(mtFatal, "PopContext not implemented", core);
 }
 
 PVideoFrame FakeAvisynth::NewVideoFrame(const VideoInfo &vi, int align) {
@@ -761,7 +761,7 @@ PVideoFrame FakeAvisynth::NewVideoFrame(const VideoInfo &vi, int align) {
     VSVideoFormat f;
 
     if (!AVSPixelTypeToVSFormat(f, vi, core, vsapi))
-        vsapi->logMessage(mtFatal, "Unsupported frame format in newvideoframe (alpha and/or packed RGB not supported)");
+        vsapi->logMessage(mtFatal, "Unsupported frame format in newvideoframe (alpha and/or packed RGB not supported)", core);
 
     ref = vsapi->newVideoFrame(&f, vi.width, vi.height, propSrc, core);
 
@@ -835,7 +835,7 @@ void FakeAvisynth::CheckVersion(int version) {
 
 PVideoFrame FakeAvisynth::Subframe(PVideoFrame src, int rel_offset, int new_pitch, int new_row_size, int new_height) {
     if (src->row_size != new_row_size)
-        vsapi->logMessage(mtFatal, "Subframe only partially implemented (row_size != new_row_size)");
+        vsapi->logMessage(mtFatal, "Subframe only partially implemented (row_size != new_row_size)", core);
     // not pretty at all, but the underlying frame has to be fished out to have any idea what the input really is
     const VSFrameRef *f = avsToVSFrame((VideoFrame *)(void *)src);
     const VSVideoFormat *fi = vsapi->getVideoFrameFormat(f);
@@ -848,7 +848,7 @@ PVideoFrame FakeAvisynth::Subframe(PVideoFrame src, int rel_offset, int new_pitc
     else if (IsSameVideoFormat(*fi, cfCompatYUY2, stInteger, 16, 1, 0))
         vi.pixel_type = VideoInfo::CS_YUY2;
     else
-        vsapi->logMessage(mtFatal, "Bad colorspace");
+        vsapi->logMessage(mtFatal, "Bad colorspace", core);
 
     PVideoFrame dst = NewVideoFrame(vi);
     BitBlt(dst->GetWritePtr(), dst->GetPitch(), src->GetReadPtr() + rel_offset, new_pitch, new_row_size, new_height);
@@ -862,24 +862,24 @@ int FakeAvisynth::SetMemoryMax(int mem) {
 }
 
 int FakeAvisynth::SetWorkingDir(const char *newdir) {
-    vsapi->logMessage(mtFatal, "SetWorkingDir not implemented");
+    vsapi->logMessage(mtFatal, "SetWorkingDir not implemented", core);
     return 1;
 }
 
 void *FakeAvisynth::ManageCache(int key, void *data) {
-    vsapi->logMessage(mtFatal, "ManageCache not implemented");
+    vsapi->logMessage(mtFatal, "ManageCache not implemented", core);
     return nullptr;
 }
 
 bool FakeAvisynth::PlanarChromaAlignment(PlanarChromaAlignmentMode key) {
-    vsapi->logMessage(mtFatal, "PlanarChromaAlignment not implemented");
+    vsapi->logMessage(mtFatal, "PlanarChromaAlignment not implemented", core);
     return true;
 }
 
 PVideoFrame FakeAvisynth::SubframePlanar(PVideoFrame src, int rel_offset, int new_pitch, int new_row_size, int new_height, int rel_offsetU, int rel_offsetV, int new_pitchUV) {
-    vsapi->logMessage(mtFatal, "SubframePlanar not implemented");
+    vsapi->logMessage(mtFatal, "SubframePlanar not implemented", core);
     if (src->row_size != new_row_size)
-        vsapi->logMessage(mtFatal, "SubframePlanar only partially implemented");
+        vsapi->logMessage(mtFatal, "SubframePlanar only partially implemented", core);
     // not pretty at all, but the underlying frame has to be fished out to have any idea what the input really is
     const VSFrameRef *f = avsToVSFrame((VideoFrame *)(void *)src);
     const VSVideoFormat *fi = vsapi->getVideoFrameFormat(f);
@@ -890,11 +890,11 @@ PVideoFrame FakeAvisynth::SubframePlanar(PVideoFrame src, int rel_offset, int ne
     vi.pixel_type = VSFormatToAVSPixelType(*fi);
 
     if (!vi.pixel_type)
-        vsapi->logMessage(mtFatal, "Bad colorspace, bad!");
+        vsapi->logMessage(mtFatal, "Bad colorspace, bad!", core);
 
     PVideoFrame dst = NewVideoFrame(vi);
 
-    vsapi->logMessage(mtWarning, "Subframeplanar only partially implemented, report if it crashed or not (especially if not using YV12)");
+    vsapi->logMessage(mtWarning, "Subframeplanar only partially implemented, report if it crashed or not (especially if not using YV12)", core);
     BitBlt(dst->GetWritePtr(PLANAR_Y), dst->GetPitch(PLANAR_Y), src->GetReadPtr(PLANAR_Y) + rel_offset, new_pitch, new_row_size, new_height);
     BitBlt(dst->GetWritePtr(PLANAR_U), dst->GetPitch(PLANAR_U), src->GetReadPtr(PLANAR_U) + rel_offsetU, new_pitchUV, new_row_size/2, new_height/2);
     BitBlt(dst->GetWritePtr(PLANAR_V), dst->GetPitch(PLANAR_V), src->GetReadPtr(PLANAR_V) + rel_offsetV, new_pitchUV, new_row_size/2, new_height/2);
@@ -902,12 +902,12 @@ PVideoFrame FakeAvisynth::SubframePlanar(PVideoFrame src, int rel_offset, int ne
 }
 
 void FakeAvisynth::DeleteScriptEnvironment() {
-    vsapi->logMessage(mtFatal, "DeleteScriptEnvironment not implemented");
+    vsapi->logMessage(mtFatal, "DeleteScriptEnvironment not implemented", core);
 }
 
 void FakeAvisynth::ApplyMessage(PVideoFrame* frame, const VideoInfo& vi, const char* message, int size,
     int textcolor, int halocolor, int bgcolor) {
-    vsapi->logMessage(mtFatal, "ApplyMessage not implemented");
+    vsapi->logMessage(mtFatal, "ApplyMessage not implemented", core);
 }
 
 const AVS_Linkage* const FakeAvisynth::GetAVSLinkage() {
@@ -961,20 +961,20 @@ const char* FakeAvisynth::GetVar(const char* name, const char* def) const {
 }
 
 bool FakeAvisynth::LoadPlugin(const char* filePath, bool throwOnError, AVSValue *result) {
-    vsapi->logMessage(mtFatal, "Plugin loading not implemented");
+    vsapi->logMessage(mtFatal, "Plugin loading not implemented", core);
     return false;
 }
 
 void FakeAvisynth::AddAutoloadDir(const char* dirPath, bool toFront) {
-    vsapi->logMessage(mtFatal, "Autoloading dirs not implemented");
+    vsapi->logMessage(mtFatal, "Autoloading dirs not implemented", core);
 }
 
 void FakeAvisynth::ClearAutoloadDirs() {
-    vsapi->logMessage(mtFatal, "Clearing autoload dirs not implemented");
+    vsapi->logMessage(mtFatal, "Clearing autoload dirs not implemented", core);
 }
 
 void FakeAvisynth::AutoloadPlugins() {
-    vsapi->logMessage(mtFatal, "Autoloading not implemented");
+    vsapi->logMessage(mtFatal, "Autoloading not implemented", core);
 }
 
 void FakeAvisynth::AddFunction(const char* name, const char* params, ApplyFunc apply, void* user_data, const char *exportVar) {
@@ -990,12 +990,12 @@ void FakeAvisynth::SetFilterMTMode(const char* filter, MtMode mode, bool force) 
 }
 
 IJobCompletion* FakeAvisynth::NewCompletion(size_t capacity) {
-    vsapi->logMessage(mtFatal, "Completions not implemented");
+    vsapi->logMessage(mtFatal, "Completions not implemented", core);
     return nullptr;
 }
 
 void FakeAvisynth::ParallelJob(ThreadWorkerFuncPtr jobFunc, void* jobData, IJobCompletion* completion) {
-    vsapi->logMessage(mtFatal, "Threadpool not implemented");
+    vsapi->logMessage(mtFatal, "Threadpool not implemented", core);
 }
 
 // This version of Invoke will return false instead of throwing NotFound().
@@ -1019,7 +1019,7 @@ void FakeAvisynth::Free(void* ptr) {
 
 PVideoFrame FakeAvisynth::SubframePlanarA(PVideoFrame src, int rel_offset, int new_pitch, int new_row_size,
     int new_height, int rel_offsetU, int rel_offsetV, int new_pitchUV, int rel_offsetA) {
-    vsapi->logMessage(mtFatal, "SubframePlanarA not implemented");
+    vsapi->logMessage(mtFatal, "SubframePlanarA not implemented", core);
     return PVideoFrame();
 }
 
@@ -1073,7 +1073,7 @@ static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSC
 
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isSSEStateOk())
-        vsapi->logMessage(mtFatal, ("Bad SSE state detected after loading "_s + rawPath).c_str());
+        vsapi->logMessage(mtFatal, ("Bad SSE state detected after loading "_s + rawPath).c_str(), core);
 #endif
 }
 
