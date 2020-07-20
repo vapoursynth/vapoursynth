@@ -102,9 +102,8 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 break;
             }
 
-            if (seenNodes.count(mainContext->clip))
+            if (!seenNodes.insert(mainContext->clip).second)
                 continue;
-            seenNodes.insert(mainContext->clip);
 
             bool hasLeafContext = mainContext->returnedFrame || mainContext->hasError();
             if (hasLeafContext) {
@@ -139,11 +138,8 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             } else if (filterMode == fmParallel) {
                 std::lock_guard<std::mutex> lock(clip->concurrentFramesMutex);
                 // is the filter already processing another call for this frame? if so move along
-                if (clip->concurrentFrames.count(mainContext->n)) {
+                if (!clip->concurrentFrames.insert(mainContext->n).second)
                     continue;
-                } else {
-                    clip->concurrentFrames.insert(mainContext->n);
-                }
             } else if (filterMode == fmParallelRequests) {
                 std::lock_guard<std::mutex> lock(clip->concurrentFramesMutex);
                 // is the filter already processing another call for this frame? if so move along
