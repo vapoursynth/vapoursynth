@@ -22,12 +22,10 @@
 #define FILTERSHARED_H
 
 #include "VapourSynth4.h"
-#include "VSHelper4.h"
 #include <cstring>
 #include <stdexcept>
 #include <string>
 #include <vector>
-#include <algorithm>
 
 #define RETERROR(x) do { vsapi->setError(out, (x)); return; } while (0)
 
@@ -177,7 +175,7 @@ static inline void getPlanesArg(const VSMap *in, bool *process, const VSAPI *vsa
         process[i] = (m <= 0);
 
     for (int i = 0; i < m; i++) {
-        int o = int64ToIntS(vsapi->propGetInt(in, "planes", i, nullptr));
+        int o = vsapi->propGetSaturatedInt(in, "planes", i, nullptr);
 
         if (o < 0 || o >= 3)
             throw std::runtime_error("plane index out of range");

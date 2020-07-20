@@ -400,18 +400,18 @@ const VSFrameRef *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) 
                         const int height = vsapi->getFrameHeight(f, 0);
                         int row_size = vsapi->getFrameWidth(f, 0) * fi.bytesPerSample;
                         if (fi.numPlanes == 1) {
-                            vs_bitblt(packedFrame.data(), (row_size + 3) & ~3, vsapi->getReadPtr(f, 0), stride, row_size, height);
+                            bitblt(packedFrame.data(), (row_size + 3) & ~3, vsapi->getReadPtr(f, 0), stride, row_size, height);
                         } else if (fi.numPlanes == 3) {
                             int row_size23 = vsapi->getFrameWidth(f, 1) * fi.bytesPerSample;
 
-                            vs_bitblt(packedFrame.data(), row_size, vsapi->getReadPtr(f, 0), stride, row_size, height);
+                            bitblt(packedFrame.data(), row_size, vsapi->getReadPtr(f, 0), stride, row_size, height);
 
-                            vs_bitblt((uint8_t *)packedFrame.data() + (row_size*height),
+                            bitblt((uint8_t *)packedFrame.data() + (row_size*height),
                                 row_size23, vsapi->getReadPtr(f, 2),
                                 vsapi->getStride(f, 2), vsapi->getFrameWidth(f, 2),
                                 vsapi->getFrameHeight(f, 2));
 
-                            vs_bitblt((uint8_t *)packedFrame.data() + (row_size*height + vsapi->getFrameHeight(f, 1)*row_size23),
+                            bitblt((uint8_t *)packedFrame.data() + (row_size*height + vsapi->getFrameHeight(f, 1)*row_size23),
                                 row_size23, vsapi->getReadPtr(f, 1),
                                 vsapi->getStride(f, 1), vsapi->getFrameWidth(f, 1),
                                 vsapi->getFrameHeight(f, 1));
@@ -486,7 +486,7 @@ int VapourSynther::GetVarAsInt(const char* varName, int defVal) {
     VSMap *map = vsapi->createMap();
     vssapi->getVariable(se, varName, map);
     int err = 0;
-    int result = int64ToIntS(vsapi->propGetInt(map, varName, 0, &err));
+    int result = vsapi->propGetSaturatedInt(map, varName, 0, &err);
     if (err)
         result = defVal;
     vsapi->freeMap(map);

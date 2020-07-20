@@ -8,8 +8,8 @@
 * http://sam.zoy.org/wtfpl/COPYING for more details.
 *****************************************************************************/
 
-#ifndef VSHELPER_H
-#define VSHELPER_H
+#ifndef VSHELPER4_H
+#define VSHELPER4_H
 
 #include <limits.h>
 #include <stdint.h>
@@ -22,6 +22,15 @@
 #include <malloc.h>
 #endif
 #include "VapourSynth4.h"
+
+#ifdef __cplusplus
+namespace vsh {
+#define VSH4_MANGLE_FUNCTION_NAME(name) name
+#define VSH4_BOOLEAN_TYPE bool
+#else
+#define VSH4_MANGLE_FUNCTION_NAME(name) vsh_##name
+#define VSH4_BOOLEAN_TYPE int
+#endif
 
 /* Visual Studio doesn't recognize inline in c mode */
 #if defined(_MSC_VER) && !defined(__cplusplus)
@@ -38,11 +47,11 @@
 #endif
 
 #ifdef _WIN32
-#define VS_ALIGNED_MALLOC(pptr, size, alignment) do { *(pptr) = _aligned_malloc((size), (alignment)); } while (0)
-#define VS_ALIGNED_FREE(ptr) do { _aligned_free((ptr)); } while (0)
+#define VSH_ALIGNED_MALLOC(pptr, size, alignment) do { *(pptr) = _aligned_malloc((size), (alignment)); } while (0)
+#define VSH_ALIGNED_FREE(ptr) do { _aligned_free((ptr)); } while (0)
 #else
-#define VS_ALIGNED_MALLOC(pptr, size, alignment) do { if(posix_memalign((void**)(pptr), (alignment), (size))) *((void**)pptr) = NULL; } while (0)
-#define VS_ALIGNED_FREE(ptr) do { free((ptr)); } while (0)
+#define VSH_ALIGNED_MALLOC(pptr, size, alignment) do { if(posix_memalign((void**)(pptr), (alignment), (size))) *((void**)pptr) = NULL; } while (0)
+#define VSH_ALIGNED_FREE(ptr) do { free((ptr)); } while (0)
 #endif
 
 #define VSMAX(a,b) ((a) > (b) ? (a) : (b))
@@ -51,53 +60,53 @@
 #ifdef __cplusplus 
 /* A nicer templated malloc for all the C++ users out there */
 #if __cplusplus >= 201103L || (defined(_MSC_VER) && _MSC_VER >= 1900)
-template<typename T=void>
+template<typename T = void>
 #else
 template<typename T>
 #endif
-static inline T* vs_aligned_malloc(size_t size, size_t alignment) {
+static inline T *vsh_aligned_malloc(size_t size, size_t alignment) {
 #ifdef _WIN32
-    return (T*)_aligned_malloc(size, alignment);
+    return (T *)_aligned_malloc(size, alignment);
 #else
     void *tmp = NULL;
     if (posix_memalign(&tmp, alignment, size))
         tmp = 0;
-    return (T*)tmp;
+    return (T *)tmp;
 #endif
 }
 
-static inline void vs_aligned_free(void *ptr) {
-    VS_ALIGNED_FREE(ptr);
+static inline void vsh_aligned_free(void *ptr) {
+    VSH_ALIGNED_FREE(ptr);
 }
 #endif /* __cplusplus */
 
 /* convenience function for checking if the format never changes between frames */
-static inline int isConstantVideoFormat(const VSVideoInfo *vi) {
+static inline VSH4_BOOLEAN_TYPE VSH4_MANGLE_FUNCTION_NAME(isConstantVideoFormat)(const VSVideoInfo *vi) {
     return vi->height > 0 && vi->width > 0 && vi->format.colorFamily != cfUndefined;
 }
 
 /* convenience function to check for if two clips have the same format (unknown/changeable will be considered the same too) */
-static inline int isSameVideoFormat(const VSVideoFormat *v1, const VSVideoFormat *v2) {
+static inline VSH4_BOOLEAN_TYPE VSH4_MANGLE_FUNCTION_NAME(isSameVideoFormat)(const VSVideoFormat *v1, const VSVideoFormat *v2) {
     return v1->colorFamily == v2->colorFamily && v1->sampleType == v2->sampleType && v1->bitsPerSample == v2->bitsPerSample && v1->subSamplingW == v2->subSamplingW && v1->subSamplingH == v2->subSamplingH;
 }
 
 /* convenience function to check for if two clips have the same format while also including width and height (unknown/changeable will be considered the same too) */
-static inline int isSameVideoInfo(const VSVideoInfo *v1, const VSVideoInfo *v2) {
-    return v1->height == v2->height && v1->width == v2->width && isSameVideoFormat(&v1->format, &v2->format);
+static inline VSH4_BOOLEAN_TYPE VSH4_MANGLE_FUNCTION_NAME(isSameVideoInfo)(const VSVideoInfo *v1, const VSVideoInfo *v2) {
+    return v1->height == v2->height && v1->width == v2->width && VSH4_MANGLE_FUNCTION_NAME(isSameVideoFormat)(&v1->format, &v2->format);
 }
 
 /* convenience function to check for if two clips have the same format while also including samplerate (unknown/changeable will be considered the same too) */
-static inline int isSameAudioFormat(const VSAudioFormat *a1, const VSAudioFormat *a2) {
+static inline VSH4_BOOLEAN_TYPE VSH4_MANGLE_FUNCTION_NAME(isSameAudioFormat)(const VSAudioFormat *a1, const VSAudioFormat *a2) {
     return a1->bitsPerSample == a2->bitsPerSample && a1->sampleType == a2->sampleType && a1->channelLayout == a2->channelLayout;
 }
 
 /* convenience function to check for if two clips have the same format while also including samplerate (unknown/changeable will be considered the same too) */
-static inline int isSameAudioInfo(const VSAudioInfo *a1, const VSAudioInfo *a2) {
-    return a1->sampleRate == a2->sampleRate && isSameAudioFormat(&a1->format, &a2->format);
+static inline VSH4_BOOLEAN_TYPE VSH4_MANGLE_FUNCTION_NAME(isSameAudioInfo)(const VSAudioInfo *a1, const VSAudioInfo *a2) {
+    return a1->sampleRate == a2->sampleRate && VSH4_MANGLE_FUNCTION_NAME(isSameAudioFormat)(&a1->format, &a2->format);
 }
 
 /* multiplies and divides a rational number, such as a frame duration, in place and reduces the result */
-static inline void vs_muldivRational(int64_t *num, int64_t *den, int64_t mul, int64_t div) {
+static inline void VSH4_MANGLE_FUNCTION_NAME(muldivRational)(int64_t *num, int64_t *den, int64_t mul, int64_t div) {
     /* do nothing if the rational number is invalid */
     if (!*den)
         return;
@@ -122,12 +131,12 @@ static inline void vs_muldivRational(int64_t *num, int64_t *den, int64_t mul, in
 }
 
 /* reduces a rational number */
-static inline void vs_reduceRational(int64_t *num, int64_t *den) {
-    vs_muldivRational(num, den, 1, 1);
+static inline void VSH4_MANGLE_FUNCTION_NAME(reduceRational)(int64_t *num, int64_t *den) {
+    VSH4_MANGLE_FUNCTION_NAME(muldivRational)(num, den, 1, 1);
 }
 
 /* add two rational numbers and reduces the result */
-static inline void vs_addRational(int64_t *num, int64_t *den, int64_t addnum, int64_t addden) {
+static inline void VSH4_MANGLE_FUNCTION_NAME(addRational)(int64_t *num, int64_t *den, int64_t addnum, int64_t addden) {
     /* do nothing if the rational number is invalid */
     if (!*den)
         return;
@@ -146,12 +155,12 @@ static inline void vs_addRational(int64_t *num, int64_t *den, int64_t addnum, in
 
         *num += addnum;
 
-        vs_reduceRational(num, den);
+        VSH4_MANGLE_FUNCTION_NAME(reduceRational)(num, den);
     }
 }
 
 /* converts an int64 to int with saturation, useful to silence warnings when reading int properties among other things */
-static inline int int64ToIntS(int64_t i) {
+static inline int VSH4_MANGLE_FUNCTION_NAME(int64ToIntS)(int64_t i) {
     if (i > INT_MAX)
         return INT_MAX;
     else if (i < INT_MIN)
@@ -160,7 +169,7 @@ static inline int int64ToIntS(int64_t i) {
 }
 
 /* converts a double to float with saturation, useful to silence warnings when reading float properties among other things */
-static inline float doubleToFloatS(double d) {
+static inline float VSH4_MANGLE_FUNCTION_NAME(doubleToFloatS)(double d) {
     if (!isfinite(d))
         return (float)d;
     else if (d > FLT_MAX)
@@ -171,7 +180,7 @@ static inline float doubleToFloatS(double d) {
         return (float)d;
 }
 
-static inline void vs_bitblt(void *dstp, ptrdiff_t dst_stride, const void *srcp, ptrdiff_t src_stride, size_t row_size, size_t height) {
+static inline void VSH4_MANGLE_FUNCTION_NAME(bitblt)(void *dstp, ptrdiff_t dst_stride, const void *srcp, ptrdiff_t src_stride, size_t row_size, size_t height) {
     if (height) {
         if (src_stride == dst_stride && src_stride == (ptrdiff_t)row_size) {
             memcpy(dstp, srcp, row_size * height);
@@ -190,13 +199,17 @@ static inline void vs_bitblt(void *dstp, ptrdiff_t dst_stride, const void *srcp,
 
 /* check if the frame dimensions are valid for a given format */
 /* returns non-zero for valid width and height */
-static inline int vs_areValidDimensions(const VSVideoFormat *fi, int width, int height) {
+static inline VSH4_BOOLEAN_TYPE VSH4_MANGLE_FUNCTION_NAME(areValidDimensions)(const VSVideoFormat *fi, int width, int height) {
     return !(width % (1 << fi->subSamplingW) || height % (1 << fi->subSamplingH));
 }
 
 /* Visual Studio doesn't recognize inline in c mode */
 #if defined(_MSC_VER) && !defined(__cplusplus)
 #undef inline
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif

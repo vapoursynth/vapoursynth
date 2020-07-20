@@ -555,8 +555,8 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void *i
             }
 
             int snerr, sderr;
-            int sn = int64ToIntS(vsapi->propGetInt(props, "_SARNum", 0, &snerr));
-            int sd = int64ToIntS(vsapi->propGetInt(props, "_SARDen", 0, &sderr));
+            int64_t sn = vsapi->propGetInt(props, "_SARNum", 0, &snerr);
+            int64_t sd = vsapi->propGetInt(props, "_SARDen", 0, &sderr);
             if (snerr || sderr)
                 text += "Aspect ratio: Unknown\n";
             else
@@ -575,22 +575,22 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void *i
             text += "Subsampling Height/Width: " + std::to_string(1 << frame_format->subSamplingH) + "x/" + std::to_string(1 << frame_format->subSamplingW) + "x\n";
 
             int err;
-            int matrix = int64ToIntS(vsapi->propGetInt(props, "_Matrix", 0, &err));
+            int matrix = vsapi->propGetSaturatedInt(props, "_Matrix", 0, &err);
             if (err)
                 matrix = -1;
-            int primaries = int64ToIntS(vsapi->propGetInt(props, "_Primaries", 0, &err));
+            int primaries = vsapi->propGetSaturatedInt(props, "_Primaries", 0, &err);
             if (err)
                 primaries = -1;
-            int transfer = int64ToIntS(vsapi->propGetInt(props, "_Transfer", 0, &err));
+            int transfer = vsapi->propGetSaturatedInt(props, "_Transfer", 0, &err);
             if (err)
                 transfer = -1;
-            int range = int64ToIntS(vsapi->propGetInt(props, "_ColorRange", 0, &err));
+            int range = vsapi->propGetSaturatedInt(props, "_ColorRange", 0, &err);
             if (err)
                 range = -1;
-            int location = int64ToIntS(vsapi->propGetInt(props, "_ChromaLocation", 0, &err));
+            int location = vsapi->propGetSaturatedInt(props, "_ChromaLocation", 0, &err);
             if (err)
                 location = -1;
-            int field = int64ToIntS(vsapi->propGetInt(props, "_FieldBased", 0, &err));
+            int field = vsapi->propGetSaturatedInt(props, "_FieldBased", 0, &err);
             if (err)
                 field = -1;
 
@@ -611,8 +611,8 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void *i
             }
 
             int fnerr, fderr;
-            int fn = int64ToIntS(vsapi->propGetInt(props, "_DurationNum", 0, &fnerr));
-            int fd = int64ToIntS(vsapi->propGetInt(props, "_DurationDen", 0, &fderr));
+            int64_t fn = vsapi->propGetInt(props, "_DurationNum", 0, &fnerr);
+            int64_t fd = vsapi->propGetInt(props, "_DurationDen", 0, &fderr);
             if (fnerr || fderr) {
                 text += "Frame duration: Unknown\n";
             } else {
@@ -678,7 +678,7 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
             return;
     }
 
-    d->alignment = int64ToIntS(vsapi->propGetInt(in, "alignment", 0, &err));
+    d->alignment = vsapi->propGetSaturatedInt(in, "alignment", 0, &err);
     if (err) {
         d->alignment = 7; // top left
     }

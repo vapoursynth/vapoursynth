@@ -41,6 +41,8 @@
 #include "../common/wave.h"
 #include "../common/vsutf16.h"
 
+using namespace vsh;
+
 static std::atomic<long> refCount(0);
 
 static const GUID CLSID_VapourSynth
@@ -839,7 +841,7 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
         const int height = vsapi->getFrameHeight(f, 0);
         int row_size = vsapi->getFrameWidth(f, 0) * fi.bytesPerSample;
         if (fi.numPlanes == 1) {
-            vs_bitblt(lpBuffer, (row_size + 3) & ~3, vsapi->getReadPtr(f, 0), stride, row_size, height);
+            bitblt(lpBuffer, (row_size + 3) & ~3, vsapi->getReadPtr(f, 0), stride, row_size, height);
         } else if (fi.numPlanes == 3) {
             int row_size23 = vsapi->getFrameWidth(f, 1) * fi.bytesPerSample;
 
@@ -847,14 +849,14 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
             int plane2 = (switchPlanes ? 2 : 1);
             int plane3 = (switchPlanes ? 1 : 2);
 
-            vs_bitblt(lpBuffer, row_size, vsapi->getReadPtr(f, 0), stride, row_size, height);
+            bitblt(lpBuffer, row_size, vsapi->getReadPtr(f, 0), stride, row_size, height);
 
-            vs_bitblt((uint8_t *)lpBuffer + (row_size*height),
+            bitblt((uint8_t *)lpBuffer + (row_size*height),
                 row_size23, vsapi->getReadPtr(f, plane2),
                 vsapi->getStride(f, plane2), vsapi->getFrameWidth(f, plane2),
                 vsapi->getFrameHeight(f, plane2));
 
-            vs_bitblt((uint8_t *)lpBuffer + (row_size*height + vsapi->getFrameHeight(f, plane2)*row_size23),
+            bitblt((uint8_t *)lpBuffer + (row_size*height + vsapi->getFrameHeight(f, plane2)*row_size23),
                 row_size23, vsapi->getReadPtr(f, plane3),
                 vsapi->getStride(f, plane3), vsapi->getFrameWidth(f, plane3),
                 vsapi->getFrameHeight(f, plane3));

@@ -26,6 +26,8 @@
 #include <vector>
 #include <algorithm>
 
+using namespace vsh;
+
 //////////////////////////////////////////
 // Shared
 
@@ -98,11 +100,11 @@ static void VS_CC trimCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     int err;
     int trimlen;
 
-    d->first = int64ToIntS(vsapi->propGetInt(in, "first", 0, &err));
+    d->first = vsapi->propGetSaturatedInt(in, "first", 0, &err);
     int firstset = !err;
-    int last = int64ToIntS(vsapi->propGetInt(in, "last", 0, &err));
+    int last = vsapi->propGetSaturatedInt(in, "last", 0, &err);
     int lastset = !err;
-    int length = int64ToIntS(vsapi->propGetInt(in, "length", 0, &err));
+    int length = vsapi->propGetSaturatedInt(in, "length", 0, &err);
     int lengthset = !err;
 
     if (lastset && lengthset)
@@ -171,7 +173,7 @@ static const VSFrameRef *VS_CC interleaveGetframe(int n, int activationReason, v
             int64_t durationNum = vsapi->propGetInt(dst_props, "_DurationNum", 0, &errNum);
             int64_t durationDen = vsapi->propGetInt(dst_props, "_DurationDen", 0, &errDen);
             if (!errNum && !errDen) {
-                vs_muldivRational(&durationNum, &durationDen, 1, d->numclips);
+                muldivRational(&durationNum, &durationDen, 1, d->numclips);
                 vsapi->propSetInt(dst_props, "_DurationNum", durationNum, paReplace);
                 vsapi->propSetInt(dst_props, "_DurationDen", durationDen, paReplace);
             }
@@ -234,7 +236,7 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
             for (int i = 0; i < d->numclips; i++) {
                 if (vsapi->getVideoInfo(d->node[i])->numFrames > ((INT_MAX - i - 1) / d->numclips + 1))
                     overflow = true;
-                d->vi.numFrames = VSMAX(d->vi.numFrames, (vsapi->getVideoInfo(d->node[i])->numFrames - 1) * d->numclips + i + 1);
+                d->vi.numFrames = std::max(d->vi.numFrames, (vsapi->getVideoInfo(d->node[i])->numFrames - 1) * d->numclips + i + 1);
             }
         }
 
@@ -242,7 +244,7 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
             RETERROR("Interleave: resulting clip is too long");
 
         if (d->modifyDuration)
-            vs_muldivRational(&d->vi.fpsNum, &d->vi.fpsDen, d->numclips, 1);
+            muldivRational(&d->vi.fpsNum, &d->vi.fpsDen, d->numclips, 1);
 
         vsapi->createVideoFilter(out, "Interleave", &d->vi, 1, interleaveGetframe, filterFree<InterleaveData>, fmParallel, nfNoCache, d.get(), core);
         d.release();
@@ -296,7 +298,7 @@ static const VSFrameRef *VS_CC loopGetframe(int n, int activationReason, void *i
 static void VS_CC loopCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<LoopData> d(new LoopData(vsapi));
     int err;
-    int times = int64ToIntS(vsapi->propGetInt(in, "times", 0, &err));
+    int times = vsapi->propGetSaturatedInt(in, "times", 0, &err);
     if (times < 0)
         RETERROR("Loop: cannot repeat clip a negative number of times");
 
@@ -350,7 +352,7 @@ static const VSFrameRef *VS_CC selectEveryGetframe(int n, int activationReason, 
             int64_t durationNum = vsapi->propGetInt(dst_props, "_DurationNum", 0, &errNum);
             int64_t durationDen = vsapi->propGetInt(dst_props, "_DurationDen", 0, &errDen);
             if (!errNum && !errDen) {
-                vs_muldivRational(&durationNum, &durationDen, d->cycle, d->num);
+                muldivRational(&durationNum, &durationDen, d->cycle, d->num);
                 vsapi->propSetInt(dst_props, "_DurationNum", durationNum, paReplace);
                 vsapi->propSetInt(dst_props, "_DurationDen", durationDen, paReplace);
             }
@@ -368,7 +370,7 @@ static void VS_CC selectEveryCreate(const VSMap *in, VSMap *out, void *userData,
     std::unique_ptr<SelectEveryData> d(new SelectEveryData(vsapi));
     int err;
 
-    d->cycle = int64ToIntS(vsapi->propGetInt(in, "cycle", 0, 0));
+    d->cycle = vsapi->propGetSaturatedInt(in, "cycle", 0, 0);
 
     if (d->cycle <= 1)
         RETERROR("SelectEvery: invalid cycle size (must be greater than 1)");
@@ -381,7 +383,7 @@ static void VS_CC selectEveryCreate(const VSMap *in, VSMap *out, void *userData,
     d->offsets.resize(d->num);
 
     for (int i = 0; i < d->num; i++) {
-        d->offsets[i] = int64ToIntS(vsapi->propGetInt(in, "offsets", i, 0));
+        d->offsets[i] = vsapi->propGetSaturatedInt(in, "offsets", i, 0);
 
         if (d->offsets[i] < 0 || d->offsets[i] >= d->cycle)
             RETERROR("SelectEvery: invalid offset specified");
@@ -402,7 +404,7 @@ static void VS_CC selectEveryCreate(const VSMap *in, VSMap *out, void *userData,
         RETERROR("SelectEvery: no frames to output, all offsets outside available frames");
 
     if (d->modifyDuration)
-        vs_muldivRational(&vi.fpsNum, &vi.fpsDen, d->num, d->cycle);
+        muldivRational(&vi.fpsNum, &vi.fpsDen, d->num, d->cycle);
 
     vsapi->createVideoFilter(out, "SelectEvery", &vi, 1, selectEveryGetframe, filterFree<SelectEveryData>, fmParallel, nfNoCache, d.release(), core);
 }
@@ -668,9 +670,9 @@ static void VS_CC freezeFramesCreate(const VSMap *in, VSMap *out, void *userData
     d->freeze.resize(num_freeze);
 
     for (int i = 0; i < num_freeze; i++) {
-        d->freeze[i].first = int64ToIntS(vsapi->propGetInt(in, "first", i, 0));
-        d->freeze[i].last = int64ToIntS(vsapi->propGetInt(in, "last", i, 0));
-        d->freeze[i].replacement = int64ToIntS(vsapi->propGetInt(in, "replacement", i, 0));
+        d->freeze[i].first = vsapi->propGetSaturatedInt(in, "first", i, 0);
+        d->freeze[i].last = vsapi->propGetSaturatedInt(in, "last", i, 0);
+        d->freeze[i].replacement = vsapi->propGetSaturatedInt(in, "replacement", i, 0);
 
         if (d->freeze[i].first > d->freeze[i].last) {
             int tmp = d->freeze[i].first;

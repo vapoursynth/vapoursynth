@@ -46,6 +46,8 @@
 #include "internalfilters.h"
 #include "cachefilter.h"
 
+using namespace vsh;
+
 static inline bool isAlpha(char c) {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
 }
@@ -256,7 +258,7 @@ void *MemoryUse::allocateMemory(size_t bytes) const {
     if (ptr)
         return ptr;
 
-    ptr = vs_aligned_malloc(VSFrameRef::alignment + bytes, VSFrameRef::alignment);
+    ptr = vsh_aligned_malloc(VSFrameRef::alignment + bytes, VSFrameRef::alignment);
     if (!ptr)
         VS_FATAL_ERROR("out of memory");
 
@@ -271,7 +273,7 @@ void MemoryUse::freeMemory(void *ptr) const {
     if (header->large)
         freeLargePage(ptr);
     else
-        vs_aligned_free(ptr);
+        vsh_aligned_free(ptr);
 }
 
 bool MemoryUse::isGoodFit(size_t requested, size_t actual) const {
@@ -919,7 +921,7 @@ void VSNode::setVideoInfo3(const vs3::VSVideoInfo *vi, int numOutputs) {
             core->logMessage(mtFatal, ("setVideoInfo: The VSVideoFormat pointer passed by " + name + " was not obtained from registerFormat() or getFormatPreset()").c_str());
         int64_t num = vi[i].fpsNum;
         int64_t den = vi[i].fpsDen;
-        vs_reduceRational(&num, &den);
+        reduceRational(&num, &den);
         if (num != vi[i].fpsNum || den != vi[i].fpsDen)
             core->logMessage(mtFatal, ("setVideoInfo: The frame rate specified by " + name + " must be a reduced fraction. Instead, it is " + std::to_string(vi[i].fpsNum) + "/" + std::to_string(vi[i].fpsDen) + ")").c_str());
 
@@ -1326,7 +1328,7 @@ bool VSCore::isValidVideoInfo(const VSVideoInfo &vi) noexcept {
 
     int64_t num = vi.fpsNum;
     int64_t den = vi.fpsDen;
-    vs_reduceRational(&num, &den);
+    reduceRational(&num, &den);
     if (num != vi.fpsNum || den != vi.fpsDen)
         return false;
 

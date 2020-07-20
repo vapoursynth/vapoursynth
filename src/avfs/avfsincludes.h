@@ -30,3 +30,4 @@ namespace avs {
 #include "../common/fourcc.h"
 #include "../common/wave.h"
 #include "../common/vsutf16.h"
+using namespace vsh;

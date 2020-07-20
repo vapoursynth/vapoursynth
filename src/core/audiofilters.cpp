@@ -32,6 +32,8 @@
 #include <vector>
 #include <set>
 
+using namespace vsh;
+
 //////////////////////////////////////////
 // AudioTrim
 
@@ -95,11 +97,11 @@ static void VS_CC audioTrimCreate(const VSMap *in, VSMap *out, void *userData, V
     int err;
     int64_t trimlen;
 
-    d->first = int64ToIntS(vsapi->propGetInt(in, "first", 0, &err));
+    d->first = vsapi->propGetSaturatedInt(in, "first", 0, &err);
     bool firstset = !err;
-    int64_t last = int64ToIntS(vsapi->propGetInt(in, "last", 0, &err));
+    int64_t last = vsapi->propGetSaturatedInt(in, "last", 0, &err);
     bool lastset = !err;
-    int64_t length = int64ToIntS(vsapi->propGetInt(in, "length", 0, &err));
+    int64_t length = vsapi->propGetSaturatedInt(in, "length", 0, &err);
     bool lengthset = !err;
 
     if (lastset && lengthset)
@@ -567,12 +569,12 @@ static void VS_CC audioMixCreate(const VSMap *in, VSMap *out, void *userData, VS
     uint64_t channelLayout = 0;
 
     for (int i = 0; i < numDstChannels; i++) {
-        int channel = int64ToIntS(vsapi->propGetInt(in, "channels_out", i, nullptr));
+        int channel = vsapi->propGetSaturatedInt(in, "channels_out", i, nullptr);
         channelLayout |= static_cast<uint64_t>(1) << channel;
     }
 
     for (int i = 0; i < numDstChannels; i++) {
-        int channel = int64ToIntS(vsapi->propGetInt(in, "channels_out", i, nullptr));
+        int channel = vsapi->propGetSaturatedInt(in, "channels_out", i, nullptr);
         int pos = 0;
         for (int j = 0; j < channel; j++) {
             if ((static_cast<uint64_t>(1) << j) & channelLayout)
@@ -718,8 +720,8 @@ static void VS_CC shuffleChannelsCreate(const VSMap *in, VSMap *out, void *userD
     uint64_t channelLayout = 0;
 
     for (int i = 0; i < numSrcChannels; i++) {
-        int channel = int64ToIntS(vsapi->propGetInt(in, "channels_in", i, nullptr));
-        int dstChannel = int64ToIntS(vsapi->propGetInt(in, "channels_out", i, nullptr));
+        int channel = vsapi->propGetSaturatedInt(in, "channels_in", i, nullptr);
+        int dstChannel = vsapi->propGetSaturatedInt(in, "channels_out", i, nullptr);
         channelLayout |= (static_cast<uint64_t>(1) << dstChannel);
         VSNodeRef *node = vsapi->propGetNode(in, "clip", std::min(numSrcNodes - 1, i), nullptr);
         d->sourceNodes.push_back({ node, channel, dstChannel });
@@ -853,7 +855,7 @@ static void VS_CC assumeSampleRateCreate(const VSMap *in, VSMap *out, void *user
     d->node = vsapi->propGetNode(in, "clip", 0, 0);
     VSAudioInfo ai = *vsapi->getAudioInfo(d->node);
 
-    ai.sampleRate = int64ToIntS(vsapi->propGetInt(in, "samplerate", 0, &err));
+    ai.sampleRate = vsapi->propGetSaturatedInt(in, "samplerate", 0, &err);
     if (!err)
         hassamplerate = true;
 
@@ -923,7 +925,7 @@ static void VS_CC blankAudioCreate(const VSMap *in, VSMap *out, void *userData, 
     if (err)
         channels = (1 << acFrontLeft) | (1 << acFrontRight);
 
-    int bits = int64ToIntS(vsapi->propGetInt(in, "bits", 0, &err));
+    int bits = vsapi->propGetSaturatedInt(in, "bits", 0, &err);
     if (err)
         bits = 16;
 
@@ -931,7 +933,7 @@ static void VS_CC blankAudioCreate(const VSMap *in, VSMap *out, void *userData, 
 
     d->keep = !!vsapi->propGetInt(in, "keep", 0, &err);
 
-    d->ai.sampleRate = int64ToIntS(vsapi->propGetInt(in, "samplerate", 0, &err));
+    d->ai.sampleRate = vsapi->propGetSaturatedInt(in, "samplerate", 0, &err);
     if (err)
         d->ai.sampleRate = 44100;
 
@@ -986,7 +988,7 @@ static void VS_CC testAudioCreate(const VSMap *in, VSMap *out, void *userData, V
     if (err)
         channels = (1 << acFrontLeft) | (1 << acFrontRight);
 
-    int bits = int64ToIntS(vsapi->propGetInt(in, "bits", 0, &err));
+    int bits = vsapi->propGetSaturatedInt(in, "bits", 0, &err);
     if (err)
         bits = 16;
 
@@ -995,7 +997,7 @@ static void VS_CC testAudioCreate(const VSMap *in, VSMap *out, void *userData, V
 
     bool isfloat = !!vsapi->propGetInt(in, "isfloat", 0, &err);
 
-    d->ai.sampleRate = int64ToIntS(vsapi->propGetInt(in, "samplerate", 0, &err));
+    d->ai.sampleRate = vsapi->propGetSaturatedInt(in, "samplerate", 0, &err);
     if (err)
         d->ai.sampleRate = 44100;
 

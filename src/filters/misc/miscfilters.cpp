@@ -39,6 +39,8 @@ namespace {
 std::string operator""_s(const char *str, size_t len) { return{ str, len }; }
 } // namespace
 
+using namespace vsh;
+
 ///////////////////////////////////////
 // SCDetect
 

@@ -35,6 +35,7 @@ namespace {
 std::string operator""_s(const char *str, size_t len) { return{ str, len }; }
 } // namespace
 
+using namespace vsh;
 
 namespace AvisynthCompat {
  
@@ -341,7 +342,7 @@ static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, VS
     OTHER(FFGetLogLevel)
     OTHER(FFGetVersion)
     // TNLMeans
-    temp = int64ToIntS(vsapi->propGetInt(in, "Az", 0, &err));
+    temp = vsapi->propGetSaturatedInt(in, "Az", 0, &err);
     PREFETCH(TNLMeans, 1, 1, -temp, temp)
     // yadif*
     PREFETCHR1(Yadif)
@@ -354,7 +355,7 @@ static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, VS
     PREFETCHR0(nnedi3)
     PREFETCHR0(nnedi3_rpow2)
     // mixed Tritical
-    temp = int64ToIntS(vsapi->propGetInt(in, "mode", 0, &err));
+    temp = vsapi->propGetSaturatedInt(in, "mode", 0, &err);
     switch(temp) {
     case 0:
     case -1:
@@ -367,7 +368,7 @@ static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, VS
     }
     BROKEN(ColorMatrix)
     PREFETCHR1(Cnr2)
-    temp = int64ToIntS(vsapi->propGetInt(in, "tbsize", 0, &err));
+    temp = vsapi->propGetSaturatedInt(in, "tbsize", 0, &err);
     PREFETCH(dfttest, 1, 1, -(temp / 2), temp / 2)
 
     // MPEG2DEC
@@ -380,13 +381,13 @@ static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, VS
     SOURCE(DGSource)
     PREFETCHR0(DGDenoise)
     PREFETCHR0(DGSharpen)
-    temp = int64ToIntS(vsapi->propGetInt(in, "mode", 0, &err));
+    temp = vsapi->propGetSaturatedInt(in, "mode", 0, &err);
     PREFETCH(DGBob, (temp > 0) ? 2 : 1, 1, -2, 2) // close enough?
     BROKEN(IsCombed)
     PREFETCHR0(FieldDeinterlace)
     PREFETCH(Telecide, 1, 1, -2, 10) // not good
     PREFETCH(DGTelecide, 1, 1, -2, 10) // also not good
-    temp = int64ToIntS(vsapi->propGetInt(in, "cycle", 0, &err));
+    temp = vsapi->propGetSaturatedInt(in, "cycle", 0, &err);
     PREFETCH(DGDecimate, temp - 1, temp, -(temp + 3), temp + 3) // probably suboptimal
     PREFETCH(Decimate, temp - 1, temp, -(temp + 3), temp + 3) // probably suboptimal too
 
@@ -441,7 +442,7 @@ static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, VS
     PREFETCHR0(eDeen)
     // Mvtools
     PREFETCHR0(MSuper)
-    temp = int64ToIntS(vsapi->propGetInt(in, "delta", 0, &err));
+    temp = vsapi->propGetSaturatedInt(in, "delta", 0, &err);
     if (temp < 1)
         temp = 1;
     PREFETCH(MAnalyse, 1, 1, -temp, temp)
@@ -473,7 +474,7 @@ static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, VS
     PREFETCH(TemporalSoften, 1, 1, -5, 5)
 
     // AutoAdjust
-    temp = int64ToIntS(vsapi->propGetInt(in, "temporal_radius", 0, &err));
+    temp = vsapi->propGetSaturatedInt(in, "temporal_radius", 0, &err);
     if (err || temp < 0)
         temp = 20;
     PREFETCH(AutoAdjust, 1, 1, -temp, temp)
@@ -552,7 +553,7 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
         if (vsapi->propNumElements(in, parsedArg.name.data()) > 0) {
             switch (parsedArg.type) {
             case 'i':
-                inArgs[i] = int64ToIntS(vsapi->propGetInt(in, parsedArg.name.c_str(), 0, nullptr));
+                inArgs[i] = vsapi->propGetSaturatedInt(in, parsedArg.name.c_str(), 0, nullptr);
                 break;
             case 'f':
                 inArgs[i] = vsapi->propGetFloat(in, parsedArg.name.c_str(), 0, nullptr);
@@ -608,7 +609,7 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
         vi.numFrames = viAvs.num_frames;
         vi.fpsNum = viAvs.fps_numerator;
         vi.fpsDen = viAvs.fps_denominator;
-        vs_reduceRational(&vi.fpsNum, &vi.fpsDen);
+        reduceRational(&vi.fpsNum, &vi.fpsDen);
 
         if (!AVSPixelTypeToVSFormat(vi.format, viAvs, core, vsapi))
             vsapi->setError(out, "Avisynth Compat: bad format!");
@@ -1010,11 +1011,11 @@ bool FakeAvisynth::Invoke(AVSValue *result, const char* name, const AVSValue& ar
 
 // Support functions
 void* FakeAvisynth::Allocate(size_t nBytes, size_t alignment, AvsAllocType type) {
-    return vs_aligned_malloc(nBytes, alignment);
+    return vsh_aligned_malloc(nBytes, alignment);
 }
 
 void FakeAvisynth::Free(void* ptr) {
-    vs_aligned_free(ptr);
+    vsh_aligned_free(ptr);
 }
 
 PVideoFrame FakeAvisynth::SubframePlanarA(PVideoFrame src, int rel_offset, int new_pitch, int new_row_size,

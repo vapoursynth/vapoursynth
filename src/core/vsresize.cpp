@@ -68,6 +68,8 @@ void sp_atomic_store(std::shared_ptr<T> *p, std::shared_ptr<T> r)
 #define sp_atomic_store std::atomic_store
 #endif
 
+using namespace vsh;
+
 namespace {
 
 std::string operator""_s(const char *str, size_t len) { return{ str, len }; }
@@ -369,8 +371,8 @@ void propagate_sar(const VSMap *src_props, VSMap *dst_props, const zimg_image_fo
         vsapi->propDeleteKey(dst_props, "_SARNum");
         vsapi->propDeleteKey(dst_props, "_SARDen");
     } else {
-        vs_muldivRational(&sar_num, &sar_den, src_format.width, dst_format.width);
-        vs_muldivRational(&sar_num, &sar_den, dst_format.height, src_format.height);
+        muldivRational(&sar_num, &sar_den, src_format.width, dst_format.width);
+        muldivRational(&sar_num, &sar_den, dst_format.height, src_format.height);
 
         vsapi->propSetInt(dst_props, "_SARNum", sar_num, paReplace);
         vsapi->propSetInt(dst_props, "_SARDen", sar_den, paReplace);
@@ -859,9 +861,9 @@ class vszimg {
                 dst_format_b.field_parity = ZIMG_FIELD_BOTTOM;
                 std::shared_ptr<graph_data> graph_b = get_graph_data(src_format_b, dst_format_b);
 
-                std::unique_ptr<void, decltype(&vs_aligned_free)> tmp{
-                    vs_aligned_malloc(std::max(graph_t->graph.get_tmp_size(), graph_b->graph.get_tmp_size()), 64),
-                    vs_aligned_free
+                std::unique_ptr<void, decltype(&vsh_aligned_free)> tmp{
+                    vsh_aligned_malloc(std::max(graph_t->graph.get_tmp_size(), graph_b->graph.get_tmp_size()), 64),
+                    vsh_aligned_free
                 };
                 if (!tmp)
                     throw std::bad_alloc{};
@@ -879,9 +881,9 @@ class vszimg {
                 unpack_callback unpack_cb{ graph->graph, src_frame, src_format, src_vsformat, false, core, vsapi };
                 pack_callback pack_cb{ graph->graph, dst_frame, dst_format, dst_vsformat, false, core, vsapi };
 
-                std::unique_ptr<void, decltype(&vs_aligned_free)> tmp{
-                    vs_aligned_malloc(graph->graph.get_tmp_size(), 64),
-                    vs_aligned_free
+                std::unique_ptr<void, decltype(&vsh_aligned_free)> tmp{
+                    vsh_aligned_malloc(graph->graph.get_tmp_size(), 64),
+                    vsh_aligned_free
                 };
                 if (!tmp)
                     throw std::bad_alloc{};

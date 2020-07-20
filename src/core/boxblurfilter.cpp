@@ -328,18 +328,18 @@ static void VS_CC boxBlurCreate(const VSMap *in, VSMap *out, void *userData, VSC
         bool process[3];
         getPlanesArg(in, process, vsapi);
 
-        int hradius = int64ToIntS(vsapi->propGetInt(in, "hradius", 0, &err));
+        int hradius = vsapi->propGetSaturatedInt(in, "hradius", 0, &err);
         if (err)
             hradius = 1;
-        int hpasses = int64ToIntS(vsapi->propGetInt(in, "hpasses", 0, &err));
+        int hpasses = vsapi->propGetSaturatedInt(in, "hpasses", 0, &err);
         if (err)
             hpasses = 1;
         bool hblur = (hradius > 0) && (hpasses > 0);
 
-        int vradius = int64ToIntS(vsapi->propGetInt(in, "vradius", 0, &err));
+        int vradius = vsapi->propGetSaturatedInt(in, "vradius", 0, &err);
         if (err)
             vradius = 1;
-        int vpasses = int64ToIntS(vsapi->propGetInt(in, "vpasses", 0, &err));
+        int vpasses = vsapi->propGetSaturatedInt(in, "vpasses", 0, &err);
         if (err)
             vpasses = 1;
         bool vblur = (vradius > 0) && (vpasses > 0);

@@ -48,6 +48,8 @@
 #endif
 #endif
 
+using namespace vsh;
+
 namespace {
 
 #define MAX_EXPR_INPUTS 26
@@ -3269,7 +3271,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         }
 
         d->vi = *vi[0];
-        int format = int64ToIntS(vsapi->propGetInt(in, "format", 0, &err));
+        int format = vsapi->propGetSaturatedInt(in, "format", 0, &err);
         if (!err) {
             VSVideoFormat f;
             vsapi->queryVideoFormatByID(&f, format, core);

@@ -74,6 +74,8 @@ std::string nstringToUtf8(const nstring &s) {
 }
 #endif
 
+using namespace vsh;
+
 /////////////////////////////////////////////
 
 static const VSAPI *vsapi = nullptr;
@@ -197,7 +199,7 @@ static void outputFrame(const VSFrameRef *frame) {
                 int height = vsapi->getFrameHeight(frame, p);
 
                 if (rowSize != stride) {
-                    vs_bitblt(buffer.data(), rowSize, readPtr, stride, rowSize, height);
+                    bitblt(buffer.data(), rowSize, readPtr, stride, rowSize, height);
                     readPtr = buffer.data();
                 }
 
@@ -322,7 +324,7 @@ static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, 
                             totalFrames = requestedFrames;
                             outputError = true;
                         } else {
-                            vs_addRational(&currentTimecodeNum, &currentTimecodeDen, duration_num, duration_den);
+                            addRational(&currentTimecodeNum, &currentTimecodeDen, duration_num, duration_den);
                         }
                     }
                 }

@@ -26,6 +26,8 @@
 #include <cstring>
 #include <string>
 
+using namespace vsh;
+
 static int VS_CC configPlugin(const char *identifier, const char *defaultNamespace, const char *name, int pluginVersion, int apiVersion, int flags, VSPlugin *plugin) VS_NOEXCEPT {
     assert(identifier && defaultNamespace && name && plugin);
     return plugin->configPlugin(identifier, defaultNamespace, name, pluginVersion, apiVersion, flags);

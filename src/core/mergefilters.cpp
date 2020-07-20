@@ -28,6 +28,8 @@
 #include <memory>
 #include <algorithm>
 
+using namespace vsh;
+
 //////////////////////////////////////////
 // PreMultiply
 
@@ -100,7 +102,7 @@ static const VSFrameRef *VS_CC preMultiplyGetFrame(int n, int activationReason, 
                         for (int y = 0; y < h; y++) {
                             for (int x = 0; x < w; x++) {
                                 uint16_t s1 = ((const uint16_t *)srcp1)[x];
-                                uint16_t s2 = VSMIN(((const uint16_t *)srcp2)[x], maxvalue);
+                                uint16_t s2 = std::min<uint16_t>(((const uint16_t *)srcp2)[x], maxvalue);
                                 ((uint16_t *)dstp)[x] = (((s1 - halfpoint) * (((s2 >> 1) & 1) + s2)) >> shift) + halfpoint;
                             }
                             srcp1 += stride;

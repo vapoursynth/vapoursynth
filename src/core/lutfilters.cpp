@@ -30,6 +30,8 @@
 #include <string>
 #include <algorithm>
 
+using namespace vsh;
+
 //////////////////////////////////////////
 // Lut
 
@@ -199,7 +201,7 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
             RETERROR("Lut: only clips with integer samples and up to 16 bits per channel precision supported");
 
         bool floatout = !!vsapi->propGetInt(in, "floatout", 0, &err);
-        int bitsout = int64ToIntS(vsapi->propGetInt(in, "bits", 0, &err));
+        int bitsout = vsapi->propGetSaturatedInt(in, "bits", 0, &err);
         if (err)
             bitsout = (floatout ? sizeof(float) * 8 : d->vi->format.bitsPerSample);
         if ((floatout && bitsout != 32) || (!floatout && (bitsout < 8 || bitsout > 16)))
@@ -447,7 +449,7 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
 
         int err;
         bool floatout = !!vsapi->propGetInt(in, "floatout", 0, &err);
-        int bitsout = int64ToIntS(vsapi->propGetInt(in, "bits", 0, &err));
+        int bitsout = vsapi->propGetSaturatedInt(in, "bits", 0, &err);
         if (err)
             bitsout = (floatout ? sizeof(float) * 8 : d->vi[0]->format.bitsPerSample);
         if ((floatout && bitsout != 32) || (!floatout && (bitsout < 8 || bitsout > 16)))

@@ -33,6 +33,8 @@
 #include "kernel/planestats.h"
 #include "kernel/transpose.h"
 
+using namespace vsh;
+
 static inline uint32_t doubleToUInt32S(double v) {
     if (v < 0)
         return 0;
@@ -203,7 +205,7 @@ static const VSFrameRef *VS_CC cropGetframe(int n, int activationReason, void *i
             uint8_t *dstdata = vsapi->getWritePtr(dst, plane);
             srcdata += srcstride * (y >> (plane ? fi->subSamplingH : 0));
             srcdata += (d->x >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample;
-            vs_bitblt(dstdata, dststride, srcdata, srcstride, (d->width >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample, vsapi->getFrameHeight(dst, plane));
+            bitblt(dstdata, dststride, srcdata, srcstride, (d->width >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample, vsapi->getFrameHeight(dst, plane));
         }
 
         vsapi->freeFrame(src);
@@ -227,15 +229,15 @@ static void VS_CC cropAbsCreate(const VSMap *in, VSMap *out, void *userData, VSC
     char msg[150];
     int err;
 
-    d->x = int64ToIntS(vsapi->propGetInt(in, "left", 0, &err));
+    d->x = vsapi->propGetSaturatedInt(in, "left", 0, &err);
     if (err)
-        d->x = int64ToIntS(vsapi->propGetInt(in, "x", 0, &err));
-    d->y = int64ToIntS(vsapi->propGetInt(in, "top", 0, &err));
+        d->x = vsapi->propGetSaturatedInt(in, "x", 0, &err);
+    d->y = vsapi->propGetSaturatedInt(in, "top", 0, &err);
     if (err)
-        d->y = int64ToIntS(vsapi->propGetInt(in, "y", 0, &err));
+        d->y = vsapi->propGetSaturatedInt(in, "y", 0, &err);
 
-    d->height = int64ToIntS(vsapi->propGetInt(in, "height", 0, 0));
-    d->width = int64ToIntS(vsapi->propGetInt(in, "width", 0, 0));
+    d->height = vsapi->propGetSaturatedInt(in, "height", 0, 0);
+    d->width = vsapi->propGetSaturatedInt(in, "width", 0, 0);
     d->node = vsapi->propGetNode(in, "clip", 0, 0);
 
     d->vi = vsapi->getVideoInfo(d->node);
@@ -261,11 +263,11 @@ static void VS_CC cropRelCreate(const VSMap *in, VSMap *out, void *userData, VSC
     if (!isConstantVideoFormat(d->vi))
         RETERROR("Crop: constant format and dimensions needed");
 
-    d->x = int64ToIntS(vsapi->propGetInt(in, "left", 0, &err));
-    d->y = int64ToIntS(vsapi->propGetInt(in, "top", 0, &err));
+    d->x = vsapi->propGetSaturatedInt(in, "left", 0, &err);
+    d->y = int64ToIntS(vsapi->propGetSaturatedInt(in, "top", 0, &err));
 
-    d->height = d->vi->height - d->y - int64ToIntS(vsapi->propGetInt(in, "bottom", 0, &err));
-    d->width = d->vi->width - d->x - int64ToIntS(vsapi->propGetInt(in, "right", 0, &err));
+    d->height = d->vi->height - d->y - int64ToIntS(vsapi->propGetSaturatedInt(in, "bottom", 0, &err));
+    d->width = d->vi->width - d->x - int64ToIntS(vsapi->propGetSaturatedInt(in, "right", 0, &err));
 
     // passthrough for the no cropping case
     if (d->x == 0 && d->y == 0 && d->width == d->vi->width && d->height == d->vi->height) {
@@ -685,7 +687,7 @@ static const VSFrameRef *VS_CC separateFieldsGetframe(int n, int activationReaso
                 srcp += src_stride;
             src_stride *= 2;
 
-            vs_bitblt(dstp, dst_stride, srcp, src_stride, vsapi->getFrameWidth(dst, plane) * fi->bytesPerSample, vsapi->getFrameHeight(dst, plane));
+            bitblt(dstp, dst_stride, srcp, src_stride, vsapi->getFrameWidth(dst, plane) * fi->bytesPerSample, vsapi->getFrameHeight(dst, plane));
         }
 
         vsapi->freeFrame(src);
@@ -699,7 +701,7 @@ static const VSFrameRef *VS_CC separateFieldsGetframe(int n, int activationReaso
             int64_t durationNum = vsapi->propGetInt(dst_props, "_DurationNum", 0, &errNum);
             int64_t durationDen = vsapi->propGetInt(dst_props, "_DurationDen", 0, &errDen);
             if (!errNum && !errDen) {
-                vs_muldivRational(&durationNum, &durationDen, 1, 2); // Divide duration by 2
+                muldivRational(&durationNum, &durationDen, 1, 2); // Divide duration by 2
                 vsapi->propSetInt(dst_props, "_DurationNum", durationNum, paReplace);
                 vsapi->propSetInt(dst_props, "_DurationDen", durationDen, paReplace);
             }
@@ -737,7 +739,7 @@ static void VS_CC separateFieldsCreate(const VSMap *in, VSMap *out, void *userDa
     d->vi.height /= 2;
 
     if (d->modifyDuration)
-        vs_muldivRational(&d->vi.fpsNum, &d->vi.fpsDen, 2, 1);
+        muldivRational(&d->vi.fpsNum, &d->vi.fpsDen, 2, 1);
 
     vsapi->createVideoFilter(out, "SeparateFields", &d->vi, 1, separateFieldsGetframe, filterFree<SeparateFieldsData>, fmParallel, 0, d.get(), core);
     d.release();
@@ -869,7 +871,7 @@ static const VSFrameRef *VS_CC flipVerticalGetframe(int n, int activationReason,
             ptrdiff_t dst_stride = vsapi->getStride(dst, plane);
             int height = vsapi->getFrameHeight(src, plane);
             dstp += dst_stride * (height - 1);
-            vs_bitblt(dstp, -dst_stride, srcp, src_stride, vsapi->getFrameWidth(dst, plane) * fi->bytesPerSample, height);
+            bitblt(dstp, -dst_stride, srcp, src_stride, vsapi->getFrameWidth(dst, plane) * fi->bytesPerSample, height);
         }
 
         vsapi->freeFrame(src);
@@ -1020,7 +1022,7 @@ static const VSFrameRef *VS_CC stackGetframe(int n, int activationReason, void *
                     const uint8_t *srcp = vsapi->getReadPtr(src, plane);
                     ptrdiff_t src_stride = vsapi->getStride(src, plane);
                     size_t rowsize = vsapi->getFrameWidth(src, plane) * d->vi.format.bytesPerSample;
-                    vs_bitblt(dstp, dst_stride,
+                    bitblt(dstp, dst_stride,
                         srcp, src_stride,
                         rowsize,
                         vsapi->getFrameHeight(src, plane));
@@ -1197,7 +1199,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
         d->vi.fpsDen = 0;
     }
 
-    vs_reduceRational(&d->vi.fpsNum, &d->vi.fpsDen);
+    reduceRational(&d->vi.fpsNum, &d->vi.fpsDen);
 
     int format = int64ToIntS(vsapi->propGetInt(in, "format", 0, &err));
 
@@ -1324,7 +1326,7 @@ static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, V
     if (d->vi.fpsDen < 1 || d->vi.fpsNum < 1)
         RETERROR("AssumeFPS: invalid framerate specified");
 
-    vs_reduceRational(&d->vi.fpsNum, &d->vi.fpsDen);
+    reduceRational(&d->vi.fpsNum, &d->vi.fpsDen);
 
     vsapi->createVideoFilter(out, "AssumeFPS", &d->vi, 1, assumeFPSGetframe, filterFree<AssumeFPSData>, fmParallel, nfNoCache, d.get(), core);
     d.release();

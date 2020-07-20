@@ -531,18 +531,18 @@ avs::PVideoFrame Avisynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
                   const int height = GetFrameHeight(vi, 0);
                   int row_size = GetFrameWidth(vi, 0) * BytesPerSample(vi);
                   if (NumPlanes(vi) == 1) {
-                      vs_bitblt(packedFrame.data(), (row_size + 3) & ~3, GetReadPtr(f, vi, 0), stride, row_size, height);
+                      bitblt(packedFrame.data(), (row_size + 3) & ~3, GetReadPtr(f, vi, 0), stride, row_size, height);
                   } else if (NumPlanes(vi) == 3) {
                       int row_size23 = GetFrameWidth(vi, 1) * BytesPerSample(vi);
 
-                      vs_bitblt(packedFrame.data(), row_size, GetReadPtr(f, vi, 0), stride, row_size, height);
+                      bitblt(packedFrame.data(), row_size, GetReadPtr(f, vi, 0), stride, row_size, height);
 
-                      vs_bitblt((uint8_t *)packedFrame.data() + (row_size*height),
+                      bitblt((uint8_t *)packedFrame.data() + (row_size*height),
                           row_size23, GetReadPtr(f, vi, 2),
                           GetStride(f, vi, 2), GetFrameWidth(vi, 2),
                           GetFrameHeight(vi, 2));
 
-                      vs_bitblt((uint8_t *)packedFrame.data() + (row_size*height + GetFrameHeight(vi, 1)*row_size23),
+                      bitblt((uint8_t *)packedFrame.data() + (row_size*height + GetFrameHeight(vi, 1)*row_size23),
                           row_size23, GetReadPtr(f, vi, 1),
                           GetStride(f, vi, 1), GetFrameWidth(vi, 1),
                           GetFrameHeight(vi, 1));
