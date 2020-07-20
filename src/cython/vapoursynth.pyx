@@ -395,10 +395,14 @@ def _construct_parameter(signature):
         array = False
 
     # Handle types
-    if type == "clip":
+    if type == "vnode":
         type = vapoursynth.VideoNode
-    elif type == "frame":
+    elif type == "anode":
+        type = vapoursynth.AudioNode
+    elif type == "vframe":
         type = vapoursynth.VideoFrame
+    elif type == "aframe":
+        type = vapoursynth.AudioFrame
     elif type == "func":
         type = typing.Union[vapoursynth.Func, typing.Callable]
     elif type == "int":

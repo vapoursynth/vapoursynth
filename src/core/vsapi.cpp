@@ -240,10 +240,9 @@ static void VS_CC setFilterError(const char *errorMessage, VSFrameContext *conte
     context->ctx->setError(errorMessage);
 }
 
-//property access functions
-static const VSVideoInfo *VS_CC getVideoInfo(VSNodeRef *c) VS_NOEXCEPT {
-    assert(c);
-    return &c->clip->getVideoInfo(c->index);
+static const VSVideoInfo *VS_CC getVideoInfo(VSNodeRef *node) VS_NOEXCEPT {
+    assert(node && node->clip->getNodeType() == mtVideo);
+    return &node->clip->getVideoInfo(node->index);
 }
 
 static const vs3::VSVideoInfo *VS_CC getVideoInfo3(VSNodeRef *c) VS_NOEXCEPT {
@@ -905,7 +904,7 @@ static int VS_CC getVideoFormatName(const VSVideoFormat *format, char *buffer) V
 }
 
 static const VSAudioInfo *VS_CC getAudioInfo(VSNodeRef *node) VS_NOEXCEPT {
-    assert(node);
+    assert(node && node->clip->getNodeType() == mtAudio);
     return &node->clip->getAudioInfo(node->index);
 }
 
