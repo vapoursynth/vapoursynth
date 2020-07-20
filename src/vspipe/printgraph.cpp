@@ -148,6 +148,7 @@ static void printNodeGraphHelper(std::set<std::string> &lines, std::map<std::str
     }
 }
 
+// FIXME, keep track of already visited nodes to speed things up
 std::string printNodeGraph(VSNodeRef *node, const VSAPI *vsapi) {
     std::map<std::string, std::set<std::string>> nodes;
     std::set<std::string> lines;
