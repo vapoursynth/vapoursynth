@@ -1666,6 +1666,7 @@ void VSCore::filterInstanceDestroyed() {
 struct VSCoreShittyFreeList {
     VSFilterFree free;
     void *instanceData;
+    int apiMajor;
     VSCoreShittyFreeList *next;
 };
 
@@ -1675,7 +1676,7 @@ void VSCore::destroyFilterInstance(VSNode *node) {
     freeDepth++;
 
     if (node->free) {
-        nodeFreeList = new VSCoreShittyFreeList({ node->free, node->instanceData, nodeFreeList });
+        nodeFreeList = new VSCoreShittyFreeList({ node->free, node->instanceData, node->apiMajor, nodeFreeList });
     } else {
         filterInstanceDestroyed();
     }
@@ -1684,7 +1685,7 @@ void VSCore::destroyFilterInstance(VSNode *node) {
         while (nodeFreeList) {
             VSCoreShittyFreeList *current = nodeFreeList;
             nodeFreeList = current->next;
-            current->free(current->instanceData, this, getVSAPIInternal(node->apiMajor));
+            current->free(current->instanceData, this, getVSAPIInternal(current->apiMajor));
             delete current;
             filterInstanceDestroyed();
         }
