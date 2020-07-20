@@ -107,7 +107,10 @@ static std::string printVSMap(const VSMap *args, int maxPrintLength, const VSAPI
     return setArgsStr;
 }
 
-static void printNodeGraphHelper(std::set<std::string> &lines, std::map<std::string, std::set<std::string>> &nodes, VSNodeRef *node, const VSAPI *vsapi) {
+static void printNodeGraphHelper(std::set<std::string> &lines, std::map<std::string, std::set<std::string>> &nodes, std::set<VSNodeRef *> &visited, VSNodeRef *node, const VSAPI *vsapi) {
+    if (!visited.insert(node).second)
+        return;
+
     int maxLevel = getMaxLevel(node, vsapi);
     int minRealLevel = getMinRealLevel(node, vsapi);
 
@@ -138,7 +141,7 @@ static void printNodeGraphHelper(std::set<std::string> &lines, std::map<std::str
                 for (int j = 0; j < numElems; j++) {
                     VSNodeRef *ref = vsapi->propGetNode(args, key, j, nullptr);
                     lines.insert(mangleNode(ref, vsapi) +  " -> " + thisFrame);
-                    printNodeGraphHelper(lines, nodes, ref, vsapi);
+                    printNodeGraphHelper(lines, nodes, visited, ref, vsapi);
                     vsapi->freeNode(ref);
                 }
                 break;
@@ -148,12 +151,12 @@ static void printNodeGraphHelper(std::set<std::string> &lines, std::map<std::str
     }
 }
 
-// FIXME, keep track of already visited nodes to speed things up
 std::string printNodeGraph(VSNodeRef *node, const VSAPI *vsapi) {
     std::map<std::string, std::set<std::string>> nodes;
     std::set<std::string> lines;
+    std::set<VSNodeRef *> visited;
     std::string s = "digraph {\n";
-    printNodeGraphHelper(lines, nodes, node, vsapi);
+    printNodeGraphHelper(lines, nodes, visited, node, vsapi);
     for (const auto &iter : nodes) {
         if (iter.second.size() > 1) {
             s += "  subgraph cluster_" +iter.first  + " {\n";
