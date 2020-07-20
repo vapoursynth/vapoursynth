@@ -134,9 +134,9 @@ _using_vsscript = False
 # Internal holder of the current policy.
 cdef object _policy = None
 
-
-cdef object _message_handler = None
-cdef int _message_handler_id = -1
+# fixme
+#cdef object _message_handler = None
+#cdef int _message_handler_id = -1
 cdef const VSAPI *_vsapi = NULL
 
 
@@ -456,27 +456,27 @@ class Error(Exception):
     def __repr__(self):
         return repr(self.value)
 
-#fixme, should probably handle multiple message handlers
-cdef void __stdcall message_handler_wrapper(int msgType, const char *msg, void *userData) nogil:
-    with gil:
-        global _message_handler
-        _message_handler(msgType, msg.decode('utf-8'))
-        
-def set_message_handler(handler_func):
-    cdef const VSAPI *funcs
-    global _message_handler
-    global _message_handler_id
-    funcs = getVapourSynthAPI(VAPOURSYNTH_API_VERSION)
-    if funcs == NULL:
-        raise Error('Failed to obtain VapourSynth API pointer. Is the Python module and loaded core library mismatched?')
-    if handler_func is None:
-        if _message_handler_id >= 0:
-            funcs.removeMessageHandler(_message_handler_id)
-            _message_handler = None
-            _message_handler_id = -1
-    else:
-        _message_handler = handler_func
-        _message_handler_id = funcs.addMessageHandler(message_handler_wrapper, NULL, NULL)
+#fixme, implement new per core message handling api
+#cdef void __stdcall message_handler_wrapper(int msgType, const char *msg, void *userData) nogil:
+#    with gil:
+#        global _message_handler
+#        _message_handler(msgType, msg.decode('utf-8'))
+#        
+#def set_message_handler(handler_func):
+#    cdef const VSAPI *funcs
+#    global _message_handler
+#    global _message_handler_id
+#    funcs = getVapourSynthAPI(VAPOURSYNTH_API_VERSION)
+#    if funcs == NULL:
+#        raise Error('Failed to obtain VapourSynth API pointer. Is the Python module and loaded core library mismatched?')
+#    if handler_func is None:
+#        if _message_handler_id >= 0:
+#            funcs.removeMessageHandler(_message_handler_id)
+#            _message_handler = None
+#            _message_handler_id = -1
+#    else:
+#        _message_handler = handler_func
+#        _message_handler_id = funcs.addMessageHandler(message_handler_wrapper, NULL, NULL)
     
 cdef _get_output_dict(funcname="this function"):
     cdef EnvironmentData env = _env_current()
