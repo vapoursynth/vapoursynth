@@ -1,5 +1,6 @@
 r51:
 updated visual studio 2019 runtime version
+fixed an extremely rare threading issue only affecting fmparallelrequests filters and arframeready events
 fixed compilation when avs+ master is used
 fixed lut and lut2 triggering a fatal error when invalid planes were specified
 fixed property append operations on non-empty keys not properly copying the underlying data

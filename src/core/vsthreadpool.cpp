@@ -146,18 +146,20 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 }
             } else if (filterMode == fmParallelRequests) {
                 std::lock_guard<std::mutex> lock(clip->concurrentFramesMutex);
-                // is the filter already processing another call for this frame? if so move along
-                if (clip->concurrentFrames.count(mainContext->n)) {
-                    continue;
-                } else {
-                    // do we need the serial lock since all frames will be ready this time?
-                    // check if we're in the arAllFramesReady state so we need additional locking
-                    if (mainContext->numFrameRequests == 1) {
-                        if (!clip->serialMutex.try_lock())
-                            continue;
-                        parallelRequestsNeedsUnlock = true;
-                        clip->concurrentFrames.insert(mainContext->n);
+                // do we need the serial lock since all frames will be ready this time?
+                // check if we're in the arAllFramesReady state so we need additional locking
+                if (mainContext->numFrameRequests == 1) {
+                    if (!clip->serialMutex.try_lock())
+                        continue;
+                    if (!clip->concurrentFrames.insert(mainContext->n).second) {
+                        clip->serialMutex.unlock();
+                        continue;
                     }
+                    parallelRequestsNeedsUnlock = true;
+                } else {
+                    // is the filter already processing another call for this frame? if so move along
+                    if (!clip->concurrentFrames.insert(mainContext->n).second)
+                        continue;
                 }
             }
 
