@@ -600,6 +600,7 @@ static void printHelp() {
 
 // fixme, only allow info without output
 // fixme, trim audio by sample numbers on output (implement trimming as a trim filter invocation instead of custom logic to simplify things)
+// fixme, install a message handler
 #ifdef VS_TARGET_OS_WINDOWS
 int wmain(int argc, wchar_t **argv) {
     if (_setmode(_fileno(stdout), _O_BINARY) == -1)
