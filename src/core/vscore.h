@@ -526,7 +526,76 @@ public:
 #endif
 };
 
-#define NUM_FRAMECONTEXT_FAST_REQS 8
+#define NUM_FRAMECONTEXT_FAST_REQS 10
+
+template<typename T, size_t staticSize>
+class SemiStaticVector {
+private:
+    size_t numElems = 0;
+    typename std::aligned_storage<sizeof(T), alignof(T)>::type staticData[staticSize];
+    std::vector<T> dynamicData;
+    void freeStatic() noexcept {
+        for (size_t pos = 0; pos < std::min(numElems, staticSize); ++pos)
+            reinterpret_cast<T *>(&staticData[pos])->~T();
+    }
+public:
+    template<typename ...Args> void emplace_back(Args &&... args) noexcept {
+        if (numElems < staticSize) {
+            new(&staticData[numElems]) T(std::forward<Args>(args)...);
+        } else {
+            dynamicData.emplace_back(std::forward<Args>(args)...);
+        }
+        numElems++;
+    }
+
+    void push_back(const T &val) noexcept {
+        if (numElems < staticSize) {
+            new(&staticData[numElems]) T(val);
+        } else {
+            dynamicData.push_back(val);
+        }
+        numElems++;
+    }
+
+    void push_back(T &&val) noexcept {
+        if (numElems < staticSize) {
+            new(&staticData[numElems]) T(val);
+        } else {
+            dynamicData.push_back(val);
+        }
+        numElems++;
+    }
+
+    const T &operator[](size_t pos) const noexcept {
+        assert(pos < numElems);
+        if (pos < staticSize)
+            return *reinterpret_cast<const T *>(&staticData[pos]);
+        else
+            return dynamicData[pos - staticSize];
+    }
+
+    T &operator[](size_t pos) noexcept {
+        assert(pos < numElems);
+        if (pos < staticSize)
+            return *reinterpret_cast<T *>(&staticData[pos]);
+        else
+            return dynamicData[pos - staticSize];
+    }
+
+    size_t size() const noexcept {
+        return numElems;
+    }
+
+    void clear() noexcept {
+        freeStatic();
+        dynamicData.clear();
+        numElems = 0;
+    }
+
+    ~SemiStaticVector() {
+        freeStatic();
+    }
+};
 
 struct VSFrameContext {
     friend class VSThreadPool;
@@ -545,22 +614,14 @@ private:
     bool error;
     bool lockOnOutput;
 public:
-    // requestFrame
-    PVSFrameContext reqList[NUM_FRAMECONTEXT_FAST_REQS];
-    std::vector<PVSFrameContext> reqList2;
-    size_t numReqs = 0;
+    SemiStaticVector<PVSFrameContext, NUM_FRAMECONTEXT_FAST_REQS> reqList;
+    SemiStaticVector<std::pair<NodeOutputKey, PVSFrameRef>, NUM_FRAMECONTEXT_FAST_REQS> availableFrames;
 
-    void requestFrame(VSFrameContext *ctx) noexcept {
-        if (numReqs < NUM_FRAMECONTEXT_FAST_REQS)
-            reqList[numReqs] = ctx;
-        else
-            reqList2.emplace_back(ctx);
-        numReqs++;
+    VSFrameRef *getAvailable(const NodeOutputKey &key) {
+        
     }
-    // requestFrame
 
     VSNodeRef *node;
-    std::map<NodeOutputKey, PVSFrameRef> availableFrames;
     int lastCompletedN;
     int index;
     VSNodeRef *lastCompletedNode;

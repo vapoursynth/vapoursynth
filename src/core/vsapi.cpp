@@ -141,7 +141,7 @@ static void VS_CC requestFrameFilter(int n, VSNodeRef *clip, VSFrameContext *fra
     int numFrames = (clip->clip->getNodeType() == mtVideo) ? clip->clip->getVideoInfo(clip->index).numFrames : clip->clip->getAudioInfo(clip->index).numFrames;
     if (n >= numFrames)
         n = numFrames - 1;
-    frameCtx->requestFrame(new VSFrameContext(n, clip->index, clip->clip, PVSFrameContext(frameCtx, true)));
+    frameCtx->reqList.emplace_back(new VSFrameContext(n, clip->index, clip->clip, PVSFrameContext(frameCtx, true)));
 }
 
 static const VSFrameRef *VS_CC getFrameFilter(int n, VSNodeRef *clip, VSFrameContext *frameCtx) VS_NOEXCEPT {
@@ -150,10 +150,13 @@ static const VSFrameRef *VS_CC getFrameFilter(int n, VSNodeRef *clip, VSFrameCon
     int numFrames = (clip->clip->getNodeType() == mtVideo) ? clip->clip->getVideoInfo(clip->index).numFrames : clip->clip->getAudioInfo(clip->index).numFrames;
     if (numFrames && n >= numFrames)
         n = numFrames - 1;
-    auto ref = frameCtx->availableFrames.find(NodeOutputKey(clip->clip, n, clip->index));
-    if (ref != frameCtx->availableFrames.end()) {
-        ref->second->add_ref();
-        return ref->second.get();
+    auto key = NodeOutputKey(clip->clip, n, clip->index);
+    for (size_t i = 0; i < frameCtx->availableFrames.size(); i++) {
+        const auto &tmp = frameCtx->availableFrames[i];
+        if (tmp.first == key) {
+            tmp.second->add_ref();
+            return tmp.second.get();
+        }
     }
     return nullptr;
 }
@@ -703,7 +706,14 @@ static void VS_CC queryCompletedFrame(VSNodeRef **node, int *n, VSFrameContext *
 
 static void VS_CC releaseFrameEarly(VSNodeRef *node, int n, VSFrameContext *frameCtx) VS_NOEXCEPT {
     assert(node && frameCtx);
-    frameCtx->availableFrames.erase(NodeOutputKey(node->clip, n, node->index));
+    auto key = NodeOutputKey(node->clip, n, node->index);
+    for (size_t i = 0; i < frameCtx->reqList.size(); i++) {
+        auto &tmp = frameCtx->availableFrames[i];
+        if (tmp.first == key) {
+            tmp.first = NodeOutputKey(nullptr, -1, -1);
+            tmp.second.reset();
+        }
+    }
 }
 
 static VSFuncRef *VS_CC cloneFuncRef(VSFuncRef *func) VS_NOEXCEPT {

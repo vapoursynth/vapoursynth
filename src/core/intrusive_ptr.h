@@ -21,6 +21,8 @@
 #ifndef INTRUSIVE_PTR_H
 #define INTRUSIVE_PTR_H
 
+#include <algorithm>
+
 template<typename T>
 class vs_intrusive_ptr {
 private:
@@ -78,6 +80,10 @@ public:
             obj->release();
             obj = nullptr;
         }
+    }
+
+    void swap(vs_intrusive_ptr &ptr) noexcept {
+        std::swap(obj, ptr.obj);
     }
 };
 

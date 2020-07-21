@@ -75,8 +75,6 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Go through all tasks from the top (oldest) and process the first one possible
-        owner->tasks.sort(taskCmp);
-
         // fixme, test if this matters at all!
         std::set<VSNode *> seenNodes;
 
@@ -188,7 +186,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 else
                     ar = arAllFramesReady;
 
-                mainContext->availableFrames.insert(std::make_pair(NodeOutputKey(leafContext->clip, leafContext->n, leafContext->index), leafContext->returnedFrame));
+                mainContext->availableFrames.push_back(std::make_pair(NodeOutputKey(leafContext->clip, leafContext->n, leafContext->index), leafContext->returnedFrame));
                 mainContext->lastCompletedN = leafContext->n;
                 mainContext->lastCompletedNode = leafContext->node;
             }
@@ -237,23 +235,16 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Handle frames that were requested
-            bool requestedFrames = mainContext->numReqs > 0 && !frameProcessingDone;
+            bool requestedFrames = mainContext->reqList.size() > 0 && !frameProcessingDone;
 
             if (!isLinear)
                 lock.lock();
 
             if (requestedFrames) {
-                size_t reqEnd = std::min<size_t>(mainContext->numReqs, NUM_FRAMECONTEXT_FAST_REQS);
-                for (size_t i = 0; i < reqEnd; i++) {
+                for (size_t i = 0; i < mainContext->reqList.size(); i++)
                     owner->startInternal(mainContext->reqList[i]);
-                    mainContext->reqList[i].reset();
-                }
-                if (mainContext->numReqs > NUM_FRAMECONTEXT_FAST_REQS) {
-                    for (auto &reqIter : mainContext->reqList2)
-                        owner->startInternal(reqIter);
-                    mainContext->reqList2.clear();
-                }
-                mainContext->numReqs = 0;
+                owner->tasks.sort(taskCmp);
+                mainContext->reqList.clear();
             }
 
             if (frameProcessingDone)
