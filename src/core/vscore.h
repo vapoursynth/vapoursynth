@@ -42,6 +42,8 @@
 #include <condition_variable>
 #include <random>
 #include <algorithm>
+#include <tuple>
+
 #ifdef VS_TARGET_OS_WINDOWS
 #    define WIN32_LEAN_AND_MEAN
 #    ifndef NOMINMAX
@@ -88,21 +90,7 @@ class VSException : public std::runtime_error {
     using std::runtime_error::runtime_error;
 };
 
-class NodeOutputKey {
-private:
-    VSNode *node;
-    int n;
-    int index;
-public:
-    NodeOutputKey(VSNode *node, int n, int index) : node(node), n(n), index(index) {}
-    inline bool operator==(const NodeOutputKey &v) const {
-        return node == v.node && n == v.n && index == v.index;
-    }
-    inline bool operator<(const NodeOutputKey &v) const {
-        return (node < v.node) || (node == v.node && n < v.n) || (node == v.node && n == v.n && index < v.index);
-    }
-};
-
+typedef std::tuple<VSNode *, int, int> NodeOutputKey;
 
 struct VSFuncRef {
 private:
