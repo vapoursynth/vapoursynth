@@ -69,7 +69,7 @@ class VSCache;
 struct VSNode;
 struct VSNodeRef;
 class VSThreadPool;
-class FrameContext;
+struct VSFrameContext;
 struct VSFuncRef;
 class VSMapData;
 
@@ -77,7 +77,7 @@ typedef vs_intrusive_ptr<VSFrameRef> PVSFrameRef;
 typedef vs_intrusive_ptr<VSNode> PVSNode;
 typedef vs_intrusive_ptr<VSNodeRef> PVSNodeRef;
 typedef vs_intrusive_ptr<VSFuncRef> PVSFuncRef;
-typedef vs_intrusive_ptr<FrameContext> PFrameContext;
+typedef vs_intrusive_ptr<VSFrameContext> PVSFrameContext;
 
 extern const VSPLUGINAPI vs_internal_vspapi;
 extern const VSAPI vs_internal_vsapi;
@@ -538,7 +538,9 @@ public:
 #endif
 };
 
-class FrameContext {
+#define NUM_FRAMECONTEXT_FAST_REQS 8
+
+struct VSFrameContext {
     friend class VSThreadPool;
 private:
     std::atomic<long> refcount;
@@ -547,14 +549,28 @@ private:
     int n;
     VSNode *clip;
     PVSFrameRef returnedFrame;
-    PFrameContext upstreamContext;
-    PFrameContext notificationChain;
+    PVSFrameContext upstreamContext;
+    PVSFrameContext notificationChain;
     void *userData;
     VSFrameDoneCallback frameDone;
     std::string errorMessage;
     bool error;
     bool lockOnOutput;
 public:
+    // requestFrame
+    PVSFrameContext reqList[NUM_FRAMECONTEXT_FAST_REQS];
+    std::vector<PVSFrameContext> reqList2;
+    size_t numReqs = 0;
+
+    void requestFrame(VSFrameContext *ctx) noexcept {
+        if (numReqs < NUM_FRAMECONTEXT_FAST_REQS)
+            reqList[numReqs] = ctx;
+        else
+            reqList2.emplace_back(ctx);
+        numReqs++;
+    }
+    // requestFrame
+
     VSNodeRef *node;
     std::map<NodeOutputKey, PVSFrameRef> availableFrames;
     int lastCompletedN;
@@ -581,8 +597,8 @@ public:
     }
 
     bool setError(const std::string &errorMsg);
-    FrameContext(int n, int index, VSNode *clip, const PFrameContext &upstreamContext);
-    FrameContext(int n, int index, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput = true);
+    VSFrameContext(int n, int index, VSNode *clip, const PVSFrameContext &upstreamContext);
+    VSFrameContext(int n, int index, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput = true);
 };
 
 struct VSFunctionFrame;
@@ -629,7 +645,7 @@ private:
     std::mutex concurrentFramesMutex;
     std::set<int> concurrentFrames;
 
-    PVSFrameRef getFrameInternal(int n, int activationReason, VSFrameContext &frameCtx);
+    PVSFrameRef getFrameInternal(int n, int activationReason, VSFrameContext *frameCtx);
 public:
     VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core); // V3 compatibility
     VSNode(const std::string &name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core);
@@ -658,7 +674,7 @@ public:
         return core == core2;
     }
 
-    void getFrame(const PFrameContext &ct);
+    void getFrame(const PVSFrameContext &ct);
 
     const VSVideoInfo &getVideoInfo(int index) const;
     const vs3::VSVideoInfo &getVideoInfo3(int index) const;
@@ -686,25 +702,6 @@ public:
     void notifyCache(bool needMemory);
 };
 
-#define NUM_FRAMECONTEXT_FAST_REQS 5
-
-struct VSFrameContext {
-    PFrameContext &ctx;
-    PFrameContext reqList[NUM_FRAMECONTEXT_FAST_REQS];
-    std::deque<PFrameContext> reqList2;
-    size_t numReqs = 0;
-
-    VSFrameContext(PFrameContext &ctx) noexcept : ctx(ctx) {}
-
-    void requestFrame(FrameContext *ctx) noexcept {
-        if (numReqs < NUM_FRAMECONTEXT_FAST_REQS)
-            reqList[numReqs] = ctx;
-        else
-            reqList2.emplace_back(ctx);
-        numReqs++;
-    }
-};
-
 class VSThreadPool {
     friend struct VSCore;
 private:
@@ -712,8 +709,8 @@ private:
     std::mutex lock;
     std::mutex callbackLock;
     std::map<std::thread::id, std::thread *> allThreads;
-    std::list<PFrameContext> tasks;
-    std::map<NodeOutputKey, PFrameContext> allContexts;
+    std::list<PVSFrameContext> tasks;
+    std::map<NodeOutputKey, PVSFrameContext> allContexts;
     std::condition_variable newWork;
     std::condition_variable allIdle;
     std::atomic<unsigned> activeThreads;
@@ -725,18 +722,18 @@ private:
     int getNumAvailableThreads();
     void wakeThread();
     void notifyCaches(bool needMemory);
-    void startInternal(const PFrameContext &context);
+    void startInternal(const PVSFrameContext &context);
     void spawnThread();
     static void runTasks(VSThreadPool *owner, std::atomic<bool> &stop);
-    static bool taskCmp(const PFrameContext &a, const PFrameContext &b);
+    static bool taskCmp(const PVSFrameContext &a, const PVSFrameContext &b);
 public:
     VSThreadPool(VSCore *core);
     ~VSThreadPool();
-    void returnFrame(const PFrameContext &rCtx, const PVSFrameRef &f);
-    void returnFrame(const PFrameContext &rCtx, const std::string &errMsg);
+    void returnFrame(const PVSFrameContext &rCtx, const PVSFrameRef &f);
+    void returnFrame(const PVSFrameContext &rCtx, const std::string &errMsg);
     int threadCount();
     int setThreadCount(int threads);
-    void start(const PFrameContext &context);
+    void start(const PVSFrameContext &context);
     void releaseThread();
     void reserveThread();
     bool isWorkerThread();

@@ -89,11 +89,11 @@ static void VS_CC getFrameAsync(int n, VSNodeRef *clip, VSFrameDoneCallback fdc,
     assert(clip && fdc);
     int numFrames = (clip->clip->getNodeType() == mtVideo) ? clip->clip->getVideoInfo(clip->index).numFrames : clip->clip->getAudioInfo(clip->index).numFrames;
     if (n < 0 || (numFrames && n >= numFrames)) {
-        FrameContext *ctx = new FrameContext(n, clip->index, clip, fdc, userData);
+        VSFrameContext *ctx = new VSFrameContext(n, clip->index, clip, fdc, userData);
         ctx->setError("Invalid frame number " + std::to_string(n) + " requested, clip only has " + std::to_string(numFrames) + " frames");
         clip->clip->getFrame(ctx);
     } else {
-        clip->clip->getFrame(new FrameContext(n, clip->index, clip, fdc, userData));
+        clip->clip->getFrame(new VSFrameContext(n, clip->index, clip, fdc, userData));
     }
 }
 
@@ -128,7 +128,7 @@ static const VSFrameRef *VS_CC getFrame(int n, VSNodeRef *clip, char *errorMsg, 
     bool isWorker = node->isWorkerThread();
     if (isWorker)
         node->releaseThread();
-    node->getFrame(new FrameContext(n, clip->index, clip, &frameWaiterCallback, &g, false));
+    node->getFrame(new VSFrameContext(n, clip->index, clip, &frameWaiterCallback, &g, false));
     g.a.wait(l);
     if (isWorker)
         node->reserveThread();
@@ -141,7 +141,7 @@ static void VS_CC requestFrameFilter(int n, VSNodeRef *clip, VSFrameContext *fra
     int numFrames = (clip->clip->getNodeType() == mtVideo) ? clip->clip->getVideoInfo(clip->index).numFrames : clip->clip->getAudioInfo(clip->index).numFrames;
     if (n >= numFrames)
         n = numFrames - 1;
-    frameCtx->requestFrame(new FrameContext(n, clip->index, clip->clip, frameCtx->ctx));
+    frameCtx->requestFrame(new VSFrameContext(n, clip->index, clip->clip, PVSFrameContext(frameCtx, true)));
 }
 
 static const VSFrameRef *VS_CC getFrameFilter(int n, VSNodeRef *clip, VSFrameContext *frameCtx) VS_NOEXCEPT {
@@ -150,8 +150,8 @@ static const VSFrameRef *VS_CC getFrameFilter(int n, VSNodeRef *clip, VSFrameCon
     int numFrames = (clip->clip->getNodeType() == mtVideo) ? clip->clip->getVideoInfo(clip->index).numFrames : clip->clip->getAudioInfo(clip->index).numFrames;
     if (numFrames && n >= numFrames)
         n = numFrames - 1;
-    auto ref = frameCtx->ctx->availableFrames.find(NodeOutputKey(clip->clip, n, clip->index));
-    if (ref != frameCtx->ctx->availableFrames.end()) {
+    auto ref = frameCtx->availableFrames.find(NodeOutputKey(clip->clip, n, clip->index));
+    if (ref != frameCtx->availableFrames.end()) {
         ref->second->add_ref();
         return ref->second.get();
     }
@@ -237,7 +237,7 @@ static const char *VS_CC getError(const VSMap *map) VS_NOEXCEPT {
 
 static void VS_CC setFilterError(const char *errorMessage, VSFrameContext *context) VS_NOEXCEPT {
     assert(errorMessage && context);
-    context->ctx->setError(errorMessage);
+    context->setError(errorMessage);
 }
 
 static const VSVideoInfo *VS_CC getVideoInfo(VSNodeRef *node) VS_NOEXCEPT {
@@ -697,13 +697,13 @@ static void VS_CC freeFunc(VSFuncRef *f) VS_NOEXCEPT {
 
 static void VS_CC queryCompletedFrame(VSNodeRef **node, int *n, VSFrameContext *frameCtx) VS_NOEXCEPT {
     assert(node && n && frameCtx);
-    *node = frameCtx->ctx->lastCompletedNode;
-    *n = frameCtx->ctx->lastCompletedN;
+    *node = frameCtx->lastCompletedNode;
+    *n = frameCtx->lastCompletedN;
 }
 
 static void VS_CC releaseFrameEarly(VSNodeRef *node, int n, VSFrameContext *frameCtx) VS_NOEXCEPT {
     assert(node && frameCtx);
-    frameCtx->ctx->availableFrames.erase(NodeOutputKey(node->clip, n, node->index));
+    frameCtx->availableFrames.erase(NodeOutputKey(node->clip, n, node->index));
 }
 
 static VSFuncRef *VS_CC cloneFuncRef(VSFuncRef *func) VS_NOEXCEPT {
@@ -719,7 +719,7 @@ static int64_t VS_CC setMaxCacheSize(int64_t bytes, VSCore *core) VS_NOEXCEPT {
 
 static int VS_CC getOutputIndex(VSFrameContext *frameCtx) VS_NOEXCEPT {
     assert(frameCtx);
-    return frameCtx->ctx->index;
+    return frameCtx->index;
 }
 
 static void VS_CC setMessageHandler(VSMessageHandler handler, void *userData) VS_NOEXCEPT {

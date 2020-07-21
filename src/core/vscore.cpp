@@ -89,15 +89,15 @@ static std::wstring readRegistryValue(const wchar_t *keyName, const wchar_t *val
 }
 #endif
 
-FrameContext::FrameContext(int n, int index, VSNode *clip, const PFrameContext &upstreamContext) :
+VSFrameContext::VSFrameContext(int n, int index, VSNode *clip, const PVSFrameContext &upstreamContext) :
     refcount(1), reqOrder(upstreamContext->reqOrder), numFrameRequests(0), n(n), clip(clip), upstreamContext(upstreamContext), userData(nullptr), frameDone(nullptr), error(false), lockOnOutput(true), node(nullptr), lastCompletedN(-1), index(index), lastCompletedNode(nullptr) {
 }
 
-FrameContext::FrameContext(int n, int index, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput) :
+VSFrameContext::VSFrameContext(int n, int index, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput) :
     refcount(1), reqOrder(0), numFrameRequests(0), n(n), clip(node->clip), userData(userData), frameDone(frameDone), error(false), lockOnOutput(lockOnOutput), node(node), lastCompletedN(-1), index(index), lastCompletedNode(nullptr) {
 }
 
-bool FrameContext::setError(const std::string &errorMsg) {
+bool VSFrameContext::setError(const std::string &errorMsg) {
     bool prevState = error;
     error = true;
     if (!prevState)
@@ -892,7 +892,7 @@ VSNode::~VSNode() {
     core->destroyFilterInstance(this);
 }
 
-void VSNode::getFrame(const PFrameContext &ct) {
+void VSNode::getFrame(const PVSFrameContext &ct) {
     core->threadPool->start(ct);
 }
 
@@ -970,8 +970,8 @@ void VSNode::setFilterRelation(VSNodeRef **dependencies, int numDeps) {
     }
 }
 
-PVSFrameRef VSNode::getFrameInternal(int n, int activationReason, VSFrameContext &frameCtx) {  
-    const VSFrameRef *r = (apiMajor == VAPOURSYNTH_API_MAJOR) ? filterGetFrame(n, activationReason, instanceData, frameCtx.ctx->frameContext, &frameCtx, core, &vs_internal_vsapi) : reinterpret_cast<vs3::VSFilterGetFrame>(filterGetFrame)(n, activationReason, &instanceData, frameCtx.ctx->frameContext, &frameCtx, core, &vs_internal_vsapi3);
+PVSFrameRef VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *frameCtx) {  
+    const VSFrameRef *r = (apiMajor == VAPOURSYNTH_API_MAJOR) ? filterGetFrame(n, activationReason, instanceData, frameCtx->frameContext, frameCtx, core, &vs_internal_vsapi) : reinterpret_cast<vs3::VSFilterGetFrame>(filterGetFrame)(n, activationReason, &instanceData, frameCtx->frameContext, frameCtx, core, &vs_internal_vsapi3);
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isSSEStateOk())
         core->logMessage(mtFatal, ("Bad SSE state detected after return from "+ name).c_str());
@@ -979,7 +979,7 @@ PVSFrameRef VSNode::getFrameInternal(int n, int activationReason, VSFrameContext
 
     if (r) {
         if (r->getFrameType() == mtVideo) {
-            const VSVideoInfo &lvi = vi[frameCtx.ctx->index];
+            const VSVideoInfo &lvi = vi[frameCtx->index];
             const VSVideoFormat *fi = r->getVideoFormat();
 
             if (lvi.format.colorFamily == cfUndefined && (fi->colorFamily == cfCompatBGR32 || fi->colorFamily == cfCompatYUY2))
@@ -990,7 +990,7 @@ PVSFrameRef VSNode::getFrameInternal(int n, int activationReason, VSFrameContext
                 core->logMessage(mtFatal, ("Filter " + name + " declared the size " + std::to_string(lvi.width) + "x" + std::to_string(lvi.height) + ", but it returned a frame with the size " + std::to_string(r->getWidth(0)) + "x" + std::to_string(r->getHeight(0))).c_str());
         } else {
             const VSAudioFormat *fi = r->getAudioFormat();
-            const VSAudioInfo &lai = ai[frameCtx.ctx->index];
+            const VSAudioInfo &lai = ai[frameCtx->index];
 
             int expectedSamples = (n < lai.numFrames - 1) ? VS_AUDIO_FRAME_SAMPLES : (((lai.numSamples % VS_AUDIO_FRAME_SAMPLES) ? (lai.numSamples % VS_AUDIO_FRAME_SAMPLES) : VS_AUDIO_FRAME_SAMPLES));
 

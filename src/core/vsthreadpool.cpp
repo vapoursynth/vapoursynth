@@ -58,7 +58,7 @@ int VSThreadPool::getNumAvailableThreads() {
     return nthreads;
 }
 
-bool VSThreadPool::taskCmp(const PFrameContext &a, const PFrameContext &b) {
+bool VSThreadPool::taskCmp(const PVSFrameContext &a, const PVSFrameContext &b) {
     return (a->reqOrder < b->reqOrder) || (a->reqOrder == b->reqOrder && a->n < b->n);
 }
 
@@ -81,13 +81,13 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
         std::set<VSNode *> seenNodes;
 
         for (auto iter = owner->tasks.begin(); iter != owner->tasks.end(); ++iter) {
-            FrameContext *mainContext = iter->get();
-            FrameContext *leafContext = nullptr;
+            VSFrameContext *mainContext = iter->get();
+            VSFrameContext *leafContext = nullptr;
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Handle the output tasks
             if (mainContext->frameDone && mainContext->returnedFrame) {
-                PFrameContext mainContextRef(*iter);
+                PVSFrameContext mainContextRef(*iter);
                 owner->tasks.erase(iter);
                 owner->returnFrame(mainContextRef, mainContext->returnedFrame);
                 ranTask = true;
@@ -95,7 +95,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             }
 
             if (mainContext->frameDone && mainContext->hasError()) {
-                PFrameContext mainContextRef(*iter);
+                PVSFrameContext mainContextRef(*iter);
                 owner->tasks.erase(iter);
                 owner->returnFrame(mainContextRef, mainContext->getErrorMessage());
                 ranTask = true;
@@ -162,8 +162,8 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Remove the context from the task list
 
-            PFrameContext mainContextRef;
-            PFrameContext leafContextRef;
+            PVSFrameContext mainContextRef;
+            PVSFrameContext leafContextRef;
             if (hasLeafContext) {
                 leafContextRef = *iter;
                 mainContextRef = leafContextRef->upstreamContext;
@@ -202,14 +202,13 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             if (!isLinear)
                 lock.unlock();
 
-            VSFrameContext externalFrameCtx(mainContextRef);
             assert(ar == arError || !mainContext->hasError());
 #ifdef VS_FRAME_REQ_DEBUG
             vsWarning("Entering: %s Frame: %d Index: %d AR: %d Req: %d", mainContext->clip->name.c_str(), mainContext->n, mainContext->index, (int)ar, (int)mainContext->reqOrder);
 #endif
             PVSFrameRef f;
             if (!skipCall)
-                f = clip->getFrameInternal(mainContext->n, ar, externalFrameCtx);
+                f = clip->getFrameInternal(mainContext->n, ar, mainContext);
             ranTask = true;
 #ifdef VS_FRAME_REQ_DEBUG
             vsWarning("Exiting: %s Frame: %d Index: %d AR: %d Req: %d", mainContext->clip->name.c_str(), mainContext->n, mainContext->index, (int)ar, (int)mainContext->reqOrder);
@@ -238,22 +237,23 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Handle frames that were requested
-            bool requestedFrames = externalFrameCtx.numReqs > 0 && !frameProcessingDone;
+            bool requestedFrames = mainContext->numReqs > 0 && !frameProcessingDone;
 
             if (!isLinear)
                 lock.lock();
 
             if (requestedFrames) {
-                size_t reqEnd = std::min<size_t>(externalFrameCtx.numReqs, NUM_FRAMECONTEXT_FAST_REQS);
+                size_t reqEnd = std::min<size_t>(mainContext->numReqs, NUM_FRAMECONTEXT_FAST_REQS);
                 for (size_t i = 0; i < reqEnd; i++) {
-                    owner->startInternal(externalFrameCtx.reqList[i]);
-                    externalFrameCtx.reqList[i] = {};
+                    owner->startInternal(mainContext->reqList[i]);
+                    mainContext->reqList[i].reset();
                 }
-                if (externalFrameCtx.numReqs > NUM_FRAMECONTEXT_FAST_REQS) {
-                    for (auto &reqIter : externalFrameCtx.reqList2)
+                if (mainContext->numReqs > NUM_FRAMECONTEXT_FAST_REQS) {
+                    for (auto &reqIter : mainContext->reqList2)
                         owner->startInternal(reqIter);
-                    externalFrameCtx.reqList2.clear();
+                    mainContext->reqList2.clear();
                 }
+                mainContext->numReqs = 0;
             }
 
             if (frameProcessingDone)
@@ -264,7 +264,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 // CHANGES mainContextRef!!!
 
             if (mainContext->hasError() && !hasExistingRequests && !requestedFrames) {
-                PFrameContext n;
+                PVSFrameContext n;
                 do {
                     n = mainContextRef->notificationChain;
 
@@ -284,7 +284,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             } else if (f) {
                 if (hasExistingRequests || requestedFrames)
                     owner->core->logMessage(mtFatal, ("A frame was returned at the end of processing by " + clip->name + " but there are still outstanding requests").c_str());
-                PFrameContext n;
+                PVSFrameContext n;
 
                 do {
                     n = mainContextRef->notificationChain;
@@ -374,14 +374,14 @@ void VSThreadPool::notifyCaches(bool needMemory) {
         cache->notifyCache(needMemory);
 }
 
-void VSThreadPool::start(const PFrameContext &context) {
+void VSThreadPool::start(const PVSFrameContext &context) {
     assert(context);
     std::lock_guard<std::mutex> l(lock);
     context->reqOrder = ++reqCounter;
     startInternal(context);
 }
 
-void VSThreadPool::returnFrame(const PFrameContext &rCtx, const PVSFrameRef &f) {
+void VSThreadPool::returnFrame(const PVSFrameContext &rCtx, const PVSFrameRef &f) {
     assert(rCtx->frameDone);
     bool outputLock = rCtx->lockOnOutput;
     // we need to unlock here so the callback may request more frames without causing a deadlock
@@ -396,7 +396,7 @@ void VSThreadPool::returnFrame(const PFrameContext &rCtx, const PVSFrameRef &f) 
     lock.lock();
 }
 
-void VSThreadPool::returnFrame(const PFrameContext &rCtx, const std::string &errMsg) {
+void VSThreadPool::returnFrame(const PVSFrameContext &rCtx, const std::string &errMsg) {
     assert(rCtx->frameDone);
     bool outputLock = rCtx->lockOnOutput;
     // we need to unlock here so the callback may request more frames without causing a deadlock
@@ -410,7 +410,7 @@ void VSThreadPool::returnFrame(const PFrameContext &rCtx, const std::string &err
     lock.lock();
 }
 
-void VSThreadPool::startInternal(const PFrameContext &context) {
+void VSThreadPool::startInternal(const PVSFrameContext &context) {
     //technically this could be done by walking up the context chain and add a new notification to the correct one
     //unfortunately this would probably be quite slow for deep scripts so just hope the cache catches it
 
@@ -437,7 +437,7 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
         
         auto it = allContexts.find(p);
         if (it != allContexts.end()) {
-            PFrameContext &ctx = it->second;
+            PVSFrameContext &ctx = it->second;
             assert(context->clip == ctx->clip && context->n == ctx->n && context->index == ctx->index);
 
             if (ctx->returnedFrame) {
