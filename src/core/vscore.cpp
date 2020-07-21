@@ -234,7 +234,7 @@ void *MemoryUse::allocateLargePage(size_t bytes) const {
 #ifdef VS_TARGET_OS_WINDOWS
     ptr = VirtualAlloc(nullptr, allocBytes, MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES, PAGE_READWRITE);
 #else
-    ptr = vs_aligned_malloc(allocBytes, VSFrame::alignment);
+    ptr = vsh_aligned_malloc(allocBytes, VSFrameRef::alignment);
 #endif
     if (!ptr)
         return nullptr;
@@ -391,7 +391,7 @@ VSPlaneData::VSPlaneData(size_t dataSize, MemoryUse &mem) : refcount(1), mem(mem
 #ifdef VS_FRAME_POOL
     data = mem.allocBuffer(size + 2 * VSFrameRef::guardSpace);
 #else
-    data = vs_aligned_malloc<uint8_t>(size + 2 * VSFrame::guardSpace, VSFrame::alignment);
+    data = vsh_aligned_malloc<uint8_t>(size + 2 * VSFrameRef::guardSpace, VSFrameRef::alignment);
 #endif
     assert(data);
     if (!data)
@@ -399,9 +399,9 @@ VSPlaneData::VSPlaneData(size_t dataSize, MemoryUse &mem) : refcount(1), mem(mem
 
     mem.add(size);
 #ifdef VS_FRAME_GUARD
-    for (size_t i = 0; i < VSFrame::guardSpace / sizeof(VS_FRAME_GUARD_PATTERN); i++) {
+    for (size_t i = 0; i < VSFrameRef::guardSpace / sizeof(VS_FRAME_GUARD_PATTERN); i++) {
         reinterpret_cast<uint32_t *>(data)[i] = VS_FRAME_GUARD_PATTERN;
-        reinterpret_cast<uint32_t *>(data + size - VSFrame::guardSpace)[i] = VS_FRAME_GUARD_PATTERN;
+        reinterpret_cast<uint32_t *>(data + size - VSFrameRef::guardSpace)[i] = VS_FRAME_GUARD_PATTERN;
     }
 #endif
 }
@@ -410,7 +410,7 @@ VSPlaneData::VSPlaneData(const VSPlaneData &d) : refcount(1), mem(d.mem), size(d
 #ifdef VS_FRAME_POOL
     data = mem.allocBuffer(size);
 #else
-    data = vs_aligned_malloc<uint8_t>(size, VSFrame::alignment);
+    data = vsh_aligned_malloc<uint8_t>(size, VSFrameRef::alignment);
 #endif
     assert(data);
     if (!data)
@@ -424,7 +424,7 @@ VSPlaneData::~VSPlaneData() {
 #ifdef VS_FRAME_POOL
     mem.freeBuffer(data);
 #else
-    vs_aligned_free(data);
+    vsh_aligned_free(data);
 #endif
     mem.subtract(size);
 }
@@ -598,7 +598,7 @@ uint8_t *VSFrameRef::getWritePtr(int plane) {
 }
 
 #ifdef VS_FRAME_GUARD
-bool VSFrame::verifyGuardPattern() {
+bool VSFrameRef::verifyGuardPattern() {
     for (int p = 0; p < ((contentType == mtVideo) ? numPlanes : 1); p++) {
         for (size_t i = 0; i < guardSpace / sizeof(VS_FRAME_GUARD_PATTERN); i++) {
             uint32_t p1 = reinterpret_cast<uint32_t *>(data[p]->data)[i];
