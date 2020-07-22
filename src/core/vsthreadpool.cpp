@@ -124,7 +124,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 
             // Note that technically useSerialLock^useConcurrentCheck has to be true BUT due to the initial request (mainContext->numFrameRequests == 0) case
             // not starting its requests until after the arInitial call returns no lock or bookkeeping of it is actually needed since it can't call into the filter at the same time as arFrameReady
-            assert(!(useSerialLock && !useConcurrentCheck));
+            assert(!(useSerialLock && useConcurrentCheck));
 
             if (useSerialLock) {
                 if (!clip->serialMutex.try_lock())

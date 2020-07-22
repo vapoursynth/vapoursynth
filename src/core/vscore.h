@@ -625,10 +625,6 @@ public:
     SemiStaticVector<PVSFrameContext, NUM_FRAMECONTEXT_FAST_REQS> reqList;
     SemiStaticVector<std::pair<NodeOutputKey, PVSFrameRef>, NUM_FRAMECONTEXT_FAST_REQS> availableFrames;
 
-    VSFrameRef *getAvailable(const NodeOutputKey &key) {
-        
-    }
-
     VSNodeRef *node;
     int lastCompletedN;
     int index;
