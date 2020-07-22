@@ -2207,7 +2207,7 @@ cdef Core createCore():
     instance.funcs = getVapourSynthAPI(VAPOURSYNTH_API_VERSION)
     if instance.funcs == NULL:
         raise Error('Failed to obtain VapourSynth API pointer. System does not support SSE2 or is the Python module and loaded core library mismatched?')
-    instance.core = instance.funcs.createCore(0, 0)
+    instance.core = instance.funcs.createCore(0)
     instance.add_cache = True
     return instance
 

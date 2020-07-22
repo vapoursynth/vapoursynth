@@ -363,7 +363,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         VSMap *invoke(VSPlugin *plugin, const char *name, const VSMap *args) nogil
         
         # Core and information
-        VSCore *createCore(int threads, int flags) nogil
+        VSCore *createCore(int flags) nogil
         void freeCore(VSCore *core) nogil
         int64_t setMaxCacheSize(int64_t bytes, VSCore *core) nogil
         int setThreadCount(int threads, VSCore *core) nogil
