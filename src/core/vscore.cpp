@@ -115,13 +115,13 @@ bool VSMap::isV3Compatible() const noexcept {
     return true;
 }
 
-VSFuncRef::VSFuncRef(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core, int apiMajor) : refcount(1), func(func), userData(userData), free(free), core(core), apiMajor(apiMajor) {
+VSFuncRef::VSFuncRef(VSPublicFunction func, void *userData, VSFreeFuncData freeFunc, VSCore *core, int apiMajor) : refcount(1), func(func), userData(userData), freeFunc(freeFunc), core(core), apiMajor(apiMajor) {
     core->functionInstanceCreated();
 }
 
 VSFuncRef::~VSFuncRef() {
-    if (free)
-        free(userData);
+    if (freeFunc)
+        freeFunc(userData);
     core->functionInstanceDestroyed();
 }
 
@@ -781,8 +781,8 @@ void VSNodeRef::release() noexcept {
     }
 }
 
-VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
-    refcount(0), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
+VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
+    refcount(0), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
 
     if (flags & ~(nfNoCache | nfIsCache | nfMakeLinear))
         throw VSException("Filter " + name  + " specified unknown flags");
@@ -818,8 +818,8 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilt
     }
 }
 
-VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
-    refcount(numOutputs), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
+VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
+    refcount(numOutputs), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
 
     if (flags & ~(nfNoCache | nfIsCache | nfMakeLinear | nfFrameReady))
         throw VSException("Filter " + name + " specified unknown flags");
@@ -853,8 +853,8 @@ VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, int numOutputs, V
     }
 }
 
-VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
-    refcount(numOutputs), nodeType(mtAudio), instanceData(instanceData), name(name), filterGetFrame(getFrame), free(free), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
+VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
+    refcount(numOutputs), nodeType(mtAudio), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
 
     if (flags & ~(nfNoCache | nfIsCache | nfMakeLinear | nfFrameReady))
         throw VSException("Filter " + name + " specified unknown flags");
@@ -1664,7 +1664,7 @@ void VSCore::filterInstanceDestroyed() {
 }
 
 struct VSCoreShittyFreeList {
-    VSFilterFree free;
+    VSFilterFree freeFunc;
     void *instanceData;
     int apiMajor;
     VSCoreShittyFreeList *next;
@@ -1675,8 +1675,8 @@ void VSCore::destroyFilterInstance(VSNode *node) {
     static thread_local VSCoreShittyFreeList *nodeFreeList = nullptr;
     freeDepth++;
 
-    if (node->free) {
-        nodeFreeList = new VSCoreShittyFreeList({ node->free, node->instanceData, node->apiMajor, nodeFreeList });
+    if (node->freeFunc) {
+        nodeFreeList = new VSCoreShittyFreeList({ node->freeFunc, node->instanceData, node->apiMajor, nodeFreeList });
     } else {
         filterInstanceDestroyed();
     }
@@ -1685,7 +1685,7 @@ void VSCore::destroyFilterInstance(VSNode *node) {
         while (nodeFreeList) {
             VSCoreShittyFreeList *current = nodeFreeList;
             nodeFreeList = current->next;
-            current->free(current->instanceData, this, getVSAPIInternal(current->apiMajor));
+            current->freeFunc(current->instanceData, this, getVSAPIInternal(current->apiMajor));
             delete current;
             filterInstanceDestroyed();
         }

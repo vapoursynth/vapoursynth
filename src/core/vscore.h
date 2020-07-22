@@ -35,6 +35,7 @@
 #include <list>
 #include <set>
 #include <map>
+#include <unordered_map>
 #include <memory>
 #include <atomic>
 #include <mutex>
@@ -92,12 +93,19 @@ class VSException : public std::runtime_error {
 
 typedef std::tuple<VSNode *, int, int> NodeOutputKey;
 
+template<>
+struct std::hash<NodeOutputKey> {
+    inline size_t operator()(const NodeOutputKey &val) const {  
+        return reinterpret_cast<size_t>(std::get<0>(val)) + (16 << std::get<1>(val)) + (24 << std::get<2>(val));
+    }
+};
+
 struct VSFuncRef {
 private:
     std::atomic<long> refcount;
     VSPublicFunction func;
     void *userData;
-    VSFreeFuncData free;
+    VSFreeFuncData freeFunc;
     VSCore *core;
     int apiMajor;
     ~VSFuncRef();
@@ -672,7 +680,7 @@ private:
     void *instanceData;
     std::string name;
     VSFilterGetFrame filterGetFrame;
-    VSFilterFree free = nullptr;
+    VSFilterFree freeFunc = nullptr;
     VSFilterMode filterMode;
 
     bool frameReadyNotify = false;
@@ -759,7 +767,7 @@ private:
     std::mutex callbackLock;
     std::map<std::thread::id, std::thread *> allThreads;
     std::list<PVSFrameContext> tasks;
-    std::map<NodeOutputKey, PVSFrameContext> allContexts;
+    std::unordered_map<NodeOutputKey, PVSFrameContext> allContexts;
     std::condition_variable newWork;
     std::condition_variable allIdle;
     std::atomic<unsigned> activeThreads;
