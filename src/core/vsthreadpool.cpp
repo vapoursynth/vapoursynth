@@ -85,7 +85,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Handle the output tasks
             if (mainContext->frameDone && mainContext->returnedFrame) {
-                PVSFrameContext mainContextRef(*iter);
+                PVSFrameContext mainContextRef(std::move(*iter));
                 owner->tasks.erase(iter);
                 owner->returnFrame(mainContextRef, mainContext->returnedFrame);
                 ranTask = true;
@@ -93,18 +93,14 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             }
 
             if (mainContext->frameDone && mainContext->hasError()) {
-                PVSFrameContext mainContextRef(*iter);
+                PVSFrameContext mainContextRef(std::move(*iter));
                 owner->tasks.erase(iter);
                 owner->returnFrame(mainContextRef, mainContext->getErrorMessage());
                 ranTask = true;
                 break;
             }
 
-            if (!seenNodes.insert(mainContext->clip).second)
-                continue;
-
-            bool hasLeafContext = mainContext->returnedFrame || mainContext->hasError();
-            if (hasLeafContext) {
+            if (mainContext->returnedFrame || mainContext->hasError()) {
                 leafContext = mainContext;
                 mainContext = mainContext->upstreamContext.get();
             }
@@ -113,14 +109,30 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             int filterMode = clip->filterMode;
 
 /////////////////////////////////////////////////////////////////////////////////////////////
+// Fast path for arFrameReady events that don't need to be notified
+
+            if ((!clip->frameReadyNotify && (mainContext->numFrameRequests > 1) && (!leafContext || !leafContext->hasError()))) {
+                mainContext->availableFrames.push_back(std::make_pair(NodeOutputKey(leafContext->clip, leafContext->n, leafContext->index), leafContext->returnedFrame));
+                --mainContext->numFrameRequests;
+                owner->tasks.erase(iter);
+                ranTask = true;
+                break;
+            }
+
+            // Don't try to lock the same node twice since it's likely to fail and will produce more out of order requests as well
+            if (!seenNodes.insert(mainContext->clip).second)
+                continue;
+
+/////////////////////////////////////////////////////////////////////////////////////////////
 // This part handles the locking for the different filter modes
-    
+
+
             // Does the filter need the per instance mutex? fmSerial, fmUnordered and fmParallelRequests (when in the arAllFramesReady state) use this
             bool useSerialLock = (filterMode == fmSerial || filterMode == fmUnordered || filterMode == fmUnorderedLinear || (filterMode == fmParallelRequests && mainContext->numFrameRequests == 1));
 
             // Guard against multiple arFrameReady calls into the same instance for the same frame, without this plugin writers would need to hold a mutex to modify the per frame data
             // Only needed due to the arFrameReady events and nothing else
-            bool useConcurrentCheck = ((filterMode == fmParallel || filterMode == fmParallelRequests) && mainContext->numFrameRequests > 1);
+            bool useConcurrentCheck = (clip->frameReadyNotify && ((filterMode == fmParallel || filterMode == fmParallelRequests) && mainContext->numFrameRequests > 1));
 
             // Note that technically useSerialLock^useConcurrentCheck has to be true BUT due to the initial request (mainContext->numFrameRequests == 0) case
             // not starting its requests until after the arInitial call returns no lock or bookkeeping of it is actually needed since it can't call into the filter at the same time as arFrameReady
@@ -145,14 +157,14 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 // is the filter already processing another call for this frame? if so move along
                 if (!clip->concurrentFrames.insert(mainContext->n).second)
                     continue;
-            }    
+            }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
-// Remove the context from the task list
+// Remove the context from the task list and keep references around until processing is done
 
             PVSFrameContext mainContextRef;
             PVSFrameContext leafContextRef;
-            if (hasLeafContext) {
+            if (leafContext) {
                 leafContextRef = std::move(*iter);
                 mainContextRef = leafContextRef->upstreamContext;
             } else {
@@ -166,11 +178,11 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 
             VSActivationReason ar = arInitial;
             bool skipCall = false; // Used to avoid multiple error calls for the same frame request going into a filter
-            if ((hasLeafContext && leafContext->hasError()) || mainContext->hasError()) {
+            if ((leafContext && leafContext->hasError()) || mainContext->hasError()) {
                 ar = arError;
                 skipCall = mainContext->setError(leafContext->getErrorMessage());
                 --mainContext->numFrameRequests;
-            } else if (hasLeafContext && leafContext->returnedFrame) {
+            } else if (leafContext && leafContext->returnedFrame) {
                 if (--mainContext->numFrameRequests > 0)
                     ar = arFrameReady;
                 else
@@ -296,8 +308,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 lock.unlock();
                 break;
             }
-            ++owner->idleThreads;
-            if (owner->idleThreads == owner->allThreads.size())
+            if (++owner->idleThreads == owner->allThreads.size())
                 owner->allIdle.notify_one();
 
             owner->newWork.wait(lock);
