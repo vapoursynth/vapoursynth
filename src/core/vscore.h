@@ -609,8 +609,8 @@ struct VSFrameContext {
     friend class VSThreadPool;
 private:
     std::atomic<long> refcount;
-    uintptr_t reqOrder;
-    unsigned numFrameRequests;
+    size_t reqOrder;
+    size_t numFrameRequests;
     int n;
     VSNode *clip;
     PVSFrameRef returnedFrame;
@@ -766,13 +766,13 @@ private:
     std::unordered_map<NodeOutputKey, PVSFrameContext> allContexts;
     std::condition_variable newWork;
     std::condition_variable allIdle;
-    std::atomic<unsigned> activeThreads;
-    std::atomic<unsigned> idleThreads;
-    std::atomic<uintptr_t> reqCounter;
-    unsigned maxThreads;
+    std::atomic<size_t> activeThreads;
+    std::atomic<size_t> idleThreads;
+    std::atomic<size_t> reqCounter;
+    size_t maxThreads;
     std::atomic<bool> stopThreads;
-    std::atomic<unsigned> ticks;
-    int getNumAvailableThreads();
+    std::atomic<size_t> ticks;
+    size_t getNumAvailableThreads();
     void wakeThread();
     void notifyCaches(bool needMemory);
     void startInternal(const PVSFrameContext &context);
@@ -784,8 +784,8 @@ public:
     ~VSThreadPool();
     void returnFrame(const PVSFrameContext &rCtx, const PVSFrameRef &f);
     void returnFrame(const PVSFrameContext &rCtx, const std::string &errMsg);
-    int threadCount();
-    int setThreadCount(int threads);
+    size_t threadCount();
+    size_t setThreadCount(size_t threads);
     void start(const PVSFrameContext &context);
     void releaseThread();
     void reserveThread();

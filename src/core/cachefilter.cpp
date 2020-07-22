@@ -205,9 +205,8 @@ static void VS_CC cacheFree(void *instanceData, VSCore *core, const VSAPI *vsapi
     delete c;
 }
 
-static std::atomic<unsigned> cacheId(1);
-
 static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    static std::atomic<size_t> cacheId(1);
     VSNodeRef *node = vsapi->propGetNode(in, "clip", 0, nullptr);
     int err;
     bool fixed = !!vsapi->propGetInt(in, "fixed", 0, &err);

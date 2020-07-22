@@ -1434,7 +1434,7 @@ void VSCore::getCoreInfo(VSCoreInfo &info) {
     info.versionString = VAPOURSYNTH_VERSION_STRING;
     info.core = VAPOURSYNTH_CORE_VERSION;
     info.api = VAPOURSYNTH_API_VERSION;
-    info.numThreads = threadPool->threadCount();
+    info.numThreads = static_cast<int>(threadPool->threadCount());
     info.maxFramebufferSize = memory->getLimit();
     info.usedFramebufferSize = memory->memoryUse();
 }

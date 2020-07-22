@@ -33,15 +33,15 @@
 #include <sys/cpuset.h>
 #endif
 
-int VSThreadPool::getNumAvailableThreads() {
-    int nthreads = std::thread::hardware_concurrency();
+size_t VSThreadPool::getNumAvailableThreads() {
+    size_t nthreads = std::thread::hardware_concurrency();
 #ifdef _WIN32
     DWORD_PTR pAff = 0;
     DWORD_PTR sAff = 0;
     BOOL res = GetProcessAffinityMask(GetCurrentProcess(), &pAff, &sAff);
     if (res && pAff != 0) {
         std::bitset<sizeof(sAff) * 8> b(pAff);
-        nthreads = static_cast<int>(b.count());
+        nthreads = b.count();
     }
 #elif defined(HAVE_SCHED_GETAFFINITY)
     // Linux only.
@@ -322,7 +322,7 @@ VSThreadPool::VSThreadPool(VSCore *core) : core(core), activeThreads(0), idleThr
     setThreadCount(0);
 }
 
-int VSThreadPool::threadCount() {
+size_t VSThreadPool::threadCount() {
     std::lock_guard<std::mutex> l(lock);
     return maxThreads;
 }
@@ -333,7 +333,7 @@ void VSThreadPool::spawnThread() {
     ++activeThreads;
 }
 
-int VSThreadPool::setThreadCount(int threads) {
+size_t VSThreadPool::setThreadCount(size_t threads) {
     std::lock_guard<std::mutex> l(lock);
     maxThreads = threads > 0 ? threads : getNumAvailableThreads();
     if (maxThreads == 0) {
