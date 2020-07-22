@@ -747,7 +747,7 @@ class vszimg {
                 }
             }
         } catch (...) {
-            free(core, vsapi);
+            freeFunc(core, vsapi);
             throw;
         }
     }
@@ -919,7 +919,7 @@ public:
         assert(!m_node);
     }
 
-    void free(VSCore *core, const VSAPI *vsapi) {
+    void freeFunc(VSCore *core, const VSAPI *vsapi) {
         vsapi->freeNode(m_node);
         m_node = nullptr;
     }
@@ -989,7 +989,7 @@ void VS_CC vszimg_create(const VSMap *in, VSMap *out, void *userData, VSCore *co
 
 void VS_CC vszimg_free(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     auto x = static_cast<vszimg *>(instanceData);
-    x->free(core, vsapi);
+    x->freeFunc(core, vsapi);
     delete x;
 }
 
