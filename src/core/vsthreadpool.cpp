@@ -114,48 +114,38 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // This part handles the locking for the different filter modes
+    
+            // Does the filter need the per instance mutex? fmSerial, fmUnordered and fmParallelRequests (when in the arAllFramesReady state) use this
+            bool useSerialLock = (filterMode == fmSerial || filterMode == fmUnordered || filterMode == fmUnorderedLinear || (filterMode == fmParallelRequests && mainContext->numFrameRequests == 1));
 
-            bool parallelRequestsNeedsUnlock = false;
-            if (filterMode == fmUnordered || filterMode == fmUnorderedLinear) {
-                // already busy?
+            // Guard against multiple arFrameReady calls into the same instance for the same frame, without this plugin writers would need to hold a mutex to modify the per frame data
+            // Only needed due to the arFrameReady events and nothing else
+            bool useConcurrentCheck = ((filterMode == fmParallel || filterMode == fmParallelRequests) && mainContext->numFrameRequests > 1);
+
+            // Note that technically useSerialLock^useConcurrentCheck has to be true BUT due to the initial request (mainContext->numFrameRequests == 0) case
+            // not starting its requests until after the arInitial call returns no lock or bookkeeping of it is actually needed since it can't call into the filter at the same time as arFrameReady
+            assert(!(useSerialLock && !useConcurrentCheck));
+
+            if (useSerialLock) {
                 if (!clip->serialMutex.try_lock())
                     continue;
-            } else if (filterMode == fmSerial) {
-                // already busy?
-                if (!clip->serialMutex.try_lock())
-                    continue;
-                // no frame in progress?
-                if (clip->serialFrame == -1) {
-                    clip->serialFrame = mainContext->n;
-                // another frame already in progress?
-                } else if (clip->serialFrame != mainContext->n) {
-                    clip->serialMutex.unlock();
-                    continue;
+                if (filterMode == fmSerial) {
+                    if (clip->serialFrame == -1) {
+                        clip->serialFrame = mainContext->n;
+                        // another frame already in progress?
+                    } else if (clip->serialFrame != mainContext->n) {
+                        clip->serialMutex.unlock();
+                        continue;
+                    }
                 }
-                // continue processing the already started frame
-            } else if (filterMode == fmParallel) {
+            }
+
+            if (useConcurrentCheck) {
                 std::lock_guard<std::mutex> lock(clip->concurrentFramesMutex);
                 // is the filter already processing another call for this frame? if so move along
                 if (!clip->concurrentFrames.insert(mainContext->n).second)
                     continue;
-            } else if (filterMode == fmParallelRequests) {
-                std::lock_guard<std::mutex> lock(clip->concurrentFramesMutex);
-                // do we need the serial lock since all frames will be ready this time?
-                // check if we're in the arAllFramesReady state so we need additional locking
-                if (mainContext->numFrameRequests == 1) {
-                    if (!clip->serialMutex.try_lock())
-                        continue;
-                    if (!clip->concurrentFrames.insert(mainContext->n).second) {
-                        clip->serialMutex.unlock();
-                        continue;
-                    }
-                    parallelRequestsNeedsUnlock = true;
-                } else {
-                    // is the filter already processing another call for this frame? if so move along
-                    if (!clip->concurrentFrames.insert(mainContext->n).second)
-                        continue;
-                }
-            }
+            }    
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Remove the context from the task list
@@ -217,20 +207,15 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Unlock so the next job can run on the context
-            if (filterMode == fmUnordered || filterMode == fmUnorderedLinear) {
-                clip->serialMutex.unlock();
-            } else if (filterMode == fmSerial) {
-                if (frameProcessingDone)
+            if (useSerialLock) {
+                if (filterMode == fmSerial && frameProcessingDone)
                     clip->serialFrame = -1;
                 clip->serialMutex.unlock();
-            } else if (filterMode == fmParallel) {
+            }
+
+            if (useConcurrentCheck) {
                 std::lock_guard<std::mutex> lock(clip->concurrentFramesMutex);
                 clip->concurrentFrames.erase(mainContext->n);
-            } else if (filterMode == fmParallelRequests) {
-                std::lock_guard<std::mutex> lock(clip->concurrentFramesMutex);
-                clip->concurrentFrames.erase(mainContext->n);
-                if (parallelRequestsNeedsUnlock)
-                    clip->serialMutex.unlock();
             }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
