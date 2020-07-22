@@ -153,10 +153,10 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             PVSFrameContext mainContextRef;
             PVSFrameContext leafContextRef;
             if (hasLeafContext) {
-                leafContextRef = *iter;
+                leafContextRef = std::move(*iter);
                 mainContextRef = leafContextRef->upstreamContext;
             } else {
-                mainContextRef = *iter;
+                mainContextRef = std::move(*iter);
             }
 
             owner->tasks.erase(iter);
@@ -221,6 +221,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Handle frames that were requested
             bool requestedFrames = mainContext->reqList.size() > 0 && !frameProcessingDone;
+            bool needsSort = requestedFrames;
 
             if (!isLinear)
                 lock.lock();
@@ -228,7 +229,6 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             if (requestedFrames) {
                 for (size_t i = 0; i < mainContext->reqList.size(); i++)
                     owner->startInternal(mainContext->reqList[i]);
-                owner->tasks.sort(taskCmp);
                 mainContext->reqList.clear();
             }
 
@@ -251,6 +251,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 
                     if (mainContextRef->upstreamContext) {
                         owner->startInternal(mainContextRef);
+                        needsSort = true;
                     }
 
                     if (mainContextRef->frameDone) {
@@ -271,6 +272,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                     if (mainContextRef->upstreamContext) {
                         mainContextRef->returnedFrame = f;
                         owner->startInternal(mainContextRef);
+                        needsSort = true;
                     }
 
                     if (mainContextRef->frameDone)
@@ -281,6 +283,9 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             } else {
                 owner->core->logMessage(mtFatal, ("No frame returned at the end of processing by " + clip->name).c_str());
             }
+
+            if (needsSort)
+                owner->tasks.sort(taskCmp);
             break;
         }
 
