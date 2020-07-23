@@ -23,6 +23,10 @@
 
 #include "VapourSynth4.h"
 
+#ifdef VS_USE_MIMALLOC
+#   include <mimalloc-override.h>
+#endif
+
 void VS_CC stdlibInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
 void VS_CC mergeInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
 void VS_CC reorderInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi);

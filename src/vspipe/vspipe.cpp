@@ -40,8 +40,12 @@
 #endif
 
 #define __STDC_FORMAT_MACROS
-#include <stdio.h>
-#include <inttypes.h>
+#include <cstdio>
+#include <cinttypes>
+
+#ifdef VS_USE_MIMALLOC
+#   include <mimalloc-new-delete.h>
+#endif
 
 
 // Needed so windows doesn't drool on itself when ctrl-c is pressed

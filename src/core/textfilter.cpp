@@ -20,15 +20,12 @@
 
 #include <cstdint>
 #include <cstdlib>
-
 #include <string>
 #include <vector>
 #include <memory>
-
 #include "VapourSynth4.h"
 #include "VSHelper4.h"
 #include "version.h"
-
 #include "filtershared.h"
 #include "ter-116n.h"
 #include "internalfilters.h"

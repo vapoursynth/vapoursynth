@@ -18,10 +18,6 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-#include "internalfilters.h"
-#include "VSHelper4.h"
-#include "filtershared.h"
-
 #include <cstdlib>
 #include <cstdio>
 #include <cinttypes>
@@ -29,6 +25,9 @@
 #include <limits>
 #include <string>
 #include <algorithm>
+#include "internalfilters.h"
+#include "VSHelper4.h"
+#include "filtershared.h"
 
 using namespace vsh;
 

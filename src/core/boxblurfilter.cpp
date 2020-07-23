@@ -18,15 +18,14 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-#include "internalfilters.h"
-#include "VSHelper4.h"
-#include "filtershared.h"
-
 #include <memory>
 #include <algorithm>
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include "internalfilters.h"
+#include "VSHelper4.h"
+#include "filtershared.h"
 
 namespace {
 std::string operator""_s(const char *str, size_t len) { return{ str, len }; }

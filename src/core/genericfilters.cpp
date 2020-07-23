@@ -32,6 +32,7 @@
 #include "VSHelper4.h"
 #include "cpufeatures.h"
 #include "filtershared.h"
+#include "internalfilters.h"
 #include "kernel/cpulevel.h"
 #include "kernel/generic.h"
 

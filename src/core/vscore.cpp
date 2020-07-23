@@ -46,6 +46,10 @@
 #include "internalfilters.h"
 #include "cachefilter.h"
 
+#ifdef VS_USE_MIMALLOC
+#   include <mimalloc-new-delete.h>
+#endif
+
 using namespace vsh;
 
 static inline bool isAlpha(char c) {

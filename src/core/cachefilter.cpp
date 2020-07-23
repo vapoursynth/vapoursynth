@@ -18,11 +18,11 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-#include "cachefilter.h"
-#include "VSHelper4.h"
+
 #include <string>
 #include <algorithm>
-
+#include "VSHelper4.h"
+#include "cachefilter.h"
 
 VSCache::CacheAction VSCache::recommendSize() {
     // fixme, constants pulled out of my ass

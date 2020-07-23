@@ -18,13 +18,13 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-#include "internalfilters.h"
-#include "VSHelper4.h"
-#include "filtershared.h"
 #include <cstdlib>
 #include <memory>
 #include <vector>
 #include <algorithm>
+#include "VSHelper4.h"
+#include "filtershared.h"
+#include "internalfilters.h"
 
 using namespace vsh;
 

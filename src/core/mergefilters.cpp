@@ -18,15 +18,15 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-#include <stdlib.h>
+#include <cstdlib>
+#include <memory>
+#include <algorithm>
 #include "cpufeatures.h"
 #include "filtershared.h"
 #include "internalfilters.h"
 #include "kernel/cpulevel.h"
 #include "kernel/merge.h"
 #include "VSHelper4.h"
-#include <memory>
-#include <algorithm>
 
 using namespace vsh;
 

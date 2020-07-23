@@ -51,9 +51,13 @@
 #        define NOMINMAX
 #    endif
 #    include <windows.h>
-#    define VS_FRAME_POOL
+#    //define VS_FRAME_POOL // fixme, remove after some testing
 #else
 #    include <dlfcn.h>
+#endif
+
+#ifdef VS_USE_MIMALLOC
+#   include <mimalloc-override.h>
 #endif
 
 #ifdef VS_FRAME_GUARD
