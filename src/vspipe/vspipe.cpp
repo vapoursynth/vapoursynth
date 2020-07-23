@@ -47,6 +47,10 @@
 #   include <mimalloc-new-delete.h>
 #endif
 
+// fixme, don't allow info/graph and output options to be combined
+// fixme, install a message handler (needs vsscript fix)
+// fixme, refactor to not use global variables everywhere so it's a better code sample
+// fixme, add a second less verbose graph mode only showing top level invoke calls
 
 // Needed so windows doesn't drool on itself when ctrl-c is pressed
 #ifdef VS_TARGET_OS_WINDOWS
@@ -97,7 +101,9 @@ static int requestedFrames = 0;
 static int completedFrames = 0;
 static int completedAlphaFrames = 0;
 static int totalFrames = -1;
-static int startFrame = 0;
+static int64_t totalSamples = -1;
+static int64_t startPos = 0;
+static int64_t endPos = -1;
 static bool y4m = false;
 static bool w64 = false;
 static bool wav = false;
@@ -261,7 +267,7 @@ static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, 
 
         if (elapsedSecondsFromStart.count() > 8) {
             hasMeaningfulFPS = true;
-            fps = (completedFrames - startFrame) / elapsedSeconds.count();
+            fps = completedFrames / elapsedSeconds.count();
         }
     }
 
@@ -358,14 +364,14 @@ static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, 
     if (printToConsole && !outputError) {
         if (vsapi->getNodeType(rnode) == mtVideo) {
             if (hasMeaningfulFPS)
-                fprintf(stderr, "Frame: %d/%d (%.2f fps)\r", completedFrames - startFrame, totalFrames - startFrame, fps);
+                fprintf(stderr, "Frame: %d/%d (%.2f fps)\r", completedFrames, totalFrames, fps);
             else
-                fprintf(stderr, "Frame: %d/%d\r", completedFrames - startFrame, totalFrames - startFrame);
+                fprintf(stderr, "Frame: %d/%d\r", completedFrames, totalFrames);
         } else {
             if (hasMeaningfulFPS)
-                fprintf(stderr, "Sample: %" PRId64 "/%" PRId64 " (%.2f sps)\r", static_cast<int64_t>((completedFrames - startFrame) * VS_AUDIO_FRAME_SAMPLES), static_cast<int64_t>((totalFrames - startFrame) * VS_AUDIO_FRAME_SAMPLES), fps);
+                fprintf(stderr, "Sample: %" PRId64 "/%" PRId64 " (%.2f sps)\r", static_cast<int64_t>(completedFrames * VS_AUDIO_FRAME_SAMPLES), static_cast<int64_t>(totalFrames * VS_AUDIO_FRAME_SAMPLES), fps);
             else
-                fprintf(stderr, "Sample: %" PRId64 "/%" PRId64 "\r", static_cast<int64_t>((completedFrames - startFrame) * VS_AUDIO_FRAME_SAMPLES), static_cast<int64_t>((totalFrames - startFrame) * VS_AUDIO_FRAME_SAMPLES));
+                fprintf(stderr, "Sample: %" PRId64 "/%" PRId64 "\r", static_cast<int64_t>(completedFrames * VS_AUDIO_FRAME_SAMPLES), static_cast<int64_t>(totalFrames * VS_AUDIO_FRAME_SAMPLES));
         }
     }
 
@@ -513,10 +519,9 @@ static bool outputNode() {
 
     std::unique_lock<std::mutex> lock(mutex);
 
-    int requestStart = completedFrames;
-    int intitalRequestSize = std::min(requests, totalFrames - requestStart);
-    requestedFrames = requestStart + intitalRequestSize;
-    for (int n = requestStart; n < requestStart + intitalRequestSize; n++) {
+    int intitalRequestSize = std::min(requests, totalFrames);
+    requestedFrames = intitalRequestSize;
+    for (int n = 0; n < intitalRequestSize; n++) {
         vsapi->getFrameAsync(n, node, frameDoneCallback, nullptr);
         if (alphaNode)
             vsapi->getFrameAsync(n, alphaNode, frameDoneCallback, nullptr);
@@ -544,6 +549,19 @@ static const char *colorFamilyToString(int colorFamily) {
     case cfCompatYUY2: return "CompatYUY2";
     }
     return "";
+}
+
+static bool nstringToInt64(const nstring &ns, int64_t &result) {
+    size_t pos = 0;
+    std::string s = nstringToUtf8(ns);
+    try {
+        result = std::stoll(s, &pos);
+    } catch (std::invalid_argument &) {
+        return false;
+    } catch (std::out_of_range &) {
+        return false;
+    }
+    return pos == s.length();
 }
 
 static bool nstringToInt(const nstring &ns, int &result) {
@@ -586,8 +604,8 @@ static void printHelp() {
         "\n"
         "Available options:\n"
         "  -a, --arg key=value   Argument to pass to the script environment\n"
-        "  -s, --start N         Set output frame range (first frame)\n"
-        "  -e, --end N           Set output frame range (last frame)\n"
+        "  -s, --start N         Set output frame/sample range start\n"
+        "  -e, --end N           Set output frame/sample range end (inclusive)\n"
         "  -o, --outputindex N   Select output index\n"
         "  -r, --requests N      Set number of concurrent frame requests\n"
         "  -y, --y4m             Add YUV4MPEG headers to video output\n"
@@ -615,10 +633,6 @@ static void printHelp() {
         "    vspipe script.vpy - --y4m --timecodes timecodes.txt | x264 --demuxer y4m -o script.mkv -\n"
         );
 }
-
-// fixme, don't allow info/graph and output options to be combined
-// fixme, trim audio by sample numbers on output (implement trimming as a trim filter invocation instead of custom logic to simplify things?)
-// fixme, install a message handler (needs vsscript fix)
 
 #ifdef VS_TARGET_OS_WINDOWS
 int wmain(int argc, wchar_t **argv) {
@@ -664,20 +678,15 @@ int main(int argc, char **argv) {
                 return 1;
             }
 
-            if (!nstringToInt(argv[arg + 1], startFrame)) {
+            if (!nstringToInt64(argv[arg + 1], startPos)) {
                 fprintf(stderr, "Couldn't convert %s to an integer (start)\n", nstringToUtf8(argv[arg + 1]).c_str());
                 return 1;
             }
 
-            if (startFrame < 0) {
-                fprintf(stderr, "Negative start frame specified\n");
+            if (startPos < 0) {
+                fprintf(stderr, "Negative start position specified\n");
                 return 1;
             }
-
-            completedFrames = startFrame;
-            completedAlphaFrames = startFrame;
-            outputFrames = startFrame;
-            requestedFrames = startFrame;
 
             arg++;
         } else if (argString == NSTRING("-e") || argString == NSTRING("--end")) {
@@ -686,17 +695,16 @@ int main(int argc, char **argv) {
                 return 1;
             }
 
-            if (!nstringToInt(argv[arg + 1], totalFrames)) {
+            if (!nstringToInt64(argv[arg + 1], endPos)) {
                 fprintf(stderr, "Couldn't convert %s to an integer (end)\n", nstringToUtf8(argv[arg + 1]).c_str());
                 return 1;
             }
 
-            if (totalFrames < 0) {
+            if (endPos < 0) {
                 fprintf(stderr, "Negative end frame specified\n");
                 return 1;
             }
 
-            totalFrames++;
             arg++;
         } else if (argString == NSTRING("-o") || argString == NSTRING("--outputindex")) {
             if (argc <= arg + 1) {
@@ -853,6 +861,29 @@ int main(int argc, char **argv) {
 
         int nodeType = vsapi->getNodeType(node);
 
+        if (startPos != 0 || endPos != -1) {
+            VSMap *args = vsapi->createMap();
+            vsapi->propSetNode(args, "clip", node, paAppend);
+            if (startPos != 0)
+                vsapi->propSetInt(args, "first", startPos, paAppend);
+            if (endPos > -1)
+                vsapi->propSetInt(args, "last", endPos, paAppend);
+            VSMap *result = vsapi->invoke(vsapi->getPluginByID("com.vapoursynth.std", vssapi->getCore(se)), (nodeType == mtVideo) ? "Trim" : "AudioTrim", args);
+            vsapi->freeMap(args);
+            if (vsapi->getError(result)) {
+                fprintf(stderr, "%s\n", vsapi->getError(result));
+                vsapi->freeMap(result);
+                vsapi->freeNode(node);
+                vsapi->freeNode(alphaNode);
+                vssapi->freeScript(se);
+                return 1;
+            } else {
+                vsapi->freeNode(node);
+                node = vsapi->propGetNode(result, "clip", 0, nullptr);
+                vsapi->freeMap(result);
+            }
+        }
+
         if (nodeType == mtVideo) {
 
             const VSVideoInfo *vi = vsapi->getVideoInfo(node);
@@ -887,16 +918,6 @@ int main(int argc, char **argv) {
                     }
                 }
             } else {
-                if (totalFrames == -1)
-                    totalFrames = vi->numFrames;
-                if ((vi->numFrames && vi->numFrames < totalFrames) || completedFrames >= totalFrames) {
-                    fprintf(stderr, "Invalid range of frames to output specified:\nfirst: %d\nlast: %d\nclip length: %d\nframes to output: %d\n", completedFrames, totalFrames, vi->numFrames, totalFrames - completedFrames);
-                    vsapi->freeNode(node);
-                    vsapi->freeNode(alphaNode);
-                    vssapi->freeScript(se);
-                    return 1;
-                }
-
                 if (!isConstantVideoFormat(vi)) {
                     fprintf(stderr, "Cannot output clips with varying dimensions\n");
                     vsapi->freeNode(node);
@@ -904,6 +925,8 @@ int main(int argc, char **argv) {
                     vssapi->freeScript(se);
                     return 1;
                 }
+
+                totalFrames = vi->numFrames;
 
                 success = initializeVideoOutput();
                 if (success) {
@@ -928,15 +951,8 @@ int main(int argc, char **argv) {
                     fprintf(outFile, "Layout: %s\n", channelMaskToName(ai->format.channelLayout).c_str());
                 }
             } else {
-                if (totalFrames == -1)
-                    totalFrames = ai->numFrames;
-                if ((ai->numFrames && ai->numFrames < totalFrames) || completedFrames >= totalFrames) {
-                    fprintf(stderr, "Invalid range of frames to output specified:\nfirst: %d\nlast: %d\nclip length: %d\nframes to output: %d\n", completedFrames, totalFrames, ai->numFrames, totalFrames - completedFrames);
-                    vsapi->freeNode(node);
-                    vsapi->freeNode(alphaNode);
-                    vssapi->freeScript(se);
-                    return 1;
-                }
+                totalFrames = ai->numFrames;
+                totalSamples = ai->numSamples;
 
                 success = initializeAudioOutput();
                 if (success) {
@@ -953,12 +969,11 @@ int main(int argc, char **argv) {
         fclose(timecodesFile);
 
     if (!showInfo && !showGraph) {
-        int totalFrames = outputFrames - startFrame;
         std::chrono::duration<double> elapsedSeconds = std::chrono::steady_clock::now() - startTime;
         if (vsapi->getNodeType(node) == mtVideo)
             fprintf(stderr, "Output %d frames in %.2f seconds (%.2f fps)\n", totalFrames, elapsedSeconds.count(), totalFrames / elapsedSeconds.count());
         else
-            fprintf(stderr, "Output %" PRId64 " samples in %.2f seconds (%.2f sps)\n", static_cast<int64_t>(totalFrames * VS_AUDIO_FRAME_SAMPLES), elapsedSeconds.count(), (totalFrames / elapsedSeconds.count()) * VS_AUDIO_FRAME_SAMPLES);
+            fprintf(stderr, "Output %" PRId64 " samples in %.2f seconds (%.2f sps)\n", totalSamples, elapsedSeconds.count(), (totalFrames / elapsedSeconds.count()) * VS_AUDIO_FRAME_SAMPLES);
     }
     vsapi->freeNode(node);
     vsapi->freeNode(alphaNode);
