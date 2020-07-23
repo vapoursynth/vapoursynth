@@ -110,7 +110,7 @@ static bool preserveCwd = false;
 static bool showVersion = false;
 static bool printFrameNumber = false;
 static double fps = 0;
-static bool hasMeaningfulFps = false;
+static bool hasMeaningfulFPS = false;
 static std::map<int, std::pair<const VSFrameRef *, const VSFrameRef *>> reorderMap;
 
 static std::string errorMessage;
@@ -118,9 +118,8 @@ static std::condition_variable condition;
 static std::mutex mutex;
 static std::vector<uint8_t> buffer;
 
-static std::chrono::time_point<std::chrono::high_resolution_clock> start;
-static std::chrono::time_point<std::chrono::high_resolution_clock> lastFpsReportTime;
-static int lastFpsReportFrame = 0;
+static std::chrono::time_point<std::chrono::steady_clock> startTime;
+static std::chrono::time_point<std::chrono::steady_clock> lastFPSReportTime;
 
 static std::string channelMaskToName(uint64_t v) {
     std::string s;
@@ -247,14 +246,22 @@ static void outputFrame(const VSFrameRef *frame) {
 }
 
 static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *rnode, const char *errorMsg) {
+    bool printToConsole = false;
     if (printFrameNumber) {
-        std::chrono::time_point<std::chrono::high_resolution_clock> currentTime(std::chrono::high_resolution_clock::now());
-        std::chrono::duration<double> elapsedSeconds = currentTime - lastFpsReportTime;
-        if (elapsedSeconds.count() > 10) {
-            hasMeaningfulFps = true;
-            fps = (completedFrames - lastFpsReportFrame) / elapsedSeconds.count();
-            lastFpsReportTime = currentTime;
-            lastFpsReportFrame = completedFrames;
+        printToConsole = (n == 0);
+
+        std::chrono::time_point<std::chrono::steady_clock> currentTime(std::chrono::steady_clock::now());
+        std::chrono::duration<double> elapsedSeconds = currentTime - lastFPSReportTime;
+        std::chrono::duration<double> elapsedSecondsFromStart = currentTime - startTime;
+
+        if (elapsedSeconds.count() > .5) {
+            printToConsole = true;
+            lastFPSReportTime = currentTime;
+        }
+
+        if (elapsedSecondsFromStart.count() > 8) {
+            hasMeaningfulFPS = true;
+            fps = (completedFrames - startFrame) / elapsedSeconds.count();
         }
     }
 
@@ -348,11 +355,18 @@ static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, 
         }
     }
 
-    if (printFrameNumber && !outputError) {
-        if (hasMeaningfulFps)
-            fprintf(stderr, "Frame: %d/%d (%.2f fps)\r", completedFrames - startFrame, totalFrames - startFrame, fps);
-        else
-            fprintf(stderr, "Frame: %d/%d\r", completedFrames - startFrame, totalFrames - startFrame);
+    if (printToConsole && !outputError) {
+        if (vsapi->getNodeType(rnode) == mtVideo) {
+            if (hasMeaningfulFPS)
+                fprintf(stderr, "Frame: %d/%d (%.2f fps)\r", completedFrames - startFrame, totalFrames - startFrame, fps);
+            else
+                fprintf(stderr, "Frame: %d/%d\r", completedFrames - startFrame, totalFrames - startFrame);
+        } else {
+            if (hasMeaningfulFPS)
+                fprintf(stderr, "Sample: %" PRId64 "/%" PRId64 " (%.2f sps)\r", static_cast<int64_t>((completedFrames - startFrame) * VS_AUDIO_FRAME_SAMPLES), static_cast<int64_t>((totalFrames - startFrame) * VS_AUDIO_FRAME_SAMPLES), fps);
+            else
+                fprintf(stderr, "Sample: %" PRId64 "/%" PRId64 "\r", static_cast<int64_t>((completedFrames - startFrame) * VS_AUDIO_FRAME_SAMPLES), static_cast<int64_t>((totalFrames - startFrame) * VS_AUDIO_FRAME_SAMPLES));
+        }
     }
 
     if (totalFrames == completedFrames && totalFrames == completedAlphaFrames) {
@@ -602,9 +616,10 @@ static void printHelp() {
         );
 }
 
-// fixme, only allow info without output
-// fixme, trim audio by sample numbers on output (implement trimming as a trim filter invocation instead of custom logic to simplify things)
-// fixme, install a message handler
+// fixme, don't allow info/graph and output options to be combined
+// fixme, trim audio by sample numbers on output (implement trimming as a trim filter invocation instead of custom logic to simplify things?)
+// fixme, install a message handler (needs vsscript fix)
+
 #ifdef VS_TARGET_OS_WINDOWS
 int wmain(int argc, wchar_t **argv) {
     if (_setmode(_fileno(stdout), _O_BINARY) == -1)
@@ -663,7 +678,6 @@ int main(int argc, char **argv) {
             completedAlphaFrames = startFrame;
             outputFrames = startFrame;
             requestedFrames = startFrame;
-            lastFpsReportFrame = startFrame;
 
             arg++;
         } else if (argString == NSTRING("-e") || argString == NSTRING("--end")) {
@@ -743,6 +757,9 @@ int main(int argc, char **argv) {
     if (wav && w64) {
         fprintf(stderr, "Cannot combine wave64 and wave headers\n");
         return 1;
+    } else if (showInfo && showGraph) {
+        fprintf(stderr, "Cannot combine info and graph options\n");
+        return 1;
     } else if (showVersion && argc > 2) {
         fprintf(stderr, "Cannot combine version information with other options\n");
         return 1;
@@ -792,6 +809,8 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Failed to get VapourSynth API pointer\n");
         return 1;
     }
+
+    std::chrono::time_point<std::chrono::steady_clock> scriptEvaluationStart = std::chrono::steady_clock::now();
     
     // Should always succeed
     if (vssapi->createScript(&se)) {
@@ -808,7 +827,6 @@ int main(int argc, char **argv) {
         vsapi->freeMap(foldedArgs);
     }
 
-    start = std::chrono::high_resolution_clock::now();
     if (vssapi->evaluateFile(&se, nstringToUtf8(scriptFilename).c_str(), preserveCwd ? 0 : efSetWorkingDir)) {
         fprintf(stderr, "Script evaluation failed:\n%s\n", vssapi->getError(se));
         vssapi->freeScript(se);
@@ -822,6 +840,11 @@ int main(int argc, char **argv) {
        return 1;
     }
 
+    std::chrono::duration<double> scriptEvaluationTime = std::chrono::steady_clock::now() - scriptEvaluationStart;
+    if (printFrameNumber)
+        fprintf(stderr, "Script evaluation done in %.2f seconds\n", scriptEvaluationTime.count());
+
+    startTime = std::chrono::steady_clock::now();
     bool success = true;
 
     if (showGraph) {
@@ -884,7 +907,7 @@ int main(int argc, char **argv) {
 
                 success = initializeVideoOutput();
                 if (success) {
-                    lastFpsReportTime = std::chrono::high_resolution_clock::now();
+                    lastFPSReportTime = std::chrono::steady_clock::now();
                     success = !outputNode();
                 }
             }
@@ -917,7 +940,7 @@ int main(int argc, char **argv) {
 
                 success = initializeAudioOutput();
                 if (success) {
-                    lastFpsReportTime = std::chrono::high_resolution_clock::now();
+                    lastFPSReportTime = std::chrono::steady_clock::now();
                     success = !outputNode();
                 }
             }
@@ -929,10 +952,13 @@ int main(int argc, char **argv) {
     if (timecodesFile)
         fclose(timecodesFile);
 
-    if (!showInfo) {
+    if (!showInfo && !showGraph) {
         int totalFrames = outputFrames - startFrame;
-        std::chrono::duration<double> elapsedSeconds = std::chrono::high_resolution_clock::now() - start;
-        fprintf(stderr, "Output %d frames in %.2f seconds (%.2f fps)\n", totalFrames, elapsedSeconds.count(), totalFrames / elapsedSeconds.count());
+        std::chrono::duration<double> elapsedSeconds = std::chrono::steady_clock::now() - startTime;
+        if (vsapi->getNodeType(node) == mtVideo)
+            fprintf(stderr, "Output %d frames in %.2f seconds (%.2f fps)\n", totalFrames, elapsedSeconds.count(), totalFrames / elapsedSeconds.count());
+        else
+            fprintf(stderr, "Output %" PRId64 " samples in %.2f seconds (%.2f sps)\n", static_cast<int64_t>(totalFrames * VS_AUDIO_FRAME_SAMPLES), elapsedSeconds.count(), (totalFrames / elapsedSeconds.count()) * VS_AUDIO_FRAME_SAMPLES);
     }
     vsapi->freeNode(node);
     vsapi->freeNode(alphaNode);
