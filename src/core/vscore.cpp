@@ -94,11 +94,11 @@ static std::wstring readRegistryValue(const wchar_t *keyName, const wchar_t *val
 #endif
 
 VSFrameContext::VSFrameContext(int n, int index, VSNode *clip, const PVSFrameContext &upstreamContext) :
-    refcount(1), reqOrder(upstreamContext->reqOrder), numFrameRequests(0), n(n), clip(clip), upstreamContext(upstreamContext), userData(nullptr), frameDone(nullptr), error(false), lockOnOutput(true), node(nullptr), lastCompletedN(-1), index(index), lastCompletedNode(nullptr) {
+    refcount(1), reqOrder(upstreamContext->reqOrder), n(n), clip(clip), upstreamContext(upstreamContext), userData(nullptr), frameDone(nullptr), lockOnOutput(true), node(nullptr), index(index) {
 }
 
 VSFrameContext::VSFrameContext(int n, int index, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput) :
-    refcount(1), reqOrder(0), numFrameRequests(0), n(n), clip(node->clip), userData(userData), frameDone(frameDone), error(false), lockOnOutput(lockOnOutput), node(node), lastCompletedN(-1), index(index), lastCompletedNode(nullptr) {
+    refcount(1), reqOrder(0), n(n), clip(node->clip), userData(userData), frameDone(frameDone), lockOnOutput(lockOnOutput), node(node), index(index) {
 }
 
 bool VSFrameContext::setError(const std::string &errorMsg) {
@@ -289,8 +289,8 @@ void MemoryUse::add(size_t bytes) {
 }
 
 void MemoryUse::subtract(size_t bytes) {
-    used.fetch_sub(bytes);
-    if (freeOnZero && !used)
+    size_t tmp = used.fetch_sub(bytes) - bytes;
+    if (freeOnZero && !tmp)
         delete this;
 }
 

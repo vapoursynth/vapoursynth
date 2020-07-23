@@ -614,7 +614,7 @@ struct VSFrameContext {
 private:
     std::atomic<long> refcount;
     size_t reqOrder;
-    size_t numFrameRequests;
+    size_t numFrameRequests = 0;
     int n;
     VSNode *clip;
     PVSFrameRef returnedFrame;
@@ -623,24 +623,27 @@ private:
     void *userData;
     VSFrameDoneCallback frameDone;
     std::string errorMessage;
-    bool error;
+    bool error = false;
     bool lockOnOutput;
 public:
     SemiStaticVector<PVSFrameContext, NUM_FRAMECONTEXT_FAST_REQS> reqList;
     SemiStaticVector<std::pair<NodeOutputKey, PVSFrameRef>, NUM_FRAMECONTEXT_FAST_REQS> availableFrames;
 
     VSNodeRef *node;
-    int lastCompletedN;
     int index;
-    VSNodeRef *lastCompletedNode;
-
     void *frameContext[4];
+
+    // only used for queryCompletedFrame
+    int lastCompletedN = -1;
+    VSNodeRef *lastCompletedNode = nullptr;
+    //
 
     void add_ref() noexcept {
         ++refcount;
     }
 
     void release() noexcept {
+        assert(refcount > 0);
         if (--refcount == 0)
             delete this;
     }
@@ -677,13 +680,13 @@ struct VSNode {
 private:
     std::atomic<long> refcount;
     VSMediaType nodeType;
+    bool frameReadyNotify = false;
     void *instanceData;
     std::string name;
     VSFilterGetFrame filterGetFrame;
     VSFilterFree freeFunc = nullptr;
     VSFilterMode filterMode;
 
-    bool frameReadyNotify = false;
     int apiMajor;
     VSCore *core;
     PVSFunctionFrame functionFrame;
@@ -697,8 +700,7 @@ private:
     std::mutex serialMutex;
     int serialFrame;
     // to prevent multiple calls at the same time for the same frame
-    // this is used exclusively by fmParallel
-    // fmParallelRequests use this in combination with serialMutex to signal when all its frames are ready
+    // this is only used by fmParallel and fmParallelRequests when frameReadyNotify is set
     std::mutex concurrentFramesMutex;
     std::set<int> concurrentFrames;
 
