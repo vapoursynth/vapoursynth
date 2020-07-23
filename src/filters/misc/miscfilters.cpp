@@ -103,7 +103,7 @@ static void VS_CC scDetectCreate(const VSMap *in, VSMap *out, void *userData, VS
         if (vi->numFrames == 1)
             throw std::runtime_error("clip must have more than one frame");
 
-        VSPlugin *stdplugin = vsapi->getPluginByID("com.vapoursynth.std", core);
+        VSPlugin *stdplugin = vsapi->getPluginByID(VS_STD_PLUGIN_ID, core);
         VSMap *invmap = vsapi->createMap();
         VSMap *invmap2 = nullptr;
         vsapi->propSetNode(invmap, "clip", d->node, paAppend);

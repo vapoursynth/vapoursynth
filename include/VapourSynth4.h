@@ -73,6 +73,10 @@ typedef struct VSFrameContext VSFrameContext;
 typedef struct VSPLUGINAPI VSPLUGINAPI;
 typedef struct VSAPI VSAPI;
 
+#define VS_STD_PLUGIN_ID "com.vapoursynth.std"
+#define VS_RESIZE_PLUGIN_ID "com.vapoursynth.resize"
+#define VS_TEXT_PLUGIN_ID "com.vapoursynth.text"
+
 #define VS_AUDIO_FRAME_SAMPLES 3000
 
 typedef enum VSColorFamily {

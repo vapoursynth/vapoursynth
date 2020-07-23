@@ -172,7 +172,7 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
         vsapi->propSetNode(min, "clip", d->node[1], paAppend);
         vsapi->propSetInt(min, "width", d->vi->width >> d->vi->format.subSamplingW, paAppend);
         vsapi->propSetInt(min, "height", d->vi->height >> d->vi->format.subSamplingH, paAppend);
-        VSMap *mout = vsapi->invoke(vsapi->getPluginByID("com.vapoursynth.resize", core), "Bilinear", min);
+        VSMap *mout = vsapi->invoke(vsapi->getPluginByID(VS_RESIZE_PLUGIN_ID, core), "Bilinear", min);
         d->node[2] = vsapi->propGetNode(mout, "clip", 0, 0);
         vsapi->freeMap(mout);
         vsapi->freeMap(min);
@@ -483,7 +483,7 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
             vsapi->propSetNode(min, "clips", d->node[2], paAppend);
             vsapi->propSetInt(min, "planes", 0, paAppend);
             vsapi->propSetInt(min, "colorfamily", cfGray, paAppend);
-            VSMap *mout = vsapi->invoke(vsapi->getPluginByID("com.vapoursynth.std", core), "ShufflePlanes", min);
+            VSMap *mout = vsapi->invoke(vsapi->getPluginByID(VS_STD_PLUGIN_ID, core), "ShufflePlanes", min);
             VSNodeRef *mask_first_plane = vsapi->propGetNode(mout, "clip", 0, 0);
             vsapi->freeMap(mout);
             vsapi->clearMap(min);
@@ -495,7 +495,7 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
 
         vsapi->propSetInt(min, "width", d->vi->width >> d->vi->format.subSamplingW, paAppend);
         vsapi->propSetInt(min, "height", d->vi->height >> d->vi->format.subSamplingH, paAppend);
-        VSMap *mout = vsapi->invoke(vsapi->getPluginByID("com.vapoursynth.resize", core), "Bilinear", min);
+        VSMap *mout = vsapi->invoke(vsapi->getPluginByID(VS_RESIZE_PLUGIN_ID, core), "Bilinear", min);
         d->node[3] = vsapi->propGetNode(mout, "clip", 0, 0);
         vsapi->freeMap(mout);
         vsapi->freeMap(min);

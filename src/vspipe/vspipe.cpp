@@ -868,7 +868,7 @@ int main(int argc, char **argv) {
                 vsapi->propSetInt(args, "first", startPos, paAppend);
             if (endPos > -1)
                 vsapi->propSetInt(args, "last", endPos, paAppend);
-            VSMap *result = vsapi->invoke(vsapi->getPluginByID("com.vapoursynth.std", vssapi->getCore(se)), (nodeType == mtVideo) ? "Trim" : "AudioTrim", args);
+            VSMap *result = vsapi->invoke(vsapi->getPluginByID(VS_STD_PLUGIN_ID, vssapi->getCore(se)), (nodeType == mtVideo) ? "Trim" : "AudioTrim", args);
             vsapi->freeMap(args);
             if (vsapi->getError(result)) {
                 fprintf(stderr, "%s\n", vsapi->getError(result));
