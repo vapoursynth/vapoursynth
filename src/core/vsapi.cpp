@@ -426,7 +426,8 @@ static int VS_CC propGetDataType(const VSMap *map, const char *key, int index, i
 }
 
 static VSNodeRef *VS_CC propGetNode(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    VSArrayBase *arr = propGetShared(map, key, index, error, ptVideoNode);
+    int dummyError;
+    VSArrayBase *arr = propGetShared(map, key, index, &dummyError, ptVideoNode);
     if (arr) {
         VSNodeRef *ref = reinterpret_cast<VSVideoNodeArray *>(arr)->at(index).get();
         ref->add_ref();
@@ -444,7 +445,8 @@ static VSNodeRef *VS_CC propGetNode(const VSMap *map, const char *key, int index
 }
 
 static const VSFrameRef *VS_CC propGetFrame(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    VSArrayBase *arr = propGetShared(map, key, index, error, ptData);
+    int dummyError;
+    VSArrayBase *arr = propGetShared(map, key, index, &dummyError, ptData);
     if (arr) {
         VSFrameRef *ref = reinterpret_cast<VSVideoFrameArray *>(arr)->at(index).get();
         ref->add_ref();
