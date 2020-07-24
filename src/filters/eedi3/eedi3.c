@@ -30,9 +30,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "VapourSynth.h"
-#include "VSHelper.h"
-
+#include "VapourSynth4.h"
+#include "VSHelper4.h"
 
 typedef struct {
     VSNodeRef *node;
@@ -46,24 +45,16 @@ typedef struct {
     int field, nrad, mdis, vcheck;
 } eedi3Data;
 
-
-static void VS_CC eedi3Init(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi)
-{
-    eedi3Data *d = (eedi3Data *) * instanceData;
-    vsapi->setVideoInfo(&d->vi, 1, node);
-}
-
-
-static void interpLineFP(const uint8_t *srcp, const int width, const int pitch,
+static void interpLineFP(const uint8_t *srcp, const int width, const ptrdiff_t pitch,
                          const float alpha, const float beta, const float gamma, const int nrad,
-                         const int mdis, float *temp, uint8_t *dstp, int *dmap, const int ucubic,
+                         const ptrdiff_t mdis, float *temp, uint8_t *dstp, int *dmap, const int ucubic,
                          const int cost3)
 {
     const uint8_t *src3p = srcp - 3 * pitch;
     const uint8_t *src1p = srcp - 1 * pitch;
     const uint8_t *src1n = srcp + 1 * pitch;
     const uint8_t *src3n = srcp + 3 * pitch;
-    const int tpitch = mdis * 2 + 1;
+    const ptrdiff_t tpitch = mdis * 2 + 1;
     float *ccosts = temp;
     float *pcosts = ccosts + width * tpitch;
     int *pbackt = (int *)(pcosts + width * tpitch);
@@ -186,16 +177,16 @@ static void interpLineFP(const uint8_t *srcp, const int width, const int pitch,
 }
 
 
-static void interpLineHP(const uint8_t *srcp, const int width, const int pitch,
+static void interpLineHP(const uint8_t *srcp, const int width, const ptrdiff_t pitch,
                          const float alpha, const float beta, const float gamma, const int nrad,
-                         const int mdis, float *temp, uint8_t *dstp, int *dmap, const int ucubic,
+                         const ptrdiff_t mdis, float *temp, uint8_t *dstp, int *dmap, const int ucubic,
                          const int cost3)
 {
     const uint8_t *src3p = srcp - 3 * pitch;
     const uint8_t *src1p = srcp - 1 * pitch;
     const uint8_t *src1n = srcp + 1 * pitch;
     const uint8_t *src3n = srcp + 3 * pitch;
-    const int tpitch = mdis * 4 + 1;
+    const ptrdiff_t tpitch = mdis * 4 + 1;
     float *ccosts = temp;
     float *pcosts = ccosts + width * tpitch;
     int *pbackt = (int *)(pcosts + width * tpitch);
@@ -386,32 +377,32 @@ static VSFrameRef *copyPad(const VSFrameRef *src, int fn, VSFrameContext *frameC
     eedi3Data *d = (eedi3Data *) * instanceData;
 
     const int off = 1 - fn;
-    VSFrameRef *srcPF = vsapi->newVideoFrame(d->vi.format, d->vi.width + 24 * (1 << d->vi.format->subSamplingW), d->vi.height + 8 * (1 << d->vi.format->subSamplingH), NULL, core);
+    VSFrameRef *srcPF = vsapi->newVideoFrame(&d->vi.format, d->vi.width + 24 * (1 << d->vi.format.subSamplingW), d->vi.height + 8 * (1 << d->vi.format.subSamplingH), NULL, core);
 
     int b, x, y;
 
     if(!d->dh) {
-        for(b = 0; b < d->vi.format->numPlanes; ++b)
-            vs_bitblt(vsapi->getWritePtr(srcPF, b) + vsapi->getStride(srcPF, b) * (4 + off) + 12,
+        for(b = 0; b < d->vi.format.numPlanes; ++b)
+            vsh_bitblt(vsapi->getWritePtr(srcPF, b) + vsapi->getStride(srcPF, b) * (4 + off) + 12,
                       vsapi->getStride(srcPF, b) * 2,
                       vsapi->getReadPtr(src, b) + vsapi->getStride(src, b)*off,
                       vsapi->getStride(src, b) * 2,
-                      vsapi->getFrameWidth(src, b) * d->vi.format->bytesPerSample,
+                      vsapi->getFrameWidth(src, b) * d->vi.format.bytesPerSample,
                       vsapi->getFrameHeight(src, b) >> 1);
     } else {
-        for(b = 0; b < d->vi.format->numPlanes; ++b)
-            vs_bitblt(vsapi->getWritePtr(srcPF, b) + vsapi->getStride(srcPF, b) * (4 + off) + 12,
+        for(b = 0; b < d->vi.format.numPlanes; ++b)
+            vsh_bitblt(vsapi->getWritePtr(srcPF, b) + vsapi->getStride(srcPF, b) * (4 + off) + 12,
                       vsapi->getStride(srcPF, b) * 2,
                       vsapi->getReadPtr(src, b),
                       vsapi->getStride(src, b),
-                      vsapi->getFrameWidth(src, b) * d->vi.format->bytesPerSample,
+                      vsapi->getFrameWidth(src, b) * d->vi.format.bytesPerSample,
                       vsapi->getFrameHeight(src, b));
     }
 
-    for(b = 0; b < d->vi.format->numPlanes; ++b) {
+    for(b = 0; b < d->vi.format.numPlanes; ++b) {
         // fixme, probably pads a bit too much with subsampled formats
         uint8_t *dstp = vsapi->getWritePtr(srcPF, b);
-        const int dst_pitch = vsapi->getStride(srcPF, b);
+        const ptrdiff_t dst_pitch = vsapi->getStride(srcPF, b);
         const int height = vsapi->getFrameHeight(src, b) * (d->dh ? 2 : 1) + 8;
         const int width = vsapi->getFrameWidth(src, b) + 24;
         dstp += (4 + off) * dst_pitch;
@@ -431,13 +422,13 @@ static VSFrameRef *copyPad(const VSFrameRef *src, int fn, VSFrameContext *frameC
         dstp = vsapi->getWritePtr(srcPF, b);
 
         for(y = off; y < 4; y += 2)
-            vs_bitblt(dstp + y * dst_pitch, dst_pitch,
+            vsh_bitblt(dstp + y * dst_pitch, dst_pitch,
                       dstp + (8 - y) * dst_pitch, dst_pitch, width, 1);
 
         int c = 2 + 2 * off;
 
         for(y = height - 4 + off; y < height; y += 2, c += 4)
-            vs_bitblt(dstp + y * dst_pitch, dst_pitch,
+            vsh_bitblt(dstp + y * dst_pitch, dst_pitch,
                       dstp + (y - c) * dst_pitch, dst_pitch, width, 1);
     }
 
@@ -461,7 +452,7 @@ static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *
         int field_n;
 
         int err = 0;
-        int fieldbased = int64ToIntS(vsapi->propGetInt(vsapi->getFramePropsRO(src), "_FieldBased", 0, &err));
+        int fieldbased = vsapi->propGetSaturatedInt(vsapi->getFramePropsRO(src), "_FieldBased", 0, &err);
         int effective_field = d->field;
         if (effective_field > 1)
             effective_field -= 2;
@@ -491,11 +482,11 @@ static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *
             scpPF = NULL;
 
         // fixme,  adjust duration
-        VSFrameRef *dst = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, src, core);
+        VSFrameRef *dst = vsapi->newVideoFrame(&d->vi.format, d->vi.width, d->vi.height, src, core);
         vsapi->freeFrame(src);
 
         float *workspace = NULL;
-        VS_ALIGNED_MALLOC((void **)&workspace, d->vi.width * VSMAX(d->mdis * 4 + 1, 16) * 4 * sizeof(float), 16);
+        VSH_ALIGNED_MALLOC((void **)&workspace, d->vi.width * VSMAX(d->mdis * 4 + 1, 16) * 4 * sizeof(float), 16);
         if (!workspace){
             vsapi->setFilterError("EEDI3: Memory allocation failed", frameCtx);
             vsapi->freeFrame(scpPF);
@@ -505,9 +496,9 @@ static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *
         }
 
         int *dmapa = NULL;
-        VS_ALIGNED_MALLOC((void **)&dmapa, vsapi->getStride(dst, 0)*vsapi->getFrameHeight(dst, 0)*sizeof(int), 16);
+        VSH_ALIGNED_MALLOC((void **)&dmapa, vsapi->getStride(dst, 0)*vsapi->getFrameHeight(dst, 0)*sizeof(int), 16);
         if (!dmapa) {
-            VS_ALIGNED_FREE(workspace);
+            VSH_ALIGNED_FREE(workspace);
             vsapi->setFilterError("EEDI3: Memory allocation failed", frameCtx);
             vsapi->freeFrame(scpPF);
             vsapi->freeFrame(srcPF);
@@ -517,17 +508,17 @@ static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *
 
         int b, x, y;
 
-        for(b = 0; b < d->vi.format->numPlanes; ++b) {
+        for(b = 0; b < d->vi.format.numPlanes; ++b) {
             if(!(d->planes & (1 << b)))
                 continue;
 
             const uint8_t *srcp = vsapi->getReadPtr(srcPF, b);
-            const int spitch = vsapi->getStride(srcPF, b);
+            const ptrdiff_t spitch = vsapi->getStride(srcPF, b);
             const int width = vsapi->getFrameWidth(dst, b) + 24;
             const int height = vsapi->getFrameHeight(dst, b) + 8;
             uint8_t *dstp = vsapi->getWritePtr(dst, b);
-            const int dpitch = vsapi->getStride(dst, b);
-            vs_bitblt(dstp + (1 - field_n)*dpitch, dpitch * 2,
+            const ptrdiff_t dpitch = vsapi->getStride(dst, b);
+            vsh_bitblt(dstp + (1 - field_n)*dpitch, dpitch * 2,
                       srcp + (4 + 1 - field_n)*spitch + 12, spitch * 2,
                       width - 24,
                       (height - 8) >> 1);
@@ -551,7 +542,7 @@ static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *
             if(d->vcheck > 0) {
                 int *dstpd = dmapa;
                 const uint8_t *scpp = NULL;
-                int scpitch = 0;
+                ptrdiff_t scpitch = 0;
 
                 if(d->sclip) {
                     scpitch = vsapi->getStride(scpPF, b);
@@ -651,8 +642,8 @@ static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *
             }
         }
 
-        VS_ALIGNED_FREE(dmapa);
-        VS_ALIGNED_FREE(workspace);
+        VSH_ALIGNED_FREE(dmapa);
+        VSH_ALIGNED_FREE(workspace);
         vsapi->freeFrame(srcPF);
         vsapi->freeFrame(scpPF);
 
@@ -662,7 +653,7 @@ static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *
             int64_t duration_num = vsapi->propGetInt(dst_props, "_DurationNum", 0, &err_num);
             int64_t duration_den = vsapi->propGetInt(dst_props, "_DurationDen", 0, &err_den);
             if (!err_num && !err_den) {
-                muldivRational(&duration_num, &duration_den, 1, 2); // Divide duration by 2.
+                vsh_muldivRational(&duration_num, &duration_den, 1, 2); // Divide duration by 2.
                 vsapi->propSetInt(dst_props, "_DurationNum", duration_num, paReplace);
                 vsapi->propSetInt(dst_props, "_DurationDen", duration_den, paReplace);
             }
@@ -694,7 +685,7 @@ static void VS_CC eedi3Create(const VSMap *in, VSMap *out, void *userData, VSCor
     d.vi = *vsapi->getVideoInfo(d.node);
 
 
-    d.field = int64ToIntS(vsapi->propGetInt(in, "field", 0, NULL));
+    d.field = vsapi->propGetSaturatedInt(in, "field", 0, NULL);
 
     d.dh = !!vsapi->propGetInt(in, "dh", 0, &err);
 
@@ -713,12 +704,12 @@ static void VS_CC eedi3Create(const VSMap *in, VSMap *out, void *userData, VSCor
     if(err)
         d.gamma = 20.0f;
 
-    d.nrad = int64ToIntS(vsapi->propGetInt(in, "nrad", 0, &err));
+    d.nrad = vsapi->propGetSaturatedInt(in, "nrad", 0, &err);
 
     if(err)
         d.nrad = 2;
 
-    d.mdis = int64ToIntS(vsapi->propGetInt(in, "mdis", 0, &err));
+    d.mdis = vsapi->propGetSaturatedInt(in, "mdis", 0, &err);
 
     if(err)
         d.mdis = 20;
@@ -735,22 +726,22 @@ static void VS_CC eedi3Create(const VSMap *in, VSMap *out, void *userData, VSCor
     if(err)
         d.cost3 = 1;
 
-    d.vcheck = int64ToIntS(vsapi->propGetInt(in, "vcheck", 0, &err));
+    d.vcheck = vsapi->propGetSaturatedInt(in, "vcheck", 0, &err);
 
     if(err)
         d.vcheck = 2;
 
-    d.vthresh0 = (float)vsapi->propGetFloat(in, "vthresh0", 0, &err);
+    d.vthresh0 = vsapi->propGetSaturatedFloat(in, "vthresh0", 0, &err);
 
     if(err)
         d.vthresh0 = 32;
 
-    d.vthresh1 = (float)vsapi->propGetFloat(in, "vthresh1", 0, &err);
+    d.vthresh1 = vsapi->propGetSaturatedFloat(in, "vthresh1", 0, &err);
 
     if(err)
         d.vthresh1 = 64.0f;
 
-    d.vthresh2 = (float)vsapi->propGetFloat(in, "vthresh2", 0, &err);
+    d.vthresh2 = vsapi->propGetSaturatedFloat(in, "vthresh2", 0, &err);
 
     if(err)
         d.vthresh2 = 4.0f;
@@ -773,7 +764,7 @@ static void VS_CC eedi3Create(const VSMap *in, VSMap *out, void *userData, VSCor
     // goto or macro... macro or goto...
     char msg[80];
 
-    if(d.vi.format->bytesPerSample != 1) {
+    if(d.vi.format.bytesPerSample != 1) {
         snprintf(msg, sizeof(msg), "eedi3: only 8 bits per sample input supported");
         goto error;
     }
@@ -840,7 +831,7 @@ static void VS_CC eedi3Create(const VSMap *in, VSMap *out, void *userData, VSCor
 
     if(d.field > 1) {
         d.vi.numFrames *= 2;
-        muldivRational(&d.vi.fpsNum, &d.vi.fpsDen, 2, 1);
+        vsh_muldivRational(&d.vi.fpsNum, &d.vi.fpsDen, 2, 1);
     }
 
     if(d.dh)
@@ -849,10 +840,7 @@ static void VS_CC eedi3Create(const VSMap *in, VSMap *out, void *userData, VSCor
     if(d.vcheck > 0 && d.sclip) {
         const VSVideoInfo *vi2 = vsapi->getVideoInfo(d.sclip);
 
-        if(d.vi.height != vi2->height ||
-                d.vi.width != vi2->width ||
-                d.vi.numFrames != vi2->numFrames ||
-                d.vi.format != vi2->format) {
+        if(!vsh_isSameVideoInfo(&d.vi, vi2)) {
             snprintf(msg, sizeof(msg), "eedi3: sclip doesn't match!");
             goto error;
         }
@@ -862,7 +850,7 @@ static void VS_CC eedi3Create(const VSMap *in, VSMap *out, void *userData, VSCor
     data = (eedi3Data *)malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "eedi3", eedi3Init, eedi3GetFrame, eedi3Free, fmParallel, 0, data, core);
+    vsapi->createVideoFilter(out, "eedi3", &data->vi, 1, eedi3GetFrame, eedi3Free, fmParallel, 0, data, core);
     return;
 
 error:
@@ -872,12 +860,9 @@ error:
     return;
 }
 
-VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
-
-VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin)
-{
-    configFunc("com.vapoursynth.eedi3", "eedi3", "EEDI3", VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("eedi3", "clip:clip;field:int;dh:int:opt;planes:int[]:opt;alpha:float:opt;beta:float:opt;gamma:float:opt;nrad:int:opt;mdis:int:opt;" \
-                 "hp:int:opt;ucubic:int:opt;cost3:int:opt;vcheck:int:opt;vthresh0:float:opt;vthresh1:float:opt;vthresh2:float:opt;sclip:clip:opt;",
-                 eedi3Create, NULL, plugin);
+VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
+    vspapi->configPlugin("com.vapoursynth.eedi3", "eedi3", "EEDI3", VS_MAKE_VERSION(1, 0), VAPOURSYNTH_API_VERSION, 0, plugin);
+    vspapi->registerFunction("eedi3", "clip:clip;field:int;dh:int:opt;planes:int[]:opt;alpha:float:opt;beta:float:opt;gamma:float:opt;nrad:int:opt;mdis:int:opt;" \
+        "hp:int:opt;ucubic:int:opt;cost3:int:opt;vcheck:int:opt;vthresh0:float:opt;vthresh1:float:opt;vthresh2:float:opt;sclip:clip:opt;", "clip:vnode;",
+        eedi3Create, NULL, plugin);
 }
