@@ -447,7 +447,7 @@ static const VSFrameRef *VS_CC audioGainGetFrame(int n, int activationReason, vo
             double gain = d->gain[(d->gain.size() > 1) ? p : 0];
             const T *srcPtr = reinterpret_cast<const T *>(vsapi->getReadPtr(src, p));
             T *dstPtr = reinterpret_cast<T *>(vsapi->getWritePtr(dst, p));
-            for (size_t i = 0; i < length; i++)
+            for (int i = 0; i < length; i++)
                 dstPtr[i] = static_cast<T>(srcPtr[i] * gain);
         }
 
@@ -524,7 +524,7 @@ static const VSFrameRef *VS_CC audioMixGetFrame(int n, int activationReason, voi
             dstPtrs[idx] = reinterpret_cast<T *>(vsapi->getWritePtr(dst, d->outputIdx[idx]));
 
         for (int i = 0; i < srcLength; i++) {
-            for (size_t dstIdx = 0; dstIdx < numOutChannels; dstIdx++) {
+            for (size_t dstIdx = 0; dstIdx < static_cast<size_t>(numOutChannels); dstIdx++) {
                 double tmp = 0;
                 for (size_t srcIdx = 0; srcIdx < srcPtrs.size(); srcIdx++)
                     tmp += static_cast<double>(srcPtrs[srcIdx][i]) * d->sourceNodes[srcIdx].weights[dstIdx];
@@ -674,7 +674,7 @@ static const VSFrameRef *VS_CC shuffleChannelsGetFrame(int n, int activationReas
     } else if (activationReason == arAllFramesReady) {
         VSFrameRef *dst = nullptr;
         int dstLength = std::min<int64_t>(d->ai.numSamples - n * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES), VS_AUDIO_FRAME_SAMPLES);
-        for (int idx = 0; idx < d->sourceNodes.size(); idx++) {
+        for (int idx = 0; idx < static_cast<int>(d->sourceNodes.size()); idx++) {
             const VSFrameRef *src = vsapi->getFrameFilter(n, d->sourceNodes[idx].node, frameCtx);;
             int srcLength = (n < d->sourceNodes[idx].numFrames) ? vsapi->getFrameLength(src) : 0;
             int copyLength = std::min(dstLength, srcLength);

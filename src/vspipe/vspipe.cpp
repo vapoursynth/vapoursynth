@@ -226,8 +226,8 @@ static void outputFrame(const VSFrameRef *frame) {
         } else if (vsapi->getFrameType(frame) == mtAudio) {
             const VSAudioFormat *fi = vsapi->getAudioFrameFormat(frame);
 
-            size_t numChannels = fi->numChannels;
-            size_t numSamples = vsapi->getFrameLength(frame);
+            int numChannels = fi->numChannels;
+            int numSamples = vsapi->getFrameLength(frame);
             size_t bytesPerOutputSample = (fi->bitsPerSample + 7) / 8;
             size_t toOutput = bytesPerOutputSample * numSamples * numChannels;
 
