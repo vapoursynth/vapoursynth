@@ -16,20 +16,20 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-typedef void (*MorphoFilter)(const uint8_t*, uint8_t*, int, int, int, MorphoData*);
+typedef void (*MorphoFilter)(const uint8_t*, uint8_t*, int, int, ptrdiff_t, MorphoData*);
 
 void MorphoDilate(const uint8_t *src, uint8_t *dst,
-                  int width, int height, int stride, MorphoData *d);
+                  int width, int height, ptrdiff_t stride, MorphoData *d);
 void MorphoErode(const uint8_t *src, uint8_t *dst,
-                 int width, int height, int stride, MorphoData *d);
+                 int width, int height, ptrdiff_t stride, MorphoData *d);
 void MorphoOpen(const uint8_t *src, uint8_t *dst,
-                int width, int height, int stride, MorphoData *d);
+                int width, int height, ptrdiff_t stride, MorphoData *d);
 void MorphoClose(const uint8_t *src, uint8_t *dst,
-                 int width, int height, int stride, MorphoData *d);
+                 int width, int height, ptrdiff_t stride, MorphoData *d);
 void MorphoTopHat(const uint8_t *src, uint8_t *dst,
-                  int width, int height, int stride, MorphoData *d);
+                  int width, int height, ptrdiff_t stride, MorphoData *d);
 void MorphoBottomHat(const uint8_t *src, uint8_t *dst,
-                     int width, int height, int stride, MorphoData *d);
+                     int width, int height, ptrdiff_t stride, MorphoData *d);
 
 extern const char *FilterNames[];
 extern const MorphoFilter FilterFuncs[];

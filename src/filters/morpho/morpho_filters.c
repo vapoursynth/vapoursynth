@@ -19,8 +19,8 @@
 #include <math.h>
 #include <stdint.h>
 
-#include "VapourSynth.h"
-#include "VSHelper.h"
+#include "VapourSynth4.h"
+#include "VSHelper4.h"
 
 #include "morpho.h"
 #include "morpho_filters.h"
@@ -83,9 +83,9 @@ static inline int Border(int v, int max) {
     }
 
 void MorphoDilate(const uint8_t *src, uint8_t *dst,
-                  int width, int height, int stride, MorphoData *d)
+                  int width, int height, ptrdiff_t stride, MorphoData *d)
 {
-    if (d->vi.format->bytesPerSample == 1) {
+    if (d->vi.format.bytesPerSample == 1) {
         MORPHO(uint8_t, 0, VSMAX);
     } else {
         MORPHO(uint16_t, 0, VSMAX);
@@ -93,11 +93,11 @@ void MorphoDilate(const uint8_t *src, uint8_t *dst,
 }
 
 void MorphoErode(const uint8_t *src, uint8_t *dst,
-                 int width, int height, int stride, MorphoData *d)
+                 int width, int height, ptrdiff_t stride, MorphoData *d)
 {
-    int sval = (1 << d->vi.format->bitsPerSample) - 1;
+    int sval = (1 << d->vi.format.bitsPerSample) - 1;
 
-    if (d->vi.format->bytesPerSample == 1) {
+    if (d->vi.format.bytesPerSample == 1) {
         MORPHO(uint8_t, sval, VSMIN);
     } else {
         MORPHO(uint16_t, sval, VSMIN);
@@ -105,7 +105,7 @@ void MorphoErode(const uint8_t *src, uint8_t *dst,
 }
 
 void MorphoOpen(const uint8_t *src, uint8_t *dst,
-                int width, int height, int stride, MorphoData *d)
+                int width, int height, ptrdiff_t stride, MorphoData *d)
 {
     uint8_t *tmp = malloc(sizeof(uint8_t) * stride * height);
     MorphoErode(src, tmp, width, height, stride, d);
@@ -114,7 +114,7 @@ void MorphoOpen(const uint8_t *src, uint8_t *dst,
 }
 
 void MorphoClose(const uint8_t *src, uint8_t *dst,
-                 int width, int height, int stride, MorphoData *d)
+                 int width, int height, ptrdiff_t stride, MorphoData *d)
 {
     uint8_t *tmp = malloc(sizeof(uint8_t) * stride * height);
     MorphoDilate(src, tmp, width, height, stride, d);
@@ -123,14 +123,14 @@ void MorphoClose(const uint8_t *src, uint8_t *dst,
 }
 
 void MorphoTopHat(const uint8_t *src, uint8_t *dst,
-                  int width, int height, int stride, MorphoData *d)
+                  int width, int height, ptrdiff_t stride, MorphoData *d)
 {
     int x, y;
 
     MorphoOpen(src, dst, width, height, stride, d);
 
     for (y = 0; y < height; y++) {
-        if (d->vi.format->bytesPerSample == 1) {
+        if (d->vi.format.bytesPerSample == 1) {
             for (x = 0; x < width; x++) {
                 dst[x] = VSMAX(0, (int16_t)src[x] - dst[x]);
             }
@@ -149,14 +149,14 @@ void MorphoTopHat(const uint8_t *src, uint8_t *dst,
 }
 
 void MorphoBottomHat(const uint8_t *src, uint8_t *dst,
-                     int width, int height, int stride, MorphoData *d)
+                     int width, int height, ptrdiff_t stride, MorphoData *d)
 {
     int x, y;
 
     MorphoClose(src, dst, width, height, stride, d);
 
     for (y = 0; y < height; y++) {
-        if (d->vi.format->bytesPerSample == 1) {
+        if (d->vi.format.bytesPerSample == 1) {
             for (x = 0; x < width; x++) {
                 dst[x] = VSMAX(0, (int16_t)dst[x] - src[x]);
             }

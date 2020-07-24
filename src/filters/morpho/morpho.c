@@ -19,8 +19,8 @@
 #include <math.h>
 #include <stdio.h>
 
-#include "VapourSynth.h"
-#include "VSHelper.h"
+#include "VapourSynth4.h"
+#include "VSHelper4.h"
 
 #include "morpho.h"
 #include "morpho_selems.h"
@@ -39,19 +39,19 @@ static void VS_CC MorphoCreate(const VSMap *in, VSMap *out, void *userData,
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = *vsapi->getVideoInfo(d.node);
 
-    if (!d.vi.format) {
+    if (d.vi.format.colorFamily == cfUndefined) {
         sprintf(msg, "Only constant format input supported");
         goto error;
     }
 
-    if (d.vi.format->sampleType != stInteger ||
-        d.vi.format->bytesPerSample > 2) {
+    if (d.vi.format.sampleType != stInteger ||
+        d.vi.format.bytesPerSample > 2) {
 
         sprintf(msg, "Only 8-16 bit int formats supported");
         goto error;
     }
 
-    d.size = int64ToIntS(vsapi->propGetInt(in, "size", 0, &err));
+    d.size = vsapi->propGetSaturatedInt(in, "size", 0, &err);
 
     if (err)
         d.size = 5;
@@ -61,7 +61,7 @@ static void VS_CC MorphoCreate(const VSMap *in, VSMap *out, void *userData,
         goto error;
     }
 
-    d.shape = int64ToIntS(vsapi->propGetInt(in, "shape", 0, &err));
+    d.shape = vsapi->propGetSaturatedInt(in, "shape", 0, &err);
 
     if (err)
         d.shape = 0;
@@ -72,13 +72,22 @@ static void VS_CC MorphoCreate(const VSMap *in, VSMap *out, void *userData,
         goto error;
     }
 
-    d.filter = (uintptr_t)userData;
+    d.filter = (int)userData;
+
+    int pads = d.size + (d.size % 2 == 0);
+
+    d.selem = calloc(1, sizeof(uint8_t) * pads * pads);
+    if (!d.selem) {
+        vsapi->setError(out, "Failed to allocate structuring element");
+        goto error;
+    }
+
+    SElemFuncs[d.shape](d.selem, d.size);
 
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, FilterNames[(uintptr_t)userData], MorphoInit,
-                        MorphoGetFrame, MorphoFree, fmParallel, 0, data, core);
+    vsapi->createVideoFilter(out, FilterNames[(uintptr_t)userData], &data->vi, 1, MorphoGetFrame, MorphoFree, fmParallel, 0, data, core);
 
     return;
 
@@ -87,49 +96,30 @@ error:
     vsapi->setError(out, msg);
 }
 
-static void VS_CC MorphoInit(VSMap *in, VSMap *out, void **instanceData,
-                             VSNode *node, VSCore *core, const VSAPI *vsapi)
-{
-    int pads;
-
-    MorphoData *d = (MorphoData *) * instanceData;
-    vsapi->setVideoInfo(&d->vi, 1, node);
-
-    pads = d->size + (d->size % 2 == 0);
-
-    d->selem = calloc(1, sizeof(uint8_t) * pads * pads);
-    if (!d->selem) {
-        vsapi->setError(out, "Failed to allocate structuring element");
-        return;
-    }
-
-    SElemFuncs[d->shape](d->selem, d->size);
-}
-
 static const VSFrameRef *VS_CC MorphoGetFrame(int n, int activationReason,
-                                              void **instanceData,
+                                              void *instanceData,
                                               void **frameData,
                                               VSFrameContext *frameCtx,
                                               VSCore *core,
                                               const VSAPI *vsapi)
 {
-    MorphoData *d = (MorphoData *) * instanceData;
+    MorphoData *d = (MorphoData *)instanceData;
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        VSFrameRef *dst = vsapi->newVideoFrame(d->vi.format, d->vi.width,
+        VSFrameRef *dst = vsapi->newVideoFrame(&d->vi.format, d->vi.width,
                                                d->vi.height, src, core);
 
         int i;
 
-        for (i = 0; i < d->vi.format->numPlanes; i++) {
+        for (i = 0; i < d->vi.format.numPlanes; i++) {
             const uint8_t *srcp = vsapi->getReadPtr(src, i);
             uint8_t *dstp = vsapi->getWritePtr(dst, i);
             int width = vsapi->getFrameWidth(src, i);
             int height = vsapi->getFrameHeight(src, i);
-            int stride = vsapi->getStride(src, i);
+            ptrdiff_t stride = vsapi->getStride(src, i);
 
             FilterFuncs[d->filter](srcp, dstp, width, height, stride, d);
         }
@@ -152,19 +142,11 @@ static void VS_CC MorphoFree(void *instanceData, VSCore *core,
     free(d);
 }
 
-VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
-                                            VSRegisterFunction registerFunc,
-                                            VSPlugin *plugin)
-{
-    int i;
-    static const char *params = "clip:clip;size:int:opt;shape:int:opt";
+VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
+    vspapi->configPlugin("biz.srsfckn.morpho", "morpho",
+        "Simple morphological filters.", VS_MAKE_VERSION(1, 0),
+        VAPOURSYNTH_API_VERSION, pcReadOnly, plugin);
 
-    configFunc("biz.srsfckn.morpho", "morpho",
-               "Simple morphological filters.",
-               VAPOURSYNTH_API_VERSION, 1, plugin);
-
-    for (i = 0; FilterFuncs[i] && FilterNames[i]; i++) {
-        registerFunc(FilterNames[i], params, MorphoCreate,
-                     (void*)(uintptr_t)i, plugin);
-    }
+    for (int i = 0; FilterFuncs[i] && FilterNames[i]; i++)
+        vspapi->registerFunction(FilterNames[i], "clip:clip;size:int:opt;shape:int:opt", "clip:vnode;", MorphoCreate, (void *)i, plugin);
 }

@@ -27,11 +27,8 @@ typedef struct MorphoData {
     int filter;
 } MorphoData;
 
-static void VS_CC MorphoInit(VSMap *in, VSMap *out, void **instanceData,
-                             VSNode *node, VSCore *core, const VSAPI *vsapi);
-
 static const VSFrameRef *VS_CC MorphoGetFrame(int n, int activationReason,
-                                              void **instanceData,
+                                              void *instanceData,
                                               void **frameData,
                                               VSFrameContext *frameCtx,
                                               VSCore *core,
@@ -40,6 +37,4 @@ static const VSFrameRef *VS_CC MorphoGetFrame(int n, int activationReason,
 static void VS_CC MorphoFree(void *instanceData, VSCore *core,
                              const VSAPI *vsapi);
 
-VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
-                                            VSRegisterFunction registerFunc,
-                                            VSPlugin *plugin);
+VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
