@@ -57,11 +57,11 @@ libvapoursynth_la_SOURCES = src/core/audiofilters.cpp \
 							src/core/kernel/transpose.c \
 							src/core/kernel/transpose.h \
 							src/core/lutfilters.cpp \
-							src/core/mergefilters.c \
-							src/core/reorderfilters.c \
+							src/core/mergefilters.cpp \
+							src/core/reorderfilters.cpp \
 							src/core/settings.cpp \
 							src/core/settings.h \
-							src/core/simplefilters.c \
+							src/core/simplefilters.cpp \
 							src/core/ter-116n.h \
 							src/core/textfilter.cpp \
 							src/core/version.h \
