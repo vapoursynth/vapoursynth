@@ -911,6 +911,7 @@ public:
     VSFrameRef *copyFrame(const VSFrameRef &srcf);
     void copyFrameProps(const VSFrameRef &src, VSFrameRef &dst);
 
+    const vs3::VSVideoFormat *getV3VideoFormat(int id);
     const vs3::VSVideoFormat *getVideoFormat3(int id);
     static bool queryVideoFormat(VSVideoFormat &f, VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH) noexcept;
     bool queryVideoFormatByID(VSVideoFormat &f, uint32_t id) noexcept;

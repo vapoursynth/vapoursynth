@@ -1054,13 +1054,22 @@ void VSCore::copyFrameProps(const VSFrameRef &src, VSFrameRef &dst) {
     dst.setProperties(src.getConstProperties());
 }
 
-const vs3::VSVideoFormat *VSCore::getVideoFormat3(int id) {
+const vs3::VSVideoFormat *VSCore::getV3VideoFormat(int id) {
     std::lock_guard<std::mutex> lock(videoFormatLock);
 
     auto f = videoFormats.find(id);
     if (f != videoFormats.end())
         return &f->second;
+
     return nullptr;
+}
+
+const vs3::VSVideoFormat *VSCore::getVideoFormat3(int id) {
+    if ((id & 0xFF000000) == 0 && (id & 0x00FFFFFF)) {
+        return getV3VideoFormat(id);
+    } else {
+        return queryVideoFormat3(ColorFamilyToV3((id >> 28) & 0xF), static_cast<VSSampleType>((id >> 24) & 0xF), (id >> 16) & 0xFF, (id >> 8) & 0xFF, (id >> 0) & 0xFF);
+    }
 }
 
 bool VSCore::queryVideoFormat(VSVideoFormat &f, VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH) noexcept {
@@ -1089,7 +1098,7 @@ bool VSCore::queryVideoFormat(VSVideoFormat &f, VSColorFamily colorFamily, VSSam
 bool VSCore::queryVideoFormatByID(VSVideoFormat &f, uint32_t id) noexcept {
     // is a V3 id?
     if ((id & 0xFF000000) == 0 && (id & 0x00FFFFFF)) {   
-        return VideoFormatFromV3(f, getVideoFormat3(id));
+        return VideoFormatFromV3(f, getV3VideoFormat(id));
     } else {
         return queryVideoFormat(f, static_cast<VSColorFamily>((id >> 28) & 0xF), static_cast<VSSampleType>((id >> 24) & 0xF), (id >> 16) & 0xFF, (id >> 8) & 0xFF, (id >> 0) & 0xFF);
     }
@@ -1102,9 +1111,6 @@ uint32_t VSCore::queryVideoFormatID(VSColorFamily colorFamily, VSSampleType samp
 }
 
 const vs3::VSVideoFormat *VSCore::queryVideoFormat3(vs3::VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name, int id) noexcept {
-    // this is to make exact format comparisons easy by simply allowing pointer comparison
-
-    // block nonsense formats
     if (subSamplingH < 0 || subSamplingW < 0 || subSamplingH > 4 || subSamplingW > 4)
         return nullptr;
 
@@ -1390,9 +1396,9 @@ vs3::VSColorFamily VSCore::ColorFamilyToV3(int colorFamily) noexcept {
 
 const vs3::VSVideoFormat *VSCore::VideoFormatToV3(const VSVideoFormat &format) noexcept {
     if (format.colorFamily == cfCompatBGR32)
-        return getVideoFormat3(vs3::pfCompatBGR32);
+        return getV3VideoFormat(vs3::pfCompatBGR32);
     else if (format.colorFamily == cfCompatYUY2)
-        return getVideoFormat3(vs3::pfCompatYUY2);
+        return getV3VideoFormat(vs3::pfCompatYUY2);
     else
         return queryVideoFormat3(ColorFamilyToV3(format.colorFamily), static_cast<VSSampleType>(format.sampleType), format.bitsPerSample, format.subSamplingW, format.subSamplingH);
 }
