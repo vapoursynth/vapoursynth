@@ -21,8 +21,8 @@
 
 #include <math.h>
 
-#include "VapourSynth.h"
-#include "VSHelper.h"
+#include "VapourSynth4.h"
+#include "VSHelper4.h"
 
 struct VinverseData {
     VSNodeRef *node;
@@ -36,32 +36,8 @@ struct VinverseData {
 };
 typedef struct VinverseData VinverseData;
 
-static void VS_CC VinverseInit(VSMap *in, VSMap *out, void **instanceData,
-                               VSNode *node, VSCore *core, const VSAPI *vsapi)
-{
-    int x, y;
-    VinverseData *d = (VinverseData *) * instanceData;
-    vsapi->setVideoInfo(&d->vi, 1, node);
-
-    d->dlut = malloc(512 * 511 * sizeof(int));
-
-    if (!d->dlut) {
-        vsapi->setError(out, "malloc failure (dlut)");
-        return;
-    }
-
-    for (x = -255; x <= 255; x++) {
-        for (y = -255; y <= 255; y++) {
-            double y2 = y * d->sstr;
-            double da = fabs((double)x) < fabs(y2) ? x : y2;
-            d->dlut[((x + 255) << 9) + (y + 255)] = (double)x * y2 < 0.0 ?
-                                                    (int)(da * d->scl) : (int)da;
-        }
-    }
-}
-
 static void Vinverse(const uint8_t *src, uint8_t *dst,
-                     int width, int height, int stride, VinverseData *d)
+                     int width, int height, ptrdiff_t stride, VinverseData *d)
 {
     int x, y;
 
@@ -109,17 +85,15 @@ static const VSFrameRef *VS_CC VinverseGetFrame(int n, int activationReason,
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        VSFrameRef *dst = vsapi->newVideoFrame(d->vi.format, d->vi.width,
+        VSFrameRef *dst = vsapi->newVideoFrame(&d->vi.format, d->vi.width,
                                                d->vi.height, src, core);
 
-        int i;
-
-        for (i = 0; i < d->vi.format->numPlanes; i++) {
+        for (int i = 0; i < d->vi.format.numPlanes; i++) {
             const uint8_t *srcp = vsapi->getReadPtr(src, i);
             uint8_t *dstp = vsapi->getWritePtr(dst, i);
             int width = vsapi->getFrameWidth(src, i);
             int height = vsapi->getFrameHeight(src, i);
-            int stride = vsapi->getStride(dst, i);
+            ptrdiff_t stride = vsapi->getStride(dst, i);
 
             Vinverse(srcp, dstp, width, height, stride, d);
         }
@@ -152,14 +126,14 @@ static void VS_CC VinverseCreate(const VSMap *in, VSMap *out, void *userData,
     d.node = vsapi->propGetNode(in, "clip", 0, 0);
     d.vi = *vsapi->getVideoInfo(d.node);
 
-    if (!d.vi.format) {
+    if (d.vi.format.colorFamily == cfUndefined) {
         vsapi->setError(out, "Only constant format input supported");
         vsapi->freeNode(d.node);
         return;
     }
 
-    if (d.vi.format->sampleType != stInteger ||
-        d.vi.format->bytesPerSample != 1) {
+    if (d.vi.format.sampleType != stInteger ||
+        d.vi.format.bytesPerSample != 1) {
 
         vsapi->setError(out, "Only 8-bit int formats supported");
         vsapi->freeNode(d.node);
@@ -171,7 +145,7 @@ static void VS_CC VinverseCreate(const VSMap *in, VSMap *out, void *userData,
     if (err)
         d.sstr = 2.7;
 
-    d.amnt = int64ToIntS(vsapi->propGetInt(in, "amnt", 0, &err));
+    d.amnt = vsapi->propGetSaturatedInt(in, "amnt", 0, &err);
 
     if (err)
         d.amnt = 255;
@@ -187,28 +161,39 @@ static void VS_CC VinverseCreate(const VSMap *in, VSMap *out, void *userData,
     if (err)
         d.scl = 0.25;
 
+    d.dlut = malloc(512 * 511 * sizeof(int));
+
+    if (!d.dlut) {
+        vsapi->setError(out, "malloc failure (dlut)");
+        vsapi->freeNode(d.node);
+        return;
+    }
+
+    for (int x = -255; x <= 255; x++) {
+        for (int y = -255; y <= 255; y++) {
+            double y2 = y * d.sstr;
+            double da = fabs((double)x) < fabs(y2) ? x : y2;
+            d.dlut[((x + 255) << 9) + (y + 255)] = (double)x * y2 < 0.0 ?
+                (int)(da * d.scl) : (int)da;
+        }
+    }
+
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createFilter(in, out, "Vinverse", VinverseInit, VinverseGetFrame,
-                        VinverseFree, fmParallel, 0, data, core);
+    vsapi->createVideoFilter(out, "Vinverse", &data->vi, 1, VinverseGetFrame, VinverseFree, fmParallel, 0, data, core);
 }
 
-VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
-                                            VSRegisterFunction registerFunc,
-                                            VSPlugin *plugin);
-
-VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc,
-                                            VSRegisterFunction registerFunc,
-                                            VSPlugin *plugin)
+VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi)
 {
-    configFunc("biz.srsfckn.Vinverse", "vinverse",
+    vspapi->configPlugin("biz.srsfckn.Vinverse", "vinverse",
                "A simple filter to remove residual combing.",
-               VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("Vinverse",
+                VS_MAKE_VERSION(1, 0), VAPOURSYNTH_API_VERSION, pcReadOnly, plugin);
+    vspapi->registerFunction("Vinverse",
                  "clip:clip;"
                  "sstr:float:opt;"
                  "amnt:int:opt;"
                  "scl:float:opt;",
-                 VinverseCreate, 0, plugin);
+                 "clip:vnode;",
+                 VinverseCreate, NULL, plugin);
 }
