@@ -100,7 +100,7 @@ typedef std::tuple<VSNode *, int, int> NodeOutputKey;
 template<>
 struct std::hash<NodeOutputKey> {
     inline size_t operator()(const NodeOutputKey &val) const {  
-        return reinterpret_cast<size_t>(std::get<0>(val)) + (16 << std::get<1>(val)) + (24 << std::get<2>(val));
+        return reinterpret_cast<size_t>(std::get<0>(val)) + (static_cast<size_t>(std::get<1>(val)) << 16) + (static_cast<size_t>(std::get<2>(val)) << 24);
     }
 };
 
