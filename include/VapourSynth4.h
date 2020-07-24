@@ -22,6 +22,7 @@
 #define VAPOURSYNTH4_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 #define VS_MAKE_VERSION(major, minor) (((major) << 16) | (minor))
 #define VAPOURSYNTH_API_MAJOR 4

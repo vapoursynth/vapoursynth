@@ -22,6 +22,8 @@
 #include <set>
 #include <map>
 #include <algorithm>
+#include <cstring>
+#include <climits>
 
 static std::string mangleNode(VSNodeRef *node, const VSAPI *vsapi) {
     return "n" + std::to_string(reinterpret_cast<uintptr_t>(node)) + "_" + std::to_string(vsapi->getNodeIndex(node));
