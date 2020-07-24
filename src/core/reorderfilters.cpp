@@ -541,7 +541,7 @@ static void VS_CC duplicateFramesCreate(const VSMap *in, VSMap *out, void *userD
     d->dups.resize(d->num_dups);
 
     for (int i = 0; i < d->num_dups; i++) {
-        d->dups[i] = int64ToIntS(vsapi->propGetInt(in, "frames", i, 0));
+        d->dups[i] = vsapi->propGetSaturatedInt(in, "frames", i, 0);
 
         if (d->dups[i] < 0 || (vi.numFrames && d->dups[i] > vi.numFrames - 1))
             RETERROR("DuplicateFrames: out of bounds frame number");
@@ -596,7 +596,7 @@ static void VS_CC deleteFramesCreate(const VSMap *in, VSMap *out, void *userData
     d->del.resize(d->num_delete);
 
     for (int i = 0; i < d->num_delete; i++) {
-        d->del[i] = int64ToIntS(vsapi->propGetInt(in, "frames", i, 0));
+        d->del[i] = vsapi->propGetSaturatedInt(in, "frames", i, 0);
 
         if (d->del[i] < 0 || (vi.numFrames && d->del[i] >= vi.numFrames))
             RETERROR("DeleteFrames: out of bounds frame number");

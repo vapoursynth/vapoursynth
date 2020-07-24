@@ -265,10 +265,10 @@ static void VS_CC cropRelCreate(const VSMap *in, VSMap *out, void *userData, VSC
         RETERROR("Crop: constant format and dimensions needed");
 
     d->x = vsapi->propGetSaturatedInt(in, "left", 0, &err);
-    d->y = int64ToIntS(vsapi->propGetSaturatedInt(in, "top", 0, &err));
+    d->y = vsapi->propGetSaturatedInt(in, "top", 0, &err);
 
-    d->height = d->vi->height - d->y - int64ToIntS(vsapi->propGetSaturatedInt(in, "bottom", 0, &err));
-    d->width = d->vi->width - d->x - int64ToIntS(vsapi->propGetSaturatedInt(in, "right", 0, &err));
+    d->height = d->vi->height - d->y - vsapi->propGetSaturatedInt(in, "bottom", 0, &err);
+    d->width = d->vi->width - d->x - vsapi->propGetSaturatedInt(in, "right", 0, &err);
 
     // passthrough for the no cropping case
     if (d->x == 0 && d->y == 0 && d->width == d->vi->width && d->height == d->vi->height) {
@@ -422,10 +422,10 @@ static void VS_CC addBordersCreate(const VSMap *in, VSMap *out, void *userData, 
     char msg[150];
     int err;
 
-    d->left = int64ToIntS(vsapi->propGetInt(in, "left", 0, &err));
-    d->right = int64ToIntS(vsapi->propGetInt(in, "right", 0, &err));
-    d->top = int64ToIntS(vsapi->propGetInt(in, "top", 0, &err));
-    d->bottom = int64ToIntS(vsapi->propGetInt(in, "bottom", 0, &err));
+    d->left = vsapi->propGetSaturatedInt(in, "left", 0, &err);
+    d->right = vsapi->propGetSaturatedInt(in, "right", 0, &err);
+    d->top = vsapi->propGetSaturatedInt(in, "top", 0, &err);
+    d->bottom = vsapi->propGetSaturatedInt(in, "bottom", 0, &err);
     d->node = vsapi->propGetNode(in, "clip", 0, 0);
 
     // pass through if nothing to be done
@@ -550,7 +550,7 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
     d->node.resize(3);
     assert(d->plane[0] == 0);
 
-    d->format = int64ToIntS(vsapi->propGetInt(in, "colorfamily", 0, 0));
+    d->format = vsapi->propGetSaturatedInt(in, "colorfamily", 0, 0);
     
     if (d->format == vs3::cmGray)
         d->format = cfGray;
@@ -572,7 +572,7 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
         RETERROR("ShufflePlanes: too many planes specified");
 
     for (int i = 0; i < nplanes; i++)
-        d->plane[i] = int64ToIntS(vsapi->propGetInt(in, "planes", i, 0));
+        d->plane[i] = vsapi->propGetSaturatedInt(in, "planes", i, 0);
 
     for (int i = 0; i < 3; i++)
         d->node[i] = vsapi->propGetNode(in, "clips", i, &err);
@@ -668,7 +668,7 @@ static const VSFrameRef *VS_CC separateFieldsGetframe(int n, int activationReaso
         const VSFrameRef *src = vsapi->getFrameFilter(n / 2, d->node, frameCtx);
         const VSMap *props = vsapi->getFramePropsRO(src);
         int err = 0;
-        int fieldBased = int64ToIntS(vsapi->propGetInt(props, "_FieldBased", 0, &err));
+        int fieldBased = vsapi->propGetSaturatedInt(props, "_FieldBased", 0, &err);
         int effectiveTFF = d->tff;
         if (fieldBased == 1)
             effectiveTFF = 0;
@@ -1151,7 +1151,8 @@ static void VS_CC blankClipFree(void *instanceData, VSCore *core, const VSAPI *v
 static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<BlankClipData> d(new BlankClipData());
     bool hasvi = false;
-    int64_t temp;
+    int tmp1;
+    int64_t tmp2;
     int err;
 
     VSNodeRef *node = vsapi->propGetNode(in, "clip", 0, &err);
@@ -1162,40 +1163,40 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
         hasvi = true;
     }
 
-    temp = vsapi->propGetInt(in, "width", 0, &err);
+    tmp1 = vsapi->propGetSaturatedInt(in, "width", 0, &err);
 
     if (err) {
         if (!hasvi)
             d->vi.width = 640;
     } else {
-        d->vi.width = int64ToIntS(temp);
+        d->vi.width = tmp1;
     }
 
-    temp = vsapi->propGetInt(in, "height", 0, &err);
+    tmp1 = vsapi->propGetInt(in, "height", 0, &err);
 
     if (err) {
         if (!hasvi)
             d->vi.height = 480;
     } else {
-        d->vi.height = int64ToIntS(temp);
+        d->vi.height = tmp1;
     }
 
-    temp = vsapi->propGetInt(in, "fpsnum", 0, &err);
+    tmp2 = vsapi->propGetInt(in, "fpsnum", 0, &err);
 
     if (err) {
         if (!hasvi)
             d->vi.fpsNum = 24;
     } else {
-        d->vi.fpsNum = temp;
+        d->vi.fpsNum = tmp2;
     }
 
-    temp = vsapi->propGetInt(in, "fpsden", 0, &err);
+    tmp2 = vsapi->propGetInt(in, "fpsden", 0, &err);
 
     if (err) {
         if (!hasvi)
             d->vi.fpsDen = 1;
     } else
-        d->vi.fpsDen = temp;
+        d->vi.fpsDen = tmp2;
 
     if (d->vi.fpsDen < 0 || d->vi.fpsNum < 0)
         RETERROR("BlankClip: invalid framerate specified");
@@ -1207,7 +1208,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
 
     reduceRational(&d->vi.fpsNum, &d->vi.fpsDen);
 
-    int format = int64ToIntS(vsapi->propGetInt(in, "format", 0, &err));
+    int format = vsapi->propGetSaturatedInt(in, "format", 0, &err);
 
     if (err) {
         if (!hasvi)
@@ -1222,13 +1223,13 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     if (isCompatFormat(&d->vi.format))
         RETERROR("BlankClip: compat formats not supported");
 
-    temp = vsapi->propGetInt(in, "length", 0, &err);
+    tmp1 = vsapi->propGetSaturatedInt(in, "length", 0, &err);
 
     if (err) {
         if (!hasvi)
             d->vi.numFrames = int64ToIntS((d->vi.fpsNum * 10) / d->vi.fpsDen);
     } else {
-        d->vi.numFrames = int64ToIntS(temp);
+        d->vi.numFrames = tmp1;
     }
 
     if (d->vi.width <= 0 || d->vi.width % (1 << d->vi.format.subSamplingW))
@@ -1935,7 +1936,7 @@ static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, 
     if (!is8to16orFloatFormat(vi->format))
         RETERROR("PlaneStats: clip must be constant format and of integer 8-16 bit type or 32 bit float");
 
-    d->plane = int64ToIntS(vsapi->propGetInt(in, "plane", 0, &err));
+    d->plane = vsapi->propGetSaturatedInt(in, "plane", 0, &err);
     if (d->plane < 0 || d->plane >= vi->format.numPlanes)
         RETERROR("PlaneStats: invalid plane specified");
 
