@@ -232,6 +232,8 @@ public:
     }
 
     virtual ExprData::ProcessLineProc getCode() = 0;
+
+    virtual ~ExprCompiler() {};
 };
 
 class ExprCompiler128 : public ExprCompiler, private jitasm::function<void, ExprCompiler128, uint8_t *, const intptr_t *, intptr_t> {

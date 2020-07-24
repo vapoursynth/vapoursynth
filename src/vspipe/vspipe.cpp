@@ -177,8 +177,8 @@ static size_t interleaveSamples(const VSFrameRef *frame, uint8_t *dstBuf) {
     const VSAudioFormat *fi = vsapi->getAudioFrameFormat(frame);
     T *dstBuffer = reinterpret_cast<T *>(dstBuf);
 
-    size_t numChannels = fi->numChannels;
-    size_t numSamples = vsapi->getFrameLength(frame);
+    int numChannels = fi->numChannels;
+    int numSamples = vsapi->getFrameLength(frame);
 
     std::vector<const T *> srcPtrs;
     srcPtrs.reserve(numChannels);

@@ -585,7 +585,7 @@ static void VS_CC audioMixCreate(const VSMap *in, VSMap *out, void *userData, VS
         VSNodeRef *node = vsapi->propGetNode(in, "clips", std::min(numSrcNodes - 1, i), nullptr);
         const VSAudioFormat &f = vsapi->getAudioInfo(node)->format;
         for (int j = 0; j < f.numChannels; j++) {
-            d->sourceNodes.push_back({ (j > 0) ?  vsapi->cloneNodeRef(node) : node, j });
+            d->sourceNodes.push_back({ (j > 0) ? vsapi->cloneNodeRef(node) : node, j, -1, {} });
             numSrcChannels++;
         }
     }
@@ -720,7 +720,7 @@ static void VS_CC shuffleChannelsCreate(const VSMap *in, VSMap *out, void *userD
         int dstChannel = vsapi->propGetSaturatedInt(in, "channels_out", i, nullptr);
         channelLayout |= (static_cast<uint64_t>(1) << dstChannel);
         VSNodeRef *node = vsapi->propGetNode(in, "clip", std::min(numSrcNodes - 1, i), nullptr);
-        d->sourceNodes.push_back({ node, channel, dstChannel });
+        d->sourceNodes.push_back({ node, channel, dstChannel, -1 });
     }
 
     std::sort(d->sourceNodes.begin(), d->sourceNodes.end());
