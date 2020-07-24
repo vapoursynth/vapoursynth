@@ -1174,7 +1174,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
         d->vi.width = tmp1;
     }
 
-    tmp1 = vsapi->propGetInt(in, "height", 0, &err);
+    tmp1 = vsapi->propGetSaturatedInt(in, "height", 0, &err);
 
     if (err) {
         if (!hasvi)

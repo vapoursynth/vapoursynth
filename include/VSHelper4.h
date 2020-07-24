@@ -90,7 +90,7 @@ static inline VSH4_BOOLEAN_TYPE VSH4_MANGLE_FUNCTION_NAME(isSameVideoFormat)(con
     return v1->colorFamily == v2->colorFamily && v1->sampleType == v2->sampleType && v1->bitsPerSample == v2->bitsPerSample && v1->subSamplingW == v2->subSamplingW && v1->subSamplingH == v2->subSamplingH;
 }
 
-/* convenience function to check for if two clips have the same format while also including width and height (unknown/changeable will be considered the same too) */
+/* convenience function to check for if two clips have the same format (but not framerate) while also including width and height (unknown/changeable will be considered the same too) */
 static inline VSH4_BOOLEAN_TYPE VSH4_MANGLE_FUNCTION_NAME(isSameVideoInfo)(const VSVideoInfo *v1, const VSVideoInfo *v2) {
     return v1->height == v2->height && v1->width == v2->width && VSH4_MANGLE_FUNCTION_NAME(isSameVideoFormat)(&v1->format, &v2->format);
 }
