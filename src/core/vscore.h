@@ -812,8 +812,9 @@ public:
     bool isV3Compatible() const;
     std::string getV3ArgString() const;
 
-    void *functionData;
     VSPublicFunction func;
+    void *functionData;
+
     VSPluginFunction(const std::string &name, const std::string &argString, const std::string &returnType, VSPublicFunction func, void *functionData, int apiMajor);
 
     const std::string &getName() const;
@@ -927,6 +928,7 @@ public:
     VSMessageHandlerRecord *addMessageHandler(VSMessageHandler handler, VSMessageHandlerFree free, void *userData);
     bool removeMessageHandler(VSMessageHandlerRecord *rec);
     void logMessage(VSMessageType type, const char *msg);
+    void logMessage(VSMessageType type, const std::string &msg);
 
     /////////////////////////////////////
     // V3 compat helper functions

@@ -222,6 +222,7 @@ static void VS_CC createFilter3(const VSMap *in, VSMap *out, const char *name, v
             fm = fmSerial;
             break;
         default:
+            fm = fmParallel;
             core->logMessage(mtFatal, "Invalid filter mode");
     }
     core->createFilter3(in, out, name, init, reinterpret_cast<VSFilterGetFrame>(getFrame), free, fm, flags, instanceData, VAPOURSYNTH3_API_MAJOR);
@@ -357,7 +358,7 @@ static VSArrayBase *propGetShared(const VSMap *map, const char *key, int index, 
         return nullptr;
     }
 
-    if (index < 0 || index >= arr->size()) {
+    if (index < 0 || index >= static_cast<int>(arr->size())) {
         if (error)
             *error = peIndex;
         else
