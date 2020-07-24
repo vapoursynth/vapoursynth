@@ -47,7 +47,7 @@ typedef struct {
 
 static void interpLineFP(const uint8_t *srcp, const int width, const ptrdiff_t pitch,
                          const float alpha, const float beta, const float gamma, const int nrad,
-                         const ptrdiff_t mdis, float *temp, uint8_t *dstp, int *dmap, const int ucubic,
+                         const int mdis, float *temp, uint8_t *dstp, int *dmap, const int ucubic,
                          const int cost3)
 {
     const uint8_t *src3p = srcp - 3 * pitch;
@@ -179,7 +179,7 @@ static void interpLineFP(const uint8_t *srcp, const int width, const ptrdiff_t p
 
 static void interpLineHP(const uint8_t *srcp, const int width, const ptrdiff_t pitch,
                          const float alpha, const float beta, const float gamma, const int nrad,
-                         const ptrdiff_t mdis, float *temp, uint8_t *dstp, int *dmap, const int ucubic,
+                         const int mdis, float *temp, uint8_t *dstp, int *dmap, const int ucubic,
                          const int cost3)
 {
     const uint8_t *src3p = srcp - 3 * pitch;
@@ -372,9 +372,9 @@ static void interpLineHP(const uint8_t *srcp, const int width, const ptrdiff_t p
 }
 
 
-static VSFrameRef *copyPad(const VSFrameRef *src, int fn, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi, void **instanceData)
+static VSFrameRef *copyPad(const VSFrameRef *src, int fn, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi, void *instanceData)
 {
-    eedi3Data *d = (eedi3Data *) * instanceData;
+    eedi3Data *d = (eedi3Data *)instanceData;
 
     const int off = 1 - fn;
     VSFrameRef *srcPF = vsapi->newVideoFrame(&d->vi.format, d->vi.width + 24 * (1 << d->vi.format.subSamplingW), d->vi.height + 8 * (1 << d->vi.format.subSamplingH), NULL, core);
@@ -436,9 +436,9 @@ static VSFrameRef *copyPad(const VSFrameRef *src, int fn, VSFrameContext *frameC
 }
 
 
-static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi)
+static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi)
 {
-    eedi3Data *d = (eedi3Data *) * instanceData;
+    eedi3Data *d = (eedi3Data *)instanceData;
 
     if(activationReason == arInitial) {
         vsapi->requestFrameFilter(d->field > 1 ? (n >> 1) : n, d->node, frameCtx);
