@@ -19,6 +19,7 @@
 */
 
 #include <cstdlib>
+#include <cmath>
 #include <memory>
 #include <algorithm>
 #include "cpufeatures.h"

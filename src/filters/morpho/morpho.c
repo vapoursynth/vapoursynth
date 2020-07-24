@@ -72,7 +72,7 @@ static void VS_CC MorphoCreate(const VSMap *in, VSMap *out, void *userData,
         goto error;
     }
 
-    d.filter = (int)userData;
+    d.filter = (intptr_t)userData;
 
     int pads = d.size + (d.size % 2 == 0);
 
@@ -147,6 +147,6 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
         "Simple morphological filters.", VS_MAKE_VERSION(1, 0),
         VAPOURSYNTH_API_VERSION, pcReadOnly, plugin);
 
-    for (int i = 0; FilterFuncs[i] && FilterNames[i]; i++)
+    for (uintptr_t i = 0; FilterFuncs[i] && FilterNames[i]; i++)
         vspapi->registerFunction(FilterNames[i], "clip:clip;size:int:opt;shape:int:opt", "clip:vnode;", MorphoCreate, (void *)i, plugin);
 }

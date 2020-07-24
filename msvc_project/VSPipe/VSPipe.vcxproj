@@ -95,7 +95,7 @@
       <AdditionalDependencies>mimalloc-override.lib;vsscript.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
       <LargeAddressAware>true</LargeAddressAware>
-      <ForceSymbolReferences>mi_version</ForceSymbolReferences>
+      <ForceSymbolReferences>_mi_version</ForceSymbolReferences>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -132,7 +132,7 @@
       <AdditionalDependencies>mimalloc-override.lib;vsscript.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
       <LargeAddressAware>true</LargeAddressAware>
-      <ForceSymbolReferences>mi_version</ForceSymbolReferences>
+      <ForceSymbolReferences>_mi_version</ForceSymbolReferences>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
