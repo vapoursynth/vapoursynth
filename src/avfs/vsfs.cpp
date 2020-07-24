@@ -226,19 +226,14 @@ void VapourSynther::reportFormat(AvfsLog_* log) {
     if (vi) {
         log->Print(L"Video stream :-\n");
 
-        int msLen = (int)(1000.0 * vi->numFrames * vi->fpsDen / vi->fpsNum);
-        log->Printf(L"  Duration: %8d frames, %02d:%02d:%02d.%03d\n", vi->numFrames,
-            (msLen / (60 * 60 * 1000)), (msLen / (60 * 1000)) % 60, (msLen / 1000) % 60, msLen % 1000);
-
         char nameBuffer[32];
         vsapi->getVideoFormatName(&vi->format, nameBuffer);
 
+        int msLen = (int)(1000.0 * vi->numFrames * vi->fpsDen / vi->fpsNum);
+        log->Printf(L"  Duration: %8d frames, %02d:%02d:%02d.%03d\n", vi->numFrames, (msLen / (60 * 60 * 1000)), (msLen / (60 * 1000)) % 60, (msLen / 1000) % 60, msLen % 1000);
         log->Printf(L"  Format: %hs\n", &nameBuffer);
-
         log->Printf(L"  Width:%4d pixels, Height:%4d pixels.\n", vi->width, vi->height);
-
-        log->Printf(L"  Frames per second: %7.4f (%u/%u)\n", (double)vi->fpsNum / vi->fpsDen,
-            vi->fpsNum, vi->fpsDen);
+        log->Printf(L"  Frames per second: %7.4f (%u/%u)\n", (double)vi->fpsNum / vi->fpsDen, vi->fpsNum, vi->fpsDen);
     } else {
         log->Print(L"No video stream.\n");
     }
@@ -246,22 +241,14 @@ void VapourSynther::reportFormat(AvfsLog_* log) {
     if (ai) {
         log->Print(L"Audio stream :-\n");
 
-        // fixme, use the audio format name print function and be done with it
+        char nameBuffer[32];
+        vsapi->getAudioFormatName(&ai->format, nameBuffer);
 
         int msLen = (int)(1000.0 * ai->numSamples / ai->sampleRate);
-        log->Printf(L"  Audio length: %I64u samples. %02d:%02d:%02d.%03d\n", ai->numSamples,
-            (msLen/(60*60*1000)), (msLen/(60*1000))%60, (msLen/1000)%60, msLen%1000);
-        log->Printf(L"  Samples Per Second: %5d\n", ai->sampleRate);
+        log->Printf(L"  Audio length: %I64u samples. %02d:%02d:%02d.%03d\n", ai->numSamples, (msLen/(60*60*1000)), (msLen/(60*1000))%60, (msLen/1000)%60, msLen%1000);
+        log->Printf(L"  Format: %hs\n", &nameBuffer);
         log->Printf(L"  Audio Channels: %-8d\n", ai->format.numChannels);
-
-        const char* s_type = "";
-        if (ai->format.sampleType == stFloat && ai->format.bitsPerSample == 32)
-            s_type = "Float 32 bit";
-        else if (ai->format.sampleType == stInteger && ai->format.bitsPerSample == 16)
-            s_type = "Integer 16 bit";
-        else if (ai->format.sampleType == stInteger && ai->format.bitsPerSample == 32)
-            s_type = "Integer 32 bit";
-        log->Printf(L"  Sample Type: %hs\n", s_type);
+        log->Printf(L"  Samples Per Second: %5d\n", ai->sampleRate);
     } else {
         log->Print(L"No audio stream.\n");
     }

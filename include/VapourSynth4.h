@@ -215,7 +215,7 @@ typedef enum VSNodeFlags {
     nfNoCache    = 1,
     nfIsCache    = 2,
     nfMakeLinear = 4,
-    nfFrameReady = 8 // FIXME, not actually implemented
+    nfFrameReady = 8
 } VSNodeFlags;
 
 typedef enum VSPropType {
@@ -320,7 +320,6 @@ struct VSPLUGINAPI {
     int (VS_CC *registerFunction)(const char *name, const char *args, const char *returnType, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) VS_NOEXCEPT; /* non-zero return value on success  */
 };
 
-// FIXME, rearrange functions so they're grouped in a way that makes more sense
 struct VSAPI {
     /* Audio and video filter related including nodes */
     void (VS_CC *createVideoFilter)(VSMap *out, const char *name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT; /* output nodes are appended to the clip key in the out map */
@@ -451,15 +450,14 @@ struct VSAPI {
     void *(VS_CC *addMessageHandler)(VSMessageHandler handler, VSMessageHandlerFree free, void *userData, VSCore *core) VS_NOEXCEPT;
     int (VS_CC *removeMessageHandler)(void *handle, VSCore *core) VS_NOEXCEPT;
 
-// FIXME, require a define to expose this?
-//#ifdef VAPOURSYNTH_DEBUG_API
+// FIXME, not part of the stable api and maybe should be sorted
     /* These functions only exist to retrieve internal details for debug purposes and graph visualization and will only only work properly when used on a core created with the flag cfEnableGraphInspection, NOT PART OF THE STABLE API */
     const char *(VS_CC *getNodeCreationFunctionName)(VSNodeRef *node, int level) VS_NOEXCEPT; /* returns the name of the function that created the filter */
     const VSMap *(VS_CC *getNodeCreationFunctionArguments)(VSNodeRef *node, int level) VS_NOEXCEPT; /* returns a copy of the arguments passed to the function that created the filter */
     const char *(VS_CC *getNodeName)(VSNodeRef *node) VS_NOEXCEPT; /* the name passed to create*Filter */
     int (VS_CC *getNodeIndex)(VSNodeRef *node) VS_NOEXCEPT; /* the output index of the filter the node references */
     void (VS_CC *setInternalFilterRelation)(const VSMap *nodeMap, VSNodeRef **dependencies, int numDeps) VS_NOEXCEPT; /* manually overrides the automatically deduced node dependency information, only needed in filters that call invoke on the input to create*Filter or chains multiple create*Filter calls, simply ignored when used without cfEnableGraphInspection */
-//#endif
+//
 };
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version) VS_NOEXCEPT;

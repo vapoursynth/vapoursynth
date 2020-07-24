@@ -250,15 +250,12 @@ static void VS_CC audioSpliceCreate(const VSMap *in, VSMap *out, void *userData,
     }
 
     d->cumSamples.push_back(d->numSamples[0]);
-    for (int i = 1; i < numNodes; i++) 
-        d->cumSamples.push_back(d->cumSamples.back() + d->numSamples[i]);
-
-    // fixme, check for too long clip
-    /*
-    if (d->ai.numSamples < d->numSamples1 || d->ai.numSamples < d->numSamples2) {
-        RETERROR("AudioSplice: the resulting clip is too long");
+    for (int i = 1; i < numNodes; i++) {
+        int64_t totalSamples = d->cumSamples.back() + d->numSamples[i];
+        if (totalSamples > std::numeric_limits<int>::max() * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES))
+            RETERROR("AudioSplice: the resulting clip is too long");
+        d->cumSamples.push_back(totalSamples);
     }
-    */
 
     vsapi->createAudioFilter(out, "AudioSplice", &d->ai, 1, audioSpliceGetframe, filterFree<AudioSpliceData>, fmParallel, nfNoCache, d.get(), core);
     d.release();
