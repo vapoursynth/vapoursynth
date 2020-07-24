@@ -990,8 +990,8 @@ STDMETHODIMP VapourSynthStream::ReadFormat(LONG lPos, LPVOID lpFormat, LONG *lpc
     if (fAudio) {
         const VSAudioInfo *const ai = parent->ai;
         WaveFormatExtensible wfxt;
-        // fixme, check for errors
-        CreateWaveFormatExtensible(wfxt, ai->format.sampleType == stFloat, ai->format.bitsPerSample, ai->sampleRate, ai->format.channelLayout);
+        if (!CreateWaveFormatExtensible(wfxt, ai->format.sampleType == stFloat, ai->format.bitsPerSample, ai->sampleRate, ai->format.channelLayout))
+            return E_FAIL;
         *lpcbFormat = std::min<LONG>(*lpcbFormat, sizeof(wfxt));
         memcpy(lpFormat, &wfxt, size_t(*lpcbFormat));
     } else {

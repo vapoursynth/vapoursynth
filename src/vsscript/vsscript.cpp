@@ -225,11 +225,26 @@ VS_API(const VSAPI *) vsscript_getVSApi(void) VS_NOEXCEPT {
     return vpy_getVSApi2(3 << 16);
 }
 
-// FIXME, needs check to prevent audio types from escaping to V3
 VS_API(int) vsscript_getVariable(VSScript *handle, const char *name, VSMap *dst) VS_NOEXCEPT {
+    std::lock_guard<std::mutex> lock(vsscriptlock);
+    int result = vpy_getVariable(handle, name, dst);
+    const VSAPI *vsapi = vsscript_getVSApi2(VAPOURSYNTH_API_VERSION);
+    int numKeys = vsapi->propNumKeys(dst);
+    for (int i = 0; i < numKeys; i++) {
+        int keyType = vsapi->propGetType(dst, vsapi->propGetKey(dst, i));
+        if (keyType == ptAudioNode || keyType == ptAudioFrame) {
+            vsapi->clearMap(dst);
+            return 1;
+        }
+    }
+    return result;
+}
+
+static int VS_CC vsscript_getVariableAPI4(VSScript *handle, const char *name, VSMap *dst) VS_NOEXCEPT {
     std::lock_guard<std::mutex> lock(vsscriptlock);
     return vpy_getVariable(handle, name, dst);
 }
+
 
 VS_API(int) vsscript_setVariable(VSScript *handle, const VSMap *vars) VS_NOEXCEPT {
     std::lock_guard<std::mutex> lock(vsscriptlock);
@@ -257,7 +272,7 @@ static VSSCRIPTAPI vsscript_api = {
     &vsscript_getOutputAPI4,
     &vsscript_clearOutput,
     &vsscript_getCore,
-    &vsscript_getVariable,
+    &vsscript_getVariableAPI4,
     &vsscript_setVariable,
     &vsscript_clearVariable,
     &vsscript_clearEnvironment

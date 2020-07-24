@@ -1339,6 +1339,8 @@ bool VSCore::isValidVideoInfo(const VSVideoInfo &vi) noexcept {
     if ((!!vi.height) ^ (!!vi.width))
         return false;
 
+    // fixme, check implicit fields
+
     return true;
 }
 
@@ -1346,9 +1348,10 @@ bool VSCore::isValidAudioInfo(const VSAudioInfo &ai) noexcept {
     if (!isValidAudioFormat(ai.format.sampleType, ai.format.bitsPerSample, ai.format.channelLayout))
         return false;
 
-    // fixme, check implicit fields
     if (ai.numSamples < 1 || ai.sampleRate < 1)
         return false;
+
+    // fixme, check implicit fields
 
     return true;
 }
