@@ -489,6 +489,47 @@ static bool isValidVSMapKey(const char *s) {
     return true;
 }
 
+
+static int VS_CC propSetEmpty(VSMap *map, const char *key, int type) VS_NOEXCEPT {
+    assert(map && key);
+    if (!isValidVSMapKey(key))
+        return 1;
+
+    std::string skey = key;
+    if (map->find(skey))
+        return 1;
+
+    switch (type) {
+        case ptInt:
+            map->insert(key, new VSIntArray);
+            break;
+        case ptFloat:
+            map->insert(key, new VSFloatArray);
+            break;
+        case ptData:
+            map->insert(key, new VSDataArray);
+            break;
+        case ptVideoNode:
+            map->insert(key, new VSVideoNodeArray);
+            break;
+        case ptAudioNode:
+            map->insert(key, new VSAudioNodeArray);
+            break;
+        case ptVideoFrame:
+            map->insert(key, new VSVideoFrameArray);
+            break;
+        case ptAudioFrame:
+            map->insert(key, new VSAudioFrameArray);
+            break;
+        case ptFunction:
+            map->insert(key, new VSFunctionArray);
+            break;
+        default:
+            return 1;
+    }
+    return 0;
+}
+
 template<typename T, VSPropType propType>
 bool propSetShared(VSMap *map, const char *key, const T &val, int append) {
     assert(map && key);
@@ -827,46 +868,6 @@ static int VS_CC removeMessageHandler3(int id) VS_NOEXCEPT {
 static void VS_CC getCoreInfo2(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT {
     assert(core && info);
     core->getCoreInfo(*info);
-}
-
-static int VS_CC propSetEmpty(VSMap *map, const char *key, int type) VS_NOEXCEPT {
-    assert(map && key);
-    if (!isValidVSMapKey(key))
-        return 1;
-
-    std::string skey = key;
-    if (map->find(skey))
-        return 1;
-
-    switch (type) {
-        case ptInt:
-            map->insert(key, new VSIntArray);
-            break;
-        case ptFloat:
-            map->insert(key, new VSFloatArray);
-            break;
-        case ptData:
-            map->insert(key, new VSDataArray);
-            break;
-        case ptVideoNode:
-            map->insert(key, new VSVideoNodeArray);
-            break;
-        case ptAudioNode:
-            map->insert(key, new VSAudioNodeArray);
-            break;
-        case ptVideoFrame:
-            map->insert(key, new VSVideoFrameArray);
-            break;
-        case ptAudioFrame:
-            map->insert(key, new VSAudioFrameArray);
-            break;
-        case ptFunction:
-            map->insert(key, new VSFunctionArray);
-            break;
-        default:
-            return 1;
-    }
-    return 0;
 }
 
 static void VS_CC createVideoFilter(VSMap *out, const char *name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT {
