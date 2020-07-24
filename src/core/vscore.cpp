@@ -2251,7 +2251,7 @@ VSMap *VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
             }
 
             if (core->enableGraphInspection) {
-                core->functionFrame = std::make_shared<VSFunctionFrame>(funcName, new VSMap(args), core->functionFrame);
+                core->functionFrame = std::make_shared<VSFunctionFrame>(funcName, new VSMap(&args), core->functionFrame);
             }
             f.func(&args, v.get(), f.functionData, core, getVSAPIInternal(apiMajor));
             if (core->enableGraphInspection) {

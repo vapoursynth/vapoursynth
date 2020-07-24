@@ -73,13 +73,13 @@ static void Vinverse(const uint8_t *src, uint8_t *dst,
 }
 
 static const VSFrameRef *VS_CC VinverseGetFrame(int n, int activationReason,
-                                                void **instanceData,
+                                                void *instanceData,
                                                 void **frameData,
                                                 VSFrameContext *frameCtx,
                                                 VSCore *core,
                                                 const VSAPI *vsapi)
 {
-    VinverseData *d = (VinverseData *) * instanceData;
+    VinverseData *d = (VinverseData *)instanceData;
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);

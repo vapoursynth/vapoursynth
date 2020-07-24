@@ -432,7 +432,7 @@ static void averageFramesFloatSSE2(const AverageFrameData *d, const VSFrameRef *
     __m128 weights[32];
     __m128 scale = _mm_set_ps1(1.0f / d->fscale);
 
-    for (int i = 0; i < numSrcs; ++i)
+    for (size_t i = 0; i < numSrcs; ++i)
         weights[i] = _mm_set_ps1(d->fweights[i]);
 
     for (int h = 0; h < height; ++h) {
