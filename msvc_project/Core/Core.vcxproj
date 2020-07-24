@@ -99,7 +99,7 @@
       <IgnoreSpecificDefaultLibraries>
       </IgnoreSpecificDefaultLibraries>
       <SubSystem>Windows</SubSystem>
-      <ForceSymbolReferences>mi_version</ForceSymbolReferences>
+      <ForceSymbolReferences>_mi_version</ForceSymbolReferences>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -139,7 +139,7 @@
       <IgnoreSpecificDefaultLibraries>
       </IgnoreSpecificDefaultLibraries>
       <SubSystem>Windows</SubSystem>
-      <ForceSymbolReferences>mi_version</ForceSymbolReferences>
+      <ForceSymbolReferences>_mi_version</ForceSymbolReferences>
       <AdditionalOptions>/FORCE:MULTIPLE %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
