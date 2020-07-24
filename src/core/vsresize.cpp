@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2015-2017 Hoppsan G. Pig
+* Copyright (c) 2015-2020 Hoppsan G. Pig
 *
 * This file is part of VapourSynth.
 *

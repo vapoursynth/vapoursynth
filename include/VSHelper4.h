@@ -1,5 +1,5 @@
 /*****************************************************************************
-* Copyright (c) 2012-2015 Fredrik Mellbin
+* Copyright (c) 2012-2020 Fredrik Mellbin
 * --- Legal stuff ---
 * This program is free software. It comes without any warranty, to
 * the extent permitted by applicable law. You can redistribute it

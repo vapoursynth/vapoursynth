@@ -129,7 +129,7 @@ VSMap *readSettings(const std::string &path) {
                     value_end = i - 1;
                     std::string key(&buffer[key_start], key_end - key_start + 1);
                     std::string value(&buffer[value_start], value_end - value_start + 1);
-                    vs_internal_vsapi.propSetData(settings, key.c_str(), value.c_str(), value.size(), paReplace);
+                    vs_internal_vsapi.propSetData(settings, key.c_str(), value.c_str(), value.size(), dtUtf8, paReplace);
                     state = WANT_KEY_START;
                 }
                 break;

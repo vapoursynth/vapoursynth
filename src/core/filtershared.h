@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2013 Fredrik Mellbin
+* Copyright (c) 2012-2020 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -26,6 +26,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <limits>
 
 #define RETERROR(x) do { vsapi->setError(out, (x)); return; } while (0)
 

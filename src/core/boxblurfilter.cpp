@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2017 Fredrik Mellbin
+* Copyright (c) 2017-2020 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *

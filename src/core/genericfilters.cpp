@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2015-2017 John Smith & Fredrik Mellbin
+* Copyright (c) 2015-2020 John Smith & Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
