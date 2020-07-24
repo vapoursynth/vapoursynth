@@ -3274,8 +3274,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         int format = vsapi->propGetSaturatedInt(in, "format", 0, &err);
         if (!err) {
             VSVideoFormat f;
-            vsapi->queryVideoFormatByID(&f, format, core);
-            if (vsapi->queryVideoFormatByID(&f, format, core) && f.colorFamily !=cfUndefined) {
+            if (vsapi->queryVideoFormatByID(&f, format, core) && f.colorFamily != cfUndefined) {
                 if (isCompatFormat(&d->vi.format))
                     throw std::runtime_error("No compat formats allowed");
                 if (d->vi.format.numPlanes != f.numPlanes)
