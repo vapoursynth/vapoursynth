@@ -338,9 +338,11 @@ static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, v
 
         dst = vsapi->newVideoFrame(fi, vsapi->getFrameWidth(src, 0) + d->left + d->right, vsapi->getFrameHeight(src, 0) + d->top + d->bottom, src, core);
 
+        int bytesPerSample = fi->bytesPerSample;
+
         // now that argument validation is over we can spend the next few lines actually adding borders
         for (int plane = 0; plane < fi->numPlanes; plane++) {
-            int rowsize = vsapi->getFrameWidth(src, plane) * fi->bytesPerSample;
+            int rowsize = vsapi->getFrameWidth(src, plane) * bytesPerSample;
             ptrdiff_t srcstride = vsapi->getStride(src, plane);
             ptrdiff_t dststride = vsapi->getStride(dst, plane);
             int srcheight = vsapi->getFrameHeight(src, plane);
@@ -348,11 +350,11 @@ static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, v
             uint8_t *dstdata = vsapi->getWritePtr(dst, plane);
             int padt = d->top >> (plane ? fi->subSamplingH : 0);
             int padb = d->bottom >> (plane ? fi->subSamplingH : 0);
-            int padl = (d->left >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample;
-            int padr = (d->right >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample;
+            int padl = (d->left >> (plane ? fi->subSamplingW : 0)) * bytesPerSample;
+            int padr = (d->right >> (plane ? fi->subSamplingW : 0)) * bytesPerSample;
             uint32_t color = d->color[plane];
 
-            switch (fi->bytesPerSample) {
+            switch (bytesPerSample) {
             case 1:
                 vs_memset<uint8_t>(dstdata, color, padt * dststride);
                 break;
@@ -366,7 +368,7 @@ static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, v
             dstdata += padt * dststride;
 
             for (int hloop = 0; hloop < srcheight; hloop++) {
-                switch (fi->bytesPerSample) {
+                switch (bytesPerSample) {
                 case 1:
                     vs_memset<uint8_t>(dstdata, color, padl);
                     memcpy(dstdata + padl, srcdata, rowsize);
@@ -388,7 +390,7 @@ static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, v
                 srcdata += srcstride;
             }
 
-            switch (fi->bytesPerSample) {
+            switch (bytesPerSample) {
             case 1:
                 vs_memset<uint8_t>(dstdata, color, padb * dststride);
                 break;

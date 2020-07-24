@@ -51,6 +51,8 @@
 // fixme, install a message handler (needs vsscript fix)
 // fixme, refactor to not use global variables everywhere so it's a better code sample
 // fixme, add a second less verbose graph mode only showing top level invoke calls
+// fixme, fix commandline parsing so an output file isn't required for non-output cases and it goes to stdout by default
+// fixme, using a "." for no output is weird
 
 // Needed so windows doesn't drool on itself when ctrl-c is pressed
 #ifdef VS_TARGET_OS_WINDOWS
@@ -615,7 +617,7 @@ static void printHelp() {
         "  -c  --preserve-cwd    Don't temporarily change the working directory the script path\n"
         "  -p, --progress        Print progress to stderr\n"
         "  -i, --info            Show output node info and exit\n"
-        "  -g, --graph           Print output node filter graph in dot format and exit\n"
+        "      --graph-full      Print output node filter graph in dot format and exit\n"
         "  -v, --version         Show version info and exit\n"
         "\n"
         "Examples:\n"
@@ -666,7 +668,7 @@ int main(int argc, char **argv) {
             printFrameNumber = true;
         } else if (argString == NSTRING("-i") || argString == NSTRING("--info")) {
             showInfo = true;
-        } else if (argString == NSTRING("-g") || argString == NSTRING("--graph")) {
+        } else if (argString == NSTRING("--graph-full")) {
             showGraph = true;
         } else if (argString == NSTRING("-h") || argString == NSTRING("--help")) {
             showHelp = true;

@@ -1,5 +1,5 @@
 #define Version '51'
-#define VersionExtra '-audio4'
+#define VersionExtra '-audio5'
 #define PythonVersion '3.8'
 #define PythonCompactVersion '38'
 
