@@ -35,56 +35,53 @@ typedef enum VSEvalFlags {
     efSetWorkingDir = 1,
 } VSEvalFlags;
 
-// FIXME, improve documentation since it's very confusing
-// FIXME, clarify the function of environment handles and possibly limit them to only one script evaluation each
 struct VSSCRIPTAPI {
-    int (VS_CC *getApiVersion)(void) VS_NOEXCEPT;
+    /* Returns the higest supported VSSCRIPT_API_VERSION */
+    int (VS_CC *getAPIVersion)(void) VS_NOEXCEPT;
 
-    /* Convenience function for retrieving a VSAPI pointer */
-    const VSAPI *(VS_CC *getVSApi)(int version) VS_NOEXCEPT;
+    /* Convenience function for retrieving a VSAPI pointer without having to use the VapourSynth library. Always pass VAPOURSYNTH_API_VERSION */
+    const VSAPI *(VS_CC *getVSAPI)(int version) VS_NOEXCEPT;
 
     /*
-    * Pass a pointer to a null handle to create a new one
-    * The values returned by the query functions are only valid during the lifetime of the VSScript
-    * scriptFilename is if the error message should reference a certain file, NULL allowed in vsscript_evaluateScript()
-    * core is to pass in an already created instance so that mixed environments can be used,
-    * NULL creates a new core that can be fetched with vsscript_getCore() later OR implicitly uses the one associated with an already existing handle when passed
-    * If efSetWorkingDir is passed to flags the current working directory will be changed to the path of the script
-    * note that if scriptFilename is NULL in vsscript_evaluateScript() then __file__ won't be set and the working directory won't be changed
-    * Set efSetWorkingDir to get the default and recommended behavior
+    * Evaluates a script passed in the buffer argument. The scriptFilename is only used for display purposes. in Python
+    * it means that the main module won't be unnamed in error messages.
+    *
+    * It is possible to set variables in the script context before evaluation by passing a VSMap. This is useful in order
+    * to pass on command-line arguments to scripts or handle batch scripting. Only simple types like int, float and data are
+    * allowed. Note that the datatype hint may affect how data is handled. Pass NULL to not set any variables.
+    *
+    * The coreCreationFlags are simply passed on to the createCore() call. This should in most cases be set to 0 to use the defaults.
+    *
+    * Returns a VSScript pointer both on success and error. Call getError() to see if the script evaluation succeeded.
+    * Note that calling any function other than getError() and freeScript() on a VSScript object in the error state
+    * will result in undefined behavior.
     */
-    int (VS_CC *evaluateScript)(VSScript **handle, const char *script, const char *scriptFilename, int flags) VS_NOEXCEPT;
+    VSScript *(VS_CC *evaluateBuffer)(const char *buffer, const char *scriptFilename, const VSMap *vars, int coreCreationFlags) VS_NOEXCEPT;
 
-    /* Convenience version of the above function that loads the script from a file */
-    int (VS_CC *evaluateFile)(VSScript **handle, const char *scriptFilename, int flags) VS_NOEXCEPT;
+    /* Convenience version of the above function that loads the script from scriptFilename and passes as the buffer to evaluateBuffer */
+    VSScript *(VS_CC *evaluateFile)(const char *scriptFilename, const VSMap *vars, int coreCreationflags) VS_NOEXCEPT;
 
-    /* Create an empty environment for use in later invocations, mostly useful to set script variables before execution */
-    int (VS_CC *createScript)(VSScript **handle) VS_NOEXCEPT;
-
-    void (VS_CC *freeScript)(VSScript *handle) VS_NOEXCEPT;
-
+    /* Returns NULL on success, otherwise an error message */
     const char *(VS_CC *getError)(VSScript *handle) VS_NOEXCEPT;
 
     /*
-    * Both nodes returned must be freed using freeNode() before calling freeScript()
-    * The alpha node pointer will only be set if an alpha clip has been set in the script.
-    * Pass NULL to the alpha argument if you're not interested in it.
+    * The returned nodes must be freed using freeNode() before calling freeScript() since they may depend on data in the VSScript
+    * environment. Returns NULL if no node was set as output in the script. Index 0 is used by default in scripts and other
+    * values are rarely used.
     */
-    VSNodeRef *(VS_CC *getOutput)(VSScript *handle, int index, VSNodeRef **alpha) VS_NOEXCEPT;
+    VSNodeRef *(VS_CC *getOutputNode)(VSScript *handle, int index) VS_NOEXCEPT;
+    VSNodeRef *(VS_CC *getOutputAlphaNode)(VSScript *handle, int index) VS_NOEXCEPT;
 
-    /* Unset an output index */
-    int (VS_CC *clearOutput)(VSScript *handle, int index) VS_NOEXCEPT;
+    /* FIXME, this function is slightly weird
+    * Fetches a variable and stores in the key with the same name in dst. Only simple types like int, float and data are
+    * allowed as output. Returns zero on success.
+    */
+    int (VS_CC *getVariable)(VSScript *handle, const char *name, VSMap *dst);
 
     /* The core is valid as long as the environment exists */
     VSCore *(VS_CC *getCore)(VSScript *handle) VS_NOEXCEPT;
 
-    /* Variables names that are not set or not of a convertible type will return an error */
-    int (VS_CC *getVariable)(VSScript *handle, const char *name, VSMap *dst) VS_NOEXCEPT;
-    int (VS_CC *setVariable)(VSScript *handle, const VSMap *vars) VS_NOEXCEPT;
-    int (VS_CC *clearVariable)(VSScript *handle, const char *name) VS_NOEXCEPT;
-
-    /* Tries to clear everything set in an environment, normally it is better to simply free an environment completely and create a new one */
-    void (VS_CC *clearEnvironment)(VSScript *handle) VS_NOEXCEPT;
+    void (VS_CC *freeScript)(VSScript *handle) VS_NOEXCEPT;
 };
 
 VS_API(const VSSCRIPTAPI *) getVSScriptAPI(int version) VS_NOEXCEPT;

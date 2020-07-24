@@ -540,7 +540,7 @@ cdef class Func(object):
         cdef VSMap *inm
         cdef const VSAPI *vsapi
         cdef const char *error
-        vsapi = vpy_getVSApi();
+        vsapi = getVSAPIInternal();
         outm = self.funcs.createMap()
         inm = self.funcs.createMap()
         try:
@@ -2634,7 +2634,76 @@ cdef public api int vpy_evaluateFile(VPYScriptExport *se, const char *scriptFile
             se.errstr = <void *>errstr
             return 1
 
-cdef public api void vpy_freeScript(VPYScriptExport *se) nogil:
+cdef public api int vpy4_evaluateBuffer(VPYScriptExport *se, const char *buffer, const char *scriptFilename, const VSMap *vars, int coreCreationflags) nogil:
+    with gil:
+        try:          
+            evaldict = {}
+            Py_INCREF(evaldict)
+            se.pyenvdict = <void *>evaldict
+            
+            if buffer == NULL:
+                raise RuntimeError("NULL buffer passed.")
+
+            fn = '<undefined>'
+            if scriptFilename:
+                fn = scriptFilename.decode('utf-8')
+                abspath = os.path.abspath(fn)
+                evaldict['__file__'] = abspath
+
+            evaldict['__name__'] = "__vapoursynth__"
+            
+            if vars:
+                if getVSAPIInternal() == NULL:
+                    raise RuntimeError("Failed to retrieve VSAPI pointer.")
+                # FIXME, verify there are only int, float and data values in the map before this
+                evaldict.update(mapToDict(vars, False, False, NULL, getVSAPIInternal()))
+                
+            comp = compile(buffer.decode('utf-8-sig'), fn, 'exec')
+                
+            # Change the environment now.      
+            with _vsscript_use_or_create_environment(se.id).use():
+                exec(comp) in evaldict
+
+        except BaseException, e:
+            errstr = 'Python exception: ' + str(e) + '\n\n' + traceback.format_exc()
+            errstr = errstr.encode('utf-8')
+            Py_INCREF(errstr)
+            se.errstr = <void *>errstr
+            return 2
+        except:
+            errstr = 'Unspecified Python exception' + '\n\n' + traceback.format_exc()
+            errstr = errstr.encode('utf-8')
+            Py_INCREF(errstr)
+            se.errstr = <void *>errstr
+            return 1
+        return 0
+
+cdef public api int vpy4_evaluateFile(VPYScriptExport *se, const char *scriptFilename, const VSMap *vars, int coreCreationflags) nogil:
+    with gil:
+        evaldict = {}
+        Py_INCREF(evaldict)
+        se.pyenvdict = <void *>evaldict
+        try:
+            if scriptFilename == NULL:
+                raise RuntimeError("NULL scriptFilename passed.")
+                
+            with open(scriptFilename.decode('utf-8'), 'rb') as f:
+                script = f.read(1024*1024*16)
+            return vpy4_evaluateBuffer(se, script, scriptFilename, vars, coreCreationflags)
+        except BaseException, e:
+            errstr = 'File reading exception:\n' + str(e)
+            errstr = errstr.encode('utf-8')
+            Py_INCREF(errstr)
+            se.errstr = <void *>errstr
+            return 2
+        except:
+            errstr = 'Unspecified file reading exception'
+            errstr = errstr.encode('utf-8')
+            Py_INCREF(errstr)
+            se.errstr = <void *>errstr
+            return 1
+
+cdef public api void vpy4_freeScript(VPYScriptExport *se) nogil:
     with gil:
         vpy_clearEnvironment(se)
         if se.pyenvdict:
@@ -2657,14 +2726,14 @@ cdef public api void vpy_freeScript(VPYScriptExport *se) nogil:
 
         gc.collect()
 
-cdef public api char *vpy_getError(VPYScriptExport *se) nogil:
+cdef public api char *vpy4_getError(VPYScriptExport *se) nogil:
     if not se.errstr:
         return NULL
     with gil:
         errstr = <bytes>se.errstr
         return errstr
-
-cdef public api VSNodeRef *vpy_getOutput(VPYScriptExport *se, int index) nogil:
+            
+cdef public api VSNodeRef *vpy4_getOutput(VPYScriptExport *se, int index) nogil:
     with gil:
         evaldict = <dict>se.pyenvdict
         node = None
@@ -2681,9 +2750,7 @@ cdef public api VSNodeRef *vpy_getOutput(VPYScriptExport *se, int index) nogil:
         else:
             return NULL
             
-cdef public api VSNodeRef *vpy_getOutput2(VPYScriptExport *se, int index, VSNodeRef **alpha) nogil:
-    if (alpha != NULL):
-        alpha[0] = NULL
+cdef public api VSNodeRef *vpy4_getAlphaOutput(VPYScriptExport *se, int index) nogil:
     with gil:
         evaldict = <dict>se.pyenvdict
         node = None
@@ -2691,16 +2758,13 @@ cdef public api VSNodeRef *vpy_getOutput2(VPYScriptExport *se, int index, VSNode
             node = _get_vsscript_policy().get_environment(se.id).outputs[index]
         except:
             return NULL
-   
-        if isinstance(node, AlphaOutputTuple):
-            if (isinstance(node[1], VideoNode) and (alpha != NULL)):
-                alpha[0] = (<VideoNode>(node[1])).funcs.cloneNodeRef((<VideoNode>(node[1])).node)
-            return (<VideoNode>(node[0])).funcs.cloneNodeRef((<VideoNode>(node[0])).node)
-        elif isinstance(node, RawNode):
-            return (<RawNode>node).funcs.cloneNodeRef((<RawNode>node).node)
-        else:
-            return NULL
 
+        if isinstance(node, AlphaOutputTuple):
+            node = node[1]   
+            if isinstance(node, RawNode):
+                return (<RawNode>node).funcs.cloneNodeRef((<RawNode>node).node)
+        return NULL
+        
 cdef public api int vpy_clearOutput(VPYScriptExport *se, int index) nogil:
     with gil:
         try:
@@ -2709,7 +2773,7 @@ cdef public api int vpy_clearOutput(VPYScriptExport *se, int index) nogil:
             return 1
         return 0
 
-cdef public api VSCore *vpy_getCore(VPYScriptExport *se) nogil:
+cdef public api VSCore *vpy4_getCore(VPYScriptExport *se) nogil:
     with gil:
         try:
             core = vsscript_get_core_internal(_get_vsscript_policy().get_environment(se.id))
@@ -2720,26 +2784,26 @@ cdef public api VSCore *vpy_getCore(VPYScriptExport *se) nogil:
         except:
             return NULL
 
-cdef public api const VSAPI *vpy_getVSApi() nogil:
+cdef public api const VSAPI *vpy4_getVSAPI(int version) nogil:
+    return getVapourSynthAPI(version)
+    
+cdef const VSAPI *getVSAPIInternal() nogil:
     global _vsapi
     if _vsapi == NULL:
         _vsapi = getVapourSynthAPI(VAPOURSYNTH_API_VERSION)
     return _vsapi
-    
-cdef public api const VSAPI *vpy_getVSApi2(int version) nogil:
-    return getVapourSynthAPI(version)
 
 cdef public api int vpy_getVariable(VPYScriptExport *se, const char *name, VSMap *dst) nogil:
     with gil:
         with _vsscript_use_environment(se.id).use():
-            if vpy_getVSApi() == NULL:
+            if getVSAPIInternal() == NULL:
                 return 1
             evaldict = <dict>se.pyenvdict
             try:
                 dname = name.decode('utf-8')
                 read_var = { dname:evaldict[dname]}
                 core = vsscript_get_core_internal(_get_vsscript_policy().get_environment(se.id))
-                dictToMap(read_var, dst, core.core, vpy_getVSApi())
+                dictToMap(read_var, dst, core.core, getVSAPIInternal())
                 return 0
             except:
                 return 1
@@ -2747,12 +2811,12 @@ cdef public api int vpy_getVariable(VPYScriptExport *se, const char *name, VSMap
 cdef public api int vpy_setVariable(VPYScriptExport *se, const VSMap *vars) nogil:
     with gil:
         with _vsscript_use_environment(se.id).use():
-            if vpy_getVSApi() == NULL:
+            if getVSAPIInternal() == NULL:
                 return 1
             evaldict = <dict>se.pyenvdict
             try:     
                 core = vsscript_get_core_internal(_get_vsscript_policy().get_environment(se.id))
-                new_vars = mapToDict(vars, False, False, core.core, vpy_getVSApi())
+                new_vars = mapToDict(vars, False, False, core.core, getVSAPIInternal())
                 for key in new_vars:
                     evaldict[key] = new_vars[key]
                 return 0
@@ -2781,9 +2845,9 @@ cdef public api void vpy_clearEnvironment(VPYScriptExport *se) nogil:
             pass
         gc.collect()
 
-cdef public api int vpy_initVSScript() nogil:
+cdef public api int vpy4_initVSScript() nogil:
     with gil:
-        if vpy_getVSApi() == NULL:
+        if getVSAPIInternal() == NULL:
             return 1
         if has_policy():
             return 1

@@ -156,9 +156,10 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
         if (script.empty())
             goto vpyerror;
 
-        if (!vssapi->evaluateScript(&se, script.c_str(), scriptName.c_str(), efSetWorkingDir)) {
+        se = vssapi->evaluateBuffer(script.c_str(), scriptName.c_str(), nullptr, 0);
 
-            videoNode = vssapi->getOutput(se, 0, nullptr);
+        if (!vssapi->getError(se)) {
+            videoNode = vssapi->getOutputNode(se, 0);
             if (!videoNode || vsapi->getNodeType(videoNode) != mtVideo) {
                 setError("Output index 0 is not set or not a video node");
                 return ERROR_ACCESS_DENIED;
@@ -181,7 +182,7 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
                 return ERROR_ACCESS_DENIED;
             }
 
-            audioNode = vssapi->getOutput(se, 1, nullptr);
+            audioNode = vssapi->getOutputNode(se, 1);
             if (audioNode && vsapi->getNodeType(audioNode) != mtAudio) {
                 setError("Output index index 1 is not an audio node");
                 return ERROR_ACCESS_DENIED;
@@ -540,7 +541,7 @@ int/*error*/ VapourSynther::newEnv() {
 // Constructor
 VapourSynther::VapourSynther(void) : pendingRequests(0) {
     vssapi = getVSScriptAPI(VSSCRIPT_API_VERSION);
-    vsapi = vssapi->getVSApi(VAPOURSYNTH_API_VERSION);
+    vsapi = vssapi->getVSAPI(VAPOURSYNTH_API_VERSION);
 }
 
 /*---------------------------------------------------------

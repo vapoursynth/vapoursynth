@@ -381,7 +381,7 @@ STDMETHODIMP VapourSynthFile::DeleteStream(DWORD fccType, LONG lParam) noexcept 
 VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : m_refs(0), pending_requests(0) {
     vssapi = getVSScriptAPI(VSSCRIPT_API_VERSION);
     assert(vssapi);
-    vsapi = vssapi->getVSApi(VAPOURSYNTH_API_VERSION);
+    vsapi = vssapi->getVSAPI(VAPOURSYNTH_API_VERSION);
     AddRef();
 }
 
@@ -437,12 +437,13 @@ final.set_output()\n";
 
 bool VapourSynthFile::DelayInit2() {
     if (!szScriptName.empty() && !vi) {
-        if (!vssapi->evaluateFile(&se, szScriptName.c_str(), efSetWorkingDir)) {
+        VSScript *se = vssapi->evaluateFile(szScriptName.c_str(), nullptr, 0);
+        if (!vssapi->getError(se)) {
             error_msg.clear();
 
             ////////// video
 
-            videoNode = vssapi->getOutput(se, 0, nullptr);
+            videoNode = vssapi->getOutputNode(se, 0);
             if (!videoNode) {
                 error_msg = "Couldn't get output clip, no output set?";
                 goto vpyerror;
@@ -478,7 +479,7 @@ bool VapourSynthFile::DelayInit2() {
 
             ////////// audio
 
-            audioNode = vssapi->getOutput(se, 1, nullptr);
+            audioNode = vssapi->getOutputNode(se, 1);
 
             if (audioNode) {
                 if (vsapi->getNodeType(audioNode) != mtAudio) {
@@ -513,8 +514,8 @@ bool VapourSynthFile::DelayInit2() {
             std::string error_script = ErrorScript1;
             error_script += error_msg;
             error_script += ErrorScript2;
-            vssapi->evaluateScript(&se, error_script.c_str(), "vfw_error.message", 0);
-            videoNode = vssapi->getOutput(se, 0, nullptr);
+            se = vssapi->evaluateBuffer(error_script.c_str(), "vfw_error.message", nullptr, 0);
+            videoNode = vssapi->getOutputNode(se, 0);
             vi = vsapi->getVideoInfo(videoNode);
             return true;
         }
@@ -773,8 +774,8 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
         frameErrorScript += "err_script_clip = core.resize.Bilinear(err_script_clip, format=err_script_formatid" + matrix + ")\n";
         frameErrorScript += "err_script_clip.set_output()\n";
 
-        vssapi->evaluateScript(&errSe, frameErrorScript.c_str(), "vfw_error.message", 0);
-        VSNodeRef *node = vssapi->getOutput(errSe, 0, nullptr);
+        errSe = vssapi->evaluateBuffer(frameErrorScript.c_str(), "vfw_error.message", nullptr, 0);
+        VSNodeRef *node = vssapi->getOutputNode(errSe, 0);
         f = vsapi->getFrame(0, node, nullptr, 0);
         vsapi->freeNode(node);
 

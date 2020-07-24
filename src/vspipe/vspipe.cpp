@@ -580,7 +580,7 @@ static bool nstringToInt(const nstring &ns, int &result) {
 }
 
 static bool printVersion() {
-    vsapi = vssapi->getVSApi(VAPOURSYNTH_API_VERSION);
+    vsapi = vssapi->getVSAPI(VAPOURSYNTH_API_VERSION);
     if (!vsapi) {
         fprintf(stderr, "Failed to get VapourSynth API pointer\n");
         return false;
@@ -814,7 +814,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    vsapi = vssapi->getVSApi(VAPOURSYNTH_API_VERSION);
+    vsapi = vssapi->getVSAPI(VAPOURSYNTH_API_VERSION);
     if (!vsapi) {
         fprintf(stderr, "Failed to get VapourSynth API pointer\n");
         return 1;
@@ -822,33 +822,32 @@ int main(int argc, char **argv) {
 
     std::chrono::time_point<std::chrono::steady_clock> scriptEvaluationStart = std::chrono::steady_clock::now();
     
-    // Should always succeed
-    if (vssapi->createScript(&se)) {
-        fprintf(stderr, "Script environment initialization failed:\n%s\n", vssapi->getError(se));
-        vssapi->freeScript(se);
-        return 1;
-    }
-
-    {
+    if (!scriptArgs.empty()) {
         VSMap *foldedArgs = vsapi->createMap();
         for (const auto &iter : scriptArgs)
             vsapi->propSetData(foldedArgs, iter.first.c_str(), iter.second.c_str(), static_cast<int>(iter.second.size()), dtUtf8, paAppend);
-        vssapi->setVariable(se, foldedArgs);
+        se = vssapi->evaluateFile(nstringToUtf8(scriptFilename).c_str(), foldedArgs, showGraph ? cfEnableGraphInspection : 0);
         vsapi->freeMap(foldedArgs);
+    } else {
+        se = vssapi->evaluateFile(nstringToUtf8(scriptFilename).c_str(), nullptr, showGraph ? cfEnableGraphInspection : 0);
     }
 
-    if (vssapi->evaluateFile(&se, nstringToUtf8(scriptFilename).c_str(), preserveCwd ? 0 : efSetWorkingDir)) {
+
+
+    if (vssapi->getError(se)) {
         fprintf(stderr, "Script evaluation failed:\n%s\n", vssapi->getError(se));
         vssapi->freeScript(se);
         return 1;
     }
 
-    node = vssapi->getOutput(se, outputIndex, &alphaNode);
+    node = vssapi->getOutputNode(se, outputIndex);
     if (!node) {
        fprintf(stderr, "Failed to retrieve output node. Invalid index specified?\n");
        vssapi->freeScript(se);
        return 1;
     }
+
+    alphaNode = vssapi->getOutputAlphaNode(se, outputIndex);
 
     std::chrono::duration<double> scriptEvaluationTime = std::chrono::steady_clock::now() - scriptEvaluationStart;
     if (printFrameNumber)
