@@ -14,6 +14,7 @@
   #define RegistryPath 'SOFTWARE\VapourSynth'
   #define SourceBinaryPath '..\msvc_project\x64\Release'
   #define MimallocSourceBinaryPath '..\mimalloc\out\msvc-x64\Release'
+  #define MimallocRedirectName 'mimalloc-redirect.dll'
   #define WheelFilename(Version) 'VapourSynth-' + Version + '-cp' + PythonCompactVersion + '-cp' + PythonCompactVersion + '-win_amd64.whl'
 #else
   #define AppName 'VapourSynth (32-bits)'
@@ -21,6 +22,7 @@
   #define RegistryPath 'SOFTWARE\VapourSynth-32'
   #define SourceBinaryPath '..\msvc_project\Release'
   #define MimallocSourceBinaryPath '..\mimalloc\out\msvc-Win32\Release'
+  #define MimallocRedirectName 'mimalloc-redirect32.dll'
   #define WheelFilename(Version) 'VapourSynth-' + Version + '-cp' + PythonCompactVersion + '-cp' + PythonCompactVersion + '-win32.whl'
 #endif
 
@@ -96,7 +98,7 @@ Source: {#= SourceBinaryPath}\vspipe.exe; DestDir: {app}\core; Flags: ignorevers
 Source: {#= SourceBinaryPath}\vsvfw.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 Source: {#= SourceBinaryPath}\vsscript.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 Source: {#= MimallocSourceBinaryPath}\mimalloc-override.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
-Source: {#= MimallocSourceBinaryPath}\mimalloc-redirect.dll; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
+Source: {#= MimallocSourceBinaryPath}\{#= MimallocRedirectName}; DestDir: {app}\core; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vscore
 
 ;vsrepo
 Source: ..\vsrepo\vsrepo.py; DestDir: {app}\vsrepo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
