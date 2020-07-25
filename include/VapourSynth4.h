@@ -336,6 +336,7 @@ struct VSAPI {
     VSFrameRef *(VS_CC *newVideoFrame)(const VSVideoFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT;
     VSFrameRef *(VS_CC *newVideoFrame2)(const VSVideoFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT; /* like newVideoFrame but allows the specified planes to be effectively copied from the source frames */ // FIXME combine with newvideoframe?, FIXME, rename?
     VSFrameRef *(VS_CC *newAudioFrame)(const VSAudioFormat *format, int numSamples, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT;
+    // fixme, add newAudioFrame2 that works like newVideoFrame2
     void (VS_CC *freeFrame)(const VSFrameRef *f) VS_NOEXCEPT;
     const VSFrameRef *(VS_CC *cloneFrameRef)(const VSFrameRef *f) VS_NOEXCEPT;
     VSFrameRef *(VS_CC *copyFrame)(const VSFrameRef *f, VSCore *core) VS_NOEXCEPT;

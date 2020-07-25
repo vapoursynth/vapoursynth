@@ -72,7 +72,7 @@ static void VS_CC MorphoCreate(const VSMap *in, VSMap *out, void *userData,
         goto error;
     }
 
-    d.filter = (intptr_t)userData;
+    d.filter = (uintptr_t)userData;
 
     int pads = d.size + (d.size % 2 == 0);
 
@@ -87,7 +87,7 @@ static void VS_CC MorphoCreate(const VSMap *in, VSMap *out, void *userData,
     data = malloc(sizeof(d));
     *data = d;
 
-    vsapi->createVideoFilter(out, FilterNames[(uintptr_t)userData], &data->vi, 1, MorphoGetFrame, MorphoFree, fmParallel, 0, data, core);
+    vsapi->createVideoFilter(out, FilterNames[d.filter], &data->vi, 1, MorphoGetFrame, MorphoFree, fmParallel, 0, data, core);
 
     return;
 

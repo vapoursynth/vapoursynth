@@ -20,6 +20,7 @@
 
 #include "VapourSynth4.h"
 #include "VSScript4.h"
+#include "vsscript_internal.h"
 #include "cython/vapoursynth_api.h"
 #include <mutex>
 #include <atomic>
@@ -32,9 +33,6 @@
 #endif
 
 static std::once_flag flag;
-
-struct VSScript : public VPYScriptExport {
-};
 
 static std::mutex vsscriptlock;
 static std::atomic<int> initializationCount(0);
@@ -135,17 +133,13 @@ VS_API(int) vsscript_finalize(void) VS_NOEXCEPT {
 
 // V3 API compatibility
 static int createScriptInternal(VSScript **handle) VS_NOEXCEPT {
-    *handle = new VSScript();
-    (*handle)->pyenvdict = nullptr;
-    (*handle)->errstr = nullptr;
+    *handle = new VSScript{};
     (*handle)->id = ++scriptID;
     return vpy_createScript(*handle);
 }
 
 static VSScript *createScriptInternal() VS_NOEXCEPT {
-    VSScript *handle = new VSScript();
-    handle->pyenvdict = nullptr;
-    handle->errstr = nullptr;
+    VSScript *handle = new VSScript{};
     handle->id = ++scriptID;
     return handle;
 }
@@ -174,18 +168,18 @@ VS_API(int) vsscript_evaluateFile(VSScript **handle, const char *scriptFilename,
     return vpy_evaluateFile(*handle, scriptFilename, flags);
 }
 
-static VSScript *VS_CC evaluateBuffer(const char *buffer, const char *scriptFilename, const VSMap *vars, int coreCreationFlags) VS_NOEXCEPT {
+static VSScript *VS_CC evaluateBuffer(const char *buffer, const char *scriptFilename, const VSMap *vars, const VSScriptOptions *options) VS_NOEXCEPT {
     std::lock_guard<std::mutex> lock(vsscriptlock);
 
     VSScript *handle = createScriptInternal();
-    vpy4_evaluateBuffer(handle, buffer, scriptFilename, vars, coreCreationFlags);
+    vpy4_evaluateBuffer(handle, buffer, scriptFilename, vars, options);
     return handle;
 }
 
-static VSScript *VS_CC evaluateFile(const char *scriptFilename, const VSMap *vars, int coreCreationflags) VS_NOEXCEPT {
+static VSScript *VS_CC evaluateFile(const char *scriptFilename, const VSMap *vars, const VSScriptOptions *options) VS_NOEXCEPT {
     std::lock_guard<std::mutex> lock(vsscriptlock);
     VSScript *handle = createScriptInternal();
-    vpy4_evaluateFile(handle, scriptFilename, vars, coreCreationflags);
+    vpy4_evaluateFile(handle, scriptFilename, vars, options);
     return handle;
 }
 

@@ -3,20 +3,6 @@
 #ifndef __PYX_HAVE__vapoursynth
 #define __PYX_HAVE__vapoursynth
 
-struct VPYScriptExport;
-
-/* "vapoursynth.pyx":2536
- * 
- * # for whole script evaluation and export
- * cdef public struct VPYScriptExport:             # <<<<<<<<<<<<<<
- *     void *pyenvdict
- *     void *errstr
- */
-struct VPYScriptExport {
-  void *pyenvdict;
-  void *errstr;
-  int id;
-};
 
 #ifndef __PYX_HAVE_API__vapoursynth
 
@@ -32,22 +18,22 @@ struct VPYScriptExport {
   #define DL_IMPORT(_T) _T
 #endif
 
-__PYX_EXTERN_C int vpy_createScript(struct VPYScriptExport *);
-__PYX_EXTERN_C int vpy_evaluateScript(struct VPYScriptExport *, char const *, char const *, int);
-__PYX_EXTERN_C int vpy_evaluateFile(struct VPYScriptExport *, char const *, int);
-__PYX_EXTERN_C int vpy4_evaluateBuffer(struct VPYScriptExport *, char const *, char const *, VSMap const *, int);
-__PYX_EXTERN_C int vpy4_evaluateFile(struct VPYScriptExport *, char const *, VSMap const *, int);
-__PYX_EXTERN_C void vpy4_freeScript(struct VPYScriptExport *);
-__PYX_EXTERN_C char *vpy4_getError(struct VPYScriptExport *);
-__PYX_EXTERN_C VSNodeRef *vpy4_getOutput(struct VPYScriptExport *, int);
-__PYX_EXTERN_C VSNodeRef *vpy4_getAlphaOutput(struct VPYScriptExport *, int);
-__PYX_EXTERN_C int vpy_clearOutput(struct VPYScriptExport *, int);
-__PYX_EXTERN_C VSCore *vpy4_getCore(struct VPYScriptExport *);
+__PYX_EXTERN_C int vpy_createScript(VSScript *);
+__PYX_EXTERN_C int vpy_evaluateScript(VSScript *, char const *, char const *, int);
+__PYX_EXTERN_C int vpy_evaluateFile(VSScript *, char const *, int);
+__PYX_EXTERN_C int vpy4_evaluateBuffer(VSScript *, char const *, char const *, VSMap const *, VSScriptOptions const *);
+__PYX_EXTERN_C int vpy4_evaluateFile(VSScript *, char const *, VSMap const *, VSScriptOptions const *);
+__PYX_EXTERN_C void vpy4_freeScript(VSScript *);
+__PYX_EXTERN_C char *vpy4_getError(VSScript *);
+__PYX_EXTERN_C VSNodeRef *vpy4_getOutput(VSScript *, int);
+__PYX_EXTERN_C VSNodeRef *vpy4_getAlphaOutput(VSScript *, int);
+__PYX_EXTERN_C int vpy_clearOutput(VSScript *, int);
+__PYX_EXTERN_C VSCore *vpy4_getCore(VSScript *);
 __PYX_EXTERN_C VSAPI const *vpy4_getVSAPI(int);
-__PYX_EXTERN_C int vpy_getVariable(struct VPYScriptExport *, char const *, VSMap *);
-__PYX_EXTERN_C int vpy_setVariable(struct VPYScriptExport *, VSMap const *);
-__PYX_EXTERN_C int vpy_clearVariable(struct VPYScriptExport *, char const *);
-__PYX_EXTERN_C void vpy_clearEnvironment(struct VPYScriptExport *);
+__PYX_EXTERN_C int vpy_getVariable(VSScript *, char const *, VSMap *);
+__PYX_EXTERN_C int vpy_setVariable(VSScript *, VSMap const *);
+__PYX_EXTERN_C int vpy_clearVariable(VSScript *, char const *);
+__PYX_EXTERN_C void vpy_clearEnvironment(VSScript *);
 __PYX_EXTERN_C int vpy4_initVSScript(void);
 
 #endif /* !__PYX_HAVE_API__vapoursynth */

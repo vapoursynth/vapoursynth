@@ -48,7 +48,6 @@
 #endif
 
 // fixme, don't allow info/graph and output options to be combined
-// fixme, install a message handler (needs vsscript fix)
 // fixme, refactor to not use global variables everywhere so it's a better code sample
 // fixme, add a second less verbose graph mode only showing top level invoke calls
 // fixme, fix commandline parsing so an output file isn't required for non-output cases and it goes to stdout by default
@@ -166,6 +165,22 @@ static std::string channelMaskToName(uint64_t v) {
     checkConstant(acLowFrequency2, "LFE2");
 
     return s;
+}
+
+static const char *messageTypeToString(int msgType) {
+    switch (msgType) {
+        case mtDebug: return "Debug";
+        case mtInformation: return "Information";
+        case mtWarning: return "Warning";
+        case mtCritical: return "Critical";
+        case mtFatal: return "Fatal";
+        default: return "";
+    }
+}
+
+static void VS_CC messageHandler(int msgType, const char *msg, void *userData) {
+    if (msgType >= mtInformation)
+        fprintf(stderr, "%s: %s\n", messageTypeToString(msgType), msg);
 }
 
 static bool isCompletedFrame(const std::pair<const VSFrameRef *, const VSFrameRef *> &f) {
@@ -822,17 +837,17 @@ int main(int argc, char **argv) {
 
     std::chrono::time_point<std::chrono::steady_clock> scriptEvaluationStart = std::chrono::steady_clock::now();
     
+    VSScriptOptions opts = { sizeof(VSScriptOptions), showGraph ? cfEnableGraphInspection : 0, messageHandler, nullptr, nullptr };
+
     if (!scriptArgs.empty()) {
         VSMap *foldedArgs = vsapi->createMap();
         for (const auto &iter : scriptArgs)
             vsapi->propSetData(foldedArgs, iter.first.c_str(), iter.second.c_str(), static_cast<int>(iter.second.size()), dtUtf8, paAppend);
-        se = vssapi->evaluateFile(nstringToUtf8(scriptFilename).c_str(), foldedArgs, showGraph ? cfEnableGraphInspection : 0);
+        se = vssapi->evaluateFile(nstringToUtf8(scriptFilename).c_str(), foldedArgs, &opts);
         vsapi->freeMap(foldedArgs);
     } else {
-        se = vssapi->evaluateFile(nstringToUtf8(scriptFilename).c_str(), nullptr, showGraph ? cfEnableGraphInspection : 0);
+        se = vssapi->evaluateFile(nstringToUtf8(scriptFilename).c_str(), nullptr, &opts);
     }
-
-
 
     if (vssapi->getError(se)) {
         fprintf(stderr, "Script evaluation failed:\n%s\n", vssapi->getError(se));

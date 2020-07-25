@@ -48,7 +48,7 @@ static const VSFrameRef *VS_CC audioTrimGetframe(int n, int activationReason, vo
 
     int64_t startSample = n * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES) + d->first;
     int startFrame = (int)(startSample / VS_AUDIO_FRAME_SAMPLES);
-    int length = std::min<int64_t>(d->ai.numSamples - n * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES), VS_AUDIO_FRAME_SAMPLES);
+    int length = static_cast<int>(std::min<int64_t>(d->ai.numSamples - n * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES), VS_AUDIO_FRAME_SAMPLES));
 
     if (startSample % VS_AUDIO_FRAME_SAMPLES == 0 && n != d->ai.numFrames - 1) { // pass through audio frames when possible
         if (activationReason == arInitial) {
@@ -158,7 +158,7 @@ static const VSFrameRef *VS_CC audioSpliceGetframe(int n, int activationReason, 
     AudioSpliceData *d = reinterpret_cast<AudioSpliceData *>(instanceData);
 
     int64_t sampleStart = n * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES);
-    int64_t remainingSamples = std::min<int64_t>(VS_AUDIO_FRAME_SAMPLES, d->ai.numSamples - sampleStart);
+    int remainingSamples = static_cast<int>(std::min<int64_t>(VS_AUDIO_FRAME_SAMPLES, d->ai.numSamples - sampleStart));
 
     if (activationReason == arInitial) {
         for (size_t i = 0; i < d->cumSamples.size(); i++) {
@@ -168,7 +168,7 @@ static const VSFrameRef *VS_CC audioSpliceGetframe(int n, int activationReason, 
                 int reqFrame = static_cast<int>(currentStartSample / VS_AUDIO_FRAME_SAMPLES);
                 do {
                     int64_t reqStart = reqFrame * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES);
-                    int64_t reqSamples = std::min<int64_t>(VS_AUDIO_FRAME_SAMPLES - reqStartOffset, d->numSamples[i] - reqStart);
+                    int reqSamples = static_cast<int>(std::min<int64_t>(VS_AUDIO_FRAME_SAMPLES - reqStartOffset, d->numSamples[i] - reqStart));
                     reqStartOffset = 0;
                     vsapi->requestFrameFilter(reqFrame, d->node[i], frameCtx);
                     remainingSamples -= reqSamples;
@@ -190,7 +190,7 @@ static const VSFrameRef *VS_CC audioSpliceGetframe(int n, int activationReason, 
         for (size_t i = 0; i < d->cumSamples.size(); i++) {
             if (d->cumSamples[i] > sampleStart) {
                 int64_t currentStartSample = sampleStart - ((i > 0) ? d->cumSamples[i - 1] : 0);
-                int64_t reqStartOffset = currentStartSample % VS_AUDIO_FRAME_SAMPLES;
+                int reqStartOffset = static_cast<int>(currentStartSample % VS_AUDIO_FRAME_SAMPLES);
                 int reqFrame = static_cast<int>(currentStartSample / VS_AUDIO_FRAME_SAMPLES);
                 do {
                     const VSFrameRef *src = vsapi->getFrameFilter(reqFrame++, d->node[i], frameCtx);
@@ -199,7 +199,7 @@ static const VSFrameRef *VS_CC audioSpliceGetframe(int n, int activationReason, 
                         dst = vsapi->newAudioFrame(&d->ai.format, remainingSamples, src, core);
 
                     for (int p = 0; p < d->ai.format.numChannels; p++)
-                        memcpy(vsapi->getWritePtr(dst, p) + dstOffset, vsapi->getReadPtr(src, p) + reqStartOffset * d->ai.format.bytesPerSample, std::min<int>(length, remainingSamples) * d->ai.format.bytesPerSample);
+                        memcpy(vsapi->getWritePtr(dst, p) + dstOffset, vsapi->getReadPtr(src, p) + reqStartOffset * d->ai.format.bytesPerSample, std::min(length, remainingSamples) * d->ai.format.bytesPerSample);
 
                     reqStartOffset = 0;
                     dstOffset += length * d->ai.format.bytesPerSample;
@@ -277,14 +277,14 @@ static const VSFrameRef *VS_CC audioLoopGetFrame(int n, int activationReason, vo
 
     int64_t reqStart = n * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES);
     reqStart = reqStart % d->srcSamples;
-    int reqStartFrame = reqStart / VS_AUDIO_FRAME_SAMPLES;
+    int reqStartFrame = static_cast<int>(reqStart / VS_AUDIO_FRAME_SAMPLES);
     int reqFrame = reqStartFrame;
-    int64_t reqStartOffset = reqStart % VS_AUDIO_FRAME_SAMPLES;
-    int64_t remainingSamples = std::min<int64_t>(VS_AUDIO_FRAME_SAMPLES, d->ai.numSamples - n * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES));
+    int reqStartOffset = static_cast<int>(reqStart % VS_AUDIO_FRAME_SAMPLES);
+    int remainingSamples = static_cast<int>(std::min<int64_t>(VS_AUDIO_FRAME_SAMPLES, d->ai.numSamples - n * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES)));
 
     if (activationReason == arInitial) {
         do {
-            int64_t reqSamples = std::min<int64_t>(VS_AUDIO_FRAME_SAMPLES - reqStartOffset, d->srcSamples - reqStart);
+            int reqSamples = static_cast<int>(std::min<int64_t>(VS_AUDIO_FRAME_SAMPLES - reqStartOffset, d->srcSamples - reqStart));
             reqStartOffset = 0;
             vsapi->requestFrameFilter(reqFrame++, d->node, frameCtx);
             remainingSamples -= reqSamples;
@@ -372,7 +372,7 @@ static const VSFrameRef *VS_CC audioReverseGetFrame(int n, int activationReason,
         if (d->ai->numSamples % VS_AUDIO_FRAME_SAMPLES != 0)
             vsapi->requestFrameFilter(n2, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        int dstLength = std::min<int64_t>(VS_AUDIO_FRAME_SAMPLES, d->ai->numSamples - n * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES));
+        int dstLength = static_cast<int>(std::min<int64_t>(VS_AUDIO_FRAME_SAMPLES, d->ai->numSamples - n * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES)));
         const VSFrameRef *src1 = vsapi->getFrameFilter(n1, d->node, frameCtx);
         size_t l1 = vsapi->getFrameLength(src1);
         size_t s1offset = l1 - (d->ai->numSamples % VS_AUDIO_FRAME_SAMPLES);
@@ -529,15 +529,7 @@ static const VSFrameRef *VS_CC audioMixGetFrame(int n, int activationReason, voi
                 for (size_t srcIdx = 0; srcIdx < srcPtrs.size(); srcIdx++)
                     tmp += static_cast<double>(srcPtrs[srcIdx][i]) * d->sourceNodes[srcIdx].weights[dstIdx];
 
-                if (std::numeric_limits<T>::is_integer) {
-                    if (sizeof(T) == 2) {
-                        dstPtrs[dstIdx][i] = static_cast<int16_t>(tmp);
-                    } else if (sizeof(T) == 4) {
-                        dstPtrs[dstIdx][i] = static_cast<int32_t>(tmp);
-                    }
-                } else {
-                    dstPtrs[dstIdx][i] = static_cast<T>(tmp);
-                }
+                dstPtrs[dstIdx][i] = static_cast<T>(tmp);
             }
         }
 
@@ -605,7 +597,7 @@ static void VS_CC audioMixCreate(const VSMap *in, VSMap *out, void *userData, VS
     const char *err = nullptr;
 
     d->ai = *vsapi->getAudioInfo(d->sourceNodes[0].node);
-    for (size_t i = 0; i < d->sourceNodes.size(); i++) {
+    for (int i = 0; i < static_cast<int>(d->sourceNodes.size()); i++) {
         const VSAudioInfo *ai = vsapi->getAudioInfo(d->sourceNodes[i].node);
         if (ai->numSamples != d->ai.numSamples || ai->sampleRate != d->ai.sampleRate || ai->format.bitsPerSample != d->ai.format.bitsPerSample || ai->format.sampleType != d->ai.format.sampleType) {
             err = "AudioMix: all inputs must have the same length, samplerate, bits per sample and sample type";
@@ -673,7 +665,7 @@ static const VSFrameRef *VS_CC shuffleChannelsGetFrame(int n, int activationReas
             vsapi->requestFrameFilter(n, iter, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         VSFrameRef *dst = nullptr;
-        int dstLength = std::min<int64_t>(d->ai.numSamples - n * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES), VS_AUDIO_FRAME_SAMPLES);
+        int dstLength = static_cast<int>(std::min<int64_t>(d->ai.numSamples - n * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES), VS_AUDIO_FRAME_SAMPLES));
         for (int idx = 0; idx < static_cast<int>(d->sourceNodes.size()); idx++) {
             const VSFrameRef *src = vsapi->getFrameFilter(n, d->sourceNodes[idx].node, frameCtx);;
             int srcLength = (n < d->sourceNodes[idx].numFrames) ? vsapi->getFrameLength(src) : 0;
@@ -888,7 +880,7 @@ static const VSFrameRef *VS_CC blankAudioGetframe(int n, int activationReason, v
     if (activationReason == arInitial) {
         VSFrameRef *frame = nullptr;
         if (!d->f) {
-            int samples = std::min<int64_t>(VS_AUDIO_FRAME_SAMPLES, d->ai.numSamples - n * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES));
+            int samples = static_cast<int>(std::min<int64_t>(VS_AUDIO_FRAME_SAMPLES, d->ai.numSamples - n * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES)));
             frame = vsapi->newAudioFrame(&d->ai.format, samples, nullptr, core);
             for (int channel = 0; channel < d->ai.format.numChannels; channel++)
                 memset(vsapi->getWritePtr(frame, channel), 0, samples * d->ai.format.bytesPerSample);
@@ -962,7 +954,7 @@ static const VSFrameRef *VS_CC testAudioGetframe(int n, int activationReason, vo
 
     if (activationReason == arInitial) {
         int64_t startSample = n * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES);
-        int samples = std::min<int64_t>(VS_AUDIO_FRAME_SAMPLES, d->ai.numSamples - startSample);
+        int samples = static_cast<int>(std::min<int64_t>(VS_AUDIO_FRAME_SAMPLES, d->ai.numSamples - startSample));
         VSFrameRef *frame = vsapi->newAudioFrame(&d->ai.format, samples, nullptr, core);
         for (int channel = 0; channel < d->ai.format.numChannels; channel++) {
             uint16_t *w = reinterpret_cast<uint16_t *>(vsapi->getWritePtr(frame, channel));

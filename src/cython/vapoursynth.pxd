@@ -31,7 +31,6 @@ cdef extern from "include/VapourSynth4.h" nogil:
         pass
     ctypedef struct VSNodeRef:
         pass
-
     ctypedef struct VSCore:
         pass
     ctypedef struct VSPlugin:
@@ -179,6 +178,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         peUnset
         peType
         peIndex
+        peError
 
     enum VSPropAppendMode:
         paReplace

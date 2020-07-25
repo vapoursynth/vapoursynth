@@ -24,7 +24,7 @@ typedef struct MorphoData {
     int shape;
     int size;
 
-    int filter;
+    uintptr_t filter;
 } MorphoData;
 
 static const VSFrameRef *VS_CC MorphoGetFrame(int n, int activationReason,

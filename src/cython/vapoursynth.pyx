@@ -18,6 +18,8 @@
 """ This is the VapourSynth module implementing the Python bindings. """
 
 cimport vapoursynth
+from vsscript cimport VSScriptOptions
+from vsscript_internal cimport VSScript
 cimport cython.parallel
 from cython cimport view, final
 from libc.stdint cimport intptr_t, int16_t, uint16_t, int32_t, uint32_t
@@ -2532,14 +2534,7 @@ cdef object _vsscript_use_or_create_environment(int id):
     return use_environment(policy.get_environment(id))
 
 
-# for whole script evaluation and export
-cdef public struct VPYScriptExport:
-    void *pyenvdict
-    void *errstr
-    int id
-
-
-cdef public api int vpy_createScript(VPYScriptExport *se) nogil:
+cdef public api int vpy_createScript(VSScript *se) nogil:
     with gil:
         try:
             evaldict = {}
@@ -2556,7 +2551,7 @@ cdef public api int vpy_createScript(VPYScriptExport *se) nogil:
             return 1
         return 0         
     
-cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, const char *scriptFilename, int flags) nogil:
+cdef public api int vpy_evaluateScript(VSScript *se, const char *script, const char *scriptFilename, int flags) nogil:
     with gil:
         orig_path = None
         try:
@@ -2610,7 +2605,7 @@ cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, 
                 os.chdir(orig_path)
         return 0
 
-cdef public api int vpy_evaluateFile(VPYScriptExport *se, const char *scriptFilename, int flags) nogil:
+cdef public api int vpy_evaluateFile(VSScript *se, const char *scriptFilename, int flags) nogil:
     with gil:
         if not se.pyenvdict:
             evaldict = {}
@@ -2634,7 +2629,7 @@ cdef public api int vpy_evaluateFile(VPYScriptExport *se, const char *scriptFile
             se.errstr = <void *>errstr
             return 1
 
-cdef public api int vpy4_evaluateBuffer(VPYScriptExport *se, const char *buffer, const char *scriptFilename, const VSMap *vars, int coreCreationflags) nogil:
+cdef public api int vpy4_evaluateBuffer(VSScript *se, const char *buffer, const char *scriptFilename, const VSMap *vars, const VSScriptOptions *options) nogil:
     with gil:
         try:          
             evaldict = {}
@@ -2678,7 +2673,7 @@ cdef public api int vpy4_evaluateBuffer(VPYScriptExport *se, const char *buffer,
             return 1
         return 0
 
-cdef public api int vpy4_evaluateFile(VPYScriptExport *se, const char *scriptFilename, const VSMap *vars, int coreCreationflags) nogil:
+cdef public api int vpy4_evaluateFile(VSScript *se, const char *scriptFilename, const VSMap *vars, const VSScriptOptions *options) nogil:
     with gil:
         evaldict = {}
         Py_INCREF(evaldict)
@@ -2689,7 +2684,7 @@ cdef public api int vpy4_evaluateFile(VPYScriptExport *se, const char *scriptFil
                 
             with open(scriptFilename.decode('utf-8'), 'rb') as f:
                 script = f.read(1024*1024*16)
-            return vpy4_evaluateBuffer(se, script, scriptFilename, vars, coreCreationflags)
+            return vpy4_evaluateBuffer(se, script, scriptFilename, vars, options)
         except BaseException, e:
             errstr = 'File reading exception:\n' + str(e)
             errstr = errstr.encode('utf-8')
@@ -2703,7 +2698,7 @@ cdef public api int vpy4_evaluateFile(VPYScriptExport *se, const char *scriptFil
             se.errstr = <void *>errstr
             return 1
 
-cdef public api void vpy4_freeScript(VPYScriptExport *se) nogil:
+cdef public api void vpy4_freeScript(VSScript *se) nogil:
     with gil:
         vpy_clearEnvironment(se)
         if se.pyenvdict:
@@ -2726,14 +2721,14 @@ cdef public api void vpy4_freeScript(VPYScriptExport *se) nogil:
 
         gc.collect()
 
-cdef public api char *vpy4_getError(VPYScriptExport *se) nogil:
+cdef public api char *vpy4_getError(VSScript *se) nogil:
     if not se.errstr:
         return NULL
     with gil:
         errstr = <bytes>se.errstr
         return errstr
             
-cdef public api VSNodeRef *vpy4_getOutput(VPYScriptExport *se, int index) nogil:
+cdef public api VSNodeRef *vpy4_getOutput(VSScript *se, int index) nogil:
     with gil:
         evaldict = <dict>se.pyenvdict
         node = None
@@ -2750,7 +2745,7 @@ cdef public api VSNodeRef *vpy4_getOutput(VPYScriptExport *se, int index) nogil:
         else:
             return NULL
             
-cdef public api VSNodeRef *vpy4_getAlphaOutput(VPYScriptExport *se, int index) nogil:
+cdef public api VSNodeRef *vpy4_getAlphaOutput(VSScript *se, int index) nogil:
     with gil:
         evaldict = <dict>se.pyenvdict
         node = None
@@ -2765,7 +2760,7 @@ cdef public api VSNodeRef *vpy4_getAlphaOutput(VPYScriptExport *se, int index) n
                 return (<RawNode>node).funcs.cloneNodeRef((<RawNode>node).node)
         return NULL
         
-cdef public api int vpy_clearOutput(VPYScriptExport *se, int index) nogil:
+cdef public api int vpy_clearOutput(VSScript *se, int index) nogil:
     with gil:
         try:
             del _get_vsscript_policy().get_environment(se.id).outputs[index]
@@ -2773,7 +2768,7 @@ cdef public api int vpy_clearOutput(VPYScriptExport *se, int index) nogil:
             return 1
         return 0
 
-cdef public api VSCore *vpy4_getCore(VPYScriptExport *se) nogil:
+cdef public api VSCore *vpy4_getCore(VSScript *se) nogil:
     with gil:
         try:
             core = vsscript_get_core_internal(_get_vsscript_policy().get_environment(se.id))
@@ -2793,7 +2788,7 @@ cdef const VSAPI *getVSAPIInternal() nogil:
         _vsapi = getVapourSynthAPI(VAPOURSYNTH_API_VERSION)
     return _vsapi
 
-cdef public api int vpy_getVariable(VPYScriptExport *se, const char *name, VSMap *dst) nogil:
+cdef public api int vpy_getVariable(VSScript *se, const char *name, VSMap *dst) nogil:
     with gil:
         with _vsscript_use_environment(se.id).use():
             if getVSAPIInternal() == NULL:
@@ -2808,7 +2803,7 @@ cdef public api int vpy_getVariable(VPYScriptExport *se, const char *name, VSMap
             except:
                 return 1
 
-cdef public api int vpy_setVariable(VPYScriptExport *se, const VSMap *vars) nogil:
+cdef public api int vpy_setVariable(VSScript *se, const VSMap *vars) nogil:
     with gil:
         with _vsscript_use_environment(se.id).use():
             if getVSAPIInternal() == NULL:
@@ -2823,7 +2818,7 @@ cdef public api int vpy_setVariable(VPYScriptExport *se, const VSMap *vars) nogi
             except:
                 return 1
 
-cdef public api int vpy_clearVariable(VPYScriptExport *se, const char *name) nogil:
+cdef public api int vpy_clearVariable(VSScript *se, const char *name) nogil:
     with gil:
         evaldict = <dict>se.pyenvdict
         try:
@@ -2832,7 +2827,7 @@ cdef public api int vpy_clearVariable(VPYScriptExport *se, const char *name) nog
             return 1
         return 0
 
-cdef public api void vpy_clearEnvironment(VPYScriptExport *se) nogil:
+cdef public api void vpy_clearEnvironment(VSScript *se) nogil:
     with gil:
         evaldict = <dict>se.pyenvdict
         for key in evaldict:

@@ -341,10 +341,10 @@ static const VSFrameRef *VS_CC selectEveryGetframe(int n, int activationReason, 
 
     if (activationReason == arInitial) {
         n = (n / d->num) * d->cycle + d->offsets[n % d->num];
-        frameData[0] = reinterpret_cast<void *>(n);
+        frameData[0] = reinterpret_cast<void *>(static_cast<intptr_t>(n));
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(reinterpret_cast<intptr_t>(frameData[0]), d->node, frameCtx);
+        const VSFrameRef *src = vsapi->getFrameFilter(static_cast<int>(reinterpret_cast<intptr_t>(frameData[0])), d->node, frameCtx);
         if (d->modifyDuration) {
             VSFrameRef *dst = vsapi->copyFrame(src, core);
             VSMap *dst_props = vsapi->getFramePropsRW(dst);
@@ -438,10 +438,10 @@ static const VSFrameRef *VS_CC spliceGetframe(int n, int activationReason, void 
         }
 
         frameData[0] = d->node[idx];
-        frameData[1] = reinterpret_cast<void *>(frame);
+        frameData[1] = reinterpret_cast<void *>(static_cast<intptr_t>(frame));
         vsapi->requestFrameFilter(frame, d->node[idx], frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *f = vsapi->getFrameFilter(reinterpret_cast<intptr_t>(frameData[1]), reinterpret_cast<VSNodeRef *>(frameData[0]), frameCtx);
+        const VSFrameRef *f = vsapi->getFrameFilter(static_cast<int>(reinterpret_cast<intptr_t>(frameData[1])), reinterpret_cast<VSNodeRef *>(frameData[0]), frameCtx);
         return f;
     }
 
@@ -520,11 +520,11 @@ static const VSFrameRef *VS_CC duplicateFramesGetFrame(int n, int activationReas
             else
                 break;
 
-        frameData[0] = reinterpret_cast<void *>(n);
+        frameData[0] = reinterpret_cast<void *>(static_cast<intptr_t>(n));
 
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        return vsapi->getFrameFilter(reinterpret_cast<intptr_t>(frameData[0]), d->node, frameCtx);
+        return vsapi->getFrameFilter(static_cast<int>(reinterpret_cast<intptr_t>(frameData[0])), d->node, frameCtx);
     }
 
     return nullptr;
@@ -576,10 +576,10 @@ static const VSFrameRef *VS_CC deleteFramesGetFrame(int n, int activationReason,
                 n++;
             else
                 break;
-        frameData[0] = reinterpret_cast<void *>(n);
+        frameData[0] = reinterpret_cast<void *>(static_cast<intptr_t>(n));
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        return vsapi->getFrameFilter(reinterpret_cast<intptr_t>(frameData[0]), d->node, frameCtx);
+        return vsapi->getFrameFilter(static_cast<int>(reinterpret_cast<intptr_t>(frameData[0])), d->node, frameCtx);
     }
 
     return nullptr;
@@ -647,11 +647,11 @@ static const VSFrameRef *VS_CC freezeFramesGetFrame(int n, int activationReason,
                     break;
                 }
 
-        frameData[0] = reinterpret_cast<void *>(n);
+        frameData[0] = reinterpret_cast<void *>(static_cast<intptr_t>(n));
 
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        return vsapi->getFrameFilter(reinterpret_cast<intptr_t>(frameData[0]), d->node, frameCtx);
+        return vsapi->getFrameFilter(static_cast<int>(reinterpret_cast<intptr_t>(frameData[0])), d->node, frameCtx);
     }
 
     return nullptr;

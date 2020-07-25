@@ -30,10 +30,23 @@
 typedef struct VSScript VSScript;
 typedef struct VSSCRIPTAPI VSSCRIPTAPI;
 
-// FIXME, deprecate this somehow
+// FIXME, deprecate this somehow since it's deeply evil
 typedef enum VSEvalFlags {
     efSetWorkingDir = 1,
 } VSEvalFlags;
+
+typedef struct VSScriptOptions {
+    /* Must be set to sizeof(VSScriptOptions) */
+    int size; 
+
+    /* Passed to createCore(), set to 0 to use the default options */
+    int coreCreationFlags; 
+
+    /* Passed to addMessageHandler() right after a core is created if messageHandler is not NULL */
+    VSMessageHandler messageHandler;
+    VSMessageHandlerFree messageHandlerFree;
+    void *messageHandlerData;
+} VSScriptOptions;
 
 struct VSSCRIPTAPI {
     /* Returns the higest supported VSSCRIPT_API_VERSION */
@@ -56,10 +69,10 @@ struct VSSCRIPTAPI {
     * Note that calling any function other than getError() and freeScript() on a VSScript object in the error state
     * will result in undefined behavior.
     */
-    VSScript *(VS_CC *evaluateBuffer)(const char *buffer, const char *scriptFilename, const VSMap *vars, int coreCreationFlags) VS_NOEXCEPT;
+    VSScript *(VS_CC *evaluateBuffer)(const char *buffer, const char *scriptFilename, const VSMap *vars, const VSScriptOptions *options) VS_NOEXCEPT;
 
     /* Convenience version of the above function that loads the script from scriptFilename and passes as the buffer to evaluateBuffer */
-    VSScript *(VS_CC *evaluateFile)(const char *scriptFilename, const VSMap *vars, int coreCreationflags) VS_NOEXCEPT;
+    VSScript *(VS_CC *evaluateFile)(const char *scriptFilename, const VSMap *vars, const VSScriptOptions *options) VS_NOEXCEPT;
 
     /* Returns NULL on success, otherwise an error message */
     const char *(VS_CC *getError)(VSScript *handle) VS_NOEXCEPT;
