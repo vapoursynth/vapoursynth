@@ -1,7 +1,7 @@
-API changes V3->V4
+API changes R3->R4
 
 Header files:
-All header files have had 4 appended to their name. The V4 files are called:
+All header files have had 4 appended to their name. The R4 files are called:
 VapourSynth4.h
 VSHelper4.h
 VSScript4.h
@@ -12,11 +12,16 @@ construction with setThreadCount() anyway. The flags control the few options tha
 creation time and can't be changed at a later time.
 
 Plugin and function registration:
-There's a completely new entry point that takes
+There's a completely new entry point called VapourSynthPluginInit2 with a different definition.
+The relevant functions are now passed as function pointers in a struct like the main api.
+Things mostly work the same but configPlugin() now takes an additional argument for the plugin
+version number. It's recommended to use the VS_MAKE_VERSION macro for this. The "read only" field
+has now been turned into a flags field where 0 is the new default value to make a plugin read only.
+The flag pcModifiable has been introduced to get the R3 api behavior of passing 0.
 
 Function registrations now take an additional argument for the return type that follows the same
 format as the input arguments. If a function has an unknown or simple unpredictable return type
-it can be set to "any". Note that V3 functions will have the "any" return type.
+it can be set to "any". Note that R3 functions will have the "any" return type.
 Since the audio types anode and a frame were introduced the video counterparts were renamed to
 vnode and vframe instead of clip and frame.
 
@@ -27,7 +32,7 @@ separate types that happen to share functions to manipulate them. As a result of
 single key in a VSMap can only hold audio or video nodes but not a mix of both. The same applies to
 frames (but they're rarely used as arguments).
 The data type now has a hint for whether the data should be treated as utf8 or binary which can be
-useful for filters that print values. Data set by V3 filters will always be reported as unknown.
+useful for filters that print values. Data set by R3 filters will always be reported as unknown.
 Two new convenience functions were added. propGetSaturatedInt and propGetSaturatedFloat which are
 equivalent to int64ToIntS(propGetInt) and the same operation for float.
 
@@ -39,6 +44,7 @@ has been changed to void * to remove the pointless additional indirection. The v
 pointer now points to a scratch space of size void *[4] instead of only being a single pointer.
 This can be used to not have to allocate and free memory on every frame processed. See the Splice
 filter for an example of this.
+Filters will also no longer receive arFrameReady events unless the nfFrameReady flag is set.
 
 Audio filter support:
 Audio filters are created with createAudioFilter and work very similarly to video filters. Note that

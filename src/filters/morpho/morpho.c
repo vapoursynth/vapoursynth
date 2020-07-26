@@ -145,7 +145,7 @@ static void VS_CC MorphoFree(void *instanceData, VSCore *core,
 VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->configPlugin("biz.srsfckn.morpho", "morpho",
         "Simple morphological filters.", VS_MAKE_VERSION(1, 0),
-        VAPOURSYNTH_API_VERSION, pcReadOnly, plugin);
+        VAPOURSYNTH_API_VERSION, 0, plugin);
 
     for (uintptr_t i = 0; FilterFuncs[i] && FilterNames[i]; i++)
         vspapi->registerFunction(FilterNames[i], "clip:clip;size:int:opt;shape:int:opt", "clip:vnode;", MorphoCreate, (void *)i, plugin);

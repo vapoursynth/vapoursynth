@@ -85,10 +85,12 @@ struct VSSCRIPTAPI {
     VSNodeRef *(VS_CC *getOutputNode)(VSScript *handle, int index) VS_NOEXCEPT;
     VSNodeRef *(VS_CC *getOutputAlphaNode)(VSScript *handle, int index) VS_NOEXCEPT;
 
-    /* FIXME, this function is slightly weird
+    /*
     * Fetches a variable and stores in the key with the same name in dst. Only simple types like int, float and data are
     * allowed as output. Returns zero on success.
     */
+    //  FIXME, this function is slightly weird and should instead be something like set_option(key, value), set_options(dict), get_options() and clear_options()
+    // and this whole dict is then serialized into dst on request (name argument removed)
     int (VS_CC *getVariable)(VSScript *handle, const char *name, VSMap *dst);
 
     /* The core is valid as long as the environment exists */

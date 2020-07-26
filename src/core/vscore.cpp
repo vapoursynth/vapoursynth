@@ -2026,7 +2026,7 @@ VSPlugin::VSPlugin(VSCore *core)
 
 static void VS_CC configPlugin3(const char *identifier, const char *defaultNamespace, const char *name, int apiVersion, int readOnly, VSPlugin *plugin) VS_NOEXCEPT {
     assert(identifier && defaultNamespace && name && plugin);
-    plugin->configPlugin(identifier, defaultNamespace, name, -1, apiVersion, readOnly ? pcReadOnly : 0);
+    plugin->configPlugin(identifier, defaultNamespace, name, -1, apiVersion, readOnly ? 0 : pcModifiable);
 }
 
 VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath, VSCore *core)
@@ -2139,7 +2139,7 @@ bool VSPlugin::configPlugin(const std::string &identifier, const std::string &pl
     if (hasConfig)
         core->logMessage(mtFatal, "Attempted to configure plugin " + identifier + " twice");
 
-    if (flags & ~pcReadOnly)
+    if (flags & ~pcModifiable)
         core->logMessage(mtFatal, "Invalid flags passed to configPlugin() by " + identifier);
 
     if (id.empty())
@@ -2157,7 +2157,7 @@ bool VSPlugin::configPlugin(const std::string &identifier, const std::string &pl
         apiMajor >>= 16;
     }
 
-    readOnlySet = !!(flags & pcReadOnly);
+    readOnlySet = !(flags & pcModifiable);
     hasConfig = true;
     return true;
 }

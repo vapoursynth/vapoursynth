@@ -289,7 +289,7 @@ typedef enum VSCoreFlags {
 } VSCoreFlags;
 
 typedef enum VSPluginConfigFlags {
-    pcReadOnly = 1
+    pcModifiable = 1
 } VSPluginConfigFlags;
 
 typedef enum VSDataType {

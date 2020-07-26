@@ -723,7 +723,7 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
 
 void VS_CC textInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
-    vspapi->configPlugin(VS_TEXT_PLUGIN_ID, "text", "VapourSynth Text", VAPOURSYNTH_INTERNAL_PLUGIN_VERSION, VAPOURSYNTH_API_VERSION, pcReadOnly, plugin);
+    vspapi->configPlugin(VS_TEXT_PLUGIN_ID, "text", "VapourSynth Text", VAPOURSYNTH_INTERNAL_PLUGIN_VERSION, VAPOURSYNTH_API_VERSION, 0, plugin);
     vspapi->registerFunction("Text",
         "clip:vnode;"
         "text:data;"

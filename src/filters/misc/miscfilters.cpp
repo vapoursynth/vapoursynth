@@ -827,7 +827,7 @@ static void VS_CC hysteresisCreate(const VSMap *in, VSMap *out, void *userData, 
 // Init
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
-    vspapi->configPlugin("com.vapoursynth.misc", "misc", "Miscellaneous filters", VAPOURSYNTH_INTERNAL_PLUGIN_VERSION, VAPOURSYNTH_API_VERSION, pcReadOnly, plugin);
+    vspapi->configPlugin("com.vapoursynth.misc", "misc", "Miscellaneous filters", VAPOURSYNTH_INTERNAL_PLUGIN_VERSION, VAPOURSYNTH_API_VERSION, 0, plugin);
     vspapi->registerFunction("SCDetect", "clip:vnode;threshold:float:opt;", "clip:vnode;", scDetectCreate, 0, plugin);
     vspapi->registerFunction("AverageFrames", "clips:vnode[];weights:float[];scale:float:opt;scenechange:int:opt;planes:int[]:opt;", "clip:vnode;", averageFramesCreate, 0, plugin);
     vspapi->registerFunction("Hysteresis", "clipa:vnode;clipb:vnode;planes:int[]:opt;", "clip:vnode;", hysteresisCreate, nullptr, plugin);
