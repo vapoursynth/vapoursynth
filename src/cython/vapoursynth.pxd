@@ -214,15 +214,17 @@ cdef extern from "include/VapourSynth4.h" nogil:
 
     enum VSMessageType:
         mtDebug
+        mtInformation
         mtWarning
         mtCritical
         mtFatal
         
     enum VSCoreFlags:
         cfDisableAutoLoading
+        cfEnableGraphInspection
 
     enum VSPluginConfigFlags:
-        pcReadOnly
+        pcModifiable
         
     enum VSDataType:
         dtUnknown
@@ -263,6 +265,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         VSFrameRef *newVideoFrame(const VSVideoFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core) nogil
         VSFrameRef *newVideoFrame2(const VSVideoFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core) nogil
         VSFrameRef *newAudioFrame(const VSAudioFormat *format, int sampleRate, const VSFrameRef *propSrc, VSCore *core) nogil
+        VSFrameRef *newAudioFrame2(const VSAudioFormat *format, int numSamples, const VSFrameRef **channelSrc, const int *channels, const VSFrameRef *propSrc, VSCore *core) nogil
         void freeFrame(const VSFrameRef *f) nogil
         const VSFrameRef *cloneFrameRef(VSFrameRef *f) nogil
         VSFrameRef *copyFrame(const VSFrameRef *f, VSCore *core) nogil

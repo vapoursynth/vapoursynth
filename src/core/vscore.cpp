@@ -510,7 +510,8 @@ VSFrameRef::VSFrameRef(const VSVideoFormat &f, int width, int height, const VSFr
     }
 }
 
-VSFrameRef::VSFrameRef(const VSAudioFormat &f, int numSamples, const VSFrameRef *propSrc, VSCore *core) noexcept : refcount(1), contentType(mtAudio), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
+VSFrameRef::VSFrameRef(const VSAudioFormat &f, int numSamples, const VSFrameRef *propSrc, VSCore *core) noexcept
+    : refcount(1), contentType(mtAudio), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
     if (numSamples <= 0)
         core->logMessage(mtFatal, "Error in frame creation: bad number of samples (" + std::to_string(numSamples) + ")");
     
@@ -522,6 +523,31 @@ VSFrameRef::VSFrameRef(const VSAudioFormat &f, int numSamples, const VSFrameRef 
     stride[0] = format.af.bytesPerSample * VS_AUDIO_FRAME_SAMPLES;
 
     data[0] = new VSPlaneData(stride[0] * format.af.numChannels, *core->memory);
+}
+
+VSFrameRef::VSFrameRef(const VSAudioFormat &f, int numSamples, const VSFrameRef * const *channelSrc, const int *channel, const VSFrameRef *propSrc, VSCore *core) noexcept
+    : refcount(1), contentType(mtAudio), properties(propSrc ? &propSrc->properties : nullptr), core(core) {
+    if (numSamples <= 0)
+        core->logMessage(mtFatal, "Error in frame creation: bad number of samples (" + std::to_string(numSamples) + ")");
+
+    format.af = f;
+    numPlanes = format.af.numChannels;
+
+    width = numSamples;
+
+    stride[0] = format.af.bytesPerSample * VS_AUDIO_FRAME_SAMPLES;
+
+    data[0] = new VSPlaneData(stride[0] * format.af.numChannels, *core->memory);
+
+    for (int i = 0; i < numPlanes; i++) {
+        if (channelSrc[i]) {
+            if (channel[i] < 0 || channel[i] >= channelSrc[i]->format.af.numChannels)
+                core->logMessage(mtFatal, "Error in frame creation: channel " + std::to_string(channel[i]) + " does not exist in the source frame");
+            if (channelSrc[i]->getFrameLength() != getFrameLength())
+                core->logMessage(mtFatal, "Error in frame creation: length of frame does not match. Source: " + std::to_string(channelSrc[i]->getFrameLength()) + "; destination: " + std::to_string(getFrameLength()));
+            memcpy(getWritePtr(i), channelSrc[i]->getReadPtr(channel[i]), getFrameLength() * format.af.bytesPerSample);
+        }
+    }
 }
 
 VSFrameRef::VSFrameRef(const VSFrameRef &f) noexcept : refcount(1) {
@@ -1034,26 +1060,6 @@ void VSNode::notifyCache(bool needMemory) {
     std::lock_guard<std::mutex> lock(serialMutex);
     CacheInstance *cache = reinterpret_cast<CacheInstance *>(instanceData);
     cache->cache.adjustSize(needMemory);
-}
-
-VSFrameRef *VSCore::newVideoFrame(const VSVideoFormat &f, int width, int height, const VSFrameRef *propSrc) {
-    return new VSFrameRef(f, width, height, propSrc, this);
-}
-
-VSFrameRef *VSCore::newVideoFrame(const VSVideoFormat &f, int width, int height, const VSFrameRef * const *planeSrc, const int *planes, const VSFrameRef *propSrc) {
-    return new VSFrameRef(f, width, height, planeSrc, planes, propSrc, this);
-}
-
-VSFrameRef *VSCore::newAudioFrame(const VSAudioFormat &f, int numSamples, const VSFrameRef *propSrc) {
-    return new VSFrameRef(f, numSamples, propSrc, this);
-}
-
-VSFrameRef *VSCore::copyFrame(const VSFrameRef &srcf) {
-    return new VSFrameRef(srcf);
-}
-
-void VSCore::copyFrameProps(const VSFrameRef &src, VSFrameRef &dst) {
-    dst.setProperties(src.getConstProperties());
 }
 
 const vs3::VSVideoFormat *VSCore::getV3VideoFormat(int id) {

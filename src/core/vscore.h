@@ -478,6 +478,7 @@ public:
     VSFrameRef(const VSVideoFormat &f, int width, int height, const VSFrameRef *propSrc, VSCore *core) noexcept;
     VSFrameRef(const VSVideoFormat &f, int width, int height, const VSFrameRef * const *planeSrc, const int *plane, const VSFrameRef *propSrc, VSCore *core) noexcept;
     VSFrameRef(const VSAudioFormat &f, int numSamples, const VSFrameRef *propSrc, VSCore *core) noexcept;
+    VSFrameRef(const VSAudioFormat &f, int numSamples, const VSFrameRef * const *channelSrc, const int *channel, const VSFrameRef *propSrc, VSCore *core) noexcept;
     VSFrameRef(const VSFrameRef &f) noexcept;
     ~VSFrameRef();
 
@@ -905,12 +906,6 @@ public:
     bool enableGraphInspection; 
     static thread_local PVSFunctionFrame functionFrame;
     //
-
-    VSFrameRef *newVideoFrame(const VSVideoFormat &f, int width, int height, const VSFrameRef *propSrc);
-    VSFrameRef *newVideoFrame(const VSVideoFormat &f, int width, int height, const VSFrameRef * const *planeSrc, const int *planes, const VSFrameRef *propSrc);
-    VSFrameRef *newAudioFrame(const VSAudioFormat &f, int numSamples, const VSFrameRef *propSrc);
-    VSFrameRef *copyFrame(const VSFrameRef &srcf);
-    void copyFrameProps(const VSFrameRef &src, VSFrameRef &dst);
 
     const vs3::VSVideoFormat *getV3VideoFormat(int id);
     const vs3::VSVideoFormat *getVideoFormat3(int id);

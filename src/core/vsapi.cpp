@@ -172,36 +172,36 @@ static void VS_CC freeNode(VSNodeRef *clip) VS_NOEXCEPT {
 
 static VSFrameRef *VS_CC newVideoFrame(const VSVideoFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
     assert(format && core);
-    return core->newVideoFrame(*format, width, height, propSrc);
+    return new VSFrameRef(*format, width, height, propSrc, core);
 }
 
 static VSFrameRef *VS_CC newVideoFrame3(const vs3::VSVideoFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
     assert(format && core);
     VSVideoFormat v4;
     core->VideoFormatFromV3(v4, format);
-    return core->newVideoFrame(v4, width, height, propSrc);
+    return new VSFrameRef(v4, width, height, propSrc, core);
 }
 
 static VSFrameRef *VS_CC newVideoFrame2(const VSVideoFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
     assert(format && core);
-    return core->newVideoFrame(*format, width, height, planeSrc, planes, propSrc);
+    return new VSFrameRef(*format, width, height, planeSrc, planes, propSrc, core);
 }
 
 static VSFrameRef *VS_CC newVideoFrame23(const vs3::VSVideoFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
     assert(format && core);
     VSVideoFormat v4;
     core->VideoFormatFromV3(v4, format);
-    return core->newVideoFrame(v4, width, height, planeSrc, planes, propSrc);
+    return new VSFrameRef(v4, width, height, planeSrc, planes, propSrc, core);
 }
 
 static VSFrameRef *VS_CC copyFrame(const VSFrameRef *frame, VSCore *core) VS_NOEXCEPT {
     assert(frame && core);
-    return core->copyFrame(*frame);
+    return new VSFrameRef(*frame);
 }
 
 static void VS_CC copyFrameProps(const VSFrameRef *src, VSFrameRef *dst, VSCore *core) VS_NOEXCEPT {
     assert(src && dst && core);
-    core->copyFrameProps(*src, *dst);
+    dst->setProperties(src->getConstProperties());
 }
 
 static void VS_CC createFilter3(const VSMap *in, VSMap *out, const char *name, vs3::VSFilterInit init, vs3::VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT {
@@ -883,7 +883,12 @@ static void VS_CC createAudioFilter(VSMap *out, const char *name, const VSAudioI
 
 static VSFrameRef *VS_CC newAudioFrame(const VSAudioFormat *format, int numSamples, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
     assert(format && core && numSamples > 0);
-    return core->newAudioFrame(*format, numSamples, propSrc);
+    return new VSFrameRef(*format, numSamples, propSrc, core);
+}
+
+static VSFrameRef *VS_CC newAudioFrame2(const VSAudioFormat *format, int numSamples, const VSFrameRef **channelSrc, const int *channels, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
+    assert(format && core && numSamples > 0 && channelSrc && channels);
+    return new VSFrameRef(*format, numSamples, channelSrc, channels, propSrc, core);
 }
 
 static int VS_CC queryAudioFormat(VSAudioFormat *format, int sampleType, int bitsPerSample, uint64_t channelLayout, VSCore *core) VS_NOEXCEPT {
@@ -996,6 +1001,7 @@ const VSAPI vs_internal_vsapi = {
     &newVideoFrame,
     &newVideoFrame2,
     &newAudioFrame,
+    &newAudioFrame2,
     &freeFrame,
     &cloneFrameRef,
     &copyFrame,
