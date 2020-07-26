@@ -316,7 +316,7 @@ typedef void (VS_CC *VSMessageHandlerFree)(void *userData);
 
 // FIXME, document return values and such in comments
 struct VSPLUGINAPI {
-    int (VS_CC *getAPIVersion)(void) VS_NOEXCEPT;
+    int (VS_CC *getAPIVersion)(void) VS_NOEXCEPT; /* returns VAPOURSYNTH_API_VERSION of the library */
     int (VS_CC *configPlugin)(const char *identifier, const char *pluginNamespace, const char *name, int pluginVersion, int apiVersion, int flags, VSPlugin *plugin) VS_NOEXCEPT; /* use the VS_MAKE_VERSION macro for pluginVersion */
     int (VS_CC *registerFunction)(const char *name, const char *args, const char *returnType, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) VS_NOEXCEPT; /* non-zero return value on success  */
 };
@@ -344,7 +344,7 @@ struct VSAPI {
     const VSMap *(VS_CC *getFramePropsRO)(const VSFrameRef *f) VS_NOEXCEPT; // FIXME, rename to getFramePropertiesReadOnly
     VSMap *(VS_CC *getFramePropsRW)(VSFrameRef *f) VS_NOEXCEPT; // FIXME, rename to getFrameProperties
 
-    ptrdiff_t(VS_CC *getStride)(const VSFrameRef *f, int plane) VS_NOEXCEPT;
+    ptrdiff_t (VS_CC *getStride)(const VSFrameRef *f, int plane) VS_NOEXCEPT;
     const uint8_t *(VS_CC *getReadPtr)(const VSFrameRef *f, int plane) VS_NOEXCEPT;
     uint8_t *(VS_CC *getWritePtr)(VSFrameRef *f, int plane) VS_NOEXCEPT; /* calling this function invalidates previously gotten read pointers to the same frame */
 
@@ -452,14 +452,17 @@ struct VSAPI {
     void *(VS_CC *addMessageHandler)(VSMessageHandler handler, VSMessageHandlerFree free, void *userData, VSCore *core) VS_NOEXCEPT;
     int (VS_CC *removeMessageHandler)(void *handle, VSCore *core) VS_NOEXCEPT;
 
-// FIXME, not part of the stable api and maybe should be sorted
-    /* These functions only exist to retrieve internal details for debug purposes and graph visualization and will only only work properly when used on a core created with the flag cfEnableGraphInspection, NOT PART OF THE STABLE API */
+    /* 
+     * NOT PART OF THE STABLE API!
+     * These functions only exist to retrieve internal details for debug purposes and graph visualization and
+     * will only only work properly when used on a core created with the flag cfEnableGraphInspection
+     * NOT PART OF THE STABLE API!
+     */
     const char *(VS_CC *getNodeCreationFunctionName)(VSNodeRef *node, int level) VS_NOEXCEPT; /* returns the name of the function that created the filter */
     const VSMap *(VS_CC *getNodeCreationFunctionArguments)(VSNodeRef *node, int level) VS_NOEXCEPT; /* returns a copy of the arguments passed to the function that created the filter */
     const char *(VS_CC *getNodeName)(VSNodeRef *node) VS_NOEXCEPT; /* the name passed to create*Filter */
     int (VS_CC *getNodeIndex)(VSNodeRef *node) VS_NOEXCEPT; /* the output index of the filter the node references */
     void (VS_CC *setInternalFilterRelation)(const VSMap *nodeMap, VSNodeRef **dependencies, int numDeps) VS_NOEXCEPT; /* manually overrides the automatically deduced node dependency information, only needed in filters that call invoke on the input to create*Filter or chains multiple create*Filter calls, simply ignored when used without cfEnableGraphInspection */
-//
 };
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version) VS_NOEXCEPT;

@@ -71,6 +71,8 @@ vs_normalizeRational => reduceRational
 VSScript:
 Options that impact the output are now set through set_option() in python. They're no longer global
 script variables to reduce the risk of name collisions and more clearly show their prupose. The options
-themselves have the same names (enable_v210, 
+themselves have the same names (enable_v210, ).
+VSScript also no longer changes the working directory by default when evaluating scripts. This option
+has been removed due to it involving global state.
 
 TODO

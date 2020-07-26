@@ -30,11 +30,6 @@
 typedef struct VSScript VSScript;
 typedef struct VSSCRIPTAPI VSSCRIPTAPI;
 
-// FIXME, deprecate this somehow since it's deeply evil
-typedef enum VSEvalFlags {
-    efSetWorkingDir = 1,
-} VSEvalFlags;
-
 typedef struct VSScriptOptions {
     /* Must be set to sizeof(VSScriptOptions) */
     int size; 
