@@ -153,7 +153,7 @@ static void printNodeGraphHelper(std::set<std::string> &lines, std::map<std::str
     }
 }
 
-std::string printNodeGraph(VSNodeRef *node, const VSAPI *vsapi) {
+std::string printFullNodeGraph(VSNodeRef *node, const VSAPI *vsapi) {
     std::map<std::string, std::set<std::string>> nodes;
     std::set<std::string> lines;
     std::set<VSNodeRef *> visited;
