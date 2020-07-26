@@ -102,15 +102,14 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 break;
             }
 
-            if (seenNodes.count(mainContext->clip))
-                continue;
-            seenNodes.insert(mainContext->clip);
-
             bool hasLeafContext = mainContext->returnedFrame || mainContext->hasError();
             if (hasLeafContext) {
                 leafContext = mainContext;
                 mainContext = mainContext->upstreamContext.get();
             }
+
+            if (!seenNodes.insert(mainContext->clip).second)
+                continue;
 
             VSNode *clip = mainContext->clip;
             int filterMode = clip->filterMode;
@@ -139,11 +138,8 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             } else if (filterMode == fmParallel) {
                 std::lock_guard<std::mutex> lock(clip->concurrentFramesMutex);
                 // is the filter already processing another call for this frame? if so move along
-                if (clip->concurrentFrames.count(mainContext->n)) {
+                if (!clip->concurrentFrames.insert(mainContext->n).second)
                     continue;
-                } else {
-                    clip->concurrentFrames.insert(mainContext->n);
-                }
             } else if (filterMode == fmParallelRequests) {
                 std::lock_guard<std::mutex> lock(clip->concurrentFramesMutex);
                 // do we need the serial lock since all frames will be ready this time?
@@ -151,10 +147,6 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 if (mainContext->numFrameRequests == 1) {
                     if (!clip->serialMutex.try_lock())
                         continue;
-                    if (!clip->concurrentFrames.insert(mainContext->n).second) {
-                        clip->serialMutex.unlock();
-                        continue;
-                    }
                     parallelRequestsNeedsUnlock = true;
                 } else {
                     // is the filter already processing another call for this frame? if so move along
