@@ -24,6 +24,6 @@
 #include <VapourSynth4.h>
 #include <string>
 
-std::string printNodeGraph(VSNodeRef *node, const VSAPI *vsapi);
+std::string printFullNodeGraph(VSNodeRef *node, const VSAPI *vsapi);
 
 #endif

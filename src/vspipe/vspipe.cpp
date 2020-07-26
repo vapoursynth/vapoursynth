@@ -47,10 +47,8 @@
 #   include <mimalloc-new-delete.h>
 #endif
 
-// fixme, don't allow info/graph and output options to be combined
-// fixme, refactor to not use global variables everywhere so it's a better code sample
+
 // fixme, add a second less verbose graph mode only showing top level invoke calls
-// fixme, fix commandline parsing so an output file isn't required for non-output cases and it goes to stdout by default
 // fixme, using a "." for no output is weird
 
 // Needed so windows doesn't drool on itself when ctrl-c is pressed
@@ -87,46 +85,81 @@ using namespace vsh;
 
 /////////////////////////////////////////////
 
-static const VSAPI *vsapi = nullptr;
-static const VSSCRIPTAPI *vssapi = nullptr;
-static VSScript *se = nullptr;
-static VSNodeRef *node = nullptr;
-static VSNodeRef *alphaNode = nullptr;
-static FILE *outFile = nullptr;
-static FILE *timecodesFile = nullptr;
+enum VSPipeMode {
+    vpmOuput,
+    vpmPrintVersion,
+    vpmPrintHelp,
+    vpmPrintInfo,
+    vpmPrintSimpleGraph,
+    vpmPrintFullGraph
+};
 
-static int requests = 0;
-static int outputIndex = 0;
-static int outputFrames = 0;
-static int requestedFrames = 0;
-static int completedFrames = 0;
-static int completedAlphaFrames = 0;
-static int totalFrames = -1;
-static int64_t totalSamples = -1;
-static int64_t startPos = 0;
-static int64_t endPos = -1;
-static bool y4m = false;
-static bool w64 = false;
-static bool wav = false;
-static int64_t currentTimecodeNum = 0;
-static int64_t currentTimecodeDen = 1;
-static bool outputError = false;
-static bool showInfo = false;
-static bool showGraph = false;
-static bool preserveCwd = false;
-static bool showVersion = false;
-static bool printFrameNumber = false;
-static double fps = 0;
-static bool hasMeaningfulFPS = false;
-static std::map<int, std::pair<const VSFrameRef *, const VSFrameRef *>> reorderMap;
+enum VSPipeHeaders {
+    vphNone,
+    vphY4M,
+    vphWAVE,
+    vphWAVE64
+};
 
-static std::string errorMessage;
-static std::condition_variable condition;
-static std::mutex mutex;
-static std::vector<uint8_t> buffer;
+// Struct used to return the parsed command line options
+struct VSPipeOptions {
+    VSPipeMode mode = vpmOuput;
+    VSPipeHeaders outputHeaders = vphNone;
+    int64_t startPos = 0;
+    int64_t endPos = -1;
+    int outputIndex = 0;
+    int requests = 0;
+    bool printProgress = false;
+    nstring scriptFilename;
+    nstring outputFilename;
+    nstring timecodesFilename;
+    std::map<std::string, std::string> scriptArgs;
+};
 
-static std::chrono::time_point<std::chrono::steady_clock> startTime;
-static std::chrono::time_point<std::chrono::steady_clock> lastFPSReportTime;
+// All state used for outputting frames
+
+struct VSPipeOutputData {
+    /* Core fields */
+    const VSAPI *vsapi = nullptr;
+    VSPipeHeaders outputHeaders = vphNone;
+    FILE *outFile = nullptr;
+    VSNodeRef *node = nullptr;
+    VSNodeRef *alphaNode = nullptr;
+
+    /* Total number of frames and samples */
+    int totalFrames = -1;
+    int64_t totalSamples = -1;
+
+    /* Fields used for keeping track of how many frames have been requested and completed and how to reorder them */
+    int outputFrames = 0;
+    int requestedFrames = 0;
+    int completedFrames = 0;
+    int completedAlphaFrames = 0;
+    std::map<int, std::pair<const VSFrameRef *, const VSFrameRef *>> reorderMap;
+
+    /* Error reporting */
+    bool outputError = false;
+    std::string errorMessage;
+
+    /* Only used to keep the main thread waiting during processing */
+    std::condition_variable condition;
+    std::mutex mutex;
+
+    /* Buffer used to interleave audio or to pack together video where the rowsize isn't the same as pitch due to multiple calls to stdout being very slow */
+    std::vector<uint8_t> buffer;
+
+    /* Statistics */
+    bool printProgress = false;
+    std::chrono::time_point<std::chrono::steady_clock> startTime;
+    std::chrono::time_point<std::chrono::steady_clock> lastFPSReportTime;
+
+    /* Timecode output */
+    FILE *timecodesFile = nullptr;
+    int64_t currentTimecodeNum = 0;
+    int64_t currentTimecodeDen = 1;
+};
+
+/////////////////////////////////////////////
 
 static std::string channelMaskToName(uint64_t v) {
     std::string s;
@@ -183,218 +216,198 @@ static void VS_CC messageHandler(int msgType, const char *msg, void *userData) {
         fprintf(stderr, "%s: %s\n", messageTypeToString(msgType), msg);
 }
 
-static bool isCompletedFrame(const std::pair<const VSFrameRef *, const VSFrameRef *> &f) {
-    return (f.first && (!alphaNode || f.second));
+static bool isCompletedFrame(const std::pair<const VSFrameRef *, const VSFrameRef *> &f, bool hasAlpha) {
+    return (f.first && (!hasAlpha || f.second));
 }
 
-template<typename T>
-static size_t interleaveSamples(const VSFrameRef *frame, uint8_t *dstBuf) {
-    const VSAudioFormat *fi = vsapi->getAudioFrameFormat(frame);
-    T *dstBuffer = reinterpret_cast<T *>(dstBuf);
-
-    int numChannels = fi->numChannels;
-    int numSamples = vsapi->getFrameLength(frame);
-
-    std::vector<const T *> srcPtrs;
-    srcPtrs.reserve(numChannels);
-    for (int channel = 0; channel < numChannels; channel++)
-        srcPtrs.push_back(reinterpret_cast<const T *>(vsapi->getReadPtr(frame, channel)));
-    const T **srcPtrsBuffer = srcPtrs.data();
-
-    for (int sample = 0; sample < numSamples; sample++) {
-        for (int channel = 0; channel < numChannels; channel++) {
-            *dstBuffer = *srcPtrs[channel];
-            ++srcPtrs[channel];
-            ++dstBuffer;
-        }
-    }
-
-    return numSamples * numChannels * sizeof(T);
-}
-
-static void outputFrame(const VSFrameRef *frame) {
-    if (!outputError && outFile) {
-        if (vsapi->getFrameType(frame) == mtVideo) {
-            const VSVideoFormat *fi = vsapi->getVideoFrameFormat(frame);
+static void outputFrame(const VSFrameRef *frame, VSPipeOutputData *data) {
+    if (!data->outputError && data->outFile) {
+        if (data->vsapi->getFrameType(frame) == mtVideo) {
+            const VSVideoFormat *fi = data->vsapi->getVideoFrameFormat(frame);
             const int rgbRemap[] = { 1, 2, 0 };
             for (int rp = 0; rp < fi->numPlanes; rp++) {
                 int p = (fi->colorFamily == cfRGB) ? rgbRemap[rp] : rp;
-                ptrdiff_t stride = vsapi->getStride(frame, p);
-                const uint8_t *readPtr = vsapi->getReadPtr(frame, p);
-                int rowSize = vsapi->getFrameWidth(frame, p) * fi->bytesPerSample;
-                int height = vsapi->getFrameHeight(frame, p);
+                ptrdiff_t stride = data->vsapi->getStride(frame, p);
+                const uint8_t *readPtr = data->vsapi->getReadPtr(frame, p);
+                int rowSize = data->vsapi->getFrameWidth(frame, p) * fi->bytesPerSample;
+                int height = data->vsapi->getFrameHeight(frame, p);
 
                 if (rowSize != stride) {
-                    bitblt(buffer.data(), rowSize, readPtr, stride, rowSize, height);
-                    readPtr = buffer.data();
+                    bitblt(data->buffer.data(), rowSize, readPtr, stride, rowSize, height);
+                    readPtr = data->buffer.data();
                 }
 
-                if (fwrite(readPtr, 1, rowSize * height, outFile) != static_cast<size_t>(rowSize * height)) {
-                    if (errorMessage.empty())
-                        errorMessage = "Error: fwrite() call failed when writing frame: " + std::to_string(outputFrames) + ", plane: " + std::to_string(p) +
+                if (fwrite(readPtr, 1, rowSize * height, data->outFile) != static_cast<size_t>(rowSize * height)) {
+                    if (data->errorMessage.empty())
+                        data->errorMessage = "Error: fwrite() call failed when writing frame: " + std::to_string(data->outputFrames) + ", plane: " + std::to_string(p) +
                         ", errno: " + std::to_string(errno);
-                    totalFrames = requestedFrames;
-                    outputError = true;
+                    data->totalFrames = data->requestedFrames;
+                    data->outputError = true;
                     break;
                 }
             }
-        } else if (vsapi->getFrameType(frame) == mtAudio) {
-            const VSAudioFormat *fi = vsapi->getAudioFrameFormat(frame);
+        } else if (data->vsapi->getFrameType(frame) == mtAudio) {
+            const VSAudioFormat *fi = data->vsapi->getAudioFrameFormat(frame);
 
             int numChannels = fi->numChannels;
-            int numSamples = vsapi->getFrameLength(frame);
+            int numSamples = data->vsapi->getFrameLength(frame);
             size_t bytesPerOutputSample = (fi->bitsPerSample + 7) / 8;
             size_t toOutput = bytesPerOutputSample * numSamples * numChannels;
 
             std::vector<const uint8_t *> srcPtrs;
             srcPtrs.reserve(numChannels);
             for (int channel = 0; channel < numChannels; channel++)
-                srcPtrs.push_back(vsapi->getReadPtr(frame, channel));
+                srcPtrs.push_back(data->vsapi->getReadPtr(frame, channel));
             
             if (bytesPerOutputSample == 2)
-                PackChannels16to16le(srcPtrs.data(), buffer.data(), numSamples, numChannels);
+                PackChannels16to16le(srcPtrs.data(), data->buffer.data(), numSamples, numChannels);
             else if (bytesPerOutputSample == 3)
-                PackChannels32to24le(srcPtrs.data(), buffer.data(), numSamples, numChannels);
+                PackChannels32to24le(srcPtrs.data(), data->buffer.data(), numSamples, numChannels);
             else if (bytesPerOutputSample == 4)
-                PackChannels32to32le(srcPtrs.data(), buffer.data(), numSamples, numChannels);
+                PackChannels32to32le(srcPtrs.data(), data->buffer.data(), numSamples, numChannels);
 
-            if (fwrite(buffer.data(), 1, toOutput, outFile) != toOutput) {
-                if (errorMessage.empty())
-                    errorMessage = "Error: fwrite() call failed when writing frame: " + std::to_string(outputFrames) + ", errno: " + std::to_string(errno);
-                totalFrames = requestedFrames;
-                outputError = true;
+            if (fwrite(data->buffer.data(), 1, toOutput, data->outFile) != toOutput) {
+                if (data->errorMessage.empty())
+                    data->errorMessage = "Error: fwrite() call failed when writing frame: " + std::to_string(data->outputFrames) + ", errno: " + std::to_string(errno);
+                data->totalFrames = data->requestedFrames;
+                data->outputError = true;
             }
         }
     }
 }
 
 static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeRef *rnode, const char *errorMsg) {
+    VSPipeOutputData *data = reinterpret_cast<VSPipeOutputData *>(userData);
+
     bool printToConsole = false;
-    if (printFrameNumber) {
+    bool hasMeaningfulFPS = false;
+    double fps = 0;
+
+    if (data->printProgress) {
         printToConsole = (n == 0);
 
         std::chrono::time_point<std::chrono::steady_clock> currentTime(std::chrono::steady_clock::now());
-        std::chrono::duration<double> elapsedSeconds = currentTime - lastFPSReportTime;
-        std::chrono::duration<double> elapsedSecondsFromStart = currentTime - startTime;
+        std::chrono::duration<double> elapsedSeconds = currentTime - data->lastFPSReportTime;
+        std::chrono::duration<double> elapsedSecondsFromStart = currentTime - data->startTime;
 
         if (elapsedSeconds.count() > .5) {
             printToConsole = true;
-            lastFPSReportTime = currentTime;
+            data->lastFPSReportTime = currentTime;
         }
 
         if (elapsedSecondsFromStart.count() > 8) {
             hasMeaningfulFPS = true;
-            fps = completedFrames / elapsedSeconds.count();
+            fps = data->completedFrames / elapsedSecondsFromStart.count();
         }
     }
 
     // completed frames simply correspond to how many times the completion callback is called
-    if (rnode == node) {
-        completedFrames++;
-        if (!alphaNode)
-            completedAlphaFrames++;
+    if (rnode == data->node) {
+        data->completedFrames++;
+        if (!data->alphaNode)
+            data->completedAlphaFrames++;
     } else {
-        completedAlphaFrames++;
+        data->completedAlphaFrames++;
     }
 
     if (f) {
-        if (rnode == node)
-            reorderMap[n].first = f;
+        if (rnode == data->node)
+            data->reorderMap[n].first = f;
         else
-            reorderMap[n].second = f;
+            data->reorderMap[n].second = f;
 
-        bool completed = isCompletedFrame(reorderMap[n]);
+        bool completed = isCompletedFrame(data->reorderMap[n], !!data->alphaNode);
 
-        if (completed && requestedFrames < totalFrames) {
-            vsapi->getFrameAsync(requestedFrames, node, frameDoneCallback, nullptr);
-            if (alphaNode)
-                vsapi->getFrameAsync(requestedFrames, alphaNode, frameDoneCallback, nullptr);
-            requestedFrames++;
+        if (completed && data->requestedFrames < data->totalFrames) {
+            data->vsapi->getFrameAsync(data->requestedFrames, data->node, frameDoneCallback, userData);
+            if (data->alphaNode)
+                data->vsapi->getFrameAsync(data->requestedFrames, data->alphaNode, frameDoneCallback, userData);
+            data->requestedFrames++;
         }
 
-        while (reorderMap.count(outputFrames) && isCompletedFrame(reorderMap[outputFrames])) {
-            const VSFrameRef *frame = reorderMap[outputFrames].first;
-            const VSFrameRef *alphaFrame = reorderMap[outputFrames].second;
-            reorderMap.erase(outputFrames);
-            if (!outputError) {
-                if (y4m && outFile) {
-                    if (fwrite("FRAME\n", 1, 6, outFile) != 6) {
-                        if (errorMessage.empty())
-                            errorMessage = "Error: fwrite() call failed when writing header, errno: " + std::to_string(errno);
-                        totalFrames = requestedFrames;
-                        outputError = true;
+        while (data->reorderMap.count(data->outputFrames) && isCompletedFrame(data->reorderMap[data->outputFrames], !!data->alphaNode)) {
+            const VSFrameRef *frame = data->reorderMap[data->outputFrames].first;
+            const VSFrameRef *alphaFrame = data->reorderMap[data->outputFrames].second;
+            data->reorderMap.erase(data->outputFrames);
+            if (!data->outputError) {
+                if (data->outputHeaders == vphY4M && data->outFile) {
+                    if (fwrite("FRAME\n", 1, 6, data->outFile) != 6) {
+                        if (data->errorMessage.empty())
+                            data->errorMessage = "Error: fwrite() call failed when writing header, errno: " + std::to_string(errno);
+                        data->totalFrames = data->requestedFrames;
+                        data->outputError = true;
                     }
                 }
 
-                outputFrame(frame);
+                outputFrame(frame, data);
                 if (alphaFrame)
-                    outputFrame(alphaFrame);
+                    outputFrame(alphaFrame, data);
 
-                if (timecodesFile && !outputError) {
+                if (data->timecodesFile && !data->outputError) {
                     std::ostringstream stream;
                     stream.imbue(std::locale("C"));
                     stream.setf(std::ios::fixed, std::ios::floatfield);
-                    stream << (currentTimecodeNum * 1000 / static_cast<double>(currentTimecodeDen));
-                    if (fprintf(timecodesFile, "%s\n", stream.str().c_str()) < 0) {
-                        if (errorMessage.empty())
-                            errorMessage = "Error: failed to write timecode for frame " + std::to_string(outputFrames) + ". errno: " + std::to_string(errno);
-                        totalFrames = requestedFrames;
-                        outputError = true;
+                    stream << (data->currentTimecodeNum * 1000 / static_cast<double>(data->currentTimecodeDen));
+                    if (fprintf(data->timecodesFile, "%s\n", stream.str().c_str()) < 0) {
+                        if (data->errorMessage.empty())
+                            data->errorMessage = "Error: failed to write timecode for frame " + std::to_string(data->outputFrames) + ". errno: " + std::to_string(errno);
+                        data->totalFrames = data->requestedFrames;
+                        data->outputError = true;
                     } else {
-                        const VSMap *props = vsapi->getFramePropsRO(frame);
+                        const VSMap *props = data->vsapi->getFramePropsRO(frame);
                         int err_num, err_den;
-                        int64_t duration_num = vsapi->propGetInt(props, "_DurationNum", 0, &err_num);
-                        int64_t duration_den = vsapi->propGetInt(props, "_DurationDen", 0, &err_den);
+                        int64_t duration_num = data->vsapi->propGetInt(props, "_DurationNum", 0, &err_num);
+                        int64_t duration_den = data->vsapi->propGetInt(props, "_DurationDen", 0, &err_den);
 
                         if (err_num || err_den || !duration_den) {
-                            if (errorMessage.empty()) {
+                            if (data->errorMessage.empty()) {
                                 if (err_num || err_den)
-                                    errorMessage = "Error: missing duration at frame ";
+                                    data->errorMessage = "Error: missing duration at frame ";
                                 else if (!duration_den)
-                                    errorMessage = "Error: duration denominator is zero at frame ";
-                                errorMessage += std::to_string(outputFrames);
+                                    data->errorMessage = "Error: duration denominator is zero at frame ";
+                                data->errorMessage += std::to_string(data->outputFrames);
                             }
 
-                            totalFrames = requestedFrames;
-                            outputError = true;
+                            data->totalFrames = data->requestedFrames;
+                            data->outputError = true;
                         } else {
-                            addRational(&currentTimecodeNum, &currentTimecodeDen, duration_num, duration_den);
+                            addRational(&data->currentTimecodeNum, &data->currentTimecodeDen, duration_num, duration_den);
                         }
                     }
                 }
             }
-            vsapi->freeFrame(frame);
-            vsapi->freeFrame(alphaFrame);
-            outputFrames++;
+            data->vsapi->freeFrame(frame);
+            data->vsapi->freeFrame(alphaFrame);
+            data->outputFrames++;
         }
     } else {
-        outputError = true;
-        totalFrames = requestedFrames;
-        if (errorMessage.empty()) {
+        data->outputError = true;
+        data->totalFrames = data->requestedFrames;
+        if (data->errorMessage.empty()) {
             if (errorMsg)
-                errorMessage = "Error: Failed to retrieve frame " + std::to_string(n) + " with error: " + errorMsg;
+                data->errorMessage = "Error: Failed to retrieve frame " + std::to_string(n) + " with error: " + errorMsg;
             else
-                errorMessage = "Error: Failed to retrieve frame " + std::to_string(n);
+                data->errorMessage = "Error: Failed to retrieve frame " + std::to_string(n);
         }
     }
 
-    if (printToConsole && !outputError) {
-        if (vsapi->getNodeType(rnode) == mtVideo) {
+    if (printToConsole && !data->outputError) {
+        if (data->vsapi->getNodeType(rnode) == mtVideo) {
             if (hasMeaningfulFPS)
-                fprintf(stderr, "Frame: %d/%d (%.2f fps)\r", completedFrames, totalFrames, fps);
+                fprintf(stderr, "Frame: %d/%d (%.2f fps)\r", data->completedFrames, data->totalFrames, fps);
             else
-                fprintf(stderr, "Frame: %d/%d\r", completedFrames, totalFrames);
+                fprintf(stderr, "Frame: %d/%d\r", data->completedFrames, data->totalFrames);
         } else {
             if (hasMeaningfulFPS)
-                fprintf(stderr, "Sample: %" PRId64 "/%" PRId64 " (%.2f sps)\r", static_cast<int64_t>(completedFrames * VS_AUDIO_FRAME_SAMPLES), static_cast<int64_t>(totalFrames * VS_AUDIO_FRAME_SAMPLES), fps);
+                fprintf(stderr, "Sample: %" PRId64 "/%" PRId64 " (%.2f sps)\r", static_cast<int64_t>(data->completedFrames * VS_AUDIO_FRAME_SAMPLES), static_cast<int64_t>(data->totalFrames * VS_AUDIO_FRAME_SAMPLES), fps);
             else
-                fprintf(stderr, "Sample: %" PRId64 "/%" PRId64 "\r", static_cast<int64_t>(completedFrames * VS_AUDIO_FRAME_SAMPLES), static_cast<int64_t>(totalFrames * VS_AUDIO_FRAME_SAMPLES));
+                fprintf(stderr, "Sample: %" PRId64 "/%" PRId64 "\r", static_cast<int64_t>(data->completedFrames * VS_AUDIO_FRAME_SAMPLES), static_cast<int64_t>(data->totalFrames * VS_AUDIO_FRAME_SAMPLES));
         }
     }
 
-    if (totalFrames == completedFrames && totalFrames == completedAlphaFrames) {
-        std::lock_guard<std::mutex> lock(mutex);
-        condition.notify_one();
+    if (data->totalFrames == data->completedFrames && data->totalFrames == data->completedAlphaFrames) {
+        std::lock_guard<std::mutex> lock(data->mutex);
+        data->condition.notify_one();
     }
 }
 
@@ -412,22 +425,22 @@ static std::string floatBitsToLetter(int bits) {
     }
 }
 
-static bool initializeVideoOutput() {
-    if (wav || w64) {
-        fprintf(stderr, "Error: can't apply wave headers to video\n");
+static bool initializeVideoOutput(VSPipeOutputData *data) {
+    if (data->outputHeaders != vphNone && data->outputHeaders != vphY4M) {
+        fprintf(stderr, "Error: can't apply selected header type to video\n");
         return false;
     }
 
-    const VSVideoInfo *vi = vsapi->getVideoInfo(node);
+    const VSVideoInfo *vi = data->vsapi->getVideoInfo(data->node);
 
-    if (y4m && ((vi->format.colorFamily != cfGray && vi->format.colorFamily != cfYUV) || alphaNode)) {
+    if (data->outputHeaders == vphY4M && ((vi->format.colorFamily != cfGray && vi->format.colorFamily != cfYUV) || data->alphaNode)) {
         fprintf(stderr, "Error: can only apply y4m headers to YUV and Gray format clips without alpha\n");
         return false;
     }
 
     std::string y4mFormat;
 
-    if (y4m) {
+    if (data->outputHeaders == vphY4M) {
         if (vi->format.colorFamily == cfGray) {
             y4mFormat = "mono";
             if (vi->format.bitsPerSample > 8)
@@ -469,92 +482,96 @@ static bool initializeVideoOutput() {
             + " Ip A0:0"
             + " XLENGTH=" + std::to_string(vi->numFrames) + "\n";
 
-        if (outFile) {
-            if (fwrite(header.c_str(), 1, header.size(), outFile) != header.size()) {
+        if (data->outFile) {
+            if (fwrite(header.c_str(), 1, header.size(), data->outFile) != header.size()) {
                 fprintf(stderr, "Error: fwrite() call failed when writing initial header, errno: %d\n", errno);
                 return false;
             }
         }
     }
 
-    if (timecodesFile && !outputError) {
-        if (fprintf(timecodesFile, "# timecode format v2\n") < 0) {
+    if (data->timecodesFile && !data->outputError) {
+        if (fprintf(data->timecodesFile, "# timecode format v2\n") < 0) {
             fprintf(stderr, "Error: failed to write timecodes file header, errno: %d\n", errno);
             return false;
         }
     }
 
-    buffer.resize(vi->width * vi->height * vi->format.bytesPerSample);
+    data->buffer.resize(vi->width * vi->height * vi->format.bytesPerSample);
     return true;
 }
 
-static bool initializeAudioOutput() {
-    if (y4m) {
-        fprintf(stderr, "Error: can't apply y4m headers to audio\n");
+static bool initializeAudioOutput(VSPipeOutputData *data) {
+    if (data->outputHeaders != vphNone && data->outputHeaders != vphWAVE && data->outputHeaders != vphWAVE64) {
+        fprintf(stderr, "Error: can't apply apply selected header type to audio\n");
         return false;
     }
 
-    const VSAudioInfo *ai = vsapi->getAudioInfo(node);
+    const VSAudioInfo *ai = data->vsapi->getAudioInfo(data->node);
 
-    if (w64) {
+    if (data->outputHeaders == vphWAVE64) {
         Wave64Header header;
         if (!CreateWave64Header(header, ai->format.sampleType == stFloat, ai->format.bitsPerSample, ai->sampleRate, ai->format.channelLayout, ai->numSamples)) {
             fprintf(stderr, "Error: cannot create valid w64 header\n");
             return false;
         }
-        if (outFile) {
-            if (fwrite(&header, 1, sizeof(header), outFile) != sizeof(header)) {
+        if (data->outFile) {
+            if (fwrite(&header, 1, sizeof(header), data->outFile) != sizeof(header)) {
                 fprintf(stderr, "Error: fwrite() call failed when writing initial header, errno: %d\n", errno);
                 return false;
             }
         }
-    } else if (wav) {
+    } else if (data->outputHeaders == vphWAVE) {
         WaveHeader header;
         if (!CreateWaveHeader(header, ai->format.sampleType == stFloat, ai->format.bitsPerSample, ai->sampleRate, ai->format.channelLayout, ai->numSamples)) {
             fprintf(stderr, "Error: cannot create valid wav header\n");
             return false;
         }
 
-        if (outFile) {
-            if (fwrite(&header, 1, sizeof(header), outFile) != sizeof(header)) {
+        if (data->outFile) {
+            if (fwrite(&header, 1, sizeof(header), data->outFile) != sizeof(header)) {
                 fprintf(stderr, "Error: fwrite() call failed when writing initial header, errno: %d\n", errno);
                 return false;
             }
         }
     }
 
-    buffer.resize(ai->format.numChannels * VS_AUDIO_FRAME_SAMPLES * ai->format.bytesPerSample);
+    data->buffer.resize(ai->format.numChannels * VS_AUDIO_FRAME_SAMPLES * ai->format.bytesPerSample);
     return true;
 }
 
-static bool outputNode() {
+static bool outputNode(const VSPipeOptions &opts, VSPipeOutputData *data, VSCore *core) {
+    int requests = opts.requests;
     if (requests < 1) {
         VSCoreInfo info;
-        vsapi->getCoreInfo(vssapi->getCore(se), &info);
+        data->vsapi->getCoreInfo(core, &info);
         requests = info.numThreads;
     }
 
-    std::unique_lock<std::mutex> lock(mutex);
+    data->startTime = std::chrono::steady_clock::now();
+    data->lastFPSReportTime = std::chrono::steady_clock::now();
 
-    int intitalRequestSize = std::min(requests, totalFrames);
-    requestedFrames = intitalRequestSize;
+    std::unique_lock<std::mutex> lock(data->mutex);
+
+    int intitalRequestSize = std::min(requests, data->totalFrames);
+    data->requestedFrames = intitalRequestSize;
     for (int n = 0; n < intitalRequestSize; n++) {
-        vsapi->getFrameAsync(n, node, frameDoneCallback, nullptr);
-        if (alphaNode)
-            vsapi->getFrameAsync(n, alphaNode, frameDoneCallback, nullptr);
+        data->vsapi->getFrameAsync(n, data->node, frameDoneCallback, data);
+        if (data->alphaNode)
+            data->vsapi->getFrameAsync(n, data->alphaNode, frameDoneCallback, data);
     }
 
-    condition.wait(lock);
+    data->condition.wait(lock);
 
-    if (outputError) {
-        for (auto &iter : reorderMap) {
-            vsapi->freeFrame(iter.second.first);
-            vsapi->freeFrame(iter.second.second);
+    if (data->outputError) {
+        for (auto &iter : data->reorderMap) {
+            data->vsapi->freeFrame(iter.second.first);
+            data->vsapi->freeFrame(iter.second.second);
         }
-        fprintf(stderr, "%s\n", errorMessage.c_str());
+        fprintf(stderr, "%s\n", data->errorMessage.c_str());
     }
 
-    return outputError;
+    return data->outputError;
 }
 
 static const char *colorFamilyToString(int colorFamily) {
@@ -594,13 +611,7 @@ static bool nstringToInt(const nstring &ns, int &result) {
     return pos == s.length();
 }
 
-static bool printVersion() {
-    vsapi = vssapi->getVSAPI(VAPOURSYNTH_API_VERSION);
-    if (!vsapi) {
-        fprintf(stderr, "Failed to get VapourSynth API pointer\n");
-        return false;
-    }
-
+static bool printVersion(const VSAPI *vsapi) {
     VSCore *core = vsapi->createCore(0);
     if (!core) {
         fprintf(stderr, "Failed to create core\n");
@@ -620,24 +631,21 @@ static void printHelp() {
         "  vspipe [options] <script> <outfile>\n"
         "\n"
         "Available options:\n"
-        "  -a, --arg key=value   Argument to pass to the script environment\n"
-        "  -s, --start N         Set output frame/sample range start\n"
-        "  -e, --end N           Set output frame/sample range end (inclusive)\n"
-        "  -o, --outputindex N   Select output index\n"
-        "  -r, --requests N      Set number of concurrent frame requests\n"
-        "  -y, --y4m             Add YUV4MPEG headers to video output\n"
-        "  -w, --w64             Add WAVE64 headers to audio output\n"
-        "      --wav             Add WAVE headers to audio output\n"
-        "  -t, --timecodes FILE  Write timecodes v2 file\n"
-        "  -c  --preserve-cwd    Don't temporarily change the working directory the script path\n"
-        "  -p, --progress        Print progress to stderr\n"
-        "  -i, --info            Show output node info and exit\n"
-        "      --graph-full      Print output node filter graph in dot format and exit\n"
-        "  -v, --version         Show version info and exit\n"
+        "  -a, --arg key=value              Argument to pass to the script environment\n"
+        "  -s, --start N                    Set output frame/sample range start\n"
+        "  -e, --end N                      Set output frame/sample range end (inclusive)\n"
+        "  -o, --outputindex N              Select output index\n"
+        "  -r, --requests N                 Set number of concurrent frame requests\n"
+        "  -c, --container <y4m/wav/w64>    Add headers for the specified format to the output\n"
+        "  -t, --timecodes FILE             Write timecodes v2 file\n"
+        "  -p, --progress                   Print progress to stderr\n"
+        "  -i, --info                       Show output node info and exit\n"
+        "  -g  --graph <simple/full>        Print output node filter graph in dot format and exit\n"
+        "  -v, --version                    Show version info and exit\n"
         "\n"
         "Examples:\n"
         "  Show script info:\n"
-        "    vspipe --info script.vpy -\n"
+        "    vspipe --info script.vpy\n"
         "  Write to stdout:\n"
         "    vspipe [options] script.vpy -\n"
         "  Request all frames but don't output them:\n"
@@ -647,60 +655,91 @@ static void printHelp() {
         "  Pass values to a script:\n"
         "    vspipe --arg deinterlace=yes --arg \"message=fluffy kittens\" script.vpy output.raw\n"
         "  Pipe to x264 and write timecodes file:\n"
-        "    vspipe script.vpy - --y4m --timecodes timecodes.txt | x264 --demuxer y4m -o script.mkv -\n"
+        "    vspipe script.vpy - -c y4m --timecodes timecodes.txt | x264 --demuxer y4m -o script.mkv -\n"
         );
 }
 
-#ifdef VS_TARGET_OS_WINDOWS
-int wmain(int argc, wchar_t **argv) {
-    if (_setmode(_fileno(stdout), _O_BINARY) == -1)
-        fprintf(stderr, "Failed to set stdout to binary mode\n");
-    SetConsoleCtrlHandler(HandlerRoutine, TRUE);
-#else
-int main(int argc, char **argv) {
-#endif
-    vssapi = getVSScriptAPI(VSSCRIPT_API_VERSION);
-    if (!vssapi) {
-        fprintf(stderr, "Failed to initialize VSScript\n");
-        return 1;
-    }
-
-    nstring outputFilename, scriptFilename, timecodesFilename;
-    bool showHelp = false;
-    std::map<std::string, std::string> scriptArgs;
-
+template<typename T>
+static int parseOptions(VSPipeOptions &opts, int argc, T **argv) {
     for (int arg = 1; arg < argc; arg++) {
         nstring argString = argv[arg];
         if (argString == NSTRING("-v") || argString == NSTRING("--version")) {
-            showVersion = true;
-        } else if (argString == NSTRING("-y") || argString == NSTRING("--y4m")) {
-            y4m = true;
-        } else if (argString == NSTRING("-w") || argString == NSTRING("--w64")) {
-            w64 = true;
-        } else if (argString == NSTRING("--wav")) {
-            wav = true;
+            if (argc > 2) {
+                fprintf(stderr, "Cannot combine version information with other options\n");
+                return 1;
+            }
+
+            opts.mode = vpmPrintVersion;
+        } else if (argString == NSTRING("-c") || argString == NSTRING("--container")) {
+            if (argc <= arg + 1) {
+                fprintf(stderr, "No container type specified\n");
+                return 1;
+            }
+
+            if (nstringToUtf8(argv[arg + 1]) == "y4m") {
+                opts.outputHeaders = vphY4M;
+            } else if (nstringToUtf8(argv[arg + 1]) == "wav") {
+                opts.outputHeaders = vphWAVE;
+            } else if (nstringToUtf8(argv[arg + 1]) == "w64") {
+                opts.outputHeaders = vphWAVE64;
+            } else {
+                fprintf(stderr, "Unknown container type specified: %s\n", nstringToUtf8(argv[arg + 1]).c_str());
+                return 1;
+            }
+
+            arg++;
+        } else if (argString == NSTRING("-y") || argString == NSTRING("--y4m")) { // secret option for comaptibility with V3
+            fprintf(stderr, "Deprecated option --y4m specified, use -c y4m instead\n");
+            opts.outputHeaders = vphY4M;
         } else if (argString == NSTRING("-p") || argString == NSTRING("--progress")) {
-            printFrameNumber = true;
+            opts.printProgress = true;
         } else if (argString == NSTRING("-i") || argString == NSTRING("--info")) {
-            showInfo = true;
-        } else if (argString == NSTRING("--graph-full")) {
-            showGraph = true;
+            if (opts.mode == vpmPrintSimpleGraph || opts.mode == vpmPrintFullGraph) {
+                fprintf(stderr, "Cannot combine graph and info arguments\n");
+                return 1;
+            }
+
+            opts.mode = vpmPrintInfo;
+        } else if (argString == NSTRING("-g") || argString == NSTRING("--graph")) {
+            if (opts.mode == vpmPrintInfo) {
+                fprintf(stderr, "Cannot combine graph and info arguments\n");
+                return 1;
+            }
+
+            if (argc <= arg + 1) {
+                fprintf(stderr, "No graph type specified\n");
+                return 1;
+            }
+
+            if (nstringToUtf8(argv[arg + 1]) == "simple") {
+                opts.mode = vpmPrintSimpleGraph;
+            } else if (nstringToUtf8(argv[arg + 1]) == "full") {
+                opts.mode = vpmPrintFullGraph;
+            } else {
+                fprintf(stderr, "Unknown graph type specified: %s\n", nstringToUtf8(argv[arg + 1]).c_str());
+                return 1;
+            }
+
+            arg++;
         } else if (argString == NSTRING("-h") || argString == NSTRING("--help")) {
-            showHelp = true;
-        } else if (argString == NSTRING("-c") || argString == NSTRING("--preserve-cwd")) {
-            preserveCwd = true;
+            if (argc > 2) {
+                fprintf(stderr, "Cannot combine help with other options\n");
+                return 1;
+            }
+
+            opts.mode = vpmPrintHelp;
         } else if (argString == NSTRING("-s") || argString == NSTRING("--start")) {
             if (argc <= arg + 1) {
                 fprintf(stderr, "No start frame specified\n");
                 return 1;
             }
 
-            if (!nstringToInt64(argv[arg + 1], startPos)) {
+            if (!nstringToInt64(argv[arg + 1], opts.startPos)) {
                 fprintf(stderr, "Couldn't convert %s to an integer (start)\n", nstringToUtf8(argv[arg + 1]).c_str());
                 return 1;
             }
 
-            if (startPos < 0) {
+            if (opts.startPos < 0) {
                 fprintf(stderr, "Negative start position specified\n");
                 return 1;
             }
@@ -712,12 +751,12 @@ int main(int argc, char **argv) {
                 return 1;
             }
 
-            if (!nstringToInt64(argv[arg + 1], endPos)) {
+            if (!nstringToInt64(argv[arg + 1], opts.endPos)) {
                 fprintf(stderr, "Couldn't convert %s to an integer (end)\n", nstringToUtf8(argv[arg + 1]).c_str());
                 return 1;
             }
 
-            if (endPos < 0) {
+            if (opts.endPos < 0) {
                 fprintf(stderr, "Negative end frame specified\n");
                 return 1;
             }
@@ -729,20 +768,23 @@ int main(int argc, char **argv) {
                 return 1;
             }
 
-            if (!nstringToInt(argv[arg + 1], outputIndex)) {
+            if (!nstringToInt(argv[arg + 1], opts.outputIndex)) {
                 fprintf(stderr, "Couldn't convert %s to an integer (index)\n", nstringToUtf8(argv[arg + 1]).c_str());
                 return 1;
             }
+
             arg++;
         } else if (argString == NSTRING("-r") || argString == NSTRING("--requests")) {
             if (argc <= arg + 1) {
                 fprintf(stderr, "Number of requests not specified\n");
                 return 1;
             }
-            if (!nstringToInt(argv[arg + 1], requests)) {
+
+            if (!nstringToInt(argv[arg + 1], opts.requests)) {
                 fprintf(stderr, "Couldn't convert %s to an integer (requests)\n", nstringToUtf8(argv[arg + 1]).c_str());
                 return 1;
             }
+
             arg++;
         } else if (argString == NSTRING("-a") || argString == NSTRING("--arg")) {
             if (argc <= arg + 1) {
@@ -757,7 +799,7 @@ int main(int argc, char **argv) {
                 return 1;
             }
 
-            scriptArgs[aLine.substr(0, equalsPos)] = aLine.substr(equalsPos + 1);
+            opts.scriptArgs[aLine.substr(0, equalsPos)] = aLine.substr(equalsPos + 1);
 
             arg++;
         } else if (argString == NSTRING("-t") || argString == NSTRING("--timecodes")) {
@@ -766,48 +808,76 @@ int main(int argc, char **argv) {
                 return 1;
             }
 
-            timecodesFilename = argv[arg + 1];
+            opts.timecodesFilename = argv[arg + 1];
 
             arg++;
-        } else if (scriptFilename.empty() && !argString.empty() && argString.substr(0, 1) != NSTRING("-")) {
-            scriptFilename = argString;
-        } else if (outputFilename.empty() && !argString.empty() && (argString == NSTRING("-") || (argString.substr(0, 1) != NSTRING("-")))) {
-            outputFilename = argString;
+        } else if (opts.scriptFilename.empty() && !argString.empty() && argString.substr(0, 1) != NSTRING("-")) {
+            opts.scriptFilename = argString;
+        } else if (opts.outputFilename.empty() && !argString.empty() && (argString == NSTRING("-") || (argString.substr(0, 1) != NSTRING("-")))) {
+            opts.outputFilename = argString;
         } else {
             fprintf(stderr, "Unknown argument: %s\n", nstringToUtf8(argString).c_str());
             return 1;
         }
     }
 
-    if (wav && w64) {
-        fprintf(stderr, "Cannot combine wave64 and wave headers\n");
-        return 1;
-    } else if (showInfo && showGraph) {
-        fprintf(stderr, "Cannot combine info and graph options\n");
-        return 1;
-    } else if (showVersion && argc > 2) {
-        fprintf(stderr, "Cannot combine version information with other options\n");
-        return 1;
-    } else if (showVersion) {
-        return printVersion() ? 0 : 1;
-    } else if (showHelp || argc <= 1) {
-        printHelp();
-        return 1;
-    } else if (scriptFilename.empty()) {
+    // Print help if no options provided
+    if (argc <= 1)
+        opts.mode = vpmPrintHelp;
+
+    if ((opts.mode == vpmOuput || opts.mode == vpmPrintInfo || opts.mode == vpmPrintSimpleGraph || opts.mode == vpmPrintFullGraph) && opts.scriptFilename.empty()) {
         fprintf(stderr, "No script file specified\n");
         return 1;
-    } else if (outputFilename.empty()) {
+    } else if (opts.mode == vpmOuput && opts.outputFilename.empty()) {
         fprintf(stderr, "No output file specified\n");
         return 1;
     }
 
-    if (outputFilename == NSTRING("-")) {
+    return 0;
+}
+
+#ifdef VS_TARGET_OS_WINDOWS
+int wmain(int argc, wchar_t **argv) {
+    if (_setmode(_fileno(stdout), _O_BINARY) == -1)
+        fprintf(stderr, "Failed to set stdout to binary mode\n");
+    SetConsoleCtrlHandler(HandlerRoutine, TRUE);
+#else
+int main(int argc, char **argv) {
+#endif
+    const VSSCRIPTAPI *vssapi = getVSScriptAPI(VSSCRIPT_API_VERSION);
+    if (!vssapi) {
+        fprintf(stderr, "Failed to initialize VSScript\n");
+        return 1;
+    }
+
+    const VSAPI *vsapi = vssapi->getVSAPI(VAPOURSYNTH_API_VERSION);
+    if (!vsapi) {
+        fprintf(stderr, "Failed to get VapourSynth API pointer\n");
+        return false;
+    }
+
+    VSPipeOptions opts{};
+    int parseResult = parseOptions(opts, argc, argv);
+    if (parseResult)
+        return parseResult;
+
+    if (opts.mode == vpmPrintVersion) {
+        return printVersion(vsapi) ? 0 : 1;
+    } else if (opts.mode == vpmPrintHelp) {
+        printHelp();
+        return 0;
+    }
+
+    FILE *outFile = nullptr;
+    bool closeOutFile = false;
+
+    if (opts.outputFilename.empty() || opts.outputFilename == NSTRING("-")) {
         outFile = stdout;
-    } else if (outputFilename == NSTRING(".")) {
+    } else if (opts.outputFilename == NSTRING(".")) {
         // do nothing
     } else {
 #ifdef VS_TARGET_OS_WINDOWS
-        outFile = _wfopen(outputFilename.c_str(), L"wb");
+        outFile = _wfopen(opts.outputFilename.c_str(), L"wb");
 #else
         outFile = fopen(outputFilename.c_str(), "wb");
 #endif
@@ -815,13 +885,15 @@ int main(int argc, char **argv) {
             fprintf(stderr, "Failed to open output for writing\n");
             return 1;
         }
+        closeOutFile = true;
     }
 
-    if (!timecodesFilename.empty()) {
+    FILE *timecodesFile = nullptr;
+    if (opts.mode == vpmOuput && !opts.timecodesFilename.empty()) {
 #ifdef VS_TARGET_OS_WINDOWS
-        timecodesFile = _wfopen(timecodesFilename.c_str(), L"wb");
+        timecodesFile = _wfopen(opts.timecodesFilename.c_str(), L"wb");
 #else
-        timecodesFile = fopen(timecodesFilename.c_str(), "wb");
+        timecodesFile = fopen(opts.timecodesFilename.c_str(), "wb");
 #endif
         if (!timecodesFile) {
             fprintf(stderr, "Failed to open timecodes file for writing\n");
@@ -837,16 +909,17 @@ int main(int argc, char **argv) {
 
     std::chrono::time_point<std::chrono::steady_clock> scriptEvaluationStart = std::chrono::steady_clock::now();
     
-    VSScriptOptions opts = { sizeof(VSScriptOptions), showGraph ? cfEnableGraphInspection : 0, messageHandler, nullptr, nullptr };
+    VSScriptOptions scriptOpts = { sizeof(VSScriptOptions), (opts.mode == vpmPrintSimpleGraph || opts.mode == vpmPrintFullGraph) ? cfEnableGraphInspection : 0, messageHandler, nullptr, nullptr };
 
-    if (!scriptArgs.empty()) {
+    VSScript *se = nullptr;
+    if (!opts.scriptArgs.empty()) {
         VSMap *foldedArgs = vsapi->createMap();
-        for (const auto &iter : scriptArgs)
+        for (const auto &iter : opts.scriptArgs)
             vsapi->propSetData(foldedArgs, iter.first.c_str(), iter.second.c_str(), static_cast<int>(iter.second.size()), dtUtf8, paAppend);
-        se = vssapi->evaluateFile(nstringToUtf8(scriptFilename).c_str(), foldedArgs, &opts);
+        se = vssapi->evaluateFile(nstringToUtf8(opts.scriptFilename).c_str(), foldedArgs, &scriptOpts);
         vsapi->freeMap(foldedArgs);
     } else {
-        se = vssapi->evaluateFile(nstringToUtf8(scriptFilename).c_str(), nullptr, &opts);
+        se = vssapi->evaluateFile(nstringToUtf8(opts.scriptFilename).c_str(), nullptr, &scriptOpts);
     }
 
     if (vssapi->getError(se)) {
@@ -855,35 +928,36 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    node = vssapi->getOutputNode(se, outputIndex);
+    VSNodeRef *node = vssapi->getOutputNode(se, opts.outputIndex);
     if (!node) {
        fprintf(stderr, "Failed to retrieve output node. Invalid index specified?\n");
        vssapi->freeScript(se);
        return 1;
     }
 
-    alphaNode = vssapi->getOutputAlphaNode(se, outputIndex);
+    VSNodeRef *alphaNode = vssapi->getOutputAlphaNode(se, opts.outputIndex);
 
     std::chrono::duration<double> scriptEvaluationTime = std::chrono::steady_clock::now() - scriptEvaluationStart;
-    if (printFrameNumber)
+    if (opts.printProgress)
         fprintf(stderr, "Script evaluation done in %.2f seconds\n", scriptEvaluationTime.count());
 
-    startTime = std::chrono::steady_clock::now();
     bool success = true;
 
-    if (showGraph) {
-        fprintf(outFile, "%s\n", printNodeGraph(node, vsapi).c_str());
+    if (opts.mode == vpmPrintSimpleGraph) {
+        // FIXME, implement real simple graph
+        fprintf(outFile, "%s\n", printFullNodeGraph(node, vsapi).c_str());
+    } else if (opts.mode == vpmPrintFullGraph) {
+        fprintf(outFile, "%s\n", printFullNodeGraph(node, vsapi).c_str());
     } else {
-
         int nodeType = vsapi->getNodeType(node);
 
-        if (startPos != 0 || endPos != -1) {
+        if (opts.startPos != 0 || opts.endPos != -1) {
             VSMap *args = vsapi->createMap();
             vsapi->propSetNode(args, "clip", node, paAppend);
-            if (startPos != 0)
-                vsapi->propSetInt(args, "first", startPos, paAppend);
-            if (endPos > -1)
-                vsapi->propSetInt(args, "last", endPos, paAppend);
+            if (opts.startPos != 0)
+                vsapi->propSetInt(args, "first", opts.startPos, paAppend);
+            if (opts.endPos > -1)
+                vsapi->propSetInt(args, "last", opts.endPos, paAppend);
             VSMap *result = vsapi->invoke(vsapi->getPluginByID(VS_STD_PLUGIN_ID, vssapi->getCore(se)), (nodeType == mtVideo) ? "Trim" : "AudioTrim", args);
             vsapi->freeMap(args);
             if (vsapi->getError(result)) {
@@ -900,11 +974,19 @@ int main(int argc, char **argv) {
             }
         }
 
+        std::unique_ptr<VSPipeOutputData> data(new VSPipeOutputData());
+
+        data->vsapi = vsapi;
+        data->outputHeaders = opts.outputHeaders;
+        data->printProgress = opts.printProgress;
+        data->node = node;
+        data->alphaNode = alphaNode;
+        
         if (nodeType == mtVideo) {
 
             const VSVideoInfo *vi = vsapi->getVideoInfo(node);
 
-            if (showInfo) {
+            if (opts.mode == vpmPrintInfo) {
                 if (outFile) {
                     if (vi->width && vi->height) {
                         fprintf(outFile, "Width: %d\n", vi->width);
@@ -942,19 +1024,19 @@ int main(int argc, char **argv) {
                     return 1;
                 }
 
-                totalFrames = vi->numFrames;
+                data->totalFrames = vi->numFrames;
 
-                success = initializeVideoOutput();
+                success = initializeVideoOutput(data.get());
                 if (success) {
-                    lastFPSReportTime = std::chrono::steady_clock::now();
-                    success = !outputNode();
+                    data->lastFPSReportTime = std::chrono::steady_clock::now();
+                    success = !outputNode(opts, data.get(), vssapi->getCore(se));
                 }
             }
         } else if (nodeType == mtAudio) {
 
             const VSAudioInfo *ai = vsapi->getAudioInfo(node);
 
-            if (showInfo) {
+            if (opts.mode == vpmPrintInfo) {
                 if (outFile) {
                     char nameBuffer[32];
                     vsapi->getAudioFormatName(&ai->format, nameBuffer);
@@ -967,30 +1049,35 @@ int main(int argc, char **argv) {
                     fprintf(outFile, "Layout: %s\n", channelMaskToName(ai->format.channelLayout).c_str());
                 }
             } else {
-                totalFrames = ai->numFrames;
-                totalSamples = ai->numSamples;
+                data->totalFrames = ai->numFrames;
+                data->totalSamples = ai->numSamples;
 
-                success = initializeAudioOutput();
+                success = initializeAudioOutput(data.get());
                 if (success) {
-                    lastFPSReportTime = std::chrono::steady_clock::now();
-                    success = !outputNode();
+                    
+                    success = !outputNode(opts, data.get(), vssapi->getCore(se));
                 }
             }
         }
+
+        if (outFile)
+            fflush(outFile);
+        if (timecodesFile)
+            fflush(timecodesFile);
+
+        std::chrono::duration<double> elapsedSeconds = std::chrono::steady_clock::now() - data->startTime;
+        if (vsapi->getNodeType(node) == mtVideo)
+            fprintf(stderr, "Output %d frames in %.2f seconds (%.2f fps)\n", data->totalFrames, elapsedSeconds.count(), data->totalFrames / elapsedSeconds.count());
+        else
+            fprintf(stderr, "Output %" PRId64 " samples in %.2f seconds (%.2f sps)\n", data->totalSamples, elapsedSeconds.count(), (data->totalFrames / elapsedSeconds.count()) * VS_AUDIO_FRAME_SAMPLES);
     }
 
-    if (outFile)
-        fflush(outFile);
+    if (outFile && closeOutFile)
+        fclose(outFile);
     if (timecodesFile)
         fclose(timecodesFile);
 
-    if (!showInfo && !showGraph) {
-        std::chrono::duration<double> elapsedSeconds = std::chrono::steady_clock::now() - startTime;
-        if (vsapi->getNodeType(node) == mtVideo)
-            fprintf(stderr, "Output %d frames in %.2f seconds (%.2f fps)\n", totalFrames, elapsedSeconds.count(), totalFrames / elapsedSeconds.count());
-        else
-            fprintf(stderr, "Output %" PRId64 " samples in %.2f seconds (%.2f sps)\n", totalSamples, elapsedSeconds.count(), (totalFrames / elapsedSeconds.count()) * VS_AUDIO_FRAME_SAMPLES);
-    }
+
     vsapi->freeNode(node);
     vsapi->freeNode(alphaNode);
     vssapi->freeScript(se);
