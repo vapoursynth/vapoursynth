@@ -80,6 +80,7 @@ __api_version__ = namedtuple("VapourSynthAPIVersion", "api_major api_minor")(VAP
 cdef class EnvironmentData(object):
     cdef object core
     cdef dict outputs
+    cdef dict options
 
     cdef object __weakref__
 
@@ -508,6 +509,33 @@ def get_outputs():
 def get_output(int index = 0):
     return _get_output_dict("get_output")[index]
 
+cdef _get_options_dict(funcname="this function"):
+    cdef EnvironmentData env = _env_current()
+    if env is None:
+        raise Error('Internal environment id not set. %s called from a filter callback?'%funcname)
+    return env.options
+
+def clear_option(str key):
+    cdef dict options = _get_options_dict("clear_option")
+    try:
+        del options[key]
+    except KeyError:
+        pass
+
+def clear_options():
+    cdef dict options = _get_options_dict("clear_options")
+    options.clear()
+
+def get_options():
+    cdef dict options = _get_options_dict("get_options")
+    return MappingProxyType(options)
+    
+def get_option(str key):
+    return _get_options_dict("get_option")[key]
+    
+def set_option(str key, value):
+    _get_options_dict("get_option")[key] = value
+
 cdef class FuncData(object):
     cdef object func
     cdef VSCore *core
@@ -546,7 +574,7 @@ cdef class Func(object):
         outm = self.funcs.createMap()
         inm = self.funcs.createMap()
         try:
-            dictToMap(kwargs, inm, NULL, vsapi)
+            dictToMap(kwargs, inm, False, NULL, vsapi)
             self.funcs.callFunc(self.ref, inm, outm)
             error = self.funcs.getError(outm)
             if error:
@@ -803,7 +831,7 @@ cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, VSCore *co
     else:
         return retdict
 
-cdef void dictToMap(dict ndict, VSMap *inm, VSCore *core, const VSAPI *funcs) except *:
+cdef void dictToMap(dict ndict, VSMap *inm, bint simpleTypesOnly, VSCore *core, const VSAPI *funcs) except *:
     for key in ndict:
         ckey = key.encode('utf-8')
         val = ndict[key]
@@ -817,21 +845,7 @@ cdef void dictToMap(dict ndict, VSMap *inm, VSCore *core, const VSAPI *funcs) ex
                 val = [val]     
 
         for v in val:
-            if isinstance(v, RawNode):
-                if funcs.propSetNode(inm, ckey, (<RawNode>v).node, 1) != 0:
-                    raise Error('not all values are of the same type in ' + key)
-            elif isinstance(v, RawFrame):
-                if funcs.propSetFrame(inm, ckey, (<RawFrame>v).constf, 1) != 0:
-                    raise Error('not all values are of the same type in ' + key)
-            elif isinstance(v, Func):
-                if funcs.propSetFunc(inm, ckey, (<Func>v).ref, 1) != 0:
-                    raise Error('not all values are of the same type in ' + key)
-            elif callable(v):
-                tf = createFuncPython(v, core, funcs)
-
-                if funcs.propSetFunc(inm, ckey, tf.ref, 1) != 0:
-                    raise Error('not all values are of the same type in ' + key)
-            elif isinstance(v, int):
+            if isinstance(v, int):
                 if funcs.propSetInt(inm, ckey, int(v), 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif isinstance(v, float):
@@ -839,12 +853,26 @@ cdef void dictToMap(dict ndict, VSMap *inm, VSCore *core, const VSAPI *funcs) ex
                     raise Error('not all values are of the same type in ' + key)
             elif isinstance(v, str):
                 s = str(v).encode('utf-8')
-
-                if funcs.propSetData(inm, ckey, s, -1, dtUtf8, 1) != 0:
+            elif funcs.propSetData(inm, ckey, s, -1, dtUtf8, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif isinstance(v, (bytes, bytearray)):
                 if funcs.propSetData(inm, ckey, v, <int>len(v), dtBinary, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
+            elif isinstance(v, RawNode) and not simpleTypesOnly:
+                if funcs.propSetNode(inm, ckey, (<RawNode>v).node, 1) != 0:
+                    raise Error('not all values are of the same type in ' + key)
+            elif isinstance(v, RawFrame) and not simpleTypesOnly:
+                if funcs.propSetFrame(inm, ckey, (<RawFrame>v).constf, 1) != 0:
+                    raise Error('not all values are of the same type in ' + key)
+            elif isinstance(v, Func) and not simpleTypesOnly:
+                if funcs.propSetFunc(inm, ckey, (<Func>v).ref, 1) != 0:
+                    raise Error('not all values are of the same type in ' + key)
+            elif callable(v) and not simpleTypesOnly:
+                tf = createFuncPython(v, core, funcs)
+
+                if funcs.propSetFunc(inm, ckey, tf.ref, 1) != 0:
+                    raise Error('not all values are of the same type in ' + key)
+   
             else:
                 raise Error('argument ' + key + ' was passed an unsupported type (' + type(v).__name__ + ')')
 
@@ -2454,7 +2482,7 @@ cdef void __stdcall publicFunction(const VSMap *inm, VSMap *outm, void *userData
                     if ret is None:
                         ret = 0
                     ret = {'val':ret}
-                dictToMap(ret, outm, core, vsapi)
+                dictToMap(ret, outm, False, core, vsapi)
         except BaseException, e:
             emsg = str(e).encode('utf-8')
             vsapi.setError(outm, emsg)
@@ -2787,7 +2815,19 @@ cdef const VSAPI *getVSAPIInternal() nogil:
     if _vsapi == NULL:
         _vsapi = getVapourSynthAPI(VAPOURSYNTH_API_VERSION)
     return _vsapi
-
+    
+cdef public api int vpy4_getOptions(VSScript *se, VSMap *dst) nogil:
+    with gil:
+        with _vsscript_use_environment(se.id).use():
+            if getVSAPIInternal() == NULL:
+                return 1         
+            try:
+                core = vsscript_get_core_internal(_get_vsscript_policy().get_environment(se.id))
+                dictToMap(_get_options_dict("vpy4_getOptions"), dst, True, core.core, getVSAPIInternal())
+                return 0
+            except:
+                return 1
+                
 cdef public api int vpy_getVariable(VSScript *se, const char *name, VSMap *dst) nogil:
     with gil:
         with _vsscript_use_environment(se.id).use():
@@ -2798,7 +2838,7 @@ cdef public api int vpy_getVariable(VSScript *se, const char *name, VSMap *dst) 
                 dname = name.decode('utf-8')
                 read_var = { dname:evaldict[dname]}
                 core = vsscript_get_core_internal(_get_vsscript_policy().get_environment(se.id))
-                dictToMap(read_var, dst, core.core, getVSAPIInternal())
+                dictToMap(read_var, dst, False, core.core, getVSAPIInternal())
                 return 0
             except:
                 return 1

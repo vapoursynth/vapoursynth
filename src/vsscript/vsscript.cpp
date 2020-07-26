@@ -139,7 +139,7 @@ static int createScriptInternal(VSScript **handle) VS_NOEXCEPT {
 }
 
 static VSScript *createScriptInternal() VS_NOEXCEPT {
-    VSScript *handle = new VSScript{};
+    VSScript *handle = new VSScript();
     handle->id = ++scriptID;
     return handle;
 }
@@ -170,7 +170,6 @@ VS_API(int) vsscript_evaluateFile(VSScript **handle, const char *scriptFilename,
 
 static VSScript *VS_CC evaluateBuffer(const char *buffer, const char *scriptFilename, const VSMap *vars, const VSScriptOptions *options) VS_NOEXCEPT {
     std::lock_guard<std::mutex> lock(vsscriptlock);
-
     VSScript *handle = createScriptInternal();
     vpy4_evaluateBuffer(handle, buffer, scriptFilename, vars, options);
     return handle;
@@ -200,7 +199,6 @@ VS_API(const char *) vsscript_getError(VSScript *handle) VS_NOEXCEPT {
 }
 
 VS_API(const VSAPI *) vsscript_getVSApi2(int version) VS_NOEXCEPT {
-    // it's possible no lock is needed here but do it just to be sure
     std::lock_guard<std::mutex> lock(vsscriptlock);
     return vpy4_getVSAPI(version);
 }
@@ -223,6 +221,7 @@ VS_API(VSNodeRef *) vsscript_getOutput2(VSScript *handle, int index, VSNodeRef *
 
 // V3 API compatibility
 VS_API(VSNodeRef *) vsscript_getOutput(VSScript *handle, int index) VS_NOEXCEPT {
+    std::lock_guard<std::mutex> lock(vsscriptlock);
     return vpy4_getOutput(handle, index);
 }
 
@@ -234,6 +233,11 @@ static VSNodeRef *VS_CC getOutputNode(VSScript *handle, int index) VS_NOEXCEPT {
 static VSNodeRef *VS_CC getOutputAlphaNode(VSScript *handle, int index) VS_NOEXCEPT {
     std::lock_guard<std::mutex> lock(vsscriptlock);
     return vpy4_getAlphaOutput(handle, index);
+}
+
+static int VS_CC getOptions(VSScript *handle, VSMap *dst) VS_NOEXCEPT {
+    std::lock_guard<std::mutex> lock(vsscriptlock);
+    return vpy4_getOptions(handle, dst);
 }
 
 // V3 API compatibility
@@ -253,6 +257,7 @@ VS_API(const VSAPI *) vsscript_getVSApi(void) VS_NOEXCEPT {
     return vpy4_getVSAPI(3 << 16);
 }
 
+// V3 API compatibility
 VS_API(int) vsscript_getVariable(VSScript *handle, const char *name, VSMap *dst) VS_NOEXCEPT {
     std::lock_guard<std::mutex> lock(vsscriptlock);
     int result = vpy_getVariable(handle, name, dst);
@@ -294,7 +299,7 @@ static VSSCRIPTAPI vsscript_api = {
     &vsscript_getError,
     &getOutputNode,
     &getOutputAlphaNode,
-    &vsscript_getVariable,
+    &getOptions,
     &vsscript_getCore,
     &vsscript_freeScript
 };

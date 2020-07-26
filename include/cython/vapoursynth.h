@@ -30,6 +30,7 @@ __PYX_EXTERN_C VSNodeRef *vpy4_getAlphaOutput(VSScript *, int);
 __PYX_EXTERN_C int vpy_clearOutput(VSScript *, int);
 __PYX_EXTERN_C VSCore *vpy4_getCore(VSScript *);
 __PYX_EXTERN_C VSAPI const *vpy4_getVSAPI(int);
+__PYX_EXTERN_C int vpy4_getOptions(VSScript *, VSMap *);
 __PYX_EXTERN_C int vpy_getVariable(VSScript *, char const *, VSMap *);
 __PYX_EXTERN_C int vpy_setVariable(VSScript *, VSMap const *);
 __PYX_EXTERN_C int vpy_clearVariable(VSScript *, char const *);

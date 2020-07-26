@@ -195,7 +195,7 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
             int error;
             int64_t val;
             VSMap *options = vsapi->createMap();
-            vssapi->getVariable(se, "enable_v210", options);
+            vssapi->getOptions(se, options);
             val = vsapi->propGetInt(options, "enable_v210", 0, &error);
             if (!error)
                 enable_v210 = !!val && IsSameVideoFormat(vi->format, cfYUV, stInteger, 10, 1, 0);
@@ -448,7 +448,7 @@ const char* VapourSynther::GetVarAsString(
     const char* varName, const char* defVal) {
 
     VSMap *map = vsapi->createMap();
-    vssapi->getVariable(se, varName, map);
+    vssapi->getOptions(se, map);
     int err = 0;
     const char *result = vsapi->propGetData(map, varName, 0, &err);
     if (err)
@@ -472,7 +472,7 @@ bool VapourSynther::GetVarAsBool(const char* varName, bool defVal) {
 
 int VapourSynther::GetVarAsInt(const char* varName, int defVal) {
     VSMap *map = vsapi->createMap();
-    vssapi->getVariable(se, varName, map);
+    vssapi->getOptions(se, map);
     int err = 0;
     int result = vsapi->propGetSaturatedInt(map, varName, 0, &err);
     if (err)

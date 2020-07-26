@@ -69,4 +69,8 @@ VS_ALIGNED_FREE => VSH_ALIGNED_FREE
 vs_normalizeRational => reduceRational
 
 VSScript:
+Options that impact the output are now set through set_option() in python. They're no longer global
+script variables to reduce the risk of name collisions and more clearly show their prupose. The options
+themselves have the same names (enable_v210, 
+
 TODO

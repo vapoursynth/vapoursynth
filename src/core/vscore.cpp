@@ -741,7 +741,8 @@ void VSPluginFunction::parseArgString(const std::string argString, std::vector<F
 VSPluginFunction::VSPluginFunction(const std::string &name, const std::string &argString, const std::string &returnType, VSPublicFunction func, void *functionData, int apiMajor)
     : name(name), argString(argString), returnType(returnType), func(func), functionData(functionData) {
     parseArgString(argString, args, apiMajor);
-    parseArgString(returnType, retArgs, apiMajor);
+    if (returnType != "any")
+        parseArgString(returnType, retArgs, apiMajor);
 }
 
 bool VSPluginFunction::isV3Compatible() const {
