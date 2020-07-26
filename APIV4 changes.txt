@@ -1,0 +1,66 @@
+API changes V3->V4
+
+Header files:
+All header files have had 4 appended to their name. The V4 files are called:
+VapourSynth4.h
+VSHelper4.h
+VSScript4.h
+
+Core creation:
+createCore() now takes a set of flags instead of a thread number since it can be set directly after
+construction with setThreadCount() anyway. The flags control the few options that have to be set at
+creation time and can't be changed at a later time.
+
+Plugin and function registration:
+There's a completely new entry point that takes
+
+Function registrations now take an additional argument for the return type that follows the same
+format as the input arguments. If a function has an unknown or simple unpredictable return type
+it can be set to "any". Note that V3 functions will have the "any" return type.
+Since the audio types anode and a frame were introduced the video counterparts were renamed to
+vnode and vframe instead of clip and frame.
+
+Property manipulation:
+Audio node and audio frame types were added and the types are now declared as normal enum constants
+and not obscure charaters. The best way to think about audio and video nodes are that they're two
+separate types that happen to share functions to manipulate them. As a result of this reasoning a
+single key in a VSMap can only hold audio or video nodes but not a mix of both. The same applies to
+frames (but they're rarely used as arguments).
+The data type now has a hint for whether the data should be treated as utf8 or binary which can be
+useful for filters that print values. Data set by V3 filters will always be reported as unknown.
+Two new convenience functions were added. propGetSaturatedInt and propGetSaturatedFloat which are
+equivalent to int64ToIntS(propGetInt) and the same operation for float.
+
+Filter changes:
+createFilter has been replaced by createVideoFilter. The init callback has been deprecated and instead
+an array of VSVideoInfo is passed directly to createVideoFilter.
+The getFrame callback has also been changed in two important ways, the void **instanceData pointer
+has been changed to void * to remove the pointless additional indirection. The void **frameData
+pointer now points to a scratch space of size void *[4] instead of only being a single pointer.
+This can be used to not have to allocate and free memory on every frame processed. See the Splice
+filter for an example of this.
+
+Audio filter support:
+Audio filters are created with createAudioFilter and work very similarly to video filters. Note that
+all audio frames have a fixed size (VS_AUDIO_FRAME_SAMPLES) except for the last one in a clip that may
+be shorter if necessary. This needs to be kept in mind when writing filters that append two clips.
+
+Message handlers:
+Message handlers are now registered per core and not globally to improve core and environment isolation.
+Note that there's no longer a default handler that prints messages to stderr if no handler is installed
+so direct users of the core/vsscript need to install one to still get messages printed.
+There's also a new mtInformation level that's self-explanatory.
+
+VSHelper:
+The header now has all functions placed in the vsh namespace (C++) or prefixes them with vsh (C) in
+order to not clutter things up as much. Several functions were also renamed for clarity.
+Renamed functions:
+all functions with a vs_ prefix had it removed (see C/C++ mode differences above)
+vs_aligned_malloc => vsh_aligned_malloc
+vs_aligned_free => vsh_aligned_free
+VS_ALIGNED_MALLOC => VSH_ALIGNED_MALLOC
+VS_ALIGNED_FREE => VSH_ALIGNED_FREE
+vs_normalizeRational => reduceRational
+
+VSScript:
+TODO

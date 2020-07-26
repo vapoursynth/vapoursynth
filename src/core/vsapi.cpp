@@ -40,7 +40,7 @@ static int VS_CC registerFunction(const char *name, const char *args, const char
 
 static void VS_CC registerFunction3(const char *name, const char *args, vs3::VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) VS_NOEXCEPT {
     assert(name && args && argsFunc && plugin);
-    plugin->registerFunction(name, args, "", reinterpret_cast<VSPublicFunction>(argsFunc), functionData); // fixme, how to handle any return type or argument list?
+    plugin->registerFunction(name, args, "any", reinterpret_cast<VSPublicFunction>(argsFunc), functionData);
 }
 
 static const vs3::VSVideoFormat *VS_CC getFormatPreset3(int id, VSCore *core) VS_NOEXCEPT {
@@ -946,7 +946,7 @@ static int VS_CC getFrameLength(const VSFrameRef *f) VS_NOEXCEPT {
     return f->getFrameLength();
 }
 
-static int VS_CC getApiVersion(void) VS_NOEXCEPT{
+static int VS_CC getAPIVersion(void) VS_NOEXCEPT{
     return VAPOURSYNTH_API_VERSION;
 }
 
@@ -978,7 +978,7 @@ static void VS_CC setInternalFilterRelation(const VSMap *nodeMap, VSNodeRef **de
 }
 
 const VSPLUGINAPI vs_internal_vspapi {
-    &getApiVersion,
+    &getAPIVersion,
     &configPlugin,
     &registerFunction
 };
@@ -1096,7 +1096,7 @@ const VSAPI vs_internal_vsapi = {
     &setMaxCacheSize,
     &setThreadCount,
     &getCoreInfo2,
-    &getApiVersion,
+    &getAPIVersion,
 
     &logMessage,
     &addMessageHandler,

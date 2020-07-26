@@ -29,6 +29,12 @@
 #define VAPOURSYNTH_API_MINOR 9000
 #define VAPOURSYNTH_API_VERSION VS_MAKE_VERSION(VAPOURSYNTH_API_MAJOR, VAPOURSYNTH_API_MINOR)
 
+#define VS_AUDIO_FRAME_SAMPLES 3000
+
+#define VS_STD_PLUGIN_ID "com.vapoursynth.std"
+#define VS_RESIZE_PLUGIN_ID "com.vapoursynth.resize"
+#define VS_TEXT_PLUGIN_ID "com.vapoursynth.text"
+
 /* Convenience for C++ users. */
 #ifdef __cplusplus
 #    define VS_EXTERN_C extern "C"
@@ -73,12 +79,6 @@ typedef struct VSMap VSMap;
 typedef struct VSFrameContext VSFrameContext;
 typedef struct VSPLUGINAPI VSPLUGINAPI;
 typedef struct VSAPI VSAPI;
-
-#define VS_STD_PLUGIN_ID "com.vapoursynth.std"
-#define VS_RESIZE_PLUGIN_ID "com.vapoursynth.resize"
-#define VS_TEXT_PLUGIN_ID "com.vapoursynth.text"
-
-#define VS_AUDIO_FRAME_SAMPLES 3000
 
 typedef enum VSColorFamily {
     cfUndefined = 0,
@@ -316,7 +316,7 @@ typedef void (VS_CC *VSMessageHandlerFree)(void *userData);
 
 // FIXME, document return values and such in comments
 struct VSPLUGINAPI {
-    int (VS_CC *getApiVersion)(void) VS_NOEXCEPT;
+    int (VS_CC *getAPIVersion)(void) VS_NOEXCEPT;
     int (VS_CC *configPlugin)(const char *identifier, const char *pluginNamespace, const char *name, int pluginVersion, int apiVersion, int flags, VSPlugin *plugin) VS_NOEXCEPT; /* use the VS_MAKE_VERSION macro for pluginVersion */
     int (VS_CC *registerFunction)(const char *name, const char *args, const char *returnType, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) VS_NOEXCEPT; /* non-zero return value on success  */
 };
@@ -445,7 +445,7 @@ struct VSAPI {
     int64_t(VS_CC *setMaxCacheSize)(int64_t bytes, VSCore *core) VS_NOEXCEPT; /* the total cache size at which vapoursynth more aggressively tries to reclaim memory, it is not a hard limit */
     int (VS_CC *setThreadCount)(int threads, VSCore *core) VS_NOEXCEPT; /* setting threads to 0 means automatic detection */
     void (VS_CC *getCoreInfo)(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT;
-    int (VS_CC *getApiVersion)(void) VS_NOEXCEPT;
+    int (VS_CC *getAPIVersion)(void) VS_NOEXCEPT;
 
     /* Message handler */
     void (VS_CC *logMessage)(int msgType, const char *msg, VSCore *core) VS_NOEXCEPT;
