@@ -588,14 +588,14 @@ const vs3::VSVideoFormat *VSFrameRef::getVideoFormatV3() const noexcept {
 
 ptrdiff_t VSFrameRef::getStride(int plane) const {
     assert(contentType == mtVideo);
-    if (plane < 0 || plane >= numPlanes) // FIXME, return 0 instead of a fatal error?
-        core->logMessage(mtFatal, "Requested stride of nonexistent plane " + std::to_string(plane));
+    if (plane < 0 || plane >= numPlanes)
+        return 0;
     return stride[plane];
 }
 
 const uint8_t *VSFrameRef::getReadPtr(int plane) const {
-    if (plane < 0 || plane >= numPlanes) // FIXME, return 0 instead of a fatal error?
-        core->logMessage(mtFatal, "Requested read pointer for nonexistent plane " + std::to_string(plane));
+    if (plane < 0 || plane >= numPlanes)
+        return nullptr;
 
     if (contentType == mtVideo)
         return data[plane]->data + guardSpace;
@@ -604,8 +604,8 @@ const uint8_t *VSFrameRef::getReadPtr(int plane) const {
 }
 
 uint8_t *VSFrameRef::getWritePtr(int plane) {
-    if (plane < 0 || plane >= numPlanes) // FIXME, return 0 instead of a fatal error?
-        core->logMessage(mtFatal, "Requested write pointer for nonexistent plane " + std::to_string(plane));
+    if (plane < 0 || plane >= numPlanes)
+        return nullptr;
 
     // copy the plane data if this isn't the only reference
     if (contentType == mtVideo) {
