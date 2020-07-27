@@ -96,11 +96,11 @@ static void VS_CC audioTrimCreate(const VSMap *in, VSMap *out, void *userData, V
     int err;
     int64_t trimlen;
 
-    d->first = vsapi->propGetSaturatedInt(in, "first", 0, &err);
+    d->first = vsapi->mapGetIntSaturated(in, "first", 0, &err);
     bool firstset = !err;
-    int64_t last = vsapi->propGetSaturatedInt(in, "last", 0, &err);
+    int64_t last = vsapi->mapGetIntSaturated(in, "last", 0, &err);
     bool lastset = !err;
-    int64_t length = vsapi->propGetSaturatedInt(in, "length", 0, &err);
+    int64_t length = vsapi->mapGetIntSaturated(in, "length", 0, &err);
     bool lengthset = !err;
 
     if (lastset && lengthset)
@@ -115,7 +115,7 @@ static void VS_CC audioTrimCreate(const VSMap *in, VSMap *out, void *userData, V
     if (d->first < 0)
         RETERROR("Trim: invalid first frame specified (less than 0)");
 
-    d->node = vsapi->propGetNode(in, "clip", 0, 0);
+    d->node = vsapi->mapGetNode(in, "clip", 0, 0);
 
     d->ai = *vsapi->getAudioInfo(d->node);
 
@@ -132,7 +132,7 @@ static void VS_CC audioTrimCreate(const VSMap *in, VSMap *out, void *userData, V
 
     // obvious nop() so just pass through the input clip
     if ((!firstset && !lastset && !lengthset) || (trimlen && trimlen == d->ai.numSamples)) {
-        vsapi->propSetNode(out, "clip", d->node, paReplace);
+        vsapi->mapSetNode(out, "clip", d->node, paReplace);
         return;
     }
 
@@ -221,10 +221,10 @@ static const VSFrameRef *VS_CC audioSpliceGetframe(int n, int activationReason, 
 }
 
 static void VS_CC audioSpliceCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    int numNodes = vsapi->propNumElements(in, "clips");
+    int numNodes = vsapi->mapNumElements(in, "clips");
     if (numNodes == 1) {
-        VSNodeRef *node = vsapi->propGetNode(in, "clips", 0, nullptr);
-        vsapi->propSetNode(out, "clip", node, paAppend);
+        VSNodeRef *node = vsapi->mapGetNode(in, "clips", 0, nullptr);
+        vsapi->mapSetNode(out, "clip", node, paAppend);
         vsapi->freeNode(node);
     }
   
@@ -232,7 +232,7 @@ static void VS_CC audioSpliceCreate(const VSMap *in, VSMap *out, void *userData,
 
     d->node.reserve(numNodes);
     for (int i = 0; i < numNodes; i++)
-        d->node.push_back(vsapi->propGetNode(in, "clips", i, nullptr));
+        d->node.push_back(vsapi->mapGetNode(in, "clips", i, nullptr));
 
     d->ai = *vsapi->getAudioInfo(d->node[0]);
 
@@ -325,18 +325,18 @@ static const VSFrameRef *VS_CC audioLoopGetFrame(int n, int activationReason, vo
 static void VS_CC audioLoopCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     int error;
     std::unique_ptr<AudioLoopData> d(new AudioLoopData(vsapi));
-    int64_t times = vsapi->propGetInt(in, "times", 0, &error);
+    int64_t times = vsapi->mapGetInt(in, "times", 0, &error);
     if (times < 0)
         RETERROR("AudioLoop: cannot repeat clip a negative number of times");
 
-    d->node = vsapi->propGetNode(in, "clip", 0, nullptr);
+    d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
     d->ai = *vsapi->getAudioInfo(d->node);
     d->srcSamples = d->ai.numSamples;
     d->srcFrames = d->ai.numFrames;
 
     // early termination for the trivial case
     if (times == 1) {
-        vsapi->propSetNode(out, "clip", d->node, paReplace);
+        vsapi->mapSetNode(out, "clip", d->node, paReplace);
         return;
     }
 
@@ -412,7 +412,7 @@ static const VSFrameRef *VS_CC audioReverseGetFrame(int n, int activationReason,
 
 static void VS_CC audioReverseCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<AudioReverseData> d(new AudioReverseData(vsapi));
-    d->node = vsapi->propGetNode(in, "clip", 0, nullptr);
+    d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
     d->ai = vsapi->getAudioInfo(d->node);
 
     if (d->ai->format.bytesPerSample == 2)
@@ -460,11 +460,11 @@ static const VSFrameRef *VS_CC audioGainGetFrame(int n, int activationReason, vo
 
 static void VS_CC audioGainCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<AudioGainData> d(new AudioGainData(vsapi));
-    int numGainValues = vsapi->propNumElements(in, "gain");
+    int numGainValues = vsapi->mapNumElements(in, "gain");
     for (int i = 0; i < numGainValues; i++)
-        d->gain.push_back(vsapi->propGetFloat(in, "gain", i, nullptr));
+        d->gain.push_back(vsapi->mapGetFloat(in, "gain", i, nullptr));
 
-    d->node = vsapi->propGetNode(in, "clip", 0, nullptr);
+    d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
     d->ai = vsapi->getAudioInfo(d->node);
 
     if (numGainValues != 1 && numGainValues != d->ai->format.numChannels)
@@ -551,18 +551,18 @@ static void VS_CC audioMixFree(void *instanceData, VSCore *core, const VSAPI *vs
 
 static void VS_CC audioMixCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<AudioMixData> d(new AudioMixData());
-    int numSrcNodes = vsapi->propNumElements(in, "clips");
-    int numMatrixWeights = vsapi->propNumElements(in, "matrix");
-    int numDstChannels = vsapi->propNumElements(in, "channels_out");
+    int numSrcNodes = vsapi->mapNumElements(in, "clips");
+    int numMatrixWeights = vsapi->mapNumElements(in, "matrix");
+    int numDstChannels = vsapi->mapNumElements(in, "channels_out");
     uint64_t channelLayout = 0;
 
     for (int i = 0; i < numDstChannels; i++) {
-        int channel = vsapi->propGetSaturatedInt(in, "channels_out", i, nullptr);
+        int channel = vsapi->mapGetIntSaturated(in, "channels_out", i, nullptr);
         channelLayout |= static_cast<uint64_t>(1) << channel;
     }
 
     for (int i = 0; i < numDstChannels; i++) {
-        int channel = vsapi->propGetSaturatedInt(in, "channels_out", i, nullptr);
+        int channel = vsapi->mapGetIntSaturated(in, "channels_out", i, nullptr);
         int pos = 0;
         for (int j = 0; j < channel; j++) {
             if ((static_cast<uint64_t>(1) << j) & channelLayout)
@@ -574,7 +574,7 @@ static void VS_CC audioMixCreate(const VSMap *in, VSMap *out, void *userData, VS
     int numSrcChannels = 0;
 
     for (int i = 0; i < numSrcNodes; i++) {
-        VSNodeRef *node = vsapi->propGetNode(in, "clips", std::min(numSrcNodes - 1, i), nullptr);
+        VSNodeRef *node = vsapi->mapGetNode(in, "clips", std::min(numSrcNodes - 1, i), nullptr);
         const VSAudioFormat &f = vsapi->getAudioInfo(node)->format;
         for (int j = 0; j < f.numChannels; j++) {
             d->sourceNodes.push_back({ (j > 0) ? vsapi->cloneNodeRef(node) : node, j, -1, {} });
@@ -606,7 +606,7 @@ static void VS_CC audioMixCreate(const VSMap *in, VSMap *out, void *userData, VS
 
         d->ai.numSamples = std::max(d->ai.numSamples, ai->numSamples);
         for (int j = 0; j < numDstChannels; j++)
-            d->sourceNodes[i].weights.push_back(vsapi->propGetFloat(in, "matrix", j * numSrcChannels + i, nullptr));
+            d->sourceNodes[i].weights.push_back(vsapi->mapGetFloat(in, "matrix", j * numSrcChannels + i, nullptr));
         d->sourceNodes[i].numFrames = ai->numFrames;
     }
 
@@ -616,7 +616,7 @@ static void VS_CC audioMixCreate(const VSMap *in, VSMap *out, void *userData, VS
         err = "ShuffleChannels: output channel specified twice";
 
     if (err) {
-        vsapi->setError(out, err);
+        vsapi->mapSetError(out, err);
         for (const auto &iter : d->sourceNodes)
             vsapi->freeNode(iter.node);
         return;
@@ -695,9 +695,9 @@ static void VS_CC shuffleChannelsFree(void *instanceData, VSCore *core, const VS
 
 static void VS_CC shuffleChannelsCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<ShuffleChannelsData> d(new ShuffleChannelsData());
-    int numSrcNodes = vsapi->propNumElements(in, "clip");
-    int numSrcChannels = vsapi->propNumElements(in, "channels_in");
-    int numDstChannels = vsapi->propNumElements(in, "channels_out");
+    int numSrcNodes = vsapi->mapNumElements(in, "clip");
+    int numSrcChannels = vsapi->mapNumElements(in, "channels_in");
+    int numDstChannels = vsapi->mapNumElements(in, "channels_out");
 
     if (numSrcChannels != numDstChannels) 
         RETERROR("ShuffleChannels: must have the same number of input and output channels");
@@ -708,10 +708,10 @@ static void VS_CC shuffleChannelsCreate(const VSMap *in, VSMap *out, void *userD
     uint64_t channelLayout = 0;
 
     for (int i = 0; i < numSrcChannels; i++) {
-        int channel = vsapi->propGetSaturatedInt(in, "channels_in", i, nullptr);
-        int dstChannel = vsapi->propGetSaturatedInt(in, "channels_out", i, nullptr);
+        int channel = vsapi->mapGetIntSaturated(in, "channels_in", i, nullptr);
+        int dstChannel = vsapi->mapGetIntSaturated(in, "channels_out", i, nullptr);
         channelLayout |= (static_cast<uint64_t>(1) << dstChannel);
-        VSNodeRef *node = vsapi->propGetNode(in, "clip", std::min(numSrcNodes - 1, i), nullptr);
+        VSNodeRef *node = vsapi->mapGetNode(in, "clip", std::min(numSrcNodes - 1, i), nullptr);
         d->sourceNodes.push_back({ node, channel, dstChannel, -1 });
     }
 
@@ -754,7 +754,7 @@ static void VS_CC shuffleChannelsCreate(const VSMap *in, VSMap *out, void *userD
         err = "ShuffleChannels: output channel specified twice";
 
     if (err) {
-        vsapi->setError(out, err);
+        vsapi->mapSetError(out, err);
         for (const auto &iter : d->sourceNodes)
             vsapi->freeNode(iter.node);
         return;
@@ -800,7 +800,7 @@ static const VSFrameRef *VS_CC splitChannelsGetFrame(int n, int activationReason
 
 static void VS_CC splitChannelsCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<SplitChannelsData> d(new SplitChannelsData(vsapi));
-    d->node = vsapi->propGetNode(in, "clip", 0, nullptr);
+    d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
     VSAudioInfo ai = *vsapi->getAudioInfo(d->node);
     uint64_t channelLayout = ai.format.channelLayout;
     d->numChannels = ai.format.numChannels;
@@ -840,14 +840,14 @@ static void VS_CC assumeSampleRateCreate(const VSMap *in, VSMap *out, void *user
     bool hassrc = false;
     int err;
 
-    d->node = vsapi->propGetNode(in, "clip", 0, 0);
+    d->node = vsapi->mapGetNode(in, "clip", 0, 0);
     VSAudioInfo ai = *vsapi->getAudioInfo(d->node);
 
-    ai.sampleRate = vsapi->propGetSaturatedInt(in, "samplerate", 0, &err);
+    ai.sampleRate = vsapi->mapGetIntSaturated(in, "samplerate", 0, &err);
     if (!err)
         hassamplerate = true;
 
-    VSNodeRef *src = vsapi->propGetNode(in, "src", 0, &err);
+    VSNodeRef *src = vsapi->mapGetNode(in, "src", 0, &err);
 
     if (!err) {
         ai.sampleRate = vsapi->getAudioInfo(d->node)->sampleRate;
@@ -909,23 +909,23 @@ static void VS_CC blankAudioCreate(const VSMap *in, VSMap *out, void *userData, 
 
     int err;
 
-    int64_t channels = vsapi->propGetInt(in, "channels", 0, &err);
+    int64_t channels = vsapi->mapGetInt(in, "channels", 0, &err);
     if (err)
         channels = (1 << acFrontLeft) | (1 << acFrontRight);
 
-    int bits = vsapi->propGetSaturatedInt(in, "bits", 0, &err);
+    int bits = vsapi->mapGetIntSaturated(in, "bits", 0, &err);
     if (err)
         bits = 16;
 
-    bool isfloat = !!vsapi->propGetInt(in, "isfloat", 0, &err);
+    bool isfloat = !!vsapi->mapGetInt(in, "isfloat", 0, &err);
 
-    d->keep = !!vsapi->propGetInt(in, "keep", 0, &err);
+    d->keep = !!vsapi->mapGetInt(in, "keep", 0, &err);
 
-    d->ai.sampleRate = vsapi->propGetSaturatedInt(in, "samplerate", 0, &err);
+    d->ai.sampleRate = vsapi->mapGetIntSaturated(in, "samplerate", 0, &err);
     if (err)
         d->ai.sampleRate = 44100;
 
-    d->ai.numSamples = vsapi->propGetInt(in, "length", 0, &err);
+    d->ai.numSamples = vsapi->mapGetInt(in, "length", 0, &err);
     if (err)
         d->ai.numSamples = static_cast<int64_t>(d->ai.sampleRate) * 60 * 60;
 
@@ -972,24 +972,24 @@ static void VS_CC testAudioCreate(const VSMap *in, VSMap *out, void *userData, V
 
     int err;
 
-    int64_t channels = vsapi->propGetInt(in, "channels", 0, &err);
+    int64_t channels = vsapi->mapGetInt(in, "channels", 0, &err);
     if (err)
         channels = (1 << acFrontLeft) | (1 << acFrontRight);
 
-    int bits = vsapi->propGetSaturatedInt(in, "bits", 0, &err);
+    int bits = vsapi->mapGetIntSaturated(in, "bits", 0, &err);
     if (err)
         bits = 16;
 
     if (bits != 16)
         RETERROR("TestAudio: bits must be 16!");
 
-    bool isfloat = !!vsapi->propGetInt(in, "isfloat", 0, &err);
+    bool isfloat = !!vsapi->mapGetInt(in, "isfloat", 0, &err);
 
-    d->ai.sampleRate = vsapi->propGetSaturatedInt(in, "samplerate", 0, &err);
+    d->ai.sampleRate = vsapi->mapGetIntSaturated(in, "samplerate", 0, &err);
     if (err)
         d->ai.sampleRate = 44100;
 
-    d->ai.numSamples = vsapi->propGetInt(in, "length", 0, &err);
+    d->ai.numSamples = vsapi->mapGetInt(in, "length", 0, &err);
     if (err)
         d->ai.numSamples = static_cast<int64_t>(d->ai.sampleRate) * 60 * 60;
 

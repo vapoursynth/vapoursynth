@@ -354,10 +354,10 @@ static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, 
                         data->totalFrames = data->requestedFrames;
                         data->outputError = true;
                     } else {
-                        const VSMap *props = data->vsapi->getFramePropsRO(frame);
+                        const VSMap *props = data->vsapi->getFramePropertiesRO(frame);
                         int err_num, err_den;
-                        int64_t duration_num = data->vsapi->propGetInt(props, "_DurationNum", 0, &err_num);
-                        int64_t duration_den = data->vsapi->propGetInt(props, "_DurationDen", 0, &err_den);
+                        int64_t duration_num = data->vsapi->mapGetInt(props, "_DurationNum", 0, &err_num);
+                        int64_t duration_den = data->vsapi->mapGetInt(props, "_DurationDen", 0, &err_den);
 
                         if (err_num || err_den || !duration_den) {
                             if (data->errorMessage.empty()) {
@@ -915,7 +915,7 @@ int main(int argc, char **argv) {
     if (!opts.scriptArgs.empty()) {
         VSMap *foldedArgs = vsapi->createMap();
         for (const auto &iter : opts.scriptArgs)
-            vsapi->propSetData(foldedArgs, iter.first.c_str(), iter.second.c_str(), static_cast<int>(iter.second.size()), dtUtf8, paAppend);
+            vsapi->mapSetData(foldedArgs, iter.first.c_str(), iter.second.c_str(), static_cast<int>(iter.second.size()), dtUtf8, paAppend);
         se = vssapi->evaluateFile(nstringToUtf8(opts.scriptFilename).c_str(), foldedArgs, &scriptOpts);
         vsapi->freeMap(foldedArgs);
     } else {
@@ -953,15 +953,15 @@ int main(int argc, char **argv) {
 
         if (opts.startPos != 0 || opts.endPos != -1) {
             VSMap *args = vsapi->createMap();
-            vsapi->propSetNode(args, "clip", node, paAppend);
+            vsapi->mapSetNode(args, "clip", node, paAppend);
             if (opts.startPos != 0)
-                vsapi->propSetInt(args, "first", opts.startPos, paAppend);
+                vsapi->mapSetInt(args, "first", opts.startPos, paAppend);
             if (opts.endPos > -1)
-                vsapi->propSetInt(args, "last", opts.endPos, paAppend);
+                vsapi->mapSetInt(args, "last", opts.endPos, paAppend);
             VSMap *result = vsapi->invoke(vsapi->getPluginByID(VS_STD_PLUGIN_ID, vssapi->getCore(se)), (nodeType == mtVideo) ? "Trim" : "AudioTrim", args);
             vsapi->freeMap(args);
-            if (vsapi->getError(result)) {
-                fprintf(stderr, "%s\n", vsapi->getError(result));
+            if (vsapi->mapGetError(result)) {
+                fprintf(stderr, "%s\n", vsapi->mapGetError(result));
                 vsapi->freeMap(result);
                 vsapi->freeNode(node);
                 vsapi->freeNode(alphaNode);
@@ -969,7 +969,7 @@ int main(int argc, char **argv) {
                 return 1;
             } else {
                 vsapi->freeNode(node);
-                node = vsapi->propGetNode(result, "clip", 0, nullptr);
+                node = vsapi->mapGetNode(result, "clip", 0, nullptr);
                 vsapi->freeMap(result);
             }
         }

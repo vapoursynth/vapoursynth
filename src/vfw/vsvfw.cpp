@@ -474,7 +474,7 @@ bool VapourSynthFile::DelayInit2() {
             int error;
             VSMap *options = vsapi->createMap();
             vssapi->getOptions(se, options);
-            enable_v210 = !!vsapi->propGetInt(options, "enable_v210", 0, &error);
+            enable_v210 = !!vsapi->mapGetInt(options, "enable_v210", 0, &error);
             vsapi->freeMap(options);
 
             ////////// audio

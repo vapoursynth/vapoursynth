@@ -196,7 +196,7 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
             int64_t val;
             VSMap *options = vsapi->createMap();
             vssapi->getOptions(se, options);
-            val = vsapi->propGetInt(options, "enable_v210", 0, &error);
+            val = vsapi->mapGetInt(options, "enable_v210", 0, &error);
             if (!error)
                 enable_v210 = !!val && IsSameVideoFormat(vi->format, cfYUV, stInteger, 10, 1, 0);
             else
@@ -212,7 +212,7 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName) {
 
             return 0;
         } else {
-        	vpyerror:
+            vpyerror:
             setError(vssapi->getError(se));
             return ERROR_ACCESS_DENIED;
         }
@@ -450,7 +450,7 @@ const char* VapourSynther::GetVarAsString(
     VSMap *map = vsapi->createMap();
     vssapi->getOptions(se, map);
     int err = 0;
-    const char *result = vsapi->propGetData(map, varName, 0, &err);
+    const char *result = vsapi->mapGetData(map, varName, 0, &err);
     if (err)
         result = defVal;
 
@@ -474,7 +474,7 @@ int VapourSynther::GetVarAsInt(const char* varName, int defVal) {
     VSMap *map = vsapi->createMap();
     vssapi->getOptions(se, map);
     int err = 0;
-    int result = vsapi->propGetSaturatedInt(map, varName, 0, &err);
+    int result = vsapi->mapGetIntSaturated(map, varName, 0, &err);
     if (err)
         result = defVal;
     vsapi->freeMap(map);

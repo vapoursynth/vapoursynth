@@ -91,13 +91,13 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     int err;
 
     // Get a clip reference from the input arguments. This must be freed later.
-    d.node = vsapi->propGetNode(in, "clip", 0, 0);
+    d.node = vsapi->mapGetNode(in, "clip", 0, 0);
     d.vi = vsapi->getVideoInfo(d.node);
 
     // In this first version we only want to handle 8bit integer formats. Note that
     // vi->format can be 0 if the input clip can change format midstream.
     if (!isConstantVideoFormat(d.vi) || d.vi->format.sampleType != stInteger || d.vi->format.bitsPerSample != 8) {
-        vsapi->setError(out, "Invert: only constant format 8bit integer input supported");
+        vsapi->mapSetError(out, "Invert: only constant format 8bit integer input supported");
         vsapi->freeNode(d.node);
         return;
     }
@@ -108,13 +108,13 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     // strict checking because of what we wrote in the argument string, the only
     // reason this could fail is when the value wasn't set by the user.
     // And when it's not set we want it to default to enabled.
-    d.enabled = !!vsapi->propGetInt(in, "enable", 0, &err);
+    d.enabled = !!vsapi->mapGetInt(in, "enable", 0, &err);
     if (err)
         d.enabled = 1;
 
     // Let's pretend the only allowed values are 1 or 0...
     if (d.enabled < 0 || d.enabled > 1) {
-        vsapi->setError(out, "Invert: enabled must be 0 or 1");
+        vsapi->mapSetError(out, "Invert: enabled must be 0 or 1");
         vsapi->freeNode(d.node);
         return;
     }

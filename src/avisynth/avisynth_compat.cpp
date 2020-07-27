@@ -342,7 +342,7 @@ static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, VS
     OTHER(FFGetLogLevel)
     OTHER(FFGetVersion)
     // TNLMeans
-    temp = vsapi->propGetSaturatedInt(in, "Az", 0, &err);
+    temp = vsapi->mapGetIntSaturated(in, "Az", 0, &err);
     PREFETCH(TNLMeans, 1, 1, -temp, temp)
     // yadif*
     PREFETCHR1(Yadif)
@@ -355,7 +355,7 @@ static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, VS
     PREFETCHR0(nnedi3)
     PREFETCHR0(nnedi3_rpow2)
     // mixed Tritical
-    temp = vsapi->propGetSaturatedInt(in, "mode", 0, &err);
+    temp = vsapi->mapGetIntSaturated(in, "mode", 0, &err);
     switch(temp) {
     case 0:
     case -1:
@@ -368,7 +368,7 @@ static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, VS
     }
     BROKEN(ColorMatrix)
     PREFETCHR1(Cnr2)
-    temp = vsapi->propGetSaturatedInt(in, "tbsize", 0, &err);
+    temp = vsapi->mapGetIntSaturated(in, "tbsize", 0, &err);
     PREFETCH(dfttest, 1, 1, -(temp / 2), temp / 2)
 
     // MPEG2DEC
@@ -381,13 +381,13 @@ static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, VS
     SOURCE(DGSource)
     PREFETCHR0(DGDenoise)
     PREFETCHR0(DGSharpen)
-    temp = vsapi->propGetSaturatedInt(in, "mode", 0, &err);
+    temp = vsapi->mapGetIntSaturated(in, "mode", 0, &err);
     PREFETCH(DGBob, (temp > 0) ? 2 : 1, 1, -2, 2) // close enough?
     BROKEN(IsCombed)
     PREFETCHR0(FieldDeinterlace)
     PREFETCH(Telecide, 1, 1, -2, 10) // not good
     PREFETCH(DGTelecide, 1, 1, -2, 10) // also not good
-    temp = vsapi->propGetSaturatedInt(in, "cycle", 0, &err);
+    temp = vsapi->mapGetIntSaturated(in, "cycle", 0, &err);
     PREFETCH(DGDecimate, temp - 1, temp, -(temp + 3), temp + 3) // probably suboptimal
     PREFETCH(Decimate, temp - 1, temp, -(temp + 3), temp + 3) // probably suboptimal too
 
@@ -442,7 +442,7 @@ static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, VS
     PREFETCHR0(eDeen)
     // Mvtools
     PREFETCHR0(MSuper)
-    temp = vsapi->propGetSaturatedInt(in, "delta", 0, &err);
+    temp = vsapi->mapGetIntSaturated(in, "delta", 0, &err);
     if (temp < 1)
         temp = 1;
     PREFETCH(MAnalyse, 1, 1, -temp, temp)
@@ -474,7 +474,7 @@ static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, VS
     PREFETCH(TemporalSoften, 1, 1, -5, 5)
 
     // AutoAdjust
-    temp = vsapi->propGetSaturatedInt(in, "temporal_radius", 0, &err);
+    temp = vsapi->mapGetIntSaturated(in, "temporal_radius", 0, &err);
     if (err || temp < 0)
         temp = 20;
     PREFETCH(AutoAdjust, 1, 1, -temp, temp)
@@ -550,25 +550,25 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
     for (size_t i = 0; i < inArgs.size(); i++) {
         const AvisynthArgs &parsedArg = wf->parsedArgs.at(i);
 
-        if (vsapi->propNumElements(in, parsedArg.name.data()) > 0) {
+        if (vsapi->mapNumElements(in, parsedArg.name.data()) > 0) {
             switch (parsedArg.type) {
             case 'i':
-                inArgs[i] = vsapi->propGetSaturatedInt(in, parsedArg.name.c_str(), 0, nullptr);
+                inArgs[i] = vsapi->mapGetIntSaturated(in, parsedArg.name.c_str(), 0, nullptr);
                 break;
             case 'f':
-                inArgs[i] = vsapi->propGetFloat(in, parsedArg.name.c_str(), 0, nullptr);
+                inArgs[i] = vsapi->mapGetFloat(in, parsedArg.name.c_str(), 0, nullptr);
                 break;
             case 'b':
-                inArgs[i] = !!vsapi->propGetInt(in, parsedArg.name.c_str(), 0, nullptr);
+                inArgs[i] = !!vsapi->mapGetInt(in, parsedArg.name.c_str(), 0, nullptr);
                 break;
             case 's':
-                inArgs[i] = vsapi->propGetData(in, parsedArg.name.c_str(), 0, nullptr);
+                inArgs[i] = vsapi->mapGetData(in, parsedArg.name.c_str(), 0, nullptr);
                 break;
             case 'c':
-                VSNodeRef *cr = vsapi->propGetNode(in, parsedArg.name.c_str(), 0, nullptr);
+                VSNodeRef *cr = vsapi->mapGetNode(in, parsedArg.name.c_str(), 0, nullptr);
                 const VSVideoInfo *vi = vsapi->getVideoInfo(cr);
                 if (!isConstantVideoFormat(vi) || !isSupportedPF(vi->format, wf->interfaceVersion)) {
-                    vsapi->setError(out, "Invalid avisynth colorspace in one of the input clips");
+                    vsapi->mapSetError(out, "Invalid avisynth colorspace in one of the input clips");
                     vsapi->freeNode(cr);
                     delete fakeEnv;
                     return;
@@ -587,7 +587,7 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
     try {
         ret = wf->apply(inArgAVSValue, wf->avsUserData, fakeEnv);
     } catch (const AvisynthError &e) {
-        vsapi->setError(out, e.msg);
+        vsapi->mapSetError(out, e.msg);
         return;
     } catch (const IScriptEnvironment::NotFound &) {
         vsapi->logMessage(mtFatal, "Avisynth Error: escaped IScriptEnvironment::NotFound exceptions are non-recoverable, crashing... ", core);
@@ -612,7 +612,7 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
         reduceRational(&vi.fpsNum, &vi.fpsDen);
 
         if (!AVSPixelTypeToVSFormat(vi.format, viAvs, core, vsapi))
-            vsapi->setError(out, "Avisynth Compat: bad format!");
+            vsapi->mapSetError(out, "Avisynth Compat: bad format!");
 
         vsapi->createVideoFilter(
                                     out,
@@ -626,13 +626,13 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
                                     filterData,
                                     core);
     } else if (ret.IsBool()) {
-        vsapi->propSetInt(out, "val", ret.AsBool() ? 1 : 0, paReplace);
+        vsapi->mapSetInt(out, "val", ret.AsBool() ? 1 : 0, paReplace);
     } else if (ret.IsInt()) {
-        vsapi->propSetInt(out, "val", ret.AsInt(), paReplace);
+        vsapi->mapSetInt(out, "val", ret.AsInt(), paReplace);
     } else if (ret.IsFloat()) {
-        vsapi->propSetFloat(out, "val", ret.AsFloat(), paReplace);
+        vsapi->mapSetFloat(out, "val", ret.AsFloat(), paReplace);
     } else if (ret.IsString()) {
-        vsapi->propSetData(out, "val", ret.AsString(), -1, dtUtf8, paReplace);
+        vsapi->mapSetData(out, "val", ret.AsString(), -1, dtUtf8, paReplace);
     }
 }
 
@@ -1025,7 +1025,7 @@ PVideoFrame FakeAvisynth::SubframePlanarA(PVideoFrame src, int rel_offset, int n
 }
 
 static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    const char *rawPath = vsapi->propGetData(in, "path", 0, nullptr);
+    const char *rawPath = vsapi->mapGetData(in, "path", 0, nullptr);
     std::wstring wPath = utf16_from_utf8(rawPath);
 
     HMODULE plugin = LoadLibraryW(wPath.c_str());
@@ -1034,7 +1034,7 @@ static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSC
     typedef const char *(__stdcall *AvisynthPluginInit3Func)(IScriptEnvironment *env, const AVS_Linkage *const vectors);
 
     if (!plugin) {
-        vsapi->setError(out, "Avisynth Loader: failed to load module");
+        vsapi->mapSetError(out, "Avisynth Loader: failed to load module");
         return;
     }
 
@@ -1052,7 +1052,7 @@ static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSC
     }
 
     if (!avisynthPluginInit3 && !avisynthPluginInit2) {
-        vsapi->setError(out, "Avisynth Loader: no entry point found");
+        vsapi->mapSetError(out, "Avisynth Loader: no entry point found");
         FreeLibrary(plugin);
         return;
     }
@@ -1063,7 +1063,7 @@ static void VS_CC avsLoadPlugin(const VSMap *in, VSMap *out, void *userData, VSC
         delete avs;
     } else {
 #ifdef _WIN64
-        vsapi->setError(out, "Avisynth Loader: 2.5 plugins can't be loaded on x64");
+        vsapi->mapSetError(out, "Avisynth Loader: 2.5 plugins can't be loaded on x64");
         return;
 #else
         FakeAvisynth *avs = new FakeAvisynth(2, core, vsapi);

@@ -3235,12 +3235,12 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 #endif
 
     try {
-        d->numInputs = vsapi->propNumElements(in, "clips");
+        d->numInputs = vsapi->mapNumElements(in, "clips");
         if (d->numInputs > 26)
             throw std::runtime_error("More than 26 input clips provided");
 
         for (int i = 0; i < d->numInputs; i++) {
-            d->node[i] = vsapi->propGetNode(in, "clips", i, &err);
+            d->node[i] = vsapi->mapGetNode(in, "clips", i, &err);
         }
 
         const VSVideoInfo *vi[MAX_EXPR_INPUTS] = {};
@@ -3273,7 +3273,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         }
 
         d->vi = *vi[0];
-        int format = vsapi->propGetSaturatedInt(in, "format", 0, &err);
+        int format = vsapi->mapGetIntSaturated(in, "format", 0, &err);
         if (!err) {
             VSVideoFormat f;
             if (vsapi->queryVideoFormatByID(&f, format, core) && f.colorFamily != cfUndefined) {
@@ -3285,13 +3285,13 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
             }
         }
 
-        int nexpr = vsapi->propNumElements(in, "expr");
+        int nexpr = vsapi->mapNumElements(in, "expr");
         if (nexpr > d->vi.format.numPlanes)
             throw std::runtime_error("More expressions given than there are planes");
 
         std::string expr[3];
         for (int i = 0; i < nexpr; i++) {
-            expr[i] = vsapi->propGetData(in, "expr", i, nullptr);
+            expr[i] = vsapi->mapGetData(in, "expr", i, nullptr);
         }
         for (int i = nexpr; i < 3; ++i) {
             expr[i] = expr[nexpr - 1];
@@ -3336,7 +3336,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         for (int i = 0; i < MAX_EXPR_INPUTS; i++) {
             vsapi->freeNode(d->node[i]);
         }
-        vsapi->setError(out, (std::string{ "Expr: " } + e.what()).c_str());
+        vsapi->mapSetError(out, (std::string{ "Expr: " } + e.what()).c_str());
         return;
     }
 

@@ -291,24 +291,24 @@ typedef struct {
 } // namespace
 
 static void append_prop(std::string &text, const std::string &key, const VSMap *map, const VSAPI *vsapi) {
-    char type = vsapi->propGetType(map, key.c_str());
-    int numElements = vsapi->propNumElements(map, key.c_str());
+    char type = vsapi->mapGetType(map, key.c_str());
+    int numElements = vsapi->mapNumElements(map, key.c_str());
     int idx;
     // "<key>: <val0> <val1> <val2> ... <valn-1>"
     text += key + ":";
     if (type == ptInt) {
-        const int64_t *intArr = vsapi->propGetIntArray(map, key.c_str(), nullptr);
+        const int64_t *intArr = vsapi->mapGetIntArray(map, key.c_str(), nullptr);
         for (idx = 0; idx < numElements; idx++)
             text += " " + std::to_string(intArr[idx]);
     } else if (type == ptFloat) {
-        const double *floatArr = vsapi->propGetFloatArray(map, key.c_str(), nullptr);
+        const double *floatArr = vsapi->mapGetFloatArray(map, key.c_str(), nullptr);
         for (idx = 0; idx < numElements; idx++)
             text += " " + std::to_string(floatArr[idx]);
     } else if (type == ptData) {
         for (idx = 0; idx < numElements; idx++) {
-            const char *value = vsapi->propGetData(map, key.c_str(), idx, nullptr);
-            int size = vsapi->propGetDataSize(map, key.c_str(), idx, nullptr);
-            int type = vsapi->propGetDataType(map, key.c_str(), idx, nullptr);
+            const char *value = vsapi->mapGetData(map, key.c_str(), idx, nullptr);
+            int size = vsapi->mapGetDataSize(map, key.c_str(), idx, nullptr);
+            int type = vsapi->mapGetDataType(map, key.c_str(), idx, nullptr);
             text += " ";
             if (type == dtBinary) {
                 text += "<binary data (" + std::to_string(size) + " bytes)>";
@@ -511,8 +511,8 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void *i
         if (d->filter == FILTER_FRAMENUM) {
             scrawl_text(std::to_string(n), d->alignment, dst, vsapi);
         } else if (d->filter == FILTER_FRAMEPROPS) {
-            const VSMap *props = vsapi->getFramePropsRO(dst);
-            int numKeys = vsapi->propNumKeys(props);
+            const VSMap *props = vsapi->getFramePropertiesRO(dst);
+            int numKeys = vsapi->mapNumKeys(props);
             int i;
             std::string text = "Frame properties:\n";
 
@@ -522,7 +522,7 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void *i
                 }
             } else {
                 for (i = 0; i < numKeys; i++) {
-                    const char *key = vsapi->propGetKey(props, i);
+                    const char *key = vsapi->mapGetKey(props, i);
                     append_prop(text, key, props, vsapi);
                 }
             }
@@ -540,7 +540,7 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void *i
 
             scrawl_text(text, d->alignment, dst, vsapi);
         } else if (d->filter == FILTER_CLIPINFO) {
-            const VSMap *props = vsapi->getFramePropsRO(src);
+            const VSMap *props = vsapi->getFramePropertiesRO(src);
             std::string text = "Clip info:\n";
 
             if (d->vi->width) {
@@ -552,8 +552,8 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void *i
             }
 
             int snerr, sderr;
-            int64_t sn = vsapi->propGetInt(props, "_SARNum", 0, &snerr);
-            int64_t sd = vsapi->propGetInt(props, "_SARDen", 0, &sderr);
+            int64_t sn = vsapi->mapGetInt(props, "_SARNum", 0, &snerr);
+            int64_t sd = vsapi->mapGetInt(props, "_SARDen", 0, &sderr);
             if (snerr || sderr)
                 text += "Aspect ratio: Unknown\n";
             else
@@ -572,26 +572,26 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void *i
             text += "Subsampling Height/Width: " + std::to_string(1 << frame_format->subSamplingH) + "x/" + std::to_string(1 << frame_format->subSamplingW) + "x\n";
 
             int err;
-            int matrix = vsapi->propGetSaturatedInt(props, "_Matrix", 0, &err);
+            int matrix = vsapi->mapGetIntSaturated(props, "_Matrix", 0, &err);
             if (err)
                 matrix = -1;
-            int primaries = vsapi->propGetSaturatedInt(props, "_Primaries", 0, &err);
+            int primaries = vsapi->mapGetIntSaturated(props, "_Primaries", 0, &err);
             if (err)
                 primaries = -1;
-            int transfer = vsapi->propGetSaturatedInt(props, "_Transfer", 0, &err);
+            int transfer = vsapi->mapGetIntSaturated(props, "_Transfer", 0, &err);
             if (err)
                 transfer = -1;
-            int range = vsapi->propGetSaturatedInt(props, "_ColorRange", 0, &err);
+            int range = vsapi->mapGetIntSaturated(props, "_ColorRange", 0, &err);
             if (err)
                 range = -1;
-            int location = vsapi->propGetSaturatedInt(props, "_ChromaLocation", 0, &err);
+            int location = vsapi->mapGetIntSaturated(props, "_ChromaLocation", 0, &err);
             if (err)
                 location = -1;
-            int field = vsapi->propGetSaturatedInt(props, "_FieldBased", 0, &err);
+            int field = vsapi->mapGetIntSaturated(props, "_FieldBased", 0, &err);
             if (err)
                 field = -1;
 
-            const char *picttype = vsapi->propGetData(props, "_PictType", 0, &err);
+            const char *picttype = vsapi->mapGetData(props, "_PictType", 0, &err);
 
             text += "Matrix: " + matrixToString(matrix) + "\n";
             text += "Primaries: " + primariesToString(primaries) + "\n";
@@ -608,8 +608,8 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void *i
             }
 
             int fnerr, fderr;
-            int64_t fn = vsapi->propGetInt(props, "_DurationNum", 0, &fnerr);
-            int64_t fd = vsapi->propGetInt(props, "_DurationDen", 0, &fderr);
+            int64_t fn = vsapi->mapGetInt(props, "_DurationNum", 0, &fnerr);
+            int64_t fd = vsapi->mapGetInt(props, "_DurationDen", 0, &fderr);
             if (fnerr || fderr) {
                 text += "Frame duration: Unknown\n";
             } else {
@@ -641,47 +641,47 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     int err;
     bool setHint = false;
 
-    d->node = vsapi->propGetNode(in, "clip", 0, &err);
+    d->node = vsapi->mapGetNode(in, "clip", 0, &err);
     if (err) {
         // Can only happen for CoreInfo.
         VSMap *args = vsapi->createMap();
         VSPlugin *stdPlugin = vsapi->getPluginByID(VS_STD_PLUGIN_ID, core);
         VSMap *ret = vsapi->invoke(stdPlugin, "BlankClip", args);
         vsapi->freeMap(args);
-        const char *error = vsapi->getError(ret);
+        const char *error = vsapi->mapGetError(ret);
         if (error) {
             std::string msg = "CoreInfo: No input clip was given and invoking BlankClip failed. The error message from BlankClip is:\n";
             msg += error;
-            vsapi->setError(out, msg.c_str());
+            vsapi->mapSetError(out, msg.c_str());
             vsapi->freeMap(ret);
             return;
         }
-        d->node = vsapi->propGetNode(ret, "clip", 0, nullptr);
+        d->node = vsapi->mapGetNode(ret, "clip", 0, nullptr);
         vsapi->freeMap(ret);
         setHint = true;
     }
     d->vi = vsapi->getVideoInfo(d->node);
 
     if (isCompatFormat(&d->vi->format)) {
-        vsapi->setError(out, "Text: Compat formats not supported");
+        vsapi->mapSetError(out, "Text: Compat formats not supported");
         vsapi->freeNode(d->node);
         return;
     }
 
     if (d->vi->format.colorFamily != cfUndefined && ((d->vi->format.sampleType == stInteger && d->vi->format.bitsPerSample > 16) ||
         (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample != 32))) {
-            vsapi->setError(out, "Text: Only 8-16 bit integer and 32 bit float formats supported");
+            vsapi->mapSetError(out, "Text: Only 8-16 bit integer and 32 bit float formats supported");
             vsapi->freeNode(d->node);
             return;
     }
 
-    d->alignment = vsapi->propGetSaturatedInt(in, "alignment", 0, &err);
+    d->alignment = vsapi->mapGetIntSaturated(in, "alignment", 0, &err);
     if (err) {
         d->alignment = 7; // top left
     }
 
     if (d->alignment < 1 || d->alignment > 9) {
-        vsapi->setError(out, "Text: alignment must be between 1 and 9 (think numpad)");
+        vsapi->mapSetError(out, "Text: alignment must be between 1 and 9 (think numpad)");
         vsapi->freeNode(d->node);
         return;
     }
@@ -690,7 +690,7 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     switch (d->filter) {
     case FILTER_TEXT:
-        d->text = vsapi->propGetData(in, "text", 0, nullptr);
+        d->text = vsapi->mapGetData(in, "text", 0, nullptr);
         d->instanceName = "Text";
         break;
     case FILTER_CLIPINFO:
@@ -705,10 +705,10 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         d->instanceName = "FrameNum";
         break;
     case FILTER_FRAMEPROPS:
-        int numProps = vsapi->propNumElements(in, "props");
+        int numProps = vsapi->mapNumElements(in, "props");
 
         for (int i = 0; i < numProps; i++) {
-            d->props.push_back(vsapi->propGetData(in, "props", i, nullptr));
+            d->props.push_back(vsapi->mapGetData(in, "props", i, nullptr));
         }
 
         d->instanceName = "FrameProps";

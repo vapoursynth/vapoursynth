@@ -123,11 +123,11 @@ static void VS_CC VinverseCreate(const VSMap *in, VSMap *out, void *userData,
     int err;
 
     d.dlut = NULL;
-    d.node = vsapi->propGetNode(in, "clip", 0, 0);
+    d.node = vsapi->mapGetNode(in, "clip", 0, 0);
     d.vi = *vsapi->getVideoInfo(d.node);
 
     if (d.vi.format.colorFamily == cfUndefined) {
-        vsapi->setError(out, "Only constant format input supported");
+        vsapi->mapSetError(out, "Only constant format input supported");
         vsapi->freeNode(d.node);
         return;
     }
@@ -135,28 +135,28 @@ static void VS_CC VinverseCreate(const VSMap *in, VSMap *out, void *userData,
     if (d.vi.format.sampleType != stInteger ||
         d.vi.format.bytesPerSample != 1) {
 
-        vsapi->setError(out, "Only 8-bit int formats supported");
+        vsapi->mapSetError(out, "Only 8-bit int formats supported");
         vsapi->freeNode(d.node);
         return;
     }
 
-    d.sstr = vsapi->propGetFloat(in, "sstr", 0, &err);
+    d.sstr = vsapi->mapGetFloat(in, "sstr", 0, &err);
 
     if (err)
         d.sstr = 2.7;
 
-    d.amnt = vsapi->propGetSaturatedInt(in, "amnt", 0, &err);
+    d.amnt = vsapi->mapGetIntSaturated(in, "amnt", 0, &err);
 
     if (err)
         d.amnt = 255;
 
     if (d.amnt < 1 || d.amnt > 255) {
-        vsapi->setError(out, "amnt must be greater than 0 and less than 256");
+        vsapi->mapSetError(out, "amnt must be greater than 0 and less than 256");
         vsapi->freeNode(d.node);
         return;
     }
 
-    d.scl = vsapi->propGetFloat(in, "scl", 0, &err);
+    d.scl = vsapi->mapGetFloat(in, "scl", 0, &err);
 
     if (err)
         d.scl = 0.25;
@@ -164,7 +164,7 @@ static void VS_CC VinverseCreate(const VSMap *in, VSMap *out, void *userData,
     d.dlut = malloc(512 * 511 * sizeof(int));
 
     if (!d.dlut) {
-        vsapi->setError(out, "malloc failure (dlut)");
+        vsapi->mapSetError(out, "malloc failure (dlut)");
         vsapi->freeNode(d.node);
         return;
     }

@@ -62,13 +62,13 @@ static const VSFrameRef *VS_CC scDetectGetFrame(int n, int activationReason, voi
         const VSFrameRef *prevframe = vsapi->getFrameFilter(std::max(n - 1, 0), d->diffnode, frameCtx);
         const VSFrameRef *nextframe = vsapi->getFrameFilter(n, d->diffnode, frameCtx);
 
-        double prevdiff = vsapi->propGetFloat(vsapi->getFramePropsRO(prevframe), "SCPlaneStatsDiff", 0, nullptr);
-        double nextdiff = vsapi->propGetFloat(vsapi->getFramePropsRO(nextframe), "SCPlaneStatsDiff", 0, nullptr);
+        double prevdiff = vsapi->mapGetFloat(vsapi->getFramePropertiesRO(prevframe), "SCPlaneStatsDiff", 0, nullptr);
+        double nextdiff = vsapi->mapGetFloat(vsapi->getFramePropertiesRO(nextframe), "SCPlaneStatsDiff", 0, nullptr);
 
         VSFrameRef *dst = vsapi->copyFrame(src, core);
-        VSMap *rwprops = vsapi->getFramePropsRW(dst);
-        vsapi->propSetInt(rwprops, "_SceneChangePrev", prevdiff > d->threshold, paReplace);
-        vsapi->propSetInt(rwprops, "_SceneChangeNext", nextdiff > d->threshold, paReplace);
+        VSMap *rwprops = vsapi->getFramePropertiesRW(dst);
+        vsapi->mapSetInt(rwprops, "_SceneChangePrev", prevdiff > d->threshold, paReplace);
+        vsapi->mapSetInt(rwprops, "_SceneChangeNext", nextdiff > d->threshold, paReplace);
         vsapi->freeFrame(src);
         vsapi->freeFrame(prevframe);
         vsapi->freeFrame(nextframe);
@@ -89,10 +89,10 @@ static void VS_CC scDetectFree(void *instanceData, VSCore *core, const VSAPI *vs
 static void VS_CC scDetectCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<SCDetectData> d(new SCDetectData());
     int err;
-    d->threshold = vsapi->propGetFloat(in, "threshold", 0, &err);
+    d->threshold = vsapi->mapGetFloat(in, "threshold", 0, &err);
     if (err)
         d->threshold = 0.1;
-    d->node = vsapi->propGetNode(in, "clip", 0, nullptr);
+    d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
     const VSVideoInfo *vi = vsapi->getVideoInfo(d->node);
 
     try {
@@ -106,26 +106,26 @@ static void VS_CC scDetectCreate(const VSMap *in, VSMap *out, void *userData, VS
         VSPlugin *stdplugin = vsapi->getPluginByID(VS_STD_PLUGIN_ID, core);
         VSMap *invmap = vsapi->createMap();
         VSMap *invmap2 = nullptr;
-        vsapi->propSetNode(invmap, "clip", d->node, paAppend);
-        vsapi->propSetInt(invmap, "first", 1, paAppend);
+        vsapi->mapSetNode(invmap, "clip", d->node, paAppend);
+        vsapi->mapSetInt(invmap, "first", 1, paAppend);
         invmap2 = vsapi->invoke(stdplugin, "Trim", invmap);
-        VSNodeRef *tempnode = vsapi->propGetNode(invmap2, "clip", 0, nullptr);
+        VSNodeRef *tempnode = vsapi->mapGetNode(invmap2, "clip", 0, nullptr);
         vsapi->freeMap(invmap2);
         vsapi->clearMap(invmap);
-        vsapi->propSetNode(invmap, "clipa", d->node, paAppend);
-        vsapi->propSetNode(invmap, "clipb", tempnode, paAppend);
-        vsapi->propSetData(invmap, "prop", "SCPlaneStats", -1, dtUtf8, paAppend);
-        vsapi->propSetInt(invmap, "plane", 0, paAppend);
+        vsapi->mapSetNode(invmap, "clipa", d->node, paAppend);
+        vsapi->mapSetNode(invmap, "clipb", tempnode, paAppend);
+        vsapi->mapSetData(invmap, "prop", "SCPlaneStats", -1, dtUtf8, paAppend);
+        vsapi->mapSetInt(invmap, "plane", 0, paAppend);
         vsapi->freeNode(tempnode);
         invmap2 = vsapi->invoke(stdplugin, "PlaneStats", invmap);
         vsapi->freeMap(invmap);
         invmap = vsapi->invoke(stdplugin, "Cache", invmap2);
         vsapi->freeMap(invmap2);
-        d->diffnode = vsapi->propGetNode(invmap, "clip", 0, nullptr);
+        d->diffnode = vsapi->mapGetNode(invmap, "clip", 0, nullptr);
         vsapi->freeMap(invmap);
     } catch (const std::runtime_error &e) {
         vsapi->freeNode(d->node);
-        vsapi->setError(out, ("SCDetect: "_s + e.what()).c_str());
+        vsapi->mapSetError(out, ("SCDetect: "_s + e.what()).c_str());
         return;
     }
 
@@ -502,18 +502,18 @@ static const VSFrameRef *VS_CC averageFramesGetFrame(int n, int activationReason
             int toFrame = static_cast<int>(weights.size());
 
             for (int i = static_cast<int>(weights.size()) / 2; i > 0; i--) {
-                const VSMap *props = vsapi->getFramePropsRO(frames[i]);
+                const VSMap *props = vsapi->getFramePropertiesRO(frames[i]);
                 int err;
-                if (vsapi->propGetInt(props, "_SceneChangePrev", 0, &err)) {
+                if (vsapi->mapGetInt(props, "_SceneChangePrev", 0, &err)) {
                     fromFrame = i;
                     break;
                 }
             }
 
             for (int i = static_cast<int>(weights.size()) / 2; i < static_cast<int>(weights.size()) - 1; i++) {
-                const VSMap *props = vsapi->getFramePropsRO(frames[i]);
+                const VSMap *props = vsapi->getFramePropertiesRO(frames[i]);
                 int err;
-                if (vsapi->propGetInt(props, "_SceneChangeNext", 0, &err)) {
+                if (vsapi->mapGetInt(props, "_SceneChangeNext", 0, &err)) {
                     toFrame = i;
                     break;
                 }
@@ -588,8 +588,8 @@ static void VS_CC averageFramesFree(void *instanceData, VSCore *core, const VSAP
 
 static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<AverageFrameData> d(new AverageFrameData());
-    int numNodes = vsapi->propNumElements(in, "clips");
-    int numWeights = vsapi->propNumElements(in, "weights");
+    int numNodes = vsapi->mapNumElements(in, "clips");
+    int numWeights = vsapi->mapNumElements(in, "weights");
     int err;
 
     try {
@@ -604,12 +604,12 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
             throw std::runtime_error("Must use between 1 and 31 weights and input clips");
         }
 
-        d->useSceneChange = !!vsapi->propGetInt(in, "scenechange", 0, &err);
+        d->useSceneChange = !!vsapi->mapGetInt(in, "scenechange", 0, &err);
         if (numNodes != 1 && d->useSceneChange)
             throw std::runtime_error("Scenechange can only be used in single clip mode");
 
         for (int i = 0; i < numNodes; i++)
-            d->nodes.push_back(vsapi->propGetNode(in, "clips", i, 0));
+            d->nodes.push_back(vsapi->mapGetNode(in, "clips", i, 0));
 
         d->vi = *vsapi->getVideoInfo(d->nodes[0]);
         if (!is8to16orFloatFormat(d->vi.format))
@@ -623,13 +623,13 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
         }
 
         for (int i = 0; i < numWeights; i++) {
-            d->fweights.push_back(static_cast<float>(vsapi->propGetFloat(in, "weights", i, 0)));
-            d->weights.push_back(std::lround(vsapi->propGetFloat(in, "weights", i, 0)));
+            d->fweights.push_back(static_cast<float>(vsapi->mapGetFloat(in, "weights", i, 0)));
+            d->weights.push_back(std::lround(vsapi->mapGetFloat(in, "weights", i, 0)));
             if (d->vi.format.sampleType == stInteger && std::abs(d->weights[i]) > 1023)
                 throw std::runtime_error("coefficients may only be between -1023 and 1023");
         }
 
-        float scale = static_cast<float>(vsapi->propGetFloat(in, "scale", 0, &err));
+        float scale = static_cast<float>(vsapi->mapGetFloat(in, "scale", 0, &err));
         if (err) {
             float scalef = 0;
             int scalei = 0;
@@ -663,7 +663,7 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
     } catch (const std::runtime_error &e) {
         for (auto iter : d->nodes)
             vsapi->freeNode(iter);
-        vsapi->setError(out, ("AverageFrames: "_s + e.what()).c_str());
+        vsapi->mapSetError(out, ("AverageFrames: "_s + e.what()).c_str());
         return;
     }
 
@@ -783,8 +783,8 @@ static void VS_CC hysteresisFree(void *instanceData, VSCore *core, const VSAPI *
 static void VS_CC hysteresisCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<HysteresisData> d(new HysteresisData());
 
-    d->node1 = vsapi->propGetNode(in, "clipa", 0, nullptr);
-    d->node2 = vsapi->propGetNode(in, "clipb", 0, nullptr);
+    d->node1 = vsapi->mapGetNode(in, "clipa", 0, nullptr);
+    d->node2 = vsapi->mapGetNode(in, "clipb", 0, nullptr);
     const VSVideoInfo *vi = vsapi->getVideoInfo(d->node1);
 
     try {
@@ -816,7 +816,7 @@ static void VS_CC hysteresisCreate(const VSMap *in, VSMap *out, void *userData, 
     } catch (const std::runtime_error &e) {
         vsapi->freeNode(d->node1);
         vsapi->freeNode(d->node2);
-        vsapi->setError(out, ("Hysteresis: "_s + e.what()).c_str());
+        vsapi->mapSetError(out, ("Hysteresis: "_s + e.what()).c_str());
         return;
     }
 

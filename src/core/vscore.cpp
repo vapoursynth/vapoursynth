@@ -131,7 +131,7 @@ VSFuncRef::~VSFuncRef() {
 
 void VSFuncRef::call(const VSMap *in, VSMap *out) {
     if (apiMajor == VAPOURSYNTH3_API_MAJOR && !in->isV3Compatible()) {
-        vs_internal_vsapi.setError(out, "Function was passed values that are unknown to its API version");
+        vs_internal_vsapi.mapSetError(out, "Function was passed values that are unknown to its API version");
         return;
     }
         
@@ -831,7 +831,7 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilt
 
     if (out->hasError()) {
         core->filterInstanceDestroyed();
-        throw VSException(vs_internal_vsapi.getError(out));
+        throw VSException(vs_internal_vsapi.mapGetError(out));
     }
 
     if (vi.empty()) {
@@ -997,7 +997,7 @@ void VSNode::setFilterRelation(VSNodeRef **dependencies, int numDeps) {
     if (core->enableGraphInspection) {
         VSMap *tmp = new VSMap();
         for (int i = 0; i < numDeps; i++)
-            vs_internal_vsapi.propSetNode(tmp, "clip", dependencies[i], paAppend);
+            vs_internal_vsapi.mapSetNode(tmp, "clip", dependencies[i], paAppend);
 
         functionFrame = std::make_shared<VSFunctionFrame>("", tmp, functionFrame);
     }
@@ -1526,32 +1526,32 @@ bool VSCore::getVideoFormatName(const VSVideoFormat &format, char *buffer) noexc
 static void VS_CC loadPlugin(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     try {
         int err;
-        const char *forcens = vsapi->propGetData(in, "forcens", 0, &err);
+        const char *forcens = vsapi->mapGetData(in, "forcens", 0, &err);
         if (!forcens)
             forcens = "";
-        const char *forceid = vsapi->propGetData(in, "forceid", 0, &err);
+        const char *forceid = vsapi->mapGetData(in, "forceid", 0, &err);
         if (!forceid)
             forceid = "";
-        bool altSearchPath = !!vsapi->propGetInt(in, "altsearchpath", 0, &err);
-        core->loadPlugin(vsapi->propGetData(in, "path", 0, nullptr), forcens, forceid, altSearchPath);
+        bool altSearchPath = !!vsapi->mapGetInt(in, "altsearchpath", 0, &err);
+        core->loadPlugin(vsapi->mapGetData(in, "path", 0, nullptr), forcens, forceid, altSearchPath);
     } catch (VSException &e) {
-        vsapi->setError(out, e.what());
+        vsapi->mapSetError(out, e.what());
     }
 }
 
 static void VS_CC loadAllPlugins(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     try {
 #ifdef VS_TARGET_OS_WINDOWS    
-        core->loadAllPluginsInPath(utf16_from_utf8(vsapi->propGetData(in, "path", 0, nullptr)), L".dll");
+        core->loadAllPluginsInPath(utf16_from_utf8(vsapi->mapGetData(in, "path", 0, nullptr)), L".dll");
 #else
     #ifdef VS_TARGET_OS_DARWIN
-        core->loadAllPluginsInPath(vsapi->propGetData(in, "path", 0, nullptr), ".dylib");
+        core->loadAllPluginsInPath(vsapi->mapGetData(in, "path", 0, nullptr), ".dylib");
     #else
-        core->loadAllPluginsInPath(vsapi->propGetData(in, "path", 0, nullptr), ".so");
+        core->loadAllPluginsInPath(vsapi->mapGetData(in, "path", 0, nullptr), ".so");
     #endif
 #endif
     } catch (VSException &e) {
-        vsapi->setError(out, e.what());
+        vsapi->mapSetError(out, e.what());
     }
 }
 
@@ -1849,23 +1849,23 @@ VSCore::VSCore(int flags) :
 #endif
 
     VSMap *settings = readSettings(configFile);
-    const char *error = vs_internal_vsapi.getError(settings);
+    const char *error = vs_internal_vsapi.mapGetError(settings);
     if (error) {
         logMessage(mtWarning, error);
     } else {
         int err;
         const char *tmp;
 
-        tmp = vs_internal_vsapi.propGetData(settings, "UserPluginDir", 0, &err);
+        tmp = vs_internal_vsapi.mapGetData(settings, "UserPluginDir", 0, &err);
         std::string userPluginDir(tmp ? tmp : "");
 
-        tmp = vs_internal_vsapi.propGetData(settings, "SystemPluginDir", 0, &err);
+        tmp = vs_internal_vsapi.mapGetData(settings, "SystemPluginDir", 0, &err);
         std::string systemPluginDir(tmp ? tmp : VS_PATH_PLUGINDIR);
 
-        tmp = vs_internal_vsapi.propGetData(settings, "AutoloadUserPluginDir", 0, &err);
+        tmp = vs_internal_vsapi.mapGetData(settings, "AutoloadUserPluginDir", 0, &err);
         bool autoloadUserPluginDir = tmp ? std::string(tmp) == "true" : true;
 
-        tmp = vs_internal_vsapi.propGetData(settings, "AutoloadSystemPluginDir", 0, &err);
+        tmp = vs_internal_vsapi.mapGetData(settings, "AutoloadSystemPluginDir", 0, &err);
         bool autoloadSystemPluginDir = tmp ? std::string(tmp) == "true" : true;
 
         if (!disableAutoLoading && autoloadUserPluginDir && !userPluginDir.empty()) {
@@ -1916,7 +1916,7 @@ VSMap *VSCore::getPlugins3() {
     int num = 0;
     for (const auto &iter : plugins) {
         std::string b = iter.second->getNamespace() + ";" + iter.second->getID() + ";" + iter.second->getName();
-        vs_internal_vsapi.propSetData(m, ("Plugin" + std::to_string(++num)).c_str(), b.c_str(), static_cast<int>(b.size()), dtUtf8, paReplace);
+        vs_internal_vsapi.mapSetData(m, ("Plugin" + std::to_string(++num)).c_str(), b.c_str(), static_cast<int>(b.size()), dtUtf8, paReplace);
     }
     return m;
 }
@@ -1985,11 +1985,11 @@ void VSCore::createFilter3(const VSMap *in, VSMap *out, const std::string &name,
         VSNode *node = new VSNode(in, out, name, init, getFrame, free, filterMode, flags, instanceData, apiMajor, this);
         for (size_t i = 0; i < node->getNumOutputs(); i++) {
             VSNodeRef *ref = new VSNodeRef(node, static_cast<int>(i));
-            vs_internal_vsapi.propSetNode(out, "clip", ref, paAppend);
+            vs_internal_vsapi.mapSetNode(out, "clip", ref, paAppend);
             ref->release();
         }
     } catch (VSException &e) {
-        vs_internal_vsapi.setError(out, e.what());
+        vs_internal_vsapi.mapSetError(out, e.what());
     }
 }
 
@@ -1998,11 +1998,11 @@ void VSCore::createVideoFilter(VSMap *out, const std::string &name, const VSVide
         VSNode *node = new VSNode(name, vi, numOutputs, getFrame, free, filterMode, flags, instanceData, apiMajor, this);
         for (size_t i = 0; i < node->getNumOutputs(); i++) {
             VSNodeRef *ref = new VSNodeRef(node, static_cast<int>(i));
-            vs_internal_vsapi.propSetNode(out, "clip", ref, paAppend);
+            vs_internal_vsapi.mapSetNode(out, "clip", ref, paAppend);
             ref->release();
         }
     } catch (VSException &e) {
-        vs_internal_vsapi.setError(out, e.what());
+        vs_internal_vsapi.mapSetError(out, e.what());
     }
 }
 
@@ -2011,11 +2011,11 @@ void VSCore::createAudioFilter(VSMap *out, const std::string &name, const VSAudi
         VSNode *node = new VSNode(name, ai, numOutputs, getFrame, free, filterMode, flags, instanceData, apiMajor, this);
         for (size_t i = 0; i < node->getNumOutputs(); i++) {
             VSNodeRef *ref = new VSNodeRef(node, static_cast<int>(i));
-            vs_internal_vsapi.propSetNode(out, "clip", ref, paAppend);
+            vs_internal_vsapi.mapSetNode(out, "clip", ref, paAppend);
             ref->release();
         }
     } catch (VSException &e) {
-        vs_internal_vsapi.setError(out, e.what());
+        vs_internal_vsapi.mapSetError(out, e.what());
     }
 }
 
@@ -2227,7 +2227,7 @@ VSMap *VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
                 remainingArgs.insert(args.key(i));
 
             for (const FilterArgument &fa : f.args) {
-                int propType = vs_internal_vsapi.propGetType(&args, fa.name.c_str());
+                int propType = vs_internal_vsapi.mapGetType(&args, fa.name.c_str());
 
                 if (propType != ptUnset) {
                     remainingArgs.erase(fa.name);
@@ -2275,11 +2275,11 @@ VSMap *VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
             return v.release();
         }
     } catch (VSException &e) {
-        vs_internal_vsapi.setError(v.get(), e.what());
+        vs_internal_vsapi.mapSetError(v.get(), e.what());
         return v.release();
     }
 
-    vs_internal_vsapi.setError(v.get(), ("Function '" + funcName + "' not found in " + id).c_str());
+    vs_internal_vsapi.mapSetError(v.get(), ("Function '" + funcName + "' not found in " + id).c_str());
     return v.release();
 }
 
@@ -2307,7 +2307,7 @@ void VSPlugin::getFunctions3(VSMap *out) const {
     for (const auto &f : funcs) {
         if (f.second.isV3Compatible()) {
             std::string b = f.first + ";" + f.second.getV3ArgString();
-            vs_internal_vsapi.propSetData(out, f.first.c_str(), b.c_str(), static_cast<int>(b.size()), dtUtf8, paReplace);
+            vs_internal_vsapi.mapSetData(out, f.first.c_str(), b.c_str(), static_cast<int>(b.size()), dtUtf8, paReplace);
         }
     }
 }

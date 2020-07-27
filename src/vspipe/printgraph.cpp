@@ -49,38 +49,38 @@ static int getMinRealLevel(VSNodeRef *node, const VSAPI *vsapi) {
 }
 
 static std::string printVSMap(const VSMap *args, int maxPrintLength, const VSAPI *vsapi) {
-    int numKeys = vsapi->propNumKeys(args);
+    int numKeys = vsapi->mapNumKeys(args);
     std::string setArgsStr;
     for (int i = 0; i < numKeys; i++) {
-        const char *key = vsapi->propGetKey(args, i);
-        int numElems = vsapi->propNumElements(args, key);
+        const char *key = vsapi->mapGetKey(args, i);
+        int numElems = vsapi->mapNumElements(args, key);
 
         setArgsStr += "\\n";
         setArgsStr += key;
         setArgsStr += "=";
 
-        switch (vsapi->propGetType(args, key)) {
+        switch (vsapi->mapGetType(args, key)) {
             case ptInt:
                 for (int j = 0; j < std::min(maxPrintLength, numElems); j++)
-                    setArgsStr += (j ? ", " : "") + std::to_string(vsapi->propGetInt(args, key, j, nullptr));
+                    setArgsStr += (j ? ", " : "") + std::to_string(vsapi->mapGetInt(args, key, j, nullptr));
                 if (numElems > maxPrintLength)
                     setArgsStr += ", <" + std::to_string(numElems - maxPrintLength) + ">";
                 break;
             case ptFloat:
                 for (int j = 0; j < std::min(maxPrintLength, numElems); j++)
-                    setArgsStr += (j ? ", " : "") + std::to_string(vsapi->propGetFloat(args, key, j, nullptr));
+                    setArgsStr += (j ? ", " : "") + std::to_string(vsapi->mapGetFloat(args, key, j, nullptr));
                 if (numElems > maxPrintLength)
                     setArgsStr += ", <" + std::to_string(numElems - maxPrintLength) + ">";
                 break;
             case ptData:
                 for (int j = 0; j < std::min(maxPrintLength, numElems); j++)
-                    setArgsStr += std::string(j ? ", " : "") + (vsapi->propGetDataType(args, key, j, nullptr) == dtUtf8 ? vsapi->propGetData(args, key, j, nullptr) : ("[binary data " + std::to_string(vsapi->propGetDataSize(args, key, j, nullptr)) + " bytes]"));
+                    setArgsStr += std::string(j ? ", " : "") + (vsapi->mapGetDataType(args, key, j, nullptr) == dtUtf8 ? vsapi->mapGetData(args, key, j, nullptr) : ("[binary data " + std::to_string(vsapi->mapGetDataSize(args, key, j, nullptr)) + " bytes]"));
                 if (numElems > maxPrintLength)
                     setArgsStr += ", <" + std::to_string(numElems - maxPrintLength) + ">";
                 break;
             case ptVideoNode:
                 for (int j = 0; j < std::min(maxPrintLength, numElems); j++) {
-                    VSNodeRef *ref = vsapi->propGetNode(args, key, j, nullptr);
+                    VSNodeRef *ref = vsapi->mapGetNode(args, key, j, nullptr);
                     const VSVideoInfo *vi = vsapi->getVideoInfo(ref);
                     char formatName[32];
                     vsapi->getVideoFormatName(&vi->format, formatName);
@@ -92,7 +92,7 @@ static std::string printVSMap(const VSMap *args, int maxPrintLength, const VSAPI
                 break;
             case ptAudioNode:
                 for (int j = 0; j < std::min(maxPrintLength, numElems); j++) {
-                    VSNodeRef *ref = vsapi->propGetNode(args, key, j, nullptr);
+                    VSNodeRef *ref = vsapi->mapGetNode(args, key, j, nullptr);
                     const VSAudioInfo *ai = vsapi->getAudioInfo(ref);
                     char formatName[32];
                     vsapi->getAudioFormatName(&ai->format, formatName);
@@ -133,15 +133,15 @@ static void printNodeGraphHelper(std::set<std::string> &lines, std::map<std::str
     lines.insert(thisFrame + " -> " + thisNode);
 
     const VSMap *args = vsapi->getNodeCreationFunctionArguments(node, 0);
-    int numKeys = vsapi->propNumKeys(args);
+    int numKeys = vsapi->mapNumKeys(args);
     for (int i = 0; i < numKeys; i++) {
-        const char *key = vsapi->propGetKey(args, i);
-        int numElems = vsapi->propNumElements(args, key);
-        switch (vsapi->propGetType(args, key)) {
+        const char *key = vsapi->mapGetKey(args, i);
+        int numElems = vsapi->mapNumElements(args, key);
+        switch (vsapi->mapGetType(args, key)) {
             case ptVideoNode:
             case ptAudioNode:
                 for (int j = 0; j < numElems; j++) {
-                    VSNodeRef *ref = vsapi->propGetNode(args, key, j, nullptr);
+                    VSNodeRef *ref = vsapi->mapGetNode(args, key, j, nullptr);
                     lines.insert(mangleNode(ref, vsapi) +  " -> " + thisFrame);
                     printNodeGraphHelper(lines, nodes, visited, ref, vsapi);
                     vsapi->freeNode(ref);

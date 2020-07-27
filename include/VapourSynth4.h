@@ -342,8 +342,8 @@ struct VSAPI {
     const VSFrameRef *(VS_CC *cloneFrameRef)(const VSFrameRef *f) VS_NOEXCEPT;
     VSFrameRef *(VS_CC *copyFrame)(const VSFrameRef *f, VSCore *core) VS_NOEXCEPT;
     void (VS_CC *copyFrameProps)(const VSFrameRef *src, VSFrameRef *dst, VSCore *core) VS_NOEXCEPT;
-    const VSMap *(VS_CC *getFramePropsRO)(const VSFrameRef *f) VS_NOEXCEPT; // FIXME, rename to getFramePropertiesReadOnly
-    VSMap *(VS_CC *getFramePropsRW)(VSFrameRef *f) VS_NOEXCEPT; // FIXME, rename to getFrameProperties
+    const VSMap *(VS_CC *getFramePropertiesRO)(const VSFrameRef *f) VS_NOEXCEPT;
+    VSMap *(VS_CC *getFramePropertiesRW)(VSFrameRef *f) VS_NOEXCEPT;
 
     ptrdiff_t (VS_CC *getStride)(const VSFrameRef *f, int plane) VS_NOEXCEPT;
     const uint8_t *(VS_CC *getReadPtr)(const VSFrameRef *f, int plane) VS_NOEXCEPT;
@@ -385,42 +385,42 @@ struct VSAPI {
     void (VS_CC *freeMap)(VSMap *map) VS_NOEXCEPT;
     void (VS_CC *clearMap)(VSMap *map) VS_NOEXCEPT;
 
-    void (VS_CC *setError)(VSMap *map, const char *errorMessage) VS_NOEXCEPT; /* used to signal errors outside filter getframe function */ // FIXME, rename to setMapError?
-    const char *(VS_CC *getError)(const VSMap *map) VS_NOEXCEPT; /* used to query errors, returns 0 if no error */ // FIXME, rename to getMapError?
+    void (VS_CC *mapSetError)(VSMap *map, const char *errorMessage) VS_NOEXCEPT; /* used to signal errors outside filter getframe function */
+    const char *(VS_CC *mapGetError)(const VSMap *map) VS_NOEXCEPT; /* used to query errors, returns 0 if no error */
 
     // FIXME, rename prop* to map*?
-    int (VS_CC *propNumKeys)(const VSMap *map) VS_NOEXCEPT;
-    const char *(VS_CC *propGetKey)(const VSMap *map, int index) VS_NOEXCEPT;
-    int (VS_CC *propDeleteKey)(VSMap *map, const char *key) VS_NOEXCEPT;
-    int (VS_CC *propNumElements)(const VSMap *map, const char *key) VS_NOEXCEPT; /* returns -1 if a key doesn't exist */
-    int (VS_CC *propGetType)(const VSMap *map, const char *key) VS_NOEXCEPT; /* return VSPropType */
-    int (VS_CC *propSetEmpty)(VSMap *map, const char *key, int type) VS_NOEXCEPT;
+    int (VS_CC *mapNumKeys)(const VSMap *map) VS_NOEXCEPT;
+    const char *(VS_CC *mapGetKey)(const VSMap *map, int index) VS_NOEXCEPT;
+    int (VS_CC *mapDeleteKey)(VSMap *map, const char *key) VS_NOEXCEPT;
+    int (VS_CC *mapNumElements)(const VSMap *map, const char *key) VS_NOEXCEPT; /* returns -1 if a key doesn't exist */
+    int (VS_CC *mapGetType)(const VSMap *map, const char *key) VS_NOEXCEPT; /* returns VSPropType */
+    int (VS_CC *mapSetEmpty)(VSMap *map, const char *key, int type) VS_NOEXCEPT;
 
-    int64_t (VS_CC *propGetInt)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
-    int (VS_CC *propGetSaturatedInt)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT; // FIXME; rename to mapGetIntSaturated
-    const int64_t *(VS_CC *propGetIntArray)(const VSMap *map, const char *key, int *error) VS_NOEXCEPT;
-    int (VS_CC *propSetInt)(VSMap *map, const char *key, int64_t i, int append) VS_NOEXCEPT;
-    int (VS_CC *propSetIntArray)(VSMap *map, const char *key, const int64_t *i, int size) VS_NOEXCEPT;
+    int64_t (VS_CC *mapGetInt)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
+    int (VS_CC *mapGetIntSaturated)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
+    const int64_t *(VS_CC *mapGetIntArray)(const VSMap *map, const char *key, int *error) VS_NOEXCEPT;
+    int (VS_CC *mapSetInt)(VSMap *map, const char *key, int64_t i, int append) VS_NOEXCEPT;
+    int (VS_CC *mapSetIntArray)(VSMap *map, const char *key, const int64_t *i, int size) VS_NOEXCEPT;
 
-    double (VS_CC *propGetFloat)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
-    float (VS_CC *propGetSaturatedFloat)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT; // FIXME; rename to mapGetFloatSaturated
-    const double *(VS_CC *propGetFloatArray)(const VSMap *map, const char *key, int *error) VS_NOEXCEPT;
-    int (VS_CC *propSetFloat)(VSMap *map, const char *key, double d, int append) VS_NOEXCEPT;
-    int (VS_CC *propSetFloatArray)(VSMap *map, const char *key, const double *d, int size) VS_NOEXCEPT;
+    double (VS_CC *mapGetFloat)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
+    float (VS_CC *mapGetFloatSaturated)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
+    const double *(VS_CC *mapGetFloatArray)(const VSMap *map, const char *key, int *error) VS_NOEXCEPT;
+    int (VS_CC *mapSetFloat)(VSMap *map, const char *key, double d, int append) VS_NOEXCEPT;
+    int (VS_CC *mapSetFloatArray)(VSMap *map, const char *key, const double *d, int size) VS_NOEXCEPT;
 
-    const char *(VS_CC *propGetData)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
-    int (VS_CC *propGetDataSize)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
-    int (VS_CC *propGetDataType)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT; /* returns VSDataType */
-    int (VS_CC *propSetData)(VSMap *map, const char *key, const char *data, int size, int type, int append) VS_NOEXCEPT;
+    const char *(VS_CC *mapGetData)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
+    int (VS_CC *mapGetDataSize)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
+    int (VS_CC *mapGetDataType)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT; /* returns VSDataType */
+    int (VS_CC *mapSetData)(VSMap *map, const char *key, const char *data, int size, int type, int append) VS_NOEXCEPT;
 
-    VSNodeRef *(VS_CC *propGetNode)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
-    int (VS_CC *propSetNode)(VSMap *map, const char *key, VSNodeRef *node, int append) VS_NOEXCEPT;
+    VSNodeRef *(VS_CC *mapGetNode)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
+    int (VS_CC *mapSetNode)(VSMap *map, const char *key, VSNodeRef *node, int append) VS_NOEXCEPT;
 
-    const VSFrameRef *(VS_CC *propGetFrame)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
-    int (VS_CC *propSetFrame)(VSMap *map, const char *key, const VSFrameRef *f, int append) VS_NOEXCEPT;
+    const VSFrameRef *(VS_CC *mapGetFrame)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
+    int (VS_CC *mapSetFrame)(VSMap *map, const char *key, const VSFrameRef *f, int append) VS_NOEXCEPT;
 
-    VSFuncRef *(VS_CC *propGetFunc)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
-    int (VS_CC *propSetFunc)(VSMap *map, const char *key, VSFuncRef *func, int append) VS_NOEXCEPT;
+    VSFuncRef *(VS_CC *mapGetFunc)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
+    int (VS_CC *mapSetFunc)(VSMap *map, const char *key, VSFuncRef *func, int append) VS_NOEXCEPT;
 
     /* Plugin and plugin function related */
     int (VS_CC *registerFunction)(const char *name, const char *args, const char *returnType, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) VS_NOEXCEPT; /* non-zero return value on success  */

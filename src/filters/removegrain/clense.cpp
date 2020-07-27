@@ -27,7 +27,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 #include "shared.h"
 
-#define CLENSE_RETERROR(x) do { vsapi->setError(out, (x)); vsapi->freeNode(d.cnode); vsapi->freeNode(d.pnode); vsapi->freeNode(d.nnode); return; } while (0)
+#define CLENSE_RETERROR(x) do { vsapi->mapSetError(out, (x)); vsapi->freeNode(d.cnode); vsapi->freeNode(d.pnode); vsapi->freeNode(d.nnode); return; } while (0)
 #define CLAMP(value, lower, upper) do { if (value < lower) value = lower; else if (value > upper) value = upper; } while(0)
 
 typedef struct {
@@ -169,16 +169,16 @@ void VS_CC clenseCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
     int i;
 
     d.mode = static_cast<int>(reinterpret_cast<intptr_t>(userData));
-    d.cnode = vsapi->propGetNode(in, "clip", 0, nullptr);
+    d.cnode = vsapi->mapGetNode(in, "clip", 0, nullptr);
     d.vi = vsapi->getVideoInfo(d.cnode);
     if (!isConstantVideoFormat(d.vi))
         CLENSE_RETERROR("Clense: only constant format input supported");
 
     if (d.mode == cmNormal) {
-        d.pnode = vsapi->propGetNode(in, "previous", 0, &err);
+        d.pnode = vsapi->mapGetNode(in, "previous", 0, &err);
         if (err)
             d.pnode = vsapi->cloneNodeRef(d.cnode);
-        d.nnode = vsapi->propGetNode(in, "next", 0, &err);
+        d.nnode = vsapi->mapGetNode(in, "next", 0, &err);
         if (err)
             d.nnode = vsapi->cloneNodeRef(d.cnode);
     }
@@ -190,13 +190,13 @@ void VS_CC clenseCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
         CLENSE_RETERROR("Clense: previous clip doesn't have the same format as the main clip");
 
     n = d.vi->format.numPlanes;
-    m = vsapi->propNumElements(in, "planes");
+    m = vsapi->mapNumElements(in, "planes");
 
     for (i = 0; i < 3; i++)
         d.process[i] = m <= 0;
 
     for (i = 0; i < m; i++) {
-        o = vsapi->propGetSaturatedInt(in, "planes", i, nullptr);
+        o = vsapi->mapGetIntSaturated(in, "planes", i, nullptr);
 
         if (o < 0 || o >= n) 
             CLENSE_RETERROR("Clense: plane index out of range");

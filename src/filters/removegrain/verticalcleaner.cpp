@@ -105,28 +105,28 @@ static void VS_CC verticalCleanerFree(void *instanceData, VSCore *core, const VS
 void VS_CC verticalCleanerCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     VerticalCleanerData d;
 
-    d.node = vsapi->propGetNode(in, "clip", 0, nullptr);
+    d.node = vsapi->mapGetNode(in, "clip", 0, nullptr);
     d.vi = vsapi->getVideoInfo(d.node);
 
     if (!isConstantVideoFormat(d.vi) || d.vi->format.sampleType != stInteger || d.vi->format.bytesPerSample > 2) {
-        vsapi->setError(out, "VerticalCleaner: only constant format 8-16 bits integer input supported");
+        vsapi->mapSetError(out, "VerticalCleaner: only constant format 8-16 bits integer input supported");
         vsapi->freeNode(d.node);
         return;
     }
 
-    const int m = vsapi->propNumElements(in, "mode");
+    const int m = vsapi->mapNumElements(in, "mode");
 
     if (m > d.vi->format.numPlanes) {
-        vsapi->setError(out, "VerticalCleaner: number of modes specified must be equal to or fewer than the number of input planes");
+        vsapi->mapSetError(out, "VerticalCleaner: number of modes specified must be equal to or fewer than the number of input planes");
         vsapi->freeNode(d.node);
         return;
     }
 
     for (int i = 0; i < 3; i++) {
         if (i < m) {
-            d.mode[i] = vsapi->propGetSaturatedInt(in, "mode", i, nullptr);
+            d.mode[i] = vsapi->mapGetIntSaturated(in, "mode", i, nullptr);
             if (d.mode[i] < 0 || d.mode[i] > 2) {
-                vsapi->setError(out, "VerticalCleaner: invalid mode specified, only modes 0-2 supported");
+                vsapi->mapSetError(out, "VerticalCleaner: invalid mode specified, only modes 0-2 supported");
                 vsapi->freeNode(d.node);
                 return;
             }
@@ -136,11 +136,11 @@ void VS_CC verticalCleanerCreate(const VSMap *in, VSMap *out, void *userData, VS
 
         const int height = d.vi->height >> (i ? d.vi->format.subSamplingH : 0);
         if (d.mode[i] == 1 && height < 3) {
-            vsapi->setError(out, "VerticalCleaner: corresponding plane's height must be greater than or equal to 3 for mode 1");
+            vsapi->mapSetError(out, "VerticalCleaner: corresponding plane's height must be greater than or equal to 3 for mode 1");
             vsapi->freeNode(d.node);
             return;
         } else if (d.mode[i] == 2 && height < 5) {
-            vsapi->setError(out, "VerticalCleaner: corresponding plane's height must be greater than or equal to 5 for mode 2");
+            vsapi->mapSetError(out, "VerticalCleaner: corresponding plane's height must be greater than or equal to 5 for mode 2");
             vsapi->freeNode(d.node);
             return;
         }

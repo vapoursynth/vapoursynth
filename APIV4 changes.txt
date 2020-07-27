@@ -25,7 +25,11 @@ it can be set to "any". Note that R3 functions will have the "any" return type.
 Since the audio types anode and a frame were introduced the video counterparts were renamed to
 vnode and vframe instead of clip and frame.
 
-Property manipulation:
+VSMap/property manipulation:
+All functions starting with prop* have been renamed to map*. Likewise get/setError has been renamed to
+mapGet/SetError for greater consistency.
+The paTouch mode has been removed and mapSetEmpty should be used instead in the rare cases where
+it's needed.
 Audio node and audio frame types were added and the types are now declared as normal enum constants
 and not obscure charaters. The best way to think about audio and video nodes are that they're two
 separate types that happen to share functions to manipulate them. As a result of this reasoning a

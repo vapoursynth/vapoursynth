@@ -28,7 +28,7 @@
 #include <vector>
 #include <limits>
 
-#define RETERROR(x) do { vsapi->setError(out, (x)); return; } while (0)
+#define RETERROR(x) do { vsapi->mapSetError(out, (x)); return; } while (0)
 
 // to detect compat formats
 static inline bool isCompatFormat(const VSVideoFormat *format) {
@@ -126,21 +126,21 @@ static void VS_CC filterFree(void *instanceData, VSCore *core, const VSAPI *vsap
 }
 
 static inline bool getProcessPlanesArg(const VSMap *in, VSMap *out, const char *filterName, bool process[3], const VSAPI *vsapi) {
-    int m = vsapi->propNumElements(in, "planes");
+    int m = vsapi->mapNumElements(in, "planes");
 
     for (int i = 0; i < 3; i++)
         process[i] = (m <= 0);
 
     for (int i = 0; i < m; i++) {
-        int64_t o = vsapi->propGetInt(in, "planes", i, nullptr);
+        int64_t o = vsapi->mapGetInt(in, "planes", i, nullptr);
 
         if (o < 0 || o >= 3) {
-            vsapi->setError(out, (filterName + std::string(": plane index out of range")).c_str());
+            vsapi->mapSetError(out, (filterName + std::string(": plane index out of range")).c_str());
             return false;
         }
 
         if (process[o]) {
-            vsapi->setError(out, (filterName + std::string(": plane specified twice")).c_str());
+            vsapi->mapSetError(out, (filterName + std::string(": plane specified twice")).c_str());
             return false;
         }
 
@@ -170,13 +170,13 @@ static inline void vs_memset(void *ptr, T value, size_t num) {
 }
 
 static inline void getPlanesArg(const VSMap *in, bool *process, const VSAPI *vsapi) {
-    int m = vsapi->propNumElements(in, "planes");
+    int m = vsapi->mapNumElements(in, "planes");
 
     for (int i = 0; i < 3; i++)
         process[i] = (m <= 0);
 
     for (int i = 0; i < m; i++) {
-        int o = vsapi->propGetSaturatedInt(in, "planes", i, nullptr);
+        int o = vsapi->mapGetIntSaturated(in, "planes", i, nullptr);
 
         if (o < 0 || o >= 3)
             throw std::runtime_error("plane index out of range");

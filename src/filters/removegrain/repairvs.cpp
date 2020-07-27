@@ -1946,48 +1946,48 @@ static void VS_CC repairFree(void *instanceData, VSCore *core, const VSAPI *vsap
 void VS_CC repairCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     RepairData d;
 
-    d.node1 = vsapi->propGetNode(in, "clip", 0, nullptr);
+    d.node1 = vsapi->mapGetNode(in, "clip", 0, nullptr);
     d.vi = vsapi->getVideoInfo(d.node1);
 
     if (!isConstantVideoFormat(d.vi)) {
         vsapi->freeNode(d.node1);
-        vsapi->setError(out, "Repair: Only constant format input supported");
+        vsapi->mapSetError(out, "Repair: Only constant format input supported");
         return;
     }
 
-    d.node2 = vsapi->propGetNode(in, "repairclip", 0, nullptr);
+    d.node2 = vsapi->mapGetNode(in, "repairclip", 0, nullptr);
 
     if (!isSameVideoInfo(d.vi, vsapi->getVideoInfo(d.node2))) {
         vsapi->freeNode(d.node1);
         vsapi->freeNode(d.node2);
-        vsapi->setError(out, "Repair: Input clips must have the same format");
+        vsapi->mapSetError(out, "Repair: Input clips must have the same format");
         return;
     }
 
     if (d.vi->format.sampleType != stInteger || (d.vi->format.bytesPerSample != 1 && d.vi->format.bytesPerSample != 2)) {
         vsapi->freeNode(d.node1);
         vsapi->freeNode(d.node2);
-        vsapi->setError(out, "Repair: Only 8-16 bit int formats supported");
+        vsapi->mapSetError(out, "Repair: Only 8-16 bit int formats supported");
         return;
     }
 
     int n = d.vi->format.numPlanes;
-    int m = vsapi->propNumElements(in, "mode");
+    int m = vsapi->mapNumElements(in, "mode");
     if (n < m) {
         vsapi->freeNode(d.node1);
         vsapi->freeNode(d.node2);
-        vsapi->setError(out, "Repair: Number of modes specified must be equal or fewer than the number of input planes");
+        vsapi->mapSetError(out, "Repair: Number of modes specified must be equal or fewer than the number of input planes");
         return;
     }
 
     for (int i = 0; i < 3; i++) {
         if (i < m) {
-            d.mode[i] = vsapi->propGetSaturatedInt(in, "mode", i, nullptr);
+            d.mode[i] = vsapi->mapGetIntSaturated(in, "mode", i, nullptr);
             if (d.mode[i] < 0 || d.mode[i] > 24)
             {
                 vsapi->freeNode(d.node1);
                 vsapi->freeNode(d.node2);
-                vsapi->setError(out, "Repair: Invalid mode specified, only 0-24 supported");
+                vsapi->mapSetError(out, "Repair: Invalid mode specified, only 0-24 supported");
                 return;
             }
         } else {

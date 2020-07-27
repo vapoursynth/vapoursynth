@@ -36,7 +36,7 @@ static void VS_CC MorphoCreate(const VSMap *in, VSMap *out, void *userData,
     int shapec;
     for (shapec = 0; SElemFuncs[shapec + 1] != NULL; shapec++);
 
-    d.node = vsapi->propGetNode(in, "clip", 0, 0);
+    d.node = vsapi->mapGetNode(in, "clip", 0, 0);
     d.vi = *vsapi->getVideoInfo(d.node);
 
     if (d.vi.format.colorFamily == cfUndefined) {
@@ -51,7 +51,7 @@ static void VS_CC MorphoCreate(const VSMap *in, VSMap *out, void *userData,
         goto error;
     }
 
-    d.size = vsapi->propGetSaturatedInt(in, "size", 0, &err);
+    d.size = vsapi->mapGetIntSaturated(in, "size", 0, &err);
 
     if (err)
         d.size = 5;
@@ -61,7 +61,7 @@ static void VS_CC MorphoCreate(const VSMap *in, VSMap *out, void *userData,
         goto error;
     }
 
-    d.shape = vsapi->propGetSaturatedInt(in, "shape", 0, &err);
+    d.shape = vsapi->mapGetIntSaturated(in, "shape", 0, &err);
 
     if (err)
         d.shape = 0;
@@ -78,7 +78,7 @@ static void VS_CC MorphoCreate(const VSMap *in, VSMap *out, void *userData,
 
     d.selem = calloc(1, sizeof(uint8_t) * pads * pads);
     if (!d.selem) {
-        vsapi->setError(out, "Failed to allocate structuring element");
+        vsapi->mapSetError(out, "Failed to allocate structuring element");
         goto error;
     }
 
@@ -93,7 +93,7 @@ static void VS_CC MorphoCreate(const VSMap *in, VSMap *out, void *userData,
 
 error:
     vsapi->freeNode(d.node);
-    vsapi->setError(out, msg);
+    vsapi->mapSetError(out, msg);
 }
 
 static const VSFrameRef *VS_CC MorphoGetFrame(int n, int activationReason,

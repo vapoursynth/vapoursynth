@@ -653,8 +653,8 @@ static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void **i
 
         int order, field;
         int missing;
-        const VSMap *props = vsapi->getFramePropsRO(src);
-        int fieldBased = vsapi->propGetSaturatedInt(props, "_FieldBased", 0, &missing);
+        const VSMap *props = vsapi->getFramePropertiesRO(src);
+        int fieldBased = vsapi->mapGetIntSaturated(props, "_FieldBased", 0, &missing);
         if (missing || (fieldBased != VSFieldBasedBFF && fieldBased != VSFieldBasedTFF))
             order = vfm->order;
         else
@@ -692,11 +692,11 @@ static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void **i
         // check if it's a scenechange so micmatch can be used
         // only relevant for mm mode 1
         if (vfm->micmatch == 1) {
-            sc = vsapi->propGetFloat(props, "VFMPlaneStatsDiff", 0, 0) > vfm->scthresh;
+            sc = vsapi->mapGetFloat(props, "VFMPlaneStatsDiff", 0, 0) > vfm->scthresh;
 
             if (!sc) {
-                props = vsapi->getFramePropsRO(nxt);
-                sc = vsapi->propGetFloat(props, "VFMPlaneStatsDiff", 0, 0) > vfm->scthresh;
+                props = vsapi->getFramePropertiesRO(nxt);
+                sc = vsapi->mapGetFloat(props, "VFMPlaneStatsDiff", 0, 0) > vfm->scthresh;
             }
         }
 
@@ -776,13 +776,13 @@ static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void **i
 
         dst2 = vsapi->copyFrame(dst1, core);
         vsapi->freeFrame(dst1);
-        m = vsapi->getFramePropsRW(dst2);      
-        vsapi->propSetInt(m, "_FieldBased", 0, paReplace);
+        m = vsapi->getFramePropertiesRW(dst2);      
+        vsapi->mapSetInt(m, "_FieldBased", 0, paReplace);
         for (i = 0; i < 5; i++)
-            vsapi->propSetInt(m, "VFMMics", mics[i], i ? paAppend : paReplace);
-        vsapi->propSetInt(m, "_Combed", mics[match] >= vfm->mi, paReplace);
-        vsapi->propSetInt(m, "VFMMatch", match, paReplace);
-        vsapi->propSetInt(m, "VFMSceneChange", sc, paReplace);
+            vsapi->mapSetInt(m, "VFMMics", mics[i], i ? paAppend : paReplace);
+        vsapi->mapSetInt(m, "_Combed", mics[match] >= vfm->mi, paReplace);
+        vsapi->mapSetInt(m, "VFMMatch", match, paReplace);
+        vsapi->mapSetInt(m, "VFMSceneChange", sc, paReplace);
         return dst2;
     }
     return NULL;
@@ -802,32 +802,32 @@ static VSMap *invokePlaneDifference(VSNodeRef *node, VSCore *core, const VSAPI *
     VSPlugin *stdplugin = vsapi->getPluginByID(VS_STD_PLUGIN_ID, core);
 
     args = vsapi->createMap();
-    vsapi->propSetNode(args, "clip", node, paAppend);
-    vsapi->propSetInt(args, "frames", 0, paAppend);
+    vsapi->mapSetNode(args, "clip", node, paAppend);
+    vsapi->mapSetInt(args, "frames", 0, paAppend);
     ret = vsapi->invoke(stdplugin, "DuplicateFrames", args);
-    if (vsapi->getError(ret)) {
+    if (vsapi->mapGetError(ret)) {
         vsapi->freeMap(args);
         return ret;
     }
-    node2 = vsapi->propGetNode(ret, "clip", 0, 0);
+    node2 = vsapi->mapGetNode(ret, "clip", 0, 0);
     vsapi->freeMap(ret);
     vsapi->clearMap(args);
 
-    vsapi->propSetNode(args, "clipa", node, paAppend);
-    vsapi->propSetNode(args, "clipb", node2, paAppend);
+    vsapi->mapSetNode(args, "clipa", node, paAppend);
+    vsapi->mapSetNode(args, "clipb", node2, paAppend);
     vsapi->freeNode(node2);
-    vsapi->propSetInt(args, "plane", 0, paAppend);
-    vsapi->propSetData(args, "prop", prop, -1, dtUtf8, paAppend);
+    vsapi->mapSetInt(args, "plane", 0, paAppend);
+    vsapi->mapSetData(args, "prop", prop, -1, dtUtf8, paAppend);
     ret = vsapi->invoke(stdplugin, "PlaneStats", args);
-    if (vsapi->getError(ret)) {
+    if (vsapi->mapGetError(ret)) {
         vsapi->freeMap(args);
         return ret;
     }
-    node2 = vsapi->propGetNode(ret, "clip", 0, 0);
+    node2 = vsapi->mapGetNode(ret, "clip", 0, 0);
     vsapi->freeMap(ret);
     vsapi->clearMap(args);
 
-    vsapi->propSetNode(args, "clip", node2, paAppend);
+    vsapi->mapSetNode(args, "clip", node2, paAppend);
     vsapi->freeNode(node2);
     ret = vsapi->invoke(stdplugin, "Cache", args);
     vsapi->freeMap(args);
@@ -855,88 +855,88 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
     VFMData *vfmd ;
     const VSVideoInfo *vi;
 
-    vfm.order = vsapi->propGetSaturatedInt(in, "order", 0, 0);
-    vfm.field = vsapi->propGetSaturatedInt(in, "field", 0, &err);
+    vfm.order = vsapi->mapGetIntSaturated(in, "order", 0, 0);
+    vfm.field = vsapi->mapGetIntSaturated(in, "field", 0, &err);
     if (err)
         vfm.field = VFMFieldSameAsOrder;
 
-    vfm.mode = vsapi->propGetSaturatedInt(in, "mode", 0, &err);
+    vfm.mode = vsapi->mapGetIntSaturated(in, "mode", 0, &err);
     if (err)
         vfm.mode = 1;
-    vfm.mchroma = !!vsapi->propGetInt(in, "mchroma", 0, &err);
+    vfm.mchroma = !!vsapi->mapGetInt(in, "mchroma", 0, &err);
     if (err)
         vfm.mchroma = 1;
-    vfm.cthresh = vsapi->propGetSaturatedInt(in, "cthresh", 0, &err);
+    vfm.cthresh = vsapi->mapGetIntSaturated(in, "cthresh", 0, &err);
     if (err)
         vfm.cthresh = 9;
-    vfm.mi = vsapi->propGetSaturatedInt(in, "mi", 0, &err);
+    vfm.mi = vsapi->mapGetIntSaturated(in, "mi", 0, &err);
     if (err)
         vfm.mi = 80;
-    vfm.chroma = !!vsapi->propGetInt(in, "chroma", 0, &err);
+    vfm.chroma = !!vsapi->mapGetInt(in, "chroma", 0, &err);
     if (err)
         vfm.chroma = 1;
-    vfm.blockx = vsapi->propGetSaturatedInt(in, "blockx", 0, &err);
+    vfm.blockx = vsapi->mapGetIntSaturated(in, "blockx", 0, &err);
     if (err)
         vfm.blockx = 16;
-    vfm.blocky = vsapi->propGetSaturatedInt(in, "blocky", 0, &err);
+    vfm.blocky = vsapi->mapGetIntSaturated(in, "blocky", 0, &err);
     if (err)
         vfm.blocky = 16;
-    vfm.y0 = vsapi->propGetSaturatedInt(in, "y0", 0, &err);
+    vfm.y0 = vsapi->mapGetIntSaturated(in, "y0", 0, &err);
     if (err)
         vfm.y0 = 16;
-    vfm.y1 = vsapi->propGetSaturatedInt(in, "y1", 0, &err);
+    vfm.y1 = vsapi->mapGetIntSaturated(in, "y1", 0, &err);
     if (err)
         vfm.y1 = 16;
-    vfm.scthresh = vsapi->propGetFloat(in, "scthresh", 0, &err);
+    vfm.scthresh = vsapi->mapGetFloat(in, "scthresh", 0, &err);
     if (err)
         vfm.scthresh = 12.0;
-    vfm.micmatch = vsapi->propGetSaturatedInt(in, "micmatch", 0, &err);
+    vfm.micmatch = vsapi->mapGetIntSaturated(in, "micmatch", 0, &err);
     if (err)
         vfm.micmatch = 1;
-    vfm.micout = !!vsapi->propGetInt(in, "micout", 0, &err);
+    vfm.micout = !!vsapi->mapGetInt(in, "micout", 0, &err);
 
     if (vfm.order < VFMOrderBFF || vfm.order > VFMOrderTFF) {
-        vsapi->setError(out, "VFM: Invalid order specified; only 0-1 allowed");
+        vsapi->mapSetError(out, "VFM: Invalid order specified; only 0-1 allowed");
         return;
     }
 
     if (vfm.field < VFMFieldBottom || vfm.field > VFMFieldOppositeOfOrder) {
-        vsapi->setError(out, "VFM: Invalid field specified; only 0-3 allowed");
+        vsapi->mapSetError(out, "VFM: Invalid field specified; only 0-3 allowed");
         return;
     }
 
     if (vfm.mode < 0 || vfm.mode > 5) {
-        vsapi->setError(out, "VFM: Invalid mode specified, only 0-5 allowed");
+        vsapi->mapSetError(out, "VFM: Invalid mode specified, only 0-5 allowed");
         return;
     }
 
     if (vfm.blockx < 4 || vfm.blockx > 512 || !isPowerOf2(vfm.blockx) || vfm.blocky < 4 || vfm.blocky > 512 || !isPowerOf2(vfm.blocky)) {
-        vsapi->setError(out, "VFM: invalid blocksize, must be between 4 and 512 and be a power of 2");
+        vsapi->mapSetError(out, "VFM: invalid blocksize, must be between 4 and 512 and be a power of 2");
         return;
     }
 
     if (vfm.mi < 0 || vfm.mi > vfm.blockx * vfm.blocky) {
-        vsapi->setError(out, "VFM: Invalid mi threshold specified");
+        vsapi->mapSetError(out, "VFM: Invalid mi threshold specified");
         return;
     }
 
     if (vfm.scthresh < 0 || vfm.scthresh > 100) {
-        vsapi->setError(out, "VFM: Invalid scthresh specified");
+        vsapi->mapSetError(out, "VFM: Invalid scthresh specified");
         return;
     }
 
     if (vfm.cthresh < -1 || vfm.cthresh > 255) {
-        vsapi->setError(out, "VFM: invalid cthresh specified");
+        vsapi->mapSetError(out, "VFM: invalid cthresh specified");
         return;
     }
 
     if (vfm.micmatch < 0 || vfm.micmatch > 2) {
-        vsapi->setError(out, "VFM: invalid micmatch mode specified");
+        vsapi->mapSetError(out, "VFM: invalid micmatch mode specified");
         return;
     }
 
-    vfm.node = vsapi->propGetNode(in, "clip", 0, 0);
-    vfm.clip2 = vsapi->propGetNode(in, "clip2", 0, &err);
+    vfm.node = vsapi->mapGetNode(in, "clip", 0, 0);
+    vfm.clip2 = vsapi->mapGetNode(in, "clip2", 0, &err);
     vfm.vi = vsapi->getVideoInfo(vfm.clip2 ? vfm.clip2 : vfm.node);
     vi = vsapi->getVideoInfo(vfm.node);
 
@@ -947,14 +947,14 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
         formatID != pfYUV440P8 &&
         formatID != pfYUV444P8 &&
         formatID != pfGray8)) {
-        vsapi->setError(out, "VFM: input clip must be constant format YUV420P8, YUV422P8, YUV440P8, YUV444P8, or GRAY8");
+        vsapi->mapSetError(out, "VFM: input clip must be constant format YUV420P8, YUV422P8, YUV440P8, YUV444P8, or GRAY8");
         vsapi->freeNode(vfm.node);
         vsapi->freeNode(vfm.clip2);
         return;
     }
 
     if (vi->numFrames != vfm.vi->numFrames || !vsh_isConstantVideoFormat(vfm.vi)) {
-        vsapi->setError(out, "VFM: the number of frames must be the same in both input clips and clip2 must be constant format");
+        vsapi->mapSetError(out, "VFM: the number of frames must be the same in both input clips and clip2 must be constant format");
         vsapi->freeNode(vfm.node);
         vsapi->freeNode(vfm.clip2);
         return;
@@ -970,16 +970,16 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
     if (vfm.micmatch == 1) {
         VSMap *ret = invokePlaneDifference(vfm.node, core, vsapi);
         vsapi->freeNode(vfm.node);
-        const char *error = vsapi->getError(ret);
+        const char *error = vsapi->mapGetError(ret);
         if (error) {
             vsapi->freeMap(ret);
             char *error2 = prefix_string(error, "VFM: ");
-            vsapi->setError(out, error2);
+            vsapi->mapSetError(out, error2);
             free(error2);
             vsapi->freeNode(vfm.clip2);
             return;
         }
-        vfm.node = vsapi->propGetNode(ret, "clip", 0, 0);
+        vfm.node = vsapi->mapGetNode(ret, "clip", 0, 0);
         vsapi->freeMap(ret);
     }
 
@@ -1439,10 +1439,10 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
 
             for (int i = cyclestart; i < cyclestart + vdm->inCycle; i++) {
                 const VSFrameRef *frame = vsapi->getFrameFilter(i, vdm->clip2 ? vdm->clip2 : vdm->node, frameCtx);
-                const VSMap *frameProps = vsapi->getFramePropsRO(frame);
+                const VSMap *frameProps = vsapi->getFramePropertiesRO(frame);
                 int err;
-                oldDurations[i % vdm->inCycle].num = vsapi->propGetInt(frameProps, "_DurationNum", 0, &err);
-                oldDurations[i % vdm->inCycle].den = vsapi->propGetInt(frameProps, "_DurationDen", 0, &err);
+                oldDurations[i % vdm->inCycle].num = vsapi->mapGetInt(frameProps, "_DurationNum", 0, &err);
+                oldDurations[i % vdm->inCycle].den = vsapi->mapGetInt(frameProps, "_DurationDen", 0, &err);
                 vsapi->freeFrame(frame);
             }
 
@@ -1454,16 +1454,16 @@ static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, vo
         const VSFrameRef *src = vsapi->getFrameFilter(outputFrame, vdm->clip2 ? vdm->clip2 : vdm->node, frameCtx);
         VSFrameRef *dst = vsapi->copyFrame(src, core);
         vsapi->freeFrame(src);
-        VSMap *dstProps = vsapi->getFramePropsRW(dst);
+        VSMap *dstProps = vsapi->getFramePropertiesRW(dst);
 
         if (vdm->dryrun) {
-            vsapi->propSetInt(dstProps, "VDecimateDrop", outputFrame % vdm->inCycle == cycle->drop, paReplace);
-            vsapi->propSetInt(dstProps, "VDecimateTotalDiff", cycle->metrics[outputFrame % vdm->inCycle].totdiff, paReplace);
-            vsapi->propSetInt(dstProps, "VDecimateMaxBlockDiff", cycle->metrics[outputFrame % vdm->inCycle].maxbdiff, paReplace);
+            vsapi->mapSetInt(dstProps, "VDecimateDrop", outputFrame % vdm->inCycle == cycle->drop, paReplace);
+            vsapi->mapSetInt(dstProps, "VDecimateTotalDiff", cycle->metrics[outputFrame % vdm->inCycle].totdiff, paReplace);
+            vsapi->mapSetInt(dstProps, "VDecimateMaxBlockDiff", cycle->metrics[outputFrame % vdm->inCycle].maxbdiff, paReplace);
         } else {
             if (cycle->durations[n % vdm->outCycle].den > 0) {
-                vsapi->propSetInt(dstProps, "_DurationNum", cycle->durations[n % vdm->outCycle].num, paReplace);
-                vsapi->propSetInt(dstProps, "_DurationDen", cycle->durations[n % vdm->outCycle].den, paReplace);
+                vsapi->mapSetInt(dstProps, "_DurationNum", cycle->durations[n % vdm->outCycle].num, paReplace);
+                vsapi->mapSetInt(dstProps, "_DurationDen", cycle->durations[n % vdm->outCycle].den, paReplace);
             }
         }
 
@@ -1489,81 +1489,81 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
     memset(&vdm, 0, sizeof(vdm));
     int err;
 
-    vdm.inCycle = vsapi->propGetSaturatedInt(in, "cycle", 0, &err);
+    vdm.inCycle = vsapi->mapGetIntSaturated(in, "cycle", 0, &err);
     if (err)
         vdm.inCycle = 5;
-    vdm.blockx = vsapi->propGetSaturatedInt(in, "blockx", 0, &err);
+    vdm.blockx = vsapi->mapGetIntSaturated(in, "blockx", 0, &err);
     if (err)
         vdm.blockx = 32;
-    vdm.blocky = vsapi->propGetSaturatedInt(in, "blocky", 0, &err);
+    vdm.blocky = vsapi->mapGetIntSaturated(in, "blocky", 0, &err);
     if (err)
         vdm.blocky = 32;
-    double dupthresh = vsapi->propGetFloat(in, "dupthresh", 0, &err);
+    double dupthresh = vsapi->mapGetFloat(in, "dupthresh", 0, &err);
     if (err)
         dupthresh = 1.1;
-    double scthresh = vsapi->propGetFloat(in, "scthresh", 0, &err);
+    double scthresh = vsapi->mapGetFloat(in, "scthresh", 0, &err);
     if (err)
         scthresh = 15.0;
 
     if (vdm.inCycle < 2 || vdm.inCycle > MaxCycleLength) {
-        vsapi->setError(out, "VDecimate: Invalid cycle size specified");
+        vsapi->mapSetError(out, "VDecimate: Invalid cycle size specified");
         return;
     }
 
     if (vdm.blockx < 4 || vdm.blockx > 512 || !isPowerOf2(vdm.blockx) || vdm.blocky < 4 || vdm.blocky > 512 || !isPowerOf2(vdm.blocky)) {
-        vsapi->setError(out, "VDecimate: invalid blocksize, must be between 4 and 512 and be a power of 2");
+        vsapi->mapSetError(out, "VDecimate: invalid blocksize, must be between 4 and 512 and be a power of 2");
         return;
     }
 
     if (dupthresh < 0 || dupthresh > 100) {
-        vsapi->setError(out, "VDecimate: invalid dupthresh specified");
+        vsapi->mapSetError(out, "VDecimate: invalid dupthresh specified");
         return;
     }
 
     if (scthresh < 0 || scthresh > 100) {
-        vsapi->setError(out, "VDecimate: invalid scthresh specified");
+        vsapi->mapSetError(out, "VDecimate: invalid scthresh specified");
         return;
     }
 
-    vdm.node = vsapi->propGetNode(in, "clip", 0, 0);
-    vdm.clip2 = vsapi->propGetNode(in, "clip2", 0, &err);
+    vdm.node = vsapi->mapGetNode(in, "clip", 0, 0);
+    vdm.clip2 = vsapi->mapGetNode(in, "clip2", 0, &err);
     vdm.vi = *vsapi->getVideoInfo(vdm.clip2 ? vdm.clip2 : vdm.node);
 
     const VSVideoInfo *vi = vsapi->getVideoInfo(vdm.node);
     if (!vsh_isConstantVideoFormat(vi) || vi->format.bitsPerSample > 16 || vi->format.sampleType != stInteger) {
-        vsapi->setError(out, "VDecimate: input clip must be constant format, with 8..16 bits per sample");
+        vsapi->mapSetError(out, "VDecimate: input clip must be constant format, with 8..16 bits per sample");
         vsapi->freeNode(vdm.node);
         vsapi->freeNode(vdm.clip2);
         return;
     }
 
     if (vi->numFrames != vdm.vi.numFrames) {
-        vsapi->setError(out, "VDecimate: the number of frames must be the same in both input clips");
+        vsapi->mapSetError(out, "VDecimate: the number of frames must be the same in both input clips");
         vsapi->freeNode(vdm.node);
         vsapi->freeNode(vdm.clip2);
         return;
     }
 
-    vdm.chroma = !!vsapi->propGetInt(in, "chroma", 0, &err);
+    vdm.chroma = !!vsapi->mapGetInt(in, "chroma", 0, &err);
     if (err)
         vdm.chroma = vi->format.colorFamily != cfGray;
     else {
         if (vdm.chroma && vi->format.colorFamily == cfGray) {
-            vsapi->setError(out, "VDecimate: it makes no sense to enable chroma when the input clip is grayscale");
+            vsapi->mapSetError(out, "VDecimate: it makes no sense to enable chroma when the input clip is grayscale");
             vsapi->freeNode(vdm.node);
             vsapi->freeNode(vdm.clip2);
             return;
         } else if (!vdm.chroma && vi->format.colorFamily == cfRGB) {
-            vsapi->setError(out, "VDecimate: it makes no sense to disable chroma when the input clip is RGB");
+            vsapi->mapSetError(out, "VDecimate: it makes no sense to disable chroma when the input clip is RGB");
             vsapi->freeNode(vdm.node);
             vsapi->freeNode(vdm.clip2);
             return;
         }
     }
 
-    vdm.ovrfile = vsapi->propGetData(in, "ovr", 0, &err);
+    vdm.ovrfile = vsapi->mapGetData(in, "ovr", 0, &err);
 
-    vdm.dryrun = !!vsapi->propGetInt(in, "dryrun", 0, &err);
+    vdm.dryrun = !!vsapi->mapGetInt(in, "dryrun", 0, &err);
 
     int max_value = (1 << vi->format.bitsPerSample) - 1;
     // Casting max_value to int64_t to avoid losing the high 32 bits of the result
@@ -1586,7 +1586,7 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
             free(vdm.bdiffs);
             vsapi->freeNode(vdm.node);
             vsapi->freeNode(vdm.clip2);
-            vsapi->setError(out, err2);
+            vsapi->mapSetError(out, err2);
             return;
         }
     }

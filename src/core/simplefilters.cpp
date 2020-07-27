@@ -212,11 +212,11 @@ static const VSFrameRef *VS_CC cropGetframe(int n, int activationReason, void *i
         vsapi->freeFrame(src);
 
         if (d->y & 1) {
-            VSMap *props = vsapi->getFramePropsRW(dst);
+            VSMap *props = vsapi->getFramePropertiesRW(dst);
             int error;
-            int64_t fb = vsapi->propGetInt(props, "_FieldBased", 0, &error);
+            int64_t fb = vsapi->mapGetInt(props, "_FieldBased", 0, &error);
             if (fb == 1 || fb == 2)
-                vsapi->propSetInt(props, "_FieldBased", (fb == 1) ? 2 : 1, paReplace);
+                vsapi->mapSetInt(props, "_FieldBased", (fb == 1) ? 2 : 1, paReplace);
         }
 
         return dst;
@@ -230,16 +230,16 @@ static void VS_CC cropAbsCreate(const VSMap *in, VSMap *out, void *userData, VSC
     char msg[150];
     int err;
 
-    d->x = vsapi->propGetSaturatedInt(in, "left", 0, &err);
+    d->x = vsapi->mapGetIntSaturated(in, "left", 0, &err);
     if (err)
-        d->x = vsapi->propGetSaturatedInt(in, "x", 0, &err);
-    d->y = vsapi->propGetSaturatedInt(in, "top", 0, &err);
+        d->x = vsapi->mapGetIntSaturated(in, "x", 0, &err);
+    d->y = vsapi->mapGetIntSaturated(in, "top", 0, &err);
     if (err)
-        d->y = vsapi->propGetSaturatedInt(in, "y", 0, &err);
+        d->y = vsapi->mapGetIntSaturated(in, "y", 0, &err);
 
-    d->height = vsapi->propGetSaturatedInt(in, "height", 0, 0);
-    d->width = vsapi->propGetSaturatedInt(in, "width", 0, 0);
-    d->node = vsapi->propGetNode(in, "clip", 0, 0);
+    d->height = vsapi->mapGetIntSaturated(in, "height", 0, 0);
+    d->width = vsapi->mapGetIntSaturated(in, "width", 0, 0);
+    d->node = vsapi->mapGetNode(in, "clip", 0, 0);
 
     d->vi = vsapi->getVideoInfo(d->node);
 
@@ -258,21 +258,21 @@ static void VS_CC cropRelCreate(const VSMap *in, VSMap *out, void *userData, VSC
     char msg[150];
     int err;
 
-    d->node = vsapi->propGetNode(in, "clip", 0, 0);
+    d->node = vsapi->mapGetNode(in, "clip", 0, 0);
     d->vi = vsapi->getVideoInfo(d->node);
 
     if (!isConstantVideoFormat(d->vi))
         RETERROR("Crop: constant format and dimensions needed");
 
-    d->x = vsapi->propGetSaturatedInt(in, "left", 0, &err);
-    d->y = vsapi->propGetSaturatedInt(in, "top", 0, &err);
+    d->x = vsapi->mapGetIntSaturated(in, "left", 0, &err);
+    d->y = vsapi->mapGetIntSaturated(in, "top", 0, &err);
 
-    d->height = d->vi->height - d->y - vsapi->propGetSaturatedInt(in, "bottom", 0, &err);
-    d->width = d->vi->width - d->x - vsapi->propGetSaturatedInt(in, "right", 0, &err);
+    d->height = d->vi->height - d->y - vsapi->mapGetIntSaturated(in, "bottom", 0, &err);
+    d->width = d->vi->width - d->x - vsapi->mapGetIntSaturated(in, "right", 0, &err);
 
     // passthrough for the no cropping case
     if (d->x == 0 && d->y == 0 && d->width == d->vi->width && d->height == d->vi->height) {
-        vsapi->propSetNode(out, "clip", d->node, paReplace);
+        vsapi->mapSetNode(out, "clip", d->node, paReplace);
         return;
     }
 
@@ -406,11 +406,11 @@ static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, v
         vsapi->freeFrame(src);
 
         if (d->top & 1) {
-            VSMap *props = vsapi->getFramePropsRW(dst);
+            VSMap *props = vsapi->getFramePropertiesRW(dst);
             int error;
-            int64_t fb = vsapi->propGetInt(props, "_FieldBased", 0, &error);
+            int64_t fb = vsapi->mapGetInt(props, "_FieldBased", 0, &error);
             if (fb == 1 || fb == 2)
-                vsapi->propSetInt(props, "_FieldBased", (fb == 1) ? 2 : 1, paReplace);
+                vsapi->mapSetInt(props, "_FieldBased", (fb == 1) ? 2 : 1, paReplace);
         }
 
         return dst;
@@ -424,15 +424,15 @@ static void VS_CC addBordersCreate(const VSMap *in, VSMap *out, void *userData, 
     char msg[150];
     int err;
 
-    d->left = vsapi->propGetSaturatedInt(in, "left", 0, &err);
-    d->right = vsapi->propGetSaturatedInt(in, "right", 0, &err);
-    d->top = vsapi->propGetSaturatedInt(in, "top", 0, &err);
-    d->bottom = vsapi->propGetSaturatedInt(in, "bottom", 0, &err);
-    d->node = vsapi->propGetNode(in, "clip", 0, 0);
+    d->left = vsapi->mapGetIntSaturated(in, "left", 0, &err);
+    d->right = vsapi->mapGetIntSaturated(in, "right", 0, &err);
+    d->top = vsapi->mapGetIntSaturated(in, "top", 0, &err);
+    d->bottom = vsapi->mapGetIntSaturated(in, "bottom", 0, &err);
+    d->node = vsapi->mapGetNode(in, "clip", 0, 0);
 
     // pass through if nothing to be done
     if (d->left == 0 && d->right == 0 && d->top == 0 && d->bottom == 0) {
-        vsapi->propSetNode(out, "clip", d->node, paReplace);
+        vsapi->mapSetNode(out, "clip", d->node, paReplace);
         return;
     }
 
@@ -451,13 +451,13 @@ static void VS_CC addBordersCreate(const VSMap *in, VSMap *out, void *userData, 
         RETERROR(msg);
 
     int numcomponents = isCompatFormat(&vi.format) ? 3 : vi.format.numPlanes;
-    int ncolors = vsapi->propNumElements(in, "color");
+    int ncolors = vsapi->mapNumElements(in, "color");
 
     setBlack(d->color, &vi.format);
 
     if (ncolors == numcomponents) {
         for (int i = 0; i < ncolors; i++) {
-            double color = vsapi->propGetFloat(in, "color", i, 0);
+            double color = vsapi->mapGetFloat(in, "color", i, 0);
             if (vi.format.sampleType == stInteger) {
                 d->color[i] = doubleToIntPixelValue(color, vi.format.bitsPerSample, &err);
             } else {
@@ -545,14 +545,14 @@ static int findSubSampling(int s1, int s2) {
 
 static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<ShufflePlanesData> d(new ShufflePlanesData(vsapi));
-    int nclips = vsapi->propNumElements(in, "clips");
-    int nplanes = vsapi->propNumElements(in, "planes");
+    int nclips = vsapi->mapNumElements(in, "clips");
+    int nplanes = vsapi->mapNumElements(in, "planes");
     int err;
 
     d->node.resize(3);
     assert(d->plane[0] == 0);
 
-    d->format = vsapi->propGetSaturatedInt(in, "colorfamily", 0, 0);
+    d->format = vsapi->mapGetIntSaturated(in, "colorfamily", 0, 0);
     
     if (d->format == vs3::cmGray)
         d->format = cfGray;
@@ -574,10 +574,10 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
         RETERROR("ShufflePlanes: too many planes specified");
 
     for (int i = 0; i < nplanes; i++)
-        d->plane[i] = vsapi->propGetSaturatedInt(in, "planes", i, 0);
+        d->plane[i] = vsapi->mapGetIntSaturated(in, "planes", i, 0);
 
     for (int i = 0; i < 3; i++)
-        d->node[i] = vsapi->propGetNode(in, "clips", i, &err);
+        d->node[i] = vsapi->mapGetNode(in, "clips", i, &err);
 
     for (int i = 0; i < 3; i++) {
         if (d->node[i] && isCompatFormat(&vsapi->getVideoInfo(d->node[i])->format))
@@ -668,9 +668,9 @@ static const VSFrameRef *VS_CC separateFieldsGetframe(int n, int activationReaso
         vsapi->requestFrameFilter(n / 2, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n / 2, d->node, frameCtx);
-        const VSMap *props = vsapi->getFramePropsRO(src);
+        const VSMap *props = vsapi->getFramePropertiesRO(src);
         int err = 0;
-        int fieldBased = vsapi->propGetSaturatedInt(props, "_FieldBased", 0, &err);
+        int fieldBased = vsapi->mapGetIntSaturated(props, "_FieldBased", 0, &err);
         int effectiveTFF = d->tff;
         if (fieldBased == 1)
             effectiveTFF = 0;
@@ -700,18 +700,18 @@ static const VSFrameRef *VS_CC separateFieldsGetframe(int n, int activationReaso
 
         vsapi->freeFrame(src);
 
-        VSMap *dst_props = vsapi->getFramePropsRW(dst);
-        vsapi->propSetInt(dst_props, "_Field", ((n & 1) ^ effectiveTFF), paReplace);
-        vsapi->propDeleteKey(dst_props, "_FieldBased");
+        VSMap *dst_props = vsapi->getFramePropertiesRW(dst);
+        vsapi->mapSetInt(dst_props, "_Field", ((n & 1) ^ effectiveTFF), paReplace);
+        vsapi->mapDeleteKey(dst_props, "_FieldBased");
 
         if (d->modifyDuration) {
             int errNum, errDen;
-            int64_t durationNum = vsapi->propGetInt(dst_props, "_DurationNum", 0, &errNum);
-            int64_t durationDen = vsapi->propGetInt(dst_props, "_DurationDen", 0, &errDen);
+            int64_t durationNum = vsapi->mapGetInt(dst_props, "_DurationNum", 0, &errNum);
+            int64_t durationDen = vsapi->mapGetInt(dst_props, "_DurationDen", 0, &errDen);
             if (!errNum && !errDen) {
                 muldivRational(&durationNum, &durationDen, 1, 2); // Divide duration by 2
-                vsapi->propSetInt(dst_props, "_DurationNum", durationNum, paReplace);
-                vsapi->propSetInt(dst_props, "_DurationDen", durationDen, paReplace);
+                vsapi->mapSetInt(dst_props, "_DurationNum", durationNum, paReplace);
+                vsapi->mapSetInt(dst_props, "_DurationDen", durationDen, paReplace);
             }
         }
 
@@ -725,13 +725,13 @@ static void VS_CC separateFieldsCreate(const VSMap *in, VSMap *out, void *userDa
     std::unique_ptr<SeparateFieldsData> d(new SeparateFieldsData(vsapi));
 
     int err;
-    d->tff = !!vsapi->propGetInt(in, "tff", 0, &err);
+    d->tff = !!vsapi->mapGetInt(in, "tff", 0, &err);
     if (err)
         d->tff = -1;
-    d->modifyDuration = !!vsapi->propGetInt(in, "modify_duration", 0, &err);
+    d->modifyDuration = !!vsapi->mapGetInt(in, "modify_duration", 0, &err);
     if (err)
         d->modifyDuration = 1;
-    d->node = vsapi->propGetNode(in, "clip", 0, 0);
+    d->node = vsapi->mapGetNode(in, "clip", 0, 0);
     d->vi = *vsapi->getVideoInfo(d->node);
 
     if (!isConstantVideoFormat(&d->vi))
@@ -774,10 +774,10 @@ static const VSFrameRef *VS_CC doubleWeaveGetframe(int n, int activationReason, 
         const VSFrameRef *src2 = vsapi->getFrameFilter(n + 1, d->node, frameCtx);
 
         int err;
-        int64_t src1_field = vsapi->propGetInt(vsapi->getFramePropsRO(src1), "_Field", 0, &err);
+        int64_t src1_field = vsapi->mapGetInt(vsapi->getFramePropertiesRO(src1), "_Field", 0, &err);
         if (err)
             src1_field = -1;
-        int64_t src2_field = vsapi->propGetInt(vsapi->getFramePropsRO(src2), "_Field", 0, &err);
+        int64_t src2_field = vsapi->mapGetInt(vsapi->getFramePropertiesRO(src2), "_Field", 0, &err);
         if (err)
             src2_field = -1;
 
@@ -808,9 +808,9 @@ static const VSFrameRef *VS_CC doubleWeaveGetframe(int n, int activationReason, 
 
         VSFrameRef *dst = vsapi->newVideoFrame(&d->vi.format, d->vi.width, d->vi.height, src1, core);
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(dst);
-        VSMap *dstprops = vsapi->getFramePropsRW(dst);
-        vsapi->propDeleteKey(dstprops, "_Field");
-        vsapi->propSetInt(dstprops, "_FieldBased", 1 + (srctop == src1), paReplace);
+        VSMap *dstprops = vsapi->getFramePropertiesRW(dst);
+        vsapi->mapDeleteKey(dstprops, "_Field");
+        vsapi->mapSetInt(dstprops, "_FieldBased", 1 + (srctop == src1), paReplace);
 
         for (int plane = 0; plane < fi->numPlanes; plane++) {
             const uint8_t *srcptop = vsapi->getReadPtr(srctop, plane);
@@ -843,10 +843,10 @@ static void VS_CC doubleWeaveCreate(const VSMap *in, VSMap *out, void *userData,
     std::unique_ptr<DoubleWeaveData> d(new DoubleWeaveData(vsapi));
 
     int err;
-    d->tff = !!vsapi->propGetInt(in, "tff", 0, &err);
+    d->tff = !!vsapi->mapGetInt(in, "tff", 0, &err);
     if (err)
         d->tff = -1;
-    d->node = vsapi->propGetNode(in, "clip", 0, 0);
+    d->node = vsapi->mapGetNode(in, "clip", 0, 0);
     d->vi = *vsapi->getVideoInfo(d->node);
     d->vi.height *= 2;
 
@@ -891,7 +891,7 @@ static const VSFrameRef *VS_CC flipVerticalGetframe(int n, int activationReason,
 
 static void VS_CC flipVerticalCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<FlipVeritcalData> d(new FlipVeritcalData(vsapi));
-    d->node = vsapi->propGetNode(in, "clip", 0, 0);
+    d->node = vsapi->mapGetNode(in, "clip", 0, 0);
     vsapi->createVideoFilter(out, "FlipVertical", vsapi->getVideoInfo(d->node), 1, flipVerticalGetframe, filterFree<FlipVeritcalData>, fmParallel, 0, d.get(), core);
     d.release();
 }
@@ -988,7 +988,7 @@ static const VSFrameRef *VS_CC flipHorizontalGetframe(int n, int activationReaso
 static void VS_CC flipHorizontalCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<FlipHorizontalData> d(new FlipHorizontalData(vsapi));
     d->flip = !!userData;
-    d->node = vsapi->propGetNode(in, "clip", 0, 0);
+    d->node = vsapi->mapGetNode(in, "clip", 0, 0);
     vsapi->createVideoFilter(out, d->flip ? "Turn180" : "FlipHorizontal", vsapi->getVideoInfo(d->node), 1, flipHorizontalGetframe, filterFree<FlipHorizontalData>, fmParallel, 0, d.get(), core);
     d.release();
 }
@@ -1051,17 +1051,17 @@ static void VS_CC stackCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     std::unique_ptr<StackData> d(new StackData(vsapi));
 
     d->vertical = !!userData;
-    int numclips = vsapi->propNumElements(in, "clips");
+    int numclips = vsapi->mapNumElements(in, "clips");
 
     if (numclips == 1) { // passthrough for the special case with only one clip
-        VSNodeRef *node = vsapi->propGetNode(in, "clips", 0, 0);
-        vsapi->propSetNode(out, "clip", node, paReplace);
+        VSNodeRef *node = vsapi->mapGetNode(in, "clips", 0, 0);
+        vsapi->mapSetNode(out, "clip", node, paReplace);
         vsapi->freeNode(node);
     } else {
         d->node.resize(numclips);
 
         for (int i = 0; i < numclips; i++)
-            d->node[i] = vsapi->propGetNode(in, "clips", i, 0);
+            d->node[i] = vsapi->mapGetNode(in, "clips", i, 0);
 
         d->vi = *vsapi->getVideoInfo(d->node[0]);
         if (isConstantVideoFormat(&d->vi) && isCompatFormat(&d->vi.format) && d->vertical)
@@ -1126,9 +1126,9 @@ static const VSFrameRef *VS_CC blankClipGetframe(int n, int activationReason, vo
             }
 
             if (d->vi.fpsNum > 0) {
-                VSMap *frameProps = vsapi->getFramePropsRW(frame);
-                vsapi->propSetInt(frameProps, "_DurationNum", d->vi.fpsDen, paReplace);
-                vsapi->propSetInt(frameProps, "_DurationDen", d->vi.fpsNum, paReplace);
+                VSMap *frameProps = vsapi->getFramePropertiesRW(frame);
+                vsapi->mapSetInt(frameProps, "_DurationNum", d->vi.fpsDen, paReplace);
+                vsapi->mapSetInt(frameProps, "_DurationDen", d->vi.fpsNum, paReplace);
             }
         }
 
@@ -1157,7 +1157,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     int64_t tmp2;
     int err;
 
-    VSNodeRef *node = vsapi->propGetNode(in, "clip", 0, &err);
+    VSNodeRef *node = vsapi->mapGetNode(in, "clip", 0, &err);
 
     if (!err) {
         d->vi = *vsapi->getVideoInfo(node);
@@ -1165,7 +1165,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
         hasvi = true;
     }
 
-    tmp1 = vsapi->propGetSaturatedInt(in, "width", 0, &err);
+    tmp1 = vsapi->mapGetIntSaturated(in, "width", 0, &err);
 
     if (err) {
         if (!hasvi)
@@ -1174,7 +1174,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
         d->vi.width = tmp1;
     }
 
-    tmp1 = vsapi->propGetSaturatedInt(in, "height", 0, &err);
+    tmp1 = vsapi->mapGetIntSaturated(in, "height", 0, &err);
 
     if (err) {
         if (!hasvi)
@@ -1183,7 +1183,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
         d->vi.height = tmp1;
     }
 
-    tmp2 = vsapi->propGetInt(in, "fpsnum", 0, &err);
+    tmp2 = vsapi->mapGetInt(in, "fpsnum", 0, &err);
 
     if (err) {
         if (!hasvi)
@@ -1192,7 +1192,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
         d->vi.fpsNum = tmp2;
     }
 
-    tmp2 = vsapi->propGetInt(in, "fpsden", 0, &err);
+    tmp2 = vsapi->mapGetInt(in, "fpsden", 0, &err);
 
     if (err) {
         if (!hasvi)
@@ -1210,7 +1210,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
 
     reduceRational(&d->vi.fpsNum, &d->vi.fpsDen);
 
-    int format = vsapi->propGetSaturatedInt(in, "format", 0, &err);
+    int format = vsapi->mapGetIntSaturated(in, "format", 0, &err);
 
     if (err) {
         if (!hasvi)
@@ -1225,7 +1225,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     if (isCompatFormat(&d->vi.format))
         RETERROR("BlankClip: compat formats not supported");
 
-    tmp1 = vsapi->propGetSaturatedInt(in, "length", 0, &err);
+    tmp1 = vsapi->mapGetIntSaturated(in, "length", 0, &err);
 
     if (err) {
         if (!hasvi)
@@ -1246,11 +1246,11 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     setBlack(d->color, &d->vi.format);
 
     int numcomponents = isCompatFormat(&d->vi.format) ? 3 : d->vi.format.numPlanes;
-    int ncolors = vsapi->propNumElements(in, "color");
+    int ncolors = vsapi->mapNumElements(in, "color");
 
     if (ncolors == numcomponents) {
         for (int i = 0; i < ncolors; i++) {
-            double color = vsapi->propGetFloat(in, "color", i, 0);
+            double color = vsapi->mapGetFloat(in, "color", i, 0);
             if (d->vi.format.sampleType == stInteger) {
                 d->color[i] = doubleToIntPixelValue(color, d->vi.format.bitsPerSample, &err);
             } else {
@@ -1266,7 +1266,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
         RETERROR("BlankClip: invalid number of color values specified");
     }
 
-    d->keep = !!vsapi->propGetInt(in, "keep", 0, &err);
+    d->keep = !!vsapi->mapGetInt(in, "keep", 0, &err);
 
     vsapi->createVideoFilter(out, "BlankClip", &d->vi, 1, blankClipGetframe, blankClipFree, d->keep ? fmUnordered : fmParallel, nfNoCache, d.get(), core);
     d.release();
@@ -1290,10 +1290,10 @@ static const VSFrameRef *VS_CC assumeFPSGetframe(int n, int activationReason, vo
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         VSFrameRef *dst = vsapi->copyFrame(src, core);
-        VSMap *m = vsapi->getFramePropsRW(dst);
+        VSMap *m = vsapi->getFramePropertiesRW(dst);
         vsapi->freeFrame(src);
-        vsapi->propSetInt(m, "_DurationNum", d->vi.fpsDen, paReplace);
-        vsapi->propSetInt(m, "_DurationDen", d->vi.fpsNum, paReplace);
+        vsapi->mapSetInt(m, "_DurationNum", d->vi.fpsDen, paReplace);
+        vsapi->mapSetInt(m, "_DurationDen", d->vi.fpsNum, paReplace);
         return dst;
     }
 
@@ -1306,20 +1306,20 @@ static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, V
     bool hassrc = false;
     int err;
 
-    d->node = vsapi->propGetNode(in, "clip", 0, 0);
+    d->node = vsapi->mapGetNode(in, "clip", 0, 0);
     d->vi = *vsapi->getVideoInfo(d->node);
 
-    d->vi.fpsNum = vsapi->propGetInt(in, "fpsnum", 0, &err);
+    d->vi.fpsNum = vsapi->mapGetInt(in, "fpsnum", 0, &err);
 
     if (!err)
         hasfps = true;
 
-    d->vi.fpsDen = vsapi->propGetInt(in, "fpsden", 0, &err);
+    d->vi.fpsDen = vsapi->mapGetInt(in, "fpsden", 0, &err);
 
     if (err)
         d->vi.fpsDen = 1;
 
-    VSNodeRef *src = vsapi->propGetNode(in, "src", 0, &err);
+    VSNodeRef *src = vsapi->mapGetNode(in, "src", 0, &err);
 
     if (!err) {
         const VSVideoInfo *vi = vsapi->getVideoInfo(src);
@@ -1360,21 +1360,21 @@ static const VSFrameRef *VS_CC frameEvalGetFrameWithProps(int n, int activationR
             vsapi->requestFrameFilter(n, iter, frameCtx);
     } else if (activationReason == arAllFramesReady && !*frameData) {
         int err;
-        vsapi->propSetInt(d->in, "n", n, paAppend);
+        vsapi->mapSetInt(d->in, "n", n, paAppend);
         for (auto iter : d->propsrc) {
             const VSFrameRef *f = vsapi->getFrameFilter(n, iter, frameCtx);
-            vsapi->propSetFrame(d->in, "f", f, paAppend);
+            vsapi->mapSetFrame(d->in, "f", f, paAppend);
             vsapi->freeFrame(f);
         }
         vsapi->callFunc(d->func, d->in, d->out);
         vsapi->clearMap(d->in);
-        if (vsapi->getError(d->out)) {
-            vsapi->setFilterError(vsapi->getError(d->out), frameCtx);
+        if (vsapi->mapGetError(d->out)) {
+            vsapi->setFilterError(vsapi->mapGetError(d->out), frameCtx);
             vsapi->clearMap(d->out);
             return nullptr;
         }
 
-        VSNodeRef *node = vsapi->propGetNode(d->out, "val", 0, &err);
+        VSNodeRef *node = vsapi->mapGetNode(d->out, "val", 0, &err);
         vsapi->clearMap(d->out);
 
         if (err) {
@@ -1420,16 +1420,16 @@ static const VSFrameRef *VS_CC frameEvalGetFrameNoProps(int n, int activationRea
     if (activationReason == arInitial) {
 
         int err;
-        vsapi->propSetInt(d->in, "n", n, paAppend);
+        vsapi->mapSetInt(d->in, "n", n, paAppend);
         vsapi->callFunc(d->func, d->in, d->out);
         vsapi->clearMap(d->in);
-        if (vsapi->getError(d->out)) {
-            vsapi->setFilterError(vsapi->getError(d->out), frameCtx);
+        if (vsapi->mapGetError(d->out)) {
+            vsapi->setFilterError(vsapi->mapGetError(d->out), frameCtx);
             vsapi->clearMap(d->out);
             return nullptr;
         }
 
-        VSNodeRef *node = vsapi->propGetNode(d->out, "val", 0, &err);
+        VSNodeRef *node = vsapi->mapGetNode(d->out, "val", 0, &err);
         vsapi->clearMap(d->out);
 
         if (err) {
@@ -1480,15 +1480,15 @@ static void VS_CC frameEvalFree(void *instanceData, VSCore *core, const VSAPI *v
 
 static void VS_CC frameEvalCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<FrameEvalData> d(new FrameEvalData());
-    VSNodeRef *node = vsapi->propGetNode(in, "clip", 0, 0);
+    VSNodeRef *node = vsapi->mapGetNode(in, "clip", 0, 0);
     d->vi = *vsapi->getVideoInfo(node);
     vsapi->freeNode(node);
-    d->func = vsapi->propGetFunc(in, "eval", 0, 0);
-    int numpropsrc = vsapi->propNumElements(in, "prop_src");
+    d->func = vsapi->mapGetFunc(in, "eval", 0, 0);
+    int numpropsrc = vsapi->mapNumElements(in, "prop_src");
     if (numpropsrc > 0) {
         d->propsrc.resize(numpropsrc);
         for (int i = 0; i < numpropsrc; i++)
-            d->propsrc[i] = vsapi->propGetNode(in, "prop_src", i, 0);
+            d->propsrc[i] = vsapi->mapGetNode(in, "prop_src", i, 0);
     }
 
     d->in = vsapi->createMap();
@@ -1518,24 +1518,24 @@ static const VSFrameRef *VS_CC modifyFrameGetFrame(int n, int activationReason, 
     } else if (activationReason == arAllFramesReady) {
         int err;
 
-        vsapi->propSetInt(d->in, "n", n, paAppend);
+        vsapi->mapSetInt(d->in, "n", n, paAppend);
 
         for (auto iter : d->node) {
             const VSFrameRef *f = vsapi->getFrameFilter(n, iter, frameCtx);
-            vsapi->propSetFrame(d->in, "f", f, paAppend);
+            vsapi->mapSetFrame(d->in, "f", f, paAppend);
             vsapi->freeFrame(f);
         }
 
         vsapi->callFunc(d->func, d->in, d->out);
         vsapi->clearMap(d->in);
 
-        if (vsapi->getError(d->out)) {
-            vsapi->setFilterError(vsapi->getError(d->out), frameCtx);
+        if (vsapi->mapGetError(d->out)) {
+            vsapi->setFilterError(vsapi->mapGetError(d->out), frameCtx);
             vsapi->clearMap(d->out);
             return nullptr;
         }
 
-        const VSFrameRef *f = vsapi->propGetFrame(d->out, "val", 0, &err);
+        const VSFrameRef *f = vsapi->mapGetFrame(d->out, "val", 0, &err);
         vsapi->clearMap(d->out);
         if (err) {
             vsapi->freeFrame(f);
@@ -1573,16 +1573,16 @@ static void VS_CC modifyFrameFree(void *instanceData, VSCore *core, const VSAPI 
 
 static void VS_CC modifyFrameCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<ModifyFrameData> d(new ModifyFrameData());
-    VSNodeRef *formatnode = vsapi->propGetNode(in, "clip", 0, 0);
+    VSNodeRef *formatnode = vsapi->mapGetNode(in, "clip", 0, 0);
     d->vi = vsapi->getVideoInfo(formatnode);
     vsapi->freeNode(formatnode);
 
-    int numnode = vsapi->propNumElements(in, "clips");
+    int numnode = vsapi->mapNumElements(in, "clips");
     d->node.resize(numnode);
     for (int i = 0; i < numnode; i++)
-        d->node[i] = vsapi->propGetNode(in, "clips", i, 0);
+        d->node[i] = vsapi->mapGetNode(in, "clips", i, 0);
 
-    d->func = vsapi->propGetFunc(in, "selector", 0, 0);
+    d->func = vsapi->mapGetFunc(in, "selector", 0, 0);
     d->in = vsapi->createMap();
     d->out = vsapi->createMap();
 
@@ -1658,7 +1658,7 @@ static void VS_CC transposeCreate(const VSMap *in, VSMap *out, void *userData, V
     std::unique_ptr<TransposeData> d(new TransposeData(vsapi));
     int temp;
 
-    d->node = vsapi->propGetNode(in, "clip", 0, 0);
+    d->node = vsapi->mapGetNode(in, "clip", 0, 0);
     d->vi = *vsapi->getVideoInfo(d->node);
     temp = d->vi.width;
     d->vi.width = d->vi.height;
@@ -1754,10 +1754,10 @@ static const VSFrameRef *VS_CC pemVerifierGetFrame(int n, int activationReason, 
 
 static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<PEMVerifierData> d(new PEMVerifierData(vsapi));
-    int numupper = vsapi->propNumElements(in, "upper");
-    int numlower = vsapi->propNumElements(in, "lower");
+    int numupper = vsapi->mapNumElements(in, "upper");
+    int numlower = vsapi->mapNumElements(in, "lower");
 
-    d->node = vsapi->propGetNode(in, "clip", 0, 0);
+    d->node = vsapi->mapGetNode(in, "clip", 0, 0);
     const VSVideoInfo *vi = vsapi->getVideoInfo(d->node);
 
     if (!is8to16orFloatFormat(vi->format))
@@ -1770,7 +1770,7 @@ static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData,
         }
     } else if (numlower == vi->format.numPlanes) {
         for (int i = 0; i < vi->format.numPlanes; i++) {
-            d->lowerf[i] = (float)vsapi->propGetFloat(in, "lower", i, 0);
+            d->lowerf[i] = (float)vsapi->mapGetFloat(in, "lower", i, 0);
             d->lower[i] = floatToIntS(d->lowerf[i]);
             if (vi->format.sampleType == stInteger && (d->lower[i] < 0 || d->lower[i] >= (1 << vi->format.bitsPerSample)))
                 RETERROR("PEMVerifier: Invalid lower bound given");
@@ -1786,7 +1786,7 @@ static void VS_CC pemVerifierCreate(const VSMap *in, VSMap *out, void *userData,
         }
     } else if (numupper == vi->format.numPlanes) {
         for (int i = 0; i < vi->format.numPlanes; i++) {
-            d->upperf[i] = (float)vsapi->propGetFloat(in, "upper", i, 0);
+            d->upperf[i] = (float)vsapi->mapGetFloat(in, "upper", i, 0);
             d->upper[i] = floatToIntS(d->upperf[i]);
             if (vi->format.sampleType == stInteger && (d->upper[i] < d->lower[i] || d->upper[i] >= (1 << vi->format.bitsPerSample))) {
                 RETERROR("PEMVerifier: Invalid upper bound given");
@@ -1895,14 +1895,14 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
                 func(&stats, srcp, src_stride, width, height);
         }
 
-        VSMap *dstProps = vsapi->getFramePropsRW(dst);
+        VSMap *dstProps = vsapi->getFramePropertiesRW(dst);
 
         if (fi->sampleType == stInteger) {
-            vsapi->propSetInt(dstProps, d->propMin.c_str(), stats.i.min, paReplace);
-            vsapi->propSetInt(dstProps, d->propMax.c_str(), stats.i.max, paReplace);
+            vsapi->mapSetInt(dstProps, d->propMin.c_str(), stats.i.min, paReplace);
+            vsapi->mapSetInt(dstProps, d->propMax.c_str(), stats.i.max, paReplace);
         } else {
-            vsapi->propSetFloat(dstProps, d->propMin.c_str(), stats.f.min, paReplace);
-            vsapi->propSetFloat(dstProps, d->propMax.c_str(), stats.f.max, paReplace);
+            vsapi->mapSetFloat(dstProps, d->propMin.c_str(), stats.f.min, paReplace);
+            vsapi->mapSetFloat(dstProps, d->propMax.c_str(), stats.f.max, paReplace);
         }
 
         double avg = 0.0;
@@ -1917,9 +1917,9 @@ static const VSFrameRef *VS_CC planeStatsGetFrame(int n, int activationReason, v
                 diff = stats.f.diffacc / (double)((int64_t)width * height);
         }
 
-        vsapi->propSetFloat(dstProps, d->propAverage.c_str(), avg, paReplace);
+        vsapi->mapSetFloat(dstProps, d->propAverage.c_str(), avg, paReplace);
         if (d->node2)
-            vsapi->propSetFloat(dstProps, d->propDiff.c_str(), diff, paReplace);
+            vsapi->mapSetFloat(dstProps, d->propDiff.c_str(), diff, paReplace);
 
         vsapi->freeFrame(src1);
         vsapi->freeFrame(src2);
@@ -1932,23 +1932,23 @@ static void VS_CC planeStatsCreate(const VSMap *in, VSMap *out, void *userData, 
     std::unique_ptr<PlaneStatsData> d(new PlaneStatsData(vsapi));
     int err;
 
-    d->node1 = vsapi->propGetNode(in, "clipa", 0, 0);
+    d->node1 = vsapi->mapGetNode(in, "clipa", 0, 0);
     const VSVideoInfo *vi = vsapi->getVideoInfo(d->node1);
 
     if (!is8to16orFloatFormat(vi->format))
         RETERROR("PlaneStats: clip must be constant format and of integer 8-16 bit type or 32 bit float");
 
-    d->plane = vsapi->propGetSaturatedInt(in, "plane", 0, &err);
+    d->plane = vsapi->mapGetIntSaturated(in, "plane", 0, &err);
     if (d->plane < 0 || d->plane >= vi->format.numPlanes)
         RETERROR("PlaneStats: invalid plane specified");
 
-    d->node2 = vsapi->propGetNode(in, "clipb", 0, &err);
+    d->node2 = vsapi->mapGetNode(in, "clipb", 0, &err);
     if (d->node2) {
         if (!isSameVideoInfo(vi, vsapi->getVideoInfo(d->node2)) || !isConstantVideoFormat(vsapi->getVideoInfo(d->node2)))
             RETERROR("PlaneStats: both input clips must have the same format when second clip is used");
     }
 
-    const char *tmpprop = vsapi->propGetData(in, "prop", 0, &err);
+    const char *tmpprop = vsapi->mapGetData(in, "prop", 0, &err);
     std::string tempprop = tmpprop ? tmpprop : "PlaneStats";
     d->propMin = tempprop + "Min";
     d->propMax = tempprop + "Max";
@@ -1978,7 +1978,7 @@ static const VSFrameRef *VS_CC clipToPropGetFrame(int n, int activationReason, v
         const VSFrameRef *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
         const VSFrameRef *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
         VSFrameRef *dst = vsapi->copyFrame(src1, core);
-        vsapi->propSetFrame(vsapi->getFramePropsRW(dst), d->prop.c_str(), src2, paReplace);
+        vsapi->mapSetFrame(vsapi->getFramePropertiesRW(dst), d->prop.c_str(), src2, paReplace);
         vsapi->freeFrame(src1);
         vsapi->freeFrame(src2);
         return dst;
@@ -1991,14 +1991,14 @@ static void VS_CC clipToPropCreate(const VSMap *in, VSMap *out, void *userData, 
     std::unique_ptr<ClipToPropData> d(new ClipToPropData(vsapi));
     int err;
 
-    d->node1 = vsapi->propGetNode(in, "clip", 0, 0);
+    d->node1 = vsapi->mapGetNode(in, "clip", 0, 0);
     const VSVideoInfo *vi = vsapi->getVideoInfo(d->node1);
-    d->node2 = vsapi->propGetNode(in, "mclip", 0, 0);
+    d->node2 = vsapi->mapGetNode(in, "mclip", 0, 0);
 
     if (!isConstantVideoFormat(vi) || !isConstantVideoFormat(vsapi->getVideoInfo(d->node2)))
         RETERROR("ClipToProp: clips must have constant format and dimensions");
 
-    const char *tmpprop = vsapi->propGetData(in, "prop", 0, &err);
+    const char *tmpprop = vsapi->mapGetData(in, "prop", 0, &err);
     d->prop = tmpprop ? tmpprop : "_Alpha";
 
     vsapi->createVideoFilter(out, "ClipToProp", vi, 1, clipToPropGetFrame, filterFree<ClipToPropData>, fmParallel, 0, d.release(), core);
@@ -2022,7 +2022,7 @@ static const VSFrameRef *VS_CC propToClipGetFrame(int n, int activationReason, v
     } else if (activationReason == arAllFramesReady) {
         int err;
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        const VSFrameRef *dst = vsapi->propGetFrame(vsapi->getFramePropsRO(src), d->prop.c_str(), 0, &err);
+        const VSFrameRef *dst = vsapi->mapGetFrame(vsapi->getFramePropertiesRO(src), d->prop.c_str(), 0, &err);
         vsapi->freeFrame(src);
 
         if (dst) {
@@ -2046,20 +2046,20 @@ static void VS_CC propToClipCreate(const VSMap *in, VSMap *out, void *userData, 
     int err;
     char errmsg[512];
 
-    d->node = vsapi->propGetNode(in, "clip", 0, 0);
+    d->node = vsapi->mapGetNode(in, "clip", 0, 0);
     d->vi = *vsapi->getVideoInfo(d->node);
 
     if (!isConstantVideoFormat(&d->vi))
         RETERROR("PropToClip: clip must have constant format and dimensions");
 
-    const char *tempprop = vsapi->propGetData(in, "prop", 0, &err);
+    const char *tempprop = vsapi->mapGetData(in, "prop", 0, &err);
     d->prop = tempprop ? tempprop : "_Alpha";
 
     const VSFrameRef *src = vsapi->getFrame(0, d->node, errmsg, sizeof(errmsg));
     if (!src)
         RETERROR(("PropToClip: upstream error: " + std::string(errmsg)).c_str());
 
-    const VSFrameRef *msrc = vsapi->propGetFrame(vsapi->getFramePropsRO(src), tempprop, 0, &err);
+    const VSFrameRef *msrc = vsapi->mapGetFrame(vsapi->getFramePropertiesRO(src), tempprop, 0, &err);
     if (err) {
         vsapi->freeFrame(src);
         RETERROR("PropToClip: no frame stored in property");
@@ -2099,18 +2099,18 @@ static const VSFrameRef *VS_CC setFramePropGetFrame(int n, int activationReason,
         VSFrameRef *dst = vsapi->copyFrame(src, core);
         vsapi->freeFrame(src);
 
-        VSMap *props = vsapi->getFramePropsRW(dst);
+        VSMap *props = vsapi->getFramePropertiesRW(dst);
 
         if (d->del)
-            vsapi->propDeleteKey(props, d->prop.c_str());
+            vsapi->mapDeleteKey(props, d->prop.c_str());
         else {
             if (!d->ints.empty())
-                vsapi->propSetIntArray(props, d->prop.c_str(), d->ints.data(), static_cast<int>(d->ints.size()));
+                vsapi->mapSetIntArray(props, d->prop.c_str(), d->ints.data(), static_cast<int>(d->ints.size()));
             else if (!d->floats.empty())
-                vsapi->propSetFloatArray(props, d->prop.c_str(), d->floats.data(), static_cast<int>(d->floats.size()));
+                vsapi->mapSetFloatArray(props, d->prop.c_str(), d->floats.data(), static_cast<int>(d->floats.size()));
             else if (!d->strings.empty()) {
                 for (size_t i = 0; i < d->strings.size(); i++)
-                    vsapi->propSetData(props, d->prop.c_str(), d->strings[i].c_str(), static_cast<int>(d->strings[i].length()), d->dataType[i], i > 0 ? paAppend : paReplace);
+                    vsapi->mapSetData(props, d->prop.c_str(), d->strings[i].c_str(), static_cast<int>(d->strings[i].length()), d->dataType[i], i > 0 ? paAppend : paReplace);
             }
         }
 
@@ -2124,11 +2124,11 @@ static void VS_CC setFramePropCreate(const VSMap *in, VSMap *out, void *userData
     std::unique_ptr<SetFramePropData> d(new SetFramePropData(vsapi));
     int err;
 
-    d->del = !!vsapi->propGetInt(in, "delete", 0, &err);
+    d->del = !!vsapi->mapGetInt(in, "delete", 0, &err);
 
-    int num_ints = vsapi->propNumElements(in, "intval");
-    int num_floats = vsapi->propNumElements(in, "floatval");
-    int num_strings = vsapi->propNumElements(in, "data");
+    int num_ints = vsapi->mapNumElements(in, "intval");
+    int num_floats = vsapi->mapNumElements(in, "floatval");
+    int num_strings = vsapi->mapNumElements(in, "data");
 
     if ((num_ints > -1) + (num_floats > -1) + (num_strings > -1) > 1)
         RETERROR("SetFrameProp: only one of 'intval', 'floatval', and 'data' can be passed->");
@@ -2139,31 +2139,31 @@ static void VS_CC setFramePropCreate(const VSMap *in, VSMap *out, void *userData
     if (!d->del && (num_ints + num_floats + num_strings == -3))
         RETERROR("SetFrameProp: one of 'intval', 'floatval', or 'data' must be passed->");
 
-    int prop_len = vsapi->propGetDataSize(in, "prop", 0, nullptr);
+    int prop_len = vsapi->mapGetDataSize(in, "prop", 0, nullptr);
 
     if (prop_len == 0)
         RETERROR("SetFrameProp: 'prop' can't be an empty string.");
 
-    d->prop = vsapi->propGetData(in, "prop", 0, nullptr);
+    d->prop = vsapi->mapGetData(in, "prop", 0, nullptr);
 
-    d->node = vsapi->propGetNode(in, "clip", 0, nullptr);
+    d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
 
     if (num_ints > -1) {
         d->ints.resize(num_ints);
-        memcpy(d->ints.data(), vsapi->propGetIntArray(in, "intval", nullptr), num_ints * sizeof(int64_t));
+        memcpy(d->ints.data(), vsapi->mapGetIntArray(in, "intval", nullptr), num_ints * sizeof(int64_t));
     }
 
     if (num_floats > -1) {
         d->floats.resize(num_floats);
-        memcpy(d->floats.data(), vsapi->propGetFloatArray(in, "floatval", nullptr), num_floats * sizeof(double));
+        memcpy(d->floats.data(), vsapi->mapGetFloatArray(in, "floatval", nullptr), num_floats * sizeof(double));
     }
 
     if (num_strings > -1) {
         d->strings.resize(num_strings);
         d->dataType.resize(num_strings);
         for (int i = 0; i < num_strings; i++) {
-            d->strings[i] = std::string(vsapi->propGetData(in, "data", i, nullptr), vsapi->propGetDataSize(in, "data", i, nullptr));
-            d->dataType[i] = vsapi->propGetDataType(in, "data", i, nullptr);
+            d->strings[i] = std::string(vsapi->mapGetData(in, "data", i, nullptr), vsapi->mapGetDataSize(in, "data", i, nullptr));
+            d->dataType[i] = vsapi->mapGetDataType(in, "data", i, nullptr);
         }
     }
 
@@ -2190,9 +2190,9 @@ static const VSFrameRef *VS_CC setFieldBasedGetFrame(int n, int activationReason
         VSFrameRef *dst = vsapi->copyFrame(src, core);
         vsapi->freeFrame(src);
 
-        VSMap *props = vsapi->getFramePropsRW(dst);
-        vsapi->propDeleteKey(props, "_Field");
-        vsapi->propSetInt(props, "_FieldBased", d->fieldbased, paReplace);
+        VSMap *props = vsapi->getFramePropertiesRW(dst);
+        vsapi->mapDeleteKey(props, "_Field");
+        vsapi->mapSetInt(props, "_FieldBased", d->fieldbased, paReplace);
 
         return dst;
     }
@@ -2203,21 +2203,21 @@ static const VSFrameRef *VS_CC setFieldBasedGetFrame(int n, int activationReason
 static void VS_CC setFieldBasedCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<SetFieldBasedData> d(new SetFieldBasedData(vsapi));
 
-    d->fieldbased = vsapi->propGetInt(in, "value", 0, nullptr);
+    d->fieldbased = vsapi->mapGetInt(in, "value", 0, nullptr);
     if (d->fieldbased < 0 || d->fieldbased > 2)
         RETERROR("SetFieldBased: value must be 0, 1 or 2");
-    d->node = vsapi->propGetNode(in, "clip", 0, nullptr);
+    d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
 
     vsapi->createVideoFilter(out, "SetFieldBased", vsapi->getVideoInfo(d->node), 1, setFieldBasedGetFrame, filterFree<SetFieldBasedData>, fmParallel, nfNoCache, d.get(), core);
     d.release();
 }
 
 static void VS_CC setMaxCpu(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    const char *str = vsapi->propGetData(in, "cpu", 0, nullptr);
+    const char *str = vsapi->mapGetData(in, "cpu", 0, nullptr);
     int level = vs_cpulevel_from_str(str);
     level = vs_set_cpulevel(core, level);
     str = vs_cpulevel_to_str(level);
-    vsapi->propSetData(out, "cpu", str, -1, dtUtf8, paReplace);
+    vsapi->mapSetData(out, "cpu", str, -1, dtUtf8, paReplace);
 }
 
 //////////////////////////////////////////

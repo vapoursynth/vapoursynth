@@ -207,19 +207,19 @@ static void VS_CC cacheFree(void *instanceData, VSCore *core, const VSAPI *vsapi
 
 static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     static std::atomic<size_t> cacheId(1);
-    VSNodeRef *node = vsapi->propGetNode(in, "clip", 0, nullptr);
+    VSNodeRef *node = vsapi->mapGetNode(in, "clip", 0, nullptr);
     int err;
-    bool fixed = !!vsapi->propGetInt(in, "fixed", 0, &err);
+    bool fixed = !!vsapi->mapGetInt(in, "fixed", 0, &err);
     CacheInstance *c = new CacheInstance(node, core, fixed);
     VSCoreInfo ci;
     vsapi->getCoreInfo(core, &ci);
     c->numThreads = ci.numThreads;
     c->makeLinear = !!(vsapi->getNodeFlags(node) & nfMakeLinear);
 
-    if (vsapi->propGetInt(in, "make_linear", 0, &err))
+    if (vsapi->mapGetInt(in, "make_linear", 0, &err))
         c->makeLinear = true;
 
-    int size = vsapi->propGetSaturatedInt(in, "size", 0, &err);
+    int size = vsapi->mapGetIntSaturated(in, "size", 0, &err);
 
     if (!err && size > 0)
         c->cache.setMaxFrames(size);
@@ -233,7 +233,7 @@ static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData,
     else
         vsapi->createVideoFilter(out, ("Cache" + std::to_string(cacheId++)).c_str(), vsapi->getVideoInfo(node), 1, cacheGetframe, cacheFree, c->makeLinear ? fmUnorderedLinear : fmUnordered, nfNoCache | nfIsCache, c, core);
 
-    VSNodeRef *self = vsapi->propGetNode(out, "clip", 0, nullptr);
+    VSNodeRef *self = vsapi->mapGetNode(out, "clip", 0, nullptr);
     c->addCache(self);
     vsapi->freeNode(self);
 }

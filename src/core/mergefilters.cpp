@@ -39,7 +39,7 @@ typedef VariableNodeData<VIPointerData> PreMultiplyData;
 
 static int getLimitedRangeOffset(const VSFrameRef *f, const VSVideoInfo *vi, const VSAPI *vsapi) {
     int err;
-    int limited = !!vsapi->propGetInt(vsapi->getFramePropsRO(f), "_ColorRange", 0, &err);
+    int limited = !!vsapi->mapGetInt(vsapi->getFramePropertiesRO(f), "_ColorRange", 0, &err);
     if (err)
         limited = (vi->format.colorFamily == cfGray || vi->format.colorFamily == cfYUV);
     return (limited ? (16 << (vi->format.bitsPerSample - 8)) : 0);
@@ -149,8 +149,8 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
     std::unique_ptr<PreMultiplyData> d(new PreMultiplyData(vsapi));
 
     d->node.resize(3);
-    d->node[0] = vsapi->propGetNode(in, "clip", 0, 0);
-    d->node[1] = vsapi->propGetNode(in, "alpha", 0, 0);
+    d->node[0] = vsapi->mapGetNode(in, "clip", 0, 0);
+    d->node[1] = vsapi->mapGetNode(in, "alpha", 0, 0);
 
     d->vi = vsapi->getVideoInfo(d->node[0]);
 
@@ -170,11 +170,11 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
     // do we need to resample the first mask plane and use it for all the planes?
     if ((d->vi->format.numPlanes > 1) && (d->vi->format.subSamplingH > 0 || d->vi->format.subSamplingW > 0)) {
         VSMap *min = vsapi->createMap();
-        vsapi->propSetNode(min, "clip", d->node[1], paAppend);
-        vsapi->propSetInt(min, "width", d->vi->width >> d->vi->format.subSamplingW, paAppend);
-        vsapi->propSetInt(min, "height", d->vi->height >> d->vi->format.subSamplingH, paAppend);
+        vsapi->mapSetNode(min, "clip", d->node[1], paAppend);
+        vsapi->mapSetInt(min, "width", d->vi->width >> d->vi->format.subSamplingW, paAppend);
+        vsapi->mapSetInt(min, "height", d->vi->height >> d->vi->format.subSamplingH, paAppend);
         VSMap *mout = vsapi->invoke(vsapi->getPluginByID(VS_RESIZE_PLUGIN_ID, core), "Bilinear", min);
-        d->node[2] = vsapi->propGetNode(mout, "clip", 0, 0);
+        d->node[2] = vsapi->mapGetNode(mout, "clip", 0, 0);
         vsapi->freeMap(mout);
         vsapi->freeMap(min);
         setHint = true;
@@ -283,11 +283,11 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
 static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<MergeData> d(new MergeData(vsapi));
 
-    int nweight = vsapi->propNumElements(in, "weight");
+    int nweight = vsapi->mapNumElements(in, "weight");
     for (int i = 0; i < 3; i++)
         d->fweight[i] = 0.5f;
     for (int i = 0; i < nweight; i++)
-        d->fweight[i] = (float)vsapi->propGetFloat(in, "weight", i, 0);
+        d->fweight[i] = (float)vsapi->mapGetFloat(in, "weight", i, 0);
 
     if (nweight == 2) {
         d->fweight[2] = d->fweight[1];
@@ -302,8 +302,8 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
         d->weight[i] = std::min<unsigned>((d->fweight[i] * (1 << MergeShift) + 0.5f), (1U << MergeShift) - 1);
     }
 
-    d->node1 = vsapi->propGetNode(in, "clipa", 0, 0);
-    d->node2 = vsapi->propGetNode(in, "clipb", 0, 0);
+    d->node1 = vsapi->mapGetNode(in, "clipa", 0, 0);
+    d->node2 = vsapi->mapGetNode(in, "clipb", 0, 0);
     d->vi = vsapi->getVideoInfo(d->node1);
 
     for (int i = 0; i < 3; i++) {
@@ -451,13 +451,13 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
     d->node.resize(4);
 
     int err;
-    d->node[0] = vsapi->propGetNode(in, "clipa", 0, 0);
-    d->node[1] = vsapi->propGetNode(in, "clipb", 0, 0);
-    d->node[2] = vsapi->propGetNode(in, "mask", 0, 0);
+    d->node[0] = vsapi->mapGetNode(in, "clipa", 0, 0);
+    d->node[1] = vsapi->mapGetNode(in, "clipb", 0, 0);
+    d->node[2] = vsapi->mapGetNode(in, "mask", 0, 0);
     d->vi = vsapi->getVideoInfo(d->node[0]);
     const VSVideoInfo *maskvi = vsapi->getVideoInfo(d->node[2]);
-    d->first_plane = !!vsapi->propGetInt(in, "first_plane", 0, &err);
-    d->premultiplied = !!vsapi->propGetInt(in, "premultiplied", 0, &err);
+    d->first_plane = !!vsapi->mapGetInt(in, "first_plane", 0, &err);
+    d->premultiplied = !!vsapi->mapGetInt(in, "premultiplied", 0, &err);
     // always use the first mask plane for all planes when it is the only one
     if (maskvi->format.numPlanes == 1)
         d->first_plane = 1;
@@ -481,23 +481,23 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
 
         if (maskvi->format.numPlanes > 1) {
             // Don't resize the unused second and third planes.
-            vsapi->propSetNode(min, "clips", d->node[2], paAppend);
-            vsapi->propSetInt(min, "planes", 0, paAppend);
-            vsapi->propSetInt(min, "colorfamily", cfGray, paAppend);
+            vsapi->mapSetNode(min, "clips", d->node[2], paAppend);
+            vsapi->mapSetInt(min, "planes", 0, paAppend);
+            vsapi->mapSetInt(min, "colorfamily", cfGray, paAppend);
             VSMap *mout = vsapi->invoke(vsapi->getPluginByID(VS_STD_PLUGIN_ID, core), "ShufflePlanes", min);
-            VSNodeRef *mask_first_plane = vsapi->propGetNode(mout, "clip", 0, 0);
+            VSNodeRef *mask_first_plane = vsapi->mapGetNode(mout, "clip", 0, 0);
             vsapi->freeMap(mout);
             vsapi->clearMap(min);
-            vsapi->propSetNode(min, "clip", mask_first_plane, paAppend);
+            vsapi->mapSetNode(min, "clip", mask_first_plane, paAppend);
             vsapi->freeNode(mask_first_plane);
         } else {
-            vsapi->propSetNode(min, "clip", d->node[2], paAppend);
+            vsapi->mapSetNode(min, "clip", d->node[2], paAppend);
         }
 
-        vsapi->propSetInt(min, "width", d->vi->width >> d->vi->format.subSamplingW, paAppend);
-        vsapi->propSetInt(min, "height", d->vi->height >> d->vi->format.subSamplingH, paAppend);
+        vsapi->mapSetInt(min, "width", d->vi->width >> d->vi->format.subSamplingW, paAppend);
+        vsapi->mapSetInt(min, "height", d->vi->height >> d->vi->format.subSamplingH, paAppend);
         VSMap *mout = vsapi->invoke(vsapi->getPluginByID(VS_RESIZE_PLUGIN_ID, core), "Bilinear", min);
-        d->node[3] = vsapi->propGetNode(mout, "clip", 0, 0);
+        d->node[3] = vsapi->mapGetNode(mout, "clip", 0, 0);
         vsapi->freeMap(mout);
         vsapi->freeMap(min);
     }
@@ -595,8 +595,8 @@ static const VSFrameRef *VS_CC makeDiffGetFrame(int n, int activationReason, voi
 static void VS_CC makeDiffCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<MakeDiffData> d(new MakeDiffData(vsapi));
 
-    d->node1 = vsapi->propGetNode(in, "clipa", 0, 0);
-    d->node2 = vsapi->propGetNode(in, "clipb", 0, 0);
+    d->node1 = vsapi->mapGetNode(in, "clipa", 0, 0);
+    d->node2 = vsapi->mapGetNode(in, "clipb", 0, 0);
     d->vi = vsapi->getVideoInfo(d->node1);
 
     if (isCompatFormat(&d->vi->format) || isCompatFormat(&vsapi->getVideoInfo(d->node2)->format))
@@ -703,8 +703,8 @@ static const VSFrameRef *VS_CC mergeDiffGetFrame(int n, int activationReason, vo
 static void VS_CC mergeDiffCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<MergeDiffData> d(new MergeDiffData(vsapi));
 
-    d->node1 = vsapi->propGetNode(in, "clipa", 0, 0);
-    d->node2 = vsapi->propGetNode(in, "clipb", 0, 0);
+    d->node1 = vsapi->mapGetNode(in, "clipa", 0, 0);
+    d->node2 = vsapi->mapGetNode(in, "clipb", 0, 0);
     d->vi = vsapi->getVideoInfo(d->node1);
 
     if (!isConstantVideoFormat(d->vi) || !isSameVideoInfo(d->vi, vsapi->getVideoInfo(d->node2)))

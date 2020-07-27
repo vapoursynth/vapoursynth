@@ -100,10 +100,10 @@ static bool funcToLut(int nin, int nout, void *vlut, VSFuncRef *func, const VSAP
     T *lut = reinterpret_cast<T *>(vlut);
 
     for (int i = 0; i < nin; i++) {
-        vsapi->propSetInt(in, "x", i, paReplace);
+        vsapi->mapSetInt(in, "x", i, paReplace);
         vsapi->callFunc(func, in, out);
 
-        const char *ret = vsapi->getError(out);
+        const char *ret = vsapi->mapGetError(out);
         if (ret) {
             errstr = ret;
             break;
@@ -111,7 +111,7 @@ static bool funcToLut(int nin, int nout, void *vlut, VSFuncRef *func, const VSAP
 
         int err;
         if (std::numeric_limits<T>::is_integer) {
-            int64_t v = vsapi->propGetInt(out, "val", 0, &err);
+            int64_t v = vsapi->mapGetInt(out, "val", 0, &err);
             vsapi->clearMap(out);
 
             if (v < 0 || v >= nout || err) {
@@ -121,7 +121,7 @@ static bool funcToLut(int nin, int nout, void *vlut, VSFuncRef *func, const VSAP
 
             lut[i] = static_cast<T>(v);
         } else {
-            double v = vsapi->propGetFloat(out, "val", 0, &err);
+            double v = vsapi->mapGetFloat(out, "val", 0, &err);
             vsapi->clearMap(out);
 
             if (err) {
@@ -158,7 +158,7 @@ static void lutCreateHelper(const VSMap *in, VSMap *out, VSFuncRef *func, std::u
         U *lut = reinterpret_cast<U *>(d->lut);
 
         if (std::numeric_limits<U>::is_integer) {
-            const int64_t *arr = vsapi->propGetIntArray(in, "lut", nullptr);
+            const int64_t *arr = vsapi->mapGetIntArray(in, "lut", nullptr);
 
             for (int i = 0; i < inrange; i++) {
                 int64_t v = arr[i];
@@ -167,7 +167,7 @@ static void lutCreateHelper(const VSMap *in, VSMap *out, VSFuncRef *func, std::u
                 lut[i] = static_cast<U>(v);
             }
         } else {
-            const double *arr = vsapi->propGetFloatArray(in, "lutf", nullptr);
+            const double *arr = vsapi->mapGetFloatArray(in, "lutf", nullptr);
 
             for (int i = 0; i < inrange; i++) {
                 double v = arr[i];
@@ -187,7 +187,7 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
 
         int err;
 
-        d->node = vsapi->propGetNode(in, "clip", 0, 0);
+        d->node = vsapi->mapGetNode(in, "clip", 0, 0);
         d->vi = vsapi->getVideoInfo(d->node);
 
         if (!isConstantVideoFormat(d->vi))
@@ -199,8 +199,8 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
         if (d->vi->format.sampleType != stInteger || d->vi->format.bitsPerSample > 16)
             RETERROR("Lut: only clips with integer samples and up to 16 bits per channel precision supported");
 
-        bool floatout = !!vsapi->propGetInt(in, "floatout", 0, &err);
-        int bitsout = vsapi->propGetSaturatedInt(in, "bits", 0, &err);
+        bool floatout = !!vsapi->mapGetInt(in, "floatout", 0, &err);
+        int bitsout = vsapi->mapGetIntSaturated(in, "bits", 0, &err);
         if (err)
             bitsout = (floatout ? sizeof(float) * 8 : d->vi->format.bitsPerSample);
         if ((floatout && bitsout != 32) || (!floatout && (bitsout < 8 || bitsout > 16)))
@@ -211,9 +211,9 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
 
         getPlanesArg(in, d->process, vsapi);
 
-        VSFuncRef *func = vsapi->propGetFunc(in, "function", 0, &err);
-        int lut_elem = vsapi->propNumElements(in, "lut");
-        int lutf_elem = vsapi->propNumElements(in, "lutf");
+        VSFuncRef *func = vsapi->mapGetFunc(in, "function", 0, &err);
+        int lut_elem = vsapi->mapNumElements(in, "lut");
+        int lutf_elem = vsapi->mapNumElements(in, "lutf");
 
         int num_set = (lut_elem >= 0) + (lutf_elem >= 0) + !!func;
 
@@ -337,12 +337,12 @@ static bool funcToLut2(int nxin, int nyin, int nout, void *vlut, VSFuncRef *func
     T *lut = reinterpret_cast<T *>(vlut);
 
     for (int i = 0; i < nyin; i++) {
-        vsapi->propSetInt(in, "y", i, paReplace);
+        vsapi->mapSetInt(in, "y", i, paReplace);
         for (int j = 0; j < nxin; j++) {
-            vsapi->propSetInt(in, "x", j, paReplace);
+            vsapi->mapSetInt(in, "x", j, paReplace);
             vsapi->callFunc(func, in, out);
 
-            const char *ret = vsapi->getError(out);
+            const char *ret = vsapi->mapGetError(out);
             if (ret) {
                 errstr = "Lut2: function(" + std::to_string(j) + ", " + std::to_string(i) + ") returned an error: ";
                 errstr += ret;
@@ -351,7 +351,7 @@ static bool funcToLut2(int nxin, int nyin, int nout, void *vlut, VSFuncRef *func
 
             int err;
             if (std::numeric_limits<T>::is_integer) {
-                int64_t v = vsapi->propGetInt(out, "val", 0, &err);
+                int64_t v = vsapi->mapGetInt(out, "val", 0, &err);
                 vsapi->clearMap(out);
 
                 if (v < 0 || v >= nout || err) {
@@ -365,7 +365,7 @@ static bool funcToLut2(int nxin, int nyin, int nout, void *vlut, VSFuncRef *func
 
                 lut[j + i * nxin] = static_cast<T>(v);
             } else {
-                double v = vsapi->propGetFloat(out, "val", 0, &err);
+                double v = vsapi->mapGetFloat(out, "val", 0, &err);
                 vsapi->clearMap(out);
 
                 if (err) {
@@ -402,7 +402,7 @@ static void lut2CreateHelper(const VSMap *in, VSMap *out, VSFuncRef *func, std::
         V *lut = reinterpret_cast<V *>(d->lut);
 
         if (std::numeric_limits<V>::is_integer) {
-            const int64_t *arr = vsapi->propGetIntArray(in, "lut", nullptr);
+            const int64_t *arr = vsapi->mapGetIntArray(in, "lut", nullptr);
 
             for (int i = 0; i < inrange; i++) {
                 int64_t v = arr[i];
@@ -411,7 +411,7 @@ static void lut2CreateHelper(const VSMap *in, VSMap *out, VSFuncRef *func, std::
                 lut[i] = static_cast<V>(v);
             }
         } else {
-            const double *arr = vsapi->propGetFloatArray(in, "lutf", nullptr);
+            const double *arr = vsapi->mapGetFloatArray(in, "lutf", nullptr);
 
             for (int i = 0; i < inrange; i++) {
                 double v = arr[i];
@@ -428,8 +428,8 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
     std::unique_ptr<Lut2Data> d(new Lut2Data(vsapi));
 
     try {
-        d->node1 = vsapi->propGetNode(in, "clipa", 0, 0);
-        d->node2 = vsapi->propGetNode(in, "clipb", 0, 0);
+        d->node1 = vsapi->mapGetNode(in, "clipa", 0, 0);
+        d->node2 = vsapi->mapGetNode(in, "clipb", 0, 0);
         d->vi[0] = vsapi->getVideoInfo(d->node1);
         d->vi[1] = vsapi->getVideoInfo(d->node2);
 
@@ -447,8 +447,8 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
             RETERROR("Lut2: only clips with integer samples, same dimensions, same subsampling and up to a total of 20 indexing bits supported");
 
         int err;
-        bool floatout = !!vsapi->propGetInt(in, "floatout", 0, &err);
-        int bitsout = vsapi->propGetSaturatedInt(in, "bits", 0, &err);
+        bool floatout = !!vsapi->mapGetInt(in, "floatout", 0, &err);
+        int bitsout = vsapi->mapGetIntSaturated(in, "bits", 0, &err);
         if (err)
             bitsout = (floatout ? sizeof(float) * 8 : d->vi[0]->format.bitsPerSample);
         if ((floatout && bitsout != 32) || (!floatout && (bitsout < 8 || bitsout > 16)))
@@ -459,9 +459,9 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
 
         getPlanesArg(in, d->process, vsapi);
 
-        VSFuncRef *func = vsapi->propGetFunc(in, "function", 0, &err);
-        int lut_elem = vsapi->propNumElements(in, "lut");
-        int lutf_elem = vsapi->propNumElements(in, "lutf");
+        VSFuncRef *func = vsapi->mapGetFunc(in, "function", 0, &err);
+        int lut_elem = vsapi->mapNumElements(in, "lut");
+        int lutf_elem = vsapi->mapNumElements(in, "lutf");
 
         int num_set = (lut_elem >= 0) + (lutf_elem >= 0) + !!func;
 

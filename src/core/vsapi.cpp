@@ -228,12 +228,12 @@ static void VS_CC createFilter3(const VSMap *in, VSMap *out, const char *name, v
     core->createFilter3(in, out, name, init, reinterpret_cast<VSFilterGetFrame>(getFrame), free, fm, flags, instanceData, VAPOURSYNTH3_API_MAJOR);
 }
 
-static void VS_CC setError(VSMap *map, const char *errorMessage) VS_NOEXCEPT {
+static void VS_CC mapSetError(VSMap *map, const char *errorMessage) VS_NOEXCEPT {
     assert(map && errorMessage);
     map->setError(errorMessage ? errorMessage : "Error: no error specified");
 }
 
-static const char *VS_CC getError(const VSMap *map) VS_NOEXCEPT {
+static const char *VS_CC mapGetError(const VSMap *map) VS_NOEXCEPT {
     assert(map);
     return map->getErrorMessage();
 }
@@ -280,33 +280,33 @@ static int VS_CC getFrameHeight(const VSFrameRef *f, int plane) VS_NOEXCEPT {
     return f->getHeight(plane);
 }
 
-static const VSMap *VS_CC getFramePropsRO(const VSFrameRef *frame) VS_NOEXCEPT {
+static const VSMap *VS_CC getFramePropertiesRO(const VSFrameRef *frame) VS_NOEXCEPT {
     assert(frame);
     return &frame->getConstProperties();
 }
 
-static VSMap *VS_CC getFramePropsRW(VSFrameRef *frame) VS_NOEXCEPT {
+static VSMap *VS_CC getFramePropertiesRW(VSFrameRef *frame) VS_NOEXCEPT {
     assert(frame);
     return &frame->getProperties();
 }
 
-static int VS_CC propNumKeys(const VSMap *map) VS_NOEXCEPT {
+static int VS_CC mapNumKeys(const VSMap *map) VS_NOEXCEPT {
     assert(map);
     return static_cast<int>(map->size());
 }
 
-static const char *VS_CC propGetKey(const VSMap *map, int index) VS_NOEXCEPT {
+static const char *VS_CC mapGetKey(const VSMap *map, int index) VS_NOEXCEPT {
     assert(map);
     return map->key(static_cast<size_t>(index));
 }
 
-static int VS_CC propNumElements(const VSMap *map, const char *key) VS_NOEXCEPT {
+static int VS_CC mapNumElements(const VSMap *map, const char *key) VS_NOEXCEPT {
     assert(map && key);
     VSArrayBase *val = map->find(key);
     return val ? static_cast<int>(val->size()) : -1;
 }
 
-static int VS_CC propGetType(const VSMap *map, const char *key) VS_NOEXCEPT {
+static int VS_CC mapGetType(const VSMap *map, const char *key) VS_NOEXCEPT {
     assert(map && key);
     VSArrayBase *val = map->find(key);
     return val ? val->type() : ptUnset;
@@ -377,7 +377,7 @@ static VSArrayBase *propGetShared(const VSMap *map, const char *key, int index, 
     return arr;
 }
 
-static int64_t VS_CC propGetInt(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
+static int64_t VS_CC mapGetInt(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
     VSArrayBase *arr = propGetShared(map, key, index, error, ptInt);
     if (arr)
         return reinterpret_cast<const VSIntArray *>(arr)->at(index);
@@ -385,11 +385,11 @@ static int64_t VS_CC propGetInt(const VSMap *map, const char *key, int index, in
         return 0;
 }
 
-static int VS_CC propGetSaturatedInt(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    return int64ToIntS(propGetInt(map, key, index, error));
+static int VS_CC mapGetIntSaturated(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
+    return int64ToIntS(mapGetInt(map, key, index, error));
 }
 
-static double VS_CC propGetFloat(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
+static double VS_CC mapGetFloat(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
     VSArrayBase *arr = propGetShared(map, key, index, error, ptFloat);
     if (arr)
         return reinterpret_cast<const VSFloatArray *>(arr)->at(index);
@@ -397,11 +397,11 @@ static double VS_CC propGetFloat(const VSMap *map, const char *key, int index, i
         return 0;
 }
 
-static float VS_CC propGetSaturatedFloat(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
-    return doubleToFloatS(propGetFloat(map, key, index, error));
+static float VS_CC mapGetFloatSaturated(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
+    return doubleToFloatS(mapGetFloat(map, key, index, error));
 }
 
-static const char *VS_CC propGetData(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
+static const char *VS_CC mapGetData(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
     VSArrayBase *arr = propGetShared(map, key, index, error, ptData);
     if (arr)
         return reinterpret_cast<const VSDataArray *>(arr)->at(index).data.c_str();
@@ -409,7 +409,7 @@ static const char *VS_CC propGetData(const VSMap *map, const char *key, int inde
         return nullptr;
 }
 
-static int VS_CC propGetDataSize(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
+static int VS_CC mapGetDataSize(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
     VSArrayBase *arr = propGetShared(map, key, index, error, ptData);
     if (arr)
         return static_cast<int>(reinterpret_cast<const VSDataArray *>(arr)->at(index).data.size());
@@ -417,7 +417,7 @@ static int VS_CC propGetDataSize(const VSMap *map, const char *key, int index, i
         return -1;
 }
 
-static int VS_CC propGetDataType(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
+static int VS_CC mapGetDataType(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
     VSArrayBase *arr = propGetShared(map, key, index, error, ptData);
     if (arr)
         return reinterpret_cast<const VSDataArray *>(arr)->at(index).typeHint;
@@ -425,7 +425,7 @@ static int VS_CC propGetDataType(const VSMap *map, const char *key, int index, i
         return dtUnknown;
 }
 
-static VSNodeRef *VS_CC propGetNode(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
+static VSNodeRef *VS_CC mapGetNode(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
     int dummyError;
     VSArrayBase *arr = propGetShared(map, key, index, &dummyError, ptVideoNode);
     if (arr) {
@@ -444,7 +444,7 @@ static VSNodeRef *VS_CC propGetNode(const VSMap *map, const char *key, int index
     }
 }
 
-static const VSFrameRef *VS_CC propGetFrame(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
+static const VSFrameRef *VS_CC mapGetFrame(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
     int dummyError;
     VSArrayBase *arr = propGetShared(map, key, index, &dummyError, ptData);
     if (arr) {
@@ -463,7 +463,7 @@ static const VSFrameRef *VS_CC propGetFrame(const VSMap *map, const char *key, i
     }
 }
 
-static int VS_CC propDeleteKey(VSMap *map, const char *key) VS_NOEXCEPT {
+static int VS_CC mapDeleteKey(VSMap *map, const char *key) VS_NOEXCEPT {
     assert(map && key);
     return map->erase(key);
 }
@@ -491,7 +491,7 @@ static bool isValidVSMapKey(const char *s) {
 }
 
 
-static int VS_CC propSetEmpty(VSMap *map, const char *key, int type) VS_NOEXCEPT {
+static int VS_CC mapSetEmpty(VSMap *map, const char *key, int type) VS_NOEXCEPT {
     assert(map && key);
     if (!isValidVSMapKey(key))
         return 1;
@@ -561,34 +561,34 @@ bool propSetShared(VSMap *map, const char *key, const T &val, int append) {
             return true;
         }
     } else /* if (append == vs3::paTouch) */ {
-        return !propSetEmpty(map, key, propType);
+        return !mapSetEmpty(map, key, propType);
     }
 }
 
-static int VS_CC propSetInt(VSMap *map, const char *key, int64_t i, int append) VS_NOEXCEPT {
+static int VS_CC mapSetInt(VSMap *map, const char *key, int64_t i, int append) VS_NOEXCEPT {
     return !propSetShared<int64_t, ptInt>(map, key, i, append);
 }
 
-static int VS_CC propSetFloat(VSMap *map, const char *key, double d, int append) VS_NOEXCEPT {
+static int VS_CC mapSetFloat(VSMap *map, const char *key, double d, int append) VS_NOEXCEPT {
     return !propSetShared<double, ptFloat>(map, key, d, append);
 }
 
-static int VS_CC propSetData(VSMap *map, const char *key, const char *d, int length, int type, int append) VS_NOEXCEPT {
+static int VS_CC mapSetData(VSMap *map, const char *key, const char *d, int length, int type, int append) VS_NOEXCEPT {
     return !propSetShared<VSMapData, ptData>(map, key, { static_cast<VSDataType>(type), (length >= 0) ? std::string(d, length) : std::string(d) }, append);
 }
 
 static int VS_CC propSetData3(VSMap *map, const char *key, const char *d, int length, int append) VS_NOEXCEPT {
-    return propSetData(map, key, d, length, dtUnknown, append);
+    return mapSetData(map, key, d, length, dtUnknown, append);
 }
 
-static int VS_CC propSetNode(VSMap *map, const char *key, VSNodeRef *node, int append) VS_NOEXCEPT {
+static int VS_CC mapSetNode(VSMap *map, const char *key, VSNodeRef *node, int append) VS_NOEXCEPT {
     if (node == nullptr || node->clip->getNodeType() == mtVideo)
         return !propSetShared<PVSNodeRef, ptVideoNode>(map, key, { node, true }, append);
     else
         return !propSetShared<PVSNodeRef, ptAudioNode>(map, key, { node, true }, append);
 }
 
-static int VS_CC propSetFrame(VSMap *map, const char *key, const VSFrameRef *frame, int append) VS_NOEXCEPT {
+static int VS_CC mapSetFrame(VSMap *map, const char *key, const VSFrameRef *frame, int append) VS_NOEXCEPT {
     if (frame == nullptr || frame->getFrameType() == mtVideo)
         return !propSetShared<PVSFrameRef, ptVideoFrame>(map, key, { const_cast<VSFrameRef *>(frame), true }, append);
     else
@@ -701,7 +701,7 @@ static const VSCoreInfo *VS_CC getCoreInfo3(VSCore *core) VS_NOEXCEPT {
     return &core->getCoreInfo3();
 }
 
-static VSFuncRef *VS_CC propGetFunc(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
+static VSFuncRef *VS_CC mapGetFunc(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
     const VSArrayBase *arr = propGetShared(map, key, index, error, ptFunction);
     if (arr) {
         VSFuncRef *ref = reinterpret_cast<const VSFunctionArray *>(arr)->at(index).get();
@@ -712,7 +712,7 @@ static VSFuncRef *VS_CC propGetFunc(const VSMap *map, const char *key, int index
     }
 }
 
-static int VS_CC propSetFunc(VSMap *map, const char *key, VSFuncRef *func, int append) VS_NOEXCEPT {
+static int VS_CC mapSetFunc(VSMap *map, const char *key, VSFuncRef *func, int append) VS_NOEXCEPT {
     return !propSetShared<PVSFuncRef, ptFunction>(map, key, { func, true }, append);
 }
 
@@ -801,7 +801,7 @@ static int VS_CC getPluginVersion(const VSPlugin *plugin) VS_NOEXCEPT {
     return plugin->getPluginVersion();
 }
 
-static const int64_t *VS_CC propGetIntArray(const VSMap *map, const char *key, int *error) VS_NOEXCEPT {
+static const int64_t *VS_CC mapGetIntArray(const VSMap *map, const char *key, int *error) VS_NOEXCEPT {
     const VSArrayBase *arr = propGetShared(map, key, 0, error, ptInt);
     if (arr) {
         return reinterpret_cast<const VSIntArray *>(arr)->getDataPointer();
@@ -810,7 +810,7 @@ static const int64_t *VS_CC propGetIntArray(const VSMap *map, const char *key, i
     }
 }
 
-static const double *VS_CC propGetFloatArray(const VSMap *map, const char *key, int *error) VS_NOEXCEPT {
+static const double *VS_CC mapGetFloatArray(const VSMap *map, const char *key, int *error) VS_NOEXCEPT {
     const VSArrayBase *arr = propGetShared(map, key, 0, error, ptFloat);
     if (arr) {
         return reinterpret_cast<const VSFloatArray *>(arr)->getDataPointer();
@@ -819,7 +819,7 @@ static const double *VS_CC propGetFloatArray(const VSMap *map, const char *key, 
     }
 }
 
-static int VS_CC propSetIntArray(VSMap *map, const char *key, const int64_t *i, int size) VS_NOEXCEPT {
+static int VS_CC mapSetIntArray(VSMap *map, const char *key, const int64_t *i, int size) VS_NOEXCEPT {
     assert(map && key && size >= 0);
     if (size < 0)
         return 1;
@@ -829,7 +829,7 @@ static int VS_CC propSetIntArray(VSMap *map, const char *key, const int64_t *i, 
     return 0;
 }
 
-static int VS_CC propSetFloatArray(VSMap *map, const char *key, const double *d, int size) VS_NOEXCEPT {
+static int VS_CC mapSetFloatArray(VSMap *map, const char *key, const double *d, int size) VS_NOEXCEPT {
     assert(map && key && size >= 0);
     if (size < 0)
         return 1;
@@ -977,7 +977,7 @@ static int VS_CC getNodeIndex(VSNodeRef *node) VS_NOEXCEPT {
 
 static void VS_CC setInternalFilterRelation(const VSMap *nodeMap, VSNodeRef **dependencies, int numDeps) VS_NOEXCEPT {
     assert(nodeMap && dependencies && dependencies > 0);
-    VSNodeRef *ref = propGetNode(nodeMap, "clip", 0, nullptr);
+    VSNodeRef *ref = mapGetNode(nodeMap, "clip", 0, nullptr);
     ref->clip->setFilterRelation(dependencies, numDeps);
     freeNode(ref);
 }
@@ -1006,8 +1006,8 @@ const VSAPI vs_internal_vsapi = {
     &cloneFrameRef,
     &copyFrame,
     &copyFrameProps,
-    &getFramePropsRO,
-    &getFramePropsRW,
+    &getFramePropertiesRO,
+    &getFramePropertiesRW,
 
     &getStride,
     &getReadPtr,
@@ -1045,41 +1045,41 @@ const VSAPI vs_internal_vsapi = {
     &freeMap,
     &clearMap,
 
-    &setError,
-    &getError,
+    &mapSetError,
+    &mapGetError,
 
-    &propNumKeys,
-    &propGetKey,
-    &propDeleteKey,
-    &propNumElements,
-    &propGetType,
-    &propSetEmpty,
+    &mapNumKeys,
+    &mapGetKey,
+    &mapDeleteKey,
+    &mapNumElements,
+    &mapGetType,
+    &mapSetEmpty,
 
-    &propGetInt,
-    &propGetSaturatedInt,
-    &propGetIntArray,
-    &propSetInt,
-    &propSetIntArray,
+    &mapGetInt,
+    &mapGetIntSaturated,
+    &mapGetIntArray,
+    &mapSetInt,
+    &mapSetIntArray,
 
-    &propGetFloat,
-    &propGetSaturatedFloat,
-    &propGetFloatArray,
-    &propSetFloat,
-    &propSetFloatArray,
+    &mapGetFloat,
+    &mapGetFloatSaturated,
+    &mapGetFloatArray,
+    &mapSetFloat,
+    &mapSetFloatArray,
 
-    &propGetData,
-    &propGetDataSize,
-    &propGetDataType,
-    &propSetData,
+    &mapGetData,
+    &mapGetDataSize,
+    &mapGetDataType,
+    &mapSetData,
 
-    &propGetNode,
-    &propSetNode,
+    &mapGetNode,
+    &mapSetNode,
 
-    &propGetFrame,
-    &propSetFrame,
+    &mapGetFrame,
+    &mapSetFrame,
 
-    &propGetFunc,
-    &propSetFunc,
+    &mapGetFunc,
+    &mapSetFunc,
 
     &registerFunction,
     &getPluginByID,
@@ -1137,8 +1137,8 @@ const vs3::VSAPI3 vs_internal_vsapi3 = {
     &getPlugins3,
     &getFunctions3,
     &createFilter3,
-    &setError,
-    &getError,
+    &mapSetError,
+    &mapGetError,
     &setFilterError,
     &invoke,
     &getFormatPreset3,
@@ -1166,27 +1166,27 @@ const vs3::VSAPI3 vs_internal_vsapi3 = {
     &getFrameFormat3,
     &getFrameWidth,
     &getFrameHeight,
-    &getFramePropsRO,
-    &getFramePropsRW,
+    &getFramePropertiesRO,
+    &getFramePropertiesRW,
 
-    &propNumKeys,
-    &propGetKey,
-    &propNumElements,
+    &mapNumKeys,
+    &mapGetKey,
+    &mapNumElements,
     &propGetType3,
-    &propGetInt,
-    &propGetFloat,
-    &propGetData,
-    &propGetDataSize,
-    &propGetNode,
-    &propGetFrame,
-    &propGetFunc,
-    &propDeleteKey,
-    &propSetInt,
-    &propSetFloat,
+    &mapGetInt,
+    &mapGetFloat,
+    &mapGetData,
+    &mapGetDataSize,
+    &mapGetNode,
+    &mapGetFrame,
+    &mapGetFunc,
+    &mapDeleteKey,
+    &mapSetInt,
+    &mapSetFloat,
     &propSetData3,
-    &propSetNode,
-    &propSetFrame,
-    &propSetFunc,
+    &mapSetNode,
+    &mapSetFrame,
+    &mapSetFunc,
 
     &setMaxCacheSize,
     &getOutputIndex,
@@ -1197,10 +1197,10 @@ const vs3::VSAPI3 vs_internal_vsapi3 = {
 
     &getPluginPath,
 
-    &propGetIntArray,
-    &propGetFloatArray,
-    &propSetIntArray,
-    &propSetFloatArray,
+    &mapGetIntArray,
+    &mapGetFloatArray,
+    &mapSetIntArray,
+    &mapSetFloatArray,
 
     &logMessage3,
     &addMessageHandler3,

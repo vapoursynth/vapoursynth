@@ -452,7 +452,7 @@ static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *
         int field_n;
 
         int err = 0;
-        int fieldbased = vsapi->propGetSaturatedInt(vsapi->getFramePropsRO(src), "_FieldBased", 0, &err);
+        int fieldbased = vsapi->mapGetIntSaturated(vsapi->getFramePropertiesRO(src), "_FieldBased", 0, &err);
         int effective_field = d->field;
         if (effective_field > 1)
             effective_field -= 2;
@@ -648,14 +648,14 @@ static const VSFrameRef *VS_CC eedi3GetFrame(int n, int activationReason, void *
         vsapi->freeFrame(scpPF);
 
         if (d->field > 1) {
-            VSMap *dst_props = vsapi->getFramePropsRW(dst);
+            VSMap *dst_props = vsapi->getFramePropertiesRW(dst);
             int err_num, err_den;
-            int64_t duration_num = vsapi->propGetInt(dst_props, "_DurationNum", 0, &err_num);
-            int64_t duration_den = vsapi->propGetInt(dst_props, "_DurationDen", 0, &err_den);
+            int64_t duration_num = vsapi->mapGetInt(dst_props, "_DurationNum", 0, &err_num);
+            int64_t duration_den = vsapi->mapGetInt(dst_props, "_DurationDen", 0, &err_den);
             if (!err_num && !err_den) {
                 vsh_muldivRational(&duration_num, &duration_den, 1, 2); // Divide duration by 2.
-                vsapi->propSetInt(dst_props, "_DurationNum", duration_num, paReplace);
-                vsapi->propSetInt(dst_props, "_DurationDen", duration_den, paReplace);
+                vsapi->mapSetInt(dst_props, "_DurationNum", duration_num, paReplace);
+                vsapi->mapSetInt(dst_props, "_DurationDen", duration_den, paReplace);
             }
         }
 
@@ -681,75 +681,75 @@ static void VS_CC eedi3Create(const VSMap *in, VSMap *out, void *userData, VSCor
     eedi3Data *data;
     int err;
 
-    d.node = vsapi->propGetNode(in, "clip", 0, 0);
+    d.node = vsapi->mapGetNode(in, "clip", 0, 0);
     d.vi = *vsapi->getVideoInfo(d.node);
 
 
-    d.field = vsapi->propGetSaturatedInt(in, "field", 0, NULL);
+    d.field = vsapi->mapGetIntSaturated(in, "field", 0, NULL);
 
-    d.dh = !!vsapi->propGetInt(in, "dh", 0, &err);
+    d.dh = !!vsapi->mapGetInt(in, "dh", 0, &err);
 
-    d.alpha = (float)vsapi->propGetFloat(in, "alpha", 0, &err);
+    d.alpha = (float)vsapi->mapGetFloat(in, "alpha", 0, &err);
 
     if(err)
         d.alpha = 0.2f;
 
-    d.beta = (float)vsapi->propGetFloat(in, "beta", 0, &err);
+    d.beta = (float)vsapi->mapGetFloat(in, "beta", 0, &err);
 
     if(err)
         d.beta = 0.25f;
 
-    d.gamma = (float)vsapi->propGetFloat(in, "gamma", 0, &err);
+    d.gamma = (float)vsapi->mapGetFloat(in, "gamma", 0, &err);
 
     if(err)
         d.gamma = 20.0f;
 
-    d.nrad = vsapi->propGetSaturatedInt(in, "nrad", 0, &err);
+    d.nrad = vsapi->mapGetIntSaturated(in, "nrad", 0, &err);
 
     if(err)
         d.nrad = 2;
 
-    d.mdis = vsapi->propGetSaturatedInt(in, "mdis", 0, &err);
+    d.mdis = vsapi->mapGetIntSaturated(in, "mdis", 0, &err);
 
     if(err)
         d.mdis = 20;
 
-    d.hp = !!vsapi->propGetInt(in, "hp", 0, &err);
+    d.hp = !!vsapi->mapGetInt(in, "hp", 0, &err);
 
-    d.ucubic = !!vsapi->propGetInt(in, "ucubic", 0, &err);
+    d.ucubic = !!vsapi->mapGetInt(in, "ucubic", 0, &err);
 
     if(err)
         d.ucubic = 1;
 
-    d.cost3 = !!vsapi->propGetInt(in, "cost3", 0, &err);
+    d.cost3 = !!vsapi->mapGetInt(in, "cost3", 0, &err);
 
     if(err)
         d.cost3 = 1;
 
-    d.vcheck = vsapi->propGetSaturatedInt(in, "vcheck", 0, &err);
+    d.vcheck = vsapi->mapGetIntSaturated(in, "vcheck", 0, &err);
 
     if(err)
         d.vcheck = 2;
 
-    d.vthresh0 = vsapi->propGetSaturatedFloat(in, "vthresh0", 0, &err);
+    d.vthresh0 = vsapi->mapGetFloatSaturated(in, "vthresh0", 0, &err);
 
     if(err)
         d.vthresh0 = 32;
 
-    d.vthresh1 = vsapi->propGetSaturatedFloat(in, "vthresh1", 0, &err);
+    d.vthresh1 = vsapi->mapGetFloatSaturated(in, "vthresh1", 0, &err);
 
     if(err)
         d.vthresh1 = 64.0f;
 
-    d.vthresh2 = vsapi->propGetSaturatedFloat(in, "vthresh2", 0, &err);
+    d.vthresh2 = vsapi->mapGetFloatSaturated(in, "vthresh2", 0, &err);
 
     if(err)
         d.vthresh2 = 4.0f;
 
-    d.sclip = vsapi->propGetNode(in, "sclip", 0, &err);
+    d.sclip = vsapi->mapGetNode(in, "sclip", 0, &err);
 
     d.planes = 0;
-    int nump = vsapi->propNumElements(in, "planes");
+    int nump = vsapi->mapNumElements(in, "planes");
 
     if(nump <= 0) {
         d.planes = -1;
@@ -757,7 +757,7 @@ static void VS_CC eedi3Create(const VSMap *in, VSMap *out, void *userData, VSCor
         int i;
 
         for(i = 0; i < nump; i++)
-            d.planes |= 1 << vsapi->propGetInt(in, "planes", i, NULL);
+            d.planes |= 1 << vsapi->mapGetInt(in, "planes", i, NULL);
     }
 
 
@@ -856,7 +856,7 @@ static void VS_CC eedi3Create(const VSMap *in, VSMap *out, void *userData, VSCor
 error:
     vsapi->freeNode(d.node);
     vsapi->freeNode(d.sclip);
-    vsapi->setError(out, msg);
+    vsapi->mapSetError(out, msg);
     return;
 }
 

@@ -188,29 +188,29 @@ T propGetScalar(const VSMap *map, const char *key, const VSAPI *vsapi);
 
 template <>
 int propGetScalar<int>(const VSMap *map, const char *key, const VSAPI *vsapi) {
-    auto x = vsapi->propGetInt(map, key, 0, nullptr);
+    auto x = vsapi->mapGetInt(map, key, 0, nullptr);
     return range_check_integer<int>(x, key);
 }
 
 template <>
 unsigned propGetScalar<unsigned>(const VSMap *map, const char *key, const VSAPI *vsapi) {
-    auto x = vsapi->propGetInt(map, key, 0, nullptr);
+    auto x = vsapi->mapGetInt(map, key, 0, nullptr);
     return range_check_integer<unsigned>(x, key);
 }
 
 template <>
 double propGetScalar<double>(const VSMap *map, const char *key, const VSAPI *vsapi) {
-    return vsapi->propGetFloat(map, key, 0, nullptr);
+    return vsapi->mapGetFloat(map, key, 0, nullptr);
 }
 
 template <>
 const char *propGetScalar<const char *>(const VSMap *map, const char *key, const VSAPI *vsapi) {
-    return vsapi->propGetData(map, key, 0, nullptr);
+    return vsapi->mapGetData(map, key, 0, nullptr);
 }
 
 template <class T>
 T propGetScalarDef(const VSMap *map, const char *key, T def, const VSAPI *vsapi) {
-    if (vsapi->propNumElements(map, key) > 0)
+    if (vsapi->mapNumElements(map, key) > 0)
         return propGetScalar<T>(map, key, vsapi);
     else
         return def;
@@ -218,7 +218,7 @@ T propGetScalarDef(const VSMap *map, const char *key, T def, const VSAPI *vsapi)
 
 template <class T, class U, class Pred>
 void propGetIfValid(const VSMap *map, const char *key, U *out, Pred pred, const VSAPI *vsapi) {
-    if (vsapi->propNumElements(map, key) > 0) {
+    if (vsapi->mapNumElements(map, key) > 0) {
         T x = propGetScalar<T>(map, key, vsapi);
         if (pred(x))
             *out = static_cast<U>(x);
@@ -290,8 +290,8 @@ void translate_vsformat(const VSVideoFormat *vsformat, zimg_image_format *format
 bool import_frame_props(const VSMap *props, zimg_image_format *format, const VSAPI *vsapi) {
     propGetIfValid<int>(props, "_ChromaLocation", &format->chroma_location, [](int x) { return x >= 0; }, vsapi);
 
-    if (vsapi->propNumElements(props, "_ColorRange") > 0) {
-        int64_t x = vsapi->propGetInt(props, "_ColorRange", 0, nullptr);
+    if (vsapi->mapNumElements(props, "_ColorRange") > 0) {
+        int64_t x = vsapi->mapGetInt(props, "_ColorRange", 0, nullptr);
 
         if (x == 0)
             format->pixel_range = ZIMG_RANGE_FULL;
@@ -307,8 +307,8 @@ bool import_frame_props(const VSMap *props, zimg_image_format *format, const VSA
     propGetIfValid<int>(props, "_Primaries", &format->color_primaries, [](int x) { return x != ZIMG_PRIMARIES_UNSPECIFIED; }, vsapi);
 
     bool is_interlaced = false;
-    if (vsapi->propNumElements(props, "_Field") > 0) {
-        int64_t x = vsapi->propGetInt(props, "_Field", 0, nullptr);
+    if (vsapi->mapNumElements(props, "_Field") > 0) {
+        int64_t x = vsapi->mapGetInt(props, "_Field", 0, nullptr);
 
         if (x == 0)
             format->field_parity = ZIMG_FIELD_BOTTOM;
@@ -316,8 +316,8 @@ bool import_frame_props(const VSMap *props, zimg_image_format *format, const VSA
             format->field_parity = ZIMG_FIELD_TOP;
         else
             throw std::runtime_error{ "bad _Field value: " + std::to_string(x) };
-    } else if (vsapi->propNumElements(props, "_FieldBased") > 0) {
-        int64_t x = vsapi->propGetInt(props, "_FieldBased", 0, nullptr);
+    } else if (vsapi->mapNumElements(props, "_FieldBased") > 0) {
+        int64_t x = vsapi->mapGetInt(props, "_FieldBased", 0, nullptr);
 
         if (x != 0 && x != 1 && x != 2)
             throw std::runtime_error{ "bad _FieldBased value: " + std::to_string(x) };
@@ -336,22 +336,22 @@ bool import_frame_props(const VSMap *props, zimg_image_format *format, const VSA
 void export_frame_props(const zimg_image_format &format, VSMap *props, const VSAPI *vsapi) {
     auto set_int_if_positive = [&](const char *key, int x) {
         if (x >= 0)
-            vsapi->propSetInt(props, key, x, paReplace);
+            vsapi->mapSetInt(props, key, x, paReplace);
         else
-            vsapi->propDeleteKey(props, key);
+            vsapi->mapDeleteKey(props, key);
     };
 
     if (format.color_family == ZIMG_COLOR_YUV && (format.subsample_w || format.subsample_h))
-        vsapi->propSetInt(props, "_ChromaLocation", format.chroma_location, paReplace);
+        vsapi->mapSetInt(props, "_ChromaLocation", format.chroma_location, paReplace);
     else
-        vsapi->propDeleteKey(props, "_ChromaLocation");
+        vsapi->mapDeleteKey(props, "_ChromaLocation");
 
     if (format.pixel_range == ZIMG_RANGE_FULL)
-        vsapi->propSetInt(props, "_ColorRange", 0, paReplace);
+        vsapi->mapSetInt(props, "_ColorRange", 0, paReplace);
     else if (format.pixel_range == ZIMG_RANGE_LIMITED)
-        vsapi->propSetInt(props, "_ColorRange", 1, paReplace);
+        vsapi->mapSetInt(props, "_ColorRange", 1, paReplace);
     else
-        vsapi->propDeleteKey(props, "_ColorRange");
+        vsapi->mapDeleteKey(props, "_ColorRange");
 
     set_int_if_positive("_Matrix", format.matrix_coefficients);
     set_int_if_positive("_Transfer", format.transfer_characteristics);
@@ -362,20 +362,20 @@ void propagate_sar(const VSMap *src_props, VSMap *dst_props, const zimg_image_fo
     int64_t sar_num = 0;
     int64_t sar_den = 0;
 
-    if (vsapi->propNumElements(src_props, "_SARNum") > 0)
-        sar_num = vsapi->propGetInt(src_props, "_SARNum", 0, nullptr);
-    if (vsapi->propNumElements(dst_props, "_SARDen") > 0)
-        sar_den = vsapi->propGetInt(dst_props, "_SARDen", 0, nullptr);
+    if (vsapi->mapNumElements(src_props, "_SARNum") > 0)
+        sar_num = vsapi->mapGetInt(src_props, "_SARNum", 0, nullptr);
+    if (vsapi->mapNumElements(dst_props, "_SARDen") > 0)
+        sar_den = vsapi->mapGetInt(dst_props, "_SARDen", 0, nullptr);
 
     if (sar_num <= 0 || sar_den <= 0) {
-        vsapi->propDeleteKey(dst_props, "_SARNum");
-        vsapi->propDeleteKey(dst_props, "_SARDen");
+        vsapi->mapDeleteKey(dst_props, "_SARNum");
+        vsapi->mapDeleteKey(dst_props, "_SARDen");
     } else {
         muldivRational(&sar_num, &sar_den, src_format.width, dst_format.width);
         muldivRational(&sar_num, &sar_den, dst_format.height, src_format.height);
 
-        vsapi->propSetInt(dst_props, "_SARNum", sar_num, paReplace);
-        vsapi->propSetInt(dst_props, "_SARDen", sar_den, paReplace);
+        vsapi->mapSetInt(dst_props, "_SARNum", sar_num, paReplace);
+        vsapi->mapSetInt(dst_props, "_SARDen", sar_den, paReplace);
     }
 }
 
@@ -627,7 +627,7 @@ class vszimg {
 
     template <class T, class Map>
     static void lookup_enum_str(const VSMap *map, const char *key, const Map &enum_table, optional_of<T> *out, const VSAPI *vsapi) {
-        if (vsapi->propNumElements(map, key) > 0) {
+        if (vsapi->mapNumElements(map, key) > 0) {
             const char *enum_str = propGetScalar<const char *>(map, key, vsapi);
             auto it = enum_table.find(enum_str);
             if (it != enum_table.end())
@@ -639,7 +639,7 @@ class vszimg {
 
     template <class T, class Map>
     static void lookup_enum(const VSMap *map, const char *key, const Map &enum_table, optional_of<T> *out, const VSAPI *vsapi) {
-        if (vsapi->propNumElements(map, key) > 0) {
+        if (vsapi->mapNumElements(map, key) > 0) {
             *out = static_cast<T>(propGetScalar<int>(map, key, vsapi));
         } else {
             std::string altkey = std::string{ key } + "_s";
@@ -672,7 +672,7 @@ class vszimg {
         m_src_height()
     {
         try {
-            m_node = vsapi->propGetNode(in, "clip", 0, nullptr);
+            m_node = vsapi->mapGetNode(in, "clip", 0, nullptr);
             const VSVideoInfo &node_vi = *vsapi->getVideoInfo(m_node);
 
             m_vi = node_vi;
@@ -813,7 +813,7 @@ class vszimg {
         vszimgxx::zimage_format src_format, dst_format;
 
         try {
-            const VSMap *src_props = vsapi->getFramePropsRO(src_frame);
+            const VSMap *src_props = vsapi->getFramePropertiesRO(src_frame);
             const VSVideoFormat *src_vsformat = vsapi->getVideoFrameFormat(src_frame);
             const VSVideoFormat *dst_vsformat = (m_vi.format.colorFamily != cfUndefined) ? &m_vi.format : src_vsformat;
 
@@ -891,7 +891,7 @@ class vszimg {
                 graph->graph.process(unpack_cb.buffer(), pack_cb.buffer(), tmp.get(), unpack_cb.callback(), &unpack_cb, pack_cb.callback(), &pack_cb);
             }
 
-            VSMap *dst_props = vsapi->getFramePropsRW(dst_frame);
+            VSMap *dst_props = vsapi->getFramePropertiesRW(dst_frame);
             propagate_sar(src_props, dst_props, src_format, dst_format, vsapi);
             export_frame_props(dst_format, dst_props, vsapi);
         } catch (const vszimgxx::zerror &e) {
@@ -976,9 +976,9 @@ public:
             vsapi->createVideoFilter(out, resizeType, &x->m_vi, 1, &vszimg_get_frame, vszimg_free, fmParallel, 0, x, core);
         } catch (const vszimgxx::zerror &e) {
             std::string errmsg = "Resize error " + std::to_string(e.code) + ": " + e.msg;
-            vsapi->setError(out, errmsg.c_str());
+            vsapi->mapSetError(out, errmsg.c_str());
         } catch (const std::exception &e) {
-            vsapi->setError(out, ("Resize error: "_s + e.what()).c_str());
+            vsapi->mapSetError(out, ("Resize error: "_s + e.what()).c_str());
         }
     }
 };

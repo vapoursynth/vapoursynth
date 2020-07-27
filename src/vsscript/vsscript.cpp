@@ -262,9 +262,9 @@ VS_API(int) vsscript_getVariable(VSScript *handle, const char *name, VSMap *dst)
     std::lock_guard<std::mutex> lock(vsscriptlock);
     int result = vpy_getVariable(handle, name, dst);
     const VSAPI *vsapi = vsscript_getVSApi2(VAPOURSYNTH_API_VERSION);
-    int numKeys = vsapi->propNumKeys(dst);
+    int numKeys = vsapi->mapNumKeys(dst);
     for (int i = 0; i < numKeys; i++) {
-        int keyType = vsapi->propGetType(dst, vsapi->propGetKey(dst, i));
+        int keyType = vsapi->mapGetType(dst, vsapi->mapGetKey(dst, i));
         if (keyType == ptAudioNode || keyType == ptAudioFrame) {
             vsapi->clearMap(dst);
             return 1;

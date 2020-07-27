@@ -100,11 +100,11 @@ static void VS_CC trimCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     int err;
     int trimlen;
 
-    d->first = vsapi->propGetSaturatedInt(in, "first", 0, &err);
+    d->first = vsapi->mapGetIntSaturated(in, "first", 0, &err);
     int firstset = !err;
-    int last = vsapi->propGetSaturatedInt(in, "last", 0, &err);
+    int last = vsapi->mapGetIntSaturated(in, "last", 0, &err);
     int lastset = !err;
-    int length = vsapi->propGetSaturatedInt(in, "length", 0, &err);
+    int length = vsapi->mapGetIntSaturated(in, "length", 0, &err);
     int lengthset = !err;
 
     if (lastset && lengthset)
@@ -119,7 +119,7 @@ static void VS_CC trimCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     if (d->first < 0)
         RETERROR("Trim: invalid first frame specified (less than 0)");
 
-    d->node = vsapi->propGetNode(in, "clip", 0, 0);
+    d->node = vsapi->mapGetNode(in, "clip", 0, 0);
 
     VSVideoInfo vi = *vsapi->getVideoInfo(d->node);
 
@@ -136,7 +136,7 @@ static void VS_CC trimCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     // obvious nop() so just pass through the input clip
     if ((!firstset && !lastset && !lengthset) || (trimlen && trimlen == vi.numFrames)) {
-        vsapi->propSetNode(out, "clip", d->node, paReplace);
+        vsapi->mapSetNode(out, "clip", d->node, paReplace);
         return;
     }
 
@@ -168,14 +168,14 @@ static const VSFrameRef *VS_CC interleaveGetframe(int n, int activationReason, v
             VSFrameRef *dst = vsapi->copyFrame(src, core);
             vsapi->freeFrame(src);
 
-            VSMap *dst_props = vsapi->getFramePropsRW(dst);
+            VSMap *dst_props = vsapi->getFramePropertiesRW(dst);
             int errNum, errDen;
-            int64_t durationNum = vsapi->propGetInt(dst_props, "_DurationNum", 0, &errNum);
-            int64_t durationDen = vsapi->propGetInt(dst_props, "_DurationDen", 0, &errDen);
+            int64_t durationNum = vsapi->mapGetInt(dst_props, "_DurationNum", 0, &errNum);
+            int64_t durationDen = vsapi->mapGetInt(dst_props, "_DurationDen", 0, &errDen);
             if (!errNum && !errDen) {
                 muldivRational(&durationNum, &durationDen, 1, d->numclips);
-                vsapi->propSetInt(dst_props, "_DurationNum", durationNum, paReplace);
-                vsapi->propSetInt(dst_props, "_DurationDen", durationDen, paReplace);
+                vsapi->mapSetInt(dst_props, "_DurationNum", durationNum, paReplace);
+                vsapi->mapSetInt(dst_props, "_DurationDen", durationDen, paReplace);
             }
             return dst;
         } else {
@@ -190,23 +190,23 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
     std::unique_ptr<InterleaveData> d(new InterleaveData(vsapi));
     int err;
 
-    bool mismatch = !!vsapi->propGetInt(in, "mismatch", 0, &err);
-    bool extend = !!vsapi->propGetInt(in, "extend", 0, &err);
-    d->modifyDuration = !!vsapi->propGetInt(in, "modify_duration", 0, &err);
+    bool mismatch = !!vsapi->mapGetInt(in, "mismatch", 0, &err);
+    bool extend = !!vsapi->mapGetInt(in, "extend", 0, &err);
+    d->modifyDuration = !!vsapi->mapGetInt(in, "modify_duration", 0, &err);
     if (err)
         d->modifyDuration = 1;
-    d->numclips = vsapi->propNumElements(in, "clips");
+    d->numclips = vsapi->mapNumElements(in, "clips");
 
     if (d->numclips == 1) { // passthrough for the special case with only one clip
-        VSNodeRef *cref = vsapi->propGetNode(in, "clips", 0, 0);
-        vsapi->propSetNode(out, "clip", cref, paReplace);
+        VSNodeRef *cref = vsapi->mapGetNode(in, "clips", 0, 0);
+        vsapi->mapSetNode(out, "clip", cref, paReplace);
         vsapi->freeNode(cref);
     } else {
         d->node.resize(d->numclips);
         bool compat = false;
 
         for (int i = 0; i < d->numclips; i++) {
-            d->node[i] = vsapi->propGetNode(in, "clips", i, 0);
+            d->node[i] = vsapi->mapGetNode(in, "clips", i, 0);
 
             if (isCompatFormat(&vsapi->getVideoInfo(d->node[i])->format))
                 compat = true;
@@ -271,7 +271,7 @@ static const VSFrameRef *VS_CC reverseGetframe(int n, int activationReason, void
 static void VS_CC reverseCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<ReverseData> d(new ReverseData(vsapi));
 
-    d->node = vsapi->propGetNode(in, "clip", 0, 0);
+    d->node = vsapi->mapGetNode(in, "clip", 0, 0);
     d->vi = vsapi->getVideoInfo(d->node);
 
     vsapi->createVideoFilter(out, "Reverse", d->vi, 1, reverseGetframe, filterFree<ReverseData>, fmParallel, nfNoCache, d.get(), core);
@@ -298,17 +298,17 @@ static const VSFrameRef *VS_CC loopGetframe(int n, int activationReason, void *i
 static void VS_CC loopCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<LoopData> d(new LoopData(vsapi));
     int err;
-    int times = vsapi->propGetSaturatedInt(in, "times", 0, &err);
+    int times = vsapi->mapGetIntSaturated(in, "times", 0, &err);
     if (times < 0)
         RETERROR("Loop: cannot repeat clip a negative number of times");
 
-    d->node = vsapi->propGetNode(in, "clip", 0, 0);
+    d->node = vsapi->mapGetNode(in, "clip", 0, 0);
     d->vi = vsapi->getVideoInfo(d->node);
     VSVideoInfo vi = *d->vi;
 
     // early termination for the trivial case
     if (times == 1) {
-        vsapi->propSetNode(out, "clip", d->node, paReplace);
+        vsapi->mapSetNode(out, "clip", d->node, paReplace);
         return;
     }
 
@@ -347,14 +347,14 @@ static const VSFrameRef *VS_CC selectEveryGetframe(int n, int activationReason, 
         const VSFrameRef *src = vsapi->getFrameFilter(static_cast<int>(reinterpret_cast<intptr_t>(frameData[0])), d->node, frameCtx);
         if (d->modifyDuration) {
             VSFrameRef *dst = vsapi->copyFrame(src, core);
-            VSMap *dst_props = vsapi->getFramePropsRW(dst);
+            VSMap *dst_props = vsapi->getFramePropertiesRW(dst);
             int errNum, errDen;
-            int64_t durationNum = vsapi->propGetInt(dst_props, "_DurationNum", 0, &errNum);
-            int64_t durationDen = vsapi->propGetInt(dst_props, "_DurationDen", 0, &errDen);
+            int64_t durationNum = vsapi->mapGetInt(dst_props, "_DurationNum", 0, &errNum);
+            int64_t durationDen = vsapi->mapGetInt(dst_props, "_DurationDen", 0, &errDen);
             if (!errNum && !errDen) {
                 muldivRational(&durationNum, &durationDen, d->cycle, d->num);
-                vsapi->propSetInt(dst_props, "_DurationNum", durationNum, paReplace);
-                vsapi->propSetInt(dst_props, "_DurationDen", durationDen, paReplace);
+                vsapi->mapSetInt(dst_props, "_DurationNum", durationNum, paReplace);
+                vsapi->mapSetInt(dst_props, "_DurationDen", durationDen, paReplace);
             }
             vsapi->freeFrame(src);
             return dst;
@@ -370,26 +370,26 @@ static void VS_CC selectEveryCreate(const VSMap *in, VSMap *out, void *userData,
     std::unique_ptr<SelectEveryData> d(new SelectEveryData(vsapi));
     int err;
 
-    d->cycle = vsapi->propGetSaturatedInt(in, "cycle", 0, 0);
+    d->cycle = vsapi->mapGetIntSaturated(in, "cycle", 0, 0);
 
     if (d->cycle <= 1)
         RETERROR("SelectEvery: invalid cycle size (must be greater than 1)");
 
-    d->num = vsapi->propNumElements(in, "offsets");
-    d->modifyDuration = !!vsapi->propGetInt(in, "modify_duration", 0, &err);
+    d->num = vsapi->mapNumElements(in, "offsets");
+    d->modifyDuration = !!vsapi->mapGetInt(in, "modify_duration", 0, &err);
     if (err)
         d->modifyDuration = true;
 
     d->offsets.resize(d->num);
 
     for (int i = 0; i < d->num; i++) {
-        d->offsets[i] = vsapi->propGetSaturatedInt(in, "offsets", i, 0);
+        d->offsets[i] = vsapi->mapGetIntSaturated(in, "offsets", i, 0);
 
         if (d->offsets[i] < 0 || d->offsets[i] >= d->cycle)
             RETERROR("SelectEvery: invalid offset specified");
     }
 
-    d->node = vsapi->propGetNode(in, "clip", 0, 0);
+    d->node = vsapi->mapGetNode(in, "clip", 0, 0);
 
     VSVideoInfo vi = *vsapi->getVideoInfo(d->node);
     int inputnframes = vi.numFrames;
@@ -453,19 +453,19 @@ static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     int err;
     VSVideoInfo vi;
 
-    d->numclips = vsapi->propNumElements(in, "clips");
-    bool mismatch = !!vsapi->propGetInt(in, "mismatch", 0, &err);
+    d->numclips = vsapi->mapNumElements(in, "clips");
+    bool mismatch = !!vsapi->mapGetInt(in, "mismatch", 0, &err);
 
     if (d->numclips == 1) { // passthrough for the special case with only one clip
-        VSNodeRef *cref = vsapi->propGetNode(in, "clips", 0, 0);
-        vsapi->propSetNode(out, "clip", cref, paReplace);
+        VSNodeRef *cref = vsapi->mapGetNode(in, "clips", 0, 0);
+        vsapi->mapSetNode(out, "clip", cref, paReplace);
         vsapi->freeNode(cref);
     } else {
         bool compat = false;
         d->node.resize(d->numclips);
 
         for (int i = 0; i < d->numclips; i++) {
-            d->node[i] = vsapi->propGetNode(in, "clips", i, 0);
+            d->node[i] = vsapi->mapGetNode(in, "clips", i, 0);
 
             if (isCompatFormat(&vsapi->getVideoInfo(d->node[i])->format))
                 compat = 1;
@@ -533,15 +533,15 @@ static const VSFrameRef *VS_CC duplicateFramesGetFrame(int n, int activationReas
 static void VS_CC duplicateFramesCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<DuplicateFramesData> d(new DuplicateFramesData(vsapi));
 
-    d->node = vsapi->propGetNode(in, "clip", 0, 0);
+    d->node = vsapi->mapGetNode(in, "clip", 0, 0);
     VSVideoInfo vi = *vsapi->getVideoInfo(d->node);
 
-    d->num_dups = vsapi->propNumElements(in, "frames");
+    d->num_dups = vsapi->mapNumElements(in, "frames");
 
     d->dups.resize(d->num_dups);
 
     for (int i = 0; i < d->num_dups; i++) {
-        d->dups[i] = vsapi->propGetSaturatedInt(in, "frames", i, 0);
+        d->dups[i] = vsapi->mapGetIntSaturated(in, "frames", i, 0);
 
         if (d->dups[i] < 0 || (vi.numFrames && d->dups[i] > vi.numFrames - 1))
             RETERROR("DuplicateFrames: out of bounds frame number");
@@ -588,15 +588,15 @@ static const VSFrameRef *VS_CC deleteFramesGetFrame(int n, int activationReason,
 static void VS_CC deleteFramesCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<DeleteFramesData> d(new DeleteFramesData(vsapi));
 
-    d->node = vsapi->propGetNode(in, "clip", 0, 0);
+    d->node = vsapi->mapGetNode(in, "clip", 0, 0);
     VSVideoInfo vi = *vsapi->getVideoInfo(d->node);
 
-    d->num_delete = vsapi->propNumElements(in, "frames");
+    d->num_delete = vsapi->mapNumElements(in, "frames");
 
     d->del.resize(d->num_delete);
 
     for (int i = 0; i < d->num_delete; i++) {
-        d->del[i] = vsapi->propGetSaturatedInt(in, "frames", i, 0);
+        d->del[i] = vsapi->mapGetIntSaturated(in, "frames", i, 0);
 
         if (d->del[i] < 0 || (vi.numFrames && d->del[i] >= vi.numFrames))
             RETERROR("DeleteFrames: out of bounds frame number");
@@ -660,19 +660,19 @@ static const VSFrameRef *VS_CC freezeFramesGetFrame(int n, int activationReason,
 static void VS_CC freezeFramesCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<FreezeFramesData> d(new FreezeFramesData(vsapi));
 
-    int num_freeze = vsapi->propNumElements(in, "first");
-    if (num_freeze != vsapi->propNumElements(in, "last") || num_freeze != vsapi->propNumElements(in, "replacement"))
+    int num_freeze = vsapi->mapNumElements(in, "first");
+    if (num_freeze != vsapi->mapNumElements(in, "last") || num_freeze != vsapi->mapNumElements(in, "replacement"))
         RETERROR("FreezeFrames: 'first', 'last', and 'replacement' must have the same length.");
 
-    d->node = vsapi->propGetNode(in, "clip", 0, 0);
+    d->node = vsapi->mapGetNode(in, "clip", 0, 0);
     const VSVideoInfo *vi = vsapi->getVideoInfo(d->node);
 
     d->freeze.resize(num_freeze);
 
     for (int i = 0; i < num_freeze; i++) {
-        d->freeze[i].first = vsapi->propGetSaturatedInt(in, "first", i, 0);
-        d->freeze[i].last = vsapi->propGetSaturatedInt(in, "last", i, 0);
-        d->freeze[i].replacement = vsapi->propGetSaturatedInt(in, "replacement", i, 0);
+        d->freeze[i].first = vsapi->mapGetIntSaturated(in, "first", i, 0);
+        d->freeze[i].last = vsapi->mapGetIntSaturated(in, "last", i, 0);
+        d->freeze[i].replacement = vsapi->mapGetIntSaturated(in, "replacement", i, 0);
 
         if (d->freeze[i].first > d->freeze[i].last) {
             int tmp = d->freeze[i].first;

@@ -53,13 +53,13 @@ enum RangeArgumentHandling {
 };
 
 static inline void getPlanePixelRangeArgs(const VSVideoFormat &fi, const VSMap *in, const char *propName, uint16_t *ival, float *fval, RangeArgumentHandling mode, const VSAPI *vsapi) {
-    if (vsapi->propNumElements(in, propName) > fi.numPlanes)
+    if (vsapi->mapNumElements(in, propName) > fi.numPlanes)
         throw std::runtime_error(std::string(propName) + " has more values specified than there are planes");
     bool prevValid = false;
     for (int plane = 0; plane < 3; plane++) {
         int err;
         bool uv = (plane > 0 && fi.colorFamily == cfYUV);
-        double temp = vsapi->propGetFloat(in, propName, plane, &err);
+        double temp = vsapi->mapGetFloat(in, propName, plane, &err);
         if (err) {
             if (prevValid) {
                 ival[plane] = ival[plane - 1];
@@ -198,7 +198,7 @@ static const VSFrameRef *VS_CC singlePixelGetFrame(int n, int activationReason, 
 template<typename T>
 static void templateInit(T& d, const char *name, bool allowVariableFormat, const VSMap *in, VSMap *out, const VSAPI *vsapi) {
     d->name = name;
-    d->node = vsapi->propGetNode(in, "clip", 0, 0);
+    d->node = vsapi->mapGetNode(in, "clip", 0, 0);
     d->vi = vsapi->getVideoInfo(d->node);
 
     if (!is8to16orFloatFormat(d->vi->format, allowVariableFormat))
@@ -472,7 +472,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
     d->filter_name = static_cast<const char *>(userData);
 
-    d->node = vsapi->propGetNode(in, "clip", 0, nullptr);
+    d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
     d->vi = vsapi->getVideoInfo(d->node);
 
     try {
@@ -488,7 +488,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
         int err;
 
         if (op == GenericMinimum || op == GenericMaximum || op == GenericDeflate || op == GenericInflate) {
-            d->thf = static_cast<float>(vsapi->propGetFloat(in, "threshold", 0, &err));
+            d->thf = static_cast<float>(vsapi->mapGetFloat(in, "threshold", 0, &err));
             if (err) {
                 d->th = ((1 << d->vi->format.bitsPerSample) - 1);
                 d->thf = std::numeric_limits<float>::max();
@@ -506,11 +506,11 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
         }
 
         if (op == GenericMinimum || op == GenericMaximum) {
-            int enable_elements = vsapi->propNumElements(in, "coordinates");
+            int enable_elements = vsapi->mapNumElements(in, "coordinates");
             if (enable_elements == -1) {
                 d->enable = 0xFF;
             } else if (enable_elements == 8) {
-                const int64_t *enable = vsapi->propGetIntArray(in, "coordinates", &err);
+                const int64_t *enable = vsapi->mapGetIntArray(in, "coordinates", &err);
                 for (int i = 0; i < 8; i++) {
                     d->enable |= enable[i] ? (1U << i) : 0U;
                 }
@@ -521,7 +521,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
 
         if (op == GenericPrewitt || op == GenericSobel) {
-            d->scale = static_cast<float>(vsapi->propGetFloat(in, "scale", 0, &err));
+            d->scale = static_cast<float>(vsapi->mapGetFloat(in, "scale", 0, &err));
             if (err)
                 d->scale = 1.0f;
 
@@ -530,15 +530,15 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
         }
 
         if (op == GenericConvolution) {
-            d->bias = static_cast<float>(vsapi->propGetFloat(in, "bias", 0, &err));
+            d->bias = static_cast<float>(vsapi->mapGetFloat(in, "bias", 0, &err));
 
-            d->saturate = !!vsapi->propGetInt(in, "saturate", 0, &err);
+            d->saturate = !!vsapi->mapGetInt(in, "saturate", 0, &err);
             if (err)
                 d->saturate = true;
 
-            d->matrix_elements = vsapi->propNumElements(in, "matrix");
+            d->matrix_elements = vsapi->mapNumElements(in, "matrix");
 
-            const char *mode = vsapi->propGetData(in, "mode", 0, &err);
+            const char *mode = vsapi->mapGetData(in, "mode", 0, &err);
             if (err || mode[0] == 's') {
                 d->convolution_type = ConvolutionSquare;
 
@@ -561,7 +561,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
             float matrix_sumf = 0;
             d->matrix_sum = 0;
-            const double *matrix = vsapi->propGetFloatArray(in, "matrix", nullptr);
+            const double *matrix = vsapi->mapGetFloatArray(in, "matrix", nullptr);
             for (int i = 0; i < d->matrix_elements; i++) {
                 if (d->vi->format.sampleType == stInteger) {
                     d->matrix[i] = lround(matrix[i]);
@@ -580,7 +580,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
             if (std::abs(matrix_sumf) < std::numeric_limits<float>::epsilon())
                 matrix_sumf = 1.0;
 
-            d->rdiv = static_cast<float>(vsapi->propGetFloat(in, "divisor", 0, &err));
+            d->rdiv = static_cast<float>(vsapi->mapGetFloat(in, "divisor", 0, &err));
             if (d->rdiv == 0.0f)
                 d->rdiv = static_cast<float>(matrix_sumf);
 
@@ -640,7 +640,7 @@ static void VS_CC genericCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
         d->cpulevel = vs_get_cpulevel(core);
     } catch (const std::runtime_error &error) {
-        vsapi->setError(out, (d->filter_name + ": "_s + error.what()).c_str());
+        vsapi->mapSetError(out, (d->filter_name + ": "_s + error.what()).c_str());
         return;
     }
 
@@ -692,7 +692,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     try {
         templateInit(d, "Invert", true, in, out, vsapi);
     } catch (const std::runtime_error &error) {
-        vsapi->setError(out, (d->name + ": "_s + error.what()).c_str());
+        vsapi->mapSetError(out, (d->name + ": "_s + error.what()).c_str());
         return;
     }
 
@@ -747,7 +747,7 @@ static void VS_CC limitCreate(const VSMap *in, VSMap *out, void *userData, VSCor
             if (((d->vi->format.sampleType == stInteger) && (d->min[i] > d->max[i])) || ((d->vi->format.sampleType == stFloat) && (d->minf[i] > d->maxf[i])))
                 throw std::runtime_error("min bigger than max");
     } catch (const std::runtime_error &error) {
-        vsapi->setError(out, (d->name + ": "_s + error.what()).c_str());
+        vsapi->mapSetError(out, (d->name + ": "_s + error.what()).c_str());
         return;
     }
 
@@ -808,7 +808,7 @@ static void VS_CC binarizeCreate(const VSMap *in, VSMap *out, void *userData, VS
         getPlanePixelRangeArgs(d->vi->format, in, "v1", d->v1, d->v1f, RangeUpper, vsapi);
         getPlanePixelRangeArgs(d->vi->format, in, "threshold", d->thr, d->thrf, RangeMiddle, vsapi);
     } catch (const std::runtime_error &error) {
-        vsapi->setError(out, (d->name + ": "_s + error.what()).c_str());
+        vsapi->mapSetError(out, (d->name + ": "_s + error.what()).c_str());
         return;
     }
 
@@ -935,7 +935,7 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     try {
         templateInit(d, "Levels", false, in, out, vsapi);
     } catch (const std::runtime_error &error) {
-        vsapi->setError(out, (d->name + ": "_s + error.what()).c_str());
+        vsapi->mapSetError(out, (d->name + ": "_s + error.what()).c_str());
         return;
     }
 
@@ -944,15 +944,15 @@ static void VS_CC levelsCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     if (d->vi->format.sampleType == stInteger)
         maxvalf = static_cast<float>((1 << d->vi->format.bitsPerSample) - 1);
 
-    d->min_in = static_cast<float>(vsapi->propGetFloat(in, "min_in", 0, &err));
-    d->min_out = static_cast<float>(vsapi->propGetFloat(in, "min_out", 0, &err));
-    d->max_in = static_cast<float>(vsapi->propGetFloat(in, "max_in", 0, &err));
+    d->min_in = static_cast<float>(vsapi->mapGetFloat(in, "min_in", 0, &err));
+    d->min_out = static_cast<float>(vsapi->mapGetFloat(in, "min_out", 0, &err));
+    d->max_in = static_cast<float>(vsapi->mapGetFloat(in, "max_in", 0, &err));
     if (err)
         d->max_in = maxvalf;
-    d->max_out = static_cast<float>(vsapi->propGetFloat(in, "max_out", 0, &err));
+    d->max_out = static_cast<float>(vsapi->mapGetFloat(in, "max_out", 0, &err));
     if (err)
         d->max_out = maxvalf;
-    d->gamma = static_cast<float>(vsapi->propGetFloat(in, "gamma", 0, &err));
+    d->gamma = static_cast<float>(vsapi->mapGetFloat(in, "gamma", 0, &err));
     if (err)
         d->gamma = 1.f;
     else
