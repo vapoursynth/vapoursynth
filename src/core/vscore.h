@@ -866,8 +866,12 @@ public:
 
 struct VSMessageHandlerRecord {
     VSMessageHandler handler;
-    VSMessageHandlerFree free;
+    VSMessageHandlerFree freeFunc;
     void *userData;
+    ~VSMessageHandlerRecord() {
+        if (freeFunc)
+            freeFunc(userData);
+    }
 };
 
 struct VSCore {

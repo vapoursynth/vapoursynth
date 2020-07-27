@@ -1244,9 +1244,9 @@ bool VSCore::isValidFormatPointer(const void *f) {
     return false;
 }
 
-VSMessageHandlerRecord *VSCore::addMessageHandler(VSMessageHandler handler, VSMessageHandlerFree free, void *userData) {
+VSMessageHandlerRecord *VSCore::addMessageHandler(VSMessageHandler handler, VSMessageHandlerFree freeFunc, void *userData) {
     std::lock_guard<std::mutex> lock(logMutex);
-    return *(messageHandlers.insert(new VSMessageHandlerRecord{ handler, free, userData }).first);
+    return *(messageHandlers.insert(new VSMessageHandlerRecord{ handler, freeFunc, userData }).first);
 }
 
 bool VSCore::removeMessageHandler(VSMessageHandlerRecord *rec) {
@@ -1263,9 +1263,8 @@ bool VSCore::removeMessageHandler(VSMessageHandlerRecord *rec) {
 
 void VSCore::logMessage(VSMessageType type, const char *msg) {
     std::lock_guard<std::mutex> lock(logMutex);
-    for (auto iter : messageHandlers) {
+    for (auto iter : messageHandlers)
         iter->handler(type, msg, iter->userData);
-    }
 
     switch (type) {
         case mtDebug:

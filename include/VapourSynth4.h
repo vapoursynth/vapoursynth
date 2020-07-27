@@ -388,7 +388,6 @@ struct VSAPI {
     void (VS_CC *mapSetError)(VSMap *map, const char *errorMessage) VS_NOEXCEPT; /* used to signal errors outside filter getframe function */
     const char *(VS_CC *mapGetError)(const VSMap *map) VS_NOEXCEPT; /* used to query errors, returns 0 if no error */
 
-    // FIXME, rename prop* to map*?
     int (VS_CC *mapNumKeys)(const VSMap *map) VS_NOEXCEPT;
     const char *(VS_CC *mapGetKey)(const VSMap *map, int index) VS_NOEXCEPT;
     int (VS_CC *mapDeleteKey)(VSMap *map, const char *key) VS_NOEXCEPT;
