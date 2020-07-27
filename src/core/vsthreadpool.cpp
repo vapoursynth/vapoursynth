@@ -65,7 +65,7 @@ bool VSThreadPool::taskCmp(const PVSFrameContext &a, const PVSFrameContext &b) {
 void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isSSEStateOk())
-        owner->core->logMessage(mtFatal, "Bad SSE state detected after creating new thread");
+        owner->core->logFatal("Bad SSE state detected after creating new thread");
 #endif
 
     std::unique_lock<std::mutex> lock(owner->lock);
@@ -215,7 +215,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 #endif
             bool frameProcessingDone = f || mainContext->hasError();
             if (mainContext->hasError() && f)
-                owner->core->logMessage(mtFatal, "A frame was returned by " + clip->name + " but an error was also set, this is not allowed");
+                owner->core->logFatal("A frame was returned by " + clip->name + " but an error was also set, this is not allowed");
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Unlock so the next job can run on the context
@@ -272,7 +272,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 } while ((mainContextRef = n));
             } else if (f) {
                 if (hasExistingRequests || requestedFrames)
-                    owner->core->logMessage(mtFatal, "A frame was returned at the end of processing by " + clip->name + " but there are still outstanding requests");
+                    owner->core->logFatal("A frame was returned at the end of processing by " + clip->name + " but there are still outstanding requests");
                 PVSFrameContext n;
 
                 do {
@@ -293,7 +293,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             } else if (hasExistingRequests || requestedFrames) {
                 // already scheduled, do nothing
             } else {
-                owner->core->logMessage(mtFatal, "No frame returned at the end of processing by " + clip->name);
+                owner->core->logFatal("No frame returned at the end of processing by " + clip->name);
             }
 
             if (needsSort)
@@ -407,7 +407,7 @@ void VSThreadPool::startInternal(const PVSFrameContext &context) {
     //unfortunately this would probably be quite slow for deep scripts so just hope the cache catches it
 
     if (context->n < 0)
-        core->logMessage(mtFatal, "Negative frame request by: " + context->upstreamContext->clip->getName());
+        core->logFatal("Negative frame request by: " + context->upstreamContext->clip->getName());
 
     // check to see if it's time to reevaluate cache sizes
     if (core->memory->isOverLimit()) {

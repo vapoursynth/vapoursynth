@@ -281,7 +281,7 @@ typedef enum VSMessageType {
     mtInformation = 1, 
     mtWarning = 2,
     mtCritical = 3,
-    mtFatal = 4
+    mtFatal = 4 /* also terminates the process, should generally not be used by normal filters */
 } VSMessageType;
 
 typedef enum VSCoreFlags {

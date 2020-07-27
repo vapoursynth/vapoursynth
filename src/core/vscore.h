@@ -928,6 +928,8 @@ public:
     bool removeMessageHandler(VSMessageHandlerRecord *rec);
     void logMessage(VSMessageType type, const char *msg);
     void logMessage(VSMessageType type, const std::string &msg);
+    [[noreturn]] void logFatal(const char *msg);
+    [[noreturn]] void logFatal(const std::string &msg);
 
     /////////////////////////////////////
     // V3 compat helper functions
