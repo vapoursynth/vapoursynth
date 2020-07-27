@@ -37,9 +37,9 @@ public:
 };
 
 #define AvsFilterRemoveGrain16_READ_PIX    \
-   const int      om = stride_src - 1;     \
-   const int      o0 = stride_src    ;     \
-   const int      op = stride_src + 1;     \
+   const ptrdiff_t      om = stride_src - 1;     \
+   const ptrdiff_t      o0 = stride_src    ;     \
+   const ptrdiff_t      op = stride_src + 1;     \
    __m128i        a1, a2, a3, a4, c, a5, a6, a7, a8; \
    if (sizeof(T) == 1) { \
        __m128i zeroreg = _mm_setzero_si128(); \
@@ -113,7 +113,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
+    static __forceinline __m128i rg (const T *src_ptr, ptrdiff_t stride_src, __m128i mask_sign) {
         AvsFilterRemoveGrain16_READ_PIX
 
         const __m128i    mi = _mm_min_epi16 (
@@ -142,7 +142,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
+    static __forceinline __m128i rg (const T *src_ptr, ptrdiff_t stride_src, __m128i mask_sign) {
         AvsFilterRemoveGrain16_READ_PIX
 
         sort_pair (a1, a2);
@@ -186,7 +186,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
+    static __forceinline __m128i rg (const T *src_ptr, ptrdiff_t stride_src, __m128i mask_sign) {
         AvsFilterRemoveGrain16_READ_PIX
 
         sort_pair (a1, a2);
@@ -230,7 +230,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
+    static __forceinline __m128i rg (const T *src_ptr, ptrdiff_t stride_src, __m128i mask_sign) {
         // http://en.wikipedia.org/wiki/Batcher_odd%E2%80%93even_mergesort
 
         AvsFilterRemoveGrain16_READ_PIX
@@ -291,7 +291,7 @@ public:
         }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg(const T *src_ptr, int stride_src, __m128i mask_sign) {
+    static __forceinline __m128i rg(const T *src_ptr, ptrdiff_t stride_src, __m128i mask_sign) {
             AvsFilterRemoveGrain16_READ_PIX
                 AvsFilterRemoveGrain16_SORT_AXIS_SSE2
 
@@ -369,7 +369,7 @@ public:
         }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg(const T *src_ptr, int stride_src, __m128i mask_sign) {
+    static __forceinline __m128i rg(const T *src_ptr, ptrdiff_t stride_src, __m128i mask_sign) {
             AvsFilterRemoveGrain16_READ_PIX
                 AvsFilterRemoveGrain16_SORT_AXIS_SSE2
 
@@ -455,7 +455,7 @@ public:
         }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg(const T *src_ptr, int stride_src, __m128i mask_sign) {
+    static __forceinline __m128i rg(const T *src_ptr, ptrdiff_t stride_src, __m128i mask_sign) {
             AvsFilterRemoveGrain16_READ_PIX
                 AvsFilterRemoveGrain16_SORT_AXIS_SSE2
 
@@ -541,7 +541,7 @@ public:
         }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg(const T *src_ptr, int stride_src, __m128i mask_sign) {
+    static __forceinline __m128i rg(const T *src_ptr, ptrdiff_t stride_src, __m128i mask_sign) {
             AvsFilterRemoveGrain16_READ_PIX
                 AvsFilterRemoveGrain16_SORT_AXIS_SSE2
 
@@ -616,7 +616,7 @@ public:
         }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg(const T *src_ptr, int stride_src, __m128i mask_sign) {
+    static __forceinline __m128i rg(const T *src_ptr, ptrdiff_t stride_src, __m128i mask_sign) {
             AvsFilterRemoveGrain16_READ_PIX
                 AvsFilterRemoveGrain16_SORT_AXIS_SSE2
 
@@ -680,7 +680,7 @@ public:
         }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg(const T *src_ptr, int stride_src, __m128i mask_sign) {
+    static __forceinline __m128i rg(const T *src_ptr, ptrdiff_t stride_src, __m128i mask_sign) {
             AvsFilterRemoveGrain16_READ_PIX
 
                 const __m128i  d1u = abs_dif_epu16(c, a1);
@@ -728,7 +728,7 @@ public:
     typedef    ConvUnsigned    ConvSign;
 
     template<typename T>
-    static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
+    static __forceinline __m128i rg (const T *src_ptr, ptrdiff_t stride_src, __m128i mask_sign) {
         AvsFilterRemoveGrain16_READ_PIX
 
         const __m128i    bias =
@@ -767,7 +767,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
+    static __forceinline __m128i rg (const T *src_ptr, ptrdiff_t stride_src, __m128i mask_sign) {
         return (OpRG12sse2::rg (src_ptr, stride_src, mask_sign));
     }
 #endif
@@ -781,7 +781,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
+    static __forceinline __m128i rg (const T *src_ptr, ptrdiff_t stride_src, __m128i mask_sign) {
         return (OpRG12sse2::rg(src_ptr, stride_src, mask_sign));
     }
 #endif
@@ -846,7 +846,7 @@ public:
         }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg(const T *src_ptr, int stride_src, __m128i mask_sign) {
+    static __forceinline __m128i rg(const T *src_ptr, ptrdiff_t stride_src, __m128i mask_sign) {
             AvsFilterRemoveGrain16_READ_PIX
                 AvsFilterRemoveGrain16_SORT_AXIS_SSE2
 
@@ -892,7 +892,7 @@ public:
         }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg(const T *src_ptr, int stride_src, __m128i mask_sign) {
+    static __forceinline __m128i rg(const T *src_ptr, ptrdiff_t stride_src, __m128i mask_sign) {
             AvsFilterRemoveGrain16_READ_PIX
 
                 const __m128i  absdiff1u = abs_dif_epu16(c, a1);
@@ -968,7 +968,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg (const T *src_ptr, int stride_src, __m128i mask_sign) {
+    static __forceinline __m128i rg (const T *src_ptr, ptrdiff_t stride_src, __m128i mask_sign) {
         AvsFilterRemoveGrain16_READ_PIX
 
         (void)c;
@@ -1004,7 +1004,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg(const T *src_ptr, int stride_src, __m128i mask_sign) {
+    static __forceinline __m128i rg(const T *src_ptr, ptrdiff_t stride_src, __m128i mask_sign) {
         AvsFilterRemoveGrain16_READ_PIX
 
             const __m128i  zero = _mm_setzero_si128();
@@ -1064,7 +1064,7 @@ public:
         }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg(const T *src_ptr, int stride_src, __m128i mask_sign) {
+    static __forceinline __m128i rg(const T *src_ptr, ptrdiff_t stride_src, __m128i mask_sign) {
             AvsFilterRemoveGrain16_READ_PIX
 
                 const __m128i  bit0 =
@@ -1127,7 +1127,7 @@ public:
         }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg(const T *src_ptr, int stride_src, __m128i mask_sign) {
+    static __forceinline __m128i rg(const T *src_ptr, ptrdiff_t stride_src, __m128i mask_sign) {
             AvsFilterRemoveGrain16_READ_PIX
 
                 const __m128i  l1u = _mm_avg_epu16(a1, a8);
@@ -1257,7 +1257,7 @@ template <class OP, class T>
 class PlaneProc {
 public:
 
-static void process_subplane_cpp (const T *src_ptr, int stride_src, T *dst_ptr, int stride_dst, int width, int height)
+static void process_subplane_cpp (const T *src_ptr, ptrdiff_t stride_src, T *dst_ptr, ptrdiff_t stride_dst, int width, int height)
 {
     const int        y_b = 1;
     const int        y_e = height - 1;
@@ -1291,11 +1291,11 @@ static void process_subplane_cpp (const T *src_ptr, int stride_src, T *dst_ptr, 
     }
 }
 
-static void process_row_cpp (T *dst_ptr, const T *src_ptr, int stride_src, int x_beg, int x_end)
+static void process_row_cpp (T *dst_ptr, const T *src_ptr, ptrdiff_t stride_src, int x_beg, int x_end)
 {
-    const int      om = stride_src - 1;
-    const int      o0 = stride_src    ;
-    const int      op = stride_src + 1;
+    const ptrdiff_t      om = stride_src - 1;
+    const ptrdiff_t      o0 = stride_src    ;
+    const ptrdiff_t      op = stride_src + 1;
 
     src_ptr += x_beg;
 
@@ -1320,7 +1320,7 @@ static void process_row_cpp (T *dst_ptr, const T *src_ptr, int stride_src, int x
 }
 
 #ifdef VS_TARGET_CPU_X86
-static void process_subplane_sse2 (const T *src_ptr, int stride_src, T *dst_ptr, int stride_dst, int width, int height)
+static void process_subplane_sse2 (const T *src_ptr, ptrdiff_t stride_src, T *dst_ptr, ptrdiff_t stride_dst, int width, int height)
 {
     const int        y_b = 1;
     const int        y_e = height - 1;
@@ -1375,8 +1375,8 @@ static void do_process_plane_sse2 (const VSFrameRef *src_frame, VSFrameRef *dst_
 {
     const int        w             = vsapi->getFrameWidth(src_frame, plane_id);
     const int        h             = vsapi->getFrameHeight(src_frame, plane_id);
-    T1 *                dst_ptr       = reinterpret_cast<T1*>(vsapi->getWritePtr(dst_frame, plane_id));
-    const int        stride        = vsapi->getStride(dst_frame, plane_id);
+    T1 *             dst_ptr       = reinterpret_cast<T1*>(vsapi->getWritePtr(dst_frame, plane_id));
+    const ptrdiff_t  stride        = vsapi->getStride(dst_frame, plane_id);
 
     const T1*        src_ptr       = reinterpret_cast<const T1*>(vsapi->getReadPtr(src_frame, plane_id));
 
@@ -1387,7 +1387,7 @@ static void do_process_plane_sse2 (const VSFrameRef *src_frame, VSFrameRef *dst_
     PlaneProc<OP1, T1>::process_subplane_sse2(src_ptr, stride/sizeof(T1), dst_ptr, stride/sizeof(T1), w, h);
 
     // Last line
-    const int        lp = (h - 1) * stride/sizeof(T1);
+    const ptrdiff_t  lp = (h - 1) * stride/sizeof(T1);
     memcpy (dst_ptr + lp, src_ptr + lp, stride);
 }
 
@@ -1398,8 +1398,8 @@ static void do_process_plane_cpp (const VSFrameRef *src_frame, VSFrameRef *dst_f
 {
     const int        w             = vsapi->getFrameWidth(src_frame, plane_id);
     const int        h             = vsapi->getFrameHeight(src_frame, plane_id);
-    T1 *                dst_ptr       = reinterpret_cast<T1*>(vsapi->getWritePtr(dst_frame, plane_id));
-    const int        stride        = vsapi->getStride(dst_frame, plane_id);
+    T1 *             dst_ptr       = reinterpret_cast<T1*>(vsapi->getWritePtr(dst_frame, plane_id));
+    const ptrdiff_t  stride        = vsapi->getStride(dst_frame, plane_id);
 
     const T1*        src_ptr       = reinterpret_cast<const T1*>(vsapi->getReadPtr(src_frame, plane_id));
 
@@ -1410,7 +1410,7 @@ static void do_process_plane_cpp (const VSFrameRef *src_frame, VSFrameRef *dst_f
     PlaneProc<OP1, T1>::process_subplane_cpp(src_ptr, stride/sizeof(T1), dst_ptr, stride/sizeof(T1), w, h);
 
     // Last line
-    const int        lp = (h - 1) * stride/sizeof(T1);
+    const ptrdiff_t lp = (h - 1) * stride/sizeof(T1);
     memcpy(dst_ptr + lp, src_ptr + lp, w * sizeof(T1));
 }
 
@@ -1422,13 +1422,8 @@ typedef struct {
     int mode[3];
 } RemoveGrainData;
 
-static void VS_CC removeGrainInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    RemoveGrainData *d = static_cast<RemoveGrainData *>(*instanceData);
-    vsapi->setVideoInfo(d->vi, 1, node);
-}
-
-static const VSFrameRef *VS_CC removeGrainGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    RemoveGrainData *d = static_cast<RemoveGrainData *>(*instanceData);
+static const VSFrameRef *VS_CC removeGrainGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    RemoveGrainData *d = static_cast<RemoveGrainData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
@@ -1436,7 +1431,7 @@ static const VSFrameRef *VS_CC removeGrainGetFrame(int n, int activationReason, 
         const VSFrameRef *src_frame = vsapi->getFrameFilter(n, d->node, frameCtx);
         int planes[3] = {0, 1, 2};
         const VSFrameRef * cp_planes[3] = { d->mode[0] ? nullptr : src_frame, d->mode[1] ? nullptr : src_frame, d->mode[2] ? nullptr : src_frame };
-        VSFrameRef *dst_frame = vsapi->newVideoFrame2(vsapi->getFrameFormat(src_frame), vsapi->getFrameWidth(src_frame, 0), vsapi->getFrameHeight(src_frame, 0), cp_planes, planes, src_frame, core);
+        VSFrameRef *dst_frame = vsapi->newVideoFrame2(vsapi->getVideoFrameFormat(src_frame), vsapi->getFrameWidth(src_frame, 0), vsapi->getFrameHeight(src_frame, 0), cp_planes, planes, src_frame, core);
 
 
 #define PROC_ARGS_16(op) PlaneProc <op, uint16_t>::do_process_plane_cpp<op, uint16_t>(src_frame, dst_frame, i, vsapi); break;
@@ -1450,8 +1445,8 @@ static const VSFrameRef *VS_CC removeGrainGetFrame(int n, int activationReason, 
 #define PROC_ARGS_8_FAST(op) PROC_ARGS_8(op)
 #endif
 
-        if (d->vi->format->bytesPerSample == 1) {
-            for (int i = 0; i < d->vi->format->numPlanes; i++) {
+        if (d->vi->format.bytesPerSample == 1) {
+            for (int i = 0; i < d->vi->format.numPlanes; i++) {
                 switch (d->mode[i])
                 {
                     case  1: PROC_ARGS_8_FAST(OpRG01)
@@ -1482,7 +1477,7 @@ static const VSFrameRef *VS_CC removeGrainGetFrame(int n, int activationReason, 
                 }
             }
         } else {
-            for (int i = 0; i < d->vi->format->numPlanes; i++) {
+            for (int i = 0; i < d->vi->format.numPlanes; i++) {
                 switch (d->mode[i])
                 {
                 case  1: PROC_ARGS_16_FAST(OpRG01)
@@ -1534,19 +1529,19 @@ void VS_CC removeGrainCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     d.node = vsapi->propGetNode(in, "clip", 0, nullptr);
     d.vi = vsapi->getVideoInfo(d.node);
 
-    if (!d.vi->format) {
+    if (d.vi->format.colorFamily == cfUndefined) {
         vsapi->freeNode(d.node);
         vsapi->setError(out, "RemoveGrain: Only constant format input supported");
         return;
     }
 
-    if (d.vi->format->sampleType != stInteger || (d.vi->format->bytesPerSample != 1 && d.vi->format->bytesPerSample != 2)) {
+    if (d.vi->format.sampleType != stInteger || (d.vi->format.bytesPerSample != 1 && d.vi->format.bytesPerSample != 2)) {
         vsapi->freeNode(d.node);
         vsapi->setError(out, "RemoveGrain: Only 8-16 bit int formats supported");
         return;
     }
 
-    int n = d.vi->format->numPlanes;
+    int n = d.vi->format.numPlanes;
     int m = vsapi->propNumElements(in, "mode");
     if (n < m) {
         vsapi->freeNode(d.node);
@@ -1556,7 +1551,7 @@ void VS_CC removeGrainCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     for (int i = 0; i < 3; i++) {
         if (i < m) {
-            d.mode[i] = int64ToIntS(vsapi->propGetInt(in, "mode", i, nullptr));
+            d.mode[i] = vsapi->propGetSaturatedInt(in, "mode", i, nullptr);
             if (d.mode[i] < 0 || d.mode[i] > 24)
             {
                 vsapi->freeNode(d.node);
@@ -1570,5 +1565,5 @@ void VS_CC removeGrainCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     RemoveGrainData *data = new RemoveGrainData(d);
 
-    vsapi->createFilter(in, out, "RemoveGrain", removeGrainInit, removeGrainGetFrame, removeGrainFree, fmParallel, 0, data, core);
+    vsapi->createVideoFilter(out, "RemoveGrain", data->vi, 1, removeGrainGetFrame, removeGrainFree, fmParallel, 0, data, core);
 }

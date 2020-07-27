@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2015 Fredrik Mellbin
+* Copyright (c) 2012-2020 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -29,8 +29,8 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
-#include "VapourSynth.h"
-#include "VSHelper.h"
+#include "VapourSynth4.h"
+#include "VSHelper4.h"
 
 // Shared
 
@@ -64,10 +64,10 @@ typedef struct {
 
 
 static void copyField(VSFrameRef *dst, const VSFrameRef *src, int field, const VSAPI *vsapi) {
-    const VSFormat *fi = vsapi->getFrameFormat(src);
+    const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
     int plane;
     for (plane=0; plane<fi->numPlanes; plane++) {
-        vs_bitblt(vsapi->getWritePtr(dst, plane)+field*vsapi->getStride(dst, plane),vsapi->getStride(dst, plane)*2,
+        vsh_bitblt(vsapi->getWritePtr(dst, plane)+field*vsapi->getStride(dst, plane),vsapi->getStride(dst, plane)*2,
             vsapi->getReadPtr(src, plane)+field*vsapi->getStride(src, plane),vsapi->getStride(src, plane)*2,
             vsapi->getFrameWidth(src, plane)*fi->bytesPerSample,vsapi->getFrameHeight(src,plane)/2);
     }
@@ -75,7 +75,7 @@ static void copyField(VSFrameRef *dst, const VSFrameRef *src, int field, const V
 
 // the secret is that tbuffer is an interlaced, offset subset of all the lines
 static void buildABSDiffMask(const uint8_t *prvp, const uint8_t *nxtp,
-    int src_pitch, int tpitch, uint8_t *tbuffer, int width, int height,
+    ptrdiff_t src_pitch, ptrdiff_t tpitch, uint8_t *tbuffer, int width, int height,
     const VSAPI *vsapi) {
 
     int y, x;
@@ -99,11 +99,11 @@ static int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
     int x, y, u, v;
     for (plane=0; plane < (chroma ? 3 : 1); plane++) {
         const uint8_t *srcp = vsapi->getReadPtr(src, plane);
-        const int src_pitch = vsapi->getStride(src, plane);
+        const ptrdiff_t src_pitch = vsapi->getStride(src, plane);
         const int Width = vsapi->getFrameWidth(src, plane);
         const int Height = vsapi->getFrameHeight(src, plane);
         uint8_t *cmkp = vsapi->getWritePtr(cmask, plane);
-        const int cmk_pitch = vsapi->getStride(cmask, plane);
+        const ptrdiff_t cmk_pitch = vsapi->getStride(cmask, plane);
         if (cthresh < 0) {
             memset(cmkp,255,Height*cmk_pitch);
             continue;
@@ -161,15 +161,15 @@ static int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
         }
     }
     if (chroma) {
-        const VSFormat *src_fmt = vsapi->getFrameFormat(src);
+        const VSVideoFormat *src_fmt = vsapi->getVideoFrameFormat(src);
 
         uint8_t *cmkp = vsapi->getWritePtr(cmask, 0);
         uint8_t *cmkpU = vsapi->getWritePtr(cmask, 1);
         uint8_t *cmkpV = vsapi->getWritePtr(cmask, 2);
         const int Width = vsapi->getFrameWidth(cmask, 2);
         const int Height = vsapi->getFrameHeight(cmask, 2);
-        int cmk_pitch = vsapi->getStride(cmask, 0);
-        const int cmk_pitchUV = vsapi->getStride(cmask, 2);
+        ptrdiff_t cmk_pitch = vsapi->getStride(cmask, 0);
+        const ptrdiff_t cmk_pitchUV = vsapi->getStride(cmask, 2);
         uint8_t *cmkpp = cmkp - cmk_pitch;
         uint8_t *cmkpn = cmkp + cmk_pitch;
         uint8_t *cmkpnn = cmkpn + cmk_pitch;
@@ -223,7 +223,7 @@ static int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
     {
     int xhalf = blockx/2;
     int yhalf = blocky/2;
-    const int cmk_pitch = vsapi->getStride(cmask, 0);
+    const ptrdiff_t cmk_pitch = vsapi->getStride(cmask, 0);
     const uint8_t *cmkp = vsapi->getReadPtr(cmask, 0) + cmk_pitch;
     const uint8_t *cmkpp = cmkp - cmk_pitch;
     const uint8_t *cmkpn = cmkp + cmk_pitch;
@@ -339,8 +339,8 @@ static int calcMI(const VSFrameRef *src, const VSAPI *vsapi,
 
 // build a map over which pixels differ a lot/a little
 static void buildDiffMap(const uint8_t *prvp, const uint8_t *nxtp,
-                         uint8_t *dstp,int src_pitch, int dst_pitch, int Height,
-    int Width, int tpitch, uint8_t *tbuffer, const VSAPI *vsapi)
+                         uint8_t *dstp,ptrdiff_t src_pitch, ptrdiff_t dst_pitch, int Height,
+    int Width, ptrdiff_t tpitch, uint8_t *tbuffer, const VSAPI *vsapi)
 {
     const uint8_t *dp = tbuffer+tpitch;
     int x, y, u, diff, count;
@@ -405,8 +405,11 @@ static int compareFieldsSlow(const VSFrameRef *prv, const VSFrameRef *src, const
     const uint8_t *curpf = 0, *curf = 0, *curnf = 0;
     const uint8_t *prvpf = 0, *prvnf = 0, *nxtpf = 0, *nxtnf = 0;
     uint8_t *mapp;
-    int src_stride, Width, Height;
-    int curf_pitch, stopx, map_pitch;
+    ptrdiff_t src_stride;
+    int Width, Height;
+    ptrdiff_t map_pitch;
+    ptrdiff_t curf_pitch;
+    int stopx;
     int x, y, temp1, temp2, startx, y0a, y1a, tp;
     int stop = mchroma ? 3 : 1;
     unsigned long accumPc = 0, accumNc = 0, accumPm = 0;
@@ -414,7 +417,7 @@ static int compareFieldsSlow(const VSFrameRef *prv, const VSFrameRef *src, const
     int norm1, norm2, mtn1, mtn2;
     float c1, c2, mr;
 
-    const VSFormat *src_fmt = vsapi->getFrameFormat(src);
+    const VSVideoFormat *src_fmt = vsapi->getVideoFrameFormat(src);
 
     for (plane=0; plane<stop; ++plane) {
         mapp = vsapi->getWritePtr(map, plane);
@@ -557,7 +560,7 @@ static const VSFrameRef *createWeaveFrame(const VSFrameRef *prv, const VSFrameRe
     if (match == 1) {
         return vsapi->cloneFrameRef(src);
     } else {
-        VSFrameRef *dst = vsapi->newVideoFrame(vsapi->getFrameFormat(src), vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core);
+        VSFrameRef *dst = vsapi->newVideoFrame(vsapi->getVideoFrameFormat(src), vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core);
 
         if (match == 0) {
             copyField(dst, src, 1-field, vsapi);
@@ -597,11 +600,6 @@ static int checkmm(int m1, int m2, int *m1mic, int *m2mic, int *blockN, int MI, 
         return m2;
     else
         return m1;
-}
-
-static void VS_CC vfmInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    VFMData *vfm = (VFMData *)*instanceData;
-    vsapi->setVideoInfo(vfm->vi, 1, node);
 }
 
 typedef enum {
@@ -656,7 +654,7 @@ static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void **i
         int order, field;
         int missing;
         const VSMap *props = vsapi->getFramePropsRO(src);
-        int fieldBased = int64ToIntS(vsapi->propGetInt(props, "_FieldBased", 0, &missing));
+        int fieldBased = vsapi->propGetSaturatedInt(props, "_FieldBased", 0, &missing);
         if (missing || (fieldBased != VSFieldBasedBFF && fieldBased != VSFieldBasedTFF))
             order = vfm->order;
         else
@@ -681,7 +679,7 @@ static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void **i
         VSFrameRef *dst2;
         VSMap *m;
         int sc = 0;
-        const VSFormat *format = vsapi->getFrameFormat(src);
+        const VSVideoFormat *format = vsapi->getVideoFrameFormat(src);
         int width = vsapi->getFrameWidth(src, 0);
         int height = vsapi->getFrameHeight(src, 0);
 
@@ -801,7 +799,7 @@ static VSMap *invokePlaneDifference(VSNodeRef *node, VSCore *core, const VSAPI *
     VSNodeRef *node2;
     VSMap *args, *ret;
     const char *prop = "VFMPlaneStats";
-    VSPlugin *stdplugin = vsapi->getPluginById("com.vapoursynth.std", core);
+    VSPlugin *stdplugin = vsapi->getPluginByID(VS_STD_PLUGIN_ID, core);
 
     args = vsapi->createMap();
     vsapi->propSetNode(args, "clip", node, paAppend);
@@ -819,7 +817,7 @@ static VSMap *invokePlaneDifference(VSNodeRef *node, VSCore *core, const VSAPI *
     vsapi->propSetNode(args, "clipb", node2, paAppend);
     vsapi->freeNode(node2);
     vsapi->propSetInt(args, "plane", 0, paAppend);
-    vsapi->propSetData(args, "prop", prop, -1, paAppend);
+    vsapi->propSetData(args, "prop", prop, -1, dtUtf8, paAppend);
     ret = vsapi->invoke(stdplugin, "PlaneStats", args);
     if (vsapi->getError(ret)) {
         vsapi->freeMap(args);
@@ -857,42 +855,42 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
     VFMData *vfmd ;
     const VSVideoInfo *vi;
 
-    vfm.order = int64ToIntS(vsapi->propGetInt(in, "order", 0, 0));
-    vfm.field = int64ToIntS(vsapi->propGetInt(in, "field", 0, &err));
+    vfm.order = vsapi->propGetSaturatedInt(in, "order", 0, 0);
+    vfm.field = vsapi->propGetSaturatedInt(in, "field", 0, &err);
     if (err)
         vfm.field = VFMFieldSameAsOrder;
 
-    vfm.mode = int64ToIntS(vsapi->propGetInt(in, "mode", 0, &err));
+    vfm.mode = vsapi->propGetSaturatedInt(in, "mode", 0, &err);
     if (err)
         vfm.mode = 1;
     vfm.mchroma = !!vsapi->propGetInt(in, "mchroma", 0, &err);
     if (err)
         vfm.mchroma = 1;
-    vfm.cthresh = int64ToIntS(vsapi->propGetInt(in, "cthresh", 0, &err));
+    vfm.cthresh = vsapi->propGetSaturatedInt(in, "cthresh", 0, &err);
     if (err)
         vfm.cthresh = 9;
-    vfm.mi = int64ToIntS(vsapi->propGetInt(in, "mi", 0, &err));
+    vfm.mi = vsapi->propGetSaturatedInt(in, "mi", 0, &err);
     if (err)
         vfm.mi = 80;
     vfm.chroma = !!vsapi->propGetInt(in, "chroma", 0, &err);
     if (err)
         vfm.chroma = 1;
-    vfm.blockx = int64ToIntS(vsapi->propGetInt(in, "blockx", 0, &err));
+    vfm.blockx = vsapi->propGetSaturatedInt(in, "blockx", 0, &err);
     if (err)
         vfm.blockx = 16;
-    vfm.blocky = int64ToIntS(vsapi->propGetInt(in, "blocky", 0, &err));
+    vfm.blocky = vsapi->propGetSaturatedInt(in, "blocky", 0, &err);
     if (err)
         vfm.blocky = 16;
-    vfm.y0 = int64ToIntS(vsapi->propGetInt(in, "y0", 0, &err));
+    vfm.y0 = vsapi->propGetSaturatedInt(in, "y0", 0, &err);
     if (err)
         vfm.y0 = 16;
-    vfm.y1 = int64ToIntS(vsapi->propGetInt(in, "y1", 0, &err));
+    vfm.y1 = vsapi->propGetSaturatedInt(in, "y1", 0, &err);
     if (err)
         vfm.y1 = 16;
     vfm.scthresh = vsapi->propGetFloat(in, "scthresh", 0, &err);
     if (err)
         vfm.scthresh = 12.0;
-    vfm.micmatch = int64ToIntS(vsapi->propGetInt(in, "micmatch", 0, &err));
+    vfm.micmatch = vsapi->propGetSaturatedInt(in, "micmatch", 0, &err);
     if (err)
         vfm.micmatch = 1;
     vfm.micout = !!vsapi->propGetInt(in, "micout", 0, &err);
@@ -942,25 +940,27 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
     vfm.vi = vsapi->getVideoInfo(vfm.clip2 ? vfm.clip2 : vfm.node);
     vi = vsapi->getVideoInfo(vfm.node);
 
-    if (!isConstantFormat(vi) || (vi->format->id != pfYUV420P8 &&
-                                  vi->format->id != pfYUV422P8 &&
-                                  vi->format->id != pfYUV440P8 &&
-                                  vi->format->id != pfYUV444P8 &&
-                                  vi->format->id != pfGray8)) {
+    uint32_t formatID = vsapi->queryVideoFormatID(vi->format.colorFamily, vi->format.sampleType, vi->format.bitsPerSample, vi->format.subSamplingW, vi->format.subSamplingH, core);
+
+    if (!vsh_isConstantVideoFormat(vi) || (formatID != pfYUV420P8 &&
+        formatID != pfYUV422P8 &&
+        formatID != pfYUV440P8 &&
+        formatID != pfYUV444P8 &&
+        formatID != pfGray8)) {
         vsapi->setError(out, "VFM: input clip must be constant format YUV420P8, YUV422P8, YUV440P8, YUV444P8, or GRAY8");
         vsapi->freeNode(vfm.node);
         vsapi->freeNode(vfm.clip2);
         return;
     }
 
-    if (vi->numFrames != vfm.vi->numFrames || !isConstantFormat(vfm.vi)) {
+    if (vi->numFrames != vfm.vi->numFrames || !vsh_isConstantVideoFormat(vfm.vi)) {
         vsapi->setError(out, "VFM: the number of frames must be the same in both input clips and clip2 must be constant format");
         vsapi->freeNode(vfm.node);
         vsapi->freeNode(vfm.clip2);
         return;
     }
 
-    if (vi->format->colorFamily == cmGray) {
+    if (vi->format.colorFamily == cfGray) {
         vfm.chroma = 0;
         vfm.mchroma = 0;
     }
@@ -985,12 +985,12 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
 
     vfm.tpitchy = (vi->width&15) ? vi->width+16-(vi->width&15) : vi->width;
 
-    int widthuv = vi->width >> vi->format->subSamplingW;
+    int widthuv = vi->width >> vi->format.subSamplingW;
     vfm.tpitchuv = (widthuv&15) ? widthuv+16-(widthuv&15) : widthuv;
 
     vfmd = (VFMData *)malloc(sizeof(vfm));
     *vfmd = vfm;
-    vsapi->createFilter(in, out, "VFM", vfmInit, vfmGetFrame, vfmFree, fmParallel, 0, vfmd, core);
+    vsapi->createVideoFilter(out, "VFM", vfmd->vi, 1, vfmGetFrame, vfmFree, fmParallel, 0, vfmd, core);
 }
 
 // VDecimate
@@ -1135,10 +1135,10 @@ static int64_t calcMetric(const VSFrameRef *f1, const VSFrameRef *f2, int64_t *t
     int64_t maxdiff = -1;
     memset(bdiffs, 0, vdm->bdiffsize * sizeof(int64_t));
     for (int plane = 0; plane < numplanes; plane++) {
-        int stride = vsapi->getStride(f1, plane);
+        ptrdiff_t stride = vsapi->getStride(f1, plane);
         const uint8_t *f1p = vsapi->getReadPtr(f1, plane);
         const uint8_t *f2p = vsapi->getReadPtr(f2, plane);
-        const VSFormat *fi = vsapi->getFrameFormat(f1);
+        const VSVideoFormat *fi = vsapi->getVideoFrameFormat(f1);
 
         int width = vsapi->getFrameWidth(f1, plane);
         int height = vsapi->getFrameHeight(f1, plane);
@@ -1273,11 +1273,6 @@ static int vdecimateLoadOVR(const char *ovrfile, signed char *drop, int cycle, i
     return 0;
 }
 
-static void VS_CC vdecimateInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    VDecimateData *vdm = (VDecimateData *)*instanceData;
-    vsapi->setVideoInfo(&vdm->vi, 1, node);
-}
-
 static inline int findOutputFrame(int requestedFrame, int cycleStart, int outCycle, int drop, int dryrun) {
     if (dryrun)
         return requestedFrame;
@@ -1341,7 +1336,7 @@ static void calculateNewDurations(const FrameDuration *oldDurations, FrameDurati
 
     for (int i = 0; i < cycleLength; i++) {
         if (i != drop) {
-            vs_addRational(&cycleDuration.num, &cycleDuration.den, oldDurations[i].num, oldDurations[i].den);
+            vsh_addRational(&cycleDuration.num, &cycleDuration.den, oldDurations[i].num, oldDurations[i].den);
         }
     }
 
@@ -1351,9 +1346,9 @@ static void calculateNewDurations(const FrameDuration *oldDurations, FrameDurati
 
         // newDuration = oldDuration / cycleDuration * dropDuration + oldDuration
         *newDurations = *oldDurations;
-        muldivRational(&newDurations->num, &newDurations->den, cycleDuration.den, cycleDuration.num);
-        muldivRational(&newDurations->num, &newDurations->den, dropDuration.num, dropDuration.den);
-        vs_addRational(&newDurations->num, &newDurations->den, oldDurations->num, oldDurations->den);
+        vsh_muldivRational(&newDurations->num, &newDurations->den, cycleDuration.den, cycleDuration.num);
+        vsh_muldivRational(&newDurations->num, &newDurations->den, dropDuration.num, dropDuration.den);
+        vsh_addRational(&newDurations->num, &newDurations->den, oldDurations->num, oldDurations->den);
 
         newDurations++;
         oldDurations++;
@@ -1494,13 +1489,13 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
     memset(&vdm, 0, sizeof(vdm));
     int err;
 
-    vdm.inCycle = int64ToIntS(vsapi->propGetInt(in, "cycle", 0, &err));
+    vdm.inCycle = vsapi->propGetSaturatedInt(in, "cycle", 0, &err);
     if (err)
         vdm.inCycle = 5;
-    vdm.blockx = int64ToIntS(vsapi->propGetInt(in, "blockx", 0, &err));
+    vdm.blockx = vsapi->propGetSaturatedInt(in, "blockx", 0, &err);
     if (err)
         vdm.blockx = 32;
-    vdm.blocky = int64ToIntS(vsapi->propGetInt(in, "blocky", 0, &err));
+    vdm.blocky = vsapi->propGetSaturatedInt(in, "blocky", 0, &err);
     if (err)
         vdm.blocky = 32;
     double dupthresh = vsapi->propGetFloat(in, "dupthresh", 0, &err);
@@ -1535,7 +1530,7 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
     vdm.vi = *vsapi->getVideoInfo(vdm.clip2 ? vdm.clip2 : vdm.node);
 
     const VSVideoInfo *vi = vsapi->getVideoInfo(vdm.node);
-    if (!isConstantFormat(vi) || vi->format->bitsPerSample > 16 || vi->format->sampleType != stInteger) {
+    if (!vsh_isConstantVideoFormat(vi) || vi->format.bitsPerSample > 16 || vi->format.sampleType != stInteger) {
         vsapi->setError(out, "VDecimate: input clip must be constant format, with 8..16 bits per sample");
         vsapi->freeNode(vdm.node);
         vsapi->freeNode(vdm.clip2);
@@ -1551,14 +1546,14 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
 
     vdm.chroma = !!vsapi->propGetInt(in, "chroma", 0, &err);
     if (err)
-        vdm.chroma = vi->format->colorFamily != cmGray;
+        vdm.chroma = vi->format.colorFamily != cfGray;
     else {
-        if (vdm.chroma && vi->format->colorFamily == cmGray) {
+        if (vdm.chroma && vi->format.colorFamily == cfGray) {
             vsapi->setError(out, "VDecimate: it makes no sense to enable chroma when the input clip is grayscale");
             vsapi->freeNode(vdm.node);
             vsapi->freeNode(vdm.clip2);
             return;
-        } else if (!vdm.chroma && vi->format->colorFamily == cmRGB) {
+        } else if (!vdm.chroma && vi->format.colorFamily == cfRGB) {
             vsapi->setError(out, "VDecimate: it makes no sense to disable chroma when the input clip is RGB");
             vsapi->freeNode(vdm.node);
             vsapi->freeNode(vdm.clip2);
@@ -1570,7 +1565,7 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
 
     vdm.dryrun = !!vsapi->propGetInt(in, "dryrun", 0, &err);
 
-    int max_value = (1 << vi->format->bitsPerSample) - 1;
+    int max_value = (1 << vi->format.bitsPerSample) - 1;
     // Casting max_value to int64_t to avoid losing the high 32 bits of the result
     vdm.scthresh = (int64_t)(((int64_t)max_value * vi->width * vi->height * scthresh)/100);
     vdm.dupthresh = (int64_t)((max_value * vdm.blockx * vdm.blocky * dupthresh)/100);
@@ -1608,50 +1603,52 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
         vdm.vi.numFrames *= vdm.outCycle;
         vdm.vi.numFrames += vdm.tail;
         if (vdm.vi.fpsNum && vdm.vi.fpsDen)
-            muldivRational(&vdm.vi.fpsNum, &vdm.vi.fpsDen, vdm.outCycle, vdm.inCycle);
+            vsh_muldivRational(&vdm.vi.fpsNum, &vdm.vi.fpsDen, vdm.outCycle, vdm.inCycle);
     }
 
     initCache(&vdm.cache, &vdm);
 
     VDecimateData *d = (VDecimateData *)malloc(sizeof(vdm));
     *d = vdm;
-    vsapi->createFilter(in, out, "VDecimate", vdecimateInit, vdecimateGetFrame, vdecimateFree, fmUnordered, 0, d, core);
+    vsapi->createVideoFilter(out, "VDecimate", &d->vi, 1, vdecimateGetFrame, vdecimateFree, fmUnordered, 0, d, core);
 }
 
-// Needed to silence warnings
-VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
+///////////////////////////////////////
+// Init
 
-VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
-    configFunc("org.ivtc.v", "vivtc", "VFM", VAPOURSYNTH_API_VERSION, 1, plugin);
+VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
+    vspapi->configPlugin("org.ivtc.v", "vivtc", "VFM", VS_MAKE_VERSION(1, 0), VAPOURSYNTH_API_VERSION, 1, plugin);
     // add ovr support
-    registerFunc("VFM",
-                 "clip:clip;"
-                 "order:int;"
-                 "field:int:opt;"
-                 "mode:int:opt;"
-                 "mchroma:int:opt;"
-                 "cthresh:int:opt;"
-                 "mi:int:opt;"
-                 "chroma:int:opt;"
-                 "blockx:int:opt;"
-                 "blocky:int:opt;"
-                 "y0:int:opt;"
-                 "y1:int:opt;"
-                 "scthresh:float:opt;"
-                 "micmatch:int:opt;"
-                 "micout:int:opt;"
-                 "clip2:clip:opt;"
-                 , createVFM, NULL, plugin);
-    registerFunc("VDecimate",
-                 "clip:clip;"
-                 "cycle:int:opt;"
-                 "chroma:int:opt;"
-                 "dupthresh:float:opt;"
-                 "scthresh:float:opt;"
-                 "blockx:int:opt;"
-                 "blocky:int:opt;"
-                 "clip2:clip:opt;"
-                 "ovr:data:opt;"
-                 "dryrun:int:opt;"
-                 , createVDecimate, NULL, plugin);
+    vspapi->registerFunction("VFM",
+                             "clip:clip;"
+                             "order:int;"
+                             "field:int:opt;"
+                             "mode:int:opt;"
+                             "mchroma:int:opt;"
+                             "cthresh:int:opt;"
+                             "mi:int:opt;"
+                             "chroma:int:opt;"
+                             "blockx:int:opt;"
+                             "blocky:int:opt;"
+                             "y0:int:opt;"
+                             "y1:int:opt;"
+                             "scthresh:float:opt;"
+                             "micmatch:int:opt;"
+                             "micout:int:opt;"
+                             "clip2:clip:opt;"
+                             , "clip:vnode;"
+                             , createVFM, NULL, plugin);
+    vspapi->registerFunction("VDecimate",
+                             "clip:clip;"
+                             "cycle:int:opt;"
+                             "chroma:int:opt;"
+                             "dupthresh:float:opt;"
+                             "scthresh:float:opt;"
+                             "blockx:int:opt;"
+                             "blocky:int:opt;"
+                             "clip2:clip:opt;"
+                             "ovr:data:opt;"
+                             "dryrun:int:opt;"
+                             , "clip:vnode;"
+                             , createVDecimate, NULL, plugin);
 }

@@ -396,13 +396,13 @@ struct VSAPI {
     int (VS_CC *propSetEmpty)(VSMap *map, const char *key, int type) VS_NOEXCEPT;
 
     int64_t (VS_CC *propGetInt)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
-    int (VS_CC *propGetSaturatedInt)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
+    int (VS_CC *propGetSaturatedInt)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT; // FIXME; rename to mapGetIntSaturated
     const int64_t *(VS_CC *propGetIntArray)(const VSMap *map, const char *key, int *error) VS_NOEXCEPT;
     int (VS_CC *propSetInt)(VSMap *map, const char *key, int64_t i, int append) VS_NOEXCEPT;
     int (VS_CC *propSetIntArray)(VSMap *map, const char *key, const int64_t *i, int size) VS_NOEXCEPT;
 
     double (VS_CC *propGetFloat)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
-    float (VS_CC *propGetSaturatedFloat)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
+    float (VS_CC *propGetSaturatedFloat)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT; // FIXME; rename to mapGetFloatSaturated
     const double *(VS_CC *propGetFloatArray)(const VSMap *map, const char *key, int *error) VS_NOEXCEPT;
     int (VS_CC *propSetFloat)(VSMap *map, const char *key, double d, int append) VS_NOEXCEPT;
     int (VS_CC *propSetFloatArray)(VSMap *map, const char *key, const double *d, int size) VS_NOEXCEPT;

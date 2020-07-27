@@ -17,14 +17,16 @@ http://sam.zoy.org/wtfpl/COPYING for more details.
 #ifndef SHARED_H
 #define SHARED_H
 
-#include "VapourSynth.h"
-#include "VSHelper.h"
+#include "VapourSynth4.h"
+#include "VSHelper4.h"
 #include <stdint.h>
 #include <algorithm>
 #include <cstdlib>
 #ifdef VS_TARGET_CPU_X86
 #include <emmintrin.h>
 #endif
+
+using namespace vsh;
 
 #if defined(_MSC_VER)
 #define _ALLOW_KEYWORD_MACROS

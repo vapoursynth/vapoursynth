@@ -7,7 +7,7 @@ struct VerticalCleanerData {
 };
 
 template<typename T>
-static void verticalMedian(const T * VS_RESTRICT srcp, T * VS_RESTRICT dstp, const int width, const int height, const int stride) {
+static void verticalMedian(const T * VS_RESTRICT srcp, T * VS_RESTRICT dstp, const int width, const int height, const ptrdiff_t stride) {
     memcpy(dstp, srcp, stride * sizeof(T));
 
     srcp += stride;
@@ -29,7 +29,7 @@ static void verticalMedian(const T * VS_RESTRICT srcp, T * VS_RESTRICT dstp, con
 }
 
 template<typename T>
-static void relaxedVerticalMedian(const T * VS_RESTRICT srcp, T * VS_RESTRICT dstp, const int width, const int height, const int stride, const int bitsPerSample) {
+static void relaxedVerticalMedian(const T * VS_RESTRICT srcp, T * VS_RESTRICT dstp, const int width, const int height, const ptrdiff_t stride, const int bitsPerSample) {
     const int peak = (1 << bitsPerSample) - 1;
 
     memcpy(dstp, srcp, stride * sizeof(T) * 2);
@@ -58,13 +58,8 @@ static void relaxedVerticalMedian(const T * VS_RESTRICT srcp, T * VS_RESTRICT ds
     memcpy(dstp, srcp, stride * sizeof(T) * 2);
 }
 
-static void VS_CC verticalCleanerInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    VerticalCleanerData * d = static_cast<VerticalCleanerData *>(*instanceData);
-    vsapi->setVideoInfo(d->vi, 1, node);
-}
-
-static const VSFrameRef *VS_CC verticalCleanerGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    const VerticalCleanerData * d = static_cast<const VerticalCleanerData *>(*instanceData);
+static const VSFrameRef *VS_CC verticalCleanerGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    const VerticalCleanerData * d = static_cast<const VerticalCleanerData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
@@ -72,25 +67,25 @@ static const VSFrameRef *VS_CC verticalCleanerGetFrame(int n, int activationReas
         const VSFrameRef * src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSFrameRef * fr[] = { d->mode[0] ? nullptr : src, d->mode[1] ? nullptr : src, d->mode[2] ? nullptr : src };
         const int pl[] = { 0, 1, 2 };
-        VSFrameRef * dst = vsapi->newVideoFrame2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src, core);
+        VSFrameRef * dst = vsapi->newVideoFrame2(&d->vi->format, d->vi->width, d->vi->height, fr, pl, src, core);
 
-        for (int plane = 0; plane < d->vi->format->numPlanes; plane++) {
+        for (int plane = 0; plane < d->vi->format.numPlanes; plane++) {
             const int width = vsapi->getFrameWidth(src, plane);
             const int height = vsapi->getFrameHeight(src, plane);
-            const int stride = vsapi->getStride(src, plane);
+            const ptrdiff_t stride = vsapi->getStride(src, plane);
             const uint8_t * srcp = vsapi->getReadPtr(src, plane);
             uint8_t * dstp = vsapi->getWritePtr(dst, plane);
 
             if (d->mode[plane] == 1) {
-                if (d->vi->format->bytesPerSample == 1)
+                if (d->vi->format.bytesPerSample == 1)
                     verticalMedian<uint8_t>(srcp, dstp, width, height, stride);
                 else
                     verticalMedian<uint16_t>(reinterpret_cast<const uint16_t *>(srcp), reinterpret_cast<uint16_t *>(dstp), width, height, stride / 2);
             } else if (d->mode[plane] == 2) {
-                if (d->vi->format->bytesPerSample == 1)
-                    relaxedVerticalMedian<uint8_t>(srcp, dstp, width, height, stride, d->vi->format->bitsPerSample);
+                if (d->vi->format.bytesPerSample == 1)
+                    relaxedVerticalMedian<uint8_t>(srcp, dstp, width, height, stride, d->vi->format.bitsPerSample);
                 else
-                    relaxedVerticalMedian<uint16_t>(reinterpret_cast<const uint16_t *>(srcp), reinterpret_cast<uint16_t *>(dstp), width, height, stride / 2, d->vi->format->bitsPerSample);
+                    relaxedVerticalMedian<uint16_t>(reinterpret_cast<const uint16_t *>(srcp), reinterpret_cast<uint16_t *>(dstp), width, height, stride / 2, d->vi->format.bitsPerSample);
             }
         }
 
@@ -113,7 +108,7 @@ void VS_CC verticalCleanerCreate(const VSMap *in, VSMap *out, void *userData, VS
     d.node = vsapi->propGetNode(in, "clip", 0, nullptr);
     d.vi = vsapi->getVideoInfo(d.node);
 
-    if (!isConstantFormat(d.vi) || d.vi->format->sampleType != stInteger || d.vi->format->bytesPerSample > 2) {
+    if (!isConstantVideoFormat(d.vi) || d.vi->format.sampleType != stInteger || d.vi->format.bytesPerSample > 2) {
         vsapi->setError(out, "VerticalCleaner: only constant format 8-16 bits integer input supported");
         vsapi->freeNode(d.node);
         return;
@@ -121,7 +116,7 @@ void VS_CC verticalCleanerCreate(const VSMap *in, VSMap *out, void *userData, VS
 
     const int m = vsapi->propNumElements(in, "mode");
 
-    if (m > d.vi->format->numPlanes) {
+    if (m > d.vi->format.numPlanes) {
         vsapi->setError(out, "VerticalCleaner: number of modes specified must be equal to or fewer than the number of input planes");
         vsapi->freeNode(d.node);
         return;
@@ -129,7 +124,7 @@ void VS_CC verticalCleanerCreate(const VSMap *in, VSMap *out, void *userData, VS
 
     for (int i = 0; i < 3; i++) {
         if (i < m) {
-            d.mode[i] = int64ToIntS(vsapi->propGetInt(in, "mode", i, nullptr));
+            d.mode[i] = vsapi->propGetSaturatedInt(in, "mode", i, nullptr);
             if (d.mode[i] < 0 || d.mode[i] > 2) {
                 vsapi->setError(out, "VerticalCleaner: invalid mode specified, only modes 0-2 supported");
                 vsapi->freeNode(d.node);
@@ -139,7 +134,7 @@ void VS_CC verticalCleanerCreate(const VSMap *in, VSMap *out, void *userData, VS
             d.mode[i] = d.mode[i - 1];
         }
 
-        const int height = d.vi->height >> (i ? d.vi->format->subSamplingH : 0);
+        const int height = d.vi->height >> (i ? d.vi->format.subSamplingH : 0);
         if (d.mode[i] == 1 && height < 3) {
             vsapi->setError(out, "VerticalCleaner: corresponding plane's height must be greater than or equal to 3 for mode 1");
             vsapi->freeNode(d.node);
@@ -153,5 +148,5 @@ void VS_CC verticalCleanerCreate(const VSMap *in, VSMap *out, void *userData, VS
 
     VerticalCleanerData * data = new VerticalCleanerData(d);
 
-    vsapi->createFilter(in, out, "VerticalCleaner", verticalCleanerInit, verticalCleanerGetFrame, verticalCleanerFree, fmParallel, 0, data, core);
+    vsapi->createVideoFilter(out, "VerticalCleaner", data->vi, 1, verticalCleanerGetFrame, verticalCleanerFree, fmParallel, 0, data, core);
 }

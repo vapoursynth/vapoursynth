@@ -38,9 +38,9 @@ public:
 };
 
 #define AvsFilterRepair16_READ_PIX    \
-   const int      om = stride_src2 - 1;     \
-   const int      o0 = stride_src2    ;     \
-   const int      op = stride_src2 + 1;     \
+   const ptrdiff_t      om = stride_src2 - 1;     \
+   const ptrdiff_t      o0 = stride_src2    ;     \
+   const ptrdiff_t      op = stride_src2 + 1;     \
    __m128i        cr, a1, a2, a3, a4, c, a5, a6, a7, a8; \
    if (sizeof(T) == 1) { \
        __m128i zeroreg = _mm_setzero_si128(); \
@@ -118,7 +118,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg (const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+    static __forceinline __m128i rg (const T *src1_ptr, const T *src2_ptr, ptrdiff_t stride_src2, __m128i mask_sign) {
         AvsFilterRepair16_READ_PIX
 
         const __m128i    mi = _mm_min_epi16 (_mm_min_epi16 (
@@ -148,7 +148,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg (const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+    static __forceinline __m128i rg (const T *src1_ptr, const T *src2_ptr, ptrdiff_t stride_src2, __m128i mask_sign) {
         AvsFilterRepair16_READ_PIX
 
         sort_pair (a1, a8);
@@ -201,7 +201,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg (const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+    static __forceinline __m128i rg (const T *src1_ptr, const T *src2_ptr, ptrdiff_t stride_src2, __m128i mask_sign) {
         AvsFilterRepair16_READ_PIX
 
         sort_pair (a1, a8);
@@ -255,7 +255,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg (const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+    static __forceinline __m128i rg (const T *src1_ptr, const T *src2_ptr, ptrdiff_t stride_src2, __m128i mask_sign) {
         // http://jgamble.ripco.net/cgi-bin/nw.cgi?inputs=9&algorithm=batcher&output=text
 
         AvsFilterRepair16_READ_PIX
@@ -338,7 +338,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, ptrdiff_t stride_src2, __m128i mask_sign) {
         AvsFilterRepair16_READ_PIX
 
         const __m128i mal1 = _mm_max_epi16(_mm_max_epi16(a1, a8), c);
@@ -429,7 +429,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, ptrdiff_t stride_src2, __m128i mask_sign) {
         AvsFilterRepair16_READ_PIX
 
         const __m128i mal1 = _mm_max_epi16(_mm_max_epi16(a1, a8), c);
@@ -530,7 +530,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, ptrdiff_t stride_src2, __m128i mask_sign) {
         AvsFilterRepair16_READ_PIX
 
         const __m128i mal1 = _mm_max_epi16(_mm_max_epi16(a1, a8), c);
@@ -627,7 +627,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, ptrdiff_t stride_src2, __m128i mask_sign) {
         AvsFilterRepair16_READ_PIX
 
         const __m128i mal1 = _mm_max_epi16(_mm_max_epi16(a1, a8), c);
@@ -713,7 +713,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, ptrdiff_t stride_src2, __m128i mask_sign) {
         AvsFilterRepair16_READ_PIX
 
         const __m128i mal1 = _mm_max_epi16(_mm_max_epi16(a1, a8), c);
@@ -781,7 +781,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, ptrdiff_t stride_src2, __m128i mask_sign) {
         AvsFilterRepair16_READ_PIX
 
         const __m128i d1u = abs_dif_epu16(cr, a1);
@@ -834,7 +834,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg (const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+    static __forceinline __m128i rg (const T *src1_ptr, const T *src2_ptr, ptrdiff_t stride_src2, __m128i mask_sign) {
         AvsFilterRepair16_READ_PIX
 
         sort_pair (a1, a2);
@@ -884,7 +884,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg (const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+    static __forceinline __m128i rg (const T *src1_ptr, const T *src2_ptr, ptrdiff_t stride_src2, __m128i mask_sign) {
         AvsFilterRepair16_READ_PIX
 
         sort_pair (a1, a2);
@@ -934,7 +934,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg (const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+    static __forceinline __m128i rg (const T *src1_ptr, const T *src2_ptr, ptrdiff_t stride_src2, __m128i mask_sign) {
         AvsFilterRepair16_READ_PIX
 
         sort_pair (a1, a2);
@@ -1004,7 +1004,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, ptrdiff_t stride_src2, __m128i mask_sign) {
         AvsFilterRepair16_READ_PIX
         AvsFilterRepair16_SORT_AXIS_SSE2
 
@@ -1090,7 +1090,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, ptrdiff_t stride_src2, __m128i mask_sign) {
         AvsFilterRepair16_READ_PIX
         AvsFilterRepair16_SORT_AXIS_SSE2
 
@@ -1161,7 +1161,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, ptrdiff_t stride_src2, __m128i mask_sign) {
         AvsFilterRepair16_READ_PIX
         AvsFilterRepair16_SORT_AXIS_SSE2
 
@@ -1210,7 +1210,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, ptrdiff_t stride_src2, __m128i mask_sign) {
         AvsFilterRepair16_READ_PIX
 
         const __m128i a1u = _mm_xor_si128(a1, mask_sign);
@@ -1290,7 +1290,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, ptrdiff_t stride_src2, __m128i mask_sign) {
         AvsFilterRepair16_READ_PIX
 
         const __m128i d1u = abs_dif_epu16(c, a1);
@@ -1360,7 +1360,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, ptrdiff_t stride_src2, __m128i mask_sign) {
         AvsFilterRepair16_READ_PIX
 
         const __m128i d1u = abs_dif_epu16(c, a1);
@@ -1438,7 +1438,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, ptrdiff_t stride_src2, __m128i mask_sign) {
         AvsFilterRepair16_READ_PIX
         AvsFilterRepair16_SORT_AXIS_SSE2
 
@@ -1486,7 +1486,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, ptrdiff_t stride_src2, __m128i mask_sign) {
         AvsFilterRepair16_READ_PIX
 
         const __m128i d1u = abs_dif_epu16(cr, a1);
@@ -1556,7 +1556,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, ptrdiff_t stride_src2, __m128i mask_sign) {
         AvsFilterRepair16_READ_PIX
 
         const __m128i d1u = abs_dif_epu16(cr, a1);
@@ -1634,7 +1634,7 @@ public:
     }
 #ifdef VS_TARGET_CPU_X86
     template<typename T>
-    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, int stride_src2, __m128i mask_sign) {
+    static __forceinline __m128i rg(const T *src1_ptr, const T *src2_ptr, ptrdiff_t stride_src2, __m128i mask_sign) {
         AvsFilterRepair16_READ_PIX
         AvsFilterRepair16_SORT_AXIS_SSE2
 
@@ -1668,7 +1668,7 @@ template <class OP, class T>
 class PlaneProc {
 public:
 
-static void process_subplane_cpp (const T *src1_ptr, const T *src2_ptr, T *dst_ptr, int stride, int width, int height)
+static void process_subplane_cpp (const T *src1_ptr, const T *src2_ptr, T *dst_ptr, ptrdiff_t stride, int width, int height)
 {
     const int        y_b = 1;
     const int        y_e = height - 1;
@@ -1700,11 +1700,11 @@ static void process_subplane_cpp (const T *src1_ptr, const T *src2_ptr, T *dst_p
     }
 }
 
-static void process_row_cpp (T *dst_ptr, const T *src1_ptr, const T *src2_ptr, int stride_src, int x_beg, int x_end)
+static void process_row_cpp (T *dst_ptr, const T *src1_ptr, const T *src2_ptr, ptrdiff_t stride_src, int x_beg, int x_end)
 {
-    const int      om = stride_src - 1;
-    const int      o0 = stride_src    ;
-    const int      op = stride_src + 1;
+    const ptrdiff_t      om = stride_src - 1;
+    const ptrdiff_t      o0 = stride_src    ;
+    const ptrdiff_t      op = stride_src + 1;
 
     src1_ptr += x_beg;
     src2_ptr += x_beg;
@@ -1732,7 +1732,7 @@ static void process_row_cpp (T *dst_ptr, const T *src1_ptr, const T *src2_ptr, i
 }
 
 #ifdef VS_TARGET_CPU_X86
-static void process_subplane_sse2 (const T *src1_ptr, const T *src2_ptr, T *dst_ptr, int stride, int width, int height)
+static void process_subplane_sse2 (const T *src1_ptr, const T *src2_ptr, T *dst_ptr, ptrdiff_t stride, int width, int height)
 {
     const int        y_b = 1;
     const int        y_e = height - 1;
@@ -1788,8 +1788,8 @@ static void do_process_plane_sse2 (const VSFrameRef *src1_frame, const VSFrameRe
 {
     const int        w             = vsapi->getFrameWidth(src1_frame, plane_id);
     const int        h             = vsapi->getFrameHeight(src1_frame, plane_id);
-    T1 *            dst_ptr       = reinterpret_cast<T1*>(vsapi->getWritePtr(dst_frame, plane_id));
-    const int        stride        = vsapi->getStride(src1_frame, plane_id);
+    T1 *             dst_ptr       = reinterpret_cast<T1*>(vsapi->getWritePtr(dst_frame, plane_id));
+    const ptrdiff_t  stride        = vsapi->getStride(src1_frame, plane_id);
 
     const T1*        src1_ptr       = reinterpret_cast<const T1*>(vsapi->getReadPtr(src1_frame, plane_id));
     const T1*        src2_ptr       = reinterpret_cast<const T1*>(vsapi->getReadPtr(src2_frame, plane_id));
@@ -1801,7 +1801,7 @@ static void do_process_plane_sse2 (const VSFrameRef *src1_frame, const VSFrameRe
     PlaneProc<OP1, T1>::process_subplane_sse2(src1_ptr, src2_ptr, dst_ptr, stride/sizeof(T1), w, h);
 
     // Last line
-    const int        lp = (h - 1) * stride/sizeof(T1);
+    const ptrdiff_t  lp = (h - 1) * stride/sizeof(T1);
     memcpy (dst_ptr + lp, src1_ptr + lp, stride);
 }
 
@@ -1810,10 +1810,10 @@ static void do_process_plane_sse2 (const VSFrameRef *src1_frame, const VSFrameRe
 template <class OP1, class T1>
 static void do_process_plane_cpp (const VSFrameRef *src1_frame, const VSFrameRef *src2_frame, VSFrameRef *dst_frame, int plane_id, const VSAPI *vsapi)
 {
-    const int        w             = vsapi->getFrameWidth(src1_frame, plane_id);
-    const int        h             = vsapi->getFrameHeight(src1_frame, plane_id);
-    T1 *            dst_ptr       = reinterpret_cast<T1*>(vsapi->getWritePtr(dst_frame, plane_id));
-    const int        stride        = vsapi->getStride(src1_frame, plane_id);
+    const int         w             = vsapi->getFrameWidth(src1_frame, plane_id);
+    const int         h             = vsapi->getFrameHeight(src1_frame, plane_id);
+    T1 *             dst_ptr       = reinterpret_cast<T1*>(vsapi->getWritePtr(dst_frame, plane_id));
+    const ptrdiff_t  stride        = vsapi->getStride(src1_frame, plane_id);
 
     const T1*        src1_ptr       = reinterpret_cast<const T1*>(vsapi->getReadPtr(src1_frame, plane_id));
     const T1*        src2_ptr       = reinterpret_cast<const T1*>(vsapi->getReadPtr(src2_frame, plane_id));
@@ -1838,13 +1838,8 @@ typedef struct {
     int mode[3];
 } RepairData;
 
-static void VS_CC repairInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    RepairData *d = static_cast<RepairData *>(*instanceData);
-    vsapi->setVideoInfo(d->vi, 1, node);
-}
-
-static const VSFrameRef *VS_CC repairGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    RepairData *d = static_cast<RepairData *>(*instanceData);
+static const VSFrameRef *VS_CC repairGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    RepairData *d = static_cast<RepairData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node1, frameCtx);
@@ -1854,7 +1849,7 @@ static const VSFrameRef *VS_CC repairGetFrame(int n, int activationReason, void 
         const VSFrameRef *src2_frame = vsapi->getFrameFilter(n, d->node2, frameCtx);
         int planes[3] = {0, 1, 2};
         const VSFrameRef * cp_planes[3] = { d->mode[0] ? nullptr : src1_frame, d->mode[1] ? nullptr : src1_frame, d->mode[2] ? nullptr : src1_frame };
-        VSFrameRef *dst_frame = vsapi->newVideoFrame2(vsapi->getFrameFormat(src1_frame), vsapi->getFrameWidth(src1_frame, 0), vsapi->getFrameHeight(src1_frame, 0), cp_planes, planes, src1_frame, core);
+        VSFrameRef *dst_frame = vsapi->newVideoFrame2(vsapi->getVideoFrameFormat(src1_frame), vsapi->getFrameWidth(src1_frame, 0), vsapi->getFrameHeight(src1_frame, 0), cp_planes, planes, src1_frame, core);
 
 
 #define PROC_ARGS_16(op) PlaneProc <op, uint16_t>::do_process_plane_cpp<op, uint16_t>(src1_frame, src2_frame, dst_frame, i, vsapi); break;
@@ -1869,8 +1864,8 @@ static const VSFrameRef *VS_CC repairGetFrame(int n, int activationReason, void 
 #endif
 
 
-        if (d->vi->format->bytesPerSample == 1) {
-            for (int i = 0; i < d->vi->format->numPlanes; i++) {
+        if (d->vi->format.bytesPerSample == 1) {
+            for (int i = 0; i < d->vi->format.numPlanes; i++) {
                 switch (d->mode[i])
                 {
                     case  1: PROC_ARGS_8_FAST(OpRG01)
@@ -1901,7 +1896,7 @@ static const VSFrameRef *VS_CC repairGetFrame(int n, int activationReason, void 
                 }
             }
         } else {
-            for (int i = 0; i < d->vi->format->numPlanes; i++) {
+            for (int i = 0; i < d->vi->format.numPlanes; i++) {
                 switch (d->mode[i])
                 {
                     case  1: PROC_ARGS_16_FAST(OpRG01)
@@ -1954,7 +1949,7 @@ void VS_CC repairCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
     d.node1 = vsapi->propGetNode(in, "clip", 0, nullptr);
     d.vi = vsapi->getVideoInfo(d.node1);
 
-    if (!isConstantFormat(d.vi)) {
+    if (!isConstantVideoFormat(d.vi)) {
         vsapi->freeNode(d.node1);
         vsapi->setError(out, "Repair: Only constant format input supported");
         return;
@@ -1962,21 +1957,21 @@ void VS_CC repairCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
 
     d.node2 = vsapi->propGetNode(in, "repairclip", 0, nullptr);
 
-    if (!isSameFormat(d.vi, vsapi->getVideoInfo(d.node2))) {
+    if (!isSameVideoInfo(d.vi, vsapi->getVideoInfo(d.node2))) {
         vsapi->freeNode(d.node1);
         vsapi->freeNode(d.node2);
         vsapi->setError(out, "Repair: Input clips must have the same format");
         return;
     }
 
-    if (d.vi->format->sampleType != stInteger || (d.vi->format->bytesPerSample != 1 && d.vi->format->bytesPerSample != 2)) {
+    if (d.vi->format.sampleType != stInteger || (d.vi->format.bytesPerSample != 1 && d.vi->format.bytesPerSample != 2)) {
         vsapi->freeNode(d.node1);
         vsapi->freeNode(d.node2);
         vsapi->setError(out, "Repair: Only 8-16 bit int formats supported");
         return;
     }
 
-    int n = d.vi->format->numPlanes;
+    int n = d.vi->format.numPlanes;
     int m = vsapi->propNumElements(in, "mode");
     if (n < m) {
         vsapi->freeNode(d.node1);
@@ -1987,7 +1982,7 @@ void VS_CC repairCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
 
     for (int i = 0; i < 3; i++) {
         if (i < m) {
-            d.mode[i] = int64ToIntS(vsapi->propGetInt(in, "mode", i, nullptr));
+            d.mode[i] = vsapi->propGetSaturatedInt(in, "mode", i, nullptr);
             if (d.mode[i] < 0 || d.mode[i] > 24)
             {
                 vsapi->freeNode(d.node1);
@@ -2002,5 +1997,5 @@ void VS_CC repairCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
 
     RepairData *data = new RepairData(d);
 
-    vsapi->createFilter(in, out, "Repair", repairInit, repairGetFrame, repairFree, fmParallel, 0, data, core);
+    vsapi->createVideoFilter(out, "Repair", data->vi, 1, repairGetFrame, repairFree, fmParallel, 0, data, core);
 }

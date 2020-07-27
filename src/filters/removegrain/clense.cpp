@@ -39,15 +39,9 @@ typedef struct {
     int process[3];
 } ClenseData;
 
-
-static void VS_CC clenseInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
-    ClenseData *d = static_cast<ClenseData *>(*instanceData);
-    vsapi->setVideoInfo(d->vi, 1, node);
-}
-
 struct PlaneProc {
     template<typename T>
-    static void clenseProcessPlane(T* VS_RESTRICT pDst, const T* VS_RESTRICT pSrc, const T* VS_RESTRICT pRef1, const T* VS_RESTRICT pRef2, int stride, int width, int height) {
+    static void clenseProcessPlane(T* VS_RESTRICT pDst, const T* VS_RESTRICT pSrc, const T* VS_RESTRICT pRef1, const T* VS_RESTRICT pRef2, ptrdiff_t stride, int width, int height) {
         for (int y = 0; y < height; ++y) {
             for (int x = 0; x < width; ++x)
                 pDst[x] = std::min(std::max(pSrc[x], std::min(pRef1[x], pRef2[x])), std::max(pRef1[x], pRef2[x]));
@@ -61,7 +55,7 @@ struct PlaneProc {
 
 struct PlaneProcFB {
     template<typename T>
-    static void clenseProcessPlane(T* VS_RESTRICT pDst, const T* VS_RESTRICT pSrc, const T* VS_RESTRICT pRef1, const T* VS_RESTRICT pRef2, int stride, int width, int height) {
+    static void clenseProcessPlane(T* VS_RESTRICT pDst, const T* VS_RESTRICT pSrc, const T* VS_RESTRICT pRef1, const T* VS_RESTRICT pRef2, ptrdiff_t stride, int width, int height) {
         for (int y = 0; y < height; ++y) {
             for (int x = 0; x < width; ++x) {
                 T minref = std::min(pRef1[x], pRef2[x]);
@@ -82,8 +76,8 @@ struct PlaneProcFB {
 };
 
 template<typename T, typename Processor>
-static const VSFrameRef *VS_CC clenseGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    ClenseData *d = static_cast<ClenseData *>(*instanceData);
+static const VSFrameRef *VS_CC clenseGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    ClenseData *d = static_cast<ClenseData *>(instanceData);
 
     if (activationReason == arInitial) {
         if (d->mode == cmNormal) {
@@ -133,9 +127,9 @@ static const VSFrameRef *VS_CC clenseGetFrame(int n, int activationReason, void 
         const int pl[] = { 0, 1, 2 };
         const VSFrameRef *fr[] = { d->process[0] ? nullptr : src, d->process[1] ? nullptr : src, d->process[2] ? nullptr : src };
 
-        VSFrameRef *dst = vsapi->newVideoFrame2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src, core);
+        VSFrameRef *dst = vsapi->newVideoFrame2(&d->vi->format, d->vi->width, d->vi->height, fr, pl, src, core);
 
-        int numPlanes = d->vi->format->numPlanes;
+        int numPlanes = d->vi->format.numPlanes;
         for (int i = 0; i < numPlanes; i++) {
             if (d->process[i]) {
                 Processor::template clenseProcessPlane<T>(
@@ -174,10 +168,10 @@ void VS_CC clenseCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
     int n, m, o;
     int i;
 
-    d.mode = int64ToIntS(reinterpret_cast<intptr_t>(userData));
+    d.mode = static_cast<int>(reinterpret_cast<intptr_t>(userData));
     d.cnode = vsapi->propGetNode(in, "clip", 0, nullptr);
     d.vi = vsapi->getVideoInfo(d.cnode);
-    if (!isConstantFormat(d.vi))
+    if (!isConstantVideoFormat(d.vi))
         CLENSE_RETERROR("Clense: only constant format input supported");
 
     if (d.mode == cmNormal) {
@@ -189,20 +183,20 @@ void VS_CC clenseCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
             d.nnode = vsapi->cloneNodeRef(d.cnode);
     }
 
-    if (d.pnode && !isSameFormat(d.vi, vsapi->getVideoInfo(d.pnode)))
+    if (d.pnode && !isSameVideoInfo(d.vi, vsapi->getVideoInfo(d.pnode)))
         CLENSE_RETERROR("Clense: previous clip doesn't have the same format as the main clip");
 
-    if (d.nnode && !isSameFormat(d.vi, vsapi->getVideoInfo(d.nnode)))
+    if (d.nnode && !isSameVideoInfo(d.vi, vsapi->getVideoInfo(d.nnode)))
         CLENSE_RETERROR("Clense: previous clip doesn't have the same format as the main clip");
 
-    n = d.vi->format->numPlanes;
+    n = d.vi->format.numPlanes;
     m = vsapi->propNumElements(in, "planes");
 
     for (i = 0; i < 3; i++)
         d.process[i] = m <= 0;
 
     for (i = 0; i < m; i++) {
-        o = int64ToIntS(vsapi->propGetInt(in, "planes", i, nullptr));
+        o = vsapi->propGetSaturatedInt(in, "planes", i, nullptr);
 
         if (o < 0 || o >= n) 
             CLENSE_RETERROR("Clense: plane index out of range");
@@ -214,14 +208,14 @@ void VS_CC clenseCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
     }
 
     VSFilterGetFrame getFrameFunc = nullptr;
-    if (d.vi->format->sampleType == stInteger) {
+    if (d.vi->format.sampleType == stInteger) {
         if (d.mode == cmNormal) {
-            switch (d.vi->format->bitsPerSample) {
+            switch (d.vi->format.bitsPerSample) {
             case 8: getFrameFunc = clenseGetFrame<uint8_t, PlaneProc>; break;
             case 16: getFrameFunc = clenseGetFrame<uint16_t, PlaneProc>; break;
             }
         } else {
-            switch (d.vi->format->bitsPerSample) {
+            switch (d.vi->format.bitsPerSample) {
             case 8: getFrameFunc = clenseGetFrame<uint8_t, PlaneProcFB>; break;
             case 16: getFrameFunc = clenseGetFrame<uint16_t, PlaneProcFB>; break;
             }
@@ -233,5 +227,5 @@ void VS_CC clenseCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
     
     data = new ClenseData(d);
 
-    vsapi->createFilter(in, out, "Clense", clenseInit, getFrameFunc, clenseFree, fmParallel, 0, data, core);
+    vsapi->createVideoFilter(out, "Clense", data->vi, 1, getFrameFunc, clenseFree, fmParallel, 0, data, core);
 }
