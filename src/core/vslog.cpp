@@ -40,7 +40,8 @@ static std::mutex logMutex;
 
 static int vsRemoveMessageHandlerInternal(int id) {
     if (messageHandlers.count(id)) {
-        messageHandlers[id].free(messageHandlers[id].userData);
+        if (messageHandlers[id].free)
+            messageHandlers[id].free(messageHandlers[id].userData);
         messageHandlers.erase(id);
         return 1;
     }
