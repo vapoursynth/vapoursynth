@@ -430,7 +430,7 @@ def _construct_type(signature):
 def _construct_parameter(signature):
     type = _construct_type(signature)
     
-    name,type,*opt = signature.split(":")
+    _, __,*opt = signature.split(":")
     if opt:
         default_value = None
     else:
