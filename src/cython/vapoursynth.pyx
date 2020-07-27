@@ -576,7 +576,7 @@ cdef class Func(object):
         try:
             dictToMap(kwargs, inm, False, NULL, vsapi)
             self.funcs.callFunc(self.ref, inm, outm)
-            error = self.funcs.getError(outm)
+            error = self.funcs.mapGetError(outm)
             if error:
                 raise Error(error.decode('utf-8'))
             ret = mapToDict(outm, False, False, NULL, vsapi)
@@ -778,27 +778,27 @@ cdef void __stdcall frameDoneCallbackOutput(void *data, const VSFrameRef *f, int
 
 
 cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, VSCore *core, const VSAPI *funcs):
-    cdef int numKeys = funcs.propNumKeys(map)
+    cdef int numKeys = funcs.mapNumKeys(map)
     retdict = {}
     cdef const char *retkey
-    cdef char proptype
+    cdef int proptype
 
     for x in range(numKeys):
-        retkey = funcs.propGetKey(map, x)
-        proptype = funcs.propGetType(map, retkey)
+        retkey = funcs.mapGetKey(map, x)
+        proptype = funcs.mapGetType(map, retkey)
 
-        for y in range(funcs.propNumElements(map, retkey)):
+        for y in range(funcs.mapNumElements(map, retkey)):
             if proptype == ptInt:
-                newval = funcs.propGetInt(map, retkey, y, NULL)
+                newval = funcs.mapGetInt(map, retkey, y, NULL)
             elif proptype == ptFloat:
-                newval = funcs.propGetFloat(map, retkey, y, NULL)
+                newval = funcs.mapGetFloat(map, retkey, y, NULL)
             elif proptype == ptData:
-                newval = funcs.propGetData(map, retkey, y, NULL)
-                if funcs.propGetDataType(map, retkey, y, NULL) == dtUtf8:
+                newval = funcs.mapGetData(map, retkey, y, NULL)
+                if funcs.mapGetDataType(map, retkey, y, NULL) == dtUtf8:
                     newval = newval.decode('utf-8')
             elif proptype == ptVideoNode or proptype == ptAudioNode:
                 c = _get_core()
-                newval = createNode(funcs.propGetNode(map, retkey, y, NULL), funcs, c)
+                newval = createNode(funcs.mapGetNode(map, retkey, y, NULL), funcs, c)
                 
                 if add_cache and not (newval.flags & vapoursynth.nfNoCache):
                     if isinstance(newval, VideoNode):
@@ -809,9 +809,9 @@ cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, VSCore *co
                     if isinstance(newval, dict):
                         newval = newval['dict']
             elif proptype == ptVideoFrame or proptype == ptAudioFrame:
-                newval = createConstFrame(funcs.propGetFrame(map, retkey, y, NULL), funcs, core)
+                newval = createConstFrame(funcs.mapGetFrame(map, retkey, y, NULL), funcs, core)
             elif proptype == ptFunction:
-                newval = createFuncRef(funcs.propGetFunc(map, retkey, y, NULL), funcs)
+                newval = createFuncRef(funcs.mapGetFunc(map, retkey, y, NULL), funcs)
 
             if y == 0:
                 vval = newval
@@ -846,31 +846,31 @@ cdef void dictToMap(dict ndict, VSMap *inm, bint simpleTypesOnly, VSCore *core, 
 
         for v in val:
             if isinstance(v, int):
-                if funcs.propSetInt(inm, ckey, int(v), 1) != 0:
+                if funcs.mapSetInt(inm, ckey, int(v), 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif isinstance(v, float):
-                if funcs.propSetFloat(inm, ckey, float(v), 1) != 0:
+                if funcs.mapSetFloat(inm, ckey, float(v), 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif isinstance(v, str):
                 s = str(v).encode('utf-8')
-            elif funcs.propSetData(inm, ckey, s, -1, dtUtf8, 1) != 0:
+            elif funcs.mapSetData(inm, ckey, s, -1, dtUtf8, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif isinstance(v, (bytes, bytearray)):
-                if funcs.propSetData(inm, ckey, v, <int>len(v), dtBinary, 1) != 0:
+                if funcs.mapSetData(inm, ckey, v, <int>len(v), dtBinary, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif isinstance(v, RawNode) and not simpleTypesOnly:
-                if funcs.propSetNode(inm, ckey, (<RawNode>v).node, 1) != 0:
+                if funcs.mapSetNode(inm, ckey, (<RawNode>v).node, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif isinstance(v, RawFrame) and not simpleTypesOnly:
-                if funcs.propSetFrame(inm, ckey, (<RawFrame>v).constf, 1) != 0:
+                if funcs.mapSetFrame(inm, ckey, (<RawFrame>v).constf, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif isinstance(v, Func) and not simpleTypesOnly:
-                if funcs.propSetFunc(inm, ckey, (<Func>v).ref, 1) != 0:
+                if funcs.mapSetFunc(inm, ckey, (<Func>v).ref, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif callable(v) and not simpleTypesOnly:
                 tf = createFuncPython(v, core, funcs)
 
-                if funcs.propSetFunc(inm, ckey, tf.ref, 1) != 0:
+                if funcs.mapSetFunc(inm, ckey, tf.ref, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
    
             else:
@@ -889,23 +889,23 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, cons
 
         for v in val:
             if ((atypes[key][:4] == 'clip' or atypes[key][:5] == 'vnode') and isinstance(v, VideoNode)) or (atypes[key][:5] == 'anode' and isinstance(v, AudioNode)):
-                if funcs.propSetNode(inm, ckey, (<RawNode>v).node, 1) != 0:
+                if funcs.mapSetNode(inm, ckey, (<RawNode>v).node, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif ((atypes[key][:5] == 'frame' or atypes[key][:6] == 'vframe') and isinstance(v, VideoFrame)) or (atypes[key][:6] == 'aframe' and isinstance(v, AudioFrame)):
-                if funcs.propSetFrame(inm, ckey, (<RawFrame>v).constf, 1) != 0:
+                if funcs.mapSetFrame(inm, ckey, (<RawFrame>v).constf, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif atypes[key][:4] == 'func' and isinstance(v, Func):
-                if funcs.propSetFunc(inm, ckey, (<Func>v).ref, 1) != 0:
+                if funcs.mapSetFunc(inm, ckey, (<Func>v).ref, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif atypes[key][:4] == 'func' and callable(v):
                 tf = createFuncPython(v, core, funcs)
-                if funcs.propSetFunc(inm, ckey, tf.ref, 1) != 0:
+                if funcs.mapSetFunc(inm, ckey, tf.ref, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif atypes[key][:3] == 'int':
-                if funcs.propSetInt(inm, ckey, int(v), 1) != 0:
+                if funcs.mapSetInt(inm, ckey, int(v), 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif atypes[key][:5] == 'float':
-                if funcs.propSetFloat(inm, ckey, float(v), 1) != 0:
+                if funcs.mapSetFloat(inm, ckey, float(v), 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif atypes[key][:4] == 'data':
                 if not isinstance(v, (str, bytes, bytearray)):
@@ -914,28 +914,28 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, cons
                     s = v.encode('utf-8')
                 else:
                     s = v
-                if funcs.propSetData(inm, ckey, s, <int>len(s), dtUtf8 if isinstance(v, str) else dtBinary, 1) != 0:
+                if funcs.mapSetData(inm, ckey, s, <int>len(s), dtUtf8 if isinstance(v, str) else dtBinary, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             else:
                 raise Error('argument ' + key + ' was passed an unsupported type (expected ' + atypes[key] + ' compatible type but got ' + type(v).__name__ + ')')
         if len(val) == 0:
         # set an empty key if it's an empty array
             if atypes[key][:5] == 'vnode':
-                funcs.propSetEmpty(inm, ckey, ptVideoNode)
+                funcs.mapSetEmpty(inm, ckey, ptVideoNode)
             elif atypes[key][:5] == 'anode':
-                funcs.propSetEmpty(inm, ckey, ptAudioNode)     
+                funcs.mapSetEmpty(inm, ckey, ptAudioNode)     
             elif atypes[key][:6] == 'vframe':
-                funcs.propSetEmpty(inm, ckey, ptVideoFrame)
+                funcs.mapSetEmpty(inm, ckey, ptVideoFrame)
             elif atypes[key][:6] == 'aframe':
-                funcs.propSetEmpty(inm, ckey, ptAudioFrame)   
+                funcs.mapSetEmpty(inm, ckey, ptAudioFrame)   
             elif atypes[key][:4] == 'func':
-                funcs.propSetEmpty(inm, ckey, ptFunction)
+                funcs.mapSetEmpty(inm, ckey, ptFunction)
             elif atypes[key][:3] == 'int':
-                funcs.propSetEmpty(inm, ckey, ptInt)
+                funcs.mapSetEmpty(inm, ckey, ptInt)
             elif atypes[key][:5] == 'float':
-                funcs.propSetEmpty(inm, ckey, ptFloat)
+                funcs.mapSetEmpty(inm, ckey, ptFloat)
             elif atypes[key][:4] == 'data':
-                funcs.propSetEmpty(inm, ckey, ptData)
+                funcs.mapSetEmpty(inm, ckey, ptData)
             else:
                 raise Error('argument ' + key + ' has an unknown type: ' + atypes[key])
 
@@ -1018,46 +1018,46 @@ cdef class FrameProps(object):
             self.funcs.freeFrame(self.constf)
 
     def __contains__(self, str name):
-        cdef const VSMap *m = self.funcs.getFramePropsRO(self.constf)
+        cdef const VSMap *m = self.funcs.getFramePropertiesRO(self.constf)
         cdef bytes b = name.encode('utf-8')
-        cdef int numelem = self.funcs.propNumElements(m, b)
+        cdef int numelem = self.funcs.mapNumElements(m, b)
         return numelem > 0
 
     def __getitem__(self, str name):
-        cdef const VSMap *m = self.funcs.getFramePropsRO(self.constf)
+        cdef const VSMap *m = self.funcs.getFramePropertiesRO(self.constf)
         cdef bytes b = name.encode('utf-8')
         cdef list ol = []
-        cdef int numelem = self.funcs.propNumElements(m, b)
+        cdef int numelem = self.funcs.mapNumElements(m, b)
         cdef const int64_t *intArray
         cdef const double *floatArray
         cdef const char *data
 
         if numelem < 0:
             raise KeyError('No key named ' + name + ' exists')
-        cdef int t = self.funcs.propGetType(m, b)
+        cdef int t = self.funcs.mapGetType(m, b)
         if t == ptInt:
             if numelem > 0:
-                intArray = self.funcs.propGetIntArray(m, b, NULL)
+                intArray = self.funcs.mapGetIntArray(m, b, NULL)
                 for i in range(numelem):
                     ol.append(intArray[i])
         elif t == ptFloat:
             if numelem > 0:
-                floatArray = self.funcs.propGetFloatArray(m, b, NULL)
+                floatArray = self.funcs.mapGetFloatArray(m, b, NULL)
                 for i in range(numelem):
                     ol.append(floatArray[i])
         elif t == ptData:
             for i in range(numelem):
-                data = self.funcs.propGetData(m, b, i, NULL)
-                ol.append(data[:self.funcs.propGetDataSize(m, b, i, NULL)])
+                data = self.funcs.mapGetData(m, b, i, NULL)
+                ol.append(data[:self.funcs.mapGetDataSize(m, b, i, NULL)])
         elif t == ptVideoNode or t == ptAudioNode:
             for i in range(numelem):
-                ol.append(createNode(self.funcs.propGetNode(m, b, i, NULL), self.funcs, _get_core()))
+                ol.append(createNode(self.funcs.mapGetNode(m, b, i, NULL), self.funcs, _get_core()))
         elif t == ptVideoFrame or t == ptAudioFrame:
             for i in range(numelem):
-                ol.append(createConstFrame(self.funcs.propGetFrame(m, b, i, NULL), self.funcs, self.core))
+                ol.append(createConstFrame(self.funcs.mapGetFrame(m, b, i, NULL), self.funcs, self.core))
         elif t == ptFunction:
             for i in range(numelem):
-                ol.append(createFuncRef(self.funcs.propGetFunc(m, b, i, NULL), self.funcs))
+                ol.append(createFuncRef(self.funcs.mapGetFunc(m, b, i, NULL), self.funcs))
 
         if len(ol) == 1:
             return ol[0]
@@ -1067,7 +1067,7 @@ cdef class FrameProps(object):
     def __setitem__(self, str name, value):
         if self.readonly:
             raise Error('Cannot delete properties of a read only object')
-        cdef VSMap *m = self.funcs.getFramePropsRW(self.f)
+        cdef VSMap *m = self.funcs.getFramePropertiesRW(self.f)
         cdef bytes b = name.encode('utf-8')
         cdef const VSAPI *funcs = self.funcs
         val = value
@@ -1082,30 +1082,30 @@ cdef class FrameProps(object):
         try:
             for v in val:
                 if isinstance(v, VideoNode):
-                    if funcs.propSetNode(m, b, (<VideoNode>v).node, 1) != 0:
+                    if funcs.mapSetNode(m, b, (<VideoNode>v).node, 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif isinstance(v, VideoFrame):
-                    if funcs.propSetFrame(m, b, (<VideoFrame>v).constf, 1) != 0:
+                    if funcs.mapSetFrame(m, b, (<VideoFrame>v).constf, 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif isinstance(v, Func):
-                    if funcs.propSetFunc(m, b, (<Func>v).ref, 1) != 0:
+                    if funcs.mapSetFunc(m, b, (<Func>v).ref, 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif callable(v):
                     tf = createFuncPython(v, self.core, self.funcs)
-                    if funcs.propSetFunc(m, b, tf.ref, 1) != 0:
+                    if funcs.mapSetFunc(m, b, tf.ref, 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif isinstance(v, int):
-                    if funcs.propSetInt(m, b, int(v), 1) != 0:
+                    if funcs.mapSetInt(m, b, int(v), 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif isinstance(v, float):
-                    if funcs.propSetFloat(m, b, float(v), 1) != 0:
+                    if funcs.mapSetFloat(m, b, float(v), 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif isinstance(v, str):
                     s = str(v).encode('utf-8')
-                    if funcs.propSetData(m, b, s, -1, dtUtf8, 1) != 0:
+                    if funcs.mapSetData(m, b, s, -1, dtUtf8, 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif isinstance(v, (bytes, bytearray)):
-                    if funcs.propSetData(m, b, v, <int>len(v), dtBinary, 1) != 0:
+                    if funcs.mapSetData(m, b, v, <int>len(v), dtBinary, 1) != 0:
                         raise Error('Not all values are of the same type')
                 else:
                     raise Error('Setter was passed an unsupported type (' + type(v).__name__ + ')')
@@ -1116,9 +1116,9 @@ cdef class FrameProps(object):
     def __delitem__(self, str name):
         if self.readonly:
             raise Error('Cannot delete properties of a read only object')
-        cdef VSMap *m = self.funcs.getFramePropsRW(self.f)
+        cdef VSMap *m = self.funcs.getFramePropertiesRW(self.f)
         cdef bytes b = name.encode('utf-8')
-        self.funcs.propDeleteKey(m, b)
+        self.funcs.mapDeleteKey(m, b)
 
     def __setattr__(self, name, value):
         self[name] = value
@@ -1138,11 +1138,11 @@ cdef class FrameProps(object):
            raise AttributeError from e
 
     def keys(self):
-        cdef const VSMap *m = self.funcs.getFramePropsRO(self.constf)
-        cdef int numkeys = self.funcs.propNumKeys(m)
+        cdef const VSMap *m = self.funcs.getFramePropertiesRO(self.constf)
+        cdef int numkeys = self.funcs.mapNumKeys(m)
         result = set()
         for i in range(numkeys):
-            result.add(self.funcs.propGetKey(m, i).decode('utf-8'))
+            result.add(self.funcs.mapGetKey(m, i).decode('utf-8'))
         return result
 
     def values(self):
@@ -1215,8 +1215,8 @@ cdef class FrameProps(object):
         yield from self.keys()
 
     def __len__(self):
-        cdef const VSMap *m = self.funcs.getFramePropsRO(self.constf)
-        return self.funcs.propNumKeys(m)
+        cdef const VSMap *m = self.funcs.getFramePropertiesRO(self.constf)
+        return self.funcs.mapNumKeys(m)
 
     def __dir__(self):
         return super(FrameProps, self).__dir__() + list(self.keys())
@@ -2440,7 +2440,7 @@ cdef class Function(object):
         with nogil:
             outm = self.funcs.invoke(self.plugin.plugin, cname, inm)
         self.funcs.freeMap(inm)
-        cdef const char *err = self.funcs.getError(outm)
+        cdef const char *err = self.funcs.mapGetError(outm)
         cdef bytes emsg
 
         if err:
@@ -2485,7 +2485,7 @@ cdef void __stdcall publicFunction(const VSMap *inm, VSMap *outm, void *userData
                 dictToMap(ret, outm, False, core, vsapi)
         except BaseException, e:
             emsg = str(e).encode('utf-8')
-            vsapi.setError(outm, emsg)
+            vsapi.mapSetError(outm, emsg)
 
 
 @final
@@ -2749,7 +2749,7 @@ cdef public api void vpy4_freeScript(VSScript *se) nogil:
 
         gc.collect()
 
-cdef public api char *vpy4_getError(VSScript *se) nogil:
+cdef public api char *vpy4_mapGetError(VSScript *se) nogil:
     if not se.errstr:
         return NULL
     with gil:

@@ -177,8 +177,8 @@ cdef extern from "include/VapourSynth4.h" nogil:
     enum VSGetPropError:
         peUnset
         peType
-        peIndex
         peError
+        peIndex
 
     enum VSPropAppendMode:
         paReplace
@@ -246,7 +246,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
     ctypedef void (__stdcall *VSMessageHandlerFree)(void *userData)
 
     ctypedef struct VSPLUGINAPI:
-        int getApiVersion() nogil
+        int getAPIVersion() nogil
         bint configPlugin(const char *identifier, const char *pluginNamespace, const char *name, int pluginVersion, int apiVersion, int flags, VSPlugin *plugin) nogil
         bint registerFunction(const char *name, const char *args, const char *returnType, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) nogil
         
@@ -270,8 +270,8 @@ cdef extern from "include/VapourSynth4.h" nogil:
         const VSFrameRef *cloneFrameRef(VSFrameRef *f) nogil
         VSFrameRef *copyFrame(const VSFrameRef *f, VSCore *core) nogil
         void copyFrameProps(const VSFrameRef *src, VSFrameRef *dst, VSCore *core) nogil
-        const VSMap *getFramePropsRO(const VSFrameRef *f) nogil
-        VSMap *getFramePropsRW(VSFrameRef *f) nogil
+        const VSMap *getFramePropertiesRO(const VSFrameRef *f) nogil
+        VSMap *getFramePropertiesRW(VSFrameRef *f) nogil
     
         ptrdiff_t getStride(const VSFrameRef *f, int plane) nogil
         const uint8_t *getReadPtr(const VSFrameRef *f, int plane) nogil
@@ -313,41 +313,41 @@ cdef extern from "include/VapourSynth4.h" nogil:
         void freeMap(VSMap *map) nogil
         void clearMap(VSMap *map) nogil
         
-        void setError(VSMap *map, const char *errorMessage) nogil
-        char *getError(const VSMap *map) nogil
+        void mapSetError(VSMap *map, const char *errorMessage) nogil
+        char *mapGetError(const VSMap *map) nogil
         
-        int propNumKeys(const VSMap *map) nogil
-        const char *propGetKey(const VSMap *map, int index) nogil
-        bint propDeleteKey(VSMap *map, const char *key) nogil
-        int propNumElements(const VSMap *map, const char *key) nogil
-        int propGetType(const VSMap *map, const char *key) nogil
-        int propSetEmpty(VSMap *map, const char *key, int type) nogil
+        int mapNumKeys(const VSMap *map) nogil
+        const char *mapGetKey(const VSMap *map, int index) nogil
+        bint mapDeleteKey(VSMap *map, const char *key) nogil
+        int mapNumElements(const VSMap *map, const char *key) nogil
+        int mapGetType(const VSMap *map, const char *key) nogil
+        int mapSetEmpty(VSMap *map, const char *key, int type) nogil
         
-        int64_t propGetInt(const VSMap *map, const char *key, int index, int *error) nogil
-        int propGetSaturatedInt(const VSMap *map, const char *key, int index, int *error) nogil
-        const int64_t *propGetIntArray(const VSMap *map, const char *key, int *error) nogil
-        bint propSetInt(VSMap *map, const char *key, int64_t i, int append) nogil
-        bint propSetIntArray(VSMap *map, const char *key, const int64_t *i, int size) nogil
+        int64_t mapGetInt(const VSMap *map, const char *key, int index, int *error) nogil
+        int mapGetIntSaturated(const VSMap *map, const char *key, int index, int *error) nogil
+        const int64_t *mapGetIntArray(const VSMap *map, const char *key, int *error) nogil
+        bint mapSetInt(VSMap *map, const char *key, int64_t i, int append) nogil
+        bint mapSetIntArray(VSMap *map, const char *key, const int64_t *i, int size) nogil
         
-        double propGetFloat(const VSMap *map, const char *key, int index, int *error) nogil
-        float propGetSaturatedFloat(const VSMap *map, const char *key, int index, int *error) nogil
-        const double *propGetFloatArray(const VSMap *map, const char *key, int *error) nogil
-        bint propSetFloat(VSMap *map, const char *key, double d, int append) nogil
-        bint propSetFloatArray(VSMap *map, const char *key, const double *d, int size) nogil
+        double mapGetFloat(const VSMap *map, const char *key, int index, int *error) nogil
+        float mapGetFloatSaturated(const VSMap *map, const char *key, int index, int *error) nogil
+        const double *mapGetFloatArray(const VSMap *map, const char *key, int *error) nogil
+        bint mapSetFloat(VSMap *map, const char *key, double d, int append) nogil
+        bint mapSetFloatArray(VSMap *map, const char *key, const double *d, int size) nogil
         
-        const char *propGetData(const VSMap *map, const char *key, int index, int *error) nogil
-        int propGetDataSize(const VSMap *map, const char *key, int index, int *error) nogil
-        int propGetDataType(const VSMap *map, const char *key, int index, int *error) nogil
-        bint propSetData(VSMap *map, const char *key, const char *data, int size, int type, int append) nogil
+        const char *mapGetData(const VSMap *map, const char *key, int index, int *error) nogil
+        int mapGetDataSize(const VSMap *map, const char *key, int index, int *error) nogil
+        int mapGetDataType(const VSMap *map, const char *key, int index, int *error) nogil
+        bint mapSetData(VSMap *map, const char *key, const char *data, int size, int type, int append) nogil
         
-        VSNodeRef *propGetNode(const VSMap *map, const char *key, int index, int *error) nogil
-        bint propSetNode(VSMap *map, const char *key, VSNodeRef *node, int append) nogil
+        VSNodeRef *mapGetNode(const VSMap *map, const char *key, int index, int *error) nogil
+        bint mapSetNode(VSMap *map, const char *key, VSNodeRef *node, int append) nogil
         
-        const VSFrameRef *propGetFrame(const VSMap *map, const char *key, int index, int *error) nogil
-        bint propSetFrame(VSMap *map, const char *key, const VSFrameRef *f, int append) nogil
+        const VSFrameRef *mapGetFrame(const VSMap *map, const char *key, int index, int *error) nogil
+        bint mapSetFrame(VSMap *map, const char *key, const VSFrameRef *f, int append) nogil
         
-        VSFuncRef *propGetFunc(const VSMap *map, const char *key, int index, int *error) nogil
-        bint propSetFunc(VSMap *map, const char *key, VSFuncRef *func, int append) nogil
+        VSFuncRef *mapGetFunc(const VSMap *map, const char *key, int index, int *error) nogil
+        bint mapSetFunc(VSMap *map, const char *key, VSFuncRef *func, int append) nogil
 
         # Plugin and function related
         bint registerFunction(const char *name, const char *args, const char *returnType, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) nogil
@@ -371,7 +371,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         int64_t setMaxCacheSize(int64_t bytes, VSCore *core) nogil
         int setThreadCount(int threads, VSCore *core) nogil
         void getCoreInfo(VSCore *core, VSCoreInfo *info) nogil
-        int getApiVersion() nogil
+        int getAPIVersion() nogil
         
         # Message handler
         void logMessage(int msgType, const char *msg, VSCore *core) nogil
