@@ -246,7 +246,7 @@ static std::string filterModeToString(int fm) {
     else if (fm == fmSerial)
         return "serial";
     else
-        return "unknown";
+        return "unordered";
 }
 
 std::string printNodeTimes(VSNodeRef *node, double processingTime, const VSAPI *vsapi) {
