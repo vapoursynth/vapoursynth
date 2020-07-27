@@ -944,10 +944,13 @@ int main(int argc, char **argv) {
     bool success = true;
 
     if (opts.mode == vpmPrintSimpleGraph) {
-        // FIXME, implement real simple graph
-        fprintf(outFile, "%s\n", printFullNodeGraph(node, vsapi).c_str());
+        std::string graph = printFullNodeGraph(node, vsapi);
+        if (outFile)
+            fprintf(outFile, "%s\n", graph.c_str());
     } else if (opts.mode == vpmPrintFullGraph) {
-        fprintf(outFile, "%s\n", printFullNodeGraph(node, vsapi).c_str());
+        std::string graph = printFullNodeGraph(node, vsapi);
+        if (outFile)
+            fprintf(outFile, "%s\n", graph.c_str());
     } else {
         int nodeType = vsapi->getNodeType(node);
 
