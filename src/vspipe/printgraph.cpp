@@ -184,7 +184,7 @@ struct NodeTimeRecord {
     int64_t nanoSeconds;
 
     bool operator<(const NodeTimeRecord &other) {
-        return nanoSeconds < other.nanoSeconds;
+        return nanoSeconds > other.nanoSeconds;
     }
 };
 
@@ -249,7 +249,7 @@ static std::string filterModeToString(int fm) {
         return "unknown";
 }
 
-std::string printNodeTimes(VSNodeRef *node, int64_t processingTime, const VSAPI *vsapi) {
+std::string printNodeTimes(VSNodeRef *node, double processingTime, const VSAPI *vsapi) {
     std::list<NodeTimeRecord> lines;
     std::set<VSNodeRef *> visited;
     std::string s;
@@ -257,11 +257,11 @@ std::string printNodeTimes(VSNodeRef *node, int64_t processingTime, const VSAPI 
     printNodeTimesHelper(lines, visited, node, vsapi);
 
     lines.sort();
-    auto it = lines.rbegin();
-    while (it != lines.rend()) {
-        s += extendStringRight(it->filterName, 20) + " " + extendStringRight(filterModeToString(it->filterMode), 10) + " " + extendStringLeft(printWithTwoDecimals((it->nanoSeconds * 100.) / processingTime), 10) + "% " + extendStringLeft(printWithTwoDecimals(it->nanoSeconds / 1000000000.), 10) + "s\n";
-        ++it;
-    }
+
+    s += extendStringRight("Filtername", 20) + " " + extendStringRight("Filter mode", 10) + " " + extendStringLeft("Time (%)", 10) + "% " + extendStringLeft("Time (s)", 10) + "s\n";
+
+    for (const auto & it : lines)
+        s += extendStringRight(it.filterName, 20) + " " + extendStringRight(filterModeToString(it.filterMode), 10) + " " + extendStringLeft(printWithTwoDecimals((it.nanoSeconds) / (processingTime * 10000000)), 10) + " " + extendStringLeft(printWithTwoDecimals(it.nanoSeconds / 1000000000.), 10) + "\n";
 
     return s;
 }

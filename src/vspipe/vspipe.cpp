@@ -110,6 +110,7 @@ struct VSPipeOptions {
     int outputIndex = 0;
     int requests = 0;
     bool printProgress = false;
+    bool printFilterTime = false;
     nstring scriptFilename;
     nstring outputFilename;
     nstring timecodesFilename;
@@ -639,6 +640,7 @@ static void printHelp() {
         "  -c, --container <y4m/wav/w64>    Add headers for the specified format to the output\n"
         "  -t, --timecodes FILE             Write timecodes v2 file\n"
         "  -p, --progress                   Print progress to stderr\n"
+        "      --filter-time                Prints time spent in individual filters after processing\n"
         "  -i, --info                       Show output node info and exit\n"
         "  -g  --graph <simple/full>        Print output node filter graph in dot format and exit\n"
         "  -v, --version                    Show version info and exit\n"
@@ -693,6 +695,8 @@ static int parseOptions(VSPipeOptions &opts, int argc, T **argv) {
             opts.outputHeaders = vphY4M;
         } else if (argString == NSTRING("-p") || argString == NSTRING("--progress")) {
             opts.printProgress = true;
+        } else if (argString == NSTRING("--filter-time")) {
+            opts.printFilterTime = true;
         } else if (argString == NSTRING("-i") || argString == NSTRING("--info")) {
             if (opts.mode == vpmPrintSimpleGraph || opts.mode == vpmPrintFullGraph) {
                 fprintf(stderr, "Cannot combine graph and info arguments\n");
@@ -909,7 +913,7 @@ int main(int argc, char **argv) {
 
     std::chrono::time_point<std::chrono::steady_clock> scriptEvaluationStart = std::chrono::steady_clock::now();
     
-    VSScriptOptions scriptOpts = { sizeof(VSScriptOptions), (opts.mode == vpmPrintSimpleGraph || opts.mode == vpmPrintFullGraph) ? cfEnableGraphInspection : 0, messageHandler, nullptr, nullptr };
+    VSScriptOptions scriptOpts = { sizeof(VSScriptOptions), (opts.mode == vpmPrintSimpleGraph || opts.mode == vpmPrintFullGraph || opts.printFilterTime) ? cfEnableGraphInspection : 0, messageHandler, nullptr, nullptr };
 
     VSScript *se = nullptr;
     if (!opts.scriptArgs.empty()) {
@@ -1073,6 +1077,9 @@ int main(int argc, char **argv) {
             fprintf(stderr, "Output %d frames in %.2f seconds (%.2f fps)\n", data->totalFrames, elapsedSeconds.count(), data->totalFrames / elapsedSeconds.count());
         else
             fprintf(stderr, "Output %" PRId64 " samples in %.2f seconds (%.2f sps)\n", data->totalSamples, elapsedSeconds.count(), (data->totalFrames / elapsedSeconds.count()) * VS_AUDIO_FRAME_SAMPLES);
+
+        if (opts.printFilterTime)
+            fprintf(stderr, "%s", printNodeTimes(node, elapsedSeconds.count(), vsapi).c_str());
     }
 
     if (outFile && closeOutFile)
