@@ -21,6 +21,7 @@
 #include "printgraph.h"
 #include <set>
 #include <map>
+#include <list>
 #include <algorithm>
 #include <cstring>
 #include <climits>
@@ -174,5 +175,93 @@ std::string printFullNodeGraph(VSNodeRef *node, const VSAPI *vsapi) {
     for (const auto &iter : lines)
         s += "  " + iter + "\n";
     s += "}";
+    return s;
+}
+
+struct NodeTimeRecord {
+    std::string filterName;
+    int filterMode;
+    int64_t nanoSeconds;
+
+    bool operator<(const NodeTimeRecord &other) {
+        return nanoSeconds < other.nanoSeconds;
+    }
+};
+
+static void printNodeTimesHelper(std::list<NodeTimeRecord> &lines, std::set<VSNodeRef *> &visited, VSNodeRef *node, const VSAPI *vsapi) {
+    if (!visited.insert(node).second)
+        return;
+
+    int minRealLevel = getMinRealLevel(node, vsapi);
+
+    lines.push_back(NodeTimeRecord{ vsapi->getNodeCreationFunctionName(node, minRealLevel), vsapi->getNodeFilterMode(node), vsapi->getNodeFilterTime(node) } );
+
+    const VSMap *args = vsapi->getNodeCreationFunctionArguments(node, 0);
+    int numKeys = vsapi->mapNumKeys(args);
+    for (int i = 0; i < numKeys; i++) {
+        const char *key = vsapi->mapGetKey(args, i);
+        int numElems = vsapi->mapNumElements(args, key);
+        switch (vsapi->mapGetType(args, key)) {
+            case ptVideoNode:
+            case ptAudioNode:
+                for (int j = 0; j < numElems; j++) {
+                    VSNodeRef *ref = vsapi->mapGetNode(args, key, j, nullptr);
+                    printNodeTimesHelper(lines, visited, ref, vsapi);
+                    vsapi->freeNode(ref);
+                }
+                break;
+            default:
+                break;
+        }
+    }
+}
+
+static std::string extendStringRight(const std::string &s, size_t length) {
+    if (s.length() >= length)
+        return s;
+    else
+        return s + std::string(length - s.length(), ' ');
+}
+
+static std::string extendStringLeft(const std::string &s, size_t length) {
+    if (s.length() >= length)
+        return s;
+    else
+        return std::string(length - s.length(), ' ') + s;
+}
+
+static std::string printWithTwoDecimals(double d) {
+    char buffer[32];
+    snprintf(buffer, sizeof(buffer), "%.2f", d);
+    return buffer;
+}
+
+static std::string filterModeToString(int fm) {
+    if (fm == fmParallel)
+        return "parallel";
+    else if (fm == fmParallelRequests)
+        return "parreq";
+    else if (fm == fmUnordered)
+        return "unordered";
+    else if (fm == fmSerial)
+        return "serial";
+    else
+        return "unknown";
+}
+
+std::string printNodeTimes(VSNodeRef *node, int64_t processingTime, const VSAPI *vsapi) {
+    std::list<NodeTimeRecord> lines;
+    std::set<VSNodeRef *> visited;
+    std::string s;
+
+    printNodeTimesHelper(lines, visited, node, vsapi);
+
+    lines.sort();
+    auto it = lines.rbegin();
+    while (it != lines.rend()) {
+        s += extendStringRight(it->filterName, 20) + " " + extendStringRight(filterModeToString(it->filterMode), 10) + " " + extendStringLeft(printWithTwoDecimals((it->nanoSeconds * 100.) / processingTime), 10) + "% " + extendStringLeft(printWithTwoDecimals(it->nanoSeconds / 1000000000.), 10) + "s\n";
+        ++it;
+    }
+
     return s;
 }

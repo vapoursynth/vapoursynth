@@ -974,6 +974,16 @@ static int VS_CC getNodeIndex(VSNodeRef *node) VS_NOEXCEPT {
     return node->index;
 }
 
+static int VS_CC getNodeFilterMode(VSNodeRef *node) VS_NOEXCEPT {
+    assert(node);
+    return node->clip->getFilterMode();
+}
+
+static int64_t VS_CC getNodeFilterTime(VSNodeRef *node) VS_NOEXCEPT {
+    assert(node);
+    return node->clip->getFilterTime();
+}
+
 static void VS_CC setInternalFilterRelation(const VSMap *nodeMap, VSNodeRef **dependencies, int numDeps) VS_NOEXCEPT {
     assert(nodeMap && dependencies && dependencies > 0);
     VSNodeRef *ref = mapGetNode(nodeMap, "clip", 0, nullptr);
@@ -1111,6 +1121,8 @@ const VSAPI vs_internal_vsapi = {
     &getNodeCreationFunctionArguments,
     &getNodeName,
     &getNodeIndex,
+    &getNodeFilterMode,
+    &getNodeFilterTime,
     &setInternalFilterRelation
 };
 

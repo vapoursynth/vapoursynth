@@ -44,6 +44,7 @@
 #include <random>
 #include <algorithm>
 #include <tuple>
+#include <chrono>
 
 #ifdef VS_TARGET_OS_WINDOWS
 #    define WIN32_LEAN_AND_MEAN
@@ -705,6 +706,8 @@ private:
     std::mutex concurrentFramesMutex;
     std::set<int> concurrentFrames;
 
+    std::atomic<int64_t> processingTime;
+
     PVSFrameRef getFrameInternal(int n, int activationReason, VSFrameContext *frameCtx);
 public:
     VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core); // V3 compatibility
@@ -724,6 +727,14 @@ public:
 
     VSMediaType getNodeType() const {
         return nodeType;
+    }
+
+    VSFilterMode getFilterMode() const {
+        return filterMode;
+    }
+
+    int64_t getFilterTime() const {
+        return processingTime;
     }
 
     int getNodeFlags() const {

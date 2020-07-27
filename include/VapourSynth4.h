@@ -462,6 +462,8 @@ struct VSAPI {
     const VSMap *(VS_CC *getNodeCreationFunctionArguments)(VSNodeRef *node, int level) VS_NOEXCEPT; /* returns a copy of the arguments passed to the function that created the filter */
     const char *(VS_CC *getNodeName)(VSNodeRef *node) VS_NOEXCEPT; /* the name passed to create*Filter */
     int (VS_CC *getNodeIndex)(VSNodeRef *node) VS_NOEXCEPT; /* the output index of the filter the node references */
+    int (VS_CC *getNodeFilterMode)(VSNodeRef *node) VS_NOEXCEPT;
+    int64_t (VS_CC *getNodeFilterTime)(VSNodeRef *node) VS_NOEXCEPT;
     void (VS_CC *setInternalFilterRelation)(const VSMap *nodeMap, VSNodeRef **dependencies, int numDeps) VS_NOEXCEPT; /* manually overrides the automatically deduced node dependency information, only needed in filters that call invoke on the input to create*Filter or chains multiple create*Filter calls, simply ignored when used without cfEnableGraphInspection */
 };
 

@@ -1003,14 +1003,24 @@ void VSNode::setFilterRelation(VSNodeRef **dependencies, int numDeps) {
     }
 }
 
-PVSFrameRef VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *frameCtx) {  
+PVSFrameRef VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *frameCtx) {
+    std::chrono::time_point<std::chrono::high_resolution_clock> startTime;
+    bool enableGraphInspection = core->enableGraphInspection;
+    if (enableGraphInspection)
+        startTime = std::chrono::high_resolution_clock::now();
+
     const VSFrameRef *r = (apiMajor == VAPOURSYNTH_API_MAJOR) ? filterGetFrame(n, activationReason, instanceData, frameCtx->frameContext, frameCtx, core, &vs_internal_vsapi) : reinterpret_cast<vs3::VSFilterGetFrame>(filterGetFrame)(n, activationReason, &instanceData, frameCtx->frameContext, frameCtx, core, &vs_internal_vsapi3);
+
+    if (enableGraphInspection) {
+        std::chrono::nanoseconds duration = std::chrono::high_resolution_clock::now() - startTime;
+        processingTime.fetch_add(duration.count(), std::memory_order_relaxed);
+    }
 #ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isSSEStateOk())
         core->logFatal("Bad SSE state detected after return from "+ name);
 #endif
 
-    if (r) {
+    if (r) {     
         if (r->getFrameType() == mtVideo) {
             const VSVideoInfo &lvi = vi[frameCtx->index];
             const VSVideoFormat *fi = r->getVideoFormat();
@@ -1341,9 +1351,9 @@ bool VSCore::isValidVideoFormat(const VSVideoFormat &format) noexcept {
 
     if (format.bitsPerSample == 8 && format.bytesPerSample != 1)
         return false;
-    else if (format.bitsPerSample > 16 && format.bytesPerSample != 4)
+    else if (format.bitsPerSample > 8 && format.bitsPerSample <= 16 && format.bytesPerSample != 2)
         return false;
-    else if (format.bytesPerSample != 2)
+    else if (format.bitsPerSample > 16 && format.bytesPerSample != 4)
         return false;
 
     return true;
@@ -1375,7 +1385,7 @@ bool VSCore::isValidAudioFormat(const VSAudioFormat &format) noexcept {
 
     if (format.bitsPerSample == 16 && format.bytesPerSample != 2)
         return false;
-    else if (format.bytesPerSample != 4)
+    else if (format.bitsPerSample > 16 && format.bytesPerSample != 4)
         return false;
 
     return true;
@@ -2295,11 +2305,12 @@ VSMap *VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
                 throw VSException(funcName + ": no argument(s) named " + s);
             }
 
-            if (core->enableGraphInspection) {
+            bool enableGraphInspection = core->enableGraphInspection;
+            if (enableGraphInspection) {
                 core->functionFrame = std::make_shared<VSFunctionFrame>(funcName, new VSMap(&args), core->functionFrame);
             }
             f.func(&args, v.get(), f.functionData, core, getVSAPIInternal(apiMajor));
-            if (core->enableGraphInspection) {
+            if (enableGraphInspection) {
                 assert(core->functionFrame);
                 core->functionFrame = core->functionFrame->next;
             }
