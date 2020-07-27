@@ -920,7 +920,9 @@ public:
     static bool queryAudioFormat(VSAudioFormat &f, VSSampleType sampleType, int bitsPerSample, uint64_t channelLayout) noexcept;
     bool isValidFormatPointer(const void *f);
     static bool isValidVideoFormat(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH) noexcept;
+    static bool isValidVideoFormat(const VSVideoFormat &format) noexcept;
     static bool isValidAudioFormat(int sampleType, int bitsPerSample, uint64_t channelLayout) noexcept;
+    static bool isValidAudioFormat(const VSAudioFormat &format) noexcept;
     static bool isValidVideoInfo(const VSVideoInfo &vi) noexcept;
     static bool isValidAudioInfo(const VSAudioInfo &ai) noexcept;
 

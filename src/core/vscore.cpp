@@ -1225,7 +1225,7 @@ bool VSCore::queryAudioFormat(VSAudioFormat &f, VSSampleType sampleType, int bit
     while (f.bytesPerSample * 8 < bitsPerSample)
         f.bytesPerSample <<= 1;
 
-    std::bitset<sizeof(channelLayout) * 8> bits{ static_cast<uint64_t>(channelLayout) };
+    std::bitset<sizeof(channelLayout) * 8> bits{ channelLayout };
     f.numChannels = static_cast<int>(bits.count());
     f.channelLayout = channelLayout;
 
@@ -1332,6 +1332,23 @@ bool VSCore::isValidVideoFormat(int colorFamily, int sampleType, int bitsPerSamp
     return true;
 }
 
+bool VSCore::isValidVideoFormat(const VSVideoFormat &format) noexcept {
+    if (!isValidVideoFormat(format.colorFamily, format.sampleType, format.bitsPerSample, format.subSamplingW, format.subSamplingH))
+        return false;
+
+    if (format.numPlanes != ((format.colorFamily == cfYUV || format.colorFamily == cfRGB) ? 3 : 1))
+        return false;
+
+    if (format.bitsPerSample == 8 && format.bytesPerSample != 1)
+        return false;
+    else if (format.bitsPerSample > 16 && format.bytesPerSample != 4)
+        return false;
+    else if (format.bytesPerSample != 2)
+        return false;
+
+    return true;
+}
+
 bool VSCore::isValidAudioFormat(int sampleType, int bitsPerSample, uint64_t channelLayout) noexcept {
     if (sampleType != stInteger && sampleType != stFloat)
         return false;
@@ -1348,8 +1365,24 @@ bool VSCore::isValidAudioFormat(int sampleType, int bitsPerSample, uint64_t chan
     return true;
 }
 
+bool VSCore::isValidAudioFormat(const VSAudioFormat &format) noexcept {
+    if (!isValidAudioFormat(format.sampleType, format.bitsPerSample, format.channelLayout))
+        return false;
+
+    std::bitset<sizeof(format.channelLayout) * 8> bits{ format.channelLayout };
+    if (format.numChannels != static_cast<int>(bits.count()))
+        return false;
+
+    if (format.bitsPerSample == 16 && format.bytesPerSample != 2)
+        return false;
+    else if (format.bytesPerSample != 4)
+        return false;
+
+    return true;
+}
+
 bool VSCore::isValidVideoInfo(const VSVideoInfo &vi) noexcept {
-    if (!isValidVideoFormat(vi.format.colorFamily, vi.format.sampleType, vi.format.bitsPerSample, vi.format.subSamplingW, vi.format.subSamplingH))
+    if (!isValidVideoFormat(vi.format))
         return false;
 
     if (vi.fpsDen < 0 || vi.fpsNum < 0 || vi.height < 0 || vi.width < 0 || vi.numFrames < 1)
@@ -1364,19 +1397,17 @@ bool VSCore::isValidVideoInfo(const VSVideoInfo &vi) noexcept {
     if ((!!vi.height) ^ (!!vi.width))
         return false;
 
-    // fixme, check implicit fields
-
     return true;
 }
 
 bool VSCore::isValidAudioInfo(const VSAudioInfo &ai) noexcept {
-    if (!isValidAudioFormat(ai.format.sampleType, ai.format.bitsPerSample, ai.format.channelLayout))
+    if (!isValidAudioFormat(ai.format))
         return false;
 
     if (ai.numSamples < 1 || ai.sampleRate < 1)
         return false;
 
-    // fixme, check implicit fields
+    // numFrames isn't checked since it's implicit and set correctly whenever a VSAudioInfo is consumed
 
     return true;
 }
