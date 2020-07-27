@@ -19,11 +19,6 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\VapourSynth.h" />
-    <ClInclude Include="..\..\include\VSHelper.h" />
-    <ClInclude Include="..\..\include\VSScript.h" />
-  </ItemGroup>
-  <ItemGroup>
     <ClCompile Include="..\..\src\filters\eedi3\eedi3.c" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

@@ -156,8 +156,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\VapourSynth.h" />
-    <ClInclude Include="..\..\include\VSHelper.h" />
     <ClInclude Include="..\..\src\avisynth\avisynth.h" />
     <ClInclude Include="..\..\src\avisynth\avisynth_compat.h" />
     <ClInclude Include="..\..\src\common\vsutf16.h" />

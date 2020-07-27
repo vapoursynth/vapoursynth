@@ -140,11 +140,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\VapourSynth.h" />
-    <ClInclude Include="..\..\include\VSHelper.h" />
-    <ClInclude Include="..\..\include\VSScript.h" />
-  </ItemGroup>
-  <ItemGroup>
     <ClCompile Include="..\..\src\filters\vinverse\vinverse.c" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

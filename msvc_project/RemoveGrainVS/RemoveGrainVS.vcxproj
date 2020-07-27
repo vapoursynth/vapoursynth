@@ -142,9 +142,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\VapourSynth.h" />
-    <ClInclude Include="..\..\include\VSHelper.h" />
-    <ClInclude Include="..\..\include\VSScript.h" />
     <ClInclude Include="..\..\src\filters\removegrain\shared.h" />
   </ItemGroup>
   <ItemGroup>
