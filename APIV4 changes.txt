@@ -62,6 +62,8 @@ The header now has all functions placed in the vsh namespace (C++) or prefixes t
 order to not clutter things up as much. Several functions were also renamed for clarity.
 Renamed functions:
 all functions with a vs_ prefix had it removed (see C/C++ mode differences above)
+isSameFormat => isSameVideoInfo (IMPORTANT! do not confuse with the new function called isSameVideoFormat)
+isConstantFormat => isConstantVideoFormat
 vs_aligned_malloc => vsh_aligned_malloc
 vs_aligned_free => vsh_aligned_free
 VS_ALIGNED_MALLOC => VSH_ALIGNED_MALLOC

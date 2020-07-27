@@ -232,10 +232,11 @@ typedef enum VSPropType {
 } VSPropType;
 
 typedef enum VSGetPropError {
-    peUnset = 1,
-    peType  = 2,
-    peIndex = 4,
-    peError = 8
+    peSuccess = 0,
+    peUnset   = 1, /* no key exists */
+    peType    = 2, /* key exists but not of a compatible type */
+    peError   = 3, /* map has error state set */
+    peIndex   = 4  /* index out of bounds */
 } VSGetPropError;
 
 typedef enum VSPropAppendMode {

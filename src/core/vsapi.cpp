@@ -338,7 +338,7 @@ static VSArrayBase *propGetShared(const VSMap *map, const char *key, int index, 
     assert(map && key && index >= 0);
 
     if (error)
-        *error = 0;
+        *error = peSuccess;
 
     if (map->hasError()) {
         if (error)
