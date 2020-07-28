@@ -83,6 +83,8 @@ cdef class EnvironmentData(object):
     cdef dict outputs
     cdef dict options
 
+    cdef int coreCreationFlags
+
     cdef object __weakref__
 
     def __init__(self):
@@ -161,13 +163,14 @@ cdef class EnvironmentPolicyAPI:
             raise ValueError("environment_data must be an EnvironmentData instance.")
         return use_environment(<EnvironmentData>environment_data, direct=False)
 
-    def create_environment(self):
+    def create_environment(self, int flags = 0):
         self.ensure_policy_matches()
 
         cdef EnvironmentData env = EnvironmentData.__new__(EnvironmentData)
         env.core = None
         env.outputs = {}
         env.options = {}
+        env.coreCreationFlags = flags
 
         return env
 
@@ -2224,12 +2227,12 @@ cdef object createConstFrame(const VSFrameRef *f, const VSAPI *funcs, VSCore *co
     else:
         return createConstAudioFrame(f, funcs, core)
 
-cdef Core createCore():
+cdef Core createCore(EnvironmentData env):
     cdef Core instance = Core.__new__(Core)
     instance.funcs = getVapourSynthAPI(VAPOURSYNTH_API_VERSION)
     if instance.funcs == NULL:
         raise Error('Failed to obtain VapourSynth API pointer. System does not support SSE2 or is the Python module and loaded core library mismatched?')
-    instance.core = instance.funcs.createCore(0)
+    instance.core = instance.funcs.createCore(env.coreCreationFlags)
     instance.add_cache = True
     return instance
 
@@ -2254,7 +2257,7 @@ def get_core(threads = None, add_cache = None):
     
 cdef Core vsscript_get_core_internal(EnvironmentData env):
     if env.core is None:
-        env.core = createCore()
+        env.core = createCore(env)
     return env.core
     
 cdef class _CoreProxy(object):
