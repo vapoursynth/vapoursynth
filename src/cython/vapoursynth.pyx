@@ -385,8 +385,8 @@ _EMPTY = []
 
 AlphaOutputTuple = namedtuple("AlphaOutputTuple", "clip alpha")
 
-def _construct_parameter(signature):
-    name,type,*opt = signature.split(":")
+def _construct_type(signature):
+    type,*opt = signature.split(":")
 
     # Handle Arrays.
     if type.endswith("[]"):
@@ -422,14 +422,22 @@ def _construct_parameter(signature):
     # Mark an optional type
     if opt:
         type = typing.Optional[type]
-        opt = None
-    else:
-        opt = inspect.Parameter.empty
         
+    return type
+
+def _construct_parameter(signature):
+    name, signature = signature.split(":", 1)
+    type = _construct_type(signature)
+    
+    __,*opt = signature.split(":")
+    if opt:
+        default_value = None
+    else:
+        default_value = inspect.Parameter.empty
         
     return inspect.Parameter(
         name, inspect.Parameter.POSITIONAL_OR_KEYWORD,
-        default=opt, annotation=type
+        default=default_value, annotation=type
     )
 
 def construct_signature(signature, return_signature, injected=None):
@@ -448,7 +456,7 @@ def construct_signature(signature, return_signature, injected=None):
     if injected:
         del params[0]
     
-    return inspect.Signature(tuple(params), return_annotation=vapoursynth.VideoNode)
+    return inspect.Signature(tuple(params), return_annotation=_construct_type(return_signature))
     
 
 class Error(Exception):
