@@ -738,15 +738,81 @@ void VSPluginFunction::parseArgString(const std::string argString, std::vector<F
     }
 }
 
-VSPluginFunction::VSPluginFunction(const std::string &name, const std::string &argString, const std::string &returnType, VSPublicFunction func, void *functionData, int apiMajor)
-    : name(name), argString(argString), returnType(returnType), func(func), functionData(functionData) {
-    parseArgString(argString, args, apiMajor);
+VSPluginFunction::VSPluginFunction(const std::string &name, const std::string &argString, const std::string &returnType, VSPublicFunction func, void *functionData, VSPlugin *plugin)
+    : name(name), argString(argString), returnType(returnType), func(func), functionData(functionData), plugin(plugin) {
+    parseArgString(argString, inArgs, plugin->apiMajor);
     if (returnType != "any")
-        parseArgString(returnType, retArgs, apiMajor);
+        parseArgString(returnType, retArgs, plugin->apiMajor);
+}
+
+VSMap *VSPluginFunction::invoke(const VSMap &args) {
+    std::unique_ptr<VSMap> v(new VSMap);
+
+    try {
+        if (!plugin->compat && args.hasCompatNodes())
+            throw VSException(name + ": only special filters may accept compat input");
+
+        std::set<std::string> remainingArgs;
+        for (size_t i = 0; i < args.size(); i++)
+            remainingArgs.insert(args.key(i));
+
+        for (const FilterArgument &fa : inArgs) {
+            int propType = vs_internal_vsapi.mapGetType(&args, fa.name.c_str());
+
+            if (propType != ptUnset) {
+                remainingArgs.erase(fa.name);
+
+                if (fa.type != propType)
+                    throw VSException(name + ": argument " + fa.name + " is not of the correct type");
+
+                VSArrayBase *arr = args.find(fa.name);
+
+                if (!fa.arr && arr->size() > 1)
+                    throw VSException(name + ": argument " + fa.name + " is not of array type but more than one value was supplied");
+
+                if (!fa.empty && arr->size() < 1)
+                    throw VSException(name + ": argument " + fa.name + " does not accept empty arrays");
+
+            } else if (!fa.opt) {
+                throw VSException(name + ": argument " + fa.name + " is required");
+            }
+        }
+
+        if (!remainingArgs.empty()) {
+            auto iter = remainingArgs.cbegin();
+            std::string s = *iter;
+            ++iter;
+            for (; iter != remainingArgs.cend(); ++iter)
+                s += ", " + *iter;
+            throw VSException(name + ": no argument(s) named " + s);
+        }
+
+        bool enableGraphInspection = plugin->core->enableGraphInspection;
+        if (enableGraphInspection) {
+            plugin->core->functionFrame = std::make_shared<VSFunctionFrame>(name, new VSMap(&args), plugin->core->functionFrame);
+        }
+        func(&args, v.get(), functionData, plugin->core, getVSAPIInternal(plugin->apiMajor));
+        if (enableGraphInspection) {
+            assert(plugin->core->functionFrame);
+            plugin->core->functionFrame = plugin->core->functionFrame->next;
+        }
+
+        if (!plugin->compat && v->hasCompatNodes())
+            plugin->core->logFatal(name + ": filter node returned compat format but only internal filters may do so");
+
+        if (plugin->apiMajor == VAPOURSYNTH3_API_MAJOR && !args.isV3Compatible())
+            plugin->core->logFatal(name + ": filter node returned not yet supported type");
+
+        return v.release();
+
+    } catch (VSException &e) {
+        vs_internal_vsapi.mapSetError(v.get(), e.what());
+        return v.release();
+    }
 }
 
 bool VSPluginFunction::isV3Compatible() const {
-    for (const auto &iter : args)
+    for (const auto &iter : inArgs)
         if (iter.type == ptAudioNode || iter.type == ptAudioFrame)
             return false;
     for (const auto &iter : retArgs)
@@ -757,7 +823,7 @@ bool VSPluginFunction::isV3Compatible() const {
 
 std::string VSPluginFunction::getV3ArgString() const {
     std::string tmp;
-    for (const auto &iter : args) {
+    for (const auto &iter : inArgs) {
         assert(iter.type != ptAudioNode && iter.type != ptAudioFrame);
 
         tmp += iter.name + ":";
@@ -2230,7 +2296,7 @@ bool VSPlugin::registerFunction(const std::string &name, const std::string &args
     }
 
     try {
-        funcs.emplace(std::make_pair(name, VSPluginFunction(name, args, returnType, argsFunc, functionData, apiMajor)));
+        funcs.emplace(std::make_pair(name, VSPluginFunction(name, args, returnType, argsFunc, functionData, this)));
     } catch (std::runtime_error &e) {
         core->logMessage(mtCritical, "API MISUSE! Function '" + name + "' failed to register with error: " + e.what());
         return false;
@@ -2256,74 +2322,14 @@ bool VSMap::hasCompatNodes() const noexcept {
 }
 
 VSMap *VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
-    std::unique_ptr<VSMap> v(new VSMap);
-
-    try {
-        if (funcs.count(funcName)) {
-            const VSPluginFunction &f = funcs.at(funcName);
-            if (!compat && args.hasCompatNodes())
-                throw VSException(funcName + ": only special filters may accept compat input");
-
-            std::set<std::string> remainingArgs;
-            for (size_t i = 0; i < args.size(); i++)
-                remainingArgs.insert(args.key(i));
-
-            for (const FilterArgument &fa : f.args) {
-                int propType = vs_internal_vsapi.mapGetType(&args, fa.name.c_str());
-
-                if (propType != ptUnset) {
-                    remainingArgs.erase(fa.name);
-
-                    if (fa.type != propType)
-                        throw VSException(funcName + ": argument " + fa.name + " is not of the correct type");
-
-                    VSArrayBase *arr = args.find(fa.name);
-
-                    if (!fa.arr && arr->size() > 1)
-                        throw VSException(funcName + ": argument " + fa.name + " is not of array type but more than one value was supplied");
-
-                    if (!fa.empty && arr->size() < 1)
-                        throw VSException(funcName + ": argument " + fa.name + " does not accept empty arrays");
-
-                } else if (!fa.opt) {
-                    throw VSException(funcName + ": argument " + fa.name + " is required");
-                }
-            }
-
-            if (!remainingArgs.empty()) {
-                auto iter = remainingArgs.cbegin();
-                std::string s = *iter;
-                ++iter;
-                for (; iter != remainingArgs.cend(); ++iter)
-                    s += ", " + *iter;
-                throw VSException(funcName + ": no argument(s) named " + s);
-            }
-
-            bool enableGraphInspection = core->enableGraphInspection;
-            if (enableGraphInspection) {
-                core->functionFrame = std::make_shared<VSFunctionFrame>(funcName, new VSMap(&args), core->functionFrame);
-            }
-            f.func(&args, v.get(), f.functionData, core, getVSAPIInternal(apiMajor));
-            if (enableGraphInspection) {
-                assert(core->functionFrame);
-                core->functionFrame = core->functionFrame->next;
-            }
-
-            if (!compat && v->hasCompatNodes())
-                core->logFatal(funcName + ": filter node returned compat format but only internal filters may do so");
-
-            if (apiMajor == VAPOURSYNTH3_API_MAJOR && !args.isV3Compatible())
-                core->logFatal(funcName + ": filter node returned not yet supported type");
-
-            return v.release();
-        }
-    } catch (VSException &e) {
-        vs_internal_vsapi.mapSetError(v.get(), e.what());
-        return v.release();
+    auto it = funcs.find(funcName);
+    if (it != funcs.end()) {
+        return it->second.invoke(args);
+    } else {
+        VSMap *v = new VSMap();
+        vs_internal_vsapi.mapSetError(v, ("Function '" + funcName + "' not found in " + id).c_str());
+        return v;
     }
-
-    vs_internal_vsapi.mapSetError(v.get(), ("Function '" + funcName + "' not found in " + id).c_str());
-    return v.release();
 }
 
 VSPluginFunction *VSPlugin::getNextFunction(VSPluginFunction *func) {

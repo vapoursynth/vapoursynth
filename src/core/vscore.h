@@ -813,29 +813,28 @@ public:
 
 struct VSPluginFunction {
 private:
+    VSPublicFunction func;
+    void *functionData;
+    VSPlugin *plugin;
     std::string name;
     std::string argString;
     std::string returnType;
+    std::vector<FilterArgument> inArgs;
+    std::vector<FilterArgument> retArgs;
     static void parseArgString(const std::string argString, std::vector<FilterArgument> &argsOut, int apiMajor);
 public:
-    std::vector<FilterArgument> args;
-    std::vector<FilterArgument> retArgs;
-
-    bool isV3Compatible() const;
-    std::string getV3ArgString() const;
-
-    VSPublicFunction func;
-    void *functionData;
-
-    VSPluginFunction(const std::string &name, const std::string &argString, const std::string &returnType, VSPublicFunction func, void *functionData, int apiMajor);
-
+    VSPluginFunction(const std::string &name, const std::string &argString, const std::string &returnType, VSPublicFunction func, void *functionData, VSPlugin *plugin);
+    VSMap *invoke(const VSMap &args);
     const std::string &getName() const;
     const std::string &getArguments() const;
     const std::string &getReturnType() const;
+    bool isV3Compatible() const;
+    std::string getV3ArgString() const;
 };
 
 
 struct VSPlugin {
+    friend struct VSPluginFunction;
 private:
     int apiMajor = 0;
     int apiMinor = 0;
