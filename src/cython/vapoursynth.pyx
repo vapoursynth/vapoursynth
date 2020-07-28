@@ -78,7 +78,7 @@ __api_version__ = namedtuple("VapourSynthAPIVersion", "api_major api_minor")(VAP
 
 @final
 cdef class EnvironmentData(object):
-    cdef object core
+    cdef Core core
     cdef dict outputs
     cdef dict options
 
@@ -137,9 +137,6 @@ _using_vsscript = False
 # Internal holder of the current policy.
 cdef object _policy = None
 
-# fixme
-#cdef object _message_handler = None
-#cdef int _message_handler_id = -1
 cdef const VSAPI *_vsapi = NULL
 
 
@@ -168,7 +165,8 @@ cdef class EnvironmentPolicyAPI:
         cdef EnvironmentData env = EnvironmentData.__new__(EnvironmentData)
         env.core = None
         env.outputs = {}
-        
+        env.options = {}
+
         return env
 
     def unregister_policy(self):
@@ -462,28 +460,6 @@ class Error(Exception):
         
     def __repr__(self):
         return repr(self.value)
-
-#fixme, implement new per core message handling api
-#cdef void __stdcall message_handler_wrapper(int msgType, const char *msg, void *userData) nogil:
-#    with gil:
-#        global _message_handler
-#        _message_handler(msgType, msg.decode('utf-8'))
-#        
-#def set_message_handler(handler_func):
-#    cdef const VSAPI *funcs
-#    global _message_handler
-#    global _message_handler_id
-#    funcs = getVapourSynthAPI(VAPOURSYNTH_API_VERSION)
-#    if funcs == NULL:
-#        raise Error('Failed to obtain VapourSynth API pointer. Is the Python module and loaded core library mismatched?')
-#    if handler_func is None:
-#        if _message_handler_id >= 0:
-#            funcs.removeMessageHandler(_message_handler_id)
-#            _message_handler = None
-#            _message_handler_id = -1
-#    else:
-#        _message_handler = handler_func
-#        _message_handler_id = funcs.addMessageHandler(message_handler_wrapper, NULL, NULL)
     
 cdef _get_output_dict(funcname="this function"):
     cdef EnvironmentData env = _env_current()
@@ -2658,6 +2634,7 @@ cdef public api int vpy_evaluateFile(VSScript *se, const char *scriptFilename, i
             return 1
 
 cdef public api int vpy4_evaluateBuffer(VSScript *se, const char *buffer, const char *scriptFilename, const VSMap *vars, const VSScriptOptions *options) nogil:
+    # fixme, actually use the options
     with gil:
         try:          
             evaldict = {}
@@ -2725,6 +2702,10 @@ cdef public api int vpy4_evaluateFile(VSScript *se, const char *scriptFilename, 
             Py_INCREF(errstr)
             se.errstr = <void *>errstr
             return 1
+            
+cdef public api int vpy4_clearLogHandler(VSScript *se) nogil:
+    with gil:
+        return 0
 
 cdef public api void vpy4_freeScript(VSScript *se) nogil:
     with gil:
@@ -2818,12 +2799,10 @@ cdef const VSAPI *getVSAPIInternal() nogil:
     
 cdef public api int vpy4_getOptions(VSScript *se, VSMap *dst) nogil:
     with gil:
-        with _vsscript_use_environment(se.id).use():
-            if getVSAPIInternal() == NULL:
-                return 1         
+        with _vsscript_use_environment(se.id).use():   
             try:
                 core = vsscript_get_core_internal(_get_vsscript_policy().get_environment(se.id))
-                dictToMap(_get_options_dict("vpy4_getOptions"), dst, True, core.core, getVSAPIInternal())
+                dictToMap(_get_options_dict("vpy4_getOptions"), dst, True, core.core, core.funcs)
                 return 0
             except:
                 return 1
@@ -2831,14 +2810,12 @@ cdef public api int vpy4_getOptions(VSScript *se, VSMap *dst) nogil:
 cdef public api int vpy_getVariable(VSScript *se, const char *name, VSMap *dst) nogil:
     with gil:
         with _vsscript_use_environment(se.id).use():
-            if getVSAPIInternal() == NULL:
-                return 1
             evaldict = <dict>se.pyenvdict
             try:
                 dname = name.decode('utf-8')
                 read_var = { dname:evaldict[dname]}
                 core = vsscript_get_core_internal(_get_vsscript_policy().get_environment(se.id))
-                dictToMap(read_var, dst, False, core.core, getVSAPIInternal())
+                dictToMap(read_var, dst, False, core.core, core.funcs)
                 return 0
             except:
                 return 1
@@ -2846,12 +2823,10 @@ cdef public api int vpy_getVariable(VSScript *se, const char *name, VSMap *dst) 
 cdef public api int vpy_setVariable(VSScript *se, const VSMap *vars) nogil:
     with gil:
         with _vsscript_use_environment(se.id).use():
-            if getVSAPIInternal() == NULL:
-                return 1
             evaldict = <dict>se.pyenvdict
             try:     
                 core = vsscript_get_core_internal(_get_vsscript_policy().get_environment(se.id))
-                new_vars = mapToDict(vars, False, False, core.core, getVSAPIInternal())
+                new_vars = mapToDict(vars, False, False, core.core, core.funcs)
                 for key in new_vars:
                     evaldict[key] = new_vars[key]
                 return 0
