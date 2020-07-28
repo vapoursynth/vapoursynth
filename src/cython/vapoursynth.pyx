@@ -388,7 +388,7 @@ _EMPTY = []
 AlphaOutputTuple = namedtuple("AlphaOutputTuple", "clip alpha")
 
 def _construct_type(signature):
-    name,type,*opt = signature.split(":")
+    type,*opt = signature.split(":")
 
     # Handle Arrays.
     if type.endswith("[]"):
@@ -428,9 +428,10 @@ def _construct_type(signature):
     return type
 
 def _construct_parameter(signature):
+    name, signature = signature.split(":", 1)
     type = _construct_type(signature)
     
-    _, __,*opt = signature.split(":")
+    __,*opt = signature.split(":")
     if opt:
         default_value = None
     else:
