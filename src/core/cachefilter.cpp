@@ -25,22 +25,28 @@
 #include "cachefilter.h"
 
 VSCache::CacheAction VSCache::recommendSize() {
-    // fixme, constants pulled out of my ass
     int total = hits + nearMiss + farMiss;
-
-    if (total == 0)
+ 
+    if (total == 0) {
+#ifdef VS_CACHE_DEBUG
+        fprintf(stderr, "Cache (%p) stats (clear): total: %d, far miss: %d, near miss: %d, hits: %d, size: %d\n", (void *)this, total, farMiss, nearMiss, hits, maxSize);
+#endif
         return caClear;
+    }
 
     if (total < 30) {
-        clearStats();
+#ifdef VS_CACHE_DEBUG
+        fprintf(stderr, "Cache (%p) stats (keep low total): total: %d, far miss: %d, near miss: %d, hits: %d, size: %d\n", (void *)this, total, farMiss, nearMiss, hits, maxSize);
+#endif
         return caNoChange; // not enough requests to know what to do so keep it this way
     }
 
-    bool shrink = (nearMiss == 0 && hits == 0 && ((farMiss * 10) / total >= 9));
-    bool grow = ((nearMiss * 10) / total >= 1);
+    bool shrink = (nearMiss == 0 && hits == 0); // shrink if there were no hits or even close to hittin
+    bool grow = ((nearMiss * 20) >= total); // grow if 5% or more are near misses
 #ifdef VS_CACHE_DEBUG
-    vsWarning("Cache (%p) stats (%s): %d %d %d %d, size: %d", (void *)this, shrink ? "shrink" : (grow ? "grow" : "keep"), total, farMiss, nearMiss, hits, maxSize);
+    fprintf(stderr, "Cache (%p) stats (%s): total: %d, far miss: %d, near miss: %d, hits: %d, size: %d\n", (void *)this, shrink ? "shrink" : (grow ? "grow" : "keep"), total, farMiss, nearMiss, hits, maxSize);
 #endif
+
     if (grow) { // growing the cache would be beneficial
         clearStats();
         return caGrow;
@@ -124,25 +130,25 @@ void VSCache::adjustSize(bool needMemory) {
         if (!needMemory) {
             switch (recommendSize()) {
             case VSCache::caClear:
+                setMaxFrames(std::max(getMaxFrames() - 2, 0));
                 clear();
                 break;
             case VSCache::caGrow:
                 setMaxFrames(getMaxFrames() + 2);
                 break;
             case VSCache::caShrink:
-                setMaxFrames(std::max(getMaxFrames() - 1, 1));
+                setMaxFrames(std::max(getMaxFrames() - 1, 0));
                 break;
             default:;
             }
         } else {
             switch (recommendSize()) {
             case VSCache::caClear:
+                setMaxFrames(std::max(getMaxFrames() - 2, 0));
                 clear();
                 break;
             case VSCache::caShrink:
-                if (getMaxFrames() <= 2)
-                    clear();
-                setMaxFrames(std::max(getMaxFrames() - 2, 1));
+                setMaxFrames(std::max(getMaxFrames() - 2, 0));
                 break;
             case VSCache::caNoChange:
                 if (getMaxFrames() <= 1)
@@ -226,7 +232,7 @@ static void VS_CC createCacheFilter(const VSMap *in, VSMap *out, void *userData,
     else if (c->makeLinear)
         c->cache.setMaxFrames(std::max((c->numThreads + extraFrames) * 2, 20 + c->numThreads));
     else
-        c->cache.setMaxFrames(20 + c->numThreads);
+        c->cache.setMaxFrames(20);
 
     if (userData)
         vsapi->createAudioFilter(out, ("AudioCache" + std::to_string(cacheId++)).c_str(), vsapi->getAudioInfo(node), 1, cacheGetframe, cacheFree, c->makeLinear ? fmUnorderedLinear : fmUnordered, nfNoCache | nfIsCache, c, core);
