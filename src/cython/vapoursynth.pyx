@@ -78,6 +78,7 @@ __api_version__ = namedtuple("VapourSynthAPIVersion", "api_major api_minor")(VAP
 
 @final
 cdef class EnvironmentData(object):
+    cdef bool alive = True
     cdef Core core
     cdef dict outputs
     cdef dict options
@@ -103,7 +104,8 @@ class EnvironmentPolicy(object):
         raise NotImplementedError
 
     def is_active(self, environment):
-        raise NotImplementedError
+        cdef EnvironmentData env = <EnvironmentData>environment
+        env.alive = False
 
 
 @final
@@ -168,6 +170,9 @@ cdef class EnvironmentPolicyAPI:
         env.options = {}
 
         return env
+
+    def destroy_environment(self, EnvironmentData env):
+        env.alive = False
 
     def unregister_policy(self):
         self.ensure_policy_matches()
