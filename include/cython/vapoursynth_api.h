@@ -18,6 +18,8 @@ static int (*__pyx_api_f_11vapoursynth_vpy4_evaluateBuffer)(VSScript *, char con
 #define vpy4_evaluateBuffer __pyx_api_f_11vapoursynth_vpy4_evaluateBuffer
 static int (*__pyx_api_f_11vapoursynth_vpy4_evaluateFile)(VSScript *, char const *, VSMap const *, VSScriptOptions const *) = 0;
 #define vpy4_evaluateFile __pyx_api_f_11vapoursynth_vpy4_evaluateFile
+static int (*__pyx_api_f_11vapoursynth_vpy4_clearLogHandler)(VSScript *) = 0;
+#define vpy4_clearLogHandler __pyx_api_f_11vapoursynth_vpy4_clearLogHandler
 static void (*__pyx_api_f_11vapoursynth_vpy4_freeScript)(VSScript *) = 0;
 #define vpy4_freeScript __pyx_api_f_11vapoursynth_vpy4_freeScript
 static char *(*__pyx_api_f_11vapoursynth_vpy4_getError)(VSScript *) = 0;
@@ -121,6 +123,7 @@ static int import_vapoursynth(void) {
   if (__Pyx_ImportFunction(module, "vpy_evaluateFile", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy_evaluateFile, "int (VSScript *, char const *, int)") < 0) goto bad;
   if (__Pyx_ImportFunction(module, "vpy4_evaluateBuffer", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy4_evaluateBuffer, "int (VSScript *, char const *, char const *, VSMap const *, VSScriptOptions const *)") < 0) goto bad;
   if (__Pyx_ImportFunction(module, "vpy4_evaluateFile", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy4_evaluateFile, "int (VSScript *, char const *, VSMap const *, VSScriptOptions const *)") < 0) goto bad;
+  if (__Pyx_ImportFunction(module, "vpy4_clearLogHandler", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy4_clearLogHandler, "int (VSScript *)") < 0) goto bad;
   if (__Pyx_ImportFunction(module, "vpy4_freeScript", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy4_freeScript, "void (VSScript *)") < 0) goto bad;
   if (__Pyx_ImportFunction(module, "vpy4_getError", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy4_getError, "char *(VSScript *)") < 0) goto bad;
   if (__Pyx_ImportFunction(module, "vpy4_getOutput", (void (**)(void))&__pyx_api_f_11vapoursynth_vpy4_getOutput, "VSNodeRef *(VSScript *, int)") < 0) goto bad;
