@@ -774,7 +774,7 @@ static int VS_CC getOutputIndex(VSFrameContext *frameCtx) VS_NOEXCEPT {
     return frameCtx->index;
 }
 
-static void VS_CC setMessageHandler(VSMessageHandler handler, void *userData) VS_NOEXCEPT {
+static void VS_CC setMessageHandler(VSLogHandler handler, void *userData) VS_NOEXCEPT {
     vsSetMessageHandler3(handler, userData);
 }
 
@@ -843,21 +843,21 @@ static void VS_CC logMessage(int msgType, const char *msg, VSCore *core) VS_NOEX
     core->logMessage(static_cast<VSMessageType>(msgType), msg);
 }
 
-static void *VS_CC addMessageHandler(VSMessageHandler handler, VSMessageHandlerFree free, void *userData, VSCore *core) VS_NOEXCEPT {
+static VSLogHandle *VS_CC addLogHandler(VSLogHandler handler, VSLogHandlerFree free, void *userData, VSCore *core) VS_NOEXCEPT {
     assert(handler && core);
-    return core->addMessageHandler(handler, free, userData);
+    return core->addLogHandler(handler, free, userData);
 }
 
-static int VS_CC removeMessageHandler(void *handle, VSCore *core) VS_NOEXCEPT {
+static int VS_CC removeLogHandler(VSLogHandle *handle, VSCore *core) VS_NOEXCEPT {
     assert(handle && core);
-    return core->removeMessageHandler(reinterpret_cast<VSMessageHandlerRecord *>(handle));
+    return core->removeLogHandler(reinterpret_cast<VSLogHandle *>(handle));
 }
 
 static void VS_CC logMessage3(int msgType, const char *msg) VS_NOEXCEPT {
     vsLog3(static_cast<vs3::VSMessageType>(msgType), "%s", msg);
 }
 
-static int VS_CC addMessageHandler3(VSMessageHandler handler, VSMessageHandlerFree free, void *userData) VS_NOEXCEPT {
+static int VS_CC addMessageHandler3(VSLogHandler handler, VSLogHandlerFree free, void *userData) VS_NOEXCEPT {
     return vsAddMessageHandler3(handler, free, userData);
 }
 
@@ -1113,8 +1113,8 @@ const VSAPI vs_internal_vsapi = {
     &getAPIVersion,
 
     &logMessage,
-    &addMessageHandler,
-    &removeMessageHandler,
+    &addLogHandler,
+    &removeLogHandler,
 
     &getNodeCreationFunctionName,
     &getNodeCreationFunctionArguments,

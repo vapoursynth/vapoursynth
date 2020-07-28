@@ -875,11 +875,11 @@ public:
     void getFunctions3(VSMap *out) const;
 };
 
-struct VSMessageHandlerRecord {
-    VSMessageHandler handler;
-    VSMessageHandlerFree freeFunc;
+struct VSLogHandle {
+    VSLogHandler handler;
+    VSLogHandlerFree freeFunc;
     void *userData;
-    ~VSMessageHandlerRecord() {
+    ~VSLogHandle() {
         if (freeFunc)
             freeFunc(userData);
     }
@@ -912,7 +912,7 @@ private:
     void registerFormats();
 
     std::mutex logMutex;
-    std::set<VSMessageHandlerRecord *> messageHandlers;
+    std::set<VSLogHandle *> messageHandlers;
 public:
     VSThreadPool *threadPool;
     MemoryUse *memory;
@@ -937,8 +937,8 @@ public:
     static bool isValidVideoInfo(const VSVideoInfo &vi) noexcept;
     static bool isValidAudioInfo(const VSAudioInfo &ai) noexcept;
 
-    VSMessageHandlerRecord *addMessageHandler(VSMessageHandler handler, VSMessageHandlerFree free, void *userData);
-    bool removeMessageHandler(VSMessageHandlerRecord *rec);
+    VSLogHandle *addLogHandler(VSLogHandler handler, VSLogHandlerFree free, void *userData);
+    bool removeLogHandler(VSLogHandle *rec);
     void logMessage(VSMessageType type, const char *msg);
     void logMessage(VSMessageType type, const std::string &msg);
     [[noreturn]] void logFatal(const char *msg);

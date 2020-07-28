@@ -164,6 +164,8 @@ namespace vs3 {
     typedef void (VS_CC *VSInitPlugin)(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
     typedef void (VS_CC *VSFilterInit)(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI3 *vsapi);
     typedef const VSFrameRef *(VS_CC *VSFilterGetFrame)(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI3 *vsapi);
+    typedef void (VS_CC *VSMessageHandler)(int msgType, const char *msg, void *userData);
+    typedef void (VS_CC *VSMessageHandlerFree)(void *userData);
 
     /* other */
     typedef void (VS_CC *VSFrameDoneCallback)(void *userData, const VSFrameRef *f, int n, VSNodeRef *, const char *errorMsg);

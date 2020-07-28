@@ -30,8 +30,8 @@
 extern "C" {
 #endif
 
-void vsSetMessageHandler3(VSMessageHandler handler, void *userData);
-int vsAddMessageHandler3(VSMessageHandler handler, VSMessageHandlerFree free, void *userData);
+void vsSetMessageHandler3(vs3::VSMessageHandler handler, void *userData);
+int vsAddMessageHandler3(vs3::VSMessageHandler handler, vs3::VSMessageHandlerFree free, void *userData);
 int vsRemoveMessageHandler3(int id);
 void vsLog3(vs3::VSMessageType type, const char *msg, ...);
 

@@ -18,7 +18,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 #
 
-from vapoursynth cimport VSMessageHandler, VSMessageHandlerFree
+from vapoursynth cimport VSLogHandler, VSLogHandlerFree
 
 cdef extern from "include/VSScript4.h" nogil:
     enum:
@@ -29,7 +29,7 @@ cdef extern from "include/VSScript4.h" nogil:
     ctypedef struct VSScriptOptions:
         int size
         int coreCreationFlags
-        VSMessageHandler messageHandler
-        VSMessageHandlerFree messageHandlerFree
-        void *messageHandlerData
+        VSLogHandler logHandler
+        VSLogHandlerFree logHandlerFree
+        void *logHandlerData
         

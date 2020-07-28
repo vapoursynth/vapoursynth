@@ -251,6 +251,11 @@ VS_API(VSCore *) vsscript_getCore(VSScript *handle) VS_NOEXCEPT {
     return vpy4_getCore(handle);
 }
 
+static int VS_CC clearLogHandler(VSScript *handle) VS_NOEXCEPT {
+    std::lock_guard<std::mutex> lock(vsscriptlock);
+    return vpy4_clearLogHandler(handle);
+}
+
 // V3 API compatibility
 VS_API(const VSAPI *) vsscript_getVSApi(void) VS_NOEXCEPT {
     std::lock_guard<std::mutex> lock(vsscriptlock);
@@ -301,6 +306,7 @@ static VSSCRIPTAPI vsscript_api = {
     &getOutputAlphaNode,
     &getOptions,
     &vsscript_getCore,
+    &clearLogHandler,
     &vsscript_freeScript
 };
 

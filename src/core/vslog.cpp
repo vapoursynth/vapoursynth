@@ -30,8 +30,8 @@
 #include <vector>
 
 struct MessageHandler {
-    VSMessageHandler handler;
-    VSMessageHandlerFree free;
+    vs3::VSMessageHandler handler;
+    vs3::VSMessageHandlerFree free;
     void *userData;
 };
 
@@ -50,7 +50,7 @@ static int vsRemoveMessageHandlerInternal(int id) {
     return 0;
 }
 
-void vsSetMessageHandler3(VSMessageHandler handler, void *userData) {
+void vsSetMessageHandler3(vs3::VSMessageHandler handler, void *userData) {
     std::lock_guard<std::mutex> lock(logMutex);
     if (globalMessageHandler >= 0) {
         vsRemoveMessageHandlerInternal(globalMessageHandler);
@@ -62,7 +62,7 @@ void vsSetMessageHandler3(VSMessageHandler handler, void *userData) {
     }
 }
 
-int vsAddMessageHandler3(VSMessageHandler handler, VSMessageHandlerFree free, void *userData) {
+int vsAddMessageHandler3(vs3::VSMessageHandler handler, vs3::VSMessageHandlerFree free, void *userData) {
     assert(handler);
     std::lock_guard<std::mutex> lock(logMutex);
     messageHandlers.emplace(currentHandlerId, MessageHandler{ handler, free, userData });

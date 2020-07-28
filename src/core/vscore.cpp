@@ -1246,12 +1246,12 @@ bool VSCore::isValidFormatPointer(const void *f) {
     return false;
 }
 
-VSMessageHandlerRecord *VSCore::addMessageHandler(VSMessageHandler handler, VSMessageHandlerFree freeFunc, void *userData) {
+VSLogHandle *VSCore::addLogHandler(VSLogHandler handler, VSLogHandlerFree freeFunc, void *userData) {
     std::lock_guard<std::mutex> lock(logMutex);
-    return *(messageHandlers.insert(new VSMessageHandlerRecord{ handler, freeFunc, userData }).first);
+    return *(messageHandlers.insert(new VSLogHandle{ handler, freeFunc, userData }).first);
 }
 
-bool VSCore::removeMessageHandler(VSMessageHandlerRecord *rec) {
+bool VSCore::removeLogHandler(VSLogHandle *rec) {
     std::lock_guard<std::mutex> lock(logMutex);
     auto f = messageHandlers.find(rec);
     if (f != messageHandlers.end()) {
@@ -1939,7 +1939,7 @@ void VSCore::freeCore() {
     // Remove all message handlers on free to prevent a zombie core from crashing the whole application by calling a no longer usable
     // message handler
     while (!messageHandlers.empty())
-        removeMessageHandler(*messageHandlers.begin());
+        removeLogHandler(*messageHandlers.begin());
     // Release the extra filter instance that always keeps the core alive
     filterInstanceDestroyed();
 }

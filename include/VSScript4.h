@@ -37,10 +37,10 @@ typedef struct VSScriptOptions {
     /* Passed to createCore(), set to 0 to use the default options */
     int coreCreationFlags; 
 
-    /* Passed to addMessageHandler() right after a core is created if messageHandler is not NULL */
-    VSMessageHandler messageHandler;
-    VSMessageHandlerFree messageHandlerFree;
-    void *messageHandlerData;
+    /* Passed to addLogHandler() right after a core is created if messageHandler is not NULL */
+    VSLogHandler logHandler;
+    VSLogHandlerFree logHandlerFree;
+    void *logHandlerData;
 } VSScriptOptions;
 
 struct VSSCRIPTAPI {
@@ -88,6 +88,9 @@ struct VSSCRIPTAPI {
 
     /* The core is valid as long as the environment exists, will trigger core creation if necessary and returns NULL on failures */
     VSCore *(VS_CC *getCore)(VSScript *handle) VS_NOEXCEPT;
+
+    /* Unsets the logger specified in VSScriptOptions and does nothing if no logger was set, returns non-zero on success */
+    int (VS_CC *clearLogHandler)(VSScript *handle) VS_NOEXCEPT;
 
     void (VS_CC *freeScript)(VSScript *handle) VS_NOEXCEPT;
 };

@@ -76,6 +76,7 @@ typedef struct VSPlugin VSPlugin;
 typedef struct VSPluginFunction VSPluginFunction;
 typedef struct VSFuncRef VSFuncRef;
 typedef struct VSMap VSMap;
+typedef struct VSLogHandle VSLogHandle;
 typedef struct VSFrameContext VSFrameContext;
 typedef struct VSPLUGINAPI VSPLUGINAPI;
 typedef struct VSAPI VSAPI;
@@ -309,8 +310,8 @@ typedef void (VS_CC *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI
 
 /* Other */
 typedef void (VS_CC *VSFrameDoneCallback)(void *userData, const VSFrameRef *f, int n, VSNodeRef *node, const char *errorMsg);
-typedef void (VS_CC *VSMessageHandler)(int msgType, const char *msg, void *userData);
-typedef void (VS_CC *VSMessageHandlerFree)(void *userData);
+typedef void (VS_CC *VSLogHandler)(int msgType, const char *msg, void *userData);
+typedef void (VS_CC *VSLogHandlerFree)(void *userData);
 
 // FIXME, document return values and such in comments
 struct VSPLUGINAPI {
@@ -445,8 +446,8 @@ struct VSAPI {
 
     /* Message handler */
     void (VS_CC *logMessage)(int msgType, const char *msg, VSCore *core) VS_NOEXCEPT;
-    void *(VS_CC *addMessageHandler)(VSMessageHandler handler, VSMessageHandlerFree free, void *userData, VSCore *core) VS_NOEXCEPT;
-    int (VS_CC *removeMessageHandler)(void *handle, VSCore *core) VS_NOEXCEPT;
+    VSLogHandle *(VS_CC *addLogHandler)(VSLogHandler handler, VSLogHandlerFree free, void *userData, VSCore *core) VS_NOEXCEPT; /* free and userData can be NULL, returns a handle that can be passed to removeLogHandler */
+    int (VS_CC *removeLogHandler)(VSLogHandle *handle, VSCore *core) VS_NOEXCEPT; /* returns non-zero if successfully removed */
 
     /* 
      * NOT PART OF THE STABLE API!

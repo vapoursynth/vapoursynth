@@ -41,6 +41,8 @@ cdef extern from "include/VapourSynth4.h" nogil:
         pass
     ctypedef struct VSMap:
         pass
+    ctypedef struct VSLogHandle:
+        pass
     ctypedef struct VSFrameContext:
         pass
         
@@ -241,8 +243,8 @@ cdef extern from "include/VapourSynth4.h" nogil:
     ctypedef void (__stdcall *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI *vsapi)
    
     ctypedef void (__stdcall *VSFrameDoneCallback)(void *userData, const VSFrameRef *f, int n, VSNodeRef *node, const char *errorMsg)
-    ctypedef void (__stdcall *VSMessageHandler)(int msgType, const char *msg, void *userData)
-    ctypedef void (__stdcall *VSMessageHandlerFree)(void *userData)
+    ctypedef void (__stdcall *VSLogHandler)(int msgType, const char *msg, void *userData)
+    ctypedef void (__stdcall *VSLogHandlerFree)(void *userData)
 
     ctypedef struct VSPLUGINAPI:
         int getAPIVersion() nogil
@@ -373,7 +375,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         
         # Message handler
         void logMessage(int msgType, const char *msg, VSCore *core) nogil
-        void *addMessageHandler(VSMessageHandler handler, VSMessageHandlerFree free, void *userData, VSCore *core) nogil
-        bint removeMessageHandler(void *handle, VSCore *core) nogil
+        VSLogHandle *addLogHandler(VSLogHandler handler, VSLogHandlerFree free, void *userData, VSCore *core) nogil
+        bint removeLogHandler(VSLogHandle *handle, VSCore *core) nogil
                 
     const VSAPI *getVapourSynthAPI(int version) nogil
