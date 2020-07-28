@@ -138,205 +138,14 @@ void VSFuncRef::call(const VSMap *in, VSMap *out) {
     func(in, out, userData, core, getVSAPIInternal(apiMajor));
 }
 
-///////////////
-
-static bool isWindowsLargePageBroken() {
-    // A Windows bug exists where a VirtualAlloc call immediately after VirtualFree
-    // yields a page that has not been zeroed. The returned page is asynchronously
-    // zeroed a few milliseconds later, resulting in memory corruption. The same bug
-    // allows VirtualFree to return before the page has been unmapped.
-    static const bool broken = []() -> bool {
-#ifdef VS_TARGET_OS_WINDOWS
-        size_t size = GetLargePageMinimum();
-
-        for (int i = 0; i < 100; ++i) {
-            void *ptr = VirtualAlloc(nullptr, size, MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES, PAGE_READWRITE);
-            if (!ptr)
-                return true;
-
-            for (size_t n = 0; n < 64; ++n) {
-                if (static_cast<uint8_t *>(ptr)[n]) {
-                    fprintf(stderr, "%s", "Windows 10 VirtualAlloc bug detected: update to version 1803+\n");
-                    return true;
-                }
-            }
-            memset(ptr, 0xFF, 64);
-
-            if (VirtualFree(ptr, 0, MEM_RELEASE) != TRUE)
-                return true;
-            if (!IsBadReadPtr(ptr, 1)) {
-                fprintf(stderr, "%s", "Windows 10 VirtualAlloc bug detected: update to version 1803+\n");
-                return true;
-            }
-        }
-#endif // VS_TARGET_OS_WINDOWS
-        return false;
-    }();
-    return broken;
-}
-
-/* static */ bool MemoryUse::largePageSupported() {
-    // Disable large pages on 32-bit to avoid memory fragmentation.
-    if (sizeof(void *) < 8)
-        return false;
-
-    static const bool supported = []() -> bool {
-#ifdef VS_TARGET_OS_WINDOWS
-        HANDLE token = INVALID_HANDLE_VALUE;
-        TOKEN_PRIVILEGES priv = {};
-
-        if (!(OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &token)))
-            return false;
-
-        if (!(LookupPrivilegeValue(nullptr, SE_LOCK_MEMORY_NAME, &priv.Privileges[0].Luid))) {
-            CloseHandle(token);
-            return false;
-        }
-
-        priv.PrivilegeCount = 1;
-        priv.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-
-        if (!(AdjustTokenPrivileges(token, FALSE, &priv, 0, nullptr, 0))) {
-            CloseHandle(token);
-            return false;
-        }
-
-        CloseHandle(token);
-        return true;
-#else
-        return false;
-#endif // VS_TARGET_OS_WINDOWS
-    }();
-    return supported;
-}
-
-/* static */ size_t MemoryUse::largePageSize() {
-    static const size_t size = []() -> size_t {
-#ifdef VS_TARGET_OS_WINDOWS
-        return GetLargePageMinimum();
-#else
-        return 2 * (1UL << 20);
-#endif
-    }();
-    return size;
-}
-
-void *MemoryUse::allocateLargePage(size_t bytes) const {
-    if (!largePageEnabled)
-        return nullptr;
-
-    size_t granularity = largePageSize();
-    size_t allocBytes = VSFrameRef::alignment + bytes;
-    allocBytes = (allocBytes + (granularity - 1)) & ~(granularity - 1);
-    assert(allocBytes % granularity == 0);
-
-    // Don't allocate a large page if it would conflict with the buffer recycling logic.
-    if (!isGoodFit(bytes, allocBytes - VSFrameRef::alignment))
-        return nullptr;
-
-    void *ptr = nullptr;
-#ifdef VS_TARGET_OS_WINDOWS
-    ptr = VirtualAlloc(nullptr, allocBytes, MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES, PAGE_READWRITE);
-#else
-    ptr = vsh_aligned_malloc(allocBytes, VSFrameRef::alignment);
-#endif
-    if (!ptr)
-        return nullptr;
-
-    BlockHeader *header = new (ptr) BlockHeader;
-    header->size = allocBytes - VSFrameRef::alignment;
-    header->large = true;
-    return ptr;
-}
-
-void MemoryUse::freeLargePage(void *ptr) const {
-#ifdef VS_TARGET_OS_WINDOWS
-    VirtualFree(ptr, 0, MEM_RELEASE);
-#else
-    vsh_aligned_free(ptr);
-#endif
-}
-
-void *MemoryUse::allocateMemory(size_t bytes) const {
-    void *ptr = allocateLargePage(bytes);
-    if (ptr)
-        return ptr;
-
-    ptr = vsh_aligned_malloc(VSFrameRef::alignment + bytes, VSFrameRef::alignment);
-    if (!ptr)
-        VS_FATAL_ERROR("out of memory");
-
-    BlockHeader *header = new (ptr) BlockHeader;
-    header->size = bytes;
-    header->large = false;
-    return ptr;
-}
-
-void MemoryUse::freeMemory(void *ptr) const {
-    const BlockHeader *header = static_cast<const BlockHeader *>(ptr);
-    if (header->large)
-        freeLargePage(ptr);
-    else
-        vsh_aligned_free(ptr);
-}
-
-bool MemoryUse::isGoodFit(size_t requested, size_t actual) const {
-    return actual <= requested + requested / 8;
-}
-
 void MemoryUse::add(size_t bytes) {
-    used.fetch_add(bytes);
+    used.fetch_add(bytes, std::memory_order_relaxed);
 }
 
 void MemoryUse::subtract(size_t bytes) {
-    size_t tmp = used.fetch_sub(bytes) - bytes;
+    size_t tmp = used.fetch_sub(bytes, std::memory_order_relaxed) - bytes;
     if (freeOnZero && !tmp)
         delete this;
-}
-
-uint8_t *MemoryUse::allocBuffer(size_t bytes) {
-    std::lock_guard<std::mutex> lock(mutex);
-    auto iter = buffers.lower_bound(bytes);
-    if (iter != buffers.end()) {
-        if (isGoodFit(bytes, iter->first)) {
-            unusedBufferSize -= iter->first;
-            uint8_t *buf = iter->second;
-            buffers.erase(iter);
-            return buf + VSFrameRef::alignment;
-        }
-    }
-
-    uint8_t *buf = static_cast<uint8_t *>(allocateMemory(bytes));
-    return buf + VSFrameRef::alignment;
-}
-
-void MemoryUse::freeBuffer(uint8_t *buf) {
-    assert(buf);
-
-    std::lock_guard<std::mutex> lock(mutex);
-    buf -= VSFrameRef::alignment;
-
-    const BlockHeader *header = reinterpret_cast<const BlockHeader *>(buf);
-    if (!header->size)
-        VS_FATAL_ERROR("Memory corruption detected. Windows bug?");
-
-    buffers.emplace(std::make_pair(header->size, buf));
-    unusedBufferSize += header->size;
-
-    size_t memoryUsed = used;
-    while (memoryUsed + unusedBufferSize > maxMemoryUse && !buffers.empty()) {
-        if (!memoryWarningIssued) {
-            //vsWarning("Script exceeded memory limit. Consider raising cache size.");
-            memoryWarningIssued = true;
-        }
-        std::uniform_int_distribution<size_t> randSrc(0, buffers.size() - 1);
-        auto iter = buffers.begin();
-        std::advance(iter, randSrc(generator));
-        assert(unusedBufferSize >= iter->first);
-        unusedBufferSize -= iter->first;
-        freeMemory(iter->second);
-        buffers.erase(iter);
-    }
 }
 
 size_t MemoryUse::memoryUse() {
@@ -344,19 +153,17 @@ size_t MemoryUse::memoryUse() {
 }
 
 size_t MemoryUse::getLimit() {
-    std::lock_guard<std::mutex> lock(mutex);
-    return maxMemoryUse;
+    return maxMemoryUse.load(std::memory_order_relaxed);
 }
 
 int64_t MemoryUse::setMaxMemoryUse(int64_t bytes) {
-    std::lock_guard<std::mutex> lock(mutex);
     if (bytes > 0 && static_cast<uint64_t>(bytes) <= SIZE_MAX)
-        maxMemoryUse = static_cast<size_t>(bytes);
+        maxMemoryUse.store(static_cast<size_t>(bytes), std::memory_order_seq_cst);
     return maxMemoryUse;
 }
 
 bool MemoryUse::isOverLimit() {
-    return used > maxMemoryUse;
+    return used.load(std::memory_order_relaxed) > maxMemoryUse.load(std::memory_order_relaxed);
 }
 
 void MemoryUse::signalFree() {
@@ -365,17 +172,7 @@ void MemoryUse::signalFree() {
         delete this;
 }
 
-MemoryUse::MemoryUse() : used(0), freeOnZero(false), largePageEnabled(largePageSupported()), memoryWarningIssued(false), unusedBufferSize(0) {
-    assert(VSFrameRef::alignment >= sizeof(BlockHeader));
-
-    // If the Windows VirtualAlloc bug is present, it is not safe to use large pages by default,
-    // because another application could trigger the bug.
-    //if (isWindowsLargePageBroken())
-    //    largePageEnabled = false;
-
-    // Always disable large pages at the moment
-    largePageEnabled = false;
-
+MemoryUse::MemoryUse() : used(0), freeOnZero(false) {
     // 1GB
     setMaxMemoryUse(1024 * 1024 * 1024);
 
@@ -384,19 +181,10 @@ MemoryUse::MemoryUse() : used(0), freeOnZero(false), largePageEnabled(largePageS
         setMaxMemoryUse(static_cast<int64_t>(4) * 1024 * 1024 * 1024);
 }
 
-MemoryUse::~MemoryUse() {
-    for (auto &iter : buffers)
-        freeMemory(iter.second);
-}
-
 ///////////////
 
-VSPlaneData::VSPlaneData(size_t dataSize, MemoryUse &mem) : refcount(1), mem(mem), size(dataSize + 2 * VSFrameRef::guardSpace) {
-#ifdef VS_FRAME_POOL
-    data = mem.allocBuffer(size + 2 * VSFrameRef::guardSpace);
-#else
+VSPlaneData::VSPlaneData(size_t dataSize, MemoryUse &mem) noexcept : refcount(1), mem(mem), size(dataSize + 2 * VSFrameRef::guardSpace) {
     data = vsh_aligned_malloc<uint8_t>(size + 2 * VSFrameRef::guardSpace, VSFrameRef::alignment);
-#endif
     assert(data);
     if (!data)
         VS_FATAL_ERROR("Failed to allocate memory for plane. Out of memory.");
@@ -410,12 +198,8 @@ VSPlaneData::VSPlaneData(size_t dataSize, MemoryUse &mem) : refcount(1), mem(mem
 #endif
 }
 
-VSPlaneData::VSPlaneData(const VSPlaneData &d) : refcount(1), mem(d.mem), size(d.size) {
-#ifdef VS_FRAME_POOL
-    data = mem.allocBuffer(size);
-#else
+VSPlaneData::VSPlaneData(const VSPlaneData &d) noexcept : refcount(1), mem(d.mem), size(d.size) {
     data = vsh_aligned_malloc<uint8_t>(size, VSFrameRef::alignment);
-#endif
     assert(data);
     if (!data)
         VS_FATAL_ERROR("Failed to allocate memory for plane in copy constructor. Out of memory.");
@@ -425,11 +209,7 @@ VSPlaneData::VSPlaneData(const VSPlaneData &d) : refcount(1), mem(d.mem), size(d
 }
 
 VSPlaneData::~VSPlaneData() {
-#ifdef VS_FRAME_POOL
-    mem.freeBuffer(data);
-#else
     vsh_aligned_free(data);
-#endif
     mem.subtract(size);
 }
 
