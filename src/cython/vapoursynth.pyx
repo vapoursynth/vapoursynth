@@ -2664,10 +2664,7 @@ cdef int _vpy_evaluate(VSScript *se, bytes script, str filename, const VSScriptO
 cdef public api int vpy_createScript(VSScript *se) nogil:
     with gil:
         try:
-            evaldict = {}
-            Py_INCREF(evaldict)
-            se.pyenvdict = <void *>evaldict
-
+            _vpy_replace_evaldict(se, {})
             _get_vsscript_policy()._make_environment(<int>se.id, NULL)
 
         except:
@@ -2710,11 +2707,11 @@ cdef public api int vpy_evaluateFile(VSScript *se, const char *scriptFilename, i
             return 1
 
 cdef public api int vpy4_evaluateBuffer(VSScript *se, const char *buffer, const char *scriptFilename, const VSMap *vars, const VSScriptOptions *options) nogil:
-    # fixme, actually use the options
     with gil:
-        try:          
-            evaldict = {}
-            _vpy_replace_evaldict(se, evaldict)
+        try:
+            if not se.evaldict:
+                _vpy_replace_evaldict(se, {})
+            evaldict = <dict>se.evaldict
             
             if buffer == NULL:
                 raise RuntimeError("NULL buffer passed.")
@@ -2742,9 +2739,6 @@ cdef public api int vpy4_evaluateBuffer(VSScript *se, const char *buffer, const 
 
 cdef public api int vpy4_evaluateFile(VSScript *se, const char *scriptFilename, const VSMap *vars, const VSScriptOptions *options) nogil:
     with gil:
-        evaldict = {}
-        Py_INCREF(evaldict)
-        se.pyenvdict = <void *>evaldict
         try:
             if scriptFilename == NULL:
                 raise RuntimeError("NULL scriptFilename passed.")
