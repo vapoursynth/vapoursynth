@@ -2552,12 +2552,15 @@ cdef class VSScriptEnvironmentPolicy:
         return previous
 
     cdef EnvironmentData _make_environment(self, int script_id, const VSScriptOptions* options):
+        # Get flags from options.
         flags = 0
         if options != NULL:
             flags = options.coreCreationFlags
 
         env = self._api.create_environment(flags)
-        if options.logHandler != NULL:
+
+        # Apply additional options
+        if options != NULL and options.logHandler != NULL:
             _set_logger(env, options.logHandler, options.logHandlerFree, options.logHandlerData)
 
         self._env_map[script_id] = env
@@ -2764,6 +2767,10 @@ cdef public api int vpy4_evaluateFile(VSScript *se, const char *scriptFilename, 
             
 cdef public api int vpy4_clearLogHandler(VSScript *se) nogil:
     with gil:
+        if not _get_vsscript_policy().has_environment(se.id):
+            return 1
+
+        _unset_logger(_get_vsscript_policy().get_environment(se.id))
         return 0
 
 cdef public api void vpy4_freeScript(VSScript *se) nogil:
