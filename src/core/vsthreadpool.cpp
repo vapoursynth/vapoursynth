@@ -176,7 +176,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Figure out the activation reason
 
-            VSActivationReason ar = arInitial;
+            int ar = arInitial;
             bool skipCall = false; // Used to avoid multiple error calls for the same frame request going into a filter
             if ((leafContext && leafContext->hasError()) || mainContext->hasError()) {
                 ar = arError;
@@ -184,9 +184,9 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 --mainContext->numFrameRequests;
             } else if (leafContext && leafContext->returnedFrame) {
                 if (--mainContext->numFrameRequests > 0)
-                    ar = static_cast<VSActivationReason>(vs3::arFrameReady);
+                    ar = vs3::arFrameReady;
                 else
-                    ar = (clip->apiMajor == 3) ? static_cast<VSActivationReason>(vs3::arAllFramesReady) : arAllFramesReady;
+                    ar = (clip->apiMajor == 3) ? vs3::arAllFramesReady : arAllFramesReady;
 
                 mainContext->availableFrames.push_back(std::make_pair(NodeOutputKey(leafContext->clip, leafContext->n, leafContext->index), leafContext->returnedFrame));
                 mainContext->lastCompletedN = leafContext->n;
