@@ -129,8 +129,8 @@ void VSCache::adjustSize(bool needMemory) {
         if (!needMemory) {
             switch (recommendSize()) {
             case VSCache::caClear:
-                setMaxFrames(std::max(getMaxFrames() - 2, 0));
                 clear();
+                setMaxFrames(std::max(getMaxFrames() - 2, 0));
                 break;
             case VSCache::caGrow:
                 setMaxFrames(getMaxFrames() + 2);
@@ -143,8 +143,8 @@ void VSCache::adjustSize(bool needMemory) {
         } else {
             switch (recommendSize()) {
             case VSCache::caClear:
-                setMaxFrames(std::max(getMaxFrames() - 2, 0));
                 clear();
+                setMaxFrames(std::max(getMaxFrames() - 2, 0));
                 break;
             case VSCache::caShrink:
                 setMaxFrames(std::max(getMaxFrames() - 2, 0));
