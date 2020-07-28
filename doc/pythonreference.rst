@@ -642,16 +642,15 @@ Classes and Functions
    
    .. py:method:: get_current_environment()
 
-      This method is called by the module to detect which environment is currently running in the current context.
+      This method is called by the module to detect which environment is currently running in the current context. If None is returned, it means that no environment is currently active.
 
       :returns: An :class:`EnvironmentData`-object representing the currently active environment in the current context.
 
    .. py:method:: set_environment(environment)
 
-      This method is called by the module to change the currently active environment. May be passed None. In this case,
-      the environment can choose what environment to switch to (if any).
+      This method is called by the module to change the currently active environment. If None is passed to this function the policy may switch to another environment of its choosing.
 
-      Note: The function is responsible to check whether or not the environment is alive. If a dead environment is passed, it should act like None has been passed instead of the dead environment.
+      Note: The function is responsible to check whether or not the environment is alive. If a dead environment is passed, it should act like None has been passed instead of the dead environment but must never error.
 
       :param environment: The :class:`EnvironmentData` to enable in the current context.
       :returns: The environment that was enabled previously.
