@@ -828,7 +828,7 @@ cdef void dictToMap(dict ndict, VSMap *inm, bint simpleTypesOnly, VSCore *core, 
                 if funcs.mapSetFloat(inm, ckey, float(v), 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif isinstance(v, str):
-                s = str(v).encode('utf-8')
+                s = v.encode('utf-8')
             elif funcs.mapSetData(inm, ckey, s, -1, dtUtf8, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif isinstance(v, (bytes, bytearray)):
@@ -1077,7 +1077,7 @@ cdef class FrameProps(object):
                     if funcs.mapSetFloat(m, b, float(v), 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif isinstance(v, str):
-                    s = str(v).encode('utf-8')
+                    s = v.encode('utf-8')
                     if funcs.mapSetData(m, b, s, -1, dtUtf8, 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif isinstance(v, (bytes, bytearray)):
