@@ -172,6 +172,8 @@ cdef class EnvironmentPolicyAPI:
         return env
 
     def destroy_environment(self, EnvironmentData env):
+        self.ensure_policy_matches()
+
         env.alive = False
         env.outputs = {}
 
