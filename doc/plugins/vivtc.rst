@@ -20,8 +20,7 @@ It is a rewrite of some of tritical's TIVTC filters.
       import vapoursynth as vs
       import functools
 
-      core = vs.get_core()
-      input_clip = core.std.BlankClip(format=vs.YUV420P8, length=1000, color=[255, 128, 128])
+      input_clip = vs.core.std.BlankClip(format=vs.YUV420P8, length=1000, color=[255, 128, 128])
 
       def postprocess(n, f, clip, deinterlaced):
          if f.props['_Combed'] > 0:
@@ -29,10 +28,10 @@ It is a rewrite of some of tritical's TIVTC filters.
          else:
             return clip
 
-      matched_clip = core.vivtc.VFM(input_clip, 1)
-      deinterlaced_clip = core.eedi3.eedi3(matched_clip, field=1)
-      postprocessed_clip = core.std.FrameEval(matched_clip, functools.partial(postprocess, clip=matched_clip, deinterlaced=deinterlaced_clip), prop_src=matched_clip)
-      decimated_clip = core.vivtc.VDecimate(postprocessed_clip)
+      matched_clip = vs.core.vivtc.VFM(input_clip, 1)
+      deinterlaced_clip = vs.core.eedi3.eedi3(matched_clip, field=1)
+      postprocessed_clip = vs.core.std.FrameEval(matched_clip, functools.partial(postprocess, clip=matched_clip, deinterlaced=deinterlaced_clip), prop_src=matched_clip)
+      decimated_clip = vs.core.vivtc.VDecimate(postprocessed_clip)
       decimated_clip.set_output()
 
    VFM adds the following properties to every frame it outputs:
@@ -241,8 +240,8 @@ It is a rewrite of some of tritical's TIVTC filters.
          chosen fields from *clip2*. This can be used to work around VFM's video
          format limitations. For example if you have a YUV444P16 input clip::
 
-            yv12 = core.resize.Bicubic(clip=original, format=vs.YUV420P8)
-            fieldmatched = core.vivtc.VFM(clip=yv12, order=1, chroma=False, clip2=original)
+            yv12 = vs.core.resize.Bicubic(clip=original, format=vs.YUV420P8)
+            fieldmatched = vs.core.vivtc.VFM(clip=yv12, order=1, chroma=False, clip2=original)
 
          .. note::
             In this example chroma is ignored because the used conversion to YUV420P8

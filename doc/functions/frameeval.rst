@@ -26,16 +26,15 @@ FrameEval
       import vapoursynth as vs
       import functools
 
-      core = vs.get_core()
-      base_clip = core.std.BlankClip(format=vs.YUV420P8, length=1000, color=[255, 128, 128])
+      base_clip = vs.core.std.BlankClip(format=vs.YUV420P8, length=1000, color=[255, 128, 128])
 
       def animator(n, clip):
          if n > 255:
             return clip
          else:
-            return core.std.BlankClip(format=vs.YUV420P8, length=1000, color=[n, 128, 128])
+            return vs.core.std.BlankClip(format=vs.YUV420P8, length=1000, color=[n, 128, 128])
 
-      animated_clip = core.std.FrameEval(base_clip, functools.partial(animator, clip=base_clip))
+      animated_clip = vs.core.std.FrameEval(base_clip, functools.partial(animator, clip=base_clip))
       animated_clip.set_output()
 
    How to perform a simple per frame auto white balance. It shows how to access
@@ -61,16 +60,14 @@ FrameEval
          return core.std.Expr(clip, expr=['x ' + repr(r_gain) + ' *', 'x ' + repr(g_gain) + ' *', 'x ' + repr(b_gain) + ' *'])
 
       def GrayWorld1(clip, matrix_s=None):
-         core = vs.get_core()
-         rgb_clip = core.resize.Bilinear(clip, format=vs.RGB24)
-         r_avg = core.std.PlaneStats(rgb_clip, plane=0)
-         g_avg = core.std.PlaneStats(rgb_clip, plane=1)
-         b_avg = core.std.PlaneStats(rgb_clip, plane=2)
-         adjusted_clip = core.std.FrameEval(rgb_clip, functools.partial(GrayWorld1Adjust, clip=rgb_clip, core=core), prop_src=[r_avg, g_avg, b_avg])
-         return core.resize.Bilinear(adjusted_clip, format=clip.format.id, matrix_s=matrix_s)
+         rgb_clip = vs.core.resize.Bilinear(clip, format=vs.RGB24)
+         r_avg = vs.core.std.PlaneStats(rgb_clip, plane=0)
+         g_avg = vs.core.std.PlaneStats(rgb_clip, plane=1)
+         b_avg = vs.core.std.PlaneStats(rgb_clip, plane=2)
+         adjusted_clip = vs.core.std.FrameEval(rgb_clip, functools.partial(GrayWorld1Adjust, clip=rgb_clip, core=vs.core), prop_src=[r_avg, g_avg, b_avg])
+         return vs.core.resize.Bilinear(adjusted_clip, format=clip.format.id, matrix_s=matrix_s)
 
-      core = vs.get_core()
-      core.std.LoadPlugin(path='ffms2.dll')
-      main = core.ffms2.Source(source='...')
+      vs.core.std.LoadPlugin(path='ffms2.dll')
+      main = vs.core.ffms2.Source(source='...')
       main = GrayWorld1(main)
       main.set_output()
