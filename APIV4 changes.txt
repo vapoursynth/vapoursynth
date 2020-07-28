@@ -48,6 +48,7 @@ has been changed to void * to remove the pointless additional indirection. The v
 pointer now points to a scratch space of size void *[4] instead of only being a single pointer.
 This can be used to not have to allocate and free memory on every frame processed. See the Splice
 filter for an example of this.
+The arFrameReady events have been removed
 Filters will also no longer receive arFrameReady events unless the nfFrameReady flag is set.
 
 Audio filter support:

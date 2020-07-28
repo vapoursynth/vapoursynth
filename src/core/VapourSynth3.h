@@ -143,6 +143,13 @@ namespace vs3 {
         int flags;
     } VSVideoInfo;
 
+    typedef enum VSActivationReason {
+        arInitial = 0,
+        arFrameReady = 1,
+        arAllFramesReady = 2,
+        arError = -1
+    } VSActivationReason;
+
     typedef enum VSMessageType {
         mtDebug = 0,
         mtWarning = 1,

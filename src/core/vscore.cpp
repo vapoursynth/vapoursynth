@@ -854,19 +854,14 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilt
 VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
     refcount(numOutputs), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
 
-    if (flags & ~(nfNoCache | nfIsCache | nfMakeLinear | nfFrameReady))
+    if (flags & ~(nfNoCache | nfIsCache | nfMakeLinear))
         throw VSException("Filter " + name + " specified unknown flags");
 
     if ((flags & nfIsCache) && !(flags & nfNoCache))
         throw VSException("Filter " + name + " specified an illegal combination of flags (nfNoCache must always be set with nfIsCache)");
 
-    if (flags & nfFrameReady)
-        frameReadyNotify = true;
-
     if (numOutputs < 1)
         throw VSException("Filter " + name + " needs to have at least one output");
-
-
 
     this->vi.reserve(numOutputs);
     this->v3vi.reserve(numOutputs);
@@ -889,14 +884,11 @@ VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, int numOutputs, V
 VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
     refcount(numOutputs), nodeType(mtAudio), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
 
-    if (flags & ~(nfNoCache | nfIsCache | nfMakeLinear | nfFrameReady))
+    if (flags & ~(nfNoCache | nfIsCache | nfMakeLinear))
         throw VSException("Filter " + name + " specified unknown flags");
 
     if ((flags & nfIsCache) && !(flags & nfNoCache))
         throw VSException("Filter " + name + " specified an illegal combination of flags (nfNoCache must always be set with nfIsCache)");
-
-    if (flags & nfFrameReady)
-        frameReadyNotify = true;
 
     if (numOutputs < 1)
         throw VSException("Filter " + name + " needs to have at least one output");
@@ -1769,7 +1761,7 @@ void VSCore::destroyFilterInstance(VSNode *node) {
 
 VSCore::VSCore(int flags) :
     coreFreed(false),
-    enableGraphInspection(flags & cfEnableGraphInspection),
+    enableGraphInspection(flags & ccfEnableGraphInspection),
     numFilterInstances(1),
     numFunctionInstances(0),
     videoFormatIdOffset(1000),
@@ -1780,7 +1772,7 @@ VSCore::VSCore(int flags) :
         logFatal("Bad SSE state detected when creating new core");
 #endif
 
-    bool disableAutoLoading = !!(flags & cfDisableAutoLoading);
+    bool disableAutoLoading = !!(flags & ccfDisableAutoLoading);
     threadPool = new VSThreadPool(this);
 
     registerFormats();

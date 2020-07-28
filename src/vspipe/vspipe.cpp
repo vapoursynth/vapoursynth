@@ -913,7 +913,7 @@ int main(int argc, char **argv) {
 
     std::chrono::time_point<std::chrono::steady_clock> scriptEvaluationStart = std::chrono::steady_clock::now();
     
-    VSScriptOptions scriptOpts = { sizeof(VSScriptOptions), (opts.mode == vpmPrintSimpleGraph || opts.mode == vpmPrintFullGraph || opts.printFilterTime) ? cfEnableGraphInspection : 0, messageHandler, nullptr, nullptr };
+    VSScriptOptions scriptOpts = { sizeof(VSScriptOptions), (opts.mode == vpmPrintSimpleGraph || opts.mode == vpmPrintFullGraph || opts.printFilterTime) ? ccfEnableGraphInspection : 0, messageHandler, nullptr, nullptr };
 
     VSScript *se = nullptr;
     if (!opts.scriptArgs.empty()) {

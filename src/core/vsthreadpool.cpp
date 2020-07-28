@@ -184,7 +184,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 --mainContext->numFrameRequests;
             } else if (leafContext && leafContext->returnedFrame) {
                 if (--mainContext->numFrameRequests > 0)
-                    ar = arFrameReady;
+                    ar = static_cast<VSActivationReason>(vs3::arFrameReady);
                 else
                     ar = arAllFramesReady;
 

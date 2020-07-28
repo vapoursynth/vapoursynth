@@ -740,7 +740,7 @@ static void VS_CC freeFunc(VSFuncRef *f) VS_NOEXCEPT {
         f->release();
 }
 
-static void VS_CC queryCompletedFrame(VSNodeRef **node, int *n, VSFrameContext *frameCtx) VS_NOEXCEPT {
+static void VS_CC queryCompletedFrame3(VSNodeRef **node, int *n, VSFrameContext *frameCtx) VS_NOEXCEPT {
     assert(node && n && frameCtx);
     *node = frameCtx->lastCompletedNode;
     *n = frameCtx->lastCompletedN;
@@ -1040,7 +1040,6 @@ const VSAPI vs_internal_vsapi = {
     &getFrameAsync,
     &getFrameFilter,
     &requestFrameFilter,
-    &queryCompletedFrame,
     &releaseFrameEarly,
     &getOutputIndex,
     &setFilterError,
@@ -1158,7 +1157,7 @@ const vs3::VSAPI3 vs_internal_vsapi3 = {
     &getFrameAsync,
     &getFrameFilter,
     &requestFrameFilter,
-    &queryCompletedFrame,
+    &queryCompletedFrame3,
     &releaseFrameEarly,
 
     &getStride3,

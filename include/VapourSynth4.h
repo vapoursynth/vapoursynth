@@ -211,12 +211,10 @@ typedef struct VSAudioFormat {
 } VSAudioFormat;
 
 // FIXME, investigate nfMakeLinear and its usefulness or convert it into a filter mode
-// maybe don't export the internal only flags at all such as nfFrameReady in getNodeFlags
 typedef enum VSNodeFlags {
     nfNoCache    = 1,
     nfIsCache    = 2,
-    nfMakeLinear = 4,
-    nfFrameReady = 8
+    nfMakeLinear = 4
 } VSNodeFlags;
 
 typedef enum VSPropType {
@@ -235,8 +233,8 @@ typedef enum VSGetPropError {
     peSuccess = 0,
     peUnset   = 1, /* no key exists */
     peType    = 2, /* key exists but not of a compatible type */
-    peError   = 3, /* map has error state set */
-    peIndex   = 4  /* index out of bounds */
+    peIndex   = 4, /* index out of bounds */
+    peError   = 3  /* map has error state set */
 } VSGetPropError;
 
 typedef enum VSPropAppendMode {
@@ -271,7 +269,6 @@ typedef struct VSAudioInfo {
 
 typedef enum VSActivationReason {
     arInitial = 0,
-    arFrameReady = 1,
     arAllFramesReady = 2,
     arError = -1
 } VSActivationReason;
@@ -284,10 +281,10 @@ typedef enum VSMessageType {
     mtFatal = 4 /* also terminates the process, should generally not be used by normal filters */
 } VSMessageType;
 
-typedef enum VSCoreFlags {
-    cfDisableAutoLoading = 1,
-    cfEnableGraphInspection = 2
-} VSCoreFlags;
+typedef enum VSCoreCreationFlags {
+    ccfDisableAutoLoading = 1,
+    ccfEnableGraphInspection = 2
+} VSCoreCreationFlags;
 
 typedef enum VSPluginConfigFlags {
     pcModifiable = 1
@@ -369,7 +366,6 @@ struct VSAPI {
     void (VS_CC *getFrameAsync)(int n, VSNodeRef *node, VSFrameDoneCallback callback, void *userData) VS_NOEXCEPT; /* only for external applications using the core as a library or for requesting frames in a filter constructor, do not use inside a filter's getframe function */
     const VSFrameRef *(VS_CC *getFrameFilter)(int n, VSNodeRef *node, VSFrameContext *frameCtx) VS_NOEXCEPT; /* only use inside a filter's getframe function */
     void (VS_CC *requestFrameFilter)(int n, VSNodeRef *node, VSFrameContext *frameCtx) VS_NOEXCEPT; /* only use inside a filter's getframe function */
-    void (VS_CC *queryCompletedFrame)(VSNodeRef **node, int *n, VSFrameContext *frameCtx) VS_NOEXCEPT; /* only use inside a filter's getframe function */
     void (VS_CC *releaseFrameEarly)(VSNodeRef *node, int n, VSFrameContext *frameCtx) VS_NOEXCEPT; /* only use inside a filter's getframe function, unless this function is called a requested frame is kept in memory until the end of processing */
     int (VS_CC *getOutputIndex)(VSFrameContext *frameCtx) VS_NOEXCEPT; /* used to determine which output index is being requested for filters that output multiple nodes */
     void (VS_CC *setFilterError)(const char *errorMessage, VSFrameContext *frameCtx) VS_NOEXCEPT; /* used to signal errors in the filter getframe function */

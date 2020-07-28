@@ -177,8 +177,8 @@ cdef extern from "include/VapourSynth4.h" nogil:
     enum VSGetPropError:
         peUnset
         peType
-        peError
         peIndex
+        peError
 
     enum VSPropAppendMode:
         paReplace
@@ -208,7 +208,6 @@ cdef extern from "include/VapourSynth4.h" nogil:
 
     enum VSActivationReason:
         arInitial
-        arFrameReady
         arAllFramesReady
         arError
 
@@ -219,9 +218,9 @@ cdef extern from "include/VapourSynth4.h" nogil:
         mtCritical
         mtFatal
         
-    enum VSCoreFlags:
-        cfDisableAutoLoading
-        cfEnableGraphInspection
+    enum VSCoreCreationFlags:
+        ccfDisableAutoLoading
+        ccfEnableGraphInspection
 
     enum VSPluginConfigFlags:
         pcModifiable
@@ -297,7 +296,6 @@ cdef extern from "include/VapourSynth4.h" nogil:
         void getFrameAsync(int n, VSNodeRef *node, VSFrameDoneCallback callback, void *userData) nogil
         const VSFrameRef *getFrameFilter(int n, VSNodeRef *node, VSFrameContext *frameCtx) nogil
         void requestFrameFilter(int n, VSNodeRef *node, VSFrameContext *frameCtx) nogil
-        void queryCompletedFrame(VSNodeRef **node, int *n, VSFrameContext *frameCtx) nogil
         void releaseFrameEarly(VSNodeRef *node, int n, VSFrameContext *frameCtx) nogil
         int getOutputIndex(VSFrameContext *frameCtx) nogil
         void setFilterError(const char *errorMessage, VSFrameContext *frameCtx) nogil
