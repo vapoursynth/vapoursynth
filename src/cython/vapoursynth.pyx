@@ -942,7 +942,7 @@ cdef class VideoFormat(object):
         core = kwargs.pop("core", None) or _get_core()
         vals = self._as_dict()
         vals.update(**kwargs)
-        return core.register_format(**vals)
+        return core.query_video_format(**vals)
 
     def __eq__(self, other):
         if not isinstance(other, VideoFormat):
@@ -2158,20 +2158,28 @@ cdef class Core(object):
                 sout += line.replace('; )', ')')
         return sout
 
-    def register_format(self, int color_family, int sample_type, int bits_per_sample, int subsampling_w, int subsampling_h):
-        #fixme, underlying function is renamed and works differently
+    def query_video_format(self, int color_family, int sample_type, int bits_per_sample, int subsampling_w, int subsampling_h):
         cdef VSVideoFormat fmt
         if not self.funcs.queryVideoFormat(&fmt, color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h, self.core):
             raise Error('Invalid format specified')
         return createVideoFormat(&fmt, self.funcs, self.core)
 
-    def get_format(self, uint32_t id):
-        #fixme, underlying function is renamed and works differently
+    def register_format(self, int color_family, int sample_type, int bits_per_sample, int subsampling_w, int subsampling_h):
+        import warnings
+        warnings.warn("register_format() is deprecated. Use \"query_video_format\" instead.", DeprecationWarning)
+        return self.query_video_format(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h);
+
+    def get_video_format(self, uint32_t id):
         cdef VSVideoFormat fmt
-        if not self.funcs.queryVideoFormatByID(&fmt, id, self.core):
+        if not self.funcs.getVideoFormatByID(&fmt, id, self.core):
             raise Error('Invalid format id specified')
         else:
             return createVideoFormat(&fmt, self.funcs, self.core)
+
+    def get_format(self, uint32_t id):
+        import warnings
+        warnings.warn("get_format() is deprecated. Use \"get_video_format\" instead.", DeprecationWarning)
+        return self.get_video_format(id);
 
     def version(self):
         cdef VSCoreInfo v

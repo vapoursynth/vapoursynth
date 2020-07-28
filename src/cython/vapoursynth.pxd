@@ -291,7 +291,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         bint queryVideoFormat(VSVideoFormat *format, int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) nogil
         bint queryAudioFormat(VSAudioFormat *format, int sampleType, int bitsPerSample, uint64_t channelLayout, VSCore *core) nogil
         uint32_t queryVideoFormatID(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) nogil
-        int queryVideoFormatByID(VSVideoFormat *format, uint32_t id, VSCore *core) nogil
+        int getVideoFormatByID(VSVideoFormat *format, uint32_t id, VSCore *core) nogil
 
         # Frame requests
         const VSFrameRef *getFrame(int n, VSNodeRef *node, char *errorMsg, int bufSize) nogil

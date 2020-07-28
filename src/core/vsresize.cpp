@@ -684,7 +684,7 @@ class vszimg {
             if (format_id == 0) {
                 m_vi.format = node_vi.format;
             } else {
-                vsapi->queryVideoFormatByID(&m_vi.format, format_id, core);
+                vsapi->getVideoFormatByID(&m_vi.format, format_id, core);
             }
 
             lookup_enum(in, "matrix", g_matrix_table, &m_frame_params.matrix, vsapi);

@@ -1216,7 +1216,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
         if (!hasvi)
             vsapi->queryVideoFormat(&d->vi.format, cfRGB, stInteger, 8, 0, 0, core);
     } else {
-        vsapi->queryVideoFormatByID(&d->vi.format, format, core);
+        vsapi->getVideoFormatByID(&d->vi.format, format, core);
     }
 
     if (d->vi.format.colorFamily == cfUndefined)

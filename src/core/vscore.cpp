@@ -958,7 +958,7 @@ bool VSCore::queryVideoFormat(VSVideoFormat &f, VSColorFamily colorFamily, VSSam
     return true;
 }
 
-bool VSCore::queryVideoFormatByID(VSVideoFormat &f, uint32_t id) noexcept {
+bool VSCore::getVideoFormatByID(VSVideoFormat &f, uint32_t id) noexcept {
     // is a V3 id?
     if ((id & 0xFF000000) == 0 && (id & 0x00FFFFFF)) {   
         return VideoFormatFromV3(f, getV3VideoFormat(id));

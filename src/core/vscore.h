@@ -895,7 +895,7 @@ public:
     const vs3::VSVideoFormat *getV3VideoFormat(int id);
     const vs3::VSVideoFormat *getVideoFormat3(int id);
     static bool queryVideoFormat(VSVideoFormat &f, VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH) noexcept;
-    bool queryVideoFormatByID(VSVideoFormat &f, uint32_t id) noexcept;
+    bool getVideoFormatByID(VSVideoFormat &f, uint32_t id) noexcept;
     uint32_t queryVideoFormatID(VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH) const noexcept;
     const vs3::VSVideoFormat *queryVideoFormat3(vs3::VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name = nullptr, int id = 0) noexcept;
     static bool queryAudioFormat(VSAudioFormat &f, VSSampleType sampleType, int bitsPerSample, uint64_t channelLayout) noexcept;

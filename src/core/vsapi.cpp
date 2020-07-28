@@ -905,9 +905,9 @@ static uint32_t VS_CC queryVideoFormatID(int colorFamily, int sampleType, int bi
     return core->queryVideoFormatID(static_cast<VSColorFamily>(colorFamily), static_cast<VSSampleType>(sampleType), bitsPerSample, subSamplingW, subSamplingH);
 }
 
-static int VS_CC queryVideoFormatByID(VSVideoFormat *format, uint32_t id, VSCore *core) VS_NOEXCEPT {
+static int VS_CC getVideoFormatByID(VSVideoFormat *format, uint32_t id, VSCore *core) VS_NOEXCEPT {
     assert(format && core);
-    return core->queryVideoFormatByID(*format, id);
+    return core->getVideoFormatByID(*format, id);
 }
 
 static int VS_CC getAudioFormatName(const VSAudioFormat *format, char *buffer) VS_NOEXCEPT {
@@ -1034,7 +1034,7 @@ const VSAPI vs_internal_vsapi = {
     &queryVideoFormat,
     &queryAudioFormat,
     &queryVideoFormatID,
-    &queryVideoFormatByID,
+    &getVideoFormatByID,
 
     &getFrame,
     &getFrameAsync,
