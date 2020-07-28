@@ -1131,6 +1131,12 @@ void VSNode::notifyCache(bool needMemory) {
     cache->cache.adjustSize(needMemory);
 }
 
+void VSCore::notifyCaches(bool needMemory) {
+    std::lock_guard<std::mutex> lock(cacheLock);
+    for (auto &cache : caches)
+        cache->notifyCache(needMemory);
+}
+
 const vs3::VSVideoFormat *VSCore::getV3VideoFormat(int id) {
     std::lock_guard<std::mutex> lock(videoFormatLock);
 

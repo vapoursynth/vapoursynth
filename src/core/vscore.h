@@ -774,7 +774,6 @@ public:
 };
 
 class VSThreadPool {
-    friend struct VSCore;
 private:
     VSCore *core;
     std::mutex lock;
@@ -792,7 +791,6 @@ private:
     std::atomic<size_t> ticks;
     size_t getNumAvailableThreads();
     void wakeThread();
-    void notifyCaches(bool needMemory);
     void startInternal(const PVSFrameContext &context);
     void spawnThread();
     static void runTasks(VSThreadPool *owner, std::atomic<bool> &stop);
@@ -885,8 +883,6 @@ struct VSLogHandle {
 };
 
 struct VSCore {
-    friend class VSFrame;
-    friend class VSThreadPool;
     friend class CacheInstance;
 private:
     //number of filter instances plus one, freeing the core reduces it by one
@@ -921,6 +917,7 @@ public:
     static thread_local PVSFunctionFrame functionFrame;
     //
 
+    void notifyCaches(bool needMemory);
     const vs3::VSVideoFormat *getV3VideoFormat(int id);
     const vs3::VSVideoFormat *getVideoFormat3(int id);
     static bool queryVideoFormat(VSVideoFormat &f, VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH) noexcept;

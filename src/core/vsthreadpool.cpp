@@ -360,12 +360,6 @@ void VSThreadPool::reserveThread() {
     ++activeThreads;
 }
 
-void VSThreadPool::notifyCaches(bool needMemory) {
-    std::lock_guard<std::mutex> lock(core->cacheLock);
-    for (auto &cache : core->caches)
-        cache->notifyCache(needMemory);
-}
-
 void VSThreadPool::start(const PVSFrameContext &context) {
     assert(context);
     std::lock_guard<std::mutex> l(lock);
@@ -412,10 +406,10 @@ void VSThreadPool::startInternal(const PVSFrameContext &context) {
     // check to see if it's time to reevaluate cache sizes
     if (core->memory->isOverLimit()) {
         ticks = 0;
-        notifyCaches(true);
+        core->notifyCaches(true);
     } else if (!context->upstreamContext && ++ticks == 500) { // a normal tick for caches to adjust their sizes based on recent history
         ticks = 0;
-        notifyCaches(false);
+        core->notifyCaches(false);
     }
 
     // add it immediately if the task is to return a completed frame or report an error since it never has an existing context
