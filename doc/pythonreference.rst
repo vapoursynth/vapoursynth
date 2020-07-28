@@ -648,7 +648,10 @@ Classes and Functions
 
    .. py:method:: set_environment(environment)
 
-      This method is called by the module to change the currently active environment.
+      This method is called by the module to change the currently active environment. May be passed None. In this case,
+      the environment can choose what environment to switch to (if any).
+
+      Note: The function is responsible to check whether or not the environment is alive. If a dead environment is passed, it should act like None has been passed instead of the dead environment.
 
       :param environment: The :class:`EnvironmentData` to enable in the current context.
       :returns: The environment that was enabled previously.
