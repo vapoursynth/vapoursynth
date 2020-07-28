@@ -2141,6 +2141,9 @@ cdef class VSScriptEnvironmentPolicy:
         return getattr(self._stack, "stack", None)
 
     def set_environment(self, environment):
+        if not self.is_alive(environment):
+            environment = None
+        
         previous = getattr(self._stack, "stack", None)
         self._stack.stack = environment
         return previous
