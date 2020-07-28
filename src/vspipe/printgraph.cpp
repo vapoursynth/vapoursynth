@@ -258,7 +258,7 @@ std::string printNodeTimes(VSNodeRef *node, double processingTime, const VSAPI *
 
     lines.sort();
 
-    s += extendStringRight("Filtername", 20) + " " + extendStringRight("Filter mode", 10) + " " + extendStringLeft("Time (%)", 10) + "% " + extendStringLeft("Time (s)", 10) + "s\n";
+    s += extendStringRight("Filtername", 20) + " " + extendStringRight("Filter mode", 10) + " " + extendStringLeft("Time (%)", 10) + " " + extendStringLeft("Time (s)", 10) + "\n";
 
     for (const auto & it : lines)
         s += extendStringRight(it.filterName, 20) + " " + extendStringRight(filterModeToString(it.filterMode), 10) + " " + extendStringLeft(printWithTwoDecimals((it.nanoSeconds) / (processingTime * 10000000)), 10) + " " + extendStringLeft(printWithTwoDecimals(it.nanoSeconds / 1000000000.), 10) + "\n";
