@@ -156,7 +156,7 @@ VS_API(int) vsscript_evaluateScript(VSScript **handle, const char *script, const
     if (*handle == nullptr) {
         if (createScriptInternal(handle)) return 1;
     }
-    return vpy_evaluateScript(*handle, script, scriptFilename ? scriptFilename : "<string>", flags);
+    return vpy_evaluateScript(*handle, script, scriptFilename ? scriptFilename : "<undefined>", flags);
 }
 
 // V3 API compatibility

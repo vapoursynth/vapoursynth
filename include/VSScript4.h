@@ -86,7 +86,7 @@ struct VSSCRIPTAPI {
     */
     int (VS_CC *getOptions)(VSScript *handle, VSMap *dst);
 
-    /* The core is valid as long as the environment exists */
+    /* The core is valid as long as the environment exists, will trigger core creation if necessary and returns NULL on failures */
     VSCore *(VS_CC *getCore)(VSScript *handle) VS_NOEXCEPT;
 
     void (VS_CC *freeScript)(VSScript *handle) VS_NOEXCEPT;

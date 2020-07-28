@@ -1936,6 +1936,10 @@ void VSCore::freeCore() {
         logMessage(mtWarning, "Core freed but " + std::to_string(memory->memoryUse()) + " bytes still allocated in framebuffers");
     if (numFunctionInstances > 0)
         logMessage(mtWarning, "Core freed but " + std::to_string(numFunctionInstances.load()) + " function instance(s) still exist");
+    // Remove all message handlers on free to prevent a zombie core from crashing the whole application by calling a no longer usable
+    // message handler
+    while (!messageHandlers.empty())
+        removeMessageHandler(*messageHandlers.begin());
     // Release the extra filter instance that always keeps the core alive
     filterInstanceDestroyed();
 }
@@ -1945,8 +1949,6 @@ VSCore::~VSCore() {
     delete threadPool;
     for(const auto &iter : plugins)
         delete iter.second;
-    while (!messageHandlers.empty())
-        removeMessageHandler(*messageHandlers.begin());
     plugins.clear();
 }
 
