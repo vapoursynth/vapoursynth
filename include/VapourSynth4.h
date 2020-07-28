@@ -269,7 +269,7 @@ typedef struct VSAudioInfo {
 
 typedef enum VSActivationReason {
     arInitial = 0,
-    arAllFramesReady = 2,
+    arAllFramesReady = 1,
     arError = -1
 } VSActivationReason;
 

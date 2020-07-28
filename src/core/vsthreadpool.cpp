@@ -186,7 +186,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 if (--mainContext->numFrameRequests > 0)
                     ar = static_cast<VSActivationReason>(vs3::arFrameReady);
                 else
-                    ar = arAllFramesReady;
+                    ar = (clip->apiMajor == 3) ? static_cast<VSActivationReason>(vs3::arAllFramesReady) : arAllFramesReady;
 
                 mainContext->availableFrames.push_back(std::make_pair(NodeOutputKey(leafContext->clip, leafContext->n, leafContext->index), leafContext->returnedFrame));
                 mainContext->lastCompletedN = leafContext->n;
