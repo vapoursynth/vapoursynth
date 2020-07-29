@@ -55,8 +55,8 @@ cdef extern from "include/VapourSynth4.h" nogil:
         GRAY "cfGray"
         RGB "cfRGB"
         YUV "cfYUV"
-        cfCOMPATBGR32 "cfCompatBGR32"
-        cfCOMPATYUY2 "cfCompatYUY2"
+        COLOR_FAMILY_COMPATBGR32 "cfCompatBGR32"
+        COLOR_FAMILY_COMPATYUY2 "cfCompatYUY2"
 
     cpdef enum SampleType "VSSampleType":
         INTEGER "stInteger"
@@ -213,14 +213,14 @@ cdef extern from "include/VapourSynth4.h" nogil:
         arAllFramesReady
         arError
 
-    enum VSMessageType:
-        mtDebug
-        mtInformation
-        mtWarning
-        mtCritical
-        mtFatal
+    cpdef enum MessageType "VSMessageType":
+        MESSAGE_TYPE_DEBUG "mtDebug"
+        MESSAGE_TYPE_INFORMATION "mtInformation"
+        MESSAGE_TYPE_WARNING "mtWarning"
+        MESSAGE_TYPE_CRITICAL "mtCritical"
+        MESSAGE_TYPE_FATAL "mtFatal"
         
-    enum VSCoreCreationFlags:
+    cpdef enum CoreCreationFlags "VSCoreCreationFlags":
         ccfDisableAutoLoading
         ccfEnableGraphInspection
 

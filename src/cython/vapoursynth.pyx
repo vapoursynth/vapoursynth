@@ -2065,6 +2065,26 @@ cdef AudioNode createAudioNode(VSNodeRef *node, const VSAPI *funcs, Core core):
     instance.flags = funcs.getNodeFlags(node)
     return instance
 
+cdef class LogHandle(object):
+    cdef VSLogHandle *handle
+    cdef object handler_func
+    
+    def __init__(self):
+        raise Error('Class cannot be instantiated directly')
+        
+cdef LogHandle createLogHandle(object handler_func):
+    cdef LogHandle instance = LogHandle.__new__(LogHandle)
+    instance.handler_func = handler_func
+    instance.handle = NULL
+     
+cdef void __stdcall log_handler_wrapper(int msgType, const char *msg, void *userData) nogil:
+    with gil:
+        (<LogHandle>userData).handler_func(MessageType(msgType), msg.decode('utf-8'))
+        
+cdef void __stdcall log_handler_free(void *userData) nogil:
+    with gil:
+        Py_DECREF(<LogHandle>userData)
+
 cdef class Core(object):
     cdef VSCore *core
     cdef const VSAPI *funcs
@@ -2116,6 +2136,8 @@ cdef class Core(object):
             raise AttributeError('No attribute with the name ' + name + ' exists. Did you mistype a plugin namespace?')
 
     def set_max_cache_size(self, int mb):
+        import warnings
+        warnings.warn("set_max_cache_size() is deprecated. Use \"max_cache_size()\" property instead.", DeprecationWarning)
         self.max_cache_size = mb
         return self.max_cache_size
         
@@ -2158,13 +2180,13 @@ cdef class Core(object):
                 sout += line.replace('; )', ')')
         return sout
 
-    def query_video_format(self, int color_family, int sample_type, int bits_per_sample, int subsampling_w, int subsampling_h):
+    def query_video_format(self, ColorFamily color_family, SampleType sample_type, int bits_per_sample, int subsampling_w, int subsampling_h):
         cdef VSVideoFormat fmt
         if not self.funcs.queryVideoFormat(&fmt, color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h, self.core):
             raise Error('Invalid format specified')
         return createVideoFormat(&fmt, self.funcs, self.core)
 
-    def register_format(self, int color_family, int sample_type, int bits_per_sample, int subsampling_w, int subsampling_h):
+    def register_format(self, ColorFamily color_family, SampleType sample_type, int bits_per_sample, int subsampling_w, int subsampling_h):
         import warnings
         warnings.warn("register_format() is deprecated. Use \"query_video_format\" instead.", DeprecationWarning)
         return self.query_video_format(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h);
@@ -2180,7 +2202,20 @@ cdef class Core(object):
         import warnings
         warnings.warn("get_format() is deprecated. Use \"get_video_format\" instead.", DeprecationWarning)
         return self.get_video_format(id);
-
+        
+    def log_message(self, MessageType message_type, str message):
+        self.funcs.logMessage(message_type, message.encode('utf-8'), self.core)
+        
+    def add_log_handler(self, handler_func):
+        handler_func(MESSAGE_TYPE_DEBUG, 'New message handler installed from python')
+        cdef LogHandle lh = createLogHandle(handler_func)
+        Py_INCREF(lh)
+        lh.handle = self.funcs.addLogHandler(log_handler_wrapper, log_handler_free, <void *>lh, self.core)
+        return lh
+    
+    def remove_log_handler(self, LogHandle handle):
+        return self.funcs.removeLogHandler(handle.handle, self.core)
+        
     def version(self):
         cdef VSCoreInfo v
         self.funcs.getCoreInfo(self.core, &v)
