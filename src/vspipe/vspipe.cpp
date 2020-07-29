@@ -988,6 +988,7 @@ int main(int argc, char **argv) {
         data->printProgress = opts.printProgress;
         data->node = node;
         data->alphaNode = alphaNode;
+        data->outFile = outFile;
         
         if (nodeType == mtVideo) {
 
