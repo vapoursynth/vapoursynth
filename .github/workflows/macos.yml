@@ -1,4 +1,4 @@
-name: Linux
+name: macOS
 
 on:
   push:
@@ -7,18 +7,27 @@ on:
     branches: [ master ]
 
 jobs:
-  build-gcc:
-    runs-on: ubuntu-latest
+  build-clang:
+    runs-on: macos-latest
+
+    env:
+      CC: clang
+      CXX: clang++
 
     steps:
     - uses: actions/checkout@v2
+
+    - name: Install automake and pkg-config
+      run: |
+        brew install automake
+        brew install pkg-config
 
     - name: Install zimg
       run: |
         git clone https://github.com/sekrit-twc/zimg --branch v2.9 --depth 1 ./zimg
         pushd ./zimg
         ./autogen.sh
-        ./configure --prefix=/usr/
+        ./configure
         make -j2
         sudo make install -j2
         popd
@@ -45,7 +54,7 @@ jobs:
     - name: configure
       run: |
         ./autogen.sh
-        ./configure --prefix=/usr/
+        ./configure
 
     - name: make
       run: make -j2

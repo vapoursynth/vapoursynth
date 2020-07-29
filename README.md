@@ -1,3 +1,5 @@
+![Windows](https://github.com/vapoursynth/vapoursynth/workflows/Windows/badge.svg) ![Linux](https://github.com/vapoursynth/vapoursynth/workflows/Linux/badge.svg) ![macOS](https://github.com/vapoursynth/vapoursynth/workflows/macOS/badge.svg)
+
 # vapoursynth
 *A video processing framework with simplicity in mind*
 
