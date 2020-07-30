@@ -218,6 +218,12 @@
     <ClCompile Include="..\..\src\core\lutfilters.cpp" />
     <ClCompile Include="..\..\src\core\mergefilters.cpp" />
     <ClCompile Include="..\..\src\core\reorderfilters.cpp" />
+    <ClCompile Include="..\..\src\core\settings.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="..\..\src\core\simplefilters.cpp" />
     <ClCompile Include="..\..\src\core\textfilter.cpp" />
     <ClCompile Include="..\..\src\core\vsapi.cpp" />
@@ -242,6 +248,12 @@
     <ClInclude Include="..\..\src\core\kernel\merge.h" />
     <ClInclude Include="..\..\src\core\kernel\planestats.h" />
     <ClInclude Include="..\..\src\core\kernel\transpose.h" />
+    <ClInclude Include="..\..\src\core\settings.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
     <ClInclude Include="..\..\src\core\ter-116n.h" />
     <ClInclude Include="..\..\src\core\VapourSynth3.h" />
     <ClInclude Include="..\..\src\core\version.h" />

@@ -120,6 +120,9 @@
     <ClCompile Include="..\..\src\core\simplefilters.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\core\settings.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\core\cachefilter.h">
@@ -183,6 +186,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\VSHelper4.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core\settings.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
