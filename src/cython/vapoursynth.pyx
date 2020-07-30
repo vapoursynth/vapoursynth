@@ -76,16 +76,24 @@ __all__ = [
 __version__ = namedtuple("VapourSynthVersion", "release_major release_minor")(51, 0)
 __api_version__ = namedtuple("VapourSynthAPIVersion", "api_major api_minor")(VAPOURSYNTH_API_MAJOR, VAPOURSYNTH_API_MINOR)
 
+
 @final
 cdef class EnvironmentData(object):
+    cdef bool alive = True
     cdef Core core
     cdef dict outputs
     cdef dict options
+
+    cdef int coreCreationFlags
+    cdef VSLogHandle* log
 
     cdef object __weakref__
 
     def __init__(self):
         raise RuntimeError("Cannot directly instantiate this class.")
+
+    def __dealloc__(self):
+        _unset_logger(self, self.log)
 
 
 class EnvironmentPolicy(object):
@@ -103,7 +111,8 @@ class EnvironmentPolicy(object):
         raise NotImplementedError
 
     def is_active(self, environment):
-        raise NotImplementedError
+        cdef EnvironmentData env = <EnvironmentData>environment
+        env.alive = False
 
 
 @final
@@ -140,6 +149,28 @@ cdef object _policy = None
 cdef const VSAPI *_vsapi = NULL
 
 
+cdef void _set_logger(EnvironmentData env, VSLogHandler handler, VSLogHandlerFree free, void *userData):
+    vsscript_get_core_internal(env)
+    _unset_logger(env)
+    env.log = env.core.funcs.addLogHandler(handler, free, userData, env.core.core)
+
+cdef void _unset_logger(EnvironmentData env):
+    if env.log == NULL:
+        return
+
+    env.core.funcs.removeLogHandler(env.log, env.core.core)
+    env.log = NULL
+
+
+cdef public api void _logCb(int msgType, const char *msg, void *userData) nogil:
+    with gil:
+        message = msg.decode("utf-8")
+        (<object>userData)(msgType, message)
+cdef public api void _logFree(void* userData):
+    with gil:
+        Py_DECREF(<object>userData)
+
+
 @final
 cdef class EnvironmentPolicyAPI:
     # This must be a weak-ref to prevent a cyclic dependency that happens if the API
@@ -159,15 +190,27 @@ cdef class EnvironmentPolicyAPI:
             raise ValueError("environment_data must be an EnvironmentData instance.")
         return use_environment(<EnvironmentData>environment_data, direct=False)
 
-    def create_environment(self):
+    def create_environment(self, int flags = 0):
         self.ensure_policy_matches()
 
         cdef EnvironmentData env = EnvironmentData.__new__(EnvironmentData)
         env.core = None
         env.outputs = {}
         env.options = {}
+        env.coreCreationFlags = flags
 
         return env
+
+    def set_logger(self, env, logger):
+        Py_INCREF(logger)
+        _set_logger(env, _logCb, _logFree, logger)
+
+    def destroy_environment(self, EnvironmentData env):
+        self.ensure_policy_matches()
+
+        env.alive = False
+        env.outputs = {}
+        _unset_logger(env)
 
     def unregister_policy(self):
         self.ensure_policy_matches()
@@ -385,8 +428,8 @@ _EMPTY = []
 
 AlphaOutputTuple = namedtuple("AlphaOutputTuple", "clip alpha")
 
-def _construct_parameter(signature):
-    name,type,*opt = signature.split(":")
+def _construct_type(signature):
+    type,*opt = signature.split(":")
 
     # Handle Arrays.
     if type.endswith("[]"):
@@ -422,14 +465,22 @@ def _construct_parameter(signature):
     # Mark an optional type
     if opt:
         type = typing.Optional[type]
-        opt = None
-    else:
-        opt = inspect.Parameter.empty
         
+    return type
+
+def _construct_parameter(signature):
+    name, signature = signature.split(":", 1)
+    type = _construct_type(signature)
+    
+    __,*opt = signature.split(":")
+    if opt:
+        default_value = None
+    else:
+        default_value = inspect.Parameter.empty
         
     return inspect.Parameter(
         name, inspect.Parameter.POSITIONAL_OR_KEYWORD,
-        default=opt, annotation=type
+        default=default_value, annotation=type
     )
 
 def construct_signature(signature, return_signature, injected=None):
@@ -448,7 +499,7 @@ def construct_signature(signature, return_signature, injected=None):
     if injected:
         del params[0]
     
-    return inspect.Signature(tuple(params), return_annotation=vapoursynth.VideoNode)
+    return inspect.Signature(tuple(params), return_annotation=_construct_type(return_signature))
     
 
 class Error(Exception):
@@ -2251,12 +2302,12 @@ cdef object createConstFrame(const VSFrameRef *f, const VSAPI *funcs, VSCore *co
     else:
         return createConstAudioFrame(f, funcs, core)
 
-cdef Core createCore():
+cdef Core createCore(EnvironmentData env):
     cdef Core instance = Core.__new__(Core)
     instance.funcs = getVapourSynthAPI(VAPOURSYNTH_API_VERSION)
     if instance.funcs == NULL:
         raise Error('Failed to obtain VapourSynth API pointer. System does not support SSE2 or is the Python module and loaded core library mismatched?')
-    instance.core = instance.funcs.createCore(0)
+    instance.core = instance.funcs.createCore(env.coreCreationFlags)
     instance.add_cache = True
     return instance
 
@@ -2281,7 +2332,7 @@ def get_core(threads = None, add_cache = None):
     
 cdef Core vsscript_get_core_internal(EnvironmentData env):
     if env.core is None:
-        env.core = createCore()
+        env.core = createCore(env)
     return env.core
     
 cdef class _CoreProxy(object):
@@ -2510,7 +2561,6 @@ cdef void __stdcall publicFunction(const VSMap *inm, VSMap *outm, void *userData
 @final
 cdef class VSScriptEnvironmentPolicy:
     cdef dict _env_map
-    cdef dict _known_environments
 
     cdef object _stack
     cdef object _lock
@@ -2523,14 +2573,12 @@ cdef class VSScriptEnvironmentPolicy:
 
     def on_policy_registered(self, policy_api):
         self._env_map = {}
-        self._known_environments = {}
         self._stack = ThreadLocal()
         self._lock = Lock()
         self._api = policy_api
 
     def on_policy_cleared(self):
         with self._lock:
-            self._known_environments = None
             self._env_map = None
             self._stack = None
             self._lock = None
@@ -2549,10 +2597,19 @@ cdef class VSScriptEnvironmentPolicy:
         self._stack.stack = environment
         return previous
 
-    cdef EnvironmentData _make_environment(self, int script_id):
-        env = self._api.create_environment()
+    cdef EnvironmentData _make_environment(self, int script_id, const VSScriptOptions* options):
+        # Get flags from options.
+        flags = 0
+        if options != NULL:
+            flags = options.coreCreationFlags
+
+        env = self._api.create_environment(flags)
+
+        # Apply additional options
+        if options != NULL and options.logHandler != NULL:
+            _set_logger(env, options.logHandler, options.logHandlerFree, options.logHandlerData)
+
         self._env_map[script_id] = env
-        self._known_environments[id(env)] = env
         return env
       
     cdef has_environment(self, int script_id):
@@ -2561,10 +2618,7 @@ cdef class VSScriptEnvironmentPolicy:
     cdef _free_environment(self, int script_id):
         env = self._env_map.pop(script_id, None)
         if env is not None:
-            self._known_environments.pop(id(env))
-        
-    def is_alive(self, env):
-        return id(env) in self._known_environments
+            self._api.destroy_environment(env)
 
 
 cdef VSScriptEnvironmentPolicy _get_vsscript_policy():
@@ -2577,21 +2631,87 @@ cdef object _vsscript_use_environment(int id):
     return use_environment(_get_vsscript_policy().get_environment(id))
 
 
-cdef object _vsscript_use_or_create_environment(int id):
+cdef object _vsscript_use_or_create_environment2(int id, const VSScriptOptions* options):
     cdef VSScriptEnvironmentPolicy policy = _get_vsscript_policy()
     if not policy.has_environment(id):
-        policy._make_environment(id)
+        policy._make_environment(id, options)
     return use_environment(policy.get_environment(id))
 
+
+cdef object _vsscript_use_or_create_environment(int id):
+    return _vsscript_use_or_create_environment2(id, NULL)
+
+
+@contextlib.contextmanager
+def __chdir(filename, flags):
+    if (flags&1) or filename is None or (filename.startswith("<") and filename.endswith(">")):
+        return (yield)
+    
+    origpath = os.getcwd()
+    newpath = os.path.dirname(os.path.abspath(filename))
+
+    try:
+        os.chdir(newpath)
+        yield
+    finally:
+        os.chdir(origpath)
+
+
+cdef void _vpy_replace_evaldict(VSScript *se, dict evaldict):
+    if se.evaldict:
+        Py_DECREF(se.evaldict)
+        se.evaldict = NULL
+    
+    if evaldict is not None:
+        Py_INCREF(evaldict)
+        se.evaldict = <void*>evaldict
+
+
+cdef int _vpy_evaluate(VSScript *se, bytes script, str filename, const VSScriptOptions* options):
+    try:
+        evaldict = {}
+        if se.pyenvdict:
+            evaldict = <dict>se.pyenvdict
+        else:
+            _vpy_replace_evaldict(se, evaldict)
+        
+        evaldict["__name__"] = "__vapoursynth__"
+        code = compile(script, filename=filename, dontInherit=True, mode="exec")
+
+        if filename is None or (filename.startswith("<") and filename.endswith(">")):
+            filename = "<string>"
+            evaldict.pop("__file__", None)
+        else:
+            evaldict["__file__"] = filename
+
+        if se.errstr:
+            errstr = <bytes>se.errstr
+            se.errstr = NULL
+            Py_DECREF(errstr)
+            errstr = None
+
+        with _vsscript_use_or_create_environment2(se.id, options).use():
+            exec(comp, evaldict, evaldict)
+
+    except BaseException, e:
+        errstr = 'Python exception: ' + str(e) + '\n\n' + traceback.format_exc()
+        errstr = errstr.encode('utf-8')
+        Py_INCREF(errstr)
+        se.errstr = <void *>errstr
+        return 2
+    except:
+        errstr = 'Unspecified Python exception' + '\n\n' + traceback.format_exc()
+        errstr = errstr.encode('utf-8')
+        Py_INCREF(errstr)
+        se.errstr = <void *>errstr
+        return 1
+        
 
 cdef public api int vpy_createScript(VSScript *se) nogil:
     with gil:
         try:
-            evaldict = {}
-            Py_INCREF(evaldict)
-            se.pyenvdict = <void *>evaldict
-
-            _get_vsscript_policy()._make_environment(<int>se.id)
+            _vpy_replace_evaldict(se, {})
+            _get_vsscript_policy()._make_environment(<int>se.id, NULL)
 
         except:
             errstr = 'Unspecified Python exception' + '\n\n' + traceback.format_exc()
@@ -2603,56 +2723,9 @@ cdef public api int vpy_createScript(VSScript *se) nogil:
     
 cdef public api int vpy_evaluateScript(VSScript *se, const char *script, const char *scriptFilename, int flags) nogil:
     with gil:
-        orig_path = None
-        try:
-            evaldict = {}
-            if se.pyenvdict:
-                evaldict = <dict>se.pyenvdict
-            else:
-                Py_INCREF(evaldict)
-                se.pyenvdict = <void *>evaldict
-
-                _get_vsscript_policy().get_environment(se.id).outputs.clear()
-
-            fn = scriptFilename.decode('utf-8')
-
-            # don't set a filename if NULL is passed
-            if fn != '<string>':
-                abspath = os.path.abspath(fn)
-                evaldict['__file__'] = abspath
-                if flags & 1:
-                    orig_path = os.getcwd()
-                    os.chdir(os.path.dirname(abspath))
-
-            evaldict['__name__'] = "__vapoursynth__"
-            
-            if se.errstr:
-                errstr = <bytes>se.errstr
-                se.errstr = NULL
-                Py_DECREF(errstr)
-                errstr = None
-
-            comp = compile(script.decode('utf-8-sig'), fn, 'exec')
-
-            # Change the environment now.
-            with _vsscript_use_or_create_environment(se.id).use():
-                exec(comp) in evaldict
-
-        except BaseException, e:
-            errstr = 'Python exception: ' + str(e) + '\n\n' + traceback.format_exc()
-            errstr = errstr.encode('utf-8')
-            Py_INCREF(errstr)
-            se.errstr = <void *>errstr
-            return 2
-        except:
-            errstr = 'Unspecified Python exception' + '\n\n' + traceback.format_exc()
-            errstr = errstr.encode('utf-8')
-            Py_INCREF(errstr)
-            se.errstr = <void *>errstr
-            return 1
-        finally:
-            if orig_path is not None:
-                os.chdir(orig_path)
+        fn = scriptFilename.decode('utf-8')
+        with __chdir(fn, flags):
+            return _vpy_evaluate(se, script, fn, NULL)
         return 0
 
 cdef public api int vpy_evaluateFile(VSScript *se, const char *scriptFilename, int flags) nogil:
@@ -2680,55 +2753,38 @@ cdef public api int vpy_evaluateFile(VSScript *se, const char *scriptFilename, i
             return 1
 
 cdef public api int vpy4_evaluateBuffer(VSScript *se, const char *buffer, const char *scriptFilename, const VSMap *vars, const VSScriptOptions *options) nogil:
-    # fixme, actually use the options
     with gil:
-        try:          
-            evaldict = {}
-            Py_INCREF(evaldict)
-            se.pyenvdict = <void *>evaldict
+        try:
+            if not se.evaldict:
+                _vpy_replace_evaldict(se, {})
+            evaldict = <dict>se.evaldict
             
             if buffer == NULL:
                 raise RuntimeError("NULL buffer passed.")
 
-            fn = '<undefined>'
-            if scriptFilename:
-                fn = scriptFilename.decode('utf-8')
-                abspath = os.path.abspath(fn)
-                evaldict['__file__'] = abspath
-
-            evaldict['__name__'] = "__vapoursynth__"
-            
             if vars:
                 if getVSAPIInternal() == NULL:
                     raise RuntimeError("Failed to retrieve VSAPI pointer.")
                 # FIXME, verify there are only int, float and data values in the map before this
                 evaldict.update(mapToDict(vars, False, False, NULL, getVSAPIInternal()))
-                
-            comp = compile(buffer.decode('utf-8-sig'), fn, 'exec')
-                
-            # Change the environment now.      
-            with _vsscript_use_or_create_environment(se.id).use():
-                exec(comp) in evaldict
+
+            fn = None
+            if scriptFilename:
+                fn = scriptFilename.decode('utf-8')
+
+            return _vpy_evaluate(se, buffer, fn, options)
 
         except BaseException, e:
-            errstr = 'Python exception: ' + str(e) + '\n\n' + traceback.format_exc()
+            errstr = 'File reading exception:\n' + str(e)
             errstr = errstr.encode('utf-8')
             Py_INCREF(errstr)
             se.errstr = <void *>errstr
             return 2
-        except:
-            errstr = 'Unspecified Python exception' + '\n\n' + traceback.format_exc()
-            errstr = errstr.encode('utf-8')
-            Py_INCREF(errstr)
-            se.errstr = <void *>errstr
-            return 1
+            
         return 0
 
 cdef public api int vpy4_evaluateFile(VSScript *se, const char *scriptFilename, const VSMap *vars, const VSScriptOptions *options) nogil:
     with gil:
-        evaldict = {}
-        Py_INCREF(evaldict)
-        se.pyenvdict = <void *>evaldict
         try:
             if scriptFilename == NULL:
                 raise RuntimeError("NULL scriptFilename passed.")
@@ -2751,6 +2807,10 @@ cdef public api int vpy4_evaluateFile(VSScript *se, const char *scriptFilename, 
             
 cdef public api int vpy4_clearLogHandler(VSScript *se) nogil:
     with gil:
+        if not _get_vsscript_policy().has_environment(se.id):
+            return 1
+
+        _unset_logger(_get_vsscript_policy().get_environment(se.id))
         return 0
 
 cdef public api void vpy4_freeScript(VSScript *se) nogil:
