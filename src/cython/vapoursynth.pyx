@@ -1838,10 +1838,11 @@ def get_core(threads = None, add_cache = None):
     warnings.warn("get_core() is deprecated. Use \"vapoursynth.core\" instead.", DeprecationWarning)
     
     ret_core = _get_core()
-    if threads is not None:
-        ret_core.num_threads = threads
-    if add_cache is not None:
-        ret_core.add_cache = add_cache
+    if ret_core is not None:
+        if threads is not None:
+            ret_core.num_threads = threads
+        if add_cache is not None:
+            ret_core.add_cache = add_cache
     return ret_core
     
 cdef Core vsscript_get_core_internal(EnvironmentData env):
