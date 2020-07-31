@@ -1415,6 +1415,12 @@ cdef class VideoNode(object):
         _get_output_dict("set_output")[index] = clip
 
     def output(self, object fileobj not None, bint y4m = False, object progress_update = None, int prefetch = 0, int backlog = -1):
+        if (fileobj is sys.stdout or fileobj is sys.stderr) and hasattr(fileobj, "buffer"):
+            fileobj = fileobj.buffer
+
+        if progress_update is not None:
+            progress_update(0, len(self))
+
         if y4m:
             if self.format.color_family == GRAY:
                 y4mformat = 'mono'
@@ -1441,7 +1447,7 @@ cdef class VideoNode(object):
             if len(y4mformat) > 0:
                 y4mformat = 'C' + y4mformat + ' '
 
-            data = 'YUV4MPEG2 {y4mformat} W{width} H{height} F{fps_num}:{fps_den}Ip A0:0\n'.format(
+            data = 'YUV4MPEG2 {y4mformat} W{width} H{height} F{fps_num}:{fps_den} Ip A0:0\n'.format(
                 y4mformat=y4mformat,
                 width=self.width,
                 height=self.height,
