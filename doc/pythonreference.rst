@@ -369,7 +369,7 @@ Classes and Functions
       Returns a generator iterator of all VideoFrames in the clip. It will render multiple frames concurrently.
       
       The *prefetch* argument defines how many frames are rendered concurrently. Is only there for debugging purposes and should never need to be changed.
-      The *backlog* argument defines how many frames are buffered internally before they consumed. This argument is there to limit the memory this function uses storing frames.
+      The *backlog* argument defines how many unconsumed frames (including those that did not finish rendering yet) vapoursynth buffers at most before it stops rendering additional frames. This argument is there to limit the memory this function uses storing frames.
 
 .. py:class:: AlphaOutputTuple
 
