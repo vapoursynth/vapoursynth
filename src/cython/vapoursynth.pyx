@@ -1416,11 +1416,11 @@ cdef class VideoNode(object):
 
     def output(self, object fileobj not None, bint y4m = False, object progress_update = None, int prefetch = 0, int backlog = -1):
         if y4m:
-            if self.format.color_family == vs.GRAY:
+            if self.format.color_family == GRAY:
                 y4mformat = 'mono'
                 if self.format.bits_per_sample > 8:
                     y4mformat = y4mformat + str(self.format.bits_per_sample)
-            elif self.format.color_family == vs.YUV:
+            elif self.format.color_family == YUV:
                 if self.format.subsampling_w == 1 and self.format.subsampling_h == 1:
                     y4mformat = '420'
                 elif self.format.subsampling_w == 1 and self.format.subsampling_h == 0:
@@ -1436,7 +1436,7 @@ cdef class VideoNode(object):
                 if self.format.bits_per_sample > 8:
                     y4mformat = y4mformat + 'p' + str(self.format.bits_per_sample)
             else:
-                raise ValueError("Can only use vs.GRAY and vs.YUV for V4M-Streams")
+                raise ValueError("Can only use GRAY and YUV for V4M-Streams")
 
             if len(y4mformat) > 0:
                 y4mformat = 'C' + y4mformat + ' '
