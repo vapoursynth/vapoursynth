@@ -34,7 +34,7 @@ import inspect
 import weakref
 import atexit
 import contextlib
-from threading import local as ThreadLocal, Lock
+from threading import local as ThreadLocal, Lock, RLock
 from types import MappingProxyType
 from collections import namedtuple
 from collections.abc import Iterable, Mapping
@@ -1544,8 +1544,6 @@ cdef class VideoNode(object):
             backlog = prefetch*3
         elif backlog < prefetch:
             backlog = prefetch
-
-        from threading import RLock
 
         enum_fut = enumerate((self.get_frame_async(frameno) for frameno in range(len(self))))
 
