@@ -1837,8 +1837,7 @@ def get_core(threads = None, add_cache = None):
     import warnings
     warnings.warn("get_core() is deprecated. Use \"vapoursynth.core\" instead.", DeprecationWarning)
     
-    # ret_core = _get_core()
-    ret_core = core
+    ret_core = _get_core()
     if threads is not None:
         ret_core.num_threads = threads
     if add_cache is not None:
