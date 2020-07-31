@@ -1447,7 +1447,7 @@ cdef class VideoNode(object):
             if len(y4mformat) > 0:
                 y4mformat = 'C' + y4mformat + ' '
 
-            data = 'YUV4MPEG2 {y4mformat} W{width} H{height} F{fps_num}:{fps_den} Ip A0:0 XLENGTH={length}\n'.format(
+            data = 'YUV4MPEG2 {y4mformat}W{width} H{height} F{fps_num}:{fps_den} Ip A0:0 XLENGTH={length}\n'.format(
                 y4mformat=y4mformat,
                 width=self.width,
                 height=self.height,
