@@ -1468,7 +1468,8 @@ cdef class VideoNode(object):
             if progress_update is not None:
                 progress_update(idx+1, len(self))
 
-        fileobj.close()
+        if hasattr(fileobj, "flush"):
+            fileobj.flush()
 
     def __add__(x, y):
         if not isinstance(x, VideoNode) or not isinstance(y, VideoNode):
