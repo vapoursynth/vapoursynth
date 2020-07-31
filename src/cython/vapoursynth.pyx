@@ -1460,13 +1460,13 @@ cdef class VideoNode(object):
                 # Calling bytes(VideoPlane) should make the buffer continuous by
                 # copying the frame to a continous buffer
                 # if the stride does not match the width*bytes_per_sample.
-                if frame.get_stride(planeno) != plane.width*clip.format.bytes_per_sample:
+                if frame.get_stride(planeno) != plane.width*self.format.bytes_per_sample:
                     fileobj.write(bytes(plane))
                 else:
                     fileobj.write(plane)
 
             if progress_update is not None:
-                progress_update(idx+1, len(clip))
+                progress_update(idx+1, len(self))
 
         fileobj.close()
 
