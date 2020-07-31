@@ -1448,12 +1448,12 @@ cdef class VideoNode(object):
                 fps_num=self.fps_num,
                 fps_den=self.fps_den
             )
-            stream.write(data.encode("ascii"))
+            fileobj.write(data.encode("ascii"))
 
         frame: vs.VideoFrame
         for idx, frame in enumerate(self.frames(prefetch, backlog)):
             if y4m:
-                stream.write(b"FRAME\n")
+                fileobj.write(b"FRAME\n")
 
             for planeno, plane in enumerate(frame.planes()):
                 # This is a quick fix.
@@ -1461,14 +1461,14 @@ cdef class VideoNode(object):
                 # copying the frame to a continous buffer
                 # if the stride does not match the width*bytes_per_sample.
                 if frame.get_stride(planeno) != plane.width*clip.format.bytes_per_sample:
-                    stream.write(bytes(plane))
+                    fileobj.write(bytes(plane))
                 else:
-                    stream.write(plane)
+                    fileobj.write(plane)
 
             if progress is not None:
                 progress(idx+1, len(clip))
 
-        stream.close()
+        fileobj.close()
 
     def __add__(x, y):
         if not isinstance(x, VideoNode) or not isinstance(y, VideoNode):
