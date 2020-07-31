@@ -611,35 +611,6 @@ cdef createRawCallbackData(const VSAPI* funcs, VideoNode videonode, object cb, o
     cbd.funcs = funcs
     return cbd
 
-cdef class CallbackData(object):
-    cdef VideoNode node
-    cdef const VSAPI *funcs
-    cdef object fileobj
-    cdef int output
-    cdef int requested
-    cdef int completed
-    cdef int total
-    cdef int num_planes
-    cdef bint y4m
-    cdef dict reorder
-    cdef object condition
-    cdef object progress_update
-    cdef str error
-
-    def __init__(self, fileobj, requested, total, num_planes, y4m, node, progress_update):
-        self.fileobj = fileobj
-        self.output = 0
-        self.requested = requested
-        self.completed = 0
-        self.total = total
-        self.num_planes = num_planes
-        self.y4m = y4m
-        self.condition = threading.Condition()
-        self.node = node
-        self.progress_update = progress_update
-        self.funcs = (<VideoNode>node).funcs
-        self.reorder = {}
-
 
 cdef class FramePtr(object):
     cdef const VSFrameRef *f
@@ -677,65 +648,6 @@ cdef void __stdcall frameDoneCallbackRaw(void *data, const VSFrameRef *f, int n,
             traceback.print_exc()
         finally:
             Py_DECREF(d)
-
-
-cdef void __stdcall frameDoneCallbackOutput(void *data, const VSFrameRef *f, int n, VSNodeRef *node, const char *errormsg) with gil:
-    cdef VideoFrame frame_obj
-    cdef VideoPlane plane
-    cdef int x
-
-    cdef CallbackData d = <CallbackData>data
-    d.completed += 1
-
-    if f == NULL:
-        d.total = d.requested
-        if errormsg == NULL:
-            d.error = 'Failed to retrieve frame ' + str(n)
-        else:
-            d.error = 'Failed to retrieve frame ' + str(n) + ' with error: ' + errormsg.decode('utf-8')
-        d.output += 1
-    else:
-        d.reorder[n] = createConstVideoFrame(f, d.funcs, d.node.core.core)
-
-        while d.output in d.reorder:
-            frame_obj = <VideoFrame>d.reorder[d.output]
-            bytes_per_sample = frame_obj.format.bytes_per_sample
-            try:
-                if d.y4m:
-                    d.fileobj.write(b'FRAME\n')
-                for x in range(frame_obj.format.num_planes):
-                    plane = VideoPlane.__new__(VideoPlane, frame_obj, x)
-                    
-                    # This is a quick fix.
-                    # Calling bytes(VideoPlane) should make the buffer continuous by
-                    # copying the frame to a continous buffer
-                    # if the stride does not match the width*bytes_per_sample.
-                    if frame_obj.get_stride(x) != plane.width*bytes_per_sample:
-                        d.fileobj.write(bytes(plane))
-                    else:
-                        d.fileobj.write(plane)
-
-            except BaseException as e:
-                d.error = 'File write call returned an error: ' + str(e)
-                d.total = d.requested
-
-            del d.reorder[d.output]
-            d.output += 1
-
-        if d.progress_update is not None:
-            try:
-                d.progress_update(d.completed, d.total)
-            except BaseException as e:
-                d.error = 'Progress update caused an exception: ' + str(e)
-                d.total = d.requested
-
-    if d.requested < d.total:
-        d.node.funcs.getFrameAsync(d.requested, d.node.node, frameDoneCallbackOutput, data)
-        d.requested += 1
-
-    d.condition.acquire()
-    d.condition.notify()
-    d.condition.release()
 
 
 cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, VSCore *core, const VSAPI *funcs):
@@ -1502,32 +1414,13 @@ cdef class VideoNode(object):
 
         _get_output_dict("set_output")[index] = clip
 
-    def output(self, object fileobj not None, bint y4m = False, object progress_update = None, int prefetch = 0):
-        if prefetch < 1:
-            prefetch = self.core.num_threads
-            
-        # stdout usually isn't in binary mode so let's automatically compensate for that
-        if fileobj == sys.stdout:
-            fileobj = sys.stdout.buffer
-            
-        cdef CallbackData d = CallbackData(fileobj, min(prefetch, self.num_frames), self.num_frames, self.format.num_planes, y4m, self, progress_update)
-
-        # this is also an implicit test that the progress_update callback at least vaguely matches the requirements
-        if (progress_update is not None):
-            progress_update(0, d.total)
-
-        if (self.format is None or self.format.color_family not in (YUV, GRAY)) and y4m:
-            raise Error('Can only apply y4m headers to YUV and Gray format clips')
-
-        y4mformat = ''
-        numbits = ''
-
+    def output(self, object fileobj not None, bint y4m = False, object progress_update = None, int prefetch = 0, int backlog = -1):
         if y4m:
-            if self.format.color_family == GRAY:
+            if self.format.color_family == vs.GRAY:
                 y4mformat = 'mono'
                 if self.format.bits_per_sample > 8:
                     y4mformat = y4mformat + str(self.format.bits_per_sample)
-            elif self.format.color_family == YUV:
+            elif self.format.color_family == vs.YUV:
                 if self.format.subsampling_w == 1 and self.format.subsampling_h == 1:
                     y4mformat = '420'
                 elif self.format.subsampling_w == 1 and self.format.subsampling_h == 0:
@@ -1542,33 +1435,41 @@ cdef class VideoNode(object):
                     y4mformat = '440'
                 if self.format.bits_per_sample > 8:
                     y4mformat = y4mformat + 'p' + str(self.format.bits_per_sample)
+            else:
+                raise ValueError("Can only use vs.GRAY and vs.YUV for V4M-Streams")
 
-        if len(y4mformat) > 0:
-            y4mformat = 'C' + y4mformat + ' '
+            if len(y4mformat) > 0:
+                y4mformat = 'C' + y4mformat + ' '
 
-        cdef str header = 'YUV4MPEG2 ' + y4mformat + 'W' + str(self.width) + ' H' + str(self.height) + ' F' + str(self.fps_num) + ':' + str(self.fps_den) + ' Ip A0:0\n'
-        if y4m:
-            fileobj.write(header.encode('utf-8'))
-        d.condition.acquire()
+            data = 'YUV4MPEG2 {y4mformat} W{width} H{height} F{fps_num}:{fps_den}Ip A0:0\n'.format(
+                y4mformat=y4mformat
+                width=self.width,
+                height=self.height,
+                fps_num=self.fps_num,
+                fps_den=self.fps_den
+            )
+            stream.write(data.encode("ascii"))
 
-        for n in range(min(prefetch, d.total)):
-            self.funcs.getFrameAsync(n, self.node, frameDoneCallbackOutput, <void *>d)
+        frame: vs.VideoFrame
+        for idx, frame in enumerate(self.frames(prefetch, backlog)):
+            if y4m:
+                stream.write(b"FRAME\n")
 
-        stored_exception = None
-        while d.total != d.completed:
-            try:
-                d.condition.wait()
-            except BaseException, e:
-                d.total = d.requested
-                stored_exception = e
-        d.condition.release()
-        
-        if stored_exception is not None:
-            raise stored_exception
+            for planeno, plane in enumerate(frame.planes()):
+                # This is a quick fix.
+                # Calling bytes(VideoPlane) should make the buffer continuous by
+                # copying the frame to a continous buffer
+                # if the stride does not match the width*bytes_per_sample.
+                if frame.get_stride(planeno) != plane.width*clip.format.bytes_per_sample:
+                    stream.write(bytes(plane))
+                else:
+                    stream.write(plane)
 
-        if d.error:
-            raise Error(d.error)
-            
+            if progress is not None:
+                progress(idx+1, len(clip))
+
+        stream.close()
+
     def __add__(x, y):
         if not isinstance(x, VideoNode) or not isinstance(y, VideoNode):
             return NotImplemented
@@ -1636,9 +1537,85 @@ cdef class VideoNode(object):
         else:
             raise TypeError("index must be int or slice")
 
-    def frames(self):
-        for frameno in range(len(self)):
-            yield self.get_frame(frameno)
+    def frames(self, prefetch=None, backlog=None):
+        if prefetch is None or prefetch <= 0:
+            prefetch = core.num_threads
+        if backlog is None or backlog < 0:
+            backlog = prefetch*3
+        elif backlog < prefetch:
+            backlog = prefetch
+
+        from threading import RLock
+        from concurrent.futures import Future
+
+        enum_fut = enumerate((self.get_frame_async(frameno) for frameno in range(len(self))))
+
+        finished = False
+        running = 0
+        lock = RLock()
+        reorder = {}
+
+        def _request_next():
+            nonlocal finished, running
+            with lock:
+                if finished:
+                    return
+
+                ni = next(enum_fut, None)
+                if ni is None:
+                    finished = True
+                    return
+
+                running += 1
+
+                idx, fut = ni
+                reorder[idx] = fut
+                fut.add_done_callback(_finished)
+
+        def _finished(f):
+            nonlocal finished, running
+            with lock:
+                running -= 1
+                if finished:
+                    return
+
+                if f.exception() is not None:
+                    finished = True
+                    return
+                
+                _refill()
+
+        def _refill():
+            if finished:
+                return
+
+            with lock:
+                # Two rules: 1. Don't exceed the concurrency barrier.
+                #            2. Don't exceed unused-frames-backlog
+                while (not finished) and (running < prefetch) and len(reorder)<backlog:
+                    _request_next()
+        _refill()
+
+        sidx = 0
+        fut: Future
+        try:
+            while (not finished) or (len(reorder)>0) or running>0:
+                if sidx not in reorder:
+                    # Spin. Reorder being empty should never happen.
+                    continue
+
+                # Get next requested frame
+                fut = reorder[sidx]
+
+                result = fut.result()
+                del reorder[sidx]
+                _refill()
+
+                sidx += 1
+                yield result
+
+        finally:
+            finished = True
             
     def __dir__(self):
         plugins = [plugin["namespace"] for plugin in self.core.get_plugins().values()]
@@ -1860,12 +1837,12 @@ def get_core(threads = None, add_cache = None):
     import warnings
     warnings.warn("get_core() is deprecated. Use \"vapoursynth.core\" instead.", DeprecationWarning)
     
-    ret_core = _get_core()
-    if ret_core is not None:
-        if threads is not None:
-            ret_core.num_threads = threads
-        if add_cache is not None:
-            ret_core.add_cache = add_cache
+    # ret_core = _get_core()
+    ret_core = core
+    if threads is not None:
+        ret_core.num_threads = threads
+    if add_cache is not None:
+        ret_core.add_cache = add_cache
     return ret_core
     
 cdef Core vsscript_get_core_internal(EnvironmentData env):
