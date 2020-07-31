@@ -1546,7 +1546,6 @@ cdef class VideoNode(object):
             backlog = prefetch
 
         from threading import RLock
-        from concurrent.futures import Future
 
         enum_fut = enumerate((self.get_frame_async(frameno) for frameno in range(len(self))))
 
@@ -1597,7 +1596,6 @@ cdef class VideoNode(object):
         _refill()
 
         sidx = 0
-        fut: Future
         try:
             while (not finished) or (len(reorder)>0) or running>0:
                 if sidx not in reorder:
