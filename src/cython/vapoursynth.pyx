@@ -1465,8 +1465,8 @@ cdef class VideoNode(object):
                 else:
                     fileobj.write(plane)
 
-            if progress is not None:
-                progress(idx+1, len(clip))
+            if progress_update is not None:
+                progress_update(idx+1, len(clip))
 
         fileobj.close()
 
