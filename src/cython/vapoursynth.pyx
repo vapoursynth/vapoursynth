@@ -1442,7 +1442,7 @@ cdef class VideoNode(object):
                 y4mformat = 'C' + y4mformat + ' '
 
             data = 'YUV4MPEG2 {y4mformat} W{width} H{height} F{fps_num}:{fps_den}Ip A0:0\n'.format(
-                y4mformat=y4mformat
+                y4mformat=y4mformat,
                 width=self.width,
                 height=self.height,
                 fps_num=self.fps_num,
