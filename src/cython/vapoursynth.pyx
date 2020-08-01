@@ -79,7 +79,7 @@ __api_version__ = namedtuple("VapourSynthAPIVersion", "api_major api_minor")(VAP
 
 @final
 cdef class EnvironmentData(object):
-    cdef bool alive = True
+    cdef bint alive
     cdef Core core
     cdef dict outputs
     cdef dict options
@@ -93,7 +93,7 @@ cdef class EnvironmentData(object):
         raise RuntimeError("Cannot directly instantiate this class.")
 
     def __dealloc__(self):
-        _unset_logger(self, self.log)
+        _unset_logger(self)
 
 
 class EnvironmentPolicy(object):
@@ -162,14 +162,14 @@ cdef void _unset_logger(EnvironmentData env):
     env.log = NULL
 
 
-cdef public api void _logCb(int msgType, const char *msg, void *userData) nogil:
+cdef void __stdcall _logCb(int msgType, const char *msg, void *userData) nogil:
     with gil:
         message = msg.decode("utf-8")
         (<object>userData)(msgType, message)
-cdef public api void _logFree(void* userData):
+
+cdef void __stdcall _logFree(void* userData) nogil:
     with gil:
         Py_DECREF(<object>userData)
-
 
 @final
 cdef class EnvironmentPolicyAPI:
@@ -198,12 +198,13 @@ cdef class EnvironmentPolicyAPI:
         env.outputs = {}
         env.options = {}
         env.coreCreationFlags = flags
+        env.alive = True
 
         return env
 
     def set_logger(self, env, logger):
         Py_INCREF(logger)
-        _set_logger(env, _logCb, _logFree, logger)
+        _set_logger(env, _logCb, _logFree, <void *>logger)
 
     def destroy_environment(self, EnvironmentData env):
         self.ensure_policy_matches()
@@ -2619,7 +2620,9 @@ cdef class VSScriptEnvironmentPolicy:
         env = self._env_map.pop(script_id, None)
         if env is not None:
             self._api.destroy_environment(env)
-
+            
+    def is_alive(self, EnvironmentData environment):
+        return environment.alive
 
 cdef VSScriptEnvironmentPolicy _get_vsscript_policy():
     if not isinstance(_policy, VSScriptEnvironmentPolicy):
@@ -2657,32 +2660,32 @@ def __chdir(filename, flags):
         os.chdir(origpath)
 
 
-cdef void _vpy_replace_evaldict(VSScript *se, dict evaldict):
-    if se.evaldict:
-        Py_DECREF(se.evaldict)
-        se.evaldict = NULL
+cdef void _vpy_replace_pyenvdict(VSScript *se, dict pyenvdict):
+    if se.pyenvdict:
+        Py_DECREF(<dict>se.pyenvdict)
+        se.pyenvdict = NULL
     
-    if evaldict is not None:
-        Py_INCREF(evaldict)
-        se.evaldict = <void*>evaldict
+    if pyenvdict is not None:
+        Py_INCREF(pyenvdict)
+        se.pyenvdict = <void*>pyenvdict
 
 
 cdef int _vpy_evaluate(VSScript *se, bytes script, str filename, const VSScriptOptions* options):
     try:
-        evaldict = {}
+        pyenvdict = {}
         if se.pyenvdict:
-            evaldict = <dict>se.pyenvdict
+            pyenvdict = <dict>se.pyenvdict
         else:
-            _vpy_replace_evaldict(se, evaldict)
+            _vpy_replace_pyenvdict(se, pyenvdict)
         
-        evaldict["__name__"] = "__vapoursynth__"
-        code = compile(script, filename=filename, dontInherit=True, mode="exec")
+        pyenvdict["__name__"] = "__vapoursynth__"
+        code = compile(script, filename=filename, dont_inherit=True, mode="exec")
 
         if filename is None or (filename.startswith("<") and filename.endswith(">")):
             filename = "<string>"
-            evaldict.pop("__file__", None)
+            pyenvdict.pop("__file__", None)
         else:
-            evaldict["__file__"] = filename
+            pyenvdict["__file__"] = filename
 
         if se.errstr:
             errstr = <bytes>se.errstr
@@ -2691,7 +2694,7 @@ cdef int _vpy_evaluate(VSScript *se, bytes script, str filename, const VSScriptO
             errstr = None
 
         with _vsscript_use_or_create_environment2(se.id, options).use():
-            exec(comp, evaldict, evaldict)
+            exec(code, pyenvdict, pyenvdict)
 
     except BaseException, e:
         errstr = 'Python exception: ' + str(e) + '\n\n' + traceback.format_exc()
@@ -2710,7 +2713,7 @@ cdef int _vpy_evaluate(VSScript *se, bytes script, str filename, const VSScriptO
 cdef public api int vpy_createScript(VSScript *se) nogil:
     with gil:
         try:
-            _vpy_replace_evaldict(se, {})
+            _vpy_replace_pyenvdict(se, {})
             _get_vsscript_policy()._make_environment(<int>se.id, NULL)
 
         except:
@@ -2731,9 +2734,9 @@ cdef public api int vpy_evaluateScript(VSScript *se, const char *script, const c
 cdef public api int vpy_evaluateFile(VSScript *se, const char *scriptFilename, int flags) nogil:
     with gil:
         if not se.pyenvdict:
-            evaldict = {}
-            Py_INCREF(evaldict)
-            se.pyenvdict = <void *>evaldict
+            pyenvdict = {}
+            Py_INCREF(pyenvdict)
+            se.pyenvdict = <void *>pyenvdict
             _get_vsscript_policy().get_environment(se.id).outputs.clear()
         try:
             with open(scriptFilename.decode('utf-8'), 'rb') as f:
@@ -2755,9 +2758,9 @@ cdef public api int vpy_evaluateFile(VSScript *se, const char *scriptFilename, i
 cdef public api int vpy4_evaluateBuffer(VSScript *se, const char *buffer, const char *scriptFilename, const VSMap *vars, const VSScriptOptions *options) nogil:
     with gil:
         try:
-            if not se.evaldict:
-                _vpy_replace_evaldict(se, {})
-            evaldict = <dict>se.evaldict
+            if not se.pyenvdict:
+                _vpy_replace_pyenvdict(se, {})
+            pyenvdict = <dict>se.pyenvdict
             
             if buffer == NULL:
                 raise RuntimeError("NULL buffer passed.")
@@ -2766,7 +2769,7 @@ cdef public api int vpy4_evaluateBuffer(VSScript *se, const char *buffer, const 
                 if getVSAPIInternal() == NULL:
                     raise RuntimeError("Failed to retrieve VSAPI pointer.")
                 # FIXME, verify there are only int, float and data values in the map before this
-                evaldict.update(mapToDict(vars, False, False, NULL, getVSAPIInternal()))
+                pyenvdict.update(mapToDict(vars, False, False, NULL, getVSAPIInternal()))
 
             fn = None
             if scriptFilename:
@@ -2780,8 +2783,6 @@ cdef public api int vpy4_evaluateBuffer(VSScript *se, const char *buffer, const 
             Py_INCREF(errstr)
             se.errstr = <void *>errstr
             return 2
-            
-        return 0
 
 cdef public api int vpy4_evaluateFile(VSScript *se, const char *scriptFilename, const VSMap *vars, const VSScriptOptions *options) nogil:
     with gil:
@@ -2817,11 +2818,10 @@ cdef public api void vpy4_freeScript(VSScript *se) nogil:
     with gil:
         vpy_clearEnvironment(se)
         if se.pyenvdict:
-            evaldict = <dict>se.pyenvdict
-            evaldict.clear()
+            pyenvdict = <dict>se.pyenvdict
             se.pyenvdict = NULL
-            Py_DECREF(evaldict)
-            evaldict = None
+            Py_DECREF(pyenvdict)
+            pyenvdict = None
 
         if se.errstr:
             errstr = <bytes>se.errstr
@@ -2845,7 +2845,7 @@ cdef public api char *vpy4_getError(VSScript *se) nogil:
             
 cdef public api VSNodeRef *vpy4_getOutput(VSScript *se, int index) nogil:
     with gil:
-        evaldict = <dict>se.pyenvdict
+        pyenvdict = <dict>se.pyenvdict
         node = None
         try:
             node = _get_vsscript_policy().get_environment(se.id).outputs[index]
@@ -2862,7 +2862,7 @@ cdef public api VSNodeRef *vpy4_getOutput(VSScript *se, int index) nogil:
             
 cdef public api VSNodeRef *vpy4_getAlphaOutput(VSScript *se, int index) nogil:
     with gil:
-        evaldict = <dict>se.pyenvdict
+        pyenvdict = <dict>se.pyenvdict
         node = None
         try:
             node = _get_vsscript_policy().get_environment(se.id).outputs[index]
@@ -2916,10 +2916,10 @@ cdef public api int vpy4_getOptions(VSScript *se, VSMap *dst) nogil:
 cdef public api int vpy_getVariable(VSScript *se, const char *name, VSMap *dst) nogil:
     with gil:
         with _vsscript_use_environment(se.id).use():
-            evaldict = <dict>se.pyenvdict
+            pyenvdict = <dict>se.pyenvdict
             try:
                 dname = name.decode('utf-8')
-                read_var = { dname:evaldict[dname]}
+                read_var = { dname:pyenvdict[dname]}
                 core = vsscript_get_core_internal(_get_vsscript_policy().get_environment(se.id))
                 dictToMap(read_var, dst, False, core.core, core.funcs)
                 return 0
@@ -2929,31 +2929,31 @@ cdef public api int vpy_getVariable(VSScript *se, const char *name, VSMap *dst) 
 cdef public api int vpy_setVariable(VSScript *se, const VSMap *vars) nogil:
     with gil:
         with _vsscript_use_environment(se.id).use():
-            evaldict = <dict>se.pyenvdict
+            pyenvdict = <dict>se.pyenvdict
             try:     
                 core = vsscript_get_core_internal(_get_vsscript_policy().get_environment(se.id))
                 new_vars = mapToDict(vars, False, False, core.core, core.funcs)
                 for key in new_vars:
-                    evaldict[key] = new_vars[key]
+                    pyenvdict[key] = new_vars[key]
                 return 0
             except:
                 return 1
 
 cdef public api int vpy_clearVariable(VSScript *se, const char *name) nogil:
     with gil:
-        evaldict = <dict>se.pyenvdict
+        pyenvdict = <dict>se.pyenvdict
         try:
-            del evaldict[name.decode('utf-8')]
+            del pyenvdict[name.decode('utf-8')]
         except:
             return 1
         return 0
 
 cdef public api void vpy_clearEnvironment(VSScript *se) nogil:
     with gil:
-        evaldict = <dict>se.pyenvdict
-        for key in evaldict:
-            evaldict[key] = None
-        evaldict.clear()
+        pyenvdict = <dict>se.pyenvdict
+        for key in pyenvdict:
+            pyenvdict[key] = None
+        pyenvdict.clear()
         try:
              _get_vsscript_policy().get_environment(se.id).outputs.clear()
              _get_vsscript_policy().get_environment(se.id).core = None
