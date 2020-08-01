@@ -883,7 +883,7 @@ int main(int argc, char **argv) {
 #ifdef VS_TARGET_OS_WINDOWS
         outFile = _wfopen(opts.outputFilename.c_str(), L"wb");
 #else
-        outFile = fopen(outputFilename.c_str(), "wb");
+        outFile = fopen(opts.outputFilename.c_str(), "wb");
 #endif
         if (!outFile) {
             fprintf(stderr, "Failed to open output for writing\n");
