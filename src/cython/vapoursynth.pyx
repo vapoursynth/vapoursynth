@@ -155,7 +155,8 @@ cdef void _set_logger(EnvironmentData env, VSLogHandler handler, VSLogHandlerFre
     env.log = env.core.funcs.addLogHandler(handler, free, userData, env.core.core)
 
 cdef void _unset_logger(EnvironmentData env):
-    if env.log == NULL:
+    if env.log == NULL or env.core is None:
+        env.log = NULL # if the core has been freed then so has the log as well
         return
 
     env.core.funcs.removeLogHandler(env.log, env.core.core)
@@ -195,6 +196,7 @@ cdef class EnvironmentPolicyAPI:
 
         cdef EnvironmentData env = EnvironmentData.__new__(EnvironmentData)
         env.core = None
+        env.log = NULL
         env.outputs = {}
         env.options = {}
         env.coreCreationFlags = flags
@@ -2954,6 +2956,7 @@ cdef public api void vpy_clearEnvironment(VSScript *se) nogil:
         for key in pyenvdict:
             pyenvdict[key] = None
         pyenvdict.clear()
+        vpy4_clearLogHandler(se)
         try:
              _get_vsscript_policy().get_environment(se.id).outputs.clear()
              _get_vsscript_policy().get_environment(se.id).core = None
