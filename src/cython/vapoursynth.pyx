@@ -1011,7 +1011,7 @@ cdef class VideoFormat(object):
                f'\tId: {self.id:d}\n'
                f'\tName: {self.name}\n'
                f'\tColor Family: {self.color_family.name}\n'
-               f'\tSample Type: {self.sample_type.name.capitalize()}\n'
+               f'\tSample Type: {self.sample_type.name}\n'
                f'\tBits Per Sample: {self.bits_per_sample:d}\n'
                f'\tBytes Per Sample: {self.bytes_per_sample:d}\n'
                f'\tPlanes: {self.num_planes:d}\n'
@@ -2096,7 +2096,7 @@ cdef class AudioNode(RawNode):
         channels = ', '.join(channels)
                 
         return ('Audio Node\n'
-               f'\tSample Type: {self.sample_type_str.name}\n'
+               f'\tSample Type: {self.sample_type.name}\n'
                f'\tBits Per Sample: {self.bits_per_sample:d}\n'
                f'\tChannels: {channels:s}\n'
                f'\tSample Rate: {self.sample_rate:d}\n'
