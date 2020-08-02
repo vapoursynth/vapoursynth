@@ -212,8 +212,12 @@ static const char *messageTypeToString(int msgType) {
     }
 }
 
-static void VS_CC messageHandler(int msgType, const char *msg, void *userData) {
+static void VS_CC logMessageHandler(int msgType, const char *msg, void *userData) {
+#ifdef NDEBUG
     if (msgType >= mtInformation)
+#else
+    if (msgType >= mtDebug)
+#endif
         fprintf(stderr, "%s: %s\n", messageTypeToString(msgType), msg);
 }
 
@@ -913,7 +917,7 @@ int main(int argc, char **argv) {
 
     std::chrono::time_point<std::chrono::steady_clock> scriptEvaluationStart = std::chrono::steady_clock::now();
     
-    VSScriptOptions scriptOpts = { sizeof(VSScriptOptions), (opts.mode == VSPipeMode::vpmPrintSimpleGraph || opts.mode == VSPipeMode::vpmPrintFullGraph || opts.printFilterTime) ? ccfEnableGraphInspection : 0, messageHandler, nullptr, nullptr };
+    VSScriptOptions scriptOpts = { sizeof(VSScriptOptions), (opts.mode == VSPipeMode::vpmPrintSimpleGraph || opts.mode == VSPipeMode::vpmPrintFullGraph || opts.printFilterTime) ? ccfEnableGraphInspection : 0, logMessageHandler, nullptr, nullptr };
 
     VSScript *se = nullptr;
     if (!opts.scriptArgs.empty()) {
