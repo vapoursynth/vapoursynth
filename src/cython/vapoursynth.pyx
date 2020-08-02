@@ -124,8 +124,12 @@ cdef class StandaloneEnvironmentPolicy:
     def __init__(self):
         raise RuntimeError("Cannot directly instantiate this class.")
 
+    def _on_log_message(self, level, msg):
+        print(f"[{level.name.split('_')[-1]}] {msg}", file=sys.stderr)
+
     def on_policy_registered(self, api):
         self._environment = api.create_environment()
+        api.set_logger(self._environment, self._on_log_message)
 
     def on_policy_cleared(self):
         self._environment = None
@@ -138,6 +142,7 @@ cdef class StandaloneEnvironmentPolicy:
 
     def is_alive(self, environment):
         return environment is self._environment
+
 
 # This flag is kept for backwards compatibility
 # I suggest deleting it sometime after R51
@@ -165,7 +170,7 @@ cdef void _unset_logger(EnvironmentData env):
 cdef void __stdcall _logCb(int msgType, const char *msg, void *userData) nogil:
     with gil:
         message = msg.decode("utf-8")
-        (<object>userData)(msgType, message)
+        (<object>userData)(MessageType(msgType), message)
 
 cdef void __stdcall _logFree(void* userData) nogil:
     with gil:
@@ -2573,16 +2578,13 @@ cdef class VSScriptEnvironmentPolicy:
         raise RuntimeError("Cannot instantiate this class directly.")
 
     def on_policy_registered(self, policy_api):
-        self._env_map = {}
         self._stack = ThreadLocal()
-        self._lock = Lock()
         self._api = policy_api
+        self._env_map = {}
 
     def on_policy_cleared(self):
-        with self._lock:
-            self._env_map = None
-            self._stack = None
-            self._lock = None
+        self._env_map = None
+        self._stack = None
 
     cdef EnvironmentData get_environment(self, id):
         return self._env_map.get(id, None)
@@ -2623,6 +2625,7 @@ cdef class VSScriptEnvironmentPolicy:
             
     def is_alive(self, EnvironmentData environment):
         return environment.alive
+
 
 cdef VSScriptEnvironmentPolicy _get_vsscript_policy():
     if not isinstance(_policy, VSScriptEnvironmentPolicy):
@@ -2950,10 +2953,12 @@ cdef public api int vpy_clearVariable(VSScript *se, const char *name) nogil:
 
 cdef public api void vpy_clearEnvironment(VSScript *se) nogil:
     with gil:
-        pyenvdict = <dict>se.pyenvdict
-        for key in pyenvdict:
-            pyenvdict[key] = None
-        pyenvdict.clear()
+        if se.pyenvdict:
+            pyenvdict = <dict>se.pyenvdict
+            for key in pyenvdict:
+                pyenvdict[key] = None
+            pyenvdict.clear()
+
         try:
              _get_vsscript_policy().get_environment(se.id).outputs.clear()
              _get_vsscript_policy().get_environment(se.id).core = None
