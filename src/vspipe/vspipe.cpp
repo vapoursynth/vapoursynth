@@ -671,7 +671,7 @@ static int parseOptions(VSPipeOptions &opts, int argc, T **argv) {
                 return 1;
             }
 
-            opts.mode = vpmPrintVersion;
+            opts.mode = VSPipeMode::vpmPrintVersion;
         } else if (argString == NSTRING("-c") || argString == NSTRING("--container")) {
             if (argc <= arg + 1) {
                 fprintf(stderr, "No container type specified\n");
@@ -679,11 +679,11 @@ static int parseOptions(VSPipeOptions &opts, int argc, T **argv) {
             }
 
             if (nstringToUtf8(argv[arg + 1]) == "y4m") {
-                opts.outputHeaders = vphY4M;
+                opts.outputHeaders = VSPipeHeaders::vphY4M;
             } else if (nstringToUtf8(argv[arg + 1]) == "wav") {
-                opts.outputHeaders = vphWAVE;
+                opts.outputHeaders = VSPipeHeaders::vphWAVE;
             } else if (nstringToUtf8(argv[arg + 1]) == "w64") {
-                opts.outputHeaders = vphWAVE64;
+                opts.outputHeaders = VSPipeHeaders::vphWAVE64;
             } else {
                 fprintf(stderr, "Unknown container type specified: %s\n", nstringToUtf8(argv[arg + 1]).c_str());
                 return 1;
@@ -692,20 +692,20 @@ static int parseOptions(VSPipeOptions &opts, int argc, T **argv) {
             arg++;
         } else if (argString == NSTRING("-y") || argString == NSTRING("--y4m")) { // secret option for comaptibility with V3
             fprintf(stderr, "Deprecated option --y4m specified, use -c y4m instead\n");
-            opts.outputHeaders = vphY4M;
+            opts.outputHeaders = VSPipeHeaders::vphY4M;
         } else if (argString == NSTRING("-p") || argString == NSTRING("--progress")) {
             opts.printProgress = true;
         } else if (argString == NSTRING("--filter-time")) {
             opts.printFilterTime = true;
         } else if (argString == NSTRING("-i") || argString == NSTRING("--info")) {
-            if (opts.mode == vpmPrintSimpleGraph || opts.mode == vpmPrintFullGraph) {
+            if (opts.mode == VSPipeMode::vpmPrintSimpleGraph || opts.mode == VSPipeMode::vpmPrintFullGraph) {
                 fprintf(stderr, "Cannot combine graph and info arguments\n");
                 return 1;
             }
 
-            opts.mode = vpmPrintInfo;
+            opts.mode = VSPipeMode::vpmPrintInfo;
         } else if (argString == NSTRING("-g") || argString == NSTRING("--graph")) {
-            if (opts.mode == vpmPrintInfo) {
+            if (opts.mode == VSPipeMode::vpmPrintInfo) {
                 fprintf(stderr, "Cannot combine graph and info arguments\n");
                 return 1;
             }
@@ -716,9 +716,9 @@ static int parseOptions(VSPipeOptions &opts, int argc, T **argv) {
             }
 
             if (nstringToUtf8(argv[arg + 1]) == "simple") {
-                opts.mode = vpmPrintSimpleGraph;
+                opts.mode = VSPipeMode::vpmPrintSimpleGraph;
             } else if (nstringToUtf8(argv[arg + 1]) == "full") {
-                opts.mode = vpmPrintFullGraph;
+                opts.mode = VSPipeMode::vpmPrintFullGraph;
             } else {
                 fprintf(stderr, "Unknown graph type specified: %s\n", nstringToUtf8(argv[arg + 1]).c_str());
                 return 1;
@@ -731,7 +731,7 @@ static int parseOptions(VSPipeOptions &opts, int argc, T **argv) {
                 return 1;
             }
 
-            opts.mode = vpmPrintHelp;
+            opts.mode = VSPipeMode::vpmPrintHelp;
         } else if (argString == NSTRING("-s") || argString == NSTRING("--start")) {
             if (argc <= arg + 1) {
                 fprintf(stderr, "No start frame specified\n");
@@ -827,12 +827,12 @@ static int parseOptions(VSPipeOptions &opts, int argc, T **argv) {
 
     // Print help if no options provided
     if (argc <= 1)
-        opts.mode = vpmPrintHelp;
+        opts.mode = VSPipeMode::vpmPrintHelp;
 
-    if ((opts.mode == vpmOuput || opts.mode == vpmPrintInfo || opts.mode == vpmPrintSimpleGraph || opts.mode == vpmPrintFullGraph) && opts.scriptFilename.empty()) {
+    if ((opts.mode == VSPipeMode::vpmOuput || opts.mode == VSPipeMode::vpmPrintInfo || opts.mode == VSPipeMode::vpmPrintSimpleGraph || opts.mode == VSPipeMode::vpmPrintFullGraph) && opts.scriptFilename.empty()) {
         fprintf(stderr, "No script file specified\n");
         return 1;
-    } else if (opts.mode == vpmOuput && opts.outputFilename.empty()) {
+    } else if (opts.mode == VSPipeMode::vpmOuput && opts.outputFilename.empty()) {
         fprintf(stderr, "No output file specified\n");
         return 1;
     }
