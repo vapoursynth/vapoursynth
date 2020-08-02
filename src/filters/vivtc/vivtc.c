@@ -1620,7 +1620,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
     vspapi->configPlugin("org.ivtc.v", "vivtc", "VFM", VS_MAKE_VERSION(1, 0), VAPOURSYNTH_API_VERSION, 1, plugin);
     // add ovr support
     vspapi->registerFunction("VFM",
-                             "clip:clip;"
+                             "clip:vnode;"
                              "order:int;"
                              "field:int:opt;"
                              "mode:int:opt;"
@@ -1635,18 +1635,18 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
                              "scthresh:float:opt;"
                              "micmatch:int:opt;"
                              "micout:int:opt;"
-                             "clip2:clip:opt;"
+                             "clip2:vnode:opt;"
                              , "clip:vnode;"
                              , createVFM, NULL, plugin);
     vspapi->registerFunction("VDecimate",
-                             "clip:clip;"
+                             "clip:vnode;"
                              "cycle:int:opt;"
                              "chroma:int:opt;"
                              "dupthresh:float:opt;"
                              "scthresh:float:opt;"
                              "blockx:int:opt;"
                              "blocky:int:opt;"
-                             "clip2:clip:opt;"
+                             "clip2:vnode:opt;"
                              "ovr:data:opt;"
                              "dryrun:int:opt;"
                              , "clip:vnode;"

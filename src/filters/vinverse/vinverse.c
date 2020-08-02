@@ -190,7 +190,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
                "A simple filter to remove residual combing.",
                 VS_MAKE_VERSION(1, 0), VAPOURSYNTH_API_VERSION, 0, plugin);
     vspapi->registerFunction("Vinverse",
-                 "clip:clip;"
+                 "clip:vnode;"
                  "sstr:float:opt;"
                  "amnt:int:opt;"
                  "scl:float:opt;",
