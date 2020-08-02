@@ -148,5 +148,5 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI
         VAPOURSYNTH_API_VERSION, 0, plugin);
 
     for (uintptr_t i = 0; FilterFuncs[i] && FilterNames[i]; i++)
-        vspapi->registerFunction(FilterNames[i], "clip:clip;size:int:opt;shape:int:opt", "clip:vnode;", MorphoCreate, (void *)i, plugin);
+        vspapi->registerFunction(FilterNames[i], "clip:vnode;size:int:opt;shape:int:opt", "clip:vnode;", MorphoCreate, (void *)i, plugin);
 }

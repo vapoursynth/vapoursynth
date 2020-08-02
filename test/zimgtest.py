@@ -13,18 +13,18 @@ for cfs in colorfamilies:
         if cfs == vs.YUV:
             for wss in yuvss:
                 for hss in yuvss:
-                    formatids.append(core.register_format(cfs, vs.INTEGER, bps, wss, hss).id)
+                    formatids.append(core.query_video_format(cfs, vs.INTEGER, bps, wss, hss).id)
         else:
-            formatids.append(core.register_format(cfs, vs.INTEGER, bps, 0, 0).id)
+            formatids.append(core.query_video_format(cfs, vs.INTEGER, bps, 0, 0).id)
 
 for cfs in colorfamilies:
     for bps in floatbitdepths:
         if cfs == vs.YUV:
             for wss in yuvss:
                 for hss in yuvss:
-                    formatids.append(core.register_format(cfs, vs.FLOAT, bps, wss, hss).id)
+                    formatids.append(core.query_video_format(cfs, vs.FLOAT, bps, wss, hss).id)
         else:
-            formatids.append(core.register_format(cfs, vs.FLOAT, bps, 0, 0).id)
+            formatids.append(core.query_video_format(cfs, vs.FLOAT, bps, 0, 0).id)
 
 print(len(formatids))
 
@@ -38,12 +38,12 @@ for informat in formatids:
         try:
             if (clip.format.color_family in (vs.YUV, vs.GRAY)):
                 clip = core.resize.Bicubic(clip, format=outformat, matrix_in_s="709")
-            elif (core.get_format(outformat).color_family in (vs.YUV, vs.GRAY)):
+            elif (core.get_video_format(outformat).color_family in (vs.YUV, vs.GRAY)):
                 clip = core.resize.Bicubic(clip, format=outformat, matrix_s="709")       
             else:
                 clip = core.resize.Bicubic(clip, format=outformat) 
             clip.get_frame(0)
         except vs.Error as e:
-            print(core.get_format(informat).name + ' ' + core.get_format(outformat).name)
+            print(core.get_format(informat).name + ' ' + core.get_video_format(outformat).name)
             print(e)
           

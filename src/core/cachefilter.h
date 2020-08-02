@@ -130,11 +130,11 @@ private:
     }
 
 public:
-    enum CacheAction {
-        caGrow,
-        caNoChange,
-        caShrink,
-        caClear
+    enum class CacheAction {
+        Grow,
+        NoChange,
+        Shrink,
+        Clear
     };
 
     VSCache(int maxSize, int maxHistorySize, bool fixedSize);

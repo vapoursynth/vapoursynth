@@ -85,26 +85,26 @@ using namespace vsh;
 
 /////////////////////////////////////////////
 
-enum VSPipeMode {
-    vpmOuput,
-    vpmPrintVersion,
-    vpmPrintHelp,
-    vpmPrintInfo,
-    vpmPrintSimpleGraph,
-    vpmPrintFullGraph
+enum class VSPipeMode {
+    Ouput,
+    PrintVersion,
+    PrintHelp,
+    PrintInfo,
+    PrintSimpleGraph,
+    PrintFullGraph
 };
 
-enum VSPipeHeaders {
-    vphNone,
-    vphY4M,
-    vphWAVE,
-    vphWAVE64
+enum class VSPipeHeaders {
+    None,
+    Y4M,
+    WAVE,
+    WAVE64
 };
 
 // Struct used to return the parsed command line options
 struct VSPipeOptions {
-    VSPipeMode mode = vpmOuput;
-    VSPipeHeaders outputHeaders = vphNone;
+    VSPipeMode mode = VSPipeMode::Ouput;
+    VSPipeHeaders outputHeaders = VSPipeHeaders::None;
     int64_t startPos = 0;
     int64_t endPos = -1;
     int outputIndex = 0;
@@ -122,7 +122,7 @@ struct VSPipeOptions {
 struct VSPipeOutputData {
     /* Core fields */
     const VSAPI *vsapi = nullptr;
-    VSPipeHeaders outputHeaders = vphNone;
+    VSPipeHeaders outputHeaders = VSPipeHeaders::None;
     FILE *outFile = nullptr;
     VSNodeRef *node = nullptr;
     VSNodeRef *alphaNode = nullptr;
@@ -212,8 +212,12 @@ static const char *messageTypeToString(int msgType) {
     }
 }
 
-static void VS_CC messageHandler(int msgType, const char *msg, void *userData) {
+static void VS_CC logMessageHandler(int msgType, const char *msg, void *userData) {
+#ifdef NDEBUG
     if (msgType >= mtInformation)
+#else
+    if (msgType >= mtDebug)
+#endif
         fprintf(stderr, "%s: %s\n", messageTypeToString(msgType), msg);
 }
 
@@ -331,7 +335,7 @@ static void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, 
             const VSFrameRef *alphaFrame = data->reorderMap[data->outputFrames].second;
             data->reorderMap.erase(data->outputFrames);
             if (!data->outputError) {
-                if (data->outputHeaders == vphY4M && data->outFile) {
+                if (data->outputHeaders == VSPipeHeaders::Y4M && data->outFile) {
                     if (fwrite("FRAME\n", 1, 6, data->outFile) != 6) {
                         if (data->errorMessage.empty())
                             data->errorMessage = "Error: fwrite() call failed when writing header, errno: " + std::to_string(errno);
@@ -427,21 +431,21 @@ static std::string floatBitsToLetter(int bits) {
 }
 
 static bool initializeVideoOutput(VSPipeOutputData *data) {
-    if (data->outputHeaders != vphNone && data->outputHeaders != vphY4M) {
+    if (data->outputHeaders != VSPipeHeaders::None && data->outputHeaders != VSPipeHeaders::Y4M) {
         fprintf(stderr, "Error: can't apply selected header type to video\n");
         return false;
     }
 
     const VSVideoInfo *vi = data->vsapi->getVideoInfo(data->node);
 
-    if (data->outputHeaders == vphY4M && ((vi->format.colorFamily != cfGray && vi->format.colorFamily != cfYUV) || data->alphaNode)) {
+    if (data->outputHeaders == VSPipeHeaders::Y4M && ((vi->format.colorFamily != cfGray && vi->format.colorFamily != cfYUV) || data->alphaNode)) {
         fprintf(stderr, "Error: can only apply y4m headers to YUV and Gray format clips without alpha\n");
         return false;
     }
 
     std::string y4mFormat;
 
-    if (data->outputHeaders == vphY4M) {
+    if (data->outputHeaders == VSPipeHeaders::Y4M) {
         if (vi->format.colorFamily == cfGray) {
             y4mFormat = "mono";
             if (vi->format.bitsPerSample > 8)
@@ -503,14 +507,14 @@ static bool initializeVideoOutput(VSPipeOutputData *data) {
 }
 
 static bool initializeAudioOutput(VSPipeOutputData *data) {
-    if (data->outputHeaders != vphNone && data->outputHeaders != vphWAVE && data->outputHeaders != vphWAVE64) {
+    if (data->outputHeaders != VSPipeHeaders::None && data->outputHeaders != VSPipeHeaders::WAVE && data->outputHeaders != VSPipeHeaders::WAVE64) {
         fprintf(stderr, "Error: can't apply apply selected header type to audio\n");
         return false;
     }
 
     const VSAudioInfo *ai = data->vsapi->getAudioInfo(data->node);
 
-    if (data->outputHeaders == vphWAVE64) {
+    if (data->outputHeaders == VSPipeHeaders::WAVE64) {
         Wave64Header header;
         if (!CreateWave64Header(header, ai->format.sampleType == stFloat, ai->format.bitsPerSample, ai->sampleRate, ai->format.channelLayout, ai->numSamples)) {
             fprintf(stderr, "Error: cannot create valid w64 header\n");
@@ -522,7 +526,7 @@ static bool initializeAudioOutput(VSPipeOutputData *data) {
                 return false;
             }
         }
-    } else if (data->outputHeaders == vphWAVE) {
+    } else if (data->outputHeaders == VSPipeHeaders::WAVE) {
         WaveHeader header;
         if (!CreateWaveHeader(header, ai->format.sampleType == stFloat, ai->format.bitsPerSample, ai->sampleRate, ai->format.channelLayout, ai->numSamples)) {
             fprintf(stderr, "Error: cannot create valid wav header\n");
@@ -671,7 +675,7 @@ static int parseOptions(VSPipeOptions &opts, int argc, T **argv) {
                 return 1;
             }
 
-            opts.mode = vpmPrintVersion;
+            opts.mode = VSPipeMode::PrintVersion;
         } else if (argString == NSTRING("-c") || argString == NSTRING("--container")) {
             if (argc <= arg + 1) {
                 fprintf(stderr, "No container type specified\n");
@@ -679,11 +683,11 @@ static int parseOptions(VSPipeOptions &opts, int argc, T **argv) {
             }
 
             if (nstringToUtf8(argv[arg + 1]) == "y4m") {
-                opts.outputHeaders = vphY4M;
+                opts.outputHeaders = VSPipeHeaders::Y4M;
             } else if (nstringToUtf8(argv[arg + 1]) == "wav") {
-                opts.outputHeaders = vphWAVE;
+                opts.outputHeaders = VSPipeHeaders::WAVE;
             } else if (nstringToUtf8(argv[arg + 1]) == "w64") {
-                opts.outputHeaders = vphWAVE64;
+                opts.outputHeaders = VSPipeHeaders::WAVE64;
             } else {
                 fprintf(stderr, "Unknown container type specified: %s\n", nstringToUtf8(argv[arg + 1]).c_str());
                 return 1;
@@ -692,20 +696,20 @@ static int parseOptions(VSPipeOptions &opts, int argc, T **argv) {
             arg++;
         } else if (argString == NSTRING("-y") || argString == NSTRING("--y4m")) { // secret option for comaptibility with V3
             fprintf(stderr, "Deprecated option --y4m specified, use -c y4m instead\n");
-            opts.outputHeaders = vphY4M;
+            opts.outputHeaders = VSPipeHeaders::Y4M;
         } else if (argString == NSTRING("-p") || argString == NSTRING("--progress")) {
             opts.printProgress = true;
         } else if (argString == NSTRING("--filter-time")) {
             opts.printFilterTime = true;
         } else if (argString == NSTRING("-i") || argString == NSTRING("--info")) {
-            if (opts.mode == vpmPrintSimpleGraph || opts.mode == vpmPrintFullGraph) {
+            if (opts.mode == VSPipeMode::PrintSimpleGraph || opts.mode == VSPipeMode::PrintFullGraph) {
                 fprintf(stderr, "Cannot combine graph and info arguments\n");
                 return 1;
             }
 
-            opts.mode = vpmPrintInfo;
+            opts.mode = VSPipeMode::PrintInfo;
         } else if (argString == NSTRING("-g") || argString == NSTRING("--graph")) {
-            if (opts.mode == vpmPrintInfo) {
+            if (opts.mode == VSPipeMode::PrintInfo) {
                 fprintf(stderr, "Cannot combine graph and info arguments\n");
                 return 1;
             }
@@ -716,9 +720,9 @@ static int parseOptions(VSPipeOptions &opts, int argc, T **argv) {
             }
 
             if (nstringToUtf8(argv[arg + 1]) == "simple") {
-                opts.mode = vpmPrintSimpleGraph;
+                opts.mode = VSPipeMode::PrintSimpleGraph;
             } else if (nstringToUtf8(argv[arg + 1]) == "full") {
-                opts.mode = vpmPrintFullGraph;
+                opts.mode = VSPipeMode::PrintFullGraph;
             } else {
                 fprintf(stderr, "Unknown graph type specified: %s\n", nstringToUtf8(argv[arg + 1]).c_str());
                 return 1;
@@ -731,7 +735,7 @@ static int parseOptions(VSPipeOptions &opts, int argc, T **argv) {
                 return 1;
             }
 
-            opts.mode = vpmPrintHelp;
+            opts.mode = VSPipeMode::PrintHelp;
         } else if (argString == NSTRING("-s") || argString == NSTRING("--start")) {
             if (argc <= arg + 1) {
                 fprintf(stderr, "No start frame specified\n");
@@ -827,12 +831,12 @@ static int parseOptions(VSPipeOptions &opts, int argc, T **argv) {
 
     // Print help if no options provided
     if (argc <= 1)
-        opts.mode = vpmPrintHelp;
+        opts.mode = VSPipeMode::PrintHelp;
 
-    if ((opts.mode == vpmOuput || opts.mode == vpmPrintInfo || opts.mode == vpmPrintSimpleGraph || opts.mode == vpmPrintFullGraph) && opts.scriptFilename.empty()) {
+    if ((opts.mode == VSPipeMode::Ouput || opts.mode == VSPipeMode::PrintInfo || opts.mode == VSPipeMode::PrintSimpleGraph || opts.mode == VSPipeMode::PrintFullGraph) && opts.scriptFilename.empty()) {
         fprintf(stderr, "No script file specified\n");
         return 1;
-    } else if (opts.mode == vpmOuput && opts.outputFilename.empty()) {
+    } else if (opts.mode == VSPipeMode::Ouput && opts.outputFilename.empty()) {
         fprintf(stderr, "No output file specified\n");
         return 1;
     }
@@ -865,9 +869,9 @@ int main(int argc, char **argv) {
     if (parseResult)
         return parseResult;
 
-    if (opts.mode == vpmPrintVersion) {
+    if (opts.mode == VSPipeMode::PrintVersion) {
         return printVersion(vsapi) ? 0 : 1;
-    } else if (opts.mode == vpmPrintHelp) {
+    } else if (opts.mode == VSPipeMode::PrintHelp) {
         printHelp();
         return 0;
     }
@@ -883,7 +887,7 @@ int main(int argc, char **argv) {
 #ifdef VS_TARGET_OS_WINDOWS
         outFile = _wfopen(opts.outputFilename.c_str(), L"wb");
 #else
-        outFile = fopen(outputFilename.c_str(), "wb");
+        outFile = fopen(opts.outputFilename.c_str(), "wb");
 #endif
         if (!outFile) {
             fprintf(stderr, "Failed to open output for writing\n");
@@ -893,7 +897,7 @@ int main(int argc, char **argv) {
     }
 
     FILE *timecodesFile = nullptr;
-    if (opts.mode == vpmOuput && !opts.timecodesFilename.empty()) {
+    if (opts.mode == VSPipeMode::Ouput && !opts.timecodesFilename.empty()) {
 #ifdef VS_TARGET_OS_WINDOWS
         timecodesFile = _wfopen(opts.timecodesFilename.c_str(), L"wb");
 #else
@@ -913,7 +917,7 @@ int main(int argc, char **argv) {
 
     std::chrono::time_point<std::chrono::steady_clock> scriptEvaluationStart = std::chrono::steady_clock::now();
     
-    VSScriptOptions scriptOpts = { sizeof(VSScriptOptions), (opts.mode == vpmPrintSimpleGraph || opts.mode == vpmPrintFullGraph || opts.printFilterTime) ? ccfEnableGraphInspection : 0, messageHandler, nullptr, nullptr };
+    VSScriptOptions scriptOpts = { sizeof(VSScriptOptions), (opts.mode == VSPipeMode::PrintSimpleGraph || opts.mode == VSPipeMode::PrintFullGraph || opts.printFilterTime) ? ccfEnableGraphInspection : 0, logMessageHandler, nullptr, nullptr };
 
     VSScript *se = nullptr;
     if (!opts.scriptArgs.empty()) {
@@ -947,11 +951,11 @@ int main(int argc, char **argv) {
 
     bool success = true;
 
-    if (opts.mode == vpmPrintSimpleGraph) {
+    if (opts.mode == VSPipeMode::PrintSimpleGraph) {
         std::string graph = printFullNodeGraph(node, vsapi);
         if (outFile)
             fprintf(outFile, "%s\n", graph.c_str());
-    } else if (opts.mode == vpmPrintFullGraph) {
+    } else if (opts.mode == VSPipeMode::PrintFullGraph) {
         std::string graph = printFullNodeGraph(node, vsapi);
         if (outFile)
             fprintf(outFile, "%s\n", graph.c_str());
@@ -994,7 +998,7 @@ int main(int argc, char **argv) {
 
             const VSVideoInfo *vi = vsapi->getVideoInfo(node);
 
-            if (opts.mode == vpmPrintInfo) {
+            if (opts.mode == VSPipeMode::PrintInfo) {
                 if (outFile) {
                     if (vi->width && vi->height) {
                         fprintf(outFile, "Width: %d\n", vi->width);
@@ -1044,7 +1048,7 @@ int main(int argc, char **argv) {
 
             const VSAudioInfo *ai = vsapi->getAudioInfo(node);
 
-            if (opts.mode == vpmPrintInfo) {
+            if (opts.mode == VSPipeMode::PrintInfo) {
                 if (outFile) {
                     char nameBuffer[32];
                     vsapi->getAudioFormatName(&ai->format, nameBuffer);

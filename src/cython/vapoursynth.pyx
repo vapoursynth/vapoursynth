@@ -160,7 +160,8 @@ cdef void _set_logger(EnvironmentData env, VSLogHandler handler, VSLogHandlerFre
     env.log = env.core.funcs.addLogHandler(handler, free, userData, env.core.core)
 
 cdef void _unset_logger(EnvironmentData env):
-    if env.log == NULL:
+    if env.log == NULL or env.core is None:
+        env.log = NULL # if the core has been freed then so has the log as well
         return
 
     env.core.funcs.removeLogHandler(env.log, env.core.core)
@@ -200,6 +201,7 @@ cdef class EnvironmentPolicyAPI:
 
         cdef EnvironmentData env = EnvironmentData.__new__(EnvironmentData)
         env.core = None
+        env.log = NULL
         env.outputs = {}
         env.options = {}
         env.coreCreationFlags = flags
@@ -1014,7 +1016,7 @@ cdef class VideoFormat(object):
                f'\tId: {self.id:d}\n'
                f'\tName: {self.name}\n'
                f'\tColor Family: {self.color_family.name}\n'
-               f'\tSample Type: {self.sample_type.name.capitalize()}\n'
+               f'\tSample Type: {self.sample_type.name}\n'
                f'\tBits Per Sample: {self.bits_per_sample:d}\n'
                f'\tBytes Per Sample: {self.bytes_per_sample:d}\n'
                f'\tPlanes: {self.num_planes:d}\n'
@@ -2099,7 +2101,7 @@ cdef class AudioNode(RawNode):
         channels = ', '.join(channels)
                 
         return ('Audio Node\n'
-               f'\tSample Type: {self.sample_type_str.name}\n'
+               f'\tSample Type: {self.sample_type.name}\n'
                f'\tBits Per Sample: {self.bits_per_sample:d}\n'
                f'\tChannels: {channels:s}\n'
                f'\tSample Rate: {self.sample_rate:d}\n'
@@ -2953,12 +2955,11 @@ cdef public api int vpy_clearVariable(VSScript *se, const char *name) nogil:
 
 cdef public api void vpy_clearEnvironment(VSScript *se) nogil:
     with gil:
-        if se.pyenvdict:
-            pyenvdict = <dict>se.pyenvdict
-            for key in pyenvdict:
-                pyenvdict[key] = None
-            pyenvdict.clear()
-
+        pyenvdict = <dict>se.pyenvdict
+        for key in pyenvdict:
+            pyenvdict[key] = None
+        pyenvdict.clear()
+        vpy4_clearLogHandler(se)
         try:
              _get_vsscript_policy().get_environment(se.id).outputs.clear()
              _get_vsscript_policy().get_environment(se.id).core = None

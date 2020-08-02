@@ -169,5 +169,5 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     configFunc("com.example.invert", "invert", "VapourSynth Invert Example", VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("Filter", "clip:clip;enabled:int:opt;", invertCreate, 0, plugin);
+    registerFunc("Filter", "clip:vnode;enabled:int:opt;", invertCreate, 0, plugin);
 }
