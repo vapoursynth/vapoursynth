@@ -31,14 +31,14 @@ VSCache::CacheAction VSCache::recommendSize() {
 #ifdef VS_CACHE_DEBUG
         fprintf(stderr, "Cache (%p) stats (clear): total: %d, far miss: %d, near miss: %d, hits: %d, size: %d\n", (void *)this, total, farMiss, nearMiss, hits, maxSize);
 #endif
-        return caClear;
+        return CacheAction::Clear;
     }
 
     if (total < 30) {
 #ifdef VS_CACHE_DEBUG
         fprintf(stderr, "Cache (%p) stats (keep low total): total: %d, far miss: %d, near miss: %d, hits: %d, size: %d\n", (void *)this, total, farMiss, nearMiss, hits, maxSize);
 #endif
-        return caNoChange; // not enough requests to know what to do so keep it this way
+        return CacheAction::NoChange; // not enough requests to know what to do so keep it this way
     }
 
     bool shrink = (nearMiss == 0 && hits == 0); // shrink if there were no hits or even close to hittin
@@ -49,13 +49,13 @@ VSCache::CacheAction VSCache::recommendSize() {
 
     if (grow) { // growing the cache would be beneficial
         clearStats();
-        return caGrow;
+        return CacheAction::Grow;
     } else if (shrink) { // probably a linear scan, no reason to waste space here
         clearStats();
-        return caShrink;
+        return CacheAction::Shrink;
     } else {
         clearStats();
-        return caNoChange; // probably fine the way it is
+        return CacheAction::NoChange; // probably fine the way it is
     }
 }
 
@@ -128,28 +128,28 @@ void VSCache::adjustSize(bool needMemory) {
     if (!fixedSize) {
         if (!needMemory) {
             switch (recommendSize()) {
-            case VSCache::caClear:
+            case VSCache::CacheAction::Clear:
                 clear();
                 setMaxFrames(std::max(getMaxFrames() - 2, 0));
                 break;
-            case VSCache::caGrow:
+            case VSCache::CacheAction::Grow:
                 setMaxFrames(getMaxFrames() + 2);
                 break;
-            case VSCache::caShrink:
+            case VSCache::CacheAction::Shrink:
                 setMaxFrames(std::max(getMaxFrames() - 1, 0));
                 break;
             default:;
             }
         } else {
             switch (recommendSize()) {
-            case VSCache::caClear:
+            case VSCache::CacheAction::Clear:
                 clear();
                 setMaxFrames(std::max(getMaxFrames() - 2, 0));
                 break;
-            case VSCache::caShrink:
+            case VSCache::CacheAction::Shrink:
                 setMaxFrames(std::max(getMaxFrames() - 2, 0));
                 break;
-            case VSCache::caNoChange:
+            case VSCache::CacheAction::NoChange:
                 if (getMaxFrames() <= 1)
                     clear();
                 setMaxFrames(std::max(getMaxFrames() - 1, 1));
