@@ -430,6 +430,8 @@ static VSNodeRef *VS_CC mapGetNode(const VSMap *map, const char *key, int index,
     if (arr) {
         VSNodeRef *ref = reinterpret_cast<VSVideoNodeArray *>(arr)->at(index).get();
         ref->add_ref();
+        if (error)
+            *error = dummyError;
         return ref;
     } else {
         arr = propGetShared(map, key, index, error, ptAudioNode);
@@ -449,6 +451,8 @@ static const VSFrameRef *VS_CC mapGetFrame(const VSMap *map, const char *key, in
     if (arr) {
         VSFrameRef *ref = reinterpret_cast<VSVideoFrameArray *>(arr)->at(index).get();
         ref->add_ref();
+        if (error)
+            *error = dummyError;
         return ref;
     } else {
         arr = propGetShared(map, key, index, error, ptData);
