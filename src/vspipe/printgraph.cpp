@@ -194,7 +194,7 @@ static void printNodeTimesHelper(std::list<NodeTimeRecord> &lines, std::set<VSNo
 
     int minRealLevel = getMinRealLevel(node, vsapi);
 
-    lines.push_back(NodeTimeRecord{ vsapi->getNodeCreationFunctionName(node, minRealLevel), vsapi->getNodeFilterMode(node), vsapi->getNodeFilterTime(node) } );
+    lines.push_back(NodeTimeRecord{ vsapi->getNodeName(node), vsapi->getNodeFilterMode(node), vsapi->getNodeFilterTime(node) } );
 
     const VSMap *args = vsapi->getNodeCreationFunctionArguments(node, 0);
     int numKeys = vsapi->mapNumKeys(args);
