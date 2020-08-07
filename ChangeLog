@@ -1,3 +1,6 @@
+r52:
+vsgenstubs is now included with vsrepo
+
 r51:
 updated visual studio 2019 runtime version
 fixed a cache shrinking issue
