@@ -875,7 +875,7 @@ int main(int argc, char **argv) {
     const VSAPI *vsapi = vssapi->getVSAPI(VAPOURSYNTH_API_VERSION);
     if (!vsapi) {
         fprintf(stderr, "Failed to get VapourSynth API pointer\n");
-        return false;
+        return 1;
     }
 
     VSPipeOptions opts{};
