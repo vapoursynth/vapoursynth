@@ -183,7 +183,7 @@ struct NodeTimeRecord {
     int filterMode;
     int64_t nanoSeconds;
 
-    bool operator<(const NodeTimeRecord &other) {
+    bool operator<(const NodeTimeRecord &other) const noexcept {
         return nanoSeconds > other.nanoSeconds;
     }
 };
