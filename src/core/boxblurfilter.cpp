@@ -127,7 +127,7 @@ static void processPlaneF(const uint8_t *src, uint8_t *dst, ptrdiff_t stride, in
 }
 
 template<typename T>
-static void blurHR1(const T *src, T *dst, int width, const unsigned round) {
+static void blurHR1(const T *src, T *VS_RESTRICT dst, int width, const unsigned round) {
     unsigned tmp[2] = { src[0], src[1] };
     unsigned acc = tmp[0] * 2 + tmp[1];
     dst[0] = (acc + round) / 3;
@@ -179,7 +179,7 @@ static void processPlaneR1(const uint8_t *src, uint8_t *dst, ptrdiff_t stride, i
 }
 
 template<typename T>
-static void blurHR1F(const T *src, T *dst, int width) {
+static void blurHR1F(const T *src, T *VS_RESTRICT dst, int width) {
     T tmp[2] = { src[0], src[1] };
     T acc = tmp[0] * 2 + tmp[1];
     const T div = static_cast<T>(1) / 3;
