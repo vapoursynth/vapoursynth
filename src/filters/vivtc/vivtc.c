@@ -628,8 +628,8 @@ typedef enum {
     VFMFieldOppositeOfOrder
 } VFMField;
 
-static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    const VFMData *vfm = (const VFMData *)*instanceData;
+static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    const VFMData *vfm = (const VFMData *)instanceData;
     n = VSMIN(vfm->vi->numFrames - 1, n);
     if (activationReason == arInitial) {
         if (n > 0) {
