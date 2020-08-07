@@ -1107,7 +1107,7 @@ int main(int argc, char **argv) {
             for (int i = 0; i < 16; i++)
                 fprintf(stderr, "%02x", (int)md5[i]);
             fprintf(stderr, "\n");
-        } else {
+        } else if (opts.calculateMD5) {
             fprintf(stderr, "MD5: OUTPUT REQUIRED");
         }
 
