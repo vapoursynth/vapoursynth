@@ -2552,6 +2552,27 @@ cdef Function createFunction(VSPluginFunction *func, Plugin plugin, const VSAPI 
 
 # for python functions being executed by vs
 
+_warnings_showwarning = None
+def _showwarning(message, category, filename, lineno, file=None, line=None):
+    """
+    Implementation of showwarnings which redirects to vapoursynth core logging.
+
+    Note: This is apparently how python-logging does this.
+    """
+    if file is not None:
+        if _warnings_showwarning is not None:
+            _warnings_showwarning(message, category, filename, lineno, file, line)
+    else:
+        env = _env_current()
+        if env is None:
+            _warnings_showwarning(message, category, filename, lineno, file, line)
+            return
+
+        s = warnings.formatwarning(message, category, filename, lineno, line)
+        core = vsscript_get_core_internal(env)
+        core.log_message(MESSAGE_TYPE_WARNING, s)
+
+
 cdef void __stdcall freeFunc(void *pobj) nogil:
     with gil:
         fobj = <FuncData>pobj
@@ -2590,13 +2611,25 @@ cdef class VSScriptEnvironmentPolicy:
         raise RuntimeError("Cannot instantiate this class directly.")
 
     def on_policy_registered(self, policy_api):
+        global _warnings_showwarning
+
         self._stack = ThreadLocal()
         self._api = policy_api
         self._env_map = {}
 
+        _warnings_showwarning = warnings.showwarning
+        warnings.showwarning = _showwarning
+        warnings.filterwarnings("default", module="__vapoursynth__")
+
     def on_policy_cleared(self):
+        global _warnings_showwarning
+
         self._env_map = None
         self._stack = None
+
+        warnings.showwarning = _warnings_showwarning
+        _warnings_showwarning = None
+        warnings.resetwarnings()
 
     cdef EnvironmentData get_environment(self, id):
         return self._env_map.get(id, None)
