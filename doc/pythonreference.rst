@@ -356,16 +356,20 @@ Classes and Functions
       containing the *alpha* to output at the same time. Currently only vspipe
       takes *alpha* into consideration when outputting.
 
-   .. py:method:: output(fileobj[, y4m = False, prefetch = 0, progress_update = None])
+   .. py:method:: output(fileobj[, y4m = False, prefetch = 0, progress_update = None, backlog=-1])
  
       Write the whole clip to the specified file handle. It is possible to pipe to stdout by specifying *sys.stdout* as the file.
       YUV4MPEG2 headers will be added when *y4m* is true.
       The current progress can be reported by passing a callback function of the form *func(current_frame, total_frames)* to *progress_update*.
       The *prefetch* argument is only for debugging purposes and should never need to be changed.
+      The *backlog* argument is only for debugging purposes and should never need to be changed.
 
-   .. py:method:: frames()
+   .. py:method:: frames([prefetch=None, backlog=None])
 
-      Returns a generator iterator of all VideoFrames in the clip.
+      Returns a generator iterator of all VideoFrames in the clip. It will render multiple frames concurrently.
+      
+      The *prefetch* argument defines how many frames are rendered concurrently. Is only there for debugging purposes and should never need to be changed.
+      The *backlog* argument defines how many unconsumed frames (including those that did not finish rendering yet) vapoursynth buffers at most before it stops rendering additional frames. This argument is there to limit the memory this function uses storing frames.
 
 .. py:class:: AlphaOutputTuple
 
@@ -570,13 +574,13 @@ Classes and Functions
 
       Has the environment been destroyed by the underlying application?
 
-   .. py:method:: copy
+   .. py:method:: copy()
 
       Creates a copy of the environment-object.
 
-      Added: R50
+      Added: R51
 
-   .. py:method:: use
+   .. py:method:: use()
 
       Returns a context-manager that enables the given environment in the block enclosed in the with-statement and restores the environment to the one
       defined before the with-block has been encountered.
@@ -588,7 +592,7 @@ Classes and Functions
              with env.use():
                  pass
 
-      Added: R50
+      Added: R51
 
 .. py:function:: vpy_current_environment()
 
@@ -607,7 +611,7 @@ Classes and Functions
 
    This function is intended for Python-based editors using vsscript.
 
-   Added: R50
+   Added: R51
 
 .. py:class:: EnvironmentPolicy
 
@@ -626,7 +630,7 @@ Classes and Functions
    The additional API exposed by "on_policy_registered" is only valid if the policy has been registered.
    Once the policy is unregistered, all calls to the additional API will fail with a RuntimeError.
 
-   Added: R50
+   Added: R51
 
    .. py:method:: on_policy_registered(special_api)
 
@@ -659,12 +663,15 @@ Classes and Functions
 
       Is the current environment still active and managed by the policy.
 
+      The default implementation checks if `EnvironmentPolicyAPI.destroy_environment` has been called on the environment.
+
+
 .. py:class:: EnvironmentPolicyAPI
 
    This class is intended to be used by custom Script-Runners and Editors. An instance of this class exposes an additional API.
    The methods are bound to a specific :class:`EnvironmentPolicy`-instance and will only work if the policy is currenty registered.
 
-   Added: R50
+   Added: R51
 
    .. py:method:: wrap_environment(environment)
 
@@ -678,6 +685,24 @@ Classes and Functions
    
       Returns a :class:`Environment` that is used by the wrapper for context sensitive data used by VapourSynth.
       For example it holds the currently active core object as well as the currently registered outputs.
+
+   .. py:method:: set_options(environment, options)
+
+      Scripts can be passed (or pass) options between the 
+
+   .. py:method:: set_logger(environment, callback)
+
+      This function sets the logger for the given environment.
+      
+      This logger is a callback function that accepts two parameters: Level, which is an instance of vs.MessageType and a string containing the log message.
+
+   .. py:method:: destroy_environment(environment)
+
+      Marks an environment as destroyed. Older environment-policy implementations that don't use this function still work.
+      
+      Either EnvironmentPolicy.is_alive must be overridden or this method be used to mark the environment as destroyed.
+
+      Added: R52
 
    .. py:method:: unregister_policy()
 

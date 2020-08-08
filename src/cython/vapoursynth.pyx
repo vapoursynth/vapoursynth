@@ -36,7 +36,8 @@ import inspect
 import weakref
 import atexit
 import contextlib
-from threading import local as ThreadLocal, Lock
+import logging
+from threading import local as ThreadLocal, Lock, RLock
 from types import MappingProxyType
 from collections import namedtuple
 from collections.abc import Iterable, Mapping
@@ -82,7 +83,7 @@ cdef class EnvironmentData(object):
     cdef bint alive
     cdef Core core
     cdef dict outputs
-    cdef dict options
+    cdef object options
 
     cdef int coreCreationFlags
     cdef VSLogHandle* log
@@ -110,22 +111,35 @@ class EnvironmentPolicy(object):
     def set_environment(self, environment):
         raise NotImplementedError
 
-    def is_active(self, environment):
+    def is_alive(self, environment):
         cdef EnvironmentData env = <EnvironmentData>environment
-        env.alive = False
+        return env.alive
 
 
 @final
 cdef class StandaloneEnvironmentPolicy:
     cdef EnvironmentData _environment
+    cdef object _logger
 
     cdef object __weakref__
 
     def __init__(self):
         raise RuntimeError("Cannot directly instantiate this class.")
 
+    def _on_log_message(self, level, msg):
+        levelmap = {
+            MessageType.MESSAGE_TYPE_DEBUG: logging.DEBUG,
+            MessageType.MESSAGE_TYPE_INFORMATION: logging.INFO,
+            MessageType.MESSAGE_TYPE_WARNING: logging.WARN,
+            MessageType.MESSAGE_TYPE_CRITICAL: logging.ERROR,
+            MessageType.MESSAGE_TYPE_FATAL: logging.FATAL
+        }
+        self._logger.log(levelmap[level], msg)
+
     def on_policy_registered(self, api):
+        self._logger = logging.getLogger("vapoursynth")
         self._environment = api.create_environment()
+        api.set_logger(self._environment, self._on_log_message)
 
     def on_policy_cleared(self):
         self._environment = None
@@ -138,6 +152,7 @@ cdef class StandaloneEnvironmentPolicy:
 
     def is_alive(self, environment):
         return environment is self._environment
+
 
 # This flag is kept for backwards compatibility
 # I suggest deleting it sometime after R51
@@ -166,7 +181,7 @@ cdef void _unset_logger(EnvironmentData env):
 cdef void __stdcall _logCb(int msgType, const char *msg, void *userData) nogil:
     with gil:
         message = msg.decode("utf-8")
-        (<object>userData)(msgType, message)
+        (<object>userData)(MessageType(msgType), message)
 
 cdef void __stdcall _logFree(void* userData) nogil:
     with gil:
@@ -203,6 +218,9 @@ cdef class EnvironmentPolicyAPI:
         env.alive = True
 
         return env
+
+    def set_options(self, EnvironmentData env, options):
+        env.options = options
 
     def set_logger(self, env, logger):
         Py_INCREF(logger)
@@ -294,7 +312,9 @@ cdef class _FastManager(object):
             self.previous = get_policy().get_current_environment()
     
     def __exit__(self, *_):
-        get_policy().set_environment(self.previous)
+        policy = get_policy()
+        if policy.is_alive(self.previous):
+            policy.set_environment(self.previous)
         self.previous = None
 
 
@@ -376,16 +396,18 @@ cdef class Environment(object):
         stack = self._get_stack()
         if not stack:
             import warnings
-            warnings.warn("Exiting while the stack is empty. Was the frame suspended during the with-statement?", RuntimeWarning)
+            warnings.warn("Exiting while the stack is empty. Was the stack-frame suspended during the with-statement?", RuntimeWarning)
             return
 
         env = stack.pop()
-        old = get_policy().set_environment(env)
+        policy = get_policy()
+        if policy.is_alive(env):
+            old = policy.set_environment(env)
 
         # We exited with a different environment. This is not good. Automatically revert this change.
         if old is not self.get_env():
             import warnings
-            warnings.warn("The exited environment did not match the managed environment. Was the frame suspended during the with-statement?", RuntimeWarning)
+            warnings.warn("The exited environment did not match the managed environment. Was the stack-frame suspended during the with-statement?", RuntimeWarning)
 
     def __eq__(self, other):
         return other.env_id == self.env_id
@@ -546,18 +568,18 @@ cdef _get_options_dict(funcname="this function"):
     return env.options
 
 def clear_option(str key):
-    cdef dict options = _get_options_dict("clear_option")
+    cdef object options = _get_options_dict("clear_option")
     try:
         del options[key]
     except KeyError:
         pass
 
 def clear_options():
-    cdef dict options = _get_options_dict("clear_options")
+    cdef object options = _get_options_dict("clear_options")
     options.clear()
 
 def get_options():
-    cdef dict options = _get_options_dict("get_options")
+    cdef object options = _get_options_dict("get_options")
     return MappingProxyType(options)
     
 def get_option(str key):
@@ -600,7 +622,7 @@ cdef class Func(object):
         cdef VSMap *inm
         cdef const VSAPI *vsapi
         cdef const char *error
-        vsapi = getVSAPIInternal();
+        vsapi = getVSAPIInternal()
         outm = self.funcs.createMap()
         inm = self.funcs.createMap()
         try:
@@ -635,17 +657,18 @@ cdef Func createFuncRef(VSFuncRef *ref, const VSAPI *funcs):
     instance.ref = ref
     return instance
 
-cdef class RawCallbackData(object):
+
+cdef class CallbackData(object):
     cdef const VSAPI *funcs
     cdef object callback
 
-    cdef VideoNode node
+    cdef RawNode node
 
     cdef object wrap_cb
     cdef object future
     cdef EnvironmentData env
 
-    def __init__(self, VideoNode node, EnvironmentData env, object callback = None):
+    def __init__(self, object node, EnvironmentData env, object callback = None):
         self.node = node
         self.callback = callback
 
@@ -673,41 +696,12 @@ cdef class RawCallbackData(object):
         self.callback(self.node, n, result)
 
 
-cdef createRawCallbackData(const VSAPI* funcs, VideoNode videonode, object cb, object wrap_call=None):
-    cbd = RawCallbackData(videonode, _env_current(), cb)
+cdef createCallbackData(const VSAPI* funcs, RawNode node, object cb, object wrap_call=None):
+    cbd = CallbackData(node, _env_current(), cb)
     if not callable(cb):
         cbd.for_future(cb, wrap_call)
     cbd.funcs = funcs
     return cbd
-
-cdef class CallbackData(object):
-    cdef VideoNode node
-    cdef const VSAPI *funcs
-    cdef object fileobj
-    cdef int output
-    cdef int requested
-    cdef int completed
-    cdef int total
-    cdef int num_planes
-    cdef bint y4m
-    cdef dict reorder
-    cdef object condition
-    cdef object progress_update
-    cdef str error
-
-    def __init__(self, fileobj, requested, total, num_planes, y4m, node, progress_update):
-        self.fileobj = fileobj
-        self.output = 0
-        self.requested = requested
-        self.completed = 0
-        self.total = total
-        self.num_planes = num_planes
-        self.y4m = y4m
-        self.condition = threading.Condition()
-        self.node = node
-        self.progress_update = progress_update
-        self.funcs = (<VideoNode>node).funcs
-        self.reorder = {}
 
 
 cdef class FramePtr(object):
@@ -727,85 +721,33 @@ cdef FramePtr createFramePtr(const VSFrameRef *f, const VSAPI *funcs):
     instance.funcs = funcs
     return instance
 
-cdef void __stdcall frameDoneCallbackRaw(void *data, const VSFrameRef *f, int n, VSNodeRef *node, const char *errormsg) nogil:
+
+cdef void __stdcall frameDoneCallback(void *data, const VSFrameRef *f, int n, VSNodeRef *node, const char *errormsg) nogil:
     with gil:
-        d = <RawCallbackData>data
-        if f == NULL:
-            result = ''
-            if errormsg != NULL:
-                result = errormsg.decode('utf-8')
-            result = Error(result)
-
-        else:
-            result = createConstFrame(f, d.funcs, d.node.core.core)
-
+        d = <CallbackData>data
         try:
-            d.receive(n, result)
-        except:
-            import traceback
-            traceback.print_exc()
+            if f == NULL:
+                result = 'Internal error - no error message.'
+                if errormsg != NULL:
+                    result = errormsg.decode('utf-8')
+                result = Error(result)
+
+            elif isinstance(d.node, VideoNode):
+                result = createConstFrame(f, d.funcs, d.node.core.core)
+
+            elif isinstance(d.node, AudioNode):
+                result = createConstAudioFrame(f, d.funcs, d.node.core.core)
+
+            else:
+                result = Error("This should not happen. Add your own node-implementation to the frameDoneCallback code.")
+            
+            try:
+                d.receive(n, result)
+            except:
+                import traceback
+                traceback.print_exc()
         finally:
             Py_DECREF(d)
-
-
-cdef void __stdcall frameDoneCallbackOutput(void *data, const VSFrameRef *f, int n, VSNodeRef *node, const char *errormsg) with gil:
-    cdef VideoFrame frame_obj
-    cdef VideoPlane plane
-    cdef int x
-
-    cdef CallbackData d = <CallbackData>data
-    d.completed += 1
-
-    if f == NULL:
-        d.total = d.requested
-        if errormsg == NULL:
-            d.error = 'Failed to retrieve frame ' + str(n)
-        else:
-            d.error = 'Failed to retrieve frame ' + str(n) + ' with error: ' + errormsg.decode('utf-8')
-        d.output += 1
-    else:
-        d.reorder[n] = createConstVideoFrame(f, d.funcs, d.node.core.core)
-
-        while d.output in d.reorder:
-            frame_obj = <VideoFrame>d.reorder[d.output]
-            bytes_per_sample = frame_obj.format.bytes_per_sample
-            try:
-                if d.y4m:
-                    d.fileobj.write(b'FRAME\n')
-                for x in range(frame_obj.format.num_planes):
-                    plane = VideoPlane.__new__(VideoPlane, frame_obj, x)
-                    
-                    # This is a quick fix.
-                    # Calling bytes(VideoPlane) should make the buffer continuous by
-                    # copying the frame to a continous buffer
-                    # if the stride does not match the width*bytes_per_sample.
-                    if frame_obj.get_stride(x) != plane.width*bytes_per_sample:
-                        d.fileobj.write(bytes(plane))
-                    else:
-                        d.fileobj.write(plane)
-
-            except BaseException as e:
-                d.error = 'File write call returned an error: ' + str(e)
-                d.total = d.requested
-
-            del d.reorder[d.output]
-            d.output += 1
-
-        if d.progress_update is not None:
-            try:
-                d.progress_update(d.completed, d.total)
-            except BaseException as e:
-                d.error = 'Progress update caused an exception: ' + str(e)
-                d.total = d.requested
-
-    if d.requested < d.total:
-        d.node.funcs.getFrameAsync(d.requested, d.node.node, frameDoneCallbackOutput, data)
-        d.requested += 1
-
-    d.condition.acquire()
-    d.condition.notify()
-    d.condition.release()
-
 
 cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, VSCore *core, const VSAPI *funcs):
     cdef int numKeys = funcs.mapNumKeys(map)
@@ -1672,6 +1614,106 @@ cdef class RawNode(object):
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
 
+    cdef ensure_valid_frame_number(self, int n):
+        raise NotImplementedError("Needs to be implemented by subclass.")
+
+    def get_frame_async_raw(self, int n, object cb, object future_wrapper=None):
+        self.ensure_valid_frame_number(n)
+
+        data = createCallbackData(self.funcs, self, cb, future_wrapper)
+        Py_INCREF(data)
+        with nogil:
+            self.funcs.getFrameAsync(n, self.node, frameDoneCallback, <void *>data)
+
+    def get_frame_async(self, int n):
+        from concurrent.futures import Future
+        fut = Future()
+        fut.set_running_or_notify_cancel()
+
+        try:
+            self.get_frame_async_raw(n, fut)
+        except Exception as e:
+            fut.set_exception(e)
+
+        return fut
+
+    def frames(self, prefetch=None, backlog=None):
+        if prefetch is None or prefetch <= 0:
+            prefetch = self.core.num_threads
+        if backlog is None or backlog < 0:
+            backlog = prefetch*3
+        elif backlog < prefetch:
+            backlog = prefetch
+
+        enum_fut = enumerate((self.get_frame_async(frameno) for frameno in range(self.num_frames)))
+
+        finished = False
+        running = 0
+        lock = RLock()
+        reorder = {}
+
+        def _request_next():
+            nonlocal finished, running
+            with lock:
+                if finished:
+                    return
+
+                ni = next(enum_fut, None)
+                if ni is None:
+                    finished = True
+                    return
+
+                running += 1
+
+                idx, fut = ni
+                reorder[idx] = fut
+                fut.add_done_callback(_finished)
+
+        def _finished(f):
+            nonlocal finished, running
+            with lock:
+                running -= 1
+                if finished:
+                    return
+
+                if f.exception() is not None:
+                    finished = True
+                    return
+                
+                _refill()
+
+        def _refill():
+            if finished:
+                return
+
+            with lock:
+                # Two rules: 1. Don't exceed the concurrency barrier.
+                #            2. Don't exceed unused-frames-backlog
+                while (not finished) and (running < prefetch) and len(reorder)<backlog:
+                    _request_next()
+        _refill()
+
+        sidx = 0
+        try:
+            while (not finished) or (len(reorder)>0) or running>0:
+                if sidx not in reorder:
+                    # Spin. Reorder being empty should never happen.
+                    continue
+
+                # Get next requested frame
+                fut = reorder[sidx]
+
+                result = fut.result()
+                del reorder[sidx]
+                _refill()
+
+                sidx += 1
+                yield result
+
+        finally:
+            finished = True
+            gc.collect()
+
     def __dealloc__(self):
         if self.funcs:
             self.funcs.freeNode(self.node)
@@ -1725,26 +1767,6 @@ cdef class VideoNode(RawNode):
         else:
             return createConstVideoFrame(f, self.funcs, self.core.core)
 
-    def get_frame_async_raw(self, int n, object cb, object future_wrapper=None):
-        self.ensure_valid_frame_number(n)
-
-        data = createRawCallbackData(self.funcs, self, cb, future_wrapper)
-        Py_INCREF(data)
-        with nogil:
-            self.funcs.getFrameAsync(n, self.node, frameDoneCallbackRaw, <void *>data)
-
-    def get_frame_async(self, int n):
-        from concurrent.futures import Future
-        fut = Future()
-        fut.set_running_or_notify_cancel()
-
-        try:
-            self.get_frame_async_raw(n, fut)
-        except Exception as e:
-            fut.set_exception(e)
-
-        return fut
-
     def set_output(self, int index = 0, VideoNode alpha = None):
         cdef const VSVideoFormat *aformat = NULL
         clip = self
@@ -1763,25 +1785,18 @@ cdef class VideoNode(RawNode):
 
         _get_output_dict("set_output")[index] = clip
 
-    def output(self, object fileobj not None, bint y4m = False, object progress_update = None, int prefetch = 0):
-        if prefetch < 1:
-            prefetch = self.core.num_threads
-            
-        # stdout usually isn't in binary mode so let's automatically compensate for that
-        if fileobj == sys.stdout:
-            fileobj = sys.stdout.buffer
-            
-        cdef CallbackData d = CallbackData(fileobj, min(prefetch, self.num_frames), self.num_frames, self.format.num_planes, y4m, self, progress_update)
+    def output(self, object fileobj not None, bint y4m = False, object progress_update = None, int prefetch = 0, int backlog = -1):
+        if (fileobj is sys.stdout or fileobj is sys.stderr):
+            # If you are embedded in a vsscript-application, don't allow outputting to stdout/stderr.
+            # This is the responsibility of the application, which does know better where to output it.
+            if not isinstance(get_policy(), StandaloneEnvironmentPolicy):
+                raise ValueError("In this context, use set_output() instead.")
+                
+            if hasattr(fileobj, "buffer"):
+                fileobj = fileobj.buffer
 
-        # this is also an implicit test that the progress_update callback at least vaguely matches the requirements
-        if (progress_update is not None):
-            progress_update(0, d.total)
-
-        if (self.format is None or self.format.color_family not in (YUV, GRAY)) and y4m:
-            raise Error('Can only apply y4m headers to YUV and Gray format clips')
-
-        y4mformat = ''
-        numbits = ''
+        if progress_update is not None:
+            progress_update(0, len(self))
 
         if y4m:
             if self.format.color_family == GRAY:
@@ -1803,33 +1818,43 @@ cdef class VideoNode(RawNode):
                     y4mformat = '440'
                 if self.format.bits_per_sample > 8:
                     y4mformat = y4mformat + 'p' + str(self.format.bits_per_sample)
+            else:
+                raise ValueError("Can only use GRAY and YUV for V4M-Streams")
 
-        if len(y4mformat) > 0:
-            y4mformat = 'C' + y4mformat + ' '
+            if len(y4mformat) > 0:
+                y4mformat = 'C' + y4mformat + ' '
 
-        cdef str header = 'YUV4MPEG2 ' + y4mformat + 'W' + str(self.width) + ' H' + str(self.height) + ' F' + str(self.fps_num) + ':' + str(self.fps_den) + ' Ip A0:0\n'
-        if y4m:
-            fileobj.write(header.encode('utf-8'))
-        d.condition.acquire()
+            data = 'YUV4MPEG2 {y4mformat}W{width} H{height} F{fps_num}:{fps_den} Ip A0:0 XLENGTH={length}\n'.format(
+                y4mformat=y4mformat,
+                width=self.width,
+                height=self.height,
+                fps_num=self.fps_num,
+                fps_den=self.fps_den,
+                length=len(self)
+            )
+            fileobj.write(data.encode("ascii"))
 
-        for n in range(min(prefetch, d.total)):
-            self.funcs.getFrameAsync(n, self.node, frameDoneCallbackOutput, <void *>d)
+        frame: vs.VideoFrame
+        for idx, frame in enumerate(self.frames(prefetch, backlog)):
+            if y4m:
+                fileobj.write(b"FRAME\n")
 
-        stored_exception = None
-        while d.total != d.completed:
-            try:
-                d.condition.wait()
-            except BaseException, e:
-                d.total = d.requested
-                stored_exception = e
-        d.condition.release()
-        
-        if stored_exception is not None:
-            raise stored_exception
+            for planeno, plane in enumerate(frame.planes()):
+                # This is a quick fix.
+                # Calling bytes(VideoPlane) should make the buffer continuous by
+                # copying the frame to a continous buffer
+                # if the stride does not match the width*bytes_per_sample.
+                if frame.get_stride(planeno) != plane.width*self.format.bytes_per_sample:
+                    fileobj.write(bytes(plane))
+                else:
+                    fileobj.write(plane)
 
-        if d.error:
-            raise Error(d.error)
-            
+            if progress_update is not None:
+                progress_update(idx+1, len(self))
+
+        if hasattr(fileobj, "flush"):
+            fileobj.flush()
+
     def __add__(x, y):
         if not isinstance(x, VideoNode) or not isinstance(y, VideoNode):
             return NotImplemented
@@ -1896,10 +1921,6 @@ cdef class VideoNode(RawNode):
             return self.core.std.Trim(clip=self, first=n, length=1)
         else:
             raise TypeError("index must be int or slice")
-
-    def frames(self):
-        for frameno in range(len(self)):
-            yield self.get_frame(frameno)
             
     def __dir__(self):
         plugins = []
@@ -2074,10 +2095,6 @@ cdef class AudioNode(RawNode):
             return self.core.std.AudioTrim(clip=self, first=n, length=1)
         else:
             raise TypeError("index must be int or slice")
-
-    def frames(self):
-        for frameno in range(self.num_frames):
-            yield self.get_frame(frameno)
             
     def __dir__(self):
         plugins = []
@@ -2539,6 +2556,102 @@ cdef Function createFunction(VSPluginFunction *func, Plugin plugin, const VSAPI 
 
 # for python functions being executed by vs
 
+_warnings_showwarning = None
+def _showwarning(message, category, filename, lineno, file=None, line=None):
+    """
+    Implementation of showwarnings which redirects to vapoursynth core logging.
+
+    Note: This is apparently how python-logging does this.
+    """
+    import warnings
+    if file is not None:
+        if _warnings_showwarning is not None:
+            _warnings_showwarning(message, category, filename, lineno, file, line)
+    else:
+        env = _env_current()
+        if env is None:
+            _warnings_showwarning(message, category, filename, lineno, file, line)
+            return
+
+        s = warnings.formatwarning(message, category, filename, lineno, line)
+        core = vsscript_get_core_internal(env)
+        core.log_message(MESSAGE_TYPE_WARNING, s)
+
+
+cdef class PythonVSScriptStreamBridge(object):
+    cdef MessageType _level
+    cdef object _parent
+    cdef dict _lines
+    cdef object _lock
+    cdef int _warn_when_used
+
+    def __cinit__(self, level, parent):
+        self._level = level
+        self._parent = parent
+        self._lines = {}
+        self._lock = Lock()
+        self._warn_when_used = True
+
+    def write(self, msg):
+        if not msg:
+            return
+
+        env = _env_current()
+        if env is None:
+            self._parent.write(msg)
+            return
+
+        if self._warn_when_used:
+            self._warn_when_used = False
+            vsscript_get_core_internal(env).log_message(MessageType.MESSAGE_TYPE_WARNING, "Use logging.info instead of print.")
+
+        with self._lock:
+            self._lines.setdefault(env, []).append(msg)
+        if "\n" in msg:
+            self.flush()
+
+    def flush(self):
+        with self._lock:
+            for env, fragments in self._lines.items():
+                if not get_policy().is_alive(env):
+                    self._parent.write("".join(fragments))
+                    self._parent.flush()
+                else:
+                    core = vsscript_get_core_internal(env)
+                    msg = "".join(fragments)
+                    for line in msg.splitlines():
+                        core.log_message(self._level, line.rstrip())
+
+
+class PythonVSScriptLoggingBridge(logging.Handler):
+
+    def __init__(self, parent, level=logging.NOTSET):
+        super().__init__(level)
+        self._parent = parent
+
+    def emit(self, record):
+        env = _env_current()
+        if env is None:
+            self.parent.handle(record)
+            return
+        core = vsscript_get_core_internal(env)
+
+        message = self.format(record)
+
+        if record.levelno < logging.INFO:
+            mt = MessageType.MESSAGE_TYPE_DEBUG
+        elif record.levelno < logging.WARN:
+            mt = MessageType.MESSAGE_TYPE_INFORMATION
+        elif record.levelno < logging.ERROR:
+            mt = MessageType.MESSAGE_TYPE_WARNING
+        elif record.levelno < logging.FATAL:
+            mt = MessageType.MESSAGE_TYPE_CRITICAL
+        else:
+            mt = MessageType.MESSAGE_TYPE_CRITICAL
+            message = "Fatal: " + message
+
+        core.log_message(mt, message)
+
 cdef void __stdcall freeFunc(void *pobj) nogil:
     with gil:
         fobj = <FuncData>pobj
@@ -2577,16 +2690,49 @@ cdef class VSScriptEnvironmentPolicy:
         raise RuntimeError("Cannot instantiate this class directly.")
 
     def on_policy_registered(self, policy_api):
-        self._env_map = {}
+        global _warnings_showwarning
+        import warnings
+
         self._stack = ThreadLocal()
-        self._lock = Lock()
         self._api = policy_api
+        self._env_map = {}
+
+        # Redirect warnings to the parent application.
+        _warnings_showwarning = warnings.showwarning
+        warnings.showwarning = _showwarning
+        warnings.filterwarnings("always", module="__vapoursynth__")
+        warnings.filterwarnings("always", module="vapoursynth")
+
+        # Redirect logging to the parent application.
+        logging.basicConfig(level=logging.NOTSET, format="%(message)s", handlers=[
+            PythonVSScriptLoggingBridge(logging.StreamHandler(sys.stderr)),
+        ])
+
+        # Redirect sys.stderr and sys.stdout
+        sys.stdout = PythonVSScriptStreamBridge(MessageType.MESSAGE_TYPE_INFORMATION, sys.stdout)
+        sys.stderr = PythonVSScriptStreamBridge(MessageType.MESSAGE_TYPE_WARNING, sys.stderr)
+
 
     def on_policy_cleared(self):
-        with self._lock:
-            self._env_map = None
-            self._stack = None
-            self._lock = None
+        global _warnings_showwarning
+        import warnings
+
+        self._env_map = None
+        self._stack = None
+
+        # Reset the warnings from the parent application
+        warnings.showwarning = _warnings_showwarning
+        _warnings_showwarning = None
+        warnings.resetwarnings()
+
+        # Reset the logging to only use sys.stderr
+        for handler in logging.root.handlers[:]:
+            logging.root.removeHandler(handler)
+        logging.basicConfig(level=logging.WARN, format="%(message)s", handlers=[logging.StreamHandler(sys.stderr)])
+
+        # Restore sys.stderr and sys.stdout
+        sys.stderr = sys.__stderr__
+        sys.stdout = sys.__stdout__
 
     cdef EnvironmentData get_environment(self, id):
         return self._env_map.get(id, None)
@@ -2623,10 +2769,13 @@ cdef class VSScriptEnvironmentPolicy:
     cdef _free_environment(self, int script_id):
         env = self._env_map.pop(script_id, None)
         if env is not None:
+            self.stdout.flush()
+            self.stderr.flush()
             self._api.destroy_environment(env)
             
     def is_alive(self, EnvironmentData environment):
         return environment.alive
+
 
 cdef VSScriptEnvironmentPolicy _get_vsscript_policy():
     if not isinstance(_policy, VSScriptEnvironmentPolicy):
