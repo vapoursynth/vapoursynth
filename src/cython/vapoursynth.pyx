@@ -2572,6 +2572,35 @@ def _showwarning(message, category, filename, lineno, file=None, line=None):
         core.log_message(MESSAGE_TYPE_WARNING, s)
 
 
+class PythonVSScriptLoggingBridge(logging.Handler):
+
+    def __init__(self, parent, level=logging.NOTSET):
+        super().__init__(level)
+        self._parent = parent
+
+    def emit(self, record):
+        env = _env_current()
+        if env is None:
+            self.parent.handle(record)
+            return
+        core = vsscript_get_core_internal(env)
+
+        message = self.format(record)
+
+        if record.levelno < logging.INFO:
+            mt = MessageType.MESSAGE_TYPE_DEBUG
+        elif record.levelno < logging.WARN:
+            mt = MessageType.MESSAGE_TYPE_INFORMATION
+        elif record.levelno < logging.ERROR:
+            mt = MessageType.MESSAGE_TYPE_WARNING
+        elif record.levelno < logging.FATAL:
+            mt = MessageType.MESSAGE_TYPE_CRITICAL
+        else:
+            mt = MessageType.MESSAGE_TYPE_CRITICAL
+            message = "Fatal: " + message
+
+        core.log_message(mt, message)
+
 cdef void __stdcall freeFunc(void *pobj) nogil:
     with gil:
         fobj = <FuncData>pobj
@@ -2617,9 +2646,15 @@ cdef class VSScriptEnvironmentPolicy:
         self._api = policy_api
         self._env_map = {}
 
+        # Redirect warnings to the parent application.
         _warnings_showwarning = warnings.showwarning
         warnings.showwarning = _showwarning
         warnings.filterwarnings("default", module="__vapoursynth__")
+
+        # Redirect logging to the parent application.
+        logging.basicConfig(level=logging.NOTSET, format="%(message)s", handlers=[
+            PythonVSScriptLoggingBridge(logging.StreamHandler(sys.stderr)),
+        ])
 
     def on_policy_cleared(self):
         global _warnings_showwarning
@@ -2628,9 +2663,15 @@ cdef class VSScriptEnvironmentPolicy:
         self._env_map = None
         self._stack = None
 
+        # Reset the warnings from the parent application
         warnings.showwarning = _warnings_showwarning
         _warnings_showwarning = None
         warnings.resetwarnings()
+
+        # Reset the logging to only use sys.stderr
+        for handler in logging.root.handlers[:]:
+            logging.root.removeHandler(handler)
+        logging.basicConfig(level=logging.WARN, format="%(message)s", handlers=[logging.StreamHandler(sys.stderr)])
 
     cdef EnvironmentData get_environment(self, id):
         return self._env_map.get(id, None)
