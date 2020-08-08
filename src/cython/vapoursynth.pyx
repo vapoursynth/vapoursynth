@@ -312,7 +312,9 @@ cdef class _FastManager(object):
             self.previous = get_policy().get_current_environment()
     
     def __exit__(self, *_):
-        get_policy().set_environment(self.previous)
+        policy = get_policy()
+        if policy.is_alive(self.previous):
+            policy.set_environment(self.previous)
         self.previous = None
 
 
@@ -394,16 +396,18 @@ cdef class Environment(object):
         stack = self._get_stack()
         if not stack:
             import warnings
-            warnings.warn("Exiting while the stack is empty. Was the frame suspended during the with-statement?", RuntimeWarning)
+            warnings.warn("Exiting while the stack is empty. Was the stack-frame suspended during the with-statement?", RuntimeWarning)
             return
 
         env = stack.pop()
-        old = get_policy().set_environment(env)
+        policy = get_policy()
+        if policy.is_alive(env):
+            old = policy.set_environment(env)
 
         # We exited with a different environment. This is not good. Automatically revert this change.
         if old is not self.get_env():
             import warnings
-            warnings.warn("The exited environment did not match the managed environment. Was the frame suspended during the with-statement?", RuntimeWarning)
+            warnings.warn("The exited environment did not match the managed environment. Was the stack-frame suspended during the with-statement?", RuntimeWarning)
 
     def __eq__(self, other):
         return other.env_id == self.env_id
@@ -653,17 +657,19 @@ cdef Func createFuncRef(VSFuncRef *ref, const VSAPI *funcs):
     instance.ref = ref
     return instance
 
-cdef class RawCallbackData(object):
+
+@cython.freelist(256)
+cdef class CallbackData(object):
     cdef const VSAPI *funcs
     cdef object callback
 
-    cdef VideoNode node
+    cdef RawNode node
 
     cdef object wrap_cb
     cdef object future
     cdef EnvironmentData env
 
-    def __init__(self, VideoNode node, EnvironmentData env, object callback = None):
+    def __init__(self, object node, EnvironmentData env, object callback = None):
         self.node = node
         self.callback = callback
 
@@ -691,8 +697,8 @@ cdef class RawCallbackData(object):
         self.callback(self.node, n, result)
 
 
-cdef createRawCallbackData(const VSAPI* funcs, VideoNode videonode, object cb, object wrap_call=None):
-    cbd = RawCallbackData(videonode, _env_current(), cb)
+cdef createCallbackData(const VSAPI* funcs, RawNode node, object cb, object wrap_call=None):
+    cbd = CallbackData(node, _env_current(), cb)
     if not callable(cb):
         cbd.for_future(cb, wrap_call)
     cbd.funcs = funcs
@@ -716,26 +722,33 @@ cdef FramePtr createFramePtr(const VSFrameRef *f, const VSAPI *funcs):
     instance.funcs = funcs
     return instance
 
-cdef void __stdcall frameDoneCallbackRaw(void *data, const VSFrameRef *f, int n, VSNodeRef *node, const char *errormsg) nogil:
+
+cdef void __stdcall frameDoneCallback(void *data, const VSFrameRef *f, int n, VSNodeRef *node, const char *errormsg) nogil:
     with gil:
-        d = <RawCallbackData>data
-        if f == NULL:
-            result = ''
-            if errormsg != NULL:
-                result = errormsg.decode('utf-8')
-            result = Error(result)
-
-        else:
-            result = createConstFrame(f, d.funcs, d.node.core.core)
-
+        d = <CallbackData>data
         try:
-            d.receive(n, result)
-        except:
-            import traceback
-            traceback.print_exc()
+            if f == NULL:
+                result = 'Internal error - no error message.'
+                if errormsg != NULL:
+                    result = errormsg.decode('utf-8')
+                result = Error(result)
+
+            elif isinstance(d.node, VideoNode):
+                result = createConstFrame(f, d.funcs, d.node.core.core)
+
+            elif isinstance(d.node, AudioNode):
+                result = createConstAudioFrame(f, d.funcs, d.node.core.core)
+
+            else:
+                result = Error("This should not happen. Add your own node-implementation to the frameDoneCallback code.")
+            
+            try:
+                d.receive(n, result)
+            except:
+                import traceback
+                traceback.print_exc()
         finally:
             Py_DECREF(d)
-
 
 cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, VSCore *core, const VSAPI *funcs):
     cdef int numKeys = funcs.mapNumKeys(map)
@@ -1338,6 +1351,7 @@ cdef VideoFrame createVideoFrame(VSFrameRef *f, const VSAPI *funcs, VSCore *core
     return instance
 
 
+@cython.freelist(24)
 cdef class VideoPlane:
     cdef VideoFrame frame
     cdef int plane
@@ -1602,6 +1616,106 @@ cdef class RawNode(object):
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
 
+    cdef ensure_valid_frame_number(self, int n):
+        raise NotImplementedError("Needs to be implemented by subclass.")
+
+    def get_frame_async_raw(self, int n, object cb, object future_wrapper=None):
+        self.ensure_valid_frame_number(n)
+
+        data = createCallbackData(self.funcs, self, cb, future_wrapper)
+        Py_INCREF(data)
+        with nogil:
+            self.funcs.getFrameAsync(n, self.node, frameDoneCallback, <void *>data)
+
+    def get_frame_async(self, int n):
+        from concurrent.futures import Future
+        fut = Future()
+        fut.set_running_or_notify_cancel()
+
+        try:
+            self.get_frame_async_raw(n, fut)
+        except Exception as e:
+            fut.set_exception(e)
+
+        return fut
+
+    def frames(self, prefetch=None, backlog=None):
+        if prefetch is None or prefetch <= 0:
+            prefetch = self.core.num_threads
+        if backlog is None or backlog < 0:
+            backlog = prefetch*3
+        elif backlog < prefetch:
+            backlog = prefetch
+
+        enum_fut = enumerate((self.get_frame_async(frameno) for frameno in range(self.num_frames)))
+
+        finished = False
+        running = 0
+        lock = RLock()
+        reorder = {}
+
+        def _request_next():
+            nonlocal finished, running
+            with lock:
+                if finished:
+                    return
+
+                ni = next(enum_fut, None)
+                if ni is None:
+                    finished = True
+                    return
+
+                running += 1
+
+                idx, fut = ni
+                reorder[idx] = fut
+                fut.add_done_callback(_finished)
+
+        def _finished(f):
+            nonlocal finished, running
+            with lock:
+                running -= 1
+                if finished:
+                    return
+
+                if f.exception() is not None:
+                    finished = True
+                    return
+                
+                _refill()
+
+        def _refill():
+            if finished:
+                return
+
+            with lock:
+                # Two rules: 1. Don't exceed the concurrency barrier.
+                #            2. Don't exceed unused-frames-backlog
+                while (not finished) and (running < prefetch) and len(reorder)<backlog:
+                    _request_next()
+        _refill()
+
+        sidx = 0
+        try:
+            while (not finished) or (len(reorder)>0) or running>0:
+                if sidx not in reorder:
+                    # Spin. Reorder being empty should never happen.
+                    continue
+
+                # Get next requested frame
+                fut = reorder[sidx]
+
+                result = fut.result()
+                del reorder[sidx]
+                _refill()
+
+                sidx += 1
+                yield result
+
+        finally:
+            finished = True
+            gc.collect()
+
     def __dealloc__(self):
         if self.funcs:
             self.funcs.freeNode(self.node)
@@ -1654,26 +1768,6 @@ cdef class VideoNode(RawNode):
                 raise Error('Internal error - no error given')
         else:
             return createConstVideoFrame(f, self.funcs, self.core.core)
-
-    def get_frame_async_raw(self, int n, object cb, object future_wrapper=None):
-        self.ensure_valid_frame_number(n)
-
-        data = createRawCallbackData(self.funcs, self, cb, future_wrapper)
-        Py_INCREF(data)
-        with nogil:
-            self.funcs.getFrameAsync(n, self.node, frameDoneCallbackRaw, <void *>data)
-
-    def get_frame_async(self, int n):
-        from concurrent.futures import Future
-        fut = Future()
-        fut.set_running_or_notify_cancel()
-
-        try:
-            self.get_frame_async_raw(n, fut)
-        except Exception as e:
-            fut.set_exception(e)
-
-        return fut
 
     def set_output(self, int index = 0, VideoNode alpha = None):
         cdef const VSVideoFormat *aformat = NULL
@@ -1823,83 +1917,6 @@ cdef class VideoNode(RawNode):
             return self.core.std.Trim(clip=self, first=n, length=1)
         else:
             raise TypeError("index must be int or slice")
-
-    def frames(self, prefetch=None, backlog=None):
-        if prefetch is None or prefetch <= 0:
-            prefetch = core.num_threads
-        if backlog is None or backlog < 0:
-            backlog = prefetch*3
-        elif backlog < prefetch:
-            backlog = prefetch
-
-        enum_fut = enumerate((self.get_frame_async(frameno) for frameno in range(len(self))))
-
-        finished = False
-        running = 0
-        lock = RLock()
-        reorder = {}
-
-        def _request_next():
-            nonlocal finished, running
-            with lock:
-                if finished:
-                    return
-
-                ni = next(enum_fut, None)
-                if ni is None:
-                    finished = True
-                    return
-
-                running += 1
-
-                idx, fut = ni
-                reorder[idx] = fut
-                fut.add_done_callback(_finished)
-
-        def _finished(f):
-            nonlocal finished, running
-            with lock:
-                running -= 1
-                if finished:
-                    return
-
-                if f.exception() is not None:
-                    finished = True
-                    return
-                
-                _refill()
-
-        def _refill():
-            if finished:
-                return
-
-            with lock:
-                # Two rules: 1. Don't exceed the concurrency barrier.
-                #            2. Don't exceed unused-frames-backlog
-                while (not finished) and (running < prefetch) and len(reorder)<backlog:
-                    _request_next()
-        _refill()
-
-        sidx = 0
-        try:
-            while (not finished) or (len(reorder)>0) or running>0:
-                if sidx not in reorder:
-                    # Spin. Reorder being empty should never happen.
-                    continue
-
-                # Get next requested frame
-                fut = reorder[sidx]
-
-                result = fut.result()
-                del reorder[sidx]
-                _refill()
-
-                sidx += 1
-                yield result
-
-        finally:
-            finished = True
-            gc.collect()
             
     def __dir__(self):
         plugins = []
@@ -2074,10 +2091,6 @@ cdef class AudioNode(RawNode):
             return self.core.std.AudioTrim(clip=self, first=n, length=1)
         else:
             raise TypeError("index must be int or slice")
-
-    def frames(self):
-        for frameno in range(self.num_frames):
-            yield self.get_frame(frameno)
             
     def __dir__(self):
         plugins = []
