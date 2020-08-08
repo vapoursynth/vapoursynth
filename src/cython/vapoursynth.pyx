@@ -2601,6 +2601,8 @@ cdef class PythonVSScriptStreamBridge(object):
 
         with self._lock:
             self._lines.append((msg, env))
+        if "\n" in msg:
+            self.flush()
 
     def flush(self):
         has_flushed_parent = False
@@ -2622,17 +2624,6 @@ cdef class PythonVSScriptStreamBridge(object):
             msg = "".join(lines)
             for line in msg.splitlines():
                 core.log_message(self._level, line.rstrip())
-
-
-cdef force_flush_print(print_func):
-    import functools
-    @functools.wraps(print_func)
-    def print(*args, **kwargs):
-        if kwargs.get("file", sys.stdout) in (sys.stdout, sys.stderr):
-            kwargs["flush"] = True
-        print_func(*args, **kwargs)
-    print._old_print_func = print_func
-    return print
 
 
 class PythonVSScriptLoggingBridge(logging.Handler):
@@ -2724,8 +2715,6 @@ cdef class VSScriptEnvironmentPolicy:
         sys.stdout = PythonVSScriptStreamBridge(MessageType.MESSAGE_TYPE_INFORMATION, sys.stdout)
         sys.stderr = PythonVSScriptStreamBridge(MessageType.MESSAGE_TYPE_WARNING, sys.stderr)
 
-        # Force flush on print.
-        __builtins__.print = force_flush_print(__builtins__.print)
 
     def on_policy_cleared(self):
         global _warnings_showwarning
@@ -2747,9 +2736,6 @@ cdef class VSScriptEnvironmentPolicy:
         # Restore sys.stderr and sys.stdout
         sys.stderr = sys.__stderr__
         sys.stdout = sys.__stdout__
-
-        # Revert old print function.
-        __builtins__.print = getattr(print, "_old_print_func", print)
 
     cdef EnvironmentData get_environment(self, id):
         return self._env_map.get(id, None)
@@ -2786,6 +2772,8 @@ cdef class VSScriptEnvironmentPolicy:
     cdef _free_environment(self, int script_id):
         env = self._env_map.pop(script_id, None)
         if env is not None:
+            self.stdout.flush()
+            self.stderr.flush()
             self._api.destroy_environment(env)
             
     def is_alive(self, EnvironmentData environment):
