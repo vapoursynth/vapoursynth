@@ -2583,12 +2583,14 @@ cdef class PythonVSScriptStreamBridge(object):
     cdef object _parent
     cdef dict _lines
     cdef object _lock
+    cdef int _warn_when_used
 
     def __cinit__(self, level, parent):
         self._level = level
         self._parent = parent
         self._lines = {}
         self._lock = Lock()
+        self._warn_when_used = True
 
     def write(self, msg):
         if not msg:
@@ -2598,6 +2600,10 @@ cdef class PythonVSScriptStreamBridge(object):
         if env is None:
             self._parent.write(msg)
             return
+
+        if self._warn_when_used:
+            self._warn_when_used = False
+            vsscript_get_core_internal(env).log_message(MessageType.MESSAGE_TYPE_WARNING, "Use logging.info instead of print.")
 
         with self._lock:
             self._lines.setdefault(env, []).append(msg)
