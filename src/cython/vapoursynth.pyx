@@ -83,7 +83,7 @@ cdef class EnvironmentData(object):
     cdef bint alive
     cdef Core core
     cdef dict outputs
-    cdef dict options
+    cdef object options
 
     cdef int coreCreationFlags
     cdef VSLogHandle* log
@@ -143,7 +143,6 @@ cdef class StandaloneEnvironmentPolicy:
 
     def on_policy_cleared(self):
         self._environment = None
-        self._logger = None
 
     def get_current_environment(self):
         return self._environment
@@ -219,6 +218,9 @@ cdef class EnvironmentPolicyAPI:
         env.alive = True
 
         return env
+
+    def set_options(self, EnvironmentData env, options):
+        env.options = options
 
     def set_logger(self, env, logger):
         Py_INCREF(logger)
@@ -562,18 +564,18 @@ cdef _get_options_dict(funcname="this function"):
     return env.options
 
 def clear_option(str key):
-    cdef dict options = _get_options_dict("clear_option")
+    cdef object options = _get_options_dict("clear_option")
     try:
         del options[key]
     except KeyError:
         pass
 
 def clear_options():
-    cdef dict options = _get_options_dict("clear_options")
+    cdef object options = _get_options_dict("clear_options")
     options.clear()
 
 def get_options():
-    cdef dict options = _get_options_dict("get_options")
+    cdef object options = _get_options_dict("get_options")
     return MappingProxyType(options)
     
 def get_option(str key):
@@ -1897,6 +1899,7 @@ cdef class VideoNode(RawNode):
 
         finally:
             finished = True
+            gc.collect()
             
     def __dir__(self):
         plugins = []
