@@ -616,7 +616,7 @@ cdef class Func(object):
         cdef VSMap *inm
         cdef const VSAPI *vsapi
         cdef const char *error
-        vsapi = getVSAPIInternal();
+        vsapi = getVSAPIInternal()
         outm = self.funcs.createMap()
         inm = self.funcs.createMap()
         try:
