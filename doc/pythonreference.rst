@@ -356,16 +356,20 @@ Classes and Functions
       containing the *alpha* to output at the same time. Currently only vspipe
       takes *alpha* into consideration when outputting.
 
-   .. py:method:: output(fileobj[, y4m = False, prefetch = 0, progress_update = None])
+   .. py:method:: output(fileobj[, y4m = False, prefetch = 0, progress_update = None, backlog=-1])
  
       Write the whole clip to the specified file handle. It is possible to pipe to stdout by specifying *sys.stdout* as the file.
       YUV4MPEG2 headers will be added when *y4m* is true.
       The current progress can be reported by passing a callback function of the form *func(current_frame, total_frames)* to *progress_update*.
       The *prefetch* argument is only for debugging purposes and should never need to be changed.
+      The *backlog* argument is only for debugging purposes and should never need to be changed.
 
-   .. py:method:: frames()
+   .. py:method:: frames([prefetch=None, backlog=None])
 
-      Returns a generator iterator of all VideoFrames in the clip.
+      Returns a generator iterator of all VideoFrames in the clip. It will render multiple frames concurrently.
+      
+      The *prefetch* argument defines how many frames are rendered concurrently. Is only there for debugging purposes and should never need to be changed.
+      The *backlog* argument defines how many unconsumed frames (including those that did not finish rendering yet) vapoursynth buffers at most before it stops rendering additional frames. This argument is there to limit the memory this function uses storing frames.
 
 .. py:class:: AlphaOutputTuple
 
