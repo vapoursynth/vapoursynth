@@ -2559,6 +2559,7 @@ def _showwarning(message, category, filename, lineno, file=None, line=None):
 
     Note: This is apparently how python-logging does this.
     """
+    import warnings
     if file is not None:
         if _warnings_showwarning is not None:
             _warnings_showwarning(message, category, filename, lineno, file, line)
@@ -2569,6 +2570,7 @@ def _showwarning(message, category, filename, lineno, file=None, line=None):
             return
 
         s = warnings.formatwarning(message, category, filename, lineno, line)
+        print("====> _showwarning called <====")
         core = vsscript_get_core_internal(env)
         core.log_message(MESSAGE_TYPE_WARNING, s)
 
@@ -2612,6 +2614,7 @@ cdef class VSScriptEnvironmentPolicy:
 
     def on_policy_registered(self, policy_api):
         global _warnings_showwarning
+        import warnings
 
         self._stack = ThreadLocal()
         self._api = policy_api
@@ -2623,6 +2626,7 @@ cdef class VSScriptEnvironmentPolicy:
 
     def on_policy_cleared(self):
         global _warnings_showwarning
+        import warnings
 
         self._env_map = None
         self._stack = None
