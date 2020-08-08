@@ -75,8 +75,11 @@ libvapoursynth_la_SOURCES = src/core/audiofilters.cpp \
 							src/core/x86utils.h
 
 pkginclude_HEADERS = include/VapourSynth.h \
+					 include/VapourSynth4.h \
 					 include/VSHelper.h \
-					 include/VSScript.h
+					 include/VSHelper4.h \
+					 include/VSScript.h \
+					 include/VSScript4.h
 
 pkgconfig_DATA += pc/vapoursynth.pc
 
