@@ -658,7 +658,6 @@ cdef Func createFuncRef(VSFuncRef *ref, const VSAPI *funcs):
     return instance
 
 
-@cython.freelist(256)
 cdef class CallbackData(object):
     cdef const VSAPI *funcs
     cdef object callback
@@ -1351,7 +1350,6 @@ cdef VideoFrame createVideoFrame(VSFrameRef *f, const VSAPI *funcs, VSCore *core
     return instance
 
 
-@cython.freelist(24)
 cdef class VideoPlane:
     cdef VideoFrame frame
     cdef int plane
@@ -2570,7 +2568,6 @@ def _showwarning(message, category, filename, lineno, file=None, line=None):
             return
 
         s = warnings.formatwarning(message, category, filename, lineno, line)
-        print("====> _showwarning called <====")
         core = vsscript_get_core_internal(env)
         core.log_message(MESSAGE_TYPE_WARNING, s)
 
