@@ -2581,13 +2581,13 @@ def _showwarning(message, category, filename, lineno, file=None, line=None):
 cdef class PythonVSScriptStreamBridge(object):
     cdef MessageType _level
     cdef object _parent
-    cdef object _lines
+    cdef dict _lines
     cdef object _lock
 
     def __cinit__(self, level, parent):
         self._level = level
         self._parent = parent
-        self._lines = []
+        self._lines = {}
         self._lock = Lock()
 
     def write(self, msg):
@@ -2600,30 +2600,21 @@ cdef class PythonVSScriptStreamBridge(object):
             return
 
         with self._lock:
-            self._lines.append((msg, env))
+            self._lines.setdefault(env, []).append(msg)
         if "\n" in msg:
             self.flush()
 
     def flush(self):
-        has_flushed_parent = False
-        lines_for = {}
         with self._lock:
-            for line, env in self._lines:
-                if env is None or not get_policy().is_alive(env):
-                    self._parent.write(line)
-                    has_flushed_parent = True
+            for env, fragments in self._lines.items():
+                if not get_policy().is_alive(env):
+                    self._parent.write("".join(fragments))
+                    self._parent.flush()
                 else:
-                    lines_for.setdefault(env, []).append(line)
-            self._lines = []
-
-        if has_flushed_parent:
-            self._parent.flush()
-
-        for env, lines in lines_for.items():
-            core = vsscript_get_core_internal(env)
-            msg = "".join(lines)
-            for line in msg.splitlines():
-                core.log_message(self._level, line.rstrip())
+                    core = vsscript_get_core_internal(env)
+                    msg = "".join(fragments)
+                    for line in msg.splitlines():
+                        core.log_message(self._level, line.rstrip())
 
 
 class PythonVSScriptLoggingBridge(logging.Handler):
