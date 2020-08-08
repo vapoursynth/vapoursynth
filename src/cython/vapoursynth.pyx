@@ -36,6 +36,7 @@ import inspect
 import weakref
 import atexit
 import contextlib
+import logging
 from threading import local as ThreadLocal, Lock
 from types import MappingProxyType
 from collections import namedtuple
@@ -118,6 +119,7 @@ class EnvironmentPolicy(object):
 @final
 cdef class StandaloneEnvironmentPolicy:
     cdef EnvironmentData _environment
+    cdef object _logger
 
     cdef object __weakref__
 
@@ -125,14 +127,23 @@ cdef class StandaloneEnvironmentPolicy:
         raise RuntimeError("Cannot directly instantiate this class.")
 
     def _on_log_message(self, level, msg):
-        print(f"[{level.name.split('_')[-1]}] {msg}", file=sys.stderr)
+        levelmap = {
+            MessageType.MESSAGE_TYPE_DEBUG: logging.DEBUG,
+            MessageType.MESSAGE_TYPE_INFORMATION: logging.INFO,
+            MessageType.MESSAGE_TYPE_WARNING: logging.WARN,
+            MessageType.MESSAGE_TYPE_CRITICAL: logging.ERROR,
+            MessageType.MESSAGE_TYPE_FATAL: logging.FATAL
+        }
+        self._logger.log(levelmap[level], msg)
 
     def on_policy_registered(self, api):
+        self._logger = logging.getLogger("vapoursynth")
         self._environment = api.create_environment()
         api.set_logger(self._environment, self._on_log_message)
 
     def on_policy_cleared(self):
         self._environment = None
+        self._logger = None
 
     def get_current_environment(self):
         return self._environment
