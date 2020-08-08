@@ -1786,8 +1786,14 @@ cdef class VideoNode(RawNode):
         _get_output_dict("set_output")[index] = clip
 
     def output(self, object fileobj not None, bint y4m = False, object progress_update = None, int prefetch = 0, int backlog = -1):
-        if (fileobj is sys.stdout or fileobj is sys.stderr) and hasattr(fileobj, "buffer"):
-            fileobj = fileobj.buffer
+        if (fileobj is sys.stdout or fileobj is sys.stderr):
+            # If you are embedded in a vsscript-application, don't allow outputting to stdout/stderr.
+            # This is the responsibility of the application, which does know better where to output it.
+            if not isinstance(get_policy(), StandaloneEnvironmentPolicy):
+                raise ValueError("In this context, use set_output() instead.")
+                
+            if hasattr(fileobj, "buffer"):
+                fileobj = fileobj.buffer
 
         if progress_update is not None:
             progress_update(0, len(self))
@@ -2572,6 +2578,63 @@ def _showwarning(message, category, filename, lineno, file=None, line=None):
         core.log_message(MESSAGE_TYPE_WARNING, s)
 
 
+cdef class PythonVSScriptStreamBridge(object):
+    cdef MessageType _level
+    cdef object _parent
+    cdef object _lines
+    cdef object _lock
+
+    def __cinit__(self, level, parent):
+        self._level = level
+        self._parent = parent
+        self._lines = []
+        self._lock = Lock()
+
+    def write(self, msg):
+        if not msg:
+            return
+
+        env = _env_current()
+        if env is None:
+            self._parent.write(msg)
+            return
+
+        with self._lock:
+            self._lines.append((msg, env))
+
+    def flush(self):
+        has_flushed_parent = False
+        lines_for = {}
+        with self._lock:
+            for line, env in self._lines:
+                if env is None or not get_policy().is_alive(env):
+                    self._parent.write(line)
+                    has_flushed_parent = True
+                else:
+                    lines_for.setdefault(env, []).append(line)
+            self._lines = []
+
+        if has_flushed_parent:
+            self._parent.flush()
+
+        for env, lines in lines_for.items():
+            core = vsscript_get_core_internal(env)
+            msg = "".join(lines)
+            for line in msg.splitlines():
+                core.log_message(self._level, line.rstrip())
+
+
+cdef force_flush_print(print_func):
+    import functools
+    @functools.wraps(print_func)
+    def print(*args, **kwargs):
+        if kwargs.get("file", sys.stdout) in (sys.stdout, sys.stderr):
+            kwargs["flush"] = True
+        print_func(*args, **kwargs)
+    print._old_print_func = print_func
+    return print
+
+
 class PythonVSScriptLoggingBridge(logging.Handler):
 
     def __init__(self, parent, level=logging.NOTSET):
@@ -2649,12 +2712,20 @@ cdef class VSScriptEnvironmentPolicy:
         # Redirect warnings to the parent application.
         _warnings_showwarning = warnings.showwarning
         warnings.showwarning = _showwarning
-        warnings.filterwarnings("default", module="__vapoursynth__")
+        warnings.filterwarnings("always", module="__vapoursynth__")
+        warnings.filterwarnings("always", module="vapoursynth")
 
         # Redirect logging to the parent application.
         logging.basicConfig(level=logging.NOTSET, format="%(message)s", handlers=[
             PythonVSScriptLoggingBridge(logging.StreamHandler(sys.stderr)),
         ])
+
+        # Redirect sys.stderr and sys.stdout
+        sys.stdout = PythonVSScriptStreamBridge(MessageType.MESSAGE_TYPE_INFORMATION, sys.stdout)
+        sys.stderr = PythonVSScriptStreamBridge(MessageType.MESSAGE_TYPE_WARNING, sys.stderr)
+
+        # Force flush on print.
+        __builtins__.print = force_flush_print(__builtins__.print)
 
     def on_policy_cleared(self):
         global _warnings_showwarning
@@ -2672,6 +2743,13 @@ cdef class VSScriptEnvironmentPolicy:
         for handler in logging.root.handlers[:]:
             logging.root.removeHandler(handler)
         logging.basicConfig(level=logging.WARN, format="%(message)s", handlers=[logging.StreamHandler(sys.stderr)])
+
+        # Restore sys.stderr and sys.stdout
+        sys.stderr = sys.__stderr__
+        sys.stdout = sys.__stdout__
+
+        # Revert old print function.
+        __builtins__.print = getattr(print, "_old_print_func", print)
 
     cdef EnvironmentData get_environment(self, id):
         return self._env_map.get(id, None)
