@@ -1620,6 +1620,7 @@ cdef class VideoNode(object):
 
         finally:
             finished = True
+            gc.collect()
             
     def __dir__(self):
         plugins = [plugin["namespace"] for plugin in self.core.get_plugins().values()]
