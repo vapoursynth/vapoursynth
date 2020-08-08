@@ -111,9 +111,9 @@ class EnvironmentPolicy(object):
     def set_environment(self, environment):
         raise NotImplementedError
 
-    def is_active(self, environment):
+    def is_alive(self, environment):
         cdef EnvironmentData env = <EnvironmentData>environment
-        env.alive = False
+        return env.alive
 
 
 @final
