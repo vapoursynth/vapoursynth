@@ -628,8 +628,8 @@ typedef enum {
     VFMFieldOppositeOfOrder
 } VFMField;
 
-static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    const VFMData *vfm = (const VFMData *)*instanceData;
+static const VSFrameRef *VS_CC vfmGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    const VFMData *vfm = (const VFMData *)instanceData;
     n = VSMIN(vfm->vi->numFrames - 1, n);
     if (activationReason == arInitial) {
         if (n > 0) {
@@ -1362,8 +1362,8 @@ static inline void getCycleBoundaries(int n, int *cyclestart, int *cycleend, VDe
         *cycleend = vdm->inputNumFrames;
 }
 
-static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    VDecimateData *vdm = (VDecimateData *)*instanceData;
+static const VSFrameRef *VS_CC vdecimateGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    VDecimateData *vdm = (VDecimateData *)instanceData;
 
     if (activationReason == arInitial) {
         int cyclestart, cycleend;

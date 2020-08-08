@@ -43,7 +43,7 @@
 #endif // WAVE_BIG_ENDIAN
 
 void PackChannels16to16le(const uint8_t *const *const Src, uint8_t *Dst, size_t Length, size_t Channels) {
-    const uint16_t *const *const S = reinterpret_cast<const uint16_t *const *const>(Src);
+    const uint16_t *const *const S = reinterpret_cast<const uint16_t *const *>(Src);
     uint16_t *D = reinterpret_cast<uint16_t *>(Dst);
     for (size_t i = 0; i < Length; i++) {
         for (size_t c = 0; c < Channels; c++)
@@ -53,7 +53,7 @@ void PackChannels16to16le(const uint8_t *const *const Src, uint8_t *Dst, size_t 
 }
 
 void PackChannels32to32le(const uint8_t *const *const Src, uint8_t *Dst, size_t Length, size_t Channels) {
-    const uint32_t *const *const S = reinterpret_cast<const uint32_t *const *const>(Src);
+    const uint32_t *const *const S = reinterpret_cast<const uint32_t *const *>(Src);
     uint32_t *D = reinterpret_cast<uint32_t *>(Dst);
     for (size_t i = 0; i < Length; i++) {
         for (size_t c = 0; c < Channels; c++)

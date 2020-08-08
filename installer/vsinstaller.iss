@@ -102,6 +102,8 @@ Source: {#= MimallocSourceBinaryPath}\{#= MimallocRedirectName}; DestDir: {app}\
 
 ;vsrepo
 Source: ..\vsrepo\vsrepo.py; DestDir: {app}\vsrepo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
+Source: ..\vsrepo\vsgenstubs\__init__.py; DestDir: {app}\vsrepo\vsgenstubs; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
+Source: ..\vsrepo\vsgenstubs\_vapoursynth.part.pyi; DestDir: {app}\vsrepo\vsgenstubs; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
 Source: 7z.exe; DestDir: {app}\vsrepo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
 Source: 7z.dll; DestDir: {app}\vsrepo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
 
@@ -193,7 +195,7 @@ Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "PATH"; Value
 
 [Code]
 
-const VSRuntimeVersion = '14.26.28720';
+const VSRuntimeVersion = '14.27.29016';
 
 type
   TPythonPath = record

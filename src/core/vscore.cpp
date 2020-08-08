@@ -1149,10 +1149,12 @@ void VSCore::logMessage(VSMessageType type, const std::string &msg) {
 
 [[noreturn]] void VSCore::logFatal(const char *msg) {
     logMessage(mtFatal, msg);
+    std::terminate();
 }
 
 [[noreturn]] void VSCore::logFatal(const std::string &msg) {
     logMessage(mtFatal, msg);
+    std::terminate();
 }
 
 bool VSCore::isValidVideoFormat(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH) noexcept {

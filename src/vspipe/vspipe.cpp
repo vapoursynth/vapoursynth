@@ -23,6 +23,9 @@
 #include "VSScript4.h"
 #include "../core/version.h"
 #include "printgraph.h"
+extern "C" {
+#include "md5.h"
+}
 #include <string>
 #include <map>
 #include <vector>
@@ -111,6 +114,7 @@ struct VSPipeOptions {
     int requests = 0;
     bool printProgress = false;
     bool printFilterTime = false;
+    bool calculateMD5 = false;
     nstring scriptFilename;
     nstring outputFilename;
     nstring timecodesFilename;
@@ -150,6 +154,8 @@ struct VSPipeOutputData {
     std::vector<uint8_t> buffer;
 
     /* Statistics */
+    bool calculateMD5 = false;
+    MD5_CTX md5Ctx = {};
     bool printProgress = false;
     std::chrono::time_point<std::chrono::steady_clock> startTime;
     std::chrono::time_point<std::chrono::steady_clock> lastFPSReportTime;
@@ -242,6 +248,9 @@ static void outputFrame(const VSFrameRef *frame, VSPipeOutputData *data) {
                     readPtr = data->buffer.data();
                 }
 
+                if (data->calculateMD5)
+                    MD5_Update(&data->md5Ctx, readPtr, rowSize * height);
+
                 if (fwrite(readPtr, 1, rowSize * height, data->outFile) != static_cast<size_t>(rowSize * height)) {
                     if (data->errorMessage.empty())
                         data->errorMessage = "Error: fwrite() call failed when writing frame: " + std::to_string(data->outputFrames) + ", plane: " + std::to_string(p) +
@@ -270,6 +279,9 @@ static void outputFrame(const VSFrameRef *frame, VSPipeOutputData *data) {
                 PackChannels32to24le(srcPtrs.data(), data->buffer.data(), numSamples, numChannels);
             else if (bytesPerOutputSample == 4)
                 PackChannels32to32le(srcPtrs.data(), data->buffer.data(), numSamples, numChannels);
+
+            if (data->calculateMD5)
+                MD5_Update(&data->md5Ctx, data->buffer.data(), toOutput);
 
             if (fwrite(data->buffer.data(), 1, toOutput, data->outFile) != toOutput) {
                 if (data->errorMessage.empty())
@@ -699,6 +711,8 @@ static int parseOptions(VSPipeOptions &opts, int argc, T **argv) {
             opts.outputHeaders = VSPipeHeaders::Y4M;
         } else if (argString == NSTRING("-p") || argString == NSTRING("--progress")) {
             opts.printProgress = true;
+        } else if (argString == NSTRING("--md5")) {
+            opts.calculateMD5 = true;
         } else if (argString == NSTRING("--filter-time")) {
             opts.printFilterTime = true;
         } else if (argString == NSTRING("-i") || argString == NSTRING("--info")) {
@@ -861,7 +875,7 @@ int main(int argc, char **argv) {
     const VSAPI *vsapi = vssapi->getVSAPI(VAPOURSYNTH_API_VERSION);
     if (!vsapi) {
         fprintf(stderr, "Failed to get VapourSynth API pointer\n");
-        return false;
+        return 1;
     }
 
     VSPipeOptions opts{};
@@ -989,6 +1003,8 @@ int main(int argc, char **argv) {
 
         data->vsapi = vsapi;
         data->outputHeaders = opts.outputHeaders;
+        data->calculateMD5 = opts.calculateMD5;
+        MD5_Init(&data->md5Ctx);
         data->printProgress = opts.printProgress;
         data->node = node;
         data->alphaNode = alphaNode;
@@ -1072,6 +1088,9 @@ int main(int argc, char **argv) {
             }
         }
 
+        unsigned char md5[16];
+        MD5_Final(md5, &data->md5Ctx);
+
         if (outFile)
             fflush(outFile);
         if (timecodesFile)
@@ -1082,6 +1101,15 @@ int main(int argc, char **argv) {
             fprintf(stderr, "Output %d frames in %.2f seconds (%.2f fps)\n", data->totalFrames, elapsedSeconds.count(), data->totalFrames / elapsedSeconds.count());
         else
             fprintf(stderr, "Output %" PRId64 " samples in %.2f seconds (%.2f sps)\n", data->totalSamples, elapsedSeconds.count(), (data->totalFrames / elapsedSeconds.count()) * VS_AUDIO_FRAME_SAMPLES);
+
+        if (opts.calculateMD5 && outFile) {
+            fprintf(stderr, "MD5: ");
+            for (int i = 0; i < 16; i++)
+                fprintf(stderr, "%02x", (int)md5[i]);
+            fprintf(stderr, "\n");
+        } else if (opts.calculateMD5) {
+            fprintf(stderr, "MD5: OUTPUT REQUIRED");
+        }
 
         if (opts.printFilterTime)
             fprintf(stderr, "%s", printNodeTimes(node, elapsedSeconds.count(), vsapi).c_str());

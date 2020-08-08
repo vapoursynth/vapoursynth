@@ -183,7 +183,7 @@ struct NodeTimeRecord {
     int filterMode;
     int64_t nanoSeconds;
 
-    bool operator<(const NodeTimeRecord &other) {
+    bool operator<(const NodeTimeRecord &other) const noexcept {
         return nanoSeconds > other.nanoSeconds;
     }
 };
@@ -192,9 +192,7 @@ static void printNodeTimesHelper(std::list<NodeTimeRecord> &lines, std::set<VSNo
     if (!visited.insert(node).second)
         return;
 
-    int minRealLevel = getMinRealLevel(node, vsapi);
-
-    lines.push_back(NodeTimeRecord{ vsapi->getNodeCreationFunctionName(node, minRealLevel), vsapi->getNodeFilterMode(node), vsapi->getNodeFilterTime(node) } );
+    lines.push_back(NodeTimeRecord{ vsapi->getNodeName(node), vsapi->getNodeFilterMode(node), vsapi->getNodeFilterTime(node) } );
 
     const VSMap *args = vsapi->getNodeCreationFunctionArguments(node, 0);
     int numKeys = vsapi->mapNumKeys(args);

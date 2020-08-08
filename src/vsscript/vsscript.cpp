@@ -209,7 +209,7 @@ VS_API(VSNodeRef *) vsscript_getOutput2(VSScript *handle, int index, VSNodeRef *
         *alpha = nullptr;
     std::lock_guard<std::mutex> lock(vsscriptlock);
     VSNodeRef *node = vpy4_getOutput(handle, index);
-    const VSAPI *vsapi = vsscript_getVSApi2(VAPOURSYNTH_API_VERSION);
+    const VSAPI *vsapi = vpy4_getVSAPI(VAPOURSYNTH_API_VERSION);
     if (node && vsapi->getNodeType(node) == mtAudio) {
         vsapi->freeNode(node);
         return nullptr;
@@ -221,8 +221,7 @@ VS_API(VSNodeRef *) vsscript_getOutput2(VSScript *handle, int index, VSNodeRef *
 
 // V3 API compatibility
 VS_API(VSNodeRef *) vsscript_getOutput(VSScript *handle, int index) VS_NOEXCEPT {
-    std::lock_guard<std::mutex> lock(vsscriptlock);
-    return vpy4_getOutput(handle, index);
+    return vsscript_getOutput2(handle, index, nullptr);
 }
 
 static VSNodeRef *VS_CC getOutputNode(VSScript *handle, int index) VS_NOEXCEPT {
@@ -266,7 +265,7 @@ VS_API(const VSAPI *) vsscript_getVSApi(void) VS_NOEXCEPT {
 VS_API(int) vsscript_getVariable(VSScript *handle, const char *name, VSMap *dst) VS_NOEXCEPT {
     std::lock_guard<std::mutex> lock(vsscriptlock);
     int result = vpy_getVariable(handle, name, dst);
-    const VSAPI *vsapi = vsscript_getVSApi2(VAPOURSYNTH_API_VERSION);
+    const VSAPI *vsapi = vpy4_getVSAPI(VAPOURSYNTH_API_VERSION);
     int numKeys = vsapi->mapNumKeys(dst);
     for (int i = 0; i < numKeys; i++) {
         int keyType = vsapi->mapGetType(dst, vsapi->mapGetKey(dst, i));

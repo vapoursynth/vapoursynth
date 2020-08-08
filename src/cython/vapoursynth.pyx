@@ -2214,8 +2214,9 @@ cdef class Core(object):
     def plugins(self):
         cdef VSPlugin *plugin = self.funcs.getNextPlugin(NULL, self.core)
         while plugin:
-            yield createPlugin(plugin, self.funcs, self)
-            plugin = self.funcs.getNextPlugin(plugin, self.core)      
+            tmp = createPlugin(plugin, self.funcs, self)
+            plugin = self.funcs.getNextPlugin(plugin, self.core)
+            yield tmp
 
     def get_plugins(self):
         import warnings
@@ -2404,8 +2405,9 @@ cdef class Plugin(object):
     def functions(self):
         cdef VSPluginFunction *func = self.funcs.getNextPluginFunction(NULL, self.plugin)
         while func:
-            yield createFunction(func, self, self.funcs)
-            plugin = self.funcs.getNextPluginFunction(NULL, self.plugin)
+            tmp = createFunction(func, self, self.funcs)
+            func = self.funcs.getNextPluginFunction(func, self.plugin)
+            yield tmp
 
     def get_functions(self):
         import warnings
