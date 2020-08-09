@@ -560,7 +560,7 @@ std::mutex test_mutex;
                                          ]]
                          )],
                          [],
-                         [AC_MSG_ERROR([C++ compiler does not understand std::mutex (a C++11 feature).])]
+                         [AC_MSG_ERROR([C++ compiler does not understand std::mutex (a C++14 feature).])]
        )
 
        AC_LANG_POP([C++])
