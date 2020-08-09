@@ -665,7 +665,6 @@ static const VSFrameRef *VS_CC shuffleChannelsGetFrame(int n, int activationReas
             vsapi->requestFrameFilter(n, iter, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         VSFrameRef *dst = nullptr;
-        // FIXME, use newaudioframe2 here
         int dstLength = static_cast<int>(std::min<int64_t>(d->ai.numSamples - n * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES), VS_AUDIO_FRAME_SAMPLES));
         for (int idx = 0; idx < static_cast<int>(d->sourceNodes.size()); idx++) {
             const VSFrameRef *src = vsapi->getFrameFilter(n, d->sourceNodes[idx].node, frameCtx);;
@@ -701,7 +700,7 @@ static void VS_CC shuffleChannelsCreate(const VSMap *in, VSMap *out, void *userD
     int numDstChannels = vsapi->mapNumElements(in, "channels_out");
 
     if (numSrcChannels != numDstChannels) 
-        RETERROR("ShuffleChannels: must have the same number of input and output channels");
+        RETERROR("ShuffleChannels: must have the same number of channels_in and channels_out");
 
     if (numSrcNodes > numSrcChannels)
         RETERROR("ShuffleChannels: cannot have more input nodes than selected input channels");
