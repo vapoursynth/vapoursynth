@@ -545,30 +545,6 @@ AM_CONDITIONAL([VINVERSE],      [test "$vinverse"])
 AM_CONDITIONAL([VIVTC],         [test "$vivtc"])
 
 
-AS_IF(
-      [test "x$enable_core" != "xno" -o "x$enable_vsscript" != "xno" -o "x$enable_vspipe" != "xno" -o "x$imwri" != "x"],
-      [
-       saved_cxxflags="$CXXFLAGS"
-       CXXFLAGS="-std=c++14"
-       AC_LANG_PUSH([C++])
-       AC_COMPILE_IFELSE(
-                         [AC_LANG_SOURCE(
-                                         [[
-#include <mutex>
-
-std::mutex test_mutex;
-                                         ]]
-                         )],
-                         [],
-                         [AC_MSG_ERROR([C++ compiler does not understand std::mutex (a C++14 feature).])]
-       )
-
-       AC_LANG_POP([C++])
-       CXXFLAGS="$saved_cxxflags"
-      ]
-)
-
-
 
 dnl Workaround for a bug in libtool
 dnl The windows libtool uses a file magic checking method that only accepts
