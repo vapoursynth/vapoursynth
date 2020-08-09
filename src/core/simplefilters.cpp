@@ -2212,6 +2212,43 @@ static void VS_CC setFieldBasedCreate(const VSMap *in, VSMap *out, void *userDat
     d.release();
 }
 
+//////////////////////////////////////////
+// CopyFrameProperties
+
+typedef DualNodeData<NoExtraData> CopyFramePropertiesData;
+
+static const VSFrameRef *VS_CC copyFramePropertiesGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    CopyFramePropertiesData *d = reinterpret_cast<CopyFramePropertiesData *>(instanceData);
+
+    if (activationReason == arInitial) {
+        vsapi->requestFrameFilter(n, d->node1, frameCtx);
+        vsapi->requestFrameFilter(n, d->node2, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        const VSFrameRef *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
+        const VSFrameRef *src2 = vsapi->getFrameFilter(n, d->node1, frameCtx);
+        VSFrameRef *dst = vsapi->copyFrame(src1, core);
+        vsapi->copyFrameProps(src2, dst, core);
+        vsapi->freeFrame(src1);
+        vsapi->freeFrame(src2);
+        return dst;
+    }
+
+    return nullptr;
+}
+
+static void VS_CC copyFramePropertiesCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    std::unique_ptr<CopyFramePropertiesData> d(new CopyFramePropertiesData(vsapi));
+
+    d->node1 = vsapi->mapGetNode(in, "clip", 0, nullptr);
+    d->node2 = vsapi->mapGetNode(in, "prop_src", 0, nullptr);
+
+    vsapi->createVideoFilter(out, "CopyFrameProperties", vsapi->getVideoInfo(d->node1), 1, copyFramePropertiesGetFrame, filterFree<CopyFramePropertiesData>, fmParallel, 0, d.get(), core);
+    d.release();
+}
+
+//////////////////////////////////////////
+// SetMaxCpu
+
 static void VS_CC setMaxCpu(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     const char *str = vsapi->mapGetData(in, "cpu", 0, nullptr);
     int level = vs_cpulevel_from_str(str);
@@ -2247,5 +2284,6 @@ void VS_CC stdlibInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("PropToClip", "clip:vnode;prop:data:opt;", "clip:vnode;", propToClipCreate, 0, plugin);
     vspapi->registerFunction("SetFrameProp", "clip:vnode;prop:data;delete:int:opt;intval:int[]:opt;floatval:float[]:opt;data:data[]:opt;", "clip:vnode;", setFramePropCreate, 0, plugin);
     vspapi->registerFunction("SetFieldBased", "clip:vnode;value:int;", "clip:vnode;", setFieldBasedCreate, 0, plugin);
+    vspapi->registerFunction("CopyFrameProperties", "clip:vnode;prop_src:vnode;", "clip:vnode;", copyFramePropertiesCreate, 0, plugin);
     vspapi->registerFunction("SetMaxCPU", "cpu:data;", "cpu:data;", setMaxCpu, 0, plugin);
 }
