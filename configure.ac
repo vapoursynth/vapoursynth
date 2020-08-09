@@ -549,7 +549,7 @@ AS_IF(
       [test "x$enable_core" != "xno" -o "x$enable_vsscript" != "xno" -o "x$enable_vspipe" != "xno" -o "x$imwri" != "x"],
       [
        saved_cxxflags="$CXXFLAGS"
-       CXXFLAGS="-std=c++11"
+       CXXFLAGS="-std=c++14"
        AC_LANG_PUSH([C++])
        AC_COMPILE_IFELSE(
                          [AC_LANG_SOURCE(
