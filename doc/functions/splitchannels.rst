@@ -5,4 +5,4 @@ SplitChannels
    :module: std
 
    SplitChannels returns each audio channel of the input as
-   separate clips.
+   a separate clip.

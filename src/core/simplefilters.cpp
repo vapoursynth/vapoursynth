@@ -626,7 +626,7 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
         int ssW = findSubSampling(c0width, c1width);
 
         if (ssH < 0 || ssW < 0)
-            RETERROR("ShufflePlanes: Plane 1 and 2 are not subsampled multiples of first plane");
+            RETERROR("ShufflePlanes: plane 1 and 2 are not subsampled multiples of first plane");
 
         for (int i = 1; i < 3; i++) {
             const VSVideoInfo *pvi = vsapi->getVideoInfo(d->node[i]);
@@ -647,6 +647,66 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
     }
 
     vsapi->createVideoFilter(out, "ShufflePlanes", &d->vi, 1, shufflePlanesGetframe, filterFree<ShufflePlanesData>, fmParallel, 0, d.get(), core);
+    d.release();
+}
+
+//////////////////////////////////////////
+// SplitPlanes
+
+struct SplitPlanesDataExtra {
+    std::vector<VSVideoInfo> vi;
+};
+
+
+typedef SingleNodeData<SplitPlanesDataExtra> SplitPlanesData;
+
+static const VSFrameRef *VS_CC splitPlanesGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    SplitPlanesData *d = reinterpret_cast<SplitPlanesData *>(instanceData);
+
+    if (activationReason == arInitial) {
+        vsapi->requestFrameFilter(n, d->node, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        int outIdx = vsapi->getOutputIndex(frameCtx);
+        VSFrameRef *dst = vsapi->newVideoFrame2(&d->vi[outIdx].format, d->vi[outIdx].width, d->vi[outIdx].height, &src, &outIdx, src, core);
+        vsapi->freeFrame(src);
+        return dst;
+    }
+
+    return nullptr;
+}
+
+static void VS_CC splitPlanesCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    std::unique_ptr<SplitPlanesData> d(new SplitPlanesData(vsapi));
+    d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
+    VSVideoInfo vi = *vsapi->getVideoInfo(d->node);
+
+    if (!isConstantVideoFormat(&vi)) {
+        vsapi->mapSetError(out, "SplitPlanes: only constant format and dimensions supported");
+    }
+
+    // Pass through when nothing to do
+    if (vi.format.numPlanes == 1) {
+        vsapi->mapSetNode(out, "clip", d->node, paAppend);
+        return;
+    }
+
+    int numPlanes = vi.format.numPlanes;
+    d->vi.reserve(numPlanes);
+    size_t index = 0;
+    int ssw = vi.format.subSamplingW;
+    int ssh = vi.format.subSamplingH;
+    vsapi->queryVideoFormat(&vi.format, cfGray, vi.format.sampleType, vi.format.bitsPerSample, 0, 0, core);
+
+    d->vi.push_back(vi);
+
+    vi.width <<= ssw;
+    vi.height <<= ssh;
+
+    for (int i = 1; i < numPlanes; i++)
+        d->vi.push_back(vi);
+
+    vsapi->createVideoFilter(out, "SplitPlanes", d->vi.data(), numPlanes, splitPlanesGetFrame, filterFree<SplitPlanesData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
@@ -2266,6 +2326,7 @@ void VS_CC stdlibInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("Crop", "clip:vnode;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;", "clip:vnode;", cropRelCreate, 0, plugin);
     vspapi->registerFunction("AddBorders", "clip:vnode;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;color:float[]:opt;", "clip:vnode;", addBordersCreate, 0, plugin);
     vspapi->registerFunction("ShufflePlanes", "clips:vnode[];planes:int[];colorfamily:int;", "clip:vnode;", shufflePlanesCreate, 0, plugin);
+    vspapi->registerFunction("SplitPlanes", "clip:vnode;", "clip:vnode[];", splitPlanesCreate, 0, plugin);
     vspapi->registerFunction("SeparateFields", "clip:vnode;tff:int:opt;modify_duration:int:opt;", "clip:vnode;", separateFieldsCreate, 0, plugin);
     vspapi->registerFunction("DoubleWeave", "clip:vnode;tff:int:opt;", "clip:vnode;", doubleWeaveCreate, 0, plugin);
     vspapi->registerFunction("FlipVertical", "clip:vnode;", "clip:vnode;", flipVerticalCreate, 0, plugin);

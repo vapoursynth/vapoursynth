@@ -775,7 +775,6 @@ static void VS_CC shuffleChannelsCreate(const VSMap *in, VSMap *out, void *userD
 
 struct SplitChannelsDataExtra {
     std::vector<VSAudioInfo> ai;
-    int numChannels;
 };
 
 typedef SingleNodeData<SplitChannelsDataExtra> SplitChannelsData;
@@ -789,7 +788,7 @@ static const VSFrameRef *VS_CC splitChannelsGetFrame(int n, int activationReason
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         int outIdx = vsapi->getOutputIndex(frameCtx);
         int length = vsapi->getFrameLength(src);
-        VSFrameRef *dst = vsapi->newAudioFrame(&d->ai[outIdx].format, length, src, core);
+        VSFrameRef *dst = vsapi->newAudioFrame2(&d->ai[outIdx].format, length, &src, &outIdx, src, core);
         memcpy(vsapi->getWritePtr(dst, 0), vsapi->getReadPtr(src, outIdx), d->ai[outIdx].format.bytesPerSample * length);
         vsapi->freeFrame(src);
         return dst;
@@ -803,17 +802,17 @@ static void VS_CC splitChannelsCreate(const VSMap *in, VSMap *out, void *userDat
     d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
     VSAudioInfo ai = *vsapi->getAudioInfo(d->node);
     uint64_t channelLayout = ai.format.channelLayout;
-    d->numChannels = ai.format.numChannels;
-    d->ai.reserve(d->numChannels);
+    int numChannels = ai.format.numChannels;
+    d->ai.reserve(numChannels);
     size_t index = 0;
-    for (int i = 0; i < d->numChannels; i++) {
+    for (int i = 0; i < numChannels; i++) {
         while (!(channelLayout & (static_cast<uint64_t>(1) << index)))
             index++;
         vsapi->queryAudioFormat(&ai.format, ai.format.sampleType, ai.format.bitsPerSample, (static_cast<uint64_t>(1) << index++), core);
         d->ai.push_back(ai);
     }
 
-    vsapi->createAudioFilter(out, "SplitChannels", d->ai.data(), d->numChannels, splitChannelsGetFrame, filterFree<SplitChannelsData>, fmParallel, 0, d.get(), core);
+    vsapi->createAudioFilter(out, "SplitChannels", d->ai.data(), numChannels, splitChannelsGetFrame, filterFree<SplitChannelsData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
