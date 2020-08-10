@@ -905,28 +905,66 @@ static void VS_CC blankAudioFree(void *instanceData, VSCore *core, const VSAPI *
 
 static void VS_CC blankAudioCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<BlankAudioData> d(new BlankAudioData());
-
+    bool hasai = false;
+    int tmp1;
+    int64_t tmp2;
     int err;
 
-    int64_t channels = vsapi->mapGetInt(in, "channels", 0, &err);
-    if (err)
-        channels = (1 << acFrontLeft) | (1 << acFrontRight);
 
-    int bits = vsapi->mapGetIntSaturated(in, "bits", 0, &err);
-    if (err)
-        bits = 16;
+    VSNodeRef *node = vsapi->mapGetNode(in, "clip", 0, &err);
 
-    bool isfloat = !!vsapi->mapGetInt(in, "isfloat", 0, &err);
+    if (!err) {
+        d->ai = *vsapi->getAudioInfo(node);
+        vsapi->freeNode(node);
+        hasai = true;
+    }
+
+    tmp2 = vsapi->mapGetInt(in, "channels", 0, &err);
+
+    if (err) {
+        if (!hasai)
+            d->ai.format.channelLayout = tmp2;
+    } else {
+        d->ai.format.channelLayout = (1 << acFrontLeft) | (1 << acFrontRight);
+    }
+
+    tmp1 = vsapi->mapGetIntSaturated(in, "bits", 0, &err);
+
+    if (err) {
+        if (!hasai)
+            d->ai.format.bitsPerSample = 16;
+    } else {
+        d->ai.format.bitsPerSample = tmp1;
+    }
+
+    tmp2 = vsapi->mapGetInt(in, "sampletype", 0, &err);
+
+    if (err) {
+        if (!hasai)
+            d->ai.format.sampleType = stInteger;
+    } else {
+        d->ai.format.sampleType = (tmp2 ? stFloat : stInteger);
+    }
 
     d->keep = !!vsapi->mapGetInt(in, "keep", 0, &err);
 
-    d->ai.sampleRate = vsapi->mapGetIntSaturated(in, "samplerate", 0, &err);
-    if (err)
-        d->ai.sampleRate = 44100;
+    tmp1 = vsapi->mapGetIntSaturated(in, "samplerate", 0, &err);
 
-    d->ai.numSamples = vsapi->mapGetInt(in, "length", 0, &err);
-    if (err)
+    if (err) {
+        if (!hasai)
+            d->ai.sampleRate = tmp1;
+    } else {
+        d->ai.sampleRate = 44100;
+    }
+
+    tmp2 = vsapi->mapGetInt(in, "length", 0, &err);
+
+    if (err) {
+        if (!hasai)
+            d->ai.numSamples = tmp2;
+    } else {
         d->ai.numSamples = static_cast<int64_t>(d->ai.sampleRate) * 60 * 60;
+    }
 
     if (d->ai.sampleRate <= 0)
         RETERROR("BlankAudio: invalid sample rate");
@@ -934,7 +972,7 @@ static void VS_CC blankAudioCreate(const VSMap *in, VSMap *out, void *userData, 
     if (d->ai.numSamples <= 0)
         RETERROR("BlankAudio: invalid length");
 
-    if (!vsapi->queryAudioFormat(&d->ai.format, isfloat ? stFloat : stInteger, bits, channels, core))
+    if (!vsapi->queryAudioFormat(&d->ai.format, d->ai.format.sampleType, d->ai.format.bitsPerSample, d->ai.format.channelLayout, core))
         RETERROR("BlankAudio: invalid format");
 
     vsapi->createAudioFilter(out, "BlankAudio", &d->ai, 1, blankAudioGetframe, blankAudioFree, d->keep ? fmUnordered : fmParallel, nfNoCache, d.get(), core);
@@ -1018,6 +1056,6 @@ void VS_CC audioInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("ShuffleChannels", "clip:anode[];channels_in:int[];channels_out:int[];", "clip:anode;", shuffleChannelsCreate, 0, plugin);
     vspapi->registerFunction("SplitChannels", "clip:anode;", "clip:anode[];", splitChannelsCreate, 0, plugin);
     vspapi->registerFunction("AssumeSampleRate", "clip:anode;src:anode:opt;samplerate:int:opt;", "clip:anode;", assumeSampleRateCreate, 0, plugin);
-    vspapi->registerFunction("BlankAudio", "channels:int:opt;bits:int:opt;isfloat:int:opt;samplerate:int:opt;length:int:opt;keep:int:opt;", "clip:anode;", blankAudioCreate, 0, plugin);
+    vspapi->registerFunction("BlankAudio", "clip:anode:opt;channels:int:opt;bits:int:opt;sampletype:int:opt;samplerate:int:opt;length:int:opt;keep:int:opt;", "clip:anode;", blankAudioCreate, 0, plugin);
     vspapi->registerFunction("TestAudio", "channels:int:opt;bits:int:opt;isfloat:int:opt;samplerate:int:opt;length:int:opt;", "clip:anode;", testAudioCreate, 0, plugin);
 }
