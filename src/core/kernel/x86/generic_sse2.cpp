@@ -1178,7 +1178,7 @@ void vs_generic_3x3_max_word_sse2(const void *src, ptrdiff_t src_stride, void *d
         filter_plane_3x3<MinMaxFixedWord<STENCIL_ALL, true>>(src, src_stride, dst, dst_stride, *params, width, height);
         break;
     default:
-        filter_plane_3x3<MinMaxByte<true>>(src, src_stride, dst, dst_stride, *params, width, height);
+        filter_plane_3x3<MinMaxWord<true>>(src, src_stride, dst, dst_stride, *params, width, height);
         break;
     }
 }
