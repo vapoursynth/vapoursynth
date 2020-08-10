@@ -2285,7 +2285,7 @@ static const VSFrameRef *VS_CC copyFramePropertiesGetFrame(int n, int activation
         vsapi->requestFrameFilter(n, d->node2, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
-        const VSFrameRef *src2 = vsapi->getFrameFilter(n, d->node1, frameCtx);
+        const VSFrameRef *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
         VSFrameRef *dst = vsapi->copyFrame(src1, core);
         vsapi->copyFrameProps(src2, dst, core);
         vsapi->freeFrame(src1);
