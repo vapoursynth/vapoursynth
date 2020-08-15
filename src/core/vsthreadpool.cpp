@@ -120,15 +120,15 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             }
 
             // Don't try to lock the same node twice since it's likely to fail and will produce more out of order requests as well
-            if (filterMode != fmSerial && !seenNodes.insert(mainContext->clip).second)
+            if (filterMode != fmFrameState && !seenNodes.insert(mainContext->clip).second)
                 continue;
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // This part handles the locking for the different filter modes
 
 
-            // Does the filter need the per instance mutex? fmSerial, fmUnordered and fmParallelRequests (when in the arAllFramesReady state) use this
-            bool useSerialLock = (filterMode == fmSerial || filterMode == fmUnordered || filterMode == fmUnorderedLinear || (filterMode == fmParallelRequests && mainContext->numFrameRequests == 1));
+            // Does the filter need the per instance mutex? fmFrameState, fmUnordered and fmParallelRequests (when in the arAllFramesReady state) use this
+            bool useSerialLock = (filterMode == fmFrameState || filterMode == fmUnordered || filterMode == fmUnorderedLinear || (filterMode == fmParallelRequests && mainContext->numFrameRequests == 1));
 
             // Guard against multiple arFrameReady calls into the same instance for the same frame, without this plugin writers would need to hold a mutex to modify the per frame data
             // Only needed due to the arFrameReady events and nothing else
@@ -141,7 +141,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             if (useSerialLock) {
                 if (!clip->serialMutex.try_lock())
                     continue;
-                if (filterMode == fmSerial) {
+                if (filterMode == fmFrameState) {
                     if (clip->serialFrame == -1) {
                         clip->serialFrame = mainContext->n;
                         // another frame already in progress?
@@ -220,7 +220,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Unlock so the next job can run on the context
             if (useSerialLock) {
-                if (filterMode == fmSerial && frameProcessingDone)
+                if (filterMode == fmFrameState && frameProcessingDone)
                     clip->serialFrame = -1;
                 clip->serialMutex.unlock();
             }

@@ -155,7 +155,7 @@ typedef enum VSFilterMode {
     fmParallel = 0, /* completely parallel execution */
     fmParallelRequests = 1, /* for filters that are serial in nature but can request one or more frames they need in advance */
     fmUnordered = 2, /* for filters that modify their internal state every request like source filters that read a file */
-    fmSerial = 3 /* for compatibility with other filtering architectures, should never be needed for new filters */
+    fmFrameState = 3 /* DO NOT USE UNLESS ABSOLUTELY NECESSARY, for compatibility with external code that can only keep the processing state of a single frame at a time */
 } VSFilterMode;
 
 typedef enum VSMediaType {

@@ -100,7 +100,7 @@ namespace vs3 {
         fmParallel = 100, /* completely parallel execution */
         fmParallelRequests = 200, /* for filters that are serial in nature but can request one or more frames they need in advance */
         fmUnordered = 300, /* for filters that modify their internal state every request */
-        fmSerial = 400 /* for source filters and compatibility with other filtering architectures */
+        fmFrameState = 400 /* for source filters and compatibility with other filtering architectures */
     } VSFilterMode;
 
     typedef struct VSVideoFormat {

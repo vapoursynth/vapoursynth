@@ -114,7 +114,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         fmParallel
         fmParallelRequestsOnly
         fmUnordered
-        fmSerial
+        fmFrameState
 
     ctypedef struct VSVideoFormat:
         int colorFamily

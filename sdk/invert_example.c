@@ -133,7 +133,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     // need to modify no shared data at all when the filter is running.
     // For more complicated filters, fmParallelRequests is usually easier to achieve as it can
     // be prefetched in parallel but the actual processing is serialized.
-    // The others can be considered special cases where fmSerial is useful to source filters and
+    // The others can be considered special cases where fmFrameState is useful to source filters and
     // fmUnordered is useful when a filter's state may change even when deciding which frames to
     // prefetch (such as a cache filter).
     // If your filter is really fast (such as a filter that only resorts frames) you should set the

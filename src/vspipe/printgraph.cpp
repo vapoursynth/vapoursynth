@@ -241,8 +241,8 @@ static std::string filterModeToString(int fm) {
         return "parreq";
     else if (fm == fmUnordered)
         return "unordered";
-    else if (fm == fmSerial)
-        return "serial";
+    else if (fm == fmFrameState)
+        return "fstate";
     else
         return "unordered";
 }

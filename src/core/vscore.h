@@ -68,7 +68,7 @@ static const uint32_t VS_FRAME_GUARD_PATTERN = 0xDEADBEEF;
 
 
 // Internal only filter mode for use by caches to make requests more linear
-const int fmUnorderedLinear = fmSerial + 1;
+const int fmUnorderedLinear = fmFrameState + 1;
 
 struct VSFrameRef;
 struct VSCore;
@@ -672,7 +672,7 @@ private:
     std::vector<VSAudioInfo> ai;
 
     // for keeping track of when a filter is busy in the exclusive section and with which frame
-    // used for fmSerial and fmParallel (mutex only)
+    // used for fmFrameState and fmParallel (mutex only)
     std::mutex serialMutex;
     int serialFrame;
     // to prevent multiple calls at the same time for the same frame

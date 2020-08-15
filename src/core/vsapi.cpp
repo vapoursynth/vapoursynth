@@ -218,8 +218,8 @@ static void VS_CC createFilter3(const VSMap *in, VSMap *out, const char *name, v
         case vs3::fmUnordered:
             fm = fmUnordered;
             break;
-        case vs3::fmSerial:
-            fm = fmSerial;
+        case vs3::fmFrameState:
+            fm = fmFrameState;
             break;
         default:
             core->logFatal("Invalid filter mode");
