@@ -2989,7 +2989,7 @@ cdef public api void vpy4_freeScript(VSScript *se) nogil:
 
         gc.collect()
 
-cdef public api char *vpy4_getError(VSScript *se) nogil:
+cdef public api const char *vpy4_getError(VSScript *se) nogil:
     if not se.errstr:
         return NULL
     with gil:
