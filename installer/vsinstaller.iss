@@ -1,4 +1,4 @@
-#define Version '51'
+#define Version '52'
 #define VersionExtra '-audio5'
 #define PythonVersion '3.8'
 #define PythonCompactVersion '38'
@@ -107,7 +107,8 @@ Source: ..\vsrepo\vsgenstubs\_vapoursynth.part.pyi; DestDir: {app}\vsrepo\vsgens
 Source: 7z.exe; DestDir: {app}\vsrepo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
 Source: 7z.dll; DestDir: {app}\vsrepo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
 
-;docsSource: ..\doc\_build\html\*; DestDir: {app}\docs; Flags: ignoreversion uninsrestartdelete restartreplace recursesubdirs; Components: docs
+;docs
+Source: ..\doc\_build\html\*; DestDir: {app}\docs; Flags: ignoreversion uninsrestartdelete restartreplace recursesubdirs; Components: docs
 
 ;sdk
 Source: ..\include\VapourSynth.h; DestDir: {app}\sdk\include\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
