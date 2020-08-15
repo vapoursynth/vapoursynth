@@ -25,7 +25,7 @@ __PYX_EXTERN_C int vpy4_evaluateBuffer(VSScript *, char const *, char const *, V
 __PYX_EXTERN_C int vpy4_evaluateFile(VSScript *, char const *, VSMap const *, VSScriptOptions const *);
 __PYX_EXTERN_C int vpy4_clearLogHandler(VSScript *);
 __PYX_EXTERN_C void vpy4_freeScript(VSScript *);
-__PYX_EXTERN_C char *vpy4_getError(VSScript *);
+__PYX_EXTERN_C const char *vpy4_getError(VSScript *);
 __PYX_EXTERN_C VSNodeRef *vpy4_getOutput(VSScript *, int);
 __PYX_EXTERN_C VSNodeRef *vpy4_getAlphaOutput(VSScript *, int);
 __PYX_EXTERN_C int vpy_clearOutput(VSScript *, int);
