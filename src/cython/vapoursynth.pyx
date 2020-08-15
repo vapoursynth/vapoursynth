@@ -1635,6 +1635,8 @@ cdef class RawNode(object):
         except Exception as e:
             fut.set_exception(e)
 
+        gc.collect()
+
         return fut
 
     def frames(self, prefetch=None, backlog=None):
