@@ -1758,6 +1758,8 @@ cdef class VideoNode(RawNode):
         cdef char *ep = errorMsg
         cdef const VSFrameRef *f
         self.ensure_valid_frame_number(n)
+        
+        gc.collect()
 
         with nogil:
             f = self.funcs.getFrame(n, self.node, errorMsg, 500)
@@ -2018,6 +2020,8 @@ cdef class AudioNode(RawNode):
         cdef char *ep = errorMsg
         cdef const VSFrameRef *f
         self.ensure_valid_frame_number(n)
+        
+        gc.collect()
 
         with nogil:
             f = self.funcs.getFrame(n, self.node, errorMsg, 500)
