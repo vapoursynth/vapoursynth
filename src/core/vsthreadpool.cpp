@@ -120,7 +120,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             }
 
             // Don't try to lock the same node twice since it's likely to fail and will produce more out of order requests as well
-            if (!seenNodes.insert(mainContext->clip).second)
+            if (filterMode != fmSerial && !seenNodes.insert(mainContext->clip).second)
                 continue;
 
 /////////////////////////////////////////////////////////////////////////////////////////////
