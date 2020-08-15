@@ -77,9 +77,6 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 // Go through all tasks from the top (oldest) and process the first one possible
         owner->tasks.sort(taskCmp);
 
-        // fixme, test if this matters at all!
-        std::set<VSNode *> seenNodes;
-
         for (auto iter = owner->tasks.begin(); iter != owner->tasks.end(); ++iter) {
             FrameContext *mainContext = iter->get();
             FrameContext *leafContext = nullptr;
@@ -107,9 +104,6 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 leafContext = mainContext;
                 mainContext = mainContext->upstreamContext.get();
             }
-
-            if (!seenNodes.insert(mainContext->clip).second)
-                continue;
 
             VSNode *clip = mainContext->clip;
             int filterMode = clip->filterMode;

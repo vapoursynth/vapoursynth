@@ -1,6 +1,9 @@
 r52:
 updated visual studio 2019 runtime version
+updated zimg
 vsgenstubs is now included with vsrepo
+fixed maximum for 16 bit input with diagonal filters and optimizations
+fixed deadlock in fmserial filters introduced in r51
 
 r51:
 updated visual studio 2019 runtime version
