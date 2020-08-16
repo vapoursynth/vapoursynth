@@ -239,63 +239,111 @@ static void averageFramesByteSSE2(const AverageFrameData *d, const VSFrameRef * 
         weights[i / 2] = _mm_set1_epi32((static_cast<uint32_t>(weight_hi) << 16) | weight_lo);
     }
     if (numSrcs % 2)
-        weights[numSrcs / 2 - 1] = _mm_set1_epi32(static_cast<uint16_t>(d->weights[numSrcs - 1]));
+        weights[numSrcs / 2] = _mm_set1_epi32(static_cast<uint16_t>(d->weights[numSrcs - 1]));
 
-    __m128i bias = _mm_setzero_si128();
     __m128 scale = _mm_set_ps1(1.0f / d->scale);
 
-    if ((plane == 1 || plane == 2) && (d->vi.format->colorFamily == cmYUV || d->vi.format->colorFamily == cmYCoCg))
-        bias = _mm_set1_epi8(128);
+    if ((plane == 1 || plane == 2) && (d->vi.format->colorFamily == cmYUV || d->vi.format->colorFamily == cmYCoCg)) {
+        __m128i bias = _mm_set1_epi8(128);
 
-    for (int h = 0; h < height; ++h) {
-        for (int w = 0; w < width; w += 16) {
-            __m128i accum_lolo = _mm_setzero_si128();
-            __m128i accum_lohi = _mm_setzero_si128();
-            __m128i accum_hilo = _mm_setzero_si128();
-            __m128i accum_hihi = _mm_setzero_si128();
+        for (int h = 0; h < height; ++h) {
+            for (int w = 0; w < width; w += 16) {
+                __m128i accum_lolo = _mm_setzero_si128();
+                __m128i accum_lohi = _mm_setzero_si128();
+                __m128i accum_hilo = _mm_setzero_si128();
+                __m128i accum_hihi = _mm_setzero_si128();
 
-            for (size_t i = 0; i < numSrcs; i += 2) {
-                __m128i coeffs = weights[i / 2];
-                __m128i v1 = _mm_sub_epi8(_mm_load_si128((const __m128i *)(srcpp[i + 0] + w)), bias);
-                __m128i v2 = _mm_sub_epi8(_mm_load_si128((const __m128i *)(srcpp[i + 1] + w)), bias);
-                __m128i v1_sign = _mm_cmplt_epi8(v1, _mm_setzero_si128());
-                __m128i v2_sign = _mm_cmplt_epi8(v2, _mm_setzero_si128());
+                for (size_t i = 0; i < numSrcs; i += 2) {
+                    __m128i coeffs = weights[i / 2];
+                    __m128i v1 = _mm_sub_epi8(_mm_load_si128((const __m128i *)(srcpp[i + 0] + w)), bias);
+                    __m128i v2 = _mm_sub_epi8(_mm_load_si128((const __m128i *)(srcpp[i + 1] + w)), bias);
+                    __m128i v1_sign = _mm_cmplt_epi8(v1, _mm_setzero_si128());
+                    __m128i v2_sign = _mm_cmplt_epi8(v2, _mm_setzero_si128());
 
-                __m128i v1_lo = _mm_unpacklo_epi8(v1, v1_sign);
-                __m128i v1_hi = _mm_unpackhi_epi8(v1, v1_sign);
-                __m128i v2_lo = _mm_unpacklo_epi8(v2, v2_sign);
-                __m128i v2_hi = _mm_unpackhi_epi8(v2, v2_sign);
+                    __m128i v1_lo = _mm_unpacklo_epi8(v1, v1_sign);
+                    __m128i v1_hi = _mm_unpackhi_epi8(v1, v1_sign);
+                    __m128i v2_lo = _mm_unpacklo_epi8(v2, v2_sign);
+                    __m128i v2_hi = _mm_unpackhi_epi8(v2, v2_sign);
 
-                accum_lolo = _mm_add_epi32(accum_lolo, _mm_madd_epi16(coeffs, _mm_unpacklo_epi16(v1_lo, v2_lo)));
-                accum_lohi = _mm_add_epi32(accum_lohi, _mm_madd_epi16(coeffs, _mm_unpackhi_epi16(v1_lo, v2_lo)));
-                accum_hilo = _mm_add_epi32(accum_hilo, _mm_madd_epi16(coeffs, _mm_unpacklo_epi16(v1_hi, v2_hi)));
-                accum_hihi = _mm_add_epi32(accum_hihi, _mm_madd_epi16(coeffs, _mm_unpackhi_epi16(v1_hi, v2_hi)));
+                    accum_lolo = _mm_add_epi32(accum_lolo, _mm_madd_epi16(coeffs, _mm_unpacklo_epi16(v1_lo, v2_lo)));
+                    accum_lohi = _mm_add_epi32(accum_lohi, _mm_madd_epi16(coeffs, _mm_unpackhi_epi16(v1_lo, v2_lo)));
+                    accum_hilo = _mm_add_epi32(accum_hilo, _mm_madd_epi16(coeffs, _mm_unpacklo_epi16(v1_hi, v2_hi)));
+                    accum_hihi = _mm_add_epi32(accum_hihi, _mm_madd_epi16(coeffs, _mm_unpackhi_epi16(v1_hi, v2_hi)));
+                }
+
+                __m128 accumf_lolo = _mm_cvtepi32_ps(accum_lolo);
+                __m128 accumf_lohi = _mm_cvtepi32_ps(accum_lohi);
+                __m128 accumf_hilo = _mm_cvtepi32_ps(accum_hilo);
+                __m128 accumf_hihi = _mm_cvtepi32_ps(accum_hihi);
+                accumf_lolo = _mm_mul_ps(accumf_lolo, scale);
+                accumf_lohi = _mm_mul_ps(accumf_lohi, scale);
+                accumf_hilo = _mm_mul_ps(accumf_hilo, scale);
+                accumf_hihi = _mm_mul_ps(accumf_hihi, scale);
+
+                accum_lolo = _mm_cvtps_epi32(accumf_lolo);
+                accum_lohi = _mm_cvtps_epi32(accumf_lohi);
+                accum_hilo = _mm_cvtps_epi32(accumf_hilo);
+                accum_hihi = _mm_cvtps_epi32(accumf_hihi);
+
+                accum_lolo = _mm_packs_epi32(accum_lolo, accum_lohi);
+                accum_hilo = _mm_packs_epi32(accum_hilo, accum_hihi);
+                accum_lolo = _mm_packs_epi16(accum_lolo, accum_hilo);
+
+                accum_lolo = _mm_add_epi8(accum_lolo, bias);
+                _mm_store_si128((__m128i *)(dstp + w), accum_lolo);
             }
 
-            __m128 accumf_lolo = _mm_cvtepi32_ps(accum_lolo);
-            __m128 accumf_lohi = _mm_cvtepi32_ps(accum_lohi);
-            __m128 accumf_hilo = _mm_cvtepi32_ps(accum_hilo);
-            __m128 accumf_hihi = _mm_cvtepi32_ps(accum_hihi);
-            accumf_lolo = _mm_mul_ps(accumf_lolo, scale);
-            accumf_lohi = _mm_mul_ps(accumf_lohi, scale);
-            accumf_hilo = _mm_mul_ps(accumf_hilo, scale);
-            accumf_hihi = _mm_mul_ps(accumf_hihi, scale);
-
-            accum_lolo = _mm_cvtps_epi32(accumf_lolo);
-            accum_lohi = _mm_cvtps_epi32(accumf_lohi);
-            accum_hilo = _mm_cvtps_epi32(accumf_hilo);
-            accum_hihi = _mm_cvtps_epi32(accumf_hihi);
-
-            accum_lolo = _mm_packs_epi32(accum_lolo, accum_lohi);
-            accum_hilo = _mm_packs_epi32(accum_hilo, accum_hihi);
-            accum_lolo = _mm_packs_epi16(accum_lolo, accum_hilo);
-
-            accum_lolo = _mm_add_epi8(accum_lolo, bias);
-            _mm_store_si128((__m128i *)(dstp + w), accum_lolo);
+            std::transform(srcpp, srcpp + numSrcs, srcpp, [=](const uint8_t *ptr) { return ptr + stride; });
+            dstp += stride;
         }
+    } else {
+        for (int h = 0; h < height; ++h) {
+            for (int w = 0; w < width; w += 16) {
+                __m128i accum_lolo = _mm_setzero_si128();
+                __m128i accum_lohi = _mm_setzero_si128();
+                __m128i accum_hilo = _mm_setzero_si128();
+                __m128i accum_hihi = _mm_setzero_si128();
 
-        std::transform(srcpp, srcpp + numSrcs, srcpp, [=](const uint8_t *ptr) { return ptr + stride; });
-        dstp += stride;
+                for (size_t i = 0; i < numSrcs; i += 2) {
+                    __m128i coeffs = weights[i / 2];
+                    __m128i v1 = _mm_load_si128((const __m128i *)(srcpp[i + 0] + w));
+                    __m128i v2 = _mm_load_si128((const __m128i *)(srcpp[i + 1] + w));
+
+                    __m128i v1_lo = _mm_unpacklo_epi8(v1, _mm_setzero_si128());
+                    __m128i v1_hi = _mm_unpackhi_epi8(v1, _mm_setzero_si128());
+                    __m128i v2_lo = _mm_unpacklo_epi8(v2, _mm_setzero_si128());
+                    __m128i v2_hi = _mm_unpackhi_epi8(v2, _mm_setzero_si128());
+
+                    accum_lolo = _mm_add_epi32(accum_lolo, _mm_madd_epi16(coeffs, _mm_unpacklo_epi16(v1_lo, v2_lo)));
+                    accum_lohi = _mm_add_epi32(accum_lohi, _mm_madd_epi16(coeffs, _mm_unpackhi_epi16(v1_lo, v2_lo)));
+                    accum_hilo = _mm_add_epi32(accum_hilo, _mm_madd_epi16(coeffs, _mm_unpacklo_epi16(v1_hi, v2_hi)));
+                    accum_hihi = _mm_add_epi32(accum_hihi, _mm_madd_epi16(coeffs, _mm_unpackhi_epi16(v1_hi, v2_hi)));
+                }
+
+                __m128 accumf_lolo = _mm_cvtepi32_ps(accum_lolo);
+                __m128 accumf_lohi = _mm_cvtepi32_ps(accum_lohi);
+                __m128 accumf_hilo = _mm_cvtepi32_ps(accum_hilo);
+                __m128 accumf_hihi = _mm_cvtepi32_ps(accum_hihi);
+                accumf_lolo = _mm_mul_ps(accumf_lolo, scale);
+                accumf_lohi = _mm_mul_ps(accumf_lohi, scale);
+                accumf_hilo = _mm_mul_ps(accumf_hilo, scale);
+                accumf_hihi = _mm_mul_ps(accumf_hihi, scale);
+
+                accum_lolo = _mm_cvtps_epi32(accumf_lolo);
+                accum_lohi = _mm_cvtps_epi32(accumf_lohi);
+                accum_hilo = _mm_cvtps_epi32(accumf_hilo);
+                accum_hihi = _mm_cvtps_epi32(accumf_hihi);
+
+                accum_lolo = _mm_packs_epi32(accum_lolo, accum_lohi);
+                accum_hilo = _mm_packs_epi32(accum_hilo, accum_hihi);
+                accum_lolo = _mm_packus_epi16(accum_lolo, accum_hilo);
+
+                _mm_store_si128((__m128i *)(dstp + w), accum_lolo);
+            }
+
+            std::transform(srcpp, srcpp + numSrcs, srcpp, [=](const uint8_t *ptr) { return ptr + stride; });
+            dstp += stride;
+        }
     }
 }
 
@@ -318,13 +366,13 @@ static void averageFramesWordSSE2(const AverageFrameData *d, const VSFrameRef * 
     __m128i weights[16];
     __m128 scale = _mm_set_ps1(1.0f / d->scale);
 
-    for (size_t i = 0; i < numSrcs; i += 2) {
+    for (size_t i = 0; i < (numSrcs & ~1); i += 2) {
         uint16_t weight_lo = static_cast<int16_t>(d->weights[i]);
         uint16_t weight_hi = static_cast<int16_t>(d->weights[i + 1]);
         weights[i / 2] = _mm_set1_epi32((static_cast<uint32_t>(weight_hi) << 16) | weight_lo);
     }
     if (numSrcs % 2)
-        weights[numSrcs / 2 - 1] = _mm_set1_epi32(static_cast<uint16_t>(d->weights[numSrcs - 1]));
+        weights[numSrcs / 2] = _mm_set1_epi32(static_cast<uint16_t>(d->weights[numSrcs - 1]));
 
     if ((plane == 1 || plane == 2) && (d->vi.format->colorFamily == cmYUV || d->vi.format->colorFamily == cmYCoCg)) {
         __m128i bias = _mm_set1_epi16(1U << (d->vi.format->bitsPerSample - 1));
@@ -368,7 +416,7 @@ static void averageFramesWordSSE2(const AverageFrameData *d, const VSFrameRef * 
         __m128i accumbias = _mm_setzero_si128();
         __m128i maxVal = _mm_add_epi16(_mm_set1_epi16((1U << d->vi.format->bitsPerSample) - 1), _mm_set1_epi16(INT16_MIN));
 
-        for (size_t i = 0; i < numSrcs / 2; ++i) {
+        for (size_t i = 0; i < (numSrcs + 1) / 2; ++i) {
             accumbias = _mm_add_epi32(accumbias, _mm_madd_epi16(_mm_set1_epi16(INT16_MIN), weights[i]));
         }
 
