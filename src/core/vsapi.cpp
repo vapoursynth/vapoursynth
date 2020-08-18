@@ -1250,7 +1250,7 @@ const VSAPI *VS_CC getVapourSynthAPI(int version) VS_NOEXCEPT {
 
     if (!getCPUFeatures()->can_run_vs) {
         return nullptr;
-    } else if (apiMajor == VAPOURSYNTH_API_MAJOR && apiMinor <= VAPOURSYNTH_API_MINOR) {
+    } else if (apiMajor == VAPOURSYNTH_API_MAJOR && apiMinor == VAPOURSYNTH_API_MINOR) { // fixme, restore check on actual release
         return &vs_internal_vsapi;
     } else if (apiMajor == VAPOURSYNTH3_API_MAJOR && apiMinor <= VAPOURSYNTH3_API_MINOR) {
         return reinterpret_cast<const VSAPI *>(&vs_internal_vsapi3);

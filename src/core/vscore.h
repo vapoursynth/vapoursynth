@@ -799,7 +799,7 @@ private:
     std::string returnType;
     std::vector<FilterArgument> inArgs;
     std::vector<FilterArgument> retArgs;
-    static void parseArgString(const std::string argString, std::vector<FilterArgument> &argsOut, int apiMajor);
+    static void parseArgString(const std::string &argString, std::vector<FilterArgument> &argsOut, int apiMajor);
 public:
     VSPluginFunction(const std::string &name, const std::string &argString, const std::string &returnType, VSPublicFunction func, void *functionData, VSPlugin *plugin);
     VSMap *invoke(const VSMap &args);
