@@ -326,6 +326,12 @@ public:
         }
     }
 
+    void copy(const VSMap *src) {
+        detach();
+        for (auto &iter : src->data->data)
+            data->data[iter.first] = iter.second;
+    }
+
     size_t size() const {
         return data->data.size();
     }

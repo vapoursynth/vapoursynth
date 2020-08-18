@@ -339,7 +339,6 @@ struct VSAPI {
     void (VS_CC *freeFrame)(const VSFrameRef *f) VS_NOEXCEPT;
     const VSFrameRef *(VS_CC *cloneFrameRef)(const VSFrameRef *f) VS_NOEXCEPT;
     VSFrameRef *(VS_CC *copyFrame)(const VSFrameRef *f, VSCore *core) VS_NOEXCEPT;
-    void (VS_CC *copyFrameProps)(const VSFrameRef *src, VSFrameRef *dst, VSCore *core) VS_NOEXCEPT;
     const VSMap *(VS_CC *getFramePropertiesRO)(const VSFrameRef *f) VS_NOEXCEPT;
     VSMap *(VS_CC *getFramePropertiesRW)(VSFrameRef *f) VS_NOEXCEPT;
 
@@ -381,6 +380,7 @@ struct VSAPI {
     VSMap *(VS_CC *createMap)(void) VS_NOEXCEPT;
     void (VS_CC *freeMap)(VSMap *map) VS_NOEXCEPT;
     void (VS_CC *clearMap)(VSMap *map) VS_NOEXCEPT;
+    void (VS_CC *copyMap)(const VSMap *src, VSMap *dst) VS_NOEXCEPT; /* copies all values in src to dst, if a key already exists it's replaced */
 
     void (VS_CC *mapSetError)(VSMap *map, const char *errorMessage) VS_NOEXCEPT; /* used to signal errors outside filter getframe function */
     const char *(VS_CC *mapGetError)(const VSMap *map) VS_NOEXCEPT; /* used to query errors, returns 0 if no error */

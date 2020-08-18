@@ -2138,6 +2138,8 @@ static void VS_CC propToClipCreate(const VSMap *in, VSMap *out, void *userData, 
 //////////////////////////////////////////
 // SetFrameProp
 
+// FIXME, remove delete argument later
+
 typedef struct {
     std::string prop;
     bool del;
@@ -2227,7 +2229,103 @@ static void VS_CC setFramePropCreate(const VSMap *in, VSMap *out, void *userData
         }
     }
 
+    if (d->del)
+        vsapi->logMessage(mtWarning, "SetFrameProp: 'delete' argument has been deprecated and will be removed in a future release, use RemoveFrameProps instead", core);
+
     vsapi->createVideoFilter(out, "SetFrameProp", vsapi->getVideoInfo(d->node), 1, setFramePropGetFrame, filterFree<SetFramePropData>, fmParallel, nfNoCache, d.get(), core);
+    d.release();
+}
+
+//////////////////////////////////////////
+// SetFrameProps
+
+typedef struct {
+    VSMap *props;
+} SetFramePropsDataExtra;
+
+typedef SingleNodeData<SetFramePropsDataExtra> SetFramePropsData;
+
+static const VSFrameRef *VS_CC setFramePropsGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    SetFramePropsData *d = reinterpret_cast<SetFramePropsData *>(instanceData);
+
+    if (activationReason == arInitial) {
+        vsapi->requestFrameFilter(n, d->node, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        VSFrameRef *dst = vsapi->copyFrame(src, core);
+        vsapi->freeFrame(src);
+
+        VSMap *props = vsapi->getFramePropertiesRW(dst);
+
+        vsapi->copyMap(d->props, props);
+
+        return dst;
+    }
+
+    return nullptr;
+}
+
+static void VS_CC setFramePropsCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    std::unique_ptr<SetFramePropsData> d(new SetFramePropsData(vsapi));
+
+    d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
+
+    vsapi->copyMap(in, d->props);
+    vsapi->mapDeleteKey(d->props, "clip");
+
+    vsapi->createVideoFilter(out, "SetFrameProps", vsapi->getVideoInfo(d->node), 1, setFramePropsGetFrame, filterFree<SetFramePropsData>, fmParallel, nfNoCache, d.get(), core);
+    d.release();
+}
+
+//////////////////////////////////////////
+// RemoveFrameProps
+
+typedef struct {
+    std::vector<std::string> props;
+    bool all;
+} RemoveFramePropsDataExtra;
+
+typedef SingleNodeData<RemoveFramePropsDataExtra> RemoveFramePropsData;
+
+static const VSFrameRef *VS_CC removeFramePropsGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    RemoveFramePropsData *d = reinterpret_cast<RemoveFramePropsData *>(instanceData);
+
+    if (activationReason == arInitial) {
+        vsapi->requestFrameFilter(n, d->node, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        VSFrameRef *dst = vsapi->copyFrame(src, core);
+        vsapi->freeFrame(src);
+
+        VSMap *props = vsapi->getFramePropertiesRW(dst);
+
+        if (d->all) {
+            vsapi->clearMap(props);
+        } else {
+            for (const auto &iter : d->props)
+                vsapi->mapDeleteKey(props, iter.c_str());
+        }
+
+        return dst;
+    }
+
+    return nullptr;
+}
+
+static void VS_CC removeFramePropsCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    std::unique_ptr<RemoveFramePropsData> d(new RemoveFramePropsData(vsapi));
+
+    int num_props = vsapi->mapNumElements(in, "props");
+    d->all = (num_props < 0);
+
+    if (!d->all) {
+        for (int i = 0; i < num_props; i++)
+            d->props.push_back(vsapi->mapGetData(in, "props", i, nullptr));
+    }
+
+    d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
+
+    vsapi->createVideoFilter(out, "RemoveFrameProps", vsapi->getVideoInfo(d->node), 1, removeFramePropsGetFrame, filterFree<RemoveFramePropsData>, fmParallel, nfNoCache, d.get(), core);
     d.release();
 }
 
@@ -2273,12 +2371,12 @@ static void VS_CC setFieldBasedCreate(const VSMap *in, VSMap *out, void *userDat
 }
 
 //////////////////////////////////////////
-// CopyFrameProperties
+// CopyFrameProps
 
-typedef DualNodeData<NoExtraData> CopyFramePropertiesData;
+typedef DualNodeData<NoExtraData> CopyFramePropsData;
 
-static const VSFrameRef *VS_CC copyFramePropertiesGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    CopyFramePropertiesData *d = reinterpret_cast<CopyFramePropertiesData *>(instanceData);
+static const VSFrameRef *VS_CC copyFramePropsGetFrame(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    CopyFramePropsData *d = reinterpret_cast<CopyFramePropsData *>(instanceData);
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node1, frameCtx);
@@ -2287,7 +2385,9 @@ static const VSFrameRef *VS_CC copyFramePropertiesGetFrame(int n, int activation
         const VSFrameRef *src1 = vsapi->getFrameFilter(n, d->node1, frameCtx);
         const VSFrameRef *src2 = vsapi->getFrameFilter(n, d->node2, frameCtx);
         VSFrameRef *dst = vsapi->copyFrame(src1, core);
-        vsapi->copyFrameProps(src2, dst, core);
+        VSMap *dstprops = vsapi->getFramePropertiesRW(dst);
+        vsapi->clearMap(dstprops);
+        vsapi->copyMap(vsapi->getFramePropertiesRO(src2), dstprops);
         vsapi->freeFrame(src1);
         vsapi->freeFrame(src2);
         return dst;
@@ -2296,13 +2396,13 @@ static const VSFrameRef *VS_CC copyFramePropertiesGetFrame(int n, int activation
     return nullptr;
 }
 
-static void VS_CC copyFramePropertiesCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
-    std::unique_ptr<CopyFramePropertiesData> d(new CopyFramePropertiesData(vsapi));
+static void VS_CC copyFramePropsCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    std::unique_ptr<CopyFramePropsData> d(new CopyFramePropsData(vsapi));
 
     d->node1 = vsapi->mapGetNode(in, "clip", 0, nullptr);
     d->node2 = vsapi->mapGetNode(in, "prop_src", 0, nullptr);
 
-    vsapi->createVideoFilter(out, "CopyFrameProperties", vsapi->getVideoInfo(d->node1), 1, copyFramePropertiesGetFrame, filterFree<CopyFramePropertiesData>, fmParallel, 0, d.get(), core);
+    vsapi->createVideoFilter(out, "CopyFrameProps", vsapi->getVideoInfo(d->node1), 1, copyFramePropsGetFrame, filterFree<CopyFramePropsData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
@@ -2344,7 +2444,9 @@ void VS_CC stdlibInitialize(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
     vspapi->registerFunction("ClipToProp", "clip:vnode;mclip:vnode;prop:data:opt;", "clip:vnode;", clipToPropCreate, 0, plugin);
     vspapi->registerFunction("PropToClip", "clip:vnode;prop:data:opt;", "clip:vnode;", propToClipCreate, 0, plugin);
     vspapi->registerFunction("SetFrameProp", "clip:vnode;prop:data;delete:int:opt;intval:int[]:opt;floatval:float[]:opt;data:data[]:opt;", "clip:vnode;", setFramePropCreate, 0, plugin);
+    vspapi->registerFunction("SetFrameProps", "clip:vnode;any", "clip:vnode;", setFramePropsCreate, 0, plugin);
+    vspapi->registerFunction("RemoveFrameProps", "clip:vnode;props:data:opt;", "clip:vnode;", removeFramePropsCreate, 0, plugin);
     vspapi->registerFunction("SetFieldBased", "clip:vnode;value:int;", "clip:vnode;", setFieldBasedCreate, 0, plugin);
-    vspapi->registerFunction("CopyFrameProperties", "clip:vnode;prop_src:vnode;", "clip:vnode;", copyFramePropertiesCreate, 0, plugin);
+    vspapi->registerFunction("CopyFrameProps", "clip:vnode;prop_src:vnode;", "clip:vnode;", copyFramePropsCreate, 0, plugin);
     vspapi->registerFunction("SetMaxCPU", "cpu:data;", "cpu:data;", setMaxCpu, 0, plugin);
 }

@@ -199,7 +199,7 @@ static VSFrameRef *VS_CC copyFrame(const VSFrameRef *frame, VSCore *core) VS_NOE
     return new VSFrameRef(*frame);
 }
 
-static void VS_CC copyFrameProps(const VSFrameRef *src, VSFrameRef *dst, VSCore *core) VS_NOEXCEPT {
+static void VS_CC copyFrameProps3(const VSFrameRef *src, VSFrameRef *dst, VSCore *core) VS_NOEXCEPT {
     assert(src && dst && core);
     dst->setProperties(src->getConstProperties());
 }
@@ -616,6 +616,11 @@ static void VS_CC clearMap(VSMap *map) VS_NOEXCEPT {
     map->clear();
 }
 
+static void VS_CC copyMap(const VSMap *src, VSMap *dst) VS_NOEXCEPT {
+    assert(src && dst);
+    dst->copy(src);
+}
+
 static VSCore *VS_CC createCore(int flags) VS_NOEXCEPT {
     return new VSCore(flags);
 }
@@ -1018,7 +1023,6 @@ const VSAPI vs_internal_vsapi = {
     &freeFrame,
     &cloneFrameRef,
     &copyFrame,
-    &copyFrameProps,
     &getFramePropertiesRO,
     &getFramePropertiesRW,
 
@@ -1056,6 +1060,7 @@ const VSAPI vs_internal_vsapi = {
     &createMap,
     &freeMap,
     &clearMap,
+    &copyMap,
 
     &mapSetError,
     &mapGetError,
@@ -1144,7 +1149,7 @@ const vs3::VSAPI3 vs_internal_vsapi3 = {
 
     &newVideoFrame3,
     &copyFrame,
-    &copyFrameProps,
+    &copyFrameProps3,
     &registerFunction3,
     &getPluginByID,
     &getPluginByNamespace,

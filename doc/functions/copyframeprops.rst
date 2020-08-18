@@ -1,7 +1,7 @@
-CopyFrameProperties
-===================
+CopyFrameProps
+==============
 
-.. function:: CopyFrameProperties(vnode clip, vnode prop_src)
+.. function:: CopyFrameProps(vnode clip, vnode prop_src)
    :module: std
 
    Returns *clip* but with all the frame properties replaced with the

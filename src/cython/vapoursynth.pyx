@@ -2463,7 +2463,6 @@ cdef class Function(object):
     
     @property
     def __signature__(self):
-    # FIXME, does nothing with the return signature
         if typing is None:
             return None
         return construct_signature(self.signature, self.return_signature, injected=self.plugin.injected_arg)
