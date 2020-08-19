@@ -37,7 +37,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         pass
     ctypedef struct VSPluginFunction:
         pass
-    ctypedef struct VSFuncRef:
+    ctypedef struct VSFunctionRef:
         pass
     ctypedef struct VSMap:
         pass
@@ -238,7 +238,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
     ctypedef void (__stdcall *VSPublicFunction)(const VSMap *input, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) 
     ctypedef void (__stdcall *VSInitPlugin)(VSPlugin *plugin, const VSPLUGINAPI *vspapi)  
 
-    ctypedef void (__stdcall *VSFreeFuncData)(void *userData)
+    ctypedef void (__stdcall *VSFreeFunctionData)(void *userData)
     ctypedef const VSFrameRef *(__stdcall *VSFilterGetFrame)(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi)
     ctypedef void (__stdcall *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI *vsapi)
    
@@ -303,10 +303,10 @@ cdef extern from "include/VapourSynth4.h" nogil:
         void setFilterError(const char *errorMessage, VSFrameContext *frameCtx) nogil
         
         # External functions
-        VSFuncRef *createFunc(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core) nogil
-        void freeFunc(VSFuncRef *f) nogil
-        VSFuncRef *cloneFuncRef(VSFuncRef *f) nogil
-        void callFunc(VSFuncRef *func, const VSMap *inm, VSMap *outm) nogil
+        VSFunctionRef *createFunction(VSPublicFunction func, void *userData, VSFreeFunctionData free, VSCore *core) nogil
+        void freeFunction(VSFunctionRef *f) nogil
+        VSFunctionRef *cloneFunctionRef(VSFunctionRef *f) nogil
+        void callFunction(VSFunctionRef *func, const VSMap *inm, VSMap *outm) nogil
     
         # Map and proptery access
         VSMap *createMap() nogil
@@ -346,8 +346,8 @@ cdef extern from "include/VapourSynth4.h" nogil:
         const VSFrameRef *mapGetFrame(const VSMap *map, const char *key, int index, int *error) nogil
         bint mapSetFrame(VSMap *map, const char *key, const VSFrameRef *f, int append) nogil
         
-        VSFuncRef *mapGetFunction(const VSMap *map, const char *key, int index, int *error) nogil
-        bint mapSetFunction(VSMap *map, const char *key, VSFuncRef *func, int append) nogil
+        VSFunctionRef *mapGetFunction(const VSMap *map, const char *key, int index, int *error) nogil
+        bint mapSetFunction(VSMap *map, const char *key, VSFunctionRef *func, int append) nogil
 
         # Plugin and function related
         bint registerFunction(const char *name, const char *args, const char *returnType, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) nogil

@@ -74,7 +74,7 @@ typedef struct VSNodeRef VSNodeRef;
 typedef struct VSCore VSCore;
 typedef struct VSPlugin VSPlugin;
 typedef struct VSPluginFunction VSPluginFunction;
-typedef struct VSFuncRef VSFuncRef;
+typedef struct VSFunctionRef VSFunctionRef;
 typedef struct VSMap VSMap;
 typedef struct VSLogHandle VSLogHandle;
 typedef struct VSFrameContext VSFrameContext;
@@ -304,7 +304,7 @@ typedef const VSAPI *(VS_CC *VSGetVapourSynthAPI)(int version);
 /* Plugin, function and filter related */
 typedef void (VS_CC *VSPublicFunction)(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
 typedef void (VS_CC *VSInitPlugin)(VSPlugin *plugin, const VSPLUGINAPI *vspapi);
-typedef void (VS_CC *VSFreeFuncData)(void *userData);
+typedef void (VS_CC *VSFreeFunctionData)(void *userData);
 typedef const VSFrameRef *(VS_CC *VSFilterGetFrame)(int n, int activationReason, void *instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
 typedef void (VS_CC *VSFilterFree)(void *instanceData, VSCore *core, const VSAPI *vsapi);
 
@@ -371,10 +371,10 @@ struct VSAPI {
     void (VS_CC *setFilterError)(const char *errorMessage, VSFrameContext *frameCtx) VS_NOEXCEPT; /* used to signal errors in the filter getframe function */
 
     /* External functions */
-    VSFuncRef *(VS_CC *createFunc)(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core) VS_NOEXCEPT; // FIXME, add a version with argument and return type hints and unify with plugin functions?
-    void (VS_CC *freeFunc)(VSFuncRef *f) VS_NOEXCEPT;
-    VSFuncRef *(VS_CC *cloneFuncRef)(VSFuncRef *f) VS_NOEXCEPT;
-    void (VS_CC *callFunc)(VSFuncRef *func, const VSMap *in, VSMap *out) VS_NOEXCEPT;
+    VSFunctionRef *(VS_CC *createFunction)(VSPublicFunction func, void *userData, VSFreeFunctionData free, VSCore *core) VS_NOEXCEPT;
+    void (VS_CC *freeFunction)(VSFunctionRef *f) VS_NOEXCEPT;
+    VSFunctionRef *(VS_CC *cloneFunctionRef)(VSFunctionRef *f) VS_NOEXCEPT;
+    void (VS_CC *callFunction)(VSFunctionRef *func, const VSMap *in, VSMap *out) VS_NOEXCEPT;
 
     /* Map and property access functions */
     VSMap *(VS_CC *createMap)(void) VS_NOEXCEPT;
@@ -415,8 +415,8 @@ struct VSAPI {
     const VSFrameRef *(VS_CC *mapGetFrame)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
     int (VS_CC *mapSetFrame)(VSMap *map, const char *key, const VSFrameRef *f, int append) VS_NOEXCEPT;
 
-    VSFuncRef *(VS_CC *mapGetFunction)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
-    int (VS_CC *mapSetFunction)(VSMap *map, const char *key, VSFuncRef *func, int append) VS_NOEXCEPT;
+    VSFunctionRef *(VS_CC *mapGetFunction)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
+    int (VS_CC *mapSetFunction)(VSMap *map, const char *key, VSFunctionRef *func, int append) VS_NOEXCEPT;
 
     /* Plugin and plugin function related */
     int (VS_CC *registerFunction)(const char *name, const char *args, const char *returnType, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) VS_NOEXCEPT; /* non-zero return value on success  */

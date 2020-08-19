@@ -1406,7 +1406,7 @@ static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, V
 
 typedef struct {
     VSVideoInfo vi;
-    VSFuncRef *func;
+    VSFunctionRef *func;
     std::vector<VSNodeRef *> propsrc;
     VSMap *in;
     VSMap *out;
@@ -1426,7 +1426,7 @@ static const VSFrameRef *VS_CC frameEvalGetFrameWithProps(int n, int activationR
             vsapi->mapSetFrame(d->in, "f", f, paAppend);
             vsapi->freeFrame(f);
         }
-        vsapi->callFunc(d->func, d->in, d->out);
+        vsapi->callFunction(d->func, d->in, d->out);
         vsapi->clearMap(d->in);
         if (vsapi->mapGetError(d->out)) {
             vsapi->setFilterError(vsapi->mapGetError(d->out), frameCtx);
@@ -1481,7 +1481,7 @@ static const VSFrameRef *VS_CC frameEvalGetFrameNoProps(int n, int activationRea
 
         int err;
         vsapi->mapSetInt(d->in, "n", n, paAppend);
-        vsapi->callFunc(d->func, d->in, d->out);
+        vsapi->callFunction(d->func, d->in, d->out);
         vsapi->clearMap(d->in);
         if (vsapi->mapGetError(d->out)) {
             vsapi->setFilterError(vsapi->mapGetError(d->out), frameCtx);
@@ -1532,7 +1532,7 @@ static void VS_CC frameEvalFree(void *instanceData, VSCore *core, const VSAPI *v
     FrameEvalData *d = reinterpret_cast<FrameEvalData *>(instanceData);
     for (auto iter : d->propsrc)
         vsapi->freeNode(iter);
-    vsapi->freeFunc(d->func);
+    vsapi->freeFunction(d->func);
     vsapi->freeMap(d->in);
     vsapi->freeMap(d->out);
     delete d;
@@ -1564,7 +1564,7 @@ static void VS_CC frameEvalCreate(const VSMap *in, VSMap *out, void *userData, V
 typedef struct {
     std::vector<VSNodeRef *> node;
     const VSVideoInfo *vi;
-    VSFuncRef *func;
+    VSFunctionRef *func;
     VSMap *in;
     VSMap *out;
 } ModifyFrameData;
@@ -1586,7 +1586,7 @@ static const VSFrameRef *VS_CC modifyFrameGetFrame(int n, int activationReason, 
             vsapi->freeFrame(f);
         }
 
-        vsapi->callFunc(d->func, d->in, d->out);
+        vsapi->callFunction(d->func, d->in, d->out);
         vsapi->clearMap(d->in);
 
         if (vsapi->mapGetError(d->out)) {
@@ -1625,7 +1625,7 @@ static void VS_CC modifyFrameFree(void *instanceData, VSCore *core, const VSAPI 
     ModifyFrameData *d = reinterpret_cast<ModifyFrameData *>(instanceData);
     for (auto iter : d->node)
         vsapi->freeNode(iter);
-    vsapi->freeFunc(d->func);
+    vsapi->freeFunction(d->func);
     vsapi->freeMap(d->in);
     vsapi->freeMap(d->out);
     delete d;

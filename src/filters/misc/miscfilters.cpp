@@ -246,7 +246,7 @@ static void averageFramesByteSSE2(const AverageFrameData *d, const VSFrameRef * 
 
     __m128 scale = _mm_set_ps1(1.0f / d->scale);
 
-    if ((plane == 1 || plane == 2) && d->vi.format.colorFamily == cfYUV)
+    if ((plane == 1 || plane == 2) && d->vi.format.colorFamily == cfYUV) {
         __m128i bias = _mm_set1_epi8(128);
 
         for (int h = 0; h < height; ++h) {

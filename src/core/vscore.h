@@ -77,13 +77,13 @@ struct VSNode;
 struct VSNodeRef;
 class VSThreadPool;
 struct VSFrameContext;
-struct VSFuncRef;
+struct VSFunctionRef;
 class VSMapData;
 
 typedef vs_intrusive_ptr<VSFrameRef> PVSFrameRef;
 typedef vs_intrusive_ptr<VSNode> PVSNode;
 typedef vs_intrusive_ptr<VSNodeRef> PVSNodeRef;
-typedef vs_intrusive_ptr<VSFuncRef> PVSFuncRef;
+typedef vs_intrusive_ptr<VSFunctionRef> PVSFunctionRef;
 typedef vs_intrusive_ptr<VSFrameContext> PVSFrameContext;
 
 extern const VSPLUGINAPI vs_internal_vspapi;
@@ -104,15 +104,15 @@ struct std::hash<NodeOutputKey> {
     }
 };
 
-struct VSFuncRef {
+struct VSFunctionRef {
 private:
     std::atomic<long> refcount;
     VSPublicFunction func;
     void *userData;
-    VSFreeFuncData freeFunc;
+    VSFreeFunctionData freeFunction;
     VSCore *core;
     int apiMajor;
-    ~VSFuncRef();
+    ~VSFunctionRef();
 public:
     void add_ref() noexcept {
         ++refcount;
@@ -124,7 +124,7 @@ public:
             delete this;
     }
 
-    VSFuncRef(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core, int apiMajor);
+    VSFunctionRef(VSPublicFunction func, void *userData, VSFreeFunctionData free, VSCore *core, int apiMajor);
     void call(const VSMap *in, VSMap *out);
 };
 
@@ -238,7 +238,7 @@ typedef VSArray<PVSNodeRef, ptVideoNode> VSVideoNodeArray;
 typedef VSArray<PVSNodeRef, ptAudioNode> VSAudioNodeArray;
 typedef VSArray<PVSFrameRef, ptVideoFrame> VSVideoFrameArray;
 typedef VSArray<PVSFrameRef, ptAudioFrame> VSAudioFrameArray;
-typedef VSArray<PVSFuncRef, ptFunction> VSFunctionArray;
+typedef VSArray<PVSFunctionRef, ptFunction> VSFunctionArray;
 
 class VSMapStorage {
 private:

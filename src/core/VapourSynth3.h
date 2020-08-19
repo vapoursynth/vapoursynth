@@ -177,11 +177,11 @@ namespace vs3 {
 
         const VSFrameRef *(VS_CC *cloneFrameRef)(const VSFrameRef *f) VS_NOEXCEPT;
         VSNodeRef *(VS_CC *cloneNodeRef)(VSNodeRef *node) VS_NOEXCEPT;
-        VSFuncRef *(VS_CC *cloneFuncRef)(VSFuncRef *f) VS_NOEXCEPT;
+        VSFunctionRef *(VS_CC *cloneFunctionRef)(VSFunctionRef *f) VS_NOEXCEPT;
 
         void (VS_CC *freeFrame)(const VSFrameRef *f) VS_NOEXCEPT;
         void (VS_CC *freeNode)(VSNodeRef *node) VS_NOEXCEPT;
-        void (VS_CC *freeFunc)(VSFuncRef *f) VS_NOEXCEPT;
+        void (VS_CC *freeFunction)(VSFunctionRef *f) VS_NOEXCEPT;
 
         VSFrameRef *(VS_CC *newVideoFrame)(const VSVideoFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT;
         VSFrameRef *(VS_CC *copyFrame)(const VSFrameRef *f, VSCore *core) VS_NOEXCEPT;
@@ -212,8 +212,8 @@ namespace vs3 {
         const uint8_t *(VS_CC *getReadPtr)(const VSFrameRef *f, int plane) VS_NOEXCEPT;
         uint8_t *(VS_CC *getWritePtr)(VSFrameRef *f, int plane) VS_NOEXCEPT;
 
-        VSFuncRef *(VS_CC *createFunc)(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core, const VSAPI3 *vsapi) VS_NOEXCEPT;
-        void (VS_CC *callFunc)(VSFuncRef *func, const VSMap *in, VSMap *out, VSCore *core, const VSAPI3 *vsapi) VS_NOEXCEPT; /* core and vsapi arguments are completely ignored, they only remain to preserve ABI */
+        VSFunctionRef *(VS_CC *createFunction)(VSPublicFunction func, void *userData, VSFreeFunctionData free, VSCore *core, const VSAPI3 *vsapi) VS_NOEXCEPT;
+        void (VS_CC *callFunction)(VSFunctionRef *func, const VSMap *in, VSMap *out, VSCore *core, const VSAPI3 *vsapi) VS_NOEXCEPT; /* core and vsapi arguments are completely ignored, they only remain to preserve ABI */
 
         /* property access functions */
         VSMap *(VS_CC *createMap)(void) VS_NOEXCEPT;
@@ -239,7 +239,7 @@ namespace vs3 {
         int (VS_CC *propGetDataSize)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
         VSNodeRef *(VS_CC *propGetNode)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
         const VSFrameRef *(VS_CC *propGetFrame)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
-        VSFuncRef *(VS_CC *propGetFunc)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
+        VSFunctionRef *(VS_CC *propGetFunc)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
 
         int (VS_CC *propDeleteKey)(VSMap *map, const char *key) VS_NOEXCEPT;
         int (VS_CC *propSetInt)(VSMap *map, const char *key, int64_t i, int append) VS_NOEXCEPT;
@@ -247,7 +247,7 @@ namespace vs3 {
         int (VS_CC *propSetData)(VSMap *map, const char *key, const char *data, int size, int append) VS_NOEXCEPT;
         int (VS_CC *propSetNode)(VSMap *map, const char *key, VSNodeRef *node, int append) VS_NOEXCEPT;
         int (VS_CC *propSetFrame)(VSMap *map, const char *key, const VSFrameRef *f, int append) VS_NOEXCEPT;
-        int (VS_CC *propSetFunc)(VSMap *map, const char *key, VSFuncRef *func, int append) VS_NOEXCEPT;
+        int (VS_CC *propSetFunc)(VSMap *map, const char *key, VSFunctionRef *func, int append) VS_NOEXCEPT;
 
         int64_t(VS_CC *setMaxCacheSize)(int64_t bytes, VSCore *core) VS_NOEXCEPT;
         int (VS_CC *getOutputIndex)(VSFrameContext *frameCtx) VS_NOEXCEPT;

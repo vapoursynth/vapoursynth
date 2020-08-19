@@ -714,10 +714,10 @@ static const VSCoreInfo *VS_CC getCoreInfo3(VSCore *core) VS_NOEXCEPT {
     return &core->getCoreInfo3();
 }
 
-static VSFuncRef *VS_CC mapGetFunction(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
+static VSFunctionRef *VS_CC mapGetFunction(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
     const VSArrayBase *arr = propGetShared(map, key, index, error, ptFunction);
     if (arr) {
-        VSFuncRef *ref = reinterpret_cast<const VSFunctionArray *>(arr)->at(index).get();
+        VSFunctionRef *ref = reinterpret_cast<const VSFunctionArray *>(arr)->at(index).get();
         ref->add_ref();
         return ref;
     } else {
@@ -725,31 +725,31 @@ static VSFuncRef *VS_CC mapGetFunction(const VSMap *map, const char *key, int in
     }
 }
 
-static int VS_CC mapSetFunction(VSMap *map, const char *key, VSFuncRef *func, int append) VS_NOEXCEPT {
-    return !propSetShared<PVSFuncRef, ptFunction>(map, key, { func, true }, append);
+static int VS_CC mapSetFunction(VSMap *map, const char *key, VSFunctionRef *func, int append) VS_NOEXCEPT {
+    return !propSetShared<PVSFunctionRef, ptFunction>(map, key, { func, true }, append);
 }
 
-static void VS_CC callFunc(VSFuncRef *func, const VSMap *in, VSMap *out) VS_NOEXCEPT {
+static void VS_CC callFunction(VSFunctionRef *func, const VSMap *in, VSMap *out) VS_NOEXCEPT {
     assert(func && in && out);
     func->call(in, out);
 }
 
-static void VS_CC callFunc3(VSFuncRef *func, const VSMap *in, VSMap *out, VSCore *core, const vs3::VSAPI3 *vsapi) VS_NOEXCEPT {
+static void VS_CC callFunction3(VSFunctionRef *func, const VSMap *in, VSMap *out, VSCore *core, const vs3::VSAPI3 *vsapi) VS_NOEXCEPT {
     assert(func && in && out);
     func->call(in, out);
 }
 
-static VSFuncRef *VS_CC createFunc(VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core) VS_NOEXCEPT {
+static VSFunctionRef *VS_CC createFunction(VSPublicFunction func, void *userData, VSFreeFunctionData free, VSCore *core) VS_NOEXCEPT {
     assert(func && core);
-    return new VSFuncRef(func, userData, free, core, VAPOURSYNTH_API_MAJOR);
+    return new VSFunctionRef(func, userData, free, core, VAPOURSYNTH_API_MAJOR);
 }
 
-static VSFuncRef *VS_CC createFunc3(vs3::VSPublicFunction func, void *userData, VSFreeFuncData free, VSCore *core, const vs3::VSAPI3 *vsapi) VS_NOEXCEPT {
+static VSFunctionRef *VS_CC createFunction3(vs3::VSPublicFunction func, void *userData, VSFreeFunctionData free, VSCore *core, const vs3::VSAPI3 *vsapi) VS_NOEXCEPT {
     assert(func && core && vsapi);
-    return new VSFuncRef(reinterpret_cast<VSPublicFunction>(func), userData, free, core, VAPOURSYNTH3_API_MAJOR);
+    return new VSFunctionRef(reinterpret_cast<VSPublicFunction>(func), userData, free, core, VAPOURSYNTH3_API_MAJOR);
 }
 
-static void VS_CC freeFunc(VSFuncRef *f) VS_NOEXCEPT {
+static void VS_CC freeFunction(VSFunctionRef *f) VS_NOEXCEPT {
     if (f)
         f->release();
 }
@@ -772,7 +772,7 @@ static void VS_CC releaseFrameEarly(VSNodeRef *node, int n, VSFrameContext *fram
     }
 }
 
-static VSFuncRef *VS_CC cloneFuncRef(VSFuncRef *func) VS_NOEXCEPT {
+static VSFunctionRef *VS_CC cloneFunctionRef(VSFunctionRef *func) VS_NOEXCEPT {
     assert(func);
     func->add_ref();
     return func;
@@ -1057,10 +1057,10 @@ const VSAPI vs_internal_vsapi = {
     &getOutputIndex,
     &setFilterError,
 
-    &createFunc,
-    &freeFunc,
-    &cloneFuncRef,
-    &callFunc,
+    &createFunction,
+    &freeFunction,
+    &cloneFunctionRef,
+    &callFunction,
 
     &createMap,
     &freeMap,
@@ -1147,11 +1147,11 @@ const vs3::VSAPI3 vs_internal_vsapi3 = {
 
     &cloneFrameRef,
     &cloneNodeRef,
-    &cloneFuncRef,
+    &cloneFunctionRef,
 
     &freeFrame,
     &freeNode,
-    &freeFunc,
+    &freeFunction,
 
     &newVideoFrame3,
     &copyFrame,
@@ -1179,8 +1179,8 @@ const vs3::VSAPI3 vs_internal_vsapi3 = {
     &getReadPtr,
     &getWritePtr,
 
-    &createFunc3,
-    &callFunc3,
+    &createFunction3,
+    &callFunction3,
 
     &createMap,
     &freeMap,

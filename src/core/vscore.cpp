@@ -119,17 +119,17 @@ bool VSMap::isV3Compatible() const noexcept {
     return true;
 }
 
-VSFuncRef::VSFuncRef(VSPublicFunction func, void *userData, VSFreeFuncData freeFunc, VSCore *core, int apiMajor) : refcount(1), func(func), userData(userData), freeFunc(freeFunc), core(core), apiMajor(apiMajor) {
+VSFunctionRef::VSFunctionRef(VSPublicFunction func, void *userData, VSFreeFunctionData freeFunction, VSCore *core, int apiMajor) : refcount(1), func(func), userData(userData), freeFunction(freeFunction), core(core), apiMajor(apiMajor) {
     core->functionInstanceCreated();
 }
 
-VSFuncRef::~VSFuncRef() {
-    if (freeFunc)
-        freeFunc(userData);
+VSFunctionRef::~VSFunctionRef() {
+    if (freeFunction)
+        freeFunction(userData);
     core->functionInstanceDestroyed();
 }
 
-void VSFuncRef::call(const VSMap *in, VSMap *out) {
+void VSFunctionRef::call(const VSMap *in, VSMap *out) {
     if (apiMajor == VAPOURSYNTH3_API_MAJOR && !in->isV3Compatible()) {
         vs_internal_vsapi.mapSetError(out, "Function was passed values that are unknown to its API version");
         return;

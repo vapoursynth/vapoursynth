@@ -608,14 +608,14 @@ cdef FuncData createFuncData(object func, VSCore *core, EnvironmentData env):
     
 cdef class Func(object):
     cdef const VSAPI *funcs
-    cdef VSFuncRef *ref
+    cdef VSFunctionRef *ref
     
     def __init__(self):
         raise Error('Class cannot be instantiated directly')
         
     def __dealloc__(self):
         if self.funcs:
-            self.funcs.freeFunc(self.ref)
+            self.funcs.freeFunction(self.ref)
         
     def __call__(self, **kwargs):
         cdef VSMap *outm
@@ -627,7 +627,7 @@ cdef class Func(object):
         inm = self.funcs.createMap()
         try:
             dictToMap(kwargs, inm, False, NULL, vsapi)
-            self.funcs.callFunc(self.ref, inm, outm)
+            self.funcs.callFunction(self.ref, inm, outm)
             error = self.funcs.mapGetError(outm)
             if error:
                 raise Error(error.decode('utf-8'))
@@ -648,10 +648,10 @@ cdef Func createFuncPython(object func, VSCore *core, const VSAPI *funcs):
     fdata = createFuncData(func, core, env)
 
     Py_INCREF(fdata)
-    instance.ref = instance.funcs.createFunc(publicFunction, <void *>fdata, freeFunc, core)
+    instance.ref = instance.funcs.createFunction(publicFunction, <void *>fdata, freeFunc, core)
     return instance
         
-cdef Func createFuncRef(VSFuncRef *ref, const VSAPI *funcs):
+cdef Func createFuncRef(VSFunctionRef *ref, const VSAPI *funcs):
     cdef Func instance = Func.__new__(Func)
     instance.funcs = funcs
     instance.ref = ref

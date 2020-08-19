@@ -93,7 +93,7 @@ static const VSFrameRef *VS_CC lutGetframe(int n, int activationReason, void *in
 }
 
 template<typename T>
-static bool funcToLut(int nin, int nout, void *vlut, VSFuncRef *func, const VSAPI *vsapi, std::string &errstr) {
+static bool funcToLut(int nin, int nout, void *vlut, VSFunctionRef *func, const VSAPI *vsapi, std::string &errstr) {
     VSMap *in = vsapi->createMap();
     VSMap *out = vsapi->createMap();
 
@@ -101,7 +101,7 @@ static bool funcToLut(int nin, int nout, void *vlut, VSFuncRef *func, const VSAP
 
     for (int i = 0; i < nin; i++) {
         vsapi->mapSetInt(in, "x", i, paReplace);
-        vsapi->callFunc(func, in, out);
+        vsapi->callFunction(func, in, out);
 
         const char *ret = vsapi->mapGetError(out);
         if (ret) {
@@ -140,7 +140,7 @@ static bool funcToLut(int nin, int nout, void *vlut, VSFuncRef *func, const VSAP
 }
 
 template<typename T, typename U>
-static void lutCreateHelper(const VSMap *in, VSMap *out, VSFuncRef *func, std::unique_ptr<LutData> &d, VSCore *core, const VSAPI *vsapi) {
+static void lutCreateHelper(const VSMap *in, VSMap *out, VSFunctionRef *func, std::unique_ptr<LutData> &d, VSCore *core, const VSAPI *vsapi) {
     int inrange = 1 << d->vi->format.bitsPerSample;
     int maxval = 1 << d->vi_out.format.bitsPerSample;
 
@@ -149,7 +149,7 @@ static void lutCreateHelper(const VSMap *in, VSMap *out, VSFuncRef *func, std::u
     if (func) {
         std::string errstr;
         funcToLut<U>(inrange, maxval, d->lut, func, vsapi, errstr);
-        vsapi->freeFunc(func);
+        vsapi->freeFunction(func);
 
         if (!errstr.empty())
             RETERROR(errstr.c_str());
@@ -211,29 +211,29 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
 
         getPlanesArg(in, d->process, vsapi);
 
-        VSFuncRef *func = vsapi->mapGetFunction(in, "function", 0, &err);
+        VSFunctionRef *func = vsapi->mapGetFunction(in, "function", 0, &err);
         int lut_elem = vsapi->mapNumElements(in, "lut");
         int lutf_elem = vsapi->mapNumElements(in, "lutf");
 
         int num_set = (lut_elem >= 0) + (lutf_elem >= 0) + !!func;
 
         if (!num_set) {
-            vsapi->freeFunc(func);
+            vsapi->freeFunction(func);
             RETERROR("Lut: none of lut, lutf and function are set");
         }
 
         if (num_set > 1) {
-            vsapi->freeFunc(func);
+            vsapi->freeFunction(func);
             RETERROR("Lut: more than one of lut, lutf and function are set");
         }
 
         if (lut_elem >= 0 && floatout) {
-            vsapi->freeFunc(func);
+            vsapi->freeFunction(func);
             RETERROR("Lut: lut set but float output specified");
         }
 
         if (lutf_elem >= 0 && !floatout) {
-            vsapi->freeFunc(func);
+            vsapi->freeFunction(func);
             RETERROR("Lut: lutf set but float output not specified");
         }
 
@@ -242,7 +242,7 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
         int lut_length = std::max(lut_elem, lutf_elem);
 
         if (lut_length >= 0 && lut_length != n) {
-            vsapi->freeFunc(func);
+            vsapi->freeFunction(func);
             RETERROR(("Lut: bad lut length. Expected " + std::to_string(n) + " elements, got " + std::to_string(lut_length) + " instead").c_str());
         }
 
@@ -330,7 +330,7 @@ static const VSFrameRef *VS_CC lut2Getframe(int n, int activationReason, void *i
 }
 
 template<typename T>
-static bool funcToLut2(int nxin, int nyin, int nout, void *vlut, VSFuncRef *func, const VSAPI *vsapi, std::string &errstr) {
+static bool funcToLut2(int nxin, int nyin, int nout, void *vlut, VSFunctionRef *func, const VSAPI *vsapi, std::string &errstr) {
     VSMap *in = vsapi->createMap();
     VSMap *out = vsapi->createMap();
 
@@ -340,7 +340,7 @@ static bool funcToLut2(int nxin, int nyin, int nout, void *vlut, VSFuncRef *func
         vsapi->mapSetInt(in, "y", i, paReplace);
         for (int j = 0; j < nxin; j++) {
             vsapi->mapSetInt(in, "x", j, paReplace);
-            vsapi->callFunc(func, in, out);
+            vsapi->callFunction(func, in, out);
 
             const char *ret = vsapi->mapGetError(out);
             if (ret) {
@@ -384,7 +384,7 @@ static bool funcToLut2(int nxin, int nyin, int nout, void *vlut, VSFuncRef *func
 }
 
 template<typename T, typename U, typename V>
-static void lut2CreateHelper(const VSMap *in, VSMap *out, VSFuncRef *func, std::unique_ptr<Lut2Data> &d, VSCore *core, const VSAPI *vsapi) {
+static void lut2CreateHelper(const VSMap *in, VSMap *out, VSFunctionRef *func, std::unique_ptr<Lut2Data> &d, VSCore *core, const VSAPI *vsapi) {
     int inrange = (1 << d->vi[0]->format.bitsPerSample) * (1 << d->vi[1]->format.bitsPerSample);
     int maxval = 1 << d->vi_out.format.bitsPerSample;
 
@@ -393,7 +393,7 @@ static void lut2CreateHelper(const VSMap *in, VSMap *out, VSFuncRef *func, std::
     if (func) {
         std::string errstr;
         funcToLut2<V>(1 << d->vi[0]->format.bitsPerSample, 1 << d->vi[1]->format.bitsPerSample, maxval, d->lut, func, vsapi, errstr);
-        vsapi->freeFunc(func);
+        vsapi->freeFunction(func);
 
         if (!errstr.empty())
             RETERROR(errstr.c_str());
@@ -459,29 +459,29 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
 
         getPlanesArg(in, d->process, vsapi);
 
-        VSFuncRef *func = vsapi->mapGetFunction(in, "function", 0, &err);
+        VSFunctionRef *func = vsapi->mapGetFunction(in, "function", 0, &err);
         int lut_elem = vsapi->mapNumElements(in, "lut");
         int lutf_elem = vsapi->mapNumElements(in, "lutf");
 
         int num_set = (lut_elem >= 0) + (lutf_elem >= 0) + !!func;
 
         if (!num_set) {
-            vsapi->freeFunc(func);
+            vsapi->freeFunction(func);
             RETERROR("Lut2: none of lut, lutf and function are set");
         }
 
         if (num_set > 1) {
-            vsapi->freeFunc(func);
+            vsapi->freeFunction(func);
             RETERROR("Lut2: more than one of lut, lutf and function are set");
         }
 
         if (lut_elem >= 0 && floatout) {
-            vsapi->freeFunc(func);
+            vsapi->freeFunction(func);
             RETERROR("Lut2: lut set but float output specified");
         }
 
         if (lutf_elem >= 0 && !floatout) {
-            vsapi->freeFunc(func);
+            vsapi->freeFunction(func);
             RETERROR("Lut2: lutf set but float output not specified");
         }
 
@@ -490,7 +490,7 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
         int lut_length = std::max(lut_elem, lutf_elem);
 
         if (lut_length >= 0 && lut_length != n) {
-            vsapi->freeFunc(func);
+            vsapi->freeFunction(func);
             RETERROR(("Lut2: bad lut length. Expected " + std::to_string(n) + " elements, got " + std::to_string(lut_length) + " instead").c_str());
         }
 
