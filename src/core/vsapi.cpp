@@ -1131,13 +1131,14 @@ const VSAPI vs_internal_vsapi = {
     &addLogHandler,
     &removeLogHandler,
 
+    &setInternalFilterRelation,
+
     &getNodeCreationFunctionName,
     &getNodeCreationFunctionArguments,
     &getNodeName,
     &getNodeIndex,
     &getNodeFilterMode,
-    &getNodeFilterTime,
-    &setInternalFilterRelation
+    &getNodeFilterTime
 };
 
 const vs3::VSAPI3 vs_internal_vsapi3 = {

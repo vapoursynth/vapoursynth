@@ -448,6 +448,9 @@ struct VSAPI {
     void (VS_CC *logMessage)(int msgType, const char *msg, VSCore *core) VS_NOEXCEPT;
     VSLogHandle *(VS_CC *addLogHandler)(VSLogHandler handler, VSLogHandlerFree free, void *userData, VSCore *core) VS_NOEXCEPT; /* free and userData can be NULL, returns a handle that can be passed to removeLogHandler */
     int (VS_CC *removeLogHandler)(VSLogHandle *handle, VSCore *core) VS_NOEXCEPT; /* returns non-zero if successfully removed */
+    
+    /* Filter Information API */
+    void (VS_CC *setInternalFilterRelation)(const VSMap *nodeMap, VSNodeRef **dependencies, int numDeps) VS_NOEXCEPT; /* manually overrides the automatically deduced node dependency information, only needed in filters that call invoke on the input (not output) to create*Filter or chains multiple create*Filter calls, enables proper graph output when cfEnableGraphInspection is used */
 
     /* 
      * NOT PART OF THE STABLE API!
@@ -461,7 +464,6 @@ struct VSAPI {
     int (VS_CC *getNodeIndex)(VSNodeRef *node) VS_NOEXCEPT; /* the output index of the filter the node references */
     int (VS_CC *getNodeFilterMode)(VSNodeRef *node) VS_NOEXCEPT; /* VSFilterMode */
     int64_t (VS_CC *getNodeFilterTime)(VSNodeRef *node) VS_NOEXCEPT; /* time spent processing frames in nanoseconds */
-    void (VS_CC *setInternalFilterRelation)(const VSMap *nodeMap, VSNodeRef **dependencies, int numDeps) VS_NOEXCEPT; /* manually overrides the automatically deduced node dependency information, only needed in filters that call invoke on the input to create*Filter or chains multiple create*Filter calls, simply ignored when used without cfEnableGraphInspection */
 };
 
 VS_API(const VSAPI *) getVapourSynthAPI(int version) VS_NOEXCEPT;

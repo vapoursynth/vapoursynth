@@ -75,7 +75,6 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Go through all tasks from the top (oldest) and process the first one possible
-        // fixme, test if this matters at all!
         std::set<VSNode *> seenNodes;
 
         for (auto iter = owner->tasks.begin(); iter != owner->tasks.end(); ++iter) {
