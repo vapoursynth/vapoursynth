@@ -2265,11 +2265,18 @@ static const VSFrameRef *VS_CC setFramePropsGetFrame(int n, int activationReason
     return nullptr;
 }
 
+static void VS_CC setFramePropsFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+    SetFramePropsData *d =  reinterpret_cast<SetFramePropsData *>(instanceData);
+    vsapi->freeMap(d->props);
+    delete d;
+}
+
 static void VS_CC setFramePropsCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     std::unique_ptr<SetFramePropsData> d(new SetFramePropsData(vsapi));
 
     d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
 
+    d->props = vsapi->createMap();
     vsapi->copyMap(in, d->props);
     vsapi->mapDeleteKey(d->props, "clip");
 

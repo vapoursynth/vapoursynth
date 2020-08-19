@@ -860,10 +860,10 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, cons
             val = [val]
 
         for v in val:
-            if ((atypes[key][:4] == 'clip' or atypes[key][:5] == 'vnode') and isinstance(v, VideoNode)) or (atypes[key][:5] == 'anode' and isinstance(v, AudioNode)):
+            if (atypes[key][:5] == 'vnode' and isinstance(v, VideoNode)) or (atypes[key][:5] == 'anode' and isinstance(v, AudioNode)):
                 if funcs.mapSetNode(inm, ckey, (<RawNode>v).node, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
-            elif ((atypes[key][:5] == 'frame' or atypes[key][:6] == 'vframe') and isinstance(v, VideoFrame)) or (atypes[key][:6] == 'aframe' and isinstance(v, AudioFrame)):
+            elif ((atypes[key][:6] == 'vframe') and isinstance(v, VideoFrame)) or (atypes[key][:6] == 'aframe' and isinstance(v, AudioFrame)):
                 if funcs.mapSetFrame(inm, ckey, (<RawFrame>v).constf, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif atypes[key][:4] == 'func' and isinstance(v, Func):
@@ -2493,9 +2493,13 @@ cdef class Function(object):
 
         # match up unnamed arguments to the first unused name in order
         sigs = self.signature.split(';')
+        any = False
 
         for sig in sigs:
-            if sig == '':
+            if sig == 'any':
+                any = True
+                continue
+            elif sig == '':
                 continue
             parts = sig.split(':')
             # store away the types for later use
@@ -2515,8 +2519,8 @@ cdef class Function(object):
         if len(arglist) > 0:
             raise Error(self.name + ': Too many unnamed arguments specified')
 
-        if len(ndict) > 0:
-            raise Error(self.name + ': Function does not take argument(s) named ' + ', '.join(ndict.keys()))
+        if (len(ndict) > 0) and not any:
+            raise Error(self.name + ': Function does not take argument(s) named ' + ', '.join(ndict.keys()))          
 
         inm = self.funcs.createMap()
 
@@ -2524,6 +2528,8 @@ cdef class Function(object):
         dtomexceptmsg = ''
         try:
             typedDictToMap(processed, atypes, inm, self.plugin.core.core, self.funcs)
+            if any:
+                dictToMap(ndict, inm, False, self.plugin.core.core, self.funcs)
         except Error as e:
             self.funcs.freeMap(inm)
             dtomsuccess = False

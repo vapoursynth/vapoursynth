@@ -113,7 +113,7 @@ bool VSFrameContext::setError(const std::string &errorMsg) {
 
 bool VSMap::isV3Compatible() const noexcept {
     for (const auto &iter : data->data) {
-        if (iter.second->type() == ptAudioNode || iter.second->type() == ptAudioFrame)
+        if (iter.second->type() == ptAudioNode || iter.second->type() == ptAudioFrame || iter.second->type() == ptUnset)
             return false;
     }
     return true;
@@ -449,7 +449,7 @@ Container& split(
     return result;
 }
 
-void VSPluginFunction::parseArgString(const std::string argString, std::vector<FilterArgument> &argsOut, int apiMajor) {
+void VSPluginFunction::parseArgString(const std::string &argString, std::vector<FilterArgument> &argsOut, int apiMajor) {
     std::vector<std::string> argList;
     split(argList, argString, std::string(";"), split1::no_empties);
 
@@ -457,6 +457,11 @@ void VSPluginFunction::parseArgString(const std::string argString, std::vector<F
     for (const std::string &arg : argList) {
         std::vector<std::string> argParts;
         split(argParts, arg, std::string(":"), split1::no_empties);
+
+        if (argParts.size() == 1 && argParts[0] == "any") {
+            argsOut.emplace_back("", ptUnset, false, false, false);
+            continue;
+        }
 
         if (argParts.size() < 2)
             throw std::runtime_error("Invalid argument specifier '" + arg + "'. It appears to be incomplete.");
@@ -537,6 +542,14 @@ VSMap *VSPluginFunction::invoke(const VSMap &args) {
             remainingArgs.insert(args.key(i));
 
         for (const FilterArgument &fa : inArgs) {
+            // ptUnset as an argument type means any value is accepted beyond the declared ones
+            if (fa.type == ptUnset) {
+                // this will always be the last argument, therefore it's safe to clear out the remaining ones since they'll
+                // already have been checked
+                remainingArgs.clear();
+                continue;
+            }
+
             int propType = vs_internal_vsapi.mapGetType(&args, fa.name.c_str());
 
             if (propType != ptUnset) {
