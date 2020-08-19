@@ -603,6 +603,11 @@ static VSMap *VS_CC invoke(VSPlugin *plugin, const char *name, const VSMap *args
     return plugin->invoke(name, *args);
 }
 
+static VSMap *VS_CC invoke2(VSPluginFunction *func, const VSMap *args) VS_NOEXCEPT {
+    assert(func && args);
+    return func->invoke(*args);
+}
+
 static VSMap *VS_CC createMap() VS_NOEXCEPT {
     return new VSMap();
 }
@@ -709,7 +714,7 @@ static const VSCoreInfo *VS_CC getCoreInfo3(VSCore *core) VS_NOEXCEPT {
     return &core->getCoreInfo3();
 }
 
-static VSFuncRef *VS_CC mapGetFunc(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
+static VSFuncRef *VS_CC mapGetFunction(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
     const VSArrayBase *arr = propGetShared(map, key, index, error, ptFunction);
     if (arr) {
         VSFuncRef *ref = reinterpret_cast<const VSFunctionArray *>(arr)->at(index).get();
@@ -720,7 +725,7 @@ static VSFuncRef *VS_CC mapGetFunc(const VSMap *map, const char *key, int index,
     }
 }
 
-static int VS_CC mapSetFunc(VSMap *map, const char *key, VSFuncRef *func, int append) VS_NOEXCEPT {
+static int VS_CC mapSetFunction(VSMap *map, const char *key, VSFuncRef *func, int append) VS_NOEXCEPT {
     return !propSetShared<PVSFuncRef, ptFunction>(map, key, { func, true }, append);
 }
 
@@ -1095,8 +1100,8 @@ const VSAPI vs_internal_vsapi = {
     &mapGetFrame,
     &mapSetFrame,
 
-    &mapGetFunc,
-    &mapSetFunc,
+    &mapGetFunction,
+    &mapSetFunction,
 
     &registerFunction,
     &getPluginByID,
@@ -1113,6 +1118,7 @@ const VSAPI vs_internal_vsapi = {
     &getPluginPath,
     &getPluginVersion,
     &invoke,
+    &invoke2,
 
     &createCore,
     &freeCore,
@@ -1198,14 +1204,14 @@ const vs3::VSAPI3 vs_internal_vsapi3 = {
     &mapGetDataSize,
     &mapGetNode,
     &mapGetFrame,
-    &mapGetFunc,
+    &mapGetFunction,
     &mapDeleteKey,
     &mapSetInt,
     &mapSetFloat,
     &propSetData3,
     &mapSetNode,
     &mapSetFrame,
-    &mapSetFunc,
+    &mapSetFunction,
 
     &setMaxCacheSize,
     &getOutputIndex,

@@ -1543,7 +1543,7 @@ static void VS_CC frameEvalCreate(const VSMap *in, VSMap *out, void *userData, V
     VSNodeRef *node = vsapi->mapGetNode(in, "clip", 0, 0);
     d->vi = *vsapi->getVideoInfo(node);
     vsapi->freeNode(node);
-    d->func = vsapi->mapGetFunc(in, "eval", 0, 0);
+    d->func = vsapi->mapGetFunction(in, "eval", 0, 0);
     int numpropsrc = vsapi->mapNumElements(in, "prop_src");
     if (numpropsrc > 0) {
         d->propsrc.resize(numpropsrc);
@@ -1642,7 +1642,7 @@ static void VS_CC modifyFrameCreate(const VSMap *in, VSMap *out, void *userData,
     for (int i = 0; i < numnode; i++)
         d->node[i] = vsapi->mapGetNode(in, "clips", i, 0);
 
-    d->func = vsapi->mapGetFunc(in, "selector", 0, 0);
+    d->func = vsapi->mapGetFunction(in, "selector", 0, 0);
     d->in = vsapi->createMap();
     d->out = vsapi->createMap();
 

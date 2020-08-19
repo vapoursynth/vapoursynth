@@ -346,8 +346,8 @@ cdef extern from "include/VapourSynth4.h" nogil:
         const VSFrameRef *mapGetFrame(const VSMap *map, const char *key, int index, int *error) nogil
         bint mapSetFrame(VSMap *map, const char *key, const VSFrameRef *f, int append) nogil
         
-        VSFuncRef *mapGetFunc(const VSMap *map, const char *key, int index, int *error) nogil
-        bint mapSetFunc(VSMap *map, const char *key, VSFuncRef *func, int append) nogil
+        VSFuncRef *mapGetFunction(const VSMap *map, const char *key, int index, int *error) nogil
+        bint mapSetFunction(VSMap *map, const char *key, VSFuncRef *func, int append) nogil
 
         # Plugin and function related
         bint registerFunction(const char *name, const char *args, const char *returnType, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) nogil
@@ -364,6 +364,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         const char *getPluginFunctionReturnType(VSPluginFunction *func) nogil
         const char *getPluginPath(const VSPlugin *plugin) nogil
         VSMap *invoke(VSPlugin *plugin, const char *name, const VSMap *args) nogil
+        VSMap *invoke2(VSPluginFunction *func, const VSMap *args) nogil
         
         # Core and information
         VSCore *createCore(int flags) nogil

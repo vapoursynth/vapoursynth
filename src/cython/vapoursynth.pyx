@@ -783,7 +783,7 @@ cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, VSCore *co
             elif proptype == ptVideoFrame or proptype == ptAudioFrame:
                 newval = createConstFrame(funcs.mapGetFrame(map, retkey, y, NULL), funcs, core)
             elif proptype == ptFunction:
-                newval = createFuncRef(funcs.mapGetFunc(map, retkey, y, NULL), funcs)
+                newval = createFuncRef(funcs.mapGetFunction(map, retkey, y, NULL), funcs)
 
             if y == 0:
                 vval = newval
@@ -837,12 +837,12 @@ cdef void dictToMap(dict ndict, VSMap *inm, bint simpleTypesOnly, VSCore *core, 
                 if funcs.mapSetFrame(inm, ckey, (<RawFrame>v).constf, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif isinstance(v, Func) and not simpleTypesOnly:
-                if funcs.mapSetFunc(inm, ckey, (<Func>v).ref, 1) != 0:
+                if funcs.mapSetFunction(inm, ckey, (<Func>v).ref, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif callable(v) and not simpleTypesOnly:
                 tf = createFuncPython(v, core, funcs)
 
-                if funcs.mapSetFunc(inm, ckey, tf.ref, 1) != 0:
+                if funcs.mapSetFunction(inm, ckey, (<Func>v).ref, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
    
             else:
@@ -867,11 +867,11 @@ cdef void typedDictToMap(dict ndict, dict atypes, VSMap *inm, VSCore *core, cons
                 if funcs.mapSetFrame(inm, ckey, (<RawFrame>v).constf, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif atypes[key][:4] == 'func' and isinstance(v, Func):
-                if funcs.mapSetFunc(inm, ckey, (<Func>v).ref, 1) != 0:
+                if funcs.mapSetFunction(inm, ckey, (<Func>v).ref, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif atypes[key][:4] == 'func' and callable(v):
                 tf = createFuncPython(v, core, funcs)
-                if funcs.mapSetFunc(inm, ckey, tf.ref, 1) != 0:
+                if funcs.mapSetFunction(inm, ckey, tf.ref, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif atypes[key][:3] == 'int':
                 if funcs.mapSetInt(inm, ckey, int(v), 1) != 0:
@@ -1029,7 +1029,7 @@ cdef class FrameProps(object):
                 ol.append(createConstFrame(self.funcs.mapGetFrame(m, b, i, NULL), self.funcs, self.core))
         elif t == ptFunction:
             for i in range(numelem):
-                ol.append(createFuncRef(self.funcs.mapGetFunc(m, b, i, NULL), self.funcs))
+                ol.append(createFuncRef(self.funcs.mapGetFunction(m, b, i, NULL), self.funcs))
 
         if len(ol) == 1:
             return ol[0]
@@ -1060,11 +1060,11 @@ cdef class FrameProps(object):
                     if funcs.mapSetFrame(m, b, (<VideoFrame>v).constf, 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif isinstance(v, Func):
-                    if funcs.mapSetFunc(m, b, (<Func>v).ref, 1) != 0:
+                    if funcs.mapSetFunction(m, b, (<Func>v).ref, 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif callable(v):
                     tf = createFuncPython(v, self.core, self.funcs)
-                    if funcs.mapSetFunc(m, b, tf.ref, 1) != 0:
+                    if funcs.mapSetFunction(m, b, tf.ref, 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif isinstance(v, int):
                     if funcs.mapSetInt(m, b, int(v), 1) != 0:

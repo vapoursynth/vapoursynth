@@ -211,7 +211,7 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
 
         getPlanesArg(in, d->process, vsapi);
 
-        VSFuncRef *func = vsapi->mapGetFunc(in, "function", 0, &err);
+        VSFuncRef *func = vsapi->mapGetFunction(in, "function", 0, &err);
         int lut_elem = vsapi->mapNumElements(in, "lut");
         int lutf_elem = vsapi->mapNumElements(in, "lutf");
 
@@ -459,7 +459,7 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
 
         getPlanesArg(in, d->process, vsapi);
 
-        VSFuncRef *func = vsapi->mapGetFunc(in, "function", 0, &err);
+        VSFuncRef *func = vsapi->mapGetFunction(in, "function", 0, &err);
         int lut_elem = vsapi->mapNumElements(in, "lut");
         int lutf_elem = vsapi->mapNumElements(in, "lutf");
 

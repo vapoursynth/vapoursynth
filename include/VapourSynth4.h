@@ -415,8 +415,8 @@ struct VSAPI {
     const VSFrameRef *(VS_CC *mapGetFrame)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
     int (VS_CC *mapSetFrame)(VSMap *map, const char *key, const VSFrameRef *f, int append) VS_NOEXCEPT;
 
-    VSFuncRef *(VS_CC *mapGetFunc)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
-    int (VS_CC *mapSetFunc)(VSMap *map, const char *key, VSFuncRef *func, int append) VS_NOEXCEPT;
+    VSFuncRef *(VS_CC *mapGetFunction)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
+    int (VS_CC *mapSetFunction)(VSMap *map, const char *key, VSFuncRef *func, int append) VS_NOEXCEPT;
 
     /* Plugin and plugin function related */
     int (VS_CC *registerFunction)(const char *name, const char *args, const char *returnType, VSPublicFunction argsFunc, void *functionData, VSPlugin *plugin) VS_NOEXCEPT; /* non-zero return value on success  */
@@ -434,7 +434,7 @@ struct VSAPI {
     const char *(VS_CC *getPluginPath)(const VSPlugin *plugin) VS_NOEXCEPT; /* the full path to the loaded library file containing the plugin entry point */
     int (VS_CC *getPluginVersion)(const VSPlugin *plugin) VS_NOEXCEPT;
     VSMap *(VS_CC *invoke)(VSPlugin *plugin, const char *name, const VSMap *args) VS_NOEXCEPT; /* user must free the returned VSMap */
-    //VSMap *(VS_CC *invoke2)(VSPluginFunction *func, const VSMap *args) VS_NOEXCEPT; // FIXME, should a version that takes a plugin function exist?
+    VSMap *(VS_CC *invoke2)(VSPluginFunction *func, const VSMap *args) VS_NOEXCEPT; /* user must free the returned VSMap */
 
     /* Core and information */
     VSCore *(VS_CC *createCore)(int flags) VS_NOEXCEPT; /* flags uses the VSCoreFlags enum */
