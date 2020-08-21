@@ -31,15 +31,16 @@ using namespace vsh;
 //////////////////////////////////////////
 // Shared
 
-enum MismatchCauses {
-    DifferentDimensions = 1,
+enum class MismatchCauses {
+    Match,
+    DifferentDimensions,
     DifferentFormats,
     DifferentFrameRates,
     DifferentLengths
 };
 
-static int findCommonVi(VSNodeRef **nodes, int num, VSVideoInfo *outvi, int ignorelength, const VSAPI *vsapi) {
-    int mismatch = 0;
+static MismatchCauses findCommonVi(VSNodeRef **nodes, int num, VSVideoInfo *outvi, int ignorelength, const VSAPI *vsapi) {
+    MismatchCauses mismatch = MismatchCauses::Match;
     const VSVideoInfo *vi;
     *outvi = *vsapi->getVideoInfo(nodes[0]);
 
@@ -49,29 +50,40 @@ static int findCommonVi(VSNodeRef **nodes, int num, VSVideoInfo *outvi, int igno
         if (outvi->width != vi->width || outvi->height != vi->height) {
             outvi->width = 0;
             outvi->height = 0;
-            mismatch = DifferentDimensions;
+            mismatch = MismatchCauses::DifferentDimensions;
         }
 
         if (!isSameVideoFormat(&outvi->format, &vi->format)) {
             memset(&outvi->format, 0, sizeof(outvi->format));
-            mismatch = DifferentFormats;
+            mismatch = MismatchCauses::DifferentFormats;
         }
 
         if (outvi->fpsNum != vi->fpsNum || outvi->fpsDen != vi->fpsDen) {
             outvi->fpsDen = 0;
             outvi->fpsNum = 0;
-            mismatch = DifferentFrameRates;
+            mismatch = MismatchCauses::DifferentFrameRates;
         }
 
         if (outvi->numFrames < vi->numFrames) {
             outvi->numFrames = vi->numFrames;
 
             if (!ignorelength)
-                mismatch = DifferentLengths;
+                mismatch = MismatchCauses::DifferentLengths;
         }
     }
 
     return mismatch;
+}
+
+static std::string mismatchToText(MismatchCauses mismatchCause) {
+    if (mismatchCause == MismatchCauses::DifferentDimensions)
+        return "the clips' dimensions don't match";
+    else if (mismatchCause == MismatchCauses::DifferentFormats)
+        return "the clips' formats don't match";
+    else if (mismatchCause == MismatchCauses::DifferentFrameRates)
+        return "the clips' frame rates don't match";
+    else if (mismatchCause == MismatchCauses::DifferentLengths)
+        return "the clips' lengths don't match";
 }
 
 //////////////////////////////////////////
@@ -212,17 +224,9 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
                 compat = true;
         }
 
-        int mismatchCause = findCommonVi(d->node.data(), d->numclips, &d->vi, 1, vsapi);
-        if (mismatchCause && (!mismatch || compat)) {
-            if (mismatchCause == DifferentDimensions)
-                RETERROR("Interleave: the clips' dimensions don't match");
-            else if (mismatchCause == DifferentFormats)
-                RETERROR("Interleave: the clips' formats don't match");
-            else if (mismatchCause == DifferentFrameRates)
-                RETERROR("Interleave: the clips' frame rates don't match");
-            else if (mismatchCause == DifferentLengths)
-                RETERROR("Interleave: the clips' lengths don't match");
-        }
+        MismatchCauses mismatchCause = findCommonVi(d->node.data(), d->numclips, &d->vi, 1, vsapi);
+        if (mismatchCause != MismatchCauses::Match && (!mismatch || compat))
+            RETERROR(("Interleave: " + mismatchToText(mismatchCause)).c_str());
 
         bool overflow = false;
 
@@ -471,18 +475,9 @@ static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCo
                 compat = 1;
         }
 
-        // fixme, put mismatch cause text and check in a helper function
-        int mismatchCause = findCommonVi(d->node.data(), d->numclips, &vi, 1, vsapi);
-        if (mismatchCause && (!mismatch || compat) && !isSameVideoInfo(&vi, vsapi->getVideoInfo(d->node[0]))) {
-            if (mismatchCause == DifferentDimensions)
-                RETERROR("Splice: the clips' dimensions don't match");
-            else if (mismatchCause == DifferentFormats)
-                RETERROR("Splice: the clips' formats don't match");
-            else if (mismatchCause == DifferentFrameRates)
-                RETERROR("Splice: the clips' frame rates don't match");
-            else if (mismatchCause == DifferentLengths)
-                RETERROR("Splice: the clips' lengths don't match");
-        }
+        MismatchCauses mismatchCause = findCommonVi(d->node.data(), d->numclips, &vi, 1, vsapi);
+        if (mismatchCause != MismatchCauses::Match && (!mismatch || compat) && !isSameVideoInfo(&vi, vsapi->getVideoInfo(d->node[0])))
+            RETERROR(("Splice: " + mismatchToText(mismatchCause)).c_str());
 
         d->numframes.resize(d->numclips);
         vi.numFrames = 0;
