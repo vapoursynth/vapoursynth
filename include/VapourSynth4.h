@@ -449,17 +449,17 @@ struct VSAPI {
     VSLogHandle *(VS_CC *addLogHandler)(VSLogHandler handler, VSLogHandlerFree free, void *userData, VSCore *core) VS_NOEXCEPT; /* free and userData can be NULL, returns a handle that can be passed to removeLogHandler */
     int (VS_CC *removeLogHandler)(VSLogHandle *handle, VSCore *core) VS_NOEXCEPT; /* returns non-zero if successfully removed */
     
-    /* Filter Information API */
+    /* Graph information */
     void (VS_CC *setInternalFilterRelation)(const VSMap *nodeMap, VSNodeRef **dependencies, int numDeps) VS_NOEXCEPT; /* manually overrides the automatically deduced node dependency information, only needed in filters that call invoke on the input (not output) to create*Filter or chains multiple create*Filter calls, enables proper graph output when cfEnableGraphInspection is used */
 
     /* 
      * NOT PART OF THE STABLE API!
      * These functions only exist to retrieve internal details for debug purposes and graph visualization and
-     * will only only work properly when used on a core created with the flag cfEnableGraphInspection
+     * will only only work properly when used on a core created with cfEnableGraphInspection
      * NOT PART OF THE STABLE API!
      */
-    const char *(VS_CC *getNodeCreationFunctionName)(VSNodeRef *node, int level) VS_NOEXCEPT; /* returns the name of the function that created the filter */
-    const VSMap *(VS_CC *getNodeCreationFunctionArguments)(VSNodeRef *node, int level) VS_NOEXCEPT; /* returns a copy of the arguments passed to the function that created the filter */
+    const char *(VS_CC *getNodeCreationFunctionName)(VSNodeRef *node, int level) VS_NOEXCEPT; /* level=0 returns the name of the function that created the filter, if it's a helper level created by setInternalFilterRelation() it'll simply return an empty string (""), specifying a higher level will retrieve the function above that invoked it or NULL if a non-existent level is requested */
+    const VSMap *(VS_CC *getNodeCreationFunctionArguments)(VSNodeRef *node, int level) VS_NOEXCEPT; /* level=0 returns a copy of the arguments passed to the function that created the filter, returns NULL if a non-existent level is requested */
     const char *(VS_CC *getNodeName)(VSNodeRef *node) VS_NOEXCEPT; /* the name passed to create*Filter */
     int (VS_CC *getNodeIndex)(VSNodeRef *node) VS_NOEXCEPT; /* the output index of the filter the node references */
     int (VS_CC *getNodeFilterMode)(VSNodeRef *node) VS_NOEXCEPT; /* VSFilterMode */
