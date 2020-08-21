@@ -1,7 +1,7 @@
 PEMVerifier
 ===========
 
-.. function:: PEMVerifier(clip clip[, float[] upper, float[] lower])
+.. function:: PEMVerifier(vnode clip[, float[] upper, float[] lower])
    :module: std
 
    The *PEMVerifier* is used to check for out-of-bounds pixel values during filter

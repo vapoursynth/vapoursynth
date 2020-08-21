@@ -1,8 +1,8 @@
 StackVertical/StackHorizontal
 =============================
 
-.. function:: StackVertical(clip[] clips)
-              StackHorizontal(clip[] clips)
+.. function:: StackVertical(vnode[] clips)
+              StackHorizontal(vnode[] clips)
    :module: std
 
    Stacks all given *clips* together. The same format is a requirement. For

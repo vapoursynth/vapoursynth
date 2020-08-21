@@ -1,7 +1,7 @@
 Minimum/Maximum
 ===============
 
-.. function:: Minimum(clip clip[, int[] planes=[0, 1, 2], float threshold, bint[] coordinates=[1, 1, 1, 1, 1, 1, 1, 1]])
+.. function:: Minimum(vnode clip[, int[] planes=[0, 1, 2], float threshold, bint[] coordinates=[1, 1, 1, 1, 1, 1, 1, 1]])
    :module: std
 
    Replaces each pixel with the smallest value in its 3x3 neighbourhood.

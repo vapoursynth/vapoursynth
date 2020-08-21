@@ -1,7 +1,7 @@
 Cache
 =====
 
-.. function::   Cache(clip clip[, int size, bint fixed=False, make_linear=False])
+.. function::   Cache(vnode clip[, int size, bint fixed=False, make_linear=False])
    :module: std
 
    Inserts a Cache. Users of the Python module should never need to use this

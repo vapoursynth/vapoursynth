@@ -1,7 +1,7 @@
 MakeDiff
 ========
 
-.. function::   MakeDiff(clip clipa, clip clipb[, int[] planes])
+.. function::   MakeDiff(vnode clipa, vnode clipb[, int[] planes])
    :module: std
 
    Calculates the difference between *clipa* and *clipb* and clamps the result.

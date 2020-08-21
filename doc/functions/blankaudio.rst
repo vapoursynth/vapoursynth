@@ -1,7 +1,7 @@
 BlankAudio
 ==========
 
-.. function:: BlankAudio([clip clip, int channels=<stereo>, int bits=16, int sampletype=INTEGER, int samplerate=44100, int length=(10*samplerate), bint keep=0])
+.. function:: BlankAudio([vnode clip, int channels=<stereo>, int bits=16, int sampletype=INTEGER, int samplerate=44100, int length=(10*samplerate), bint keep=0])
    :module: std
 
    Generates a new empty clip. This can be useful to have when editing video

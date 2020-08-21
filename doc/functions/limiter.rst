@@ -1,7 +1,7 @@
 Limiter
 =======
 
-.. function:: Limiter(clip clip[, float[] min, float[] max, int[] planes=[0, 1, 2]])
+.. function:: Limiter(vnode clip[, float[] min, float[] max, int[] planes=[0, 1, 2]])
    :module: std
 
    Limits the pixel values to the range [*min*, *max*].

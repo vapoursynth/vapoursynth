@@ -1,7 +1,7 @@
 SetFieldBased (Experimental)
 ============================
 
-.. function:: SetFieldBased(clip clip, int value)
+.. function:: SetFieldBased(vnode clip, int value)
    :module: std
    
    This function is experimental and may be removed or greatly changed

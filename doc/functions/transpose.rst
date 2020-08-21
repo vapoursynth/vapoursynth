@@ -1,7 +1,7 @@
 Transpose
 =========
 
-.. function:: Transpose(clip clip)
+.. function:: Transpose(vnode clip)
    :module: std
 
    Flips the contents of the frames in the same way as a matrix transpose would

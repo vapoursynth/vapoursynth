@@ -1,8 +1,8 @@
 FlipVertical/FlipHorizontal
 ===========================
 
-.. function:: FlipVertical(clip clip)
-              FlipHorizontal(clip clip)
+.. function:: FlipVertical(vnode clip)
+              FlipHorizontal(vnode clip)
    :module: std
 
-   Flips the clip in the vertical or horizontal direction.
+   Flips the *clip* in the vertical or horizontal direction.

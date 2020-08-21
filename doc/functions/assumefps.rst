@@ -1,7 +1,7 @@
 AssumeFPS
 =========
 
-.. function:: AssumeFPS(clip clip[, clip src, int fpsnum, int fpsden=1])
+.. function:: AssumeFPS(vnode clip[, vnode src, int fpsnum, int fpsden=1])
    :module: std
 
    Returns a clip with the framerate changed. This does not in any way modify

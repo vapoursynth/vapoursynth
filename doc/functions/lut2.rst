@@ -1,7 +1,7 @@
 Lut2
 ====
 
-.. function:: Lut2(clip clipa, clip clipb[, int[] planes, int[] lut, float[] lutf, func function, int bits, bint floatout])
+.. function:: Lut2(vnode clipa, vnode clipb[, int[] planes, int[] lut, float[] lutf, func function, int bits, bint floatout])
    :module: std
 
    Applies a look-up table that takes into account the pixel values of two clips. The

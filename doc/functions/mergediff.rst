@@ -1,7 +1,7 @@
 MergeDiff
 =========
 
-.. function::   MergeDiff(clip clipa, clip clipb[, int[] planes])
+.. function::   MergeDiff(vnode clipa, vnode clipb[, int[] planes])
    :module: std
 
    Merges back the difference in *clipb* to *clipa* and clamps the result.

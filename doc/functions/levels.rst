@@ -1,7 +1,7 @@
 Levels
 ======
 
-.. function:: Levels(clip clip[, float min_in, float max_in, float gamma=1.0, float min_out, float max_out, int[] planes=[0, 1, 2]])
+.. function:: Levels(vnode clip[, float min_in, float max_in, float gamma=1.0, float min_out, float max_out, int[] planes=[0, 1, 2]])
    :module: std
 
    Adjusts brightness, contrast, and gamma.

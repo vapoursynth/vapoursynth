@@ -1,7 +1,7 @@
 Interleave
 ==========
 
-.. function::   Interleave(clip[] clips[, bint extend=0, bint mismatch=0, bint modify_duration=True])
+.. function::   Interleave(vnode[] clips[, bint extend=0, bint mismatch=0, bint modify_duration=True])
    :module: std
 
    Returns a clip with the frames from all *clips* interleaved. For example,

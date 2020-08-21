@@ -1,7 +1,7 @@
 SeparateFields
 ==============
 
-.. function:: SeparateFields(clip clip[, bint tff, bint modify_duration=True])
+.. function:: SeparateFields(vnode clip[, bint tff, bint modify_duration=True])
    :module: std
 
    Returns a clip with the fields separated and interleaved.

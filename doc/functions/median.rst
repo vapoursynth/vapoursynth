@@ -1,7 +1,7 @@
 Median
 ======
 
-.. function:: Median(clip clip[, int[] planes=[0, 1, 2]])
+.. function:: Median(vnode clip[, int[] planes=[0, 1, 2]])
    :module: std
 
    Replaces each pixel with the median of the nine pixels in its 3x3

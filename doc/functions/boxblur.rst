@@ -1,7 +1,7 @@
 BoxBlur
 =======
 
-.. function:: BoxBlur(clip clip[, int[] planes, int hradius = 1, int hpasses = 1, int vradius = 1, int vpasses = 1])
+.. function:: BoxBlur(vnode clip[, int[] planes, int hradius = 1, int hpasses = 1, int vradius = 1, int vpasses = 1])
    :module: std
 
    Performs a box blur which is fast even for large radius values. Using multiple *passes* can be used to fairly cheaply

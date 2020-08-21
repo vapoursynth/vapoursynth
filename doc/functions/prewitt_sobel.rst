@@ -1,12 +1,12 @@
 Prewitt/Sobel
 ===================
 
-.. function:: Prewitt(clip clip[, int[] planes=[0, 1, 2], float scale=1])
+.. function:: Prewitt(vnode clip[, int[] planes=[0, 1, 2], float scale=1])
    :module: std
 
    Creates an edge mask using the Prewitt operator.
 
-.. function:: Sobel(clip clip[, int[] planes=[0, 1, 2], float scale=1])
+.. function:: Sobel(vnode clip[, int[] planes=[0, 1, 2], float scale=1])
    :module: std
 
    Creates an edge mask using the Sobel operator.

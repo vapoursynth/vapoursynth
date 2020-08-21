@@ -1,7 +1,7 @@
 Lut
 ===
 
-.. function:: Lut(clip clip[, int[] planes, int[] lut, float[] lutf, func function, int bits, bint floatout])
+.. function:: Lut(vnode clip[, int[] planes, int[] lut, float[] lutf, func function, int bits, bint floatout])
    :module: std
 
    Applies a look-up table to the given clip. The lut can be specified as either an array

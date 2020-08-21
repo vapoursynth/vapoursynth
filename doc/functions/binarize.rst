@@ -1,7 +1,7 @@
 Binarize
 ========
 
-.. function:: Binarize(clip clip[, float[] threshold, float[] v0=0, float[] v1, int[] planes=[0, 1, 2]])
+.. function:: Binarize(vnode clip[, float[] threshold, float[] v0=0, float[] v1, int[] planes=[0, 1, 2]])
    :module: std
 
    Turns every pixel in the image into either *v0*, if it's below

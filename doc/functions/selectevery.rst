@@ -1,7 +1,7 @@
 SelectEvery
 ===========
 
-.. function:: SelectEvery(clip clip, int cycle, int[] offsets[, bint modify_duration=True])
+.. function:: SelectEvery(vnode clip, int cycle, int[] offsets[, bint modify_duration=True])
    :module: std
 
    Returns a clip with only some of the frames in every *cycle* selected. The

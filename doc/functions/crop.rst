@@ -1,8 +1,8 @@
 Crop/CropAbs
 ===============
 
-.. function::   Crop(clip clip[, int left=0, int right=0, int top=0, int bottom=0])  
-				CropAbs(clip clip, int width, int height[, int left=0, int top=0])
+.. function::   Crop(vnode clip[, int left=0, int right=0, int top=0, int bottom=0])  
+				CropAbs(vnode clip, int width, int height[, int left=0, int top=0])
    :module: std
 
    Crops the frames in a clip.

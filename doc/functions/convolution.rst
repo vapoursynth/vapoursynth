@@ -1,7 +1,7 @@
 Convolution
 ===========
 
-.. function:: Convolution(clip clip, float[] matrix[, float bias=0.0, float divisor=0.0, int[] planes=[0, 1, 2], bint saturate=True, string mode="s"])
+.. function:: Convolution(vnode clip, float[] matrix[, float bias=0.0, float divisor=0.0, int[] planes=[0, 1, 2], bint saturate=True, string mode="s"])
    :module: std
 
    Performs a spatial convolution.

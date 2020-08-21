@@ -1,7 +1,7 @@
 Invert
 ======
 
-.. function:: Invert(clip clip[, int[] planes=[0, 1, 2]])
+.. function:: Invert(vnode clip[, int[] planes=[0, 1, 2]])
    :module: std
 
    Inverts the pixel values. Specifically, it subtracts the value of the

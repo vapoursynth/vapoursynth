@@ -1,7 +1,7 @@
 MaskedMerge
 ===========
 
-.. function::   MaskedMerge(clip clipa, clip clipb, clip mask[, int[] planes, bint first_plane=0, bint premultiplied=0])
+.. function::   MaskedMerge(vnode clipa, vnode clipb, vnode mask[, int[] planes, bint first_plane=0, bint premultiplied=0])
    :module: std
 
    MaskedMerge merges *clipa* with *clipb* using the per pixel weights in the *mask*,
