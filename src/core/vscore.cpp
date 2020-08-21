@@ -526,6 +526,8 @@ void VSPluginFunction::parseArgString(const std::string &argString, std::vector<
 VSPluginFunction::VSPluginFunction(const std::string &name, const std::string &argString, const std::string &returnType, VSPublicFunction func, void *functionData, VSPlugin *plugin)
     : name(name), argString(argString), returnType(returnType), func(func), functionData(functionData), plugin(plugin) {
     parseArgString(argString, inArgs, plugin->apiMajor);
+    if (plugin->apiMajor == 3)
+        this->argString = getV4ArgString(); // construct to V4 equivalent arg string
     if (returnType != "any")
         parseArgString(returnType, retArgs, plugin->apiMajor);
 }
@@ -612,6 +614,40 @@ bool VSPluginFunction::isV3Compatible() const {
         if (iter.type == ptAudioNode || iter.type == ptAudioFrame)
             return false;
     return true;
+}
+
+std::string VSPluginFunction::getV4ArgString() const {
+    std::string tmp;
+    for (const auto &iter : inArgs) {
+        assert(iter.type != ptAudioNode && iter.type != ptAudioFrame);
+
+        tmp += iter.name + ":";
+
+        switch (iter.type) {
+            case ptInt:
+                tmp += "int"; break;
+            case ptFloat:
+                tmp += "float"; break;
+            case ptData:
+                tmp += "data"; break;
+            case ptVideoNode:
+                tmp += "vnode"; break;
+            case ptVideoFrame:
+                tmp += "vframe"; break;
+            case ptFunction:
+                tmp += "func"; break;
+            default:
+                assert(false);
+        }
+        if (iter.arr)
+            tmp += "[]";
+        if (iter.opt)
+            tmp += ":opt";
+        if (iter.empty)
+            tmp += ":empty";
+        tmp += ";";
+    }
+    return tmp;
 }
 
 std::string VSPluginFunction::getV3ArgString() const {

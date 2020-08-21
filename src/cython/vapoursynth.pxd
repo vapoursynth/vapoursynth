@@ -270,7 +270,6 @@ cdef extern from "include/VapourSynth4.h" nogil:
         void freeFrame(const VSFrameRef *f) nogil
         const VSFrameRef *cloneFrameRef(VSFrameRef *f) nogil
         VSFrameRef *copyFrame(const VSFrameRef *f, VSCore *core) nogil
-        void copyFrameProps(const VSFrameRef *src, VSFrameRef *dst, VSCore *core) nogil
         const VSMap *getFramePropertiesRO(const VSFrameRef *f) nogil
         VSMap *getFramePropertiesRW(VSFrameRef *f) nogil
     
@@ -312,6 +311,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         VSMap *createMap() nogil
         void freeMap(VSMap *map) nogil
         void clearMap(VSMap *map) nogil
+        void copyMap(const VSMap *src, VSMap *dst) nogil
         
         void mapSetError(VSMap *map, const char *errorMessage) nogil
         char *mapGetError(const VSMap *map) nogil

@@ -211,7 +211,6 @@ typedef struct VSAudioFormat {
     uint64_t channelLayout;
 } VSAudioFormat;
 
-// FIXME, investigate nfMakeLinear and its usefulness or convert it into a filter mode
 typedef enum VSNodeFlags {
     nfNoCache    = 1,
     nfIsCache    = 2,
@@ -300,7 +299,6 @@ typedef enum VSDataType {
 /* Core entry point */
 typedef const VSAPI *(VS_CC *VSGetVapourSynthAPI)(int version);
 
-// FIXME, clamp negative frame requests to zero?
 /* Plugin, function and filter related */
 typedef void (VS_CC *VSPublicFunction)(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi);
 typedef void (VS_CC *VSInitPlugin)(VSPlugin *plugin, const VSPLUGINAPI *vspapi);

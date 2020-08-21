@@ -807,6 +807,7 @@ public:
     const std::string &getArguments() const;
     const std::string &getReturnType() const;
     bool isV3Compatible() const;
+    std::string getV4ArgString() const;
     std::string getV3ArgString() const;
 };
 
