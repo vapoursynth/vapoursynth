@@ -326,7 +326,7 @@ struct VSAPI {
     void (VS_CC *freeNode)(VSNodeRef *node) VS_NOEXCEPT;
     VSNodeRef *(VS_CC *cloneNodeRef)(VSNodeRef *node) VS_NOEXCEPT;
     int (VS_CC *getNodeType)(VSNodeRef *node) VS_NOEXCEPT; /* returns VSMediaType */
-    int (VS_CC *getNodeFlags)(VSNodeRef *node) VS_NOEXCEPT; /* returns VSNodeFlags */
+    int (VS_CC *getNodeFlags)(VSNodeRef *node) VS_NOEXCEPT; /* returns a mask of VSNodeFlags */
     const VSVideoInfo *(VS_CC *getVideoInfo)(VSNodeRef *node) VS_NOEXCEPT;
     const VSAudioInfo *(VS_CC *getAudioInfo)(VSNodeRef *node) VS_NOEXCEPT;
 

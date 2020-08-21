@@ -51,7 +51,8 @@ extern "C" {
 #endif
 
 
-// fixme, add a second less verbose graph mode only showing top level invoke calls
+// fixme, add a more verbose graph mode with filter times included
+// fixme, add a simpler graph with only the function calls printed
 // fixme, using a "." for no output is weird
 
 // Needed so windows doesn't drool on itself when ctrl-c is pressed
