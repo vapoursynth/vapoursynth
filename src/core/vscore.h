@@ -226,7 +226,7 @@ public:
 
 class VSMapData {
 public:
-    VSDataType typeHint;
+    VSDataTypeHint typeHint;
     std::string data;
 };
 

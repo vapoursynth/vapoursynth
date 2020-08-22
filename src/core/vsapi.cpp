@@ -577,7 +577,7 @@ static int VS_CC mapSetFloat(VSMap *map, const char *key, double d, int append) 
 }
 
 static int VS_CC mapSetData(VSMap *map, const char *key, const char *d, int length, int type, int append) VS_NOEXCEPT {
-    return !propSetShared<VSMapData, ptData>(map, key, { static_cast<VSDataType>(type), (length >= 0) ? std::string(d, length) : std::string(d) }, append);
+    return !propSetShared<VSMapData, ptData>(map, key, { static_cast<VSDataTypeHint>(type), (length >= 0) ? std::string(d, length) : std::string(d) }, append);
 }
 
 static int VS_CC propSetData3(VSMap *map, const char *key, const char *d, int length, int append) VS_NOEXCEPT {

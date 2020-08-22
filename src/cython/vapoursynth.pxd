@@ -227,7 +227,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
     enum VSPluginConfigFlags:
         pcModifiable
         
-    enum VSDataType:
+    enum VSDataTypeHint:
         dtUnknown
         dtBinary
         dtUtf8

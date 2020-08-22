@@ -290,11 +290,11 @@ typedef enum VSPluginConfigFlags {
     pcModifiable = 1
 } VSPluginConfigFlags;
 
-typedef enum VSDataType {
+typedef enum VSDataTypeHint {
     dtUnknown = -1,
     dtBinary = 0,
     dtUtf8 = 1
-} VSDataType;
+} VSDataTypeHint;
 
 /* Core entry point */
 typedef const VSAPI *(VS_CC *VSGetVapourSynthAPI)(int version);
@@ -403,7 +403,7 @@ struct VSAPI {
 
     const char *(VS_CC *mapGetData)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
     int (VS_CC *mapGetDataSize)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
-    int (VS_CC *mapGetDataTypeHint)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT; /* returns VSDataType */
+    int (VS_CC *mapGetDataTypeHint)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT; /* returns VSDataTypeHint */
     int (VS_CC *mapSetData)(VSMap *map, const char *key, const char *data, int size, int type, int append) VS_NOEXCEPT;
 
     VSNodeRef *(VS_CC *mapGetNode)(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT;
