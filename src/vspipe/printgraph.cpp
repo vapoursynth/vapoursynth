@@ -75,7 +75,7 @@ static std::string printVSMap(const VSMap *args, int maxPrintLength, const VSAPI
                 break;
             case ptData:
                 for (int j = 0; j < std::min(maxPrintLength, numElems); j++)
-                    setArgsStr += std::string(j ? ", " : "") + (vsapi->mapGetDataType(args, key, j, nullptr) == dtUtf8 ? vsapi->mapGetData(args, key, j, nullptr) : ("[binary data " + std::to_string(vsapi->mapGetDataSize(args, key, j, nullptr)) + " bytes]"));
+                    setArgsStr += std::string(j ? ", " : "") + (vsapi->mapGetDataTypeHint(args, key, j, nullptr) == dtUtf8 ? vsapi->mapGetData(args, key, j, nullptr) : ("[binary data " + std::to_string(vsapi->mapGetDataSize(args, key, j, nullptr)) + " bytes]"));
                 if (numElems > maxPrintLength)
                     setArgsStr += ", <" + std::to_string(numElems - maxPrintLength) + ">";
                 break;

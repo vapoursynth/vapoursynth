@@ -2225,7 +2225,7 @@ static void VS_CC setFramePropCreate(const VSMap *in, VSMap *out, void *userData
         d->dataType.resize(num_strings);
         for (int i = 0; i < num_strings; i++) {
             d->strings[i] = std::string(vsapi->mapGetData(in, "data", i, nullptr), vsapi->mapGetDataSize(in, "data", i, nullptr));
-            d->dataType[i] = vsapi->mapGetDataType(in, "data", i, nullptr);
+            d->dataType[i] = vsapi->mapGetDataTypeHint(in, "data", i, nullptr);
         }
     }
 

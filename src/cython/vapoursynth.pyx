@@ -766,7 +766,7 @@ cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, VSCore *co
                 newval = funcs.mapGetFloat(map, retkey, y, NULL)
             elif proptype == ptData:
                 newval = funcs.mapGetData(map, retkey, y, NULL)
-                if funcs.mapGetDataType(map, retkey, y, NULL) == dtUtf8:
+                if funcs.mapGetDataTypeHint(map, retkey, y, NULL) == dtUtf8:
                     newval = newval.decode('utf-8')
             elif proptype == ptVideoNode or proptype == ptAudioNode:
                 c = _get_core()

@@ -416,7 +416,7 @@ static int VS_CC mapGetDataSize(const VSMap *map, const char *key, int index, in
         return -1;
 }
 
-static int VS_CC mapGetDataType(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
+static int VS_CC mapGetDataTypeHint(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
     VSArrayBase *arr = propGetShared(map, key, index, error, ptData);
     if (arr)
         return reinterpret_cast<const VSDataArray *>(arr)->at(index).typeHint;
@@ -1091,7 +1091,7 @@ const VSAPI vs_internal_vsapi = {
 
     &mapGetData,
     &mapGetDataSize,
-    &mapGetDataType,
+    &mapGetDataTypeHint,
     &mapSetData,
 
     &mapGetNode,

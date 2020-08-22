@@ -337,7 +337,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         
         const char *mapGetData(const VSMap *map, const char *key, int index, int *error) nogil
         int mapGetDataSize(const VSMap *map, const char *key, int index, int *error) nogil
-        int mapGetDataType(const VSMap *map, const char *key, int index, int *error) nogil
+        int mapGetDataTypeHint(const VSMap *map, const char *key, int index, int *error) nogil
         bint mapSetData(VSMap *map, const char *key, const char *data, int size, int type, int append) nogil
         
         VSNodeRef *mapGetNode(const VSMap *map, const char *key, int index, int *error) nogil

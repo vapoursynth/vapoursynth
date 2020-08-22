@@ -308,7 +308,7 @@ static void append_prop(std::string &text, const std::string &key, const VSMap *
         for (idx = 0; idx < numElements; idx++) {
             const char *value = vsapi->mapGetData(map, key.c_str(), idx, nullptr);
             int size = vsapi->mapGetDataSize(map, key.c_str(), idx, nullptr);
-            int type = vsapi->mapGetDataType(map, key.c_str(), idx, nullptr);
+            int type = vsapi->mapGetDataTypeHint(map, key.c_str(), idx, nullptr);
             text += " ";
             if (type == dtBinary) {
                 text += "<binary data (" + std::to_string(size) + " bytes)>";
