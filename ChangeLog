@@ -1,6 +1,7 @@
 r52:
 updated visual studio 2019 runtime version
 updated zimg
+updated vsrepo with support for python wheel packages
 vsgenstubs is now included with vsrepo
 fixed maximum for 16 bit input with diagonal filters and optimizations
 fixed deadlock in fmserial filters introduced in r51
