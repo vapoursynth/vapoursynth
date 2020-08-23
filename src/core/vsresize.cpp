@@ -836,8 +836,11 @@ class vszimg {
             set_dst_colorspace(src_format, &dst_format);
 
             // Need to also check VSFormat::id in case transformation to/from COMPAT is required.
-            if (src_format == dst_format && src_vsformat->id == dst_vsformat->id && !is_shifted(src_format))
-                return vsapi->cloneFrameRef(src_frame);
+            if (src_format == dst_format && src_vsformat->id == dst_vsformat->id && !is_shifted(src_format)) {
+                VSFrameRef *clone = vsapi->copyFrame(src_frame, core);
+                export_frame_props(dst_format, vsapi->getFramePropsRW(clone), vsapi);
+                return clone;
+            }
 
             dst_frame = vsapi->newVideoFrame(dst_vsformat, dst_format.width, dst_format.height, src_frame, core);
 
