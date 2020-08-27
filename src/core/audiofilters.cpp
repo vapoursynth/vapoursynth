@@ -113,7 +113,7 @@ static void VS_CC audioTrimCreate(const VSMap *in, VSMap *out, void *userData, V
         RETERROR("AudioTrim: invalid length specified (less than 1)");
 
     if (d->first < 0)
-        RETERROR("Trim: invalid first frame specified (less than 0)");
+        RETERROR("AudioTrim: invalid first frame specified (less than 0)");
 
     d->node = vsapi->mapGetNode(in, "clip", 0, 0);
 
