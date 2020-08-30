@@ -447,7 +447,7 @@ static VSNodeRef *VS_CC mapGetNode(const VSMap *map, const char *key, int index,
 
 static const VSFrameRef *VS_CC mapGetFrame(const VSMap *map, const char *key, int index, int *error) VS_NOEXCEPT {
     int dummyError;
-    VSArrayBase *arr = propGetShared(map, key, index, &dummyError, ptData);
+    VSArrayBase *arr = propGetShared(map, key, index, &dummyError, ptVideoFrame);
     if (arr) {
         VSFrameRef *ref = reinterpret_cast<VSVideoFrameArray *>(arr)->at(index).get();
         ref->add_ref();
@@ -455,7 +455,7 @@ static const VSFrameRef *VS_CC mapGetFrame(const VSMap *map, const char *key, in
             *error = dummyError;
         return ref;
     } else {
-        arr = propGetShared(map, key, index, error, ptData);
+        arr = propGetShared(map, key, index, error, ptAudioFrame);
         if (arr) {
             VSFrameRef *ref = reinterpret_cast<VSAudioFrameArray *>(arr)->at(index).get();
             ref->add_ref();
@@ -600,12 +600,12 @@ static int VS_CC mapSetFrame(VSMap *map, const char *key, const VSFrameRef *fram
 
 static VSMap *VS_CC invoke(VSPlugin *plugin, const char *name, const VSMap *args) VS_NOEXCEPT {
     assert(plugin && name && args);
-    return plugin->invoke(name, *args);
+    return plugin->invoke(name, *args, false);
 }
 
-static VSMap *VS_CC invoke2(VSPluginFunction *func, const VSMap *args) VS_NOEXCEPT {
-    assert(func && args);
-    return func->invoke(*args);
+static VSMap *VS_CC invoke2(VSPlugin *plugin, const char *name, const VSMap *args) VS_NOEXCEPT {
+    assert(plugin && name && args);
+    return plugin->invoke(name, *args, true);
 }
 
 static VSMap *VS_CC createMap() VS_NOEXCEPT {

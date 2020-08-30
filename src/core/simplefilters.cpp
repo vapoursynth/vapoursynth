@@ -1328,7 +1328,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
 
     d->keep = !!vsapi->mapGetInt(in, "keep", 0, &err);
 
-    vsapi->createVideoFilter(out, "BlankClip", &d->vi, 1, blankClipGetframe, blankClipFree, d->keep ? fmUnordered : fmParallel, nfNoCache, d.get(), core);
+    vsapi->createVideoFilter(out, "BlankClip", &d->vi, 1, blankClipGetframe, blankClipFree, d->keep ? fmUnordered : fmParallel, ffNoCache, d.get(), core);
     d.release();
 }
 
@@ -1397,7 +1397,7 @@ static void VS_CC assumeFPSCreate(const VSMap *in, VSMap *out, void *userData, V
 
     reduceRational(&d->vi.fpsNum, &d->vi.fpsDen);
 
-    vsapi->createVideoFilter(out, "AssumeFPS", &d->vi, 1, assumeFPSGetframe, filterFree<AssumeFPSData>, fmParallel, nfNoCache, d.get(), core);
+    vsapi->createVideoFilter(out, "AssumeFPS", &d->vi, 1, assumeFPSGetframe, filterFree<AssumeFPSData>, fmParallel, ffNoCache, d.get(), core);
     d.release();
 }
 
@@ -2232,7 +2232,7 @@ static void VS_CC setFramePropCreate(const VSMap *in, VSMap *out, void *userData
     if (d->del)
         vsapi->logMessage(mtWarning, "SetFrameProp: 'delete' argument has been deprecated and will be removed in a future release, use RemoveFrameProps instead", core);
 
-    vsapi->createVideoFilter(out, "SetFrameProp", vsapi->getVideoInfo(d->node), 1, setFramePropGetFrame, filterFree<SetFramePropData>, fmParallel, nfNoCache, d.get(), core);
+    vsapi->createVideoFilter(out, "SetFrameProp", vsapi->getVideoInfo(d->node), 1, setFramePropGetFrame, filterFree<SetFramePropData>, fmParallel, ffNoCache, d.get(), core);
     d.release();
 }
 
@@ -2280,7 +2280,7 @@ static void VS_CC setFramePropsCreate(const VSMap *in, VSMap *out, void *userDat
     vsapi->copyMap(in, d->props);
     vsapi->mapDeleteKey(d->props, "clip");
 
-    vsapi->createVideoFilter(out, "SetFrameProps", vsapi->getVideoInfo(d->node), 1, setFramePropsGetFrame, filterFree<SetFramePropsData>, fmParallel, nfNoCache, d.get(), core);
+    vsapi->createVideoFilter(out, "SetFrameProps", vsapi->getVideoInfo(d->node), 1, setFramePropsGetFrame, filterFree<SetFramePropsData>, fmParallel, ffNoCache, d.get(), core);
     d.release();
 }
 
@@ -2332,7 +2332,7 @@ static void VS_CC removeFramePropsCreate(const VSMap *in, VSMap *out, void *user
 
     d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
 
-    vsapi->createVideoFilter(out, "RemoveFrameProps", vsapi->getVideoInfo(d->node), 1, removeFramePropsGetFrame, filterFree<RemoveFramePropsData>, fmParallel, nfNoCache, d.get(), core);
+    vsapi->createVideoFilter(out, "RemoveFrameProps", vsapi->getVideoInfo(d->node), 1, removeFramePropsGetFrame, filterFree<RemoveFramePropsData>, fmParallel, ffNoCache, d.get(), core);
     d.release();
 }
 
@@ -2373,7 +2373,7 @@ static void VS_CC setFieldBasedCreate(const VSMap *in, VSMap *out, void *userDat
         RETERROR("SetFieldBased: value must be 0, 1 or 2");
     d->node = vsapi->mapGetNode(in, "clip", 0, nullptr);
 
-    vsapi->createVideoFilter(out, "SetFieldBased", vsapi->getVideoInfo(d->node), 1, setFieldBasedGetFrame, filterFree<SetFieldBasedData>, fmParallel, nfNoCache, d.get(), core);
+    vsapi->createVideoFilter(out, "SetFieldBased", vsapi->getVideoInfo(d->node), 1, setFieldBasedGetFrame, filterFree<SetFieldBasedData>, fmParallel, ffNoCache, d.get(), core);
     d.release();
 }
 

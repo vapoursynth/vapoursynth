@@ -631,7 +631,7 @@ cdef class Func(object):
             error = self.funcs.mapGetError(outm)
             if error:
                 raise Error(error.decode('utf-8'))
-            ret = mapToDict(outm, False, False, NULL, vsapi)
+            ret = mapToDict(outm, False, NULL, vsapi)
             if not isinstance(ret, dict):
                 ret = {'val':ret}
         finally:
@@ -749,7 +749,7 @@ cdef void __stdcall frameDoneCallback(void *data, const VSFrameRef *f, int n, VS
         finally:
             Py_DECREF(d)
 
-cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, VSCore *core, const VSAPI *funcs):
+cdef object mapToDict(const VSMap *map, bint flatten, VSCore *core, const VSAPI *funcs):
     cdef int numKeys = funcs.mapNumKeys(map)
     retdict = {}
     cdef const char *retkey
@@ -769,17 +769,7 @@ cdef object mapToDict(const VSMap *map, bint flatten, bint add_cache, VSCore *co
                 if funcs.mapGetDataTypeHint(map, retkey, y, NULL) == dtUtf8:
                     newval = newval.decode('utf-8')
             elif proptype == ptVideoNode or proptype == ptAudioNode:
-                c = _get_core()
-                newval = createNode(funcs.mapGetNode(map, retkey, y, NULL), funcs, c)
-                
-                if add_cache and not (newval.flags & vapoursynth.nfNoCache):
-                    if isinstance(newval, VideoNode):
-                        newval = c.std.Cache(clip=newval)
-                    elif isinstance(newval, AudioNode):
-                        newval = c.std.AudioCache(clip=newval)
-
-                    if isinstance(newval, dict):
-                        newval = newval['dict']
+                newval = createNode(funcs.mapGetNode(map, retkey, y, NULL), funcs, _get_core())
             elif proptype == ptVideoFrame or proptype == ptAudioFrame:
                 newval = createConstFrame(funcs.mapGetFrame(map, retkey, y, NULL), funcs, core)
             elif proptype == ptFunction:
@@ -825,7 +815,7 @@ cdef void dictToMap(dict ndict, VSMap *inm, bint simpleTypesOnly, VSCore *core, 
                     raise Error('not all values are of the same type in ' + key)
             elif isinstance(v, str):
                 s = v.encode('utf-8')
-            elif funcs.mapSetData(inm, ckey, s, -1, dtUtf8, 1) != 0:
+                if funcs.mapSetData(inm, ckey, s, <int>len(s), dtUtf8, 1) != 0:
                     raise Error('not all values are of the same type in ' + key)
             elif isinstance(v, (bytes, bytearray)):
                 if funcs.mapSetData(inm, ckey, v, <int>len(v), dtBinary, 1) != 0:
@@ -1073,8 +1063,7 @@ cdef class FrameProps(object):
                     if funcs.mapSetFloat(m, b, float(v), 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif isinstance(v, str):
-                    s = v.encode('utf-8')
-                    if funcs.mapSetData(m, b, s, -1, dtUtf8, 1) != 0:
+                    if funcs.mapSetData(m, b, v.encode('utf-8'), -1, dtUtf8, 1) != 0:
                         raise Error('Not all values are of the same type')
                 elif isinstance(v, (bytes, bytearray)):
                     if funcs.mapSetData(m, b, v, <int>len(v), dtBinary, 1) != 0:
@@ -2540,8 +2529,11 @@ cdef class Function(object):
 
         tname = self.name.encode('utf-8')
         cname = tname
-        with nogil:
-            outm = self.funcs.invoke(self.plugin.plugin, cname, inm)
+        if self.plugin.core.add_cache:
+            with nogil:
+                outm = self.funcs.invoke2(self.plugin.plugin, cname, inm)
+        else:
+                outm = self.funcs.invoke(self.plugin.plugin, cname, inm)
         self.funcs.freeMap(inm)
         cdef const char *err = self.funcs.mapGetError(outm)
         cdef bytes emsg
@@ -2551,7 +2543,7 @@ cdef class Function(object):
             self.funcs.freeMap(outm)
             raise Error(emsg.decode('utf-8'))
 
-        retdict = mapToDict(outm, True, self.plugin.core.add_cache, self.plugin.core.core, self.funcs)
+        retdict = mapToDict(outm, True, self.plugin.core.core, self.funcs)
         self.funcs.freeMap(outm)
         return retdict
 
@@ -2675,7 +2667,7 @@ cdef void __stdcall publicFunction(const VSMap *inm, VSMap *outm, void *userData
         d = <FuncData>userData
         try:
             with use_environment(d.env).use():
-                m = mapToDict(inm, False, False, core, vsapi)
+                m = mapToDict(inm, False, core, vsapi)
                 ret = d(**m)
                 if not isinstance(ret, dict):
                     if ret is None:
@@ -2933,7 +2925,7 @@ cdef public api int vpy4_evaluateBuffer(VSScript *se, const char *buffer, const 
                 if getVSAPIInternal() == NULL:
                     raise RuntimeError("Failed to retrieve VSAPI pointer.")
                 # FIXME, verify there are only int, float and data values in the map before this
-                pyenvdict.update(mapToDict(vars, False, False, NULL, getVSAPIInternal()))
+                pyenvdict.update(mapToDict(vars, False, NULL, getVSAPIInternal()))
 
             fn = None
             if scriptFilename:
@@ -3096,7 +3088,7 @@ cdef public api int vpy_setVariable(VSScript *se, const VSMap *vars) nogil:
             pyenvdict = <dict>se.pyenvdict
             try:     
                 core = vsscript_get_core_internal(_get_vsscript_policy().get_environment(se.id))
-                new_vars = mapToDict(vars, False, False, core.core, core.funcs)
+                new_vars = mapToDict(vars, False, core.core, core.funcs)
                 for key in new_vars:
                     pyenvdict[key] = new_vars[key]
                 return 0

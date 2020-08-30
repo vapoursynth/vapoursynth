@@ -705,6 +705,10 @@ public:
             delete this;
     }
 
+    int getApiMajor() const {
+        return apiMajor;
+    }
+
     VSMediaType getNodeType() const {
         return nodeType;
     }
@@ -802,7 +806,7 @@ private:
     static void parseArgString(const std::string &argString, std::vector<FilterArgument> &argsOut, int apiMajor);
 public:
     VSPluginFunction(const std::string &name, const std::string &argString, const std::string &returnType, VSPublicFunction func, void *functionData, VSPlugin *plugin);
-    VSMap *invoke(const VSMap &args);
+    VSMap *invoke(const VSMap &args, bool addCache);
     const std::string &getName() const;
     const std::string &getArguments() const;
     const std::string &getReturnType() const;
@@ -842,7 +846,7 @@ public:
     void enableCompat() { compat = true; }
     bool configPlugin(const std::string &identifier, const std::string &pluginsNamespace, const std::string &fullname, int pluginVersion, int apiVersion, int flags);
     bool registerFunction(const std::string &name, const std::string &args, const std::string &returnType, VSPublicFunction argsFunc, void *functionData);
-    VSMap *invoke(const std::string &funcName, const VSMap &args);
+    VSMap *invoke(const std::string &funcName, const VSMap &args, bool addCache);
     VSPluginFunction *getNextFunction(VSPluginFunction *func);
     VSPluginFunction *getFunctionByName(const std::string name);
     const std::string &getName() const { return fullname; }

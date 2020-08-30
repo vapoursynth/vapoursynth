@@ -160,10 +160,8 @@ cdef extern from "include/VapourSynth4.h" nogil:
         uint64_t channelLayout
 
     enum VSNodeFlags:
-        nfNoCache
-        nfIsCache
-        nfMakeLinear
-        nfFrameReady
+        ffNoCache
+        ffIsCache
 
     enum VSPropType:
         ptUnset
@@ -364,7 +362,7 @@ cdef extern from "include/VapourSynth4.h" nogil:
         const char *getPluginFunctionReturnType(VSPluginFunction *func) nogil
         const char *getPluginPath(const VSPlugin *plugin) nogil
         VSMap *invoke(VSPlugin *plugin, const char *name, const VSMap *args) nogil
-        VSMap *invoke2(VSPluginFunction *func, const VSMap *args) nogil
+        VSMap *invoke2(VSPlugin *plugin, const char *name, const VSMap *args) nogil
         
         # Core and information
         VSCore *createCore(int flags) nogil

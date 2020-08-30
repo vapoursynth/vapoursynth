@@ -532,7 +532,81 @@ VSPluginFunction::VSPluginFunction(const std::string &name, const std::string &a
         parseArgString(returnType, retArgs, plugin->apiMajor);
 }
 
-VSMap *VSPluginFunction::invoke(const VSMap &args) {
+VSMap *addCaches(VSMap *s, bool makeLinearOnly, VSCore *core) {
+    VSMap *src = new VSMap(s);
+    VSPlugin *plugin = core->getPluginByID(VS_STD_PLUGIN_ID);
+    int keys = static_cast<int>(src->size());
+
+    if (makeLinearOnly) {
+        for (int k = 0; k < keys; k++) {
+            const char *key = src->key(k);
+            VSArrayBase *arr = src->find(key);
+            if (arr->type() == ptVideoNode && arr->size() > 0) {
+                VSVideoNodeArray *p = reinterpret_cast<VSVideoNodeArray *>(arr);
+                VSVideoNodeArray *r = new VSVideoNodeArray();
+                for (int i = 0; i < p->size(); i++) {
+                    VSNode *node = p->at(i).get()->clip;
+                    if (node->getApiMajor() == 3 && !!(node->getNodeFlags() & vs3::nfMakeLinear)) {
+                        VSMap *m = new VSMap();
+                        vs_internal_vsapi.mapSetInt(m, "make_linear", 1, paAppend);
+                        vs_internal_vsapi.mapSetNode(m, "clip", p->at(i).get(), paAppend);
+                        VSMap *n = plugin->invoke("Cache", m, false);
+                        delete m;
+                        r->push_back({ vs_internal_vsapi.mapGetNode(n, "clip", 0, nullptr), true });
+                        delete n;
+                    } else {
+                        r->push_back(p->at(i));
+                    }
+                }
+                src->insert(key, r);
+            }
+        }
+    } else {
+        for (int k = 0; k < keys; k++) {
+            const char *key = src->key(k);
+            VSArrayBase *arr = src->find(key);
+            if (arr->type() == ptVideoNode && arr->size() > 0) {
+                VSVideoNodeArray *p = reinterpret_cast<VSVideoNodeArray *>(arr);
+                VSVideoNodeArray *r = new VSVideoNodeArray();
+                for (int i = 0; i < p->size(); i++) {
+                    VSNode *node = p->at(i).get()->clip;
+                    if (!(node->getNodeFlags() & ffNoCache)) {
+                        VSMap *m = new VSMap();
+                        vs_internal_vsapi.mapSetNode(m, "clip", p->at(i).get(), paAppend);
+                        VSMap *n = plugin->invoke("Cache", m, false);
+                        delete m;
+                        r->push_back({ vs_internal_vsapi.mapGetNode(n, "clip", 0, nullptr), true });
+                        delete n;
+                    } else {
+                        r->push_back(p->at(i));
+                    }
+                }
+                src->insert(key, r);
+            } else if (arr->type() == ptAudioNode && arr->size() > 0) {
+                VSAudioNodeArray *p = reinterpret_cast<VSAudioNodeArray *>(arr);
+                VSAudioNodeArray *r = new VSAudioNodeArray();
+                for (int i = 0; i < p->size(); i++) {
+                    VSNode *node = p->at(i).get()->clip;
+                    if (!(node->getNodeFlags() & ffNoCache)) {
+                        VSMap *m = new VSMap();
+                        vs_internal_vsapi.mapSetNode(m, "clip", p->at(i).get(), paAppend);
+                        VSMap *n = plugin->invoke("AudioCache", m, false);
+                        delete m;
+                        r->push_back({ vs_internal_vsapi.mapGetNode(n, "clip", 0, nullptr), true });
+                        delete n;
+                    } else {
+                        r->push_back(p->at(i));
+                    }
+                }
+                src->insert(key, r);
+            }
+        }
+    }
+
+    return src;
+}
+
+VSMap *VSPluginFunction::invoke(const VSMap &args, bool addCache) {
     std::unique_ptr<VSMap> v(new VSMap);
 
     try {
@@ -598,7 +672,13 @@ VSMap *VSPluginFunction::invoke(const VSMap &args) {
         if (plugin->apiMajor == VAPOURSYNTH3_API_MAJOR && !args.isV3Compatible())
             plugin->core->logFatal(name + ": filter node returned not yet supported type");
 
-        return v.release();
+
+        if (!addCache) {
+            // still needs to add caches for vs3::nfMakeLinear
+            return addCaches(v.release(), true, plugin->core);
+        } else {
+            return addCaches(v.release(), false, plugin->core);
+        }
 
     } catch (VSException &e) {
         vs_internal_vsapi.mapSetError(v.get(), e.what());
@@ -712,11 +792,11 @@ void VSNodeRef::release() noexcept {
 VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
     refcount(0), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
 
-    if (flags & ~(nfNoCache | nfIsCache | nfMakeLinear))
+    if (flags & ~(ffNoCache | ffIsCache | vs3::nfMakeLinear))
         throw VSException("Filter " + name  + " specified unknown flags");
 
-    if ((flags & nfIsCache) && !(flags & nfNoCache))
-        throw VSException("Filter " + name + " specified an illegal combination of flags (nfNoCache must always be set with nfIsCache)");
+    if ((flags & ffIsCache) && !(flags & ffNoCache))
+        throw VSException("Filter " + name + " specified an illegal combination of flags (ffNoCache must always be set with nfIsCache)");
 
     frameReadyNotify = true;
 
@@ -749,11 +829,11 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilt
 VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
     refcount(numOutputs), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
 
-    if (flags & ~(nfNoCache | nfIsCache | nfMakeLinear))
+    if (flags & ~(ffNoCache | ffIsCache))
         throw VSException("Filter " + name + " specified unknown flags");
 
-    if ((flags & nfIsCache) && !(flags & nfNoCache))
-        throw VSException("Filter " + name + " specified an illegal combination of flags (nfNoCache must always be set with nfIsCache)");
+    if ((flags & ffIsCache) && !(flags & ffNoCache))
+        throw VSException("Filter " + name + " specified an illegal combination of flags (ffNoCache must always be set with nfIsCache)");
 
     if (numOutputs < 1)
         throw VSException("Filter " + name + " needs to have at least one output");
@@ -779,11 +859,11 @@ VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, int numOutputs, V
 VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
     refcount(numOutputs), nodeType(mtAudio), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
 
-    if (flags & ~(nfNoCache | nfIsCache | nfMakeLinear))
+    if (flags & ~(ffNoCache | ffIsCache))
         throw VSException("Filter " + name + " specified unknown flags");
 
-    if ((flags & nfIsCache) && !(flags & nfNoCache))
-        throw VSException("Filter " + name + " specified an illegal combination of flags (nfNoCache must always be set with nfIsCache)");
+    if ((flags & ffIsCache) && !(flags & ffNoCache))
+        throw VSException("Filter " + name + " specified an illegal combination of flags (ffNoCache must always be set with nfIsCache)");
 
     if (numOutputs < 1)
         throw VSException("Filter " + name + " needs to have at least one output");
@@ -2158,10 +2238,10 @@ bool VSMap::hasCompatNodes() const noexcept {
     return false;
 }
 
-VSMap *VSPlugin::invoke(const std::string &funcName, const VSMap &args) {
+VSMap *VSPlugin::invoke(const std::string &funcName, const VSMap &args, bool addCache) {
     auto it = funcs.find(funcName);
     if (it != funcs.end()) {
-        return it->second.invoke(args);
+        return it->second.invoke(args, addCache);
     } else {
         VSMap *v = new VSMap();
         vs_internal_vsapi.mapSetError(v, ("Function '" + funcName + "' not found in " + id).c_str());

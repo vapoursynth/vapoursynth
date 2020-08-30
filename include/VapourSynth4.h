@@ -212,9 +212,8 @@ typedef struct VSAudioFormat {
 } VSAudioFormat;
 
 typedef enum VSNodeFlags {
-    nfNoCache    = 1,
-    nfIsCache    = 2,
-    nfMakeLinear = 4
+    ffNoCache    = 1,
+    ffIsCache    = 2
 } VSNodeFlags;
 
 typedef enum VSPropType {
@@ -431,7 +430,7 @@ struct VSAPI {
     const char *(VS_CC *getPluginPath)(const VSPlugin *plugin) VS_NOEXCEPT; /* the full path to the loaded library file containing the plugin entry point */
     int (VS_CC *getPluginVersion)(const VSPlugin *plugin) VS_NOEXCEPT;
     VSMap *(VS_CC *invoke)(VSPlugin *plugin, const char *name, const VSMap *args) VS_NOEXCEPT; /* user must free the returned VSMap */
-    VSMap *(VS_CC *invoke2)(VSPluginFunction *func, const VSMap *args) VS_NOEXCEPT; /* user must free the returned VSMap */
+    VSMap *(VS_CC *invoke2)(VSPlugin *plugin, const char *name, const VSMap *args) VS_NOEXCEPT; /* same as invoke but automatically inserts caches on all returned nodes without nfNoCache set, useful for general graph building */
 
     /* Core and information */
     VSCore *(VS_CC *createCore)(int flags) VS_NOEXCEPT; /* flags uses the VSCoreFlags enum */
