@@ -11,7 +11,6 @@
 
 typedef struct {
     VSNodeRef *node;
-    const VSVideoInfo *vi;
     int enabled;
 } InvertData;
 
@@ -92,11 +91,11 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 
     // Get a clip reference from the input arguments. This must be freed later.
     d.node = vsapi->mapGetNode(in, "clip", 0, 0);
-    d.vi = vsapi->getVideoInfo(d.node);
+    const VSVideoInfo *vi = vsapi->getVideoInfo(d.node);
 
     // In this first version we only want to handle 8bit integer formats. Note that
     // vi->format can be 0 if the input clip can change format midstream.
-    if (!isConstantVideoFormat(d.vi) || d.vi->format.sampleType != stInteger || d.vi->format.bitsPerSample != 8) {
+    if (!vsh_isConstantVideoFormat(vi) || vi->format.sampleType != stInteger || vi->format.bitsPerSample != 8) {
         vsapi->mapSetError(out, "Invert: only constant format 8bit integer input supported");
         vsapi->freeNode(d.node);
         return;
@@ -138,7 +137,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     // prefetch (such as a cache filter).
     // If your filter is really fast (such as a filter that only resorts frames) you should set the
     // ffNoCache flag to make the caching work smoother.
-    vsapi->createVideoFilter(out, "Invert", data->vi, 1, invertGetFrame, invertFree, fmParallel, 0, data, core);
+    vsapi->createVideoFilter(out, "Invert", vi, 1, invertGetFrame, invertFree, fmParallel, 0, data, core);
 }
 
 //////////////////////////////////////////
@@ -158,8 +157,8 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 //
 // full name: Any name that describes the plugin nicely.
 //
-// registerFunc is called once for each function you want to register. Function names
-// should be PascalCase. The argument string has this format:
+// registerFunction is called once for each function you want to register. Function names
+// should be CamelCase. The argument string has this format:
 // name:type; or name:type:flag1:flag2....;
 // All argument name should be lowercase and only use [a-z_].
 // The valid types are int,float,data,clip,frame,func. [] can be appended to allow arrays
@@ -167,7 +166,8 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 // The available flags are opt, to make an argument optional, empty, which controls whether
 // or not empty arrays are accepted
 
-VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
-    configFunc("com.example.invert", "invert", "VapourSynth Invert Example", VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("Filter", "clip:vnode;enabled:int:opt;", invertCreate, 0, plugin);
+
+VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
+    vspapi->configPlugin("com.example.invert", "invert", "VapourSynth Invert Example", VS_MAKE_VERSION(1, 0), VAPOURSYNTH_API_VERSION, 0, plugin);
+    vspapi->registerFunction("Filter", "clip:vnode;enabled:int:opt;", "clip:vnode;", invertCreate, NULL, plugin);
 }

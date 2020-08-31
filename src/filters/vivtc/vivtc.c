@@ -1617,7 +1617,7 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
 // Init
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin *plugin, const VSPLUGINAPI *vspapi) {
-    vspapi->configPlugin("org.ivtc.v", "vivtc", "VFM", VS_MAKE_VERSION(1, 0), VAPOURSYNTH_API_VERSION, 1, plugin);
+    vspapi->configPlugin("org.ivtc.v", "vivtc", "VFM", VS_MAKE_VERSION(1, 0), VAPOURSYNTH_API_VERSION, 0, plugin);
     // add ovr support
     vspapi->registerFunction("VFM",
                              "clip:vnode;"
