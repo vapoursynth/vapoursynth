@@ -2079,7 +2079,7 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
 
     libHandle = LoadLibraryEx(wPath.c_str(), nullptr, altSearchPath ? 0 : (LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR));
 
-    if (libHandle == INVALID_HANDLE_VALUE) {
+    if (libHandle == nullptr) {
         DWORD lastError = GetLastError();
 
         if (lastError == 126)
