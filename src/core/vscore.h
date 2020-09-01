@@ -897,6 +897,8 @@ public:
     VSThreadPool *threadPool;
     MemoryUse *memory;
 
+    bool disableLibraryUnloading;
+
     // Used only for graph inspection
     bool enableGraphInspection; 
     static thread_local PVSFunctionFrame functionFrame;

@@ -160,8 +160,8 @@ cdef extern from "include/VapourSynth4.h" nogil:
         uint64_t channelLayout
 
     enum VSNodeFlags:
-        ffNoCache
-        ffIsCache
+        nfNoCache
+        nfIsCache
 
     enum VSPropType:
         ptUnset
@@ -219,8 +219,9 @@ cdef extern from "include/VapourSynth4.h" nogil:
         MESSAGE_TYPE_FATAL "mtFatal"
         
     cpdef enum CoreCreationFlags "VSCoreCreationFlags":
-        ccfDisableAutoLoading
         ccfEnableGraphInspection
+        ccfDisableAutoLoading
+        ccfDisableLibraryUnloading
 
     enum VSPluginConfigFlags:
         pcModifiable

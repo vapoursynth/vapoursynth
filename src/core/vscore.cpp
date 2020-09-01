@@ -1755,6 +1755,7 @@ VSCore::VSCore(int flags) :
         logFatal("Bad SSE state detected when creating new core");
 #endif
 
+    disableLibraryUnloading = !!(flags & ccfDisableLibraryUnloading);
     bool disableAutoLoading = !!(flags & ccfDisableAutoLoading);
     threadPool = new VSThreadPool(this);
 
@@ -2100,7 +2101,8 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
         pluginInit3 = reinterpret_cast<vs3::VSInitPlugin>(GetProcAddress(libHandle, "_VapourSynthPluginInit@12"));
 
     if (!pluginInit && !pluginInit3) {
-        FreeLibrary(libHandle);
+        if (!core->disableLibraryUnloading)
+            FreeLibrary(libHandle);
         throw VSException("No entry point found in " + relFilename);
     }
 #else
@@ -2126,7 +2128,8 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
         pluginInit3 = reinterpret_cast<vs3::VSInitPlugin>(dlsym(libHandle, "VapourSynthPluginInit"));
 
     if (!pluginInit && !pluginInit3) {
-        dlclose(libHandle);
+        if (!core->disableLibraryUnloading)
+            dlclose(libHandle);
         throw VSException("No entry point found in " + relFilename);
     }
 
@@ -2149,9 +2152,11 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
 
     if (!supported) {
 #ifdef VS_TARGET_OS_WINDOWS
-        FreeLibrary(libHandle);
+        if (!core->disableLibraryUnloading)
+            FreeLibrary(libHandle);
 #else
-        dlclose(libHandle);
+        if (!core->disableLibraryUnloading)
+            dlclose(libHandle);
 #endif
         throw VSException("Core only supports API R" + std::to_string(VAPOURSYNTH_API_MAJOR) + "." + std::to_string(VAPOURSYNTH_API_MINOR) + " but the loaded plugin requires API R" + std::to_string(apiMajor) + "." + std::to_string(apiMinor) + "; Filename: " + relFilename + "; Name: " + fullname);
     }
@@ -2159,10 +2164,10 @@ VSPlugin::VSPlugin(const std::string &relFilename, const std::string &forcedName
 
 VSPlugin::~VSPlugin() {
 #ifdef VS_TARGET_OS_WINDOWS
-    if (libHandle != INVALID_HANDLE_VALUE)
+    if (libHandle != INVALID_HANDLE_VALUE && !core->disableLibraryUnloading)
         FreeLibrary(libHandle);
 #else
-    if (libHandle)
+    if (libHandle && !core->disableLibraryUnloading)
         dlclose(libHandle);
 #endif
 }
