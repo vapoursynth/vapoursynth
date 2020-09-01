@@ -212,8 +212,8 @@ typedef struct VSAudioFormat {
 } VSAudioFormat;
 
 typedef enum VSNodeFlags {
-    ffNoCache    = 1,
-    ffIsCache    = 2
+    nfNoCache    = 1,
+    nfIsCache    = 2
 } VSNodeFlags;
 
 typedef enum VSPropType {

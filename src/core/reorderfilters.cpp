@@ -156,7 +156,7 @@ static void VS_CC trimCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     vi.numFrames = trimlen;
 
-    vsapi->createVideoFilter(out, "Trim", &vi, 1, trimGetframe, filterFree<TrimData>, fmParallel, ffNoCache, d.release(), core);
+    vsapi->createVideoFilter(out, "Trim", &vi, 1, trimGetframe, filterFree<TrimData>, fmParallel, nfNoCache, d.release(), core);
 }
 
 //////////////////////////////////////////
@@ -252,7 +252,7 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
         if (d->modifyDuration)
             muldivRational(&d->vi.fpsNum, &d->vi.fpsDen, d->numclips, 1);
 
-        vsapi->createVideoFilter(out, "Interleave", &d->vi, 1, interleaveGetframe, filterFree<InterleaveData>, fmParallel, ffNoCache, d.get(), core);
+        vsapi->createVideoFilter(out, "Interleave", &d->vi, 1, interleaveGetframe, filterFree<InterleaveData>, fmParallel, nfNoCache, d.get(), core);
         d.release();
     }
 }
@@ -280,7 +280,7 @@ static void VS_CC reverseCreate(const VSMap *in, VSMap *out, void *userData, VSC
     d->node = vsapi->mapGetNode(in, "clip", 0, 0);
     d->vi = vsapi->getVideoInfo(d->node);
 
-    vsapi->createVideoFilter(out, "Reverse", d->vi, 1, reverseGetframe, filterFree<ReverseData>, fmParallel, ffNoCache, d.get(), core);
+    vsapi->createVideoFilter(out, "Reverse", d->vi, 1, reverseGetframe, filterFree<ReverseData>, fmParallel, nfNoCache, d.get(), core);
     d.release();
 }
 
@@ -327,7 +327,7 @@ static void VS_CC loopCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         vi.numFrames = INT_MAX;
     }
 
-    vsapi->createVideoFilter(out, "Loop", &vi, 1, loopGetframe, filterFree<LoopData>, fmParallel, ffNoCache, d.release(), core);
+    vsapi->createVideoFilter(out, "Loop", &vi, 1, loopGetframe, filterFree<LoopData>, fmParallel, nfNoCache, d.release(), core);
 }
 
 //////////////////////////////////////////
@@ -412,7 +412,7 @@ static void VS_CC selectEveryCreate(const VSMap *in, VSMap *out, void *userData,
     if (d->modifyDuration)
         muldivRational(&vi.fpsNum, &vi.fpsDen, d->num, d->cycle);
 
-    vsapi->createVideoFilter(out, "SelectEvery", &vi, 1, selectEveryGetframe, filterFree<SelectEveryData>, fmParallel, ffNoCache, d.release(), core);
+    vsapi->createVideoFilter(out, "SelectEvery", &vi, 1, selectEveryGetframe, filterFree<SelectEveryData>, fmParallel, nfNoCache, d.release(), core);
 }
 
 //////////////////////////////////////////
@@ -493,7 +493,7 @@ static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCo
                 RETERROR("Splice: the resulting clip is too long");
         }
 
-        vsapi->createVideoFilter(out, "Splice", &vi, 1, spliceGetframe, filterFree<SpliceData>, fmParallel, ffNoCache, d.release(), core);
+        vsapi->createVideoFilter(out, "Splice", &vi, 1, spliceGetframe, filterFree<SpliceData>, fmParallel, nfNoCache, d.release(), core);
     }
 }
 
@@ -551,7 +551,7 @@ static void VS_CC duplicateFramesCreate(const VSMap *in, VSMap *out, void *userD
 
     vi.numFrames += d->num_dups;
 
-    vsapi->createVideoFilter(out, "DuplicateFrames", &vi, 1, duplicateFramesGetFrame, filterFree<DuplicateFramesData>, fmParallel, ffNoCache, d.release(), core);
+    vsapi->createVideoFilter(out, "DuplicateFrames", &vi, 1, duplicateFramesGetFrame, filterFree<DuplicateFramesData>, fmParallel, nfNoCache, d.release(), core);
 }
 
 //////////////////////////////////////////
@@ -612,7 +612,7 @@ static void VS_CC deleteFramesCreate(const VSMap *in, VSMap *out, void *userData
             RETERROR("DeleteFrames: can't delete all frames");
     }
 
-    vsapi->createVideoFilter(out, "DeleteFrames", &vi, 1, deleteFramesGetFrame, filterFree<DeleteFramesData>, fmParallel, ffNoCache, d.release(), core);
+    vsapi->createVideoFilter(out, "DeleteFrames", &vi, 1, deleteFramesGetFrame, filterFree<DeleteFramesData>, fmParallel, nfNoCache, d.release(), core);
 }
 
 //////////////////////////////////////////
@@ -688,7 +688,7 @@ static void VS_CC freezeFramesCreate(const VSMap *in, VSMap *out, void *userData
         if (d->freeze[i].last >= d->freeze[i + 1].first)
             RETERROR("FreezeFrames: the frame ranges must not overlap");
 
-    vsapi->createVideoFilter(out, "FreezeFrames", vi, 1, freezeFramesGetFrame, filterFree<FreezeFramesData>, fmParallel, ffNoCache, d.release(), core);
+    vsapi->createVideoFilter(out, "FreezeFrames", vi, 1, freezeFramesGetFrame, filterFree<FreezeFramesData>, fmParallel, nfNoCache, d.release(), core);
 }
 
 //////////////////////////////////////////

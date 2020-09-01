@@ -138,7 +138,7 @@ static void VS_CC audioTrimCreate(const VSMap *in, VSMap *out, void *userData, V
 
     d->ai.numSamples = trimlen;
 
-    vsapi->createAudioFilter(out, "AudioTrim", &d->ai, 1, audioTrimGetframe, filterFree<AudioTrimData>, fmParallel, ffNoCache, d.get(), core);
+    vsapi->createAudioFilter(out, "AudioTrim", &d->ai, 1, audioTrimGetframe, filterFree<AudioTrimData>, fmParallel, nfNoCache, d.get(), core);
     d.release();
 }
 
@@ -257,7 +257,7 @@ static void VS_CC audioSpliceCreate(const VSMap *in, VSMap *out, void *userData,
         d->cumSamples.push_back(totalSamples);
     }
 
-    vsapi->createAudioFilter(out, "AudioSplice", &d->ai, 1, audioSpliceGetframe, filterFree<AudioSpliceData>, fmParallel, ffNoCache, d.get(), core);
+    vsapi->createAudioFilter(out, "AudioSplice", &d->ai, 1, audioSpliceGetframe, filterFree<AudioSpliceData>, fmParallel, nfNoCache, d.get(), core);
     d.release();
 }
 
@@ -860,7 +860,7 @@ static void VS_CC assumeSampleRateCreate(const VSMap *in, VSMap *out, void *user
     if (ai.sampleRate < 1)
         RETERROR("AssumeSampleRate: invalid samplerate specified");
 
-    vsapi->createAudioFilter(out, "AssumeSampleRate", &ai, 1, assumeSampleRateGetframe, filterFree<AssumeSampleRateData>, fmParallel, ffNoCache, d.get(), core);
+    vsapi->createAudioFilter(out, "AssumeSampleRate", &ai, 1, assumeSampleRateGetframe, filterFree<AssumeSampleRateData>, fmParallel, nfNoCache, d.get(), core);
     d.release();
 }
 
@@ -975,7 +975,7 @@ static void VS_CC blankAudioCreate(const VSMap *in, VSMap *out, void *userData, 
     if (!vsapi->queryAudioFormat(&d->ai.format, d->ai.format.sampleType, d->ai.format.bitsPerSample, d->ai.format.channelLayout, core))
         RETERROR("BlankAudio: invalid format");
 
-    vsapi->createAudioFilter(out, "BlankAudio", &d->ai, 1, blankAudioGetframe, blankAudioFree, d->keep ? fmUnordered : fmParallel, ffNoCache, d.get(), core);
+    vsapi->createAudioFilter(out, "BlankAudio", &d->ai, 1, blankAudioGetframe, blankAudioFree, d->keep ? fmUnordered : fmParallel, nfNoCache, d.get(), core);
     d.release();
 }
 
@@ -1039,7 +1039,7 @@ static void VS_CC testAudioCreate(const VSMap *in, VSMap *out, void *userData, V
     if (!vsapi->queryAudioFormat(&d->ai.format, isfloat ? stFloat : stInteger, bits, channels, core))
         RETERROR("TestAudio: invalid format");
 
-    vsapi->createAudioFilter(out, "TestAudio", &d->ai, 1, testAudioGetframe, filterFree<TestAudioData>, fmParallel, ffNoCache, d.get(), core);
+    vsapi->createAudioFilter(out, "TestAudio", &d->ai, 1, testAudioGetframe, filterFree<TestAudioData>, fmParallel, nfNoCache, d.get(), core);
     d.release();
 }
 

@@ -570,7 +570,7 @@ VSMap *addCaches(VSMap *s, bool makeLinearOnly, VSCore *core) {
                 VSVideoNodeArray *r = new VSVideoNodeArray();
                 for (int i = 0; i < p->size(); i++) {
                     VSNode *node = p->at(i).get()->clip;
-                    if (!(node->getNodeFlags() & ffNoCache)) {
+                    if (!(node->getNodeFlags() & nfNoCache)) {
                         VSMap *m = new VSMap();
                         vs_internal_vsapi.mapSetNode(m, "clip", p->at(i).get(), paAppend);
                         VSMap *n = plugin->invoke("Cache", m, false);
@@ -587,7 +587,7 @@ VSMap *addCaches(VSMap *s, bool makeLinearOnly, VSCore *core) {
                 VSAudioNodeArray *r = new VSAudioNodeArray();
                 for (int i = 0; i < p->size(); i++) {
                     VSNode *node = p->at(i).get()->clip;
-                    if (!(node->getNodeFlags() & ffNoCache)) {
+                    if (!(node->getNodeFlags() & nfNoCache)) {
                         VSMap *m = new VSMap();
                         vs_internal_vsapi.mapSetNode(m, "clip", p->at(i).get(), paAppend);
                         VSMap *n = plugin->invoke("AudioCache", m, false);
@@ -792,11 +792,11 @@ void VSNodeRef::release() noexcept {
 VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
     refcount(0), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
 
-    if (flags & ~(ffNoCache | ffIsCache | vs3::nfMakeLinear))
+    if (flags & ~(nfNoCache | nfIsCache | vs3::nfMakeLinear))
         throw VSException("Filter " + name  + " specified unknown flags");
 
-    if ((flags & ffIsCache) && !(flags & ffNoCache))
-        throw VSException("Filter " + name + " specified an illegal combination of flags (ffNoCache must always be set with nfIsCache)");
+    if ((flags & nfIsCache) && !(flags & nfNoCache))
+        throw VSException("Filter " + name + " specified an illegal combination of flags (nfNoCache must always be set with nfIsCache)");
 
     frameReadyNotify = true;
 
@@ -829,11 +829,11 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilt
 VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
     refcount(numOutputs), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
 
-    if (flags & ~(ffNoCache | ffIsCache))
+    if (flags & ~(nfNoCache | nfIsCache))
         throw VSException("Filter " + name + " specified unknown flags");
 
-    if ((flags & ffIsCache) && !(flags & ffNoCache))
-        throw VSException("Filter " + name + " specified an illegal combination of flags (ffNoCache must always be set with nfIsCache)");
+    if ((flags & nfIsCache) && !(flags & nfNoCache))
+        throw VSException("Filter " + name + " specified an illegal combination of flags (nfNoCache must always be set with nfIsCache)");
 
     if (numOutputs < 1)
         throw VSException("Filter " + name + " needs to have at least one output");
@@ -859,11 +859,11 @@ VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, int numOutputs, V
 VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
     refcount(numOutputs), nodeType(mtAudio), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
 
-    if (flags & ~(ffNoCache | ffIsCache))
+    if (flags & ~(nfNoCache | nfIsCache))
         throw VSException("Filter " + name + " specified unknown flags");
 
-    if ((flags & ffIsCache) && !(flags & ffNoCache))
-        throw VSException("Filter " + name + " specified an illegal combination of flags (ffNoCache must always be set with nfIsCache)");
+    if ((flags & nfIsCache) && !(flags & nfNoCache))
+        throw VSException("Filter " + name + " specified an illegal combination of flags (nfNoCache must always be set with nfIsCache)");
 
     if (numOutputs < 1)
         throw VSException("Filter " + name + " needs to have at least one output");
