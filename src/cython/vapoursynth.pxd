@@ -161,7 +161,6 @@ cdef extern from "include/VapourSynth4.h" nogil:
 
     enum VSNodeFlags:
         nfNoCache
-        nfIsCache
 
     enum VSPropType:
         ptUnset

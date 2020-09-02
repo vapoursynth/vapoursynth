@@ -32,6 +32,7 @@ namespace vs3 {
     typedef struct VSNode VSNode;
     typedef struct VSAPI3 VSAPI3;
 
+    static const int nfIsCache = 2;
     static const int nfMakeLinear = 4;
 
     typedef enum VSColorFamily {
