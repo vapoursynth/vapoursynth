@@ -367,6 +367,8 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
                 writeImageHelper<uint8_t>(frame, alphaFrame, isGray, image, width, height, fi->bitsPerSample, vsapi);
             }
 
+            image.strip();
+
             image.write(filename);
 
             vsapi->freeFrame(alphaFrame);
