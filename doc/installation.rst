@@ -85,7 +85,7 @@ These are the requirements:
 
    * GCC 4.8 or newer, or Clang
 
-   * `zimg v2.9 branch <https://github.com/sekrit-twc/zimg/releases>`_
+   * `zimg v3.0 branch <https://github.com/sekrit-twc/zimg/releases>`_
 
    * Python 3
 
