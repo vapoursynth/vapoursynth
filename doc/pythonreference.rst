@@ -401,7 +401,9 @@ Classes and Functions
 
    .. py:attribute:: props
 
-      This attribute holds all the frame's properties as a dict. They are also mapped as sub-attributes for compatibility with older scripts.
+      This attribute holds all the frame's properties as a dict. They are also mapped as sub-attributes for
+      compatibility with older scripts. This includes the data for matrix, transfer and primaries. (_Matrix,
+      _Transfer, _Primaries) See `Resize <functions/resize.html>`_ for more information.
 
    .. py:method:: copy()
 
