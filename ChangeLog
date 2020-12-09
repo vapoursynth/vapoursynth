@@ -1,3 +1,6 @@
+r53:
+fixed calling wrapped functions through python (IFeelBloated)
+
 r52:
 updated visual studio 2019 runtime version
 updated zimg

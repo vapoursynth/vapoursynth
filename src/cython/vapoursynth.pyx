@@ -540,9 +540,7 @@ cdef class Func(object):
             error = self.funcs.getError(outm)
             if error:
                 raise Error(error.decode('utf-8'))
-            ret = mapToDict(outm, False, False, NULL, vsapi)
-            if not isinstance(ret, dict):
-                ret = {'val':ret}
+            return mapToDict(outm, True, False, NULL, vsapi)
         finally:
             vsapi.freeMap(outm)
             vsapi.freeMap(inm)
