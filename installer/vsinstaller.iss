@@ -189,7 +189,7 @@ Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "PATH"; Value
 
 [Code]
 
-const VSRuntimeVersion = '14.27.29016';
+const VSRuntimeVersion = '14.28.29325';
 
 type
   TPythonPath = record

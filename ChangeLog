@@ -1,4 +1,5 @@
 r53:
+updated visual studio 2019 runtime version
 fixed calling wrapped functions through python (IFeelBloated)
 
 r52:
