@@ -38,9 +38,10 @@ jobs:
     - name: Set neccessary environment variables
       run: |
         PYTHON_BASE_PATH=$(command -v python | xargs dirname)/..
-        echo "::set-env name=LD_LIBRARY_PATH::$LD_LIBRARY_PATH:$PYTHON_BASE_PATH/lib"
-        echo "::set-env name=LIBRARY_PATH::$LIBRARY_PATH:$PYTHON_BASE_PATH/lib"
-        echo "::set-env name=PKG_CONFIG_PATH::$PYTHON_BASE_PATH/lib/pkgconfig"
+      env:
+        LD_LIBRARY_PATH: $LD_LIBRARY_PATH:$PYTHON_BASE_PATH/lib
+        LIBRARY_PATH: $LIBRARY_PATH:$PYTHON_BASE_PATH/lib
+        PKG_CONFIG_PATH: $PYTHON_BASE_PATH/lib/pkgconfig
 
     - name: configure
       run: |
