@@ -11,9 +11,11 @@ LT_INIT([win32-dll])
 AC_PROG_CC
 AC_PROG_CXX
 
+AC_CONFIG_MACRO_DIRS([m4])
 
 AC_SYS_LARGEFILE
 AC_FUNC_FSEEKO
+AX_PTHREAD
 
 
 AC_ARG_ENABLE([debug], AS_HELP_STRING([--enable-debug], [Enable compilation options required for debugging. (default=no)]))
