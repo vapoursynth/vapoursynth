@@ -38,10 +38,9 @@ jobs:
     - name: Set neccessary environment variables
       run: |
         PYTHON_BASE_PATH=$(command -v python | xargs dirname)/..
-      env:
-        LD_LIBRARY_PATH: $LD_LIBRARY_PATH:$PYTHON_BASE_PATH/lib
-        LIBRARY_PATH: $LIBRARY_PATH:$PYTHON_BASE_PATH/lib
-        PKG_CONFIG_PATH: $PYTHON_BASE_PATH/lib/pkgconfig
+        echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PYTHON_BASE_PATH/lib" >> $GITHUB_ENV
+        echo "LIBRARY_PATH=$LIBRARY_PATH:$PYTHON_BASE_PATH/lib" >> $GITHUB_ENV
+        echo "PKG_CONFIG_PATH=$PYTHON_BASE_PATH/lib/pkgconfig" >> $GITHUB_ENV
 
     - name: configure
       run: |
