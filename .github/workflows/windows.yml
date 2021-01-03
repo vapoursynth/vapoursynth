@@ -23,12 +23,12 @@ jobs:
     - uses: actions/checkout@v2
 
     - name: Add msbuild to PATH
-      uses: microsoft/setup-msbuild@v1.0.2
+      uses: microsoft/setup-msbuild@v1
   
     - name: Clone Dependencies
       run: |
         git clone https://github.com/vapoursynth/vsrepo --depth 1
-        git clone https://github.com/sekrit-twc/zimg --branch v2.9 --depth 1
+        git clone https://github.com/sekrit-twc/zimg --branch v3.0 --depth 1
         git clone https://github.com/AviSynth/AviSynthPlus.git --depth 1
 
     - name: Setup Python
