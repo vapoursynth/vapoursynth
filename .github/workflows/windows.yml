@@ -28,7 +28,7 @@ jobs:
     - name: Clone Dependencies
       run: |
         git clone https://github.com/vapoursynth/vsrepo --depth 1
-        git clone https://github.com/sekrit-twc/zimg --branch v2.9 --depth 1
+        git clone https://github.com/sekrit-twc/zimg --branch v3.0 --depth 1
         git clone https://github.com/AviSynth/AviSynthPlus.git --depth 1
 
     - name: Setup Python
