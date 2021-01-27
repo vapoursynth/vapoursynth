@@ -344,7 +344,7 @@ static bool outputNode() {
         + " H" + std::to_string(vi->height)
         + " F" + std::to_string(vi->fpsNum) + ":" + std::to_string(vi->fpsDen)
         + " Ip A0:0"
-        + " XLENGTH=" + std::to_string(vi->numFrames) + "\n";
+        + " XLENGTH=" + std::to_string(static_cast<int>(totalFrames - startFrame)) + "\n";
 
     if (y4m && outFile) {
         if (fwrite(header.c_str(), 1, header.size(), outFile) != header.size()) {
@@ -654,7 +654,7 @@ int main(int argc, char **argv) {
         vsscript_finalize();
         return 1;
     }
-    
+
     // Should always succeed
     if (vsscript_createScript(&se)) {
         fprintf(stderr, "Script environment initialization failed:\n%s\n", vsscript_getError(se));
