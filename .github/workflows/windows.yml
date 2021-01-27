@@ -23,19 +23,19 @@ jobs:
     - uses: actions/checkout@v2
 
     - name: Add msbuild to PATH
-      uses: microsoft/setup-msbuild@v1.0.0
+      uses: microsoft/setup-msbuild@v1
   
     - name: Clone Dependencies
       run: |
         git clone https://github.com/vapoursynth/vsrepo --depth 1
-        git clone https://github.com/sekrit-twc/zimg --branch v2.9 --depth 1
+        git clone https://github.com/sekrit-twc/zimg --branch v3.0 --depth 1
         git clone https://github.com/AviSynth/AviSynthPlus.git --depth 1
 
     - name: Setup Python
       uses: actions/setup-python@v2
       with:
         # Version range or exact version of a Python version to use, using SemVer's version range syntax.
-        python-version: 3.8
+        python-version: 3.9
         # The target architecture (x86, x64) of the Python interpreter.
         architecture: ${{ matrix.arch }}
 
@@ -48,10 +48,10 @@ jobs:
       run: |
         $py_include_path = ((Split-Path -Path (Get-Command python.exe).Path) + "\include" )
         $py_binary_path = ((Split-Path -Path (Get-Command python.exe).Path) + "\libs" )
-        (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files %28x86%29\\Python38-32\\libs",$py_binary_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
-        (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files %28x86%29\\Python38-32\\include",$py_include_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
-        (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files\\Python38\\libs",$py_binary_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
-        (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files\\Python38\\include",$py_include_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
+        (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files %28x86%29\\Python39-32\\libs",$py_binary_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
+        (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files %28x86%29\\Python39-32\\include",$py_include_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
+        (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files\\Python39\\libs",$py_binary_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
+        (Get-Content -Path "msvc_project\VSScript\VSScript.vcxproj" -Raw) -replace "C:\\Program Files\\Python39\\include",$py_include_path | Set-Content "msvc_project\VSScript\VSScript.vcxproj"
 
     - name: Compile
       run: |

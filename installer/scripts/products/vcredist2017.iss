@@ -10,8 +10,8 @@ vcredist2017_size_x64=14.3 MB
 
 [Code]
 const
-	vcredist2017_url = 'http://download.visualstudio.microsoft.com/download/pr/9fe82b83-f3a1-43f5-8f25-ebe24529854c/B4D433E2F66B30B478C0D080CCD5217CA2A963C16E90CAF10B1E0592B7D8D519/VC_redist.x86.exe';
-	vcredist2017_url_x64 = 'http://download.visualstudio.microsoft.com/download/pr/fd5d2eea-32b8-4814-b55e-28c83dd72d9c/952A0C6CB4A3DD14C3666EF05BB1982C5FF7F87B7103C2BA896354F00651E358/VC_redist.x64.exe';
+	vcredist2017_url = 'http://download.visualstudio.microsoft.com/download/pr/8ecb9800-52fd-432d-83ee-d6e037e96cc2/50A3E92ADE4C2D8F310A2812D46322459104039B9DEADBD7FDD483B5C697C0C8/VC_redist.x86.exe';
+	vcredist2017_url_x64 = 'http://download.visualstudio.microsoft.com/download/pr/89a3b9df-4a09-492e-8474-8f92c115c51d/B1A32C71A6B7D5978904FB223763263EA5A7EB23B2C44A0D60E90D234AD99178/VC_redist.x64.exe';
 
 	vcredist2017_upgradecode = '{65E5BD06-6392-3027-8C26-853107D3CF1A}';
 	vcredist2017_upgradecode_x64 = '{36F68A90-239C-34DF-B58C-64B30153CE35}';

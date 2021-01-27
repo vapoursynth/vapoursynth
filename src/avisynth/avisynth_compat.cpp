@@ -466,6 +466,26 @@ static PrefetchInfo getPrefetchInfo(const std::string &name, const VSMap *in, co
     PREFETCHR0(aWarpSharp)
     PREFETCHR0(aWarpSharp2)
 
+    // CullResize
+    PREFETCHR0(CullBilinearResize)
+    PREFETCHR0(CullBicubicResize)
+    PREFETCHR0(CullLanczosResize)
+    PREFETCHR0(CullLanczos4Resize)
+    PREFETCHR0(CullBlackmanResize)
+    PREFETCHR0(CullSpline16Resize)
+    PREFETCHR0(CullSpline36Resize)
+    PREFETCHR0(CullSpline64Resize)
+    PREFETCHR0(CullGaussResize)
+
+    // Spline resize
+    PREFETCHR0(Spline100Resize)
+    PREFETCHR0(Spline144Resize)
+
+    // PVBob
+    temp = int64ToIntS(vsapi->propGetInt(in, "mode", 0, &err));
+    PREFETCH(DGBob, (temp > 0) ? 2 : 1, 1, -2, 2)
+    PREFETCH(PVBob, (temp > 0) ? 2 : 1, 1, -2, 2)
+
     // Avisynth internal
     PREFETCH(Bob, 2, 1, 0, 0)
     PREFETCH(TemporalSoften, 1, 1, -5, 5)
