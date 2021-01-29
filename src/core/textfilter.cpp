@@ -31,6 +31,9 @@
 #include "ter-116n.h"
 #include "internalfilters.h"
 
+const int margin_h = 16;
+const int margin_v = 16;
+
 namespace {
 std::string operator""_s(const char *str, size_t len) { return{ str, len }; }
 
@@ -164,9 +167,6 @@ static void scrawl_text(std::string txt, int alignment, VSFrameRef *frame, const
     const VSFormat *frame_format = vsapi->getFrameFormat(frame);
     int width = vsapi->getFrameWidth(frame, 0);
     int height = vsapi->getFrameHeight(frame, 0);
-
-    const int margin_h = 16;
-    const int margin_v = 16;
 
     sanitise_text(txt);
 
@@ -501,6 +501,18 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **
                 vsapi->freeFrame(src);
                 vsapi->setFilterError((d->instanceName + ": Only 8..16 bit integer and 32 bit float formats supported").c_str(), frameCtx);
                 return nullptr;
+        }
+
+        int width = vsapi->getFrameWidth(src, 0);
+        int height = vsapi->getFrameHeight(src, 0);
+
+        int minimum_width = 2 * margin_h + character_width;
+        int minimum_height = 2 * margin_v + character_height;
+
+        if (width < minimum_width || height < minimum_height) {
+            vsapi->freeFrame(src);
+            vsapi->setFilterError((d->instanceName + ": frame size must be at least " + std::to_string(minimum_width) + "x" + std::to_string(minimum_height) + " pixels.").c_str(), frameCtx);
+            return nullptr;
         }
 
         VSFrameRef *dst = vsapi->copyFrame(src, core);
