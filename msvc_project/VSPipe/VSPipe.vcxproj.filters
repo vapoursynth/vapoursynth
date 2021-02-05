@@ -33,4 +33,7 @@
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <Manifest Include="..\..\src\vspipe\vspipe.manifest" />
+  </ItemGroup>
 </Project>
