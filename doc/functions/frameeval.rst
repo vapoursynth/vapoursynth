@@ -26,7 +26,7 @@ FrameEval
       import vapoursynth as vs
       import functools
 
-      core = vs.get_core()
+      core = vs.core
       base_clip = core.std.BlankClip(format=vs.YUV420P8, length=1000, color=[255, 128, 128])
 
       def animator(n, clip):
@@ -61,7 +61,7 @@ FrameEval
          return core.std.Expr(clip, expr=['x ' + repr(r_gain) + ' *', 'x ' + repr(g_gain) + ' *', 'x ' + repr(b_gain) + ' *'])
 
       def GrayWorld1(clip, matrix_s=None):
-         core = vs.get_core()
+         core = vs.core
          rgb_clip = core.resize.Bilinear(clip, format=vs.RGB24)
          r_avg = core.std.PlaneStats(rgb_clip, plane=0)
          g_avg = core.std.PlaneStats(rgb_clip, plane=1)
@@ -69,7 +69,7 @@ FrameEval
          adjusted_clip = core.std.FrameEval(rgb_clip, functools.partial(GrayWorld1Adjust, clip=rgb_clip, core=core), prop_src=[r_avg, g_avg, b_avg])
          return core.resize.Bilinear(adjusted_clip, format=clip.format.id, matrix_s=matrix_s)
 
-      core = vs.get_core()
+      core = vs.core
       core.std.LoadPlugin(path='ffms2.dll')
       main = core.ffms2.Source(source='...')
       main = GrayWorld1(main)

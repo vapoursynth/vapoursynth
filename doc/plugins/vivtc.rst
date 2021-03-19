@@ -20,7 +20,7 @@ It is a rewrite of some of tritical's TIVTC filters.
       import vapoursynth as vs
       import functools
 
-      core = vs.get_core()
+      core = vs.core
       input_clip = core.std.BlankClip(format=vs.YUV420P8, length=1000, color=[255, 128, 128])
 
       def postprocess(n, f, clip, deinterlaced):
