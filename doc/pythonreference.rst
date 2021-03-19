@@ -147,11 +147,17 @@ Raw Access to Frame Data
 ########################
 
 The VideoFrame class simply contains one picture and all the metadata
-associated with it. It is possible to access the raw data using ctypes and
-some persistence. The three relevant functions are *get_read_ptr(plane)*,
+associated with it. It is possible to access the raw data using either
+*get_write_array(plane)* or *get_write_ptr* with ctypes.
+
+The relevant functions are *get_read_array(plane)*, *get_read_ptr(plane)*,
 *get_write_ptr(plane)*, and *get_stride(plane)*, all of which take the plane
-to access as an argument. Accessing the data is a bit trickier as
-*get_read_ptr()* and *get_write_ptr()* only return a pointer.
+to access as an argument. The recommended way is to use *get_read_array(plane)*
+(*get_write_array(plane)*) to get a read-only (writable) memory view that
+can be accessed directly via *view[row,col]* or *view[row][col]*. The returned
+view is valid as long as its VideoFrame exists.
+The raw access functions are a bit trickier as *get_read_ptr()* and *get_write_ptr()*
+only return a pointer.
 
 To get a frame simply call *get_frame(n)* on a clip. Should you desire to get
 all frames in a clip, use this code::
