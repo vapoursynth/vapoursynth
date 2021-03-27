@@ -1,5 +1,8 @@
 r53:
 updated visual studio 2019 runtime version
+fixed length calculation in y4m header (djatom)
+added long path support to vspipe (stax76)
+fixed crash in text filter with small resolution clips (jackoneill)
 fixed calling wrapped functions through python (IFeelBloated)
 
 r52:
