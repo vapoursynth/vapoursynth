@@ -27,7 +27,9 @@
 
 #ifdef VS_TARGET_OS_WINDOWS
 #define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
+#    ifndef NOMINMAX
+#        define NOMINMAX
+#    endif
 #include <Windows.h>
 #endif
 

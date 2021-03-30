@@ -41,7 +41,9 @@
 
 #ifdef VS_TARGET_CPU_X86
 #include <immintrin.h>
-#define NOMINMAX
+#    ifndef NOMINMAX
+#        define NOMINMAX
+#    endif
 #include "jitasm.h"
 #ifndef VS_TARGET_OS_WINDOWS
 #include <sys/mman.h>
