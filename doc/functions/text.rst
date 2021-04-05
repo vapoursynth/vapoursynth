@@ -1,7 +1,7 @@
 Text
 ====
 
-.. function:: Text(clip clip, string text[, int alignment=7])
+.. function:: Text(clip clip, string text[, int alignment=7, int scale=1])
    :module: text
 
    Text is a simple text printing filter. It doesn't use any external libraries
@@ -16,6 +16,8 @@ Text
 
    The *alignment* parameter takes a number from 1 to 9, corresponding to the
    positions of the keys on a numpad.
+
+   The *scale* parameter sets an integer scaling factor for the bitmap font.
 
    *ClipInfo*, *CoreInfo*, *FrameNum*, and *FrameProps* are convenience functions
    based on *Text*.

@@ -40,14 +40,14 @@ std::string operator""_s(const char *str, size_t len) { return{ str, len }; }
 typedef std::vector<std::string> stringlist;
 } // namespace
 
-static void scrawl_character_int(unsigned char c, uint8_t *image, int stride, int dest_x, int dest_y, int bitsPerSample) {
+static void scrawl_character_int(unsigned char c, uint8_t *image, int stride, int dest_x, int dest_y, int bitsPerSample, int scale) {
     int black = 16 << (bitsPerSample - 8);
     int white = 235 << (bitsPerSample - 8);
     int x, y;
     if (bitsPerSample == 8) {
-        for (y = 0; y < character_height; y++) {
-            for (x = 0; x < character_width; x++) {
-                if (__font_bitmap__[c * character_height + y] & (1 << (7 - x))) {
+        for (y = 0; y < character_height * scale; y++) {
+            for (x = 0; x < character_width * scale; x++) {
+                if (__font_bitmap__[c * character_height + y/scale] & (1 << (7 - x/scale))) {
                     image[dest_y*stride + dest_x + x] = white;
                 } else {
                     image[dest_y*stride + dest_x + x] = black;
@@ -57,9 +57,9 @@ static void scrawl_character_int(unsigned char c, uint8_t *image, int stride, in
             dest_y++;
         }
     } else {
-        for (y = 0; y < character_height; y++) {
-            for (x = 0; x < character_width; x++) {
-                if (__font_bitmap__[c * character_height + y] & (1 << (7 - x))) {
+        for (y = 0; y < character_height * scale; y++) {
+            for (x = 0; x < character_width * scale; x++) {
+                if (__font_bitmap__[c * character_height + y/scale] & (1 << (7 - x/scale))) {
                     reinterpret_cast<uint16_t *>(image)[dest_y*stride/2 + dest_x + x] = white;
                 } else {
                     reinterpret_cast<uint16_t *>(image)[dest_y*stride/2 + dest_x + x] = black;
@@ -72,14 +72,14 @@ static void scrawl_character_int(unsigned char c, uint8_t *image, int stride, in
 }
 
 
-static void scrawl_character_float(unsigned char c, uint8_t *image, int stride, int dest_x, int dest_y) {
+static void scrawl_character_float(unsigned char c, uint8_t *image, int stride, int dest_x, int dest_y, int scale) {
     float white = 1.0f;
     float black = 0.0f;
     int x, y;
 
-    for (y = 0; y < character_height; y++) {
-        for (x = 0; x < character_width; x++) {
-            if (__font_bitmap__[c * character_height + y] & (1 << (7 - x))) {
+    for (y = 0; y < character_height * scale; y++) {
+        for (x = 0; x < character_width * scale; x++) {
+            if (__font_bitmap__[c * character_height + y/scale] & (1 << (7 - x/scale))) {
                 reinterpret_cast<float *>(image)[dest_y*stride/4 + dest_x + x] = white;
             } else {
                 reinterpret_cast<float *>(image)[dest_y*stride/4 + dest_x + x] = black;
@@ -129,7 +129,7 @@ static void sanitise_text(std::string& txt) {
 }
 
 
-static stringlist split_text(const std::string& txt, int width, int height) {
+static stringlist split_text(const std::string& txt, int width, int height, int scale) {
     stringlist lines;
 
     // First split by \n
@@ -145,7 +145,7 @@ static stringlist split_text(const std::string& txt, int width, int height) {
     lines.push_back(txt.substr(prev_pos + 1));
 
     // Then split any lines that don't fit
-    size_t horizontal_capacity = width / character_width;
+    size_t horizontal_capacity = width / character_width / scale;
     for (stringlist::iterator iter = lines.begin(); iter != lines.end(); iter++) {
         if (iter->size() > horizontal_capacity) {
             iter = std::prev(lines.insert(std::next(iter), iter->substr(horizontal_capacity)));
@@ -154,7 +154,7 @@ static stringlist split_text(const std::string& txt, int width, int height) {
     }
 
     // Also drop lines that would go over the frame's bottom edge
-    size_t vertical_capacity = height / character_height;
+    size_t vertical_capacity = height / character_height / scale;
     if (lines.size() > vertical_capacity) {
         lines.resize(vertical_capacity);
     }
@@ -163,14 +163,14 @@ static stringlist split_text(const std::string& txt, int width, int height) {
 }
 
 
-static void scrawl_text(std::string txt, int alignment, VSFrameRef *frame, const VSAPI *vsapi) {
+static void scrawl_text(std::string txt, int alignment, int scale, VSFrameRef *frame, const VSAPI *vsapi) {
     const VSFormat *frame_format = vsapi->getFrameFormat(frame);
     int width = vsapi->getFrameWidth(frame, 0);
     int height = vsapi->getFrameHeight(frame, 0);
 
     sanitise_text(txt);
 
-    stringlist lines = split_text(txt, width - margin_h*2, height - margin_v*2);
+    stringlist lines = split_text(txt, width - margin_h*2, height - margin_v*2, scale);
 
     int start_x = 0;
     int start_y = 0;
@@ -184,12 +184,12 @@ static void scrawl_text(std::string txt, int alignment, VSFrameRef *frame, const
     case 4:
     case 5:
     case 6:
-        start_y = (height - static_cast<int>(lines.size())*character_height) / 2;
+        start_y = (height - static_cast<int>(lines.size())*character_height*scale) / 2;
         break;
     case 1:
     case 2:
     case 3:
-        start_y = height - static_cast<int>(lines.size())*character_height - margin_v;
+        start_y = height - static_cast<int>(lines.size())*character_height*scale - margin_v;
         break;
     }
 
@@ -203,17 +203,17 @@ static void scrawl_text(std::string txt, int alignment, VSFrameRef *frame, const
         case 2:
         case 5:
         case 8:
-            start_x = (width - static_cast<int>(iter.size())*character_width) / 2;
+            start_x = (width - static_cast<int>(iter.size())*character_width*scale) / 2;
             break;
         case 3:
         case 6:
         case 9:
-            start_x = width - static_cast<int>(iter.size())*character_width - margin_h;
+            start_x = width - static_cast<int>(iter.size())*character_width*scale - margin_h;
             break;
         }
 
         for (size_t i = 0; i < iter.size(); i++) {
-            int dest_x = start_x + static_cast<int>(i)*character_width;
+            int dest_x = start_x + static_cast<int>(i)*character_width*scale;
             int dest_y = start_y;
 
             if (frame_format->colorFamily == cmRGB) {
@@ -222,9 +222,9 @@ static void scrawl_text(std::string txt, int alignment, VSFrameRef *frame, const
                     int stride = vsapi->getStride(frame, plane);
 
                     if (frame_format->sampleType == stInteger) {
-                        scrawl_character_int(iter[i], image, stride, dest_x, dest_y, frame_format->bitsPerSample);
+                        scrawl_character_int(iter[i], image, stride, dest_x, dest_y, frame_format->bitsPerSample, scale);
                     } else {
-                        scrawl_character_float(iter[i], image, stride, dest_x, dest_y);
+                        scrawl_character_float(iter[i], image, stride, dest_x, dest_y, scale);
                     }
                 }
             } else {
@@ -234,13 +234,13 @@ static void scrawl_text(std::string txt, int alignment, VSFrameRef *frame, const
 
                     if (plane == 0) {
                         if (frame_format->sampleType == stInteger) {
-                            scrawl_character_int(iter[i], image, stride, dest_x, dest_y, frame_format->bitsPerSample);
+                            scrawl_character_int(iter[i], image, stride, dest_x, dest_y, frame_format->bitsPerSample, scale);
                         } else {
-                            scrawl_character_float(iter[i], image, stride, dest_x, dest_y);
+                            scrawl_character_float(iter[i], image, stride, dest_x, dest_y, scale);
                         }
                     } else {
-                        int sub_w = character_width  >> frame_format->subSamplingW;
-                        int sub_h = character_height >> frame_format->subSamplingH;
+                        int sub_w = scale * character_width  >> frame_format->subSamplingW;
+                        int sub_h = scale * character_height >> frame_format->subSamplingH;
                         int sub_dest_x = dest_x >> frame_format->subSamplingW;
                         int sub_dest_y = dest_y >> frame_format->subSamplingH;
                         int y;
@@ -262,7 +262,7 @@ static void scrawl_text(std::string txt, int alignment, VSFrameRef *frame, const
                 } // for plane in planes
             } // if colorFamily
         } // for i in line
-        start_y += character_height;
+        start_y += character_height * scale;
     } // for iter in lines
 }
 
@@ -284,6 +284,7 @@ typedef struct {
 
     std::string text;
     int alignment;
+    int scale;
     intptr_t filter;
     stringlist props;
     std::string instanceName;
@@ -506,8 +507,8 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **
         int width = vsapi->getFrameWidth(src, 0);
         int height = vsapi->getFrameHeight(src, 0);
 
-        int minimum_width = 2 * margin_h + character_width;
-        int minimum_height = 2 * margin_v + character_height;
+        int minimum_width = 2 * margin_h + character_width * d->scale;
+        int minimum_height = 2 * margin_v + character_height * d->scale;
 
         if (width < minimum_width || height < minimum_height) {
             vsapi->freeFrame(src);
@@ -518,7 +519,7 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **
         VSFrameRef *dst = vsapi->copyFrame(src, core);
 
         if (d->filter == FILTER_FRAMENUM) {
-            scrawl_text(std::to_string(n), d->alignment, dst, vsapi);
+            scrawl_text(std::to_string(n), d->alignment, d->scale, dst, vsapi);
         } else if (d->filter == FILTER_FRAMEPROPS) {
             const VSMap *props = vsapi->getFramePropsRO(dst);
             int numKeys = vsapi->propNumKeys(props);
@@ -536,7 +537,7 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **
                 }
             }
 
-            scrawl_text(text, d->alignment, dst, vsapi);
+            scrawl_text(text, d->alignment, d->scale, dst, vsapi);
         } else if (d->filter == FILTER_COREINFO) {
             VSCoreInfo ci;
             vsapi->getCoreInfo2(core, &ci);
@@ -547,7 +548,7 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **
             text.append("Maximum framebuffer cache size: ").append(std::to_string(ci.maxFramebufferSize)).append(" bytes\n");
             text.append("Used framebuffer cache size: ").append(std::to_string(ci.usedFramebufferSize)).append(" bytes");
 
-            scrawl_text(text, d->alignment, dst, vsapi);
+            scrawl_text(text, d->alignment, d->scale, dst, vsapi);
         } else if (d->filter == FILTER_CLIPINFO) {
             const VSMap *props = vsapi->getFramePropsRO(src);
             std::string text = "Clip info:\n";
@@ -622,9 +623,9 @@ static const VSFrameRef *VS_CC textGetFrame(int n, int activationReason, void **
                 text += "Frame duration: " + std::to_string(fn) + "/" + std::to_string(fd) + " (" + std::to_string(static_cast<double>(fn) / fd) + ")\n";
             }
 
-            scrawl_text(text, d->alignment, dst, vsapi);
+            scrawl_text(text, d->alignment, d->scale, dst, vsapi);
         } else {
-            scrawl_text(d->text, d->alignment, dst, vsapi);
+            scrawl_text(d->text, d->alignment, d->scale, dst, vsapi);
         }
 
         vsapi->freeFrame(src);
@@ -691,6 +692,11 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         return;
     }
 
+    d.scale = int64ToIntS(vsapi->propGetInt(in, "scale", 0, &err));
+    if (err) {
+        d.scale = 1;
+    }
+
     d.filter = reinterpret_cast<intptr_t>(userData);
 
     switch (d.filter) {
@@ -731,23 +737,28 @@ void VS_CC textInitialize(VSConfigPlugin configFunc, VSRegisterFunction register
     registerFunc("Text",
         "clip:clip;"
         "text:data;"
-        "alignment:int:opt;",
+        "alignment:int:opt;"
+        "scale:int:opt;",
         textCreate, reinterpret_cast<void *>(FILTER_TEXT), plugin);
     registerFunc("ClipInfo",
         "clip:clip;"
-        "alignment:int:opt;",
+        "alignment:int:opt;"
+        "scale:int:opt;",
         textCreate, reinterpret_cast<void *>(FILTER_CLIPINFO), plugin);
     registerFunc("CoreInfo",
         "clip:clip:opt;"
-        "alignment:int:opt;",
+        "alignment:int:opt;"
+        "scale:int:opt;",
         textCreate, reinterpret_cast<void *>(FILTER_COREINFO), plugin);
     registerFunc("FrameNum",
         "clip:clip;"
-        "alignment:int:opt;",
+        "alignment:int:opt;"
+        "scale:int:opt;",
         textCreate, reinterpret_cast<void *>(FILTER_FRAMENUM), plugin);
     registerFunc("FrameProps",
         "clip:clip;"
         "props:data[]:opt;"
-        "alignment:int:opt;",
+        "alignment:int:opt;"
+        "scale:int:opt;",
         textCreate, reinterpret_cast<void *>(FILTER_FRAMEPROPS), plugin);
 }
