@@ -497,7 +497,7 @@ Classes and Functions
 
    Plugin is a class that represents a loaded plugin and its namespace.
    
-   .. py:attribute:: name
+   .. py:attribute:: namespace
 
       The namespace of the plugin.
 
