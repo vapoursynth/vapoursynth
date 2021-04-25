@@ -28,6 +28,15 @@ Miscellaneous Filters is a random collection of filters that mostly are useful f
    :module: misc
    
    Grows the mask in *clipa* into the mask in *clipb*. This is an equivalent of the Avisynth function *mt_hysteresis*.
+   
+   Specifically, Hysteresis takes two bi-level masks *clipa* and *clipb* and generates another
+   bi-level mask clip. Both *clipa* and *clipb* must have the same dimensions and format, and the
+   output clip will also have that format.
+   If we treat the planes of the clips as representing 8-neighbourhood undirected 2D grid graphs,
+   for each of the connected components in *clipb*, the whole component is copied to the output plane
+   if and only if one of its pixels is also marked in the corresponding plane from *clipa*.
+   The argument *planes* controls which planes to process, with the default being all. Any unprocessed
+   planes will be copied from the corresponding plane in *clipa*.
     
 .. function:: SCDetect(clip clip[, float threshold=0.1])
    :module: misc
