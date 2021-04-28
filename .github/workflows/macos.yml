@@ -17,21 +17,21 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    - name: Install automake and pkg-config
+    - name: Install automake
       run: |
+        brew update
         brew install automake
-        brew install pkg-config
 
     - name: Install zimg
       run: |
-        git clone https://github.com/sekrit-twc/zimg --branch v3.0 --depth 1 ./zimg
-        pushd ./zimg
+        git clone https://github.com/sekrit-twc/zimg --branch v3.0 --depth 1
+        pushd zimg
         ./autogen.sh
         ./configure
-        make -j2
-        sudo make install -j2
+        make -j3
+        sudo make install -j3
         popd
-        rm -rf ./zimg
+        rm -rf zimg
 
     - name: Setup Python
       uses: actions/setup-python@v2
@@ -44,12 +44,8 @@ jobs:
         python -m pip install --upgrade pip
         pip install cython
 
-    - name: Set neccessary environment variables
-      run: |
-        PYTHON_BASE_PATH=$(command -v python | xargs dirname)/..
-        echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PYTHON_BASE_PATH/lib" >> $GITHUB_ENV
-        echo "LIBRARY_PATH=$LIBRARY_PATH:$PYTHON_BASE_PATH/lib" >> $GITHUB_ENV
-        echo "PKG_CONFIG_PATH=$PYTHON_BASE_PATH/lib/pkgconfig" >> $GITHUB_ENV
+    - name: Set PKG_CONFIG_PATH
+      run: echo "PKG_CONFIG_PATH=$pythonLocation/lib/pkgconfig" >> $GITHUB_ENV
 
     - name: configure
       run: |
@@ -57,12 +53,12 @@ jobs:
         ./configure
 
     - name: make
-      run: make -j2
+      run: make -j3
 
     - name: make install
       run: |
-        sudo make install -j2
+        sudo make install -j3
         pip install .
 
     - name: Run test
-      run: python -m unittest discover -s ./test/
+      run: python -m unittest discover -s test
