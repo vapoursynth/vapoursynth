@@ -72,10 +72,12 @@ AS_CASE(
         [darwin*],
         [
          AC_DEFINE([VS_TARGET_OS_DARWIN])
+         AC_SUBST([UNDEFINEDLDFLAGS], ["-Wl,-undefined,error"])
         ],
         [*linux*|gnu*|dragonfly*|*bsd*], # The BSDs are close enough, right?
         [
          AC_DEFINE([VS_TARGET_OS_LINUX])
+         AC_SUBST([UNDEFINEDLDFLAGS], ["-Wl,--no-undefined"])
         ],
         [cygwin*|mingw*],
         [
