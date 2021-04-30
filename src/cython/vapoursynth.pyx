@@ -2208,6 +2208,7 @@ cdef public api int vpy_createScript(VPYScriptExport *se) nogil:
 cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, const char *scriptFilename, int flags) nogil:
     with gil:
         orig_path = None
+        exitCodeKey = '__VS_exitCode' # must match vspipe.cpp
         try:
             evaldict = {}
             if se.pyenvdict:
@@ -2239,6 +2240,7 @@ cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, 
             comp = compile(script.decode('utf-8-sig'), fn, 'exec')
 
             # Change the environment now.
+            evaldict.pop(exitCodeKey, None)
             with _vsscript_use_or_create_environment(se.id).use():
                 exec(comp) in evaldict
 
@@ -2247,6 +2249,8 @@ cdef public api int vpy_evaluateScript(VPYScriptExport *se, const char *script, 
             errstr = errstr.encode('utf-8')
             Py_INCREF(errstr)
             se.errstr = <void *>errstr
+            if isinstance(e, SystemExit):
+                evaldict[exitCodeKey] = e.code
             return 2
         except:
             errstr = 'Unspecified Python exception' + '\n\n' + traceback.format_exc()

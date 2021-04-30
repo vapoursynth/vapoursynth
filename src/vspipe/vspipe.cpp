@@ -673,10 +673,19 @@ int main(int argc, char **argv) {
 
     start = std::chrono::high_resolution_clock::now();
     if (vsscript_evaluateFile(&se, nstringToUtf8(scriptFilename).c_str(), preserveCwd ? 0 : efSetWorkingDir)) {
+        int r = 1;
+        VSMap *vals = vsapi->createMap();
+        const char *exit_key = "__VS_exitCode"; // must match pyx.
+        if (vsscript_getVariable(se, exit_key, vals) == 0) {
+            int err;
+            r = vsapi->propGetInt(vals, exit_key, 0, &err);
+            if (err != 0) r = 1;
+        }
+        vsapi->freeMap(vals);
         fprintf(stderr, "Script evaluation failed:\n%s\n", vsscript_getError(se));
         vsscript_freeScript(se);
         vsscript_finalize();
-        return 1;
+        return r;
     }
 
     node = vsscript_getOutput2(se, outputIndex, &alphaNode);
