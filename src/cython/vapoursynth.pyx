@@ -2797,6 +2797,13 @@ cdef int _vpy_evaluate(VSScript *se, bytes script, str filename, const VSScriptO
         with _vsscript_use_or_create_environment2(se.id, options).use():
             exec(code, pyenvdict, pyenvdict)
 
+    except SystemExit, e:
+        se.exitCode = e.code
+        errstr = 'Python exit with code ' + str(e.code) + '\n'
+        errstr = errstr.encode('utf-8')
+        Py_INCREF(errstr)
+        se.errstr = <void *>errstr
+        return 3
     except BaseException, e:
         errstr = 'Python exception: ' + str(e) + '\n\n' + traceback.format_exc()
         errstr = errstr.encode('utf-8')

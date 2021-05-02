@@ -24,3 +24,4 @@ cdef extern from "src/vsscript/vsscript_internal.h" nogil:
         void *pyenvdict
         void *errstr
         int id
+        int exitCode

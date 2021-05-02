@@ -72,6 +72,9 @@ struct VSSCRIPTAPI {
     /* Returns NULL on success, otherwise an error message */
     const char *(VS_CC *getError)(VSScript *handle) VS_NOEXCEPT;
 
+    /* Returns 0 on success, otherwise the exit code */
+    int (VS_CC *getExitCode)(VSScript *handle) VS_NOEXCEPT;
+
     /*
     * The returned nodes must be freed using freeNode() before calling freeScript() since they may depend on data in the VSScript
     * environment. Returns NULL if no node was set as output in the script. Index 0 is used by default in scripts and other
