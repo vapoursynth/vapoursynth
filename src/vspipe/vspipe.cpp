@@ -943,9 +943,11 @@ int main(int argc, char **argv) {
     }
 
     if (vssapi->getError(se)) {
+        int code = vssapi->getExitCode(se);
+        if (code == 0) code = 1;
         fprintf(stderr, "Script evaluation failed:\n%s\n", vssapi->getError(se));
         vssapi->freeScript(se);
-        return 1;
+        return code;
     }
 
     VSNode *node = vssapi->getOutputNode(se, opts.outputIndex);
