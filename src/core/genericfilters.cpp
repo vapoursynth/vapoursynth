@@ -20,13 +20,14 @@
 
 
 #include <algorithm>
+#include <array>
 #include <cfloat>
 #include <cmath>
 #include <cstddef>
 #include <cstdlib>
-#include <string>
-#include <array>
+#include <limits>
 #include <memory>
+#include <string>
 #include <vector>
 #include <VapourSynth.h>
 #include <VSHelper.h>
