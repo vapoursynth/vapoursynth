@@ -22,6 +22,7 @@
 #include <cmath>
 #include <functional>
 #include <iostream>
+#include <limits>
 #include <locale>
 #include <map>
 #include <memory>
