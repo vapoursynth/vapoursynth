@@ -23,6 +23,7 @@
 #include <cmath>
 #include <cfloat>
 #include <cstddef>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <vector>
