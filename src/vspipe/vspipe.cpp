@@ -57,7 +57,6 @@ extern "C" {
 
 // Needed so windows doesn't drool on itself when ctrl-c is pressed
 #ifdef VS_TARGET_OS_WINDOWS
-#define NOMINMAX
 #include <windows.h>
 static BOOL WINAPI HandlerRoutine(DWORD dwCtrlType) {
     switch (dwCtrlType) {

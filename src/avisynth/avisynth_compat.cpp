@@ -26,7 +26,6 @@
 #include <cstdarg>
 #include "../common/vsutf16.h"
 
-#define NOMINMAX
 #include <Windows.h>
 
 extern const AVS_Linkage* const AVS_linkage;

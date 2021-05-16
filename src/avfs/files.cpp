@@ -8,7 +8,6 @@
 #include <wchar.h>
 #include <cstdio>
 #define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
 #include <windows.h>
 #include "files.h"
 

@@ -22,9 +22,6 @@
 #define VSUTF16_H
 
 #include <string>
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
 #include <windows.h>
 
 static std::string utf16_to_utf8(const std::wstring &wstr) {

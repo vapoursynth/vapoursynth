@@ -1,7 +1,6 @@
 #include "assertive.h"
 #include <cstdio>
 #define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
 #include <windows.h>
 
 void AssertHandler(const char* file,int line,const char* expr)
