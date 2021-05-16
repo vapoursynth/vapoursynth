@@ -693,7 +693,6 @@ static void VS_CC splitPlanesCreate(const VSMap *in, VSMap *out, void *userData,
 
     int numPlanes = vi.format.numPlanes;
     d->vi.reserve(numPlanes);
-    size_t index = 0;
     int ssw = vi.format.subSamplingW;
     int ssh = vi.format.subSamplingH;
     vsapi->queryVideoFormat(&vi.format, cfGray, vi.format.sampleType, vi.format.bitsPerSample, 0, 0, core);
