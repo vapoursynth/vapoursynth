@@ -6,6 +6,19 @@ jobs:
   build-gcc:
     runs-on: ubuntu-latest
 
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+
+    strategy:
+      matrix:
+        include:
+          - cc: gcc-10
+            cxx: g++-10
+          - cc: gcc-11
+            cxx: g++-11
+      fail-fast: false
+
     steps:
     - uses: actions/checkout@v2
 
