@@ -1,10 +1,6 @@
 name: macOS
 
-on:
-  push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
+on: [push, pull_request, workflow_dispatch]
 
 jobs:
   build-clang:
@@ -16,6 +12,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+
+    - name: Print compiler version
+      run: ${{ env.CC }} --version
 
     - name: Install automake
       run: |
