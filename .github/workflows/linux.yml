@@ -22,6 +22,9 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
+    - name: Print compiler version
+      run: ${{ env.CC }} --version
+
     - name: Install zimg
       run: |
         git clone https://github.com/sekrit-twc/zimg --branch v3.0 --depth 1
