@@ -22,6 +22,7 @@
 #include <cmath>
 #include <functional>
 #include <iostream>
+#include <limits>
 #include <locale>
 #include <map>
 #include <memory>
@@ -29,6 +30,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -145,6 +147,7 @@ struct ExprData {
     int numInputs;
     typedef void (*ProcessLineProc)(void *rwptrs, intptr_t ptroff[MAX_EXPR_INPUTS + 1], intptr_t niter);
     ProcessLineProc proc[3];
+    size_t procSize[3];
 
     ExprData() : node(), vi(), plane(), numInputs(), proc() {}
 
@@ -155,7 +158,7 @@ struct ExprData {
 #ifdef VS_TARGET_OS_WINDOWS
                 VirtualFree((LPVOID)proc[i], 0, MEM_RELEASE);
 #else
-                munmap((void *)proc[i], 0);
+                munmap((void *)proc[i], procSize[i]);
 #endif
             }
         }
@@ -229,7 +232,8 @@ public:
         }
     }
 
-    virtual ExprData::ProcessLineProc getCode() = 0;
+    virtual ~ExprCompiler() {}
+    virtual std::pair<ExprData::ProcessLineProc, size_t> getCode() = 0;
 };
 
 class ExprCompiler128 : public ExprCompiler, private jitasm::function<void, ExprCompiler128, uint8_t *, const intptr_t *, intptr_t> {
@@ -1014,18 +1018,19 @@ do { \
 public:
     explicit ExprCompiler128(int numInputs) : cpuFeatures(*getCPUFeatures()), numInputs(numInputs), curLabel() {}
 
-    ExprData::ProcessLineProc getCode() override
+    std::pair<ExprData::ProcessLineProc, size_t> getCode() override
     {
-        if (jit::GetCode() && GetCodeSize()) {
+        size_t size;
+        if (jit::GetCode() && (size = GetCodeSize())) {
 #ifdef VS_TARGET_OS_WINDOWS
-            void *ptr = VirtualAlloc(nullptr, GetCodeSize(), MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+            void *ptr = VirtualAlloc(nullptr, size, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
 #else
-            void *ptr = mmap(nullptr, GetCodeSize(), PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANON | MAP_PRIVATE, 0, 0);
+            void *ptr = mmap(nullptr, size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANON | MAP_PRIVATE, 0, 0);
 #endif
-            memcpy(ptr, jit::GetCode(), GetCodeSize());
-            return reinterpret_cast<ExprData::ProcessLineProc>(ptr);
+            memcpy(ptr, jit::GetCode(), size);
+            return {reinterpret_cast<ExprData::ProcessLineProc>(ptr), size};
         }
-        return nullptr;
+        return {nullptr, 0};
     }
 #undef VEX2IMM
 #undef VEX2
@@ -1606,18 +1611,19 @@ do { \
 public:
     explicit ExprCompiler256(int numInputs) : cpuFeatures(*getCPUFeatures()), numInputs(numInputs) {}
 
-    ExprData::ProcessLineProc getCode() override
+    std::pair<ExprData::ProcessLineProc, size_t> getCode() override
     {
-        if (jit::GetCode(true) && GetCodeSize()) {
+        size_t size;
+        if (jit::GetCode(true) && (size = GetCodeSize())) {
 #ifdef VS_TARGET_OS_WINDOWS
-            void *ptr = VirtualAlloc(nullptr, GetCodeSize(), MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+            void *ptr = VirtualAlloc(nullptr, size, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
 #else
-            void *ptr = mmap(nullptr, GetCodeSize(), PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANON | MAP_PRIVATE, 0, 0);
+            void *ptr = mmap(nullptr, size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANON | MAP_PRIVATE, 0, 0);
 #endif
-            memcpy(ptr, jit::GetCode(true), GetCodeSize());
-            return reinterpret_cast<ExprData::ProcessLineProc>(ptr);
+            memcpy(ptr, jit::GetCode(true), size);
+            return {reinterpret_cast<ExprData::ProcessLineProc>(ptr), size};
         }
-        return nullptr;
+        return {nullptr, 0};
     }
 #undef EMIT
 };
@@ -3325,7 +3331,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
                             compiler->addInstruction(op);
                         }
 
-                        d->proc[i] = compiler->getCode();
+                        std::tie(d->proc[i], d->procSize[i]) = compiler->getCode();
 #endif
                     }
                 }

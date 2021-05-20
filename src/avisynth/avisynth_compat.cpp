@@ -23,6 +23,7 @@
 #include "avisynth_compat.h"
 #include <algorithm>
 #include <cstdarg>
+#include <limits>
 #include "../common/vsutf16.h"
 
 #define NOMINMAX
