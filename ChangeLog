@@ -1,4 +1,5 @@
 r54:
+fixed misc.Hysteresis handling of floating point U/V planes (AkarinVS)
 fixed memory leak on free in expr filter on linux (AkarinVS)
 
 r53:
