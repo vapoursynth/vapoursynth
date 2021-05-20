@@ -230,6 +230,7 @@ public:
         }
     }
 
+    virtual ~ExprCompiler() {}
     virtual ExprData::ProcessLineProc getCode() = 0;
 };
 
