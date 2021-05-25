@@ -196,6 +196,8 @@ class ExprCompiler {
     virtual void exp(const ExprInstruction &insn) = 0;
     virtual void log(const ExprInstruction &insn) = 0;
     virtual void pow(const ExprInstruction &insn) = 0;
+    virtual void sin(const ExprInstruction &insn) = 0;
+    virtual void cos(const ExprInstruction &insn) = 0;
 public:
     void addInstruction(const ExprInstruction &insn)
     {
@@ -228,6 +230,8 @@ public:
         case ExprOpType::EXP: exp(insn); break;
         case ExprOpType::LOG: log(insn); break;
         case ExprOpType::POW: pow(insn); break;
+        case ExprOpType::SIN: sin(insn); break;
+        case ExprOpType::COS: cos(insn); break;
         default: vsFatal("illegal opcode"); break;
         }
     }
@@ -242,7 +246,7 @@ class ExprCompiler128 : public ExprCompiler, private jitasm::function<void, Expr
     friend struct jitasm::function_cdecl<void, ExprCompiler128, uint8_t *, const intptr_t *, intptr_t>;
 
 #define SPLAT(x) { (x), (x), (x), (x) }
-    static constexpr ExprUnion constData alignas(16)[39][4] = {
+    static constexpr ExprUnion constData alignas(16)[53][4] = {
         SPLAT(0x7FFFFFFF), // absmask
         SPLAT(0x80000000), // negmask
         SPLAT(0x7F), // x7F
@@ -281,7 +285,21 @@ class ExprCompiler128 : public ExprCompiler, private jitasm::function<void, Expr
         SPLAT(-1.6668057665E-1f), // log_p5
         SPLAT(+2.0000714765E-1f), // log_p6
         SPLAT(-2.4999993993E-1f), // log_p7
-        SPLAT(+3.3333331174E-1f) // log_p8
+        SPLAT(+3.3333331174E-1f), // log_p8
+        SPLAT(0x3ea2f983), // float_invpi, 1/pi
+        SPLAT(0x4b400000), // float_rintf
+        SPLAT(0x40490000), // float_pi1
+        SPLAT(0x3a7da000), // float_pi2
+        SPLAT(0x34222000), // float_pi3
+        SPLAT(0x2cb4611a), // float_pi4
+        SPLAT(0xbe2aaaa6), // float_sinC3
+        SPLAT(0x3c08876a), // float_sinC5
+        SPLAT(0xb94fb7ff), // float_sinC7
+        SPLAT(0x362edef8), // float_sinC9
+        SPLAT(static_cast<int32_t>(0xBEFFFFE2)), // float_cosC2
+        SPLAT(0x3D2AA73C), // float_cosC4
+        SPLAT(static_cast<int32_t>(0XBAB58D50)), // float_cosC6
+        SPLAT(0x37C1AD76), // float_cosC8
     };
 
     struct ConstantIndex {
@@ -326,6 +344,20 @@ class ExprCompiler128 : public ExprCompiler, private jitasm::function<void, Expr
         static constexpr int log_p8 = 38;
         static constexpr int log_q1 = exp_c2;
         static constexpr int log_q2 = exp_c1;
+        static constexpr int float_invpi = 39;
+        static constexpr int float_rintf = 40;
+        static constexpr int float_pi1 = 41;
+        static constexpr int float_pi2 = float_pi1 + 1;
+        static constexpr int float_pi3 = float_pi1 + 2;
+        static constexpr int float_pi4 = float_pi1 + 3;
+        static constexpr int float_sinC3 = 45;
+        static constexpr int float_sinC5 = float_sinC3 + 1;
+        static constexpr int float_sinC7 = float_sinC3 + 2;
+        static constexpr int float_sinC9 = float_sinC3 + 3;
+        static constexpr int float_cosC2 = 49;
+        static constexpr int float_cosC4 = float_cosC2 + 1;
+        static constexpr int float_cosC6 = float_cosC2 + 2;
+        static constexpr int float_cosC8 = float_cosC2 + 3;
     };
 #undef SPLAT
 
@@ -979,6 +1011,103 @@ do { \
         });
     }
 
+    void sincos_(bool issin, XmmReg y, XmmReg x, Reg constants)
+    {
+        XmmReg t1, sign, t2, t3, t4;
+        // Remove sign
+        VEX1(movaps, t1, xmmword_ptr[constants + ConstantIndex::absmask * 16]);
+        if (issin) {
+            VEX1(movaps, sign, t1);
+            VEX2(andnps, sign, sign, x);
+        } else {
+            VEX2(pxor, sign, sign, sign);
+        }
+        VEX2(andps, t1, t1, x);
+        // Range reduction
+        VEX1(movaps, t3, xmmword_ptr[constants + ConstantIndex::float_rintf * 16]);
+        VEX2(mulps, t2, t1, xmmword_ptr[constants + ConstantIndex::float_invpi * 16]);
+        VEX2(addps, t2, t2, t3);
+        VEX1IMM(pslld, t4, t2, 31);
+        VEX2(xorps, sign, sign, t4);
+        VEX2(subps, t2, t2, t3);
+        VEX2(mulps, t4, t2, xmmword_ptr[constants + ConstantIndex::float_pi1 * 16]);
+        VEX2(subps, t1, t1, t4);
+        VEX2(mulps, t4, t2, xmmword_ptr[constants + ConstantIndex::float_pi2 * 16]);
+        VEX2(subps, t1, t1, t4);
+        VEX2(mulps, t4, t2, xmmword_ptr[constants + ConstantIndex::float_pi3 * 16]);
+        VEX2(subps, t1, t1, t4);
+        VEX2(mulps, t4, t2, xmmword_ptr[constants + ConstantIndex::float_pi4 * 16]);
+        VEX2(subps, t1, t1, t4);
+        if (issin) {
+            // Evaluate minimax polynomial for sin(x) in [-pi/2, pi/2] interval
+            // Y <- X + X * X^2 * (C3 + X^2 * (C5 + X^2 * (C7 + X^2 * C9)))
+            VEX2(mulps, t2, t1, t1);
+            VEX2(mulps, t3, t2, xmmword_ptr[constants + ConstantIndex::float_sinC9 * 16]);
+            VEX2(addps, t3, t3, xmmword_ptr[constants + ConstantIndex::float_sinC7 * 16]);
+            VEX2(mulps, t3, t3, t2);
+            VEX2(addps, t3, t3, xmmword_ptr[constants + ConstantIndex::float_sinC5 * 16]);
+            VEX2(mulps, t3, t3, t2);
+            VEX2(addps, t3, t3, xmmword_ptr[constants + ConstantIndex::float_sinC3 * 16]);
+            VEX2(mulps, t3, t3, t2);
+            VEX2(mulps, t3, t3, t1);
+            VEX2(addps, t1, t1, t3);
+        } else {
+            // Evaluate minimax polynomial for cos(x) in [-pi/2, pi/2] interval
+            // Y <- 1 + X^2 * (C2 + X^2 * (C4 + X^2 * (C6 + X^2 * C8)))
+            VEX2(mulps, t1, t1, t1);
+            VEX2(mulps, t2, t1, xmmword_ptr[constants + ConstantIndex::float_cosC8 * 16]);
+            VEX2(addps, t2, t2, xmmword_ptr[constants + ConstantIndex::float_cosC6 * 16]);
+            VEX2(mulps, t2, t2, t1);
+            VEX2(addps, t2, t2, xmmword_ptr[constants + ConstantIndex::float_cosC4 * 16]);
+            VEX2(mulps, t2, t2, t1);
+            VEX2(addps, t2, t2, xmmword_ptr[constants + ConstantIndex::float_cosC2 * 16]);
+            VEX2(mulps, t2, t2, t1);
+            VEX2(addps, t1, t2, xmmword_ptr[constants + ConstantIndex::float_one * 16]);
+        }
+        // Apply sign
+        VEX2(xorps, y, t1, sign);
+    }
+
+    void sincos(bool issin, const ExprInstruction &insn)
+    {
+        int l = curLabel++;
+
+        deferred.push_back([this, issin, insn, l](Reg regptrs, XmmReg zero, Reg constants, std::unordered_map<int, std::pair<XmmReg, XmmReg>> &bytecodeRegs)
+        {
+            char label[] = "label-0000";
+            sprintf(label, "label-%04d", l);
+
+            auto t1 = bytecodeRegs[insn.src1];
+            auto t3 = bytecodeRegs[insn.dst];
+
+            XmmReg r1, r2;
+            Reg a;
+            mov(a, 2);
+            VEX1(movaps, r1, t1.first);
+            VEX1(movaps, r2, t1.second);
+
+            L(label);
+
+            sincos_(issin, r1, r1, constants);
+            VEX1(movaps, t3.first, t3.second);
+            VEX1(movaps, t3.second, r1);
+            VEX1(movaps, r1, r2);
+
+            jit::sub(a, 1);
+            jnz(label);
+        });
+    }
+
+    void sin(const ExprInstruction &insn) override
+    {
+        sincos(true, insn);
+    }
+
+    void cos(const ExprInstruction &insn) override
+    {
+        sincos(false, insn);
+    }
+
     void main(Reg regptrs, Reg regoffs, Reg niter)
     {
         std::unordered_map<int, std::pair<XmmReg, XmmReg>> bytecodeRegs;
@@ -1039,7 +1168,7 @@ public:
 #undef EMIT
 };
 
-constexpr ExprUnion ExprCompiler128::constData alignas(16)[39][4];
+constexpr ExprUnion ExprCompiler128::constData alignas(16)[53][4];
 
 class ExprCompiler256 : public ExprCompiler, private jitasm::function<void, ExprCompiler256, uint8_t *, const intptr_t *, intptr_t> {
     typedef jitasm::function<void, ExprCompiler256, uint8_t *, const intptr_t *, intptr_t> jit;
@@ -1570,6 +1699,16 @@ do { \
             exp_(r1, one, constants);
             vmovaps(t3, r1);
         });
+    }
+
+    void sin(const ExprInstruction &insn) override
+    {
+        abort(); // TODO
+    }
+
+    void cos(const ExprInstruction &insn) override
+    {
+        abort(); // TODO
     }
 
     void main(Reg regptrs, Reg regoffs, Reg niter)
