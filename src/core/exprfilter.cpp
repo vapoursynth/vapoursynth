@@ -66,7 +66,7 @@ enum class ExprOpType {
     AND, OR, XOR, NOT,
 
     // Transcendental functions.
-    EXP, LOG, POW,
+    EXP, LOG, POW, SIN, COS,
 
     // Ternary operator
     TERNARY,
@@ -1696,6 +1696,8 @@ public:
             case ExprOpType::LOG: DST = std::log(SRC1); break;
             case ExprOpType::POW: DST = std::pow(SRC1, SRC2); break;
             case ExprOpType::SQRT: DST = std::sqrt(SRC1); break;
+            case ExprOpType::SIN: DST = std::sin(SRC1); break;
+            case ExprOpType::COS: DST = std::cos(SRC1); break;
             case ExprOpType::ABS: DST = std::fabs(SRC1); break;
             case ExprOpType::NEG: DST = -SRC1; break;
             case ExprOpType::CMP:
@@ -1876,6 +1878,8 @@ ExprOp decodeToken(const std::string &token)
         { "exp",  { ExprOpType::EXP } },
         { "log",  { ExprOpType::LOG } },
         { "pow",  { ExprOpType::POW } },
+        { "sin",  { ExprOpType::SIN } },
+        { "cos",  { ExprOpType::COS } },
         { "dup",  { ExprOpType::DUP, 0 } },
         { "swap", { ExprOpType::SWAP, 1 } },
     };
@@ -1942,6 +1946,8 @@ ExpressionTree parseExpr(const std::string &expr, const VSVideoInfo * const *vi,
         1, // EXP
         1, // LOG
         2, // POW
+        1, // SIN
+        1, // COS
         3, // TERNARY
         0, // MUX
         0, // DUP
@@ -2101,6 +2107,8 @@ float evalConstantExpr(const ExpressionTreeNode &node)
     case ExprOpType::EXP: return std::exp(LEFT);
     case ExprOpType::LOG: return std::log(LEFT);
     case ExprOpType::POW: return std::pow(LEFT, RIGHT);
+    case ExprOpType::SIN: return std::sin(LEFT);
+    case ExprOpType::COS: return std::cos(LEFT);
     case ExprOpType::TERNARY: return float2bool(LEFT) ? RIGHTLEFT : RIGHTRIGHT;
     default: return NAN;
     }
