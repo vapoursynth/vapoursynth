@@ -1,6 +1,21 @@
 Installation Instructions
 =========================
 
+The installation contains two main steps:
+
+1. Install VapourSynth core library.
+2. Install the Python wrapper of VapourSynth.
+
+After you completed the second step, you can test it by opening a Python command line
+and type this::
+
+   from vapoursynth import core
+   print(core.version())
+
+After pressing return at the final line, you should see the version printed along with a
+few other lines describing the options used when instantiating the Core object.
+In fact, these lines should be the same as the output result of ``vspipe --version``.
+
 Windows Installation Instructions
 #################################
 
@@ -8,43 +23,35 @@ Prerequisites
 *************
 
 First download and install the prerequisites:
-   * `Python 3.8.x <http://www.python.org/>`_  -- 32 or 64 bit version depending on which version of VapourSynth you want to install
+   * `Python 3.9.x <http://www.python.org/>`_  -- 32 or 64 bit version depending on which version of VapourSynth you want to install
    
 Note that VapourSynth and Python have to be matched so both are either installed
 for all users or for only for the current user.
 
-Also note that per user installs will not install the required visual studio
+Also note that per user installs will not install the required Visual Studio
 2019 runtimes.
 
 Installation
 ************
 
 Simply run the `VapourSynth installer <https://github.com/vapoursynth/vapoursynth/releases>`_.
-It should automatically detect everything.
+It should automatically detect and install everything, including the Python wrapper.
 
-Test it by opening a Python command line (should be added to your start menu)
-and type this::
-
-   from vapoursynth import core
-   print(core.version())
-
-After typing the final line you should see the version printed along with a
-few other lines describing the options used when instantiating the Core object.
-If this for some reason fails, there may be a bug in the installer or there are
+If the tests mentioned at the beginning fails, there may be a bug in the installer or there are
 old copies of vapoursynth.pyd and vapoursynth.dll lying around.
 
 Windows Portable Instructions
 #############################
 
 First download and decompress the prerequisites:
-   * `Python 3.8.x <http://www.python.org/>`_  -- 32 or 64 bit embeddable version
+   * `Python 3.9.x <http://www.python.org/>`_  -- 32 or 64 bit embeddable version
    
 Simply decompress the `portable VapourSynth archive <https://github.com/vapoursynth/vapoursynth/releases>`_
 into the Python dir and overwrite all existing files. Done.
 
 You can also use the VapourSynth Editor by decompressing it into the same directory.
 
-OS X Installation from Packages 
+OS X Installation from Packages
 ###############################
 
 First download and install the prerequisites:
@@ -55,25 +62,29 @@ Simply run these commands in a terminal and wait for them to complete::
 
    brew install vapoursynth
 
-Linux Installation from Packages 
+Linux Installation from Packages
 ################################
 
-Several distributions have packages:
+Several distributions have VapourSynth packages. Note that those packages are usually OUT OF DATE.
+ 
+Debian
+******
+The VapourSynth packages are provided by `deb-multimedia repository <https://www.deb-multimedia.org/>`_.
+You need to add the repository first following the guide on the official website.
 
-   * `Debian <https://www.deb-multimedia.org/>`_  -- deb-multimedia
-   * `Gentoo <https://github.com/4re/vapoursynth-portage>`_  -- Portage overlay and instructions
-   * `Arch Linux <https://www.archlinux.org/packages/?q=vapoursynth>`_  -- Official packages
+Fedora, CentOS and RHEL
+******
+For Fedora, the VapourSynth packages can be downloaded from official repository directly.
+For CentOS and RHEL, you should install EPEL (Extra Packages for Enterprise Linux) repository first.
 
-Installation via PIP (PyPI)
-###########################
+Gentoo
+******
+There is an `unofficial Portage tree <https://github.com/4re/vapoursynth-portage>`_ with all VapourSynth related ebuilds.
+Check the Github link for more information and instructions.
 
-You can install the Python wrapper using pip.
-
-Install `vapoursynth <https://pypi.org/project/VapourSynth/>`_ using Pip by using this command::
-
-    pip install VapourSynth
-
-Please note that you always need to have a working installation of VapourSynth beforehand. Note that on non-Windows systems, the installer will compile the module before installing.
+Arch Linux
+**********
+`VapourSynth-related packages <https://www.archlinux.org/packages/?q=vapoursynth>`_ are provided by the Community repository.
 
 Linux and OS X Compilation Instructions
 #######################################
@@ -85,7 +96,7 @@ These are the requirements:
 
    * GCC 4.8 or newer, or Clang
 
-   * `zimg v2.9 branch <https://github.com/sekrit-twc/zimg/releases>`_
+   * `zimg v3.0 branch <https://github.com/sekrit-twc/zimg/releases>`_
 
    * Python 3
 
@@ -170,3 +181,18 @@ The documentation can be built using its own Makefile::
    $ make -C doc/ html
 
 The documentation can be installed using the standard program ``cp``.
+
+Install Python wrapper via pip (PyPI)
+#####################################
+
+The Windows installer will install Python wrapper automatically.
+Some Linux distros (e.g. Fedora & CentOS series) also provide pre-built Python wrapper package.
+If you do not use them, you can install the Python wrapper using pip.
+
+Install `vapoursynth <https://pypi.org/project/VapourSynth/>`_ by using this command::
+
+    pip install VapourSynth
+
+Please note that you need a working installation of VapourSynth beforehand.
+On non-Windows systems, the installer will compile the module before installing.
+

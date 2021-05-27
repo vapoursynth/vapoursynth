@@ -32,6 +32,15 @@ Resize
    The function will return an error if the subsampling restrictions aren't
    followed.  
 
+   If you get an error like::
+
+      Resize error 3074: no path between colorspaces (2/2/2 => 1/1/1).
+      May need to specify additional colorspace parameters.
+
+   It usually means the matrix/transfer/primaries are unknown and you have to
+   specify the input colorspace paramaters yourself. Note: 2 means "unspecified"
+   according to the ITU-T recommendation.
+
    *clip*:
    
       Accepts all kinds of input.
@@ -127,118 +136,120 @@ Resize
       Bicubic(clip=clip, width=1920, height=1080, format=vs.RGB24, matrix_in_s="709")
 
    The following tables list values of selected colorspace enumerations and
-   their abbreviated names. For all possible values, see ITU-T H.265.
+   their abbreviated names. (Numerical value in parentheses.) For all possible values,
+   see ITU-T H.265.
    
       Matrix coefficients (ITU-T H.265 Table E.5)::
         
-        rgb         Identity
-                    The identity matrix.
-                    Typically used for GBR (often referred to as RGB);
-                    however, may also be used for YZX (often referred to as
-                    XYZ);
-        709         KR = 0.2126; KB = 0.0722
-                    ITU-R Rec. BT.709-5
-        unspec      Unspecified
-                    Image characteristics are unknown or are determined by the
-                    application.
-        470bg       KR = 0.299; KB = 0.114
-                    ITU-R Rec. BT.470-6 System B, G (historical)
-                    (functionally the same as the value 6 (170m))
-        170m        KR = 0.299; KB = 0.114
-                    SMPTE 170M (2004)
-                    (functionally the same as the value 5 (470bg))
-        240m        SMPTE 240M
-        fcc
-        ycgco       YCgCo
-        2020ncl     KR = 0.2627; KB = 0.0593
-                    Rec. ITU-R BT.2020 non-constant luminance system
-        2020cl      KR = 0.2627; KB = 0.0593
-                    Rec. ITU-R BT.2020 constant luminance system
-        chromacl    Chromaticity derived constant luminance system
-        chromancl   Chromaticity derived non-constant luminance system
-        ictcp       ICtCp
+        rgb (0)        Identity
+                       The identity matrix.
+                       Typically used for GBR (often referred to as RGB);
+                       however, may also be used for YZX (often referred to as
+                       XYZ);
+        709 (1)        KR = 0.2126; KB = 0.0722
+                       ITU-R Rec. BT.709-5
+        unspec (2)     Unspecified
+                       Image characteristics are unknown or are determined by the
+                       application.
+        fcc (4)
+        470bg (5)      KR = 0.299; KB = 0.114
+                       ITU-R Rec. BT.470-6 System B, G (historical)
+                       (functionally the same as the value 6 (170m))
+        170m (6)       KR = 0.299; KB = 0.114
+                       SMPTE 170M (2004)
+                       (functionally the same as the value 5 (470bg))
+        240m (7)       SMPTE 240M
+        ycgco (8)      YCgCo
+        2020ncl (9)    KR = 0.2627; KB = 0.0593
+                       Rec. ITU-R BT.2020 non-constant luminance system
+        2020cl (10)    KR = 0.2627; KB = 0.0593
+                       Rec. ITU-R BT.2020 constant luminance system
+        chromancl (12) Chromaticity derived non-constant luminance system
+        chromacl (13)  Chromaticity derived constant luminance system
+        ictcp (14)     ICtCp
 
       Transfer characteristics (ITU-T H.265 Table E.4)::
         
-        709         V = a * Lc0.45 - ( a - 1 ) for 1 >= Lc >= b
-                    V = 4.500 * Lc for b > Lc >= 0
-                    Rec. ITU-R BT.709-5
-                    (functionally the same as the values 6 (601),
-                    14 (2020_10) and 15 (2020_12))
-        unspec      Unspecified
-                    Image characteristics are unknown or are determined by the
-                    application.
-        601         V = a * Lc0.45 - ( a - 1 ) for 1 >= Lc >= b
-                    V = 4.500 * Lc for b > Lc >= 0
-                    Rec. ITU-R BT.601-6 525 or 625
-                    (functionally the same as the values 1 (709),
-                    14 (2020_10) and 15 (2020_12))
-        linear      V = Lc for all values of Lc
-                    Linear transfer characteristics
-        2020_10     V = a * Lc0.45 - ( a - 1 ) for 1 >= Lc >= b
-                    V = 4.500 * Lc for b > Lc >= 0
-                    Rec. ITU-R BT.2020
-                    (functionally the same as the values 1 (709),
-                    6 (601) and 15 (2020_12))
-        2020_12     V = a * Lc0.45 - ( a - 1 ) for 1 >= Lc >= b
-                    V = 4.500 * Lc for b > Lc >= 0
-                    Rec. ITU-R BT.2020
-                    (functionally the same as the values 1 (709),
-                    6 (601) and 14 (2020_10))
-        240m        SMPTE 240M       
-        470m        ITU-R Rec. BT.470-6 System M       
-        470bg       ITU-R Rec. BT.470-6 System B, G (historical)
-        log100      Log 1:100 contrast
-        log316      Log 1:316 contrast
-        st2084      SMPTE ST 2084
-        std-b67     ARIB std-b67
-        srgb        IEC 61966-2-1
-        xvycc       IEC 61966-2-4
+        709 (1)        V = a * Lc0.45 - ( a - 1 ) for 1 >= Lc >= b
+                       V = 4.500 * Lc for b > Lc >= 0
+                       Rec. ITU-R BT.709-5
+                       (functionally the same as the values 6 (601),
+                       14 (2020_10) and 15 (2020_12))
+        unspec (2)     Unspecified
+                       Image characteristics are unknown or are determined by the
+                       application.
+        470m (4)       ITU-R Rec. BT.470-6 System M       
+        470bg (5)      ITU-R Rec. BT.470-6 System B, G (historical)
+        601 (6)        V = a * Lc0.45 - ( a - 1 ) for 1 >= Lc >= b
+                       V = 4.500 * Lc for b > Lc >= 0
+                       Rec. ITU-R BT.601-6 525 or 625
+                       (functionally the same as the values 1 (709),
+                       14 (2020_10) and 15 (2020_12))
+        240m (7)       SMPTE 240M       
+        linear (8)     V = Lc for all values of Lc
+                       Linear transfer characteristics
+        log100 (9)     Log 1:100 contrast
+        log316 (10)    Log 1:316 contrast
+        xvycc (11)     IEC 61966-2-4
+        srgb (13)      IEC 61966-2-1
+        2020_10 (14)   V = a * Lc0.45 - ( a - 1 ) for 1 >= Lc >= b
+                       V = 4.500 * Lc for b > Lc >= 0
+                       Rec. ITU-R BT.2020
+                       (functionally the same as the values 1 (709),
+                       6 (601) and 15 (2020_12))
+        2020_12 (15)   V = a * Lc0.45 - ( a - 1 ) for 1 >= Lc >= b
+                       V = 4.500 * Lc for b > Lc >= 0
+                       Rec. ITU-R BT.2020
+                       (functionally the same as the values 1 (709),
+                       6 (601) and 14 (2020_10))
+        st2084 (16)    SMPTE ST 2084
+        std-b67 (18)   ARIB std-b67
 
       Color primaries (ITU-T H.265 Table E.3)::
       
-        709         primary x y
-                    green 0.300 0.600
-                    blue 0.150 0.060
-                    red 0.640 0.330
-                    white D65 0.3127 0.3290
-                    Rec. ITU-R BT.709-5
-        unspec      Unspecified
-                    Image characteristics are unknown or are determined by the
-                    application.
-        170m        primary x y
-                    green 0.310 0.595
-                    blue 0.155 0.070
-                    red 0.630 0.340
-                    white D65 0.3127 0.3290
-                    SMPTE 170M (2004)
-                    (functionally the same as the value 7 (240m))
-        240m        primary x y
-                    green 0.310 0.595
-                    blue 0.155 0.070
-                    red 0.630 0.340
-                    white D65 0.3127 0.3290
-                    SMPTE 240M (1999)
-                    (functionally the same as the value 6 (170m))
-        470m        ITU-R Rec. BT.470-6 System M   
-        470bg       ITU-R Rec. BT.470-6 System B, G (historical)
-        film
-        2020        primary x y
-                    green 0.170 0.797
-                    blue 0.131 0.046
-                    red 0.708 0.292
-                    white D65 0.3127 0.3290
-                    Rec. ITU-R BT.2020
-        st428       Commonly known as xyz
-        xyz
-        st431-2     DCI-P3 with traditional white point
-        st432-1     DCI-P3
-        jedec-p22   E.B.U. STANDARD FOR CHROMATICITY TOLERANCES FOR STUDIO MONITORS (3213-E)
-                    Also known as JEDEC P22
+        709 (1)        primary x y
+                       green 0.300 0.600
+                       blue 0.150 0.060
+                       red 0.640 0.330
+                       white D65 0.3127 0.3290
+                       Rec. ITU-R BT.709-5
+        unspec (2)     Unspecified
+                       Image characteristics are unknown or are determined by the
+                       application.
+        470m (4)       ITU-R Rec. BT.470-6 System M
+        470bg (5)      ITU-R Rec. BT.470-6 System B, G (historical)
+        170m (6)       primary x y
+                       green 0.310 0.595
+                       blue 0.155 0.070
+                       red 0.630 0.340
+                       white D65 0.3127 0.3290
+                       SMPTE 170M (2004)
+                       (functionally the same as the value 7 (240m))
+        240m (7)       primary x y
+                       green 0.310 0.595
+                       blue 0.155 0.070
+                       red 0.630 0.340
+                       white D65 0.3127 0.3290
+                       SMPTE 240M (1999)
+                       (functionally the same as the value 6 (170m))
+        film (8)
+        2020 (9)       primary x y
+                       green 0.170 0.797
+                       blue 0.131 0.046
+                       red 0.708 0.292
+                       white D65 0.3127 0.3290
+                       Rec. ITU-R BT.2020
+        st428 (10)     Commonly known as xyz
+        xyz (10)       Alias for st428
+        st431-2 (11)   DCI-P3 with traditional white point
+        st432-1 (12)   DCI-P3
+        jedec-p22 (22) E.B.U. STANDARD FOR CHROMATICITY TOLERANCES FOR STUDIO MONITORS (3213-E)
+                       Also known as JEDEC P22
 
       Pixel range (ITU-T H.265 Eq E-4 to E-15)::
       
-        limited     Y = Clip1Y( Round( ( 1 << ( BitDepthY - 8 ) ) *
+        limited (0) Studio (TV) legal range, 16-235 in 8 bits.
+                    Y = Clip1Y( Round( ( 1 << ( BitDepthY - 8 ) ) *
                                               ( 219 * E'Y + 16 ) ) )
                     Cb = Clip1C( Round( ( 1 << ( BitDepthC - 8 ) ) *
                                                ( 224 * E'PB + 128 ) ) )
@@ -251,7 +262,8 @@ Resize
                                        ( 219 * E'G + 16 ) )
                     B = Clip1Y( ( 1 << ( BitDepthY - 8 ) ) *
                                        ( 219 * E'B + 16 ) )
-        full        Y = Clip1Y( Round( ( ( 1 << BitDepthY ) - 1 ) * E'Y ) )
+        full (1)    Full (PC) dynamic range, 0-255 in 8 bits.
+                    Y = Clip1Y( Round( ( ( 1 << BitDepthY ) - 1 ) * E'Y ) )
                     Cb = Clip1C( Round( ( ( 1 << BitDepthC ) - 1 ) * E'PB +
                                           ( 1 << ( BitDepthC - 1 ) ) ) )
                     Cr = Clip1C( Round( ( ( 1 << BitDepthC ) - 1 ) * E'PR +

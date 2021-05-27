@@ -1,4 +1,4 @@
-#  Copyright (c) 2012-2020 Fredrik Mellbin
+#  Copyright (c) 2012-2021 Fredrik Mellbin
 #
 #  This file is part of VapourSynth.
 #
@@ -74,7 +74,7 @@ __all__ = [
   'core', 
 ]
     
-__version__ = namedtuple("VapourSynthVersion", "release_major release_minor")(52, 0)
+__version__ = namedtuple("VapourSynthVersion", "release_major release_minor")(53, 0)
 __api_version__ = namedtuple("VapourSynthAPIVersion", "api_major api_minor")(VAPOURSYNTH_API_MAJOR, VAPOURSYNTH_API_MINOR)
 
 

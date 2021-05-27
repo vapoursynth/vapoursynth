@@ -1,7 +1,7 @@
 FrameProps (Text)
 =================
 
-.. function:: FrameProps(vnode clip[, string props=[], int alignment=7])
+.. function:: FrameProps(vnode clip[, string props=[], int alignment=7, int scale=1])
    :module: text
 
    Prints all properties attached to the frames, or if the *props* array is

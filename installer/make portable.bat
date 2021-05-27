@@ -14,7 +14,7 @@ mkdir buildp64\doc
 copy ..\vsrepo\vsrepo.py buildp64
 copy 7z.exe buildp64
 copy 7z.dll buildp64
-copy ..\vapoursynth.cp38-win_amd64.pyd buildp64
+copy ..\vapoursynth.cp39-win_amd64.pyd buildp64
 copy ..\msvc_project\x64\Release\VapourSynth.dll buildp64
 copy ..\msvc_project\x64\Release\vsscript.dll buildp64
 copy ..\msvc_project\x64\Release\avfs.exe buildp64
@@ -66,7 +66,7 @@ mkdir buildp32\doc
 copy ..\vsrepo\vsrepo.py buildp32
 copy 7z.exe buildp32
 copy 7z.dll buildp32
-copy ..\vapoursynth.cp38-win32.pyd buildp32
+copy ..\vapoursynth.cp39-win32.pyd buildp32
 copy ..\msvc_project\Release\VapourSynth.dll buildp32
 copy ..\msvc_project\Release\vsscript.dll buildp32
 copy ..\msvc_project\Release\avfs.exe buildp32

@@ -25,6 +25,7 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 */
 
+#include <limits>
 #include "shared.h"
 
 #define CLENSE_RETERROR(x) do { vsapi->mapSetError(out, (x)); vsapi->freeNode(d.cnode); vsapi->freeNode(d.pnode); vsapi->freeNode(d.nnode); return; } while (0)
@@ -198,7 +199,7 @@ void VS_CC clenseCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
     for (i = 0; i < m; i++) {
         o = vsapi->mapGetIntSaturated(in, "planes", i, nullptr);
 
-        if (o < 0 || o >= n) 
+        if (o < 0 || o >= n)
             CLENSE_RETERROR("Clense: plane index out of range");
 
         if (d.process[o])
@@ -224,7 +225,7 @@ void VS_CC clenseCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
 
     if (!getFrameFunc)
         CLENSE_RETERROR("Clense: only 8 and 16 bit integer input supported");
-    
+
     data = new ClenseData(d);
 
     vsapi->createVideoFilter(out, "Clense", data->vi, 1, getFrameFunc, clenseFree, fmParallel, 0, data, core);

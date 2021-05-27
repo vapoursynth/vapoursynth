@@ -5,13 +5,13 @@
 vcredist2017_title=Visual C++ 2015-2019 Redistributable
 vcredist2017_title_x64=Visual C++ 2015-2019 64-Bit Redistributable
 
-vcredist2017_size=13.7 MB
-vcredist2017_size_x64=14.3 MB
+vcredist2017_size=13.6 MB
+vcredist2017_size_x64=14.1 MB
 
 [Code]
 const
-	vcredist2017_url = 'http://download.visualstudio.microsoft.com/download/pr/9fe82b83-f3a1-43f5-8f25-ebe24529854c/B4D433E2F66B30B478C0D080CCD5217CA2A963C16E90CAF10B1E0592B7D8D519/VC_redist.x86.exe';
-	vcredist2017_url_x64 = 'http://download.visualstudio.microsoft.com/download/pr/fd5d2eea-32b8-4814-b55e-28c83dd72d9c/952A0C6CB4A3DD14C3666EF05BB1982C5FF7F87B7103C2BA896354F00651E358/VC_redist.x64.exe';
+	vcredist2017_url = 'http://download.visualstudio.microsoft.com/download/pr/366c0fb9-fe05-4b58-949a-5bc36e50e370/E830C313AA99656748F9D2ED582C28101EAAF75F5377E3FB104C761BF3F808B2/VC_redist.x86.exe';
+	vcredist2017_url_x64 = 'http://download.visualstudio.microsoft.com/download/pr/366c0fb9-fe05-4b58-949a-5bc36e50e370/015EDD4E5D36E053B23A01ADB77A2B12444D3FB6ECCEFE23E3A8CD6388616A16/VC_redist.x64.exe';
 
 	vcredist2017_upgradecode = '{65E5BD06-6392-3027-8C26-853107D3CF1A}';
 	vcredist2017_upgradecode_x64 = '{36F68A90-239C-34DF-B58C-64B30153CE35}';

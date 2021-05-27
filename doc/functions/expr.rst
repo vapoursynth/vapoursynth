@@ -27,10 +27,8 @@ Expr
    If you mix clips with different input formats this must be taken into
    consideration.
 
-   When the output format uses 1 byte per sample, the result of the expression
-   is clamped to [0, 255] before it is stored in the output frame. When the
-   output format uses 2 bytes per sample, the result of the expression is
-   clamped to [0, 65535], irrespective of the number of bits actually used.
+   When the output format uses integer samples, the result of the expression is
+   clamped to the [0, 2**bits_per_sample-1] range.
    When the output format uses float samples, the result of the expression is
    stored without any clamping.
 

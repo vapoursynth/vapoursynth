@@ -43,13 +43,13 @@ static PyGILState_STATE s;
 static void real_init(void) VS_NOEXCEPT {
 #ifdef VS_TARGET_OS_WINDOWS
 #ifdef _WIN64
-    #define VS_INSTALL_REGKEY L"Software\\VapourSynth" 
+    #define VS_INSTALL_REGKEY L"Software\\VapourSynth"
 #else
     #define VS_INSTALL_REGKEY L"Software\\VapourSynth-32"
 #endif
 
     // portable
-    const std::wstring pythonDllName = L"python38.dll";
+    const std::wstring pythonDllName = L"python39.dll";
     HMODULE module;
     GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCWSTR)&real_init, &module);
     std::vector<wchar_t> pathBuf(65536);

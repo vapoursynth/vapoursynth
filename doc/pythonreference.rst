@@ -147,11 +147,17 @@ Raw Access to Frame Data
 ########################
 
 The VideoFrame class simply contains one picture and all the metadata
-associated with it. It is possible to access the raw data using ctypes and
-some persistence. The three relevant functions are *get_read_ptr(plane)*,
+associated with it. It is possible to access the raw data using either
+*get_write_array(plane)* or *get_write_ptr* with ctypes.
+
+The relevant functions are *get_read_array(plane)*, *get_read_ptr(plane)*,
 *get_write_ptr(plane)*, and *get_stride(plane)*, all of which take the plane
-to access as an argument. Accessing the data is a bit trickier as
-*get_read_ptr()* and *get_write_ptr()* only return a pointer.
+to access as an argument. The recommended way is to use *get_read_array(plane)*
+(*get_write_array(plane)*) to get a read-only (writable) memory view that
+can be accessed directly via *view[row,col]* or *view[row][col]*. The returned
+view is valid as long as its VideoFrame exists.
+The raw access functions are a bit trickier as *get_read_ptr()* and *get_write_ptr()*
+only return a pointer.
 
 To get a frame simply call *get_frame(n)* on a clip. Should you desire to get
 all frames in a clip, use this code::
@@ -405,7 +411,11 @@ Classes and Functions
 
    .. py:attribute:: props
 
-      This attribute holds all the frame's properties as a dict. They are also mapped as sub-attributes for compatibility with older scripts.
+      This attribute holds all the frame's properties as a dict. They are also mapped as sub-attributes for
+      compatibility with older scripts. For more information, see:
+      `API Reference <apireference.html#reserved-frame-properties>`_
+      Note: This includes the data for matrix, transfer and primaries. (_Matrix,
+      _Transfer, _Primaries) See `Resize <functions/resize.html>`_ for more information.
 
    .. py:method:: copy()
 
@@ -491,7 +501,7 @@ Classes and Functions
 
    Plugin is a class that represents a loaded plugin and its namespace.
    
-   .. py:attribute:: name
+   .. py:attribute:: namespace
 
       The namespace of the plugin.
 

@@ -287,7 +287,7 @@ void translate_vsformat(const VSVideoFormat *vsformat, zimg_image_format *format
 }
 
 
-bool import_frame_props(const VSMap *props, zimg_image_format *format, const VSAPI *vsapi) {
+void import_frame_props(const VSMap *props, zimg_image_format *format, bool *interlaced, const VSAPI *vsapi) {
     propGetIfValid<int>(props, "_ChromaLocation", &format->chroma_location, [](int x) { return x >= 0; }, vsapi);
 
     if (vsapi->mapNumElements(props, "_ColorRange") > 0) {
@@ -330,7 +330,7 @@ bool import_frame_props(const VSMap *props, zimg_image_format *format, const VSA
         format->active_region.height /= 2;
     }
 
-    return is_interlaced;
+    *interlaced = is_interlaced;
 }
 
 void export_frame_props(const zimg_image_format &format, VSMap *props, const VSAPI *vsapi) {
@@ -618,7 +618,7 @@ class vszimg {
 
     VSNodeRef *m_node;
     VSVideoInfo m_vi;
-    bool m_prefer_props;
+    bool m_prefer_props; // If true, frame properties have precedence over filter arguments.
     double m_src_left, m_src_top, m_src_width, m_src_height;
     vszimgxx::zfilter_graph_builder_params m_params;
 
@@ -830,17 +830,23 @@ class vszimg {
             translate_vsformat(src_vsformat, &src_format, vsapi);
             translate_vsformat(dst_vsformat, &dst_format, vsapi);
 
-            if (m_prefer_props)
+            bool interlaced = false;
+
+            if (m_prefer_props) {
                 set_src_colorspace(&src_format);
-            bool interlaced = import_frame_props(src_props, &src_format, vsapi);
-            if (!m_prefer_props)
+                import_frame_props(src_props, &src_format, &interlaced, vsapi);
+            } else {
+                import_frame_props(src_props, &src_format, &interlaced, vsapi);
                 set_src_colorspace(&src_format);
+            }
 
             set_dst_colorspace(src_format, &dst_format);
 
-            // Need to also check VSVideoFormat::id in case transformation to/from COMPAT is required.
-            if (src_format == dst_format && isSameVideoFormat(src_vsformat, dst_vsformat) && !is_shifted(src_format))
-                return vsapi->cloneFrameRef(src_frame);
+            if (src_format == dst_format && isSameVideoFormat(src_vsformat, dst_vsformat) && !is_shifted(src_format)) {
+                VSFrameRef *clone = vsapi->copyFrame(src_frame, core);
+                export_frame_props(dst_format, vsapi->getFramePropertiesRW(clone), vsapi);
+                return clone;
+            }
 
             dst_frame = vsapi->newVideoFrame(dst_vsformat, dst_format.width, dst_format.height, src_frame, core);
 
@@ -988,7 +994,7 @@ void VS_CC vszimg_create(const VSMap *in, VSMap *out, void *userData, VSCore *co
 }
 
 void VS_CC vszimg_free(void *instanceData, VSCore *core, const VSAPI *vsapi) {
-    auto x = static_cast<vszimg *>(instanceData);
+    vszimg *x = static_cast<vszimg *>(instanceData);
     x->freeFunc(core, vsapi);
     delete x;
 }

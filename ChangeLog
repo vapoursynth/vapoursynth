@@ -1,3 +1,16 @@
+r54:
+fixed misc.Hysteresis handling of floating point U/V planes (AkarinVS)
+fixed memory leak on free in expr filter on linux (AkarinVS)
+
+r53:
+updated visual studio 2019 runtime version
+updated to python 3.9 for windows
+added scale argument to text filters (AkarinVS)
+fixed length calculation in y4m header (djatom)
+added long path support to vspipe (stax76)
+fixed crash in text filter with small resolution clips (jackoneill)
+fixed calling wrapped functions through python (IFeelBloated)
+
 r52:
 updated visual studio 2019 runtime version
 updated zimg

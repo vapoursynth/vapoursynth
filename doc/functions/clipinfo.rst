@@ -1,7 +1,7 @@
 ClipInfo (Text)
 ===============
 
-.. function:: ClipInfo(vnode clip[, int alignment=7])
+.. function:: ClipInfo(vnode clip[, int alignment=7, int scale=1]])
    :module: text
 
    Prints information about the *clip*, such as the format and framerate.

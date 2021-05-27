@@ -1,7 +1,7 @@
-#define Version '52'
+#define Version '53'
 #define VersionExtra '-audio6'
-#define PythonVersion '3.8'
-#define PythonCompactVersion '38'
+#define PythonVersion '3.9'
+#define PythonCompactVersion '39'
 
 #ifndef InstallerBits
   #define InstallerBits '64'
@@ -196,7 +196,7 @@ Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "PATH"; Value
 
 [Code]
 
-const VSRuntimeVersion = '14.27.29016';
+const VSRuntimeVersion = '14.28.29913';
 
 type
   TPythonPath = record

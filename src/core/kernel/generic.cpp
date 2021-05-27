@@ -22,6 +22,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <type_traits>
 #include "generic.h"
 

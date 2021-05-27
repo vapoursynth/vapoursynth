@@ -364,6 +364,8 @@ static const VSFrameRef *VS_CC writeGetFrame(int n, int activationReason, void *
                 writeImageHelper<uint8_t>(frame, alphaFrame, isGray, image, width, height, fi->bitsPerSample, vsapi);
             }
 
+            image.strip();
+
             image.write(filename);
 
             vsapi->freeFrame(alphaFrame);
@@ -587,6 +589,22 @@ static void readImageHelper(VSFrameRef *frame, VSFrameRef *alphaFrame, bool isGr
     }
 }
 
+static void readSampleTypeDepth(const ReadData *d, const Magick::Image &image, VSSampleType &st, int &depth) {
+        st = stInteger;
+        depth = static_cast<int>(image.depth());
+        if (depth == 32)
+                st = stFloat;
+
+        if (d->floatOutput || image.attribute("quantum:format") == "floating-point") {
+                depth = 32;
+                st = stFloat;
+        }
+
+        // VapourSynth does not support <8-bit integer types.
+        if (depth < 8)
+                depth = 8;
+}
+
 static const VSFrameRef *VS_CC readGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     ReadData *d = static_cast<ReadData *>(*instanceData);
 
@@ -618,15 +636,9 @@ static const VSFrameRef *VS_CC readGetFrame(int n, int activationReason, void **
             int height = static_cast<int>(image.rows());
             size_t channels = image.channels();
 
-            VSSampleType st = stInteger;
-            int depth = static_cast<int>(image.depth());
-            if (depth == 32)
-                st = stFloat;
-
-            if (d->floatOutput || image.attribute("quantum:format") == "floating-point") {
-                depth = 32;
-                st = stFloat;
-            }
+            VSSampleType st;
+            int depth;
+            readSampleTypeDepth(d, image, st, depth);
 
             if (d->vi[0].format && (cf != d->vi[0].format->colorFamily || depth != d->vi[0].format->bitsPerSample)) {
                 std::string err = "Read: Format mismatch for frame " + std::to_string(n) + ", is ";
@@ -782,15 +794,9 @@ static void VS_CC readCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     try {
         Magick::Image image(d->fileListMode ? d->filenames[0] : specialPrintf(d->filenames[0], d->firstNum));
 
-        VSSampleType st = stInteger;
-        int depth = image.depth();
-        if (depth == 32)
-            st = stFloat;
-
-        if (d->floatOutput || image.attribute("quantum:format") == "floating-point") {
-            depth = 32;
-            st = stFloat;
-        }
+        VSSampleType st;
+        int depth;
+        readSampleTypeDepth(d.get(), image, st, depth);
 
         if (!d->mismatch || d->vi[0].numFrames == 1) {
             d->vi[0].height = static_cast<int>(image.rows());

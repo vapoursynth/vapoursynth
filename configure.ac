@@ -1,4 +1,4 @@
-AC_INIT([vapoursynth], [52], [https://github.com/vapoursynth/vapoursynth/issues], [vapoursynth], [http://www.vapoursynth.com/])
+AC_INIT([vapoursynth], [53], [https://github.com/vapoursynth/vapoursynth/issues], [vapoursynth], [http://www.vapoursynth.com/])
 
 : ${CFLAGS=""}
 : ${CXXFLAGS=""}
@@ -11,9 +11,11 @@ LT_INIT([win32-dll])
 AC_PROG_CC
 AC_PROG_CXX
 
+AC_CONFIG_MACRO_DIRS([m4])
 
 AC_SYS_LARGEFILE
 AC_FUNC_FSEEKO
+AX_PTHREAD
 
 
 AC_ARG_ENABLE([debug], AS_HELP_STRING([--enable-debug], [Enable compilation options required for debugging. (default=no)]))
@@ -72,10 +74,12 @@ AS_CASE(
         [darwin*],
         [
          AC_DEFINE([VS_TARGET_OS_DARWIN])
+         AC_SUBST([UNDEFINEDLDFLAGS], ["-Wl,-undefined,error"])
         ],
         [*linux*|gnu*|dragonfly*|*bsd*], # The BSDs are close enough, right?
         [
          AC_DEFINE([VS_TARGET_OS_LINUX])
+         AC_SUBST([UNDEFINEDLDFLAGS], ["-Wl,--no-undefined"])
         ],
         [cygwin*|mingw*],
         [

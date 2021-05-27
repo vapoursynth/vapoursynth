@@ -23,6 +23,7 @@
 #include <cmath>
 #include <cfloat>
 #include <cstddef>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <vector>
@@ -726,7 +727,6 @@ struct HysteresisData {
     VSNodeRef * node1, *node2;
     bool process[3];
     uint16_t peak;
-    float lower[3], upper[3];
     size_t labelSize;
 };
 
@@ -750,8 +750,8 @@ static void process_frame_hysteresis(const VSFrameRef * src1, const VSFrameRef *
                 lower = 0;
                 upper = d->peak;
             } else {
-                lower = d->lower[plane];
-                upper = d->upper[plane];
+                lower = 0.f;
+                upper = 1.f;
             }
 
             std::fill_n(dstp, stride * height, lower);
@@ -847,16 +847,6 @@ static void VS_CC hysteresisCreate(const VSMap *in, VSMap *out, void *userData, 
 
         if (vi->format.sampleType == stInteger) {
             d->peak = (1 << vi->format.bitsPerSample) - 1;
-        } else {
-            for (int plane = 0; plane < vi->format.numPlanes; plane++) {
-                if (plane == 0 || vi->format.colorFamily == cfRGB) {
-                    d->lower[plane] = 0.f;
-                    d->upper[plane] = 1.f;
-                } else {
-                    d->lower[plane] = -0.5f;
-                    d->upper[plane] = 0.5f;
-                }
-            }
         }
 
         d->labelSize = vi->width * vi->height;

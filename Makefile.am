@@ -2,6 +2,7 @@ warningflags = -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wno-ign
 commoncflags = -O3 -fvisibility=hidden $(warningflags) -I$(srcdir)/include $(DEBUGCFLAGS) $(MFLAGS) $(UNICODECFLAGS) $(STACKREALIGN)
 AM_CXXFLAGS = -std=c++14 $(commoncflags)
 AM_CFLAGS = -std=c99 $(commoncflags)
+ACLOCAL_AMFLAGS = -I m4
 
 
 
@@ -83,9 +84,9 @@ pkginclude_HEADERS = include/VapourSynth.h \
 
 pkgconfig_DATA += pc/vapoursynth.pc
 
-libvapoursynth_la_LDFLAGS = -no-undefined -avoid-version
-libvapoursynth_la_CPPFLAGS = $(ZIMG_CFLAGS) -DVS_PATH_PLUGINDIR='"$(PLUGINDIR)"'
-libvapoursynth_la_LIBADD = $(ZIMG_LIBS) $(DLOPENLIB) libexprfilter.la
+libvapoursynth_la_LDFLAGS = -no-undefined -avoid-version $(UNDEFINEDLDFLAGS)
+libvapoursynth_la_CPPFLAGS = $(PTHREAD_CFLAGS) $(ZIMG_CFLAGS) -DVS_PATH_PLUGINDIR='"$(PLUGINDIR)"'
+libvapoursynth_la_LIBADD = $(PTHREAD_LIBS) $(ZIMG_LIBS) $(DLOPENLIB) libexprfilter.la
 
 
 if X86ASM
@@ -130,7 +131,7 @@ lib_LTLIBRARIES += libvapoursynth-script.la
 pkgconfig_DATA += pc/vapoursynth-script.pc
 
 libvapoursynth_script_la_SOURCES = src/vsscript/vsscript.cpp
-libvapoursynth_script_la_LDFLAGS = -no-undefined -version-info 0
+libvapoursynth_script_la_LDFLAGS = -no-undefined -version-info 0 $(UNDEFINEDLDFLAGS)
 libvapoursynth_script_la_CPPFLAGS = $(PYTHON3_CFLAGS)
 libvapoursynth_script_la_LIBADD = $(PYTHON3_LIBS)
 
@@ -152,7 +153,7 @@ endif # VSSCRIPT
 
 pkglib_LTLIBRARIES =
 
-commonpluginldflags = -no-undefined -avoid-version $(PLUGINLDFLAGS)
+commonpluginldflags = -no-undefined -avoid-version $(PLUGINLDFLAGS) $(UNDEFINEDLDFLAGS)
 
 if SUBTEXT
 pkglib_LTLIBRARIES += libsubtext.la
