@@ -101,7 +101,8 @@ Source: ..\vsrepo\vsgenstubs\_vapoursynth.part.pyi; DestDir: {app}\vsrepo\vsgens
 Source: 7z.exe; DestDir: {app}\vsrepo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
 Source: 7z.dll; DestDir: {app}\vsrepo; Flags: ignoreversion uninsrestartdelete restartreplace; Components: vsrepo
 
-;docsSource: ..\doc\_build\html\*; DestDir: {app}\docs; Flags: ignoreversion uninsrestartdelete restartreplace recursesubdirs; Components: docs
+;docs
+Source: ..\doc\_build\html\*; DestDir: {app}\docs; Flags: ignoreversion uninsrestartdelete restartreplace recursesubdirs; Components: docs
 
 ;sdk
 Source: ..\include\VapourSynth.h; DestDir: {app}\sdk\include\vapoursynth; Flags: ignoreversion uninsrestartdelete restartreplace; Components: sdk
@@ -131,6 +132,7 @@ Source: "pfm-192-vapoursynth-win.exe"; DestDir: {app}\pismo; Flags: ignoreversio
 ; Create the general autoload directory
 [Dirs]
 Name: "{app}\plugins"; Flags: uninsalwaysuninstall; Components: vscore
+Name: "{userappdata}\VapourSynth\plugins{#= InstallerBits}"; Flags: uninsneveruninstall; Components: vscore
 
 [Icons]
 Name: {group}\VapourSynth Website; Filename: http://www.vapoursynth.com/; Components: vscore
