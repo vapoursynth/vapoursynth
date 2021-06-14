@@ -3305,7 +3305,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
             expr[i] = expr[nexpr - 1];
         }
 
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < d->vi.format->numPlanes; i++) {
             if (!expr[i].empty()) {
                 d->plane[i] = poProcess;
             } else {
@@ -3323,18 +3323,14 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
             int cpulevel = vs_get_cpulevel(core);
             if (cpulevel > VS_CPU_LEVEL_NONE) {
-                for (int i = 0; i < d->vi.format->numPlanes; i++) {
-                    if (d->plane[i] == poProcess) {
 #ifdef VS_TARGET_CPU_X86
-                        std::unique_ptr<ExprCompiler> compiler = make_compiler(d->numInputs, cpulevel);
-                        for (auto op : d->bytecode[i]) {
-                            compiler->addInstruction(op);
-                        }
-
-                        std::tie(d->proc[i], d->procSize[i]) = compiler->getCode();
-#endif
-                    }
+                std::unique_ptr<ExprCompiler> compiler = make_compiler(d->numInputs, cpulevel);
+                for (auto op : d->bytecode[i]) {
+                    compiler->addInstruction(op);
                 }
+
+                std::tie(d->proc[i], d->procSize[i]) = compiler->getCode();
+#endif
             }
         }
 #ifdef VS_TARGET_OS_WINDOWS
