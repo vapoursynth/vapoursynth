@@ -1,6 +1,6 @@
-![Windows](https://github.com/vapoursynth/vapoursynth/workflows/Windows/badge.svg) ![Linux](https://github.com/vapoursynth/vapoursynth/workflows/Linux/badge.svg) ![macOS](https://github.com/vapoursynth/vapoursynth/workflows/macOS/badge.svg)
-
 # vapoursynth
+[![Windows](https://github.com/vapoursynth/vapoursynth/actions/workflows/windows.yml/badge.svg)](https://github.com/vapoursynth/vapoursynth/actions/workflows/windows.yml) [![Linux](https://github.com/vapoursynth/vapoursynth/actions/workflows/linux.yml/badge.svg)](https://github.com/vapoursynth/vapoursynth/actions/workflows/linux.yml) [![macOS](https://github.com/vapoursynth/vapoursynth/actions/workflows/macos.yml/badge.svg)](https://github.com/vapoursynth/vapoursynth/actions/workflows/macos.yml)
+
 *A video processing framework with simplicity in mind*
 
 **Looking for the documentation?**  
