@@ -358,8 +358,6 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
 
 
     av_log_set_level(AV_LOG_PANIC);
-    av_register_all();
-    avcodec_register_all();
 
     int ret = 0;
 
@@ -427,11 +425,11 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
             if (stream_index == -1)
                 throw std::string("there is no stream with the chosen id.");
 
-            if (!isSupportedCodecID(fctx->streams[stream_index]->codec->codec_id))
+            if (!isSupportedCodecID(fctx->streams[stream_index]->codecpar->codec_id))
                 throw std::string("selected stream has unsupported format.");
         } else {
             for (unsigned i = 0; i < fctx->nb_streams; i++) {
-                if (isSupportedCodecID(fctx->streams[i]->codec->codec_id)) {
+                if (isSupportedCodecID(fctx->streams[i]->codecpar->codec_id)) {
                     stream_index = i;
                     break;
                 }
@@ -445,9 +443,9 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
             if ((int)i != stream_index)
                 fctx->streams[i]->discard = AVDISCARD_ALL;
 
-        AVCodecID codec_id = fctx->streams[stream_index]->codec->codec_id;
+        AVCodecID codec_id = fctx->streams[stream_index]->codecpar->codec_id;
 
-        AVCodec *decoder = avcodec_find_decoder(codec_id);
+        const AVCodec *decoder = avcodec_find_decoder(codec_id);
         if (!decoder)
             throw std::string("failed to find decoder for '") + avcodec_get_name(codec_id) + "'.";
 
@@ -455,11 +453,11 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
         if (!d.avctx)
             throw std::string("failed to allocate AVCodecContext.");
 
-        int extradata_size = fctx->streams[stream_index]->codec->extradata_size;
+        int extradata_size = fctx->streams[stream_index]->codecpar->extradata_size;
         if (extradata_size) {
             d.avctx->extradata_size = extradata_size;
             d.avctx->extradata = (uint8_t *)av_mallocz(extradata_size + AV_INPUT_BUFFER_PADDING_SIZE);
-            memcpy(d.avctx->extradata, fctx->streams[stream_index]->codec->extradata, extradata_size);
+            memcpy(d.avctx->extradata, fctx->streams[stream_index]->codecpar->extradata, extradata_size);
         }
 
         ret = avcodec_open2(d.avctx, decoder, nullptr);
@@ -479,7 +477,7 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
     }
 
 
-    av_opt_get_image_size(fctx->streams[stream_index]->codec, "video_size", 0, &d.vi.width, &d.vi.height);
+    av_opt_get_image_size(fctx->streams[stream_index]->codecpar, "video_size", 0, &d.vi.width, &d.vi.height);
 
     Subtitle current_subtitle = { };
 
@@ -511,7 +509,7 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
                 current_subtitle.packets.push_back(packet);
 
                 int64_t start_time = current_subtitle.packets.front().pts;
-                if (fctx->streams[stream_index]->codec->codec_id == AV_CODEC_ID_DVD_SUBTITLE) {
+                if (fctx->streams[stream_index]->codecpar->codec_id == AV_CODEC_ID_DVD_SUBTITLE) {
                     start_time += avsub.start_display_time;
 
                     current_subtitle.end_frame = timestampToFrameNumber(packet.pts + avsub.end_display_time, time_base, d.vi.fpsNum, d.vi.fpsDen);
@@ -650,7 +648,7 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
         std::string desc("Supported subtitle streams:\n");
 
         for (unsigned i = 0; i < fctx->nb_streams; i++) {
-            AVCodecID codec_id = fctx->streams[i]->codec->codec_id;
+            AVCodecID codec_id = fctx->streams[i]->codecpar->codec_id;
 
             if (!isSupportedCodecID(codec_id))
                 continue;
@@ -668,7 +666,7 @@ extern "C" void VS_CC imageFileCreate(const VSMap *in, VSMap *out, void *userDat
             }
 
             int width, height;
-            av_opt_get_image_size(fctx->streams[i]->codec, "video_size", 0, &width, &height);
+            av_opt_get_image_size(fctx->streams[i]->codecpar, "video_size", 0, &width, &height);
             desc += ", size: ";
             desc += std::to_string(width);
             desc += "x";

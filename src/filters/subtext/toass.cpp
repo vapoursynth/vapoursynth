@@ -61,8 +61,6 @@ int MemoryFile::readPacket(void *opaque, uint8_t *buf, int bytes_to_read) {
 
 extern "C" ASS_Track *convertToASS(const char *file_name, const char *contents, size_t contents_size, ASS_Library *ass_library, const char *user_style, const char *charset, char *error, size_t error_size) {
     av_log_set_level(AV_LOG_PANIC); /// would be good to have a parameter for this
-    av_register_all();
-    avcodec_register_all();
 
     MemoryFile memory_file = { };
     memory_file.data = contents;
@@ -127,7 +125,7 @@ extern "C" ASS_Track *convertToASS(const char *file_name, const char *contents, 
 
     int stream_index = 0;
 
-    enum AVCodecID codec_id = fctx->streams[stream_index]->codec->codec_id;
+    enum AVCodecID codec_id = fctx->streams[stream_index]->codecpar->codec_id;
 
     AVCodecContext *avctx = nullptr;
 
@@ -138,7 +136,7 @@ extern "C" ASS_Track *convertToASS(const char *file_name, const char *contents, 
         if (descriptor->type != AVMEDIA_TYPE_SUBTITLE || !(descriptor->props & AV_CODEC_PROP_TEXT_SUB))
             throw std::string("file is not a text subtitle.");
 
-        AVCodec *decoder = avcodec_find_decoder(codec_id);
+        const AVCodec *decoder = avcodec_find_decoder(codec_id);
         if (!decoder)
             throw std::string("failed to find decoder for '") + avcodec_get_name(codec_id) + "'.";
 
@@ -146,14 +144,14 @@ extern "C" ASS_Track *convertToASS(const char *file_name, const char *contents, 
         if (!avctx)
             throw std::string("failed to allocate AVCodecContext.");
 
-        int extradata_size = fctx->streams[stream_index]->codec->extradata_size;
+        int extradata_size = fctx->streams[stream_index]->codecpar->extradata_size;
         if (extradata_size) {
             avctx->extradata_size = extradata_size;
             avctx->extradata = (uint8_t *)av_mallocz(extradata_size + AV_INPUT_BUFFER_PADDING_SIZE);
             if (!avctx->extradata)
                 throw std::string("failed to allocate extradata.");
 
-            memcpy(avctx->extradata, fctx->streams[stream_index]->codec->extradata, extradata_size);
+            memcpy(avctx->extradata, fctx->streams[stream_index]->codecpar->extradata, extradata_size);
         }
 
         ret = avcodec_open2(avctx, decoder, NULL);
