@@ -22,6 +22,12 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
+    - name: Install GCC 11
+      if: ${{ matrix.cc == 'gcc-11' }}
+      run: |
+        sudo apt-get update
+        sudo apt-get install g++-11 -y
+
     - name: Print compiler version
       run: ${{ env.CC }} --version
 
