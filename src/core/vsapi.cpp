@@ -88,13 +88,12 @@ static uint8_t *VS_CC getWritePtr(VSFrameRef *frame, int plane) VS_NOEXCEPT {
 static void VS_CC getFrameAsync(int n, VSNodeRef *clip, VSFrameDoneCallback fdc, void *userData) VS_NOEXCEPT {
     assert(clip && fdc);
     int numFrames = (clip->clip->getNodeType() == mtVideo) ? clip->clip->getVideoInfo(clip->index).numFrames : clip->clip->getAudioInfo(clip->index).numFrames;
-    if (n < 0 || (numFrames && n >= numFrames)) {
-        VSFrameContext *ctx = new VSFrameContext(n, clip->index, clip, fdc, userData);
+    VSFrameContext *ctx = new VSFrameContext(n, clip->index, clip, fdc, userData);
+
+    if (n < 0 || (numFrames && n >= numFrames))
         ctx->setError("Invalid frame number " + std::to_string(n) + " requested, clip only has " + std::to_string(numFrames) + " frames");
-        clip->clip->getFrame(ctx);
-    } else {
-        clip->clip->getFrame(new VSFrameContext(n, clip->index, clip, fdc, userData));
-    }
+
+    clip->clip->getFrame(ctx);
 }
 
 struct GetFrameWaiter {
