@@ -412,7 +412,8 @@ void VSThreadPool::startInternal(const PVSFrameContext &context) {
     }
 
     // add it immediately if the task is to return a completed frame or report an error since it never has an existing context
-    if (context->returnedFrame || context->hasError()) {
+    // also add immediately with no possibility to add references if it's an external frame request
+    if (context->frameDone || context->returnedFrame || context->hasError()) {
         tasks.push_back(context);
     } else {
         if (context->upstreamContext)
