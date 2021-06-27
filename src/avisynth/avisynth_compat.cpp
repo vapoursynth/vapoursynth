@@ -638,7 +638,6 @@ static void VS_CC fakeAvisynthFunctionWrapper(const VSMap *in, VSMap *out, void 
                                     out,
                                     wf->name.c_str(),
                                     &vi,
-                                    1,
                                     avisynthFilterGetFrame,
                                     avisynthFilterFree,
                                     (preFetchClips.empty() || prefetchInfo.from > prefetchInfo.to) ? fmFrameState : fmParallelRequests,

@@ -19,7 +19,7 @@ ShuffleChannels
    clip in the *clips* list is reused as a source. In addition to the channel constant
    it's also possible to specify the nth chanel by using negative numbers.
 
-   The outpout channel mapping is determined by *channels_out* and corresponds to the
+   The output channel mapping is determined by *channels_out* and corresponds to the
    input channel order. The number of *channels_out* entries must be the same as the
    number of *channels_in* entries. Specifying the same output channel twice is an error.
    

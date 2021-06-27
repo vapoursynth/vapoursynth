@@ -1565,5 +1565,5 @@ void VS_CC removeGrainCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
     RemoveGrainData *data = new RemoveGrainData(d);
 
-    vsapi->createVideoFilter(out, "RemoveGrain", data->vi, 1, removeGrainGetFrame, removeGrainFree, fmParallel, 0, data, core);
+    vsapi->createVideoFilter(out, "RemoveGrain", data->vi, removeGrainGetFrame, removeGrainFree, fmParallel, 0, data, core);
 }

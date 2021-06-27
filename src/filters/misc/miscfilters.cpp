@@ -130,7 +130,7 @@ static void VS_CC scDetectCreate(const VSMap *in, VSMap *out, void *userData, VS
         return;
     }
 
-    vsapi->createVideoFilter(out, "SCDetect", vi, 1, scDetectGetFrame, scDetectFree, fmParallel, 0, d.release(), core);
+    vsapi->createVideoFilter(out, "SCDetect", vi, scDetectGetFrame, scDetectFree, fmParallel, 0, d.release(), core);
 }
 
 ///////////////////////////////////////
@@ -716,7 +716,7 @@ static void VS_CC averageFramesCreate(const VSMap *in, VSMap *out, void *userDat
         return;
     }
 
-    vsapi->createVideoFilter(out, "AverageFrames", &d->vi, 1, averageFramesGetFrame, averageFramesFree, fmParallel, 0, d.get(), core);
+    vsapi->createVideoFilter(out, "AverageFrames", &d->vi, averageFramesGetFrame, averageFramesFree, fmParallel, 0, d.get(), core);
     d.release();
 }
 
@@ -858,7 +858,7 @@ static void VS_CC hysteresisCreate(const VSMap *in, VSMap *out, void *userData, 
         return;
     }
 
-    vsapi->createVideoFilter(out, "Hysteresis", vi, 1, hysteresisGetFrame, hysteresisFree, fmParallel, 0, d.release(), core);
+    vsapi->createVideoFilter(out, "Hysteresis", vi, hysteresisGetFrame, hysteresisFree, fmParallel, 0, d.release(), core);
 }
 
 ///////////////////////////////////////

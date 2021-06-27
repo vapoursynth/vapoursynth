@@ -182,7 +182,7 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
         d->node[2] = vsapi->cloneNodeRef(d->node[1]);
     }
 
-    vsapi->createVideoFilter(out, "PreMultiply", d->vi, 1, preMultiplyGetFrame, filterFree<PreMultiplyData>, fmParallel, 0, d.get(), core);
+    vsapi->createVideoFilter(out, "PreMultiply", d->vi, preMultiplyGetFrame, filterFree<PreMultiplyData>, fmParallel, 0, d.get(), core);
     if (setHint)
         vsapi->setInternalFilterRelation(out, d->node.data(), static_cast<int>(d->node.size()));
     d.release();
@@ -332,7 +332,7 @@ static void VS_CC mergeCreate(const VSMap *in, VSMap *out, void *userData, VSCor
     if (nweight > d->vi->format.numPlanes)
         RETERROR("Merge: more weights given than the number of planes to merge");
 
-    vsapi->createVideoFilter(out, "Merge", d->vi, 1, mergeGetFrame, filterFree<MergeData>, fmParallel, 0, d.get(), core);
+    vsapi->createVideoFilter(out, "Merge", d->vi, mergeGetFrame, filterFree<MergeData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
@@ -504,7 +504,7 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
 
     d->cpulevel = vs_get_cpulevel(core);
 
-    vsapi->createVideoFilter(out, "MaskedMerge", d->vi, 1, maskedMergeGetFrame, filterFree<MaskedMergeData>, fmParallel, 0, d.get(), core);
+    vsapi->createVideoFilter(out, "MaskedMerge", d->vi, maskedMergeGetFrame, filterFree<MaskedMergeData>, fmParallel, 0, d.get(), core);
     vsapi->setInternalFilterRelation(out, d->node.data(), static_cast<int>(d->node.size()));
     d.release();
 }
@@ -613,7 +613,7 @@ static void VS_CC makeDiffCreate(const VSMap *in, VSMap *out, void *userData, VS
 
     d->cpulevel = vs_get_cpulevel(core);
 
-    vsapi->createVideoFilter(out, "MakeDiff", d->vi, 1, makeDiffGetFrame, filterFree<MakeDiffData>, fmParallel, 0, d.get(), core);
+    vsapi->createVideoFilter(out, "MakeDiff", d->vi, makeDiffGetFrame, filterFree<MakeDiffData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
@@ -718,7 +718,7 @@ static void VS_CC mergeDiffCreate(const VSMap *in, VSMap *out, void *userData, V
 
     d->cpulevel = vs_get_cpulevel(core);
 
-    vsapi->createVideoFilter(out, "MergeDiff", d->vi, 1, mergeDiffGetFrame, filterFree<MergeDiffData>, fmParallel, 0, d.get(), core);
+    vsapi->createVideoFilter(out, "MergeDiff", d->vi, mergeDiffGetFrame, filterFree<MergeDiffData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 

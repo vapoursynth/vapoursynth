@@ -826,25 +826,18 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilt
     }
 }
 
-VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
-    refcount(numOutputs), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
+VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
+    refcount(1), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
 
     if (flags & ~nfNoCache)
         throw VSException("Filter " + name + " specified unknown flags");
 
-    if (numOutputs < 1)
-        throw VSException("Filter " + name + " needs to have at least one output");
+    if (!core->isValidVideoInfo(*vi))
+        throw VSException("The VSVideoInfo structure passed by " + name + " is invalid.");
 
-    this->vi.reserve(numOutputs);
-    this->v3vi.reserve(numOutputs);
-    for (int i = 0; i < numOutputs; i++) {
-        if (!core->isValidVideoInfo(vi[i]))
-            throw VSException("The VSVideoInfo structure passed by " + name + " is invalid.");
-
-        this->vi.push_back(vi[i]);
-        this->v3vi.push_back(core->VideoInfoToV3(vi[i]));
-        this->v3vi.back().flags = flags;
-    }
+    this->vi.push_back(*vi);
+    this->v3vi.push_back(core->VideoInfoToV3(*vi));
+    this->v3vi.back().flags = flags;
 
     core->filterInstanceCreated();
 
@@ -853,29 +846,23 @@ VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, int numOutputs, V
     }
 }
 
-VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
-    refcount(numOutputs), nodeType(mtAudio), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
+VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
+    refcount(1), nodeType(mtAudio), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
 
     if (flags & ~nfNoCache)
         throw VSException("Filter " + name + " specified unknown flags");
 
-    if (numOutputs < 1)
-        throw VSException("Filter " + name + " needs to have at least one output");
-
     core->filterInstanceCreated();
 
-    this->ai.reserve(numOutputs);
-    for (int i = 0; i < numOutputs; i++) {
-        if (!core->isValidAudioInfo(ai[i]))
-            throw VSException("The VSAudioInfo structure passed by " + name + " is invalid.");
+    if (!core->isValidAudioInfo(*ai))
+        throw VSException("The VSAudioInfo structure passed by " + name + " is invalid.");
 
-        this->ai.push_back(ai[i]);
-        auto &last = this->ai.back();
-        int64_t maxSamples =  std::numeric_limits<int>::max() * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES);
-        if (last.numSamples > maxSamples)
-            throw VSException("Filter " + name + " specified " + std::to_string(last.numSamples) + " output samples but " + std::to_string(maxSamples) + " samples is the upper limit");
-        last.numFrames = static_cast<int>((last.numSamples + VS_AUDIO_FRAME_SAMPLES - 1) / VS_AUDIO_FRAME_SAMPLES);
-    }
+    this->ai.push_back(*ai);
+    auto &last = this->ai.back();
+    int64_t maxSamples =  std::numeric_limits<int>::max() * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES);
+    if (last.numSamples > maxSamples)
+        throw VSException("Filter " + name + " specified " + std::to_string(last.numSamples) + " output samples but " + std::to_string(maxSamples) + " samples is the upper limit");
+    last.numFrames = static_cast<int>((last.numSamples + VS_AUDIO_FRAME_SAMPLES - 1) / VS_AUDIO_FRAME_SAMPLES);
 
     if (core->enableGraphInspection) {
         functionFrame = core->functionFrame;
@@ -2013,9 +2000,9 @@ void VSCore::createFilter3(const VSMap *in, VSMap *out, const std::string &name,
     }
 }
 
-void VSCore::createVideoFilter(VSMap *out, const std::string &name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
+void VSCore::createVideoFilter(VSMap *out, const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
     try {
-        VSNode *node = new VSNode(name, vi, numOutputs, getFrame, free, filterMode, flags, instanceData, apiMajor, this);
+        VSNode *node = new VSNode(name, vi, getFrame, free, filterMode, flags, instanceData, apiMajor, this);
         for (size_t i = 0; i < node->getNumOutputs(); i++) {
             VSNodeRef *ref = new VSNodeRef(node, static_cast<int>(i));
             vs_internal_vsapi.mapSetNode(out, "clip", ref, paAppend);
@@ -2026,9 +2013,9 @@ void VSCore::createVideoFilter(VSMap *out, const std::string &name, const VSVide
     }
 }
 
-void VSCore::createAudioFilter(VSMap *out, const std::string &name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
+void VSCore::createAudioFilter(VSMap *out, const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
     try {
-        VSNode *node = new VSNode(name, ai, numOutputs, getFrame, free, filterMode, flags, instanceData, apiMajor, this);
+        VSNode *node = new VSNode(name, ai, getFrame, free, filterMode, flags, instanceData, apiMajor, this);
         for (size_t i = 0; i < node->getNumOutputs(); i++) {
             VSNodeRef *ref = new VSNodeRef(node, static_cast<int>(i));
             vs_internal_vsapi.mapSetNode(out, "clip", ref, paAppend);

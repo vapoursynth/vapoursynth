@@ -979,7 +979,7 @@ public:
                     resizeType = "Lanczos";
                     break;
             }
-            vsapi->createVideoFilter(out, resizeType, &x->m_vi, 1, &vszimg_get_frame, vszimg_free, fmParallel, 0, x, core);
+            vsapi->createVideoFilter(out, resizeType, &x->m_vi, &vszimg_get_frame, vszimg_free, fmParallel, 0, x, core);
         } catch (const vszimgxx::zerror &e) {
             std::string errmsg = "Resize error " + std::to_string(e.code) + ": " + e.msg;
             vsapi->mapSetError(out, errmsg.c_str());

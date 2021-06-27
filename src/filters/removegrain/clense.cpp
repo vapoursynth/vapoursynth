@@ -228,5 +228,5 @@ void VS_CC clenseCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
 
     data = new ClenseData(d);
 
-    vsapi->createVideoFilter(out, "Clense", data->vi, 1, getFrameFunc, clenseFree, fmParallel, 0, data, core);
+    vsapi->createVideoFilter(out, "Clense", data->vi, getFrameFunc, clenseFree, fmParallel, 0, data, core);
 }

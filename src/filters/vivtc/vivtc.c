@@ -990,7 +990,7 @@ static void VS_CC createVFM(const VSMap *in, VSMap *out, void *userData, VSCore 
 
     vfmd = (VFMData *)malloc(sizeof(vfm));
     *vfmd = vfm;
-    vsapi->createVideoFilter(out, "VFM", vfmd->vi, 1, vfmGetFrame, vfmFree, fmParallel, 0, vfmd, core);
+    vsapi->createVideoFilter(out, "VFM", vfmd->vi, vfmGetFrame, vfmFree, fmParallel, 0, vfmd, core);
 }
 
 // VDecimate
@@ -1610,7 +1610,7 @@ static void VS_CC createVDecimate(const VSMap *in, VSMap *out, void *userData, V
 
     VDecimateData *d = (VDecimateData *)malloc(sizeof(vdm));
     *d = vdm;
-    vsapi->createVideoFilter(out, "VDecimate", &d->vi, 1, vdecimateGetFrame, vdecimateFree, fmUnordered, 0, d, core);
+    vsapi->createVideoFilter(out, "VDecimate", &d->vi, vdecimateGetFrame, vdecimateFree, fmUnordered, 0, d, core);
 }
 
 ///////////////////////////////////////

@@ -884,14 +884,14 @@ static void VS_CC getCoreInfo2(VSCore *core, VSCoreInfo *info) VS_NOEXCEPT {
     core->getCoreInfo(*info);
 }
 
-static void VS_CC createVideoFilter(VSMap *out, const char *name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT {
-    assert(out && name && vi && numOutputs > 0 && getFrame && core);
-    core->createVideoFilter(out, name, vi, numOutputs, getFrame, free, static_cast<VSFilterMode>(filterMode), flags, instanceData, VAPOURSYNTH_API_MAJOR);
+static void VS_CC createVideoFilter(VSMap *out, const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT {
+    assert(out && name && vi && getFrame && core);
+    core->createVideoFilter(out, name, vi, getFrame, free, static_cast<VSFilterMode>(filterMode), flags, instanceData, VAPOURSYNTH_API_MAJOR);
 }
 
-static void VS_CC createAudioFilter(VSMap *out, const char *name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT {
-    assert(out && name && ai && numOutputs > 0 && getFrame && core);
-    core->createAudioFilter(out, name, ai, numOutputs, getFrame, free, static_cast<VSFilterMode>(filterMode), flags, instanceData, VAPOURSYNTH_API_MAJOR);
+static void VS_CC createAudioFilter(VSMap *out, const char *name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT {
+    assert(out && name && ai && getFrame && core);
+    core->createAudioFilter(out, name, ai, getFrame, free, static_cast<VSFilterMode>(filterMode), flags, instanceData, VAPOURSYNTH_API_MAJOR);
 }
 
 static VSFrameRef *VS_CC newAudioFrame(const VSAudioFormat *format, int numSamples, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
@@ -1054,7 +1054,6 @@ const VSAPI vs_internal_vsapi = {
     &getFrameFilter,
     &requestFrameFilter,
     &releaseFrameEarly,
-    &getOutputIndex,
     &setFilterError,
 
     &createFunction,

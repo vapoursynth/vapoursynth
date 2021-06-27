@@ -176,7 +176,7 @@ static void lutCreateHelper(const VSMap *in, VSMap *out, VSFunctionRef *func, st
         }
     }
 
-    vsapi->createVideoFilter(out, "Lut", &d->vi_out, 1, lutGetframe<T, U>, filterFree<LutData>, fmParallel, 0, d.get(), core);
+    vsapi->createVideoFilter(out, "Lut", &d->vi_out, lutGetframe<T, U>, filterFree<LutData>, fmParallel, 0, d.get(), core);
     d.release();
 }
 
@@ -420,7 +420,7 @@ static void lut2CreateHelper(const VSMap *in, VSMap *out, VSFunctionRef *func, s
         }
     }
 
-    vsapi->createVideoFilter(out, "Lut2", &d->vi_out, 1, lut2Getframe<T, U, V>, filterFree<Lut2Data>, fmParallel, 0, d.get(), core);
+    vsapi->createVideoFilter(out, "Lut2", &d->vi_out, lut2Getframe<T, U, V>, filterFree<Lut2Data>, fmParallel, 0, d.get(), core);
     d.release();
 }
 

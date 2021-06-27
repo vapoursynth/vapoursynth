@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012-2020 Fredrik Mellbin
+* Copyright (c) 2012-2021 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -26,7 +26,7 @@
 
 #define VS_MAKE_VERSION(major, minor) (((major) << 16) | (minor))
 #define VAPOURSYNTH_API_MAJOR 4
-#define VAPOURSYNTH_API_MINOR 0
+#define VAPOURSYNTH_API_MINOR 9021
 #define VAPOURSYNTH_API_VERSION VS_MAKE_VERSION(VAPOURSYNTH_API_MAJOR, VAPOURSYNTH_API_MINOR)
 
 #define VS_AUDIO_FRAME_SAMPLES 3000
@@ -318,8 +318,8 @@ struct VSPLUGINAPI {
 
 struct VSAPI {
     /* Audio and video filter related including nodes */
-    void (VS_CC *createVideoFilter)(VSMap *out, const char *name, const VSVideoInfo *vi, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT; /* output nodes are appended to the clip key in the out map */
-    void (VS_CC *createAudioFilter)(VSMap *out, const char *name, const VSAudioInfo *ai, int numOutputs, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT; /* output nodes are appended to the clip key in the out map */
+    void (VS_CC *createVideoFilter)(VSMap *out, const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT; /* output nodes are appended to the clip key in the out map */
+    void (VS_CC *createAudioFilter)(VSMap *out, const char *name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT; /* output nodes are appended to the clip key in the out map */
     void (VS_CC *freeNode)(VSNodeRef *node) VS_NOEXCEPT;
     VSNodeRef *(VS_CC *cloneNodeRef)(VSNodeRef *node) VS_NOEXCEPT;
     int (VS_CC *getNodeType)(VSNodeRef *node) VS_NOEXCEPT; /* returns VSMediaType */
@@ -363,7 +363,6 @@ struct VSAPI {
     const VSFrameRef *(VS_CC *getFrameFilter)(int n, VSNodeRef *node, VSFrameContext *frameCtx) VS_NOEXCEPT; /* only use inside a filter's getframe function */
     void (VS_CC *requestFrameFilter)(int n, VSNodeRef *node, VSFrameContext *frameCtx) VS_NOEXCEPT; /* only use inside a filter's getframe function */
     void (VS_CC *releaseFrameEarly)(VSNodeRef *node, int n, VSFrameContext *frameCtx) VS_NOEXCEPT; /* only use inside a filter's getframe function, unless this function is called a requested frame is kept in memory until the end of processing the current frame */
-    int (VS_CC *getOutputIndex)(VSFrameContext *frameCtx) VS_NOEXCEPT; /* used to determine which output index is being requested for filters that output multiple nodes */
     void (VS_CC *setFilterError)(const char *errorMessage, VSFrameContext *frameCtx) VS_NOEXCEPT; /* used to signal errors in the filter getframe function */
 
     /* External functions */

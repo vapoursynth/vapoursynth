@@ -733,7 +733,7 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         break;
     }
 
-    vsapi->createVideoFilter(out, d->instanceName.c_str(), d->vi, 1, textGetFrame, textFree, fmParallel, 0, d.get(), core);
+    vsapi->createVideoFilter(out, d->instanceName.c_str(), d->vi, textGetFrame, textFree, fmParallel, 0, d.get(), core);
     if (setHint)
         vsapi->setInternalFilterRelation(out, &d->node, 1);
     d.release();

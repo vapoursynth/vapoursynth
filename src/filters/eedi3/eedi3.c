@@ -850,7 +850,7 @@ static void VS_CC eedi3Create(const VSMap *in, VSMap *out, void *userData, VSCor
     data = (eedi3Data *)malloc(sizeof(d));
     *data = d;
 
-    vsapi->createVideoFilter(out, "eedi3", &data->vi, 1, eedi3GetFrame, eedi3Free, fmParallel, 0, data, core);
+    vsapi->createVideoFilter(out, "eedi3", &data->vi, eedi3GetFrame, eedi3Free, fmParallel, 0, data, core);
     return;
 
 error:
