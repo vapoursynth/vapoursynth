@@ -756,7 +756,7 @@ bool VapourSynthStream::ReadFrame(void* lpBuffer, int n) {
     VSScript *errSe = nullptr;
     if (!f) {
         std::string matrix;
-        if (parent->vi->format.colorFamily == cfYUV || parent->vi->format.colorFamily == cfGray || parent->vi->format.colorFamily == cfCompatYUY2)
+        if (parent->vi->format.colorFamily == cfYUV || parent->vi->format.colorFamily == cfGray)
             matrix = ", matrix_s=\"709\"";
 
         char nameBuffer[32];

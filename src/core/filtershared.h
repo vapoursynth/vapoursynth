@@ -30,11 +30,6 @@
 
 #define RETERROR(x) do { vsapi->mapSetError(out, (x)); return; } while (0)
 
-// to detect compat formats
-static inline bool isCompatFormat(const VSVideoFormat *format) {
-    return format->colorFamily == cfCompatBGR32 || format->colorFamily == cfCompatYUY2;
-}
-
 // to get the width/height of a plane easily when not having a frame around
 static inline int planeWidth(const VSVideoInfo *vi, int plane) {
     return vi->width >> (plane ? vi->format.subSamplingW : 0);
@@ -50,8 +45,6 @@ static inline void setBlack(uint32_t color[3], const VSVideoFormat *format) {
         color[i] = 0;
     if (format->sampleType == stInteger && format->colorFamily == cfYUV)
         color[1] = color[2] = (1 << (format->bitsPerSample - 1));
-    else if (format->colorFamily == cfCompatYUY2)
-        color[1] = color[2] = 128;
 }
 
 static inline int floatToIntS(float f) {
@@ -152,9 +145,6 @@ static inline bool getProcessPlanesArg(const VSMap *in, VSMap *out, const char *
 
 static bool is8to16orFloatFormat(const VSVideoFormat &fi, bool allowVariable = false, bool allowCompat = false) {
     if (fi.colorFamily == cfUndefined && !allowVariable)
-        return false;
-
-    if ((fi.colorFamily == cfCompatBGR32 || fi.colorFamily == cfCompatYUY2) && !allowCompat)
         return false;
 
     if ((fi.sampleType == stInteger && fi.bitsPerSample > 16) || (fi.sampleType == stFloat && fi.bitsPerSample != 32))

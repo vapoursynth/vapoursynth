@@ -86,9 +86,6 @@ typedef enum VSColorFamily {
     cfGray      = 1,
     cfRGB       = 2,
     cfYUV       = 3,
-    /* special for compatibility, can't be used in normal filters */
-    cfCompatYUY2 = 14,
-    cfCompatBGR32 = 15
 } VSColorFamily;
 
 typedef enum VSSampleType {
@@ -142,10 +139,6 @@ typedef enum VSPresetFormat {
 
     pfRGBH = VS_MAKE_VIDEO_ID(cfRGB, stFloat, 16, 0, 0),
     pfRGBS = VS_MAKE_VIDEO_ID(cfRGB, stFloat, 32, 0, 0),
-
-    /* special for compatibility, can only be used by some core filters */
-    pfCompatBGR32 = VS_MAKE_VIDEO_ID(cfCompatBGR32, stInteger, 32, 0, 0),
-    pfCompatYUY2 = VS_MAKE_VIDEO_ID(cfCompatYUY2, stInteger, 16, 1, 0)
 } VSPresetFormat;
 
 #undef VS_MAKE_VIDEO_ID

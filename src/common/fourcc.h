@@ -35,14 +35,15 @@ static inline bool IsSameVideoFormat(const VSVideoFormat &f, unsigned colorFamil
 static inline bool GetFourCC(const VSVideoFormat &fi, int output_alt, unsigned long &fourcc) {
     bool success = true;
     fourcc = VS_FCC('UNKN');
-    if (IsSameVideoFormat(fi, cfCompatBGR32, stInteger, 32) || IsSameVideoFormat(fi, cfRGB, stInteger, 8))
+    // FIXME, this doesn't break avisynth stuff?
+    if (/*IsSameVideoFormat(fi, cfCompatBGR32, stInteger, 32) || */ IsSameVideoFormat(fi, cfRGB, stInteger, 8))
         fourcc = VS_FCC('DIB ');
     else if (IsSameVideoFormat(fi, cfRGB, stInteger, 10))
         fourcc = VS_FCC('r210');
     else if (IsSameVideoFormat(fi, cfRGB, stInteger, 16))
         fourcc = VS_FCC('b64a');
-    else if (IsSameVideoFormat(fi, cfCompatYUY2, stInteger, 16, 1, 0))
-        fourcc = VS_FCC('YUY2');
+    //else if (IsSameVideoFormat(fi, cfCompatYUY2, stInteger, 16, 1, 0))
+    //    fourcc = VS_FCC('YUY2');
     else if (IsSameVideoFormat(fi, cfYUV, stInteger, 8, 1, 1))
         fourcc = VS_FCC('YV12');
     else if (IsSameVideoFormat(fi, cfGray, stInteger, 8))

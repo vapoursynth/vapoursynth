@@ -596,10 +596,8 @@ static const char *colorFamilyToString(int colorFamily) {
     case cfGray: return "Gray";
     case cfRGB: return "RGB";
     case cfYUV: return "YUV";
-    case cfCompatBGR32: return "CompatBGR32";
-    case cfCompatYUY2: return "CompatYUY2";
     }
-    return "";
+    return "Error";
 }
 
 static bool nstringToInt64(const nstring &ns, int64_t &result) {

@@ -3280,8 +3280,6 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         if (!err) {
             VSVideoFormat f;
             if (vsapi->getVideoFormatByID(&f, format, core) && f.colorFamily != cfUndefined) {
-                if (isCompatFormat(&d->vi.format))
-                    throw std::runtime_error("No compat formats allowed");
                 if (d->vi.format.numPlanes != f.numPlanes)
                     throw std::runtime_error("The number of planes in the inputs and output must match");
                 vsapi->queryVideoFormat(&d->vi.format, d->vi.format.colorFamily, f.sampleType, f.bitsPerSample, d->vi.format.subSamplingW, d->vi.format.subSamplingH, core);

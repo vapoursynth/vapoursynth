@@ -177,8 +177,10 @@ static VSFrameRef *VS_CC newVideoFrame(const VSVideoFormat *format, int width, i
 static VSFrameRef *VS_CC newVideoFrame3(const vs3::VSVideoFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
     assert(format && core);
     VSVideoFormat v4;
-    core->VideoFormatFromV3(v4, format);
-    return new VSFrameRef(v4, width, height, propSrc, core);
+    if (core->VideoFormatFromV3(v4, format))
+        return new VSFrameRef(v4, width, height, propSrc, core);
+    else
+        return nullptr;
 }
 
 static VSFrameRef *VS_CC newVideoFrame2(const VSVideoFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
@@ -189,8 +191,10 @@ static VSFrameRef *VS_CC newVideoFrame2(const VSVideoFormat *format, int width, 
 static VSFrameRef *VS_CC newVideoFrame23(const vs3::VSVideoFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core) VS_NOEXCEPT {
     assert(format && core);
     VSVideoFormat v4;
-    core->VideoFormatFromV3(v4, format);
-    return new VSFrameRef(v4, width, height, planeSrc, planes, propSrc, core);
+    if (core->VideoFormatFromV3(v4, format))
+        return new VSFrameRef(v4, width, height, planeSrc, planes, propSrc, core);
+    else
+        return nullptr;
 }
 
 static VSFrameRef *VS_CC copyFrame(const VSFrameRef *frame, VSCore *core) VS_NOEXCEPT {

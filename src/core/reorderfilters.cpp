@@ -217,17 +217,13 @@ static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, 
         vsapi->freeNode(cref);
     } else {
         d->node.resize(d->numclips);
-        bool compat = false;
 
         for (int i = 0; i < d->numclips; i++) {
             d->node[i] = vsapi->mapGetNode(in, "clips", i, 0);
-
-            if (isCompatFormat(&vsapi->getVideoInfo(d->node[i])->format))
-                compat = true;
         }
 
         MismatchCauses mismatchCause = findCommonVi(d->node.data(), d->numclips, &d->vi, 1, vsapi);
-        if (mismatchCause != MismatchCauses::Match && (!mismatch || compat))
+        if (mismatchCause != MismatchCauses::Match && !mismatch)
             RETERROR(("Interleave: " + mismatchToText(mismatchCause)).c_str());
 
         bool overflow = false;
@@ -467,18 +463,14 @@ static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         vsapi->mapSetNode(out, "clip", cref, paReplace);
         vsapi->freeNode(cref);
     } else {
-        bool compat = false;
         d->node.resize(d->numclips);
 
         for (int i = 0; i < d->numclips; i++) {
             d->node[i] = vsapi->mapGetNode(in, "clips", i, 0);
-
-            if (isCompatFormat(&vsapi->getVideoInfo(d->node[i])->format))
-                compat = 1;
         }
 
         MismatchCauses mismatchCause = findCommonVi(d->node.data(), d->numclips, &vi, 1, vsapi);
-        if (mismatchCause != MismatchCauses::Match && (!mismatch || compat) && !isSameVideoInfo(&vi, vsapi->getVideoInfo(d->node[0])))
+        if (mismatchCause != MismatchCauses::Match && !mismatch && !isSameVideoInfo(&vi, vsapi->getVideoInfo(d->node[0])))
             RETERROR(("Splice: " + mismatchToText(mismatchCause)).c_str());
 
         d->numframes.resize(d->numclips);

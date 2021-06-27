@@ -610,9 +610,6 @@ VSMap *VSPluginFunction::invoke(const VSMap &args, bool addCache) {
     std::unique_ptr<VSMap> v(new VSMap);
 
     try {
-        if (!plugin->compat && args.hasCompatNodes())
-            throw VSException(name + ": only special filters may accept compat input");
-
         std::set<std::string> remainingArgs;
         for (size_t i = 0; i < args.size(); i++)
             remainingArgs.insert(args.key(i));
@@ -665,9 +662,6 @@ VSMap *VSPluginFunction::invoke(const VSMap &args, bool addCache) {
             assert(plugin->core->functionFrame);
             plugin->core->functionFrame = plugin->core->functionFrame->next;
         }
-
-        if (!plugin->compat && v->hasCompatNodes())
-            plugin->core->logFatal(name + ": filter node returned compat format but only internal filters may do so");
 
         if (plugin->apiMajor == VAPOURSYNTH3_API_MAJOR && !args.isV3Compatible())
             plugin->core->logFatal(name + ": filter node returned not yet supported type");
@@ -973,9 +967,7 @@ PVSFrameRef VSNode::getFrameInternal(int n, int activationReason, VSFrameContext
             const VSVideoInfo &lvi = vi[frameCtx->index];
             const VSVideoFormat *fi = r->getVideoFormat();
 
-            if (lvi.format.colorFamily == cfUndefined && (fi->colorFamily == cfCompatBGR32 || fi->colorFamily == cfCompatYUY2))
-                core->logFatal("Illegal compat frame returned by " + name);
-            else if (lvi.format.colorFamily != cfUndefined && !isSameVideoFormat(&lvi.format, fi))
+            if (lvi.format.colorFamily != cfUndefined && !isSameVideoFormat(&lvi.format, fi))
                 core->logFatal("Filter " + name + " returned a frame that's not of the declared format");
             else if ((lvi.width || lvi.height) && (r->getWidth(0) != lvi.width || r->getHeight(0) != lvi.height))
                 core->logFatal("Filter " + name + " declared the size " + std::to_string(lvi.width) + "x" + std::to_string(lvi.height) + ", but it returned a frame with the size " + std::to_string(r->getWidth(0)) + "x" + std::to_string(r->getHeight(0)));
@@ -1063,7 +1055,7 @@ bool VSCore::queryVideoFormat(VSVideoFormat &f, VSColorFamily colorFamily, VSSam
 
     f.subSamplingW = subSamplingW;
     f.subSamplingH = subSamplingH;
-    f.numPlanes = (colorFamily == cfGray || colorFamily == cfCompatBGR32 || colorFamily == cfCompatYUY2) ? 1 : 3;
+    f.numPlanes = (colorFamily == cfGray) ? 1 : 3;
 
     return true;
 }
@@ -1268,7 +1260,7 @@ void VSCore::logMessage(VSMessageType type, const std::string &msg) {
 }
 
 bool VSCore::isValidVideoFormat(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH) noexcept {
-    if (colorFamily != cfUndefined && colorFamily != cfGray && colorFamily != cfYUV && colorFamily != cfRGB && colorFamily != cfCompatBGR32 && colorFamily != cfCompatYUY2)
+    if (colorFamily != cfUndefined && colorFamily != cfGray && colorFamily != cfYUV && colorFamily != cfRGB)
         return false;
 
     if (colorFamily == cfUndefined && (subSamplingH != 0 || subSamplingW != 0 || bitsPerSample != 0 || sampleType != stInteger))
@@ -1287,12 +1279,6 @@ bool VSCore::isValidVideoFormat(int colorFamily, int sampleType, int bitsPerSamp
         return false;
 
     if (bitsPerSample < 8 || bitsPerSample > 32)
-        return false;
-
-    if (colorFamily == cfCompatBGR32 && (subSamplingH != 0 || subSamplingW != 0 || bitsPerSample != 32 || sampleType != stInteger))
-        return false;
-
-    if (colorFamily == cfCompatYUY2 && (subSamplingH != 0 || subSamplingW != 1 || bitsPerSample != 16 || sampleType != stInteger))
         return false;
 
     return true;
@@ -1411,21 +1397,12 @@ vs3::VSColorFamily VSCore::ColorFamilyToV3(int colorFamily) noexcept {
 }
 
 const vs3::VSVideoFormat *VSCore::VideoFormatToV3(const VSVideoFormat &format) noexcept {
-    if (format.colorFamily == cfCompatBGR32)
-        return getV3VideoFormat(vs3::pfCompatBGR32);
-    else if (format.colorFamily == cfCompatYUY2)
-        return getV3VideoFormat(vs3::pfCompatYUY2);
-    else
-        return queryVideoFormat3(ColorFamilyToV3(format.colorFamily), static_cast<VSSampleType>(format.sampleType), format.bitsPerSample, format.subSamplingW, format.subSamplingH);
+    return queryVideoFormat3(ColorFamilyToV3(format.colorFamily), static_cast<VSSampleType>(format.sampleType), format.bitsPerSample, format.subSamplingW, format.subSamplingH);
 }
 
 bool VSCore::VideoFormatFromV3(VSVideoFormat &out, const vs3::VSVideoFormat *format) noexcept {
-    if (!format)
+    if (!format || format->id == vs3::pfCompatBGR32 || format->id == vs3::pfCompatYUY2)
         return queryVideoFormat(out, cfUndefined, stInteger, 0, 0, 0);
-    else if (format->id == vs3::pfCompatBGR32)
-        return queryVideoFormat(out, cfCompatBGR32, stInteger, 32, 0, 0);
-    else if (format->id == vs3::pfCompatYUY2)
-        return queryVideoFormat(out, cfCompatYUY2, stInteger, 16, 1, 0);
     else
         return queryVideoFormat(out, ColorFamilyFromV3(format->colorFamily), static_cast<VSSampleType>(format->sampleType), format->bitsPerSample, format->subSamplingW, format->subSamplingH);
 }
@@ -1512,12 +1489,6 @@ bool VSCore::getVideoFormatName(const VSVideoFormat &format, char *buffer) noexc
                 snprintf(buffer, 32, "YUV%sP%s%d", yuvName, sampleTypeStr, format.bitsPerSample);
             else
                 snprintf(buffer, 32, "YUVssw%dssh%dP%s%d", format.subSamplingW, format.subSamplingH, sampleTypeStr, format.bitsPerSample);
-            break;
-        case cfCompatBGR32:
-            snprintf(buffer, 32, "CompatBGR32");
-            break;
-        case cfCompatYUY2:
-            snprintf(buffer, 32, "CompatYUY2");
             break;
         case cfUndefined:
             snprintf(buffer, 32, "Undefined");
@@ -1758,20 +1729,17 @@ VSCore::VSCore(int flags) :
     reorderInitialize(p, &vs_internal_vspapi);
     audioInitialize(p, &vs_internal_vspapi);
     stdlibInitialize(p, &vs_internal_vspapi);
-    p->enableCompat();
     p->lock();
 
     plugins.insert(std::make_pair(p->getID(), p));
     p = new VSPlugin(this);
     resizeInitialize(p, &vs_internal_vspapi);
     plugins.insert(std::make_pair(p->getID(), p));
-    p->enableCompat();
 
     plugins.insert(std::make_pair(p->getID(), p));
     p = new VSPlugin(this);
     textInitialize(p, &vs_internal_vspapi);
     plugins.insert(std::make_pair(p->getID(), p));
-    p->enableCompat();
 
 #ifdef VS_TARGET_OS_WINDOWS
 
@@ -1981,10 +1949,6 @@ void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNa
     }
 
     plugins.insert(std::make_pair(p->getID(), p));
-
-    // allow avisynth plugins to accept legacy avisynth formats
-    if (p->getNamespace() == "avs" && p->getID() == "com.vapoursynth.avisynth")
-        p->enableCompat();
 }
 
 void VSCore::createFilter3(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
@@ -2206,22 +2170,6 @@ bool VSPlugin::registerFunction(const std::string &name, const std::string &args
     }
 
     return true;
-}
-
-bool VSMap::hasCompatNodes() const noexcept {
-    for (const auto &iter : data->data) {
-        if (iter.second->type() == ptVideoNode) {
-            VSVideoNodeArray *arr = reinterpret_cast<VSVideoNodeArray *>(iter.second.get());
-            for (size_t i = 0; i < arr->size(); i++) {
-                for (size_t j = 0; j < arr->at(i)->clip->getNumOutputs(); j++) {
-                    const VSVideoInfo &vi = arr->at(i)->clip->getVideoInfo(static_cast<int>(j));
-                    if (vi.format.colorFamily == cfCompatBGR32 || vi.format.colorFamily == cfCompatYUY2)
-                        return true;
-                }
-            }
-        }
-    }
-    return false;
 }
 
 VSMap *VSPlugin::invoke(const std::string &funcName, const VSMap &args, bool addCache) {

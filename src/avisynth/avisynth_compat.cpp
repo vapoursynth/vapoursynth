@@ -44,11 +44,7 @@ static inline bool IsSameVideoFormat(const VSVideoFormat &f, unsigned colorFamil
 }
 
 static int VSFormatToAVSPixelType(const VSVideoFormat &fi) {
-    if (IsSameVideoFormat(fi, cfCompatBGR32, stInteger, 32))
-        return VideoInfo::CS_BGR32;
-    else if (IsSameVideoFormat(fi, cfCompatYUY2, stInteger, 16, 1, 0))
-        return VideoInfo::CS_YUY2;
-    else if (IsSameVideoFormat(fi, cfYUV, stInteger, 8, 0, 0))
+    if (IsSameVideoFormat(fi, cfYUV, stInteger, 8, 0, 0))
         return VideoInfo::CS_YV24;
     else if (IsSameVideoFormat(fi, cfYUV, stInteger, 8, 1, 0))
         return VideoInfo::CS_YV16;
@@ -115,10 +111,11 @@ static int VSFormatToAVSPixelType(const VSVideoFormat &fi) {
 }
 
 static bool AVSPixelTypeToVSFormat(VSVideoFormat &f, const VideoInfo &vi, VSCore *core, const VSAPI *vsapi) {
+    // fixme with packing and such?
     if (vi.IsYUY2())
-        return vsapi->queryVideoFormat(&f, cfCompatYUY2, stInteger, 16, 1, 0, core);
+        return false;
     else if (vi.IsRGB32())
-        return vsapi->queryVideoFormat(&f, cfCompatBGR32, stInteger, 32, 0, 0, core);
+        return false;
 
     if (vi.IsPlanar()) {
         bool hasSubSampling = vi.IsYUV();
@@ -554,7 +551,7 @@ static void VS_CC avisynthFilterFree(void *instanceData, VSCore *core, const VSA
 
 static bool isSupportedPF(const VSVideoFormat &f, int interfaceVersion) {
     if (interfaceVersion == 2) {
-        return IsSameVideoFormat(f, cfYUV, stInteger, 8, 1, 1) || IsSameVideoFormat(f, cfCompatBGR32, stInteger, 32) || IsSameVideoFormat(f, cfCompatYUY2, stInteger, 16, 1, 0);
+        return IsSameVideoFormat(f, cfYUV, stInteger, 8, 1, 1);
     } else {
         return !!VSFormatToAVSPixelType(f);
     }
@@ -854,6 +851,7 @@ void FakeAvisynth::CheckVersion(int version) {
 }
 
 PVideoFrame FakeAvisynth::Subframe(PVideoFrame src, int rel_offset, int new_pitch, int new_row_size, int new_height) {
+    vsapi->logMessage(mtFatal, "Subframe not implemented", core);
     if (src->row_size != new_row_size)
         vsapi->logMessage(mtFatal, "Subframe only partially implemented (row_size != new_row_size)", core);
     // not pretty at all, but the underlying frame has to be fished out to have any idea what the input really is
@@ -862,13 +860,6 @@ PVideoFrame FakeAvisynth::Subframe(PVideoFrame src, int rel_offset, int new_pitc
     VideoInfo vi;
     vi.height = new_height;
     vi.width = vsapi->getFrameWidth(f, 0);
-
-    if (IsSameVideoFormat(*fi, cfCompatBGR32, stInteger, 32))
-        vi.pixel_type = VideoInfo::CS_BGR32;
-    else if (IsSameVideoFormat(*fi, cfCompatYUY2, stInteger, 16, 1, 0))
-        vi.pixel_type = VideoInfo::CS_YUY2;
-    else
-        vsapi->logMessage(mtFatal, "Bad colorspace", core);
 
     PVideoFrame dst = NewVideoFrame(vi);
     BitBlt(dst->GetWritePtr(), dst->GetPitch(), src->GetReadPtr() + rel_offset, new_pitch, new_row_size, new_height);

@@ -262,21 +262,9 @@ void translate_color_family(VSColorFamily cf, zimg_color_family_e *out, zimg_mat
 }
 
 void translate_vsformat(const VSVideoFormat *vsformat, zimg_image_format *format, const VSAPI *vsapi) {
-    if (vsformat->colorFamily == cfCompatBGR32) {
-        format->color_family = ZIMG_COLOR_RGB;
-        format->matrix_coefficients = ZIMG_MATRIX_RGB;
-        format->pixel_type = ZIMG_PIXEL_BYTE;
-        format->depth = 8;
-    } else if (vsformat->colorFamily == cfCompatYUY2) {
-        format->color_family = ZIMG_COLOR_YUV;
-        format->matrix_coefficients = ZIMG_MATRIX_UNSPECIFIED;
-        format->pixel_type = ZIMG_PIXEL_BYTE;
-        format->depth = 8;
-    } else {
-        translate_color_family(static_cast<VSColorFamily>(vsformat->colorFamily), &format->color_family, &format->matrix_coefficients);
-        translate_pixel_type(vsformat, &format->pixel_type, vsapi);
-        format->depth = vsformat->bitsPerSample;
-    }
+    translate_color_family(static_cast<VSColorFamily>(vsformat->colorFamily), &format->color_family, &format->matrix_coefficients);
+    translate_pixel_type(vsformat, &format->pixel_type, vsapi);
+    format->depth = vsformat->bitsPerSample;
 
     format->subsample_w = vsformat->subSamplingW;
     format->subsample_h = vsformat->subSamplingH;
@@ -506,18 +494,6 @@ public:
     {
         import_frame_as_buffer(frame, &m_vs_buffer, ZIMG_BUFFER_MAX, vsapi);
 
-        if (vsformat->colorFamily == cfCompatBGR32 || vsformat->colorFamily == cfCompatYUY2) {
-            allocate(vsformat, format.width, format.height, graph.get_input_buffering(), vsapi, core);
-
-            if (vsformat->colorFamily == cfCompatBGR32)
-                m_p2p_func = vsp2p::packed_to_planar<vsp2p::packed_argb32_le>::unpack;
-            else if (vsformat->colorFamily == cfCompatYUY2)
-                m_p2p_func = vsp2p::packed_to_planar<vsp2p::packed_yuy2>::unpack;
-
-            if (vsformat->colorFamily == cfCompatBGR32)
-                get_buffer_flipped(&m_vs_buffer, vsformat->numPlanes, vsapi->getFrameHeight(frame, 0));
-        }
-
         if (interlaced)
             get_buffer_single_field(&m_vs_buffer, vsformat->numPlanes, format.field_parity);
     }
@@ -544,18 +520,6 @@ public:
         m_p2p_func()
     {
         import_frame_as_buffer(frame, &m_vs_buffer, ZIMG_BUFFER_MAX, vsapi);
-
-        if (vsformat->colorFamily == cfCompatBGR32 || vsformat->colorFamily == cfCompatYUY2) {
-            allocate(vsformat, format.width, format.height, graph.get_output_buffering(), vsapi, core);
-
-            if (vsformat->colorFamily == cfCompatBGR32)
-                m_p2p_func = vsp2p::planar_to_packed<vsp2p::packed_argb32_le, true>::pack;
-            else if (vsformat->colorFamily == cfCompatYUY2)
-                m_p2p_func = vsp2p::planar_to_packed<vsp2p::packed_yuy2, true>::pack;
-
-            if (vsformat->colorFamily == cfCompatBGR32)
-                get_buffer_flipped(&m_vs_buffer, vsformat->numPlanes, vsapi->getFrameHeight(frame, 0));
-        }
 
         if (interlaced)
             get_buffer_single_field(&m_vs_buffer, vsformat->numPlanes, format.field_parity);

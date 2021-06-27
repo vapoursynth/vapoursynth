@@ -369,7 +369,6 @@ public:
     }
 
     bool isV3Compatible() const noexcept;
-    bool hasCompatNodes() const noexcept;
 };
 
 struct VSNodeRef {
@@ -822,7 +821,6 @@ private:
     bool hasConfig = false;
     bool readOnly = false;
     bool readOnlySet = false;
-    bool compat = false;
     std::string filename;
     std::string fullname;
     std::string fnamespace;
@@ -840,7 +838,6 @@ public:
     VSPlugin(const std::string &relFilename, const std::string &forcedNamespace, const std::string &forcedId, bool altSearchPath, VSCore *core);
     ~VSPlugin();
     void lock() { readOnly = true; }
-    void enableCompat() { compat = true; }
     bool configPlugin(const std::string &identifier, const std::string &pluginsNamespace, const std::string &fullname, int pluginVersion, int apiVersion, int flags);
     bool registerFunction(const std::string &name, const std::string &args, const std::string &returnType, VSPublicFunction argsFunc, void *functionData);
     VSMap *invoke(const std::string &funcName, const VSMap &args, bool addCache);

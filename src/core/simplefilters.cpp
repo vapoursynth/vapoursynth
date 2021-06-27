@@ -189,9 +189,8 @@ static const VSFrameRef *VS_CC cropGetframe(int n, int activationReason, void *i
         const VSVideoFormat *fi = vsapi->getVideoFrameFormat(src);
         int width = vsapi->getFrameWidth(src, 0);
         int height = vsapi->getFrameHeight(src, 0);
-        int y = (fi->colorFamily == cfCompatBGR32) ? (height - d->height - d->y) : d->y;
 
-        if (cropVerify(d->x, y, d->width, d->height, width, height, fi, msg, sizeof(msg))) {
+        if (cropVerify(d->x, d->y, d->width, d->height, width, height, fi, msg, sizeof(msg))) {
             vsapi->freeFrame(src);
             vsapi->setFilterError(msg, frameCtx);
             return nullptr;
@@ -204,7 +203,7 @@ static const VSFrameRef *VS_CC cropGetframe(int n, int activationReason, void *i
             ptrdiff_t dststride = vsapi->getStride(dst, plane);
             const uint8_t *srcdata = vsapi->getReadPtr(src, plane);
             uint8_t *dstdata = vsapi->getWritePtr(dst, plane);
-            srcdata += srcstride * (y >> (plane ? fi->subSamplingH : 0));
+            srcdata += srcstride * (d->y >> (plane ? fi->subSamplingH : 0));
             srcdata += (d->x >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample;
             bitblt(dstdata, dststride, srcdata, srcstride, (d->width >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample, vsapi->getFrameHeight(dst, plane));
         }
@@ -441,16 +440,13 @@ static void VS_CC addBordersCreate(const VSMap *in, VSMap *out, void *userData, 
 
     VSVideoInfo vi = *vsapi->getVideoInfo(d->node);
 
-    if (isCompatFormat(&vi.format))
-        RETERROR("AddBorders: compat formats not supported");
-
     if (vi.format.colorFamily == cfUndefined)
         RETERROR("AddBorders: input needs to be constant format");
 
     if (addBordersVerify(d->left, d->right, d->top, d->bottom, &vi.format, msg, sizeof(msg)))
         RETERROR(msg);
 
-    int numcomponents = isCompatFormat(&vi.format) ? 3 : vi.format.numPlanes;
+    int numcomponents = vi.format.numPlanes;
     int ncolors = vsapi->mapNumElements(in, "color");
 
     setBlack(d->color, &vi.format);
@@ -580,8 +576,6 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
         d->node[i] = vsapi->mapGetNode(in, "clips", i, &err);
 
     for (int i = 0; i < 3; i++) {
-        if (d->node[i] && isCompatFormat(&vsapi->getVideoInfo(d->node[i])->format))
-            RETERROR("ShufflePlanes: compat formats not supported");
         if (d->node[i] && !isConstantVideoFormat(vsapi->getVideoInfo(d->node[i])))
             RETERROR("ShufflePlanes: only clips with constant format and dimensions supported");
     }
@@ -1102,8 +1096,6 @@ static void VS_CC stackCreate(const VSMap *in, VSMap *out, void *userData, VSCor
             d->node[i] = vsapi->mapGetNode(in, "clips", i, 0);
 
         d->vi = *vsapi->getVideoInfo(d->node[0]);
-        if (isConstantVideoFormat(&d->vi) && isCompatFormat(&d->vi.format) && d->vertical)
-            RETERROR("StackVertical: compat formats aren't supported");
 
         for (int i = 1; i < numclips; i++) {
             const VSVideoInfo *vi = vsapi->getVideoInfo(d->node[i]);
@@ -1147,7 +1139,7 @@ static const VSFrameRef *VS_CC blankClipGetframe(int n, int activationReason, vo
         VSFrameRef *frame = nullptr;
         if (!d->f) {
             frame = vsapi->newVideoFrame(&d->vi.format, d->vi.width, d->vi.height, 0, core);
-            int bytesPerSample = (d->vi.format.colorFamily == cfCompatYUY2) ? 4 : d->vi.format.bytesPerSample;
+            int bytesPerSample = d->vi.format.bytesPerSample;
 
             for (int plane = 0; plane < d->vi.format.numPlanes; plane++) {
                 switch (bytesPerSample) {
@@ -1260,9 +1252,6 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     if (d->vi.format.colorFamily == cfUndefined)
         RETERROR("BlankClip: invalid format");
 
-    if (isCompatFormat(&d->vi.format))
-        RETERROR("BlankClip: compat formats not supported");
-
     tmp1 = vsapi->mapGetIntSaturated(in, "length", 0, &err);
 
     if (err) {
@@ -1283,7 +1272,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
 
     setBlack(d->color, &d->vi.format);
 
-    int numcomponents = isCompatFormat(&d->vi.format) ? 3 : d->vi.format.numPlanes;
+    int numcomponents = d->vi.format.numPlanes;
     int ncolors = vsapi->mapNumElements(in, "color");
 
     if (ncolors == numcomponents) {
@@ -1702,7 +1691,7 @@ static void VS_CC transposeCreate(const VSMap *in, VSMap *out, void *userData, V
     d->vi.width = d->vi.height;
     d->vi.height = temp;
 
-    if (!isConstantVideoFormat(&d->vi) || d->vi.format.colorFamily == cfCompatYUY2)
+    if (!isConstantVideoFormat(&d->vi))
         RETERROR("Transpose: clip must have constant format and dimensions and must not be CompatYUY2");
 
     vsapi->queryVideoFormat(&d->vi.format, d->vi.format.colorFamily, d->vi.format.sampleType, d->vi.format.bitsPerSample, d->vi.format.subSamplingH, d->vi.format.subSamplingW, core);

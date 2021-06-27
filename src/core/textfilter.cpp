@@ -365,10 +365,6 @@ static std::string colorFamilyToString(int cf) {
         family = "RGB";
     else if (cf == cfYUV)
         family = "YUV";
-    else if (cf == cfCompatBGR32)
-        family = "CompatBG32";
-    else if (cf == cfCompatYUY2)
-        family = "CompatYUY2";
     return family;
 }
 
@@ -674,12 +670,6 @@ static void VS_CC textCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         setHint = true;
     }
     d->vi = vsapi->getVideoInfo(d->node);
-
-    if (isCompatFormat(&d->vi->format)) {
-        vsapi->mapSetError(out, "Text: Compat formats not supported");
-        vsapi->freeNode(d->node);
-        return;
-    }
 
     if (d->vi->format.colorFamily != cfUndefined && ((d->vi->format.sampleType == stInteger && d->vi->format.bitsPerSample > 16) ||
         (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample != 32))) {

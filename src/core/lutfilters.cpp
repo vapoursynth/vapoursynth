@@ -193,9 +193,6 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
         if (!isConstantVideoFormat(d->vi))
             RETERROR("Lut: only clips with constant format and dimensions supported");
 
-        if (isCompatFormat(&d->vi->format))
-            RETERROR("Lut: compat formats are not supported");
-
         if (d->vi->format.sampleType != stInteger || d->vi->format.bitsPerSample > 16)
             RETERROR("Lut: only clips with integer samples and up to 16 bits per channel precision supported");
 
@@ -435,9 +432,6 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
 
         if (!isConstantVideoFormat(d->vi[0]) || !isConstantVideoFormat(d->vi[1]))
             RETERROR("Lut2: only clips with constant format and dimensions supported");
-
-        if (isCompatFormat(&d->vi[0]->format) || isCompatFormat(&d->vi[1]->format))
-            RETERROR("Lut2: compat formats are not supported");
 
         if (d->vi[0]->format.sampleType != stInteger || d->vi[1]->format.sampleType != stInteger
             || (d->vi[0]->format.bitsPerSample + d->vi[1]->format.bitsPerSample) > 20

@@ -599,9 +599,6 @@ static void VS_CC makeDiffCreate(const VSMap *in, VSMap *out, void *userData, VS
     d->node2 = vsapi->mapGetNode(in, "clipb", 0, 0);
     d->vi = vsapi->getVideoInfo(d->node1);
 
-    if (isCompatFormat(&d->vi->format) || isCompatFormat(&vsapi->getVideoInfo(d->node2)->format))
-        RETERROR("MakeDiff: compat formats are not supported");
-
     if (!isConstantVideoFormat(d->vi) || !isSameVideoInfo(d->vi, vsapi->getVideoInfo(d->node2))) 
         RETERROR("MakeDiff: both clips must have constant format and dimensions, and the same format and dimensions");
 
