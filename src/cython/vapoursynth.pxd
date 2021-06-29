@@ -55,8 +55,6 @@ cdef extern from "include/VapourSynth4.h" nogil:
         GRAY "cfGray"
         RGB "cfRGB"
         YUV "cfYUV"
-        COLOR_FAMILY_COMPATBGR32 "cfCompatBGR32"
-        COLOR_FAMILY_COMPATYUY2 "cfCompatYUY2"
 
     cpdef enum SampleType "VSSampleType":
         INTEGER "stInteger"
@@ -106,9 +104,6 @@ cdef extern from "include/VapourSynth4.h" nogil:
 
         RGBH "pfRGBH"
         RGBS "pfRGBS"
-
-        COMPATBGR32 "pfCompatBGR32"
-        COMPATYUY2 "pfCompatYUY2"
 
     enum VSFilterMode:
         fmParallel

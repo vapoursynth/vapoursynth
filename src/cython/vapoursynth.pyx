@@ -52,8 +52,6 @@ except ImportError as e:
 
 # fixme, update with new constants
 __all__ = [
-  'COMPAT',
-    'COMPATBGR32', 'COMPATYUY2',
   'GRAY',
     'GRAY16', 'GRAY8', 'GRAYH', 'GRAYS', 
   'RGB',
