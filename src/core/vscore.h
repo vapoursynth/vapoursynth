@@ -92,12 +92,12 @@ class VSException : public std::runtime_error {
     using std::runtime_error::runtime_error;
 };
 
-typedef std::tuple<VSNode *, int, int> NodeOutputKey;
+typedef std::tuple<VSNode *, int> NodeOutputKey;
 
 template<>
 struct std::hash<NodeOutputKey> {
     inline size_t operator()(const NodeOutputKey &val) const {  
-        return reinterpret_cast<size_t>(std::get<0>(val)) + (static_cast<size_t>(std::get<1>(val)) << 16) + (static_cast<size_t>(std::get<2>(val)) << 24);
+        return reinterpret_cast<size_t>(std::get<0>(val)) + (static_cast<size_t>(std::get<1>(val)) << 16);
     }
 };
 
@@ -376,8 +376,7 @@ private:
     std::atomic<long> refcount;
 public:
     VSNode *clip;
-    int index;
-    VSNodeRef(VSNode *clip, int index) noexcept : refcount(1), clip(clip), index(index) {}
+    VSNodeRef(VSNode *clip) noexcept : refcount(1), clip(clip) {}
     ~VSNodeRef() {};
 
     void add_ref() noexcept;
@@ -608,7 +607,6 @@ public:
     SemiStaticVector<std::pair<NodeOutputKey, PVSFrameRef>, NUM_FRAMECONTEXT_FAST_REQS> availableFrames;
 
     VSNodeRef *node;
-    int index;
     void *frameContext[4];
 
     // only used for queryCompletedFrame
@@ -635,8 +633,8 @@ public:
     }
 
     bool setError(const std::string &errorMsg);
-    VSFrameContext(int n, int index, VSNode *clip, const PVSFrameContext &upstreamContext);
-    VSFrameContext(int n, int index, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput = true);
+    VSFrameContext(int n, VSNode *clip, const PVSFrameContext &upstreamContext);
+    VSFrameContext(int n, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput = true);
 };
 
 struct VSFunctionFrame;
@@ -669,9 +667,9 @@ private:
     VSCore *core;
     PVSFunctionFrame functionFrame;
     int flags;
-    std::vector<VSVideoInfo> vi;
-    std::vector<vs3::VSVideoInfo> v3vi;
-    std::vector<VSAudioInfo> ai;
+    VSVideoInfo vi;
+    vs3::VSVideoInfo v3vi;
+    VSAudioInfo ai;
 
     // for keeping track of when a filter is busy in the exclusive section and with which frame
     // used for fmFrameState and fmParallel (mutex only)
@@ -727,15 +725,11 @@ public:
 
     void getFrame(const PVSFrameContext &ct);
 
-    const VSVideoInfo &getVideoInfo(int index) const;
-    const vs3::VSVideoInfo &getVideoInfo3(int index) const;
-    const VSAudioInfo &getAudioInfo(int index) const;
+    const VSVideoInfo &getVideoInfo() const;
+    const vs3::VSVideoInfo &getVideoInfo3() const;
+    const VSAudioInfo &getAudioInfo() const;
 
     void setVideoInfo3(const vs3::VSVideoInfo *vi, int numOutputs);
-
-    size_t getNumOutputs() const {
-        return (nodeType == mtVideo) ? vi.size() : ai.size();
-    }
 
     const std::string &getName() const {
         return name;

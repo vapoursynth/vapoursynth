@@ -85,7 +85,7 @@ typedef enum VSColorFamily {
     cfUndefined = 0,
     cfGray      = 1,
     cfRGB       = 2,
-    cfYUV       = 3,
+    cfYUV       = 3
 } VSColorFamily;
 
 typedef enum VSSampleType {
@@ -449,7 +449,6 @@ struct VSAPI {
     const char *(VS_CC *getNodeCreationFunctionName)(VSNodeRef *node, int level) VS_NOEXCEPT; /* level=0 returns the name of the function that created the filter, if it's a helper level created by setInternalFilterRelation() it'll simply return an empty string (""), specifying a higher level will retrieve the function above that invoked it or NULL if a non-existent level is requested */
     const VSMap *(VS_CC *getNodeCreationFunctionArguments)(VSNodeRef *node, int level) VS_NOEXCEPT; /* level=0 returns a copy of the arguments passed to the function that created the filter, returns NULL if a non-existent level is requested */
     const char *(VS_CC *getNodeName)(VSNodeRef *node) VS_NOEXCEPT; /* the name passed to create*Filter */
-    int (VS_CC *getNodeIndex)(VSNodeRef *node) VS_NOEXCEPT; /* the output index of the filter the node references */
     int (VS_CC *getNodeFilterMode)(VSNodeRef *node) VS_NOEXCEPT; /* VSFilterMode */
     int64_t (VS_CC *getNodeFilterTime)(VSNodeRef *node) VS_NOEXCEPT; /* time spent processing frames in nanoseconds */
 };

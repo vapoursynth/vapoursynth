@@ -93,12 +93,12 @@ static std::wstring readRegistryValue(const wchar_t *keyName, const wchar_t *val
 }
 #endif
 
-VSFrameContext::VSFrameContext(int n, int index, VSNode *clip, const PVSFrameContext &upstreamContext) :
-    refcount(1), reqOrder(upstreamContext->reqOrder), n(n), clip(clip), upstreamContext(upstreamContext), userData(nullptr), frameDone(nullptr), lockOnOutput(true), node(nullptr), index(index) {
+VSFrameContext::VSFrameContext(int n, VSNode *clip, const PVSFrameContext &upstreamContext) :
+    refcount(1), reqOrder(upstreamContext->reqOrder), n(n), clip(clip), upstreamContext(upstreamContext), userData(nullptr), frameDone(nullptr), lockOnOutput(true), node(nullptr) {
 }
 
-VSFrameContext::VSFrameContext(int n, int index, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput) :
-    refcount(1), reqOrder(0), n(n), clip(node->clip), userData(userData), frameDone(frameDone), lockOnOutput(lockOnOutput), node(node), index(index) {
+VSFrameContext::VSFrameContext(int n, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput) :
+    refcount(1), reqOrder(0), n(n), clip(node->clip), userData(userData), frameDone(frameDone), lockOnOutput(lockOnOutput), node(node) {
 }
 
 bool VSFrameContext::setError(const std::string &errorMsg) {
@@ -803,17 +803,20 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilt
         throw VSException(vs_internal_vsapi.mapGetError(out));
     }
 
+    /*
+    * FIXME, needs to check this somehow
     if (vi.empty()) {
         core->filterInstanceDestroyed();
         throw VSException("Filter " + name + " didn't set videoinfo");
     }
+    */
 
-    for (const auto &iter : vi) {
-        if (iter.numFrames <= 0) {
-            core->filterInstanceDestroyed();
-            throw VSException("Filter " + name + " returned zero or negative frame count");
-        }
+
+    if (vi.numFrames <= 0) {
+        core->filterInstanceDestroyed();
+        throw VSException("Filter " + name + " returned zero or negative frame count");
     }
+
 
     if (core->enableGraphInspection) {
         functionFrame = core->functionFrame;
@@ -829,9 +832,9 @@ VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame 
     if (!core->isValidVideoInfo(*vi))
         throw VSException("The VSVideoInfo structure passed by " + name + " is invalid.");
 
-    this->vi.push_back(*vi);
-    this->v3vi.push_back(core->VideoInfoToV3(*vi));
-    this->v3vi.back().flags = flags;
+    this->vi = *vi;
+    this->v3vi = core->VideoInfoToV3(*vi);
+    this->v3vi.flags = flags;
 
     core->filterInstanceCreated();
 
@@ -851,12 +854,11 @@ VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame 
     if (!core->isValidAudioInfo(*ai))
         throw VSException("The VSAudioInfo structure passed by " + name + " is invalid.");
 
-    this->ai.push_back(*ai);
-    auto &last = this->ai.back();
+    this->ai = *ai;
     int64_t maxSamples =  std::numeric_limits<int>::max() * static_cast<int64_t>(VS_AUDIO_FRAME_SAMPLES);
-    if (last.numSamples > maxSamples)
-        throw VSException("Filter " + name + " specified " + std::to_string(last.numSamples) + " output samples but " + std::to_string(maxSamples) + " samples is the upper limit");
-    last.numFrames = static_cast<int>((last.numSamples + VS_AUDIO_FRAME_SAMPLES - 1) / VS_AUDIO_FRAME_SAMPLES);
+    if (this->ai.numSamples > maxSamples)
+        throw VSException("Filter " + name + " specified " + std::to_string(this->ai.numSamples) + " output samples but " + std::to_string(maxSamples) + " samples is the upper limit");
+    this->ai.numFrames = static_cast<int>((this->ai.numSamples + VS_AUDIO_FRAME_SAMPLES - 1) / VS_AUDIO_FRAME_SAMPLES);
 
     if (core->enableGraphInspection) {
         functionFrame = core->functionFrame;
@@ -871,39 +873,39 @@ void VSNode::getFrame(const PVSFrameContext &ct) {
     core->threadPool->start(ct);
 }
 
-const VSVideoInfo &VSNode::getVideoInfo(int index) const {
-    assert(index >= 0 && index < static_cast<int>(vi.size()));
-    return vi[index];
+const VSVideoInfo &VSNode::getVideoInfo() const {
+    return vi;
 }
 
-const vs3::VSVideoInfo &VSNode::getVideoInfo3(int index) const {
-    assert(index >= 0 && index < static_cast<int>(v3vi.size()));
-    return v3vi[index];
+const vs3::VSVideoInfo &VSNode::getVideoInfo3() const {
+    return v3vi;
 }
 
-const VSAudioInfo &VSNode::getAudioInfo(int index) const {
-    assert(index >= 0 && index < static_cast<int>(ai.size()));
-    return ai[index];
+const VSAudioInfo &VSNode::getAudioInfo() const {
+    return ai;
 }
 
 void VSNode::setVideoInfo3(const vs3::VSVideoInfo *vi, int numOutputs) {
     if (numOutputs < 1)
         core->logFatal("setVideoInfo: Video filter " + name + " needs to have at least one output");
-    for (int i = 0; i < numOutputs; i++) {
-        if ((!!vi[i].height) ^ (!!vi[i].width))
-            core->logFatal("setVideoInfo: Variable dimension clips must have both width and height set to 0");
-        if (vi[i].format && !core->isValidFormatPointer(vi[i].format))
-            core->logFatal("setVideoInfo: The VSVideoFormat pointer passed by " + name + " was not obtained from registerFormat() or getFormatPreset()");
-        int64_t num = vi[i].fpsNum;
-        int64_t den = vi[i].fpsDen;
-        reduceRational(&num, &den);
-        if (num != vi[i].fpsNum || den != vi[i].fpsDen)
-            core->logFatal("setVideoInfo: The frame rate specified by " + name + " must be a reduced fraction. Instead, it is " + std::to_string(vi[i].fpsNum) + "/" + std::to_string(vi[i].fpsDen) + ")");
+    if (numOutputs > 1)
+        core->logMessage(mtWarning, "setVideoInfo: Video filter " + name + " has more than one output node but only the first one will be returned");
 
-        this->vi.push_back(core->VideoInfoFromV3(vi[i]));
-        this->v3vi.push_back(vi[i]);
-        this->v3vi.back().flags = flags;
-    }
+    if ((!!vi->height) ^ (!!vi->width))
+        core->logFatal("setVideoInfo: Variable dimension clips must have both width and height set to 0");
+    if (vi->format && !core->isValidFormatPointer(vi->format))
+        core->logFatal("setVideoInfo: The VSVideoFormat pointer passed by " + name + " was not obtained from registerFormat() or getFormatPreset()");
+    int64_t num = vi->fpsNum;
+    int64_t den = vi->fpsDen;
+    reduceRational(&num, &den);
+    if (num != vi->fpsNum || den != vi->fpsDen)
+        core->logFatal("setVideoInfo: The frame rate specified by " + name + " must be a reduced fraction. Instead, it is " + std::to_string(vi->fpsNum) + "/" + std::to_string(vi->fpsDen) + ")");
+
+    this->v3vi = *vi;
+    this->v3vi.flags = flags;
+    this->vi = core->VideoInfoFromV3(this->v3vi);
+
+
     refcount = numOutputs;
 }
 
@@ -964,20 +966,18 @@ PVSFrameRef VSNode::getFrameInternal(int n, int activationReason, VSFrameContext
 
     if (r) {     
         if (r->getFrameType() == mtVideo) {
-            const VSVideoInfo &lvi = vi[frameCtx->index];
             const VSVideoFormat *fi = r->getVideoFormat();
 
-            if (lvi.format.colorFamily != cfUndefined && !isSameVideoFormat(&lvi.format, fi))
+            if (vi.format.colorFamily != cfUndefined && !isSameVideoFormat(&vi.format, fi))
                 core->logFatal("Filter " + name + " returned a frame that's not of the declared format");
-            else if ((lvi.width || lvi.height) && (r->getWidth(0) != lvi.width || r->getHeight(0) != lvi.height))
-                core->logFatal("Filter " + name + " declared the size " + std::to_string(lvi.width) + "x" + std::to_string(lvi.height) + ", but it returned a frame with the size " + std::to_string(r->getWidth(0)) + "x" + std::to_string(r->getHeight(0)));
+            else if ((vi.width || vi.height) && (r->getWidth(0) != vi.width || r->getHeight(0) != vi.height))
+                core->logFatal("Filter " + name + " declared the size " + std::to_string(vi.width) + "x" + std::to_string(vi.height) + ", but it returned a frame with the size " + std::to_string(r->getWidth(0)) + "x" + std::to_string(r->getHeight(0)));
         } else {
             const VSAudioFormat *fi = r->getAudioFormat();
-            const VSAudioInfo &lai = ai[frameCtx->index];
 
-            int expectedSamples = (n < lai.numFrames - 1) ? VS_AUDIO_FRAME_SAMPLES : (((lai.numSamples % VS_AUDIO_FRAME_SAMPLES) ? (lai.numSamples % VS_AUDIO_FRAME_SAMPLES) : VS_AUDIO_FRAME_SAMPLES));
+            int expectedSamples = (n < ai.numFrames - 1) ? VS_AUDIO_FRAME_SAMPLES : (((ai.numSamples % VS_AUDIO_FRAME_SAMPLES) ? (ai.numSamples % VS_AUDIO_FRAME_SAMPLES) : VS_AUDIO_FRAME_SAMPLES));
 
-            if (lai.format.bitsPerSample != fi->bitsPerSample || lai.format.sampleType != fi->sampleType || lai.format.channelLayout != fi->channelLayout) {
+            if (ai.format.bitsPerSample != fi->bitsPerSample || ai.format.sampleType != fi->sampleType || ai.format.channelLayout != fi->channelLayout) {
                 core->logFatal("Filter " + name + " returned a frame that's not of the declared format");
             } else if (expectedSamples != r->getFrameLength()) {
                 core->logFatal("Filter " + name + " returned audio frame with " + std::to_string(r->getFrameLength()) + " samples but " + std::to_string(expectedSamples) + " expected from declared length");
@@ -1954,11 +1954,9 @@ void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNa
 void VSCore::createFilter3(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
     try {
         VSNode *node = new VSNode(in, out, name, init, getFrame, free, filterMode, flags, instanceData, apiMajor, this);
-        for (size_t i = 0; i < node->getNumOutputs(); i++) {
-            VSNodeRef *ref = new VSNodeRef(node, static_cast<int>(i));
-            vs_internal_vsapi.mapSetNode(out, "clip", ref, paAppend);
-            ref->release();
-        }
+        VSNodeRef *ref = new VSNodeRef(node);
+        vs_internal_vsapi.mapSetNode(out, "clip", ref, paAppend);
+        ref->release();
     } catch (VSException &e) {
         vs_internal_vsapi.mapSetError(out, e.what());
     }
@@ -1967,11 +1965,9 @@ void VSCore::createFilter3(const VSMap *in, VSMap *out, const std::string &name,
 void VSCore::createVideoFilter(VSMap *out, const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
     try {
         VSNode *node = new VSNode(name, vi, getFrame, free, filterMode, flags, instanceData, apiMajor, this);
-        for (size_t i = 0; i < node->getNumOutputs(); i++) {
-            VSNodeRef *ref = new VSNodeRef(node, static_cast<int>(i));
-            vs_internal_vsapi.mapSetNode(out, "clip", ref, paAppend);
-            ref->release();
-        }
+        VSNodeRef *ref = new VSNodeRef(node);
+        vs_internal_vsapi.mapSetNode(out, "clip", ref, paAppend);
+        ref->release();
     } catch (VSException &e) {
         vs_internal_vsapi.mapSetError(out, e.what());
     }
@@ -1980,11 +1976,9 @@ void VSCore::createVideoFilter(VSMap *out, const std::string &name, const VSVide
 void VSCore::createAudioFilter(VSMap *out, const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
     try {
         VSNode *node = new VSNode(name, ai, getFrame, free, filterMode, flags, instanceData, apiMajor, this);
-        for (size_t i = 0; i < node->getNumOutputs(); i++) {
-            VSNodeRef *ref = new VSNodeRef(node, static_cast<int>(i));
-            vs_internal_vsapi.mapSetNode(out, "clip", ref, paAppend);
-            ref->release();
-        }
+        VSNodeRef *ref = new VSNodeRef(node);
+        vs_internal_vsapi.mapSetNode(out, "clip", ref, paAppend);
+        ref->release();
     } catch (VSException &e) {
         vs_internal_vsapi.mapSetError(out, e.what());
     }

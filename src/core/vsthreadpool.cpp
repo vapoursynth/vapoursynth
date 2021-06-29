@@ -111,7 +111,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 // Fast path for arFrameReady events that don't need to be notified
 
             if ((!clip->frameReadyNotify && (mainContext->numFrameRequests > 1) && (!leafContext || !leafContext->hasError()))) {
-                mainContext->availableFrames.push_back(std::make_pair(NodeOutputKey(leafContext->clip, leafContext->n, leafContext->index), leafContext->returnedFrame));
+                mainContext->availableFrames.push_back(std::make_pair(NodeOutputKey(leafContext->clip, leafContext->n), leafContext->returnedFrame));
                 --mainContext->numFrameRequests;
                 owner->tasks.erase(iter);
                 ranTask = true;
@@ -187,7 +187,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 else
                     ar = (clip->apiMajor == 3) ? static_cast<int>(vs3::arAllFramesReady) : static_cast<int>(arAllFramesReady);
 
-                mainContext->availableFrames.push_back(std::make_pair(NodeOutputKey(leafContext->clip, leafContext->n, leafContext->index), leafContext->returnedFrame));
+                mainContext->availableFrames.push_back(std::make_pair(NodeOutputKey(leafContext->clip, leafContext->n), leafContext->returnedFrame));
                 mainContext->lastCompletedN = leafContext->n;
                 mainContext->lastCompletedNode = leafContext->node;
             }
@@ -244,7 +244,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             }
 
             if (frameProcessingDone)
-                owner->allContexts.erase(NodeOutputKey(mainContext->clip, mainContext->n, mainContext->index));
+                owner->allContexts.erase(NodeOutputKey(mainContext->clip, mainContext->n));
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Propagate status to other linked contexts
@@ -419,12 +419,12 @@ void VSThreadPool::startInternal(const PVSFrameContext &context) {
         if (context->upstreamContext)
             ++context->upstreamContext->numFrameRequests;
 
-        NodeOutputKey p(context->clip, context->n, context->index);
+        NodeOutputKey p(context->clip, context->n);
         
         auto it = allContexts.find(p);
         if (it != allContexts.end()) {
             PVSFrameContext &ctx = it->second;
-            assert(context->clip == ctx->clip && context->n == ctx->n && context->index == ctx->index);
+            assert(context->clip == ctx->clip && context->n == ctx->n);
 
             if (ctx->returnedFrame) {
                 // special case where the requested frame is encountered "by accident"

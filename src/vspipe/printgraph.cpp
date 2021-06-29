@@ -27,7 +27,7 @@
 #include <climits>
 
 static std::string mangleNode(VSNodeRef *node, const VSAPI *vsapi) {
-    return "n" + std::to_string(reinterpret_cast<uintptr_t>(node)) + "_" + std::to_string(vsapi->getNodeIndex(node));
+    return "n" + std::to_string(reinterpret_cast<uintptr_t>(node));
 }
 
 static std::string mangleFrame(VSNodeRef *node, int level, const VSAPI *vsapi) {
@@ -130,7 +130,7 @@ static void printNodeGraphHelper(std::set<std::string> &lines, std::map<std::str
         nodes[baseFrame].insert(thisFrame + " [label=\"" + std::string(vsapi->getNodeCreationFunctionName(node, minRealLevel)) + setArgsStr + "\", shape=box]");
     }
 
-    nodes[baseFrame].insert(thisNode + " [label=\"" + std::string(vsapi->getNodeName(node)) + "#" + std::to_string(vsapi->getNodeIndex(node)) + "\", shape=oval]");
+    nodes[baseFrame].insert(thisNode + " [label=\"" + std::string(vsapi->getNodeName(node)) + "\", shape=oval]");
     lines.insert(thisFrame + " -> " + thisNode);
 
     const VSMap *args = vsapi->getNodeCreationFunctionArguments(node, 0);
