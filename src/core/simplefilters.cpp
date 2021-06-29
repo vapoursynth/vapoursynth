@@ -581,10 +581,10 @@ static void VS_CC shufflePlanesCreate(const VSMap *in, VSMap *out, void *userDat
     }
 
     if (d->format != cfGray && nclips == 1) {
-        d->node[1] = vsapi->cloneNodeRef(d->node[0]);
-        d->node[2] = vsapi->cloneNodeRef(d->node[0]);
+        d->node[1] = vsapi->addNodeRef(d->node[0]);
+        d->node[2] = vsapi->addNodeRef(d->node[0]);
     } else if (d->format != cfGray && nclips == 2) {
-        d->node[2] = vsapi->cloneNodeRef(d->node[1]);
+        d->node[2] = vsapi->addNodeRef(d->node[1]);
     }
 
     for (int i = 0; i < outplanes; i++) {
@@ -1165,7 +1165,7 @@ static const VSFrame *VS_CC blankClipGetframe(int n, int activationReason, void 
         if (d->keep) {
             if (frame)
                 d->f = frame;
-            return vsapi->cloneFrameRef(d->f);
+            return vsapi->addFrameRef(d->f);
         } else {
             return frame;
         }

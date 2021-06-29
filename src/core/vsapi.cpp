@@ -53,13 +53,13 @@ static const vs3::VSVideoFormat *VS_CC registerFormat3(int colorFamily, int samp
     return core->queryVideoFormat3(static_cast<vs3::VSColorFamily>(colorFamily), static_cast<VSSampleType>(sampleType), bitsPerSample, subSamplingW, subSamplingH);
 }
 
-static const VSFrame *VS_CC cloneFrameRef(const VSFrame *frame) VS_NOEXCEPT {
+static const VSFrame *VS_CC addFrameRef(const VSFrame *frame) VS_NOEXCEPT {
     assert(frame);
     const_cast<VSFrame *>(frame)->add_ref();
     return frame;
 }
 
-static VSNode *VS_CC cloneNodeRef(VSNode *node) VS_NOEXCEPT {
+static VSNode *VS_CC addNodeRef(VSNode *node) VS_NOEXCEPT {
     assert(node);
     node->add_ref();
     return node;
@@ -774,7 +774,7 @@ static void VS_CC releaseFrameEarly(VSNode *node, int n, VSFrameContext *frameCt
     }
 }
 
-static VSFunction *VS_CC cloneFunctionRef(VSFunction *func) VS_NOEXCEPT {
+static VSFunction *VS_CC addFunctionRef(VSFunction *func) VS_NOEXCEPT {
     assert(func);
     func->add_ref();
     return func;
@@ -1013,7 +1013,7 @@ const VSAPI vs_internal_vsapi = {
     &createVideoFilter,
     &createAudioFilter,
     &freeNode,
-    &cloneNodeRef,
+    &addNodeRef,
     &getNodeType,
     &getNodeFlags,
     &getVideoInfo,
@@ -1024,7 +1024,7 @@ const VSAPI vs_internal_vsapi = {
     &newAudioFrame,
     &newAudioFrame2,
     &freeFrame,
-    &cloneFrameRef,
+    &addFrameRef,
     &copyFrame,
     &getFramePropertiesRO,
     &getFramePropertiesRW,
@@ -1056,7 +1056,7 @@ const VSAPI vs_internal_vsapi = {
 
     &createFunction,
     &freeFunction,
-    &cloneFunctionRef,
+    &addFunctionRef,
     &callFunction,
 
     &createMap,
@@ -1142,9 +1142,9 @@ const vs3::VSAPI3 vs_internal_vsapi3 = {
     &freeCore,
     &getCoreInfo3,
 
-    &cloneFrameRef,
-    &cloneNodeRef,
-    &cloneFunctionRef,
+    &addFrameRef,
+    &addNodeRef,
+    &addFunctionRef,
 
     &freeFrame,
     &freeNode,

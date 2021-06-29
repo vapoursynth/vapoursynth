@@ -179,7 +179,7 @@ static void VS_CC preMultiplyCreate(const VSMap *in, VSMap *out, void *userData,
         vsapi->freeMap(min);
         setHint = true;
     } else if (d->vi->format.numPlanes > 1) {
-        d->node[2] = vsapi->cloneNodeRef(d->node[1]);
+        d->node[2] = vsapi->addNodeRef(d->node[1]);
     }
 
     vsapi->createVideoFilter(out, "PreMultiply", d->vi, preMultiplyGetFrame, filterFree<PreMultiplyData>, fmParallel, 0, d.get(), core);

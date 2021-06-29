@@ -314,7 +314,7 @@ struct VSAPI {
     void (VS_CC *createVideoFilter)(VSMap *out, const char *name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT; /* output nodes are appended to the clip key in the out map */
     void (VS_CC *createAudioFilter)(VSMap *out, const char *name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, int filterMode, int flags, void *instanceData, VSCore *core) VS_NOEXCEPT; /* output nodes are appended to the clip key in the out map */
     void (VS_CC *freeNode)(VSNode *node) VS_NOEXCEPT;
-    VSNode *(VS_CC *cloneNodeRef)(VSNode *node) VS_NOEXCEPT;
+    VSNode *(VS_CC *addNodeRef)(VSNode *node) VS_NOEXCEPT;
     int (VS_CC *getNodeType)(VSNode *node) VS_NOEXCEPT; /* returns VSMediaType */
     int (VS_CC *getNodeFlags)(VSNode *node) VS_NOEXCEPT; /* returns a mask of VSNodeFlags */
     const VSVideoInfo *(VS_CC *getVideoInfo)(VSNode *node) VS_NOEXCEPT;
@@ -326,7 +326,7 @@ struct VSAPI {
     VSFrame *(VS_CC *newAudioFrame)(const VSAudioFormat *format, int numSamples, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT;
     VSFrame *(VS_CC *newAudioFrame2)(const VSAudioFormat *format, int numSamples, const VSFrame **channelSrc, const int *channels, const VSFrame *propSrc, VSCore *core) VS_NOEXCEPT; /* same as newAudioFrame but allows the specified channels to be effectively copied from the source frames */
     void (VS_CC *freeFrame)(const VSFrame *f) VS_NOEXCEPT;
-    const VSFrame *(VS_CC *cloneFrameRef)(const VSFrame *f) VS_NOEXCEPT;
+    const VSFrame *(VS_CC *addFrameRef)(const VSFrame *f) VS_NOEXCEPT;
     VSFrame *(VS_CC *copyFrame)(const VSFrame *f, VSCore *core) VS_NOEXCEPT;
     const VSMap *(VS_CC *getFramePropertiesRO)(const VSFrame *f) VS_NOEXCEPT;
     VSMap *(VS_CC *getFramePropertiesRW)(VSFrame *f) VS_NOEXCEPT;
@@ -361,7 +361,7 @@ struct VSAPI {
     /* External functions */
     VSFunction *(VS_CC *createFunction)(VSPublicFunction func, void *userData, VSFreeFunctionData free, VSCore *core) VS_NOEXCEPT;
     void (VS_CC *freeFunction)(VSFunction *f) VS_NOEXCEPT;
-    VSFunction *(VS_CC *cloneFunctionRef)(VSFunction *f) VS_NOEXCEPT;
+    VSFunction *(VS_CC *addFunctionRef)(VSFunction *f) VS_NOEXCEPT;
     void (VS_CC *callFunction)(VSFunction *func, const VSMap *in, VSMap *out) VS_NOEXCEPT;
 
     /* Map and property access functions */

@@ -577,7 +577,7 @@ static void VS_CC audioMixCreate(const VSMap *in, VSMap *out, void *userData, VS
         VSNode *node = vsapi->mapGetNode(in, "clips", std::min(numSrcNodes - 1, i), nullptr);
         const VSAudioFormat &f = vsapi->getAudioInfo(node)->format;
         for (int j = 0; j < f.numChannels; j++) {
-            d->sourceNodes.push_back({ (j > 0) ? vsapi->cloneNodeRef(node) : node, j, -1, {} });
+            d->sourceNodes.push_back({ (j > 0) ? vsapi->addNodeRef(node) : node, j, -1, {} });
             numSrcChannels++;
         }
     }
@@ -878,7 +878,7 @@ static const VSFrame *VS_CC blankAudioGetframe(int n, int activationReason, void
         if (d->keep) {
             if (frame)
                 d->f = frame;
-            return vsapi->cloneFrameRef(d->f);
+            return vsapi->addFrameRef(d->f);
         } else {
             return frame;
         }

@@ -558,7 +558,7 @@ static int compareFieldsSlow(const VSFrame *prv, const VSFrame *src, const VSFra
 static const VSFrame *createWeaveFrame(const VSFrame *prv, const VSFrame *src,
     const VSFrame *nxt, const VSAPI *vsapi, VSCore *core, int match, int field) {
     if (match == 1) {
-        return vsapi->cloneFrameRef(src);
+        return vsapi->addFrameRef(src);
     } else {
         VSFrame *dst = vsapi->newVideoFrame(vsapi->getVideoFrameFormat(src), vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), src, core);
 
@@ -706,7 +706,7 @@ static const VSFrame *VS_CC vfmGetFrame(int n, int activationReason, void *insta
         if (vfm->mode >= 4)
             match = compareFieldsSlow(prv, src, nxt, map, match, fxo[mN], vfm->mchroma, field, vfm->y0, vfm->y1, tbuffer, vfm->tpitchy, vfm->tpitchuv, vsapi);
 
-        genFrames[mC] = vsapi->cloneFrameRef(src);
+        genFrames[mC] = vsapi->addFrameRef(src);
 
         // calculate all values for mic output, checkmm calculates and prepares it for the two matches if not already done
         if (vfm->micout) {
@@ -759,7 +759,7 @@ static const VSFrame *VS_CC vfmGetFrame(int n, int activationReason, void *insta
         } else {
             if (!genFrames[match])
                 genFrames[match] = createWeaveFrame(prv, src, nxt, vsapi, core, match, field);
-            dst1 = vsapi->cloneFrameRef(genFrames[match]);
+            dst1 = vsapi->addFrameRef(genFrames[match]);
         }
 
         vsapi->freeFrame(prv);

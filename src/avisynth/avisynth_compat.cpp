@@ -131,7 +131,7 @@ const VSFrame *FakeAvisynth::avsToVSFrame(VideoFrame *frame) {
     std::map<VideoFrame *, const VSFrame *>::iterator it = ownedFrames.find(frame);
 
     if (it != ownedFrames.end()) {
-        ref = vsapi->cloneFrameRef(it->second);
+        ref = vsapi->addFrameRef(it->second);
     } else {
         vsapi->logMessage(mtFatal, "unreachable condition", core);
         assert(false);

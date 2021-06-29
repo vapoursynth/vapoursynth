@@ -315,7 +315,7 @@ const VSFrame *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
     bool doPrefetch = false;
 
     if (n == lastPosition) {
-        f = vsapi->cloneFrameRef(lastFrame);
+        f = vsapi->addFrameRef(lastFrame);
         success = true;
     } else {
         int ndiff = n - lastPosition;
@@ -414,7 +414,7 @@ const VSFrame *VapourSynther::GetFrame(AvfsLog_* log, int n, bool *_success) {
             log->Line(getError());
         } else {
             lastPosition = n;
-            lastFrame = vsapi->cloneFrameRef(f);
+            lastFrame = vsapi->addFrameRef(f);
         }
     }
 

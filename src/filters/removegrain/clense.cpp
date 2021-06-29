@@ -178,10 +178,10 @@ void VS_CC clenseCreate(const VSMap *in, VSMap *out, void *userData, VSCore *cor
     if (d.mode == cmNormal) {
         d.pnode = vsapi->mapGetNode(in, "previous", 0, &err);
         if (err)
-            d.pnode = vsapi->cloneNodeRef(d.cnode);
+            d.pnode = vsapi->addNodeRef(d.cnode);
         d.nnode = vsapi->mapGetNode(in, "next", 0, &err);
         if (err)
-            d.nnode = vsapi->cloneNodeRef(d.cnode);
+            d.nnode = vsapi->addNodeRef(d.cnode);
     }
 
     if (d.pnode && !isSameVideoInfo(d.vi, vsapi->getVideoInfo(d.pnode)))
