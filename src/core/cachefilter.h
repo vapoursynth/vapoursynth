@@ -198,7 +198,7 @@ public:
     VSCache cache;
     VSNodeRef *clip;
     VSCore *core;
-    VSNode *node = nullptr;
+    VSNodeRef *node = nullptr;
     int lastN = -1;
     int numThreads = 0;
     bool makeLinear = false;
@@ -208,7 +208,7 @@ public:
     void addCache(VSNodeRef *clip) {
         std::lock_guard<std::mutex> lock(core->cacheLock);
         assert(clip);
-        node = clip->clip;
+        node = clip;
         core->caches.insert(node);
     }
 

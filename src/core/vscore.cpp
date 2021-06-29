@@ -93,12 +93,12 @@ static std::wstring readRegistryValue(const wchar_t *keyName, const wchar_t *val
 }
 #endif
 
-VSFrameContext::VSFrameContext(int n, VSNode *clip, const PVSFrameContext &upstreamContext) :
-    refcount(1), reqOrder(upstreamContext->reqOrder), n(n), clip(clip), upstreamContext(upstreamContext), userData(nullptr), frameDone(nullptr), lockOnOutput(true), node(nullptr) {
+VSFrameContext::VSFrameContext(int n, VSNodeRef *clip, const PVSFrameContext &upstreamContext) :
+    refcount(1), reqOrder(upstreamContext->reqOrder), n(n), upstreamContext(upstreamContext), userData(nullptr), frameDone(nullptr), lockOnOutput(true), node(nullptr) {
 }
 
 VSFrameContext::VSFrameContext(int n, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput) :
-    refcount(1), reqOrder(0), n(n), clip(node->clip), userData(userData), frameDone(frameDone), lockOnOutput(lockOnOutput), node(node) {
+    refcount(1), reqOrder(0), n(n), userData(userData), frameDone(frameDone), lockOnOutput(lockOnOutput), node(node) {
 }
 
 bool VSFrameContext::setError(const std::string &errorMsg) {
@@ -545,7 +545,7 @@ VSMap *addCaches(VSMap *s, bool makeLinearOnly, VSCore *core) {
                 VSVideoNodeArray *p = reinterpret_cast<VSVideoNodeArray *>(arr);
                 VSVideoNodeArray *r = new VSVideoNodeArray();
                 for (int i = 0; i < p->size(); i++) {
-                    VSNode *node = p->at(i).get()->clip;
+                    VSNodeRef *node = p->at(i).get();
                     if (node->getApiMajor() == 3 && !!(node->getNodeFlags() & vs3::nfMakeLinear)) {
                         VSMap *m = new VSMap();
                         vs_internal_vsapi.mapSetInt(m, "make_linear", 1, paAppend);
@@ -569,7 +569,7 @@ VSMap *addCaches(VSMap *s, bool makeLinearOnly, VSCore *core) {
                 VSVideoNodeArray *p = reinterpret_cast<VSVideoNodeArray *>(arr);
                 VSVideoNodeArray *r = new VSVideoNodeArray();
                 for (int i = 0; i < p->size(); i++) {
-                    VSNode *node = p->at(i).get()->clip;
+                    VSNodeRef *node = p->at(i).get();
                     if (!(node->getNodeFlags() & nfNoCache)) {
                         VSMap *m = new VSMap();
                         vs_internal_vsapi.mapSetNode(m, "clip", p->at(i).get(), paAppend);
@@ -586,7 +586,7 @@ VSMap *addCaches(VSMap *s, bool makeLinearOnly, VSCore *core) {
                 VSAudioNodeArray *p = reinterpret_cast<VSAudioNodeArray *>(arr);
                 VSAudioNodeArray *r = new VSAudioNodeArray();
                 for (int i = 0; i < p->size(); i++) {
-                    VSNode *node = p->at(i).get()->clip;
+                    VSNodeRef *node = p->at(i).get();
                     if (!(node->getNodeFlags() & nfNoCache)) {
                         VSMap *m = new VSMap();
                         vs_internal_vsapi.mapSetNode(m, "clip", p->at(i).get(), paAppend);
@@ -770,20 +770,7 @@ const std::string &VSPluginFunction::getReturnType() const {
     return returnType;
 }
 
-void VSNodeRef::add_ref() noexcept {
-    assert(refcount > 0);
-    ++refcount;
-}
-
-void VSNodeRef::release() noexcept {
-    assert(refcount > 0);
-    if (--refcount == 0) {
-        clip->release();
-        delete this;
-    }
-}
-
-VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
+VSNodeRef::VSNodeRef(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
     refcount(0), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
 
     if (flags & ~(nfNoCache | vs3::nfIsCache | vs3::nfMakeLinear))
@@ -823,7 +810,7 @@ VSNode::VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilt
     }
 }
 
-VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
+VSNodeRef::VSNodeRef(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
     refcount(1), nodeType(mtVideo), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
 
     if (flags & ~nfNoCache)
@@ -843,7 +830,7 @@ VSNode::VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame 
     }
 }
 
-VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
+VSNodeRef::VSNodeRef(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree freeFunc, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core) :
     refcount(1), nodeType(mtAudio), instanceData(instanceData), name(name), filterGetFrame(getFrame), freeFunc(freeFunc), filterMode(filterMode), apiMajor(apiMajor), core(core), flags(flags), serialFrame(-1) {
 
     if (flags & ~nfNoCache)
@@ -865,27 +852,27 @@ VSNode::VSNode(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame 
     }
 }
 
-VSNode::~VSNode() {
+VSNodeRef::~VSNodeRef() {
     core->destroyFilterInstance(this);
 }
 
-void VSNode::getFrame(const PVSFrameContext &ct) {
+void VSNodeRef::getFrame(const PVSFrameContext &ct) {
     core->threadPool->start(ct);
 }
 
-const VSVideoInfo &VSNode::getVideoInfo() const {
+const VSVideoInfo &VSNodeRef::getVideoInfo() const {
     return vi;
 }
 
-const vs3::VSVideoInfo &VSNode::getVideoInfo3() const {
+const vs3::VSVideoInfo &VSNodeRef::getVideoInfo3() const {
     return v3vi;
 }
 
-const VSAudioInfo &VSNode::getAudioInfo() const {
+const VSAudioInfo &VSNodeRef::getAudioInfo() const {
     return ai;
 }
 
-void VSNode::setVideoInfo3(const vs3::VSVideoInfo *vi, int numOutputs) {
+void VSNodeRef::setVideoInfo3(const vs3::VSVideoInfo *vi, int numOutputs) {
     if (numOutputs < 1)
         core->logFatal("setVideoInfo: Video filter " + name + " needs to have at least one output");
     if (numOutputs > 1)
@@ -909,7 +896,7 @@ void VSNode::setVideoInfo3(const vs3::VSVideoInfo *vi, int numOutputs) {
     refcount = numOutputs;
 }
 
-const char *VSNode::getCreationFunctionName(int level) const {
+const char *VSNodeRef::getCreationFunctionName(int level) const {
     if (core->enableGraphInspection) {
         VSFunctionFrame *frame = functionFrame.get();
         for (int i = 0; i < level; i++) {
@@ -923,7 +910,7 @@ const char *VSNode::getCreationFunctionName(int level) const {
     return nullptr;
 }
 
-const VSMap *VSNode::getCreationFunctionArguments(int level) const {
+const VSMap *VSNodeRef::getCreationFunctionArguments(int level) const {
     if (core->enableGraphInspection) {
         VSFunctionFrame *frame = functionFrame.get();
         for (int i = 0; i < level; i++) {
@@ -937,7 +924,7 @@ const VSMap *VSNode::getCreationFunctionArguments(int level) const {
     return nullptr;
 }
 
-void VSNode::setFilterRelation(VSNodeRef **dependencies, int numDeps) {
+void VSNodeRef::setFilterRelation(VSNodeRef **dependencies, int numDeps) {
     if (core->enableGraphInspection) {
         VSMap *tmp = new VSMap();
         for (int i = 0; i < numDeps; i++)
@@ -947,7 +934,7 @@ void VSNode::setFilterRelation(VSNodeRef **dependencies, int numDeps) {
     }
 }
 
-PVSFrameRef VSNode::getFrameInternal(int n, int activationReason, VSFrameContext *frameCtx) {
+PVSFrameRef VSNodeRef::getFrameInternal(int n, int activationReason, VSFrameContext *frameCtx) {
     std::chrono::time_point<std::chrono::high_resolution_clock> startTime;
     bool enableGraphInspection = core->enableGraphInspection;
     if (enableGraphInspection)
@@ -995,19 +982,19 @@ PVSFrameRef VSNode::getFrameInternal(int n, int activationReason, VSFrameContext
     return nullptr;
 }
 
-void VSNode::reserveThread() {
+void VSNodeRef::reserveThread() {
     core->threadPool->reserveThread();
 }
 
-void VSNode::releaseThread() {
+void VSNodeRef::releaseThread() {
     core->threadPool->releaseThread();
 }
 
-bool VSNode::isWorkerThread() {
+bool VSNodeRef::isWorkerThread() {
     return core->threadPool->isWorkerThread();
 }
 
-void VSNode::notifyCache(bool needMemory) {
+void VSNodeRef::notifyCache(bool needMemory) {
     std::lock_guard<std::mutex> lock(serialMutex);
     CacheInstance *cache = reinterpret_cast<CacheInstance *>(instanceData);
     cache->cache.adjustSize(needMemory);
@@ -1670,7 +1657,7 @@ struct VSCoreShittyFreeList {
     VSCoreShittyFreeList *next;
 };
 
-void VSCore::destroyFilterInstance(VSNode *node) {
+void VSCore::destroyFilterInstance(VSNodeRef *node) {
     static thread_local int freeDepth = 0;
     static thread_local VSCoreShittyFreeList *nodeFreeList = nullptr;
     freeDepth++;
@@ -1953,10 +1940,8 @@ void VSCore::loadPlugin(const std::string &filename, const std::string &forcedNa
 
 void VSCore::createFilter3(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
     try {
-        VSNode *node = new VSNode(in, out, name, init, getFrame, free, filterMode, flags, instanceData, apiMajor, this);
-        VSNodeRef *ref = new VSNodeRef(node);
-        vs_internal_vsapi.mapSetNode(out, "clip", ref, paAppend);
-        ref->release();
+        VSNodeRef *node = new VSNodeRef(in, out, name, init, getFrame, free, filterMode, flags, instanceData, apiMajor, this);
+        vs_internal_vsapi.mapSetNode(out, "clip", node, paAppend);
     } catch (VSException &e) {
         vs_internal_vsapi.mapSetError(out, e.what());
     }
@@ -1964,10 +1949,8 @@ void VSCore::createFilter3(const VSMap *in, VSMap *out, const std::string &name,
 
 void VSCore::createVideoFilter(VSMap *out, const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
     try {
-        VSNode *node = new VSNode(name, vi, getFrame, free, filterMode, flags, instanceData, apiMajor, this);
-        VSNodeRef *ref = new VSNodeRef(node);
-        vs_internal_vsapi.mapSetNode(out, "clip", ref, paAppend);
-        ref->release();
+        VSNodeRef *node = new VSNodeRef(name, vi, getFrame, free, filterMode, flags, instanceData, apiMajor, this);
+        vs_internal_vsapi.mapSetNode(out, "clip", node, paAppend);
     } catch (VSException &e) {
         vs_internal_vsapi.mapSetError(out, e.what());
     }
@@ -1975,10 +1958,8 @@ void VSCore::createVideoFilter(VSMap *out, const std::string &name, const VSVide
 
 void VSCore::createAudioFilter(VSMap *out, const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor) {
     try {
-        VSNode *node = new VSNode(name, ai, getFrame, free, filterMode, flags, instanceData, apiMajor, this);
-        VSNodeRef *ref = new VSNodeRef(node);
-        vs_internal_vsapi.mapSetNode(out, "clip", ref, paAppend);
-        ref->release();
+        VSNodeRef *node = new VSNodeRef(name, ai, getFrame, free, filterMode, flags, instanceData, apiMajor, this);
+        vs_internal_vsapi.mapSetNode(out, "clip", node, paAppend);
     } catch (VSException &e) {
         vs_internal_vsapi.mapSetError(out, e.what());
     }

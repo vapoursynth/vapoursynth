@@ -87,13 +87,13 @@ static uint8_t *VS_CC getWritePtr(VSFrameRef *frame, int plane) VS_NOEXCEPT {
 
 static void VS_CC getFrameAsync(int n, VSNodeRef *clip, VSFrameDoneCallback fdc, void *userData) VS_NOEXCEPT {
     assert(clip && fdc);
-    int numFrames = (clip->clip->getNodeType() == mtVideo) ? clip->clip->getVideoInfo().numFrames : clip->clip->getAudioInfo().numFrames;
+    int numFrames = (clip->getNodeType() == mtVideo) ? clip->getVideoInfo().numFrames : clip->getAudioInfo().numFrames;
     VSFrameContext *ctx = new VSFrameContext(n, clip, fdc, userData);
 
     if (n < 0 || (numFrames && n >= numFrames))
         ctx->setError("Invalid frame number " + std::to_string(n) + " requested, clip only has " + std::to_string(numFrames) + " frames");
 
-    clip->clip->getFrame(ctx);
+    clip->getFrame(ctx);
 }
 
 struct GetFrameWaiter {
@@ -119,36 +119,35 @@ static void VS_CC frameWaiterCallback(void *userData, const VSFrameRef *frame, i
     g->a.notify_one();
 }
 
-static const VSFrameRef *VS_CC getFrame(int n, VSNodeRef *clip, char *errorMsg, int bufSize) VS_NOEXCEPT {
-    assert(clip);
+static const VSFrameRef *VS_CC getFrame(int n, VSNodeRef *node, char *errorMsg, int bufSize) VS_NOEXCEPT {
+    assert(node);
     GetFrameWaiter g(errorMsg, bufSize);
     std::unique_lock<std::mutex> l(g.b);
-    VSNode *node = clip->clip;
     bool isWorker = node->isWorkerThread();
     if (isWorker)
         node->releaseThread();
-    node->getFrame(new VSFrameContext(n, clip, &frameWaiterCallback, &g, false));
+    node->getFrame(new VSFrameContext(n, node, &frameWaiterCallback, &g, false));
     g.a.wait(l);
     if (isWorker)
         node->reserveThread();
     return g.r;
 }
 
-static void VS_CC requestFrameFilter(int n, VSNodeRef *clip, VSFrameContext *frameCtx) VS_NOEXCEPT {
-    assert(clip && frameCtx);
-    int numFrames = (clip->clip->getNodeType() == mtVideo) ? clip->clip->getVideoInfo().numFrames : clip->clip->getAudioInfo().numFrames;
+static void VS_CC requestFrameFilter(int n, VSNodeRef *node, VSFrameContext *frameCtx) VS_NOEXCEPT {
+    assert(node && frameCtx);
+    int numFrames = (node->getNodeType() == mtVideo) ? node->getVideoInfo().numFrames : node->getAudioInfo().numFrames;
     if (n >= numFrames)
         n = numFrames - 1;
-    frameCtx->reqList.emplace_back(new VSFrameContext(n, clip->clip, PVSFrameContext(frameCtx, true)));
+    frameCtx->reqList.emplace_back(new VSFrameContext(n, node, PVSFrameContext(frameCtx, true)));
 }
 
-static const VSFrameRef *VS_CC getFrameFilter(int n, VSNodeRef *clip, VSFrameContext *frameCtx) VS_NOEXCEPT {
-    assert(clip && frameCtx);
+static const VSFrameRef *VS_CC getFrameFilter(int n, VSNodeRef *node, VSFrameContext *frameCtx) VS_NOEXCEPT {
+    assert(node && frameCtx);
 
-    int numFrames = (clip->clip->getNodeType() == mtVideo) ? clip->clip->getVideoInfo().numFrames : clip->clip->getAudioInfo().numFrames;
+    int numFrames = (node->getNodeType() == mtVideo) ? node->getVideoInfo().numFrames : node->getAudioInfo().numFrames;
     if (numFrames && n >= numFrames)
         n = numFrames - 1;
-    auto key = NodeOutputKey(clip->clip, n);
+    auto key = NodeOutputKey(node, n);
     for (size_t i = 0; i < frameCtx->availableFrames.size(); i++) {
         const auto &tmp = frameCtx->availableFrames[i];
         if (tmp.first == key) {
@@ -246,18 +245,18 @@ static void VS_CC setFilterError(const char *errorMessage, VSFrameContext *conte
 }
 
 static const VSVideoInfo *VS_CC getVideoInfo(VSNodeRef *node) VS_NOEXCEPT {
-    assert(node && node->clip->getNodeType() == mtVideo);
-    return &node->clip->getVideoInfo();
+    assert(node && node->getNodeType() == mtVideo);
+    return &node->getVideoInfo();
 }
 
 static const vs3::VSVideoInfo *VS_CC getVideoInfo3(VSNodeRef *c) VS_NOEXCEPT {
     assert(c);
-    return &c->clip->getVideoInfo3();
+    return &c->getVideoInfo3();
 }
 
 static void VS_CC setVideoInfo3(const vs3::VSVideoInfo *vi, int numOutputs, vs3::VSNode *c) VS_NOEXCEPT {
     assert(vi && numOutputs > 0 && c);
-    reinterpret_cast<VSNode *>(c)->setVideoInfo3(vi, numOutputs);
+    reinterpret_cast<VSNodeRef *>(c)->setVideoInfo3(vi, numOutputs);
 }
 
 static const VSVideoFormat *VS_CC getVideoFrameFormat(const VSFrameRef *f) VS_NOEXCEPT {
@@ -588,7 +587,7 @@ static int VS_CC propSetData3(VSMap *map, const char *key, const char *d, int le
 }
 
 static int VS_CC mapSetNode(VSMap *map, const char *key, VSNodeRef *node, int append) VS_NOEXCEPT {
-    if (node == nullptr || node->clip->getNodeType() == mtVideo)
+    if (node == nullptr || node->getNodeType() == mtVideo)
         return !propSetShared<PVSNodeRef, ptVideoNode>(map, key, { node, true }, append);
     else
         return !propSetShared<PVSNodeRef, ptAudioNode>(map, key, { node, true }, append);
@@ -765,7 +764,7 @@ static void VS_CC queryCompletedFrame3(VSNodeRef **node, int *n, VSFrameContext 
 
 static void VS_CC releaseFrameEarly(VSNodeRef *node, int n, VSFrameContext *frameCtx) VS_NOEXCEPT {
     assert(node && frameCtx);
-    auto key = NodeOutputKey(node->clip, n);
+    auto key = NodeOutputKey(node, n);
     for (size_t i = 0; i < frameCtx->reqList.size(); i++) {
         auto &tmp = frameCtx->availableFrames[i];
         if (tmp.first == key) {
@@ -939,8 +938,8 @@ static int VS_CC getVideoFormatName(const VSVideoFormat *format, char *buffer) V
 }
 
 static const VSAudioInfo *VS_CC getAudioInfo(VSNodeRef *node) VS_NOEXCEPT {
-    assert(node && node->clip->getNodeType() == mtAudio);
-    return &node->clip->getAudioInfo();
+    assert(node && node->getNodeType() == mtAudio);
+    return &node->getAudioInfo();
 }
 
 static const VSAudioFormat *VS_CC getAudioFrameFormat(const VSFrameRef *f) VS_NOEXCEPT {
@@ -949,13 +948,13 @@ static const VSAudioFormat *VS_CC getAudioFrameFormat(const VSFrameRef *f) VS_NO
 
 static int VS_CC getNodeType(VSNodeRef *node) VS_NOEXCEPT {
     assert(node);
-    return node->clip->getNodeType();
+    return node->getNodeType();
 }
 
 
 static int VS_CC getNodeFlags(VSNodeRef *node) VS_NOEXCEPT {
     assert(node);
-    return node->clip->getNodeFlags();
+    return node->getNodeFlags();
 }
 
 static int VS_CC getFrameType(const VSFrameRef *f) VS_NOEXCEPT {
@@ -974,33 +973,33 @@ static int VS_CC getAPIVersion(void) VS_NOEXCEPT{
 
 static const char *VS_CC getNodeCreationFunctionName(VSNodeRef *node, int level) VS_NOEXCEPT {
     assert(node);
-    return node->clip->getCreationFunctionName(level);
+    return node->getCreationFunctionName(level);
 }
 
 static const VSMap *VS_CC getNodeCreationFunctionArguments(VSNodeRef *node, int level) VS_NOEXCEPT {
     assert(node);
-    return node->clip->getCreationFunctionArguments(level);
+    return node->getCreationFunctionArguments(level);
 }
 
 static const char *VS_CC getNodeName(VSNodeRef *node) VS_NOEXCEPT {
     assert(node);
-    return node->clip->getName().c_str();
+    return node->getName().c_str();
 }
 
 static int VS_CC getNodeFilterMode(VSNodeRef *node) VS_NOEXCEPT {
     assert(node);
-    return node->clip->getFilterMode();
+    return node->getFilterMode();
 }
 
 static int64_t VS_CC getNodeFilterTime(VSNodeRef *node) VS_NOEXCEPT {
     assert(node);
-    return node->clip->getFilterTime();
+    return node->getFilterTime();
 }
 
 static void VS_CC setInternalFilterRelation(const VSMap *nodeMap, VSNodeRef **dependencies, int numDeps) VS_NOEXCEPT {
     assert(nodeMap && dependencies && dependencies > 0);
     VSNodeRef *ref = mapGetNode(nodeMap, "clip", 0, nullptr);
-    ref->clip->setFilterRelation(dependencies, numDeps);
+    ref->setFilterRelation(dependencies, numDeps);
     freeNode(ref);
 }
 

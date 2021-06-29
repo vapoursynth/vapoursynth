@@ -75,7 +75,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Go through all tasks from the top (oldest) and process the first one possible
-        std::set<VSNode *> seenNodes;
+        std::set<VSNodeRef *> seenNodes;
 
         for (auto iter = owner->tasks.begin(); iter != owner->tasks.end(); ++iter) {
             VSFrameContext *mainContext = iter->get();
@@ -104,14 +104,14 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 mainContext = mainContext->upstreamContext.get();
             }
 
-            VSNode *clip = mainContext->clip;
-            int filterMode = clip->filterMode;
+            VSNodeRef *node = mainContext->node;
+            int filterMode = node->filterMode;
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Fast path for arFrameReady events that don't need to be notified
 
-            if ((!clip->frameReadyNotify && (mainContext->numFrameRequests > 1) && (!leafContext || !leafContext->hasError()))) {
-                mainContext->availableFrames.push_back(std::make_pair(NodeOutputKey(leafContext->clip, leafContext->n), leafContext->returnedFrame));
+            if ((!node->frameReadyNotify && (mainContext->numFrameRequests > 1) && (!leafContext || !leafContext->hasError()))) {
+                mainContext->availableFrames.push_back(std::make_pair(NodeOutputKey(leafContext->node, leafContext->n), leafContext->returnedFrame));
                 --mainContext->numFrameRequests;
                 owner->tasks.erase(iter);
                 ranTask = true;
@@ -119,7 +119,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             }
 
             // Don't try to lock the same node twice since it's likely to fail and will produce more out of order requests as well
-            if (filterMode != fmFrameState && !seenNodes.insert(mainContext->clip).second)
+            if (filterMode != fmFrameState && !seenNodes.insert(node).second)
                 continue;
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -131,30 +131,30 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 
             // Guard against multiple arFrameReady calls into the same instance for the same frame, without this plugin writers would need to hold a mutex to modify the per frame data
             // Only needed due to the arFrameReady events and nothing else
-            bool useConcurrentCheck = (clip->frameReadyNotify && ((filterMode == fmParallel || filterMode == fmParallelRequests) && mainContext->numFrameRequests > 1));
+            bool useConcurrentCheck = (node->frameReadyNotify && ((filterMode == fmParallel || filterMode == fmParallelRequests) && mainContext->numFrameRequests > 1));
 
             // Note that technically useSerialLock^useConcurrentCheck has to be true BUT due to the initial request (mainContext->numFrameRequests == 0) case
             // not starting its requests until after the arInitial call returns no lock or bookkeeping of it is actually needed since it can't call into the filter at the same time as arFrameReady
             assert(!(useSerialLock && useConcurrentCheck));
 
             if (useSerialLock) {
-                if (!clip->serialMutex.try_lock())
+                if (!node->serialMutex.try_lock())
                     continue;
                 if (filterMode == fmFrameState) {
-                    if (clip->serialFrame == -1) {
-                        clip->serialFrame = mainContext->n;
+                    if (node->serialFrame == -1) {
+                        node->serialFrame = mainContext->n;
                         // another frame already in progress?
-                    } else if (clip->serialFrame != mainContext->n) {
-                        clip->serialMutex.unlock();
+                    } else if (node->serialFrame != mainContext->n) {
+                        node->serialMutex.unlock();
                         continue;
                     }
                 }
             }
 
             if (useConcurrentCheck) {
-                std::lock_guard<std::mutex> lock(clip->concurrentFramesMutex);
+                std::lock_guard<std::mutex> lock(node->concurrentFramesMutex);
                 // is the filter already processing another call for this frame? if so move along
-                if (!clip->concurrentFrames.insert(mainContext->n).second)
+                if (!node->concurrentFrames.insert(mainContext->n).second)
                     continue;
             }
 
@@ -185,9 +185,9 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 if (--mainContext->numFrameRequests > 0)
                     ar = vs3::arFrameReady;
                 else
-                    ar = (clip->apiMajor == 3) ? static_cast<int>(vs3::arAllFramesReady) : static_cast<int>(arAllFramesReady);
+                    ar = (node->apiMajor == 3) ? static_cast<int>(vs3::arAllFramesReady) : static_cast<int>(arAllFramesReady);
 
-                mainContext->availableFrames.push_back(std::make_pair(NodeOutputKey(leafContext->clip, leafContext->n), leafContext->returnedFrame));
+                mainContext->availableFrames.push_back(std::make_pair(NodeOutputKey(leafContext->node, leafContext->n), leafContext->returnedFrame));
                 mainContext->lastCompletedN = leafContext->n;
                 mainContext->lastCompletedNode = leafContext->node;
             }
@@ -207,26 +207,26 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
 #endif
             PVSFrameRef f;
             if (!skipCall)
-                f = clip->getFrameInternal(mainContext->n, ar, mainContext);
+                f = node->getFrameInternal(mainContext->n, ar, mainContext);
             ranTask = true;
 #ifdef VS_FRAME_REQ_DEBUG
             vsWarning("Exiting: %s Frame: %d Index: %d AR: %d Req: %d", mainContext->clip->name.c_str(), mainContext->n, mainContext->index, (int)ar, (int)mainContext->reqOrder);
 #endif
             bool frameProcessingDone = f || mainContext->hasError();
             if (mainContext->hasError() && f)
-                owner->core->logFatal("A frame was returned by " + clip->name + " but an error was also set, this is not allowed");
+                owner->core->logFatal("A frame was returned by " + node->name + " but an error was also set, this is not allowed");
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Unlock so the next job can run on the context
             if (useSerialLock) {
                 if (filterMode == fmFrameState && frameProcessingDone)
-                    clip->serialFrame = -1;
-                clip->serialMutex.unlock();
+                    node->serialFrame = -1;
+                node->serialMutex.unlock();
             }
 
             if (useConcurrentCheck) {
-                std::lock_guard<std::mutex> lock(clip->concurrentFramesMutex);
-                clip->concurrentFrames.erase(mainContext->n);
+                std::lock_guard<std::mutex> lock(node->concurrentFramesMutex);
+                node->concurrentFrames.erase(mainContext->n);
             }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -244,7 +244,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             }
 
             if (frameProcessingDone)
-                owner->allContexts.erase(NodeOutputKey(mainContext->clip, mainContext->n));
+                owner->allContexts.erase(NodeOutputKey(mainContext->node, mainContext->n));
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Propagate status to other linked contexts
@@ -271,7 +271,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
                 } while ((mainContextRef = n));
             } else if (f) {
                 if (hasExistingRequests || requestedFrames)
-                    owner->core->logFatal("A frame was returned at the end of processing by " + clip->name + " but there are still outstanding requests");
+                    owner->core->logFatal("A frame was returned at the end of processing by " + node->name + " but there are still outstanding requests");
                 PVSFrameContext n;
 
                 do {
@@ -292,7 +292,7 @@ void VSThreadPool::runTasks(VSThreadPool *owner, std::atomic<bool> &stop) {
             } else if (hasExistingRequests || requestedFrames) {
                 // already scheduled, do nothing
             } else {
-                owner->core->logFatal("No frame returned at the end of processing by " + clip->name);
+                owner->core->logFatal("No frame returned at the end of processing by " + node->name);
             }
 
             if (needsSort)
@@ -400,7 +400,7 @@ void VSThreadPool::startInternal(const PVSFrameContext &context) {
     //unfortunately this would probably be quite slow for deep scripts so just hope the cache catches it
 
     if (context->n < 0)
-        core->logFatal("Negative frame request by: " + context->upstreamContext->clip->getName());
+        core->logFatal("Negative frame request by: " + context->upstreamContext->node->getName());
 
     // check to see if it's time to reevaluate cache sizes
     if (core->memory->isOverLimit()) {
@@ -419,12 +419,12 @@ void VSThreadPool::startInternal(const PVSFrameContext &context) {
         if (context->upstreamContext)
             ++context->upstreamContext->numFrameRequests;
 
-        NodeOutputKey p(context->clip, context->n);
+        NodeOutputKey p(context->node, context->n);
         
         auto it = allContexts.find(p);
         if (it != allContexts.end()) {
             PVSFrameContext &ctx = it->second;
-            assert(context->clip == ctx->clip && context->n == ctx->n);
+            assert(context->node == ctx->node && context->n == ctx->n);
 
             if (ctx->returnedFrame) {
                 // special case where the requested frame is encountered "by accident"

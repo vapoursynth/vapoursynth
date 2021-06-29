@@ -70,7 +70,7 @@ const int fmUnorderedLinear = fmFrameState + 1;
 struct VSFrameRef;
 struct VSCore;
 class VSCache;
-struct VSNode;
+struct VSNodeRef;
 struct VSNodeRef;
 class VSThreadPool;
 struct VSFrameContext;
@@ -78,7 +78,7 @@ struct VSFunctionRef;
 class VSMapData;
 
 typedef vs_intrusive_ptr<VSFrameRef> PVSFrameRef;
-typedef vs_intrusive_ptr<VSNode> PVSNode;
+typedef vs_intrusive_ptr<VSNodeRef> PVSNode;
 typedef vs_intrusive_ptr<VSNodeRef> PVSNodeRef;
 typedef vs_intrusive_ptr<VSFunctionRef> PVSFunctionRef;
 typedef vs_intrusive_ptr<VSFrameContext> PVSFrameContext;
@@ -92,7 +92,7 @@ class VSException : public std::runtime_error {
     using std::runtime_error::runtime_error;
 };
 
-typedef std::tuple<VSNode *, int> NodeOutputKey;
+typedef std::tuple<VSNodeRef *, int> NodeOutputKey;
 
 template<>
 struct std::hash<NodeOutputKey> {
@@ -371,18 +371,6 @@ public:
     bool isV3Compatible() const noexcept;
 };
 
-struct VSNodeRef {
-private:
-    std::atomic<long> refcount;
-public:
-    VSNode *clip;
-    VSNodeRef(VSNode *clip) noexcept : refcount(1), clip(clip) {}
-    ~VSNodeRef() {};
-
-    void add_ref() noexcept;
-    void release() noexcept;
-};
-
 class FilterArgument {
 public:
     std::string name;
@@ -593,7 +581,6 @@ private:
     size_t reqOrder;
     size_t numFrameRequests = 0;
     int n;
-    VSNode *clip;
     PVSFrameRef returnedFrame;
     PVSFrameContext upstreamContext;
     PVSFrameContext notificationChain;
@@ -633,7 +620,7 @@ public:
     }
 
     bool setError(const std::string &errorMsg);
-    VSFrameContext(int n, VSNode *clip, const PVSFrameContext &upstreamContext);
+    VSFrameContext(int n, VSNodeRef *clip, const PVSFrameContext &upstreamContext);
     VSFrameContext(int n, VSNodeRef *node, VSFrameDoneCallback frameDone, void *userData, bool lockOnOutput = true);
 };
 
@@ -650,7 +637,7 @@ struct VSFunctionFrame {
 
 
 
-struct VSNode {
+struct VSNodeRef {
     friend class VSThreadPool;
     friend struct VSCore;
 private:
@@ -684,10 +671,10 @@ private:
 
     PVSFrameRef getFrameInternal(int n, int activationReason, VSFrameContext *frameCtx);
 public:
-    VSNode(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core); // V3 compatibility
-    VSNode(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core);
-    VSNode(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core);
-    ~VSNode();
+    VSNodeRef(const VSMap *in, VSMap *out, const std::string &name, vs3::VSFilterInit init, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core); // V3 compatibility
+    VSNodeRef(const std::string &name, const VSVideoInfo *vi, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core);
+    VSNodeRef(const std::string &name, const VSAudioInfo *ai, VSFilterGetFrame getFrame, VSFilterFree free, VSFilterMode filterMode, int flags, void *instanceData, int apiMajor, VSCore *core);
+    ~VSNodeRef();
 
     void add_ref() noexcept {
         ++refcount;
@@ -870,7 +857,7 @@ private:
     std::mutex videoFormatLock;
     int videoFormatIdOffset = 1000;
     VSCoreInfo coreInfo;
-    std::set<VSNode *> caches;
+    std::set<VSNodeRef *> caches;
     std::mutex cacheLock;
 
     std::atomic<int> cpuLevel;
@@ -954,7 +941,7 @@ public:
     void functionInstanceDestroyed();
     void filterInstanceCreated();
     void filterInstanceDestroyed();
-    void destroyFilterInstance(VSNode *node);
+    void destroyFilterInstance(VSNodeRef *node);
 
     explicit VSCore(int flags);
     void freeCore();
